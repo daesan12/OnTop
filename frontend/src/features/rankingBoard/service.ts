@@ -39,34 +39,37 @@ function list<T>(value: unknown, parse: (item: unknown) => T & { rank: number; u
   })
 }
 
-function identity(value: unknown) {
-  if (!record(value) || !rank(value.rank) || !userId(value.userId) || !nickname(value.nickname)) return invalid()
+function identity(value: Record<string, unknown>) {
+  if (!rank(value.rank) || !userId(value.userId) || !nickname(value.nickname)) return invalid()
   return { rank: value.rank, userId: value.userId, nickname: value.nickname }
 }
 
-function championIdentity(value: unknown) {
-  if (!record(value) || !userId(value.userId) || !nickname(value.nickname) || !instant(value.completedAt)) return invalid()
+function championIdentity(value: Record<string, unknown>) {
+  if (!userId(value.userId) || !nickname(value.nickname) || !instant(value.completedAt)) return invalid()
   return { userId: value.userId, nickname: value.nickname, completedAt: value.completedAt }
 }
 
 export function parseParkRanking(value: unknown): ParkRankingSnapshot {
   if (!record(value) || !instant(value.updatedAt)) return invalid()
   const balance = list(value.balance, item => {
+    if (!record(item)) return invalid()
     const base = identity(item)
-    if (!record(item) || !safeWhole(item.coinBalance)) return invalid()
+    if (!safeWhole(item.coinBalance)) return invalid()
     return { ...base, coinBalance: item.coinBalance }
   })
   const bungeoppangChampion = value.bungeoppangChampion === null ? null : (() => {
-    const base = championIdentity(value.bungeoppangChampion)
-    if (!record(value.bungeoppangChampion) || !safeWhole(value.bungeoppangChampion.score)
-      || !safeWhole(value.bungeoppangChampion.maxCombo)) return invalid()
-    return { ...base, score: value.bungeoppangChampion.score, maxCombo: value.bungeoppangChampion.maxCombo }
+    const candidate = value.bungeoppangChampion
+    if (!record(candidate)) return invalid()
+    const base = championIdentity(candidate)
+    if (!safeWhole(candidate.score) || !safeWhole(candidate.maxCombo)) return invalid()
+    return { ...base, score: candidate.score, maxCombo: candidate.maxCombo }
   })()
   const jumpmapChampion = value.jumpmapChampion === null ? null : (() => {
-    const base = championIdentity(value.jumpmapChampion)
-    if (!record(value.jumpmapChampion) || !safeWhole(value.jumpmapChampion.finishMs)
-      || value.jumpmapChampion.finishMs === 0) return invalid()
-    return { ...base, finishMs: value.jumpmapChampion.finishMs }
+    const candidate = value.jumpmapChampion
+    if (!record(candidate)) return invalid()
+    const base = championIdentity(candidate)
+    if (!safeWhole(candidate.finishMs) || candidate.finishMs === 0) return invalid()
+    return { ...base, finishMs: candidate.finishMs }
   })()
   return { balance, bungeoppangChampion, jumpmapChampion, updatedAt: value.updatedAt }
 }
@@ -101,7 +104,7 @@ export function rankingColumns(snapshot: ParkRankingSnapshot): RankingDisplayCol
 
 export function formatJumpmapFinish(value: number) {
   const minutes = Math.floor(value / 60_000)
-  const seconds = Math.floor(value % 60_000 / 1_000)
+  const seconds = Math.floor((value % 60_000) / 1_000)
   const milliseconds = value % 1_000
   return `${minutes}분 ${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}초`
 }

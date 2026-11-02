@@ -45,6 +45,8 @@ describe('park ranking contract', () => {
     const rows = Array.from({ length: 11 }, (_, index) => ({ rank: index + 1, userId: String(index + 1), nickname: '사용자', coinBalance: 1 }))
     expect(() => parseParkRanking({ ...response, balance: rows })).toThrow('랭킹 응답')
     expect(() => parseParkRanking({ ...response, balance: [response.balance[0], response.balance[0]] })).toThrow('랭킹 응답')
+    expect(() => parseParkRanking({ ...response, bungeoppangChampion: 'invalid' })).toThrow('랭킹 응답')
+    expect(() => parseParkRanking({ ...response, jumpmapChampion: 123 })).toThrow('랭킹 응답')
     expect(() => parseParkRanking({ ...response, bungeoppangChampion: { ...response.bungeoppangChampion, nickname: '' } })).toThrow('랭킹 응답')
     expect(() => parseParkRanking({ ...response, jumpmapChampion: { ...response.jumpmapChampion, finishMs: 0 } })).toThrow('랭킹 응답')
     expect(() => parseParkRanking({ ...response, balance: [response.balance[2], response.balance[0]] })).toThrow('랭킹 응답')
