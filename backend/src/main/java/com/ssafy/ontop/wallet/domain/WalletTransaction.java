@@ -54,6 +54,19 @@ public class WalletTransaction {
         return transaction;
     }
 
+    public static WalletTransaction rafflePurchase(long walletId, long price, String key, Instant now) {
+        if (walletId <= 0 || price <= 0 || key == null || !key.startsWith("raffle:") || key.length() > 120) {
+            throw new IllegalArgumentException("응모권 구매 원장을 확인하세요.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.balanceDelta = -price;
+        transaction.transactionType = "RAFFLE_PURCHASE";
+        transaction.idempotencyKey = key;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
     public WalletTransaction(long walletId, long itemId, long total, String key) {
         this.walletId = walletId;
         this.itemId = itemId;

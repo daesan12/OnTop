@@ -1,6 +1,30 @@
 import { expect, test } from 'vitest'
-import { ALKKAGI_FOV, alkkagiTopDownFrame, alkkagiTopDownHeight } from '../../src/game/alkkagi/camera'
-import { PerspectiveCamera, Vector3 } from 'three'
+import { ALKKAGI_FOV, alkkagiCameraActive, alkkagiTopDownFrame, alkkagiTopDownHeight } from '../../src/game/alkkagi/camera'
+import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three'
+import { advanceOmokCamera } from '../../src/world/omokCamera'
+
+test('종료·결과 도착·관전 해제는 남아 있는 알까기 데이터로 게임 카메라를 유지하지 않는다', () => {
+  expect(alkkagiCameraActive('PLAYING',false)).toBe(true)
+  expect(alkkagiCameraActive('FINISHED',false)).toBe(false)
+  expect(alkkagiCameraActive('PLAYING',true)).toBe(false)
+  expect(alkkagiCameraActive(undefined,false)).toBe(false)
+})
+
+test('양쪽 좌석의 수직 게임 시점에서 공원 시점으로 위치·회전·화각이 함께 복귀한다', () => {
+  for(const up of [-1,1]) {
+    const camera=new PerspectiveCamera(ALKKAGI_FOV,16/9,.01,100)
+    camera.position.set(0,4,0)
+    camera.quaternion.setFromRotationMatrix(new Matrix4().lookAt(camera.position,new Vector3(),new Vector3(0,0,up)))
+    const destination=new Vector3(2,2.5,4), target=new Vector3(0,1,0)
+    const rotation=new Quaternion().setFromRotationMatrix(new Matrix4().lookAt(destination,target,new Vector3(0,1,0)))
+    let settled=false
+    for(let frame=0;frame<180&&!settled;frame++)settled=advanceOmokCamera(camera,destination,rotation,76,1/60)
+    expect(settled).toBe(true)
+    expect(camera.position.distanceTo(destination)).toBeLessThan(.00001)
+    expect(camera.quaternion.angleTo(rotation)).toBeLessThan(.00001)
+    expect(camera.fov).toBeCloseTo(76,2)
+  }
+})
 
 test('PC·작은 화면에서 판 전체가 HUD와 손패의 남은 영역에 들어간다', () => {
   for (const [width, height] of [[1440,765],[1440,960],[390,844],[1920,600]]) {

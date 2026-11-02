@@ -10,6 +10,7 @@ import type { TableAnchor } from '../../config'
 import { AlkkagiScene } from './AlkkagiBoard'
 import { AlkkagiBoardSurface } from './AlkkagiBoardSurface'
 import { AlkkagiReplay } from './replay'
+import { alkkagiCameraActive } from './camera'
 import { useAlkkagiControls, useAlkkagiUI, cancelAlkkagiItem } from './parkControls'
 
 /** TableShell의 좌표/크기와 같은 월드 Canvas에 배치한다. */
@@ -17,10 +18,12 @@ export function ParkAlkkagiBoard({anchor}:{anchor:TableAnchor}) {
   useAlkkagiSocial(s=>s.marks)
   const lookScope=useTableLobby(s=>s.lookScope), spectatorView=useTableLobby(s=>s.spectatorView)
   const session=useSession(),g=useGame(s=>s.game?.alkkagi ? s.game : null)
+  const hasResult=useGame(s=>!!s.lastResult)
   const binding=session.bindings.find(b=>b.channelId===session.roomId && b.anchorId===anchor.id)
   const relevant=!!binding && !!g && (g.role==='PLAYER' ? session.tableId : session.watchedTableId)===binding.tableId
   const selected=!!binding && session.tableStates[binding.tableId]?.gameCode==='ALKKAGI'
-  const focused=relevant && (g?.role==='PLAYER' ? lookScope!==seatScope(session) : spectatorView==='board')
+  const focused=relevant && alkkagiCameraActive(g?.alkkagi?.status,hasResult)
+    && (g?.role==='PLAYER' ? lookScope!==seatScope(session) : spectatorView==='board')
   if(!selected && !relevant)return null
   return <>
     <mesh name={'alkkagi-focus-surface-' + anchor.id} visible={focused} layers-mask={1 << OMOK_FOCUS_LAYER}

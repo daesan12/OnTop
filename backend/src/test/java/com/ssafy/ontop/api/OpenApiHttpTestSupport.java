@@ -90,6 +90,7 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/wallets/me",
                 "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings",
                 "GET /api/v1/rankings/park",
+                "GET /api/v1/raffles/current", "POST /api/v1/raffles/current/tickets",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats"));
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {

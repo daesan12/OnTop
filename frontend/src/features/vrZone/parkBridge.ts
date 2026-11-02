@@ -22,7 +22,7 @@ export const parkVrZone = new VrZoneController(local ? new LocalVrAdmission() : 
     storage: () => sessionStorage,
     paid: (owner, receipt) => refreshWalletAfterSettlement(owner, `skewer:${receipt}`),
   },
-))
+), true)
 export function openParkVrZone() {
   const session = useSession.getState(), avatar = avatars.get(session.sessionId)
   if (panelOwnsKeys() || session.status !== 'connected' || !session.mapCompatible || session.pending || session.tableId || !avatar
