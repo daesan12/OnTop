@@ -25,9 +25,9 @@ test('준비 화면의 세 이미지 전체와 시작 버튼을 다양한 화면
   await expect(columns.nth(0)).toContainText('반죽·소 선택')
   await expect(columns.nth(1)).toContainText('손님에게 전달')
   await expect(columns.nth(2)).toContainText('점수·랭킹')
-  await expect(columns.nth(2)).toContainText('납품 보너스 +30%')
+  await expect(columns.nth(2)).toContainText('피자·초코 보너스 +30%')
   await expect(columns.nth(2)).toContainText('컴플레인 −5점')
-  await expect(columns.nth(2)).toContainText('개인 최고 점수 순 · 동점은 최대 콤보 순')
+  await expect(columns.nth(2)).toContainText('최고 점수로 랭킹에 도전해요!')
   await expect(guide.getByLabel('붕어빵 콤보 안내')).toContainText('3콤보 ×1.2 · 6콤보 ×1.5')
   for (const size of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }, { width: 800, height: 600 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(size)

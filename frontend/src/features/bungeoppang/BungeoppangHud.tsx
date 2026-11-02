@@ -497,12 +497,11 @@ function StartPanel() {
           <h3>점수·랭킹</h3>
           <div className="bung-start-combo" aria-label="붕어빵 콤보 안내">
             <h4>황금빛 콤보</h4>
-            <p>양면 황금색 +1 · 실패·폐기 시 초기화</p>
             <p><b>3콤보 ×1.2 · 6콤보 ×1.5</b></p>
           </div>
-          <p className="bung-start-bonus"><b>피자·초코</b> 납품 보너스 +{readyRules.specialBonusPercent}%</p>
-          {v5 && <p className="bung-start-complaint"><b>컴플레인 −{BUNGEOPPANG_V5.queueComplaintPenalty}점</b><span>도착 순서가 3번 이상 뒤인 손님을 먼저 전달하면, 기다린 손님마다 한 번 감점돼요.</span></p>}
-          <p className="bung-start-ranking">개인 최고 점수 순 · 동점은 최대 콤보 순</p>
+          <p className="bung-start-bonus"><b>피자·초코</b> 보너스 +{readyRules.specialBonusPercent}%</p>
+          {v5 && <p className="bung-start-complaint"><b>컴플레인</b> −{BUNGEOPPANG_V5.queueComplaintPenalty}점</p>}
+          <p className="bung-start-ranking">최고 점수로 랭킹에 도전해요!</p>
         </div>
       </section>
       <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status ? `${status.todayEarned}냥` : '확인 중'} / ${status?.dailyCap ?? R.dailyCoinCap}냥`}>

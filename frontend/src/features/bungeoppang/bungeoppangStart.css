@@ -110,8 +110,7 @@
 .bung-root .bung-start-controls h4 { margin:8px 0 5px; font-size:12px; color:#623d21; }
 .bung-root .bung-start-score h4 { margin-top:0; }
 .bung-root .bung-start-score p { font-size:12px; line-height:1.4; }
-.bung-root .bung-start-complaint b { display:block; color:#943b2e; }
-.bung-root .bung-start-complaint span { display:block; margin-top:2px; }
+.bung-root .bung-start-complaint { color:#943b2e; }
 .bung-root .bung-start .bung-start-ranking { padding-top:5px; border-top:1px solid #ddc8a9; color:#735137; font-size:11px; }
 /* 낮은 화면에서도 이미지 비율과 전체 안내·버튼을 스크롤 없이 유지한다. */
 @media(min-width:701px){
