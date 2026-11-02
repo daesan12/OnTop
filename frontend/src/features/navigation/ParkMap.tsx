@@ -24,6 +24,8 @@ export function ParkMap() {
   const [position, setPosition] = useState<{ x: number; z: number } | null>(null)
   const [players, setPlayers] = useState<{ id: string; x: number; z: number; nickname: string }[]>([])
   const [hovered, setHovered] = useState('')
+  const [selectedPlayerId, setSelectedPlayerId] = useState('')
+  const displayedPlayer = players.find(player => player.id === (hovered || selectedPlayerId))
   useLayoutEffect(() => { if (gameplayLocked) { closeParkMap(); cancelNavigation() } }, [gameplayLocked])
   const choose = (target: Destination) => {
     const s = useSession.getState()
@@ -56,7 +58,7 @@ export function ParkMap() {
       if (document.pointerLockElement) document.exitPointerLock()
       dialog.showModal()
     } else if (!open && dialog?.open) {
-      dialog.close(); setHovered('')
+      dialog.close(); setHovered(''); setSelectedPlayerId('')
       if (!inputState.manualOpen) (previousFocus.current?.isConnected ? previousFocus.current : document.querySelector<HTMLCanvasElement>('canvas') ?? launcher.current)?.focus({ preventScroll: true })
     }
   }, [open])
@@ -66,10 +68,13 @@ export function ParkMap() {
     const read = () => {
       const s = useSession.getState(), own = avatars.get(s.sessionId)?.current
       setPosition(own ? { x: own.x, z: own.z } : null)
-      setPlayers(s.ids.slice(0, NETWORK.maxClients).flatMap(id => {
+      const nextPlayers = s.ids.slice(0, NETWORK.maxClients).flatMap(id => {
         const avatar = avatars.get(id)
         return avatar?.connected && id !== s.sessionId ? [{ id, x: avatar.current.x, z: avatar.current.z, nickname: avatar.nickname }] : []
-      }))
+      })
+      setPlayers(nextPlayers)
+      setSelectedPlayerId(id => nextPlayers.some(player => player.id === id) ? id : '')
+      setHovered(id => nextPlayers.some(player => player.id === id) ? id : '')
     }
     read(); const timer = setInterval(read, 500)
     return () => { clearInterval(timer); document.body.style.overflow = previous }
@@ -89,7 +94,7 @@ export function ParkMap() {
       {open && <>
         <header className="park-map-heading">
           <span className="park-map-heading__icon" aria-hidden="true"><img src={mapIcon} alt="" /></span>
-          <div><h2>공원 지도</h2><p>장소나 지도 위 지점을 누르면 가는 길을 바닥에 표시해요</p></div>
+          <div><h2>공원 지도</h2><p>장소를 누르면 길 안내, 이용자를 누르면 닉네임을 확인해요</p></div>
           <button className="park-map-close" aria-label="지도 닫기" onClick={closeParkMap}>×</button>
         </header>
         {!compatible && <p className="park-map-alert" role="alert">현재 서버의 맵 버전을 확인하지 못해 길 안내를 사용할 수 없어요.</p>}
@@ -103,15 +108,20 @@ export function ParkMap() {
           <ParkMapBackground />
           {path.length > 1 && <polyline className="navigation-map-route" points={path.map(p => `${p.x},${p.z}`).join(' ')} fill="none" stroke="#06bfc1" strokeWidth={2} strokeLinejoin="round" pointerEvents="none" />}
           {destination && <circle cx={destination.x} cy={destination.z} r={3.2} fill="#06bfc1" stroke="#fff" strokeWidth={1.2} pointerEvents="none" />}
-          {/* Everyone else at their live position (no offset or tether), drawn under the zone buttons so those stay clickable. */}
-          {players.map(player=><g key={player.id} role="img" aria-label={`${player.nickname} 위치`} tabIndex={0} onClick={event=>event.stopPropagation()} onMouseEnter={()=>setHovered(player.id)} onMouseLeave={()=>setHovered('')} onFocus={()=>setHovered(player.id)} onBlur={()=>setHovered('')}>
-            <circle cx={player.x} cy={player.z} r={3.2} fill="#efb84f" stroke="#fff9e7" strokeWidth={1.2}/><title>{player.nickname}</title>
-          </g>)}
           {PARK_ZONES.map((zone,index) => <g key={zone.id} className="park-map-zone" data-selected={zone.id===selectedZone} role="button" tabIndex={compatible ? 0 : -1} aria-disabled={!compatible} aria-label={`${zoneName(zone)} 길 안내`} style={{cursor:compatible?'pointer':'default'}} onClick={event=>{event.stopPropagation();chooseZone(zone)}} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();chooseZone(zone)}}}>
             <circle cx={zone.x} cy={zone.z} r={4.2} /><text x={zone.x} y={zone.z+1.75} textAnchor="middle" fontSize={5}>{index+1}</text>
           </g>)}
+          {/* Keep live positions exact. Player markers take clicks over zones;
+              the matching place remains available in the destination list. */}
+          {players.map(player=><g key={player.id} className="park-map-player" role="button" aria-label={`${player.nickname} 위치`} aria-pressed={player.id===selectedPlayerId} tabIndex={0}
+            onClick={event=>{event.stopPropagation();setSelectedPlayerId(player.id)}}
+            onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();setSelectedPlayerId(player.id)}}}
+            onMouseEnter={()=>setHovered(player.id)} onMouseLeave={()=>setHovered('')} onFocus={()=>setHovered(player.id)} onBlur={()=>setHovered('')}>
+            <circle cx={player.x} cy={player.z} r={3.2} fill="#efb84f" stroke="#fff9e7" strokeWidth={1.2}/><title>{player.nickname}</title>
+          </g>)}
           {position && <circle aria-label="현재 내 위치" cx={position.x} cy={position.z} r={2.6} fill="#267cef" stroke="white" strokeWidth={1.6} />}
         </svg>
+        <p className="park-map-player-info" role="status">{displayedPlayer ? <><strong>{displayedPlayer.nickname}</strong><span>현재 위치</span></> : '노란 이용자 표시를 누르면 닉네임이 보여요.'}</p>
         {/* Legend and compass share the strip under the map, so neither covers it. */}
         <figcaption className="park-map-footer">
           <span className="park-map-legend"><span><i data-kind="me" />내 위치</span><span><i data-kind="player" />다른 이용자</span><span><i data-kind="target" />목적지</span></span>
@@ -133,7 +143,6 @@ export function ParkMap() {
           <div className="map-destinations">{PARK_ZONES.map((zone,index)=><button key={zone.id} className="map-destination" aria-label={`${index+1}. ${zoneName(zone)}`} aria-pressed={zone.id===selectedZone} disabled={!compatible} onClick={()=>chooseZone(zone)}>
             <span aria-hidden="true">{index+1}</span>{zoneName(zone)}
           </button>)}</div>
-        <p className="park-map-hover" role="status">{hovered?`${players.find(p=>p.id===hovered)?.nickname??'이용자'} · 현재 위치`:'\u00a0'}</p>
         </div>
         </div>
         <p className="park-map-note">M / Esc로 닫고 직접 이동해요. 전망대는 지상 입구까지, 장애물 지점은 통행 가능한 주변 약 3m까지 안내해요.</p>

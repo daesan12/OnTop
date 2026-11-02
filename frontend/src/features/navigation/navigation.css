@@ -135,6 +135,10 @@
 .park-map-zone:hover circle { fill: #4a6450; }
 .park-map-zone[data-selected='true'] circle { fill: #e8b451; stroke: var(--map-ink); stroke-width: 1.4; }
 .park-map-zone[data-selected='true'] text { fill: var(--map-ink); }
+.park-map-player { cursor: pointer; }
+.park-map-player[aria-pressed='true'] circle { stroke: var(--map-ink); stroke-width: 2; }
+.park-map-player-info { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-height: 38px; padding-top: 12px; color: var(--map-muted); font-size: 13px; overflow-wrap: anywhere; }
+.park-map-player-info strong { color: var(--map-ink); font-size: 16px; }
 .park-map-panel [aria-label="현재 내 위치"] { pointer-events: none; }
 
 .park-map-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -192,7 +196,6 @@
 .map-destination[aria-pressed='true'] { border-color: var(--map-ink); background: #edf3ea; }
 .map-destination[aria-pressed='true'] span { color: var(--map-ink); background: #e8b451; }
 .map-destination:disabled { color: #8a917f; }
-.park-map-hover { min-height: 20px; color: var(--map-muted); font-size: 13px; }
 .park-map-note { margin-top: 14px !important; padding-top: 12px; border-top: 1px solid var(--map-line); color: var(--map-muted); font-size: 13px; font-weight: 500; line-height: 1.6; }
 
 /* 길 안내 — the HUD glass of the location chip and channel/profile cards (parkMenus/hud.css). */
