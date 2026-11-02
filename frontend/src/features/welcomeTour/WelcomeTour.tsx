@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import type { StoreApi } from 'zustand'
 import { avatars, useSession } from '../../network/worldClient'
-import { inputState } from '../../world/inputOwnership'
+import { useBungeoppang } from '../bungeoppang/store'
 import { useManual } from '../manual/manualState'
+import { useRpsRoulette } from '../rpsRoulette/store'
 import { useNavigation } from '../navigation/navigationState'
 import { flightCaption, WELCOME_FLIGHT_MS, welcomeFlight } from './flight'
 import {
@@ -9,10 +11,12 @@ import {
   takeReplayAfterManual, useWelcomeTour, welcomeReady,
 } from './state'
 import { takeWelcomeTour } from './pending'
-import { currentStep, TOUR_STEPS, TOUR_WALK_GOAL, walkedDistance } from './steps'
+import { currentStep, TOUR_STEPS, TOUR_WALK_GOAL, walkedDistance, type TourAction } from './steps'
 import './welcomeTour.css'
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const rising = <T,>(store: Pick<StoreApi<T>, 'subscribe'>, on: (state: T) => boolean, action: TourAction) =>
+  store.subscribe((state, old) => { if (on(state) && !on(old)) noteTourAction(action) })
 /** 완료 카드는 옷장 위치를 알려 준 뒤 스스로 닫힌다. */
 const FINISHED_MS = 12000
 
@@ -21,36 +25,39 @@ export function WelcomeTour() {
   const phase = useWelcomeTour(s => s.phase)
   useEffect(() => {
     let last: { x: number; z: number } | null = null
-    // 길 안내·미니게임·테이블은 기존 상태가 새로 켜지는 순간만 센다(투어 전부터 켜져 있던 것은 제외).
-    let seen = { navigate: false, minigame: false, table: false }
     const timer = window.setInterval(() => {
       if (welcomeReady() && takeWelcomeTour()) beginWelcomeFlight(reducedMotion())
-      const state = useWelcomeTour.getState(), session = useSession.getState(), avatar = avatars.get(session.sessionId)
-      const now = { navigate: !!useNavigation.getState().target, minigame: inputState.minigameOpen,
-        table: !!(session.tableId || session.watchedTableId) }
-      if (state.phase !== 'tour' || !avatar) { last = null; seen = now; return }
-      for (const action of ['navigate', 'minigame', 'table'] as const) if (now[action] && !seen[action]) noteTourAction(action)
-      seen = now
+      const avatar = avatars.get(useSession.getState().sessionId)
+      if (useWelcomeTour.getState().phase !== 'tour' || !avatar) { last = null; return }
       const here = { x: avatar.current.x, z: avatar.current.z }
       if (last) noteTourWalk(walkedDistance(last, here))
       last = here
     }, 250)
-    const session = useSession.subscribe((s, old) => {
-      if (s.status !== 'connected' || s.sessionId !== old.sessionId || s.roomId !== old.roomId) endWelcomeTour()
-    })
-    const manual = useManual.subscribe((s, old) => { if (s.phase === 'closed' && old.phase !== 'closed') takeReplayAfterManual() })
-    return () => { window.clearInterval(timer); session(); manual(); endWelcomeTour() }
+    const unsubscribe = [
+      useSession.subscribe((s, old) => {
+        if (s.status !== 'connected' || s.sessionId !== old.sessionId || s.roomId !== old.roomId) endWelcomeTour()
+      }),
+      useManual.subscribe((s, old) => { if (s.phase === 'closed' && old.phase !== 'closed') takeReplayAfterManual() }),
+      // 길 안내·미니게임·테이블은 기존 상태가 새로 켜지는 순간만 센다. 창을 바로 닫아도 놓치지 않는다.
+      rising(useNavigation, s => !!s.target, 'navigate'),
+      rising(useRpsRoulette, s => s.open, 'minigame'),
+      rising(useBungeoppang, s => s.phase !== 'idle', 'minigame'),
+      rising(useSession, s => !!(s.tableId || s.watchedTableId), 'table'),
+    ]
+    return () => { window.clearInterval(timer); unsubscribe.forEach(stop => stop()); endWelcomeTour() }
   }, [])
   useEffect(() => {
     if (phase !== 'flight') return
     const timer = window.setTimeout(finishWelcomeFlight, Math.max(0, welcomeFlight.startedAt + WELCOME_FLIGHT_MS - performance.now()))
     return () => window.clearTimeout(timer)
   }, [phase])
+  // 테이블에 앉거나 관전하는 동안은 빠른 메뉴(옷장)가 숨으므로, 다시 보일 때부터 시간을 센다.
+  const away = useSession(s => !!(s.tableId || s.watchedTableId))
   useEffect(() => {
-    if (phase !== 'finished') return
+    if (phase !== 'finished' || away) return
     const timer = window.setTimeout(endWelcomeTour, FINISHED_MS)
     return () => window.clearTimeout(timer)
-  }, [phase])
+  }, [phase, away])
   if (phase === 'flight') return <WelcomeBanner />
   if (phase === 'tour') return <TourChecklist />
   if (phase === 'finished') return <TourFinished />

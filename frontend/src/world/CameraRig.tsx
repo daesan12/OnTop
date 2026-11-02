@@ -175,8 +175,10 @@ export function CameraRig() {
       const horizontal = viewControls.distance * Math.cos(viewControls.pitch)
       state.desired.set(state.look.x + Math.sin(viewControls.yaw) * horizontal,
         state.look.y + viewControls.distance * Math.sin(viewControls.pitch), state.look.z + Math.cos(viewControls.yaw) * horizontal)
-      const flight = welcomeFlightPose((performance.now() - welcomeFlight.startedAt) / WELCOME_FLIGHT_MS,
-        { position: state.desired, look: state.look }, PARK_SIZE)
+      const progress = (performance.now() - welcomeFlight.startedAt) / WELCOME_FLIGHT_MS
+      const flight = welcomeFlightPose(progress, { position: state.desired, look: state.look }, PARK_SIZE)
+      // Descending towards the avatar, fade roofs and trees in between like the ordinary follow camera does.
+      const approach = progress > 0.6
       camera.position.set(flight.position.x, flight.position.y, flight.position.z)
       constrainRoamingCamera(camera.position)
       camera.lookAt(flight.look.x, flight.look.y, flight.look.z)
@@ -187,8 +189,9 @@ export function CameraRig() {
       state.diceTransition = false
       interactionAim.ready = omokCamera.ready = false
       omokCamera.anchorId = ''
-      cameraOcclusion.strength.value = 0
-      occlusion.update(camera.position, state.look, false, delta)
+      cameraOcclusion.focus.value.copy(state.look)
+      cameraOcclusion.strength.value = approach ? 1 : 0
+      occlusion.update(camera.position, state.look, approach, delta)
       return
     }
     if (bungeoppangView.active) {

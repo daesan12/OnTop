@@ -58,14 +58,17 @@ export function replayWelcomeTour() {
     return true
   }
   if (panelOwnsKeys()) return false
-  useWelcomeTour.setState({ ...initial(), phase: 'tour', owner: useSession.getState().sessionId })
+  startReplay()
   return true
 }
-/** 설명서가 완전히 닫힌 뒤 미뤄 둔 다시 보기를 시작한다. */
+const startReplay = () => useWelcomeTour.setState({ ...initial(), phase: 'tour', owner: useSession.getState().sessionId })
+/** 설명서가 닫힌 순간 미뤄 둔 다시 보기를 시작한다. 이때는 설명서 자신의 입력 잠금이 아직 풀리는 중이라 따로 보지 않는다. */
 export function takeReplayAfterManual() {
   const pending = replayPending
   replayPending = false
-  return pending && replayWelcomeTour()
+  if (!pending || tourBlockReason()) return false
+  startReplay()
+  return true
 }
 
 function mark(step: TourStepId) {

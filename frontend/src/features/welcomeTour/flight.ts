@@ -4,11 +4,11 @@ export const WELCOME_FLIGHT_MS = 5000
 export interface Point3 { x: number; y: number; z: number }
 export interface CameraPose { position: Point3; look: Point3 }
 
-/** 비행 중 차례로 보여 주는 장소 이름. at은 비행 진행률(0~1)이다. */
+/** 비행 중 차례로 보여 주는 즐길 거리. 경로가 내 위치마다 달라 특정 장소 이름은 쓰지 않는다. at은 비행 진행률(0~1)이다. */
 export const FLIGHT_CAPTIONS = [
-  { at: 0, text: '중앙 게임마당' },
-  { at: 0.34, text: '붕어빵 카트' },
-  { at: 0.67, text: '호숫가 전망대' },
+  { at: 0, text: '함께 하는 보드게임 한 판' },
+  { at: 0.34, text: '혼자 즐기는 미니게임' },
+  { at: 0.67, text: '걷고 쉬며 이웃 만나기' },
 ] as const
 
 export const flightCaption = (t: number) => [...FLIGHT_CAPTIONS].reverse().find(c => t >= c.at)!.text

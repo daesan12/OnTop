@@ -56,8 +56,8 @@ describe('환영 비행', () => {
     const heights = [0, .25, .5, .75, 1].map(t => welcomeFlightPose(t, end, 180).position.y)
     expect(heights).toEqual([...heights].sort((a, b) => b - a))
   })
-  it('지나가는 장소 이름을 차례로 보여 준다', () => {
-    expect([0, .4, .8].map(flightCaption)).toEqual(['중앙 게임마당', '붕어빵 카트', '호숫가 전망대'])
+  it('비행 동안 즐길 거리를 차례로 보여 준다', () => {
+    expect([0, .4, .8].map(flightCaption)).toEqual(['함께 하는 보드게임 한 판', '혼자 즐기는 미니게임', '걷고 쉬며 이웃 만나기'])
   })
   it('온보딩 직후 한 번만 시작하고, 비행 중에는 이동과 단축키를 막는다', () => {
     expect(takeWelcomeTour()).toBe(false)
