@@ -45,7 +45,7 @@
 .bung-root .bung-start .bung-start-exit:hover { background: #eddfc9; border-color: #bb9a72; }
 .bung-root .bung-start .bung-start-exit kbd { margin: 0; padding: 2px 5px; border: 1px solid #d1b997; border-radius: 4px; background: #fffaf1; color: inherit; font: 600 11px/1.25 'Malgun Gothic', system-ui, sans-serif; }
 .bung-start .bung-error { margin: 8px 0 12px; }
-.bung-start-controls { display:grid; grid-template-columns:1.1fr .9fr 1.45fr; gap:18px; margin:22px 0 0; padding:18px; border:1px solid #ddc8a9; border-radius:12px; background:#f6ecd9; text-align:left; font-family:'Malgun Gothic',system-ui,sans-serif; }
+.bung-start-controls { display:grid; grid-template-columns:1fr 1.35fr 1fr; gap:18px; margin:22px 0 0; padding:18px; border:1px solid #ddc8a9; border-radius:12px; background:#f6ecd9; text-align:left; font-family:'Malgun Gothic',system-ui,sans-serif; }
 .bung-start-controls > div { min-width:0; }
 .bung-start-controls h3 { margin:0 0 10px; font-size:16px; color:#49230e; }
 .bung-root .bung-start-controls p { margin:8px 0 0; font-size:14px; line-height:1.6; word-break:keep-all; }
@@ -109,9 +109,11 @@
 .bung-root .bung-start footer{margin:-38px 0 0}
 .bung-root .bung-start-controls h4 { margin:8px 0 5px; font-size:12px; color:#623d21; }
 .bung-root .bung-start-score h4 { margin-top:0; }
+.bung-root .bung-start-score { grid-column:1/-1; display:grid; grid-template-columns:.8fr 1.3fr 1fr .8fr; align-items:center; gap:5px 12px; border-top:1px solid #ddc8a9; padding-top:10px; }
+.bung-root .bung-start-score h3,.bung-root .bung-start-score p { margin:0; }
 .bung-root .bung-start-score p { font-size:12px; line-height:1.4; }
 .bung-root .bung-start-complaint { color:#943b2e; }
-.bung-root .bung-start .bung-start-ranking { padding-top:5px; border-top:1px solid #ddc8a9; color:#735137; font-size:11px; }
+.bung-root .bung-start .bung-start-ranking { grid-column:1/-1; color:#735137; font-size:11px; }
 /* 낮은 화면에서도 이미지 비율과 전체 안내·버튼을 스크롤 없이 유지한다. */
 @media(min-width:701px){
   .bung-start-steps>li>img { max-width:calc((100dvh - 535px) * 800 / 686); margin-inline:auto; }
@@ -126,9 +128,11 @@
   .bung-start-step-heading h3{font-size:14px;white-space:normal;line-height:1.5}
   .bung-root .bung-start-step-heading p{font-size:11px;line-height:1.4;white-space:normal;clear:both}
   .bung-start-steps>li>img{height:auto;border-width:1px;border-radius:6px}
-  .bung-start-controls{grid-template-columns:1.2fr 1fr;gap:10px;padding:8px;margin-top:10px}
+  .bung-start-controls{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:8px;margin-top:10px}
   .bung-root .bung-start .bung-start-earned{margin-top:8px}
-  .bung-start-fillings ul{grid-template-columns:1fr 1fr}
+  .bung-start-fillings ul{grid-template-columns:1fr}
+  .bung-start-key-row{flex-wrap:wrap;gap:4px}
+  .bung-start-key-row>span{width:100%}
   .bung-root .bung-start footer{margin:8px 0 0;min-height:36px}
   .bung-root .bung-start .bung-start-exit{min-height:36px}
   .bung-root .bung-start-score{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:5px 12px}

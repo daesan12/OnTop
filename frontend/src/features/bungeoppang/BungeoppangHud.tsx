@@ -474,24 +474,21 @@ function StartPanel() {
       <p className="bung-start-intro">제한 시간 동안 붕어빵을 빠르고 정확하게 뒤집어 양쪽이 모두 익으면 완성!</p>
       <Steps />
       <section className="bung-start-controls" aria-label="붕어빵 조작과 점수 안내">
-        <div className="bung-start-setup">
-          <h3>틀·재료 선택</h3>
-          <div className="bung-start-plates" aria-label="굽는 틀 선택">
-            <div className="bung-start-key-row"><span>위쪽</span>{R.slotKeys.slice(0, 3).map(key => <kbd key={key}>{key.toUpperCase()}</kbd>)}</div>
-            <div className="bung-start-key-row"><span>아래쪽</span>{R.slotKeys.slice(3).map(key => <kbd key={key}>{key.toUpperCase()}</kbd>)}</div>
-          </div>
-          <div className="bung-start-fillings">
-            <h4>반죽·소 선택</h4>
-            <ul>{BREAD_FILLINGS.map((filling, index) => <li key={filling}><kbd>{index + 1}</kbd>{BREAD_NAMES[filling]}</li>)}</ul>
-            <p><kbd>Space</kbd> 반죽 선택</p>
-          </div>
+        <div className="bung-start-plates" aria-label="굽는 틀 선택">
+          <h3>굽는 틀 선택</h3>
+          <div className="bung-start-key-row"><span>위쪽</span>{R.slotKeys.slice(0, 3).map(key => <kbd key={key}>{key.toUpperCase()}</kbd>)}</div>
+          <div className="bung-start-key-row"><span>아래쪽</span>{R.slotKeys.slice(3).map(key => <kbd key={key}>{key.toUpperCase()}</kbd>)}</div>
+        </div>
+        <div className="bung-start-fillings">
+          <h3>반죽·소 선택</h3>
+          <ul>{BREAD_FILLINGS.map((filling, index) => <li key={filling}><kbd>{index + 1}</kbd>{BREAD_NAMES[filling]}</li>)}</ul>
+          <p><kbd>Space</kbd> 반죽 선택</p>
         </div>
         <div className="bung-start-serve">
           <h3>손님에게 전달</h3>
-          <p>주문의 종류·수량을 확인하고 완성품을 모아요.</p>
           <p><kbd>R</kbd> 준비된 주문 전달</p>
-          <p>손님을 클릭해서 전달할 수도 있어요.</p>
-          <p>먼저 온 손님부터 챙겨주세요!</p>
+          <p>주문 종류·수량을 맞춰요.</p>
+          <p>손님 클릭으로도 전달해요.</p>
         </div>
         <div className="bung-start-score" aria-label="점수와 랭킹 안내">
           <h3>점수·랭킹</h3>

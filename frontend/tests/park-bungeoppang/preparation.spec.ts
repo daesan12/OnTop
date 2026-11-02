@@ -20,14 +20,14 @@ test('준비 화면의 세 이미지 전체와 시작 버튼을 다양한 화면
   const guide = page.getByRole('region', { name: '붕어빵 굽기 시작', exact: true })
   await expect(guide).toBeVisible()
   const columns = guide.locator('.bung-start-controls > div')
-  await expect(columns).toHaveCount(3)
-  await expect(columns.nth(0)).toContainText('틀·재료 선택')
-  await expect(columns.nth(0)).toContainText('반죽·소 선택')
-  await expect(columns.nth(1)).toContainText('손님에게 전달')
-  await expect(columns.nth(2)).toContainText('점수·랭킹')
-  await expect(columns.nth(2)).toContainText('피자·초코 보너스 +30%')
-  await expect(columns.nth(2)).toContainText('컴플레인 −5점')
-  await expect(columns.nth(2)).toContainText('최고 점수로 랭킹에 도전해요!')
+  await expect(columns).toHaveCount(4)
+  await expect(columns.nth(0)).toContainText('굽는 틀 선택')
+  await expect(columns.nth(1)).toContainText('반죽·소 선택')
+  await expect(columns.nth(2)).toContainText('손님에게 전달')
+  await expect(columns.nth(3)).toContainText('점수·랭킹')
+  await expect(columns.nth(3)).toContainText('피자·초코 보너스 +30%')
+  await expect(columns.nth(3)).toContainText('컴플레인 −5점')
+  await expect(columns.nth(3)).toContainText('최고 점수로 랭킹에 도전해요!')
   await expect(guide.getByLabel('붕어빵 콤보 안내')).toContainText('3콤보 ×1.2 · 6콤보 ×1.5')
   for (const size of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }, { width: 800, height: 600 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(size)
@@ -44,6 +44,12 @@ test('준비 화면의 세 이미지 전체와 시작 버튼을 다양한 화면
     expect(height.content, `${size.width}×${size.height} 준비 화면 높이`).toBeLessThanOrEqual(height.panel)
     await expect(guide.getByLabel('붕어빵 콤보 안내')).toBeInViewport({ ratio: 1 })
     await expect(guide.getByLabel('점수와 랭킹 안내')).toBeInViewport({ ratio: 1 })
+    expect(await columns.evaluateAll(nodes => {
+      const boxes = nodes.map(node => node.getBoundingClientRect()), score = boxes[3]!
+      return boxes.slice(0, 3).every(box => box.bottom <= score.top && Math.abs(box.top - boxes[0]!.top) < 1)
+        && boxes[0]!.left < boxes[1]!.left && boxes[1]!.left < boxes[2]!.left
+        && getComputedStyle(nodes[3]!).borderTopStyle === 'solid'
+    })).toBe(true)
     const start = guide.getByRole('button', { name: '시작', exact: true })
     await expect(start).toBeInViewport()
     await expect(guide.getByRole('button', { name: /나가기/ })).toBeInViewport()
