@@ -6,7 +6,8 @@
 }
 .tablet-paper {
   position: relative; box-sizing: border-box; width: 100%; height: 100%; padding: 28px 40px 24px;
-  background: #f5ebd3 url('/art/tablet/hanji.webp') center / 100% 100%; overflow: hidden;
+  background: #f5ebd3 url('/art/tablet/hanji.webp') center / 100% 100%; overflow-x: hidden; overflow-y: auto;
+  overscroll-behavior-y: contain;
   border: 1px solid #a49b78; border-radius: 10px; box-shadow: inset 0 0 0 3px #fff6df, inset 0 0 0 5px #b8ad8a70;
 }
 .tablet-paper *, .table-paper-popup * { box-sizing: border-box; }
