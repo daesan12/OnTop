@@ -109,11 +109,15 @@
 .bung-root .bung-start footer{margin:-38px 0 0}
 .bung-root .bung-start-controls h4 { margin:8px 0 5px; font-size:12px; color:#623d21; }
 .bung-root .bung-start-score h4 { margin-top:0; }
-.bung-root .bung-start-score { grid-column:1/-1; display:grid; grid-template-columns:.8fr 1.3fr 1fr .8fr; align-items:center; gap:5px 12px; border-top:1px solid #ddc8a9; padding-top:10px; }
+.bung-root .bung-start-score { grid-column:1/-1; display:grid; grid-template-columns:subgrid; align-items:start; row-gap:5px; column-gap:inherit; border-top:1px solid #ddc8a9; padding-top:10px; }
+.bung-root .bung-start-score h3 { grid-column:1; grid-row:1; }
+.bung-root .bung-start-score .bung-start-combo { grid-column:2; grid-row:1/span 2; }
+.bung-root .bung-start-score .bung-start-bonus { grid-column:3; grid-row:1; }
+.bung-root .bung-start-score .bung-start-complaint { grid-column:3; grid-row:2; }
 .bung-root .bung-start-score h3,.bung-root .bung-start-score p { margin:0; }
 .bung-root .bung-start-score p { font-size:12px; line-height:1.4; }
 .bung-root .bung-start-complaint { color:#943b2e; }
-.bung-root .bung-start .bung-start-ranking { grid-column:1/-1; color:#735137; font-size:11px; }
+.bung-root .bung-start .bung-start-ranking { grid-column:1; grid-row:2; color:#735137; font-size:11px; }
 /* 낮은 화면에서도 이미지 비율과 전체 안내·버튼을 스크롤 없이 유지한다. */
 @media(min-width:701px){
   .bung-start-steps>li>img { max-width:calc((100dvh - 535px) * 800 / 686); margin-inline:auto; }
@@ -135,11 +139,6 @@
   .bung-start-key-row>span{width:100%}
   .bung-root .bung-start footer{margin:8px 0 0;min-height:36px}
   .bung-root .bung-start .bung-start-exit{min-height:36px}
-  .bung-root .bung-start-score{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:5px 12px}
-  .bung-root .bung-start-score h3,.bung-root .bung-start-ranking{grid-column:1/-1;margin:0}
-  .bung-root .bung-start-score .bung-start-combo{grid-row:2/span 2}
-  .bung-root .bung-start-score p{margin-top:0}
-  .bung-root .bung-start-score .bung-start-complaint{grid-column:2}
 }
 @media(min-width:701px) and (max-height:650px){
   .bung-root .bung-panel.bung-start{padding:12px 24px}
