@@ -136,7 +136,7 @@ export function ParkMap() {
             <button type="button" onClick={cancelNavigation}>안내 취소</button>
           </section>}
           <h3>장소 바로가기</h3>
-          <div className="map-destinations">{PARK_MAP_PLACES.map((place,index)=><button key={place.id} className="map-destination" aria-label={`${index+1}. ${place.name}`} aria-pressed={place.id===selectedPlace} disabled={!compatible} onClick={()=>choosePlace(place)}>
+          <div className="map-destinations" role="group" aria-label="장소 바로가기 목록" tabIndex={0}>{PARK_MAP_PLACES.map((place,index)=><button key={place.id} className="map-destination" aria-label={`${index+1}. ${place.name}`} aria-pressed={place.id===selectedPlace} disabled={!compatible} onClick={()=>choosePlace(place)}>
             <span aria-hidden="true">{index+1}</span>{place.name}
           </button>)}</div>
         </div>
