@@ -38,6 +38,7 @@ import {ParkDebrisScene} from '../features/parkDebris/ParkDebrisScene'
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { prepareScene } from './prepareScene'
 import { warmParkGeometry } from '../park/loadParkGeometry'
+import { jumpmapPreparationViews } from '../features/jumpmap/preparation'
 import { RpsRouletteCabinet } from '../features/rpsRoulette/RpsRouletteCabinet'
 
 preloadWorldAssets()
@@ -71,7 +72,10 @@ function SceneReady({ onReady }: { onReady: () => void }) {
       // Scene modules and critical textures are available now. A cold optional
       // geometry file can warm the next visit without competing with those loads.
       warmParkGeometry()
-      void prepareScene(gl, scene, camera, () => !startup.disposed).then(
+      void prepareScene(gl, scene, camera, () => !startup.disposed, {
+        warmGeometry: GENERATED_PARK_ENABLED, warmLighting: GENERATED_PARK_ENABLED,
+        views: GENERATED_PARK_ENABLED ? jumpmapPreparationViews : undefined,
+      }).then(
         () => {
           if (!startup.disposed) startup.phase = 'ready'
         },

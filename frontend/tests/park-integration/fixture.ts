@@ -17,7 +17,7 @@ const facilities:FacilityDefinition[]=[
 export const generatedFacilityCatalog = { ...originalCatalog, mapVersion: PARK_MAP_VERSION, facilities }
 
 /** Browser-only wire simulation: production contains no mock login, physics or transport bypass. */
-export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean;fitnessRewardsEnabled?:boolean}={}) {
+export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean;fitnessRewardsEnabled?:boolean;environmentEpochMs?:number}={}) {
   // All 18 canonical IDs remain aligned with the latest generated bindings.
   const bindings=bindingsFile.bindings.filter(b=>b.channelId==='channel-1')
   await page.route('**/park-bindings.generated.frontend-test.json',route=>route.fulfill({json:{...bindingsFile,bindings}}))
@@ -71,7 +71,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     ws.onClose((code,reason)=>{clearInterval(tick);ws.close({code,reason})})
     ws.onMessage(raw=>{
       const r=JSON.parse(String(raw));requests.push(r)
-      if(r.type==='WORLD_TIME_CHECK')emit('WORLD_TIME_STATE',{serverNow:Date.now(),cycleEpochMs:0,cycleDurationMs:1200000,timeZone:'Asia/Seoul'},r.requestId)
+      if(r.type==='WORLD_TIME_CHECK')emit('WORLD_TIME_STATE',{serverNow:Date.now(),cycleEpochMs:options.environmentEpochMs??0,cycleDurationMs:1200000,timeZone:'Asia/Seoul'},r.requestId)
       if(r.type==='WORLD_MAP_CONFIRM'){confirmationId=r.requestId;if(!options.holdConfirmation)emit('WORLD_MAP_STATE',{map:options.serverMap??identity,verified:true},r.requestId)}
       if(r.type==='CHANNEL_JOIN'){emit('CHANNEL_STATE',{channelId:'channel-1',name:'새 공원 검증',version:++channelVersion,capacity:16,currentUsers:1,userIds:['101']},r.requestId);world()}
       if(r.type==='WORLD_FOLLOW_CHECK')emit('WORLD_FOLLOW_STATE',{channelId:'channel-1',version:0,links:[]},r.requestId)

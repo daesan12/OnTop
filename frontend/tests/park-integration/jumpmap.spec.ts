@@ -425,6 +425,67 @@ test('final leaf opens a persistent paper completion, locks movement and updates
   expect(errors).toEqual([])
 })
 
+test('unlocked repeated camera drags avoid raycasting the local avatar and stop turning on release', async ({ page }) => {
+  const { server, start, errors } = await setup(page)
+  start()
+  const pad = COURSE.find(p => p.top > 35)!
+  server.place({ x: pad.x, y: pad.top + .8, z: pad.z })
+  await expect.poll(async () => (await probe(page)).ownPosition?.[1] ?? 0).toBeGreaterThan(30)
+  const before = await page.evaluate(async () => {
+    const source = await (await fetch('/tests/park-integration/jumpmapProbe.ts')).text()
+    const dependency = source.match(/import\s*\{\s*_roots\s*\}\s*from\s*["']([^"']+)/)![1]!
+    const { _roots } = await import(dependency)
+    const avatar = _roots.get(document.querySelector('canvas')!)!.store.getState().scene.getObjectByName('avatar-101')!
+    const counter = { calls: 0 }
+    Object.assign(window, { ownAvatarRaycasts: counter })
+    avatar.traverse((object: import('three').Object3D) => {
+      if (!('isSkinnedMesh' in object)) return
+      const raycast = object.raycast
+      object.raycast = function (...args) { counter.calls++; return raycast.apply(this, args) }
+    })
+    return (await import('/src/world/cameraPerspective.ts' as string)).viewControls.yaw
+  })
+  for (let i = 0; i < 20; i++) {
+    await page.mouse.move(960, 450); await page.mouse.down()
+    await page.mouse.move(1000, 450, { steps: 2 }); await page.mouse.up()
+  }
+  const read = () => page.evaluate(async () => ({
+    yaw: (await import('/src/world/cameraPerspective.ts' as string)).viewControls.yaw,
+    calls: (window as unknown as { ownAvatarRaycasts: { calls: number } }).ownAvatarRaycasts.calls,
+    locked: !!document.pointerLockElement,
+  }))
+  const after = await read()
+  expect(after.yaw).not.toBe(before); expect(after.calls).toBe(0); expect(after.locked).toBe(false)
+  await page.mouse.move(1060, 450)
+  expect((await read()).yaw).toBe(after.yaw)
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test('prepared course follows server availability and reuses graphics after reactivation', async ({ page }) => {
+  const { start, emit, errors } = await setup(page)
+  const graphics = () => page.evaluate(async () => {
+    const source = await (await fetch('/tests/park-integration/jumpmapProbe.ts')).text()
+    const dependency = source.match(/import\s*\{\s*_roots\s*\}\s*from\s*["']([^"']+)/)![1]!
+    const { _roots } = await import(dependency)
+    const course = _roots.get(document.querySelector('canvas')!)!.store.getState().scene.getObjectByName('service-jump-stone')!
+    const mesh = course.children[0] as import('three').InstancedMesh
+    return { id: mesh.geometry.uuid, visible: mesh.visible, power: mesh.geometry.getAttribute('aPower').getX(0) }
+  })
+  const original = await graphics()
+  start(); emit('JUMPMAP_STEP', 2, { playerId:'101', block:0 })
+  await expect.poll(async () => (await graphics()).power).toBe(1)
+  emit('JUMPMAP_STARTED', 3, { runId:'unsupported-run', courseVersion:'retired-course', rulesVersion:RULES_VERSION, serverTime:Date.now() })
+  await expect.poll(async () => (await graphics()).visible).toBe(false)
+  expect((await probe(page)).padsDrawn).toBe(0)
+  expect((await graphics()).power).toBe(0)
+  emit('JUMPMAP_STARTED', 4, { runId:'supported-run', courseVersion:COURSE_VERSION, rulesVersion:RULES_VERSION, serverTime:Date.now() })
+  await expect.poll(async () => (await graphics()).visible).toBe(true)
+  expect((await graphics()).id).toBe(original.id)
+  expect((await probe(page)).state.run?.runId).toBe('supported-run')
+  expect(errors).toEqual([])
+})
+
 test('server finish completion never repeats and fits the narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 740, height: 900 })
   const { start, emit, errors } = await setup(page)

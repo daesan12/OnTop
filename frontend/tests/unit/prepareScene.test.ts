@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { BoxGeometry, Mesh, MeshBasicMaterial, PerspectiveCamera, Scene, Texture, type WebGLRenderer } from 'three'
-import { prepareScene } from '../../src/world/prepareScene'
+import { BoxGeometry, Group, Mesh, MeshBasicMaterial, PerspectiveCamera, PointLight, Scene, Texture, Vector4, type WebGLRenderer } from 'three'
+import { prepareScene, warmSceneGeometry } from '../../src/world/prepareScene'
 
 afterEach(() => vi.useRealTimers())
 
@@ -38,4 +38,84 @@ it('supports renderers without parallel compilation and propagates compilation f
   }) as unknown as WebGLRenderer
   await expect(prepareScene(make(), new Scene(), new PerspectiveCamera(),()=>true)).resolves.toBeUndefined()
   await expect(prepareScene(make(new Error('compile failed')), new Scene(), new PerspectiveCamera(),()=>true)).rejects.toThrow('compile failed')
+})
+
+it('uploads maps on hidden LODs before a camera turn reveals them', async () => {
+  const texture = new Texture(), material = new MeshBasicMaterial({map:texture}), geometry = new BoxGeometry()
+  const scene = new Scene(), hidden = new Group(); hidden.visible = false
+  hidden.add(new Mesh(geometry, material)); scene.add(hidden)
+  const initTexture = vi.fn(), renderer = {
+    compileAsync: () => Promise.resolve(), initTexture, getContext:()=>({getExtension:()=>null}),
+  } as unknown as WebGLRenderer
+  await prepareScene(renderer, scene, new PerspectiveCamera(), () => true, {warmLighting:true})
+  expect(initTexture.mock.calls).toEqual([[texture]])
+  expect(hidden.visible).toBe(false)
+  texture.dispose(); material.dispose(); geometry.dispose()
+})
+
+it.each([false, true])('warms all views with unchanged lighting and restores the scene/scissor even after failure: %s', failure => {
+  const scene = new Scene(), hidden = new Group(), geometry = new BoxGeometry(), material = new MeshBasicMaterial()
+  const mesh = new Mesh(geometry, material), lamp = new PointLight(), camera = new PerspectiveCamera()
+  hidden.visible = false; hidden.add(mesh, lamp); scene.add(hidden)
+  const scissor = new Vector4(3, 4, 500, 400), setScissor = vi.fn(), setScissorTest = vi.fn()
+  const render = vi.fn((actualScene, actualCamera) => {
+    expect(actualScene).toBe(scene); expect(actualCamera).toBe(camera)
+    expect(hidden.visible).toBe(false); expect(mesh.visible).toBe(true); expect(mesh.frustumCulled).toBe(false)
+    // Inactive effects/LODs and their lighting stay hidden during the upload pass.
+    expect(lamp.visible).toBe(true)
+    if (failure) throw new Error('warm failed')
+  })
+  const renderer = {getScissor:(out:Vector4)=>out.copy(scissor),getScissorTest:()=>true,setScissor,setScissorTest,render} as unknown as WebGLRenderer
+  if (failure) expect(()=>warmSceneGeometry(renderer,scene,camera)).toThrow('warm failed')
+  else warmSceneGeometry(renderer,scene,camera)
+  expect(render).toHaveBeenCalledOnce()
+  expect(hidden.visible).toBe(false); expect(mesh.visible).toBe(true); expect(mesh.frustumCulled).toBe(true); expect(lamp.visible).toBe(true)
+  expect(setScissor.mock.calls).toEqual([[0,0,1,1],[scissor]])
+  expect(setScissorTest.mock.calls).toEqual([[true],[true]])
+  geometry.dispose(); material.dispose()
+})
+
+it.each([false, true])('prepares both light-count variants and restores the live pool after compilation: %s', failure => {
+  const scene = new Scene(), pooled = new PointLight(), other = new PointLight()
+  pooled.userData.warmNightLight = true; pooled.visible = false; scene.add(pooled, other)
+  const compileAsync = vi.fn(() => {
+    expect(other.visible).toBe(true)
+    return failure && pooled.visible ? Promise.reject(new Error('night compile failed')) : Promise.resolve()
+  })
+  const renderer = {compileAsync,initTexture:vi.fn(),getContext:()=>({getExtension:()=>null})} as unknown as WebGLRenderer
+  const pending = prepareScene(renderer, scene, new PerspectiveCamera(), () => true, {warmLighting:true})
+  expect(pooled.visible).toBe(false); expect(other.visible).toBe(true)
+  expect(compileAsync).toHaveBeenCalledTimes(3)
+  return failure ? expect(pending).rejects.toThrow('night compile failed') : expect(pending).resolves.toBeUndefined()
+})
+
+it('prepares course prop LODs with cloned cameras and leaves the player camera unchanged', () => {
+  const scene = new Scene(), camera = new PerspectiveCamera(), seen: number[][] = []
+  camera.position.set(1, 2, 3); camera.lookAt(0, 1, 0); camera.updateMatrixWorld(true)
+  const rotation = camera.quaternion.toArray(), projection = camera.projectionMatrix.toArray()
+  const renderer = {
+    getScissor:(out:Vector4)=>out.set(0,0,800,600),getScissorTest:()=>false,setScissor:vi.fn(),setScissorTest:vi.fn(),
+    render:(_scene:Scene,view:PerspectiveCamera)=>seen.push(view.position.toArray()),
+  } as unknown as WebGLRenderer
+  warmSceneGeometry(renderer, scene, camera, [
+    {position:[20,3,15],target:[20,1,10]}, {position:[-10,40,5],target:[-10,38,0]},
+  ])
+  expect(seen).toEqual([[1,2,3],[20,3,15],[-10,40,5]])
+  expect(camera.position.toArray()).toEqual([1,2,3])
+  expect(camera.quaternion.toArray()).toEqual(rotation)
+  expect(camera.projectionMatrix.toArray()).toEqual(projection)
+})
+
+it('prepares the shader features initialized by the first upload before presenting the scene', async () => {
+  const scene = new Scene(), light = new PointLight(), stages: boolean[] = []
+  light.visible = false; light.userData.warmNightLight = true; scene.add(light)
+  let uploaded = false
+  const renderer = {
+    compileAsync:()=>{stages.push(uploaded);return Promise.resolve()}, initTexture:vi.fn(),
+    getContext:()=>({getExtension:()=>null}), getScissor:(out:Vector4)=>out.set(0,0,800,600),
+    getScissorTest:()=>false,setScissor:vi.fn(),setScissorTest:vi.fn(),render:()=>{uploaded=true},
+  } as unknown as WebGLRenderer
+  await prepareScene(renderer,scene,new PerspectiveCamera(),()=>true,{warmGeometry:true,warmLighting:true})
+  expect(stages).toEqual([false,false,false,true,true,true])
+  expect(light.visible).toBe(false)
 })

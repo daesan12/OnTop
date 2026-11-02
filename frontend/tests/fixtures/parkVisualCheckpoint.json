@@ -1,5 +1,5 @@
 {
-  "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs. Approved jumpmap landing audio adapter and sound-layer diagnostic updated without geometry or placement changes (MR !258), 2026-10-31; authorized VR floor/start pad and plump jumpmap pastry, 2026-10-31. Merged pavilion bench/lantern clearance (f4af1d15), optional render-mode access for spectator collection tests (3ed52827), and fish-shop awning overlap repair (a4e53bb6), 2026-11-01. 사용자 QA 승인 범위의 돌 기단 겹침 제거, 오목 시각 높이의 게임 모듈 격리로 기존 맵 버전 유지, 2026-11-01. 돌 난간의 겹친 접지 밑면 제거, 2026-11-01. 사용자 요청에 따른 하늘·배경 산·경량 구름의 산뜻한 표현 보완, 바닥 타일·공원 조명·맵 배치 유지, 2026-11-01. 사용자 요청으로 전망대 메모함을 뒤로 0.45m 이동하고 공유 충돌 형상 추가, 2026-11-01. 사용자 요청으로 배경 구름 크기를 기존의 55%로 축소, 2026-11-01. 사용자 요청으로 VR 시작 바닥을 팔각형 석재판·황동 인레이·고글 문양으로 보완, 2026-11-01. 사용자 요청으로 돌탑 출발 표식만 엽전에서 돌탑 무늬로 교체하고 게임 모듈로 격리, 코스·배치·충돌 유지, 2026-11-01. 사용자 요청으로 메모함 위치·공유 충돌 변경만 취소하고 이전 맵 버전 복구, 그 외 시각 개선 유지, 2026-11-02. 공원 랭킹 API 개편에 맞춰 랭킹판 열 제목만 보유량·붕어빵 굽기·점프맵으로 변경하고 지오메트리·배치·재질·맵 버전은 유지, 2026-11-02.",
+  "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs. Approved jumpmap landing audio adapter and sound-layer diagnostic updated without geometry or placement changes (MR !258), 2026-10-31; authorized VR floor/start pad and plump jumpmap pastry, 2026-10-31. Merged pavilion bench/lantern clearance (f4af1d15), optional render-mode access for spectator collection tests (3ed52827), and fish-shop awning overlap repair (a4e53bb6), 2026-11-01. 사용자 QA 승인 범위의 돌 기단 겹침 제거, 오목 시각 높이의 게임 모듈 격리로 기존 맵 버전 유지, 2026-11-01. 돌 난간의 겹친 접지 밑면 제거, 2026-11-01. 사용자 요청에 따른 하늘·배경 산·경량 구름의 산뜻한 표현 보완, 바닥 타일·공원 조명·맵 배치 유지, 2026-11-01. 사용자 요청으로 전망대 메모함을 뒤로 0.45m 이동하고 공유 충돌 형상 추가, 2026-11-01. 사용자 요청으로 배경 구름 크기를 기존의 55%로 축소, 2026-11-01. 사용자 요청으로 VR 시작 바닥을 팔각형 석재판·황동 인레이·고글 문양으로 보완, 2026-11-01. 사용자 요청으로 돌탑 출발 표식만 엽전에서 돌탑 무늬로 교체하고 게임 모듈로 격리, 코스·배치·충돌 유지, 2026-11-01. 사용자 요청으로 메모함 위치·공유 충돌 변경만 취소하고 이전 맵 버전 복구, 그 외 시각 개선 유지, 2026-11-02. 공원 랭킹 API 개편에 맞춰 랭킹판 열 제목만 보유량·붕어빵 굽기·점프맵으로 변경하고 지오메트리·배치·재질·맵 버전은 유지, 2026-11-02. 사용자 요청으로 모델·재질·배치를 유지한 정적 나무 구역 분할과 주야간 그래픽 사전 준비를 적용하고 동일 시점 이미지로 검증, 2026-11-02.",
   "files": {
     "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
     "src/layout-preview/existingTreeModel.ts": "fcb9c89c3c90e11ac5a5670a0498dae14184a10b1acac281523ad56ed4748826",
@@ -69,7 +69,7 @@
     "src/world/art/DistantLandscape.tsx": "4a4f23fb9abb6b1bc0aad5c7e5419231ec252dad1c0ad51ca7b62f9eddd79412",
     "src/world/art/EllipticalStation.tsx": "2065eaf9165e27b0cfae5b0b03ac54dd5ac14582378d81a20f5b77db624cb65e",
     "src/world/art/ExerciseStation.tsx": "8ff8c19543fbcf12b0a6771bcb582c4d18578da3da4061e53503d8a5750ee88a",
-    "src/world/art/FacetedParkTreeInstances.tsx": "dde6d7a1886b75cda98ce848e52e4156c27f7d1ce3f3187949a1e6211b279473",
+    "src/world/art/FacetedParkTreeInstances.tsx": "173644cd2f3631ee647dabdfb6456c4d5d21111d359dab56524ac138077a4e92",
     "src/world/art/FartCloud.tsx": "312b785743a10b15fa96cb99af63c909648bfcfd446bc965047c864003489779",
     "src/world/art/fishCartGeometry.ts": "3d4f4654a48b3c1ad3ee18b599d6ee06de470ec2e68ab81eae6d28b2f351315a",
     "src/world/art/fishCartShape.ts": "0c0149238f0b03e65bf18c7b6de23bc726f3f94d1bb25089dc59665ea65bbe7c",
@@ -80,7 +80,7 @@
     "src/world/art/heritageGeometry.ts": "d77add339b34829ef7a2f0868d327d9813c9fa47f4a6fbb583525965d7a2644c",
     "src/world/art/heritageTextures.ts": "e11c3baacb488575fd6beadd25d3456f1e89f6e39845ec3621f82491a19b48f5",
     "src/world/art/ImportedProp.tsx": "2e0e9511ae246515f325f2391fabcd2738606a334fcf7996ca4f3f4454378f22",
-    "src/world/art/Instances.tsx": "6519cd7efd849d57dc6d9de5bc6d1075b8c5d6b8646ae44203138b219f1f0467",
+    "src/world/art/Instances.tsx": "4d6147f02e1b9813d31e01abd9b8fb1765a18cf390091ef736e732f31de5efa8",
     "src/world/art/LakeFish.tsx": "cd838f94277f9de4663ada2d733f255603d1bcdac1a09010a8a4cd6d23781aeb",
     "src/world/art/LandmarkRefinements.tsx": "33cb9a16c37e76fc44677473a1d274c96066b1a4a72c73149a729b6bddbece7e",
     "src/world/art/Landscape.tsx": "607c9f40ec19a94190b14a2346a2e3e3c5eca8dc363df81d6759ebd6a23ba7bc",
@@ -186,7 +186,7 @@
     "src/world/art/fitnessPavingGeometry.ts": "3792ea65214584704f47532280e40dccea1ec858cc97b5b51503e117467e20a2",
     "src/world/simpleEnvironmentPalette.ts": "3039ebd2e4dce1370c0c3afdbb3b243e7a3a7b0f25793e5fac5303a77337495a",
     "src/world/ParkSun.tsx": "0574bebac05a542cd557fea0de83dbff7908931e50c59f5a800adac238dba5b3",
-    "src/world/NightLighting.tsx": "5d497625ec2296facefe5e4db5d90e69fda14f21b62cc1cb43fc9e62933a442c",
+    "src/world/NightLighting.tsx": "07abd16f83ed6c85b8faa0f9de6aa39c458f73b9ea0df68a540ef1211775b142",
     "src/features/jumpmap/landingMotion.ts": "bd2fef3d57e71cb273cfb2e0c63052bbfe55e6f44b1972676ba306380b434223",
     "src/world/art/LuckyFacilities.tsx": "cf1f198fea3e3e0130bdf3b94c96d44c014174e352ba0645240ce41a511b77d4",
     "src/world/art/luckyFacilityGeometry.ts": "5c69f18ff9ee9564325e16d8738b6bdebcda6148f114911a595cec0b51cd816b",

@@ -12,6 +12,7 @@ export function jumpmapProbe() {
   for (const theme of new Set(COURSE.map(p => p.theme))) {
     const group = course?.getObjectByName(`service-jump-${theme}`)
     if (!group) continue
+    if (!group.children.some(child => child.visible)) continue
     padsDrawn += (group.children[0] as InstancedMesh)?.count ?? 0
     const expected = Object.values(jumpArt[theme]).map(g => g.uuid)
     group.children.forEach(node => { const m = node as InstancedMesh; if (m.isInstancedMesh) { instances += m.count; if (expected.includes(m.geometry.userData.jumpSource)) geometryMatches++ } })

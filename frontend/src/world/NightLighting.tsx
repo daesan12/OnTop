@@ -181,6 +181,7 @@ export function NightLighting({ quality }: { quality: QualityPreset }) {
       {Array.from({ length: preset.lights }, (_, i) => (
         <pointLight
           key={i}
+          userData={{ warmNightLight: true }}
           ref={(v) => {
             lights.current[i] = v
           }}

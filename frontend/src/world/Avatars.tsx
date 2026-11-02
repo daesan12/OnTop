@@ -46,6 +46,7 @@ function Avatar({
   const sources = useLoader(ParkAssetLoader, characterUrls)
   const variant = useSession(state => state.profiles[id]?.character ?? 'man')
   const equipment = useSession(state => state.equipment[id] ?? emptyEquipment)
+  const own = useSession(state => state.sessionId === id)
   const model = useMemo(
     () => createCharacterRig(sources[variant === 'girl' ? 1 : 0]!),
     [sources, variant],
@@ -135,7 +136,9 @@ function Avatar({
       ref={root}
       name={`avatar-${id}`}
       dispose={null}
-      onContextMenu={event => {
+      // A registered handler raycasts the whole posed model on every canvas
+      // press/release/click, even though the local avatar has no context menu.
+      onContextMenu={own ? undefined : event => {
         if (id === useSession.getState().sessionId) return
         event.stopPropagation(); event.nativeEvent.preventDefault()
         openAvatarMenu({ id, x: event.clientX, y: event.clientY })

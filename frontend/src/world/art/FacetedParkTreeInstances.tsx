@@ -1,4 +1,6 @@
 import { SIMPLE_MAP } from './mapRenderProfile'
+import { useMemo } from 'react'
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import {ConeGeometry,CylinderGeometry,IcosahedronGeometry,MeshStandardMaterial,MeshLambertMaterial} from 'three'
 import {SpatialInstances,Instances} from './Instances'
 import type {buildParkTreeParts} from './parkTreeParts'
@@ -13,8 +15,15 @@ export const parkTreeResources={
 
 export function FacetedParkTreeInstances({parts,name,treeCount}:{parts:ReturnType<typeof buildParkTreeParts>;name:string;treeCount:number}){
   const Batch=SIMPLE_MAP?Instances:SpatialInstances
+  const batches=useMemo(()=>[
+    {parts:parts.wood,geometry:parkTreeResources.trunk},
+    {parts:parts.crowns,geometry:parkTreeResources.round},
+    {parts:parts.cones,geometry:parkTreeResources.cone},
+  ],[parts])
   return <group name={name} userData={{assetId:'park/faceted-trees',treeCount}}>
-    {([{parts:parts.wood,geometry:parkTreeResources.trunk},{parts:parts.crowns,geometry:parkTreeResources.round},{parts:parts.cones,geometry:parkTreeResources.cone}]).map(({parts,geometry})=><Batch key={geometry.uuid} parts={parts} shadow={false} material={<primitive object={parkTreeResources.material} attach="material" dispose={null}/>}>
+    {batches.map(({parts,geometry})=>GENERATED_PARK_ENABLED?<SpatialInstances key={geometry.uuid} parts={parts} cellSize={96} shadow={false} material={<primitive object={parkTreeResources.material} attach="material" dispose={null}/>}>
+      <primitive object={geometry} attach="geometry" dispose={null}/>
+    </SpatialInstances>:<Batch key={geometry.uuid} parts={parts} shadow={false} material={<primitive object={parkTreeResources.material} attach="material" dispose={null}/>}>
       <primitive object={geometry} attach="geometry" dispose={null}/>
     </Batch>)}
   </group>
