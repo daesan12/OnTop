@@ -52,16 +52,24 @@ class AlkkagiExtendedItemTests {
     }
 
     @Test
-    void 재배치는_거리_중심경계_겹침을_검사하고_서버좌표를_변경한다() {
+    void 재배치는_거리제한없이_중심경계와_겹침을_검사한다() {
         var m = match("RELOCATE");
-        assertThatThrownBy(() -> use(m, "far", List.of("p13"), new AlkkagiMatch.Placement(0, -4, 0), 1)).hasMessage("RELOCATE_TOO_FAR");
+        assertThatThrownBy(() -> use(m, "outside", List.of("p13"), new AlkkagiMatch.Placement(0, -5.1, 0), 1)).hasMessage("ITEM_OVERLAP_OR_OUTSIDE");
         assertThatThrownBy(() -> use(m, "overlap", List.of("p13"), new AlkkagiMatch.Placement(0, 3.2, 0), 1)).hasMessage("ITEM_OVERLAP_OR_OUTSIDE");
-        assertThatThrownBy(() -> use(m, "other", List.of("p16"), new AlkkagiMatch.Placement(0, 0, 0), 1)).hasMessage("RELOCATE_TOO_FAR");
         assertThat(m.privateView(0).cards()).hasSize(1);
-        use(m, "move", List.of("p13"), new AlkkagiMatch.Placement(1, .4, 0), 1);
-        assertThat(m.snapshot(0).pieces().get(13).x()).isEqualTo(1);
-        assertThat(m.snapshot(0).pieces().get(13).y()).isEqualTo(.4);
+        use(m, "move", List.of("p13"), new AlkkagiMatch.Placement(0, -4, 0), 1);
+        assertThat(m.snapshot(0).pieces().get(13).x()).isEqualTo(0);
+        assertThat(m.snapshot(0).pieces().get(13).y()).isEqualTo(-4);
         assertThat(m.privateView(0).cards()).isEmpty();
+    }
+
+    @Test void 상대알도_거리제한없이_재배치한다() {
+        var m = match("RELOCATE");
+        use(m, "other", List.of("p16"), new AlkkagiMatch.Placement(0, 0, 0), 1);
+        assertThat(m.snapshot(0).pieces().get(16).x()).isZero();
+        assertThat(m.snapshot(0).pieces().get(16).y()).isZero();
+        assertThat(m.privateView(0).cards()).isEmpty();
+        assertThat(m.snapshot(0).itemRules().relocateDistance()).isZero();
     }
 
     @Test void 힘강화는_여러알에_지속하며_다른알_발사도_허용한다() {

@@ -250,7 +250,6 @@ public final class AlkkagiMatch {
                 require(input.placement() != null, "INVALID_PLACEMENT");
                 var destination = input.placement();
                 validatePlacement(destination);
-                require(piece.body.getWorldCenter().distance(destination.x(), destination.y()) <= itemRules.relocateDistance(), "RELOCATE_TOO_FAR");
                 require(fits(destination.x(), destination.y(), piece.radius, piece, null, false), "ITEM_OVERLAP_OR_OUTSIDE");
                 var at = piece.body.getWorldCenter().copy();
                 piece.body.translate(destination.x() - at.x, destination.y() - at.y);

@@ -23,7 +23,7 @@ const errorNames: Record<string, string> = {
   STALE_TUNING: '판이 바뀌었습니다. 최신 상태에서 다시 적용해주세요.',
   INVALID_TUNING: '조절 범위를 확인해주세요. 발사 힘 0.5~30 / 감속 0.1~60 / 반발 0~1',
   ITEM_OVERLAP: '다른 알이나 벽과 겹칩니다. 위치를 다시 골라주세요.',
-  ITEM_OVERLAP_OR_OUTSIDE: '겹치거나 판 밖인 위치입니다.', RELOCATE_TOO_FAR: '이동 가능 거리를 넘었습니다.',
+  ITEM_OVERLAP_OR_OUTSIDE: '겹치거나 판 밖인 위치입니다.',
   WALL_LIMIT: '내 벽 3개를 모두 설치했습니다.',
   MODIFIER_ACTIVE: '이 알의 기존 크기·방어 효과가 끝난 뒤 사용해주세요.', BOOST_TARGET_REQUIRED: '힘 강화한 알로 발사해주세요.',
   INVALID_ITEM_RULES: '아이템 조절 범위를 확인해주세요.',
@@ -51,7 +51,7 @@ function App() {
   const [placement, setPlacement] = useState<{ x: number; y: number; angle: number } | null>(null)
   const [pinned, setPinned] = useState(false), [forfeitOpen, setForfeitOpen] = useState(false)
   const [practice, setPractice] = useState(['SWAP', 'EXTRA_SHOT'])
-  const [rules, setRules] = useState({ wallLength: 1.6, wallThickness: .18, wallMargin: .12, relocateDistance: 2,
+  const [rules, setRules] = useState({ wallLength: 1.6, wallThickness: .18, wallMargin: .12, relocateDistance: 0,
     powerMultiplier: 1.5, growScale: 1.25, shrinkScale: .8, defendMassMultiplier: 2, effectOpponentTurns: 0 })
   useEffect(() => { if (state?.itemRules) setRules(state.itemRules) }, [state?.gameId])
   const cancelItem = () => { setItem(null); setTargets([]); setPlacement(null); setPinned(false) }
@@ -236,7 +236,7 @@ function App() {
       <p>운영 확정 규칙이 아닙니다. 크기 변경 시 질량은 크기 배율의 제곱에 비례하며, 크기·힘·방어·벽은 경기 끝까지 유지합니다.</p>
       {([
         ['wallLength', '벽 길이', .5, 3, .1], ['wallThickness', '벽 두께', .1, .5, .01], ['wallMargin', '벽 가장자리 여백', .02, .4, .01],
-        ['relocateDistance', '재배치 거리', .5, 3, .1], ['powerMultiplier', '힘 강화 배율', 1.05, 2, .05],
+        ['powerMultiplier', '힘 강화 배율', 1.05, 2, .05],
         ['growScale', '확대 배율', 1.05, 1.5, .05], ['shrinkScale', '축소 배율', .5, .95, .05],
         ['defendMassMultiplier', '방어 질량 배율', 1.1, 4, .1],
       ] as const).map(([key, title, min, max, step]) => <label key={key} className="item-rule">{title}

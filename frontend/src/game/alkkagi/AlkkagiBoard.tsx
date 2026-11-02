@@ -36,7 +36,7 @@ export function AlkkagiScene(props: Parameters<typeof Scene>[0]) {
 
 type Aim = { piece: Piece; origin: Vector3; end: Vector3; start: { x: number; y: number }
   moved: number; pointerId: number; gameId: string; version: number }
-function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem, placement, pickPlacement, pinned, previewValid, rotatePlacement, cursor }: { layer?: number; actor: number; state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
+function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, blockedReason, itemMode, itemTargets, pickTarget, cancelItem, placement, pickPlacement, pinned, previewValid, rotatePlacement }: { layer?: number; actor: number; state: Snapshot | null; replay: AlkkagiReplay; enabled: boolean
   shoot(p: Piece, dx: number, dy: number, power: number): void; explain(message: string): void; blockedReason: string; itemMode: string | null; itemTargets: string[]; pickTarget(piece: Piece): void; cancelItem(): void; placement: { x: number; y: number; angle: number } | null; pickPlacement(x: number, y: number, pin?: boolean): void; pinned: boolean; previewValid: boolean; rotatePlacement(delta: number): void; cursor(x: number, y: number): void }) {
   const space = useRef<Group>(null)
   const localPoint = (point: Vector3) => space.current!.worldToLocal(point.clone())
@@ -159,7 +159,6 @@ function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, block
         e.stopPropagation(); pickPlacement(localPoint(e.point).x, localPoint(e.point).z, true)
       }
     }} onPointerMove={e => {
-      cursor(localPoint(e.point).x, localPoint(e.point).z)
       if (enabled && (itemMode === 'WALL' || itemMode === 'RELOCATE') && !pinned) pickPlacement(localPoint(e.point).x, localPoint(e.point).z)
     }} />
     {pieces.map(piece => <group key={`${state!.gameId}-${piece.id}-${piece.radius}`} ref={g => { if (g) groups.current.set(piece.id, g); else groups.current.delete(piece.id) }}>
@@ -175,7 +174,7 @@ function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, block
         if (itemMode) {
           clear()
           if (itemMode !== 'WALL' && itemMode !== 'EXTRA_SHOT') pickTarget(piece)
-          else explain('아이템 확정 또는 취소를 먼저 눌러주세요.')
+          else explain('벽을 놓을 빈 위치를 클릭하거나 Esc로 취소하세요.')
           return
         }
         const origin = hitPlane(e.ray)
@@ -209,9 +208,6 @@ function Scene({ layer = 0, actor, state, replay, enabled, shoot, explain, block
     </mesh>}
     {placement && itemMode === 'RELOCATE' && itemTargets.length === 1 && <DestinationGhost x={placement.x} y={placement.y}
       radius={pieces.find(p => p.id === itemTargets[0])?.radius ?? .24} valid={previewValid} />}
-    {state?.social?.cursors.filter(c => c.actor !== actor || actor < 0).map(c => <mesh key={c.id} position={[c.x, .38, c.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
-      <ringGeometry args={[.08, .13, 16]} /><meshBasicMaterial color={c.actor === 0 ? '#e78770' : c.actor === 1 ? '#6ecea0' : '#79afff'} />
-    </mesh>)}
     {state?.social?.advice.map(a => { const p = pieces.find(p => p.id === a.pieceId); return p && <AdviceArrow key={a.id} x={p.x} y={p.y} dx={a.dx} dy={a.dy} power={a.power} /> })}
     {state?.impacts?.filter(i => state.serverNow - i.at < 220).map(i => <mesh key={i.id} position={[i.x, .4, i.y]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
       <ringGeometry args={[.12, .19 + Math.min(.15, i.impulse * .01), 20]} /><meshBasicMaterial color="#ffe0a0" transparent opacity={.6} depthWrite={false} />
