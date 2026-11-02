@@ -406,7 +406,7 @@ class MinigameV5DeliveryServiceTests {
         assertThat(ledger).isEmpty();
 
         var result = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "edge", edge);
-        assertThat(result.configVersion()).isEqualTo("v5-20261101.1");
+        assertThat(result.configVersion()).isEqualTo("v5-20261102.1");
         assertThat(result.finalThroughSeq()).isEqualTo(9);
         assertThat(result.unfinishedGrillCount()).isOne();
         assertThat(service.complete(USER_ID, id, "edge", edge)).isEqualTo(result);
