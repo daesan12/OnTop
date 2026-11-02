@@ -7,7 +7,9 @@ import com.ssafy.ontop.game.reconnect.ActiveGameLookup;
 import com.ssafy.ontop.game.reconnect.ActiveGameRecord;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
+import com.ssafy.ontop.game.reconnect.TerminalGameRecovery;
 import com.ssafy.ontop.game.start.GameRuntimeIdentity;
+import com.ssafy.ontop.table.service.TableHub;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
@@ -32,7 +34,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "spring.profiles.active=local", "ontop.websocket.authenticated=true"
+        "spring.profiles.active=local", "ontop.websocket.authenticated=true",
+        "ontop.world.channels[0].channel-id=channel-1", "ontop.world.channels[0].name=복구 검증",
+        "ontop.world.channels[0].capacity=20"
 })
 @Import({AuthenticatedWebSocketTests.AuthFixture.class, GameReconnectConsistencyWebSocketTests.Fixture.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
@@ -45,6 +49,8 @@ class GameReconnectConsistencyWebSocketTests {
     private Engine engine;
     @Autowired
     private Lookup lookup;
+    @Autowired
+    private TableHub hub;
 
     @Test
     void 자동조회와_수동조회가_DB엔진대조를_공유하고_불일치중_로비진입을_막는다() throws Exception {
@@ -72,9 +78,30 @@ class GameReconnectConsistencyWebSocketTests {
             lookup.active = false;
             client.send("GAME_RECONNECT_CHECK", Map.of());
             assertThat(client.state("LOBBY").path("gameId").isNull()).isTrue();
-            assertThat(client.request("TABLE_JOIN", Map.of("tableId", "table-1"))
+            assertThat(client.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"))
+                    .path("type").asText()).isEqualTo("CHANNEL_STATE");
+            assertThat(client.request("TABLE_JOIN", Map.of("tableId", tableId()))
                     .path("type").asText()).isEqualTo("TABLE_STATE");
         }
+    }
+
+    @Test
+    void 이전서버_종료경기는_수동재확인시_기존정산연결후_채널입장과_착석이_가능하다() throws Exception {
+        try (Client client = new Client()) {
+            client.state("UNAVAILABLE");
+            lookup.terminal = true;
+            client.send("GAME_RECONNECT_CHECK", Map.of());
+            assertThat(client.state("LOBBY").path("gameId").isNull()).isTrue();
+            assertThat(lookup.active).isFalse();
+            JsonNode joined = client.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
+            assertThat(joined.path("type").asText()).as(joined.toString()).isEqualTo("CHANNEL_STATE");
+            assertThat(client.request("TABLE_JOIN", Map.of("tableId", tableId()))
+                    .path("type").asText()).isEqualTo("TABLE_STATE");
+        }
+    }
+
+    private String tableId() {
+        return hub.listTables("channel-1").tables().getFirst().tableId();
     }
 
     private class Client implements WebSocket.Listener, AutoCloseable {
@@ -156,11 +183,20 @@ class GameReconnectConsistencyWebSocketTests {
         Engine engine() {
             return new Engine();
         }
+
+        @Bean
+        TerminalGameRecovery terminalGameRecovery(Lookup lookup) {
+            return (user, game) -> {
+                assertThat(game.status()).isEqualTo(GameSession.Status.FINISHED);
+                lookup.active = false;
+            };
+        }
     }
 
     static class Lookup implements ActiveGameLookup {
         private final ActiveGameRecord record;
         private volatile boolean active = true;
+        private volatile boolean terminal;
 
         Lookup(GameRuntimeIdentity identity) {
             Instant reserved = Instant.parse("2026-10-29T00:00:00Z");
@@ -171,6 +207,12 @@ class GameReconnectConsistencyWebSocketTests {
 
         @Override
         public Optional<ActiveGameRecord> findByUserId(long userId) {
+            if (active && terminal) {
+                return Optional.of(new ActiveGameRecord(record.gameSessionId(), "ALKKAGI", record.tableId(),
+                        GameSession.Status.FINISHED, GameSession.SettlementStatus.PENDING,
+                        "previous-server", UUID.randomUUID(), record.reservedAt(), record.startedAt(),
+                        record.startedAt().plusSeconds(1)));
+            }
             return active ? Optional.of(record) : Optional.empty();
         }
     }
