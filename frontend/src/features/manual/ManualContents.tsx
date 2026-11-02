@@ -3,6 +3,7 @@ import { Markdown } from "./Markdown";
 import { filterGuides, filterManuals, gameManuals, parkGuides } from "./catalog";
 import { GameArt } from "./GameArt";
 import { useManual } from "./manualState";
+import { replayWelcomeTour, tourBlockReason } from "../welcomeTour/state";
 import {
   isManualGameId,
   type GuideId,
@@ -33,6 +34,21 @@ const navigation: { group: string; items: { id: ManualPage; icon: string; title:
     { id: "faq", icon: "?", title: "자주 묻는 질문" },
   ] },
 ];
+
+/** 첫 걸음 페이지에서 설명서를 닫고 체험 투어를 처음부터 다시 시작한다(카메라 비행 없음). */
+function TourReplayCard() {
+  const reason = tourBlockReason();
+  return (
+    <button className="manual-first-card" disabled={!!reason} onClick={() => replayWelcomeTour()}>
+      <span className="manual-first-icon" aria-hidden="true">✦</span>
+      <span>
+        <b>공원 투어 다시 보기</b>
+        <small>{reason || "설명서를 닫고 걸으면서 다섯 가지를 직접 해 봐요."}</small>
+      </span>
+      <span aria-hidden="true">→</span>
+    </button>
+  );
+}
 
 function Section({
   section,
@@ -424,6 +440,7 @@ export default function ManualContents() {
                   </div>
                   {game && <GameArt game={game.id} />}
                 </div>
+                {displayPage === "welcome" && <TourReplayCard />}
                 {game ? (
                   <>
                     {/* One designed page per game: facts, the flow of a round, keys and must-know rules, then the full rules. */}

@@ -8,6 +8,8 @@ import { navDistance, navigationHeight, navigationSegmentClear } from './parkNav
 import { createRoutePlanner } from './routePlanner'
 
 const ARRIVAL_RADIUS = 3
+/** A jump stays up about 0.7 s (jumpSpeed 6.2, gravity 18). Only staying raised longer, on a tower or a deck, pauses the ground route. */
+const RAISED_PAUSE_MS = 1200
 
 export function ParkNavigation() {
   const target = useNavigation(s => s.target)
@@ -16,27 +18,35 @@ export function ParkNavigation() {
   useEffect(() => cancelNavigation, [])
   useEffect(() => {
     if (!target) return
-    let lastPlan = -Infinity, arrivalAt = 0, pending = false, disposed = false
+    let lastPlan = -Infinity, arrivalAt = 0, pending = false, disposed = false, raisedSince = 0
     const planner = createRoutePlanner()
     let lastOrigin: { x: number; z: number } | undefined
     const tick = () => {
-      const session = useSession.getState(), state = useNavigation.getState()
+      const session = useSession.getState()
+      let state = useNavigation.getState()
       if (state.owner !== session.sessionId || state.channel !== session.roomId) { cancelNavigation(); return }
       const game = useGame.getState()
       const hidden = session.status !== 'connected' || !session.mapCompatible || inputState.manualOpen || inputState.blocked
         || !!(session.tableId || session.benchId || session.fitnessId || session.telescopeId || game.watchedGameId || game.game)
         || inputState.minigameOpen || inputState.feedbackOpen || inputState.notesOpen
-      const pose = avatars.get(session.sessionId)?.current
+      const avatar = avatars.get(session.sessionId), pose = avatar?.current, swimming = !!avatar?.swimming
       setDisplay(old => old.hidden === hidden ? old : { ...old, hidden })
       if (!pose || hidden) return
       const now = performance.now()
       if (arrivalAt) { if (now - arrivalAt > 3000) cancelNavigation(); return }
-      if (Math.abs(pose.y - 0.8 - navigationHeight(pose)) > 0.9) {
-        if (state.status !== 'paused') useNavigation.setState({ status: 'paused', path: [] })
+      if (!swimming && Math.abs(pose.y - 0.8 - navigationHeight(pose)) > 0.9) {
+        raisedSince ||= now
+        // The path is kept, so the same route resumes the moment the player is back on the ground.
+        if (now - raisedSince >= RAISED_PAUSE_MS && state.status !== 'paused') useNavigation.setState({ status: 'paused' })
         return
       }
+      raisedSince = 0
+      if (state.status === 'paused') {
+        useNavigation.setState({ status: state.path.length ? 'guiding' : 'planning' })
+        state = useNavigation.getState()
+      }
       // A nearby reachable approach is enough, even when search is pending or the
-      // player has left the planned line. Check before replanning clears the path.
+      // player has left the planned line.
       const end = state.path.at(-1) ?? target
       if (navDistance(pose, end) <= ARRIVAL_RADIUS && navigationSegmentClear(pose, end)) {
         arrivalAt = now; useNavigation.setState({ status: 'arrived', path: [] }); return
@@ -44,12 +54,16 @@ export function ParkNavigation() {
       if (pending) return
       let path = state.path, nearest = 0, distance = Infinity
       for (let i = 0; i < path.length; i++) { const d = navDistance(pose, path[i]!); if (d < distance) { distance = d; nearest = i } }
-      if (!path.length || distance > 2.5 || !navigationSegmentClear(pose, path[nearest]!)) {
+      const offRoute = !path.length || distance > 2.5 || !navigationSegmentClear(pose, path[nearest]!)
+      // Water is not walkable, so a swimmer keeps the land route on screen instead of failing to plan from the lake.
+      if (offRoute && swimming && !path.length) return
+      if (offRoute && !swimming) {
         if ((state.status === 'unreachable' || state.status === 'unavailable') && lastOrigin && navDistance(pose, lastOrigin) < 2) return
         if (now - lastPlan < 2000) return
         lastPlan = now; lastOrigin = { x: pose.x, z: pose.z }
         pending = true
-        useNavigation.setState({ path: [], status: 'planning' })
+        // The previous arrows stay until the new route replaces them.
+        useNavigation.setState({ status: 'planning' })
         const ownsReply = () => !disposed && !arrivalAt && useNavigation.getState().target === target
           && useSession.getState().sessionId === session.sessionId && useSession.getState().roomId === session.roomId
           && useSession.getState().status === 'connected' && useSession.getState().mapCompatible
