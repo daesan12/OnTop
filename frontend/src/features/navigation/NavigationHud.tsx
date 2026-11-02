@@ -8,6 +8,8 @@ import { navDistance, navigationHeight, navigationSegmentClear } from './parkNav
 import { createRoutePlanner } from './routePlanner'
 
 const ARRIVAL_RADIUS = 3
+/** A jump stays up about 0.7 s (jumpSpeed 6.2, gravity 18). Only staying raised longer, on a tower or a deck, pauses the ground route. */
+const RAISED_PAUSE_MS = 1200
 
 export function ParkNavigation() {
   const target = useNavigation(s => s.target)
@@ -16,11 +18,12 @@ export function ParkNavigation() {
   useEffect(() => cancelNavigation, [])
   useEffect(() => {
     if (!target) return
-    let lastPlan = -Infinity, arrivalAt = 0, pending = false, disposed = false
+    let lastPlan = -Infinity, arrivalAt = 0, pending = false, disposed = false, raisedSince = 0
     const planner = createRoutePlanner()
     let lastOrigin: { x: number; z: number } | undefined
     const tick = () => {
-      const session = useSession.getState(), state = useNavigation.getState()
+      const session = useSession.getState()
+      let state = useNavigation.getState()
       if (state.owner !== session.sessionId || state.channel !== session.roomId) { cancelNavigation(); return }
       const game = useGame.getState()
       const hidden = session.status !== 'connected' || !session.mapCompatible || inputState.manualOpen || inputState.blocked
@@ -32,8 +35,15 @@ export function ParkNavigation() {
       const now = performance.now()
       if (arrivalAt) { if (now - arrivalAt > 3000) cancelNavigation(); return }
       if (Math.abs(pose.y - 0.8 - navigationHeight(pose)) > 0.9) {
-        if (state.status !== 'paused') useNavigation.setState({ status: 'paused', path: [] })
+        raisedSince ||= now
+        // The path is kept, so the same route resumes the moment the player is back on the ground.
+        if (now - raisedSince >= RAISED_PAUSE_MS && state.status !== 'paused') useNavigation.setState({ status: 'paused' })
         return
+      }
+      raisedSince = 0
+      if (state.status === 'paused') {
+        useNavigation.setState({ status: state.path.length ? 'guiding' : 'planning' })
+        state = useNavigation.getState()
       }
       // A nearby reachable approach is enough, even when search is pending or the
       // player has left the planned line. Check before replanning clears the path.
