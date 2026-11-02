@@ -37,15 +37,17 @@ export function VrZoneHost({ controller }: { controller: VrZoneController }) {
       <div className="vr-zone-balance"><span>{preview ? '로컬 테스트 잔액' : '사용 가능한 엽전'}</span><strong>{state.loading ? '확인 중…' : state.balance === null ? '확인 필요' : `${state.balance}냥`}</strong></div>
       {preview ? <p className="vr-zone-preview-note">실제 계정의 엽전은 사용하지 않는 로컬 테스트입니다.</p> : null}
       <div className="vr-zone-grid" aria-label="VR 게임 목록">
-        {VR_GAMES.map(game => <button key={game.id} className="vr-zone-game" aria-label={`${game.name} 선택`} onClick={() => controller.select(game.id)}>
+        {VR_GAMES.map(game => <button key={game.id} className="vr-zone-game" aria-label={`${game.name}${controller.underConstruction ? ' 공사 중' : ' 선택'}`} disabled={controller.underConstruction} onClick={() => controller.select(game.id)}>
           <img className="vr-zone-game-cover" src={skewerCover} alt="주문 그림을 보고 토마토·새우·고기·피망을 꼬치에 꽂는 게임" width="1664" height="941" />
-          <span className="vr-zone-game-copy"><strong>{game.name}</strong><span>{game.players} · 한 판 {VR_PLAY_FEE}냥</span><small>{game.description}</small><span className="vr-zone-game-link">플레이 방식 선택 <span aria-hidden="true">→</span></span></span>
+          <span className="vr-zone-game-copy"><strong>{game.name}</strong><span>{game.players} · 한 판 {VR_PLAY_FEE}냥</span><small>{game.description}</small><span className="vr-zone-game-link">{controller.underConstruction ? '공사 중' : <>플레이 방식 선택 <span aria-hidden="true">→</span></>}</span></span>
         </button>)}
         {Array.from({ length: VR_CATALOG_SLOTS - VR_GAMES.length }, (_, index) => <div key={index} className="vr-zone-coming"><span aria-hidden="true">+</span><strong>새로운 VR 게임</strong><small>준비 중</small></div>)}
       </div>
-      <div className="vr-zone-fee"><strong>판돈 없이, 이용료 10냥</strong><p>게임을 고르는 동안에는 차감하지 않아요. 실제 시작할 때 한 번 차감하며, 영업 종료까지가 한 판이에요. 점수는 엽전 보상으로 바뀌지 않아요.</p></div>
-      {admissionNotice}
-      <p className="vr-zone-start-note">게임을 선택하면 VR 사용 여부를 고를 수 있어요.</p>
+      {controller.underConstruction ? <p className="vr-zone-start-note" role="status">온탑 꼬치왕은 현재 공사 중이에요. 준비가 끝나면 다시 만나요. 엽전은 차감되지 않아요.</p> : <>
+        <div className="vr-zone-fee"><strong>판돈 없이, 이용료 10냥</strong><p>게임을 고르는 동안에는 차감하지 않아요. 실제 시작할 때 한 번 차감하며, 영업 종료까지가 한 판이에요. 점수는 엽전 보상으로 바뀌지 않아요.</p></div>
+        {admissionNotice}
+        <p className="vr-zone-start-note">게임을 선택하면 VR 사용 여부를 고를 수 있어요.</p>
+      </>}
     </PaperPopup> : state.phase === 'mode' ? <PaperPopup key="mode" title="VR 체험관" label="온탑 꼬치왕 플레이 방식 선택" closeLabel="플레이 방식 선택 닫기" onClose={() => controller.back()} className="vr-zone-mode">
       <button className="vr-zone-mode-back" onClick={() => controller.back()}><span aria-hidden="true">‹</span> 게임 목록으로</button>
       <h2>{VR_GAMES.find(game => game.id === state.selected)?.name}</h2><p className="vr-zone-mode-subtitle">어떤 방식으로 플레이할까요?</p>
