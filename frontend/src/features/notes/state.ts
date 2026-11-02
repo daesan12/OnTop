@@ -1,12 +1,12 @@
 import { create } from 'zustand'
-import type { AnonymousNote } from '../../config/notes'
+import type { AnonymousNote } from '../../park/mapConfig'
 import { inputState } from '../../world/inputOwnership'
 import { parseNoteText } from './validation'
 import type { NoteTopic } from './topics'
 
 const initial = () => ({ open: false, draft: '', draftTopic: 'free' as NoteTopic, submittedTopic: 'free' as NoteTopic,
   ownerId: '', channelId: '', notes: [] as AnonymousNote[], displayNotes: [] as AnonymousNote[],
-  loaded: false, prefetched: false, loading: false, pending: false, error: '', readError: '', notice: '',
+  loaded: false, prefetched: false, loading: false, pending: false, error: '', readError: '', readErrorCode: '', notice: '',
   operationId: '', submittedText: '', retryBlocked: false, nextAllowedAt: 0, nextReadAt: 0, epoch: 0 })
 export const useNotesState = create(initial)
 let lifetime = new AbortController()

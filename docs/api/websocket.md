@@ -1,5 +1,8 @@
 # OnTop WebSocket 연결 및 메시지 계약
 
+완성 텍스트의 공통 빈도·동시 접속 상한과 1013/1009 종료는 [유입 제한](../websocket-ingress-limits.md)을 따른다.
+로컬 구현이며 운영 수치·신뢰 프록시·FE 지연 재연결 정책은 협의 전이다.
+
 맵 식별 정보: [CONNECTED / WORLD_MAP_CONFIRM / WORLD_MAP_STATE](../world-map-api.md).
 WORLD_MAP_REQUIRE_MATCH=true에서는 확인 전 입장·경기 복구를 보류한다. 기본 false는 기존 FE 호환이다.
 
@@ -106,6 +109,8 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 맵 확인 | WORLD_MAP_CONFIRM | WORLD_MAP_STATE |
 | 광장 | CHANNEL_JOIN / CHANNEL_LEAVE | CHANNEL_STATE / CHANNEL_LEFT / WORLD_STATE |
 | 이동 | WORLD_MOVE | WORLD_STATE |
+| C 좌표 검증 이동 (dev 기본) | WORLD_POSITION | WORLD_STATE; local 명시 활성·dev 기본 활성·prod 제외. [계약](../world-movement-prediction.md#c-좌표-검증-이동-계약-dev-기본-적용-prod-제외) |
+| 클라이언트 물리 준비 실패 시 서버 이동 복귀 | WORLD_POSITION_FALLBACK | WORLD_STATE; C 모드에서 사용, payload는 현재 epoch |
 | 채팅·감정 | WORLD_CHAT_SEND / WORLD_EMOTE_SEND | WORLD_CHAT_MESSAGE / WORLD_EMOTE_EVENT / WORLD_EMOTE_CANCELLED |
 | 따라가기 | WORLD_FOLLOW_CHECK / WORLD_FOLLOW_START / WORLD_FOLLOW_STOP | WORLD_FOLLOW_STATE ([상세](../world-follow-api.md)) |
 | 시설 | WORLD_FACILITY_CHECK / WORLD_FACILITY_CATALOG / WORLD_FACILITY_USE / WORLD_FACILITY_RELEASE / WORLD_FACILITY_AIM | [시설 계약](../world-facility-api.md)의 상태·목록·이용 응답 |
@@ -117,6 +122,8 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 경기 입력 | GAME_ACTION_SEND | GAME_ACTION_RESULT (개별 GAME_STATE 갱신과 구분) |
 | 수동 기권 | GAME_FORFEIT | GAME_FORFEIT_RESULT |
 | 오목 관전 채팅·핑 | GAME_SPECTATOR_CHAT_SEND / OMOK_SPECTATOR_PING_SEND | GAME_SPECTATOR_CHAT_MESSAGE / OMOK_SPECTATOR_PING ([상세](../websocket-api/10-game-spectator-events.md), 승인 관전자만 발신) |
+| 주사위 장부 관전 훈수 | DICE_LEDGER_SPECTATOR_PING_SEND | DICE_LEDGER_SPECTATOR_PING ([상세](../dice-ledger.md#관전자-훈수-핑), 승인 관전자만 발신) |
+| 알까기 관전 커서·훈수 | ALKKAGI_SPECTATOR_SEND | ALKKAGI_SPECTATOR_EVENT ([상세](../websocket-api/11-alkkagi-spectator-events.md), 로컬 알까기 활성화·관전 권한 필요) |
 | 경기 결과 | GAME_RESULT_CHECK | GAME_RESULT |
 | 원카드 장난·방어 | ONECARD_PRANK_REACH_SEND / ONECARD_PRANK_HIT_SEND / ONECARD_HAND_RESTORE_SEND / ONECARD_HAND_FLIP_SEND | [방어·차단·뒤집기·복구](../onecard-ux-be-spec.md), 구형 FLIP은 방어 비활성 호환 전용 |
 | 오류 | 잘못된 메시지/권한/연동 미준비 | ERROR |
@@ -145,7 +152,7 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 
 세부 필드와 선택적4종 엔진 계약은 기존 [경기 통신](../websocket-api/09-game-communication.md),
 [경기 입력](../game-action-api.md), [결과](../game-result-api.md), [광장](../world-websocket-api.md)를 따른다.
-위 표는 실제 클라이언트 요청 28종이다. ERROR와 CONNECTED는 요청 타입이 아니다.
+현재 TableProtocol의 클라이언트 요청은 42종이다. ERROR와 CONNECTED는 요청 타입이 아니다.
 게스트 인증, 다중 인스턴스 접속권/연결 추적 및 다른 boot의 미완료 경기 자동 반환은 미지원이다.
 
 ## Story 174 결과·전달·복구
@@ -161,11 +168,13 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 - 현재 boot의 SETTLING은 신뢰된 DB 종결 결과로 복구한다. 다른 boot의 미완료 경기 자동 INVALID/반환은 미구현이다.
 - 자세한 nullable/필드 규칙: [결과](../game-result-api.md), [Story 174 구현과 한계](../game-recovery.md).
 - 새로고침·재연결 후 FE는 이 탭의 경기 ID가 경기 내역 REST의 최근 종료 경기와 같을 때만 기존
-  GAME_RESULT_CHECK를 다시 보낸다. 새 메시지·필드는 없다. 상세: [새로고침 후 결과 발견](../game-recovery.md#새로고침-후-경기-결과-발견-ontop-story-b).
+  GAME_RESULT_CHECK를 다시 보낸다. 새 메시지·필드는 없다.
+- 서버가 유지한 좌석(대기석 유예 복귀·frozen 좌석)의 재접속은 `CONNECTED` 직후 TABLE_STATE와 이 테이블의 GAME_START_STATE를
+  받는다. FE는 채널 입장·테이블 목록 조회 뒤 적용한다. 상세: [Story C](../game-recovery.md#새로고침websocket-재접속-좌석시작-상태-수신-ontop-story-c). 상세: [새로고침 후 결과 발견](../game-recovery.md#새로고침-후-경기-결과-발견-ontop-story-b).
 
 ## GAME_SELECT 참가비 계약 (Story 172 보완/173)
 
-GAME_SELECT payload는 `{gameCode, betAmountPerPlayer, targetScore?}`다. 참가비는 필수 양의 안전 정수이며 DICE만 targetScore가 필요하다. TABLE_STATE/TABLE_WATCH_STATE와 테이블 목록에 nullable betAmountPerPlayer가 추가된다. selector만 WAITING에서 변경할 수 있으며 변경 시 전원 준비를 초기화한다. 게임 시작 이후에는 수정할 수 없고 종료 정산은 DB 확정 금액을 사용한다. 상세: [가변 참가비·정산](../game-settlement.md).
+GAME_SELECT payload는 `{gameCode, betAmountPerPlayer, targetScore?}`다. 참가비는 0 이상의 필수 안전 정수이며 DICE만 targetScore가 필요하다. TABLE_STATE/TABLE_WATCH_STATE와 테이블 목록에 nullable betAmountPerPlayer가 추가된다. selector만 WAITING에서 변경할 수 있으며 변경 시 전원 준비를 초기화한다. 게임 시작 이후에는 수정할 수 없고 종료 정산은 DB 확정 금액을 사용한다. 상세: [가변 참가비·정산](../game-settlement.md).
 
 READY_SET의 true는 `{ready:true, betAmountPerPlayer, expectedVersion}`이다. 사용자가 확인한
 TABLE_STATE의 금액과 version을 전달한다. false는 기존 `{ready:false}`를 유지한다.
@@ -173,6 +182,14 @@ TABLE_STATE의 금액과 version을 전달한다. false는 기존 `{ready:false}
 GAME_SETTINGS_CHANGED는 상태를 변경하지 않는다. 금액이 다시 같아지는 ABA도 기존 version으로 거절한다.
 다른 참가자의 단순 준비 변경은 동의를 무효화하지 않는다. FE는 오류 후 새 금액을 확인받아야 한다.
 상세: [준비·취소](../websocket-api/03-ready-set.md).
+
+## 2인 기권 연출·공원 잔해 (2026-10-31, 로컬 구현)
+
+`WORLD_GAME_REACTION.participantCount`는 최초 참가 인원이다. 최초 2인 경기의 명시적 기권만 판을 엎으며
+일반 패배·연결 이탈·다인 경기는 판을 던지지 않는다. `WORLD_PARK_DEBRIS_STATE`는 같은 공원에 남는
+판·엽전 전체 상태를 채널 입장과 변경 시 공유한다. 기권 확정 후 15초가 지나면 서버가 자동 제거하며,
+만료 전 재접속 시 현재 잔해를 복원한다. 서버 재시작 시 초기화한다.
+현재 청소 AI는 없고 서버 내부 개별 물체 제거 연결점을 제공한다. [상세 계약·유지 범위](../world-game-reaction-api.md#공원에-남는-판엽전--world_park_debris_state-2026-10-31).
 
 ## 2026-10-27 태블릿·공통 시각 확장 (로컬 구현·미배포)
 

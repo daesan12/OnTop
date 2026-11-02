@@ -1,6 +1,9 @@
 import { BENCHES, BENCH_PAVILIONS, BENCH_YAWS } from '../../config'
 import { PropBuilder } from './propGeometry'
 import { Instances, type Part } from './Instances'
+import { PropModel } from './PropModel'
+import { SIMPLE_MAP } from './mapRenderProfile'
+import { createConnectedBenchFrame } from './connectedBenchFrame'
 function frame(back: boolean) {
   const b = new PropBuilder([12, 8], `bench-frame-${back}`),
     c = '#283333'
@@ -84,8 +87,8 @@ function frame(back: boolean) {
   )
   return b.finish().metal!
 }
-const full = frame(true),
-  backless = frame(false)
+const full = SIMPLE_MAP?createConnectedBenchFrame(true):frame(true),
+  backless = SIMPLE_MAP?createConnectedBenchFrame(false):frame(false)
 const parts = (noBack: boolean): Part[] =>
   BENCHES.flatMap((p, i) =>
     !BENCH_PAVILIONS[i] && [6, 7].includes(i) === noBack
@@ -94,6 +97,20 @@ const parts = (noBack: boolean): Part[] =>
   )
 const regular = parts(false),
   simple = parts(true)
+
+const benchWood=new PropBuilder()
+for(let j=0;j<5;j++)benchWood.box('wood',j%2?'#9e6c3e':'#b7834f',[0,.53,-.34+j*.17],[2.8,.1,.13])
+for(let j=0;j<3;j++)benchWood.box('wood',j%2?'#b17b48':'#9d683d',[0,.86+j*.17,-.36],[2.8,.12,.075],[-.12,0,0])
+for(const side of [-1,1])for(let j=0;j<5;j++)benchWood.cylinder('metal','#8e8e79',[side*1.04,.583,-.34+j*.17],.015,.015,.004,[0,0,0],6)
+const singleBenchWood=benchWood.finish()
+
+/** The original cast-iron frame and slats, for a separately placed existing bench. */
+export function ReferenceBench({name,position,yaw,horizontalScale=1,seatHeight=.58}:{name:string;position:[number,number,number];yaw:number;horizontalScale?:number;seatHeight?:number}) {
+  return <group name={name} position={position} rotation={[0,yaw,0]} scale={[horizontalScale,seatHeight/.58,horizontalScale]}>
+    <mesh geometry={full} dispose={null} castShadow><meshStandardMaterial vertexColors metalness={.55} roughness={.63}/></mesh>
+    <PropModel art={singleBenchWood} name="original-reference-bench-slats"/>
+  </group>
+}
 export function ReferenceBenchFrames() {
   return (
     <group name="reference-cast-iron-benches">

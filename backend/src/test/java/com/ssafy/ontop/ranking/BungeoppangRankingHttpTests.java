@@ -37,7 +37,8 @@ class BungeoppangRankingHttpTests {
     @BeforeEach void member() {
         when(members.findActive(42, TestLoginSessions.ID)).thenReturn(Optional.of(new AuthenticatedUser(42,
                 LoginProvider.SSAFY, TestLoginSessions.ID)));
-        when(rankings.personalBests("v5")).thenReturn(List.of(new Item(1, "42", "본인", 8, 1, Instant.parse("2026-10-28T00:00:00Z"))));
+        when(rankings.personalBests("v5", 120000)).thenReturn(List.of(
+                new Item(1, "42", "본인", 8, 1, Instant.parse("2026-10-28T00:00:00Z"), 1200, 8)));
     }
     @Test void 인증된본인순위와_CORS_noStore_입력을확인한다() throws Exception {
         var response = send("GET", "?userId=99", true);
@@ -49,6 +50,14 @@ class BungeoppangRankingHttpTests {
         assertThat(send("GET", "?period=WEEK", true).statusCode()).isEqualTo(400);
         assertThat(send("GET", "?rulesVersion=v2", true).statusCode()).isEqualTo(400);
         assertThat(send("GET", "?limit=21", true).statusCode()).isEqualTo(400);
+        assertThat(mapper.readTree(response.body()).path("durationMs").asInt()).isEqualTo(120000);
+        for (String query : List.of("?durationMs=90000", "?durationMs=", "?rulesVersion=v4&durationMs=120000")) {
+            var invalid = send("GET", query, true);
+            assertThat(invalid.statusCode()).as(query).isEqualTo(400);
+            assertThat(mapper.readTree(invalid.body()).path("code").asText()).isEqualTo("RANKING_INVALID_DURATION");
+        }
+        verify(rankings, never()).personalBests(eq("v5"), eq(90000));
+        verify(rankings, never()).personalBests(eq("v4"), any());
         var options = send("OPTIONS", "", false);
         assertThat(options.statusCode()).isBetween(200, 204);
         assertThat(options.headers().firstValue("Access-Control-Allow-Origin").orElse(""))

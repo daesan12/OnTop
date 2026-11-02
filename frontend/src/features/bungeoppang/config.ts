@@ -24,7 +24,7 @@ export const BUNGEOPPANG = {
   okPoint: 2,
   goldenPoint: 5,
   pointsPerCoin: 15,
-  dailyCoinCap: 100,
+  dailyCoinCap: 500,
   minGapMs: 50,
   sameSlotGapMs: 300,
   countdownMs: 3_500,
@@ -52,21 +52,25 @@ export const bungeoppangV4Preview = import.meta.env?.DEV === true && import.meta
 export const BUNGEOPPANG_V5 = {
   ...BUNGEOPPANG_V4,
   rulesVersion: 'v5',
+  specialBonusPercent: 30,
   heatAssignment: 'FILL',
   durationMs: 120_000,
   rushFromMs: 90_000,
   rushWarnFromMs: 87_000,
   trayCapacity: 10,
   maxActiveOrders: 3,
+  queueComplaintPenalty: 5,
   heatListLength: 2048,
   maxLogEntries: 3600,
 } as const;
 /** Existing server-issued v5 rounds retain their original three-minute snapshot. */
 export const BUNGEOPPANG_V5_LEGACY = {
   ...BUNGEOPPANG_V5,
+  specialBonusPercent: 50,
   durationMs: 180_000,
   rushFromMs: 150_000,
   rushWarnFromMs: 147_000,
+  queueComplaintPenalty: 0,
 } as const;
 /** Deliberate opt-in only. A missing v5 backend must never turn into a simulated reward. */
 export const bungeoppangV5Preview = import.meta.env?.DEV === true && import.meta.env.MODE === 'bungeoppang-v5-preview';

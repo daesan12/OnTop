@@ -9,7 +9,8 @@ import {
 import { useSession } from "../../network/worldClient";
 import { useGame } from "../../game/store";
 import { gameState } from "../../game/protocol";
-import { useBungeoppang } from "../bungeoppang/store";
+import { useBungeoppang, syncBungeoppangManualPause } from "../bungeoppang/store";
+import { useJumpmap } from "../jumpmap/state";
 import { BookIcon } from "./GameArt";
 import {
   closeManual,
@@ -21,7 +22,6 @@ import {
   MANUAL_CLOSE_MS,
   MANUAL_REDUCED_MS,
   resetManual,
-  takeWelcomeManual,
 } from "./manualState";
 import type { ManualGameId } from "./types";
 import { OnDemandContent } from "../../park/OnDemandContent";
@@ -62,8 +62,8 @@ function openContextManual() {
   const session = useSession.getState();
   const game = useGame.getState().game;
   const code = game ? gameState(game).gameCode : session.tableStates[session.tableId || session.watchedTableId]?.gameCode;
-  const pages: Record<string, ManualGameId> = { OMOK:"gomoku", DICE:"farkle", ONE_CARD:"onecard", LIAR_BRIDGE:"bridge" };
-  openManual(useBungeoppang.getState().phase !== "idle" ? "fish-bread" : session.telescopeId ? "places" : pages[code ?? ""]);
+  const pages: Record<string, ManualGameId> = { ALKKAGI:"alkkagi", OMOK:"gomoku", DICE:"farkle", ONE_CARD:"onecard", LIAR_BRIDGE:"bridge", DICE_LEDGER:"ledger", HALLI_GALLI:"halligalli" };
+  openManual(useBungeoppang.getState().phase !== "idle" ? "fish-bread" : session.telescopeId ? "places" : pages[code ?? ""] ?? (useJumpmap.getState().run ? "jump" : undefined));
 
 }
 
@@ -77,11 +77,14 @@ export function ManualHost({
   useEffect(() => {
     const unsubscribe = useSession.subscribe((s, old) => {
       if (s.status !== "connected" || s.sessionId !== old.sessionId || s.roomId !== old.roomId) resetManual();
-      if (s.status === "connected" && s.roomId && takeWelcomeManual()) openManual("welcome");
     });
     return () => { unsubscribe(); resetManual(); };
   }, []);
   const open = useManual((s) => s.open);
+  const minigame=useBungeoppang(s=>['countdown','play'].includes(s.phase));
+  const paused=useBungeoppang(s=>s.manualPaused);
+  const pausePending=useBungeoppang(s=>s.manualPausePending);
+  const pauseError=useBungeoppang(s=>s.manualPauseError);
   const phase = useManual((s) => s.phase);
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -249,15 +252,16 @@ export function ManualHost({
           <ReadingBoundary>
             <OnDemandContent active={open} load={loadContents} label="설명서" onClose={closeManual} className="manual-loading">
               <p>WASD 이동 · Shift 달리기 · Space 점프 · E 상호작용 · Enter 채팅 · F1 설명서</p>
-              <p>Esc 또는 설명서 닫기로 공원에 돌아갈 수 있어요. 경기는 계속 진행돼요.</p>
+              <p>Esc 또는 설명서 닫기로 게임에 돌아갈 수 있어요.</p>
             </OnDemandContent>
           </ReadingBoundary>
           <footer className="manual-footer" id="manual-pause-note">
             <span aria-hidden="true">!</span>
-            <p>
-              설명서를 읽는 동안에도 경기는 계속돼요.{" "}
-              <strong>제한시간은 멈추지 않아요.</strong>
-            </p>
+            {minigame?<p>{pauseError?<>{pauseError} <button type="button" onClick={()=>void syncBungeoppangManualPause()}>일시정지 상태 다시 확인</button></>
+              :pausePending?'일시정지 상태를 확인하고 있어요.'
+              :paused?<strong>설명서를 읽는 동안 미니게임 시간이 멈춰요. 닫으면 이어서 진행해요.</strong>
+              :'미니게임 일시정지 상태를 확인하고 있어요.'}</p>
+              :<p>설명서를 읽는 동안에도 경기는 계속돼요. <strong>제한시간은 멈추지 않아요.</strong></p>}
             <small>공원 · 대기 · 플레이 · 관전</small>
           </footer>
         </div>

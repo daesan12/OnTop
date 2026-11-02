@@ -24,6 +24,7 @@ public final class ParkScene {
     private static ParkScene instance;
     final JsonNode data;
     final List<Shape> shapes;
+    final ParkMovementPolicy policy;
     private final WorldMapMetadata metadata;
 
     public static synchronized ParkScene load() {
@@ -59,6 +60,7 @@ public final class ParkScene {
     private ParkScene(JsonNode data, WorldMapMetadata metadata) {
         this.data = data;
         this.metadata = metadata;
+        this.policy = new ParkMovementPolicy(data);
         if (data.path("schemaVersion").asInt() != 1
                 || !data.path("units").asText().equals("m")
                 || !data.path("upAxis").asText().equals("Y")) {
@@ -68,6 +70,7 @@ public final class ParkScene {
         for (JsonNode box : data.path("boxes")) {
             built.add(
                     new Shape(
+                            box.path("id").asText(),
                             new BoxCollisionShape(vector(box.path("half"))),
                             vector(box.path("center")),
                             new Quaternion()
@@ -82,6 +85,7 @@ public final class ParkScene {
             }
             built.add(
                     new Shape(
+                            mesh.path("id").asText(),
                             new MeshCollisionShape(
                                     true,
                                     new IndexedMesh(
@@ -93,6 +97,7 @@ public final class ParkScene {
         for (JsonNode hull : data.path("hulls")) {
             built.add(
                     new Shape(
+                            hull.path("id").asText(),
                             new HullCollisionShape(floats(hull.path("vertices"))),
                             Vector3f.ZERO,
                             Quaternion.IDENTITY));
@@ -181,5 +186,5 @@ public final class ParkScene {
                 : dy + (1 - v) * (by - dy) + (1 - u) * (cy - dy);
     }
 
-    record Shape(CollisionShape shape, Vector3f center, Quaternion rotation) {}
+    record Shape(String id, CollisionShape shape, Vector3f center, Quaternion rotation) {}
 }

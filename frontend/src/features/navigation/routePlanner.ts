@@ -1,4 +1,4 @@
-import { EXPECTED_MAP_VERSION } from '../../config/mapVersion'
+import { EXPECTED_MAP_VERSION } from '../../park/mapConfig'
 import type { NavPoint } from './parkNavigation'
 import type { RouteResult, RouteWork } from './navigation.worker'
 
@@ -34,7 +34,8 @@ export function createRoutePlanner(factory:()=>Port=makeWorker) {
             worker.onerror=event=>{event.preventDefault();fail('길 안내를 준비하지 못했습니다.')}
           }
           const id=++next
-          pending.set(id,{resolve,reject,timer:setTimeout(()=>fail('길 안내 계산 시간이 초과되었습니다.'),5000)})
+          // Include cold worker/module startup on the generated park, while keeping cancellation bounded.
+          pending.set(id,{resolve,reject,timer:setTimeout(()=>fail('길 안내 계산 시간이 초과되었습니다.'),10000)})
           const request:RouteWork={id,start:{...start},end:{...end},mapVersion:EXPECTED_MAP_VERSION}
           worker.postMessage(request)
         } catch { fail('길 안내를 준비하지 못했습니다.');reject(new Error('길 안내를 준비하지 못했습니다.')) }

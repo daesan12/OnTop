@@ -25,6 +25,15 @@ class MinigameOpenApiTests {
                     "http://127.0.0.1:" + port + "/v3/api-docs")).GET().build(), HttpResponse.BodyHandlers.ofString());
             assertThat(response.statusCode()).isEqualTo(200);
             var paths = new ObjectMapper().readTree(response.body()).path("paths");
+            var pause = paths.path("/api/v1/minigames/sessions/{sessionId}/manual-pause").path("post");
+            var pauseBody = pause.at("/requestBody/content/application~1json/schema");
+            assertThat(pauseBody.path("required")).hasSize(2);
+            assertThat(pauseBody.path("additionalProperties").asBoolean()).isFalse();
+            assertThat(pauseBody.at("/properties/paused/type").asText()).isEqualTo("boolean");
+            assertThat(pauseBody.at("/properties/expectedPauseRevision/maximum").asLong())
+                    .isEqualTo(9007199254740991L);
+            assertThat(pause.at("/responses/200/content/application~1json/schema/oneOf").toString())
+                    .contains("BungeoppangV4SessionResponse", "BungeoppangV5SessionResponse");
             var start = paths.path("/api/v1/minigames/sessions").path("post");
             assertThat(start.at("/security/0").has("AccessJwt")).isTrue();
             assertThat(start.at("/responses/201/content/application~1json/schema/oneOf").toString())
@@ -84,6 +93,11 @@ class MinigameOpenApiTests {
             assertThat(deliverySchemas.get(1).at("/properties/log/maxItems").asInt()).isEqualTo(3600);
             assertThat(deliverySchemas.get(1).at("/properties/log/items/properties/t/maximum").asInt())
                     .isEqualTo(179_999);
+            // The schema bound still admits stored three-minute rounds; each round enforces its own length.
+            assertThat(deliverySchemas.get(1).at("/properties/log/items/properties/t/description").asText())
+                    .contains("rules.durationMs", "v5-20261029.1", "119999", "v5-20261027.1", "179999");
+            assertThat(deliverySchemas.get(0).at("/properties/log/items/properties/t/description").isMissingNode())
+                    .isTrue();
             assertThat(delivery.at("/responses/200/content/application~1json/schema/oneOf").toString())
                     .contains("BungeoppangV4DeliveryResponse", "BungeoppangV5DeliveryResponse");
             assertThat(schemas.at("/BungeoppangV5DeliveryResponse/properties/replacementOrder/$ref").asText())
@@ -111,7 +125,7 @@ class MinigameOpenApiTests {
                     "deliveryKey").contains(parameter.path("name").asText()))
                     .hasSize(3).allMatch(parameter -> parameter.path("description").asText().contains("v4·v5"));
             assertThat(complete.path("description").asText())
-                    .contains("local,db", "dev,db", "v2", "v4", "V124", "V125", "V126", "100냥")
+                    .contains("local,db", "dev,db", "v2", "v4", "V124", "V125", "V126", "500냥")
                     .doesNotContain("local 전용");
             assertThat(paths.path("/api/v1/minigames/sessions").has("get")).isTrue();
         }

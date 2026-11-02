@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { useManual, openManual, closeManual, finishManualOpening, finishManualClosing, resetManual, requestWelcomeManual, takeWelcomeManual } from '../../src/features/manual/manualState';
+import { useManual, openManual, closeManual, finishManualOpening, finishManualClosing, resetManual } from '../../src/features/manual/manualState';
 import { inputState } from '../../src/world/inputOwnership';
 import { filterGuides, filterManuals, gameManuals, parkGuides } from '../../src/features/manual/catalog';
 import { rulebooks } from '../../src/features/manual/rulebooks';
@@ -31,7 +31,9 @@ describe('M15 input ownership and stale transitions',()=>{
   });
 });
 it('searches details across supported game/category boundaries without inventing later games',()=>{
-  expect(gameManuals.map(g=>g.id)).toEqual(['gomoku','farkle','onecard','bridge','fish-bread']);
+  expect(gameManuals.map(g=>g.id)).toEqual(['alkkagi','gomoku','farkle','onecard','bridge','ledger','halligalli','fish-bread','rps-roulette']);
+  expect(filterManuals('minigame','도전 배수').map(g=>g.id)).toEqual(['rps-roulette']);
+  expect(filterManuals('game','알까기').map(g=>g.id)).toEqual(['alkkagi']);
   expect(filterManuals('game','렌주 금수').map(g=>g.id)).toEqual(['gomoku']);
   expect(filterManuals('minigame','반죽').map(g=>g.id)).toEqual(['fish-bread']);
   expect(filterManuals('game','반죽')).toEqual([]);
@@ -70,12 +72,6 @@ it('covers every park guide chapter in plain words and finds them by search',()=
   expect(filterGuides('따라가기')).toEqual(['social']);
   expect(filterGuides('옷장 착용하기')).toEqual(['coins']);
   expect(filterGuides('  ')).toEqual([]);
-});
-it('opens the first-steps page only once after onboarding',()=>{
-  expect(takeWelcomeManual()).toBe(false);
-  requestWelcomeManual();
-  expect(takeWelcomeManual()).toBe(true);
-  expect(takeWelcomeManual()).toBe(false);
 });
 it('gives every game a designed page: a round in steps and the rules most often missed',()=>{
   for (const game of gameManuals) {

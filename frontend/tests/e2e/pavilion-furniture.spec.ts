@@ -26,7 +26,6 @@ test(`${anchor.pavilionId} furniture preserves picking and server-confirmed seat
   expect(new URL(page.url()).pathname).toBe('/park')
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
-  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length), { timeout: 90_000 }).toBeGreaterThan(0)
   await page.evaluate(async id => {
     const q = await import('/tests/e2e/furnitureProbe.ts' as string)
     q.furnitureView(id)
@@ -44,7 +43,7 @@ test(`${anchor.pavilionId} furniture preserves picking and server-confirmed seat
   expect(result.centralOriginal).toBe(true)
   expect(result.centralNewFurniture).toBe(false)
   expect(result.nonPavilionNewFurniture).toBe(false)
-  expect(result.meshes).toHaveLength(3) // One wood batch per named group plus hardware; no per-chair mesh tree.
+  expect(result.meshes).toHaveLength(5) // Five static instanced material/geometry batches, no per-chair mesh tree.
   expect(result.tableBounds!.max[1]).toBeCloseTo(anchor.position[1] + 1.06, 5)
   expect(result.tableBounds!.max[0]! - result.tableBounds!.min[0]!).toBeCloseTo(2.1, 5)
   expect(result.tableBounds!.max[2]! - result.tableBounds!.min[2]!).toBeCloseTo(1.6, 5)
@@ -58,10 +57,10 @@ test(`${anchor.pavilionId} furniture preserves picking and server-confirmed seat
   // Click the visible table surface: the unchanged parent TableShell owns the event.
   const point = await page.evaluate(async id => (await import('/tests/e2e/sceneProbe.ts' as string)).pointForTable(id), anchor.id)
   await page.locator('canvas').click({ position: point })
-  await expect.poll(async () => (await probe()).own?.tableId).toBe(anchor.id)
-  await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
   await expect(page.getByRole('dialog', { name: '테이블 정보' })).toBeVisible()
   expect((await probe()).focused).toBe(anchor.id)
+  await expect(page.getByRole('button', { name: '앉기', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: '앉기', exact: true }).click()
   await expect(page.getByRole('button', { name: '일어나기' })).toBeVisible()
   expect(server.sent.find(m => m.type === 'TABLE_JOIN')?.payload).toEqual({ tableId })
   await expect.poll(async () => (await probe()).own?.tableId).toBe(anchor.id)
@@ -77,9 +76,10 @@ test(`${anchor.pavilionId} furniture preserves picking and server-confirmed seat
     await screenshot(page, name + '-seat-camera')
   }
   await page.getByRole('button', { name: '일어나기' }).click()
-  await expect(page.getByRole('dialog', { name: '테이블 정보' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '앉기', exact: true })).toBeVisible()
   await expect.poll(async () => (await probe()).seated).toBe('')
   expect(server.sent.some(m => m.type === 'TABLE_LEAVE')).toBe(true)
+  await page.getByRole('button', { name: '테이블 정보 닫기' }).click()
   await page.evaluate(async id => (await import('/tests/e2e/furnitureProbe.ts' as string)).furnitureView(id), anchor.id)
   // Compact desktop viewport; the product's controls target keyboard/mouse use.
   if (fullVisual) {

@@ -1,48 +1,50 @@
 import { memo, useLayoutEffect, useRef } from "react";
 import {
   LatheGeometry,
-  MeshLambertMaterial,
+  MeshStandardMaterial,
   SphereGeometry,
   Vector2,
   type Group,
 } from "three";
-import { GOMOKU } from "../../config";
-import { BeveledBox } from "../../world/art/BeveledBox";
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Instances, type Part } from "../../world/art/Instances";
-import { SurfaceMaterial } from "../../world/art/SurfaceMaterial";
-import { BoardWood } from "./BoardWood";
+import { BoardWood, OmokWood } from "./BoardWood";
+import { OMOK_BOARD_ART_SPAN as span, OMOK_SUPPLY_OFFSET, OMOK_SUPPLY_SCALE } from './boardLayout';
 
 // Shared by the four table settings, placed stones, previews and decorative supplies.
-export const stoneGeometry = new SphereGeometry(0.039, 12, 8);
-export const blackStoneMaterial = new MeshLambertMaterial({
+const frameGeometry = new RoundedBoxGeometry(1, 1, 1, 1, .025);
+export const stoneGeometry = new SphereGeometry(0.039, 32, 20);
+export const blackStoneMaterial = new MeshStandardMaterial({
   color: "#101717",
+  roughness: .34,
 });
-export const whiteStoneMaterial = new MeshLambertMaterial({
-  color: "#d6d1c6",
+export const whiteStoneMaterial = new MeshStandardMaterial({
+  color: "#f3eee2",
+  roughness: .38,
 });
 
 const body: Part[] = [
-  { p: [0, -0.011, 0], s: [1.48, 0.046, 1.48], c: "#73452d" },
-  { p: [0, -0.023, 0], s: [1.5, 0.014, 1.5], c: "#47291c" },
-  { p: [0, -0.012, 0], s: [1.488, 0.008, 1.488], c: "#a06a43" },
+  { p: [0, -0.046, 0], s: [span - .02, 0.104, span - .02], c: "#73452d" },
+  { p: [0, -0.092, 0], s: [span, 0.016, span], c: "#47291c" },
+  { p: [0, -0.012, 0], s: [span - .012, 0.008, span - .012], c: "#a06a43" },
 ];
 const inlay: Part[] = [];
 for (const sign of [-1, 1]) {
   // Keep every bevel and trim outside the edge stone's radius: .65 + .039.
   body.push(
-    { p: [sign * 0.721, 0.019, 0], s: [0.038, 0.03, 1.48], c: "#59341f" },
-    { p: [0, 0.019, sign * 0.721], s: [1.404, 0.03, 0.038], c: "#684128" },
+    { p: [sign * (span / 2 - .029), 0.019, 0], s: [0.038, 0.03, span - .02], c: "#59341f" },
+    { p: [0, 0.019, sign * (span / 2 - .029)], s: [span - .096, 0.03, 0.038], c: "#684128" },
   );
   inlay.push(
-    { p: [sign * 0.709, 0.0345, 0], s: [0.0018, 0.001, 1.418], c: "#ae875a" },
-    { p: [0, 0.0345, sign * 0.709], s: [1.418, 0.001, 0.0018], c: "#ae875a" },
+    { p: [sign * (span / 2 - .041), 0.0345, 0], s: [0.0018, 0.001, span - .082], c: "#ae875a" },
+    { p: [0, 0.0345, sign * (span / 2 - .041)], s: [span - .082, 0.001, 0.0018], c: "#ae875a" },
   );
 }
 
 function lathe(points: [number, number][]) {
   return new LatheGeometry(
     points.map(([x, y]) => new Vector2(x, y)),
-    24,
+    32,
   );
 }
 // A closed shell with a real interior, rather than a solid hemisphere.
@@ -74,29 +76,29 @@ const bowls: Part[] = [],
   lids: Part[] = [];
 const supplies: Part[][] = [[], []];
 for (const [index, sign] of ([-1, 1] as const).entries()) {
-  const x = sign * 0.9,
+  const x = sign * OMOK_SUPPLY_OFFSET,
     z = -sign * 0.26;
-  bowls.push({ p: [x, -0.03, z], s: [1, 1, 1], c: "#73472e" });
-  lids.push({ p: [x, -0.029, -sign * 0.59], s: [1, 1, 1], c: "#845335" });
+  bowls.push({ p: [x, -0.03, z], s: [OMOK_SUPPLY_SCALE, OMOK_SUPPLY_SCALE, OMOK_SUPPLY_SCALE], c: "#73472e" });
+  lids.push({ p: [x, -0.029, -sign * 0.59], s: [OMOK_SUPPLY_SCALE, OMOK_SUPPLY_SCALE, OMOK_SUPPLY_SCALE], c: "#845335" });
   for (let layer = 0; layer < 3; layer++) {
     const count = layer === 0 ? 5 : 7;
     for (let i = 0; i < count; i++) {
       const angle = (i * Math.PI * 2) / count + layer * 0.37;
-      const radius = layer === 0 ? 0.054 : 0.071;
+      const radius = (layer === 0 ? 0.054 : 0.071) * OMOK_SUPPLY_SCALE;
       supplies[index]!.push({
         p: [
           x + Math.cos(angle) * radius,
-          0.028 + layer * 0.027,
+          -0.03 + (0.058 + layer * 0.027) * OMOK_SUPPLY_SCALE,
           z + Math.sin(angle) * radius,
         ],
-        s: [0.84, 0.36, 0.84],
+        s: [0.84 * OMOK_SUPPLY_SCALE, 0.36 * OMOK_SUPPLY_SCALE, 0.84 * OMOK_SUPPLY_SCALE],
         r: [Math.sin(angle) * 0.23, angle, Math.cos(angle) * 0.18],
         c: "#ffffff",
       });
     }
     supplies[index]!.push({
-      p: [x, 0.031 + layer * 0.027, z],
-      s: [0.84, 0.36, 0.84],
+      p: [x, -0.03 + (0.061 + layer * 0.027) * OMOK_SUPPLY_SCALE, z],
+      s: [0.84 * OMOK_SUPPLY_SCALE, 0.36 * OMOK_SUPPLY_SCALE, 0.84 * OMOK_SUPPLY_SCALE],
       r: [0.1, layer, -0.13],
       c: "#ffffff",
     });
@@ -104,9 +106,11 @@ for (const [index, sign] of ([-1, 1] as const).entries()) {
 }
 
 /** Original prototype art, adapted to the current tabletop. Keep the grid at local Y=0.
- * Static parts stay instanced; 24-sided bowls and shared 12x8 stones preserve the silhouette.
+ * Static parts stay instanced; the prototype's rounded frame and polished stones share geometry.
  * The lower base is shallower to clear the current pavilion felt without moving seat/camera anchors. */
-export const GomokuAssets = memo(function GomokuAssets() {
+export const GomokuAssets = memo(function GomokuAssets({ blackAtSouth = true, reverseSupplies = false }: {
+  blackAtSouth?: boolean; reverseSupplies?: boolean
+}) {
   const root = useRef<Group>(null);
   useLayoutEffect(() => {
     root.current!.traverse(object => {
@@ -118,9 +122,9 @@ export const GomokuAssets = memo(function GomokuAssets() {
     <group ref={root} name="walnut-gomoku-assets" position={[0, -0.014, 0]}>
       <Instances
         parts={body}
-        material={<SurfaceMaterial kind="wood" detail={0.42} strength={0.1} />}
+        material={<OmokWood detail={0.42} strength={0.1} />}
       >
-        <BeveledBox />
+        <primitive object={frameGeometry} attach="geometry" dispose={null} />
       </Instances>
       <mesh
         name="gomoku-playing-surface"
@@ -128,9 +132,9 @@ export const GomokuAssets = memo(function GomokuAssets() {
       >
         <boxGeometry
           args={[
-            GOMOKU.boardOuterSpan - 0.08,
+            span - 0.08,
             0.006,
-            GOMOKU.boardOuterSpan - 0.08,
+            span - 0.08,
           ]}
         />
         <BoardWood />
@@ -138,37 +142,39 @@ export const GomokuAssets = memo(function GomokuAssets() {
       <Instances
         parts={inlay}
         shadow={false}
-        material={<meshLambertMaterial />}
+        material={<meshStandardMaterial roughness={.58} />}
       >
         <boxGeometry />
       </Instances>
-      <Instances
+      {/* 탑뷰 판 방향과 별개로 돌통은 실제 좌석 쪽에 유지한다. */}
+      <group rotation={[0, reverseSupplies ? Math.PI : 0, 0]}>
+      <group name="omok-stone-bowls"><Instances
         parts={bowls}
-        material={<SurfaceMaterial kind="wood" detail={0.45} strength={0.08} />}
+        material={<OmokWood detail={0.45} strength={0.08} />}
       >
         <primitive object={bowlGeometry} attach="geometry" dispose={null} />
-      </Instances>
-      <Instances
+      </Instances></group>
+      <group name="omok-stone-lids"><Instances
         parts={lids}
-        material={<SurfaceMaterial kind="wood" detail={0.45} strength={0.08} />}
+        material={<OmokWood detail={0.45} strength={0.08} />}
       >
         <primitive object={lidGeometry} attach="geometry" dispose={null} />
-      </Instances>
+      </Instances></group>
       {supplies.map((parts, i) => (
-        <Instances
-          key={i}
+        <group key={i} name={`omok-supply-${i ? 'north' : 'south'}`}><Instances
           parts={parts}
           material={
             <primitive
-              object={i ? whiteStoneMaterial : blackStoneMaterial}
+              object={(blackAtSouth ? i : 1 - i) ? whiteStoneMaterial : blackStoneMaterial}
               attach="material"
               dispose={null}
             />
           }
         >
           <primitive object={stoneGeometry} attach="geometry" dispose={null} />
-        </Instances>
+        </Instances></group>
       ))}
+      </group>
     </group>
   );
 });

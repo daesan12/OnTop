@@ -90,6 +90,9 @@ interface BungState {
   startError: string | null;
   confirmExit: boolean;
   helpOpen: boolean;
+  manualPaused: boolean;
+  manualPausePending: boolean;
+  manualPauseError: string | null;
   abandonPending: boolean;
   abandonError: string | null;
   walletError: string | null;
@@ -123,6 +126,9 @@ const initial = (): Omit<BungState, "phase" | "status" | "seenTips"> => ({
   startError: null,
   confirmExit: false,
   helpOpen: false,
+  manualPaused: false,
+  manualPausePending: false,
+  manualPauseError: null,
   abandonPending: false,
   abandonError: null,
   walletError: null,
@@ -166,12 +172,66 @@ let startKey = '';
 let submission: BungeoppangSubmit | null = null;
 let v5DeliveryFeedback: { before: v4.GrillState; after: v4.GrillState; event: v4.GrillEvent; orderId: string | null } | null = null;
 let timedGameId = '';
+let pauseInFlight = '';
 let loopTimer: ReturnType<typeof setInterval> | undefined;
 let transitionTimer: ReturnType<typeof setTimeout>;
 export function setBungeoppangHelp(open: boolean) {
   if (open && (get().phase === "idle" || get().phase === "leaving")) return;
   if (open) openManual("fish-bread");
   else if (useManual.getState().page === "fish-bread") closeManual();
+}
+
+/** Serialize F1 transitions and keep unknown server outcomes frozen until explicitly reconciled. */
+export async function syncBungeoppangManualPause() {
+  const s=get(), currentVisit=visit;
+  if(!['countdown','play'].includes(s.phase)||!s.gameId||pauseInFlight===s.gameId)return;
+  const desired=useManual.getState().open;
+  if(desired===s.manualPaused&&!s.manualPauseError)return;
+  if(!service.setManualPaused&&!service.mock){
+    set({manualPauseError:'일시정지 연결을 확인하지 못했어요. 설명서를 닫고 다시 확인해주세요.'});return;
+  }
+  pauseInFlight=s.gameId;
+  if(clock.pausedAt===null)clock.pausedAt=performance.now();
+  set({manualPausePending:true,manualPauseError:null});
+  try {
+    while(visit===currentVisit&&get().gameId===s.gameId){
+      const target=useManual.getState().open;
+      try {
+        const reply=await service.setManualPaused?.(s.gameId,target);
+        if(visit!==currentVisit||get().gameId!==s.gameId)return;
+        if(reply){
+          if(reply.status!=='PLAYING'){
+            timedGameId='';removeClockListeners();clock.pausedAt=null;
+            set({phase:'result',manualPaused:false,manualPauseError:null,confirmExit:false,orderPending:false,orderError:null});
+            orderSubmission=null;
+            if(reply.status==='COMPLETED'&&reply.result){
+              acceptServerResult(reply.result);void refreshWallet(currentVisit);
+            } else {
+              set({submitError:{retryable:false,message:'이미 종료되거나 만료된 판이에요. 새 판을 시작해 주세요.'}});
+            }
+            return;
+          }
+          Object.assign(clock,roundClockAnchor(reply.timing,reply.sample));
+          clock.pausedAt=reply.sample.receivedAt;
+        } else if(!target){
+          const offset=performance.now()-clock.pausedAt!;
+          clock.playAt+=offset;clock.countdownAt+=offset;
+        }
+        set({manualPaused:reply?.timing.paused??target,manualPauseError:null});
+        if(target===useManual.getState().open){
+          if(!get().manualPaused)clock.pausedAt=null;
+          break;
+        }
+      } catch(error){
+        if(visit!==currentVisit||get().gameId!==s.gameId)return;
+        set({manualPauseError:error instanceof Error?error.message:'일시정지 상태를 다시 확인해주세요.'});
+        if(target===useManual.getState().open)break;
+      }
+    }
+  } finally {
+    if(pauseInFlight===s.gameId)pauseInFlight='';
+    if(visit===currentVisit&&get().gameId===s.gameId)set({manualPausePending:false});
+  }
 }
 async function refreshWallet(currentVisit: number) {
   if (service.mock) return;
@@ -257,6 +317,7 @@ export function leaveBungeoppang() {
   removeClockListeners();
   timedGameId = '';
   if (get().helpOpen) resetManual();
+  clock.pausedAt=null;
   view.active = false;
   view.returningUntil = performance.now() + R.cameraReturnMs;
   // Camera easing is visual only. Restore the HUD and controls in this turn,
@@ -278,6 +339,7 @@ export function resetBungeoppang() {
   removeClockListeners();
   timedGameId = '';
   if (get().helpOpen) resetManual();
+  clock.pausedAt=null;
   startKey = '';
   submission = null;
   orderSubmission = null;
@@ -332,13 +394,15 @@ export async function startBungeoppang() {
     const roundRules = game.v5?.rules ?? game.v4?.rules ?? BUNGEOPPANG_V4;
     const anchor = sync ? roundClockAnchor(sync.timing, sync.sample)
       : { playAt: now + R.countdownMs, countdownAt: now };
+    const gameTime = sync?.timing.paused ? sync.sample.receivedAt : now;
     Object.assign(clock, {
       ...anchor,
+      pausedAt:sync?.timing.paused?gameTime:null,
       durationMs: roundRules.durationMs,
-      t: Math.min(roundRules.durationMs, Math.max(0, now - anchor.playAt)),
+      t: Math.min(roundRules.durationMs, Math.max(0, gameTime - anchor.playAt)),
       frameAt: now,
-      countdown: Math.max(0, anchor.playAt - now),
-      preparing: now < anchor.countdownAt,
+      countdown: Math.max(0, anchor.playAt - gameTime),
+      preparing: gameTime < anchor.countdownAt,
       ending: 0,
     });
     resetCustomerArrivalsV5(game.v5?.grill?.activeOrders ?? game.v5?.orders ?? []);
@@ -346,6 +410,9 @@ export async function startBungeoppang() {
       phase: sync?.status === 'COMPLETED' ? 'result' : 'countdown',
       starting: false,
       gameId: game.gameId,
+      manualPaused:sync?.timing.paused??false,
+      manualPausePending:false,
+      manualPauseError:null,
       grill: game.v5 ? game.v5.grill ?? v5.createGrill(game.heats, game.v5.orders, game.v5.rules)
         : game.v4 ? v4.createGrill(game.heats, game.v4.order, game.v4.rules) : createGrill(game.heats, R),
       rules: Object.freeze({ ...roundRules }),
@@ -386,7 +453,7 @@ const canAct = () => {
   const s = get();
   return (
     s.phase === "play" &&
-    !s.timeSyncPending && !s.timeSyncError &&
+    !s.timeSyncPending && !s.timeSyncError && !s.manualPaused && !s.manualPausePending && !s.manualPauseError &&
     !s.confirmExit &&
     !s.abandonPending && !document.hidden &&
     !inputState.manualOpen &&
@@ -653,14 +720,14 @@ function onEvent(event: GrillEvent | v4.GrillEvent, before: AnyGrill, afterOverr
         kind: 'deliver', filling: bread.filling, points: event.points,
         guestIndex: v5.isV5Grill(v4Grill) ? v4Grill.activeOrders.find(o => o.orderId === (customerId ?? get().selectedCustomer))?.customerSlot : v4Grill.orderIndex,
         from: elementPoint(`[data-tray-bread-id="${bread.id}"]`, { x: window.innerWidth - 130, y: 250 + i * 50 }),
-        message: `${event.count}개 전달! +${event.points}점${event.bonus ? ` · 특수 +${event.bonus}` : ''}`,
+        message: `${event.count}개 전달! +${event.points}점`,
         ...(v5.isV5Grill(v4Grill) ? { guestOrderId: customerId ?? get().selectedCustomer ?? undefined,
           fromWorld: trayPoint(v4Grill.tray.indexOf(bread)),
           toWorld: customerPoint(v4Grill.activeOrders.find(o => o.orderId === (customerId ?? get().selectedCustomer))?.customerSlot ?? 0)
             .map((n, axis) => n + (axis === 1 ? 1.1 : 0)) as [number, number, number] } : {}),
       }));
     }
-    popup(null, `${event.count}개 전달! +${event.points}점 (특수 +${event.bonus})`, 'PERFECT'); return;
+    popup(null, `${event.count}개 전달! +${event.points}점`, 'PERFECT'); return;
   }
   if (event.kind === 'trayDiscard') {
     const bread = v4Grill?.tray[event.slot];
@@ -810,6 +877,8 @@ export async function syncBungeoppangTime() {
     const reply = await service.syncTimeV4(s.gameId);
     if (visit !== currentVisit || get().gameId !== s.gameId || get().result) return;
     Object.assign(clock, roundClockAnchor(reply.timing, reply.sample));
+    clock.pausedAt=reply.timing.paused||get().manualPausePending||useManual.getState().open?reply.sample.receivedAt:null;
+    set({manualPaused:reply.timing.paused??false});
     if (reply.status !== 'PLAYING') { timedGameId = ''; removeClockListeners(); }
     if (reply.status === 'COMPLETED' && reply.result) {
       acceptServerResult(reply.result);
@@ -856,6 +925,7 @@ function tick(now: number) {
 }
 export function advanceBungeoppangTime(now = performance.now()) {
   const s = get();
+  if(clock.pausedAt!==null&&['countdown','play'].includes(s.phase))return;
   advanceCustomerDeparturesV5(now);
   clock.frameAt = now;
   if (s.phase === "countdown") {
@@ -913,4 +983,11 @@ function watchSlots(grill: AnyGrill) {
   });
 }
 
-useManual.subscribe(s => { const helpOpen = s.open && s.page === "fish-bread"; if (get().helpOpen !== helpOpen) set({helpOpen}); });
+useManual.subscribe((s,old) => {
+  const helpOpen=s.open&&s.page==='fish-bread';
+  if(get().helpOpen!==helpOpen)set({helpOpen});
+  if(s.open!==old.open)void syncBungeoppangManualPause();
+});
+useBungeoppang.subscribe((s,old)=>{
+  if(s.gameId!==old.gameId||s.phase==='countdown'&&old.phase!=='countdown')void syncBungeoppangManualPause();
+});

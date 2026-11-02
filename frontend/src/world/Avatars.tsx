@@ -6,19 +6,23 @@ import { useFrame, useLoader } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls, createCharacterRig } from './worldAssets'
-import { avatarPoseActive, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
+import { avatarPoseActive, avatarPoseAmbient, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
 import { SwimmingRipples } from './SwimmingRipples'
 
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
-import { CHARACTER } from '../config'
+import { CHARACTER } from '../park/mapConfig'
 import { FartCloud } from './art/FartCloud'
 import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
 import { createAvatarOpacity } from './avatarOpacity'
 import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
+import { localMovement } from '../network/localMovementPrediction'
+import { useJumpmap } from '../features/jumpmap/state'
+import { remoteMovement } from '../network/remoteMovement'
 import { useGame } from '../game/store'
 import { openAvatarMenu } from '../features/follow/FollowMenu'
 import { gameReaction, installGameReactions } from './gameReactions'
+import {activeParkDebris} from '../features/parkDebris/state'
 
 import {
   AvatarOverlayPositions,
@@ -42,6 +46,7 @@ function Avatar({
   const sources = useLoader(ParkAssetLoader, characterUrls)
   const variant = useSession(state => state.profiles[id]?.character ?? 'man')
   const equipment = useSession(state => state.equipment[id] ?? emptyEquipment)
+  const own = useSession(state => state.sessionId === id)
   const model = useMemo(
     () => createCharacterRig(sources[variant === 'girl' ? 1 : 0]!),
     [sources, variant],
@@ -54,6 +59,7 @@ function Avatar({
   const motion = useMemo(() => createAvatarMotion(model), [model])
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
   const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
+  const overlapOpacity = useRef(1)
   const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   useLayoutEffect(() => {
     rigs.set(id, {
@@ -74,9 +80,16 @@ function Avatar({
     const seated = avatar.seatIndex >= 0
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
-    const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : 1
-    root.current.visible = opacity > 0 && !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
-      || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId)))
+    const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
+    const ownPose = ownAvatar && sampleAvatar(ownAvatar, frameAt, { ...ownAvatar.current })
+    const overlap = !!ownPose && Math.hypot(pose.x - ownPose.x, pose.z - ownPose.z) < .7 && Math.abs(pose.y - ownPose.y) < 1.8
+    const targetOpacity = overlap ? .4 : 1
+    overlapOpacity.current = targetOpacity + (overlapOpacity.current - targetOpacity) * Math.exp(-Math.min(delta, .1) * 6)
+    if (Math.abs(overlapOpacity.current - targetOpacity) < .001) overlapOpacity.current = targetOpacity
+    const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : overlapOpacity.current
+    const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
+    root.current.visible = opacity > 0 && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
+      || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
     appearance.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     root.current.position.set(
@@ -93,7 +106,10 @@ function Avatar({
     const now = estimatedServerTime()
     const reaction = gameReaction(id, avatar, now)
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
-    const active = !!reaction || avatarPoseActive(avatar, now)
+    const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
+      : !own ? remoteMovement.flags(id) : undefined
+    const displayAvatar = displayFlags ? { ...avatar, ...displayFlags } : avatar
+    const active = !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -102,9 +118,10 @@ function Avatar({
       own,
       active,
       `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}|${holdingCards}|${active ? '' : `${avatar.current.x}|${avatar.current.y}|${avatar.current.z}`}`,
+      !reaction && avatarPoseAmbient(displayAvatar),
     )
     if (!poseDelta) return
-    motion.apply(avatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)
+    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
@@ -119,7 +136,9 @@ function Avatar({
       ref={root}
       name={`avatar-${id}`}
       dispose={null}
-      onContextMenu={event => {
+      // A registered handler raycasts the whole posed model on every canvas
+      // press/release/click, even though the local avatar has no context menu.
+      onContextMenu={own ? undefined : event => {
         if (id === useSession.getState().sessionId) return
         event.stopPropagation(); event.nativeEvent.preventDefault()
         openAvatarMenu({ id, x: event.clientX, y: event.clientY })

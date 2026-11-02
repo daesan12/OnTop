@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 
-test('F12 and Ctrl+Shift+I/J/C are cancelled while refresh and other shortcuts remain available', async ({ page }) => {
+test('developer tool, source and close shortcuts are cancelled when delivered to the park', async ({ page }) => {
   const errors: string[] = []
   const consoleErrors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
@@ -36,8 +36,8 @@ test('F12 and Ctrl+Shift+I/J/C are cancelled while refresh and other shortcuts r
       { code: 'KeyR', ctrlKey: true }, { code: 'KeyR', ctrlKey: true, shiftKey: true },
       { code: 'KeyR', metaKey: true, shiftKey: true },
       { code: 'KeyK', ctrlKey: true, shiftKey: true },
-      ...['KeyU', 'KeyS', 'KeyP'].map(code => ({ code, ctrlKey: true })),
-      ...['KeyI', 'KeyU'].map(code => ({ code, metaKey: true, altKey: true })),
+      ...['KeyS', 'KeyP'].map(code => ({ code, ctrlKey: true })),
+      { code: 'KeyZ', ctrlKey: true, shiftKey: true },
     ]
     return shortcuts.map(shortcut => {
       const event = new KeyboardEvent('keydown', { ...shortcut, bubbles: true, cancelable: true })
@@ -47,7 +47,10 @@ test('F12 and Ctrl+Shift+I/J/C are cancelled while refresh and other shortcuts r
     })
   })
   for (const result of allowed) expect(result.cancelled, JSON.stringify(result.shortcut)).toBe(false)
-  for (const chord of ['F12', 'Control+F12', 'Control+Shift+KeyI', 'Control+Shift+KeyJ', 'Control+Shift+KeyC']) {
+  const restricted = ['F12', 'Control+F12', 'Control+Shift+KeyI', 'Control+Shift+KeyJ', 'Control+Shift+KeyC',
+    'Control+KeyU', 'Control+KeyW', 'Control+F4', 'Control+Shift+KeyW', 'Meta+KeyW', 'Meta+Shift+KeyW',
+    'Meta+Alt+KeyI', 'Meta+Alt+KeyJ', 'Meta+Alt+KeyC', 'Meta+Alt+KeyU', 'Meta+Shift+KeyC']
+  for (const chord of restricted) {
     await page.keyboard.press(chord)
     expect(await page.evaluate(() => {
       const records = (window as unknown as { shortcutRecords: KeyboardEvent[] }).shortcutRecords
@@ -58,7 +61,7 @@ test('F12 and Ctrl+Shift+I/J/C are cancelled while refresh and other shortcuts r
   await expect(page).toHaveURL(/\/park$/)
 
   // Each intercepted shortcut stops held movement without waiting for keyup.
-  for (const chord of ['F12', 'Control+Shift+KeyI', 'Control+Shift+KeyJ', 'Control+Shift+KeyC']) {
+  for (const chord of ['F12', 'Control+Shift+KeyI', 'Control+Shift+KeyJ', 'Control+Shift+KeyC', 'Control+KeyW', 'Meta+Alt+KeyI']) {
     await canvas.focus()
     const before = server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length
     await page.keyboard.down('KeyW')
@@ -101,7 +104,7 @@ test('F12 and Ctrl+Shift+I/J/C are cancelled while refresh and other shortcuts r
   // The existing manual consumes capture events; the guard must still run first.
   await page.keyboard.press('F1')
   await expect(page.locator('dialog[open]')).toBeVisible()
-  for (const chord of ['F12', 'Control+Shift+KeyI', 'Control+Shift+KeyJ', 'Control+Shift+KeyC']) {
+  for (const chord of restricted) {
     await page.keyboard.press(chord)
     expect(await page.evaluate(() =>
       (window as unknown as { shortcutRecords: KeyboardEvent[] }).shortcutRecords.at(-1)?.defaultPrevented), chord).toBe(true)
@@ -115,8 +118,11 @@ test('F12 and Ctrl+Shift+I/J/C are cancelled while refresh and other shortcuts r
   await input.fill('입력 유지 확인')
   await page.keyboard.press('Control+A')
   expect(await input.evaluate((el: HTMLInputElement) => el.selectionEnd! - el.selectionStart!)).toBe('입력 유지 확인'.length)
-  await page.keyboard.press('F12')
-  await expect(input).toHaveValue('입력 유지 확인')
+  for (const chord of ['F12', 'Control+KeyW', 'Meta+Alt+KeyI']) {
+    await page.keyboard.press(chord)
+    await expect(input).toBeFocused()
+    await expect(input).toHaveValue('입력 유지 확인')
+  }
   await page.keyboard.press('Escape')
   await screenshot(page, 'browser-shortcuts-park')
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
@@ -129,8 +135,84 @@ test('login has no game shortcut guard', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.login-page')).toBeVisible()
   expect(await page.evaluate(() => {
-    return ['F12', 'KeyI', 'KeyJ', 'KeyC'].every(code => window.dispatchEvent(new KeyboardEvent('keydown', {
+    return ['F12', 'KeyI', 'KeyJ', 'KeyC', 'KeyW', 'KeyU', 'F4'].every(code => window.dispatchEvent(new KeyboardEvent('keydown', {
       code, key: code, ctrlKey: code !== 'F12', shiftKey: code !== 'F12', bubbles: true, cancelable: true,
     })))
   })).toBe(true)
+  expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true)
+})
+
+test('cancelling browser close and reload preserves the park; logout removes the leave confirmation', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  const server = await fixture(page, { manualMovement: true, position: { x: 0, y: 0.8, z: 34, yaw: 0 } })
+  await page.goto('/park')
+  await expect(page).toHaveTitle('OnTop')
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
+  const canvas = page.locator('canvas')
+  await canvas.click()
+  await page.keyboard.down('KeyW')
+  await expect.poll(() => server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length).toBeGreaterThan(0)
+
+  // A real browser close request runs beforeunload without dispatching Ctrl+W.
+  // Playwright's keyboard.press alone does not exercise the browser's native tab shortcut.
+  const closing = page.waitForEvent('dialog')
+  await page.close({ runBeforeUnload: true })
+  const closeDialog = await closing
+  expect(closeDialog.type()).toBe('beforeunload')
+  await closeDialog.dismiss()
+  expect(page.isClosed()).toBe(false)
+  await expect(page).toHaveURL(/\/park$/)
+  const stopped = server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length
+  await page.waitForTimeout(250)
+  expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length).toBe(stopped)
+  await page.keyboard.up('KeyW')
+  // Remaining in the park must leave ordinary movement usable.
+  await canvas.focus()
+  await page.keyboard.down('KeyW')
+  await expect.poll(() => server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz)).length).toBeGreaterThan(stopped)
+  await page.keyboard.up('KeyW')
+  await page.keyboard.press('Enter')
+  const input = page.locator('.park-chat input')
+  await input.fill('탭 닫기 취소 후 입력 유지')
+  await Promise.all([
+    page.waitForEvent('dialog').then(async dialog => {
+      expect(dialog.type()).toBe('beforeunload')
+      await dialog.dismiss()
+    }),
+    page.evaluate(() => { window.location.reload() }),
+  ])
+  await expect(input).toHaveValue('탭 닫기 취소 후 입력 유지')
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  await screenshot(page, 'tab-close-cancelled-park')
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: '내 메뉴', exact: true }).click()
+  await page.getByRole('menuitem', { name: '로그아웃', exact: true }).click()
+  await page.getByRole('dialog', { name: '로그아웃 확인' }).getByRole('button', { name: '로그아웃', exact: true }).click()
+  await expect(page.locator('.login-page')).toBeVisible()
+  expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true)
+  expect(errors).toEqual([])
+  const dialogs: string[] = []
+  page.on('dialog', async dialog => { dialogs.push(dialog.type()); await dialog.dismiss() })
+  await page.close({ runBeforeUnload: true })
+  await expect.poll(() => page.isClosed()).toBe(true)
+  expect(dialogs).toEqual([])
+})
+
+test('confirming browser close still lets the player leave', async ({ page }) => {
+  await fixture(page)
+  await page.goto('/park')
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
+  await page.locator('canvas').click()
+  const closing = page.waitForEvent('dialog')
+  await page.close({ runBeforeUnload: true })
+  const dialog = await closing
+  expect(dialog.type()).toBe('beforeunload')
+  const closed = page.waitForEvent('close')
+  await dialog.accept()
+  await closed
+  expect(page.isClosed()).toBe(true)
 })

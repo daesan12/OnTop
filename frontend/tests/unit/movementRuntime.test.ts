@@ -90,10 +90,42 @@ afterEach(async () => {
 })
 
 describe('M14 authenticated REST and movement ownership boundary', () => {
+  it.each([true,false])('sends manual paused=%s with the existing authentication and pause revision',async paused=>{
+    vi.mocked(fetch).mockResolvedValueOnce(json({timing:{paused,pauseRevision:paused?1:2}}))
+    const path='/api/v1/minigames/sessions/901/manual-pause'
+    const body=JSON.stringify({paused,expectedPauseRevision:paused?0:1})
+    await runtime.requestJSON(path,{method:'POST',headers:{'Content-Type':'application/json'},body})
+    expect(fetch).toHaveBeenLastCalledWith(path,expect.objectContaining({method:'POST',body,credentials:'omit',
+      headers:{Authorization:'Bearer fixture-access','Content-Type':'application/json'}}))
+  })
+  it.each(['GET','PATCH'])('blocks unsupported %s manual pause requests before sending',async method=>{
+    vi.mocked(fetch).mockClear()
+    await expect(runtime.requestJSON('/api/v1/minigames/sessions/901/manual-pause',{method})).rejects.toThrow('사용할 수 없는 요청')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+  it.each(['/api/v1/users/me/games?size=20', '/api/v1/users/me/games?size=20&cursor=9007199254740993&gameCode=OMOK',
+    '/api/v1/users/me/games?size=20&gameCode=DICE_LEDGER', '/api/v1/users/me/games?size=20&cursor=9007199254740993&gameCode=HALLI_GALLI',
+    '/api/v1/users/me/game-stats', '/api/v1/minigames/jumpmap/rankings'])('sends history GET %s with the existing Bearer authentication', async path => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [] }))
+    await runtime.requestJSON(path, { method: 'GET', cache: 'no-store' })
+    expect(fetch).toHaveBeenLastCalledWith(path, expect.objectContaining({ method: 'GET', cache: 'no-store', credentials: 'omit',
+      headers: { Authorization: 'Bearer fixture-access' } }))
+  })
+  it.each([
+    ['/api/v1/minigames/jumpmap/rankings', 'POST'], ['/api/v1/minigames/jumpmap/rankings?userId=102', 'GET'],
+    ['/api/v1/users/me/games?size=20', 'POST'], ['/api/v1/users/me/game-stats', 'DELETE'],
+    ['/api/v1/users/102/games?size=20', 'GET'], ['/api/v1/users/me/games?size=20&userId=102', 'GET'],
+    ['/api/v1/users/me/games?size=20&cursor=-1', 'GET'], ['/api/v1/users/me/games?size=20&gameCode=FARKLE', 'GET'],
+    ['/api/v1/users/me/games?size=20&gameCode=halli_galli', 'GET'], ['/api/v1/users/me/games?size=20&gameCode=HALLI_GALLI&gameCode=OMOK', 'GET'],
+  ])('blocks undocumented history request %s %s', async (path, method) => {
+    vi.mocked(fetch).mockClear()
+    await expect(runtime.requestJSON(path, { method })).rejects.toThrow('사용할 수 없는 요청')
+    expect(fetch).not.toHaveBeenCalled()
+  })
   it.each(['v4', 'v5'] as const)('sends the %s lobby through the authenticated runtime', async rulesVersion => {
     const original = vi.mocked(fetch).getMockImplementation()!
     const path = `/api/v1/minigames/sessions?rulesVersion=${rulesVersion}`
-    const lobby = { rulesVersion, todayEarned: 0, dailyCap: 100, isFirstGame: true, seenTips: [] }
+    const lobby = { rulesVersion, todayEarned: 0, dailyCap: 500, isFirstGame: true, seenTips: [] }
     vi.mocked(fetch).mockImplementation(async (input, init) =>
       input === path ? json(lobby) : original(input, init))
     const create = rulesVersion === 'v5' ? createBungeoppangV5Service : createBungeoppangV4Service
@@ -199,7 +231,7 @@ describe('M02 real runtime delivery through the existing SharedSocket', () => {
       await vi.advanceTimersByTimeAsync(0)
     } else await vi.advanceTimersByTimeAsync(3000)
     expect(useSession.getState().movementNotice).toBeNull()
-    expect(useSession.getState().error).toBe('다른 작업 오류')
+    expect(useSession.getState().error).toBe(mode === 'expiry' ? '' : '다른 작업 오류')
   })
   it.each(['channel', 'stop'])('clears the notice and its timer on %s exit', async boundary => {
     socket.holdMoves = true
@@ -246,15 +278,16 @@ describe('M02 real runtime delivery through the existing SharedSocket', () => {
     await vi.advanceTimersByTimeAsync(120)
     expect(moves()).toHaveLength(11)
   })
-  it.each(['rejection', 'timeout'])('reports movement %s without replaying a delivered jump', async mode => {
+  it.each(['rejection', 'timeout'])('preserves a newer queued jump after an older movement %s', async mode => {
     socket.holdMoves = true
     runtime.move(0, -1, false)
     runtime.move(1, 0, false, true)
     if (mode === 'rejection') socket.emit('ERROR', { code: 'MOVE_TOO_FREQUENT', message: '이동 간격 오류' }, moves()[0]!.requestId)
     else await vi.advanceTimersByTimeAsync(8100)
     await vi.advanceTimersByTimeAsync(120)
-    const delivered = mode === 'rejection' ? 1 : 2
+    const delivered = 2
     expect(moves()).toHaveLength(delivered)
+    expect(moves()[1]!.payload).toMatchObject({ seq: 2, dx: 1, jump: true })
     expect(mode === 'rejection' ? useSession.getState().movementNotice?.message : useSession.getState().error)
       .toContain(mode === 'rejection' ? '이동 간격 오류' : '응답 시간이 초과')
     runtime.move(1, 0, false)

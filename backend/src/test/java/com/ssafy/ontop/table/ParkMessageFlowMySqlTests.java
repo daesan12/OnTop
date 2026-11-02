@@ -41,7 +41,6 @@ import static org.awaitility.Awaitility.await;
         "ontop.world.channels[0].capacity=40",
         "ontop.world.channels[1].channel-id=channel-2", "ontop.world.channels[1].name=검증 공원2",
         "ontop.world.channels[1].capacity=40",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/notes",
         "ontop.auth.allowed-origins=https://dev.on-top.world",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
@@ -97,7 +96,7 @@ class ParkMessageFlowMySqlTests {
     @Test
     void 익명메모는_실제채널과위치를검사하고_단절후복귀해도한번만저장한다() throws Exception {
         String key = System.currentTimeMillis() + "_0123456789abcdef_retry";
-        String body = body(key, "공개 검증 메모");
+        String body = body(key, "공개 검증 메모").replace("}", ",\"category\":\"cheer\"}");
         expect(send(101, "POST", "/api/v1/notes", body), 409, "NOT_IN_CHANNEL");
         try (var writer = connect(101); var reader = connect(202)) {
             join(writer, "channel-1");
@@ -111,8 +110,13 @@ class ParkMessageFlowMySqlTests {
             var first = send(101, "POST", "/api/v1/notes", body);
             expect(first, 201, null);
             assertThat(json.readTree(first.body()).path("note").fieldNames()).toIterable()
-                    .containsExactlyInAnyOrder("id", "text", "createdAt");
+                    .containsExactlyInAnyOrder("id", "text", "createdAt", "category");
+            assertThat(json.readTree(first.body()).at("/note/category").asText()).isEqualTo("cheer");
+            JsonNode notice = reader.await(message -> message.path("type").asText().equals("NOTES_CHANGED"));
+            assertThat(notice.path("payload").fieldNames()).toIterable().containsExactly("revision");
+            assertThat(notice.at("/payload/revision").asText()).matches("[1-9][0-9]*");
             assertThat(send(101, "POST", "/api/v1/notes", body).body()).isEqualTo(first.body());
+            reader.assertNoMessage(message -> message.path("type").asText().equals("NOTES_CHANGED"));
             pose(202, notes.x(), notes.y(), notes.z());
             var list = send(202, "GET", "/api/v1/notes?channelId=channel-2", null);
             expect(list, 200, null);
@@ -154,7 +158,7 @@ class ParkMessageFlowMySqlTests {
                     () -> send(101, "POST", "/api/v1/feedback", body));
             expect(first, 201, null);
             assertThat(first.body()).doesNotContain("비공개 검증 의견");
-            expect(send(202, "GET", "/api/v1/admin/feedback", null), 403, "FEEDBACK_ADMIN_REQUIRED");
+            expect(send(202, "GET", "/api/v1/admin/feedback", null), 403, "AUTH_ACCESS_DENIED");
             var admin = send(909, "GET", "/api/v1/admin/feedback", null);
             expect(admin, 200, null);
             assertThat(json.readTree(admin.body()).path("items").get(0).path("text").asText())
@@ -179,7 +183,9 @@ class ParkMessageFlowMySqlTests {
     private ScenarioClient connect(long user) throws Exception {
         var ticket = send(user, "POST", "/api/v1/auth/websocket-ticket", null);
         expect(ticket, 200, null);
-        return new ScenarioClient(port, Long.toString(user), json.readTree(ticket.body()).path("ticket").asText(), ORIGIN);
+        var client = new ScenarioClient(port, Long.toString(user), json.readTree(ticket.body()).path("ticket").asText(), ORIGIN);
+        client.state("LOBBY");
+        return client;
     }
 
     private void join(ScenarioClient socket, String channel) throws Exception {

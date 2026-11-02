@@ -10,14 +10,30 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.junit.jupiter.api.BeforeEach;
+import jakarta.persistence.TypedQuery;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 class NotesProductionProfileTests {
+    private final EntityManager entities = mock(EntityManager.class);
+    private final PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
+
+    @BeforeEach
+    void 메모변경번호_초기조회가_가능한_DB대역을_준비한다() {
+        TypedQuery<Long> revision = mock(TypedQuery.class);
+        when(entities.createQuery("select b.revision from NoteBoard b where b.id=1", Long.class)).thenReturn(revision);
+        when(revision.getSingleResult()).thenReturn(0L);
+        when(transactions.getTransaction(any())).thenAnswer(ignored -> new SimpleTransactionStatus());
+    }
+
     private final WebApplicationContextRunner runner = new WebApplicationContextRunner()
-            .withBean(EntityManager.class, () -> mock(EntityManager.class))
-            .withBean(PlatformTransactionManager.class, () -> mock(PlatformTransactionManager.class))
+            .withBean(EntityManager.class, () -> entities)
+            .withBean(PlatformTransactionManager.class, () -> transactions)
             .withBean(BehaviorLog.class, BehaviorLog::disabled)
             .withBean(TableHub.class, () -> mock(TableHub.class))
             .withUserConfiguration(NotesConfiguration.class, NotesController.class);
@@ -27,6 +43,23 @@ class NotesProductionProfileTests {
         runner.withPropertyValues("spring.profiles.active=prod,db")
                 .run(context -> assertThat(context).hasNotFailed()
                         .doesNotHaveBean(NotesController.class).doesNotHaveBean(NotesService.class));
+    }
+
+    @Test
+    void 켠상태에서_비밀키가_32자_미만이면_기동을_멈추고_오류에_비밀키를_남기지_않는다() {
+        String secret = "short-synthetic-secret-value";
+        for (String profiles : new String[] {"dev,db", "prod,db"}) {
+            runner.withPropertyValues("spring.profiles.active=" + profiles, "ontop.notes.enabled=true",
+                    "ontop.notes.privacy-secret=" + secret)
+                    .run(context -> {
+                        assertThat(context).hasFailed();
+                        var messages = new StringBuilder();
+                        for (Throwable failure = context.getStartupFailure(); failure != null; failure = failure.getCause()) {
+                            messages.append(failure).append('\n');
+                        }
+                        assertThat(messages).as(profiles).contains("32자").doesNotContain(secret);
+                    });
+        }
     }
 
     @Test

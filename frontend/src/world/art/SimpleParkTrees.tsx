@@ -1,3 +1,5 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
+import { SimpleParkTrees as PreviewSimpleParkTrees } from './previewSimpleParkTrees'
 import { memo } from 'react'
 import {
   ConeGeometry,
@@ -23,6 +25,7 @@ export const parkTreeBatches = [
 ]
 
 export const SimpleParkTrees = memo(function SimpleParkTrees() {
+  if (SIMPLE_MAP) return <PreviewSimpleParkTrees />
   return (
     <group
       name="simple-park-trees"

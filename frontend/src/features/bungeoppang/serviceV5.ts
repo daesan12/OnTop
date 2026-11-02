@@ -5,7 +5,7 @@ import { completeResult, createBungeoppangV4Service, prefixHash, toCheckpoint, t
 import { validateCustomers, type CustomerOrder, type GrillState } from './rulesV5';
 import { BREAD_FILLINGS, type BungeoppangRules, type GrillLogEntry } from './rulesV4';
 import { BungeoppangServiceError, messages, type BungeoppangService, type BungeoppangSubmit } from './service';
-import type { RoundTiming } from './serverTime';
+import {validTimingUpdate,type RoundTiming} from './serverTime';
 
 type WireAction = { seq: number; action: GrillLogEntry['action']; t: number; slot?: number;
   filling?: GrillLogEntry['filling']; breadId?: number; orderId?: string; deliveryKey?: string };
@@ -24,13 +24,15 @@ function orders(value: unknown, rules: BungeoppangRules): CustomerOrder[] {
 }
 function checkpoint(value: unknown, source: Pick<Source, 'rules' | 'heats'>, log: GrillLogEntry[]) {
   if (!record(value)) return fail();
-  const c = toCheckpoint({ ...value, currentOrder: null }), activeOrders = orders(value.activeOrders, source.rules);
+  const c = toCheckpoint({ ...value, currentOrder: null }, true), activeOrders = orders(value.activeOrders, source.rules);
   if (c.throughSeq !== log.length || c.tray.length > 10 || c.heatCursor > source.heats.length
     || new Set(c.tray.map(b => b.breadId)).size !== c.tray.length
     || activeOrders.some(o => o.availableAfterSeq > c.throughSeq)
     || c.slots.some(s => s.since >= source.rules.durationMs || s.heat < source.rules.heatMin || s.heat > source.rules.heatMax
       || (s.lastAt !== null && s.lastAt >= source.rules.durationMs))) return fail();
   const grill: GrillState = { rulesVersion: 'v5', order: null, orderIndex: c.stats.customersServed,
+    complainedOrderIds: Array.isArray(value.complainedOrderIds) && value.complainedOrderIds.every(id)
+      ? [...value.complainedOrderIds] : [],
     activeOrders, slots: c.slots.map(({ slot: _slot, ...s }) => s), heats: [...source.heats],
     tray: c.tray.map(({ breadId, ...b }) => ({ id: breadId, ...b })), fills: c.heatCursor,
     lastAt: c.lastAt, score: c.stats.score, made: c.stats.made, golden: c.stats.golden,
@@ -105,7 +107,7 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
     mock: false,
     async getStatus() {
       const p = await request(`${path}?rulesVersion=v5`);
-      if (!record(p) || p.rulesVersion !== 'v5' || !whole(p.todayEarned) || p.dailyCap !== 100
+      if (!record(p) || p.rulesVersion !== 'v5' || !whole(p.todayEarned) || p.dailyCap !== 500
         || p.todayEarned > p.dailyCap || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.seenTips)
         || !p.seenTips.every(t => typeof t === 'string')) return fail();
       return { rulesVersion: 'v5', todayEarned: p.todayEarned, dailyCap: p.dailyCap,
@@ -117,7 +119,8 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
       if (!record(p) || !id(p.minigameSessionId) || p.rulesVersion !== 'v5' || p.minigameType !== 'BUNGEOPPANG'
         || p.status !== 'PLAYING' || typeof p.configVersion !== 'string' || typeof p.startedAt !== 'string'
         || !Number.isFinite(Date.parse(p.startedAt)) || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.heats)) return fail();
-      const rules = toRules(p.rules), timing = toTiming(p.timing, rules.durationMs);
+      const rules = { ...toRules(p.rules), queueComplaintPenalty: record(p.rules) && p.rules.queueComplaintPenalty === 5 ? 5 : 0 };
+      const timing = toTiming(p.timing, rules.durationMs);
       const supportedTiming = [R, BUNGEOPPANG_V5_LEGACY].some(profile =>
         rules.durationMs === profile.durationMs && rules.rushFromMs === profile.rushFromMs);
       if (!record(p.rules) || p.rules.heatAssignment !== 'FILL' || p.rules.maxActiveOrders !== 3
@@ -141,11 +144,20 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
         || !['PLAYING', 'COMPLETED', 'ABANDONED', 'INVALID'].includes(String(p.status))
         || typeof p.serverNow !== 'string' || !Number.isFinite(Date.parse(p.serverNow))) return fail();
       const timing = toTiming(p.timing, s.rules.durationMs);
-      if (JSON.stringify(timing) !== JSON.stringify(s.timing)) return fail();
+      if (!validTimingUpdate(s.timing,timing)) return fail();
+      s.timing=timing;
       if (receivedAt - sent > 1000) throw new BungeoppangServiceError('TIME_SYNC_SLOW', '서버 시간을 다시 확인해 주세요.', true);
       return { timing, sample: { receivedAt, serverNowMs: Date.parse(p.serverNow), rttMs: receivedAt - sent },
         status: p.status as 'PLAYING' | 'COMPLETED' | 'ABANDONED' | 'INVALID',
         ...(p.status === 'COMPLETED' ? { result: completeResult(p.result, gameId, 'v5') } : {}) };
+    },
+    async setManualPaused(gameId,paused) {
+      const current=await service.syncTimeV4!(gameId);
+      if(current.status!=='PLAYING')return current;
+      const s=source(gameId);
+      if(s.timing.pauseRevision===undefined)throw new BungeoppangServiceError('PAUSE_UNAVAILABLE','일시정지 연결을 확인해주세요.',true);
+      await request(`${sessionPath(gameId)}/manual-pause`,post({paused,expectedPauseRevision:s.timing.pauseRevision}));
+      return service.syncTimeV4!(gameId);
     },
     async deliverV5(input) {
       const s = source(input.gameId), data = await body(input, 'DELIVERY');

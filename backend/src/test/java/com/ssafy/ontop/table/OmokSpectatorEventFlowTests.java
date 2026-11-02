@@ -58,6 +58,8 @@ class OmokSpectatorEventFlowTests {
     private static final String OTHER_TABLE = tableId(2);
     private static final String GAME = "committed-test-game";
     private static final String OTHER_GAME = GAME + "-2";
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private com.ssafy.ontop.game.omok.service.OmokEngine engine;
     @LocalServerPort private int port;
     @Autowired private AccessJwtService jwt;
     @Autowired private ObjectMapper mapper;
@@ -81,6 +83,12 @@ class OmokSpectatorEventFlowTests {
 
     @BeforeEach
     void accounts() {
+        // These scenarios isolate chat/settlement from toss randomness; dedicated engine tests cover both coin faces.
+        org.mockito.Mockito.doAnswer(call -> {
+            engine.create(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3));
+            return null;
+        }).when(engine).createWithCoinToss(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
         when(oauthClock.instant()).thenAnswer(call -> clock.instant());
         for (long id : List.of(101L, 202L, 505L, 606L, 707L, 808L, 909L, 1010L, 1111L)) {
             when(accounts.findActive(id, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(
@@ -373,6 +381,23 @@ class OmokSpectatorEventFlowTests {
         assertThat(ended.at("/payload/publicState/endedAt").asText()).isEqualTo(deadline);
         assertThat(code(viewer.request("OMOK_SPECTATOR_PING_SEND", ping(GAME, 1, 7, 7))))
                 .isEqualTo("GAME_SPECTATOR_GAME_NOT_PLAYING");
+    }
+
+    @Test
+    void 복구상태만_받은_플레이어도_첫착수나_수동조회없이_즉시채팅한다() throws Exception {
+        var first = connect(101, "one");
+        var second = connect(202, "one");
+        var viewer = connect(505, "one");
+        near(viewer);
+        viewer.request("TABLE_WATCH", Map.of("tableId", TABLE));
+        start(TABLE, first, second, viewer, GAME, true);
+        watch(viewer, GAME);
+        for (var sender : List.of(first, second)) {
+            JsonNode ack = sender.request("GAME_SPECTATOR_CHAT_SEND", chat(GAME, "첫 수 전에도 응원해요"));
+            assertThat(ack.path("type").asText()).as(ack.toString()).isEqualTo("GAME_SPECTATOR_CHAT_MESSAGE");
+            assertThat(viewer.awaitSpectatorEvent(ack.at("/payload/eventId").asText()).path("payload"))
+                    .isEqualTo(ack.path("payload"));
+        }
     }
 
     @Test

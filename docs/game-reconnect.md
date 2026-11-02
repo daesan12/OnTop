@@ -109,6 +109,11 @@ MEMBER_DEACTIVATED/4403 전달을 재사용한다. 이번 AUTH 변경에서 Hub�
 
 ## 검증 범위
 
+DB에 FINISHED/INVALID가 저장됐지만 재시작으로 엔진·테이블 이력이 사라진 경우는
+[종결 복구 연결](game-recovery.md#저장된-종결-경기의-재접속-연결)을 따른다.
+기존 정산 커밋과 활성 예약 해제를 재조회한 뒤 LOBBY를 허용하며 새 요청/응답 필드는 없다.
+판정이 없는 RESERVED/RUNNING은 자동 기권·환불하지 않고 기존 UNAVAILABLE을 유지한다.
+
 수동 기권 확정 후 승인 응답 유실·단절은 참가권 복원이 아니다. FINISHED/ELIMINATED 확인 후
 보존된 테이블의 원래 채널로 다시 입장하고 같은 기권 명령을 재확인할 수 있다. 다른 채널은 TABLE_BUSY다.
 TableGameIdFlowTests는 승인 유실/정산 알림/저장 조회에서 다음 판까지 검증하며 DB 경계는 대역이다.

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.game.ledger.domain.DiceLedgerScoring;
 import com.ssafy.ontop.world.domain.ChatText;
 import com.ssafy.ontop.world.domain.EmoteCode;
 import java.util.Map;
@@ -12,6 +13,7 @@ import java.util.Set;
 
 public final class TableProtocol {
 
+    private static boolean finitePoint(JsonNode value) { return value.isNumber() && Double.isFinite(value.asDouble()); }
     private final ObjectMapper mapper;
     private boolean startRehearsal;
 
@@ -65,6 +67,10 @@ public final class TableProtocol {
             case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
+            case "WORLD_POSITION" -> validPosition(payload);
+            case "WORLD_POSITION_FALLBACK" -> fields(payload, Set.of("epoch"))
+                    && payload.path("epoch").isIntegralNumber() && payload.path("epoch").canConvertToLong()
+                    && payload.path("epoch").asLong() >= 0 && payload.path("epoch").asLong() <= 9_007_199_254_740_991L;
             case "WORLD_FOLLOW_CHECK" -> fields(payload, Set.of());
             case "WORLD_FOLLOW_START" -> fields(payload, Set.of("targetId"))
                     && payload.path("targetId").isTextual()
@@ -124,10 +130,26 @@ public final class TableProtocol {
                     && payload.path("gameId").asText().length() <= 120
                     && payload.path("actionId").isTextual() && !payload.path("actionId").asText().isBlank()
                     && payload.path("actionId").asText().length() <= 64;
+            case "ALKKAGI_SPECTATOR_SEND" -> validGameId(payload) && validEventId(payload)
+                    && payload.path("basedOnVersion").isIntegralNumber() && payload.path("basedOnVersion").canConvertToLong()
+                    && payload.path("basedOnVersion").asLong() >= 0 && payload.path("basedOnVersion").asLong() <= 9_007_199_254_740_991L
+                    && (payload.path("kind").asText().equals("CURSOR")
+                        && fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "kind", "x", "y"))
+                        && finitePoint(payload.path("x")) && finitePoint(payload.path("y"))
+                    || payload.path("kind").asText().equals("ADVICE")
+                        && fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "kind", "pieceId", "dx", "dy", "power"))
+                        && payload.path("pieceId").isTextual() && payload.path("pieceId").asText().length() <= 64
+                        && finitePoint(payload.path("dx")) && finitePoint(payload.path("dy")) && finitePoint(payload.path("power"))
+                        && payload.path("power").asDouble() > 0 && payload.path("power").asDouble() <= 1);
             case "GAME_SPECTATOR_CHAT_SEND" -> fields(payload, Set.of("gameId", "eventId", "text"))
                     && validGameId(payload) && validEventId(payload) && validChatText(payload.get("text"));
             case "ONECARD_PRANK_REACH_SEND", "ONECARD_HAND_FLIP_SEND" ->
-                    fields(payload, Set.of("gameId", "eventId", "targetUserId", "turnCount"))
+                    (fields(payload, Set.of("gameId", "eventId", "targetUserId", "turnCount"))
+                    || fields(payload, Set.of("gameId", "eventId", "targetUserId", "turnCount", "cardIndex", "handVersion"))
+                    && payload.path("cardIndex").isIntegralNumber() && payload.path("cardIndex").canConvertToInt()
+                    && payload.path("cardIndex").asInt() >= 0 && payload.path("cardIndex").asInt() < 54
+                    && payload.path("handVersion").isIntegralNumber() && payload.path("handVersion").canConvertToLong()
+                    && payload.path("handVersion").asLong() >= 0 && payload.path("handVersion").asLong() <= 9_007_199_254_740_991L)
                     && validGameId(payload) && validEventId(payload)
                     && payload.path("targetUserId").isTextual()
                     && payload.path("targetUserId").asText().matches("[1-9][0-9]{0,18}")
@@ -145,6 +167,16 @@ public final class TableProtocol {
                     && payload.path("basedOnVersion").longValue() >= 0
                     && payload.path("basedOnVersion").longValue() <= 9_007_199_254_740_991L
                     && omokPoint(payload.path("x")) && omokPoint(payload.path("y"));
+            case "DICE_LEDGER_SPECTATOR_PING_SEND" -> (fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "category"))
+                    && ledgerCategory(payload.path("category"))
+                    || fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "dieId"))
+                    && payload.path("dieId").isIntegralNumber() && payload.path("dieId").canConvertToInt()
+                    && payload.path("dieId").intValue() >= 0 && payload.path("dieId").intValue() <= 4)
+                    && validGameId(payload) && validEventId(payload)
+                    && payload.path("basedOnVersion").isIntegralNumber()
+                    && payload.path("basedOnVersion").canConvertToLong()
+                    && payload.path("basedOnVersion").longValue() >= 0
+                    && payload.path("basedOnVersion").longValue() <= 9_007_199_254_740_991L;
             case "GAME_STATE_CHECK", "GAME_WATCH" -> fields(payload, Set.of("gameId"))
                     && payload.get("gameId").isTextual()
                     && !payload.get("gameId").textValue().isBlank()
@@ -185,6 +217,10 @@ public final class TableProtocol {
         return value.isIntegralNumber() && value.canConvertToInt() && value.intValue() >= 0 && value.intValue() <= 14;
     }
 
+    private boolean ledgerCategory(JsonNode value) {
+        return value.isTextual() && DiceLedgerScoring.Category.find(value.textValue()) != null;
+    }
+
     private boolean validLease(JsonNode payload) {
         return payload.path("leaseId").isTextual() && !payload.path("leaseId").asText().isBlank()
                 && payload.path("leaseId").asText().length() <= 64;
@@ -199,13 +235,20 @@ public final class TableProtocol {
         }
     }
 
+    private boolean validPosition(JsonNode payload) {
+        try {
+            com.ssafy.ontop.world.movement.ClientPositionValidator.Candidate.parse(payload);
+            return true;
+        } catch (IllegalArgumentException exception) { return false; }
+    }
+
     private boolean validReady(JsonNode payload) {
         if (!payload.path("ready").isBoolean()) { return false; }
         if (!payload.path("ready").booleanValue()) { return fields(payload, Set.of("ready")); }
         return fields(payload, Set.of("ready", "betAmountPerPlayer", "expectedVersion"))
                 && payload.path("betAmountPerPlayer").isIntegralNumber()
                 && payload.path("betAmountPerPlayer").canConvertToLong()
-                && payload.path("betAmountPerPlayer").longValue() > 0
+                && payload.path("betAmountPerPlayer").longValue() >= 0
                 && payload.path("expectedVersion").isIntegralNumber()
                 && payload.path("expectedVersion").canConvertToLong()
                 && payload.path("expectedVersion").longValue() >= 0
@@ -215,7 +258,7 @@ public final class TableProtocol {
     private boolean validGameSelection(JsonNode payload) {
         if (!payload.path("betAmountPerPlayer").isIntegralNumber()
                 || !payload.path("betAmountPerPlayer").canConvertToLong()
-                || payload.path("betAmountPerPlayer").longValue() <= 0) { return false; }
+                || payload.path("betAmountPerPlayer").longValue() < 0) { return false; }
         if (!payload.path("gameCode").isTextual() || payload.path("gameCode").textValue().isBlank()) { return false; }
         if (!payload.has("targetScore")) { return fields(payload, Set.of("gameCode", "betAmountPerPlayer")); }
         return fields(payload, Set.of("gameCode", "targetScore", "betAmountPerPlayer")) && payload.path("gameCode").asText().equals("DICE")

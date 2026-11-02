@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector3, type Object3D } from 'three'
-import { OVERHEAD } from '../config'
+import { OVERHEAD } from '../park/mapConfig'
 import { avatars, useSession } from '../network/worldClient'
 import { useGathering } from '../features/tableLobby/gathering'
 import { OMOK_FOCUS_LAYER } from './omokCamera'
@@ -10,6 +10,8 @@ import { useGame } from '../game/store'
 import { useShop } from '../features/shop/controller'
 import { AVATAR_ACTIVITY_LABELS } from '../network/avatarActivity'
 import { ownGameActivity } from './avatarActivity'
+import { useOmokEvents } from '../game/omok/spectatorEvents'
+import { gameChatScope } from '../features/chat/gameChat'
 
 export interface AvatarAnchors {
   root: Object3D
@@ -31,7 +33,10 @@ const AvatarOverlay = memo(function AvatarOverlay({
   id: string
   targets: OverlayTargets
 }) {
-  const bubble = useSession((state) => state.bubbles[id])
+  const worldBubble = useSession((state) => state.bubbles[id]), gameId = useGame(gameChatScope)
+  const chat = useOmokEvents(state => gameId ? state.chats.filter(message => message.gameId === gameId && message.senderUserId === id).at(-1) : undefined)
+  const bubble = useMemo(() => gameId ? chat && { id: chat.eventId, text: chat.text, expiresAt: chat.until }
+    : worldBubble, [gameId, chat, worldBubble])
   const own = useSession((state) => state.sessionId === id)
   const activity = useSession(state => state.activities[id])
   const local = useSession(state => state.sessionId === id && state.status === 'connected' && state.mapCompatible)

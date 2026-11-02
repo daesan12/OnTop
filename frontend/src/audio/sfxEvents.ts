@@ -4,19 +4,30 @@ import type { SfxName } from './sfx'
 
 /** Who must act now: the bridge responder answers a declaration, otherwise the turn holder. */
 export function turnOwner(g: Game): string | null {
+  if (g.alkkagi) return g.alkkagi.turnUserId
   if (g.omok) return g.omok.turnUserId
   if (g.dice) return g.dice.turnUserId
   if (g.onecard) return g.onecard.turnUserId
+  if (g.ledger) return g.ledger.turnUserId
+  if (g.halli) return g.halli.turnUserId
   return g.bridge.stage === 'RESPONDING' ? g.bridge.responderUserId : g.bridge.turnUserId
 }
 
 /** Cues for one game update compared with the previous state of the same game. */
 export function gameSfx(prev: Game | null, next: Game | null, ownId: string): SfxName[] {
-  if (!next || gameState(next).status !== 'PLAYING') return []
+  if (!next) return []
   const out: SfxName[] = []
   const before = prev?.gameId === next.gameId ? prev : null
+  const move = next.omok?.lastMove
+  const omokPlaced = next.omok && before?.omok && move && next.version > before.version
+    && next.omok.moveCount === before.omok.moveCount + 1
+    && before.omok.board[move.y]?.[move.x] === 0 && next.omok.board[move.y]?.[move.x] !== 0
+  if (omokPlaced) out.push('omok-place')
+  // 마지막 승리 착수도 소리가 나며, 상태 복구·중복 스냅샷·거절 입력은 재생하지 않는다.
+  if (gameState(next).status !== 'PLAYING') return out
   if (!before && next.role === 'PLAYER') out.push('game-start')
-  if (next.role === 'PLAYER' && turnOwner(next) === ownId && (!before || turnOwner(before) !== ownId)) out.push('game-turn')
+  // 승인 착수에는 '탁'만 재생한다. 차례 알림의 전자음이 동시에 겹치지 않게 한다.
+  if (!omokPlaced && next.role === 'PLAYER' && turnOwner(next) === ownId && (!before || turnOwner(before) !== ownId)) out.push('game-turn')
   if (!before) return out
   if (next.dice && before.dice && next.dice.rollId !== before.dice.rollId) out.push('dice-roll')
   if (next.onecard && before.onecard) {

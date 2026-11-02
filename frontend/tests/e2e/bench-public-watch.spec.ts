@@ -50,16 +50,16 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
       return { seat: s.tableId, granted: g.useGame.getState().permittedGameId, canPlace: g.canPlace(s.sessionId, 7, 7), canRoll: g.canPlayDice(s.sessionId) }
     })).toEqual({ seat: '', granted: '', canPlace: false, canRoll: false })
     await expect(page.getByRole('dialog', { name: '테이블 정보', exact: true })).toHaveCount(0)
-    await page.getByRole('button', { name: '판 자세히 보기', exact: true }).click()
-    await expect(page.getByRole('button', { name: '판 자세히 보기', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    const boardButton = page.getByRole('button', { name: kind === 'OMOK' ? '판 보기' : '판 자세히 보기', exact: true })
+    await boardButton.click()
+    await expect(boardButton).toHaveAttribute('aria-pressed', 'true')
     await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).adCameraProbe().direction[1])).toBeLessThan(-.999)
     if (kind === 'OMOK') {
       // Approved OMOK spectating owns the dedicated match chat, replacing ParkChat.
       const chat = page.getByRole('form', { name: '오목 관전 채팅', exact: true })
-      await expect(page.getByLabel('보유 엽전', { exact: true })).toHaveText('100냥')
+      await expect(page.getByLabel('보유 엽전', { exact: true })).toHaveCount(0)
       await expect(page.getByRole('button', { name: '공원 잔액 다시 확인', exact: true })).toHaveCount(0)
       await page.evaluate(() => window.dispatchEvent(new Event('focus')))
-      await expect(page.locator('.park-wallet')).toHaveAttribute('aria-busy', 'false')
       await page.locator('canvas').focus(); await page.keyboard.press('Enter')
       const input = chat.getByRole('textbox')
       await expect(input).toBeFocused()
@@ -74,7 +74,7 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
       await expect.poll(() => watchStatus(page)).toBe('watching')
       expect((await game(page))?.gameId).toBe(targetId)
       server.publicMoveForRefresh()
-      await page.getByRole('region', { name: '오목 경기', exact: true }).getByRole('button', { name: '최신 판 확인', exact: true }).click()
+      server.resendGame('SPECTATOR')
       await expect.poll(async () => (await game(page))?.omok?.moveCount).toBe(1)
       await screenshot(page, 'bench-public-omok')
     }
@@ -85,6 +85,7 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
       const region = page.getByRole('region', { name: labels[kind], exact: true })
       // The current OneCard HUD spans the viewport; its exit controls must clear the dock.
       const panel = await (kind === 'ONE_CARD' ? region.locator('.onecard-recovery-controls') : region).boundingBox()
+      if (kind === 'OMOK') return !!panel && await page.locator('.omok-spectator-toolbar').isVisible()
       const dock = await page.getByRole('complementary', { name: '가까운 상호작용', exact: true }).boundingBox()
       return !!panel && !!dock && (panel.y + panel.height <= dock.y || panel.x + panel.width <= dock.x
         || panel.x >= dock.x + dock.width || panel.y >= dock.y + dock.height)

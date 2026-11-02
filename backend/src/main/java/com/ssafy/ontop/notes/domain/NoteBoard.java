@@ -10,6 +10,8 @@ import jakarta.persistence.Table;
 public class NoteBoard {
     @Id
     private Long id;
+    @jakarta.persistence.Column(nullable = false)
+    private long revision;
 
     protected NoteBoard() {
     }

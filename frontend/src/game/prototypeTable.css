@@ -1353,17 +1353,17 @@
 @media(prefers-reduced-motion:reduce) { .prototype-game * { animation:none!important; transition:none!important; } }
 .park-page .prototype-game .mini-help { position:fixed; } .park-page .prototype-result-detail { position:absolute; right:24px; bottom:24px; width:min(460px,44vw); max-height:70vh; overflow:auto; z-index:6; } .park-page .prototype-game .stone-chip { display:block; width:20px; height:20px; border-radius:50%; background:#faf3e6; border:1px solid #bfb39a; } .park-page .prototype-game .stone-chip.black { background:#202321; }
 /* Keep chat and account actions clear of the original game surfaces. */
-.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat { left:24px; bottom:16px; width:248px; max-height:150px; transform:none; z-index:7; }
-.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat__messages { height:auto; padding:0; }
-.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat__heading { padding-bottom:4px; }
-.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat__heading h1 { font-size:12px; }
-.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat__heading button { font-size:10px; }
-.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat__list { max-height:55px; }
-.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat__message { font-size:12px; gap:5px; }
-.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat__author { flex-basis:70px; }
-.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat__composer { height:32px; font-size:12px; }
-.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat[data-expanded=true] { max-height:65vh; padding:10px; border-radius:8px; background:#172c29f5; }
-.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat[data-expanded=true] .park-chat__list { max-height:45vh; }
+.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat { left:24px; bottom:16px; width:248px; max-height:150px; transform:none; z-index:7; }
+.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat__messages { height:auto; padding:0; }
+.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat__heading { padding-bottom:4px; }
+.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat__heading h1 { font-size:12px; }
+.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat__heading button { font-size:10px; }
+.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat__list { max-height:55px; }
+.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat__message { font-size:12px; gap:5px; }
+.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat__author { flex-basis:70px; }
+.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat__composer { height:32px; font-size:12px; }
+.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat[data-expanded=true] { max-height:65vh; padding:10px; border-radius:8px; background:#172c29f5; }
+.park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat[data-expanded=true] .park-chat__list { max-height:45vh; }
 .park-page .prototype-game .mini-tools { bottom:180px; max-height:145px; }
 .park-page .prototype-game .mini-scoreboard { max-height:calc(100dvh - 480px); }
 .park-page .prototype-game .mini-status { right:300px; flex-wrap:wrap; gap:8px; }
@@ -1378,7 +1378,7 @@
 @media(max-height:800px) {
   .park-page .prototype-game .mini-scoreboard { max-height:calc(100dvh - 440px); }
   .park-page .prototype-game .mini-tools, .park-page .prototype-game .farkle-tools { bottom:170px; max-height:130px; }
-  .park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud) .park-chat { width:220px; }
+  .park-page:has(.prototype-game.minigame-hud, .prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat { width:220px; }
   .park-page .prototype-game .farkle-scoreboard { top:150px; max-height:calc(100dvh - 450px); }
 }
 .park-page .prototype-table-heading { display:flex; justify-content:space-between; gap:16px; align-items:center; }

@@ -1,3 +1,6 @@
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { RETURN_TO } from '../jumpmap/course'
+import { serviceWalkHeight,isOnLakeCrossing } from '../../park/mapConfig'
 import {
   WORLD_COLLIDERS,
   WORLD,
@@ -10,24 +13,28 @@ import {
   isOnParkWalkway,
   PARK_ZONES, FITNESS_AREA, VR_ZONE, FOUNTAIN, MAILBOX, MINI_PROPS, LAKE, GARDEN_PAGODA,
   pavilionStairJoin,
-} from "../../config";
+} from '../../park/mapConfig';
 
 export type NavPoint = { x: number; z: number };
 export type Destination = NavPoint & { name: string };
 /** Arrival points are accessible approaches, rather than the centres of solid props. */
 const main = PARK_PAVILIONS[0];
+const cart=MINI_PROPS[0],cartYaw='yaw' in cart?cart.yaw:0;
+const mailboxYaw='yaw' in MAILBOX?MAILBOX.yaw:0;
+const mailboxStandOff=GENERATED_PARK_ENABLED?1.8:1.5;
 /** Approaches derive from the current OnTop layout, never a prototype zone centre. */
 export const PARK_DESTINATIONS: Record<string, NavPoint> = {
+  ...(GENERATED_PARK_ENABLED ? { jumpmap: RETURN_TO } : {}),
   central: { x: main.x, z: main.z + pavilionStairJoin(main.scale) + Math.ceil((main.floor-main.ground)/0.18)*0.5 + 0.65 },
   "games-west": { x: PARK_ZONES[1].x, z: PARK_ZONES[1].z },
   "games-east": { x: PARK_ZONES[2].x, z: PARK_ZONES[2].z },
   lake: { x: LAKE.x-LAKE.radiusX-2, z: LAKE.z-12 },
   tower: { x: OBSERVATION_TOWER.x+OBSERVATION_TOWER.outer+1.5, z: OBSERVATION_TOWER.z },
   fitness: { x: FITNESS_AREA.x, z: FITNESS_AREA.z+FITNESS_AREA.depth/2-4 },
-  mini: { x: MINI_PROPS[0].x, z: MINI_PROPS[0].z+MINI_PROPS[0].depth/2+1.8 },
+  mini: { x:cart.x+Math.sin(cartYaw)*(cart.depth/2+1.8), z:cart.z+Math.cos(cartYaw)*(cart.depth/2+1.8) },
   vr: { x: VR_ZONE.x, z: VR_ZONE.z+VR_ZONE.depth/2+1 },
   fountain: { x: FOUNTAIN.x, z: FOUNTAIN.z+FOUNTAIN.plazaRadius+1 },
-  mailbox: { x: MAILBOX.x, z: MAILBOX.z+1.5 },
+  mailbox: { x: MAILBOX.x+Math.sin(mailboxYaw)*mailboxStandOff, z: MAILBOX.z+Math.cos(mailboxYaw)*mailboxStandOff },
   pagoda: { x: GARDEN_PAGODA.x, z: GARDEN_PAGODA.z+GARDEN_PAGODA.plazaWidth/2+3.4 },
 };
 export const navDistance = (a: NavPoint, b: NavPoint) =>
@@ -78,6 +85,7 @@ function inside(
   );
 }
 export function navigationHeight(p: NavPoint): number {
+  if(GENERATED_PARK_ENABLED)return serviceWalkHeight(p.x,p.z);
   let height = groundHeight(p.x, p.z);
   for (const pavilion of PARK_PAVILIONS) {
     const dx = Math.abs(p.x - pavilion.x),
@@ -113,7 +121,7 @@ export function isNavigationWalkable(p: NavPoint): boolean {
     p.x >= BRIDGE.startX &&
     p.x <= BRIDGE.endX &&
     Math.abs(p.z - BRIDGE.z) < BRIDGE.halfWidth - clearance;
-  if (lakeRadiusAt(p.x, p.z) < 1.01 && !bridge) return false;
+  if (lakeRadiusAt(p.x, p.z) < 1.01 && !(GENERATED_PARK_ENABLED?isOnLakeCrossing(p.x,p.z):bridge)) return false;
   const floor = navigationHeight(p);
   return !nearby(p).some((box) => {
     const bottom = box.center[1] - box.half[1];

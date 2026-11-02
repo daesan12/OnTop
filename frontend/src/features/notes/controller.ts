@@ -1,4 +1,4 @@
-import { NOTES_BOX } from '../../config/notes'
+import { NOTES_BOX } from '../../park/mapConfig'
 import { tableBusy } from '../../game/store'
 import { avatars, authoritativePose, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
@@ -44,7 +44,7 @@ async function request<T>(kind: 'read' | 'submit', job: (scope: NotesContext, si
     || Object.entries(inputState).some(([key, value]) => key !== 'notesOpen' && value)) return false
   if (notesService.mode === 'unavailable') return false
   if (kind === 'read' && Date.now() < state.nextReadAt) return false
-  useNotesState.setState(kind === 'read' ? { loading: true, readError: '', nextReadAt: Date.now() + 1000 } : { pending: true, error: '', notice: '' })
+  useNotesState.setState(kind === 'read' ? { loading: true, readError: '', readErrorCode: '', nextReadAt: Date.now() + 1000 } : { pending: true, error: '', notice: '' })
   const parent = notesSignal(), child = new AbortController()
   const cancel = () => child.abort()
   parent.addEventListener('abort', cancel, { once: true })
@@ -67,7 +67,8 @@ async function request<T>(kind: 'read' | 'submit', job: (scope: NotesContext, si
         : error instanceof Error ? error.message : '메모 요청에 실패했습니다.'
       const deadline = error instanceof NotesServiceError && error.nextAllowedAt !== undefined ? error.nextAllowedAt : 0
       useNotesState.setState(kind === 'read'
-        ? { readError: message, nextReadAt: Math.max(useNotesState.getState().nextReadAt, deadline) }
+        ? { readError: message, readErrorCode: error instanceof NotesServiceError ? error.code : '',
+          nextReadAt: Math.max(useNotesState.getState().nextReadAt, deadline) }
         : { error: message, nextAllowedAt: Math.max(useNotesState.getState().nextAllowedAt, deadline),
           retryBlocked: error instanceof NotesServiceError && ['NOTE_REMOVED', 'NOTES_REQUEST_EXPIRED'].includes(error.code) })
     }
@@ -115,7 +116,7 @@ let stopWatcher: (() => void) | undefined
 export function watchNotes() {
   stopWatcher?.()
   const signal = notesSignal()
-  let stopped = false, dirty = false
+  let stopped = false, dirty = false, retryAvailable = false, change = 0
   let timer: ReturnType<typeof setTimeout> | undefined
   const flush = () => {
     if (stopped || signal.aborted || !dirty) return
@@ -127,9 +128,19 @@ export function watchNotes() {
     const wait = Math.max(0, s.nextReadAt - Date.now())
     if (wait) { timer = setTimeout(flush, wait); return }
     dirty = false
-    void refreshNotes()
+    const readingChange = change
+    void refreshNotes().then(ok => {
+      // One bounded retry for this notification; manual reads and other errors never poll.
+      const state = useNotesState.getState()
+      if (!ok && !stopped && !signal.aborted && readingChange === change && !dirty && !state.loading
+        && retryAvailable && state.readErrorCode === 'NOTES_READ_COOLDOWN') {
+        retryAvailable = false
+        dirty = true
+        flush()
+      }
+    })
   }
-  const unsubscribe = notesService.subscribe(() => { dirty = true; flush() })
+  const unsubscribe = notesService.subscribe(() => { change++; retryAvailable = true; dirty = true; flush() })
   const unwatch = useNotesState.subscribe((s, previous) => {
     if ((previous.loading && !s.loading) || (previous.pending && !s.pending)) flush()
   })

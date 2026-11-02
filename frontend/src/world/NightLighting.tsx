@@ -10,13 +10,16 @@ import {
   ENVIRONMENT,
   ENVIRONMENT_QUALITY,
   LAMPS,
+  MINI_PROPS,
   TABLES,
   smoothRange,
   type QualityPreset,
-} from '../config'
+} from '../park/mapConfig'
 import { environmentFrame as frame } from './environmentState'
 import { Instances, type Part } from './art/Instances'
 import { TraditionalPavilionLanterns } from './art/TraditionalPavilionLanterns'
+import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
+import { FISH_SHOP_LANTERNS } from './art/shopLanternLayout'
 
 export function NightMaterial({
   color = '#ece3cb',
@@ -48,12 +51,22 @@ export function NightMaterial({
     />
   )
 }
+const shop=MINI_PROPS[0],shopScale='scale' in shop?shop.scale:1,shopYaw='yaw' in shop?shop.yaw:0
+const shopLights=GENERATED_PARK_ENABLED?FISH_SHOP_LANTERNS.map(([x,y,z])=>({
+  x:shop.x+shopScale*(x*Math.cos(shopYaw)+z*Math.sin(shopYaw)),
+  y:y*shopScale,
+  z:shop.z+shopScale*(-x*Math.sin(shopYaw)+z*Math.cos(shopYaw)),
+  floor:0,poolOffset:.012,radius:2.8,strength:18,color:'#FFD6A3',
+})):[]
 const candidates = [
+  // Reuse the bounded light pool; the new lanterns add no permanent point lights.
+  ...shopLights,
   ...LAMPS.map(([x, y, z]) => ({
     x,
     y: y + 3.7,
     z,
     floor: y,
+    poolOffset: GENERATED_PARK_ENABLED ? .012 : .105,
     radius: 4.2,
     strength: 24,
     color: ENVIRONMENT.palette.path,
@@ -63,13 +76,14 @@ const candidates = [
     y: t.position[1] + 3.2,
     z: t.position[2],
     floor: t.position[1],
+    poolOffset:.105,
     radius: 3.8,
     strength: 30,
     color: ENVIRONMENT.palette.table,
   })),
 ]
 const pools: Part[] = candidates.map((p) => ({
-  p: [p.x, p.floor + 0.105, p.z],
+  p: [p.x, p.floor + p.poolOffset, p.z],
   s: [p.radius, p.radius, 1],
   r: [-Math.PI / 2, 0, 0],
   c: p.color,
@@ -167,6 +181,7 @@ export function NightLighting({ quality }: { quality: QualityPreset }) {
       {Array.from({ length: preset.lights }, (_, i) => (
         <pointLight
           key={i}
+          userData={{ warmNightLight: true }}
           ref={(v) => {
             lights.current[i] = v
           }}

@@ -9,7 +9,7 @@
 {"requestId":"select-1","type":"GAME_SELECT","payload":{"gameCode":"DICE","targetScore":4000,"betAmountPerPlayer":5}}
 ```
 
-- `betAmountPerPlayer`: 필수 양의 정수. 문자열·소수·0·음수·누락은 INVALID_PAYLOAD.
+- `betAmountPerPlayer`: 0 이상의 필수 정수. 문자열·소수·음수·누락은 INVALID_PAYLOAD. 0냥도 모든 참가자가 같은 금액과 설정 버전에 동의해야 한다.
 - DICE는 기존 targetScore 2000/4000/6000 필수, 다른 게임에는 targetScore를 보내지 않는다.
 - 지원되는 정수지만 게임 금액 범위를 벗어나면 GAME_INVALID_BET. 실패 시 기존 선택·준비·version 유지.
 - TABLE_STATE, TABLE_WATCH_STATE, GET /api/v1/tables의 각 항목에 nullable betAmountPerPlayer 추가.
@@ -49,7 +49,7 @@ ready=false는 기존 `{"ready":false}`만 보낸다. 누락/형식 오류는 IN
 
 | 파일 (frontend/ 기준) | 기존 변경 내용 및 검토 영향 |
 |---|---|
-| src/features/tableLobby/model.ts | gameSelection(code, betAmountPerPlayer, targetScore?)로 서명 변경. 양수 안전 정수와 게임 최대 인원 기준 판돈 검사. 참가비 미확정 시 준비 금지 |
+| src/features/tableLobby/model.ts | gameSelection(code, betAmountPerPlayer, targetScore?)로 서명 변경. 0 이상의 안전 정수와 게임 최대 인원 기준 판돈 검사. 참가비 미확정 시 준비 금지 |
 | src/game/OmokPanel.tsx | GameControls에 참가비 입력·적용·서버 확정 금액 표시. selector만 설정 가능. 기존 게임판/턴/승패 UI 규칙은 유지 |
 | src/network/protocol.ts | TableSummary/TableState에 nullable betAmountPerPlayer. 이전 서버의 필드 생략은 null로 해석하며 1코인으로 추정하지 않음 |
 | src/park/runtime/SpringParkRuntime.ts | GAME_SELECT에 B 전달. READY_SET true에 서버 상태의 B/version 전달, false는 ready만 전달. selectOmok도 확정 B가 없으면 실패 |
@@ -195,6 +195,15 @@ PENDING의 myCoinDelta는 null, SETTLED는 본인 확정 순증감이다.
 별도 전달기가 커밋된 행만 읽으므로 롤백 시 알리지 않는다.
 알림 I/O 실패는 이미 커밋된 DB 결과를 되돌리거나 추가 지급하지 않는다.
 TableHub는 경기·게임·참가자 집합과 시작 시 고정한 B를 대조해 SETTLING→WAITING으로 전환한다.
+
+## 2026-11-02 · 0냥 참가비
+
+V139__allow_zero_game_bets.sql은 game_sessions의 판돈/전체 판돈 관계와 game_participants 예약액에 0을 허용한다.
+V138은 공원 랭킹 인덱스에 사용됐고, 꼬치왕은 사용자 공유에 따라 로컬 V140으로 분리됐다. 기존 migration과 원장은 보존한다.
+V139 파일 첫 주석은 생성 당시의 번호 공유 내용이다. 격리 검증 DB에 적용한 V139의 checksum을 유지하기 위해 SQL 파일은 변경하지 않는다.
+0냥 경기는 기존 예약·정산·멱등 원장 경로를 사용하며 잔액 증감과 공동승리 보너스는 0이다.
+0냥 경기 참가자는 서로 다른 금액으로 준비할 수 없다. FE/BE/V139를 함께 반영해야 하며,
+활성 Flyway locations에서 V138 → V139 → V140 순서와 낮은 미적용 migration 유무를 확인한다.
 
 ## 마이그레이션·배포
 

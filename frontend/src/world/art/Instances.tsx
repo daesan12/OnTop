@@ -1,5 +1,5 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
-import { attachSharedMaterial, sharedInstanceMaterial } from './sharedMaterials'
 import {
   Color,
   Euler,
@@ -18,17 +18,17 @@ export interface Part {
 }
 
 /** Static vegetation sectors allow Three's frustum culling to skip whole groves. */
-export function SpatialInstances(props: Parameters<typeof Instances>[0]) {
+export function SpatialInstances({ cellSize = 24, ...props }: Parameters<typeof Instances>[0] & { cellSize?: number }) {
   const sectors = useMemo(() => {
     const result = new Map<string, Part[]>()
     for (const part of props.parts) {
-      const key = `${Math.floor(part.p[0] / 24)}:${Math.floor(part.p[2] / 24)}`
+      const key = `${Math.floor(part.p[0] / cellSize)}:${Math.floor(part.p[2] / cellSize)}`
       const batch = result.get(key) ?? []
       batch.push(part)
       result.set(key, batch)
     }
     return [...result]
-  }, [props.parts])
+  }, [props.parts, cellSize])
   return (
     <>
       {sectors.map(([key, parts]) => (
@@ -85,7 +85,7 @@ export function Instances({
       receiveShadow
     >
       {children}
-      {material ?? <primitive object={sharedInstanceMaterial} attach={attachSharedMaterial} dispose={null} />}
+      {material ?? (SIMPLE_MAP ? <meshLambertMaterial flatShading/> : <meshStandardMaterial roughness={0.88} />)}
     </instancedMesh>
   )
 }

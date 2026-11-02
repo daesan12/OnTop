@@ -42,6 +42,7 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | 메서드/경로 | 접근 정책 | 실제 검증 또는 제한 |
 | --- | --- | --- |
 | GET `/api/v1/minigames/bungeoppang/rankings` | **Access JWT + 활성 회원/로그인 세션** | v4/v5 개인 최고 전체 랭킹·본인 순위. [계약](bungeoppang-rankings-api.md). 기존 인증 로직 유지 |
+| GET `/api/v1/rankings/park` | **Access JWT + 활성 회원/로그인 세션** | 최신 dev의 공원 랭킹 스냅샷 조회. [계약](park-ranking-api.md) |
 | GET `/api/v1/auth/{provider}/authorize` | 공개 | ssafy/naver, 신뢰된 callback 설정, 서버 state 발급 |
 | GET `/api/v1/auth/{provider}/callback` | 별도 인증 | OAuth 세션·provider·state, 공급자 조회, 회원 상태 |
 | POST `/api/v1/auth/exchange` | 별도 인증 | exchangeCode + 같은 OAuth 세션, 일회 소비/세션 ID 회전, 기존 Origin 검증 |
@@ -57,9 +58,12 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | GET `/api/v1/channels` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. 채널 목록 조회 |
 | GET `/api/v1/tables` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. 채널 설정 시 channelId 필요 |
 | POST `/api/v1/minigames/sessions` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. Idempotency-Key 필수, 미니게임 서비스는 별도 활성화 |
+| POST `/api/v1/minigames/skewer/admissions` | **Access JWT + 활성 회원/로그인 세션** | 본인 고정 이용료 10냥·단일 Idempotency-Key·본문 없음. 기존 원장으로 중복 차감 방지. [계약](skewer-admissions.md) |
+| GET `/api/v1/minigames/jumpmap/rankings` | **Access JWT + 활성 회원/로그인 세션** | 점프맵 현 규칙의 개인 최고 상위 50명·본인 기록. [계약](jumpmap-repeat-play.md) |
 | GET `/api/v1/minigames/sessions` | **Access JWT + 활성 회원** | 본인 오늘 획득·규칙 버전 상태 조회 |
 | GET `/api/v1/minigames/sessions/{sessionId}` | **Access JWT + 활성 회원** | 본인 세션만 조회 |
 | POST `/api/v1/minigames/sessions/{sessionId}/deliveries` | **Access JWT + 활성 회원** | v4 납품 승인. Idempotency-Key 필수, 엄격한 JSON 본문·256KB 제한, 본인 진행 판만 |
+| POST `/api/v1/minigames/sessions/{sessionId}/manual-pause` | **Access JWT + 활성 회원** | 본인 v4/v5 판의 F1 설명서 정지·재개. `paused`·`expectedPauseRevision` 필수, 낡은 상태 변경은 409 |
 | POST `/api/v1/minigames/sessions/{sessionId}/complete`, `/abandon` | **Access JWT + 활성 회원** | 엄격한 빈 JSON 본문. 서버 검증 없는 완료/지급 차단 |
 | GET `/dev/tables` | 공개 개발 페이지 | local에서만 등록됨 |
 | GET `/dev/world-config` | 공개 개발 설정 | local에서만 등록됨. 기존 WebSocket 인증 모드에서는 404 |

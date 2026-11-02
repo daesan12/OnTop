@@ -1,3 +1,4 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
 import {
   BoxGeometry,
   BufferGeometry,
@@ -144,6 +145,22 @@ export function createPavilionBench(scale: number) {
     g.translate(x, y, z)
     parts.push(g)
   }
+  if(SIMPLE_MAP) {
+    const span=(radius-TIMBER.seatHalfDepth)*MITRE*2
+    // A rectangular board meets only at the inner corners and leaves a wedge
+    // missing at every outer corner. Mitre both the seat and its framed back.
+    parts.push(mitred(radius,-TIMBER.seatHalfDepth,TIMBER.seatHalfDepth,
+      TIMBER.seatHeight-.12,TIMBER.seatHeight,'#b9956e'))
+    parts.push(mitred(radius,-TIMBER.inset-.06,-TIMBER.inset+.06,.6,1.1,'#a37b54'))
+    // Cover the existing 1.22m collision railing without coplanar top faces.
+    parts.push(mitred(radius,-TIMBER.inset-.09,-TIMBER.inset+.1,
+      1.1,TIMBER.railHeight+.008,'#c09b71'))
+    for(const x of [-span*.35,span*.35]){
+      box(x,.255,0,.16,.51,.5,'#9d7652')
+      box(x,TIMBER.railHeight/2,-.41,.12,TIMBER.railHeight,.16,'#9d7652')
+    }
+    return merge(parts)
+  }
   const depth = TIMBER.seatHalfDepth * 2
   for (let row = 0; row < 3; row++) {
     const back = -depth / 2 + (row * depth) / 3 + 0.004,
@@ -219,6 +236,10 @@ export function createPavilionBench(scale: number) {
 export function createPavilionFloor(scale: number) {
   const radius = 3.94 * Math.cos(Math.PI / 8) * scale,
     parts: BufferGeometry[] = []
+  if(SIMPLE_MAP) return plank(Array.from({length:8},(_,i)=>{
+    const a=Math.PI/8+i*Math.PI/4,r=radius/Math.cos(Math.PI/8)
+    return [Math.cos(a)*r,Math.sin(a)*r] as Point
+  }),.006,.026,'#b49675')
   const rings = Math.ceil(radius / 0.3),
     step = radius / rings
   const center: Point[] = Array.from({ length: 8 }, (_, i) => {

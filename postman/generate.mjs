@@ -237,12 +237,15 @@ feedbackAdmin.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}]; ht
 
 const notesDescription = 'M08 공개 익명 메모. local/dev,db + notes.enabled=true + 전용 privacy-secret + V121 순서 조율 후 스키마 적용 필요. '
     + '서버 위치(54.5,18.92,48.5) XZ2.6m·높이차0.7m미만, 테이블/시설/수영 중 불가. '
-    + '전 채널 공용 최신120장·쓰기15초/읽기1초. 메모/응답은 id,text,createdAt만 사용. '
-    + '24시간 동일키 재확인,410은 자동 재게시 금지. 창을 연 동안2초마다 겹치지 않게 조회하고 닫기·이탈·단절 시 중지. docs/notes-api.md.';
+    + '전 채널 공용 최신120장·쓰기15초/읽기1초. 공개 필드는 id,text,createdAt,category. '
+    + 'category daily/cheer/worry/recommend/free, 생략free. 같은 키의 주제 변경은409. '
+    + '24시간 동일키 재확인,410은 자동 재게시 금지. 정기GET없이 열기/재접속/NOTES_CHANGED 후 합쳐조회. '
+    + 'V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. FE VITE_NOTES_CATEGORIES=true 빌드와 subscribe연결 필요. docs/notes-api.md.';
 const notesBody = {mode:'raw',raw:JSON.stringify({operationId:'{{noteOperationId}}',channelId:'{{channelIdA}}',
-    text:'오늘도 좋은 하루 보내세요'},null,2),options:{raw:{language:'json'}}};
+    text:'오늘도 좋은 하루 보내세요',category:'cheer'},null,2),options:{raw:{language:'json'}}};
 const noteNew = http('27 전망대 익명 메모 작성','/api/v1/notes',201,notesDescription,
-    `const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['createdAt','id','text']);
+    `const r=pm.response.json(); pm.expect(Object.keys(r.note).sort()).to.eql(['category','createdAt','id','text']);
+pm.expect(r.note.category).to.eql('cheer');
 if(pm.response.code===201) pm.environment.set('noteId',r.note.id);`,
     shopSetup + `\npm.environment.set('noteOperationId',Date.now()+'_'+pm.variables.replaceIn('{{$guid}}'));`);
 noteNew.method='POST';noteNew.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'},
@@ -253,7 +256,7 @@ const noteReplay = http('28 익명 메모 동일 요청 재확인','/api/v1/note
 noteReplay.method='POST';noteReplay.headers=noteNew.headers;noteReplay.body=notesBody;httpItems.push(noteReplay);
 const noteRead = http('29 전망대 익명 메모 조회','/api/v1/notes?channelId={{channelIdA}}',200,notesDescription,
     `const notes=pm.response.json().notes;pm.expect(notes).to.be.an('array');pm.expect(notes.length).to.be.at.most(120);
-notes.forEach(n=>pm.expect(Object.keys(n).sort()).to.eql(['createdAt','id','text']));`,shopSetup);
+notes.forEach(n=>{pm.expect(Object.keys(n).sort()).to.eql(['category','createdAt','id','text']);pm.expect(['daily','cheer','worry','recommend','free']).to.include(n.category);});`,shopSetup);
 noteRead.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}];httpItems.push(noteRead);
 
 
@@ -261,7 +264,7 @@ const message = (name, type, payload = {}) => ({
     name, $kind: 'websocket-message', contentType: 'json',
     content: JSON.stringify({ requestId: '{{$guid}}', type, payload }, null, 2).replace(/\"\{\{tableVersion\}\}\"/g, '{{tableVersion}}')
 });
-const movementGuide = 'WORLD_MOVE는 {seq,dx,dz,run,jump?} 입력만 허용합니다. seq1~4294967295, dx/dz 각[-1,1] 대각선 정규화, run필수 boolean/jump선택. 서버30Hz·변화100ms동기화·입력50ms·250ms만료. 걷기6.25/달리기9/점프6.2/중력-18/단차0.22. 채널 입장 시 서버 스폰(캡슐 중심), lastInputSeq는 수락순번, mapVersion 대조. 기존 sequence/x/y/z/yaw 주입은 INVALID_PAYLOAD. 재접속30초·채팅/관전20m 유지. ';
+const movementGuide = 'WORLD_MOVE는 {seq,dx,dz,run,jump?} 입력만 허용합니다. seq1~4294967295, dx/dz 각[-1,1] 대각선 정규화, run필수 boolean/jump선택. 서버30Hz·변화100ms동기화·입력 평균50ms당1개/일시4개·250ms만료. 걷기6.25/달리기9/점프6.2/중력-18/단차0.22. 채널 입장 시 서버 스폰(캡슐 중심), lastInputSeq는 수락순번, mapVersion 대조. 기존 sequence/x/y/z/yaw 주입은 INVALID_PAYLOAD. 재접속30초·채팅/관전20m 유지. ';
 const joinA = () => message('01 광장 A 입장 → CHANNEL_STATE + WORLD_STATE', 'CHANNEL_JOIN', { channelId: '{{channelIdA}}' });
 const locate = () => message('이동 입력 → WORLD_STATE (채널 입장 시 서버 스폰)',
     'WORLD_MOVE', { seq: 1, dx: 0, dz: -1, run: false, jump: false });
@@ -595,6 +598,26 @@ const seatGuide = '\n\n## 공개 테이블 착석 (2026-10-28 · 배포 전)\n'
     + 'FE는 기존 서버 tableId/anchorId 매핑으로 표시하고 본인 버튼 권한은 기존 TABLE_STATE를 사용합니다. '
     + '로컬 코드 계약이며 FE 보존 브랜치 통합·실제3D·배포 검수는 별도입니다.';
 wsItems[6].description += seatGuide;
+wsItems[6].description += '\n\n2026-10-29 로컬 이동 예측: avatars[].motion{epoch,tick,appliedInputSeq,inputAgeMs,velocityY,grounded,inputActive}는 실제 물리 계산 결과입니다. '
+    + 'lastInputSeq는 수락 확인이므로 appliedInputSeq와 다를 수 있습니다. 본인만 최대250ms 충돌 예측·서버 보정, 타인은 기존 보간·공식 거리 판정은 서버 유지. '
+    + 'motion 없는 구서버/WASM 초기화 실패는 기존 표시를 유지합니다. 입력은 평균50ms당1개·일시버스트4개, 초과 시 MOVE_TOO_FREQUENT. '
+    + '비교 수치는 로컬 제어 리플레이이며 실제 서버 배포·실계정 검수는 별도입니다. docs/world-movement-prediction.md.';
+wsItems[6].messages.push({ name: '수신 예시 · WORLD_STATE motion — 직접 전송 금지·로컬 구현',
+    $kind: 'websocket-message', contentType: 'json', content: JSON.stringify({ requestId: null, type: 'WORLD_STATE', payload: {
+        channelId: '{{channelIdA}}', version: 20, mapVersion: '{{mapVersion}}', avatars: [{ userId: '101',
+            nickname: '검증자A', characterGender: 'MALE', equipment: null, tableSeat: null, activity: null,
+            position: { lastInputSeq:12,x:0.2083,y:0.84,z:34,yaw:1.5707963267948966,moving:true,running:false,swimming:false },
+            motion: { epoch:0,tick:30,appliedInputSeq:11,inputAgeMs:33.333333,velocityY:0,grounded:true,inputActive:true }
+        }]
+    } }, null, 2) });
+wsItems[6].description += '\n\n2026-10-29 로컬 확장: WORLD_STATE.tables 전체 목록의 tableId/anchorId/chairCount와 HTTP chairCount를 사용합니다. '
+    + 'max(2,승인 인원,최대점유좌석)으로 채널별 실제 충돌을 켜고, 새 의자에 겹친 산책자는 서버 안전 위치로 이동합니다. 정적 mapVersion은 유지합니다. '
+    + 'avatars[].activity=GAME은 실제 시작 승인 참가자만, 종료·정산 진입은 전원/기권·탈락은 해당 사용자만 null. SHOP은 미연결입니다. '
+    + 'NOTES_CHANGED{revision문자열}는 새 메모 커밋 후 전 채널 알림이며 본문/작성자 없음. 열린 FE창만 읽기1초 제한에 맞춰 합쳐GET, 정기GET 없음. '
+    + 'V129 번호 사용 가능 확인·MR 포함 승인(2026-10-29). 공용DB 적용·배포는 미확인. docs/world-table-chairs-api.md, docs/notes-api.md.';
+wsItems[6].messages.push({name:'수신 예시 · NOTES_CHANGED — 직접 전송 금지·로컬 구현',
+    $kind:'websocket-message', contentType:'json',
+    content:JSON.stringify({requestId:null,type:'NOTES_CHANGED',payload:{revision:'1234'}},null,2)});
 wsItems[6].messages.push({
     name: '수신 예시 · WORLD_STATE tableSeat — 직접 전송 금지·배포 전',
     $kind: 'websocket-message', contentType: 'json',
@@ -602,11 +625,11 @@ wsItems[6].messages.push({
         channelId: '{{channelIdA}}', version: 12, mapVersion: '{{mapVersion}}', avatars: [
             { userId: '101', nickname: '검증자A', characterGender: 'MALE',
                 position: {lastInputSeq:0,x:-2.025,y:0.84,z:34,yaw:0,moving:false,running:false,swimming:false},
-                equipment: null, tableSeat: {tableId:'{{tableIdA}}',seatNumber:1} },
+                equipment: null, tableSeat: {tableId:'{{tableIdA}}',seatNumber:1}, activity:'GAME' },
             { userId: '202', nickname: '검증자B', characterGender: 'FEMALE',
                 position: {lastInputSeq:0,x:-2.025,y:0.84,z:34,yaw:0,moving:false,running:false,swimming:false},
-                equipment: null, tableSeat: null }
-        ]
+                equipment: null, tableSeat: null, activity:null }
+        ], tables:[{tableId:'{{tableIdA}}',anchorId:'table-5',chairCount:3}]
     } }, null, 2)
 }, {
     name: '수신 예시 · WORLD_EMOTE_CANCELLED — 직접 전송 금지·배포 전',
@@ -631,10 +654,10 @@ const followGuide = '\n\n## 서버 따라가기\n\n'
     + '같은 채널의 두 계정이 CHANNEL_JOIN→WORLD_FOLLOW_CHECK 후 대상 WORLD_STATE.payload.avatars[].userId를 followTargetId에 넣고 START합니다. '
     + '서버 START/STOP/CHECK 응답·변경 방송은 WORLD_FOLLOW_STATE(channelId/version/links[])입니다. '
     + '본인 followerId의 followId를 followId 변수에 복사하고 STOP하세요. 상태는 전체 목록이며 낮은 버전은 무시합니다. '
-    + '시작 XZ≤12m/높이≤2m, ≤2.2m 대기·>2.2~5m 걷기6.25m/s·>5m 달리기9m/s. '
+    + '시작 XZ≤12m/높이≤2m, ≤2.2m 대기·>2.2~5m 걷기·>5m 달리기. PARK_V1은6/8m/s, 기본 프로필은6.25/9m/s. '
     + '거리>24m/높이>3.5m·단절/퇴장·양쪽 착석/시설/수영은 해제합니다. '
     + '승인된 직접 이동/점프는 본인 관계만 해제, 정지 heartbeat는 유지합니다. 장애물은 기존 충돌을 적용하며 우회/자동점프/시간해제는 없습니다. '
-    + '자동 입력은 lastInputSeq를 소비하지 않고 좌표는 기존 WORLD_STATE로 수신합니다. '
+    + '자동 입력은 lastInputSeq를 소비하지 않고 좌표는 기존 WORLD_STATE로 수신합니다. 브라우저 이동 보고가 없어도 서버30Hz로 추적하며 PONG 단절은 기존대로 해제합니다. PARK_V1 자동 추적 중 authority는 생략하고 직접 조작/종료 후 다음 틱에 새 epoch의 CLIENT_VALIDATED로 복귀합니다. '
     + '서버는 관계를 재접속 시 복구하지 않으므로 캐시를 비우고 CHECK하세요. 늦은 STOP의 다른followId는 FOLLOW_LINK_MISMATCH. '
     + '동일 대상 반복 START는 현 상태 ACK, 대상 변경은 새 ID이며 자기자신/순환/범위 밖은 거절합니다. '
     + 'START를 무조건 재전송하지 말고 CHECK로 확인하세요. docs/world-follow-api.md. FE 3D 연결·배포는 별도입니다.';
@@ -721,6 +744,13 @@ for (const index of [5,6]) {
     // Saved Message 변수는 문자열 치환이므로 turnCount만 JSON 정수로 둔다.
     wsItems[index].messages.at(-3).content = wsItems[index].messages.at(-3).content.replace('"{{prankTurnCount}}"','{{prankTurnCount}}');
 }
+wsItems.push(wsRequest('알까기 관전자 커서·훈수 — 로컬 공원',
+    '누구나 GAME_WATCH 후 첫 GAME_STATE를 받으면 관전합니다(방장 승인 없음). 같은 채널/20m/미착석 검사 유지. ALKKAGI_SPECTATOR_EVENT는 본인 ACK와 같은 경기 일시 방송. 커서80ms·TTL2초, 훈수600ms·TTL4초. 최신 AIMING/현재 차례 알만. 훈수는 방향 표시이며 실제 발사/물리/차례에 영향 없음. gameId/gameVersion/pieceId를 실제 상태로 바꾸세요. 신규 UUID는 새 표시, 같은 요청 재확인은 같은 UUID입니다. docs/websocket-api/11-alkkagi-spectator-events.md. 로컬 구현이며 개발 서버 배포와 웹 저장은 별도입니다.', [
+    message('알까기 커서 → ALKKAGI_SPECTATOR_EVENT','ALKKAGI_SPECTATOR_SEND',
+      {gameId:'{{gameId}}',eventId:'{{$guid}}',basedOnVersion:'{{gameVersion}}',kind:'CURSOR',x:0,y:0}),
+    message('알까기 훈수 → ALKKAGI_SPECTATOR_EVENT','ALKKAGI_SPECTATOR_SEND',
+      {gameId:'{{gameId}}',eventId:'{{$guid}}',basedOnVersion:'{{gameVersion}}',kind:'ADVICE',pieceId:'p0',dx:0.8,dy:-0.6,power:0.8})
+]));
 const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide + seatGuide
         + facilityGuide + followGuide + mapGuide + tabletGuide + reactionGuide + prankGuide,
     items: wsItems };

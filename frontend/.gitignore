@@ -1,9 +1,12 @@
 dist-tablet/
 node_modules/
+.vite-cache/
 dist/
+dist-park/
 .pnpm-store/
 *.tsbuildinfo
 .vercel
 .env*
-!.env.example
-audio-source/
+
+# Local map generator coordination (outputs are committed separately)
+.park-map-cache/

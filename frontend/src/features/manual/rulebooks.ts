@@ -2,6 +2,7 @@ import gomoku from "./rulebooks/gomoku.md?raw";
 import farkle from "./rulebooks/farkle.md?raw";
 import onecard from "./rulebooks/onecard.md?raw";
 import bridge from "./rulebooks/bridge.md?raw";
+import ledger from "./rulebooks/ledger.md?raw";
 import type { Rulebook } from "./types";
 
 // Chapters share the same trusted Markdown source as the downloadable rulebook.
@@ -29,4 +30,5 @@ export const rulebooks = {
   farkle: book("farkle", farkle),
   onecard: book("onecard", onecard),
   bridge: book("bridge", bridge),
+  ledger: book("ledger", ledger),
 } satisfies Record<string, Rulebook>;

@@ -13,9 +13,9 @@ import com.ssafy.ontop.minigame.domain.BungeoppangV5Order;
 import com.ssafy.ontop.minigame.domain.MinigameSession;
 import com.ssafy.ontop.minigame.domain.MinigameStartRequest;
 import com.ssafy.ontop.minigame.dto.BungeoppangStatusResponse;
-import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
-import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.dto.BungeoppangV5Responses;
 import com.ssafy.ontop.minigame.dto.MinigameAbandonResponse;
 import com.ssafy.ontop.minigame.dto.MinigameCompleteResponse;
@@ -29,8 +29,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -186,11 +186,14 @@ public class MinigameService {
      */
     private void persistV5Source(long sessionId, Instant issuedAt, BungeoppangV4Responses.Timing timing,
             List<Integer> heats) {
-        List<BungeoppangV5Rules.Order> opening = openingV5Orders();
-        BungeoppangV5Responses.Checkpoint checkpoint = openingV5Checkpoint(sessionId, heats, opening);
+        // The current rules are read once here and stored; every later step reads them back from the round.
         V5ConfigSnapshot config = new V5ConfigSnapshot(BungeoppangV5Spec.rules(),
                 BungeoppangV5Spec.START_BUFFER_MS, BungeoppangV5Spec.SUBMISSION_GRACE_MS,
                 BungeoppangV5Spec.PROCESSING_DRAIN_MS);
+        BungeoppangV4Responses.Rules rules = BungeoppangV5Spec.calculationRules(config.rules());
+        List<BungeoppangV5Rules.Order> opening = openingV5Orders(rules);
+        BungeoppangV5Responses.Checkpoint checkpoint = openingV5Checkpoint(sessionId,
+                BungeoppangV5Spec.CONFIG_VERSION, rules, heats, opening);
         repository.persist(new BungeoppangV4Round(sessionId, BungeoppangV5Spec.CONFIG_VERSION,
                 write(config), issuedAt, timing.countdownStartsAt(), timing.playStartsAt(), timing.playEndsAt(),
                 timing.submitDeadline(), timing.expiresAt(), checkpoint.prefixHash(), write(checkpoint)));
@@ -203,11 +206,10 @@ public class MinigameService {
     }
 
     /** One opening order per customer slot: the first is the fixed bean-2 order, the rest use the v4 mix. */
-    private List<BungeoppangV5Rules.Order> openingV5Orders() {
+    private List<BungeoppangV5Rules.Order> openingV5Orders(BungeoppangV4Responses.Rules rules) {
         var orders = new ArrayList<BungeoppangV5Rules.Order>(BungeoppangV5Spec.MAX_ACTIVE_ORDERS);
         for (int slot = 0; slot < BungeoppangV5Spec.MAX_ACTIVE_ORDERS; slot++) {
-            BungeoppangV4Rules.Order generated = v4Rules.nextOrder(slot, random,
-                    BungeoppangV5Spec.calculationRules());
+            BungeoppangV4Rules.Order generated = v4Rules.nextOrder(slot, random, rules);
             orders.add(new BungeoppangV5Rules.Order(generated.orderId(), slot, 0, generated.items()));
         }
         return orders;
@@ -223,7 +225,7 @@ public class MinigameService {
             return new BungeoppangV5Responses.StartResponse(Long.toString(session.id()), session.minigameType(),
                     "PLAYING", "WAITING_START", V5, round.configVersion(), round.issuedAt(), session.startedAt(),
                     BungeoppangV4Spec.timing(round), v5Config(round).rules(), heats(record), record.firstGame(),
-                    openingV5Checkpoint(session.id(), heats(record)));
+                    openingV5Checkpoint(round, heats(record)));
         }
         if (!V4.equals(record.rulesVersion())) {
             throw versionMismatch();
@@ -342,7 +344,7 @@ public class MinigameService {
         return new BungeoppangV5Responses.SessionResponse(Long.toString(session.id()), V5,
                 round.configVersion(), session.status(), BungeoppangV4Spec.phase(session.status(), current, round),
                 session.score(), session.rewardAmount(), session.endedAt(), active ? null : round.terminalReason(),
-                current, session.startedAt(), BungeoppangV4Spec.timing(round),
+                current, session.startedAt(), BungeoppangV4Spec.timing(round, current),
                 progress ? v5Checkpoint(round) : null, new ArrayList<>(accepted),
                 progress ? repository.v5Orders(session.id()).stream().map(this::v5Order)
                         .map(BungeoppangV5Spec::order).toList() : List.of(),
@@ -365,7 +367,7 @@ public class MinigameService {
         return new BungeoppangV4Responses.SessionResponse(Long.toString(session.id()), V4,
                 round.configVersion(), session.status(), BungeoppangV4Spec.phase(session.status(), current, round),
                 session.score(), session.rewardAmount(), session.endedAt(), active ? null : round.terminalReason(),
-                current, session.startedAt(), BungeoppangV4Spec.timing(round),
+                current, session.startedAt(), BungeoppangV4Spec.timing(round, current),
                 progress ? checkpoint(round) : null, new ArrayList<>(accepted),
                 progress ? repository.v4Orders(session.id()).stream().map(BungeoppangV4Spec::order).toList() : List.of(),
                 finalResult, lookup, includeSource ? config(round).rules() : null,
@@ -401,7 +403,8 @@ public class MinigameService {
             throw error(409, "GAME_NOT_ACTIVE", "이미 종료된 미니게임입니다.");
         }
         Instant current = now();
-        if (receivedAt.isAfter(round.submitDeadline())) {
+        requireNotPaused(round);
+        if (round.gameTime(receivedAt).isAfter(round.submitDeadline())) {
             throw error(409, "GAME_NOT_ACTIVE", "납품 제출 기한이 지났습니다.");
         }
         BungeoppangV4DeliveryDtos.Action last = request.log().getLast();
@@ -507,7 +510,8 @@ public class MinigameService {
             throw error(409, "GAME_NOT_ACTIVE", "이미 종료된 미니게임입니다.");
         }
         Instant current = now();
-        if (receivedAt.isAfter(round.submitDeadline())) {
+        requireNotPaused(round);
+        if (round.gameTime(receivedAt).isAfter(round.submitDeadline())) {
             throw error(409, "GAME_NOT_ACTIVE", "납품 제출 기한이 지났습니다.");
         }
         BungeoppangV4DeliveryDtos.Action last = request.log().getLast();
@@ -535,21 +539,23 @@ public class MinigameService {
             List<BungeoppangV5Rules.Order> issued = storedOrders.stream().map(this::v5Order).toList();
             List<BungeoppangV4Rules.Action> actions = BungeoppangV5DeliveryContract.domainActions(request.log());
             List<Integer> heats = heats(record);
-            BungeoppangV5Rules.Result before = v5Rules.replay(actions.subList(0, actions.size() - 1), heats, issued);
+            BungeoppangV4Responses.Rules rules = v5CalculationRules(round);
+            int complaintPenalty = v5Config(round).rules().queueComplaintPenalty();
+            BungeoppangV5Rules.Result before = v5Rules.replay(actions.subList(0, actions.size() - 1), heats, issued,
+                    rules, complaintPenalty);
             BungeoppangV5Rules.Order target = before.activeOrders().stream()
                     .filter(order -> order.orderId().equals(last.orderId())).findFirst()
                     .orElseThrow(() -> new MinigameException(409, "STALE_ORDER", "현재 활성 주문이 아닙니다."));
-            BungeoppangV5Rules.Result delivered = v5Rules.replay(actions, heats, issued);
+            BungeoppangV5Rules.Result delivered = v5Rules.replay(actions, heats, issued, rules, complaintPenalty);
 
             long nextOrderId = storedOrders.stream().mapToLong(BungeoppangV5Order::orderId).max().orElse(0) + 1;
-            BungeoppangV4Rules.Order generated = v4Rules.nextOrder(storedOrders.size(), random,
-                    BungeoppangV5Spec.calculationRules());
+            BungeoppangV4Rules.Order generated = v4Rules.nextOrder(storedOrders.size(), random, rules);
             var replacement = new BungeoppangV5Rules.Order(Long.toString(nextOrderId), target.customerSlot(),
                     request.throughSeq(), generated.items());
             var withReplacement = new ArrayList<>(issued);
             withReplacement.add(replacement);
             // The replacement must activate at this DELIVER in the freed slot; a mismatch is a server fault.
-            BungeoppangV5Rules.Result result = v5Rules.replay(actions, heats, withReplacement);
+            BungeoppangV5Rules.Result result = v5Rules.replay(actions, heats, withReplacement, rules, complaintPenalty);
 
             var checkpoint = BungeoppangV5Spec.checkpoint(round.revision() + 1, request.throughSeq(),
                     request.prefixHash(), result);
@@ -632,13 +638,13 @@ public class MinigameService {
         }
         long calculated = score.score() / 15;
         long today = earned(userId, current);
-        long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
+        long reward = MinigameRewardBudget.grant(calculated, today);
         wallet.creditReward(reward);
         session.complete(score.score(), reward, current);
         activityEnded(session);
         if (reward > 0) {
             repository.persist(WalletTransaction.minigameReward(wallet.id(), session.id(), reward,
-                    "minigame-reward:" + session.id()));
+                    "minigame-reward:" + session.id(), current));
         }
         rememberTips(userId, submission.path("seenTips"));
         var response = new MinigameCompleteResponse(Long.toString(sessionId), "COMPLETED", score.made(), reward,
@@ -670,13 +676,14 @@ public class MinigameService {
         if (!"PLAYING".equals(session.status()) || round.terminalReason() != null) {
             throw terminalError(session.status());
         }
-        if (receivedAt.isBefore(round.playEndsAt())) {
+        requireNotPaused(round);
+        if (round.gameTime(receivedAt).isBefore(round.playEndsAt())) {
             return error(422, "TOO_EARLY", "플레이 종료 후 같은 요청으로 다시 확인해 주세요.");
         }
-        if (receivedAt.isAfter(round.submitDeadline())) {
+        if (round.gameTime(receivedAt).isAfter(round.submitDeadline())) {
             // drain 중 늦은 제출이 기한 내 수신 후 잠금을 기다리는 완료를 먼저 무효화하지 않게 expiresAt 이후에만 만료한다.
             Instant current = now();
-            if (!current.isBefore(round.expiresAt())) {
+            if (!round.gameTime(current).isBefore(round.expiresAt())) {
                 invalidate(session, current, "SUBMISSION_EXPIRED");
                 repository.flush();
             }
@@ -729,13 +736,13 @@ public class MinigameService {
         var rewardDate = settledAt.atZone(SEOUL).toLocalDate();
         long calculated = Math.floorDiv(result.score(), config(round).rules().pointsPerCoin());
         long today = earned(userId, settledAt);
-        long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
+        long reward = MinigameRewardBudget.grant(calculated, today);
         wallet.creditReward(reward);
         session.complete(result.score(), reward, settledAt);
         activityEnded(session);
         if (reward > 0) {
             repository.persist(WalletTransaction.minigameReward(wallet.id(), sessionId, reward,
-                    "minigame-reward:" + sessionId));
+                    "minigame-reward:" + sessionId, settledAt));
         }
         int unfinished = (int) result.slots().stream().filter(slot -> !"empty".equals(slot.phase())).count();
         var response = new BungeoppangV4CompleteDtos.Response(Long.toString(sessionId), "COMPLETED", V4,
@@ -780,12 +787,13 @@ public class MinigameService {
         if (!"PLAYING".equals(session.status()) || round.terminalReason() != null) {
             throw terminalError(session.status());
         }
-        if (receivedAt.isBefore(round.playEndsAt())) {
+        requireNotPaused(round);
+        if (round.gameTime(receivedAt).isBefore(round.playEndsAt())) {
             return error(422, "TOO_EARLY", "플레이 종료 후 같은 요청으로 다시 확인해 주세요.");
         }
-        if (receivedAt.isAfter(round.submitDeadline())) {
+        if (round.gameTime(receivedAt).isAfter(round.submitDeadline())) {
             Instant current = now();
-            if (!current.isBefore(round.expiresAt())) {
+            if (!round.gameTime(current).isBefore(round.expiresAt())) {
                 invalidate(session, current, "SUBMISSION_EXPIRED");
                 repository.flush();
             }
@@ -824,20 +832,21 @@ public class MinigameService {
 
         // Re-read after a trailing approval so its replacement order takes part in the final replay.
         List<BungeoppangV5Rules.Order> issued = repository.v5Orders(sessionId).stream().map(this::v5Order).toList();
-        BungeoppangV5Rules.Result result = v5Rules.replay(
-                BungeoppangV5DeliveryContract.domainActions(request.log()), heats(record), issued);
         BungeoppangV5Responses.Rules rules = v5Config(round).rules();
+        BungeoppangV5Rules.Result result = v5Rules.replay(
+                BungeoppangV5DeliveryContract.domainActions(request.log()), heats(record), issued,
+                BungeoppangV5Spec.calculationRules(rules), rules.queueComplaintPenalty());
         Instant settledAt = now();
         var rewardDate = settledAt.atZone(SEOUL).toLocalDate();
-        long calculated = Math.floorDiv(result.score(), rules.pointsPerCoin());
+        long calculated = Math.max(0, Math.floorDiv(result.score(), rules.pointsPerCoin()));
         long today = earned(userId, settledAt);
-        long reward = Math.min(calculated, Math.max(0, BungeoppangRules.DAILY_CAP - today));
+        long reward = MinigameRewardBudget.grant(calculated, today);
         wallet.creditReward(reward);
         session.complete(result.score(), reward, settledAt);
         activityEnded(session);
         if (reward > 0) {
             repository.persist(WalletTransaction.minigameReward(wallet.id(), sessionId, reward,
-                    "minigame-reward:" + sessionId));
+                    "minigame-reward:" + sessionId, settledAt));
         }
         int unfinished = (int) result.slots().stream().filter(slot -> !"empty".equals(slot.phase())).count();
         var response = new BungeoppangV4CompleteDtos.Response(Long.toString(sessionId), "COMPLETED", V5,
@@ -930,10 +939,10 @@ public class MinigameService {
                 : BungeoppangV4DeliveryContract.prefixHash(round.sessionId(), round.configVersion(), actions);
     }
 
-    /** The play length comes from the stored round, so v4 keeps 60s and v5 gets 180s. */
+    /** The play length comes from the stored round, so v4 keeps 60s and each v5 round keeps its own length. */
     private void validateActionClock(Instant current, BungeoppangV4Round round,
             BungeoppangV4DeliveryDtos.Action last) {
-        long elapsed = java.time.Duration.between(round.playStartsAt(), current).toMillis();
+        long elapsed = java.time.Duration.between(round.playStartsAt(), round.gameTime(current)).toMillis();
         long duration = java.time.Duration.between(round.playStartsAt(), round.playEndsAt()).toMillis();
         long allowed = Math.min(duration - 1L, Math.max(-1L, elapsed + 250L));
         if (last.t() > allowed) {
@@ -1042,6 +1051,40 @@ public class MinigameService {
         };
     }
 
+    /** 본인의 1인 미니게임만 정지한다. 보드게임 엔진·턴·정산에는 접근하지 않는다. */
+    public Object manualPause(long userId, long sessionId, boolean paused, long expectedRevision) {
+        return transactions.execute(tx -> {
+            lockWallet(userId);
+            MinigameSession session = requireSession(userId, sessionId, true);
+            BungeoppangRecord record = requireAnyRecord(sessionId);
+            if (!hasRound(record)) {
+                throw versionMismatch();
+            }
+            requirePlaying(session);
+            BungeoppangV4Round round = requireV4Round(sessionId, true);
+            Instant current = now();
+            if (paused != round.isManualPaused()) {
+                if (expectedRevision != round.manualPauseRevision()) {
+                    throw error(409, "MANUAL_PAUSE_CHANGED", "일시정지 상태를 다시 확인해주세요.");
+                }
+                if (!round.gameTime(current).isBefore(round.playEndsAt())) {
+                    throw error(409, "GAME_NOT_ACTIVE", "플레이가 이미 종료되었습니다.");
+                }
+                round.changeManualPause(paused, current);
+                repository.flush();
+            }
+            return V5.equals(record.rulesVersion())
+                    ? v5SessionResponse(session, record, current, false, false, null)
+                    : v4SessionResponse(session, record, current, false, false, null);
+        });
+    }
+
+    private void requireNotPaused(BungeoppangV4Round round) {
+        if (round.isManualPaused()) {
+            throw error(409, "MINIGAME_PAUSED", "설명서를 닫으면 게임을 계속할 수 있습니다.");
+        }
+    }
+
     public MinigameAbandonResponse abandon(long userId, long sessionId) {
         return transactions.execute(tx -> {
             lockWallet(userId);
@@ -1069,7 +1112,8 @@ public class MinigameService {
     private boolean expired(MinigameSession session, Instant current) {
         var record = repository.record(session.id());
         if (record.isPresent() && hasRound(record.get())) {
-            return !current.isBefore(requireV4Round(session.id(), false).expiresAt());
+            var round = requireV4Round(session.id(), false);
+            return !round.gameTime(current).isBefore(round.expiresAt());
         }
         return !current.isBefore(session.startedAt().plusSeconds(600));
     }
@@ -1159,19 +1203,25 @@ public class MinigameService {
      * stored heats and opening orders. A start retry after deliveries therefore matches the first response;
      * the current state is read with GET.
      */
-    private BungeoppangV5Responses.Checkpoint openingV5Checkpoint(long sessionId, List<Integer> heats) {
-        return openingV5Checkpoint(sessionId, heats, repository.v5Orders(sessionId).stream()
-                .filter(order -> order.availableAfterSeq() == 0).map(this::v5Order).toList());
+    private BungeoppangV5Responses.Checkpoint openingV5Checkpoint(BungeoppangV4Round round, List<Integer> heats) {
+        return openingV5Checkpoint(round.sessionId(), round.configVersion(), v5CalculationRules(round), heats,
+                repository.v5Orders(round.sessionId()).stream()
+                        .filter(order -> order.availableAfterSeq() == 0).map(this::v5Order).toList());
     }
 
-    private BungeoppangV5Responses.Checkpoint openingV5Checkpoint(long sessionId, List<Integer> heats,
-            List<BungeoppangV5Rules.Order> opening) {
-        return BungeoppangV5Spec.checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(sessionId),
-                v5Rules.replay(List.of(), heats, opening));
+    private BungeoppangV5Responses.Checkpoint openingV5Checkpoint(long sessionId, String configVersion,
+            BungeoppangV4Responses.Rules rules, List<Integer> heats, List<BungeoppangV5Rules.Order> opening) {
+        return BungeoppangV5Spec.checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(sessionId, configVersion),
+                v5Rules.replay(List.of(), heats, opening, rules));
     }
 
     private V5ConfigSnapshot v5Config(BungeoppangV4Round round) {
         return read(round.configJson(), V5ConfigSnapshot.class);
+    }
+
+    /** The rules stored when the round was issued; a later Spec change never reaches an existing round. */
+    private BungeoppangV4Responses.Rules v5CalculationRules(BungeoppangV4Round round) {
+        return BungeoppangV5Spec.calculationRules(v5Config(round).rules());
     }
 
     private BungeoppangV5Rules.Order v5Order(BungeoppangV5Order order) {

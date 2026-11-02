@@ -1,4 +1,4 @@
-import { TELESCOPE, TELESCOPES } from '../config'
+import { TELESCOPE, TELESCOPES } from '../park/mapConfig'
 import { lookScale } from '../world/lookSensitivity'
 
 // Immediate local aiming; server replication animates only the other users' props.

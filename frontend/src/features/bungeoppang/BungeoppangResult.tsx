@@ -5,6 +5,7 @@ import { BUNGEOPPANG as R, bungeoppangV4Preview, bungeoppangV5Preview } from './
 import { escapeBungeoppang, isV4Grill, refreshBungeoppangWallet, setBungeoppangHelp, startBungeoppang, submitBungeoppang, useBungeoppang } from './store'
 import './bungeoppangResult.css'
 import { RankingDetails, RankingSummary, useBungeoppangRanking } from './BungeoppangRanking'
+import { rankingDurationMs } from './ranking'
 import { RewardCoinSource } from '../wallet/RewardCoinFlight'
 import { bungeoppangService } from './service'
 
@@ -22,8 +23,11 @@ export function BungeoppangResult() {
   const starting = useBungeoppang(s => s.starting), startError = useBungeoppang(s => s.startError)
   const walletError = useBungeoppang(s => s.walletError), status = useBungeoppang(s => s.status)
   const gameId = useBungeoppang(s => s.gameId), [rankingOpen, setRankingOpen] = useState(false)
+  const roundRules = useBungeoppang(s => s.rules)
   const rulesVersion = isV4Grill(grill) ? grill.rulesVersion : R.rulesVersion
-  const ranking = useBungeoppangRanking(rulesVersion, `${gameId}/${!!result}`, !!grill)
+  // v5 boards are split by play length; the round's stored rules decide which board this result belongs to.
+  const ranking = useBungeoppangRanking(rulesVersion, `${gameId}/${!!result}`, !!grill,
+    rankingDurationMs(rulesVersion, roundRules))
   if (!grill) return null
   const summary = result ?? grill, today = result?.todayEarned ?? status?.todayEarned
   const v4 = isV4Grill(grill), preview = v4 && (bungeoppangV4Preview || bungeoppangV5Preview)
@@ -41,7 +45,7 @@ export function BungeoppangResult() {
     </div>
     <div className="paper-stats"><div><span>완성</span><b>{summary.made}개</b></div><div><span>실수</span><b className="paper-mistakes">{summary.failed}회</b></div></div>
     <RankingSummary feed={ranking} onOpen={() => setRankingOpen(true)} />
-    <div className="paper-settlement" role="status"><strong><RewardCoinSource receipt={gameId ? `minigame:${gameId}` : ''} amount={!bungeoppangService.mock && !preview ? result?.coinsGranted ?? 0 : 0}><img className="bung-result-coin" src={coinImage} alt="" width="28" height="28" draggable={false} />{preview ? `미리보기 · 환산 예상 ${result?.coinsCalculated ?? '확인 중'}냥` : result ? `받은 엽전 ${result.coinsGranted}냥` : submitError ? '보상 내역을 확인하지 못했어요' : '보상 확인 중'}</RewardCoinSource></strong>
+    <div className="paper-settlement" role="status"><strong><RewardCoinSource soundOnReveal receipt={gameId ? `minigame:${gameId}` : ''} amount={!bungeoppangService.mock && !preview ? result?.coinsGranted ?? 0 : 0}><img className="bung-result-coin" src={coinImage} alt="" width="28" height="28" draggable={false} />{preview ? `미리보기 · 환산 예상 ${result?.coinsCalculated ?? '확인 중'}냥` : result ? `받은 엽전 ${result.coinsGranted}냥` : submitError ? '보상 내역을 확인하지 못했어요' : '보상 확인 중'}</RewardCoinSource></strong>
       <small>{preview ? '미리보기 · 실제 엽전 지급 없음' : result ? `오늘 번 엽전 ${today} / ${result.dailyCap}냥` : '확인이 끝나면 엽전에 반영돼요'}</small></div>
     {result?.capReached && <p>오늘 장사는 끝! 게임은 계속할 수 있어요</p>}
     {!preview && result && result.coinsGranted < result.coinsCalculated && <p>환산 {result.coinsCalculated}냥 중 오늘 한도를 적용해 {result.coinsGranted}냥을 받았어요.</p>}
@@ -53,11 +57,10 @@ export function BungeoppangResult() {
       <button className="bung-result-action--park" onClick={escapeBungeoppang}><ActionIcon kind="park" />공원으로</button>
       <button className="bung-result-action--help" onClick={() => setBungeoppangHelp(true)}><ActionIcon kind="book" />설명서</button>
     </div>
-    <div className="bung-result-score"><span>{preview ? '승인된 납품 점수' : result ? '서버 확정 점수' : v4 ? '승인 대기 납품 점수' : '미리보기 점수'}</span><b aria-label={preview ? '승인된 납품 점수' : result ? '서버 확정 점수' : v4 ? '승인 대기 납품 점수' : '미리보기 점수'}>{summary.score.toLocaleString()}<small>점</small></b></div>
+    <div className="bung-result-score"><span>점수</span><b aria-label="점수">{summary.score.toLocaleString()}<small>점</small></b></div>
     <details><summary>장사 기록 자세히</summary><p>양면 황금 {summary.golden}개 · 버린 개수 {summary.wasted}개 · 최고 콤보 {summary.maxCombo}</p>
       {v4 && <p>전달한 개수 {result?.served ?? grill.served}개 · 완료한 주문 {result?.customersServed ?? grill.customersServed}개</p>}
-      {v4 && <p>특수 추가 점수 {result?.bonusScore ?? grill.bonusScore}</p>}
-      <p>엽전 환산 {R.pointsPerCoin}점당 1냥 · {preview ? '미리보기 · 실제 엽전 지급 없음' : result ? '서버 정산 완료' : '서버 결과 확인 중'}</p></details>
+      <p>엽전 환산 {R.pointsPerCoin}점당 1냥{preview && ' · 미리보기 · 실제 엽전 지급 없음'}</p></details>
     </section>
   </PaperPopup>
 }

@@ -1,6 +1,6 @@
 """가짜 데이터(seed.py)로 analytics/queries의 결과가 손으로 계산한 정답과 같은지 확인한다.
 
-빈 검증 DB를 만들고 백엔드의 실제 마이그레이션(회원 V1, 행동 로그 V5·V6, 붕어빵 V110, 소리함 V127)을 적용하므로
+빈 검증 DB를 만들고 백엔드의 실제 마이그레이션(회원 V1, 지갑 V4, 행동 로그 V5·V6, 붕어빵 V110, 소리함 V127)을 적용하므로
 테이블 구조가 바뀌면 이 검증이 먼저 깨진다.
 
     python analytics/scripts/verify.py --container <MySQL 8.4 컨테이너 이름>
@@ -17,10 +17,16 @@ ROOT = Path(__file__).resolve().parents[2]
 QUERIES = ROOT / "analytics" / "queries"
 MIGRATIONS = [
     ROOT / "backend/src/main/resources/db/migration/V1__create_users.sql",
+    ROOT / "backend/src/main/resources/db/migration/V4__create_wallets.sql",
     ROOT / "backend/src/main/resources/db/migration/V5__create_behavior_events.sql",
     ROOT / "backend/src/main/resources/db/migration/V6__create_world_position_samples.sql",
     ROOT / "backend/src/main/resources/db/minigame/V110__create_minigame_sessions.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V111__create_bungeoppang_replay_records.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V124__create_bungeoppang_v4_rounds_and_orders.sql",
     ROOT / "backend/src/main/resources/db/migration/V127__create_feedback_messages.sql",
+    ROOT / "backend/src/main/resources/db/migration/V112__create_game_sessions_and_participants.sql",
+    ROOT / "backend/src/main/resources/db/migration/V122__support_game_bets_and_explicit_leave.sql",
+    ROOT / "backend/src/main/resources/db/migration/V123__add_game_result_outbox_and_departure_receipts.sql",
 ]
 DATABASE = "analytics_verify"
 
@@ -47,7 +53,8 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"kst_date": "2026-11-03", "sessions": "1", "users": "1", "avg_minutes": "10.0", "median_minutes": "10.0"},
     ],
     "05_table_wait.sql": [
-        {"seatings": "5", "started": "4", "left_before_start": "1", "left_by_disconnect": "0", "unresolved": "0",
+        {"seatings": "5", "started": "4", "left_before_start": "1", "left_by_disconnect": "0",
+         "left_by_host_timeout": "1", "unresolved": "0",
          "left_before_start_pct": "20.0", "avg_wait_seconds_started": "75.0", "avg_wait_seconds_left": "120.0"},
     ],
     "06_game_summary.sql": [
@@ -66,26 +73,37 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
     "09_position_heatmap.sql": [
         {"cell_x": "5", "cell_z": "10", "moving_samples": "3", "stops": "1", "users": "1"},
         {"cell_x": "0", "cell_z": "30", "moving_samples": "1", "stops": "1", "users": "1"},
+        {"cell_x": "-20", "cell_z": "-30", "moving_samples": "1", "stops": "0", "users": "1"},
         {"cell_x": "0", "cell_z": "15", "moving_samples": "1", "stops": "0", "users": "1"},
         {"cell_x": "0", "cell_z": "20", "moving_samples": "1", "stops": "0", "users": "1"},
         {"cell_x": "0", "cell_z": "25", "moving_samples": "1", "stops": "0", "users": "1"},
+        {"cell_x": "55", "cell_z": "55", "moving_samples": "1", "stops": "0", "users": "1"},
+        {"cell_x": "0", "cell_z": "5", "moving_samples": "0", "stops": "1", "users": "1"},
         {"cell_x": "55", "cell_z": "-15", "moving_samples": "0", "stops": "1", "users": "1"},
+        {"cell_x": "60", "cell_z": "55", "moving_samples": "0", "stops": "1", "users": "1"},
     ],
     "10_stuck_points.sql": [
-        {"map_version": "map-v1", "cell_x": "5", "cell_z": "10", "stuck_samples": "2", "users": "1"},
+        {"map_version": "ae833248d2dd356c6603af72b2b865f9051a866e9cfa7d2b9c9abe890579944d",
+         "cell_x": "5", "cell_z": "10", "stuck_samples": "2", "users": "1"},
     ],
     "11_zone_traffic.sql": [
-        {"zone_id": "central-pavilion", "visitors": "1", "moving_samples": "4", "stops": "1"},
-        {"zone_id": "path", "visitors": "1", "moving_samples": "3", "stops": "1"},
-        {"zone_id": "lake", "visitors": "1", "moving_samples": "0", "stops": "1"},
+        {"layout": "generated", "zone_id": "jump-course", "visitors": "1", "moving_samples": "1", "stops": "0"},
+        {"layout": "generated", "zone_id": "tower", "visitors": "1", "moving_samples": "1", "stops": "1"},
+        {"layout": "legacy", "zone_id": "central-pavilion", "visitors": "1", "moving_samples": "4", "stops": "1"},
+        {"layout": "legacy", "zone_id": "path", "visitors": "1", "moving_samples": "3", "stops": "1"},
+        {"layout": "legacy", "zone_id": "lake", "visitors": "1", "moving_samples": "0", "stops": "1"},
+        {"layout": "unmapped", "zone_id": "unmapped", "visitors": "1", "moving_samples": "0", "stops": "1"},
     ],
     "12_minigame_daily.sql": [
-        {"kst_date": "2026-10-27", "sessions": "6", "players": "4", "completed": "4", "abandoned": "1",
-         "expired": "1", "playing": "0", "completion_pct": "66.7", "avg_score": "35.0", "avg_minutes": "3.3",
-         "rewards": "180"},
-        {"kst_date": "2026-10-28", "sessions": "2", "players": "2", "completed": "1", "abandoned": "0",
-         "expired": "0", "playing": "1", "completion_pct": "50.0", "avg_score": "10.0", "avg_minutes": "2.0",
-         "rewards": "15"},
+        {"kst_date": "2026-10-27", "game_version": "v2", "play_seconds": "NULL", "sessions": "7", "players": "5",
+         "completed": "4", "abandoned": "1", "expired": "1", "rejected": "1", "playing": "0",
+         "completion_pct": "57.1", "avg_score": "35.0", "avg_minutes": "3.3", "rewards": "180"},
+        {"kst_date": "2026-10-28", "game_version": "v4-20261027.1", "play_seconds": "60", "sessions": "1",
+         "players": "1", "completed": "1", "abandoned": "0", "expired": "0", "rejected": "0", "playing": "0",
+         "completion_pct": "100.0", "avg_score": "10.0", "avg_minutes": "2.0", "rewards": "15"},
+        {"kst_date": "2026-10-28", "game_version": "v5-20261027.1", "play_seconds": "180", "sessions": "1",
+         "players": "1", "completed": "0", "abandoned": "0", "expired": "0", "rejected": "0", "playing": "1",
+         "completion_pct": "0.0", "avg_score": "NULL", "avg_minutes": "NULL", "rewards": "0"},
     ],
     "13_minigame_daily_cap.sql": [
         {"kst_date": "2026-10-27", "completers": "2", "cap_reached_users": "1", "cap_reached_pct": "50.0",
@@ -120,6 +138,62 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"kst_date": "2026-10-28", "game_code": "DICE", "games_started": "1", "games_ended": "1",
          "games_completed": "1", "forfeits": "0", "participants": "2", "duration_seconds": "300",
          "timed_games": "1"},
+    ],
+    "19_economy_daily.sql": [
+        {"kst_date": "2026-10-26", "transaction_type": "SIGNUP_BONUS", "transactions": "1", "users": "1",
+         "coins_in": "100", "coins_out": "0", "net_coins": "100"},
+        {"kst_date": "2026-10-26", "transaction_type": "ALL", "transactions": "1", "users": "1",
+         "coins_in": "100", "coins_out": "0", "net_coins": "100"},
+        {"kst_date": "2026-10-27", "transaction_type": "GAME_RESERVE", "transactions": "2", "users": "2",
+         "coins_in": "0", "coins_out": "0", "net_coins": "0"},
+        {"kst_date": "2026-10-27", "transaction_type": "GAME_SETTLEMENT", "transactions": "2", "users": "2",
+         "coins_in": "1", "coins_out": "1", "net_coins": "0"},
+        {"kst_date": "2026-10-27", "transaction_type": "MINIGAME_REWARD", "transactions": "3", "users": "2",
+         "coins_in": "130", "coins_out": "0", "net_coins": "130"},
+        {"kst_date": "2026-10-27", "transaction_type": "SHOP_PURCHASE", "transactions": "1", "users": "1",
+         "coins_in": "0", "coins_out": "20", "net_coins": "-20"},
+        {"kst_date": "2026-10-27", "transaction_type": "SIGNUP_BONUS", "transactions": "4", "users": "4",
+         "coins_in": "400", "coins_out": "0", "net_coins": "400"},
+        {"kst_date": "2026-10-27", "transaction_type": "ALL", "transactions": "12", "users": "4",
+         "coins_in": "531", "coins_out": "21", "net_coins": "510"},
+        {"kst_date": "2026-10-28", "transaction_type": "GAME_RESERVE", "transactions": "4", "users": "4",
+         "coins_in": "0", "coins_out": "0", "net_coins": "0"},
+        {"kst_date": "2026-10-28", "transaction_type": "GAME_SETTLEMENT", "transactions": "4", "users": "4",
+         "coins_in": "6", "coins_out": "6", "net_coins": "0"},
+        {"kst_date": "2026-10-28", "transaction_type": "MINIGAME_REWARD", "transactions": "2", "users": "2",
+         "coins_in": "65", "coins_out": "0", "net_coins": "65"},
+        {"kst_date": "2026-10-28", "transaction_type": "ALL", "transactions": "10", "users": "4",
+         "coins_in": "71", "coins_out": "6", "net_coins": "65"},
+    ],
+    "20_wallet_balances.sql": [
+        {"wallets": "4", "total_balance": "576", "avg_balance": "144.0", "median_balance": "135.5",
+         "max_balance": "196", "top10_share_pct": "34.0", "reserved_balance": "0"},
+    ],
+    "21_bet_amounts.sql": [
+        {"game_code": "DICE", "games": "1", "min_bet": "5", "avg_bet": "5.0", "max_bet": "5", "avg_pot": "10.0"},
+        {"game_code": "OMOK", "games": "1", "min_bet": "1", "avg_bet": "1.0", "max_bet": "1", "avg_pot": "2.0"},
+    ],
+    "22_game_log_coverage.sql": [
+        {"kst_date": "2026-10-27", "game_code": "OMOK", "start_attempts": "1", "rejected_starts": "0",
+         "confirmed_games": "1", "with_start_log": "1", "finished_games": "1", "with_end_log": "1",
+         "start_log_pct": "100.0", "end_log_pct": "100.0"},
+        {"kst_date": "2026-10-28", "game_code": "DICE", "start_attempts": "2", "rejected_starts": "1",
+         "confirmed_games": "1", "with_start_log": "1", "finished_games": "1", "with_end_log": "1",
+         "start_log_pct": "100.0", "end_log_pct": "100.0"},
+        {"kst_date": "2026-10-28", "game_code": "OMOK", "start_attempts": "1", "rejected_starts": "0",
+         "confirmed_games": "1", "with_start_log": "0", "finished_games": "1", "with_end_log": "0",
+         "start_log_pct": "0.0", "end_log_pct": "0.0"},
+    ],
+    "23_game_results.sql": [
+        {"game_code": "DICE", "end_reason": "TARGET_REACHED", "games": "1", "avg_minutes": "5.0",
+         "participants": "2", "forfeits": "0", "disconnect_leaves": "0", "explicit_leaves": "0",
+         "settled_games": "1"},
+        {"game_code": "OMOK", "end_reason": "FIVE_IN_ROW", "games": "1", "avg_minutes": "8.0",
+         "participants": "2", "forfeits": "0", "disconnect_leaves": "0", "explicit_leaves": "0",
+         "settled_games": "1"},
+        {"game_code": "OMOK", "end_reason": "FORFEIT", "games": "1", "avg_minutes": "10.0",
+         "participants": "2", "forfeits": "1", "disconnect_leaves": "1", "explicit_leaves": "0",
+         "settled_games": "1"},
     ],
 }
 

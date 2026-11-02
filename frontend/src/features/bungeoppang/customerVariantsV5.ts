@@ -1,6 +1,6 @@
 import { Color, CylinderGeometry, Float32BufferAttribute, Quaternion, SphereGeometry, TorusGeometry, Vector3 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { PropBuilder, type XYZ } from '../../world/art/propGeometry';
+import { PropBuilder, type XYZ } from './devArt/propGeometry';
 
 export const CUSTOMER_STYLES = ['warm', 'natural', 'round'] as const;
 export type CustomerStyle = typeof CUSTOMER_STYLES[number];

@@ -6,6 +6,7 @@ export interface ParkRuntimePort {
   start(): void
   stop(): Promise<void>
   addAuthListener(listener: () => void): () => void
+  subscribeNotesChanged(changed: () => void): () => void
   reconnect(): void
   requestJSON(path: string, init?: RequestInit): Promise<unknown>
   checkFacilities(reloadCatalog?: boolean): Promise<void>
@@ -17,10 +18,11 @@ export interface ParkRuntimePort {
   sendChat(text: string): Promise<boolean>
   sendSpectatorChat(text: string): Promise<boolean>
   pingOmok(x: number, y: number): Promise<boolean>
+  pingLedger(target: import('../../game/ledger/protocol').LedgerPingTarget): Promise<boolean>
   sendEmote(id: import('../../features/emotes/catalog').EmoteId): Promise<boolean>
   move(dx: number, dz: number, run: boolean, jump?: boolean): void
   stopMovement(): void
-  inspectTable(anchorId: string): void
+  inspectTable(anchorId: string, watch?: boolean): void
   closeTable(): void
   joinTable(anchorId?: string): Promise<boolean>
   leaveTable(): Promise<boolean>
@@ -35,10 +37,16 @@ export interface ParkRuntimePort {
   placeOmok(x: number, y: number): Promise<boolean>
   actDice(kind: 'roll' | 'bank', selectedIds: readonly number[]): Promise<boolean>
   actOneCard(input: import('../../game/onecard/protocol').OneCardInput): Promise<boolean>
-  flipOneCardHand?(targetUserId: string): Promise<boolean>
+  flipOneCardHand?(targetUserId: string, cardIndex?: number, handVersion?: number): Promise<boolean>
   restoreOneCardHand?(): Promise<boolean>
   hitOneCardHand?(attemptId: string): Promise<boolean>
+  sendAlkkagiSpectator?(input: Record<string, unknown>): Promise<boolean>
+  actAlkkagi?(input: Record<string, unknown>): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
+  actLedger(input: import('../../game/ledger/protocol').LedgerInput): Promise<boolean>
+  flipHalli(): Promise<boolean>
+  /** bellWindowId and expectedVersion come from the state the player saw when pressing the bell. */
+  ringHalli(bellWindowId: number, expectedVersion: number): Promise<boolean>
   watchGame(gameId: string): Promise<boolean>
   watchBench(anchorId: string, observeOnly?: boolean): Promise<boolean>
   unwatchGame(): Promise<boolean>

@@ -153,9 +153,10 @@ class MinigameHttpTests {
         var timing = BungeoppangV5Spec.timing(issued);
         var orders = List.of(new BungeoppangV5Responses.Order("1", 0, 0,
                 new BungeoppangV4Responses.FillingCounts(2, 0, 0, 0)));
-        var checkpoint = new BungeoppangV5Responses.Checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(901), 0,
+        var checkpoint = new BungeoppangV5Responses.Checkpoint(0, 0, BungeoppangV5Spec.initialPrefixHash(901,
+                BungeoppangV5Spec.CONFIG_VERSION), 0,
                 null, BungeoppangV4Spec.initialCheckpoint(901).slots(), List.of(),
-                BungeoppangV4Spec.initialCheckpoint(901).stats(), orders);
+                BungeoppangV4Spec.initialCheckpoint(901).stats(), orders, List.of());
         when(minigames.v5Enabled()).thenReturn(true);
         when(minigames.startV5(101, "BUNGEOPPANG", "v5-key")).thenReturn(new BungeoppangV5Responses.StartResponse(
                 "901", "BUNGEOPPANG", "PLAYING", "WAITING_START", "v5", BungeoppangV5Spec.CONFIG_VERSION, issued,
@@ -168,7 +169,7 @@ class MinigameHttpTests {
 
         assertThat(started.statusCode()).isEqualTo(201);
         assertThat(started.body()).contains("\"rulesVersion\":\"v5\"", "\"heatAssignment\":\"FILL\"",
-                "\"maxActiveOrders\":3", "\"playEndsAt\":\"2026-10-28T00:03:04.623Z\"",
+                "\"maxActiveOrders\":3", "\"playEndsAt\":\"2026-10-28T00:02:04.623Z\"",
                 "\"activeOrders\":[{\"orderId\":\"1\",\"customerSlot\":0,\"availableAfterSeq\":0");
         assertThat(lobby.statusCode()).isEqualTo(200);
         assertThat(lobby.body()).contains("\"supportedRulesVersions\":[\"v2\",\"v4\",\"v5\"]");
@@ -243,7 +244,7 @@ class MinigameHttpTests {
                 new BungeoppangV4Responses.FillingCounts(1, 0, 0, 0));
         var checkpoint = new BungeoppangV5Responses.Checkpoint(1, 1, "0".repeat(64), 0, 1000,
                 BungeoppangV4Spec.initialCheckpoint(901).slots(), List.of(),
-                BungeoppangV4Spec.initialCheckpoint(901).stats(), List.of(replacement));
+                BungeoppangV4Spec.initialCheckpoint(901).stats(), List.of(replacement), List.of());
         when(minigames.deliverV5(101, 901, "delivery-5", delivery)).thenReturn(
                 new BungeoppangV5Responses.DeliveryResponse("901", "delivery-5", "2", true,
                         Instant.parse("2026-10-28T00:00:10Z"), 1, "0".repeat(64), List.of(1L), 10, 0,

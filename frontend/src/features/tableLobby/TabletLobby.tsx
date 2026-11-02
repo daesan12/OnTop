@@ -5,22 +5,27 @@ import { useGame, tableBusy } from '../../game/store'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { openManual } from '../manual/manualState'
 import { GAME_MANUAL } from './gatheringModel'
-import { TABLE_GAMES, TARGET_SCORES, type TableGameCode } from './model'
+import { GAME_CONSTRUCTION_NOTICE, isTableGamePlayable, TABLE_GAMES, TARGET_SCORES, tableTermsLabel, type TableGameCode } from './model'
 import { manualStartAllowed, preparationContext, readyWouldAutoStart, usePreparationPort } from './tabletModel'
 import { tabletProjection } from './tabletProjection'
 import { HostStartButton, HostStartWaitStatus } from './HostStartWaitControls'
 import { useTabletStartStatus } from './TabletLobbyClient'
 import { inputState } from '../../world/inputOwnership'
+import coinImage from '../../assets/entry/yeopjeon-icon.webp'
+import alkkagiThumbnail from '../../game/alkkagi/assets/thumbnail.webp'
 import './tablet.css'
 const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ default: module.TabletPortrait })))
 
 const descriptions: Record<TableGameCode, string> = {
+  ALKKAGI: '알을 튕기고 비책으로 승부하는 2인 경기',
   OMOK: '다섯 돌을 이어 만드는 한 수', DICE: '주사위를 굴려 목표 점수에 도전해요',
   ONE_CARD: '손에 든 카드를 모두 내려놓으면 승리!', LIAR_BRIDGE: '믿거나 의심하거나, 다리를 건너요',
+  DICE_LEDGER: '세 번 굴려 장부 열두 칸을 채워요',
+  HALLI_GALLI: '같은 과일이 다섯 개면 누구보다 빨리 종!',
 }
-const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE', 'LIAR_BRIDGE']
+const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI']
 export function GameArt({ code }: { code: TableGameCode }) {
-  return <div className="tablet-game-art" data-game={code} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
+  return <div className="tablet-game-art" data-game={code} style={code === 'ALKKAGI' ? { backgroundImage: `url(${alkkagiThumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 export function TabletLobby({ tableId }: { tableId: string }) {
   const own = useSession(s => s.sessionId)
@@ -70,6 +75,27 @@ function TabletSession({ tableId }: { tableId: string }) {
   }, [active])
   useEffect(() => {
     if (!active) return
+    const tab = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return
+      if (Object.entries(inputState).some(([key, open]) => open && key !== 'chatOpen')) return
+      const node = element.current, chat = document.querySelector<HTMLElement>('.park-chat'), focus = document.activeElement
+      if (!node || !focus || !node.contains(focus) && !chat?.contains(focus)) return
+      if ([...document.querySelectorAll<HTMLElement>('dialog[open],[role="dialog"],[role="alertdialog"]')]
+        .some(dialog => dialog !== node && dialog.getClientRects().length)) return
+      // Treat preparation and its chat as one keyboard region so both stay reachable.
+      const selector = 'button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled)'
+      const controls = [node, chat].flatMap(region => region ? [...region.querySelectorAll<HTMLElement>(selector)] : [])
+        .filter(control => control.getClientRects().length && !control.closest('[inert],[hidden]'))
+      if (!controls.length) return
+      const index = controls.indexOf(focus as HTMLElement)
+      const next = index < 0 ? event.shiftKey ? controls.length - 1 : 0 : (index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length
+      event.preventDefault(); controls[next]?.focus()
+    }
+    window.addEventListener('keydown', tab)
+    return () => window.removeEventListener('keydown', tab)
+  }, [active])
+  useEffect(() => {
+    if (!active) return
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented || event.repeat || event.isComposing
         || event.ctrlKey || event.altKey || event.metaKey || document.hidden || Object.values(inputState).some(Boolean)) return
@@ -93,50 +119,45 @@ function TabletSession({ tableId }: { tableId: string }) {
     finally { if (alive.current && epoch === commandEpoch.current) setWorking(false) }
   }
   if (!table) return null
-  const amount = Number(bet), validBet = /^\d+$/.test(bet) && Number.isSafeInteger(amount) && amount > 0 && Number.isSafeInteger(amount * max)
+  const amount = Number(bet), validBet = /^\d+$/.test(bet) && Number.isSafeInteger(amount) && amount >= 0 && Number.isSafeInteger(amount * max)
   const countSupported = !!port || count === max
-  const canConfigure = host && validBet && countSupported && count >= occupied
+  const canConfigure = host && isTableGamePlayable(code) && validBet && countSupported && count >= occupied
   const confirmation = signature
   const finalReadyBlocked = !port && !mine?.ready && readyWouldAutoStart(table, s.own)
   const startEnabled = !!port && manualStartAllowed(table, s.own, approvedCount ?? null) && !busy && !startUncertain
   const seats = table.seats.slice(0, Math.max(2, approvedCount ?? table.capacity))
   const game = TABLE_GAMES.find(game => game.code === table.gameCode)
   return <section ref={element} tabIndex={-1} className="table-tablet" role={active ? 'dialog' : undefined}
-    aria-label="게임 태블릿" aria-hidden={!active} inert={!active} data-active={active} data-stage={step}
-    onKeyDown={event => {
-      if (event.key !== 'Tab') return
-      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled)')).filter(e => e.getClientRects().length)
-      const first = controls[0], last = controls.at(-1)
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === element.current)) { event.preventDefault(); last?.focus() }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
-    }}>
+    aria-label="게임 태블릿" aria-modal={active ? false : undefined} aria-hidden={!active} inert={!active} data-active={active} data-stage={step}>
     <div className="tablet-paper">
       <header className="tablet-title"><b className="tablet-brand">온탑</b>
-        {step === 'ready' && <p>{game?.name ?? '게임 선택 대기'} · {s.anchor?.replace('table-', '') ?? ''}번 탁자</p>}
-        <h2>{step === 'select' ? '어떤 게임을 할까요?' : '함께 시작할까요?'}</h2>
+        {step === 'ready' && <p className="tablet-room-summary" aria-label="현재 방 설정">{tableTermsLabel(table)} · {approvedCount ?? table.capacity}인 · {s.anchor?.replace('table-', '') ?? ''}번 탁자</p>}
+        <h2>{step === 'select' ? '어떤 게임을 할까요?' : game?.name ?? '게임 준비'}</h2>
         {step === 'select' && <p>{host ? '게임을 고르고 참가 인원을 선택해요' : '방장이 게임을 선택하고 있어요'}</p>}
+        {step === 'ready' && game && !game.playable && <p role="status">{GAME_CONSTRUCTION_NOTICE}</p>}
       </header>
       {step === 'select' ? <div className="tablet-selection">
         <div className="tablet-game-list" role="group" aria-label="게임 선택">
-          {choiceOrder.map(gameCode => { const item = TABLE_GAMES.find(g => g.code === gameCode)!; return <button key={gameCode}
-            className="tablet-game-card" data-selected={code === gameCode} aria-pressed={code === gameCode} disabled={!host || busy}
+          {choiceOrder.filter(code => TABLE_GAMES.some(g => g.code === code)).map(gameCode => { const item = TABLE_GAMES.find(g => g.code === gameCode)!; return <button key={gameCode}
+            className="tablet-game-card" data-selected={code === gameCode} data-construction={!item.playable} aria-pressed={code === gameCode} disabled={!item.playable || !host || busy}
             onClick={() => { setCode(gameCode); setCount(2) }}>
-            <GameArt code={gameCode} /><span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : '2~4인'}</small></span>
+            <GameArt code={gameCode} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : '2~4인'}</small></span>
           </button> })}
           <div className="tablet-coming">장기 · 준비 중</div>
         </div>
         <div className="tablet-selection-detail">
           <small>선택한 게임</small><h3>{TABLE_GAMES.find(g => g.code === code)?.name}</h3><p>{descriptions[code]}</p>
           <GameArt code={code} />
-          <fieldset disabled={!host || busy}><legend>참가 인원</legend><div className="tablet-counts">{[2, 3, 4].filter(n => n <= max).map(n => <button key={n}
+          <fieldset disabled={!host || busy || !isTableGamePlayable(code)}><legend>참가 인원</legend><div className="tablet-counts">{[2, 3, 4].filter(n => n <= max).map(n => <button key={n}
             aria-pressed={count === n} onClick={() => setCount(n)}>{n}인</button>)}</div></fieldset>
-          <div className="tablet-score-slot">{code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy} value={target} onChange={e => setTarget(Number(e.target.value))}>
+          <div className="tablet-score-slot">{code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy || !isTableGamePlayable(code)} value={target} onChange={e => setTarget(Number(e.target.value))}>
             {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}</div>
-          <label className="tablet-bet-input">1인 참가 판돈<input aria-label="1인 참가비" inputMode="numeric" type="text" maxLength={15} value={bet} disabled={!host || busy}
-            placeholder="금액 입력" onChange={e => setBet(e.target.value)} /><span>냥</span></label>
+          <label className="tablet-bet-input"><span>1인 참가 판돈</span><span className="tablet-money-field">
+            <img className="tablet-coin" src={coinImage} alt="" /><input aria-label="1인 참가비" inputMode="numeric" type="text" maxLength={15} value={bet} disabled={!host || busy}
+              placeholder="금액" onChange={e => setBet(e.target.value)} /><span>냥</span></span></label>
           {!countSupported && <p className="tablet-contract-note" role="status">{count}인 정원 선택은 서버 연결 준비 중입니다.</p>}
           {count < occupied && <p role="status">현재 앉은 {occupied}명보다 적게 설정할 수 없어요.</p>}
-          <button className="tablet-manual" onClick={() => openManual(GAME_MANUAL[code])}>설명서</button>
+          {code !== 'ALKKAGI' && <button className="tablet-manual" onClick={() => openManual(GAME_MANUAL[code])}>설명서</button>}
           <button className="tablet-primary" disabled={busy || !canConfigure} onClick={() => void command(async () => {
             const choice = { gameCode: code, playerCount: count, betAmountPerPlayer: amount, ...(code === 'DICE' ? { targetScore: target } : {}) }
             const ok = port ? await port.configure(preparationContext(table), choice) : await runtime.selectGame(code, amount, code === 'DICE' ? target : undefined)
@@ -150,9 +171,11 @@ function TabletSession({ tableId }: { tableId: string }) {
           <b className="tablet-name">{seat.userId === s.own ? '나' : seat.userId ? s.profiles[seat.userId]?.nickname ?? '산책자' : `${seat.seatNumber}번 빈자리`}{seat.userId && seat.userId === table.selectorUserId ? ' · 방장' : ''}</b>
           <span className="tablet-ready-stamp" data-ready={seat.ready}>{seat.userId ? seat.ready ? '✓ 준비 완료' : '준비 대기' : '참가 대기'}</span>
         </div>)}</div>
-        <div className="tablet-bet-confirm"><span>참가 판돈</span><strong><i aria-hidden="true">◉</i> {table.betAmountPerPlayer?.toLocaleString() ?? '—'}<small>냥</small></strong>
-          <label><input type="checkbox" checked={confirmedBet === confirmation || !!mine?.ready} disabled={busy || !!mine?.ready || !table.betAmountPerPlayer}
-            onChange={e => setConfirmedBet(e.target.checked ? confirmation : '')} /> 참가 금액을 확인했어요</label>
+        <div className="tablet-bet-confirm"><GameArt code={game?.code ?? 'OMOK'} /><p className="tablet-ready-description">{game && descriptions[game.code]}</p><span>1인 참가 판돈</span><strong><img className="tablet-coin" src={coinImage} alt="" /> {table.betAmountPerPlayer?.toLocaleString() ?? '—'}<small>냥</small></strong>
+          <label className="tablet-amount-agreement"><input type="checkbox" checked={confirmedBet === confirmation || !!mine?.ready} disabled={busy || !!mine?.ready || table.betAmountPerPlayer == null}
+            onChange={e => setConfirmedBet(e.target.checked ? confirmation : '')} />
+            <span className="tablet-agreement-mark" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
+            <span>참가 금액을 확인했어요</span></label>
           {host && <button className="tablet-edit" disabled={busy} onClick={() => { setConfirmedBet(''); setStep('select') }}>게임·판돈 변경</button>}
         </div>
         <HostStartWaitStatus table={table} selectedCount={approvedCount ?? null} fallback={g.start?.phase === 'STARTING' || g.start?.phase === 'CONFIRMED' ? '서버가 참가·시작을 확인하고 있습니다.'
@@ -162,7 +185,7 @@ function TabletSession({ tableId }: { tableId: string }) {
         <footer className="tablet-ready-actions"><button disabled={busy || !mine} aria-keyshortcuts="Escape" title="일어나기 (Esc)" onClick={() => void runtime.leaveTable()}>일어나기</button>
           {host ? <HostStartButton table={table} selectedCount={approvedCount ?? null} disabled={!startEnabled} onStart={() => port && void command(() => port.start(preparationContext(table)))} />
             : <span className="tablet-host-wait">방장이 게임을 시작해요</span>}
-          <button disabled={busy || !mine || !table.gameCode || !table.betAmountPerPlayer || (!mine.ready && (confirmedBet !== confirmation || !port || approvedCount == null))}
+          <button disabled={busy || !mine || !table.gameCode || table.betAmountPerPlayer == null || (!mine.ready && (!isTableGamePlayable(table.gameCode) || confirmedBet !== confirmation || !port || approvedCount == null))}
             onClick={() => void command(() => runtime.setReady(!mine?.ready))}>{mine?.ready ? '준비 취소' : '준비 완료'}</button>
         </footer>
       </div>}

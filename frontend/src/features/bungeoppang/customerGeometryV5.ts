@@ -1,5 +1,5 @@
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { PropBuilder, type XYZ } from '../../world/art/propGeometry';
+import { PropBuilder, type XYZ } from './devArt/propGeometry';
 
 /** Private queue actors: adult proportions, layered clothes and modelled facial features. */
 export function customerGeometry(shirt: string, index: number) {

@@ -15,6 +15,7 @@ public final class OmokMatch {
     private final String tableId;
     private final long blackUserId;
     private final long whiteUserId;
+    private final Instant startsAt;
     private final OmokBoard board = new OmokBoard();
     private final Map<ActionKey, AcceptedAction> accepted = new HashMap<>();
     private long version;
@@ -33,6 +34,7 @@ public final class OmokMatch {
         this.tableId = tableId;
         this.blackUserId = blackUserId;
         this.whiteUserId = whiteUserId;
+        this.startsAt = startedAt;
         turnUserId = blackUserId;
         turnDeadline = startedAt.plusSeconds(30);
     }
@@ -51,6 +53,9 @@ public final class OmokMatch {
             return previous.result();
         }
         if (endedAt != null) {
+            throw new Rejected(Rejection.INVALID_ACTION);
+        }
+        if (now.isBefore(startsAt)) {
             throw new Rejected(Rejection.INVALID_ACTION);
         }
         if (command.expectedVersion() != version) {

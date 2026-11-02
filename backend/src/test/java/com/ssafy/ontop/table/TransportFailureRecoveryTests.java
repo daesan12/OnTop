@@ -86,7 +86,7 @@ class TransportFailureRecoveryTests {
         engine.version = 9;
         clock.advance(seconds);
         Peer returned = connect(101);
-        String status = seconds == 29 ? "RESTORED" : participantCount == 2 ? "LOBBY" : "ELIMINATED";
+        String status = seconds == 29 ? "RESTORED" : "LOBBY";
         JsonNode restored = returned.state(status);
         if (status.equals("LOBBY")) {
             assertThat(restored.path("state").isNull()).isTrue();

@@ -37,6 +37,36 @@ public class WalletTransaction {
     protected WalletTransaction() {
     }
 
+    public long id() {
+        return id;
+    }
+
+    public static WalletTransaction minigameEntryFee(long walletId, long fee, String key, Instant now) {
+        if (walletId <= 0 || fee <= 0 || key == null || key.isBlank() || key.length() > 120) {
+            throw new IllegalArgumentException("미니게임 이용료 기록을 확인하세요.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.balanceDelta = -fee;
+        transaction.transactionType = "MINIGAME_ENTRY_FEE";
+        transaction.idempotencyKey = key;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
+    public static WalletTransaction rafflePurchase(long walletId, long price, String key, Instant now) {
+        if (walletId <= 0 || price <= 0 || key == null || !key.startsWith("raffle:") || key.length() > 120) {
+            throw new IllegalArgumentException("응모권 구매 원장을 확인하세요.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.balanceDelta = -price;
+        transaction.transactionType = "RAFFLE_PURCHASE";
+        transaction.idempotencyKey = key;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
     public WalletTransaction(long walletId, long itemId, long total, String key) {
         this.walletId = walletId;
         this.itemId = itemId;
@@ -47,6 +77,10 @@ public class WalletTransaction {
     }
 
     public static WalletTransaction minigameReward(long walletId, long sessionId, long reward, String key) {
+        return minigameReward(walletId, sessionId, reward, key, Instant.now());
+    }
+
+    public static WalletTransaction minigameReward(long walletId, long sessionId, long reward, String key, Instant now) {
         if (walletId <= 0 || sessionId <= 0 || reward <= 0 || key == null || key.length() > 120) {
             throw new IllegalArgumentException("미니게임 보상 기록을 확인하세요.");
         }
@@ -56,7 +90,22 @@ public class WalletTransaction {
         transaction.balanceDelta = reward;
         transaction.transactionType = "MINIGAME_REWARD";
         transaction.idempotencyKey = key;
-        transaction.createdAt = Instant.now();
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
+    /** 참가비를 건 판의 배당. 보상이 아니므로 미니게임 공통 하루 상한 합산 대상이 아니다. */
+    public static WalletTransaction rpsRoulettePayout(long walletId, long payout, String key, Instant now) {
+        if (walletId <= 0 || payout <= 0 || key == null || !key.startsWith("rps-roulette:payout:")
+                || key.length() > 120) {
+            throw new IllegalArgumentException("가위바위보 룰렛 배당 기록을 확인하세요.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.balanceDelta = payout;
+        transaction.transactionType = "RPS_ROULETTE_PAYOUT";
+        transaction.idempotencyKey = key;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
         return transaction;
     }
 
@@ -67,12 +116,25 @@ public class WalletTransaction {
         return "signup:" + userId;
     }
 
+    public static WalletTransaction fitnessReward(long walletId, String key, Instant now) {
+        if (walletId <= 0 || key == null || !key.startsWith("fitness:") || key.length() > 120) {
+            throw new IllegalArgumentException("운동 보상 기록을 확인하세요.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.balanceDelta = 1;
+        transaction.transactionType = "FITNESS_REWARD";
+        transaction.idempotencyKey = key;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
     public static WalletTransaction gameReserve(long walletId, long gameSessionId, long userId, Instant now) {
         return gameReserve(walletId, gameSessionId, userId, 1, now);
     }
 
     public static WalletTransaction gameReserve(long walletId, long gameSessionId, long userId, long amount, Instant now) {
-        if (walletId <= 0 || gameSessionId <= 0 || userId <= 0 || amount <= 0) {
+        if (walletId <= 0 || gameSessionId <= 0 || userId <= 0 || amount < 0) {
             throw new IllegalArgumentException("저장된 지갑과 경기 및 회원이 필요합니다.");
         }
         WalletTransaction transaction = new WalletTransaction();
@@ -87,7 +149,7 @@ public class WalletTransaction {
 
     public static WalletTransaction gameClose(long walletId, long gameId, long userId, long amount,
             long potDelta, boolean release, Instant now) {
-        if (amount <= 0 || release && potDelta != 0) { throw new IllegalArgumentException("정산 내역을 확인하세요."); }
+        if (amount < 0 || (release || amount == 0) && potDelta != 0) { throw new IllegalArgumentException("정산 내역을 확인하세요."); }
         return gameEntry(walletId, gameId, userId, release ? "GAME_RELEASE" : "GAME_SETTLEMENT",
                 potDelta, -amount, "close", now);
     }

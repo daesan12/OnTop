@@ -4,10 +4,15 @@ ontop:
   # 상점 V100 적용 이력·순서를 확인한 뒤 기존 Flyway 목록에 db/shop을 명시적으로 추가한다.
   shop:
     enabled: ${SHOP_ENABLED:false}
+  raffle:
+    enabled: ${RAFFLE_ENABLED:false}
   # DB 시작 Gateway를 등록한 뒤 명시적으로 켠다. 시연용 Gateway는 dev에 등록하지 않는다.
   game-start:
     enabled: ${GAME_START_ENABLED:false}
   games:
+    # V137 참가 인원 제약과 공통 종료 정산 검증을 함께 배포한다.
+    alkkagi:
+      enabled: ${GAME_ALKKAGI_ENABLED:true}
     omok:
       enabled: ${GAME_OMOK_ENABLED:false}
     farkle:
@@ -16,6 +21,12 @@ ontop:
       enabled: ${GAME_ONECARD_ENABLED:false}
     bridge:
       enabled: ${GAME_BRIDGE_ENABLED:false}
+    ledger:
+      enabled: ${GAME_LEDGER_ENABLED:false}
+    # 개발 서버는 할리갈리 QA를 위해 기본으로 켠다. 서버 app.env에 명시한 값이 있으면 그 값이 우선한다.
+    halligalli:
+      enabled: ${GAME_HALLIGALLI_ENABLED:true}
+      result-pause-ms: ${GAME_HALLIGALLI_RESULT_PAUSE_MS:1000}
   notes:
     enabled: ${NOTES_ENABLED:false}
     privacy-secret: ${NOTES_PRIVACY_SECRET:}
@@ -26,3 +37,19 @@ ontop:
       - channel-id: channel-1
         name: 개발 공원
         capacity: 40
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "dev & !prod & !production"
+ontop:
+  world:
+    movement:
+      # 개발 서버는 로컬 검수한 C 방식(클라이언트 이동 + 서버 좌표 검증)을 기본 사용한다.
+      client-position: true
+      tuned-profile: true
+    jumpmap:
+      # 개발 서버는 점프맵 QA를 위해 기본 활성화한다. WORLD_JUMPMAP_ENABLED=false로 끌 수 있다.
+      # 맵 버전·코스 SHA256·점프맵 테이블 검증은 그대로 적용된다(JumpmapActivation).
+      enabled: ${WORLD_JUMPMAP_ENABLED:true}

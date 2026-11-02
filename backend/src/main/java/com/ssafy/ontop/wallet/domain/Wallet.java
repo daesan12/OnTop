@@ -43,8 +43,12 @@ public class Wallet {
     }
 
     public void debit(long total) {
+        debit(total, Instant.now());
+    }
+
+    public void debit(long total, Instant now) {
         balance -= total;
-        updatedAt = Instant.now();
+        updatedAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
     }
 
     public void reserveGameEntry(Instant now) {
@@ -52,7 +56,7 @@ public class Wallet {
     }
 
     public void reserveGameEntry(long amount, Instant now) {
-        if (amount <= 0 || reserved < 0 || balance < reserved || balance - reserved < amount) {
+        if (amount < 0 || reserved < 0 || balance < reserved || balance - reserved < amount) {
             throw new IllegalStateException("참가비를 예약할 수 없습니다.");
         }
         reserved = Math.addExact(reserved, amount);
@@ -60,7 +64,7 @@ public class Wallet {
     }
 
     public void settleGame(long amount, long balanceDelta, Instant now) {
-        if (amount <= 0 || reserved < amount || balance < reserved || balanceDelta < -amount) {
+        if (amount < 0 || reserved < amount || balance < reserved || balanceDelta < -amount || amount == 0 && balanceDelta != 0) {
             throw new IllegalStateException("경기 예약 상태를 확인하세요.");
         }
         long nextBalance = Math.addExact(balance, balanceDelta);

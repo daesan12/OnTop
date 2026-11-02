@@ -20,7 +20,12 @@ final class VerifiedGameFinish {
             "DICE", Set.of("TARGET_REACHED", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
             "ONE_CARD", Set.of("EMPTY_HAND", "STALEMATE", "PLAYER_LEFT"),
             "LIAR_BRIDGE", Set.of("THREE_GOALS", "LAST_PLAYER_STANDING", "GOAL_SLOTS_EXHAUSTED",
-                    "NO_RUNNABLE_PAWNS", "ABORTED_NO_PLAYERS"));
+                    "NO_RUNNABLE_PAWNS", "ABORTED_NO_PLAYERS"),
+            "DICE_LEDGER", Set.of("ALL_CATEGORIES_FILLED", "LAST_PLAYER_STANDING"),
+            "ALKKAGI", Set.of("PIECES_OUT", "MATCH_TIME_LIMIT", "AFK_FORFEIT", "EXPLICIT_LEAVE",
+                    "DISCONNECT_TIMEOUT", "LOGOUT", "MEMBER_DEACTIVATED", "SIMULATION_INVALID", "SIMULATION_LIMIT"),
+            // CARD_COUNT·NO_CARDS_TO_FLIP은 카드 수 공동 1위를 모두 승자로 둔다. 기권 종료도 LAST_PLAYER_STANDING이다.
+            "HALLI_GALLI", Set.of("CARD_COUNT", "LAST_PLAYER_STANDING", "NO_CARDS_TO_FLIP"));
 
     private VerifiedGameFinish() { }
 
@@ -32,6 +37,7 @@ final class VerifiedGameFinish {
                 || event.gameCode() == null || event.endReason() == null
                 || !REASONS.getOrDefault(event.gameCode(), Set.of()).contains(event.endReason())
                 || event.participants().size() < 2 || event.participants().size() > 4
+                || "ALKKAGI".equals(event.gameCode()) && event.participants().size() != 2
                 || event.participants().stream().map(GameFinished.Participant::userId).distinct().count() != event.participants().size()) {
             throw new IllegalArgumentException("경기 종료 이벤트를 확인하세요.");
         }
@@ -45,14 +51,18 @@ final class VerifiedGameFinish {
         }
         long winners = event.participants().stream().filter(p -> p.result() == GameFinished.Result.WIN).count();
         if (invalid(event)) {
-            if (event.participants().stream().anyMatch(p -> p.result() != GameFinished.Result.FORFEIT)) {
-                throw new IllegalArgumentException("전원 이탈 판정을 확인하세요.");
+            GameFinished.Result expected = "ALKKAGI".equals(event.gameCode())
+                    ? GameFinished.Result.DRAW : GameFinished.Result.FORFEIT;
+            if (event.participants().stream().anyMatch(p -> p.result() != expected)) {
+                throw new IllegalArgumentException("무효 경기 판정을 확인하세요.");
             }
-        } else if (event.endReason().equals("BOARD_FULL")) {
+        } else if (event.endReason().equals("BOARD_FULL") || "ALKKAGI".equals(event.gameCode()) && winners == 0
+                && Set.of("PIECES_OUT", "MATCH_TIME_LIMIT").contains(event.endReason())) {
             if (event.participants().stream().anyMatch(p -> p.result() != GameFinished.Result.DRAW)) {
                 throw new IllegalArgumentException("무승부 판정을 확인하세요.");
             }
-        } else if (winners == 0 || event.participants().stream().anyMatch(p -> p.result() == GameFinished.Result.DRAW)
+        } else if (winners == 0 || "ALKKAGI".equals(event.gameCode()) && winners != 1
+                || event.participants().stream().anyMatch(p -> p.result() == GameFinished.Result.DRAW)
                 || Set.of("FIVE_IN_ROW", "TURN_TIMEOUT", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED",
                         "EXPLICIT_LEAVE", "TARGET_REACHED", "EMPTY_HAND", "PLAYER_LEFT", "LAST_PLAYER_STANDING")
                     .contains(event.endReason()) && winners != 1) {
@@ -62,7 +72,9 @@ final class VerifiedGameFinish {
     }
 
     static boolean invalid(GameFinished event) {
-        return "ABORTED_NO_PLAYERS".equals(event.endReason());
+        return "ABORTED_NO_PLAYERS".equals(event.endReason())
+                || "ALKKAGI".equals(event.gameCode())
+                    && Set.of("SIMULATION_INVALID", "SIMULATION_LIMIT").contains(event.endReason());
     }
 
     static Instant millis(Instant value) { return value.truncatedTo(ChronoUnit.MILLIS); }

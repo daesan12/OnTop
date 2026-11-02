@@ -1,21 +1,21 @@
 package com.ssafy.ontop.minigame.config;
 
 import com.ssafy.ontop.minigame.controller.MinigameController;
-import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
-import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
 import com.ssafy.ontop.minigame.dto.BungeoppangV4CompleteDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4DeliveryDtos;
+import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.dto.BungeoppangV5Responses;
 import io.swagger.v3.core.converter.ModelConverters;
-import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.BooleanSchema;
 import io.swagger.v3.oas.models.media.ComposedSchema;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.ObjectSchema;
-import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.parameters.RequestBody;
 import java.util.ArrayList;
@@ -33,6 +33,9 @@ import org.springframework.web.method.HandlerMethod;
 public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCustomizer {
     private static final String V5_FLAG = "v5는 서버 설정 ontop.minigames.bungeoppang-v5-enabled=true일 때만 받고, "
             + "기본값(false)에서는 409 RULES_VERSION_MISMATCH입니다.";
+    /** The schema bound covers every v5 round still accepted; each round enforces its own stored length. */
+    private static final String V5_ACTION_TIME = "플레이 시작 후 경과 ms. 판마다 저장된 rules.durationMs 미만이어야 합니다. "
+            + "신규 판(v5-20261029.1)은 119999까지, 기존 판(v5-20261027.1)은 179999까지 받습니다.";
 
     @Override
     public Operation customize(Operation operation, HandlerMethod handler) {
@@ -87,6 +90,14 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
                 responseSchema(operation, "200", oneOf("BungeoppangV4DeliveryResponse",
                         "BungeoppangV5DeliveryResponse"));
             }
+            if (method.equals("manualPause")) {
+                schema.addProperty("paused", new BooleanSchema());
+                schema.addProperty("expectedPauseRevision", new IntegerSchema().format("int64")
+                        .minimum(java.math.BigDecimal.ZERO)
+                        .maximum(java.math.BigDecimal.valueOf(9007199254740991L)));
+                schema.required(List.of("paused", "expectedPauseRevision"));
+                responseSchema(operation, "200", oneOf("BungeoppangV4SessionResponse", "BungeoppangV5SessionResponse"));
+            }
             operation.setRequestBody(new RequestBody().required(true).content(new Content()
                     .addMediaType("application/json", new io.swagger.v3.oas.models.media.MediaType().schema(schema))));
         }
@@ -119,10 +130,12 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
                 + "공통 스키마에 V110/V111, v4 초기화 V124, 납품 영수증 V125, 최종 정산 V126을 추가합니다. 운영은 DB 이력과 마이그레이션 위치 검토가 먼저 필요합니다. "
                 + "버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4는 납품 승인·checkpoint·다음 주문, "
                 + "마지막 미승인 납품 검증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다. "
-                + "v2는 60초, 15점당 1냥, KST 하루 100냥 계약을 유지합니다. "
-                + "탭 이동 중에도 시간은 흐르며 랭킹은 제외합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. "
+                + "v2는 60초, 15점당 1냥, 모든 미니게임 합산 KST 하루 500냥 상한을 사용합니다. "
+                + "탭 이동 중에도 시간은 흐르며, v4·v5는 F1 설명서 일시정지 API와 점수·최대 콤보 랭킹을 제공합니다. "
+                + "score·rewardAmount·userId를 본문에 넣지 않습니다. "
                 + "상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다. "
-                + "v5(180초, 활성 손님 3명, 선택 납품·충원, V128)도 제공하며 " + V5_FLAG);
+                + "v5(신규 판 120초·90초부터 가속, 기존 v5-20261027.1 판은 저장된 180초·150초 규칙 유지, "
+                + "활성 손님 3명, 선택 납품·충원, V128)도 제공하며 " + V5_FLAG);
         return operation;
     }
 
@@ -237,7 +250,7 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         schema.addProperty("throughSeq", new IntegerSchema().minimum(java.math.BigDecimal.ONE)
                 .maximum(java.math.BigDecimal.valueOf(maxLog)));
         schema.addProperty("prefixHash", new StringSchema().pattern("^[0-9a-f]{64}$"));
-        schema.addProperty("log", new ArraySchema().items(action(maxT)).minItems(1).maxItems(maxLog));
+        schema.addProperty("log", new ArraySchema().items(action(version, maxT)).minItems(1).maxItems(maxLog));
         schema.required(List.of("rulesVersion", "throughSeq", "prefixHash", "log"));
         return schema;
     }
@@ -249,7 +262,7 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         schema.addProperty("throughSeq", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
                 .maximum(java.math.BigDecimal.valueOf(maxLog)));
         schema.addProperty("prefixHash", new StringSchema().pattern("^[0-9a-f]{64}$"));
-        schema.addProperty("log", new ArraySchema().items(action(maxT)).maxItems(maxLog));
+        schema.addProperty("log", new ArraySchema().items(action(version, maxT)).maxItems(maxLog));
         schema.addProperty("seenTips", new ArraySchema().items(new StringSchema()).maxItems(5));
         schema.addProperty("clientScore", new IntegerSchema().format("int64")
                 .minimum(java.math.BigDecimal.ZERO));
@@ -257,14 +270,15 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         return schema;
     }
 
-    private ObjectSchema action(int maxT) {
+    private ObjectSchema action(String version, int maxT) {
         ObjectSchema entry = new ObjectSchema();
         entry.additionalProperties(false);
         entry.addProperty("seq", new IntegerSchema().minimum(java.math.BigDecimal.ONE));
         entry.addProperty("action", new StringSchema()._enum(List.of(
                 "POUR", "FILL", "TURN", "DISCARD", "TRAY_DISCARD", "DELIVER")));
         entry.addProperty("t", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
-                .maximum(java.math.BigDecimal.valueOf(maxT)));
+                .maximum(java.math.BigDecimal.valueOf(maxT))
+                .description("v5".equals(version) ? V5_ACTION_TIME : null));
         entry.addProperty("slot", new IntegerSchema().minimum(java.math.BigDecimal.ZERO)
                 .maximum(java.math.BigDecimal.valueOf(5)).nullable(true));
         entry.addProperty("filling", new StringSchema()

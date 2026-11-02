@@ -8,6 +8,7 @@ import { gameReaction, installGameReactions, reactionFor } from '../../src/world
 import { parseGameReaction } from '../../src/game/presentation/defeat'
 import { useGame } from '../../src/game/store'
 import { bridgeState } from '../fixtures/bridge'
+import { useParkDebris } from '../../src/features/parkDebris/state'
 
 const deployedBindings = parseBindings(JSON.parse(readFileSync('public/park-bindings.dev.json', 'utf8')).bindings)
 const anchor = TABLES[0]!, tableId = 'mapped-table'
@@ -34,6 +35,35 @@ beforeEach(() => {
   world()
 })
 afterEach(() => { vi.restoreAllMocks(); resetWorld() })
+
+it('shares park debris only for the current compatible channel and accepts newer full snapshots', () => {
+  const item = {id:'debris-1',gameId,tableId,anchorId:anchor.id,gameCode:'OMOK',userId:'102',
+    occurredAt:new Date(estimatedServerTime()-10000).toISOString(),throwYaw:0,seed:123,parts:['board','coin-0']}
+  const snapshot = {channelId:'channel',mapVersion:EXPECTED_MAP_VERSION,version:1,items:[item]}
+  for(const patch of [{channelId:'foreign'},{mapVersion:'old-map'}])emit('WORLD_PARK_DEBRIS_STATE',{...snapshot,...patch})
+  emit('WORLD_PARK_DEBRIS_STATE',snapshot,'not-a-notification')
+  expect(useParkDebris.getState().items).toEqual([])
+  for(const patch of [{anchorId:'unknown'},{tableId:'wrong-binding'}])
+    emit('WORLD_PARK_DEBRIS_STATE',{...snapshot,items:[{...item,...patch}]})
+  expect(useParkDebris.getState().items).toEqual([])
+  emit('WORLD_PARK_DEBRIS_STATE',snapshot)
+  expect(useParkDebris.getState().items[0]?.parts).toEqual(['board','coin-0'])
+  emit('WORLD_PARK_DEBRIS_STATE',{...snapshot,version:2,items:[{...item,parts:['board']}]})
+  emit('WORLD_PARK_DEBRIS_STATE',snapshot)
+  expect(useParkDebris.getState().items[0]?.parts).toEqual(['board'])
+  emit('WORLD_PARK_DEBRIS_STATE',{...snapshot,version:3,items:[]})
+  expect(useParkDebris.getState().items).toEqual([])
+  resetWorld('reconnecting')
+  emit('WORLD_PARK_DEBRIS_STATE',{...snapshot,version:4})
+  expect(useParkDebris.getState()).toMatchObject({channelId:'',version:-1,items:[]})
+})
+
+it('clears retained park objects when map compatibility is lost', () => {
+  emit('WORLD_PARK_DEBRIS_STATE',{channelId:'channel',mapVersion:EXPECTED_MAP_VERSION,version:1,items:[]})
+  expect(useParkDebris.getState().channelId).toBe('channel')
+  emit('WORLD_STATE',{channelId:'channel',version:++version,mapVersion:'old-map',avatars:[]})
+  expect(useParkDebris.getState()).toMatchObject({channelId:'',version:-1,items:[]})
+})
 
 it('receives a nearby non-subscriber event without granting table/game/seat or changing authoritative positions', () => {
   const before = authoritativePose('102')

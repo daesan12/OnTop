@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { BUNGEOPPANG, bungeoppangV4Preview, bungeoppangV5Preview } from "./config";
+import { BUNGEOPPANG, BUNGEOPPANG_V4, BUNGEOPPANG_V5, bungeoppangV4Preview, bungeoppangV5Preview, bungeoppangV5Enabled } from "./config";
 import { isV5Grill } from './rulesV5';
 import { BungeoppangHudV5 } from './BungeoppangHudV5';
 import { BREAD_NAMES, BREAD_TOOLS, BREAD_FILLINGS, orderReady, trayCounts, orderSize, type BreadTool } from './rulesV4';
@@ -37,6 +37,7 @@ import {
   discardBungeoppangTray,
   requestBungeoppangOrder,
   syncBungeoppangTime,
+  syncBungeoppangManualPause,
   type BungPopup,
 } from "./store";
 import "./bungeoppang.css";
@@ -96,12 +97,13 @@ export function BungeoppangHud() {
 }
 
 function TimeSyncStatus() {
-  const pending = useBungeoppang(s => s.timeSyncPending);
-  const error = useBungeoppang(s => s.timeSyncError);
+  const pending = useBungeoppang(s => s.timeSyncPending || s.manualPausePending);
+  const pauseError=useBungeoppang(s=>s.manualPauseError);
+  const error = useBungeoppang(s => s.manualPauseError ?? s.timeSyncError);
   if (!pending && !error) return null;
   return <div className="bung-time-sync" role="status">
     {pending ? '게임 시간을 확인하고 있어요…' : error}
-    {!pending && error && <button type="button" onClick={() => void syncBungeoppangTime()}>시간 다시 확인</button>}
+    {!pending && error && <button type="button" onClick={() => void (pauseError?syncBungeoppangManualPause():syncBungeoppangTime())}>시간 다시 확인</button>}
   </div>;
 }
 
@@ -167,6 +169,8 @@ function useMinigameInput(active: boolean) {
         !target?.closest?.(".bung-root")
       )
         return;
+      // 준비 안내는 기본 휠 스크롤을 사용하고, 조리 중에만 재료를 바꾼다.
+      if (useBungeoppang.getState().phase === "start" && target?.closest?.(".bung-start")) return;
       if (
         inputState.manualOpen ||
         inputState.chatOpen ||
@@ -458,6 +462,8 @@ function StartPanel() {
   const startError = useBungeoppang((s) => s.startError);
   const walletError = useBungeoppang((s) => s.walletError);
   const capped = !!status && status.todayEarned >= status.dailyCap;
+  const v5 = status ? status.rulesVersion === 'v5' : bungeoppangV5Enabled;
+  const readyRules = v5 ? BUNGEOPPANG_V5 : BUNGEOPPANG_V4;
   return (
     <section className="bung-panel bung-start" aria-label="붕어빵 굽기 시작">
       <header className="bung-start-title">
@@ -467,10 +473,36 @@ function StartPanel() {
       </header>
       <p className="bung-start-intro">제한 시간 동안 붕어빵을 빠르고 정확하게 뒤집어 양쪽이 모두 익으면 완성!</p>
       <Steps />
+      <section className="bung-start-controls" aria-label="붕어빵 조작과 점수 안내">
+        <div className="bung-start-plates" aria-label="굽는 틀 선택">
+          <h3>굽는 틀 선택</h3>
+          <div className="bung-start-key-row"><span>위쪽</span>{R.slotKeys.slice(0, 3).map(key => <kbd key={key}>{key.toUpperCase()}</kbd>)}</div>
+          <div className="bung-start-key-row"><span>아래쪽</span>{R.slotKeys.slice(3).map(key => <kbd key={key}>{key.toUpperCase()}</kbd>)}</div>
+        </div>
+        <div className="bung-start-fillings">
+          <h3>반죽·소 선택</h3>
+          <ul>{BREAD_FILLINGS.map((filling, index) => <li key={filling}><kbd>{index + 1}</kbd>{BREAD_NAMES[filling]}</li>)}</ul>
+          <p><kbd>Space</kbd> 반죽 선택</p>
+        </div>
+        <div className="bung-start-serve">
+          <h3>손님에게 전달</h3>
+          <p><kbd>R</kbd> 준비된 주문 전달</p>
+          <p>주문 종류·수량을 맞춰요.</p>
+          <p>손님 클릭으로도 전달해요.</p>
+        </div>
+        <div className="bung-start-score" aria-label="점수와 랭킹 안내">
+          <h3>점수·랭킹</h3>
+          <div className="bung-start-combo" aria-label="붕어빵 콤보 안내">
+            <h4>황금빛 콤보</h4>
+            <p><b>3콤보 ×1.2 · 6콤보 ×1.5</b></p>
+          </div>
+          <p className="bung-start-bonus"><b>피자·초코</b> 보너스 +{readyRules.specialBonusPercent}%</p>
+          {v5 && <p className="bung-start-complaint"><b>컴플레인</b> −{BUNGEOPPANG_V5.queueComplaintPenalty}점</p>}
+          <p className="bung-start-ranking">최고 점수로 랭킹에 도전해요!</p>
+        </div>
+      </section>
       <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status ? `${status.todayEarned}냥` : '확인 중'} / ${status?.dailyCap ?? R.dailyCoinCap}냥`}>
-        <span className="bung-start-amount">{!status ? '수익 확인 중' : status.todayEarned > 0
-          ? <><img src={coinIcon} alt="" width="28" height="28" />{status.todayEarned.toLocaleString()}냥</>
-          : '오늘 한 번의 도전'}</span>
+        <span>미니게임 오늘</span><span className="bung-start-amount">{!status ? '수익 확인 중' : <><img src={coinIcon} alt="" width="28" height="28" />{status.todayEarned.toLocaleString()}냥</>}</span>
         <span aria-hidden="true">/</span>
         <strong className="bung-start-amount"><img src={coinIcon} alt="" width="28" height="28" />{status?.dailyCap ?? R.dailyCoinCap}냥</strong>
       </p>

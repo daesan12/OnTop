@@ -6,27 +6,45 @@ import { parkRuntime } from '../../src/park/runtime/runtime'
 
 type Flags = Partial<KeyboardEvent>
 const event = (type: string, code: string, flags: Flags = {}, cancelable = true) =>
-  Object.assign(new Event(type, { cancelable }), { code, key: code, ...flags }) as KeyboardEvent
+  Object.assign(new Event(type, { cancelable }), {
+    code, key: code, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...flags,
+  }) as KeyboardEvent
 const restricted: [string, Flags][] = [
   ['F12', {}], ['F12', { ctrlKey: true }], ['F12', { shiftKey: true }], ['F12', { metaKey: true }],
+  ['KeyW', { ctrlKey: true }], ['KeyW', { ctrlKey: true, shiftKey: true }],
+  ['KeyW', { metaKey: true }], ['KeyW', { metaKey: true, shiftKey: true }],
+  ['KeyU', { ctrlKey: true }], ['KeyC', { metaKey: true, shiftKey: true }],
+  ['F4', { ctrlKey: true }],
   ...['KeyI', 'KeyJ', 'KeyC'].map(code => [code, { ctrlKey: true, shiftKey: true }] as [string, Flags]),
+  ...['KeyI', 'KeyJ', 'KeyC', 'KeyU'].map(code => [code, { metaKey: true, altKey: true }] as [string, Flags]),
+]
+const firefoxOnly: [string, Flags][] = [
+  ['KeyU', { metaKey: true }],
+  ...['KeyK', 'KeyE', 'KeyM', 'KeyZ'].flatMap(code => [
+    [code, { ctrlKey: true, shiftKey: true }], [code, { metaKey: true, altKey: true }],
+  ] as [string, Flags][]),
+  ['KeyI', { ctrlKey: true, shiftKey: true, altKey: true }],
+  ['KeyI', { metaKey: true, shiftKey: true, altKey: true }],
+  ...['F5', 'F7', 'F9'].map(code => [code, { shiftKey: true }] as [string, Flags]),
 ]
 const preserved: [string, Flags][] = [
-  ['F11', {}], ['F5', {}], ['F5', { ctrlKey: true }], ['F5', { shiftKey: true }],
+  ['F11', {}], ['F5', {}], ['F5', { ctrlKey: true }], ['F5', { shiftKey: true }], ['F4', { altKey: true }],
   ['KeyK', { ctrlKey: true, shiftKey: true }],
   ...['KeyI', 'KeyJ', 'KeyC'].flatMap(code => [
     [code, { ctrlKey: true }], [code, { shiftKey: true }],
     [code, { ctrlKey: true, shiftKey: true, altKey: true }],
     [code, { ctrlKey: true, shiftKey: true, metaKey: true }],
   ] as [string, Flags][]),
-  ...['KeyI', 'KeyJ', 'KeyC', 'KeyK', 'KeyU'].map(code => [code, { metaKey: true, altKey: true }] as [string, Flags]),
-  ...['KeyU', 'KeyS', 'KeyP', 'KeyR'].flatMap(code => [
+  ['KeyK', { metaKey: true, altKey: true }], ['KeyU', { metaKey: true }],
+  ['KeyU', { ctrlKey: true, shiftKey: true }],
+  ...['KeyS', 'KeyP', 'KeyR'].flatMap(code => [
     [code, { ctrlKey: true }], [code, { metaKey: true }], [code, { ctrlKey: true, shiftKey: true }],
   ] as [string, Flags][]),
   ...['Escape', 'F1', 'Tab', 'Enter', 'KeyW', 'KeyE', 'KeyR', 'KeyT', 'KeyQ', 'KeyV', 'KeyG', 'Space', 'ControlLeft']
     .map(code => [code, {}] as [string, Flags]),
-  ...['KeyA', 'KeyC', 'KeyV', 'KeyX', 'KeyZ', 'KeyY', 'KeyF', 'KeyL', 'KeyT', 'KeyW', 'Equal', 'Minus', 'Digit0']
+  ...['KeyA', 'KeyC', 'KeyV', 'KeyX', 'KeyZ', 'KeyY', 'KeyF', 'KeyL', 'KeyT', 'Equal', 'Minus', 'Digit0']
     .flatMap(code => [[code, { ctrlKey: true }], [code, { metaKey: true }]] as [string, Flags][]),
+  ['KeyW', { ctrlKey: true, altKey: true }], ['KeyW', { metaKey: true, altKey: true }],
   ['ArrowLeft', { altKey: true }], ['KeyS', { ctrlKey: true, altKey: true }],
 ]
 
@@ -37,6 +55,7 @@ beforeEach(() => {
   win = new EventTarget()
   doc = Object.assign(new EventTarget(), { hidden: false })
   vi.stubGlobal('window', win); vi.stubGlobal('document', doc)
+  vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 Chrome/130.0 Edg/130.0' })
   dispose = installBrowserShortcutGuard()
 })
 afterEach(() => { dispose(); vi.unstubAllGlobals() })
@@ -47,6 +66,23 @@ it.each(restricted)('cancels restricted %s %j on down and up', (code, flags) => 
   expect(down.defaultPrevented).toBe(true)
   // Keyup is still cancelled if modifiers were released first.
   expect(win.dispatchEvent(up)).toBe(false)
+})
+
+it.each(firefoxOnly)('cancels Firefox tool %s %j only in Firefox', (code, flags) => {
+  expect(isRestrictedBrowserShortcut(event('keydown', code, flags))).toBe(false)
+  dispose()
+  vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 Firefox/132.0' })
+  dispose = installBrowserShortcutGuard()
+  expect(win.dispatchEvent(event('keydown', code, flags))).toBe(false)
+  expect(win.dispatchEvent(event('keyup', code))).toBe(false)
+})
+
+it('preserves Firefox refresh and editing keys that do not open tools', () => {
+  for (const [code, flags] of [
+    ['F5', {}], ['F5', { ctrlKey: true }], ['KeyR', { ctrlKey: true, shiftKey: true }],
+    ['KeyZ', { ctrlKey: true }], ['KeyZ', { metaKey: true, shiftKey: true }],
+    ['KeyI', { ctrlKey: true, altKey: true }], ['KeyM', { ctrlKey: true }],
+  ] as [string, Flags][]) expect(isRestrictedBrowserShortcut(event('keydown', code, flags), true)).toBe(false)
 })
 
 it.each(preserved)('preserves game, editing, accessibility and browser exit key %s %j', (code, flags) => {
@@ -79,6 +115,40 @@ it('interrupts once for a held shortcut and never claims cancellation of a non-c
   win.dispatchEvent(down)
   win.dispatchEvent(event('keydown', 'F12', { repeat: true }))
   expect(down.defaultPrevented).toBe(false)
+  expect(interrupt).toHaveBeenCalledTimes(1)
+})
+
+it('interrupts Ctrl+W even when W was already held for movement', () => {
+  const interrupt = vi.fn(); win.addEventListener('ontop-browser-interrupt', interrupt)
+  win.dispatchEvent(event('keydown', 'KeyW'))
+  win.dispatchEvent(event('keydown', 'KeyW', { ctrlKey: true, repeat: true }))
+  win.dispatchEvent(event('keydown', 'KeyW', { ctrlKey: true, repeat: true }))
+  expect(interrupt).toHaveBeenCalledTimes(1)
+  win.dispatchEvent(event('keyup', 'KeyW'))
+  win.dispatchEvent(event('keydown', 'KeyW', { ctrlKey: true }))
+  expect(interrupt).toHaveBeenCalledTimes(2)
+})
+
+it('requests a leave confirmation without a delivered keydown and clears held input', () => {
+  const interrupt = vi.fn(); win.addEventListener('ontop-browser-interrupt', interrupt)
+  const unload = new Event('beforeunload', { cancelable: true })
+  Object.defineProperty(unload, 'returnValue', { value: '', writable: true })
+  expect(win.dispatchEvent(unload)).toBe(false)
+  expect(unload.defaultPrevented).toBe(true)
+  expect(unload.returnValue).toBe('true')
+  expect(interrupt).toHaveBeenCalledTimes(1)
+  // Dismissing the native dialog does not require a remount to protect the next attempt.
+  expect(win.dispatchEvent(new Event('beforeunload', { cancelable: true }))).toBe(false)
+  expect(interrupt).toHaveBeenCalledTimes(2)
+})
+
+it('removes leave confirmation on cleanup and reinstalls it after StrictMode remount', () => {
+  const interrupt = vi.fn(); win.addEventListener('ontop-browser-interrupt', interrupt)
+  dispose()
+  expect(win.dispatchEvent(new Event('beforeunload', { cancelable: true }))).toBe(true)
+  expect(interrupt).not.toHaveBeenCalled()
+  dispose = installBrowserShortcutGuard()
+  expect(win.dispatchEvent(new Event('beforeunload', { cancelable: true }))).toBe(false)
   expect(interrupt).toHaveBeenCalledTimes(1)
 })
 

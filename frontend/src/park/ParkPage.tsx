@@ -12,6 +12,7 @@ import { ParkRuntimeProvider } from './runtime/ParkRuntime'
 import { ParkTools } from './ParkTools'
 import type { QualityPreset } from '../config'
 import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
+import { ConstructionNotice } from '../features/construction/ConstructionNotice'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
@@ -36,6 +37,14 @@ import { ChannelMenu } from '../features/parkMenus/ChannelMenu'
 import { AccountMenu } from '../features/parkMenus/AccountMenu'
 import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
 import { LocationChip } from '../features/parkMenus/LocationChip'
+import { JumpmapHud } from '../features/jumpmap/JumpmapHud'
+import { useJumpmapController } from '../features/jumpmap/useJumpmapController'
+import { useStore } from 'zustand'
+import { ParkVrZone } from '../features/vrZone/ParkVrZone'
+import { parkVrZone } from '../features/vrZone/parkBridge'
+import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
+import { RpsRoulettePanel } from '../features/rpsRoulette/RpsRoulettePanel'
+import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -63,9 +72,11 @@ export function ParkPage(props: ParkProps) {
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
 function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
+  useJumpmapController()
+  const vrPhase = useStore(parkVrZone.store, state => state.phase)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
-  const omokFocus = useGame(s => s.game?.role === 'PLAYER' && s.game.omok?.status === 'PLAYING' && !s.lastResult)
-  const omokChat = useGame(s => s.game?.omok?.status === 'PLAYING' && !s.lastResult)
+  const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
+  const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
   // Everyone plays on the Low preset; the graphics choice is not offered.
   const quality: QualityPreset = 'low'
@@ -91,7 +102,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       '--park-ui-scale': hudScale,
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
-      <ParkScene quality={quality} />
+      <ParkScene quality={quality} active={vrPhase !== 'game'} />
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
@@ -108,7 +119,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
           <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
         </div>}
 
-        <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
+        <div className="park-chat-layer" hidden={bungeoppang} inert={bungeoppang}>
           {omokChat ? <SpectatorChat /> : !omokFocus && <ParkChat key={`${session.sessionId}:${session.roomId}`} />}
         </div>
 
@@ -120,8 +131,11 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       </div>
       <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
         <ParkTools />
-        {!omokFocus && <>
         <ParkInteractionHint />
+        <div hidden={omokFocus} inert={omokFocus}>
+        <WelcomeTour />
+        <ConstructionNotice />
+        <RpsRoulettePanel />
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />
@@ -134,10 +148,13 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <FollowMenu />
         <ParkMap />
         <ParkNavigation />
-        </>}
+        <JumpmapHud />
+        </div>
       </div>
+      <ParkVrZone />
       <BungeoppangHud />
       <OmokFeedback />
+      <RankingBoardHost />
       <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions />} />
     </main>
   )

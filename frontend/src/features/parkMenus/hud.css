@@ -3,6 +3,7 @@
 
 /* Shared glass for the HUD blocks; dropdowns stay a little denser so their lists read clearly. */
 .park-page {
+  --park-hint-scale: calc(var(--park-ui-scale) * .86);
   --hud-glass: rgba(41, 38, 32, 0.5);
   --hud-glass-strong: rgba(41, 38, 32, 0.72);
   --hud-blur: blur(14px) saturate(1.2);
@@ -144,7 +145,7 @@
   backdrop-filter: var(--hud-blur);
   white-space: nowrap;
   pointer-events: none;
-  transform: translateX(-50%) scale(var(--park-ui-scale));
+  transform: translateX(-50%) scale(var(--park-hint-scale));
   transform-origin: top center;
 }
 .park-location-chip > i { width: 1px; height: 16px; background: rgba(247, 241, 229, 0.25); }
@@ -177,7 +178,7 @@
 .park-page .park-chat__heading { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid rgba(247, 241, 229, 0.14); }
 .park-page .park-chat__messages h1 { display: flex; align-items: center; gap: 8px; font-size: 19px; font-weight: 700; }
 .park-page .park-chat__messages h1 img { width: 18px; height: 18px; }
-.park-chat__radius { padding: 2px 8px 3px; border-radius: 999px; color: #e8b451; background: rgba(232, 180, 81, 0.18); font-size: 12px; font-weight: 500; }
+.park-chat__radius { flex-shrink:0; padding: 2px 8px 3px; border-radius: 4px; color: #e8b451; background: rgba(232, 180, 81, 0.18); font-size: 12px; font-weight: 500; }
 .park-page .park-chat__heading button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: none; }
 .park-page .park-chat__heading button:hover { background: rgba(247, 241, 229, 0.1); }
 .park-page .park-chat__heading button img { width: 18px; height: 18px; transition: transform 150ms; }
@@ -251,13 +252,22 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   backdrop-filter: var(--hud-blur);
 }
+.park-page .park-interaction:has(> button[aria-keyshortcuts='E']) {
+  padding: 4px 6px;
+  gap: 4px;
+  border-radius: 10px;
+}
 .park-page .park-interaction > button[aria-keyshortcuts='E'] {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 8px 12px;
   border: 0;
   background: none;
   font-size: 15px;
+  line-height: 20px;
 }
 .park-page .park-interaction kbd {
   min-width: 20px;
@@ -268,6 +278,16 @@
   background: #f7f1e5;
   font: inherit;
   font-size: 12px;
+}
+.park-page .park-interaction > button[aria-keyshortcuts='E'] kbd {
+  flex-shrink: 0;
+  min-width: 22px;
+  margin-right: 0;
+  padding: 1px 5px;
+  border-bottom-width: 1px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 22px;
 }
 
 @media (max-width: 900px) {

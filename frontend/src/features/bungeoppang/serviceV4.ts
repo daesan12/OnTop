@@ -16,7 +16,7 @@ import {
   type BungeoppangSubmit,
   type BungeoppangTimeSync,
 } from './service';
-import type { RoundTiming } from './serverTime';
+import {validTimingUpdate,type RoundTiming} from './serverTime';
 
 type RequestJson = (path: string, init?: RequestInit) => Promise<unknown>;
 type WireAction = {
@@ -82,7 +82,10 @@ export function toTiming(value: unknown, durationMs = 60000): RoundTiming {
   const times = fields.map(name => Date.parse(value[name] as string));
   if (times.some((time, index) => index > 0 && time <= times[index - 1]!)
     || times[1]! - times[0]! !== 3500 || times[2]! - times[1]! !== durationMs) return fail();
-  return Object.fromEntries(fields.map(name => [name, value[name]])) as unknown as RoundTiming;
+  if((value.paused!==undefined||value.pauseRevision!==undefined)
+    &&(typeof value.paused!=='boolean'||!whole(value.pauseRevision)))return fail();
+  return {...Object.fromEntries(fields.map(name => [name, value[name]])),
+    ...(value.paused===undefined?{}:{paused:value.paused,pauseRevision:Number(value.pauseRevision)})} as unknown as RoundTiming;
 }
 
 export function toRules(value: unknown): Readonly<BungeoppangRules & { rulesVersion: 'v4' }> {
@@ -122,7 +125,7 @@ function toOrder(value: unknown): WireOrder {
   } };
 }
 
-export function toCheckpoint(value: unknown): V4Checkpoint {
+export function toCheckpoint(value: unknown, allowNegativeScore = false): V4Checkpoint {
   if (!record(value) || !whole(value.revision) || !whole(value.throughSeq)
     || typeof value.prefixHash !== 'string' || !/^[0-9a-f]{64}$/.test(value.prefixHash)
     || !whole(value.heatCursor) || !(value.lastAt === null || whole(value.lastAt))
@@ -147,7 +150,7 @@ export function toCheckpoint(value: unknown): V4Checkpoint {
   const stats = value.stats;
   const names = ['score', 'made', 'successfulMade', 'golden', 'failed', 'wasted', 'grillDiscarded',
     'trayDiscarded', 'combo', 'maxCombo', 'served', 'customersServed', 'specialServed', 'bonusScore'] as const;
-  if (!names.every(name => whole(stats[name]))) return fail();
+  if (!names.every(name => name === 'score' && allowNegativeScore ? Number.isSafeInteger(stats[name]) : whole(stats[name]))) return fail();
   return { revision: Number(value.revision), throughSeq: Number(value.throughSeq), prefixHash: value.prefixHash,
     heatCursor: Number(value.heatCursor), lastAt: value.lastAt === null ? null : Number(value.lastAt), slots, tray,
     stats: Object.fromEntries(names.map(name => [name, Number(stats[name])])) as V4Checkpoint['stats'],
@@ -261,7 +264,7 @@ export function completeResult(value: unknown, gameId: string, version = 'v4') {
     'maxCombo', 'coinsCalculated', 'coinsGranted', 'todayEarned', 'dailyCap', 'successfulMade', 'served',
     'customersServed', 'specialServed', 'bonusScore', 'grillDiscarded', 'trayDiscarded', 'undeliveredCount',
     'unfinishedGrillCount', 'finalThroughSeq'] as const;
-  if (!integers.every(name => whole(value[name])) || typeof value.capReached !== 'boolean'
+  if (!integers.every(name => name === 'score' && version === 'v5' ? Number.isSafeInteger(value[name]) : whole(value[name])) || typeof value.capReached !== 'boolean'
     || typeof value.rewardDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.rewardDate)
     || !instant(value.settledAt) || typeof value.finalPrefixHash !== 'string'
     || !/^[0-9a-f]{64}$/.test(value.finalPrefixHash)
@@ -350,8 +353,8 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
           || p.configVersion !== source.configVersion || !instant(p.serverNow)
           || !['PLAYING', 'COMPLETED', 'ABANDONED', 'INVALID'].includes(String(p.status))) return fail();
         const timing = toTiming(p.timing);
-        if (Object.keys(source.timing).some(name => timing[name as keyof RoundTiming]
-          !== source.timing[name as keyof RoundTiming])) return fail();
+        if (!validTimingUpdate(source.timing,timing)) return fail();
+        source.timing=timing;
         const sample = { serverNowMs: Date.parse(p.serverNow), receivedAt, rttMs: receivedAt - sentAt };
         const status = p.status as BungeoppangTimeSync['status'];
         if (status !== 'PLAYING' || sample.rttMs <= 1000) {
@@ -362,6 +365,14 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       }
       throw new BungeoppangServiceError('TIME_SYNC_SLOW',
         '연결 지연으로 시간을 확인하지 못했어요. 같은 판의 시간을 다시 확인해 주세요.', true);
+    },
+    async setManualPaused(gameId,paused) {
+      const current=await service.syncTimeV4!(gameId);
+      if(current.status!=='PLAYING')return current;
+      const source=sessions.get(gameId);
+      if(!source||source.timing.pauseRevision===undefined)throw new BungeoppangServiceError('PAUSE_UNAVAILABLE','일시정지 연결을 확인해주세요.',true);
+      await request(`${sessionPath(gameId)}/manual-pause`,post({paused,expectedPauseRevision:source.timing.pauseRevision}));
+      return service.syncTimeV4!(gameId);
     },
     async nextOrder(input) {
       const source = sessions.get(input.gameId);

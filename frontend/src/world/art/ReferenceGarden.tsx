@@ -1,6 +1,16 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
+import { IcosahedronGeometry } from 'three'
+import { useMemo } from 'react'
+import { useLoader } from '@react-three/fiber'
+import { leafMapUrl } from '../worldAssets'
 import {
   BufferGeometry,
-  IcosahedronGeometry,
+  PlaneGeometry,
+  Euler,
+  Matrix4,
+  Quaternion,
+  Vector3,
+  TextureLoader,
   Float32BufferAttribute,
   Shape,
   ShapeGeometry,
@@ -9,16 +19,18 @@ import { ARRIVAL_FLOWER_BEDS, LAKE, type QualityPreset } from '../../config'
 import {
   beam,
   Instances,
+  SpatialInstances,
   seeded,
   type Part,
 } from './Instances'
 import { DetailInstances, DetailMaterial } from './DetailInstances'
 import { SurfaceMaterial } from './SurfaceMaterial'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
 // Original opaque meshes inspired by map_asset_3/4; no sheet pixels on billboards.
 const flowerShape = new Shape()
-for (let i = 0; i <= 10; i++) {
-  const a = (i * Math.PI) / 5,
+for (let i = 0; i <= (SIMPLE_MAP?5:60); i++) {
+  const a = (i * Math.PI*2) / (SIMPLE_MAP?5:60),
     r = 0.7 + 0.3 * Math.cos(a * 5)
   if (i) flowerShape.lineTo(Math.cos(a) * r, Math.sin(a) * r)
   else flowerShape.moveTo(Math.cos(a) * r, Math.sin(a) * r)
@@ -28,12 +40,12 @@ const leafShape = new Shape()
 leafShape.moveTo(0, 1)
 leafShape.quadraticCurveTo(0.65, 0.2, 0, -1)
 leafShape.quadraticCurveTo(-0.65, 0.2, 0, 1)
-const leafGeometry = new ShapeGeometry(leafShape, 3)
+const leafGeometry = new ShapeGeometry(leafShape, SIMPLE_MAP?1:3)
 const lotusGeometry = (() => {
   const p: number[] = []
-  for (let i = 0; i < 8; i++) {
-    const a = 0.16 + (i * (Math.PI * 2 - 0.32)) / 8
-    const b = 0.16 + ((i + 1) * (Math.PI * 2 - 0.32)) / 8
+  for (let i = 0; i < 24; i++) {
+    const a = 0.16 + (i * (Math.PI * 2 - 0.32)) / 24
+    const b = 0.16 + ((i + 1) * (Math.PI * 2 - 0.32)) / 24
     p.push(
       0,
       0.09,
@@ -52,13 +64,59 @@ const lotusGeometry = (() => {
   return g
 })()
 
-// One shared opaque twenty-triangle crown: no alpha-tested leaf planes.
-export const crownGeometry = new IcosahedronGeometry(1, 0)
-export function GardenFoliageMaterial() {
-  return <meshStandardMaterial flatShading roughness={1} />
+// Dense irregular leaf sprays keep the crown silhouette porous, not a solid ball.
+// One shared cluster mesh, instanced across the added trees and flower-bed shrubs.
+export const crownGeometry = (() => {
+  if(SIMPLE_MAP) return new IcosahedronGeometry(1, 0)
+  const rand = seeded(31842),
+    patches: BufferGeometry[] = []
+  for (let i = 0; i < 120; i++) {
+    const a = rand() * Math.PI * 2,
+      y = rand() * 2 - 1,
+      radial = Math.sqrt(1 - y * y),
+      r = 0.35 + rand() * 0.7
+    const geometry = new PlaneGeometry(0.62, 0.68, 1, 2)
+    const p = geometry.getAttribute('position')
+    for (let k = 0; k < p.count; k++)
+      p.setZ(k, 0.12 * (1 - Math.abs(p.getY(k)) * 2))
+    geometry.applyMatrix4(
+      new Matrix4().compose(
+        new Vector3(Math.cos(a) * radial * r, y * r, Math.sin(a) * radial * r),
+        new Quaternion().setFromEuler(
+          new Euler(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI),
+        ),
+        new Vector3(1, 1, 1),
+      ),
+    )
+    patches.push(geometry)
+  }
+  const merged = mergeGeometries(patches)!
+  patches.forEach((g) => g.dispose())
+  merged.computeVertexNormals()
+  return merged
+})()
+function DetailedGardenFoliageMaterial() {
+  const map = useLoader(TextureLoader, leafMapUrl)
+  return (
+    <meshStandardMaterial
+      map={map}
+      alphaTest={0.65}
+      alphaToCoverage
+      side={2}
+      roughness={1}
+      onBeforeCompile={(shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <map_fragment>',
+          'vec4 gardenLeaf = texture2D(map, vMapUv); float leafLight = clamp(dot(gardenLeaf.rgb, vec3(.2126,.7152,.0722))*2.5,.35,1.); diffuseColor *= vec4(vec3(leafLight),gardenLeaf.a);',
+        )
+      }}
+      customProgramCacheKey={() => 'garden-flowering-leaves-v1'}
+    />
+  )
 }
 
-function gardenArt() {
+type FlowerBed={x:number;z:number;width:number;depth:number}
+function gardenArt(beds:readonly FlowerBed[]=ARRIVAL_FLOWER_BEDS,withLake=true) {
   // Continue the original RNG after the removed tree details (36,504 draws).
   // This preserves every flower-bed and waterside decoration transform.
   const rand = seeded(4124619156)
@@ -71,7 +129,7 @@ function gardenArt() {
     reeds: Part[] = [],
     seedHeads: Part[] = [],
     waterFlowers: Part[] = []
-  for (const bed of ARRIVAL_FLOWER_BEDS) {
+  for (const bed of beds) {
     soil.push({
       p: [bed.x, 0.055, bed.z],
       s: [bed.width, 0.1, bed.depth],
@@ -120,7 +178,7 @@ function gardenArt() {
     }
   }
   // Shallow coves; keep the bridge, stepping stones and swimming entrances clear.
-  for (const a of [-1.05, -0.68, 0.35, 1.05, 2.05, 2.6, 3.7, 4.2]) {
+  for (const a of (withLake?[-1.05, -0.68, 0.35, 1.05, 2.05, 2.6, 3.7, 4.2]:[])) {
     const x = LAKE.x + Math.cos(a) * (LAKE.radiusX - 1.8),
       z = LAKE.z + Math.sin(a) * (LAKE.radiusZ - 2.4)
     for (let i = 0; i < 8; i++) {
@@ -177,7 +235,6 @@ function gardenArt() {
   }
 }
 const art = gardenArt()
-const simpleFlowers = art.flowers.filter((_, i) => i % 13 < 3)
 export function ReferenceGarden({ quality }: { quality: QualityPreset }) {
   const range = quality === 'low' ? 32 : quality === 'medium' ? 50 : 65
   return (
@@ -187,7 +244,7 @@ export function ReferenceGarden({ quality }: { quality: QualityPreset }) {
     >
       <DetailInstances
         name="garden-blossoms"
-        parts={simpleFlowers}
+        parts={art.flowers}
         range={range}
         material={<DetailMaterial range={range} side={2} />}
       >
@@ -222,22 +279,22 @@ export function ReferenceGarden({ quality }: { quality: QualityPreset }) {
       >
         <primitive object={crownGeometry} attach="geometry" dispose={null} />
       </Instances>
-      <Instances
+      <SpatialInstances
         parts={art.lotus}
         shadow={false}
         material={<meshStandardMaterial roughness={1} side={2} />}
       >
         <primitive object={lotusGeometry} attach="geometry" dispose={null} />
-      </Instances>
-      <Instances parts={art.waterFlowers} shadow={false}>
-        <octahedronGeometry />
-      </Instances>
-      <Instances parts={art.reeds} shadow={false}>
+      </SpatialInstances>
+      <SpatialInstances parts={art.waterFlowers} shadow={false}>
+        <sphereGeometry args={[1, 6, 4]} />
+      </SpatialInstances>
+      <SpatialInstances parts={art.reeds} shadow={false}>
         <cylinderGeometry args={[0.5, 1, 1, 4]} />
-      </Instances>
-      <Instances parts={art.seedHeads} shadow={false}>
-        <cylinderGeometry args={[0.7, 1, 1, 4]} />
-      </Instances>
+      </SpatialInstances>
+      <SpatialInstances parts={art.seedHeads} shadow={false}>
+        <capsuleGeometry args={[1, 1, 2, 5]} />
+      </SpatialInstances>
       <group
         name="arrival-stone-medallion"
         position={[0, 0.084, 54]}
@@ -272,4 +329,19 @@ export function ReferenceGarden({ quality }: { quality: QualityPreset }) {
       </group>
     </group>
   )
+}
+
+/** Reposition the live park's stone-edged beds, leaf clusters and five-petal flowers. */
+export function ReferenceFlowerBeds({beds}:{beds:readonly FlowerBed[]}) {
+  const bedsArt=useMemo(()=>gardenArt(beds,false),[beds])
+  return <group name="layout-original-flower-beds" userData={{assetId:'original/reference-garden-03-04'}}>
+    <Instances parts={bedsArt.stone} shadow={false} material={<SurfaceMaterial kind="stone" mapping="box" strength={.2}/>}><boxGeometry/></Instances>
+    <Instances parts={bedsArt.soil} shadow={false}><boxGeometry/></Instances>
+    <Instances parts={bedsArt.shrubs} shadow={false} material={<GardenFoliageMaterial/>}><primitive object={crownGeometry} attach="geometry" dispose={null}/></Instances>
+    <Instances parts={bedsArt.flowers} shadow={false} material={<meshStandardMaterial roughness={1} side={2}/>}><primitive object={flowerGeometry} attach="geometry" dispose={null}/></Instances>
+  </group>
+}
+
+export function GardenFoliageMaterial() {
+  return SIMPLE_MAP ? <meshLambertMaterial flatShading/> : <DetailedGardenFoliageMaterial/>
 }

@@ -9,9 +9,10 @@ import {
   characterGestureDuration,
   createFitnessMotion,
   sampleFitnessMotion,
-} from '../config'
+} from '../park/mapConfig'
 import type { createCharacterRig } from './art/CharacterRig'
 import { createGait, pavingLift, sampleGait } from './art/characterMotion'
+import { createClipPose } from './art/characterClips'
 import { sampleCharacterEmote } from './art/characterEmotes'
 import { createFitnessGrip } from './art/fitnessGrip'
 import { sampleDefeatMotion } from './art/defeatMotion'
@@ -53,6 +54,11 @@ export function avatarPoseActive(avatar: Avatar, now: number) {
   return avatar.connected && (avatar.moving || !!avatar.fitnessId || avatar.swimming || avatarEmoteAge(avatar, now) !== null)
 }
 
+/** Standing still on the ground plays the authored idle: it never settles, so it is sampled while near. */
+export function avatarPoseAmbient(avatar: Avatar) {
+  return avatar.connected && !avatar.moving && avatarPoseKind(avatar) === 'ground'
+}
+
 export function avatarPoseKey(a: Avatar) {
   return `${a.connected}|${a.moving}|${a.running}|${a.tableId}|${a.seatIndex}|${a.benchId}|${a.fitnessId}|${a.fitnessStartedAt}|${a.telescopeId}|${a.telescopePitch}|${a.swimming}|${a.emote}|${a.emoteAt}`
 }
@@ -60,7 +66,7 @@ export function avatarPoseKey(a: Avatar) {
 /** Per-player mutable pose state; no React updates or per-frame vectors. */
 export function createAvatarMotion(model: Rig) {
   const fitness = createFitnessMotion(), gait = createGait()
-  const grip = createFitnessGrip(), hipFit = new Vector3()
+  const grip = createFitnessGrip(), hipFit = new Vector3(), clip = createClipPose()
   let phase = 0, swimPhase = 0, move = 0, run = 0
   return {
     apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void) {
@@ -89,8 +95,9 @@ export function createAvatarMotion(model: Rig) {
       set('lowerArm_L', seated ? -0.8 : gait.elbow)
       set('lowerArm_R', seated ? -0.8 : gait.elbow)
       if (kind === 'ground') {
-        set('hips', 0, gait.hipYaw, gait.hipRoll)
-        set('chest', gait.lean, -gait.hipYaw * 0.6, -gait.hipRoll * 0.5)
+        // Authored idle/walk/run cycles (blended by the same smoothed move/run amounts) replace the gait.
+        // The own avatar uses them too, so it looks the same as other players see it.
+        clip.ground(dt, move, run, set)
       } else if (kind === 'telescope') {
         set('upperArm_L', -1.1)
         set('upperArm_R', -1.1)
@@ -120,6 +127,8 @@ export function createAvatarMotion(model: Rig) {
           model.handPose(side, 'cup')
         }
         set('head', -0.12 - 0.95 * move)
+        // Swimming forward: the authored crawl over the tilted figure (treading water stays procedural).
+        if (avatar.moving) clip.swim(dt, move, set)
       } else if (kind === 'fitness') {
         set('foot_L')
         set('foot_R')

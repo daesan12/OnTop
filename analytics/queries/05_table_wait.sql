@@ -8,7 +8,8 @@ WITH table_events AS (
            occurred_at,
            LEAD(event_type) OVER w AS next_type,
            LEAD(occurred_at) OVER w AS next_at,
-           LEAD(props->>'$.byDisconnect') OVER w AS next_by_disconnect
+           LEAD(props->>'$.byDisconnect') OVER w AS next_by_disconnect,
+           LEAD(props->>'$.reason') OVER w AS next_reason
     FROM behavior_events
     WHERE user_id IS NOT NULL AND event_type IN ('TABLE_JOINED', 'TABLE_LEFT', 'GAME_STARTED')
     WINDOW w AS (PARTITION BY user_id ORDER BY occurred_at, id)
@@ -17,6 +18,8 @@ SELECT COUNT(*) AS seatings,
        SUM(next_type = 'GAME_STARTED') AS started,
        SUM(next_type = 'TABLE_LEFT') AS left_before_start,
        SUM(next_type = 'TABLE_LEFT' AND next_by_disconnect = 'true') AS left_by_disconnect,
+       -- 태블릿 방장이 120초 안에 시작하지 않아 좌석에서 빠진 경우(2026-10-30부터 기록)
+       SUM(next_type = 'TABLE_LEFT' AND next_reason = 'HOST_START_TIMEOUT') AS left_by_host_timeout,
        SUM(next_type IS NULL) AS unresolved,
        ROUND(100 * SUM(next_type = 'TABLE_LEFT') / NULLIF(SUM(next_type IS NOT NULL), 0), 1) AS left_before_start_pct,
        ROUND(AVG(CASE WHEN next_type = 'GAME_STARTED'

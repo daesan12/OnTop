@@ -1,0 +1,79 @@
+/* 가위바위보 룰렛 게임기. 오락기 원색과 불빛은 이 기계 화면 안에서만 쓴다(FE 컨벤션 2.4 예외, docs/RPS_ROULETTE_UI.md). */
+.rps-roulette{--rps-ink:#f1efe8;--rps-led:#ff3b30;--rps-lcd:#ffcf4a;--rps-cabinet:#151515;--rps-trim:#ececec;box-sizing:border-box;width:min(460px,calc(100vw - 16px));max-height:calc(100dvh - 16px);overflow:auto;padding:10px 12px 12px;border:3px solid var(--rps-trim);border-radius:18px 18px 10px 10px;background:var(--rps-cabinet);color:var(--rps-ink);font-family:"Malgun Gothic",sans-serif}
+.rps-roulette::backdrop{background:#0d0f14b8}
+.rps-roulette button{font:inherit;cursor:pointer}
+.rps-roulette button:focus-visible{outline:3px solid #6fc3ff;outline-offset:3px}
+.rps-roulette-top{display:flex;align-items:center;gap:8px;margin:0 2px 8px}
+.rps-roulette-top h2{flex:1;margin:0;font-size:15px;letter-spacing:.08em;color:#cfcfcf}
+.rps-roulette-ghost{min-height:36px;padding:0 12px;border:1px solid #5a5a5a;border-radius:8px;background:#232323;color:#e6e6e6}
+.rps-roulette-ghost:hover{background:#2e2e2e}
+.rps-roulette-close{width:36px;height:36px;border:0;border-radius:50%;background:#2b2b2b;color:#e6e6e6;font-size:22px!important;line-height:1}
+.rps-roulette-close:hover{background:#3a3a3a}
+/* 낮은 화면에서도 조작판까지 스크롤 없이 보이도록 판이 먼저 줄어든다. */
+.rps-roulette-face{display:block;width:auto;max-width:100%;height:auto;max-height:max(260px,calc(100dvh - 470px));margin:0 auto;font-family:"Malgun Gothic",sans-serif}
+.rps-roulette-led{margin-top:10px;padding:6px 10px;border:2px solid var(--rps-trim);border-radius:4px;background:#050505}
+.rps-roulette-led-row{display:flex;align-items:center;gap:10px}
+.rps-roulette-led-row+.rps-roulette-led-row{margin-top:6px}
+.rps-roulette-led-label{font-size:11px;color:#8c8c8c}
+.rps-roulette-mult{min-width:78px;font-family:ui-monospace,Consolas,monospace;font-size:26px;font-weight:600;color:var(--rps-led)}
+.rps-roulette-steps{display:flex;gap:8px;margin:0;padding:0;list-style:none}
+.rps-roulette-steps li{display:flex;flex-direction:column;align-items:center;font-size:11px;line-height:1.2;color:#6b6b6b}
+.rps-roulette-steps i{width:10px;height:10px;margin-bottom:2px;border-radius:50%;background:#3a0d0d}
+.rps-roulette-steps li[data-on] i{background:var(--rps-led)}
+.rps-roulette-steps li[data-on]{color:#d9d9d9}
+.rps-roulette-steps li[data-next] i{outline:2px solid #ffe066}
+.rps-roulette-plays{margin-left:auto;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--rps-led)}
+.rps-roulette-ticks{display:flex;gap:3px}
+.rps-roulette-ticks i{width:9px;height:12px;border-radius:2px;background:#3a0d0d}
+.rps-roulette-ticks i[data-on]{background:var(--rps-led)}
+.rps-roulette-ticks i[data-on][data-warn]{background:var(--rps-lcd)}
+.rps-roulette-sec{min-width:22px;font-family:ui-monospace,Consolas,monospace;font-size:18px;color:var(--rps-led);text-align:right}
+.rps-roulette-lcd{min-height:18px;margin:6px 0 0;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.5;color:var(--rps-lcd)}
+.rps-roulette-payout{display:flex;align-items:baseline;gap:10px;margin:4px 0 0;font-size:22px;font-weight:700;color:#e9b949}
+.rps-roulette-payout small{font-size:12px;font-weight:400;color:#bdbdbd}
+.rps-roulette-deck{margin-top:10px;padding:16px 10px 12px;border-top:3px solid var(--rps-trim);border-radius:8px;background:#2a0c0c}
+.rps-roulette-hands{display:flex;justify-content:center;gap:22px}
+.rps-roulette-lower{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-top:16px;padding-top:12px;border-top:1px solid #4a1d1d}
+.rps-roulette-control{display:flex;flex-direction:column;align-items:center}
+.rps-roulette-label{display:flex;flex-direction:column;align-items:center;margin-top:6px;font-size:11px;line-height:1.35;color:#e3bcbc;text-align:center}
+.rps-roulette-label [data-done]{color:#7a5a5a;text-decoration:line-through}
+.rps-roulette-label [data-next]{color:#ffe066;font-weight:700}
+.rps-roulette-bezel{display:inline-flex;padding:4px;border:3px solid #3a2a2a;border-radius:50%;background:#0c0c0c;box-shadow:0 0 0 3px #b9b9b9}
+.rps-roulette-bezel[data-lit]{border-color:#ff4a3d;animation:rps-roulette-blink .8s steps(1) infinite}
+.rps-roulette-bezel-start{border-radius:14px}
+.rps-roulette-cap{display:flex;align-items:center;justify-content:center;padding:0;border:0;transition:transform .15s,filter .15s}
+.rps-roulette-cap:not(:disabled):hover{filter:brightness(1.06)}
+.rps-roulette-cap:active:not(:disabled),.rps-roulette-cap[data-pressed]{transform:translateY(3px);border-bottom-width:2px!important}
+.rps-roulette-cap:disabled{cursor:default;filter:brightness(.7)}
+.rps-roulette-hand{position:relative;width:64px;height:64px;border-radius:50%;background:#f7f7f7;border-bottom:6px solid #c9c9c9}
+.rps-roulette-hand::after{content:"";position:absolute;inset:9px;border:2px solid #e3e3e3;border-radius:50%;pointer-events:none}
+.rps-roulette-bezel[data-lit] .rps-roulette-hand{background:#ffe6eb}
+.rps-roulette-bezel[data-lit] .rps-roulette-hand::after{border-color:#ffb3c1}
+.rps-roulette-fees{display:flex;gap:2px;padding:2px;border:2px solid #b9b9b9;border-radius:8px;background:#0c0c0c}
+.rps-roulette-fee{width:36px;min-height:44px;border:0;border-radius:5px;background:#2b2b2b;color:#8a8a8a;font-size:13px;font-weight:700}
+.rps-roulette-fee[aria-pressed="true"]{background:#ffd23f;color:#5a3d00}
+.rps-roulette-fee:disabled{cursor:default}
+.rps-roulette-start{min-width:84px;min-height:44px;border-radius:10px;background:#ffb02e;border-bottom:6px solid #b9740a;color:#4a2a00;font-size:15px;font-weight:700;letter-spacing:2px}
+.rps-roulette-bezel[data-lit] .rps-roulette-start{animation:rps-roulette-start .9s steps(1) infinite}
+.rps-roulette-challenge,.rps-roulette-stop{width:44px;height:44px;border-radius:50%;font-size:12px;font-weight:700}
+.rps-roulette-challenge{background:#ff8f80;border-bottom:5px solid #b2473a;color:#5a130b}
+.rps-roulette-stop{background:#9fd88a;border-bottom:5px solid #4f8a3b;color:#1d4512}
+.rps-roulette-foot{margin:8px 2px 0;font-size:11px;color:#9a9a9a}
+@keyframes rps-roulette-blink{50%{border-color:#5a1a1a}}
+@keyframes rps-roulette-start{50%{background:#ffd98a}}
+@media (max-width:420px){.rps-roulette-hands{gap:12px}.rps-roulette-lower{flex-wrap:wrap;justify-content:center;gap:12px}}
+@media (prefers-reduced-motion:reduce){.rps-roulette-bezel[data-lit],.rps-roulette-bezel[data-lit] .rps-roulette-start{animation:none}}
+/* 설명서 그림 */
+.rps-roulette-figure{display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;font-family:"Malgun Gothic",sans-serif}
+.rps-roulette-figure ol{margin:0;padding-left:18px;text-align:left;font-size:13px;line-height:1.8;color:#4b3b25}
+.rps-roulette-figure-machine{width:220px;padding:8px;border:3px solid #ececec;border-radius:12px 12px 6px 6px;background:#151515}
+.rps-roulette-figure-led{display:flex;justify-content:space-between;margin-top:6px;padding:4px 6px;border:1px solid #ececec;border-radius:3px;background:#050505;font:11px ui-monospace,Consolas,monospace;color:#ff3b30}
+.rps-roulette-figure-led b{font-size:14px}
+.rps-roulette-figure-deck{display:flex;justify-content:space-around;margin-top:6px;padding:8px 4px;border-radius:5px;background:#2a0c0c}
+.rps-roulette-figure-deck span{display:grid;place-items:center;width:34px;height:34px;border:3px solid #b9b9b9;border-radius:50%;background:#f7f7f7;font-size:11px;color:#9a2a2a}
+.rps-roulette-figure-row figure{margin:0;font-size:13px;color:#4b3b25}
+.rps-roulette-figure-ladder{gap:6px}
+.rps-roulette-figure-ladder>div{position:relative;display:flex;flex-direction:column;align-items:center;min-width:96px;padding:8px 6px;border-radius:8px;background:#050505;color:#e3bcbc;font-size:12px}
+.rps-roulette-figure-ladder b{font:600 22px ui-monospace,Consolas,monospace;color:#ff3b30}
+.rps-roulette-figure-ladder small{color:#ffcf4a}
+.rps-roulette-figure-ladder i{position:absolute;right:-12px;top:50%;transform:translateY(-50%);font-style:normal;color:#8a734f}

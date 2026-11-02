@@ -1,0 +1,48 @@
+.park-menu-backdrop.ranking-board-backdrop {
+  background: rgba(10, 16, 13, .66);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.park-menu-dialog.ranking-board-dialog {
+  width: min(1120px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  box-sizing: border-box;
+  padding: 28px;
+  overflow-y: auto;
+  border: 2px solid #8f7444;
+  border-radius: 18px;
+  background: #f6edda;
+}
+.ranking-board-dialog__header { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
+.ranking-board-dialog__header h2 { color:#24483a; font-size:30px; }
+.ranking-board-dialog__header p { margin-top:7px; }
+.ranking-board-scroll { max-width:100%; overflow-x:auto; padding-bottom:3px; }
+.ranking-board-columns { display:grid; grid-template-columns:repeat(3,minmax(240px,1fr)); gap:14px; min-width:780px; }
+.ranking-board-column { display:flex; min-height:485px; flex-direction:column; border:1px solid #bfae89; border-radius:12px; overflow:hidden; background:#fffaf0; }
+.ranking-board-column > header { padding:15px 14px 13px; color:#fff8e7; background:#254d3c; text-align:center; }
+.ranking-board-column h3 { margin:0; font-size:21px; }
+.ranking-board-column > header p { margin-top:4px; color:#e8ddc5; font-size:12px; }
+.ranking-board-column ol { list-style:none; margin:0; padding:5px 10px 10px; }
+.ranking-board-column li { display:grid; grid-template-columns:32px minmax(0,1fr) auto; align-items:center; gap:8px; min-height:38px; padding:0 7px; border-bottom:1px solid #e4dac5; font-variant-numeric:tabular-nums; }
+.ranking-board-column li:nth-child(-n+3) { background:#f4e7c8; }
+.ranking-board-rank { color:#755729; font-size:15px; font-weight:800; text-align:center; }
+.ranking-board-nickname { min-width:0; overflow:hidden; color:#3e493e; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
+.ranking-board-column strong { color:#3e493e; font-size:14px; white-space:nowrap; }
+.ranking-board-empty { margin:auto!important; padding:32px 14px; text-align:center; }
+.ranking-board-dialog__footer { display:flex; align-items:center; justify-content:center; gap:16px; color:#65705d; font-size:13px; }
+.ranking-board-dialog__footer button,.ranking-board-message button { border:0; padding:5px 0; color:#245b48; background:transparent; font:inherit; font-weight:700; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+.ranking-board-dialog__footer button:disabled,.ranking-board-message button:disabled { color:#85897c; cursor:default; }
+.ranking-board-message { padding:70px 20px; text-align:center; }
+.ranking-board-message--error { display:flex; flex-direction:column; align-items:center; gap:12px; color:#8b4033!important; }
+.ranking-board-stale { margin:0!important; padding:9px 12px; border-radius:8px; color:#805c28!important; background:#eddfbe; font-size:13px!important; text-align:center; }
+.ranking-board-dialog button:focus-visible { outline:3px solid #286b55; outline-offset:3px; }
+@media (max-width: 860px) {
+  .park-menu-dialog.ranking-board-dialog { padding:20px 16px; }
+  .ranking-board-dialog__header h2 { font-size:25px; }
+  .ranking-board-dialog__header p { font-size:13px; }
+  .ranking-board-scroll { padding-bottom:8px; scroll-snap-type:x proximity; }
+  .ranking-board-column { scroll-snap-align:start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ranking-board-columns { scroll-behavior:auto; }
+}

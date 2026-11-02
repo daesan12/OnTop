@@ -27,6 +27,7 @@
 }
 
 .park-hud { pointer-events: none; }
+.park-chat-layer { position:absolute; inset:0; z-index:45; pointer-events:none; }
 .park-hud button, .park-hud input, .park-chat__list { pointer-events: auto; }
 
 /* 채널 카드 · 프로필 바 (Figma 01-A / 공원 / 기본). */
@@ -50,7 +51,7 @@
   gap: 10px;
   height: 86px;
   padding: 12px 14px 12px 10px;
-  transform: scale(var(--park-ui-scale));
+  transform: scale(var(--park-hint-scale));
   transform-origin: top left;
 }
 
@@ -116,7 +117,7 @@
   flex-direction: column;
   gap: 10px;
   width: 430px;
-  transform: scale(var(--park-ui-scale));
+  transform: scale(var(--park-hint-scale));
   transform-origin: bottom left;
   color: #fffdf2;
   text-shadow: 0 1px 3px #101d17, 0 0 5px #101d17, 0 1px 1px #101d17;
@@ -127,7 +128,7 @@
   flex-direction: column;
   height: 270px;
   padding: 12px 0;
-  border-radius: 15px;
+  border-radius: 0;
   background: transparent;
 }
 
@@ -233,15 +234,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 28px;
-  padding: 16px 28px;
+  gap: 20px;
+  padding: 12px 20px;
   border: 1px solid rgba(247, 241, 229, 0.14);
   border-radius: 18px;
   color: #f7f1e5;
   background: var(--hud-glass);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   backdrop-filter: var(--hud-blur);
-  transform: translateX(-50%) scale(var(--park-ui-scale));
+  transform: translateX(-50%) scale(var(--park-hint-scale));
   transform-origin: bottom center;
 }
 

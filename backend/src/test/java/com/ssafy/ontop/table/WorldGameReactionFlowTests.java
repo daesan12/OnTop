@@ -6,10 +6,10 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
@@ -37,7 +37,7 @@ class WorldGameReactionFlowTests {
     private static final String TABLE = "table-" + UUID.nameUUIDFromBytes(
             "one\0table-1".getBytes(StandardCharsets.UTF_8));
     @LocalServerPort private int port;
-    @Autowired private OmokEngine engine;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean private OmokEngine engine;
     @Autowired private OmokFlowTests.TestClock clock;
     @Autowired private WorldChannelRegistry positions;
     @Autowired private AccessJwtService jwt;
@@ -48,6 +48,15 @@ class WorldGameReactionFlowTests {
     static void location(DynamicPropertyRegistry properties) {
         properties.add("ontop.world.proximity.tables[" + TABLE + "].x", () -> 0);
         properties.add("ontop.world.proximity.tables[" + TABLE + "].z", () -> 0);
+    }
+
+    @org.junit.jupiter.api.BeforeEach
+    void 종료연출_회귀는_추첨결과를_고정한다() {
+        org.mockito.Mockito.doAnswer(call -> {
+            engine.create(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3));
+            return null;
+        }).when(engine).createWithCoinToss(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -73,7 +82,7 @@ class WorldGameReactionFlowTests {
             assertThat(reaction(viewer).path("payload")).isEqualTo(event.path("payload"));
             assertThat(reaction(nearby).path("payload")).isEqualTo(event.path("payload"));
             assertThat(event.at("/payload/kind").asText()).isEqualTo("DEFEAT");
-            assertThat(event.at("/payload/motion").asText()).isEqualTo("table-flip");
+            assertThat(event.at("/payload/motion").asText()).isEqualTo("head-clutch");
             assertThat(event.at("/payload/userId").asText()).isEqualTo("101");
             assertThat(event.at("/payload/occurredAt").asText()).isEqualTo(clock.instant().toString());
             assertThat(event.path("payload").toString()).doesNotContain("privateState", "hand", "balance");

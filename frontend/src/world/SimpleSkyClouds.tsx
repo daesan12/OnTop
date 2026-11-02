@@ -5,15 +5,16 @@ import { Instances, type Part } from './art/Instances'
 import { environmentFrame } from './environmentState'
 
 // Eight silhouettes, three overlapping low-poly ellipsoids each. A single draw,
-// one shared twenty-triangle geometry, no alpha blending or cloud image/noise.
+// one shared eighty-triangle geometry, no alpha blending or cloud image/noise.
+const cloudScale = .55
 const clouds: Part[] = Array.from({ length: 8 }, (_, i) => {
   const angle = i * Math.PI / 4, radius = 230 + i % 3 * 50
   return [-1, 0, 1].map((lobe): Part => ({
-    p: [Math.cos(angle) * radius + lobe * 19, 110 + i % 3 * 12 + (lobe === 0 ? 5 : 0), Math.sin(angle) * radius],
-    s: [28, lobe === 0 ? 15 : 11, 17], c: '#ffffff',
+    p: [Math.cos(angle) * radius + lobe * 19 * cloudScale, 44 + i % 3 * 8 + (lobe === 0 ? 5 * cloudScale : 0), Math.sin(angle) * radius],
+    s: [28 * cloudScale, (lobe === 0 ? 15 : 11) * cloudScale, 17 * cloudScale], c: '#ffffff',
   }))
 }).flat()
-const day = new Color('#e5eced'), night = new Color('#343d51')
+const day = new Color('#fbfdfb'), night = new Color('#343d51')
 export function SimpleSkyClouds() {
   const group = useRef<Group>(null), material = useRef<MeshBasicMaterial>(null)
   useFrame(({ camera }) => {
@@ -22,8 +23,8 @@ export function SimpleSkyClouds() {
   })
   return <group ref={group} name="simple-sky-clouds" userData={{ keepOpaque: true }}>
     <Instances parts={clouds} shadow={false}
-      material={<meshBasicMaterial ref={material} fog={false} />}>
-      <icosahedronGeometry args={[1, 0]} />
+      material={<meshBasicMaterial ref={material} fog={false} toneMapped={false} />}>
+      <icosahedronGeometry args={[1, 1]} />
     </Instances>
   </group>
 }

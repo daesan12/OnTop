@@ -1,4 +1,4 @@
-import { MINI_PROPS } from '../../config';
+import { MINI_PROPS } from '../../park/mapConfig';
 const cart = MINI_PROPS.find(p => p.id === 'fish-bread')!;
 export type Point3 = [number, number, number];
 export const cartPoint = (x: number, y: number, z: number): Point3 => [cart.x + x, y, cart.z + z];

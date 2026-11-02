@@ -8,6 +8,9 @@ import { ParkRuntime } from '../../src/park/runtime/SpringParkRuntime'
 import { useGame } from '../../src/game/store'
 import { bridgeState } from '../fixtures/bridge'
 import { useFacilityState, useFacilityUseNotice } from '../../src/features/facilities/state'
+import { readFileSync } from 'node:fs'
+import { parseGame } from '../../src/game/protocol'
+import { useForfeit } from '../../src/game/forfeit'
 
 const table = { tableId: 'server-table', version: 1, capacity: 2, minimumPlayers: 2,
   seats: [{ seatNumber: 1, userId: null, ready: false }, { seatNumber: 2, userId: '102', ready: false }],
@@ -79,6 +82,23 @@ function nearTable() {
     benchId: '', fitnessId: '', fitnessStartedAt: 0, telescopeId: '', telescopeYaw: 0, telescopePitch: 0, followTargetId: '' })
   return TABLES[0]!.id
 }
+it('a waiting broadcast before the forfeit receipt releases the finished game request', async () => {
+  const wire = JSON.parse(readFileSync(new URL('../fixtures/alkkagi-forfeit.json', import.meta.url), 'utf8'))
+  useSession.setState({tableId:table.tableId,seatIndex:0,mapCompatible:true})
+  useGame.setState({game:parseGame(wire.initial.payload,'101'),permittedGameId:wire.initial.payload.gameId,
+    recovery:'RESTORED',pending:false,uncertain:false,awaitingVersion:-1,
+    start:{...wire.initialStart.payload,tableId:table.tableId}})
+  useForfeit.setState({attempt:null})
+  const request=runtime.forfeitGame(wire.initial.payload.gameId)
+  await vi.waitFor(()=>expect(socket.requests.some(r=>r.type==='GAME_FORFEIT')).toBe(true))
+  const sent=socket.requests.find(r=>r.type==='GAME_FORFEIT')!
+  socket.emit('GAME_START_STATE',{...wire.waiting.payload,tableId:table.tableId})
+  expect(useGame.getState().permittedGameId).toBe('')
+  socket.emit('GAME_FORFEIT_RESULT',{...wire.accepted.payload,actionId:sent.payload.actionId},sent.requestId)
+  expect(await request).toBe(true)
+  expect(useGame.getState().pending).toBe(false)
+  expect(useForfeit.getState().attempt?.status).toBe('approved')
+})
 it('a delayed movement rejection after approved seating cannot become the tablet error', async () => {
   const anchor = nearTable()
   runtime.move(1, 0, false, false)
@@ -111,6 +131,40 @@ it('a facility-blocked table action is temporary guidance and never becomes a pe
   expect(socket.requests.some(r => r.type === 'TABLE_JOIN')).toBe(false)
   useFacilityState.setState({ pending: false })
   expect(useFacilityUseNotice.getState().message).toBe('')
+})
+it('distant seating guidance expires after three seconds and repeated attempts restart its lifetime', async () => {
+  const anchor = nearTable(); avatars.get('101')!.current.z += 20
+  vi.useFakeTimers()
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  const message = '테이블 의자 가까이에서 앉기를 눌러주세요.'
+  expect(useSession.getState().error).toBe(message)
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(useSession.getState().error).toBe(message)
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(useSession.getState().error).toBe(message)
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(useSession.getState().error).toBe('')
+  expect(socket.requests.some(r => r.type === 'TABLE_JOIN')).toBe(false)
+  expect(useSession.getState().tableId).toBe('')
+})
+it('server activity guidance expires and an old timer does not erase a connection failure', async () => {
+  vi.useFakeTimers()
+  socket.emit('ERROR', { code: 'ACTIVITY_BUSY', message: '활동을 종료한 뒤 이동해주세요.' }, 'movement-error')
+  expect(useSession.getState().error).toBe('활동을 종료한 뒤 이동해주세요.')
+  await vi.advanceTimersByTimeAsync(3000)
+  expect(useSession.getState().error).toBe('')
+  const anchor = nearTable(); avatars.get('101')!.current.z += 20
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  await vi.advanceTimersByTimeAsync(1000)
+  socket.emit('ERROR', { code: 'TABLE_BUSY', message: '실제 테이블 설정 오류' }, 'configuration-error')
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(useSession.getState().error).toBe('실제 테이블 설정 오류')
+  expect(await runtime.joinTable(anchor)).toBe(false)
+  useSession.setState({ status: 'error', error: '서버 연결을 확인해주세요.' })
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(useSession.getState().error).toBe('서버 연결을 확인해주세요.')
 })
 it('direct seating does not inspect or assign a seat until the server approves and blocks duplicate requests', async () => {
   const anchor = nearTable(); socket.joinMode = 'hold'
@@ -176,13 +230,16 @@ it('a successful late query after closing is discarded and its subscription rele
   expect(useSession.getState().focusedAnchorId).toBe('')
   expect(useSession.getState().tableStates).toEqual({})
 })
-it('only server selector can select a game; forwards target without adding table/user authority', async () => {
+it('only server selector can select an available game without adding table/user authority', async () => {
   useSession.setState({ tableId: table.tableId, tableStates: { [table.tableId]: table } })
   expect(await runtime.selectGame('DICE', 5, 4000)).toBe(false)
   useSession.setState({ tableStates: { [table.tableId]: { ...table, selectorUserId: '101' } } })
   expect(await runtime.selectGame('DICE', 5, 3000)).toBe(false)
-  expect(await runtime.selectGame('DICE', 5, 4000)).toBe(true)
-  expect(socket.requests.find(r => r.type === 'GAME_SELECT')?.payload).toEqual({ gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer: 5 })
+  expect(await runtime.selectGame('DICE', 5, 4000)).toBe(false)
+  expect(await runtime.selectGame('LIAR_BRIDGE', 5)).toBe(false)
+  expect(socket.requests.some(r => r.type === 'GAME_SELECT')).toBe(false)
+  expect(await runtime.selectGame('ONE_CARD', 5)).toBe(true)
+  expect(socket.requests.find(r => r.type === 'GAME_SELECT')?.payload).toEqual({ gameCode: 'ONE_CARD', betAmountPerPlayer: 5 })
 })
 it('ordinary mode never guesses a public game ID or sends GAME_WATCH', async () => {
   expect(await runtime.watchGame('guess')).toBe(false)
@@ -192,11 +249,21 @@ it('ready confirms the displayed server fee and version; cancellation keeps its 
   useSession.setState({ tableId: table.tableId, tableStates: { [table.tableId]: { ...table, selectorUserId: '101' } } })
   expect(await runtime.setReady(true)).toBe(false)
   expect(socket.requests.some(r => r.type === 'READY_SET')).toBe(false)
-  expect(await runtime.selectGame('DICE', 5, 4000)).toBe(true)
+  expect(await runtime.selectGame('OMOK', 5)).toBe(true)
   expect(await runtime.setReady(true)).toBe(true)
   expect(socket.requests.filter(r => r.type === 'READY_SET').at(-1)?.payload).toEqual({ ready: true, betAmountPerPlayer: 5, expectedVersion: 5 })
   expect(await runtime.setReady(false)).toBe(true)
   expect(socket.requests.filter(r => r.type === 'READY_SET').at(-1)?.payload).toEqual({ ready: false })
+})
+it('blocks ready on a construction game from the server but still permits cancelling ready', async () => {
+  for (const gameCode of ['DICE', 'LIAR_BRIDGE']) {
+    useSession.setState({ tableId: table.tableId, tableStates: { [table.tableId]: { ...table, gameCode, betAmountPerPlayer: 5 } } })
+    const before = socket.requests.length
+    expect(await runtime.setReady(true)).toBe(false)
+    expect(socket.requests).toHaveLength(before)
+    expect(await runtime.setReady(false)).toBe(true)
+    expect(socket.requests.at(-1)?.payload).toEqual({ ready: false })
+  }
 })
 it('timeout ends pending state and a late approval cannot create a public table view', async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })

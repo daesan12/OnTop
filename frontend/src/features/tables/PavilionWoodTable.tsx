@@ -1,3 +1,5 @@
+import { SIMPLE_MAP } from '../../world/art/mapRenderProfile'
+import { PavilionWoodTable as PreviewPavilionWoodTable } from './PreviewPavilionWoodTable'
 import { TABLE_SEATS } from '../../config/table-seats'
 import { useMemo } from 'react'
 import { Instances, yawPart, type Part } from '../../world/art/Instances'
@@ -94,6 +96,7 @@ function WoodBatch({ parts }: { parts: readonly Part[] }) {
 
 /** Approved shared furniture for ordinary pavilions. TableShell retains all gameplay contracts. */
 export function PavilionWoodTable({ seatCount = 4 }: { seatCount?: number }) {
+  if (SIMPLE_MAP) return <PreviewPavilionWoodTable seatCount={seatCount} />
   const visible = useMemo(() => pavilionWoodParts(seatCount), [seatCount])
   return <group name="pavilion-wood-table">
     <group name="pavilion-table-body">

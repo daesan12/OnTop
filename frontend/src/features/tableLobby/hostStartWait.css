@@ -9,7 +9,7 @@
 .host-start-notice strong { font-size: 18px; }.host-start-notice p { margin: 7px 0 0; font-size: 14px; line-height: 1.6; }
 .host-start-notice button { flex: 0 0 auto; color: #fff5dd; background: transparent; border: 1px solid #c5a766; border-radius: 6px; padding: 7px 10px; cursor: pointer; }
 @media (min-width: 800px) and (min-height: 550px) {
-  .tablet-ready-content:is([data-players='3'], [data-players='4']):has(.host-start-wait) .tablet-portrait { height: 185px; }
+  .tablet-ready-content:is([data-players='3'], [data-players='4']):has(.host-start-wait) .tablet-portrait { height: 56px; }
   .tablet-ready-content:is([data-players='3'], [data-players='4']):has(.host-start-wait) .tablet-roster { margin-bottom: 8px; }
 }
 @media (max-width: 799px), (max-height: 549px) {

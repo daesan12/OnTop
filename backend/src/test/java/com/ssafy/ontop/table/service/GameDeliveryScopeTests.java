@@ -23,7 +23,7 @@ class GameDeliveryScopeTests {
     @Test void 퇴장뒤늦은종료와진행복구는로비로보내고_명시이력조회는유지한다() {
         scope.current("old");
         scope.left("leave", "table");
-        for (String status : List.of("FINISHED", "RESTORED")) {
+        for (String status : List.of("FINISHED", "RESTORED", "ELIMINATED")) {
             scope.recovery(null, new View(status, "old", 1L, mapper.createObjectNode(), null, null));
             assertThat(sent.getLast().at("/payload/status").asText()).isEqualTo("LOBBY");
             assertThat(sent.getLast().at("/payload/gameId").isNull()).isTrue();
@@ -38,11 +38,11 @@ class GameDeliveryScopeTests {
         assertThat(sent).hasSize(size + 1);
     }
 
-    @Test void 미착석이라도진행중첫복구와탈락복구는유지하고_종료만숨긴다() {
+    @Test void 미착석의_진행중첫복구는유지하고_종료와탈락은숨긴다() {
         for (String status : List.of("RESTORED", "ELIMINATED", "FINISHED")) {
             scope.recovery(null, new View(status, "old", 1L, mapper.createObjectNode(), null, null));
             assertThat(sent.getLast().at("/payload/status").asText())
-                    .isEqualTo(status.equals("FINISHED") ? "LOBBY" : status);
+                    .isEqualTo(status.equals("RESTORED") ? status : "LOBBY");
         }
         scope.close();
         scope.recovery(null, new View("RESTORED", "old", 2L, mapper.createObjectNode(), null, null));

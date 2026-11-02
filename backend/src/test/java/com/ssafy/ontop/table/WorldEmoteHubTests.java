@@ -3,12 +3,12 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.table.service.TableHub;
-import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
+import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
 import com.ssafy.ontop.world.service.WorldEmoteService;
-import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -125,6 +125,7 @@ class WorldEmoteHubTests {
         private void join(String channel) throws Exception {
             request("CHANNEL_JOIN", Map.of("channelId", channel));
             next("WORLD_STATE");
+            assertThat(next("WORLD_PARK_DEBRIS_STATE").at("/payload/items")).isEmpty();
         }
 
         private JsonNode request(String type, Object payload) throws Exception {

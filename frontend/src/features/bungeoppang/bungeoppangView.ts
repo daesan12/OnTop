@@ -1,11 +1,13 @@
 import { BUNGEOPPANG, bungeoppangV5Enabled } from "./config";
-import { MINI_PROPS } from "../../config";
+import { MINI_PROPS } from "../../park/mapConfig";
 import { FISH_CART_GRILL } from '../../config/fishCart';
 
 /** 현재 코드 기반 카트의 여섯 홈과 일치하는 개인 조리 표시. */
 const cart = MINI_PROPS.find((p) => p.id === "fish-bread")!;
 const layout = FISH_CART_GRILL;
 const [cx, , cz] = layout.center;
+const shopYaw = 'yaw' in cart ? cart.yaw : 0;
+const standDistance = cart.depth / 2 + 1;
 /** 뒷줄(Q W E), 앞줄(A S D). 플레이어는 +z 쪽에서 -z를 바라본다. */
 export const BUNG_GRILL = {
   center: [cart.x + cx, layout.surfaceY, cart.z + cz] as const,
@@ -29,8 +31,8 @@ export const bungeoppangView = {
   target: (bungeoppangV5Enabled ? [cart.x + cx, layout.surfaceY + .145, cart.z + cz - .02]
     : [cart.x + cx, layout.surfaceY, cart.z + cz]) as [number, number, number],
   fov: bungeoppangV5Enabled ? 36 : 40,
-  standX: cart.x,
-  standZ: cart.z + cart.depth / 2 + 1,
+  standX: cart.x + Math.sin(shopYaw) * standDistance,
+  standZ: cart.z + Math.cos(shopYaw) * standDistance,
 };
 
 /** Reveal only after the camera has cleared the local avatar; controls are already live. */
@@ -41,7 +43,7 @@ export function bungeoppangReturnOpacity(now: number, reducedMotion = false) {
   return t * t * (3 - 2 * t);
 }
 
-/** Monotonic wall time: hidden tabs and help do not pause the server's 60-second round. */
+/** Hidden tabs keep wall time; an acknowledged manual pause freezes the private cooking clock. */
 export const bungeoppangClock = {
   t: 0,
   durationMs: Number(BUNGEOPPANG.durationMs),
@@ -51,11 +53,12 @@ export const bungeoppangClock = {
   playAt: 0,
   countdownAt: 0,
   preparing: false,
+  pausedAt: null as number | null,
 };
 export function gameNow() {
   return Math.min(
     bungeoppangClock.durationMs,
-    Math.max(0, Math.floor(performance.now() - bungeoppangClock.playAt)),
+    Math.max(0, Math.floor((bungeoppangClock.pausedAt??performance.now()) - bungeoppangClock.playAt)),
   );
 }
 

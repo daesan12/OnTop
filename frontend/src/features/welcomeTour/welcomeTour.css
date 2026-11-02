@@ -1,0 +1,82 @@
+/* 첫 입장 환영 문구와 공원 체험 투어. HUD 유리 패널을 그대로 쓴다. */
+.welcome-tour-banner {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  z-index: 40;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 20px 32px;
+  border: 1px solid rgba(247, 241, 229, 0.14);
+  border-radius: 18px;
+  color: #f7f1e5;
+  background: var(--hud-glass);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: var(--hud-blur);
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%) scale(var(--park-ui-scale, 1));
+  transform-origin: top center;
+  animation: welcome-tour-in 0.6s ease-out both;
+}
+.welcome-tour-banner__title { margin: 0; font-size: 28px; font-weight: 700; line-height: 1.35; }
+.welcome-tour-banner__place { margin: 0; color: #e8b451; font-size: 18px; font-weight: 700; }
+
+.welcome-tour {
+  position: absolute;
+  top: calc(var(--park-edge, 20px) + 84px * var(--park-ui-scale, 1));
+  right: var(--park-edge, 20px);
+  z-index: 11;
+  box-sizing: border-box;
+  width: 300px;
+  max-width: calc((100vw - 32px) / var(--park-ui-scale, 1));
+  padding: 14px 16px 12px;
+  border: 1px solid rgba(247, 241, 229, 0.14);
+  border-radius: 16px;
+  color: #f7f1e5;
+  background: var(--hud-glass);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: var(--hud-blur);
+  pointer-events: auto;
+  transform: scale(var(--park-ui-scale, 1));
+  transform-origin: top right;
+}
+.welcome-tour--collapsed { width: auto; padding: 0; border-radius: 999px; }
+.welcome-tour button { font: inherit; cursor: pointer; }
+.welcome-tour button:focus-visible { outline: 3px solid #e8b451; outline-offset: 2px; }
+.welcome-tour__head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.welcome-tour__head b { flex: 1; font-size: 17px; }
+.welcome-tour__head span { color: #e8b451; font-size: 15px; font-weight: 700; }
+.welcome-tour__close { width: 32px; height: 32px; border: 0; border-radius: 50%; color: inherit; background: rgba(247, 241, 229, 0.12); font-size: 20px; line-height: 1; }
+.welcome-tour__steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.welcome-tour__steps li { display: flex; gap: 10px; align-items: flex-start; color: rgba(247, 241, 229, 0.7); }
+.welcome-tour__steps li[data-active] { color: #f7f1e5; }
+.welcome-tour__steps li[data-done] .welcome-tour__copy b { text-decoration: line-through; color: rgba(247, 241, 229, 0.55); }
+.welcome-tour__mark { display: grid; flex: 0 0 22px; place-items: center; height: 22px; border: 2px solid rgba(247, 241, 229, 0.4); border-radius: 50%; font-size: 13px; font-weight: 700; }
+.welcome-tour__steps li[data-active] .welcome-tour__mark { border-color: #e8b451; }
+.welcome-tour__steps li[data-done] .welcome-tour__mark { border-color: #7fbf7a; color: #10220e; background: #7fbf7a; }
+.welcome-tour__copy { display: grid; gap: 3px; }
+.welcome-tour__copy b { font-size: 15px; }
+.welcome-tour__copy small { font-size: 13px; line-height: 1.45; color: rgba(247, 241, 229, 0.85); }
+.welcome-tour__later { margin-top: 12px; padding: 6px 12px; border: 1px solid rgba(247, 241, 229, 0.25); border-radius: 999px; color: inherit; background: transparent; font-size: 13px; }
+.welcome-tour__resume { min-height: 40px; padding: 0 16px; border: 0; border-radius: 999px; color: #f7f1e5; background: transparent; font-size: 14px; font-weight: 700; }
+.welcome-tour--finished p { margin: 0; font-size: 14px; line-height: 1.55; }
+.welcome-tour--finished b { color: #e8b451; }
+.welcome-tour__note { margin-top: 6px !important; color: rgba(247, 241, 229, 0.7); font-size: 13px !important; }
+
+/* 완료 카드가 떠 있는 동안 옷장 버튼을 깜빡여 위치를 보여 준다. */
+.park-page:has(.welcome-tour[data-highlight='wardrobe']) .park-dock-wardrobe .park-shop-launcher {
+  outline: 3px solid #e8b451;
+  outline-offset: 3px;
+  animation: welcome-tour-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes welcome-tour-in { from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(var(--park-ui-scale, 1)); } }
+@keyframes welcome-tour-pulse { 50% { outline-color: rgba(232, 180, 81, 0.25); } }
+@media (prefers-reduced-motion: reduce) {
+  .welcome-tour-banner { animation: none; }
+  .park-page:has(.welcome-tour[data-highlight='wardrobe']) .park-dock-wardrobe .park-shop-launcher { animation: none; }
+}

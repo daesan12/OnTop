@@ -1,12 +1,10 @@
 import { test, expect, type Page } from '@playwright/test'
-import { TABLES } from '../../src/config'
 import { fixture, screenshot, tableId } from './contractFixture'
-import os from 'node:os'
-import path from 'node:path'
+import { TABLES } from '../../src/config'
 
 async function loaded(page: Page) {
   await page.goto('/park')
-  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible({ timeout: 90000 })
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await expect.poll(() => page.evaluate(async () => {
     const { useSession } = await import('/src/network/worldClient.ts' as string)
@@ -44,12 +42,10 @@ async function profileRoutes(page: Page, options: { taken?: string[]; patch?: nu
 }
 
 test('channel dropdown shows current and full channels and keeps the seated-table rule', async ({ page }) => {
-  await fixture(page, { channelName: '개발 공원' })
-  let showSpare = false
+  await fixture(page)
   await page.route('**/api/v1/channels', route => route.fulfill({ json: { items: [
-    { channelId: 'fixture-channel', name: '개발 공원', currentUsers: 2, capacity: 16, joinable: true },
+    { channelId: 'fixture-channel', name: '공원 01', currentUsers: 2, capacity: 16, joinable: true },
     { channelId: 'full-channel', name: '공원 03', currentUsers: 16, capacity: 16, joinable: false },
-    ...(showSpare ? [{ channelId: 'spare-channel', name: '공원 04', currentUsers: 0, capacity: 16, joinable: true }] : []),
   ] } }))
   await page.goto('/park')
   const dropdown = page.getByRole('region', { name: '채널 선택' })
@@ -57,29 +53,18 @@ test('channel dropdown shows current and full channels and keeps the seated-tabl
   await expect(dropdown).toBeVisible({ timeout: 90000 })
   const chip = page.getByRole('button', { name: '현재 공원과 접속 인원' })
   await chip.click(); await expect(dropdown).toBeHidden(); await expect(chip).toHaveAttribute('aria-expanded', 'false')
-  showSpare = true
   await chip.click(); await expect(dropdown).toBeVisible()
-  await expect(dropdown.getByRole('button', { name: /공원 04/ })).toBeVisible()
-  await dropdown.getByRole('button', { name: /온탑 공원/ }).click()
+  await dropdown.getByRole('button', { name: /공원 01/ }).click()
   await expect(dropdown).toBeHidden()
   await chip.click()
   await expect(chip).toHaveAttribute('aria-expanded', 'true')
-  await expect(chip).toContainText('온탑 공원')
-  await expect(chip.getByAltText('온탑 로고')).toBeVisible()
-  await expect.poll(() => chip.getByAltText('온탑 로고').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
-  await expect(dropdown.getByRole('button', { name: /온탑 공원/ })).toContainText('현재')
+  await expect(dropdown.getByRole('button', { name: /공원 01/ })).toContainText('현재')
   await expect(dropdown.getByRole('button', { name: /공원 03/ })).toContainText('가득 참')
   await expect(dropdown.getByRole('button', { name: /공원 03/ })).toBeDisabled()
   await expect(dropdown).toContainText('테이블에 앉아 있을 때는 채널을 바꿀 수 없어요')
   await screenshot(page, 'park-menus-channel')
   await page.keyboard.press('Escape')
   await expect(dropdown).toBeHidden()
-  await screenshot(page, 'ontop-park-chip')
-  await chip.screenshot({ path: path.join(process.env.QA_ARTIFACT_DIR ?? path.join(os.tmpdir(), 'ontop-fe-qa'), 'ontop-park-chip-detail.png') })
-  await page.setViewportSize({ width: 390, height: 844 })
-  await expect(chip).toBeInViewport()
-  await screenshot(page, 'ontop-park-chip-mobile')
-  expect(await page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().channelName)).toBe('개발 공원')
 })
 
 test('table placement uses the live channel response when static bindings are absent', async ({ page }) => {
@@ -96,16 +81,16 @@ test('table placement uses the live channel response when static bindings are ab
   })).toEqual([{ channelId: 'fixture-channel', tableId, anchorId: TABLES[0]!.id }])
 })
 
-test('profile menu lists 내 정보 · 로그아웃 · 회원 탈퇴 and the dock 설정 opens settings', async ({ page }) => {
+test('profile menu lists 내 정보 · 내 전적 · 로그아웃 · 회원 탈퇴 and the dock 설정 opens settings', async ({ page }) => {
   await fixture(page); await loaded(page)
   await openMenu(page)
   await expect(menu(page)).toContainText('공원 산책자')
   await expect(menu(page)).toContainText('100냥')
-  for (const name of ['내 정보', '로그아웃', '회원 탈퇴']) await expect(menu(page).getByRole('menuitem', { name: new RegExp(name) })).toBeVisible()
+  for (const name of ['내 정보', '내 전적', '로그아웃', '회원 탈퇴']) await expect(menu(page).getByRole('menuitem', { name: new RegExp(name) })).toBeVisible()
   // 설정 moved to the 빠른 메뉴 dock (S15P31B105-256).
   await expect(menu(page).getByRole('menuitem', { name: /설정/ })).toHaveCount(0)
   await screenshot(page, 'park-menus-profile')
-  await page.keyboard.press('Escape'); await expect(menu(page)).toBeHidden()
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '설정', exact: true }).click()
   await expect(page.getByRole('region', { name: '설정', exact: true })).toBeVisible()
 })

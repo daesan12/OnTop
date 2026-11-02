@@ -120,7 +120,7 @@ describe('stored terminal result contract', () => {
     { settlementStatus: 'PENDING', myCoinDelta: 0 },
     { settlementStatus: 'SETTLED', myCoinDelta: null },
     { settlementStatus: 'SETTLED', myCoinDelta: 7 },
-    { betAmountPerPlayer: 0 }, { betAmountPerPlayer: Number.MAX_SAFE_INTEGER + 1 },
+    { betAmountPerPlayer: -1 }, { betAmountPerPlayer: Number.MAX_SAFE_INTEGER + 1 },
     { endReason: null },
     { participants: [{ userId: '101' }, { userId: '102', result: null }] },
   ])('rejects an inconsistent stored result: %j', patch => {

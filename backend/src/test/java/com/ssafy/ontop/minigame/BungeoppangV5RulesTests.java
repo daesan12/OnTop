@@ -1,10 +1,12 @@
 package com.ssafy.ontop.minigame;
 
+import com.ssafy.ontop.minigame.dto.BungeoppangV4Responses;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Rules.Action;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Rules.Filling;
 import com.ssafy.ontop.minigame.service.BungeoppangV4Rules.FillingCounts;
 import com.ssafy.ontop.minigame.service.BungeoppangV5Rules;
 import com.ssafy.ontop.minigame.service.BungeoppangV5Rules.Order;
+import com.ssafy.ontop.minigame.service.BungeoppangV5Spec;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,7 +19,66 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BungeoppangV5RulesTests {
-    private final BungeoppangV5Rules rules = new BungeoppangV5Rules();
+    @ParameterizedTest
+    @CsvSource({"PIZZA", "CHOCOLATE"})
+    void 특수소_보너스는_새판에서_30퍼센트이고_기존_저장규칙은_50퍼센트를_유지한다(Filling filling) {
+        var items = filling == Filling.PIZZA ? new FillingCounts(0, 0, 1, 0) : new FillingCounts(0, 0, 0, 1);
+        var issued = List.of(new Order("1", 0, 0, items));
+        var log = List.of(Action.pour(1, 0, 0), Action.fill(2, 300, 0, filling),
+                Action.turn(3, 6_700, 0), Action.turn(4, 13_100, 0),
+                Action.deliver(5, 13_150, "1", "special-delivery"));
+
+        var current = rules.replay(log, heats(100), issued);
+        var previous = legacy.replay(log, heats(100), issued);
+
+        assertThat(current.score()).isEqualTo(13);
+        assertThat(current.bonusScore()).isEqualTo(3);
+        assertThat(previous.score()).isEqualTo(15);
+        assertThat(previous.bonusScore()).isEqualTo(5);
+    }
+
+    @Test
+    void 세번째_뒤_손님을_먼저_제공하면_대기_손님마다_한번만_5점을_감점한다() {
+        var items = new FillingCounts(1, 0, 0, 0);
+        var issued = new ArrayList<>(List.of(new Order("1", 0, 0, items), new Order("3", 1, 0, items),
+                new Order("9", 2, 0, items)));
+        var log = new ArrayList<Action>();
+        String[] customers = {"3", "15", "20", "38"};
+        for (int i = 0; i < customers.length; i++) {
+            int t = i * 14_000;
+            log.add(Action.pour(log.size() + 1, t, 0));
+            log.add(Action.fill(log.size() + 1, t + 300, 0, Filling.BEAN));
+            log.add(Action.turn(log.size() + 1, t + 6_700, 0));
+            log.add(Action.turn(log.size() + 1, t + 13_100, 0));
+            log.add(new Action(log.size() + 1, "DELIVER", t + 13_150, null, null, null,
+                    customers[i], "delivery-" + i));
+            if (i < customers.length - 1) {
+                issued.add(new Order(customers[i + 1], 1, log.size(), items));
+            }
+        }
+
+        var engine = new BungeoppangV5Rules();
+        var snapshot = BungeoppangV5Spec.calculationRules(BungeoppangV5Spec.rules());
+        var normal = engine.replay(log, Collections.nCopies(4, 100), issued, snapshot);
+        var result = engine.replay(log, Collections.nCopies(4, 100), issued, snapshot, 5);
+
+        assertThat(result.score()).isEqualTo(normal.score() - 10);
+        assertThat(result.complainedOrderIds()).containsExactly("1", "9");
+        assertThat(engine.replay(log.subList(0, 5), Collections.nCopies(4, 100), issued, snapshot, 5).complainedOrderIds()).isEmpty();
+        assertThat(engine.replay(log.subList(0, 15), Collections.nCopies(4, 100), issued, snapshot, 5).complainedOrderIds())
+                .containsExactly("1");
+    }
+    /** New rounds: 120 s, rush from 90 s. Cases that do not depend on the play length use this snapshot. */
+    private final Replay rules = new Replay(BungeoppangV5Spec.calculationRules(BungeoppangV5Spec.rules()));
+    /** Rounds stored with v5-20261027.1: 180 s, rush from 150 s. */
+    private final Replay legacy = new Replay(BungeoppangV5Spec.calculationRules(BungeoppangV5Spec.legacyRules()));
+
+    /** The engine with one round's rules snapshot, as the service passes the stored one. */
+    private record Replay(BungeoppangV4Responses.Rules snapshot) {
+        BungeoppangV5Rules.Result replay(List<Action> log, List<Integer> heats, List<Order> issued) {
+            return new BungeoppangV5Rules().replay(log, heats, issued, snapshot);
+        }
+    }
 
     @Test
     void FILL부터_가열해_2000ms_FILL_6400ms_TURN의_앞면은_55다() {
@@ -116,8 +177,18 @@ class BungeoppangV5RulesTests {
     }
 
     @Test
-    void 마지막_30초_가속은_148000ms부터_152000ms까지_58이다() {
+    void 신규_2분_판의_마지막_30초_가속은_88000ms부터_92000ms까지_58이다() {
         var result = rules.replay(List.of(
+                Action.pour(1, 87_000, 0),
+                Action.fill(2, 88_000, 0, Filling.BEAN),
+                Action.turn(3, 92_000, 0)), heats(100), opening());
+
+        assertThat(result.slots().getFirst().front()).isEqualTo(58);
+    }
+
+    @Test
+    void 기존_3분_판의_마지막_30초_가속은_148000ms부터_152000ms까지_58이다() {
+        var result = legacy.replay(List.of(
                 Action.pour(1, 147_000, 0),
                 Action.fill(2, 148_000, 0, Filling.BEAN),
                 Action.turn(3, 152_000, 0)), heats(100), opening());
@@ -125,15 +196,41 @@ class BungeoppangV5RulesTests {
         assertThat(result.slots().getFirst().front()).isEqualTo(58);
     }
 
+    /** 6000 ms of cooking: all normal is 75, one normal ms then rush is 99, all rush burns at 100. */
+    @ParameterizedTest
+    @CsvSource({"90000,true", "150000,false"})
+    void 가속은_판의_rushFromMs_정각부터_적용하고_그_전_1ms는_평시다(int rushFrom, boolean twoMinute) {
+        Replay replay = twoMinute ? rules : legacy;
+
+        assertThat(replay.replay(bread(rushFrom - 6_001, rushFrom - 1), heats(100), opening())
+                .slots().getFirst().front()).isEqualTo(75);
+        assertThat(replay.replay(bread(rushFrom - 1, rushFrom + 5_999), heats(100), opening())
+                .slots().getFirst().front()).isEqualTo(99);
+        assertThatThrownBy(() -> replay.replay(bread(rushFrom, rushFrom + 6_000), heats(100), opening()))
+                .isInstanceOfSatisfying(MinigameException.class,
+                        error -> assertThat(error.detail()).isEqualTo("BURNT_BREAD"));
+    }
+
+    @Test
+    void 기존_3분_판은_120초_이후_행동을_받고_같은_로그를_2분_규칙은_거절한다() {
+        var log = List.of(Action.pour(1, 120_000, 0), Action.fill(2, 120_300, 0, Filling.BEAN),
+                Action.turn(3, 126_700, 0));
+
+        assertThat(legacy.replay(log, heats(100), opening()).slots().getFirst().front()).isEqualTo(80);
+        assertRejected(rules, log, heats(100), opening(), "BAD_ENTRY", 0);
+    }
+
+    /** Eleven breads made one after another end at 145.1 s, so this uses the 180 s snapshot; both hold 10. */
     @Test
     void 쟁반은_10개까지_허용하고_11번째_완성품은_거절한다() {
         List<Action> ten = goldenBreads(10);
-        var result = rules.replay(ten, heats(100, 20), opening());
+        var result = legacy.replay(ten, heats(100, 20), opening());
         assertThat(result.tray()).hasSize(10);
         assertThat(result.tray()).extracting(bread -> bread.breadId())
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L);
 
-        assertRejected(goldenBreads(11), heats(100, 20), "TRAY_FULL", 43);
+        assertRejected(legacy, goldenBreads(11), heats(100, 20), opening(), "TRAY_FULL", 43);
+        assertThat(BungeoppangV5Spec.rules().trayCapacity()).isEqualTo(BungeoppangV5Spec.legacyRules().trayCapacity());
     }
 
     @Test
@@ -202,6 +299,7 @@ class BungeoppangV5RulesTests {
         }
     }
 
+    /** 3600 actions 50 ms apart need the 180 s window; the 3600 limit itself is the same in both snapshots. */
     @Test
     void 로그는_3600건까지_받고_3601건째는_거절한다() {
         var log = new ArrayList<Action>();
@@ -211,21 +309,31 @@ class BungeoppangV5RulesTests {
             log.add(pour ? Action.pour(i + 1, i * 50, slot) : Action.discard(i + 1, i * 50, slot));
         }
 
-        var result = rules.replay(log, heats(100), opening());
+        var result = legacy.replay(log, heats(100), opening());
         assertThat(result.lastAt()).isEqualTo(179_950);
         assertThat(result.grillDiscarded()).isEqualTo(1_800);
         assertThat(result.failed()).isZero();
         assertThat(result.heatCursor()).isZero();
 
+        assertRejected(legacy, append(log, Action.pour(3_601, 179_999, 0)), heats(100), opening(),
+                "LOG_TOO_LONG", -1);
         assertRejected(append(log, Action.pour(3_601, 179_999, 0)), heats(100), "LOG_TOO_LONG", -1);
     }
 
     @Test
-    void 행동_시각은_180초_직전까지만_받는다() {
-        var result = rules.replay(List.of(Action.pour(1, 179_999, 0)), heats(100), opening());
+    void 신규_2분_판의_행동_시각은_120초_직전까지만_받는다() {
+        var result = rules.replay(List.of(Action.pour(1, 119_999, 0)), heats(100), opening());
         assertThat(result.slots().getFirst().phase()).isEqualTo("batter");
 
-        assertRejected(List.of(Action.pour(1, 180_000, 0)), heats(100), "BAD_ENTRY", 0);
+        assertRejected(List.of(Action.pour(1, 120_000, 0)), heats(100), "BAD_ENTRY", 0);
+    }
+
+    @Test
+    void 기존_3분_판의_행동_시각은_180초_직전까지만_받는다() {
+        var result = legacy.replay(List.of(Action.pour(1, 179_999, 0)), heats(100), opening());
+        assertThat(result.slots().getFirst().phase()).isEqualTo("batter");
+
+        assertRejected(legacy, List.of(Action.pour(1, 180_000, 0)), heats(100), opening(), "BAD_ENTRY", 0);
     }
 
     @Test
@@ -306,12 +414,23 @@ class BungeoppangV5RulesTests {
 
     private void assertRejected(List<Action> log, List<Integer> heats, List<Order> history, String detail,
             int index) {
-        assertThatThrownBy(() -> rules.replay(log, heats, history))
+        assertRejected(rules, log, heats, history, detail, index);
+    }
+
+    private static void assertRejected(Replay replay, List<Action> log, List<Integer> heats, List<Order> history,
+            String detail, int index) {
+        assertThatThrownBy(() -> replay.replay(log, heats, history))
                 .isInstanceOfSatisfying(MinigameException.class, error -> {
                     assertThat(error.status()).isEqualTo(422);
                     assertThat(error.detail()).isEqualTo(detail);
                     assertThat(error.index()).isEqualTo(index);
                 });
+    }
+
+    /** A bean on slot 0 poured 300 ms before {@code fill} and turned at {@code turn}. */
+    private static List<Action> bread(int fill, int turn) {
+        return List.of(Action.pour(1, fill - 300, 0), Action.fill(2, fill, 0, Filling.BEAN),
+                Action.turn(3, turn, 0));
     }
 
     private static List<Action> append(List<Action> log, Action action) {

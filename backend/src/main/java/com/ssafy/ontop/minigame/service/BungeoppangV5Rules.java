@@ -28,7 +28,8 @@ public final class BungeoppangV5Rules {
     public record Result(long score, int made, int successfulMade, int golden, int failed, int wasted,
             int grillDiscarded, int trayDiscarded, int combo, int maxCombo, int served,
             int customersServed, int specialServed, long bonusScore, int heatCursor,
-            List<SlotState> slots, List<Bread> tray, List<Order> activeOrders, Integer lastAt) {
+            List<SlotState> slots, List<Bread> tray, List<Order> activeOrders, Integer lastAt,
+            List<String> complainedOrderIds) {
     }
 
     private enum Phase { EMPTY, BATTER, FRONT, BACK }
@@ -42,10 +43,18 @@ public final class BungeoppangV5Rules {
         private Integer lastAt;
     }
 
-    /** Replays an action prefix against the issued heat list and the full order issuance history. */
-    public Result replay(List<Action> log, List<Integer> heats, List<Order> issued) {
-        BungeoppangV4Responses.Rules rules = BungeoppangV5Spec.calculationRules();
-        if (log == null || heats == null || issued == null) {
+    /**
+     * Replays an action prefix against the issued heat list and the full order issuance history.
+     * {@code rules} is the round's stored snapshot, so an existing round keeps its play length and rush start.
+     */
+    public Result replay(List<Action> log, List<Integer> heats, List<Order> issued,
+            BungeoppangV4Responses.Rules rules) {
+        return replay(log, heats, issued, rules, 0);
+    }
+
+    public Result replay(List<Action> log, List<Integer> heats, List<Order> issued,
+            BungeoppangV4Responses.Rules rules, int queueComplaintPenalty) {
+        if (rules == null || log == null || heats == null || issued == null) {
             throw invalid("BAD_ENTRY", -1);
         }
         if (log.size() > rules.maxLogEntries()) {
@@ -73,6 +82,7 @@ public final class BungeoppangV5Rules {
         int specialServed = 0;
         long score = 0;
         long bonusScore = 0;
+        Set<String> complained = new HashSet<>();
 
         for (int index = 0; index < log.size(); index++) {
             Action entry = log.get(index);
@@ -119,6 +129,14 @@ public final class BungeoppangV5Rules {
                 }
                 tray = remaining;
                 score = Math.addExact(score, delta);
+                if (queueComplaintPenalty > 0) {
+                    int arrival = arrivalIndex(order, log);
+                    for (Order waiting : active) {
+                        if (arrival - arrivalIndex(waiting, log) >= 3 && complained.add(waiting.orderId())) {
+                            score = Math.subtractExact(score, queueComplaintPenalty);
+                        }
+                    }
+                }
                 bonusScore = Math.addExact(bonusScore, bonus);
                 served += count;
                 customersServed++;
@@ -220,7 +238,15 @@ public final class BungeoppangV5Rules {
                 Collections.unmodifiableList(slotStates),
                 Collections.unmodifiableList(new ArrayList<>(tray)),
                 List.copyOf(active),
-                log.isEmpty() ? null : log.getLast().t());
+                log.isEmpty() ? null : log.getLast().t(), complained.stream().sorted().toList());
+    }
+
+    private static int arrivalIndex(Order order, List<Action> log) {
+        if (order.availableAfterSeq() == 0) {
+            return order.customerSlot();
+        }
+        return 2 + (int) log.stream().filter(action -> action.seq() <= order.availableAfterSeq()
+                && "DELIVER".equals(action.action())).count();
     }
 
     /** Only the customer slot freed by an approved DELIVER is refilled, right after that action. */

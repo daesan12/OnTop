@@ -1,3 +1,5 @@
+import { SIMPLE_MAP } from './mapRenderProfile'
+import { PropBuilder as MapPropBuilder, hipRoof as mapHipRoof } from './previewPropGeometry'
 import {
   BoxGeometry,
   BufferGeometry,
@@ -26,7 +28,7 @@ export type PropFinish =
   'wood' | 'metal' | 'gold' | 'stone' | 'paint' | 'tile' | 'glow'
 
 /** Build static, vertex-coloured material batches; dispose construction geometry immediately. */
-export class PropBuilder {
+class DevPropBuilder {
   private readonly baked: ReturnType<typeof takeBakedProp>
   private boxSource?: BufferGeometry
   private sphereSource?: BufferGeometry
@@ -171,6 +173,9 @@ export class PropBuilder {
     return art
   }
 }
+export const PropBuilder = SIMPLE_MAP ? MapPropBuilder : DevPropBuilder
+export type PropBuilder = MapPropBuilder | DevPropBuilder
+
 /** Four swept hip-roof faces, curved tile rolls and raised corner ridges. */
 export function hipRoof(
   b: PropBuilder,
@@ -180,6 +185,8 @@ export function hipRoof(
   rise: number,
   red = false,
 ) {
+  if (SIMPLE_MAP) return mapHipRoof(b as MapPropBuilder, width, depth, y, rise, red)
+
   const color = red ? '#b34c2c' : '#414957',
     ridge = red ? '#d57943' : '#737c85'
   const corners: XYZ[] = [

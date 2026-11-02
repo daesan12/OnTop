@@ -12,36 +12,38 @@ import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.action.GameForfeitResult;
-import com.ssafy.ontop.game.reconnect.GameReconnectService;
-import com.ssafy.ontop.game.result.GameDefeatConfirmed;
-import com.ssafy.ontop.game.result.GameResultService;
-import com.ssafy.ontop.game.result.GameResultCommitted;
-import com.ssafy.ontop.game.result.GameResultView;
-import com.ssafy.ontop.game.start.GameStartCommand;
-import com.ssafy.ontop.game.start.GameStartCommand.Participant;
-import com.ssafy.ontop.game.start.GameStartGateway;
-import com.ssafy.ontop.game.start.GameStartResult;
-import com.ssafy.ontop.game.start.CommittedGameStartService;
-import com.ssafy.ontop.game.state.GameStateGateway;
-import com.ssafy.ontop.game.state.GameStateChanged;
-import com.ssafy.ontop.game.state.GameStateView;
+import com.ssafy.ontop.game.omok.service.OmokForfeitDirection;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardPranks;
+import com.ssafy.ontop.game.reconnect.GameReconnectService;
+import com.ssafy.ontop.game.result.GameDefeatConfirmed;
+import com.ssafy.ontop.game.result.GameResultCommitted;
+import com.ssafy.ontop.game.result.GameResultService;
+import com.ssafy.ontop.game.result.GameResultView;
+import com.ssafy.ontop.game.start.CommittedGameStartService;
+import com.ssafy.ontop.game.start.GameStartCommand.Participant;
+import com.ssafy.ontop.game.start.GameStartCommand;
+import com.ssafy.ontop.game.start.GameStartGateway;
+import com.ssafy.ontop.game.start.GameStartResult;
+import com.ssafy.ontop.game.state.GameStateChanged;
+import com.ssafy.ontop.game.state.GameStateGateway;
+import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.table.domain.TableGame;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.table.domain.TableStartAttempt;
+import com.ssafy.ontop.table.dto.DiceLedgerSpectatorPing;
 import com.ssafy.ontop.table.dto.GameSpectatorChatMessage;
 import com.ssafy.ontop.table.dto.OmokSpectatorPing;
 import com.ssafy.ontop.table.dto.TableListResponse;
-import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.dto.TableProtocol.Request;
 import com.ssafy.ontop.table.dto.TableProtocol.RequestException;
+import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.dto.TableSummaryResponse;
 import com.ssafy.ontop.table.websocket.ConnectionCloseReason;
 import com.ssafy.ontop.table.websocket.TablePeer;
 import com.ssafy.ontop.table.websocket.WebSocketHeartbeat;
-import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.DynamicChannelsProperties;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldEmoteProperties;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.domain.ChatText;
@@ -50,6 +52,7 @@ import com.ssafy.ontop.world.dto.WorldGameReaction;
 import com.ssafy.ontop.world.map.LegacyParkTables;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
+import com.ssafy.ontop.world.service.ParkDebrisStore;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
@@ -81,8 +84,8 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -119,6 +122,7 @@ public class TableHub {
     private final Map<String, String> seatedGames = new HashMap<>();
     private final Map<String, String> watching = new HashMap<>();
     private final Map<String, TableStartAttempt> starts = new HashMap<>();
+    private final Map<String, Set<String>> inactiveGameParticipants = new HashMap<>();
     private final Map<String, Long> startRevisions = new HashMap<>();
     private final Optional<GameStartGateway> gateway;
     private final boolean startRehearsal;
@@ -140,6 +144,7 @@ public class TableHub {
     private final PreparedParkMap preparedPark;
     private final WorldFollowService follows = new WorldFollowService();
     private final Map<String, ReactionRound> reactionRounds = new HashMap<>();
+    private final ParkDebrisStore parkDebris = new ParkDebrisStore();
     private com.ssafy.ontop.world.service.WorldClock worldClock = new com.ssafy.ontop.world.service.WorldClock();
     private final Map<String, WaitingReconnect> waitingReconnects = new HashMap<>();
     private final Map<String, Long> connectionStarted = new HashMap<>();
@@ -152,6 +157,15 @@ public class TableHub {
 
     @Autowired(required = false)
     public void configureWorldClock(com.ssafy.ontop.world.service.WorldClock clock) { worldClock = clock; }
+    private final AlkkagiSpectatorPolicy alkkagiSpectators = new AlkkagiSpectatorPolicy();
+    private com.ssafy.ontop.world.fitness.FitnessRewardService fitnessRewards;
+
+    @Autowired(required = false)
+    public void configureFitnessRewards(com.ssafy.ontop.world.fitness.FitnessRewardService service) {
+        fitnessRewards = service;
+        service.sink((userId, receipt) -> sendJumpmap(userId, "FITNESS_REWARD",
+                Map.of("userId", userId, "receipt", receipt)));
+    }
     private SpectatorEventPolicy spectatorEvents = new SpectatorEventPolicy();
     private Optional<OneCardEngine> prankEngine = Optional.empty();
     private final OneCardPranks onecardPranks = new OneCardPranks();
@@ -169,6 +183,22 @@ public class TableHub {
 
     @Autowired(required = false)
     public void configureSpectatorEvents(SpectatorEventPolicy policy) { spectatorEvents = policy; }
+    // 점프맵 서비스가 없으면(비활성) 판정 신호를 버린다.
+    private java.util.function.Consumer<java.util.List<WorldChannelRegistry.JumpmapDelivery>> jumpmapSignals = ignored -> { };
+
+    @Autowired(required = false)
+    public void configureJumpmap(com.ssafy.ontop.world.jumpmap.JumpmapService service) {
+        jumpmapSignals = deliveries -> deliveries.forEach(delivery -> service.accept(delivery.signal(), delivery.recipients()));
+        service.sink(this::sendJumpmap);
+    }
+
+    /** 점프맵 저장 스레드에서도 호출된다. 같은 회원의 모든 연결(동시에 하나)에 송신 큐로만 넣는다. */
+    private synchronized void sendJumpmap(String userId, String type, java.util.Map<String, Object> payload) {
+        String encoded = protocol.encode(null, type, payload);
+        for (Member member : members.values()) {
+            if (member.userId().equals(userId)) member.peer().offer(encoded);
+        }
+    }
     private final ExecutorService startWorkers = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService heartbeatTimer = Executors.newSingleThreadScheduledExecutor(
             Thread.ofPlatform().daemon(true).name("table-heartbeat").factory());
@@ -203,6 +233,13 @@ public class TableHub {
 
     // 실제 점유가 생기거나 풀린 뒤에만 호출한다. 시작·종료는 leaseId로 짝을 맞춘다.
     private void recordFacility(Long accountId, WorldFacilityService.Lease lease, String endReason) {
+        if (fitnessRewards != null) {
+            if (endReason == null) {
+                fitnessRewards.started(accountId, lease);
+            } else {
+                fitnessRewards.ended(lease);
+            }
+        }
         recordBehavior(endReason == null ? BehaviorEventType.FACILITY_USED : BehaviorEventType.FACILITY_RELEASED,
                 accountId, builder -> {
                     builder.channelId(lease.channelId()).prop("leaseId", lease.leaseId())
@@ -440,6 +477,7 @@ public class TableHub {
                             (channelId + "\0table-" + number).getBytes(StandardCharsets.UTF_8));
                     rooms.put(tableId, new TableRoom(tableId));
                     tableChannels.put(tableId, channelId);
+                    tableAnchors.put(tableId, "table-" + number);
                 }
             }
         }
@@ -454,6 +492,7 @@ public class TableHub {
         heartbeatTimer.scheduleWithFixedDelay(this::checkHostWaits, 100, 100, TimeUnit.MILLISECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::pruneDynamicChannels, 1, 1, TimeUnit.SECONDS);
         heartbeatTimer.scheduleWithFixedDelay(this::tickOneCardPranks, 33, 33, TimeUnit.MILLISECONDS);
+        heartbeatTimer.scheduleWithFixedDelay(this::expireParkDebris, 1, 1, TimeUnit.SECONDS);
     }
 
     public synchronized void connect(WebSocketSession session) {
@@ -469,6 +508,7 @@ public class TableHub {
         // 사용자 확정: 기존 연결이 살아 있으면 새 연결만 거절한다.
         boolean reservedStart = committedStarts.isPresent() && seating.containsKey(userId)
                 && starts.containsKey(seating.get(userId)) && starts.get(seating.get(userId)).frozen();
+        checkDuplicateConnection(userId, user.sessionId());
         if (seating.containsKey(userId) && !reservedStart && !reservedLobby
                 || members.values().stream().anyMatch(member -> member.userId().equals(userId))) {
             return false;
@@ -483,16 +523,64 @@ public class TableHub {
         return true;
     }
 
+    private Duration duplicateProbe = Duration.ZERO;
+    // 사용자 → 기존 연결 생존 확인 시작 시각(nanoTime)
+    private final Map<String, Long> duplicateProbes = new HashMap<>();
+
+    /** 0이면 끈다(기존 1008 거절). 후보값 3초는 스테이징 측정 전까지 운영값으로 확정하지 않는다. */
+    @Autowired(required = false)
+    public void configureDuplicateProbe(@Value("${ontop.websocket.duplicate-probe-timeout:0s}") String value) {
+        // 변환 서비스가 없는 최소 구성에서도 시작하도록 문자열을 직접 해석한다("500ms", "3s").
+        Duration timeout = org.springframework.boot.convert.DurationStyle.detectAndParse(value);
+        if (timeout.isNegative() || timeout.compareTo(heartbeatTimeout) >= 0) {
+            throw new IllegalArgumentException("기존 연결 확인 시간은 0 이상, heartbeat 제한 시간 미만이어야 합니다.");
+        }
+        duplicateProbe = timeout;
+    }
+
+    /**
+     * 같은 로그인 세션의 연결이 이미 있으면(half-open 의심) 기존 연결에 즉시 ping을 보내고 새 연결은 재시도로 돌려보낸다.
+     * 기존 연결이 기한 안에 응답했으면(다른 탭) 그대로 두고 기존 1008 거절로 넘어간다. 다른 로그인 세션은 검사하지 않는다.
+     */
+    private void checkDuplicateConnection(String userId, String loginSessionId) {
+        if (duplicateProbe.isZero()) return;
+        Member existing = members.values().stream().filter(member -> member.userId().equals(userId)).findFirst().orElse(null);
+        if (existing == null) {
+            duplicateProbes.remove(userId);
+            return;
+        }
+        if (!java.util.Objects.equals(loginSessions.get(existing.sessionId()), loginSessionId)) return;
+        long now = System.nanoTime();
+        Long started = duplicateProbes.get(userId);
+        // heartbeat 점검 주기(100ms)와 정리 여유를 더해 기한이 지난 뒤에도 남아 있으면 살아 있는 연결이다.
+        long settle = duplicateProbe.toNanos() + Duration.ofMillis(300).toNanos();
+        if (started == null || now - started > settle * 4) {
+            duplicateProbes.put(userId, now);
+            existing.peer().probeNow(duplicateProbe);
+            throw new com.ssafy.ontop.table.websocket.RetryableConnectionException("기존 연결을 확인하고 있습니다.");
+        }
+        if (now - started < settle) {
+            throw new com.ssafy.ontop.table.websocket.RetryableConnectionException("기존 연결을 확인하고 있습니다.");
+        }
+        duplicateProbes.remove(userId);
+    }
+
     private void activateConnection(Member member, String sessionId, String loginSessionId, boolean reservedStart) {
         expireWaitingReconnects();
         WaitingReconnect lease = waitingReconnects.get(member.userId());
+        String tableId = seating.get(member.userId());
         if (lease != null && java.util.Objects.equals(lease.loginSessionId(), loginSessionId)) {
             waitingReconnects.remove(member.userId());
-            String tableId = seating.get(member.userId());
             if (tableId != null) {
                 member.peer().offer(protocol.encode(null, "TABLE_STATE", publicSnapshot(rooms.get(tableId))));
                 replyHostWait(member, rooms.get(tableId), null);
+                // 유지된 대기석도 frozen 좌석처럼 현재 시작 상태를 함께 받아야 다음 판 준비 조건을 판단한다.
+                replyStartState(member, tableId, null);
             }
+        } else if (reservedStart) {
+            // frozen 좌석은 TABLE_STATE를 다시 받을 기회가 다음 테이블 방송뿐이다. 복구 판정보다 먼저 보낸다.
+            member.peer().offer(protocol.encode(null, "TABLE_STATE", publicSnapshot(rooms.get(tableId))));
+            replyStartState(member, tableId, null);
         }
         member.delivery().current(seatedGames.get(member.userId()));
         TableStartAttempt pendingAttempt = starts.get(seating.get(member.userId()));
@@ -501,9 +589,11 @@ public class TableHub {
             member.delivery().starting();
         }
         gameResults.ifPresent(service -> service.connected(sessionId, member.accountId(), member.delivery()::result));
+        inactiveGameParticipants.forEach((game, users) -> {
+            if (users.contains(member.userId())) { member.delivery().rememberDeparture(game); }
+        });
         reconnect.ifPresent(service -> service.connected(member.accountId(), sessionId, loginSessionId,
-                member.delivery()::recovery, member.delivery()::allowsFinished));
-        if (reservedStart) { replyStartState(member, seating.get(member.userId()), null); }
+                member.delivery()::recovery, member.delivery()::allowsFinished, member.delivery()::hasDeparted));
     }
 
     private Member register(WebSocketSession session, String userId, Long accountId) {
@@ -589,7 +679,7 @@ public class TableHub {
             int available = snapshot.capacity() - occupied;
             return new TableSummaryResponse(tableId, snapshot.capacity(), snapshot.minimumPlayers(), occupied,
                     available, ready, snapshot.allReady(), status, available > 0 && status.equals("WAITING"),
-                    snapshot.gameCode(), snapshot.targetScore(), snapshot.betAmountPerPlayer(), publicGameId(tableId), snapshot.selectorUserId(), snapshot.selectedPlayers(), snapshot.startMode(), tableAnchors.get(tableId));
+                    snapshot.gameCode(), snapshot.targetScore(), snapshot.betAmountPerPlayer(), publicGameId(tableId), snapshot.selectorUserId(), snapshot.selectedPlayers(), snapshot.startMode(), tableAnchors.get(tableId), chairCount(snapshot));
         }).toList());
     }
 
@@ -757,14 +847,17 @@ public class TableHub {
                 replyHostWait(member, room, request.requestId());
                 return;
             }
+            if (request.type().equals("ALKKAGI_SPECTATOR_SEND")) { sendAlkkagiSpectator(sessionId, member, request); return; }
             // 참가자에게도 로비 복구 오류 대신 관전 권한 오류를 주도록 복구 게이트 앞에서 처리한다.
             // 관전자의 로비 자격은 canSpectate에서 다시 검사한다.
-            if (request.type().equals("GAME_SPECTATOR_CHAT_SEND") || request.type().equals("OMOK_SPECTATOR_PING_SEND")) {
+            if (request.type().equals("GAME_SPECTATOR_CHAT_SEND") || request.type().equals("OMOK_SPECTATOR_PING_SEND")
+                    || request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND")) {
                 sendSpectatorEvent(sessionId, member, request);
                 return;
             }
             if (member.accountId() != null && reconnect.isPresent()
-                    && !reconnect.get().canUseLobby(member.accountId(), sessionId)) {
+                    && !reconnect.get().canUseLobby(member.accountId(), sessionId)
+                    && !restoredChannelAccess(member, request)) {
                 fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
             }
             switch (request.type()) {
@@ -772,6 +865,9 @@ public class TableHub {
                 case "CHANNEL_JOIN" -> joinChannel(member, request);
                 case "CHANNEL_LEAVE" -> leaveChannel(member, request);
                 case "WORLD_MOVE" -> moveWorld(member, request);
+                case "WORLD_POSITION" -> positionWorld(member, request);
+                case "WORLD_POSITION_FALLBACK" -> member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE",
+                        channels.disablePosition(member.userId(), request.payload().path("epoch").asLong()).state()));
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
                 case "WORLD_FOLLOW_START", "WORLD_FOLLOW_STOP", "WORLD_FOLLOW_CHECK" -> follow(member, request);
@@ -845,7 +941,12 @@ public class TableHub {
         // disconnected()가 내부에서 release()를 부르므로 해제 전 점유를 한 번만 읽어 종료를 한 번만 기록한다.
         var facilityLease = facilities.current(member.userId());
         facilities.disconnected(member.userId());
-        WorldChannelRegistry.State channelState = channels.disconnect(member.userId());
+        // 점프맵 진행 중 네트워크 끊김은 15초 유예: 캐릭터와 채널 자리를 남기고 같은 채널 재입장 때 다시 묶는다.
+        boolean jumpmapGrace = member.accountId() != null && switch (reason) {
+            case SOCKET_CLOSED, TRANSPORT_ERROR, HEARTBEAT_TIMEOUT, SEND_ERROR, SEND_QUEUE_FULL -> true;
+            default -> false;
+        } && channels.suspendJumpmap(member.userId());
+        WorldChannelRegistry.State channelState = jumpmapGrace ? null : channels.disconnect(member.userId());
         if (facilityLease != null) {
             publishFacilities(facilityChannel, null, null);
             recordFacility(member.accountId(), facilityLease, "DISCONNECTED");
@@ -892,8 +993,7 @@ public class TableHub {
             TableRoom room = rooms.get(tableId);
             room.leave(member.userId());
             publish(room, null, null);
-            recordBehavior(BehaviorEventType.TABLE_LEFT, member.accountId(), builder -> builder.tableId(tableId)
-                    .channelId(tableChannels.get(tableId)).prop("byDisconnect", true));
+            recordTableLeft(member.accountId(), tableId, "DISCONNECT");
         }
     }
 
@@ -929,6 +1029,7 @@ public class TableHub {
         actionRequests.clear();
         starts.clear();
         reactionRounds.clear();
+        parkDebris.clear();
         startWorkers.shutdownNow();
     }
 
@@ -1007,6 +1108,17 @@ public class TableHub {
                 builder -> builder.tableId(tableId).channelId(tableChannels.get(tableId)));
     }
 
+    /** Recovery permits the original channel and its read-only boot snapshots, never lobby actions. */
+    private boolean restoredChannelAccess(Member member, Request request) {
+        if (member.accountId() == null || reconnect.isEmpty()) return false;
+        String tableId = seating.get(member.userId()), gameId = seatedGames.get(member.userId());
+        String channel = tableId == null ? null : tableChannels.get(tableId);
+        if (channel == null || gameId == null || !reconnect.get().canControlGame(member.accountId(), member.sessionId(), gameId)) return false;
+        if (request.type().equals("CHANNEL_JOIN")) return channel.equals(request.payload().get("channelId").textValue());
+        return Set.of("WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FOLLOW_CHECK").contains(request.type())
+                && channels.isInChannel(member.userId(), channel);
+    }
+
     private void joinChannel(Member member, Request request) {
         String channelId = request.payload().get("channelId").textValue();
         // 정산 대기 좌석을 보존한 재접속자는 원래 테이블 채널로 돌아올 수 있다.
@@ -1038,6 +1150,7 @@ public class TableHub {
             member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_STATE", change.state()));
             member.peer().offer(protocol.encode(null, "WORLD_STATE", channels.worldState(channelId)));
         }
+        sendParkDebris(member, channelId);
         refreshAppearance(member);
         if (change.changed() || !profileMemberships.containsKey(member)) {
             profileMemberships.put(member, new ProfileTarget(member, channelId));
@@ -1215,6 +1328,11 @@ public class TableHub {
         }
         try {
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
+            dispatchJumpmap(channels.drainJumpmap());
+            for (var ended : channels.drainSuspensionEnds()) {
+                publishChannel(ended, null, null);
+                publishWorld(channels.worldState(ended.channelId()), null, null);
+            }
             for (var following : follows.activeStates()) {
                 pruneFollows(channels.worldState(following.channelId()));
             }
@@ -1236,6 +1354,12 @@ public class TableHub {
             // Do not silently lose the scheduled simulation after one failed tick.
             org.slf4j.LoggerFactory.getLogger(TableHub.class).error("광장 이동 tick 실패", exception);
         }
+    }
+
+    /** 점프맵 판정 신호는 레지스트리 잠금 밖에서 넘긴다. 서비스가 없으면 버린다. */
+    private void dispatchJumpmap(java.util.List<WorldChannelRegistry.JumpmapDelivery> deliveries) {
+        if (deliveries.isEmpty()) return;
+        jumpmapSignals.accept(deliveries);
     }
 
     private void moveWorld(Member member, Request request) {
@@ -1261,7 +1385,29 @@ public class TableHub {
         }
     }
 
+    private void positionWorld(Member member, Request request) {
+        if (facilities.current(member.userId()) != null) fail(request, "FACILITY_BUSY", "먼저 시설 이용을 종료해주세요.");
+        if (seating.containsKey(member.userId())) fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
+        var before = channels.positionOf(member.userId());
+        var report = com.ssafy.ontop.world.movement.ClientPositionValidator.Candidate.parse(request.payload());
+        var change = channels.reportPosition(member.userId(), report);
+        member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", change.state()));
+        var after = channels.positionOf(member.userId());
+        if (before != null && after != null && after.lastInputSeq() == report.seq()
+                && before.lastInputSeq() < report.seq() && (report.manual() || report.jump()
+                || Math.hypot(after.x() - before.x(), after.z() - before.z()) > .0001
+                || Math.abs(after.y() - before.y()) > .0001)) {
+            if (report.manual()) follows.stopFollowing(member.userId()).forEach(state -> publishFollow(state, null, null));
+            if (after.moving() || Math.abs(after.y() - before.y()) > .01) cancelEmote(member.userId(), "MOVEMENT");
+            refreshWatchRange(member);
+        }
+    }
+
     private void sendChat(Member member, Request request) {
+        StatePush scope = statePushes.get(member.sessionId());
+        if (scope != null && scope.member == member && "PLAYING".equals(scope.status)) {
+            fail(request, "GAME_CHAT_REQUIRED", "경기 중에는 경기 전용 채팅을 이용해주세요.");
+        }
         String channelId = channels.channelOf(member.userId());
         if (channelId == null) {
             fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
@@ -1344,6 +1490,7 @@ public class TableHub {
                         "mapVersion", catalog.mapVersion(), "total", catalog.facilities().size(),
                         "offset", offset, "nextOffset", end < catalog.facilities().size() ? end : -1,
                         "facilities", catalog.facilities().subList(offset, end),
+                        "fitnessRewardsEnabled", fitnessRewards != null && fitnessRewards.enabled(),
                         "aimIntervalMs", catalog.aimIntervalMs(), "minPitch", catalog.minPitch(),
                         "maxPitch", catalog.maxPitch(), "initialPitch", catalog.initialPitch())));
             }
@@ -1436,6 +1583,8 @@ public class TableHub {
                         channels.positionOf(member.userId()), channels.positionOf(targetId));
                 if (state.version() != before) {
                     channels.stopMovement(member.userId());
+                    var world = channels.serverMovement(member.userId());
+                    if (world.changed()) publishWorld(world.state(), null, null);
                 }
             }
             case "WORLD_FOLLOW_STOP" -> state = follows.stop(channel, member.userId(),
@@ -1545,6 +1694,15 @@ public class TableHub {
         }
     }
 
+    /** 공개 게시판 변경 번호만 모든 입장 채널에 전파한다. 본문·작성자 정보는 포함하지 않는다. */
+    public synchronized void notesChanged(long revision) {
+        if (stopped || revision <= 0) { return; }
+        String message = protocol.encode(null, "NOTES_CHANGED", Map.of("revision", Long.toString(revision)));
+        for (Member member : members.values()) {
+            if (isMapReady(member) && channels.channelOf(member.userId()) != null) { member.peer().offer(message); }
+        }
+    }
+
     private void publishChannel(WorldChannelRegistry.State state, Member actor, String requestId) {
         for (Member target : members.values()) {
             if (state.userIds().contains(target.userId())) {
@@ -1608,7 +1766,8 @@ public class TableHub {
             publish(room, member, request.requestId());
             publishStart(tableId);
             recordBehavior(BehaviorEventType.GAME_SELECTED, member.accountId(), builder -> builder.tableId(tableId)
-                    .prop("gameCode", game.name()).prop("targetScore", targetScore).prop("betAmountPerPlayer", amount));
+                    .prop("gameCode", game.name()).prop("targetScore", targetScore).prop("betAmountPerPlayer", amount)
+                    .prop("startMode", "AUTO"));
         } else {
             replyState(member, request, room);
         }
@@ -1628,8 +1787,14 @@ public class TableHub {
         }
         replyStartState(member, null, null);
         publish(room, null, null);
-        recordBehavior(BehaviorEventType.TABLE_LEFT, member.accountId(), builder -> builder.tableId(tableId)
-                .channelId(tableChannels.get(tableId)).prop("byDisconnect", false));
+        recordTableLeft(member.accountId(), tableId, "LEAVE");
+    }
+
+    // 좌석이 실제로 정리된 뒤에만 호출한다. byDisconnect는 기존 분석 쿼리 호환을 위해 reason과 함께 남긴다.
+    private void recordTableLeft(Long accountId, String tableId, String reason) {
+        boolean byDisconnect = reason.equals("DISCONNECT") || reason.equals("RECONNECT_EXPIRED");
+        recordBehavior(BehaviorEventType.TABLE_LEFT, accountId, builder -> builder.tableId(tableId)
+                .channelId(tableChannels.get(tableId)).prop("byDisconnect", byDisconnect).prop("reason", reason));
     }
 
     private TableRoom seatedRoom(Member member, Request request) {
@@ -1660,11 +1825,15 @@ public class TableHub {
         Integer target = request.payload().has("targetScore") ? request.payload().path("targetScore").asInt() : null;
         if (game == TableGame.DICE && target == null) { fail(request, "GAME_OPTIONS_REQUIRED", "목표 점수를 선택해주세요."); }
         try {
-            if (room.configure(game, target, request.payload().path("betAmountPerPlayer").asLong(),
-                    request.payload().path("selectedPlayers").asInt())) {
+            long amount = request.payload().path("betAmountPerPlayer").asLong();
+            int players = request.payload().path("selectedPlayers").asInt();
+            if (room.configure(game, target, amount, players)) {
                 starts.remove(tableId);
                 publish(room, member, request.requestId());
                 publishStart(tableId);
+                recordBehavior(BehaviorEventType.GAME_SELECTED, member.accountId(), builder -> builder.tableId(tableId)
+                        .prop("gameCode", game.name()).prop("targetScore", target).prop("betAmountPerPlayer", amount)
+                        .prop("startMode", "MANUAL").prop("selectedPlayers", players));
             } else { replyState(member, request, room); }
         } catch (IllegalArgumentException invalid) { fail(request, "GAME_CONFIGURATION_INVALID", "정원·목표·판돈을 확인해주세요."); }
     }
@@ -1733,6 +1902,7 @@ public class TableHub {
             TableRoom room = rooms.get(tableId);
             room.leave(userId);
             publish(room, null, null);
+            recordTableLeft(accountIdOf(userId), tableId, "RECONNECT_EXPIRED");
         }
     }
 
@@ -1747,6 +1917,7 @@ public class TableHub {
         Member oldHost = members.values().stream().filter(m -> m.userId().equals(event.previousHostUserId())).findFirst().orElse(null);
         if (oldHost != null) { oldHost.peer().offer(protocol.encode(null, "TABLE_LEFT", Map.of("tableId", tableId, "reason", event.reason()))); }
         publish(room, null, null);
+        recordTableLeft(accountIdOf(event.previousHostUserId()), tableId, event.reason());
         String notice = protocol.encode(null, "TABLE_HOST_TIMEOUT", event);
         for (Member target : members.values()) {
             if (isMapReady(target) && (target == oldHost || tableId.equals(seating.get(target.userId()))
@@ -1806,7 +1977,7 @@ public class TableHub {
 
     private void publish(TableRoom room, Member actor, String requestId) {
         refreshDeliveryScopes();
-        syncWorldTableSeats(tableChannels.get(room.snapshot().tableId()));
+        boolean worldChanged = syncWorldTableSeats(tableChannels.get(room.snapshot().tableId()));
         TableStartAttempt start = starts.get(room.snapshot().tableId());
         room.refreshWait(tableNow(), start == null || !start.frozen());
         TableRoom.Snapshot snapshot = publicSnapshot(room);
@@ -1825,14 +1996,19 @@ public class TableHub {
             }
         }
         publishHostWait(room);
+        if (worldChanged) { publishWorld(channels.worldState(tableChannels.get(snapshot.tableId())), null, null); }
     }
 
-    /** 준비·판돈·경기 비공개 정보 없이, 같은 Hub 확정 시점의 실제 좌석만 복사한다. */
-    private void syncWorldTableSeats(String channelId) {
-        if (channelId == null) { return; }
+    /** 선택 게임과 실제 좌석만 공개하며 준비·판돈·경기 비공개 정보는 포함하지 않는다. */
+    private boolean syncWorldTableSeats(String channelId) {
+        if (channelId == null) { return false; }
+        long previous = channels.worldState(channelId).version();
         Map<String, WorldChannelRegistry.TableSeat> seats = new HashMap<>();
+        var publicTables = new ArrayList<WorldChannelRegistry.PublicTable>();
         for (var entry : rooms.entrySet()) {
             if (!channelId.equals(tableChannels.get(entry.getKey()))) { continue; }
+            publicTables.add(new WorldChannelRegistry.PublicTable(entry.getKey(), tableAnchors.get(entry.getKey()),
+                    chairCount(entry.getValue().snapshot()), entry.getValue().snapshot().gameCode()));
             for (var seat : entry.getValue().snapshot().seats()) {
                 if (seat.userId() != null && entry.getKey().equals(seating.get(seat.userId()))) {
                     seats.put(seat.userId(), new WorldChannelRegistry.TableSeat(entry.getKey(), seat.seatNumber()));
@@ -1840,6 +2016,67 @@ public class TableHub {
             }
         }
         channels.tableSeats(channelId, seats);
+        publicTables.sort(java.util.Comparator.comparing(WorldChannelRegistry.PublicTable::tableId));
+        channels.tables(channelId, publicTables);
+        return channels.worldState(channelId).version() != previous;
+    }
+
+    private static int chairCount(TableRoom.Snapshot table) {
+        int occupied = table.seats().stream().filter(seat -> seat.userId() != null)
+                .mapToInt(TableRoom.Seat::seatNumber).max().orElse(0);
+        return Math.max(Math.max(2, occupied), table.selectedPlayers() == null ? 2 : table.selectedPlayers());
+    }
+
+    private void syncGameActivities() {
+        Map<String, String> current = new HashMap<>();
+        if (committedStarts.isPresent()) {
+            starts.forEach((table, attempt) -> {
+                String game = publicGameId(table);
+                if (game == null) { return; }
+                Set<String> inactive = inactiveGameParticipants.getOrDefault(game, Set.of());
+                for (Participant participant : attempt.command().participants()) {
+                    if (!inactive.contains(participant.userId())) { current.put(participant.userId(), game); }
+                }
+            });
+        }
+        for (var state : channels.boardGames(current)) { publishWorld(state, null, null); }
+    }
+
+    @EventListener
+    public synchronized void gameParticipantActivityEnded(com.ssafy.ontop.game.result.GameParticipantLeft event) {
+        if (stopped) { return; }
+        TableStartAttempt attempt = starts.get(event.tableId());
+        if (attempt == null || attempt.command().participants().stream()
+                    .noneMatch(player -> player.userId().equals(Long.toString(event.userId())))) { return; }
+        if (attempt.starting()) {
+            attempt.rememberDeparture(event.gameId(), Long.toString(event.userId()));
+            return;
+        }
+        if (!event.gameId().equals(publicGameId(event.tableId()))
+                && !event.gameId().equals(seatedGames.get(Long.toString(event.userId())))) { return; }
+        inactiveGameParticipants.computeIfAbsent(event.gameId(), ignored -> new HashSet<>())
+                .add(Long.toString(event.userId()));
+        releaseDepartedSeat(event.tableId(), event.gameId(), Long.toString(event.userId()));
+        syncGameActivities();
+    }
+
+    private void releaseDepartedSeat(String tableId, String gameId, String userId) {
+        // 참가 종료가 확정된 좌석만 해제한다. 최초 참가자와 판돈 예약은 기존 정산 경로에 남긴다.
+        if (!gameId.equals(seatedGames.get(userId)) || !tableId.equals(seating.get(userId))) { return; }
+        seating.remove(userId);
+        seatedGames.remove(userId);
+        waitingReconnects.remove(userId);
+        TableRoom room = rooms.get(tableId);
+        room.leave(userId);
+        for (Member target : members.values()) {
+            if (!target.userId().equals(userId)) { continue; }
+            statePushes.remove(target.sessionId());
+            target.delivery().rememberDeparture(gameId);
+            target.delivery().left(null, tableId);
+            replyStartState(target, null, null);
+        }
+        publish(room, null, null);
+        recordTableLeft(accountIdOf(userId), tableId, "GAME_DEPARTURE");
     }
 
     private TableRoom.Snapshot publicSnapshot(TableRoom room) {
@@ -1971,12 +2208,17 @@ public class TableHub {
         attempt.apply(result);
         if (committedStarts.isPresent()) { attempt.playing(); }
         if (committedStarts.isPresent() && result.isReservationCommitted(attempt.command())) {
+            Set<String> early = attempt.takeDepartures(result.gameSessionId());
+            if (!early.isEmpty()) { inactiveGameParticipants.put(result.gameSessionId(), new HashSet<>(early)); }
             for (Participant player : attempt.command().participants()) {
                 if (tableId.equals(seating.get(player.userId()))) {
                     seatedGames.put(player.userId(), result.gameSessionId());
                 }
             }
             refreshDeliveryScopes();
+            for (String userId : early) {
+                releaseDepartedSeat(tableId, result.gameSessionId(), userId);
+            }
         }
         if (committedStarts.isPresent() && attempt.frozen() && !attempt.starting()) {
             recordGameStarted(tableId, attempt, result);
@@ -1996,6 +2238,7 @@ public class TableHub {
                     && !connected.contains(entry.getKey()));
             publish(rooms.get(tableId), null, null);
         }
+        syncGameActivities();
         publishStart(tableId);
         if (committedStarts.isPresent() && !attempt.starting()) {
             attempt.command().participants().forEach(player -> reconnect.ifPresent(service ->
@@ -2061,6 +2304,8 @@ public class TableHub {
             return;
         }
         if (attempt == null || !gameId.equals(attempt.view(0, false).gameSessionId()) || !attempt.endRound()) { return; }
+        inactiveGameParticipants.remove(gameId);
+        syncGameActivities();
         TableRoom room = rooms.get(tableId);
         room.resetReady();
         publish(room, null, null);
@@ -2130,6 +2375,9 @@ public class TableHub {
         seating.entrySet().removeIf(entry -> entry.getValue().equals(tableId) && !connected.contains(entry.getKey()));
         publish(room, null, null);
         publishStart(tableId);
+        // 정산 전 조회 장애로 남은 판정만 재확인한다. 정상 FINISHED·LOBBY에는 새 PENDING을 만들지 않는다.
+        attempt.command().participants().forEach(player -> reconnect.ifPresent(service ->
+                service.roundSettled(Long.parseLong(player.userId()))));
     }
 
     private void replyStartState(Member target, String tableId, String requestId) {
@@ -2258,6 +2506,49 @@ public class TableHub {
         }
     }
 
+    private Object parkDebrisState(String channelId) {
+        var state = parkDebris.state(channelId);
+        return Map.of("channelId", channelId, "mapVersion", maps.metadata().mapVersion(),
+                "version", state.version(), "items", state.items());
+    }
+
+    private void sendParkDebris(Member member, String channelId) {
+        if (isMapReady(member)) {
+            member.peer().offer(protocol.encode(null, "WORLD_PARK_DEBRIS_STATE", parkDebrisState(channelId)));
+        }
+    }
+
+    private void publishParkDebris(String channelId) {
+        String message = protocol.encode(null, "WORLD_PARK_DEBRIS_STATE", parkDebrisState(channelId));
+        for (Member target : members.values()) {
+            if (isMapReady(target) && channelId.equals(channels.channelOf(target.userId()))) {
+                target.peer().offer(message);
+            }
+        }
+    }
+
+    private synchronized void expireParkDebris() {
+        if (stopped) {
+            return;
+        }
+        try {
+            for (String channelId : parkDebris.expire(tableNow())) {
+                publishParkDebris(channelId);
+            }
+        } catch (RuntimeException exception) {
+            log.error("공원 잔해 자동 정리 실패", exception);
+        }
+    }
+
+    /** 서버 AI 청소 연결점이며 클라이언트에 잔해 삭제 권한을 주지 않는다. */
+    public synchronized boolean cleanParkDebris(String channelId, String itemId, String part) {
+        if (stopped || !parkDebris.clean(channelId, itemId, part)) {
+            return false;
+        }
+        publishParkDebris(channelId);
+        return true;
+    }
+
     @EventListener
     public synchronized void gameDefeatConfirmed(GameDefeatConfirmed event) {
         if (stopped) { return; }
@@ -2276,7 +2567,24 @@ public class TableHub {
         }
         // 한 테이블의 현재 경기, 참가자별 한 건만 보존한다. 새 경기의 사건이 오면 교체한다.
         if (!round.users().add(event.userId())) { return; }
-        String notification = protocol.encode(null, "WORLD_GAME_REACTION", WorldGameReaction.from(event, channelId));
+        var position = channels.positionOf(Long.toString(event.userId()));
+        // 오목은 참가 확정 좌석으로 상대 방향을 정해 관전자도 같은 비행 경로를 본다.
+        double throwYaw = position == null ? 0 : position.yaw();
+        if ("OMOK".equals(event.gameCode()) && players.size() == 2) {
+            var participants = attempt.command().participants();
+            int fromSeat = participants.stream()
+                    .filter(player -> player.userId().equals(Long.toString(event.userId())))
+                    .findFirst().orElseThrow().seatNumber();
+            int toSeat = participants.stream()
+                    .filter(player -> !player.userId().equals(Long.toString(event.userId())))
+                    .findFirst().orElseThrow().seatNumber();
+            throwYaw = OmokForfeitDirection.towardOpponent(fromSeat, toSeat);
+        }
+        if (parkDebris.add(channelId, tableAnchors.get(event.tableId()), event, players.size(), throwYaw)) {
+            publishParkDebris(channelId);
+        }
+        String notification = protocol.encode(null, "WORLD_GAME_REACTION",
+                WorldGameReaction.from(event, channelId, players.size()));
         for (Member target : members.values()) {
             if (isMapReady(target) && channelId.equals(channels.channelOf(target.userId()))
                     && (players.contains(target.userId()) || canWatchTable(target, event.tableId()))) {
@@ -2400,6 +2708,7 @@ public class TableHub {
             }
         } else if (view.version() > push.deliveredVersion || push.initialRequestId != null) {
             push.tableId = view.tableId();
+        push.publicState = view.publicState().deepCopy();
             push.deliveredVersion = view.version();
             // 관전 채팅·핑 판정용. 엔진을 다시 호출하지 않도록 전달한 공개 상태의 일부만 기억한다.
             rememberEventScope(push, view);
@@ -2475,7 +2784,9 @@ public class TableHub {
                     fail(request, "ONECARD_PRANK_ACCESS_DENIED", "현재 연결된 참가자에게만 요청할 수 있습니다.");
                 }
                 reply = onecardPranks.reach(state, member.accountId(), event, target,
-                        payload.path("turnCount").asLong(), now, legacy);
+                        payload.path("turnCount").asLong(), now, legacy,
+                        payload.has("cardIndex") ? payload.path("cardIndex").intValue() : null,
+                        payload.has("handVersion") ? payload.path("handVersion").longValue() : null);
             } else if (request.type().equals("ONECARD_PRANK_HIT_SEND")) {
                 reply = onecardPranks.hit(state, member.accountId(), event, payload.path("attemptId").asText(), now);
             } else {
@@ -2558,9 +2869,9 @@ public class TableHub {
         var publicState = view.publicState();
         push.gameCode = publicState.path("gameCode").textValue();
         push.status = publicState.path("status").textValue();
-        if ("ONE_CARD".equals(push.gameCode)) {
+        if (publicState.path("players").isArray()) {
             var players = new HashSet<String>();
-            publicState.path("players").forEach(player -> players.add(player.path("userId").asText()));
+            publicState.path("players").forEach(player -> players.add(player.isTextual() ? player.asText() : player.path("userId").asText()));
             push.players = Set.copyOf(players);
         } else {
             push.players = Set.copyOf(java.util.List.of(publicState.path("blackUserId").asText(),
@@ -2569,19 +2880,62 @@ public class TableHub {
     }
 
     private StatePush approvedPlayerChat(String sessionId, Member member, String gameId) {
+        if (!reconnect.orElseThrow().canControlGame(member.accountId(), sessionId, gameId)) { return null; }
+        String tableId = seating.get(member.userId());
+        if (tableId == null) { return null; }
         StatePush push = statePushes.get(sessionId);
-        return push != null && push.member == member && push.role == GameStateView.Role.PLAYER
+        if (push != null && push.member == member && push.role == GameStateView.Role.PLAYER
                 && push.gameId.equals(gameId) && push.players.contains(member.userId())
-                && java.util.Objects.equals(push.tableId, seating.get(member.userId()))
-                && reconnect.orElseThrow().canControlGame(member.accountId(), sessionId, gameId) ? push : null;
+                && tableId.equals(push.tableId)) { return push; }
+        // RESTORED already grants this connection control before the first GAME_STATE push/query.
+        // Use the committed start under the Hub lock; never call the engine here or require a manual refresh.
+        TableStartAttempt attempt = starts.get(tableId);
+        if (attempt == null || !"PLAYING".equals(attempt.phase())
+                || !gameId.equals(seatedGames.get(member.userId()))
+                || !gameId.equals(attempt.view(0, false).gameSessionId())) { return null; }
+        Set<String> players = attempt.command().participants().stream().map(Participant::userId).collect(Collectors.toSet());
+        if (!players.contains(member.userId())) { return null; }
+        StatePush chatScope = new StatePush(member, gameId);
+        chatScope.tableId = tableId;
+        chatScope.gameCode = attempt.command().gameCode();
+        chatScope.status = "PLAYING";
+        chatScope.players = Set.copyOf(players);
+        return chatScope;
     }
 
     /**
      * 현재 플레이어의 채팅·승인 관전자의 채팅/핑을 같은 경기 안에 전달한다. 핑 권한은 관전 전용이다.
      * 엔진을 호출하지 않으며 판·버전·타이머·결과는 바꾸지 않는다. 다른 수신자에게는 비필수 이벤트로만 보낸다.
+     * 주사위 장부 핑은 오목 핑과 같은 간격·TTL·버전 규칙을 쓰고 대상만 점수 칸 또는 주사위다.
      */
+    private void sendAlkkagiSpectator(String sessionId, Member member, Request request) {
+        if (member.accountId() == null || reconnect.isEmpty()) fail(request, "GAME_SPECTATOR_AUTH_REQUIRED", "인증된 관전자만 이용할 수 있습니다.");
+        String gameId = request.payload().path("gameId").asText();
+        StatePush push = approvedSpectator(sessionId, member, gameId);
+        if (push == null || reconnect.get().canControlGame(member.accountId(), sessionId, gameId))
+            fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전 승인된 경기에서만 이용할 수 있습니다.");
+        if (!"ALKKAGI".equals(push.gameCode) || !"PLAYING".equals(push.status))
+            fail(request, "GAME_SPECTATOR_GAME_NOT_PLAYING", "진행 중인 알까기 경기에서만 이용할 수 있습니다.");
+        if (push.requestedVersion > push.deliveredVersion) fail(request, "ALKKAGI_SPECTATOR_STALE_VERSION", "최신 판을 확인해주세요.");
+        long now = worldClock.sample().serverNow();
+        AlkkagiSpectatorPolicy.Emission emission;
+        try { emission = alkkagiSpectators.accept(member.userId(), request.payload(), push.publicState, now); }
+        catch (IllegalArgumentException rejected) { throw new RequestException(request.requestId(), rejected.getMessage(), "관전 표시 요청을 확인해주세요."); }
+        member.peer().offer(protocol.encode(request.requestId(), "ALKKAGI_SPECTATOR_EVENT", emission.event()));
+        if (!emission.fresh()) return;
+        String notice = protocol.encode(null, "ALKKAGI_SPECTATOR_EVENT", emission.event());
+        Duration ttl = Duration.ofMillis((long) emission.event().get("expiresAt") - now);
+        for (var entry : members.entrySet()) {
+            Member target = entry.getValue();
+            if (target == member || target.accountId() == null) continue;
+            boolean player = push.players.contains(target.userId()) && reconnect.get().canControlGame(target.accountId(), entry.getKey(), gameId);
+            if (player || approvedSpectator(entry.getKey(), target, gameId) != null) target.peer().offerTransient(notice, ttl);
+        }
+    }
+
     private void sendSpectatorEvent(String sessionId, Member member, Request request) {
-        boolean ping = request.type().equals("OMOK_SPECTATOR_PING_SEND");
+        boolean ledgerPing = request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND");
+        boolean ping = ledgerPing || request.type().equals("OMOK_SPECTATOR_PING_SEND");
         var payload = request.payload();
         if (member.accountId() == null) {
             fail(request, "GAME_SPECTATOR_AUTH_REQUIRED", "인증된 회원만 관전 채팅·핑을 보낼 수 있습니다.");
@@ -2595,8 +2949,9 @@ public class TableHub {
         if (push == null || ping && reconnect.get().canControlGame(member.accountId(), sessionId, gameId)) {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
-        if (!"OMOK".equals(push.gameCode)) {
-            fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "오목 경기에서만 사용할 수 있습니다.");
+        if (ping && !(ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
+                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI", "HALLI_GALLI").contains(push.gameCode)) {
+            fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목·주사위 장부 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {
             fail(request, "GAME_SPECTATOR_GAME_NOT_PLAYING", "진행 중인 경기에서만 보낼 수 있습니다.");
@@ -2605,31 +2960,36 @@ public class TableHub {
         var kind = ping ? SpectatorEventPolicy.Kind.PING : SpectatorEventPolicy.Kind.CHAT;
         String text = ping ? null : new ChatText(payload.get("text").textValue()).value();
         long basedOnVersion = ping ? payload.get("basedOnVersion").longValue() : 0;
-        int x = ping ? payload.get("x").intValue() : 0;
-        int y = ping ? payload.get("y").intValue() : 0;
-        String content = ping ? basedOnVersion + ":" + x + ":" + y : text;
-        String type = ping ? "OMOK_SPECTATOR_PING" : "GAME_SPECTATOR_CHAT_MESSAGE";
+        int x = ping && !ledgerPing ? payload.get("x").intValue() : 0;
+        int y = ping && !ledgerPing ? payload.get("y").intValue() : 0;
+        String category = ledgerPing && payload.has("category") ? payload.get("category").textValue() : null;
+        Integer dieId = ledgerPing && payload.has("dieId") ? payload.get("dieId").intValue() : null;
+        String content = ledgerPing ? basedOnVersion + ":" + (category != null ? category : "die" + dieId)
+                : ping ? basedOnVersion + ":" + x + ":" + y : text;
+        String type = ledgerPing ? "DICE_LEDGER_SPECTATOR_PING" : ping ? "OMOK_SPECTATOR_PING" : "GAME_SPECTATOR_CHAT_MESSAGE";
         long now = worldClock.sample().serverNow();
+        java.util.function.Function<SpectatorEventPolicy.Stamp, Object> eventOf = issued -> ledgerPing
+                ? new DiceLedgerSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, category, dieId, issued, now)
+                : ping ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, issued, now)
+                : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, issued, now);
         SpectatorEventPolicy.Stamp stamp;
         try {
             stamp = spectatorEvents.previous(member.accountId(), eventId, kind, gameId, content, now);
             if (stamp != null) {
                 // 같은 요청의 재전송은 원래 시각 그대로 요청자에게만 다시 확인해 준다. 다시 방송하지 않는다.
-                member.peer().offer(protocol.encode(request.requestId(), type, ping
-                        ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, stamp, now)
-                        : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, stamp, now)));
+                member.peer().offer(protocol.encode(request.requestId(), type, eventOf.apply(stamp)));
                 return;
             }
             // Hub 잠금이 경기 상태 변경 알림과의 경계다. 더 새 버전 알림을 받았으면 아직 전달 전이어도 거절한다.
             if (ping && (basedOnVersion != push.deliveredVersion || push.requestedVersion > push.deliveredVersion)) {
-                fail(request, "OMOK_SPECTATOR_PING_STALE_VERSION", "최신 판 상태에서 다시 추천해주세요.");
+                fail(request, ledgerPing ? "DICE_LEDGER_SPECTATOR_PING_STALE_VERSION" : "OMOK_SPECTATOR_PING_STALE_VERSION",
+                        "최신 판 상태에서 다시 추천해주세요.");
             }
             stamp = spectatorEvents.accept(member.accountId(), eventId, kind, gameId, content, now);
         } catch (SpectatorEventPolicy.Rejected rejected) {
             throw new RequestException(request.requestId(), rejected.code(), rejected.getMessage());
         }
-        Object event = ping ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, stamp, now)
-                : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, stamp, now);
+        Object event = eventOf.apply(stamp);
         // 요청자 확인은 일반 응답이다. 다른 수신자 전달은 큐가 붐비거나 만료되면 버려질 수 있다.
         member.peer().offer(protocol.encode(request.requestId(), type, event));
         String notice = protocol.encode(null, type, event);
@@ -2805,6 +3165,7 @@ public class TableHub {
         private String gameCode;
         private String status;
         private Set<String> players = Set.of();
+        private com.fasterxml.jackson.databind.JsonNode publicState;
 
         private StatePush(Member member, String gameId) {
             this(member, gameId, GameStateView.Role.PLAYER, null);

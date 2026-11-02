@@ -1,0 +1,28 @@
+.jumpmap{position:absolute;inset:0;pointer-events:none;color:#f7f1e5;z-index:12;font-family:'Malgun Gothic',system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.jumpmap *{box-sizing:border-box}
+.jumpmap .jm-compact{position:absolute;top:112px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:18px;max-width:calc(100% - 40px);padding:10px 18px;background:rgba(41,38,32,.76);border:1px solid #f7f1e526;border-radius:28px}
+.jumpmap .jm-compact>strong{display:flex;align-items:baseline;gap:8px;font-size:14px;white-space:nowrap}
+.jumpmap .jm-compact small{font-size:11px;font-weight:400;color:#e3ddce;white-space:nowrap}
+.jumpmap .jm-progress{list-style:none;display:flex;gap:5px;margin:0;padding:0}
+.jumpmap .jm-progress li{width:7px;height:7px;border:1px solid #d5cebc;border-radius:50%}
+.jumpmap .jm-progress li[aria-current=step]{background:#f7f1e5}
+.jumpmap .jm-progress li[data-passed=true]{background:#e8b451;border-color:#e8b451}
+.jumpmap .jm-compact-coins{display:flex;align-items:baseline;gap:6px;font-size:12px;white-space:nowrap}
+.jumpmap .jm-compact-coins b{color:#f4c868;font-weight:700}
+.jumpmap .jm-compact-coins small{padding-left:10px;border-left:1px solid #f7f1e533;margin-left:4px}
+.jumpmap .jm-hint,.jumpmap .jm-receipt,.jumpmap .jm-complete{position:absolute;left:50%;transform:translateX(-50%);text-align:center;max-width:calc(100% - 40px);margin:0;background:rgba(41,38,32,.82);border:1px solid #f7f1e526;border-radius:12px}
+.jumpmap .jm-hint{top:112px;padding:9px 15px;font-size:12px;line-height:1.5}
+.jumpmap .jm-unavailable{display:flex;align-items:center;gap:10px}
+.jumpmap .jm-unavailable span{font-size:11px;color:#e3ddce}
+.jumpmap .jm-receipt{top:165px;padding:7px 12px;font-size:15px;font-weight:700;color:#f4c868;animation:jm-receipt .9s ease-out both}
+.jumpmap .jm-receipt small{display:inline-block;margin-left:9px;font-size:11px;color:#f7f1e5;font-weight:400}
+.jumpmap .jm-receipt[data-unconfirmed=true]{color:#e3ddce}
+.jumpmap .jm-complete{top:165px;padding:10px 20px;border-color:#e8b45180}
+.jumpmap .jm-complete strong{display:block;font-family:'BusanDandiMyeongjo',serif;font-size:24px;line-height:1.25;color:#f4c868}
+.jumpmap .jm-complete span{display:block;font-size:11px;margin-top:5px;white-space:nowrap}
+.jumpmap .jm-complete~.jm-receipt{top:245px}
+@keyframes jm-receipt{0%{opacity:0}12%,75%{opacity:1}100%{opacity:0}}
+@media(max-width:760px){.jumpmap .jm-hint{top:150px}.jumpmap .jm-compact{top:150px;gap:12px;padding:9px 14px;border-radius:14px;flex-wrap:wrap;justify-content:center;width:max-content;max-width:calc(100% - 32px)}.jumpmap .jm-compact>strong{font-size:12px}.jumpmap .jm-progress{gap:4px}.jumpmap .jm-compact-coins{font-size:11px}.jumpmap .jm-compact-coins small{font-size:10px}.jumpmap .jm-complete{top:225px}.jumpmap .jm-complete span{white-space:normal}.jumpmap .jm-receipt{top:225px}.jumpmap .jm-complete~.jm-receipt{top:305px}.jumpmap .jm-unavailable{display:block}.jumpmap .jm-unavailable span{display:block}}
+@media(prefers-reduced-motion:reduce){.jumpmap .jm-receipt{animation:none}}
+.jumpmap .jm-time{font:700 23px/1.2 system-ui,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap}
+.jumpmap .jm-time small{font-size:12px;margin-left:4px}

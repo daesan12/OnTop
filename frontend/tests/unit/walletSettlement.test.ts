@@ -32,3 +32,16 @@ test('minigame recovery invalidates once per accepted receipt and isolates accou
   refreshWalletAfterSettlement('another-owner', 'minigame:123')
   expect(useWalletSettlement.getState()).toEqual({ owner: 'another-owner', revision: before + 2 })
 })
+
+test('fitness server receipt refreshes once and rejects foreign or malformed receipts', () => {
+  const userId = 'fitness-owner', before = useWalletSettlement.getState().revision
+  const message: Envelope = { requestId: null, type: 'FITNESS_REWARD', payload: {
+    userId, receipt: 'fitness:01234567-89ab-cdef-0123-456789abcdef:1',
+  } }
+  receiveWalletSettlement({ ...message, payload: { ...message.payload, userId: 'other' } }, userId)
+  receiveWalletSettlement({ ...message, payload: { userId, receipt: 'fitness:fake:0' } }, userId)
+  expect(useWalletSettlement.getState().revision).toBe(before)
+  receiveWalletSettlement(message, userId)
+  receiveWalletSettlement(message, userId)
+  expect(useWalletSettlement.getState()).toEqual({ owner: userId, revision: before + 1 })
+})

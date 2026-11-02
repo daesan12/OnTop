@@ -39,6 +39,7 @@ class OneCardFlowTests {
     @Test
     void 실제소켓_개인손패격리_뽑기_중복_관전_복귀_30초넘김_기권종료를검증한다() throws Exception {
         engine.create("one",TABLE,List.of(101L,202L));
+        clock.advanceSeconds(3); // 서버가 보장하는 첫 손패 분배가 끝난 뒤 행동한다.
         try (ScenarioClient one=connect("naver","RESTORED"); ScenarioClient two=connect("ssafy","RESTORED");
                 ScenarioClient viewer=connect("spectator","LOBBY")) {
             viewer.request("CHANNEL_JOIN",Map.of("channelId","cards"));

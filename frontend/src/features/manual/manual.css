@@ -437,6 +437,10 @@
 .manual-first-card:hover {
   background: #e0e6d3;
 }
+.manual-first-card:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
 .manual-first-icon {
   font-size: 30px;
   color: #758368;
@@ -1997,4 +2001,15 @@ body:has(.game-manual[open]) {
   color: var(--news-green);
   font-size: 12px;
   font-weight: 700;
+}
+
+/* 섹션 그림: 게임별 그림 컴포넌트를 담는 틀만 정한다. */
+.manual-figure {
+  margin: 10px 0 14px;
+  text-align: center;
+}
+.manual-figure figcaption {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #7a6a4f;
 }

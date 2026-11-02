@@ -3,8 +3,8 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.table.service.TableHub;
-import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldChatService;
 import java.time.Clock;
@@ -76,9 +76,11 @@ class WorldChatHubTests {
                 .path("payload").path("code").asText()).isEqualTo("NOT_IN_CHANNEL");
         user.join("one");
         user.request("TABLE_JOIN", Map.of("tableId", hub.listTables("one").tables().getFirst().tableId()));
+        user.next("WORLD_STATE");
         assertThat(user.request("WORLD_CHAT_SEND", Map.of("text", "대기 중"))
                 .path("type").asText()).isEqualTo("WORLD_CHAT_MESSAGE");
         user.request("TABLE_LEAVE", Map.of());
+        user.next("WORLD_STATE");
         user.request("CHANNEL_LEAVE", Map.of());
         user.join("two");
         assertThat(user.request("WORLD_CHAT_SEND", Map.of("text", "이동 직후"))
@@ -112,6 +114,7 @@ class WorldChatHubTests {
         private void join(String channel) throws Exception {
             request("CHANNEL_JOIN", Map.of("channelId", channel));
             next("WORLD_STATE");
+            assertThat(next("WORLD_PARK_DEBRIS_STATE").at("/payload/items")).isEmpty();
             registry.move(userId, new WorldChannelRegistry.Position(0, 0, 0, 0, 0));
         }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { avatars, useSession } from '../../network/worldClient'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
@@ -32,15 +32,16 @@ export function FollowMenu() {
     if (!isOpen) return
     previousFocus.current = document.activeElement as HTMLElement | null
     inputState.followMenuOpen = true; clearRoamingInput()
-    element.current?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
+    const focus = element.current?.querySelector<HTMLElement>('button:not(:disabled)') ?? element.current
+    focus?.focus()
     const outside = (event: PointerEvent) => { if (!element.current?.contains(event.target as Node)) setMenu(null) }
     const timer = setInterval(() => {
       if (inputState.manualOpen || inputState.mapOpen || inputState.feedbackOpen || inputState.notesOpen
         || session.status !== 'connected' || menu && !avatars.get(menu.id)?.connected) setMenu(null)
     }, 200)
-    window.addEventListener('pointerdown', outside)
+    window.addEventListener('pointerdown', outside, true)
     return () => {
-      window.removeEventListener('pointerdown', outside); clearInterval(timer)
+      window.removeEventListener('pointerdown', outside, true); clearInterval(timer)
       inputState.followMenuOpen = false; clearRoamingInput()
       if (!inputState.manualOpen && useSession.getState().status === 'connected')
         (previousFocus.current?.isConnected ? previousFocus.current : document.querySelector<HTMLCanvasElement>('canvas'))?.focus({ preventScroll: true })
@@ -49,9 +50,24 @@ export function FollowMenu() {
   const close = () => setMenu(null)
   const nickname = (id: string) => session.profiles[id]?.nickname ?? '산책자 ' + id.slice(-6)
   const reason = menu ? followAvailability(menu.id) : ''
+  const notice = reason || (followService.mode === 'unavailable' ? '지금은 따라갈 수 없어요.'
+    : followService.mode === 'server' && (!state.ready || state.checking) ? '확인 중…' : '')
+  useLayoutEffect(() => {
+    if (!menu) return
+    const place = () => {
+      const panel = element.current
+      if (!panel) return
+      const box = panel.getBoundingClientRect()
+      panel.style.left = `${Math.max(8, Math.min(innerWidth - box.width - 8, menu.x))}px`
+      panel.style.top = `${Math.max(8, Math.min(innerHeight - box.height - 8, menu.y))}px`
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [menu, notice])
   return <>
-    {menu && <div ref={element} className="follow-menu" role="menu" aria-label={`${nickname(menu.id)} 메뉴`}
-      style={{ left: Math.max(8, Math.min(innerWidth - 288, menu.x)), top: Math.max(8, Math.min(innerHeight - 260, menu.y)) }}
+    {menu && <div ref={element} className="follow-menu" role="menu" aria-label={`${nickname(menu.id)} 메뉴`} tabIndex={-1}
+      style={{ left: menu.x, top: menu.y }}
       onKeyDown={event => {
         if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || event.code === 'F1') return
         event.stopPropagation()
@@ -62,15 +78,15 @@ export function FollowMenu() {
           event.preventDefault(); controls[(index + (event.key === 'ArrowDown' ? 1 : controls.length - 1)) % controls.length]?.focus()
         }
       }}>
-      <strong>{nickname(menu.id)}</strong>
+      <strong title={nickname(menu.id)}>{nickname(menu.id)}</strong>
       <button type="button" role="menuitem" disabled={!!reason || state.pending || followService.mode === 'unavailable' || followService.mode === 'server' && (!state.ready || state.checking)}
         onClick={() => { void requestFollow(menu.id); close() }}>따라가기</button>
-      <small>{reason || (followService.mode === 'unavailable' ? '따라가기 서버 연결이 준비 중이에요.' : followService.mode === 'preview' ? '개발 미리보기 · 실제 자동 이동은 하지 않아요.' : !state.ready || state.checking ? '따라가기 상태를 확인하고 있어요.' : '서버 승인 후 따라가요.')}</small>
-      <button type="button" role="menuitem" onClick={close}>닫기</button>
+      {notice && <small>{notice}</small>}
     </div>}
-    {target && <aside className="follow-status" aria-label="따라가기 상태"><span>{nickname(target)} 따라가는 중</span>
+    {target && <aside className="follow-status follow-active" aria-label="따라가기 상태">
+      <span className="follow-active__icon" aria-hidden="true">↗</span><span className="follow-active__label" role="status"><b>{nickname(target)}</b> 따라가는 중</span>
       {followService.mode === 'preview' && <small>개발 미리보기 · 관계·줄 표시만 확인 / 실제 자동 이동 없음</small>}
-      <button type="button" disabled={state.pending || followService.mode === 'unavailable' || followService.mode === 'server' && (!state.ready || state.checking)} onClick={() => void requestFollow(null)}>따라가기 종료</button></aside>}
+      <button type="button" aria-label="따라가기 종료" title="따라가기 종료 · 이동키를 눌러도 종료할 수 있어요" disabled={state.pending || followService.mode === 'unavailable' || followService.mode === 'server' && (!state.ready || state.checking)} onClick={() => void requestFollow(null)}>×</button></aside>}
     {state.error && <aside className="follow-status follow-error" role="alert">{state.error}
       {followService.mode === 'server' && <button type="button" disabled={state.pending || state.checking}
         onClick={() => { void followService.check?.().catch(() => {}) }}>따라가기 상태 재조회</button>}

@@ -1,0 +1,76 @@
+{
+  "origin": "사용자 제공 카드 PNG",
+  "sourceDimensions": [
+    1024,
+    1536
+  ],
+  "outputDimensions": [
+    600,
+    900
+  ],
+  "encoding": {
+    "format": "webp",
+    "quality": 90,
+    "effort": 6,
+    "colorSpace": "srgb"
+  },
+  "files": [
+    {
+      "type": "wall",
+      "source": "벽설치.png",
+      "sourceBytes": 2788118,
+      "sourceSha256": "fde34fab92bcf5c8a43445fab1d2d3ee667b4460afae0f57a66af8682baae79b",
+      "outputBytes": 145040
+    },
+    {
+      "type": "relocate",
+      "source": "알재배치.png",
+      "sourceBytes": 2588689,
+      "sourceSha256": "16bc21dc28c31611cac8df244dcf2b219a725691c2e9d52d2aa91806a39e1c7a",
+      "outputBytes": 135778
+    },
+    {
+      "type": "power-up",
+      "source": "크기확대.png",
+      "sourceBytes": 2627121,
+      "sourceSha256": "462a281afe47a77b55fab1317528a8cf7e1932aab77f568784747993fce914af",
+      "outputBytes": 140874
+    },
+    {
+      "type": "grow",
+      "source": "힘강화.png",
+      "sourceBytes": 2581012,
+      "sourceSha256": "651b354a5a5076c20b5a5b59143aaded10f55e714c697bc1755f7614a73e1f39",
+      "outputBytes": 140466
+    },
+    {
+      "type": "shrink",
+      "source": "크기축소.png",
+      "sourceBytes": 2540928,
+      "sourceSha256": "a8dfd0da2de821fd7f5d83da8de256489416a24a1b27f98954f9e25afe3791fe",
+      "outputBytes": 131934
+    },
+    {
+      "type": "extra-shot",
+      "source": "한번더튕기기.png",
+      "sourceBytes": 2652464,
+      "sourceSha256": "d1522762d3a27c83db315999d2205e0dca47d42271d0004f2e502959b69d116c",
+      "outputBytes": 140480
+    },
+    {
+      "type": "swap",
+      "source": "알위치교환.png",
+      "sourceBytes": 2618857,
+      "sourceSha256": "050efee6a14a0e04dacfd420ae936508e38196a1a2c4a661a8e0b616a6f48c51",
+      "outputBytes": 140522
+    },
+    {
+      "type": "defend",
+      "source": "방어자세.png",
+      "sourceBytes": 2559307,
+      "sourceSha256": "956e590a9ab8da298406d8f1e7ce553f74cf958383658360d8c8881b75deacb2",
+      "outputBytes": 135180
+    }
+  ],
+  "mappingNote": "사용자 확인에 따라 힘 강화는 불꽃 그림(크기확대.png), 크기 확대는 큰 알 그림(힘강화.png)을 사용"
+}

@@ -38,8 +38,9 @@ test('the local board-game label waits for approved play and clears at settlemen
   await loaded(page)
   const activity = page.locator('.avatar-overhead-own .avatar-activity')
   await expect(activity).toHaveCount(0)
-  await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).inspectTable())
-  await page.getByRole('button', { name: '앉기', exact: true }).click()
+  // Current seating enters directly from the nearby chair, before opening legacy settings.
+  await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
+  await page.getByRole('button', { name: '테이블 로비 열기', exact: true }).click()
   await page.getByLabel('1인 참가비', { exact: true }).fill('1')
   await page.getByRole('button', { name: '오목 선택', exact: true }).click()
   await expect(activity).toHaveCount(0)

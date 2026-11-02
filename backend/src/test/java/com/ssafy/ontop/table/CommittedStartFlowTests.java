@@ -31,6 +31,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -76,9 +77,18 @@ class CommittedStartFlowTests {
     com.ssafy.ontop.game.result.GameFinishedResultListener finishNotifications;
     @MockitoBean WebSocketAccountLookup accounts;
     @MockitoBean(name = "oauthClock") Clock oauthClock;
+    // Spy 설정 중 실제 타이머의 tick이 Mockito stubbing을 소비하지 않게 한다.
+    // 이 클래스의 시간패는 명시적 tick으로 진행하며 실제 스케줄러는 OmokFlowTests에서 검증한다.
+    @MockitoBean(name = "omokTimer") ScheduledExecutorService omokTimer;
 
     @BeforeEach
     void accounts() {
+        // Reservation/settlement scenarios use a fixed toss; real coin fairness and reveal lock have their own engine tests.
+        org.mockito.Mockito.doAnswer(call -> {
+            engine.create(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3));
+            return null;
+        }).when(engine).createWithCoinToss(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
         when(oauthClock.instant()).thenAnswer(invocation -> clock.instant());
         when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
                 VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)));
@@ -185,10 +195,11 @@ class CommittedStartFlowTests {
             clock.advanceSeconds(seconds);
             reservation.release.countDown();
             playing(first);
-            try (var returned = connect(202, seconds == 29 ? "RESTORED" : "FINISHED")) {
+            try (var returned = connect(202, seconds == 29 ? "RESTORED" : "LOBBY")) {
                 assertThat(reservation.reservations.get()).isEqualTo(1);
-                assertThat(returned.request("GAME_START_CHECK", Map.of()).path("type").asText())
-                        .isEqualTo("GAME_START_STATE");
+                var checked = returned.request("GAME_START_CHECK", Map.of());
+                if (seconds == 29) { assertThat(checked.path("type").asText()).isEqualTo("GAME_START_STATE"); }
+                else { assertThat(checked.at("/payload/code").asText()).isEqualTo("NOT_SEATED"); }
             }
         }
     }
@@ -500,7 +511,7 @@ class CommittedStartFlowTests {
                 clock.advanceSeconds(2);
                 reservation.release.countDown();
                 playing(first);
-                returned.state(seconds == 29 ? "RESTORED" : "FINISHED");
+                returned.state(seconds == 29 ? "RESTORED" : "LOBBY");
                 assertThat(reservation.reservations.get()).isEqualTo(1);
             }
         }
@@ -527,7 +538,9 @@ class CommittedStartFlowTests {
             try (var returned = connect(202, "LOBBY")) {
                 reservation.release.countDown();
                 playing(first);
-                assertThat(returned.state("FINISHED").path("gameId").asText()).isEqualTo(GAME);
+                assertThat(returned.state("LOBBY").path("gameId").isNull()).isTrue();
+                assertThat(returned.request("TABLE_LEAVE", Map.of()).at("/payload/code").asText())
+                        .isEqualTo("NOT_SEATED");
             }
         }
     }

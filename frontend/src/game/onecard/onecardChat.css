@@ -1,0 +1,10 @@
+/* 채팅 크기와 위치는 공원의 공통 ParkChat 스타일을 그대로 사용한다. */
+.park-page:has(.onecard-game-hud) .avatar-speech:not(.avatar-activity) {
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:3;
+  overflow:hidden;
+  max-width:210px;
+  font-size:13px;
+  line-height:1.5;
+}

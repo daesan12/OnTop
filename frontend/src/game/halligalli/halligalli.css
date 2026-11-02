@@ -1,0 +1,211 @@
+/* Full-screen HUD like OneCard: only real controls take the pointer, the park stays draggable around the table. */
+.park-page .halligalli-panel {
+  --hg-ink: #f7efe0; --hg-muted: #d6c8a8; --hg-gold: #e7c26f; --hg-panel: #1d2a23f0; --hg-line: #d8b56a66;
+  --hg-felt: #1f5a3ef0; --hg-turn: #ffd27a; --hg-alert: #ff9c80; --hg-card-w: 84px; --hg-back-ratio: .78; --hg-bell: 128px;
+  position: absolute; inset: 0; z-index: 5; pointer-events: none; color: var(--hg-ink);
+  font-family: 'Malgun Gothic', sans-serif; font-size: 13px;
+}
+.park-page .halligalli-panel p { margin: 0; }
+.park-page .halligalli-panel :is(.hg-head, .hg-feedback, .hg-menu, .hg-seat, .hg-center) { pointer-events: auto; }
+.park-page .halligalli-panel button { font: inherit; color: var(--hg-ink); cursor: pointer; }
+.park-page .halligalli-panel button:disabled { cursor: default; }
+.park-page .halligalli-panel button:focus-visible { outline: 2px solid #ffe0a0; outline-offset: 2px; }
+
+/* The park key bar says "Space 점프"; here Space rings the bell, shown next to the bell instead. */
+.park-page:has(.halligalli-panel) .park-shortcuts { display: none; }
+/* Name plates and "게임 중" bubbles project onto the table centre; game-chat bubbles stay. */
+.park-page:has(.halligalli-panel[data-status='PLAYING']) .avatar-overlays :is(.avatar-activity, .avatar-nickname) { visibility: hidden; }
+
+.park-page .hg-head {
+  position: absolute; top: calc(var(--park-edge, 16px) + 56px); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 16px; max-width: min(560px, 90vw);
+  border: 1px solid var(--hg-line); border-radius: 10px; background: var(--hg-panel); text-align: center;
+}
+.park-page .hg-head h2 { margin: 0; font-size: 16px; color: var(--hg-gold); }
+.park-page .hg-head p { font-weight: 700; }
+.park-page .hg-head small { color: var(--hg-muted); }
+
+.park-page .hg-table {
+  position: absolute; left: 50%; top: calc(50% + 36px); transform: translate(-50%, -50%); width: min(820px, 96vw);
+  display: grid; grid-template-columns: 1fr auto 1fr; grid-template-areas: '. top .' 'left center right' '. bottom .';
+  align-items: center; justify-items: center; gap: 14px;
+}
+.park-page .hg-seat {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; box-sizing: border-box;
+  border: 1px solid var(--hg-line); border-radius: 12px; background: var(--hg-felt); transition: box-shadow .2s;
+}
+.park-page .hg-seat[data-slot='bottom'] { grid-area: bottom; }
+.park-page .hg-seat[data-slot='top'] { grid-area: top; }
+.park-page .hg-seat[data-slot='left'] { grid-area: left; }
+.park-page .hg-seat[data-slot='right'] { grid-area: right; }
+.park-page .hg-seat[data-turn] { box-shadow: 0 0 0 2px var(--hg-turn), 0 0 18px #ffd27a66; }
+.park-page .hg-seat[data-own] { border-color: var(--hg-gold); }
+/* Out of the game, but still readable: only the cards lose colour, the name and badge keep full contrast. */
+.park-page .hg-seat[data-out] { background: #26302bf0; }
+.park-page .hg-seat[data-out='eliminated'] :is(.hg-draw, .hg-faceup) { filter: saturate(.25) brightness(.82); }
+.park-page .hg-seat[data-out='forfeited'] { border-style: dashed; }
+/* A forfeited player's face-up card still counts for the bell, so only the face-down pile is dimmed. */
+.park-page .hg-seat[data-out='forfeited'] .hg-draw { filter: saturate(.3) brightness(.75); }
+.park-page .hg-seat-name { display: flex; align-items: center; gap: 6px; }
+.park-page .hg-seat-name strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.park-page .hg-count { color: var(--hg-muted); font-variant-numeric: tabular-nums; }
+.park-page .hg-badge { padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.park-page .hg-badge[data-kind='turn'] { background: var(--hg-turn); color: #2a2111; }
+.park-page .hg-badge[data-kind='eliminated'] { background: #f2e7d6; color: #3b2a1c; }
+.park-page .hg-badge[data-kind='forfeited'] { background: transparent; color: #ffd7c8; border: 1px dashed #ffd7c8; }
+.park-page .hg-piles { display: flex; gap: 10px; justify-content: center; align-items: flex-end; }
+.park-page .hg-draw, .park-page .hg-faceup { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.park-page .hg-draw { padding: 0; border: 0; background: none; }
+.park-page button.hg-draw:not(:disabled) .hg-card { transition: transform .15s; box-shadow: 0 0 0 3px var(--hg-turn); }
+.park-page button.hg-draw:not(:disabled):hover .hg-card { transform: translateY(-4px); }
+.park-page .hg-draw b, .park-page .hg-faceup small { font-size: 11px; color: var(--hg-muted); font-variant-numeric: tabular-nums; }
+
+/* Cards: 2:3 like the physical deck. The face-up card is the one players must read, so it is the larger one. */
+.park-page .hg-card { display: block; width: var(--hg-card-w); height: calc(var(--hg-card-w) * 1.5); border-radius: calc(var(--hg-card-w) * .09);
+  filter: drop-shadow(0 2px 3px #0006); }
+.park-page :is(.hg-card, .hg-empty)[data-size='small'] { width: calc(var(--hg-card-w) * var(--hg-back-ratio)); height: calc(var(--hg-card-w) * var(--hg-back-ratio) * 1.5); }
+.park-page .hg-card-paper { fill: #fff; stroke: #d9d4cc; stroke-width: 1.2; }
+.park-page .hg-faceup .hg-card-face { animation: hg-flip-in .22s ease-out; }
+.park-page .hg-back-border { fill: #fff; stroke: #d9d4cc; stroke-width: 1.2; }
+.park-page .hg-back-paper { fill: #f5dde5; }
+.park-page .hg-back-art { color: #ad2f67; }
+.park-page .hg-empty {
+  display: block; width: var(--hg-card-w); height: calc(var(--hg-card-w) * 1.5); box-sizing: border-box;
+  border: 2px dashed var(--hg-line); border-radius: 8px;
+}
+@keyframes hg-flip-in { from { transform: perspective(400px) rotateY(80deg); opacity: .4; } to { transform: none; opacity: 1; } }
+
+.park-page .hg-center { grid-area: center; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 150px; }
+.park-page .hg-bell {
+  width: var(--hg-bell); height: var(--hg-bell); padding: 0; border: 2px solid #c9a65a; border-radius: 50%; position: relative;
+  background: radial-gradient(circle at 50% 40%, #2f3e36, #18231d 72%); box-shadow: 0 6px 16px #0008; transition: transform 80ms, filter .15s;
+}
+.park-page .hg-bell svg { width: 100%; height: 100%; display: block; }
+/* The label sits on the black base: light text keeps contrast in every state. */
+.park-page .hg-bell > span { position: absolute; left: 0; right: 0; bottom: 12%; font-weight: 700; font-size: 12px; color: #fff; letter-spacing: .08em; }
+.park-page .hg-bell:not(:disabled):hover { filter: brightness(1.06); }
+.park-page .hg-bell:not(:disabled):active { transform: scale(.94); }
+/* Disabled stays opaque: the park behind must not show through. */
+.park-page .hg-bell:disabled { filter: saturate(.2) brightness(.72); border-color: #6d6a5f; }
+.park-page .hg-bell[data-state='queued'] { animation: hg-bell-wait .6s ease-in-out infinite alternate; }
+@keyframes hg-bell-wait { to { box-shadow: 0 0 0 6px #ffd27a66; } }
+.park-page .hg-keys { font-size: 12px; color: var(--hg-ink); background: #000a; padding: 3px 8px; border-radius: 999px; }
+.park-page .hg-keys kbd { font: inherit; font-weight: 700; padding: 0 5px; margin-right: 4px; border: 1px solid #fff9; border-radius: 4px; }
+.park-page .hg-last-chance { color: var(--hg-turn); font-weight: 700; text-align: center; background: #000a; padding: 3px 8px; border-radius: 8px; }
+
+/* Numberless bar; it only shows the server deadline. */
+.park-page .hg-timer { width: 100%; min-width: 120px; height: 8px; border-radius: 4px; background: #ffffff2e; overflow: hidden; }
+.park-page .hg-timer[data-emphasis] { height: 12px; }
+.park-page .hg-timer > span { display: block; height: 100%; background: var(--hg-gold); transform-origin: left center; transition: transform 100ms linear; }
+.park-page .hg-timer[data-phase='paused'] > span { background: var(--hg-muted); }
+.park-page .hg-timer[data-phase='waiting'] > span { background: var(--hg-alert); }
+
+/*
+ * Table stage (wide screens): HalliBoard writes each element's transform from the 3D camera every frame, with
+ * transform-origin 0 0 at the canvas origin. Hidden until the first placement so nothing flashes in the corner.
+ */
+.park-page .hg-stage { position: absolute; inset: 0; pointer-events: none; }
+.park-page .hg-stage > :is(.hg-stage-face, .hg-stage-draw, .hg-stage-seat, .hg-stage-bell) {
+  position: absolute; left: 0; top: 0; transform-origin: 0 0; visibility: hidden; margin: 0;
+}
+/* 120 × 180 matches HALLI_STAGE_PX.card; the homography lays it flat on the felt. */
+.park-page .hg-stage-face { width: 120px; height: 180px; }
+.park-page .hg-stage-face :is(.hg-card, .hg-empty) { width: 100%; height: 100%; border-radius: 12px; filter: none; }
+.park-page .hg-stage-face .hg-card-face { animation: hg-flip-in .22s ease-out; }
+.park-page .hg-stage-face .hg-empty { border: 4px dashed #f7efe066; }
+.park-page .hg-stage-face[data-out='eliminated'] { filter: saturate(.25) brightness(.82); }
+.park-page .hg-stage-draw {
+  width: 120px; height: 180px; padding: 0; border: 0; border-radius: 12px; background: none; pointer-events: auto;
+}
+.park-page .hg-stage-draw .hg-card { width: 100%; height: 100%; filter: none; }
+.park-page .hg-stage-draw:not(:disabled) { box-shadow: 0 0 0 8px var(--hg-turn), 0 0 28px 8px #ffd27a99; }
+.park-page .hg-stage-draw:not(:disabled):hover { filter: brightness(1.08); }
+.park-page .halligalli-panel .hg-stage-draw:focus-visible { outline: 8px solid #ffe0a0; outline-offset: 4px; }
+.park-page .hg-stage-seat { width: max-content; max-width: 210px; padding: 6px 10px; gap: 3px; }
+
+/*
+ * Cards moving after a bell (HalliFlights): copies over the real piles, never interactive. On the stage HalliBoard
+ * projects them like the face-up cards; on the fixed table they move between the piles' boxes.
+ */
+.park-page .hg-flights { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.park-page .hg-flight {
+  position: absolute; left: 0; top: 0; width: 120px; height: 180px; transform-origin: 0 0; visibility: hidden; will-change: transform;
+}
+.park-page .hg-flight > :is(.hg-card, .hg-flight-blank) { display: block; width: 100%; height: 100%; border-radius: 12px; filter: none; }
+.park-page .hg-flight .hg-card-face { animation: none; }
+/* Cards under the top of a collected stack: their fruit is not public, so only the paper edge shows. */
+.park-page .hg-flight-blank { box-sizing: border-box; background: #fbf8f2; border: 1px solid #d9d4cc; box-shadow: 0 1px 2px #0003; }
+/* A newly issued penalty card: same back, with a warm rim so it reads as new rather than paid from a pile. */
+.park-page .hg-flights > .hg-flight[data-kind='issued'] > .hg-card { filter: drop-shadow(0 0 5px #ffd27a) drop-shadow(0 0 2px #ffd27a); }
+.park-page .hg-table .hg-flight { transform-origin: 50% 50%; }
+.park-page .hg-table .hg-flight > :is(.hg-card, .hg-flight-blank) { border-radius: 9%; filter: drop-shadow(0 3px 4px #0006); }
+.park-page .hg-stage-seat .hg-timer { min-width: 140px; }
+.park-page .hg-stage-piles { color: var(--hg-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.park-page .hg-stage-seat .hg-keys { align-self: center; }
+/*
+ * The bell is 3D. This button only covers its screen box for keyboard and screen readers: invisible, and the pointer
+ * passes through to the 3D bell so one click is never handled twice. Its state chip sits under the base.
+ */
+.park-page .hg-stage-bell { padding: 0; border: 0; border-radius: 50%; background: none; pointer-events: none; }
+.park-page .halligalli-panel .hg-stage-bell:focus-visible { outline: 3px solid #ffe0a0; outline-offset: 4px; }
+.park-page .hg-stage-bell > span {
+  position: absolute; left: 50%; top: 100%; transform: translate(-50%, 4px); padding: 1px 8px; border-radius: 999px;
+  background: #000b; color: #fff; font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.park-page .hg-stage-bell[data-state='queued'] > span { background: var(--hg-turn); color: #2a2111; }
+.park-page .hg-stage-hud {
+  position: absolute; left: 50%; top: calc(var(--park-edge, 16px) + 150px); transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 220px; pointer-events: auto;
+}
+
+.park-page .hg-feedback {
+  position: absolute; left: 50%; bottom: calc(var(--park-edge, 16px) + 72px); transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 2px; max-width: min(520px, 90vw); text-align: center; color: var(--hg-ink);
+}
+.park-page .hg-feedback > p { padding: 2px 8px; border-radius: 6px; background: #000a; }
+.park-page .hg-feedback:empty { display: none; }
+.park-page .hg-feedback [role='alert'] { color: var(--hg-alert); }
+.park-page .hg-menu {
+  position: absolute; right: calc(var(--park-edge, 16px) + 84px * var(--park-ui-scale, 1)); top: calc(var(--park-edge, 16px) + 64px);
+  display: flex; flex-direction: column; gap: 6px; width: 150px;
+}
+.park-page .hg-menu button { min-height: 44px; padding: 4px 10px; border: 1px solid var(--hg-line); border-radius: 8px; background: #3a2d1e; }
+.park-page .hg-menu button:hover:not(:disabled) { background: #554026; border-color: var(--hg-gold); }
+.park-page .hg-menu button:disabled { opacity: .45; }
+.park-page .hg-recovery { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; pointer-events: auto; }
+
+@media (max-height: 800px) and (min-width: 801px) {
+  .park-page .halligalli-panel { --hg-card-w: 64px; --hg-bell: 108px; }
+  .park-page .hg-table { gap: 10px; }
+}
+
+/* ≤800px: fixed 2D layout between the header and the shrunken chat; park chrome that would cover seats is hidden. */
+@media (max-width: 800px) {
+  .park-page .halligalli-panel { --hg-card-w: 54px; --hg-bell: 92px; font-size: 12px; }
+  .park-page .hg-head { top: 8px; max-width: calc(100% - 232px); padding: 6px 10px; }
+  .park-page .hg-head h2 { font-size: 14px; }
+  .park-page .hg-table { top: 76px; bottom: 64px; transform: translateX(-50%); align-content: center; gap: 8px; width: calc(100% - 16px); }
+  .park-page .hg-seat { padding: 6px; gap: 4px; max-width: 100%; }
+  .park-page .hg-piles { gap: 6px; }
+  .park-page .hg-center { min-width: 0; }
+  .park-page .hg-menu { top: 8px; right: auto; left: 8px; width: 104px; gap: 4px; }
+  .park-page .hg-menu button { min-height: 36px; padding: 2px 6px; font-size: 12px; }
+  .park-page .hg-feedback { left: auto; right: 8px; bottom: 64px; transform: none; max-width: 46vw; text-align: right; font-size: 11px; }
+  .park-page:has(.halligalli-panel) :is(.park-location, .park-location-chip, .park-channel-menu, .park-account) { display: none; }
+  .park-page:has(.halligalli-panel) :is(.park-quick-dock, .park-dock-wardrobe, .park-dock-settings) { visibility: hidden; }
+  .park-page:has(.halligalli-panel) :is(.emotes > .emote-wheel-trigger, .park-map > button, .manual-launcher) { display: none; }
+  .park-page:has(.halligalli-panel) .park-chat { top: auto; bottom: 8px; left: 8px; width: min(220px, calc(100% - 16px)); max-height: 138px;
+    padding: 8px; transform: none; }
+  .park-page:has(.halligalli-panel) .park-chat[data-expanded='true'] { width: min(280px, calc(100% - 16px)); max-height: min(260px, calc(100dvh - 120px)); }
+  .park-page:has(.halligalli-panel) .park-chat:not([data-expanded='true']) .park-chat__messages { display: none; }
+  .park-page:has(.halligalli-panel) .park-chat__composer { --chat-composer-height: 36px; height: var(--chat-composer-height); font-size: 12px; }
+}
+@media (max-width: 420px) {
+  .park-page .halligalli-panel { --hg-card-w: 50px; --hg-bell: 82px; }
+  .park-page .hg-head { max-width: calc(100% - 128px); left: auto; right: 8px; transform: none; }
+  .park-page .hg-seat-name { flex-wrap: wrap; row-gap: 0; }
+  .park-page .hg-timer { min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .park-page .halligalli-panel *, .park-page .halligalli-panel *::before { animation: none !important; transition: none !important; }
+}

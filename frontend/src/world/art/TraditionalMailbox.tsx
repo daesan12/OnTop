@@ -2,12 +2,14 @@ import { MAILBOX } from '../../config/parkPlan'
 import { CraftedPropLod, PropSign } from './CraftedProp'
 import { mailboxArt, mailboxTitle } from './mailboxGeometry'
 
-/** Tiled-roof wooden letterbox; the original world anchor and collision identity are preserved. */
-export function TraditionalMailbox() {
+/** Shared letterbox model; the current map supplies its placement, scale and facing. */
+export function TraditionalMailbox({position=[MAILBOX.x,0,MAILBOX.z],scale=1,yaw=0}:{position?:[number,number,number];scale?:number;yaw?:number}={}) {
   return (
     <group
       name="feedback-mailbox"
-      position={[MAILBOX.x, 0, MAILBOX.z]}
+      position={position}
+      rotation={[0,yaw,0]}
+      scale={scale}
       userData={{
         assetId: 'user/red-mailbox',
         source: 'code/mailboxGeometry',

@@ -1,5 +1,5 @@
 import type { TableState, TableSummary } from '../../network/protocol'
-import type { TableGameCode } from './model'
+import { isTableGamePlayable, type TableGameCode } from './model'
 import { useGame } from '../../game/store'
 import { useSession } from '../../network/worldClient'
 import { create } from 'zustand'
@@ -31,7 +31,7 @@ export function readyWouldAutoStart(table: TableState, ownId: string) {
 }
 export function manualStartAllowed(table: TableState, ownId: string, count: number | null) {
   return count !== null && count >= table.minimumPlayers && count <= table.capacity
-    && table.selectorUserId === ownId && !!table.gameCode && !!table.betAmountPerPlayer
+    && table.selectorUserId === ownId && isTableGamePlayable(table.gameCode) && table.betAmountPerPlayer != null
     && table.seats.filter(s => s.userId).length === count && table.allReady
     && table.seats.filter(s => s.userId).every(s => s.ready)
 }
@@ -52,6 +52,7 @@ export function approvedChairCount(table: TableState | undefined, selected: numb
 export function presentedChairCount(table: TableState | undefined, summary: TableSummary | undefined, selected: number | null) {
   if (table) return approvedChairCount(table, selected ?? (table.startMode === 'MANUAL' ? table.selectedPlayers ?? null : null))
   if (!summary) return 2
+  if (summary.chairCount !== undefined) return summary.chairCount
   const count = summary.startMode === 'MANUAL' ? summary.selectedPlayers : null
   return Math.min(4, Math.max(2, summary.occupiedSeats, count ?? (summary.gameCode ? summary.capacity : 2)))
 }

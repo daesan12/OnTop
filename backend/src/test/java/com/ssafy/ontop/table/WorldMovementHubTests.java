@@ -6,8 +6,8 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.minigame.service.MinigameActivityChanged;
 import com.ssafy.ontop.table.service.TableHub;
-import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
 import java.time.Instant;
@@ -79,6 +79,7 @@ class WorldMovementHubTests {
         user.request("WORLD_MOVE", move(0, 1));
         var position = registry.worldState("one");
         user.request("TABLE_JOIN", Map.of("tableId", hub.listTables("one").tables().getFirst().tableId()));
+        user.next("WORLD_STATE");
         var seated = registry.worldState("one");
         assertThat(seated.avatars().getFirst().position()).isEqualTo(position.avatars().getFirst().position());
         assertThat(seated.avatars().getFirst().tableSeat()).isNotNull();
@@ -86,6 +87,7 @@ class WorldMovementHubTests {
                 .isEqualTo("TABLE_BUSY");
         assertThat(registry.worldState("one")).isEqualTo(seated);
         user.request("TABLE_LEAVE", Map.of());
+        user.next("WORLD_STATE");
         user.request("CHANNEL_LEAVE", Map.of());
         assertThat(registry.worldState("one").avatars()).isEmpty();
         assertThat(user.request("WORLD_MOVE", move(1, 100)).path("payload").path("code").asText())
@@ -141,7 +143,11 @@ class WorldMovementHubTests {
         when(session.getId()).thenReturn(peer.id);
         doAnswer(invocation -> {
             if (invocation.getArgument(0) instanceof TextMessage text) {
-                peer.messages.add(mapper.readTree(text.getPayload()));
+                JsonNode message = mapper.readTree(text.getPayload());
+                // 잔해 상태는 WorldGameReactionTests에서 검증하며 이동 알림 순서는 그대로 검사한다.
+                if (!message.path("type").asText().equals("WORLD_PARK_DEBRIS_STATE")) {
+                    peer.messages.add(message);
+                }
             }
             return null;
         }).when(session).sendMessage(any());

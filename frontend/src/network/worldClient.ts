@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../config'
+import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
 import { CHAT } from '../features/chat/settings'
 import { filterChat } from '../features/chat/filterChat'
 import {
@@ -13,14 +13,18 @@ import {
   type TableSummary,
   type TableState,
   type PublicTableSeat,
+  type PublicTable,
 } from './protocol'
 import type { TableBinding } from './tableBindings'
+import type { MapIdentity } from './mapContract'
 import type { AvatarActivity } from './avatarActivity'
-import { EXPECTED_MAP_VERSION } from '../config/mapVersion'
+import { EXPECTED_MAP_VERSION } from '../park/mapConfig'
 import { resetGame } from '../game/store'
 import { resetBenchState, useBenchState } from '../features/interactions/benchState'
 import { clearRoamingInput } from '../world/inputOwnership'
 import { samePose, sampleMovement } from '../world/movementPresentation'
+import { localMovement } from './localMovementPrediction'
+import { remoteMovement } from './remoteMovement'
 import { EmoteTimeline, parseEmoteEvent, parseEmoteCancellation, type EmoteEvent } from '../features/emotes/timeline'
 import { resetEmotes, retiredEmoteRequest, useEmoteState } from '../features/emotes/state'
 import type { EmoteId } from '../features/emotes/catalog'
@@ -39,6 +43,8 @@ import { sameEquipment, type PublicEquipment } from './equipment'
 import { resetFollow } from '../features/follow/state'
 import { resetBenchSpectator } from '../features/interactions/benchSpectator'
 import { defeatTimeline, parseGameReaction } from '../game/presentation/defeat'
+import {acceptParkDebris,parseParkDebris,resetParkDebris} from '../features/parkDebris/state'
+import { receiveJumpmap, resetJumpmap } from '../features/jumpmap/state'
 
 export interface Pose {
   x: number
@@ -47,6 +53,7 @@ export interface Pose {
   yaw: number
 }
 export interface AvatarSnapshot {
+  userId?: string
   previous: Pose
   current: Pose
   at: number
@@ -97,12 +104,16 @@ export interface Session {
   seatIndex: number
   focusedAnchorId: string
   tables: TableSummary[]
+  // null: legacy/missing projection. An empty object is an approved empty full snapshot.
+  publicTables: Record<string, PublicTable> | null
   tableStates: Record<string, TableState>
   watchedTableId: string
   pending: boolean
   bindings: TableBinding[]
   mapCompatible: boolean
   mapVersion: string
+  mapContractStatus: 'pending' | 'confirming' | 'legacy' | 'verified' | 'mismatch'
+  serverMap: MapIdentity | null
   // Facility display IDs come from explicit development leases, never guessed wire fields.
   telescopeId: string
   benchId: string
@@ -129,12 +140,15 @@ const initial = (): Session => ({
   seatIndex: -1,
   focusedAnchorId: '',
   tables: [],
+  publicTables: null,
   tableStates: {},
   watchedTableId: '',
   pending: false,
   bindings: [],
   mapCompatible: false,
   mapVersion: '',
+  mapContractStatus: 'pending',
+  serverMap: null,
   telescopeId: '',
   benchId: '',
   fitnessId: '',
@@ -179,6 +193,10 @@ export function showMovementNotice(message: string, sequence: number) {
   }, 3000)
 }
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  resetParkDebris()
+  resetJumpmap()
+  localMovement.reset()
+  remoteMovement.reset()
   clearMovementNotice()
   eventClock.reset()
   defeatTimeline.clear()
@@ -204,6 +222,10 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  resetParkDebris()
+  resetJumpmap()
+  localMovement.reset()
+  remoteMovement.reset()
   clearMovementNotice()
   defeatTimeline.clear()
   resetFollow()
@@ -235,6 +257,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
     messages: [],
     bubbles: {},
     tables: [],
+    publicTables: null,
     tableStates: {},
     watchedTableId: '',
     tableId: '',
@@ -255,7 +278,20 @@ export function sampleAvatar(
   now: number,
   target: Pose,
 ): Pose {
+  if (avatar === avatars.get(useSession.getState().sessionId)) {
+    if (!predictionAllowed()) localMovement.suspend()
+    else if (localMovement.sample(now, target)) return target
+  } else if (avatar.userId && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId
+    && remoteMovement.sample(avatar.userId, now, target)) {
+    return target
+  }
   return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
+}
+
+function predictionAllowed() {
+  const s = useSession.getState(), own = avatars.get(s.sessionId)
+  return !!own && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
+    && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1') && !s.activities[s.sessionId]
 }
 // UTC event time advances on a monotonic clock after CONNECTED; world day rendering is separate.
 export const estimatedServerTime = () => eventClock.ready ? eventClock.now(performance.now()) : Date.now()
@@ -391,6 +427,7 @@ export function refreshActivityPresentation() {
       a.moving = a.running = false
     }
     const activity = a.tableId || a.benchId || a.fitnessId || a.telescopeId
+    if (activity) remoteMovement.forget(id)
     if (activity && previousActivity !== activity) cancelAvatarEmote(id)
   }
   const own = avatars.get(state.sessionId)
@@ -409,10 +446,15 @@ export function refreshActivityPresentation() {
   if (useNotesState.getState().open && (!own?.connected || own.seatIndex >= 0 || own.fitnessId
     || own.telescopeId || own.swimming || !canReachNotes(authoritativePose(state.sessionId)))) resetNotesState(true)
 }
-export function receive(message: Envelope) {
+export function receive(message: Envelope, expectedMapVersion: string = EXPECTED_MAP_VERSION) {
   if ((message.type === 'ERROR' || message.type === 'WORLD_EMOTE_EVENT') && retiredEmoteRequest(message.requestId)) return
   const p = message.payload,
     state = useSession.getState()
+  if (message.type.startsWith('JUMPMAP_')) {
+    if (state.status === 'connected' && state.mapCompatible && state.mapContractStatus === 'verified')
+      receiveJumpmap(message.type, p, state.sessionId, state.roomId, state.mapVersion)
+    return
+  }
   switch (message.type) {
     case 'CONNECTED':
       if (typeof p.userId !== 'string' || !p.userId)
@@ -448,8 +490,9 @@ export function receive(message: Envelope) {
       )
         return
       worldVersion = next.version
-      const mapCompatible = next.mapVersion === EXPECTED_MAP_VERSION
-      if (!mapCompatible) { defeatTimeline.clear(); resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
+      const mapCompatible = next.mapVersion === expectedMapVersion
+      if (!mapCompatible || state.mapVersion && state.mapVersion !== next.mapVersion) remoteMovement.reset()
+      if (!mapCompatible) { defeatTimeline.clear(); resetParkDebris(); resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
       // Preserve the last approved values while the server's async profile read is pending.
@@ -462,6 +505,16 @@ export function receive(message: Envelope) {
       const activities = Object.keys(state.activities).length === Object.keys(nextActivities).length
         && Object.keys(nextActivities).every(id => state.activities[id] === nextActivities[id])
         ? state.activities : nextActivities
+      const publicTables = !mapCompatible || next.tables === undefined ? null
+        : state.publicTables && Object.keys(state.publicTables).length === next.tables.length
+          && next.tables.every(table => state.publicTables?.[table.tableId]?.anchorId === (table.anchorId ?? null)
+            && state.publicTables?.[table.tableId]?.chairCount === table.chairCount
+            && state.publicTables?.[table.tableId]?.gameCode === table.gameCode)
+          ? state.publicTables
+          : Object.fromEntries(next.tables.map(table => [table.tableId, {
+            tableId: table.tableId, anchorId: table.anchorId ?? null, chairCount: table.chairCount,
+            ...(table.gameCode !== undefined ? { gameCode: table.gameCode } : {}),
+          }]))
       const present = new Set(ids)
       for (const id of Object.keys(equipment)) {
         if (present.has(id)) continue
@@ -509,10 +562,11 @@ export function receive(message: Envelope) {
           avatars.delete(id)
           worldPoses.delete(id)
           worldTableSeats.delete(id)
+          remoteMovement.forget(id)
           emoteTimeline.forget(id)
           defeatTimeline.forget(id)
         }
-      for (const { userId, position, tableSeat } of next.avatars) {
+      for (const { userId, position, tableSeat, motion } of next.avatars) {
         if (tableSeat === undefined) worldTableSeats.delete(userId)
         else worldTableSeats.set(userId, tableSeat)
         worldPoses.set(userId, {
@@ -534,6 +588,7 @@ export function receive(message: Envelope) {
           else sampleAvatar(old, now, previous)
         }
         avatars.set(userId, {
+          userId,
           previous,
           current: { ...position },
           at: unchanged ? old.at : now,
@@ -558,6 +613,8 @@ export function receive(message: Envelope) {
           telescopePitch: 0,
           followTargetId: '',
         })
+        if (mapCompatible && userId !== state.sessionId)
+          remoteMovement.push(userId, position, motion, now)
         if (position.swimming) cancelAvatarEmote(userId)
         else if (position.moving || (old && Math.abs(position.y - old.current.y) > 0.08)) cancelAvatarEmote(userId, 'movement')
       }
@@ -569,6 +626,7 @@ export function receive(message: Envelope) {
         profiles,
         equipment,
         activities,
+        publicTables,
         ...(state.account && profiles[state.sessionId]
           && state.account.nickname !== profiles[state.sessionId]!.nickname
           ? { account: { ...state.account, nickname: profiles[state.sessionId]!.nickname } } : {}),
@@ -581,6 +639,18 @@ export function receive(message: Envelope) {
             }
           : {}),
       })
+      const own = next.avatars.find(a => a.userId === state.sessionId)
+      if (own) {
+        localMovement.reconcile(state.sessionId + '\0' + state.roomId + '\0' + next.mapVersion,
+          own.position, own.motion ?? undefined, predictionAllowed(), now)
+        const counts = new Map<string, number>()
+        for (const binding of state.bindings) {
+          if (binding.channelId !== state.roomId) continue
+          const table = publicTables?.[binding.tableId]
+          if (table?.anchorId === binding.anchorId) counts.set(binding.anchorId, table.chairCount)
+        }
+        localMovement.setChairs(counts)
+      } else localMovement.suspend()
       if (state.mapCompatible && !mapCompatible) {
         resetEmotes()
         for (const id of avatars.keys()) cancelAvatarEmote(id)
@@ -618,6 +688,14 @@ export function receive(message: Envelope) {
           [chat.userId]: { ...chat, expiresAt: performance.now() + OVERHEAD.bubbleDurationMs },
         },
       })
+      break
+    }
+    case 'WORLD_PARK_DEBRIS_STATE': {
+      if(message.requestId!==null||state.status!=='connected'||!state.mapCompatible||p.channelId!==state.roomId||p.mapVersion!==expectedMapVersion)return
+      const snapshot=parseParkDebris(p)
+      if(snapshot.items.some(item=>!TABLES.some(t=>t.id===item.anchorId)
+        ||state.bindings.some(b=>b.channelId===snapshot.channelId&&b.anchorId===item.anchorId&&b.tableId!==item.tableId)))return
+      acceptParkDebris(snapshot)
       break
     }
     case 'WORLD_GAME_REACTION': {

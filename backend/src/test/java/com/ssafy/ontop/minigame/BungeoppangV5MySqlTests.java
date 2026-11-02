@@ -50,6 +50,49 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
 class BungeoppangV5MySqlTests {
+    @Autowired jakarta.persistence.EntityManager budgetEntities;
+    @Autowired org.springframework.transaction.PlatformTransactionManager budgetTransactions;
+
+    @org.junit.jupiter.api.AfterEach
+    void 공통지급_검증용_점프맵_행을_정리한다() {
+        jdbc.update("DELETE FROM jump_gate_rewards WHERE run_id = 'shared-budget-run'");
+        jdbc.update("DELETE FROM jump_runs WHERE id = 'shared-budget-run'");
+        jdbc.update("DELETE FROM jump_profiles WHERE user_id = 101");
+    }
+
+    @Test
+    void 붕어빵과_점프맵이_동시에_보상받아도_공통500냥만_지급하고_재시도는_중복지급하지않는다() throws Exception {
+        long sessionId = readyV5("shared-budget");
+        var request = delivery(sessionId, "1", "shared-one");
+        minigames.deliverV5(101, sessionId, "shared-one", request);
+        shift(sessionId, TO_SETTLEMENT);
+        JsonNode body = mapper.readTree(completion(sessionId, request.log()));
+        jdbc.update("""
+                INSERT INTO wallet_transactions(wallet_id, transaction_type, balance_delta, reserved_delta, idempotency_key, created_at)
+                SELECT id, 'JUMP_GATE_REWARD', 498, 0, 'shared-budget-seed', CURRENT_TIMESTAMP(3) FROM wallets WHERE user_id = 101
+                """);
+        jdbc.update("UPDATE wallets SET balance = balance + 498 WHERE user_id = 101");
+        var jumps = new com.ssafy.ontop.world.jumpmap.JdbcJumpmapStore(jdbc, budgetEntities, budgetTransactions);
+        var now = java.time.Instant.now();
+        jumps.start("shared-budget-run", 101, "channel-1", now);
+        jumps.passGate("shared-budget-run", 101, 1, 2, 10000, now);
+        var gate = new CountDownLatch(1);
+        BungeoppangV4CompleteDtos.Response result;
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var bread = executor.submit(() -> race(gate, () -> minigames.complete(101, sessionId, "shared-complete", body)));
+            var jump = executor.submit(() -> race(gate, () -> jumps.settle("shared-budget-run", 1, now).orElseThrow()));
+            gate.countDown();
+            result = (BungeoppangV4CompleteDtos.Response) bread.get(10, TimeUnit.SECONDS);
+            var paid = (com.ssafy.ontop.world.jumpmap.JumpmapStore.Settled) jump.get(10, TimeUnit.SECONDS);
+            assertThat(result.coinsGranted() + paid.coinsGranted()).isEqualTo(2);
+        }
+        assertThat(balance()).isEqualTo(600);
+        assertThat(jumps.status(101, now).todayEarned()).isEqualTo(500);
+        assertThat(result.dailyCap()).isEqualTo(500);
+        assertThat(minigames.complete(101, sessionId, "shared-complete", body)).isEqualTo(result);
+        jumps.settle("shared-budget-run", 1, now);
+        assertThat(balance()).isEqualTo(600);
+    }
     private static final String START = "{\"minigameType\":\"BUNGEOPPANG\",\"rulesVersion\":\"v5\"}";
 
     @Autowired JdbcTemplate jdbc;
@@ -58,8 +101,9 @@ class BungeoppangV5MySqlTests {
     @Autowired Flyway flyway;
     @Autowired EntityManagerFactory entities;
     @Autowired com.ssafy.ontop.world.service.WorldChannelRegistry channels;
-    private static final java.nio.file.Path FLOW =
-            java.nio.file.Path.of("..", "frontend", "tests", "fixtures", "bungeoppang-v5-flow.json");
+    private static final java.nio.file.Path FIXTURES = java.nio.file.Path.of("..", "frontend", "tests", "fixtures");
+    /** After readyV5 (40 s) this lands 130 s after play start: past a new round's 120 s end, before its 135 s deadline. */
+    private static final int TO_SETTLEMENT = 90;
     @LocalServerPort int port;
     private final ObjectMapper mapper = new ObjectMapper();
     private final ObjectMapper json = new ObjectMapper()
@@ -84,7 +128,8 @@ class BungeoppangV5MySqlTests {
         jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_v5_order");
         jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_v5_receipt");
         jdbc.execute("DROP TRIGGER IF EXISTS minigame_test_fail_v5_ledger");
-        for (String table : List.of("bungeoppang_v5_orders", "bungeoppang_v4_receipts", "bungeoppang_v4_progress",
+        for (String table : List.of("jump_gate_rewards", "jump_daily_earnings", "jump_profiles", "jump_runs",
+                "bungeoppang_v5_orders", "bungeoppang_v4_receipts", "bungeoppang_v4_progress",
                 "bungeoppang_v4_orders", "bungeoppang_v4_rounds", "bungeoppang_records", "bungeoppang_profiles",
                 "minigame_start_requests", "wallet_transactions", "minigame_sessions", "shop_purchases",
                 "user_items", "items", "wallets", "refresh_tokens", "users")) {
@@ -257,6 +302,34 @@ class BungeoppangV5MySqlTests {
                 .isInstanceOf(MinigameException.class);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"pizza,false", "chocolate,false", "pizza,true", "chocolate,true"})
+    void HTTP_특수소_납품은_새판_30퍼센트와_기존판_50퍼센트를_구분하고_재시도에_보존한다(
+            String filling, boolean previous) throws Exception {
+        long sessionId = readyV5("bonus");
+        if (previous) {
+            var old = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(BungeoppangV5Spec.rules());
+            old.put("specialBonusPercent", 50);
+            storedSnapshot(sessionId, "v5-20261101.1", mapper.treeToValue(old, BungeoppangV5Responses.Rules.class));
+        }
+        jdbc.update("UPDATE bungeoppang_v5_orders SET bean=0, pizza=?, chocolate=?"
+                + " WHERE minigame_session_id=? AND order_id=2",
+                filling.equals("pizza") ? 1 : 0, filling.equals("chocolate") ? 1 : 0, sessionId);
+        var log = List.of(action(1, "POUR", 0, 0, null), action(2, "FILL", 300, 0, filling),
+                action(3, "TURN", 6_700, 0, null), action(4, "TURN", 13_100, 0, null),
+                new BungeoppangV4DeliveryDtos.Action(5, "DELIVER", 13_150, null, null, null, "2", "bonus-delivery"));
+        var body = new BungeoppangV4DeliveryDtos.Request("v5", log.size(),
+                BungeoppangV5DeliveryContract.prefixHash(sessionId, config(sessionId), log), log);
+
+        var response = request("POST", "/" + sessionId + "/deliveries", json.writeValueAsString(body), "bonus-delivery");
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+        var approved = mapper.readTree(response.body());
+        assertThat(approved.path("scoreDelta").asLong()).isEqualTo(previous ? 15 : 13);
+        assertThat(approved.path("bonusDelta").asLong()).isEqualTo(previous ? 5 : 3);
+        assertThat(request("POST", "/" + sessionId + "/deliveries", json.writeValueAsString(body), "bonus-delivery").body())
+                .isEqualTo(response.body());
+    }
+
     @Test
     void HTTP_선택_납품은_충원_주문_checkpoint_영수증을_원자_저장하고_재접속과_완료_정산이_한번만_이뤄진다()
             throws Exception {
@@ -286,7 +359,7 @@ class BungeoppangV5MySqlTests {
         assertThat(recovered.path("acceptedLog")).hasSize(9);
         assertThat(recovered.path("issuedOrders")).hasSize(4);
 
-        shift(sessionId, 150);
+        shift(sessionId, TO_SETTLEMENT);
         var complete = completion(sessionId, request.log());
         var settled = request("POST", "/" + sessionId + "/complete", complete, "done-one");
         var again = request("POST", "/" + sessionId + "/complete", complete, "done-two");
@@ -375,7 +448,7 @@ class BungeoppangV5MySqlTests {
         long sessionId = readyV5("settle");
         var request = delivery(sessionId, "1", "settle-one");
         minigames.deliverV5(101, sessionId, "settle-one", request);
-        shift(sessionId, 150);
+        shift(sessionId, TO_SETTLEMENT);
         JsonNode body = mapper.readTree(completion(sessionId, request.log()));
         var gate = new CountDownLatch(1);
         List<Object> results;
@@ -396,7 +469,7 @@ class BungeoppangV5MySqlTests {
     void 완료_중_원장_저장이_실패하면_마지막_납품_승인과_충원까지_롤백하고_재시도는_한번만_지급한다() {
         long sessionId = readyV5("ledger");
         var log = delivery(sessionId, "1", "last-delivery").log();
-        shift(sessionId, 150);
+        shift(sessionId, TO_SETTLEMENT);
         JsonNode body = completionNode(sessionId, log);
         jdbc.execute("CREATE TRIGGER minigame_test_fail_v5_ledger BEFORE INSERT ON wallet_transactions"
                 + " FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='test v5 ledger failure'");
@@ -443,7 +516,7 @@ class BungeoppangV5MySqlTests {
     void HTTP_완료에_남은_미승인_납품은_승인과_충원_뒤_최종_재계산에_한번만_반영된다() throws Exception {
         long sessionId = readyV5("pending");
         var log = delivery(sessionId, "1", "pending-delivery").log();
-        shift(sessionId, 150);
+        shift(sessionId, TO_SETTLEMENT);
         String body = completion(sessionId, log);
 
         var completed = request("POST", "/" + sessionId + "/complete", body, "done-one");
@@ -483,14 +556,34 @@ class BungeoppangV5MySqlTests {
     }
 
     /**
-     * The FE shared round (frontend/tests/fixtures/bungeoppang-v5-flow.json) through the real HTTP API:
-     * three selected deliveries with replacements, a lost response retry, a refresh recovery, a stale revision,
-     * then completion, a lost completion retry and result recovery. The FE test replays the same file.
+     * The FE shared rounds through the real HTTP API: three selected deliveries with replacements, a lost response
+     * retry, a refresh recovery, a stale revision, an early completion, then completion, a lost completion retry and
+     * result recovery. bungeoppang-v5-2min-flow.json runs on a newly issued two-minute round and the unchanged
+     * bungeoppang-v5-flow.json on a stored three-minute round; both reach the same deliveries, score and reward.
+     * The FE test replays the same files.
      */
-    @Test
-    void FE_공유_한판을_HTTP로_진행하고_재전송_재접속_오래된_revision_완료재시도를_복구한다() throws Exception {
-        JsonNode flow = mapper.readTree(java.nio.file.Files.readString(FLOW));
+    @org.junit.jupiter.params.ParameterizedTest(name = "{0}")
+    @org.junit.jupiter.params.provider.CsvSource({
+            "bungeoppang-v5-2min-flow.json, v5-20261029.1, 120000, 80",
+            "bungeoppang-v5-flow.json, v5-20261027.1, 180000, 140"})
+    void FE_공유_한판을_HTTP로_진행하고_재전송_재접속_오래된_revision_완료재시도를_복구한다(String fixture,
+            String configVersion, long durationMs, int toSettlement) throws Exception {
+        JsonNode flow = mapper.readTree(java.nio.file.Files.readString(FIXTURES.resolve(fixture)));
         long sessionId = readyV5("shared-flow");
+        if (BungeoppangV5Spec.LEGACY_CONFIG_VERSION.equals(configVersion)) { legacy(sessionId); }
+        else {
+            var old = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(BungeoppangV5Spec.rules());
+            old.put("specialBonusPercent", 50).put("queueComplaintPenalty", 0);
+            storedSnapshot(sessionId, configVersion, mapper.treeToValue(old, BungeoppangV5Responses.Rules.class));
+        }
+        // A start retry returns the round as stored: its config version, rules and play length.
+        JsonNode start = mapper.readTree(request("POST", "", START, "shared-flow").body());
+        assertThat(start.path("configVersion").asText()).isEqualTo(configVersion);
+        assertThat(start.at("/rules/durationMs").asLong()).isEqualTo(durationMs);
+        assertThat(java.time.Duration.between(java.time.Instant.parse(start.at("/timing/playStartsAt").asText()),
+                java.time.Instant.parse(start.at("/timing/playEndsAt").asText())).toMillis()).isEqualTo(durationMs);
+        assertThat(start.at("/checkpoint/prefixHash").asText())
+                .isEqualTo(BungeoppangV5Spec.initialPrefixHash(sessionId, configVersion));
         List<BungeoppangV4DeliveryDtos.Action> wire = wire(flow);
         int deliveryIndex = 0;
         for (JsonNode expected : flow.path("deliveries")) {
@@ -499,7 +592,7 @@ class BungeoppangV5MySqlTests {
             String key = prefix.getLast().deliveryKey();
             if (deliveryIndex == 1) { shift(sessionId, 10); }
             String body = json.writeValueAsString(new BungeoppangV4DeliveryDtos.Request("v5", throughSeq,
-                    BungeoppangV5DeliveryContract.prefixHash(sessionId, BungeoppangV5Spec.CONFIG_VERSION, prefix), prefix));
+                    BungeoppangV5DeliveryContract.prefixHash(sessionId, config(sessionId), prefix), prefix));
 
             var response = request("POST", "/" + sessionId + "/deliveries", body, key);
             assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
@@ -538,7 +631,7 @@ class BungeoppangV5MySqlTests {
                 staleLog.add(new BungeoppangV4DeliveryDtos.Action(9, "DELIVER", 26_400, null, null, null, "1", "stale-key"));
                 var stale = request("POST", "/" + sessionId + "/deliveries", json.writeValueAsString(
                         new BungeoppangV4DeliveryDtos.Request("v5", 9, BungeoppangV5DeliveryContract.prefixHash(
-                                sessionId, BungeoppangV5Spec.CONFIG_VERSION, staleLog), staleLog)), "stale-key");
+                                sessionId, config(sessionId), staleLog), staleLog)), "stale-key");
                 assertThat(stale.statusCode()).isEqualTo(409);
                 JsonNode staleBody = mapper.readTree(stale.body());
                 assertThat(staleBody.path("code").asText()).isEqualTo("PREFIX_MISMATCH");
@@ -548,8 +641,12 @@ class BungeoppangV5MySqlTests {
             deliveryIndex++;
         }
 
-        shift(sessionId, 140);
         String complete = completion(sessionId, wire);
+        // Before playEndsAt the same request is refused without consuming the key.
+        var early = request("POST", "/" + sessionId + "/complete", complete, "flow-done");
+        assertThat(early.statusCode()).isEqualTo(422);
+        assertThat(mapper.readTree(early.body()).path("code").asText()).isEqualTo("TOO_EARLY");
+        shift(sessionId, toSettlement);
         var settled = request("POST", "/" + sessionId + "/complete", complete, "flow-done");
         assertThat(settled.statusCode()).as(settled.body()).isEqualTo(200);
         JsonNode result = mapper.readTree(settled.body());
@@ -560,6 +657,7 @@ class BungeoppangV5MySqlTests {
             assertThat(result.path(field).asLong()).as(field).isEqualTo(expected.path(field).asLong());
         }
         assertThat(result.path("coinsGranted").asLong()).isEqualTo(2);
+        assertThat(result.path("configVersion").asText()).isEqualTo(configVersion);
         assertThat(result.path("finalThroughSeq").asInt()).isEqualTo(wire.size());
         // C: the completion response was lost; both retries return the stored result without paying again.
         assertThat(request("POST", "/" + sessionId + "/complete", complete, "flow-done").body()).isEqualTo(settled.body());
@@ -597,8 +695,9 @@ class BungeoppangV5MySqlTests {
      * Conditions: local isolated MySQL in the same JVM as the app, no warm-up (sizes run 100 → 3600, so the
      * first sizes include JIT and pool start-up), 3 service runs per size (average and maximum), 1 HTTP run,
      * 20 replay runs. The 3600 target yields about 3515 valid actions: the 50 ms gap allows 3600 in 180 s,
-     * but while two breads cook only four slots meet the 300 ms same-slot gap. These are not DEV figures;
-     * results go to the test output and only correctness is asserted.
+     * but while two breads cook only four slots meet the 300 ms same-slot gap. Only a stored three-minute round
+     * can carry such a log (a two-minute round fits at most 2400), so the rounds are rewritten to that snapshot.
+     * These are not DEV figures; results go to the test output and only correctness is asserted.
      */
     @Test
     void 성능_로그_길이별_v5_납품_처리_시간을_측정한다() throws Exception {
@@ -611,6 +710,7 @@ class BungeoppangV5MySqlTests {
             int bytes = 0;
             for (int run = 0; run < 3; run++) {
                 long sessionId = readyV5("perf-" + target + "-" + run);
+                legacy(sessionId);
                 shift(sessionId, 150);
                 var request = longDelivery(sessionId, target, "perf-" + target + "-" + run);
                 actions = request.throughSeq();
@@ -623,6 +723,7 @@ class BungeoppangV5MySqlTests {
                 serviceMax = Math.max(serviceMax, elapsed);
             }
             long sessionId = readyV5("perf-http-" + target);
+            legacy(sessionId);
             shift(sessionId, 150);
             var request = longDelivery(sessionId, target, "perf-http-" + target);
             long started = System.nanoTime();
@@ -634,6 +735,7 @@ class BungeoppangV5MySqlTests {
             var rules = new com.ssafy.ontop.minigame.service.BungeoppangV5Rules();
             var domain = BungeoppangV5DeliveryContract.domainActions(request.log());
             var heats = java.util.Collections.nCopies(2_048, 100);
+            var snapshot = BungeoppangV5Spec.calculationRules(BungeoppangV5Spec.legacyRules());
             var opening = List.of(
                     new com.ssafy.ontop.minigame.service.BungeoppangV5Rules.Order("1", 0, 0,
                             new com.ssafy.ontop.minigame.service.BungeoppangV4Rules.FillingCounts(2, 0, 0, 0)),
@@ -644,9 +746,9 @@ class BungeoppangV5MySqlTests {
             double replayTotal = 0;
             for (int run = 0; run < 20; run++) {
                 long replayStarted = System.nanoTime();
-                rules.replay(domain.subList(0, domain.size() - 1), heats, opening);
-                rules.replay(domain, heats, opening);
-                rules.replay(domain, heats, opening);
+                rules.replay(domain.subList(0, domain.size() - 1), heats, opening, snapshot);
+                rules.replay(domain, heats, opening, snapshot);
+                rules.replay(domain, heats, opening, snapshot);
                 replayTotal += (System.nanoTime() - replayStarted) / 1e6;
             }
             report.append(String.format(java.util.Locale.ROOT, "%d, %d, %d, %.1f, %.1f, %.1f, %.2f%n", target, actions,
@@ -692,7 +794,7 @@ class BungeoppangV5MySqlTests {
         }
         log.add(new BungeoppangV4DeliveryDtos.Action(log.size() + 1, "DELIVER", t, null, null, null, "1", key));
         return new BungeoppangV4DeliveryDtos.Request("v5", log.size(),
-                BungeoppangV5DeliveryContract.prefixHash(sessionId, BungeoppangV5Spec.CONFIG_VERSION, log), List.copyOf(log));
+                BungeoppangV5DeliveryContract.prefixHash(sessionId, config(sessionId), log), List.copyOf(log));
     }
 
     /** Mirrors FE serviceV5: seq from position, DELIVER carries its own key, TRAY_DISCARD its bread ID. */
@@ -765,6 +867,38 @@ class BungeoppangV5MySqlTests {
         return sessionId;
     }
 
+    /**
+     * Rewrites a freshly started round into the row the previous release stored for a three-minute round: the legacy
+     * config version and rules snapshot, play end 180 s after play start (deadline +15 s, expiry +25 s) and the
+     * opening hash seeded with the legacy version. Call before any delivery.
+     */
+    private void legacy(long sessionId) throws Exception {
+        storedSnapshot(sessionId, BungeoppangV5Spec.LEGACY_CONFIG_VERSION, BungeoppangV5Spec.legacyRules());
+    }
+
+    private void storedSnapshot(long sessionId, String version, BungeoppangV5Responses.Rules rules) throws Exception {
+        String hash = BungeoppangV5Spec.initialPrefixHash(sessionId, version);
+        var round = jdbc.queryForMap("SELECT config_json, checkpoint_json FROM bungeoppang_v4_rounds"
+                + " WHERE minigame_session_id=?", sessionId);
+        var config = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree((String) round.get("config_json"));
+        config.set("rules", mapper.valueToTree(rules));
+        var checkpoint = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(
+                (String) round.get("checkpoint_json"));
+        checkpoint.put("prefixHash", hash);
+        jdbc.update("UPDATE bungeoppang_v4_rounds SET config_version=?, config_json=?, approved_prefix_hash=?,"
+                + " checkpoint_json=?, play_ends_at=TIMESTAMPADD(MICROSECOND,?,play_starts_at),"
+                + " submit_deadline=TIMESTAMPADD(MICROSECOND,?,play_starts_at),"
+                + " expires_at=TIMESTAMPADD(MICROSECOND,?,play_starts_at) WHERE minigame_session_id=?",
+                version, mapper.writeValueAsString(config), hash, mapper.writeValueAsString(checkpoint),
+                rules.durationMs() * 1000L, (rules.durationMs() + 15_000L) * 1000L,
+                (rules.durationMs() + 25_000L) * 1000L, sessionId);
+    }
+
+    private String config(long sessionId) {
+        return jdbc.queryForObject("SELECT config_version FROM bungeoppang_v4_rounds WHERE minigame_session_id=?",
+                String.class, sessionId);
+    }
+
     private void shift(long sessionId, int seconds) {
         jdbc.update("UPDATE bungeoppang_v4_rounds SET"
                 + " issued_at=TIMESTAMPADD(SECOND,?,issued_at),"
@@ -787,7 +921,7 @@ class BungeoppangV5MySqlTests {
                 action(7, "TURN", 19_900, 1, null), action(8, "TURN", 26_300, 1, null),
                 new BungeoppangV4DeliveryDtos.Action(9, "DELIVER", 26_400, null, null, null, orderId, key));
         return new BungeoppangV4DeliveryDtos.Request("v5", log.size(),
-                BungeoppangV5DeliveryContract.prefixHash(sessionId, BungeoppangV5Spec.CONFIG_VERSION, log), log);
+                BungeoppangV5DeliveryContract.prefixHash(sessionId, config(sessionId), log), log);
     }
 
     private static BungeoppangV4DeliveryDtos.Action action(int seq, String type, int t, int slot, String filling) {
@@ -803,7 +937,7 @@ class BungeoppangV5MySqlTests {
         var body = mapper.createObjectNode();
         body.put("rulesVersion", "v5");
         body.put("throughSeq", log.size());
-        body.put("prefixHash", BungeoppangV5DeliveryContract.prefixHash(sessionId, BungeoppangV5Spec.CONFIG_VERSION, log));
+        body.put("prefixHash", BungeoppangV5DeliveryContract.prefixHash(sessionId, config(sessionId), log));
         body.set("log", json.valueToTree(log));
         body.putArray("seenTips").add("START");
         body.put("clientScore", 0);

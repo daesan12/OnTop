@@ -1,0 +1,67 @@
+.jm-guide-root { position:fixed; inset:0; z-index:65; pointer-events:none; }
+.jm-guide-paper.table-paper-popup { box-sizing:border-box; width:min(850px,calc(100vw - 36px)); padding:24px 30px 18px; border-radius:24px; font-family:'BusanDandiMyeongjo',serif; scrollbar-width:none; }
+.jm-guide-paper::-webkit-scrollbar { display:none; }
+.jm-guide-paper .paper-caption { font-size:14px; letter-spacing:.08em; }
+.jm-guide-intro { display:grid; grid-template-columns:1.15fr 1fr; align-items:center; gap:24px; text-align:left; margin:20px 0; }
+.jm-guide-paper .jm-guide-intro h2 { font:600 43px/1.2 'BusanDandiMyeongjo',serif; margin:8px 0 12px; }
+.jm-guide-eyebrow { font-size:13px; color:#85714e; }
+.jm-guide-intro p { font-size:16px; line-height:1.7; margin:0; }
+.jm-guide-intro img { width:100%; height:158px; object-fit:cover; border-radius:16px; box-shadow:0 3px 12px #725b3526; }
+.jm-guide-sound { display:flex; align-items:center; justify-content:center; gap:15px; background:#e5ead7; border:1px solid #9da88080; border-radius:14px; padding:13px 18px; text-align:left; }
+.jm-guide-sound>span { font-size:38px; color:#476d4e; }
+.jm-guide-sound strong { display:block; font-size:20px; line-height:1.5; color:#28523b; }
+.jm-guide-sound p { margin:4px 0 0; font-size:12px; color:#60715b; line-height:1.6; }
+.jm-guide-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; list-style:none; padding:0; margin:22px 0 16px; text-align:left; }
+.jm-guide-steps li { min-width:0; }
+.jm-guide-steps svg { display:block; height:43px; width:64px; color:#7e8760; margin:0 auto 12px; }
+.jm-guide-steps h3 { display:flex; align-items:center; gap:7px; margin:0 0 8px; font-size:16px; line-height:1.5; }
+.jm-guide-steps h3 span { display:inline-grid; place-items:center; flex:0 0 22px; height:22px; border-radius:50%; background:#dac69b; color:#644f2e; font-size:12px; }
+.jm-guide-steps p { font-size:13px; color:#776849; line-height:1.8; margin:0; word-break:keep-all; }
+.jm-guide-controls { display:flex; justify-content:center; flex-wrap:wrap; gap:12px 25px; padding:12px; border-top:1px solid #b8a07655; border-bottom:1px solid #b8a07655; font-size:13px; }
+.jm-guide-paper kbd { font-family:inherit; display:inline-block; border:1px solid #b9a67f; background:#fff9e9; border-radius:5px; padding:2px 7px; margin-right:4px; font-size:12px; box-shadow:0 1px 0 #b9a67f55; }
+.jm-guide-ranking { display:flex; gap:15px; align-items:center; padding:14px 18px; margin:14px 0; border-radius:13px; background:#e8dbc144; text-align:left; }
+.jm-guide-ranking>span { flex:0 0 42px; color:#a68a51; }
+.jm-guide-ranking svg { display:block; width:42px; height:36px; }
+.jm-guide-ranking h3 { font-size:18px; margin:0 0 6px; }
+.jm-guide-ranking p { font-size:13px; line-height:1.7; color:#746544; margin:0; }
+.jm-guide-optional { color:#807356; font-size:12px; line-height:1.9; margin:12px 0 16px; }
+.jm-guide-optional strong { font-weight:600; color:#3b5c42; }
+.jm-guide-paper .jm-guide-depart { width:min(380px,100%); border-radius:14px; }
+.jm-guide-close-hint { margin:9px 0 0; color:#857556; font-size:11px; }
+@media(min-width:651px) and (max-height:850px) {
+  .jm-guide-paper.table-paper-popup { padding:18px 24px 14px; }
+  .jm-guide-intro { margin:12px 0; }
+  .jm-guide-paper .jm-guide-intro h2 { font-size:36px; margin:6px 0 8px; }
+  .jm-guide-intro img { height:118px; }
+  .jm-guide-intro p { font-size:14px; }
+  .jm-guide-sound { padding:10px 16px; }
+  .jm-guide-sound strong { font-size:18px; }
+  .jm-guide-steps { margin:16px 0 12px; }
+  .jm-guide-steps svg { height:34px; margin-bottom:6px; }
+  .jm-guide-steps p { font-size:12px; line-height:1.6; }
+  .jm-guide-controls { padding:9px; }
+  .jm-guide-ranking { padding:10px 16px; margin:12px 0; }
+  .jm-guide-ranking h3 { font-size:16px; }
+  .jm-guide-ranking p { font-size:12px; }
+  .jm-guide-optional { font-size:11px; margin:8px 0 12px; }
+}
+@media(max-width:650px) {
+  .jm-guide-paper.table-paper-popup { padding:22px 19px 16px; max-height:calc(100dvh - 24px); width:calc(100vw - 24px); }
+  .jm-guide-intro { gap:12px; margin:16px 0; }
+  .jm-guide-paper .jm-guide-intro h2 { font-size:29px; margin:7px 0; }
+  .jm-guide-intro img { height:122px; }
+  .jm-guide-eyebrow { font-size:10px; }
+  .jm-guide-intro p { font-size:12px; }
+  .jm-guide-sound { padding:10px; gap:9px; }
+  .jm-guide-sound strong { font-size:16px; }
+  .jm-guide-sound p { font-size:11px; }
+  .jm-guide-steps { grid-template-columns:1fr; gap:16px; }
+  .jm-guide-steps li { display:grid; grid-template-columns:48px minmax(0,1fr); column-gap:10px; }
+  .jm-guide-steps svg { width:45px; height:38px; grid-row:span 2; margin:4px 0 0; }
+  .jm-guide-steps h3 { font-size:15px; }
+  .jm-guide-steps p { font-size:12px; line-height:1.7; }
+  .jm-guide-controls { gap:8px 13px; padding:10px 0; font-size:12px; }
+  .jm-guide-ranking { padding:12px; gap:10px; }
+  .jm-guide-ranking h3 { font-size:16px; }
+  .jm-guide-ranking p { font-size:12px; }
+}

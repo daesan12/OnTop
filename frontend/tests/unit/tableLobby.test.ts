@@ -44,20 +44,25 @@ describe('M09 lobby authority and completed round presentation', () => {
     expect(lobbyStatus(table, '101', true).canLeaveByMovement).toBe(false)
     expect(lobbyStatus({ ...table, seats: table.seats.map(s => ({ ...s, ready: !!s.userId })) }, '101', false).canLeaveByMovement).toBe(false)
   })
-  it('uses existing exact GAME_SELECT options, never preview IDs or omitted dice options', () => {
+  it('allows omok and one-card selection and blocks games under construction', () => {
     expect(gameSelection('OMOK', 5)).toEqual({ gameCode: 'OMOK', betAmountPerPlayer: 5 })
-    expect(gameSelection('DICE', 5, 4000)).toEqual({ gameCode: 'DICE', targetScore: 4000, betAmountPerPlayer: 5 })
     expect(gameSelection('ONE_CARD', 5)).toEqual({ gameCode: 'ONE_CARD', betAmountPerPlayer: 5 })
+    for (const gameCode of ['DICE', 'LIAR_BRIDGE'] as const) {
+      expect(() => gameSelection(gameCode, 5, gameCode === 'DICE' ? 4000 : undefined)).toThrow('공사 중')
+      expect(lobbyStatus({ ...table, gameCode }, '101', false).canReady).toBe(false)
+    }
     expect(() => gameSelection('DICE', 5)).toThrow()
     expect(() => gameSelection('DICE', 5, 3000)).toThrow()
     expect(() => gameSelection('OMOK', 5, 2000)).toThrow()
   })
   it('rejects invalid bets before sending and requires a confirmed bet before ready', () => {
-    for (const bet of [0, -1, 1.5, NaN, Number.MAX_SAFE_INTEGER])
+    for (const bet of [-1, 1.5, NaN, Number.MAX_SAFE_INTEGER])
       expect(() => gameSelection('ONE_CARD', bet)).toThrow()
     expect(gameSelection('ONE_CARD', Math.floor(Number.MAX_SAFE_INTEGER / 4)).betAmountPerPlayer)
       .toBe(Math.floor(Number.MAX_SAFE_INTEGER / 4))
     expect(lobbyStatus({ ...table, betAmountPerPlayer: null }, '101', false).canReady).toBe(false)
+    expect(gameSelection('ONE_CARD', 0).betAmountPerPlayer).toBe(0)
+    expect(lobbyStatus({ ...table, betAmountPerPlayer: 0 }, '101', false).canReady).toBe(true)
   })
   it('requires actual server WAITING before next-round presentation can be dismissed', () => {
     expect(waitingForRound(start('SETTLING', 1), 'table')).toBe(false)

@@ -17,6 +17,8 @@ public class AnonymousNote {
     private Long id;
     @Column(name = "body", nullable = false, length = 300)
     private String body;
+    @Column(nullable = false, length = 16)
+    private String category = "free";
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -24,12 +26,18 @@ public class AnonymousNote {
     }
 
     public AnonymousNote(NoteText text, Instant now) {
+        this(text, NoteCategory.FREE, now);
+    }
+
+    public AnonymousNote(NoteText text, NoteCategory category, Instant now) {
         body = text.value();
+        this.category = category.value();
         createdAt = now;
     }
 
     public Long id() { return id; }
     public String body() { return body; }
+    public String category() { return category; }
     public Instant createdAt() { return createdAt; }
 
     @Override

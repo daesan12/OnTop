@@ -5,6 +5,10 @@ import com.ssafy.ontop.game.bridge.config.BridgeConfiguration;
 import com.ssafy.ontop.game.bridge.service.BridgeEngine;
 import com.ssafy.ontop.game.farkle.config.FarkleConfiguration;
 import com.ssafy.ontop.game.farkle.service.FarkleEngine;
+import com.ssafy.ontop.game.halligalli.config.HalliGalliConfiguration;
+import com.ssafy.ontop.game.halligalli.service.HalliGalliEngine;
+import com.ssafy.ontop.game.ledger.config.DiceLedgerConfiguration;
+import com.ssafy.ontop.game.ledger.service.DiceLedgerEngine;
 import com.ssafy.ontop.game.omok.config.OmokConfiguration;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.config.OneCardConfiguration;
@@ -36,20 +40,28 @@ class GameRuntimeProfileTests {
             .withInitializer(new ConfigDataApplicationContextInitializer())
             .withBean(ObjectMapper.class, () -> new ObjectMapper().findAndRegisterModules())
             .withUserConfiguration(OmokConfiguration.class, FarkleConfiguration.class, OneCardConfiguration.class,
-                    BridgeConfiguration.class, CommittedGameStartService.class, GameReconnectService.class,
-                    GameResultService.class, GameFinishedResultListener.class);
+                    BridgeConfiguration.class, DiceLedgerConfiguration.class, HalliGalliConfiguration.class,
+                    CommittedGameStartService.class,
+                    GameReconnectService.class, GameResultService.class, GameFinishedResultListener.class);
     private final ApplicationContextRunner recoveryRunner = new ApplicationContextRunner()
             .withInitializer(new ConfigDataApplicationContextInitializer())
             .withBean(GameParticipantRepository.class, () -> mock(GameParticipantRepository.class))
             .withUserConfiguration(GameReconnectService.class, JpaActiveGameLookup.class, GameRuntimeIdentity.class);
 
+    // dev는 할리갈리 QA를 위해 할리갈리 엔진만 기본으로 켠다. 시작과 다른 게임 엔진은 환경변수로만 켠다.
     @Test
-    void 기본dev는_시작과_엔진을_자동활성화하지_않는다() {
+    void 기본dev는_시작과_다른엔진을_자동활성화하지_않고_할리갈리엔진만_대기한다() {
         runner.withPropertyValues("spring.profiles.active=dev").run(context -> {
             assertThat(context).hasNotFailed().doesNotHaveBean(CommittedGameStartService.class)
-                    .doesNotHaveBean(GameEngineRouter.class).hasSingleBean(GameReconnectService.class)
+                    .doesNotHaveBean(OmokEngine.class).doesNotHaveBean(FarkleEngine.class)
+                    .doesNotHaveBean(OneCardEngine.class).doesNotHaveBean(BridgeEngine.class)
+                    .doesNotHaveBean(DiceLedgerEngine.class)
+                    .hasSingleBean(HalliGalliEngine.class).hasSingleBean(GameEngineRouter.class)
+                    .hasSingleBean(GameReconnectService.class)
                     .hasSingleBean(GameResultService.class).hasSingleBean(GameFinishedResultListener.class);
         });
+        runner.withPropertyValues("spring.profiles.active=dev", "GAME_HALLIGALLI_ENABLED=false").run(context ->
+                assertThat(context).hasNotFailed().doesNotHaveBean(GameEngineRouter.class).doesNotHaveBean(HalliGalliEngine.class));
     }
 
     @Test
@@ -67,6 +79,7 @@ class GameRuntimeProfileTests {
             assertThat(context).hasNotFailed().hasSingleBean(CommittedGameStartService.class)
                     .hasSingleBean(OmokEngine.class).hasSingleBean(FarkleEngine.class)
                     .hasSingleBean(OneCardEngine.class).hasSingleBean(BridgeEngine.class)
+                    .hasSingleBean(DiceLedgerEngine.class).hasSingleBean(HalliGalliEngine.class)
                     .hasSingleBean(GameEngineRouter.class).hasSingleBean(GameReconnectService.class)
                     .hasSingleBean(GameResultService.class).hasSingleBean(GameFinishedResultListener.class);
             assertThat(context.getEnvironment().getActiveProfiles()).containsExactly("dev");
@@ -89,7 +102,8 @@ class GameRuntimeProfileTests {
     void 운영DB프로필에서_경기엔진과_시작_결과_재접속을_등록한다(String profiles) {
         enabled(profiles).withPropertyValues("ontop.game-start.enabled=true", "ontop.games.omok.enabled=true",
                 "ontop.games.farkle.enabled=true", "ontop.games.onecard.enabled=true",
-                "ontop.games.bridge.enabled=true")
+                "ontop.games.bridge.enabled=true", "ontop.games.ledger.enabled=true",
+                "ontop.games.halligalli.enabled=true")
                 .withBean(GameStartGateway.class, () -> new GameStartGateway() {
             @Override public GameStartResult startGame(GameStartCommand command) {
                 throw new AssertionError("기동 중 예약 금지");
@@ -101,6 +115,7 @@ class GameRuntimeProfileTests {
                 .hasSingleBean(CommittedGameStartService.class).hasSingleBean(GameEngineRouter.class)
                 .hasSingleBean(OmokEngine.class).hasSingleBean(FarkleEngine.class)
                 .hasSingleBean(OneCardEngine.class).hasSingleBean(BridgeEngine.class)
+                .hasSingleBean(DiceLedgerEngine.class).hasSingleBean(HalliGalliEngine.class)
                 .hasSingleBean(GameReconnectService.class).hasSingleBean(GameResultService.class)
                 .hasSingleBean(GameFinishedResultListener.class));
     }
@@ -109,11 +124,13 @@ class GameRuntimeProfileTests {
     @ValueSource(strings = {"prod", "production", "dev,prod", "dev,production", "local,prod", "local,production"})
     void 운영DB가_없거나_개발프로필과_섞이면_경기기능을_등록하지_않는다(String profiles) {
         enabled(profiles).withPropertyValues("ontop.game-start.enabled=true", "ontop.games.omok.enabled=true",
-                "ontop.games.farkle.enabled=true", "ontop.games.onecard.enabled=true", "ontop.games.bridge.enabled=true")
+                "ontop.games.farkle.enabled=true", "ontop.games.onecard.enabled=true", "ontop.games.bridge.enabled=true",
+                "ontop.games.ledger.enabled=true", "ontop.games.halligalli.enabled=true")
                 .run(context -> assertThat(context).hasNotFailed()
                 .doesNotHaveBean(CommittedGameStartService.class).doesNotHaveBean(GameEngineRouter.class)
                 .doesNotHaveBean(OmokEngine.class).doesNotHaveBean(FarkleEngine.class)
                 .doesNotHaveBean(OneCardEngine.class).doesNotHaveBean(BridgeEngine.class)
+                .doesNotHaveBean(DiceLedgerEngine.class).doesNotHaveBean(HalliGalliEngine.class)
                 .doesNotHaveBean(GameReconnectService.class).doesNotHaveBean(GameResultService.class)
                 .doesNotHaveBean(GameFinishedResultListener.class));
     }
@@ -143,6 +160,7 @@ class GameRuntimeProfileTests {
     private ApplicationContextRunner enabled(String profiles) {
         return runner.withPropertyValues("spring.profiles.active=" + profiles,
                 "GAME_START_ENABLED=true", "GAME_OMOK_ENABLED=true", "GAME_FARKLE_ENABLED=true",
-                "GAME_ONECARD_ENABLED=true", "GAME_BRIDGE_ENABLED=true");
+                "GAME_ONECARD_ENABLED=true", "GAME_BRIDGE_ENABLED=true", "GAME_LEDGER_ENABLED=true",
+                "GAME_HALLIGALLI_ENABLED=true");
     }
 }

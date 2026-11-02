@@ -1,6 +1,6 @@
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '../../network/worldClient'
-import { parkName } from '../../config/parkName'
+import { parkName } from '../parkMenus/parkName'
 import { useManual } from './manualState'
 
 /** Paper utility row for the current channel; world settings live in the dock's 설정 panel. */

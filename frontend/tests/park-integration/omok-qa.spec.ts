@@ -1,0 +1,61 @@
+import { expect, test } from '@playwright/test'
+import { fixture, screenshot } from '../e2e/contractFixture'
+
+test('새 오목판과 돌을 표시하고 코인이 튀어 오른 뒤 승인 착수음을 재생한다', async ({ page }) => {
+  const errors: string[] = [], sounds: string[] = []
+  await page.addInitScript(() => {
+    const create = AudioContext.prototype.createBufferSource
+    ;(window as unknown as { omokHits: number }).omokHits = 0
+    AudioContext.prototype.createBufferSource = function() {
+      const source = create.call(this), start = source.start.bind(source)
+      source.start = (...args: Parameters<AudioBufferSourceNode['start']>) => {
+        if (source.buffer && Math.abs(source.buffer.duration - .065) < .0001) (window as unknown as { omokHits: number }).omokHits++
+        return start(...args)
+      }
+      return source
+    }
+  })
+  page.on('pageerror', e => errors.push(e.message))
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+  page.on('request', r => { if (r.url().endsWith('/audio/omok/stone-tap.wav')) sounds.push(r.url()) })
+  const server = await fixture(page, { generatedPark: true, omok: true, manualLobby: true, tabletServer: true })
+  await page.goto('/park')
+  await expect(page).toHaveTitle('OnTop')
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
+  const tablet = page.getByRole('dialog', { name: '게임 태블릿', exact: true })
+  await tablet.getByLabel('1인 참가비').fill('1')
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  await tablet.getByRole('checkbox', { name: '참가 금액을 확인했어요' }).check()
+  await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
+  server.readyTabletOthers(true)
+  await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
+  const panel = page.getByRole('region', { name: '오목 경기', exact: true })
+  await expect(panel).toBeVisible()
+  server.coinToss(new Date(Date.now() + 2500).toISOString())
+  const toss = page.locator('.omok-coin-toss')
+  await expect(toss).toBeVisible()
+  await expect(page.locator('.omok-toss-coin')).toHaveCSS('animation-name', 'omok-coin-launch')
+  await expect(page.locator('.omok-toss-front')).toHaveAttribute('src', /yeopjeon-icon/)
+  const low = await page.locator('.omok-toss-coin').boundingBox()
+  await page.waitForTimeout(550)
+  const high = await page.locator('.omok-toss-coin').boundingBox()
+  expect(high!.y).toBeLessThan(low!.y - 15)
+  await screenshot(page, 'omok-qa-coin-flight')
+  await expect(toss).toHaveCount(0, { timeout: 5000 })
+  server.turnTo('101')
+  await expect.poll(() => page.evaluate(async () =>
+    (await import('/tests/e2e/sceneProbe.ts' as string)).omokCameraProbe().ready)).toBe(true)
+  const point = await page.evaluate(async () =>
+    (await import('/tests/park-integration/probe.ts' as string)).omokPlayProbe(7, 7))
+  await page.mouse.click(point!.point.x, point!.point.y)
+  await expect.poll(() => sounds.length).toBe(1)
+  await expect.poll(() => page.evaluate(() => (window as unknown as { omokHits: number }).omokHits)).toBe(1)
+  server.resendGame()
+  await page.waitForTimeout(200)
+  expect(await page.evaluate(() => (window as unknown as { omokHits: number }).omokHits)).toBe(1)
+  await screenshot(page, 'omok-qa-board-stone')
+  await expect(page.locator('.stone-chip')).toHaveCount(2)
+  expect(errors).toEqual([])
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+})

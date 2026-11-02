@@ -10,7 +10,6 @@ import {
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { clone } from 'three/addons/utils/SkeletonUtils.js'
 import { CHARACTER, CLAP_EMOTE } from '../../config'
-import { createSoleSupport } from './soleSupport'
 
 export { characterUrls } from './characterAssets'
 const bodyBones = [
@@ -137,7 +136,7 @@ export function createCharacterRig(source: GLTF) {
       soleCells.set(key, i)
   }
   const soleIndices = [...soleCells.values()]
-  const soleSupport = createSoleSupport(shoes, soleIndices)
+  const solePoint = new Vector3()
   const target = new Quaternion()
   const euler = new Euler()
   const rotations = new Float32Array(characterBones.length * 3)
@@ -333,9 +332,12 @@ export function createCharacterRig(source: GLTF) {
     },
     groundShift() {
       root.updateMatrixWorld(true)
-      // CPU support sampling reads bone world matrices directly. The renderer
-      // updates the GPU skeleton once before drawing, without a duplicate here.
-      const bottom = soleSupport()
+      skeleton.update()
+      let bottom = Infinity
+      for (const i of soleIndices) {
+        shoes.getVertexPosition(i, solePoint)
+        bottom = Math.min(bottom, solePoint.y)
+      }
       return Number.isFinite(bottom)
         ? Math.max(-0.2, Math.min(0.2, -bottom))
         : 0

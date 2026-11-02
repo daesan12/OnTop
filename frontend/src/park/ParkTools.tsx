@@ -6,6 +6,7 @@ import { GamePanel } from '../game/GamePanel'
 import { TableLobby } from '../features/tableLobby/TableLobby'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useFacilityUseNotice } from '../features/facilities/state'
+import { SpectatorExit } from '../game/SpectatorExit'
 
 export function ParkTools() {
   const runtime = useParkRuntime()
@@ -13,17 +14,18 @@ export function ParkTools() {
     useShallow((s) => ({
       status: s.status,
       error: s.error,
-      movementNotice: s.movementNotice?.message,
       roomId: s.roomId,
       focusedAnchorId: s.focusedAnchorId,
       tableId: s.tableId,
       bindings: s.bindings,
+      mapContractStatus: s.mapContractStatus,
     })),
   )
   const facilityNotice = useFacilityUseNotice(s => s.message)
-  const error = state.error || facilityNotice || state.movementNotice
+  const error = state.error || facilityNotice
   return (
     <>
+      <SpectatorExit />
       <div className="park-runtime-tools">
         {!TABLET_ENABLED && state.tableId && !state.focusedAnchorId && <button onClick={() => {
           const binding = state.bindings.find(b => b.channelId === state.roomId && b.tableId === state.tableId)
@@ -45,7 +47,10 @@ export function ParkTools() {
               ? '공원 서버 연결 중…'
               : '다시 연결하고 있어요…')}
           {state.status === 'error' && (
-            <button onClick={runtime.reconnect}>다시 연결</button>
+            <>
+              {state.mapContractStatus === 'mismatch' && <button onClick={() => window.location.reload()}>페이지 새로고침</button>}
+              <button onClick={runtime.reconnect}>다시 연결</button>
+            </>
           )}
         </div>
       )}

@@ -23,7 +23,7 @@
 .table-paper-popup button:disabled { opacity: .5; cursor: default; }.table-paper-popup button:focus-visible { outline: 3px solid #438a57; outline-offset: 3px; }
 .table-paper-popup .paper-primary { color: #fff5df; background: linear-gradient(#2b5035, #123321); border: 3px double #c0a05a; box-shadow: 0 3px 5px #543d1926; font-size: 21px; }
 .table-paper-popup .paper-text-button { background: none; border: 0; min-height: 32px; padding: 3px 8px; font-size: 13px; text-decoration: underline; }
-.paper-error { color: #943b2e; font-size: 14px; }.paper-reopen { position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 44; padding: 12px 24px; border-radius: 9px; background: #f7ecd2; border: 1px solid #b49a60; color: #193d29; cursor: pointer; }
+.paper-error { color: #943b2e; font-size: 14px; }.paper-reopen { position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 46; padding: 12px 24px; border-radius: 9px; background: #f7ecd2; border: 1px solid #b49a60; color: #193d29; cursor: pointer; }
 .park-page:has(.table-result-popover) .park-hud .park-roaming-ui,
 .park-page:has(.table-result-popover) .park-shortcuts,
 .park-page:has(.table-result-popover) .avatar-overlays,
@@ -31,7 +31,23 @@
 .paper-score { margin: 20px 0 14px; padding: 12px; border: 3px double #bfa05b; font: 600 57px/1.2 BusanDandiMyeongjo, serif; }
 .paper-stats { display: grid; grid-template-columns: repeat(2, 1fr); margin: 10px 0; gap: 15px; }.paper-stats > div { display: flex; flex-direction: column; gap: 4px; }.paper-stats b { font: 600 30px/1.2 BusanDandiMyeongjo, serif; }.paper-stats > div + div { border-left: 1px solid #b8a583; }.paper-stats .paper-mistakes { color: #863f2c; }
 .table-paper-popup details { font-size: 13px; color: #706751; margin-top: 10px; }.table-paper-popup summary { cursor: pointer; }.paper-forfeit { margin-top: 12px; text-align: left; font-size: 13px; }
+/* Board-game results use a compact sheet; other paper dialogs keep their own sizing. */
+.table-paper-popup.table-result-popover { box-sizing: border-box; width: min(430px, calc(100vw - 36px)); padding: 22px 24px 20px; font-size: 14px; }
+.table-result-popover .paper-caption { margin-bottom: 5px; font-size: 14px; }
+.table-result-popover .paper-trophy { width: 62px; height: 52px; margin-top: 4px; }
+.table-result-popover h2 { font-size: 44px; }
+.table-result-popover .paper-subtitle { margin: 3px 0 12px; font-size: 15px; }
+.table-result-popover .paper-players { gap: 6px; margin: 10px 0; }
+.table-result-popover .paper-players li { min-height: 40px; gap: 8px; padding: 6px 10px; }
+.table-result-popover .paper-person-icon { width: 27px; height: 27px; font-size: 14px; }
+.table-result-popover .paper-settlement { min-height: 60px; margin: 12px 0; padding: 10px; }
+.table-result-popover .paper-settlement strong { font-size: 17px; }
+.table-result-popover .paper-actions { gap: 7px; margin-top: 12px; }
+.table-result-popover button { min-height: 44px; padding: 8px 12px; }
+.table-result-popover .paper-primary { font-size: 18px; }
+.table-result-popover .paper-forfeit { margin-top: 8px; font-size: 12px; }
 @keyframes paper-popup-in { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes paper-spin { to { transform: rotate(360deg); } }
 @media(max-width: 600px), (max-height: 700px) { .table-paper-popup { padding: 23px 20px 18px; }.table-paper-popup h2 { font-size: 43px; }.paper-trophy { height: 52px; width: 65px; }.paper-caption { font-size: 14px; }.paper-settlement { margin: 10px 0; padding: 10px; min-height: 65px; }.paper-players { margin: 10px 0; }.paper-players li { min-height: 42px; padding: 6px 9px; font-size: 14px; }.table-paper-popup .paper-subtitle { font-size: 16px; margin-bottom: 13px; }.paper-actions { margin-top: 11px; } }
+@media(max-width: 600px), (max-height: 700px) { .table-paper-popup.table-result-popover { padding: 18px 18px 16px; }.table-result-popover h2 { font-size: 36px; }.table-result-popover .paper-trophy { width: 54px; height: 44px; } }
 @media(prefers-reduced-motion: reduce) { .table-paper-popup, .paper-pending { animation: none; } }

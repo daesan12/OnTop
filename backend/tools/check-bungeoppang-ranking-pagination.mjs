@@ -21,13 +21,15 @@ try {
     assert.equal(url.searchParams.get('period'), 'ALL_TIME')
     assert.equal(url.searchParams.get('rulesVersion'), 'v5')
     assert.equal(url.searchParams.get('limit'), '20')
+    // 결과 화면은 v5 판에 저장된 플레이 시간을 같이 보낸다. 기본 2분 판.
+    assert.equal(url.searchParams.get('durationMs'), '120000')
     assert.equal(url.searchParams.get('cursor'), cursor ?? null)
     assert.equal(init.cache, 'no-store')
     assert.equal(init.signal, signal)
     return body
   }
-  const first = await fetchRanking(request(wire.first), 'v5', '42', signal)
-  const second = await fetchRanking(request(wire.second, first.nextCursor), 'v5', '42', signal, first.nextCursor)
+  const first = await fetchRanking(request(wire.first), 'v5', '42', signal, undefined, 120000)
+  const second = await fetchRanking(request(wire.second, first.nextCursor), 'v5', '42', signal, first.nextCursor, 120000)
   const merged = appendRanking(first, second)
   assert.equal(first.items.length, 20)
   assert.deepEqual(merged.items.slice(19).map(item => item.rank), [20, 20, 22])
@@ -36,16 +38,16 @@ try {
   assert.equal(merged.nextCursor, null)
   assert.deepEqual(merged.me, first.me)
   assert.equal(merged.me.rank, 22)
-  for (const name of ['expired', 'otherUser', 'otherVersion', 'otherLimit']) {
+  for (const name of ['expired', 'otherUser', 'otherVersion', 'otherLimit', 'otherDuration']) {
     assert.equal(wire[name].code, 'RANKING_SNAPSHOT_EXPIRED')
   }
   assert.equal(wire.invalid.code, 'INVALID_CURSOR')
   // 409를 빈 목록/성공으로 해석하지 않는다. 사용자가 처음부터 재시도하면 새 응답을 사용한다.
   await assert.rejects(() => fetchRanking(async () => { throw new Error(wire.expired.code) },
-    'v5', '42', signal, first.nextCursor), /RANKING_SNAPSHOT_EXPIRED/)
-  const fresh = await fetchRanking(request(wire.fresh), 'v5', '42', signal)
+    'v5', '42', signal, first.nextCursor, 120000), /RANKING_SNAPSHOT_EXPIRED/)
+  const fresh = await fetchRanking(request(wire.fresh), 'v5', '42', signal, undefined, 120000)
   assert.equal(fresh.me.rank, 1)
-  assert.equal(fresh.me.made, 200)
+  assert.equal(fresh.me.score, 200)
   assert.notEqual(fresh.snapshotId, first.snapshotId)
   assert.throws(() => appendRanking(first, fresh), /랭킹 응답/)
   const empty = parseRanking(wire.empty, 'v4', '42')
@@ -54,6 +56,8 @@ try {
   assert.equal(empty.me, null)
   assert.equal(empty.nextCursor, null)
   console.log('PASS: 실제 HTTP → 무수정 FE 요청/파서/병합; 기본20명·경계동점·22명 중복없음·새기록 격리')
-  console.log('PASS: 소유자/버전/limit 커서 격리·만료409·처음부터 갱신·혼합 스냅샷 거절·v4 빈 기록')
+  assert.equal(first.durationMs, 120000)
+  assert.equal(empty.durationMs, null)
+  console.log('PASS: 소유자/버전/limit/플레이시간 커서 격리·만료409·처음부터 갱신·혼합 스냅샷 거절·v4 빈 기록')
   console.log('범위: 로컬 회원/DB 조회 fixture·제어 시계. 실제 DB/로그인 계정/React 화면 검수와 구분.')
 } finally { await server.close() }

@@ -50,7 +50,7 @@ class DevCommittedStartFlowTests {
     @Autowired Environment environment;
     @Autowired ApplicationContext context;
     @Autowired AccessJwtService jwt;
-    @Autowired OmokEngine engine;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean OmokEngine engine;
     @Autowired OmokFlowTests.TestClock clock;
     @Autowired TableHub hub;
     @Autowired CommittedStartFlowTests.ReservationDouble reservation;
@@ -63,6 +63,12 @@ class DevCommittedStartFlowTests {
 
     @BeforeEach
     void 회원과_DB경계는_대역으로_명시한다() {
+        // Reservation/settlement scenarios use a fixed toss; real coin fairness and reveal lock have their own engine tests.
+        org.mockito.Mockito.doAnswer(call -> {
+            engine.create(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3));
+            return null;
+        }).when(engine).createWithCoinToss(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
         when(oauthClock.instant()).thenAnswer(invocation -> clock.instant());
         when(accounts.findActive(101, TestLoginSessions.ID)).thenReturn(Optional.of(new VerifiedWebSocketUser(101,
                 VerifiedWebSocketUser.Provider.NAVER, TestLoginSessions.ID)));

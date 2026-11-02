@@ -45,13 +45,13 @@ function LedPanel({ slot, wall }: { slot: AdvertisementSlot; wall: number }) {
     </group>
   )
 }
-export function MediaBuilding({ b }: { b: (typeof MEDIA_BUILDINGS)[number] }) {
+export function MediaBuilding({ b,advertising=true }: { b: (typeof MEDIA_BUILDINGS)[number];advertising?:boolean }) {
   const { stone, metal, glass } = useMemo(() => {
     const parts = buildingParts({
       ...b,
       variant: b.id === 'east-media' ? 1 : 0,
     })
-    for (const slot of b.slots) {
+    for (const slot of advertising?b.slots:[]) {
       const size = advertisementSize(slot.format, slot.width),
         wall = b.d / 2
       if ((slot as AdvertisementSlot).mount === 'roof') {
@@ -82,7 +82,7 @@ export function MediaBuilding({ b }: { b: (typeof MEDIA_BUILDINGS)[number] }) {
         c: '#bbc8c6',
       })
     return parts
-  }, [b])
+  }, [b,advertising])
   return (
     <group name={b.id} position={[b.x, 0, b.z]} rotation={[0, b.yaw, 0]}>
       <Instances
@@ -114,7 +114,7 @@ export function MediaBuilding({ b }: { b: (typeof MEDIA_BUILDINGS)[number] }) {
       >
         <boxGeometry />
       </Instances>
-      {b.slots.map((slot) => (
+      {advertising&&b.slots.map((slot) => (
         <LedPanel key={slot.id} slot={slot} wall={b.d / 2} />
       ))}
     </group>

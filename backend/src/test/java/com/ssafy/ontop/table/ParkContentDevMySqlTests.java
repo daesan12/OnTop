@@ -59,8 +59,7 @@ class ParkContentDevMySqlTests {
         registry.add("ADMIN_READ_IDS", () -> "101");
         registry.add("NOTES_ENABLED", () -> "true");
         registry.add("NOTES_PRIVACY_SECRET", () -> "synthetic-content-note-privacy-key-only");
-        registry.add("spring.flyway.locations", () -> "classpath:db/migration,classpath:db/minigame,"
-                + "classpath:db/notes");
+        // Flyway locations는 application-db.yml의 dev 경로 그대로 사용한다(메모 스키마는 공통 V133).
     }
 
     @Test
@@ -70,7 +69,7 @@ class ParkContentDevMySqlTests {
         }
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isZero();
         assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE success=1", String.class))
-                .contains("110", "111", "121", "127");
+                .contains("110", "111", "127", "133").doesNotContain("120", "121", "129");
         for (long id : new long[]{101, 202, 909}) {
             jdbc.update("INSERT INTO users(id,login_provider,provider_user_id,nickname,character_gender,created_at,updated_at)"
                     + " VALUES(?,'NAVER',?,?,'MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3))",
@@ -80,8 +79,10 @@ class ParkContentDevMySqlTests {
         String admin = token(101);
         String member = token(202);
         try (var writer = connect(member); var viewer = connect(admin)) {
-            writer.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
-            viewer.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
+            for (var socket : new ScenarioClient[] {writer, viewer}) {
+                var joined = socket.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
+                assertThat(joined.path("type").asText()).as(joined.toString()).isEqualTo("CHANNEL_STATE");
+            }
             locate("202", -10.8, .8, 14.5);
             String feedbackBody = json.writeValueAsString(Map.of("operationId", "combined-feedback",
                     "channelId", "channel-1", "text", "비공개 의견 테스트입니다"));
@@ -105,7 +106,7 @@ class ParkContentDevMySqlTests {
             JsonNode published = json.readTree(publicList.body()).path("notes");
             assertThat(published).hasSize(1);
             assertThat(published.get(0).properties()).extracting(Map.Entry::getKey)
-                    .containsExactlyInAnyOrder("id", "text", "createdAt");
+                    .containsExactlyInAnyOrder("id", "text", "createdAt", "category");
             assertThat(publicList.body()).contains("공개 익명 메모입니다")
                     .doesNotContain("비공개 의견", "authorUserId", "nickname", "channelId", "operationId");
             assertThat(publicList.headers().firstValue("Cache-Control")).contains("no-store");
@@ -135,8 +136,11 @@ class ParkContentDevMySqlTests {
     private ScenarioClient connect(String token) throws Exception {
         var response = request("POST", "/auth/websocket-ticket", null, token);
         assertThat(response.statusCode()).isEqualTo(200);
-        return new ScenarioClient(port, "member", json.readTree(response.body()).path("ticket").asText(),
+        var client = new ScenarioClient(port, "member", json.readTree(response.body()).path("ticket").asText(),
                 "https://dev.on-top.world", "127.0.0.1:" + port);
+        // 접속 직후 경기 복구 확인이 끝나 LOBBY가 된 뒤에만 채널 입장을 받는다(GAME_RECOVERY_REQUIRED 방지).
+        client.state("LOBBY");
+        return client;
     }
 
     private void locate(String id, double x, double y, double z) {

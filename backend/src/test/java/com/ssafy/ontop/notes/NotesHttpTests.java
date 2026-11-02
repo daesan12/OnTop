@@ -87,6 +87,29 @@ class NotesHttpTests {
         verifyNoInteractions(notes);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"daily", "cheer", "worry", "recommend", "free"})
+    void 주제5종을_정확히_검증하고_공개응답에포함한다(String category) throws Exception {
+        Instant now = Instant.parse("2026-10-29T00:00:00Z");
+        when(notes.submit(anyLong(), any(), any(), any(), any())).thenReturn(new NoteReceiptResponse(
+                new com.ssafy.ontop.notes.dto.NoteResponse("1", "주제 검증", now, category), now.plusSeconds(15)));
+        var response = request("POST", "/notes", "{\"operationId\":\"1793232000000_0123456789abcdef\","
+                + "\"channelId\":\"channel-1\",\"text\":\"주제 검증\",\"category\":\"" + category + "\"}",
+                jwt.issue(101, TestLoginSessions.ID));
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(response.body()).contains("\"category\":\"" + category + "\"");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\"invalid\"", "\"CHEER\"", "\"\"", "null", "1"})
+    void 명시한잘못된주제는저장서비스호출전에거절한다(String category) throws Exception {
+        var response = request("POST", "/notes", "{\"operationId\":\"1793232000000_0123456789abcdef\","
+                + "\"channelId\":\"channel-1\",\"text\":\"주제 검증\",\"category\":" + category + "}",
+                jwt.issue(101, TestLoginSessions.ID));
+        assertThat(response.statusCode()).isEqualTo(400);
+        verifyNoInteractions(notes);
+    }
+
     @Test
     void 필수_조회채널_누락도_같은_오류형식이다() throws Exception {
         var response = request("GET", "/notes", null, jwt.issue(101, TestLoginSessions.ID));
@@ -105,6 +128,15 @@ class NotesHttpTests {
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.headers().firstValue("Access-Control-Allow-Origin")).contains("http://localhost:8080");
+    }
+
+    @Test
+    void JPA_잠금과_조회_오류도_재시도할수있는_503으로_응답한다() throws Exception {
+        // 저장소는 Spring 예외 변환 대상(@Repository)이 아니므로 EntityManager 예외가 그대로 올라온다.
+        when(notes.list(anyLong(), any())).thenThrow(new jakarta.persistence.PessimisticLockException("lock wait timeout"));
+        var response = request("GET", "/notes?channelId=channel-1", null, jwt.issue(101, TestLoginSessions.ID));
+        assertThat(response.statusCode()).isEqualTo(503);
+        assertThat(response.body()).contains("\"code\":\"NOTES_UNAVAILABLE\"").doesNotContain("lock wait timeout");
     }
 
     private HttpResponse<String> request(String method, String path, String body, String token) throws Exception {

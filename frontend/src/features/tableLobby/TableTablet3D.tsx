@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
-import { TABLES, tableScale, tableSeats } from '../../config'
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
+import { TABLES, tableScale, tableSeats } from '../../park/mapConfig'
 import { useSession } from '../../network/worldClient'
 import { tabletLobbyActive } from './tabletModel'
 import { screenTransform, TABLET, tabletProjection } from './tabletProjection'
 import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
 import { BeveledBox } from '../../world/art/BeveledBox'
 import { renderedTableAnchors } from './tabletAnchors'
+
+const caseGeometry = new RoundedBoxGeometry(TABLET.width + .14, TABLET.height + .14, .08, 2, .025)
+const inlayGeometry = new RoundedBoxGeometry(TABLET.width + .108, TABLET.height + .108, .012, 2, .006)
+const bezelGeometry = new RoundedBoxGeometry(TABLET.width + .075, TABLET.height + .075, .012, 2, .006)
 
 /** Physical wood/bezel/stand in the existing scene; the screen is accessible projected HTML. */
 export function TableTablet3D() {
@@ -50,7 +55,7 @@ function TabletAsset({ anchor, seatIndex }: { anchor: typeof TABLES[number]; sea
     const positions = [[-1, 1], [1, 1], [-1, -1], [1, -1]] as const
     for (let i = 0; i < 4; i++) {
       const [x, y] = positions[i]!
-      points[i]!.set(x * TABLET.width / 2, y * TABLET.height / 2, .042)
+      points[i]!.set(x * TABLET.width / 2, y * TABLET.height / 2, TABLET.screenDepth)
       screen.current.localToWorld(points[i]!); points[i]!.project(camera)
       projected[i]!.x = (points[i]!.x + 1) * size.width / 2
       projected[i]!.y = (1 - points[i]!.y) * size.height / 2
@@ -60,12 +65,13 @@ function TabletAsset({ anchor, seatIndex }: { anchor: typeof TABLES[number]; sea
   return <group ref={root} name="table-preparation-tablet" position={[anchor.position[0], anchor.position[1] + TABLET.y, anchor.position[2]]}
     rotation={[0, yaw, 0]} userData={{ assetId: 'table-preparation-tablet', keepOpaque: true }}>
     <group ref={screen} rotation={[TABLET.tilt, 0, 0]}>
-      <mesh scale={[TABLET.width + .19, TABLET.height + .19, .085]}><BeveledBox /><SurfaceMaterial kind="wood" mapping="box" color="#b37c42" meters={.65} /></mesh>
-      <mesh position={[0, 0, .045]} scale={[TABLET.width + .05, TABLET.height + .05, .014]}><BeveledBox /><meshStandardMaterial color="#171e1a" roughness={.28} /></mesh>
-      <mesh position={[0, 0, .054]}><planeGeometry args={[TABLET.width, TABLET.height]} /><meshBasicMaterial color="#101b15" /></mesh>
-      <mesh position={[0, TABLET.height / 2 + .018, .059]}><sphereGeometry args={[.007, 8, 6]} /><meshStandardMaterial color="#101719" metalness={.5} roughness={.3} /></mesh>
+      <mesh><primitive object={caseGeometry} attach="geometry" dispose={null} /><SurfaceMaterial kind="wood" mapping="box" color="#765238" meters={.65} /></mesh>
+      <mesh position={[0, 0, .043]}><primitive object={inlayGeometry} attach="geometry" dispose={null} /><meshStandardMaterial color="#b49a66" roughness={.8} metalness={.12} /></mesh>
+      <mesh position={[0, 0, .052]}><primitive object={bezelGeometry} attach="geometry" dispose={null} /><meshStandardMaterial color="#29382e" roughness={.86} /></mesh>
+      <mesh position={[0, 0, TABLET.screenDepth - .001]}><planeGeometry args={[TABLET.width, TABLET.height]} /><meshBasicMaterial color="#233126" /></mesh>
+      <mesh position={[0, TABLET.height / 2 + .02, TABLET.screenDepth]}><circleGeometry args={[.004, 12]} /><meshBasicMaterial color="#bca675" /></mesh>
     </group>
-    <mesh position={[0, -.55, -.05]} scale={[1.1, .045, .43]}><BeveledBox /><SurfaceMaterial kind="wood" mapping="box" color="#9a683b" /></mesh>
+    <mesh position={[0, -.55, -.05]} scale={[1.04, .035, .39]}><BeveledBox /><SurfaceMaterial kind="wood" mapping="box" color="#765238" /></mesh>
     <mesh position={[0, -.35, -.13]} rotation={[-.35, 0, 0]} scale={[.65, .42, .055]}><BeveledBox /><SurfaceMaterial kind="wood" mapping="box" color="#8b5c35" /></mesh>
   </group>
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUNGEOPPANG_V5 as R } from '../../src/features/bungeoppang/config';
+import { BUNGEOPPANG_V5 as R, BUNGEOPPANG_V5_LEGACY } from '../../src/features/bungeoppang/config';
 import { applyAction, burnt, createGrill, ready, replay, validateCustomers, type CustomerOrder } from '../../src/features/bungeoppang/rulesV5';
 import { cookLevel, type GrillLogEntry } from '../../src/features/bungeoppang/rulesV4';
 import fixture from '../fixtures/bungeoppang-v5.json';
@@ -15,6 +15,34 @@ const takeLog: GrillLogEntry[] = [
   { slot: 0, action: 'TURN', t: 6400 }, { slot: 0, action: 'TURN', t: 12800 },
 ];
 describe('v5 independent simulation', () => {
+  it.each(['pizza', 'chocolate'] as const)('%s 납품 보너스는 새 판에서 30%%이고 기존 판은 저장된 50%%를 유지한다', filling => {
+    const history = [{ orderId: '1', customerSlot: 0, availableAfterSeq: 0,
+      items: { bean: 0, custard: 0, pizza: filling === 'pizza' ? 1 : 0, chocolate: filling === 'chocolate' ? 1 : 0 } }];
+    const log: GrillLogEntry[] = [{ action: 'POUR', slot: 0, t: 0 }, { action: 'FILL', slot: 0, t: 300, filling },
+      { action: 'TURN', slot: 0, t: 6700 }, { action: 'TURN', slot: 0, t: 13100 },
+      { action: 'DELIVER', slot: -1, t: 13150, orderId: '1' }];
+    expect(replay(log, [100], history, R)).toMatchObject({ score: 13, bonusScore: 3 });
+    expect(replay(log, [100], history, { ...R, specialBonusPercent: 50 })).toMatchObject({ score: 15, bonusScore: 5 });
+    expect(replay(log, [100], history, BUNGEOPPANG_V5_LEGACY)).toMatchObject({ score: 15, bonusScore: 5 });
+  });
+  it('세 번째 뒤 손님을 먼저 제공하면 기다리던 손님마다 한 번만 5점을 감점한다', () => {
+    const items = { bean: 1, custard: 0, pizza: 0, chocolate: 0 };
+    const history = ['1', '3', '9'].map((orderId, customerSlot) => ({ orderId, customerSlot, availableAfterSeq: 0, items }));
+    const log: GrillLogEntry[] = [];
+    for (const [i, orderId] of ['3', '15', '20', '38'].entries()) {
+      const t = i * 14000;
+      log.push({ action: 'POUR', slot: 0, t }, { action: 'FILL', slot: 0, t: t + 300, filling: 'bean' },
+        { action: 'TURN', slot: 0, t: t + 6700 }, { action: 'TURN', slot: 0, t: t + 13100 },
+        { action: 'DELIVER', slot: -1, t: t + 13150, orderId });
+      if (i < 3) history.push({ orderId: ['15', '20', '38'][i]!, customerSlot: 1, availableAfterSeq: log.length, items });
+    }
+    const normal = replay(log, initial().heats, history, { ...R, queueComplaintPenalty: 0 });
+    const result = replay(log, initial().heats, history, R);
+    expect(result.score).toBe(normal.score - 10);
+    expect(result.complainedOrderIds).toEqual(['1', '9']);
+    expect(replay(log.slice(0, 5), initial().heats, history, R).complainedOrderIds).toEqual([]);
+    expect(replay(log.slice(0, 15), initial().heats, history, R).complainedOrderIds).toEqual(['1']);
+  });
   it('keeps batter cold, consumes the heat at FILL and starts the front clock there', () => {
     let s = initial();
     s = applyAction(s, { slot: 0, action: 'POUR', t: 0 }, R).state;

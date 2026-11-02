@@ -2,6 +2,9 @@ import { GOMOKU } from '../config'
 import type { Omok } from './protocol'
 
 export const OMOK_SIZE = 15
+// 두꺼운 판의 최하단(-114mm)이 테이블 상판을 침범하지 않도록 시각 루트만 높인다.
+// 공원 배치·충돌 맵 버전을 구성하는 공통 설정은 유지한다.
+export const OMOK_BOARD_Y = GOMOKU.boardY + .06
 export const OMOK_SPACING = GOMOKU.boardSpan / (OMOK_SIZE - 1)
 export const OMOK_HALF = GOMOKU.boardSpan / 2
 export function omokCell(x: number, z: number) {
@@ -13,8 +16,9 @@ export function omokCell(x: number, z: number) {
 }
 export const stonePoint = (x: number, y: number): [number, number, number] =>
   [x * OMOK_SPACING - OMOK_HALF, 0.019, y * OMOK_SPACING - OMOK_HALF]
+export const omokCoordinate = (x: number, y: number) => `${String.fromCharCode(65 + x)}${y + 1}`
 export const lastMoveText = (move: Omok['lastMove']) => move
-  ? `마지막 수: ${move.stone === 'BLACK' ? '흑' : '백'} · ${move.y + 1}행 ${move.x + 1}열`
+  ? `마지막 수: ${move.stone === 'BLACK' ? '흑' : '백'} · ${omokCoordinate(move.x, move.y)} (${move.y + 1}행 ${move.x + 1}열)`
   : '아직 놓인 돌이 없습니다.'
 const reasons: Record<string, string> = {
   FIVE_IN_ROW: '오목 완성', BOARD_FULL: '빈 교차점 없음', TURN_TIMEOUT: '착수 시간 초과',

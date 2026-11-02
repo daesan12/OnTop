@@ -1,13 +1,19 @@
+import type { ReactElement } from "react";
+
 export const manualGameIds = [
+  "alkkagi",
   "gomoku",
   "farkle",
   "onecard",
   "bridge",
+  "ledger",
+  "halligalli",
   "janggi",
   "fishing",
   "fish-bread",
   "jump",
   "vr-jump",
+  "rps-roulette",
 ] as const;
 export type ManualGameId = (typeof manualGameIds)[number];
 export type ManualCategory = "game" | "minigame" | "vr";
@@ -35,6 +41,8 @@ export interface ManualSection {
   table?: { headers: string[]; rows: string[][] };
   example?: { title: string; text: string };
   tip?: string;
+  /** 코드로 그린 그림. 게임 화면과 같은 컴포넌트를 써서 외부 이미지 없이 그린다. */
+  figure?: { caption: string; render: () => ReactElement };
 }
 export interface Rulebook {
   markdown: string;

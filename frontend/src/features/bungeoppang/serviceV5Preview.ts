@@ -6,7 +6,7 @@ import { BungeoppangServiceError, type BungeoppangGame, type BungeoppangService,
 /** Issuer simulation for the explicit v5 dev mode. Never touches HTTP, storage or a wallet. */
 export function createV5PreviewService(random = Math.random, now = Date.now): BungeoppangService {
   type Round = { game: BungeoppangGame; history: CustomerOrder[]; accepted: GrillState;
-    revision: number; end: number; abandoned: boolean; result?: BungeoppangSubmitResult;
+    revision: number; end: number; pausedAt?:number; abandoned: boolean; result?: BungeoppangSubmitResult;
     receipts: Map<string, { body: string; grill: GrillState; revision: number }> };
   const rounds = new Map<string, Round>(), keys = new Map<string, string>();
   const clone = <T,>(value: T): T => structuredClone(value);
@@ -57,6 +57,11 @@ export function createV5PreviewService(random = Math.random, now = Date.now): Bu
       rounds.set(gameId, { game: clone(game), history: clone(orders), accepted: createGrill(heats, orders, R),
         revision: 0, end: at + R.countdownMs + R.durationMs, abandoned: false, receipts: new Map() });
       keys.set(key, gameId); return clone(game);
+    },
+    async setManualPaused(gameId,paused) {
+      const r=round(gameId);
+      if(paused&&r.pausedAt===undefined)r.pausedAt=now();
+      else if(!paused&&r.pausedAt!==undefined){r.end+=now()-r.pausedAt;delete r.pausedAt;}
     },
     async deliverV5(input) { return deliver(input); },
     async recoverV5(gameId) { const r = round(gameId); return clone({ grill: r.accepted, revision: r.revision }); },

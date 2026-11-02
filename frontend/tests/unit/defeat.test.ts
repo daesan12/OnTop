@@ -15,6 +15,15 @@ const event = (patch: Record<string, unknown> = {}) => parseGameReaction({ event
 const position = { x: 1, y: .8, z: 2 }
 
 describe('server-confirmed reaction events', () => {
+  it('reserves table-flip for an originally two-player explicit forfeit, keeping normal loss and narrowed multiplayer games calm', () => {
+    const duel=event({participantCount:2,remainingBefore:2,kind:'FORFEIT',motion:'table-flip',durationMs:2800})
+    expect(new DefeatTimeline().accept(duel,'table-1',position,now)?.kind).toBe('table-flip')
+    for(const patch of [{participantCount:2,kind:'DEFEAT'},{participantCount:4,kind:'FORFEIT'}]){
+      const calm=event({...patch,remainingBefore:2,motion:'head-clutch',durationMs:3600})
+      expect(new DefeatTimeline().accept(calm,'table-1',position,now)?.kind).toBe('head-clutch')
+      expect(()=>event({...calm,motion:'table-flip',durationMs:2800})).toThrow()
+    }
+  })
   it.each([1, 2, 3, 4])('validates the authoritative motion for %i remaining participants', remainingBefore => {
     const motion = remainingBefore === 2 ? 'table-flip' : 'head-clutch'
     const e = event({ remainingBefore, motion, durationMs: motion === 'table-flip' ? 2800 : 3600 })
