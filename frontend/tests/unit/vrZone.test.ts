@@ -5,6 +5,26 @@ import { canReachVrEntrance, vrEntrance } from '../../src/features/vrZone/anchor
 import { VR_CATALOG_SLOTS, VR_GAMES } from '../../src/features/vrZone/catalog'
 
 describe('VR zone entry fees', () => {
+  it('blocks park game selection, both play modes and payment while under construction', async () => {
+    const money = new LocalVrAdmission()
+    let purchases = 0
+    const zone = new VrZoneController({ mode: 'local-preview', balance: () => money.balance(), start: async (game, key) => {
+      purchases++
+      return money.start(game, key)
+    } }, true)
+    await zone.open(); zone.select('skewer')
+    expect(zone.store.getState().phase).toBe('catalog')
+    for (const playMode of ['pc', 'vr'] as const) {
+      zone.store.setState({ phase: 'mode' })
+      zone.prepare(playMode)
+      expect(zone.store.getState().phase).toBe('mode')
+      zone.store.setState({ phase: 'game', playMode })
+      expect(await zone.authorize()).toBe(false)
+    }
+    expect(purchases).toBe(0)
+    expect(await money.balance()).toBe(100)
+    expect(zone.close()).toBe(true)
+  })
   it('selects either play mode and allows changing it before payment without charging', async () => {
     const money = new LocalVrAdmission(), zone = new VrZoneController(money)
     await zone.open()
