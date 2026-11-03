@@ -24,8 +24,12 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
     List<Long> findActiveMemberIdsAfter(@Param("after") long after, Pageable page);
 
     @Transactional(readOnly = true)
-    @Query("select count(w) from Wallet w where exists "
-            + "(select u.id from User u where u.id = w.userId and u.deletedAt is null)")
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM wallets w
+            INNER JOIN users u ON u.id = w.user_id
+            WHERE u.deleted_at IS NULL
+            """, nativeQuery = true)
     long countForActiveMembers();
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

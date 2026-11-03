@@ -5,7 +5,6 @@ import com.ssafy.ontop.admin.walletgrant.domain.AdminWalletGrantBatch;
 import com.ssafy.ontop.admin.walletgrant.dto.AdminWalletGrantExecuteRequest;
 import com.ssafy.ontop.admin.walletgrant.dto.AdminWalletGrantPreviewRequest;
 import com.ssafy.ontop.admin.walletgrant.repository.AdminWalletGrantRepository;
-import com.ssafy.ontop.user.domain.User;
 import com.ssafy.ontop.user.repository.UserRepository;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
@@ -77,17 +76,15 @@ class AdminWalletGrantServiceTests {
     @Test
     void 실행은_모든_지갑을_잠그고_잔액과_원장과_감사_기록을_저장한다() {
         UUID requestId = UUID.fromString("d0bb7009-0580-498d-ae90-95b092347947");
-        User first = user(7);
-        User second = user(8);
         Wallet firstWallet = wallet(11, 7, 100, 200);
         Wallet secondWallet = wallet(12, 8, 150, 250);
         WalletTransaction firstEntry = ledgerEntry(31);
         WalletTransaction secondEntry = ledgerEntry(32);
         when(grants.findBatch(requestId)).thenReturn(Optional.empty());
-        when(users.findAllActiveForAdminGrant()).thenReturn(List.of(first, second));
+        when(users.findAllActiveIdsForAdminGrant()).thenReturn(List.of(7L, 8L));
         when(wallets.findForUpdateByUserIds(List.of(7L, 8L))).thenReturn(List.of(firstWallet, secondWallet));
         when(grants.insertBatch(requestId, 7, 100, "출시 기념", 2, 200, NOW)).thenReturn(21L);
-        when(ledger.saveAndFlush(any(WalletTransaction.class))).thenReturn(firstEntry, secondEntry);
+        when(ledger.save(any(WalletTransaction.class))).thenReturn(firstEntry, secondEntry);
 
         var result = service.execute(7, new AdminWalletGrantExecuteRequest(requestId, 100, " 출시 기념 ", 2));
 
@@ -109,17 +106,15 @@ class AdminWalletGrantServiceTests {
         var result = service.execute(7, new AdminWalletGrantExecuteRequest(requestId, 100, "출시 기념", 2));
 
         assertThat(result.batchId()).isEqualTo(21);
-        verify(users, never()).findAllActiveForAdminGrant();
-        verify(ledger, never()).saveAndFlush(any());
+        verify(users, never()).findAllActiveIdsForAdminGrant();
+        verify(ledger, never()).save(any());
     }
 
     @Test
     void 미리보기_이후_대상_인원이_달라지면_실행을_거절한다() {
         UUID requestId = UUID.fromString("60632c71-7693-4144-88aa-26136a387ee6");
-        User first = user(7);
-        User second = user(8);
         when(grants.findBatch(requestId)).thenReturn(Optional.empty());
-        when(users.findAllActiveForAdminGrant()).thenReturn(List.of(first, second));
+        when(users.findAllActiveIdsForAdminGrant()).thenReturn(List.of(7L, 8L));
 
         assertThatThrownBy(() -> service.execute(7,
                 new AdminWalletGrantExecuteRequest(requestId, 100, "출시 기념", 3)))
@@ -127,12 +122,6 @@ class AdminWalletGrantServiceTests {
                 .satisfies(error -> assertThat(((AdminWalletGrantException) error).code())
                         .isEqualTo("ADMIN_WALLET_GRANT_TARGET_CHANGED"));
         verify(wallets, never()).findForUpdateByUserIds(any());
-    }
-
-    private User user(long id) {
-        User user = mock(User.class);
-        when(user.getId()).thenReturn(id);
-        return user;
     }
 
     private Wallet wallet(long id, long userId, long before, long after) {

@@ -15,9 +15,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     long countByDeletedAtIsNull();
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select u from User u where u.deletedAt is null order by u.id")
-    List<User> findAllActiveForAdminGrant();
+    @Query("select u.id from User u where u.deletedAt is null order by u.id")
+    List<Long> findAllActiveIdsForAdminGrant();
 
     @Query("select u from User u where u.id = :id and u.deletedAt is null and exists "
             + "(select r.id from RefreshToken r where r.user.id = u.id and r.sessionId = :sessionId "

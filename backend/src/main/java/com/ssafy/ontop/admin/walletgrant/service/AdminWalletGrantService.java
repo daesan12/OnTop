@@ -7,7 +7,6 @@ import com.ssafy.ontop.admin.walletgrant.dto.AdminWalletGrantExecuteResponse;
 import com.ssafy.ontop.admin.walletgrant.dto.AdminWalletGrantPreviewRequest;
 import com.ssafy.ontop.admin.walletgrant.dto.AdminWalletGrantPreviewResponse;
 import com.ssafy.ontop.admin.walletgrant.repository.AdminWalletGrantRepository;
-import com.ssafy.ontop.user.domain.User;
 import com.ssafy.ontop.user.repository.UserRepository;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
@@ -94,20 +93,20 @@ public class AdminWalletGrantService {
         if (previous.isPresent()) {
             return repeated(previous.get(), administratorUserId, grant);
         }
-        List<User> activeMembers = users.findAllActiveForAdminGrant();
-        if (activeMembers.stream().noneMatch(member -> member.getId() == administratorUserId)) {
+        // 실행 시작 시점의 활성 회원을 지급 대상으로 고정하고, 회원 행은 잠그지 않는다.
+        List<Long> userIds = users.findAllActiveIdsForAdminGrant();
+        if (!userIds.contains(administratorUserId)) {
             throw new AdminWalletGrantException(409, "ADMIN_MEMBER_STATE_CHANGED",
                     "관리자 회원 상태가 변경되었습니다. 다시 로그인해주세요.");
         }
-        if (activeMembers.isEmpty()) {
+        if (userIds.isEmpty()) {
             throw new AdminWalletGrantException(409, "ADMIN_WALLET_GRANT_NO_RECIPIENTS",
                     "지급할 활성 회원이 없습니다.");
         }
-        if (request.expectedRecipientCount() != activeMembers.size()) {
+        if (request.expectedRecipientCount() != userIds.size()) {
             throw new AdminWalletGrantException(409, "ADMIN_WALLET_GRANT_TARGET_CHANGED",
                     "지급 대상 인원이 변경되었습니다. 미리보기를 다시 확인해주세요.");
         }
-        List<Long> userIds = activeMembers.stream().map(User::getId).toList();
         List<Wallet> targetWallets = wallets.findForUpdateByUserIds(userIds);
         if (targetWallets.size() != userIds.size()
                 || !targetWallets.stream().map(Wallet::userId).toList().equals(userIds)) {
@@ -127,7 +126,7 @@ public class AdminWalletGrantService {
                 throw new AdminWalletGrantException(409, "ADMIN_WALLET_GRANT_WALLET_STATE_INVALID",
                         "지급할 수 없는 지갑 상태가 발견되었습니다.");
             }
-            WalletTransaction entry = ledger.saveAndFlush(WalletTransaction.adminBulkGrant(
+            WalletTransaction entry = ledger.save(WalletTransaction.adminBulkGrant(
                     wallet.id(), batchId, wallet.userId(), grant.amountPerMember(), now));
             grants.insertEntry(batchId, wallet.userId(), entry.id(), balanceBefore, wallet.balance());
         }
