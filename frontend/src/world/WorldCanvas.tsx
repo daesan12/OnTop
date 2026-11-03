@@ -27,6 +27,7 @@ import { NightLighting } from './NightLighting'
 import { CameraRig } from './CameraRig'
 
 import { Avatars } from './Avatars'
+import { AvatarPoseFrame } from './AvatarPoseFrame'
 import { FollowRopes } from '../features/follow/FollowRopes'
 import { RouteArrows } from '../features/navigation/RouteArrows'
 import { AvatarOverlays, type OverlayTargets } from './AvatarOverlays'
@@ -174,27 +175,29 @@ export const WorldCanvas = memo(function WorldCanvas({
           </div>
         }
       >
-        <EnvironmentScene />
-        <ParkSoundscape />
-        <ParkSun quality={quality} />
-        <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />
-        <Suspense fallback={null}>
-          {GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>:<PlaceholderWorld quality={quality} />}
-          {GENERATED_PARK_ENABLED && <ServiceJumpCourse />}
-          <RpsRouletteCabinet />
-          <SceneReady onReady={onReady} />
-        </Suspense>
-        <Avatars overlayTargets={overlayTargets} />
-        <FollowRopes />
-        <RouteArrows />
-        <BungeoppangGrill />
-        <ParkDebrisScene />
+        <AvatarPoseFrame>
+          <EnvironmentScene />
+          <ParkSoundscape />
+          <ParkSun quality={quality} />
+          <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />
+          <Suspense fallback={null}>
+            {GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>:<PlaceholderWorld quality={quality} />}
+            {GENERATED_PARK_ENABLED && <ServiceJumpCourse />}
+            <RpsRouletteCabinet />
+            <SceneReady onReady={onReady} />
+          </Suspense>
+          <Avatars overlayTargets={overlayTargets} />
+          <FollowRopes />
+          <RouteArrows />
+          <BungeoppangGrill />
+          <ParkDebrisScene />
 
-        {!GENERATED_PARK_ENABLED&&<ParkPigeons quality={quality} />}
-        <CameraRig />
-        {TABLET_ENABLED && <TableTablet3D />}
-        <PerformanceProbe />
-        {!boardDetail && <AdaptiveResolution ceiling={renderDpr} />}
+          {!GENERATED_PARK_ENABLED&&<ParkPigeons quality={quality} />}
+          <CameraRig />
+          {TABLET_ENABLED && <TableTablet3D />}
+          <PerformanceProbe />
+          {!boardDetail && <AdaptiveResolution ceiling={renderDpr} />}
+        </AvatarPoseFrame>
       </Canvas>
       <AvatarOverlays targets={overlayTargets} />
     </>

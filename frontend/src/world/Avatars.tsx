@@ -15,6 +15,8 @@ import { FartCloud } from './art/FartCloud'
 import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
 import { createAvatarOpacity } from './avatarOpacity'
 import { avatarMenuRaycast } from './avatarMenuPicking'
+import { useAvatarFrameSampler } from './AvatarPoseFrame'
+import type { AvatarSampler } from '../network/avatarFrame'
 import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
 import { localMovement } from '../network/localMovementPrediction'
@@ -32,7 +34,6 @@ import {
 } from './AvatarOverlays'
 import {
   avatars,
-  sampleAvatar,
   useSession,
   estimatedServerTime,
 } from '../network/worldClient'
@@ -41,10 +42,12 @@ function Avatar({
   id,
   rigs,
   menuRaycast,
+  samplePose,
 }: {
   id: string
   rigs: Map<string, AvatarAnchors>
   menuRaycast: Group['raycast']
+  samplePose: AvatarSampler
 }) {
   const sources = useLoader(ParkAssetLoader, characterUrls)
   const variant = useSession(state => state.profiles[id]?.character ?? 'man')
@@ -58,6 +61,7 @@ function Avatar({
   const figure = useRef<Group>(null)
   const marker = useRef<Group>(null)
   const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
+  const overlapPose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const worldPosition = useMemo(() => new Vector3(), [])
   const motion = useMemo(() => createAvatarMotion(model), [model])
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
@@ -79,12 +83,12 @@ function Avatar({
     const avatar = avatars.get(id)
     if (!avatar || !root.current || !figure.current) return
     const frameAt = performance.now()
-    sampleAvatar(avatar, frameAt, pose)
+    samplePose(avatar, frameAt, pose)
     const seated = avatar.seatIndex >= 0
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
-    const ownPose = ownAvatar && sampleAvatar(ownAvatar, frameAt, { ...ownAvatar.current })
+    const ownPose = ownAvatar && samplePose(ownAvatar, frameAt, overlapPose)
     const overlap = !!ownPose && Math.hypot(pose.x - ownPose.x, pose.z - ownPose.z) < .7 && Math.abs(pose.y - ownPose.y) < 1.8
     const targetOpacity = overlap ? .4 : 1
     overlapOpacity.current = targetOpacity + (overlapOpacity.current - targetOpacity) * Math.exp(-Math.min(delta, .1) * 6)
@@ -164,6 +168,7 @@ export function Avatars({
   overlayTargets: OverlayTargets
 }) {
   const ids = useSession((state) => state.ids)
+  const samplePose = useAvatarFrameSampler()
   const rigs = useMemo(() => new Map<string, AvatarAnchors>(), [])
   const lastEvent = useThree(state => state.internal.lastEvent)
   const inputRaycaster = useThree(state => state.raycaster)
@@ -172,7 +177,7 @@ export function Avatars({
   return (
     <group name="visitors">
       {ids.map((id) => (
-        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} />
+        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} />
       ))}
       <SwimmingRipples />
 
