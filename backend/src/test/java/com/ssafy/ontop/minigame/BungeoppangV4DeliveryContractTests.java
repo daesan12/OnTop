@@ -18,7 +18,7 @@ class BungeoppangV4DeliveryContractTests {
     @Test
     void 계약서_D1_prefix_hash와_동일한_정규화를_사용한다() {
         var actions = actions("delivery-901-1");
-        assertThat(BungeoppangV4DeliveryContract.prefixHash(901, BungeoppangV4Spec.CONFIG_VERSION, actions))
+        assertThat(BungeoppangV4DeliveryContract.prefixHash(901, "v4-20261027.1", actions))
                 .isEqualTo("3390310f411991a992eabfe657bc5022cb0d10fe4dcff34f1e33813164407d34");
     }
 

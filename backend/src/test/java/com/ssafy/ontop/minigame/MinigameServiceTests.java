@@ -62,8 +62,8 @@ class MinigameServiceTests {
         var first = service.complete(101, 901, BungeoppangFixtures.sevenGolden(heats));
         assertThat(first).isEqualTo(service.complete(101, 901, BungeoppangFixtures.body("{\"log\":[]}")));
         assertThat(first.score()).isEqualTo(86);
-        assertThat(first.rewardAmount()).isEqualTo(5);
-        assertThat(wallet.balance()).isEqualTo(105);
+        assertThat(first.rewardAmount()).isEqualTo(17);
+        assertThat(wallet.balance()).isEqualTo(117);
         assertThat(wallet.reserved()).isEqualTo(10);
         assertThat(repository.profile(101).seenTips()).isEqualTo("GOLD,START");
         verify(repository, times(1)).persist(any(WalletTransaction.class));
@@ -87,7 +87,7 @@ class MinigameServiceTests {
     void 오늘_498냥이면_2냥만_지급하고_KST_날짜로_조회한다() {
         when(repository.earned(eq(101L), any(), any())).thenReturn(498L);
         var result = service.complete(101, 901, BungeoppangFixtures.sevenGolden(heats));
-        assertThat(result.coinsCalculated()).isEqualTo(5);
+        assertThat(result.coinsCalculated()).isEqualTo(17);
         assertThat(result.coinsGranted()).isEqualTo(2);
         assertThat(result.todayEarned()).isEqualTo(500);
         assertThat(result.capReached()).isTrue();

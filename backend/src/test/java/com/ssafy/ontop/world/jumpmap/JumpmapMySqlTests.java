@@ -230,7 +230,7 @@ class JumpmapMySqlTests {
     }
 
     private static final Instant NOON = kst("2026-10-30T12:00:00");
-    private static final int[] REWARDS = {2, 4, 7, 11, 16, 24, 36};
+    private static final int[] REWARDS = {5, 10, 20, 30, 40, 60, 85};
 
     private String startRun(long user, Instant at) {
         String id = "run-" + user + "-" + (++runs);
@@ -273,48 +273,70 @@ class JumpmapMySqlTests {
 
     @Test
     void V131이_적용되고_생성맵에서_점프맵이_활성이다() {
-        assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion()).contains("130", "131");
+        assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion())
+                .contains("130", "131", "141");
         assertThat(flyway.info().pending()).isEmpty();
         assertThat(activation.state()).isEqualTo(JumpmapActivation.State.ACTIVE);
         assertThat(service.active()).isTrue();
     }
 
     @Test
+    void JVM이_한국시간이어도_늦은저녁_지급을_같은_KST날짜의_예산에_포함한다() {
+        Instant at = kst("2026-11-03T23:59:59.999");
+        String run = startRun(101, at);
+
+        assertThat(pass(run, 101, 1, at)).isEqualTo(5);
+
+        assertThat(today(101, LocalDate.of(2026, 11, 3))).isEqualTo(5);
+        assertThat(today(101, LocalDate.of(2026, 11, 4))).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT created_at FROM wallet_transactions
+                WHERE transaction_type = 'JUMP_GATE_REWARD' ORDER BY id DESC LIMIT 1
+                """, java.time.LocalDateTime.class))
+                .isEqualTo(java.time.LocalDateTime.of(2026, 11, 3, 14, 59, 59, 999_000_000));
+    }
+
+    @Test
     void 엽전과_상한_표대로_지급하고_지갑과_원장이_일치한다() {
         LocalDate date = LocalDate.of(2026, 10, 30);
-        // 오늘 0 → 한 판 완주 100냥
-        assertThat(passAll(startRun(101, NOON), 101, 1, 7, NOON)).containsExactly(2, 4, 7, 11, 16, 24, 36);
-        assertThat(today(101, date)).isEqualTo(100);
-        // 다섯 판까지 합계 500냥, 그 뒤에는 지급하지 않는다.
-        for (int i = 0; i < 4; i++) {
-            assertThat(passAll(startRun(101, NOON), 101, 1, 7, NOON)).containsExactly(2, 4, 7, 11, 16, 24, 36);
+        // 오늘 0 → 한 판 완주 250냥
+        String firstRun = startRun(101, NOON);
+        assertThat(passAll(firstRun, 101, 1, 7, NOON)).containsExactly(5, 10, 20, 30, 40, 60, 85);
+        assertThat(today(101, date)).isEqualTo(250);
+        assertThatThrownBy(() -> jdbc.update("UPDATE jump_runs SET coins_granted = 251 WHERE id = ?", firstRun))
+                .isInstanceOf(org.springframework.dao.DataAccessException.class)
+                .hasMessageContaining("ck_jump_runs_coins")
+                .hasRootCauseInstanceOf(java.sql.SQLException.class);
+        // 두 판까지 합계 500냥, 그 뒤에는 지급하지 않는다.
+        for (int i = 0; i < 1; i++) {
+            assertThat(passAll(startRun(101, NOON), 101, 1, 7, NOON)).containsExactly(5, 10, 20, 30, 40, 60, 85);
         }
         assertThat(passAll(startRun(101, NOON), 101, 1, 7, NOON)).containsOnly(0);
         assertThat(balance(101)).isEqualTo(600);
         assertThat(ledger(101)).isEqualTo(500);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions", Integer.class)).isEqualTo(35);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions", Integer.class)).isEqualTo(14);
 
-        // 붕어빵 등 다른 미니게임 495냥 → 문1 2냥 → 문2 3냥 → 문3 0냥
+        // 붕어빵 등 다른 미니게임 495냥 → 문1 5냥 → 문2 0냥 → 문3 0냥
         earned(202, date, 495);
         String run = startRun(202, NOON);
-        assertThat(passAll(run, 202, 1, 3, NOON)).containsExactly(2, 3, 0);
+        assertThat(passAll(run, 202, 1, 3, NOON)).containsExactly(5, 0, 0);
         assertThat(today(202, date)).isEqualTo(500);
         assertThat(jdbc.queryForObject("SELECT coins_granted FROM jump_runs WHERE id = ?", Integer.class, run)).isEqualTo(5);
         assertThat(balance(202) - 100).isEqualTo(ledger(202)).isEqualTo(5);
     }
 
     @Test
-    void 이틀째판_6구간까지_64냥_뒤_완주는_12냥에서_멈춘다() {
+    void 잔여_177냥이면_6구간_165냥_뒤_완주는_12냥에서_멈춘다() {
         LocalDate date = LocalDate.of(2026, 10, 30);
-        earned(101, date, 424);
+        earned(101, date, 323);
         String run = startRun(101, NOON);
-        assertThat(passAll(run, 101, 1, 6, NOON).stream().mapToInt(Integer::intValue).sum()).isEqualTo(64);
+        assertThat(passAll(run, 101, 1, 6, NOON).stream().mapToInt(Integer::intValue).sum()).isEqualTo(165);
         assertThat(today(101, date)).isEqualTo(488);
         assertThat(pass(run, 101, 7, NOON)).isEqualTo(12);
         assertThat(today(101, date)).isEqualTo(500);
         var ended = store.end(run, new JumpmapStore.RunEnd(JumpRun.EndReason.FINISH, NOON, 251_800, 251_800L, 7, true,
                 46.5, List.of(24, 10, 14, 13, 18, 19, 15), false, List.of()));
-        assertThat(ended.runCoins()).isEqualTo(76);
+        assertThat(ended.runCoins()).isEqualTo(177);
         assertThat(ended.todayEarned()).isEqualTo(500);
         assertThat(ended.bestFinishMs()).isEqualTo(251_800);
         assertThat(ended.newBest()).isTrue();

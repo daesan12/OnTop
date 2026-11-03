@@ -13,6 +13,8 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -106,7 +108,7 @@ public class JdbcJumpmapStore implements JumpmapStore {
                 items.add(new RankingEntry(((Number) row.get("place")).intValue(),
                         row.get("user_id").toString(), String.valueOf(row.get("nickname")),
                         ((Number) row.get("finish_ms")).longValue(),
-                        ((Timestamp) row.get("ended_at")).toInstant().toString()));
+                        ((Timestamp) row.get("ended_at")).toLocalDateTime().toInstant(ZoneOffset.UTC).toString()));
             }
             return List.copyOf(items);
         });
@@ -318,7 +320,8 @@ public class JdbcJumpmapStore implements JumpmapStore {
         }
     }
 
-    private static Timestamp time(Instant at) { return Timestamp.from(at); }
+    // JDBC와 JPA 원장이 같은 UTC 시각을 써야 JVM 시간대와 무관하게 KST 일일 상한을 집계한다.
+    private static LocalDateTime time(Instant at) { return LocalDateTime.ofInstant(at, ZoneOffset.UTC); }
 
     private String write(List<?> values) {
         try {
