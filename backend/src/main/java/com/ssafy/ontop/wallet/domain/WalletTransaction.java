@@ -41,6 +41,21 @@ public class WalletTransaction {
         return id;
     }
 
+    public static WalletTransaction adminBulkGrant(long walletId, long batchId, long userId,
+            long amount, Instant now) {
+        if (walletId <= 0 || batchId <= 0 || userId <= 0 || amount <= 0) {
+            throw new IllegalArgumentException("관리자 일괄 지급 원장을 확인하세요.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.transactionType = "ADMIN_BULK_GRANT";
+        transaction.balanceDelta = amount;
+        transaction.reservedDelta = 0;
+        transaction.idempotencyKey = "admin-grant:" + batchId + ":" + userId;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
     public static WalletTransaction minigameEntryFee(long walletId, long fee, String key, Instant now) {
         if (walletId <= 0 || fee <= 0 || key == null || key.isBlank() || key.length() > 120) {
             throw new IllegalArgumentException("미니게임 이용료 기록을 확인하세요.");

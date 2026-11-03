@@ -1,0 +1,34 @@
+.admin-wallet-grant { display:grid; gap:24px; }
+.admin-wallet-grant-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
+.admin-wallet-grant-heading h2, .admin-wallet-grant-preview h3, .admin-wallet-grant-success h3 { margin:0; }
+.admin-wallet-grant-heading p { margin:8px 0 0; color:#66705e; line-height:1.6; }
+.admin-wallet-grant-heading > strong { flex:none; padding:7px 10px; border:1px solid #bd8e77; border-radius:999px; background:#fff0e8; color:#7f3828; font-size:13px; }
+.admin-wallet-grant form { display:grid; gap:18px; }
+.admin-wallet-grant form > label { display:grid; gap:8px; font-weight:700; }
+.admin-wallet-grant input, .admin-wallet-grant textarea { box-sizing:border-box; width:100%; padding:11px 12px; border:1px solid #a9b6a1; border-radius:8px; background:#fff; color:inherit; font:inherit; }
+.admin-wallet-grant textarea { resize:vertical; line-height:1.6; }
+.admin-wallet-grant input:focus, .admin-wallet-grant textarea:focus { outline:3px solid #b4c4a3; outline-offset:1px; }
+.admin-wallet-grant-input { display:grid; grid-template-columns:minmax(0, 260px) auto; align-items:center; gap:8px; font-weight:500; }
+.admin-wallet-grant label small { color:#66705e; font-size:13px; font-weight:500; }
+.admin-wallet-grant form > button { justify-self:start; }
+.admin-wallet-grant-preview { display:grid; gap:18px; padding:22px; border:1px solid #c4c9b8; border-radius:12px; background:#f8f5e9; }
+.admin-wallet-grant-preview dl { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; margin:0; }
+.admin-wallet-grant-preview dl div, .admin-wallet-grant-success dl div { display:grid; gap:6px; }
+.admin-wallet-grant-preview dt, .admin-wallet-grant-success dt { color:#66705e; font-size:13px; }
+.admin-wallet-grant-preview dd, .admin-wallet-grant-success dd { margin:0; font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
+.admin-wallet-grant-preview > p { display:grid; gap:6px; margin:0; }
+.admin-wallet-grant-preview > p span { overflow-wrap:anywhere; white-space:pre-wrap; line-height:1.6; }
+.admin-wallet-grant-confirm { display:flex; align-items:flex-start; gap:12px; padding:16px; border:1px solid #c8b687; border-radius:10px; background:#fff9e8; line-height:1.6; cursor:pointer; }
+.admin-wallet-grant-confirm input { width:20px; height:20px; margin:2px 0 0; flex:none; accent-color:#385748; }
+.admin-wallet-grant-execute { justify-self:start; border-color:#8f4938 !important; background:#8f4938 !important; color:#fff !important; font-weight:700 !important; }
+.admin-wallet-grant-execute:disabled { background:#8f4938 !important; }
+.admin-wallet-grant-blocked { padding:14px; border:1px solid #d2b79c; border-radius:8px; background:#fff4e8; color:#7f3828; }
+.admin-wallet-grant-success { padding:20px; border:1px solid #8ead7b; border-radius:12px; background:#edf5e8; }
+.admin-wallet-grant-success p { margin:10px 0 18px; line-height:1.6; }
+.admin-wallet-grant-success dl { display:flex; flex-wrap:wrap; gap:24px; margin:0; }
+@media(max-width:700px) {
+  .admin-wallet-grant-heading { display:grid; }
+  .admin-wallet-grant-heading > strong { justify-self:start; }
+  .admin-wallet-grant-preview dl { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .admin-wallet-grant-preview { padding:16px; }
+}
