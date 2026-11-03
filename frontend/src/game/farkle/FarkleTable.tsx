@@ -19,6 +19,7 @@ import { FarkleHourglass } from './FarkleHourglass'
 import { FarkleScorebook } from './FarkleScorebook'
 import { preloadCraftMaps } from './art/CraftMaterials'
 import { bustMatches, DICE_ROLL_MS, type BustPresentation } from './bustPresentation'
+import { scenePointerOwners } from '../../world/inputOwnership'
 
 // Matches the original six-face bone atlas, with opposite faces summing to seven.
 const normals = [new Vector3(0, 1, 0), new Vector3(0, 0, 1), new Vector3(1, 0, 0), new Vector3(-1, 0, 0), new Vector3(0, 0, -1), new Vector3(0, -1, 0)]
@@ -43,7 +44,8 @@ function Die({ die, game, pour }: { die: Farkle['dice'][number]; game: DiceGame;
   })
   return <group>
     <mesh ref={shadow} geometry={art.contactPlane} material={art.contact} raycast={noRaycast} dispose={null} />
-    <group ref={root} scale={FARKLE_VISUAL.dieScale} name={`farkle-die-${die.id}`} userData={{ face: die.value, held: die.held }} onClick={e => {
+    <group ref={root} scale={FARKLE_VISUAL.dieScale} name={`farkle-die-${die.id}`} userData={{ face: die.value, held: die.held }}
+      onPointerDown={e => { if (e.button === 0) { e.stopPropagation(); scenePointerOwners.set(e.pointerId, 'farkle-die') } }} onClick={e => {
       e.stopPropagation(); const current = useGame.getState().game
       if (diceCamera.ready && current?.gameId === game.gameId && current.version === game.version) toggleDie(die.id)
     }}><BoneDie id={die.id} /></group>
@@ -92,7 +94,7 @@ function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame |
     if (!active) return
     const cancel = () => {
       const current = drag.current; drag.current = null
-      if (current) { try { gl.domElement.releasePointerCapture(current.id) } catch {} }
+      if (current) { scenePointerOwners.delete(current.id); try { gl.domElement.releasePointerCapture(current.id) } catch {} }
       gl.domElement.style.cursor = ''; cupMotion.lift = 0
     }
     cupMotion.cancel = cancel
@@ -141,6 +143,7 @@ function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame |
     <OakTray />
     {game?.dice.status === 'PLAYING' && <FarkleHourglass game={game} side={1} />}
     <group ref={cup} name={`farkle-cup-${anchor.id}`} onPointerDown={e => {
+      if (e.button === 0 && active) { e.stopPropagation(); scenePointerOwners.set(e.pointerId, 'farkle-cup') }
       if (e.button !== 0 || !active || !canRollDice() || useDiceUI.getState().cup !== 'idle'
         || !diceCamera.ready || !root.current) return
       e.stopPropagation()

@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { CanvasTexture, SRGBColorSpace, type Group } from 'three'
 import { BeveledBox } from '../../world/art/BeveledBox'
 import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
-import { inputState } from '../../world/inputOwnership'
+import { inputState, scenePointerOwners } from '../../world/inputOwnership'
 import { useReducedMotion } from '../onecard/useReducedMotion'
 import { toggleScoreSheet, useDiceUI } from './controls'
 
@@ -32,6 +32,7 @@ export function FarkleScorebook({ side, active }: { side: number; active: boolea
     if (lid.current) lid.current.rotation.y += ((open ? -Math.PI * .88 : 0) - lid.current.rotation.y) * (reduced ? 1 : 1 - Math.exp(-10 * Math.min(delta, .1)))
   })
   return <group name="farkle-scorebook-prop" position={[-.76 * side, 1.08, .12 * side]} rotation={[-Math.PI / 2, 0, side < 0 ? Math.PI : 0]}
+    onPointerDown={e => { if (e.button === 0 && active) { e.stopPropagation(); scenePointerOwners.set(e.pointerId, 'farkle-scorebook') } }}
     onClick={e => {
       e.stopPropagation()
       if (active && !Object.values(inputState).some(Boolean)) toggleScoreSheet()

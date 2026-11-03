@@ -17,6 +17,7 @@ import { localMovement } from '../network/localMovementPrediction'
 import { useGame } from '../game/store'
 import { canLeaveByMovement } from '../features/tableLobby/model'
 import { seatScope, turnSeatedLook } from '../features/tableLobby/state'
+import { canDragDiceView } from '../game/farkle/controls'
 import { installMouseLook, mouseLookReturn } from './mouseLook'
 import { lookScale } from './lookSensitivity'
 import { canControlRoamingCamera, lookOwner } from './roamingCamera'
@@ -51,6 +52,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     benchExitKey = false,
     jump = false,
     hadMovement = false
+  let diceLookStart: { pointerId: number; x: number; y: number; active: boolean } | null = null
   const intent: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
   const blocked = () =>
     document.hidden ||
@@ -65,6 +67,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     keys.clear()
     drag = jump = hadMovement = false
     seatDragging = ''
+    diceLookStart = null
     benchDragging = ''
     benchExitKey = false
     parkRuntime.stopMovement()
@@ -256,10 +259,12 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) {
       event.preventDefault(); benchDragging = benchScope; canvas.focus({ preventScroll: true }); return
     }
-    if (event.button === 2 && scope && session.status === 'connected'
+    const diceLeftDrag = event.button === 0 && canDragDiceView()
+    if ((event.button === 2 || diceLeftDrag) && scope && session.status === 'connected'
       && !Object.values(inputState).some(Boolean) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName ?? '')) {
-      event.preventDefault()
+      if (event.button === 2) event.preventDefault()
       seatDragging = scope
+      diceLookStart = diceLeftDrag ? { pointerId: event.pointerId, x: event.clientX, y: event.clientY, active: false } : null
       canvas.focus({ preventScroll: true })
       return
     }
@@ -269,7 +274,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
   }
   const pointerMove = (event: PointerEvent) => {
-    if (scenePointerOwners.has(event.pointerId)) { benchDragging = ''; seatDragging = ''; drag = false; return }
+    if (scenePointerOwners.has(event.pointerId)) { benchDragging = ''; seatDragging = ''; diceLookStart = null; drag = false; return }
     if (mouseLook.locked()) return
     if (benchDragging) {
       const benchView = useBenchSpectator.getState()
@@ -281,7 +286,18 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       const session = useSession.getState()
       if (seatDragging !== seatScope(session) || session.status !== 'connected' || Object.values(inputState).some(Boolean)) {
         seatDragging = ''
+        diceLookStart = null
         return
+      }
+      if (diceLookStart) {
+        if (diceLookStart.pointerId !== event.pointerId) return
+        if (!canDragDiceView()) { seatDragging = ''; diceLookStart = null; return }
+        // R3F props may claim the pointer after the canvas listener runs. Wait for a real
+        // drag so a die selection, scorebook click or cup press never changes the view.
+        if (!diceLookStart.active) {
+          if (Math.hypot(event.clientX - diceLookStart.x, event.clientY - diceLookStart.y) < 6) return
+          diceLookStart.active = true
+        }
       }
       turnSeatedLook(seatDragging, event.movementX)
       return
@@ -297,6 +313,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     scenePointerOwners.delete(event.pointerId)
     drag = false
     seatDragging = ''
+    diceLookStart = null
     benchDragging = ''
   }
   const contextMenu = (event: Event) => { if (useSession.getState().tableId || useSession.getState().benchId) event.preventDefault() }
