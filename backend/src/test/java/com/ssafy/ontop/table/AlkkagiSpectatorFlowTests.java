@@ -80,7 +80,8 @@ class AlkkagiSpectatorFlowTests {
             for (String field : List.of("pieces","turnNumber","simulationId")) assertThat(after.path("publicState").path(field)).isEqualTo(before.path("publicState").path(field));
             assertThat(v.request("GAME_UNWATCH",Map.of()).path("type").asText()).isNotEqualTo("ERROR");
             assertThat(v.request("ALKKAGI_SPECTATOR_SEND",cursor).at("/payload/code").asText()).isEqualTo("GAME_SPECTATOR_ACCESS_DENIED");
-            v.await(m -> m.path("type").asText().equals("WORLD_STATE")
+            // v.request는 응답을 기다리며 먼저 온 방송을 소비한다. 추가 요청이 없는 참가자가 해제 방송을 관찰한다.
+            a.await(m -> m.path("type").asText().equals("WORLD_STATE")
                     && m.at("/payload/version").asLong() > counted.at("/payload/version").asLong()
                     && !m.at("/payload/gameWatches").has("505"));
             v.request("GAME_WATCH", Map.of("gameId", game));
