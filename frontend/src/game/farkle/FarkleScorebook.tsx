@@ -22,9 +22,7 @@ export function FarkleScorebook({ side, active }: { side: number; active: boolea
     ctx.strokeStyle = '#c9a365'; ctx.lineWidth = 3; ctx.strokeRect(13, 13, 230, 358)
     ctx.strokeStyle = '#876443'; ctx.lineWidth = 1; ctx.strokeRect(20, 20, 216, 344)
     ctx.fillStyle = '#ebce94'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.font = 'bold 60px Georgia'; ctx.fillText('T', 128, 92)
-    ctx.font = 'bold 34px "Malgun Gothic", sans-serif'; ctx.fillText('점수표', 128, 190)
-    ctx.font = '20px "Malgun Gothic", sans-serif'; ctx.fillText('펼쳐 보기', 128, 280)
+    ctx.font = 'bold 34px "Malgun Gothic", sans-serif'; ctx.fillText('점수표', 128, 192)
     texture.needsUpdate = true
   }, [texture])
   useEffect(() => () => { texture.dispose(); gl.domElement.style.cursor = '' }, [texture, gl])
