@@ -1,0 +1,5 @@
+.gomoku-focus-hud .omok-undo{position:fixed;right:16px;top:43%;width:min(232px,calc(100vw - 32px));padding:12px;box-sizing:border-box;border:1px solid #c9b899;border-radius:12px;background:#fffdf6;color:#403524;box-shadow:0 4px 18px #30271926;pointer-events:auto;font-size:13px;line-height:1.45;z-index:35}
+.omok-undo p{margin:0 0 8px}.omok-undo small{display:block;margin:4px 0 8px;color:#75674f}.omok-undo button{margin:4px 4px 0 0;padding:7px 9px;font-size:12px}.omok-undo [role=status]{display:block}.omok-undo progress{display:block;width:100%;height:6px;accent-color:#9b7141}
+.omok-undo progress::-webkit-progress-value{transition:width .25s linear}.omok-undo progress::-moz-progress-bar{transition:width .25s linear}
+@media(max-width:680px){.gomoku-focus-hud .omok-undo{top:auto;bottom:110px;right:8px;width:200px;padding:9px;font-size:12px}}
+@media(prefers-reduced-motion:reduce){.omok-undo progress::-webkit-progress-value,.omok-undo progress::-moz-progress-bar{transition:none}}

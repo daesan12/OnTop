@@ -256,6 +256,10 @@ public final class OmokEngine implements GameEngine {
             data.put("coinTossEndsAt", coinTossEnds.get(state.gameId()).toString());
         }
         data.set("lastMove", mapper.valueToTree(state.board().lastMove()));
+        if (state.undo() == null) data.putNull("undo");
+        else data.putObject("undo").put("requestId", state.undo().requestId())
+                .put("requesterUserId", state.undo().requesterUserId()).put("deadline", state.undo().deadline().toString());
+        data.set("undoDecision", mapper.valueToTree(state.undoDecision()));
         return data;
     }
 

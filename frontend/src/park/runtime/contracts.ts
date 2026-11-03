@@ -35,6 +35,7 @@ export interface ParkRuntimePort {
   checkResult(): Promise<boolean>
   forfeitGame(gameId: string, retry?: boolean): Promise<boolean>
   placeOmok(x: number, y: number): Promise<boolean>
+  actOmokUndo?(input: import('../../game/omok/undo').OmokUndoInput): Promise<boolean>
   actDice(kind: 'roll' | 'bank', selectedIds: readonly number[]): Promise<boolean>
   actOneCard(input: import('../../game/onecard/protocol').OneCardInput): Promise<boolean>
   flipOneCardHand?(targetUserId: string, cardIndex?: number, handVersion?: number): Promise<boolean>

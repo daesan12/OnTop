@@ -27,6 +27,8 @@ export interface StartState {
   simulation: boolean
 }
 export interface Omok {
+  undo?: { requestId: string; requesterUserId: string; deadline: string } | null
+  undoDecision?: { requestId: string; status: 'ACCEPTED' | 'REJECTED' | 'EXPIRED' } | null
   gameCode: 'OMOK'
   status: 'PLAYING' | 'FINISHED'
   boardSize: 15
@@ -146,6 +148,13 @@ export function parseOmok(p: unknown): Omok {
   )
     throw new Error('오목 상태 형식이 올바르지 않습니다.')
   const players = [p.blackUserId, p.whiteUserId]
+  if (p.undo !== undefined && p.undo !== null && (!record(p.undo) || !id(p.undo.requestId)
+    || p.undo.requesterUserId !== p.turnUserId || !players.includes(p.undo.requesterUserId as string)
+    || !date(p.undo.deadline) || p.status !== 'PLAYING' || p.moveCount < 2))
+    throw new Error('오목 무르기 요청을 확인해주세요.')
+  if (p.undoDecision !== undefined && p.undoDecision !== null && (!record(p.undoDecision)
+    || !id(p.undoDecision.requestId) || !['ACCEPTED', 'REJECTED', 'EXPIRED'].includes(String(p.undoDecision.status))))
+    throw new Error('오목 무르기 결과를 확인해주세요.')
   if (
     (p.winnerUserId !== null && !players.includes(p.winnerUserId)) ||
     p.board.flat().filter(Boolean).length !== p.moveCount ||
@@ -187,6 +196,11 @@ export function parseOmok(p: unknown): Omok {
     turnUserId: p.turnUserId as string | null,
     turnDeadline: p.turnDeadline as string | null,
     moveCount: p.moveCount,
+    ...(p.undo === undefined ? {} : { undo: p.undo === null ? null : {
+      requestId: String((p.undo as Record<string, unknown>).requestId), requesterUserId: String((p.undo as Record<string, unknown>).requesterUserId),
+      deadline: String((p.undo as Record<string, unknown>).deadline) } }),
+    ...(p.undoDecision === undefined ? {} : { undoDecision: p.undoDecision === null ? null : {
+      requestId: String((p.undoDecision as Record<string, unknown>).requestId), status: (p.undoDecision as NonNullable<Omok['undoDecision']>).status } }),
     ...(typeof p.coinTossEndsAt === 'string' && Number.isFinite(Date.parse(p.coinTossEndsAt)) ? { coinTossEndsAt: p.coinTossEndsAt } : {}),
     lastMove:
       p.lastMove === null

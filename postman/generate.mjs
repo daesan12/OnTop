@@ -358,7 +358,8 @@ const wsItems = [
     wsRequest('06 경기 통신 — 인증·엔진 연동 대기',
         '현재 기본 dev 연결에서 정상 결과는 아래 이름의 오류입니다. 임의 인증 헤더를 넣지 마세요. '
         + '오목은 실제 엔진이 있으며 local에서 ontop.games.omok.enabled=true로 선택 활성화합니다. 실제 인증 사용자 검증과 서버 내부 참가 확정 후 경기 생성 연결이 필요합니다. 옵션만 켜거나 04/05 시작 검증을 실행해 실제 오목을 시작할 수는 없습니다. gameId를 실제 경기 ID로 바꿉니다. '
-        + '오목 input은 x/y 두 필드만 허용하며 각각 0~14 정수인 판 좌표입니다. 02 예제는 흑 첫 수(7,7), expectedVersion=0입니다. 이후 최신 GAME_STATE.version과 본인 차례에 맞춰 수정합니다. '
+        + '오목 착수 input은 x/y 두 필드만 허용하며 각각 0~14 정수인 판 좌표입니다. 02 예제는 흑 첫 수(7,7), expectedVersion=0입니다. 이후 최신 GAME_STATE.version과 본인 차례에 맞춰 수정합니다. '
+        + '2026-11-03 로컬 무르기: GAME_ACTION_SEND input={kind:"undoRequest"}, 상대는 {kind:"undoRespond",requestId:"요청자-actionId",accept:true|false}. 내차례·2수 이상·상대동의·직전2돌 취소·같은차례·횟수무제한. 응답은 최대10초/착수마감 중 빠른 시각까지이며 원래30초 시계는 계속 흐릅니다. 대기중 착수 차단. GAME_STATE.undo=null|{requestId,requesterUserId,deadline}, undoDecision=null|{requestId,status:ACCEPTED|REJECTED|EXPIRED}. 최신 expectedVersion/새 actionId 사용, 동일요청재확인은 중복 미반영. 종료·정산은 되돌리지 않으며 개발 서버 적용은 별도입니다. '
         + 'actionId는 같은 행동 재확인에만 재사용하고 새 행동은 새 ID를 사용합니다. '
         + '참가자는 복구 후 입력 성공 시 본인 공개/개인 GAME_STATE를 자동 수신합니다. '
         + '관전자는 채널·미터 방향 입력·서버 테이블 좌표와 Gateway 내부 tableId가 필요하며 중심 20m 이내에서 GAME_WATCH합니다. 성공 후 빈 privateState의 GAME_STATE만 수신하며 GAME_UNWATCH 또는 범위 이탈로 해제합니다. '
@@ -386,6 +387,12 @@ const wsItems = [
             message('10 오목 같은 actionId 다른 좌표 — ACTION_ID_CONFLICT', 'GAME_ACTION_SEND',
                   { gameId: '{{gameId}}', actionId: 'omok-move-1', expectedVersion: 0, input: { x: 8, y: 7 } }),
             message('11 오목 복귀 조회 — 기존 판·버전·턴 마감 유지', 'GAME_RECONNECT_CHECK'),
+            message('11-1 오목 무르기 요청 — 내 차례·두 돌 이상·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'omok-undo-request-1', expectedVersion: 2, input: { kind: 'undoRequest' } }),
+            message('11-2 오목 무르기 수락 — 상대 계정·10초 이내·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'omok-undo-response-1', expectedVersion: 3, input: { kind: 'undoRespond', requestId: 'omok-undo-request-1', accept: true } }),
+            message('11-3 오목 무르기 거절 — 수락과 택일·상대 계정', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'omok-undo-decline-1', expectedVersion: 3, input: { kind: 'undoRespond', requestId: 'omok-undo-request-1', accept: false } }),
             message('12 주사위 첫 굴림 — DICE 경기·현재 차례·version0', 'GAME_ACTION_SEND',
                   { gameId: '{{gameId}}', actionId: 'dice-roll-1', expectedVersion: 0, input: { kind: 'roll', selectedIds: [] } }),
             message('13 주사위 재굴림 — 0번이 득점할 때·최신 버전으로 수정', 'GAME_ACTION_SEND',

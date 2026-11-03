@@ -12,6 +12,7 @@ public final class OmokBoard {
     private int moveCount;
     private Outcome outcome = Outcome.PLAYING;
     private Move lastMove;
+    private final List<Move> moves = new ArrayList<>();
 
     public void place(Stone stone, int x, int y) {
         Objects.requireNonNull(stone);
@@ -28,6 +29,7 @@ public final class OmokBoard {
         }
         moveCount++;
         lastMove = new Move(x, y, stone);
+        moves.add(lastMove);
         for (int[] direction : DIRECTIONS) {
             int connected = 1 + count(stone, x, y, direction[0], direction[1])
                     + count(stone, x, y, -direction[0], -direction[1]);
@@ -39,6 +41,18 @@ public final class OmokBoard {
         if (moveCount == SIZE * SIZE) {
             outcome = Outcome.DRAW;
         }
+    }
+
+    public void undoPair() {
+        if (outcome != Outcome.PLAYING || moves.size() < 2) {
+            throw new IllegalStateException("진행 중인 두 수만 무를 수 있습니다.");
+        }
+        for (int i = 0; i < 2; i++) {
+            Move move = moves.removeLast();
+            cells[move.y()][move.x()] = 0;
+        }
+        moveCount = moves.size();
+        lastMove = moves.isEmpty() ? null : moves.getLast();
     }
 
     public Snapshot snapshot() {
