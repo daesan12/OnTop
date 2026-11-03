@@ -1,7 +1,8 @@
 import type { ManualGameId } from "./types";
 import { RpsRouletteArt } from "../rpsRoulette/manualArt";
+import fruitDdaengThumbnail from "../../game/halligalli/assets/thumbnail.webp";
 
-/** Original vector thumbnails: no external images, logos, fonts or requests. */
+/** Local game illustrations: no external asset requests. */
 export function BookIcon() {
   return (
     <svg viewBox="0 0 48 40" fill="none" aria-hidden="true">
@@ -24,6 +25,7 @@ export function BookIcon() {
 }
 
 export function GameArt({ game }: { game: ManualGameId }) {
+  if (game === "halligalli") return <img className="manual-art art-halligalli" src={fruitDdaengThumbnail} alt="" aria-hidden="true" style={{ objectFit: "cover" }} />;
   if (game === "rps-roulette") return <RpsRouletteArt />;
   if (["alkkagi", "janggi", "fishing", "fish-bread", "jump", "vr-jump"].includes(game))
     return (

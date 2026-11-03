@@ -64,7 +64,7 @@ export function classifyHalliError(kind: HalliInput['kind'], code: string | null
     return { kind: 'rejected', message: '지금은 종을 칠 수 없어요.' }
   if (code === 'GAME_ACTION_NOT_ACTIVE') return { kind: 'rejected', message: '경기에서 빠져 더 이상 행동할 수 없어요.' }
   if (code === 'GAME_ACTION_PENDING') return { kind: 'rejected', message: '앞선 요청을 처리하는 중이라 보내지 못했어요.' }
-  return { kind: 'uncertain', message: '할리갈리 처리 결과를 확인해야 합니다. 자동으로 다시 보내지 않습니다.' }
+  return { kind: 'uncertain', message: '과일 땡 처리 결과를 확인해야 합니다. 자동으로 다시 보내지 않습니다.' }
 }
 
 export type SeatSlot = 'bottom' | 'left' | 'top' | 'right'
