@@ -4,6 +4,8 @@ import { avatars, useSession } from '../../network/worldClient'
 import { useBungeoppang } from '../bungeoppang/store'
 import { useManual } from '../manual/manualState'
 import { useRpsRoulette } from '../rpsRoulette/store'
+import { usePlusMinus } from '../plusMinus/store'
+import { useArcade } from '../arcade/store'
 import { useNavigation } from '../navigation/navigationState'
 import { flightCaption, WELCOME_FLIGHT_MS, welcomeFlight } from './flight'
 import {
@@ -41,6 +43,8 @@ export function WelcomeTour() {
       // 길 안내·미니게임·테이블은 기존 상태가 새로 켜지는 순간만 센다. 창을 바로 닫아도 놓치지 않는다.
       rising(useNavigation, s => !!s.target, 'navigate'),
       rising(useRpsRoulette, s => s.open, 'minigame'),
+      rising(useArcade, s => s.open, 'minigame'),
+      rising(usePlusMinus, s => s.open, 'minigame'),
       rising(useBungeoppang, s => s.phase !== 'idle', 'minigame'),
       rising(useSession, s => !!(s.tableId || s.watchedTableId), 'table'),
     ]

@@ -44,6 +44,8 @@ import { ParkVrZone } from '../features/vrZone/ParkVrZone'
 import { parkVrZone } from '../features/vrZone/parkBridge'
 import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
 import { RpsRoulettePanel } from '../features/rpsRoulette/RpsRoulettePanel'
+import { PlusMinusPanel } from '../features/plusMinus/PlusMinusPanel'
+import { ArcadePicker } from '../features/arcade/ArcadePicker'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 
 const shortcuts = [
@@ -136,6 +138,8 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <WelcomeTour />
         <ConstructionNotice />
         <RpsRoulettePanel />
+        <ArcadePicker />
+        <PlusMinusPanel />
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />

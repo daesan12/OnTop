@@ -77,11 +77,11 @@ test('온보딩 직후 첫 입장에서 5초 환영 비행 뒤 체험 투어를 
   await expect(page.getByRole('region', { name: '내 길 안내', exact: true })).toBeVisible()
   await expect(step(page, '지도로 길 찾기')).toHaveAttribute('data-done', 'true')
 
-  // 4 혼자 한 판: 게임기 창을 열기만 해도 된다.
+  // 4 혼자 한 판: 오락기 게임 고르기 창을 열기만 해도 된다.
   await page.locator('canvas').focus()
-  await expect(page.getByRole('button', { name: /가위바위보 룰렛 하기/ })).toBeVisible({ timeout: 20000 })
+  await expect(page.getByRole('button', { name: /오락기 하기/ })).toBeVisible({ timeout: 20000 })
   await page.keyboard.press('KeyE')
-  await expect(page.getByRole('dialog', { name: '가위바위보 룰렛', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: '어떤 게임을 할까요?', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(step(page, '혼자 한 판')).toHaveAttribute('data-done', 'true')
   await expect(tour(page)).toContainText('4/5')
