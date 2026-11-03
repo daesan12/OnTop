@@ -16,9 +16,9 @@ import { DiceFace } from './DiceFace'
 import { FarkleScoreSheet } from './FarkleScoreSheet'
 import { HudCorners, HudIcon, PlayerSeal } from './FarkleHudArt'
 import { bustMatches } from './bustPresentation'
+import { useFarkleChatClearance } from './useFarkleChatClearance'
 import './farkle.css'
 import './farkleHud.css'
-import './farkleChat.css'
 
 const events: Record<string, string> = { START: '주사위를 굴려주세요', ROLL: '득점 주사위를 고르세요', HOT_DICE: '싹쓸이! · 여섯 개를 다시 굴립니다',
   BANK: '점수를 챙겼습니다', BUST: '허탕! · 이번 턴 점수를 잃었습니다', TURN_TIMEOUT: '시간 종료 · 차례 변경' }
@@ -31,6 +31,7 @@ function FarklePlayerPanel() {
     status: s.status, pending: s.pending }))), runtime = useParkRuntime(), ui = useDiceUI()
   const sound = useDiceSound(s => s.enabled)
   const [now, setNow] = useState(Date.now)
+  useFarkleChatClearance(s.game?.dice ? s.game.gameId : '')
   useEffect(installDiceControls, [])
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 100); return () => clearInterval(timer) }, [])
   const g = s.game?.dice ? s.game : null, d = g?.dice

@@ -160,8 +160,6 @@
   .farkle-player-hud .farkle-settings { top: 24px; left: 12px; right: auto; }
   .park-page .farkle-player-hud.farkle-hud .farkle-tools { right: auto; left: 0; }
   .park-page .farkle-player-hud.farkle-hud .farkle-feedback { top: 250px; }
-  .park-page:has(.prototype-game.farkle-player-hud) .park-chat { left: 12px; bottom: 12px; width: min(280px, calc(100vw - 110px)); }
-  .park-page:has(.prototype-game.farkle-player-hud) .park-chat:not([data-expanded=true]) .park-chat__messages { display: none; }
 }
 @media (max-width: 520px) {
   .park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score { display: flex; flex-direction: column; align-items: flex-start; padding: 12px 14px; gap: 4px; }
@@ -209,3 +207,19 @@
   .park-page .farkle-player-hud.farkle-hud .farkle-dice-list button > .dice-face { --die-size: 28px; padding: 4px; }
 }
 @media (prefers-reduced-motion: reduce) { .park-page .farkle-player-hud.farkle-hud button { transition: none; } }
+
+/* Keep the park-sized chat intact; fit game actions beside or above it. */
+.park-page .farkle-player-hud.farkle-hud[data-chat-layout=beside] .farkle-actions {
+  left: var(--farkle-chat-right); right: 24px; width: auto; transform: none;
+}
+.farkle-player-hud[data-chat-layout=beside] .farkle-control-row { flex-wrap: wrap; gap: 12px; }
+.park-page .farkle-player-hud.farkle-hud[data-chat-layout=beside] .farkle-rule-button { order: -1; margin-left: 0; }
+.park-page .farkle-player-hud.farkle-hud[data-chat-layout=beside] .farkle-control-row > .button-row { flex: 1 1 100%; }
+.park-page .farkle-player-hud.farkle-hud[data-chat-layout=beside] .farkle-dice-list { gap: 5px; }
+.park-page .farkle-player-hud.farkle-hud[data-chat-layout=beside] .farkle-dice-list button,
+.farkle-player-hud[data-chat-layout=beside] .farkle-empty-die { width: 44px; height: 52px; padding: 4px; }
+.park-page .farkle-player-hud.farkle-hud[data-chat-layout=beside] .farkle-dice-list button > .dice-face { --die-size: 34px; padding: 6px; }
+.park-page .farkle-player-hud.farkle-hud[data-chat-layout=above] .farkle-actions {
+  bottom: var(--farkle-chat-bottom); max-height: min(36dvh, var(--farkle-chat-space));
+}
+.park-page:has(.park-chat__composer--open, .park-chat[data-history=true]) .farkle-player-hud[data-chat-layout=above] .farkle-actions { visibility: hidden; }
