@@ -19,6 +19,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -520,6 +523,7 @@ class SkewerCoopEngineTests {
         Fixture fixture = new Fixture(2400);
         fixture.prepare();
         fixture.engine.forfeit(new GameForfeitCommand(101, fixture.id, "finish"));
+        fixture.engine.persistTerminalResults();
         String next = fixture.engine.create(101, "park", "next").path("gameId").asText();
         assertThat(fixture.router.load(101).orElseThrow().gameId()).isEqualTo(fixture.id);
         fixture.engine.join(202, "park", next);
@@ -550,6 +554,7 @@ class SkewerCoopEngineTests {
             var forfeit = new GameForfeitCommand(101, fixture.id, "quit");
             assertThat(fixture.engine.forfeit(forfeit).duplicate()).isFalse();
             assertThat(fixture.engine.forfeit(forfeit).duplicate()).isTrue();
+            fixture.engine.persistTerminalResults();
             assertThat(fixture.events.stream().filter(SkewerCoopFinished.class::isInstance)).hasSize(1);
         } finally {
             recovery.shutdown();
@@ -567,6 +572,8 @@ class SkewerCoopEngineTests {
         });
         fixture.prepare();
         fixture.engine.forfeit(new GameForfeitCommand(101, fixture.id, "quit"));
+        assertThat(attempts).isEmpty();
+        fixture.engine.persistTerminalResults();
         assertThat(fixture.events.stream().filter(SkewerCoopFinished.class::isInstance)).isEmpty();
         fixture.advance(4.9);
         assertThat(attempts).hasSize(1);
@@ -578,11 +585,111 @@ class SkewerCoopEngineTests {
         assertThat(attempts).hasSize(2);
     }
 
+    @Test
+    void 저널이_멈춰도_다른방의_생성_입력_시간은_진행되고_저장후에만_점유를_해제한다() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var saved = new CopyOnWriteArrayList<SkewerCoopFinished>();
+        Fixture fixture = new Fixture(2400, result -> {
+            entered.countDown();
+            try {
+                if (!release.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("테스트 저장 해제 시간 초과");
+                }
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(exception);
+            }
+            saved.add(result);
+        });
+        fixture.prepare();
+        fixture.engine.forfeit(new GameForfeitCommand(101, fixture.id, "quit"));
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var storing = workers.submit(fixture.engine::persistTerminalResults);
+            try {
+                assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
+                workers.submit(() -> {
+                    String other = fixture.engine.create(303, "park", "other").path("gameId").asText();
+                    fixture.engine.join(404, "park", other);
+                    List<Map<String, Object>> commands = List.of(
+                            Map.of("type", "ROLE", "role", "server"),
+                            Map.of("type", "ROLE", "role", "chef"),
+                            Map.of("type", "READY", "ready", true),
+                            Map.of("type", "READY", "ready", true));
+                    for (int index = 0; index < commands.size(); index++) {
+                        long user = index % 2 == 0 ? 303 : 404;
+                        long version = fixture.engine.load(user, other).orElseThrow().publicState()
+                                .path("actionVersion").asLong();
+                        fixture.engine.apply(new GameActionCommand(user, other, UUID.randomUUID().toString(), version,
+                                fixture.mapper.valueToTree(commands.get(index))));
+                    }
+                    for (int i = 0; i < 42; i++) {
+                        fixture.clock.millis += 100;
+                        fixture.engine.tick();
+                    }
+                    assertThat(fixture.engine.load(303, other).orElseThrow().publicState()
+                            .path("elapsed").asDouble()).isGreaterThan(0);
+                    fixture.engine.persistTerminalResults(); // 중복 작업자는 저장을 기다리지 않고 반환한다.
+                    assertThatThrownBy(() -> fixture.engine.create(101, "park", "too-early"))
+                            .isInstanceOf(IllegalStateException.class);
+                    fixture.engine.forfeit(new GameForfeitCommand(202, fixture.id, "duplicate-end"));
+                    assertThat(fixture.events.stream().filter(SkewerCoopFinished.class::isInstance)).isEmpty();
+                    assertThat(saved).isEmpty();
+                }).get(2, TimeUnit.SECONDS);
+            } finally {
+                release.countDown();
+            }
+            storing.get(2, TimeUnit.SECONDS);
+        }
+        fixture.engine.persistTerminalResults();
+        assertThat(saved).hasSize(1);
+        assertThat(fixture.events.stream().filter(SkewerCoopFinished.class::isInstance)).hasSize(1);
+        String next = fixture.engine.create(101, "park", "after-save").path("gameId").asText();
+        fixture.engine.join(202, "park", next);
+    }
+
+    @Test
+    void 저장대기_경기도_방_상한에_포함하여_디스크_장애중_무한_적재하지_않는다() {
+        Fixture fixture = new Fixture(2400);
+        fixture.engine.forfeit(new GameForfeitCommand(101, fixture.id, "quit"));
+        for (int i = 0; i < 63; i++) {
+            fixture.engine.create(1000 + i, "park", "room-" + i);
+        }
+        assertThatThrownBy(() -> fixture.engine.create(2000, "park", "overflow"))
+                .isInstanceOf(IllegalStateException.class);
+        fixture.engine.persistTerminalResults();
+        assertThat(fixture.engine.create(2000, "park", "after-save").path("gameId").asText()).isNotBlank();
+    }
+
+    @Test
+    void 한_경기의_저장실패가_다른_경기의_저장과_종료를_막지_않는다() {
+        var saved = new ArrayList<SkewerCoopFinished>();
+        Fixture fixture = new Fixture(2400, result -> {
+            if (result.users().contains(101L)) {
+                throw new IllegalStateException("첫 경기의 저장 실패");
+            }
+            saved.add(result);
+        });
+        String other = fixture.engine.create(303, "park", "other").path("gameId").asText();
+        fixture.engine.join(404, "park", other);
+        fixture.engine.forfeit(new GameForfeitCommand(101, fixture.id, "quit"));
+        fixture.engine.forfeit(new GameForfeitCommand(303, other, "quit"));
+
+        fixture.engine.persistTerminalResults();
+
+        assertThat(saved).singleElement().satisfies(result -> assertThat(result.result().gameId()).isEqualTo(other));
+        assertThat(fixture.events.stream().filter(SkewerCoopFinished.class::isInstance)).hasSize(1);
+        assertThatThrownBy(() -> fixture.engine.create(101, "park", "not-saved"))
+                .isInstanceOf(IllegalStateException.class);
+        String next = fixture.engine.create(303, "park", "saved").path("gameId").asText();
+        fixture.engine.join(404, "park", next);
+    }
+
     private static final class Fixture {
         final ObjectMapper mapper = new ObjectMapper();
         final MutableClock clock = new MutableClock();
         final GameEngineRouter router = new GameEngineRouter();
-        final List<Object> events = new ArrayList<>();
+        final List<Object> events = new CopyOnWriteArrayList<>();
         final SkewerCoopEngine engine;
         final String id;
         boolean connected = true;
@@ -623,6 +730,7 @@ class SkewerCoopEngineTests {
             for (int step = 0; step < Math.round(seconds * 10); step++) {
                 clock.millis += 100;
                 engine.tick();
+                engine.persistTerminalResults();
             }
         }
         void interact() { act(101, Map.of("type", "INTERACT")); }

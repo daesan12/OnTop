@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
@@ -35,6 +36,7 @@ public final class SkewerCoopEngine implements GameEngine {
     private final Consumer<SkewerCoopFinished> recordResult;
     private final Map<String, SkewerCoopFinished> terminalResults = new HashMap<>();
     private final Map<String, Long> terminalRetryAt = new HashMap<>();
+    private final AtomicBoolean terminalWriterRunning = new AtomicBoolean();
     private final ObjectMapper mapper;
     private final Clock clock;
     private final GameEngineRouter router;
@@ -85,8 +87,8 @@ public final class SkewerCoopEngine implements GameEngine {
             }
             return room(user, existing);
         }
-        if (current(user).filter(match -> !match.finished()).isPresent()
-                || games.values().stream().filter(match -> !match.finished()).count() >= 64) {
+        if (current(user).filter(this::occupiesRoom).isPresent()
+                || games.values().stream().filter(this::occupiesRoom).count() >= 64) {
             throw new IllegalStateException("기존 방을 나가거나 잠시 후 다시 시도해주세요.");
         }
         String id = "skewer-coop-" + UUID.randomUUID();
@@ -102,7 +104,7 @@ public final class SkewerCoopEngine implements GameEngine {
         synchronized (this) {
             match = games.get(id);
             if (match == null || !match.canJoin(user) || !channel.equals(match.channelId)
-                    || current(user).filter(value -> value != match && !value.finished()).isPresent()) {
+                    || current(user).filter(value -> value != match && occupiesRoom(value)).isPresent()) {
                 throw new IllegalStateException("같은 공원의 참가 가능한 방을 선택해주세요.");
             }
             if (!match.registered() && match.players().size() == 1 && !match.contains(user)) {
@@ -196,7 +198,6 @@ public final class SkewerCoopEngine implements GameEngine {
     @Override
     public GameForfeitResult forfeit(GameForfeitCommand command) {
         GameForfeitResult result;
-        List<Object> notices = new ArrayList<>();
         synchronized (this) {
             SkewerCoopMatch match = requireMember(command.userId(), command.gameId());
             String key = command.userId() + ":" + command.gameId() + ":" + command.actionId();
@@ -206,11 +207,10 @@ public final class SkewerCoopEngine implements GameEngine {
                         previous.version(), true);
             }
             match.finish("SKEWER_FORFEIT");
-            finish(match, notices);
+            queueTerminalResult(match);
             result = new GameForfeitResult(command.userId(), match.id, command.actionId(), match.version, false);
             forfeits.put(key, result);
         }
-        notices.forEach(events);
         return result;
     }
 
@@ -244,16 +244,14 @@ public final class SkewerCoopEngine implements GameEngine {
 
     @Override
     public void graceExpired(GraceExpiration command) {
-        List<Object> notices = new ArrayList<>();
         synchronized (this) {
             SkewerCoopMatch match = games.get(command.gameId());
             if (match == null || !match.contains(command.userId())) {
                 return;
             }
             match.finish("SKEWER_DISCONNECT_TIMEOUT");
-            finish(match, notices);
+            queueTerminalResult(match);
         }
-        notices.forEach(events);
     }
 
     public void tick() {
@@ -263,7 +261,7 @@ public final class SkewerCoopEngine implements GameEngine {
                 long before = match.version;
                 match.tick(clock.millis(), user -> connected.test(user, match.channelId));
                 if (match.finished()) {
-                    finish(match, notices);
+                    queueTerminalResult(match);
                 } else if (match.registered() && before != match.version) {
                     notices.add(new GameStateChanged(match.id, match.version));
                 }
@@ -272,25 +270,75 @@ public final class SkewerCoopEngine implements GameEngine {
         notices.forEach(events);
     }
 
-    private void finish(SkewerCoopMatch match, List<Object> notices) {
-        if (!match.registered() || completed.contains(match.id)
-                || clock.millis() < terminalRetryAt.getOrDefault(match.id, 0L)) {
+    private boolean occupiesRoom(SkewerCoopMatch match) {
+        return !match.finished() || match.registered() && !completed.contains(match.id);
+    }
+
+    // 엔진 락 안에서는 결과를 고정하기만 한다. 저장 대기도 64개 방 제한에 포함한다.
+    private void queueTerminalResult(SkewerCoopMatch match) {
+        if (!match.registered() || completed.contains(match.id)) {
             return;
         }
-        SkewerCoopFinished result = terminalResults.computeIfAbsent(match.id, id -> terminalResult(match));
+        terminalResults.computeIfAbsent(match.id, id -> terminalResult(match));
+    }
+
+    /** 게임 틱과 다른 전용 작업자에서 호출한다. 메모리 인계는 영속 저장 성공이 아니다. */
+    public void persistTerminalResults() {
+        if (!terminalWriterRunning.compareAndSet(false, true)) {
+            return;
+        }
         try {
+            List<SkewerCoopFinished> pending;
+            synchronized (this) {
+                pending = terminalResults.entrySet().stream()
+                        .filter(entry -> clock.millis() >= terminalRetryAt.getOrDefault(entry.getKey(), 0L))
+                        .map(Map.Entry::getValue).toList();
+            }
+            for (SkewerCoopFinished result : pending) {
+                persistTerminalResult(result);
+            }
+        } finally {
+            terminalWriterRunning.set(false);
+        }
+    }
+
+    private void persistTerminalResult(SkewerCoopFinished result) {
+        String id = result.result().gameId();
+        long started = System.nanoTime();
+        try {
+            // 파일 생성·force(true)는 엔진 락과 100ms 게임 틱을 점유하지 않는다.
             recordResult.accept(result);
         } catch (RuntimeException exception) {
-            terminalRetryAt.put(match.id, clock.millis() + 5000);
-            log.error("꼬치왕 종료 결과의 영속 인계를 재시도합니다: gameId={}", match.id, exception);
+            synchronized (this) {
+                terminalRetryAt.put(id, clock.millis() + 5000);
+            }
+            log.error("꼬치왕 종료 결과의 영속 인계를 재시도합니다: gameId={}", id, exception);
             return;
+        } finally {
+            long elapsedMillis = (System.nanoTime() - started) / 1_000_000;
+            if (elapsedMillis >= 250) {
+                log.warn("꼬치왕 종료 결과의 영속 인계가 지연되었습니다: gameId={}, elapsedMillis={}", id, elapsedMillis);
+            }
         }
-        completed.add(match.id);
-        terminalResults.remove(match.id);
-        terminalRetryAt.remove(match.id);
-        router.finished(this, match.id);
-        notices.add(new GameStateChanged(match.id, match.version));
-        notices.add(result);
+        List<Object> notices = new ArrayList<>();
+        synchronized (this) {
+            if (!completed.add(id)) {
+                return;
+            }
+            terminalResults.remove(id);
+            terminalRetryAt.remove(id);
+            router.finished(this, id);
+            notices.add(new GameStateChanged(id, games.get(id).version));
+            notices.add(result);
+        }
+        for (Object notice : notices) {
+            try {
+                events.accept(notice);
+            } catch (RuntimeException exception) {
+                // 한 알림 소비자의 오류가 다른 경기의 영속 저장 작업자를 중단하지 않는다.
+                log.error("꼬치왕 영속 인계 후 종료 알림에 실패했습니다: gameId={}", id, exception);
+            }
+        }
     }
 
     private SkewerCoopFinished terminalResult(SkewerCoopMatch match) {

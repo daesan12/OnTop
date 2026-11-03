@@ -67,7 +67,7 @@ public class SkewerCoopSettlementService {
         }
     }
 
-    // 종료 알림/점유 해제 전에 동기 호출한다. 저널 실패 시 엔진이 같은 불변 결과로 재시도한다.
+    // 전용 저널 작업자가 종료 알림/점유 해제 전에 호출한다. 실패하면 같은 불변 결과로 재시도한다.
     public synchronized void finished(SkewerCoopFinished result) {
         if (journal != null) {
             journal.append(result);
