@@ -325,6 +325,7 @@ public final class WorldPhysics implements AutoCloseable {
         if (actor != null) {
             actor.input = null;
             actor.jumpQueued = false;
+            actor.jumpRequestTick = -1;
             actor.climbTargetY = 0;
             actor.followSteering = null;
             actor.moving = false;
@@ -682,7 +683,12 @@ public final class WorldPhysics implements AutoCloseable {
     private void resumeClientControl(Actor actor) {
         double velocityY = actor.motion.velocityY();
         boolean grounded = positionCollision.supported(pose(actor));
-        if (actor.jumpQueued && grounded) {
+        // With jump grace enabled inputNow stores a tick, not jumpQueued. Consume
+        // that same fresh request at the authority handoff before resetMotion clears it.
+        boolean bufferedJump = jumpGrace() && actor.jumpRequestTick >= 0
+                && physicsTick >= actor.jumpRequestTick
+                && physicsTick - actor.jumpRequestTick <= JUMP_BUFFER_TICKS;
+        if ((actor.jumpQueued || bufferedJump) && grounded) {
             velocityY = scene.policy.jumpSpeed(actor.body.getPhysicsLocation(null), true);
             grounded = false;
         }

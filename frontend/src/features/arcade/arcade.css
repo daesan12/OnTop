@@ -1,0 +1,42 @@
+/* 오락기 게임 고르기. 테이블 태블릿(tablet.css)의 한지·카드·상세 배치를 혼자 하는 게임용 모달 크기로 옮긴다. */
+dialog.arcade-picker.table-paper-popup{position:fixed;inset:0;margin:auto;box-sizing:border-box;width:min(900px,calc(100vw - 16px));max-height:calc(100dvh - 16px);padding:0;text-align:left;font-size:16px}
+.arcade-picker::backdrop{background:#17302055}
+.arcade-picker *{box-sizing:border-box}
+.arcade-paper{padding:22px 28px 18px}
+.arcade-title{margin:0 0 16px;text-align:center}
+.arcade-brand{display:block;font:600 22px/1.1 BusanDandiMyeongjo,serif;letter-spacing:-.04em;color:#7a5a24}
+.arcade-picker .arcade-title h2{margin:6px 0 4px;font:600 38px/1.2 BusanDandiMyeongjo,serif}
+.arcade-title p{margin:4px 0;font-size:16px;color:#3e4b36}
+.arcade-title .arcade-balance{display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:4px 14px;border:1px solid #ddbd78;border-radius:20px;background:#f8e6ae;font-weight:700;color:#163d29}
+.arcade-coin{width:20px;height:20px;object-fit:contain;flex-shrink:0}
+.arcade-selection{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:22px}
+.arcade-game-list{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-content:start;gap:14px;min-width:0}
+.arcade-picker .arcade-game-card{position:relative;display:flex;flex-direction:column;gap:0;min-width:0;padding:9px 10px 10px;border:1px solid #b8a780;border-radius:16px;background:#fff7e4b3;text-align:left}
+.arcade-picker .arcade-game-card:not([data-selected='true']):hover{background:#e6ebc8}
+.arcade-picker .arcade-game-card[data-selected='true']{padding:7px 8px 8px;border:3px solid #1f5037;background:#e1eccb;box-shadow:inset 0 0 0 3px #fffae7}
+.arcade-game-card .manual-art{aspect-ratio:16/9;height:auto;border-radius:10px;object-fit:cover}
+.arcade-game-card>span{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:10px 4px 2px}
+.arcade-game-card strong{font-size:20px;letter-spacing:-.04em;word-break:keep-all}
+.arcade-game-card small{flex-shrink:0;padding:3px 10px;border:1px solid #ddbd78;border-radius:20px;background:#f8e6ae;font-size:13px;font-weight:600;white-space:nowrap}
+.arcade-game-card em{padding:4px 4px 0;font-size:14px;font-style:normal;color:#565f49}
+.arcade-coming{grid-column:1/-1;margin:0;display:grid;place-items:center;min-height:72px;border:1px dashed #c9bd97;border-radius:16px;color:#565f49;font-size:15px}
+.arcade-badge{position:absolute;top:16px;left:16px;padding:3px 10px;border:2px solid #8b642a;border-radius:8px;background:#fff1c9;color:#69491d;font-size:13px}
+.arcade-detail{display:flex;flex-direction:column;align-items:stretch;min-width:0;padding:14px 18px;border:3px double #d2ab5c;border-radius:16px;background:#fff6dba3;text-align:center}
+.arcade-detail>small{font-size:14px;font-weight:600}
+.arcade-picker .arcade-detail h3{margin:4px 0 0;font:600 30px/1.25 BusanDandiMyeongjo,serif}
+.arcade-tagline{margin:2px 0 10px;font-size:15px;color:#3e4b36}
+.arcade-detail>.manual-art{aspect-ratio:2/1;height:auto;max-height:120px;border-radius:10px;object-fit:cover}
+.arcade-summary{margin:10px 0 6px;font-size:14px;line-height:1.6;text-align:left;color:#2f3a2c}
+.arcade-terms{display:grid;gap:6px;margin:6px 0 8px;text-align:left}
+.arcade-terms>div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 12px;border:1px solid #c9bd97;border-radius:10px;background:#fff8e8}
+.arcade-terms dt{flex-shrink:0;font-size:14px;color:#565f49;white-space:nowrap}
+.arcade-terms dd{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px;margin:0;font-size:15px;font-weight:700;text-align:right;word-break:keep-all}
+.arcade-note{margin:4px 0;font-size:14px;color:#7b653b}
+.arcade-picker .arcade-manual{align-self:center;min-height:36px;margin:4px 0 10px;padding:6px 16px;font-size:15px}
+.arcade-picker .arcade-primary{min-height:56px;padding:8px 20px;color:#fff6df;background:linear-gradient(#244f33,#0d2c20);border:3px double #d4ad57;box-shadow:0 3px 5px #4b351430;font:700 24px BusanDandiMyeongjo,serif}
+.arcade-picker .arcade-primary:hover{background:#2e5c3f}
+.arcade-primary>span{float:right}
+.arcade-footer{display:flex;justify-content:center;margin-top:14px}
+.arcade-picker .arcade-footer button{min-height:42px;padding:6px 28px}
+@media (max-width:720px){.arcade-paper{padding:16px 14px 14px}.arcade-selection{grid-template-columns:1fr}.arcade-picker .arcade-title h2{font-size:30px}}
+@media (max-width:420px){.arcade-game-list{gap:8px}.arcade-game-card strong{font-size:16px}}

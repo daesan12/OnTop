@@ -3,7 +3,7 @@ export const TOUR_STEPS = [
   { id: 'walk', title: '걸어 보기', hint: 'WASD나 방향키로 걷고, Shift를 누른 채 달려 보세요.' },
   { id: 'greet', title: '인사하기', hint: 'Enter로 채팅을 보내거나 G로 손 인사를 해 보세요.' },
   { id: 'map', title: '지도로 길 찾기', hint: 'M으로 지도를 열고 가 보고 싶은 장소를 골라 보세요.' },
-  { id: 'minigame', title: '혼자 한 판', hint: '붕어빵 카트나 가위바위보 게임기 앞에서 E를 눌러 보세요. 창만 열어도 돼요.' },
+  { id: 'minigame', title: '혼자 한 판', hint: '붕어빵 카트나 오락기 앞에서 E를 눌러 보세요. 창만 열어도 돼요.' },
   { id: 'table', title: '함께 한 판', hint: '게임마당 테이블 가까이에서 E로 앉거나 관전해 보세요.' },
 ] as const
 

@@ -6,7 +6,9 @@ import { clearRoamingInput } from '../../world/inputOwnership'
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { closeJumpmapGuide, jumpmapGuideScope, useJumpmapGuide } from './guideState'
 import { useJumpmap } from './state'
+import { DAILY_CAP, STAGES } from './course'
 import './jumpmapGuide.css'
+import './rewardFeedback.css'
 
 const steps = [
   { title:'첫 발판에서 바로 출발', body:'첫 번째 돌을 밟으면 도전이 시작돼요. 이동과 점프를 이어가며 위로 올라가세요.' },
@@ -34,6 +36,11 @@ export function JumpmapGuideDialog({ onClose }: { onClose():void }) {
       <ol className="jm-guide-steps" aria-label="돌탑 점프맵 놀이 방법">{steps.map((step,index)=><li key={step.title}>
         <StepIcon step={index} /><h3><span>{index+1}</span>{step.title}</h3><p>{step.body}</p>
       </li>)}</ol>
+      <section className="jm-guide-rewards" aria-label="점프맵 보상 안내"><h3>완주하면 총 {STAGES.reduce((sum, stage) => sum + stage.reward, 0)}냥</h3>
+        <p>구간을 지날 때마다 받아요. 떨어져도 받은 엽전은 그대로예요.</p>
+        <ol>{STAGES.map(stage => <li key={stage.stage}><span>{stage.name}</span><b>+{stage.reward}냥</b></li>)}</ol>
+        <small>붕어빵과 합산 하루 {DAILY_CAP}냥 · 한국 시간 자정 초기화<br />남은 일일 한도만큼 지급해요. 운동 보상 300냥은 별도예요.</small>
+      </section>
       <div className="jm-guide-controls" aria-label="돌탑 조작 안내"><span><kbd>WASD</kbd> 이동</span><span><kbd>Space</kbd> 점프</span><span><kbd>Shift</kbd> 달리기</span></div>
       <section className="jm-guide-ranking" aria-label="타임어택 랭킹 안내"><span aria-hidden="true"><StepIcon step={2} /></span><div><h3>타임어택 랭킹에 도전해요!</h3><p>완주 시간으로 순위를 겨뤄요. 내 최고 기록을 줄여보세요.<br />완주 화면의 ‘타임어택 랭킹 보기’에서 기록과 순위를 확인할 수 있어요.</p></div></section>
       <p className="jm-guide-optional">이 화면은 가이드예요. <strong>매번 확인하지 않고 첫 발판에서 바로 도전해도 돼요.</strong><br />출발 표식에서 <kbd>E</kbd>를 누르면 언제든 다시 읽을 수 있어요.</p>

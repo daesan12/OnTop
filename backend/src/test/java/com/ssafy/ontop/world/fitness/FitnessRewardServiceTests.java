@@ -23,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class FitnessRewardServiceTests {
     private final AtomicLong time = new AtomicLong();
@@ -153,5 +154,35 @@ class FitnessRewardServiceTests {
 
         assertThat(disabled.enabled()).isFalse();
         disabled.close();
+    }
+
+    @Test
+    void 상태는_원장수입과_실제_다음경계를_조회하며_지급하지_않는다() {
+        when(store.earnedToday(101, Instant.EPOCH)).thenReturn(12L);
+        service.started(101L, lease("visit", "FITNESS"));
+        seconds(23);
+
+        var status = service.status(101);
+
+        assertThat(status.todayEarned()).isEqualTo(12);
+        assertThat(status.earningsDate()).isEqualTo("1970-01-01");
+        assertThat(status.nextRewardAt()).isEqualTo(37_000);
+        assertThat(status.activeLeaseId()).isEqualTo("visit");
+        assertThat(status.dailyCap()).isEqualTo(300);
+        verify(store, times(0)).grant(anyLong(), anyString(), anyLong(), any());
+    }
+
+    @Test
+    void 지급대기와_다른회원_하차_한도도달_상태를_구분한다() {
+        Lease lease = lease("visit", "FITNESS");
+        service.started(101L, lease);
+        seconds(61);
+
+        assertThat(service.status(101).nextRewardAt()).isZero();
+        assertThat(service.status(102).activeLeaseId()).isNull();
+        when(store.earnedToday(101, Instant.EPOCH)).thenReturn(300L);
+        assertThat(service.status(101).nextRewardAt()).isNull();
+        service.ended(lease);
+        assertThat(service.status(101).activeLeaseId()).isNull();
     }
 }

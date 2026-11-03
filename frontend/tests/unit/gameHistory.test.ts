@@ -7,6 +7,11 @@ const page = (patch: Record<string, unknown> = {}) => ({ items: [item()], nextCu
 const stats = { gameCode: 'OMOK', played: 10, wins: 5, losses: 3, forfeits: 1, draws: 1 }
 
 describe('approved history API contract', () => {
+  it('accepts alkkagi records and stats without invalidating the entire response', () => {
+    expect(historyPath('ALKKAGI')).toContain('gameCode=ALKKAGI')
+    expect(parseHistory(page({ items: [item('7', { gameCode: 'ALKKAGI' })] })).items[0].gameCode).toBe('ALKKAGI')
+    expect(parseStats({ items: [{ ...stats, gameCode: 'ALKKAGI' }] })[0].gameCode).toBe('ALKKAGI')
+  })
   it('preserves BIGINT strings, a separate forfeit and pending settlement', () => {
     expect(parseHistory(page()).items[0]).toEqual(item())
     expect(parseStats({ items: [stats] })).toEqual([stats])

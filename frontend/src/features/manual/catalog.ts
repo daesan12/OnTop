@@ -1,6 +1,7 @@
 import { rulebooks } from './rulebooks';
 import { jumpManual } from '../jumpmap/manual';
 import { rpsRouletteManual } from '../rpsRoulette/manual';
+import { plusMinusManual } from '../plusMinus/manual';
 import { alkkagiManual } from '../../game/alkkagi/manual';
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection';
 import { bungeoppangV4Preview, bungeoppangV5Enabled, bungeoppangV5Preview } from '../bungeoppang/config';
@@ -26,6 +27,7 @@ const allGameManuals: GameManual[] = [
     {id:'bread-result',title:'납품해야 득점',paragraphs:['보관 점수는 아직 총점이 아니에요. 주문 전체를 전달하면 주문분만 소비하고 여분은 남아요. 미납품 재고·철판은 종료 점수에 포함하지 않아요.','양면 황금 콤보 3~5는 ×1.2, 6 이상은 ×1.5예요. 피자·초코 납품분에는 초기 설정 50% 추가 점수를 각 빵마다 내림해요.',bungeoppangV4Preview ? '미리보기 엽전은 예상 환산이며 실제 지갑에 반영하지 않아요.' : '60초 후 서버가 기록을 검증해 결과를 확정해요. 5점당 1냥, 한국 날짜 기준 모든 미니게임 합계 하루 최대 500냥이며 최종 지급은 서버 결과를 따라요. 정산이 지연되면 결과 화면에서 다시 확인해요.']},
   ]},
   rpsRouletteManual,
+  plusMinusManual,
 ];
 export const gameManuals =allGameManuals.filter(game => GENERATED_PARK_ENABLED || game.id !== 'jump');
 

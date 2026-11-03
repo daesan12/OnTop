@@ -9,6 +9,24 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class WorldPublicTablesActivityTests {
+    @Test void 승인_관전표시는_채널별로_분리하고_종료시_활동과_명부를_함께_비운다() {
+        var registry = new WorldChannelRegistry(new WorldChannelProperties(List.of(
+                new WorldChannelProperties.Channel("one", "하나", 4),
+                new WorldChannelProperties.Channel("two", "둘", 4))));
+        try {
+            registry.join("101", "one"); registry.join("202", "two");
+            var watch = new WorldChannelRegistry.GameWatch("g", "table");
+            assertThat(registry.gameWatches(Map.of("101", watch))).hasSize(1);
+            var first = registry.worldState("one");
+            assertThat(first.gameWatches()).containsExactlyEntriesOf(Map.of("101", watch));
+            assertThat(first.avatars().getFirst().activity()).isEqualTo("WATCHING");
+            assertThat(registry.worldState("two").gameWatches()).isEmpty();
+            assertThat(registry.gameWatches(Map.of("101", watch))).isEmpty();
+            registry.gameWatches(Map.of());
+            assertThat(registry.worldState("one").gameWatches()).isEmpty();
+            assertThat(registry.worldState("one").avatars().getFirst().activity()).isNull();
+        } finally { registry.clear(); }
+    }
     @Test void 의자설정변경은_이동하지않은사용자의_승인좌표와입력순번을덮어쓰지않는다() {
         var registry = new WorldChannelRegistry(new WorldChannelProperties(List.of(
                 new WorldChannelProperties.Channel("one", "하나", 4))));

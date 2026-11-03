@@ -48,6 +48,7 @@ export interface WorldState {
   version: number
   mapVersion: string
   tables?: PublicTable[]
+  gameWatches?: Record<string, { gameId: string; tableId: string }>
   avatars: {
     userId: string
     position: Position
@@ -209,6 +210,10 @@ export function worldState(value: Record<string, unknown>): WorldState {
     throw new Error('월드 상태 형식이 올바르지 않습니다.')
   if (new Set(value.avatars.map((a) => a.userId)).size !== value.avatars.length)
     throw new Error('중복 아바타 상태입니다.')
+  const avatarIds = new Set(value.avatars.map(avatar => avatar.userId))
+  if (value.gameWatches !== undefined && (!record(value.gameWatches) || Object.entries(value.gameWatches).some(([id, watch]) =>
+    !avatarIds.has(id) || !record(watch) || !text(watch.gameId) || !text(watch.tableId))))
+    throw new Error('관전자 공개 상태가 올바르지 않습니다.')
   const seats = value.avatars.flatMap(a => a.tableSeat ? [`${a.tableSeat.tableId}\0${a.tableSeat.seatNumber}`] : [])
   if (new Set(seats).size !== seats.length) throw new Error('중복 테이블 착석 상태입니다.')
   if (value.tables !== undefined) {

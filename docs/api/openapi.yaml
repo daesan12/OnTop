@@ -15,6 +15,8 @@ tags:
   description: 보유 엽전 랭킹
 - name: Park Ranking
   description: 공원 랭킹판의 보유량 목록과 미니게임 우승자
+- name: FITNESS
+  description: 운동기구 보상 상태 조회
 - name: HISTORY
   description: 인증된 본인의 종료 경기 내역과 게임별 전적
 paths:
@@ -2316,6 +2318,92 @@ paths:
                 $ref: "#/components/schemas/RpsRouletteStateResponse"
       security:
       - AccessJwt: []
+  /api/v1/minigames/plus-minus/rounds:
+    post:
+      tags:
+      - MINIGAME
+      summary: 더하기 빼기 아케이드 START
+      description: 참가비 30냥과 하루 판 수를 차감하고 세 릴의 칸을 정해 지급까지 한 번에 정산합니다. 정지 버튼은 화면 연출이며
+        결과를 바꾸지 않습니다. Idempotency-Key를 재사용하면 같은 판을 반환하며 다시 차감하지 않습니다.
+      operationId: startPlusMinusRound
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          type: string
+      responses:
+        "400":
+          description: PLUS_MINUS_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "409":
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / PLUS_MINUS_DAILY_LIMIT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "503":
+          description: PLUS_MINUS_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "201":
+          description: 정산된 판 또는 같은 요청 재확인
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/jumpmap/tips:
     post:
       tags:
@@ -3338,6 +3426,51 @@ paths:
                 - $ref: "#/components/schemas/ShopErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/world/fitness/rewards/status:
+    get:
+      tags:
+      - FITNESS
+      summary: 본인 운동기구 일일 수입 조회
+      description: "실제 60초마다 1냥, 한국 시간 하루 최대 300냥으로 미니게임 500냥과 별도입니다. todayEarned는\
+        \ 확정된 원장 합계이며 nextRewardAt은 지급 예정 경계입니다. 지급 지연 중에는 과거 시각일 수 있으며, 한도 도달·미이용\
+        \ 시 null입니다. 하차 시 미완료 시간은 초기화됩니다. 조회는 지급이나 지갑 생성을 수행하지 않습니다."
+      operationId: getFitnessRewardStatus
+      responses:
+        "200":
+          description: "본인 운동 수입 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FitnessRewardStatusResponse"
+        "401":
+          description: 활성 회원 인증 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: "FITNESS_UNAVAILABLE: 수입 조회 지연"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
   /api/v1/wallets/me:
     get:
       tags:
@@ -3723,6 +3856,7 @@ paths:
           - LIAR_BRIDGE
           - DICE_LEDGER
           - HALLI_GALLI
+          - ALKKAGI
       responses:
         "200":
           description: 본인 경기 내역 (no-store)
@@ -4458,6 +4592,82 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RpsRouletteStateResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/plus-minus/status:
+    get:
+      tags:
+      - MINIGAME
+      summary: 더하기 빼기 아케이드 상태 조회
+      description: "오늘 판 수, 사용 가능 잔액, 릴 구성과 가장 최근 판을 반환합니다."
+      operationId: getPlusMinusStatus
+      responses:
+        "400":
+          description: PLUS_MINUS_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "409":
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / PLUS_MINUS_DAILY_LIMIT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "503":
+          description: PLUS_MINUS_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "200":
+          description: 현재 상태
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
       security:
       - AccessJwt: []
   /api/v1/minigames/jumpmap/status:
@@ -6066,6 +6276,123 @@ components:
           - ROCK
           - SCISSORS
           - PAPER
+    PlusMinusRound:
+      required:
+      - first
+      - firstCell
+      - id
+      - operator
+      - operatorCell
+      - outcome
+      - payout
+      - playedAt
+      - second
+      - secondCell
+      type: object
+      properties:
+        id:
+          type: string
+        firstCell:
+          type: integer
+          format: int32
+        operatorCell:
+          type: integer
+          format: int32
+        secondCell:
+          type: integer
+          format: int32
+        first:
+          type: integer
+          format: int32
+        operator:
+          type: string
+          enum:
+          - "+"
+          - "-"
+        second:
+          type: integer
+          description: -1은 JACKPOT
+          format: int32
+        result:
+          type: integer
+          description: JACKPOT 칸이면 null
+          format: int32
+        outcome:
+          type: string
+          enum:
+          - LOST
+          - PAID
+          - JACKPOT
+        payout:
+          type: integer
+          format: int32
+        playedAt:
+          type: string
+          format: date-time
+    PlusMinusRules:
+      required:
+      - dailyPlays
+      - fee
+      - firstReel
+      - jackpotFirst
+      - jackpotPayout
+      - operatorReel
+      - pointPayout
+      - secondReel
+      type: object
+      properties:
+        fee:
+          type: integer
+          format: int32
+        dailyPlays:
+          type: integer
+          format: int32
+        firstReel:
+          type: array
+          items:
+            type: integer
+            format: int32
+        operatorReel:
+          type: array
+          items:
+            type: string
+        secondReel:
+          type: array
+          description: -1은 JACKPOT 칸
+          items:
+            type: integer
+            description: -1은 JACKPOT 칸
+            format: int32
+        pointPayout:
+          type: integer
+          format: int32
+        jackpotFirst:
+          type: integer
+          format: int32
+        jackpotPayout:
+          type: integer
+          format: int32
+    PlusMinusStateResponse:
+      required:
+      - availableBalance
+      - playedToday
+      - rules
+      - serverNow
+      type: object
+      properties:
+        serverNow:
+          type: string
+          format: date-time
+        availableBalance:
+          type: integer
+          format: int64
+        playedToday:
+          type: integer
+          format: int32
+        rules:
+          $ref: "#/components/schemas/PlusMinusRules"
+        round:
+          $ref: "#/components/schemas/PlusMinusRound"
     FeedbackReceiptResponse:
       required:
       - acceptedAt
@@ -6328,6 +6655,41 @@ components:
           format: int32
         equipped:
           type: boolean
+    FitnessRewardStatusResponse:
+      required:
+      - activeLeaseId
+      - dailyCap
+      - earningsDate
+      - enabled
+      - nextRewardAt
+      - rewardIntervalSeconds
+      - serverNow
+      - todayEarned
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        earningsDate:
+          type: string
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
+        rewardIntervalSeconds:
+          type: integer
+          format: int32
+        serverNow:
+          type: integer
+          format: int64
+        nextRewardAt:
+          type: integer
+          format: int64
+          nullable: true
+        activeLeaseId:
+          type: string
+          nullable: true
     WalletBalanceResponse:
       required:
       - availableBalance

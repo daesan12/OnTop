@@ -78,6 +78,12 @@ class GameHistoryHttpTests {
     }
 
     @Test
+    void 알까기_필터도_회원_범위를_유지한_채_저장소에_전달한다() throws Exception {
+        assertThat(send("GET", "/games?size=20&gameCode=ALKKAGI", token()).statusCode()).isEqualTo(200);
+        verify(repository).findHistory(42, new GameHistoryPageRequest(null, 20, "ALKKAGI"));
+    }
+
+    @Test
     void 미인증과_위조와_비활성_회원은_조회하지_못한다() throws Exception {
         for (String path : List.of("/games", "/game-stats")) {
             assertThat(send("GET", path, null).statusCode()).isEqualTo(401);
