@@ -4,7 +4,9 @@
   top: 48%;
   width: min(964px, calc(100vw - 48px));
   max-height: calc(100dvh - 48px);
-  overflow: clip;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 26px 50px 22px;
   color: #4a2510;
   background: radial-gradient(ellipse at 48% 35%, #fffdf7, #fcf5e9);
@@ -118,9 +120,9 @@
 .bung-root .bung-start-score p { font-size:12px; line-height:1.4; }
 .bung-root .bung-start-complaint { color:#943b2e; }
 .bung-root .bung-start .bung-start-ranking { grid-column:1; grid-row:2; color:#735137; font-size:11px; }
-/* 낮은 화면에서도 이미지 비율과 전체 안내·버튼을 스크롤 없이 유지한다. */
+/* 낮은 화면에서도 이미지를 읽을 수 있게 유지하고, 넘치는 안내는 패널 안에서 스크롤한다. */
 @media(min-width:701px){
-  .bung-start-steps>li>img { max-width:calc((100dvh - 535px) * 800 / 686); margin-inline:0; }
+  .bung-start-steps>li>img { max-width:clamp(120px,calc((100dvh - 535px) * 800 / 686),100%); margin-inline:auto; }
 }
 @media(max-width:700px){
   .bung-root .bung-panel.bung-start{--bung-guide-padding:8px;--bung-guide-gap:8px;width:calc(100vw - 20px);padding:14px}
@@ -143,7 +145,7 @@
 @media(min-width:701px) and (max-height:650px){
   .bung-root .bung-panel.bung-start{--bung-guide-padding:8px;--bung-guide-gap:24px;padding:12px 24px}
   .bung-root .bung-start .bung-start-title h2{font-size:28px}
-  .bung-start-steps>li>img{height:auto;max-width:calc((100dvh - 500px) * 800 / 686)}
+  .bung-start-steps>li>img{height:auto;max-width:clamp(120px,calc((100dvh - 500px) * 800 / 686),100%)}
   .bung-start-controls{margin-top:10px;padding:var(--bung-guide-padding)}
   .bung-root .bung-start .bung-start-earned{margin-top:8px}
 }

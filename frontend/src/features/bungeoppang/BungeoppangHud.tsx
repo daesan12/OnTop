@@ -1,5 +1,4 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import './rewardFeedback.css';
 import { BUNGEOPPANG, BUNGEOPPANG_V4, BUNGEOPPANG_V5, bungeoppangV4Preview, bungeoppangV5Preview, bungeoppangV5Enabled } from "./config";
 import { isV5Grill } from './rulesV5';
 import { BungeoppangHudV5 } from './BungeoppangHudV5';
@@ -466,7 +465,7 @@ function StartPanel() {
   const v5 = status ? status.rulesVersion === 'v5' : bungeoppangV5Enabled;
   const readyRules = v5 ? BUNGEOPPANG_V5 : BUNGEOPPANG_V4;
   return (
-    <section className="bung-panel bung-start" aria-label="붕어빵 굽기 시작">
+    <section className="bung-panel bung-start" aria-label="붕어빵 굽기 시작" tabIndex={0}>
       <header className="bung-start-title">
         <span className="bung-start-cloud" aria-hidden="true"><CloudDecoration /></span>
         <h2><img src="/art/bungeoppang/result-fish.webp" alt="" width="76" height="50" />붕어빵 굽기</h2>
@@ -507,7 +506,6 @@ function StartPanel() {
         <span aria-hidden="true">/</span>
         <strong className="bung-start-amount"><img src={coinIcon} alt="" width="28" height="28" />{status?.dailyCap ?? R.dailyCoinCap}냥</strong>
       </p>
-      <p className="bung-start-reward-rule"><b>{readyRules.pointsPerCoin}점당 1냥</b> · 점프맵과 합산 하루 500냥<br /><small>한국 시간 자정 초기화 · 운동 보상 300냥은 별도</small></p>
       {capped && (
         <p className="bung-cap">오늘 미니게임 보상 한도에 도달했어요. 게임은 계속할 수 있어요.</p>
       )}
