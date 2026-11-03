@@ -129,7 +129,7 @@ class GameLifecycleTests {
                 return engine;
             }
             case "DICE" -> {
-                FarkleEngine engine = new FarkleEngine(mapper, clock, events::add, router, () -> 1, () -> 0);
+                FarkleEngine engine = new FarkleEngine(mapper, clock, events::add, router, () -> 1, bound -> 0);
                 engine.create("game", "table", players, 2000);
                 return engine;
             }

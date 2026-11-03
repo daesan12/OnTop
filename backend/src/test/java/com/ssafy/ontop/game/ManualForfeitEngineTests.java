@@ -145,7 +145,7 @@ class ManualForfeitEngineTests {
         switch (code) {
             case "OMOK" -> new OmokEngine(mapper, clock, events::add, router)
                     .create("game", "table", players.get(0), players.get(1));
-            case "DICE" -> new FarkleEngine(mapper, clock, events::add, router, () -> 1, () -> 0)
+            case "DICE" -> new FarkleEngine(mapper, clock, events::add, router, () -> 1, bound -> 0)
                     .create("game", "table", players, 2000);
             case "ONE_CARD" -> new OneCardEngine(mapper, clock, events::add, router, cards -> { },
                     bound -> 0, ForfeitHandPolicy.REMOVE).create("game", "table", players);

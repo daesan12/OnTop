@@ -28,7 +28,7 @@ public class FarkleConfiguration {
             GameEngineRouter router) {
         SecureRandom random = new SecureRandom();
         return new FarkleEngine(mapper, clock.orElseGet(Clock::systemUTC), events::publishEvent, router,
-                () -> random.nextInt(6) + 1, () -> random.nextInt(2));
+                () -> random.nextInt(6) + 1, random::nextInt);
     }
 
     @Bean(destroyMethod = "shutdownNow")

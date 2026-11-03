@@ -95,7 +95,7 @@ test('real Web Audio starts on a gesture, mute preserves rolls, and result clean
   await expect.poll(async () => (await audit()).states).toEqual(['running'])
   await first.click()
   server.diceReply({ kind: 'roll', selectedIds: [0] }, { dice: values([1, 1, 3, 4, 5, 6], [0]), rollId: 2 })
-  await panel(page).getByRole('button', { name: 'R 선택 보관 후 재굴림', exact: true }).click()
+  await panel(page).getByRole('button', { name: 'R 한 번 더!', exact: true }).click()
   await expect.poll(async () => (await audit()).tones).toBeGreaterThan(0)
   await panel(page).getByRole('button', { name: '소리 켜짐', exact: true }).click()
   const muted = (await audit()).tones
@@ -131,7 +131,7 @@ test('original spectator HUD shows confirmed public rolls, BUST/Bank and the fin
   expect((await panel(page).boundingBox())!.height).toBeLessThan(600)
   await screenshot(page, 'dice-spectator-public-roll')
   server.diceSnapshot({ dice: [], stage: 'AWAITING_ROLL', turnUserId: '102', round: 2, turnScore: 0, hotDice: false, lastEvent: 'BUST' }, 'SPECTATOR')
-  await expect(panel(page).getByRole('status')).toContainText('BUST · 이번 턴 점수 소멸')
+  await expect(panel(page).getByRole('status')).toContainText('허탕! · 이번 턴 점수 소멸')
   await expect(panel(page).getByLabel('이번 굴림').locator('span')).toHaveCount(0)
   server.diceSnapshot({ scores: [0, 500], turnUserId: '101', round: 3, lastEvent: 'BANK' }, 'SPECTATOR')
   await expect(panel(page).getByRole('status')).toContainText('BANK · 점수 저장')
