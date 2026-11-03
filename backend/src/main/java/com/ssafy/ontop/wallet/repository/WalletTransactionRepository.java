@@ -20,6 +20,9 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     long countByWalletIdAndTransactionTypeAndCreatedAtGreaterThanEqual(
             long walletId, String transactionType, Instant createdAt);
 
+    long countByWalletIdAndTransactionTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            long walletId, String transactionType, Instant from, Instant until);
+
     @Transactional(readOnly = true)
     @Query("""
             select new com.ssafy.ontop.wallet.dto.WalletTransactionResponse(

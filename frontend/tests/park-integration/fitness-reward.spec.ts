@@ -18,7 +18,7 @@ test('latest-map fitness entry shows reward terms, refreshes confirmed money onc
   const hint = page.getByRole('complementary', { name: '가까운 상호작용' })
   await expect(hint).toHaveAttribute('data-target-id', station.id)
   await hint.getByRole('button').click()
-  await expect(hint).toContainText('게임 6시간마다 1냥')
+  await expect(hint).toContainText('실제 1분당 1냥')
   const revision = () => page.evaluate(async () => (await import('/src/features/wallet/settlementRefresh.ts' as string)).useWalletSettlement.getState().revision)
   const before = await revision()
   const receipt = { userId: '101', receipt: 'fitness:01234567-89ab-cdef-0123-456789abcdef:1' }
@@ -30,7 +30,7 @@ test('latest-map fitness entry shows reward terms, refreshes confirmed money onc
   await page.screenshot({ path: path.join(os.tmpdir(), 'ontop-fitness-reward.png') })
   await page.setViewportSize({ width: 740, height: 900 })
   await expect(hint).toBeInViewport()
-  const rewardText = hint.getByText('게임 6시간마다 1냥 · 하차·접속 종료 시 시간 초기화', { exact: true })
+  const rewardText = hint.getByText('실제 1분당 1냥 · 하루 최대 300냥 · 하차·종료 시 시간 초기화', { exact: true })
   expect(await rewardText.evaluate(element => {
     const box = element.getBoundingClientRect()
     return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))

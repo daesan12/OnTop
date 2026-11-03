@@ -1,13 +1,13 @@
 import { DRAFT_JUMP_PADS,SITES } from './layout'
 
 export const JUMP_STAGES=[
-  {name:'석탑',theme:'stone',count:24,reward:2,asmr:'왁스 크랙'},
-  {name:'오목돌',theme:'gomoku',count:9,reward:4,asmr:'키캡'},
-  {name:'붕어빵',theme:'fish',count:13,reward:7,asmr:'크런치'},
-  {name:'구름',theme:'cloud',count:12,reward:11,asmr:'스퀴시'},
-  {name:'청사초롱',theme:'lantern',count:17,reward:16,asmr:'팝잇'},
-  {name:'방패연',theme:'kite',count:18,reward:24,asmr:'한지 크리스피'},
-  {name:'연잎',theme:'lily',count:14,reward:36,asmr:'물 · 슬라임'},
+  {name:'석탑',theme:'stone',count:24,reward:5,asmr:'왁스 크랙'},
+  {name:'오목돌',theme:'gomoku',count:9,reward:10,asmr:'키캡'},
+  {name:'붕어빵',theme:'fish',count:13,reward:20,asmr:'크런치'},
+  {name:'구름',theme:'cloud',count:12,reward:30,asmr:'스퀴시'},
+  {name:'청사초롱',theme:'lantern',count:17,reward:40,asmr:'팝잇'},
+  {name:'방패연',theme:'kite',count:18,reward:60,asmr:'한지 크리스피'},
+  {name:'연잎',theme:'lily',count:14,reward:85,asmr:'물 · 슬라임'},
 ] as const
 export type JumpTheme=(typeof JUMP_STAGES)[number]['theme']|'gate'
 export type JumpPad={id:string;stage:number;theme:JumpTheme;x:number;z:number;height:number;halfX:number;halfZ:number;radius?:number;thickness:number;yaw:number;ordinal:number;gate?:number}
