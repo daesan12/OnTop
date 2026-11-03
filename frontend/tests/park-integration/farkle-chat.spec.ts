@@ -3,6 +3,21 @@ import { fixture, screenshot } from '../e2e/contractFixture'
 import path from 'node:path'
 import os from 'node:os'
 
+const viewports = [{ width: 1672, height: 941 }, { width: 1366, height: 768 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]
+// Compare the rendered shared skin against the park, rather than hard-coding a second theme.
+const appearance = (chat: Locator) => chat.evaluate(node => {
+  const read = (element: Element, properties: string[]) => {
+    const style = getComputedStyle(element)
+    return Object.fromEntries(properties.map(property => [property, style.getPropertyValue(property)]))
+  }
+  return {
+    panel: read(node, ['width', 'max-height', 'padding', 'gap', 'background-color', 'color', 'border-radius', 'border', 'transform', 'left', 'bottom']),
+    title: read(node.querySelector('h1')!, ['font-family', 'font-size', 'color']),
+    heading: read(node.querySelector('.park-chat__heading')!, ['padding', 'margin', 'gap']),
+    composer: read(node.querySelector('.park-chat__composer')!, ['height', 'min-height', 'padding', 'gap', 'font-size', 'background-color', 'color', 'border-radius']),
+  }
+})
+
 async function contained(chat: Locator) {
   const geometry = await chat.evaluate(node => {
     const outer = node.getBoundingClientRect(), composer = node.querySelector('.park-chat__composer')!.getBoundingClientRect()
@@ -32,6 +47,23 @@ test('dice chat keeps messages and composer contained when collapsed, editing an
     publicProfiles: { '102': { nickname: '긴이름의주사위참가자', characterGender: 'FEMALE' } } })
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
   await expect.poll(() => page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).sceneReady()), { timeout: 90000 }).toBe(true)
+  const parkChat = page.getByRole('region', { name: '주변 채팅', exact: true })
+  const parkAppearance = new Map<string, Awaited<ReturnType<typeof appearance>>>()
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport)
+    for (const mode of ['closed', 'open', 'history'] as const) {
+      if (mode === 'open') await parkChat.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
+      if (mode === 'history') {
+        await parkChat.getByRole('button', { name: '채팅 기록 보기', exact: true }).click()
+        await parkChat.getByRole('button', { name: '채팅 입력창 닫기', exact: true }).click()
+      }
+      await contained(parkChat)
+      parkAppearance.set(`${viewport.width}/${mode}`, await appearance(parkChat))
+      if (viewport.width === 1672) await screenshot(page, `park-chat-reference-${mode}`)
+    }
+    await parkChat.getByRole('button', { name: '채팅 기록 보기', exact: true }).click()
+  }
+  await page.setViewportSize(viewports[0])
   await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
   server.configureTablet({ gameCode: 'DICE', playerCount: 2, betAmountPerPlayer: 1, targetScore: 4000 }); server.confirmStart()
   await expect(page.getByRole('region', { name: '주사위 경기', exact: true })).toBeVisible()
@@ -43,7 +75,7 @@ test('dice chat keeps messages and composer contained when collapsed, editing an
   for (let index = 0; index < 20; index++) server.spectatorEvent('chat', {
     senderUserId: '102', text: `대화 ${index + 1} ${'긴 대화도 채팅창 안에서 줄을 바꾸며 끝까지 읽을 수 있어요. '.repeat(3)}`.trim(),
   })
-  for (const viewport of [{ width: 1672, height: 941 }, { width: 1366, height: 768 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
+  for (const viewport of viewports) {
     await page.setViewportSize(viewport)
     for (const mode of ['closed', 'open', 'history'] as const) {
       if (mode === 'open') {
@@ -65,6 +97,7 @@ test('dice chat keeps messages and composer contained when collapsed, editing an
         await chat.getByRole('button', { name: '채팅 기록 보기', exact: true }).click()
         await chat.getByRole('button', { name: '채팅 입력창 닫기', exact: true }).click()
       }
+      expect(await appearance(chat), `${viewport.width}/${mode} uses the park chat dimensions and colors`).toEqual(parkAppearance.get(`${viewport.width}/${mode}`))
       await screenshot(page, `farkle-chat-${mode}-${viewport.width}x${viewport.height}`)
       if (mode === 'open') await chat.screenshot({ path: path.join(process.env.QA_ARTIFACT_DIR ?? os.tmpdir(), `farkle-chat-input-${viewport.width}.png`) })
       await contained(chat)

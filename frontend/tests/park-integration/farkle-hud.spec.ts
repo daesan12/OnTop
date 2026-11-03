@@ -42,6 +42,11 @@ test('Farkle HUD keeps selection, shortcuts and scrollable controls across scree
     for (const control of [roll, bank, hud.getByRole('button', { name: 'T 점수표', exact: true })]) {
       await control.scrollIntoViewIfNeeded()
       await expect(control).toBeInViewport({ ratio: 1 })
+      await expect.poll(() => control.evaluate(node => {
+        const r = node.getBoundingClientRect()
+        const target = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+        return { reachable: target?.closest('button') === node, covering: target?.closest('button')?.getAttribute('aria-label') ?? target?.className }
+      }), { message: `${viewport.width}×${viewport.height}: game actions remain reachable` }).toMatchObject({ reachable: true })
     }
     await screenshot(page, `farkle-hud-${viewport.width}x${viewport.height}`)
   }
