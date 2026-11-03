@@ -13,6 +13,8 @@ import { useTabletStartStatus } from './TabletLobbyClient'
 import { inputState } from '../../world/inputOwnership'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import alkkagiThumbnail from '../../game/alkkagi/assets/thumbnail.webp'
+import fruitDdaengThumbnail from '../../game/halligalli/assets/thumbnail.webp'
+import ledgerThumbnail from '../../game/ledger/assets/thumbnail.webp'
 import './tablet.css'
 const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ default: module.TabletPortrait })))
 
@@ -25,7 +27,8 @@ const descriptions: Record<TableGameCode, string> = {
 }
 const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI']
 export function GameArt({ code }: { code: TableGameCode }) {
-  return <div className="tablet-game-art" data-game={code} style={code === 'ALKKAGI' ? { backgroundImage: `url(${alkkagiThumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
+  const thumbnail = code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
+  return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 export function TabletLobby({ tableId }: { tableId: string }) {
   const own = useSession(s => s.sessionId)

@@ -27,7 +27,7 @@ export type HalliInput = { kind: 'flip' } | { kind: 'ring'; bellWindowId: number
 const id = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v.length <= 120
 const date = (v: unknown): v is string => typeof v === 'string' && /Z$/.test(v) && Number.isFinite(Date.parse(v))
 const number = (v: unknown, min: number, max = Number.MAX_SAFE_INTEGER): v is number => integer(v) && v >= min && v <= max
-const invalid = (): never => { throw new Error('할리갈리 공개 상태 형식을 확인해주세요.') }
+const invalid = (): never => { throw new Error('과일 땡 공개 상태 형식을 확인해주세요.') }
 
 function parseCard(v: unknown): FruitCard {
   if (!record(v) || !FRUITS.includes(v.fruit as Fruit) || !number(v.count, 1, 5)) return invalid()

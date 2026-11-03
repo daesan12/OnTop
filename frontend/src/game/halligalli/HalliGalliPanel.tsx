@@ -36,7 +36,7 @@ export function HalliGalliPanel() {
   // Re-checks the result pause end and expires notices; the bar animates on its own.
   useEffect(() => { const timer = setInterval(() => setNow(estimatedServerTime()), 200); return () => clearInterval(timer) }, [])
   const g = s.game?.halli ? s.game : null
-  if (!g) return recoveryBlocked() ? <section className="halligalli-panel hg-recovery" aria-label="할리갈리">
+  if (!g) return recoveryBlocked() ? <section className="halligalli-panel hg-recovery" aria-label="과일 땡">
     <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>
     <button type="button" disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>
   </section> : null
@@ -58,9 +58,9 @@ export function HalliGalliPanel() {
   const standing = !player ? '관전 중 · 종과 카드는 참가자만 다룰 수 있어요'
     : me?.forfeited ? '기권했어요 · 공개 카드는 판정에 계속 남아요' : me?.eliminated ? '탈락했어요 · 경기를 끝까지 볼 수 있어요' : ''
   const Table = projected ? HalliStage : HalliTable
-  return <section className="halligalli-panel" aria-label="할리갈리" data-role={g.role} data-status={h.status} data-layout={projected ? 'stage' : 'fixed'}>
+  return <section className="halligalli-panel" aria-label="과일 땡" data-role={g.role} data-status={h.status} data-layout={projected ? 'stage' : 'fixed'}>
     <header className="hg-head">
-      <h2>할리갈리</h2>
+      <h2>과일 땡</h2>
       <p role="status">{status}</p>
       {h.lastEvent && playing && <small aria-live="polite">{eventText(h.lastEvent, names[h.lastEvent.userId] ?? '참가자')}</small>}
       {!playing && <small>{HALLI_END_REASON[h.endReason ?? ''] ?? h.endReason}</small>}
