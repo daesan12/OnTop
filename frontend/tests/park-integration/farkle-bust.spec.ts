@@ -6,7 +6,8 @@ const probe = (page: Page) => page.evaluate(async () => (await import('/tests/e2
 const presentation = (page: Page) => page.evaluate(async () => {
   const { useDiceUI } = await import('/src/game/farkle/controls.ts' as string)
   const { useGame } = await import('/src/game/store.ts' as string)
-  return { bust: useDiceUI.getState().bust, until: useDiceUI.getState().animationUntil, game: useGame.getState().game?.dice }
+  return { bust: useDiceUI.getState().bust, until: useDiceUI.getState().animationUntil, game: useGame.getState().game?.dice,
+    version: useGame.getState().game?.version }
 })
 async function start(page: Page, own: '101' | '102' = '101') {
   const server = await fixture(page, { generatedPark: true, omok: true, dice: true, manualLobby: true, tabletServer: true, ownUserId: own,
@@ -55,8 +56,13 @@ test('empty BUST plays the first roll and own reroll before the result and camer
   await expect(hud(page)).toHaveAttribute('data-presentation', 'bust-result')
   await expect(hud(page).getByRole('status')).toContainText('허탕!')
   await screenshot(page, 'farkle-bust-result')
+  // 캡처 중 연출이 끝날 수 있으므로 종료를 확인한 뒤 중복 수신의 재생 방지를 검사한다.
+  await expect(hud(page)).toHaveAttribute('data-presentation', 'live')
+  const version = (await presentation(page)).version!
   server.diceSnapshot({ lastEvent: 'BUST' })
-  expect((await presentation(page)).until).toBe(state.until)
+  await expect.poll(async () => (await presentation(page)).version).toBeGreaterThan(version)
+  expect((await presentation(page)).until).toBe(0)
+  expect((await presentation(page)).bust).toBeNull()
   await expect(hud(page)).toHaveAttribute('data-presentation', 'live')
   await expect(hud(page)).toContainText('솔바람 차례')
   expect((await presentation(page)).game!.turnDeadline).toBe(deadline)
