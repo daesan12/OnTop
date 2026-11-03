@@ -54,7 +54,7 @@ export function FarkleSpectatorPanel() {
       </div>
       <button onClick={() => openManual('farkle')}>게임 설명</button>
       <button aria-pressed={sound} onClick={() => setDiceSound(!sound)}>소리 {sound ? '켜짐' : '꺼짐'}</button>
-      <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 주사위 확인</button>
+      <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>상태 새로고침</button>
       <button disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>
     </footer>
   </aside>

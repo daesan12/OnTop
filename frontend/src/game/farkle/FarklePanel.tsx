@@ -98,7 +98,7 @@ function FarklePlayerPanel() {
       <div className="farkle-tools"><button onClick={() => openManual('farkle')}>게임 설명</button>
         <button aria-pressed={ui.boardView} title="상대 차례에도 주사위 판을 봅니다." onClick={() => { cancelCup(); useDiceUI.setState({ boardView: !ui.boardView }) }}>판 시점 고정</button>
         <button aria-pressed={sound} onClick={() => setDiceSound(!sound)}>소리 {sound ? '켜짐' : '꺼짐'}</button>
-        <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 주사위 확인</button>
+        <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>상태 새로고침</button>
         {recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
         {d.status === 'FINISHED' && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
       <FarkleForfeitDialog key={`${session.sessionId}:${g.gameId}`} gameId={g.gameId} />

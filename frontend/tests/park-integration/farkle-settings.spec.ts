@@ -56,9 +56,9 @@ test('five settings keep equal sizes and demonstrate manual, pin, sound, refresh
   await expect(tools.getByRole('button', { name: '소리 켜짐', exact: true })).toHaveAttribute('aria-pressed', 'true')
 
   const checks = server.sent.filter(message => message.type === 'GAME_STATE_CHECK').length
-  await tools.getByRole('button', { name: '최신 주사위 확인', exact: true }).click()
+  await tools.getByRole('button', { name: '상태 새로고침', exact: true }).click()
   await expect.poll(() => server.sent.filter(message => message.type === 'GAME_STATE_CHECK').length).toBe(checks + 1)
-  await expect(tools.getByRole('button', { name: '최신 주사위 확인', exact: true })).toBeEnabled()
+  await expect(tools.getByRole('button', { name: '상태 새로고침', exact: true })).toBeEnabled()
   await screenshot(page, 'settings-05-state-refreshed')
 
   await tools.getByRole('button', { name: '기권', exact: true }).click()
