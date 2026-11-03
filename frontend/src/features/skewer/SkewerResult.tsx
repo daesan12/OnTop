@@ -41,7 +41,7 @@ export function SkewerResult({ state, restart, exit, entryFee, pending, notice, 
       {helpOpen ? <div className="sk-result-help" id="sk-result-help" role="region" aria-label={playMode === 'vr' ? 'VR 조작 설명서' : '키보드·마우스 조작 설명서'}>
         <h3>{playMode === 'vr' ? 'VR로 꼬치 만들기' : '키보드·마우스로 꼬치 만들기'}</h3>
         <p>{playMode === 'vr' ? '트리거로 음식 집기 → 꼬치 끝에 맞춘 뒤 트리거 놓기 → 그립으로 꼬치를 잡아 뒤쪽 접시에 수평으로 놓고 그립 해제' : '숫자 1–6으로 재료 선택 → Space로 꽂기 → Enter로 서빙하기. 끝 재료는 Backspace로 뺄 수 있어요.'}</p>
-        <p>주문의 재료 순서와 감싼 위치를 맞춰요. 치즈·베이컨은 앞끝 → 감쌀 음식 → 뒤끝 순서예요. 꼬치 전체를 반대로 만들어도 정답이에요.</p>
+        <p>주문의 재료 순서와 개수를 맞춰요. 치즈·베이컨은 사용한다면 각각 2~3개를 꽂아요. 1개만 사용한 꼬치는 제출할 수 없어요. 꼬치 전체를 반대로 만들어도 정답이에요.</p>
         <p>주문당 35초 · 손님에게 3초 안에 인사하면 +1점. 점수는 엽전으로 환산되지 않아요.</p>
       </div> : null}
       <details className="sk-result-history"><summary>주문 기록 자세히</summary>{state.rounds.length ? <ol>{state.rounds.map((round, index) => <li key={round.cardId}><span>{index + 1}. {round.name}</span><b>{round.success ? `+${round.points}점` : round.reason === 'timeout' ? '시간 종료' : '순서 확인'}</b></li>)}</ol> : <p>아직 완료한 주문이 없어요.</p>}</details>

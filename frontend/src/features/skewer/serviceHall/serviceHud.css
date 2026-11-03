@@ -1,0 +1,149 @@
+/* 홀 화면 전용 HUD. 화면 중앙과 이동 경로는 계속 열어 둔다. */
+.service-hall { --ink: #593c2b; --navy: #593c2b; }
+.service-hall .service-scoreboard { top: 16px; gap: 0; padding: 8px 16px; border: 1px solid #c9b88f; border-bottom: 3px solid #2e1b12; border-radius: 14px; background: #513426f5; box-shadow: 0 5px 18px #21170e33; color: #fff7e5; }
+.service-hall .service-stat { width: 160px; height: 57px; border: 0; border-radius: 0; background: transparent; box-shadow: none; justify-content: flex-start; padding: 0 14px; gap: 12px; }
+.service-hall .service-stat + .service-stat { border-left: 1px solid #ffffff26; }
+.service-hall .service-stat > span { text-align: left; font-size: 11px; color: #dccfb3; font-weight: 500; }
+.service-hall .service-stat strong { font-size: 30px; margin-top: 3px; color: #fffaf0; letter-spacing: .02em; }
+.service-hall .service-stat strong small { font-size: 12px; margin-left: 4px; color: #e2d4b7; }
+.service-hall .service-stat > .service-icon { width: 25px; height: 25px; color: #edce8f; }
+.service-hall .service-stat.is-urgent { border-radius: 8px; background: #83412f; }
+.service-hall .service-served { padding: 0 10px 0 18px; display: flex; align-items: center; gap: 9px; border-left: 1px solid #ffffff26; }
+.service-hall .service-served .service-icon { width: 20px; height: 20px; color: #edc38a; }
+.service-hall .service-served span { font-size: 11px; color: #dccfb3; white-space: nowrap; }
+.service-hall .service-served b { display: block; font-size: 20px; color: #fff7e5; margin-top: 2px; }
+.service-hall .service-tools { top: 20px; right: 20px; gap: 8px; }
+.service-hall .service-tools button { background: #68432ef5; border: 1px solid #e0cfa5; border-bottom: 3px solid #392418; width: 42px; height: 42px; border-radius: 12px; color: #fff3d9; box-shadow: 0 3px 9px #261e1633; }
+.service-hall kbd { color: #63442e; border-color: #c8b68e; background: #fff9e9; }
+.service-hall .service-bubble { display: flex; flex-direction: column; gap: 0; padding: 7px 10px; border-radius: 12px; border-color: #d5c4a3; border-bottom: 3px solid #b69d73; background: #fffdf5; color: #3d4b38; box-shadow: 0 4px 10px #3d271f33; }
+.service-hall .service-bubble:after { background: #fffdf5; border-color: #b69d73; }
+.service-hall .service-bubble-heading { display: flex; align-items: center; gap: 7px; width: 100%; }
+.service-hall .service-bubble-heading > b { display: grid; place-items: center; min-width: 25px; height: 23px; padding: 0 4px; border-radius: 5px; color: #fff7e5; background: #805d3c; font-size: 12px; font-variant-numeric: tabular-nums; }
+.service-hall .service-bubble-heading > .service-icon { width: 19px; height: 19px; margin-left: auto; }
+.service-hall .service-bubble-state { font-size: 11px; }
+.service-hall .service-bubble-order { display: flex; align-items: center; gap: 6px; padding-top: 3px; }
+.service-hall .service-bubble.is-order { max-width: 250px; padding: 6px 9px; }
+.service-hall .service-bubble-food, .service-hall .service-bubble-food:has(img+img) { width: 170px; gap: 0; }
+.service-hall .service-bubble .service-menu-art { height: 52px; }
+.service-hall .service-bubble-food:has(img+img) .service-menu-art { height: 43px; }
+.service-hall .service-bubble.is-ready { border-bottom-color: #56815d; }
+.service-hall .is-ready .service-bubble-heading > b { background: #47744e; }
+.service-hall .is-ready .service-bubble-state { color: #3c6941; }
+.service-hall .service-bubble.is-collected { background: #fff1d1; border-bottom-color: #b8873d; }
+.service-hall .service-bubble.is-collected:after { background: #fff1d1; }
+.service-hall .service-bubble.is-cooking { background: #f5eddc; }
+.service-hall .service-bubble.is-cooking:after { background: #f5eddc; }
+.service-hall .service-bubble.is-dirty { background: #eee0cd; border-bottom-color: #9c7153; }
+.service-hall .service-bubble.is-dirty:after { background: #eee0cd; }
+.service-hall .service-bubble.is-eating { background: #e7ecd9; border-bottom-color: #88a27d; }
+.service-hall .service-bubble.is-eating:after { background: #e7ecd9; }
+.service-hall .service-station, .service-hall .service-fridge { background: #fff9eaef; border-color: #dac8a4; border-bottom-color: #92734e; color: #42553e; border-radius: 7px; transform: translate(-50%,calc(-50% - 40px)); }
+.service-hall .service-washer { transform: translate(-50%,calc(-50% - 64px)); }
+.service-hall .service-action { background: #8a4e2ef5; border-color: #f5e0b5; border-bottom-color: #56301e; padding: 6px 11px 6px 6px; box-shadow: 0 4px 12px #4026193d; }
+.service-hall .service-action.is-blocked { background: #76523bf2; max-width: 275px; }
+.service-hall .service-action small { display: block; font-size: 10px; font-weight: 500; opacity: .85; margin-top: 2px; }
+.service-hall .service-action.is-cleaning:before { height: 4px; }
+.service-hall .service-secondary-action { color: #765133; border-color: #dbc99e; border-bottom-color: #8d7954; background: #fff8e9f5; transform: translate(-50%,68px); }
+.service-hall .service-held, .service-hall .service-carry { bottom: 18px; padding: 12px; border: 1px solid #c7b18a; border-bottom: 3px solid #8a6c45; border-radius: 13px; background: #fff8e9f5; color: #63442e; box-shadow: 0 4px 16px #2d21152b; }
+.service-hall .service-held { left: 20px; width: 280px; }
+.service-hall .service-carry { right: 20px; width: 330px; }
+.service-hall .service-held h2, .service-hall .service-carry h2 { font-size: 12px; padding-bottom: 9px; gap: 6px; }
+.service-hall .service-held h2 b, .service-hall .service-carry h2 b { font-size: 11px; color: #7a694b; font-variant-numeric: tabular-nums; }
+.service-hall .service-held-ticket { height: 78px; background: #fffdfa; border-color: #d8c7a5; border-radius: 7px; padding: 5px 6px; display: flex; flex-direction: column; }
+.service-hall .service-held-ticket strong { font-size: 12px; line-height: 1.2; color: #9e6036; }
+.service-hall .service-ticket-art { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: 0; }
+.service-hall .service-ticket-art .service-menu-art { height: 29px; min-height: 0; flex: 1; }
+.service-hall .service-held-ticket small { font-size: 10px; color: #7b6a4d; }
+.service-hall .service-held-ticket.is-empty { background: #efe9dc; border-color: #cabb9c; color: #b3a489; gap: 5px; }
+.service-hall .service-held-ticket.is-empty small { display: block; color: #8a7c64; }
+.service-hall .service-panel-note, .service-hall .service-carry-rule, .service-hall .is-dirty-carry .service-carry-rule { display: block; padding-top: 8px; font-size: 10px; line-height: 1.4; color: #7b6749; font-weight: 500; }
+.service-hall .service-carry-slots { grid-template-columns: 1fr 1fr 52px; gap: 8px; }
+.service-hall .service-plate-slot { height: 78px; border-radius: 9px; border: 1px dashed #ccbca0; background: #f2ecdf; box-shadow: none; color: #a89b84; }
+.service-hall .service-plate-slot.is-full { background: #fffdf5; border-style: solid; border-color: #cca269; }
+.service-hall .service-plate-slot span { top: 4px; right: 4px; border: 0; background: #ac683b; font-size: 11px; }
+.service-hall .service-plate-slot .service-menu-art { height: 46px; margin-top: 15px; }
+.service-hall .service-plate-slot small { font-size: 10px; }
+.service-hall .service-bottle-slots { border-left: 1px solid #d7c7a7; padding-left: 3px; gap: 2px; }
+.service-hall .service-bottle-slots .service-icon { width: 22px; height: 40px; }
+.service-hall .service-carry.is-dirty-carry { background: #f2e5d3f5; border-color: #b79a74; }
+.service-hall .service-dirty-slot { height: 78px; grid-template-columns: 32px 1fr; column-gap: 7px; border-color: #c4af8b; background: #e8ddc9; padding: 7px; }
+.service-hall .service-dirty-slot.is-full { background: #fff9e9; border-color: #b29e79; }
+.service-hall .service-dirty-slot strong { font-size: 12px; }
+.service-hall .service-dirty-slot small { font-size: 10px; }
+.service-hall .service-controls { display: flex; flex-direction: column; gap: 9px; bottom: 22px; max-width: calc(100vw - 710px); padding: 10px 14px; background: #513426ed; border: 1px solid #c9b38866; border-radius: 10px; color: #fff6e4; white-space: normal; text-align: center; }
+.service-hall .service-next-task { font-size: 12px; word-break: keep-all; line-height: 1.6; }
+.service-hall .service-controls > div { display: flex; gap: 10px; justify-content: center; font-size: 10px; white-space: nowrap; }
+.service-hall .service-controls > div > span { display: flex; align-items: center; gap: 4px; }
+.service-hall .service-controls kbd { font-size: 10px; min-height: 20px; }
+.service-hall .service-feedback { bottom: 190px; padding: 9px 16px; max-width: min(600px,90%); border-radius: 10px; font-size: 13px; }
+.service-hall .service-viewport-note { display: none; }
+.skewer-coop[data-role=server] .coop-meta { display: none; }
+.skewer-coop[data-role=server] .coop-exit { top: 20px; right: 74px; bottom: auto; min-height: 42px; color: #fff7e5; background: #68432ef5; border-color: #d4c098; }
+@media (max-width: 1200px) {
+  .service-hall .service-held { width: 240px; left: 12px; }
+  .service-hall .service-carry { width: 285px; right: 12px; }
+  .service-hall .service-controls { max-width: calc(100vw - 570px); }
+  .service-hall .service-controls > div { gap: 6px; }
+  .service-hall .service-bubble-food, .service-hall .service-bubble-food:has(img+img) { width: 140px; }
+  .service-hall .service-bubble .service-menu-art { height: 43px; }
+  .service-hall .service-bubble-food:has(img+img) .service-menu-art { height: 35px; }
+  .service-hall .service-scoreboard { left: 16px; transform: none; top: 12px; }
+  .service-hall .service-tools, .skewer-coop[data-role=server] .coop-exit { top: 14px; }
+}
+@media (max-width: 900px) {
+  .service-hall .service-scoreboard { padding: 6px 8px; }
+  .service-hall .service-stat { width: 135px; height: 48px; padding: 0 10px; }
+  .service-hall .service-stat strong { font-size: 25px; }
+  .service-hall .service-served { padding: 0 8px; }
+  .service-hall .service-controls { bottom: 186px; max-width: 90%; padding: 6px 12px; }
+  .service-hall .service-controls > div { display: none; }
+  .service-hall .service-feedback { bottom: 230px; }
+  .service-hall .service-bubble-heading { gap: 4px; }
+  .service-hall .service-bubble-heading > b { min-width: 20px; height: 19px; font-size: 10px; }
+  .service-hall .service-bubble-state { font-size: 9px; }
+}
+@media (max-width: 600px) {
+  .service-hall .service-scoreboard { top: 8px; left: 8px; padding: 5px 6px; }
+  .service-hall .service-stat { width: 105px; height: 39px; gap: 6px; padding: 0 7px; }
+  .service-hall .service-stat > span { font-size: 9px; }
+  .service-hall .service-stat strong { font-size: 22px; }
+  .service-hall .service-stat > .service-icon { width: 20px; height: 20px; }
+  .service-hall .service-served { display: none; }
+  .service-hall .service-tools { top: 74px; right: 10px; }
+  .service-hall .service-tools button { width: 34px; height: 34px; }
+  .skewer-coop[data-role=server] .coop-exit { top: 12px; right: 8px; min-height: 40px; font-size: 10px; padding: 5px 8px; }
+  .service-hall .service-held, .service-hall .service-carry { width: calc(50% - 12px); bottom: 10px; padding: 7px; }
+  .service-hall .service-held { left: 8px; }
+  .service-hall .service-carry { right: 8px; }
+  .service-hall .service-held h2, .service-hall .service-carry h2 { flex-wrap: wrap; gap: 3px; font-size: 10px; white-space: normal; min-height: 34px; padding-bottom: 5px; }
+  .service-hall .service-held h2 b, .service-hall .service-carry h2 b { font-size: 9px; }
+  .service-hall .service-held-ticket, .service-hall .service-plate-slot, .service-hall .service-dirty-slot { height: 66px; padding: 3px; }
+  .service-hall .service-held-ticket strong, .service-hall .service-dirty-slot strong { font-size: 10px; }
+  .service-hall .service-held-ticket small, .service-hall .service-plate-slot small { font-size: 8px; }
+  .service-hall .service-carry-slots { grid-template-columns: 1fr 1fr 29px; gap: 3px; }
+  .service-hall .service-bottle-slots { gap: 0; padding: 0; }
+  .service-hall .service-bottle-slots .service-icon { width: 13px; }
+  .service-hall .service-plate-slot span { font-size: 9px; }
+  .service-hall .service-panel-note, .service-hall .service-carry-rule, .service-hall .is-dirty-carry .service-carry-rule { font-size: 9px; min-height: 34px; }
+  .service-hall .service-dirty-slot { grid-template-columns: 1fr; text-align: center; }
+  .service-hall .service-dirty-slot > .service-icon { display: none; }
+  .service-hall .service-dirty-slot small { font-size: 8px; }
+  .service-hall .service-bubble.is-order { padding: 3px 5px; }
+  .service-hall .service-bubble-food, .service-hall .service-bubble-food:has(img+img) { width: 70px; }
+  .service-hall .service-bubble .service-menu-art { height: 28px; }
+  .service-hall .service-bubble-food:has(img+img) .service-menu-art { height: 22px; }
+  .service-hall .service-bubble-heading > b { font-size: 9px; min-width: 16px; height: 16px; }
+  .service-hall .service-bubble-heading > .service-icon { width: 14px; height: 14px; }
+  .service-hall .service-action.is-blocked { max-width: 180px; font-size: 10px; }
+  .service-hall .service-secondary-action { transform: translate(-50%,56px); }
+  .service-hall .service-controls { bottom: 190px; }
+}
+@media (max-width: 600px) and (orientation: portrait) {
+  .service-hall .service-viewport-note { display: block; position: absolute; top: 125px; left: 20px; right: 20px; text-align: center; color: #fff1d3; font-size: 12px; line-height: 1.8; pointer-events: none; }
+}
+
+/* Keep the return action reachable while reading long instructions on a small screen. */
+.service-hall .service-guide>.service-guide-start{position:sticky;bottom:0;z-index:1}
+
+
+.service-hall .service-guide-start { background: #975331; color: #fff5e4; border-color: #b98254; }

@@ -1,0 +1,56 @@
+{
+  "status": "local_runtime_colored_stationary",
+  "reference": "chef-blue-reference.png",
+  "sourceModel": "v3.1-20260211",
+  "targetFaces": 15000,
+  "observedTriangles": 18098,
+  "observedBones": 25,
+  "observedAnimationClips": 0,
+  "totalCredits": 85,
+  "remainingCredits": 170,
+  "runtimeEnabled": true,
+  "issues": [
+    "Walk retarget failed twice with input parameter error and was refunded; stationary chef only, no animation clips."
+  ],
+  "tasks": [
+    {
+      "credits": 50,
+      "type": "image_to_model",
+      "id": "dc41066e-87c9-4c1f-ae67-8eba531207b3",
+      "status": "success"
+    },
+    {
+      "credits": 0,
+      "type": "animate_prerigcheck",
+      "id": "d69fabe1-a357-4dec-9d19-e581ba073186",
+      "status": "success"
+    },
+    {
+      "credits": 25,
+      "type": "animate_rig",
+      "id": "dc6e1834-096e-4d33-bb3d-21716cd1fedf",
+      "status": "success"
+    },
+    {
+      "credits": 0,
+      "type": "animate_retarget",
+      "id": "cb9f88cc-609f-4581-b38e-9746aefb1344",
+      "status": "failed_refunded"
+    },
+    {
+      "credits": 0,
+      "type": "animate_retarget",
+      "id": "6c901832-a002-423a-8f32-c81de2c5dcf8",
+      "status": "failed_refunded"
+    },
+    {
+      "credits": 10,
+      "type": "texture_model",
+      "id": "b9c18265-411a-4420-8253-9f33df6929a5",
+      "status": "success"
+    }
+  ],
+  "textureModel": "v3.0-20250812",
+  "assembly": "Rig geometry and skeleton retained; repaired PBR image bufferViews transplanted after all 19072 rig UVs matched the textured model.",
+  "sha256": "61b268a81c4e316b22d0fce83c05e41dfe4cbe83e92baccf0ca7f5d27d12a0d8"
+}

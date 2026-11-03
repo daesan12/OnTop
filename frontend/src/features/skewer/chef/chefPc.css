@@ -1,0 +1,17 @@
+/* PC and VR share the same spatial receipts, clock and camera. */
+.chef-app .chef-accessible-readout{position:absolute!important;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;pointer-events:none}
+.chef-app.is-pc .chef-heading,.chef-app.is-pc .chef-controls,.chef-app.is-pc .chef-round,.chef-app.is-pc .chef-pass-status,.chef-app.is-pc .chef-current,.chef-app.is-pc .chef-wrap-summary,.chef-app.is-pc .chef-local-note{display:none}
+.chef-app.is-pc::before{background:linear-gradient(#24180c66,transparent 14%,transparent 88%,#21150c77)}
+.chef-app .chef-world-order-hit{height:12%;border-radius:0}
+.chef-app.is-pc .chef-status{bottom:65px;max-width:80%;left:50%;transform:translateX(-50%);text-align:center}
+.chef-app.is-pc .chef-pc-help{position:absolute;z-index:4;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:22px;width:max-content;max-width:95%;color:#fff1dc;text-shadow:0 1px 4px #2a1b10;font-size:12px}
+.chef-app.is-pc .chef-pc-help span{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.chef-app.is-pc .chef-pc-help kbd{padding:3px 7px;min-height:24px;background:#fff0d5;color:#5f422e;border:1px solid #9b7952;border-bottom-width:3px;border-radius:4px;font-size:11px;text-shadow:none}
+.chef-app.is-pc .chef-pc-help button{background:none;border:1px solid #e0c5a1;color:#fff0d6;border-radius:50%;width:25px;height:25px;padding:0}
+
+@media(max-width:800px){
+ .chef-app.is-pc .chef-pc-help{gap:8px 12px;flex-wrap:wrap;max-width:94%;width:560px;font-size:10px}
+ .chef-app.is-pc .chef-pc-help kbd{font-size:10px}.chef-app.is-pc .chef-status{bottom:94px;font-size:10px}
+}
+
+.chef-app .chef-stage[data-order-transition=true] .chef-world-order-hit{pointer-events:none}

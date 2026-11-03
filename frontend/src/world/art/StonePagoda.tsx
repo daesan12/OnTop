@@ -350,6 +350,11 @@ export function prebuildStaticSurfaces() {
   for (const scale of new Set(PAGODA_ANCHORS.map(anchor => anchor.scale))) stoneAsset(scale)
 }
 
+/** Standalone scenes own this copy; disposing it never affects the park asset. */
+export function cloneStonePagodaGeometry() {
+  return stoneAsset(1).clone()
+}
+
 export function StonePagoda({
   anchor, decorations = true,
 }: {

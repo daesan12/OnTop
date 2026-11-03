@@ -1,0 +1,18 @@
+.skewer-exit-dialog{box-sizing:border-box;width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;scrollbar-width:none;margin:auto;padding:34px 38px 30px;color:#543623;text-align:center;background:#f5ebd3 url('/art/tablet/hanji.webp') center/100% 100%;border:3px double #b99c61;border-radius:15px;box-shadow:0 18px 70px #25170d80,inset 0 0 0 5px #fff5de8c;font-family:inherit}
+.skewer-exit-dialog::-webkit-scrollbar{display:none}
+.skewer-exit-dialog::backdrop{background:#241b15a8;backdrop-filter:blur(3px)}
+.skewer-exit-dialog .skewer-exit-mark{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 12px;border-radius:50%;background:#efdfc9;color:#a26030;font-size:24px;font-weight:800}
+.skewer-exit-dialog h2{font:600 38px/1.25 BusanDandiMyeongjo,serif;margin:10px 0 14px;letter-spacing:-.7px}
+.skewer-exit-dialog p{font-size:14px;line-height:1.8;margin:8px 0;color:#80634c}
+.skewer-exit-dialog .skewer-exit-status{font-size:12px;font-weight:700;color:#a06437}
+.skewer-exit-dialog .skewer-exit-actions{display:flex;gap:10px;margin:26px 0 16px;padding-top:22px;border-top:1px solid #b99c6170}
+.skewer-exit-dialog button{font-family:inherit;font-size:15px;font-weight:700;line-height:1.4;border:1px solid #cfb393;border-radius:10px;padding:13px 18px;cursor:pointer;color:#75513a;background:#fffaf1;min-height:48px}
+.skewer-exit-dialog .skewer-exit-actions button{flex:1}
+.skewer-exit-dialog .skewer-exit-continue{background:linear-gradient(#a2673e,#85502f);border:3px double #c9a36d;color:#fff9ef;box-shadow:0 3px 0 #67391e}
+.skewer-exit-dialog button:focus-visible{outline:3px solid #d9a15b;outline-offset:4px}
+.skewer-exit-dialog button:disabled{opacity:.55;cursor:wait}
+.skewer-exit-dialog small{color:#927b67;font-size:11px}
+.skewer-exit-dialog .skewer-exit-error{color:#a43e28}
+
+.skewer-exit-dialog .skewer-exit-caption{font-size:12px;letter-spacing:1px;color:#7e6b4b;margin:0 0 22px}
+@media(max-width:600px),(max-height:600px){.skewer-exit-dialog{padding:24px 22px}.skewer-exit-dialog h2{font-size:30px}.skewer-exit-dialog .skewer-exit-caption{margin-bottom:12px}}
