@@ -41,6 +41,30 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 })
 class JumpmapMySqlTests {
     @Test
+    void 과거_시간검사만_실패한_판을_랭킹과_최고기록에서_일관되게_조회한다() {
+        // 기존 DB의 과거 행을 배포 후 처음 읽는 상황. 다른 테스트의 메모리 스냅샷은 재사용하지 않는다.
+        var reader = new JdbcJumpmapStore(jdbc, entities, transactions);
+        String run = startRun(101, NOON);
+        store.end(run, new JumpmapStore.RunEnd(JumpRun.EndReason.FINISH, NOON.plusSeconds(60),
+                60_158, 60_158L, 7, true, 46, List.of(12, 5, 7, 7, 9, 10, 7), true,
+                List.of("TOO_FAST:7")));
+
+        assertThat(reader.ranking(101).me()).isNotNull().satisfies(me -> {
+            assertThat(me.rank()).isEqualTo(1);
+            assertThat(me.finishMs()).isEqualTo(60_158);
+        });
+        assertThat(reader.status(101, NOON.plusSeconds(61)).bestFinishMs()).isEqualTo(60_158);
+        assertThat(jdbc.queryForObject("SELECT suspicious FROM jump_runs WHERE id=?", Boolean.class, run)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT coins_granted FROM jump_runs WHERE id=?", Integer.class, run)).isZero();
+
+        String slower = startRun(101, NOON.plusSeconds(100));
+        var end = store.end(slower, new JumpmapStore.RunEnd(JumpRun.EndReason.FINISH, NOON.plusSeconds(170),
+                70_000, 70_000L, 7, true, 46, List.of(), false, List.of()));
+        assertThat(end.newBest()).isFalse();
+        assertThat(end.bestFinishMs()).isEqualTo(60_158);
+    }
+
+    @Test
     void 완주_저장후_빈랭킹과_개인최고를_즉시_갱신하고_밀리초를_보존한다() throws Exception {
         assertThat(store.ranking(101).items()).isEmpty();
         String run = startRun(101, NOON);
