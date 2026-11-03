@@ -27,6 +27,9 @@ export interface StartState {
   simulation: boolean
 }
 export interface Omok {
+  draw?: { requestId: string; requesterUserId: string; deadline: string } | null
+  drawDecision?: { requestId: string; status: 'ACCEPTED' | 'REJECTED' | 'EXPIRED' } | null
+  drawRequestsUsed?: string[]
   undo?: { requestId: string; requesterUserId: string; deadline: string } | null
   undoDecision?: { requestId: string; status: 'ACCEPTED' | 'REJECTED' | 'EXPIRED' } | null
   gameCode: 'OMOK'
@@ -148,6 +151,17 @@ export function parseOmok(p: unknown): Omok {
   )
     throw new Error('오목 상태 형식이 올바르지 않습니다.')
   const players = [p.blackUserId, p.whiteUserId]
+  if (p.drawRequestsUsed !== undefined && (!Array.isArray(p.drawRequestsUsed) || p.drawRequestsUsed.length > 2
+    || new Set(p.drawRequestsUsed).size !== p.drawRequestsUsed.length || !p.drawRequestsUsed.every(u => players.includes(u))))
+    throw new Error('오목 무승부 요청 횟수를 확인해주세요.')
+  if (p.draw !== undefined && p.draw !== null && (!record(p.draw) || !id(p.draw.requestId)
+    || p.draw.requesterUserId !== p.turnUserId || !players.includes(p.draw.requesterUserId as string)
+    || !date(p.draw.deadline) || p.status !== 'PLAYING' || p.undo != null
+    || !Array.isArray(p.drawRequestsUsed) || !p.drawRequestsUsed.includes(p.draw.requesterUserId)))
+    throw new Error('오목 무승부 요청을 확인해주세요.')
+  if (p.drawDecision !== undefined && p.drawDecision !== null && (!record(p.drawDecision)
+    || !id(p.drawDecision.requestId) || !['ACCEPTED', 'REJECTED', 'EXPIRED'].includes(String(p.drawDecision.status))))
+    throw new Error('오목 무승부 응답을 확인해주세요.')
   if (p.undo !== undefined && p.undo !== null && (!record(p.undo) || !id(p.undo.requestId)
     || p.undo.requesterUserId !== p.turnUserId || !players.includes(p.undo.requesterUserId as string)
     || !date(p.undo.deadline) || p.status !== 'PLAYING' || p.moveCount < 2))
@@ -196,6 +210,12 @@ export function parseOmok(p: unknown): Omok {
     turnUserId: p.turnUserId as string | null,
     turnDeadline: p.turnDeadline as string | null,
     moveCount: p.moveCount,
+    ...(p.draw === undefined ? {} : { draw: p.draw === null ? null : {
+      requestId: String((p.draw as Record<string, unknown>).requestId), requesterUserId: String((p.draw as Record<string, unknown>).requesterUserId),
+      deadline: String((p.draw as Record<string, unknown>).deadline) } }),
+    ...(p.drawDecision === undefined ? {} : { drawDecision: p.drawDecision === null ? null : {
+      requestId: String((p.drawDecision as Record<string, unknown>).requestId), status: (p.drawDecision as NonNullable<Omok['drawDecision']>).status } }),
+    ...(p.drawRequestsUsed === undefined ? {} : {drawRequestsUsed: [...p.drawRequestsUsed as string[]]}),
     ...(p.undo === undefined ? {} : { undo: p.undo === null ? null : {
       requestId: String((p.undo as Record<string, unknown>).requestId), requesterUserId: String((p.undo as Record<string, unknown>).requesterUserId),
       deadline: String((p.undo as Record<string, unknown>).deadline) } }),

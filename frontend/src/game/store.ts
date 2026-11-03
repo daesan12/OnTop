@@ -79,7 +79,7 @@ export function canPlace(
     !forfeitBlocksInput(g.gameId) &&
     g.version >= s.awaitingVersion &&
     g.omok.status === 'PLAYING' &&
-    !g.omok.undo &&
+    !g.omok.undo && !g.omok.draw &&
     g.omok.turnUserId === ownId &&
     (!g.omok.coinTossEndsAt || Date.parse(g.omok.coinTossEndsAt) <= now) &&
     Date.parse(g.omok.turnDeadline!) > now &&

@@ -9,7 +9,7 @@ export function OmokUndoControls({ now }: { now: number }) {
   const runtime = useParkRuntime(), s = useGame(), own = useSession(s => s.sessionId)
   const connected = useSession(s => s.status === 'connected' && !s.pending)
   const o = s.game?.omok, undo = o?.undo
-  if (!o || s.game?.role !== 'PLAYER' || o.status !== 'PLAYING' || o.undo === undefined || !runtime.actOmokUndo) return null
+  if (!o || s.game?.role !== 'PLAYER' || o.status !== 'PLAYING' || o.undo === undefined || o.draw || !runtime.actOmokUndo) return null
   return <OmokUndoCard omok={o} own={own} now={now} send={runtime.actOmokUndo}
     requestDisabled={!connected || !canUndoAction(own,{kind:'undoRequest'},now)}
     responseDisabled={!connected || !undo || !canUndoAction(own,{kind:'undoRespond',requestId:undo.requestId,accept:true},now)} />

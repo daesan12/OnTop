@@ -7,7 +7,10 @@ import com.ssafy.ontop.game.action.GameActionGateway.Rejection;
 import com.ssafy.ontop.game.action.GameActionResult;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 // 호출자는 경기 변경·조회 전체를 같은 잠금 안에서 수행한다.
 public final class OmokMatch {
@@ -26,6 +29,9 @@ public final class OmokMatch {
     private String endReason;
     private Undo undo;
     private UndoDecision undoDecision;
+    private final Set<Long> drawRequestsUsed = new HashSet<>();
+    private Draw draw;
+    private DrawDecision drawDecision;
 
     public OmokMatch(String gameId, String tableId, long blackUserId, long whiteUserId, Instant startedAt) {
         if (gameId == null || gameId.isBlank() || gameId.length() > 120 || tableId == null || tableId.isBlank()
@@ -64,6 +70,10 @@ public final class OmokMatch {
             throw new Rejected(Rejection.STALE_VERSION);
         }
         JsonNode input = command.input();
+        if ("drawRespond".equals(input.path("kind").asText())) {
+            respondDraw(command, input, now);
+            return accept(command, key, input);
+        }
         if ("undoRespond".equals(input.path("kind").asText())) {
             respondUndo(command, input);
             return accept(command, key, input);
@@ -71,7 +81,18 @@ public final class OmokMatch {
         if (command.userId() != turnUserId) {
             throw new Rejected(Rejection.NOT_YOUR_TURN);
         }
-        if (undo != null) throw new Rejected(Rejection.INVALID_ACTION);
+        if (undo != null || draw != null) throw new Rejected(Rejection.INVALID_ACTION);
+        if ("drawRequest".equals(input.path("kind").asText())) {
+            if (input.size() != 1 || drawRequestsUsed.contains(command.userId())) {
+                throw new Rejected(Rejection.INVALID_ACTION);
+            }
+            Instant deadline = now.plusSeconds(10).isBefore(turnDeadline) ? now.plusSeconds(10) : turnDeadline;
+            drawRequestsUsed.add(command.userId());
+            draw = new Draw(command.actionId(), Long.toString(command.userId()), deadline);
+            drawDecision = null;
+            version++;
+            return accept(command, key, input);
+        }
         if ("undoRequest".equals(input.path("kind").asText())) {
             if (input.size() != 1 || board.snapshot().moveCount() < 2) {
                 throw new Rejected(Rejection.INVALID_ACTION);
@@ -95,6 +116,7 @@ public final class OmokMatch {
         }
         version++;
         undoDecision = null;
+        drawDecision = null;
         switch (board.snapshot().outcome()) {
             case BLACK_WIN -> finish(blackUserId, "FIVE_IN_ROW", now);
             case WHITE_WIN -> finish(whiteUserId, "FIVE_IN_ROW", now);
@@ -126,6 +148,20 @@ public final class OmokMatch {
         version++;
     }
 
+    private void respondDraw(GameActionCommand command, JsonNode input, Instant now) {
+        if (input.size() != 3 || !input.path("requestId").isTextual() || !input.path("accept").isBoolean()
+                || draw == null || !draw.requestId().equals(input.path("requestId").textValue())
+                || command.userId() != opponent(turnUserId)) {
+            throw new Rejected(Rejection.INVALID_ACTION);
+        }
+        Draw pending = draw;
+        boolean agreed = input.path("accept").booleanValue();
+        draw = null;
+        if (agreed) finish(null, "AGREED_DRAW", now);
+        drawDecision = new DrawDecision(pending.requestId(), agreed ? "ACCEPTED" : "REJECTED");
+        version++;
+    }
+
     public void expire(Instant now) {
         if (endedAt == null && !now.isBefore(turnDeadline)) {
             version++;
@@ -137,6 +173,12 @@ public final class OmokMatch {
             Undo expired = undo;
             undo = null;
             undoDecision = new UndoDecision(expired.requestId(), "EXPIRED");
+            version++;
+        }
+        if (endedAt == null && draw != null && !now.isBefore(draw.deadline())) {
+            Draw expired = draw;
+            draw = null;
+            drawDecision = new DrawDecision(expired.requestId(), "EXPIRED");
             version++;
         }
     }
@@ -154,7 +196,9 @@ public final class OmokMatch {
 
     public Snapshot snapshot() {
         return new Snapshot(gameId, tableId, blackUserId, whiteUserId, version, board.snapshot(),
-                endedAt == null ? turnUserId : null, winnerUserId, turnDeadline, endedAt, endReason, undo, undoDecision);
+                endedAt == null ? turnUserId : null, winnerUserId, turnDeadline, endedAt, endReason, undo, undoDecision,
+                draw, drawDecision, List.of(blackUserId, whiteUserId).stream().filter(drawRequestsUsed::contains)
+                        .map(String::valueOf).toList());
     }
 
     public boolean isPlayer(long userId) {
@@ -172,6 +216,8 @@ public final class OmokMatch {
         turnDeadline = null;
         undo = null;
         undoDecision = null;
+        draw = null;
+        drawDecision = null;
     }
 
     private boolean coordinate(JsonNode value) {
@@ -183,7 +229,10 @@ public final class OmokMatch {
     private record AcceptedAction(long version, JsonNode input, GameActionResult result) { }
     public record Undo(String requestId, String requesterUserId, Instant deadline) { }
     public record UndoDecision(String requestId, String status) { }
+    public record Draw(String requestId, String requesterUserId, Instant deadline) { }
+    public record DrawDecision(String requestId, String status) { }
     public record Snapshot(String gameId, String tableId, long blackUserId, long whiteUserId, long version,
             OmokBoard.Snapshot board, Long turnUserId, Long winnerUserId, Instant turnDeadline,
-            Instant endedAt, String endReason, Undo undo, UndoDecision undoDecision) { }
+            Instant endedAt, String endReason, Undo undo, UndoDecision undoDecision,
+            Draw draw, DrawDecision drawDecision, List<String> drawRequestsUsed) { }
 }

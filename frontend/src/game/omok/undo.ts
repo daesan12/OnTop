@@ -9,7 +9,7 @@ export function canUndoAction(own: string, input: OmokUndoInput, now = estimated
   if (!o || g.role !== 'PLAYER' || g.gameId !== s.permittedGameId || s.recovery !== 'RESTORED'
     || ![o.blackUserId, o.whiteUserId].includes(own) || s.pending || s.uncertain || forfeitBlocksInput(g.gameId)
     || g.version < s.awaitingVersion || ['STARTING', 'CONFIRMED', 'SETTLING'].includes(s.start?.phase ?? '')
-    || o.status !== 'PLAYING' || o.undo === undefined) return false
+    || o.status !== 'PLAYING' || o.undo === undefined || o.draw) return false
   if (input.kind === 'undoRequest') return !o.undo && o.moveCount >= 2 && o.turnUserId === own
     && (!o.coinTossEndsAt || Date.parse(o.coinTossEndsAt) <= now) && Date.parse(o.turnDeadline!) > now
   return !!o.undo && o.undo.requesterUserId !== own && o.undo.requestId === input.requestId

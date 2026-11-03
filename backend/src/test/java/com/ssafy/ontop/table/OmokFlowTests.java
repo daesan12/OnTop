@@ -234,6 +234,36 @@ class OmokFlowTests {
         }
     }
 
+    @Test
+    void 합의무승부_요청과_복귀_상대동의_관전자종료를_실제소켓으로검증한다() throws Exception {
+        engine.create("omok", TABLE, 101, 202);
+        try (var black=connect("naver","RESTORED");var white=connect("ssafy","RESTORED");var viewer=connect("spectator","LOBBY")) {
+            joinWatch(viewer);viewer.request("GAME_WATCH",Map.of("gameId","omok"));
+            String deadline=engine.load(101,"omok").orElseThrow().publicState().path("turnDeadline").asText();
+            assertThat(black.request("GAME_ACTION_SEND",Map.of("gameId","omok","actionId","draw","expectedVersion",0,
+                    "input",Map.of("kind","drawRequest"))).path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
+            var pending=viewer.await(m->stateVersion(m,1)).at("/payload/publicState");
+            assertThat(pending.path("draw").path("requesterUserId").asText()).isEqualTo("101");
+            assertThat(pending.path("turnDeadline").asText()).isEqualTo(deadline);
+            assertThat(black.request("GAME_ACTION_SEND",action("blocked-draw",1,0,0)).at("/payload/code").asText())
+                    .isEqualTo("GAME_ACTION_INVALID_ACTION");
+            white.stopPong();assertThat(white.awaitClose()).isEqualTo(1001);
+            try(var returned=new ScenarioClient(port,"ssafy")) {
+                var recovered=returned.state("RESTORED");
+                assertThat(recovered.at("/state/draw")).isEqualTo(pending.path("draw"));
+                assertThat(recovered.at("/state/drawRequestsUsed").toString()).isEqualTo("[\"101\"]");
+                var accept=Map.of("gameId","omok","actionId","agree","expectedVersion",1,
+                        "input",Map.of("kind","drawRespond","requestId","draw","accept",true));
+                assertThat(returned.request("GAME_ACTION_SEND",accept).path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
+                var result=viewer.await(m->stateVersion(m,2));assertState(result,2,"FINISHED");
+                assertThat(result.at("/payload/publicState/endReason").asText()).isEqualTo("AGREED_DRAW");
+                assertThat(result.at("/payload/publicState/winnerUserId").isNull()).isTrue();
+                assertState(black.await(m->stateVersion(m,2)),2,"FINISHED");
+                returned.request("GAME_ACTION_SEND",accept);assertThat(engine.load(101,"omok").orElseThrow().version()).isEqualTo(2);
+            }
+        }
+    }
+
     private ScenarioClient connect(String login, String status) throws Exception {
         ScenarioClient client = new ScenarioClient(port, login);
         client.state(status);
