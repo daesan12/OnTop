@@ -231,6 +231,15 @@ public class GameReconnectService {
                 && slot.snapshot != null && slot.snapshot.gameId().equals(gameId);
     }
 
+    /** 무료 경기는 좌석 대신 서버 스냅샷의 원래 채널로만 복귀한다. 로비 행동 권한은 주지 않는다. */
+    public synchronized boolean canResumeUnreservedChannel(long userId, String sessionId, String channelId) {
+        Slot slot = users.get(userId);
+        return channelId != null && slot != null && slot.snapshot != null
+                && canControlGame(userId, sessionId, slot.snapshot.gameId())
+                && gateway.isPresent() && gateway.get().isUnreservedSession(slot.snapshot)
+                && channelId.equals(slot.snapshot.state().at("/publicState/channelId").asText());
+    }
+
     // 종료·탈락 후에도 동일 경기의 기권 영수증을 재확인할 수 있다. 새 경기에는 적용하지 않는다.
     public synchronized boolean canForfeitGame(long userId, String sessionId, String gameId) {
         Slot slot = users.get(userId);
@@ -402,7 +411,8 @@ public class GameReconnectService {
     private Optional<GameRecoverySnapshot> reconcile(Optional<ActiveGameRecord> active,
             Optional<GameRecoverySnapshot> engine) {
         if (active.isEmpty()) {
-            if (engine.isPresent() && engine.get().phase() != Phase.FINISHED) {
+            if (engine.isPresent() && engine.get().phase() != Phase.FINISHED
+                    && !gateway.orElseThrow().isUnreservedSession(engine.get())) {
                 throw new RecoveryConsistencyException(RecoveryFailure.DB_RECORD_MISSING);
             }
             // 정산 커밋이 활성 마커를 먼저 해제한 직후에도 기존 종료 영수증은 그대로 전달할 수 있다.
@@ -455,9 +465,12 @@ public class GameReconnectService {
         // 좌석/종료 이력 부재만으로 풀지 않고, 서버가 확인한 참가 종료만 복귀를 허용한다.
         boolean hiddenActiveTerminal = activeMarker && result.filter(snapshot -> snapshot.phase() == Phase.FINISHED)
                 .filter(snapshot -> !slot.finishedAllowed.test(snapshot.gameId())
-                        && !slot.departed.test(snapshot.gameId())).isPresent();
+                        && !slot.departed.test(snapshot.gameId())
+                        && !gateway.orElseThrow().isUnreservedSession(snapshot)).isPresent();
         result = result.filter(snapshot -> !slot.departed.test(snapshot.gameId()))
-                .filter(snapshot -> snapshot.phase() != Phase.FINISHED || slot.finishedAllowed.test(snapshot.gameId()));
+                .filter(snapshot -> snapshot.phase() != Phase.FINISHED
+                        || slot.finishedAllowed.test(snapshot.gameId())
+                        || gateway.orElseThrow().isUnreservedSession(snapshot));
         slot.snapshot = result.orElse(null);
         if (hiddenActiveTerminal) {
             // DB 예약이 남은 종결 경기를 현재 테이블 이력 부재만으로 LOBBY라고 하지 않는다.

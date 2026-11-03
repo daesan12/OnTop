@@ -1111,6 +1111,13 @@ public class TableHub {
     /** Recovery permits the original channel and its read-only boot snapshots, never lobby actions. */
     private boolean restoredChannelAccess(Member member, Request request) {
         if (member.accountId() == null || reconnect.isEmpty()) return false;
+        String freeChannel = request.type().equals("CHANNEL_JOIN")
+                ? request.payload().path("channelId").asText() : channels.channelOf(member.userId());
+        if ((request.type().equals("CHANNEL_JOIN")
+                || Set.of("WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FOLLOW_CHECK").contains(request.type()))
+                && reconnect.get().canResumeUnreservedChannel(member.accountId(), member.sessionId(), freeChannel)) {
+            return true;
+        }
         String tableId = seating.get(member.userId()), gameId = seatedGames.get(member.userId());
         String channel = tableId == null ? null : tableChannels.get(tableId);
         if (channel == null || gameId == null || !reconnect.get().canControlGame(member.accountId(), member.sessionId(), gameId)) return false;
@@ -1473,6 +1480,28 @@ public class TableHub {
         if (!reachable) {
             throw new com.ssafy.ontop.notes.service.NoteException(403, "NOTES_OUT_OF_RANGE",
                     "익명 메모함 가까이 같은 높이에서 작성해주세요.");
+        }
+    }
+
+    /** 무료 협동 경기 입장은 최신 맵의 VR 입구·현재 인증 소켓에서만 허용한다. */
+    public synchronized void requireSkewerEntry(long userId, String channelId, boolean existingRoom) {
+        String identity = Long.toString(userId);
+        var position = channels.positionOf(identity);
+        var connected = members.entrySet().stream()
+                .filter(entry -> Long.valueOf(userId).equals(entry.getValue().accountId())).findFirst();
+        if (connected.isEmpty() || !mapVerifiedSessions.contains(connected.get().getKey())
+                || !channels.isInChannel(identity, channelId) || position == null) {
+            throw new IllegalStateException("연결된 공원과 최신 맵을 확인해주세요.");
+        }
+        if (seating.containsKey(identity) || facilities.current(identity) != null || position.swimming()
+                || !existingRoom && reconnect.isPresent()
+                        && !reconnect.get().canUseLobby(userId, connected.get().getKey())) {
+            throw new IllegalStateException("진행 중인 게임·시설 이용을 먼저 종료해주세요.");
+        }
+        if (!existingRoom && (preparedPark == null
+                || preparedPark.vrEntrance().filter(reach -> reach.contains(
+                        position.x(), position.y(), position.z())).isEmpty())) {
+            throw new IllegalStateException("같은 공원의 VR 체험관 입구에서 만나주세요.");
         }
     }
 
