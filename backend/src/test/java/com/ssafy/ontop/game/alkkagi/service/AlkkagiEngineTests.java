@@ -25,6 +25,29 @@ class AlkkagiEngineTests {
     private final AlkkagiEngine engine = new AlkkagiEngine(mapper, clock, events::add, router);
 
     @Test
+    void 코인_추첨은_경기당_한번이며_연출_후_전체시간과_첫턴을_시작한다() {
+        var count = new java.util.concurrent.atomic.AtomicInteger();
+        var tossing = new AlkkagiEngine(mapper, clock, events::add, router, () -> { count.incrementAndGet(); return true; });
+        tossing.createWithCoinToss("coin", "table", 42, 84);
+        tossing.createWithCoinToss("coin", "table", 42, 84);
+        var before = tossing.load(42, "coin").orElseThrow();
+        assertThat(count).hasValue(1);
+        assertThat(before.publicState().path("stage").asText()).isEqualTo("COIN_TOSS");
+        assertThat(before.publicState().path("turnUserId").asText()).isEqualTo("84");
+        assertThat(before.publicState().path("coinTossEndsAt").asText()).isEqualTo("1970-01-01T00:00:02.500Z");
+        assertThat(before.publicState().path("turnDeadline").asLong()).isEqualTo(32_500);
+        assertThat(before.publicState().path("matchDeadline").asLong()).isEqualTo(722_500);
+        assertThatThrownBy(() -> tossing.apply(shot(84, "coin", "early", 1))).hasMessage("NOT_ACTIVE");
+        clock.now = 2500;
+        var after = tossing.load(84, "coin").orElseThrow();
+        assertThat(after.publicState().path("stage").asText()).isEqualTo("AIMING");
+        assertThat(after.version()).isEqualTo(2);
+        assertThat(tossing.load(42).orElseThrow().version()).isEqualTo(2);
+        assertThat(tossing.load(99, "coin").orElseThrow().privateState().isEmpty()).isTrue();
+        assertThat(count).hasValue(1);
+    }
+
+    @Test
     void 예약커밋_확인전에는_생성하지_않고_확정후_멱등생성한다() {
         var command = new GameStartCommand(UUID.randomUUID(), "table", 1, "ALKKAGI", List.of(
                 new GameStartCommand.Participant("42", 1), new GameStartCommand.Participant("84", 2)));
@@ -183,6 +206,11 @@ class AlkkagiEngineTests {
         assertThat(recovered.state().path("publicState").path("walls")).isEqualTo(own.publicState().path("walls"));
         assertThat(own.privateState().path("cards")).hasSize(1);
         assertThat(viewer.privateState().isEmpty()).isTrue();
+        assertThat(viewer.publicState().path("cardCounts").toString()).isEqualTo("[1,0]");
+        assertThat(viewer.publicState().toString()).doesNotContain("POWER_UP");
+        assertThat(viewer.publicState().path("itemEffects")).hasSize(2);
+        assertThat(viewer.publicState().path("itemEffects").get(1).path("at").asLong()).isEqualTo(1000);
+        assertThat(viewer.publicState().path("itemEffects").get(1).has("cardId")).isFalse();
     }
 
     private static final class TestClock extends Clock {

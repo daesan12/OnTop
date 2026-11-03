@@ -2,6 +2,24 @@ import { describe, expect, it } from 'vitest'
 import { exitFlight } from '../../src/game/alkkagi/flight'
 import { itemPreview } from '../../src/game/alkkagi/placement'
 import type { Piece, Snapshot } from '../../src/game/alkkagi/replay'
+import { remainingMatchTime, UsedCardTimeline } from '../../src/game/alkkagi/presentation'
+
+it('전체 시간은 서버 마감 기준이며 만료 뒤 음수가 되지 않는다', () => {
+  expect(remainingMatchTime(722500, 2500)).toBe('12:00')
+  expect(remainingMatchTime(722500, 721501)).toBe('0:01')
+  expect(remainingMatchTime(722500, 800000)).toBe('0:00')
+})
+
+it('사용 카드 공개는 첫 조회·중복·재접속을 재생하지 않고 합쳐진 새 사건은 순서대로 받는다', () => {
+  const timeline = new UsedCardTimeline()
+  const effect = (version: number, at = 1000) => ({ version, turnNumber: 1, actor: 0, type: 'WALL', targets: [], at })
+  expect(timeline.accept('g', [effect(1)], 1000)).toEqual([])
+  expect(timeline.accept('g', [effect(1), effect(2), effect(3)], 1100).map(e => e.version)).toEqual([2, 3])
+  expect(timeline.accept('g', [effect(3)], 1200)).toEqual([])
+  expect(timeline.accept('g', [effect(4, 1000)], 6000)).toEqual([])
+  expect(timeline.accept('g', [effect(5, 9000)], 6000)).toEqual([])
+  expect(new UsedCardTimeline().accept('g', [effect(3)], 1200)).toEqual([])
+})
 
 describe('장외 연출과 중심 기준 변형', () => {
   const piece: Piece = { id: 'p', owner: 1, type: '卒', x: 4.51, y: 0, vx: 0, vy: 0,
