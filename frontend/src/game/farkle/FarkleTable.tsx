@@ -157,6 +157,11 @@ function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame |
       cupMotion.x = .91; cupMotion.z = .4; useDiceUI.setState({ cup: 'holding' }); gl.domElement.style.cursor = 'grabbing'
     }}><LeatherCup /></group>
     {game?.dice.dice.map(die => <Die key={die.id} die={die} game={game} pour={pour} />)}
+    {bust?.phase === 'result' && bust.resultDice.map(die => <group key={die.id} name={`farkle-bust-result-${die.id}`}
+      position={[die.held ? -.68 : -.36 + die.id % 3 * .35, DIE_REST_Y, die.held ? -.4 + die.id * .16 : -.22 + Math.floor(die.id / 3) * .43]}
+      scale={FARKLE_VISUAL.dieScale} quaternion={finalRotations[die.value - 1]} userData={{ face: die.value, held: die.held }}>
+      <BoneDie id={die.id} />
+    </group>)}
     {bust?.phase === 'rolling' && bust.rollingIds.map(id => <BustRollingDie key={id} id={id} bust={bust} pour={pour} />)}
   </group></group>
 }

@@ -17,6 +17,7 @@ import { FarkleScoreSheet } from './FarkleScoreSheet'
 import { HudCorners, HudIcon, PlayerSeal } from './FarkleHudArt'
 import { bustMatches } from './bustPresentation'
 import { useFarkleChatClearance } from './useFarkleChatClearance'
+import { selectionHint } from './selectionHint'
 import './farkle.css'
 import './farkleHud.css'
 
@@ -43,6 +44,8 @@ function FarklePlayerPanel() {
   const ready = diceCanAct(), idle = ui.cup === 'idle', remaining = d.turnDeadline ? Math.max(0, Math.ceil((Date.parse(d.turnDeadline) - now) / 1000)) : null
   const name = (id: string) => id === session.sessionId ? '나' : session.profiles[id]?.nickname ?? `참가자 ${d.players.indexOf(id) + 1}`
   const bust = bustMatches(g, ui.bust) ? ui.bust : null
+  const hint = selectionHint(d.dice, ids)
+  const shownDice = bust?.phase === 'result' && bust.resultDice.length ? bust.resultDice : d.dice
   const displayedTurn = bust?.actorId ?? d.turnUserId
   return <>
     <section className="prototype-game farkle-hud farkle-panel farkle-player-hud" aria-label="주사위 경기" data-stage={d.stage} data-presentation={bust ? `bust-${bust.phase}` : 'live'}>
@@ -55,7 +58,7 @@ function FarklePlayerPanel() {
       <div className="farkle-message" data-event={bust?.phase === 'rolling' ? 'ROLL' : d.lastEvent}>
         <p role="status">{bust ? bust.phase === 'rolling' ? '주사위를 굴리고 있습니다' : '허탕! · 이번 턴 점수를 잃었습니다'
           : d.status === 'FINISHED' ? d.winnerUserId === session.sessionId ? '승리' : '패배'
-          : `${mine ? '내 차례' : name(d.turnUserId!) + ' 차례'} · ${remaining === 0 ? '다음 차례를 기다리는 중' : events[d.lastEvent]}`}</p>
+          : `${mine ? '내 차례' : name(d.turnUserId!) + ' 차례'} · ${remaining === 0 ? '다음 차례를 기다리는 중' : hint ?? events[d.lastEvent]}`}</p>
         {remaining !== null && <span className="farkle-clock" data-urgent={remaining <= 5} aria-label={`남은 시간 ${remaining}초`}>{remaining}<small>초</small></span>}
       </div>
       <section className="farkle-actions" aria-label="주사위 조작">
@@ -64,17 +67,17 @@ function FarklePlayerPanel() {
         <span>선택 점수<strong className="farkle-selection-points">{points === null ? '—' : `+${points.toLocaleString()}`}</strong></span>
         {d.status === 'PLAYING' && <p className="farkle-action-hint"><HudIcon kind="info" /><span>{bust ? bust.phase === 'rolling' ? '굴림 연출을 확인하고 있습니다.' : '다음 차례로 넘어갑니다.'
           : ui.cup === 'ready' ? '컵을 놓으면 굴립니다.' : ui.cup === 'holding' ? '컵을 잡은 채 좌우로 흔들어주세요.'
-          : ids.length && !points ? '득점 가능한 조합을 선택해주세요.' : d.stage === 'SELECTING' ? '점수를 선택한 후 원하는 행동을 선택하세요.' : '컵을 흔들거나 굴리기를 눌러 시작하세요.'}</span>
+          : hint ?? (d.stage === 'SELECTING' ? '점수를 선택한 후 원하는 행동을 선택하세요.' : '컵을 흔들거나 굴리기를 눌러 시작하세요.')}</span>
           {!idle && <button onClick={cancelCup}>Esc 취소</button>}</p>}
         <button className="farkle-rule-button" onClick={toggleScoreSheet} aria-keyshortcuts="T"><kbd>T</kbd> 점수표</button>
       </div>
       <div className="farkle-control-row">
-      <div className="farkle-dice-list" role="group" aria-label="주사위 선택">{d.dice.map(die => <button key={die.id}
+      <div className="farkle-dice-list" role="group" aria-label={bust?.phase === 'result' ? '허탕 굴림 결과' : '주사위 선택'}>{shownDice.map(die => <button key={die.id}
         aria-label={`주사위 ${die.id + 1}: ${die.value}${die.held ? ' 보관' : ''}`} aria-pressed={ids.includes(die.id)}
         title={`주사위 ${die.id + 1}${die.held ? ' · 보관됨' : ids.includes(die.id) ? ' · 선택 해제' : ' · 선택'}`}
         disabled={!ready || !idle || d.stage !== 'SELECTING' || die.held || !eligible.includes(die.id)} onClick={() => toggleDie(die.id)}>
         <DiceFace value={die.value} />
-      </button>)}{d.dice.length === 0 && Array.from({ length: 6 }, (_, i) => <span key={i} className="farkle-empty-die" aria-hidden="true" />)}</div>
+      </button>)}{shownDice.length === 0 && Array.from({ length: 6 }, (_, i) => <span key={i} className="farkle-empty-die" aria-hidden="true" />)}</div>
       {d.status === 'PLAYING' && <>
         <div className="button-row"><button className="farkle-roll-button" disabled={!idle || !canRollDice()} onClick={rollDice}
           aria-label={d.stage === 'SELECTING' ? 'R 한 번 더!' : 'R 굴리기'} aria-keyshortcuts="R"><HudIcon kind="dice" /><kbd>R</kbd>{d.stage === 'SELECTING' ? '한 번 더!' : '굴리기'}</button>

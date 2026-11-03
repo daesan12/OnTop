@@ -5,10 +5,12 @@ import { Vector3 } from 'three'
 export function farkleMotionProbe() {
   const state = _roots.get(document.querySelector('canvas')!)!.store.getState()
   const rolling: { name: string; visible: boolean; rotation: number[] }[] = []
+  const result: { name: string; face: number; held: boolean }[] = []
   state.scene.traverse(object => {
     if (object.name.startsWith('farkle-rolling-die-')) rolling.push({ name: object.name, visible: object.visible, rotation: object.quaternion.toArray() })
+    if (object.name.startsWith('farkle-bust-result-')) result.push({ name: object.name, face: object.userData.face, held: object.userData.held })
   })
-  return { rolling }
+  return { rolling, result }
 }
 
 export function pointForFarkleProp(name: string, offset: [number, number, number] = [0, 0, 0]) {

@@ -14,6 +14,17 @@ const game = (patch: Partial<Farkle> = {}): DiceGame => ({ gameId: 'g', version:
 const busted = () => game({ lastEvent: 'BUST', turnUserId: 'b', rollId: 1, round: 2 })
 
 describe('server-owned BUST with an empty next-turn dice list', () => {
+  it('uses only the matching server receipt and knows an opponent reroll count from held flags', () => {
+    const resultDice = [1, 1, 2, 3, 4, 6].map((value, id) => ({ id, value, held: id < 2 }))
+    const next = { ...busted(), dice: { ...busted().dice, lastRoll: { rollId: 1, actorUserId: 'a', dice: resultDice } } }
+    const receipt = createBustPresentation(game(), next, null, 0)!
+    expect(receipt.resultDice).toEqual(resultDice)
+    expect(receipt.rollingIds).toEqual([2, 3, 4, 5])
+    next.dice.lastRoll.actorUserId = 'b'
+    expect(createBustPresentation(game(), next, [], 0)!.resultDice).toEqual([])
+    next.dice.lastRoll.actorUserId = 'a'; next.dice.lastRoll.rollId = 0
+    expect(createBustPresentation(game(), next, [], 0)!.resultDice).toEqual([])
+  })
   it('keeps a first roll visible before revealing the result without changing the snapshot or deadline', () => {
     const next = busted(), original = JSON.stringify(next)
     const bust = createBustPresentation(game(), next, [], 100)!
