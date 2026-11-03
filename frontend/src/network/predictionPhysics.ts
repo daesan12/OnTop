@@ -228,12 +228,9 @@ class PredictionPhysics implements PredictionSimulation {
       this.grounded=!!floor&&floor.normal.y>=.6
     }
     // Beside a thin fence's top edge Rapier also reports grounded with no contact at all.
-    // Resetting the fall there leaves the capsule perched on a steep edge the server does
-    // not support (HOVER), so keep falling and slide off it. Moving across a rail top is kept.
-    if(this.grounded&&!input.dx&&!input.dz&&!walls.length&&!walkableContact&&!onStair){
-      const below=this.supportBelow(landing)
-      if(below&&below.normal1.y<=.6)this.grounded=false
-    }
+    // Resetting the fall there hangs the capsule in the air or perches it on a steep edge
+    // the server does not support (HOVER), so keep falling. Moving across a rail top is kept.
+    if(this.grounded&&!input.dx&&!input.dz&&!walls.length&&!walkableContact&&!onStair&&!this.jumpSupported(landing))this.grounded=false
     this.parkMotion.contact(wanted,delta,this.grounded,walls);this.vy=this.parkMotion.velocityY()
     this.body.setNextKinematicTranslation(landing)
     if(input.dx||input.dz)this.yaw=Math.atan2(input.dx,input.dz)
@@ -247,11 +244,8 @@ class PredictionPhysics implements PredictionSimulation {
   }
   /** Mirrors the server's PositionCollision.supported(): the capsule swept 0.17m down onto a walkable face. */
   private jumpSupported(pose:{x:number;y:number;z:number}) {
-    const hit=this.supportBelow(pose)
+    const hit=this.world.castShape(pose,{x:0,y:0,z:0,w:1},{x:0,y:-1,z:0},this.collider.shape,0,.17,false,undefined,undefined,this.collider)
     return !!hit&&hit.normal1.y>.6
-  }
-  private supportBelow(pose:{x:number;y:number;z:number}) {
-    return this.world.castShape(pose,{x:0,y:0,z:0,w:1},{x:0,y:-1,z:0},this.collider.shape,0,.17,false,undefined,undefined,this.collider)
   }
   private supportAllowed(pose:{x:number;y:number;z:number}) {
     return !GENERATED_PARK_ENABLED||furnitureAllowsSupport(pose,this.furniture,MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset,MOVEMENT.radius,this.chairCounts)

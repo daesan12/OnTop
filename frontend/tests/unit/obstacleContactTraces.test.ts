@@ -43,6 +43,20 @@ it('slides off a fence top edge the server does not support instead of perching 
   expect(sim.pose().x).toBeGreaterThan(-12.67)
  }finally{sim.dispose()}
 })
+it('does not hang in the air when jumping in place beside a fence',async()=>{
+ // Local trace beside hall-court-east: repeated jumps stalled around y=1.6-1.76 until HOVER.
+ const sim=await createPredictionPhysics('PARK_V1')
+ try{
+  sim.reset({x:-46.39,y:.8,z:-15.84,yaw:0},0,true)
+  let still=0,longest=0,last=sim.pose().y
+  for(let n=0;n<300;n++){
+   sim.step({dx:0,dz:0,run:false,jump:n%12===0},1/60)
+   const y=sim.pose().y
+   still=y>1&&Math.abs(y-last)<.003?still+1:0;longest=Math.max(longest,still);last=y
+  }
+  expect(longest).toBeLessThanOrEqual(3)
+ }finally{sim.dispose()}
+})
 it.skipIf(!process.env.OBSTACLE_CONTACT_DIR)('exports real pavilion obstacle contact trajectories',async()=>{
  const traces=[];const stop={dx:0,dz:0,run:false,jump:false}
  for(const id of ['P0','P5'])for(const angle of [Math.PI/4,Math.PI])for(const run of [false,true])for(const timing of ['none','start','contact']){
