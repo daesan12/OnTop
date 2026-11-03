@@ -36,8 +36,9 @@
 - 오목(판돈 1): 101 +1, 102 −1 / 주사위(판돈 5): 101 −5, 105 +5. 시작할 때 예약, 끝날 때 정산
 - 102 상점 구매 −20(아이템 7, 2개), 붕어빵 완료 판의 보상을 판 종료 시각에 지급
 - 2일차 오목(판돈 1, 경기 3): 103 +1, 104 −1
+- 1일차 101 점프맵 7구간 보상(2+4+7+11+16+24+36=100)과 꼬치 보상 300: 붕어빵 100과 합쳐 공동 한도 500 도달
 - 104는 탈퇴 회원(지갑은 남지만 잔액 분포에서 제외)
-- 최종 잔액: 101=196, 102=109, 103=116, 104=99, 105=155
+- 최종 잔액: 101=596, 102=109, 103=116, 104=99, 105=155
 
 경기(game_sessions·game_participants, 기능 테이블. 행동 로그 game_id는 경기 번호와 같다)
 - 경기 1(1일차 오목)·경기 2(2일차 주사위)는 위 행동 로그와 같은 경기
@@ -52,7 +53,7 @@ from datetime import datetime
 NAMESPACE = uuid.UUID("6f2f4d4e-6c0b-4b6e-9a51-3c1f0a0c1400")
 # 11_zone_traffic.sql의 layouts 대응표에 있는 실제 해시(기존 맵·생성 맵)를 쓴다.
 MAP_VERSION = "ae833248d2dd356c6603af72b2b865f9051a866e9cfa7d2b9c9abe890579944d"
-GENERATED_MAP_VERSION = "cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81"
+GENERATED_MAP_VERSION = "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07"
 
 
 def build_seed() -> str:
@@ -239,6 +240,9 @@ def wallet_sql() -> list[str]:
         (104, "GAME_RESERVE", 3, None, None, 0, 1, "2026-10-28 03:00:00"),
         (103, "GAME_SETTLEMENT", 3, None, None, 1, -1, "2026-10-28 03:08:00"),
         (104, "GAME_SETTLEMENT", 3, None, None, -1, -1, "2026-10-28 03:08:00"),
+        *[(101, "JUMP_GATE_REWARD", None, None, None, coins, 0, f"2026-10-27 01:40:{gate * 5:02d}")
+          for gate, coins in enumerate([2, 4, 7, 11, 16, 24, 36], start=1)],
+        (101, "SKEWER_REWARD", None, None, None, 300, 0, "2026-10-27 01:50:00"),
     ]
     balances: dict[int, int] = {}
     for user_id, _, _, _, _, balance_delta, _, _ in entries:
@@ -341,18 +345,20 @@ def bungeoppang_version_sql() -> list[str]:
             "INSERT INTO bungeoppang_records (minigame_session_id, rules_version, heats, is_first_game, "
             f"rejection_detail) VALUES ({session}, '{rules}', '[]', 0, {sql_value('seed' if rejected else None)});"
         )
-    # (판 번호, 설정 버전, 발급·카운트다운, 조리 시작, 조리 끝, 제출 기한, 만료). 조리 60초(v4)·180초(v5 3분)
-    for session, config, issued, play_start, play_end, deadline, expires in [
+    # (판 번호, 설정 버전, 발급·카운트다운, 조리 시작, 조리 끝, 제출 기한, 만료, 수동 일시정지 ms)
+    # 조리 60초(v4)·180초(v5 3분). 7번 판은 사용자가 30초 멈췄다.
+    for session, config, issued, play_start, play_end, deadline, expires, paused in [
         (7, "v4-20261027.1", "2026-10-28 05:01:00", "2026-10-28 05:01:03", "2026-10-28 05:02:03",
-         "2026-10-28 05:02:33", "2026-10-28 05:03:33"),
+         "2026-10-28 05:02:33", "2026-10-28 05:03:33", 30000),
         (8, "v5-20261027.1", "2026-10-28 01:03:00", "2026-10-28 01:03:03", "2026-10-28 01:06:03",
-         "2026-10-28 01:06:33", "2026-10-28 01:07:33"),
+         "2026-10-28 01:06:33", "2026-10-28 01:07:33", 0),
     ]:
         times = ", ".join(f"'{timestamp(value)}'" for value in (issued, issued, play_start, play_end, deadline, expires))
         lines.append(
             "INSERT INTO bungeoppang_v4_rounds (minigame_session_id, config_version, config_json, issued_at, "
             "countdown_starts_at, play_starts_at, play_ends_at, submit_deadline, expires_at, approved_prefix_hash, "
-            f"checkpoint_json) VALUES ({session}, '{config}', '{{}}', {times}, '{'0' * 64}', '{{}}');"
+            f"checkpoint_json, manual_paused_ms) VALUES ({session}, '{config}', '{{}}', {times}, '{'0' * 64}', '{{}}', "
+            f"{paused});"
         )
     return lines
 
