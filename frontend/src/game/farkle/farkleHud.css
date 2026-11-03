@@ -223,3 +223,38 @@
   bottom: var(--farkle-chat-bottom); max-height: min(36dvh, var(--farkle-chat-space));
 }
 .park-page:has(.park-chat__composer--open, .park-chat[data-history=true]) .farkle-player-hud[data-chat-layout=above] .farkle-actions { visibility: hidden; }
+
+/* Narrow play view: clock, dice and both primary actions fit above the shared chat. */
+.park-page .farkle-player-hud.farkle-hud[data-chat-layout=above] .farkle-scoreboard { top: 68px; min-height: 58px; }
+.park-page .farkle-player-hud[data-chat-layout=above] .farkle-scoreboard > .farkle-player-score { padding: 5px 8px; gap: 0; }
+.park-page .farkle-player-hud[data-chat-layout=above] .farkle-scoreboard strong { font-size: 20px; line-height: 1.15; }
+.park-page .farkle-player-hud[data-chat-layout=above] .farkle-scoreboard .farkle-player-name { font-size: 11px; line-height: 1.2; }
+.farkle-player-hud[data-chat-layout=above] .farkle-goal { font-size: 10px; gap: 3px; }
+.park-page .farkle-player-hud[data-chat-layout=above] .farkle-goal strong { font-size: 18px; }
+.farkle-player-hud[data-chat-layout=above] .farkle-scoreboard .farkle-hud-corners { display: none; }
+.park-page .farkle-player-hud.farkle-hud[data-chat-layout=above] .farkle-message { top: 132px; left: 16px; width: calc(100vw - 32px); max-width: none; transform: none; padding: 4px 8px; gap: 6px; font-size: 11px; box-sizing: border-box; }
+.farkle-player-hud[data-chat-layout=above] .farkle-message p { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.farkle-player-hud[data-chat-layout=above] .farkle-clock { flex: 0 0 auto; font-size: 18px; line-height: 1.1; padding-left: 6px; }
+.farkle-player-hud[data-chat-layout=above] .farkle-clock small { font-size: 10px; }
+@media (max-width: 900px) {
+  .park-page .farkle-player-hud.farkle-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-actions { display: flex; flex-direction: column; flex-wrap: nowrap; gap: 4px; padding: 6px; border-radius: 14px; }
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-turn-points { flex: 0 0 auto; gap: 8px; flex-wrap: nowrap; padding: 0 2px 3px; }
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-turn-points > span { gap: 3px; font-size: 11px; }
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-turn-points strong { font-size: 16px; line-height: 1.2; }
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-turn-points strong small { font-size: 10px; margin-left: 2px; }
+  .park-page .farkle-player-hud.farkle-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-action-hint { display: none; }
+  .park-page .farkle-player-hud.farkle-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-rule-button { order: 0; margin-left: auto; padding: 2px; font-size: 11px; }
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-rule-button kbd { font-size: 11px; padding: 1px 3px; }
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-control-row { flex: 0 0 auto; flex-direction: column; gap: 4px; margin-top: 0; min-height: 0; }
+  .park-page .farkle-player-hud.farkle-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-dice-list { gap: 4px; justify-content: flex-start; }
+  .park-page .farkle-player-hud.farkle-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-dice-list button,
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-empty-die { width: 32px; height: 32px; padding: 2px; border-radius: 6px; }
+  .park-page .farkle-player-hud.farkle-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-dice-list button > .dice-face { --die-size: 24px; padding: 3px; }
+  .park-page .farkle-player-hud.farkle-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-control-row > .button-row { gap: 6px; flex: 0 0 40px; }
+  .park-page .farkle-player-hud.farkle-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .button-row button { min-height: 40px; padding: 3px 6px; gap: 3px; font-size: 12px; }
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .button-row .farkle-hud-icon { display: none; }
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .button-row kbd { font-size: 11px; padding: 2px; }
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-bank-button > span { font-size: 12px; gap: 4px; }
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-bank-button strong { font-size: 11px; }
+  .farkle-player-hud:is([data-chat-layout=above], [data-chat-layout=beside]) .farkle-bank-button strong small { font-size: 10px; }
+}
