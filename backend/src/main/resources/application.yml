@@ -142,3 +142,15 @@ ontop:
     emote:
       # FE 5종과 연결할 코드. 표현별 간격은 위 공통 설정을 따른다.
       codes: ${WORLD_EMOTE_CODES:WAVE,CLAP,APPLAUSE_REQUEST,TSK,FART}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "(prod | production) & db & !local & !dev"
+ontop:
+  world:
+    movement:
+      # 운영도 검수된 PARK_V1과 서버 좌표 검증을 개발 서버와 동일하게 사용한다.
+      client-position: true
+      tuned-profile: true

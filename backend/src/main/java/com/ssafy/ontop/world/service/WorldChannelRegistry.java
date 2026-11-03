@@ -1,5 +1,6 @@
 package com.ssafy.ontop.world.service;
 
+import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.DynamicChannelsProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
@@ -7,6 +8,7 @@ import com.ssafy.ontop.world.movement.MoveInput;
 import com.ssafy.ontop.world.movement.ParkScene;
 import com.ssafy.ontop.world.movement.WorldPhysics;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
+import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -49,9 +51,9 @@ public class WorldChannelRegistry implements ChannelPresence {
     @Autowired
     void configurePositionReports(@Value("${ontop.world.movement.client-position:false}") boolean enabled,
             org.springframework.core.env.Environment environment) {
-        if (enabled && (!environment.acceptsProfiles(org.springframework.core.env.Profiles.of("local", "dev"))
-                || environment.acceptsProfiles(org.springframework.core.env.Profiles.of("prod", "production")))) {
-            throw new IllegalArgumentException("좌표 검증 이동은 local 또는 dev 프로필에서만 허용합니다.");
+        if (enabled && !environment.acceptsProfiles(
+                org.springframework.core.env.Profiles.of(RuntimeProfiles.PRODUCT_FEATURE))) {
+            throw new IllegalArgumentException("좌표 검증 이동은 local/dev 또는 운영 DB 프로필에서만 허용합니다.");
         }
         clientPositions = enabled;
     }
@@ -59,11 +61,19 @@ public class WorldChannelRegistry implements ChannelPresence {
     @Autowired
     void configureTunedMovement(@Value("${ontop.world.movement.tuned-profile:false}") boolean enabled,
             org.springframework.core.env.Environment environment) {
-        if (enabled && (!environment.acceptsProfiles(org.springframework.core.env.Profiles.of("local", "dev"))
-                || environment.acceptsProfiles(org.springframework.core.env.Profiles.of("prod", "production")))) {
-            throw new IllegalArgumentException("조정된 이동은 local 또는 dev 프로필에서만 허용합니다.");
+        if (enabled && !environment.acceptsProfiles(
+                org.springframework.core.env.Profiles.of(RuntimeProfiles.PRODUCT_FEATURE))) {
+            throw new IllegalArgumentException("조정된 이동은 local/dev 또는 운영 DB 프로필에서만 허용합니다.");
         }
         tunedMovement = enabled;
+    }
+
+    @PostConstruct
+    void validateMovementConfiguration() {
+        // 두 주입 메서드의 호출 순서와 관계없이 최종 설정 조합을 검사한다.
+        if (tunedMovement && !clientPositions) {
+            throw new IllegalArgumentException("tuned-profile=true는 client-position=true와 함께 설정해야 합니다.");
+        }
     }
 
     // 활성화가 승인한 코스만 새 채널 물리에 추가한다. 빈이 없거나 비활성이면 기존 공원 충돌만 사용한다.
