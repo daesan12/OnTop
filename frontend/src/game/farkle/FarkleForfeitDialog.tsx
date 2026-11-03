@@ -7,6 +7,7 @@ import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputO
 import { canRetryForfeit, canStartForfeit, useForfeit } from '../forfeit'
 import { useGame } from '../store'
 import { useDiceUI } from './controls'
+import '../../features/tableLobby/paperPopup.css'
 import './forfeit.css'
 
 /** The menu and Esc share one confirmation; the existing runtime owns actual forfeiture. */
@@ -59,7 +60,7 @@ export function FarkleForfeitDialog({ gameId }: { gameId: string }) {
   return <>
     {(playing || recovering) && <div className="game-forfeit"><button disabled={!canStart && !recovering}
       aria-haspopup="dialog" aria-expanded={open} aria-keyshortcuts="Escape" onClick={() => setOpen(true)}>기권</button></div>}
-    {createPortal(<dialog ref={dialog} className="farkle-forfeit-dialog" aria-label="기권 확인" aria-describedby="farkle-forfeit-warning"
+    {createPortal(<dialog ref={dialog} className="table-paper-popup farkle-forfeit-dialog" aria-label="기권 확인" aria-describedby="farkle-forfeit-warning"
       onCancel={event => { event.preventDefault(); setOpen(false) }} onClose={() => setOpen(false)}
       onKeyDown={event => {
         event.stopPropagation()
@@ -72,7 +73,15 @@ export function FarkleForfeitDialog({ gameId }: { gameId: string }) {
         }
       }}>
       {open && <>
-        <h2>기권하시겠습니까?</h2><p id="farkle-forfeit-warning">기권은 되돌릴 수 없어요.<br />기권하면 이번 경기는 패배로 처리됩니다.</p>
+        <button className="paper-close" aria-label="기권 취소" onClick={() => setOpen(false)}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M5 5L19 19M19 5L5 19" /></svg>
+        </button>
+        <p className="paper-caption">주사위 한 판</p>
+        <div className="farkle-forfeit-seal" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M9 27V5m0 1c6-4 9 5 16 0v13c-7 5-10-4-16 0" /></svg>
+        </div>
+        <h2>이번 판을<br />기권할까요?</h2>
+        <p className="paper-subtitle" id="farkle-forfeit-warning">기권은 되돌릴 수 없어요.<br />기권하면 이번 경기는 패배로 처리됩니다.</p>
         {attempt?.error && <p role="alert">{attempt.error}</p>}
         {attempt?.status === 'pending' ? <p role="status">기권 요청 확인 중…</p>
           : attempt?.status === 'approved' ? <p role="status">기권 요청이 확인됐어요. 경기 결과를 기다립니다.</p>
@@ -80,8 +89,8 @@ export function FarkleForfeitDialog({ gameId }: { gameId: string }) {
             <button disabled={!connected || session.pending} onClick={() => void runtime.checkRecovery()}>경기 상태 확인</button>
             <button disabled={!canRetry} onClick={() => void runtime.forfeitGame(gameId, true)}>같은 기권 요청 확인</button>
           </div> : <div className="farkle-forfeit-actions">
+            <button className="paper-primary" data-initial-focus onClick={() => setOpen(false)}>계속 플레이</button>
             <button className="farkle-forfeit-confirm" disabled={!canStart} onClick={() => void runtime.forfeitGame(gameId)}>기권 확정</button>
-            <button data-initial-focus onClick={() => setOpen(false)}>계속 플레이</button>
           </div>}
         {recovering && <button data-initial-focus onClick={() => setOpen(false)}>닫기</button>}
         <small>확인 중에도 제한시간은 계속 흐릅니다.</small>

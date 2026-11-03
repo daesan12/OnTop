@@ -18,7 +18,12 @@ test('Esc opens a safe forfeit confirmation, respects foreground owners and subm
   await canvas.focus(); await page.keyboard.press('Escape')
   await expect(confirmation).toBeVisible(); await expect(confirmation).toContainText('기권하면 이번 경기는 패배로 처리됩니다.')
   await expect(confirmation.getByRole('button', { name: '계속 플레이', exact: true })).toBeFocused()
-  await screenshot(page, 'escape-forfeit-desktop')
+  await expect(confirmation.getByRole('button', { name: '기권 취소', exact: true }).locator('svg')).toBeVisible()
+  await screenshot(page, 'escape-forfeit-desktop', 'disabled')
+  await confirmation.getByRole('button', { name: '기권 취소', exact: true }).click()
+  await expect(confirmation).toBeHidden(); await expect(canvas).toBeFocused()
+  await page.keyboard.press('Escape'); await expect(confirmation).toBeVisible()
+  await expect(confirmation.getByRole('button', { name: '계속 플레이', exact: true })).toBeFocused()
   // Neither gameplay shortcuts nor Enter on the safe default can send a request.
   await page.keyboard.press('KeyR'); await page.keyboard.press('KeyQ'); await page.keyboard.press('KeyT')
   await expect(page.getByRole('dialog', { name: '주사위 점수표', exact: true })).toBeHidden()
@@ -47,13 +52,21 @@ test('Esc opens a safe forfeit confirmation, respects foreground owners and subm
   await expect(menu).not.toHaveAttribute('open'); await expect(confirmation).toBeHidden()
   // Escape on the now-closed summary must still reach the gameplay shortcut.
   await page.keyboard.press('Escape'); await expect(confirmation).toBeVisible()
-  for (const size of [{ width: 320, height: 568 }, { width: 844, height: 390 }]) {
+  for (const size of [{ width: 320, height: 568 }, { width: 844, height: 390 }, { width: 844, height: 250 }]) {
     await page.setViewportSize(size)
+    const title = confirmation.getByRole('heading', { name: '이번 판을 기권할까요?', exact: true })
+    await title.scrollIntoViewIfNeeded(); await expect(title).toBeInViewport({ ratio: 1 })
+    const close = confirmation.getByRole('button', { name: '기권 취소', exact: true })
+    await close.scrollIntoViewIfNeeded(); await expect(close).toBeInViewport({ ratio: 1 })
     for (const name of ['기권 확정', '계속 플레이']) {
       const button = confirmation.getByRole('button', { name, exact: true })
       await button.scrollIntoViewIfNeeded(); await expect(button).toBeInViewport({ ratio: 1 })
     }
-    await screenshot(page, 'escape-forfeit-' + size.width)
+    const note = confirmation.getByText('확인 중에도 제한시간은 계속 흐릅니다.', { exact: true })
+    await note.scrollIntoViewIfNeeded(); await expect(note).toBeInViewport({ ratio: 1 })
+    expect(await confirmation.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true)
+    expect(await confirmation.evaluate(node => getComputedStyle(node).scrollbarWidth)).toBe('none')
+    await screenshot(page, 'escape-forfeit-' + size.width + 'x' + size.height, 'disabled')
   }
   await page.setViewportSize({ width: 1920, height: 1080 })
   expect(server.sent.filter(message => message.type.includes('FORFEIT'))).toHaveLength(0)
