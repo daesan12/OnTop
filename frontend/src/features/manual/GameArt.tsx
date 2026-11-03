@@ -1,6 +1,9 @@
 import type { ManualGameId } from "./types";
 import { RpsRouletteArt } from "../rpsRoulette/manualArt";
 import fruitDdaengThumbnail from "../../game/halligalli/assets/thumbnail.webp";
+import ledgerThumbnail from "../../game/ledger/assets/thumbnail.webp";
+
+const gameThumbnails: Partial<Record<ManualGameId, string>> = { halligalli: fruitDdaengThumbnail, ledger: ledgerThumbnail };
 
 /** Local game illustrations: no external asset requests. */
 export function BookIcon() {
@@ -25,7 +28,8 @@ export function BookIcon() {
 }
 
 export function GameArt({ game }: { game: ManualGameId }) {
-  if (game === "halligalli") return <img className="manual-art art-halligalli" src={fruitDdaengThumbnail} alt="" aria-hidden="true" style={{ objectFit: "cover" }} />;
+  const thumbnail = gameThumbnails[game];
+  if (thumbnail) return <img className={`manual-art art-${game}`} src={thumbnail} alt="" aria-hidden="true" style={{ objectFit: "cover" }} />;
   if (game === "rps-roulette") return <RpsRouletteArt />;
   if (["alkkagi", "janggi", "fishing", "fish-bread", "jump", "vr-jump"].includes(game))
     return (
