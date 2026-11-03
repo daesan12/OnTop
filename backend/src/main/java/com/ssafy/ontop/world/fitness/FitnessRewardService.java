@@ -71,7 +71,7 @@ public final class FitnessRewardService {
             return;
         }
         visits.computeIfAbsent(lease.leaseId(), ignored -> new Visit(lease.userId(), accountId, nanos.getAsLong(),
-                TimeUnit.MILLISECONDS.toNanos(clock.sample().cycleDurationMs() / 4)));
+                TimeUnit.MINUTES.toNanos(1)));
     }
 
     public synchronized void ended(Lease lease) {

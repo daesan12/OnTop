@@ -60,7 +60,7 @@ export function BungeoppangResult() {
     <div className="bung-result-score"><span>점수</span><b aria-label="점수">{summary.score.toLocaleString()}<small>점</small></b></div>
     <details><summary>장사 기록 자세히</summary><p>양면 황금 {summary.golden}개 · 버린 개수 {summary.wasted}개 · 최고 콤보 {summary.maxCombo}</p>
       {v4 && <p>전달한 개수 {result?.served ?? grill.served}개 · 완료한 주문 {result?.customersServed ?? grill.customersServed}개</p>}
-      <p>엽전 환산 {R.pointsPerCoin}점당 1냥{preview && ' · 미리보기 · 실제 엽전 지급 없음'}</p></details>
+      <p>엽전 환산 {roundRules?.pointsPerCoin ?? R.pointsPerCoin}점당 1냥{preview && ' · 미리보기 · 실제 엽전 지급 없음'}</p></details>
     </section>
   </PaperPopup>
 }

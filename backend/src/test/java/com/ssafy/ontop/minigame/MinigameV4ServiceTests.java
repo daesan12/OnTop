@@ -380,13 +380,13 @@ class MinigameV4ServiceTests {
         assertThat(first).satisfies(response -> {
             assertThat(response.score()).isEqualTo(20);
             assertThat(response.served()).isEqualTo(2);
-            assertThat(response.coinsCalculated()).isOne();
-            assertThat(response.coinsGranted()).isOne();
-            assertThat(response.rewardAmount()).isOne();
+            assertThat(response.coinsCalculated()).isEqualTo(4);
+            assertThat(response.coinsGranted()).isEqualTo(4);
+            assertThat(response.rewardAmount()).isEqualTo(4);
             assertThat(response.rewardDate()).isEqualTo(java.time.LocalDate.of(2026, 10, 27));
             assertThat(response.finalThroughSeq()).isEqualTo(9);
         });
-        assertThat(wallet.balance()).isEqualTo(101);
+        assertThat(wallet.balance()).isEqualTo(104);
         assertThat(wallet.reserved()).isEqualTo(10);
         assertThat(sessions.get(id).status()).isEqualTo("COMPLETED");
         assertThat(rounds.get(id).terminalReason()).isEqualTo("VERIFIED");
@@ -419,7 +419,7 @@ class MinigameV4ServiceTests {
                 completeBody(id, pending.log(), 20L));
 
         assertThat(result).extracting(BungeoppangV4CompleteDtos.Response::score,
-                BungeoppangV4CompleteDtos.Response::coinsGranted).containsExactly(20L, 1L);
+                BungeoppangV4CompleteDtos.Response::coinsGranted).containsExactly(20L, 4L);
         assertThat(orders.get(id)).hasSize(2);
         assertThat(receipts).containsKeys(id + ":DELIVERY:delivery-lost", id + ":COMPLETE:complete-one");
         assertThat(progresses.get(id).acceptedLogJson()).contains("delivery-lost");
@@ -513,7 +513,7 @@ class MinigameV4ServiceTests {
         assertThat(result.rewardDate()).isEqualTo(java.time.LocalDate.of(2026, 10, 27));
         assertThat(result).extracting(BungeoppangV4CompleteDtos.Response::coinsCalculated,
                 BungeoppangV4CompleteDtos.Response::coinsGranted, BungeoppangV4CompleteDtos.Response::todayEarned,
-                BungeoppangV4CompleteDtos.Response::capReached).containsExactly(1L, 1L, 500L, true);
+                BungeoppangV4CompleteDtos.Response::capReached).containsExactly(4L, 1L, 500L, true);
         assertThat(wallet.balance()).isEqualTo(101);
         verify(repository).persist(any(WalletTransaction.class));
     }
@@ -529,7 +529,7 @@ class MinigameV4ServiceTests {
         assertThat(result.rewardDate()).isEqualTo(java.time.LocalDate.of(2026, 10, 28));
         assertThat(result).extracting(BungeoppangV4CompleteDtos.Response::coinsCalculated,
                 BungeoppangV4CompleteDtos.Response::coinsGranted, BungeoppangV4CompleteDtos.Response::todayEarned,
-                BungeoppangV4CompleteDtos.Response::capReached).containsExactly(1L, 0L, 500L, true);
+                BungeoppangV4CompleteDtos.Response::capReached).containsExactly(4L, 0L, 500L, true);
         assertThat(wallet.balance()).isEqualTo(100);
         verify(repository, never()).persist(any(WalletTransaction.class));
     }

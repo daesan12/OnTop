@@ -127,7 +127,7 @@ class BungeoppangV5FixtureContractTests {
         assertThat(List.of(legacy.durationMs(), legacy.rushFromMs())).containsExactly(180_000, 150_000);
         assertThat(json.<JsonNode>valueToTree(legacy)).isEqualTo(((ObjectNode) wire.deepCopy())
                 .put("durationMs", 180_000).put("rushFromMs", 150_000).put("queueComplaintPenalty", 0)
-                .put("specialBonusPercent", 50));
+                .put("specialBonusPercent", 50).put("pointsPerCoin", 15));
         for (String field : List.of("slots", "durationMs", "countdownMs", "sideMs", "rushSideMs", "rushFromMs",
                 "heatMin", "heatMax", "heatListLength", "trayCapacity", "maxOrderItems",
                 "specialOrderChancePercent", "specialBonusPercent", "okFrom", "goldenFrom", "goldenTo",
@@ -180,7 +180,9 @@ class BungeoppangV5FixtureContractTests {
     void FE_한판_fixture를_판의_저장_규칙으로_재계산하면_납품_단계와_최종_결과가_같다(String name, boolean legacy)
             throws Exception {
         JsonNode flow = flow(name);
-        var snapshot = legacy ? BungeoppangV5Spec.legacyRules() : BungeoppangV5Spec.rules();
+        var snapshot = legacy ? BungeoppangV5Spec.legacyRules()
+                : json.treeToValue(((ObjectNode) json.valueToTree(BungeoppangV5Spec.rules()))
+                        .put("pointsPerCoin", 15), com.ssafy.ontop.minigame.dto.BungeoppangV5Responses.Rules.class);
         var rules = BungeoppangV5Spec.calculationRules(snapshot);
         var heats = Collections.nCopies(2_048, flow.path("heat").intValue());
         var log = BungeoppangV5DeliveryContract.domainActions(wire(flow.path("log")));

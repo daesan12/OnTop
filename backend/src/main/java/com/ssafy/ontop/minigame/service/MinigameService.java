@@ -636,7 +636,7 @@ public class MinigameService {
             repository.flush();
             return exception;
         }
-        long calculated = score.score() / 15;
+        long calculated = score.score() / 5;
         long today = earned(userId, current);
         long reward = MinigameRewardBudget.grant(calculated, today);
         wallet.creditReward(reward);

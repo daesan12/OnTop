@@ -24,7 +24,7 @@ export type JumpEvent =
 
 const text = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v.length <= 120
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0
-const money = (v: unknown) => integer(v) && v <= 100
+const money = (v: unknown) => integer(v) && v <= 250
 const earnings = (p: Record<string, unknown>) => integer(p.todayEarned) && p.todayEarned <= 500 && p.dailyCap === 500 && typeof p.earningsDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.earningsDate)
 const scope = (p: Record<string, unknown>) => text(p.channelId) && typeof p.mapVersion === 'string' && /^[a-f0-9]{64}$/.test(p.mapVersion)
 const gate = (g: unknown) => integer(g) && g >= 1 && g <= 7
