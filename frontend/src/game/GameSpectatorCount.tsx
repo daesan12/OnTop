@@ -14,8 +14,7 @@ export function GameSpectatorCount() {
 export function GameSpectatorBadge({ count }: { count: number }) {
   const formatted = new Intl.NumberFormat('ko-KR').format(count)
   return <div className="game-spectator-count" role="status" aria-live="polite" aria-atomic="true" aria-label={`현재 관전자 ${formatted}명`}>
-    <span className="game-spectator-live" aria-hidden="true" />
     <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6"/><circle cx="12" cy="12" r="2.7" stroke="currentColor" strokeWidth="1.6"/></svg>
-    <span key={count} className="game-spectator-number">{formatted}<small>명 시청 중</small></span>
+    <span key={count} className="game-spectator-number">{formatted}<small>명 관전 중</small></span>
   </div>
 }

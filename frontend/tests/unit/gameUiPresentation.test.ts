@@ -31,6 +31,6 @@ it('상대 보관 패는 장수와 뒷면만 보여 주며 발동 카드 앞면�
 it('시청 배지는 실제 인원수를 읽기 쉬운 숫자와 접근성 상태로 표시한다', () => {
   const html = renderToStaticMarkup(createElement(GameSpectatorBadge, { count: 1200 }))
   expect(html).toContain('현재 관전자 1,200명'); expect(html).toContain('aria-live="polite"')
-  expect(html).toContain('명 시청 중')
+  expect(html).toContain('명 관전 중')
   expect(renderToStaticMarkup(createElement(GameSpectatorBadge, { count: 0 }))).toContain('현재 관전자 0명')
 })
