@@ -2,15 +2,23 @@ package com.ssafy.ontop.world.service;
 
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.movement.ClientPositionValidator;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.env.MockEnvironment;
-import java.time.Duration;
-import java.util.List;
-import static org.assertj.core.api.Assertions.*;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ClientPositionRegistryTests {
+    @TempDir
+    Path configDirectory;
+
     private WorldChannelRegistry registry() {
         return new WorldChannelRegistry(new WorldChannelProperties(List.of(
                 new WorldChannelProperties.Channel("one", "로컬", 3))), Duration.ofMillis(50));
@@ -110,6 +118,69 @@ class ClientPositionRegistryTests {
                     } finally { registry.clear(); }
                 });
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"local", "dev,db", "prod,db", "production,db"})
+    void 조정프로필만_켜고_좌표검증을_끄면_기동을_거절한다(String profiles) {
+        new org.springframework.boot.test.context.runner.WebApplicationContextRunner()
+                .withInitializer(new org.springframework.boot.test.context.ConfigDataApplicationContextInitializer())
+                .withPropertyValues("spring.profiles.active=" + profiles,
+                        "ontop.world.movement.client-position=false", "ontop.world.movement.tuned-profile=true")
+                .withBean(WorldChannelRegistry.class, this::registry)
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(IllegalArgumentException.class)
+                            .hasRootCauseMessage("tuned-profile=true는 client-position=true와 함께 설정해야 합니다.");
+                });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"local", "dev,db", "prod,db", "production,db"})
+    void 조정프로필없는_기존_좌표검증이동은_허용한다(String profiles) {
+        new org.springframework.boot.test.context.runner.WebApplicationContextRunner()
+                .withInitializer(new org.springframework.boot.test.context.ConfigDataApplicationContextInitializer())
+                .withPropertyValues("spring.profiles.active=" + profiles,
+                        "ontop.world.movement.client-position=true", "ontop.world.movement.tuned-profile=false")
+                .withBean(WorldChannelRegistry.class, this::registry)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    var registry = context.getBean(WorldChannelRegistry.class);
+                    try {
+                        registry.join("a", "one");
+                        var motion = registry.worldState("one").avatars().getFirst().motion();
+                        assertThat(motion.authority()).isEqualTo("CLIENT_VALIDATED");
+                        assertThat(motion.profile()).isNull();
+                    } finally { registry.clear(); }
+                });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"prod,db", "production,db"})
+    void 외부_프로필설정으로_두값을_끄면_운영기본값보다_우선한다(String profiles) throws Exception {
+        Files.writeString(configDirectory.resolve("application-" + profiles.split(",")[0] + ".yml"), """
+                ontop:
+                  world:
+                    movement:
+                      client-position: false
+                      tuned-profile: false
+                """);
+        new org.springframework.boot.test.context.runner.WebApplicationContextRunner()
+                .withInitializer(new org.springframework.boot.test.context.ConfigDataApplicationContextInitializer())
+                .withPropertyValues("spring.profiles.active=" + profiles,
+                        "spring.config.additional-location=" + configDirectory.toUri())
+                .withBean(WorldChannelRegistry.class, this::registry)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    var registry = context.getBean(WorldChannelRegistry.class);
+                    try {
+                        registry.join("a", "one");
+                        var motion = registry.worldState("one").avatars().getFirst().motion();
+                        assertThat(motion.authority()).isNull();
+                        assertThat(motion.profile()).isNull();
+                    } finally { registry.clear(); }
+                });
+    }
+
     @Test void 조정프로필은_DB없는운영과_혼합프로필에서_켤수없다() {
         for(var profiles:List.of(new String[]{"prod"},new String[]{"production"},new String[]{"dev","prod","db"},new String[]{})){
             var env=new MockEnvironment();env.setActiveProfiles(profiles);var registry=registry();

@@ -98,6 +98,8 @@ MovementPredictionContractTests는 수락/물리 완료 구분, 버스트·충�
 
 운영 반영 시에는 위 두 속성을 false로 덮어쓰는 외부 설정이 없는지 확인하고, 이 코드를 포함한 BE 이미지를 재배포한다. 최신 FE와 실행 서버의 맵 버전도 일치해야 한다. 접속 후 본인의 `motion.authority = "CLIENT_VALIDATED"`, `motion.profile = "PARK_V1"`를 확인한다. 운영 Spring 프로필은 그대로 유지하며 DB 스키마·맵 파일·인증 설정은 변경하지 않는다. 속도·경계·수직 이동·벽 관통·순번/세대 검증도 유지한다. 운영에서 실제 달리기·점프·충돌·재접속 검수는 배포 후 별도로 확인해야 하며, 로컬 프로필 검사를 실서버 검수 완료로 취급하지 않는다. 되돌릴 때는 서버 외부 설정에서 두 속성을 함께 false로 지정하고 재기동한다.
 
+두 속성은 최종 주입이 끝난 뒤 `validateMovementConfiguration`에서 함께 검사한다. `client-position=false`, `tuned-profile=true`는 PARK_V1 표식과 좌표 검증 권한이 어긋나므로 기동을 거절한다. 둘 다 true인 정상 설정, 둘 다 false인 롤백, 기존 client-position=true/tuned-profile=false 모드는 유지한다. 착석·시설·자동 따라가기 중 잠시 authority가 해제되는 정상 런타임 상태는 이 기동 설정 검사와 구분한다. 저장소의 application-prod.yml과 Compose에는 현재 이 속성을 덮어쓰는 항목이 없지만, 외부 프로필 파일·환경변수는 기본값보다 우선하므로 배포 때 실제 설정을 확인해야 한다.
+
 예시(기존 WORLD_STATE.avatars[].motion에 선택 필드만 추가):
 
 ```json
