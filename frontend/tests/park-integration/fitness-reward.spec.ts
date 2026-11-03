@@ -14,7 +14,7 @@ test('latest-map fitness entry shows reward terms, refreshes confirmed money onc
     const samples: number[] = []
     Object.assign(window, { rewardSoundGains: samples })
     const connect = AudioNode.prototype.connect, start = AudioBufferSourceNode.prototype.start
-    AudioBufferSourceNode.prototype.connect = function(destination: AudioNode, ...args: number[]) {
+    AudioBufferSourceNode.prototype.connect = function(destination: AudioNode | AudioParam, ...args: number[]) {
       if (destination instanceof GainNode) gains.set(this, destination)
       return Reflect.apply(connect, this, [destination, ...args])
     }
