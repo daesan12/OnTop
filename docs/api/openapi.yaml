@@ -15,6 +15,8 @@ tags:
   description: 보유 엽전 랭킹
 - name: Park Ranking
   description: 공원 랭킹판의 보유량 목록과 미니게임 우승자
+- name: FITNESS
+  description: 운동기구 보상 상태 조회
 - name: HISTORY
   description: 인증된 본인의 종료 경기 내역과 게임별 전적
 paths:
@@ -3424,6 +3426,51 @@ paths:
                 - $ref: "#/components/schemas/ShopErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/world/fitness/rewards/status:
+    get:
+      tags:
+      - FITNESS
+      summary: 본인 운동기구 일일 수입 조회
+      description: "실제 60초마다 1냥, 한국 시간 하루 최대 300냥으로 미니게임 500냥과 별도입니다. todayEarned는\
+        \ 확정된 원장 합계이며 nextRewardAt은 지급 예정 경계입니다. 지급 지연 중에는 과거 시각일 수 있으며, 한도 도달·미이용\
+        \ 시 null입니다. 하차 시 미완료 시간은 초기화됩니다. 조회는 지급이나 지갑 생성을 수행하지 않습니다."
+      operationId: getFitnessRewardStatus
+      responses:
+        "200":
+          description: "본인 운동 수입 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FitnessRewardStatusResponse"
+        "401":
+          description: 활성 회원 인증 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: "FITNESS_UNAVAILABLE: 수입 조회 지연"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
   /api/v1/wallets/me:
     get:
       tags:
@@ -6607,6 +6654,41 @@ components:
           format: int32
         equipped:
           type: boolean
+    FitnessRewardStatusResponse:
+      required:
+      - activeLeaseId
+      - dailyCap
+      - earningsDate
+      - enabled
+      - nextRewardAt
+      - rewardIntervalSeconds
+      - serverNow
+      - todayEarned
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        earningsDate:
+          type: string
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
+        rewardIntervalSeconds:
+          type: integer
+          format: int32
+        serverNow:
+          type: integer
+          format: int64
+        nextRewardAt:
+          type: integer
+          format: int64
+          nullable: true
+        activeLeaseId:
+          type: string
+          nullable: true
     WalletBalanceResponse:
       required:
       - availableBalance

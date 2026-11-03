@@ -3,6 +3,30 @@
 기존 `/ws/tables`의 인증·채널을 재사용한다. 벤치 80개(각 2석), 운동기구 12대(각 1명), 망원경 2대(각 1명).
 사용자 ID와 위치는 연결·서버 물리에서 찾는다. DB 테이블·Flyway 추가 없음. 인증 코드는 변경하지 않는다.
 
+## 운동 수입 조회 (2026-11-03)
+
+`GET /api/v1/world/fitness/rewards/status`는 Access JWT로 인증된 본인의 상태만 반환한다.
+사용자 ID를 입력받지 않으며 `Cache-Control: no-store`이다. 조회는 지갑 생성·지급·원장 기록을 하지 않는다.
+
+| 필드 | 의미 |
+| --- | --- |
+| enabled | 현재 서버의 운동 보상 활성 여부. DB 없는 실행에서는 false |
+| earningsDate | Asia/Seoul 기준 수입 날짜 (YYYY-MM-DD) |
+| todayEarned / dailyCap | 확정된 운동 원장 수입 / 300냥. 점프맵·붕어빵 공통 500냥과 별도 |
+| rewardIntervalSeconds | 실제 60초마다 1냥. 공원 가상 시계의 진행 속도와 무관 |
+| serverNow | 조회 기준 서버 epoch milliseconds |
+| nextRewardAt | 다음 지급 예정 경계의 epoch milliseconds. 미이용·한도 도달이면 null |
+| activeLeaseId | 본인의 현재 운동기구 이용 식별자. 미이용이면 null |
+
+`nextRewardAt`은 지급 확정값이 아니며 DB 지급 지연 중에는 과거일 수 있다.
+현재 FE 패널은 실제 지급 기준과 재조회한 `todayEarned / dailyCap`을 한 줄로 표시한다.
+기존 개인 `FITNESS_REWARD` 이벤트의 receipt로 지갑과 수입을 다시 조회하며, 중복 영수증은 다시 반영하지 않는다.
+미이용·재접속·다른 이용 ID의 상태는 이전 기구의 수입 표시로 사용하지 않는다.
+한국 시간 자정에 일일 수입을 다시 조회하고, 하차·단절 시 미완료 1분 미만 시간은 초기화한다.
+DB 조회 실패는 503 `FITNESS_UNAVAILABLE`이며, FE는 금액을 `—`로 표시하고 재조회한다.
+운동 영수증에 따른 잔액 증가음은 기본 획득음의 70%로 재생한다. 하차 뒤 늦게 반영된 지급에도 적용하며,
+다른 미니게임·보드게임 영수증의 획득음과 사용자의 효과음·음소거 설정은 유지한다.
+
 ## 연동 순서
 
 `CHANNEL_JOIN` → `WORLD_FACILITY_CATALOG`(최초/맵 변경) → `WORLD_FACILITY_CHECK`(입장·재접속 필수)
