@@ -1,0 +1,17 @@
+{
+  "source": "Local Blender geometry authored for OnTop; user supplied eight guest character references",
+  "generator": "frontend/scripts/skewer/build-guests.py",
+  "blender": "5.2.2 LTS",
+  "triangles": {
+    "guest_0": 12648,
+    "guest_1": 16620,
+    "guest_2": 15224,
+    "guest_3": 18476,
+    "guest_4": 15560,
+    "guest_5": 17952,
+    "guest_6": 16548,
+    "guest_7": 13660
+  },
+  "rig": "10 rigid parts per guest; existing ToyActor joints and seat contact",
+  "paid_generation": false
+}

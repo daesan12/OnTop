@@ -1,0 +1,146 @@
+.skewer-coop .table-paper-backdrop { padding: 24px; background: #1d281cd1; backdrop-filter: blur(8px); }
+.skewer-coop .coop-welcome-paper,
+.skewer-coop .coop-result-paper { width: min(1040px, calc(100vw - 48px)); max-height: calc(100dvh - 48px); padding: 30px 36px 24px; border-radius: 20px; }
+.skewer-coop .paper-close { width: 44px; min-height: 44px; top: 12px; right: 12px; }
+.skewer-coop .paper-caption { font-size: 13px; letter-spacing: .06em; color: #71664c; }
+.skewer-coop .coop-section-label { margin: 0 0 8px; color: #916738; font-size: 13px; font-weight: 700; letter-spacing: .05em; }
+.skewer-coop .coop-welcome-heading { margin: 20px 0 24px; }
+.skewer-coop .coop-welcome-heading h1 { margin: 0; font: 700 clamp(28px, 3vw, 44px)/1.25 'BusanDandiMyeongjo', serif; color: #213f2b; }
+.skewer-coop .coop-welcome-heading > p:last-child { margin: 10px 0 0; font-size: 15px; line-height: 1.6; color: #6e634c; word-break: keep-all; }
+.skewer-coop .coop-entry-layout { display: grid; grid-template-columns: 1fr 1.05fr; gap: 32px; text-align: left; }
+.skewer-coop .coop-entry-art { position: relative; margin: 0; overflow: hidden; border: 1px solid #b49a70; border-radius: 14px; min-height: 360px; }
+.skewer-coop .coop-entry-art > img { display: block; width: 100%; height: 100%; max-height: 440px; object-fit: cover; }
+.skewer-coop .coop-entry-art figcaption { position: absolute; bottom: 0; left: 0; right: 0; padding: 44px 22px 24px; color: #fff5df; background: linear-gradient(transparent, #1e2c20f5); }
+.skewer-coop .coop-entry-art figcaption strong { display: block; font: 700 22px/1.5 'BusanDandiMyeongjo', serif; }
+.skewer-coop .coop-entry-art figcaption span { display: block; margin-top: 6px; font-size: 13px; }
+.skewer-coop .coop-entry-content { display: flex; flex-direction: column; min-width: 0; }
+.skewer-coop .coop-facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.skewer-coop .coop-facts span { padding: 6px 11px; background: #e5e7d3; border: 1px solid #b9c19d; color: #35503b; border-radius: 100px; font-size: 12px; font-weight: 700; }
+.skewer-coop .coop-role-intro { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding: 22px 0; }
+.skewer-coop .coop-role-intro > div + div { padding-left: 18px; border-left: 1px solid #cfc0a3; }
+.skewer-coop .coop-role-intro b { font: 700 21px/1.4 'BusanDandiMyeongjo', serif; }
+.skewer-coop .coop-role-intro p { margin: 6px 0; font-size: 14px; line-height: 1.6; word-break: keep-all; }
+.skewer-coop .coop-role-intro small { color: #7c6d51; font-size: 12px; }
+.skewer-coop .coop-create { width: 100%; display: flex; align-items: center; justify-content: space-between; }
+.skewer-coop .coop-rooms-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 22px; }
+.skewer-coop .coop-rooms-heading h2 { font: 700 17px/1.4 'Malgun Gothic', sans-serif; margin: 0; }
+.skewer-coop .coop-rooms-heading > span { font-size: 12px; color: #71654c; }
+.skewer-coop .coop-room-list { list-style: none; padding: 0; margin: 10px 0 0; max-height: 160px; overflow-y: auto; }
+.skewer-coop .coop-room-list li { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid #cbbd9d; }
+.skewer-coop .coop-room-list small { display: block; margin-top: 4px; font-size: 12px; color: #786b51; }
+.skewer-coop .coop-room-list button { min-height: 44px; padding: 8px 16px; background: #fff9ed; font-size: 14px; }
+.skewer-coop .coop-room-empty { margin: 12px 0 0; padding: 18px 14px; border: 1px dashed #c8b892; border-radius: 10px; color: #514d3d; font-size: 14px; line-height: 1.7; }
+.skewer-coop .coop-room-empty span { color: #7b6f55; font-size: 13px; }
+.skewer-coop .coop-entry-reward { margin: 24px 0 0; padding: 14px 10px; border-top: 1px solid #cdbb96; border-radius: 8px; background: #fff7e8eb; color: #675a41; font-size: 12px; line-height: 1.7; }
+.skewer-coop .coop-entry-reward > span { padding: 0 7px; }
+.skewer-coop .coop-waiting-room { flex: 1; border-top: 1px solid #cdbb96; padding: 18px 0 10px; }
+.skewer-coop .coop-waiting-room > strong { font: 500 28px/1.2 'BusanDandiMyeongjo', serif; color: #7c7966; }
+.skewer-coop .coop-waiting-room > strong b { font-size: 50px; color: #28523b; }
+.skewer-coop .coop-waiting-room p { font-size: 16px; line-height: 1.7; }
+.skewer-coop .coop-waiting-room > span { display: block; font-size: 13px; color: #76664c; }
+.skewer-coop .coop-role-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
+.skewer-coop .coop-role-choices > button { display: flex; align-items: center; gap: 14px; padding: 10px; background: #fff9edb8; border: 2px solid #c9b99a; text-align: left; min-width: 0; }
+.skewer-coop .coop-role-choices > button[aria-pressed=true] { border-color: #3f6a48; background: #e2e9d4; }
+.skewer-coop .coop-role-choices img { width: 88px; height: 68px; object-fit: cover; border-radius: 6px; }
+.skewer-coop .coop-role-choices strong { display: block; font: 700 22px/1.3 'BusanDandiMyeongjo', serif; }
+.skewer-coop .coop-role-choices small { display: block; margin-top: 5px; font-size: 12px; color: #6b634f; }
+.skewer-coop .coop-role-state { margin-left: auto; padding-right: 5px; font-size: 12px; white-space: nowrap; color: #486044; }
+.skewer-coop .coop-guide-layout { display: grid; grid-template-columns: .9fr 1.25fr; gap: 26px; align-items: start; }
+.skewer-coop .coop-guide-art { margin: 0; overflow: hidden; border: 1px solid #c9b38a; border-radius: 12px; background: #f2e5ca; }
+.skewer-coop .coop-guide-art > img { display: block; width: 100%; aspect-ratio: 1.65; object-fit: cover; }
+.skewer-coop .coop-guide-art figcaption { padding: 10px 12px; font-size: 13px; color: #705132; font-weight: 700; }
+.skewer-coop .coop-role-guide { text-align: left; min-width: 0; }
+.skewer-coop .coop-role-guide ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 15px; }
+.skewer-coop .coop-role-guide li { display: flex; align-items: start; gap: 12px; }
+.skewer-coop .coop-role-guide li > b { flex: 0 0 29px; height: 29px; border-radius: 50%; background: #815b35; color: #fff8df; display: grid; place-items: center; font-size: 16px; }
+.skewer-coop .coop-role-guide h2 { font: 700 17px/1.4 'Malgun Gothic', sans-serif; margin: 0 0 3px; }
+.skewer-coop .coop-role-guide li p { margin: 0; color: #71664e; font-size: 14px; line-height: 1.55; word-break: keep-all; }
+.skewer-coop .coop-key-hints { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 18px 0 0; font-size: 12px; color: #60563e; }
+.skewer-coop .coop-key-hints > span { display: flex; align-items: center; gap: 5px; }
+.skewer-coop .coop-key-hints kbd { display: inline-block; padding: 3px 6px; border: 1px solid #bfa37c; border-bottom-width: 3px; border-radius: 5px; background: #fffaf0; color: #4a351d; font: 700 12px/1.2 system-ui, sans-serif; }
+.skewer-coop .coop-equipment-button { margin-top: 14px; width: 100%; min-height: 44px; border-color: #a98f64; font-size: 13px; background: #fff9ec; }
+.skewer-coop .coop-guide-tip { font-size: 12px; color: #7a674b; line-height: 1.6; margin: 12px 0 0; }
+.skewer-coop .coop-pick-prompt { padding: 42px 20px; margin: 0; border: 1px dashed #c9b68e; border-radius: 10px; font-size: 16px; color: #78684c; }
+.skewer-coop .coop-ranking-notice { display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px 14px; text-align: left; margin-top: 20px; padding: 12px 14px; background: #eadfc6; border-radius: 8px; color: #695136; font-size: 12px; line-height: 1.5; }
+.skewer-coop .coop-ranking-notice b { font-size: 13px; }
+.skewer-coop .coop-ranking-notice.is-vr { background: #e1e8d2; color: #31563b; }
+.skewer-coop .coop-ready-footer { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: center; margin-top: 18px; padding: 18px 14px 12px; border-top: 1px solid #cdbb96; border-radius: 0 0 10px 10px; background: #fff7e8eb; }
+.skewer-coop .coop-team-status { display: flex; gap: 24px; text-align: left; }
+.skewer-coop .coop-team-status > div { display: flex; gap: 8px; font-size: 13px; align-items: center; }
+.skewer-coop .coop-team-status small { display: block; margin-top: 4px; color: #8b7859; font-size: 12px; }
+.skewer-coop .coop-status-dot { flex: 0 0 8px; height: 8px; border-radius: 50%; background: #b6aa90; }
+.skewer-coop .coop-team-status [data-ready=true] .coop-status-dot { background: #39774a; }
+.skewer-coop .coop-team-status [data-ready=true] small { color: #39774a; }
+.skewer-coop .coop-ready-action > button { width: 100%; }
+.skewer-coop .coop-ready-action > small { display: block; margin-top: 6px; font-size: 11px; color: #77674d; line-height: 1.5; }
+.skewer-coop .coop-equipment-return { position: absolute; z-index: 30; left: 24px; bottom: 24px; max-width: calc(100% - 48px); border: 1px solid #b8a178; border-radius: 12px; padding: 14px 18px; background: #fff6e6f5; box-shadow: 0 6px 24px #1a251b40; }
+.skewer-coop .coop-equipment-return button { padding: 10px 16px; min-height: 44px; background: #294f36; color: #fff6e7; border: 0; border-radius: 8px; }
+.skewer-coop .coop-equipment-return p { margin: 8px 0 0; font-size: 13px; line-height: 1.5; }
+.skewer-coop .coop-result-paper { width: min(900px, calc(100vw - 48px)); }
+.skewer-coop .coop-result-heading { display: flex; justify-content: center; align-items: center; gap: 14px; margin-top: 18px; }
+.skewer-coop .coop-result-heading .paper-trophy { width: 48px; height: 46px; margin: 0; }
+.skewer-coop .coop-result-heading h2 { font: 700 40px/1.3 'BusanDandiMyeongjo', serif; margin: 0; }
+.skewer-coop .coop-result-paper .paper-subtitle { font-size: 15px; margin: 10px 0 24px; }
+.skewer-coop .coop-result-layout { display: grid; grid-template-columns: .95fr 1fr; gap: 26px; text-align: left; }
+.skewer-coop .coop-team-record { overflow: hidden; border: 1px solid #c2ae86; border-radius: 12px; background: #f9efd9; }
+.skewer-coop .coop-result-art { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; }
+.skewer-coop .coop-result-score { margin: 0; padding: 18px 22px 10px; border: 0; text-align: center; }
+.skewer-coop .coop-result-score > strong { font-weight: 700; font-size: 60px; }
+.skewer-coop .coop-result-score > span { font-size: 13px; }
+.skewer-coop .coop-result-served { display: flex; justify-content: space-between; margin: 0 22px; padding: 14px 0; border-top: 1px solid #d2bf98; font-size: 14px; }
+.skewer-coop .coop-personal-reward { min-width: 0; padding-top: 6px; }
+.skewer-coop .coop-personal-reward .paper-settlement { margin: 8px 0 0; padding: 16px 18px; min-height: 110px; background: #e3e8d1; border: 1px solid #bdc49f; }
+.skewer-coop .coop-personal-reward .paper-settlement strong { font-size: 17px; line-height: 1.5; }
+.skewer-coop .coop-personal-reward .paper-settlement strong > span { display: flex; align-items: center; gap: 14px; }
+.skewer-coop .coop-personal-reward .paper-settlement strong > span > span { display: flex; flex-direction: column; font-size: 13px; font-weight: 500; }
+.skewer-coop .coop-personal-reward .paper-settlement b { display: block; font: 700 40px/1.2 'BusanDandiMyeongjo', serif; }
+.skewer-coop .coop-personal-reward .paper-settlement small { font-size: 12px; line-height: 1.6; margin-top: 5px; }
+.skewer-coop .coop-daily-progress { display: block; width: 100%; height: 6px; margin: 10px 0 0; accent-color: #49714c; border: 0; border-radius: 4px; overflow: hidden; }
+.skewer-coop .coop-daily-progress::-webkit-progress-bar { background: #dfd3b8; }
+.skewer-coop .coop-daily-progress::-webkit-progress-value { background: #49714c; }
+.skewer-coop .coop-reward-calculation { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px; font-size: 14px; margin: 15px 0; }
+.skewer-coop .coop-reward-calculation span { flex-basis: 100%; font-size: 12px; line-height: 1.6; color: #7c6e50; }
+.skewer-coop .coop-result-ranking { font-size: 13px; padding: 12px; }
+.skewer-coop .coop-result-paper .paper-actions { grid-template-columns: 1.5fr 1fr; margin-top: 24px; }
+.skewer-coop .coop-result-paper details { margin-top: 16px; font-size: 12px; line-height: 1.7; }
+.skewer-coop .coop-ranking-paper { width: min(700px, calc(100vw - 48px)); }
+.skewer-coop .coop-ranking-paper h2 { margin-top: 20px; font-size: 36px; }
+.skewer-coop button:focus-visible { outline: 3px solid #477b56; outline-offset: 3px; }
+.skewer-coop .coop-welcome-paper button:not(:disabled):hover { filter: brightness(.96); }
+@media (min-width: 801px) and (max-height: 800px) {
+  .skewer-coop .coop-welcome-paper, .skewer-coop .coop-result-paper { padding: 20px 28px 18px; }
+  .skewer-coop .coop-welcome-heading { margin: 8px 0 12px; }
+  .skewer-coop .coop-welcome-heading h1 { font-size: 34px; }
+  .skewer-coop .coop-entry-art { min-height: 300px; }
+  .skewer-coop .coop-entry-art > img { max-height: 350px; }
+  .skewer-coop .coop-role-choices { margin-bottom: 16px; }
+  .skewer-coop .coop-guide-art > img { aspect-ratio: 1.8; }
+  .skewer-coop .coop-role-guide ol { gap: 10px; }
+  .skewer-coop .coop-ranking-notice { margin-top: 14px; }
+  .skewer-coop .coop-ready-footer { margin-top: 10px; padding-top: 10px; padding-bottom: 8px; }
+}
+@media (max-width: 800px) {
+  .skewer-coop .table-paper-backdrop { padding: 12px; }
+  .skewer-coop .coop-welcome-paper, .skewer-coop .coop-result-paper { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 24px 20px; }
+  .skewer-coop .coop-entry-layout, .skewer-coop .coop-guide-layout, .skewer-coop .coop-result-layout { grid-template-columns: 1fr; gap: 20px; }
+  .skewer-coop .coop-entry-art { min-height: 0; height: 220px; }
+  .skewer-coop .coop-entry-art > img { object-position: center 65%; }
+  .skewer-coop .coop-guide-art > img { height: 190px; aspect-ratio: auto; }
+  .skewer-coop .coop-role-choices { gap: 10px; }
+  .skewer-coop .coop-role-choices > button { flex-wrap: wrap; gap: 8px; }
+  .skewer-coop .coop-role-choices img { width: 100%; height: 90px; }
+  .skewer-coop .coop-role-choices strong { font-size: 20px; }
+  .skewer-coop .coop-role-state { margin: 0; font-size: 11px; }
+  .skewer-coop .coop-ready-footer { grid-template-columns: 1fr; gap: 18px; }
+  .skewer-coop .coop-team-status { justify-content: center; }
+  .skewer-coop .coop-result-heading h2 { font-size: 29px; }
+  .skewer-coop .coop-result-heading .paper-trophy { width: 36px; height: 36px; }
+  .skewer-coop .coop-result-art { height: auto; }
+  .skewer-coop .coop-result-score > strong { font-size: 48px; }
+  .skewer-coop .coop-result-paper .paper-actions { grid-template-columns: 1fr; }
+  .skewer-coop .coop-welcome-heading h1 { font-size: 28px; }
+  .skewer-coop .coop-entry-reward span { padding: 0 3px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skewer-coop .table-paper-popup { animation: none; }
+}

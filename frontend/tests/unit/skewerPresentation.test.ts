@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { COUNTDOWN_MS, ENDING_MS, ORDER_MS, gameReducer, initialGame } from '../../src/features/skewer/game'
 import type { GameCard, GameState, IngredientId } from '../../src/features/skewer/game'
-import { assemblyGuide, gameSummary, nextInstruction, nextRoundLabel, roundOutcome, wrapDescriptions } from '../../src/features/skewer/presentation'
+import { assemblyGuide, gameSummary, nextInstruction, nextRoundLabel, roundOutcome, recipeNotes } from '../../src/features/skewer/presentation'
 
 const recipe: IngredientId[] = ['tomato', 'cheese', 'pepper', 'shrimp', 'cheese', 'beef']
 const deck: GameCard[] = [{ kind: 'order', id: 'o', name: '치즈 사이로', recipe, value: 2 }, { kind: 'greeting', id: 'g' }, { kind: 'closing', id: 'c' }]
@@ -20,18 +20,18 @@ describe('order guidance and lifecycle results', () => {
     expect(assemblyGuide(state.skewer, recipe)).toMatchObject({ completed: 1, mismatch: true, next: 1 })
     expect(nextInstruction(state).detail).toContain('2번째')
   })
-  it('explains the food inside each wrap and folded ends in plain Korean', () => {
-    expect(wrapDescriptions(recipe)).toEqual(['치즈로 피망·새우를 감싸주세요.'])
-    expect(wrapDescriptions(['bacon', 'pepper', 'bacon'])).toEqual(['베이컨으로 피망을 감싸주세요.'])
-    expect(wrapDescriptions(['cheese', 'cheese', 'tomato'])).toEqual(['치즈는 접어서 앞끝과 뒤끝을 연달아 꽂아요.'])
+  it('describes independent cube counts in plain Korean', () => {
+    expect(recipeNotes(recipe)).toEqual(['치즈 큐브 2개'])
+    expect(recipeNotes(['bacon', 'pepper', 'bacon'])).toEqual(['베이컨 큐브 2개'])
+    expect(recipeNotes(['cheese', 'cheese', 'tomato'])).toEqual(['치즈 큐브 2개'])
   })
-  it('distinguishes timeouts, unfinished wraps, missing steps and wrong order', () => {
+  it('distinguishes timeouts, missing cubes and wrong order', () => {
     const timeout = gameReducer(start(), { type: 'tick', now: ORDER_MS })
     expect(roundOutcome(timeout).title).toBe('시간이 다 됐어요')
     const serve = (ids: IngredientId[]) => gameReducer(thread(start(), ids), { type: 'submit', now: 30 })
-    expect(roundOutcome(serve(['tomato', 'cheese'])).title).toBe('감싸기를 마무리해 주세요')
+    expect(roundOutcome(serve(['tomato', 'cheese'])).title).toBe('조금 더 꽂아야 해요')
     expect(roundOutcome(serve(['tomato'])).title).toBe('조금 더 꽂아야 해요')
-    expect(roundOutcome(serve(['tomato', 'shrimp'])).detail).toContain('2번째는 치즈 앞끝')
+    expect(roundOutcome(serve(['tomato', 'shrimp'])).detail).toContain('2번째는 치즈')
   })
   it('records each settled round once and keeps greeting bonus out of order totals', () => {
     let state = gameReducer(thread(start(), recipe), { type: 'submit', now: 20 })

@@ -1,7 +1,7 @@
 import { currentCard, formatTime, pieceLabel, transitionText } from './game'
 import type { GameState } from './game'
 import { paintIngredient } from './ingredientArt'
-import { assemblyGuide, gameSummary, nextInstruction, roundOutcome, wrapDescriptions } from './presentation'
+import { assemblyGuide, gameSummary, nextInstruction, roundOutcome, recipeNotes } from './presentation'
 
 /** Same labels and legal orientation as the desktop order rail, drawn at a
  * readable size on the existing world-space panel for headset-only play. */
@@ -36,7 +36,7 @@ export function paintWorldOrderBoard(ctx: CanvasRenderingContext2D, state: GameS
     ctx.fillText('1. 트리거로 음식 집기', 34, 200)
     ctx.fillText('2. 음식 중심과 꼬치 방향 맞추고 놓기', 34, 255)
     ctx.fillText('3. 완성하면 접시 뒤쪽에 수평으로 서빙', 34, 310)
-    ctx.fillText(notice || '치즈·베이컨은 앞끝 → 감쌀 음식 → 뒤끝 순서예요.', 34, 395, 956)
+    ctx.fillText(notice || '치즈·베이컨은 사용한다면 각각 2~3개를 꽂아요. 1개만 사용한 꼬치는 제출할 수 없어요.', 34, 395, 956)
     return
   }
   if (state.phase === 'finished') {
@@ -65,7 +65,7 @@ export function paintWorldOrderBoard(ctx: CanvasRenderingContext2D, state: GameS
       ctx.textAlign = 'left'
     })
     ctx.fillStyle = '#43563a'; ctx.font = '25px "Malgun Gothic", sans-serif'
-    wrapDescriptions(guide.expected).forEach((text, index) => ctx.fillText(text, 34, 260 + index * 34, 956))
+    recipeNotes(guide.expected).forEach((text, index) => ctx.fillText(text, 34, 260 + index * 34, 956))
   }
   const instruction = state.phase === 'result' ? roundOutcome(state) : nextInstruction(state)
   const message = notice || `${instruction.title} · ${instruction.detail}`

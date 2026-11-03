@@ -5,6 +5,7 @@ import {
   restoreAuthSession,
 } from '../../auth/authFlow'
 import { SharedSocket, ServerError } from '../../network/socketClient'
+import { routeCoopMessage, subscribeCoop } from '../../features/skewer/coop/contracts'
 import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
 import { OneCardPrankEvents, ONECARD_PRANKS_ENABLED, type PrankScope } from '../../game/onecard/prankEvents'
 import { OneCardDefenseEvents, ONECARD_DEFENSE_ENABLED } from '../../game/onecard/defenseEvents'
@@ -279,6 +280,12 @@ export class ParkRuntime implements ParkRuntimePort {
     void this.spectator.set(reference && intent ? { gameId: reference.gameId,
       scope: JSON.stringify([this.generation, intent.userId, intent.channelId, intent.tableId, intent.benchScope]) } : null)
   }
+  cooperativeGame = {
+    scope: () => { const s = useSession.getState(); return { userId: s.sessionId, channelId: s.roomId, connected: this.active && this.socket.connected && s.status === 'connected' && s.mapCompatible } },
+    request: (type: string, payload: Record<string, unknown>, expected: readonly string[], onId?: (id: string) => void) => this.socket.request(type, payload, expected, onId),
+    subscribe: subscribeCoop,
+    requestJSON: (path: string, init?: RequestInit) => this.requestJSON(path, init),
+  }
   private facilities = new FacilityClient({
     mapVersion: () => this.mapAdmission.expected.mapVersion,
     scope: () => {
@@ -427,6 +434,10 @@ export class ParkRuntime implements ParkRuntimePort {
     const parkRankingRequest = method === 'GET' && path === '/api/v1/rankings/park'
     const fitnessRewardRequest = method === 'GET' && path === '/api/v1/world/fitness/rewards/status'
     const skewerAdmission = method === 'POST' && path === '/api/v1/minigames/skewer/admissions'
+    const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
+      || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
+      || method === 'GET' && path === '/api/v1/minigames/skewer/coop/rankings'
+      || method === 'POST' && ['/api/v1/minigames/skewer/coop/rooms', '/api/v1/minigames/skewer/coop/leave'].includes(path)
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
     const plusMinusRequest = (method === 'GET' && path === '/api/v1/minigames/plus-minus/status')
@@ -434,7 +445,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission
+      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
       && !rpsRouletteRequest && !plusMinusRequest && !raffleRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
@@ -635,6 +646,11 @@ export class ParkRuntime implements ParkRuntimePort {
       if (this.mapReady && this.mapAdmission.allowed && session.status === 'connected'
         && session.mapCompatible && session.roomId && !session.pending)
         this.notesChanges.accept(message)
+      return
+    }
+    if (routeCoopMessage(message)) {
+      if (message.type === 'GAME_CONNECTION_STATE' && String(message.payload.gameId ?? '').startsWith('skewer-coop-') && !useGame.getState().game)
+        useGame.setState({ recovery: 'LOBBY' })
       return
     }
     if (this.oneCardDefense.accept(message)) return
