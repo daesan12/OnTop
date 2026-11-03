@@ -17,7 +17,8 @@ import java.util.Set;
 final class VerifiedGameFinish {
     private static final Map<String, Set<String>> REASONS = Map.of(
             "OMOK", Set.of("FIVE_IN_ROW", "BOARD_FULL", "AGREED_DRAW", "TURN_TIMEOUT", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
-            "DICE", Set.of("TARGET_REACHED", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
+            "DICE", Set.of("TARGET_REACHED", "LAST_PLAYER_STANDING", "RECONNECT_EXPIRED", "LOGOUT",
+                    "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
             "ONE_CARD", Set.of("EMPTY_HAND", "STALEMATE", "PLAYER_LEFT"),
             "LIAR_BRIDGE", Set.of("THREE_GOALS", "LAST_PLAYER_STANDING", "GOAL_SLOTS_EXHAUSTED",
                     "NO_RUNNABLE_PAWNS", "ABORTED_NO_PLAYERS"),

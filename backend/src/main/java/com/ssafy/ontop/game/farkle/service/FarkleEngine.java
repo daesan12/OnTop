@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
+import java.util.function.IntUnaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,14 +35,14 @@ public final class FarkleEngine implements GameEngine {
     private final Consumer<Object> events;
     private final GameEngineRouter router;
     private final IntSupplier face;
-    private final IntSupplier firstPlayer;
+    private final IntUnaryOperator firstPlayer;
     private final Map<String, FarkleMatch> games = new HashMap<>();
     private final Map<Long, String> latest = new HashMap<>();
     private final GameLifecycle lifecycle = new GameLifecycle();
     private final GameForfeitReceipts forfeits = new GameForfeitReceipts();
 
     public FarkleEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router,
-            IntSupplier face, IntSupplier firstPlayer) {
+            IntSupplier face, IntUnaryOperator firstPlayer) {
         this.mapper = mapper;
         this.clock = clock;
         this.events = events;
@@ -63,7 +64,7 @@ public final class FarkleEngine implements GameEngine {
                 }
                 return;
             }
-            FarkleMatch match = new FarkleMatch(gameId, tableId, players, firstPlayer.getAsInt(),
+            FarkleMatch match = new FarkleMatch(gameId, tableId, players, firstPlayer.applyAsInt(players.size()),
                     targetScore, clock.instant(), face);
             router.register(this, gameId, tableId, players);
             games.put(gameId, match);
@@ -112,9 +113,10 @@ public final class FarkleEngine implements GameEngine {
             FarkleMatch match = games.get(latest.get(userId));
             if (match == null) { return Optional.empty(); }
             Snapshot state = match.snapshot();
-            return Optional.of(new GameRecoverySnapshot(userId, state.gameId(), 2, state.version(),
-                    state.endedAt() == null ? GameRecoverySnapshot.Phase.PLAYING
-                            : GameRecoverySnapshot.Phase.FINISHED, publicState(state)));
+            return Optional.of(new GameRecoverySnapshot(userId, state.gameId(), state.players().size(), state.version(),
+                    state.endedAt() != null ? GameRecoverySnapshot.Phase.FINISHED
+                            : match.isActive(userId) ? GameRecoverySnapshot.Phase.PLAYING
+                                    : GameRecoverySnapshot.Phase.ELIMINATED, publicState(state)));
         }
     }
 
@@ -137,6 +139,8 @@ public final class FarkleEngine implements GameEngine {
             before = match.snapshot();
             if (before.endedAt() != null) {
                 rejected = new Rejected(Rejection.GAME_FINISHED);
+            } else if (!match.isActive(command.userId())) {
+                rejected = new Rejected(Rejection.NOT_ACTIVE);
             } else {
                 match.forfeit(command.userId(), now, "EXPLICIT_LEAVE");
                 lifecycle.left(command.gameId(), before.tableId(), "DICE", match.snapshot().version(),
@@ -155,15 +159,17 @@ public final class FarkleEngine implements GameEngine {
         List<Object> notices = new ArrayList<>();
         synchronized (this) {
             FarkleMatch match = games.get(command.gameId());
-            if (match == null || command.action() != Action.FORFEIT || !match.isPlayer(command.userId())
+            if (match == null || (command.action() != Action.FORFEIT && command.action() != Action.ELIMINATE)
+                    || !match.isPlayer(command.userId())
                     || clock.instant().isBefore(command.deadline())) { return; }
             Snapshot before = match.snapshot();
             match.expire(command.deadline());
             collect(before, match.snapshot(), notices);
             before = match.snapshot();
+            boolean wasActive = before.endedAt() == null && match.isActive(command.userId());
             match.forfeit(command.userId(), command.deadline(), command.reason() == GameDepartureReason.DISCONNECT_TIMEOUT
                     ? "RECONNECT_EXPIRED" : command.reason().name());
-            if (before.endedAt() == null && match.snapshot().endedAt() != null) {
+            if (wasActive && !match.isActive(command.userId())) {
                 lifecycle.left(command.gameId(), before.tableId(), "DICE", match.snapshot().version(),
                         command.userId(), command.reason(), command.deadline(), before.players().size(), notices);
             }
@@ -209,6 +215,7 @@ public final class FarkleEngine implements GameEngine {
                 .put("endReason", state.endReason()).put("endedAt", state.endedAt() == null ? null : state.endedAt().toString());
         data.set("players", mapper.valueToTree(state.players().stream().map(Object::toString).toList()));
         data.set("scores", mapper.valueToTree(state.scores()));
+        data.set("forfeitedUserIds", mapper.valueToTree(state.forfeitedUserIds().stream().map(Object::toString).toList()));
         data.set("dice", mapper.valueToTree(state.dice()));
         if (state.lastRoll() == null) {
             data.putNull("lastRoll");

@@ -225,7 +225,7 @@ class AuthenticatedWebSocketTests {
         @Bean
         @org.springframework.context.annotation.Primary
         ActiveMemberLookup fixtureSessions() {
-            return (id, sessionId) -> Set.of(42L, 101L, 202L, 505L).contains(id)
+            return (id, sessionId) -> Set.of(42L, 101L, 202L, 303L, 404L, 505L).contains(id)
                     && TestLoginSessions.ID.equals(sessionId)
                     ? Optional.of(new AuthenticatedUser(id,
                             id == 202 || id == 42 ? LoginProvider.SSAFY
@@ -259,6 +259,8 @@ class AuthenticatedWebSocketTests {
                         case "naver" -> new TestPrincipal(101, "NAVER", true);
                         case "ssafy" -> new TestPrincipal(202, "SSAFY", true);
                         case "spectator" -> new TestPrincipal(505, "NAVER", true);
+                        case "303" -> new TestPrincipal(303, "NAVER", true);
+                        case "404" -> new TestPrincipal(404, "NAVER", true);
                         case "expired" -> new TestPrincipal(303, "NAVER", false);
                         case "unsupported" -> new TestPrincipal(404, "GOOGLE", true);
                         default -> null;

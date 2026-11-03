@@ -7,10 +7,12 @@ import com.ssafy.ontop.game.action.GameActionGateway.Rejection;
 import com.ssafy.ontop.game.action.GameActionResult;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.IntSupplier;
 
 // 생성·입력·타이머·조회를 엔진의 같은 잠금 안에서 호출한다.
@@ -21,7 +23,8 @@ public final class FarkleMatch {
     private final int targetScore;
     private final IntSupplier randomFace;
     private final Map<Key, Accepted> accepted = new HashMap<>();
-    private final long[] scores = new long[2];
+    private final long[] scores;
+    private final Set<Long> forfeited = new HashSet<>();
     private List<Die> dice = List.of();
     private LastRoll lastRoll;
     private long version;
@@ -40,14 +43,17 @@ public final class FarkleMatch {
     public FarkleMatch(String gameId, String tableId, List<Long> players, int firstPlayer,
             int targetScore, Instant now, IntSupplier randomFace) {
         if (gameId == null || gameId.isBlank() || gameId.length() > 120 || tableId == null || tableId.isBlank()
-                || players == null || players.size() != 2 || players.stream().anyMatch(id -> id == null || id <= 0)
-                || players.get(0).equals(players.get(1)) || firstPlayer < 0 || firstPlayer > 1
+                || players == null || players.size() < 2 || players.size() > 4
+                || players.stream().anyMatch(id -> id == null || id <= 0)
+                || players.stream().distinct().count() != players.size()
+                || firstPlayer < 0 || firstPlayer >= players.size()
                 || !List.of(2000, 4000, 6000).contains(targetScore) || now == null || randomFace == null) {
             throw new IllegalArgumentException("주사위 경기·참가자·목표 점수를 확인해주세요.");
         }
         this.gameId = gameId;
         this.tableId = tableId;
         this.players = List.copyOf(players);
+        scores = new long[players.size()];
         this.targetScore = targetScore;
         this.randomFace = randomFace;
         turn = firstPlayer;
@@ -68,6 +74,7 @@ public final class FarkleMatch {
             return previous.result();
         }
         if (endedAt != null) { throw new Rejected(Rejection.INVALID_ACTION); }
+        if (!isActive(command.userId())) { throw new Rejected(Rejection.NOT_ACTIVE); }
         if (version != command.expectedVersion()) { throw new Rejected(Rejection.STALE_VERSION); }
         if (players.get(turn) != command.userId()) { throw new Rejected(Rejection.NOT_YOUR_TURN); }
         JsonNode input = command.input();
@@ -158,7 +165,9 @@ public final class FarkleMatch {
         Instant next = deadline.plusSeconds(Math.multiplyExact(turns - 1, 30));
         version += turns;
         round += turns;
-        turn = (int) ((turn + turns % 2) % 2);
+        List<Long> active = players.stream().filter(this::isActive).toList();
+        turn = players.indexOf(active.get((int) ((active.indexOf(players.get(turn)) + turns % active.size())
+                % active.size())));
         turnScore = 0;
         dice = List.of();
         stage = "AWAITING_ROLL";
@@ -173,14 +182,24 @@ public final class FarkleMatch {
     }
 
     public void forfeit(long userId, Instant now, String reason) {
-        if (endedAt == null && isPlayer(userId)) {
+        if (endedAt == null && isActive(userId)) {
+            forfeited.add(userId);
             version++;
-            finish(players.get(players.get(0) == userId ? 1 : 0), reason, now);
+            lastRoll = null;
+            lastEvent = "PLAYER_LEFT";
+            List<Long> active = players.stream().filter(this::isActive).toList();
+            if (active.size() == 1) {
+                finish(active.getFirst(), players.size() == 2 ? reason : "LAST_PLAYER_STANDING", now);
+            } else if (players.get(turn) == userId) {
+                nextTurn(now);
+            }
         }
     }
 
     private void nextTurn(Instant now) {
-        turn = 1 - turn;
+        do {
+            turn = (turn + 1) % players.size();
+        } while (!isActive(players.get(turn)));
         round++;
         turnScore = 0;
         dice = List.of();
@@ -199,11 +218,13 @@ public final class FarkleMatch {
     }
 
     public boolean isPlayer(long userId) { return players.contains(userId); }
+    public boolean isActive(long userId) { return isPlayer(userId) && !forfeited.contains(userId); }
 
     public Snapshot snapshot() {
         return new Snapshot(gameId, tableId, players, targetScore, version, rollId, round,
-                endedAt == null ? players.get(turn) : null, List.of(scores[0], scores[1]), turnScore,
-                dice, stage, lastEvent, hotDice, deadline, winner, reason, endedAt, lastRoll);
+                endedAt == null ? players.get(turn) : null, Arrays.stream(scores).boxed().toList(), turnScore,
+                dice, stage, lastEvent, hotDice, deadline, winner, reason, endedAt, lastRoll,
+                players.stream().filter(forfeited::contains).toList());
     }
 
     public record Die(int id, int value, boolean held) { }
@@ -217,5 +238,5 @@ public final class FarkleMatch {
     public record Snapshot(String gameId, String tableId, List<Long> players, int targetScore, long version,
             long rollId, long round, Long turnUserId, List<Long> scores, long turnScore, List<Die> dice,
             String stage, String lastEvent, boolean hotDice, Instant turnDeadline, Long winnerUserId,
-            String endReason, Instant endedAt, LastRoll lastRoll) { }
+            String endReason, Instant endedAt, LastRoll lastRoll, List<Long> forfeitedUserIds) { }
 }

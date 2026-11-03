@@ -32,7 +32,7 @@ class FarkleEngineTests {
     private final GameEngineRouter router = new GameEngineRouter();
     private final ArrayDeque<Integer> faces = new ArrayDeque<>();
     private final FarkleEngine engine = new FarkleEngine(mapper, clock, events::add, router,
-            () -> faces.removeFirst(), () -> 0);
+            () -> faces.removeFirst(), bound -> 0);
 
     FarkleEngineTests() { engine.create("dice", "table", List.of(101L,202L), 2000); }
 
