@@ -5,6 +5,8 @@ ontop:
   game-start:
     enabled: ${GAME_START_ENABLED:false}
   games:
+    alkkagi:
+      enabled: ${GAME_ALKKAGI_ENABLED:false}
     omok:
       enabled: ${GAME_OMOK_ENABLED:false}
     farkle:
