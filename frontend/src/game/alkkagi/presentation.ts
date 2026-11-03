@@ -6,6 +6,9 @@ export const remainingMatchTime = (deadline: number, now: number) => {
 }
 
 export type UsedCard = NonNullable<Snapshot['itemEffects']>[number]
+/** 참가자는 상대 사용만 크게 표시한다. 관전자는 양쪽의 공개 사용을 본다. */
+export const visibleUsedCards = (effects: readonly UsedCard[], viewerActor: number) =>
+  effects.filter(effect => viewerActor < 0 || effect.actor !== viewerActor)
 /** First/reconnected snapshots establish a baseline; only new, fresh approvals animate. */
 export class UsedCardTimeline {
   private gameId = ''

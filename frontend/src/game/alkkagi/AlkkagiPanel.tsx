@@ -46,7 +46,7 @@ export function AlkkagiPanel() {
     <AlkkagiSpectatorLabels />
     {actor>=0 && state.cardCounts && <AlkkagiOpponentCards count={state.cardCounts[1-actor] ?? 0} nickname={name(1-actor)} />}
     <AlkkagiCoinToss state={state} now={now} name={name(state.turn)} />
-    <AlkkagiUsedCard key={state.gameId} state={state} now={now} name={name} />
+    <AlkkagiUsedCard key={state.gameId} state={state} now={now} name={name} viewerActor={actor} />
     <AlkkagiCardAward hand={g.alkkagiHand} />
     {choice&&<AlkkagiChoiceFan key={choice.id} choice={choice} ready={ready}
       seconds={Math.max(0,Math.ceil((choice.deadline-now)/1000))}
