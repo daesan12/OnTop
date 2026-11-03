@@ -1,9 +1,15 @@
 import type { ManualGameId } from "./types";
-import { RpsRouletteArt } from "../rpsRoulette/manualArt";
-import fruitDdaengThumbnail from "../../game/halligalli/assets/thumbnail.webp";
+import fruitDdaengManualArt from "../../game/halligalli/assets/manual.webp";
 import ledgerThumbnail from "../../game/ledger/assets/thumbnail.webp";
+import fishBreadThumbnail from "../bungeoppang/assets/thumbnail.webp";
+import rpsRouletteThumbnail from "../rpsRoulette/assets/thumbnail.webp";
 
-const gameThumbnails: Partial<Record<ManualGameId, string>> = { halligalli: fruitDdaengThumbnail, ledger: ledgerThumbnail };
+const gameThumbnails: Partial<Record<ManualGameId, string>> = {
+  halligalli: fruitDdaengManualArt,
+  ledger: ledgerThumbnail,
+  "fish-bread": fishBreadThumbnail,
+  "rps-roulette": rpsRouletteThumbnail,
+};
 
 /** Local game illustrations: no external asset requests. */
 export function BookIcon() {
@@ -30,8 +36,7 @@ export function BookIcon() {
 export function GameArt({ game }: { game: ManualGameId }) {
   const thumbnail = gameThumbnails[game];
   if (thumbnail) return <img className={`manual-art art-${game}`} src={thumbnail} alt="" aria-hidden="true" style={{ objectFit: "cover" }} />;
-  if (game === "rps-roulette") return <RpsRouletteArt />;
-  if (["alkkagi", "janggi", "fishing", "fish-bread", "jump", "vr-jump"].includes(game))
+  if (["alkkagi", "janggi", "fishing", "jump", "vr-jump"].includes(game))
     return (
       <svg
         className={`manual-art art-${game}`}
@@ -42,7 +47,7 @@ export function GameArt({ game }: { game: ManualGameId }) {
           width="240"
           height="150"
           fill={
-            game === "alkkagi" || game === "janggi" || game === "fish-bread" ? "#c6ad83" : "#405f56"
+            game === "alkkagi" || game === "janggi" ? "#c6ad83" : "#405f56"
           }
         />
         <circle cx="196" cy="28" r="70" fill="#f7e9c0" opacity=".08" />
@@ -98,21 +103,6 @@ export function GameArt({ game }: { game: ManualGameId }) {
             <path d="M114 78v22" stroke="#f3e8c8" />
             <ellipse cx="114" cy="102" rx="10" ry="16" fill="#eee5cb" />
             <path d="M104 102a10 16 0 0 0 20 0" fill="#b95541" />
-          </>
-        ) : game === "fish-bread" ? (
-          <>
-            <path
-              d="M42 80Q85 29 154 66l37-22-4 36 8 32-41-17Q85 137 42 80Z"
-              fill="#dd9b46"
-              stroke="#94612d"
-              strokeWidth="4"
-            />
-            <circle cx="66" cy="75" r="4" fill="#684025" />
-            <path
-              d="m93 60 32 38m-16-42 31 36m-45 8 34-38m-19 43 34-36"
-              stroke="#b77732"
-              strokeWidth="3"
-            />
           </>
         ) : game === "vr-jump" ? (
           <>
