@@ -12,6 +12,7 @@ import { AVATAR_ACTIVITY_LABELS } from '../network/avatarActivity'
 import { ownGameActivity } from './avatarActivity'
 import { useOmokEvents } from '../game/omok/spectatorEvents'
 import { gameChatScope } from '../features/chat/gameChat'
+import { displayNickname } from '../features/gameMaster/displayName'
 
 export interface AvatarAnchors {
   root: Object3D
@@ -44,8 +45,8 @@ const AvatarOverlay = memo(function AvatarOverlay({
   const shopping = useShop(state => local && state.open && state.owner === id)
   const activityLabel = activity ? AVATAR_ACTIVITY_LABELS[activity]
     : playing ? AVATAR_ACTIVITY_LABELS.GAME : shopping ? AVATAR_ACTIVITY_LABELS.SHOP : null
-  const nickname = useSession(state => state.profiles[id]?.nickname
-    ?? (state.sessionId === id ? '나' : '산책자 ' + id.slice(-6)))
+  const nickname = useSession(state => displayNickname(state.profiles[id],
+    state.sessionId === id ? '나' : '산책자 ' + id.slice(-6)))
   const gathering = useGathering(), participant = gathering?.rows.find(row => row.playerId === id)
   const [expiredId, setExpiredId] = useState('')
   const elementRef = useRef<HTMLDivElement | null>(null)

@@ -9,7 +9,8 @@ export function setDisplayProfiles(
     if (
       !id ||
       !profile.nickname.trim() ||
-      !['man', 'girl'].includes(profile.character)
+      !['man', 'girl'].includes(profile.character) ||
+      (profile.gameMaster !== undefined && typeof profile.gameMaster !== 'boolean')
     )
       throw new Error('표시용 프로필을 확인해주세요.')
   }

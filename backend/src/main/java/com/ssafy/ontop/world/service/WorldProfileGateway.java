@@ -7,7 +7,11 @@ import java.util.Set;
 public interface WorldProfileGateway {
     Map<Long, Profile> profiles(Set<Long> userIds);
 
-    record Profile(String nickname, String characterGender) {
+    record Profile(String nickname, String characterGender, boolean gameMaster) {
+        public Profile(String nickname, String characterGender) {
+            this(nickname, characterGender, false);
+        }
+
         public Profile {
             if (nickname == null || nickname.isBlank()
                     || !("MALE".equals(characterGender) || "FEMALE".equals(characterGender))) {

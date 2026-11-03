@@ -1,5 +1,6 @@
 package com.ssafy.ontop.world.repository;
 
+import com.ssafy.ontop.admin.security.AdminAccessPolicy;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.world.service.WorldProfileGateway;
 import jakarta.persistence.EntityManager;
@@ -14,9 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Profile("db")
 public class JpaWorldProfileGateway implements WorldProfileGateway {
     private final EntityManager entities;
+    private final AdminAccessPolicy administrators;
 
-    public JpaWorldProfileGateway(EntityManager entities) {
+    public JpaWorldProfileGateway(EntityManager entities, AdminAccessPolicy administrators) {
         this.entities = entities;
+        this.administrators = administrators;
     }
 
     @Override
@@ -31,7 +34,7 @@ public class JpaWorldProfileGateway implements WorldProfileGateway {
         Map<Long, WorldProfileGateway.Profile> profiles = new HashMap<>();
         for (Object[] row : rows) {
             profiles.put((Long) row[0], new WorldProfileGateway.Profile(
-                    (String) row[1], ((CharacterGender) row[2]).name()));
+                    (String) row[1], ((CharacterGender) row[2]).name(), administrators.canRead((Long) row[0])));
         }
         return Map.copyOf(profiles);
     }

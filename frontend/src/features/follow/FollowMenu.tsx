@@ -7,6 +7,7 @@ import { followAvailability, requestFollow } from './controller'
 import { followService } from './service'
 import { sameFollowScope, useFollow } from './state'
 import './follow.css'
+import { displayNickname } from '../gameMaster/displayName'
 
 export interface AvatarMenuRequest { id: string; x: number; y: number }
 export function openAvatarMenu(detail: AvatarMenuRequest) {
@@ -48,7 +49,7 @@ export function FollowMenu() {
     }
   }, [isOpen, menu, session.status])
   const close = () => setMenu(null)
-  const nickname = (id: string) => session.profiles[id]?.nickname ?? '산책자 ' + id.slice(-6)
+  const nickname = (id: string) => displayNickname(session.profiles[id], '산책자 ' + id.slice(-6))
   const reason = menu ? followAvailability(menu.id) : ''
   const notice = reason || (followService.mode === 'unavailable' ? '지금은 따라갈 수 없어요.'
     : followService.mode === 'server' && (!state.ready || state.checking) ? '확인 중…' : '')

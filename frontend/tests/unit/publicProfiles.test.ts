@@ -43,6 +43,15 @@ describe('approved WORLD_STATE public profile presentation', () => {
     expect(avatars.get('102')).toMatchObject({ nickname: '새닉네임', character: 'man' })
   })
 
+  it('keeps the server-approved game master marker and clears it explicitly', () => {
+    emit('WORLD_STATE', snapshot(1, { nickname: '운영자', characterGender: 'FEMALE', gameMaster: true }))
+    expect(useSession.getState().profiles['102']).toEqual({ nickname: '운영자', character: 'girl', gameMaster: true })
+    emit('WORLD_STATE', snapshot(2, { nickname: null, characterGender: null }))
+    expect(useSession.getState().profiles['102']?.gameMaster).toBe(true)
+    emit('WORLD_STATE', snapshot(3, { nickname: null, characterGender: null, gameMaster: false }))
+    expect(useSession.getState().profiles['102']).toEqual({ nickname: '운영자', character: 'girl' })
+  })
+
   it('keeps authenticated own-profile fallback and wallet balance when public names refresh', () => {
     setDisplayProfiles({ '101': { nickname: '내닉네임', character: 'girl' } }, { nickname: '내닉네임', balance: 73 })
     emit('WORLD_STATE', snapshot(1, { nickname: null, characterGender: null }))
@@ -82,7 +91,7 @@ describe('approved WORLD_STATE public profile presentation', () => {
   it('accepts missing/null profile fields but rejects malformed supplied fields', () => {
     expect(() => worldState(snapshot(1))).not.toThrow()
     expect(() => worldState(snapshot(1, { nickname: null, characterGender: null }))).not.toThrow()
-    for (const bad of [{ nickname: 2 }, { nickname: '  ' }, { characterGender: 'girl' }, { characterGender: {} }])
+    for (const bad of [{ nickname: 2 }, { nickname: '  ' }, { characterGender: 'girl' }, { characterGender: {} }, { gameMaster: 'yes' }])
       expect(() => worldState(snapshot(1, bad))).toThrow()
   })
 })
