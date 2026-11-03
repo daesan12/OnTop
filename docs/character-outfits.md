@@ -17,7 +17,10 @@
 
 - Blender 5.2.3 (명령줄 `blender -b`로 실행한다).
 - 이 저장소의 `tools/character/` 스크립트.
-- **기준 빌드 파일** `shared_layers_gf.glb`(약 35 MB)와 여자 상의 색 이미지 `outfit_d_pink.jpg`. 용량 때문에 저장소에 없으니 캐릭터 담당자에게 받는다. 새 옷을 넣은 뒤의 기준 빌드도 같은 방식으로 공유한다.
+- **기준 빌드 파일**은 `docs/character-outfits/`에 있다.
+  - `shared_layers_gf.glb`(약 35 MB): 공용 몸, 지금까지의 모든 의상(`a`~`g`), 몸 조각, 뼈대, 동작이 들어 있다. 새 옷은 이 파일에 넣는다.
+  - `outfit_d_pink.jpg`: 여자 기본 상의·신발의 분홍 색 이미지(여자 파일을 다시 만들 때 쓴다).
+  - 새 옷을 넣은 빌드는 새 문자 이름(예: `shared_layers_h.glb`)으로 이 폴더에 올리고, 이전 기준 파일은 지운다. 이 문서의 파일 이름도 함께 고친다. 큰 파일이라 올릴 때마다 저장소가 그만큼 커지니, 옷이 완성됐을 때 한 번만 올린다.
 - Gemini(디자인 시트 편집)와 Tripo(3D 생성) 계정. Tripo는 크레딧을 쓴다(부품 생성 약 60, 4K 텍스처 약 20).
 
 ## 3. 만드는 순서
@@ -41,7 +44,7 @@
 몸과 옷의 앞·옆 실루엣을 겹쳐 보고 배율 `s`를 정한다(장군은 1.2).
 
 ```bash
-"$B" -b --python tools/character/overlay.py -- shared_layers_gf.glb new_outfit_parts.glb out/fit s=1.2
+"$B" -b --python tools/character/overlay.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb out/fit s=1.2
 ```
 
 ### ④ 기준 빌드에 새 옷 넣기
@@ -62,7 +65,7 @@
 4. 새 문자로 실행한다.
 
 ```bash
-"$B" -b --python tools/character/add_set_new.py -- shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.2
+"$B" -b --python tools/character/add_set_new.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.2
 ```
 
 가중치와 가려지는 몸을 정할 때 지킨 규칙:
@@ -93,7 +96,7 @@
 "$B" -b --python tools/character/to_game.py -- shared_layers_h.glb out/newoutfit_raw.glb newoutfit HAIR=h TOP=h BOTTOM=h SHOES=h pieces=1 body=0 near=60000 atlas=2048 fill=1
 # 남자 기본 / 여자 기본
 "$B" -b --python tools/character/to_game.py -- shared_layers_h.glb out/man_raw.glb man HAIR=b TOP=d BOTTOM=d SHOES=d pieces=1 near=32000 fill=1 keep_edges=pieces
-"$B" -b --python tools/character/to_game.py -- shared_layers_h.glb out/girl_raw.glb girl HAIR=e TOP=d BOTTOM=d SHOES=d tex=TOP:outfit_d_pink.jpg,SHOES:outfit_d_pink.jpg pieces=1 near=32000 fill=1 keep_edges=pieces
+"$B" -b --python tools/character/to_game.py -- shared_layers_h.glb out/girl_raw.glb girl HAIR=e TOP=d BOTTOM=d SHOES=d tex=TOP:docs/character-outfits/outfit_d_pink.jpg,SHOES:docs/character-outfits/outfit_d_pink.jpg pieces=1 near=32000 fill=1 keep_edges=pieces
 ```
 
 옵션 설명은 `to_game.py` 맨 위에 있다. 요점:
