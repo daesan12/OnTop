@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DiceGame } from '../../src/game/protocol'
 import { useGame } from '../../src/game/store'
 import { useSession } from '../../src/network/worldClient'
-import { resetSeatedLook, seatScope, useTableLobby } from '../../src/features/tableLobby/state'
+import { resetSeatedLook, useTableLobby } from '../../src/features/tableLobby/state'
 import { inputState } from '../../src/world/inputOwnership'
-import { canDragDiceView, cupMotion, resetDiceUI, toggleDiceView, useDiceUI } from '../../src/game/farkle/controls'
+import { installDiceControls, resetDiceUI, useDiceUI } from '../../src/game/farkle/controls'
 
 const game = (): DiceGame => ({ gameId: 'g', version: 1, role: 'PLAYER', dice: {
   gameCode: 'DICE', status: 'PLAYING', players: ['a', 'b'], scores: [0, 0], targetScore: 4000,
@@ -14,7 +14,8 @@ const game = (): DiceGame => ({ gameId: 'g', version: 1, role: 'PLAYER', dice: {
 } })
 beforeEach(() => {
   vi.stubGlobal('window', new EventTarget())
-  vi.stubGlobal('document', { hidden: false, querySelector: () => null })
+  vi.stubGlobal('HTMLElement', class {})
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { hidden: false, querySelector: () => null }))
   Object.keys(inputState).forEach(key => { inputState[key as keyof typeof inputState] = false })
   resetDiceUI(); resetSeatedLook()
   useSession.setState({ sessionId: 'a', tableId: 't', seatIndex: 0, status: 'connected', mapCompatible: true })
@@ -22,52 +23,29 @@ beforeEach(() => {
 })
 afterEach(() => { resetDiceUI(); resetSeatedLook(); vi.unstubAllGlobals() })
 
-describe('player dice camera toggle', () => {
-  it('switches board and surroundings without changing confirmed game state', () => {
-    const before = useGame.getState().game
-    expect(toggleDiceView()).toBe(true)
-    expect(useTableLobby.getState().lookScope).toBe(seatScope(useSession.getState()))
-    expect(toggleDiceView()).toBe(true)
+describe('player dice keyboard ownership', () => {
+  const press = (code: string) => {
+    const event = Object.assign(new Event('keydown', { cancelable: true }), { code })
+    window.dispatchEvent(event); return event
+  }
+  it('clears a lobby look on game entry and leaves Tab to normal focus navigation', () => {
+    useTableLobby.setState({ lookScope: 'stale-seat' })
+    const dispose = installDiceControls()
     expect(useTableLobby.getState().lookScope).toBe('')
-    expect(useDiceUI.getState().boardView).toBe(true)
-    expect(useGame.getState().game).toBe(before)
-  })
-  it('returns to the board from the default opponent-turn view or a right-drag view', () => {
-    const current = game(); current.dice.turnUserId = 'b'; useGame.setState({ game: current })
-    expect(toggleDiceView()).toBe(true)
-    expect(useDiceUI.getState().boardView).toBe(true)
-    useTableLobby.setState({ lookScope: seatScope(useSession.getState()) })
-    expect(toggleDiceView()).toBe(true)
+    expect(press('Tab').defaultPrevented).toBe(false)
+    expect(useDiceUI.getState().boardView).toBe(false)
     expect(useTableLobby.getState().lookScope).toBe('')
+    dispose()
   })
-  it('cancels a held cup before changing view so releasing cannot roll it', () => {
-    expect(canDragDiceView()).toBe(true)
-    const cancel = vi.fn(); cupMotion.cancel = cancel
-    useDiceUI.setState({ cup: 'ready', selectedIds: [1, 2] })
-    expect(canDragDiceView()).toBe(false)
-    expect(toggleDiceView()).toBe(true)
-    expect(cancel).toHaveBeenCalledOnce()
-    expect(useDiceUI.getState()).toMatchObject({ cup: 'idle', selectedIds: [1, 2] })
-    expect(canDragDiceView()).toBe(true)
-    cupMotion.cancel = () => {}
-  })
-  it('leaves modal/text owners, disconnected seats, spectators and finished games alone', () => {
-    for (const key of ['chatOpen', 'manualOpen', 'minigameOpen'] as const) {
-      inputState[key] = true; expect(toggleDiceView()).toBe(false); inputState[key] = false
-    }
-    vi.stubGlobal('document', { hidden: false, querySelector: () => ({ open: true }) })
-    expect(toggleDiceView()).toBe(false)
-    vi.stubGlobal('document', { hidden: true, querySelector: () => null })
-    expect(toggleDiceView()).toBe(false)
-    vi.stubGlobal('document', { hidden: false, querySelector: () => null })
-    useSession.setState({ status: 'reconnecting' }); expect(toggleDiceView()).toBe(false)
-    useSession.setState({ status: 'connected', mapCompatible: false }); expect(toggleDiceView()).toBe(false)
-    useSession.setState({ mapCompatible: true, seatIndex: -1 }); expect(toggleDiceView()).toBe(false)
-    useSession.setState({ seatIndex: 0 }); useGame.setState({ game: { ...game(), role: 'SPECTATOR' } })
-    expect(toggleDiceView()).toBe(false)
-    const finished = game(); finished.dice.status = 'FINISHED'; useGame.setState({ game: finished })
-    expect(toggleDiceView()).toBe(false)
-    expect(useTableLobby.getState().lookScope).toBe('')
-    useGame.setState({ game: null }); expect(canDragDiceView()).toBe(false)
+  it('consumes cup cancellation and scorebook closing before the forfeit shortcut', () => {
+    const dispose = installDiceControls()
+    useDiceUI.setState({ cup: 'ready' })
+    expect(press('Escape').defaultPrevented).toBe(true)
+    expect(useDiceUI.getState().cup).toBe('idle')
+    press('KeyT'); expect(useDiceUI.getState().scoreOpen).toBe(true)
+    expect(press('Escape').defaultPrevented).toBe(true)
+    expect(useDiceUI.getState().scoreOpen).toBe(false)
+    expect(press('Escape').defaultPrevented).toBe(false)
+    dispose()
   })
 })

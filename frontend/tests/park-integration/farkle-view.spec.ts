@@ -8,7 +8,7 @@ const probe = (page: Page) => page.evaluate(async () => ({
 const prop = (page: Page, name: string, offset: [number, number, number] = [0, 0, 0]) =>
   page.evaluate(async ({ name, offset }) => (await import('/tests/park-integration/farkleMotionProbe.ts' as string)).pointForFarkleProp(name, offset), { name, offset })
 
-for (const own of ['101', '102'] as const) test(`dice player ${own} uses empty left drag and Tab without stealing dice, cup or modal input`, async ({ page }) => {
+for (const own of ['101', '102'] as const) test(`dice player ${own} keeps board view through left/right drag and Tab, preserving dice, cup and modal input`, async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
@@ -27,29 +27,22 @@ for (const own of ['101', '102'] as const) test(`dice player ${own} uses empty l
   // A click, or a tiny pointer wobble, must leave the board camera alone.
   await page.mouse.move(190, 330); await page.mouse.down(); await page.mouse.move(192, 330); await page.mouse.up()
   expect((await probe(page)).query.lookScope).toBe('')
-  // A genuine empty-space drag uses the same seated yaw as the existing right drag.
-  await page.mouse.move(190, 330); await page.mouse.down(); await page.mouse.move(280, 330, { steps: 8 }); await page.mouse.up()
-  await expect.poll(async () => (await probe(page)).query.lookScope).not.toBe('')
-  await expect.poll(async () => (await probe(page)).fov).toBeCloseTo(76, 1)
-  expect((await probe(page)).yaw).not.toBe(0)
-  await screenshot(page, `farkle-left-drag-${own}`)
-  await page.keyboard.press('Tab')
-  await expect.poll(async () => (await probe(page)).cameraReady).toBe(true)
-  expect((await probe(page)).camera).toEqual(board)
-  // Shift+Tab, repeat, IME and modified keys retain their original owners.
-  for (const flags of [{ shiftKey: true }, { repeat: true }, { isComposing: true }, { ctrlKey: true }, { altKey: true }, { metaKey: true }]) {
-    await canvas.dispatchEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true, cancelable: true, ...flags })
+  for (const button of ['left', 'right'] as const) {
+    await page.mouse.move(190, 330); await page.mouse.down({ button }); await page.mouse.move(280, 330, { steps: 8 }); await page.mouse.up({ button })
     expect((await probe(page)).query.lookScope).toBe('')
+    await expect.poll(async () => (await probe(page)).cameraReady).toBe(true)
+    expect((await probe(page)).camera).toEqual(board)
   }
-  await page.mouse.move(190, 330); await page.mouse.down({ button: 'right' }); await page.mouse.move(250, 330, { steps: 5 }); await page.mouse.up({ button: 'right' })
-  expect((await probe(page)).query.lookScope).not.toBe('')
-  await page.keyboard.press('Tab'); await expect.poll(async () => (await probe(page)).cameraReady).toBe(true)
+  await canvas.focus(); await page.keyboard.press('Tab')
+  expect((await probe(page)).query.lookScope).toBe('')
+  expect((await probe(page)).camera).toEqual(board)
+  await screenshot(page, 'farkle-fixed-board-' + own)
 
   const cup = await prop(page, 'farkle-cup-table-1', [0, .15, 0])
   await page.mouse.move(cup.x, cup.y); await page.mouse.down(); await page.mouse.move(cup.x + 25, cup.y, { steps: 4 })
   await expect(hud).toContainText('컵을 잡은 채')
   expect((await probe(page)).query.lookScope).toBe('')
-  await page.keyboard.press('Tab'); await expect.poll(async () => (await probe(page)).cup).toBe('idle')
+  await page.keyboard.press('Escape'); await expect.poll(async () => (await probe(page)).cup).toBe('idle')
   await page.mouse.up()
   expect(server.sent.filter(message => message.type === 'GAME_ACTION_SEND')).toHaveLength(0)
   await page.keyboard.press('Tab'); await expect.poll(async () => (await probe(page)).cameraReady).toBe(true)
@@ -92,8 +85,13 @@ for (const own of ['101', '102'] as const) test(`dice player ${own} uses empty l
   await page.getByRole('button', { name: '채팅 입력창 닫기', exact: true }).click()
   server.diceSnapshot({ turnUserId: own === '101' ? '102' : '101' })
   await canvas.focus(); await page.keyboard.press('Tab')
-  expect((await probe(page)).query.lookScope).not.toBe('')
-  await page.keyboard.press('Tab'); await expect.poll(async () => (await probe(page)).cameraReady).toBe(true)
+  expect((await probe(page)).query.lookScope).toBe('')
+  const menu = hud.locator('.farkle-settings')
+  await menu.locator('summary').click()
+  await expect(menu.getByRole('button', { name: '주변 둘러보기', exact: true })).toHaveCount(0)
+  await menu.getByRole('button', { name: '판 시점 고정', exact: true }).click()
+  await expect.poll(async () => (await probe(page)).cameraReady).toBe(true)
+  await menu.locator('summary').click()
   await expect(hud.getByRole('button', { name: /^R / })).toBeDisabled()
   await expect(hud.getByRole('button', { name: '주사위 1: 1', exact: true })).toHaveAttribute('aria-pressed', 'false')
   expect(server.sent.filter(message => message.type === 'GAME_ACTION_SEND')).toHaveLength(1)

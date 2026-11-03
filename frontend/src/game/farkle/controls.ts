@@ -1,13 +1,12 @@
 import { create } from 'zustand'
 import { useGame, canPlayDice } from '../store'
 import { useSession } from '../../network/worldClient'
-import { inputState, clearRoamingInput, panelOwnsKeys } from '../../world/inputOwnership'
-import { resetSeatedLook, seatScope, useTableLobby } from '../../features/tableLobby/state'
+import { inputState, clearRoamingInput } from '../../world/inputOwnership'
+import { resetSeatedLook } from '../../features/tableLobby/state'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { eligibleDice, validDiceAction } from './scoring'
 import { disposeDiceSound, unlockDiceSound } from './sound'
 import { bustMatches, createBustPresentation, DICE_ROLL_MS, type BustPresentation } from './bustPresentation'
-import { diceFocusActive } from './camera'
 
 const initial = () => ({ scope: '', selectedIds: [] as number[], cup: 'idle' as 'idle' | 'holding' | 'ready', scoreOpen: false,
   animationAt: 0, animationUntil: 0, boardView: false, bust: null as BustPresentation | null })
@@ -47,24 +46,6 @@ export function resetDiceUI() {
   useDiceUI.setState(initial(), true)
 }
 export function cancelCup() { cupMotion.cancel(); cupMotion.lift = 0; useDiceUI.setState({ cup: 'idle' }) }
-export function canChangeDiceView() {
-  const session = useSession.getState(), game = useGame.getState().game, ui = useDiceUI.getState(), scope = seatScope(session)
-  return !!scope && session.status === 'connected' && session.mapCompatible && game?.role === 'PLAYER'
-    && !!game.dice && game.dice.status === 'PLAYING' && game.dice.players.includes(session.sessionId)
-    && !document.hidden && !panelOwnsKeys() && !ui.scoreOpen
-}
-export const canDragDiceView = () => canChangeDiceView() && useDiceUI.getState().cup === 'idle'
-export function toggleDiceView() {
-  if (!canChangeDiceView()) return false
-  const session = useSession.getState(), game = useGame.getState().game!, ui = useDiceUI.getState(), scope = seatScope(session)
-  const board = diceFocusActive(game, session.sessionId, useTableLobby.getState().lookScope === scope,
-    ui.boardView || holdBustCamera(game.gameId, session.sessionId))
-  // Releasing a held cup here must never become a roll in the new camera view.
-  cancelCup(); clearRoamingInput()
-  if (board) useTableLobby.setState({ lookScope: scope })
-  else { resetSeatedLook(); useDiceUI.setState({ boardView: true }) }
-  return true
-}
 export function syncDiceUI(animate = false) {
   if (useDiceUI.getState().scope === diceScope()) return
   cancelCup()
@@ -133,6 +114,7 @@ export function installDicePresentation() {
   return () => { unsubGame(); unsubSession(); resetDiceUI(); disposeDiceSound() }
 }
 export function installDiceControls() {
+  resetSeatedLook()
   const disposePresentation = installDicePresentation()
   const cancel = () => { cancelCup(); if (document.hidden) clearBustPresentation() }
   const down = (e: KeyboardEvent) => {
@@ -146,12 +128,8 @@ export function installDiceControls() {
       e.preventDefault(); toggleScoreSheet(); return
     }
     if (e.repeat || e.isComposing || e.ctrlKey || e.altKey || e.metaKey || document.hidden
-      || (e.target instanceof HTMLElement && !!e.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"]'))
+      || (e.target instanceof HTMLElement && !!e.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],dialog[open]'))
       || Object.entries(inputState).some(([key, v]) => key !== 'minigameOpen' && v)) return
-    if (e.code === 'Tab' && !e.shiftKey && !e.defaultPrevented
-      && !(e.target instanceof HTMLElement && e.target.closest('button,a,summary')) && toggleDiceView()) {
-      e.preventDefault(); return
-    }
     if (e.code === 'KeyT') { e.preventDefault(); toggleScoreSheet() }
     if (e.code === 'KeyR') { e.preventDefault(); rollDice() }
     if (e.code === 'KeyQ') { e.preventDefault(); bankDice() }

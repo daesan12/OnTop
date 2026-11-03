@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { fixture, screenshot } from '../e2e/contractFixture'
 
-test('six settings keep equal sizes and demonstrate view, manual, pin, sound, refresh and forfeit confirmation', async ({ page }) => {
+test('five settings keep equal sizes and demonstrate manual, pin, sound, refresh and forfeit confirmation', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
@@ -26,17 +26,12 @@ test('six settings keep equal sizes and demonstrate view, manual, pin, sound, re
     const boxes = await tools.getByRole('button').evaluateAll(nodes => nodes.map(node => {
       const r = node.getBoundingClientRect(); return { width: r.width, height: r.height }
     }))
-    expect(boxes).toHaveLength(6)
+    expect(boxes).toHaveLength(5)
     for (const box of boxes) { expect(box.width).toBeCloseTo(boxes[0]!.width, 1); expect(box.height).toBe(44) }
     await expect(tools.getByRole('button', { name: '기권', exact: true })).toBeInViewport({ ratio: 1 })
   }
   await page.setViewportSize({ width: 1920, height: 1080 }); await screenshot(page, 'settings-00-equal-buttons')
-  await tools.getByRole('button', { name: '주변 둘러보기', exact: true }).click()
-  await expect(tools.getByRole('button', { name: '판으로 돌아가기', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await expect.poll(async () => (await probe()).fov).toBeCloseTo(76, 1)
-  await screenshot(page, 'settings-01-look-around')
-  await tools.getByRole('button', { name: '판으로 돌아가기', exact: true }).click()
-  await expect.poll(async () => (await probe()).cameraReady).toBe(true)
+  await expect(tools.getByRole('button', { name: '주변 둘러보기', exact: true })).toHaveCount(0)
 
   await tools.getByRole('button', { name: '게임 설명', exact: true }).click()
   const manual = page.getByRole('dialog', { name: '게임 설명서', exact: true })
@@ -67,7 +62,7 @@ test('six settings keep equal sizes and demonstrate view, manual, pin, sound, re
   await screenshot(page, 'settings-05-state-refreshed')
 
   await tools.getByRole('button', { name: '기권', exact: true }).click()
-  const confirmation = tools.getByRole('group', { name: '기권 확인', exact: true })
+  const confirmation = page.getByRole('dialog', { name: '기권 확인', exact: true })
   await expect(confirmation).toContainText('기권은 되돌릴 수 없어요.')
   await expect(confirmation.getByRole('button', { name: '기권 확정', exact: true })).toBeVisible()
   await screenshot(page, 'settings-06-forfeit-confirmation')
@@ -76,12 +71,12 @@ test('six settings keep equal sizes and demonstrate view, manual, pin, sound, re
     await confirmation.getByRole('button', { name: '계속 플레이', exact: true }).scrollIntoViewIfNeeded()
     await expect(confirmation.getByRole('button', { name: '계속 플레이', exact: true })).toBeInViewport({ ratio: 1 })
     await confirmation.getByRole('button', { name: '계속 플레이', exact: true }).click({ timeout: 15000 })
-    await expect(confirmation).toHaveCount(0)
+    await expect(confirmation).toBeHidden()
     await tools.getByRole('button', { name: '기권', exact: true }).click()
     await expect(confirmation).toBeVisible()
   }
   await confirmation.getByRole('button', { name: '계속 플레이', exact: true }).click({ timeout: 15000 })
-  await expect(confirmation).toHaveCount(0)
+  await expect(confirmation).toBeHidden()
   expect(server.sent.filter(message => message.type.includes('FORFEIT'))).toHaveLength(0)
   expect(server.sent.filter(message => message.type === 'GAME_ACTION_SEND')).toHaveLength(1)
   await expect(page.locator('vite-error-overlay')).toHaveCount(0); expect(errors).toEqual([])

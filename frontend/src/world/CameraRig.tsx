@@ -291,7 +291,7 @@ export function CameraRig() {
     }
     state.targetUp.set(0, 1, 0)
     const ownDice = seated && !!avatar.tableId && game?.role === 'PLAYER' && !!game.dice
-    const diceFocus = seated && !!avatar.tableId && diceFocusActive(game, session.sessionId, looking,
+    const diceFocus = seated && !!avatar.tableId && diceFocusActive(game, session.sessionId,
       useDiceUI.getState().boardView || holdBustCamera(game?.gameId, session.sessionId))
     const ledgerFocus = seated && !!avatar.tableId && ledgerFocusActive(game, session.sessionId, looking)
     state.look.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)

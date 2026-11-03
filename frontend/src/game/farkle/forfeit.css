@@ -1,0 +1,12 @@
+.farkle-forfeit-dialog { width: min(420px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); box-sizing: border-box; overflow: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 26px; border: 2px solid #a17a42; border-radius: 16px; color: #344b3d; background: #f5ebd2; box-shadow: inset 0 0 0 4px #fff9e4, 0 16px 60px #18110d66; font: 15px/1.55 'BusanDandiMyeongjo', serif; }
+.farkle-forfeit-dialog::-webkit-scrollbar { display: none; }
+.farkle-forfeit-dialog::backdrop { background: #18231e80; }
+.farkle-forfeit-dialog h2 { margin: 0 0 16px; font-size: 26px; }
+.farkle-forfeit-dialog p { margin: 12px 0; }
+.farkle-forfeit-dialog .farkle-forfeit-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 18px 0 12px; }
+.farkle-forfeit-dialog button { min-height: 44px; padding: 8px; border: 1px solid #8d957e; border-radius: 8px; color: #fff8e5; background: #365d48; font: inherit; cursor: pointer; }
+.farkle-forfeit-dialog .farkle-forfeit-confirm { background: #854c3b; border-color: #985b42; }
+.farkle-forfeit-dialog button:disabled { opacity: .5; cursor: default; }
+.farkle-forfeit-dialog button:focus-visible { outline: 3px solid #b78635; outline-offset: 3px; }
+.farkle-forfeit-dialog small { display: block; margin-top: 12px; color: #6d705d; font-size: 12px; }
+@media (max-width: 450px) { .farkle-forfeit-dialog { padding: 20px; } .farkle-forfeit-dialog h2 { font-size: 23px; } }

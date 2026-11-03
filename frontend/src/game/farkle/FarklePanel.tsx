@@ -1,4 +1,3 @@
-import { SeatedLookButton } from '../../features/tableLobby/SeatedLookButton'
 import { resultSettlement } from '../../features/tableLobby/gatheringModel'
 import { openManual } from '../../features/manual/manualState'
 import { useEffect, useState } from 'react'
@@ -6,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useGame, recoveryBlocked } from '../store'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
-import { OmokSurrender } from '../OmokSurrender'
+import { FarkleForfeitDialog } from './FarkleForfeitDialog'
 import { useDiceUI, selectedDice, toggleDie, canRollDice, diceCanAct, rollDice, bankDice, cancelCup,
   toggleScoreSheet, installDiceControls } from './controls'
 import { eligibleDice, selectionScore } from './scoring'
@@ -94,15 +93,15 @@ function FarklePlayerPanel() {
       {s.error && <p role="alert">{s.error}</p>}
       </div>
       {d.status === 'FINISHED' && <div className="farkle-result-note"><p>{s.result ? resultSettlement(s.result) : '결과 확인 중'}</p></div>}
-      <details className="farkle-settings" onKeyDown={e => { if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); e.currentTarget.open = false; e.currentTarget.querySelector('summary')?.focus() } }}>
+      <details className="farkle-settings" onKeyDown={e => { if (e.code === 'Escape' && e.currentTarget.open) { e.preventDefault(); e.stopPropagation(); e.currentTarget.open = false; e.currentTarget.querySelector('summary')?.focus() } }}>
       <summary aria-label="게임 설정">게임 설정 <span aria-hidden="true">···</span></summary>
-      <div className="farkle-tools"><SeatedLookButton /><button onClick={() => openManual('farkle')}>게임 설명</button>
+      <div className="farkle-tools"><button onClick={() => openManual('farkle')}>게임 설명</button>
         <button aria-pressed={ui.boardView} title="상대 차례에도 주사위 판을 봅니다." onClick={() => { cancelCup(); useDiceUI.setState({ boardView: !ui.boardView }) }}>판 시점 고정</button>
         <button aria-pressed={sound} onClick={() => setDiceSound(!sound)}>소리 {sound ? '켜짐' : '꺼짐'}</button>
         <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 주사위 확인</button>
         {recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
         {d.status === 'FINISHED' && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
-      <OmokSurrender key={`${session.sessionId}:${g.gameId}`} context={{ userId: session.sessionId, gameId: g.gameId, version: g.version }} disabled={session.pending} />
+      <FarkleForfeitDialog key={`${session.sessionId}:${g.gameId}`} gameId={g.gameId} />
       </div>
       </details>
     </section>

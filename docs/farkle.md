@@ -62,3 +62,11 @@ local/dev 또는 운영 `prod,db`에서 `ontop.games.farkle.enabled=true`로 선
 FarkleGameFinished는 서버 승패 알림이며 정산 완료가 아니다. 실제 저장·정산 후 기존 GameResultGateway/GameResultCommitted를 연결한다. 엔진·중복 기록은 메모리이며 재시작·다중 서버 영속성·종료 알림 전달 보장은 제공하지 않는다.
 
 backend에서 `.\gradlew.bat test --tests '*Farkle*'` 또는 flowTest로 점수표·전체 눈 조합·잘못된 선택·버스트·핫 다이스·즉시승리·동시 중복·30초 경계와 실제 Spring/Raw WS 관전·heartbeat 복귀·자동 넘김·오목 전환을 검증한다. 인증/참가 확정은 테스트 대역, 시간은 제어 시계이며 실제 로그인·차감·지급/DB·운영 적용 검증은 아니다.
+
+## 참가자 화면 조작 (2026-11-03)
+
+- 플레이 화면의 Esc와 게임 설정의 기권은 같은 확인창을 연다. 기본 초점은 계속 플레이이며, 기권 확정을 눌러야 기존 runtime의 GAME_FORFEIT를 요청한다. 대기·응답 불명 시 기존 actionId/복구 경로를 재사용한다. 확인 중에도 서버의 턴 마감은 계속 흐른다.
+- 점수표·설명서·채팅·설정의 닫기와 잡은 컵 취소가 Esc 기권 안내보다 우선한다. 확인창은 게임 입력을 막고 Tab 초점을 내부에 유지한다.
+- 경기 중 주변 둘러보기 버튼 및 좌·우 드래그/Tab 시점 전환은 제공하지 않는다. 판 시점 고정은 상대 턴에도 판을 유지하는 기존 설정이다. Tab은 UI 초점 이동에 사용한다. 다른 게임·관전자 카메라는 유지한다.
+- 구현: frontend/src/game/farkle/{FarkleForfeitDialog.tsx,forfeit.css,controls.ts,camera.ts,FarklePanel.tsx}. 공통 연결은 world/input.ts의 DICE 참가자 드래그 제한 및 world/CameraRig.tsx의 DICE 카메라 호출이다. 이번 조작 변경은 BE·DB 계약을 변경하지 않는다.
+- 독립 검증: frontend에서 node node_modules/@playwright/test/cli.js test --config playwright.park.config.ts farkle-escape.spec.ts farkle-view.spec.ts farkle-settings.spec.ts farkle-feedback.spec.ts. 127.0.0.1:5202의 최신 generated 맵과 HTTP/WS 계약 fixture를 사용하며 실제 경기 서버 검증과 구분한다.

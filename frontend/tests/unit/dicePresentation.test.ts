@@ -14,15 +14,15 @@ describe('original dice camera ownership', () => {
   it('automatically follows the own turn and keeps fixed view optional on the opponent turn', () => {
     expect(diceFocusActive(game(), 'a', false)).toBe(true)
     expect(diceFocusActive(game(), 'b', false)).toBe(false)
-    expect(diceFocusActive(game(), 'b', false, true)).toBe(true)
-    expect(diceFocusActive(game(), 'a', true, true)).toBe(false)
+    expect(diceFocusActive(game(), 'b', true)).toBe(true)
+    expect(diceFocusActive(game(), 'a', true)).toBe(true)
   })
   it('cannot claim a spectator, stranger, finished round or another game', () => {
-    expect(diceFocusActive(game({}, 'SPECTATOR'), 'a', false, true)).toBe(false)
-    expect(diceFocusActive(game(), 'stranger', false, true)).toBe(false)
-    expect(diceFocusActive(game({ status: 'FINISHED' }), 'a', false, true)).toBe(false)
-    expect(diceFocusActive(null, 'a', false, true)).toBe(false)
-    expect(diceFocusActive({ role: 'PLAYER' } as OmokGame, 'a', false, true)).toBe(false)
+    expect(diceFocusActive(game({}, 'SPECTATOR'), 'a', true)).toBe(false)
+    expect(diceFocusActive(game(), 'stranger', true)).toBe(false)
+    expect(diceFocusActive(game({ status: 'FINISHED' }), 'a', true)).toBe(false)
+    expect(diceFocusActive(null, 'a', true)).toBe(false)
+    expect(diceFocusActive({ role: 'PLAYER' } as OmokGame, 'a', true)).toBe(false)
   })
 })
 describe('read-only public spectator messages', () => {
