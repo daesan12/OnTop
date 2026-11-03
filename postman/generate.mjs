@@ -751,6 +751,8 @@ wsItems.push(wsRequest('알까기 관전자 커서·훈수 — 로컬 공원',
     message('알까기 훈수 → ALKKAGI_SPECTATOR_EVENT','ALKKAGI_SPECTATOR_SEND',
       {gameId:'{{gameId}}',eventId:'{{$guid}}',basedOnVersion:'{{gameVersion}}',kind:'ADVICE',pieceId:'p0',dx:0.8,dy:-0.6,power:0.8})
 ]));
+const qaPresenceGuide = '\n\n2026-11-03 로컬 QA 계약(배포 전): WORLD_STATE.gameWatches는 회원 ID→{gameId,tableId}의 승인 진행 경기 관전 명부입니다. 참가자/승인 대기/TABLE_WATCH 제외, 동일 회원1명, 종료/퇴장/단절/20m이탈 시 해제. avatars[].activity=WATCHING, 같은 gameId의 명부 수를 표시합니다. 알까기는 예약 확정 후 2.5초 COIN_TOSS/coinTossEndsAt(UTC ISO), 이후 전체12분/첫30초. 추첨 중 액션 NOT_ACTIVE. cardCounts=[홍,청]만 공개, 미사용 ID/종류는 개인 상태에만. itemEffects 최대16건은 사용 확정 {version,turnNumber,actor,type,targets,at(Unix ms)}, gameId+version 중복 방지·최초/재접속 과거 연출 제외. 같은 actionId는 소모/이력 증가 없음. docs/alkkagi-items.md 및 docs/world-spectator-presence-api.md.';
+for(const item of wsItems) item.description += qaPresenceGuide;
 const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide + seatGuide
         + facilityGuide + followGuide + mapGuide + tabletGuide + reactionGuide + prankGuide,
     items: wsItems };

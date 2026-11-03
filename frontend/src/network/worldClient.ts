@@ -122,6 +122,7 @@ export interface Session {
   profiles: Record<string, DisplayProfile>
   equipment: Record<string, readonly PublicEquipment[]>
   activities: Record<string, AvatarActivity>
+  gameWatches: Record<string, { gameId: string; tableId: string }>
   account: { nickname: string; balance: number | null } | null
 }
 const initial = (): Session => ({
@@ -156,6 +157,7 @@ const initial = (): Session => ({
   profiles: {},
   equipment: {},
   activities: {},
+  gameWatches: {},
   account: null,
 })
 export const useSession = create<Session>(initial)
@@ -272,6 +274,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
     profiles: profiles[sessionId] ? { [sessionId]: profiles[sessionId] } : {},
     equipment: {},
     activities: {},
+    gameWatches: {},
   })
 }
 export function sampleAvatar(
@@ -292,7 +295,8 @@ export function sampleAvatar(
 function predictionAllowed() {
   const s = useSession.getState(), own = avatars.get(s.sessionId)
   return !!own && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
-    && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1') && !s.activities[s.sessionId]
+    && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1')
+    && (!s.activities[s.sessionId] || s.activities[s.sessionId] === 'WATCHING')
 }
 // UTC event time advances on a monotonic clock after CONNECTED; world day rendering is separate.
 export const estimatedServerTime = () => eventClock.ready ? eventClock.now(performance.now()) : Date.now()
@@ -630,6 +634,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
         profiles,
         equipment,
         activities,
+        gameWatches: mapCompatible ? next.gameWatches ?? {} : {},
         publicTables,
         ...(state.account && profiles[state.sessionId]
           && state.account.nickname !== profiles[state.sessionId]!.nickname
