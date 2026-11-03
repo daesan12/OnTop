@@ -22,4 +22,13 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
 
     @Query("select u.id from User u where u.deletedAt is null and u.id > :after order by u.id")
     List<Long> findActiveMemberIdsAfter(@Param("after") long after, Pageable page);
+
+    @Transactional(readOnly = true)
+    @Query("select count(w) from Wallet w where exists "
+            + "(select u.id from User u where u.id = w.userId and u.deletedAt is null)")
+    long countForActiveMembers();
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select w from Wallet w where w.userId in :userIds order by w.userId")
+    List<Wallet> findForUpdateByUserIds(@Param("userIds") List<Long> userIds);
 }
