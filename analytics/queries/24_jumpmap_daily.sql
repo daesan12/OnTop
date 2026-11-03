@@ -2,7 +2,8 @@
 -- 종료 사유별 수, 진행 중, 최고·평균 완주 시간(초), 지급 엽전, 의심 판. 기능 테이블(jump_runs, V131)을 읽는다.
 -- 종료 사유: FINISH(완주) · FALL(낙하) · LAKE(호수 착수) · DISCONNECT(연결 끊김) · TIMEOUT · RESET · LEFT(이탈).
 -- 완주율과 평균 통과 구간은 끝난 도전만 센다. 진행 중(STARTED)은 백업 시점에 아직 끝나지 않은 도전이다.
--- finish_ms는 완주한 도전만 있다. 의심 판(suspicious)은 서버가 비정상 이동으로 표시한 도전이며 집계에서 따로 본다.
+-- 완주 시간은 end_reason = FINISH인 도전만 집계한다. 미완주 판에 finish_ms가 0이나 중간 값으로 남아도
+-- 최고·평균 기록이 왜곡되지 않게 한다. 의심 판(suspicious)은 서버가 비정상 이동으로 표시한 도전이며 따로 본다.
 -- 구간별 이탈은 25번에서 본다. 보상은 원장 JUMP_GATE_REWARD가 원본이며 13번 공동 한도에 들어간다.
 SET time_zone = '+00:00';
 
@@ -18,8 +19,8 @@ SELECT DATE(started_at + INTERVAL 9 HOUR) AS kst_date,
        SUM(end_reason <=> 'DISCONNECT') AS disconnect,
        SUM(COALESCE(end_reason, '') IN ('TIMEOUT', 'RESET', 'LEFT')) AS other_end,
        SUM(status = 'STARTED') AS in_progress,
-       ROUND(MIN(finish_ms) / 1000, 1) AS best_finish_seconds,
-       ROUND(AVG(finish_ms) / 1000, 1) AS avg_finish_seconds,
+       ROUND(MIN(CASE WHEN end_reason <=> 'FINISH' THEN finish_ms END) / 1000, 1) AS best_finish_seconds,
+       ROUND(AVG(CASE WHEN end_reason <=> 'FINISH' THEN finish_ms END) / 1000, 1) AS avg_finish_seconds,
        SUM(coins_granted) AS coins,
        SUM(suspicious) AS suspicious_runs
 FROM jump_runs

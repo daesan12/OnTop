@@ -43,9 +43,11 @@
 - 104는 탈퇴 회원(지갑은 남지만 잔액 분포에서 제외)
 - 최종 잔액: 101=396, 102=39, 103=129, 104=99, 105=145
 
-점프맵(jump_runs, 기능 테이블. 코스 course-1)
+점프맵(jump_runs, 기능 테이블. 코스 course-1, 8일차만 구간 수가 다른 course-2)
 - 1일차: 101 7구간 완주(175초, 100냥), 102 출발 직후 낙하
 - 2일차: 103 3구간 뒤 호수 착수(13냥), 104 1구간 뒤 연결 끊김(의심 판), 105 진행 중
+- 1일차 102 낙하 판에는 finish_ms가 0으로 남은 오염 데이터를 넣는다(24번 최고 기록 방어 확인)
+- 8일차: 101 course-2에서 2구간 뒤 낙하(25번 구간 번호가 코스별 최대 구간까지만 나오는지 확인)
 
 경기(game_sessions·game_participants, 기능 테이블. 행동 로그 game_id는 경기 번호와 같다)
 - 경기 1(1일차 오목)·경기 2(2일차 주사위)는 위 행동 로그와 같은 경기
@@ -280,6 +282,10 @@ def wallet_sql() -> list[str]:
     lines.append("INSERT INTO raffle_rounds (id, week_start_date, sales_starts_at, sales_ends_at, ticket_price, "
                  "weekly_ticket_limit, sales_status) VALUES (1, '2026-10-26', '2026-10-25 15:00:00.000', "
                  "'2026-11-01 15:00:00.000', 100, 10, 'CLOSED');")
+    # 판매가 없는 다음 주 회차. 27번에서 0으로 나와야 한다.
+    lines.append("INSERT INTO raffle_rounds (id, week_start_date, sales_starts_at, sales_ends_at, ticket_price, "
+                 "weekly_ticket_limit, sales_status) VALUES (2, '2026-11-02', '2026-11-01 15:00:00.000', "
+                 "'2026-11-08 15:00:00.000', 100, 10, 'OPEN');")
     running: dict[int, int] = {}
     ticket = 0
     for number, (user_id, kind, _, _, _, balance_delta, _, at) in enumerate(entries, start=1):
@@ -297,19 +303,24 @@ def wallet_sql() -> list[str]:
 def minigame_extra_sql() -> list[str]:
     """점프맵 도전과 가위바위보 룰렛 판. 지급 금액은 wallet_sql의 원장과 맞춘다."""
     lines = []
-    # (도전, 회원, 상태, 종료 사유, 시작, 종료, 통과 구간, 완주 ms, 지급, 의심)
-    for run, user_id, status, reason, started, ended, gates, finish, coins, suspicious in [
-        ("jr-1", 101, "ENDED", "FINISH", "2026-10-27 01:38:00", "2026-10-27 01:41:00", 7, 175000, 100, False),
-        ("jr-2", 102, "ENDED", "FALL", "2026-10-27 01:14:00", "2026-10-27 01:14:20", 0, None, 0, False),
-        ("jr-3", 103, "ENDED", "LAKE", "2026-10-28 05:04:00", "2026-10-28 05:04:50", 3, None, 13, False),
-        ("jr-4", 104, "ENDED", "DISCONNECT", "2026-10-28 03:20:00", "2026-10-28 03:21:00", 1, None, 0, True),
-        ("jr-5", 105, "STARTED", None, "2026-10-28 01:15:00", None, 0, None, 0, False),
+    # (도전, 회원, 상태, 종료 사유, 시작, 종료, 통과 구간, 완주 ms, 지급, 의심, 코스)
+    for run, user_id, status, reason, started, ended, gates, finish, coins, suspicious, course in [
+        ("jr-1", 101, "ENDED", "FINISH", "2026-10-27 01:38:00", "2026-10-27 01:41:00", 7, 175000, 100, False,
+         "course-1"),
+        ("jr-2", 102, "ENDED", "FALL", "2026-10-27 01:14:00", "2026-10-27 01:14:20", 0, 0, 0, False, "course-1"),
+        ("jr-3", 103, "ENDED", "LAKE", "2026-10-28 05:04:00", "2026-10-28 05:04:50", 3, None, 13, False,
+         "course-1"),
+        ("jr-4", 104, "ENDED", "DISCONNECT", "2026-10-28 03:20:00", "2026-10-28 03:21:00", 1, None, 0, True,
+         "course-1"),
+        ("jr-5", 105, "STARTED", None, "2026-10-28 01:15:00", None, 0, None, 0, False, "course-1"),
+        ("jr-6", 101, "ENDED", "FALL", "2026-11-03 01:05:00", "2026-11-03 01:05:40", 2, None, 0, False,
+         "course-2"),
     ]:
         lines.append(
             "INSERT INTO jump_runs (id, user_id, channel_id, status, end_reason, rules_version, course_version, "
             "is_first_run, started_at, ended_at, gates_passed, gate_times_ms, final_reached, coins_granted, "
             f"elapsed_ms, finish_ms, suspicious) VALUES ('{run}', {user_id}, 'one', '{status}', {sql_value(reason)}, "
-            f"'v1', 'course-1', 1, '{timestamp(started)}', {sql_value(ended and timestamp(ended))}, {gates}, '[]', "
+            f"'v1', '{course}', 1, '{timestamp(started)}', {sql_value(ended and timestamp(ended))}, {gates}, '[]', "
             f"{int(gates == 7)}, {coins}, {sql_value(finish)}, {sql_value(finish)}, {int(suspicious)});"
         )
     # (회원, 요청 키, 참가비, KST 날짜, 단계, 결과, 지급, 시작, 정산)

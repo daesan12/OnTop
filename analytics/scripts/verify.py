@@ -224,6 +224,10 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "avg_gates_passed": "2.0", "fall": "0", "lake": "1", "disconnect": "1", "other_end": "0",
          "in_progress": "1", "best_finish_seconds": "NULL", "avg_finish_seconds": "NULL", "coins": "13",
          "suspicious_runs": "1"},
+        {"kst_date": "2026-11-03", "runs": "1", "players": "1", "ended": "1", "finished": "0", "finish_pct": "0.0",
+         "avg_gates_passed": "2.0", "fall": "1", "lake": "0", "disconnect": "0", "other_end": "0",
+         "in_progress": "0", "best_finish_seconds": "NULL", "avg_finish_seconds": "NULL", "coins": "0",
+         "suspicious_runs": "0"},
     ],
     "25_jumpmap_gates.sql": [
         {"course_version": "course-1", "gate": "0", "runs_reached": "3", "reached_pct": "100.0",
@@ -242,6 +246,12 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "lost_from_previous": "0"},
         {"course_version": "course-1", "gate": "7", "runs_reached": "1", "reached_pct": "33.3",
          "lost_from_previous": "0"},
+        {"course_version": "course-2", "gate": "0", "runs_reached": "1", "reached_pct": "100.0",
+         "lost_from_previous": "0"},
+        {"course_version": "course-2", "gate": "1", "runs_reached": "1", "reached_pct": "100.0",
+         "lost_from_previous": "0"},
+        {"course_version": "course-2", "gate": "2", "runs_reached": "1", "reached_pct": "100.0",
+         "lost_from_previous": "0"},
     ],
     "26_rps_roulette_daily.sql": [
         {"kst_date": "2026-10-27", "rounds": "3", "players": "2", "settled": "3", "in_progress": "0",
@@ -255,6 +265,9 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"week_start_date": "2026-10-26", "sales_status": "CLOSED", "ticket_price": "100",
          "weekly_ticket_limit": "10", "tickets": "3", "buyers": "2", "avg_tickets_per_buyer": "1.5",
          "max_tickets_per_buyer": "2", "buyers_at_limit": "0", "coins_spent": "300"},
+        {"week_start_date": "2026-11-02", "sales_status": "OPEN", "ticket_price": "100",
+         "weekly_ticket_limit": "10", "tickets": "0", "buyers": "0", "avg_tickets_per_buyer": "0.0",
+         "max_tickets_per_buyer": "0", "buyers_at_limit": "0", "coins_spent": "0"},
     ],
 }
 
