@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { fixture, screenshot } from '../e2e/contractFixture'
+import path from 'node:path'
+import os from 'node:os'
 
 test('Farkle HUD keeps selection, shortcuts and scrollable controls across screen sizes', async ({ page }) => {
   const errors: string[] = []
@@ -20,7 +22,7 @@ test('Farkle HUD keeps selection, shortcuts and scrollable controls across scree
   const hud = page.getByRole('region', { name: '주사위 경기', exact: true })
   const actions = page.getByRole('region', { name: '주사위 조작', exact: true })
   const roll = hud.getByRole('button', { name: /^R / })
-  const bank = hud.getByRole('button', { name: /^Q Bank/ })
+  const bank = hud.getByRole('button', { name: /^Q 점수 챙기기/ })
   await expect(hud).toBeVisible()
   await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).farkleProbe().cameraReady)).toBe(true)
   await expect(bank).toBeDisabled()
@@ -28,9 +30,10 @@ test('Farkle HUD keeps selection, shortcuts and scrollable controls across scree
     dice: [1, 1, 1, 5, 3, 2].map((value, id) => ({ id, value, held: false })) })
   await roll.click()
   for (const id of [1, 2, 3, 4]) await hud.getByRole('button', { name: new RegExp(`^주사위 ${id}:`) }).click()
-  await expect(bank).toHaveAccessibleName('Q Bank · 1,550점')
+  await expect(bank).toHaveAccessibleName('Q 점수 챙기기 · 1,550점')
   await expect(bank).toBeEnabled()
-  for (const viewport of [{ width: 1672, height: 941 }, { width: 1366, height: 768 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
+  await expect(roll).toHaveAccessibleName('R 한 번 더!')
+  for (const viewport of [{ width: 1672, height: 941 }, { width: 1366, height: 768 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(viewport)
     await expect(hud.locator('.farkle-scoreboard')).toBeInViewport({ ratio: 1 })
     await expect(actions).toBeInViewport({ ratio: 1 })
@@ -47,10 +50,31 @@ test('Farkle HUD keeps selection, shortcuts and scrollable controls across scree
   await hud.getByRole('button', { name: 'T 점수표', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '주사위 점수표', exact: true })
   await expect(sheet).toBeVisible()
+  await sheet.locator('.scorebook-page').evaluate(async element => {
+    await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => {})))
+  })
+  expect(await sheet.locator('.scorebook-page').evaluate(element => getComputedStyle(element).transform)).toBe('none')
+  for (const face of await sheet.locator('.dice-face').all()) {
+    const value = Number(await face.getAttribute('data-face'))
+    await expect(face.locator('svg circle[data-pip]')).toHaveCount(value)
+  }
+  await expect(sheet).toContainText('싹쓸이!'); await expect(sheet).toContainText('허탕!')
+  await expect(sheet).not.toContainText(/HOT DICE|BUST|Bank/)
   await expect(page.getByRole('region', { name: /채팅/, exact: false })).toBeHidden()
   await page.keyboard.press('KeyR'); await page.keyboard.press('KeyQ')
   expect(server.sent.filter(message => message.type === 'GAME_ACTION_SEND')).toHaveLength(actionsBefore)
   await screenshot(page, 'farkle-hud-scorebook')
+  await page.setViewportSize({ width: 1672, height: 1080 })
+  await sheet.screenshot({ path: path.join(process.env.QA_ARTIFACT_DIR ?? os.tmpdir(), 'farkle-scorebook-detail.png') })
+  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
+    await page.setViewportSize(viewport)
+    expect(await sheet.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+    await sheet.locator('footer small').scrollIntoViewIfNeeded()
+    await expect(sheet.locator('footer small')).toBeInViewport({ ratio: 1 })
+    await sheet.getByRole('button', { name: '점수표 닫기' }).scrollIntoViewIfNeeded()
+    await expect(sheet.getByRole('button', { name: '점수표 닫기' })).toBeInViewport({ ratio: 1 })
+  }
+  await page.setViewportSize({ width: 1672, height: 941 })
   await page.keyboard.press('Escape'); await expect(sheet).toBeHidden()
   const chat = page.getByRole('region', { name: /채팅/, exact: false })
   await expect(chat).toBeVisible()
@@ -60,6 +84,12 @@ test('Farkle HUD keeps selection, shortcuts and scrollable controls across scree
   await expect(roll).toBeDisabled(); await expect(bank).toBeDisabled()
   await expect(hud).toContainText('솔바람 차례')
   await expect(hud.locator('.farkle-scoreboard')).toContainText('2,750')
+  server.diceSnapshot({ turnUserId: '101', round: 3, stage: 'SELECTING', hotDice: true, lastEvent: 'HOT_DICE',
+    dice: [1, 2, 3, 4, 5, 6].map((value, id) => ({ id, value, held: false })) })
+  await expect(hud.getByRole('status')).toContainText('싹쓸이!')
+  server.diceSnapshot({ turnUserId: '102', round: 4, stage: 'AWAITING_ROLL', hotDice: false, lastEvent: 'BUST', dice: [] })
+  await expect(hud.getByRole('status')).toContainText('허탕!')
+  await expect(hud).not.toContainText(/HOT DICE|BUST|Bank|재굴리기/)
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
   expect(errors).toEqual([])
 })

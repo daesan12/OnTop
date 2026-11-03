@@ -38,8 +38,8 @@ export function FarkleScoreSheet() {
         </div>)}
         {group.title === '같은 눈 3개' && <p className="scorebook-examples">2: 200 · 3: 300 · 4: 400 · 5: 500 · 6: 600점</p>}
       </section>)}
-      <section className="scorebook-special"><div><strong>HOT DICE</strong><span>6개 모두 득점 → 턴 점수 유지 · 6개 재굴림</span></div>
-        <div><strong>BUST</strong><span>득점 조합 없음 → 이번 턴 점수만 소멸</span></div></section>
+      <section className="scorebook-special"><div><strong>싹쓸이!</strong><span>6개 모두 득점 → 턴 점수 유지 · 6개로 한 번 더!</span></div>
+        <div><strong>허탕!</strong><span>득점 조합 없음 → 이번 턴 점수만 소멸</span></div></section>
       <footer><p>점수표를 봐도 제한시간은 계속 흐릅니다.</p><small>이전 보관 주사위와 새 조합을 만들 수 없습니다.</small></footer>
     </div>
   </dialog>

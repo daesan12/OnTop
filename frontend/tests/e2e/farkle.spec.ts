@@ -17,7 +17,7 @@ async function start(page: Page) {
   return server
 }
 const roll = (p: Page) => panel(p).getByRole('button', { name: /^R / })
-const bank = (p: Page) => panel(p).getByRole('button', { name: /^Q Bank/ })
+const bank = (p: Page) => panel(p).getByRole('button', { name: /^Q 점수 챙기기/ })
 const die = (p: Page, id: number) => panel(p).getByRole('button', { name: new RegExp(`^주사위 ${id + 1}:`) })
 const probe = (p: Page) => p.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).farkleProbe())
 
@@ -44,7 +44,7 @@ test('M11 uses exact roll/held selection/Hot Dice/Bank commands, public eyes, se
   for (const id of [1, 2, 3, 4, 5]) await die(page, id).click()
   server.diceReply({ kind: 'roll', selectedIds: [1, 2, 3, 4, 5] }, { dice: dice([1, 2, 3, 4, 5, 6]), turnScore: 550, rollId: 3, hotDice: true, lastEvent: 'HOT_DICE' })
   await roll(page).click()
-  await expect(panel(page)).toContainText('HOT DICE')
+  await expect(panel(page)).toContainText('싹쓸이!')
   await expect(die(page, 0)).toBeEnabled()
   await panel(page).getByRole('button', { name: '판 시점 고정', exact: true }).click()
   await expect.poll(async () => (await probe(page)).cameraReady).toBe(true)
@@ -122,7 +122,7 @@ test('M11 BUST/timeouts stay server-owned; stale rejection requires refresh, rec
   server.dropActions(false)
   await panel(page).getByRole('button', { name: '최신 주사위 확인' }).click(); await expect(roll(page)).toBeEnabled()
   server.diceSnapshot({ lastEvent: 'BUST', turnUserId: '102', round: 2, turnScore: 0 })
-  await expect(panel(page)).toContainText('BUST'); await expect(roll(page)).toBeDisabled()
+  await expect(panel(page)).toContainText('허탕!'); await expect(roll(page)).toBeDisabled()
   server.diceSnapshot({ lastEvent: 'TURN_TIMEOUT', turnUserId: '101', round: 3 })
   await expect(roll(page)).toBeEnabled()
   server.recoveryPending(); await expect(roll(page)).toBeDisabled()

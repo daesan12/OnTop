@@ -18,8 +18,8 @@ import { HudCorners, HudIcon, PlayerSeal } from './FarkleHudArt'
 import './farkle.css'
 import './farkleHud.css'
 
-const events: Record<string, string> = { START: '주사위를 굴려주세요', ROLL: '득점 주사위를 고르세요', HOT_DICE: 'HOT DICE · 여섯 개를 다시 굴립니다',
-  BANK: '점수를 저장했습니다', BUST: 'BUST · 이번 턴 점수를 잃었습니다', TURN_TIMEOUT: '시간 종료 · 차례 변경' }
+const events: Record<string, string> = { START: '주사위를 굴려주세요', ROLL: '득점 주사위를 고르세요', HOT_DICE: '싹쓸이! · 여섯 개를 다시 굴립니다',
+  BANK: '점수를 챙겼습니다', BUST: '허탕! · 이번 턴 점수를 잃었습니다', TURN_TIMEOUT: '시간 종료 · 차례 변경' }
 export function FarklePanel() {
   const spectator = useGame(s => !!s.game?.dice && s.game.role === 'SPECTATOR')
   return spectator ? <FarkleSpectatorPanel /> : <FarklePlayerPanel />
@@ -70,16 +70,16 @@ function FarklePlayerPanel() {
       </button>)}{d.dice.length === 0 && Array.from({ length: 6 }, (_, i) => <span key={i} className="farkle-empty-die" aria-hidden="true" />)}</div>
       {d.status === 'PLAYING' && <>
         <div className="button-row"><button className="farkle-roll-button" disabled={!idle || !canRollDice()} onClick={rollDice}
-          aria-label={d.stage === 'SELECTING' ? 'R 선택 보관 후 재굴림' : 'R 굴리기'} aria-keyshortcuts="R"><HudIcon kind="dice" /><kbd>R</kbd>{d.stage === 'SELECTING' ? '재굴리기' : '굴리기'}</button>
+          aria-label={d.stage === 'SELECTING' ? 'R 한 번 더!' : 'R 굴리기'} aria-keyshortcuts="R"><HudIcon kind="dice" /><kbd>R</kbd>{d.stage === 'SELECTING' ? '한 번 더!' : '굴리기'}</button>
           <button className="farkle-bank-button" disabled={!ready || !idle || points === null || d.stage !== 'SELECTING'} onClick={bankDice}
-            aria-label={`Q Bank${points ? ` · ${(d.turnScore + points).toLocaleString()}점` : ''}`} aria-keyshortcuts="Q"><span><kbd>Q</kbd><HudIcon kind="bank" /> Bank</span>
+            aria-label={`Q 점수 챙기기${points ? ` · ${(d.turnScore + points).toLocaleString()}점` : ''}`} aria-keyshortcuts="Q"><span><kbd>Q</kbd><HudIcon kind="bank" /> 점수 챙기기</span>
             <strong>{(d.turnScore + (points ?? 0)).toLocaleString()}<small>점 저장</small></strong></button></div>
       </>}
       </div>
       </section>
       <div className="mini-feedback farkle-feedback">{s.pending && <p>요청 중 · 서버의 처리 확인을 기다리고 있습니다.</p>}
       {g.version < s.awaitingVersion && <p>처리 확인 수신 · 최신 주사위 상태를 기다리고 있습니다.</p>}
-      {s.uncertain && <p>반영 여부를 확인해야 합니다. 굴림·Bank를 자동 재전송하지 않습니다.</p>}
+      {s.uncertain && <p>반영 여부를 확인해야 합니다. 굴리기·점수 챙기기를 자동 재전송하지 않습니다.</p>}
       {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}
       {s.error && <p role="alert">{s.error}</p>}
       </div>

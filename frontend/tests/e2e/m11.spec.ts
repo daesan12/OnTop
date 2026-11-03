@@ -13,7 +13,7 @@ test('M11 public reference preview still uses existing DICE WS, public-only spec
   await expect(panel).toContainText('주사위 한 판 관전')
   server.diceSnapshot({ dice: [1, 2, 3, 4, 5, 6].map((value, id) => ({ id, value, held: false })), stage: 'SELECTING', rollId: 1, lastEvent: 'ROLL' }, 'SPECTATOR')
   await expect(panel.getByRole('button', { name: '주사위 1: 1', exact: true })).toBeDisabled()
-  await expect(panel.getByRole('button', { name: /^R |^Q Bank|기권|정산 결과/ })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: /^R |^Q 점수 챙기기|기권|정산 결과/ })).toHaveCount(0)
   await page.keyboard.press('KeyR'); await page.keyboard.press('KeyQ')
   expect(server.sent.some(m => m.type === 'GAME_ACTION_SEND' || m.type === 'GAME_RESULT_CHECK')).toBe(false)
   await panel.getByRole('button', { name: '최신 주사위 확인' }).click()

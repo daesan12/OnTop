@@ -29,14 +29,14 @@ describe('read-only public spectator messages', () => {
   const names = ['가람', '나래']
   it('uses the presentation animation only for a new confirmed roll and describes selection afterwards', () => {
     const d = state({ stage: 'SELECTING', lastEvent: 'HOT_DICE', hotDice: true })
-    expect(farkleSpectatorStatus(d, names, true)).toBe('HOT DICE · 가람이 주사위를 굴리고 있습니다')
-    expect(farkleSpectatorStatus(d, names, false)).toBe('HOT DICE · 가람이 득점 주사위를 고르고 있습니다')
+    expect(farkleSpectatorStatus(d, names, true)).toBe('싹쓸이! · 가람이 주사위를 굴리고 있습니다')
+    expect(farkleSpectatorStatus(d, names, false)).toBe('싹쓸이! · 가람이 득점 주사위를 고르고 있습니다')
   })
   it('preserves BUST and BANK context without inventing discarded faces or a last-bank amount', () => {
     expect(farkleSpectatorStatus(state({ turnUserId: 'b', lastEvent: 'BUST' }), names, false))
-      .toBe('가람 BUST · 이번 턴 점수 소멸. 나래의 차례 · 굴림 대기')
+      .toBe('가람 허탕! · 이번 턴 점수 소멸. 나래의 차례 · 굴림 대기')
     expect(farkleSpectatorStatus(state({ turnUserId: 'b', lastEvent: 'BANK' }), names, false))
-      .toBe('가람 BANK · 점수 저장. 나래의 차례 · 굴림 대기')
+      .toBe('가람 점수 챙기기 · 점수 저장. 나래의 차례 · 굴림 대기')
   })
   it('requires the server result for a winner and displays a timeout only as a turn change', () => {
     expect(farkleSpectatorStatus(state({ lastEvent: 'TURN_TIMEOUT' }), names, false)).toContain('차례 시간 만료. 가람의 차례')
