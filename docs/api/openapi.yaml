@@ -2839,6 +2839,157 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - OAuthSession: []
+  /api/v1/admin/wallet-grants:
+    post:
+      tags:
+      - ADMIN
+      summary: 전 회원 엽전 일괄 지급
+      operationId: execute
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminWalletGrantExecuteRequest"
+        required: true
+      responses:
+        "200":
+          description: 일괄 지급 완료 또는 멱등 재요청 결과
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWalletGrantExecuteResponse"
+        "400":
+          description: INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "403":
+          description: AUTH_ACCESS_DENIED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "409":
+          description: 대상 변경 / 지갑 미준비 / 요청 ID 충돌
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "503":
+          description: ADMIN_WALLET_GRANT_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/wallet-grants/preview:
+    post:
+      tags:
+      - ADMIN
+      summary: 전 회원 엽전 지급 미리보기
+      operationId: preview
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminWalletGrantPreviewRequest"
+        required: true
+      responses:
+        "200":
+          description: 대상 인원과 총 지급액 반환
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWalletGrantPreviewResponse"
+        "400":
+          description: INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "403":
+          description: AUTH_ACCESS_DENIED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "503":
+          description: ADMIN_WALLET_GRANT_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/users/me:
     get:
       tags:
@@ -6016,6 +6167,70 @@ components:
           type: integer
           format: int64
           example: 600
+    AdminWalletGrantExecuteRequest:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        amountPerMember:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        expectedRecipientCount:
+          type: integer
+          format: int64
+    AdminWalletGrantExecuteResponse:
+      type: object
+      properties:
+        batchId:
+          type: integer
+          format: int64
+        requestId:
+          type: string
+          format: uuid
+        amountPerMember:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        recipientCount:
+          type: integer
+          format: int64
+        totalAmount:
+          type: integer
+          format: int64
+        executedAt:
+          type: string
+          format: date-time
+    AdminWalletGrantPreviewRequest:
+      type: object
+      properties:
+        amountPerMember:
+          type: integer
+          format: int64
+        reason:
+          type: string
+    AdminWalletGrantPreviewResponse:
+      type: object
+      properties:
+        amountPerMember:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        recipientCount:
+          type: integer
+          format: int64
+        missingWalletCount:
+          type: integer
+          format: int64
+        totalAmount:
+          type: integer
+          format: int64
+        executable:
+          type: boolean
     UserNicknameUpdateRequest:
       required:
       - nickname

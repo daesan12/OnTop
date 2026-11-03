@@ -31,6 +31,9 @@ GAME Story 1의 `V112__create_game_sessions_and_participants.sql`은 경기·참
 S15P31B105-296의 `V133__create_anonymous_notes.sql`은 이전 `db/notes` V121·V129의 최종 익명 메모 스키마를
 공통 경로에서 만든다. `db/notes`·`db/feedback` 폴더는 실행 경로에 추가하지 않는다(각 폴더 README 참고).
 
+S15P31B105-232의 `V142__create_admin_wallet_grants.sql`은 전 회원 일괄 엽전 지급 배치와 회원별 원장 연결
+감사 기록을 추가한다. V141은 동시 작업 담당자가 먼저 배포하며, V142를 그보다 먼저 운영 DB에 적용하지 않는다.
+
 users의 collation·시각·탈퇴 데이터 보존 및 실제 MySQL 테스트는
 저장소 루트의 `docs/users-schema.md`를 따른다.
 
