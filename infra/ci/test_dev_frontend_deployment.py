@@ -13,7 +13,7 @@ class DevFrontendDeploymentTests(unittest.TestCase):
         prod = json.loads((ROOT / "frontend/vercel.json").read_text(encoding="utf-8"))
         dev = json.loads((ROOT / "frontend/vercel.dev.json").read_text(encoding="utf-8"))
         self.assertEqual(prod.pop("buildCommand"),
-                         "VITE_PARK_BINDINGS_URL=/park-bindings.generated.prod.json pnpm run build:park")
+                         "VITE_ALKKAGI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.prod.json pnpm run build:park")
         self.assertEqual(prod.pop("outputDirectory"), "dist-park")
         self.assertEqual(dev.pop("buildCommand"),
                          "VITE_ALKKAGI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park")
