@@ -1,5 +1,6 @@
 package com.ssafy.ontop.ranking.service;
 
+import com.ssafy.ontop.admin.security.AdminAccessPolicy;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BalanceItem;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BungeoppangItem;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongPredicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +35,7 @@ public class ParkRankingSnapshotService {
     private final ParkJumpmapRankingRepository jumpmap;
     private final MeterRegistry meters;
     private final Clock clock;
+    private final LongPredicate gameMasters;
     private final Instant startedAt;
     private final AtomicBoolean refreshing = new AtomicBoolean();
     private final AtomicReference<ParkRankingResponse> snapshot = new AtomicReference<>();
@@ -40,18 +43,26 @@ public class ParkRankingSnapshotService {
     @Autowired
     public ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
             ParkBungeoppangRankingRepository bungeoppang, ParkJumpmapRankingRepository jumpmap,
-            MeterRegistry meters, @Value("${ontop.rankings.park.started-at:}") String startedAt) {
-        this(balances, bungeoppang, jumpmap, meters, startedAt, Clock.systemUTC());
+            MeterRegistry meters, AdminAccessPolicy administrators,
+            @Value("${ontop.rankings.park.started-at:}") String startedAt) {
+        this(balances, bungeoppang, jumpmap, meters, startedAt, Clock.systemUTC(), administrators::canRead);
     }
 
     ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
             ParkBungeoppangRankingRepository bungeoppang, ParkJumpmapRankingRepository jumpmap,
             MeterRegistry meters, String startedAt, Clock clock) {
+        this(balances, bungeoppang, jumpmap, meters, startedAt, clock, ignored -> false);
+    }
+
+    ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
+            ParkBungeoppangRankingRepository bungeoppang, ParkJumpmapRankingRepository jumpmap,
+            MeterRegistry meters, String startedAt, Clock clock, LongPredicate gameMasters) {
         this.balances = balances;
         this.bungeoppang = bungeoppang;
         this.jumpmap = jumpmap;
         this.meters = meters;
         this.clock = clock;
+        this.gameMasters = gameMasters;
         // DEV는 최초 배포 시각을 운영자가 고정해 넣는다. 비어 있으면 기존 앱은 계속 기동하되 새 API는 503이다.
         this.startedAt = startedAt.isBlank() ? null : Instant.parse(startedAt);
     }
@@ -74,13 +85,13 @@ public class ParkRankingSnapshotService {
             // 세 조회가 모두 성공한 뒤 한 번에 교체한다. 실패한 회차는 직전 정상 응답을 유지한다.
             List<BalanceItem> balanceItems = balances.findTopTen().stream()
                     .map(row -> new BalanceItem(row.rank(), Long.toString(row.userId()),
-                            row.nickname(), row.coinBalance())).toList();
+                            row.nickname(), row.coinBalance(), gameMasters.test(row.userId()))).toList();
             List<BungeoppangItem> bungeoppangItems = bungeoppang.findTopTen(startedAt).stream()
                     .map(row -> new BungeoppangItem(row.rank(), Long.toString(row.userId()), row.nickname(),
-                            row.score(), row.maxCombo(), row.completedAt())).toList();
+                            row.score(), row.maxCombo(), row.completedAt(), gameMasters.test(row.userId()))).toList();
             List<JumpmapItem> jumpmapItems = jumpmap.findTopTen(startedAt).stream()
                     .map(row -> new JumpmapItem(row.rank(), Long.toString(row.userId()), row.nickname(),
-                            row.finishMs(), row.completedAt())).toList();
+                            row.finishMs(), row.completedAt(), gameMasters.test(row.userId()))).toList();
             snapshot.set(new ParkRankingResponse(balanceItems, bungeoppangItems, jumpmapItems,
                     clock.instant()));
             meters.counter("ontop.ranking.park.refresh", "result", "success").increment();

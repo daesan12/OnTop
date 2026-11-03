@@ -1,9 +1,9 @@
 import { record } from '../../network/protocol'
 import { RestError } from '../../network/restError'
 
-export interface BalanceRankingEntry { rank: number; userId: string; nickname: string; coinBalance: number }
-export interface BungeoppangRankingEntry { rank: number; userId: string; nickname: string; score: number; maxCombo: number; completedAt: string }
-export interface JumpmapRankingEntry { rank: number; userId: string; nickname: string; finishMs: number; completedAt: string }
+export interface BalanceRankingEntry { rank: number; userId: string; nickname: string; coinBalance: number; gameMaster: boolean }
+export interface BungeoppangRankingEntry { rank: number; userId: string; nickname: string; score: number; maxCombo: number; completedAt: string; gameMaster: boolean }
+export interface JumpmapRankingEntry { rank: number; userId: string; nickname: string; finishMs: number; completedAt: string; gameMaster: boolean }
 export interface ParkRankingSnapshot {
   balance: BalanceRankingEntry[]
   bungeoppang: BungeoppangRankingEntry[]
@@ -11,7 +11,7 @@ export interface ParkRankingSnapshot {
   updatedAt: string
 }
 
-export interface RankingDisplayRow { rank: number; userId: string; nickname: string; value: string }
+export interface RankingDisplayRow { rank: number; userId: string; nickname: string; value: string; gameMaster: boolean }
 export interface RankingDisplayColumn {
   key: 'balance' | 'bungeoppang' | 'jumpmap'
   title: string
@@ -40,8 +40,9 @@ function list<T>(value: unknown, parse: (item: unknown) => T & { rank: number; u
 }
 
 function identity(value: Record<string, unknown>) {
-  if (!rank(value.rank) || !userId(value.userId) || !nickname(value.nickname)) return invalid()
-  return { rank: value.rank, userId: value.userId, nickname: value.nickname }
+  if (!rank(value.rank) || !userId(value.userId) || !nickname(value.nickname)
+    || (value.gameMaster !== undefined && typeof value.gameMaster !== 'boolean')) return invalid()
+  return { rank: value.rank, userId: value.userId, nickname: value.nickname, gameMaster: value.gameMaster === true }
 }
 
 function gameIdentity(value: Record<string, unknown>) {
@@ -88,13 +89,13 @@ const updatedAt = new Intl.DateTimeFormat('ko-KR', {
 export function rankingColumns(snapshot: ParkRankingSnapshot): RankingDisplayColumn[] {
   return [
     { key: 'balance', title: '보유량', description: '현재 보유 엽전 순', rows: snapshot.balance.map(item => ({
-      rank: item.rank, userId: item.userId, nickname: item.nickname, value: `${number.format(item.coinBalance)}냥`,
+      rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: `${number.format(item.coinBalance)}냥`,
     })) },
     { key: 'bungeoppang', title: '붕어빵 굽기', description: '점수 · 최대 콤보 · 먼저 완료', rows: snapshot.bungeoppang.map(item => ({
-      rank: item.rank, userId: item.userId, nickname: item.nickname, value: `${number.format(item.score)}점`,
+      rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: `${number.format(item.score)}점`,
     })) },
     { key: 'jumpmap', title: '점프맵', description: '최단 기록 · 먼저 완료', rows: snapshot.jumpmap.map(item => ({
-      rank: item.rank, userId: item.userId, nickname: item.nickname, value: formatJumpmapFinish(item.finishMs),
+      rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: formatJumpmapFinish(item.finishMs),
     })) },
   ]
 }

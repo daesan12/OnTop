@@ -9,6 +9,7 @@ import { useNavigation, cancelNavigation, useParkMap, openParkMap, closeParkMap,
 import './navigation.css'
 import mapIcon from '../parkMenus/icons/dock-map.svg'
 import { gameplayMenusLocked, useGameplayMenusLocked } from '../parkMenus/gameplayLock'
+import { displayNickname } from '../gameMaster/displayName'
 function canOpen() {
   return !gameplayMenusLocked() && useSession.getState().status === 'connected' && !Object.entries(inputState).some(([key, value]) => key !== 'mapOpen' && value)
     && !document.querySelector('dialog[open], [role="dialog"]')
@@ -67,7 +68,8 @@ export function ParkMap() {
       setPosition(own ? { x: own.x, z: own.z } : null)
       const nextPlayers = s.ids.slice(0, NETWORK.maxClients).flatMap(id => {
         const avatar = avatars.get(id)
-        return avatar?.connected && id !== s.sessionId ? [{ id, x: avatar.current.x, z: avatar.current.z, nickname: avatar.nickname }] : []
+        return avatar?.connected && id !== s.sessionId ? [{ id, x: avatar.current.x, z: avatar.current.z,
+          nickname: displayNickname(s.profiles[id], avatar.nickname) }] : []
       })
       setPlayers(nextPlayers)
       setSelectedPlayerId(id => nextPlayers.some(player => player.id === id) ? id : '')
