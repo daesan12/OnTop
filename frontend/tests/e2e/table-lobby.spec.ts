@@ -63,7 +63,7 @@ test('M09 lobby uses server host, blocks construction games and preserves explic
   await lobby(page).getByRole('button', { name: '원카드 선택', exact: true }).click()
   await expect(lobby(page).getByRole('listitem')).toHaveCount(4)
   await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeEnabled()
-  for (const name of ['거짓말 다리 건너기', '주사위 한 판']) {
+  for (const name of ['거짓말 다리 건너기']) {
     const button = lobby(page).getByRole('button', { name: `${name} 선택`, exact: true })
     await expect(button).toBeDisabled()
     await expect(button).toContainText('공사 중')
@@ -81,8 +81,8 @@ test('M09 lobby uses server host, blocks construction games and preserves explic
     { gameCode: 'ONE_CARD', betAmountPerPlayer },
     { gameCode: 'OMOK', betAmountPerPlayer },
   ])
-  for (const gameCode of ['DICE', 'LIAR_BRIDGE']) {
-    server.configureTablet({ gameCode, playerCount: 2, betAmountPerPlayer, ...(gameCode === 'DICE' ? { targetScore: 4000 } : {}) })
+  for (const gameCode of ['LIAR_BRIDGE']) {
+    server.configureTablet({ gameCode, playerCount: 2, betAmountPerPlayer })
     await expect(lobby(page)).toContainText('공사 중인 게임입니다.')
     await expect(lobby(page).getByRole('button', { name: '준비', exact: true })).toBeDisabled()
     await expect(lobby(page).getByRole('button', { name: '오목 선택', exact: true })).toBeEnabled()

@@ -2,6 +2,12 @@
 
 수신 자료 `ontap-game-rules-without-gomoku-20261021.zip`의 `rules/03_farkle.md`와 2026-10-21 사용자 결정을 적용한다. 2인, 공정한6면체 주사위6개, 무작위 선공. 시작 전에 서버가 목표2000/4000/6000점(기본 권장4000)을 확정한다. Bank로 총점이 목표 이상이면 즉시 승리하며 상대 추가 차례는 없다.
 
+## 태블릿 게임 선택
+
+`frontend/src/features/tableLobby/model.ts`의 DICE를 이용 가능 게임으로 설정해 공사 중 배지와 선택 제한을 해제한다. 기존 태블릿 분류를 사용해 상단 이용 가능 목록(오목 → 원카드 → 주사위 장부 → 주사위 한 판 → 과일 땡)에 배치하며, 다른 공사 중 게임의 제한은 유지한다. 목표 점수 2000/4000/6000점·2인·판돈 확인·명시적 시작 계약을 재사용한다. 게임 에셋과 FE/BE 통신·DB 변경은 없다. 실제 배포 서버에는 기존 `GAME_FARKLE_ENABLED=true` 및 공통 시작/예약 Gateway 설정이 필요하며, FE 카드 노출만으로 운영 서버의 활성화를 보장하지 않는다.
+
+작업 위치는 `OnTop/frontend-dice-scorebook`, 브랜치는 `feat/farkle-traditional-hud`, 기준은 `origin/dev@221c4d9a`이다. 최신 맵 검증은 `park-integration` 모드의 `127.0.0.1:5202/park`와 HTTP/WS 계약 fixture로 진행한다. 일반 개발 모드의 태블릿 회귀 실행은 `node node_modules/@playwright/test/cli.js test --config playwright.tablet-default.config.ts tablet-flow.spec.ts`이며 실서버 두 계정 검증과 구분한다.
+
 ## 입력
 
 기존 GAME_ACTION_SEND payload `{gameId,actionId,expectedVersion,input}`을 사용한다.
