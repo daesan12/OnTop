@@ -4,6 +4,7 @@ import { closeRankingBoard, useRankingBoardEntry } from './model'
 import { formatRankingUpdatedAt, rankingColumns } from './service'
 import { useRankingBoardFeed } from './state'
 import './rankingBoard.css'
+import { displayNickname } from '../gameMaster/displayName'
 
 export function RankingBoardDialog({ refresh }: { refresh(): void }) {
   const open = useRankingBoardEntry(state => state.open)
@@ -31,7 +32,7 @@ export function RankingBoardDialog({ refresh }: { refresh(): void }) {
           {column.rows.length ? <ol>
             {column.rows.map(row => <li key={row.userId}>
               <span className="ranking-board-rank" aria-label={`${row.rank}위`}>{row.rank}</span>
-              <span className="ranking-board-nickname" title={row.nickname}>{row.nickname}</span>
+              <span className="ranking-board-nickname" title={displayNickname(row, row.nickname)}>{displayNickname(row, row.nickname)}</span>
               <strong>{row.value}</strong>
             </li>)}
           </ol> : <p className="ranking-board-empty">아직 기록이 없습니다.</p>}

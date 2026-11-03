@@ -53,6 +53,7 @@ export interface WorldState {
     position: Position
     nickname?: string | null
     characterGender?: 'MALE' | 'FEMALE' | null
+    gameMaster?: boolean
     equipment?: PublicEquipment[] | null
     tableSeat?: PublicTableSeat | null
     activity?: AvatarActivity | null
@@ -199,6 +200,7 @@ export function worldState(value: Record<string, unknown>): WorldState {
       (a) => record(a) && text(a.userId) && position(a.position)
         && (a.nickname == null || (typeof a.nickname === 'string' && !!a.nickname.trim()))
         && (a.characterGender == null || a.characterGender === 'MALE' || a.characterGender === 'FEMALE')
+        && (a.gameMaster === undefined || typeof a.gameMaster === 'boolean')
         && (a.equipment == null || validPublicEquipment(a.equipment))
         && tableSeat(a.tableSeat)
         && (a.activity == null || isAvatarActivity(a.activity)) && motion(a.motion),

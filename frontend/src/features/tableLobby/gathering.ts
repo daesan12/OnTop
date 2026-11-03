@@ -4,6 +4,7 @@ import { gameState } from '../../game/protocol'
 import { useGame } from '../../game/store'
 import { useTableLobby, seatScope } from './state'
 import { gatheringModel } from './gatheringModel'
+import { displayNickname } from '../gameMaster/displayName'
 
 /** Results use the edge HUD and shared camera; preparation uses the table panel. */
 export function getGathering() {
@@ -18,7 +19,7 @@ export function getGathering() {
   // A stored terminal result is authoritative even when the engine snapshot is missing or still PLAYING.
   if (!result && (!game || gameState(game).status !== 'FINISHED')) return null
   return gatheringModel({ table: t, ownId: s.sessionId, game, result, start: g.start,
-    nickname: id => s.profiles[id]?.nickname ?? (id === s.sessionId ? '나' : '산책자 ' + id.slice(-6)) })
+    nickname: id => displayNickname(s.profiles[id], id === s.sessionId ? '나' : '산책자 ' + id.slice(-6)) })
 }
 export function useGathering() {
   useSession(useShallow(s => [s.tableId, s.sessionId, s.tableStates, s.profiles, s.status, s.pending]))

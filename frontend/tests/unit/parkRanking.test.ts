@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { formatJumpmapFinish, formatRankingUpdatedAt, parseParkRanking, rankingColumns } from '../../src/features/rankingBoard/service'
 import { canPollParkRanking } from '../../src/features/rankingBoard/RankingBoardHost'
 import { completeRankingRefresh, failRankingRefresh, resetRankingBoardFeed, useRankingBoardFeed } from '../../src/features/rankingBoard/state'
+import { displayNickname } from '../../src/features/gameMaster/displayName'
 
 const response = {
   balance: [
@@ -34,6 +35,17 @@ describe('park ranking contract', () => {
   it('accepts an empty board', () => {
     const empty = parseParkRanking({ ...response, balance: [], bungeoppang: [], jumpmap: [] })
     expect(rankingColumns(empty).map(column => column.rows)).toEqual([[], [], []])
+  })
+
+  it('shows the server-approved GM prefix without changing the stored nickname', () => {
+    const parsed = parseParkRanking({
+      ...response,
+      balance: [{ ...response.balance[0], gameMaster: true }],
+      bungeoppang: [], jumpmap: [],
+    })
+    expect(parsed.balance[0]).toMatchObject({ nickname: '고양이', gameMaster: true })
+    expect(displayNickname(parsed.balance[0], '')).toBe('GM 고양이')
+    expect(displayNickname(parseParkRanking(response).balance[0], '')).toBe('고양이')
   })
 
   it('formats jumpmap records with minutes, seconds and milliseconds', () => {
