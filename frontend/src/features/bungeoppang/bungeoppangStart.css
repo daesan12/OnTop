@@ -4,7 +4,9 @@
   top: 48%;
   width: min(964px, calc(100vw - 48px));
   max-height: calc(100dvh - 48px);
-  overflow: clip;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 26px 50px 22px;
   color: #4a2510;
   background: radial-gradient(ellipse at 48% 35%, #fffdf7, #fcf5e9);
@@ -88,7 +90,7 @@
   .bung-root .bung-start .bung-start-exit { transition: none; }
 }
 /* Keep the full entry guide, earnings and start/exit actions in the first viewport. */
-.bung-root .bung-panel.bung-start{--bung-guide-padding:12px;--bung-guide-gap:36px;top:50%;padding:20px 30px;max-height:calc(100dvh - 24px)}
+.bung-root .bung-panel.bung-start{--bung-guide-padding:12px;--bung-guide-gap:36px;--bung-guide-image-max:100%;top:50%;padding:20px 30px;max-height:calc(100dvh - 24px)}
 .bung-root .bung-start .bung-start-title h2{font-size:36px}
 .bung-root .bung-start .bung-start-intro{font-size:16px;margin:4px 0 16px}
 .bung-root .bung-start .bung-start-steps{margin-inline:calc(var(--bung-guide-padding) + 1px);gap:var(--bung-guide-gap)}
@@ -118,9 +120,12 @@
 .bung-root .bung-start-score p { font-size:12px; line-height:1.4; }
 .bung-root .bung-start-complaint { color:#943b2e; }
 .bung-root .bung-start .bung-start-ranking { grid-column:1; grid-row:2; color:#735137; font-size:11px; }
-/* 낮은 화면에서도 이미지 비율과 전체 안내·버튼을 스크롤 없이 유지한다. */
+/* 각 열의 안내 글은 가운데 배치된 이미지의 왼쪽 시작점에 맞춘다. */
+.bung-start-controls>div:not(.bung-start-score),.bung-start-score>*{padding-inline-start:calc((100% - var(--bung-guide-image-max)) / 2)}
+/* 낮은 화면에서도 이미지를 읽을 수 있게 유지하고, 넘치는 안내는 패널 안에서 스크롤한다. */
 @media(min-width:701px){
-  .bung-start-steps>li>img { max-width:calc((100dvh - 535px) * 800 / 686); margin-inline:0; }
+  .bung-root .bung-panel.bung-start{--bung-guide-image-max:clamp(120px,calc((100dvh - 535px) * 800 / 686),100%)}
+  .bung-start-steps>li>img { max-width:var(--bung-guide-image-max); margin-inline:auto; }
 }
 @media(max-width:700px){
   .bung-root .bung-panel.bung-start{--bung-guide-padding:8px;--bung-guide-gap:8px;width:calc(100vw - 20px);padding:14px}
@@ -141,9 +146,9 @@
   .bung-root .bung-start .bung-start-exit{min-height:36px}
 }
 @media(min-width:701px) and (max-height:650px){
-  .bung-root .bung-panel.bung-start{--bung-guide-padding:8px;--bung-guide-gap:24px;padding:12px 24px}
+  .bung-root .bung-panel.bung-start{--bung-guide-padding:8px;--bung-guide-gap:24px;--bung-guide-image-max:clamp(120px,calc((100dvh - 500px) * 800 / 686),100%);padding:12px 24px}
   .bung-root .bung-start .bung-start-title h2{font-size:28px}
-  .bung-start-steps>li>img{height:auto;max-width:calc((100dvh - 500px) * 800 / 686)}
+  .bung-start-steps>li>img{height:auto;max-width:var(--bung-guide-image-max)}
   .bung-start-controls{margin-top:10px;padding:var(--bung-guide-padding)}
   .bung-root .bung-start .bung-start-earned{margin-top:8px}
 }
