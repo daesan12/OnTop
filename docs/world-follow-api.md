@@ -119,6 +119,11 @@ PARK_V1 따라가기 중 motion.profile은 유지하고 motion.authority는 생�
 
 ## 검증 범위
 
+점프맵 보조 입력이 활성화된 공원에서도 따라가기 중 직접 점프는 관계를 해제하고,
+서버가 받은 아직 유효한 점프를 PARK_V1 수동 제어권에 한 번 인계한다.
+명시적 종료·활동 전환은 대기 중인 점프도 취소한다. 이미 승인한 순번의 재전송은 새 점프가 아니다.
+`FollowJumpHandoffTests`는 실제 생성 맵·점프맵과 Bullet에서 인계·종료·첫 좌표 승인 경계를 검증한다.
+
 `WorldFollowTests`는 관계·경계·중복·순환, `WorldFollowFlowTests`는 실제 Raw WebSocket과
 인증·채널 격리·활동 전환, `WorldFollowPhysicsTests`는 실제 Bullet 속도·충돌·정지를 검사한다.
 `WorldFollowMovementTests`는 Hub→Registry→Bullet 전체 흐름을 검사하며 전송 어댑터·시계·초기 배치는 테스트 대역이다.

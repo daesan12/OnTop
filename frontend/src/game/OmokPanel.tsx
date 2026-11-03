@@ -2,7 +2,9 @@ import { OmokCoinToss } from './omok/OmokCoinToss'
 import { openManual } from '../features/manual/manualState'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useGame, tableBusy, recoveryBlocked } from './store'
-import { useSession } from '../network/worldClient'
+import { useSession, estimatedServerTime } from '../network/worldClient'
+import { OmokUndoControls } from './omok/OmokUndoControls'
+import { OmokDrawControls } from './omok/OmokDrawControls'
 import { useParkRuntime } from '../park/runtime/ParkRuntime'
 import { GAME_CONSTRUCTION_NOTICE, isTableGamePlayable, TABLE_GAMES, TARGET_SCORES, lobbyStatus } from '../features/tableLobby/model'
 import { useTableLobby } from '../features/tableLobby/state'
@@ -136,11 +138,11 @@ export function OmokPanel() {
       }
     }
   }, [spectatorGameId])
-  const [now, setNow] = useState(Date.now)
+  const [now, setNow] = useState(estimatedServerTime)
   useEffect(() => {
     if (!s.game?.omok?.turnDeadline) return
-    setNow(Date.now())
-    const timer = setInterval(() => setNow(Date.now()), 250)
+    setNow(estimatedServerTime())
+    const timer = setInterval(() => setNow(estimatedServerTime()), 250)
     return () => clearInterval(timer)
   }, [s.game?.omok?.turnDeadline])
   const g = s.game?.omok ? s.game : null
@@ -170,7 +172,7 @@ export function OmokPanel() {
       <div className="omok-match-player" data-turn={o.turnUserId === o.whiteUserId}><div><b>{profiles[o.whiteUserId]?.nickname ?? '백 플레이어'}</b><small>백돌</small></div><i className="stone-chip white" /></div>
     </header>}
     {player && <><div className="focus-record"><span>{o.moveCount}수</span><span className="omok-last-move-text">{lastMoveText(o.lastMove)}</span></div>
-    <p className="focus-hint">{s.pending ? '착수 요청 중 · 서버 확인을 기다리고 있습니다.' : myTurn ? '빈 교차점을 클릭해 돌을 놓으세요' : '상대의 착수를 기다리고 있어요'}</p></>}
+    <p className="focus-hint">{s.pending ? '요청 전송 중 · 서버 확인을 기다리고 있습니다.' : o.draw ? '무승부 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : o.undo ? '무르기 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : myTurn ? '빈 교차점을 클릭해 돌을 놓으세요' : '상대의 착수를 기다리고 있어요'}</p></>}
     {player ? <div className="focus-actions">
       <button onClick={() => openManual('gomoku')}>게임 설명 · F1</button>
       {(recoveryBlocked() || s.uncertain) && <button disabled={pending || !connected} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
@@ -182,6 +184,7 @@ export function OmokPanel() {
       </div><button onClick={() => openManual('gomoku')}>게임 설명 · F1</button><button disabled={pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button></div>
       <OmokPingStatus />
     </div>}
+    {player && <div className="omok-negotiations"><OmokUndoControls now={now} /><OmokDrawControls now={now} /></div>}
     <div className="focus-error">
       {remaining === 0 && <p role="status">착수 시간이 끝났습니다. 서버의 종료 판정을 기다리고 있습니다.</p>}
       {s.uncertain && <p>착수 반영 여부를 확인해야 합니다. 같은 수를 자동 재전송하지 않습니다.</p>}

@@ -41,6 +41,7 @@ public final class AlkkagiMatch {
     private long simulationId;
     private long turnDeadline;
     private long matchDeadline;
+    private long startsAt;
     private long pausedTurnMillis;
     private int simulationSteps;
     private int stableSteps;
@@ -48,6 +49,7 @@ public final class AlkkagiMatch {
     private boolean itemUsedThisTurn;
     private boolean extraShotActivated;
     private ItemEffect lastItemEffect;
+    private final java.util.ArrayDeque<ItemEffect> itemEffects = new java.util.ArrayDeque<>();
 
     public AlkkagiMatch(AlkkagiSettings settings) {
         this(settings, AlkkagiPhysics.experimental());
@@ -142,11 +144,23 @@ public final class AlkkagiMatch {
     }
 
     public void start(long now) {
+        start(now, 0);
+    }
+
+    public void start(long now, int firstActor) {
         require(stage.equals("WAITING"), "ALREADY_STARTED");
+        require(firstActor == 0 || firstActor == 1, "PLAYER_REQUIRED");
+        turn = firstActor;
+        startsAt = now;
         stage = "AIMING";
         turnDeadline = now + settings.turnMillis();
         matchDeadline = now + settings.matchMillis();
         version++;
+    }
+
+    public void startAfterCoinToss(long startsAt, int firstActor) {
+        start(startsAt, firstActor);
+        stage = "COIN_TOSS";
     }
 
     public long shoot(int actor, Shot shot, long now) {
@@ -276,7 +290,9 @@ public final class AlkkagiMatch {
         }
         itemUsedThisTurn = true;
         version++;
-        lastItemEffect = new ItemEffect(version, turnNumber, actor, card.type().name(), List.copyOf(targets));
+        lastItemEffect = new ItemEffect(version, turnNumber, actor, card.type().name(), List.copyOf(targets), now);
+        itemEffects.addLast(lastItemEffect);
+        if (itemEffects.size() > 16) itemEffects.removeFirst();
         remember(key, input);
         return version;
     }
@@ -468,6 +484,11 @@ public final class AlkkagiMatch {
     }
 
     private void expire(long now) {
+        if (stage.equals("COIN_TOSS")) {
+            if (now < startsAt) return;
+            stage = "AIMING";
+            version++;
+        }
         if (stage.equals("CHOOSING")) {
             if (now >= matchDeadline) { resolveByCount("MATCH_TIME_LIMIT", matchDeadline); return; }
             if (awards.expire(now, wallsUsed[0], wallsUsed[1], inventory)) version++;
@@ -578,7 +599,10 @@ public final class AlkkagiMatch {
             }
         }
     }
-    public record ItemEffect(long version, int turnNumber, int actor, String type, List<String> targets) { }
+    /** Public counts and already-consumed cards only; never expose unused card IDs or types. */
+    public List<Integer> cardCounts() { return List.of(inventory.cards(0).size(), inventory.cards(1).size()); }
+    public List<ItemEffect> itemEffects() { return List.copyOf(itemEffects); }
+    public record ItemEffect(long version, int turnNumber, int actor, String type, List<String> targets, long at) { }
     public record WallView(int owner, double x, double y, double length, double thickness, double angle, Integer expiresAfterTurn) { }
     public record ImpactView(long id, long at, double x, double y, double impulse, String kind) { }
     public record CardView(String id, String type) { }

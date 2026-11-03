@@ -1,4 +1,4 @@
-import { avatars, useSession } from '../../network/worldClient'
+import { avatars, estimatedServerTime, useSession } from '../../network/worldClient'
 import { tableBusy } from '../../game/store'
 import { useBenchState } from '../interactions/benchState'
 import { useFitnessState } from '../fitness/state'
@@ -11,7 +11,7 @@ export function emoteSource(id: EmoteId): 'server' | 'mock' | 'unavailable' {
   if (useEmoteState.getState().bindings[id]) return 'server'
   return emotePreview && id !== 'EMOTE_WAVE' && id !== 'EMOTE_CLAP' ? 'mock' : 'unavailable'
 }
-export function emoteUnavailable(id: EmoteId, now = Date.now()): string {
+export function emoteUnavailable(id: EmoteId, now = estimatedServerTime()): string {
   const session = useSession.getState(), state = useEmoteState.getState()
   const avatar = avatars.get(session.sessionId)
   if (!findEmote(id) || emoteSource(id) === 'unavailable') return '서버 연결 준비 중'

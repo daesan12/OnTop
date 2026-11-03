@@ -22,6 +22,7 @@ export const lastMoveText = (move: Omok['lastMove']) => move
   : '아직 놓인 돌이 없습니다.'
 const reasons: Record<string, string> = {
   FIVE_IN_ROW: '오목 완성', BOARD_FULL: '빈 교차점 없음', TURN_TIMEOUT: '착수 시간 초과',
+  AGREED_DRAW: '합의 무승부',
   RECONNECT_EXPIRED: '재접속 유예 만료', DISCONNECT_TIMEOUT: '접속 종료 유예 만료',
   FORFEIT: '기권', EXPLICIT_LEAVE: '수동 기권', VOLUNTARY_LEAVE: '참가자 퇴장',
 }
