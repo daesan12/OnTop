@@ -28,7 +28,7 @@ export function FarkleScoreSheet() {
       }
     }}>
     <div className="scorebook-page">
-      <header><span className="scorebook-emblem" aria-hidden="true"><DiceFaces values={[3, 5]} /></span><h2>주사위 점수표</h2>
+      <header><h2>주사위 점수표</h2>
         <button ref={close} onClick={toggleScoreSheet} aria-label="점수표 닫기"><span>T / Esc 닫기</span><b aria-hidden="true">×</b></button></header>
       <div className="scorebook-selection"><span>현재 선택</span><DiceFaces values={faces} /><strong>{points === null ? '—' : `+${points.toLocaleString()}점`}</strong></div>
       {SCORE_GROUPS.map(group => <section key={group.title} aria-label={group.title}>

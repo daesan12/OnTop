@@ -9,11 +9,9 @@
 .farkle-scorebook[open] .scorebook-page { animation: scorebook-page-turn .48s cubic-bezier(.2,.7,.2,1) backwards; }
 /* Remove the composited transform after opening so the small pips stay sharp at rest. */
 @keyframes scorebook-page-turn { from { transform: rotateY(-65deg); opacity: .25; } to { transform: none; opacity: 1; } }
-.farkle-scorebook header { position: relative; padding: 20px 0 10px; border-bottom: 1px solid #b18a524d; }
+.farkle-scorebook header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 0 12px; border-bottom: 1px solid #b18a524d; }
 .farkle-scorebook h2 { font: 700 25px/1.25 'Batang', 'Malgun Gothic', serif; margin: 0; letter-spacing: .025em; }
-.scorebook-emblem { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); color: #8c6132; }
-.scorebook-emblem .dice-face { --die-size: 22px; padding: 3px; }
-.farkle-scorebook header button { position: absolute; right: -4px; top: -4px; display: flex; align-items: center; gap: 9px; padding: 0; border: 0; background: none; color: #744421; cursor: pointer; }
+.farkle-scorebook header button { display: flex; align-items: center; flex-shrink: 0; gap: 9px; padding: 0; border: 0; background: none; color: #744421; cursor: pointer; }
 .farkle-scorebook header button span { font: 11px 'Malgun Gothic', sans-serif; }
 .farkle-scorebook header button b { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 2px solid #c8a162; color: #fff5d9; background: #643720; font: 28px/1 sans-serif; }
 .farkle-scorebook button:focus-visible { outline: 2px solid #ae741f; outline-offset: 4px; border-radius: 5px; }

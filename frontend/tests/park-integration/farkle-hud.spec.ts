@@ -50,6 +50,7 @@ test('Farkle HUD keeps selection, shortcuts and scrollable controls across scree
   await hud.getByRole('button', { name: 'T 점수표', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '주사위 점수표', exact: true })
   await expect(sheet).toBeVisible()
+  await expect(sheet.locator('header .dice-face')).toHaveCount(0)
   await sheet.locator('.scorebook-page').evaluate(async element => {
     await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => {})))
   })
@@ -66,13 +67,18 @@ test('Farkle HUD keeps selection, shortcuts and scrollable controls across scree
   await screenshot(page, 'farkle-hud-scorebook')
   await page.setViewportSize({ width: 1672, height: 1080 })
   await sheet.screenshot({ path: path.join(process.env.QA_ARTIFACT_DIR ?? os.tmpdir(), 'farkle-scorebook-detail.png') })
-  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
+  for (const viewport of [{ width: 1672, height: 941 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(viewport)
     expect(await sheet.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
     await sheet.locator('footer small').scrollIntoViewIfNeeded()
     await expect(sheet.locator('footer small')).toBeInViewport({ ratio: 1 })
     await sheet.getByRole('button', { name: '점수표 닫기' }).scrollIntoViewIfNeeded()
     await expect(sheet.getByRole('button', { name: '점수표 닫기' })).toBeInViewport({ ratio: 1 })
+    const title = (await sheet.getByRole('heading', { name: '주사위 점수표', exact: true }).boundingBox())!
+    const close = (await sheet.getByRole('button', { name: '점수표 닫기' }).boundingBox())!
+    expect(Math.abs(title.y + title.height / 2 - close.y - close.height / 2)).toBeLessThanOrEqual(1)
+    expect(title.x + title.width).toBeLessThan(close.x)
+    if (viewport.width === 320) await screenshot(page, 'farkle-scorebook-320x568')
   }
   await page.setViewportSize({ width: 1672, height: 941 })
   await page.keyboard.press('Escape'); await expect(sheet).toBeHidden()
