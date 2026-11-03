@@ -94,13 +94,13 @@ public class JdbcJumpmapStore implements JumpmapStore {
                             ROW_NUMBER() OVER (PARTITION BY r.user_id
                             ORDER BY r.finish_ms, r.ended_at, r.id) AS choice
                         FROM jump_runs r JOIN users u ON u.id = r.user_id
-                        WHERE r.status = 'ENDED' AND r.end_reason = 'FINISH' AND r.suspicious = FALSE
+                        WHERE r.status = 'ENDED' AND r.end_reason = 'FINISH' AND %s
                           AND r.finish_ms > 0 AND r.final_reached = TRUE AND r.gates_passed = 7
                           AND r.rules_version = ? AND r.course_version = ? AND u.deleted_at IS NULL
                     )
                     SELECT RANK() OVER (ORDER BY finish_ms) AS place, user_id, nickname, finish_ms, ended_at
                     FROM choices WHERE choice = 1 ORDER BY finish_ms, ended_at, user_id
-                    """, JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION);
+                    """.formatted(JumpmapRankingEligibility.SQL), JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION);
             var items = new ArrayList<RankingEntry>();
             for (var row : rows) {
                 items.add(new RankingEntry(((Number) row.get("place")).intValue(),
@@ -272,11 +272,12 @@ public class JdbcJumpmapStore implements JumpmapStore {
 
     private Long best(long userId, String excludedRun) {
         return jdbc.queryForObject("""
-                SELECT MIN(finish_ms) FROM jump_runs
+                SELECT MIN(finish_ms) FROM jump_runs r
                 WHERE user_id = ? AND id <> ? AND status = 'ENDED' AND end_reason = 'FINISH'
-                  AND suspicious = FALSE AND gates_passed = 7 AND final_reached = TRUE
+                  AND %s AND gates_passed = 7 AND final_reached = TRUE
                   AND rules_version = ? AND course_version = ? AND finish_ms > 0
-                """, Long.class, userId, excludedRun, JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION);
+                """.formatted(JumpmapRankingEligibility.SQL), Long.class, userId, excludedRun,
+                JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION);
     }
 
     private int earned(long userId, LocalDate date, boolean lock) {
