@@ -17,6 +17,32 @@ it('does not stand or launch another jump from a near-vertical fence contact',as
   expect(sim.pose().y).toBeLessThan(1.1)
  }finally{sim.dispose()}
 })
+it('does not launch a jump mid-air beside a thin fence top edge with no contact',async()=>{
+ // dev trace beside court-P0-west (top 1.1m): Rapier reported grounded with zero
+ // collisions around y=1.6, the client jumped there and the server rejected it.
+ const sim=await createPredictionPhysics('PARK_V1')
+ try{
+  sim.reset({x:-12.61,y:2,z:18.32,yaw:0},0,false)
+  let previous=sim.pose().y
+  for(let n=1;n<=17;n++){
+   sim.step({dx:0,dz:0,run:false,jump:true},1/60)
+   expect(sim.pose().y).toBeLessThanOrEqual(previous+1e-6)
+   previous=sim.pose().y
+  }
+  for(let n=0;n<30;n++)sim.step({dx:0,dz:0,run:false,jump:false},1/60)
+  expect(sim.pose().y).toBeCloseTo(.8,2)
+ }finally{sim.dispose()}
+})
+it('slides off a fence top edge the server does not support instead of perching there',async()=>{
+ // Centre 26cm past the fence edge: the server sees no support (HOVER) and rejects jumps.
+ const sim=await createPredictionPhysics('PARK_V1')
+ try{
+  sim.reset({x:-12.67,y:2.1,z:18.32,yaw:0},0,false)
+  for(let n=0;n<45;n++)sim.step({dx:0,dz:0,run:false,jump:false},1/60)
+  expect(sim.pose().y).toBeCloseTo(.8,2)
+  expect(sim.pose().x).toBeGreaterThan(-12.67)
+ }finally{sim.dispose()}
+})
 it.skipIf(!process.env.OBSTACLE_CONTACT_DIR)('exports real pavilion obstacle contact trajectories',async()=>{
  const traces=[];const stop={dx:0,dz:0,run:false,jump:false}
  for(const id of ['P0','P5'])for(const angle of [Math.PI/4,Math.PI])for(const run of [false,true])for(const timing of ['none','start','contact']){

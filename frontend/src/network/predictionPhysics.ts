@@ -143,7 +143,10 @@ class PredictionPhysics implements PredictionSimulation {
       : input.run ? MOVEMENT.runSpeed : MOVEMENT.walkSpeed
     if (this.tuned && !swimming && !this.climbY) {
       if (!this.tunedActive) this.parkMotion.reset(this.vy)
-      const jump = this.jumpEnabled ? this.jumpGrace.step(input.jump, this.grounded, dt) : input.jump && this.grounded
+      // Rapier can report grounded with no contact beside a thin fence's top edge.
+      // Gliding there is fine, but the server rejects a jump without its own support.
+      const support = this.grounded && (input.jump || this.jumpEnabled) && this.jumpSupported(p)
+      const jump = this.jumpEnabled ? this.jumpGrace.step(input.jump, support, dt) : input.jump && support
       this.tunedActive = true; this.stepTuned({ ...input, jump }, dt, jump); return
     }
     this.tunedActive = false
@@ -224,6 +227,13 @@ class PredictionPhysics implements PredictionSimulation {
       const floor=this.world.castRayAndGetNormal(new RAPIER.Ray({x:landing.x,y:feet+.05,z:landing.z},{x:0,y:-1,z:0}),.22,true,undefined,undefined,this.collider)
       this.grounded=!!floor&&floor.normal.y>=.6
     }
+    // Beside a thin fence's top edge Rapier also reports grounded with no contact at all.
+    // Resetting the fall there leaves the capsule perched on a steep edge the server does
+    // not support (HOVER), so keep falling and slide off it. Moving across a rail top is kept.
+    if(this.grounded&&!input.dx&&!input.dz&&!walls.length&&!walkableContact&&!onStair){
+      const below=this.supportBelow(landing)
+      if(below&&below.normal1.y<=.6)this.grounded=false
+    }
     this.parkMotion.contact(wanted,delta,this.grounded,walls);this.vy=this.parkMotion.velocityY()
     this.body.setNextKinematicTranslation(landing)
     if(input.dx||input.dz)this.yaw=Math.atan2(input.dx,input.dz)
@@ -234,6 +244,14 @@ class PredictionPhysics implements PredictionSimulation {
     const footOffset=MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset
     const landing=furnitureLandingPosition(pose,this.furniture,footOffset,MOVEMENT.radius,this.chairCounts)
     return fountainExclusionPosition(landing,PARK_DATA.physics.fountainPolicy,footOffset,MOVEMENT.radius)
+  }
+  /** Mirrors the server's PositionCollision.supported(): the capsule swept 0.17m down onto a walkable face. */
+  private jumpSupported(pose:{x:number;y:number;z:number}) {
+    const hit=this.supportBelow(pose)
+    return !!hit&&hit.normal1.y>.6
+  }
+  private supportBelow(pose:{x:number;y:number;z:number}) {
+    return this.world.castShape(pose,{x:0,y:0,z:0,w:1},{x:0,y:-1,z:0},this.collider.shape,0,.17,false,undefined,undefined,this.collider)
   }
   private supportAllowed(pose:{x:number;y:number;z:number}) {
     return !GENERATED_PARK_ENABLED||furnitureAllowsSupport(pose,this.furniture,MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset,MOVEMENT.radius,this.chairCounts)
