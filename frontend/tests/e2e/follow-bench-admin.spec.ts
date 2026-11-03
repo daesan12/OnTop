@@ -219,3 +219,52 @@ test('a direct administrator URL distinguishes permission denial from a network 
   await expect(page.getByRole('heading', { name: '권한을 확인하지 못했습니다' })).toBeVisible()
   await expect(page.getByRole('button', { name: '다시 시도' })).toBeVisible()
 })
+
+test('grant administrator previews the immutable total and explicitly confirms one idempotent execution', async ({ page }) => {
+  const server = await fixture(page)
+  const previewRequests: unknown[] = [], executeRequests: unknown[] = []
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: true } }))
+  await page.route('**/api/v1/admin/wallet-grants/preview', route => {
+    expect(route.request().method()).toBe('POST')
+    expect(route.request().headers().authorization).toBe('Bearer fixture-access')
+    previewRequests.push(route.request().postDataJSON())
+    return route.fulfill({ json: { amountPerMember: 250, reason: '운영 점검 보상', recipientCount: 12,
+      missingWalletCount: 0, totalAmount: 3000, executable: true } })
+  })
+  await page.route('**/api/v1/admin/wallet-grants', route => {
+    const body = route.request().postDataJSON(); executeRequests.push(body)
+    expect(body).toMatchObject({ amountPerMember: 250, reason: '운영 점검 보상', expectedRecipientCount: 12 })
+    expect(body.requestId).toMatch(/^[0-9a-f-]{36}$/)
+    return route.fulfill({ json: { batchId: 42, requestId: body.requestId, amountPerMember: 250,
+      reason: '운영 점검 보상', recipientCount: 12, totalAmount: 3000, executedAt: '2026-11-03T10:00:00Z' } })
+  })
+
+  await page.goto('/admin/wallet-grants')
+  await expect(page.getByRole('heading', { name: '전 회원 엽전 지급' }).first()).toBeVisible()
+  await page.getByLabel('1인당 지급액').fill('250')
+  await page.getByLabel('지급 사유').fill(' 운영 점검 보상 ')
+  await page.getByRole('button', { name: '지급 미리보기' }).click()
+  await expect(page.getByRole('heading', { name: '지급 전 최종 확인' })).toBeVisible()
+  await expect(page.getByLabel('지급 미리보기')).toContainText('3,000냥')
+  await expect(page.getByRole('button', { name: '전 회원에게 지급 실행' })).toBeDisabled()
+  await page.getByRole('checkbox').check()
+  await page.getByRole('button', { name: '전 회원에게 지급 실행' }).click()
+  await expect(page.getByRole('heading', { name: '일괄 지급이 완료되었습니다' })).toBeVisible()
+  await expect(page.getByRole('status')).toContainText('12명')
+  expect(previewRequests).toEqual([{ amountPerMember: 250, reason: '운영 점검 보상' }])
+  expect(executeRequests).toHaveLength(1)
+  expect(server.connections).toBe(0)
+  await screenshot(page, 'admin-wallet-grant-complete')
+})
+
+test('read-only administrator cannot discover or open the wallet grant controls', async ({ page }) => {
+  const server = await fixture(page)
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
+  await page.goto('/admin')
+  await expect(page.getByRole('link', { name: '엽전 지급', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /전 회원 엽전 지급/ })).toHaveCount(0)
+  await page.goto('/admin/wallet-grants')
+  await expect(page.getByRole('heading', { name: '지급 권한이 없습니다' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '지급 미리보기' })).toHaveCount(0)
+  expect(server.connections).toBe(0)
+})

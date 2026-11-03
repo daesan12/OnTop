@@ -110,13 +110,13 @@ async function openTable(page: Page) {
   await page.waitForTimeout(700)
   return tablet
 }
-test('construction games stay visible but unavailable while omok and one-card can be selected', async ({ page }) => {
+test('available dice appears above construction games and can be selected', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   await fixture(page, { omok: true, manualLobby: true, tabletServer: true })
   const tablet = await openTable(page)
   await expect(page).toHaveTitle('OnTop')
-  for (const name of ['주사위 한 판', '거짓말 다리 건너기']) {
+  for (const name of ['거짓말 다리 건너기']) {
     const card = tablet.getByRole('button', { name, exact: false }).first()
     await expect(card).toBeDisabled()
     await expect(card).toContainText('공사 중')
@@ -130,18 +130,35 @@ test('construction games stay visible but unavailable while omok and one-card ca
   await tablet.getByRole('button', { name: '원카드', exact: false }).first().click()
   await expect(tablet.locator('.tablet-selection-detail h3')).toHaveText('원카드')
   await expect(tablet.getByLabel('주사위 목표 점수')).toHaveCount(0)
-  await screenshot(page, 'games-construction-desktop')
+  const dice = tablet.getByRole('button', { name: '주사위 한 판', exact: false }).first()
+  await expect(dice).toBeEnabled()
+  await expect(dice).toHaveAttribute('data-construction', 'false')
+  await expect(dice).not.toContainText('공사 중')
+  expect(await cards.evaluateAll(items => items.findIndex(item => item.querySelector('[data-game="DICE"]')))).toBeLessThan(constructionStart)
+  await dice.click()
+  await expect(tablet.locator('.tablet-selection-detail h3')).toHaveText('주사위 한 판')
+  await expect(tablet.getByLabel('주사위 목표 점수')).toBeEnabled()
+  await screenshot(page, 'dice-available-desktop')
   await page.setViewportSize({ width: 390, height: 844 })
-  await tablet.getByRole('button', { name: '오목', exact: false }).first().click()
-  await expect(tablet.locator('.tablet-selection-detail h3')).toHaveText('오목')
-  await screenshot(page, 'games-construction-mobile')
+  await dice.scrollIntoViewIfNeeded()
+  await expect(dice).toBeInViewport()
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).scrollIntoViewIfNeeded()
+  await expect(tablet.getByRole('button', { name: '선택하고 준비하기' })).toBeInViewport()
+  await screenshot(page, 'dice-available-mobile')
+  await page.setViewportSize({ width: 844, height: 390 })
+  await dice.scrollIntoViewIfNeeded()
+  await expect(dice).toBeInViewport()
+  const prepare = tablet.getByRole('button', { name: '선택하고 준비하기' })
+  await prepare.scrollIntoViewIfNeeded()
+  await expect(prepare).toBeInViewport()
+  await screenshot(page, 'dice-available-landscape')
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
   expect(errors).toEqual([])
 })
-for (const gameCode of ['DICE', 'LIAR_BRIDGE']) test(`construction ${gameCode} from server blocks ready and start but allows switching games`, async ({ page }) => {
+for (const gameCode of ['LIAR_BRIDGE']) test(`construction ${gameCode} from server blocks ready and start but allows switching games`, async ({ page }) => {
   const server = await fixture(page, { omok: true, manualLobby: true, tabletServer: true })
   const tablet = await openTable(page)
-  server.configureTablet({ gameCode, playerCount: 2, betAmountPerPlayer: 5, ...(gameCode === 'DICE' ? { targetScore: 4000 } : {}) })
+  server.configureTablet({ gameCode, playerCount: 2, betAmountPerPlayer: 5 })
   await expect(tablet).toContainText('공사 중인 게임입니다. 이용 가능한 게임을 선택해주세요.')
   await tablet.getByRole('checkbox').check()
   server.readyTabletOthers(true)
@@ -297,6 +314,7 @@ for (const variant of [
   { game: 'OMOK', name: '오목', count: 2, panel: '오목 경기', options: {} },
   { game: 'ONE_CARD', name: '원카드', count: 3, panel: '원카드 경기', options: { onecard: 3 as const } },
   { game: 'ONE_CARD', name: '원카드', count: 4, panel: '원카드 경기', options: { onecard: 4 as const } },
+  { game: 'DICE', name: '주사위 한 판', count: 2, panel: '주사위 경기', options: { dice: true } },
 ]) test(`real tablet adapter: ${variant.game} ${variant.count} seats, configure, cancel ready and explicit start`, async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
   const server = await fixture(page, { omok: true, ...variant.options, players: variant.count, manualLobby: true, tabletServer: true })
@@ -306,7 +324,7 @@ for (const variant of [
   if (variant.game === 'DICE') await tablet.getByLabel('주사위 목표 점수').selectOption('6000')
   const bet = variant.count > 2 ? 0 : 7
   await tablet.getByLabel('1인 참가비').fill(String(bet)); await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
-  await expect(tablet.getByRole('heading', { level: 2 })).toHaveText(/^(오목|원카드|주사위 장부)$/)
+  await expect(tablet.getByRole('heading', { level: 2 })).toHaveText(variant.name)
   expect(server.sent.find(m => m.type === 'TABLE_CONFIGURE')?.payload).toMatchObject({ gameCode: variant.game, selectedPlayers: variant.count, betAmountPerPlayer: bet,
     ...(variant.game === 'DICE' ? { targetScore: 6000 } : {}) })
   expect(server.sent.find(m => m.type === 'TABLE_CONFIGURE')?.payload.expectedVersion).toEqual(expect.any(Number))

@@ -63,8 +63,26 @@
 .tablet-money-field:has(input:disabled) { background:#ebe8d9; border-color:#b2af97; }
 /* Reserve the optional dice setting so it cannot grow the desktop grid. */
 .tablet-score-slot { flex: 0 0 38px; }
-.tablet-score { display: flex; align-items: center; justify-content: space-between; font-size: 18px; }
-.tablet-score select { background: #fff8e5; color: #173b29; border: 1px solid #b79a66; border-radius: 6px; padding: 5px 8px; font: inherit; }
+.tablet-score { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 18px; font-weight: 600; }
+.table-tablet .tablet-score select {
+  appearance: none; color-scheme: light; cursor: pointer; min-width: 148px; max-width: 60%; height: 38px; scroll-margin-block: 12px;
+  padding: 3px 36px 3px 16px; border: 3px double #d4ad57; border-radius: 11px;
+  background-color: #19452d;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23f3d28f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"), linear-gradient(#28553b, #153b29);
+  background-repeat: no-repeat; background-position: right 11px center, center; background-size: 16px 16px, 100% 100%;
+  color: #fff6df; font: inherit; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 1px 0 #ffffff1f, 0 2px 3px #4b351425;
+  transition: border-color .15s, box-shadow .15s;
+}
+.table-tablet .tablet-score select:hover:not(:disabled) { border-color: #e3bc69; box-shadow: inset 0 0 0 1px #e3bc6955, 0 2px 4px #4b351435; }
+.table-tablet .tablet-score select:focus-visible { outline-color: #315c40; border-color: #f1cd7d; }
+.table-tablet .tablet-score select:disabled { cursor: not-allowed; background-color: #e6e5d5; background-image: none; color: #535d49; border-color: #a8a98d; box-shadow: none; }
+.table-tablet .tablet-score option { background: #fff6df; color: #173b29; font-weight: 600; }
+@media (max-width: 380px) {
+  .tablet-score { font-size: 16px; gap: 8px; white-space: nowrap; }
+  .table-tablet .tablet-score select { min-width: 124px; padding-inline: 10px 28px; font-size: 18px; background-position: right 8px center, center; }
+}
+@media (prefers-reduced-motion: reduce) { .table-tablet .tablet-score select { transition: none; } }
 .table-tablet .tablet-manual { min-height: 36px; font-size: 18px; padding: 6px 15px; margin: 5px 0 9px; }
 .table-tablet .tablet-primary { background: linear-gradient(#244f33, #0d2c20); color: #fff6df; border: 3px double #d4ad57; box-shadow: 0 3px 5px #4b351430; font-family: BusanDandiMyeongjo, serif; font-weight: 700; font-size: 29px; min-height: 62px; padding: 9px 22px; }
 .table-tablet .tablet-primary:not(:disabled):hover { background: #2e5c3f; }

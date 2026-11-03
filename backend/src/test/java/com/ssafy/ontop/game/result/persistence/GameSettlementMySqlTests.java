@@ -53,6 +53,7 @@ import static org.mockito.Mockito.doAnswer;
 @RecordApplicationEvents
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.game-start.enabled=true", "ontop.games.omok.enabled=true",
+        "ontop.games.farkle.enabled=true",
         "ontop.game-recovery.background-enabled=false",
         "ontop.shop.enabled=true", "ontop.minigames.enabled=true",
         "spring.flyway.locations=classpath:db/migration,classpath:db/shop,classpath:db/minigame",
@@ -73,6 +74,7 @@ class GameSettlementMySqlTests {
     @Autowired private ApplicationEvents notifications;
     @Autowired private ApplicationEventPublisher publisher;
     @Autowired private OmokEngine omok;
+    @Autowired private com.ssafy.ontop.game.farkle.service.FarkleEngine farkle;
     @Autowired private CommittedGameStartService committedStarts;
     @Autowired private Flyway flyway;
     @Autowired private ActiveGameLookup activeGames;
@@ -94,6 +96,79 @@ class GameSettlementMySqlTests {
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {2, 3, 4})
+    void 주사위_목표점수_승리는_모든_좌석의_예약을_한번만_정산한다(int count) {
+        var game = reserve("DICE", 5, count);
+        assertThat(committedStarts.find(game.command()).isReservationCommitted(game.command())).isTrue();
+        for (int step = 0; step < 500; step++) {
+            var state = farkle.load(game.users()[0], game.id()).orElseThrow();
+            var data = state.publicState();
+            if (data.path("status").asText().equals("FINISHED")) { break; }
+            String kind = data.path("stage").asText().equals("AWAITING_ROLL") ? "roll" : "bank";
+            List<Integer> selected = List.of();
+            int best = 0;
+            for (int mask = 1; mask < 64; mask++) {
+                List<Integer> ids = new ArrayList<>();
+                List<Integer> faces = new ArrayList<>();
+                for (var die : data.path("dice")) {
+                    if ((mask & (1 << die.path("id").asInt())) != 0) {
+                        ids.add(die.path("id").asInt()); faces.add(die.path("value").asInt());
+                    }
+                }
+                int score = com.ssafy.ontop.game.farkle.domain.FarkleScoring
+                        .score(faces.stream().mapToInt(Integer::intValue).toArray());
+                if (score > best) { best = score; selected = List.copyOf(ids); }
+            }
+            var command = new com.ssafy.ontop.game.action.GameActionCommand(data.path("turnUserId").asLong(),
+                    game.id(), "step-" + step, state.version(), new com.fasterxml.jackson.databind.ObjectMapper()
+                    .valueToTree(java.util.Map.of("kind", kind, "selectedIds", selected)));
+            farkle.apply(command);
+        }
+        var finalState = farkle.load(game.users()[0], game.id()).orElseThrow().publicState();
+        assertThat(finalState.path("status").asText()).isEqualTo("FINISHED");
+        assertThat(finalState.path("endReason").asText()).isEqualTo("TARGET_REACHED");
+        delivery.drain(100);
+        settlements.settle(Long.parseLong(game.id()));
+        long[] delta = new long[count];
+        for (int index = 0; index < count; index++) {
+            delta[index] = game.users()[index] == finalState.path("winnerUserId").asLong() ? 5L * (count - 1) : -5;
+        }
+        assertSettled(game, delta, 0);
+        long entries = ledgerCount(game);
+        settlements.settle(Long.parseLong(game.id()));
+        assertThat(ledgerCount(game)).isEqualTo(entries);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {2, 3, 4})
+    void 주사위_선택인원_예약후_기권자와_최후승자를_한번만_정산한다(int count) {
+        var game = reserve("DICE", 5, count);
+        assertReserved(game);
+        assertThat(committedStarts.find(game.command()).isReservationCommitted(game.command())).isTrue();
+        for (int index = 1; index < count; index++) {
+            var command = new GameForfeitCommand(game.users()[index], game.id(), "leave-" + index);
+            farkle.forfeit(command);
+            farkle.forfeit(command);
+            if (index < count - 1) {
+                assertThat(farkle.load(game.users()[0], game.id()).orElseThrow().publicState()
+                        .path("status").asText()).isEqualTo("PLAYING");
+            }
+        }
+        delivery.drain(100);
+        settlements.settle(Long.parseLong(game.id()));
+        long[] delta = new long[count];
+        java.util.Arrays.fill(delta, -5);
+        delta[0] = 5L * (count - 1);
+        assertSettled(game, delta, 0);
+        long entries = ledgerCount(game);
+        settlements.settle(Long.parseLong(game.id()));
+        assertThat(ledgerCount(game)).isEqualTo(entries);
+        assertThat(jdbc.queryForList("SELECT result FROM game_participants WHERE game_session_id=? ORDER BY participant_order",
+                String.class, Long.parseLong(game.id()))).containsExactlyElementsOf(
+                        java.util.stream.IntStream.range(0, count).mapToObj(index -> index == 0 ? "WIN" : "FORFEIT").toList());
     }
 
     @ParameterizedTest @ValueSource(longs = {2, 5, 30})
@@ -431,7 +506,8 @@ class GameSettlementMySqlTests {
         long initial = Math.max(100, bet);
         long[] players = IntStream.range(0, count).mapToLong(i -> member(initial)).toArray();
         var command = new GameStartCommand(UUID.randomUUID(), "settlement-" + UUID.randomUUID(), 1, code,
-                IntStream.range(0, count).mapToObj(i -> new GameStartCommand.Participant(Long.toString(players[i]), i + 1)).toList(), null, bet);
+                IntStream.range(0, count).mapToObj(i -> new GameStartCommand.Participant(Long.toString(players[i]), i + 1)).toList(),
+                "DICE".equals(code) ? 4000 : null, bet);
         var result = starts.startGame(command);
         assertThat(result.isReservationCommitted(command)).isTrue();
         return new Fixture(command, result.gameSessionId(), players, initial);

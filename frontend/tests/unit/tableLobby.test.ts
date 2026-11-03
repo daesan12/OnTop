@@ -44,11 +44,13 @@ describe('M09 lobby authority and completed round presentation', () => {
     expect(lobbyStatus(table, '101', true).canLeaveByMovement).toBe(false)
     expect(lobbyStatus({ ...table, seats: table.seats.map(s => ({ ...s, ready: !!s.userId })) }, '101', false).canLeaveByMovement).toBe(false)
   })
-  it('allows omok and one-card selection and blocks games under construction', () => {
+  it('allows dice with a valid target alongside existing games and blocks unfinished games', () => {
     expect(gameSelection('OMOK', 5)).toEqual({ gameCode: 'OMOK', betAmountPerPlayer: 5 })
     expect(gameSelection('ONE_CARD', 5)).toEqual({ gameCode: 'ONE_CARD', betAmountPerPlayer: 5 })
-    for (const gameCode of ['DICE', 'LIAR_BRIDGE'] as const) {
-      expect(() => gameSelection(gameCode, 5, gameCode === 'DICE' ? 4000 : undefined)).toThrow('공사 중')
+    expect(gameSelection('DICE', 5, 4000)).toEqual({ gameCode: 'DICE', betAmountPerPlayer: 5, targetScore: 4000 })
+    expect(lobbyStatus({ ...table, gameCode: 'DICE', targetScore: 4000 }, '101', false).canReady).toBe(true)
+    for (const gameCode of ['LIAR_BRIDGE'] as const) {
+      expect(() => gameSelection(gameCode, 5)).toThrow('공사 중')
       expect(lobbyStatus({ ...table, gameCode }, '101', false).canReady).toBe(false)
     }
     expect(() => gameSelection('DICE', 5)).toThrow()

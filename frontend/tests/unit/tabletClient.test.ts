@@ -44,9 +44,8 @@ it('configures only the authenticated host and sends exactly the published paylo
 })
 it('never sends configure or start commands for construction games, even with a stale ready table', async () => {
   const { client, calls, port } = setup()
-  for (const gameCode of ['DICE', 'LIAR_BRIDGE'] as const) {
-    expect(await port.configure(context, { gameCode, playerCount: 2, betAmountPerPlayer: 5,
-      ...(gameCode === 'DICE' ? { targetScore: 4000 } : {}) })).toBe(false)
+  for (const gameCode of ['LIAR_BRIDGE'] as const) {
+    expect(await port.configure(context, { gameCode, playerCount: 2, betAmountPerPlayer: 5 })).toBe(false)
     useSession.setState({ tableStates: { t: { ...table, gameCode } } })
     expect(await port.start(context)).toBe(false)
   }

@@ -1327,6 +1327,7 @@ public class TableHub {
             return;
         }
         try {
+            syncSpectatorPresence();
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
             dispatchJumpmap(channels.drainJumpmap());
             for (var ended : channels.drainSuspensionEnds()) {
@@ -2051,6 +2052,19 @@ public class TableHub {
         for (var state : channels.boardGames(current)) { publishWorld(state, null, null); }
     }
 
+    /** Use the existing approved subscription; pending loads, players and finished games do not count. */
+    private void syncSpectatorPresence() {
+        Map<String, WorldChannelRegistry.GameWatch> current = new HashMap<>();
+        statePushes.forEach((session, push) -> {
+            Member member = members.get(session);
+            if (member != null && "PLAYING".equals(push.status)
+                    && approvedSpectator(session, member, push.gameId) != null) {
+                current.put(member.userId(), new WorldChannelRegistry.GameWatch(push.gameId, push.tableId));
+            }
+        });
+        for (var world : channels.gameWatches(current)) { publishWorld(world, null, null); }
+    }
+
     @EventListener
     public synchronized void gameParticipantActivityEnded(com.ssafy.ontop.game.result.GameParticipantLeft event) {
         if (stopped) { return; }
@@ -2724,6 +2738,7 @@ public class TableHub {
             push.member.peer().offer(protocol.encode(push.initialRequestId, "GAME_STATE", view));
             push.initialRequestId = null;
         }
+        syncSpectatorPresence();
     }
 
     private synchronized boolean canReceiveStatePush(String sessionId, StatePush push) {

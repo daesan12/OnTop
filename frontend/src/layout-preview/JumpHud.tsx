@@ -1,7 +1,7 @@
 import { useEffect,useState } from 'react'
 import { JUMP_STAGES,JUMP_START,focusJumpStage } from './jumpCourse'
 import { findJumpReturnPath,jumpReturnRoute } from './jumpNavigation'
-import { jumpSession } from './jumpSimulation'
+import { jumpSession,JUMP_PREVIEW_DAILY_CAP } from './jumpSimulation'
 import type { PreviewView } from './PreviewCamera'
 
 const time=(value:number)=>`${Math.floor(value/60)}:${Math.floor(value%60).toString().padStart(2,'0')}`
@@ -18,7 +18,7 @@ export function JumpHud({view,onView}:{view:PreviewView;onView:(v:PreviewView)=>
     </section>
     {review?<section className="jump-review" aria-label="점프맵 구간 둘러보기"><span>STONE TOWER CHALLENGE</span><h2>돌탑에서 호수까지</h2><p>7구간 · 발판 107개 · 엽전 문 6개<br/>최고 높이 약 46.5m</p>{JUMP_STAGES.map((g,i)=><button key={g.theme} onClick={()=>focusJumpStage(i)}><b>0{i+1}</b><strong>{g.name}<small>{g.count}개 · {g.asmr}</small></strong><em>+{g.reward}냥</em></button>)}</section>:<>
       {s.active&&<section className="jump-challenge" aria-label="점프맵 도전 상태"><small>{stage+1}구간 진행 중</small><h2>{JUMP_STAGES[stage]!.name}</h2><b>{s.y.toFixed(1)}<small> m</small></b><p>{time(s.elapsed)} · 최고 {s.maxHeight.toFixed(1)}m</p></section>}
-      <section className="jump-wallet" aria-label="미리보기 엽전"><small>미리보기 예상 보상</small><strong>오늘 {s.today} / 100냥</strong><progress value={s.today} max={100}/><span>이번 판 +{s.coins}냥</span></section>
+      <section className="jump-wallet" aria-label="미리보기 엽전"><small>미리보기 예상 보상</small><strong>오늘 {s.today} / {JUMP_PREVIEW_DAILY_CAP}냥</strong><progress value={s.today} max={JUMP_PREVIEW_DAILY_CAP}/><span>이번 판 +{s.coins}냥</span></section>
       {s.active&&<div className="jump-stage-strip" aria-label="점프맵 진행 구간">{JUMP_STAGES.map((g,i)=><div key={g.theme} className={i<stage?'passed':i===stage?'current':''}><b>{i+1} {g.name}</b><small>+{g.reward}냥</small></div>)}</div>}
       {!s.active&&distance<15&&!s.result&&<div className="jump-start-hint">첫 발판을 밟으면 시작해요.<br/><small>세이브 포인트 없음 · <kbd>Space</kbd> 점프 · <kbd>WASD</kbd> 이동</small></div>}
       {s.time<s.bannerUntil&&s.banner&&<div className="jump-banner" role="status">{s.banner}</div>}

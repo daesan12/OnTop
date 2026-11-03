@@ -24,6 +24,17 @@ public class JpaFitnessRewardStore implements FitnessRewardStore {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public long earnedToday(long userId, Instant now) {
+        var wallet = wallets.findByUserId(userId)
+                .orElseThrow(() -> new IllegalStateException("운동 보상을 받을 지갑이 없습니다."));
+        var today = now.atZone(KST).toLocalDate();
+        return transactions.countByWalletIdAndTransactionTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                wallet.id(), "FITNESS_REWARD", today.atStartOfDay(KST).toInstant(),
+                today.plusDays(1).atStartOfDay(KST).toInstant());
+    }
+
+    @Override
     @Transactional
     public void grant(long userId, String leaseId, long interval, Instant now) {
         var wallet = wallets.findForUpdateByUserId(userId)
