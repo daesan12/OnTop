@@ -12,6 +12,19 @@ const send = (type: string, payload: Record<string, unknown>) => receiveGame({ t
 const restore = (state = make(), version = 0) => send('GAME_CONNECTION_STATE', { status: 'RESTORED', gameId: 'dice', version, state })
 beforeEach(resetGame)
 describe('M11 preview and public DICE boundary', () => {
+  it.each([2, 3, 4])('accepts %i seats with aligned scores and rejects malformed eliminated rosters', count => {
+    const players = ['101', '102', '103', '104'].slice(0, count)
+    const state = make({ players, scores: players.map((_, i) => i * 50), turnUserId: players[count - 1]! })
+    const parsed = parseFarkle(state)
+    expect(parsed.players).toEqual(players)
+    expect(parsed.scores).toHaveLength(count)
+    expect(parsed.forfeitedUserIds).toEqual([])
+    expect(parseFarkle({ ...state, forfeitedUserIds: ['101'] }).forfeitedUserIds).toEqual(['101'])
+    for (const patch of [{ scores: [0] }, { players: ['101', '101'] }, { players: ['101'] },
+      { players: [...players, '105', '106', '107'] }, { forfeitedUserIds: ['999'] },
+      { forfeitedUserIds: ['101', '101'] }, { forfeitedUserIds: [state.turnUserId] }])
+      expect(() => parseFarkle({ ...state, ...patch })).toThrow()
+  })
   it('copies confirmed last-roll faces, accepts older servers and rejects malformed or stale receipts', () => {
     const state = make({ lastEvent: 'BUST', rollId: 1, round: 2, turnUserId: '102' })
     const lastRoll = { rollId: 1, actorUserId: '101', dice: dice([2, 3, 4, 6, 2, 3]) }

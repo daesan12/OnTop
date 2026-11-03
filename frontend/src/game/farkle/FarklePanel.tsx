@@ -22,7 +22,7 @@ import './farkle.css'
 import './farkleHud.css'
 
 const events: Record<string, string> = { START: '주사위를 굴려주세요', ROLL: '득점 주사위를 고르세요', HOT_DICE: '싹쓸이! · 여섯 개를 다시 굴립니다',
-  BANK: '점수를 챙겼습니다', BUST: '허탕! · 이번 턴 점수를 잃었습니다', TURN_TIMEOUT: '시간 종료 · 차례 변경' }
+  BANK: '점수를 챙겼습니다', BUST: '허탕! · 이번 턴 점수를 잃었습니다', TURN_TIMEOUT: '시간 종료 · 차례 변경', PLAYER_LEFT: '참가자 기권 · 경기를 이어갑니다' }
 export function FarklePanel() {
   const spectator = useGame(s => !!s.game?.dice && s.game.role === 'SPECTATOR')
   return spectator ? <FarkleSpectatorPanel /> : <FarklePlayerPanel />
@@ -50,6 +50,7 @@ function FarklePlayerPanel() {
   return <>
     <section className="prototype-game farkle-hud farkle-panel farkle-player-hud" aria-label="주사위 경기" data-stage={d.stage} data-presentation={bust ? `bust-${bust.phase}` : 'live'}>
       <FarkleScoreboard players={d.players.map((id, i) => ({ id, name: name(id), score: d.scores[i]!,
+        forfeited: d.forfeitedUserIds?.includes(id),
         label: displayedTurn === id ? bust ? name(id) + ' · 굴림 확인' : id === session.sessionId ? '내 차례' : name(id) + ' 차례' : name(id),
       }))} activeUserId={displayedTurn} targetScore={d.targetScore} />
       <div className="farkle-message" data-event={bust?.phase === 'rolling' ? 'ROLL' : d.lastEvent}>

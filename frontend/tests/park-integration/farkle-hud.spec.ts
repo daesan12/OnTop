@@ -7,8 +7,7 @@ test('Farkle HUD keeps selection, shortcuts and scrollable controls across scree
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
-  // DICE remains unavailable in the production selector. Exercise its retained renderer
-  // using confirmed fixture events without enabling a construction game for real users.
+  // Confirmed contract events exercise the renderer without a live game server.
   const server = await fixture(page, { generatedPark: true, omok: true, dice: true, manualLobby: true, tabletServer: true,
     publicProfiles: { '102': { nickname: '솔바람', characterGender: 'FEMALE' } } })
   await page.goto('/park')

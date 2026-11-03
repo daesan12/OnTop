@@ -1,0 +1,44 @@
+/* The same traditional scorebar supports three/four seats without changing the two-seat layout. */
+.park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] {
+  width: min(1100px, calc(100vw - 580px));
+  grid-template-columns: repeat(2, minmax(0, 1fr)) 100px repeat(2, minmax(0, 1fr));
+}
+.park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-player-count='3'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) 100px minmax(0, 1fr);
+}
+.park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] > .farkle-player-score {
+  grid-column: auto; grid-row: 1; grid-template-columns: minmax(0, 1fr); border-radius: 0;
+  padding: 12px 14px; text-align: center; gap: 3px;
+}
+.park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] > .farkle-player-score:nth-of-type(3) { grid-column: 4; }
+.park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] > .farkle-player-score:nth-of-type(4) { grid-column: 5; }
+.park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] .farkle-player-seal { display: none; }
+.park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] .farkle-goal { grid-column: 3; }
+.park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] strong { font-size: 28px; }
+.park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] .farkle-player-name { font-size: 15px; }
+.park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-player-score[data-forfeited=true] { opacity: .6; }
+@media (max-width: 1100px) {
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] { width: calc(100vw - 320px); }
+}
+@media (max-width: 800px) {
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] {
+    width: calc(100vw - 32px); grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: 24px auto; min-height: 84px;
+  }
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-player-count='3'] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] > .farkle-player-score {
+    display: grid; grid-row: 2; grid-column: auto; align-items: stretch; padding: 4px 6px; gap: 1px;
+  }
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] > .farkle-player-score:nth-of-type(3),
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] > .farkle-player-score:nth-of-type(4) { grid-column: auto; }
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] .farkle-goal {
+    grid-column: 1 / -1; grid-row: 1; flex-direction: row; align-items: center; gap: 6px; border: 0; font-size: 11px;
+  }
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] .farkle-goal::before,
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] .farkle-goal::after { display: none; }
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] .farkle-player-name { font-size: 11px; }
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] strong { font-size: 18px; line-height: 1.2; }
+  .park-page :is(.farkle-player-hud.farkle-hud, .farkle-observer-hud) .farkle-scoreboard[data-multiplayer=true] strong small { font-size: 10px; margin-left: 2px; }
+  .park-page .farkle-player-hud.farkle-hud[data-chat-layout=above] .farkle-scoreboard[data-multiplayer=true] { min-height: 70px; grid-template-rows: 20px auto; }
+  .park-page .farkle-player-hud.farkle-hud[data-chat-layout=above]:has(.farkle-scoreboard[data-multiplayer=true]) .farkle-message { top: 146px; }
+}

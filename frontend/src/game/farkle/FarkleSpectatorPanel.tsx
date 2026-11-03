@@ -40,6 +40,7 @@ export function FarkleSpectatorPanel() {
   return <section className="farkle-observer-hud" role="region" aria-label="주사위 경기" data-stage={d.stage} data-rolling={rolling} data-view={view} onKeyDown={event => { if (event.code === 'Tab') event.stopPropagation() }}>
     <FarkleScoreboard className="farkle-observer-scorebar" targetScore={d.targetScore} activeUserId={bust?.actorId ?? d.turnUserId}
       players={d.players.map((id, i) => ({ id, name: names[i]!, score: d.scores[i]!,
+        forfeited: d.forfeitedUserIds?.includes(id),
         label: (bust?.actorId ?? d.turnUserId) === id ? names[i] + (bust ? ' · 굴림 확인' : ' 차례') : names[i]!,
       }))} />
     <details className="farkle-spectator" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
