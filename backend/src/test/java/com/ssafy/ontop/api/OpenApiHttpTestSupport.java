@@ -88,6 +88,8 @@ abstract class OpenApiHttpTestSupport {
                 "DELETE /api/v1/users/me", "GET /api/v1/users/nickname-availability",
                 "POST /api/v1/users/onboarding", "GET /api/v1/admin/me", "GET /api/v1/admin/analytics/summary",
                 "POST /api/v1/admin/wallet-grants/preview", "POST /api/v1/admin/wallet-grants",
+                "GET /api/v1/operations/status", "GET /api/v1/admin/operations/status",
+                "PUT /api/v1/admin/operations/status",
                 "GET /api/v1/wallets/me",
                 "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings",
                 "GET /api/v1/rankings/park",

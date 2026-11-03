@@ -20,6 +20,51 @@ tags:
 - name: HISTORY
   description: 인증된 본인의 종료 경기 내역과 게임별 전적
 paths:
+  /api/v1/admin/operations/status:
+    get:
+      tags:
+      - ADMIN
+      summary: 관리자 서비스 운영 상태 조회
+      operationId: status
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceOperationResponse"
+      security:
+      - AccessJwt: []
+    put:
+      tags:
+      - ADMIN
+      summary: 서비스 배출·점검·정상 상태 전환
+      operationId: update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceOperationUpdateRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceOperationResponse"
+      security:
+      - AccessJwt: []
   /api/v1/users/onboarding:
     post:
       tags:
@@ -723,7 +768,7 @@ paths:
         \ 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다. v5(신규 판 120초·90초부터 가속, 기존 v5-20261027.1 판은\
         \ 저장된 180초·150초 규칙 유지, 활성 손님 3명, 선택 납품·충원, V128)도 제공하며 v5는 서버 설정 ontop.minigames.bungeoppang-v5-enabled=true일\
         \ 때만 받고, 기본값(false)에서는 409 RULES_VERSION_MISMATCH입니다."
-      operationId: status
+      operationId: status_1
       parameters:
       - name: rulesVersion
         in: query
@@ -3216,7 +3261,7 @@ paths:
       description: "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자. 대소문자 무시 UNIQUE(탈퇴 회원 포함),\
         \ 본인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기를 저장합니다. 사전 조회와 별도로 트랜잭션에서\
         \ 최종 중복 검증합니다."
-      operationId: update
+      operationId: update_1
       requestBody:
         content:
           application/json:
@@ -4380,6 +4425,25 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/operations/status:
+    get:
+      tags:
+      - OPERATION
+      summary: 공개 서비스 운영 상태 조회
+      description: 점검 화면에 사용할 상태와 예상 재개 시각을 반환합니다.
+      operationId: status_2
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceOperationResponse"
   /api/v1/minigames/sessions/{sessionId}:
     get:
       tags:
@@ -4676,7 +4740,7 @@ paths:
       - MINIGAME
       summary: 점프맵 상태
       description: "activeRun은 요청 채널에 있을 때만, lastRun은 최근 종료 판을 잠시만 담는다."
-      operationId: status_1
+      operationId: status_3
       parameters:
       - name: channelId
         in: query
@@ -5320,6 +5384,45 @@ paths:
       - AccessJwt: []
 components:
   schemas:
+    ServiceOperationUpdateRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum:
+          - NORMAL
+          - DRAINING
+          - MAINTENANCE
+        notice:
+          type: string
+        expectedOpenAt:
+          type: string
+          format: date-time
+        expectedVersion:
+          type: integer
+          format: int64
+    ServiceOperationResponse:
+      type: object
+      properties:
+        mode:
+          type: string
+        notice:
+          type: string
+        maintenanceStartedAt:
+          type: string
+          format: date-time
+        expectedOpenAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
+        serverTime:
+          type: string
+          format: date-time
     UserOnboardingRequest:
       required:
       - characterGender
@@ -7337,6 +7440,8 @@ components:
         canRead:
           type: boolean
         canGrant:
+          type: boolean
+        canOperate:
           type: boolean
     Entry:
       required:
