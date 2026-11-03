@@ -1,0 +1,9 @@
+.park-page .park-interaction[data-fitness-id]:has(.fitness-reward){padding:9px 12px;gap:4px}
+.park-interaction[data-fitness-id]:has(.fitness-reward)>strong{font-size:13px}
+.fitness-reward{box-sizing:border-box;width:min(260px,calc(100vw - 56px));padding:0;color:#fff8e4;text-align:left;word-break:keep-all}
+.fitness-reward .fitness-reward-total{display:flex;justify-content:center;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
+.fitness-reward .fitness-reward-total strong{font-size:18px;color:#f2d08a;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fitness-reward .fitness-reward-total strong small{font-size:12px;font-weight:500;color:#fff8e4}
+.fitness-reward:focus-visible{outline:2px solid #ecc875;outline-offset:3px}
+@media(max-width:600px){.park-page .park-interaction[data-fitness-id]{left:12px;transform:none;box-sizing:border-box;width:calc(100vw - 120px);max-width:calc(100vw - 120px);padding:10px 8px;align-items:stretch}.park-interaction[data-fitness-id] .fitness-reward{width:100%;padding:0}}
+@media(max-height:600px){.park-page .park-interaction[data-fitness-id]{box-sizing:border-box;max-height:max(90px,calc(100dvh - 320px));overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain}.park-page .park-interaction[data-fitness-id]::-webkit-scrollbar{display:none}}

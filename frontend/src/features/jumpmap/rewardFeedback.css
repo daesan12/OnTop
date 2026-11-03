@@ -1,0 +1,15 @@
+.jm-guide-root .jm-guide-rewards{padding:15px;border:1px solid #d7c7a8;border-radius:14px;background:#e9e1cf66;text-align:center;margin:14px 0}
+.jm-guide-root .jm-guide-rewards h3{margin:0;font-size:21px;color:#214b3b}
+.jm-guide-root .jm-guide-rewards p{font-size:14px;line-height:1.6;margin:7px 0}
+.jm-guide-root .jm-guide-rewards ol{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;list-style:none;margin:12px 0;padding:0}
+.jm-guide-root .jm-guide-rewards li{display:grid;gap:4px;padding:7px 3px;border-radius:8px;background:#fffdf7b0;font-size:12px}
+.jm-guide-root .jm-guide-rewards li b{color:#87632f;font-size:14px}
+.jm-guide-root .jm-guide-rewards small{font-size:12px;line-height:1.6;color:#646859}
+.jumpmap .jm-reward-detail{text-align:left;margin:12px 0 0;font-size:13px;color:#49604a}
+.jumpmap .jm-reward-detail summary{cursor:pointer;min-height:32px;line-height:32px;text-align:center;font-weight:700}
+.jumpmap .jm-reward-detail dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 18px;padding:10px 12px;margin:6px 0;border-radius:12px;background:#e9e1cf66}
+.jumpmap .jm-reward-detail dl>div{display:flex;justify-content:space-between;gap:5px}
+.jumpmap .jm-reward-detail dd{margin:0;font-weight:700;white-space:nowrap}
+.jumpmap .jm-reward-detail p{font-size:12px;line-height:1.6;text-align:center;margin:8px 0}
+.jumpmap .jm-completion-paper .paper-settlement small{display:block;line-height:1.6;margin-top:5px;word-break:keep-all}
+@media(max-width:500px){.jm-guide-root .jm-guide-rewards ol{grid-template-columns:repeat(4,minmax(0,1fr))}.jumpmap .jm-reward-detail dl{grid-template-columns:1fr}}
