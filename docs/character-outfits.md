@@ -13,6 +13,11 @@
   - 각 메시의 `extras.pieces`에 조각 이름과 범위가 들어 있고, 게임은 입은 옷에 맞는 조각만 그린다(`frontend/src/world/art/characterLook.ts`).
 - **아이템과 연결.** DB `items.image_key`를 `outfit/<파일>/<의상 문자>`로 적으면 그 조각을 입힌다(예: 장군 `outfit/general/g`). 같은 세트는 `items.set_code`를 같은 값으로 둔다. 세트는 한 벌로만 입고 벗는다(`docs/shop-inventory.md`의 세트 항목).
 
+- **운영에서는 아직 꺼져 있다.** 옷장 의상은 개발 빌드(`VITE_WARDROBE_OUTFITS=true`, `frontend/vercel.dev.json`과 `Jenkinsfile`)와 로컬 개발에서만 켜진다. 운영 빌드에서는 다음처럼 동작한다(`frontend/src/features/wardrobe/feature.ts`).
+  - 옷장에 의상 목록이 나오지 않고 "의상은 곧 열려요"가 보인다.
+  - 서버가 장착 정보를 보내도 모든 캐릭터가 기본 옷을 입는다.
+  - 운영에 열 때는 운영 빌드 명령에 `VITE_WARDROBE_OUTFITS=true`를 넣는다.
+
 ## 2. 준비물
 
 - Blender 5.2.3 (명령줄 `blender -b`로 실행한다).

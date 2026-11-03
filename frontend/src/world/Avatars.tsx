@@ -18,6 +18,7 @@ import { emptyEquipment } from '../network/equipment'
 import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from './art/characterLook'
 import { useOutfitSources } from './art/outfitSources'
 import { previewEquipment, useWardrobe } from '../features/wardrobe/state'
+import { WARDROBE_OUTFITS_ENABLED } from '../features/wardrobe/feature'
 import { roamingFirstPerson } from './roamingCamera'
 import { localMovement } from '../network/localMovementPrediction'
 import { useJumpmap } from '../features/jumpmap/state'
@@ -54,7 +55,8 @@ function Avatar({
   const previewId = useWardrobe(state => own && state.open ? state.previewId : 0)
   const owned = useWardrobe(state => state.items)
   const worn = useMemo(() => previewId && previewEquipment(owned, previewId) || equipment, [previewId, owned, equipment])
-  const look = useMemo(() => resolveLook(variant, worn), [variant, worn])
+  // Outfits closed (production build): every avatar keeps its default clothes, whatever is equipped.
+  const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn])
   const outfits = useOutfitSources(lookSources(look).filter(source => !isCharacterSource(source)))
   const files = useMemo(() => new Map([['man', sources[0]!], ['girl', sources[1]!], ...outfits]), [sources, outfits])
   const shown = availableLook(variant, look, source => files.has(source))

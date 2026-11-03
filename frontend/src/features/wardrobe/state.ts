@@ -8,6 +8,7 @@ import type { OwnedItem } from '../shop/contracts'
 import { createShopService, ShopError } from '../shop/service'
 import { wardrobeView } from './view'
 import { gameplayMenusLocked } from '../parkMenus/gameplayLock'
+import { WARDROBE_OUTFITS_ENABLED } from './feature'
 
 /** Slightly above eye level, so the zoomed figure is seen almost straight on. */
 const WARDROBE_PITCH = 0.16
@@ -104,7 +105,8 @@ export async function refreshWardrobe() {
   readAbort?.abort()
   const abort = readAbort = new AbortController()
   useWardrobe.setState({ loading: true, error: '', unavailable: false })
-  const [inventory, wallet] = await Promise.allSettled([service.inventory(abort.signal), service.wallet(abort.signal)])
+  // Outfits closed (production build): the wardrobe lists none, so the inventory is not read at all.
+  const [inventory, wallet] = await Promise.allSettled([WARDROBE_OUTFITS_ENABLED ? service.inventory(abort.signal) : Promise.resolve([]), service.wallet(abort.signal)])
   if (!current(owner, generation) || abort.signal.aborted) return
   if (inventory.status === 'fulfilled') {
     const items = wearable(inventory.value)

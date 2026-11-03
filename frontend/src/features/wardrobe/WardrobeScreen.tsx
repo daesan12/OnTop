@@ -9,6 +9,7 @@ import {
   setWardrobeFilter, setWardrobeQuery, slotLabels, takeOffPreviewedItem, turnWardrobeView, useWardrobe, wearPreviewedItem, type WardrobeFilter,
 } from './state'
 import { wornPiece } from '../../world/art/characterLook'
+import { WARDROBE_OUTFITS_ENABLED } from './feature'
 import { wardrobeView } from './view'
 import { setImage, useItemArt, type CharacterVariant } from './itemArt'
 import './wardrobe.css'
@@ -138,7 +139,9 @@ export function WardrobeScreen() {
       </div>
 
       <div className="wardrobe-list" aria-busy={s.loading}>
-        {s.unavailable ? <div className="wardrobe-empty" role="status">
+        {!WARDROBE_OUTFITS_ENABLED ? <div className="wardrobe-empty" role="status">
+          <b>의상은 곧 열려요</b><p>지금은 기본 옷만 입을 수 있어요. 여러 의상을 골라 입는 기능을 준비하고 있어요.</p>
+        </div> : s.unavailable ? <div className="wardrobe-empty" role="status">
           <b>옷장이 아직 준비 중이에요</b><p>서버에서 옷장 기능을 켜면 보유한 의상이 여기에 보여요.</p>
         </div> : s.error && !s.ready ? <div className="wardrobe-empty" role="alert">
           <b>옷장을 불러오지 못했어요</b><p>{s.error}</p>

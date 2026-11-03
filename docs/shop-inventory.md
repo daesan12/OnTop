@@ -108,6 +108,7 @@ JPA EntityManager·JPQL 저장소를 사용한다. 지갑 PESSIMISTIC_WRITE(MySQ
   또는 `frontend/public/art/characters/outfits/<파일>.glb`이며, 아이템은 공용 몸 빌드의 의상 문자다(장군 `outfit/general/g`).
   다른 형식의 imageKey는 기본 옷을 유지한다. 캐릭터 파일의 메시 extras.pieces에 몸 조각·의상 조각 범위가 들어 있고,
   게임은 입은 의상에 가려지는 몸 조각을 숨긴다(`frontend/src/world/art/characterLook.ts`).
+- 운영 공개 전: 프론트 옷장 의상과 3D 외형은 `VITE_WARDROBE_OUTFITS=true`인 개발 빌드와 로컬 개발에서만 켜진다. 운영 빌드는 옷장 의상 목록을 읽지 않고, 장착 정보가 있어도 기본 옷을 그린다. 서버 API는 그대로다.
 
 ## DB 연결 경계
 
