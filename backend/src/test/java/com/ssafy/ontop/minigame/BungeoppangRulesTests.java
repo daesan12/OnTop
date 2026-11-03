@@ -34,7 +34,7 @@ class BungeoppangRulesTests {
         assertThat(result.score()).isEqualTo(86);
         assertThat(result.golden()).isEqualTo(7);
         assertThat(result.maxCombo()).isEqualTo(7);
-        assertThat(result.score() / 15).isEqualTo(5);
+        assertThat(result.score() / 5).isEqualTo(17);
     }
 
     @Test
