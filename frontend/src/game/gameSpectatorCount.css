@@ -1,0 +1,8 @@
+.game-spectator-count{position:fixed;right:max(20px,env(safe-area-inset-right));top:94px;z-index:30;display:flex;align-items:center;gap:7px;box-sizing:border-box;max-width:calc(100vw - 24px);min-height:30px;padding:5px 10px;border:1px solid #ffffff18;border-radius:7px;background:#22251fea;color:#ede4d0;box-shadow:0 2px 8px #0002;font:inherit;font-size:12px;line-height:1.4;pointer-events:none;text-shadow:none}
+.game-spectator-live{width:5px;height:5px;border-radius:50%;background:#df5c4b;flex:none}
+.game-spectator-count>svg{color:#c6c0ae;flex:none}
+.game-spectator-number{display:flex;gap:5px;align-items:baseline;font-weight:650;font-variant-numeric:tabular-nums;animation:spectator-count-change .18s ease-out}
+.game-spectator-number small{font-size:10px;font-weight:400;color:#c6c0ae}
+@keyframes spectator-count-change{from{opacity:.5;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:700px){.game-spectator-count{right:12px;top:118px;font-size:11px;min-height:28px;padding:4px 8px}.game-spectator-number small{font-size:9px}}
+@media(prefers-reduced-motion:reduce){.game-spectator-number{animation:none}}
