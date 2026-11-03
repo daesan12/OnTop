@@ -37,6 +37,7 @@
 .tablet-game-card > span { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 11px 5px 2px; }
 .tablet-game-card strong { font-size: 23px; letter-spacing: -.05em; }
 .tablet-game-card small { font-size: 16px; font-weight: 600; border: 1px solid #ddbd78; background: #f8e6ae; padding: 3px 13px; border-radius: 20px; white-space: nowrap; }
+.tablet-game-section-title { grid-column: 1 / -1; margin: 4px 0 0; padding: 14px 4px 0; border-top: 1px solid #c9bd97; color: #565f49; font-size: 20px; text-align: left; }
 .tablet-coming { grid-column: span 2; text-align: center; font-size: 18px; color: #565f49; border-top: 1px solid #c9bd97; padding-top: 12px; }
 .tablet-game-list, .tablet-selection-detail { min-height: 0; min-width: 0; }
 .tablet-selection-detail { display: flex; flex-direction: column; align-items: stretch; text-align: center; padding: 16px 21px; border: 3px double #d2ab5c; border-radius: 16px; background: #fff6dba3; }

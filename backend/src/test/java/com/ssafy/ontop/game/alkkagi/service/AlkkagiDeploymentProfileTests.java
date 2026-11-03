@@ -24,6 +24,15 @@ class AlkkagiDeploymentProfileTests {
                 .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(AlkkagiEngine.class));
     }
 
+    @Test
+    void 운영_설정파일은_기본_비활성화하고_명시적_true를_존중한다() {
+        var configured = runner.withInitializer(new ConfigDataApplicationContextInitializer())
+                .withPropertyValues("spring.profiles.active=prod");
+        configured.run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(AlkkagiEngine.class));
+        configured.withPropertyValues("ontop.games.alkkagi.enabled=true")
+                .run(context -> assertThat(context).hasNotFailed().hasSingleBean(AlkkagiEngine.class));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"local", "dev", "dev,db"})
     void 명시적으로_켠_개발환경은_실제엔진을_등록한다(String profiles) {
@@ -33,13 +42,13 @@ class AlkkagiDeploymentProfileTests {
 
     @ParameterizedTest
     @ValueSource(strings = {"prod,db", "production,db", "local,prod", "dev,prod", "dev,production"})
-    void 운영과_혼합프로필은_등록하지_않는다(String profiles) {
+    void 명시적으로_켠_운영과_혼합프로필은_실제엔진을_등록한다(String profiles) {
         runner.withPropertyValues("spring.profiles.active=" + profiles, "ontop.games.alkkagi.enabled=true")
-                .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(AlkkagiEngine.class));
+                .run(context -> assertThat(context).hasNotFailed().hasSingleBean(AlkkagiEngine.class));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"local", "dev", "dev,db"})
+    @ValueSource(strings = {"local", "dev", "dev,db", "prod,db", "production,db"})
     void 기본값과_명시적_비활성화에서는_엔진을_등록하지_않는다(String profiles) {
         runner.withPropertyValues("spring.profiles.active=" + profiles)
                 .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(AlkkagiEngine.class));

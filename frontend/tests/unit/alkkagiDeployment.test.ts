@@ -12,11 +12,11 @@ it('explicitly enabled production bundles expose the same two-player alkkagi con
   expect(model.TABLE_GAMES.some(game => game.code === 'HALLI_GALLI')).toBe(true)
 })
 
-it.each(['', 'false'])('keeps alkkagi hidden and rejects selection when the flag is %j', async flag => {
+it.each(['', 'false'])('keeps alkkagi visible as construction and rejects selection when the flag is %j', async flag => {
   vi.stubEnv('DEV', false)
   vi.stubEnv('VITE_ALKKAGI_ENABLED', flag)
   vi.resetModules()
   const model = await import('../../src/features/tableLobby/model')
-  expect(model.TABLE_GAMES.some(game => game.code === 'ALKKAGI')).toBe(false)
-  expect(() => model.gameSelection('ALKKAGI', 5)).toThrow()
+  expect(model.TABLE_GAMES.find(game => game.code === 'ALKKAGI')).toMatchObject({ capacity: 2, playable: false })
+  expect(() => model.gameSelection('ALKKAGI', 5)).toThrow('공사 중')
 })
