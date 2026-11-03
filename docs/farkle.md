@@ -72,3 +72,12 @@ backend에서 `.\gradlew.bat test --tests '*Farkle*'` 또는 flowTest로 점수�
 - 경기 중 주변 둘러보기 버튼 및 좌·우 드래그/Tab 시점 전환은 제공하지 않는다. 판 시점 고정은 상대 턴에도 판을 유지하는 기존 설정이다. Tab은 UI 초점 이동에 사용한다. 다른 게임·관전자 카메라는 유지한다.
 - 구현: frontend/src/game/farkle/{FarkleForfeitDialog.tsx,forfeit.css,controls.ts,camera.ts,FarklePanel.tsx}. 공통 연결은 world/input.ts의 DICE 참가자 드래그 제한 및 world/CameraRig.tsx의 DICE 카메라 호출이다. 이번 조작 변경은 BE·DB 계약을 변경하지 않는다.
 - 독립 검증: frontend에서 node node_modules/@playwright/test/cli.js test --config playwright.park.config.ts farkle-escape.spec.ts farkle-view.spec.ts farkle-settings.spec.ts farkle-feedback.spec.ts. 127.0.0.1:5202의 최신 generated 맵과 HTTP/WS 계약 fixture를 사용하며 실제 경기 서버 검증과 구분한다.
+
+## 관전자 집중 화면 (2026-11-03)
+
+- DICE 관전자만 적용한다. 공개 판 보기는 기존 탑뷰 방향을 유지하며 game/farkle/camera.ts의 diceSpectatorCameraPose가 화면 비율과 점수판·관전 패널·공원 채팅의 공간을 고려해 확대한다. 주사위·테이블·컵·모래시계의 에셋과 크기는 변경하지 않는다.
+- 상단에는 참가자별 저장 점수(scores), 현재 차례(turnUserId), 목표 점수, 턴 번호를 표시한다. 이번 턴 누적(turnScore)은 관전 정보 패널에 따로 표시하며 선택 중인 점수를 임의로 추산하지 않는다.
+- game/farkle/FarkleSpectatorPanel.tsx 및 farkleSpectator.css에서 목재색·금색 HUD와 SVG 눈금을 사용한다. 좁거나 낮은 화면에서는 관전 정보를 기본으로 접고, 펼치면 모든 조작과 마지막 안내를 스크롤로 확인할 수 있다. 스크롤바는 숨기고 실제 스크롤은 유지한다.
+- 공원 채팅의 크기·색감은 유지한다. DICE 관전 중 겹치는 공원 빠른 메뉴·이동 안내는 게임별 CSS로 숨기고, 관전 종료 시 복원한다. 공통 로비·채팅·관전 권한 및 종료 로직은 변경하지 않는다.
+- 공통 수정은 world/CameraRig.tsx에서 DICE 관전자일 때 게임별 카메라 함수를 호출하는 분기다. 다른 게임과 DICE 참가자의 카메라·입력은 유지한다. BE·DB·Flyway·통신 계약 변경 없음.
+- 독립 검증: frontend에서 node node_modules/@playwright/test/cli.js test --config playwright.park.config.ts farkle-spectator.spec.ts farkle-view.spec.ts. 127.0.0.1:5202, 최신 generated 맵, HTTP/WS 계약 fixture를 사용한다. 실제 서버 경기·재화 DB 통합 검증과 구분한다.
