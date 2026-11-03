@@ -18,6 +18,7 @@ import { HudCorners, HudIcon, PlayerSeal } from './FarkleHudArt'
 import { bustMatches } from './bustPresentation'
 import './farkle.css'
 import './farkleHud.css'
+import './farkleChat.css'
 
 const events: Record<string, string> = { START: '주사위를 굴려주세요', ROLL: '득점 주사위를 고르세요', HOT_DICE: '싹쓸이! · 여섯 개를 다시 굴립니다',
   BANK: '점수를 챙겼습니다', BUST: '허탕! · 이번 턴 점수를 잃었습니다', TURN_TIMEOUT: '시간 종료 · 차례 변경' }
