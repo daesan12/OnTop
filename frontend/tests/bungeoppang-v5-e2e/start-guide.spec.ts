@@ -22,6 +22,16 @@ test('v5 준비 화면의 보상 부가 안내를 숨기고 이미지를 가운�
       return { offset: Math.abs(picture.x + picture.width / 2 - column.x - column.width / 2), width: picture.width }
     }))
     for (const image of geometry) { expect(image.offset).toBeLessThanOrEqual(1); expect(image.width).toBeGreaterThan(60) }
+    const textOffsets = await guide.evaluate(element => {
+      const images = [...element.querySelectorAll('.bung-start-steps > li > img')].map(image => image.getBoundingClientRect().x)
+      return ['.bung-start-plates h3', '.bung-start-fillings h3', '.bung-start-serve h3',
+        '.bung-start-score > h3', '.bung-start-combo h4', '.bung-start-bonus'].map((selector, index) => {
+        const range = document.createRange()
+        range.selectNodeContents(element.querySelector(selector)!)
+        return Math.abs(range.getBoundingClientRect().x - images[index % 3]!)
+      })
+    })
+    for (const offset of textOffsets) expect(offset).toBeLessThanOrEqual(1)
     expect(await guide.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
     await expect(guide).toHaveCSS('scrollbar-width', 'none')
     await guide.focus(); await page.keyboard.press('Home')
