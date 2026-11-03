@@ -40,6 +40,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     // Per user, not per room: reconnects and channel moves keep an ongoing game's public activity.
     private final Map<String, MinigamePresence> minigames = new HashMap<>();
     private final Map<String, String> boardGames = new HashMap<>();
+    private final Map<String, GameWatch> gameWatches = new HashMap<>();
     private final long minimumMoveNanos;
     private final LongSupplier nanoTime;
     private final java.util.function.Supplier<ParkScene> scene;
@@ -252,7 +253,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             }
         }
         for (Channel channel : initial) {
-            rooms.put(channel.channelId(), new Room(channel, scene, this::activity));
+            rooms.put(channel.channelId(), new Room(channel, scene, this::publicActivity, gameWatches));
         }
     }
 
@@ -265,7 +266,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (rooms.containsKey(definition.channelId())) {
             throw new IllegalArgumentException("이미 등록된 채널 ID입니다.");
         }
-        rooms.put(definition.channelId(), new Room(definition, scene, this::activity));
+        rooms.put(definition.channelId(), new Room(definition, scene, this::publicActivity, gameWatches));
     }
 
     public synchronized void removeEmptyChannel(String channelId) {
@@ -411,6 +412,25 @@ public class WorldChannelRegistry implements ChannelPresence {
 
     private String activity(String userId) {
         return cooking(userId) ? "BUNGEOPPANG" : boardGames.containsKey(userId) ? "GAME" : null;
+    }
+
+    /** Presentation only: watching must not become a movement-blocking game activity. */
+    private String publicActivity(String userId) {
+        String active = activity(userId);
+        return active != null ? active : gameWatches.containsKey(userId) ? "WATCHING" : null;
+    }
+
+    public synchronized List<WorldState> gameWatches(Map<String, GameWatch> current) {
+        var changed = new java.util.HashSet<String>();
+        var users = new java.util.HashSet<>(gameWatches.keySet()); users.addAll(current.keySet());
+        for (String user : users) {
+            if (!java.util.Objects.equals(gameWatches.get(user), current.get(user))) {
+                String channel = membership.get(user);
+                if (channel != null) changed.add(channel);
+            }
+        }
+        gameWatches.clear(); gameWatches.putAll(current);
+        return changed.stream().map(id -> { Room room = rooms.get(id); room.worldVersion++; return room.worldState(); }).toList();
     }
 
     /** Hub 현재 라운드의 확정 참가자 전체 투영. 오래된 사건으로 개별 값을 덮지 않는다. */
@@ -756,6 +776,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         suspended.clear();
         minigames.clear();
         boardGames.clear();
+        gameWatches.clear();
         for (Room room : rooms.values()) {
             if (room.physics != null) {
                 room.physics.close();
@@ -834,7 +855,11 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     public record WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion,
-            List<PublicTable> tables) {
+            List<PublicTable> tables, Map<String, GameWatch> gameWatches) {
+
+        public WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion, List<PublicTable> tables) {
+            this(channelId, version, avatars, mapVersion, tables, Map.of());
+        }
 
         public WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion) {
             this(channelId, version, avatars, mapVersion, List.of());
@@ -843,8 +868,11 @@ public class WorldChannelRegistry implements ChannelPresence {
         public WorldState {
             avatars = List.copyOf(avatars);
             tables = List.copyOf(tables);
+            gameWatches = Map.copyOf(gameWatches);
         }
     }
+
+    public record GameWatch(String gameId, String tableId) { }
 
     public record WorldChange(WorldState state, boolean changed) {
     }
@@ -896,6 +924,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     private static final class Room {
         private final java.util.function.Supplier<ParkScene> scene;
         private final java.util.function.Function<String, String> activity;
+        private final Map<String, GameWatch> watches;
 
         private final Channel definition;
         private final LinkedHashSet<String> users = new LinkedHashSet<>();
@@ -913,10 +942,10 @@ public class WorldChannelRegistry implements ChannelPresence {
         private boolean dirty;
 
         private Room(Channel definition, java.util.function.Supplier<ParkScene> scene,
-                java.util.function.Function<String, String> activity) {
+                java.util.function.Function<String, String> activity, Map<String, GameWatch> watches) {
             this.definition = definition;
             this.scene = scene;
-            this.activity = activity;
+            this.activity = activity; this.watches = watches;
         }
 
         private State state() {
@@ -931,7 +960,8 @@ public class WorldChannelRegistry implements ChannelPresence {
                             profiles.containsKey(user) ? profiles.get(user).characterGender() : null,
                             profiles.containsKey(user) && profiles.get(user).gameMaster(),
                             tableSeats.get(user), activity.apply(user), motions.get(user)))
-                    .toList(), scene.get().version(), tables);
+                    .toList(), scene.get().version(), tables, users.stream().filter(watches::containsKey)
+                            .collect(java.util.stream.Collectors.toMap(user -> user, watches::get)));
         }
     }
 

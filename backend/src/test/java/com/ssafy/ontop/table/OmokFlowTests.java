@@ -194,10 +194,73 @@ class OmokFlowTests {
         }
     }
 
+    @Test
+    void 무르기_요청과_재접속_상대승인_관전자갱신을_실제소켓으로_검증한다() throws Exception {
+        engine.create("omok", TABLE, 101, 202);
+        try (ScenarioClient black = connect("naver", "RESTORED");
+                ScenarioClient white = connect("ssafy", "RESTORED");
+                ScenarioClient viewer = connect("spectator", "LOBBY")) {
+            play(black, "b", 0, 0, 0); play(white, "w", 1, 0, 2);
+            joinWatch(viewer); viewer.request("GAME_WATCH", Map.of("gameId", "omok"));
+            assertThat(black.request("GAME_ACTION_SEND", Map.of("gameId","omok","actionId","undo",
+                    "expectedVersion",2,"input",Map.of("kind","undoRequest"))).path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
+            JsonNode pending = viewer.await(m -> stateVersion(m, 3)).path("payload").path("publicState");
+            assertThat(pending.path("undo").path("requesterUserId").asText()).isEqualTo("101");
+            assertThat(black.request("GAME_ACTION_SEND", action("blocked",3,2,2)).path("payload").path("code").asText())
+                    .isEqualTo("GAME_ACTION_INVALID_ACTION");
+            white.stopPong(); assertThat(white.awaitClose()).isEqualTo(1001);
+            try (ScenarioClient returned = connect("ssafy", "RESTORED")) {
+                assertThat(returned.request("GAME_STATE_CHECK", Map.of("gameId","omok"))
+                        .path("payload").path("publicState").path("undo")).isEqualTo(pending.path("undo"));
+                Map<String,Object> response = Map.of("gameId","omok","actionId","approve","expectedVersion",3,
+                        "input",Map.of("kind","undoRespond","requestId","undo","accept",true));
+                assertThat(returned.request("GAME_ACTION_SEND", response).path("payload").path("version").asInt()).isEqualTo(4);
+                JsonNode approved = viewer.await(m -> stateVersion(m,4)).path("payload").path("publicState");
+                assertThat(approved.path("moveCount").asInt()).isZero();
+                assertThat(approved.path("turnUserId").asText()).isEqualTo("101");
+                assertThat(approved.path("undoDecision").path("status").asText()).isEqualTo("ACCEPTED");
+                returned.request("GAME_ACTION_SEND", response);
+                assertThat(engine.load(101,"omok").orElseThrow().version()).isEqualTo(4);
+                play(black,"new-stone",4,1,1);
+                assertState(viewer.await(m -> stateVersion(m,5)),5,"PLAYING");
+            }
+        }
+    }
+
     private void prepareForbidden(ScenarioClient black, ScenarioClient white, int[][] points) throws Exception {
         for (int index = 0; index < points.length; index++) {
             play(black, "b" + index, index * 2L, points[index][0], points[index][1]);
             play(white, "w" + index, index * 2L + 1, index * 2, 0);
+        }
+    }
+
+    @Test
+    void 합의무승부_요청과_복귀_상대동의_관전자종료를_실제소켓으로검증한다() throws Exception {
+        engine.create("omok", TABLE, 101, 202);
+        try (var black=connect("naver","RESTORED");var white=connect("ssafy","RESTORED");var viewer=connect("spectator","LOBBY")) {
+            joinWatch(viewer);viewer.request("GAME_WATCH",Map.of("gameId","omok"));
+            String deadline=engine.load(101,"omok").orElseThrow().publicState().path("turnDeadline").asText();
+            assertThat(black.request("GAME_ACTION_SEND",Map.of("gameId","omok","actionId","draw","expectedVersion",0,
+                    "input",Map.of("kind","drawRequest"))).path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
+            var pending=viewer.await(m->stateVersion(m,1)).at("/payload/publicState");
+            assertThat(pending.path("draw").path("requesterUserId").asText()).isEqualTo("101");
+            assertThat(pending.path("turnDeadline").asText()).isEqualTo(deadline);
+            assertThat(black.request("GAME_ACTION_SEND",action("blocked-draw",1,0,0)).at("/payload/code").asText())
+                    .isEqualTo("GAME_ACTION_INVALID_ACTION");
+            white.stopPong();assertThat(white.awaitClose()).isEqualTo(1001);
+            try(var returned=new ScenarioClient(port,"ssafy")) {
+                var recovered=returned.state("RESTORED");
+                assertThat(recovered.at("/state/draw")).isEqualTo(pending.path("draw"));
+                assertThat(recovered.at("/state/drawRequestsUsed").toString()).isEqualTo("[\"101\"]");
+                var accept=Map.of("gameId","omok","actionId","agree","expectedVersion",1,
+                        "input",Map.of("kind","drawRespond","requestId","draw","accept",true));
+                assertThat(returned.request("GAME_ACTION_SEND",accept).path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
+                var result=viewer.await(m->stateVersion(m,2));assertState(result,2,"FINISHED");
+                assertThat(result.at("/payload/publicState/endReason").asText()).isEqualTo("AGREED_DRAW");
+                assertThat(result.at("/payload/publicState/winnerUserId").isNull()).isTrue();
+                assertState(black.await(m->stateVersion(m,2)),2,"FINISHED");
+                returned.request("GAME_ACTION_SEND",accept);assertThat(engine.load(101,"omok").orElseThrow().version()).isEqualTo(2);
+            }
         }
     }
 

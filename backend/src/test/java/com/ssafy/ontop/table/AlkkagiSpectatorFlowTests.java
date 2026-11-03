@@ -58,23 +58,41 @@ class AlkkagiSpectatorFlowTests {
             a.request("TABLE_JOIN",Map.of("tableId",TABLE));
             a.request("READY_SET",Map.of("ready",true));b.request("READY_SET",Map.of("ready",true));
             String game=a.state("RESTORED").path("gameId").asText();b.state("RESTORED");
-            var before=a.request("GAME_STATE_CHECK",Map.of("gameId",game)).path("payload");
+            var before=a.await(m -> m.path("type").asText().equals("GAME_STATE") && m.at("/payload/publicState/stage").asText().equals("AIMING")).path("payload");
             long version=before.path("version").asLong();
             var cursor=Map.of("gameId",game,"eventId",UUID.randomUUID().toString(),"kind","CURSOR","basedOnVersion",version,"x",0,"y",0);
             assertThat(v.request("ALKKAGI_SPECTATOR_SEND",cursor).at("/payload/code").asText()).isEqualTo("GAME_SPECTATOR_ACCESS_DENIED");
             assertThat(a.request("ALKKAGI_SPECTATOR_SEND",cursor).at("/payload/code").asText()).isEqualTo("GAME_SPECTATOR_ACCESS_DENIED");
             var watch=v.request("GAME_WATCH",Map.of("gameId",game));
             assertThat(watch.at("/payload/privateState").isEmpty()).isTrue();
+            var counted = v.await(m -> m.path("type").asText().equals("WORLD_STATE")
+                    && m.at("/payload/gameWatches").has("505"));
+            assertThat(counted.at("/payload/gameWatches/505/gameId").asText()).isEqualTo(game);
+            assertThat(positions.worldState("one").avatars().stream().filter(avatar -> avatar.userId().equals("505"))
+                    .findFirst().orElseThrow().activity()).isEqualTo("WATCHING");
             var ack=v.request("ALKKAGI_SPECTATOR_SEND",cursor);
-            assertThat(ack.path("type").asText()).isEqualTo("ALKKAGI_SPECTATOR_EVENT");
+            assertThat(ack.path("type").asText()).as(ack.toString()).isEqualTo("ALKKAGI_SPECTATOR_EVENT");
             for(var p:List.of(a,b)) assertThat(p.await(m->m.path("type").asText().equals("ALKKAGI_SPECTATOR_EVENT")).path("payload")).isEqualTo(ack.path("payload"));
-            var advice=Map.of("gameId",game,"eventId",UUID.randomUUID().toString(),"kind","ADVICE","basedOnVersion",version,"pieceId","p0","dx",1,"dy",0,"power",.5);
+            var advice=Map.of("gameId",game,"eventId",UUID.randomUUID().toString(),"kind","ADVICE","basedOnVersion",version,"pieceId",before.path("publicState").path("turn").asInt()==0?"p0":"p16","dx",1,"dy",0,"power",.5);
             assertThat(v.request("ALKKAGI_SPECTATOR_SEND",advice).path("type").asText()).isEqualTo("ALKKAGI_SPECTATOR_EVENT");
             var after=a.request("GAME_STATE_CHECK",Map.of("gameId",game)).path("payload");
             assertThat(after.path("version")).isEqualTo(before.path("version"));
             for (String field : List.of("pieces","turnNumber","simulationId")) assertThat(after.path("publicState").path(field)).isEqualTo(before.path("publicState").path(field));
             assertThat(v.request("GAME_UNWATCH",Map.of()).path("type").asText()).isNotEqualTo("ERROR");
             assertThat(v.request("ALKKAGI_SPECTATOR_SEND",cursor).at("/payload/code").asText()).isEqualTo("GAME_SPECTATOR_ACCESS_DENIED");
+            // v.request는 응답을 기다리며 먼저 온 방송을 소비한다. 추가 요청이 없는 참가자가 해제 방송을 관찰한다.
+            a.await(m -> m.path("type").asText().equals("WORLD_STATE")
+                    && m.at("/payload/version").asLong() > counted.at("/payload/version").asLong()
+                    && !m.at("/payload/gameWatches").has("505"));
+            v.request("GAME_WATCH", Map.of("gameId", game));
+            var again = v.await(m -> m.path("type").asText().equals("WORLD_STATE")
+                    && m.at("/payload/gameWatches").has("505"));
+            a.request("GAME_FORFEIT", Map.of("gameId", game, "actionId", "count-finish"));
+            v.await(m -> m.path("type").asText().equals("WORLD_STATE")
+                    && m.at("/payload/version").asLong() > again.at("/payload/version").asLong()
+                    && !m.at("/payload/gameWatches").has("505"));
+            assertThat(positions.worldState("one").avatars().stream().filter(avatar -> avatar.userId().equals("505"))
+                    .findFirst().orElseThrow().activity()).isNull();
         }
     }
 }

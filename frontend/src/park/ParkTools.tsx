@@ -7,6 +7,7 @@ import { TableLobby } from '../features/tableLobby/TableLobby'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useFacilityUseNotice } from '../features/facilities/state'
 import { SpectatorExit } from '../game/SpectatorExit'
+import { GameSpectatorCount } from '../game/GameSpectatorCount'
 
 export function ParkTools() {
   const runtime = useParkRuntime()
@@ -26,6 +27,7 @@ export function ParkTools() {
   return (
     <>
       <SpectatorExit />
+      <GameSpectatorCount />
       <div className="park-runtime-tools">
         {!TABLET_ENABLED && state.tableId && !state.focusedAnchorId && <button onClick={() => {
           const binding = state.bindings.find(b => b.channelId === state.roomId && b.tableId === state.tableId)

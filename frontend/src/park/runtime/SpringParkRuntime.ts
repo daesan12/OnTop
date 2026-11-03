@@ -34,6 +34,8 @@ import {
 import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, canPlayDice, receiveGame, tableBusy, useGame } from '../../game/store'
+import { canUndoAction, type OmokUndoInput } from '../../game/omok/undo'
+import { canDrawAction, type OmokDrawInput } from '../../game/omok/draw'
 import { forgetTabGames, keepTabGame, latestEndedGame, readTabGame } from '../../game/resultRecovery'
 import { canStartForfeit, canRetryForfeit, definiteForfeitRejection, forfeitError, interruptForfeit, parseForfeitResult, resetForfeit, useForfeit } from '../../game/forfeit'
 import { validDiceAction } from '../../game/farkle/scoring'
@@ -1306,6 +1308,40 @@ export class ParkRuntime implements ParkRuntimePort {
         if (generation === this.generation) useGame.setState({ pending: false })
       }
     })
+  actOmokUndo = (input: OmokUndoInput) => this.action(async () => {
+    const own = useSession.getState(), game = useGame.getState().game
+    if (own.status !== 'connected' || !game?.omok || !canUndoAction(own.sessionId, input))
+      throw new Error('무르기 요청·응답 권한과 최신 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: game.gameId, actionId: crypto.randomUUID(),
+        expectedVersion: game.version, input: { ...input } }, ['GAME_ACTION_RESULT'])
+    } catch (cause) {
+      if (generation === this.generation && useGame.getState().permittedGameId === game.gameId)
+        useGame.setState({ uncertain: !(cause instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(cause.code)) })
+      throw cause
+    } finally {
+      if (generation === this.generation) useGame.setState({ pending: false })
+    }
+  })
+  actOmokDraw = (input: OmokDrawInput) => this.action(async () => {
+    const own = useSession.getState(), game = useGame.getState().game
+    if (own.status !== 'connected' || !game?.omok || !canDrawAction(own.sessionId, input))
+      throw new Error('무승부 요청·응답 권한과 최신 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: game.gameId, actionId: crypto.randomUUID(),
+        expectedVersion: game.version, input: { ...input } }, ['GAME_ACTION_RESULT'])
+    } catch (cause) {
+      if (generation === this.generation && useGame.getState().permittedGameId === game.gameId)
+        useGame.setState({ uncertain: !(cause instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(cause.code)) })
+      throw cause
+    } finally {
+      if (generation === this.generation) useGame.setState({ pending: false })
+    }
+  })
   actDice = (kind: 'roll' | 'bank', selectedIds: readonly number[]) => this.action(async () => {
     const own = useSession.getState(), g = useGame.getState().game
     if (own.status !== 'connected' || !g?.dice || !canPlayDice(own.sessionId) || !validDiceAction(g.dice, kind, selectedIds))

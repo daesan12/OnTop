@@ -36,9 +36,41 @@
 }
 ```
 
-`x`는 열, `y`는 행이며 각각 0~14 정수다. 3D 월드의 x/y/z와 다른 **오목판 좌표**다. input은 x/y만 허용한다. 돌 색·userId·승패·시각을 클라이언트가 지정하지 않는다. 서버는 참가자·차례·버전·빈칸·마감 시각을 원자적으로 검사한다. 오류는 기존 `GAME_ACTION_*`를 사용한다.
+`x`는 열, `y`는 행이며 각각 0~14 정수다. 3D 월드의 x/y/z와 다른 **오목판 좌표**다. 착수 input은 x/y만 허용한다. 무르기는 아래 별도 input을 사용한다. 돌 색·userId·승패·시각을 클라이언트가 지정하지 않는다. 서버는 참가자·차례·버전·빈칸·마감 시각을 원자적으로 검사한다. 오류는 기존 `GAME_ACTION_*`를 사용한다.
 
 같은 사용자/경기/actionId와 같은 expectedVersion·input은 중복 착수하지 않고 기존 `GAME_ACTION_RESULT`를 반환한다. 내용이 다르면 `GAME_ACTION_ACTION_ID_CONFLICT`다. 새 행동은 새 actionId를 사용한다. 재조회가 아니라 새 착수라면 최신 GAME_STATE.version을 사용한다.
+
+## 상대 동의 무르기 (2026-11-03 사용자 확정)
+
+로컬 구현·검증 단계이며 배포·실제 계정 공동 검수는 별도다. 내 차례에 착수가 두 수 이상 쌓였을 때만 요청한다.
+상대가 동의하면 **내 직전 돌과 상대 응수 두 돌**을 제거하고 내 차례를 유지한다. 횟수 제한은 없으며,
+흑은 두 돌만 남은 상태에서 빈 판까지, 백은 흑 첫 돌을 남기는 상태까지 반복할 수 있다. 상대 동의 없이 제거하지 않는다.
+
+기존 `GAME_ACTION_SEND.payload.input`에 다음 형식을 사용한다. 매 행동의 actionId는 새 값이고 expectedVersion은 최신 상태다.
+
+```json
+{"kind":"undoRequest"}
+```
+
+```json
+{"kind":"undoRespond","requestId":"요청자의-actionId","accept":true}
+```
+
+`accept:false`는 거절이다. 응답은 요청 상대만 할 수 있으며 요청자는 스스로 승인하지 못한다.
+요청 중 착수·추가 요청은 차단한다. 응답 마감은 요청 후 최대10초와 원래 착수 마감 중 빠른 시각이다.
+**응답 대기·승인·거절·재접속에도 원래30초 시계는 계속 흐르며 turnDeadline을 변경하지 않는다.**
+동시 만료는 시간패가 우선이다. 응답 마감만 지나면 EXPIRED로 정리하고 원래 차례로 계속한다.
+거절 후 재요청도 가능하지만 시계를 연장할 수 없다. 종료된 판·승패·기권·정산은 무르지 않는다.
+
+공개 상태의 `undo`는 null 또는 `{requestId,requesterUserId,deadline}`이며 ID는 문자열, deadline은 서버 UTC ISO다.
+`undoDecision`은 null 또는 `{requestId,status:ACCEPTED|REJECTED|EXPIRED}`다. 다음 착수·새 요청·종료 때 결과 안내를 정리한다.
+참가자·승인 관전자·재접속 복구에 같은 상태를 보낸다. 상태 version은 무르기에도 증가하며 moveCount와 독립적이다.
+같은 actionId 재확인은 이전 영수증만 반환한다. 무르기 전 착수 요청을 재전송해도 제거한 돌을 다시 놓지 않는다.
+기존 STALE_VERSION / ACTION_ID_CONFLICT / NOT_YOUR_TURN / ACCESS_DENIED / INVALID_ACTION 오류를 재사용한다.
+
+FE는 작은 사이드 카드에 요청·수락/거절·초 단위 응답 기한과 줄어드는 진행 막대를 표시한다.
+모달이나 전체 화면을 가리지 않으며 만료 후 서버 확정을 기다리고 임의로 판을 되돌리지 않는다.
+`undo` 필드가 없는 구서버에서는 버튼을 노출하지 않는다.
 
 ## 상태 전송
 
@@ -93,3 +125,26 @@
 실제 테이블 시작은 예약 커밋 뒤 `createWithCoinToss`에서 서버 SecureRandom으로 두 참가자 중 흑돌 선공을 한 번 정한다. 동일 경기·참가자 재호출과 재접속은 결과를 유지하며 다른 참가자로 재생성할 수 없다. 엔진 직접 생성용 `create`는 기존 명시적 흑/백 계약을 유지한다.
 
 공개 상태의 선택 필드 `coinTossEndsAt`(ISO 시각)는 2.5초 공개 연출 종료 시각이다. FE는 기존 확정 흑/백 참가자를 보여주며 재추첨하지 않는다. 서버와 FE 모두 종료 전 착수를 막고, 첫 차례의 30초 제한은 연출 종료부터 시작한다. 채팅·설명서 등 기존 입력 소유권은 유지한다. 다른 게임의 시작 순서는 바꾸지 않는다.
+## 상대 동의 무승부 요청 (2026-11-03 사용자 확정)
+
+로컬 구현·미배포다. 기존 GAME_ACTION_SEND의 `input={"kind":"drawRequest"}`로 내 차례에만 요청한다. 돌을 두기 전에도 가능하며 **각자 경기당1회**다. 유효 요청 접수 시 거절·무응답에도 횟수를 쓰고, 잘못된 차례/버전/필드로 거절된 요청은 쓰지 않는다.
+
+상대 참가자만 `input={"kind":"drawRespond","requestId":"요청 actionId","accept":true}`로 응답한다. false는 거절이다. 응답 기한은 요청 후10초와 원래 turnDeadline 중 빠른 시각이다. 원래30초 착수 시계는 대기·거절·만료·복구에도 계속 흐른다. 무르기로 시간을 늘리거나 사용 횟수를 되돌리지 않는다.
+
+응답 대기 중에는 착수·추가 요청·무르기를 겹칠 수 없다. 기권은 기존 정책으로 종료하고, 착수 시간이 먼저 끝나면 시간패가 동의보다 우선한다. 수락 시 돌 배치를 보존한 채 FINISHED/winnerUserId=null/endReason=AGREED_DRAW, 공통 GameFinished의 양측 DRAW를 한 번 확정한다. 거절·무응답은 판/차례를 유지한다.
+
+공개 상태의 새 선택 필드는 다음과 같다.
+
+```json
+{
+  "draw": {"requestId":"draw-1","requesterUserId":"101","deadline":"2026-11-03T00:00:10Z"},
+  "drawDecision": null,
+  "drawRequestsUsed": ["101"]
+}
+```
+
+draw는 대기 없으면 null, drawDecision은 null 또는 `{requestId,status:ACCEPTED|REJECTED|EXPIRED}`다. 사용 ID는 흑/백 순서로 최대2명, 새 경기는 빈 배열이다. 참가자·관전자·재접속이 같은 값을 받고, 상태 version은 계속 증가한다. 새 행동은 새 actionId/최신 expectedVersion, 같은 행동 재확인은 같은 ID/내용/요청 버전으로 멱등 처리한다. 기존 GAME_ACTION_* 오류를 사용한다. 관전자·본인 승인·다른 요청 ID·만료 뒤 응답·종료 뒤 새 행동은 거절한다.
+
+UI는 작은 사이드 카드의 무승부/거절·응답 초·진행 막대이며 구서버에 draw/사용 기록이 없으면 숨긴다. 기존 무르기와 공간을 공유하고 동시 요청은 표시하지 않는다.
+
+종료 저장 입구 VerifiedGameFinish는 AGREED_DRAW를 허용하고 참가자 전원이 DRAW인지 검증한다. 기존 무승부 정산 경로로 전달하며 DB 스키마·차감/지급 계산은 변경하지 않는다. 엔진 이벤트의 검증 통과와 실제 개발 서버의 DB 정산 인수는 구분한다.

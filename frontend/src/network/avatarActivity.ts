@@ -3,6 +3,7 @@
 export const AVATAR_ACTIVITY_LABELS = {
   BUNGEOPPANG: '붕어빵 뒤집는 중',
   GAME: '게임 중',
+  WATCHING: '관전 중',
   SHOP: '상점 이용중',
 } as const
 

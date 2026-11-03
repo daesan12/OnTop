@@ -1,5 +1,8 @@
 # 광장 WebSocket · 채널·이동·채팅
 
+2026-11-03 추가 공개 필드 `WORLD_STATE.gameWatches`와 `avatars[].activity=WATCHING`은
+[경기 관전 수·공개 활동](world-spectator-presence-api.md)을 따른다. 실제 승인된 진행 경기 관전자만 세며 종료 즉시 해제한다.
+
 공통 메시지 빈도·동시 접속 상한과 1013/1009 종료는 [유입 제한](websocket-ingress-limits.md)을 참고한다.
 로컬 구현이며 운영 수치·신뢰 프록시·FE 지연 재연결 정책은 아직 합의 전이다.
 

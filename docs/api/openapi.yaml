@@ -3809,6 +3809,7 @@ paths:
           - LIAR_BRIDGE
           - DICE_LEDGER
           - HALLI_GALLI
+          - ALKKAGI
       responses:
         "200":
           description: 본인 경기 내역 (no-store)
