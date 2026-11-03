@@ -13,10 +13,11 @@ import { FarkleSpectatorPanel } from './FarkleSpectatorPanel'
 import { setDiceSound, useDiceSound } from './sound'
 import { DiceFace } from './DiceFace'
 import { FarkleScoreSheet } from './FarkleScoreSheet'
-import { HudCorners, HudIcon, PlayerSeal } from './FarkleHudArt'
+import { HudCorners, HudIcon } from './FarkleHudArt'
 import { bustMatches } from './bustPresentation'
 import { useFarkleChatClearance } from './useFarkleChatClearance'
 import { selectionHint } from './selectionHint'
+import { FarkleScoreboard } from './FarkleScoreboard'
 import './farkle.css'
 import './farkleHud.css'
 
@@ -48,12 +49,9 @@ function FarklePlayerPanel() {
   const displayedTurn = bust?.actorId ?? d.turnUserId
   return <>
     <section className="prototype-game farkle-hud farkle-panel farkle-player-hud" aria-label="주사위 경기" data-stage={d.stage} data-presentation={bust ? `bust-${bust.phase}` : 'live'}>
-      <div className="farkle-scoreboard" aria-label="주사위 점수판"><HudCorners />{d.players.map((id, i) => <div key={id} className={`farkle-player-score${displayedTurn === id ? ' active' : ''}`}>
-        <PlayerSeal active={displayedTurn === id} />
-        <span className="farkle-player-name">{displayedTurn === id ? bust ? `${name(id)} · 굴림 확인` : id === session.sessionId ? '내 차례' : `${name(id)} 차례` : name(id)}</span>
-        <strong>{d.scores[i]!.toLocaleString()}<small>점</small></strong>
-        <progress max={d.targetScore} value={d.scores[i]} aria-label={`${name(id)} 총점`} />
-      </div>)}<span className="farkle-goal">목표 점수<strong>{d.targetScore.toLocaleString()}</strong></span></div>
+      <FarkleScoreboard players={d.players.map((id, i) => ({ id, name: name(id), score: d.scores[i]!,
+        label: displayedTurn === id ? bust ? name(id) + ' · 굴림 확인' : id === session.sessionId ? '내 차례' : name(id) + ' 차례' : name(id),
+      }))} activeUserId={displayedTurn} targetScore={d.targetScore} />
       <div className="farkle-message" data-event={bust?.phase === 'rolling' ? 'ROLL' : d.lastEvent}>
         <p role="status">{bust ? bust.phase === 'rolling' ? '주사위를 굴리고 있습니다' : '허탕! · 이번 턴 점수를 잃었습니다'
           : d.status === 'FINISHED' ? d.winnerUserId === session.sessionId ? '승리' : '패배'

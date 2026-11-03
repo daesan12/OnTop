@@ -10,6 +10,7 @@ import { setDiceSound, useDiceSound } from './sound'
 import { farkleSpectatorStatus } from './spectatorStatus'
 import { bustMatches } from './bustPresentation'
 import { DiceFace } from './DiceFace'
+import { FarkleScoreboard } from './FarkleScoreboard'
 import './farkleSpectator.css'
 
 /** Read-only: no player keys, cup gestures, selection or personal settlement controls. */
@@ -37,20 +38,14 @@ export function FarkleSpectatorPanel() {
   const rolling = d.status === 'PLAYING' && (bust ? bust.phase === 'rolling' : performance.now() < until)
   const names = d.players.map((id, i) => session.profiles[id]?.nickname ?? `${i + 1}번 참가자`)
   return <section className="farkle-observer-hud" role="region" aria-label="주사위 경기" data-stage={d.stage} data-rolling={rolling} data-view={view} onKeyDown={event => { if (event.code === 'Tab') event.stopPropagation() }}>
-    <header className="farkle-observer-scorebar" aria-label="주사위 점수판">
-      {d.players.map((id, i) => <div key={id} className="farkle-observer-player" data-active={id === d.turnUserId} aria-label={names[i] + ' 저장 점수'}>
-        <div className="farkle-observer-name"><span title={names[i]}>{names[i]}</span>
-          {id === d.turnUserId && <small>현재 차례</small>}{id === d.winnerUserId && <small>승리</small>}</div>
-        <p><strong>{d.scores[i]!.toLocaleString()}</strong><span>점</span></p>
-        <progress value={Math.min(d.scores[i]!, d.targetScore)} max={d.targetScore} aria-label={names[i] + ' 목표 달성도'} />
-      </div>)}
-      <div className="farkle-observer-goal"><span>관전 중</span><small>목표 점수</small><strong>{d.targetScore.toLocaleString()}</strong>
-        <small>{d.status === 'FINISHED' ? '경기 종료' : d.round + '번째 턴'}</small></div>
-    </header>
+    <FarkleScoreboard className="farkle-observer-scorebar" targetScore={d.targetScore} activeUserId={bust?.actorId ?? d.turnUserId}
+      players={d.players.map((id, i) => ({ id, name: names[i]!, score: d.scores[i]!,
+        label: (bust?.actorId ?? d.turnUserId) === id ? names[i] + (bust ? ' · 굴림 확인' : ' 차례') : names[i]!,
+      }))} />
     <details className="farkle-spectator" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
       <summary><span>관전 정보</span><span className="farkle-observer-turn-total">이번 턴 <strong>{d.turnScore.toLocaleString()}</strong>점</span><i aria-hidden="true">⌄</i></summary>
       <div className="farkle-observer-body">
-        <p className="farkle-observer-table">{session.anchor ? 'TABLE ' + session.anchor.replace('table-', '').padStart(2, '0') + ' · ' : ''}주사위 한 판</p>
+        <p className="farkle-observer-table">관전 중 · {d.round}번째 턴 · {session.anchor ? 'TABLE ' + session.anchor.replace('table-', '').padStart(2, '0') + ' · ' : ''}주사위 한 판</p>
         <p className={'farkle-spectator-status' + (d.lastEvent === 'BUST' ? ' bust' : '')} role="status">{bust
           ? bust.phase === 'rolling' ? '주사위를 굴리고 있습니다' : '허탕! · 이번 턴 점수 소멸. 다음 차례로 넘어갑니다.'
           : farkleSpectatorStatus(d, names, rolling)}</p>

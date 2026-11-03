@@ -1,5 +1,6 @@
-/* Player-only HUD, based on the supplied traditional gold / dark walnut reference. */
-.park-page .prototype-game.farkle-player-hud {
+/* Shared traditional scorebar; player actions retain their own scope. */
+.park-page .prototype-game.farkle-player-hud,
+.park-page .farkle-observer-hud {
   --dice-ink: #f5ecd7;
   --dice-muted: #cdbf9f;
   --dice-gold: #edbd65;
@@ -22,14 +23,21 @@
 .park-page .farkle-player-hud.farkle-hud button:focus-visible,
 .park-page .farkle-player-hud summary:focus-visible { outline: 2px solid #ffe2a1; outline-offset: 4px; }
 .park-page .farkle-player-hud.farkle-hud kbd { font: 500 14px/1.15 'Malgun Gothic', sans-serif; padding: 3px 6px; margin: 0; border: 1px solid currentColor; border-radius: 4px; opacity: .8; }
-.farkle-player-hud .farkle-hud-corners { position: absolute; inset: 0; pointer-events: none; color: var(--dice-gold); }
-.farkle-player-hud .farkle-corner { position: absolute; width: 30px; height: 30px; stroke: currentColor; stroke-width: 1; opacity: .65; }
-.farkle-player-hud .farkle-corner-0 { top: 4px; left: 4px; }
-.farkle-player-hud .farkle-corner-1 { top: 4px; right: 4px; transform: rotate(90deg); }
-.farkle-player-hud .farkle-corner-2 { bottom: 4px; right: 4px; transform: rotate(180deg); }
-.farkle-player-hud .farkle-corner-3 { bottom: 4px; left: 4px; transform: rotate(270deg); }
+.farkle-player-hud .farkle-hud-corners,
+.farkle-observer-hud .farkle-hud-corners { position: absolute; inset: 0; pointer-events: none; color: var(--dice-gold); }
+.farkle-player-hud .farkle-corner,
+.farkle-observer-hud .farkle-corner { position: absolute; width: 30px; height: 30px; stroke: currentColor; stroke-width: 1; opacity: .65; }
+.farkle-player-hud .farkle-corner-0,
+.farkle-observer-hud .farkle-corner-0 { top: 4px; left: 4px; }
+.farkle-player-hud .farkle-corner-1,
+.farkle-observer-hud .farkle-corner-1 { top: 4px; right: 4px; transform: rotate(90deg); }
+.farkle-player-hud .farkle-corner-2,
+.farkle-observer-hud .farkle-corner-2 { bottom: 4px; right: 4px; transform: rotate(180deg); }
+.farkle-player-hud .farkle-corner-3,
+.farkle-observer-hud .farkle-corner-3 { bottom: 4px; left: 4px; transform: rotate(270deg); }
 .farkle-player-hud .farkle-hud-icon { width: 24px; height: 24px; flex: 0 0 auto; }
-.park-page .farkle-player-hud.farkle-hud .farkle-scoreboard {
+.park-page .farkle-player-hud.farkle-hud .farkle-scoreboard,
+.park-page .farkle-observer-hud .farkle-scoreboard {
   position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
   display: grid; grid-template-columns: minmax(0, 1fr) 200px minmax(0, 1fr); align-items: stretch;
   width: min(860px, calc(100vw - 580px)); min-height: 124px; max-height: none; overflow: visible;
@@ -38,32 +46,56 @@
   pointer-events: auto;
 }
 .farkle-player-hud .farkle-scoreboard::before,
-.farkle-player-hud .farkle-scoreboard::after { content: ''; position: absolute; top: 37px; width: 46px; height: 46px; border: 1px solid #be934d; border-radius: 5px; background: repeating-linear-gradient(45deg, #a37e3930 0 1px, transparent 1px 8px), #28251b; transform: rotate(45deg); z-index: -1; }
-.farkle-player-hud .farkle-scoreboard::before { left: -25px; }
-.farkle-player-hud .farkle-scoreboard::after { right: -25px; }
-.park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score {
+.farkle-player-hud .farkle-scoreboard::after,
+.farkle-observer-hud .farkle-scoreboard::before,
+.farkle-observer-hud .farkle-scoreboard::after { content: ''; position: absolute; top: 37px; width: 46px; height: 46px; border: 1px solid #be934d; border-radius: 5px; background: repeating-linear-gradient(45deg, #a37e3930 0 1px, transparent 1px 8px), #28251b; transform: rotate(45deg); z-index: -1; }
+.farkle-player-hud .farkle-scoreboard::before,
+.farkle-observer-hud .farkle-scoreboard::before { left: -25px; }
+.farkle-player-hud .farkle-scoreboard::after,
+.farkle-observer-hud .farkle-scoreboard::after { right: -25px; }
+.park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score,
+.park-page .farkle-observer-hud .farkle-scoreboard > .farkle-player-score {
   display: grid; grid-template-columns: 60px minmax(0, 1fr); grid-template-rows: auto auto auto; align-content: center;
   gap: 2px 22px; min-width: 0; padding: 15px 30px; border: 0; border-radius: 21px 0 0 21px; background: none; box-shadow: none;
 }
-.park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score:nth-of-type(2) { grid-column: 3; grid-row: 1; grid-template-columns: minmax(0, 1fr) 60px; border-radius: 0 21px 21px 0; text-align: right; }
-.farkle-player-hud .farkle-player-seal { width: 60px; height: 60px; grid-row: 1 / 4; align-self: center; color: #978a76; opacity: .7; }
-.farkle-player-hud .farkle-player-score:nth-of-type(2) .farkle-player-seal { grid-column: 2; }
-.park-page .farkle-player-hud .farkle-scoreboard .farkle-player-name { display: block; color: var(--dice-muted); font: 500 18px/1.4 var(--dice-title-font); white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
-.park-page .farkle-player-hud .farkle-scoreboard .active .farkle-player-name { color: #ffda8a; text-shadow: 0 0 10px #e9a84d40; font-weight: 700; }
-.farkle-player-hud .active .farkle-player-seal { color: var(--dice-gold); opacity: 1; }
-.park-page .farkle-player-hud .farkle-scoreboard strong { display: block; margin: 0; font: 700 40px/1.25 'Malgun Gothic', sans-serif; font-variant-numeric: tabular-nums; }
-.park-page .farkle-player-hud .farkle-scoreboard strong small { margin-left: 6px; font-size: 16px; color: var(--dice-muted); font-weight: 400; }
-.park-page .farkle-player-hud.farkle-hud .farkle-scoreboard progress { display: block; width: 100%; height: 4px; border: 0; appearance: none; margin-top: 3px; }
-.farkle-player-hud progress::-webkit-progress-bar { background: #e4c98c1a; border-radius: 3px; }
-.farkle-player-hud progress::-webkit-progress-value { background: #ad9470; border-radius: 3px; }
-.farkle-player-hud .active progress::-webkit-progress-value { background: linear-gradient(90deg, #bc842e, #ffe29b); }
-.farkle-player-hud progress::-moz-progress-bar { background: var(--dice-gold); }
-.farkle-player-hud .farkle-goal { position: relative; grid-column: 2; grid-row: 1; display: flex; flex-direction: column; justify-content: center; gap: 8px; border-inline: 1px solid var(--dice-line); text-align: center; color: var(--dice-muted); font: 500 18px/1.3 var(--dice-title-font); }
+.park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score:nth-of-type(2),
+.park-page .farkle-observer-hud .farkle-scoreboard > .farkle-player-score:nth-of-type(2) { grid-column: 3; grid-row: 1; grid-template-columns: minmax(0, 1fr) 60px; border-radius: 0 21px 21px 0; text-align: right; }
+.farkle-player-hud .farkle-player-seal,
+.farkle-observer-hud .farkle-player-seal { width: 60px; height: 60px; grid-row: 1 / 4; align-self: center; color: #978a76; opacity: .7; }
+.farkle-player-hud .farkle-player-score:nth-of-type(2) .farkle-player-seal,
+.farkle-observer-hud .farkle-player-score:nth-of-type(2) .farkle-player-seal { grid-column: 2; }
+.park-page .farkle-player-hud .farkle-scoreboard .farkle-player-name,
+.park-page .farkle-observer-hud .farkle-scoreboard .farkle-player-name { display: block; color: var(--dice-muted); font: 500 18px/1.4 var(--dice-title-font); white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.park-page .farkle-player-hud .farkle-scoreboard .active .farkle-player-name,
+.park-page .farkle-observer-hud .farkle-scoreboard .active .farkle-player-name { color: #ffda8a; text-shadow: 0 0 10px #e9a84d40; font-weight: 700; }
+.farkle-player-hud .active .farkle-player-seal,
+.farkle-observer-hud .active .farkle-player-seal { color: var(--dice-gold); opacity: 1; }
+.park-page .farkle-player-hud .farkle-scoreboard strong,
+.park-page .farkle-observer-hud .farkle-scoreboard strong { display: block; margin: 0; font: 700 40px/1.25 'Malgun Gothic', sans-serif; font-variant-numeric: tabular-nums; }
+.park-page .farkle-player-hud .farkle-scoreboard strong small,
+.park-page .farkle-observer-hud .farkle-scoreboard strong small { margin-left: 6px; font-size: 16px; color: var(--dice-muted); font-weight: 400; }
+.park-page .farkle-player-hud.farkle-hud .farkle-scoreboard progress,
+.park-page .farkle-observer-hud .farkle-scoreboard progress { display: block; width: 100%; height: 4px; border: 0; appearance: none; margin-top: 3px; }
+.farkle-player-hud progress::-webkit-progress-bar,
+.farkle-observer-hud progress::-webkit-progress-bar { background: #e4c98c1a; border-radius: 3px; }
+.farkle-player-hud progress::-webkit-progress-value,
+.farkle-observer-hud progress::-webkit-progress-value { background: #ad9470; border-radius: 3px; }
+.farkle-player-hud .active progress::-webkit-progress-value,
+.farkle-observer-hud .active progress::-webkit-progress-value { background: linear-gradient(90deg, #bc842e, #ffe29b); }
+.farkle-player-hud progress::-moz-progress-bar,
+.farkle-observer-hud progress::-moz-progress-bar { background: var(--dice-gold); }
+.farkle-player-hud .farkle-goal,
+.farkle-observer-hud .farkle-goal { position: relative; grid-column: 2; grid-row: 1; display: flex; flex-direction: column; justify-content: center; gap: 8px; border-inline: 1px solid var(--dice-line); text-align: center; color: var(--dice-muted); font: 500 18px/1.3 var(--dice-title-font); }
 .farkle-player-hud .farkle-goal::before,
-.farkle-player-hud .farkle-goal::after { content: '❖'; position: absolute; top: 50%; color: #bd9554; font: 16px/1 serif; transform: translateY(-50%); }
-.farkle-player-hud .farkle-goal::before { left: -8px; }
-.farkle-player-hud .farkle-goal::after { right: -8px; }
-.park-page .farkle-player-hud .farkle-goal strong { font-size: 28px; font-weight: 500; color: var(--dice-gold); }
+.farkle-player-hud .farkle-goal::after,
+.farkle-observer-hud .farkle-goal::before,
+.farkle-observer-hud .farkle-goal::after { content: '❖'; position: absolute; top: 50%; color: #bd9554; font: 16px/1 serif; transform: translateY(-50%); }
+.farkle-player-hud .farkle-goal::before,
+.farkle-observer-hud .farkle-goal::before { left: -8px; }
+.farkle-player-hud .farkle-goal::after,
+.farkle-observer-hud .farkle-goal::after { right: -8px; }
+.park-page .farkle-player-hud .farkle-goal strong,
+.park-page .farkle-observer-hud .farkle-goal strong { font-size: 28px; font-weight: 500; color: var(--dice-gold); }
 .park-page .farkle-player-hud.farkle-hud .farkle-message {
   top: 158px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 16px;
   width: max-content; max-width: calc(100vw - 48px); padding: 10px 22px;
@@ -125,9 +157,10 @@
 .park-page:has(.farkle-player-hud) .park-map > .park-quick-button,
 .park-page:has(.farkle-player-hud) .emotes > .emote-wheel-trigger,
 .park-page:has(.farkle-player-hud) .manual-launcher { display: none; }
-@media (max-width: 1500px) {
-  .park-page .farkle-player-hud.farkle-hud .farkle-scoreboard { width: min(800px, calc(100vw - 550px)); grid-template-columns: minmax(0, 1fr) 160px minmax(0, 1fr); }
-  .park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score { padding-inline: 22px; gap: 2px 14px; }
+@media (max-width: 1500px) {.park-page .farkle-player-hud.farkle-hud .farkle-scoreboard,
+.park-page .farkle-observer-hud .farkle-scoreboard { width: min(800px, calc(100vw - 550px)); grid-template-columns: minmax(0, 1fr) 160px minmax(0, 1fr); }
+.park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score,
+.park-page .farkle-observer-hud .farkle-scoreboard > .farkle-player-score { padding-inline: 22px; gap: 2px 14px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-actions { left: auto; right: 24px; transform: none; width: min(900px, calc(100vw - 330px)); }
   .farkle-player-hud .farkle-action-hint .farkle-hud-icon { display: none; }
   .farkle-player-hud .farkle-control-row { gap: 20px; }
@@ -135,15 +168,22 @@
   .farkle-player-hud .farkle-empty-die { width: 58px; height: 68px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-dice-list button > .dice-face { --die-size: 44px; }
 }
-@media (max-width: 1100px) {
-  .park-page .farkle-player-hud.farkle-hud .farkle-scoreboard { left: 32px; transform: none; width: min(620px, calc(100vw - 320px)); min-height: 106px; grid-template-columns: minmax(0, 1fr) 120px minmax(0, 1fr); }
-  .park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score { grid-template-columns: 40px minmax(0, 1fr); padding: 12px 16px; gap: 2px 10px; }
-  .park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score:nth-of-type(2) { grid-template-columns: minmax(0, 1fr) 40px; }
-  .farkle-player-hud .farkle-player-seal { width: 40px; height: 40px; }
-  .park-page .farkle-player-hud .farkle-scoreboard strong { font-size: 30px; }
-  .park-page .farkle-player-hud .farkle-scoreboard .farkle-player-name,
-  .farkle-player-hud .farkle-goal { font-size: 15px; }
-  .park-page .farkle-player-hud .farkle-goal strong { font-size: 24px; }
+@media (max-width: 1100px) {.park-page .farkle-player-hud.farkle-hud .farkle-scoreboard,
+.park-page .farkle-observer-hud .farkle-scoreboard { left: 32px; transform: none; width: min(620px, calc(100vw - 320px)); min-height: 106px; grid-template-columns: minmax(0, 1fr) 120px minmax(0, 1fr); }
+.park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score,
+.park-page .farkle-observer-hud .farkle-scoreboard > .farkle-player-score { grid-template-columns: 40px minmax(0, 1fr); padding: 12px 16px; gap: 2px 10px; }
+.park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score:nth-of-type(2),
+.park-page .farkle-observer-hud .farkle-scoreboard > .farkle-player-score:nth-of-type(2) { grid-template-columns: minmax(0, 1fr) 40px; }
+.farkle-player-hud .farkle-player-seal,
+.farkle-observer-hud .farkle-player-seal { width: 40px; height: 40px; }
+.park-page .farkle-player-hud .farkle-scoreboard strong,
+.park-page .farkle-observer-hud .farkle-scoreboard strong { font-size: 30px; }
+.park-page .farkle-player-hud .farkle-scoreboard .farkle-player-name,
+  .farkle-player-hud .farkle-goal,
+.park-page .farkle-observer-hud .farkle-scoreboard .farkle-player-name,
+  .farkle-observer-hud .farkle-goal { font-size: 15px; }
+.park-page .farkle-player-hud .farkle-goal strong,
+.park-page .farkle-observer-hud .farkle-goal strong { font-size: 24px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-message { top: 138px; font-size: 13px; }
   .farkle-player-hud .farkle-turn-points { gap: 20px; flex-wrap: wrap; }
   .park-page .farkle-player-hud.farkle-hud .farkle-rule-button { margin-left: auto; }
@@ -154,25 +194,34 @@
   .park-page .farkle-player-hud.farkle-hud .button-row button { min-height: 60px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-feedback { top: 200px; }
 }
-@media (max-width: 800px) {
-  .park-page .farkle-player-hud.farkle-hud .farkle-scoreboard { top: 80px; left: 16px; width: calc(100vw - 32px); min-height: 96px; grid-template-columns: minmax(0, 1fr) 100px minmax(0, 1fr); border-radius: 16px; }
-  .farkle-player-hud .farkle-scoreboard::before,
-  .farkle-player-hud .farkle-scoreboard::after { display: none; }
+@media (max-width: 800px) {.park-page .farkle-player-hud.farkle-hud .farkle-scoreboard,
+.park-page .farkle-observer-hud .farkle-scoreboard { top: 80px; left: 16px; width: calc(100vw - 32px); min-height: 96px; grid-template-columns: minmax(0, 1fr) 100px minmax(0, 1fr); border-radius: 16px; }
+.farkle-player-hud .farkle-scoreboard::before,
+  .farkle-player-hud .farkle-scoreboard::after,
+.farkle-observer-hud .farkle-scoreboard::before,
+  .farkle-observer-hud .farkle-scoreboard::after { display: none; }
   .park-page .farkle-player-hud.farkle-hud .farkle-message { top: 188px; max-width: calc(100vw - 56px); padding: 8px 14px; gap: 10px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-actions { right: 12px; bottom: 88px; width: calc(100vw - 24px); max-width: none; max-height: 36dvh; padding: 12px 18px 16px; }
   .farkle-player-hud .farkle-settings { top: 24px; left: 12px; right: auto; }
   .park-page .farkle-player-hud.farkle-hud .farkle-tools { right: auto; left: 0; }
   .park-page .farkle-player-hud.farkle-hud .farkle-feedback { top: 250px; }
 }
-@media (max-width: 520px) {
-  .park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score { display: flex; flex-direction: column; align-items: flex-start; padding: 12px 14px; gap: 4px; }
-  .park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score:nth-of-type(2) { align-items: flex-end; }
-  .farkle-player-hud .farkle-player-seal { display: none; }
-  .park-page .farkle-player-hud .farkle-scoreboard .farkle-player-name { font-size: 14px; max-width: 100%; }
-  .park-page .farkle-player-hud .farkle-scoreboard strong { font-size: 26px; }
-  .park-page .farkle-player-hud .farkle-scoreboard strong small { font-size: 12px; margin-left: 2px; }
-  .farkle-player-hud .farkle-goal { font-size: 13px; }
-  .park-page .farkle-player-hud .farkle-goal strong { font-size: 21px; }
+@media (max-width: 520px) {.park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score,
+.park-page .farkle-observer-hud .farkle-scoreboard > .farkle-player-score { display: flex; flex-direction: column; align-items: flex-start; padding: 12px 14px; gap: 4px; }
+.park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score:nth-of-type(2),
+.park-page .farkle-observer-hud .farkle-scoreboard > .farkle-player-score:nth-of-type(2) { align-items: flex-end; }
+.farkle-player-hud .farkle-player-seal,
+.farkle-observer-hud .farkle-player-seal { display: none; }
+.park-page .farkle-player-hud .farkle-scoreboard .farkle-player-name,
+.park-page .farkle-observer-hud .farkle-scoreboard .farkle-player-name { font-size: 14px; max-width: 100%; }
+.park-page .farkle-player-hud .farkle-scoreboard strong,
+.park-page .farkle-observer-hud .farkle-scoreboard strong { font-size: 26px; }
+.park-page .farkle-player-hud .farkle-scoreboard strong small,
+.park-page .farkle-observer-hud .farkle-scoreboard strong small { font-size: 12px; margin-left: 2px; }
+.farkle-player-hud .farkle-goal,
+.farkle-observer-hud .farkle-goal { font-size: 13px; }
+.park-page .farkle-player-hud .farkle-goal strong,
+.park-page .farkle-observer-hud .farkle-goal strong { font-size: 21px; }
   .farkle-player-hud .farkle-turn-points { gap: 14px; }
   .farkle-player-hud .farkle-turn-points > span { gap: 7px; font-size: 12px; }
   .farkle-player-hud .farkle-turn-points strong { font-size: 24px; }
@@ -188,20 +237,25 @@
   .farkle-player-hud .farkle-bank-button .farkle-hud-icon { width: 18px; height: 18px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-roll-button .farkle-hud-icon { width: 26px; height: 26px; }
 }
-@media (max-height: 600px) and (min-width: 801px) {
-  .park-page .farkle-player-hud.farkle-hud .farkle-scoreboard { top: 12px; min-height: 76px; }
-  .park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score { padding-block: 8px; }
-  .farkle-player-hud .farkle-player-seal { width: 36px; height: 36px; }
-  .park-page .farkle-player-hud .farkle-scoreboard strong { font-size: 25px; }
+@media (max-height: 600px) and (min-width: 801px) {.park-page .farkle-player-hud.farkle-hud .farkle-scoreboard,
+.park-page .farkle-observer-hud .farkle-scoreboard { top: 12px; min-height: 76px; }
+.park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score,
+.park-page .farkle-observer-hud .farkle-scoreboard > .farkle-player-score { padding-block: 8px; }
+.farkle-player-hud .farkle-player-seal,
+.farkle-observer-hud .farkle-player-seal { width: 36px; height: 36px; }
+.park-page .farkle-player-hud .farkle-scoreboard strong,
+.park-page .farkle-observer-hud .farkle-scoreboard strong { font-size: 25px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-message { top: 100px; padding-block: 5px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-actions { bottom: 12px; max-height: 40dvh; }
   .farkle-player-hud .farkle-settings { top: 75px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-feedback { top: 148px; max-height: 70px; }
 }
-@media (max-width: 360px) {
-  .park-page .farkle-player-hud.farkle-hud .farkle-scoreboard { grid-template-columns: minmax(0, 1fr) 80px minmax(0, 1fr); }
-  .park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score { padding-inline: 10px; }
-  .park-page .farkle-player-hud .farkle-scoreboard strong { font-size: 24px; }
+@media (max-width: 360px) {.park-page .farkle-player-hud.farkle-hud .farkle-scoreboard,
+.park-page .farkle-observer-hud .farkle-scoreboard { grid-template-columns: minmax(0, 1fr) 80px minmax(0, 1fr); }
+.park-page .farkle-player-hud .farkle-scoreboard > .farkle-player-score,
+.park-page .farkle-observer-hud .farkle-scoreboard > .farkle-player-score { padding-inline: 10px; }
+.park-page .farkle-player-hud .farkle-scoreboard strong,
+.park-page .farkle-observer-hud .farkle-scoreboard strong { font-size: 24px; }
   .park-page .farkle-player-hud.farkle-hud .button-row button { padding-inline: 8px; font-size: 14px; }
   .farkle-player-hud .button-row .farkle-hud-icon { display: none; }
   .park-page .farkle-player-hud.farkle-hud .farkle-dice-list { gap: 4px; }
@@ -226,15 +280,22 @@
   bottom: var(--farkle-chat-bottom); max-height: min(36dvh, var(--farkle-chat-space));
 }
 .park-page:has(.park-chat__composer--open, .park-chat[data-history=true]) .farkle-player-hud[data-chat-layout=above] .farkle-actions { visibility: hidden; }
-
 /* Narrow play view: clock, dice and both primary actions fit above the shared chat. */
-.park-page .farkle-player-hud.farkle-hud[data-chat-layout=above] .farkle-scoreboard { top: 68px; min-height: 58px; }
-.park-page .farkle-player-hud[data-chat-layout=above] .farkle-scoreboard > .farkle-player-score { padding: 5px 8px; gap: 0; }
-.park-page .farkle-player-hud[data-chat-layout=above] .farkle-scoreboard strong { font-size: 20px; line-height: 1.15; }
-.park-page .farkle-player-hud[data-chat-layout=above] .farkle-scoreboard .farkle-player-name { font-size: 11px; line-height: 1.2; }
-.farkle-player-hud[data-chat-layout=above] .farkle-goal { font-size: 10px; gap: 3px; }
-.park-page .farkle-player-hud[data-chat-layout=above] .farkle-goal strong { font-size: 18px; }
-.farkle-player-hud[data-chat-layout=above] .farkle-scoreboard .farkle-hud-corners { display: none; }
+.park-page .farkle-player-hud.farkle-hud[data-chat-layout=above] .farkle-scoreboard,
+/* Narrow play view: clock, dice and both primary actions fit above the shared chat. */
+.park-page .farkle-observer-hud[data-chat-layout=above] .farkle-scoreboard { top: 68px; min-height: 58px; }
+.park-page .farkle-player-hud[data-chat-layout=above] .farkle-scoreboard > .farkle-player-score,
+.park-page .farkle-observer-hud[data-chat-layout=above] .farkle-scoreboard > .farkle-player-score { padding: 5px 8px; gap: 0; }
+.park-page .farkle-player-hud[data-chat-layout=above] .farkle-scoreboard strong,
+.park-page .farkle-observer-hud[data-chat-layout=above] .farkle-scoreboard strong { font-size: 20px; line-height: 1.15; }
+.park-page .farkle-player-hud[data-chat-layout=above] .farkle-scoreboard .farkle-player-name,
+.park-page .farkle-observer-hud[data-chat-layout=above] .farkle-scoreboard .farkle-player-name { font-size: 11px; line-height: 1.2; }
+.farkle-player-hud[data-chat-layout=above] .farkle-goal,
+.farkle-observer-hud[data-chat-layout=above] .farkle-goal { font-size: 10px; gap: 3px; }
+.park-page .farkle-player-hud[data-chat-layout=above] .farkle-goal strong,
+.park-page .farkle-observer-hud[data-chat-layout=above] .farkle-goal strong { font-size: 18px; }
+.farkle-player-hud[data-chat-layout=above] .farkle-scoreboard .farkle-hud-corners,
+.farkle-observer-hud[data-chat-layout=above] .farkle-scoreboard .farkle-hud-corners { display: none; }
 .park-page .farkle-player-hud.farkle-hud[data-chat-layout=above] .farkle-message { top: 132px; left: 16px; width: calc(100vw - 32px); max-width: none; transform: none; padding: 4px 8px; gap: 6px; font-size: 11px; box-sizing: border-box; }
 .farkle-player-hud[data-chat-layout=above] .farkle-message p { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .farkle-player-hud[data-chat-layout=above] .farkle-clock { flex: 0 0 auto; font-size: 18px; line-height: 1.1; padding-left: 6px; }

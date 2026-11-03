@@ -75,6 +75,8 @@ backend에서 `.\gradlew.bat test --tests '*Farkle*'` 또는 flowTest로 점수�
 
 ## 관전자 집중 화면 (2026-11-03)
 
+- 참가자·관전자 상단바는 game/farkle/FarkleScoreboard.tsx와 farkleHud.css의 같은 규칙을 사용한다. 문양·좌우 인장·글꼴·점수·목표 및 진행 막대 UI를 공유하고, 참가자의 나/내 차례와 관전자의 실제 이름/차례 표기만 구분한다. 관전 중·턴 번호는 관전 정보 패널에 표시한다.
+
 - DICE 관전자만 적용한다. 공개 판 보기는 기존 탑뷰 방향을 유지하며 game/farkle/camera.ts의 diceSpectatorCameraPose가 화면 비율과 점수판·관전 패널·공원 채팅의 공간을 고려해 확대한다. 주사위·테이블·컵·모래시계의 에셋과 크기는 변경하지 않는다.
 - 상단에는 참가자별 저장 점수(scores), 현재 차례(turnUserId), 목표 점수, 턴 번호를 표시한다. 이번 턴 누적(turnScore)은 관전 정보 패널에 따로 표시하며 선택 중인 점수를 임의로 추산하지 않는다.
 - game/farkle/FarkleSpectatorPanel.tsx 및 farkleSpectator.css에서 목재색·금색 HUD와 SVG 눈금을 사용한다. 좁거나 낮은 화면에서는 관전 정보를 기본으로 접고, 펼치면 모든 조작과 마지막 안내를 스크롤로 확인할 수 있다. 스크롤바는 숨기고 실제 스크롤은 유지한다.

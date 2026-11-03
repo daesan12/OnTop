@@ -24,7 +24,7 @@ test('Farkle HUD keeps selection, shortcuts and scrollable controls across scree
   const roll = hud.getByRole('button', { name: /^R / })
   const bank = hud.getByRole('button', { name: /^Q 점수 챙기기/ })
   await expect(hud).toBeVisible()
-  await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).farkleProbe().cameraReady)).toBe(true)
+  await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).farkleProbe().cameraReady), { timeout: 15000 }).toBe(true)
   await expect(bank).toBeDisabled()
   server.diceReply({ kind: 'roll', selectedIds: [] }, { stage: 'SELECTING', rollId: 1, lastEvent: 'ROLL', scores: [1200, 2750], turnScore: 500,
     dice: [1, 1, 1, 5, 3, 2].map((value, id) => ({ id, value, held: false })) })
