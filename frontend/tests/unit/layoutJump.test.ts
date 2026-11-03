@@ -7,7 +7,7 @@ describe('FE-only planned jump course',()=>{
   it('has the specified seven themes, 107 pads, six sequential gates and original first-stage IDs',()=>{
     expect(JUMP_PADS).toHaveLength(107);expect(JUMP_GATES).toHaveLength(6);expect(JUMP_SEQUENCE).toHaveLength(113)
     expect(JUMP_STAGES.map((_,i)=>JUMP_PADS.filter(p=>p.stage===i).length)).toEqual([24,9,13,12,17,18,14])
-    expect(JUMP_STAGES.reduce((sum,s)=>sum+s.reward,0)).toBe(100)
+    expect(JUMP_STAGES.reduce((sum,s)=>sum+s.reward,0)).toBe(250)
     expect(JUMP_PADS.slice(0,24).map(p=>p.id)).toEqual(Array.from({length:24},(_,i)=>`future-jump-pad-${i}`))
     expect(new Set(JUMP_SEQUENCE.map(p=>p.id)).size).toBe(113)
     expect(Math.max(...JUMP_PADS.map(p=>p.height))).toBeCloseTo(46.5,1)
@@ -34,17 +34,21 @@ describe('FE-only planned jump course',()=>{
     const s=createJumpSession();landJumpPad(s,JUMP_PADS[0]!);landJumpPad(s,JUMP_GATES[2]!)
     expect(s.coins).toBe(0)
     for(const g of JUMP_GATES){s.time+=1;landJumpPad(s,g);const before=s.coins;landJumpPad(s,g);expect(s.coins).toBe(before)}
-    expect(s.coins).toBe(64);landJumpPad(s,JUMP_PADS.at(-1)!)
+    expect(s.coins).toBe(165);landJumpPad(s,JUMP_PADS.at(-1)!)
     s.x=JUMP_FINISH.x;s.z=JUMP_FINISH.z;s.y=8;s.vy=0;s.grounded=false;s.pad=null
     for(let i=0;i<120;i++)stepJump(s,1/60,{x:0,z:0})
-    expect(s.result?.kind).toBe('complete');expect(s.today).toBe(100);expect(s.coins).toBe(100);expect(s.bestTime).toBeGreaterThan(0)
+    expect(s.result?.kind).toBe('complete');expect(s.today).toBe(250);expect(s.coins).toBe(250);expect(s.bestTime).toBeGreaterThan(0)
+    landJumpPad(s,JUMP_PADS[0]!);for(const g of JUMP_GATES)landJumpPad(s,g);expect(s.coins).toBe(165)
+    landJumpPad(s,JUMP_PADS.at(-1)!)
+    Object.assign(s,{x:JUMP_FINISH.x,z:JUMP_FINISH.z,y:.1,vy:-3,grounded:false,pad:null})
+    stepJump(s,.1,{x:0,z:0});expect(s.result?.kind).toBe('complete');expect(s.today).toBe(500);expect(s.coins).toBe(250)
     landJumpPad(s,JUMP_PADS[0]!);for(const g of JUMP_GATES)landJumpPad(s,g);expect(s.coins).toBe(0)
   })
   it('ends an early water fall without granting the final reward and never teleports the player',()=>{
     const s=createJumpSession();landJumpPad(s,JUMP_PADS[0]!);landJumpPad(s,JUMP_GATES[0]!)
     s.x=JUMP_FINISH.x;s.z=JUMP_FINISH.z;s.y=.1;s.grounded=false;s.pad=null;s.vy=-3
     stepJump(s,.1,{x:0,z:0})
-    expect(s.result?.kind).toBe('water');expect(s.coins).toBe(2);expect(s.x).toBe(JUMP_FINISH.x);expect(s.z).toBe(JUMP_FINISH.z)
+    expect(s.result?.kind).toBe('water');expect(s.coins).toBe(5);expect(s.x).toBe(JUMP_FINISH.x);expect(s.z).toBe(JUMP_FINISH.z)
   })
   it('supports a 100ms coyote window once and a 150ms pre-landing jump buffer',()=>{
     const s=createJumpSession(),p=JUMP_PADS[0]!

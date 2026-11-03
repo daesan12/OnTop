@@ -35,6 +35,6 @@ test('planned course renders all themes and supports keyboard jumping, material 
   for(let i=0;i<7;i++) {await page.evaluate(async n=>(await import('/tests/layout-e2e/jumpProbe.ts' as string)).stageLandingFixture(n),i);await page.waitForTimeout(180)}
   expect((await probe()).visual.lastTheme).toBe('lily')
   await page.evaluate(async()=> (await import('/tests/layout-e2e/jumpProbe.ts' as string)).completeJumpFixture())
-  await expect(page.getByLabel('점프맵 결과')).toContainText('완주!');await expect(page.getByLabel('미리보기 엽전')).toContainText('오늘 100 / 100냥');await shot('jump-complete')
+  await expect(page.getByLabel('점프맵 결과')).toContainText('완주!');await expect(page.getByLabel('미리보기 엽전')).toContainText('오늘 250 / 500냥');await shot('jump-complete')
   expect(network).toEqual([]);expect(errors).toEqual([]);expect(consoleErrors).toEqual([])
 })

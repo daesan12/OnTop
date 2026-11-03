@@ -303,6 +303,7 @@ class RestSecurityTests {
                 "PATCH /api/v1/users/me",
                 "DELETE /api/v1/users/me",
                 "GET /api/v1/admin/me", "GET /api/v1/admin/analytics/summary",
+                "POST /api/v1/admin/wallet-grants/preview", "POST /api/v1/admin/wallet-grants",
                 "GET /api/v1/wallets/me", "GET /api/v1/wallets/me/transactions",
                 "GET /api/v1/rankings", "GET /api/v1/rankings/park",
                 "GET /api/v1/raffles/current", "POST /api/v1/raffles/current/tickets",

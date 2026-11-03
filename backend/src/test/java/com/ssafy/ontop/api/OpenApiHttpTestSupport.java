@@ -87,6 +87,7 @@ abstract class OpenApiHttpTestSupport {
                 "POST /api/v1/auth/websocket-ticket", "GET /api/v1/users/me", "PATCH /api/v1/users/me",
                 "DELETE /api/v1/users/me", "GET /api/v1/users/nickname-availability",
                 "POST /api/v1/users/onboarding", "GET /api/v1/admin/me", "GET /api/v1/admin/analytics/summary",
+                "POST /api/v1/admin/wallet-grants/preview", "POST /api/v1/admin/wallet-grants",
                 "GET /api/v1/wallets/me",
                 "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings",
                 "GET /api/v1/rankings/park",
@@ -133,6 +134,27 @@ abstract class OpenApiHttpTestSupport {
         assertThat(api.path("info").path("description").asText()).isEqualTo("OnTop REST API Documentation");
         assertThat(api.path("info").path("version").asText()).isEqualTo(build.getVersion());
         assertThat(api.path("servers").get(0).path("url").asText()).isEqualTo("/");
+    }
+
+    @Test
+    void 관리자_일괄_지급은_Access전용이며_미리보기와_멱등_실행을_문서화한다() throws Exception {
+        JsonNode api = json();
+        JsonNode preview = api.at("/paths/~1api~1v1~1admin~1wallet-grants~1preview/post");
+        JsonNode execute = api.at("/paths/~1api~1v1~1admin~1wallet-grants/post");
+
+        assertThat(preview.at("/security/0").has("AccessJwt")).isTrue();
+        assertThat(execute.at("/security/0").has("AccessJwt")).isTrue();
+        assertThat(preview.path("tags").toString()).isEqualTo("[\"ADMIN\"]");
+        assertThat(execute.path("tags").toString()).isEqualTo("[\"ADMIN\"]");
+        assertThat(preview.at("/responses/200/content/application~1json/schema/$ref").asText())
+                .isEqualTo("#/components/schemas/AdminWalletGrantPreviewResponse");
+        assertThat(execute.at("/responses/200/content/application~1json/schema/$ref").asText())
+                .isEqualTo("#/components/schemas/AdminWalletGrantExecuteResponse");
+        assertThat(execute.path("responses").has("409")).isTrue();
+        assertThat(execute.path("responses").has("503")).isTrue();
+        JsonNode request = api.at("/components/schemas/AdminWalletGrantExecuteRequest/properties");
+        assertThat(request.has("requestId")).isTrue();
+        assertThat(request.has("expectedRecipientCount")).isTrue();
     }
 
     @Test
