@@ -8,9 +8,8 @@
 .table-paper-popup.farkle-forfeit-dialog h2 { font-size: 34px; line-height: 1.4; margin-bottom: 14px; }
 .table-paper-popup.farkle-forfeit-dialog .paper-subtitle { font-size: 14px; line-height: 1.7; color: #6c6453; overflow-wrap: anywhere; word-break: keep-all; }
 .farkle-forfeit-dialog .farkle-forfeit-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 24px; }
-.farkle-forfeit-dialog .farkle-forfeit-actions button { min-width: 0; padding: 10px 8px; word-break: keep-all; }
-.farkle-forfeit-dialog .farkle-forfeit-actions .paper-primary { font-size: 16px; }
-.table-paper-popup.farkle-forfeit-dialog .farkle-forfeit-confirm { color: #fff5df; border: 3px double #bf9b70; background: #874334; box-shadow: 0 3px 5px #543d1926; font-size: 16px; font-weight: 700; }
+.table-paper-popup.farkle-forfeit-dialog .farkle-forfeit-actions button { min-width: 0; padding: 10px 8px; word-break: keep-all; font: 700 16px/1.5 'Malgun Gothic', sans-serif; letter-spacing: normal; }
+.table-paper-popup.farkle-forfeit-dialog .farkle-forfeit-confirm { color: #fff5df; border: 3px double #bf9b70; background: #874334; box-shadow: 0 3px 5px #543d1926; }
 .table-paper-popup.farkle-forfeit-dialog .farkle-forfeit-confirm:hover:not(:disabled) { background: #713729; border-color: #d2ad7d; }
 .farkle-forfeit-dialog [role=alert] { color: #943b2e; font-size: 14px; overflow-wrap: anywhere; }
 .farkle-forfeit-dialog [role=status] { font-size: 14px; }
