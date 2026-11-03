@@ -549,6 +549,10 @@ export async function fixture(
       }
       if (options.spectatorEvents && ['GAME_SPECTATOR_CHAT_SEND', 'OMOK_SPECTATOR_PING_SEND'].includes(type)) {
         const ping = type === 'OMOK_SPECTATOR_PING_SEND', now = Date.now()
+        if (!ping && rejectChat) {
+          emit(ws, 'ERROR', { code: 'GAME_SPECTATOR_ACCESS_DENIED', message: '경기 채팅을 보낼 수 없어요. 잠시 후 다시 보내주세요.' }, requestId)
+          return
+        }
         const approved = !seated && watchingGame || !ping && seated && started
         if (!approved || finished || payload.gameId !== gameId) {
           emit(ws, 'ERROR', { code:'GAME_SPECTATOR_ACCESS_DENIED', message:'관전 권한을 확인해주세요.' }, requestId); return
