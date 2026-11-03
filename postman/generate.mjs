@@ -546,7 +546,7 @@ for (const request of bungeoRankingRequests) {
 httpItems.push(...bungeoRankingRequests);
 
 const historyDescription = 'HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. '
-    + 'gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. '
+    + 'gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE/DICE_LEDGER/HALLI_GALLI/ALKKAGI, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. '
     + 'played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. '
     + 'cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.';
 const historyReadTest = `pm.test('본인 경기 내역 계약', () => {

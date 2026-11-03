@@ -19,7 +19,7 @@ class GameHistoryRequestTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "HALLI_GALLI"})
+    @ValueSource(strings = {"OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "HALLI_GALLI", "ALKKAGI"})
     void 기록이_저장되는_모든_게임을_필터로_허용한다(String gameCode) {
         assertThat(GameHistoryPageRequest.parse(null, null, gameCode))
                 .isEqualTo(new GameHistoryPageRequest(null, 20, gameCode));
