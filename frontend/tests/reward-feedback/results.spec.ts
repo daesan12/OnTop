@@ -27,7 +27,7 @@ test('붕어빵 결과 상세는 기존 구성의 환산 문구만 표시하고 
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await page.getByRole('button', { name: 'E 붕어빵 굽기', exact: true }).click()
   await expect(page.getByRole('button', { name: '시작', exact: true })).toBeEnabled()
-  await expect(page.getByRole('region', { name: '붕어빵 굽기 시작' })).toContainText('5점당 1냥')
+  await expect(page.getByRole('region', { name: '붕어빵 굽기 시작' })).not.toContainText('5점당 1냥')
   // 화면 재현용 상태이며 실제 서버 지급이나 지갑 변경을 수행하지 않는다.
   await page.evaluate(async () => {
     const { useBungeoppang } = await import('/src/features/bungeoppang/store.ts' as string)
