@@ -28,9 +28,9 @@ export function OmokUndoCard({omok:o,own,now,send,requestDisabled,responseDisabl
       <small>요청자의 착수 제한시간은 계속 흘러요.</small>
       {undo.requesterUserId !== own && <>
         <button disabled={responseDisabled}
-          onClick={() => void send({ kind: 'undoRespond', requestId: undo.requestId, accept: true })}>두 돌 무르기 수락</button>
+          onClick={() => void send({ kind: 'undoRespond', requestId: undo.requestId, accept: true })}>무르기</button>
         <button disabled={responseDisabled}
-          onClick={() => void send({ kind: 'undoRespond', requestId: undo.requestId, accept: false })}>무르기 거절</button>
+          onClick={() => void send({ kind: 'undoRespond', requestId: undo.requestId, accept: false })}>거절</button>
       </>}
     </> : <>
       <button title="상대 동의 후 내 이전 돌과 상대 응수를 취소합니다. 횟수 제한은 없습니다."
