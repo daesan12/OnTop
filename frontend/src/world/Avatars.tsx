@@ -3,10 +3,11 @@ import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
 import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
-import { Group, Vector3 } from 'three'
+import { Group, Matrix4, Vector3 } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls, createCharacterRig } from './worldAssets'
-import { avatarPoseActive, avatarPoseAmbient, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
+import { avatarPoseActive, avatarPoseAmbient, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
+import { AvatarPresentation } from './avatarPresentation'
 import { SwimmingRipples } from './SwimmingRipples'
 
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
@@ -63,6 +64,8 @@ function Avatar({
   const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const overlapPose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const worldPosition = useMemo(() => new Vector3(), [])
+  const inverseRoot = useMemo(() => new Matrix4(), [])
+  const presentation = useMemo(() => new AvatarPresentation(), [])
   const motion = useMemo(() => createAvatarMotion(model), [model])
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
   const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
@@ -115,7 +118,7 @@ function Avatar({
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
-    const displayAvatar = displayFlags ? { ...avatar, ...displayFlags } : avatar
+    const displayAvatar = presentation.sample(avatar, displayFlags)
     const active = !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
@@ -124,7 +127,7 @@ function Avatar({
       distance,
       own,
       active,
-      `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}|${holdingCards}|${active ? '' : `${avatar.current.x}|${avatar.current.y}|${avatar.current.z}`}`,
+      presentation.key(avatar, reaction?.key ?? '', holdingCards, active),
       !reaction && avatarPoseAmbient(displayAvatar),
     )
     if (!poseDelta) return
@@ -132,7 +135,8 @@ function Avatar({
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
-    root.current.worldToLocal(worldPosition)
+    // getWorldPosition already refreshed the ancestor matrices above.
+    worldPosition.applyMatrix4(inverseRoot.copy(root.current.matrixWorld).invert())
     if (marker.current) {
       marker.current.position.copy(worldPosition)
       marker.current.position.y += 0.16

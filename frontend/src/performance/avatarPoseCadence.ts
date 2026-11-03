@@ -4,7 +4,7 @@
  * (every frame for the own avatar) and sleeps like any idle pose when distant. */
 export class AvatarPoseCadence {
   private elapsed = 0
-  private previousKey: string | undefined
+  private previousKey: string | number | undefined
   private previousActive = false
   private distant = false
   private quiet = 0
@@ -14,7 +14,7 @@ export class AvatarPoseCadence {
     distance: number,
     own: boolean,
     active: boolean,
-    key: string,
+    key: string | number,
     ambient = false,
   ) {
     if (distance > 16) this.distant = true
