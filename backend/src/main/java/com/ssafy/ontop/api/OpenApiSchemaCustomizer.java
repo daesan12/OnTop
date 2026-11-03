@@ -2,6 +2,7 @@ package com.ssafy.ontop.api;
 
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.headers.Header;
+import io.swagger.v3.oas.models.media.BooleanSchema;
 import io.swagger.v3.oas.models.media.ComposedSchema;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.IntegerSchema;
@@ -104,7 +105,10 @@ public class OpenApiSchemaCustomizer implements OperationCustomizer {
                         .schema(new StringSchema().pattern("^[A-Za-z0-9_-]{1,64}$").minLength(1).maxLength(64))
                         .description("같은 회원·키·구매 내용은 기존 영수증 반환, 같은 키의 다른 내용은 409"));
             } else if (handler.getMethod().getName().equals("equip")) {
+                BooleanSchema equipped = new BooleanSchema();
+                equipped.setDescription("생략하거나 true면 장착, false면 해제(그 부위 기본 옷). 세트 의상은 세트 전체를 함께 입고 벗는다.");
                 body(operation, new ObjectSchema().addProperty("userItemId", positiveLong())
+                        .addProperty("equipped", equipped)
                         .required(List.of("userItemId")).additionalProperties(false));
             }
         }

@@ -3087,6 +3087,10 @@ paths:
                   minimum: 1
                   type: integer
                   format: int64
+                equipped:
+                  type: boolean
+                  description: "생략하거나 true면 장착, false면 해제(그 부위 기본 옷). 세트 의상은 세트 전체\
+                    를 함께 입고 벗는다."
               additionalProperties: false
         required: true
       responses:
@@ -6067,6 +6071,7 @@ components:
       - itemType
       - name
       - price
+      - setCode
       type: object
       properties:
         itemId:
@@ -6095,6 +6100,9 @@ components:
           format: int64
         imageKey:
           type: string
+        setCode:
+          type: string
+          nullable: true
     OwnedItemResponse:
       required:
       - equipped
