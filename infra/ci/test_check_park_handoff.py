@@ -23,13 +23,13 @@ class ParkHandoffChecks(unittest.TestCase):
         artifact = next(row for row in manifest["artifacts"] if row["path"] == "generated/park/server-map.json")
         self.assertEqual(digest, artifact["sha256"])
 
-    def test_prepares_the_four_be_handoff_files(self):
+    def test_prepares_the_five_be_handoff_files(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as folder:
             destination = Path(folder) / "handoff"
             prepare(ROOT, destination)
             self.assertEqual({path.name for path in destination.iterdir()}, {
                 "server-map.json", "manifest.json", "park-bindings.dev.json",
-                "park-bindings.frontend-test.json",
+                "park-bindings.frontend-test.json", "park-bindings.prod.json",
             })
             self.assertEqual((destination / "server-map.json").read_bytes(),
                              (ROOT / "frontend/generated/park/server-map.json").read_bytes())
@@ -52,6 +52,21 @@ class ParkHandoffChecks(unittest.TestCase):
             data["bindings"][0]["tableId"] = "table-wrong"
             path.write_text(json.dumps(data), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "BE and FE bindings differ"):
+                validate(candidate)
+
+    def test_prod_mapping_must_use_server_deterministic_ids(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as folder:
+            candidate = Path(folder)
+            self.copy_inputs(candidate)
+            for relative in (
+                "docs/integration/park-180/park-bindings.prod.json",
+                "frontend/public/park-bindings.generated.prod.json",
+            ):
+                path = candidate / relative
+                data = json.loads(path.read_text(encoding="utf-8"))
+                data["bindings"][0]["tableId"] = "table-00000000-0000-3000-8000-000000000000"
+                path.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "deterministic rule"):
                 validate(candidate)
 
     def test_missing_or_skipped_be_handoff_test_fails(self):
@@ -80,8 +95,10 @@ class ParkHandoffChecks(unittest.TestCase):
             "frontend/src/map/park/generated/mapVersion.ts",
             "docs/integration/park-180/park-bindings.dev.json",
             "docs/integration/park-180/park-bindings.frontend-test.json",
+            "docs/integration/park-180/park-bindings.prod.json",
             "frontend/public/park-bindings.generated.dev.json",
             "frontend/public/park-bindings.generated.frontend-test.json",
+            "frontend/public/park-bindings.generated.prod.json",
         ):
             target = candidate / relative
             target.parent.mkdir(parents=True, exist_ok=True)

@@ -1,7 +1,7 @@
 import type { ParkRuntimePort } from '../../park/runtime/contracts'
 import { RestError } from '../../network/restError'
 
-export const RECORD_GAMES = { OMOK: '오목', DICE: '주사위 한 판', ONE_CARD: '원카드', LIAR_BRIDGE: '거짓말 다리 건너기', DICE_LEDGER: '주사위 장부', HALLI_GALLI: '할리갈리' } as const
+export const RECORD_GAMES = { OMOK: '오목', DICE: '주사위 한 판', ONE_CARD: '원카드', LIAR_BRIDGE: '거짓말 다리 건너기', DICE_LEDGER: '주사위 장부', HALLI_GALLI: '과일 땡' } as const
 export type RecordGame = keyof typeof RECORD_GAMES
 export type RecordFilter = RecordGame | 'ALL'
 export type GameResult = 'WIN' | 'LOSE' | 'FORFEIT' | 'DRAW'

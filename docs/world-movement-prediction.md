@@ -63,9 +63,9 @@ Java Bullet과 Rapier는 다른 엔진이므로 완전히 같은 궤적을 보�
 
 테스트 전용 `ClientPositionPrototypeTests`는 별도의 client-driven 위치 검증 가능성을 살펴보는 오프라인 초안이다. 초안 자체는 제품 API가 아니며, 아래 C 구현은 별도로 제품 프로토콜에 연결했다. 사용자 B 선호와 초안의 통과/미검증 범위는 `world-movement-analysis.md`8절을 참고한다.
 
-### C 좌표 검증 이동 계약 (dev 기본 적용, prod 제외)
+### C 좌표 검증 이동 계약 (dev·운영 DB 기본 적용)
 
-`application-dev.yml`은 `ontop.world.movement.client-position: true`를 기본 적용한다. dev,db 개발 서버는 별도 환경변수 추가 없이 C를 사용하며, local은 명시적으로 true를 지정할 때 사용한다. prod/production은 C 활성화를 거절하며 기본 방향 입력을 유지한다. 이때 `WORLD_STATE.avatars[].motion.authority`가 `CLIENT_VALIDATED`인 본인만 아래 메시지를 기존60ms 큐에서 전송한다. 구서버/기본 서버/권위 필드가 없는 actor는 기존 `WORLD_MOVE`다.
+`application-dev.yml`은 `ontop.world.movement.client-position: true`를 기본 적용한다. `application.yml`의 운영 DB 전용 설정도 같은 값을 적용하므로 dev,db 및 prod,db(또는 production,db)는 별도 환경변수 추가 없이 C를 사용한다. local은 명시적으로 true를 지정할 때 사용한다. DB 없는 운영·local/dev와 운영을 섞은 프로필에서는 활성화를 거절한다. 이때 `WORLD_STATE.avatars[].motion.authority`가 `CLIENT_VALIDATED`인 본인만 아래 메시지를 기존60ms 큐에서 전송한다. 구서버/기본 서버/권위 필드가 없는 actor는 기존 `WORLD_MOVE`다.
 
 ```json
 {
@@ -90,11 +90,15 @@ MovementPredictionContractTests는 수락/물리 완료 구분, 버스트·충�
 원인 분리용 `tests/diagnostics/movementAblation.ts`는 제품 코드에서 참조하지 않는 테스트 모듈이다. baseline/A(offset만제거)/B(A+같은epoch물리재설정·재생생략)를 동일 입력·스냅샷으로 비교한다. A↔B 비교로 reset/replay의 기여를 분리한다. B는 서버와의 정합성을 만족하는 새 이동 구현이 아니며 운영에 적용하지 않는다. 단위 선택 검사는 MOVEMENT_AB_DIR에 Bullet결과 폴더를 지정해 movementAblation.test.ts를 실행하고, 실제 렌더 비교는 movement-ablation.spec.ts를 실행한다. 개발전용movementPanel도 자동으로 앱에 연결되지 않으며 loopback에서만 수동 로딩한다. 마지막 서버 확인 기한과 epoch/활동 전환은 유지하고, 모드 전환 때 입력·예측을 초기화한다.
 
 
-## 개발 서버 확정 이동 프로필 (PARK_V1)
+## 개발·운영 공통 확정 이동 프로필 (PARK_V1)
 
 최종 로컬 비교에서 사용자가 걷기6m/s·달리기8m/s·점프 초기8m/s·중력30m/s²·최대 낙하78.4m/s·달리기 점프 추가속도0을 선택했다. MR에는 조절 패널·브라우저 설정 저장소·로컬 실험 플래그를 포함하지 않는다. `ParkMotion`이 이 고정값으로 지상 가속/제동·공중 관성과50ms 수직 항력(.98)을 계산하며, 기존 Rapier 캡슐·자동 단차0.22m·최소폭0.15m·접지스냅0.15m를 사용한다.
 
-서버가 `motion.profile = "PARK_V1"`를 보내면 프론트가 해당 계산을 선택한다. request의 WORLD_POSITION 필드나 지도 버전은 바꾸지 않는다. 구서버가 profile을 보내지 않으면 기존 물리 경로를 사용한다. dev & !prod & !production 설정은 client-position/tuned-profile을 기본 true로 두고, Registry는 tuned-profile의 운영 활성화를 거절한다. 프론트가 임의 위치나 profile을 요청으로 지정해서 서버 정책을 바꿀 수 없다. FE/BE 배포 순서가 달라도 표식 없는 구서버에서 새 물리를 먼저 사용하지 않는다.
+서버가 `motion.profile = "PARK_V1"`를 보내면 프론트가 해당 계산을 선택한다. request의 WORLD_POSITION 필드나 지도 버전은 바꾸지 않는다. 구서버가 profile을 보내지 않으면 기존 물리 경로를 사용한다. dev & !prod & !production 및 (prod | production) & db & !local & !dev 설정은 client-position/tuned-profile을 기본 true로 둔다. Registry는 같은 제품 프로필 조건으로 두 설정을 허용한다. 프론트가 임의 위치나 profile을 요청으로 지정해서 서버 정책을 바꿀 수 없다. FE/BE 배포 순서가 달라도 표식 없는 구서버에서 새 물리를 먼저 사용하지 않는다.
+
+운영 반영 시에는 위 두 속성을 false로 덮어쓰는 외부 설정이 없는지 확인하고, 이 코드를 포함한 BE 이미지를 재배포한다. 최신 FE와 실행 서버의 맵 버전도 일치해야 한다. 접속 후 본인의 `motion.authority = "CLIENT_VALIDATED"`, `motion.profile = "PARK_V1"`를 확인한다. 운영 Spring 프로필은 그대로 유지하며 DB 스키마·맵 파일·인증 설정은 변경하지 않는다. 속도·경계·수직 이동·벽 관통·순번/세대 검증도 유지한다. 운영에서 실제 달리기·점프·충돌·재접속 검수는 배포 후 별도로 확인해야 하며, 로컬 프로필 검사를 실서버 검수 완료로 취급하지 않는다. 되돌릴 때는 서버 외부 설정에서 두 속성을 함께 false로 지정하고 재기동한다.
+
+두 속성은 최종 주입이 끝난 뒤 `validateMovementConfiguration`에서 함께 검사한다. `client-position=false`, `tuned-profile=true`는 PARK_V1 표식과 좌표 검증 권한이 어긋나므로 기동을 거절한다. 둘 다 true인 정상 설정, 둘 다 false인 롤백, 기존 client-position=true/tuned-profile=false 모드는 유지한다. 착석·시설·자동 따라가기 중 잠시 authority가 해제되는 정상 런타임 상태는 이 기동 설정 검사와 구분한다. 저장소의 application-prod.yml과 Compose에는 현재 이 속성을 덮어쓰는 항목이 없지만, 외부 프로필 파일·환경변수는 기본값보다 우선하므로 배포 때 실제 설정을 확인해야 한다.
 
 예시(기존 WORLD_STATE.avatars[].motion에 선택 필드만 추가):
 

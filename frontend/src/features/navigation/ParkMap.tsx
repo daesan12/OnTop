@@ -1,17 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { WORLD, PARK_SIZE, PARK_ZONES, NETWORK } from '../../park/mapConfig'
+import { WORLD, PARK_SIZE, NETWORK } from '../../park/mapConfig'
 import { avatars, useSession } from '../../network/worldClient'
 import { inputState } from '../../world/inputOwnership'
 import { ParkMapBackground } from './ParkMapBackground'
-import { PARK_DESTINATIONS, type Destination } from './parkNavigation'
+import type { Destination } from './parkNavigation'
+import { PARK_MAP_PLACES, type MapPlace } from './mapPlaces'
 import { useNavigation, cancelNavigation, useParkMap, openParkMap, closeParkMap, selectDestination } from './navigationState'
 import './navigation.css'
 import mapIcon from '../parkMenus/icons/dock-map.svg'
 import { gameplayMenusLocked, useGameplayMenusLocked } from '../parkMenus/gameplayLock'
-import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
-import { RETURN_TO } from '../jumpmap/course'
-
-const zoneName = (zone: typeof PARK_ZONES[number]) => zone.id === 'vr' ? 'VR 구역 · 주변' : zone.name
+import { displayNickname } from '../gameMaster/displayName'
 function canOpen() {
   return !gameplayMenusLocked() && useSession.getState().status === 'connected' && !Object.entries(inputState).some(([key, value]) => key !== 'mapOpen' && value)
     && !document.querySelector('dialog[open], [role="dialog"]')
@@ -24,13 +22,15 @@ export function ParkMap() {
   const [position, setPosition] = useState<{ x: number; z: number } | null>(null)
   const [players, setPlayers] = useState<{ id: string; x: number; z: number; nickname: string }[]>([])
   const [hovered, setHovered] = useState('')
+  const [selectedPlayerId, setSelectedPlayerId] = useState('')
+  const displayedPlayer = players.find(player => player.id === (hovered || selectedPlayerId))
   useLayoutEffect(() => { if (gameplayLocked) { closeParkMap(); cancelNavigation() } }, [gameplayLocked])
   const choose = (target: Destination) => {
     const s = useSession.getState()
     if (s.status === 'connected' && s.mapCompatible) selectDestination(target, s.sessionId, s.roomId)
   }
-  const chooseZone = (zone: typeof PARK_ZONES[number]) => choose({ ...PARK_DESTINATIONS[zone.id]!, name: zoneName(zone) + ' · 입구/주변' })
-  const selectedZone = destination ? PARK_ZONES.find(zone => PARK_DESTINATIONS[zone.id]?.x === destination.x && PARK_DESTINATIONS[zone.id]?.z === destination.z)?.id : undefined
+  const choosePlace = (place: MapPlace) => choose(place.destination)
+  const selectedPlace = destination ? PARK_MAP_PLACES.find(place => place.destination.x === destination.x && place.destination.z === destination.z)?.id : undefined
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229 || event.ctrlKey || event.metaKey || event.altKey) return
@@ -56,7 +56,7 @@ export function ParkMap() {
       if (document.pointerLockElement) document.exitPointerLock()
       dialog.showModal()
     } else if (!open && dialog?.open) {
-      dialog.close(); setHovered('')
+      dialog.close(); setHovered(''); setSelectedPlayerId('')
       if (!inputState.manualOpen) (previousFocus.current?.isConnected ? previousFocus.current : document.querySelector<HTMLCanvasElement>('canvas') ?? launcher.current)?.focus({ preventScroll: true })
     }
   }, [open])
@@ -66,10 +66,14 @@ export function ParkMap() {
     const read = () => {
       const s = useSession.getState(), own = avatars.get(s.sessionId)?.current
       setPosition(own ? { x: own.x, z: own.z } : null)
-      setPlayers(s.ids.slice(0, NETWORK.maxClients).flatMap(id => {
+      const nextPlayers = s.ids.slice(0, NETWORK.maxClients).flatMap(id => {
         const avatar = avatars.get(id)
-        return avatar?.connected && id !== s.sessionId ? [{ id, x: avatar.current.x, z: avatar.current.z, nickname: avatar.nickname }] : []
-      }))
+        return avatar?.connected && id !== s.sessionId ? [{ id, x: avatar.current.x, z: avatar.current.z,
+          nickname: displayNickname(s.profiles[id], avatar.nickname) }] : []
+      })
+      setPlayers(nextPlayers)
+      setSelectedPlayerId(id => nextPlayers.some(player => player.id === id) ? id : '')
+      setHovered(id => nextPlayers.some(player => player.id === id) ? id : '')
     }
     read(); const timer = setInterval(read, 500)
     return () => { clearInterval(timer); document.body.style.overflow = previous }
@@ -89,7 +93,7 @@ export function ParkMap() {
       {open && <>
         <header className="park-map-heading">
           <span className="park-map-heading__icon" aria-hidden="true"><img src={mapIcon} alt="" /></span>
-          <div><h2>공원 지도</h2><p>장소나 지도 위 지점을 누르면 가는 길을 바닥에 표시해요</p></div>
+          <div><h2>공원 지도</h2><p>장소를 누르면 길 안내, 이용자를 누르면 닉네임을 확인해요</p></div>
           <button className="park-map-close" aria-label="지도 닫기" onClick={closeParkMap}>×</button>
         </header>
         {!compatible && <p className="park-map-alert" role="alert">현재 서버의 맵 버전을 확인하지 못해 길 안내를 사용할 수 없어요.</p>}
@@ -103,15 +107,20 @@ export function ParkMap() {
           <ParkMapBackground />
           {path.length > 1 && <polyline className="navigation-map-route" points={path.map(p => `${p.x},${p.z}`).join(' ')} fill="none" stroke="#06bfc1" strokeWidth={2} strokeLinejoin="round" pointerEvents="none" />}
           {destination && <circle cx={destination.x} cy={destination.z} r={3.2} fill="#06bfc1" stroke="#fff" strokeWidth={1.2} pointerEvents="none" />}
-          {/* Everyone else at their live position (no offset or tether), drawn under the zone buttons so those stay clickable. */}
-          {players.map(player=><g key={player.id} role="img" aria-label={`${player.nickname} 위치`} tabIndex={0} onClick={event=>event.stopPropagation()} onMouseEnter={()=>setHovered(player.id)} onMouseLeave={()=>setHovered('')} onFocus={()=>setHovered(player.id)} onBlur={()=>setHovered('')}>
-            <circle cx={player.x} cy={player.z} r={3.2} fill="#efb84f" stroke="#fff9e7" strokeWidth={1.2}/><title>{player.nickname}</title>
+          {PARK_MAP_PLACES.map((place,index) => <g key={place.id} className="park-map-zone" data-place-id={place.id} data-selected={place.id===selectedPlace} role="button" tabIndex={compatible ? 0 : -1} aria-disabled={!compatible} aria-label={`${place.name} 길 안내`} style={{cursor:compatible?'pointer':'default'}} onClick={event=>{event.stopPropagation();choosePlace(place)}} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();choosePlace(place)}}}>
+            <circle cx={place.x} cy={place.z} r={place.small?2.7:4.2} /><text x={place.x} y={place.z+(place.small?1.2:1.75)} textAnchor="middle" fontSize={place.small?3.6:5}>{index+1}</text><title>{place.name}</title>
           </g>)}
-          {PARK_ZONES.map((zone,index) => <g key={zone.id} className="park-map-zone" data-selected={zone.id===selectedZone} role="button" tabIndex={compatible ? 0 : -1} aria-disabled={!compatible} aria-label={`${zoneName(zone)} 길 안내`} style={{cursor:compatible?'pointer':'default'}} onClick={event=>{event.stopPropagation();chooseZone(zone)}} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();chooseZone(zone)}}}>
-            <circle cx={zone.x} cy={zone.z} r={4.2} /><text x={zone.x} y={zone.z+1.75} textAnchor="middle" fontSize={5}>{index+1}</text>
+          {/* Keep live positions exact. Player markers take clicks over zones;
+              the matching place remains available in the destination list. */}
+          {players.map(player=><g key={player.id} className="park-map-player" role="button" aria-label={`${player.nickname} 위치`} aria-pressed={player.id===selectedPlayerId} tabIndex={0}
+            onClick={event=>{event.stopPropagation();setSelectedPlayerId(player.id)}}
+            onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();setSelectedPlayerId(player.id)}}}
+            onMouseEnter={()=>setHovered(player.id)} onMouseLeave={()=>setHovered('')} onFocus={()=>setHovered(player.id)} onBlur={()=>setHovered('')}>
+            <circle cx={player.x} cy={player.z} r={3.2} fill="#efb84f" stroke="#fff9e7" strokeWidth={1.2}/><title>{player.nickname}</title>
           </g>)}
           {position && <circle aria-label="현재 내 위치" cx={position.x} cy={position.z} r={2.6} fill="#267cef" stroke="white" strokeWidth={1.6} />}
         </svg>
+        <p className="park-map-player-info" role="status">{displayedPlayer ? <><strong>{displayedPlayer.nickname}</strong><span>현재 위치</span></> : '노란 이용자 표시를 누르면 닉네임이 보여요.'}</p>
         {/* Legend and compass share the strip under the map, so neither covers it. */}
         <figcaption className="park-map-footer">
           <span className="park-map-legend"><span><i data-kind="me" />내 위치</span><span><i data-kind="player" />다른 이용자</span><span><i data-kind="target" />목적지</span></span>
@@ -129,14 +138,12 @@ export function ParkMap() {
             <button type="button" onClick={cancelNavigation}>안내 취소</button>
           </section>}
           <h3>장소 바로가기</h3>
-          {GENERATED_PARK_ENABLED && <button className="map-destination" disabled={!compatible} onClick={() => choose(RETURN_TO)}>돌탑 점프맵 길 안내</button>}
-          <div className="map-destinations">{PARK_ZONES.map((zone,index)=><button key={zone.id} className="map-destination" aria-label={`${index+1}. ${zoneName(zone)}`} aria-pressed={zone.id===selectedZone} disabled={!compatible} onClick={()=>chooseZone(zone)}>
-            <span aria-hidden="true">{index+1}</span>{zoneName(zone)}
+          <div className="map-destinations" role="group" aria-label="장소 바로가기 목록" tabIndex={0}>{PARK_MAP_PLACES.map((place,index)=><button key={place.id} className="map-destination" aria-label={`${index+1}. ${place.name}`} aria-pressed={place.id===selectedPlace} disabled={!compatible} onClick={()=>choosePlace(place)}>
+            <span aria-hidden="true">{index+1}</span>{place.name}
           </button>)}</div>
-        <p className="park-map-hover" role="status">{hovered?`${players.find(p=>p.id===hovered)?.nickname??'이용자'} · 현재 위치`:'\u00a0'}</p>
         </div>
         </div>
-        <p className="park-map-note">M / Esc로 닫고 직접 이동해요. 전망대는 지상 입구까지, 장애물 지점은 통행 가능한 주변 약 3m까지 안내해요.</p>
+        <p className="park-map-note">호수의 나뉜 돌 표시는 징검다리, 갈색 판자는 나무다리예요.<br/>M / Esc로 닫고 직접 이동해요. 전망대는 지상 입구까지, 장애물 지점은 통행 가능한 주변 약 3m까지 안내해요.</p>
       </>}
     </dialog>
   </aside>

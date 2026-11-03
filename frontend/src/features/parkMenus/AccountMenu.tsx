@@ -17,6 +17,7 @@ import chevronIcon from './icons/chevron-profile.svg'
 import placeIcon from './icons/place-pin.svg'
 import { replayWelcomeTour, tourBlockReason } from '../welcomeTour/state'
 import './parkMenus.css'
+import { displayNickname } from '../gameMaster/displayName'
 
 const GameRecordsDialog = lazy(() => import('../gameHistory/GameRecordsDialog'))
 type Dialog = null | 'profile' | 'records' | 'logout' | 'withdraw' | { from: string; to: string }
@@ -27,7 +28,10 @@ export function AccountMenu({ exitError, onExit, onWithdrawn }: {
   onExit: () => void | Promise<void>
   onWithdrawn: () => void
 }) {
-  const account = useSession(useShallow(s => ({ nickname: s.account?.nickname ?? '정보 미연동', balance: s.account?.balance ?? null })))
+  const account = useSession(useShallow(s => ({
+    nickname: displayNickname(s.profiles[s.sessionId], s.account?.nickname ?? '정보 미연동'),
+    balance: s.account?.balance ?? null,
+  })))
   const portrait = useOwnPortrait()
   const [open, setOpen] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)

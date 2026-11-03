@@ -1,5 +1,9 @@
 /* 가위바위보 룰렛 게임기. 오락기 원색과 불빛은 이 기계 화면 안에서만 쓴다(FE 컨벤션 2.4 예외, docs/RPS_ROULETTE_UI.md). */
 .rps-roulette{--rps-ink:#f1efe8;--rps-led:#ff3b30;--rps-lcd:#ffcf4a;--rps-cabinet:#151515;--rps-trim:#ececec;box-sizing:border-box;width:min(460px,calc(100vw - 16px));max-height:calc(100dvh - 16px);overflow:auto;padding:10px 12px 12px;border:3px solid var(--rps-trim);border-radius:18px 18px 10px 10px;background:var(--rps-cabinet);color:var(--rps-ink);font-family:"Malgun Gothic",sans-serif}
+.rps-roulette{position:fixed;inset:0;margin:auto;overflow:hidden;padding:0;min-width:0}
+.rps-roulette[open]{display:flex;flex-direction:column}
+.rps-roulette .rps-roulette-top{flex:none;margin:0;padding:10px 12px;border-bottom:1px solid #484848}
+.rps-roulette-content{flex:1 1 auto;min-height:0;min-width:0;overflow-y:auto;overscroll-behavior:contain;scroll-padding-block:12px;padding:10px 12px 12px}
 .rps-roulette::backdrop{background:#0d0f14b8}
 .rps-roulette button{font:inherit;cursor:pointer}
 .rps-roulette button:focus-visible{outline:3px solid #6fc3ff;outline-offset:3px}
@@ -10,7 +14,7 @@
 .rps-roulette-close{width:36px;height:36px;border:0;border-radius:50%;background:#2b2b2b;color:#e6e6e6;font-size:22px!important;line-height:1}
 .rps-roulette-close:hover{background:#3a3a3a}
 /* 낮은 화면에서도 조작판까지 스크롤 없이 보이도록 판이 먼저 줄어든다. */
-.rps-roulette-face{display:block;width:auto;max-width:100%;height:auto;max-height:max(260px,calc(100dvh - 470px));margin:0 auto;font-family:"Malgun Gothic",sans-serif}
+.rps-roulette-face{display:block;width:auto;max-width:100%;height:auto;max-height:clamp(140px,calc(100dvh - 470px),420px);margin:0 auto;font-family:"Malgun Gothic",sans-serif}
 .rps-roulette-led{margin-top:10px;padding:6px 10px;border:2px solid var(--rps-trim);border-radius:4px;background:#050505}
 .rps-roulette-led-row{display:flex;align-items:center;gap:10px}
 .rps-roulette-led-row+.rps-roulette-led-row{margin-top:6px}
@@ -62,6 +66,14 @@
 @keyframes rps-roulette-blink{50%{border-color:#5a1a1a}}
 @keyframes rps-roulette-start{50%{background:#ffd98a}}
 @media (max-width:420px){.rps-roulette-hands{gap:12px}.rps-roulette-lower{flex-wrap:wrap;justify-content:center;gap:12px}}
+@media (max-width:420px){
+  .rps-roulette-led-row{flex-wrap:wrap;gap:6px 8px}
+  .rps-roulette-led-label,.rps-roulette-steps li{white-space:nowrap}
+  .rps-roulette-mult{min-width:64px;font-size:24px}
+  .rps-roulette-steps{flex:1;justify-content:center;gap:6px}
+  .rps-roulette-steps li{font-size:10px}
+  .rps-roulette-plays{flex-basis:100%;text-align:right}
+}
 @media (prefers-reduced-motion:reduce){.rps-roulette-bezel[data-lit],.rps-roulette-bezel[data-lit] .rps-roulette-start{animation:none}}
 /* 설명서 그림 */
 .rps-roulette-figure{display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;font-family:"Malgun Gothic",sans-serif}

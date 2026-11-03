@@ -14,13 +14,24 @@ public record ParkRankingResponse(@Size(max = 10) List<BalanceItem> balance,
         jumpmap = List.copyOf(jumpmap);
     }
 
-    public record BalanceItem(long rank, String userId, String nickname, long coinBalance) {
+    public record BalanceItem(long rank, String userId, String nickname, long coinBalance, boolean gameMaster) {
+        public BalanceItem(long rank, String userId, String nickname, long coinBalance) {
+            this(rank, userId, nickname, coinBalance, false);
+        }
     }
 
     public record BungeoppangItem(long rank, String userId, String nickname, long score, long maxCombo,
-                                  Instant completedAt) {
+                                  Instant completedAt, boolean gameMaster) {
+        public BungeoppangItem(long rank, String userId, String nickname, long score, long maxCombo,
+                Instant completedAt) {
+            this(rank, userId, nickname, score, maxCombo, completedAt, false);
+        }
     }
 
-    public record JumpmapItem(long rank, String userId, String nickname, long finishMs, Instant completedAt) {
+    public record JumpmapItem(long rank, String userId, String nickname, long finishMs, Instant completedAt,
+                              boolean gameMaster) {
+        public JumpmapItem(long rank, String userId, String nickname, long finishMs, Instant completedAt) {
+            this(rank, userId, nickname, finishMs, completedAt, false);
+        }
     }
 }

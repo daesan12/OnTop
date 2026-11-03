@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import shutil
 import sys
+import uuid
 import xml.etree.ElementTree as ET
 
 
@@ -78,7 +79,8 @@ def validate(source: Path) -> tuple[str, str]:
     if len(park.get("data", {}).get("tables", [])) != 18:
         raise ValueError("The candidate park map must contain 18 tables")
     for environment, channels in (("dev", {"channel-1"}),
-                                  ("frontend-test", {"channel-1", "channel-2"})):
+                                  ("frontend-test", {"channel-1", "channel-2"}),
+                                  ("prod", {"channel-1", "channel-2"})):
         name = f"park-bindings.{environment}.json"
         canonical_path = source / "docs/integration/park-180" / name
         public_path = source / "frontend/public" / f"park-bindings.generated.{environment}.json"
@@ -100,6 +102,12 @@ def validate(source: Path) -> tuple[str, str]:
                                           not item.startswith("table-") or
                                           item.startswith("fixture-") for item in ids):
                 raise ValueError(f"Invalid server table IDs in {environment}/{channel}")
+            for row in selected:
+                seed = f'{channel}\0{row["anchorId"]}'.encode("utf-8")
+                expected_id = f"table-{uuid.UUID(bytes=hashlib.md5(seed).digest(), version=3)}"
+                if row["tableId"] != expected_id:
+                    raise ValueError(f"Server table ID differs from the deterministic rule in "
+                                     f"{environment}/{channel}/{row['anchorId']}")
         if {row.get("channelId") for row in bindings} != channels:
             raise ValueError(f"Unexpected channels in {environment} bindings")
     return identity["mapVersion"], digest
@@ -111,7 +119,7 @@ def prepare(source: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     for name in ("server-map.json", "manifest.json"):
         shutil.copyfile(source / "frontend/generated/park" / name, destination / name)
-    for environment in ("dev", "frontend-test"):
+    for environment in ("dev", "frontend-test", "prod"):
         name = f"park-bindings.{environment}.json"
         shutil.copyfile(source / "docs/integration/park-180" / name, destination / name)
 
