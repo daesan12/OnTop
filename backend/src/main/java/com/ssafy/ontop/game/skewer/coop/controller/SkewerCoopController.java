@@ -76,7 +76,7 @@ public class SkewerCoopController {
         hub.requireSkewerEntry(account, channel, engine.owns(account, channel));
         if (body.has("gameId")) {
             engine.waitingPlayers(channel, body.path("gameId").asText())
-                    .forEach(player -> hub.requireSkewerEntry(player, channel, false));
+                    .forEach(player -> hub.requireSkewerWaitingPlayer(player, channel));
         }
         JsonNode result = body.has("gameId") ? engine.join(account, channel, body.path("gameId").asText())
                 : engine.create(account, channel, body.path("requestKey").asText());

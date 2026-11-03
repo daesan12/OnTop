@@ -36,6 +36,8 @@
 
 ### 입장과 로비
 
+- 신규 참가자는 입구 거리·인증 소켓·검증된 맵·동일 채널·다른 게임/시설 이용 여부를 확인한다. 이미 방을 만든 대기자는 입구 거리만 면제한다. `requireSkewerWaitingPlayer`는 로비 사용 가능 여부를 계속 검사하므로 방장의 위치 보정은 허용하되 다른 게임 이용·접속 종료·채널 이탈은 참가를 막는다.
+
 - `GET /api/v1/minigames/skewer/coop/rooms?channelId=...`: 같은 공원의 대기 방과 본인의 방. 다른 플레이어의 개인 상태는 반환하지 않는다.
 - `POST .../rooms`: `{channelId, requestKey}`로 생성 또는 `{channelId, gameId}`로 참가. 요청 사용자는 인증 Principal에서 가져온다.
 - `POST .../leave`: 혼자 기다리는 방 취소 또는 종료 결과 닫기. 진행 중인 공동 경기는 공통 `GAME_FORFEIT`로 먼저 종료한다.

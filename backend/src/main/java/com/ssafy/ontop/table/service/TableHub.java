@@ -1485,6 +1485,15 @@ public class TableHub {
 
     /** 무료 협동 경기 입장은 최신 맵의 VR 입구·현재 인증 소켓에서만 허용한다. */
     public synchronized void requireSkewerEntry(long userId, String channelId, boolean existingRoom) {
+        requireSkewerAccess(userId, channelId, !existingRoom, !existingRoom);
+    }
+
+    /** 이미 입장한 대기자는 거리만 면제하며 다른 게임·시설 이용 여부는 계속 확인한다. */
+    public synchronized void requireSkewerWaitingPlayer(long userId, String channelId) {
+        requireSkewerAccess(userId, channelId, true, false);
+    }
+
+    private void requireSkewerAccess(long userId, String channelId, boolean checkLobby, boolean checkEntrance) {
         String identity = Long.toString(userId);
         var position = channels.positionOf(identity);
         var connected = members.entrySet().stream()
@@ -1494,11 +1503,11 @@ public class TableHub {
             throw new IllegalStateException("연결된 공원과 최신 맵을 확인해주세요.");
         }
         if (seating.containsKey(identity) || facilities.current(identity) != null || position.swimming()
-                || !existingRoom && reconnect.isPresent()
+                || checkLobby && reconnect.isPresent()
                         && !reconnect.get().canUseLobby(userId, connected.get().getKey())) {
             throw new IllegalStateException("진행 중인 게임·시설 이용을 먼저 종료해주세요.");
         }
-        if (!existingRoom && (preparedPark == null
+        if (checkEntrance && (preparedPark == null
                 || preparedPark.vrEntrance().filter(reach -> reach.contains(
                         position.x(), position.y(), position.z())).isEmpty())) {
             throw new IllegalStateException("같은 공원의 VR 체험관 입구에서 만나주세요.");
