@@ -1688,9 +1688,18 @@ public class TableHub {
     private void publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {
         Set<String> recipients = state.avatars().stream().map(WorldChannelRegistry.Avatar::userId)
                 .collect(Collectors.toSet());
+        String notification = null;
         for (Member target : members.values()) {
             if (recipients.contains(target.userId())) {
-                target.peer().offer(protocol.encode(target == actor ? requestId : null, "WORLD_STATE", state));
+                if (target == actor && requestId != null) {
+                    target.peer().offer(protocol.encode(requestId, "WORLD_STATE", state));
+                } else {
+                    // 같은 방송의 공개 상태만 재사용한다. 요청 응답과 다음 버전은 별도로 직렬화한다.
+                    if (notification == null) {
+                        notification = protocol.encode(null, "WORLD_STATE", state);
+                    }
+                    target.peer().offer(notification);
+                }
             }
         }
     }

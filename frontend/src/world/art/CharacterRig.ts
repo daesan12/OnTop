@@ -332,7 +332,8 @@ export function createCharacterRig(source: GLTF) {
     },
     groundShift() {
       root.updateMatrixWorld(true)
-      skeleton.update()
+      // CPU skinning reads bone.matrixWorld directly. The renderer uploads the
+      // skeleton once for its render frame; no duplicate bone palette is needed here.
       let bottom = Infinity
       for (const i of soleIndices) {
         shoes.getVertexPosition(i, solePoint)
