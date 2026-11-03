@@ -45,7 +45,7 @@ test('지도는 분수대 연결 마당·징검다리를 표시하고 누락된 
   await expect(map.locator('[data-map-crossing="wood"]')).toBeVisible()
   const rps = map.locator('[data-place-id="rps-roulette"] circle')
   expect(Number(await rps.getAttribute('r'))).toBeLessThan(Number(await map.locator('[data-place-id="folk"] circle').getAttribute('r')))
-  for (const name of ['민속놀이 존', '돌탑 점프맵', '가위바위보 룰렛', '복권방', '랭킹 보드']) {
+  for (const name of ['민속놀이 존', '돌탑 점프맵', '오락기', '복권방', '랭킹 보드']) {
     const marker = map.getByRole('button', { name: `${name} 길 안내`, exact: true })
     await marker.click()
     await expect.poll(() => page.evaluate(async () =>

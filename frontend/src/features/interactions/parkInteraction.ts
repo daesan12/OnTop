@@ -24,7 +24,7 @@ import { openNotes } from '../notes/controller'
 import { canReachBungeoppang } from '../bungeoppang/access'
 import { openBungeoppang } from '../bungeoppang/store'
 import { canOpenRpsRoulette, canReachRpsRoulette, RPS_CABINET } from '../rpsRoulette/access'
-import { openRpsRoulette } from '../rpsRoulette/store'
+import { openArcade } from '../arcade/store'
 import { MINI_PROPS } from '../../park/mapConfig'
 import { interactWithTable } from '../tableLobby/tableInteraction'
 import { tableEntry } from '../tableLobby/tableEntry'
@@ -84,7 +84,7 @@ export function getParkInteraction(): ParkInteraction | null {
   }
   if (canReachRpsRoulette(p.current)) {
     const distance = Math.hypot(p.current.x - RPS_CABINET.x, p.current.z - RPS_CABINET.z)
-    choices.push({ kind: 'rps-roulette', id: 'rps-roulette-cabinet', label: '가위바위보 룰렛 하기', occupied: false, available: true,
+    choices.push({ kind: 'rps-roulette', id: 'rps-roulette-cabinet', label: '오락기 하기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: RPS_CABINET.x, y: 1.3, z: RPS_CABINET.z }) })
   }
   if (canReachNotes(p.current)) {
@@ -147,7 +147,7 @@ export function interactWithPark(): boolean {
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()
-  else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openRpsRoulette() }
+  else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openArcade() }
   else if (target.kind === 'table') interactWithTable(target.id)
   else if (target.kind === 'notes') openNotes()
   else if (target.kind === 'feedback') openFeedback()

@@ -427,11 +427,13 @@ export class ParkRuntime implements ParkRuntimePort {
     const skewerAdmission = method === 'POST' && path === '/api/v1/minigames/skewer/admissions'
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
+    const plusMinusRequest = (method === 'GET' && path === '/api/v1/minigames/plus-minus/status')
+      || (method === 'POST' && path === '/api/v1/minigames/plus-minus/rounds')
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission
-      && !rpsRouletteRequest && !raffleRequest
+      && !rpsRouletteRequest && !plusMinusRequest && !raffleRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
