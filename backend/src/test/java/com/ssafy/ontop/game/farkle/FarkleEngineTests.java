@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway.Rejected;
 import com.ssafy.ontop.game.action.GameActionGateway.Rejection;
+import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.farkle.service.FarkleEngine;
 import com.ssafy.ontop.game.farkle.service.FarkleGameFinished;
@@ -172,6 +173,44 @@ class FarkleEngineTests {
     }
 
     private JsonNode state() { return engine.load(101,"dice").orElseThrow().publicState(); }
+
+    @Test
+    void 허탕의_확정눈은_다음차례에서도_참가자와_관전자에게_동일하게_공개한다() {
+        roll(101, "first", 0, List.of(), 1, 2, 3, 4, 6, 2);
+        roll(101, "bust", 1, List.of(0), 2, 3, 4, 6, 2);
+
+        JsonNode snapshot = state();
+        JsonNode lastRoll = snapshot.path("lastRoll");
+        assertThat(snapshot.path("dice")).isEmpty();
+        assertThat(snapshot.path("lastEvent").asText()).isEqualTo("BUST");
+        assertThat(lastRoll.path("rollId").asLong()).isEqualTo(2);
+        assertThat(lastRoll.path("actorUserId").asText()).isEqualTo("101");
+        assertThat(lastRoll.path("dice")).hasSize(6);
+        assertThat(lastRoll.path("dice").get(0).path("held").asBoolean()).isTrue();
+        assertThat(lastRoll.path("dice").get(1).path("value").asInt()).isEqualTo(2);
+        assertThat(engine.load(505, "dice").orElseThrow().publicState()).isEqualTo(snapshot);
+        assertThat(engine.load(505, "dice").orElseThrow().privateState()).isEmpty();
+        assertThat(router.load(101).orElseThrow().state().path("lastRoll")).isEqualTo(lastRoll);
+
+        act(101, "bust", 1, "roll", List.of(0));
+        assertThat(state()).isEqualTo(snapshot);
+        clock.advance(30);
+        engine.tick();
+        assertThat(state().path("lastRoll").isNull()).isTrue();
+    }
+
+    @Test
+    void 저장과_종료는_이전굴림_연출을_비우고_다음굴림은_새로운눈으로_교체한다() {
+        assertThat(state().path("lastRoll").isNull()).isTrue();
+        roll(101, "first", 0, List.of(), 5, 2, 3, 4, 6, 2);
+        assertThat(state().path("lastRoll").path("dice")).isEqualTo(state().path("dice"));
+        act(101, "bank", 1, "bank", List.of(0));
+        assertThat(state().path("lastRoll").isNull()).isTrue();
+        roll(202, "next", 2, List.of(), 1, 2, 3, 4, 5, 6);
+        assertThat(state().path("lastRoll").path("actorUserId").asText()).isEqualTo("202");
+        engine.forfeit(new GameForfeitCommand(202, "dice", "leave"));
+        assertThat(state().path("lastRoll").isNull()).isTrue();
+    }
     private com.ssafy.ontop.game.action.GameActionResult act(long user, String id, long version, String kind, List<Integer> selected) {
         return router.apply(new GameActionCommand(user,"dice",id,version,
                 mapper.valueToTree(Map.of("kind",kind,"selectedIds",selected))));

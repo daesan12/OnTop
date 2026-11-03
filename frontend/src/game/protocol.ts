@@ -62,6 +62,7 @@ export interface Farkle {
   stage: 'AWAITING_ROLL' | 'SELECTING' | 'FINISHED'; rollId: number; round: number
   hotDice: boolean; lastEvent: 'START' | 'ROLL' | 'HOT_DICE' | 'BANK' | 'BUST' | 'TURN_TIMEOUT'
   winnerUserId: string | null; endReason: string | null; endedAt: string | null
+  lastRoll?: { rollId: number; actorUserId: string; dice: Farkle['dice'] } | null
 }
 export const gameState = (g: Game) => g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.ledger ?? g.alkkagi ?? g.halli
 export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.onecard ?? g.bridge ?? g.ledger ?? g.halli).players.map(p => p.userId)
@@ -294,6 +295,12 @@ export function parseFarkle(p: unknown): Farkle {
     || (p.stage === 'AWAITING_ROLL' && p.dice.length !== 0)
     || (p.stage === 'SELECTING' && p.dice.length !== 6))
     throw new Error('주사위 차례·단계·마감을 확인해주세요.')
+  const lastRoll = p.lastRoll
+  if (lastRoll != null && (!record(lastRoll) || !integer(lastRoll.rollId) || lastRoll.rollId !== p.rollId
+    || !id(lastRoll.actorUserId) || !p.players.includes(lastRoll.actorUserId)
+    || !Array.isArray(lastRoll.dice) || lastRoll.dice.length !== 6
+    || !lastRoll.dice.every(d => record(d) && integer(d.id) && d.id <= 5 && integer(d.value) && d.value >= 1 && d.value <= 6 && typeof d.held === 'boolean')
+    || new Set(lastRoll.dice.map(d => d.id)).size !== 6)) throw new Error('마지막 주사위 굴림 형식을 확인해주세요.')
   return {
     gameCode: 'DICE', status: p.status as Farkle['status'], players: [...p.players], scores: [...p.scores],
     targetScore: p.targetScore, turnTimeLimitMs: 30000, turnUserId: p.turnUserId as string | null,
@@ -302,5 +309,7 @@ export function parseFarkle(p: unknown): Farkle {
     stage: p.stage as Farkle['stage'], rollId: p.rollId, round: p.round, hotDice: p.hotDice,
     lastEvent: p.lastEvent as Farkle['lastEvent'], winnerUserId: p.winnerUserId as string | null,
     endReason: p.endReason as string | null, endedAt: p.endedAt as string | null,
+    lastRoll: lastRoll == null ? null : { rollId: lastRoll.rollId as number, actorUserId: lastRoll.actorUserId as string,
+      dice: (lastRoll.dice as Farkle['dice']).map(d => ({ id: d.id, value: d.value, held: d.held })) },
   }
 }

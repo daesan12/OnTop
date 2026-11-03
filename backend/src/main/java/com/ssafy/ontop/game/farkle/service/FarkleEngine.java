@@ -210,6 +210,14 @@ public final class FarkleEngine implements GameEngine {
         data.set("players", mapper.valueToTree(state.players().stream().map(Object::toString).toList()));
         data.set("scores", mapper.valueToTree(state.scores()));
         data.set("dice", mapper.valueToTree(state.dice()));
+        if (state.lastRoll() == null) {
+            data.putNull("lastRoll");
+        } else {
+            ObjectNode roll = data.putObject("lastRoll");
+            roll.put("rollId", state.lastRoll().rollId());
+            roll.put("actorUserId", Long.toString(state.lastRoll().actorUserId()));
+            roll.set("dice", mapper.valueToTree(state.lastRoll().dice()));
+        }
         return data;
     }
 

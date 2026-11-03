@@ -12,6 +12,18 @@ const send = (type: string, payload: Record<string, unknown>) => receiveGame({ t
 const restore = (state = make(), version = 0) => send('GAME_CONNECTION_STATE', { status: 'RESTORED', gameId: 'dice', version, state })
 beforeEach(resetGame)
 describe('M11 preview and public DICE boundary', () => {
+  it('copies confirmed last-roll faces, accepts older servers and rejects malformed or stale receipts', () => {
+    const state = make({ lastEvent: 'BUST', rollId: 1, round: 2, turnUserId: '102' })
+    const lastRoll = { rollId: 1, actorUserId: '101', dice: dice([2, 3, 4, 6, 2, 3]) }
+    const parsed = parseFarkle({ ...state, lastRoll })
+    expect(parsed.lastRoll).toEqual(lastRoll)
+    lastRoll.dice[0]!.value = 6
+    expect(parsed.lastRoll!.dice[0]!.value).toBe(2)
+    expect(parseFarkle(state).lastRoll).toBeNull()
+    for (const invalid of [{ ...lastRoll, rollId: 2 }, { ...lastRoll, actorUserId: '505' },
+      { ...lastRoll, dice: lastRoll.dice.slice(1) }, { ...lastRoll, dice: Array(6).fill(lastRoll.dice[0]) },
+      { ...lastRoll, dice: dice([0, 2, 3, 4, 5, 6]) }]) expect(() => parseFarkle({ ...state, lastRoll: invalid })).toThrow()
+  })
   it.each([
     [[1], 100], [[5], 50], [[2], null], [[1, 1, 1], 1000], [[2, 2, 2, 2], 400], [[1, 1, 1, 1, 1, 1], 8000],
     [[1, 2, 3, 4, 5], 500], [[2, 3, 4, 5, 6], 750], [[1, 2, 3, 4, 5, 6], 1500], [[3, 3, 3, 5, 1, 1], 550],

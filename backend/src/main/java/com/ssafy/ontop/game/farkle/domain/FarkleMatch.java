@@ -23,6 +23,7 @@ public final class FarkleMatch {
     private final Map<Key, Accepted> accepted = new HashMap<>();
     private final long[] scores = new long[2];
     private List<Die> dice = List.of();
+    private LastRoll lastRoll;
     private long version;
     private long rollId;
     private int turn;
@@ -85,6 +86,7 @@ public final class FarkleMatch {
         int points = selection(selected);
         if (kind.equals("bank")) {
             if (!stage.equals("SELECTING") || points <= 0) { throw new Rejected(Rejection.INVALID_ACTION); }
+            lastRoll = null;
             scores[turn] += turnScore + points;
             lastEvent = "BANK";
             if (scores[turn] >= targetScore) {
@@ -116,6 +118,8 @@ public final class FarkleMatch {
             turnScore += points;
             dice = List.copyOf(rolled);
             rollId++;
+            // 허탕의 다음 차례가 dice를 비워도 확정된 공개 눈은 같은 rollId로 조회할 수 있다.
+            lastRoll = new LastRoll(rollId, players.get(turn), dice);
             hotDice = hot;
             lastEvent = hot ? "HOT_DICE" : "ROLL";
             stage = "SELECTING";
@@ -160,6 +164,7 @@ public final class FarkleMatch {
         stage = "AWAITING_ROLL";
         hotDice = false;
         lastEvent = "TURN_TIMEOUT";
+        lastRoll = null;
         deadline = next.plusSeconds(30);
     }
 
@@ -185,6 +190,7 @@ public final class FarkleMatch {
     }
 
     private void finish(long winner, String reason, Instant now) {
+        lastRoll = null;
         this.winner = winner;
         this.reason = reason;
         endedAt = now;
@@ -197,14 +203,19 @@ public final class FarkleMatch {
     public Snapshot snapshot() {
         return new Snapshot(gameId, tableId, players, targetScore, version, rollId, round,
                 endedAt == null ? players.get(turn) : null, List.of(scores[0], scores[1]), turnScore,
-                dice, stage, lastEvent, hotDice, deadline, winner, reason, endedAt);
+                dice, stage, lastEvent, hotDice, deadline, winner, reason, endedAt, lastRoll);
     }
 
     public record Die(int id, int value, boolean held) { }
+    public record LastRoll(long rollId, long actorUserId, List<Die> dice) {
+        public LastRoll {
+            dice = List.copyOf(dice);
+        }
+    }
     private record Key(long userId, String actionId) { }
     private record Accepted(long version, JsonNode input, GameActionResult result) { }
     public record Snapshot(String gameId, String tableId, List<Long> players, int targetScore, long version,
             long rollId, long round, Long turnUserId, List<Long> scores, long turnScore, List<Die> dice,
             String stage, String lastEvent, boolean hotDice, Instant turnDeadline, Long winnerUserId,
-            String endReason, Instant endedAt) { }
+            String endReason, Instant endedAt, LastRoll lastRoll) { }
 }

@@ -30,12 +30,15 @@ GAME_STATE.publicState이며 참가자·관전자 privateState는 모두 `{}`. �
 | turnUserId/turnDeadline | 현재 차례 ID/UTC 마감. 종료 시 null |
 | turnScore | 이전 굴림에서 확정한 이번턴 누적. 아직 프론트에서 선택 중인 점수 미포함 |
 | dice | `[{id:0,value:1,held:false},...]`. 새 차례 첫 굴림 전 [] |
+| lastRoll | 마지막 확정 굴림 `{rollId, actorUserId, dice:[{id,value,held},...]}` 또는 null. actorUserId는 문자열, dice는 보관 눈을 포함한 6개 |
 | stage | AWAITING_ROLL/SELECTING/FINISHED |
 | rollId/round | 전체 굴림 횟수/차례 번호(1부터) |
 | hotDice/lastEvent | 최근 굴림이 핫 다이스인지/START,ROLL,HOT_DICE,BANK,BUST,TURN_TIMEOUT |
 | winnerUserId/endReason/endedAt | 승자/TARGET_REACHED 또는 RECONNECT_EXPIRED/종료 시각 |
 
 BUST·BANK 후 새 차례 상태를 즉시 보낸다. 프로토타입의 ROLLING/BUST 연출 대기 단계는 서버에 없으며 프론트는 rollId/lastEvent로 연출한다. 기존 TypeScript FarkleState의 직접 복사가 아니므로 이 서버 계약으로 변환한다.
+
+2026-11-03: `lastRoll`은 참가자·관전자·재조회에 동일하게 제공하는 공개 데이터다. 매 실제 굴림에 교체되며 허탕의 `nextTurn`이 `dice`를 비워도 유지한다. 저장·턴 시간 만료·종료에는 null로 비운다. 중복 actionId는 새 난수나 결과를 생성하지 않는다. FE는 일치하는 gameId/rollId와 actorUserId의 확정 눈만 허탕 결과 단계에 표시하며, 복구 시 지난 굴림을 자동 재생하지 않는다. 이전 BE에서 필드가 생략되어도 FE는 기존 연출을 유지한다. DB·정산·30초 마감·입력 계약은 변경하지 않는다.
 
 ## 점수와 시간
 
