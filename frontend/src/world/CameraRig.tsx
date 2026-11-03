@@ -22,7 +22,7 @@ import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
 import { constrainRoamingCamera } from './cameraCollision'
 import { seatScope, seatedLook, resetSeatedLook, useTableLobby, SEATED_LOOK } from '../features/tableLobby/state'
-import { useDiceUI, diceCamera } from '../game/farkle/controls'
+import { useDiceUI, diceCamera, holdBustCamera } from '../game/farkle/controls'
 import { DICE_CAMERA, diceFocusActive } from '../game/farkle/camera'
 import { LEDGER_CAMERA, ledgerCameraPose, ledgerFocusActive } from '../game/ledger/camera'
 import { HALLI_CAMERA, halliCameraPose, halliPlayerViewActive, halliSpectatorCameraPose, halliSpectatorViewActive } from '../game/halligalli/camera'
@@ -291,7 +291,8 @@ export function CameraRig() {
     }
     state.targetUp.set(0, 1, 0)
     const ownDice = seated && !!avatar.tableId && game?.role === 'PLAYER' && !!game.dice
-    const diceFocus = seated && !!avatar.tableId && diceFocusActive(game, session.sessionId, looking, useDiceUI.getState().boardView)
+    const diceFocus = seated && !!avatar.tableId && diceFocusActive(game, session.sessionId, looking,
+      useDiceUI.getState().boardView || holdBustCamera(game?.gameId, session.sessionId))
     const ledgerFocus = seated && !!avatar.tableId && ledgerFocusActive(game, session.sessionId, looking)
     state.look.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
     if (state.owner !== session.sessionId) {

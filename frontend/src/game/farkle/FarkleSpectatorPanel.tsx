@@ -8,6 +8,7 @@ import { openManual } from '../../features/manual/manualState'
 import { installDicePresentation, useDiceUI } from './controls'
 import { setDiceSound, useDiceSound } from './sound'
 import { farkleSpectatorStatus } from './spectatorStatus'
+import { bustMatches } from './bustPresentation'
 
 /** Read-only: no player keys, cup gestures, selection or personal settlement controls. */
 export function FarkleSpectatorPanel() {
@@ -15,7 +16,7 @@ export function FarkleSpectatorPanel() {
   const session = useSession(useShallow(s => ({ status: s.status, pending: s.pending, profiles: s.profiles,
     anchor: s.bindings.find(b => b.channelId === s.roomId && b.tableId === s.watchedTableId)?.anchorId })))
   const view = useTableLobby(s => s.spectatorView), sound = useDiceSound(s => s.enabled)
-  const until = useDiceUI(s => s.animationUntil), [, refresh] = useState(0)
+  const until = useDiceUI(s => s.animationUntil), pendingBust = useDiceUI(s => s.bust), [, refresh] = useState(0)
   useEffect(installDicePresentation, [])
   useEffect(() => {
     if (until <= performance.now()) return
@@ -24,14 +25,17 @@ export function FarkleSpectatorPanel() {
   }, [until])
   const g = s.game?.dice && s.game.role === 'SPECTATOR' ? s.game : null
   if (!g) return null
-  const d = g.dice, rolling = d.status === 'PLAYING' && performance.now() < until
+  const d = g.dice, bust = bustMatches(g, pendingBust) ? pendingBust : null
+  const rolling = d.status === 'PLAYING' && (bust ? bust.phase === 'rolling' : performance.now() < until)
   const names = d.players.map((id, i) => session.profiles[id]?.nickname ?? `${i + 1}번 참가자`)
   return <aside className="farkle-panel farkle-spectator" role="region" aria-label="주사위 경기" data-stage={d.stage} data-rolling={rolling}>
     <header><div><small>{session.anchor ? `TABLE ${session.anchor.replace('table-', '').padStart(2, '0')} · ` : ''}관전 전용</small>
       <h2>주사위 한 판</h2></div><span>목표 {d.targetScore.toLocaleString()}점</span></header>
     <div className="farkle-observer-scores" aria-label="주사위 점수판">{d.players.map((id, i) => <div key={id} className={id === d.turnUserId ? 'active' : ''}>
       <span>{names[i]}</span><strong>{d.scores[i]!.toLocaleString()}점</strong></div>)}</div>
-    <p className={`farkle-spectator-status${d.lastEvent === 'BUST' ? ' bust' : ''}`} role="status">{farkleSpectatorStatus(d, names, rolling)}</p>
+    <p className={`farkle-spectator-status${d.lastEvent === 'BUST' ? ' bust' : ''}`} role="status">{bust
+      ? bust.phase === 'rolling' ? '주사위를 굴리고 있습니다' : '허탕! · 이번 턴 점수 소멸. 다음 차례로 넘어갑니다.'
+      : farkleSpectatorStatus(d, names, rolling)}</p>
     {(session.status !== 'connected' || s.uncertain) && <p role="status">연결 복구 중 · 마지막 공개 상태를 표시합니다</p>}
     <p className="farkle-spectator-turn">{d.round}번째 턴 · 이번 턴 <strong>{d.turnScore.toLocaleString()}점</strong></p>
     {(['loose', 'held'] as const).map(kind => <div className="farkle-spectator-dice" key={kind} aria-label={kind === 'held' ? '보관한 주사위' : '이번 굴림'}>

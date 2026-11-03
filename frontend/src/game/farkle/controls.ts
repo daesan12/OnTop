@@ -5,17 +5,40 @@ import { inputState, clearRoamingInput } from '../../world/inputOwnership'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { eligibleDice, validDiceAction } from './scoring'
 import { disposeDiceSound, unlockDiceSound } from './sound'
+import { bustMatches, createBustPresentation, DICE_ROLL_MS, type BustPresentation } from './bustPresentation'
 
 const initial = () => ({ scope: '', selectedIds: [] as number[], cup: 'idle' as 'idle' | 'holding' | 'ready', scoreOpen: false,
-  animationAt: 0, animationUntil: 0, boardView: false })
+  animationAt: 0, animationUntil: 0, boardView: false, bust: null as BustPresentation | null })
 export const useDiceUI = create(initial)
 export const diceCamera = { ready: false }
 export const cupMotion = { x: 0.91, z: 0.4, lift: 0, cancel: () => {} }
+let bustTimers: ReturnType<typeof setTimeout>[] = []
+function cancelBustTimers() { bustTimers.forEach(clearTimeout); bustTimers = [] }
+function clearBustPresentation() {
+  cancelBustTimers()
+  if (useDiceUI.getState().bust) useDiceUI.setState({ bust: null, animationAt: 0, animationUntil: 0 })
+}
+export function holdBustCamera(gameId: string | undefined, ownId: string) {
+  const bust = useDiceUI.getState().bust
+  return !!bust && bust.gameId === gameId && bust.actorId === ownId && performance.now() < bust.until
+}
+function startBustPresentation(bust: BustPresentation) {
+  cancelBustTimers()
+  useDiceUI.setState({ bust })
+  bustTimers = [setTimeout(() => {
+    if (useDiceUI.getState().bust?.key !== bust.key) return
+    if (!bustMatches(useGame.getState().game, bust)) { clearBustPresentation(); return }
+    useDiceUI.setState({ bust: { ...bust, phase: 'result' } })
+  }, DICE_ROLL_MS), setTimeout(() => {
+    if (useDiceUI.getState().bust?.key === bust.key) clearBustPresentation()
+  }, bust.until - bust.at)]
+}
 export const diceScope = () => {
   const g = useGame.getState().game, s = useSession.getState()
   return g?.dice ? `${s.sessionId}/${s.roomId}/${g.gameId}/${g.version}` : ''
 }
 export function resetDiceUI() {
+  cancelBustTimers()
   diceCamera.ready = false
   cupMotion.cancel(); cupMotion.x = 0.91; cupMotion.z = 0.4; cupMotion.lift = 0
   inputState.minigameOpen = false
@@ -26,7 +49,9 @@ export function syncDiceUI(animate = false) {
   if (useDiceUI.getState().scope === diceScope()) return
   cancelCup()
   const now = typeof performance !== 'undefined' ? performance.now() : 0
-  useDiceUI.setState({ scope: diceScope(), selectedIds: [], animationAt: animate ? now : 0, animationUntil: animate ? now + 900 : 0 })
+  const bust = useDiceUI.getState().bust, keepBust = bustMatches(useGame.getState().game, bust) && now < bust!.until
+  useDiceUI.setState({ scope: diceScope(), selectedIds: [], animationAt: keepBust ? bust!.at : animate ? now : 0,
+    animationUntil: keepBust ? bust!.until : animate ? now + DICE_ROLL_MS : 0 })
 }
 export function diceCanAct() {
   const s = useSession.getState(), ui = useDiceUI.getState()
@@ -69,6 +94,14 @@ export function installDicePresentation() {
   const unsubGame = useGame.subscribe((s, old) => {
     const next = s.game, prev = old.game
     if (!next?.dice) { resetDiceUI(); return }
+    const session = useSession.getState(), ui = useDiceUI.getState()
+    const live = session.status === 'connected' && (next.role === 'SPECTATOR' && prev?.role === 'SPECTATOR'
+      || s.recovery === 'RESTORED' && old.recovery === 'RESTORED')
+    const previousScope = prev ? `${session.sessionId}/${session.roomId}/${prev.gameId}/${prev.version}` : ''
+    const selected = next.role === 'PLAYER' && prev?.dice?.turnUserId === session.sessionId && ui.scope === previousScope ? ui.selectedIds : null
+    const bust = live ? createBustPresentation(prev, next, selected, performance.now()) : null
+    if (ui.bust && (!live || !bustMatches(next, ui.bust))) clearBustPresentation()
+    if (bust) startBustPresentation(bust)
     const animate = !!next?.dice?.dice.length && !!prev?.dice && next.gameId === prev.gameId && next.dice.rollId > prev.dice.rollId
       && (next.role === 'SPECTATOR' || (s.recovery === 'RESTORED' && old.recovery === 'RESTORED'))
     syncDiceUI(animate)
@@ -81,7 +114,7 @@ export function installDicePresentation() {
 }
 export function installDiceControls() {
   const disposePresentation = installDicePresentation()
-  const cancel = () => cancelCup()
+  const cancel = () => { cancelCup(); if (document.hidden) clearBustPresentation() }
   const down = (e: KeyboardEvent) => {
     if (!useGame.getState().game?.dice || inputState.manualOpen) return
     if (e.code === 'Escape' && (useDiceUI.getState().cup !== 'idle' || useDiceUI.getState().scoreOpen)) {

@@ -15,6 +15,7 @@ import { setDiceSound, useDiceSound } from './sound'
 import { DiceFace } from './DiceFace'
 import { FarkleScoreSheet } from './FarkleScoreSheet'
 import { HudCorners, HudIcon, PlayerSeal } from './FarkleHudArt'
+import { bustMatches } from './bustPresentation'
 import './farkle.css'
 import './farkleHud.css'
 
@@ -39,16 +40,19 @@ function FarklePlayerPanel() {
   const ids = selectedDice(), points = selectionScore(d.dice, ids), eligible = eligibleDice(d.dice)
   const ready = diceCanAct(), idle = ui.cup === 'idle', remaining = d.turnDeadline ? Math.max(0, Math.ceil((Date.parse(d.turnDeadline) - now) / 1000)) : null
   const name = (id: string) => id === session.sessionId ? '나' : session.profiles[id]?.nickname ?? `참가자 ${d.players.indexOf(id) + 1}`
+  const bust = bustMatches(g, ui.bust) ? ui.bust : null
+  const displayedTurn = bust?.actorId ?? d.turnUserId
   return <>
-    <section className="prototype-game farkle-hud farkle-panel farkle-player-hud" aria-label="주사위 경기" data-stage={d.stage}>
-      <div className="farkle-scoreboard" aria-label="주사위 점수판"><HudCorners />{d.players.map((id, i) => <div key={id} className={`farkle-player-score${d.turnUserId === id ? ' active' : ''}`}>
-        <PlayerSeal active={d.turnUserId === id} />
-        <span className="farkle-player-name">{d.turnUserId === id ? id === session.sessionId ? '내 차례' : `${name(id)} 차례` : name(id)}</span>
+    <section className="prototype-game farkle-hud farkle-panel farkle-player-hud" aria-label="주사위 경기" data-stage={d.stage} data-presentation={bust ? `bust-${bust.phase}` : 'live'}>
+      <div className="farkle-scoreboard" aria-label="주사위 점수판"><HudCorners />{d.players.map((id, i) => <div key={id} className={`farkle-player-score${displayedTurn === id ? ' active' : ''}`}>
+        <PlayerSeal active={displayedTurn === id} />
+        <span className="farkle-player-name">{displayedTurn === id ? bust ? `${name(id)} · 굴림 확인` : id === session.sessionId ? '내 차례' : `${name(id)} 차례` : name(id)}</span>
         <strong>{d.scores[i]!.toLocaleString()}<small>점</small></strong>
         <progress max={d.targetScore} value={d.scores[i]} aria-label={`${name(id)} 총점`} />
       </div>)}<span className="farkle-goal">목표 점수<strong>{d.targetScore.toLocaleString()}</strong></span></div>
-      <div className="farkle-message" data-event={d.lastEvent}>
-        <p role="status">{d.status === 'FINISHED' ? d.winnerUserId === session.sessionId ? '승리' : '패배'
+      <div className="farkle-message" data-event={bust?.phase === 'rolling' ? 'ROLL' : d.lastEvent}>
+        <p role="status">{bust ? bust.phase === 'rolling' ? '주사위를 굴리고 있습니다' : '허탕! · 이번 턴 점수를 잃었습니다'
+          : d.status === 'FINISHED' ? d.winnerUserId === session.sessionId ? '승리' : '패배'
           : `${mine ? '내 차례' : name(d.turnUserId!) + ' 차례'} · ${remaining === 0 ? '다음 차례를 기다리는 중' : events[d.lastEvent]}`}</p>
         {remaining !== null && <span className="farkle-clock" data-urgent={remaining <= 5} aria-label={`남은 시간 ${remaining}초`}>{remaining}<small>초</small></span>}
       </div>
@@ -56,7 +60,8 @@ function FarklePlayerPanel() {
       <HudCorners />
       <div className="farkle-turn-points"><span>이번 턴<strong>{d.turnScore.toLocaleString()}<small>점</small></strong></span>
         <span>선택 점수<strong className="farkle-selection-points">{points === null ? '—' : `+${points.toLocaleString()}`}</strong></span>
-        {d.status === 'PLAYING' && <p className="farkle-action-hint"><HudIcon kind="info" /><span>{ui.cup === 'ready' ? '컵을 놓으면 굴립니다.' : ui.cup === 'holding' ? '컵을 잡은 채 좌우로 흔들어주세요.'
+        {d.status === 'PLAYING' && <p className="farkle-action-hint"><HudIcon kind="info" /><span>{bust ? bust.phase === 'rolling' ? '굴림 연출을 확인하고 있습니다.' : '다음 차례로 넘어갑니다.'
+          : ui.cup === 'ready' ? '컵을 놓으면 굴립니다.' : ui.cup === 'holding' ? '컵을 잡은 채 좌우로 흔들어주세요.'
           : ids.length && !points ? '득점 가능한 조합을 선택해주세요.' : d.stage === 'SELECTING' ? '점수를 선택한 후 원하는 행동을 선택하세요.' : '컵을 흔들거나 굴리기를 눌러 시작하세요.'}</span>
           {!idle && <button onClick={cancelCup}>Esc 취소</button>}</p>}
         <button className="farkle-rule-button" onClick={toggleScoreSheet} aria-keyshortcuts="T"><kbd>T</kbd> 점수표</button>

@@ -18,6 +18,7 @@ import { TABLET_ENABLED } from '../../features/tableLobby/tabletFeature'
 import { FarkleHourglass } from './FarkleHourglass'
 import { FarkleScorebook } from './FarkleScorebook'
 import { preloadCraftMaps } from './art/CraftMaterials'
+import { bustMatches, DICE_ROLL_MS, type BustPresentation } from './bustPresentation'
 
 // Matches the original six-face bone atlas, with opposite faces summing to seven.
 const normals = [new Vector3(0, 1, 0), new Vector3(0, 0, 1), new Vector3(1, 0, 0), new Vector3(-1, 0, 0), new Vector3(0, 0, -1), new Vector3(0, -1, 0)]
@@ -29,7 +30,7 @@ function Die({ die, game, pour }: { die: Farkle['dice'][number]; game: DiceGame;
   const rotation = useRef(new Quaternion()), euler = useRef(new Euler()), art = farkleArt()
   useFrame(() => {
     if (!root.current) return
-    const ui = useDiceUI.getState(), p = die.held || !ui.animationAt ? 1 : Math.min(1, Math.max(0, (performance.now() - ui.animationAt) / 900))
+    const ui = useDiceUI.getState(), p = die.held || !ui.animationAt ? 1 : Math.min(1, Math.max(0, (performance.now() - ui.animationAt) / DICE_ROLL_MS))
     const x = die.held ? -.68 : -.36 + die.id % 3 * .35, z = die.held ? -.4 + die.id * .16 : -.22 + Math.floor(die.id / 3) * .43
     const selected = selectedDice().includes(die.id), t = 1 - (1 - dieFlightProgress(p)) ** 3
     root.current.visible = p >= POUR.release
@@ -49,6 +50,20 @@ function Die({ die, game, pour }: { die: Farkle['dice'][number]; game: DiceGame;
     <mesh ref={selectedRing} geometry={ring} material={selectionMaterial} rotation={[-Math.PI / 2, 0, 0]} scale={FARKLE_VISUAL.dieScale} raycast={noRaycast} dispose={null} />
   </group>
 }
+/** Unconfirmed motion only: never settle on, label or expose a fabricated result face. */
+function BustRollingDie({ id, bust, pour }: { id: number; bust: BustPresentation; pour: CupPour }) {
+  const root = useRef<Group>(null)
+  useFrame(() => {
+    if (!root.current) return
+    const progress = Math.max(0, (performance.now() - bust.at) / DICE_ROLL_MS)
+    root.current.visible = progress >= POUR.release && progress < 1
+    if (!root.current.visible) return
+    sampleDiePour(pour, progress, -.36 + id % 3 * .35, -.22 + Math.floor(id / 3) * .43, root.current.position)
+    root.current.rotation.set(progress * 18 + id, progress * 15 + id * 2, progress * 13)
+    root.current.scale.setScalar(FARKLE_VISUAL.dieScale * Math.min(1, (1 - progress) / .12))
+  })
+  return <group ref={root} name={`farkle-rolling-die-${id}`} userData={{ presentationOnly: true }}><BoneDie id={id} /></group>
+}
 export function FarkleTable({ anchor }: { anchor: TableAnchor }) {
   const session = useSession(useShallow(s => ({ bindings: s.bindings, roomId: s.roomId, tableId: s.tableId,
     watchedTableId: s.watchedTableId, tableStates: s.tableStates }))), g = useGame(s => s.game?.dice ? s.game : null)
@@ -61,6 +76,7 @@ export function FarkleTable({ anchor }: { anchor: TableAnchor }) {
   return <FarkleSurface anchor={anchor} game={relevant ? g : null} />
 }
 function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame | null }) {
+  const pendingBust = useDiceUI(s => s.bust), bust = bustMatches(game, pendingBust) ? pendingBust : null
   const root = useRef<Group>(null), cup = useRef<Group>(null), drag = useRef<{ scope: string; id: number; shake: ShakeTracker; projector: CupDrag; x: number; y: number } | null>(null)
   const soundFrame = useRef({ animationAt: 0, bump: -1 })
   const { gl, camera } = useThree()
@@ -107,7 +123,7 @@ function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame |
     const ui = useDiceUI.getState()
     if (active && ui.cup !== 'idle' && !diceCanAct()) cancelCup()
     const held = active && ui.cup !== 'idle'
-    const progress = game?.dice && ui.animationAt ? Math.min(1, Math.max(0, (performance.now() - ui.animationAt) / 900)) : 1
+    const progress = game?.dice && ui.animationAt ? Math.min(1, Math.max(0, (performance.now() - ui.animationAt) / DICE_ROLL_MS)) : 1
     if (game && progress < 1) {
       const bump = Math.floor((performance.now() - ui.animationAt) / 210)
       if (soundFrame.current.animationAt !== ui.animationAt || soundFrame.current.bump !== bump) {
@@ -138,5 +154,6 @@ function FarkleSurface({ anchor, game }: { anchor: TableAnchor; game: DiceGame |
       cupMotion.x = .91; cupMotion.z = .4; useDiceUI.setState({ cup: 'holding' }); gl.domElement.style.cursor = 'grabbing'
     }}><LeatherCup /></group>
     {game?.dice.dice.map(die => <Die key={die.id} die={die} game={game} pour={pour} />)}
+    {bust?.phase === 'rolling' && bust.rollingIds.map(id => <BustRollingDie key={id} id={id} bust={bust} pour={pour} />)}
   </group></group>
 }
