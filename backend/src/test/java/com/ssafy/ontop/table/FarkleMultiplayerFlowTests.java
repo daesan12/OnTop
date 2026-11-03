@@ -120,7 +120,12 @@ class FarkleMultiplayerFlowTests {
                 var command = Map.of("gameId", "dice", "actionId", "leave-" + index);
                 JsonNode receipt = players.get(index).request("GAME_FORFEIT", command);
                 assertThat(receipt.path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
-                assertThat(players.get(index).request("GAME_FORFEIT", command).at("/payload/duplicate").asBoolean()).isTrue();
+                // 기권 승인 뒤 비동기 복구가 PENDING이면 재요청을 거절하므로 완료 상태를 기다린다.
+                players.get(index).state("LOBBY");
+                JsonNode duplicate = players.get(index).request("GAME_FORFEIT", command);
+                assertThat(duplicate.path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
+                assertThat(duplicate.at("/payload/duplicate").asBoolean()).isTrue();
+                assertThat(duplicate.at("/payload/version").asLong()).isEqualTo(receipt.at("/payload/version").asLong());
                 long version = receipt.at("/payload/version").asLong();
                 JsonNode expected = state();
                 assertThat(viewer.await(message -> version(message, version)).at("/payload/publicState")).isEqualTo(expected);
