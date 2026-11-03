@@ -52,6 +52,8 @@ class JumpCourseTests {
         assertThat(course.colliders().stream().filter(c -> c.gate() == null)).hasSize(107);
         assertThat(course.colliders().stream().filter(c -> c.gate() != null).map(c -> List.of(c.block(), c.gate())))
                 .containsExactly(List.of(24, 1), List.of(34, 2), List.of(48, 3), List.of(61, 4), List.of(79, 5), List.of(98, 6));
+        assertThat(course.stages()).extracting(JumpCourse.Stage::reward).containsExactly(5, 10, 20, 30, 40, 60, 85);
+        assertThat(course.stages().stream().mapToInt(JumpCourse.Stage::reward).sum()).isEqualTo(250);
         assertThat(course.stages()).extracting(JumpCourse.Stage::count).containsExactly(24, 9, 13, 12, 17, 18, 14);
         assertThat(course.colliders().stream().filter(c -> c.shape() == JumpCourse.Collider.Shape.BOX)).hasSize(42);
         assertThat(course.colliders().stream().filter(c -> c.shape() == JumpCourse.Collider.Shape.CYLINDER)).hasSize(71);

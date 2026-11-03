@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { JUMP_SEQUENCE } from '../../src/layout-preview/jumpCourse'
-import { COURSE, COURSE_COLLIDERS, COURSE_VERSION, MAP_VERSION, RULES_VERSION, expectedCoins, kstDate, targetFade } from '../../src/features/jumpmap/course'
+import { COURSE, COURSE_COLLIDERS, COURSE_VERSION, MAP_VERSION, RULES_VERSION, REWARDS, expectedCoins, kstDate, targetFade } from '../../src/features/jumpmap/course'
 import { parseJumpEvent, parseJumpStatus, type JumpStatus } from '../../src/features/jumpmap/protocol'
 import { acceptJumpEvent, anticipateGate, applyJumpStatus, bindJumpmap, onStep, presentStep, receiveJumpmap, resetJumpmap, showTip, useJumpmap } from '../../src/features/jumpmap/state'
 import { JumpGrace } from '../../src/features/jumpmap/jumpGrace'
@@ -25,6 +25,18 @@ describe('accepted new-map course', () => {
     })
     expect(COURSE_COLLIDERS.filter(c => c.stage === 6 && !c.gate).every(c => c.thickness === .05 && c.yaw === 0)).toBe(true)
   })
+  it('완주 250냥과 두 바퀴 500냥 상한을 수신하고 복구한다', () => {
+    expect(REWARDS).toEqual([5, 10, 20, 30, 40, 60, 85])
+    expect(REWARDS.reduce((sum, reward) => sum + reward, 0)).toBe(250)
+    start()
+    emit('JUMPMAP_GATE', 2, { gate: 6, elapsedMs: 120000, coinsCalculated: 60, coinsGranted: 60, pending: false, runCoins: 165, todayEarned: 415 })
+    expect(useJumpmap.getState().run?.runCoins).toBe(165)
+    emit('JUMPMAP_ENDED', 3, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 150000, runCoins: 250, todayEarned: 500, finishMs: 150000, bestFinishMs: 150000, newBest: true })
+    expect(useJumpmap.getState()).toMatchObject({ todayEarned: 500, result: { runCoins: 250 } })
+    const recovered = parseJumpStatus(status({ lastRun: { runId: 'run-a', elapsedMs: 150000, gatesPassed: 7, finalReached: true, maxHeight: 47, runCoins: 250, reason: 'FINISH', finishMs: 150000, bestFinishMs: 150000, newBest: true } }))
+    expect(recovered.lastRun?.runCoins).toBe(250)
+    expect(() => parseJumpStatus(status({ activeRunId: 'bad', activeRun: { runId: 'bad', elapsedMs: 0, gatesPassed: 7, finalReached: true, maxHeight: 47, runCoins: 251 } }))).toThrow()
+  })
   it('caps expected receipts and uses Korea midnight', () => {
     expect(expectedCoins(7, 495)).toBe(5); expect(expectedCoins(7, 500)).toBe(0)
     expect(kstDate(Date.parse('2026-10-30T14:59:59Z'))).toBe('2026-10-30')
@@ -41,7 +53,7 @@ describe('accepted new-map course', () => {
 describe('server-owned run projection', () => {
   it('never converts a predicted gate into coins or run progress', () => {
     start(); anticipateGate(1, 1100)
-    expect(useJumpmap.getState()).toMatchObject({ todayEarned: 0, walletRevision: 0, run: { gatesPassed: 0, runCoins: 0 }, popup: { anticipated: true, amount: 2 } })
+    expect(useJumpmap.getState()).toMatchObject({ todayEarned: 0, walletRevision: 0, run: { gatesPassed: 0, runCoins: 0 }, popup: { anticipated: true, amount: 5 } })
     emit('JUMPMAP_GATE', 2, { gate: 1, elapsedMs: 10000, coinsCalculated: 2, coinsGranted: null, pending: true, runCoins: 0 })
     expect(useJumpmap.getState()).toMatchObject({ todayEarned: 0, run: { gatesPassed: 1, runCoins: 0 }, walletRevision: 0 })
     emit('JUMPMAP_GATE_SETTLED', 3, { gate: 1, coinsGranted: 2, runCoins: 2, todayEarned: 2 })

@@ -207,14 +207,14 @@ test('fall and late settlement leave the park free for immediate retry', async (
 
 test('finish, daily cap and recovered run remain readable at 740px', async ({ page }) => {
   await page.setViewportSize({ width: 740, height: 900 })
-  const activeRun = { runId: 'run-a', elapsedMs: 123000, gatesPassed: 6, finalReached: true, maxHeight: 47, runCoins: 64 }
-  const { server, errors, emit } = await setup(page, { ...status, todayEarned: 464, revision: 5, activeRunId: 'run-a', activeRun })
+  const activeRun = { runId: 'run-a', elapsedMs: 123000, gatesPassed: 6, finalReached: true, maxHeight: 47, runCoins: 165 }
+  const { server, errors, emit } = await setup(page, { ...status, todayEarned: 415, revision: 5, activeRunId: 'run-a', activeRun })
   const pad = COURSE.at(-1)!; server.place({ x: pad.x, y: pad.top + .8, z: pad.z })
   await expect.poll(async () => (await probe(page)).ownPosition?.[1]).toBeCloseTo(pad.top, 1)
   await expect.poll(async () => Math.abs((await probe(page)).camera![1]! - pad.top)).toBeLessThan(12)
   await expect(page.getByLabel('도전 현황')).toContainText('연잎')
   await shot(page, 'jumpmap-playing-narrow')
-  emit('JUMPMAP_ENDED', 6, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 100, todayEarned: 500, finishMs: 145321, bestFinishMs: 145321, newBest: true })
+  emit('JUMPMAP_ENDED', 6, { reason: 'FINISH', gatesPassed: 7, maxHeight: 47, elapsedMs: 145321, runCoins: 250, todayEarned: 500, finishMs: 145321, bestFinishMs: 145321, newBest: true })
   await expect.poll(async () => (await probe(page)).state.todayEarned).toBe(500)
   await expect(page.getByRole('dialog', { name: '점프맵 결과' })).toHaveCount(0)
   await expect(page.getByLabel('마지막 발판 완료')).toHaveCount(0)
