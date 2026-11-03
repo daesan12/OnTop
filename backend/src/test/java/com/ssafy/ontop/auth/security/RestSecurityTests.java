@@ -318,6 +318,7 @@ class RestSecurityTests {
                 "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/hands",
                 "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/challenge",
                 "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/stop",
+                "GET /api/v1/minigames/plus-minus/status", "POST /api/v1/minigames/plus-minus/rounds",
                 "GET /api/v1/minigames/sessions/{sessionId}",
                 "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                 "POST /api/v1/minigames/sessions/{sessionId}/deliveries",

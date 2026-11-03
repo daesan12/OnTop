@@ -14,6 +14,7 @@ export const manualGameIds = [
   "jump",
   "vr-jump",
   "rps-roulette",
+  "plus-minus",
 ] as const;
 export type ManualGameId = (typeof manualGameIds)[number];
 export type ManualCategory = "game" | "minigame" | "vr";

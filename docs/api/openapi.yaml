@@ -2316,6 +2316,92 @@ paths:
                 $ref: "#/components/schemas/RpsRouletteStateResponse"
       security:
       - AccessJwt: []
+  /api/v1/minigames/plus-minus/rounds:
+    post:
+      tags:
+      - MINIGAME
+      summary: 더하기 빼기 아케이드 START
+      description: 참가비 30냥과 하루 판 수를 차감하고 세 릴의 칸을 정해 지급까지 한 번에 정산합니다. 정지 버튼은 화면 연출이며
+        결과를 바꾸지 않습니다. Idempotency-Key를 재사용하면 같은 판을 반환하며 다시 차감하지 않습니다.
+      operationId: startPlusMinusRound
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          type: string
+      responses:
+        "400":
+          description: PLUS_MINUS_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "409":
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / PLUS_MINUS_DAILY_LIMIT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "503":
+          description: PLUS_MINUS_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "201":
+          description: 정산된 판 또는 같은 요청 재확인
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/jumpmap/tips:
     post:
       tags:
@@ -4309,6 +4395,82 @@ paths:
                 $ref: "#/components/schemas/RpsRouletteStateResponse"
       security:
       - AccessJwt: []
+  /api/v1/minigames/plus-minus/status:
+    get:
+      tags:
+      - MINIGAME
+      summary: 더하기 빼기 아케이드 상태 조회
+      description: "오늘 판 수, 사용 가능 잔액, 릴 구성과 가장 최근 판을 반환합니다."
+      operationId: getPlusMinusStatus
+      responses:
+        "400":
+          description: PLUS_MINUS_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "409":
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / PLUS_MINUS_DAILY_LIMIT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "503":
+          description: PLUS_MINUS_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "200":
+          description: 현재 상태
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/jumpmap/status:
     get:
       tags:
@@ -5915,6 +6077,123 @@ components:
           - ROCK
           - SCISSORS
           - PAPER
+    PlusMinusRound:
+      required:
+      - first
+      - firstCell
+      - id
+      - operator
+      - operatorCell
+      - outcome
+      - payout
+      - playedAt
+      - second
+      - secondCell
+      type: object
+      properties:
+        id:
+          type: string
+        firstCell:
+          type: integer
+          format: int32
+        operatorCell:
+          type: integer
+          format: int32
+        secondCell:
+          type: integer
+          format: int32
+        first:
+          type: integer
+          format: int32
+        operator:
+          type: string
+          enum:
+          - "+"
+          - "-"
+        second:
+          type: integer
+          description: -1은 JACKPOT
+          format: int32
+        result:
+          type: integer
+          description: JACKPOT 칸이면 null
+          format: int32
+        outcome:
+          type: string
+          enum:
+          - LOST
+          - PAID
+          - JACKPOT
+        payout:
+          type: integer
+          format: int32
+        playedAt:
+          type: string
+          format: date-time
+    PlusMinusRules:
+      required:
+      - dailyPlays
+      - fee
+      - firstReel
+      - jackpotFirst
+      - jackpotPayout
+      - operatorReel
+      - pointPayout
+      - secondReel
+      type: object
+      properties:
+        fee:
+          type: integer
+          format: int32
+        dailyPlays:
+          type: integer
+          format: int32
+        firstReel:
+          type: array
+          items:
+            type: integer
+            format: int32
+        operatorReel:
+          type: array
+          items:
+            type: string
+        secondReel:
+          type: array
+          description: -1은 JACKPOT 칸
+          items:
+            type: integer
+            description: -1은 JACKPOT 칸
+            format: int32
+        pointPayout:
+          type: integer
+          format: int32
+        jackpotFirst:
+          type: integer
+          format: int32
+        jackpotPayout:
+          type: integer
+          format: int32
+    PlusMinusStateResponse:
+      required:
+      - availableBalance
+      - playedToday
+      - rules
+      - serverNow
+      type: object
+      properties:
+        serverNow:
+          type: string
+          format: date-time
+        availableBalance:
+          type: integer
+          format: int64
+        playedToday:
+          type: integer
+          format: int32
+        rules:
+          $ref: "#/components/schemas/PlusMinusRules"
+        round:
+          $ref: "#/components/schemas/PlusMinusRound"
     FeedbackReceiptResponse:
       required:
       - acceptedAt

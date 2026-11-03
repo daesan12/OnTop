@@ -20,7 +20,7 @@ export const PARK_MAP_PLACES: readonly MapPlace[] = [
   ...(GENERATED_PARK_ENABLED ? [
     place('folk', '민속놀이 존', PARK_LAYOUT.SITES.folk, vrEntrance(PARK_LAYOUT.SITES.folk, PARK_LAYOUT.VR_YAW)),
     place('jumpmap', '돌탑 점프맵', START, RETURN_TO),
-    place('rps-roulette', '가위바위보 룰렛', cabinet, front, true),
+    place('rps-roulette', '오락기', cabinet, front, true),
     ...PARK_LAYOUT.data.interactions.construction.filter(site => site.id === 'layout-drink').map(site =>
       place(site.id, site.label, { x: site.position[0], z: site.position[2] }, { x: site.reachPosition[0], z: site.reachPosition[2] })),
     place('ranking-board', '랭킹 보드', PARK_LAYOUT.SITES.photo, {

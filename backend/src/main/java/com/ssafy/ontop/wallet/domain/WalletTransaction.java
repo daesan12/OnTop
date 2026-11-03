@@ -109,6 +109,21 @@ public class WalletTransaction {
         return transaction;
     }
 
+    /** 더하기 빼기 아케이드 배당. 참가비를 건 판의 결과라 미니게임 공통 하루 상한 합산 대상이 아니다. */
+    public static WalletTransaction plusMinusPayout(long walletId, long payout, String key, Instant now) {
+        if (walletId <= 0 || payout <= 0 || key == null || !key.startsWith("plus-minus:payout:")
+                || key.length() > 120) {
+            throw new IllegalArgumentException("더하기 빼기 아케이드 배당 기록을 확인하세요.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.balanceDelta = payout;
+        transaction.transactionType = "PLUS_MINUS_PAYOUT";
+        transaction.idempotencyKey = key;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
     public static String signupBonusKey(long userId) {
         if (userId <= 0) {
             throw new IllegalArgumentException("내부 회원 ID가 필요합니다.");
