@@ -84,4 +84,20 @@ class JpaFitnessRewardStoreTests {
         assertThat(wallet.balance()).isEqualTo(100);
         verify(transactions, never()).save(any());
     }
+
+    @Test
+    void 수입조회는_한국날짜의_운동원장만_읽으며_지급하지_않는다() {
+        when(wallets.findByUserId(101)).thenReturn(Optional.of(wallet));
+        when(transactions.countByWalletIdAndTransactionTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                1, "FITNESS_REWARD", FROM, UNTIL)).thenReturn(299L);
+
+        assertThat(store.earnedToday(101, NOW)).isEqualTo(299);
+        store.earnedToday(101, UNTIL);
+
+        verify(transactions).countByWalletIdAndTransactionTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                1, "FITNESS_REWARD", UNTIL, Instant.parse("2026-11-04T15:00:00Z"));
+        verify(wallets, never()).findForUpdateByUserId(101);
+        verify(transactions, never()).save(any());
+        assertThat(wallet.balance()).isEqualTo(100);
+    }
 }

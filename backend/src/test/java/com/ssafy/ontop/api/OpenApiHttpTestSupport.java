@@ -105,7 +105,7 @@ abstract class OpenApiHttpTestSupport {
         }
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
-                    "POST /api/v1/minigames/skewer/admissions",
+                    "POST /api/v1/minigames/skewer/admissions", "GET /api/v1/world/fitness/rewards/status",
                     "GET /api/v1/minigames/rps-roulette/status", "POST /api/v1/minigames/rps-roulette/rounds",
                     "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/hands",
                     "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/challenge",

@@ -56,6 +56,7 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | GET `/api/v1/wallets/me` | **Access JWT + 활성 회원/로그인 세션** | 본인 잔액 조회. [WALLET](wallet-balance.md) |
 | GET `/api/v1/wallets/me/transactions` | **Access JWT + 활성 회원/로그인 세션** | 본인 원장의 거래 ID 커서 조회. [WALLET](wallet-transactions.md) |
 | GET `/api/v1/channels` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. 채널 목록 조회 |
+| GET `/api/v1/world/fitness/rewards/status` | **Access JWT + 활성 회원/로그인 세션** | Principal의 본인 운동 일일 수입만 읽기 전용으로 조회. Cache-Control: no-store. [계약](world-facility-api.md) |
 | GET `/api/v1/tables` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. 채널 설정 시 channelId 필요 |
 | POST `/api/v1/minigames/sessions` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. Idempotency-Key 필수, 미니게임 서비스는 별도 활성화 |
 | POST `/api/v1/minigames/skewer/admissions` | **Access JWT + 활성 회원/로그인 세션** | 본인 고정 이용료 10냥·단일 Idempotency-Key·본문 없음. 기존 원장으로 중복 차감 방지. [계약](skewer-admissions.md) |
