@@ -2,7 +2,7 @@ import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
 import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { useFrame, useLoader } from '@react-three/fiber'
+import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls, createCharacterRig } from './worldAssets'
@@ -14,6 +14,7 @@ import { CHARACTER } from '../park/mapConfig'
 import { FartCloud } from './art/FartCloud'
 import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
 import { createAvatarOpacity } from './avatarOpacity'
+import { avatarMenuRaycast } from './avatarMenuPicking'
 import { emptyEquipment } from '../network/equipment'
 import { roamingFirstPerson } from './roamingCamera'
 import { localMovement } from '../network/localMovementPrediction'
@@ -39,9 +40,11 @@ import {
 function Avatar({
   id,
   rigs,
+  menuRaycast,
 }: {
   id: string
   rigs: Map<string, AvatarAnchors>
+  menuRaycast: Group['raycast']
 }) {
   const sources = useLoader(ParkAssetLoader, characterUrls)
   const variant = useSession(state => state.profiles[id]?.character ?? 'man')
@@ -136,8 +139,7 @@ function Avatar({
       ref={root}
       name={`avatar-${id}`}
       dispose={null}
-      // A registered handler raycasts the whole posed model on every canvas
-      // press/release/click, even though the local avatar has no context menu.
+      raycast={menuRaycast}
       onContextMenu={own ? undefined : event => {
         if (id === useSession.getState().sessionId) return
         event.stopPropagation(); event.nativeEvent.preventDefault()
@@ -163,11 +165,14 @@ export function Avatars({
 }) {
   const ids = useSession((state) => state.ids)
   const rigs = useMemo(() => new Map<string, AvatarAnchors>(), [])
+  const lastEvent = useThree(state => state.internal.lastEvent)
+  const inputRaycaster = useThree(state => state.raycaster)
+  const menuRaycast = useMemo(() => avatarMenuRaycast(() => lastEvent.current, inputRaycaster), [lastEvent, inputRaycaster])
   useEffect(installGameReactions, [])
   return (
     <group name="visitors">
       {ids.map((id) => (
-        <Avatar key={id} id={id} rigs={rigs} />
+        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} />
       ))}
       <SwimmingRipples />
 
