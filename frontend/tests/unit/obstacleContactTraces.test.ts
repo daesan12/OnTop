@@ -57,6 +57,17 @@ it('does not hang in the air when jumping in place beside a fence',async()=>{
   expect(longest).toBeLessThanOrEqual(3)
  }finally{sim.dispose()}
 })
+it('does not glide along a fence top corner while running against it',async()=>{
+ // Running almost parallel to court-P0-west after a jump rested the capsule on its rounded
+ // corner (normal y ~.61) for over a second with no server support, ending in HOVER.
+ const sim=await createPredictionPhysics('PARK_V1')
+ try{
+  sim.reset({x:-12.55,y:.8,z:8,yaw:0},0,true)
+  for(let n=0;n<10;n++)sim.step({dx:0,dz:0,run:false,jump:false},1/60)
+  for(let n=1;n<=70;n++)sim.step({dx:-Math.cos(1.45),dz:Math.sin(1.45),run:true,jump:n===1},1/60)
+  expect(sim.pose().y).toBeCloseTo(.8,2)
+ }finally{sim.dispose()}
+})
 it.skipIf(!process.env.OBSTACLE_CONTACT_DIR)('exports real pavilion obstacle contact trajectories',async()=>{
  const traces=[];const stop={dx:0,dz:0,run:false,jump:false}
  for(const id of ['P0','P5'])for(const angle of [Math.PI/4,Math.PI])for(const run of [false,true])for(const timing of ['none','start','contact']){

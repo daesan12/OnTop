@@ -18,6 +18,8 @@ import { useJumpmap } from '../features/jumpmap/state'
 import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
 
 let initialization: Promise<void> | undefined
+/** How long Rapier may keep a grounded state the server does not support before falling. */
+const EDGE_GLIDE_SECONDS = .15
 export async function createPredictionPhysics(profile?: 'PARK_V1'): Promise<PredictionSimulation> {
   await (initialization ??= RAPIER.init())
   return new PredictionPhysics(profile === 'PARK_V1')
@@ -53,6 +55,9 @@ class PredictionPhysics implements PredictionSimulation {
   private tunedActive = false
   private jumpEnabled = false
   private readonly jumpGrace = new JumpGrace()
+  /** jumpSupported() at the last tuned landing, reused as the next step's jump support. */
+  private serverSupport?: boolean
+  private edgeGlide = 0
   private readonly jumpColliders: RAPIER.Collider[] = []
   private syncJumpCourse() {
     const enabled = GENERATED_PARK_ENABLED && useJumpmap.getState().available
@@ -124,6 +129,7 @@ class PredictionPhysics implements PredictionSimulation {
     this.vy = velocityY; this.grounded = grounded; this.yaw = pose.yaw; this.climbY = 0
     this.jumpGrace.reset(grounded, grace)
     this.parkMotion.reset(velocityY); this.tunedActive = false
+    this.serverSupport = undefined; this.edgeGlide = 0
     this.world.step()
   }
   setChairs(counts: ReadonlyMap<string, number>) {
@@ -145,11 +151,11 @@ class PredictionPhysics implements PredictionSimulation {
       if (!this.tunedActive) this.parkMotion.reset(this.vy)
       // Rapier can report grounded with no contact beside a thin fence's top edge.
       // Gliding there is fine, but the server rejects a jump without its own support.
-      const support = this.grounded && (input.jump || this.jumpEnabled) && this.jumpSupported(p)
+      const support = this.grounded && (this.serverSupport ?? this.jumpSupported(p))
       const jump = this.jumpEnabled ? this.jumpGrace.step(input.jump, support, dt) : input.jump && support
       this.tunedActive = true; this.stepTuned({ ...input, jump }, dt, jump); return
     }
-    this.tunedActive = false
+    this.tunedActive = false; this.serverSupport = undefined
     if (input.jump && swimming && (input.dx || input.dz)) {
       const stone = (GENERATED_PARK_ENABLED ? PARK_DATA.physics.steppingStones : legacySteppingStones).find(s => Math.hypot(Math.max(0, Math.abs(p.x - s.x) - s.width / 2),
         Math.max(0, Math.abs(p.z - s.z) - s.depth / 2)) <= .8
@@ -227,10 +233,16 @@ class PredictionPhysics implements PredictionSimulation {
       const floor=this.world.castRayAndGetNormal(new RAPIER.Ray({x:landing.x,y:feet+.05,z:landing.z},{x:0,y:-1,z:0}),.22,true,undefined,undefined,this.collider)
       this.grounded=!!floor&&floor.normal.y>=.6
     }
-    // Beside a thin fence's top edge Rapier also reports grounded with no contact at all.
-    // Resetting the fall there hangs the capsule in the air or perches it on a steep edge
-    // the server does not support (HOVER), so keep falling. Moving across a rail top is kept.
-    if(this.grounded&&!input.dx&&!input.dz&&!walls.length&&!walkableContact&&!onStair&&!this.jumpSupported(landing))this.grounded=false
+    // Beside a thin fence's top edge Rapier also reports grounded with no contact at all, or
+    // resting on its rounded corner (normal y ~.61), where the server sees no support. Standing
+    // there hangs the capsule in the air and running along the edge glides on it, both ending
+    // in a server HOVER correction. Fall at once without input; a rail hop only grazes the corner.
+    const supported=this.grounded&&this.jumpSupported(landing)
+    if(this.grounded&&!supported&&!onStair){
+      this.edgeGlide+=dt
+      if(!input.dx&&!input.dz&&!walls.length&&!walkableContact||this.edgeGlide>EDGE_GLIDE_SECONDS)this.grounded=false
+    }else if(supported)this.edgeGlide=0
+    this.serverSupport=supported
     this.parkMotion.contact(wanted,delta,this.grounded,walls);this.vy=this.parkMotion.velocityY()
     this.body.setNextKinematicTranslation(landing)
     if(input.dx||input.dz)this.yaw=Math.atan2(input.dx,input.dz)
