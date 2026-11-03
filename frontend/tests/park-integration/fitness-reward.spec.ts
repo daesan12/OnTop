@@ -108,3 +108,86 @@ test('latest-map fitness entry shows reward terms, refreshes confirmed money onc
   await expect.poll(() => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().fitnessId)).toBe('')
   expect(errors).toEqual([])
 })
+
+test('운동 수입은 조회 중 알림을 모아 재조회하고 30초 백업으로 누락을 복구한다', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const server = await parkFixture(page, { fitnessRewardsEnabled: true })
+  let earned = 12, active = 0, maxActive = 0, holdNext = false, failNext = false
+  let release: (() => void) | undefined
+  const requests: number[] = []
+  await page.route('**/api/v1/world/fitness/rewards/status', async route => {
+    requests.push(Date.now())
+    maxActive = Math.max(maxActive, ++active)
+    const captured = earned, fail = failNext
+    failNext = false
+    if (holdNext) {
+      holdNext = false
+      await new Promise<void>(resolve => { release = resolve })
+    }
+    try {
+      const leaseId = await page.evaluate(async () => (await import('/src/features/facilities/state.ts' as string))
+        .useFacilityState.getState().occupancies['101']?.leaseId ?? null)
+      await route.fulfill(fail ? { status: 503, json: { code: 'FITNESS_UNAVAILABLE' } } : { json: {
+        enabled: true, earningsDate: new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10),
+        todayEarned: captured, dailyCap: 300, rewardIntervalSeconds: 60, serverNow: Date.now(),
+        nextRewardAt: Date.now() + 60000, activeLeaseId: leaseId,
+      } })
+    } finally { active-- }
+  })
+  await page.goto('/park')
+  await expect(page).toHaveTitle('OnTop')
+  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length), { timeout: 90000 }).toBeGreaterThan(0)
+  await expect.poll(() => page.evaluate(async () => (await import('/src/features/facilities/state.ts' as string)).useFacilityState.getState().ready)).toBe(true)
+  const station = PARK_DATA.interactions.fitness[0]!
+  server.place({ x: station.position[0], y: station.position[1] + .8, z: station.position[2] })
+  const hint = page.getByRole('complementary', { name: '가까운 상호작용' })
+  await expect(hint).toHaveAttribute('data-target-id', station.id)
+  await hint.getByRole('button').click()
+  const total = hint.getByLabel('운동기구 수입')
+  await expect(total).toContainText('12 / 300냥')
+  // 개발 모드 StrictMode의 초기 마운트·취소 요청은 갱신 경쟁 측정에서 제외한다.
+  await expect.poll(() => active).toBe(0)
+  const initialRequests = requests.length
+  maxActive = 0
+  const notify = (interval: number) => server.emit('FITNESS_REWARD', {
+    userId: '101', receipt: `fitness:01234567-89ab-cdef-0123-456789abcdef:${interval}`,
+  })
+  const revision = () => page.evaluate(async () => (await import('/src/features/wallet/settlementRefresh.ts' as string)).useWalletSettlement.getState().revision)
+  const before = await revision()
+  earned = 13; holdNext = true
+  notify(1)
+  await expect.poll(() => requests.length).toBe(initialRequests + 1)
+  await expect.poll(() => !!release).toBe(true)
+  earned = 15
+  notify(2); notify(3)
+  await expect.poll(revision).toBe(before + 3)
+  expect(requests).toHaveLength(initialRequests + 1)
+  release!(); release = undefined
+  await expect(total).toContainText('15 / 300냥')
+  expect(requests).toHaveLength(initialRequests + 2)
+  expect(maxActive).toBe(1)
+
+  // 지급 알림이 누락되어도 5초·15초가 아닌 30초 백업 조회가 수입을 복구한다.
+  earned = 16
+  await expect.poll(() => requests.length, { timeout: 35000 }).toBe(initialRequests + 3)
+  expect(requests[initialRequests + 2]! - requests[initialRequests - 1]!).toBeGreaterThanOrEqual(29000)
+  await expect(total).toContainText('16 / 300냥')
+
+  // 실패하는 요청 중 받은 알림도 버리지 않고 요청 종료 후 다시 확인한다.
+  holdNext = true; failNext = true
+  notify(4)
+  await expect.poll(() => !!release).toBe(true)
+  earned = 17
+  notify(5)
+  await expect.poll(revision).toBe(before + 5)
+  release!(); release = undefined
+  await expect(total).toContainText('17 / 300냥')
+  expect(requests).toHaveLength(initialRequests + 5)
+  expect(maxActive).toBe(1)
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  await page.screenshot({ path: path.join(process.env.QA_ARTIFACT_DIR ?? os.tmpdir(), 'fitness-reward-refresh.png') })
+  await page.keyboard.press('KeyW')
+  await expect(total).toHaveCount(0)
+  expect(errors).toEqual([])
+})

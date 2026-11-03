@@ -32,10 +32,12 @@ function LiveFitnessReward({ owner, leaseId }: { owner: string; leaseId: string 
   const [now, setNow] = useState(() => performance.now())
   useEffect(() => {
     const abort = new AbortController()
-    let disposed = false, loading = false
+    let disposed = false, loading = false, refreshPending = false
     const load = async () => {
-      if (loading || disposed || document.hidden || !leaseId) return
+      if (disposed || document.hidden || !leaseId) return
+      if (loading) { refreshPending = true; return }
       loading = true
+      refreshPending = false
       try {
         const status = parseFitnessRewardStatus(await parkRuntime.requestJSON(FITNESS_REWARD_STATUS_PATH, { signal: abort.signal }))
         if (disposed) return
@@ -44,16 +46,23 @@ function LiveFitnessReward({ owner, leaseId }: { owner: string; leaseId: string 
         setSnapshot({ status, at }); setNow(at); setError('')
       } catch {
         if (!disposed) setError('운동 수입 확인 지연')
-      } finally { loading = false }
+      } finally {
+        loading = false
+        // 조회 중 도착한 지급 알림은 합쳐서 한 번 더 확인한다.
+        if (refreshPending && !disposed) void load()
+      }
     }
     void load()
-    const poll = setInterval(() => { setNow(performance.now()); void load() }, 5000)
+    const poll = setInterval(() => { setNow(performance.now()); void load() }, 30_000)
     const stop = useWalletSettlement.subscribe((state, before) => {
       if (state.owner === owner && state.revision !== before.revision) void load()
     })
+    const reconnected = useSession.subscribe((state, before) => {
+      if (state.sessionId === owner && state.status === 'connected' && before.status !== 'connected') void load()
+    })
     const visible = () => { if (!document.hidden) void load() }
     document.addEventListener('visibilitychange', visible)
-    return () => { disposed = true; abort.abort(); clearInterval(poll); stop(); document.removeEventListener('visibilitychange', visible) }
+    return () => { disposed = true; abort.abort(); clearInterval(poll); stop(); reconnected(); document.removeEventListener('visibilitychange', visible) }
   }, [owner, leaseId])
   return <FitnessRewardView snapshot={snapshot} now={now} error={error} />
 }
