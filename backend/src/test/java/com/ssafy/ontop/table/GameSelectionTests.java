@@ -129,7 +129,7 @@ class GameSelectionTests {
         assertThat(ready.path("type").asText()).isEqualTo("TABLE_STATE");
         JsonNode before = ready.path("payload");
         assertCode(first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK")), "GAME_PLAYER_LIMIT");
-        assertCode(first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000)), "GAME_PLAYER_LIMIT");
+        assertCode(first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "ALKKAGI")), "GAME_PLAYER_LIMIT");
         JsonNode after = first.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
         assertThat(after).isEqualTo(before);
         assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(3);

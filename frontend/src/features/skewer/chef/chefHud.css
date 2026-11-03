@@ -1,0 +1,140 @@
+/* Kitchen UI: pinned order slips, quiet controls, one warm action accent. */
+.chef-app{--chef-paper:#f7f0e2;--chef-ink:#392d24;--chef-accent:#ac4b33;color:#f8f2e8}
+.chef-app::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:1;background:linear-gradient(#20150c7a,transparent 20%,transparent 73%,#20150c9c)}
+.chef-app button:focus-visible{outline:2px solid #f5c1a1;outline-offset:4px}
+.chef-app .chef-heading{top:22px;left:28px;display:block;padding:0;background:none;border:0;border-radius:0;box-shadow:none;text-align:left;text-shadow:0 2px 6px #22170c99}
+.chef-app .chef-heading h1{font:700 22px/1.3 ChefMyeongjo,serif;letter-spacing:0;text-shadow:none}
+.chef-app .chef-heading p{font-size:11px;font-weight:400;color:#e3d3bc;margin-top:4px}
+.chef-app .chef-role-mark{display:none}
+.chef-app .chef-view-modes{top:27px;gap:2px;padding:0;border-bottom:1px solid #fff4db40}
+.chef-app .chef-view-modes button{border:0;border-radius:0;background:none;padding:6px 13px;font-size:11px;color:#dfd4c5;text-shadow:0 1px 3px #1c130e}
+.chef-app .chef-view-modes button[aria-pressed=true]{background:none;color:#fff8e9;box-shadow:0 2px 0 #e5ae81}
+.chef-app .chef-view-modes button:last-child{border-left:1px solid #fff4db30;padding-left:14px}
+.chef-app .chef-round{right:28px;top:20px;min-width:164px;background:none;border:0;border-radius:0;padding:0;box-shadow:none;text-align:right;text-shadow:0 2px 6px #21150b}
+.chef-app .chef-clock-label{color:#e1d2bd;font-size:10px;letter-spacing:.6px}
+.chef-app .chef-round time{background:none;border:0;border-radius:0;font:700 40px/1.13 'Malgun Gothic',sans-serif;letter-spacing:1px;font-variant-numeric:tabular-nums}
+.chef-app .chef-eligibility{border:0;background:none;border-radius:0;color:#dfc9ad;font-size:10px;padding:0;margin-top:5px;font-weight:400}
+.chef-app .chef-team-score{font-size:11px;color:#e1d2bd;margin-top:4px}.chef-app .chef-team-score strong{font-size:16px;margin-left:9px;color:#fff5dd}
+.chef-app .chef-enter-vr{border:1px solid #d4c0a16b;border-radius:3px;background:#33271bd9;color:#fff1d8;font-size:11px;padding:6px 10px;margin-top:10px}
+.chef-app.is-vr :is(.chef-clock-label,.chef-team-score){display:none}
+.chef-app .chef-orders{top:91px;left:50%;transform:translateX(-50%);width:min(610px,calc(100% - 470px));background:none;border:0;border-radius:0;padding:0;box-shadow:none}
+.chef-app .chef-orders-heading{display:flex;justify-content:space-between;align-items:center;margin:0 0 22px;gap:10px;text-shadow:0 2px 4px #21160b}
+.chef-app .chef-orders h2{padding:0;font:700 15px/1.4 ChefMyeongjo,serif;color:#f9ebd5}
+.chef-app .chef-orders-heading>span{font-size:10px;color:#e2d1b6}
+.chef-app .chef-order-row{display:flex;position:relative;min-height:0;gap:18px}
+.chef-app .chef-order-row::before{content:'';position:absolute;left:-12px;right:-12px;top:-9px;height:9px;background:#68472d;border-top:2px solid #a77948;box-shadow:0 3px 4px #24170c66;border-radius:2px}
+.chef-app .chef-order-card{position:relative;flex:1;min-width:0;padding:17px 16px 9px;border:0;border-bottom:3px solid #d2c1a6;border-radius:1px 1px 3px 3px;background:linear-gradient(105deg,#fffaef,#f0e5d1);box-shadow:2px 5px 7px #21170e3d;color:var(--chef-ink);transform:rotate(-.7deg);transition:transform .15s ease}
+.chef-app .chef-order-card:nth-child(2){transform:rotate(.7deg)}
+.chef-app .chef-order-card::before{content:'';position:absolute;top:-13px;left:calc(50% - 15px);width:30px;height:23px;background:linear-gradient(#4c4841,#777365 40%,#403d37 44%,#5a554a);border:1px solid #3c3830;border-radius:3px 3px 5px 5px;box-shadow:0 2px 2px #24170d40}
+.chef-app .chef-order-card[aria-pressed=true]{border-color:var(--chef-accent);box-shadow:2px 5px 7px #21170e3d;transform:translateY(3px) rotate(-.7deg)}
+.chef-app .chef-order-card:nth-child(2)[aria-pressed=true]{transform:translateY(3px) rotate(.7deg)}
+.chef-app .chef-ticket-heading{display:flex;align-items:center;justify-content:space-between;gap:6px;padding-bottom:8px;border-bottom:1px dashed #b7a38990}
+.chef-app .chef-order-card strong{font-size:22px;line-height:1.2;color:var(--chef-ink);font-variant-numeric:tabular-nums}
+.chef-app .chef-ticket-heading>span{font-size:10px;color:#8b7d6b}
+.chef-app .chef-order-card[aria-pressed=true] .chef-ticket-heading>span{background:none;border:1px solid #b65e49;color:#a34632;border-radius:1px;padding:2px 7px;transform:rotate(-5deg);font-weight:700}
+.chef-app .chef-order-card .service-menu-art{height:85px;margin-top:6px}
+.chef-app .chef-hidden-orders{display:none}
+.chef-app .chef-wrap-summary{display:flex;align-items:start;justify-content:space-between;gap:12px;padding-top:13px;text-shadow:0 2px 4px #20150a}
+.chef-app .chef-wrap-summary>p{font-size:11px;line-height:1.5;color:#fff2db;text-align:left}
+.chef-app .chef-wrap-summary>button{margin:0;border:0;border-bottom:1px solid #dac7a7;background:none;color:#ecddc4;flex:none;font-size:10px;padding:0 0 2px}
+.chef-app .chef-orders>p{display:none}
+.chef-app .chef-empty-order{background:#f4ead9;color:#6e5a43;min-height:140px;font-size:15px;border-radius:2px;text-shadow:none}
+.chef-app .chef-pass-status{right:28px;top:165px;width:158px;display:block;background:none;border:0;border-radius:0;padding:0;box-shadow:none;text-shadow:0 2px 4px #23180d;z-index:3}
+.chef-app .chef-pass-status>div:first-child{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding-bottom:6px;border-bottom:1px solid #f4e3c140;margin-bottom:9px}
+.chef-app .chef-pass-status>div:first-child>span{font-size:10px;color:#e8d3ae}
+.chef-app .chef-pass-slots{display:flex;gap:6px}
+.chef-app .chef-pass-slot{flex:1;min-width:0;text-align:center;background:#f4ecdc;border-radius:2px;padding:5px 3px;color:#574734;text-shadow:none;box-shadow:1px 3px 5px #21170d30}
+.chef-app .chef-pass-slot:has(>span){display:none}
+.chef-app .chef-pass-slot>b{font-size:11px;display:block}.chef-app .chef-pass-slot>small{font-size:9px;color:#8c6a4c}
+.chef-app .chef-pass-slot .service-menu-art{height:34px;width:100%;object-fit:contain;display:block}
+.chef-app .chef-pass-status>p{font-size:10px;line-height:1.6;color:#e7d6b8;margin-top:6px}
+.chef-app .chef-pass-status[data-full=true]>div:first-child{color:#ffc7a2}
+.chef-app .chef-current{position:absolute;left:50%;bottom:102px;transform:translateX(-50%);width:min(760px,calc(100% - 45px));background:none;border:0;border-radius:0;padding:0;box-shadow:none;color:#fff1db;text-shadow:0 2px 5px #21160c;pointer-events:none}
+.chef-app .chef-progress-heading{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
+.chef-app .chef-progress-heading>span{font-size:10px;color:#dec9a6;white-space:nowrap}
+.chef-app .chef-progress-heading>strong{font-size:14px;font-weight:700}
+.chef-app .chef-progress-heading>small{margin-left:auto;font-size:11px;color:#e2d3b9;font-variant-numeric:tabular-nums}
+.chef-app .chef-progress-steps{list-style:none;margin:0;padding:0;display:flex;gap:0;border-top:1px solid #f4e4c54d}
+.chef-app .chef-progress-steps li{position:relative;flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 2px 3px;background:none;border:0;border-radius:0;color:#e5d7c1;opacity:.85}
+.chef-app .chef-progress-steps li+li::before{content:'›';position:absolute;left:-3px;color:#cbb99a;font-size:17px;font-weight:400}
+.chef-app .chef-progress-steps li>b{font-size:9px;color:#e8cda4}
+.chef-app .chef-progress-steps .sk-food-icon{width:30px;height:30px;filter:drop-shadow(0 1px 1px #30211255);flex:none}
+.chef-app .chef-progress-steps li>span{font-size:11px;line-height:1.5;font-weight:400}
+.chef-app .chef-progress-steps li small{display:block;font-size:9px;color:#e6ceab}
+.chef-app .chef-progress-steps .is-done{opacity:.92}
+.chef-app .chef-progress-steps .is-next{opacity:1;color:#fff1d4;box-shadow:0 -2px 0 #e7a372}
+.chef-app .chef-progress-steps .is-wrong{opacity:1;color:#ffc4ae;box-shadow:0 -2px 0 #e38d6f}
+.chef-app .chef-current .chef-progress-detail{display:none;font-size:10px;font-weight:400;color:#f4cead;max-width:none;margin-top:5px}
+.chef-app .chef-current[data-tone=warning] .chef-progress-detail,.chef-app .chef-current[data-tone=idle] .chef-progress-detail{display:block}
+.chef-app .chef-current[data-tone=warning] .chef-progress-heading>strong{color:#ffccb2}
+.chef-app .chef-current[data-tone=ready] .chef-progress-heading>strong{color:#ffdf9f}
+.chef-app .chef-current{z-index:3}
+.chef-app .chef-status{bottom:205px;background:none;border:0;border-radius:0;padding:0;box-shadow:none;color:#fff6e8;font-size:12px;max-width:80%;text-shadow:0 1px 4px #271a10,0 2px 12px #271a10;z-index:3}
+.chef-app .chef-status[data-idle=true]{visibility:hidden}
+.chef-app .chef-controls{position:absolute;left:28px;right:28px;bottom:29px;min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0;background:none;border:0;border-radius:0;box-shadow:none}
+.chef-app .chef-pantry{display:flex;gap:5px;align-items:center;flex:1;max-width:570px}
+.chef-app .chef-pantry button{position:relative;display:flex;align-items:center;gap:5px;padding:5px 7px;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:#e9dcc5;font-size:11px;text-shadow:0 1px 3px #24170a;min-height:30px}
+.chef-app .chef-pantry button[aria-pressed=true]{border-bottom-color:#e7ac7f;color:#fff3dc;background:none;box-shadow:none}
+.chef-app .chef-pantry .sk-food-icon{display:none}
+.chef-app kbd{background:#f1e6d1;color:#65533e;border:1px solid #bcaa88;border-bottom:2px solid #aa9674;border-radius:3px;font:700 10px/1.2 'Malgun Gothic',sans-serif;padding:4px 5px;min-height:22px;box-shadow:none;text-shadow:none}
+.chef-app .chef-pantry kbd{position:static;min-width:17px;min-height:19px;padding:2px 3px;font-size:9px}
+.chef-app .chef-keys{display:flex;flex-direction:row;gap:16px;align-items:center}
+.chef-app .chef-keys button{padding:3px 0;gap:6px;font-size:11px;white-space:nowrap;background:none;border:0;text-shadow:0 1px 3px #24170a}
+.chef-app .chef-submit{min-width:188px;display:flex;justify-content:center;align-items:center;gap:9px;background:#4a3426;border:1px solid #c4a58177;border-bottom:3px solid #2b1b13;border-radius:4px;padding:12px 14px;color:#f0ddbf;font-size:14px;box-shadow:0 3px 6px #21150b33}
+.chef-app .chef-submit[data-ready=true]{background:#a84d32;color:#fff2db;border-color:#d78b65;border-bottom-color:#6e2e1c;box-shadow:0 3px 8px #21150b44}
+.chef-app .chef-submit kbd{background:#f1e6d1;min-width:38px;padding:4px 6px;min-height:22px;font-size:10px}
+.chef-app .chef-local-note{bottom:4px;font-size:9px;color:#cfbda1;white-space:nowrap;text-shadow:0 1px 3px #21150b}
+.chef-app .chef-sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.chef-app.is-vr .chef-pass-status{display:none}
+.chef-app.is-vr .chef-controls{left:28px;right:28px;bottom:29px;background:none;border:0;padding:0;min-height:40px}
+.chef-app.is-vr .chef-pantry{display:none}
+.chef-app.is-vr .chef-keys{flex-direction:row;gap:18px}.chef-app.is-vr .chef-keys button{font-size:11px}
+.chef-app.is-vr .chef-submit{min-width:188px;font-size:13px;padding:10px 14px}
+.chef-app.is-vr .chef-status{bottom:111px}
+.chef-app .chef-vr-hint{position:absolute;bottom:81px;left:50%;transform:translateX(-50%);width:max-content;max-width:95%;text-align:center;font-size:10px;color:#ead6b7;text-shadow:0 1px 4px #281b0b}
+.chef-app .chef-vr-hint>span{margin-left:18px}
+.chef-app .chef-world-order-hit{width:25%;height:18%;border-radius:0}.chef-app .chef-world-order-hit:hover{border-color:#e4a57a66}
+.chef-app .chef-ingredient-hit{border-radius:0}.chef-app .chef-ingredient-hit:hover{border-color:#e4c49a66;background:transparent}
+.chef-app .chef-guide{background:#f7f0e2;border-color:#c3aa86;border-radius:5px;color:#4d3e2e}
+.chef-app .chef-guide-done{border-color:#8c583a;border-bottom-color:#603721;background:#985b38;border-radius:4px}
+.skewer-coop[data-role=chef] .coop-meta{display:none}
+.skewer-coop[data-role=chef] .coop-exit{top:28px;bottom:auto;right:216px;background:none;border:0;border-bottom:1px solid #e9d6b674;border-radius:0;color:#f1dfc5;padding:4px 0;font-size:11px;text-shadow:0 1px 3px #21150c}
+@media(max-width:1250px){
+ .chef-app .chef-orders{width:min(610px,calc(100% - 420px));top:101px}
+ .chef-app .chef-pantry{gap:0}.chef-app .chef-pantry button{padding:5px;font-size:10px;gap:4px}
+ .chef-app .chef-controls{gap:12px}.chef-app .chef-keys{gap:10px}.chef-app .chef-keys button{font-size:10px}
+ .chef-app .chef-submit{min-width:173px;font-size:12px;padding:11px}
+}
+@media(max-height:780px) and (min-width:801px){
+ .chef-app .chef-orders{width:min(610px,calc(100% - 420px));top:99px}
+ .chef-app .chef-orders-heading{margin-bottom:17px}.chef-app .chef-order-card{padding:13px 12px 5px}
+ .chef-app .chef-order-card .service-menu-art{height:61px}.chef-app .chef-order-card strong{font-size:20px}
+ .chef-app .chef-wrap-summary{padding-top:10px}.chef-app .chef-current{bottom:92px;width:min(710px,calc(100% - 45px))}
+ .chef-app .chef-status{bottom:188px;font-size:11px}.chef-app .chef-pass-status{top:151px}
+}
+@media(max-width:800px){
+ .chef-app .chef-heading{top:15px;left:15px}.chef-app .chef-heading h1{font-size:20px}.chef-app .chef-heading p{font-size:9px}
+ .chef-app .chef-round{top:13px;right:15px;min-width:130px}.chef-app .chef-round time{font-size:29px}.chef-app .chef-eligibility{font-size:9px}
+ .chef-app .chef-view-modes{top:93px;width:max-content}.chef-app .chef-view-modes button{padding:6px 12px;font-size:10px}
+ .chef-app .chef-orders{top:146px;left:17px;width:calc(100% - 34px);transform:none}
+ .chef-app .chef-orders-heading{margin-bottom:18px}.chef-app .chef-orders h2{font-size:14px}.chef-app .chef-orders-heading>span{font-size:9px}
+ .chef-app .chef-order-row{gap:12px}.chef-app .chef-order-card{padding:14px 9px 5px}.chef-app .chef-order-card strong{font-size:19px}
+ .chef-app .chef-ticket-heading>span{font-size:8px}.chef-app .chef-order-card[aria-pressed=true] .chef-ticket-heading>span{padding:1px 3px}
+ .chef-app .chef-order-card .service-menu-art{height:60px}.chef-app .chef-wrap-summary{gap:8px;padding-top:11px}.chef-app .chef-wrap-summary>p{font-size:9px}.chef-app .chef-wrap-summary>button{font-size:9px}
+ .chef-app .chef-pass-status{display:none}
+ .chef-app .chef-current{bottom:155px;width:calc(100% - 34px);left:50%;padding:0}
+ .chef-app .chef-progress-heading{gap:8px;margin-bottom:5px}.chef-app .chef-progress-heading>strong{font-size:11px}.chef-app .chef-progress-heading>span,.chef-app .chef-progress-heading>small{font-size:9px}
+ .chef-app .chef-progress-steps li{flex-direction:column;gap:1px;padding:6px 1px 2px}.chef-app .chef-progress-steps li>b{position:absolute;left:2px;top:5px;font-size:7px}
+ .chef-app .chef-progress-steps .sk-food-icon{width:24px;height:24px}.chef-app .chef-progress-steps li>span{font-size:8px;text-align:center}.chef-app .chef-progress-steps li small{font-size:8px}
+ .chef-app .chef-current .chef-progress-detail{font-size:9px}.chef-app .chef-status{bottom:270px;font-size:10px;max-width:94%}
+ .chef-app .chef-controls{left:16px;right:16px;bottom:28px;padding:0;gap:15px 8px;flex-wrap:wrap}
+ .chef-app .chef-pantry{flex-basis:100%;max-width:none;justify-content:space-between;gap:0}.chef-app .chef-pantry button{flex-direction:column;padding:4px;font-size:9px;gap:3px}
+ .chef-app .chef-keys{width:auto;flex-direction:column;align-items:start;gap:5px}.chef-app .chef-keys button{font-size:9px;padding:0;gap:5px}.chef-app .chef-keys kbd{font-size:9px;min-height:19px;padding:3px 4px}
+ .chef-app .chef-submit{min-width:164px;font-size:11px;padding:10px 8px;margin-left:auto;gap:7px}.chef-app .chef-submit kbd{font-size:9px;min-width:34px}
+ .chef-app .chef-local-note{font-size:8px;max-width:95%;width:100%;white-space:normal;text-align:center;line-height:1.2}
+ .chef-app.is-vr .chef-controls{left:16px;right:16px;bottom:28px;padding:0;gap:8px}.chef-app.is-vr .chef-keys{flex-direction:column;gap:6px}.chef-app.is-vr .chef-keys button{font-size:10px}
+ .chef-app.is-vr .chef-submit{min-width:156px;font-size:11px;padding:10px}.chef-app .chef-vr-hint{bottom:86px;font-size:9px}.chef-app .chef-vr-hint>span{display:block;margin:2px 0 0}.chef-app.is-vr .chef-status{bottom:125px}
+ .skewer-coop[data-role=chef] .coop-exit{top:126px;right:16px;padding:3px 0;font-size:9px}.skewer-coop[data-role=chef] .chef-orders{top:166px}
+}
+@media(prefers-reduced-motion:reduce){.chef-app .chef-order-card{transition:none}}
+.chef-app.is-immersive::before{display:none}.chef-app.is-immersive>:not(.chef-stage){display:none}

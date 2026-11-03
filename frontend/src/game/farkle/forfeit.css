@@ -1,0 +1,25 @@
+.table-paper-popup.farkle-forfeit-dialog { position: fixed; inset: 0; margin: auto; width: min(430px, calc(100vw - 36px)); box-sizing: border-box; overscroll-behavior: contain; scrollbar-width: none; }
+.farkle-forfeit-dialog::-webkit-scrollbar { display: none; }
+.table-paper-popup.farkle-forfeit-dialog .paper-close { z-index: 1; background: #f5ebd3de; border-radius: 50%; }
+.farkle-forfeit-dialog::backdrop { background: #17302026; }
+.farkle-forfeit-dialog .paper-caption { font-size: 13px; letter-spacing: .15em; color: #8a734b; }
+.farkle-forfeit-dialog .farkle-forfeit-seal { display: grid; place-items: center; width: 62px; height: 62px; margin: 15px auto 18px; border: 1px solid #b99a6c; border-radius: 50%; background: #e5d1ae73; color: #815344; }
+.farkle-forfeit-dialog .farkle-forfeit-seal svg { width: 32px; height: 32px; }
+.table-paper-popup.farkle-forfeit-dialog h2 { font-size: 34px; line-height: 1.4; margin-bottom: 14px; }
+.table-paper-popup.farkle-forfeit-dialog .paper-subtitle { font-size: 14px; line-height: 1.7; color: #6c6453; overflow-wrap: anywhere; word-break: keep-all; }
+.farkle-forfeit-dialog .farkle-forfeit-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 24px; }
+.table-paper-popup.farkle-forfeit-dialog .farkle-forfeit-actions button { min-width: 0; padding: 10px 8px; word-break: keep-all; font: 700 16px/1.5 'Malgun Gothic', sans-serif; letter-spacing: normal; }
+.table-paper-popup.farkle-forfeit-dialog .farkle-forfeit-confirm { color: #fff5df; border: 3px double #bf9b70; background: #874334; box-shadow: 0 3px 5px #543d1926; }
+.table-paper-popup.farkle-forfeit-dialog .farkle-forfeit-confirm:hover:not(:disabled) { background: #713729; border-color: #d2ad7d; }
+.farkle-forfeit-dialog [role=alert] { color: #943b2e; font-size: 14px; overflow-wrap: anywhere; }
+.farkle-forfeit-dialog [role=status] { font-size: 14px; }
+.farkle-forfeit-dialog small { display: block; margin-top: 17px; color: #64573e; background: #fbf0d9b3; border-radius: 4px; padding: 3px; font-size: 12px; }
+@media (max-width: 600px) { .table-paper-popup.farkle-forfeit-dialog h2 { font-size: 30px; } }
+@media (max-height: 600px) {
+  .table-paper-popup.farkle-forfeit-dialog { padding: 18px 22px; }
+  .farkle-forfeit-dialog .farkle-forfeit-seal { display: none; }
+  .table-paper-popup.farkle-forfeit-dialog h2 { font-size: 26px; line-height: 1.2; margin-bottom: 8px; }
+  .table-paper-popup.farkle-forfeit-dialog .paper-subtitle { margin-bottom: 10px; font-size: 13px; }
+  .farkle-forfeit-dialog .farkle-forfeit-actions { margin-top: 12px; }
+  .farkle-forfeit-dialog small { margin-top: 10px; }
+}

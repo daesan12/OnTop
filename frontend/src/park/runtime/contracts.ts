@@ -3,6 +3,7 @@
  * network/worldClient and game/store. Spring owns the existing transport.
  */
 export interface ParkRuntimePort {
+  cooperativeGame?: import('../../features/skewer/coop/contracts').CoopTransport
   start(): void
   stop(): Promise<void>
   addAuthListener(listener: () => void): () => void

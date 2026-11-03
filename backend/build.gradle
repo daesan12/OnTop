@@ -65,6 +65,15 @@ tasks.register('alkkagiPark', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
 }
 
+tasks.register('skewerCoopDemo', JavaExec) {
+    description = '127.0.0.1:19185 최신 맵·공통 소켓·2인 꼬치왕 검수 (DB/재화 없음, 운영 JAR 제외)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.SkewerCoopDemoApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
 tasks.named('test') {
     useJUnitPlatform {
         excludeTags 'mysql'

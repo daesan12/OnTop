@@ -110,7 +110,8 @@ public class CommittedGameStartService {
                 case "OMOK" -> omok.isPresent() && players.size() == 2;
                 case "ONE_CARD" -> onecard.isPresent();
                 case "LIAR_BRIDGE" -> bridge.isPresent();
-                case "DICE" -> dice.isPresent() && players.size() == 2 && command.targetScore() != null;
+                case "DICE" -> dice.isPresent() && players.size() >= 2 && players.size() <= 4
+                        && command.targetScore() != null;
                 case "DICE_LEDGER" -> ledger.isPresent();
                 case "HALLI_GALLI" -> halligalli.isPresent();
                 default -> false;

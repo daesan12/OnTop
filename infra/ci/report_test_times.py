@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 
 def report(directory: Path, wall_seconds: int | None = None, top: int = 10) -> str:
     suites = []
+    details = []
     for path in sorted(directory.glob("TEST-*.xml")):
         root = ET.parse(path).getroot()
         suites.append((
@@ -16,6 +17,10 @@ def report(directory: Path, wall_seconds: int | None = None, top: int = 10) -> s
             int(root.attrib["tests"]),
             int(root.attrib.get("failures", 0)) + int(root.attrib.get("errors", 0)),
         ))
+        for case in root.findall("testcase"):
+            for failure in case.findall("failure") + case.findall("error"):
+                if len(details) < 5:
+                    details.append((root.attrib["name"], case.attrib.get("name", ""), failure))
     if not suites:
         raise ValueError(f"No JUnit XML reports found in {directory}")
 
@@ -29,6 +34,14 @@ def report(directory: Path, wall_seconds: int | None = None, top: int = 10) -> s
     lines.append(f"Slowest {min(top, len(suites))} suites:")
     for seconds, name, count, _ in sorted(suites, reverse=True)[:top]:
         lines.append(f"  {seconds:6.1f}s  {count:3d} tests  {name}")
+    if details:
+        lines.append("Failed test details (up to 5 failures, 12000 characters each):")
+        for suite, case, failure in details:
+            lines.append(f"  Failure: {suite} > {case}")
+            detail = f"{failure.attrib.get('type', '')}: {failure.attrib.get('message', '')}\n{failure.text or ''}"
+            lines.append(detail[:12000])
+            if len(detail) > 12000:
+                lines.append("[truncated; see the JUnit XML report for the complete stack]")
     return "\n".join(lines)
 
 

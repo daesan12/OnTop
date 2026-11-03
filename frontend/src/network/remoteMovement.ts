@@ -65,24 +65,26 @@ export class RemoteMovement {
       from = frame
     }
     const t = from.tick === to.tick ? 1 : Math.max(0, Math.min(1, (tick - from.tick) / (to.tick - from.tick)))
-    const pose = { x: from.pose.x + (to.pose.x - from.pose.x) * t,
-      y: from.pose.y + (to.pose.y - from.pose.y) * t,
-      z: from.pose.z + (to.pose.z - from.pose.z) * t,
-      yaw: from.pose.yaw + angle(from.pose.yaw, to.pose.yaw) * t }
+    let x = from.pose.x + (to.pose.x - from.pose.x) * t
+    let y = from.pose.y + (to.pose.y - from.pose.y) * t
+    let z = from.pose.z + (to.pose.z - from.pose.z) * t
+    const yaw = from.pose.yaw + angle(from.pose.yaw, to.pose.yaw) * t
     if (desiredTick > frames.at(-1)!.tick) this.held++
     const previous = track.displayed
     if (previous) {
       const seconds = Math.max(0, at - previous.at) / 1000
-      const dx = pose.x - previous.pose.x, dz = pose.z - previous.pose.z
+      const dx = x - previous.pose.x, dz = z - previous.pose.z
       const horizontal = Math.hypot(dx, dz), limit = (MOVEMENT.runSpeed + MOVEMENT.walkSpeed / 2) * seconds
       const ratio = horizontal > 0 ? Math.min(1, limit / horizontal) : 1
-      pose.x = previous.pose.x + dx * ratio; pose.z = previous.pose.z + dz * ratio
-      pose.y = previous.pose.y + Math.max(MOVEMENT.maxFallSpeed * seconds,
-        Math.min(-MOVEMENT.maxFallSpeed * seconds, pose.y - previous.pose.y))
+      x = previous.pose.x + dx * ratio; z = previous.pose.z + dz * ratio
+      y = previous.pose.y + Math.max(MOVEMENT.maxFallSpeed * seconds,
+        Math.min(-MOVEMENT.maxFallSpeed * seconds, y - previous.pose.y))
     }
-    track.displayed = { pose: { ...pose }, at: Math.max(at, previous?.at ?? at) }
+    const displayed = track.displayed ??= { pose: { x: 0, y: 0, z: 0, yaw: 0 }, at }
+    displayed.pose.x = x; displayed.pose.y = y; displayed.pose.z = z; displayed.pose.yaw = yaw
+    displayed.at = Math.max(at, previous?.at ?? at)
     track.flags = t < 1 ? from.flags : to.flags
-    Object.assign(target, pose)
+    target.x = x; target.y = y; target.z = z; target.yaw = yaw
     return true
   }
   flags(id: string) { return this.tracks.get(id)?.flags }

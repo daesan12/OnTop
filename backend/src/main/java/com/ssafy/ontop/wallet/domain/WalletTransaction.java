@@ -109,6 +109,20 @@ public class WalletTransaction {
         return transaction;
     }
 
+    /** 무료 협동 미니게임 보상. 공통 일일 한도와 원장 멱등 키를 재사용한다. */
+    public static WalletTransaction skewerReward(long walletId, long reward, String key, Instant now) {
+        if (walletId <= 0 || reward <= 0 || key == null || !key.startsWith("skewer-coop:") || key.length() > 120) {
+            throw new IllegalArgumentException("꼬치왕 보상 기록을 확인하세요.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.balanceDelta = reward;
+        transaction.transactionType = "SKEWER_REWARD";
+        transaction.idempotencyKey = key;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
     /** 참가비를 건 판의 배당. 보상이 아니므로 미니게임 공통 하루 상한 합산 대상이 아니다. */
     public static WalletTransaction rpsRoulettePayout(long walletId, long payout, String key, Instant now) {
         if (walletId <= 0 || payout <= 0 || key == null || !key.startsWith("rps-roulette:payout:")

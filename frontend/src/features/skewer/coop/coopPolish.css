@@ -1,0 +1,66 @@
+/* 꼬치왕 전용: 구운 나무, 따뜻한 종이와 붉은 도장색. */
+.skewer-coop { color: #493323; }
+.skewer-coop .table-paper-backdrop { background: #271b15d9; }
+.skewer-coop .table-paper-popup { --paper-ink: #493323; color: #493323; }
+.skewer-coop .paper-primary { background: linear-gradient(#a95f39,#804025); border-color: #b98451; color: #fff5e4; box-shadow: 0 3px 0 #5c2d1b; }
+.skewer-coop button:focus-visible { outline: 3px solid #bc6b3b; outline-offset: 4px; }
+.skewer-coop .coop-welcome-heading h1, .skewer-coop .coop-result-score > strong { color: #563723; }
+.skewer-coop .coop-facts span { background: #efe0c7; border-color: #d2b78c; color: #775132; }
+.skewer-coop .coop-entry-art figcaption { background: linear-gradient(transparent,#342016f5); }
+.skewer-coop .coop-waiting-room > strong b { color: #9c542f; }
+.skewer-coop .coop-welcome-paper.is-picking { width: min(960px,calc(100vw - 48px)); padding: 40px 48px 32px; background: #f4e7cf; }
+.skewer-coop .is-picking .paper-caption { display: none; }
+.skewer-coop .is-picking .coop-welcome-heading { margin: 6px 0 28px; }
+.skewer-coop .coop-pick-cards { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 30px; max-width: 760px; margin: auto; padding: 8px 4px 20px; }
+.skewer-coop .coop-pick-card { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 0; min-height: 360px; padding: 9px 9px 24px; border: 2px solid #b99662; border-bottom: 6px solid #845b34; border-radius: 16px; background: #fff7e6; color: #50331f; box-shadow: 0 10px 22px #68452a24,inset 0 0 0 4px #efdfbe; transition: transform .18s ease,box-shadow .18s ease; overflow: hidden; }
+.skewer-coop .coop-pick-card:not(:disabled):hover { transform: translateY(-9px) rotate(-1deg); box-shadow: 0 20px 30px #68452a35; filter: none; border-color: #ab6538; }
+.skewer-coop .coop-pick-card:nth-child(2):not(:disabled):hover { transform: translateY(-9px) rotate(1deg); }
+.skewer-coop .coop-pick-card > img { width: 100%; height: 250px; object-fit: cover; border-radius: 8px 8px 0 0; border-bottom: 2px solid #d4b586; pointer-events: none; }
+.skewer-coop .coop-card-title { display: block; font: 700 34px/1.3 'BusanDandiMyeongjo',serif; margin: 24px 0 12px; }
+.skewer-coop .coop-card-select { font-size: 13px; letter-spacing: .06em; color: #976541; }
+.skewer-coop .coop-card-device { font-size: 14px; color: #7c6048; }
+.skewer-coop .coop-card-rule { margin-top: 16px; border-top: 1px solid #ddc5a4; padding-top: 13px; width: 90%; font-size: 12px; color: #9a4b2f; }
+.skewer-coop .coop-pick-card:disabled { opacity: .65; filter: saturate(.45); box-shadow: none; }
+.skewer-coop .coop-card-taken { position: absolute; top: 120px; left: 8px; right: 8px; padding: 15px; background: #453324ec; color: #fff2dc; font-size: 15px; }
+.skewer-coop .coop-back-choice, .skewer-coop .coop-prep-nav button { border: 0; border-bottom: 1px solid #bb9870; background: transparent; color: #865738; padding: 6px 0; font-size: 13px; border-radius: 0; min-height: 32px; }
+.skewer-coop .coop-prep-nav { display: flex; justify-content: space-between; margin: -4px 0 18px; }
+.skewer-coop .coop-guide-layout { grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: center; }
+.skewer-coop .coop-guide-art { border-color: #c9a371; }
+.skewer-coop .coop-guide-art > img { aspect-ratio: 1.6; object-fit: contain; background: #38271e; height: auto; width: 100%; }
+.skewer-coop .coop-guide-art figcaption { background: #ead8bb; color: #755034; }
+.skewer-coop .coop-role-guide h2 { color: #543621; }
+.skewer-coop .coop-ranking-notice, .skewer-coop .coop-ranking-notice.is-vr { background: #ede0ca; color: #805132; }
+.skewer-coop .coop-ready-footer { background: #fff6e4; }
+.skewer-coop .coop-team-status [data-ready=true] .coop-status-dot { background: #b5643a; }
+.skewer-coop .coop-team-status [data-ready=true] small { color: #a65b31; }
+.skewer-coop .coop-equipment-return button { background: #8f4b2d; }
+.skewer-coop .coop-personal-reward .paper-settlement { background: #f1dfbe; border-color: #ceb082; }
+.skewer-coop .coop-daily-progress { accent-color: #b16a37; }
+.skewer-coop .coop-daily-progress::-webkit-progress-value { background: #b16a37; }
+.skewer-coop .coop-daily-progress::-moz-progress-bar { background: #b16a37; }
+.skewer-coop .coop-result-ranking.is-ranked, .skewer-coop .coop-ranking-mine { background: #ead6b6; border-color: #b78a56; }
+.skewer-coop .coop-greeting { border: 1px solid #e6b979; border-top: 6px solid #ac5031; border-radius: 10px; padding: 24px 28px; background: #fff3db; color: #5a3624; box-shadow: 0 12px 50px #21130e55; }
+.skewer-coop .coop-greeting > span { color: #a45c35; font-size: 13px; letter-spacing: .08em; }
+.skewer-coop .coop-greeting h2 { margin: 12px 0 5px; font: 700 28px/1.4 'BusanDandiMyeongjo',serif; }
+.skewer-coop .coop-greeting button { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; background: #a34b2f; border-bottom: 3px solid #71311e; border-radius: 6px; font-size: 18px; }
+.skewer-coop .coop-greeting kbd { background: #fff1d4; color: #823d26; border: 1px solid #dfb17c; border-bottom: 3px solid #c58d58; border-radius: 5px; padding: 5px 10px; font: 700 17px system-ui; }
+.skewer-coop .coop-greeting small { color: #8e7053; font-size: 12px; }
+.skewer-coop .coop-speech { background: #fff4dc; color: #814227; border: 2px solid #b98752; }
+@media (min-width: 801px) and (max-height: 800px) {
+  .skewer-coop .coop-guide-art > img { max-height: 260px; }
+  .skewer-coop .coop-prep-nav { margin-bottom: 10px; }
+}
+@media (max-width: 800px) {
+  .skewer-coop .coop-welcome-paper.is-picking { width: calc(100vw - 24px); padding: 48px 20px 24px; }
+  .skewer-coop .coop-pick-cards { gap: 12px; }
+  .skewer-coop .coop-pick-card { min-height: 300px; padding: 6px 6px 20px; }
+  .skewer-coop .coop-pick-card > img { height: 180px; }
+  .skewer-coop .coop-card-title { font-size: 26px; }
+  .skewer-coop .coop-card-device, .skewer-coop .coop-card-rule { font-size: 11px; }
+  .skewer-coop .coop-guide-layout { grid-template-columns: 1fr; gap: 20px; }
+}
+@media (max-width: 480px) {
+  .skewer-coop .coop-pick-cards { grid-template-columns: 1fr; max-width: 300px; }
+  .skewer-coop .coop-pick-card { min-height: 260px; }
+}
+@media (prefers-reduced-motion: reduce) { .skewer-coop .coop-pick-card { transition: none; } .skewer-coop .coop-pick-card:not(:disabled):hover { transform: none; } }

@@ -23,6 +23,10 @@ export class VrZoneController {
 
   get recovering() { return Boolean(this.key || this.admission.hasPendingRequest?.()) }
 
+  openFree() {
+    if (this.store.getState().phase === 'closed') this.store.setState({ phase: 'catalog', loading: false, error: '', balance: null })
+  }
+
   async open() {
     if (this.store.getState().phase !== 'closed') return
     const visit = ++this.visit

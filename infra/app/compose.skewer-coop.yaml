@@ -1,0 +1,13 @@
+# 승인된 협동 이미지의 DEV 배포에서 기본 compose.dev.yaml 및 generated-map override와 함께 사용한다.
+# 기존 app.env의 DB/JWT/OAuth 값은 유지한다. 공유 서버에 이 파일을 설치하는 것은 별도 배포 작업이다.
+services:
+  app:
+    environment:
+      SPRING_PROFILES_INCLUDE: skewer-coop
+      SKEWER_COOP_JOURNAL_PATH: /var/lib/ontop/skewer-coop
+    volumes:
+      - type: bind
+        source: ${SKEWER_COOP_JOURNAL_HOST_DIR:?Set a persistent per-instance directory owned by uid 10001}
+        target: /var/lib/ontop/skewer-coop
+        bind:
+          create_host_path: false

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
-import { GREETING_MS, INGREDIENTS, ORDER_MS, availableEnds, createDeck, currentCard, formatTime, gameReducer, initialGame, ingredientName, pieceLabel, transitionText } from './game'
+import { GREETING_MS, INGREDIENTS, ORDER_MS, availablePieces, createDeck, currentCard, formatTime, gameReducer, initialGame, ingredientName, pieceLabel, transitionText } from './game'
 import { SkewerScene } from './SkewerScene'
 import type { SceneCommand } from './SkewerScene'
 import { IngredientIcon, OrderDisplay } from './OrderDisplay'
@@ -206,9 +206,9 @@ export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultE
         {!lobby ? <section className="sk-kitchen-controls" aria-label="조리 도구">
           <div className="sk-kitchen-heading"><h2>재료를 집어 꼬치 끝에 꽂아주세요</h2><span>숫자 선택 후 Space</span></div>
           <div className="sk-ingredients" aria-label="남은 재료">{INGREDIENTS.map(item => {
-            const available = availableEnds(state.skewer, item.id)
+            const available = availablePieces(state.skewer, item.id)
             return <button key={item.id} disabled={!assembling || available <= 0} aria-label={`${item.name} 선택`} aria-pressed={state.pending === item.id} onClick={() => command({ type: 'select', ingredient: item.id })}>
-              <IngredientIcon id={item.id} /><span>{item.name}</span><small>{item.fabric ? available === 2 ? '한 장' : available === 1 ? '뒤끝 남음' : '사용 중' : available ? '1개' : '사용 중'}</small><kbd>{item.key}</kbd>
+              <IngredientIcon id={item.id} /><span>{item.name}</span><small>{available ? `${available}개` : '사용 중'}</small><kbd>{item.key}</kbd>
             </button>
           })}</div>
           <div className="sk-thread-row"><p className="sk-status" role="status" aria-live="polite">{notice || (state.pending ? state.message : state.feedback === 'error' ? state.message : '음식을 드래그하거나 재료 버튼을 눌러 선택하세요.')}</p><button className="sk-thread-button" disabled={!assembling || !state.pending || xrActive} onClick={() => command({ type: 'thread' })}>{state.pending ? `${ingredientName(state.pending)} 꽂기` : '음식을 선택하세요'}<kbd>Space</kbd></button></div>
@@ -229,7 +229,7 @@ export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultE
               <div className="sk-current"><strong>내 꼬치</strong><ol aria-label="내 꼬치 조립 순서">{state.skewer.map((id, index) => <li key={index} data-ingredient={id}>{pieceLabel(state.skewer, index)}{index < state.skewer.length - 1 ? <span aria-hidden="true"> · </span> : null}</li>)}{!state.skewer.length ? <li>아직 빈 꼬치예요</li> : null}</ol></div>
               <div className="sk-actions"><button className="sk-primary" disabled={!assembling || !state.skewer.length} onClick={() => command({ type: 'submit' })}>서빙하기<ArrowIcon /></button><div className="sk-secondary-actions"><button disabled={!assembling || !state.skewer.length} onClick={() => command({ type: 'unthread' })}>끝 재료 빼기</button><button disabled={!assembling || !state.pending} onClick={() => command({ type: 'cancel' })}>선택 취소</button></div></div>
             </> : null}
-            <footer className="sk-sidebar-footer"><details className="sk-help"><summary>조작 방법</summary><p><strong>PC</strong><br />1–6 선택 → Space 꽂기 · Enter 서빙<br />Backspace 끝 재료 빼기 · Esc 일시정지<br />3D 음식 드래그 · 오른쪽 드래그 시점 회전</p><p><strong>VR</strong><br />트리거로 음식 집기 → 중심과 꼬치 방향 맞추기<br />그립으로 꼬치 잡기 → 접시 뒤쪽에 수평으로 놓아 서빙</p><p>치즈·베이컨은 앞끝 → 감쌀 음식 → 뒤끝 순서로 꽂아요. 꼬치 전체를 반대로 만들어도 정답이에요.</p></details><button className="sk-text-button" onClick={() => command({ type: 'pause' })}>일시정지</button></footer>
+            <footer className="sk-sidebar-footer"><details className="sk-help"><summary>조작 방법</summary><p><strong>PC</strong><br />1–6 선택 → Space 꽂기 · Enter 서빙<br />Backspace 끝 재료 빼기 · Esc 일시정지<br />3D 음식 드래그 · 오른쪽 드래그 시점 회전</p><p><strong>VR</strong><br />트리거로 음식 집기 → 중심과 꼬치 방향 맞추기<br />그립으로 꼬치 잡기 → 접시 뒤쪽에 수평으로 놓아 서빙</p><p>치즈·베이컨은 큐브 조각이며 각각 2~3개를 사용해요. 1개만 사용하면 제출할 수 없어요. 꼬치 전체를 반대로 만들어도 정답이에요.</p></details><button className="sk-text-button" onClick={() => command({ type: 'pause' })}>일시정지</button></footer>
           </>}
       </aside> : null}
     </div>

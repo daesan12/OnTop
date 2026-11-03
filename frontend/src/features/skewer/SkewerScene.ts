@@ -1,12 +1,12 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { INGREDIENTS, SERVING_Z, SKEWER_TIP, availableEnds, canServe, canThread, currentCard, fabricSpans, formatTime, isFabric, transitionText } from './game'
+import { INGREDIENTS, SERVING_Z, SKEWER_TIP, availablePieces, canServe, canThread, currentCard, formatTime, transitionText } from './game'
 import type { GameState, IngredientId } from './game'
 import { paintWorldOrderBoard } from './worldOrderBoard'
 import { nextRoundLabel } from './presentation'
 import { SkewerSurfaces } from './surfaces'
-import { FoodModels, createFoodStrip, foodPositions } from './foodModels'
+import { FoodModels, foodPositions, assembledFoodScale } from './foodModels'
 
 export type SceneCommand =
   | { type: 'select'; ingredient: IngredientId }
@@ -296,14 +296,8 @@ export class SkewerScene {
     geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
   }
 
-  private ingredient(id: IngredientId, endpointOnly = false): THREE.Group {
-    if (!isFabric(id) || !endpointOnly) return this.foods.create(id)
-    const group = new THREE.Group()
-    const end = new THREE.Mesh(this.geometry(`food-end:${id}`, () => createFoodStrip(0.055, 0.105, id)), this.foods.wrapMaterial(id))
-    end.rotation.z = Math.PI / 2
-    end.position.y = 0.022
-    group.add(end)
-    return group
+  private ingredient(id: IngredientId): THREE.Group {
+    return this.foods.create(id)
   }
 
   private buildCounter(): void {
@@ -380,7 +374,7 @@ export class SkewerScene {
       shadow.position.set(x, 0.838, -1.4)
       this.world.add(bowl, shadow)
       const food = this.ingredient(item.id)
-      food.position.set(x, isFabric(item.id) ? 0.94 : 0.965, -1.4)
+      food.position.set(x, 0.965, -1.4)
       food.rotation.y = -0.2
       this.inventory.set(item.id, food)
       this.world.add(food)
@@ -459,9 +453,8 @@ export class SkewerScene {
       this.skewer.clear()
       const positions = foodPositions(displaySkewer)
       displaySkewer.forEach((id, index) => {
-        // A finished slice is one continuous piece, without overlapping end patches.
-        if (isFabric(id) && availableEnds(displaySkewer, id) === 0) return
-        const food = this.ingredient(id, isFabric(id))
+        const food = this.ingredient(id)
+        food.scale.multiplyScalar(assembledFoodScale(displaySkewer))
         food.position.x = positions[index]
         this.skewer.add(food)
         if (!this.reducedMotion && index === state.skewer.length - 1 && state.skewer.length === previous.skewer.length + 1) {
@@ -469,17 +462,9 @@ export class SkewerScene {
           food.position.x = SKEWER_TIP.x
         }
       })
-      fabricSpans(displaySkewer).forEach((span, layer) => {
-        if (span.end === null) return
-        const start = positions[span.start]
-        const end = positions[span.end]
-        const ribbon = new THREE.Mesh(this.geometry(`food-wrap:${span.id}:${(end - start).toFixed(4)}:${layer}`, () => createFoodStrip(end - start, 0.125, span.id, true, layer)), this.foods.wrapMaterial(span.id))
-        ribbon.position.x = start
-        this.skewer.add(ribbon)
-      })
     }
     this.inventory.forEach((group, id) => {
-      const available = availableEnds(state.skewer, id) > 0
+      const available = availablePieces(state.skewer, id) > 0
       group.visible = available
       this.inventoryTargets.get(id)!.visible = available
     })
@@ -549,7 +534,7 @@ export class SkewerScene {
         const pick = this.controllerHit(i)?.object.userData.pick as Pick | undefined
         if (!pick) return
         if ('ingredient' in pick && this.state.phase === 'playing' && currentCard(this.state).kind === 'order') {
-          if (availableEnds(this.state.skewer, pick.ingredient) <= 0 || [...this.held.values()].some(held => held.ingredient === pick.ingredient)) return
+          if (availablePieces(this.state.skewer, pick.ingredient) <= 0 || [...this.held.values()].some(held => held.ingredient === pick.ingredient)) return
           const visual = this.ingredient(pick.ingredient)
           visual.position.set(0, 0, -0.18)
           // Food is pierced along its local X axis, aligned with the controller ray.
@@ -653,7 +638,7 @@ export class SkewerScene {
   private onPointerDown = (event: PointerEvent): void => {
     if (this.renderer.xr.isPresenting || event.button !== 0 || this.state.phase !== 'playing' || currentCard(this.state).kind !== 'order') return
     const pick = this.pointerHit(event)?.object.userData.pick as Pick | undefined
-    if (pick && 'ingredient' in pick && availableEnds(this.state.skewer, pick.ingredient) > 0) {
+    if (pick && 'ingredient' in pick && availablePieces(this.state.skewer, pick.ingredient) > 0) {
       this.mouseHeld = pick.ingredient
       this.clearDrag()
       this.dragVisual = this.ingredient(pick.ingredient)
@@ -849,13 +834,13 @@ export class SkewerScene {
       })
     }
     this.inventory.forEach((group, id) => {
-      group.visible = availableEnds(this.state.skewer, id) > 0 && ![...this.held.values()].some(held => held.ingredient === id) && this.mouseHeld !== id
+      group.visible = availablePieces(this.state.skewer, id) > 0 && ![...this.held.values()].some(held => held.ingredient === id) && this.mouseHeld !== id
       const highlighted = group.visible && (this.state.pending === id || hoverIds.has(id)) && this.state.phase === 'playing'
       const ease = this.reducedMotion ? 1 : 1 - Math.exp(-14 * dt)
       const ring = this.inventoryRings.get(id)!
       ring.material.opacity += ((highlighted ? 0.85 : 0) - ring.material.opacity) * ease
       ring.visible = ring.material.opacity > 0.01
-      const base = isFabric(id) ? 0.94 : 0.965
+      const base = 0.965
       group.position.y += (base + (highlighted ? 0.018 : 0) - group.position.y) * ease
     })
     this.renderer.render(this.scene, this.camera)

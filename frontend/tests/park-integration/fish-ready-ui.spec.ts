@@ -70,9 +70,9 @@ test('minigame result is compact, uses plain score copy and opens a score/combo 
   await result.locator('summary').click();await expect(result).not.toContainText('서버 정산 완료');
   await expect(result).toContainText('최고 콤보 12');
   await expect(result).toContainText('5점당 1냥');
-  await page.evaluate(async()=>{const {useBungeoppang}=await import('/src/features/bungeoppang/store.ts' as string);useBungeoppang.setState(s=>({rules:{...s.rules!,pointsPerCoin:15}}))});
+  await page.evaluate(async()=>{const {useBungeoppang}=await import('/src/features/bungeoppang/store.ts' as string);useBungeoppang.setState(()=>({rules:{...useBungeoppang.getState().rules!,pointsPerCoin:15}}))});
   await expect(result).toContainText('15점당 1냥');
-  await page.evaluate(async()=>{const {useBungeoppang}=await import('/src/features/bungeoppang/store.ts' as string);useBungeoppang.setState(s=>({rules:{...s.rules!,pointsPerCoin:5}}))});
+  await page.evaluate(async()=>{const {useBungeoppang}=await import('/src/features/bungeoppang/store.ts' as string);useBungeoppang.setState(()=>({rules:{...useBungeoppang.getState().rules!,pointsPerCoin:5}}))});
   await expect(result).toContainText('받은 엽전 246냥');
   for(const viewport of [{width:1920,height:1080},{width:1366,height:768},{width:390,height:844}]){
     await page.setViewportSize(viewport);const box=(await result.boundingBox())!;
