@@ -5,7 +5,10 @@
 --
 -- legacy: 현재 운영 맵. 중심은 frontend/src/config의 PARK_ZONES·PARK_PAVILIONS·PICNIC_TABLES(2026-10-23 기준,
 --         2026-10-30 재확인).
--- generated: 새 생성 맵(S15P31B105-273). 중심은 frontend/src/map/park/definition.ts(2026-10-30 기준).
+-- generated: 새 생성 맵(S15P31B105-273). 중심은 frontend/src/map/park/definition.ts(2026-11-03 기준).
+--         11/03 후보에서 붕어빵 카트·소리함·음료 매점이 옮겨지고 사진 매대 자리가 랭킹 보드가 됐다.
+--         가위바위보 룰렛 게임기는 붕어빵 카트 바로 옆이라 fish-bread-cart 구역에 함께 센다.
+--         이전 후보(cac3cb04…·04350122…)는 DEV·운영에 배포되지 않았으므로 같은 최신 좌표로 본다.
 --         돌탑 점프맵은 공원 위 공중을 지나가므로 높이(y) 5m 이상은 jump-course로 센다(전망대 제외).
 -- 반경·크기는 분석용으로 정한 값이다. 구역 목록만 고치면 과거 좌표도 다시 집계된다.
 -- 겹치는 곳은 priority가 작은 구역을 먼저 쓴다. ELLIPSE는 반지름 a(x)·b(z), RECT는 반폭 a(x)·반깊이 b(z)다.
@@ -17,7 +20,9 @@ WITH layouts (map_version, layout) AS (
     VALUES
         ROW('544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0', 'legacy'),
         ROW('ae833248d2dd356c6603af72b2b865f9051a866e9cfa7d2b9c9abe890579944d', 'legacy'),
-        ROW('cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81', 'generated')
+        ROW('cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81', 'generated'),
+        ROW('04350122fdeee2b89212345ee4f776990d78832bb25435418b5ea6f2b2fbc769', 'generated'),
+        ROW('c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07', 'generated')
 ),
 zones (layout, zone_id, shape, cx, cz, a, b, min_y, priority) AS (
     VALUES
@@ -44,8 +49,8 @@ zones (layout, zone_id, shape, cx, cz, a, b, min_y, priority) AS (
         ROW('legacy', 'fitness', 'RECT', -56.0, 31.0, 14.0, 15.0, NULL, 7),
         ROW('legacy', 'lake', 'ELLIPSE', 56.0, -12.0, 20.0, 45.0, NULL, 8),
 
-        ROW('generated', 'mailbox', 'ELLIPSE', -18.0, 18.0, 3.0, 3.0, NULL, 1),
-        ROW('generated', 'fish-bread-cart', 'ELLIPSE', -51.0, 23.0, 5.0, 5.0, NULL, 2),
+        ROW('generated', 'mailbox', 'ELLIPSE', 24.2, 30.4, 3.0, 3.0, NULL, 1),
+        ROW('generated', 'fish-bread-cart', 'ELLIPSE', -30.1, 35.8, 6.5, 6.5, NULL, 2),
         ROW('generated', 'games-west', 'ELLIPSE', -12.0, 34.0, 6.0, 6.0, NULL, 3),
         ROW('generated', 'games-east', 'ELLIPSE', 12.0, 34.0, 6.0, 6.0, NULL, 3),
         ROW('generated', 'games-south-west', 'ELLIPSE', -12.0, 58.0, 6.0, 6.0, NULL, 3),
@@ -68,9 +73,8 @@ zones (layout, zone_id, shape, cx, cz, a, b, min_y, priority) AS (
         ROW('generated', 'picnic-west', 'ELLIPSE', -73.0, 48.0, 4.0, 4.0, NULL, 7),
         ROW('generated', 'picnic-north', 'ELLIPSE', 48.0, -70.5, 4.0, 4.0, NULL, 7),
         ROW('generated', 'picnic-southeast', 'ELLIPSE', 71.0, 75.0, 4.0, 4.0, NULL, 7),
-        ROW('generated', 'shop-kiosk', 'ELLIPSE', -29.5, 36.0, 6.0, 6.0, NULL, 7),
-        ROW('generated', 'drink-kiosk', 'ELLIPSE', -30.0, 54.0, 5.0, 5.0, NULL, 7),
-        ROW('generated', 'photo-kiosk', 'ELLIPSE', 30.0, 35.6, 5.0, 5.0, NULL, 7),
+        ROW('generated', 'drink-kiosk', 'ELLIPSE', 30.06, 54.13, 5.0, 5.0, NULL, 7),
+        ROW('generated', 'ranking-board', 'ELLIPSE', 30.0, 35.6, 5.0, 5.0, NULL, 7),
         ROW('generated', 'fountain-plaza', 'ELLIPSE', -63.0, -56.0, 14.0, 14.0, NULL, 8),
         ROW('generated', 'vr-zone', 'RECT', -63.0, -12.0, 20.0, 17.0, NULL, 8),
         ROW('generated', 'event-plaza', 'RECT', -64.0, 21.0, 16.0, 13.0, NULL, 8),
