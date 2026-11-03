@@ -48,3 +48,18 @@
   .farkle-scorebook header button span { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .farkle-scorebook[open] .scorebook-page { animation: none; } }
+
+/* The live turn and close control stay visible while the rules scroll. */
+.farkle-scorebook { overflow: hidden; }
+.farkle-scorebook .scorebook-page { display: flex; flex-direction: column; max-height: calc(100dvh - 108px); box-sizing: border-box; min-height: 0; }
+.farkle-scorebook header, .farkle-scorebook .scorebook-turn { flex: 0 0 auto; }
+.farkle-scorebook .scorebook-content { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.farkle-scorebook .scorebook-content::-webkit-scrollbar { display: none; }
+.farkle-scorebook .scorebook-turn { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 9px 0; border-bottom: 1px solid #b18a524d; }
+.farkle-scorebook .scorebook-turn > strong { align-self: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.farkle-scorebook .scorebook-turn [role=timer] { font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.farkle-scorebook .scorebook-turn small { margin-left: 4px; font-size: 11px; font-weight: 400; }
+.farkle-scorebook .scorebook-turn p { grid-column: 1 / -1; margin: 0; font-size: 11px; line-height: 1.4; }
+.farkle-scorebook .scorebook-turn[data-urgent=true] { color: #9a3526; }
+@media (max-width: 800px) { .farkle-scorebook .scorebook-page { max-height: calc(100dvh - 84px); } }
+@media (max-width: 450px) { .farkle-scorebook .scorebook-page { max-height: calc(100dvh - 66px); } }
