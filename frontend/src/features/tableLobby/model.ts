@@ -10,9 +10,9 @@ const GAME_OPTIONS = [
   { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: true },
   { code: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', capacity: 4, playable: false },
   { code: 'DICE_LEDGER', name: '주사위 장부', capacity: 4, playable: true },
-  { code: 'HALLI_GALLI', name: '할리갈리', capacity: 4, playable: true },
+  { code: 'HALLI_GALLI', name: '과일 땡', capacity: 4, playable: true },
 ] as const
-export const TABLE_GAMES = GAME_OPTIONS.filter(game => game.code !== 'ALKKAGI' || ALKKAGI_ENABLED)
+export const TABLE_GAMES = GAME_OPTIONS
 export type TableGameCode = typeof GAME_OPTIONS[number]['code']
 /** Display only server-approved room terms, including rooms retained after the host leaves. */
 export function tableTermsLabel(table: Pick<TableSummary, 'gameCode' | 'betAmountPerPlayer'> | undefined) {
@@ -21,7 +21,7 @@ export function tableTermsLabel(table: Pick<TableSummary, 'gameCode' | 'betAmoun
   const amount = table.betAmountPerPlayer
   return `${name} · ${amount != null && Number.isSafeInteger(amount) && amount >= 0 ? `1인 판돈 ${amount.toLocaleString('ko-KR')}냥` : '판돈 미정'}`
 }
-export const GAME_CONSTRUCTION_NOTICE = '공사 중인 게임입니다. 오목 또는 원카드를 선택해주세요.'
+export const GAME_CONSTRUCTION_NOTICE = '공사 중인 게임입니다. 이용 가능한 게임을 선택해주세요.'
 export const isTableGamePlayable = (code: string | null | undefined) => TABLE_GAMES.some(game => game.code === code && game.playable)
 export const TARGET_SCORES = [2000, 4000, 6000] as const
 export function gameSelection(code: TableGameCode, betAmountPerPlayer: number, targetScore?: number) {

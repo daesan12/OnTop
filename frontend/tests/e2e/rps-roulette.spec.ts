@@ -56,6 +56,7 @@ function rpsServer(machineHands: Hand[], cell: number) {
 }
 
 test('붕어빵 가게 옆 게임기에서 비김·승리·도전 1차·룰렛 지급까지 진행한다', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
   test.setTimeout(180000)
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))

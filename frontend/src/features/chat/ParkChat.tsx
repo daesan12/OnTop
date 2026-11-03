@@ -12,6 +12,7 @@ import { useGame } from '../../game/store'
 import { useOmokEvents } from '../../game/omok/spectatorEvents'
 import { gameChatScope } from './gameChat'
 import { noteTourAction } from '../welcomeTour/state'
+import { displayNickname } from '../gameMaster/displayName'
 
 const textControl = (target: EventTarget | null) => target instanceof HTMLElement
   && !!target.closest('input,textarea,select,button,a,[contenteditable="true"],[role="button"]')
@@ -108,7 +109,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
         {channelName && (expanded || !messages.length) && <p className="park-chat__system">{gameId ? '참가자와 승인된 관전자에게만 보여요' : `${channelName} 채널에 입장했어요`}</p>}
         {messages.map(message => <p className="park-chat__message" key={message.id}>
           <span className={'park-chat__author' + (message.userId === session.own ? ' park-chat__author--own' : '')}>
-            {session.profiles[message.userId]?.nickname ?? (message.userId === session.own ? '나' : '산책자 ' + message.userId.slice(-6))}
+            {displayNickname(session.profiles[message.userId], message.userId === session.own ? '나' : '산책자 ' + message.userId.slice(-6))}
           </span><span>{message.text}</span>
         </p>)}
       </div>

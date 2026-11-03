@@ -85,6 +85,22 @@ class ParkRankingSnapshotServiceTests {
     }
 
     @Test
+    void 관리자_회원은_공개_랭킹에_GM으로_표시한다() {
+        ParkRankingSnapshotService service = new ParkRankingSnapshotService(
+                balances, bungeoppang, jumpmap, meters, STARTED_AT.toString(), clock, id -> id == 11);
+        when(balances.findTopTen()).thenReturn(List.of(
+                new BalanceStanding(1, 11, "관리자", 100),
+                new BalanceStanding(2, 12, "일반회원", 90)));
+        when(bungeoppang.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(jumpmap.findTopTen(STARTED_AT)).thenReturn(List.of());
+
+        service.refresh();
+
+        assertThat(service.current().balance()).extracting(ParkRankingResponse.BalanceItem::gameMaster)
+                .containsExactly(true, false);
+    }
+
+    @Test
     void 일부_집계가_실패하면_마지막_정상_스냅샷을_유지한다() {
         ParkRankingSnapshotService service = service(STARTED_AT.toString());
         when(balances.findTopTen()).thenReturn(List.of(new BalanceStanding(1, 11, "보유자", 50)));

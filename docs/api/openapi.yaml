@@ -6450,6 +6450,8 @@ components:
         coinBalance:
           type: integer
           format: int64
+        gameMaster:
+          type: boolean
     BungeoppangItem:
       type: object
       properties:
@@ -6469,6 +6471,8 @@ components:
         completedAt:
           type: string
           format: date-time
+        gameMaster:
+          type: boolean
     JumpmapItem:
       type: object
       properties:
@@ -6485,6 +6489,8 @@ components:
         completedAt:
           type: string
           format: date-time
+        gameMaster:
+          type: boolean
     ParkRankingResponse:
       type: object
       properties:

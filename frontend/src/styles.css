@@ -31,6 +31,18 @@
 
 * { box-sizing: border-box; }
 
+/* All UI keeps native wheel/touch/keyboard scrolling, including lazy-loaded dialogs.
+   Override local thin-scrollbar rules so the policy does not depend on import order. */
+* { scrollbar-width: none !important; }
+*::-webkit-scrollbar { display: none; }
+
+/* Hiding the thumb must never disable scrolling or shrink dialog contents. */
+:where(.park-menu-dialog, .table-paper-popup, .park-map-panel, dialog.rps-roulette, dialog.raffle) {
+  min-inline-size: 0;
+  overscroll-behavior: contain;
+  scroll-padding-block: 16px;
+}
+
 html, body, #root { width: 100%; min-height: 100%; margin: 0; }
 
 button { font: inherit; }

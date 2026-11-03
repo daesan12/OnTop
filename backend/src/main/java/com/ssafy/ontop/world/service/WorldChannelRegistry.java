@@ -786,7 +786,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     public record Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
-            String nickname, String characterGender,
+            String nickname, String characterGender, boolean gameMaster,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
             TableSeat tableSeat,
             /** Public server-approved GAME/BUNGEOPPANG activity; no private game data. */
@@ -796,18 +796,22 @@ public class WorldChannelRegistry implements ChannelPresence {
             WorldPhysics.Motion motion) {
         public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
                 String nickname, String characterGender, TableSeat tableSeat, String activity) {
-            this(userId, position, equipment, nickname, characterGender, tableSeat, activity, null);
+            this(userId, position, equipment, nickname, characterGender, false, tableSeat, activity, null);
+        }
+        public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
+                String nickname, String characterGender, boolean gameMaster, TableSeat tableSeat, String activity) {
+            this(userId, position, equipment, nickname, characterGender, gameMaster, tableSeat, activity, null);
         }
         public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
                 String nickname, String characterGender, TableSeat tableSeat) {
-            this(userId, position, equipment, nickname, characterGender, tableSeat, null);
+            this(userId, position, equipment, nickname, characterGender, false, tableSeat, null);
         }
         public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
                 String nickname, String characterGender) {
-            this(userId, position, equipment, nickname, characterGender, null);
+            this(userId, position, equipment, nickname, characterGender, false, null, null, null);
         }
         public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment) {
-            this(userId, position, equipment, null, null, null);
+            this(userId, position, equipment, null, null, false, null, null, null);
         }
     }
 
@@ -915,6 +919,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                     .map(user -> new Avatar(user, positions.containsKey(user) ? positions.get(user).position() : null,
                             equipment.get(user), profiles.containsKey(user) ? profiles.get(user).nickname() : null,
                             profiles.containsKey(user) ? profiles.get(user).characterGender() : null,
+                            profiles.containsKey(user) && profiles.get(user).gameMaster(),
                             tableSeats.get(user), activity.apply(user), motions.get(user)))
                     .toList(), scene.get().version(), tables);
         }

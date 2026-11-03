@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { Fragment, lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '../../network/worldClient'
 import { useGame, tableBusy } from '../../game/store'
@@ -13,6 +13,8 @@ import { useTabletStartStatus } from './TabletLobbyClient'
 import { inputState } from '../../world/inputOwnership'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import alkkagiThumbnail from '../../game/alkkagi/assets/thumbnail.webp'
+import fruitDdaengThumbnail from '../../game/halligalli/assets/thumbnail.webp'
+import ledgerThumbnail from '../../game/ledger/assets/thumbnail.webp'
 import './tablet.css'
 const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ default: module.TabletPortrait })))
 
@@ -24,8 +26,12 @@ const descriptions: Record<TableGameCode, string> = {
   HALLI_GALLI: '같은 과일이 다섯 개면 누구보다 빨리 종!',
 }
 const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI']
+const gameChoices = choiceOrder.map(code => TABLE_GAMES.find(game => game.code === code)).filter(game => game != null)
+const availableGameChoices = gameChoices.filter(game => game.playable)
+const constructionGameChoices = gameChoices.filter(game => !game.playable)
 export function GameArt({ code }: { code: TableGameCode }) {
-  return <div className="tablet-game-art" data-game={code} style={code === 'ALKKAGI' ? { backgroundImage: `url(${alkkagiThumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
+  const thumbnail = code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
+  return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 export function TabletLobby({ tableId }: { tableId: string }) {
   const own = useSession(s => s.sessionId)
@@ -138,11 +144,16 @@ function TabletSession({ tableId }: { tableId: string }) {
       </header>
       {step === 'select' ? <div className="tablet-selection">
         <div className="tablet-game-list" role="group" aria-label="게임 선택">
-          {choiceOrder.filter(code => TABLE_GAMES.some(g => g.code === code)).map(gameCode => { const item = TABLE_GAMES.find(g => g.code === gameCode)!; return <button key={gameCode}
-            className="tablet-game-card" data-selected={code === gameCode} data-construction={!item.playable} aria-pressed={code === gameCode} disabled={!item.playable || !host || busy}
-            onClick={() => { setCode(gameCode); setCount(2) }}>
-            <GameArt code={gameCode} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : '2~4인'}</small></span>
-          </button> })}
+          {[...availableGameChoices, ...constructionGameChoices].map((item, index) => <Fragment key={item.code}>
+            {index === availableGameChoices.length && constructionGameChoices.length > 0
+              ? <h3 className="tablet-game-section-title">공사 중</h3>
+              : null}
+            <button className="tablet-game-card" data-selected={code === item.code} data-construction={!item.playable}
+              aria-pressed={code === item.code} disabled={!item.playable || !host || busy}
+              onClick={() => { setCode(item.code); setCount(2) }}>
+              <GameArt code={item.code} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : '2~4인'}</small></span>
+            </button>
+          </Fragment>)}
           <div className="tablet-coming">장기 · 준비 중</div>
         </div>
         <div className="tablet-selection-detail">

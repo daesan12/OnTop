@@ -86,6 +86,7 @@ export interface ChatMessage {
 export interface DisplayProfile {
   nickname: string
   character: CharacterId
+  gameMaster?: boolean
 }
 export interface Session {
   status: 'idle' | 'joining' | 'connected' | 'reconnecting' | 'error'
@@ -534,15 +535,18 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
         }
       }
       for (const avatar of next.avatars) {
-        if (avatar.nickname == null && avatar.characterGender == null) continue
+        if (avatar.nickname == null && avatar.characterGender == null && avatar.gameMaster === undefined) continue
         const previous = profiles[avatar.userId]
+        const gameMaster = avatar.gameMaster === undefined ? previous?.gameMaster : avatar.gameMaster
         const profile: DisplayProfile = {
           nickname: avatar.nickname ?? previous?.nickname
             ?? (avatar.userId === state.sessionId ? '나' : '산책자 ' + avatar.userId.slice(-6)),
           character: avatar.characterGender === 'FEMALE' ? 'girl' : avatar.characterGender === 'MALE' ? 'man'
             : previous?.character ?? 'man',
+          ...(gameMaster ? { gameMaster: true } : {}),
         }
-        if (previous?.nickname !== profile.nickname || previous?.character !== profile.character) {
+        if (previous?.nickname !== profile.nickname || previous?.character !== profile.character
+          || !!previous?.gameMaster !== !!profile.gameMaster) {
           if (profiles === state.profiles) profiles = { ...profiles }
           profiles[avatar.userId] = profile
         }
