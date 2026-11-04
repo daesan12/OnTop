@@ -85,7 +85,7 @@ describe('cube skewer assembly', () => {
     expect(validRecipe(['cheese', 'cheese', 'cheese', 'cheese'])).toBe(false)
     expect(validRecipe(['bacon', 'bacon', 'bacon'])).toBe(true)
     expect(validRecipe(['bacon', 'bacon', 'bacon', 'bacon'])).toBe(false)
-    expect(validRecipe(['mushroom'] as IngredientId[])).toBe(false)
+    expect(validRecipe(['mushroom'] as unknown as IngredientId[])).toBe(false)
     expect(validRecipe([])).toBe(false)
   })
   it('returns only the end piece and restores its inventory availability', () => {
