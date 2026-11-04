@@ -52,7 +52,7 @@ export function LedgerPanel() {
     : rolling ? '주사위를 굴리는 중'
     : `${mine ? '내 차례' : `${names[l.turnUserId!]} 차례`} · ${l.rollCount === 0 ? '굴려 주세요' : l.rollCount < l.maxRolls
       ? `${l.maxRolls - l.rollCount}번 더 굴릴 수 있어요` : '칸을 골라 기록하세요'}`
-  // 장부 패널이 작아 놓치기 쉬우므로 내 차례 동안 화면 위쪽 가운데에 상시 표시한다.
+  // 공통 차례 안내는 1.5초 뒤 사라지므로, 장부 패널을 놓쳐도 알 수 있게 내 차례 동안 화면 위쪽에 상시 표시한다.
   const myTurn = player && playing && mine && remaining !== 0
   const urgent = remaining !== null && remaining <= 5
   const cue = rolling ? '주사위를 굴리는 중' : l.rollCount === 0 ? '주사위를 굴려 주세요'
@@ -65,7 +65,7 @@ export function LedgerPanel() {
   <section className="ledger-panel" aria-label="주사위 장부" data-role={g.role} data-my-turn={myTurn || undefined}>
     <header className="ledger-head">
       <div><h2>주사위 장부</h2><small>{playing ? `${l.round} / 12 라운드` : LEDGER_END_REASON[l.endReason ?? ''] ?? l.endReason}</small></div>
-      {playing && <GameHudClock game="주사위 장부" label={mine?'내 차례':`${names[l.turnUserId!]} 차례`} remainingMs={l.turnDeadline?Date.parse(l.turnDeadline)-now:null} myTurn={player&&mine} hint={`${l.round} / 12 라운드`}/>}
+      {playing && <GameHudClock game="주사위 장부" label={mine?'내 차례':`${names[l.turnUserId!]} 차례`} remainingMs={l.turnDeadline?Date.parse(l.turnDeadline)-now:null} limitMs={l.turnTimeLimitMs} myTurn={player&&mine} hint={`${l.round} / 12 라운드`}/>}
     </header>
     <p className="ledger-status" role="status">{status}</p>
     {scored && playing && <p className="ledger-last" aria-live="polite">

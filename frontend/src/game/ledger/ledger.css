@@ -43,10 +43,10 @@
 .park-page .ledger-actions .ledger-roll[data-attention] { background: #8a6326; border-color: #ffd88a; color: #fff6dc;
   animation: ledger-roll-pulse 1.2s ease-in-out infinite; }
 @keyframes ledger-roll-pulse { 0%, 100% { box-shadow: 0 0 0 0 #ffd88a00; } 50% { box-shadow: 0 0 0 4px #ffd88a66, 0 0 16px #ffd88a99; } }
-/* 장부 패널 왼쪽에 남는 공간의 가운데, 왼쪽 위 채널 메뉴(86px × 0.86 × UI 배율)보다 아래에 둔다. 클릭은 아래 장면으로 통과시킨다. */
+/* 왼쪽 위 시계 카드와 오른쪽 위 게임 메뉴(각 --game-hud-rail) 사이 위쪽 가운데에 둔다. 클릭은 아래 장면으로 통과시킨다. */
 .park-page .ledger-turn-cue {
-  --ledger-panel-left: calc(100vw - var(--park-edge) - 84px * var(--park-ui-scale, 1) - min(380px, 32vw));
-  position: absolute; left: calc(var(--ledger-panel-left) / 2); top: calc(var(--park-edge) + 88px * var(--park-ui-scale, 1)); transform: translateX(-50%); z-index: 6; pointer-events: none;
+  position: fixed; left: 50%; top: var(--game-hud-edge, 20px); transform: translateX(-50%); z-index: 27; pointer-events: none;
+  max-width: calc(100vw - 2 * (var(--game-hud-rail, 224px) + var(--game-hud-edge, 20px) + 12px)); box-sizing: border-box; overflow: hidden;
   display: flex; align-items: center; gap: 12px; padding: 12px 28px; border: 2px solid var(--ledger-gold); border-radius: 999px;
   background: #2b1f12f2; color: #fff3d6; font-size: 16px; white-space: nowrap;
   box-shadow: 0 0 0 4px #e1bd7930, 0 8px 22px #0008; animation: ledger-turn-arrival .55s ease-out 2;
@@ -57,8 +57,7 @@
 .ledger-turn-cue-time { min-width: 3ch; text-align: right; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ledger-gold); }
 .park-page .ledger-turn-cue[data-urgent="true"] { border-color: #ff8a6a; box-shadow: 0 0 0 3px #ff8a6a33, 0 6px 18px #0007; }
 .ledger-turn-cue[data-urgent="true"] .ledger-turn-cue-time { color: #ff8a6a; }
-@keyframes ledger-turn-arrival { 0% { transform: translateX(-50%) scale(.9); opacity: .4; } 60% { transform: translateX(-50%) scale(1.06); opacity: 1; }
-  100% { transform: translateX(-50%) scale(1); } }
+@keyframes ledger-turn-arrival { 0% { scale: .9; opacity: .4; } 60% { scale: 1.06; opacity: 1; } 100% { scale: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .park-page .ledger-turn-cue, .park-page .ledger-actions .ledger-roll[data-attention] { animation: none; }
 }
@@ -108,7 +107,6 @@
 }
 @media (max-width: 900px) {
   .park-page .ledger-panel { width: min(340px, 46vw); font-size: 12px; }
-  .park-page .ledger-turn-cue { --ledger-panel-left: calc(100vw - var(--park-edge) - 84px * var(--park-ui-scale, 1) - min(340px, 46vw)); }
   .ledger-turn-cue small { display: none; }
 }
 /* 더 낮은 화면(노트북 2배율 등)에서도 장부 전체가 들어오도록 한 단계 더 줄인다. */
@@ -123,6 +121,8 @@
   .park-page .ledger-panel { left: var(--park-edge); width: auto; top: auto; bottom: calc(var(--park-edge) + 80px); max-height: 52dvh; }
   .park-page .ledger-menu { top: calc(var(--park-edge) + 64px); right: var(--park-edge); transform: none; width: auto; flex-flow: row wrap; }
   .park-page .ledger-menu button { width: auto; }
-  .park-page .ledger-turn-cue { left: 50%; top: calc(var(--park-edge) + 12px); padding: 8px 18px; }
-  .ledger-turn-cue strong { font-size: 18px; }
+}
+/* 좁은 화면은 시계 카드와 게임 메뉴가 위쪽을 모두 차지한다. 내 차례는 시계 카드·패널 테두리·굴리기 강조로 알린다. */
+@media (max-width: 640px) {
+  .park-page .ledger-turn-cue { display: none; }
 }
