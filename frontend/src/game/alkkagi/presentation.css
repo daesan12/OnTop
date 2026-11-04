@@ -1,11 +1,14 @@
-.alkkagi-opponent-hand{position:fixed;top:116px;left:50%;transform:translateX(-50%);display:grid;gap:5px;text-align:center;color:#f8edcb;text-shadow:0 1px 3px #000;pointer-events:none}
-.alkkagi-opponent-hand>div{display:flex;justify-content:center;padding-left:12px}
+.alkkagi-opponent-hand{position:fixed;top:164px;left:max(20px,env(safe-area-inset-left));width:142px;box-sizing:border-box;padding:12px;border:1px solid #c8af7755;border-radius:11px;background:#24281fe8;display:grid;gap:12px;color:#f8edcb;pointer-events:none;text-shadow:none}
+.alkkagi-opponent-hand>header{display:grid;gap:4px;min-width:0}.alkkagi-opponent-hand header>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.alkkagi-opponent-hand small{font-size:11px;color:#cbbb99}.alkkagi-opponent-hand b{color:#f0d38e;font-size:14px;font-variant-numeric:tabular-nums}
+.alkkagi-opponent-hand>div{display:flex;justify-content:flex-start;flex-wrap:wrap;gap:5px 0;padding-left:12px;max-height:124px;overflow:hidden}
 .alkkagi-card-back{display:grid;place-items:center;width:36px;height:52px;margin-left:-12px;border:2px double #d8b775;border-radius:5px;color:#e9cb8d;background:repeating-linear-gradient(45deg,#2b493f,#2b493f 5px,#35574a 5px,#35574a 10px);box-shadow:0 3px 8px #0006;font-weight:bold}
-.alkkagi-used-card{position:fixed;inset:0;z-index:58;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;pointer-events:none;perspective:900px;color:#fff1bf;text-shadow:0 2px 8px #000}
-.alkkagi-used-card>strong{font-size:clamp(20px,3vw,30px)}
-.alkkagi-used-flip{width:180px;height:270px;position:relative;transform-style:preserve-3d;animation:alkkagi-use-flip 2200ms both}
-.alkkagi-used-flip>.alkkagi-card-back{position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;margin:0;font-size:64px;backface-visibility:hidden}
-.alkkagi-used-front{position:absolute;inset:0;transform:rotateY(180deg);backface-visibility:hidden}
-.alkkagi-used-front>.item-card{width:100%;height:100%;box-sizing:border-box;filter:drop-shadow(0 0 22px #f8ce6c)}
-@keyframes alkkagi-use-flip{0%{opacity:0;transform:translateY(70px) rotateY(0) scale(.5)}15%{opacity:1;transform:translateY(0) rotateY(0) scale(1)}40%,80%{opacity:1;transform:rotateY(180deg) scale(1.08)}100%{opacity:0;transform:translateY(-35px) rotateY(180deg) scale(.9)}}
-@media(prefers-reduced-motion:reduce){.alkkagi-used-flip{animation:none;transform:rotateY(180deg)}}
+.alkkagi-used-card{position:fixed;left:50%;top:46%;transform:translate(-50%,-50%);z-index:58;display:grid;justify-items:center;gap:14px;pointer-events:none;color:#fff1bf;text-shadow:0 2px 8px #000}
+.alkkagi-used-card>strong{max-width:min(80vw,420px);overflow-wrap:anywhere;text-align:center;font-size:clamp(17px,2.5vw,25px)}.alkkagi-used-card>strong>span{display:block;font-size:12px;letter-spacing:.12em;color:#f0d38e}
+.alkkagi-used-flip{width:180px;height:270px;position:relative;perspective:900px}
+.alkkagi-used-flip>.alkkagi-card-back{position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;margin:0;font-size:64px;animation:alkkagi-use-back 2200ms both}
+.alkkagi-used-front{position:absolute;inset:0;animation:alkkagi-use-front 2200ms both}
+.alkkagi-used-front>.item-card{width:100%;height:100%;min-height:0;box-sizing:border-box;filter:drop-shadow(0 0 18px #f8ce6c66);pointer-events:none!important}
+@keyframes alkkagi-use-back{0%{opacity:0;transform:translateY(35px) rotateY(0) scale(.8)}12%,20%{opacity:1;transform:translateY(0) rotateY(0)}30%,100%{opacity:0;transform:rotateY(90deg)}}
+@keyframes alkkagi-use-front{0%,20%{opacity:0;transform:rotateY(-90deg)}34%,80%{opacity:1;transform:rotateY(0) scale(1.06)}100%{opacity:0;transform:translateY(-20px) scale(.96)}}
+@media(max-width:700px){.alkkagi-opponent-hand{top:154px;left:10px;width:104px;padding:9px;gap:9px}.alkkagi-opponent-hand .alkkagi-card-back{width:27px;height:39px;margin-left:-10px}.alkkagi-used-flip{width:144px;height:216px}}
+@media(prefers-reduced-motion:reduce){.alkkagi-used-flip>.alkkagi-card-back{display:none;animation:none}.alkkagi-used-front{animation:none;transform:none}}

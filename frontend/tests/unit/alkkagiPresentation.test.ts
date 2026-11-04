@@ -2,12 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { exitFlight } from '../../src/game/alkkagi/flight'
 import { itemPreview } from '../../src/game/alkkagi/placement'
 import type { Piece, Snapshot } from '../../src/game/alkkagi/replay'
-import { remainingMatchTime, UsedCardTimeline } from '../../src/game/alkkagi/presentation'
+import { remainingMatchTime, UsedCardTimeline, visibleUsedCards } from '../../src/game/alkkagi/presentation'
 
 it('전체 시간은 서버 마감 기준이며 만료 뒤 음수가 되지 않는다', () => {
   expect(remainingMatchTime(722500, 2500)).toBe('12:00')
   expect(remainingMatchTime(722500, 721501)).toBe('0:01')
   expect(remainingMatchTime(722500, 800000)).toBe('0:00')
+})
+
+it('참가자는 상대의 새 비책만 공개하고 관전자는 양쪽 사용을 본다', () => {
+  const effects = [0, 1].map(actor => ({ version: actor + 1, turnNumber: 1, actor, type: 'WALL', targets: [], at: 1000 }))
+  expect(visibleUsedCards(effects, 0).map(e => e.actor)).toEqual([1])
+  expect(visibleUsedCards(effects, 1).map(e => e.actor)).toEqual([0])
+  expect(visibleUsedCards(effects, -1)).toEqual(effects)
 })
 
 it('사용 카드 공개는 첫 조회·중복·재접속을 재생하지 않고 합쳐진 새 사건은 순서대로 받는다', () => {

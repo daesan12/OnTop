@@ -75,6 +75,16 @@ tasks.register('skewerCoopDemo', JavaExec) {
 }
 
 tasks.named('test') {
+    // 생성 맵·실제 소켓 서버를 포함한 전체 회귀에서 컨텍스트 32개가 누적되면
+    // CI 테스트 JVM의 힙이 고갈된다. 오래된 컨텍스트와 서버를 조기에 닫는다.
+    systemProperty 'spring.test.context.cache.maxSize', '8'
+    maxHeapSize = '1g'
+    // CI 호스트의 메모리 예산과 고정 포트 테스트의 격리를 유지한다.
+    maxParallelForks = 1
+    doFirst {
+        logger.lifecycle('Backend test JVM: maxHeap={}, parallelForks={}, contextCache={}',
+                maxHeapSize, maxParallelForks, systemProperties['spring.test.context.cache.maxSize'])
+    }
     useJUnitPlatform {
         excludeTags 'mysql'
     }
