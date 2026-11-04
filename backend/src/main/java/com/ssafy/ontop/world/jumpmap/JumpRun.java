@@ -9,7 +9,7 @@ import java.util.List;
  */
 public final class JumpRun {
     public static final long TIMEOUT_MS = 30 * 60 * 1000L;
-    /** 구간별 기준 착지 횟수. 통과 시 절반 이상을 요구하며 구간 최소 시간은 제한하지 않는다. */
+    /** 구간별 기준 착지 횟수. 통과 시 1/5 이상(올림)을 요구하며 구간 최소 시간은 제한하지 않는다. */
     public static final List<Integer> SECTION_LANDINGS = List.of(24, 10, 14, 13, 18, 19, 14);
     public static final int FINAL_BLOCK = 112;
     public static final int START_BLOCK = 0;
@@ -101,8 +101,8 @@ public final class JumpRun {
     private Outcome check(int gate, long nowMs) {
         int required = SECTION_LANDINGS.get(gate - 1);
         int section = gate - 1;
-        // 절반 이상: 24 → 12, 15 → 8 (올림).
-        if (landings[section] * 2 < required) {
+        // 1/5 이상: 24 → 5, 14 → 3 (올림).
+        if (landings[section] * 5 < required) {
             return reject(gate, "TOO_FEW_LANDINGS");
         }
         gatesPassed = gate;

@@ -48,11 +48,26 @@ class JumpRunTests {
     }
 
     @Test
-    void 착지가_절반_미만이면_TOO_FEW_LANDINGS다() {
+    void 착지가_5분의1_미만이면_TOO_FEW_LANDINGS다() {
         var run = run();
-        assertThat(section(run, 1, 11, 30_000)).containsExactly(new JumpRun.GateRejected(1, "TOO_FEW_LANDINGS", true));
+        assertThat(section(run, 1, 4, 30_000)).containsExactly(new JumpRun.GateRejected(1, "TOO_FEW_LANDINGS", true));
         var enough = run();
-        assertThat(section(enough, 1, 12, 30_000)).containsExactly(new JumpRun.GatePassed(1, 30_000, 2));
+        assertThat(section(enough, 1, 5, 30_000)).containsExactly(new JumpRun.GatePassed(1, 30_000, 2));
+    }
+
+    @Test
+    void 마지막구간은_마지막_연잎을_포함해_3회_착지하면_인정한다() {
+        var tooFew = completeToGate6();
+        tooFew.land(99, null, 40_000);
+        assertThat(tooFew.land(112, null, 40_500).get(1)).isEqualTo(new JumpRun.GateRejected(7, "TOO_FEW_LANDINGS", true));
+        assertThat(tooFew.suspicious()).isTrue();
+
+        var enough = completeToGate6();
+        enough.land(99, null, 40_000);
+        enough.land(100, null, 40_250);
+        assertThat(enough.land(112, null, 40_500)).containsExactly(new JumpRun.FinalPad(),
+                new JumpRun.GatePassed(7, 40_500, 36), new JumpRun.Ended(JumpRun.EndReason.FINISH, 40_500, 40_500L));
+        assertThat(enough.suspicious()).isFalse();
     }
 
     @Test

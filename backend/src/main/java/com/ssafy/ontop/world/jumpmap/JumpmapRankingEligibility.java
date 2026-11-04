@@ -12,10 +12,10 @@ public final class JumpmapRankingEligibility {
                         "TOO_FAST:5","TOO_FAST:6","TOO_FAST:7"]}}', r.suspicious_reasons) = 1
                 AND JSON_SCHEMA_VALID(
                     '{"type":"array","minItems":7,"maxItems":7,"items":[
-                        {"type":"integer","minimum":12},{"type":"integer","minimum":5},
-                        {"type":"integer","minimum":7},{"type":"integer","minimum":7},
-                        {"type":"integer","minimum":9},{"type":"integer","minimum":10},
-                        {"type":"integer","minimum":7}]}', r.landings) = 1
+                        {"type":"integer","minimum":5},{"type":"integer","minimum":2},
+                        {"type":"integer","minimum":3},{"type":"integer","minimum":3},
+                        {"type":"integer","minimum":4},{"type":"integer","minimum":4},
+                        {"type":"integer","minimum":3}]}', r.landings) = 1
             ))
             """;
 
