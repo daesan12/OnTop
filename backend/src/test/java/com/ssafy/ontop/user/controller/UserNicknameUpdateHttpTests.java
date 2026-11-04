@@ -121,6 +121,14 @@ class UserNicknameUpdateHttpTests {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"GM", "gm123", "Gm관리자", "gM사칭"})
+    void GM_접두어는_예약_닉네임_오류이다(String nickname) throws Exception {
+        error(patch("Bearer " + access, mapper.writeValueAsString(Map.of("nickname", nickname))),
+                400, "USER_RESERVED_NICKNAME");
+        verifyNoInteractions(persistence);
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"", "{}", "[]", "null", "{bad", "{\"nickname\":null}", "{\"nickname\":1}",
             "{\"nickname\":\"가나\",\"userId\":999}", "{\"nickname\":\"가나\",\"characterGender\":\"MALE\"}"})
     void 요청은_nickname_문자열_한_필드만_허용한다(String body) throws Exception {

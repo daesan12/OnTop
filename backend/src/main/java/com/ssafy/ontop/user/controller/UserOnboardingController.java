@@ -40,7 +40,7 @@ public class UserOnboardingController {
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "회원 생성 및 인증 발급 성공 (Cache-Control: no-store)",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserOnboardingResponse.class))),
-        @ApiResponse(responseCode = "400", description = "USER_INVALID_ONBOARDING_REQUEST / USER_INVALID_NICKNAME / USER_INVALID_CHARACTER_GENDER",
+        @ApiResponse(responseCode = "400", description = "USER_INVALID_ONBOARDING_REQUEST / USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME / USER_INVALID_CHARACTER_GENDER",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorResponse.class))),
         @ApiResponse(responseCode = "401", description = "AUTH_INVALID_ONBOARDING_TOKEN",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorResponse.class))),
