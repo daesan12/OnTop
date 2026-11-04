@@ -2,10 +2,12 @@ import * as THREE from 'three'
 import { RestaurantSet } from './RestaurantSet'
 import { characterLook, dressCharacter } from './CharacterAppearance'
 import { DiningGuests, type DiningGuest } from './DiningGuests'
+import { GuestSpeech, GuestSpeechArt, type GuestGreeting } from './GuestSpeech'
 
 export type ToyPose = { moving?: boolean; carrying?: boolean; cleaning?: boolean; eating?: boolean; seated?: boolean; reduced?: boolean }
 /** Game-owned rounded figures. Shared geometry, simple silhouettes and explicit seat contact. */
 export class ToyPeople {
+  readonly speech = new GuestSpeechArt()
   private geometry = new Map<string, THREE.BufferGeometry>()
   private guests: { actor: ToyActor; variant: number }[] = []
   private library?: DiningGuests
@@ -44,6 +46,7 @@ export class ToyPeople {
   dispose() {
     this.disposed = true; this.guests.forEach(({ actor }) => actor.disposeGuest()); this.library?.dispose(); this.guests.length = 0
     this.geometry.forEach(g => g.dispose()); this.geometry.clear()
+    this.speech.dispose()
   }
 }
 
@@ -59,10 +62,12 @@ export class ToyActor {
   private broom = new THREE.Group()
   private phase = 0
   private dining?: DiningGuest
+  private speech?: GuestSpeech
   constructor(factory: ToyPeople, art: RestaurantSet, index: number, readonly role: 'guest' | 'server' | 'chef', readonly seated: boolean) {
     const look = characterLook(index, role)
     const { skin, shirt, pants, shoes } = look
     this.root.name = role === 'guest' ? 'guest-reference-' + look.variant : role + '-reference'
+    if (role === 'guest') { this.speech = new GuestSpeech(factory.speech); this.root.add(this.speech.root) }
     const ball = (parent: THREE.Object3D, color: string, x: number, y: number, z: number, sx: number, sy = sx, sz = sx) => {
       const m = factory.mesh('ball', color); m.scale.set(sx, sy, sz); art.place(parent, m, x, y, z); return m
     }
@@ -102,11 +107,14 @@ export class ToyActor {
     if (this.role !== 'guest') return
     this.dining?.dispose(); this.dining = guest
     this.setBodyVisible(false); this.root.add(guest.root)
+    if (this.speech) guest.root.add(this.speech.root)
     if (this.seated) this.root.position.y = 0
     this.root.userData.guestModel = 'bungeoppang'
     this.pose(0, {})
   }
-  disposeGuest() { this.dining?.dispose() }
+  disposeGuest() { this.speech?.dispose(); this.dining?.dispose() }
+  greet(kind: GuestGreeting) { this.speech?.show(kind) }
+  get greetingVisible() { return !!this.speech?.visible }
   get guestFloorY() { return this.dining ? 0 : this.root.position.y }
   orderBubbleHeight() { return this.dining?.labelHeight ?? 2.1 }
   seatGap() { this.root.updateMatrixWorld(true); return this.dining ? this.dining.root.userData.seatGap ?? 0 : new THREE.Box3().setFromObject(this.body).min.y - .5425 }
@@ -116,7 +124,13 @@ export class ToyActor {
     this.legs.forEach(leg => { leg.visible = visible })
   }
   pose(dt: number, state: ToyPose) {
-    if (this.dining) { this.dining.update(dt, state.seated ?? this.seated, !!state.moving, !!state.eating, !!state.reduced, this.root.rotation.y); return }
+    const seated = state.seated ?? this.seated
+    if (this.dining) {
+      this.dining.update(dt, seated, !!state.moving, !!state.eating, !!state.reduced, this.root.rotation.y)
+      this.speech?.update(dt, seated ? this.dining.labelHeight - .25 : this.dining.standingHeight, !!state.reduced)
+      return
+    }
+    this.speech?.update(dt, seated ? 1.8 : 2.2, !!state.reduced)
     this.phase += dt; const motion = !state.reduced, wave = motion ? Math.sin(this.phase * 11) : 0
     this.torso.position.y = .72 + (!this.seated && state.moving && motion ? Math.abs(wave) * .045 : 0)
     this.torso.rotation.x = state.cleaning ? .28 : 0

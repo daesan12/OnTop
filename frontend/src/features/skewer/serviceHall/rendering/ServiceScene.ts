@@ -298,7 +298,7 @@ export class ServiceScene {
       const person = this.people.create(index, role, seated); person.root.position.x = x; person.root.position.z = z; person.root.rotation.y = yaw; this.scene.add(person.root); this.actors.push(person); return person
     }
     TABLES.forEach(t => this.guests.set(t.id, t.seats.map((seat, index) => actor(t.id + index, seat.x, seat.z, seat.yaw, 'guest', true))))
-    this.guests.forEach(list => list.forEach(actor => this.journeys.set(actor, new GuestJourney(actor))))
+    this.guests.forEach(list => list.forEach((actor, index) => this.journeys.set(actor, new GuestJourney(actor, index === 0))))
     this.server = actor(1, START.x, START.z, 0, 'server'); this.server.root.add(this.carry)
     this.host.dataset.serverModel = 'loading'
     void SculptedServer.load().then(server => {

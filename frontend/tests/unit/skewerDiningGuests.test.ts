@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { Group } from 'three'
 import { ParkAssetLoader } from '../../src/world/art/assetLoader'
 import { CUSTOMER_ASSETS_V5 } from '../../src/features/bungeoppang/customerAssetsV5'
@@ -39,7 +39,7 @@ it.each(CUSTOMER_ASSETS_V5.map((asset, index) => [asset.id, index] as const))('%
 it('모든 좌석의 입장·착석·퇴장이 진행되고 일시정지 중에는 위치가 유지된다', () => {
   for (const seat of TABLES.flatMap(table => table.seats)) {
     const root = new Group(); root.position.set(seat.x, 0, seat.z); root.rotation.y = seat.yaw
-    const actor = { root, guestFloorY: 0, pose: () => {} } as unknown as ToyActor, journey = new GuestJourney(actor)
+    const actor = { root, guestFloorY: 0, greetingVisible: false, pose: () => {}, greet: vi.fn() } as unknown as ToyActor, journey = new GuestJourney(actor)
     journey.update(false, false, 0, false); journey.update(true, false, .05, false)
     expect(root.userData.diningPhase).toBe('arriving')
     const at = root.position.clone(); journey.update(true, false, 0, false); expect(root.position.equals(at)).toBe(true)

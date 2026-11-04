@@ -9,13 +9,14 @@ export class GuestJourney {
   private readonly seat: Point
   private readonly yaw: number
   private readonly entry = { x: 0, z: ROOM.bounds.maxZ - .1 }
-  constructor(private actor: ToyActor) {
+  constructor(private actor: ToyActor, private spokesperson = true) {
     this.seat = { x: actor.root.position.x, z: actor.root.position.z }
     this.yaw = actor.root.rotation.y
   }
   private get beside() { return { x: this.seat.x + Math.cos(this.yaw) * .9, z: this.seat.z - Math.sin(this.yaw) * .9 } }
   update(occupied: boolean, eating: boolean, dt: number, reduced: boolean) {
     const first = this.occupied === undefined
+    if (!first && occupied !== this.occupied && this.spokesperson) this.actor.greet(occupied ? 'arrival' : 'departure')
     if (first || reduced) {
       this.phase = occupied ? 'seated' : 'hidden'; this.path = []
       this.actor.root.position.set(this.seat.x, this.actor.guestFloorY, this.seat.z)
@@ -41,7 +42,7 @@ export class GuestJourney {
       if (d <= step + .001) this.path.shift()
     }
     if (moving && !this.path.length) { this.phase = occupied ? 'seated' : 'hidden'; this.actor.root.rotation.y = this.yaw }
-    this.actor.root.visible = this.phase !== 'hidden'
+    this.actor.root.visible = this.phase !== 'hidden' || this.actor.greetingVisible
     this.actor.pose(dt, { moving: this.phase === 'arriving' || this.phase === 'departing', seated: this.phase === 'seated', eating, reduced })
     this.actor.root.userData.diningPhase = this.phase
   }

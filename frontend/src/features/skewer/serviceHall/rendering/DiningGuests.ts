@@ -41,6 +41,7 @@ export class DiningGuest {
   private correction = new THREE.Matrix4(); private turn = new THREE.Matrix4(); private inverseTurn = new THREE.Matrix4()
   private depth = new THREE.Matrix4().makeScale(1, 1, 1 / FLOOR_DEPTH_SCALE)
   labelHeight = 2.1
+  get standingHeight() { return DINING_GUEST_HEIGHTS[this.variant] }
   constructor(source: GLTF, readonly variant: number) {
     this.actor = instantiateCustomerV5(source, { id: CUSTOMER_ASSETS_V5[variant].id, height: DINING_GUEST_HEIGHTS[variant] })
     this.root.add(this.actor.root)

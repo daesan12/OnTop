@@ -51,7 +51,7 @@ export class ChefHall {
         for(const x of [-.32,.32]) for(const z of [-.30,.30]) a.place(chair,a.box(.09,.48,.09,'#65432b'),x,.24,z)
         const guest=this.people.create(t.id+i,'guest',true);guest.root.position.x=seat.x;guest.root.position.z=seat.z;guest.root.rotation.y=seat.yaw;r.add(guest.root);return guest
       });this.guests.set(t.id,guests)
-      guests.forEach(guest=>this.journeys.set(guest,new GuestJourney(guest)))
+      guests.forEach((guest,index)=>this.journeys.set(guest,new GuestJourney(guest,index===0)))
     }
     r.add(this.server.root)
     this.server.root.add(this.tray)
