@@ -11,6 +11,7 @@ import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
 import com.ssafy.ontop.game.result.GameLifecycle;
 import com.ssafy.ontop.game.skewer.coop.domain.SkewerCoopMatch;
+import com.ssafy.ontop.game.skewer.coop.domain.SkewerCoopRoomAccess;
 import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
 import java.time.Clock;
@@ -46,6 +47,8 @@ public final class SkewerCoopEngine implements GameEngine {
     private final Random random;
     private final double duration;
     private final Map<String, SkewerCoopMatch> games = new LinkedHashMap<>();
+    private final Map<String, SkewerCoopRoomAccess> roomAccess = new HashMap<>();
+    private final Map<Long, List<Long>> passwordAttempts = new HashMap<>();
     private final Map<Long, String> latest = new HashMap<>();
     private final Map<Long, String> recoveryLatest = new HashMap<>();
     private final Map<String, String> creations = new HashMap<>();
@@ -74,32 +77,65 @@ public final class SkewerCoopEngine implements GameEngine {
         this.duration = duration;
     }
 
-    public synchronized ObjectNode create(long user, String channel, String key) {
+    public ObjectNode create(long user, String channel, String key) {
+        return create(user, channel, key, "함께 여는 꼬치집", "방장", "");
+    }
+
+    public ObjectNode create(long user, String channel, String key, String name, String nickname, String password) {
         if (user <= 0 || channel == null || channel.isBlank() || channel.length() > 64
                 || key == null || !key.matches("[A-Za-z0-9_-]{1,64}")) {
             throw new IllegalArgumentException("공원과 중복 방지 키를 확인해주세요.");
         }
-        String previous = creations.get(user + ":" + key);
-        if (previous != null) {
-            SkewerCoopMatch existing = requireMember(user, previous);
-            if (!existing.channelId.equals(channel)) {
-                throw new IllegalStateException("같은 생성 요청의 채널이 달라졌어요.");
+        // 비용이 큰 비밀번호 해시는 게임 입력·틱의 공유 락 밖에서 계산한다.
+        SkewerCoopRoomAccess access = new SkewerCoopRoomAccess(name, nickname, password);
+        synchronized (this) {
+            String previous = creations.get(user + ":" + key);
+            if (previous != null) {
+                SkewerCoopMatch existing = requireMember(user, previous);
+                if (!existing.channelId.equals(channel)) {
+                    throw new IllegalStateException("같은 생성 요청의 채널이 달라졌어요.");
+                }
+                return room(user, existing);
             }
-            return room(user, existing);
+            if (current(user).filter(this::occupiesRoom).isPresent()
+                    || games.values().stream().filter(this::occupiesRoom).count() >= 64) {
+                throw new IllegalStateException("기존 방을 나가거나 잠시 후 다시 시도해주세요.");
+            }
+            String id = "skewer-coop-" + UUID.randomUUID();
+            SkewerCoopMatch match = new SkewerCoopMatch(id, channel, user, mapper, random, clock.millis(), duration);
+            games.put(id, match);
+            roomAccess.put(id, access);
+            latest.put(user, id);
+            creations.put(user + ":" + key, id);
+            return room(user, match);
         }
-        if (current(user).filter(this::occupiesRoom).isPresent()
-                || games.values().stream().filter(this::occupiesRoom).count() >= 64) {
-            throw new IllegalStateException("기존 방을 나가거나 잠시 후 다시 시도해주세요.");
-        }
-        String id = "skewer-coop-" + UUID.randomUUID();
-        SkewerCoopMatch match = new SkewerCoopMatch(id, channel, user, mapper, random, clock.millis(), duration);
-        games.put(id, match);
-        latest.put(user, id);
-        creations.put(user + ":" + key, id);
-        return room(user, match);
     }
 
     public ObjectNode join(long user, String channel, String id) {
+        return join(user, channel, id, "");
+    }
+
+    public ObjectNode join(long user, String channel, String id, String password) {
+        SkewerCoopRoomAccess.validatePassword(password);
+        SkewerCoopRoomAccess access;
+        boolean member;
+        synchronized (this) {
+            SkewerCoopMatch candidate = games.get(id);
+            if (candidate == null || !candidate.channelId.equals(channel) || !candidate.canJoin(user)) {
+                throw new IllegalStateException("같은 공원의 참가 가능한 방을 선택해주세요.");
+            }
+            access = roomAccess.get(id);
+            member = candidate.contains(user);
+            if (!member && access.locked()) {
+                long now = clock.millis();
+                passwordAttempts.entrySet().removeIf(entry -> entry.getValue().stream().allMatch(at -> now - at >= 30_000));
+                List<Long> attempts = passwordAttempts.computeIfAbsent(user, ignored -> new ArrayList<>());
+                attempts.removeIf(at -> now - at >= 30_000);
+                if (attempts.size() >= 5) throw new SkewerCoopRoomAccess.PasswordRejected(true);
+                attempts.add(now);
+            }
+        }
+        if (!member && !access.accepts(password)) throw new SkewerCoopRoomAccess.PasswordRejected(false);
         SkewerCoopMatch match;
         synchronized (this) {
             match = games.get(id);
@@ -147,26 +183,44 @@ public final class SkewerCoopEngine implements GameEngine {
                 .filter(match -> match.channelId.equals(channel) && !match.finished()
                         && (match.players().size() < 2 || match.contains(user)))
                 .map(match -> Map.of("gameId", match.id, "players", match.players().size(),
-                        "mine", match.contains(user))).limit(64).toList()));
+                        "mine", match.contains(user), "roomName", roomAccess.get(match.id).name(),
+                        "hostNickname", roomAccess.get(match.id).hostNickname(), "locked", roomAccess.get(match.id).locked()))
+                .limit(64).toList()));
         result.set("mine", current(user).filter(match -> match.channelId.equals(channel)
                         && !dismissed.contains(user + ":" + match.id))
                 .map(match -> room(user, match)).orElse(null));
         return result;
     }
 
-    public synchronized void leaveWaiting(long user, String id) {
-        SkewerCoopMatch match = requireMember(user, id);
-        if (match.registered() && !match.finished()) {
-            throw new IllegalStateException("공동 경기는 기권으로 종료해주세요.");
+    public void leaveWaiting(long user, String id) {
+        SkewerCoopMatch match;
+        boolean cancelled;
+        synchronized (this) {
+            match = requireMember(user, id);
+            cancelled = match.waiting();
+            if (!cancelled && !match.finished()) {
+                throw new IllegalStateException("공동 경기는 기권으로 종료해주세요.");
+            }
+            if (cancelled) {
+                match.finish("SKEWER_CANCELLED");
+                completed.add(id);
+                if (match.registered()) router.finished(this, id);
+            }
+            dismissed.add(user + ":" + id);
         }
-        match.finish("SKEWER_CANCELLED");
-        dismissed.add(user + ":" + id);
+        if (cancelled && match.registered()) {
+            match.players().forEach(recoveryChanged);
+            events.accept(new GameStateChanged(match.id, match.version));
+        }
     }
 
     private ObjectNode room(long user, SkewerCoopMatch match) {
         ObjectNode result = mapper.createObjectNode();
         result.put("gameId", match.id).put("version", match.version).put("registered", match.registered());
-        result.set("publicState", match.publicView(user));
+        ObjectNode state = match.publicView(user);
+        SkewerCoopRoomAccess access = roomAccess.get(match.id);
+        state.put("roomName", access.name()).put("hostNickname", access.hostNickname()).put("locked", access.locked());
+        result.set("publicState", state);
         result.set("privateState", match.privateView(user));
         return result;
     }

@@ -11,6 +11,8 @@ import com.ssafy.ontop.game.skewer.coop.controller.SkewerCoopController;
 import com.ssafy.ontop.game.skewer.coop.service.SkewerCoopEngine;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.user.domain.LoginProvider;
+import com.ssafy.ontop.user.service.UserProfileService;
+import com.ssafy.ontop.user.dto.UserProfileResponse;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
@@ -45,11 +47,31 @@ class TableHubSkewerEntryTests {
             Duration.ofSeconds(30), Duration.ofSeconds(30), channels);
     private final SkewerCoopEngine engine = new SkewerCoopEngine(mapper, Clock.systemUTC(), new GameEngineRouter(),
             event -> { }, user -> { }, (user, channel) -> true, new Random(18), 240);
-    private final SkewerCoopController controller = new SkewerCoopController(engine, hub, null);
+    private final UserProfileService profiles = mock(UserProfileService.class);
+    private final SkewerCoopController controller = new SkewerCoopController(engine, hub, null, profiles);
+
+    @org.junit.jupiter.api.BeforeEach
+    void 방장_프로필을_준비한다() {
+        when(profiles.findProfile(org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(call -> new UserProfileResponse(call.getArgument(0), "공원친구", null));
+    }
 
     @AfterEach
     void 종료한다() {
         hub.shutdown();
+    }
+
+    @Test
+    void 방장닉네임은_계정프로필을_사용하고_요청의_닉네임은_거절한다() throws Exception {
+        peer(101);
+        entranceAt(101);
+        var user = new AuthenticatedUser(101, LoginProvider.NAVER, TestLoginSessions.ID);
+        var body = mapper.createObjectNode().put("channelId", "park").put("requestKey", "named")
+                .put("roomName", "달빛 꼬치집").put("password", "abcd");
+        assertThat(controller.enter(user, body).getBody().at("/publicState/hostNickname").asText())
+                .isEqualTo("공원친구");
+        body.put("hostNickname", "다른사람");
+        assertThatThrownBy(() -> controller.enter(user, body)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

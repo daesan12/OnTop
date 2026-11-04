@@ -6,10 +6,13 @@ import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.skewer.coop.dto.SkewerCoopRankingResponse;
 import com.ssafy.ontop.game.skewer.coop.dto.SkewerCoopResultResponse;
+import com.ssafy.ontop.game.skewer.coop.domain.SkewerCoopRoomAccess;
 import com.ssafy.ontop.game.skewer.coop.service.SkewerCoopEngine;
 import com.ssafy.ontop.game.skewer.coop.service.SkewerCoopSettlementService;
 import com.ssafy.ontop.table.service.TableHub;
+import com.ssafy.ontop.user.service.UserProfileService;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
@@ -33,11 +36,14 @@ public class SkewerCoopController {
     private final SkewerCoopEngine engine;
     private final TableHub hub;
     private final SkewerCoopSettlementService settlements;
+    private final UserProfileService profiles;
 
-    public SkewerCoopController(SkewerCoopEngine engine, TableHub hub, SkewerCoopSettlementService settlements) {
+    public SkewerCoopController(SkewerCoopEngine engine, TableHub hub, SkewerCoopSettlementService settlements,
+            UserProfileService profiles) {
         this.engine = engine;
         this.hub = hub;
         this.settlements = settlements;
+        this.profiles = profiles;
     }
 
     @GetMapping("/result")
@@ -69,17 +75,26 @@ public class SkewerCoopController {
     @PostMapping("/rooms")
     public ResponseEntity<JsonNode> enter(@AuthenticationPrincipal AuthenticatedUser user, @RequestBody JsonNode body) {
         long account = account(user);
-        if (body == null || !body.isObject() || !body.path("channelId").isTextual() || body.size() != 2) {
+        if (body == null || !body.isObject() || !body.path("channelId").isTextual()) {
             throw new IllegalArgumentException("같은 공원의 방을 선택해주세요.");
         }
+        Set<String> allowed = body.has("gameId") ? Set.of("channelId", "gameId", "password")
+                : Set.of("channelId", "requestKey", "roomName", "password");
+        body.fields().forEachRemaining(field -> {
+            if (!allowed.contains(field.getKey()) || !field.getValue().isTextual()) {
+                throw new IllegalArgumentException("방 정보를 확인해주세요.");
+            }
+        });
         String channel = body.path("channelId").asText();
         hub.requireSkewerEntry(account, channel, engine.owns(account, channel));
         if (body.has("gameId")) {
             engine.waitingPlayers(channel, body.path("gameId").asText())
                     .forEach(player -> hub.requireSkewerWaitingPlayer(player, channel));
         }
-        JsonNode result = body.has("gameId") ? engine.join(account, channel, body.path("gameId").asText())
-                : engine.create(account, channel, body.path("requestKey").asText());
+        JsonNode result = body.has("gameId") ? engine.join(account, channel, body.path("gameId").asText(), body.path("password").asText(""))
+                : engine.create(account, channel, body.path("requestKey").asText(),
+                        body.path("roomName").asText("함께 여는 꼬치집"), profiles.findProfile(account).nickname(),
+                        body.path("password").asText(""));
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(result);
     }
 
@@ -102,7 +117,8 @@ public class SkewerCoopController {
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class, GameActionGateway.Rejected.class})
     ResponseEntity<Map<String, String>> failed(RuntimeException exception) {
         boolean denied = exception instanceof GameActionGateway.Rejected;
+        String code = exception instanceof SkewerCoopRoomAccess.PasswordRejected password ? password.code() : "SKEWER_COOP_REJECTED";
         return ResponseEntity.status(denied ? 403 : 409).cacheControl(CacheControl.noStore()).body(Map.of(
-                "code", "SKEWER_COOP_REJECTED", "message", denied ? "참가 권한을 확인해주세요." : exception.getMessage()));
+                "code", code, "message", denied ? "참가 권한을 확인해주세요." : exception.getMessage()));
     }
 }

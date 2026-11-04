@@ -89,6 +89,7 @@ public final class SkewerCoopMatch {
     public List<Long> players() { return List.copyOf(players); }
     public boolean contains(long user) { return players.contains(user); }
     public boolean finished() { return phase.equals("FINISHED"); }
+    public boolean waiting() { return phase.equals("WAITING"); }
     public boolean registered() { return registered; }
     public void registered(boolean value) { registered = value; }
     public boolean canJoin(long user) {
