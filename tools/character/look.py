@@ -1,4 +1,5 @@
 """Render GLBs from any direction: -- <out.png> <dx,dy,dz> <cx,cy,cz|Bone> <scale> <glb>[:names] ...
+(names are name prefixes; a name ending in $ matches only itself)
 POSE=action:frame poses the armatures; the centre may be a bone name (its head, posed)."""
 import bpy, sys, os
 from mathutils import Vector
@@ -9,7 +10,7 @@ for spec in a[4:]:
     path, _, names = spec.partition(':')
     before = set(bpy.data.objects); bpy.ops.import_scene.gltf(filepath=path)
     for o in set(bpy.data.objects) - before:
-        if o.type == 'MESH' and (o.name.startswith('Icosphere') or (names and not any(o.name.startswith(n) for n in names.split(',')))): bpy.data.objects.remove(o)
+        if o.type == 'MESH' and (o.name.startswith('Icosphere') or (names and not any((o.name == n[:-1] or o.name.startswith(n[:-1] + '.')) if n.endswith('$') else o.name.startswith(n) for n in names.split(',')))): bpy.data.objects.remove(o)
         elif o.type == 'ARMATURE': o.data.pose_position = 'REST'
 pose = os.environ.get('POSE')
 for o in bpy.data.objects:
@@ -24,6 +25,7 @@ else:
     am = next(o for o in bpy.data.objects if o.type == 'ARMATURE'); c = am.matrix_world @ next(b for b in am.pose.bones if b.name.endswith(cs)).head
 sc = bpy.context.scene; sc.render.engine = 'BLENDER_EEVEE_NEXT' if 'BLENDER_EEVEE_NEXT' in [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties['engine'].enum_items] else 'BLENDER_EEVEE'
 w = bpy.data.worlds.new('w'); sc.world = w; w.use_nodes = True; w.node_tree.nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)
+if os.environ.get('BG'): sc.render.film_transparent = True              # BG=1: transparent, composite yourself
 sc.view_settings.view_transform = 'Standard'
 if os.environ.get('FLAT'):                       # texture colour only, no lighting
     sc.render.engine = 'BLENDER_WORKBENCH'; sh_ = sc.display.shading; sh_.light = 'FLAT'; sh_.color_type = 'TEXTURE'

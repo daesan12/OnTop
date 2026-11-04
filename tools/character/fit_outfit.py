@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -777,6 +777,15 @@ if opt.get('neck_poke', '0') == '1' and 'TOP' in G:
     _tb = bmesh.new(); _tb.from_mesh(_me); _tb.transform(G['TOP'].matrix_world); top_bvh_ = BVHTree.FromBMesh(_tb); _tb.free()
 n_poke = 0
 pieces = 0
+# under_layer=1 (the gat's dopo): between the dopo's parts (the sleeves' seams at the shoulders, behind the collar)
+# the hidden body left see-through gaps (user: the shoulder seams and the neck look transparent). Every body face
+# the top hides becomes a white under-layer (the top's lit tone) 1 mm off the skin, skinned like the body, joined to
+# the top; where the lining already lines the V it is left out. Decimated to under_layer_ratio (0.35): it is only
+# ever seen through gaps.
+under_layer = opt.get('under_layer', '0') == '1' and 'TOP' in G
+under_src = []
+_ld, _lr = float(opt.get('lining_down', 0.1)), float(opt.get('lining_r', 0.09))
+in_lining = lambda c: opt.get('lining', '0') == '1' and c.y < neck_xy[1] - 0.01 and c.z > neck_z - _ld - 0.01     and math.hypot(c.x - neck_xy[0], c.y - neck_xy[1]) < _lr
 for o in body:
     me = o.data; mw = o.matrix_world
     gname = {g.index: g.name[len('mixamorig:'):] for g in o.vertex_groups if g.name.startswith('mixamorig:')}
@@ -801,6 +810,13 @@ for o in body:
             n = (mw.to_3x3() @ p.normal).normalized()
             if hair_bvh.ray_cast(c + n * 0.001, n, 0.02)[0] is not None: cv.add('HAIR')
         cover.append(cv)
+    if under_layer:
+        ul = [i for i, cv in enumerate(cover) if 'TOP' in cv and not in_lining(mw @ me.polygons[i].center)]
+        if ul:          # (copied now: the body's covered faces are deleted below)
+            u = o.copy(); u.data = o.data.copy(); bpy.context.scene.collection.objects.link(u)
+            ub = bmesh.new(); ub.from_mesh(u.data); ub.faces.ensure_lookup_table(); keep_ = set(ul)
+            bmesh.ops.delete(ub, geom=[f for f in ub.faces if f.index not in keep_], context='FACES'); ub.to_mesh(u.data); ub.free()
+            under_src.append((u, ul))
     groups = {}
     for i, cv in enumerate(cover): groups.setdefault(frozenset(cv), []).append(i)
     if len(groups) == 1 and frozenset() in groups: continue
@@ -816,6 +832,22 @@ for o in body:
     b2 = bmesh.new(); b2.from_mesh(me); b2.faces.ensure_lookup_table()
     bmesh.ops.delete(b2, geom=[f for f in b2.faces if f.index in covered], context='FACES'); b2.to_mesh(me); b2.free()
 print('BODY pieces added', pieces, '; neck faces out through the top', n_poke)
+if under_layer and under_src:
+    uv_lit, _ = lit_texel(G['TOP'], 60); made = []
+    for u, ul in under_src:
+        ub = bmesh.new(); ub.from_mesh(u.data); ub.normal_update()
+        for v in ub.verts: v.co += v.normal * float(opt.get('under_layer_gap', 0.001))
+        ub.to_mesh(u.data); ub.free()
+        for m_ in list(u.modifiers): u.modifiers.remove(m_)
+        if u.data.shape_keys: u.shape_key_clear()
+        md = u.modifiers.new('dec', 'DECIMATE'); md.ratio = float(opt.get('under_layer_ratio', 0.35))
+        bpy.context.view_layer.objects.active = u; bpy.ops.object.modifier_apply(modifier='dec')
+        on_texel(u, G['TOP'], uv_lit); made.append(u)
+    for u in made:
+        if 'tokens' in u.keys(): del u['tokens']
+    for x in bpy.data.objects: x.select_set(x in made or x == G['TOP'])
+    bpy.context.view_layer.objects.active = G['TOP']; bpy.ops.object.join()
+    print('UNDER layer', sum(len(ul) for _, ul in under_src), 'body faces, joined to the top')
 # 4. under_tops=1: bottom faces that a top covers become item__BOTTOM__<set>__under_TOP<x>... pieces, hidden while that
 #    top is worn. The gat's made pants reach over the belly (their waist is cut level above the hidden body's top)
 #    and came out through the dopo (user); worn with other tops they could do the same. Covered: a top within
@@ -833,6 +865,7 @@ if opt.get('under_tops', '0') == '1' and 'BOTTOM' in G:
         tops.setdefault(m.group(1), []).append((lo_, bvh_)); tb.free(); o.evaluated_get(dg).to_mesh_clear()
     it = G['BOTTOM']; mw = it.matrix_world; nm = mw.to_3x3()
     under_hem = float(opt.get('under_hem', 0.06))
+    UNDER_SKIRT = float(opt.get('under_skirt', 0))
     lowest = {k: min(lo_ for lo_, _ in v) for k, v in tops.items()}
     groups = {}
     for p in it.data.polygons:
@@ -844,6 +877,11 @@ if opt.get('under_tops', '0') == '1' and 'BOTTOM' in G:
             rd = Vector((c.x, c.y - J['Hips'].y, 0))
             rd = rd.normalized() if rd.length > 1e-6 else n
             for _, bvh_ in parts_:
+                # under_skirt=D (the gat's dopo): walking and running, the legs swing the pants out through the robe's
+                # skirt (user); under a top that reaches down there, pants with that top within D (15 cm) straight out
+                # from the body's axis or along the normal are hidden too
+                if UNDER_SKIRT and k == SET and (bvh_.ray_cast(c, rd, UNDER_SKIRT)[0] is not None or bvh_.ray_cast(c + n * 0.001, n, UNDER_SKIRT)[0] is not None):
+                    hide.add(k); break
                 if bvh_.ray_cast(c + n * 0.001, n, 0.06)[0] is not None or bvh_.ray_cast(c - n * 0.001, -n, 0.03)[0] is not None                    or (c.z > J['LeftUpLeg'].z - 0.05 and (bvh_.ray_cast(c, rd, 0.08)[0] is not None
                                                           or bvh_.ray_cast(c, -rd, 0.04)[0] is not None)):
                     hide.add(k); break
