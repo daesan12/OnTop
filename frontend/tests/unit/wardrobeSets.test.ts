@@ -22,6 +22,10 @@ describe('wardrobe sets (the server rule, previewed)', () => {
     const items = [own(6, 'TOP', '분홍 후드티', undefined, true), own(7, 'HAIR', '단발머리')]
     expect(wearing(items, items[1]!).map(owned => owned.userItemId)).toEqual([6, 7])
   })
+  it('wears the outfit as one: a single top takes the other outfit pieces off and keeps the head', () => {
+    const items = [own(6, 'TOP', '분홍 후드티'), own(7, 'HAIR', '단발머리', undefined, true), own(8, 'BOTTOM', '흰 바지', undefined, true)]
+    expect(wearing(items, items[0]!).map(owned => owned.userItemId).sort()).toEqual([6, 7])
+  })
   it('names a set by its pieces', () => {
     expect(itemLabel(set, set[0]!)).toBe('장군 세트')
     expect(itemLabel([own(6, 'TOP', '분홍 후드티')], own(6, 'TOP', '분홍 후드티'))).toBe('분홍 후드티')

@@ -5,8 +5,9 @@ import { equipSlots, type EquipSlot } from '../../network/equipment'
 import { useSession } from '../../network/worldClient'
 import type { OwnedItem } from '../shop/contracts'
 import {
-  cancelWardrobePreview, closeWardrobe, itemLabel, previewWardrobeItem, refreshWardrobe, setPieces,
-  setWardrobeFilter, setWardrobeQuery, slotLabels, takeOffPreviewedItem, turnWardrobeView, useWardrobe, wearPreviewedItem, type WardrobeFilter,
+  cancelWardrobePreview, closeWardrobe, groupLabels, groupOf, itemLabel, OUTFIT_SLOTS, previewWardrobeItem, refreshWardrobe, setPieces,
+  setWardrobeFilter, setWardrobeQuery, slotLabels, takeOffPreviewedItem, turnWardrobeView, useWardrobe, wardrobeGroups, wearPreviewedItem,
+  type WardrobeFilter, type WardrobeGroup,
 } from './state'
 import { wornPiece } from '../../world/art/characterLook'
 import { WARDROBE_OUTFITS_ENABLED } from './feature'
@@ -14,7 +15,7 @@ import { wardrobeView } from './view'
 import { outfitImage, setImage, useItemArt, type CharacterVariant } from './itemArt'
 import './wardrobe.css'
 
-const tabs: WardrobeFilter[] = ['ALL', ...equipSlots]
+const tabs: WardrobeFilter[] = ['ALL', ...wardrobeGroups]
 const QUARTER_TURN = Math.PI / 4
 const walkKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight', 'Space'])
 
@@ -25,16 +26,18 @@ function ItemArt({ owned, variant }: { owned: OwnedItem; variant: CharacterVaria
   </span>
 }
 
-/** A round bubble round the avatar: what is worn in that slot, or the character's own default part. */
-function SlotBubble({ slot, worn, variant, active }: { slot: EquipSlot; worn?: OwnedItem; variant: CharacterVariant; active: boolean }) {
+/** A round bubble round the avatar: what is worn in that place, or the character's own default. The outfit's bubble
+ * shows the worn outfit (its set's picture, else its top's, else whichever piece is on). */
+function SlotBubble({ group, worn, label, variant, active }: { group: WardrobeGroup; worn?: OwnedItem; label?: string; variant: CharacterVariant; active: boolean }) {
+  const slot: EquipSlot = worn?.item.equipSlot ?? (group === 'OUTFIT' ? 'TOP' : group)
   const art = useItemArt(variant, slot, worn?.item.name)
-  return <button type="button" className="wardrobe-bubble" data-slot={slot} aria-pressed={active}
-    onClick={() => setWardrobeFilter(active ? 'ALL' : slot)}>
+  return <button type="button" className="wardrobe-bubble" data-slot={group} aria-pressed={active}
+    onClick={() => setWardrobeFilter(active ? 'ALL' : group)}>
     <span className="wardrobe-bubble__art" data-kind={worn ? 'item' : 'part'}>
-      <img src={(worn && outfitImage(worn.item.imageKey, slot)) ?? art} alt="" />
+      <img src={(worn && (setImage(worn.item.setCode) ?? outfitImage(worn.item.imageKey, slot))) ?? art} alt="" />
     </span>
-    <b>{slotLabels[slot]}</b>
-    <small>{worn ? worn.item.name : '기본'}</small>
+    <b>{groupLabels[group]}</b>
+    <small>{worn ? label ?? worn.item.name : '기본'}</small>
   </button>
 }
 
@@ -84,14 +87,28 @@ export function WardrobeScreen() {
   const cards = s.items.filter(owned => !owned.item.setCode || setPieces(s.items, owned).reduce((pick, other) =>
     other.item.equipSlot === 'TOP' ? other : pick, setPieces(s.items, owned)[0]) === owned)
   const slotsOf = (owned: OwnedItem) => equipSlots.filter(slot => setPieces(s.items, owned).some(other => other.item.equipSlot === slot))
+  const groupsOf = (owned: OwnedItem) => wardrobeGroups.filter(group => slotsOf(owned).some(slot => groupOf(slot) === group))
   const label = (owned: OwnedItem) => itemLabel(s.items, owned)
-  const slotText = (owned: OwnedItem) => owned.item.setCode ? `세트 · ${slotsOf(owned).map(slot => slotLabels[slot]).join('·')}` : slotLabels[owned.item.equipSlot!]
-  const visible = cards.filter(owned => (s.filter === 'ALL' || slotsOf(owned).includes(s.filter))
+  const outfitPieces = (owned: OwnedItem) => slotsOf(owned).filter(slot => OUTFIT_SLOTS.includes(slot)).map(slot => slotLabels[slot]).join('·')
+  // An outfit set reads "옷 한 벌"; a set reaching the head too lists its places; a single outfit piece says which.
+  const slotText = (owned: OwnedItem) => {
+    const groups = groupsOf(owned)
+    if (owned.item.setCode) return groups.length === 1 && groups[0] === 'OUTFIT' ? `옷 한 벌 · ${outfitPieces(owned)}` : `세트 · ${groups.map(group => groupLabels[group]).join('·')}`
+    return groups[0] === 'OUTFIT' ? `옷 · ${slotLabels[owned.item.equipSlot!]}` : groupLabels[groups[0]!]
+  }
+  const detailText = (owned: OwnedItem) => owned.item.setCode ? `${slotText(owned)} | 한 벌로만 입어요`
+    : groupOf(owned.item.equipSlot!) === 'OUTFIT' ? `${slotText(owned)} | 나머지는 기본 옷으로 입어요` : `${slotText(owned)} | 보유 아이템`
+  const visible = cards.filter(owned => (s.filter === 'ALL' || groupsOf(owned).includes(s.filter))
     && (!query || label(owned).includes(query) || setPieces(s.items, owned).some(other => other.item.name.includes(query))))
   const preview = s.items.find(owned => owned.userItemId === s.previewId)
   const previewed = (owned: OwnedItem) => !!preview && setPieces(s.items, owned).includes(preview)
-  const worn = (slot: EquipSlot) => s.items.find(owned => owned.equipped && owned.item.equipSlot === slot)
-  const bubble = (slot: EquipSlot) => <SlotBubble key={slot} slot={slot} worn={worn(slot)} variant={variant} active={s.filter === slot} />
+  const worn = (group: WardrobeGroup) => group === 'OUTFIT'
+    ? OUTFIT_SLOTS.map(slot => s.items.find(owned => owned.equipped && owned.item.equipSlot === slot)).find(Boolean)
+    : s.items.find(owned => owned.equipped && owned.item.equipSlot === group)
+  const bubble = (group: WardrobeGroup) => {
+    const on = worn(group)
+    return <SlotBubble key={group} group={group} worn={on} label={on && label(on)} variant={variant} active={s.filter === group} />
+  }
 
   // Not a modal: the park stays live behind it, so the avatar keeps walking while you change.
   return <section className="wardrobe" aria-label="마이룸 옷장">
@@ -110,9 +127,9 @@ export function WardrobeScreen() {
         <path d="M69 20 A38 30 0 0 1 69 72" />
       </svg>
       <nav className="wardrobe-bubbles" aria-label="착용 부위">
-        {/* A ring round the avatar: head, face and feet on its left, top and bottom on its right. */}
-        <div className="wardrobe-bubbles__side" data-side="left">{(['HAIR', 'FACE', 'SHOES'] as const).map(bubble)}</div>
-        <div className="wardrobe-bubbles__side" data-side="right">{(['TOP', 'BOTTOM'] as const).map(bubble)}</div>
+        {/* Round the avatar: head and face on its left, the outfit on its right. */}
+        <div className="wardrobe-bubbles__side" data-side="left">{(['HAIR', 'FACE'] as const).map(bubble)}</div>
+        <div className="wardrobe-bubbles__side" data-side="right">{(['OUTFIT'] as const).map(bubble)}</div>
       </nav>
       <Leaf className="wardrobe-leaf--a" /><Leaf className="wardrobe-leaf--b" /><Leaf className="wardrobe-leaf--c" /><Leaf className="wardrobe-leaf--d" />
       <div className="wardrobe-stage__controls">
@@ -134,7 +151,7 @@ export function WardrobeScreen() {
       </header>
       <div className="wardrobe-tabs" role="group" aria-label="부위 분류">
         {tabs.map(tab => <button key={tab} type="button" aria-pressed={s.filter === tab} onClick={() => setWardrobeFilter(tab)}>
-          {tab === 'ALL' ? '전체' : slotLabels[tab]}
+          {tab === 'ALL' ? '전체' : groupLabels[tab]}
         </button>)}
       </div>
 
@@ -150,7 +167,7 @@ export function WardrobeScreen() {
         : !s.items.length ? <div className="wardrobe-empty" role="status">
           <b>아직 가진 의상이 없어요</b><p>상점에서 의상을 구매하면 여기에서 골라 입을 수 있어요.</p>
         </div> : !visible.length ? <div className="wardrobe-empty" role="status">
-          <b>찾는 의상이 없어요</b><p>다른 부위를 고르거나 검색어를 바꿔 보세요.</p>
+          <b>찾는 의상이 없어요</b><p>다른 칸을 고르거나 검색어를 바꿔 보세요.</p>
         </div> : <ul className="wardrobe-grid">
           {visible.map(owned => <li key={owned.userItemId}>
             <button type="button" className="wardrobe-card" aria-pressed={previewed(owned)}
@@ -169,7 +186,7 @@ export function WardrobeScreen() {
       <footer className="wardrobe-detail" aria-live="polite">
         {preview ? <>
           <ItemArt owned={preview} variant={variant} />
-          <div className="wardrobe-detail__text"><b>{label(preview)}</b><small>{preview.item.setCode ? `${slotText(preview)} | 한 벌로만 입어요` : `${slotText(preview)} | 보유 아이템`}</small></div>
+          <div className="wardrobe-detail__text"><b>{label(preview)}</b><small>{detailText(preview)}</small></div>
           <div className="wardrobe-detail__actions">
             {preview.equipped
               ? <button type="button" className="wardrobe-wear" disabled={!!s.equipping || s.loading} onClick={() => void takeOffPreviewedItem()}>

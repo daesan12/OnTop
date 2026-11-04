@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 세트 의상(같은 set_code)은 함께 입고 벗고, 해제는 그 부위를 기본 옷으로 돌린다. */
+/** 세트 의상(같은 set_code)은 함께 입고 벗고, 옷(상의·하의·신발)은 한 벌로 입으며, 해제는 그 부위를 기본 옷으로 돌린다. */
 class ShopEquipmentSetTests {
 
     private final ShopRepository repository = mock(ShopRepository.class);
@@ -40,13 +40,14 @@ class ShopEquipmentSetTests {
         when(repository.ownedForUpdate(101)).thenReturn(holdings);
         shop = new ShopService(repository, new Immediate(), event -> published.add((EquipmentChanged) event),
                 DuplicateEquipmentPolicy.REJECT);
-        // 1~5: 장군 세트, 6: 일반 상의, 7: 일반 머리
+        // 1~5: 장군 세트, 6: 일반 상의, 7: 일반 머리, 8: 일반 하의
         long id = 1;
         for (EquipSlot slot : EquipSlot.values()) {
             own(id++, slot, "GENERAL");
         }
         own(6, EquipSlot.TOP, null);
         own(7, EquipSlot.HAIR, null);
+        own(8, EquipSlot.BOTTOM, null);
     }
 
     @Test
@@ -109,6 +110,26 @@ class ShopEquipmentSetTests {
         assertThat(equipped()).containsExactly(6L);
         assertThat(response.equipment()).extracting(OwnedItemResponse::userItemId).containsExactly(6L);
         assertThat(published).isEmpty();
+    }
+
+    @Test
+    void 옷은_한_벌로_입어_다른_옷_부위를_벗기고_머리는_둔다() {
+        shop.equip(101, 7);
+        shop.equip(101, 8);
+
+        shop.equip(101, 6);
+
+        assertThat(equipped()).containsExactlyInAnyOrder(6L, 7L);
+    }
+
+    @Test
+    void 옷_부위를_해제하면_옷_전체가_기본_옷으로_돌아간다() {
+        shop.equip(101, 7);
+        shop.equip(101, 6);
+
+        shop.unequip(101, 6);
+
+        assertThat(equipped()).containsExactly(7L);
     }
 
     @Test

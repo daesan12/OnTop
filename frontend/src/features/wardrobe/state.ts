@@ -14,8 +14,14 @@ import { WARDROBE_OUTFITS_ENABLED } from './feature'
 const WARDROBE_PITCH = 0.16
 let savedView: { yaw: number; pitch: number } | null = null
 
-export type WardrobeFilter = 'ALL' | EquipSlot
 export const slotLabels: Record<EquipSlot, string> = { HAIR: '머리', FACE: '얼굴', TOP: '상의', BOTTOM: '하의', SHOES: '신발' }
+/** The wardrobe's three places: head and face apart, and the outfit (top, bottom and shoes) worn as one. */
+export const OUTFIT_SLOTS: readonly EquipSlot[] = ['TOP', 'BOTTOM', 'SHOES']
+export const wardrobeGroups = ['HAIR', 'FACE', 'OUTFIT'] as const
+export type WardrobeGroup = typeof wardrobeGroups[number]
+export const groupLabels: Record<WardrobeGroup, string> = { HAIR: '머리', FACE: '얼굴', OUTFIT: '옷' }
+export const groupOf = (slot: EquipSlot): WardrobeGroup => slot === 'HAIR' || slot === 'FACE' ? slot : 'OUTFIT'
+export type WardrobeFilter = 'ALL' | WardrobeGroup
 
 const initial = () => ({
   open: false, owner: '', loading: false, ready: false, error: '', unavailable: false,
@@ -48,9 +54,11 @@ export function itemLabel(items: OwnedItem[], owned: OwnedItem) {
   return prefix.trim() ? `${prefix.trim()} 세트` : owned.item.name
 }
 /** What is worn after putting `chosen` on, by the server's rule: its set comes with it, the items in those
- * slots come off, and a set that loses a piece comes off whole. */
+ * slots come off (all of the outfit's when it touches the outfit: top, bottom and shoes go on as one), and a set
+ * that loses a piece comes off whole. */
 export function wearing(items: OwnedItem[], chosen: OwnedItem) {
   const on = setPieces(items, chosen), slots = new Set(on.map(owned => owned.item.equipSlot))
+  if ([...slots].some(slot => slot && OUTFIT_SLOTS.includes(slot))) OUTFIT_SLOTS.forEach(slot => slots.add(slot))
   const broken = new Set(items.filter(owned => owned.equipped && slots.has(owned.item.equipSlot) && owned.item.setCode).map(owned => owned.item.setCode))
   return [...items.filter(owned => owned.equipped && !slots.has(owned.item.equipSlot) && !broken.has(owned.item.setCode)), ...on]
 }
@@ -132,7 +140,8 @@ export function previewWardrobeItem(userItemId: number) {
   useWardrobe.setState({ previewId: userItemId, equipError: '', notice: '' })
 }
 export function cancelWardrobePreview() { useWardrobe.setState({ previewId: 0, equipError: '' }) }
-/** Back to the default outfit in the previewed item's slot (its whole set, for a set piece). */
+/** Back to the default in the previewed item's place (its whole set, for a set piece; the whole outfit, for one of
+ * its pieces). */
 export async function takeOffPreviewedItem() {
   const s = useWardrobe.getState(), owner = s.owner, generation = epoch
   const target = s.items.find(owned => owned.userItemId === s.previewId)
