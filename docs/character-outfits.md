@@ -66,7 +66,7 @@
 새 옷은 `tools/character/fit_outfit.py`를 쓴다. `add_set.py`(장군)에서 장군 전용 보정을 뺀 범용 스크립트다.
 
 ```bash
-"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10;SHOES:6,8" skirt=TOP pants=1 sleeve_drape=0.4 sleeves=3,5 under_tops=1 cull=1 lining=1 v_cut=-0.0088,0.498,-0.0552,0.602,0.0492,0.602 v_cut_margin=0.012 lining_down=0.09 pants_hem=0.003 shoe_level=1 shoe_level_up=-0.001 shoe_level_r=0.075 dark_lining=SHOES clean_dark=TOP predecimate=0:5000 shoe_cap=1 shoe_cap_depth=0.01 clean_skin=TOP brighten=TOP,BOTTOM despeck=1 pants_full=1.7 pants_low=1.55 neck_poke=1 push_neck=0 rim_neck=20 neck_tone=1 lining_tone=skin v_cut_up=0 lining_up=0.006 lining_front=-0.015 "seam=12>3,5" under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9
+"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10;SHOES:6,8" skirt=TOP pants=1 sleeve_drape=0.4 sleeves=3,5 under_tops=1 cull=1 lining=1 v_cut=-0.0088,0.498,-0.040,0.602,0.034,0.602 v_cut_margin=0.012 lining_down=0.09 pants_hem=0.003 shoe_level=1 shoe_level_up=-0.001 shoe_level_r=0.075 dark_lining=SHOES clean_dark=TOP predecimate=0:5000 shoe_cap=1 shoe_cap_depth=0.01 clean_skin=TOP brighten=TOP,BOTTOM despeck=1 pants_full=1.7 pants_low=1.55 neck_poke=1 push_neck=0 rim_neck=20 neck_tone=1 lining_tone=skin v_cut_up=0 lining_up=0.006 lining_front=-0.015 "seam=12>3,5" under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9
 ```
 
 위는 갓·도포(세트 h)를 만든 그대로의 명령이다. 숫자 값(`v_cut` 좌표 등)은 이 옷에 맞춘 것이라 새 옷에서는 다시 잰다.
