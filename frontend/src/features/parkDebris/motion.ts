@@ -1,4 +1,18 @@
-import {DEBRIS_COINS,DEBRIS_LAUNCH,DEBRIS_SETTLE,type ParkDebris} from './state'
+import {DEBRIS_COINS,DEBRIS_LAUNCH,DEBRIS_SETTLE,debrisVisible,type ParkDebris} from './state'
+
+/** window·matchMedia가 없으면 null. MediaQueryList.matches는 브라우저가 실시간으로 갱신하므로
+ * 매 프레임 읽으면 실행 중 동작 줄이기 변경도 바로 반영되고, 따로 구독·해제할 리스너도 없다. */
+export function reducedMotionQuery():MediaQueryList|null {
+  return typeof window!=='undefined'&&typeof window.matchMedia==='function'?window.matchMedia('(prefers-reduced-motion: reduce)'):null
+}
+/** 잔해가 이 테이블의 게임판을 가리는지. 동작 줄이기에서는 잔해가 처음부터 바닥에 놓이므로 바로 가리고,
+ * 발사 전에 설정이 다시 꺼져도(잔해는 이미 안착 상태로 고정) 판이 두 개로 보이지 않게 그 잔해에 대해서는 계속 가린다. */
+export function debrisHidesSurface(item:ParkDebris,now:number,reduced:boolean,latched:Set<string>) {
+  if(!debrisVisible(item,now)){latched.delete(item.id);return false}
+  if(now-Date.parse(item.occurredAt)>=DEBRIS_LAUNCH){latched.delete(item.id);return true}
+  if(reduced)latched.add(item.id)
+  return latched.has(item.id)
+}
 
 const stoneStarts=[[-.2,.1],[0,.1],[.1,0],[0,-.1],[-.1,-.1]] as const
 

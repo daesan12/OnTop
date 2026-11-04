@@ -1,12 +1,12 @@
-import {afterEach,expect,it} from 'vitest'
+import {afterEach,expect,it,vi} from 'vitest'
 import {acceptParkDebris,DEBRIS_COINS,DEBRIS_DURATION,DEBRIS_LAUNCH,DEBRIS_SETTLE,DEBRIS_STONES,debrisPieces,debrisVisible,parseParkDebris,resetParkDebris,useParkDebris,type ParkDebris} from '../../src/features/parkDebris/state'
-import {debrisLanding,debrisPose} from '../../src/features/parkDebris/motion'
+import {debrisHidesSurface,debrisLanding,debrisPose,reducedMotionQuery} from '../../src/features/parkDebris/motion'
 import {sampleSocialGesture} from '../../src/world/art/socialGestureMotion'
 import {SOCIAL_GESTURES} from '../../src/config'
 const item:ParkDebris={id:'g:reaction:101',gameId:'g',tableId:'table',anchorId:'table-1',gameCode:'OMOK',userId:'101',
  occurredAt:'2026-10-31T00:00:00Z',throwYaw:0,seed:123,parts:['board',...Array.from({length:12},(_,i)=>'coin-'+i)]}
 const state=(version=1)=>({channelId:'one',mapVersion:'map',version,items:[item]})
-afterEach(resetParkDebris)
+afterEach(()=>{resetParkDebris();vi.unstubAllGlobals()})
 it('does not reinterpret alkkagi as dice debris',()=>{
  expect(debrisPieces('ALKKAGI')).toEqual([])
  expect(()=>parseParkDebris({...state(),items:[{...item,gameCode:'ALKKAGI',parts:[...item.parts,'die-0']}]})).toThrow()
@@ -120,4 +120,59 @@ it.each([20,30,60,144])('%sfps 프레임 간격에서도 발사 프레임 지연
  expect(first-DEBRIS_LAUNCH).toBeGreaterThanOrEqual(0)
  expect(first-DEBRIS_LAUNCH).toBeLessThan(dt)
  expect(debrisPose(item,-1,1500,1.09,.045)).toEqual(debrisPose(item,-1,1500,1.09,.045))
+})
+// 브라우저 MediaQueryList처럼 matches가 실시간으로 바뀌는 가짜 객체. 리스너 등록 여부도 기록한다.
+const fakeQuery=(initial:boolean)=>{const listen=vi.fn(),query={matches:initial,media:'(prefers-reduced-motion: reduce)',
+ addEventListener:listen,removeEventListener:vi.fn(),addListener:listen,removeListener:vi.fn()};return {query,listen}}
+it('window나 matchMedia가 없는 환경에서는 동작 줄이기 조회가 예외 없이 null이 된다',()=>{
+ expect(typeof window).toBe('undefined')
+ expect(reducedMotionQuery()).toBeNull()
+ vi.stubGlobal('window',{})
+ expect(reducedMotionQuery()).toBeNull()
+ vi.stubGlobal('window',{matchMedia:'unsupported'})
+ expect(reducedMotionQuery()).toBeNull()
+ // null이면 동작 줄이기가 꺼진 것으로 보고 원래 타이밍(1150ms)에 게임판을 가린다.
+ const latched=new Set<string>(),at=Date.parse(item.occurredAt)
+ expect(debrisHidesSurface(item,at,!!reducedMotionQuery()?.matches,latched)).toBe(false)
+ expect(debrisHidesSurface(item,at+DEBRIS_LAUNCH,!!reducedMotionQuery()?.matches,latched)).toBe(true)
+})
+it('초기 동작 줄이기 설정과 실행 중 변경을 리스너 없이 매 프레임 반영한다',()=>{
+ const {query,listen}=fakeQuery(true),matchMedia=vi.fn(()=>query)
+ vi.stubGlobal('window',{matchMedia})
+ const live=reducedMotionQuery()!
+ expect(matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)')
+ expect(live.matches).toBe(true)
+ query.matches=false;expect(live.matches).toBe(false)
+ query.matches=true;expect(live.matches).toBe(true)
+ // 구독하지 않으므로 언마운트 때 정리할 리스너가 남지 않는다.
+ expect(listen).not.toHaveBeenCalled()
+})
+it('동작 줄이기가 처음부터 켜져 있으면 잔해가 보이는 즉시 게임판을 가리고, 꺼져 있으면 발사 시점부터 가린다',()=>{
+ const at=Date.parse(item.occurredAt)
+ expect(debrisHidesSurface(item,at-1,true,new Set())).toBe(false)
+ expect(debrisHidesSurface(item,at,true,new Set())).toBe(true)
+ expect(debrisHidesSurface(item,at+DEBRIS_LAUNCH-1,false,new Set())).toBe(false)
+ expect(debrisHidesSurface(item,at+DEBRIS_LAUNCH,false,new Set())).toBe(true)
+})
+it('실행 중 false→true→false로 바뀌어도 게임판이 다시 나타나 판이 두 개로 보이지 않는다',()=>{
+ const at=Date.parse(item.occurredAt),latched=new Set<string>()
+ expect(debrisHidesSurface(item,at+100,false,latched)).toBe(false)
+ // 켜짐: 잔해는 안착 상태로 그려지므로(표본 시각 DEBRIS_SETTLE) 게임판을 바로 가린다.
+ expect(debrisHidesSurface(item,at+300,true,latched)).toBe(true)
+ expect(debrisPose(item,-1,DEBRIS_SETTLE,1.09,.045).settled).toBe(true)
+ // 다시 꺼짐: 잔해는 이미 안착으로 고정되어 다시 날지 않으므로 게임판도 계속 가린다.
+ for(const age of [400,800,DEBRIS_LAUNCH-1,DEBRIS_LAUNCH,DEBRIS_SETTLE,14_999])
+  expect(debrisHidesSurface(item,at+age,false,latched)).toBe(true)
+ expect(latched.size).toBe(0)
+ // 보관 시간이 지나면 잔해가 사라지고 게임판이 돌아온다.
+ expect(debrisHidesSurface(item,at+15_000,false,latched)).toBe(false)
+})
+it('실행 중 true→false로 바뀌면 발사 이후 구간은 원래 타이밍대로 유지된다',()=>{
+ const at=Date.parse(item.occurredAt),latched=new Set<string>()
+ expect(debrisHidesSurface(item,at+2000,true,latched)).toBe(true)
+ expect(latched.size).toBe(0)
+ expect(debrisHidesSurface(item,at+2100,false,latched)).toBe(true)
+ // 다른 잔해의 고정 상태와 섞이지 않는다.
+ const other={...item,id:'other',occurredAt:new Date(at+20_000).toISOString()}
+ expect(debrisHidesSurface(other,at+20_100,false,latched)).toBe(false)
 })
