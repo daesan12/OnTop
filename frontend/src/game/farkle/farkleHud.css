@@ -139,7 +139,7 @@
 .farkle-player-hud .farkle-bank-button > span { display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 18px; }
 .farkle-player-hud .farkle-bank-button strong { font-size: 18px; font-weight: 700; }
 .farkle-player-hud .farkle-bank-button strong small { font-size: 14px; font-weight: 400; margin-left: 4px; }
-.farkle-player-hud .farkle-settings { position: absolute; right: 24px; top: 90px; z-index: 2; pointer-events: auto; }
+.farkle-player-hud .farkle-settings-dock { display:flex;align-items:flex-start;gap:8px; position: absolute; right: 24px; top: 90px; z-index: 2; pointer-events: auto; }
 .park-page .prototype-game.farkle-player-hud:has(.farkle-settings[open]) { z-index: 13; }
 .farkle-player-hud .farkle-settings > summary { list-style: none; padding: 10px 14px; border: 1px solid var(--dice-line); border-radius: 8px; background: var(--dice-panel); color: var(--dice-muted); font-size: 13px; cursor: pointer; }
 .farkle-player-hud .farkle-settings > summary::-webkit-details-marker { display: none; }
@@ -202,7 +202,7 @@
   .farkle-observer-hud .farkle-scoreboard::after { display: none; }
   .park-page .farkle-player-hud.farkle-hud .farkle-message { top: 188px; max-width: calc(100vw - 56px); padding: 8px 14px; gap: 10px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-actions { right: 12px; bottom: 88px; width: calc(100vw - 24px); max-width: none; max-height: 36dvh; padding: 12px 18px 16px; }
-  .farkle-player-hud .farkle-settings { top: 24px; left: 12px; right: auto; }
+  .farkle-player-hud .farkle-settings-dock { top: 24px; left: 12px; right: auto; }
   .park-page .farkle-player-hud.farkle-hud .farkle-tools { right: auto; left: 0; }
   .park-page .farkle-player-hud.farkle-hud .farkle-feedback { top: 250px; }
 }
@@ -247,7 +247,7 @@
 .park-page .farkle-observer-hud .farkle-scoreboard strong { font-size: 25px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-message { top: 100px; padding-block: 5px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-actions { bottom: 12px; max-height: 40dvh; }
-  .farkle-player-hud .farkle-settings { top: 75px; }
+  .farkle-player-hud .farkle-settings-dock { top: 75px; }
   .park-page .farkle-player-hud.farkle-hud .farkle-feedback { top: 148px; max-height: 70px; }
 }
 @media (max-width: 360px) {.park-page .farkle-player-hud.farkle-hud .farkle-scoreboard,

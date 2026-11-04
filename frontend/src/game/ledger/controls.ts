@@ -68,7 +68,7 @@ export function installLedgerControls() {
     // 채팅이 열려 있으면 R·숫자는 글자로 남긴다. 마우스 굴림·보관·기록은 막지 않는다.
     if (!useGame.getState().game?.ledger || inputState.manualOpen || inputState.chatOpen || e.repeat || e.isComposing || e.ctrlKey || e.altKey
       || e.metaKey || document.hidden
-      || (e.target instanceof HTMLElement && !!e.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"]'))) return
+      || (e.target instanceof HTMLElement && !!e.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],.game-hud-menu'))) return
     if (e.code === 'KeyR') { e.preventDefault(); rollLedger() }
     const digit = /^Digit([1-5])$/.exec(e.code)
     if (digit) { e.preventDefault(); toggleKeep(Number(digit[1]) - 1) }

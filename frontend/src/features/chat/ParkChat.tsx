@@ -112,7 +112,8 @@ function ChatPanel({ gameId }: { gameId: string }) {
         onScroll={event => { const el = event.currentTarget; followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24 }}>
         {channelName && (expanded || !messages.length) && <p className="park-chat__system">{gameId ? '참가자와 승인된 관전자에게만 보여요' : `${channelName} 채널에 입장했어요`}</p>}
         {messages.map(message => <p className="park-chat__message" key={message.id}>
-          <span className={'park-chat__author' + (message.userId === session.own ? ' park-chat__author--own' : '')}>
+          <span className={'park-chat__author' + (message.userId === session.own ? ' park-chat__author--own' : '')}
+            title={message.displayName ?? displayNickname(session.profiles[message.userId], message.userId === session.own ? '나' : '산책자 ' + message.userId.slice(-6))}>
             {message.displayName ?? displayNickname(session.profiles[message.userId], message.userId === session.own ? '나' : '산책자 ' + message.userId.slice(-6))}
           </span><span>{message.text}</span>
         </p>)}

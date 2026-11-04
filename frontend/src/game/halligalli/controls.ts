@@ -18,7 +18,7 @@ export function ringAllowedBell() {
 }
 
 const ownsTarget =(target: EventTarget | null) => target instanceof HTMLElement
-  && !!target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"]')
+  && !!target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],.game-hud-menu')
 
 /** Space rings the bell for players. Repeats, IME composition, text inputs and open panels are ignored. */
 export function installHalliControls() {

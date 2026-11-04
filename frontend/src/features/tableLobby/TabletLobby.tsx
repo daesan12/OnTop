@@ -16,6 +16,7 @@ import alkkagiThumbnail from '../../game/alkkagi/assets/thumbnail.webp'
 import fruitDdaengThumbnail from '../../game/halligalli/assets/thumbnail.webp'
 import ledgerThumbnail from '../../game/ledger/assets/thumbnail.webp'
 import './tablet.css'
+import { useReadyBalance, canAffordBet, BetBalanceNotice, startFailureNotice } from './readyBalance'
 const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ default: module.TabletPortrait })))
 
 const descriptions: Record<TableGameCode, string> = {
@@ -53,6 +54,7 @@ function TabletSession({ tableId }: { tableId: string }) {
   const [confirmedBet, setConfirmedBet] = useState(''), [working, setWorking] = useState(false), [error, setError] = useState('')
   const alive = useRef(true), commandEpoch = useRef(0), element = useRef<HTMLElement>(null)
   const active = s.connected && !g.game && !['PLAYING', 'SETTLING'].includes(g.start?.phase ?? '')
+  const {balance,refresh:refreshBalance} = useReadyBalance(active,tableId,g.start?.revision)
   const host = table?.selectorUserId === s.own, mine = table?.seats.find(seat => seat.userId === s.own)
   const approvedCount = table && port?.selectedPlayers(table), max = TABLE_GAMES.find(game => game.code === code)!.capacity
   const occupied = table?.seats.filter(seat => seat.userId).length ?? 0
@@ -127,7 +129,7 @@ function TabletSession({ tableId }: { tableId: string }) {
   if (!table) return null
   const amount = Number(bet), validBet = /^\d+$/.test(bet) && Number.isSafeInteger(amount) && amount >= 0 && Number.isSafeInteger(amount * max)
   const countSupported = !!port || count === max
-  const canConfigure = host && isTableGamePlayable(code) && validBet && countSupported && count >= occupied
+  const canConfigure = host && isTableGamePlayable(code) && validBet && countSupported && count >= occupied && canAffordBet(balance,amount)
   const confirmation = signature
   const finalReadyBlocked = !port && !mine?.ready && readyWouldAutoStart(table, s.own)
   const startEnabled = !!port && manualStartAllowed(table, s.own, approvedCount ?? null) && !busy && !startUncertain
@@ -166,6 +168,7 @@ function TabletSession({ tableId }: { tableId: string }) {
           <label className="tablet-bet-input"><span>1인 참가 판돈</span><span className="tablet-money-field">
             <img className="tablet-coin" src={coinImage} alt="" /><input aria-label="1인 참가비" inputMode="numeric" type="text" maxLength={15} value={bet} disabled={!host || busy}
               placeholder="금액" onChange={e => setBet(e.target.value)} /><span>냥</span></span></label>
+          <BetBalanceNotice balance={balance} bet={validBet?amount:null} retry={refreshBalance}/>
           {!countSupported && <p className="tablet-contract-note" role="status">{count}인 정원 선택은 서버 연결 준비 중입니다.</p>}
           {count < occupied && <p role="status">현재 앉은 {occupied}명보다 적게 설정할 수 없어요.</p>}
           {code !== 'ALKKAGI' && <button className="tablet-manual" onClick={() => openManual(GAME_MANUAL[code])}>설명서</button>}
@@ -196,11 +199,13 @@ function TabletSession({ tableId }: { tableId: string }) {
         <footer className="tablet-ready-actions"><button disabled={busy || !mine} aria-keyshortcuts="Escape" title="일어나기 (Esc)" onClick={() => void runtime.leaveTable()}>일어나기</button>
           {host ? <HostStartButton table={table} selectedCount={approvedCount ?? null} disabled={!startEnabled} onStart={() => port && void command(() => port.start(preparationContext(table)))} />
             : <span className="tablet-host-wait">방장이 게임을 시작해요</span>}
-          <button disabled={busy || !mine || !table.gameCode || table.betAmountPerPlayer == null || (!mine.ready && (!isTableGamePlayable(table.gameCode) || confirmedBet !== confirmation || !port || approvedCount == null))}
+          <button disabled={busy || !mine || !table.gameCode || table.betAmountPerPlayer == null || (!mine.ready && (!canAffordBet(balance,table.betAmountPerPlayer) || !isTableGamePlayable(table.gameCode) || confirmedBet !== confirmation || !port || approvedCount == null))}
             onClick={() => void command(() => runtime.setReady(!mine?.ready))}>{mine?.ready ? '준비 취소' : '준비 완료'}</button>
         </footer>
       </div>}
+      {step === 'ready' && <BetBalanceNotice balance={balance} bet={table.betAmountPerPlayer} retry={refreshBalance}/>}
       <div className="tablet-footer-status" aria-live="polite">{(error || g.error || s.sessionError) && <p role="alert">{error || g.error || s.sessionError}</p>}
+        {startFailureNotice(g.start) && <p role="alert">{startFailureNotice(g.start)}</p>}
         {startUncertain && port?.recoverStart && <p role="status">시작 요청 응답을 확인하고 있어요. 새 요청을 보내기 전에 상태를 확인해주세요.
           <button disabled={s.pending || working || !s.connected} onClick={() => void command(() => port.recoverStart!(preparationContext(table)))}>시작 요청 상태 확인</button></p>}
         {step === 'select' && <button disabled={busy} aria-keyshortcuts={table.gameCode ? undefined : 'Escape'} title={table.gameCode ? undefined : '일어나기 (Esc)'} onClick={() => table.gameCode ? setStep('ready') : void runtime.leaveTable()}>{table.gameCode ? '돌아가기' : '일어나기'}</button>}
