@@ -26,6 +26,7 @@ export function ParkChat() {
 }
 function ChatPanel({ gameId }: { gameId: string }) {
   const runtime = useParkRuntime()
+  const spectator = useGame(s => s.game?.role === 'SPECTATOR')
   const historyMessages = useOmokEvents(s => s.history), gameCanSend = useOmokEvents(s => s.canSend)
   const session = useSession(useShallow(s => ({ messages: s.messages, profiles: s.profiles,
     own: s.sessionId, channel: s.roomId, pending: s.pending, connected: s.status === 'connected' })))
@@ -93,6 +94,10 @@ function ChatPanel({ gameId }: { gameId: string }) {
       if ((textControl(event.target) && event.target !== input.current)
         || (textControl(document.activeElement) && document.activeElement !== input.current)) return
       if (event.code === 'Escape' && (open || history || previewUntil)) {
+        if (spectator && gameId) {
+          if (open) { event.preventDefault(); event.stopPropagation() }
+          return
+        }
         event.preventDefault(); setHistory(false); close(); return
       }
       if (event.code === 'KeyZ' && event.target !== input.current) {
@@ -104,7 +109,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
     }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
-  }, [open, history, previewUntil])
+  }, [open, history, previewUntil, spectator, gameId])
 
   return <section className="park-chat" aria-label={gameId ? '경기 채팅' : '주변 채팅'} data-game-id={gameId || undefined} data-expanded={expanded} data-history={history}>
     <div className="park-chat__messages">
@@ -138,7 +143,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
           event.preventDefault(); event.stopPropagation()
           if (event.repeat) return
           if (event.key === 'Enter') void send()
-          else { setHistory(false); close() }
+          else if (!spectator || !gameId) { setHistory(false); close() }
         }} placeholder={gameId ? '이 경기 안에서만 대화해요' : '메시지를 입력하세요'} maxLength={gameId ? 200 : 400} autoComplete="off" />
       <button type="button" aria-label="채팅 입력창 닫기" onClick={() => close()}>×</button>
       <button type="submit" aria-label="메시지 보내기" disabled={sending || session.pending || !session.channel || !session.connected || !!gameId && !gameCanSend}><img src={sendIcon} alt="" /></button>

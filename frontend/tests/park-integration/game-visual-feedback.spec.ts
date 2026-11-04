@@ -118,7 +118,7 @@ for(const seated of [false,true])test(`new map omok watch ${seated?'pavilion sea
   await chat.getByRole('textbox').fill('작은 채팅창에서도 관전 대화')
   await chat.getByRole('textbox').press('Enter');await expect(chat.getByRole('textbox')).toHaveCount(0)
   await screenshot(page,`feedback-watch-${seated?'seated':'standing'}-${viewport.width}`)
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('Enter'); await page.keyboard.press('Enter')
  }
  expect(server.sent.some(m=>m.type==='TABLE_JOIN'||m.type==='GAME_ACTION_SEND')).toBe(false)
  await page.getByRole('button',{name:'관전 종료',exact:true}).click()

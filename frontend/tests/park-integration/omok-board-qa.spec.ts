@@ -121,7 +121,7 @@ test('관전 도구와 접이식 채팅이 판을 가리지 않고 시점 전환
       }).toBe(true)
       await screenshot(page,'omok-qa-spectator-mobile-chat')
     }
-    await page.keyboard.press('Escape')
+    await chat.getByRole('textbox').fill(''); await page.keyboard.press('Enter')
     await expect(chat.getByRole('textbox')).toBeHidden()
   }
   await page.setViewportSize({width:1920,height:1080}); await ready(page)
@@ -129,7 +129,7 @@ test('관전 도구와 접이식 채팅이 판을 가리지 않고 시점 전환
   await expect(chat.getByRole('textbox')).toBeFocused()
   await chat.getByRole('textbox').fill('중앙을 살펴보세요'); await chat.getByRole('button',{name:'메시지 보내기',exact:true}).click()
   await expect.poll(()=>server.sent.filter(m=>m.type==='GAME_SPECTATOR_CHAT_SEND').length).toBe(1)
-  await expect(chat.getByRole('textbox')).toHaveCount(0); await page.keyboard.press('Escape')
+  await expect(chat.getByRole('textbox')).toHaveCount(0)
   await ready(page)
   const corners=(await probe(page)).corners
   await page.mouse.click((corners[0]!.x+corners[3]!.x)/2,(corners[0]!.y+corners[3]!.y)/2)

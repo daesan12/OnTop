@@ -61,7 +61,7 @@ for (const anchor of tables) test(`${anchor.id}: 돌 테이블은 정보 팝업 
   await page.keyboard.press('Enter')
   expect(server.sent.filter(r => r.type === 'GAME_SPECTATOR_CHAT_SEND')).toHaveLength(1)
   expect(server.sent.filter(r => r.type === 'WORLD_CHAT_SEND')).toHaveLength(0)
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('Enter'); await page.keyboard.press('Enter')
   let previous: number[] | null = null
   await expect.poll(async () => {
     const position: number[] = await page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).cameraPosition())

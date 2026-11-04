@@ -69,7 +69,7 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
         gameId: targetId, eventId: expect.any(String), text: '관전 중 대화',
       })
       expect(server.sent.some(m => m.type === 'WORLD_CHAT_SEND')).toBe(false)
-      await page.keyboard.press('Escape')
+      await page.keyboard.press('Enter'); await page.keyboard.press('Enter')
       await expect(page.getByRole('region', { name: '주변 채팅', exact: true })).toHaveCount(0)
       await expect.poll(() => watchStatus(page)).toBe('watching')
       expect((await game(page))?.gameId).toBe(targetId)

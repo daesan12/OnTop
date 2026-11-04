@@ -182,7 +182,7 @@ test('approved observer sends game chat and board ping, without ever placing a s
   await expect(page.locator('.omok-floating-chat')).toContainText('여기 어때요?')
   expect(server.sent.filter(m=>m.type==='GAME_SPECTATOR_CHAT_SEND')).toHaveLength(1)
   await expect(input).toHaveCount(0); await expect(page.locator('canvas')).toBeFocused()
-  await page.keyboard.press('Escape'); await expect(input).not.toBeFocused()
+  await page.keyboard.press('Enter'); await page.keyboard.press('Enter'); await expect(input).toHaveCount(0)
   for (let n = 1; n <= 3; n++) server.spectatorEvent('chat', {
     eventId: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`, text: `다른 위치의 응원 ${n}`,
   })
