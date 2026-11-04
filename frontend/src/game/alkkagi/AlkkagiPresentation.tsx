@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import yeopjeon from '../../assets/entry/yeopjeon-icon.webp'
 import { AlkkagiItemCard } from './AlkkagiItemCard'
-import { UsedCardTimeline, type UsedCard } from './presentation'
+import { UsedCardTimeline, visibleUsedCards, type UsedCard } from './presentation'
 import type { Alkkagi } from './protocol'
 import '../omok/omokCoinToss.css'
 import './presentation.css'
@@ -23,19 +23,19 @@ export function AlkkagiCoinToss({ state, now, name }: { state: Alkkagi; now: num
 
 export function AlkkagiOpponentCards({ count, nickname }: { count: number; nickname: string }) {
   return <aside className="alkkagi-opponent-hand" aria-label={`${nickname} 비책 ${count}장`}>
-    <span>{nickname} · 비책 {count}장</span><div aria-hidden="true">
+    <header><span>{nickname}</span><small>비책 <b>{count}</b>장</small></header><div aria-hidden="true">
       {Array.from({ length: Math.min(count, 12) }, (_, i) => <span key={i} className="alkkagi-card-back">策</span>)}
     </div>
   </aside>
 }
 
-export function AlkkagiUsedCard({ state, now, name }: { state: Alkkagi; now: number; name(actor: number): string }) {
+export function AlkkagiUsedCard({ state, now, name, viewerActor = -1 }: { state: Alkkagi; now: number; name(actor: number): string; viewerActor?: number }) {
   const timeline = useRef(new UsedCardTimeline())
   const [queue, setQueue] = useState<UsedCard[]>([])
   useEffect(() => {
-    const added = timeline.current.accept(state.gameId, state.itemEffects ?? [], state.serverNow)
+    const added = visibleUsedCards(timeline.current.accept(state.gameId, state.itemEffects ?? [], state.serverNow), viewerActor)
     if (added.length) setQueue(previous => [...previous, ...added].slice(-16))
-  }, [state.gameId, state.version])
+  }, [state.gameId, state.version, viewerActor])
   const card = queue[0]
   useEffect(() => {
     if (queue.some(item => now - item.at >= 6000)) setQueue(current => current.filter(item => now - item.at < 6000))
@@ -46,8 +46,12 @@ export function AlkkagiUsedCard({ state, now, name }: { state: Alkkagi; now: num
     return () => clearTimeout(timer)
   }, [card])
   if (!card) return null
-  return <div key={`${state.gameId}:${card.version}`} className="alkkagi-used-card" role="status" aria-label="비책 발동">
-    <strong>{name(card.actor)} · 비책 발동!</strong>
-    <div className="alkkagi-used-flip"><span className="alkkagi-card-back">策</span><div className="alkkagi-used-front"><AlkkagiItemCard type={card.type} /></div></div>
+  return <AlkkagiUsedCardNotice key={`${state.gameId}:${card.version}`} card={card} nickname={name(card.actor)} />
+}
+
+export function AlkkagiUsedCardNotice({ card, nickname }: { card: UsedCard; nickname: string }) {
+  return <div className="alkkagi-used-card" role="status" aria-label="비책 발동">
+    <strong>{nickname} <span>비책 발동!</span></strong>
+    <div className="alkkagi-used-flip"><span className="alkkagi-card-back" aria-hidden="true">策</span><div className="alkkagi-used-front"><AlkkagiItemCard type={card.type} eager /></div></div>
   </div>
 }

@@ -1,6 +1,27 @@
-.gomoku-focus-hud .omok-negotiations{position:fixed;right:16px;top:43%;width:min(232px,calc(100vw - 32px));display:grid;gap:8px;pointer-events:none;z-index:35}
-.gomoku-focus-hud .omok-undo{padding:12px;box-sizing:border-box;border:1px solid #c9b899;border-radius:12px;background:#fffdf6;color:#403524;box-shadow:0 4px 18px #30271926;pointer-events:auto;font-size:13px;line-height:1.45}
-.omok-undo p{margin:0 0 8px}.omok-undo small{display:block;margin:4px 0 8px;color:#75674f}.omok-undo button{margin:4px 4px 0 0;padding:7px 9px;font-size:12px}.omok-undo [role=status]{display:block}.omok-undo progress{display:block;width:100%;height:6px;accent-color:#9b7141}
-.omok-undo progress::-webkit-progress-value{transition:width .25s linear}.omok-undo progress::-moz-progress-bar{transition:width .25s linear}
-@media(max-width:680px){.gomoku-focus-hud .omok-negotiations{top:auto;bottom:110px;right:8px;width:200px}.gomoku-focus-hud .omok-undo{padding:9px;font-size:12px}}
-@media(prefers-reduced-motion:reduce){.omok-undo progress::-webkit-progress-value,.omok-undo progress::-moz-progress-bar{transition:none}}
+.gomoku-focus-hud .omok-negotiations{--request-ink:#f6e7c9;--request-muted:#d0c1a3;--request-line:#cfb67b55;position:fixed;right:max(20px,env(safe-area-inset-right));bottom:max(84px,calc(env(safe-area-inset-bottom) + 76px));width:min(272px,calc(100vw - 24px));display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;pointer-events:none;z-index:35;text-shadow:none}
+.omok-request-action{position:relative;pointer-events:auto}
+.gomoku-focus-hud .omok-negotiations button{box-sizing:border-box;min-height:42px;padding:9px 15px;border:1px solid var(--request-line);border-radius:9px;background:#29281fee;color:var(--request-ink);font:inherit;font-size:13px;line-height:1.3;cursor:pointer;touch-action:manipulation;transition:background .15s,border-color .15s}
+.gomoku-focus-hud .omok-negotiations button:hover:not(:disabled){background:#454333;border-color:#e8ca85}
+.gomoku-focus-hud .omok-negotiations button:focus-visible{outline:2px solid #f6d790;outline-offset:3px}
+.gomoku-focus-hud .omok-negotiations button:disabled{opacity:.48;cursor:default}
+.omok-request-trigger{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.omok-request-trigger>span{font-size:20px;line-height:1;color:#e7c780}
+.omok-request-trigger>small{font-size:10px;color:var(--request-muted)}
+.omok-request-feedback{position:absolute;right:0;bottom:calc(100% + 7px);width:max-content;max-width:250px;padding:6px 9px;border-radius:6px;background:#25271ff5;color:var(--request-muted);font-size:11px;pointer-events:none}
+.omok-request-card{box-sizing:border-box;width:100%;padding:16px;border:1px solid var(--request-line);border-radius:13px;background:#25281ff5;color:var(--request-ink);box-shadow:0 8px 24px #14170d35;pointer-events:auto;font-size:13px;line-height:1.5;animation:omok-request-arrive .16s ease-out}
+.omok-request-card>header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.omok-request-symbol{color:#e7c780;font-size:23px;line-height:1}
+.omok-request-card strong{font-size:14px;font-weight:650}
+.omok-request-seconds{display:flex;align-items:baseline;gap:2px;margin-left:auto;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;color:#f3d58e}
+.omok-request-seconds small{font-size:11px;font-weight:400}
+.omok-request-card p{margin:0 0 10px;color:#eee3cd;font-size:12px}
+.omok-request-card progress{display:block;width:100%;height:4px;border:0;border-radius:4px;overflow:hidden;accent-color:#d6b775;background:#eee3cd25}
+.omok-request-card progress::-webkit-progress-bar{background:#eee3cd25;border-radius:4px}
+.omok-request-card progress::-webkit-progress-value{background:#d6b775;border-radius:4px;transition:width .25s linear}
+.omok-request-clock-note{display:block;margin-top:7px;color:var(--request-muted);font-size:10px}
+.omok-request-responses{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.gomoku-focus-hud .omok-negotiations .omok-request-accept{background:#e4c98d;color:#30291b;border-color:#e4c98d;font-weight:700}
+.gomoku-focus-hud .omok-negotiations .omok-request-accept:hover:not(:disabled){background:#f4dcaa}
+@keyframes omok-request-arrive{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+@media(max-width:700px){.gomoku-focus-hud .omok-negotiations{right:12px;bottom:max(82px,calc(env(safe-area-inset-bottom) + 74px));width:min(252px,calc(100vw - 24px))}.omok-request-card{padding:13px}}
+@media(prefers-reduced-motion:reduce){.omok-request-card{animation:none}.omok-request-card progress::-webkit-progress-value{transition:none}}

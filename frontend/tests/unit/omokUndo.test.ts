@@ -76,5 +76,5 @@ it('renders a small non-modal request with declining time and progress; requeste
   expect(start).toContain('value="10000"'); expect(later).toContain('value="6000"')
   expect(later).toContain('6초'); expect(later).toContain('>무르기</button>'); expect(later).toContain('>거절</button>')
   expect(view('101',now)).not.toContain('>무르기</button>')
-  expect(later).toContain('요청자의 착수 제한시간은 계속 흘러요.')
+  expect(later).toContain('착수 시계는 계속 진행돼요.')
 })
