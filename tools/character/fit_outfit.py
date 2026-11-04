@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [cull=1] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [cull=1] [lining=1] [shoe_cut=1] [dark_lining=SHOES] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -205,14 +205,14 @@ def leading_bones(o):
     gname = {g.index: g.name[len('mixamorig:'):] for g in o.vertex_groups if g.name.startswith('mixamorig:')}
     return [max(((e.weight, gname[e.group]) for e in v.groups if e.group in gname), default=(0, ''))[1] for v in o.data.vertices]
 
-def lit_texel(it):
+def lit_texel(it, pct=80):
     """The UV of the item's lit cloth colour: the texel nearest the median of its brightest fifth (the brighter half
-    read grey)."""
+    read grey). pct=50: its middle tone."""
     img = next(n.image for m in it.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
     w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
     uvd = it.data.uv_layers.active.data
     cs = np.array([P[min(h_ - 1, int(uvd[li].uv[1] * h_)), min(w_ - 1, int(uvd[li].uv[0] * w_))] for li in range(0, len(uvd), 7)])
-    light = cs[cs.mean(1) >= np.percentile(cs.mean(1), 80)]; med = np.median(light, 0)
+    light = cs[cs.mean(1) >= np.percentile(cs.mean(1), pct)]; med = np.median(light, 0)
     return tuple(uvd[int(np.argmin(((cs - med) ** 2).sum(1))) * 7].uv), med
 
 def on_texel(o, like, uv0):
@@ -293,7 +293,7 @@ if opt.get('pants', '0') == '1' and 'BOTTOM' in G:
     ext = bmesh.ops.extrude_edge_only(pb_, edges=ring)
     hem = [g for g in ext['geom'] if isinstance(g, bmesh.types.BMVert)]
     for v in hem:
-        c0 = axis_point(Vector((v.co.x, v.co.y, hem_z))); v.co = c0 + (Vector((v.co.x, v.co.y, hem_z)) - c0) * float(opt.get('pants_flare', 1.06))
+        c0 = axis_point(Vector((v.co.x, v.co.y, hem_z))); v.co = c0 + (Vector((v.co.x, v.co.y, hem_z)) - c0) * float(opt.get('pants_flare', 1.0))
     loops = sum(1 for e in pb_.edges if e.is_boundary and all(abs(v.co.z - hem_z) < 1e-4 for v in e.verts))
     # (the extruded band's faces came out wound either way: their flipped normals shaded as stripes)
     bmesh.ops.recalc_face_normals(pb_, faces=pb_.faces[:])
@@ -363,14 +363,76 @@ if DRAPE != 1.0 and 'TOP' in G:
             v.co.z = foot.z - r0 + (off.z + r0) * (1 - k + k * DRAPE); n_ += 1
     print('DRAPE', n_, 'sleeve vertices, scale', DRAPE)
 
+# lining=1 (the gat's dopo): inside a V neck the hidden chest's sawtooth edge and the robe's grey inner layer showed
+# (user: the neck looked crooked). The body round the neck's foot (within lining_r 9 cm of the neck's axis, from
+# lining_down 10 cm under the neck joint) becomes a lining just off the skin, cut level lining_up (6 mm) over the joint,
+# on the top's lit cloth texel: a clean inner collar.
+if opt.get('lining', '0') == '1' and 'TOP' in G:
+    nz, nx, ny = J['Neck'].z, J['Neck'].x, J['Neck'].y
+    r_, down_, up_ = float(opt.get('lining_r', 0.09)), float(opt.get('lining_down', 0.1)), float(opt.get('lining_up', 0.006))
+    pick = [p.index for p in src_obj.data.polygons
+            if nz - down_ < p.center.z < nz + up_ + 0.02 and math.hypot(p.center.x - nx, p.center.y - ny) < r_]
+    ln = src_obj.copy(); ln.data = src_obj.data.copy(); bpy.context.scene.collection.objects.link(ln)
+    lb = bmesh.new(); lb.from_mesh(ln.data); lb.faces.ensure_lookup_table(); keep_ = set(pick)
+    bmesh.ops.delete(lb, geom=[f for f in lb.faces if f.index not in keep_], context='FACES')
+    bmesh.ops.remove_doubles(lb, verts=lb.verts, dist=1e-5)
+    bmesh.ops.bisect_plane(lb, geom=lb.verts[:] + lb.edges[:] + lb.faces[:], plane_co=(0, 0, nz + up_), plane_no=(0, 0, 1), clear_outer=True)
+    lb.normal_update()
+    for v in lb.verts: v.co += v.normal * float(opt.get('lining_gap', 0.001))
+    # only where it stays under the top: 1 mm off the skin (lining_gap), and dropped where the top lies closer to the
+    # body than that (2.5 mm out, all round the neck it came out over the dopo's collar; dropped wherever the collar
+    # was near, its sides showed ragged inside the V)
+    tb = bmesh.new(); tb.from_mesh(G['TOP'].data); top_bvh = BVHTree.FromBMesh(tb); tb.free()
+    lb.normal_update()
+    dead = [f for f in lb.faces if top_bvh.ray_cast(f.calc_center_median(), -f.normal, 0.006)[0] is not None]
+    bmesh.ops.delete(lb, geom=dead, context='FACES')
+    lb.to_mesh(ln.data); lb.free()
+    for g in list(ln.vertex_groups): ln.vertex_groups.remove(g)
+    # (the top's middle tone: on its lit white the lapels' shaded inner edges stood out as teeth)
+    uv0, med = lit_texel(G['TOP'], float(opt.get('lining_tone', 40))); on_texel(ln, G['TOP'], uv0)
+    ln.vertex_groups.new(name='part:lining').add(list(range(len(ln.data.vertices))), 1.0, 'REPLACE')
+    for x in bpy.data.objects: x.select_set(x in (G['TOP'], ln))
+    bpy.context.view_layer.objects.active = G['TOP']; bpy.ops.object.join()
+    print('LINING', len(pick), 'body faces round the neck,', len(dead), 'under the top dropped; top level at z', round(nz + up_, 3))
+
+# shoe_cut=1 (the gat's low shoes): Tripo's opening rim was ragged, a row of teeth round the ankle. The shoes are cut
+# level shoe_cut_up (8 mm) over the bottom's hem line, so the rim is a clean edge the trousers go into.
+if opt.get('shoe_cut', '0') == '1' and 'SHOES' in G:
+    sb = bmesh.new(); sb.from_mesh(G['SHOES'].data)
+    zc = boot_top + float(opt.get('shoe_cut_up', 0.008))
+    bmesh.ops.bisect_plane(sb, geom=sb.verts[:] + sb.edges[:] + sb.faces[:], plane_co=(0, 0, zc), plane_no=(0, 0, 1), clear_outer=True)
+    sb.to_mesh(G['SHOES'].data); sb.free()
+    print('SHOES cut level at z', round(zc, 3))
+
+# dark_lining=SHOES (the gat's shoes): the low shoes' white inner lining showed round the ankle as white teeth.
+# The slot's light faces (texel at their UV centre brighter than dark_light, 0.6) take its dark texel (the median
+# of its darker half).
+for slot in [x for x in opt.get('dark_lining', '').split(',') if x]:
+    it = G[slot]
+    img = next(n.image for m in it.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
+    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
+    uvd = it.data.uv_layers.active.data
+    col = lambda u: P[min(h_ - 1, int(u[1] * h_)), min(w_ - 1, int(u[0] * w_))]
+    fc = {p.index: col(np.mean([tuple(uvd[l].uv) for l in p.loop_indices], 0)) for p in it.data.polygons}
+    lum = {i: float(c.mean()) for i, c in fc.items()}
+    dark = sorted(lum, key=lum.get)[: max(1, len(lum) // 2)]
+    dmed = np.median([lum[i] for i in dark]); di = min(dark, key=lambda i: abs(lum[i] - dmed))
+    duv = np.mean([tuple(uvd[l].uv) for l in it.data.polygons[di].loop_indices], 0)
+    n_ = 0
+    for p in it.data.polygons:
+        if lum[p.index] > float(opt.get('dark_light', 0.6)):
+            for l in p.loop_indices: uvd[l].uv = duv
+            n_ += 1
+    print('DARK lining', slot, n_, 'light faces to', round(float(dmed), 2))
+
 # 1. outside the body by 2 mm, where the item touches it (deeper, the body is hidden instead)
 for slot, it in G.items():
     lo, to = (-0.03, 0.004) if slot == 'HAIR' else (-0.004, 0.002)
     moved = 0
     # (made pants are laid out from the body already; pushed, their hem drawn in under the shoes' rim scattered)
-    made = it.vertex_groups['part:pants'].index if 'part:pants' in it.vertex_groups else None
+    made = {it.vertex_groups[g].index for g in ('part:pants', 'part:lining') if g in it.vertex_groups}
     for v in it.data.vertices:
-        if made is not None and any(e.group == made for e in v.groups): continue
+        if made and any(e.group in made for e in v.groups): continue
         loc, n, fi, d = body_bvh.find_nearest(v.co)
         if loc is None or d > 0.05: continue
         nf = body_fn[fi]; s_ = (v.co - loc).dot(nf)
