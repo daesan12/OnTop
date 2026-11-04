@@ -5,6 +5,7 @@ import cover from '../../vrZone/art/skewer-cover-lowpoly.png'
 import type { CoopClient } from './client'
 import type { CoopRoom } from './contracts'
 import { searchCoopRooms } from './roomSearch'
+import { roomArtwork } from './roomArtwork'
 import './coopRooms.css'
 
 function Lock() {
@@ -58,7 +59,7 @@ export function CoopRoomBrowser({ client, onClose }: { client: CoopClient; onClo
       <div className="coop-room-tools"><button onClick={back}>← 처음으로</button><span>참가 가능한 가게 <b>{state.rooms.length}</b></span><button onClick={() => { setCreating(true); client.store.setState({ error: '' }) }}>방 만들기 ＋</button></div>
       <div className="coop-room-search" role="search" aria-label="협동 방 검색"><label htmlFor="coop-room-query">가게 찾기</label><div><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="10" cy="10" r="6" /><path d="m15 15 6 6" /></svg><input id="coop-room-query" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="가게 이름 또는 방장 닉네임" maxLength={80} autoComplete="off" />{query ? <button aria-label="검색어 지우기" onClick={() => setQuery('')}>×</button> : null}</div><span role="status" aria-live="polite">{query.trim() ? `검색 결과 ${rooms.length}개` : `전체 ${rooms.length}개`}</span></div>
       {rooms.length ? <ul className="coop-room-cards">{rooms.map(room => <li key={room.gameId}>
-        <div className="coop-room-card-art"><img src={cover} alt="" draggable={false} /><span>{room.locked ? <><Lock />비밀 가게</> : '열린 가게'}</span></div>
+        <div className="coop-room-card-art"><img src={roomArtwork(room.gameId).src} style={{ objectPosition: roomArtwork(room.gameId).position }} alt="" draggable={false} loading="lazy" /><span>{room.locked ? <><Lock />비밀 가게</> : '열린 가게'}</span></div>
         <div className="coop-room-card-body"><h2>{room.roomName}</h2><p>방장 <strong>{room.hostNickname}</strong></p><footer><span><b>{room.players}</b> / 2명</span><button disabled={busy || room.players >= 2 && !room.mine} onClick={() => void join(room)}>{room.mine ? '돌아가기' : '참가하기'} <span aria-hidden="true">→</span></button></footer></div>
       </li>)}</ul> : query.trim() && state.rooms.length ? <div className="coop-room-no-results"><strong>검색한 가게를 찾지 못했어요</strong><p>가게 이름이나 방장 닉네임을 다시 확인해 주세요.</p><button className="paper-primary" onClick={() => setQuery('')}>전체 가게 보기</button></div> : <div className="coop-room-no-results"><strong>아직 문을 연 가게가 없어요</strong><p>먼저 방을 만들고 친구를 초대해 보세요.</p><button className="paper-primary" onClick={() => setCreating(true)}>방 만들기</button></div>}
       <p className="coop-room-footnote">참가한 뒤 역할을 고르고, 두 사람 모두 준비하면 영업을 시작해요.</p>
