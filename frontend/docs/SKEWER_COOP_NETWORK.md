@@ -1,7 +1,19 @@
 # 온탑 꼬치왕 — 서로 다른 컴퓨터의 2인 연결
 
-기준: 2026-11-02, `origin/dev@4a3f6fdf165353f0a62dc3df5b1491a73e74e926`.
-작업 위치: `C:/Users/SSAFY/Desktop/OnTop/skewer-service-hall`, 기존 로컬 전용 브랜치 `feat/skewer-service-hall-20261101`.
+최신 로비 변경 기준: 2026-11-05, `origin/dev@a9afd16b0e0268916c7991aed92d8f0ac95ac9f9`.
+작업 위치: `C:/Users/SSAFY/Desktop/OnTop/skewer-service-hall`, `feat/quest-vr`.
+초기 네트워크 구현 기준은 2026-11-02 `4a3f6fdf165353f0a62dc3df5b1491a73e74e926`이다.
+
+## 2026-11-05 방 탐색 변경 검증
+
+- 기존 VR 통합 커밋 `9784449d`에 최신 dev `a9afd16b`가 이미 포함되어 있어 불필요한 통합 커밋을 만들지 않았다. 기존 preview 파일과 다른 worktree는 보존했다.
+- 원격 재확인에서 삭제된 별도 브랜치의 fetch refspec 오류가 발생하여, 설정 변경 없이 `git fetch origin '+refs/heads/*:refs/remotes/origin/*'`로 현재 원격을 확인했다. 최신 dev 및 원격 VR 브랜치의 미반영 커밋이 없고 이번 변경과 충돌하지 않는다.
+- BE: `SkewerCoopEngineTests`, `SkewerCoopRoomTests`, `TableHubSkewerEntryTests` 총 38개 통과. 비밀번호·프로필 위조 차단·다른 채널·정원·준비 취소·정산 제외·새 방 재입장 검증을 포함한다.
+- FE: 협동 방·드라이버·개인 결과 unit 17개 통과. 제품 코드 `tsc --noEmit`과 `git diff --check` 통과.
+- 전체 테스트 타입 검사에는 기존 `gameSpectatorHud.test.ts:40`, `gameTurnNotice.test.ts:12`의 `OneCardGame` 필드 누락 오류가 남아 있다. 두 파일은 최신 origin/dev와 동일하며 이번 작업에서 변경하지 않았다.
+- 실제 React 컴포넌트를 실행한 로컬 UI 검수: 생성 폼, 여러 방 카드, 비밀번호 오류/성공, 역할 선택 X의 목록 복귀, 390×640 및 844×390 스크롤/드래그 확인. 화면의 방과 프로필은 예시 데이터다. 기존 네트워크 E2E 시나리오는 새 진입 흐름에 맞췄으나 이번에는 실제 두 계정 공원 E2E·Quest·실제 DB 지급을 실행하지 않았다.
+- 새 마이그레이션 없음. 방 메타데이터·비밀번호 해시는 실행 중 대기 방의 메모리 상태이며 서버 재시작 후 방 복구를 보장하지 않는다. 기존 V145 및 정산 저장 구조는 변경하지 않았다.
+- 변경은 꼬치왕 게임 코드·검수 fixture·테스트·문서에 한정한다. 공통 맵·소켓 프로토콜·인증 런타임·지갑 코드는 수정하지 않았다. 기존 VR 브랜치의 MR·dev/master 머지·배포 보류는 유지한다.
 
 ## 접속 구조
 
@@ -39,8 +51,11 @@
 - 신규 참가자는 입구 거리·인증 소켓·검증된 맵·동일 채널·다른 게임/시설 이용 여부를 확인한다. 이미 방을 만든 대기자는 입구 거리만 면제한다. `requireSkewerWaitingPlayer`는 로비 사용 가능 여부를 계속 검사하므로 방장의 위치 보정은 허용하되 다른 게임 이용·접속 종료·채널 이탈은 참가를 막는다.
 
 - `GET /api/v1/minigames/skewer/coop/rooms?channelId=...`: 같은 공원의 대기 방과 본인의 방. 다른 플레이어의 개인 상태는 반환하지 않는다.
-- `POST .../rooms`: `{channelId, requestKey}`로 생성 또는 `{channelId, gameId}`로 참가. 요청 사용자는 인증 Principal에서 가져온다.
-- `POST .../leave`: 혼자 기다리는 방 취소 또는 종료 결과 닫기. 진행 중인 공동 경기는 공통 `GAME_FORFEIT`로 먼저 종료한다.
+- `POST .../rooms`: `{channelId, requestKey, roomName, password}`로 생성 또는 `{channelId, gameId, password}`로 참가. 가게 이름은 1~24자, 선택 비밀번호는 영문·숫자 4~20자다. 빈 비밀번호는 공개 방이다. 이전 클라이언트의 생략 필드는 기본 이름·공개 방으로 처리한다.
+- 방 목록에는 `gameId, roomName, hostNickname, locked, players, mine`을 반환한다. 방장 닉네임은 인증 Principal의 계정 프로필에서 읽으며 클라이언트가 보낸 닉네임 필드는 거절한다. 비밀번호는 BCrypt 해시로 메모리에 보관하고 공개 응답·정산에 포함하지 않는다. 해시 계산·검증은 엔진 공유 락 밖에서 한다. 잠긴 방의 신규 입장 검증은 계정별 30초에 5회로 제한한다. 기존 참가자의 복구는 비밀번호를 다시 요구하지 않는다.
+- 잘못된 비밀번호는 409 `SKEWER_COOP_PASSWORD_INVALID`, 시도 제한은 409 `SKEWER_COOP_PASSWORD_THROTTLED`다. 공통 인증 만료로 취급하지 않고 게임 화면에서 안내한다.
+- `POST .../leave`: WAITING 단계에서는 인원 수와 무관하게 방을 `SKEWER_CANCELLED`로 닫고 두 사람 모두 방 목록으로 돌아간다. 공통 라우터의 점유를 해제하며 정산·보상·랭킹 결과를 만들지 않는다. COUNTDOWN 이후는 기존 공통 `GAME_FORFEIT`로 먼저 종료한다. 종료 결과 닫기도 이 API를 사용한다.
+- 화면 흐름은 **방 만들기 / 참가하기 → 이름·선택 비밀번호 입력 또는 가게 카드 목록 → 역할 선택 → 준비 완료**다. 역할/준비 화면의 X와 방 나가기 버튼은 공원 이동 없이 방 목록으로 돌아간다. 목록에서 이전 화면으로 돌아온 뒤 첫 화면의 X로 공원에 나간다. 취소한 방의 늦은 소켓·REST 응답은 클라이언트에서 무시한다.
 - 서버는 현재 인증 소켓·맵 검증·공원 채널·위치·시설/착석 상태를 확인한다. 신규 입장은 generated 맵 시설의 위치·yaw에서 계산한 VR 입구를 사용한다. 이미 참가한 본인의 복구는 같은 채널에서 허용한다.
 - 다른 게임의 `TableGame`, 판돈 테이블, `CommittedGameStartService`를 꼬치왕 방으로 재사용하지 않는다. 무료 경기의 시작은 두 사람의 서버 준비 상태로 확정한다.
 

@@ -1,10 +1,10 @@
 import { createStore } from 'zustand/vanilla'
-import { parseCoop, parseCoopResult, parseCoopRanking, type CoopSnapshot, type CoopTransport, type CoopResult, type CoopRanking } from './contracts'
+import { parseCoop, parseCoopResult, parseCoopRanking, type CoopSnapshot, type CoopTransport, type CoopResult, type CoopRanking, type CoopRoom } from './contracts'
 import { refreshWalletAfterSettlement } from '../../wallet/settlementRefresh'
 import type { Envelope } from '../../../network/protocol'
 
 export class CoopClient {
-  readonly store = createStore<{ snapshot: CoopSnapshot | null; rooms: { gameId: string; players: number; mine: boolean }[]; error: string; pending: boolean; connected: boolean; result: CoopResult | null; resultError: string; resultPending: boolean; ranking: CoopRanking | null; rankingError: string; rankingPending: boolean }>(() => ({ snapshot: null, rooms: [], error: '', pending: false, connected: true, result: null, resultError: '', resultPending: false, ranking: null, rankingError: '', rankingPending: false }))
+  readonly store = createStore<{ snapshot: CoopSnapshot | null; rooms: CoopRoom[]; lobbyPage: 'home' | 'rooms'; error: string; pending: boolean; connected: boolean; result: CoopResult | null; resultError: string; resultPending: boolean; ranking: CoopRanking | null; rankingError: string; rankingPending: boolean }>(() => ({ snapshot: null, rooms: [], lobbyPage: 'home', error: '', pending: false, connected: true, result: null, resultError: '', resultPending: false, ranking: null, rankingError: '', rankingPending: false }))
   private cleanup?: () => void
   private poll?: ReturnType<typeof setTimeout>
   private chain: Promise<void> = Promise.resolve()
@@ -15,6 +15,7 @@ export class CoopClient {
   private recoveredGame = ''
   private resultAt = 0
   private watching = new Set<string>()
+  private dismissedGames = new Set<string>()
   inputBlocked = false
   constructor(readonly transport: CoopTransport) { this.owner = transport.scope().userId }
   get snapshot() { return this.store.getState().snapshot }
@@ -42,12 +43,23 @@ export class CoopClient {
     return ['GAME_STATE', 'GAME_CONNECTION_STATE'].includes(message.type)
   }
   private install(snapshot: CoopSnapshot | null) {
-    if (!snapshot || this.stopped || this.owner !== this.transport.scope().userId) return
+    if (!snapshot || this.stopped || this.owner !== this.transport.scope().userId || this.dismissedGames.has(snapshot.gameId)) return
     const current = this.snapshot
     if (current?.gameId === snapshot.gameId && snapshot.version < current.version) return
     if (!snapshot.publicState.players.some(player => player.userId === this.owner)) return
+    if (snapshot.publicState.endReason === 'SKEWER_CANCELLED') {
+      this.dismissRoom(snapshot.gameId, '준비 중인 방이 닫혔어요. 다른 가게를 선택해 주세요.')
+      return
+    }
     if (current?.gameId !== snapshot.gameId) { this.resultAt = 0; this.store.setState({ result: null, resultError: '', ranking: null, rankingError: '' }) }
     this.store.setState({ snapshot })
+  }
+  private dismissRoom(gameId: string, error = '') {
+    this.dismissedGames.add(gameId)
+    this.requestKey = crypto.randomUUID()
+    this.recoveredGame = ''
+    this.inputBlocked = false
+    this.store.setState({ snapshot: null, lobbyPage: 'rooms', error, result: null, resultError: '', ranking: null })
   }
   private async request(type: string, payload: Record<string, unknown>, expected: readonly string[]) {
     let id = ''
@@ -76,7 +88,10 @@ export class CoopClient {
     try {
       const value = await this.transport.requestJSON(`/api/v1/minigames/skewer/coop/rooms?channelId=${encodeURIComponent(scope.channelId)}`) as { mine?: unknown; rooms?: unknown }
       if (this.stopped) return
-      if (Array.isArray(value.rooms)) this.store.setState({ rooms: value.rooms })
+      if (Array.isArray(value.rooms)) this.store.setState({ rooms: value.rooms.filter((room): room is CoopRoom =>
+        !!room && typeof room.gameId === 'string' && typeof room.roomName === 'string'
+        && typeof room.hostNickname === 'string' && typeof room.locked === 'boolean'
+        && typeof room.mine === 'boolean' && Number.isInteger(room.players) && room.players >= 1 && room.players <= 2) })
       const mine = parseCoop(value.mine)
       if (mine) {
         const first = this.snapshot?.registered !== true && mine.registered
@@ -109,15 +124,22 @@ export class CoopClient {
     } catch (error) { if (!this.stopped) this.store.setState({ rankingError: '팀 랭킹을 불러오지 못했어요. 다시 시도해 주세요.' }) }
     finally { if (!this.stopped) this.store.setState({ rankingPending: false }) }
   }
-  async enter(gameId?: string) {
-    if (this.store.getState().pending) return
+  async enter(gameId?: string, options: { roomName?: string; password?: string } = {}) {
+    if (this.store.getState().pending) return false
     this.store.setState({ pending: true, error: '' })
     try {
       const channelId = this.transport.scope().channelId
-      const result = await this.transport.requestJSON('/api/v1/minigames/skewer/coop/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(gameId ? { channelId, gameId } : { channelId, requestKey: this.requestKey }) })
+      const result = await this.transport.requestJSON('/api/v1/minigames/skewer/coop/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(gameId ? { channelId, gameId, password: options.password ?? '' } : { channelId, requestKey: this.requestKey, roomName: options.roomName ?? '함께 여는 꼬치집', password: options.password ?? '' }) })
       this.install(parseCoop(result))
       await this.recover()
-    } catch (error) { this.store.setState({ error: '가게에 입장하지 못했어요. 다시 시도해 주세요.' }) }
+      return !!this.snapshot
+    } catch (error) {
+      const code = (error as { code?: string }).code
+      this.store.setState({ error: code === 'SKEWER_COOP_PASSWORD_INVALID' ? '비밀번호가 맞지 않아요.'
+        : code === 'SKEWER_COOP_PASSWORD_THROTTLED' ? '비밀번호를 여러 번 확인했어요. 30초 후 다시 시도해 주세요.'
+        : '가게에 입장하지 못했어요. 방이 닫혔거나 인원이 찼을 수 있어요. 목록에서 다시 선택해 주세요.' })
+      return false
+    }
     finally { this.store.setState({ pending: false }) }
   }
   act(input: Record<string, unknown>, quiet = false) {
@@ -149,9 +171,11 @@ export class CoopClient {
   async leave() {
     const snapshot = this.snapshot
     if (!snapshot) return
-    if (snapshot.registered && snapshot.publicState.phase !== 'FINISHED') await this.request('GAME_FORFEIT', { gameId: snapshot.gameId, actionId: crypto.randomUUID() }, ['GAME_FORFEIT_RESULT'])
+    const waiting = snapshot.publicState.phase === 'WAITING'
+    if (snapshot.registered && !waiting && snapshot.publicState.phase !== 'FINISHED') await this.request('GAME_FORFEIT', { gameId: snapshot.gameId, actionId: crypto.randomUUID() }, ['GAME_FORFEIT_RESULT'])
     await this.transport.requestJSON('/api/v1/minigames/skewer/coop/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gameId: snapshot.gameId }) })
-    if (snapshot.registered && this.store.getState().result?.status !== 'SETTLED' && this.store.getState().result?.status !== 'UNAVAILABLE') this.watchLeftResult(snapshot.gameId)
+    if (snapshot.registered && !waiting && this.store.getState().result?.status !== 'SETTLED' && this.store.getState().result?.status !== 'UNAVAILABLE') this.watchLeftResult(snapshot.gameId)
+    if (waiting) this.dismissRoom(snapshot.gameId)
     this.requestKey = crypto.randomUUID()
   }
   private watchLeftResult(gameId: string) {

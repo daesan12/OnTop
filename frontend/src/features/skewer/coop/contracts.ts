@@ -9,6 +9,7 @@ export interface CoopTransport {
   requestJSON(path: string, init?: RequestInit): Promise<unknown>
 }
 export interface CoopPublic {
+  roomName?: string; hostNickname?: string; locked?: boolean
   gameCode: 'SKEWER_COOP'; phase: 'WAITING' | 'COUNTDOWN' | 'PLAYING' | 'FINISHED'; channelId: string
   remaining: number; elapsed: number; countdown: number; score: number; served: number; paused: boolean
   actionVersion: number
@@ -17,6 +18,9 @@ export interface CoopPublic {
   rankingEligible: boolean; chefVR: boolean; entryFee: 0; rewardStatus: 'SERVER_SETTLEMENT' | 'NOT_CONNECTED'; message: string; endReason: string | null
   players: { userId: string; role: '' | 'chef' | 'server'; ready: boolean; connected: boolean }[]
   greeting: { active: boolean; index: number; remaining: number; answered: boolean; responded: number; speech: boolean }
+}
+export interface CoopRoom {
+  gameId: string; players: number; mine: boolean; roomName: string; hostNickname: string; locked: boolean
 }
 export interface CoopSnapshot {
   gameId: string; version: number; registered: boolean; publicState: CoopPublic

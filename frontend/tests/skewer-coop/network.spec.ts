@@ -62,6 +62,10 @@ async function login(browser: Browser, role: 'red' | 'green', fresh = true) {
   }
   console.info('[coop] 공원 입장과 VR 존 진입 완료:', role)
   await page.waitForTimeout(1100)
+  if (fresh && await page.getByTestId('skewer-coop').getAttribute('data-phase') === 'WAITING') {
+    await page.getByRole('button', { name: '방 나가기 · 다른 방 선택', exact: true }).click()
+    await page.getByRole('button', { name: '← 처음으로', exact: true }).click()
+  }
   if (fresh && await page.getByTestId('skewer-coop').getAttribute('data-phase') !== 'ROOMS') {
     if (['PLAYING', 'COUNTDOWN'].includes(await page.getByTestId('skewer-coop').getAttribute('data-phase') ?? '')) {
       await page.keyboard.press('Escape')
@@ -69,9 +73,17 @@ async function login(browser: Browser, role: 'red' | 'green', fresh = true) {
     } else await page.getByRole('button', { name: /공원으로 (나가기|돌아가기)/ }).click()
     await expect(page.getByTestId('skewer-coop')).not.toBeVisible()
     await page.keyboard.press('e')
-    await expect(page.getByRole('region', { name: '꼬치왕 협동 방', exact: true })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: '온탑 꼬치왕', exact: true })).toBeVisible()
   }
   return { context, page, errors }
+}
+async function createRoom(page: Page) {
+  await page.getByRole('button', { name: '방 만들기', exact: true }).click()
+  await page.getByRole('button', { name: '방 만들기', exact: true }).click()
+}
+async function joinRoom(page: Page) {
+  await page.getByRole('button', { name: '참가하기', exact: true }).click()
+  await page.locator('.coop-room-cards').getByRole('button', { name: /참가하기/ }).click()
 }
 async function walk(page: Page, name: string, action: RegExp) {
   await page.getByRole('button', { name, exact: true }).click()
@@ -88,9 +100,8 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
   const server = first.page, chef = second.page
   console.info('[coop] 두 계정 준비')
   try {
-    await server.getByRole('button', { name: '새 협동 방 만들기', exact: true }).click()
-    await expect(chef.getByRole('button', { name: '참가하기', exact: true })).toBeVisible({ timeout: 15000 })
-    await chef.getByRole('button', { name: '참가하기', exact: true }).click()
+    await createRoom(server)
+    await joinRoom(chef)
     console.info('[coop] 동일 방 입장')
     await expect(server.getByRole('region', { name: '역할 선택과 준비' })).toBeVisible()
     await server.getByRole('button', { name: '서빙 담당', exact: true }).click()
@@ -189,13 +200,14 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
       await expect(returned.page.getByTestId('skewer-coop')).not.toBeVisible()
       await expect(server.getByTestId('skewer-coop')).not.toBeVisible()
       await server.keyboard.press('e')
-      await server.getByRole('button', { name: '새 협동 방 만들기', exact: true }).click()
+      await createRoom(server)
       await returned.page.keyboard.press('e')
-      await returned.page.getByRole('button', { name: '참가하기', exact: true }).click()
+      await joinRoom(returned.page)
       await expect.poll(() => latest.get(server).gameId).not.toBe(previousId)
       await expect(server.getByRole('button', { name: '요리사', exact: true })).toBeVisible()
-      await server.getByRole('button', { name: '공원으로 나가기', exact: true }).click()
-      await expect(returned.page.getByRole('dialog', { name: '공동 경기 결과' })).toBeVisible()
+      await server.getByRole('button', { name: '방 나가기 · 다른 방 선택', exact: true }).click()
+      await expect(returned.page.getByRole('dialog', { name: '어느 가게에 함께할까요?' })).toBeVisible()
+      await expect(returned.page.getByRole('dialog', { name: '공동 경기 결과' })).not.toBeVisible()
       expect(returned.errors).toEqual([])
     } finally { await returned.context.close() }
     expect(first.errors).toEqual([]); expect(second.errors).toEqual([])
