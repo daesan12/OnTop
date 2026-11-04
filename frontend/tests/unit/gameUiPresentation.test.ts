@@ -23,6 +23,7 @@ it('기한이 지난 응답은 수락과 거절 모두 비활성화하고 요청
 it('상대 보관 패는 장수와 뒷면만 보여 주며 발동 카드 앞면은 즉시 읽는다', () => {
   const hand = renderToStaticMarkup(createElement(AlkkagiOpponentCards, { count: 3, nickname: '상대' }))
   expect(hand).toContain('상대 비책 3장'); expect(hand).not.toContain('<img'); expect(hand).not.toContain('벽 설치')
+  expect(renderToStaticMarkup(createElement(AlkkagiOpponentCards, { count: 0, nickname: '상대' }))).toBe('')
   const used = renderToStaticMarkup(createElement(AlkkagiUsedCardNotice, { nickname: '상대', card:
     { version: 2, turnNumber: 1, actor: 1, type: 'WALL', targets: [], at: 1000 } }))
   expect(used).toContain('aria-label="벽 설치"'); expect(used).toContain('loading="eager"')
