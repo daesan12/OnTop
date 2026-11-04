@@ -179,7 +179,8 @@ DELETE는 Soft Delete + 모든 Refresh 계열 폐기를 한 트랜잭션에서 �
 7일 초과 신규 가입/영구 삭제/소셜 UNIQUE 해제는 구현하지 않는다. 소셜키·닉네임과 연관 데이터는 보존한다.
 
 Auth/User/Security 오류는 `{code,message}`다. 닉네임 중복은 `USER_NICKNAME_ALREADY_EXISTS`(409),
-잘못된 닉네임은 `USER_INVALID_NICKNAME`(400), 탈퇴 DB 실패는 `USER_WITHDRAWAL_UNAVAILABLE`(503)이다.
+잘못된 닉네임은 `USER_INVALID_NICKNAME`(400), GM 접두어는 `USER_RESERVED_NICKNAME`(400),
+탈퇴 DB 실패는 `USER_WITHDRAWAL_UNAVAILABLE`(503)이다.
 기존 Channel/Table/Shop 오류에는 `details:null`이 추가되며, Minigame·Feedback·Notes의 추가 오류 필드도 각각 구분한다.
 각 operation에 실제 DTO·허용 요청 필드·성공/오류 상태·주요 code·Cache-Control/Set-Cookie/Location을 기술한다.
 토큰/쿠키·회원 상태에 따른 응답은 캐시하지 않는다.

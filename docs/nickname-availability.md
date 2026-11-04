@@ -47,6 +47,8 @@ Security 순서 0의 체인은 이 경로만 처리한다. Stateless/NullSecurit
 NicknameValidator를 온보딩 요청 DTO와 이 API가 공유한다.
 허용 형식은 한글 완성형 가-힣, 영문 A-Z/a-z, 숫자 0-9의 2~8자다.
 공백/특수문자/이모지/초성/빈 값은 거절한다. trim/소문자 변환 등 입력 보정은 하지 않는다.
+운영진 사칭 방지를 위해 대소문자와 관계없이 `GM`으로 시작하는 닉네임도 거절한다.
+`게임GM`, `온탑GM`처럼 `GM`이 맨 앞에 없는 닉네임은 기존 형식 규칙에 따라 허용한다.
 
 신규 회원은 기존 existsByNickname, 기존 회원은 existsByNicknameAndIdNot으로 조회한다.
 두 쿼리와 UNIQUE 모두 기존 nickname 컬럼의 utf8mb4_0900_as_ci를 사용하므로 대소문자를 무시한다.
@@ -64,6 +66,7 @@ USER-05의 최종 중복 검증/DB UNIQUE/트랜잭션/닉네임 충돌 409 재�
 | 상태 | code | 상황 |
 | --- | --- | --- |
 | 400 | USER_INVALID_NICKNAME | 닉네임 누락/형식 오류 |
+| 400 | USER_RESERVED_NICKNAME | 대소문자와 관계없이 GM으로 시작하는 예약 닉네임 |
 | 401 | AUTH_AUTHENTICATION_REQUIRED | 인증 헤더 없음 |
 | 401 | AUTH_INVALID_ACCESS_TOKEN | Bearer 형식/중복 헤더/잘못된 Access/다른 용도 |
 | 401 | AUTH_INVALID_ONBOARDING_TOKEN | 온보딩 위조/만료/소비/선점 중 |
@@ -81,6 +84,20 @@ DB 예외 원문/토큰/소셜 식별자는 로그나 응답으로 내보내지 
 일반 REST와 마찬가지로 Origin 없는 Postman 요청은 허용한다.
 비local의 허용 Origin은 기존 정책대로 HTTPS여야 한다. local에서만 loopback HTTP를 허용한다.
 
+## 기존 회원 점검
+
+배포 전후 아래 읽기 전용 쿼리로 기존 활성·탈퇴 회원 중 새 규칙에 해당하는 계정을 확인한다.
+nickname 컬럼의 `utf8mb4_0900_as_ci` 비교를 사용하므로 `gm`, `Gm`, `gM` 접두어도 함께 조회된다.
+결과가 있으면 계정 ID와 현재 상태를 확인한 뒤 사용자 안내와 변경 절차를 별도로 진행한다.
+점검 쿼리로 닉네임을 직접 변경하지 않는다.
+
+```sql
+SELECT id, nickname, deleted_at
+FROM users
+WHERE nickname LIKE 'GM%'
+ORDER BY id;
+```
+
 ## Postman
 
 1. local,db와 기존 AUTH 설정으로 실행한다. 토큰을 콘솔/공유 환경/보고서에 출력하지 않는다.
@@ -88,7 +105,8 @@ DB 예외 원문/토큰/소셜 식별자는 로그나 응답으로 내보내지 
 3. Query Params에 nickname=온탑고수를 넣고 GET을 호출해 200과 available을 확인한다.
 4. 동일 온보딩 토큰으로 다시 조회할 수 있어야 하며, 이후 온보딩에 사용할 수 있어야 한다.
 5. Access로 현재 닉네임/대소문자 변형을 조회하면 true, 다른 회원 닉네임은 false다.
-6. 1자/9자/공백/특수문자/초성은 400, 인증 제거/위조/만료/소비는 401이다.
+6. 1자/9자/공백/특수문자/초성은 `USER_INVALID_NICKNAME`, GM 접두어는
+   `USER_RESERVED_NICKNAME`으로 400이며 인증 제거/위조/만료/소비는 401이다.
 7. 온보딩 토큰으로 GET /api/v1/users/me는 401이다.
 8. 해당 로그인 세션 로그아웃 뒤 기존 Access로 이 API를 호출하면 401이다.
 9. DB 장애/탈퇴/동시 선점은 ontop_dev를 변경하지 않고 격리 MySQL 테스트로 검증한다.

@@ -109,7 +109,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserOnboardingResponse"
         "400":
-          description: USER_INVALID_ONBOARDING_REQUEST / USER_INVALID_NICKNAME / USER_INVALID_CHARACTER_GENDER
+          description: USER_INVALID_ONBOARDING_REQUEST / USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME
+            / USER_INVALID_CHARACTER_GENDER
           headers:
             Cache-Control:
               description: no-store
@@ -538,13 +539,13 @@ paths:
                 category:
                   type: string
                   description: 생략 시 free. 명시적 null은 허용하지 않는다.
-                  default: free
                   enum:
                   - daily
                   - cheer
                   - worry
                   - recommend
                   - free
+                  default: free
               additionalProperties: false
         required: true
       responses:
@@ -3455,9 +3456,9 @@ paths:
       tags:
       - User
       summary: 내 닉네임 수정
-      description: "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자. 대소문자 무시 UNIQUE(탈퇴 회원 포함),\
-        \ 본인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기를 저장합니다. 사전 조회와 별도로 트랜잭션에서\
-        \ 최종 중복 검증합니다."
+      description: "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지합니다\
+        . 대소문자 무시 UNIQUE(탈퇴 회원 포함), 본인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기\
+        를 저장합니다. 사전 조회와 별도로 트랜잭션에서 최종 중복 검증합니다."
       operationId: update_1
       requestBody:
         content:
@@ -3479,6 +3480,7 @@ paths:
                 $ref: "#/components/schemas/UserProfileResponse"
         "400":
           description: USER_INVALID_NICKNAME_UPDATE_REQUEST / USER_INVALID_NICKNAME
+            / USER_RESERVED_NICKNAME
           headers:
             Cache-Control:
               description: no-store
@@ -3904,9 +3906,9 @@ paths:
       tags:
       - User
       summary: 닉네임 사용 가능 여부
-      description: "Access JWT 또는 온보딩 전용 Bearer 중 하나를 사용합니다. 온보딩 토큰은 소비/연장하지 않습니다\
-        . 완성형 한글/영문/숫자 2~8자, 대소문자 무시, 탈퇴 회원 포함. 기존 회원의 현재 닉네임은 true입니다. 조회는 예약이 아니\
-        며 실제 가입/변경 시 최종 검증이 필요합니다."
+      description: Access JWT 또는 온보딩 전용 Bearer 중 하나를 사용합니다. 온보딩 토큰은 소비/연장하지 않습니다.
+        완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지합니다. 중복은 대소문자를 무시하고 탈퇴 회원도 포함합니다.
+        기존 회원의 현재 닉네임은 true입니다. 조회는 예약이 아니며 실제 가입/변경 시 최종 검증이 필요합니다.
       operationId: check
       parameters:
       - name: nickname
@@ -3915,7 +3917,7 @@ paths:
         schema:
           maxLength: 8
           minLength: 2
-          pattern: "^[가-힣A-Za-z0-9]{2,8}$"
+          pattern: "^(?![Gg][Mm])[가-힣A-Za-z0-9]{2,8}$"
           type: string
           example: 온탑고수
       responses:
@@ -3931,7 +3933,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/NicknameAvailabilityResponse"
         "400":
-          description: USER_INVALID_NICKNAME
+          description: USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME
           headers:
             Cache-Control:
               description: no-store
@@ -5086,18 +5088,18 @@ paths:
         required: false
         schema:
           type: string
-          default: ALL_TIME
           enum:
           - ALL_TIME
+          default: ALL_TIME
       - name: rulesVersion
         in: query
         required: false
         schema:
           type: string
-          default: v5
           enum:
           - v4
           - v5
+          default: v5
       - name: limit
         in: query
         required: false
@@ -5716,7 +5718,7 @@ components:
         nickname:
           maxLength: 8
           minLength: 2
-          pattern: "^[가-힣A-Za-z0-9]{2,8}$"
+          pattern: "^(?![Gg][Mm])[가-힣A-Za-z0-9]{2,8}$"
           type: string
           example: 미지
         characterGender:
@@ -7080,7 +7082,7 @@ components:
         nickname:
           maxLength: 8
           minLength: 2
-          pattern: "^[가-힣A-Za-z0-9]{2,8}$"
+          pattern: "^(?![Gg][Mm])[가-힣A-Za-z0-9]{2,8}$"
           type: string
           example: 온탑고수
       additionalProperties: false
