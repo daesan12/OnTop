@@ -92,7 +92,7 @@ test('ordinary dev exposes approved follow controls and closes the remote menu f
 test('administrator uses existing JWT read API, safely renders text and pages without opening a world socket', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   const server = await fixture(page); const calls: string[] = []
-  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false, canOperate: false } }))
   const item = (id: number) => ({ receiptId: String(id), authorUserId: id === 300 ? null : 202, channelId: 'fixture-channel',
     text: id === 300 ? '<img src=x onerror="alert(1)">\n두 번째 줄' : '공원을 더 편하게 만들어주세요.', acceptedAt: '2026-10-25T00:00:00Z' })
   await page.route('**/api/v1/admin/feedback?*', route => {
@@ -121,7 +121,7 @@ test('administrator uses existing JWT read API, safely renders text and pages wi
 
 test('403 administrator denial preserves login; unavailable or empty results never masquerade as each other', async ({ page }) => {
   const server = await fixture(page); let mode = 403
-  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false, canOperate: false } }))
   await page.route('**/api/v1/admin/feedback?*', route => route.fulfill(mode === 200 ? { json: { items: [], nextCursor: null } }
     : { status: mode, json: { code: mode === 403 ? 'FEEDBACK_ADMIN_REQUIRED' : 'FEEDBACK_NOT_CONFIGURED' } }))
   await page.goto('/admin/feedback'); await expect(page.getByRole('alert')).toContainText('조회 권한이 없어요')
@@ -135,7 +135,7 @@ test('403 administrator denial preserves login; unavailable or empty results nev
 
 test('administrator revalidates 401 and discards a late page after returning to the park', async ({ page }) => {
   const server = await fixture(page); let count = 0, held: Route | undefined
-  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false, canOperate: false } }))
   await page.route('**/api/v1/admin/feedback?*', route => {
     count++
     if (count === 1) return route.fulfill({ status: 401, json: { code: 'AUTH_INVALID_ACCESS_TOKEN' } })
@@ -153,7 +153,7 @@ test('administrator revalidates 401 and discards a late page after returning to 
 
 test('the administrator home stays at a direct URL and opens the feedback list for a verified reader', async ({ page }) => {
   const server = await fixture(page)
-  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false, canOperate: false } }))
   await page.route('**/api/v1/admin/feedback?*', route => route.fulfill({ json: { items: [], nextCursor: null } }))
   await page.goto('/admin')
   await expect(page).toHaveURL(/\/admin$/)
@@ -169,7 +169,7 @@ test('administrator analytics distinguishes an unpublished snapshot and filters 
   const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   let published = false
-  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false, canOperate: false } }))
   await page.route('**/api/v1/admin/analytics/summary', route => {
     expect(route.request().method()).toBe('GET')
     expect(route.request().headers().authorization).toBe('Bearer fixture-access')
@@ -223,7 +223,7 @@ test('a direct administrator URL distinguishes permission denial from a network 
 test('grant administrator previews the immutable total and explicitly confirms one idempotent execution', async ({ page }) => {
   const server = await fixture(page)
   const previewRequests: unknown[] = [], executeRequests: unknown[] = []
-  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: true } }))
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: true, canOperate: true } }))
   await page.route('**/api/v1/admin/wallet-grants/preview', route => {
     expect(route.request().method()).toBe('POST')
     expect(route.request().headers().authorization).toBe('Bearer fixture-access')
@@ -259,7 +259,7 @@ test('grant administrator previews the immutable total and explicitly confirms o
 
 test('read-only administrator cannot discover or open the wallet grant controls', async ({ page }) => {
   const server = await fixture(page)
-  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false } }))
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false, canOperate: false } }))
   await page.goto('/admin')
   await expect(page.getByRole('link', { name: '엽전 지급', exact: true })).toHaveCount(0)
   await expect(page.getByRole('link', { name: /전 회원 엽전 지급/ })).toHaveCount(0)

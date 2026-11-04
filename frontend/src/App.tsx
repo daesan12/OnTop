@@ -7,15 +7,19 @@ import { ParkPage } from './park/ParkPage'
 import { forgetTabGames } from './game/resultRecovery'
 import { preloadWorldAssets } from './world/worldAssets'
 import { preloadWorldCanvas } from './park/loadWorldCanvas'
+import { MaintenancePage } from './features/operation/MaintenancePage'
+import { loadServiceOperation, unavailableServiceOperation, type ServiceOperationStatus } from './features/operation/serviceOperation'
 
 const AdminShell = lazy(() => import('./features/admin/AdminShell').then(m => ({ default: m.AdminShell })))
-type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'admin' | 'admin-feedback' | 'admin-analytics' | 'admin-wallet-grants'
+type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'maintenance'
+  | 'admin' | 'admin-feedback' | 'admin-analytics' | 'admin-wallet-grants'
 
 export default function App() {
   const [page, setPage] = useState<Page>(() =>
     window.location.pathname === '/auth/callback' ? 'callback' : 'checking',
   )
   const [exitError, setExitError] = useState('')
+  const [operation, setOperation] = useState<ServiceOperationStatus | null>(null)
 
   useEffect(() => {
     if (page === 'callback' || page === 'onboarding'
@@ -47,7 +51,24 @@ export default function App() {
   useEffect(() => {
     if (page !== 'checking') return
     let active = true
-    restoreInitialAuthSession().then((authenticated) => {
+    const restore = async () => {
+      if (!window.location.pathname.startsWith('/admin')) {
+        try {
+          const status = await loadServiceOperation()
+          if (!active) return
+          if (status.mode !== 'NORMAL') {
+            setOperation(status)
+            setPage('maintenance')
+            return
+          }
+        } catch {
+          if (!active) return
+          setOperation(unavailableServiceOperation())
+          setPage('maintenance')
+          return
+        }
+      }
+      const authenticated = await restoreInitialAuthSession()
       if (!active) return
       if (authenticated) {
         const path = window.location.pathname
@@ -62,13 +83,14 @@ export default function App() {
         if (window.location.pathname !== '/') window.history.replaceState(null, '', '/')
         setPage('login')
       }
-    })
+    }
+    void restore()
     return () => { active = false }
   }, [page])
 
   const onAuthenticated = useCallback(() => {
     window.history.replaceState(null, '', '/park')
-    setPage('park')
+    setPage('checking')
   }, [])
 
   const onAdminNavigate = useCallback((section: 'home' | 'feedback' | 'analytics' | 'wallet-grants') => {
@@ -110,6 +132,9 @@ export default function App() {
   }
   if (page === 'park' && getAuthSession()?.status === 'AUTHENTICATED') {
     return <ParkPage onExit={onExit} exitError={exitError} onAuthEnded={onReturnToLogin} />
+  }
+  if (page === 'maintenance' && operation) {
+    return <MaintenancePage status={operation} onRetry={() => setPage('checking')} />
   }
   if ((page === 'admin' || page === 'admin-feedback' || page === 'admin-analytics' || page === 'admin-wallet-grants')
     && getAuthSession()?.status === 'AUTHENTICATED') {

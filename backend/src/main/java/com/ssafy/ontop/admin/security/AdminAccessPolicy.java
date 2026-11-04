@@ -14,4 +14,8 @@ public final class AdminAccessPolicy {
     public boolean canGrant(long userId) {
         return properties.grantIds().contains(userId);
     }
+
+    public boolean canOperate(long userId) {
+        return properties.operationIds().contains(userId);
+    }
 }
