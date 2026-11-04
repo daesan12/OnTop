@@ -299,3 +299,9 @@
 }
 @media(prefers-reduced-motion:reduce) { .onecard-turn-cue[data-own=true] { animation:none; } }
 .onecard-panel .onecard-opening-status { position:absolute; top:170px; left:50%; transform:translateX(-50%); padding:8px 16px; border:1px solid #c5a76a80; border-radius:6px; background:#30271ff2; color:#f7edcf; font-size:14px; pointer-events:none; }
+
+/* Presence and exit share a wrapping layout, not competing fixed coordinates. */
+.park-page .onecard-game-hud.onecard-panel .onecard-game-tools {position:absolute;top:26px;right:24px;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;max-width:calc(100% - 48px)}
+.park-page .onecard-game-hud.onecard-panel .onecard-game-tools .onecard-forfeit-trigger {position:static}
+.onecard-recovery-controls {display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+@media(max-width:700px){.park-page .onecard-game-hud.onecard-panel .onecard-game-tools {top:126px;left:14px;right:auto;justify-content:flex-start}}

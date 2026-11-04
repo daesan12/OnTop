@@ -37,6 +37,6 @@ export function AlkkagiTurnNotice({ gameId, turnNumber, turn, actor, stage, enab
     const timer = setTimeout(() => setNotice(null), 1500)
     return () => clearTimeout(timer)
   }, [notice])
-  return notice && <div key={notice.key} className="alkkagi-turn-notice" data-own={notice.own}
+  return notice && <div key={notice.key} className="alkkagi-turn-notice game-turn-notice" data-own={notice.own}
     role="status" aria-live="polite"><strong>{notice.text}</strong></div>
 }

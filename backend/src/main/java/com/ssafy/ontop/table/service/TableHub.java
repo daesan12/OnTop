@@ -114,6 +114,21 @@ public class TableHub {
     private final Map<String, AppearancePush> appearancePushes = new HashMap<>();
     private Optional<WorldAppearanceGateway> appearances = Optional.empty();
     private Optional<WorldProfileGateway> profiles = Optional.empty();
+    private Optional<ReadyBalanceGateway> readyBalances = Optional.empty();
+    private final Map<String, ReadyBalanceCheck> readyBalanceChecks = new HashMap<>();
+
+    @Autowired
+    public void configureReadyBalances(Optional<ReadyBalanceGateway> balances) { readyBalances = balances; }
+
+    private static final class ReadyBalanceCheck {
+        private final TableRoom room;
+        private final String requestId;
+        private java.util.concurrent.ScheduledFuture<?> timeout;
+        private ReadyBalanceCheck(TableRoom room, String requestId) {
+            this.room = room;
+            this.requestId = requestId;
+        }
+    }
     private final Map<Member, ProfileTarget> profileMemberships = new HashMap<>();
     private boolean profilesLoading;
     private boolean profilesRequested;
@@ -938,6 +953,8 @@ public class TableHub {
         stateQueries.remove(sessionId);
         statePushes.remove(sessionId);
         actionRequests.remove(sessionId);
+        ReadyBalanceCheck balanceCheck = readyBalanceChecks.remove(sessionId);
+        if (balanceCheck != null) balanceCheck.timeout.cancel(false);
         tickOneCardPranks();
         watching.remove(member.userId());
         endFollows(member.userId());
@@ -1789,6 +1806,55 @@ public class TableHub {
     }
 
     private void ready(Member member, Request request) {
+        TableRoom room = readyRoom(member, request);
+        boolean ready = request.payload().get("ready").booleanValue();
+        if (!ready) {
+            cancelReadyBalance(member.userId());
+        }
+        if (ready && readyBalances.isPresent()) {
+            if (member.accountId() == null) { fail(request, "READY_AUTH_REQUIRED", "로그인 상태를 확인해주세요."); }
+            if (readyBalanceChecks.containsKey(member.sessionId())) {
+                fail(request, "READY_CHECK_PENDING", "사용 가능 잔액을 확인하고 있습니다.");
+            }
+            ReadyBalanceCheck check = new ReadyBalanceCheck(room, request.requestId());
+            readyBalanceChecks.put(member.sessionId(), check);
+            check.timeout = heartbeatTimer.schedule(() -> completeReadyBalance(member, request, check, null),
+                    5, TimeUnit.SECONDS);
+            ReadyBalanceGateway balances = readyBalances.get();
+            startWorkers.execute(() -> {
+                Long available = null;
+                try { available = balances.availableBalance(member.accountId()); }
+                catch (RuntimeException ignored) { /* Fail closed without returning DB exception details. */ }
+                completeReadyBalance(member, request, check, available);
+            });
+            return;
+        }
+        applyReady(member, request, room);
+    }
+
+    private synchronized void completeReadyBalance(Member member, Request request, ReadyBalanceCheck check, Long available) {
+        if (stopped || members.get(member.sessionId()) != member
+                || !readyBalanceChecks.remove(member.sessionId(), check)) return;
+        check.timeout.cancel(false);
+        try {
+            TableRoom room = readyRoom(member, request); // Recheck seat/settings/start after the async DB read.
+            if (room != check.room) { fail(request, "READY_CHECK_CANCELLED", "좌석이 변경되어 준비 확인을 취소했어요."); }
+            if (available == null || available < 0) {
+                fail(request, "READY_BALANCE_UNAVAILABLE", "사용 가능 잔액을 확인하지 못해 준비하지 않았어요. 잠시 후 다시 시도해주세요.");
+            }
+            long bet = room.snapshot().betAmountPerPlayer();
+            if (available < bet) {
+                if (room.setReady(member.userId(), false)) publish(room, null, null);
+                fail(request, "INSUFFICIENT_BALANCE", "판돈 " + bet + "냥 / 사용 가능 " + available
+                        + "냥 — " + (bet - available) + "냥 부족해 준비할 수 없어요.");
+            }
+            applyReady(member, request, room);
+        } catch (RequestException exception) {
+            member.peer().offer(protocol.error(exception.requestId(), exception.code(), exception.getMessage()));
+        }
+    }
+
+    private TableRoom readyRoom(Member member, Request request) {
         TableRoom room = seatedRoom(member, request);
         ensureWaiting(room.snapshot().tableId(), request);
         if (request.payload().get("ready").booleanValue()
@@ -1803,6 +1869,21 @@ public class TableHub {
         if (ready && !room.acceptsReadyVersion(request.payload().get("expectedVersion").longValue())) {
             fail(request, "GAME_SETTINGS_CHANGED", "테이블 설정이 변경되었습니다. 현재 상태를 확인해주세요.");
         }
+        return room;
+    }
+
+    private void cancelReadyBalance(String userId) {
+        for (Member target : members.values()) {
+            if (!target.userId().equals(userId)) continue;
+            ReadyBalanceCheck check = readyBalanceChecks.remove(target.sessionId());
+            if (check == null) continue;
+            check.timeout.cancel(false);
+            target.peer().offer(protocol.error(check.requestId, "READY_CHECK_CANCELLED", "준비 확인이 취소됐어요. 현재 좌석에서 다시 준비해주세요."));
+        }
+    }
+
+    private void applyReady(Member member, Request request, TableRoom room) {
+        boolean ready = request.payload().get("ready").booleanValue();
         if (room.setReady(member.userId(), ready)) {
             publish(room, member, request.requestId());
             recordBehavior(BehaviorEventType.TABLE_READY_SET, member.accountId(),
@@ -1853,6 +1934,7 @@ public class TableHub {
     private void leave(Member member, Request request) {
         TableRoom room = seatedRoom(member, request);
         ensureWaiting(room.snapshot().tableId(), request);
+        cancelReadyBalance(member.userId());
         String tableId = seating.remove(member.userId());
         waitingReconnects.remove(member.userId());
         room.leave(member.userId());
@@ -1975,6 +2057,7 @@ public class TableHub {
             if (lease == null || !lease.tableId().equals(tableId)) { continue; }
             TableStartAttempt start = starts.get(tableId);
             if (start != null && start.frozen()) { continue; }
+            cancelReadyBalance(userId);
             seating.remove(userId);
             TableRoom room = rooms.get(tableId);
             room.leave(userId);
@@ -1989,6 +2072,7 @@ public class TableHub {
         if (attempt != null && attempt.frozen()) { return false; }
         TableRoom.HostTimeout event = room.expireWait(tableNow());
         if (event == null) { return false; }
+        cancelReadyBalance(event.previousHostUserId());
         seating.remove(event.previousHostUserId(), tableId);
         waitingReconnects.remove(event.previousHostUserId());
         Member oldHost = members.values().stream().filter(m -> m.userId().equals(event.previousHostUserId())).findFirst().orElse(null);
@@ -2153,6 +2237,7 @@ public class TableHub {
     private void releaseDepartedSeat(String tableId, String gameId, String userId) {
         // 참가 종료가 확정된 좌석만 해제한다. 최초 참가자와 판돈 예약은 기존 정산 경로에 남긴다.
         if (!gameId.equals(seatedGames.get(userId)) || !tableId.equals(seating.get(userId))) { return; }
+        cancelReadyBalance(userId);
         seating.remove(userId);
         seatedGames.remove(userId);
         waitingReconnects.remove(userId);

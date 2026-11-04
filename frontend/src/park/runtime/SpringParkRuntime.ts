@@ -1328,7 +1328,9 @@ export class ParkRuntime implements ParkRuntimePort {
           useGame.setState({
             uncertain: !explicitRejection,
             error:
-              error instanceof Error
+              error instanceof ServerError && error.code === 'GAME_ACTION_FORBIDDEN_MOVE'
+                ? '흑은 삼삼·사사·장목 금수에 놓을 수 없어요. 빨간 표시를 확인해주세요.'
+                : error instanceof Error
                 ? error.message
                 : '착수 결과를 확인해주세요.',
           })

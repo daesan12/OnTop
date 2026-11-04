@@ -13,3 +13,10 @@
 @media(max-width:1000px){.alkkagi-opponent-hand{top:96px;left:12px;right:auto;max-width:calc(50vw - 24px)}.alkkagi-opponent-hand .alkkagi-card-back{width:40px;height:60px;font-size:18px}}
 @media(max-width:700px){.alkkagi-opponent-hand{top:128px;left:12px;right:auto;max-width:calc(50vw - 24px)}.alkkagi-opponent-hand>div{justify-content:flex-start;gap:5px}.alkkagi-opponent-hand .alkkagi-card-back{width:32px;height:48px;font-size:15px;border-radius:4px}.alkkagi-used-flip{width:144px;height:216px}}
 @media(prefers-reduced-motion:reduce){.alkkagi-used-flip>.alkkagi-card-back{display:none;animation:none}.alkkagi-used-front{animation:none;transform:none}}
+
+/* One row of overlapping backs keeps large hands clear of the board and chat. */
+.alkkagi-opponent-hand{--opponent-back-width:clamp(24px,calc((50vw - 34vh - 52px) / 3),76px)}
+.alkkagi-opponent-hand>div{display:grid;grid-template-columns:repeat(var(--opponent-card-count,1),minmax(0,1fr));gap:0;width:100%;box-sizing:border-box;padding-right:var(--opponent-back-width)}
+.alkkagi-opponent-hand .alkkagi-card-back{width:var(--opponent-back-width);height:calc(var(--opponent-back-width) * 1.5);max-width:none;font-size:clamp(12px,calc(var(--opponent-back-width) * .35),27px)}
+@media(max-width:1000px){.alkkagi-opponent-hand{--opponent-back-width:40px}}
+@media(max-width:700px){.alkkagi-opponent-hand{--opponent-back-width:32px}}

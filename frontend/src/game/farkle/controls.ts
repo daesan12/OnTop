@@ -128,7 +128,7 @@ export function installDiceControls() {
       e.preventDefault(); toggleScoreSheet(); return
     }
     if (e.repeat || e.isComposing || e.ctrlKey || e.altKey || e.metaKey || document.hidden
-      || (e.target instanceof HTMLElement && !!e.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],dialog[open]'))
+      || (e.target instanceof HTMLElement && !!e.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],dialog[open],.game-hud-menu'))
       || Object.entries(inputState).some(([key, v]) => key !== 'minigameOpen' && v)) return
     if (e.code === 'KeyT') { e.preventDefault(); toggleScoreSheet() }
     if (e.code === 'KeyR') { e.preventDefault(); rollDice() }

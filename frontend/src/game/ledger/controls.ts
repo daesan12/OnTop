@@ -67,7 +67,7 @@ export function installLedgerControls() {
   const down = (e: KeyboardEvent) => {
     if (!useGame.getState().game?.ledger || inputState.manualOpen || e.repeat || e.isComposing || e.ctrlKey || e.altKey
       || e.metaKey || document.hidden
-      || (e.target instanceof HTMLElement && !!e.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"]'))) return
+      || (e.target instanceof HTMLElement && !!e.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],.game-hud-menu'))) return
     if (e.code === 'KeyR') { e.preventDefault(); rollLedger() }
     const digit = /^Digit([1-5])$/.exec(e.code)
     if (digit) { e.preventDefault(); toggleKeep(Number(digit[1]) - 1) }

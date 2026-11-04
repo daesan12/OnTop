@@ -95,6 +95,31 @@ class RenjuRulesTests {
         assertThat(board.snapshot().moveCount()).isEqualTo(5);
     }
 
+    @Test void 금수_종류를_삼삼_사사_장목으로_구분해_공개한다() {
+        for(int[] row:cells) java.util.Arrays.fill(row,0);
+        black(6,7,8,7,7,6,7,8,7,7);
+        assertThat(new RenjuRules(cells).reason(7,7)).isEqualTo("33");
+        for(int[] row:cells) java.util.Arrays.fill(row,0);
+        black(5,7,6,7,8,7,7,5,7,6,7,8,7,7);
+        assertThat(new RenjuRules(cells).reason(7,7)).isEqualTo("44");
+        for(int[] row:cells) java.util.Arrays.fill(row,0);
+        black(4,7,5,7,6,7,8,7,9,7,7,7);
+        assertThat(new RenjuRules(cells).reason(7,7)).isEqualTo("6");
+    }
+
+    @Test void 같은좌표여도_전체판이_달라지면_이전삼삼캐시를_사용하지않는다() {
+        black(6,7,7,7,8,7);
+        RenjuRules shared = new RenjuRules(cells);
+        assertThat(shared.reason(7,7)).isNull();
+        black(7,6,7,8);
+        String before = java.util.Arrays.deepToString(cells);
+        assertThat(shared.reason(7,7)).isEqualTo("33");
+        assertThat(shared.reason(7,7)).isEqualTo(new RenjuRules(cells).reason(7,7));
+        assertThat(java.util.Arrays.deepToString(cells)).isEqualTo(before);
+        cells[6][7]=0;cells[8][7]=0;
+        assertThat(shared.reason(7,7)).isNull();
+    }
+
     private void black(int... xy) { for(int i=0;i<xy.length;i+=2) cells[xy[i+1]][xy[i]]=1; }
     private boolean forbidden(int x,int y) {
         cells[y][x]=1;

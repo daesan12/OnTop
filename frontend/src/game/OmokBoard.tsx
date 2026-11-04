@@ -24,6 +24,7 @@ import { useOmokEvents } from './omok/spectatorEvents'
 import { OmokPings } from './omok/OmokFeedback'
 import { panelOwnsKeys } from '../world/inputOwnership'
 import { BoardCoordinates } from './omok/BoardCoordinates'
+import { ForbiddenMarks } from './omok/ForbiddenMarks'
 import { useTableGameCode } from '../features/tableLobby/tableGamePresentation'
 
 const noRaycast = () => {} // Three line threshold is too wide for 9cm grid cells; pick the board surface.
@@ -217,6 +218,8 @@ function OmokSurface({
     >
       <GomokuAssets blackAtSouth={blackAtSouth} reverseSupplies={reversed} />
       <BoardCoordinates />
+      {focused && game?.omok.status === 'PLAYING' && game.omok.turnUserId === game.omok.blackUserId
+        && !!game.omok.forbiddenMoves?.length && <ForbiddenMarks points={game.omok.forbiddenMoves}/>}
       {game && <OmokPings gameId={game.gameId} focused={focused} />}
       {/* Decorations never pick cells; keep the approved grid's original local coordinates. */}
       <mesh name="omok-pick-surface" position={[0, 0.0005, 0]} rotation={[-Math.PI / 2, 0, 0]}>

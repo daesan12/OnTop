@@ -75,7 +75,7 @@ public final class OmokMatch {
             return accept(command, key, input);
         }
         if ("undoRespond".equals(input.path("kind").asText())) {
-            respondUndo(command, input);
+            respondUndo(command, input, now);
             return accept(command, key, input);
         }
         if (command.userId() != turnUserId) {
@@ -135,14 +135,17 @@ public final class OmokMatch {
         return result;
     }
 
-    private void respondUndo(GameActionCommand command, JsonNode input) {
+    private void respondUndo(GameActionCommand command, JsonNode input, Instant now) {
         if (input.size() != 3 || !input.path("requestId").isTextual() || !input.path("accept").isBoolean()
                 || undo == null || !undo.requestId().equals(input.path("requestId").textValue())
                 || command.userId() == turnUserId) {
             throw new Rejected(Rejection.INVALID_ACTION);
         }
         Undo pending = undo;
-        if (input.path("accept").booleanValue()) board.undoPair();
+        if (input.path("accept").booleanValue()) {
+            board.undoPair();
+            turnDeadline = now.plusSeconds(30);
+        }
         undo = null;
         undoDecision = new UndoDecision(pending.requestId(), input.path("accept").booleanValue() ? "ACCEPTED" : "REJECTED");
         version++;
