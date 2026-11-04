@@ -150,7 +150,7 @@
 .park-page[data-omok-focus="true"] .omok-spectator-chat[data-compact="true"]{top:var(--omok-chat-top,112px)}
 @media(min-width:1281px){.park-page[data-omok-focus="true"] .omok-spectator-chat[data-compact="true"]{top:auto}}
 
-/* Persistent transcript and bounded side-lane messages replace random on-board chat. */
+/* Persistent transcript; the floating feed is placed in measured free space. */
 .omok-spectator-chat{pointer-events:auto}
 .omok-chat-log{max-height:160px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;overflow-wrap:anywhere;white-space:pre-wrap}
 .omok-chat-log:empty{display:none}
@@ -168,6 +168,8 @@
 .omok-feedback .omok-floating-chat{position:relative;inset:auto;transform:none;width:100%;max-width:none;flex:none;display:block;overflow:visible;box-sizing:border-box;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;padding:9px 11px}
 .omok-floating-chat span{font-size:12px;overflow-wrap:anywhere}
 .omok-feedback[data-game="ALKKAGI"] .omok-chat-toasts{top:260px;max-height:calc(100% - 500px)}
+.omok-feedback[data-game="OMOK"] .omok-chat-toasts{inset:0;width:100%;height:100%;max-width:none;max-height:none;display:block;overflow:visible;pointer-events:none}
+.omok-feedback[data-game="OMOK"] .omok-floating-chat{position:absolute;width:240px;max-width:calc(100% - 24px);visibility:hidden;pointer-events:none}
 @media(min-width:1120px){
  .park-page[data-omok-focus="true"] .omok-rail-hud .omok-match-header{inset:16px auto auto 20px;width:230px;padding:0;display:flex;flex-direction:column;align-items:stretch;gap:10px;background:transparent;border:0;pointer-events:none}
  .park-page[data-omok-focus="true"] .omok-rail-hud .omok-match-header>.omok-match-player{box-sizing:border-box;width:100%;max-width:100%;justify-content:flex-start;text-align:left;padding:12px 14px;background:#28251ff5;border:1px solid #d6bd8a66;border-radius:12px;order:1}

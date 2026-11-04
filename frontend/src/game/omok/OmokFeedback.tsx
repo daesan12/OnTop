@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three'
 import { useSession } from '../../network/worldClient'
@@ -6,7 +6,11 @@ import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { useManual } from '../../features/manual/manualState'
 import { setChatInputOpen, inputState } from '../../world/inputOwnership'
 import { useGame } from '../store'
-import { OMOK_FOCUS_LAYER } from '../../world/omokCamera'
+import { OMOK_FOCUS_LAYER, omokSpectatorFrame } from '../../world/omokCamera'
+import { omokSpectatorViewport } from '../cameraState'
+import { GOMOKU } from '../../config/gomoku'
+import { OMOK_BOARD_ART_SPAN } from './boardLayout'
+import { placeFloatingChats, type ChatRect } from './chatPlacement'
 import { OMOK_HALF, OMOK_SPACING, omokCoordinate } from '../omokPresentation'
 import { useOmokEvents, type DisplayEvent, type PingEvent } from './spectatorEvents'
 import './omokFocus.css'
@@ -17,9 +21,46 @@ export function OmokFeedback() {
   const profiles = useSession(s => s.profiles), manual = useManual(s => s.open)
   const active = useGame(s => !s.lastResult && (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING'))
   const gameCode = useGame(s => s.game?.omok?'OMOK':'ALKKAGI')
+  const root=useRef<HTMLDivElement>(null), placements=useRef(new Map<string,ChatRect>())
+  const gameId=useGame(s=>s.game?.gameId)
+  const connectionNotice=useSession(s=>s.status+'\0'+s.error)
+  useLayoutEffect(()=>{
+    if(!active||gameCode!=='OMOK'||!root.current)return
+    const overlay=root.current
+    const measure=()=>{
+      const area=overlay.getBoundingClientRect(),width=area.width,height=area.height
+      const elements=[...overlay.querySelectorAll<HTMLElement>('.omok-floating-chat')]
+      const blocked:ChatRect[]=[]
+      const page=overlay.closest('.park-page')
+      for(const node of page?.querySelectorAll<HTMLElement>('.omok-match-header,.omok-player-bottom,.omok-spectator-toolbar,.omok-spectator-chat,.park-runtime-status')??[]){
+        const r=node.getBoundingClientRect()
+        if(r.width&&r.height)blocked.push({left:r.left-area.left,top:r.top-area.top,right:r.right-area.left,bottom:r.bottom-area.top})
+      }
+      // Use the same measured frame as the game camera, including either seat orientation.
+      if(omokSpectatorViewport.gameId===gameId){
+        const insets=omokSpectatorViewport.insets,frame=omokSpectatorFrame(width,height,1,insets)
+        const unitsPerPixel=frame.height*2*Math.tan(GOMOKU.topDownFov*Math.PI/360)/height
+        const half=OMOK_BOARD_ART_SPAN/unitsPerPixel/2
+        const cx=(insets.left+width-insets.right)/2,cy=(insets.top+height-insets.bottom)/2
+        blocked.push({left:cx-half,top:cy-half,right:cx+half,bottom:cy+half})
+      }else blocked.push({left:width*.25,top:height*.15,right:width*.75,bottom:height*.85})
+      placements.current=placeFloatingChats(width,height,elements.map((node,i)=>({key:node.dataset.eventId!,width:node.offsetWidth,height:node.offsetHeight,slot:chats[i]?.slot??i})),blocked,placements.current)
+      for(const node of elements){
+        const rect=placements.current.get(node.dataset.eventId!)
+        node.style.visibility=rect?'visible':'hidden'
+        if(rect){node.style.left=rect.left+'px';node.style.top=rect.top+'px'}
+      }
+    }
+    measure()
+    const observer=new ResizeObserver(measure)
+    observer.observe(overlay)
+    for(const node of overlay.closest('.park-page')?.querySelectorAll('.omok-match-header,.omok-player-bottom,.omok-spectator-toolbar,.omok-spectator-chat,.park-runtime-status,.omok-floating-chat')??[])observer.observe(node)
+    window.addEventListener('resize',measure)
+    return ()=>{observer.disconnect();window.removeEventListener('resize',measure)}
+  },[active,gameCode,gameId,chats,manual,connectionNotice])
   if (!active) return null
-  return <div className="omok-feedback" data-game={gameCode} hidden={manual} aria-label="관전자 응원과 위치 추천">
-    <div className="omok-chat-toasts" aria-label="최근 경기 채팅">{chats.map(chat => <div key={chat.eventId} className={`omok-floating-chat slot-${chat.slot}`} role="status"
+  return <div ref={root} className="omok-feedback" data-game={gameCode} hidden={manual} aria-label="관전자 응원과 위치 추천">
+    <div className="omok-chat-toasts" aria-label="최근 경기 채팅">{chats.map(chat => <div key={chat.eventId} data-event-id={chat.eventId} className={`omok-floating-chat slot-${chat.slot}`} role="status"
       style={{animationDelay: `${-Math.max(0, 3000 - (chat.until - performance.now()))}ms` } as CSSProperties}>
       <span>{profiles[chat.senderUserId]?.nickname ?? '관전자'}</span> {chat.text}
     </div>)}</div>

@@ -35,10 +35,11 @@ it('floating messages may expire while the full spectator transcript remains rea
   useGame.setState(s=>({game:{...s.game!,gameId:'other'} as never}))
   expect(renderToStaticMarkup(createElement(SpectatorChat))).not.toContain(text)
 })
-it('uses a bounded side lane instead of random inline coordinates',()=>{
+it('identifies each floating message so measured free-space placement can keep it stable',()=>{
   useOmokEvents.setState({chats:[{...message,slot:0,until:performance.now()+3000}]})
   const html=renderToStaticMarkup(createElement(OmokFeedback))
   expect(html).toContain('omok-chat-toasts');expect(html).toContain(text)
+  expect(html).toContain('data-event-id="'+message.eventId+'"')
   expect(html).not.toContain('translateX');expect(html).not.toContain('left:')
 })
 it('displays the latest server deadline as seconds and a bounded 30-second progress bar',()=>{
