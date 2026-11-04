@@ -304,6 +304,10 @@ class RestSecurityTests {
                         entry.getKey().getMethodsCondition().getMethods().stream().map(method -> method + " " + path)))
                 .toList();
         assertThat(mappings).containsExactlyInAnyOrder("GET /api/v1/auth/{provider}/authorize",
+                "GET /api/v1/announcements", "GET /api/v1/admin/operations/announcements",
+                "POST /api/v1/admin/operations/announcements/{id}",
+                "PUT /api/v1/admin/operations/announcements/{id}",
+                "DELETE /api/v1/admin/operations/announcements/{id}",
                 "GET /api/v1/auth/{provider}/callback", "POST /api/v1/auth/exchange", "POST /api/v1/auth/refresh",
                 "POST /api/v1/auth/logout", "POST /api/v1/users/onboarding", "GET /api/v1/users/me",
                 "GET /api/v1/users/nickname-availability",

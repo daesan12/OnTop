@@ -1,0 +1,65 @@
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { clearRoamingInput } from '../../world/inputOwnership'
+import { loadNotices, visibleNotices, type NoticeFeed } from './api'
+import './announcements.css'
+
+export function AnnouncementBanner() {
+  const [feed, setFeed] = useState<NoticeFeed | null>(null), [age, setAge] = useState(0)
+  const received = useRef(0), [index, setIndex] = useState(0), [paused, setPaused] = useState(false), [open, setOpen] = useState(false)
+  const [duration, setDuration] = useState(16), [width, setWidth] = useState(600), viewport = useRef<HTMLSpanElement>(null), text = useRef<HTMLSpanElement>(null)
+  const dialog = useRef<HTMLDialogElement>(null), trigger = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    let stopped = false, timer: ReturnType<typeof setTimeout>, request: AbortController | null = null, serial = 0
+    const refresh = async () => {
+      const turn = ++serial; request?.abort(); clearTimeout(timer)
+      request = new AbortController()
+      try {
+        const feed = await loadNotices(request.signal)
+        if (stopped || turn !== serial) return
+        received.current = performance.now(); setFeed(feed); setAge(0)
+        timer = setTimeout(() => void refresh(), Math.max(250, Math.min(10000, Date.parse(feed.refreshAt) - Date.parse(feed.serverTime))))
+      } catch {
+        if (!stopped && turn === serial) timer = setTimeout(() => void refresh(), 10000)
+      }
+    }
+    const foreground = () => { if (!document.hidden) void refresh() }
+    void refresh(); document.addEventListener('visibilitychange', foreground)
+    const clock = setInterval(() => setAge(performance.now() - received.current), 1000)
+    return () => { stopped = true; request?.abort(); clearTimeout(timer); clearInterval(clock); document.removeEventListener('visibilitychange', foreground) }
+  }, [])
+  const values = feed && age < 30000 ? visibleNotices(feed, age) : []
+  const active = values[index % (values.length || 1)]
+  const signature = values.map(value => `${value.id}:${value.version}`).join('/')
+  useEffect(() => { setIndex(0) }, [signature])
+  useEffect(() => {
+    const measure = () => { const width = viewport.current?.clientWidth ?? 600; setWidth(width)
+      setDuration(Math.max(12, (width + (text.current?.scrollWidth ?? 600)) / 45)) }
+    measure(); const observer = new ResizeObserver(measure)
+    if (viewport.current) observer.observe(viewport.current)
+    return () => observer.disconnect()
+  }, [active?.id, active?.version])
+  useEffect(() => {
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches || paused || open) return
+    const timer = setInterval(() => setIndex(i => i + 1), 8000)
+    return () => clearInterval(timer)
+  }, [paused, open, signature])
+  useEffect(() => {
+    if (open && values.length && dialog.current && !dialog.current.open) { clearRoamingInput(); dialog.current.showModal() }
+    if (!values.length) { dialog.current?.close(); setOpen(false) }
+  }, [open, values.length])
+  if (!active) return null
+  return <aside className="announcement-banner" aria-label="공원 공지" style={{ '--notice-duration': `${duration}s`, '--notice-width': `${width}px` } as CSSProperties}>
+    <button ref={trigger} className="announcement-open" onClick={() => setOpen(true)} aria-label="공지 전체 보기">
+      <strong>공지</strong><span className="announcement-window" ref={viewport}>
+        <span ref={text} className="announcement-moving" key={`${active.id}:${active.version}:${index}`} data-paused={paused || open}
+          onAnimationEnd={() => setIndex(i => i + 1)}>{active.text}</span>
+      </span>
+    </button><button className="announcement-pause" aria-label={paused ? '공지 흐름 재생' : '공지 흐름 일시정지'} aria-pressed={paused}
+      onClick={() => setPaused(v => !v)}>{paused ? '▶' : 'Ⅱ'}</button>
+    <dialog className="announcement-dialog" ref={dialog} onClose={() => { setOpen(false); trigger.current?.focus({ preventScroll: true }) }}
+      onClick={e => { if (e.target === e.currentTarget) e.currentTarget.close() }}>
+      <h2>공원 공지</h2><ol>{values.map(value => <li key={value.id}>{value.text}</li>)}</ol>
+      <button autoFocus onClick={() => dialog.current?.close()}>닫기</button>
+    </dialog>
+  </aside>
+}
