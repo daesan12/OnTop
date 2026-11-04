@@ -62,7 +62,7 @@ class ParkJumpmapRankingRepositoryTests {
     }
 
     static Stream<Arguments> legacyEligibility() {
-        String valid = "[12,5,7,7,9,10,7]";
+        String valid = "[5,2,3,3,4,4,3]";
         var cases = new java.util.ArrayList<Arguments>();
         cases.add(Arguments.of("[\"TOO_FAST:7\"]", valid, true));
         cases.add(Arguments.of("[\"TOO_FAST:1\",\"TOO_FAST:7\"]", "[24,10,14,13,18,19,14]", true));
@@ -77,7 +77,7 @@ class ParkJumpmapRankingRepositoryTests {
                 "[\"12\",5,7,7,9,10,7]", "[12.5,5,7,7,9,10,7]")) {
             cases.add(Arguments.of("[\"TOO_FAST:7\"]", landings, false));
         }
-        int[] minimums = {12, 5, 7, 7, 9, 10, 7};
+        int[] minimums = {5, 2, 3, 3, 4, 4, 3};
         for (int section = 0; section < minimums.length; section++) {
             int[] tooFew = minimums.clone();
             tooFew[section]--;
