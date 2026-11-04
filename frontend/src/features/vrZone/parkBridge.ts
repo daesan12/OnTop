@@ -10,6 +10,7 @@ import { ServerVrAdmission } from './serverAdmission'
 import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh'
 import { VrZoneController } from './controller'
 import { canReachVrEntrance, vrEntrance } from './anchors'
+import { SKEWER_COOP_ENABLED } from '../skewer/coop/availability'
 
 const hall = MINI_PROPS[1]
 export const parkVrEntrance = vrEntrance(hall, GENERATED_PARK_ENABLED ? PARK_LAYOUT.VR_YAW : 0)
@@ -31,7 +32,7 @@ export function openParkVrZone() {
   clearRoamingInput()
   inputState.minigameOpen = true
   if (document.pointerLockElement) document.exitPointerLock()
-  if (import.meta.env.VITE_SKEWER_COOP_ENABLED === 'true') parkVrZone.openFree()
+  if (SKEWER_COOP_ENABLED) parkVrZone.openFree()
   else void parkVrZone.open()
   return true
 }

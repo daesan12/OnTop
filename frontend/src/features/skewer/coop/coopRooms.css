@@ -17,6 +17,14 @@
 .skewer-coop .coop-room-join { color:#75431e; background:#f6ead6; border:1px solid #bd9670; cursor:pointer; }
 .skewer-coop .coop-room-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; font-size:13px; color:#8a7059; }
 .skewer-coop .coop-room-tools button { border:0; background:transparent; color:#784522; cursor:pointer; padding:10px 0; font:inherit; }
+.skewer-coop .coop-room-search { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:0 0 22px; text-align:left; font-size:13px; }
+.skewer-coop .coop-room-search>label { font-weight:600; }
+.skewer-coop .coop-room-search>div { display:flex; align-items:center; flex:1; min-width:190px; gap:8px; padding:0 12px; border:1px solid #c9ac87; background:#fffaf0; border-radius:10px; }
+.skewer-coop .coop-room-search>div:focus-within { outline:2px solid #b2804b; outline-offset:2px; }
+.skewer-coop .coop-room-search input { min-width:0; flex:1; width:100%; padding:13px 0; border:0; outline:none; background:transparent; color:#50311e; font:inherit; }
+.skewer-coop .coop-room-search input::-webkit-search-cancel-button { display:none; }
+.skewer-coop .coop-room-search button { padding:5px 8px; font-size:22px; border:0; background:transparent; color:#785234; cursor:pointer; }
+.skewer-coop .coop-room-search>span { min-width:80px; color:#85674a; }
 .skewer-coop .coop-room-cards { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
 .skewer-coop .coop-room-cards>li { border:1px solid #d6b992; border-radius:13px; overflow:hidden; background:#fffaf0; box-shadow:0 5px 14px #5a35100d; }
 .skewer-coop .coop-room-card-art { position:relative; height:115px; overflow:hidden; background:#d5b58a; }

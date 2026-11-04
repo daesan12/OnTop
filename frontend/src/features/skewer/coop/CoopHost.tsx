@@ -6,6 +6,7 @@ import { CoopClient } from './client'
 import { OnlineChef, OnlineHall } from './drivers'
 import { CoopResultPanel } from './CoopResultPanel'
 import { CoopLobby } from './CoopLobby'
+import { SKEWER_CHEF_VR_ENABLED } from './availability'
 import { ExitConfirmation } from '../ExitConfirmation'
 import { GreetingEvent, GREETING_IMAGE } from './GreetingEvent'
 import { useGameDragScroll } from '../useGameDragScroll'
@@ -82,7 +83,7 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
   const xr = (active: boolean) => { if (active) { setEquipmentOpen(false); setChefMode('vr') }; if (client.snapshot?.privateState.role === 'chef' && client.snapshot.publicState.phase !== 'FINISHED') void client.act({ type: 'CHEF_MODE', vr: active }) }
   return createPortal(<div className="skewer-coop" data-testid="skewer-coop" data-role={role || undefined} data-phase={pub?.phase ?? 'ROOMS'} data-version={snapshot?.version}>
     <Suspense fallback={<p className="coop-loading" role="status">가게를 준비하고 있어요…</p>}>
-      {role === 'server' ? <Hall driver={hall} inputBlocked={confirmExit || !!pub?.paused || !state.connected} /> : role === 'chef' ? <Chef driver={chef} preferredMode={chefMode ?? undefined} onXRChanged={xr} onExit={() => pub?.phase === 'FINISHED' ? void exit() : void changePause(true)} /> : <div className="coop-backdrop" />}
+      {role === 'server' ? <Hall driver={hall} inputBlocked={confirmExit || !!pub?.paused || !state.connected} /> : role === 'chef' ? <Chef driver={chef} allowVR={SKEWER_CHEF_VR_ENABLED} preferredMode={chefMode ?? 'pc'} onXRChanged={xr} onExit={() => pub?.phase === 'FINISHED' ? void exit() : void changePause(true)} /> : <div className="coop-backdrop" />}
     </Suspense>
     {pub && pub.phase !== 'WAITING' && pub.phase !== 'FINISHED' ? <div className="coop-meta"><strong>2인 협동 · 무료 플레이</strong><span>{pub.rankingEligible ? 'VR 팀 랭킹 대상 · 정상 종료 시 등록' : 'PC 요리 · 팀 랭킹 미등록'}</span></div> : null}
     {!snapshot || pub?.phase === 'WAITING' ? equipmentOpen && role === 'chef'

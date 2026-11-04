@@ -11,9 +11,10 @@ import serverRoleArt from './art/server-role-illustration.png'
 import serviceHall from './art/service-hall-preview.png'
 import type { CoopClient } from './client'
 import { CoopRoomBrowser } from './CoopRoomBrowser'
+import { SKEWER_CHEF_VR_ENABLED } from './availability'
 
 const roles = [
-  { id: 'chef', name: '요리사', device: 'VR / 키보드·마우스', image: chefVR, description: '그림 주문표를 보고 꼬치를 만들어요.' },
+  { id: 'chef', name: '요리사', device: SKEWER_CHEF_VR_ENABLED ? 'VR / 키보드·마우스' : '키보드·마우스 · VR 공사 중', image: chefVR, description: '그림 주문표를 보고 꼬치를 만들어요.' },
   { id: 'server', name: '서빙 담당', device: '키보드·마우스', image: serviceHall, description: '손님과 주방 사이를 연결해요.' },
 ] as const
 
@@ -43,9 +44,9 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
   }
   const waiting = !!pub && pub.players.length < 2
   const pickingRole = !!pub && !waiting && (!role || changingRole)
-  const pickingMode = !pickingRole && role === 'chef' && !chefMode
+  const pickingMode = !pickingRole && role === 'chef' && (!chefMode || chefMode === 'vr' && !SKEWER_CHEF_VR_ENABLED)
   const picking = pickingRole || pickingMode
-  const vr = role === 'chef' ? chefMode === 'vr' : pub?.chefVR
+  const vr = SKEWER_CHEF_VR_ENABLED && (role === 'chef' ? chefMode === 'vr' : pub?.chefVR)
   const ready = !!role && pub?.players.length === 2 && pub.players.every(p => p.role && p.connected)
     && (role !== 'chef' || !!chefMode && (chefMode !== 'vr' || pub.chefVR))
   const readyHint = player?.ready ? '친구가 준비하면 시작해요.' : role === 'chef' && vr && !pub?.chefVR ? '먼저 헤드셋을 연결해 주세요.' : ready ? '' : '친구의 역할 선택을 기다려요.'
@@ -88,10 +89,11 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
             {taken ? <span className="coop-card-taken">친구가 선택했어요</span> : <span className="coop-card-select" aria-hidden="true">선택하기 →</span>}
           </button>
         })}</div> : pickingMode ? <>
-          <div className="coop-pick-cards" aria-label="요리 방식 고르기">{(['vr', 'pc'] as const).map(mode => <button key={mode} className={`coop-pick-card is-${mode}`} aria-label={`${mode.toUpperCase()}로 요리하기`} disabled={acting} onClick={() => onChefMode(mode)}>
+          <div className="coop-pick-cards" aria-label="요리 방식 고르기">{(['vr', 'pc'] as const).map(mode => <button key={mode} className={`coop-pick-card is-${mode}${mode === 'vr' && !SKEWER_CHEF_VR_ENABLED ? ' is-under-construction' : ''}`} aria-label={mode === 'vr' && !SKEWER_CHEF_VR_ENABLED ? 'VR 요리 · 공사 중' : `${mode.toUpperCase()}로 요리하기`} disabled={acting || mode === 'vr' && !SKEWER_CHEF_VR_ENABLED} onClick={() => { if (mode === 'pc' || SKEWER_CHEF_VR_ENABLED) onChefMode(mode) }}>
             <img src={mode === 'vr' ? chefVRChoiceArt : chefPCChoiceArt} alt="" draggable={false} /><span className="coop-card-title">{mode.toUpperCase()}</span>
+            {mode === 'vr' && !SKEWER_CHEF_VR_ENABLED ? <span className="coop-construction-badge">공사 중</span> : null}
             <span className="coop-card-device">{mode === 'vr' ? '헤드셋 · 컨트롤러' : '키보드 · 마우스'}</span>
-            <span className="coop-card-rule">{mode === 'vr' ? '팀 랭킹 도전' : '엽전 보상 가능 · 랭킹 미등록'}</span>
+            <span className="coop-card-rule">{mode === 'vr' ? SKEWER_CHEF_VR_ENABLED ? '팀 랭킹 도전' : '공사 중 · 곧 만나요' : '엽전 보상 가능 · 랭킹 미등록'}</span>
           </button>)}</div><button className="coop-back-choice" onClick={() => setChangingRole(true)}>← 역할 다시 고르기</button>
         </> : role ? <>
         <div className="coop-prep-nav"><button disabled={acting || player?.ready || pub.chefVR && role === 'chef'} onClick={() => setChangingRole(true)}>← 역할 다시 고르기</button>{role === 'chef' ? <button disabled={acting || player?.ready || pub.chefVR} onClick={() => onChefMode(null)}>플레이 방식 바꾸기</button> : null}</div>
