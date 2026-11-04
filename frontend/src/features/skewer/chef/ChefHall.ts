@@ -6,6 +6,7 @@ import { createHallFloor, FLOOR_DEPTH_SCALE } from '../serviceHall/rendering/Hal
 import { TABLES, ROOM, route } from '../serviceHall/plan'
 import type { HallSight } from './model'
 import { ChefCourtyard } from './ChefCourtyard'
+import { GuestJourney } from '../serviceHall/rendering/GuestJourney'
 
 /** Visual-only hall. Deliberately accepts no bills, recipes or customer bubbles. */
 export class ChefHall {
@@ -18,6 +19,7 @@ export class ChefHall {
   private tray = new THREE.Group()
   private sculpted: SculptedServer | null = null
   private guests = new Map<number, ToyActor[]>()
+  private journeys = new Map<ToyActor, GuestJourney>()
   private dishes = new Map<number, THREE.Group>()
   private initialized = false
   private disposed = false
@@ -49,6 +51,7 @@ export class ChefHall {
         for(const x of [-.32,.32]) for(const z of [-.30,.30]) a.place(chair,a.box(.09,.48,.09,'#65432b'),x,.24,z)
         const guest=this.people.create(t.id+i,'guest',true);guest.root.position.x=seat.x;guest.root.position.z=seat.z;guest.root.rotation.y=seat.yaw;r.add(guest.root);return guest
       });this.guests.set(t.id,guests)
+      guests.forEach(guest=>this.journeys.set(guest,new GuestJourney(guest)))
     }
     r.add(this.server.root)
     this.server.root.add(this.tray)
@@ -77,7 +80,7 @@ export class ChefHall {
     const pose={moving,carrying:state.carrying,cleaning:!paused&&state.cleaning,reduced:reduced||paused}
     this.server.pose(dt,pose)
     if(this.sculpted){this.sculpted.root.position.copy(p);this.sculpted.pose(dt,pose,this.yaw)}
-    this.guests.forEach((guests,id)=>{const table=state.tables.find(t=>t.id===id);guests.forEach((guest,i)=>{guest.root.visible=!!table&&i<table.people;guest.pose(dt,{eating:!!table?.eating,reduced:reduced||paused})});this.dishes.get(id)!.visible=!!table&&(table.people>0||table.dirty)})
+    this.guests.forEach((guests,id)=>{const table=state.tables.find(t=>t.id===id);guests.forEach((guest,i)=>this.journeys.get(guest)!.update(!!table&&i<table.people,!!table?.eating,paused?0:dt,reduced));this.dishes.get(id)!.visible=!!table&&(table.people>0||table.dirty)})
     this.root.userData.serverPosition={x:p.x,z:p.z}
   }
   dispose(){this.disposed=true;this.sculpted?.dispose();this.people.dispose();this.courtyard.dispose();this.floor.texture.dispose();this.art.dispose()}
