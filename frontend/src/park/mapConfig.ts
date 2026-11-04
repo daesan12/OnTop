@@ -7,6 +7,15 @@ import { PARK_MAP_VERSION } from '../map/park/generated/mapVersion'
 import { GENERATED_PARK_ENABLED as generated } from './mapSelection'
 import type { BoxCollider, Vec3 } from '../config/world'
 
+// Display policy belongs to the runtime, not the hashed shared-map source.
+// Do not make a nickname-only change require a synchronized FE/BE map rollout.
+export const OVERHEAD = {
+  maxDistance: 50,
+  telescopeMaxDistance: base.OVERHEAD.telescopeMaxDistance,
+  headOffset: base.OVERHEAD.headOffset,
+  bubbleDurationMs: base.OVERHEAD.bubbleDurationMs,
+} as const
+
 export const EXPECTED_MAP_VERSION: string = generated ? PARK_MAP_VERSION : LEGACY_MAP_VERSION
 export const TABLES = generated ? p.DRAFT_TABLES : base.TABLES
 export const BENCHES = generated ? p.data.interactions.benches.map(b => b.position) : base.BENCHES

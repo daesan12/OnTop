@@ -325,7 +325,7 @@ export async function fixture(
               channelId: 'fixture-channel',
               name: options.channelName ?? '공원 01',
               currentUsers: worldIds().length,
-              capacity: 16,
+              capacity: Math.max(16, worldIds().length),
               joinable: true,
             },
           ],
@@ -593,7 +593,7 @@ export async function fixture(
               channelId: 'fixture-channel',
                 name: options.channelName ?? '공원 01',
               version: ++channelVersion,
-              capacity: 16,
+              capacity: Math.max(16, worldIds().length),
               currentUsers: worldIds().length,
               userIds: worldIds(),
             },
@@ -619,6 +619,11 @@ export async function fixture(
           lastInputSeq: payload.seq,
         })
         world(ws, requestId)
+      }
+      if (type === 'WORLD_CHAT_TYPING_SET') {
+        emit(ws, 'WORLD_CHAT_TYPING_STATE', { channelId: 'fixture-channel', version: ++version,
+          users: payload.typing ? [{ userId: ownId, expiresInMs: 5000 }] : [] }, requestId)
+        return
       }
       if (type === 'WORLD_CHAT_SEND') {
         ws.send(
@@ -1079,6 +1084,8 @@ export async function fixture(
     emote: (event: NonNullable<typeof lastEmote>) => emit(sockets.at(-1)!, 'WORLD_EMOTE_EVENT', event),
     cancelEmote: (event: object) => emit(sockets.at(-1)!, 'WORLD_EMOTE_CANCELLED', event),
 
+    typing: (users: { userId: string; expiresInMs: number }[]) => emit(sockets.at(-1)!, 'WORLD_CHAT_TYPING_STATE',
+      { channelId: 'fixture-channel', version: ++version, users }),
     players: (count: number) => { options.players = count; world(sockets.at(-1)!) },
     serverTimeOffset: (ms: number) => { options.serverTimeOffsetMs = ms },
     pose: (patch: Partial<typeof position>) => { Object.assign(position, patch); world(sockets.at(-1)!) },

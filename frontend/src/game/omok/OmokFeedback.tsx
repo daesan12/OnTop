@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 
 import { useFrame, useThree } from '@react-three/fiber'
 import { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three'
 import { useSession } from '../../network/worldClient'
+import { useChatTyping } from '../../features/chat/useChatTyping'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { useManual } from '../../features/manual/manualState'
 import { setChatInputOpen, inputState } from '../../world/inputOwnership'
@@ -28,11 +29,11 @@ export function OmokFeedback() {
   return <div className="omok-feedback" hidden={manual} aria-label="관전자 응원과 위치 추천">
     {chats.map(chat => <div key={chat.eventId} className={`omok-floating-chat slot-${chat.slot}`} role="status"
       style={{ ...chatPosition(chat), animationDelay: `${-Math.max(0, 3000 - (chat.until - performance.now()))}ms` } as CSSProperties}>
-      <span>{profiles[chat.senderUserId]?.nickname ?? '관전자'}</span> {chat.text}
+      <span>{chat.displayName ?? profiles[chat.senderUserId]?.nickname ?? '관전자'}</span> {chat.text}
     </div>)}
     {pings.map(ping => <span className="omok-ping-label" key={ping.eventId} ref={element => {
       if (element) labels.set(ping.eventId, element); else labels.delete(ping.eventId)
-    }}>{profiles[ping.senderUserId]?.nickname ?? '관전자'} · {omokCoordinate(ping.x, ping.y)} 추천</span>)}
+    }}>{ping.displayName ?? profiles[ping.senderUserId]?.nickname ?? '관전자'} · {omokCoordinate(ping.x, ping.y)} 추천</span>)}
   </div>
 }
 
@@ -85,6 +86,7 @@ export function SpectatorChat() {
   const runtime = useParkRuntime(), canSend = useOmokEvents(s => s.canSend), sending = useOmokEvents(s => s.sending)
   const error = useOmokEvents(s => s.error), scope = useOmokEvents(s => s.scope)
   const [draft, setDraft] = useState(''), [notice, setNotice] = useState(''), [open, setOpen] = useState(false)
+  const typing=useChatTyping(runtime,open&&canSend&&!sending)
   const input = useRef<HTMLInputElement>(null)
   const player = useGame(s => s.game?.role === 'PLAYER')
   const omok = useGame(s => !!s.game?.omok)
@@ -110,6 +112,7 @@ export function SpectatorChat() {
   }, [canSend])
   async function send(event: FormEvent) {
     event.preventDefault(); if (sending || !canSend) return
+    typing(false)
     const text = draft
     if (await runtime.sendSpectatorChat(text)) { setDraft(''); setNotice('전달 요청이 승인됐어요.'); }
   }
@@ -122,8 +125,8 @@ export function SpectatorChat() {
     <label htmlFor="omok-spectator-message">{player ? '경기 채팅' : omok ? '관전 채팅 · 판을 눌러 위치 추천' : '관전 채팅'}</label>
     <div><input id="omok-spectator-message" ref={input} value={draft} disabled={!canSend} readOnly={sending} aria-keyshortcuts="Enter"
       placeholder={canSend ? '이 경기에서 대화해요' : player ? '경기 연결을 확인해주세요' : '관전 승인을 확인해주세요'} maxLength={400}
-      onFocus={() => setChatInputOpen(true)} onBlur={() => setChatInputOpen(false)}
-      onChange={event => { setDraft(event.target.value); setNotice('') }}
+      onFocus={() => {setChatInputOpen(true);typing(!!draft.trim())}} onBlur={() => {setChatInputOpen(false);typing(false)}}
+      onChange={event => { setDraft(event.target.value); setNotice('');typing(!!event.target.value.trim()) }}
       onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault() }} />
       <button type="submit" disabled={!canSend || sending || !draft.trim()}>보내기</button></div>
     <p role="status">{error || notice || 'Enter로 입력·전송 · Esc로 입력 종료'}</p></div>

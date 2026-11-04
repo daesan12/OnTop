@@ -7,6 +7,7 @@ import {
 import { SharedSocket, ServerError } from '../../network/socketClient'
 import { routeCoopMessage, subscribeCoop } from '../../features/skewer/coop/contracts'
 import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
+import { chatAuthorName } from '../../features/chat/author'
 import { OneCardPrankEvents, ONECARD_PRANKS_ENABLED, type PrankScope } from '../../game/onecard/prankEvents'
 import { OneCardDefenseEvents, ONECARD_DEFENSE_ENABLED } from '../../game/onecard/defenseEvents'
 import { BUNGEOPPANG_RANKINGS_ENABLED } from '../../features/bungeoppang/ranking'
@@ -206,6 +207,7 @@ export class ParkRuntime implements ParkRuntimePort {
       role: game.role, canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
   }
   private omokEvents = new OmokSpectatorEvents({
+    displayName: userId => chatAuthorName(useSession.getState().profiles[userId]),
     scope: () => this.gameEventScope(),
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
@@ -897,6 +899,14 @@ export class ParkRuntime implements ParkRuntimePort {
     for (const message of [...held.filter(m => m.type === 'TABLE_STATE'), ...held.filter(m => m.type !== 'TABLE_STATE')]) {
       try { this.message(message) } catch (error) { this.report(error) }
     }
+  }
+  sendTyping = async (typing: boolean) => {
+    const own=useSession.getState()
+    if(!this.active || own.status!=='connected' || !own.roomId || !own.mapCompatible)return false
+    try {
+      await this.socket.request('WORLD_CHAT_TYPING_SET',{typing},['WORLD_CHAT_TYPING_STATE'])
+      return true
+    } catch { return false }
   }
   sendChat = (value: string) =>
     gameChatScope() ? this.sendSpectatorChat(filterChat(value)) :

@@ -3,7 +3,7 @@ import { integer, record, type Envelope } from '../../network/protocol'
 import { omokCoordinate } from '../omokPresentation'
 
 export interface EventScope { key: string; gameId: string; version: number; role: 'PLAYER' | 'SPECTATOR'; canSend: boolean }
-interface BaseEvent { gameId: string; eventId: string; senderUserId: string; sentAt: number; expiresAt: number; serverNow: number }
+interface BaseEvent { gameId: string; eventId: string; senderUserId: string; sentAt: number; expiresAt: number; serverNow: number; displayName?: string }
 export type ChatEvent = BaseEvent & { kind: 'chat'; text: string }
 export type PingEvent = BaseEvent & { kind: 'ping'; basedOnVersion: number; x: number; y: number }
 export type DisplayEvent<T> = T & { until: number; slot: number }
@@ -46,6 +46,7 @@ const initial = (): View => ({ scope: '', canSend: false, chats: [], pings: [], 
   pingSending: false, pingReadyAt: 0, pingNotice: '', pingError: '' })
 export const useOmokEvents = create<View>(initial)
 interface Dependencies {
+  displayName?(userId: string): string | undefined
   scope(): EventScope | null
   request(type: string, payload: Record<string, unknown>, expected: readonly string[], onId: (id: string) => void): Promise<Envelope>
   now?(): number
@@ -76,6 +77,16 @@ export class OmokSpectatorEvents {
     if (next?.key !== this.scope?.key) { this.reset(); this.scope = next; this.publish() }
     else if (next && (next.version !== this.scope?.version || next.canSend !== this.scope?.canSend)) {
       this.scope = next; this.pings = this.pings.filter(p => p.basedOnVersion >= next.version); this.publish()
+    }
+    let changed = false
+    const resolve = <T extends BaseEvent>(event: T): T => {
+      const name = event.displayName ?? this.deps.displayName?.(event.senderUserId)
+      if (!event.displayName && name) { changed = true; return { ...event, displayName: name } }
+      return event
+    }
+    if (this.deps.displayName) {
+      const history = this.history.map(resolve), chats = this.chats.map(resolve), pings = this.pings.map(resolve)
+      if (changed) { this.history = history; this.chats = chats; this.pings = pings; this.publish() }
     }
   }
   private publish() {
@@ -108,6 +119,7 @@ export class OmokSpectatorEvents {
     if (!event || !scope || event.gameId !== scope.gameId || this.seen.has(event.eventId)) return true
     const remaining = event.expiresAt - event.serverNow
     if (remaining <= 0) return true
+    event.displayName = this.deps.displayName?.(event.senderUserId)
     this.seen.set(event.eventId, now + 30_000)
     if (this.seen.size > 256) this.seen.delete(this.seen.keys().next().value!)
     if (event.kind === 'chat') {
