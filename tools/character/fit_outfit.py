@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0 rim_neck=20] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -812,8 +812,16 @@ for slot, it in G.items():
                 nxt[i] = max(req[i], 0.5 * (cur[i] + m_))
             cur = nxt
         for i, m_ in cur.items():
-            if m_ > 0: it.data.vertices[i].co += dirn[i] * m_; moved += 1
-        nb3.free()
+            if m_ > 0: nb3.verts[i].co += dirn[i] * m_; moved += 1
+        # (and the collar's open edges there are relaxed along themselves, rim_neck rounds: small chips stood up
+        # along its top where it meets the neck, user)
+        rim_ = [v for v in nb3.verts if v.is_boundary and in_nk(v.co) and v.co.z > J['Neck'].z - 0.03]
+        rnb = {v: [e.other_vert(v) for e in v.link_edges if e.is_boundary] for v in rim_}
+        for _ in range(int(opt.get('rim_neck', 0))):
+            new_ = {v: (v.co + sum((u.co for u in rnb[v]), Vector()) / len(rnb[v])) / 2 for v in rim_ if len(rnb[v]) == 2}
+            for v, c in new_.items(): v.co = c
+        nb3.to_mesh(it.data); nb3.free()
+        if int(opt.get('rim_neck', 0)): print('RIM neck', len(rim_), 'collar edge vertices relaxed')
     for v in it.data.vertices:
         if made and any(e.group in made for e in v.groups): continue
         if nk_skip and in_nk(v.co): continue
