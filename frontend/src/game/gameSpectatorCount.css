@@ -2,6 +2,8 @@
 .game-spectator-count>svg{color:#c6c0ae;flex:none}
 .game-spectator-number{display:flex;gap:5px;align-items:baseline;font-weight:650;font-variant-numeric:tabular-nums;animation:spectator-count-change .18s ease-out}
 .game-spectator-number small{font-size:10px;font-weight:400;color:#c6c0ae}
+.park-page:has(.alkkagi-hud) .game-spectator-count{top:22px;left:24px;right:auto}
 @keyframes spectator-count-change{from{opacity:.5;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:700px){.game-spectator-count{right:12px;top:118px;font-size:11px;min-height:28px;padding:4px 8px}.game-spectator-number small{font-size:9px}}
+@media(max-width:700px){.park-page:has(.alkkagi-hud) .game-spectator-count{top:88px;left:12px;right:auto}}
 @media(prefers-reduced-motion:reduce){.game-spectator-number{animation:none}}

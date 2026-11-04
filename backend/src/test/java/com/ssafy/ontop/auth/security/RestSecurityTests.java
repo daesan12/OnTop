@@ -190,14 +190,21 @@ class RestSecurityTests {
         mvc.perform(auth(get("/api/v1/admin/me"))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.canRead").value(true))
                 .andExpect(jsonPath("$.canGrant").value(false))
+                .andExpect(jsonPath("$.canOperate").value(false))
                 .andExpect(header().string("Cache-Control", "no-store"));
         mvc.perform(auth(post("/api/v1/admin/wallet-grants/probe"))).andExpect(status().isForbidden());
+        mvc.perform(auth(get("/api/v1/admin/operations/status"))).andExpect(status().isForbidden());
 
         mvc.perform(authAs(43, get("/api/v1/admin/me"))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.canRead").value(true))
-                .andExpect(jsonPath("$.canGrant").value(true));
+                .andExpect(jsonPath("$.canGrant").value(true))
+                .andExpect(jsonPath("$.canOperate").value(true));
         mvc.perform(authAs(43, post("/api/v1/admin/wallet-grants/probe")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.allowed").value(true));
+        mvc.perform(authAs(43, get("/api/v1/admin/operations/status"))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.mode").value("NORMAL"));
+        mvc.perform(get("/api/v1/operations/status")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.mode").value("NORMAL"));
         mvc.perform(authAs(44, get("/api/v1/channels"))).andExpect(status().isOk());
     }
 
@@ -304,6 +311,8 @@ class RestSecurityTests {
                 "DELETE /api/v1/users/me",
                 "GET /api/v1/admin/me", "GET /api/v1/admin/analytics/summary",
                 "POST /api/v1/admin/wallet-grants/preview", "POST /api/v1/admin/wallet-grants",
+                "GET /api/v1/operations/status", "GET /api/v1/admin/operations/status",
+                "PUT /api/v1/admin/operations/status",
                 "GET /api/v1/wallets/me", "GET /api/v1/wallets/me/transactions",
                 "GET /api/v1/rankings", "GET /api/v1/rankings/park",
                 "GET /api/v1/raffles/current", "POST /api/v1/raffles/current/tickets",

@@ -60,6 +60,18 @@ class ChannelQueryServiceTests {
         assertThatThrownBy(service::listChannels).isInstanceOf(ChannelQueryService.UnavailableException.class);
     }
 
+    @Test
+    void 운영_채널은_UUID가_아니라_표시_번호로_정렬한다() {
+        var properties = new WorldChannelProperties(List.of(
+                new Channel("channel-z", "운영 공원 5", 20),
+                new Channel("channel-x", "운영 공원 1", 20),
+                new Channel("channel-y", "운영 공원 2", 20)));
+        var service = service(properties, null);
+
+        assertThat(service.listChannels().items()).extracting(item -> item.name())
+                .containsExactly("운영 공원 1", "운영 공원 2", "운영 공원 5");
+    }
+
     private ChannelQueryService service(WorldChannelProperties properties, ChannelPresence presence) {
         var beans = new DefaultListableBeanFactory();
         if (presence != null) {

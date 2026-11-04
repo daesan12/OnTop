@@ -22,8 +22,9 @@ export function AlkkagiCoinToss({ state, now, name }: { state: Alkkagi; now: num
 }
 
 export function AlkkagiOpponentCards({ count, nickname }: { count: number; nickname: string }) {
+  if (count <= 0) return null
   return <aside className="alkkagi-opponent-hand" aria-label={`${nickname} 비책 ${count}장`}>
-    <header><span>{nickname}</span><small>비책 <b>{count}</b>장</small></header><div aria-hidden="true">
+    <div aria-hidden="true">
       {Array.from({ length: Math.min(count, 12) }, (_, i) => <span key={i} className="alkkagi-card-back">策</span>)}
     </div>
   </aside>

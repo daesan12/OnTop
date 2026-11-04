@@ -32,6 +32,8 @@ ontop:
     privacy-secret: ${NOTES_PRIVACY_SECRET:}
   minigames:
     enabled: true
+    # FE가 v5 규칙으로 빌드된 DEV에서만 서버 계약도 함께 활성화한다.
+    bungeoppang-v5-enabled: ${BUNGEOPPANG_V5_ENABLED:false}
   world:
     channels:
       - channel-id: channel-1

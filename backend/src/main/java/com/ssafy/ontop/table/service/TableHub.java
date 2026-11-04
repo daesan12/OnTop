@@ -52,6 +52,7 @@ import com.ssafy.ontop.world.dto.WorldGameReaction;
 import com.ssafy.ontop.world.map.LegacyParkTables;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
+import com.ssafy.ontop.world.service.DynamicChannelDisplayNumbers;
 import com.ssafy.ontop.world.service.ParkDebrisStore;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
@@ -106,7 +107,6 @@ public class TableHub {
     private DynamicChannelsProperties dynamicChannels = DynamicChannelsProperties.disabled();
     private WorldMapRuntime dynamicMap;
     private String initialChannelId;
-    private int nextChannelNumber = 1;
     private final Map<String, Member> members = new HashMap<>();
     private final WorldMapCompatibility maps;
     private final Set<String> mapVerifiedSessions = new HashSet<>();
@@ -688,6 +688,8 @@ public class TableHub {
                 || channels.snapshot().values().stream().anyMatch(count -> count < dynamicChannels.spawnAt())) {
             return;
         }
+        int displayNumber = DynamicChannelDisplayNumbers.nextAvailable(
+                channels.definitions(), dynamicChannels.maxChannels());
         String channelId = "channel-" + UUID.randomUUID();
         var layout = dynamicMap.tableLayout(channelId);
         if (layout.isEmpty() || layout.stream().anyMatch(table -> rooms.containsKey(table.tableId()))) {
@@ -701,7 +703,7 @@ public class TableHub {
                 proximity.registerTable(table.tableId(), table.point());
             }
             channels.addChannel(new WorldChannelProperties.Channel(channelId,
-                    "운영 공원 " + (nextChannelNumber + 1), dynamicChannels.capacity()));
+                    DynamicChannelDisplayNumbers.name(displayNumber), dynamicChannels.capacity()));
         } catch (RuntimeException exception) {
             for (var table : layout) {
                 rooms.remove(table.tableId());
@@ -711,7 +713,6 @@ public class TableHub {
             }
             throw exception;
         }
-        nextChannelNumber++;
         channelIds.add(channelId);
         emptyChannelsSince.put(channelId, System.nanoTime());
         log.info("운영 채널 생성 channel={} total={}", channelId, channelIds.size());

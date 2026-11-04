@@ -3,6 +3,8 @@ package com.ssafy.ontop.auth.websocket;
 import com.ssafy.ontop.auth.dto.AuthErrorResponse;
 import com.ssafy.ontop.auth.exception.AuthExchangeException;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
+import com.ssafy.ontop.operation.domain.ServiceOperationState;
+import com.ssafy.ontop.operation.service.ServiceOperationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -11,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -26,10 +29,18 @@ public class WebSocketTicketController {
 
     private final WebSocketTicketService tickets;
     private final AuthExchangeOriginPolicy origins;
+    private final ServiceOperationService operations;
 
     public WebSocketTicketController(WebSocketTicketService tickets, AuthExchangeOriginPolicy origins) {
+        this(tickets, origins, ServiceOperationService.alwaysOpen());
+    }
+
+    @Autowired
+    public WebSocketTicketController(WebSocketTicketService tickets, AuthExchangeOriginPolicy origins,
+            ServiceOperationService operations) {
         this.tickets = tickets;
         this.origins = origins;
+        this.operations = operations;
     }
 
     @Operation(summary = "WebSocket 일회용 접속권", description = "Access JWT로 인증한 활성 회원 및 sid와 허용된 Origin에 결합합니다. 최대 30초(Access 만료 상한), 일회용입니다. /ws/tables?ticket= 연결 시 같은 Origin·회원·sid를 재확인합니다. 새 연결/재접속마다 발급하세요. 브라우저는 WebSocket Authorization 헤더를 직접 설정할 수 없습니다.",
@@ -51,6 +62,11 @@ public class WebSocketTicketController {
     @PostMapping("/api/v1/auth/websocket-ticket")
     public ResponseEntity<WebSocketTicketService.Ticket> issue(HttpServletRequest request,
             Authentication authentication) {
+        ServiceOperationState state = operations.current();
+        if (!state.allowsNewActivity()) {
+            throw new WebSocketTicketException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                    "SERVICE_" + state.mode().name());
+        }
         String origin = origins.allowedOrigin(request);
         var ticket = tickets.issue(authentication, origin);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
