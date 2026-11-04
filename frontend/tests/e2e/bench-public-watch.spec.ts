@@ -55,8 +55,8 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
     await expect(boardButton).toHaveAttribute('aria-pressed', 'true')
     await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).adCameraProbe().direction[1])).toBeLessThan(-.999)
     if (kind === 'OMOK') {
-      // Approved OMOK spectating owns the dedicated match chat, replacing ParkChat.
-      const chat = page.getByRole('form', { name: '오목 관전 채팅', exact: true })
+      // Approved OMOK spectating uses the same private match chat panel as every game.
+      const chat = page.getByRole('region', { name: '경기 채팅', exact: true })
       await expect(page.getByLabel('보유 엽전', { exact: true })).toHaveCount(0)
       await expect(page.getByRole('button', { name: '공원 잔액 다시 확인', exact: true })).toHaveCount(0)
       await page.evaluate(() => window.dispatchEvent(new Event('focus')))
@@ -64,12 +64,12 @@ for (const kind of ['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE'] as const) {
       const input = chat.getByRole('textbox')
       await expect(input).toBeFocused()
       await input.fill('관전 중 대화'); await input.press('Enter')
-      await expect(chat.getByRole('status')).toHaveText('전달 요청이 승인됐어요.')
+      await expect(chat.getByRole('textbox')).toHaveCount(0)
       expect(server.sent.filter(m => m.type === 'GAME_SPECTATOR_CHAT_SEND').at(-1)?.payload).toEqual({
         gameId: targetId, eventId: expect.any(String), text: '관전 중 대화',
       })
       expect(server.sent.some(m => m.type === 'WORLD_CHAT_SEND')).toBe(false)
-      await input.press('Escape')
+      await page.keyboard.press('Escape')
       await expect(page.getByRole('region', { name: '주변 채팅', exact: true })).toHaveCount(0)
       await expect.poll(() => watchStatus(page)).toBe('watching')
       expect((await game(page))?.gameId).toBe(targetId)

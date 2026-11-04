@@ -110,15 +110,15 @@ for(const seated of [false,true])test(`new map omok watch ${seated?'pavilion sea
  expect(session.table).toBe('');expect(!!session.bench).toBe(seated)
  for(const viewport of [{width:1920,height:1080},{width:390,height:844}]){
   await page.setViewportSize(viewport)
-  const chat=page.getByRole('form',{name:'오목 관전 채팅',exact:true})
-  expect((await chat.boundingBox())!.width).toBeLessThanOrEqual(280)
+  const chat=page.getByRole('region', { name: '경기 채팅',exact:true})
+  expect((await chat.boundingBox())!.width).toBeLessThanOrEqual(360)
   // The production spectator channel permits one message per second.
   await page.waitForTimeout(1050)
   await page.locator('canvas').focus();await page.keyboard.press('Enter')
   await chat.getByRole('textbox').fill('작은 채팅창에서도 관전 대화')
-  await chat.getByRole('textbox').press('Enter');await expect(chat.getByRole('status')).toHaveText('전달 요청이 승인됐어요.')
+  await chat.getByRole('textbox').press('Enter');await expect(chat.getByRole('textbox')).toHaveCount(0)
   await screenshot(page,`feedback-watch-${seated?'seated':'standing'}-${viewport.width}`)
-  await chat.getByRole('textbox').press('Escape')
+  await page.keyboard.press('Escape')
  }
  expect(server.sent.some(m=>m.type==='TABLE_JOIN'||m.type==='GAME_ACTION_SEND')).toBe(false)
  await page.getByRole('button',{name:'관전 종료',exact:true}).click()

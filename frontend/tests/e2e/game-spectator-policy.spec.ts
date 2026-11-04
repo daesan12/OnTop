@@ -31,14 +31,9 @@ for (const kind of ['omok', 'onecard', 'dice', 'bridge'] as const) test(`${kind}
   })).toEqual({ map: false, wardrobe: false })
   await expect(page.getByRole('region', { name: '주변 채팅', exact: true })).toHaveCount(0)
   const text = `이 경기만 ${kind}`
-  if (kind === 'omok') {
-    const input = page.getByLabel('관전 채팅 · 판을 눌러 위치 추천')
-    await expect(input).toBeEnabled(); await input.fill(text); await page.keyboard.press('Enter')
-  } else {
-    await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
-    await page.getByRole('textbox', { name: '경기 채팅 메시지', exact: true }).fill(text)
-    await page.keyboard.press('Enter')
-  }
+  await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
+  await page.getByRole('textbox', { name: '경기 채팅 메시지', exact: true }).fill(text)
+  await page.keyboard.press('Enter')
   if (kind === 'omok') await expect(page.locator('.omok-floating-chat')).toContainText(text)
   else await expect(page.getByRole('region', { name: '경기 채팅', exact: true }).getByText(text, { exact: true })).toBeVisible()
   expect(server.sent.filter(message => message.type === 'GAME_SPECTATOR_CHAT_SEND')).toHaveLength(1)

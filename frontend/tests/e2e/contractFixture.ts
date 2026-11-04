@@ -281,6 +281,10 @@ export async function fixture(
     )
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url())
+    if (url.pathname === '/api/v1/operations/status') return route.fulfill({ json: {
+      mode: 'NORMAL', notice: '', maintenanceStartedAt: null, expectedOpenAt: null,
+      version: 1, updatedAt: new Date().toISOString(), serverTime: new Date().toISOString(),
+    } })
     if (url.pathname === '/api/v1/minigames/jumpmap/status' && route.request().method() === 'GET')
       return route.fulfill({ json: disabledJumpmapStatus('fixture-channel', expectedMapVersion) })
     if (url.pathname.endsWith('/auth/refresh'))

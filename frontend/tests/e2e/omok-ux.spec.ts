@@ -54,16 +54,16 @@ for (const own of ['101','102'] as const) test(`fixed omok UX ${own}: turn invar
   await expect(page.getByRole('region',{name:'주변 채팅',exact:true})).toHaveCount(0)
   await expect(panel.getByRole('button',{name:'주변 둘러보기',exact:true})).toHaveCount(0)
   await page.locator('canvas').focus(); await page.keyboard.press('Enter')
-  const chatInput = page.getByRole('form', { name: '오목 경기 채팅', exact: true }).getByRole('textbox')
-  expect(await page.locator('.omok-spectator-chat').evaluate(el => getComputedStyle(el).backgroundColor)).toMatch(/^rgba\(48, 39, 31,/)
+  const chatInput = page.getByRole('region', { name: '경기 채팅', exact: true }).getByRole('textbox')
+  expect(await page.locator('.park-chat').evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
   await expect(chatInput).toBeFocused()
   await chatInput.fill('상대 차례에도 채팅해요')
   await chatInput.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, keyCode: 229 })
   expect(server.sent.filter(m => m.type === 'GAME_SPECTATOR_CHAT_SEND')).toHaveLength(0)
   await chatInput.press('Enter')
   await expect(page.locator('.omok-floating-chat')).toContainText('상대 차례에도 채팅해요')
-  await expect(chatInput).toHaveValue(''); await expect(chatInput).toBeFocused()
-  await chatInput.press('Escape'); await expect(chatInput).not.toBeFocused()
+  await expect(chatInput).toHaveCount(0); await expect(page.locator('canvas')).toBeFocused()
+  await page.keyboard.press('Escape'); await expect(chatInput).toHaveCount(0)
   await page.keyboard.press('KeyZ'); await page.keyboard.press('KeyM'); await page.keyboard.press('KeyG')
   expect(await page.evaluate(async () => {
     const { parkRuntime } = await import('/src/park/runtime/runtime.ts' as string)
@@ -150,7 +150,7 @@ test('active table interaction opens spectating instead of joining; denied watch
   server.rejectGameWatch(false)
   await watch.click()
   await expect(page.getByRole('region', { name: '오목 경기', exact: true })).toContainText('관전 중')
-  const chat = page.getByRole('form', { name: '오목 관전 채팅', exact: true })
+  const chat = page.getByRole('region', { name: '경기 채팅', exact: true })
   await expect(chat.getByRole('textbox')).toBeEnabled()
   await chat.getByRole('textbox').fill('관전 연결 확인')
   await chat.getByRole('button', { name: '보내기', exact: true }).click()
@@ -172,16 +172,16 @@ test('approved observer sends game chat and board ping, without ever placing a s
   await load(page)
   expect(await page.evaluate(async id=>(await import('/src/features/interactions/benchController.ts' as string)).sitBench(id,0),bench.facilityId)).toBe(true)
   await page.getByRole('button',{name:'가까이 관전',exact:true}).click()
-  const input=page.getByLabel('관전 채팅 · 판을 눌러 위치 추천')
-  await expect(input).toBeEnabled()
+  const input=page.getByLabel('경기 채팅 메시지')
   await page.locator('canvas').focus(); await page.keyboard.press('Enter'); await expect(input).toBeFocused()
+  await expect(input).toBeEnabled()
   await input.fill('여기 어때요?')
   await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, keyCode: 229 })
   expect(server.sent.filter(m=>m.type==='GAME_SPECTATOR_CHAT_SEND')).toHaveLength(0)
   await page.keyboard.press('Enter')
   await expect(page.locator('.omok-floating-chat')).toContainText('여기 어때요?')
   expect(server.sent.filter(m=>m.type==='GAME_SPECTATOR_CHAT_SEND')).toHaveLength(1)
-  await expect(input).toBeFocused(); await expect(input).toHaveValue('')
+  await expect(input).toHaveCount(0); await expect(page.locator('canvas')).toBeFocused()
   await page.keyboard.press('Escape'); await expect(input).not.toBeFocused()
   for (let n = 1; n <= 3; n++) server.spectatorEvent('chat', {
     eventId: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`, text: `다른 위치의 응원 ${n}`,
@@ -208,7 +208,7 @@ test('approved observer sends game chat and board ping, without ever placing a s
     await expect(async () => {
       const state = await camera(page)
       expect(state).toMatchObject({ layers:2, rayLayers:2, backdrop:true, ready:true, viewport:[viewport.width,viewport.height] })
-      const top = (await header.boundingBox())!, bottom = (await page.locator('.omok-spectator-toolbar').boundingBox())!, chat = (await page.locator('.omok-spectator-chat').boundingBox())!
+      const top = (await header.boundingBox())!, bottom = (await page.locator('.omok-spectator-toolbar').boundingBox())!, chat = (await page.locator('.park-chat').boundingBox())!
       for (const corner of state.corners) {
         expect(corner[0]).toBeGreaterThan(10); expect(corner[0]).toBeLessThan(viewport.width-10)
         expect(corner[1]).toBeGreaterThan(top.y+top.height+5)

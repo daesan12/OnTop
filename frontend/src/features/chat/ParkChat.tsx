@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '../../network/worldClient'
 import { parkName } from '../parkMenus/parkName'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
-import { inputState, setChatInputOpen } from '../../world/inputOwnership'
+import { inputState, setChatInputOpen, focusParkCanvas } from '../../world/inputOwnership'
 import { CHAT } from './settings'
 import chatIcon from '../parkMenus/icons/chat-bubble.svg'
 import sendIcon from '../parkMenus/icons/chat-send.svg'
@@ -60,10 +60,12 @@ function ChatPanel({ gameId }: { gameId: string }) {
 
   function close(preview = false) {
     typing(false)
+    setChatInputOpen(false)
     setOpen(false)
     setPreviewUntil(preview ? Date.now() + CHAT.expandedDurationMs : 0)
     followLatest.current = true
     input.current?.blur()
+    focusParkCanvas()
   }
   function openInput() { followLatest.current = true; setNotice(''); setOpen(true) }
   function toggleHistory() { followLatest.current = true; setHistory(s => !s); setPreviewUntil(0) }
@@ -72,10 +74,14 @@ function ChatPanel({ gameId }: { gameId: string }) {
     if (!draft.trim()) { setNotice(''); close(true); return }
     typing(false)
     inFlight.current = true; setSending(true); setNotice('')
-    const approved = await runtime.sendChat(draft)
-    inFlight.current = false
+    let approved = false
+    try { approved = await runtime.sendChat(draft) }
+    catch { /* Preserve the draft on transport failure, just like a rejected server response. */ }
+    finally {
+      inFlight.current = false
+      if (alive.current) setSending(false)
+    }
     if (!alive.current) return
-    setSending(false)
     if (!approved) { setNotice('전송하지 못했어요. 내용을 보관했으니 안내를 확인하고 다시 보내주세요.'); return }
     noteTourAction('chat')
     setDraft(''); close(true)
@@ -103,7 +109,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
   return <section className="park-chat" aria-label={gameId ? '경기 채팅' : '주변 채팅'} data-game-id={gameId || undefined} data-expanded={expanded} data-history={history}>
     <div className="park-chat__messages">
       <div className="park-chat__heading"><h1><img src={chatIcon} alt="" />{gameId ? '경기 채팅' : '주변 채팅'}<span className="park-chat__radius">{gameId ? '이 경기만' : `반경 ${CHAT.radiusMeters}m`}</span></h1>
-        <button type="button" aria-label="채팅 기록 보기" aria-expanded={history} aria-keyshortcuts="Z" onClick={toggleHistory}
+        <button type="button" aria-label={history ? '채팅 기록 접기' : '채팅 기록 보기'} aria-expanded={history} aria-keyshortcuts="Z" onClick={toggleHistory}
           title={history ? 'Z · 기록 접기' : 'Z · 기록 보기'}>
           <img src={expandIcon} alt="" /><span className="visually-hidden">Z {history ? '기록 접기' : '기록 보기'}</span>
         </button>
@@ -127,13 +133,18 @@ function ChatPanel({ gameId }: { gameId: string }) {
         onFocus={()=>typing(!!draft.trim())} onBlur={()=>typing(false)}
         onChange={event => {setDraft(event.target.value);typing(!!event.target.value.trim())}}
         onKeyDown={event => {
-          if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault()
+          if (event.key !== 'Enter' && event.key !== 'Escape') return
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) { event.preventDefault(); return }
+          event.preventDefault(); event.stopPropagation()
+          if (event.repeat) return
+          if (event.key === 'Enter') void send()
+          else { setHistory(false); close() }
         }} placeholder={gameId ? '이 경기 안에서만 대화해요' : '메시지를 입력하세요'} maxLength={gameId ? 200 : 400} autoComplete="off" />
       <button type="button" aria-label="채팅 입력창 닫기" onClick={() => close()}>×</button>
       <button type="submit" aria-label="메시지 보내기" disabled={sending || session.pending || !session.channel || !session.connected || !!gameId && !gameCanSend}><img src={sendIcon} alt="" /></button>
     </form> : <button className="park-chat__composer park-chat__composer--closed" type="button" onClick={openInput} aria-label="채팅 입력창 열기"
       aria-keyshortcuts="Enter" disabled={!!gameId && !gameCanSend}>
-      <span>메시지를 입력하세요</span><span className="park-chat__send-icon"><img src={sendIcon} alt="" /></span>
+      <span>Enter 키로 채팅</span><span className="park-chat__send-icon"><img src={sendIcon} alt="" /></span>
     </button>}
   </section>
 }

@@ -86,7 +86,7 @@ test('관전 도구와 접이식 채팅이 판을 가리지 않고 시점 전환
   const server=await fixture(page,{generatedPark:true,omok:true,publicSpectator:true,ownUserId:'505',spectatorEvents:true})
   await load(page); await page.getByRole('button',{name:'E 관전하기',exact:true}).click()
   await expect(page.getByLabel('오목 관전 경기 정보',{exact:true})).toBeVisible(); await ready(page)
-  const toolbar=page.locator('.omok-spectator-toolbar'), chat=page.getByRole('form',{name:'관전 채팅',exact:true})
+  const toolbar=page.locator('.omok-spectator-toolbar'), chat=page.getByRole('region', { name: '경기 채팅',exact:true})
   await expect(toolbar.getByRole('button')).toHaveText(['주변 보기','판 보기','게임 설명 · F1','관전 종료'])
   await expect(toolbar.locator('details,summary,.omok-spectator-meta,.omok-ping-status')).toHaveCount(0)
   await expect(chat.getByRole('textbox')).toBeHidden()
@@ -110,10 +110,10 @@ test('관전 도구와 접이식 채팅이 판을 가리지 않고 시점 전환
     await page.keyboard.press('Tab')
     await expect(toolbar.getByRole('button',{name:'판 보기',exact:true})).toBeFocused()
     await expect(page.getByRole('button',{name:'판 보기',exact:true})).toHaveAttribute('aria-pressed','true')
-    await chat.getByRole('button',{name:'관전 채팅 · Enter',exact:true}).click()
+    await chat.getByRole('button',{name:'채팅 입력창 열기',exact:true}).click()
     await expect(chat.getByRole('textbox')).toBeFocused()
     await chat.getByRole('textbox').fill('좋은 수예요')
-    await expect(chat.getByRole('button',{name:'보내기',exact:true})).toBeEnabled()
+    await expect(chat.getByRole('button',{name:'메시지 보내기',exact:true})).toBeEnabled()
     if(size.width===390){
       await expect.poll(async()=>{
         const frame=(await probe(page)).frameCorners, bounds=(await chat.boundingBox())!
@@ -121,15 +121,15 @@ test('관전 도구와 접이식 채팅이 판을 가리지 않고 시점 전환
       }).toBe(true)
       await screenshot(page,'omok-qa-spectator-mobile-chat')
     }
-    await chat.getByRole('textbox').press('Escape')
+    await page.keyboard.press('Escape')
     await expect(chat.getByRole('textbox')).toBeHidden()
   }
   await page.setViewportSize({width:1920,height:1080}); await ready(page)
   await page.locator('canvas').focus(); await page.keyboard.press('Enter')
   await expect(chat.getByRole('textbox')).toBeFocused()
-  await chat.getByRole('textbox').fill('중앙을 살펴보세요'); await chat.getByRole('button',{name:'보내기',exact:true}).click()
+  await chat.getByRole('textbox').fill('중앙을 살펴보세요'); await chat.getByRole('button',{name:'메시지 보내기',exact:true}).click()
   await expect.poll(()=>server.sent.filter(m=>m.type==='GAME_SPECTATOR_CHAT_SEND').length).toBe(1)
-  await chat.getByRole('textbox').focus(); await chat.getByRole('textbox').press('Escape')
+  await expect(chat.getByRole('textbox')).toHaveCount(0); await page.keyboard.press('Escape')
   await ready(page)
   const corners=(await probe(page)).corners
   await page.mouse.click((corners[0]!.x+corners[3]!.x)/2,(corners[0]!.y+corners[3]!.y)/2)
