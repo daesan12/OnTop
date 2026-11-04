@@ -447,6 +447,34 @@ for spec in [x for x in opt.get('seam', '').split(';') if x]:
 # (user: the neck looked crooked). The body round the neck's foot (within lining_r 9 cm of the neck's axis, from
 # lining_down 10 cm under the neck joint) becomes a lining just off the skin, cut level lining_up (6 mm) over the joint,
 # on the top's lit cloth texel: a clean inner collar.
+_skin_cache = {}
+def skin_texel(it):
+    """The UV of item it's atlas texel nearest the body's neck skin (the median colour of the faces the Neck
+    joint leads), on an even patch so the baked atlas keeps it: what neck_tone and lining_tone=skin paint with."""
+    if 'uv' in _skin_cache: return _skin_cache['uv']
+    cols = []
+    for o in body:
+        img_ = next((n.image for m in o.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image), None)
+        if not img_: continue
+        w2, h2 = img_.size; PB = np.array(img_.pixels[:], np.float32).reshape(h2, w2, -1)[..., :3]
+        lead = leading_bones(o); uvb = o.data.uv_layers.active.data
+        for p in o.data.polygons:
+            if sum(lead[vi] == 'Neck' for vi in p.vertices) * 2 <= len(p.vertices): continue
+            u_ = np.mean([tuple(uvb[l].uv) for l in p.loop_indices], 0)
+            cols.append(PB[min(h2 - 1, max(0, int(u_[1] * h2))), min(w2 - 1, max(0, int(u_[0] * w2)))])
+    target = np.median(np.array(cols), 0) if cols else np.array([0.73, 0.52, 0.43])
+    img = next(n.image for m in it.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
+    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
+    st = 4; Ps = P[::st, ::st]; loc_var = np.zeros(Ps.shape[:2], np.float32)
+    for dy in (-2, -1, 1, 2):
+        for dx in (-2, -1, 1, 2):
+            loc_var = np.maximum(loc_var, np.abs(np.roll(np.roll(Ps, dy, 0), dx, 1) - Ps).sum(2))
+    dist = ((Ps - target) ** 2).sum(2) + (loc_var > 0.03) * 10
+    yy, xx = np.unravel_index(int(np.argmin(dist)), dist.shape)
+    _skin_cache['uv'] = ((xx * st + 0.5) / w_, (yy * st + 0.5) / h_)
+    print('SKIN neck', target.round(3).tolist(), '-> texel', Ps[yy, xx].round(3).tolist(), 'from', len(cols), 'faces')
+    return _skin_cache['uv']
+
 if opt.get('lining', '0') == '1' and 'TOP' in G:
     nz, nx, ny = J['Neck'].z, J['Neck'].x, J['Neck'].y
     r_, down_, up_ = float(opt.get('lining_r', 0.09)), float(opt.get('lining_down', 0.1)), float(opt.get('lining_up', 0.006))
@@ -521,7 +549,11 @@ if opt.get('lining', '0') == '1' and 'TOP' in G:
     lb.to_mesh(ln.data); lb.free()
     for g in list(ln.vertex_groups): ln.vertex_groups.remove(g)
     # (the top's middle tone: on its lit white the lapels' shaded inner edges stood out as teeth)
-    uv0, med = lit_texel(G['TOP'], float(opt.get('lining_tone', 40))); on_texel(ln, G['TOP'], uv0)
+    # lining_tone=skin (the gat's dopo, like Tripo's own: the V shows the chest's skin running on from the neck;
+    # the white "shirt" in it read as a separate band, user)
+    if opt.get('lining_tone') == 'skin': on_texel(ln, G['TOP'], skin_texel(G['TOP']))
+    else:
+        uv0, med = lit_texel(G['TOP'], float(opt.get('lining_tone', 40))); on_texel(ln, G['TOP'], uv0)
     ln.vertex_groups.new(name='part:lining').add(list(range(len(ln.data.vertices))), 1.0, 'REPLACE')
     for x in bpy.data.objects: x.select_set(x in (G['TOP'], ln))
     bpy.context.view_layer.objects.active = G['TOP']; bpy.ops.object.join()
@@ -615,7 +647,10 @@ for slot in [x for x in opt.get('clean_dark', '').split(',') if x]:
     uvd = it.data.uv_layers.active.data; n_ = 0
     tx = lambda u: P[min(h_ - 1, max(0, int(u[1] * h_))), min(w_ - 1, max(0, int(u[0] * w_)))].mean()
     nz, nx, ny = J['Neck'].z, J['Neck'].x, J['Neck'].y
+    lin_ = {g.index for g in it.vertex_groups if g.name == 'part:lining'}
     for p in it.data.polygons:
+        # (the lining is left alone: in skin it read as a dark blotch and went white)
+        if lin_ and any(e.group in lin_ for e in it.data.vertices[p.vertices[0]].groups): continue
         us = [tuple(uvd[l].uv) for l in p.loop_indices]
         # (corners too: a blotch's faces had light centres) and every face in the V under the neck (Tripo painted
         # skin and a grey shirt there; mixed with the lining it read ragged)
@@ -920,18 +955,7 @@ for o in body:
     bmesh.ops.delete(b2, geom=[f for f in b2.faces if f.index in covered], context='FACES'); b2.to_mesh(me); b2.free()
 print('BODY pieces added', pieces, '; neck faces out through the top', n_poke)
 if neck_tone and tone_src:
-    allc = np.array([c_ for _, cs in tone_src for c_ in cs]); target = np.median(allc, 0) if len(allc) else np.array([0.8, 0.6, 0.5])
-    img = next(n.image for m in G['TOP'].data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
-    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
-    st = 4; Ps = P[::st, ::st]
-    # (a texel whose 9x9 neighbourhood is even, so the baked atlas keeps the colour)
-    loc_var = np.zeros(Ps.shape[:2], np.float32)
-    for dy in (-2, -1, 1, 2):
-        for dx in (-2, -1, 1, 2):
-            loc_var = np.maximum(loc_var, np.abs(np.roll(np.roll(Ps, dy, 0), dx, 1) - Ps).sum(2))
-    dist = ((Ps - target) ** 2).sum(2) + (loc_var > 0.03) * 10
-    yy, xx = np.unravel_index(int(np.argmin(dist)), dist.shape)
-    uv_t = ((xx * st + 0.5) / w_, (yy * st + 0.5) / h_)
+    uv_t = skin_texel(G['TOP'])
     made = []
     for t_, _ in tone_src:
         for m_ in list(t_.modifiers): t_.modifiers.remove(m_)
@@ -940,7 +964,7 @@ if neck_tone and tone_src:
         if 'tokens' in t_.keys(): del t_['tokens']
     for x in bpy.data.objects: x.select_set(x in made or x == G['TOP'])
     bpy.context.view_layer.objects.active = G['TOP']; bpy.ops.object.join()
-    print('NECK tone', sum(len(cs) for _, cs in tone_src), 'faces, skin', target.round(3).tolist(), '-> texel', Ps[yy, xx].round(3).tolist())
+    print('NECK tone', sum(len(cs) for _, cs in tone_src), 'faces on the skin texel')
 if under_layer and under_src:
     uv_lit, _ = lit_texel(G['TOP'], float(opt.get('under_layer_tone', 60))); made = []
     # (only where the top stands off: within under_layer_near, 1.5 cm, of the top along the normal the layer is
