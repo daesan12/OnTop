@@ -1,3 +1,4 @@
+import { cameraWorldPosition } from './xrView'
 import { SIMPLE_MAP } from './art/mapRenderProfile'
 import { SimpleParkEnvironment } from './SimpleParkEnvironment'
 import { useEffect, useMemo, useRef } from 'react'
@@ -111,7 +112,7 @@ function DetailedEnvironmentScene({fixedTime}:{fixedTime?:number}={}) {
     u.twilight.value = frame.twilight
     values.fog.color.copy(u.horizonColor.value)
     scene.fog = values.fog
-    if (sky.current) sky.current.position.copy(camera.position)
+    if (sky.current) sky.current.position.copy(cameraWorldPosition(camera))
     if (ambient.current) {
       ambient.current.color
         .copy(values.nightLight)

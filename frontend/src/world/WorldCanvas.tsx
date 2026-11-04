@@ -25,6 +25,7 @@ import { EnvironmentScene } from './EnvironmentScene'
 import { ParkPigeons } from './pigeons/ParkPigeons'
 import { NightLighting } from './NightLighting'
 import { CameraRig } from './CameraRig'
+import { ParkXRBridge } from '../features/parkXR/ParkXRBridge'
 
 import { Avatars } from './Avatars'
 import { AvatarPoseFrame } from './AvatarPoseFrame'
@@ -176,6 +177,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         }
       >
         <AvatarPoseFrame>
+          <ParkXRBridge />
           <EnvironmentScene />
           <ParkSoundscape />
           <ParkSun quality={quality} />

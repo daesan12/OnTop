@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react'
-import { integer, record } from '../../network/protocol'
+import { parseJumpmapRankings, type JumpmapRankingEntry as Entry } from './ranking'
 import { JumpmapMedal } from './JumpmapMedal'
 
 export type RankingLoader = (signal: AbortSignal) => Promise<unknown>
-interface Entry { rank: number; userId: string; nickname: string; finishMs: number; finishedAt: string }
-const entry = (value: unknown): value is Entry => record(value) && integer(value.rank) && value.rank > 0
-  && typeof value.userId === 'string' && typeof value.nickname === 'string' && integer(value.finishMs) && value.finishMs > 0
-  && typeof value.finishedAt === 'string' && Number.isFinite(Date.parse(value.finishedAt))
 export const jumpTime = (ms: number) => {
   const seconds=Math.floor(Math.max(0,ms)/1000)
   return `${Math.floor(seconds/60)}분 ${String(seconds%60).padStart(2,'0')}초`
@@ -21,9 +17,8 @@ export function JumpmapRanking({ load, onBack }: { load?: RankingLoader; onBack(
     // A discarded StrictMode mount must not dispatch a duplicate ranking read.
     void Promise.resolve().then(() => abort.signal.aborted ? undefined : load(abort.signal)).then(value => {
       if (abort.signal.aborted) return
-      if (!record(value) || !Array.isArray(value.items) || value.items.length > 50 || !value.items.every(entry)
-        || value.me !== null && !entry(value.me)) throw new Error('랭킹 응답을 확인하지 못했어요.')
-      if (!abort.signal.aborted) setState({ items: value.items as Entry[], me: value.me as Entry | null, error: '', loading: false })
+      const parsed = parseJumpmapRankings(value)
+      if (!abort.signal.aborted) setState({ ...parsed, error: '', loading: false })
     }).catch(() => { if (!abort.signal.aborted) setState(s => ({ ...s, loading: false, error: '랭킹을 불러오지 못했어요.' })) })
     return () => abort.abort()
   }, [load, attempt])

@@ -1,3 +1,4 @@
+import { cameraWorldPosition } from '../world/xrView'
 import { useFrame } from '@react-three/fiber'
 import { useRef } from 'react'
 import { Vector3 } from 'three'
@@ -18,7 +19,7 @@ export function ParkSoundscape() {
     const now = performance.now()
     if (now - last.current < 50) return
     last.current = now
-    const ear = camera.position
+    const ear = cameraWorldPosition(camera)
     camera.getWorldDirection(forward)
     setSfxListener(ear, forward)
 

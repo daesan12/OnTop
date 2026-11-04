@@ -1,3 +1,4 @@
+import { cameraWorldPosition } from './xrView'
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Color, type Group, type MeshBasicMaterial } from 'three'
@@ -18,7 +19,7 @@ const day = new Color('#fbfdfb'), night = new Color('#343d51')
 export function SimpleSkyClouds() {
   const group = useRef<Group>(null), material = useRef<MeshBasicMaterial>(null)
   useFrame(({ camera }) => {
-    group.current?.position.copy(camera.position)
+    group.current?.position.copy(cameraWorldPosition(camera))
     material.current?.color.copy(night).lerp(day, environmentFrame.daylight)
   })
   return <group ref={group} name="simple-sky-clouds" userData={{ keepOpaque: true }}>
