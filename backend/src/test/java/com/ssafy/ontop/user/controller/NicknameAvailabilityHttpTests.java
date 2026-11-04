@@ -114,7 +114,14 @@ class NicknameAvailabilityHttpTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"가나", "가나다라마바사아", "Ab12"})
+    @ValueSource(strings = {"GM", "gm123", "Gm관리자", "gM사칭"})
+    void GM_접두어는_중복_조회_전에_예약_닉네임_오류이다(String nickname) throws Exception {
+        error(get("Bearer " + token, nickname), 400, "USER_RESERVED_NICKNAME");
+        verifyNoInteractions(users);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"가나", "가나다라마바사아", "Ab12", "게임GM", "온탑GM"})
     void 경계값과_허용_문자는_200이다(String nickname) throws Exception {
         assertThat(get("Bearer " + token, nickname).statusCode()).isEqualTo(200);
     }

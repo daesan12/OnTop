@@ -226,7 +226,7 @@ abstract class OpenApiHttpTestSupport {
         JsonNode nickname = schemas.at("/UserNicknameUpdateRequest/properties/nickname");
         assertThat(nickname.path("minLength").asInt()).isEqualTo(2);
         assertThat(nickname.path("maxLength").asInt()).isEqualTo(8);
-        assertThat(nickname.path("pattern").asText()).isEqualTo("^[가-힣A-Za-z0-9]{2,8}$");
+        assertThat(nickname.path("pattern").asText()).isEqualTo("^(?![Gg][Mm])[가-힣A-Za-z0-9]{2,8}$");
         assertThat(schemas.at("/UserNicknameUpdateRequest/additionalProperties").asBoolean(true)).isFalse();
         assertThat(schemas.at("/UserOnboardingRequest/properties/characterGender/enum").toString())
                 .isEqualTo("[\"MALE\",\"FEMALE\"]");

@@ -5,6 +5,31 @@ import type { Envelope } from '../../src/network/protocol'
 const feeds: OmokSpectatorEvents[] = []
 afterEach(() => { feeds.splice(0).forEach(f => f.reset()); vi.useRealTimers() })
 const eventId = (n = 1) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+it('fills initially unknown game chat names on profile arrival without rewriting confirmed history', () => {
+  let name: string | undefined
+  const feed = new OmokSpectatorEvents({ scope: () => ({ key: 'game', gameId: 'g', version: 8, role: 'SPECTATOR', canSend: true }),
+    displayName: () => name, request: vi.fn(), now: () => 0 })
+  feeds.push(feed)
+  feed.accept(message('chat'))
+  expect(useOmokEvents.getState().history[0]?.displayName).toBeUndefined()
+  name = '늦게 온 이름'; feed.sync()
+  expect(useOmokEvents.getState().history[0]?.displayName).toBe(name)
+  name = undefined; feed.sync()
+  expect(useOmokEvents.getState().history[0]?.displayName).toBe('늦게 온 이름')
+})
+it('snapshots game chat and ping names without trusting a wire displayName', () => {
+  let name = '받은 당시 이름'
+  const feed = new OmokSpectatorEvents({ scope: () => ({ key: 'game', gameId: 'g', version: 8, role: 'SPECTATOR', canSend: true }),
+    displayName: () => name, request: vi.fn(), now: () => 0 })
+  feeds.push(feed)
+  feed.accept(message('chat', { displayName: '위조한 이름' }))
+  feed.accept(message('ping', { eventId: eventId(2) }))
+  name = '퇴장 후 다른 이름'
+  feed.sync()
+  expect(useOmokEvents.getState().history[0]?.displayName).toBe('받은 당시 이름')
+  expect(useOmokEvents.getState().chats[0]?.displayName).toBe('받은 당시 이름')
+  expect(useOmokEvents.getState().pings[0]?.displayName).toBe('받은 당시 이름')
+})
 const message = (kind: 'chat' | 'ping' = 'ping', patch: object = {}): Envelope => ({ requestId: null,
   type: kind === 'chat' ? 'GAME_SPECTATOR_CHAT_MESSAGE' : 'OMOK_SPECTATOR_PING',
   payload: { gameId: 'g', eventId: eventId(), senderUserId: '505', sentAt: 100_000, serverNow: 100_000,

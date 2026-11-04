@@ -153,6 +153,8 @@ public class TableHub {
     private final Optional<GameResultService> gameResults;
     private final WorldChannelRegistry channels;
     private final WorldChatService chat;
+    private final com.ssafy.ontop.world.service.WorldTyping typing =
+            new com.ssafy.ontop.world.service.WorldTyping(System::nanoTime);
     private final WorldEmoteService emotes;
     private final WorldProximity proximity;
     private final WorldFacilityService facilities;
@@ -824,6 +826,13 @@ public class TableHub {
                 gameResults.get().check(sessionId, requestId, request.payload().get("gameSessionId").textValue());
                 return;
             }
+            if (request.type().equals("WORLD_CHAT_TYPING_SET")) {
+                String channel = channels.channelOf(member.userId());
+                if (channel == null) { fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요."); }
+                boolean changed = typing.update(channel, member.userId(), request.payload().path("typing").asBoolean());
+                publishTyping(channel, member, request.requestId(), changed);
+                return;
+            }
             if (request.type().equals("ONECARD_PRANK_REACH_SEND") || request.type().equals("ONECARD_PRANK_HIT_SEND")
                     || request.type().equals("ONECARD_HAND_FLIP_SEND") || request.type().equals("ONECARD_HAND_RESTORE_SEND")) {
                 sendOneCardPrank(sessionId, member, request);
@@ -956,6 +965,8 @@ public class TableHub {
         profileMemberships.remove(member);
         positionSampler.forget(member.userId());
         String facilityChannel = channels.channelOf(member.userId());
+        String typingChannel = typing.disconnected(member.userId());
+        if (typingChannel != null) { publishTyping(typingChannel, null, null, true); }
         // disconnected()가 내부에서 release()를 부르므로 해제 전 점유를 한 번만 읽어 종료를 한 번만 기록한다.
         var facilityLease = facilities.current(member.userId());
         facilities.disconnected(member.userId());
@@ -1035,6 +1046,7 @@ public class TableHub {
         facilities.clear();
         follows.clear();
         chat.clear();
+        typing.clear();
         spectatorEvents.clear();
         onecardPranks.clear();
         emotes.clear();
@@ -1158,6 +1170,10 @@ public class TableHub {
             try { ensureSpareChannel(); }
             catch (RuntimeException exception) { log.error("예비 운영 채널 생성 실패", exception); }
         }
+        if (change.changed()) {
+            String previousTyping = typing.remove(member.userId());
+            if (previousTyping != null) { publishTyping(previousTyping, null, null, true); }
+        }
         syncWorldTableSeats(channelId);
         Long connectedAt = connectionStarted.remove(member.sessionId());
         log.debug("공원 입장 서버 준비 joinMs={} connectedToJoinMs={} map={}",
@@ -1175,6 +1191,7 @@ public class TableHub {
             member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_STATE", change.state()));
             member.peer().offer(protocol.encode(null, "WORLD_STATE", channels.worldState(channelId)));
         }
+        publishTyping(channelId, member, null, false);
         sendParkDebris(member, channelId);
         refreshAppearance(member);
         if (change.changed() || !profileMemberships.containsKey(member)) {
@@ -1320,6 +1337,15 @@ public class TableHub {
                 && push.channel.equals(channels.channelOf(push.member.userId()));
     }
 
+    private void publishTyping(String channel, Member actor, String requestId, boolean broadcast) {
+        var state = typing.state(channel);
+        for (Member target : members.values()) {
+            if ((broadcast || target == actor) && channels.isInChannel(target.userId(), channel)) {
+                target.peer().offer(protocol.encode(target == actor ? requestId : null, "WORLD_CHAT_TYPING_STATE", state));
+            }
+        }
+    }
+
     private void leaveChannel(Member member, Request request) {
         if (seating.containsKey(member.userId())) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
@@ -1329,6 +1355,8 @@ public class TableHub {
             recordFacility(member.accountId(), facilityLease, "CHANNEL_LEFT");
         }
         WorldChannelRegistry.State state = channels.leave(member.userId());
+        String typingChannel = typing.remove(member.userId());
+        if (typingChannel != null) { publishTyping(typingChannel, null, null, true); }
         endFollows(member.userId());
         cancelEmote(member.userId(), "CHANNEL_LEFT");
         if (facilityLease != null) {

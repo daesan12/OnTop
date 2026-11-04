@@ -48,3 +48,10 @@ it('displays the latest server deadline as seconds and a bounded 30-second progr
   expect(clock(30000)).toContain('value="30000"');expect(clock(30000)).toContain('30<small>초')
   expect(clock(-1)).toContain('value="0"');expect(clock(32000)).toContain('value="30000"')
 })
+it('preserves the received author name in floating chat and history after the user leaves',()=>{
+  const saved={...message,displayName:'퇴장한 관전자'}
+  useSession.setState({profiles:{}})
+  useOmokEvents.setState({history:[saved],chats:[{...saved,slot:0,until:performance.now()+3000}]})
+  expect(renderToStaticMarkup(createElement(SpectatorChat))).toContain('title="퇴장한 관전자"')
+  expect(renderToStaticMarkup(createElement(OmokFeedback))).toContain('<span>퇴장한 관전자</span>')
+})
