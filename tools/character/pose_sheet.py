@@ -1,6 +1,6 @@
 """The shared body alone in the game's rest (arms down, game_pose.py), rendered from four sides as a 2x2 sheet
-like the original base sheet (front, right side, back, left side), for generating outfits that are already made
-for arms down: -- <shared_layers.glb> <out.png> [size=1024]
+like the original base sheet (front, right side, back, left side), for generating outfits: -- <shared_layers.glb> <out.png> [size=1024] [pose=t]
+(pose=t keeps the T-pose; outfits are generated on it, see docs/character-outfits.md)
 Rigid outfits made on the T-pose sheet had to be bent 70 degrees at the shoulders and broke."""
 import bpy, sys, os, math, re
 from mathutils import Vector
@@ -14,7 +14,11 @@ bpy.ops.wm.read_factory_settings(use_empty=True); bpy.ops.import_scene.gltf(file
 arm = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
 for o in list(bpy.data.objects):
     if o.type == 'MESH' and not re.sub(r'\.\d+$', '', o.name).startswith('body'): bpy.data.objects.remove(o)
-bind_pose(arm)
+if opt.get('pose', 'down') == 'down': bind_pose(arm)
+else:   # pose=t: the body's own T-pose (outfits for Tripo are generated on it; the arms-down remake was rejected)
+    for t in (arm.animation_data.nla_tracks if arm.animation_data else []): t.mute = True
+    if arm.animation_data: arm.animation_data.action = None
+    for pb in arm.pose.bones: pb.matrix_basis.identity()
 sc = bpy.context.scene
 sc.render.engine = 'BLENDER_EEVEE_NEXT' if 'BLENDER_EEVEE_NEXT' in [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties['engine'].enum_items] else 'BLENDER_EEVEE'
 sc.render.resolution_x = sc.render.resolution_y = SIZE; sc.view_settings.view_transform = 'Standard'

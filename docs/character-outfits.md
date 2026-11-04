@@ -34,19 +34,28 @@
 
 ### ① 디자인 시트
 
-1. 공용 몸 시트를 기준으로 옷을 입힌 이미지를 Gemini로 만든다. 공용 몸의 T자 시트를 쓴다.
-   - 팔을 내린 자세 시트(`pose_sheet.py`)로 만든 장군은 Tripo의 팔이 몸과 맞지 않아 소매·어깨판이 뭉쳐서 버렸다.
-2. 앞·옆·뒤가 다 보이는 시트여야 한다. 아래가 잘린 이미지는 Tripo에서 다리가 짧게 나온다.
+1. 공용 몸의 T자 시트를 그린다(앞·오른쪽·뒤·왼쪽, 2x2).
+
+   ```bash
+   "$B" -b --python tools/character/pose_sheet.py -- docs/character-outfits/shared_layers_gf.glb out/body_t.png size=1024 pose=t
+   ```
+
+   - 팔을 내린 자세 시트(`pose=t` 없이)로 만든 장군은 Tripo의 팔이 몸과 맞지 않아 소매·어깨판이 뭉쳐서 버렸다.
+2. Gemini의 **이미지 만들기** 도구(+ 메뉴)에 이 시트와 옷 그림을 올리고, 비율은 1:1로 한다. 도구 없이 보내면 응답이 멈춘다.
+   - 요청에는 "같은 몸·얼굴·T자 자세·네 방향·배치·흰 배경 유지, 소품 없음"을 꼭 넣는다(갓·도포 때 쓴 문장은 S15P31B105-331 참고).
+3. 앞·옆·뒤가 다 보여야 한다. 아래가 잘린 이미지는 Tripo에서 다리가 짧게 나온다.
 
 ### ② Tripo로 3D 만들기
 
-1. 멀티뷰로 **Generate in Parts**(부품 나누기)를 켜고 만든다.
+1. 시트를 네 장으로 잘라 멀티뷰(Front·Left·Right·Back)에 올리고 **Generate in Parts**(부품 나누기, Balanced)를 켜고 만든다.
+   - Left는 캐릭터의 왼쪽이 보이는 그림(얼굴이 화면 왼쪽을 향함)이다. 우리 시트에서는 오른쪽 아래 칸이다.
 2. 텍스처는 4K로 만든다. 내보내기 창에서도 해상도를 다시 골라야 한다(기본값이 2K).
 3. 부품이 나뉜 GLB(예: `general_outfit_parts.glb`)를 받는다.
 
 ### ③ 크기 맞추기
 
-몸과 옷의 앞·옆 실루엣을 겹쳐 보고 배율 `s`를 정한다(장군은 1.2).
+몸과 옷의 앞·옆 실루엣을 겹쳐 보고 배율 `s`를 정한다(장군 1.2, 갓·도포 1.065). 손·발 위치를 비교하면 빠르다.
+생성된 캐릭터는 머리가 공용 몸보다 작게 나오는 경우가 많다. 이때 머리 쪽은 ④의 `head_fit`으로 따로 맞춘다.
 
 ```bash
 "$B" -b --python tools/character/overlay.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb out/fit s=1.2
@@ -54,24 +63,23 @@
 
 ### ④ 기준 빌드에 새 옷 넣기
 
-`tools/character/add_set.py`가 장군을 넣은 스크립트다. 공통 단계는 다음과 같다.
-
-- 배율 맞추기.
-- 부품을 부위로 나누기(`SLOT_PARTS`).
-- 몸 밖으로 2 mm 밀어내기.
-- 몸에서 뼈 가중치 가져오기.
-- 가려지는 몸 조각 자르기와 이름 붙이기.
-
-나머지 옵션은 대부분 장군 전용 보정이다(검은 모자, 끈, 옷깃 안감, 속옷, 어깨판, 팔 고리, 투구 칠). 이 보정들은 Tripo 부품 번호(`tripo_part_N`)로 대상을 고르기 때문에, 다른 옷에 그대로 쓰면 엉뚱한 부품을 고친다. 새 옷은 이렇게 시작한다.
-
-1. `add_set.py`를 `add_set_<이름>.py`로 복사한다.
-2. `SLOT_PARTS`를 새 옷의 부품 번호로 바꾼다. 부품 번호는 Blender에서 GLB를 열어 확인한다.
-3. 장군 전용 블록을 지우거나 끈다.
-4. 새 문자로 실행한다.
+새 옷은 `tools/character/fit_outfit.py`를 쓴다. `add_set.py`(장군)에서 장군 전용 보정을 뺀 범용 스크립트다.
 
 ```bash
-"$B" -b --python tools/character/add_set_new.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.2
+"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10,14;SHOES:6,8" skirt=TOP fill=BOTTOM sleeve_drape=0.4 sleeves=3,5
 ```
+
+| 옵션 | 뜻 |
+| --- | --- |
+| `map=` | 부위별 Tripo 부품 번호. 적지 않은 부품(생성된 얼굴·손·맨다리)은 버린다. 번호는 부품을 하나씩 그려 확인한다 |
+| `s`, `dx/dy/dz` | 몸통·팔다리 쪽 배율과 이동 |
+| `head_fit=N` | 생성된 얼굴(부품 N)을 공용 몸 얼굴에 맞춰, 머리(HAIR)·얼굴(FACE) 부품을 그 크기로 옮긴다 |
+| `skirt=TOP` | 그 부위의 허리 아래(도포 자락·치마)를 엉덩이에 매달아 다리 사이로 갈라지지 않게 한다 |
+| `fill=BOTTOM` | 그 부위가 숨기는 몸 중 옷이 덮지 않은 곳을 몸 표면으로 옷을 만들어 채운다. 긴 겉옷에 가려 Tripo가 바지 윗부분을 만들지 않았을 때 쓴다(안 쓰면 짧은 상의와 입을 때 허벅지가 구멍) |
+| `sleeve_drape=0.4 sleeves=N,M` | T자에서 팔 아래로 늘어진 넓은 소매를 줄인다. 팔을 내리면 옆·뒤로 날개처럼 튀어나온다 |
+| `stiff` | 부품 안에서 가중치를 평균 내는 반경(기본 0.03 m) |
+
+장군처럼 특별한 보정이 필요한 옷만 `add_set.py`를 복사해 쓴다. 그 보정들은 Tripo 부품 번호로 대상을 고르기 때문에, 다른 옷에 그대로 쓰면 엉뚱한 부품을 고친다.
 
 가중치와 가려지는 몸을 정할 때 지킨 규칙:
 
@@ -135,8 +143,10 @@ node scripts/prepare-characters.mjs man=../out/man_raw.glb girl=../out/girl_raw.
 - **입은 모습:** 숨길 조각을 빼고 그린다.
 
   ```bash
-  "$B" -b --python tools/character/render_look.py -- out/man_raw.glb out/look HAIR=man/b TOP=newoutfit/h BOTTOM=newoutfit/h SHOES=man/d
+  "$B" -b --python tools/character/render_look.py -- out/man_raw.glb out/look HAIR=man/b TOP=newoutfit/h BOTTOM=newoutfit/h SHOES=man/d with=newoutfit@out/newoutfit_raw.glb
   ```
+
+  부위별로 파는 옷은 기본 옷과 섞어 입은 모습도 꼭 본다(예: 기본 후드티 + 새 바지). 갓·도포는 여기서 허벅지 구멍을 찾았다.
 
 - **구멍·검은 점:** 배경을 자홍색으로 그린다. 구멍은 자홍, 칠해지지 않은 텍스처는 검정으로 보인다.
 
@@ -159,7 +169,13 @@ node scripts/prepare-characters.mjs man=../out/man_raw.glb girl=../out/girl_raw.
   "$B" -b --python tools/character/set_art.py -- out/newoutfit_whole_raw.glb out/set.png
   ```
 
-- 세트가 아닌 옷은 아직 부위 기본 그림을 옷 이름의 색 낱말로 다시 칠해 쓴다(`itemArt.ts`).
+- 부위별 옷은 부위마다 그림을 만든다: `parts/outfit-<파일>-<의상 문자>-<부위 소문자>.webp`. 옷장은 아이템의 imageKey로 이 그림을 찾고, 없으면 기본 그림을 옷 이름의 색 낱말로 다시 칠해 쓴다(`itemArt.ts`).
+
+  ```bash
+  "$B" -b --python tools/character/item_art.py -- shared_layers_h.glb out/art newoutfit h
+  ```
+
+  결과(`*.raw.png`)는 잘라서 가로 232 px로 줄이고 320 px 투명 칸 가운데에 놓는다.
 
 ### ⑩ 아이템 등록과 로컬 확인
 
