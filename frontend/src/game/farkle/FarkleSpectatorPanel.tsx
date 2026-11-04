@@ -1,4 +1,4 @@
-import { GameSpectatorCount } from '../GameSpectatorCount'
+import { GameHudClock, GameHudMenu } from '../GameHud'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGame } from '../store'
@@ -18,6 +18,8 @@ import './farkleSpectator.css'
 export function FarkleSpectatorPanel() {
   const s = useGame(), runtime = useParkRuntime()
   const [expanded, setExpanded] = useState(() => innerWidth >= 700 && innerHeight > 600)
+  const [now,setNow]=useState(Date.now)
+  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),200);return()=>clearInterval(timer)},[])
   useEffect(() => {
     const screen = matchMedia('(min-width: 700px) and (min-height: 601px)'), update = () => setExpanded(screen.matches)
     screen.addEventListener('change', update)
@@ -39,13 +41,14 @@ export function FarkleSpectatorPanel() {
   const rolling = d.status === 'PLAYING' && (bust ? bust.phase === 'rolling' : performance.now() < until)
   const names = d.players.map((id, i) => session.profiles[id]?.nickname ?? `${i + 1}번 참가자`)
   return <section className="farkle-observer-hud" role="region" aria-label="주사위 경기" data-stage={d.stage} data-rolling={rolling} data-view={view} onKeyDown={event => { if (event.code === 'Tab') event.stopPropagation() }}>
+    {d.status==='PLAYING' && <GameHudClock game="주사위 한 판" label={`${names[d.players.indexOf(d.turnUserId!)]??'참가자'} 차례`} remainingMs={d.turnDeadline?Date.parse(d.turnDeadline)-now:null} hint="관전 중 · 공개 정보"/>}
     <FarkleScoreboard className="farkle-observer-scorebar" targetScore={d.targetScore} activeUserId={bust?.actorId ?? d.turnUserId}
       players={d.players.map((id, i) => ({ id, name: names[i]!, score: d.scores[i]!,
         forfeited: d.forfeitedUserIds?.includes(id),
         label: (bust?.actorId ?? d.turnUserId) === id ? names[i] + (bust ? ' · 굴림 확인' : ' 차례') : names[i]!,
       }))} />
     <details className="farkle-spectator" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
-      <summary><GameSpectatorCount /><span>관전 정보</span><span className="farkle-observer-turn-total">이번 턴 <strong>{d.turnScore.toLocaleString()}</strong>점</span><i aria-hidden="true">⌄</i></summary>
+      <summary><span>관전 정보</span><span className="farkle-observer-turn-total">이번 턴 <strong>{d.turnScore.toLocaleString()}</strong>점</span><i aria-hidden="true">⌄</i></summary>
       <div className="farkle-observer-body">
         <p className="farkle-observer-table">관전 중 · {d.round}번째 턴 · {session.anchor ? 'TABLE ' + session.anchor.replace('table-', '').padStart(2, '0') + ' · ' : ''}주사위 한 판</p>
         <p className={'farkle-spectator-status' + (d.lastEvent === 'BUST' ? ' bust' : '')} role="status">{bust
@@ -60,7 +63,10 @@ export function FarkleSpectatorPanel() {
           {!d.dice.some(die => die.held === (kind === 'held')) && <small>—</small>}
         </div>)}
         {s.error && <p role="alert">{s.error}</p>}
-        <footer>
+        <p className="farkle-spectator-note">관전자는 주사위를 선택하거나 굴릴 수 없습니다.</p>
+      </div>
+    </details>
+    <GameHudMenu>
           <div className="farkle-spectator-views" role="group" aria-label="관전 시점">
             <button aria-pressed={view === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>공개 판 보기</button>
             <button aria-pressed={view === 'table'} onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>테이블 둘러보기</button>
@@ -69,9 +75,6 @@ export function FarkleSpectatorPanel() {
           <button aria-pressed={sound} onClick={() => setDiceSound(!sound)}>소리 {sound ? '켜짐' : '꺼짐'}</button>
           <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>상태 새로고침</button>
           <button disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>
-        </footer>
-        <p className="farkle-spectator-note">관전자는 주사위를 선택하거나 굴릴 수 없습니다.</p>
-      </div>
-    </details>
+    </GameHudMenu>
   </section>
 }

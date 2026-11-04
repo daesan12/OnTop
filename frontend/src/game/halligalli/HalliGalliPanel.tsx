@@ -1,4 +1,4 @@
-import { GameSpectatorCount } from '../GameSpectatorCount'
+import { GameHudClock, GameHudMenu } from '../GameHud'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGame, recoveryBlocked } from '../store'
@@ -71,6 +71,9 @@ export function HalliGalliPanel() {
     <Table halli={h} gameId={g.gameId} viewerId={own} names={names} canFlip={canFlip} canRing={canRing}
       onFlip={() => void runtime.flipHalli()} onRing={ringShownBell} keyHint={player && !!me?.active} />
     <HalliIntro gameId={g.gameId} />
+    {playing && <GameHudClock game="과일 땡" label={h.turnUserId===own?'내 차례':h.turnUserId?`${names[h.turnUserId]} 차례`:'마지막 종 기회'}
+      remainingMs={h.flipDeadline?Date.parse(h.flipDeadline)-now:null} limitMs={h.flipTimeLimitMs} phase={paused?'결과 확인':undefined}
+      myTurn={player&&h.turnUserId===own} hint="같은 과일이 정확히 5개면 종!"/>}
     <div className="hg-feedback">
       {standing && <p>{standing}</p>}
       {notice.text && now - notice.at < NOTICE_MS && <p role="status">{notice.text}</p>}
@@ -79,13 +82,13 @@ export function HalliGalliPanel() {
       {s.error && <p role="alert">{s.error}</p>}
       {player && !playing && <p>{s.result ? resultSettlement(s.result) : '결과·정산 확인 전입니다.'}</p>}
     </div>
-    <nav className="hg-menu" aria-label="게임 메뉴"><GameSpectatorCount />
+    <GameHudMenu>
       {player && <SeatedLookButton />}
       <button type="button" data-icon="manual" onClick={() => openManual('halligalli')}>게임 설명</button>
       {player && recoveryBlocked() && <button type="button" data-icon="refresh" disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
       {player && !playing && <button type="button" data-icon="receipt" disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
       {player && <HalliForfeit key={`${own}:${g.gameId}`} gameId={g.gameId} disabled={session.pending} />}
       {!player && <button type="button" data-icon="exit" disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
-    </nav>
+    </GameHudMenu>
   </section>
 }

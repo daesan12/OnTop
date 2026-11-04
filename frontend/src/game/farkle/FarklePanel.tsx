@@ -1,4 +1,4 @@
-import { GameSpectatorCount } from '../GameSpectatorCount'
+import { GameHudClock, GameHudMenu } from '../GameHud'
 import { resultSettlement } from '../../features/tableLobby/gatheringModel'
 import { openManual } from '../../features/manual/manualState'
 import { useEffect, useState } from 'react'
@@ -58,7 +58,7 @@ function FarklePlayerPanel() {
         <p role="status">{bust ? bust.phase === 'rolling' ? '주사위를 굴리고 있습니다' : '허탕! · 이번 턴 점수를 잃었습니다'
           : d.status === 'FINISHED' ? d.winnerUserId === session.sessionId ? '승리' : '패배'
           : `${mine ? '내 차례' : name(d.turnUserId!) + ' 차례'} · ${remaining === 0 ? '다음 차례를 기다리는 중' : hint ?? events[d.lastEvent]}`}</p>
-        {remaining !== null && <span className="farkle-clock" data-urgent={remaining <= 5} aria-label={`남은 시간 ${remaining}초`}>{remaining}<small>초</small></span>}
+        {d.status==='PLAYING' && <GameHudClock game="주사위 한 판" label={mine?'내 차례':`${name(d.turnUserId!)} 차례`} remainingMs={d.turnDeadline?Date.parse(d.turnDeadline)-now:null} myTurn={mine} hint={`목표 ${d.targetScore.toLocaleString()}점`}/>}
       </div>
       <section className="farkle-actions" aria-label="주사위 조작">
       <HudCorners />
@@ -93,17 +93,14 @@ function FarklePlayerPanel() {
       {s.error && <p role="alert">{s.error}</p>}
       </div>
       {d.status === 'FINISHED' && <div className="farkle-result-note"><p>{s.result ? resultSettlement(s.result) : '결과 확인 중'}</p></div>}
-      <div className="farkle-settings-dock"><GameSpectatorCount /><details className="farkle-settings" onKeyDown={e => { if (e.code === 'Escape' && e.currentTarget.open) { e.preventDefault(); e.stopPropagation(); e.currentTarget.open = false; e.currentTarget.querySelector('summary')?.focus() } }}>
-      <summary aria-label="게임 설정">게임 설정 <span aria-hidden="true">···</span></summary>
-      <div className="farkle-tools"><button onClick={() => openManual('farkle')}>게임 설명</button>
+      <GameHudMenu><button onClick={() => openManual('farkle')}>게임 설명</button>
         <button aria-pressed={ui.boardView} title="상대 차례에도 주사위 판을 봅니다." onClick={() => { cancelCup(); useDiceUI.setState({ boardView: !ui.boardView }) }}>판 시점 고정</button>
         <button aria-pressed={sound} onClick={() => setDiceSound(!sound)}>소리 {sound ? '켜짐' : '꺼짐'}</button>
         <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>상태 새로고침</button>
         {recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
         {d.status === 'FINISHED' && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
       <FarkleForfeitDialog key={`${session.sessionId}:${g.gameId}`} gameId={g.gameId} />
-      </div>
-      </details></div>
+      </GameHudMenu>
     </section>
     <FarkleScoreSheet />
   </>

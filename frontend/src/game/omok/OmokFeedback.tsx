@@ -11,11 +11,14 @@ import { omokSpectatorViewport } from '../cameraState'
 import { GOMOKU } from '../../config/gomoku'
 import { OMOK_BOARD_ART_SPAN } from './boardLayout'
 import { placeFloatingChats, type ChatRect } from './chatPlacement'
+import chatIcon from '../../features/parkMenus/icons/chat-bubble.svg'
+import sendIcon from '../../features/parkMenus/icons/chat-send.svg'
 import { OMOK_HALF, OMOK_SPACING, omokCoordinate } from '../omokPresentation'
 import { useOmokEvents, type DisplayEvent, type PingEvent } from './spectatorEvents'
 import './omokFocus.css'
 
 const labels = new Map<string, HTMLSpanElement>()
+const chatHudSelectors='.omok-match-header,.omok-play-tools,.omok-play-notes,.omok-spectator-actions,.omok-ping-status,.focus-error,.omok-spectator-chat,.park-runtime-status,.game-hud-clock,.game-hud-menu'
 export function OmokFeedback() {
   const chats = useOmokEvents(s => s.chats), pings = useOmokEvents(s => s.pings)
   const profiles = useSession(s => s.profiles), manual = useManual(s => s.open)
@@ -24,6 +27,7 @@ export function OmokFeedback() {
   const root=useRef<HTMLDivElement>(null), placements=useRef(new Map<string,ChatRect>())
   const gameId=useGame(s=>s.game?.gameId)
   const connectionNotice=useSession(s=>s.status+'\0'+s.error)
+  const pingNotice=useOmokEvents(s=>String(s.pingSending)+'\0'+s.pingNotice+'\0'+s.pingError)
   useLayoutEffect(()=>{
     if(!active||gameCode!=='OMOK'||!root.current)return
     const overlay=root.current
@@ -32,7 +36,7 @@ export function OmokFeedback() {
       const elements=[...overlay.querySelectorAll<HTMLElement>('.omok-floating-chat')]
       const blocked:ChatRect[]=[]
       const page=overlay.closest('.park-page')
-      for(const node of page?.querySelectorAll<HTMLElement>('.omok-match-header,.omok-player-bottom,.omok-spectator-toolbar,.omok-spectator-chat,.park-runtime-status')??[]){
+      for(const node of page?.querySelectorAll<HTMLElement>(chatHudSelectors)??[]){
         const r=node.getBoundingClientRect()
         if(r.width&&r.height)blocked.push({left:r.left-area.left,top:r.top-area.top,right:r.right-area.left,bottom:r.bottom-area.top})
       }
@@ -54,10 +58,10 @@ export function OmokFeedback() {
     measure()
     const observer=new ResizeObserver(measure)
     observer.observe(overlay)
-    for(const node of overlay.closest('.park-page')?.querySelectorAll('.omok-match-header,.omok-player-bottom,.omok-spectator-toolbar,.omok-spectator-chat,.park-runtime-status,.omok-floating-chat')??[])observer.observe(node)
+    for(const node of overlay.closest('.park-page')?.querySelectorAll(chatHudSelectors+',.omok-floating-chat')??[])observer.observe(node)
     window.addEventListener('resize',measure)
     return ()=>{observer.disconnect();window.removeEventListener('resize',measure)}
-  },[active,gameCode,gameId,chats,manual,connectionNotice])
+  },[active,gameCode,gameId,chats,manual,connectionNotice,pingNotice])
   if (!active) return null
   return <div ref={root} className="omok-feedback" data-game={gameCode} hidden={manual} aria-label="관전자 응원과 위치 추천">
     <div className="omok-chat-toasts" aria-label="최근 경기 채팅">{chats.map(chat => <div key={chat.eventId} data-event-id={chat.eventId} className={`omok-floating-chat slot-${chat.slot}`} role="status"
@@ -159,16 +163,16 @@ export function SpectatorChat() {
     }}>{open ? '채팅 닫기' : compact ? '관전 채팅 · Enter' : '경기 채팅 열기'}</button>
     <div className="omok-chat-log" role="log" aria-label="경기 채팅 기록" aria-live="polite" aria-relevant="additions" ref={log}
       onScroll={event=>{const e=event.currentTarget;followLatest.current=e.scrollHeight-e.scrollTop-e.clientHeight<24}}>
-      {messages.map(message=><p key={message.eventId}><strong>{profiles[message.senderUserId]?.nickname??'관전자'}</strong><span>{message.text}</span></p>)}
+      {messages.map(message=><p key={message.eventId}><strong title={profiles[message.senderUserId]?.nickname??'관전자'}>{profiles[message.senderUserId]?.nickname??'관전자'}</strong><span>{message.text}</span></p>)}
     </div>
     <div id="omok-chat-body" className="omok-chat-body">
-    <label htmlFor="omok-spectator-message">{player ? '경기 채팅' : omok ? '관전 채팅 · 판을 눌러 위치 추천' : '관전 채팅'}</label>
-    <div><input id="omok-spectator-message" ref={input} value={draft} disabled={!canSend} readOnly={sending} aria-keyshortcuts="Enter"
-      placeholder={canSend ? '이 경기에서 대화해요' : player ? '경기 연결을 확인해주세요' : '관전 승인을 확인해주세요'} maxLength={400}
+    <label htmlFor="omok-spectator-message"><img src={chatIcon} width="17" height="17" alt=""/>{player ? '경기 채팅' : '관전 채팅'}<small>이 경기만</small></label>
+    <div><input id="omok-spectator-message" ref={input} value={draft} disabled={!canSend} readOnly={sending} aria-keyshortcuts="Enter" aria-label={player?'경기 채팅':omok?'관전 채팅 · 판을 눌러 위치 추천':'관전 채팅'}
+      placeholder={canSend ? '이 경기 안에서만 대화해요' : player ? '경기 연결을 확인해주세요' : '관전 승인을 확인해주세요'} maxLength={400} autoComplete="off"
       onFocus={() => setChatInputOpen(true)} onBlur={() => setChatInputOpen(false)}
       onChange={event => { setDraft(event.target.value); setNotice('') }}
       onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault() }} />
-      <button type="submit" disabled={!canSend || sending || !draft.trim()}>보내기</button></div>
-    <p role="status">{error || notice || 'Enter로 입력·전송 · Esc로 입력 종료'}</p></div>
+      <button type="submit" aria-label="보내기" title="메시지 보내기" disabled={!canSend || sending || !draft.trim()}><img src={sendIcon} width="17" height="17" alt=""/></button></div>
+    <p role="status">{error || notice || (!player&&omok?'판 클릭으로 위치 추천 · Enter로 채팅':'Enter로 입력·전송 · Esc로 입력 종료')}</p></div>
   </form>
 }

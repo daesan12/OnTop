@@ -1,4 +1,5 @@
-import { GameSpectatorCount } from '../GameSpectatorCount'
+import { GameHudClock, GameHudMenu } from '../GameHud'
+import { openManual } from '../../features/manual/manualState'
 import { useEffect, useRef, useState } from 'react'
 import { resultSettlement } from '../../features/tableLobby/gatheringModel'
 import { useShallow } from 'zustand/react/shallow'
@@ -80,19 +81,17 @@ export function OneCardPanel() {
     {prank.error && <p role="alert">{prank.error}</p>}
     {defense.error && <p role="alert">{defense.error}</p>}
   </div>
-  const recoveryControls=(spectator || finished || recoveryBlocked() || s.uncertain || !!s.error) && <div className="onecard-recovery-controls">{spectator && <GameSpectatorCount />}<div className="onecard-actions">
+  const recoveryControls=(spectator || finished || recoveryBlocked() || s.uncertain || !!s.error) && <div className="onecard-recovery-controls"><div className="onecard-actions">
     {(s.uncertain || !!s.error || recoveryBlocked()) && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 원카드 확인</button>}
     {recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
     {!spectator && finished && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
-    {spectator && <button disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
   </div></div>
   return <section className="minigame-hud onecard-panel onecard-game-hud" aria-label="원카드 경기" data-stage={o.stage} data-role={g.role} data-own-turn={!!ownTurn}>
     {timeWarning && <div className="onecard-time-warning" aria-hidden="true" />}
     {opening && <div className="onecard-opening-status" role="status">{openingAge(o, g.version, now) < SHUFFLE_MS ? '카드를 섞고 있어요' : '카드를 나누고 있어요'}</div>}
     {finished ? <div className="mini-status"><p role="status">{o.winnerUserIds.map(name).join(' · ')} {o.winnerUserIds.length > 1 ? '공동 승리' : '승리'}</p></div>
-      : remaining !== null && <div className="onecard-turn-timer" role="timer" aria-label="차례 남은 시간" data-urgent={remaining > 0 && remaining <= 5} data-warning={timeWarning}>
-        <span title={myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}>{myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}</span><strong>{remaining}<small>초</small></strong>
-      </div>}
+      : <GameHudClock game="원카드" label={myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}
+          remainingMs={remaining === null ? null : Date.parse(o.turnDeadline!) - now} limitMs={o.turnTimeLimitMs} myTurn={!!ownTurn} hint={o.stage==='CHOOSE_SUIT'?'무늬를 선택하세요':'같은 무늬 또는 숫자를 골라요'}/>}
     {!spectator && !finished && !opening && <div key={`${o.turnUserId}/${o.turnCount}`} className="onecard-turn-cue" data-own={!!ownTurn} role="status" aria-label="현재 차례">
       <span aria-hidden="true">{ownTurn ? '◆' : '◷'}</span><strong>{ownTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}</strong>
       {ownTurn && o.stage === 'CHOOSE_SUIT' && <small>무늬를 선택하세요</small>}
@@ -143,7 +142,10 @@ export function OneCardPanel() {
     {(spectator || finished) && feedback}
     {!spectator && finished && <p>{s.result ? resultSettlement(s.result) : '결과 확인 중'}</p>}
     {(spectator || finished) && recoveryControls}
-    {!spectator && <div className="onecard-game-tools"><GameSpectatorCount /><OneCardForfeitDialog key={`${ownId}:${g.gameId}`} gameId={g.gameId} disabled={session.pending || !fresh} /></div>}
+    <GameHudMenu><button onClick={()=>openManual('onecard')}>게임 설명</button>
+      {!spectator && <OneCardForfeitDialog key={`${ownId}:${g.gameId}`} gameId={g.gameId} disabled={session.pending || !fresh} />}
+      {spectator && <button disabled={session.pending} onClick={()=>void runtime.unwatchGame()}>관전 종료</button>}
+    </GameHudMenu>
     {!spectator && !finished && <OneCardDefenseOverlay held={hammerHeld} active={fresh && !s.pending} ownId={ownId} />}
   </section>
 }

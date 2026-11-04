@@ -31,7 +31,7 @@ export function FarkleForfeitDialog({ gameId }: { gameId: string }) {
         || useDiceUI.getState().cup !== 'idle'
         || event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable="true"]')) return
       event.preventDefault()
-      const menu = document.querySelector<HTMLDetailsElement>('.farkle-settings[open]')
+      const menu = document.querySelector<HTMLDetailsElement>('.game-hud-menu details[open]')
       if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); return }
       setOpen(true)
     }

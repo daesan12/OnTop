@@ -1,4 +1,4 @@
-import { GameSpectatorCount } from './GameSpectatorCount'
+import { GameHudMenu } from './GameHud'
 import { OmokCoinToss } from './omok/OmokCoinToss'
 import { OmokTurnClock } from './omok/OmokTurnClock'
 import { openManual } from '../features/manual/manualState'
@@ -131,7 +131,7 @@ export function OmokPanel() {
       root.style.setProperty('--omok-spectator-toolbar-height', `${toolbar.current!.getBoundingClientRect().height}px`)
       root.style.setProperty('--omok-side-header-height', `${header.current!.getBoundingClientRect().bottom + (notice?.getBoundingClientRect().height ?? 0)}px`)
       const chatRect = chat?.getBoundingClientRect()
-      if (innerWidth >= 1120) {
+      if (innerWidth >= 1000) {
         omokSpectatorViewport.gameId = spectatorGameId
         omokSpectatorViewport.insets = {
           top:16,bottom:16,
@@ -208,17 +208,17 @@ export function OmokPanel() {
         <p className="focus-hint">{s.pending ? '요청 전송 중 · 서버 확인을 기다리고 있습니다.' : o.draw ? '무승부 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : o.undo ? '무르기 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : myTurn ? ownBlack ? '빈 교차점을 클릭하세요 · 빨간 33·44·6은 금수입니다' : '빈 교차점을 클릭해 돌을 놓으세요' : '상대의 착수를 기다리고 있어요'}</p>
       </div>
       <div className="omok-play-tools"><div className="omok-negotiations"><OmokUndoControls now={now}/><OmokDrawControls now={now}/></div>
-        <div className="focus-actions"><GameSpectatorCount/>
+        <GameHudMenu embedded>
           <button onClick={()=>openManual('gomoku')}>게임 설명 · F1</button>
           {(recoveryBlocked()||s.uncertain)&&<button disabled={pending||!connected} onClick={()=>void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
           <OmokSurrender key={own+':'+g.gameId} context={{userId:own,gameId:g.gameId,version:g.version}} disabled={pending||!connected||recoveryBlocked()||s.uncertain}/>
-        </div>
+        </GameHudMenu>
       </div>{alerts}
     </div> : <div ref={toolbar} className="omok-spectator-toolbar">
-      <div className="omok-spectator-actions"><GameSpectatorCount/><div className="omok-view-switch" role="group" aria-label="관전 시점">
+      <GameHudMenu embedded><div className="omok-view-switch" role="group" aria-label="관전 시점">
         <button disabled={pending||!connected} aria-pressed={spectatorView==='table'} onClick={()=>useTableLobby.setState({spectatorView:'table'})}>주변 보기</button>
         <button disabled={pending||!connected} aria-pressed={spectatorView==='board'} onClick={()=>useTableLobby.setState({spectatorView:'board'})}>판 보기</button>
-      </div><button onClick={()=>openManual('gomoku')}>게임 설명 · F1</button><button disabled={pending} onClick={()=>void runtime.unwatchGame()}>관전 종료</button></div>
+      </div><button onClick={()=>openManual('gomoku')}>게임 설명 · F1</button><button disabled={pending} onClick={()=>void runtime.unwatchGame()}>관전 종료</button></GameHudMenu>
       <OmokPingStatus/>{alerts}
     </div>}
   </section>

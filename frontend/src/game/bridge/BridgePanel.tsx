@@ -1,4 +1,4 @@
-import { GameSpectatorCount } from '../GameSpectatorCount'
+import { GameHudMenu } from '../GameHud'
 import { SeatedLookButton } from '../../features/tableLobby/SeatedLookButton'
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -38,7 +38,7 @@ export function BridgePanel() {
     </div>)}</div>
     <div className="mini-status"><p role="status">{finished ? b.winnerUserIds.length ? `${b.winnerUserIds.map(name).join(' · ')} ${b.winnerUserIds.length > 1 ? '공동 승리' : '승리'}` : '승자 없이 경기 종료'
       : `${STAGES[b.stage]} · ${name(b.responderUserId ?? b.turnUserId!)}${b.stage === 'RESPONDING' ? ' 판단 차례' : ' 차례'}`}</p>
-    <small>{b.turnId}번째 차례 · {EVENTS[b.lastEvent]}</small><TableClock deadline={b.turnDeadline} now={now} resolving={b.stage === 'RESOLVING'} />
+    <small>{b.turnId}번째 차례 · {EVENTS[b.lastEvent]}</small>{!finished && <TableClock deadline={b.turnDeadline} now={now} resolving={b.stage === 'RESOLVING'} label={`${name(b.responderUserId??b.turnUserId!)} 차례`} myTurn={!spectator&&(b.responderUserId??b.turnUserId)===ownId}/>}
     {b.turnDeadline && now >= Date.parse(b.turnDeadline) && <p>시간 만료 · 서버의 다음 상태를 기다리고 있습니다.</p>}
     </div>
     <section className="mini-actions bridge-main-actions">
@@ -66,7 +66,7 @@ export function BridgePanel() {
       title={slot.status === 'OCCUPIED' ? `${slot.slot}점 · ${name(slot.userId!)}` : slot.status === 'VACATED' ? `${slot.slot}번 사용 완료 · 재사용 불가` : `${slot.slot}번 미사용`}>{slot.slot}{slot.status === 'VACATED' ? ' ×' : slot.status === 'OCCUPIED' ? ' ●' : ''}</span>)}</div>
     <small>{b.nextGoalSlot <= 8 ? `다음 골인 번호 ${b.nextGoalSlot}` : '1~8번 발급 완료'} · 사용 완료 슬롯은 정렬하거나 다시 채우지 않습니다.</small>
     </section>
-    <div className="mini-tools"><GameSpectatorCount /><SeatedLookButton /><div className="bridge-actions"><button aria-expanded={rules} onClick={() => setRules(!rules)}>다리 규칙</button>
+    <GameHudMenu><SeatedLookButton /><div className="bridge-actions"><button aria-expanded={rules} onClick={() => setRules(!rules)}>게임 설명</button>
       <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 다리 확인</button>
       {recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
       {!spectator && finished && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
@@ -76,6 +76,6 @@ export function BridgePanel() {
       <p>각자 말 7개, 다리 8칸을 지나 골인합니다. 유효 골인 3개 즉시 승리, 골인 슬롯은 1~8 순차 발급·제거 후 재사용하지 않습니다. 공동 승리와 벌칙은 서버 결과를 따릅니다.</p></div>}
     {spectator && <div className="bridge-actions" role="group" aria-label="관전 시점"><button aria-pressed={view === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>공개 판 보기</button><button aria-pressed={view === 'table'} onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>테이블 둘러보기</button></div>}
     {!spectator && <OmokSurrender key={`${ownId}:${g.gameId}`} context={{ userId: ownId, gameId: g.gameId, version: g.version }} disabled={!fresh || session.pending || !!own?.forfeited || !!own?.pendingForfeit} />}
-    </div>
+    </GameHudMenu>
   </section>
 }

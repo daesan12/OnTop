@@ -1,4 +1,4 @@
-import { GameSpectatorCount } from '../GameSpectatorCount'
+import { GameHudClock, GameHudMenu } from '../GameHud'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGame, recoveryBlocked } from '../store'
@@ -56,7 +56,7 @@ export function LedgerPanel() {
   return <><section className="ledger-panel" aria-label="주사위 장부" data-role={g.role}>
     <header className="ledger-head">
       <div><h2>주사위 장부</h2><small>{playing ? `${l.round} / 12 라운드` : LEDGER_END_REASON[l.endReason ?? ''] ?? l.endReason}</small></div>
-      {remaining !== null && <span className="ledger-clock" data-urgent={remaining <= 5} aria-label={`남은 시간 ${remaining}초`}>{remaining}<small>초</small></span>}
+      {playing && <GameHudClock game="주사위 장부" label={mine?'내 차례':`${names[l.turnUserId!]} 차례`} remainingMs={l.turnDeadline?Date.parse(l.turnDeadline)-now:null} myTurn={player&&mine} hint={`${l.round} / 12 라운드`}/>}
     </header>
     <p className="ledger-status" role="status">{status}</p>
     {scored && playing && <p className="ledger-last" aria-live="polite">
@@ -94,7 +94,7 @@ export function LedgerPanel() {
     </div>
   </section>
   {/* 장부가 스크롤 없이 한 화면에 들어오도록 게임 설정은 왼쪽 세로 메뉴로 분리한다. */}
-  <nav className="ledger-menu" aria-label="게임 메뉴"><GameSpectatorCount />
+  <GameHudMenu>
     {player && <SeatedLookButton />}
     <button onClick={() => openManual('ledger')}>게임 설명</button>
     <button aria-pressed={sound} onClick={() => setDiceSound(!sound)}>소리 {sound ? '켜짐' : '꺼짐'}</button>
@@ -103,5 +103,5 @@ export function LedgerPanel() {
     {player && !playing && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
     {player && <OmokSurrender key={`${own}:${g.gameId}`} context={{ userId: own, gameId: g.gameId, version: g.version }} disabled={session.pending} />}
     {!player && <button disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
-  </nav></>
+  </GameHudMenu></>
 }
