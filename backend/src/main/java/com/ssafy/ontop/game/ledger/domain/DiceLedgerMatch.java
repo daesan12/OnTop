@@ -19,7 +19,8 @@ import java.util.function.IntSupplier;
 
 // 생성·입력·타이머·조회를 엔진의 같은 잠금 안에서 호출한다.
 public final class DiceLedgerMatch {
-    public static final int TURN_SECONDS = 30;
+    // 차례 시작과 매 굴림마다 마감을 이 시간으로 다시 정한다.
+    public static final int TURN_SECONDS = 20;
     public static final int MAX_ROLLS = 3;
     private static final int DICE = 5;
     private final String gameId;
@@ -82,6 +83,7 @@ public final class DiceLedgerMatch {
         if (input.size() != 2 || !input.path("kind").isTextual()) { throw new Rejected(Rejection.INVALID_ACTION); }
         if (kind.equals("roll")) {
             roll(keepIds(input.path("keepIds")));
+            deadline = now.plusSeconds(TURN_SECONDS);
         } else if (kind.equals("score") && input.path("category").isTextual()) {
             Category category = Category.find(input.path("category").textValue());
             if (category == null || rollCount == 0 || cards[turn][category.ordinal()] != null) {
@@ -139,7 +141,7 @@ public final class DiceLedgerMatch {
     }
 
     public void expire(Instant now) {
-        // 지연된 타이머에도 30초 차례를 순서대로 처리한다. 매 차례 칸 하나가 채워지므로 반복은 유한하다.
+        // 지연된 타이머에도 밀린 차례를 원래 마감 기준으로 순서대로 처리한다. 매 차례 칸 하나가 채워지므로 반복은 유한하다.
         while (endedAt == null && !now.isBefore(deadline)) {
             Instant at = deadline;
             if (rollCount == 0) { roll(Set.of()); }
