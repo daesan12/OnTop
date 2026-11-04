@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -729,8 +729,11 @@ for slot, it in G.items():
             if slot == SKIRT and v.co.z < belt and any(n in LEG for n in w):
                 t = min(1.0, max(0.0, (belt - v.co.z) / (belt - knee)))
                 leg = {n: x for n, x in w.items() if n in LEG}; rest = {n: x for n, x in w.items() if n not in LEG}
-                nw = {'Hips': (1 - 0.5 * t) * sum(leg.values())}
-                for n, x in leg.items(): nw[n] = nw.get(n, 0) + 0.5 * t * x
+                # (skirt_leg, 0.5: the legs' share at the knee. The gat's dopo at 0.5: running, the knees came out
+                # through its front, user; a higher share lets the skirt part a little between the legs instead)
+                SL = float(opt.get('skirt_leg', 0.5))
+                nw = {'Hips': (1 - SL * t) * sum(leg.values())}
+                for n, x in leg.items(): nw[n] = nw.get(n, 0) + SL * t * x
                 for n, x in rest.items(): nw[n] = nw.get(n, 0) + x
                 w = nw
             set_w(v, w)
