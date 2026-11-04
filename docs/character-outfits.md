@@ -66,8 +66,10 @@
 새 옷은 `tools/character/fit_outfit.py`를 쓴다. `add_set.py`(장군)에서 장군 전용 보정을 뺀 범용 스크립트다.
 
 ```bash
-"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10,14;SHOES:6,8" skirt=TOP fill=BOTTOM sleeve_drape=0.4 sleeves=3,5
+"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10;SHOES:6,8" skirt=TOP pants=1 sleeve_drape=0.4 sleeves=3,5 under_tops=1 cull=1 lining=1 v_cut=-0.0088,0.498,-0.0552,0.602,0.0492,0.602 v_cut_margin=0.012 lining_down=0.09 pants_hem=0.003 shoe_level=1 shoe_level_up=-0.001 shoe_level_r=0.075 dark_lining=SHOES clean_dark=TOP predecimate=0:5000
 ```
+
+위는 갓·도포(세트 h)를 만든 그대로의 명령이다. 숫자 값(`v_cut` 좌표 등)은 이 옷에 맞춘 것이라 새 옷에서는 다시 잰다.
 
 | 옵션 | 뜻 |
 | --- | --- |
@@ -78,6 +80,12 @@
 | `fill=BOTTOM` | 그 부위가 숨기는 몸 중 옷이 덮지 않은 곳을 몸 표면으로 옷을 만들어 채운다. 긴 겉옷에 가려 Tripo가 바지 윗부분을 만들지 않았을 때 쓴다(안 쓰면 짧은 상의와 입을 때 허벅지가 구멍) |
 | `sleeve_drape=0.4 sleeves=N,M` | T자에서 팔 아래로 늘어진 넓은 소매를 줄인다. 팔을 내리면 옆·뒤로 날개처럼 튀어나온다 |
 | `stiff` | 부품 안에서 가중치를 평균 내는 반경(기본 0.03 m) |
+| `pants=1` | Tripo 바지 대신 몸 표면으로 바지를 새로 만든다(허리·밑단을 수평으로 자름). `pants_hem`은 밑단이 신발 테두리 아래로 내려가는 길이 |
+| `under_tops=1` | 바지가 겉옷을 뚫고 나오는 곳을 상의별로 따로 가려지는 조각(`under_TOP…`)으로 나눈다 |
+| `lining=1` | V자 옷깃 안쪽을 몸 표면으로 만든 안감으로 깨끗하게 채운다(앞쪽만. 뒤에 두면 등에 회색 얼룩이 비침) |
+| `v_cut=ax,az,lx,lz,rx,rz` | V자 옷깃을 V의 아래 꼭짓점 A에서 왼쪽·오른쪽 위 모서리 L·R로 가는 두 직선으로 잘라 곧게 만든다. 좌표(m)는 정면에서 똑바로 찍은 그림에서 잰다. `v_cut_margin`은 선 밖으로 안감을 남기는 폭 |
+| `shoe_level=1` | 낮은 신발의 들쭉날쭉한 입구를 면을 지우지 않고 한 높이로 눌러 평평하게 만든다(지우면 구멍이 남). `shoe_level_up`은 높이, `shoe_level_r`은 발목 중심에서의 범위 |
+| `dark_lining=SHOES` | 신발 안쪽의 흰 안감을 신발의 어두운 색으로 칠한다 |
 
 장군처럼 특별한 보정이 필요한 옷만 `add_set.py`를 복사해 쓴다. 그 보정들은 Tripo 부품 번호로 대상을 고르기 때문에, 다른 옷에 그대로 쓰면 엉뚱한 부품을 고친다.
 
