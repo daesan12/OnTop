@@ -110,7 +110,10 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
-      <AnnouncementBanner />
+      <div className="park-announcement-strip">
+        <AnnouncementBanner />
+        {!omokFocus && <LocationChip />}
+      </div>
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
           <ChannelMenu />
@@ -118,7 +121,6 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
           <div className="park-quick-dock" aria-hidden="true" />
           <div className="park-dock-settings"><SettingsLauncher /></div>
           <div className="park-dock-wardrobe"><WardrobeLauncher /></div>
-          <LocationChip />
         </div>}
         {!omokFocus && <div inert={bungeoppang}>
           <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />

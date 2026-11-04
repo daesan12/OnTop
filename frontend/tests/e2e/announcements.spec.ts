@@ -44,7 +44,7 @@ test('조회 전용 관리자는 공지 편집을 열 수 없다', async ({ page
   await expect(page.getByRole('button', { name: '저장', exact: true })).toHaveCount(0)
 })
 
-test('공원 공지는 흐름을 멈추고 전체 본문을 열고 닫을 수 있다', async ({ page }) => {
+test('최상단 공지는 마우스·키보드 포커스에도 계속 흐르고 위치·시간이 옆에 표시된다', async ({ page }) => {
   await fixture(page)
   await page.route('**/api/v1/announcements', route => route.fulfill({ json: {
     serverTime: new Date().toISOString(), refreshAt: new Date(Date.now() + 10000).toISOString(),
@@ -54,8 +54,21 @@ test('공원 공지는 흐름을 멈추고 전체 본문을 열고 닫을 수 �
   await expect(page.locator('canvas')).toBeVisible({ timeout: 90000 })
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await expect(page.getByLabel('공지 전체 보기')).toBeVisible({ timeout: 90000 })
-  await page.getByLabel('공지 흐름 일시정지').click()
-  await expect(page.locator('.announcement-moving')).toHaveAttribute('data-paused', 'true')
+  await expect(page.getByLabel('공지 흐름 일시정지')).toHaveCount(0)
+  const moving = page.locator('.announcement-moving')
+  await page.getByLabel('공지 전체 보기').hover()
+  await expect.poll(() => moving.evaluate(e => getComputedStyle(e).animationPlayState)).toBe('running')
+  await page.getByLabel('공지 전체 보기').focus()
+  await expect.poll(() => moving.evaluate(e => getComputedStyle(e).animationPlayState)).toBe('running')
+  for (const size of [{ width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 900, height: 700 }]) {
+    await page.setViewportSize(size)
+    await expect.poll(async () => {
+      const banner = await page.locator('.announcement-banner').boundingBox()
+      const chip = await page.locator('.park-location-chip').boundingBox()
+      return !!banner && !!chip && banner.y <= 21 && chip.x >= banner.x + banner.width && Math.abs(chip.y - banner.y) < 10
+    }).toBe(true)
+  }
+  await page.setViewportSize({ width: 1920, height: 1080 })
   await page.getByLabel('공지 전체 보기').click()
   const dialog = page.locator('.announcement-dialog')
   await expect(dialog).toBeVisible(); await expect(dialog).toContainText(initial.text)

@@ -5,7 +5,7 @@ import './announcements.css'
 
 export function AnnouncementBanner() {
   const [feed, setFeed] = useState<NoticeFeed | null>(null), [age, setAge] = useState(0)
-  const received = useRef(0), [index, setIndex] = useState(0), [paused, setPaused] = useState(false), [open, setOpen] = useState(false)
+  const received = useRef(0), [index, setIndex] = useState(0), [open, setOpen] = useState(false)
   const [duration, setDuration] = useState(16), [width, setWidth] = useState(600), viewport = useRef<HTMLSpanElement>(null), text = useRef<HTMLSpanElement>(null)
   const dialog = useRef<HTMLDialogElement>(null), trigger = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -39,10 +39,10 @@ export function AnnouncementBanner() {
     return () => observer.disconnect()
   }, [active?.id, active?.version])
   useEffect(() => {
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches || paused || open) return
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const timer = setInterval(() => setIndex(i => i + 1), 8000)
     return () => clearInterval(timer)
-  }, [paused, open, signature])
+  }, [signature])
   useEffect(() => {
     if (open && values.length && dialog.current && !dialog.current.open) { clearRoamingInput(); dialog.current.showModal() }
     if (!values.length) { dialog.current?.close(); setOpen(false) }
@@ -51,11 +51,10 @@ export function AnnouncementBanner() {
   return <aside className="announcement-banner" aria-label="공원 공지" style={{ '--notice-duration': `${duration}s`, '--notice-width': `${width}px` } as CSSProperties}>
     <button ref={trigger} className="announcement-open" onClick={() => setOpen(true)} aria-label="공지 전체 보기">
       <strong>공지</strong><span className="announcement-window" ref={viewport}>
-        <span ref={text} className="announcement-moving" key={`${active.id}:${active.version}:${index}`} data-paused={paused || open}
+        <span ref={text} className="announcement-moving" key={`${active.id}:${active.version}:${index}`}
           onAnimationEnd={() => setIndex(i => i + 1)}>{active.text}</span>
       </span>
-    </button><button className="announcement-pause" aria-label={paused ? '공지 흐름 재생' : '공지 흐름 일시정지'} aria-pressed={paused}
-      onClick={() => setPaused(v => !v)}>{paused ? '▶' : 'Ⅱ'}</button>
+    </button>
     <dialog className="announcement-dialog" ref={dialog} onClose={() => { setOpen(false); trigger.current?.focus({ preventScroll: true }) }}
       onClick={e => { if (e.target === e.currentTarget) e.currentTarget.close() }}>
       <h2>공원 공지</h2><ol>{values.map(value => <li key={value.id}>{value.text}</li>)}</ol>
