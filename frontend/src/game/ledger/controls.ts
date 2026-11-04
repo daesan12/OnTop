@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useGame } from '../store'
 import { useSession } from '../../network/worldClient'
-import { inputState } from '../../world/inputOwnership'
+import { inputState, panelOwnsGameClicks } from '../../world/inputOwnership'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { unlockDiceSound } from '../farkle/sound'
 import { canActLedger } from './actions'
@@ -31,7 +31,7 @@ export function keptDice() {
 export function ledgerAnimating(now = performance.now()) { return now < useLedgerUI.getState().animationUntil }
 
 function ownTurnReady() {
-  return useSession.getState().status === 'connected' && !Object.values(inputState).some(Boolean) && !ledgerAnimating()
+  return useSession.getState().status === 'connected' && !panelOwnsGameClicks() && !ledgerAnimating()
 }
 export function rollLedger() {
   const own = useSession.getState().sessionId, input: LedgerInput = { kind: 'roll', keepIds: [...keptDice()].sort((a, b) => a - b) }
@@ -65,7 +65,8 @@ export function installLedgerPresentation() {
 }
 export function installLedgerControls() {
   const down = (e: KeyboardEvent) => {
-    if (!useGame.getState().game?.ledger || inputState.manualOpen || e.repeat || e.isComposing || e.ctrlKey || e.altKey
+    // 채팅이 열려 있으면 R·숫자는 글자로 남긴다. 마우스 굴림·보관·기록은 막지 않는다.
+    if (!useGame.getState().game?.ledger || inputState.manualOpen || inputState.chatOpen || e.repeat || e.isComposing || e.ctrlKey || e.altKey
       || e.metaKey || document.hidden
       || (e.target instanceof HTMLElement && !!e.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],.game-hud-menu'))) return
     if (e.code === 'KeyR') { e.preventDefault(); rollLedger() }
