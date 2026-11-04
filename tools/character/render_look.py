@@ -35,6 +35,7 @@ for src, p in files:
     bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index not in keep], context='FACES'); bm.to_mesh(o.data); bm.free()
     print('LOOK', src, len(keep), 'faces shown')
 sc = bpy.context.scene; sc.render.engine = 'BLENDER_WORKBENCH'; sh = sc.display.shading; sh.light = 'STUDIO'; sh.color_type = 'TEXTURE'
+sh.show_backface_culling = True                    # (as the game draws: holes show through)
 sc.world = bpy.data.worlds.new('w'); sc.world.color = (1, 0, 1)
 sc.render.resolution_x = sc.render.resolution_y = 700
 cam = bpy.data.objects.new('c', bpy.data.cameras.new('c')); sc.collection.objects.link(cam); sc.camera = cam

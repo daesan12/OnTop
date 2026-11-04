@@ -402,6 +402,7 @@ if DRAPE != 1.0 and 'TOP' in G:
             v.co.z = foot.z - r0 + (off.z + r0) * (1 - k + k * DRAPE); n_ += 1
     print('DRAPE', n_, 'sleeve vertices, scale', DRAPE)
 
+
 # lining=1 (the gat's dopo): inside a V neck the hidden chest's sawtooth edge and the robe's grey inner layer showed
 # (user: the neck looked crooked). The body round the neck's foot (within lining_r 9 cm of the neck's axis, from
 # lining_down 10 cm under the neck joint) becomes a lining just off the skin, cut level lining_up (6 mm) over the joint,
@@ -845,11 +846,22 @@ if under_layer and under_src:
     _tb = bmesh.new(); _tb.from_mesh(_me); _tb.transform(G['TOP'].matrix_world); _top_bvh = BVHTree.FromBMesh(_tb); _tb.free()
     near_ = float(opt.get('under_layer_near', 0.015)); n_near = 0
     for u, ul in under_src:
-        ub = bmesh.new(); ub.from_mesh(u.data); ub.normal_update()
-        for v in ub.verts: v.co += v.normal * float(opt.get('under_layer_gap', 0.001))
-        ub.normal_update(); mw_ = u.matrix_world; nm_ = mw_.to_3x3()
+        ub = bmesh.new(); ub.from_mesh(u.data); ub.normal_update(); mw_ = u.matrix_world; nm_ = mw_.to_3x3()
+        # (it lies under_layer_sink, 3 mm, inside the skin except round the neck: it is only for the gaps, and just
+        # off the skin it came out through the robe's shoulders and back as patches)
+        arm_ = lambda c: not (c.z > neck_z - 0.005 and math.hypot(c.x - neck_xy[0], c.y - neck_xy[1]) < 0.065)
+        for v in ub.verts:
+            v.co += v.normal * (-float(opt.get('under_layer_sink', 0.003)) if arm_(mw_ @ v.co) else float(opt.get('under_layer_gap', 0.001)))
+        ub.normal_update()
+        # (round the neck's foot, where neck_poke hid the neck under the collar, it always stays: dropped there,
+        # the collar's inside showed through, user)
+        # (nor on the shoulders and arms, past under_layer_arm_x, 0.6 of the arm joint's |x|: through the slit
+        # between the robe's shoulder edge and the sleeve one looked down to nothing, user)
+        keep_ = lambda c: (c.z > neck_z - 0.005 and math.hypot(c.x - neck_xy[0], c.y - neck_xy[1]) < 0.065)             or (abs(c.x) > abs(J['LeftArm'].x) * float(opt.get('under_layer_arm_x', 0.6)) and c.z > J['Spine1'].z)
         close = [f for f in ub.faces for c, n in [(mw_ @ f.calc_center_median(), (nm_ @ f.normal).normalized())]
-                 if _top_bvh.ray_cast(c, n, near_)[0] is not None or _top_bvh.ray_cast(c, -n, float(opt.get('under_layer_in', 0.03)))[0] is not None]
+                 if not keep_(c)
+                 and _top_bvh.ray_cast(c, n, near_)[0] is not None or (not keep_(c)
+                     and _top_bvh.ray_cast(c, -n, float(opt.get('under_layer_in', 0.03)))[0] is not None)]
         n_near += len(close)
         bmesh.ops.delete(ub, geom=close, context='FACES')
         ub.to_mesh(u.data); ub.free()

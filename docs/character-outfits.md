@@ -66,7 +66,7 @@
 새 옷은 `tools/character/fit_outfit.py`를 쓴다. `add_set.py`(장군)에서 장군 전용 보정을 뺀 범용 스크립트다.
 
 ```bash
-"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10;SHOES:6,8" skirt=TOP pants=1 sleeve_drape=0.4 sleeves=3,5 under_tops=1 cull=1 lining=1 v_cut=-0.0088,0.498,-0.0552,0.602,0.0492,0.602 v_cut_margin=0.012 lining_down=0.09 pants_hem=0.003 shoe_level=1 shoe_level_up=-0.001 shoe_level_r=0.075 dark_lining=SHOES clean_dark=TOP predecimate=0:5000 shoe_cap=1 shoe_cap_depth=0.01 clean_skin=TOP brighten=TOP,BOTTOM despeck=1 pants_full=1.7 pants_low=1.55 neck_poke=1 lining_up=-0.012 under_layer=1 under_skirt=0.15 skirt_leg=0.9
+"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10;SHOES:6,8" skirt=TOP pants=1 sleeve_drape=0.4 sleeves=3,5 under_tops=1 cull=1 lining=1 v_cut=-0.0088,0.498,-0.0552,0.602,0.0492,0.602 v_cut_margin=0.012 lining_down=0.09 pants_hem=0.003 shoe_level=1 shoe_level_up=-0.001 shoe_level_r=0.075 dark_lining=SHOES clean_dark=TOP predecimate=0:5000 shoe_cap=1 shoe_cap_depth=0.01 clean_skin=TOP brighten=TOP,BOTTOM despeck=1 pants_full=1.7 pants_low=1.55 neck_poke=1 lining_up=-0.012 under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9
 ```
 
 위는 갓·도포(세트 h)를 만든 그대로의 명령이다. 숫자 값(`v_cut` 좌표 등)은 이 옷에 맞춘 것이라 새 옷에서는 다시 잰다.
@@ -90,7 +90,7 @@
 | `shoe_cap=1` | 신발 입구를 어두운 평평한 뚜껑으로 막는다. 위에서 보면 신발 속이 비어 바닥이 보였다. `shoe_cap_depth`는 뚜껑 둘레를 잡는 깊이 |
 | `pants_full`, `pants_low` | 바지 통. `pants_low`를 주면 발목 바로 위까지 넉넉하다가 발목에서 모인다(대님 바지) |
 | `neck_poke=1` | 상의 깃 뒤로 목 아래쪽 피부가 옷을 뚫고 나오면 그 몸 면도 상의가 가리게 한다. **몸 조각이 바뀌므로 man·girl도 다시 만든다** |
-| `under_layer=1` | 상의가 가리는 몸 면을 속층으로 1 mm 띄워 상의에 붙인다. 소매 이음새·깃 뒤 틈으로 속이 비어 보이던 것을 막는다. 몸과 같은 가중치라 움직여도 따라가고, 색은 바로 위 옷의 같은 자리를 쓴다. 옷이 가까운 곳(바깥 1.5 cm `under_layer_near`, 안쪽 3 cm `under_layer_in`)에서는 빠진다. 남겨 두면 옷을 뚫고 나와 등에 얼룩처럼 보였다 |
+| `under_layer=1` | 상의가 가리는 몸 면을 속층으로 1 mm 띄워 상의에 붙인다. 소매 이음새·깃 뒤 틈으로 속이 비어 보이던 것을 막는다. 몸과 같은 가중치라 움직여도 따라가고, 색은 바로 위 옷의 같은 자리를 쓴다. 목 둘레를 빼고는 피부 안쪽으로 묻는다(`under_layer_sink`, 도포는 1.2 cm). 피부 바로 위에 두면 옷을 뚫고 나와 어깨·등에 얼룩처럼 보였다. 어깨·팔(`under_layer_arm_x`)과 목 둘레에서는 항상 남기고, 그 밖은 옷이 가까운 곳(바깥 1.5 cm `under_layer_near`, 안쪽 3 cm `under_layer_in`)에서 빠진다 |
 | `under_skirt=0.15` | 긴 겉옷(그 옷 세트의 상의) 안쪽 바지를 몸 축에서 바깥으로 15 cm 안에 그 상의가 있으면 숨긴다. 걷거나 달릴 때 다리가 치마를 뚫고 나오던 것을 막는다 |
 | `lining_up` | 목 안감 윗선 높이(목 관절 기준). 너무 높으면 티셔츠 목처럼 올라와 보인다 |
 | `clean_skin=TOP` | Tripo가 옷에 잘못 칠한 피부색 면을 옷 색으로 바꾼다 |
