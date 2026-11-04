@@ -55,6 +55,8 @@ class DynamicChannelHubTests {
 
         var channels = channelQuery.listChannels().items();
         assertThat(channels).hasSize(2);
+        assertThat(channels).extracting(item -> item.name())
+                .containsExactly("운영 공원 1", "운영 공원 2");
         String next = channels.stream().map(item -> item.channelId())
                 .filter(id -> !id.equals("channel-1")).findFirst().orElseThrow();
         var tables = hub.listTables(next).tables();
@@ -98,8 +100,11 @@ class DynamicChannelHubTests {
         assertThat(hub.listTables("channel-1").tables()).hasSize(16);
         Peer returning = peer();
         returning.request("CHANNEL_JOIN", Map.of("channelId", "channel-1"));
-        assertThat(channelQuery.listChannels().items()).hasSize(2);
-        assertThat(channelQuery.listChannels().items().stream().map(item -> item.channelId()))
+        var recreated = channelQuery.listChannels().items();
+        assertThat(recreated).hasSize(2);
+        assertThat(recreated).extracting(item -> item.name())
+                .containsExactly("운영 공원 1", "운영 공원 2");
+        assertThat(recreated.stream().map(item -> item.channelId()))
                 .doesNotContain(next);
         hub.disconnect(returning.id);
     }
