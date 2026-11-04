@@ -13,6 +13,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OmokBoardTests {
     @Test
+    void 금수_미리보기의_모든빈칸은_각자독립적인_실제착수판정과_일치한다() {
+        int[][] stones = {{6,7},{8,7},{7,6},{7,8}};
+        OmokBoard board = new OmokBoard();
+        for (int[] p : stones) board.place(Stone.BLACK,p[0],p[1]);
+        var preview = board.snapshot();
+        for (int y=0;y<OmokBoard.SIZE;y++) for (int x=0;x<OmokBoard.SIZE;x++) {
+            if (preview.board().get(y).get(x) != 0) continue;
+            OmokBoard independent = new OmokBoard();
+            for (int[] p : stones) independent.place(Stone.BLACK,p[0],p[1]);
+            boolean rejected = false;
+            try { independent.place(Stone.BLACK,x,y); }
+            catch (OmokBoard.ForbiddenMove ignored) { rejected = true; }
+            int candidateX=x,candidateY=y;
+            assertThat(preview.forbiddenMoves().stream().anyMatch(p -> p.x()==candidateX && p.y()==candidateY))
+                    .as("preview at (%s,%s)",x,y).isEqualTo(rejected);
+        }
+        assertThat(board.snapshot()).isEqualTo(preview);
+    }
+
+    @Test
     void 금수_미리보기는_판을_보존하고_실제판정과_같으며_무르기에_갱신된다() {
         OmokBoard board = new OmokBoard();
         for (int[] p : new int[][]{{6, 7}, {8, 7}, {7, 6}, {7, 8}}) board.place(Stone.BLACK, p[0], p[1]);

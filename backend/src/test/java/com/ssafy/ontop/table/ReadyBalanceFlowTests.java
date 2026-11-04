@@ -69,10 +69,37 @@ class ReadyBalanceFlowTests {
         assertThat(entered.await(2,TimeUnit.SECONDS)).isTrue();
         try {
             assertThat(peer.request("READY_SET",Map.of("ready",true)).path("payload").path("code").asText()).isEqualTo("READY_CHECK_PENDING");
-            assertThat(peer.request("GAME_SELECT",Map.of("gameCode","OMOK","betAmountPerPlayer",150)).path("type").asText()).isEqualTo("TABLE_STATE");
+            JsonNode changed=peer.request("GAME_SELECT",Map.of("gameCode","OMOK","betAmountPerPlayer",150));
+            assertThat(changed.path("type").asText()).isEqualTo("TABLE_STATE");
+            assertThat(changed.path("payload").path("betAmountPerPlayer").asLong()).isEqualTo(150);
+            assertThat(changed.path("payload").path("seats").get(0).path("ready").asBoolean()).isFalse();
         } finally { release.countDown(); }
         assertThat(peer.await(pending).path("payload").path("code").asText()).isEqualTo("GAME_BET_CHANGED");
         assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();
+    }
+
+    @Test void 동일판돈의_게임변경도_최신설정을_전달하고_낡은준비를거절한뒤_다시준비할수있다() throws Exception {
+        CountDownLatch entered=new CountDownLatch(1),release=new CountDownLatch(1);
+        hub.configureReadyBalances(Optional.of(user -> {
+            entered.countDown();
+            try { if (!release.await(3,TimeUnit.SECONDS)) throw new IllegalStateException("test timeout"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt();throw new IllegalStateException(e); }
+            return 200;
+        }));
+        Peer peer=peer();select(peer,100);
+        String pending=peer.send("READY_SET",Map.of("ready",true));
+        assertThat(entered.await(2,TimeUnit.SECONDS)).isTrue();
+        try {
+            JsonNode changed=peer.request("GAME_SELECT",Map.of("gameCode","DICE","betAmountPerPlayer",100,"targetScore",2000));
+            assertThat(changed.path("type").asText()).isEqualTo("TABLE_STATE");
+            assertThat(changed.path("payload").path("gameCode").asText()).isEqualTo("DICE");
+            assertThat(changed.path("payload").path("betAmountPerPlayer").asLong()).isEqualTo(100);
+            assertThat(changed.path("payload").path("seats").get(0).path("ready").asBoolean()).isFalse();
+        } finally { release.countDown(); }
+        assertThat(peer.await(pending).path("payload").path("code").asText()).isEqualTo("GAME_SETTINGS_CHANGED");
+        assertThat(hub.listTables().tables().getFirst().readyCount()).isZero();
+        assertThat(peer.request("READY_SET",Map.of("ready",true)).path("type").asText()).isEqualTo("TABLE_STATE");
+        assertThat(hub.listTables().tables().getFirst().readyCount()).isEqualTo(1);
     }
 
     @Test void 지갑어댑터는_전체잔액이_아니라_예약을뺀_사용가능잔액만_읽는다() {

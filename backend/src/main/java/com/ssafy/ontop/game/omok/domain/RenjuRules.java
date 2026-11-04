@@ -108,6 +108,7 @@ final class RenjuRules {
     private boolean inside(int x, int y) { return x >= 0 && y >= 0 && x < OmokBoard.SIZE && y < OmokBoard.SIZE; }
 
     private String key(int x, int y) {
+        // Include every cell: preview candidates and recursive extensions temporarily change the same board.
         StringBuilder key = new StringBuilder(240).append(x).append(',').append(y).append(':');
         for (int[] row : board) for (int cell : row) key.append((char) ('0' + cell));
         return key.toString();
