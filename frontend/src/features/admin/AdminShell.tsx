@@ -4,6 +4,7 @@ import { AdminAccessError, loadAdminAccess, type AdminAccess } from './adminAcce
 import { AdminAnalyticsPage } from './AdminAnalyticsPage'
 import { AdminWalletGrantPage } from './AdminWalletGrantPage'
 import { AdminAnnouncementsPage } from '../announcements/AdminAnnouncementsPage'
+import logo from '../../assets/entry/ontop-logo.webp'
 import '../feedback/adminFeedback.css'
 import './adminShell.css'
 
@@ -45,6 +46,7 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
 
   return <main className="admin-feedback-page admin-shell">
     <header className="admin-feedback-header">
+      <div className="admin-shell-brand"><img src={logo} alt="온탑"/><span>공원 관리소</span></div>
       <a href="/park" onClick={event => { event.preventDefault(); onReturn() }}>← 공원으로 돌아가기</a>
       <small>온탑 · 관리자 전용</small>
       <h1 ref={heading} tabIndex={-1}>{section === 'home' ? '관리자 페이지'
@@ -52,7 +54,7 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
       {state.status === 'ready' && <p>{section === 'home'
         ? '관리자 기능을 선택해주세요.' : section === 'feedback'
           ? '이용자가 비공개로 남긴 의견입니다. 서버에서 조회 권한을 확인합니다.'
-          : section === 'announcements' ? '공원에 보여줄 문구와 게시 기간·순서를 관리합니다.'
+          : section === 'announcements' ? '소식을 적고 올리면 공원 맨 위 공지에 표시돼요.'
           : section === 'analytics' ? '행동 로그를 백업 기준으로 집계한 결과입니다. 서버에서 조회 권한을 확인합니다.'
             : '대상 인원과 총액을 미리 확인한 뒤 모든 활성 회원에게 엽전을 지급합니다.'}</p>}
     </header>

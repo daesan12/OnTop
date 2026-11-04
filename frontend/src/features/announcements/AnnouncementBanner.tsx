@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { clearRoamingInput } from '../../world/inputOwnership'
 import { loadNotices, visibleNotices, type NoticeFeed } from './api'
 import './announcements.css'
 
 export function AnnouncementBanner() {
   const [feed, setFeed] = useState<NoticeFeed | null>(null), [age, setAge] = useState(0)
-  const received = useRef(0), [index, setIndex] = useState(0), [open, setOpen] = useState(false)
+  const received = useRef(0), [index, setIndex] = useState(0)
   const [duration, setDuration] = useState(16), [width, setWidth] = useState(600), viewport = useRef<HTMLSpanElement>(null), text = useRef<HTMLSpanElement>(null)
-  const dialog = useRef<HTMLDialogElement>(null), trigger = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     let stopped = false, timer: ReturnType<typeof setTimeout>, request: AbortController | null = null, serial = 0
     const refresh = async () => {
@@ -43,22 +41,13 @@ export function AnnouncementBanner() {
     const timer = setInterval(() => setIndex(i => i + 1), 8000)
     return () => clearInterval(timer)
   }, [signature])
-  useEffect(() => {
-    if (open && values.length && dialog.current && !dialog.current.open) { clearRoamingInput(); dialog.current.showModal() }
-    if (!values.length) { dialog.current?.close(); setOpen(false) }
-  }, [open, values.length])
   if (!active) return null
   return <aside className="announcement-banner" aria-label="공원 공지" style={{ '--notice-duration': `${duration}s`, '--notice-width': `${width}px` } as CSSProperties}>
-    <button ref={trigger} className="announcement-open" onClick={() => setOpen(true)} aria-label="공지 전체 보기">
+    <div className="announcement-content">
       <strong>공지</strong><span className="announcement-window" ref={viewport}>
         <span ref={text} className="announcement-moving" key={`${active.id}:${active.version}:${index}`}
           onAnimationEnd={() => setIndex(i => i + 1)}>{active.text}</span>
       </span>
-    </button>
-    <dialog className="announcement-dialog" ref={dialog} onClose={() => { setOpen(false); trigger.current?.focus({ preventScroll: true }) }}
-      onClick={e => { if (e.target === e.currentTarget) e.currentTarget.close() }}>
-      <h2>공원 공지</h2><ol>{values.map(value => <li key={value.id}>{value.text}</li>)}</ol>
-      <button autoFocus onClick={() => dialog.current?.close()}>닫기</button>
-    </dialog>
+    </div>
   </aside>
 }

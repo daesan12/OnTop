@@ -110,10 +110,8 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
-      <div className="park-announcement-strip">
-        <AnnouncementBanner />
-        {!omokFocus && <LocationChip />}
-      </div>
+      <AnnouncementBanner />
+      {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
           <ChannelMenu />
