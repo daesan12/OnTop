@@ -51,8 +51,17 @@ export function LedgerPanel() {
     : rolling ? '주사위를 굴리는 중'
     : `${mine ? '내 차례' : `${names[l.turnUserId!]} 차례`} · ${l.rollCount === 0 ? '굴려 주세요' : l.rollCount < l.maxRolls
       ? `${l.maxRolls - l.rollCount}번 더 굴릴 수 있어요` : '칸을 골라 기록하세요'}`
+  // 장부 패널이 작아 놓치기 쉬우므로 내 차례 동안 화면 위쪽 가운데에 상시 표시한다.
+  const myTurn = player && playing && mine && remaining !== 0
+  const urgent = remaining !== null && remaining <= 5
+  const cue = rolling ? '주사위를 굴리는 중' : l.rollCount === 0 ? '주사위를 굴려 주세요'
+    : l.rollCount < l.maxRolls ? '다시 굴리거나 장부 칸에 기록하세요' : '장부 칸을 골라 기록하세요'
   const scored = l.lastScored
-  return <><section className="ledger-panel" aria-label="주사위 장부" data-role={g.role}>
+  return <>{myTurn && <div key={l.turnId} className="ledger-turn-cue" data-urgent={urgent} role="status">
+    <span aria-hidden="true">◆</span><strong>내 차례</strong><small>{cue}</small>
+    <span className="ledger-turn-cue-time" aria-hidden="true">{remaining}초</span>
+  </div>}
+  <section className="ledger-panel" aria-label="주사위 장부" data-role={g.role} data-my-turn={myTurn || undefined}>
     <header className="ledger-head">
       <div><h2>주사위 장부</h2><small>{playing ? `${l.round} / 12 라운드` : LEDGER_END_REASON[l.endReason ?? ''] ?? l.endReason}</small></div>
       {remaining !== null && <span className="ledger-clock" data-urgent={remaining <= 5} aria-label={`남은 시간 ${remaining}초`}>{remaining}<small>초</small></span>}
@@ -73,9 +82,10 @@ export function LedgerPanel() {
       })}
     </div>
     {player && playing && <div className="ledger-actions">
-      <button className="ledger-roll" disabled={!canRoll} onClick={rollLedger} aria-keyshortcuts="R">
+      <button className="ledger-roll" disabled={!canRoll} onClick={rollLedger} aria-keyshortcuts="R"
+        data-attention={canRoll && l.rollCount === 0 || undefined}>
         <kbd>R</kbd> {l.rollCount === 0 ? '굴리기' : '다시 굴리기'} <small>{l.rollCount}/{l.maxRolls}</small></button>
-      <small>{mine ? l.rollCount ? '숫자 키 1~5로 보관 · 장부 칸을 눌러 기록' : '30초 안에 굴리고 기록하세요' : '상대 차례에는 장부를 볼 수만 있어요'}</small>
+      <small>{mine ? l.rollCount ? '숫자 키 1~5로 보관 · 장부 칸을 눌러 기록' : '20초 안에 굴리세요 · 굴릴 때마다 20초가 다시 주어져요' : '상대 차례에는 장부를 볼 수만 있어요'}</small>
     </div>}
     <LedgerScoreboard ledger={l} names={names} ownId={own} mode={mode} pings={pings.pings} onPick={pick} />
     {!player && playing && <p className="ledger-ping-help">

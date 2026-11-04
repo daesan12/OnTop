@@ -1,5 +1,5 @@
 /* Docked right so the 3D tray (camera-panned left) stays visible; shared by players and spectators. */
-.park-page :is(.ledger-panel, .ledger-menu) {
+.park-page :is(.ledger-panel, .ledger-menu, .ledger-turn-cue) {
   --ledger-ink: #f5ead5; --ledger-muted: #c8b69a; --ledger-gold: #e1bd79; --ledger-line: #c9a56945;
   --ledger-panel: #271e16ed; --ledger-hint: #7cc7ff;
 }
@@ -38,6 +38,30 @@
 .ledger-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ledger-actions > small { color: var(--ledger-muted); flex: 1 1 140px; }
 .park-page .ledger-actions .ledger-roll { padding: 6px 12px; font-weight: 700; }
+/* 내 차례: 패널은 금색 테두리로 고정 강조하고, 아직 안 굴렸으면 굴리기 버튼만 깜빡인다. */
+.park-page .ledger-panel[data-my-turn] { border-color: var(--ledger-gold); box-shadow: 0 0 0 2px #e1bd7955, 0 0 22px #e1bd7933; }
+.park-page .ledger-actions .ledger-roll[data-attention] { background: #8a6326; border-color: #ffd88a; color: #fff6dc;
+  animation: ledger-roll-pulse 1.2s ease-in-out infinite; }
+@keyframes ledger-roll-pulse { 0%, 100% { box-shadow: 0 0 0 0 #ffd88a00; } 50% { box-shadow: 0 0 0 4px #ffd88a66, 0 0 16px #ffd88a99; } }
+/* 장부 패널 왼쪽에 남는 공간의 가운데, 왼쪽 위 채널 메뉴(86px × 0.86 × UI 배율)보다 아래에 둔다. 클릭은 아래 장면으로 통과시킨다. */
+.park-page .ledger-turn-cue {
+  --ledger-panel-left: calc(100vw - var(--park-edge) - 84px * var(--park-ui-scale, 1) - min(380px, 32vw));
+  position: absolute; left: calc(var(--ledger-panel-left) / 2); top: calc(var(--park-edge) + 88px * var(--park-ui-scale, 1)); transform: translateX(-50%); z-index: 6; pointer-events: none;
+  display: flex; align-items: center; gap: 12px; padding: 12px 28px; border: 2px solid var(--ledger-gold); border-radius: 999px;
+  background: #2b1f12f2; color: #fff3d6; font-size: 16px; white-space: nowrap;
+  box-shadow: 0 0 0 4px #e1bd7930, 0 8px 22px #0008; animation: ledger-turn-arrival .55s ease-out 2;
+}
+.ledger-turn-cue > span[aria-hidden] { color: var(--ledger-gold); font-size: 18px; }
+.ledger-turn-cue strong { font-size: 24px; color: #ffe3a6; }
+.ledger-turn-cue small { font-size: 15px; color: var(--ledger-muted); }
+.ledger-turn-cue-time { min-width: 3ch; text-align: right; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ledger-gold); }
+.park-page .ledger-turn-cue[data-urgent="true"] { border-color: #ff8a6a; box-shadow: 0 0 0 3px #ff8a6a33, 0 6px 18px #0007; }
+.ledger-turn-cue[data-urgent="true"] .ledger-turn-cue-time { color: #ff8a6a; }
+@keyframes ledger-turn-arrival { 0% { transform: translateX(-50%) scale(.9); opacity: .4; } 60% { transform: translateX(-50%) scale(1.06); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .park-page .ledger-turn-cue, .park-page .ledger-actions .ledger-roll[data-attention] { animation: none; }
+}
 .ledger-board { width: 100%; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
 .ledger-board th, .ledger-board td { padding: 3px 4px; border-bottom: 1px solid var(--ledger-line); text-align: center; height: 24px; }
 .ledger-board tbody th { text-align: left; font-weight: 500; word-break: keep-all; line-height: 1.15; width: 30%; }
@@ -84,6 +108,8 @@
 }
 @media (max-width: 900px) {
   .park-page .ledger-panel { width: min(340px, 46vw); font-size: 12px; }
+  .park-page .ledger-turn-cue { --ledger-panel-left: calc(100vw - var(--park-edge) - 84px * var(--park-ui-scale, 1) - min(340px, 46vw)); }
+  .ledger-turn-cue small { display: none; }
 }
 /* 더 낮은 화면(노트북 2배율 등)에서도 장부 전체가 들어오도록 한 단계 더 줄인다. */
 @media (max-height: 700px) {
@@ -97,4 +123,6 @@
   .park-page .ledger-panel { left: var(--park-edge); width: auto; top: auto; bottom: calc(var(--park-edge) + 80px); max-height: 52dvh; }
   .park-page .ledger-menu { top: calc(var(--park-edge) + 64px); right: var(--park-edge); transform: none; width: auto; flex-flow: row wrap; }
   .park-page .ledger-menu button { width: auto; }
+  .park-page .ledger-turn-cue { left: 50%; top: calc(var(--park-edge) + 12px); padding: 8px 18px; }
+  .ledger-turn-cue strong { font-size: 18px; }
 }
