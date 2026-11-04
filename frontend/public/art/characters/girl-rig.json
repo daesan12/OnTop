@@ -59,13 +59,13 @@
     {
       "name": "far-body",
       "triangles": 6000,
-      "vertices": 10742,
+      "vertices": 10730,
       "pieces": 40
     },
     {
       "name": "near-body",
       "triangles": 31999,
-      "vertices": 41047,
+      "vertices": 40988,
       "pieces": 56
     }
   ],

@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -402,6 +402,46 @@ if DRAPE != 1.0 and 'TOP' in G:
             v.co.z = foot.z - r0 + (off.z + r0) * (1 - k + k * DRAPE); n_ += 1
     print('DRAPE', n_, 'sleeve vertices, scale', DRAPE)
 
+# seam=A>B,C;..: (the gat's dopo) where the robe's upper part (A) ends over its sleeves (B, C) its open edge stood
+# 1-2 cm off them and the slit showed the inside, dark (user). Part A's open-edge vertices within seam_d (3 cm) of
+# parts B, C are moved onto them (1 mm out along their surface), the rows behind them following by half and a
+# quarter: the edge lies on the sleeve and the slit closes.
+for spec in [x for x in opt.get('seam', '').split(';') if x]:
+    if 'TOP' not in G: break
+    src_n, dst_ns = spec.split('>'); it = G['TOP']
+    sb_ = bmesh.new(); sb_.from_mesh(it.data); dl = sb_.verts.layers.deform.active
+    gi = lambda n: it.vertex_groups['part:tripo_part_' + n].index
+    a_i = gi(src_n); d_is = {gi(n) for n in dst_ns.split(',')}
+    in_a = lambda v: a_i in v[dl].keys()
+    dst_faces = [f for f in sb_.faces if any(g in d_is for g in f.verts[0][dl].keys())]
+    tb_ = bmesh.new()
+    vm = {}
+    for f in dst_faces:
+        for v in f.verts:
+            if v not in vm: vm[v] = tb_.verts.new(v.co)
+        try: tb_.faces.new([vm[v] for v in f.verts])
+        except ValueError: pass
+    tb_.normal_update(); dbvh = BVHTree.FromBMesh(tb_)
+    sd = float(opt.get('seam_d', 0.03)); moved = {}
+    for v in sb_.verts:
+        if not (v.is_boundary and in_a(v)): continue
+        loc, nrm, _, dist_ = dbvh.find_nearest(v.co)
+        if loc is None or dist_ > sd: continue
+        outn = nrm if nrm.dot(v.co - loc) >= 0 else -nrm
+        moved[v] = loc + outn * 0.001 - v.co
+    ring = dict(moved)
+    for k_ in (0.5, 0.25):                         # (the rows behind the edge follow, less and less)
+        nxt = {}
+        for v, d_ in ring.items():
+            for e in v.link_edges:
+                u = e.other_vert(v)
+                if in_a(u) and u not in moved and u not in nxt: nxt[u] = d_ * k_ / (0.5 if k_ == 0.25 else 1)
+        for u, d_ in nxt.items(): moved[u] = d_
+        ring = nxt
+    for v, d_ in moved.items(): v.co += d_
+    sb_.to_mesh(it.data); sb_.free(); tb_.free()
+    print('SEAM part', src_n, 'onto', dst_ns, ':', len(moved), 'vertices moved')
+
 
 # lining=1 (the gat's dopo): inside a V neck the hidden chest's sawtooth edge and the robe's grey inner layer showed
 # (user: the neck looked crooked). The body round the neck's foot (within lining_r 9 cm of the neck's axis, from
@@ -759,6 +799,24 @@ for slot, it in G.items():
                 js = np.array([ids[j] for _, j, _ in near]); d = np.array([dd for _, _, dd in near])
                 g_ = np.exp(-(d / (STIFF / 2)) ** 2)
                 Wn[i] = (Wm[js] * g_[:, None]).sum(0) / g_.sum()
+        # (seam=A>B,C: where two parts meet their weights are blended, half and half at the meeting line fading out
+        # over seam_w, 3 cm: the dopo's sleeves turned with the arms and the robe with the chest, and the slit
+        # between them opened at the shoulders, user)
+        if slot == 'TOP':
+            for spec in [x for x in opt.get('seam', '').split(';') if x]:
+                a_n, b_ns = spec.split('>'); ia = np.where(part_of == 'tripo_part_' + a_n)[0]
+                ib_ = np.where(np.isin(part_of, ['tripo_part_' + n for n in b_ns.split(',')]))[0]
+                if not len(ia) or not len(ib_): continue
+                sw = float(opt.get('seam_w', 0.03)); W0 = Wn.copy(); n_w = 0
+                for xs, ys in ((ia, ib_), (ib_, ia)):
+                    kd = KDTree(len(ys))
+                    for k, j in enumerate(ys): kd.insert(Pp[j], k)
+                    kd.balance()
+                    for i in xs:
+                        _, k, d_ = kd.find(Pp[i])
+                        if d_ < sw:
+                            t = 0.5 * (1 - d_ / sw); Wn[i] = (1 - t) * W0[i] + t * W0[ys[k]]; n_w += 1
+                print('SEAM weights', a_n, '>', b_ns, n_w, 'vertices blended')
         for v in it.data.vertices:
             w = {bones[k]: float(x) for k, x in enumerate(Wn[v.index]) if x > 1e-3}
             if w: set_w(v, w)
