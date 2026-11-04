@@ -2,6 +2,7 @@ package com.ssafy.ontop.announcement.service;
 
 import com.ssafy.ontop.announcement.domain.Announcement;
 import com.ssafy.ontop.announcement.dto.AnnouncementRequest;
+import com.ssafy.ontop.announcement.dto.AnnouncementOrderRequest;
 import com.ssafy.ontop.announcement.dto.AnnouncementResponse;
 import com.ssafy.ontop.announcement.dto.PublicAnnouncementsResponse;
 import com.ssafy.ontop.announcement.repository.AnnouncementRepository;
@@ -9,6 +10,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional
@@ -77,6 +80,24 @@ public class AnnouncementService {
         if (value == null || value.isDeleted()) { return; }
         if (expectedVersion < 0 || value.getVersion() != expectedVersion) { throw new AnnouncementConflictException(); }
         value.remove(administratorId, clock.instant());
+        repository.flush();
+    }
+
+    // 모든 버전을 먼저 확인한 뒤 같은 트랜잭션에서 순서를 반영한다. 중간 실패 시 부분 저장하지 않는다.
+    public void reorder(AnnouncementOrderRequest request, long administratorId) {
+        if (request == null) { throw new IllegalArgumentException("공지 순서를 확인해주세요."); }
+        request.validate();
+        var values = repository.listForUpdate().stream()
+                .collect(Collectors.toMap(Announcement::getId, Function.identity()));
+        if (values.size() != request.items().size()) { throw new AnnouncementConflictException(); }
+        for (var item : request.items()) {
+            var value = values.get(item.id());
+            if (value == null || value.getVersion() != item.expectedVersion()) { throw new AnnouncementConflictException(); }
+        }
+        var now = clock.instant();
+        for (int order = 0; order < request.items().size(); order++) {
+            values.get(request.items().get(order).id()).reorder(order, administratorId, now);
+        }
         repository.flush();
     }
 

@@ -72,6 +72,12 @@ public class Announcement {
         updatedAt = now;
     }
 
+    public void reorder(int order, long administratorId, Instant now) {
+        displayOrder = order;
+        updatedBy = administratorId;
+        updatedAt = now;
+    }
+
     public String getId() { return id; }
     public String getTitle() { return title; }
     public String getText() { return text; }

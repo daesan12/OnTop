@@ -2,6 +2,7 @@ package com.ssafy.ontop.announcement;
 
 import com.ssafy.ontop.announcement.domain.Announcement;
 import com.ssafy.ontop.announcement.dto.AnnouncementRequest;
+import com.ssafy.ontop.announcement.dto.AnnouncementOrderRequest;
 import com.ssafy.ontop.announcement.repository.AnnouncementRepository;
 import com.ssafy.ontop.announcement.service.AnnouncementConflictException;
 import com.ssafy.ontop.announcement.service.AnnouncementService;
@@ -61,5 +62,41 @@ class AnnouncementServiceTests {
         assertThatThrownBy(() -> service.create(id, new AnnouncementRequest(" ", "본문", false, 0, null, null, 0), 7)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.create("bad", request(true, null, null, 0), 7)).isInstanceOf(IllegalArgumentException.class);
         verify(repository, never()).add(any());
+    }
+
+    @Test void 관리자_목록은_지난_공지와_숨긴_공지까지_보관한다() {
+        var ended = new Announcement(id, request(true, null, now.minusSeconds(1), 0), 7, now);
+        var hidden = new Announcement("b78baf0b-0246-4391-adef-a247f90ac50a", request(false, null, null, 0), 7, now);
+        when(repository.list()).thenReturn(List.of(ended, hidden));
+        assertThat(service.list()).hasSize(2);
+        assertThat(service.visible().announcements()).isEmpty();
+    }
+    @Test void 카드_순서는_내용과_게시기간을_유지하며_일괄_저장한다() {
+        var first = new Announcement(id, request(true, null, now.plusSeconds(60), 0), 7, now);
+        var second = new Announcement("b78baf0b-0246-4391-adef-a247f90ac50a", request(false, null, null, 0), 7, now);
+        when(repository.listForUpdate()).thenReturn(List.of(first, second));
+        service.reorder(new AnnouncementOrderRequest(List.of(new AnnouncementOrderRequest.Item(second.getId(), 0),
+                new AnnouncementOrderRequest.Item(id, 0))), 7);
+        assertThat(second.getDisplayOrder()).isZero();
+        assertThat(first.getDisplayOrder()).isEqualTo(1);
+        assertThat(first.getText()).isEqualTo("내용");
+        assertThat(first.getEndsAt()).isEqualTo(now.plusSeconds(60));
+        assertThat(second.isPublished()).isFalse();
+        verify(repository).flush();
+    }
+    @Test void 중복이나_누락_오래된_버전은_어느_순서도_바꾸기_전에_거절한다() {
+        var first = new Announcement(id, request(true, null, null, 0), 7, now);
+        var second = new Announcement("b78baf0b-0246-4391-adef-a247f90ac50a", request(false, null, null, 0), 7, now);
+        when(repository.listForUpdate()).thenReturn(List.of(first, second));
+        var item = new AnnouncementOrderRequest.Item(id, 0);
+        assertThatThrownBy(() -> service.reorder(new AnnouncementOrderRequest(List.of(item, item)), 7))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.reorder(new AnnouncementOrderRequest(List.of(item)), 7))
+                .isInstanceOf(AnnouncementConflictException.class);
+        assertThatThrownBy(() -> service.reorder(new AnnouncementOrderRequest(List.of(item,
+                new AnnouncementOrderRequest.Item(second.getId(), 1))), 7)).isInstanceOf(AnnouncementConflictException.class);
+        assertThat(first.getDisplayOrder()).isEqualTo(1);
+        assertThat(second.getDisplayOrder()).isEqualTo(1);
+        verify(repository, never()).flush();
     }
 }

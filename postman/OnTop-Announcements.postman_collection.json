@@ -106,7 +106,7 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
-              "if(pm.response.code===200){const value=pm.response.json().find(x=>x.id===pm.collectionVariables.get('announcementId'));if(value)pm.collectionVariables.set('announcementVersion',value.version);}"
+              "if(pm.response.code===200){pm.collectionVariables.set('announcementOrder',JSON.stringify(pm.response.json().map(x=>({id:x.id,expectedVersion:x.version}))));const value=pm.response.json().find(x=>x.id===pm.collectionVariables.get('announcementId'));if(value)pm.collectionVariables.set('announcementVersion',value.version);}"
             ]
           }
         }
@@ -163,6 +163,53 @@
         ]
       },
       "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 204',()=>pm.response.to.have.status(204));",
+              ""
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 관리자 공지 표시 순서 일괄 저장",
+      "request": {
+        "method": "PUT",
+        "url": "{{baseUrl}}/api/v1/admin/operations/announcements/order",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"items\": {{announcementOrder}}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const items=JSON.parse(pm.collectionVariables.get('announcementOrder')||'[]');if(!items.length)throw new Error('03 목록을 먼저 조회하세요. announcementOrder 배열을 원하는 순서로 편집한 뒤 실행하세요.');"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {

@@ -62,6 +62,12 @@ export async function deleteAnnouncement(value: Announcement, signal: AbortSigna
   await request(`${root}/${value.id}?version=${value.version}`, signal, 'DELETE')
 }
 
+export async function reorderAnnouncements(values: Announcement[], signal: AbortSignal) {
+  await request(`${root}/order`, signal, 'PUT', {
+    items: values.map(value => ({ id: value.id, expectedVersion: value.version })),
+  })
+}
+
 export function visibleNotices(feed: NoticeFeed, elapsedMs: number) {
   const now = Date.parse(feed.serverTime) + Math.max(0, elapsedMs)
   return feed.announcements.filter(item => item.endsAt === null || Date.parse(item.endsAt) > now)

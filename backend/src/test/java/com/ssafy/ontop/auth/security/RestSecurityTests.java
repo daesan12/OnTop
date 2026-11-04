@@ -307,6 +307,7 @@ class RestSecurityTests {
                 "GET /api/v1/announcements", "GET /api/v1/admin/operations/announcements",
                 "POST /api/v1/admin/operations/announcements/{id}",
                 "PUT /api/v1/admin/operations/announcements/{id}",
+                "PUT /api/v1/admin/operations/announcements/order",
                 "DELETE /api/v1/admin/operations/announcements/{id}",
                 "GET /api/v1/auth/{provider}/callback", "POST /api/v1/auth/exchange", "POST /api/v1/auth/refresh",
                 "POST /api/v1/auth/logout", "POST /api/v1/users/onboarding", "GET /api/v1/users/me",

@@ -1,6 +1,7 @@
 package com.ssafy.ontop.announcement.controller;
 
 import com.ssafy.ontop.announcement.dto.AnnouncementRequest;
+import com.ssafy.ontop.announcement.dto.AnnouncementOrderRequest;
 import com.ssafy.ontop.announcement.dto.AnnouncementResponse;
 import com.ssafy.ontop.announcement.service.AnnouncementService;
 import com.ssafy.ontop.admin.security.AdminAccessPolicy;
@@ -60,6 +61,13 @@ public class AnnouncementController {
     public ResponseEntity<Void> remove(Principal principal, @PathVariable String id, @RequestParam long version) {
         long administrator = administrator(principal);
         service().remove(id, version, administrator);
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+    }
+
+    @PutMapping("/api/v1/admin/operations/announcements/order")
+    public ResponseEntity<Void> reorder(Principal principal, @RequestBody AnnouncementOrderRequest request) {
+        long administrator = administrator(principal);
+        service().reorder(request, administrator);
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 

@@ -16,12 +16,16 @@ const collection = { info: { name: 'OnTop Announcements', schema: 'https://schem
       "if(!pm.collectionVariables.get('announcementId')) pm.collectionVariables.set('announcementId',pm.variables.replaceIn('{{$guid}}'));", 200,
       "if(pm.response.code===200) pm.collectionVariables.set('announcementVersion',pm.response.json().version);"),
     item('03 관리자 공지 목록', 'GET', admin, undefined, '', 200,
-      "if(pm.response.code===200){const value=pm.response.json().find(x=>x.id===pm.collectionVariables.get('announcementId'));if(value)pm.collectionVariables.set('announcementVersion',value.version);}"),
+      "if(pm.response.code===200){pm.collectionVariables.set('announcementOrder',JSON.stringify(pm.response.json().map(x=>({id:x.id,expectedVersion:x.version}))));const value=pm.response.json().find(x=>x.id===pm.collectionVariables.get('announcementId'));if(value)pm.collectionVariables.set('announcementVersion',value.version);}"),
     item('04 관리자 공지 수정', 'PUT', admin + '/{{announcementId}}', { ...payload, text: '수정된 공지', expectedVersion: '{{announcementVersion}}' }, '', 200,
       "if(pm.response.code===200) pm.collectionVariables.set('announcementVersion',pm.response.json().version);"),
     item('05 관리자 공지 삭제', 'DELETE', admin + '/{{announcementId}}?version={{announcementVersion}}', undefined, '', 204),
+    item('06 관리자 공지 표시 순서 일괄 저장', 'PUT', admin + '/order', undefined,
+      "const items=JSON.parse(pm.collectionVariables.get('announcementOrder')||'[]');if(!items.length)throw new Error('03 목록을 먼저 조회하세요. announcementOrder 배열을 원하는 순서로 편집한 뒤 실행하세요.');", 204),
   ] }
+collection.item[5].request.header.push({ key: 'Content-Type', value: 'application/json' })
+collection.item[5].request.body = { mode: 'raw', raw: '{"items": {{announcementOrder}}}', options: { raw: { language: 'json' } } }
 // expectedVersion은 JSON 숫자여야 하므로 Postman 변수 치환 구문만 따옴표 없이 둔다.
 collection.item[3].request.body.raw = collection.item[3].request.body.raw.replace('"{{announcementVersion}}"', '{{announcementVersion}}')
 await writeFile(path.join(path.dirname(fileURLToPath(import.meta.url)), 'OnTop-Announcements.postman_collection.json'), JSON.stringify(collection, null, 2) + '\n')
-console.log('생성: OnTop Announcements 5 requests (no secrets)')
+console.log('생성: OnTop Announcements 6 requests (no secrets)')

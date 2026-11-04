@@ -39,4 +39,17 @@ class AnnouncementControllerTests {
         mvc(true).perform(delete("/api/v1/admin/operations/announcements/a78baf0b-0246-4391-adef-a247f90ac50a?version=2").principal(() -> "7"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ANNOUNCEMENT_CONFLICT"));
     }
+
+    @Test void 순서_저장은_운영관리자만_허용하고_204를_반환한다() throws Exception {
+        String json = "{\"items\":[]}";
+        mvc(true).perform(put("/api/v1/admin/operations/announcements/order").contentType("application/json").content(json))
+                .andExpect(status().isUnauthorized());
+        mvc(true).perform(put("/api/v1/admin/operations/announcements/order").principal(() -> "8")
+                .contentType("application/json").content(json)).andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+        mvc(true).perform(put("/api/v1/admin/operations/announcements/order").principal(() -> "7")
+                .contentType("application/json").content(json)).andExpect(status().isNoContent())
+                .andExpect(header().string("Cache-Control", "no-store"));
+        verify(service).reorder(any(), eq(7L));
+    }
 }

@@ -48,3 +48,16 @@
 .announcement-delete-confirm{border-top:1px solid #d9c9a4;margin-top:16px;padding-top:12px;font-size:13px}.announcement-delete-confirm p{line-height:1.6}.announcement-delete-confirm button{margin-right:8px}
 @media(max-width:1000px){.announcement-admin-grid{gap:24px}.announcement-list{padding-left:24px}.announcement-dates{grid-template-columns:1fr}}
 @media(max-width:760px){.announcement-admin-grid{grid-template-columns:1fr}.announcement-list{border-left:0;padding-left:0;border-top:1px solid var(--notice-border);padding-top:28px}.announcement-text-meta{font-size:11px}.announcement-admin legend{font-size:23px}}
+
+.announcement-tabs{display:flex;gap:4px;padding:4px;background:#e9e1cb;border-radius:8px;margin:18px 0}
+.announcement-admin .announcement-tabs button{flex:1;background:transparent;border-color:transparent;padding:9px 7px;font-size:13px;white-space:nowrap}
+.announcement-tabs button[aria-pressed=true]{background:#fffaf0;border-color:#cdbb8d;color:#274a32;font-weight:700;box-shadow:0 2px 4px #5b503417}.announcement-tabs button span{font-size:11px;font-weight:400;margin-left:4px;color:#69725c}
+.announcement-admin .announcement-search{font-size:12px;margin:16px 0}.announcement-search input{padding:9px 12px}
+.announcement-order-help{font-size:12px;color:#64705d;line-height:1.6;margin:12px 0 18px}
+.announcement-order-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px;margin:14px 0;background:#e5ecd9;border:1px solid #b5c49c;border-radius:8px;font-size:12px}
+.announcement-admin .announcement-order-actions .announcement-primary{padding:8px 12px;font-size:12px;box-shadow:none}.announcement-order-actions>span{margin-right:auto}
+.announcement-card-order{display:flex;align-items:center;gap:6px;margin:-4px 0 12px;padding-bottom:10px;border-bottom:1px solid #e0d6be}
+.announcement-card-order>span{flex:1;font-size:12px;color:#687259}
+.announcement-admin .announcement-card-order button{padding:4px 10px;font-size:15px;background:#fffaf0;line-height:1.4}
+.announcement-admin .announcement-card-order .announcement-drag-handle{font-size:24px;line-height:1;padding:3px 5px;cursor:grab;border-color:transparent;background:transparent;touch-action:manipulation}
+.announcement-card-order .announcement-drag-handle:active{cursor:grabbing}.announcement-list li[data-dragging=true]{opacity:.45;border-style:dashed}.announcement-list li>small{display:block;margin:6px 0}
