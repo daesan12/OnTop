@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { CanvasTexture, SRGBColorSpace, type Group } from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
-import { inputState, scenePointerOwners } from '../../world/inputOwnership'
+import { panelOwnsGameClicks, scenePointerOwners } from '../../world/inputOwnership'
 import { useReducedMotion } from '../onecard/useReducedMotion'
 import { toggleScoreSheet, useDiceUI } from './controls'
 import { paintScorebookCover } from './scorebookArt'
@@ -44,7 +44,7 @@ export function FarkleScorebook({ side, active }: { side: number; active: boolea
     onPointerDown={e => { if (e.button === 0 && active) { e.stopPropagation(); scenePointerOwners.set(e.pointerId, 'farkle-scorebook') } }}
     onClick={e => {
       e.stopPropagation()
-      if (active && !Object.values(inputState).some(Boolean)) toggleScoreSheet()
+      if (active && !panelOwnsGameClicks()) toggleScoreSheet()
     }} onPointerOver={e => { if (active) { e.stopPropagation(); gl.domElement.style.cursor = 'pointer' } }}
     onPointerOut={() => { gl.domElement.style.cursor = '' }}>
     <mesh scale={[.34, .47, .035]} castShadow receiveShadow><BookBox /><SurfaceMaterial kind="wood" color="#573b25" meters={.3} /></mesh>

@@ -33,9 +33,13 @@
 .park-page .game-hud-clock[data-urgent=true] progress::-webkit-progress-value {background:#9a4635}
 .park-page .game-hud-clock[data-urgent=true] progress::-moz-progress-bar {background:#9a4635}
 
+/* 게임 중에는 화면 크기와 상관없이 오른쪽 아래 빠른 메뉴(옷장·지도·감정표현·설명서·설정)를 숨긴다.
+   감정표현 창과 알림은 .emotes 밖이나 안에 그대로 두고 버튼만 숨긴다. 게임이 닫히면 다시 보인다. */
+.park-page:has(.game-hud-menu) :is(.park-quick-dock,.park-dock-wardrobe,.park-dock-settings,.park-map>.park-quick-button,.emotes>.emote-wheel-trigger,.manual-launcher) {display:none}
+
 /* Game chrome occupies side rails on PC; the common park controls return when the game closes. */
 @media(min-width:1000px) {
-  .park-page:has(.game-hud-menu) :is(.park-location,.park-location-chip,.park-account,.park-quick-dock,.park-dock-wardrobe,.park-dock-settings) {display:none}
+  .park-page:has(.game-hud-menu) :is(.park-location,.park-location-chip,.park-account) {display:none}
   .park-page[data-omok-focus=true] .omok-rail-hud :is(.omok-match-header,.omok-player-header) {position:fixed;inset:212px auto auto 20px;transform:none;width:224px;display:flex;flex-direction:column;gap:8px}
   .park-page .omok-rail-hud .omok-match-player {width:100%;box-sizing:border-box;padding:10px 14px;border-radius:7px;background:#27362df0;border-color:#bdab7970}
   .park-page[data-omok-focus=true] .omok-rail-hud :is(.omok-player-bottom,.omok-spectator-toolbar) {position:fixed;inset:20px 20px 20px auto;width:224px;max-width:224px;padding:0;transform:none;display:flex;flex-direction:column;gap:12px;pointer-events:none;background:none;border:0}
