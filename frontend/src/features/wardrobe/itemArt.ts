@@ -8,6 +8,12 @@ export const partImage = (variant: CharacterVariant, slot: EquipSlot) => partIma
 // A whole set's picture (parts/set-<set code>.webp): the character wearing it, since a set is only worn whole.
 const setImages = import.meta.glob<string>('./parts/set-*.webp', { eager: true, import: 'default' })
 export const setImage = (setCode?: string | null) => setCode ? setImages[`./parts/set-${setCode.toLowerCase()}.webp`] : undefined
+// An outfit item's own picture (parts/outfit-<file>-<item>-<slot>.webp, tools/character/item_art.py), by its 3D piece.
+const outfitImages = import.meta.glob<string>('./parts/outfit-*.webp', { eager: true, import: 'default' })
+export function outfitImage(imageKey: string | null, slot: EquipSlot) {
+  const match = imageKey?.match(/^outfit\/([a-z0-9-]+)\/([a-z0-9]+)$/)
+  return match ? outfitImages[`./parts/outfit-${match[1]}-${match[2]}-${slot.toLowerCase()}.webp`] : undefined
+}
 
 /** Colour words in item names (shop items ship without artwork yet; imageKey has no files behind it). */
 const colours: [RegExp, string][] = [

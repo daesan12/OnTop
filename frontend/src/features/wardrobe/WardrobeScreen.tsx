@@ -11,7 +11,7 @@ import {
 import { wornPiece } from '../../world/art/characterLook'
 import { WARDROBE_OUTFITS_ENABLED } from './feature'
 import { wardrobeView } from './view'
-import { setImage, useItemArt, type CharacterVariant } from './itemArt'
+import { outfitImage, setImage, useItemArt, type CharacterVariant } from './itemArt'
 import './wardrobe.css'
 
 const tabs: WardrobeFilter[] = ['ALL', ...equipSlots]
@@ -21,7 +21,7 @@ const walkKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown'
 function ItemArt({ owned, variant }: { owned: OwnedItem; variant: CharacterVariant }) {
   const art = useItemArt(variant, owned.item.equipSlot!, owned.item.name)
   return <span className="wardrobe-art" data-slot={owned.item.equipSlot}>
-    <img src={setImage(owned.item.setCode) ?? art} alt="" />
+    <img src={setImage(owned.item.setCode) ?? outfitImage(owned.item.imageKey, owned.item.equipSlot!) ?? art} alt="" />
   </span>
 }
 
@@ -31,7 +31,7 @@ function SlotBubble({ slot, worn, variant, active }: { slot: EquipSlot; worn?: O
   return <button type="button" className="wardrobe-bubble" data-slot={slot} aria-pressed={active}
     onClick={() => setWardrobeFilter(active ? 'ALL' : slot)}>
     <span className="wardrobe-bubble__art" data-kind={worn ? 'item' : 'part'}>
-      <img src={art} alt="" />
+      <img src={(worn && outfitImage(worn.item.imageKey, slot)) ?? art} alt="" />
     </span>
     <b>{slotLabels[slot]}</b>
     <small>{worn ? worn.item.name : '기본'}</small>
