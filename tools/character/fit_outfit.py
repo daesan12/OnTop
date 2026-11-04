@@ -28,6 +28,7 @@ import numpy as np
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
+from mathutils.interpolate import poly_3d_calc
 
 a = sys.argv[sys.argv.index('--') + 1:]
 src, parts_path, out = a[0], a[1], a[2]
@@ -836,21 +837,46 @@ for o in body:
     bmesh.ops.delete(b2, geom=[f for f in b2.faces if f.index in covered], context='FACES'); b2.to_mesh(me); b2.free()
 print('BODY pieces added', pieces, '; neck faces out through the top', n_poke)
 if under_layer and under_src:
-    uv_lit, _ = lit_texel(G['TOP'], 60); made = []
+    uv_lit, _ = lit_texel(G['TOP'], float(opt.get('under_layer_tone', 60))); made = []
+    # (only where the top stands off: within under_layer_near, 1.5 cm, of the top along the normal the layer is
+    # dropped, and within under_layer_in, 3 cm, inward (where the robe sinks into the body, the layer lay over it).
+    # Kept everywhere, it came through the dopo's back and waist as pale ragged patches, user)
+    _me = G['TOP'].evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh()
+    _tb = bmesh.new(); _tb.from_mesh(_me); _tb.transform(G['TOP'].matrix_world); _top_bvh = BVHTree.FromBMesh(_tb); _tb.free()
+    near_ = float(opt.get('under_layer_near', 0.015)); n_near = 0
     for u, ul in under_src:
         ub = bmesh.new(); ub.from_mesh(u.data); ub.normal_update()
         for v in ub.verts: v.co += v.normal * float(opt.get('under_layer_gap', 0.001))
+        ub.normal_update(); mw_ = u.matrix_world; nm_ = mw_.to_3x3()
+        close = [f for f in ub.faces for c, n in [(mw_ @ f.calc_center_median(), (nm_ @ f.normal).normalized())]
+                 if _top_bvh.ray_cast(c, n, near_)[0] is not None or _top_bvh.ray_cast(c, -n, float(opt.get('under_layer_in', 0.03)))[0] is not None]
+        n_near += len(close)
+        bmesh.ops.delete(ub, geom=close, context='FACES')
         ub.to_mesh(u.data); ub.free()
         for m_ in list(u.modifiers): u.modifiers.remove(m_)
         if u.data.shape_keys: u.shape_key_clear()
         md = u.modifiers.new('dec', 'DECIMATE'); md.ratio = float(opt.get('under_layer_ratio', 0.35))
         bpy.context.view_layer.objects.active = u; bpy.ops.object.modifier_apply(modifier='dec')
-        on_texel(u, G['TOP'], uv_lit); made.append(u)
+        on_texel(u, G['TOP'], uv_lit)
+        # (each corner takes the UV of the nearest point of the top: seen through holes in the robe it carries on
+        # the robe's own shading. On one flat texel it showed as pale ragged patches on the back, user)
+        uvd_ = u.data.uv_layers.active.data; tuv = _me.uv_layers.active.data; mw_ = u.matrix_world
+        inv_ = G['TOP'].matrix_world.inverted()
+        for poly in u.data.polygons:
+            # (one robe point per face, its centre's nearest: corners projected one by one landed on faces of other
+            # UV islands and the face stretched across the atlas)
+            loc, _, fi, _ = _top_bvh.find_nearest(mw_ @ poly.center)
+            if loc is None: continue
+            tp = _me.polygons[fi]
+            wts = poly_3d_calc([_me.vertices[vi].co for vi in tp.vertices], inv_ @ loc)
+            uv_ = sum((Vector(tuv[l].uv) * w for l, w in zip(tp.loop_indices, wts)), Vector((0, 0)))
+            for li in poly.loop_indices: uvd_[li].uv = uv_
+        made.append(u)
     for u in made:
         if 'tokens' in u.keys(): del u['tokens']
     for x in bpy.data.objects: x.select_set(x in made or x == G['TOP'])
     bpy.context.view_layer.objects.active = G['TOP']; bpy.ops.object.join()
-    print('UNDER layer', sum(len(ul) for _, ul in under_src), 'body faces, joined to the top')
+    print('UNDER layer', sum(len(ul) for _, ul in under_src), 'body faces,', n_near, 'near the top dropped, joined to the top')
 # 4. under_tops=1: bottom faces that a top covers become item__BOTTOM__<set>__under_TOP<x>... pieces, hidden while that
 #    top is worn. The gat's made pants reach over the belly (their waist is cut level above the hidden body's top)
 #    and came out through the dopo (user); worn with other tops they could do the same. Covered: a top within
