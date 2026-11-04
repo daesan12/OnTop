@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -182,6 +182,112 @@ def leading_bones(o):
     gname = {g.index: g.name[len('mixamorig:'):] for g in o.vertex_groups if g.name.startswith('mixamorig:')}
     return [max(((e.weight, gname[e.group]) for e in v.groups if e.group in gname), default=(0, ''))[1] for v in o.data.vertices]
 
+def lit_texel(it):
+    """The UV of the item's lit cloth colour: the texel nearest the median of its brightest fifth (the brighter half
+    read grey)."""
+    img = next(n.image for m in it.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
+    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
+    uvd = it.data.uv_layers.active.data
+    cs = np.array([P[min(h_ - 1, int(uvd[li].uv[1] * h_)), min(w_ - 1, int(uvd[li].uv[0] * w_))] for li in range(0, len(uvd), 7)])
+    light = cs[cs.mean(1) >= np.percentile(cs.mean(1), 80)]; med = np.median(light, 0)
+    return tuple(uvd[int(np.argmin(((cs - med) ** 2).sum(1))) * 7].uv), med
+
+def on_texel(o, like, uv0):
+    """o's faces on one texel of item `like`'s own material and UV layer."""
+    o.data.materials.clear(); o.data.materials.append(like.data.materials[0])
+    name = like.data.uv_layers.active.name
+    for u in list(o.data.uv_layers): o.data.uv_layers.remove(u)
+    lay = o.data.uv_layers.new(name=name)
+    for d in lay.data: d.uv = uv0
+
+# pants=1 (the gat's baji): the trousers are made from the body itself, not from Tripo. Tripo's baji stopped at the
+# robe's hem and its lower legs were bulky with ragged tops; filled from the body above them, the two met in a step
+# with white shards along the seam (user: "the trousers look too strange"). Here every body face the bottom hides
+# (the same region rule as the cover below) is let out from its leg's axis by a loose profile: snug at the hips,
+# full at the thighs and knees (pants_full, 1.45), gathered at the ankle; the inner side lets out less
+# (pants_inner, 0.35 of it) so the legs do not cross. Smoothed, on one texel of Tripo's own baji colour.
+if opt.get('pants', '0') == '1' and 'BOTTOM' in G:
+    old = G['BOTTOM']; uv0, med = lit_texel(old)
+    lead = leading_bones(src_obj)
+    cut_z = boot_top + float(opt.get('pants_cut', 0.03)); hem_z = boot_top - float(opt.get('pants_hem', 0.005))
+    pick = []
+    for p in src_obj.data.polygons:
+        votes = {}
+        for vi in p.vertices: votes[lead[vi]] = votes.get(lead[vi], 0) + 1
+        bone_ = max(votes, key=votes.get)
+        # (and the ankle's front above the cut: the foot leads there up to 4 cm over the shoes' rim, and without it
+        # the cut ring had a toothed hole above it)
+        if (bone_ in BOTTOM_BONES and p.center.z > boot_top) or (bone_ in FOOT_BONES and p.center.z > cut_z - 0.008):
+            pick.append(p.index)
+    # the waist: the region's top is a sawtooth too. It is cut level just over its highest tooth (waist_cut), the
+    # trunk's faces up to there taken in, so the pants still cover every body face they hide.
+    hip_z = J['LeftUpLeg'].z
+    pk = set(pick); ecount = {}
+    for i in pick:
+        for ek in src_obj.data.polygons[i].edge_keys: ecount[ek] = ecount.get(ek, 0) + 1
+    top_z = max(src_obj.data.vertices[vi].co.z for ek, n in ecount.items() if n == 1 for vi in ek
+                if src_obj.data.vertices[vi].co.z > hip_z)
+    waist_cut = top_z + 0.004
+    for p in src_obj.data.polygons:
+        if p.index in pk: continue
+        votes = {}
+        for vi in p.vertices: votes[lead[vi]] = votes.get(lead[vi], 0) + 1
+        if max(votes, key=votes.get) in TOP_BONES and hip_z < p.center.z < waist_cut + 0.015: pick.append(p.index)
+    pt = src_obj.copy(); pt.data = src_obj.data.copy(); bpy.context.scene.collection.objects.link(pt)
+    pb_ = bmesh.new(); pb_.from_mesh(pt.data); pb_.faces.ensure_lookup_table(); keep_ = set(pick)
+    bmesh.ops.delete(pb_, geom=[f for f in pb_.faces if f.index not in keep_], context='FACES')
+    bmesh.ops.remove_doubles(pb_, verts=pb_.verts, dist=1e-5)
+    for _ in range(3): bmesh.ops.smooth_vert(pb_, verts=[v for v in pb_.verts if not v.is_boundary], factor=0.5,
+                                             use_axis_x=True, use_axis_y=True, use_axis_z=True)
+    FULL, INNER = float(opt.get('pants_full', 1.45)), float(opt.get('pants_inner', 0.35))
+    hip_z, ankle_z = J['LeftUpLeg'].z, J['LeftFoot'].z
+    def profile(z):
+        t = (z - ankle_z) / (hip_z - ankle_z)
+        pts = [(-1, 1.04), (0.0, 1.04), (0.1, 1.3), (0.45, FULL), (0.85, FULL * 0.9), (1.0, 1.2), (1.3, 1.08), (9, 1.08)]
+        for (t0, f0), (t1, f1) in zip(pts, pts[1:]):
+            if t <= t1: return f0 + (f1 - f0) * (t - t0) / (t1 - t0)
+    def axis_point(co):
+        side = 'Left' if co.x > 0 else 'Right'
+        if co.z >= hip_z: return Vector((0.0, J['Hips'].y, co.z))        # the hips: about the body's own vertical axis
+        a0, a1 = (J[f'{side}UpLeg'], J[f'{side}Leg']) if co.z >= J[f'{side}Leg'].z else (J[f'{side}Leg'], J[f'{side}Foot'])
+        ax = (a1 - a0); t = max(0.0, min(1.0, (co - a0).dot(ax) / ax.length_squared))
+        return a0 + ax * t
+    for v in pb_.verts:
+        c0 = axis_point(v.co); off = v.co - c0
+        f = profile(v.co.z)
+        # inward (toward the midline, below the hips) lets out less
+        if v.co.z < hip_z and off.x * v.co.x < 0:
+            f = 1 + (f - 1) * INNER
+        v.co = c0 + off * f
+    bmesh.ops.bisect_plane(pb_, geom=pb_.verts[:] + pb_.edges[:] + pb_.faces[:], plane_co=(0, 0, waist_cut), plane_no=(0, 0, 1), clear_outer=True)
+    # the hem: the body's own cut over the shoes' rim is a sawtooth up to a face's height (1.5 cm). The legs are cut
+    # level pants_cut (3 cm) over the rim, above every tooth, and each leg's cut ring is carried straight down to
+    # pants_hem (5 mm) under the rim, let out a little (pants_flare) so the hem lies over the shoe's opening
+    # (remapping the teeth level left strands; taking the ankles too covered the feet; a hem drawn in under the rim
+    # showed through low shoes' openings as stripes).
+    bmesh.ops.bisect_plane(pb_, geom=pb_.verts[:] + pb_.edges[:] + pb_.faces[:], plane_co=(0, 0, cut_z), plane_no=(0, 0, 1), clear_inner=True)
+    ring = [e for e in pb_.edges if e.is_boundary and all(v.co.z < cut_z + 1e-4 for v in e.verts)]
+    ext = bmesh.ops.extrude_edge_only(pb_, edges=ring)
+    hem = [g for g in ext['geom'] if isinstance(g, bmesh.types.BMVert)]
+    for v in hem:
+        c0 = axis_point(Vector((v.co.x, v.co.y, hem_z))); v.co = c0 + (Vector((v.co.x, v.co.y, hem_z)) - c0) * float(opt.get('pants_flare', 1.06))
+    loops = sum(1 for e in pb_.edges if e.is_boundary and all(abs(v.co.z - hem_z) < 1e-4 for v in e.verts))
+    # (the extruded band's faces came out wound either way: their flipped normals shaded as stripes)
+    bmesh.ops.recalc_face_normals(pb_, faces=pb_.faces[:])
+    pb_.normal_update()
+    for v in pb_.verts: v.co += v.normal * 0.003
+    # (the cut ring and the hem band stay out of the smoothing: pulled between the leg and the hem, they went ragged)
+    for _ in range(4): bmesh.ops.smooth_vert(pb_, verts=[v for v in pb_.verts if not v.is_boundary and v.co.z > cut_z + 0.004],
+                                             factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+    print('PANTS waist cut level at z', round(waist_cut, 3))
+    print('PANTS hem', len(hem), 'vertices (', loops, 'edges ) cut at z', round(cut_z, 3), 'down to', round(hem_z, 3), '; cut ring', len(ring), 'edges')
+    pb_.to_mesh(pt.data); pb_.free()
+    for g in list(pt.vertex_groups): pt.vertex_groups.remove(g)
+    on_texel(pt, old, uv0)
+    pt.vertex_groups.new(name='part:pants').add(list(range(len(pt.data.vertices))), 1.0, 'REPLACE')
+    name = old.name; bpy.data.objects.remove(old); pt.name = name; G['BOTTOM'] = pt
+    print('PANTS', len(pick), 'body faces, colour', med.round(2).tolist())
+
 # fill=BOTTOM (the gat's trousers): Tripo makes only what the sheet shows, so trousers under a long robe stop at the
 # robe's hem; worn with a short top the hidden hips and thighs were holes (the body is hidden under the whole
 # bottom). The body faces the bottom hides but its own geometry does not cover (no hit within 4 cm along the
@@ -208,20 +314,7 @@ for slot in [x for x in opt.get('fill', '').split(',') if x]:
                                              use_axis_x=True, use_axis_y=True, use_axis_z=True)
     fb.to_mesh(fl.data); fb.free()
     for g in list(fl.vertex_groups): fl.vertex_groups.remove(g)
-    # the item's own light cloth: the texel nearest the median of its brighter half
-    img = next(n.image for m in it.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
-    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
-    uvd = it.data.uv_layers.active.data
-    cs = np.array([P[min(h_ - 1, int(uvd[li].uv[1] * h_)), min(w_ - 1, int(uvd[li].uv[0] * w_))] for li in range(0, len(uvd), 7)])
-    # (its lit side: the median of the brightest fifth; the median of the brighter half read grey)
-    light = cs[cs.mean(1) >= np.percentile(cs.mean(1), 80)]; med = np.median(light, 0)
-    k_ = int(np.argmin(((cs - med) ** 2).sum(1))) * 7
-    uv0 = tuple(uvd[k_].uv)
-    fl.data.materials.clear(); fl.data.materials.append(it.data.materials[0])
-    name = it.data.uv_layers.active.name
-    for u in list(fl.data.uv_layers): fl.data.uv_layers.remove(u)
-    lay = fl.data.uv_layers.new(name=name)
-    for d in lay.data: d.uv = uv0
+    uv0, med = lit_texel(it); on_texel(fl, it, uv0)
     fl.vertex_groups.new(name='part:fill_' + slot).add(list(range(len(fl.data.vertices))), 1.0, 'REPLACE')
     for x in bpy.data.objects: x.select_set(x in (it, fl))
     bpy.context.view_layer.objects.active = it; bpy.ops.object.join()
@@ -251,7 +344,10 @@ if DRAPE != 1.0 and 'TOP' in G:
 for slot, it in G.items():
     lo, to = (-0.03, 0.004) if slot == 'HAIR' else (-0.004, 0.002)
     moved = 0
+    # (made pants are laid out from the body already; pushed, their hem drawn in under the shoes' rim scattered)
+    made = it.vertex_groups['part:pants'].index if 'part:pants' in it.vertex_groups else None
     for v in it.data.vertices:
+        if made is not None and any(e.group == made for e in v.groups): continue
         loc, n, fi, d = body_bvh.find_nearest(v.co)
         if loc is None or d > 0.05: continue
         nf = body_fn[fi]; s_ = (v.co - loc).dot(nf)

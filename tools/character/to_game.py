@@ -154,6 +154,13 @@ def decimate(o, faces, keep_edges=False):
             seams = {vi for vi, us in cuv.items() if len(us) > 1}
             print('DECIMATE seams', len(seams), 'of', len(o.data.vertices))
             hold |= seams
+            # open edges too (hems, cuffs): collapsed, the gat's trouser hem went into a zigzag with strands under it
+            ec = {}
+            for p in o.data.polygons:
+                for ek in p.edge_keys: ec[ek] = ec.get(ek, 0) + 1
+            rim = {vi for ek, n in ec.items() if n == 1 for vi in ek}
+            print('DECIMATE open-edge vertices', len(rim))
+            hold |= rim
         if PIECES:
             # piece boundaries: the game hides pieces one by one; collapsed across a boundary, a shown piece's
             # edge would move and open a crack against its hidden neighbour's replacement
