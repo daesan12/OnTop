@@ -19,7 +19,6 @@ dialog.arcade-picker.table-paper-popup{position:fixed;inset:0;margin:auto;box-si
 .arcade-game-card strong{font-size:20px;letter-spacing:-.04em;word-break:keep-all}
 .arcade-game-card small{flex-shrink:0;padding:3px 10px;border:1px solid #ddbd78;border-radius:20px;background:#f8e6ae;font-size:13px;font-weight:600;white-space:nowrap}
 .arcade-game-card em{padding:4px 4px 0;font-size:14px;font-style:normal;color:#565f49}
-.arcade-coming{grid-column:1/-1;margin:0;display:grid;place-items:center;min-height:72px;border:1px dashed #c9bd97;border-radius:16px;color:#565f49;font-size:15px}
 .arcade-badge{position:absolute;top:16px;left:16px;padding:3px 10px;border:2px solid #8b642a;border-radius:8px;background:#fff1c9;color:#69491d;font-size:13px}
 .arcade-detail{display:flex;flex-direction:column;align-items:stretch;min-width:0;padding:14px 18px;border:3px double #d2ab5c;border-radius:16px;background:#fff6dba3;text-align:center}
 .arcade-detail>small{font-size:14px;font-weight:600}

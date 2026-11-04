@@ -2,6 +2,7 @@ import { rulebooks } from './rulebooks';
 import { jumpManual } from '../jumpmap/manual';
 import { rpsRouletteManual } from '../rpsRoulette/manual';
 import { plusMinusManual } from '../plusMinus/manual';
+import { moleManual } from '../mole/manual';
 import { alkkagiManual } from '../../game/alkkagi/manual';
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection';
 import { bungeoppangV4Preview, bungeoppangV5Enabled, bungeoppangV5Preview } from '../bungeoppang/config';
@@ -28,6 +29,7 @@ const allGameManuals: GameManual[] = [
   ]},
   rpsRouletteManual,
   plusMinusManual,
+  moleManual,
 ];
 export const gameManuals =allGameManuals.filter(game => GENERATED_PARK_ENABLED || game.id !== 'jump');
 
