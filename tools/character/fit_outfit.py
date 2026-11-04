@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -202,6 +202,32 @@ for slot, names in SLOT_PARTS.items():
     it = bpy.context.view_layer.objects.active; it.name = f'item__{slot}__{SET}'; G[slot] = it
     print('ITEM', it.name, len(it.data.polygons), 'faces')
 
+# brighten=TOP,BOTTOM (the gat's white dopo and baji): Tripo's whites came out grey, darker than the sheet's (user:
+# make it like the sheet). In the slots' images the light texels (brighter than 0.45) are lifted toward white by
+# brighten_k (0.35 of the way), the dark ones (hat, shoes, hair) left alone.
+_done_img = set()
+for slot in [x for x in opt.get('brighten', '').split(',') if x and x in G]:
+    for m in G[slot].data.materials:
+        for n in m.node_tree.nodes:
+            if n.type != 'TEX_IMAGE' or not n.image or n.image.name in _done_img: continue
+            img = n.image; _done_img.add(img.name); w_, h_ = img.size
+            P = np.array(img.pixels[:], np.float32).reshape(h_ * w_, -1)
+            lum = P[:, :3].mean(1); k = float(opt.get('brighten_k', 0.35)) * np.clip((lum - 0.45) / 0.2, 0, 1)
+            P[:, :3] += (1 - P[:, :3]) * k[:, None]
+            # despeck=1: Tripo's grey dots on the white cloth (user: like the sheet) are pixels darker by despeck_d
+            # (0.1) than their neighbourhood (a box of despeck_r, 10 px) where that neighbourhood is light (over 0.7);
+            # they take the neighbourhood's colour
+            if opt.get('despeck', '0') == '1':
+                r_ = int(opt.get('despeck_r', 10)); Q = P[:, :3].reshape(h_, w_, 3)
+                S = np.pad(Q, ((r_ + 1, r_), (r_ + 1, r_), (0, 0)), mode='edge').cumsum(0).cumsum(1)
+                Bx = (S[2 * r_ + 1:, 2 * r_ + 1:] - S[:-2 * r_ - 1, 2 * r_ + 1:] - S[2 * r_ + 1:, :-2 * r_ - 1] + S[:-2 * r_ - 1, :-2 * r_ - 1]) / (2 * r_ + 1) ** 2
+                bl, ql = Bx.mean(2), Q.mean(2)
+                sp = (bl > 0.7) & (ql < bl - float(opt.get('despeck_d', 0.1)))
+                Q[sp] = Bx[sp]; P[:, :3] = Q.reshape(-1, 3)
+                print('DESPECK', int(sp.sum()), 'pixels')
+            img.pixels[:] = P.ravel(); img.update(); img.pack()
+            print('BRIGHTEN', slot, img.name, w_, 'x', h_)
+
 if opt.get('boot_top', 'auto') == 'auto':
     boot_top = (max(v.co.z for v in G['SHOES'].data.vertices) - 0.015) if 'SHOES' in G else 0.0
 else:
@@ -271,10 +297,14 @@ if opt.get('pants', '0') == '1' and 'BOTTOM' in G:
     for _ in range(3): bmesh.ops.smooth_vert(pb_, verts=[v for v in pb_.verts if not v.is_boundary], factor=0.5,
                                              use_axis_x=True, use_axis_y=True, use_axis_z=True)
     FULL, INNER = float(opt.get('pants_full', 1.45)), float(opt.get('pants_inner', 0.35))
+    LOW = float(opt.get('pants_low', 0))
     hip_z, ankle_z = J['LeftUpLeg'].z, J['LeftFoot'].z
     def profile(z):
         t = (z - ankle_z) / (hip_z - ankle_z)
         pts = [(-1, 1.04), (0.0, 1.04), (0.1, 1.3), (0.45, FULL), (0.85, FULL * 0.9), (1.0, 1.2), (1.3, 1.08), (9, 1.08)]
+        # pants_low=k (the gat's baji, like the sheet's): full right down to the ankle, gathered there (k at 8 % of
+        # the leg over the ankle), instead of a straight tube under the robe
+        if LOW: pts = [(-1, 1.04), (0.0, 1.04), (0.08, LOW), (0.3, max(LOW, FULL * 0.95)), (0.45, FULL), (0.85, FULL * 0.9), (1.0, 1.2), (1.3, 1.08), (9, 1.08)]
         for (t0, f0), (t1, f1) in zip(pts, pts[1:]):
             if t <= t1: return f0 + (f1 - f0) * (t - t0) / (t1 - t0)
     def axis_point(co):
@@ -481,6 +511,36 @@ if opt.get('shoe_level', '0') == '1' and 'SHOES' in G:
         if v.co.z > zc and math.hypot(v.co.x - ft.x, v.co.y - ft.y) < rr: v.co.z = zc; n_ += 1
     print('SHOES', n_, 'rim vertices pressed to z', round(zc, 3))
 
+# shoe_cap=1 (the gat's low shoes): from above, between the trousers and the rim the shoe's empty inside showed the
+# ground (its inner faces are back faces, user: the feet are holed). Each shoe's opening gets a flat dark lid 1.5 mm
+# under the levelled rim: the outline (convex hull) of its vertices round the ankle (shoe_level_r) at the rim's level.
+if opt.get('shoe_cap', '0') == '1' and 'SHOES' in G:
+    from mathutils.geometry import convex_hull_2d
+    it = G['SHOES']; zc = boot_top + float(opt.get('shoe_level_up', 0.008)); rr = float(opt.get('shoe_level_r', 0.045))
+    img = next(n.image for m in it.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
+    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
+    uvd = it.data.uv_layers.active.data
+    cs = sorted((P[min(h_ - 1, int(uvd[l].uv[1] * h_)), min(w_ - 1, int(uvd[l].uv[0] * w_))].mean(), l) for l in range(0, len(uvd), 5))
+    dark_uv = tuple(uvd[cs[len(cs) // 4][1]].uv)
+    capb = bmesh.new()
+    for side, sg in (('Left', 1), ('Right', -1)):
+        ft = J[side + 'Foot']
+        pts = [(v.co.x, v.co.y) for v in it.data.vertices
+               if v.co.x * sg > 0 and v.co.z > zc - float(opt.get('shoe_cap_depth', 0.006)) and math.hypot(v.co.x - ft.x, v.co.y - ft.y) < rr]
+        if len(pts) < 3: continue
+        hull = convex_hull_2d(pts)
+        f = capb.faces.new([capb.verts.new((pts[i][0], pts[i][1], zc - 0.0015)) for i in hull])
+        f.normal_update()
+        if f.normal.z < 0: f.normal_flip()
+    bmesh.ops.triangulate(capb, faces=capb.faces[:])
+    cap = bpy.data.objects.new('cap', bpy.data.meshes.new('cap')); bpy.context.scene.collection.objects.link(cap)
+    capb.to_mesh(cap.data); capb.free(); n_cap = len(cap.data.polygons)
+    on_texel(cap, it, dark_uv)
+    cap.vertex_groups.new(name='part:shoes').add(list(range(len(cap.data.vertices))), 1.0, 'REPLACE')
+    for x in bpy.data.objects: x.select_set(x in (it, cap))
+    bpy.context.view_layer.objects.active = it; bpy.ops.object.join()
+    print('SHOES cap', n_cap, 'faces at z', round(zc - 0.0015, 4))
+
 # dark_lining=SHOES (the gat's shoes): the low shoes' white inner lining showed round the ankle as white teeth.
 # The slot's light faces (texel at their UV centre brighter than dark_light, 0.6) take its dark texel (the median
 # of its darker half).
@@ -492,12 +552,14 @@ for slot in [x for x in opt.get('dark_lining', '').split(',') if x]:
     col = lambda u: P[min(h_ - 1, int(u[1] * h_)), min(w_ - 1, int(u[0] * w_))]
     fc = {p.index: col(np.mean([tuple(uvd[l].uv) for l in p.loop_indices], 0)) for p in it.data.polygons}
     lum = {i: float(c.mean()) for i, c in fc.items()}
+    # (a face is light when its centre or any corner is: white triangles with dark centres stayed at the throat)
+    lum_max = {p.index: max([lum[p.index]] + [float(col(tuple(uvd[l].uv)).mean()) for l in p.loop_indices]) for p in it.data.polygons}
     dark = sorted(lum, key=lum.get)[: max(1, len(lum) // 2)]
     dmed = np.median([lum[i] for i in dark]); di = min(dark, key=lambda i: abs(lum[i] - dmed))
     duv = np.mean([tuple(uvd[l].uv) for l in it.data.polygons[di].loop_indices], 0)
     n_ = 0
     for p in it.data.polygons:
-        if lum[p.index] > float(opt.get('dark_light', 0.6)):
+        if lum_max[p.index] > float(opt.get('dark_light', 0.6)):
             for l in p.loop_indices: uvd[l].uv = duv
             n_ += 1
     print('DARK lining', slot, n_, 'light faces to', round(float(dmed), 2))
@@ -521,6 +583,24 @@ for slot in [x for x in opt.get('clean_dark', '').split(',') if x]:
             for l in p.loop_indices: uvd[l].uv = uv_mid
             n_ += 1
     print('CLEAN dark', slot, n_, 'faces')
+
+# clean_skin=TOP (the gat's dopo): Tripo painted skin on the robe round the neck (a beige ragged band under the
+# back collar, user: the back of the neck looks odd). Faces whose texel is skin-like (redder than green by
+# clean_skin_r, 0.06) take the robe's lit tone; the lining is left as it is.
+for slot in [x for x in opt.get('clean_skin', '').split(',') if x]:
+    it = G[slot]; uv_lit, _ = lit_texel(it, 60)
+    img = next(n.image for m in it.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
+    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
+    uvd = it.data.uv_layers.active.data; n_ = 0
+    tx = lambda u: P[min(h_ - 1, max(0, int(u[1] * h_))), min(w_ - 1, max(0, int(u[0] * w_)))]
+    lin = {i for g in it.vertex_groups if g.name == 'part:lining' for i in [g.index]}
+    for p in it.data.polygons:
+        if lin and any(e.group in lin for e in it.data.vertices[p.vertices[0]].groups): continue
+        us = [tuple(uvd[l].uv) for l in p.loop_indices]
+        if max(float(c[0] - c[1]) for c in [tx(np.mean(us, 0))] + [tx(u) for u in us]) > float(opt.get('clean_skin_r', 0.06)):
+            for l in p.loop_indices: uvd[l].uv = uv_lit
+            n_ += 1
+    print('CLEAN skin', slot, n_, 'faces')
 
 # smooth_rims=SHOES (the gat's low shoes): Tripo's opening rim was a row of teeth. Each open edge loop of the slot
 # is relaxed along itself (every rim vertex toward its two rim neighbours, 20 rounds): a smooth rim, the shoe kept
@@ -688,6 +768,14 @@ hair_bvh = None
 if 'HAIR' in G and opt.get('hair_hides_scalp', '0') == '1':
     hb = bmesh.new(); hb.from_mesh(G['HAIR'].data); hb.transform(G['HAIR'].matrix_world); hair_bvh = BVHTree.FromBMesh(hb); hb.free()
 neck_z, neck_xy = J['Neck'].z, (J['Neck'].x, J['Neck'].y)
+# neck_poke=1 (the gat's dopo): the neck's foot is left showing under a top, but behind the dopo's collar it came out
+# through the robe as a beige ragged band (user: the back of the neck looks odd). Those neck faces that lie outside
+# the top (the top within neck_poke_in, 1.5 cm, inward along the face's normal) are covered by it too.
+top_bvh_ = None
+if opt.get('neck_poke', '0') == '1' and 'TOP' in G:
+    _me = G['TOP'].evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh()
+    _tb = bmesh.new(); _tb.from_mesh(_me); _tb.transform(G['TOP'].matrix_world); top_bvh_ = BVHTree.FromBMesh(_tb); _tb.free()
+n_poke = 0
 pieces = 0
 for o in body:
     me = o.data; mw = o.matrix_world
@@ -701,7 +789,12 @@ for o in body:
         bone_ = max(votes, key=votes.get)
         cv = set()
         if 'TOP' in G and bone_ in TOP_BONES and not (bone_.endswith('ForeArm') and abs(c.x) > sleeve_x - 0.01): cv.add('TOP')
-        if c.z > neck_z - 0.005 and math.hypot(c.x - neck_xy[0], c.y - neck_xy[1]) < 0.065: cv.discard('TOP')
+        if c.z > neck_z - 0.005 and math.hypot(c.x - neck_xy[0], c.y - neck_xy[1]) < 0.065:
+            cv.discard('TOP')
+            if top_bvh_ and c.z < neck_z + 0.04:
+                n = (mw.to_3x3() @ p.normal).normalized()
+                if top_bvh_.ray_cast(c - n * 0.0005, -n, float(opt.get('neck_poke_in', 0.015)))[0] is not None:
+                    cv.add('TOP'); n_poke += 1
         if 'BOTTOM' in G and bone_ in BOTTOM_BONES and c.z > boot_top: cv.add('BOTTOM')
         if 'SHOES' in G and (bone_ in FOOT_BONES or (bone_ in BOTTOM_BONES and c.z <= boot_top)): cv.add('SHOES')
         if hair_bvh and bone_ in ('Head', 'HeadTop_End'):
@@ -722,7 +815,7 @@ for o in body:
     covered = {i for cv, faces in groups.items() if cv for i in faces}
     b2 = bmesh.new(); b2.from_mesh(me); b2.faces.ensure_lookup_table()
     bmesh.ops.delete(b2, geom=[f for f in b2.faces if f.index in covered], context='FACES'); b2.to_mesh(me); b2.free()
-print('BODY pieces added', pieces)
+print('BODY pieces added', pieces, '; neck faces out through the top', n_poke)
 # 4. under_tops=1: bottom faces that a top covers become item__BOTTOM__<set>__under_TOP<x>... pieces, hidden while that
 #    top is worn. The gat's made pants reach over the belly (their waist is cut level above the hidden body's top)
 #    and came out through the dopo (user); worn with other tops they could do the same. Covered: a top within

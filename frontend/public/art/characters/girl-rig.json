@@ -59,18 +59,18 @@
     {
       "name": "far-body",
       "triangles": 6000,
-      "vertices": 10719,
+      "vertices": 10742,
       "pieces": 40
     },
     {
       "name": "near-body",
-      "triangles": 32000,
-      "vertices": 41008,
+      "triangles": 31999,
+      "vertices": 41047,
       "pieces": 56
     }
   ],
   "source": "girl_raw.glb",
-  "sourceTriangles": 32000,
+  "sourceTriangles": 31999,
   "limitations": [
     "Pieces share one surface and atlas per file; the game draws the pieces an avatar wears (outfits from other files are drawn as their own mesh)",
     "Authored idle/walk/run/swim clips (src/world/art/characterClips.json); seated, machine and gesture poses procedural; no facial rig or cloth simulation"
