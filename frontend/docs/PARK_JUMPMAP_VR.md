@@ -2,7 +2,7 @@
 
 - 현재 작업 위치: `C:\Users\SSAFY\Desktop\OnTop\quest-vr`.
 - 현재 브랜치: `VR` (2026-11-04 `feat/quest-vr`에서 이름 변경).
-- 현재 통합 기준: `origin/dev@2e72a0dc8b4f5f17a08f3778e4649581fe2180c5` (2026-11-04).
+- 현재 통합 기준: `origin/dev@a9afd16b0e0268916c7991aed92d8f0ac95ac9f9` (2026-11-05).
 - 이관 원본: `park-jumpmap-vr-20261104`, `feat/park-jumpmap-vr-local-20261104@324db890`의 미커밋 VR 변경. 원본은 삭제·변경하지 않고 보존한다.
 - 기존 `quest-locomotion-poc`의 미커밋 작업과 독립 이동 화면은 원래 위치에 보존한다. 2026-11-04 사용자 승인으로 feat/quest-vr에 커밋·푸시하며 dev/master 머지·배포는 진행하지 않는다.
 
@@ -167,3 +167,16 @@ Browser plugin not available → 기존 Playwright·설치된 Chrome/SwiftShader
 - 실제 OAuth·DB 설정 파일은 현재 없으며 사용자가 추후 제공하기로 했다. 백엔드 기동·실제 로그인·DB 초기화/적용·실제 지급은 보류한다. 기존 로컬 MySQL 컨테이너(13386)와 적용 이력은 변경하지 않았다. 신규 migration은 만들지 않았다.
 - 향후 실제 설정은 기존 real-auth 실행기의 로컬 전용 DB 검사와 인증 WS를 사용한다. 공원/점프맵과 협동을 켜고 최신 generated 맵을 엄격히 확인한다. Quest USB 연결은 사이트 5288뿐 아니라 등록한 OAuth callback 8080도 reverse하도록 준비했다. 설정 미제공 상태에서 목업 로그인을 추가하거나 공개 개발 사이트로 우회하지 않는다.
 - 기기 단계는 사용자가 Quest 홈 화면 표시를 확인했다. 다음 안내는 스마트폰 Meta Horizon 앱에서 해당 Quest 2가 표시되는지 확인하는 단계다. USB/ADB 연결은 아직 실행하지 않았다.
+
+## 2026-11-05 dev 재통합
+
+- 시작 시 `VR@e1546f13`의 미커밋 변경은 없었다. 기본 fetch는 삭제된 다른 브랜치의 refspec 때문에 실패해 dev/VR ref를 명시하여 최신 원격을 확인했다. 기존 fetch 설정과 다른 worktree는 변경하지 않았다.
+- 먼저 `origin/dev@16564b51`의 추가 35개 커밋을 병합했다. `ParkPage.tsx`와 `CameraRig.tsx`는 자동 병합됐고 충돌은 없었다. 공통 코드의 최신 dev 변경과 기존 VR 입력/시점 소유권을 함께 보존했다. 이 통합과 아래 테스트 계약 보완은 로컬 병합 커밋 `d0c38e85`에 기록했다.
+- 마무리 fetch 중 dev에 판돈 HUD 변경 2개 커밋이 추가돼 `a9afd16b0e0268916c7991aed92d8f0ac95ac9f9`까지 다시 반영했다. 추가 변경은 GameHud·판돈 계산·해당 CSS/테스트 5개 파일이며 충돌은 없었다. 처음 기준 이후 가져온 dev 커밋은 총 37개다.
+- 직접 수정한 서비스 코드는 없다. `tests/park-xr/parkXR.spec.ts`의 테스트 대역에 최신 `GET /api/v1/announcements` 계약의 빈 공지 응답을 추가했다. 첫 XR 7개 실패는 해당 응답 누락의 404가 원인이었고, 기존 콘솔 오류 검사·검증·timeout은 유지했다.
+- `16564b51` 통합 기준에서 앱/XR 타입 검사, FE 전체 단위 2,252개 통과(기존 6개 skip), BE 관련 46개 클래스 459개 통과(실패/skip 0), bootJar 빌드를 확인했다. BE에는 generated 맵 경로를 실제로 제공했으며 점프맵·협동·맵/공통 소켓·준비 잔액·오목·장부·작성 중 표시·공지·닉네임·문서/보안 회귀를 포함했다.
+- 최종 `a9afd16b` 기준에서 앱/XR 타입 검사, 판돈·공통 HUD 관련 4개 파일 31개 단위 테스트, 협동 활성 공원 빌드, XR 브라우저 7개를 다시 통과했다. 두 dev 기준 사이 backend 트리는 동일함을 확인하여 BE 검사는 반복하지 않았다. 최종 추가 HUD 브라우저 전용 검사는 실행하지 않았다.
+- 최신 맵 `c05d8ada…`와 코스 `5e03c470…` 검사 통과, 생성물 변경 0개. V148 공지 SQL은 최신 dev에 이미 있던 파일을 그대로 반영했다. 신규 migration 작성·번호 예약·DB 적용·Flyway repair/초기화는 하지 않았다.
+- 브라우저 검사 환경은 기존 Playwright·Chrome/SwiftShader, `127.0.0.1:5289`, 1440×900 및 좁은 화면이다. Browser plugin not available. 페이지 식별·렌더링·오류 오버레이/앱 오류 없음, 입력·시점·중단 복구·안내·결과·랭킹·짧은 화면 스크롤을 확인했다. 모의 XR/REST/WS 검사이며 실제 Quest/OAuth/DB 지급 성공을 뜻하지 않는다. 기존 Three/SwiftShader·대형 chunk 경고는 남아 있다.
+- 증거 PNG는 저장소 밖 `C:\Users\SSAFY\Desktop\OnTop\output\quest-vr-dev-sync-20261105\`에 보존한다. 실제 로그인용 설정은 사용자가 추후 제공하기로 한 상태를 유지하며 서버를 새로 기동하거나 배포하지 않았다.
+- 기존 로컬 전용 조건과 원격 VR 보호를 유지한다. 직접 푸시·MR 생성·원격 머지·Jenkins 실행·브랜치 삭제는 하지 않는다. 원격 `VR@8ff32c58`과 로컬 통합 커밋은 구분한다.
