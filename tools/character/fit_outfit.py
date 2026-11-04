@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -520,7 +520,9 @@ if opt.get('lining', '0') == '1' and 'TOP' in G:
     # straight edges, the lining showing between them.
     if opt.get('v_cut'):
         ax, az, lx, lz, rx, rz = map(float, opt['v_cut'].split(','))
-        A = Vector((ax, 0, az)); top_z = max(lz, rz) + 0.03
+        # (v_cut_up, 3 cm: how far over the corners the cut reaches; above them is the collar band round the neck,
+        # cut there it broke off at the neck's sides, user)
+        A = Vector((ax, 0, az)); top_z = max(lz, rz) + (0.0 if opt.get('v_paint', '0') == '1' else float(opt.get('v_cut_up', 0.03)))
         near = lambda c: az - 0.01 < c.z < top_z and c.y < ny + 0.01 and abs(c.x - ax) < 0.12
         for X, Z in ((lx, lz), (rx, rz)):
             n_ = (Vector((X, 0, Z)) - A).cross(Vector((0, 1, 0))).normalized()
@@ -530,7 +532,8 @@ if opt.get('lining', '0') == '1' and 'TOP' in G:
         xl = lambda z: ax + (lx - ax) * (z - az) / (lz - az); xr = lambda z: ax + (rx - ax) * (z - az) / (rz - az)
         wedge = [f for f in cb.faces for c in [f.calc_center_median()]
                  if az < c.z < top_z and c.y < ny and xl(c.z) + 1e-5 < c.x < xr(c.z) - 1e-5]
-        bmesh.ops.delete(cb, geom=wedge, context='FACES')
+        # (v_paint=1: kept, painted skin later; cut out, Tripo's collar band broke off at the neck's sides, user)
+        if opt.get('v_paint', '0') != '1': bmesh.ops.delete(cb, geom=wedge, context='FACES')
         print('V cut', len(wedge), 'top faces inside the V; neck joint at', round(nx, 3), round(ny, 3), round(nz, 3))
     cb.to_mesh(G['TOP'].data); cb.free()
     print('LINING inner layer', len(gone), 'top faces deleted')
@@ -684,6 +687,20 @@ for slot in [x for x in opt.get('clean_skin', '').split(',') if x]:
             n_ += 1
     print('CLEAN skin', slot, n_, 'faces')
 
+# v_paint=1 (with v_cut; the gat's dopo, like Tripo's own): the robe's inner panel inside the V, cut straight along
+# the V's two lines, is kept and painted the neck's skin colour, so the collar band runs whole from the neck's back
+# into the lapels and the V shows skin under the neck (a lining or the body there broke the band, user)
+if opt.get('v_paint', '0') == '1' and opt.get('v_cut') and 'TOP' in G:
+    ax, az, lx, lz, rx, rz = map(float, opt['v_cut'].split(','))
+    xl = lambda z: ax + (lx - ax) * (z - az) / (lz - az); xr = lambda z: ax + (rx - ax) * (z - az) / (rz - az)
+    it = G['TOP']; uvd = it.data.uv_layers.active.data; uv_s = skin_texel(it); ny_ = J['Neck'].y; n_ = 0
+    for p in it.data.polygons:
+        c = p.center
+        if az < c.z < max(lz, rz) and c.y < ny_ and xl(c.z) + 1e-5 < c.x < xr(c.z) - 1e-5:
+            for l in p.loop_indices: uvd[l].uv = uv_s
+            n_ += 1
+    print('V paint', n_, 'inner faces in skin')
+
 # smooth_rims=SHOES (the gat's low shoes): Tripo's opening rim was a row of teeth. Each open edge loop of the slot
 # is relaxed along itself (every rim vertex toward its two rim neighbours, 20 rounds): a smooth rim, the shoe kept
 # whole (cut level, the vamp went too and the shoes looked holed).
@@ -769,8 +786,37 @@ for slot, it in G.items():
     moved = 0
     # (made pants are laid out from the body already; pushed, their hem drawn in under the shoes' rim scattered)
     made = {it.vertex_groups[g].index for g in ('part:pants', 'part:lining', 'part:socks', 'part:shoes') if g in it.vertex_groups}
+    # (push_neck=0, the gat's dopo: pushed vertex by vertex, the top's collar went saw-toothed where it met the neck
+    # and looked broken off, user; round the neck it is lifted smoothly instead, below)
+    nk_skip = slot == 'TOP' and opt.get('push_neck', '1') == '0'
+    in_nk = lambda co: co.z > J['Neck'].z - 0.06 and math.hypot(co.x - J['Neck'].x, co.y - J['Neck'].y) < 0.1
+    if nk_skip:
+        # (round the neck the whole collar is lifted as one: every vertex there inside the body, to 3 cm deep, needs
+        # to come out to 2 mm; that need is spread to its neighbours (each takes the most of its own and its
+        # neighbours' mean, 12 rounds), so the band moves out smoothly, no tooth left behind)
+        nb3 = bmesh.new(); nb3.from_mesh(it.data); nb3.verts.ensure_lookup_table()
+        need, dirn = {}, {}
+        for v in nb3.verts:
+            if not in_nk(v.co): continue
+            loc, n, fi, d = body_bvh.find_nearest(v.co)
+            if loc is None or d > 0.05: continue
+            nf = body_fn[fi]; s_ = (v.co - loc).dot(nf)
+            need[v.index] = max(0.0, to - s_) if s_ > -0.03 else 0.0; dirn[v.index] = nf
+        req = dict(need); cur = dict(need)
+        for _ in range(int(opt.get('push_neck_rounds', 12))):
+            nxt = {}
+            for i in cur:
+                nbs = [e.other_vert(nb3.verts[i]).index for e in nb3.verts[i].link_edges]
+                nbs = [j for j in nbs if j in cur]
+                m_ = sum(cur[j] for j in nbs) / len(nbs) if nbs else 0.0
+                nxt[i] = max(req[i], 0.5 * (cur[i] + m_))
+            cur = nxt
+        for i, m_ in cur.items():
+            if m_ > 0: it.data.vertices[i].co += dirn[i] * m_; moved += 1
+        nb3.free()
     for v in it.data.vertices:
         if made and any(e.group in made for e in v.groups): continue
+        if nk_skip and in_nk(v.co): continue
         loc, n, fi, d = body_bvh.find_nearest(v.co)
         if loc is None or d > 0.05: continue
         nf = body_fn[fi]; s_ = (v.co - loc).dot(nf)
@@ -913,7 +959,7 @@ for o in body:
         # the neck's visible faces (the neck's own, and the foot the collar leaves) are covered and shown instead,
         # in place, in one skin colour: their mean, matched to the nearest texel of the outfit's atlas.
         # (with lining_tone=skin the V's inside too: the neck and the chest under the V, one surface in one colour)
-        if neck_tone and opt.get('lining_tone') == 'skin' and in_lining(c) and bone_ not in ('Head', 'HeadTop_End')                 and c.z < neck_z + 0.03:
+        if neck_tone and opt.get('lining_tone') == 'skin' and opt.get('v_paint', '0') != '1' and in_lining(c) and bone_ not in ('Head', 'HeadTop_End')                 and c.z < neck_z + 0.03:
             cv.add('TOP'); tone_faces.append(p.index)
         elif neck_tone and 'TOP' not in cv and (bone_ == 'Neck' or (c.z > neck_z - 0.005 and math.hypot(c.x - neck_xy[0], c.y - neck_xy[1]) < 0.065)):
             cv.add('TOP')
