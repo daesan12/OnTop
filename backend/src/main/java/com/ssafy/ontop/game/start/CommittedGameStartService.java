@@ -8,6 +8,7 @@ import com.ssafy.ontop.game.halligalli.service.HalliGalliEngine;
 import com.ssafy.ontop.game.ledger.service.DiceLedgerEngine;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
+import com.ssafy.ontop.operation.service.ServiceOperationService;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,7 @@ public class CommittedGameStartService {
     private final Optional<HalliGalliEngine> halligalli;
     private final Optional<GameActivationPersistenceService> activations;
     private final AlkkagiEngine alkkagi;
+    private ServiceOperationService operations = ServiceOperationService.alwaysOpen();
 
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
             Optional<OneCardEngine> onecard, Optional<BridgeEngine> bridge, boolean authenticated, boolean rehearsal) {
@@ -89,7 +91,16 @@ public class CommittedGameStartService {
         this.alkkagi = alkkagi.orElse(null);
     }
 
+    /** 기존 생성자 계약을 유지하면서 Spring 환경에서만 운영 모드 정책을 연결한다. */
+    @Autowired(required = false)
+    void configureOperationGate(ServiceOperationService operations) {
+        this.operations = operations;
+    }
+
     public GameStartResult start(GameStartCommand command) {
+        if (!operations.allowsNewActivity()) {
+            return GameStartResult.rejected(command.startAttemptId(), "SERVICE_DRAINING");
+        }
         // 아직 엔진이 없거나 주사위 목표 점수가 정해지지 않았으면 예약 요청 전에 거절한다.
         if (!supported(command)) {
             return GameStartResult.rejected(command.startAttemptId(), "GAME_RUNTIME_UNAVAILABLE");
