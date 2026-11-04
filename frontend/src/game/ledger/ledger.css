@@ -62,6 +62,10 @@
 @media (prefers-reduced-motion: reduce) {
   .park-page .ledger-turn-cue, .park-page .ledger-actions .ledger-roll[data-attention] { animation: none; }
 }
+/* 공통 관전자 수 배지는 오른쪽 위에서 장부 시계를 가리므로, 주사위 장부에서만 왼쪽 위 채널 메뉴(86px × 0.86 × UI 배율) 아래로 옮긴다. */
+.park-page:has(.ledger-panel) .game-spectator-count {
+  left: var(--park-edge, 20px); right: auto; top: calc(var(--park-edge, 20px) + 86px * var(--park-hint-scale, .86) + 10px);
+}
 .ledger-board { width: 100%; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
 .ledger-board th, .ledger-board td { padding: 3px 4px; border-bottom: 1px solid var(--ledger-line); text-align: center; height: 24px; }
 .ledger-board tbody th { text-align: left; font-weight: 500; word-break: keep-all; line-height: 1.15; width: 30%; }
@@ -125,4 +129,6 @@
   .park-page .ledger-menu button { width: auto; }
   .park-page .ledger-turn-cue { left: 50%; top: calc(var(--park-edge) + 12px); padding: 8px 18px; }
   .ledger-turn-cue strong { font-size: 18px; }
+  /* 위쪽은 가로 장부 메뉴가 차지하므로 관전자 수 배지는 아래쪽 장부 패널 바로 위에 둔다. */
+  .park-page:has(.ledger-panel) .game-spectator-count { top: auto; bottom: calc(var(--park-edge, 20px) + 80px + 52dvh + 8px); }
 }
