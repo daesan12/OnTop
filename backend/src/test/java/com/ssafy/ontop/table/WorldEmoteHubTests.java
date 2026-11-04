@@ -125,6 +125,7 @@ class WorldEmoteHubTests {
         private void join(String channel) throws Exception {
             request("CHANNEL_JOIN", Map.of("channelId", channel));
             next("WORLD_STATE");
+            assertThat(next("WORLD_CHAT_TYPING_STATE").at("/payload/users")).isEmpty();
             assertThat(next("WORLD_PARK_DEBRIS_STATE").at("/payload/items")).isEmpty();
         }
 
