@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useGame, canPlayDice } from '../store'
 import { useSession } from '../../network/worldClient'
-import { inputState, clearRoamingInput } from '../../world/inputOwnership'
+import { inputState, clearRoamingInput, panelOwnsGameClicks } from '../../world/inputOwnership'
 import { resetSeatedLook } from '../../features/tableLobby/state'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { eligibleDice, validDiceAction } from './scoring'
@@ -57,7 +57,7 @@ export function syncDiceUI(animate = false) {
 export function diceCanAct() {
   const s = useSession.getState(), ui = useDiceUI.getState()
   return s.status === 'connected' && !s.pending && canPlayDice(s.sessionId)
-    && !Object.values(inputState).some(Boolean) && !ui.scoreOpen && performance.now() >= ui.animationUntil
+    && !panelOwnsGameClicks() && !ui.scoreOpen && performance.now() >= ui.animationUntil
 }
 export function selectedDice() { return useDiceUI.getState().scope === diceScope() ? useDiceUI.getState().selectedIds : [] }
 export function canRollDice() {
