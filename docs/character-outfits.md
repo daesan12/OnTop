@@ -66,7 +66,7 @@
 새 옷은 `tools/character/fit_outfit.py`를 쓴다. `add_set.py`(장군)에서 장군 전용 보정을 뺀 범용 스크립트다.
 
 ```bash
-"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10;SHOES:6,8" skirt=TOP pants=1 sleeve_drape=0.4 sleeves=3,5 under_tops=1 cull=1 lining=1 v_cut=-0.0088,0.498,-0.040,0.602,0.034,0.602 v_cut_margin=0.012 lining_down=0.09 pants_hem=0.003 shoe_level=1 shoe_level_up=-0.001 shoe_level_r=0.075 dark_lining=SHOES clean_dark=TOP predecimate=0:5000 shoe_cap=1 shoe_cap_depth=0.01 beoseon=0.05 clean_skin=TOP brighten=TOP,BOTTOM despeck=1 pants_full=1.7 pants_low=1.55 neck_poke=1 push_neck=back rim_neck=20 rim_neck_down=0.07 neck_tone=1 lining_tone=skin v_cut_up=0 lining_up=0.006 lining_front=-0.015 "seam=12>3,5" under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9
+"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10;SHOES:6,8" skirt=TOP pants=1 sleeve_drape=0.4 sleeves=3,5 under_tops=1 cull=1 lining=1 v_cut=-0.0088,0.498,-0.040,0.602,0.034,0.602 v_cut_margin=0.012 lining_down=0.09 pants_hem=0.003 shoe_level=1 shoe_level_up=-0.001 shoe_level_r=0.075 dark_lining=SHOES clean_dark=TOP predecimate=0:5000 shoe_cap=1 shoe_cap_depth=0.01 clean_skin=TOP brighten=TOP,BOTTOM despeck=1 pants_full=1.7 pants_low=1.55 neck_poke=1 push_neck=back rim_neck=20 rim_neck_down=0.07 neck_tone=1 lining_tone=skin v_cut_up=0 lining_up=0.006 lining_front=-0.015 "seam=12>3,5" under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9
 ```
 
 위는 갓·도포(세트 h)를 만든 그대로의 명령이다. 숫자 값(`v_cut` 좌표 등)은 이 옷에 맞춘 것이라 새 옷에서는 다시 잰다.
@@ -88,7 +88,6 @@
 | `shoe_level=1` | 낮은 신발의 들쭉날쭉한 입구를 면을 지우지 않고 한 높이로 눌러 평평하게 만든다(지우면 구멍이 남). `shoe_level_up`은 높이, `shoe_level_r`은 발목 중심에서의 범위 |
 | `dark_lining=SHOES` | 신발 안쪽의 흰 안감을 신발의 어두운 색으로 칠한다 |
 | `shoe_cap=1` | 신발 입구를 어두운 평평한 뚜껑으로 막는다. 위에서 보면 신발 속이 비어 바닥이 보였다. `shoe_cap_depth`는 뚜껑 둘레를 잡는 깊이 |
-| `beoseon=0.05` | 흰 버선을 만든다. 신발 뚜껑 바로 아래부터 신발 테두리 위 5 cm까지, 몸 발·종아리 모양으로 1.5 mm 띄우고 윗선은 수평으로 자른다. 신발이 그 높이까지 몸을 가린다. 바지를 벗으면 발목이 없어지고 다리 끝이 들쭉날쭉했다. 바지를 입으면 가려진다 |
 | `pants_full`, `pants_low` | 바지 통. `pants_low`를 주면 발목 바로 위까지 넉넉하다가 발목에서 모인다(대님 바지) |
 | `push_neck=0`/`back`/`all` | 목 둘레(목 관절에서 10 cm 안, `back`이면 등 전체도, `all`이면 상의 전체)의 상의는 점마다 몸 밖으로 밀지 않고, 필요한 만큼을 이웃에 퍼뜨려 한 덩어리로 들어 올린다. 점마다 밀면 옷깃 띠가 목에 닿는 곳에서 톱니처럼 끊겨 보였다. `rim_neck=20`은 그 둘레 옷깃 가장자리(목 관절 아래 `rim_neck_down`까지)를 자기 선을 따라 20번 고르게 펴서 작은 조각을 없앤다. 도포는 `back`: 목 둘레만 들면 그 경계가 등에 가로줄로 남았고, `all`은 앞 옷깃을 거칠게 했다 |
 | `v_cut_up=0` | V자 자르기를 위 모서리에서 멈춘다(기본 3 cm 위까지). 그 위는 목을 두르는 옷깃 띠라 잘리면 끊겨 보였다 |
