@@ -24,6 +24,14 @@ it('hides a countdown during a resolution phase instead of presenting it as an a
   const html=renderToStaticMarkup(createElement(GameHudClock,{game:'알까기',label:'상대 차례',remainingMs:15000,phase:'충돌 판정'}))
   expect(html).toContain('충돌 판정');expect(html).not.toContain('<progress')
 })
+it('rapid turns emphasize only one existing clock label without adding an overlay or changing the deadline',()=>{
+  const html=renderToStaticMarkup(createElement(GameHudClock,{game:'과일 땡',label:'공원지기 차례',remainingMs:2500,limitMs:5000,rapidTurnKey:'g/7/102'}))
+  expect(html.match(/data-rapid-turn="true"/g)).toHaveLength(1)
+  expect(html).toContain('max="5000" value="2500"')
+  expect(html).not.toContain('game-turn-notice')
+  const paused=renderToStaticMarkup(createElement(GameHudClock,{game:'과일 땡',label:'종 결과',remainingMs:2500,rapidTurnKey:'g/7/102',phase:'결과 확인'}))
+  expect(paused).not.toContain('data-rapid-turn="true"')
+})
 it('keeps the game callbacks and their disabled state inside a native collapsible menu',()=>{
   const html=renderToStaticMarkup(createElement(GameHudMenu,{children:createElement('button',{disabled:true},'기권')}))
   expect(html).toContain('<summary>');expect(html).toContain('게임 메뉴')

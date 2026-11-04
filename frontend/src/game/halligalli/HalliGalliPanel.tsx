@@ -73,7 +73,8 @@ export function HalliGalliPanel() {
     <HalliIntro gameId={g.gameId} />
     {playing && <GameHudClock game="과일 땡" label={player&&h.turnUserId===own?'내 차례':h.turnUserId?`${names[h.turnUserId]} 차례`:'마지막 종 기회'}
       remainingMs={h.flipDeadline?Date.parse(h.flipDeadline)-now:null} limitMs={h.flipTimeLimitMs} phase={paused?'결과 확인':undefined}
-      myTurn={player&&h.turnUserId===own} hint="같은 과일이 정확히 5개면 종!"/>}
+      myTurn={player&&h.turnUserId===own} rapidTurnKey={`${g.gameId}/${h.flipSeq}/${h.turnUserId}`}
+      hint="같은 과일이 정확히 5개면 종!"/>}
     <div className="hg-feedback">
       {standing && <p>{standing}</p>}
       {notice.text && now - notice.at < NOTICE_MS && <p role="status">{notice.text}</p>}

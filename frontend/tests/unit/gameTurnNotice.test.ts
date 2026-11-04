@@ -14,7 +14,7 @@ const states = {
   omok:{status:'PLAYING',turnUserId:'101',turnDeadline:deadline,moveCount:2},
   onecard:{status:'PLAYING',turnUserId:'101',turnDeadline:deadline,turnCount:8,players:[{userId:'101',active:true,cardCount:7},{userId:'102',active:true,cardCount:7}]},
   dice:{status:'PLAYING',turnUserId:'101',turnDeadline:deadline},
-  bridge:bridgeState(2),ledger:ledgerState(2),halli:halliState(2),
+  bridge:bridgeState(2),ledger:ledgerState(2),
 }
 
 describe('서버 공개 차례의 참가자/관전자 안내',()=>{
@@ -33,13 +33,20 @@ describe('서버 공개 차례의 참가자/관전자 안내',()=>{
     expect(gameTurnCue({...g,role:'SPECTATOR'},'505',names,now)?.text).toBe('공원지기님 판단 차례')
     expect(gameTurnCue(game('bridge',{...states.bridge,stage:'RESOLVING'}),'101',names,now)).toBeNull()
   })
-  it('동전·카드 배분·종 결과 연출과 마지막 종 기회에는 일반 차례를 재생하지 않는다',()=>{
+  it('동전·카드 배분 중에는 일반 차례를 재생하지 않는다',()=>{
     expect(gameTurnCue(game('omok',{...states.omok,turnDeadline:new Date(now-1).toISOString()}),'101',names,now)).toBeNull()
     expect(gameTurnCue(game('omok',{...states.omok,coinTossEndsAt:deadline}),'101',names,now)).toBeNull()
     expect(gameTurnCue(game('onecard',{...states.onecard,dealEndsAt:deadline,turnCount:1,players:[{active:true,cardCount:7},{active:true,cardCount:7}]}),'101',names,now)).toBeNull()
-    expect(gameTurnCue(game('halli',{...states.halli,resultUntil:deadline}),'101',names,now)).toBeNull()
-    expect(gameTurnCue(game('halli',{...states.halli,turnUserId:null}),'101',names,now)).toBeNull()
     expect(gameTurnCue(null,'101',names,now)).toBeNull()
+  })
+  it('과일 땡은 빠른 연속 공개·종 결과·관전자 입장에도 중앙 차례 알림을 만들지 않는다',()=>{
+    for(let flipSeq=0;flipSeq<100;flipSeq++) {
+      const h=halliState(2,{flipSeq,turnUserId:flipSeq%2?'101':'102'})
+      expect(gameTurnCue(game('halli',h),'101',names,now+flipSeq*100)).toBeNull()
+      expect(gameTurnCue(game('halli',h,'SPECTATOR'),'505',names,now+flipSeq*100)).toBeNull()
+    }
+    expect(gameTurnCue(game('halli',halliState(2,{resultUntil:deadline})),'101',names,now)).toBeNull()
+    expect(gameTurnCue(game('halli',halliState(2,{turnUserId:null})),'101',names,now)).toBeNull()
   })
   it('버전·굴림·공개 상태 재확인은 재생하지 않고 실제 다음 차례만 재생한다',()=>{
     const g=game('ledger',states.ledger),memory=new TurnNoticeMemory()

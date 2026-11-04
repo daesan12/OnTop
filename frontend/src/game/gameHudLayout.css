@@ -116,6 +116,9 @@
 .park-page .game-turn-notice small {font:13px/1.5 var(--game-hud-font);color:#eee9db}
 @keyframes game-turn-reveal {0%{opacity:0;translate:0 8px}15%,70%{opacity:1;translate:0 0}100%{opacity:0;translate:0 -5px}}
 @media(prefers-reduced-motion:reduce){.park-page .game-turn-notice{animation:none}}
+.park-page .game-hud-turn[data-rapid-turn=true] {animation:game-hud-rapid-turn .3s ease-out both}
+@keyframes game-hud-rapid-turn {from{background:#b89b4055}to{background:transparent}}
+@media(prefers-reduced-motion:reduce){.park-page .game-hud-turn[data-rapid-turn=true]{animation:none}}
 @media(max-width:999px) {
   .park-page {--game-hud-rail:min(180px,calc(50vw - 18px));--game-hud-edge:12px}
   .park-page .game-hud-clock {padding:10px 12px;gap:4px}

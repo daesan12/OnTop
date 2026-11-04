@@ -5,7 +5,8 @@ export interface TurnCue { key: string; own: boolean; text: string; hint: string
 
 /** Public state only. A snapshot/version update is not necessarily a new turn. */
 export function gameTurnCue(game: Game | null, viewer: string, names: Record<string, { nickname: string }>, now: number): TurnCue | null {
-  if (!game || gameState(game).status !== 'PLAYING' || game.alkkagi) return null // Alkkagi also sequences card award animations.
+  // Alkkagi sequences awards separately. Halli's rapid flips use the clock/seat highlight, never a board overlay.
+  if (!game || gameState(game).status !== 'PLAYING' || game.alkkagi || game.halli) return null
   const state = gameState(game), deadline = 'flipDeadline' in state ? state.flipDeadline : state.turnDeadline
   if (typeof deadline === 'string' && Date.parse(deadline) <= now) return null
   let actor: string | null = null, turn = '', judging = false
@@ -24,9 +25,6 @@ export function gameTurnCue(game: Game | null, viewer: string, names: Record<str
     turn = `${game.bridge.turnId}/${judging ? 'respond' : 'declare'}`
   } else if (game.ledger) {
     actor = game.ledger.turnUserId; turn = String(game.ledger.turnId)
-  } else if (game.halli) {
-    if (game.halli.resultUntil && Date.parse(game.halli.resultUntil) > now) return null
-    actor = game.halli.turnUserId; turn = String(game.halli.flipSeq)
   }
   if (!actor || !turn) return null
   const own = game.role === 'PLAYER' && actor === viewer
@@ -36,7 +34,7 @@ export function gameTurnCue(game: Game | null, viewer: string, names: Record<str
     text: own ? judging ? '내 판단 차례!' : '내 차례!' : game.role === 'SPECTATOR'
       ? `${name}님 ${judging ? '판단 차례' : '차례'}` : judging ? `${name}님 판단 차례` : '상대 차례',
     hint: game.role === 'SPECTATOR' ? '관전 중 · 서버에서 확인한 차례' : own
-      ? judging ? '믿음 또는 의심을 선택하세요' : game.halli ? '카드를 공개하세요 · 종은 누구나!' : '준비됐나요?'
+      ? judging ? '믿음 또는 의심을 선택하세요' : '준비됐나요?'
       : `${name}님의 행동을 기다려요`,
   }
 }
