@@ -45,6 +45,11 @@
   border-radius:12px;background:var(--game-hud-surface);color:var(--game-hud-text);font:500 14px/1.5 'Malgun Gothic',sans-serif;pointer-events:none;
 }
 .park-page .game-hud-eyebrow {font-size:11px;color:var(--game-hud-muted);letter-spacing:.08em}
+/* "게임명 · N냥" inherits the eyebrow text style. Only the stake may shrink (ellipsis), so the name and the card never wrap or grow. */
+.park-page .game-hud-eyebrow:has(>.game-hud-title) {max-width:100%}
+.park-page .game-hud-title {display:flex;min-width:0;white-space:nowrap}
+.park-page .game-hud-stake {min-width:0;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:999px) {.park-page .game-hud-stake {display:none}}
 .park-page .game-hud-turn {max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
 .park-page .game-hud-clock strong {font:600 36px/1.05 'Malgun Gothic',sans-serif;font-variant-numeric:tabular-nums;color:var(--game-hud-gold)}
 .park-page .game-hud-clock strong small {font-size:13px;margin-left:5px;font-weight:500}
