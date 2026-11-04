@@ -19,6 +19,7 @@ import { ONECARD_CAMERA, oneCardCameraPose, oneCardSpectatorCameraPose } from '.
 import { TABLES, tableScale, tableSeats } from '../../src/config'
 import { HALLI_LAYOUT, bellCentre, faceUpCorners, halliSeatIndices, labelPoint, pileCorners, quadTransform, seatFrame, stackHeight } from '../../src/game/halligalli/anchors'
 import { HalliStage } from '../../src/game/halligalli/HalliStage'
+import { outsideSheet } from '../../src/game/halligalli/HalliForfeit'
 import { ringAllowedBell } from '../../src/game/halligalli/controls'
 import { bellLabel } from '../../src/game/halligalli/Bell'
 import { parkRuntime } from '../../src/park/runtime/runtime'
@@ -532,5 +533,18 @@ describe('table stage rendering', () => {
     expect(own).toContain('data-kind="turn">마지막 종 기회')
     expect(own).toMatch(/<button[^>]*class="hg-stage-draw"[^>]*disabled/)
     expect(html('505', {}, state)).toContain('나 · 마지막 종 기회')
+  })
+})
+
+describe('forfeit confirmation backdrop', () => {
+  // Stand-ins for event targets: the backdrop is outside the sheet, the sheet and everything in it are inside.
+  const node = (inSheet: boolean) => ({ closest: (selector: string) => selector === '.hg-forfeit-dialog' && inSheet ? {} : null }) as unknown as EventTarget
+  it('treats only targets off the sheet as backdrop clicks', () => {
+    expect(outsideSheet(node(false))).toBe(true)
+    // The sheet, its text, its buttons and its close button all sit inside .hg-forfeit-dialog.
+    expect(outsideSheet(node(true))).toBe(false)
+    expect(outsideSheet(null)).toBe(false)
+    // A text node or window has no closest(): never a backdrop click.
+    expect(outsideSheet({} as EventTarget)).toBe(false)
   })
 })

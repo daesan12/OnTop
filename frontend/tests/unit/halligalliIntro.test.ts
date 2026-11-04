@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { Game, StartState } from '../../src/game/protocol'
 import { parseHalliGalli } from '../../src/game/halligalli/protocol'
-import { INTRO_MS, freshStart, introLeft, useHalliIntro, watchIntro, type IntroWatch } from '../../src/game/halligalli/intro'
+import { INTRO_MS, freshStart, introTimer, useHalliIntro, watchIntro, type IntroWatch } from '../../src/game/halligalli/intro'
 import { IntroCard } from '../../src/game/halligalli/HalliIntro'
 import { resetGame, useGame } from '../../src/game/store'
 import { halliPlayer, halliState } from '../fixtures/halligalli'
@@ -65,17 +65,64 @@ describe('start rule card', () => {
     useGame.setState({ start: start('PLAYING'), game: game(first(2, 0, {}, Date.now())) })
     expect(useHalliIntro.getState().gameId).toBe('g1')
   })
-  it('renders the rule text as a status, for this game only and for about 2 s', () => {
+  it('renders the rule text as a status', () => {
     const html = renderToStaticMarkup(createElement(IntroCard))
     expect(html).toContain('class="hg-intro" role="status"')
     expect(html.replace(/<[^>]+>/g, '')).toBe('과일 합이 5개가 되면 종을 치세요!')
     expect(html).not.toContain('style=')
-    const intro = { gameId: 'g1', at: 1000 }
-    expect(introLeft(intro, 'g1', 1000)).toBe(INTRO_MS)
-    expect(introLeft(intro, 'g1', 2500)).toBe(500)
-    expect(introLeft(intro, 'g1', 1000 + INTRO_MS)).toBeLessThanOrEqual(0)
-    expect(introLeft(intro, 'g2', 1000)).toBe(0)
-    expect(introLeft({ gameId: '', at: 0 }, '', 0)).toBe(0)
+  })
+})
+
+describe('start rule card end timer', () => {
+  afterEach(() => { vi.useRealTimers() })
+  it('ends exactly once, INTRO_MS after the card was first drawn, and not a millisecond before', () => {
+    vi.useFakeTimers()
+    const done = vi.fn()
+    introTimer(1000, 1000, done)
+    vi.advanceTimersByTime(INTRO_MS - 1)
+    expect(done).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(done).toHaveBeenCalledOnce()
+    vi.advanceTimersByTime(60_000)
+    expect(done).toHaveBeenCalledOnce()
+  })
+  it('counts from when the card was drawn when the effect starts late, and ends at once if that is already past', () => {
+    vi.useFakeTimers()
+    const late = vi.fn(), past = vi.fn()
+    introTimer(1000, 1700, late)
+    vi.advanceTimersByTime(INTRO_MS - 700 - 1)
+    expect(late).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(late).toHaveBeenCalledOnce()
+    introTimer(1000, 1000 + INTRO_MS + 500, past)
+    vi.advanceTimersByTime(0)
+    expect(past).toHaveBeenCalledOnce()
+  })
+  it('ends the card even when the timer fires early or the clock drifts: the end is the call, not a clock re-check', () => {
+    // A browser may run a 1999.7 ms timer at 1999 ms (whole-millisecond delays); the old check would then still have
+    // 0.7 ms left, keep the card and never set another timer. The end call does not look at the clock again.
+    vi.useFakeTimers()
+    let shown = { gameId: 'g1', at: 1000.3, done: false }
+    introTimer(shown.at, 1000.3, () => { shown = shown.at === 1000.3 ? { ...shown, done: true } : shown })
+    vi.advanceTimersByTime(INTRO_MS - 1)
+    vi.advanceTimersByTime(1)
+    expect(shown.done).toBe(true)
+    // A clock running far behind or ahead does not change it either: the delay is fixed when the timer is set.
+    const slow = vi.fn(), fast = vi.fn()
+    introTimer(0, -5000, slow); introTimer(0, 10_000, fast)
+    vi.advanceTimersByTime(0)
+    expect(fast).toHaveBeenCalledOnce()
+    vi.advanceTimersByTime(INTRO_MS + 5000)
+    expect(slow).toHaveBeenCalledOnce()
+  })
+  it('cancels on unmount or a game change: no end call after the cleanup', () => {
+    vi.useFakeTimers()
+    const done = vi.fn()
+    const cancel = introTimer(0, 0, done)
+    vi.advanceTimersByTime(INTRO_MS / 2)
+    cancel()
+    vi.advanceTimersByTime(INTRO_MS)
+    expect(done).not.toHaveBeenCalled()
   })
 
 })

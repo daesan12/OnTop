@@ -12,8 +12,12 @@ import { useGame } from '../store'
  * Menu trigger and a centred confirmation (the shared PaperPopup, like ALKKAGI). Presentation only: the shared forfeit
  * flow keeps the permission check, the one-request-at-a-time guard and receipt recovery. The game clock keeps running.
  */
+/** True for a target on the dimmed backdrop: anything not inside the confirmation sheet itself. */
+export const outsideSheet = (target: EventTarget | null) =>
+  !!target && typeof (target as Element).closest === 'function' && !(target as Element).closest('.hg-forfeit-dialog')
+
 export function HalliForfeit({ gameId, disabled }: { gameId: string; disabled: boolean }) {
-  const [open, setOpen] = useState(false), cancel = useRef<HTMLButtonElement>(null)
+  const [open, setOpen] = useState(false), cancel = useRef<HTMLButtonElement>(null), pressedOutside = useRef(false)
   const state = useGame(), runtime = useParkRuntime()
   const session = useSession(useShallow(s => ({ userId: s.sessionId, status: s.status, pending: s.pending })))
   const saved = useForfeit(s => s.attempt)
@@ -32,8 +36,12 @@ export function HalliForfeit({ gameId, disabled }: { gameId: string; disabled: b
   return <div className="hg-menu-danger">
     <button type="button" className="hg-forfeit-trigger" disabled={!canStart && !recovering} aria-haspopup="dialog" aria-expanded={open}
       onClick={() => setOpen(true)}>기권</button>
-    {/* A click on the dimmed backdrop (not the sheet) cancels, like Esc and the close button. */}
-    {open && createPortal(<div className="hg-forfeit-layer" onClick={e => { if (e.target === e.currentTarget.firstElementChild) close() }}>
+    {/*
+      A click on the dimmed backdrop cancels, like Esc and the close button. Both the press and the release must be off
+      the sheet, so a drag that starts on the sheet (selecting its text) and ends outside does not close it.
+    */}
+    {open && createPortal(<div className="hg-forfeit-layer" onPointerDown={e => { pressedOutside.current = outsideSheet(e.target) }}
+      onClick={e => { if (pressedOutside.current && outsideSheet(e.target)) close(); pressedOutside.current = false }}>
       <PaperPopup title="과일 땡" label="과일 땡 기권 확인" closeLabel="기권 취소" className="hg-forfeit-dialog" initialFocusRef={cancel} onClose={close}>
         <h2>기권하시겠어요?</h2>
         <p className="paper-subtitle">기권하면 현재 게임에서 패배 처리됩니다. 정말 기권하시겠어요?</p>

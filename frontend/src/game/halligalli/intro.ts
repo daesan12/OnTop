@@ -30,9 +30,14 @@ export function watchIntro(w: IntroWatch, start: StartState | null, game: Game |
 }
 
 export const useHalliIntro = create<{ gameId: string; at: number }>(() => ({ gameId: '', at: 0 }))
-/** Milliseconds the card still shows for this game (performance clock); 0 or less once it is over. */
-export const introLeft = (intro: { gameId: string; at: number }, gameId: string, now: number) =>
-  intro.gameId === gameId && intro.gameId !== '' ? INTRO_MS - (now - intro.at) : 0
+/**
+ * Ends the card INTRO_MS after it was first drawn (`shownAt`, performance clock). The end is one explicit call, never a
+ * later re-check of the clock, so a timer that fires a little early or late still ends it exactly once. Returns the cancel.
+ */
+export function introTimer(shownAt: number, now: number, done: () => void) {
+  const timer = setTimeout(done, Math.max(0, INTRO_MS - (now - shownAt)))
+  return () => clearTimeout(timer)
+}
 
 let watch: IntroWatch = { armed: false, played: [] }
 // Installed when the module loads (GamePanel imports the panel up front), so the waiting phase is already seen.

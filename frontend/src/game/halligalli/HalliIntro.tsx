@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
-import { introLeft, useHalliIntro } from './intro'
+import { introTimer, useHalliIntro } from './intro'
 
 /** Older than this when the card could first be drawn (a slow first scene), it is skipped rather than shown late. */
 const LATE_MS = 3000
@@ -7,22 +7,22 @@ const LATE_MS = 3000
 /**
  * The start rule card: about two seconds over the table, never taking the pointer or the keyboard. The two seconds
  * count from the card's first commit, not from the state's arrival, so a heavy first frame does not eat into them.
+ * Whether it shows is state only (`done`), never a clock read during render.
  */
 export function HalliIntro({ gameId }: { gameId: string }) {
   const intro = useHalliIntro()
-  const [shown, setShown] = useState({ gameId: '', at: 0 })
-  const [, setTick] = useState(0)
+  const [shown, setShown] = useState({ gameId: '', at: 0, done: false })
   const due = intro.gameId === gameId && intro.gameId !== '' && shown.gameId !== gameId
   useLayoutEffect(() => {
-    if (due && performance.now() - intro.at < LATE_MS) setShown({ gameId, at: performance.now() })
+    if (due && performance.now() - intro.at < LATE_MS) setShown({ gameId, at: performance.now(), done: false })
   }, [due, intro.at, gameId])
-  const left = introLeft(shown, gameId, performance.now()), showing = left > 0
-  // One timer to take it down; cleared on unmount and whenever another game or intro replaces it.
+  const showing = shown.gameId === gameId && !shown.done
+  // One timer per showing; cleared on unmount and when the game changes (showing turns false).
   useEffect(() => {
     if (!showing) return
-    const timer = setTimeout(() => setTick(t => t + 1), left)
-    return () => clearTimeout(timer)
-  }, [shown.at, gameId, showing])
+    const at = shown.at
+    return introTimer(at, performance.now(), () => setShown(s => s.at === at ? { ...s, done: true } : s))
+  }, [showing, shown.at])
   return showing ? <IntroCard /> : null
 }
 

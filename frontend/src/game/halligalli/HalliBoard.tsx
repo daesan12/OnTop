@@ -264,13 +264,18 @@ function StageProjector({ anchor, halli }: { anchor: TableAnchor; halli: HalliGa
       const xs = q.map(c => c.x), ys = q.map(c => c.y)
       return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) }
     })
-    // The viewer's own label is the status bar docked at the bottom centre by CSS; only the other seats hang here.
-    const viewer = useSession.getState().sessionId
+    // The viewer's own label (data-own, set by HalliStage from the panel's viewerId) is the status bar docked at the
+    // bottom centre by CSS; only the other seats hang here. Reading the same attribute keeps both sides in step.
     h.players.forEach((p, i) => {
       quad(`face:${p.userId}`, faces[i]!, HALLI_STAGE_PX.card.w, HALLI_STAGE_PX.card.h)
       quad(`draw:${p.userId}`, piles[i]!, HALLI_STAGE_PX.card.w, HALLI_STAGE_PX.card.h)
       const label = halliStageElements.get(`label:${p.userId}`), at = project(labelPoint(anchor, seats[i]!))
-      if (!label || p.userId === viewer) return
+      if (!label) return
+      if (label.dataset.own !== undefined) {
+        // A seat that just became the viewer's (session or role change) drops its projected place for the CSS dock.
+        if (written.current.has(label)) { label.style.transform = ''; written.current.delete(label) }
+        return
+      }
       // Hang the label off the felt edge, away from the bell, and keep it whole inside the screen.
       const dx = at.x - centre.x, dy = at.y - centre.y, length = Math.hypot(dx, dy) || 1, ux = dx / length, uy = dy / length
       const w = label.offsetWidth, hgt = label.offsetHeight
