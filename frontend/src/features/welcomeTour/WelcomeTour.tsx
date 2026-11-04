@@ -5,6 +5,7 @@ import { useBungeoppang } from '../bungeoppang/store'
 import { useManual } from '../manual/manualState'
 import { useRpsRoulette } from '../rpsRoulette/store'
 import { usePlusMinus } from '../plusMinus/store'
+import { useMole } from '../mole/store'
 import { useArcade } from '../arcade/store'
 import { useNavigation } from '../navigation/navigationState'
 import { flightCaption, WELCOME_FLIGHT_MS, welcomeFlight } from './flight'
@@ -45,6 +46,7 @@ export function WelcomeTour() {
       rising(useRpsRoulette, s => s.open, 'minigame'),
       rising(useArcade, s => s.open, 'minigame'),
       rising(usePlusMinus, s => s.open, 'minigame'),
+      rising(useMole, s => s.open, 'minigame'),
       rising(useBungeoppang, s => s.phase !== 'idle', 'minigame'),
       rising(useSession, s => !!(s.tableId || s.watchedTableId), 'table'),
     ]

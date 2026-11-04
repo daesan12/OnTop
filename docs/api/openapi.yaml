@@ -656,6 +656,203 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/minigames/whack-a-mole/rounds:
+    post:
+      tags:
+      - MINIGAME
+      summary: 두더지 잡기 시작
+      description: 참가비 없이 새 판을 열고 90초 출현표를 반환합니다. 끝내지 않은 이전 판은 보상 없이 닫습니다. Idempotency-Key를
+        재사용하면 같은 판을 반환합니다.
+      operationId: startWhackAMoleRound
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          type: string
+      responses:
+        "400":
+          description: MOLE_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "404":
+          description: MOLE_ROUND_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "409":
+          description: WALLET_NOT_READY / MOLE_ROUND_NOT_FINISHED / MOLE_ROUND_EXPIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "503":
+          description: MOLE_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "201":
+          description: 새 판 또는 같은 요청 재확인
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/whack-a-mole/rounds/{roundId}/complete:
+    post:
+      tags:
+      - MINIGAME
+      summary: 두더지 잡기 완료
+      description: "타격 기록(구멍 0~7, 판 시작 기준 ms)으로 서버가 점수를 다시 계산하고 30점당 1냥을 미니게임 공통 하\
+        루 상한 안에서 지급합니다. 이미 정산한 판은 같은 결과를 반환합니다."
+      operationId: completeWhackAMoleRound
+      parameters:
+      - name: roundId
+        in: path
+        required: true
+        schema:
+          pattern: "^[1-9][0-9]{0,18}$"
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteRequest"
+      responses:
+        "400":
+          description: MOLE_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "404":
+          description: MOLE_ROUND_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "409":
+          description: WALLET_NOT_READY / MOLE_ROUND_NOT_FINISHED / MOLE_ROUND_EXPIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "503":
+          description: MOLE_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "200":
+          description: 정산 결과
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/skewer/admissions:
     post:
       tags:
@@ -4444,6 +4641,93 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ServiceOperationResponse"
+  /api/v1/minigames/whack-a-mole/status:
+    get:
+      tags:
+      - MINIGAME
+      summary: 두더지 잡기 상태 조회
+      description: "오늘 받은 미니게임 보상 합계, 하루 상한, 최고 점수, 규칙과 가장 최근 정산 판을 반환합니다."
+      operationId: getWhackAMoleStatus
+      responses:
+        "400":
+          description: MOLE_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "404":
+          description: MOLE_ROUND_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "409":
+          description: WALLET_NOT_READY / MOLE_ROUND_NOT_FINISHED / MOLE_ROUND_EXPIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "503":
+          description: MOLE_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "200":
+          description: 현재 상태
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/sessions/{sessionId}:
     get:
       tags:
@@ -5596,6 +5880,133 @@ components:
           type: string
           format: date-time
           nullable: true
+    Mole:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+        hole:
+          type: integer
+          format: int32
+        kind:
+          type: string
+        hits:
+          type: integer
+          format: int32
+        appearAt:
+          type: integer
+          format: int32
+        leaveAt:
+          type: integer
+          format: int32
+    Round:
+      type: object
+      properties:
+        id:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        rules:
+          $ref: "#/components/schemas/Rules"
+        moles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Mole"
+    Rules:
+      type: object
+      properties:
+        durationMs:
+          type: integer
+          format: int32
+        phaseMs:
+          type: integer
+          format: int32
+        keys:
+          type: array
+          items:
+            type: string
+        pointsPerCoin:
+          type: integer
+          format: int32
+        normalPoints:
+          type: integer
+          format: int32
+        goldPoints:
+          type: integer
+          format: int32
+        decoyPenalty:
+          type: integer
+          format: int32
+        rapidPoints:
+          type: array
+          items:
+            type: integer
+            format: int32
+        comboSteps:
+          type: array
+          items:
+            type: integer
+            format: int32
+        comboTenths:
+          type: array
+          items:
+            type: integer
+            format: int32
+    CompleteRequest:
+      type: object
+      properties:
+        hits:
+          type: array
+          items:
+            $ref: "#/components/schemas/Hit"
+    Hit:
+      type: object
+      properties:
+        hole:
+          type: integer
+          format: int32
+        at:
+          type: integer
+          format: int32
+    Result:
+      type: object
+      properties:
+        id:
+          type: string
+        score:
+          type: integer
+          format: int32
+        maxCombo:
+          type: integer
+          format: int32
+        caught:
+          type: integer
+          format: int32
+        calculatedReward:
+          type: integer
+          format: int32
+        reward:
+          type: integer
+          format: int32
+        settledAt:
+          type: string
+          format: date-time
+    Settlement:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/Result"
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
+        bestScore:
+          type: integer
+          format: int32
     SkewerAdmissionResponse:
       required:
       - availableBalance
@@ -7258,6 +7669,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NoteResponse"
+    State:
+      type: object
+      properties:
+        serverNow:
+          type: string
+          format: date-time
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
+        bestScore:
+          type: integer
+          format: int32
+        rules:
+          $ref: "#/components/schemas/Rules"
+        last:
+          $ref: "#/components/schemas/Result"
     BungeoppangStatusResponse:
       required:
       - dailyCap

@@ -14,7 +14,9 @@ export interface HalliTableProps {
 export const stateLabel = (p: HalliPlayer) => p.forfeited ? '기권' : p.eliminated ? '탈락' : ''
 /** Two players left and the turn holder has no face-down card: the 5s turn is only a last bell chance, no flip. */
 export const onLastChance = (h: HalliGalli, p: HalliPlayer) => h.status === 'PLAYING' && h.turnUserId === p.userId && p.drawCount === 0
-export const turnLabel = (h: HalliGalli, p: HalliPlayer) => onLastChance(h, p) ? '마지막 종 기회' : '공개 차례'
+export const turnLabel = (h: HalliGalli, p: HalliPlayer, own = false) => onLastChance(h, p) ? '마지막 종 기회' : own ? '내 차례' : '공개 차례'
+/** Seat counts in the words the table uses: the face-down pile still to play and the cards already turned up. */
+export const pileText = (p: HalliPlayer) => `남은 카드 ${p.drawCount} · 펼친 카드 ${p.faceUpCount}`
 
 /** 2D table: own seat at the bottom, face-down pile beside the face-up top card, bell in the middle. */
 export function HalliTable({ halli, gameId, viewerId, names, canFlip, canRing, onFlip, onRing, keyHint = false }: HalliTableProps) {
@@ -24,12 +26,11 @@ export function HalliTable({ halli, gameId, viewerId, names, canFlip, canRing, o
       const own = p.userId === viewerId, turn = playing && halli.turnUserId === p.userId, out = stateLabel(p)
       return <section key={p.userId} className="hg-seat" data-slot={slots[i]} data-turn={turn || undefined}
         data-own={own || undefined} data-out={out ? (p.forfeited ? 'forfeited' : 'eliminated') : undefined}
-        aria-label={`${names[p.userId]}${turn ? ` · ${turnLabel(halli, p)}` : ''}${out ? ` · ${out}` : ''}`}>
+        aria-label={`${names[p.userId]}${turn ? ` · ${turnLabel(halli, p, own)}` : ''}${out ? ` · ${out}` : ''} · ${pileText(p)}`}>
         <header className="hg-seat-name">
           <strong>{names[p.userId]}</strong>
           {out ? <span className="hg-badge" data-kind={p.forfeited ? 'forfeited' : 'eliminated'}>{out}</span>
-            : turn ? <span className="hg-badge" data-kind="turn">{turnLabel(halli, p)}</span> : null}
-          <span className="hg-count">{p.cardCount}장</span>
+            : turn ? <span className="hg-badge" data-kind="turn">{turnLabel(halli, p, own)}</span> : null}
         </header>
         <div className="hg-piles">
           {own && turn ? <button type="button" className="hg-draw" data-pile={`draw:${p.userId}`} disabled={!canFlip} onClick={onFlip}

@@ -1,8 +1,8 @@
 # Quest 2 · 공원과 돌탑 점프맵 VR
 
 - 현재 작업 위치: `C:\Users\SSAFY\Desktop\OnTop\quest-vr`.
-- 현재 브랜치: `feat/quest-vr`.
-- 현재 통합 기준: `origin/dev@12bc82c1` (2026-11-04).
+- 현재 브랜치: `VR` (2026-11-04 `feat/quest-vr`에서 이름 변경).
+- 현재 통합 기준: `origin/dev@2e72a0dc8b4f5f17a08f3778e4649581fe2180c5` (2026-11-04).
 - 이관 원본: `park-jumpmap-vr-20261104`, `feat/park-jumpmap-vr-local-20261104@324db890`의 미커밋 VR 변경. 원본은 삭제·변경하지 않고 보존한다.
 - 기존 `quest-locomotion-poc`의 미커밋 작업과 독립 이동 화면은 원래 위치에 보존한다. 2026-11-04 사용자 승인으로 feat/quest-vr에 커밋·푸시하며 dev/master 머지·배포는 진행하지 않는다.
 
@@ -153,3 +153,17 @@ Browser plugin not available → 기존 Playwright·설치된 Chrome/SwiftShader
 새 검증 화면은 `C:\Users\SSAFY\.codex\visualizations\2026\10\30\01a18bbd-e069-7c42-a580-780c487d0035\quest-vr-transfer-20261104\`에 저장했다. 원본 해시 목록과 이관 패치는 같은 상위 시각화 폴더의 `quest-vr-source-before.json`, `quest-vr-transfer.patch`다.
 
 이관 완료 시점에는 로컬 변경으로 보존했다. 이후 2026-11-04 사용자가 최신 dev 반영 후 feat/quest-vr의 커밋·GitLab 푸시를 승인했다. dev/master에는 머지하지 않으며 MR·배포·브랜치 삭제도 이번 요청에 포함하지 않는다. 실제 Quest 검수는 위 남은 항목을 따른다.
+
+## 2026-11-04 최신 dev 통합 및 Quest 연결 전 PC 준비
+
+- 사용자 요청으로 `VR@8ff32c58`에 `origin/dev@2e72a0dc8b4f5f17a08f3778e4649581fe2180c5`의 추가 11개 커밋을 이력 보존 방식으로 병합했다. `ParkPage.tsx`는 자동 병합됐으며 충돌은 없었다. 마무리 fetch에서도 dev 기준이 같음을 확인했다.
+- 원격 `VR`은 직접/강제 푸시 금지, 개발자·유지관리자의 MR 머지 허용으로 보호돼 있다. 이번 동기화는 로컬 작업 기준에 반영하며 원격 직접 푸시·MR·원격 머지·배포·브랜치 삭제는 하지 않는다. 기존 VR 3개 커밋과 다른 worktree를 보존했다.
+- Node 24.18.0, pnpm 11.25.0, Java 21, 기존 동일 의존성 junction을 확인했다. 실제 검사에는 설치된 Node 도구를 직접 사용했다. pnpm의 자동 의존성 확인은 Windows sandbox symlink 권한으로 실패했으며 의존성/lockfile을 변경하지 않았다.
+- 앱/XR 타입 검사, 맵 `c05d8ada…` 및 코스 `5e03c470…` 검사 통과. 일반 공원과 협동 활성 공원 빌드, 백엔드 bootJar 빌드 통과.
+- FE 전체 단위: 최초 2,167개 통과·2개 실패·기존 6개 skip. 실패는 임시 파일 rename 권한과 병렬 부하의 5초 시간초과였으며 두 파일을 정상 권한·단일 작업자로 재실행해 14개 모두 통과했다. 최종 서로 다른 통과 테스트는 2,169개다. timeout/skip/서비스 코드는 변경하지 않았다.
+- BE 점프맵·생성 맵·꼬치왕 협동 회귀: 최초 101개 통과·맵 환경변수 미설정 4개 skip. 현재 generated 맵 경로를 제공해 나머지 4개를 별도 통과했다. 서로 다른 105개 통과이며 실제 MySQL/OAuth 검수와 구분한다.
+- 기존 Playwright·Chrome/SwiftShader의 XR 브라우저 검사 7개 통과. 페이지 식별, 렌더링, 오류 오버레이/앱 오류 없음, 입력·중립 복구·추적 중단·결과·랭킹·낮은 화면 스크롤을 확인했다. Browser plugin not available; 테스트 전용 XR/REST/WS fixture이며 실제 기기·로그인 증거가 아니다. 기존 Three/SwiftShader·대형 chunk 경고는 남아 있다.
+- PC 준비 파일은 저장소 밖 `C:\Users\SSAFY\Desktop\OnTop\output\quest-vr-pc-20261104\`에 두었다: `quest.env.example`, `Start-Backend.ps1`, `Start-Frontend.ps1`, `Connect-Quest.ps1`, `README.txt`, 브라우저 증거 PNG. 프론트 5288/백엔드 8080을 사용하며 세 PowerShell 스크립트의 구문 검사를 통과했다.
+- 실제 OAuth·DB 설정 파일은 현재 없으며 사용자가 추후 제공하기로 했다. 백엔드 기동·실제 로그인·DB 초기화/적용·실제 지급은 보류한다. 기존 로컬 MySQL 컨테이너(13386)와 적용 이력은 변경하지 않았다. 신규 migration은 만들지 않았다.
+- 향후 실제 설정은 기존 real-auth 실행기의 로컬 전용 DB 검사와 인증 WS를 사용한다. 공원/점프맵과 협동을 켜고 최신 generated 맵을 엄격히 확인한다. Quest USB 연결은 사이트 5288뿐 아니라 등록한 OAuth callback 8080도 reverse하도록 준비했다. 설정 미제공 상태에서 목업 로그인을 추가하거나 공개 개발 사이트로 우회하지 않는다.
+- 기기 단계는 사용자가 Quest 홈 화면 표시를 확인했다. 다음 안내는 스마트폰 Meta Horizon 앱에서 해당 Quest 2가 표시되는지 확인하는 단계다. USB/ADB 연결은 아직 실행하지 않았다.

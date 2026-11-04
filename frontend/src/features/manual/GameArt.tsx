@@ -3,12 +3,14 @@ import fruitDdaengManualArt from "../../game/halligalli/assets/manual.webp";
 import ledgerThumbnail from "../../game/ledger/assets/thumbnail.webp";
 import fishBreadThumbnail from "../bungeoppang/assets/thumbnail.webp";
 import rpsRouletteThumbnail from "../rpsRoulette/assets/thumbnail.webp";
+import moleThumbnail from "../mole/assets/thumbnail.webp";
 
 const gameThumbnails: Partial<Record<ManualGameId, string>> = {
   halligalli: fruitDdaengManualArt,
   ledger: ledgerThumbnail,
   "fish-bread": fishBreadThumbnail,
   "rps-roulette": rpsRouletteThumbnail,
+  "whack-a-mole": moleThumbnail,
 };
 
 /** Local game illustrations: no external asset requests. */

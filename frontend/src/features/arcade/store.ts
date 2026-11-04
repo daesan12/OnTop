@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
+import { openMole, refreshMole } from '../mole/store'
 import { openPlusMinus, refreshPlusMinus } from '../plusMinus/store'
 import { openRpsRoulette, refreshRpsRoulette } from '../rpsRoulette/store'
 
 /** 붕어빵 가게 옆 오락기 한 대에서 고르는 혼자 하는 게임. 공원 맵을 바꾸지 않으려고 게임기를 늘리지 않는다. */
-export type ArcadeGame = 'rps-roulette' | 'plus-minus'
+export type ArcadeGame = 'rps-roulette' | 'plus-minus' | 'whack-a-mole'
 
 export const useArcade = create<{ open: boolean; selected: ArcadeGame }>(() => ({ open: false, selected: 'rps-roulette' }))
 
@@ -14,9 +15,10 @@ export function openArcade() {
   inputState.minigameOpen = true
   if (document.pointerLockElement) document.exitPointerLock()
   useArcade.setState({ open: true })
-  // 고르는 화면에 오늘 남은 판과 진행 중인 판을 보여 주려고 두 게임 상태를 미리 읽는다.
+  // 고르는 화면에 오늘 남은 판·진행 중인 판·오늘 받은 엽전을 보여 주려고 게임 상태를 미리 읽는다.
   void refreshRpsRoulette()
   void refreshPlusMinus()
+  void refreshMole()
 }
 
 export function closeArcade() {
@@ -30,5 +32,6 @@ export const selectArcadeGame = (selected: ArcadeGame) => useArcade.setState({ s
 export function playArcadeGame(game = useArcade.getState().selected) {
   closeArcade()
   if (game === 'rps-roulette') openRpsRoulette()
-  else openPlusMinus()
+  else if (game === 'plus-minus') openPlusMinus()
+  else openMole()
 }

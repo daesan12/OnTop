@@ -123,6 +123,20 @@ public class WalletTransaction {
         return transaction;
     }
 
+    /** 두더지 잡기 점수 보상. 미니게임 공통 하루 상한에 합산하며 판마다 한 번만 쓴다. */
+    public static WalletTransaction moleReward(long walletId, long reward, String key, Instant now) {
+        if (walletId <= 0 || reward <= 0 || key == null || !key.startsWith("mole:reward:") || key.length() > 120) {
+            throw new IllegalArgumentException("두더지 잡기 보상 기록을 확인하세요.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.balanceDelta = reward;
+        transaction.transactionType = "MOLE_REWARD";
+        transaction.idempotencyKey = key;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
     /** 참가비를 건 판의 배당. 보상이 아니므로 미니게임 공통 하루 상한 합산 대상이 아니다. */
     public static WalletTransaction rpsRoulettePayout(long walletId, long payout, String key, Instant now) {
         if (walletId <= 0 || payout <= 0 || key == null || !key.startsWith("rps-roulette:payout:")
