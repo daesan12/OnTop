@@ -1,0 +1,5 @@
+.ready-balance-notice{margin:8px 0;font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.ready-balance-notice[data-shortage=true]{color:#a23525}
+.ready-balance-notice strong{font-weight:700}
+.ready-balance-notice button{font:inherit;min-height:32px;padding:4px 10px;margin-left:6px}
+.gathering-hud .ready-balance-notice[data-shortage=true]{color:#ffba9b}
