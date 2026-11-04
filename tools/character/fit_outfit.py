@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -840,6 +840,7 @@ if opt.get('neck_poke', '0') == '1' and 'TOP' in G:
     _tb = bmesh.new(); _tb.from_mesh(_me); _tb.transform(G['TOP'].matrix_world); top_bvh_ = BVHTree.FromBMesh(_tb); _tb.free()
 n_poke = 0
 pieces = 0
+neck_tone = opt.get('neck_tone', '0') == '1' and 'TOP' in G; tone_src = []
 # under_layer=1 (the gat's dopo): between the dopo's parts (the sleeves' seams at the shoulders, behind the collar)
 # the hidden body left see-through gaps (user: the shoulder seams and the neck look transparent). Every body face
 # the top hides becomes a white under-layer (the top's lit tone) 1 mm off the skin, skinned like the body, joined to
@@ -853,7 +854,7 @@ for o in body:
     me = o.data; mw = o.matrix_world
     gname = {g.index: g.name[len('mixamorig:'):] for g in o.vertex_groups if g.name.startswith('mixamorig:')}
     lead = [max(((e.weight, gname[e.group]) for e in v.groups if e.group in gname), default=(0, ''))[1] for v in me.vertices]
-    cover = []
+    cover = []; tone_faces = []
     for p in me.polygons:
         c = mw @ p.center
         votes = {}
@@ -867,14 +868,37 @@ for o in body:
                 n = (mw.to_3x3() @ p.normal).normalized()
                 if top_bvh_.ray_cast(c - n * 0.0005, -n, float(opt.get('neck_poke_in', 0.015)))[0] is not None:
                     cv.add('TOP'); n_poke += 1
+        # neck_tone=1 (the gat's dopo): the neck its open collar leaves showing was banded, the body texture's fold
+        # line at the neck's foot and a pinker band under it (user: one colour, please). While this top is worn
+        # the neck's visible faces (the neck's own, and the foot the collar leaves) are covered and shown instead,
+        # in place, in one skin colour: their mean, matched to the nearest texel of the outfit's atlas.
+        if neck_tone and 'TOP' not in cv and (bone_ == 'Neck' or (c.z > neck_z - 0.005 and math.hypot(c.x - neck_xy[0], c.y - neck_xy[1]) < 0.065)):
+            cv.add('TOP')
+            # (behind, the neck's foot came out under the collar as skin-coloured teeth: there the robe-coloured
+            # under-layer takes it instead)
+            if bone_ == 'Neck' or c.y < neck_xy[1]: tone_faces.append(p.index)
         if 'BOTTOM' in G and bone_ in BOTTOM_BONES and c.z > boot_top: cv.add('BOTTOM')
         if 'SHOES' in G and (bone_ in FOOT_BONES or (bone_ in BOTTOM_BONES and c.z <= boot_top)): cv.add('SHOES')
         if hair_bvh and bone_ in ('Head', 'HeadTop_End'):
             n = (mw.to_3x3() @ p.normal).normalized()
             if hair_bvh.ray_cast(c + n * 0.001, n, 0.02)[0] is not None: cv.add('HAIR')
         cover.append(cv)
+    if tone_faces:          # (copied now, like the under-layer: the body's covered faces are deleted below)
+        img_ = next((n.image for m in o.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image), None)
+        cols_ = []
+        if img_:
+            w2, h2 = img_.size; PB = np.array(img_.pixels[:], np.float32).reshape(h2, w2, -1)[..., :3]
+            uvb = me.uv_layers.active.data
+            for i in tone_faces:
+                u_ = np.mean([tuple(uvb[l].uv) for l in me.polygons[i].loop_indices], 0)
+                cols_.append(PB[min(h2 - 1, max(0, int(u_[1] * h2))), min(w2 - 1, max(0, int(u_[0] * w2)))])
+        t_ = o.copy(); t_.data = o.data.copy(); bpy.context.scene.collection.objects.link(t_)
+        tb2 = bmesh.new(); tb2.from_mesh(t_.data); tb2.faces.ensure_lookup_table(); keep_ = set(tone_faces)
+        bmesh.ops.delete(tb2, geom=[f for f in tb2.faces if f.index not in keep_], context='FACES'); tb2.to_mesh(t_.data); tb2.free()
+        tone_src.append((t_, cols_))
     if under_layer:
-        ul = [i for i, cv in enumerate(cover) if 'TOP' in cv and not in_lining(mw @ me.polygons[i].center)]
+        ul = [i for i, cv in enumerate(cover) if 'TOP' in cv and not in_lining(mw @ me.polygons[i].center)
+              and i not in set(tone_faces)]
         if ul:          # (copied now: the body's covered faces are deleted below)
             u = o.copy(); u.data = o.data.copy(); bpy.context.scene.collection.objects.link(u)
             ub = bmesh.new(); ub.from_mesh(u.data); ub.faces.ensure_lookup_table(); keep_ = set(ul)
@@ -895,6 +919,28 @@ for o in body:
     b2 = bmesh.new(); b2.from_mesh(me); b2.faces.ensure_lookup_table()
     bmesh.ops.delete(b2, geom=[f for f in b2.faces if f.index in covered], context='FACES'); b2.to_mesh(me); b2.free()
 print('BODY pieces added', pieces, '; neck faces out through the top', n_poke)
+if neck_tone and tone_src:
+    allc = np.array([c_ for _, cs in tone_src for c_ in cs]); target = np.median(allc, 0) if len(allc) else np.array([0.8, 0.6, 0.5])
+    img = next(n.image for m in G['TOP'].data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
+    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
+    st = 4; Ps = P[::st, ::st]
+    # (a texel whose 9x9 neighbourhood is even, so the baked atlas keeps the colour)
+    loc_var = np.zeros(Ps.shape[:2], np.float32)
+    for dy in (-2, -1, 1, 2):
+        for dx in (-2, -1, 1, 2):
+            loc_var = np.maximum(loc_var, np.abs(np.roll(np.roll(Ps, dy, 0), dx, 1) - Ps).sum(2))
+    dist = ((Ps - target) ** 2).sum(2) + (loc_var > 0.03) * 10
+    yy, xx = np.unravel_index(int(np.argmin(dist)), dist.shape)
+    uv_t = ((xx * st + 0.5) / w_, (yy * st + 0.5) / h_)
+    made = []
+    for t_, _ in tone_src:
+        for m_ in list(t_.modifiers): t_.modifiers.remove(m_)
+        if t_.data.shape_keys: t_.shape_key_clear()
+        on_texel(t_, G['TOP'], uv_t); made.append(t_)
+        if 'tokens' in t_.keys(): del t_['tokens']
+    for x in bpy.data.objects: x.select_set(x in made or x == G['TOP'])
+    bpy.context.view_layer.objects.active = G['TOP']; bpy.ops.object.join()
+    print('NECK tone', sum(len(cs) for _, cs in tone_src), 'faces, skin', target.round(3).tolist(), '-> texel', Ps[yy, xx].round(3).tolist())
 if under_layer and under_src:
     uv_lit, _ = lit_texel(G['TOP'], float(opt.get('under_layer_tone', 60))); made = []
     # (only where the top stands off: within under_layer_near, 1.5 cm, of the top along the normal the layer is
