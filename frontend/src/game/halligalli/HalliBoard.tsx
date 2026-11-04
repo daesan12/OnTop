@@ -258,17 +258,28 @@ function StageProjector({ anchor, halli }: { anchor: TableAnchor; halli: HalliGa
       if (bell.style.height !== height) bell.style.height = height
     }
     place('bell', `translate3d(${left.toFixed(1)}px,${top.toFixed(1)}px,0)`)
+    const piles = h.players.map((p, i) => pileCorners(anchor, seats[i]!, p.drawCount).map(project))
+    // Screen boxes of every card on the felt; a seat label must not cover any of them.
+    const cards = [...faces, ...piles].map(q => {
+      const xs = q.map(c => c.x), ys = q.map(c => c.y)
+      return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) }
+    })
+    // The viewer's own label is the status bar docked at the bottom centre by CSS; only the other seats hang here.
+    const viewer = useSession.getState().sessionId
     h.players.forEach((p, i) => {
-      const seat = seats[i]!
       quad(`face:${p.userId}`, faces[i]!, HALLI_STAGE_PX.card.w, HALLI_STAGE_PX.card.h)
-      quad(`draw:${p.userId}`, pileCorners(anchor, seat, p.drawCount).map(project), HALLI_STAGE_PX.card.w, HALLI_STAGE_PX.card.h)
-      const label = halliStageElements.get(`label:${p.userId}`), at = project(labelPoint(anchor, seat))
-      if (!label) return
+      quad(`draw:${p.userId}`, piles[i]!, HALLI_STAGE_PX.card.w, HALLI_STAGE_PX.card.h)
+      const label = halliStageElements.get(`label:${p.userId}`), at = project(labelPoint(anchor, seats[i]!))
+      if (!label || p.userId === viewer) return
       // Hang the label off the felt edge, away from the bell, and keep it whole inside the screen.
-      const dx = at.x - centre.x, dy = at.y - centre.y, length = Math.hypot(dx, dy) || 1
+      const dx = at.x - centre.x, dy = at.y - centre.y, length = Math.hypot(dx, dy) || 1, ux = dx / length, uy = dy / length
       const w = label.offsetWidth, hgt = label.offsetHeight
-      const x = Math.max(8, Math.min(size.width - w - 8, at.x + dx / length * w / 2 - w / 2))
-      const y = Math.max(8, Math.min(size.height - hgt - 8, at.y + dy / length * hgt / 2 - hgt / 2))
+      let x = at.x + ux * w / 2 - w / 2, y = at.y + uy * hgt / 2 - hgt / 2
+      // Low spectator views bring the felt edge close to the cards: step further out until no card is covered.
+      for (let step = 0; step < 16 && cards.some(c => x < c.right + 4 && x + w > c.left - 4 && y < c.bottom + 4 && y + hgt > c.top - 4); step++) {
+        x += ux * 4; y += uy * 4
+      }
+      x = Math.max(8, Math.min(size.width - w - 8, x)); y = Math.max(8, Math.min(size.height - hgt - 8, y))
       place(`label:${p.userId}`, `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`)
     })
     // Cards moving after a bell glide over the felt along a low arc, through the same projection as the cards at rest.

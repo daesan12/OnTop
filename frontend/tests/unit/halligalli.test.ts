@@ -239,7 +239,11 @@ describe('table rendering', () => {
     expect(own).not.toContain('공개 차례')
     expect(own).toMatch(/<button[^>]*class="hg-draw"[^>]*disabled/)
     expect(html('102', {}, state)).toContain('data-kind="turn">마지막 종 기회')
-    expect(html('101')).toContain('data-kind="turn">공개 차례')
+    expect(html('101')).toContain('data-kind="turn">내 차례')
+    expect(html('102')).toContain('data-kind="turn">공개 차례')
+    // The 2D seat header drops the total; the counts stay under the piles and in the seat's name.
+    expect(html('101')).not.toContain('hg-count')
+    expect(html('101')).toContain('나 · 내 차례 · 남은 카드 13 · 펼친 카드 1')
   })
 })
 
@@ -497,6 +501,30 @@ describe('table stage rendering', () => {
     expect(out).toContain('data-out="forfeited"')
     expect(out).toContain('data-out="eliminated"')
     expect(out).toContain('마지막 종 기회')
+  })
+  it('shows the name and the remaining · turned-up cards on every seat chip, no total, and the turn only on the turn seat', () => {
+    const players = [halliPlayer(0, { drawCount: 10, faceUpCount: 3, cardCount: 13 }), halliPlayer(1, { drawCount: 12, faceUpCount: 2, cardCount: 14 }),
+      halliPlayer(2), halliPlayer(3)]
+    const own = html('101', { keyHint: true }, halliState(4, { players }))
+    const chips = own.split('<section').slice(1)
+    expect(chips).toHaveLength(4)
+    for (const [i, name] of ['나', '둘', '셋', '넷'].entries()) {
+      expect(chips[i]).toContain(`<strong>${name}</strong>`)
+      expect(chips[i]).not.toMatch(/\d+장</)
+      expect(chips[i]).not.toContain('뒷면')
+    }
+    for (const i of [1, 2, 3]) expect(chips[i]).toContain(`남은 카드 ${players[i]!.drawCount} · 펼친 카드 ${players[i]!.faceUpCount}`)
+    // The own bar lists the two counts as separate items, in a row with the turn, the timer and the Space hint.
+    const bar = chips[0]!.replace(/<!-- -->/g, '')
+    expect(bar).toContain('<span class="hg-own-count">남은 카드 10</span><span class="hg-own-count">펼친 카드 3</span>')
+    expect(bar.indexOf('내 차례')).toBeLessThan(bar.indexOf('남은 카드 10'))
+    expect(bar.indexOf('role="timer"') === -1 || bar.indexOf('role="timer"') < bar.indexOf('Space</kbd>')).toBe(true)
+    expect(own.match(/data-kind="turn"/g)).toHaveLength(1)
+    expect(chips[0]).toContain('data-kind="turn">내 차례')
+    expect(chips[0]).toContain('Space</kbd> 종 치기')
+    expect(chips.slice(1).join('')).not.toContain('hg-keys')
+    // Others see the same seat as the player whose turn it is.
+    expect(html('102', {}, halliState(4, { players }))).toContain('data-kind="turn">공개 차례')
   })
   it('badges the two-player last bell chance on the seat label and keeps the own pile button disabled', () => {
     const state = halliState(2, { players: [halliPlayer(0, { drawCount: 0, cardCount: 1 }), halliPlayer(1)] })

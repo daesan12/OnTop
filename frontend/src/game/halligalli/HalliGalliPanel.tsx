@@ -6,12 +6,12 @@ import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { openManual } from '../../features/manual/manualState'
 import { SeatedLookButton } from '../../features/tableLobby/SeatedLookButton'
 import { resultSettlement } from '../../features/tableLobby/gatheringModel'
-import { OmokSurrender } from '../OmokSurrender'
 import { canFlipHalli, canRingHalli, useHalliUI } from './actions'
 import { installHalliControls, ringShownBell } from './controls'
 import { HALLI_END_REASON, type HalliEvent } from './protocol'
 import { HalliTable, onLastChance } from './HalliTable'
 import { HalliStage } from './HalliStage'
+import { HalliForfeit } from './HalliForfeit'
 import { useHalliStage } from './anchors'
 import './halligalli.css'
 
@@ -59,7 +59,8 @@ export function HalliGalliPanel() {
     : me?.forfeited ? '기권했어요 · 공개 카드는 판정에 계속 남아요' : me?.eliminated ? '탈락했어요 · 경기를 끝까지 볼 수 있어요' : ''
   const Table = projected ? HalliStage : HalliTable
   return <section className="halligalli-panel" aria-label="과일 땡" data-role={g.role} data-status={h.status} data-layout={projected ? 'stage' : 'fixed'}>
-    <header className="hg-head">
+    {/* No status bar on screen: the seat labels show the turn. Screen readers still hear the status and the last event. */}
+    <header className="hg-sr-only">
       <h2>과일 땡</h2>
       <p role="status">{status}</p>
       {h.lastEvent && playing && <small aria-live="polite">{eventText(h.lastEvent, names[h.lastEvent.userId] ?? '참가자')}</small>}
@@ -77,12 +78,11 @@ export function HalliGalliPanel() {
     </div>
     <nav className="hg-menu" aria-label="게임 메뉴">
       {player && <SeatedLookButton />}
-      <button type="button" onClick={() => openManual('halligalli')}>게임 설명</button>
-      <button type="button" disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 상태 확인</button>
-      {player && recoveryBlocked() && <button type="button" disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
-      {player && !playing && <button type="button" disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
-      {player && <OmokSurrender key={`${own}:${g.gameId}`} context={{ userId: own, gameId: g.gameId, version: g.version }} disabled={session.pending} />}
-      {!player && <button type="button" disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
+      <button type="button" data-icon="manual" onClick={() => openManual('halligalli')}>게임 설명</button>
+      {player && recoveryBlocked() && <button type="button" data-icon="refresh" disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
+      {player && !playing && <button type="button" data-icon="receipt" disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
+      {player && <HalliForfeit key={`${own}:${g.gameId}`} gameId={g.gameId} disabled={session.pending} />}
+      {!player && <button type="button" data-icon="exit" disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
     </nav>
   </section>
 }
