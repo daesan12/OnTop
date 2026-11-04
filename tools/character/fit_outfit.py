@@ -555,8 +555,13 @@ if opt.get('lining', '0') == '1' and 'TOP' in G:
     else:
         uv0, med = lit_texel(G['TOP'], float(opt.get('lining_tone', 40))); on_texel(ln, G['TOP'], uv0)
     ln.vertex_groups.new(name='part:lining').add(list(range(len(ln.data.vertices))), 1.0, 'REPLACE')
-    for x in bpy.data.objects: x.select_set(x in (G['TOP'], ln))
-    bpy.context.view_layer.objects.active = G['TOP']; bpy.ops.object.join()
+    if opt.get('lining_tone') == 'skin' and opt.get('neck_tone', '0') == '1':
+        # (in skin, with neck_tone the body's own faces under the V are shown in place instead (see neck_tone): a
+        # lining 0.3 mm off them left its top edge as a pale line round the neck's foot, user)
+        bpy.data.objects.remove(ln)
+    else:
+        for x in bpy.data.objects: x.select_set(x in (G['TOP'], ln))
+        bpy.context.view_layer.objects.active = G['TOP']; bpy.ops.object.join()
     print('LINING', len(pick), 'body faces round the neck,', len(dead), 'under the top dropped; top level at z', round(nz + up_, 3))
 
 # shoe_cut=1 (the gat's low shoes): Tripo's opening rim was ragged, a row of teeth round the ankle. The shoes are cut
@@ -907,7 +912,10 @@ for o in body:
         # line at the neck's foot and a pinker band under it (user: one colour, please). While this top is worn
         # the neck's visible faces (the neck's own, and the foot the collar leaves) are covered and shown instead,
         # in place, in one skin colour: their mean, matched to the nearest texel of the outfit's atlas.
-        if neck_tone and 'TOP' not in cv and (bone_ == 'Neck' or (c.z > neck_z - 0.005 and math.hypot(c.x - neck_xy[0], c.y - neck_xy[1]) < 0.065)):
+        # (with lining_tone=skin the V's inside too: the neck and the chest under the V, one surface in one colour)
+        if neck_tone and opt.get('lining_tone') == 'skin' and in_lining(c) and bone_ not in ('Head', 'HeadTop_End')                 and c.z < neck_z + 0.03:
+            cv.add('TOP'); tone_faces.append(p.index)
+        elif neck_tone and 'TOP' not in cv and (bone_ == 'Neck' or (c.z > neck_z - 0.005 and math.hypot(c.x - neck_xy[0], c.y - neck_xy[1]) < 0.065)):
             cv.add('TOP')
             # (behind, the neck's foot came out under the collar as skin-coloured teeth: there the robe-coloured
             # under-layer takes it instead)
@@ -957,9 +965,32 @@ print('BODY pieces added', pieces, '; neck faces out through the top', n_poke)
 if neck_tone and tone_src:
     uv_t = skin_texel(G['TOP'])
     made = []
+    _me2 = G['TOP'].evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh()
+    _tb2 = bmesh.new(); _tb2.from_mesh(_me2); _tb2.transform(G['TOP'].matrix_world); _tbvh = BVHTree.FromBMesh(_tb2); _tb2.free()
     for t_, _ in tone_src:
         for m_ in list(t_.modifiers): t_.modifiers.remove(m_)
         if t_.data.shape_keys: t_.shape_key_clear()
+        # (where the robe lies under the skin's surface, within neck_tone_in, 1.2 cm, the skin came through it as
+        # patches: those faces go, the robe shows; and the body's crease round the neck's foot is smoothed out of
+        # this copy, neck_tone_smooth rounds, its open edges held: one even skin, user)
+        nb_ = bmesh.new(); nb_.from_mesh(t_.data); bmesh.ops.remove_doubles(nb_, verts=nb_.verts, dist=1e-5)
+        for _ in range(int(opt.get('neck_tone_smooth', 12))):
+            bmesh.ops.smooth_vert(nb_, verts=[v for v in nb_.verts if not v.is_boundary], factor=0.5,
+                                  use_axis_x=True, use_axis_y=True, use_axis_z=True)
+        nb_.normal_update(); mw_ = t_.matrix_world; nm_ = mw_.to_3x3()
+        # (the chest under the V sinks neck_tone_sink, 2.5 mm, fading in over 2 cm under the neck joint: just at the
+        # skin it came through the lapels as patches; dropping it near the robe opened holes along their edges)
+        sink_ = float(opt.get('neck_tone_sink', 0.0025))
+        for v in nb_.verts:
+            k_ = min(1.0, max(0.0, (neck_z - (mw_ @ v.co).z) / 0.02))
+            v.co -= v.normal * sink_ * k_
+        nb_.normal_update()
+        # (after that, where the robe still lies under the skin within neck_tone_in, the face goes)
+        gone_ = [f for f in nb_.faces for c, n in [(mw_ @ f.calc_center_median(), (nm_ @ f.normal).normalized())]
+                 if _tbvh.ray_cast(c - n * 0.0005, -n, float(opt.get('neck_tone_in', 0.012)))[0] is not None]
+        bmesh.ops.delete(nb_, geom=gone_, context='FACES')
+        nb_.to_mesh(t_.data); nb_.free()
+        print('NECK tone', len(gone_), 'faces under the robe dropped')
         on_texel(t_, G['TOP'], uv_t); made.append(t_)
         if 'tokens' in t_.keys(): del t_['tokens']
     for x in bpy.data.objects: x.select_set(x in made or x == G['TOP'])
