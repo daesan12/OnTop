@@ -126,22 +126,31 @@ class DiceLedgerEngineTests {
         engine.create(GAME, "table", List.of(101L, 202L));
         Instant first = Instant.parse(state().path("turnDeadline").asText());
         faces.addAll(List.of(6,6,6,6,6));
-        clock.advance(30);
+        clock.advance(20);
         engine.tick();
         assertThat(faces).isEmpty();
         assertThat(card(0).path("scores").path("FIVE_OF_A_KIND").asInt()).isEqualTo(50);
         assertThat(state().path("lastEvent").asText()).isEqualTo("TURN_TIMEOUT");
         assertThat(state().path("lastScored").path("auto").asBoolean()).isTrue();
         assertThat(state().path("turnUserId").asText()).isEqualTo("202");
-        assertThat(Instant.parse(state().path("turnDeadline").asText())).isEqualTo(first.plusSeconds(30));
-        // 굴린 뒤 만료되면 현재 주사위를 그대로 쓴다.
+        assertThat(Instant.parse(state().path("turnDeadline").asText())).isEqualTo(first.plusSeconds(20));
+        // 굴릴 때마다 그 시각부터 20초를 다시 준다.
+        clock.advance(10);
         roll(202, "b1", 1, List.of(), 1,3,4,6,6);
-        clock.advance(30);
+        assertThat(Instant.parse(state().path("turnDeadline").asText())).isEqualTo(first.plusSeconds(30));
+        clock.advance(15);
+        roll(202, "b2", 2, List.of(0,1,2,3,4));
+        assertThat(Instant.parse(state().path("turnDeadline").asText())).isEqualTo(first.plusSeconds(45));
+        clock.advance(19);
+        engine.tick();
+        assertThat(state().path("turnUserId").asText()).isEqualTo("202");
+        // 굴린 뒤 만료되면 현재 주사위를 그대로 쓴다.
+        clock.advance(1);
         engine.tick();
         assertThat(card(1).path("scores").path("CHOICE").asInt()).isEqualTo(20);
         // 지연된 타이머는 지난 차례를 원래 마감 기준으로 순서대로 처리한다.
         faces.addAll(List.of(2,3,4,5,6, 1,1,2,2,4));
-        clock.advance(60);
+        clock.advance(40);
         engine.tick();
         assertThat(card(0).path("scores").path("LARGE_STRAIGHT").asInt()).isEqualTo(30);
         // 1·1·2·2·4는 2칸과 4칸이 모두 4점이다. 같은 점수면 점수표 앞 칸을 고른다.
@@ -149,7 +158,7 @@ class DiceLedgerEngineTests {
         assertThat(card(1).path("scores").path("FOURS").isNull()).isTrue();
         assertThat(state().path("turnUserId").asText()).isEqualTo("101");
         assertThat(state().path("round").asInt()).isEqualTo(3);
-        assertThat(Instant.parse(state().path("turnDeadline").asText())).isEqualTo(first.plusSeconds(120));
+        assertThat(Instant.parse(state().path("turnDeadline").asText())).isEqualTo(first.plusSeconds(105));
     }
 
     @Test

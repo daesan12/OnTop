@@ -108,7 +108,7 @@ public final class TableStartAttempt {
                 return;
             }
             phase = "WAITING";
-            code = "START_REJECTED";
+            code = "INSUFFICIENT_BALANCE".equals(result.code()) ? "INSUFFICIENT_BALANCE" : "START_REJECTED";
         } else {
             code = result.outcome() == Outcome.CONFLICT ? "START_CONFLICT" : "START_PENDING";
         }

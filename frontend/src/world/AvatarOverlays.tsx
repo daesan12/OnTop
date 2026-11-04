@@ -14,6 +14,7 @@ import { ownGameActivity } from './avatarActivity'
 import { useOmokEvents } from '../game/omok/spectatorEvents'
 import { gameChatScope } from '../features/chat/gameChat'
 import { displayNickname } from '../features/gameMaster/displayName'
+import { TypingIndicator } from '../features/chat/TypingIndicator'
 
 export interface AvatarAnchors {
   root: Object3D
@@ -86,6 +87,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
       {speaking && <div className="avatar-speech">{bubble.text}</div>}
       {activityLabel && <div className="avatar-speech avatar-activity">{activityLabel}</div>}
       <div className="avatar-nickname">{nickname}</div>
+      <TypingIndicator userId={id} />
       <OneCardOverhead userId={id} />
       {participant && <div className={`gathering-role${participant.ready ? ' is-ready' : ''}`} style={{ display: 'block' }}>{participant.label}</div>}
     </div>
@@ -97,7 +99,7 @@ export function AvatarOverlays({ targets }: { targets: OverlayTargets }) {
   const ids = useSession((state) => state.ids)
   return (
     <div className="avatar-overlays" aria-hidden="true">
-      {ids.slice(0, OVERHEAD.maxVisible).map((id) => (
+      {ids.map((id) => (
         <AvatarOverlay key={id} id={id} targets={targets} />
       ))}
     </div>

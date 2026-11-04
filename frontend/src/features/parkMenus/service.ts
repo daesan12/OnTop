@@ -2,15 +2,13 @@ import { RestError } from '../../network/restError'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { useSession } from '../../network/worldClient'
 import type { ParkRuntimePort } from '../../park/runtime/contracts'
+import type { NicknameInputProblem } from '../user/nicknamePolicy'
 
-/** Same rule as the BE NicknameValidator (docs/nickname-availability.md); the server stays the final judge. */
-export const NICKNAME_PATTERN = /^[가-힣A-Za-z0-9]{2,8}$/
-export const NICKNAME_MAX = 8
-
-export type NicknameProblem = 'format' | 'taken' | 'unavailable'
+export type NicknameProblem = NicknameInputProblem | 'taken' | 'unavailable'
 
 export function nicknameProblem(error: unknown): NicknameProblem {
   if (error instanceof RestError && error.code === 'USER_NICKNAME_ALREADY_EXISTS') return 'taken'
+  if (error instanceof RestError && error.code === 'USER_RESERVED_NICKNAME') return 'reserved'
   if (error instanceof RestError && error.code === 'USER_INVALID_NICKNAME') return 'format'
   return 'unavailable'
 }

@@ -9,9 +9,9 @@ export function ledgerCard(userId: string, scores: Partial<Record<LedgerCategory
     total: Object.values(filled).reduce<number>((sum, v) => sum + (v ?? 0), 0) + upperBonus }
 }
 export function ledgerState(count: 2 | 3 | 4 = 2): DiceLedger & { categories: string[] } {
-  return { gameCode: 'DICE_LEDGER', status: 'PLAYING', turnTimeLimitMs: 30000, maxRolls: 3, upperBonusThreshold: 63, upperBonus: 35,
+  return { gameCode: 'DICE_LEDGER', status: 'PLAYING', turnTimeLimitMs: 20000, maxRolls: 3, upperBonusThreshold: 63, upperBonus: 35,
     turnUserId: '101', turnId: 1, round: 1, rollCount: 0, rollId: 0, lastEvent: 'START',
-    turnDeadline: new Date(Date.now() + 30000).toISOString(), categories: [...LEDGER_CATEGORIES],
+    turnDeadline: new Date(Date.now() + 20000).toISOString(), categories: [...LEDGER_CATEGORIES],
     players: Array.from({ length: count }, (_, i) => ledgerCard(String(101 + i))), dice: [], lastScored: null,
     winnerUserIds: [], endReason: null, endedAt: null }
 }

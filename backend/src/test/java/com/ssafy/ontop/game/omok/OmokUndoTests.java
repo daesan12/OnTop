@@ -76,11 +76,13 @@ class OmokUndoTests {
         assertThat(state().path("undoDecision").path("status").asText()).isEqualTo("REJECTED");
         assertThat(state().path("turnDeadline").asText()).isEqualTo(deadline);
     }
-    @Test void 승인대기중에도_시계는흐르고_승인도_원래마감을_연장하지않는다() throws Exception {
+    @Test void 승인대기중에도_시계는흐르고_승인확정후_새30초를_부여한다() throws Exception {
         pair(); clock.advance(5000); var request = request(101); clock.advance(9000);
         engine.apply(reply(202, request.actionId(), true));
-        assertThat(state().path("turnDeadline").asText()).isEqualTo(clock.instant().plusSeconds(16).toString());
+        assertThat(state().path("turnDeadline").asText()).isEqualTo(clock.instant().plusSeconds(30).toString());
         clock.advance(16000); engine.tick();
+        assertThat(state().path("status").asText()).isEqualTo("PLAYING");
+        clock.advance(14000); engine.tick();
         assertThat(state().path("endReason").asText()).isEqualTo("TURN_TIMEOUT");
     }
     @Test void 착수마감이_응답마감보다_빠르면_요청을정리하고_원래시각에_시간패한다() throws Exception {
@@ -127,7 +129,10 @@ class OmokUndoTests {
         var first = action(101, "{\"x\":0,\"y\":0}"); engine.apply(first); play(202, 0, 2);
         var request = request(101); var response = reply(202, request.actionId(), true); var receipt = engine.apply(response);
         long after = version(); engine.apply(request); engine.apply(first);
+        String deadline = state().path("turnDeadline").asText();
+        clock.advance(5000);
         assertThat(engine.apply(response)).isEqualTo(receipt); assertThat(version()).isEqualTo(after);
+        assertThat(state().path("turnDeadline").asText()).isEqualTo(deadline);
         assertThat(state().path("moveCount").asInt()).isZero();
         var conflict = command(202, response.actionId(), response.expectedVersion(), response.input().deepCopy().toString().replace("true", "false"));
         rejected(Rejection.ACTION_ID_CONFLICT, () -> engine.apply(conflict));

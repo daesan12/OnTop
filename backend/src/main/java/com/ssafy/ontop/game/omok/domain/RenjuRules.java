@@ -15,13 +15,16 @@ final class RenjuRules {
 
     RenjuRules(int[][] board) { this.board = board; }
 
-    boolean forbidden(int x, int y) {
+    boolean forbidden(int x, int y) { return reason(x, y) != null; }
+
+    String reason(int x, int y) {
         // RIF 9.2: 같은 수에서 정확한 5목을 만들면 승리를 우선한다.
-        if (hasRun(x, y, 5, false)) return false;
-        if (hasRun(x, y, 6, true) || fours(x, y).size() >= 2) return true;
+        if (hasRun(x, y, 5, false)) return null;
+        if (hasRun(x, y, 6, true)) return "6";
+        if (fours(x, y).size() >= 2) return "44";
         String key = key(x, y);
         Boolean cached = memo.get(key);
-        if (cached != null) return cached;
+        if (cached != null) return cached ? "33" : null;
         Set<List<Integer>> threes = new HashSet<>();
         for (int[] axis : AXES) {
             int dx = axis[0], dy = axis[1];
@@ -49,13 +52,13 @@ final class RenjuRules {
                             && winningEnd(sx + 4 * dx, sy + 4 * dy, dx, dy)
                             && !forbidden(gx, gy)) {
                         threes.add(List.copyOf(stones));
-                        if (threes.size() >= 2) { memo.put(key, true); return true; }
+                        if (threes.size() >= 2) { memo.put(key, true); return "33"; }
                     }
                 } finally { board[gy][gx] = 0; }
             }
         }
         memo.put(key, false);
-        return false;
+        return null;
     }
 
     private Set<List<Integer>> fours(int x, int y) {
@@ -105,6 +108,7 @@ final class RenjuRules {
     private boolean inside(int x, int y) { return x >= 0 && y >= 0 && x < OmokBoard.SIZE && y < OmokBoard.SIZE; }
 
     private String key(int x, int y) {
+        // Include every cell: preview candidates and recursive extensions temporarily change the same board.
         StringBuilder key = new StringBuilder(240).append(x).append(',').append(y).append(':');
         for (int[] row : board) for (int cell : row) key.append((char) ('0' + cell));
         return key.toString();

@@ -112,7 +112,9 @@ class WorldBroadcastTests {
         doAnswer(invocation -> {
             if (invocation.getArgument(0) instanceof TextMessage text) {
                 JsonNode value = mapper.readTree(text.getPayload());
-                if (!value.path("type").asText().equals("WORLD_PARK_DEBRIS_STATE")) {
+                // Typing snapshots have their own delivery tests; this queue asserts world-position delivery.
+                String type = value.path("type").asText();
+                if (!type.equals("WORLD_PARK_DEBRIS_STATE") && !type.equals("WORLD_CHAT_TYPING_STATE")) {
                     peer.messages.add(new Message(text.getPayload(), value));
                 }
             }

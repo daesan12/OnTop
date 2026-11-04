@@ -1,3 +1,4 @@
+import { GameHudClock, GameHudMenu } from '../GameHud'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGame, recoveryBlocked } from '../store'
@@ -38,7 +39,7 @@ export function LedgerPanel() {
   const rolling = playing && performance.now() < until
   const names = Object.fromEntries(l.players.map((p, i) => [p.userId,
     p.userId === own ? '나' : session.profiles[p.userId]?.nickname ?? `참가자 ${i + 1}`]))
-  const mine = l.turnUserId === own
+  const mine = player && l.turnUserId === own
   const remaining = l.turnDeadline ? Math.max(0, Math.ceil((Date.parse(l.turnDeadline) - now) / 1000)) : null
   const kept = keptDice()
   const canRoll = player && canActLedger(own, { kind: 'roll', keepIds: l.rollCount ? kept : [] }) && !ledgerAnimating()
@@ -51,11 +52,20 @@ export function LedgerPanel() {
     : rolling ? '주사위를 굴리는 중'
     : `${mine ? '내 차례' : `${names[l.turnUserId!]} 차례`} · ${l.rollCount === 0 ? '굴려 주세요' : l.rollCount < l.maxRolls
       ? `${l.maxRolls - l.rollCount}번 더 굴릴 수 있어요` : '칸을 골라 기록하세요'}`
+  // 장부 패널이 작아 놓치기 쉬우므로 내 차례 동안 화면 위쪽 가운데에 상시 표시한다.
+  const myTurn = player && playing && mine && remaining !== 0
+  const urgent = remaining !== null && remaining <= 5
+  const cue = rolling ? '주사위를 굴리는 중' : l.rollCount === 0 ? '주사위를 굴려 주세요'
+    : l.rollCount < l.maxRolls ? '다시 굴리거나 장부 칸에 기록하세요' : '장부 칸을 골라 기록하세요'
   const scored = l.lastScored
-  return <><section className="ledger-panel" aria-label="주사위 장부" data-role={g.role}>
+  return <>{myTurn && <div key={l.turnId} className="ledger-turn-cue" data-urgent={urgent} role="status">
+    <span aria-hidden="true">◆</span><strong>내 차례</strong><small>{cue}</small>
+    <span className="ledger-turn-cue-time" aria-hidden="true">{remaining}초</span>
+  </div>}
+  <section className="ledger-panel" aria-label="주사위 장부" data-role={g.role} data-my-turn={myTurn || undefined}>
     <header className="ledger-head">
       <div><h2>주사위 장부</h2><small>{playing ? `${l.round} / 12 라운드` : LEDGER_END_REASON[l.endReason ?? ''] ?? l.endReason}</small></div>
-      {remaining !== null && <span className="ledger-clock" data-urgent={remaining <= 5} aria-label={`남은 시간 ${remaining}초`}>{remaining}<small>초</small></span>}
+      {playing && <GameHudClock game="주사위 장부" label={mine?'내 차례':`${names[l.turnUserId!]} 차례`} remainingMs={l.turnDeadline?Date.parse(l.turnDeadline)-now:null} myTurn={player&&mine} hint={`${l.round} / 12 라운드`}/>}
     </header>
     <p className="ledger-status" role="status">{status}</p>
     {scored && playing && <p className="ledger-last" aria-live="polite">
@@ -73,9 +83,10 @@ export function LedgerPanel() {
       })}
     </div>
     {player && playing && <div className="ledger-actions">
-      <button className="ledger-roll" disabled={!canRoll} onClick={rollLedger} aria-keyshortcuts="R">
+      <button className="ledger-roll" disabled={!canRoll} onClick={rollLedger} aria-keyshortcuts="R"
+        data-attention={canRoll && l.rollCount === 0 || undefined}>
         <kbd>R</kbd> {l.rollCount === 0 ? '굴리기' : '다시 굴리기'} <small>{l.rollCount}/{l.maxRolls}</small></button>
-      <small>{mine ? l.rollCount ? '숫자 키 1~5로 보관 · 장부 칸을 눌러 기록' : '30초 안에 굴리고 기록하세요' : '상대 차례에는 장부를 볼 수만 있어요'}</small>
+      <small>{mine ? l.rollCount ? '숫자 키 1~5로 보관 · 장부 칸을 눌러 기록' : '20초 안에 굴리세요 · 굴릴 때마다 20초가 다시 주어져요' : '상대 차례에는 장부를 볼 수만 있어요'}</small>
     </div>}
     <LedgerScoreboard ledger={l} names={names} ownId={own} mode={mode} pings={pings.pings} onPick={pick} />
     {!player && playing && <p className="ledger-ping-help">
@@ -93,7 +104,7 @@ export function LedgerPanel() {
     </div>
   </section>
   {/* 장부가 스크롤 없이 한 화면에 들어오도록 게임 설정은 왼쪽 세로 메뉴로 분리한다. */}
-  <nav className="ledger-menu" aria-label="게임 메뉴">
+  <GameHudMenu>
     {player && <SeatedLookButton />}
     <button onClick={() => openManual('ledger')}>게임 설명</button>
     <button aria-pressed={sound} onClick={() => setDiceSound(!sound)}>소리 {sound ? '켜짐' : '꺼짐'}</button>
@@ -102,5 +113,5 @@ export function LedgerPanel() {
     {player && !playing && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
     {player && <OmokSurrender key={`${own}:${g.gameId}`} context={{ userId: own, gameId: g.gameId, version: g.version }} disabled={session.pending} />}
     {!player && <button disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
-  </nav></>
+  </GameHudMenu></>
 }

@@ -12,7 +12,7 @@ import { loadServiceOperation, unavailableServiceOperation, type ServiceOperatio
 
 const AdminShell = lazy(() => import('./features/admin/AdminShell').then(m => ({ default: m.AdminShell })))
 type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'maintenance'
-  | 'admin' | 'admin-feedback' | 'admin-analytics' | 'admin-wallet-grants'
+  | 'admin' | 'admin-feedback' | 'admin-analytics' | 'admin-wallet-grants' | 'admin-announcements'
 
 export default function App() {
   const [page, setPage] = useState<Page>(() =>
@@ -73,9 +73,11 @@ export default function App() {
       if (authenticated) {
         const path = window.location.pathname
         const next = path === '/admin/feedback' ? 'admin-feedback'
+          : path === '/admin/announcements' ? 'admin-announcements'
           : path === '/admin/analytics' ? 'admin-analytics' : path === '/admin/wallet-grants' ? 'admin-wallet-grants'
             : path === '/admin' ? 'admin' : 'park'
         window.history.replaceState(null, '', next === 'admin-feedback' ? '/admin/feedback'
+          : next === 'admin-announcements' ? '/admin/announcements'
           : next === 'admin-analytics' ? '/admin/analytics' : next === 'admin-wallet-grants' ? '/admin/wallet-grants'
             : next === 'admin' ? '/admin' : '/park')
         setPage(next)
@@ -93,12 +95,12 @@ export default function App() {
     setPage('checking')
   }, [])
 
-  const onAdminNavigate = useCallback((section: 'home' | 'feedback' | 'analytics' | 'wallet-grants') => {
+  const onAdminNavigate = useCallback((section: 'home' | 'feedback' | 'analytics' | 'wallet-grants' | 'announcements') => {
     const path = section === 'home' ? '/admin' : section === 'feedback' ? '/admin/feedback'
-      : section === 'analytics' ? '/admin/analytics' : '/admin/wallet-grants'
+      : section === 'announcements' ? '/admin/announcements' : section === 'analytics' ? '/admin/analytics' : '/admin/wallet-grants'
     window.history.pushState(null, '', path)
     setPage(section === 'home' ? 'admin' : section === 'feedback' ? 'admin-feedback'
-      : section === 'analytics' ? 'admin-analytics' : 'admin-wallet-grants')
+      : section === 'announcements' ? 'admin-announcements' : section === 'analytics' ? 'admin-analytics' : 'admin-wallet-grants')
   }, [])
 
   const onOnboardingRequired = useCallback(() => {
@@ -136,11 +138,11 @@ export default function App() {
   if (page === 'maintenance' && operation) {
     return <MaintenancePage status={operation} onRetry={() => setPage('checking')} />
   }
-  if ((page === 'admin' || page === 'admin-feedback' || page === 'admin-analytics' || page === 'admin-wallet-grants')
+  if ((page === 'admin' || page === 'admin-feedback' || page === 'admin-analytics' || page === 'admin-wallet-grants' || page === 'admin-announcements')
     && getAuthSession()?.status === 'AUTHENTICATED') {
     return <Suspense fallback={<main className="auth-loading" role="status">관리자 화면 준비 중…</main>}>
       <AdminShell section={page === 'admin' ? 'home' : page === 'admin-feedback' ? 'feedback'
-        : page === 'admin-analytics' ? 'analytics' : 'wallet-grants'} onNavigate={onAdminNavigate}
+        : page === 'admin-announcements' ? 'announcements' : page === 'admin-analytics' ? 'analytics' : 'wallet-grants'} onNavigate={onAdminNavigate}
         onReturn={onAuthenticated} onAuthEnded={onReturnToLogin} />
     </Suspense>
   }

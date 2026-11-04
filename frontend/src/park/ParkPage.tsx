@@ -49,6 +49,7 @@ import { PlusMinusPanel } from '../features/plusMinus/PlusMinusPanel'
 import { MolePanel } from '../features/mole/MolePanel'
 import { ArcadePicker } from '../features/arcade/ArcadePicker'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
+import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -110,6 +111,8 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
+      <AnnouncementBanner />
+      {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
           <ChannelMenu />
@@ -117,7 +120,6 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
           <div className="park-quick-dock" aria-hidden="true" />
           <div className="park-dock-settings"><SettingsLauncher /></div>
           <div className="park-dock-wardrobe"><WardrobeLauncher /></div>
-          <LocationChip />
         </div>}
         {!omokFocus && <div inert={bungeoppang}>
           <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />

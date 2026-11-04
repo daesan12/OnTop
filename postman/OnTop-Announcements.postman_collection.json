@@ -1,0 +1,226 @@
+{
+  "info": {
+    "name": "OnTop Announcements",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "로컬 구현 예제. V148은 아직 DB 미적용이며 DEV/운영 동작을 보장하지 않습니다. 관리자 JWT는 개인 변수만 사용. 02 생성 응답 유실 시 같은 ID로 02를 재전송, 새 공지는 announcementId를 비우세요. 03 목록에서 최신 version을 확인한 뒤 04·05 실행. docs/announcements-api.md 참고."
+  },
+  "variable": [
+    {
+      "key": "announcementId",
+      "value": ""
+    },
+    {
+      "key": "announcementVersion",
+      "value": "0"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 회원 게시 공지 조회",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/announcements",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              ""
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 관리자 공지 생성·같은 ID 재시도",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/admin/operations/announcements/{{announcementId}}",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"행사 안내\",\n  \"text\": \"오늘도 즐거운 온탑 공원!\",\n  \"published\": true,\n  \"displayOrder\": 1,\n  \"startsAt\": null,\n  \"endsAt\": null,\n  \"expectedVersion\": 0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if(!pm.collectionVariables.get('announcementId')) pm.collectionVariables.set('announcementId',pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200) pm.collectionVariables.set('announcementVersion',pm.response.json().version);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 관리자 공지 목록",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/admin/operations/announcements",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200){pm.collectionVariables.set('announcementOrder',JSON.stringify(pm.response.json().map(x=>({id:x.id,expectedVersion:x.version}))));const value=pm.response.json().find(x=>x.id===pm.collectionVariables.get('announcementId'));if(value)pm.collectionVariables.set('announcementVersion',value.version);}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 관리자 공지 수정",
+      "request": {
+        "method": "PUT",
+        "url": "{{baseUrl}}/api/v1/admin/operations/announcements/{{announcementId}}",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"행사 안내\",\n  \"text\": \"수정된 공지\",\n  \"published\": true,\n  \"displayOrder\": 1,\n  \"startsAt\": null,\n  \"endsAt\": null,\n  \"expectedVersion\": {{announcementVersion}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200) pm.collectionVariables.set('announcementVersion',pm.response.json().version);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 관리자 공지 삭제",
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/api/v1/admin/operations/announcements/{{announcementId}}?version={{announcementVersion}}",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 204',()=>pm.response.to.have.status(204));",
+              ""
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 관리자 공지 표시 순서 일괄 저장",
+      "request": {
+        "method": "PUT",
+        "url": "{{baseUrl}}/api/v1/admin/operations/announcements/order",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"items\": {{announcementOrder}}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const items=JSON.parse(pm.collectionVariables.get('announcementOrder')||'[]');if(!items.length)throw new Error('03 목록을 먼저 조회하세요. announcementOrder 배열을 원하는 순서로 편집한 뒤 실행하세요.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 204',()=>pm.response.to.have.status(204));",
+              ""
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

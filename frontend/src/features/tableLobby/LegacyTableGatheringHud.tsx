@@ -8,6 +8,7 @@ import { resetSeatedLook, seatScope, useTableLobby } from './state'
 import { FinishedForfeitStatus } from '../../game/OmokSurrender'
 import { BoardRewardCoinSource } from '../wallet/RewardCoinFlight'
 import './gathering.css'
+import { useReadyBalance, canAffordBet, BetBalanceNotice, startFailureNotice } from './readyBalance'
 
 export function LegacyTableGatheringHud({ model }: { model: GatheringModel }) {
   const runtime = useParkRuntime(), pending = useSession(s => s.pending), connected = useSession(s => s.status === 'connected')
@@ -15,6 +16,8 @@ export function LegacyTableGatheringHud({ model }: { model: GatheringModel }) {
   const looking = useTableLobby(s => !!s.lookScope)
   const anchor = useSession(s => s.bindings.find(b => b.channelId === s.roomId && b.tableId === model.tableId)?.anchorId)
   const disabled = pending || gamePending || !connected
+  const table = useSession(s => s.tableStates[model.tableId]), start = useGame(s => s.start)
+  const {balance,refresh:refreshBalance} = useReadyBalance(!model.finished && connected,model.tableId,start?.revision)
   const primary = () => {
     const current = getGathering()
     if (disabled || current?.scope !== model.scope) return
@@ -30,7 +33,7 @@ export function LegacyTableGatheringHud({ model }: { model: GatheringModel }) {
       {model.finished && <p className="settlement-note"><BoardRewardCoinSource>{model.settlement}</BoardRewardCoinSource></p>}
       {model.finished && <FinishedForfeitStatus />}
       <div className="button-row">
-        <button className="primary" disabled={disabled || (!model.finished && (busy || !model.playable))} onClick={primary}>
+        <button className="primary" disabled={disabled || (!model.finished && (busy || !model.playable || !model.own?.ready && !canAffordBet(balance,table?.betAmountPerPlayer)))} onClick={primary}>
           {model.finished ? model.canReturn ? '다음 판 준비' : '정산 결과 확인' : model.own?.ready ? '준비 취소' : '준비'}</button>
         <button onClick={() => useTableLobby.setState({ gatheringDetails: model.scope })}>{model.finished ? '결과 자세히' : '게임 설정'}</button>
         {manual && <button onClick={() => openManual(manual)}>게임 설명</button>}
@@ -40,6 +43,8 @@ export function LegacyTableGatheringHud({ model }: { model: GatheringModel }) {
         }}>{looking ? '테이블 함께 보기' : '주변 둘러보기'}</button>
         <button disabled={disabled || busy} onClick={() => void runtime.leaveTable()}>자리에서 일어나기</button>
       </div>
+      {!model.finished && <BetBalanceNotice balance={balance} bet={table?.betAmountPerPlayer} retry={refreshBalance}/>}
+      {startFailureNotice(start) && <p className="gathering-error" role="alert">{startFailureNotice(start)}</p>}
       {error && <p className="gathering-error" role="alert">{error}</p>}
     </div>
   </aside>

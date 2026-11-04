@@ -32,6 +32,11 @@ async function enter(page: Page, course = false) {
     return route.fulfill({ json: { mode: 'NORMAL', notice: '', maintenanceStartedAt: null,
       expectedOpenAt: null, version: 1, updatedAt: now, serverTime: now } })
   })
+  await page.route('**/api/v1/announcements', route => {
+    const now = Date.now()
+    return route.fulfill({ json: { serverTime: new Date(now).toISOString(),
+      refreshAt: new Date(now + 10000).toISOString(), announcements: [] } })
+  })
   if (course) await page.route('**/api/v1/minigames/jumpmap/status?**', route => route.fulfill({ json: {
     ...disabledJumpmapStatus('channel-1'), enabled: true,
   } }))

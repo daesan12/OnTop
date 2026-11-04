@@ -382,9 +382,10 @@ export function CameraRig() {
     } else if (focusedOmok && camera instanceof PerspectiveCamera) {
       const anchor = spectatorOmok ? (closeAnchor ?? watchedAnchor)! : TABLES.find(t => t.id === avatar.tableId)!
       state.look.set(anchor.position[0], anchor.position[1] + OMOK_BOARD_Y + .017, anchor.position[2])
-      if (spectatorOmok) {
+      if (omokSpectatorViewport.gameId === game?.gameId) {
         const frame = omokSpectatorFrame(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(anchor), omokSpectatorViewport.insets)
-        state.look.x += frame.offsetX; state.look.z += frame.offsetZ
+        const orientation = !spectatorOmok && avatar.seatIndex === 1 ? -1 : 1
+        state.look.x += frame.offsetX * orientation; state.look.z += frame.offsetZ * orientation
         state.desired.copy(state.look); state.desired.y += frame.height
       } else {
         state.desired.copy(state.look)
