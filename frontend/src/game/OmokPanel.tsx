@@ -200,7 +200,7 @@ export function OmokPanel() {
         <small>상대 · {ownBlack ? '백돌' : '흑돌'}</small></div><i className={`stone-chip ${ownBlack ? 'white' : 'black'}`} /></div>
     </header> : <header ref={header} className="omok-match-header" aria-label="오목 관전 경기 정보">
       <div className="omok-match-player" data-turn={o.turnUserId === o.blackUserId}><i className="stone-chip black" /><div><b>{profiles[o.blackUserId]?.nickname ?? '흑 플레이어'}</b><small>흑돌</small></div></div>
-      <OmokTurnClock remainingMs={remainingMs} label={o.status==='FINISHED'?omokOutcome(o,own,true):o.turnUserId===o.blackUserId?'흑 차례':'백 차례'} hint="오목 관전 중"/>
+      <OmokTurnClock remainingMs={remainingMs} label={o.status==='FINISHED'?omokOutcome(o,own,true):`${profiles[o.turnUserId??'']?.nickname??(o.turnUserId===o.blackUserId?'흑 플레이어':'백 플레이어')}님 차례`} hint="오목 관전 중 · 공개 정보"/>
       <div className="omok-match-player" data-turn={o.turnUserId === o.whiteUserId}><div><b>{profiles[o.whiteUserId]?.nickname ?? '백 플레이어'}</b><small>백돌</small></div><i className="stone-chip white" /></div>
     </header>}
     {player ? <div ref={toolbar} className="omok-player-bottom">

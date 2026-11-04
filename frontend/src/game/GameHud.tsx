@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { GameSpectatorCount } from './GameSpectatorCount'
+import { GameTurnNotice } from './GameTurnNotice'
 import './gameHud.css'
 
 /** Scrollable score sheets and transformed board panels must not clip the common HUD. */
@@ -44,11 +45,11 @@ export function GameHudClock({ game, label, remainingMs, limitMs = 30000, hint, 
 }) {
   const total = Number.isFinite(limitMs) && limitMs > 0 ? limitMs : 30000
   const value = remainingMs === null || !Number.isFinite(remainingMs) ? null : Math.min(total, Math.max(0, remainingMs))
-  return <HudLayer><div className="game-hud-clock" role="timer" aria-label={`${game} 남은 시간`} data-my-turn={myTurn} data-phase={!!phase}
+  return <><HudLayer><div className="game-hud-clock" role="timer" aria-label={`${game} 남은 시간`} data-my-turn={myTurn} data-phase={!!phase}
     data-urgent={!phase && value !== null && value > 0 && value <= Math.min(10000, total / 3)}>
     <span className="game-hud-eyebrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>{game}</span><span className="game-hud-turn" title={label}>{label}</span>
     <strong>{phase ?? (value === null ? '—' : Math.ceil(value / 1000))}{!phase && <small>초</small>}</strong>
     {!phase && <progress aria-label={`${game} 차례 남은 시간`} max={total} value={Math.min(total, value ?? 0)} />}
     {hint && <small className="game-hud-clock-hint">{hint}</small>}
-  </div></HudLayer>
+  </div></HudLayer><GameTurnNotice /></>
 }

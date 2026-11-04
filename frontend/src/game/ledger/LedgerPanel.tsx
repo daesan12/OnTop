@@ -39,7 +39,7 @@ export function LedgerPanel() {
   const rolling = playing && performance.now() < until
   const names = Object.fromEntries(l.players.map((p, i) => [p.userId,
     p.userId === own ? '나' : session.profiles[p.userId]?.nickname ?? `참가자 ${i + 1}`]))
-  const mine = l.turnUserId === own
+  const mine = player && l.turnUserId === own
   const remaining = l.turnDeadline ? Math.max(0, Math.ceil((Date.parse(l.turnDeadline) - now) / 1000)) : null
   const kept = keptDice()
   const canRoll = player && canActLedger(own, { kind: 'roll', keepIds: l.rollCount ? kept : [] }) && !ledgerAnimating()

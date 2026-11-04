@@ -71,7 +71,7 @@ export function HalliGalliPanel() {
     <Table halli={h} gameId={g.gameId} viewerId={own} names={names} canFlip={canFlip} canRing={canRing}
       onFlip={() => void runtime.flipHalli()} onRing={ringShownBell} keyHint={player && !!me?.active} />
     <HalliIntro gameId={g.gameId} />
-    {playing && <GameHudClock game="과일 땡" label={h.turnUserId===own?'내 차례':h.turnUserId?`${names[h.turnUserId]} 차례`:'마지막 종 기회'}
+    {playing && <GameHudClock game="과일 땡" label={player&&h.turnUserId===own?'내 차례':h.turnUserId?`${names[h.turnUserId]} 차례`:'마지막 종 기회'}
       remainingMs={h.flipDeadline?Date.parse(h.flipDeadline)-now:null} limitMs={h.flipTimeLimitMs} phase={paused?'결과 확인':undefined}
       myTurn={player&&h.turnUserId===own} hint="같은 과일이 정확히 5개면 종!"/>}
     <div className="hg-feedback">

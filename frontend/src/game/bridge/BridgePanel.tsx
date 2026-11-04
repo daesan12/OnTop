@@ -38,7 +38,7 @@ export function BridgePanel() {
     </div>)}</div>
     <div className="mini-status"><p role="status">{finished ? b.winnerUserIds.length ? `${b.winnerUserIds.map(name).join(' · ')} ${b.winnerUserIds.length > 1 ? '공동 승리' : '승리'}` : '승자 없이 경기 종료'
       : `${STAGES[b.stage]} · ${name(b.responderUserId ?? b.turnUserId!)}${b.stage === 'RESPONDING' ? ' 판단 차례' : ' 차례'}`}</p>
-    <small>{b.turnId}번째 차례 · {EVENTS[b.lastEvent]}</small>{!finished && <TableClock deadline={b.turnDeadline} now={now} resolving={b.stage === 'RESOLVING'} label={`${name(b.responderUserId??b.turnUserId!)} 차례`} myTurn={!spectator&&(b.responderUserId??b.turnUserId)===ownId}/>}
+    <small>{b.turnId}번째 차례 · {EVENTS[b.lastEvent]}</small>{!finished && <TableClock deadline={b.turnDeadline} now={now} resolving={b.stage === 'RESOLVING'} label={`${!spectator&&(b.responderUserId??b.turnUserId)===ownId?'내':name(b.responderUserId??b.turnUserId!)} ${b.stage==='RESPONDING'?'판단 차례':'차례'}`} myTurn={!spectator&&(b.responderUserId??b.turnUserId)===ownId}/>}
     {b.turnDeadline && now >= Date.parse(b.turnDeadline) && <p>시간 만료 · 서버의 다음 상태를 기다리고 있습니다.</p>}
     </div>
     <section className="mini-actions bridge-main-actions">

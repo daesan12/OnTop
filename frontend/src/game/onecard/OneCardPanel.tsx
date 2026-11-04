@@ -90,8 +90,8 @@ export function OneCardPanel() {
     {timeWarning && <div className="onecard-time-warning" aria-hidden="true" />}
     {opening && <div className="onecard-opening-status" role="status">{openingAge(o, g.version, now) < SHUFFLE_MS ? '카드를 섞고 있어요' : '카드를 나누고 있어요'}</div>}
     {finished ? <div className="mini-status"><p role="status">{o.winnerUserIds.map(name).join(' · ')} {o.winnerUserIds.length > 1 ? '공동 승리' : '승리'}</p></div>
-      : <GameHudClock game="원카드" label={myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}
-          remainingMs={remaining === null ? null : Date.parse(o.turnDeadline!) - now} limitMs={o.turnTimeLimitMs} myTurn={!!ownTurn} hint={o.stage==='CHOOSE_SUIT'?'무늬를 선택하세요':'같은 무늬 또는 숫자를 골라요'}/>}
+      : <GameHudClock game="원카드" label={!spectator&&myTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}
+          remainingMs={remaining === null ? null : Date.parse(o.turnDeadline!) - now} limitMs={o.turnTimeLimitMs} myTurn={!!ownTurn} hint={spectator?'관전 중 · 공개 정보':o.stage==='CHOOSE_SUIT'?'무늬를 선택하세요':'같은 무늬 또는 숫자를 골라요'}/>}
     {!spectator && !finished && !opening && <div key={`${o.turnUserId}/${o.turnCount}`} className="onecard-turn-cue" data-own={!!ownTurn} role="status" aria-label="현재 차례">
       <span aria-hidden="true">{ownTurn ? '◆' : '◷'}</span><strong>{ownTurn ? '내 차례' : `${name(o.turnUserId ?? '')}의 차례`}</strong>
       {ownTurn && o.stage === 'CHOOSE_SUIT' && <small>무늬를 선택하세요</small>}
