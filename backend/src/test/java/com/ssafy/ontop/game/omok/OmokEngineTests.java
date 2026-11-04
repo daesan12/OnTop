@@ -97,7 +97,7 @@ class OmokEngineTests {
             play(202, "white-preview-" + i, i * 2 + 1, i * 2, 0);
         }
         JsonNode points = state().path("forbiddenMoves");
-        assertThat(points).isEqualTo(mapper.readTree("[{\"x\":7,\"y\":7}]"));
+        assertThat(points).isEqualTo(mapper.readTree("[{\"x\":7,\"y\":7,\"kind\":\"33\"}]"));
         assertThat(engine.load(101).orElseThrow().state().path("forbiddenMoves")).isEqualTo(points);
     }
 

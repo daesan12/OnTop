@@ -31,3 +31,8 @@ it('copies public markers, rejects occupied cells and accepts an older server wi
   const occupied = sample(); occupied.board[7]![7] = 1
   expect(() => parseOmok(occupied)).toThrow()
 })
+
+it('keeps classified 33/44/6 markers and rejects unknown or numeric classifications',()=>{
+ for(const kind of ['33','44','6']) expect(parseOmok({...sample(),forbiddenMoves:[{x:7,y:7,kind}]}).forbiddenMoves).toEqual([{x:7,y:7,kind}])
+ for(const kind of ['55',33,null]) expect(()=>parseOmok({...sample(),forbiddenMoves:[{x:7,y:7,kind}]})).toThrow()
+})

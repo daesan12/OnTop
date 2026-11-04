@@ -81,7 +81,10 @@ public final class OmokBoard {
             for (int y = 0; y < SIZE; y++) for (int x = 0; x < SIZE; x++) {
                 if (cells[y][x] != 0) continue;
                 cells[y][x] = 1;
-                try { if (rules.forbidden(x, y)) result.add(new Point(x, y)); }
+                try {
+                    String kind = rules.reason(x, y);
+                    if (kind != null) result.add(new Point(x, y, kind));
+                }
                 finally { cells[y][x] = 0; }
             }
         }
@@ -124,7 +127,7 @@ public final class OmokBoard {
 
     public record Move(int x, int y, Stone stone) { }
 
-    public record Point(int x, int y) { }
+    public record Point(int x, int y, String kind) { }
     public record Snapshot(List<List<Integer>> board, int moveCount, Outcome outcome, Move lastMove,
             List<Point> forbiddenMoves) { }
 }

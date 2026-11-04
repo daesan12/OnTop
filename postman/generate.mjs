@@ -269,7 +269,8 @@ const joinA = () => message('01 광장 A 입장 → CHANNEL_STATE + WORLD_STATE'
 const locate = () => message('이동 입력 → WORLD_STATE (채널 입장 시 서버 스폰)',
     'WORLD_MOVE', { seq: 1, dx: 0, dz: -1, run: false, jump: false });
 const sitA = () => message('05 A 테이블 착석 → TABLE_STATE', 'TABLE_JOIN', { tableId: '{{tableIdA}}' });
-const ready = flag => message(flag ? '07 준비 → TABLE_STATE' : '추가 준비 취소 → TABLE_STATE', 'READY_SET', { ready: flag });
+// READY=true: DB 제품 프로필은 사용 가능 잔액을 먼저 확인하고 부족 시 INSUFFICIENT_BALANCE + 부족액을 응답합니다. 준비는 차감/예약을 하지 않으며 시작 직전 DB 재검증은 유지합니다.
+const ready = flag => message(flag ? '07 준비 → TABLE_STATE (잔액 부족 시 ERROR)' : '추가 준비 취소 → TABLE_STATE', 'READY_SET', { ready: flag });
 const leave = () => message('추가 테이블 퇴장 → TABLE_LEFT', 'TABLE_LEAVE');
 const channelLeave = () => message('추가 광장 퇴장 → CHANNEL_LEFT (착석 중이면 먼저 테이블 퇴장)', 'CHANNEL_LEAVE');
 const select = code => message(code === 'OMOK' ? '06 첫 착석자 오목 선택 → TABLE_STATE'
@@ -369,7 +370,7 @@ const wsItems = [
         + '경기 종료 시 4종 엔진의 서버 종료 알림이 현재 참가자 본인의 저장 결과를 1회 자동 조회합니다. 실제 시작부터 같은 경기 좌석을 유지한 현재 연결만 GAME_RESULT(requestId=null)를 수신합니다. TABLE_LEAVE 승인 후에는 GAME_START_STATE.phase=NOT_SEATED, GAME_RECONNECT_CHECK는 PENDING 다음 LOBBY이며 과거 종료 경기·자동 결과를 다시 보내지 않습니다. 미착석 GAME_START_CHECK는 기존 ERROR.code=NOT_SEATED입니다. 같은 테이블 재착석도 과거 경기를 되살리지 않으며 명시 GAME_RESULT_CHECK로 본인 이력은 계속 조회합니다. 미저장·읽기 실패 때는 가짜 결과/자동 오류를 보내지 않습니다. 이후 DB 담당의 커밋 알림으로 PENDING/null → SETTLED/본인 확정 순증감을 수신하거나 07 GAME_RESULT_CHECK로 재조회합니다. 결과 version과 경기 상태 version은 별개이며 결과 조회는 지급을 실행하지 않습니다. '
         + '진행 중 오목 채팅은 복구·착석 완료 후 PLAYER GAME_STATE를 받은 플레이어와 승인 관전자 모두 GAME_SPECTATOR_CHAT_SEND {gameId,eventId,text}를 사용합니다. GAME_SPECTATOR_CHAT_MESSAGE의 발신자 ACK는 원 requestId, 나머지는 null입니다. eventId는 소문자 UUID, text는 1~200 코드포인트, 최소1초 간격·TTL3초·중복 재확인 정책을 유지합니다. 핑 OMOK_SPECTATOR_PING_SEND는 관전자 전용이며 플레이어는 GAME_SPECTATOR_ACCESS_DENIED입니다. '
         + '오목은 15×15 렌주·흑 선공·흑 정확히 5목/백 5개 이상 승리. 흑 33·44·장목은 GAME_ACTION_FORBIDDEN_MOVE로 거절하고 판·버전·차례·턴 마감은 유지합니다. 같은 수의 정확한 5목은 금수보다 우선합니다. 한 수 30초 도달 시 시간패·총시간 제한 없음입니다. 복귀해도 기존 turnDeadline은 유지하며 재접속 유예보다 턴 마감이 먼저면 종료합니다. '
-        + 'publicState에는 gameCode/status, boardSize/board[y][x](0빈칸/1흑/2백), forbiddenMoves:[{x,y}](서버 렌주 판정의 흑 금수 미리보기, 빈 배열 가능), blackUserId/whiteUserId, moveCount/lastMove, turnUserId/turnDeadline, winnerUserId/endReason/endedAt이 있습니다. 참가자·관전자 privateState는 모두 {}입니다. 종료 사유는 FIVE_IN_ROW, BOARD_FULL, TURN_TIMEOUT, RECONNECT_EXPIRED이며 종료 후 차례·턴 마감은 null입니다. 승패 상태는 정산 확정이 아니며 엽전 지급은 별도입니다. '
+        + 'publicState에는 gameCode/status, boardSize/board[y][x](0빈칸/1흑/2백), forbiddenMoves:[{x,y,kind:"33"|"44"|"6"}](서버 렌주 판정의 흑 금수 위치·종류, 빈 배열 가능), blackUserId/whiteUserId, moveCount/lastMove, turnUserId/turnDeadline, winnerUserId/endReason/endedAt이 있습니다. 참가자·관전자 privateState는 모두 {}입니다. 종료 사유는 FIVE_IN_ROW, BOARD_FULL, TURN_TIMEOUT, RECONNECT_EXPIRED이며 종료 후 차례·턴 마감은 null입니다. 승패 상태는 정산 확정이 아니며 엽전 지급은 별도입니다. '
         + '09/10은 02 성공 후 actionId·원래 버전을 유지하고 각각 중복 확인·내용 충돌을 검사합니다. 11은 복귀 조회이며 마감을 연장하지 않습니다. 기본 dev에서는 여전히 인증 오류가 정상이고 경기 성공 시연용이 아닙니다.',
         [message('01 경기 상태 조회 → dev: GAME_STATE_AUTH_REQUIRED', 'GAME_STATE_CHECK', { gameId: '{{gameId}}' }),
             message('02 경기 입력 → dev: GAME_ACTION_AUTH_REQUIRED', 'GAME_ACTION_SEND',
@@ -476,7 +477,7 @@ wsItems[5].description += '\n\n' + bridgeGuide;
 wsItems.push({ ...wsRequest('07 로그인 사용자 — 1회용 접속권',
     '먼저 HTTP10을 보내 30초 접속권을 받으세요. 개인 로컬 websocketTicket에 넣고 즉시 Connect. '
     + 'HTTP10과 같은 Origin을 사용하고 재접속마다 새 접속권을 발급합니다. JWT는 URL에 넣지 않습니다. '
-    + 'CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. '
+    + 'READY_SET은 DB 제품 프로필에서 사용 가능 잔액(전체−예약)이 판돈보다 적으면 INSUFFICIENT_BALANCE로 준비를 막고 요청자에게 부족액을 안내합니다. READY_BALANCE_UNAVAILABLE은 조회 실패, READY_CHECK_PENDING은 확인 중, READY_CHECK_CANCELLED는 취소입니다. 준비 취소는 허용하며 실제 시작 DB 잠금·예약 재검증은 유지합니다. 시작의 WAITING/INSUFFICIENT_BALANCE는 전원 준비 해제와 안내가 필요합니다. CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. '
     + '실제 시작은 ontop.game-start.enabled=true + 실제 B GameStartGateway + 사용할 엔진이 필요합니다. '
     + '전원 준비 → STARTING → 전원 판돈 예약 커밋 후 PLAYING(simulation=false), GAME_CONNECTION_STATE로 본인 상태/조작권 복구. '
     + '시작 시 즉시 차감하지 않고 종료 정산 때 예약 해제·차감·승자 지급을 확정합니다. 실제 DB 처리는 별도입니다. '

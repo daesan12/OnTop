@@ -23,7 +23,7 @@
     "contentType": "json"
     "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"TABLE_JOIN\",\n  \"payload\": {\n    \"tableId\": \"{{tableIdA}}\"\n  }\n}"
   -
-    "name": "07 준비 → TABLE_STATE"
+    "name": "07 준비 → TABLE_STATE (잔액 부족 시 ERROR)"
     "$kind": "websocket-message"
     "contentType": "json"
     "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"READY_SET\",\n  \"payload\": {\n    \"ready\": true\n  }\n}"

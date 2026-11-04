@@ -95,6 +95,18 @@ class RenjuRulesTests {
         assertThat(board.snapshot().moveCount()).isEqualTo(5);
     }
 
+    @Test void 금수_종류를_삼삼_사사_장목으로_구분해_공개한다() {
+        for(int[] row:cells) java.util.Arrays.fill(row,0);
+        black(6,7,8,7,7,6,7,8,7,7);
+        assertThat(new RenjuRules(cells).reason(7,7)).isEqualTo("33");
+        for(int[] row:cells) java.util.Arrays.fill(row,0);
+        black(5,7,6,7,8,7,7,5,7,6,7,8,7,7);
+        assertThat(new RenjuRules(cells).reason(7,7)).isEqualTo("44");
+        for(int[] row:cells) java.util.Arrays.fill(row,0);
+        black(4,7,5,7,6,7,8,7,9,7,7,7);
+        assertThat(new RenjuRules(cells).reason(7,7)).isEqualTo("6");
+    }
+
     private void black(int... xy) { for(int i=0;i<xy.length;i+=2) cells[xy[i+1]][xy[i]]=1; }
     private boolean forbidden(int x,int y) {
         cells[y][x]=1;

@@ -17,26 +17,26 @@ class OmokBoardTests {
         OmokBoard board = new OmokBoard();
         for (int[] p : new int[][]{{6, 7}, {8, 7}, {7, 6}, {7, 8}}) board.place(Stone.BLACK, p[0], p[1]);
         var before = board.snapshot();
-        assertThat(before.forbiddenMoves()).contains(new OmokBoard.Point(7, 7));
+        assertThat(before.forbiddenMoves()).contains(new OmokBoard.Point(7, 7, "33"));
         assertThat(board.snapshot().forbiddenMoves()).isSameAs(before.forbiddenMoves());
         assertThat(before.board().get(7).get(7)).isZero();
         assertThatThrownBy(() -> board.place(Stone.BLACK, 7, 7)).isInstanceOf(OmokBoard.ForbiddenMove.class);
         assertThat(board.snapshot()).isEqualTo(before);
         board.place(Stone.WHITE, 7, 7);
-        assertThat(board.snapshot().forbiddenMoves()).doesNotContain(new OmokBoard.Point(7, 7));
+        assertThat(board.snapshot().forbiddenMoves()).doesNotContain(new OmokBoard.Point(7, 7, "33"));
         board.undoPair();
         assertThat(board.snapshot().forbiddenMoves()).isEmpty();
-        assertThat(before.forbiddenMoves()).contains(new OmokBoard.Point(7, 7));
+        assertThat(before.forbiddenMoves()).contains(new OmokBoard.Point(7, 7, "33"));
     }
 
     @Test
     void 장목_미리보기는_정확한_오목_승리와_구분한다() {
         OmokBoard board = new OmokBoard();
         for (int x : new int[]{2, 3, 4, 6, 7}) board.place(Stone.BLACK, x, 7);
-        assertThat(board.snapshot().forbiddenMoves()).contains(new OmokBoard.Point(5, 7));
+        assertThat(board.snapshot().forbiddenMoves()).contains(new OmokBoard.Point(5, 7, "6"));
         OmokBoard five = new OmokBoard();
         for (int x : new int[]{2, 3, 4, 6}) five.place(Stone.BLACK, x, 7);
-        assertThat(five.snapshot().forbiddenMoves()).doesNotContain(new OmokBoard.Point(5, 7));
+        assertThat(five.snapshot().forbiddenMoves()).doesNotContain(new OmokBoard.Point(5, 7, "6"));
         five.place(Stone.BLACK, 5, 7);
         assertThat(five.snapshot().outcome()).isEqualTo(Outcome.BLACK_WIN);
         assertThat(five.snapshot().forbiddenMoves()).isEmpty();

@@ -14,6 +14,7 @@ import { OmokSurrender } from './OmokSurrender'
 import { omokSpectatorViewport } from './cameraState'
 import { useOmokEvents } from './omok/spectatorEvents'
 import './game.css'
+import { useReadyBalance, canAffordBet, BetBalanceNotice, startFailureNotice } from '../features/tableLobby/readyBalance'
 
 export function GameControls({ tableId }: { tableId: string }) {
   const runtime = useParkRuntime(),
@@ -26,6 +27,7 @@ export function GameControls({ tableId }: { tableId: string }) {
   const [target, setTarget] = useState(2000)
   const [betInput, setBetInput] = useState('')
   useEffect(() => { setBetInput(table?.betAmountPerPlayer == null ? '' : String(table.betAmountPerPlayer)) }, [tableId, table?.betAmountPerPlayer])
+  const {balance,refresh:refreshBalance} = useReadyBalance(seated === tableId && !!table && !tableBusy(),tableId,start?.revision)
   if (seated !== tableId || !table) return null
   const busy = tableBusy(),
     mine = table.seats.find((s) => s.userId === own)
@@ -60,8 +62,9 @@ export function GameControls({ tableId }: { tableId: string }) {
       </select></label>}
       {table.gameCode && !isTableGamePlayable(table.gameCode) && <p role="status">{GAME_CONSTRUCTION_NOTICE}</p>}
       <p>{lobby.count}/{table.capacity}명 · 최소 {table.minimumPlayers}명</p>
+      <BetBalanceNotice balance={balance} bet={table.betAmountPerPlayer} retry={refreshBalance}/>
       <button
-        disabled={pending || (mine?.ready ? busy : !lobby.canReady)}
+        disabled={pending || (mine?.ready ? busy : !lobby.canReady || !canAffordBet(balance,table.betAmountPerPlayer))}
         onClick={() => void runtime.setReady(!mine?.ready)}
       >
         {mine?.ready ? '준비 취소' : '준비'}
@@ -77,7 +80,7 @@ export function GameControls({ tableId }: { tableId: string }) {
                 ? '전원 준비 완료 · 서버 시작 상태 대기'
                 : lobby.message}
       </p>
-      {start?.code && <p>{start.code}</p>}
+      {start?.code && <p role="alert">{startFailureNotice(start) || start.code}</p>}
       {start?.phase === 'STARTING' && (
         <button disabled={pending} onClick={() => void runtime.checkStart()}>
           시작 상태 다시 확인
@@ -110,6 +113,7 @@ export function OmokPanel() {
     pending = useSession((s) => s.pending)
   const spectatorView = useTableLobby(s => s.spectatorView)
   const profiles = useSession(s => s.profiles)
+  const connectionNotice = useSession(s => s.error || (['joining','reconnecting'].includes(s.status) ? s.status : ''))
   const header = useRef<HTMLElement>(null), toolbar = useRef<HTMLDivElement>(null)
   const spectatorGameId = s.game?.omok ? s.game.gameId : ''
   const spectator = s.game?.role === 'SPECTATOR'
@@ -117,32 +121,37 @@ export function OmokPanel() {
     if (!spectatorGameId || !header.current || !toolbar.current) return
     const root = document.querySelector<HTMLElement>('.park-page')!
     const chat = document.querySelector<HTMLElement>('.omok-spectator-chat')
+    const notice = document.querySelector<HTMLElement>('.park-runtime-status')
     const measure = () => {
       if (!header.current || !toolbar.current) return
+      const noticeTop = header.current!.getBoundingClientRect().bottom + 10
+      root.style.setProperty('--omok-notice-top', Math.ceil(noticeTop)+'px')
+      root.style.setProperty('--omok-chat-top', Math.ceil(noticeTop + (notice ? notice.getBoundingClientRect().height+8 : 0))+'px')
       root.style.setProperty('--omok-spectator-toolbar-height', `${toolbar.current!.getBoundingClientRect().height}px`)
       const chatRect = chat?.getBoundingClientRect()
-      const chatAtTop = window.matchMedia(spectator ? '(max-width:1280px)' : '(max-width:700px)').matches
-      const hintTop = root.querySelector('.focus-hint')?.getBoundingClientRect().top ?? innerHeight
-      const sideHud = !spectator && window.matchMedia('(min-width:1000px)').matches
+      const chatAtTop = window.matchMedia(spectator ? '(max-width:1280px)' : '(max-width:1000px)').matches
+      const sideTools = !spectator && !chatAtTop ? toolbar.current!.querySelector('.omok-play-tools')?.getBoundingClientRect() : null
+      const notes = sideTools ? toolbar.current!.querySelector('.omok-play-notes')?.getBoundingClientRect() : null
       omokSpectatorViewport.gameId = spectatorGameId
-      omokSpectatorViewport.insets = sideHud ? { top: 18, bottom: 18, left: 320, right: 310 } : {
-        top: Math.ceil(Math.max(header.current!.getBoundingClientRect().bottom, chatAtTop ? chatRect?.bottom ?? 0 : 0) + 14),
-        bottom: Math.ceil(innerHeight - Math.min(toolbar.current!.getBoundingClientRect().top, hintTop,
-          spectator && !chatAtTop ? chatRect?.top ?? innerHeight : innerHeight) + 14),
-        left: 20, right: 20,
+      omokSpectatorViewport.insets = {
+        top: Math.ceil(Math.max(header.current!.getBoundingClientRect().bottom, notice?.getBoundingClientRect().bottom ?? 0, chatAtTop ? chatRect?.bottom ?? 0 : 0) + 14),
+        bottom: Math.ceil(innerHeight - Math.min(notes?.top ?? toolbar.current!.getBoundingClientRect().top,
+          !chatAtTop ? chatRect?.top ?? innerHeight : innerHeight) + 14),
+        left: sideTools && chatRect ? Math.ceil(chatRect.right + 14) : 20,
+        right: sideTools ? Math.ceil(innerWidth - sideTools.left + 14) : 20,
       }
     }
     measure()
     const observer = new ResizeObserver(measure)
-    for (const node of [header.current, toolbar.current, chat]) if (node) observer.observe(node)
+    for (const node of [header.current, toolbar.current, chat, notice]) if (node) observer.observe(node)
     window.addEventListener('resize', measure)
     return () => {
       observer.disconnect(); window.removeEventListener('resize', measure)
       if (omokSpectatorViewport.gameId === spectatorGameId) {
-        omokSpectatorViewport.gameId = ''; root.style.removeProperty('--omok-spectator-toolbar-height')
+        omokSpectatorViewport.gameId = ''; root.style.removeProperty('--omok-spectator-toolbar-height'); root.style.removeProperty('--omok-chat-top'); root.style.removeProperty('--omok-notice-top')
       }
     }
-  }, [spectatorGameId, spectator])
+  }, [spectatorGameId, spectator, connectionNotice])
   const [now, setNow] = useState(estimatedServerTime)
   useEffect(() => {
     if (!s.game?.omok?.turnDeadline) return
@@ -161,6 +170,13 @@ export function OmokPanel() {
   if (!g || !o) return <section className="park-runtime-panel omok-panel" aria-label="오목 경기"><p role="status">경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>{s.error && <p role="alert">{s.error}</p>}<button disabled={pending || !connected} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button></section>
   const player = g.role === 'PLAYER', ownBlack = own === o.blackUserId
   const opponent = ownBlack ? o.whiteUserId : o.blackUserId
+  const alerts = (<div className="focus-error">
+      {remaining === 0 && <p role="status">착수 시간이 끝났습니다. 서버의 종료 판정을 기다리고 있습니다.</p>}
+      {s.uncertain && <p>착수 반영 여부를 확인해야 합니다. 같은 수를 자동 재전송하지 않습니다.</p>}
+      {g.version < s.awaitingVersion && <p>착수 확인 수신 · 최신 판을 기다리고 있습니다.</p>}
+      {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}{s.error && <p role="alert">{s.error}</p>}
+    </div>
+  )
   return <section className={`prototype-game gomoku-focus-hud omok-panel${player ? '' : ' omok-spectator-hud'}`} aria-label="오목 경기" data-spectator={!player} data-board-view={!player && spectatorView === 'board'}>
     <OmokCoinToss key={g.gameId} game={o} />
     {player ? <header ref={header} className="omok-match-header omok-player-header" aria-label="오목 경기 정보">
@@ -176,25 +192,23 @@ export function OmokPanel() {
       <div className="omok-match-clock" role="status"><div><small>오목 관전 중</small><span>{o.status === 'FINISHED' ? omokOutcome(o, own, true) : o.turnUserId === o.blackUserId ? '흑 차례' : '백 차례'}</span></div><strong>{remaining ?? '—'}<small>초</small></strong></div>
       <div className="omok-match-player" data-turn={o.turnUserId === o.whiteUserId}><div><b>{profiles[o.whiteUserId]?.nickname ?? '백 플레이어'}</b><small>백돌</small></div><i className="stone-chip white" /></div>
     </header>}
-    {player && <><div className="focus-record"><span>{o.moveCount}수</span><span className="omok-last-move-text">{lastMoveText(o.lastMove)}</span></div>
-    <p className="focus-hint">{s.pending ? '요청 전송 중 · 서버 확인을 기다리고 있습니다.' : o.draw ? '무승부 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : o.undo ? '무르기 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : myTurn ? ownBlack ? '빈 교차점을 클릭하세요 · 빨간 원은 흑이 둘 수 없는 금수입니다' : '빈 교차점을 클릭해 돌을 놓으세요' : '상대의 착수를 기다리고 있어요'}</p></>}
-    {player ? <div ref={toolbar} className="focus-actions"><GameSpectatorCount />
-      <button onClick={() => openManual('gomoku')}>게임 설명 · F1</button>
-      {(recoveryBlocked() || s.uncertain) && <button disabled={pending || !connected} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
-      <OmokSurrender key={`${own}:${g.gameId}`} context={{ userId: own, gameId: g.gameId, version: g.version }} disabled={pending || !connected || recoveryBlocked() || s.uncertain} />
+    {player ? <div ref={toolbar} className="omok-player-bottom">
+      <div className="omok-play-notes"><div className="focus-record"><span>{o.moveCount}수</span><span className="omok-last-move-text">{lastMoveText(o.lastMove)}</span></div>
+        <p className="focus-hint">{s.pending ? '요청 전송 중 · 서버 확인을 기다리고 있습니다.' : o.draw ? '무승부 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : o.undo ? '무르기 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : myTurn ? ownBlack ? '빈 교차점을 클릭하세요 · 빨간 33·44·6은 금수입니다' : '빈 교차점을 클릭해 돌을 놓으세요' : '상대의 착수를 기다리고 있어요'}</p>
+      </div>
+      <div className="omok-play-tools"><div className="omok-negotiations"><OmokUndoControls now={now}/><OmokDrawControls now={now}/></div>
+        <div className="focus-actions"><GameSpectatorCount/>
+          <button onClick={()=>openManual('gomoku')}>게임 설명 · F1</button>
+          {(recoveryBlocked()||s.uncertain)&&<button disabled={pending||!connected} onClick={()=>void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
+          <OmokSurrender key={own+':'+g.gameId} context={{userId:own,gameId:g.gameId,version:g.version}} disabled={pending||!connected||recoveryBlocked()||s.uncertain}/>
+        </div>
+      </div>{alerts}
     </div> : <div ref={toolbar} className="omok-spectator-toolbar">
-      <div className="omok-spectator-actions"><GameSpectatorCount /><div className="omok-view-switch" role="group" aria-label="관전 시점">
-        <button disabled={pending || !connected} aria-pressed={spectatorView === 'table'} onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>주변 보기</button>
-        <button disabled={pending || !connected} aria-pressed={spectatorView === 'board'} onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>판 보기</button>
-      </div><button onClick={() => openManual('gomoku')}>게임 설명 · F1</button><button disabled={pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button></div>
-      <OmokPingStatus />
+      <div className="omok-spectator-actions"><GameSpectatorCount/><div className="omok-view-switch" role="group" aria-label="관전 시점">
+        <button disabled={pending||!connected} aria-pressed={spectatorView==='table'} onClick={()=>useTableLobby.setState({spectatorView:'table'})}>주변 보기</button>
+        <button disabled={pending||!connected} aria-pressed={spectatorView==='board'} onClick={()=>useTableLobby.setState({spectatorView:'board'})}>판 보기</button>
+      </div><button onClick={()=>openManual('gomoku')}>게임 설명 · F1</button><button disabled={pending} onClick={()=>void runtime.unwatchGame()}>관전 종료</button></div>
+      <OmokPingStatus/>{alerts}
     </div>}
-    {player && <div className="omok-negotiations"><OmokUndoControls now={now} /><OmokDrawControls now={now} /></div>}
-    <div className="focus-error">
-      {remaining === 0 && <p role="status">착수 시간이 끝났습니다. 서버의 종료 판정을 기다리고 있습니다.</p>}
-      {s.uncertain && <p>착수 반영 여부를 확인해야 합니다. 같은 수를 자동 재전송하지 않습니다.</p>}
-      {g.version < s.awaitingVersion && <p>착수 확인 수신 · 최신 판을 기다리고 있습니다.</p>}
-      {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}{s.error && <p role="alert">{s.error}</p>}
-    </div>
   </section>
 }
