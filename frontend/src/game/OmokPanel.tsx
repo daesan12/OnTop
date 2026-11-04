@@ -1,5 +1,6 @@
 import { GameSpectatorCount } from './GameSpectatorCount'
 import { OmokCoinToss } from './omok/OmokCoinToss'
+import { OmokTurnClock } from './omok/OmokTurnClock'
 import { openManual } from '../features/manual/manualState'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useGame, tableBusy, recoveryBlocked } from './store'
@@ -128,7 +129,17 @@ export function OmokPanel() {
       root.style.setProperty('--omok-notice-top', Math.ceil(noticeTop)+'px')
       root.style.setProperty('--omok-chat-top', Math.ceil(noticeTop + (notice ? notice.getBoundingClientRect().height+8 : 0))+'px')
       root.style.setProperty('--omok-spectator-toolbar-height', `${toolbar.current!.getBoundingClientRect().height}px`)
+      root.style.setProperty('--omok-side-header-height', `${header.current!.getBoundingClientRect().bottom + (notice?.getBoundingClientRect().height ?? 0)}px`)
       const chatRect = chat?.getBoundingClientRect()
+      if (innerWidth >= 1120) {
+        omokSpectatorViewport.gameId = spectatorGameId
+        omokSpectatorViewport.insets = {
+          top:16,bottom:16,
+          left:Math.ceil(Math.max(header.current!.getBoundingClientRect().right,chatRect?.right??0,notice?.getBoundingClientRect().right??0)+14),
+          right:Math.ceil(innerWidth-toolbar.current!.getBoundingClientRect().left+14),
+        }
+        return
+      }
       const chatAtTop = window.matchMedia(spectator ? '(max-width:1280px)' : '(max-width:1000px)').matches
       const sideTools = !spectator && !chatAtTop ? toolbar.current!.querySelector('.omok-play-tools')?.getBoundingClientRect() : null
       const notes = sideTools ? toolbar.current!.querySelector('.omok-play-notes')?.getBoundingClientRect() : null
@@ -148,7 +159,7 @@ export function OmokPanel() {
     return () => {
       observer.disconnect(); window.removeEventListener('resize', measure)
       if (omokSpectatorViewport.gameId === spectatorGameId) {
-        omokSpectatorViewport.gameId = ''; root.style.removeProperty('--omok-spectator-toolbar-height'); root.style.removeProperty('--omok-chat-top'); root.style.removeProperty('--omok-notice-top')
+        omokSpectatorViewport.gameId = ''; root.style.removeProperty('--omok-spectator-toolbar-height'); root.style.removeProperty('--omok-chat-top'); root.style.removeProperty('--omok-notice-top');root.style.removeProperty('--omok-side-header-height')
       }
     }
   }, [spectatorGameId, spectator, connectionNotice])
@@ -162,6 +173,7 @@ export function OmokPanel() {
   const g = s.game?.omok ? s.game : null
   if (!g && !recoveryBlocked() && (!s.error || !s.permittedGameId)) return null
   const deadline = g?.omok?.turnDeadline,
+    remainingMs = deadline ? Date.parse(deadline)-now : null,
     remaining = deadline
       ? Math.max(0, Math.ceil((Date.parse(deadline) - now) / 1000))
       : null
@@ -177,19 +189,18 @@ export function OmokPanel() {
       {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}{s.error && <p role="alert">{s.error}</p>}
     </div>
   )
-  return <section className={`prototype-game gomoku-focus-hud omok-panel${player ? '' : ' omok-spectator-hud'}`} aria-label="오목 경기" data-spectator={!player} data-board-view={!player && spectatorView === 'board'}>
+  return <section className={`prototype-game gomoku-focus-hud omok-panel omok-rail-hud${player ? '' : ' omok-spectator-hud'}`} aria-label="오목 경기" data-spectator={!player} data-board-view={!player && spectatorView === 'board'}>
     <OmokCoinToss key={g.gameId} game={o} />
     {player ? <header ref={header} className="omok-match-header omok-player-header" aria-label="오목 경기 정보">
       <div className="omok-match-player omok-own-stone" aria-label="내 돌"><i className={`stone-chip ${ownBlack ? 'black' : 'white'}`} /><div>
         <small>내 돌 · {profiles[own]?.nickname ?? '나'}</small><b>{ownBlack ? '흑돌' : '백돌'}</b></div></div>
-      <div className="omok-match-clock" aria-label="남은 착수 시간" data-my-turn={myTurn && o.status === 'PLAYING'} data-urgent={myTurn && o.status === 'PLAYING' && remaining !== null && remaining > 0 && remaining <= 10} role="timer">
-        <span className="omok-turn-label">{myTurn ? '내 차례' : '상대 차례'}</span><strong>{remaining ?? '—'}<small>초</small></strong>
-        <small className="omok-clock-hint">{remaining === 0 ? '종료 판정 대기' : myTurn ? '지금 착수하세요' : '상대가 생각 중이에요'}</small></div>
+      <OmokTurnClock remainingMs={remainingMs} label={myTurn?'내 차례':'상대 차례'} myTurn={myTurn && o.status==='PLAYING'}
+        hint={remaining===0?'종료 판정 대기':myTurn?'지금 착수하세요':'상대가 생각 중이에요'}/>
       <div className="omok-match-player"><div><b>{profiles[opponent]?.nickname ?? '상대'}</b>
         <small>상대 · {ownBlack ? '백돌' : '흑돌'}</small></div><i className={`stone-chip ${ownBlack ? 'white' : 'black'}`} /></div>
     </header> : <header ref={header} className="omok-match-header" aria-label="오목 관전 경기 정보">
       <div className="omok-match-player" data-turn={o.turnUserId === o.blackUserId}><i className="stone-chip black" /><div><b>{profiles[o.blackUserId]?.nickname ?? '흑 플레이어'}</b><small>흑돌</small></div></div>
-      <div className="omok-match-clock" role="status"><div><small>오목 관전 중</small><span>{o.status === 'FINISHED' ? omokOutcome(o, own, true) : o.turnUserId === o.blackUserId ? '흑 차례' : '백 차례'}</span></div><strong>{remaining ?? '—'}<small>초</small></strong></div>
+      <OmokTurnClock remainingMs={remainingMs} label={o.status==='FINISHED'?omokOutcome(o,own,true):o.turnUserId===o.blackUserId?'흑 차례':'백 차례'} hint="오목 관전 중"/>
       <div className="omok-match-player" data-turn={o.turnUserId === o.whiteUserId}><div><b>{profiles[o.whiteUserId]?.nickname ?? '백 플레이어'}</b><small>백돌</small></div><i className="stone-chip white" /></div>
     </header>}
     {player ? <div ref={toolbar} className="omok-player-bottom">
