@@ -72,6 +72,20 @@ export function OneCardPanel() {
   const selectedForPlay = myTurn && o.stage === 'PLAYING' ? selected : undefined
   const actionHint = !fresh ? '최신 판과 손패를 확인하고 있어요.' : s.pending ? '서버가 요청을 확인하고 있어요.'
     : remaining === 0 ? '시간이 끝났어요. 서버 판정을 기다려주세요.' : guidance.hint
+  const feedback=<div className="mini-feedback">{s.pending && <p>요청 중 · 서버 판정 확인 중입니다.</p>}
+    {g.version < s.awaitingVersion && <p>처리 확인 수신 · 최신 판과 손패를 기다리고 있습니다.</p>}
+    {s.uncertain && <p>반영 여부를 확인해주세요. 카드를 자동으로 재전송하지 않습니다.</p>}
+    {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}
+    {s.error && <p role="alert">{s.error}</p>}
+    {prank.error && <p role="alert">{prank.error}</p>}
+    {defense.error && <p role="alert">{defense.error}</p>}
+  </div>
+  const recoveryControls=(spectator || finished || recoveryBlocked() || s.uncertain || !!s.error) && <div className="onecard-recovery-controls">{spectator && <GameSpectatorCount />}<div className="onecard-actions">
+    {(s.uncertain || !!s.error || recoveryBlocked()) && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 원카드 확인</button>}
+    {recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
+    {!spectator && finished && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
+    {spectator && <button disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
+  </div></div>
   return <section className="minigame-hud onecard-panel onecard-game-hud" aria-label="원카드 경기" data-stage={o.stage} data-role={g.role} data-own-turn={!!ownTurn}>
     {timeWarning && <div className="onecard-time-warning" aria-hidden="true" />}
     {opening && <div className="onecard-opening-status" role="status">{openingAge(o, g.version, now) < SHUFFLE_MS ? '카드를 섞고 있어요' : '카드를 나누고 있어요'}</div>}
@@ -122,24 +136,13 @@ export function OneCardPanel() {
         <button className="onecard-hammer-action" title="우클릭으로도 뿅망치 꺼내기·내려놓기" disabled={!canUseHammer} aria-pressed={hammerHeld} onClick={() => setHammerHeld(value => !value)}><img src="/art/onecard/prank/hammer.webp" alt="" /><span>{hammerHeld ? '뿅망치 내려놓기' : '뿅망치 들기'}</span><small aria-hidden="true">우클릭</small></button>
       </div>
       </div>
+      {recoveryControls}
+      {feedback}
     </section>}
     {spectator && <OneCardSpectatorHands key={g.gameId} />}
-    <div className="mini-feedback">{s.pending && <p>요청 중 · 서버 판정 확인 중입니다.</p>}
-    {g.version < s.awaitingVersion && <p>처리 확인 수신 · 최신 판과 손패를 기다리고 있습니다.</p>}
-    {s.uncertain && <p>반영 여부를 확인해주세요. 카드를 자동으로 재전송하지 않습니다.</p>}
-    {recoveryBlocked() && <p>경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>}
-    {s.error && <p role="alert">{s.error}</p>}
-    {prank.error && <p role="alert">{prank.error}</p>}
-    {defense.error && <p role="alert">{defense.error}</p>}
-    </div>
+    {(spectator || finished) && feedback}
     {!spectator && finished && <p>{s.result ? resultSettlement(s.result) : '결과 확인 중'}</p>}
-    {(spectator || finished || recoveryBlocked() || s.uncertain || !!s.error) && <div className="onecard-recovery-controls">{spectator && <GameSpectatorCount />}<div className="onecard-actions">
-      {(s.uncertain || !!s.error || recoveryBlocked()) && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 원카드 확인</button>}
-      {recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
-      {!spectator && finished && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
-      {spectator && <button disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
-    </div>
-    </div>}
+    {(spectator || finished) && recoveryControls}
     {!spectator && <div className="onecard-game-tools"><GameSpectatorCount /><OneCardForfeitDialog key={`${ownId}:${g.gameId}`} gameId={g.gameId} disabled={session.pending || !fresh} /></div>}
     {!spectator && !finished && <OneCardDefenseOverlay held={hammerHeld} active={fresh && !s.pending} ownId={ownId} />}
   </section>

@@ -43,7 +43,7 @@ export function LedgerScoreboard({ ledger, names, ownId, mode, pings, onPick }: 
     <thead><tr><th scope="col">칸</th>{ledger.players.map(card => <th scope="col" key={card.userId}
       data-turn={card.userId === ledger.turnUserId || undefined} data-own={card.userId === ownId || undefined}
       data-out={card.forfeited || undefined}>
-      <span>{names[card.userId]}</span>{card.forfeited && <small>기권</small>}
+      <span title={names[card.userId]}>{names[card.userId]}</span>{card.forfeited && <small>기권</small>}
       {ledger.winnerUserIds.includes(card.userId) && <small>{ledger.winnerUserIds.length > 1 ? '공동 승리' : '승리'}</small>}
     </th>)}</tr></thead>
     <tbody>
