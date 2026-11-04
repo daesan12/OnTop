@@ -4,7 +4,6 @@ import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
 import com.ssafy.ontop.world.dto.ChannelListResponse;
 import com.ssafy.ontop.world.dto.ChannelListResponse.ChannelResponse;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.ObjectProvider;
@@ -19,7 +18,7 @@ public class ChannelQueryService {
     private final ChannelPresence presence;
 
     public ChannelQueryService(WorldChannelProperties properties, ObjectProvider<ChannelPresence> presence) {
-        channels = properties.channels().stream().sorted(Comparator.comparing(Channel::channelId)).toList();
+        channels = properties.channels().stream().sorted(DynamicChannelDisplayNumbers.comparator()).toList();
         // 광장 입장 기능이 아직 없으므로 공급자 미등록 시 모든 채널의 실제 입장 인원은 0이다.
         this.presence = presence.getIfAvailable(() -> Map::of);
     }
@@ -30,7 +29,7 @@ public class ChannelQueryService {
             Map<String, Integer> counts = Map.copyOf(presence.snapshot());
             List<Channel> visible = presence instanceof WorldChannelRegistry registry
                     ? registry.definitions() : channels;
-            return new ChannelListResponse(visible.stream().sorted(Comparator.comparing(Channel::channelId)).map(channel -> {
+            return new ChannelListResponse(visible.stream().sorted(DynamicChannelDisplayNumbers.comparator()).map(channel -> {
                 int currentUsers = counts.getOrDefault(channel.channelId(), 0);
                 if (currentUsers < 0) {
                     throw new IllegalStateException("채널 사용자 수는 음수일 수 없습니다.");
