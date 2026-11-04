@@ -1,17 +1,28 @@
-# 캐릭터 의상 만들기 (마이룸 부위별 옷)
+# 캐릭터 의상 만들기 (마이룸 머리·얼굴·옷)
 
-장군 세트를 만든 방법을 그대로 따라 새 옷을 만들 수 있게 정리한 문서다. 2026-11-02 기준이며 관련 이슈는 S15P31B105-319다.
+장군 세트와 갓·도포를 만든 방법을 그대로 따라 새 옷을 만들 수 있게 정리한 문서다.
+
+- 처음 작성은 2026-11-02(S15P31B105-319)이다.
+- 2026-11-05에 마이룸을 머리·얼굴·옷 세 칸으로 바꾼 내용(S15P31B105-338)과, 갓·도포를 만들며 쓴 옵션(S15P31B105-331)을 더했다.
 
 ## 1. 구조 한눈에 보기
 
 - **공용 몸 하나 + 다섯 부위.** 남자·여자는 같은 몸을 쓰고 머리·얼굴·색만 다르다. 옷은 몸 위에 덧입는 다섯 부위(머리 `HAIR`, 얼굴 `FACE`, 상의 `TOP`, 하의 `BOTTOM`, 신발 `SHOES`)다.
+- **마이룸은 세 칸이다: 머리 · 얼굴 · 옷.**
+  - 머리와 얼굴은 각각 따로 입는다. 몸을 거의 가리지 않아 어떤 옷과도 섞어 써도 된다(장군 투구·선글라스로 확인).
+  - 옷은 상의·하의·신발을 **한 벌로만** 입는다. 한 부위라도 입으면 나머지 옷 부위는 그 한 벌(세트)이나 기본 옷으로 바뀐다(`docs/shop-inventory.md`의 "옷 한 벌").
+  - 데이터의 부위는 그대로 다섯 개다. 세 칸은 옷장 화면과 장착 규칙에서만 나뉜다.
+  - 그래서 새 옷은 **자기 한 벌을 입었을 때만** 맞으면 된다. 다른 상의·하의·신발과 섞어 입는 경우는 생기지 않는다.
+  - 부위별로 섞어 입게 했을 때는 바지가 다른 상의를 뚫거나, 바지 없이 신발만 신으면 발목이 비는 문제가 옷마다 생겼다.
 - **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`g`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`)이고, 새 옷은 `h`부터 쓴다.
 - **몸 조각.** 의상에 가려지는 몸은 `body__TOPd_BOTTOMg`처럼 가리는 의상 이름이 붙은 조각으로 잘려 있다. 이 조각은 그 의상 중 하나라도 입으면 숨는다. 의상 조각 `item__BOTTOM__d__under_TOPb`는 `TOP b`를 함께 입으면 숨는다.
 - **게임 파일**(`frontend/public/art/characters/`):
   - `man.glb`, `girl.glb`: 공용 몸의 모든 조각 + 그 캐릭터의 기본 옷.
   - `outfits/<이름>.glb`: 그 옷의 부위 조각만 담는다. 누군가 처음 입을 때만 내려받는다.
   - 각 메시의 `extras.pieces`에 조각 이름과 범위가 들어 있고, 게임은 입은 옷에 맞는 조각만 그린다(`frontend/src/world/art/characterLook.ts`).
-- **아이템과 연결.** DB `items.image_key`를 `outfit/<파일>/<의상 문자>`로 적으면 그 조각을 입힌다(예: 장군 `outfit/general/g`). 같은 세트는 `items.set_code`를 같은 값으로 둔다. 세트는 한 벌로만 입고 벗는다(`docs/shop-inventory.md`의 세트 항목).
+- **아이템과 연결.** DB `items.image_key`를 `outfit/<파일>/<의상 문자>`로 적으면 그 조각을 입힌다(예: 장군 `outfit/general/g`).
+  - 한 벌인 옷은 상의·하의·신발에 `items.set_code`를 같은 값으로 둔다(장군 `GENERAL`, 갓·도포 `DOPO`). 세트는 한 벌로만 입고 벗는다.
+  - 머리·얼굴 아이템에는 `set_code`를 두지 않는다(따로 쓴다).
 
 - **운영에서는 아직 꺼져 있다.** 옷장 의상은 개발 빌드(`VITE_WARDROBE_OUTFITS=true`, `frontend/vercel.dev.json`과 `Jenkinsfile`)와 로컬 개발에서만 켜진다. 운영 빌드에서는 다음처럼 동작한다(`frontend/src/features/wardrobe/feature.ts`).
   - 옷장에 의상 목록이 나오지 않고 "의상은 곧 열려요"가 보인다.
@@ -78,11 +89,11 @@
 | `head_fit=N` | 생성된 얼굴(부품 N)을 공용 몸 얼굴에 맞춰, 머리(HAIR)·얼굴(FACE) 부품을 그 크기로 옮긴다 |
 | `skirt=TOP` | 그 부위의 허리 아래(도포 자락·치마)를 엉덩이에 매달아 다리 사이로 갈라지지 않게 한다 |
 | `skirt_leg=0.9` | 무릎 높이에서 자락이 다리를 따라가는 비율(기본 0.5). 낮으면 달릴 때 무릎·다리가 자락을 뚫고 나오고, 높으면 다리 사이에서 조금 갈라진다 |
-| `fill=BOTTOM` | 그 부위가 숨기는 몸 중 옷이 덮지 않은 곳을 몸 표면으로 옷을 만들어 채운다. 긴 겉옷에 가려 Tripo가 바지 윗부분을 만들지 않았을 때 쓴다(안 쓰면 짧은 상의와 입을 때 허벅지가 구멍) |
+| `fill=BOTTOM` | 그 부위가 숨기는 몸 중 옷이 덮지 않은 곳을 몸 표면으로 옷을 만들어 채운다. 긴 겉옷에 가려 Tripo가 바지 윗부분을 만들지 않았을 때 쓴다(안 쓰면 짧은 상의와 입을 때 허벅지가 구멍). 옷이 한 벌로만 입히는 지금은 필요 없을 때가 많다 |
 | `sleeve_drape=0.4 sleeves=N,M` | T자에서 팔 아래로 늘어진 넓은 소매를 줄인다. 팔을 내리면 옆·뒤로 날개처럼 튀어나온다 |
 | `stiff` | 부품 안에서 가중치를 평균 내는 반경(기본 0.03 m) |
 | `pants=1` | Tripo 바지 대신 몸 표면으로 바지를 새로 만든다(허리·밑단을 수평으로 자름). `pants_hem`은 밑단이 신발 테두리 아래로 내려가는 길이 |
-| `under_tops=1` | 바지가 겉옷을 뚫고 나오는 곳을 상의별로 따로 가려지는 조각(`under_TOP…`)으로 나눈다 |
+| `under_tops=1` | 바지가 겉옷을 뚫고 나오는 곳을 상의별로 따로 가려지는 조각(`under_TOP…`)으로 나눈다. 한 벌 구조에서는 자기 세트 상의(`under_TOPh` 등) 조각만 실제로 쓰인다 |
 | `lining=1` | V자 옷깃 안쪽을 몸 표면으로 만든 안감으로 깨끗하게 채운다(앞쪽만. 뒤에 두면 등에 회색 얼룩이 비침) |
 | `v_cut=ax,az,lx,lz,rx,rz` | V자 옷깃을 V의 아래 꼭짓점 A에서 왼쪽·오른쪽 위 모서리 L·R로 가는 두 직선으로 잘라 곧게 만든다. 좌표(m)는 정면에서 똑바로 찍은 그림에서 잰다. `v_cut_margin`은 선 밖으로 안감을 남기는 폭 |
 | `shoe_level=1` | 낮은 신발의 들쭉날쭉한 입구를 면을 지우지 않고 한 높이로 눌러 평평하게 만든다(지우면 구멍이 남). `shoe_level_up`은 높이, `shoe_level_r`은 발목 중심에서의 범위 |
@@ -168,7 +179,10 @@ node scripts/prepare-characters.mjs man=../out/man_raw.glb girl=../out/girl_raw.
   "$B" -b --python tools/character/render_look.py -- out/man_raw.glb out/look HAIR=man/b TOP=newoutfit/h BOTTOM=newoutfit/h SHOES=man/d with=newoutfit@out/newoutfit_raw.glb
   ```
 
-  부위별로 파는 옷은 기본 옷과 섞어 입은 모습도 꼭 본다(예: 기본 후드티 + 새 바지). 갓·도포는 여기서 허벅지 구멍을 찾았다.
+  옷은 한 벌로만 입으니 다른 상의·하의·신발과 섞은 모습은 보지 않아도 된다. 대신 머리·얼굴과의 조합(기본 머리, 갓, 장군 투구·선글라스)은 꼭 본다.
+  - 정지 그림만으로는 부족하다. 걷기·달리기 자세도 본다(`look.py`에 `POSE=walk:8`, `POSE=run:6` 등).
+  - 갓·도포는 달릴 때 무릎이 자락을 뚫는 것을 여기서 찾았다(`skirt_leg`).
+  - 게임처럼 뒷면을 그리지 않게 그려서(`render_look.py`가 기본으로 그렇게 그린다) 옷 틈으로 비치는 곳도 찾는다.
 
 - **구멍·검은 점:** 배경을 자홍색으로 그린다. 구멍은 자홍, 칠해지지 않은 텍스처는 검정으로 보인다.
 
@@ -184,17 +198,16 @@ node scripts/prepare-characters.mjs man=../out/man_raw.glb girl=../out/girl_raw.
 
 ### ⑨ 옷장 그림
 
-- 세트는 카드 한 장으로 보이고 그림은 `frontend/src/features/wardrobe/parts/set-<세트 코드 소문자>.webp`(320 px, 투명 배경)다.
-- 옷 전체를 입은 캐릭터를 `set_art.py`로 그린 뒤 잘라서 넣는다. 원본은 몸까지 넣은 빌드여야 한다(예: `to_game.py`를 `pieces` 없이 실행한 결과).
+그림은 모두 `frontend/src/features/wardrobe/parts/`에 넣고, 크기는 320 px에 투명 배경이다.
+
+- **한 벌(옷 칸) 카드:** `set-<세트 코드 소문자>.webp`(예: `set-general.webp`, `set-dopo.webp`). 상의·하의·신발만 함께 그린다. 머리·얼굴은 넣지 않는다.
+- **머리·얼굴 카드와 부위 그림:** `outfit-<파일>-<의상 문자>-<부위 소문자>.webp`. 옷장은 아이템의 imageKey로 이 그림을 찾는다. 그림이 없으면 기본 그림을 옷 이름의 색 낱말로 다시 칠해 쓴다(`itemArt.ts`).
+- 두 가지를 한 번에 만든다.
+  - `together=TOP,BOTTOM,SHOES`는 한 벌 그림 `set-<파일>-<의상 문자>.raw.png`를 같이 그린다.
+  - `cut_above=0.035`는 상의·한 벌 그림에서 목 관절 3.5 cm 위를 뺀다. 상의에 목 피부가 들어 있는 옷(`neck_tone`)은 이게 없으면 목 조각이 옷 위에 떠서 보인다.
 
   ```bash
-  "$B" -b --python tools/character/set_art.py -- out/newoutfit_whole_raw.glb out/set.png
-  ```
-
-- 부위별 옷은 부위마다 그림을 만든다: `parts/outfit-<파일>-<의상 문자>-<부위 소문자>.webp`. 옷장은 아이템의 imageKey로 이 그림을 찾고, 없으면 기본 그림을 옷 이름의 색 낱말로 다시 칠해 쓴다(`itemArt.ts`).
-
-  ```bash
-  "$B" -b --python tools/character/item_art.py -- shared_layers_h.glb out/art newoutfit h
+  "$B" -b --python tools/character/item_art.py -- shared_layers_h.glb out/art newoutfit h together=TOP,BOTTOM,SHOES cut_above=0.035
   ```
 
   결과(`*.raw.png`)는 잘라서 가로 232 px로 줄이고 320 px 투명 칸 가운데에 놓는다.
@@ -205,11 +218,15 @@ node scripts/prepare-characters.mjs man=../out/man_raw.glb girl=../out/girl_raw.
 
 ```sql
 INSERT INTO items (item_code, name, item_type, equip_slot, price, image_key, is_for_sale, set_code) VALUES
- ('GENERAL_HAIR', '장군 투구', 'EQUIPMENT', 'HAIR', 0, 'outfit/general/g', FALSE, 'GENERAL'),
- ('GENERAL_TOP', '장군 갑옷', 'EQUIPMENT', 'TOP', 0, 'outfit/general/g', FALSE, 'GENERAL');
+ ('GENERAL_HAIR', '장군 투구', 'EQUIPMENT', 'HAIR', 0, 'outfit/general/g', FALSE, NULL),
+ ('GENERAL_TOP', '장군 갑옷', 'EQUIPMENT', 'TOP', 0, 'outfit/general/g', FALSE, 'GENERAL'),
+ ('GENERAL_BOTTOM', '장군 바지', 'EQUIPMENT', 'BOTTOM', 0, 'outfit/general/g', FALSE, 'GENERAL'),
+ ('GENERAL_SHOES', '장군 장화', 'EQUIPMENT', 'SHOES', 0, 'outfit/general/g', FALSE, 'GENERAL');
 ```
 
-- 부위별로 따로 파는 옷은 `set_code`를 `NULL`로 둔다.
+- 머리·얼굴은 `set_code`를 `NULL`로 둔다. 옷 칸에서 따로 고르게 된다.
+- 한 벌인 옷은 상의·하의·신발 세 개 모두 같은 `set_code`를 둔다. 하나라도 빠지면 그 부위는 기본 옷이 된다.
+- 상의 하나만 있는 낱개 옷(`set_code` `NULL`)도 입을 수 있다. 이때 하의·신발은 기본 옷이 된다. 그 조합에서 보기 좋은지 확인해야 하니, 되도록 한 벌로 만든다.
 - 로컬 서버는 `scripts/start-frontend-test.ps1`로 띄운다. 상점을 켜려면 다음 환경 변수가 필요하다.
   - `ONTOP_SHOP_ENABLED=true`
   - `SPRING_FLYWAY_LOCATIONS`에 `classpath:db/shop` 추가
@@ -230,9 +247,12 @@ INSERT INTO items (item_code, name, item_type, equip_slot, price, image_key, is_
 | 걸을 때 어깨판이 앞으로 돌며 구겨짐 | 걷기 동작의 위팔 비틀림을 판이 그대로 따라감 | 판을 쇄골에만 붙이기. 동작 데이터를 고치는 방법은 모든 캐릭터에 영향이 있어 jin2v2와 협의 |
 | 부위를 바꿨는데 밑의 몸이 비침 | 남자·여자 파일에 새 옷의 몸 조각이 없음 | ⑥에서 남자·여자도 다시 빌드 |
 | 옷 이름 규칙이 안 먹음 | 조각 이름에 `.001` | `_1`로 이름 붙이기 |
+| 바지가 다른 상의를 뚫음, 바지를 벗고 갓 신발만 신으면 발목이 빔 | 상의·하의·신발을 부위별로 섞어 입게 해서 조합마다 몸 가림이 어긋남 | 마이룸을 머리·얼굴·옷 세 칸으로, 옷은 한 벌로만 입기(S15P31B105-338) |
+| 수정한 모델이 화면에 안 바뀜 | 브라우저가 예전 캐릭터 파일을 들고 있음 | `?rig=` 번호를 올리고 강력 새로고침 |
 
 ## 5. 협의할 곳
 
 - **캐릭터 파일·뼈대·동작 데이터:** jin2v2. 남자·여자 파일을 다시 만들거나 `characterClips.json`을 바꿀 때 먼저 알린다.
-- **상점 API·DB(아이템, 세트, 해제):** 상점 담당. 실제 판매 아이템은 담당자와 정해서 넣는다.
+- **상점 API·DB(아이템, 세트, 해제, 옷 한 벌 규칙):** 상점 담당. 실제 판매 아이템은 담당자와 정해서 넣는다.
+- **옷장 화면(`frontend/src/features/wardrobe`):** 화면을 만든 JEAWOOK. 칸 구성이나 말풍선을 바꿀 때 먼저 알린다.
 - **Tripo 크레딧:** 쓰기 전에 팀과 정한다.
