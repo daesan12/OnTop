@@ -12,6 +12,7 @@ import { HALLI_END_REASON, type HalliEvent } from './protocol'
 import { HalliTable, onLastChance } from './HalliTable'
 import { HalliStage } from './HalliStage'
 import { HalliForfeit } from './HalliForfeit'
+import { HalliIntro } from './HalliIntro'
 import { useHalliStage } from './anchors'
 import './halligalli.css'
 
@@ -68,6 +69,7 @@ export function HalliGalliPanel() {
     </header>
     <Table halli={h} gameId={g.gameId} viewerId={own} names={names} canFlip={canFlip} canRing={canRing}
       onFlip={() => void runtime.flipHalli()} onRing={ringShownBell} keyHint={player && !!me?.active} />
+    <HalliIntro gameId={g.gameId} />
     <div className="hg-feedback">
       {standing && <p>{standing}</p>}
       {notice.text && now - notice.at < NOTICE_MS && <p role="status">{notice.text}</p>}

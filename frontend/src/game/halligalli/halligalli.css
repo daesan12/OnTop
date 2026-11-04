@@ -283,6 +283,36 @@
   .park-page .halligalli-panel { --hg-card-w: 50px; --hg-bell: 82px; }
   .park-page .hg-timer { min-width: 0; }
 }
+/*
+ * Start rule card (HalliIntro): about 2 s just above the bell, in the HUD's dark glass with cream text and a gold
+ * accent. A light scale + fade in and a fade out; no flash. It never takes the pointer, so the bell and pile stay live.
+ */
+.park-page .hg-intro {
+  position: absolute; left: 50%; top: 38%; z-index: 3; transform: translate(-50%, -50%); pointer-events: none;
+  box-sizing: border-box; width: max-content; max-width: calc(100vw - 32px);
+  animation: hg-intro 2s ease-out both;
+}
+.park-page .hg-intro > p {
+  display: flex; align-items: center; justify-content: center; gap: 14px; margin: 0; padding: 18px 30px;
+  border: 1.5px solid #e2bd6acc; border-radius: 18px; background: #1d1e1ae0; backdrop-filter: blur(10px);
+  box-shadow: 0 10px 32px #00000066; color: #f7efe0; text-align: center; word-break: keep-all;
+  font-size: clamp(19px, 2.4vw, 34px); font-weight: 800; line-height: 1.35; letter-spacing: -.01em;
+}
+.park-page .hg-intro b { color: var(--hg-turn); }
+.park-page .hg-intro p > span > span { display: inline-block; }
+.park-page .hg-intro-bell { flex: none; width: 1.3em; height: 1.3em; color: var(--hg-gold); }
+@keyframes hg-intro {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.9); }
+  14% { opacity: 1; transform: translate(-50%, -50%) scale(1.03); }
+  24%, 80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+@media (max-width: 800px) {
+  .park-page .hg-intro { top: 46%; }
+  /* The bell sits above the two lines so the text keeps the full width. */
+  .park-page .hg-intro > p { flex-direction: column; gap: 6px; padding: 14px 18px; border-radius: 14px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .park-page .halligalli-panel *, .park-page .halligalli-panel *::before { animation: none !important; transition: none !important; }
 }
