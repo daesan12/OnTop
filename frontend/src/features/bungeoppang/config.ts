@@ -1,6 +1,6 @@
 /**
  * 붕어빵 뒤집기 규칙 v2 (2026-10-22 기획 확정값).
- * 기획: 한 면 8초(손님 몰림 6초), 탐 100, 재료 들기 조작, 15점당 1냥.
+ * 기획: 한 면 8초(손님 몰림 6초), 탐 100, 재료 들기 조작, 5점당 1냥.
  * 실제 엽전 지급·하루 상한·불 세기 목록 발급은 서버 권한이다. 이 값은 표시와 규칙 계산용이다.
  */
 export const BUNGEOPPANG = {
@@ -23,7 +23,7 @@ export const BUNGEOPPANG = {
   burntFrom: 100,
   okPoint: 2,
   goldenPoint: 5,
-  pointsPerCoin: 15,
+  pointsPerCoin: 5,
   dailyCoinCap: 500,
   minGapMs: 50,
   sameSlotGapMs: 300,
@@ -66,6 +66,7 @@ export const BUNGEOPPANG_V5 = {
 /** Existing server-issued v5 rounds retain their original three-minute snapshot. */
 export const BUNGEOPPANG_V5_LEGACY = {
   ...BUNGEOPPANG_V5,
+  pointsPerCoin: 15,
   specialBonusPercent: 50,
   durationMs: 180_000,
   rushFromMs: 150_000,

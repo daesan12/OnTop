@@ -308,13 +308,13 @@ class MinigameV5DeliveryServiceTests {
         assertThat(first.rulesVersion()).isEqualTo("v5");
         assertThat(first.configVersion()).isEqualTo(BungeoppangV5Spec.CONFIG_VERSION);
         assertThat(first.score()).isEqualTo(20);
-        assertThat(first.coinsCalculated()).isOne();
-        assertThat(first.coinsGranted()).isOne();
-        assertThat(first.rewardAmount()).isOne();
+        assertThat(first.coinsCalculated()).isEqualTo(4);
+        assertThat(first.coinsGranted()).isEqualTo(4);
+        assertThat(first.rewardAmount()).isEqualTo(4);
         assertThat(first.customersServed()).isOne();
         assertThat(first.finalThroughSeq()).isEqualTo(9);
         assertThat(first.verifiedCompletedCount()).isEqualTo(first.made());
-        assertThat(wallet.balance()).isEqualTo(101);
+        assertThat(wallet.balance()).isEqualTo(104);
         assertThat(ledger).hasSize(1);
         assertThat(sessions.get(id).status()).isEqualTo("COMPLETED");
         assertThat(rounds.get(id).terminalReason()).isEqualTo("VERIFIED");
@@ -336,7 +336,7 @@ class MinigameV5DeliveryServiceTests {
         assertThat(result.customersServed()).isOne();
         assertThat(receipts).containsKey(id + ":DELIVERY:last-delivery");
         assertThat(orders.get(id)).hasSize(4);
-        assertThat(wallet.balance()).isEqualTo(101);
+        assertThat(wallet.balance()).isEqualTo(104);
     }
 
     @Test
@@ -349,7 +349,7 @@ class MinigameV5DeliveryServiceTests {
         var result = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "done",
                 completeBody(request.log(), 0));
 
-        assertThat(result.coinsCalculated()).isOne();
+        assertThat(result.coinsCalculated()).isEqualTo(4);
         assertThat(result.coinsGranted()).isZero();
         assertThat(result.capReached()).isTrue();
         assertThat(wallet.balance()).isEqualTo(100);
@@ -406,7 +406,7 @@ class MinigameV5DeliveryServiceTests {
         assertThat(ledger).isEmpty();
 
         var result = (BungeoppangV4CompleteDtos.Response) service.complete(USER_ID, id, "edge", edge);
-        assertThat(result.configVersion()).isEqualTo("v5-20261102.1");
+        assertThat(result.configVersion()).isEqualTo("v5-20261103.1");
         assertThat(result.finalThroughSeq()).isEqualTo(9);
         assertThat(result.unfinishedGrillCount()).isOne();
         assertThat(service.complete(USER_ID, id, "edge", edge)).isEqualTo(result);

@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as worldClock from '../../src/network/worldClient'
 import { emoteSector, emoteSlots, parseEmoteBindings } from '../../src/features/emotes/catalog'
 import { EmoteTimeline, parseEmoteEvent, parseEmoteCancellation } from '../../src/features/emotes/timeline'
 import { emoteUnavailable } from '../../src/features/emotes/availability'
@@ -22,6 +23,15 @@ beforeEach(() => {
 })
 
 describe('emote catalog and server-time playback', () => {
+  it('uses the synchronized server clock for cooldown even if the device clock is wrong', () => {
+    vi.spyOn(worldClock, 'estimatedServerTime').mockReturnValue(now)
+    vi.spyOn(Date, 'now').mockReturnValue(now - 60_000)
+    useEmoteState.setState({ readyAt: now - 1 })
+    expect(emoteUnavailable('EMOTE_WAVE')).toBe('')
+    vi.mocked(Date.now).mockReturnValue(now + 60_000)
+    useEmoteState.setState({ readyAt: now + 2000 })
+    expect(emoteUnavailable('EMOTE_WAVE')).toBe('다음 감정표현까지 2초')
+  })
   it('keeps five authored options and three empty sectors without flip/handshake aliases', () => {
     expect(emoteSlots.filter(Boolean)).toHaveLength(5)
     expect(emoteSlots.filter(slot => !slot)).toHaveLength(3)

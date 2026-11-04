@@ -130,7 +130,7 @@ class AlkkagiForfeitFlowTests {
             var nextRecovery=green.state("RESTORED");red.state("RESTORED");
             String nextId=nextRecovery.path("gameId").asText();
             assertThat(nextId).isNotBlank().isNotEqualTo(game);
-            var next=green.request("GAME_STATE_CHECK",Map.of("gameId",nextId));
+            var next=green.await(m -> m.path("type").asText().equals("GAME_STATE") && m.at("/payload/publicState/stage").asText().equals("AIMING"));
             var nextStartState=green.request("GAME_START_CHECK",Map.of());
             assertThat(next.at("/payload/publicState/status").asText()).isEqualTo("PLAYING");
             assertThat(next.at("/payload/publicState/pieces")).hasSize(32);
@@ -138,7 +138,7 @@ class AlkkagiForfeitFlowTests {
             assertThat(next.at("/payload/privateState/cards")).isEmpty();
             var shooter=next.at("/payload/publicState/turnUserId").asText().equals("202")?green:red;
             var shot=shooter.request("GAME_ACTION_SEND",Map.of("gameId",nextId,"actionId","next-shot","expectedVersion",next.at("/payload/version").asLong(),
-                    "input",Map.of("type","SHOT","pieceId","p0","dx",0,"dy",1,"power",.001)));
+                    "input",Map.of("type","SHOT","pieceId",next.at("/payload/publicState/turn").asInt()==0?"p0":"p16","dx",0,"dy",1,"power",.001)));
             assertThat(shot.path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
             var advanced=green.request("GAME_STATE_CHECK",Map.of("gameId",nextId));
             assertThat(advanced.at("/payload/publicState/simulationId").asLong()).isEqualTo(1);

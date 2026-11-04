@@ -24,8 +24,8 @@ const artwork: Record<string, { name: string; caption: string; color: string; pa
 
 export const alkkagiItemTypes = Object.keys(artwork)
 
-export function AlkkagiItemCard({ type, selected = false, disabled = false, onClick }: {
-  type: string; selected?: boolean; disabled?: boolean; onClick?(): void
+export function AlkkagiItemCard({ type, selected = false, disabled = false, eager = false, onClick }: {
+  type: string; selected?: boolean; disabled?: boolean; eager?: boolean; onClick?(): void
 }) {
   const [failed, setFailed] = useState(false)
   const art = artwork[type]
@@ -37,7 +37,7 @@ export function AlkkagiItemCard({ type, selected = false, disabled = false, onCl
     </svg></span><span className="item-card-name">{art.name}</span><span className="item-card-caption">{art.caption}</span>
     <span className="item-card-seal" aria-hidden="true">策</span></>
   const contents = <>{hasImage ? <><img className="item-card-picture" src={image} alt="" width="600" height="900"
-    loading={onClick ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)} />
+    loading={onClick || eager ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)} />
     <span className="item-card-image-copy"><span className="item-card-name">{art.name}</span><span className="item-card-caption">{art.caption}</span></span></> : content}
     {selected && <span className="item-card-selected">선택됨</span>}</>
   const classes = 'item-card' + (hasImage ? ' item-card-image' : '')

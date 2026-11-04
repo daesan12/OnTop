@@ -14,7 +14,7 @@ import java.util.List;
 /** Immutable v4 configuration. Changing a value requires a new config version. */
 public final class BungeoppangV4Spec {
     public static final String RULES_VERSION = "v4";
-    public static final String CONFIG_VERSION = "v4-20261027.1";
+    public static final String CONFIG_VERSION = "v4-20261103.1";
     public static final int START_BUFFER_MS = 1_000;
     public static final int COUNTDOWN_MS = 3_500;
     public static final int DURATION_MS = 60_000;
@@ -25,7 +25,7 @@ public final class BungeoppangV4Spec {
             new BungeoppangV4Responses.FillingCounts(2, 0, 0, 0);
     private static final BungeoppangV4Responses.Rules RULES = new BungeoppangV4Responses.Rules(
             6, DURATION_MS, COUNTDOWN_MS, 8_000, 6_000, 40_000, 85, 115, 512,
-            4, 4, 20, 50, FIRST_ORDER, 50, 70, 90, 100, 2, 5, 15, MinigameRewardBudget.DAILY_CAP,
+            4, 4, 20, 50, FIRST_ORDER, 50, 70, 90, 100, 2, 5, 5, MinigameRewardBudget.DAILY_CAP,
             50, 300, 1_200);
 
     private BungeoppangV4Spec() {

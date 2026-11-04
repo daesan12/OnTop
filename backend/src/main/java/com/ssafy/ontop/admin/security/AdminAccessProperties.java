@@ -4,12 +4,13 @@ import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "ontop.admin")
-public record AdminAccessProperties(Set<Long> readIds, Set<Long> grantIds) {
+public record AdminAccessProperties(Set<Long> readIds, Set<Long> grantIds, Set<Long> operationIds) {
     public AdminAccessProperties {
         readIds = validIds(readIds);
         grantIds = validIds(grantIds);
-        if (!readIds.containsAll(grantIds)) {
-            throw new IllegalArgumentException("엽전 지급 관리자는 조회 관리자에도 포함해야 합니다.");
+        operationIds = operationIds == null || operationIds.isEmpty() ? grantIds : validIds(operationIds);
+        if (!readIds.containsAll(grantIds) || !readIds.containsAll(operationIds)) {
+            throw new IllegalArgumentException("쓰기 권한 관리자는 조회 관리자에도 포함해야 합니다.");
         }
     }
 

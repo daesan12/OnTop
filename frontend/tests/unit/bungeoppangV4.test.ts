@@ -22,7 +22,7 @@ describe('v4 deterministic shared FE/BE cases', () => {
     let state = createGrill(sharedFixture.heats, sharedFixture.orders[0]!, R);
     for (const entry of log) state = applyAction(state, entry, R).state;
     expect(state).toMatchObject(sharedFixture.expectedState);
-    expect(replayGrill(log, sharedFixture.heats, sharedFixture.orders, R)).toEqual(sharedFixture.expected);
+    expect(replayGrill(log, sharedFixture.heats, sharedFixture.orders, R)).toEqual({ ...sharedFixture.expected, coins: 4 });
   });
   it.each([[85, 68, 'GOOD'], [100, 80, 'PERFECT'], [115, 92, 'GOOD']] as const)('heat %s cooks to %s', (heat, level, quality) => {
     expect(cookLevel(0, 6400, heat, R)).toBe(level); expect(judge(level, R)).toBe(quality);
@@ -139,7 +139,7 @@ it('v4 preview keeps future orders private, issued originals immutable and settl
   await expect(service.submitResult(input)).rejects.toThrow('60초');
   now = 64000;
   const result = await service.submitResult(input);
-  expect(result).toMatchObject({ score: 20, coinsCalculated: 1, coinsGranted: 0 });
+  expect(result).toMatchObject({ score: 20, coinsCalculated: 4, coinsGranted: 0 });
   expect(await service.submitResult({ ...input, clientScore: 555 })).toEqual(result);
   await expect(service.balance()).rejects.toThrow('실제 지갑');
 });

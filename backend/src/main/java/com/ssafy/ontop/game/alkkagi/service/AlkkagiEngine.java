@@ -33,11 +33,18 @@ public final class AlkkagiEngine implements GameEngine {
     private final Clock clock;
     private final Consumer<Object> events;
     private final GameEngineRouter router;
+    private final java.util.function.BooleanSupplier coin;
     private final Map<String, Entry> games = new ConcurrentHashMap<>();
     private final Map<Long, String> latest = new ConcurrentHashMap<>();
 
     public AlkkagiEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router) {
+        this(mapper, clock, events, router, new java.security.SecureRandom()::nextBoolean);
+    }
+
+    public AlkkagiEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router,
+            java.util.function.BooleanSupplier coin) {
         this.mapper = mapper; this.clock = clock; this.events = events; this.router = router;
+        this.coin = java.util.Objects.requireNonNull(coin);
     }
 
     /** 전원 예약 커밋 확인 후 기존 시작 연결부에서 호출한다. 새 예약/차감을 수행하지 않는다. */
@@ -49,10 +56,18 @@ public final class AlkkagiEngine implements GameEngine {
             if (!p.userId().matches("[1-9][0-9]{0,18}")) throw new IllegalArgumentException("회원 식별자를 확인해주세요.");
             return Long.parseLong(p.userId());
         }).toList();
-        create(result.gameSessionId(), command.tableId(), players.get(0), players.get(1));
+        createWithCoinToss(result.gameSessionId(), command.tableId(), players.get(0), players.get(1));
     }
 
     public void create(String gameId, String tableId, long red, long green) {
+        create(gameId, tableId, red, green, false);
+    }
+
+    public void createWithCoinToss(String gameId, String tableId, long red, long green) {
+        create(gameId, tableId, red, green, true);
+    }
+
+    private void create(String gameId, String tableId, long red, long green, boolean toss) {
         if (gameId == null || gameId.isBlank() || gameId.length() > 120 || tableId == null || tableId.isBlank()
                 || red <= 0 || green <= 0 || red == green) throw new IllegalArgumentException("경기 식별자·참가자를 확인해주세요.");
         synchronized (games) {
@@ -63,9 +78,11 @@ public final class AlkkagiEngine implements GameEngine {
                 return;
             }
             var match = new AlkkagiMatch(AlkkagiSettings.provisional());
-            var entry = new Entry(gameId, tableId, List.of(red, green), match);
+            long startsAt = clock.millis() + (toss ? 2500 : 0);
+            var entry = new Entry(gameId, tableId, List.of(red, green), match, startsAt, toss);
             router.register(this, gameId, tableId, entry.players);
-            match.start(clock.millis());
+            if (toss) match.startAfterCoinToss(startsAt, coin.getAsBoolean() ? 1 : 0);
+            else match.start(startsAt);
             games.put(gameId, entry); latest.put(red, gameId); latest.put(green, gameId);
         }
         publish(List.of(new GameStateChanged(gameId, 1)));
@@ -78,6 +95,7 @@ public final class AlkkagiEngine implements GameEngine {
         GameActionResult result;
         Rejected rejected = null;
         synchronized (e) {
+            if (clock.millis() < e.startsAt) throw new Rejected(Rejection.NOT_ACTIVE);
             long before = e.match.snapshot(0).version();
             try {
                 long accepted = AlkkagiInputs.apply(e.match, e.players.indexOf(command.userId()), command.actionId(),
@@ -199,6 +217,9 @@ public final class AlkkagiEngine implements GameEngine {
         data.put("turnUserId", e.finished ? null : Long.toString(e.players.get(e.match.snapshot(0).turn())));
         var winner = e.match.snapshot(0).winner();
         data.put("winnerUserId", winner == null ? null : Long.toString(e.players.get(winner)));
+        data.set("cardCounts", mapper.valueToTree(e.match.cardCounts()));
+        data.set("itemEffects", mapper.valueToTree(e.match.itemEffects()));
+        if (e.toss) data.put("coinTossEndsAt", Instant.ofEpochMilli(e.startsAt).toString());
         return data;
     }
 
@@ -236,11 +257,14 @@ public final class AlkkagiEngine implements GameEngine {
         final String gameId, tableId;
         final List<Long> players;
         final AlkkagiMatch match;
+        final long startsAt;
+        final boolean toss;
         final GameLifecycle lifecycle = new GameLifecycle();
         final GameForfeitReceipts forfeits = new GameForfeitReceipts();
         boolean finished;
-        Entry(String gameId, String tableId, List<Long> players, AlkkagiMatch match) {
+        Entry(String gameId, String tableId, List<Long> players, AlkkagiMatch match, long startsAt, boolean toss) {
             this.gameId = gameId; this.tableId = tableId; this.players = players; this.match = match;
+            this.startsAt = startsAt; this.toss = toss;
         }
     }
 }

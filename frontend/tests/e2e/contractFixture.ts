@@ -159,7 +159,7 @@ export async function fixture(
     autoResolve: options.onecardPreview?.interactionReview,
     emit: (type, payload, requestId) => emit(sockets.at(-1)!, type, payload, requestId ?? null) })
   page.on('close', () => cardPranks.dispose())
-  let diceState: Farkle = { gameCode: 'DICE', status: 'PLAYING', players: ['101', '102'], scores: [0, 0], targetScore: 4000,
+  let diceState: Farkle = { gameCode: 'DICE', status: 'PLAYING', players: ['101', '102', '103', '104'].slice(0, options.players ?? 2), scores: Array(options.players ?? 2).fill(0), targetScore: 4000,
     turnTimeLimitMs: 30000, turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), turnScore: 0, dice: [],
     stage: 'AWAITING_ROLL', rollId: 0, round: 1, hotDice: false, lastEvent: 'START', winnerUserId: null, endReason: null, endedAt: null }
   const diceReplies: { input: object; patch: Partial<Farkle> }[] = []
@@ -248,7 +248,7 @@ export async function fixture(
   const resultEndedAt = new Date().toISOString()
   // Scripted single-winner, all-winner and draw results only; never a production payout calculator.
   const resultPayload = (): Result => {
-    const ids = Array.from({ length: options.onecard ?? options.bridge ?? options.ledger ?? 2 }, (_, i) => String(101 + i))
+    const ids = Array.from({ length: options.onecard ?? options.bridge ?? options.ledger ?? (options.dice ? options.players ?? 2 : 2) }, (_, i) => String(101 + i))
     const state = options.ledger ? ledgerState : options.bridge ? bridgeState : options.onecard ? cardState : options.dice ? diceState : omok()
     const winnerIds = options.forfeit && forfeitVersion >= 0 ? ['102']
       : options.ledger ? ledgerState.winnerUserIds : options.bridge ? bridgeState.winnerUserIds : options.onecard ? cardState.winnerUserIds
@@ -265,7 +265,7 @@ export async function fixture(
     betAmountPerPlayer: resultBet,
     participants: ids.map(userId => ({
       userId, result: resultStatus === 'INVALID' ? invalidVerdicts ? 'FORFEIT' : null
-        : options.forfeit && forfeitVersion >= 0 && userId === '101' ? 'FORFEIT'
+        : options.forfeit && forfeitVersion >= 0 && userId === '101' || options.dice && diceState.forfeitedUserIds?.includes(userId) ? 'FORFEIT'
         : !winnerIds.length ? 'DRAW' : winnerIds.includes(userId) ? 'WIN' : 'LOSE',
     })),
     myCoinDelta: !settled ? null : resultStatus === 'INVALID' ? 0 : coinDelta,
@@ -445,10 +445,12 @@ export async function fixture(
   const scriptedForfeitState = () => {
     if (forfeitVersion >= 0) return
     forfeitApplications++; gameVersion++; forfeitVersion = gameVersion
-    finished = !(options.onecard && options.onecard > 2 || options.bridge && options.bridge > 2 || options.ledger && options.ledger > 2 || pendingBridgeForfeit)
+    finished = !(options.onecard && options.onecard > 2 || options.bridge && options.bridge > 2 || options.ledger && options.ledger > 2 || options.dice && (options.players ?? 2) > 2 || pendingBridgeForfeit)
     finishReason = 'EXPLICIT_LEAVE'; winner = '102'; recoveryStatus = finished ? 'FINISHED' : 'ELIMINATED'
-    if (options.dice) diceState = { ...diceState, status: 'FINISHED', stage: 'FINISHED', turnUserId: null, turnDeadline: null,
-      winnerUserId: '102', endReason: 'EXPLICIT_LEAVE', endedAt: new Date().toISOString() }
+    if (options.dice) diceState = { ...diceState, forfeitedUserIds: ['101'], lastRoll: null, lastEvent: 'PLAYER_LEFT',
+      ...(finished ? { status: 'FINISHED', stage: 'FINISHED', turnUserId: null, turnDeadline: null,
+        winnerUserId: '102', endReason: 'EXPLICIT_LEAVE', endedAt: new Date().toISOString() }
+        : { stage: 'AWAITING_ROLL', dice: [], turnUserId: '102', round: diceState.round + 1 }) }
     if (options.ledger) ledgerState = {...ledgerState,
       players:ledgerState.players.map(p=>p.userId==='101'?{...p,forfeited:true}:p),lastEvent:'PLAYER_LEFT',
       turnUserId:finished?null:'102',...(finished?{status:'FINISHED',round:null,turnDeadline:null,
@@ -549,6 +551,10 @@ export async function fixture(
       }
       if (options.spectatorEvents && ['GAME_SPECTATOR_CHAT_SEND', 'OMOK_SPECTATOR_PING_SEND'].includes(type)) {
         const ping = type === 'OMOK_SPECTATOR_PING_SEND', now = Date.now()
+        if (!ping && rejectChat) {
+          emit(ws, 'ERROR', { code: 'GAME_SPECTATOR_ACCESS_DENIED', message: '경기 채팅을 보낼 수 없어요. 잠시 후 다시 보내주세요.' }, requestId)
+          return
+        }
         const approved = !seated && watchingGame || !ping && seated && started
         if (!approved || finished || payload.gameId !== gameId) {
           emit(ws, 'ERROR', { code:'GAME_SPECTATOR_ACCESS_DENIED', message:'관전 권한을 확인해주세요.' }, requestId); return
@@ -1004,7 +1010,7 @@ export async function fixture(
       if (options.forfeit) {
         gameId += '-next'; gameVersion = 0; forfeitVersion = -1; finished = false; recoveryStatus = 'RESTORED'
         turn = '101'; forfeitMode = 'approve'; bridgeState = makeBridge(options.bridge)
-        diceState = { ...diceState, status: 'PLAYING', stage: 'AWAITING_ROLL', turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), winnerUserId: null, endedAt: null, endReason: null }
+        diceState = { ...diceState, forfeitedUserIds: [], status: 'PLAYING', stage: 'AWAITING_ROLL', turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), winnerUserId: null, endedAt: null, endReason: null }
         cardHand = { userId: '101', hand: initialHand, playableCardIds: initialHand.map(c => c.id), canDraw: true }
         cardState = { ...cardState, status: 'PLAYING', stage: 'PLAYING', players: cardState.players.map(p => ({ ...p, active: true, cardCount: 7 })),
           turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(), winnerUserIds: [], endReason: null, endedAt: null }

@@ -8,7 +8,8 @@ import {
   MeshBasicMaterial,
   Vector3,
 } from "three";
-import { avatars, sampleAvatar, useSession } from "../../network/worldClient";
+import { avatars, useSession } from "../../network/worldClient";
+import { useAvatarFrameSampler } from '../../world/AvatarPoseFrame';
 import { sameFollowScope, useFollow } from './state';
 
 const MAX_ROPES = 16;
@@ -31,6 +32,7 @@ function writeVertex(
 
 /** A hand-height, gently sagging ribbon shared by all active follow links. */
 export function FollowRopes() {
+  const samplePose = useAvatarFrameSampler();
   const geometry = useMemo(() => {
     const next = new BufferGeometry();
     const position = new BufferAttribute(
@@ -91,8 +93,8 @@ export function FollowRopes() {
       const target = avatars.get(link.targetId);
       if (!follower?.connected || !target?.connected || count >= MAX_ROPES)
         continue;
-      const a = sampleAvatar(follower, now, poses[0]);
-      const b = sampleAvatar(target, now, poses[1]);
+      const a = samplePose(follower, now, poses[0]);
+      const b = samplePose(target, now, poses[1]);
       const centerDx = b.x - a.x;
       const centerDz = b.z - a.z;
       const distance = Math.hypot(centerDx, centerDz);

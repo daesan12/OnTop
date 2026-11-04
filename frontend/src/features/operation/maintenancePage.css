@@ -1,0 +1,47 @@
+.maintenance-page {
+  position: relative;
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  overflow: hidden;
+  padding: 24px;
+  background: #26382e url('../../assets/entry/park-background.webp') center / cover no-repeat;
+}
+
+.maintenance-page__veil {
+  position: absolute;
+  inset: -24px;
+  background: rgba(16, 31, 24, 0.56);
+  backdrop-filter: blur(10px);
+}
+
+.maintenance-card {
+  position: relative;
+  width: min(590px, 100%);
+  padding: clamp(32px, 6vw, 58px);
+  border: 1px solid rgba(244, 226, 173, 0.72);
+  border-radius: 24px;
+  color: #283c31;
+  background: rgba(251, 246, 226, 0.96);
+  box-shadow: 0 30px 80px rgba(3, 13, 8, 0.42);
+  text-align: center;
+}
+
+.maintenance-card__eyebrow {
+  margin: 0 0 12px;
+  color: #8d6d2b;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.maintenance-card h1 { margin: 0; font-size: clamp(32px, 6vw, 50px); line-height: 1.2; }
+.maintenance-card__notice { margin: 22px auto; font-size: 19px; line-height: 1.7; }
+.maintenance-card__countdown { display: grid; gap: 3px; margin: 28px auto 8px; }
+.maintenance-card__countdown span { color: #657269; font-size: 14px; }
+.maintenance-card__countdown strong { color: #8b5425; font-size: clamp(42px, 9vw, 68px); font-variant-numeric: tabular-nums; }
+.maintenance-card__schedule { margin: 8px 0 26px; color: #5a675e; }
+.maintenance-card__hint { margin: 0 auto 26px; color: #6d746f; font-size: 14px; line-height: 1.6; }
+.maintenance-card button { padding: 12px 24px; border: 0; border-radius: 999px; color: #fff9e8; background: #2f5744; cursor: pointer; }
+.maintenance-card button:hover { background: #244535; }
+.maintenance-card button:focus-visible { outline: 3px solid #d2a951; outline-offset: 4px; }

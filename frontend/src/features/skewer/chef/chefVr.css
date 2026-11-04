@@ -1,0 +1,16 @@
+/* Browser preview chrome only. The headset uses the 3D receipts and controls. */
+.chef-app.is-vr .chef-heading,.chef-app.is-vr .chef-controls,.chef-app.is-vr .chef-local-note,.chef-app.is-vr .chef-status{display:none}
+.chef-app.is-vr::before{background:linear-gradient(#24180c66,transparent 14%,transparent 88%,#21150c77)}
+.chef-app.is-vr .chef-round{top:16px;right:18px;min-width:0;padding:0;background:none;border:0;box-shadow:none}
+.chef-app.is-vr .chef-eligibility{font-size:10px;margin:0 0 6px;color:#f4e5ce}
+.chef-app.is-vr .chef-enter-vr{background:#835138;color:#fff1d9;border:1px solid #c6a275;border-radius:6px;font-size:12px;padding:9px 13px}
+.chef-app.is-vr .chef-vr-hint{bottom:16px;left:50%;transform:translateX(-50%);width:max-content;max-width:92%;text-align:center;font-size:12px;color:#fff0d8;text-shadow:0 2px 4px #26170d}
+.chef-app.is-vr .chef-world-order-hit{height:12%;border-radius:0}
+@media(max-width:800px){
+ .chef-app.is-vr .chef-round{top:9px;right:8px}.chef-app.is-vr .chef-eligibility{font-size:8px}.chef-app.is-vr .chef-enter-vr{font-size:10px;padding:6px 9px}
+ .chef-app.is-vr .chef-vr-hint{font-size:10px;bottom:12px}
+}
+.chef-app.is-vr.is-immersive>:not(.chef-stage){display:none}
+
+
+.chef-app.is-vr .chef-vr-hint button{margin-left:10px;width:25px;height:25px;border:1px solid #c6a27588;border-radius:50%;background:#3b2b20c9;color:#fff0d8;cursor:pointer;pointer-events:auto}

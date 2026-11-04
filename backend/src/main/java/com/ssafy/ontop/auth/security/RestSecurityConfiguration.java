@@ -46,6 +46,7 @@ public class RestSecurityConfiguration {
         http.securityMatchers(matchers -> matchers.requestMatchers(
                         "/api/v1/auth/*/authorize", "/api/v1/auth/*/callback", "/api/v1/auth/exchange",
                         "/api/v1/auth/refresh", "/api/v1/auth/logout", "/api/v1/users/onboarding",
+                        "/api/v1/operations/status",
                         "/actuator/health", "/actuator/health/**", "/ws/tables",
                         "/dev/tables", "/dev/world-config")
                 .requestMatchers(request -> request.getDispatcherType() == DispatcherType.ERROR));
@@ -72,6 +73,8 @@ public class RestSecurityConfiguration {
                                 "/api/v1/admin/analytics/**").hasRole("ADMIN_READ")
                         .requestMatchers("/api/v1/admin/wallet-grants", "/api/v1/admin/wallet-grants/**")
                                 .hasRole("ADMIN_GRANT")
+                        .requestMatchers("/api/v1/admin/operations", "/api/v1/admin/operations/**")
+                                .hasRole("ADMIN_OPERATION")
                         .requestMatchers("/api/v1/admin/**").denyAll()
                         .anyRequest().hasRole("MEMBER"))
                 .oauth2ResourceServer(resource -> resource.bearerTokenResolver(new StrictBearerTokenResolver())
@@ -86,6 +89,9 @@ public class RestSecurityConfiguration {
                             }
                             if (adminAccess.canGrant(user.userId())) {
                                 authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN_GRANT"));
+                            }
+                            if (adminAccess.canOperate(user.userId())) {
+                                authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN_OPERATION"));
                             }
                             var result = UsernamePasswordAuthenticationToken.authenticated(user, null,
                                     authorities);

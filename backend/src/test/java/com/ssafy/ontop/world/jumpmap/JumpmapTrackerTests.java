@@ -40,6 +40,30 @@ class JumpmapTrackerTests {
     }
 
     @Test
+    void 고정최소시간보다_빠른_유효착지흐름도_의심없이_완주한다() {
+        var tracker = tracker();
+        start(tracker, "7");
+        long now = 200;
+        var signals = new java.util.ArrayList<JumpmapTracker.Signal>();
+        // 이미 서버가 확인한 지지면 표본이다. 실제 이동 속도·충돌 검증을 대신하지 않는다.
+        for (int block = 1; block <= JumpRun.FINAL_BLOCK; block++) {
+            tracker.observe("7", "c1", air(), now += 150);
+            signals.addAll(tracker.observe("7", "c1", pad(block), now += 150));
+        }
+        var progress = signals.stream().filter(JumpmapTracker.Progress.class::isInstance)
+                .map(JumpmapTracker.Progress.class::cast).toList();
+        assertThat(progress.stream().filter(p -> p.outcome() instanceof JumpRun.GatePassed)).hasSize(7);
+        assertThat(progress).noneMatch(p -> p.outcome() instanceof JumpRun.GateRejected);
+        var finished = progress.getLast();
+        assertThat(finished.outcome()).isEqualTo(new JumpRun.Ended(JumpRun.EndReason.FINISH, 33_600, 33_600L));
+        assertThat(finished.run().suspicious()).isFalse();
+        assertThat(finished.run().reasons()).isEmpty();
+        assertThat(finished.run().gatesPassed()).isEqualTo(7);
+        assertThat(finished.run().finalReached()).isTrue();
+        assertThat(tracker.active("7", now)).isEmpty();
+    }
+
+    @Test
     void 판이_없을때_0번_착지로_시작하고_서있는동안은_다시_세지않는다() {
         var tracker = tracker();
         assertThat(start(tracker, "7")).containsExactly(new JumpmapTracker.Step("7", "c1", 0),
@@ -153,6 +177,6 @@ class JumpmapTrackerTests {
         var gate = tracker.observe("7", "c1", pad(24), at += 300);
         assertThat(gate).filteredOn(JumpmapTracker.Progress.class::isInstance)
                 .singleElement().extracting(s -> ((JumpmapTracker.Progress) s).outcome())
-                .isEqualTo(new JumpRun.GatePassed(1, at - 200, 2));
+                .isEqualTo(new JumpRun.GatePassed(1, at - 200, 5));
     }
 }

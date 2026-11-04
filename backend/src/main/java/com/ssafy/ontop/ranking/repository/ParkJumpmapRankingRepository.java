@@ -1,6 +1,7 @@
 package com.ssafy.ontop.ranking.repository;
 
 import com.ssafy.ontop.world.jumpmap.JumpCourse;
+import com.ssafy.ontop.world.jumpmap.JumpmapRankingEligibility;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.List;
@@ -17,7 +18,7 @@ public class ParkJumpmapRankingRepository {
                 FROM jump_runs r
                 JOIN users u ON u.id = r.user_id
                 WHERE r.status = 'ENDED' AND r.end_reason = 'FINISH'
-                  AND r.suspicious = FALSE AND r.finish_ms > 0
+                  AND %s AND r.finish_ms > 0
                   AND r.final_reached = TRUE AND r.gates_passed = :requiredGates
                   AND r.rules_version = :rulesVersion AND r.course_version = :courseVersion
                   AND r.ended_at >= FROM_UNIXTIME(:startedAtMillis / 1000)
@@ -38,7 +39,7 @@ public class ParkJumpmapRankingRepository {
             FROM ranked
             ORDER BY finish_ms ASC, ended_at ASC, user_id ASC
             LIMIT 10
-            """;
+            """.formatted(JumpmapRankingEligibility.SQL);
 
     private final EntityManager entities;
 

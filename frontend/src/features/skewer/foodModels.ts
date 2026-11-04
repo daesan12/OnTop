@@ -1,6 +1,5 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { IngredientId } from './game'
 
 /** Locally authored food meshes. The same shared geometry is used in bowls,
@@ -10,7 +9,7 @@ export class FoodModels {
   private readonly geometries = new Set<THREE.BufferGeometry>()
   private readonly materials = new Set<THREE.Material>()
   private readonly textures = new Set<THREE.Texture>()
-  private readonly wraps = new Map<'cheese' | 'bacon', THREE.MeshStandardMaterial>()
+  private readonly cubeMaterials = new Map<'cheese' | 'bacon', THREE.MeshStandardMaterial>()
 
   private geometry<T extends THREE.BufferGeometry>(geometry: T): T {
     this.geometries.add(geometry)
@@ -33,14 +32,14 @@ export class FoodModels {
     return texture
   }
 
-  wrapMaterial(id: 'cheese' | 'bacon'): THREE.MeshStandardMaterial {
-    const existing = this.wraps.get(id)
+  private cubeMaterial(id: 'cheese' | 'bacon'): THREE.MeshStandardMaterial {
+    const existing = this.cubeMaterials.get(id)
     if (existing) return existing
     const map = this.texture(ctx => {
-      ctx.fillStyle = id === 'cheese' ? '#f6bf4c' : '#b94e38'
+      ctx.fillStyle = id === 'cheese' ? '#f6bf4c' : '#c87564'
       ctx.fillRect(0, 0, 256, 256)
       if (id === 'bacon') {
-        // Broad, irregular fat seams along the strip, rather than textile weave.
+        // Broad fat seams keep the bacon cube distinct from beef.
         for (const [middle, width] of [[27, 24], [101, 32], [191, 38], [251, 12]]) {
           ctx.beginPath()
           for (let x = 0; x <= 256; x += 4) {
@@ -55,7 +54,13 @@ export class FoodModels {
           ctx.stroke()
         }
       }
-      // Deterministic surface flecks: melted cheese pores / browned bacon edges.
+      if (id === 'cheese') {
+        for (const [x, y, radius] of [[47, 67, 15], [173, 40, 10], [142, 159, 19], [43, 205, 8], [218, 216, 12]]) {
+          ctx.fillStyle = '#ce942d'; ctx.beginPath(); ctx.ellipse(x, y, radius, radius * .8, -.25, 0, Math.PI * 2); ctx.fill()
+          ctx.strokeStyle = '#ffe298'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, radius, .2, 2.5); ctx.stroke()
+        }
+      }
+      // Deterministic surface flecks: cheese pores / browned bacon edges.
       for (let i = 0; i < 160; i++) {
         const x = (i * 73.37) % 256
         const y = (i * 41.61) % 256
@@ -66,8 +71,7 @@ export class FoodModels {
       }
     })
     const material = this.material('#ffffff', id === 'cheese' ? 0.37 : 0.43, map)
-    material.side = THREE.DoubleSide
-    this.wraps.set(id, material)
+    this.cubeMaterials.set(id, material)
     return material
   }
 
@@ -80,35 +84,20 @@ export class FoodModels {
       else if (id === 'pepper') this.pepper(prototype)
       else if (id === 'shrimp') this.shrimp(prototype)
       else if (id === 'beef') this.beef(prototype)
-      else prototype.add(new THREE.Mesh(this.geometry(createFoodStrip(0.23, 0.105, id)), this.wrapMaterial(id)))
+      else {
+        const cube = new THREE.Mesh(this.geometry(new RoundedBoxGeometry(.126, .12, .126, 3, .012)), this.cubeMaterial(id))
+        cube.rotation.set(.04, id === 'cheese' ? -.12 : .1, -.035)
+        prototype.add(cube)
+      }
       this.prototypes.set(id, prototype)
     }
     return prototype.clone(true)
   }
 
   private tomato(group: THREE.Group): void {
-    const skin = this.geometry(new THREE.SphereGeometry(0.074, 28, 18))
-    skin.scale(0.94, 0.91, 1)
-    group.add(new THREE.Mesh(skin, this.material('#db3820', 0.26)))
-    const leaves: THREE.BufferGeometry[] = []
-    for (let i = 0; i < 5; i++) {
-      const shape = new THREE.Shape()
-      shape.moveTo(-0.007, 0)
-      shape.quadraticCurveTo(-0.014, 0.023, 0, 0.044)
-      shape.quadraticCurveTo(0.009, 0.017, 0.007, 0)
-      const leaf = new THREE.ShapeGeometry(shape, 6)
-      leaf.rotateX(-Math.PI / 2 + 0.2)
-      leaf.rotateY(i * Math.PI * 2 / 5)
-      leaf.translate(0, 0.061, 0)
-      leaves.push(leaf)
-    }
-    const calyx = this.material('#466e24', 0.65)
-    calyx.side = THREE.DoubleSide
-    group.add(new THREE.Mesh(this.geometry(mergeGeometries(leaves)!), calyx))
-    leaves.forEach(leaf => leaf.dispose())
-    const stem = this.geometry(new THREE.CylinderGeometry(0.003, 0.005, 0.025, 7))
-    stem.translate(0, 0.077, 0)
-    group.add(new THREE.Mesh(stem, calyx))
+    const skin = this.geometry(new THREE.SphereGeometry(0.055, 28, 18))
+    skin.scale(1, 1.04, 1)
+    group.add(new THREE.Mesh(skin, this.material('#db3820', 0.23)))
   }
 
   private pepper(group: THREE.Group): void {
@@ -141,11 +130,12 @@ export class FoodModels {
     for (let i = 0; i <= segments; i++) {
       const u = i / segments
       const angle = -Math.PI * 0.66 + u * Math.PI * 1.49
-      const radius = 0.024 * (1 - 0.64 * u) * (1 - 0.08 * Math.cos(u * Math.PI * 16))
+      // Keep a plump body through the middle, tapering gently toward the tail.
+      const radius = 0.033 * (1 - 0.46 * u) * (1 - 0.06 * Math.cos(u * Math.PI * 16))
       for (let j = 0; j <= sides; j++) {
         const v = j / sides * Math.PI * 2
-        positions.push(Math.sin(v) * radius, Math.cos(angle) * (0.046 + Math.cos(v) * radius), Math.sin(angle) * (0.046 + Math.cos(v) * radius))
-        color.set(Math.cos(u * Math.PI * 16) > 0.68 ? '#d47443' : '#f1b482')
+        positions.push(Math.sin(v) * radius, Math.cos(angle) * (0.043 + Math.cos(v) * radius), Math.sin(angle) * (0.043 + Math.cos(v) * radius))
+        color.set(Math.cos(u * Math.PI * 16) > 0.68 ? '#dc8158' : '#f0aa82')
         color.multiplyScalar(0.92 + Math.sin(v) * 0.08)
         colors.push(color.r, color.g, color.b)
         uv.push(u, j / sides)
@@ -224,48 +214,10 @@ export class FoodModels {
   }
 }
 
-/** Ends of a slice consume its thickness, rather than an empty block-sized slot. */
-export function foodPositions(ids: readonly IngredientId[]): number[] {
-  const widths = ids.map(id => id === 'cheese' || id === 'bacon' ? 0.018 : 0.14)
-  const gap = 0.008
-  let cursor = -0.55
-  return widths.map(width => {
-    const center = cursor + width / 2
-    cursor += width + gap
-    return center
-  })
+/** Independent pieces occupy one full slot, including both cheese/bacon cubes. */
+export function assembledFoodScale(ids: readonly IngredientId[]): number {
+  return Math.min(1, 8 / Math.max(1, ids.length))
 }
-
-/** Thin, closed edible slice, including thickness and curled irregular edges. */
-export function createFoodStrip(length: number, width: number, id: 'cheese' | 'bacon', wrap = false, layer = 0): THREE.BufferGeometry {
-  const segments = 32, across = 8
-  const positions: number[] = [], uv: number[] = [], indices: number[] = []
-  const row = across + 1, sideCount = (segments + 1) * row
-  const thickness = id === 'cheese' ? 0.006 : 0.008
-  for (let side = 0; side < 2; side++) for (let i = 0; i <= segments; i++) {
-    const u = i / segments
-    const arch = wrap ? Math.pow(Math.sin(u * Math.PI), 0.36) * (0.087 + layer * 0.025) : 0
-    for (let j = 0; j <= across; j++) {
-      const v = j / across
-      const ripple = Math.sin(u * Math.PI) * Math.sin(u * 13 + v * 5) * (id === 'bacon' ? 0.008 : 0.003)
-      const drape = wrap ? Math.sin(u * Math.PI) * Math.pow(Math.abs(v * 2 - 1), 1.5) * 0.027 : 0
-      const edge = width * (1 + Math.sin(u * 23) * (id === 'bacon' ? 0.065 : 0.018))
-      positions.push(wrap ? u * length : (u - 0.5) * length, arch + ripple - drape + (side === 0 ? 1 : -1) * thickness / 2, (v - 0.5) * edge)
-      uv.push(u, v)
-      if (i < segments && j < across) {
-        const a = side * sideCount + i * row + j, b = a + row
-        if (side === 0) indices.push(a, a + 1, b, b, a + 1, b + 1)
-        else indices.push(a, b, a + 1, b, b + 1, a + 1)
-      }
-    }
-  }
-  const bridge = (a: number, b: number) => indices.push(a, a + sideCount, b, b, a + sideCount, b + sideCount)
-  for (let i = 0; i < segments; i++) { bridge(i * row, (i + 1) * row); bridge((i + 1) * row + across, i * row + across) }
-  for (let j = 0; j < across; j++) { bridge(j + 1, j); bridge(segments * row + j, segments * row + j + 1) }
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
-  geometry.setIndex(indices)
-  geometry.computeVertexNormals()
-  return geometry
+export function foodPositions(ids: readonly IngredientId[]): number[] {
+  return ids.map((_, index) => -.55 + index * .148 * assembledFoodScale(ids))
 }

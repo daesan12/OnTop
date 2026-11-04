@@ -151,7 +151,7 @@ class WorldChannelHubTests {
         first.next();
         String tableId = table("channel-1");
         owner.request("TABLE_JOIN", Map.of("tableId", tableId));
-        owner.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "DICE", "targetScore", 4000));
+        owner.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
         CountDownLatch gate = new CountDownLatch(1);
         try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
             var one = workers.submit(() -> { gate.await(); return first.request("TABLE_JOIN", Map.of("tableId", tableId)); });

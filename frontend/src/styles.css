@@ -37,7 +37,7 @@
 *::-webkit-scrollbar { display: none; }
 
 /* Hiding the thumb must never disable scrolling or shrink dialog contents. */
-:where(.park-menu-dialog, .table-paper-popup, .park-map-panel, dialog.rps-roulette, dialog.raffle) {
+:where(.park-menu-dialog, .table-paper-popup, .park-map-panel, dialog.rps-roulette, dialog.plus-minus, dialog.raffle) {
   min-inline-size: 0;
   overscroll-behavior: contain;
   scroll-padding-block: 16px;

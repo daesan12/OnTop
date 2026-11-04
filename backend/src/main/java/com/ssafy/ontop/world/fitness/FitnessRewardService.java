@@ -5,6 +5,7 @@ import com.ssafy.ontop.world.service.WorldFacilityService.Lease;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +38,7 @@ public final class FitnessRewardService {
         private final long started;
         private final long intervalNanos;
         private Long ended;
-        private long granted;
+        private volatile long granted;
 
         private Visit(String userId, long accountId, long started, long intervalNanos) {
             this.userId = userId;
@@ -62,6 +63,31 @@ public final class FitnessRewardService {
         return store.isPresent();
     }
 
+    public FitnessRewardStatusResponse status(long accountId) {
+        long serverNow = clock.sample().serverNow();
+        Instant now = Instant.ofEpochMilli(serverNow);
+        String date = now.atZone(ZoneId.of("Asia/Seoul")).toLocalDate().toString();
+        long earned = store.map(value -> value.earnedToday(accountId, now)).orElse(0L);
+        Long nextRewardAt = null;
+        String activeLeaseId = null;
+        synchronized (this) {
+            for (var entry : visits.entrySet()) {
+                Visit visit = entry.getValue();
+                if (visit.accountId == accountId && visit.ended == null) {
+                    activeLeaseId = entry.getKey();
+                    if (earned < JpaFitnessRewardStore.DAILY_CAP) {
+                        long elapsed = Math.max(0, nanos.getAsLong() - visit.started);
+                        long remaining = Math.max(0, (visit.granted + 1) * visit.intervalNanos - elapsed);
+                        nextRewardAt = serverNow + TimeUnit.NANOSECONDS.toMillis(remaining);
+                    }
+                    break;
+                }
+            }
+        }
+        return new FitnessRewardStatusResponse(enabled(), date, earned, JpaFitnessRewardStore.DAILY_CAP,
+                60, serverNow, nextRewardAt, activeLeaseId);
+    }
+
     public void sink(BiConsumer<String, String> sink) {
         this.sink = sink;
     }
@@ -71,7 +97,7 @@ public final class FitnessRewardService {
             return;
         }
         visits.computeIfAbsent(lease.leaseId(), ignored -> new Visit(lease.userId(), accountId, nanos.getAsLong(),
-                TimeUnit.MILLISECONDS.toNanos(clock.sample().cycleDurationMs() / 4)));
+                TimeUnit.MINUTES.toNanos(1)));
     }
 
     public synchronized void ended(Lease lease) {

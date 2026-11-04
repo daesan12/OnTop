@@ -52,6 +52,7 @@ import com.ssafy.ontop.world.dto.WorldGameReaction;
 import com.ssafy.ontop.world.map.LegacyParkTables;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
+import com.ssafy.ontop.world.service.DynamicChannelDisplayNumbers;
 import com.ssafy.ontop.world.service.ParkDebrisStore;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
@@ -106,7 +107,6 @@ public class TableHub {
     private DynamicChannelsProperties dynamicChannels = DynamicChannelsProperties.disabled();
     private WorldMapRuntime dynamicMap;
     private String initialChannelId;
-    private int nextChannelNumber = 1;
     private final Map<String, Member> members = new HashMap<>();
     private final WorldMapCompatibility maps;
     private final Set<String> mapVerifiedSessions = new HashSet<>();
@@ -688,6 +688,8 @@ public class TableHub {
                 || channels.snapshot().values().stream().anyMatch(count -> count < dynamicChannels.spawnAt())) {
             return;
         }
+        int displayNumber = DynamicChannelDisplayNumbers.nextAvailable(
+                channels.definitions(), dynamicChannels.maxChannels());
         String channelId = "channel-" + UUID.randomUUID();
         var layout = dynamicMap.tableLayout(channelId);
         if (layout.isEmpty() || layout.stream().anyMatch(table -> rooms.containsKey(table.tableId()))) {
@@ -701,7 +703,7 @@ public class TableHub {
                 proximity.registerTable(table.tableId(), table.point());
             }
             channels.addChannel(new WorldChannelProperties.Channel(channelId,
-                    "운영 공원 " + (nextChannelNumber + 1), dynamicChannels.capacity()));
+                    DynamicChannelDisplayNumbers.name(displayNumber), dynamicChannels.capacity()));
         } catch (RuntimeException exception) {
             for (var table : layout) {
                 rooms.remove(table.tableId());
@@ -711,7 +713,6 @@ public class TableHub {
             }
             throw exception;
         }
-        nextChannelNumber++;
         channelIds.add(channelId);
         emptyChannelsSince.put(channelId, System.nanoTime());
         log.info("운영 채널 생성 channel={} total={}", channelId, channelIds.size());
@@ -1111,6 +1112,13 @@ public class TableHub {
     /** Recovery permits the original channel and its read-only boot snapshots, never lobby actions. */
     private boolean restoredChannelAccess(Member member, Request request) {
         if (member.accountId() == null || reconnect.isEmpty()) return false;
+        String freeChannel = request.type().equals("CHANNEL_JOIN")
+                ? request.payload().path("channelId").asText() : channels.channelOf(member.userId());
+        if ((request.type().equals("CHANNEL_JOIN")
+                || Set.of("WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FOLLOW_CHECK").contains(request.type()))
+                && reconnect.get().canResumeUnreservedChannel(member.accountId(), member.sessionId(), freeChannel)) {
+            return true;
+        }
         String tableId = seating.get(member.userId()), gameId = seatedGames.get(member.userId());
         String channel = tableId == null ? null : tableChannels.get(tableId);
         if (channel == null || gameId == null || !reconnect.get().canControlGame(member.accountId(), member.sessionId(), gameId)) return false;
@@ -1327,6 +1335,7 @@ public class TableHub {
             return;
         }
         try {
+            syncSpectatorPresence();
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
             dispatchJumpmap(channels.drainJumpmap());
             for (var ended : channels.drainSuspensionEnds()) {
@@ -1472,6 +1481,37 @@ public class TableHub {
         if (!reachable) {
             throw new com.ssafy.ontop.notes.service.NoteException(403, "NOTES_OUT_OF_RANGE",
                     "익명 메모함 가까이 같은 높이에서 작성해주세요.");
+        }
+    }
+
+    /** 무료 협동 경기 입장은 최신 맵의 VR 입구·현재 인증 소켓에서만 허용한다. */
+    public synchronized void requireSkewerEntry(long userId, String channelId, boolean existingRoom) {
+        requireSkewerAccess(userId, channelId, !existingRoom, !existingRoom);
+    }
+
+    /** 이미 입장한 대기자는 거리만 면제하며 다른 게임·시설 이용 여부는 계속 확인한다. */
+    public synchronized void requireSkewerWaitingPlayer(long userId, String channelId) {
+        requireSkewerAccess(userId, channelId, true, false);
+    }
+
+    private void requireSkewerAccess(long userId, String channelId, boolean checkLobby, boolean checkEntrance) {
+        String identity = Long.toString(userId);
+        var position = channels.positionOf(identity);
+        var connected = members.entrySet().stream()
+                .filter(entry -> Long.valueOf(userId).equals(entry.getValue().accountId())).findFirst();
+        if (connected.isEmpty() || !mapVerifiedSessions.contains(connected.get().getKey())
+                || !channels.isInChannel(identity, channelId) || position == null) {
+            throw new IllegalStateException("연결된 공원과 최신 맵을 확인해주세요.");
+        }
+        if (seating.containsKey(identity) || facilities.current(identity) != null || position.swimming()
+                || checkLobby && reconnect.isPresent()
+                        && !reconnect.get().canUseLobby(userId, connected.get().getKey())) {
+            throw new IllegalStateException("진행 중인 게임·시설 이용을 먼저 종료해주세요.");
+        }
+        if (checkEntrance && (preparedPark == null
+                || preparedPark.vrEntrance().filter(reach -> reach.contains(
+                        position.x(), position.y(), position.z())).isEmpty())) {
+            throw new IllegalStateException("같은 공원의 VR 체험관 입구에서 만나주세요.");
         }
     }
 
@@ -1687,9 +1727,18 @@ public class TableHub {
     private void publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {
         Set<String> recipients = state.avatars().stream().map(WorldChannelRegistry.Avatar::userId)
                 .collect(Collectors.toSet());
+        String notification = null;
         for (Member target : members.values()) {
             if (recipients.contains(target.userId())) {
-                target.peer().offer(protocol.encode(target == actor ? requestId : null, "WORLD_STATE", state));
+                if (target == actor && requestId != null) {
+                    target.peer().offer(protocol.encode(requestId, "WORLD_STATE", state));
+                } else {
+                    // 같은 방송의 공개 상태만 재사용한다. 요청 응답과 다음 버전은 별도로 직렬화한다.
+                    if (notification == null) {
+                        notification = protocol.encode(null, "WORLD_STATE", state);
+                    }
+                    target.peer().offer(notification);
+                }
             }
         }
     }
@@ -2040,6 +2089,19 @@ public class TableHub {
             });
         }
         for (var state : channels.boardGames(current)) { publishWorld(state, null, null); }
+    }
+
+    /** Use the existing approved subscription; pending loads, players and finished games do not count. */
+    private void syncSpectatorPresence() {
+        Map<String, WorldChannelRegistry.GameWatch> current = new HashMap<>();
+        statePushes.forEach((session, push) -> {
+            Member member = members.get(session);
+            if (member != null && "PLAYING".equals(push.status)
+                    && approvedSpectator(session, member, push.gameId) != null) {
+                current.put(member.userId(), new WorldChannelRegistry.GameWatch(push.gameId, push.tableId));
+            }
+        });
+        for (var world : channels.gameWatches(current)) { publishWorld(world, null, null); }
     }
 
     @EventListener
@@ -2715,6 +2777,7 @@ public class TableHub {
             push.member.peer().offer(protocol.encode(push.initialRequestId, "GAME_STATE", view));
             push.initialRequestId = null;
         }
+        syncSpectatorPresence();
     }
 
     private synchronized boolean canReceiveStatePush(String sessionId, StatePush push) {

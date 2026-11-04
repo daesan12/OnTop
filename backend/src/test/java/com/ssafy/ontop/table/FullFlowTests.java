@@ -149,7 +149,11 @@ class FullFlowTests {
         void activate(JsonNode ready) {
             assertThat(ready.path("allReady").asBoolean()).isTrue();
             assertThat(ready.path("gameCode").asText()).isEqualTo("DICE");
-            assertThat(ready.path("seats").findValuesAsText("userId")).containsExactly("101", "202");
+            assertThat(ready.path("capacity").asInt()).isEqualTo(4);
+            assertThat(ready.path("seats").findValues("userId"))
+                    .filteredOn(userId -> !userId.isNull())
+                    .extracting(JsonNode::asText)
+                    .containsExactly("101", "202");
             active = true;
         }
 

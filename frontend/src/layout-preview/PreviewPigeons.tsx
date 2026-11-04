@@ -1,4 +1,7 @@
-import { avatars,sampleAvatar,useSession } from '../network/worldClient'
+import { useMemo } from 'react'
+import { avatars,useSession } from '../network/worldClient'
+import type { AvatarSampler } from '../network/avatarFrame'
+import { useAvatarFrameSampler } from '../world/AvatarPoseFrame'
 import { localMovement } from '../network/localMovementPrediction'
 import { MOVEMENT } from '../config'
 import { createPigeonVisitorSampler } from '../world/pigeons/visitorMotion'
@@ -41,18 +44,24 @@ const habitat:PigeonHabitat={
   },
 }
 /** Original mesh, animation and behavior, with preview-only terrain/visitor inputs. */
-const liveVisitors:Visitor[]=[]
-const sampleVisitor=createPigeonVisitorSampler(),livePose={x:0,y:0,z:0,yaw:0}
-const liveHabitat:PigeonHabitat={...habitat,visitors:()=>{
- liveVisitors.length=0
- const now=performance.now(),own=useSession.getState().sessionId
- for(const [id,a] of avatars) {
-  if(!a.connected)continue
-  sampleAvatar(a,now,livePose)
-  const flags=id===own&&localMovement.ready?localMovement.displayFlags(now):a
-  const running=flags.running&&flags.moving&&!a.swimming&&!a.tableId&&!a.benchId&&!a.fitnessId&&!a.telescopeId
-  liveVisitors.push(sampleVisitor(id,livePose,now,running,MOVEMENT.runSpeed))
- }
- return liveVisitors
-}}
-export function PreviewPigeons({live=false}:{live?:boolean}={}){return <ParkPigeons quality="high" habitat={live?liveHabitat:habitat}/>}
+function liveHabitat(samplePose:AvatarSampler):PigeonHabitat {
+ const liveVisitors:Visitor[]=[]
+ const sampleVisitor=createPigeonVisitorSampler(),livePose={x:0,y:0,z:0,yaw:0}
+ return {...habitat,visitors:()=>{
+  liveVisitors.length=0
+  const now=performance.now(),own=useSession.getState().sessionId
+  for(const [id,a] of avatars) {
+   if(!a.connected)continue
+   samplePose(a,now,livePose)
+   const flags=id===own&&localMovement.ready?localMovement.displayFlags(now):a
+   const running=flags.running&&flags.moving&&!a.swimming&&!a.tableId&&!a.benchId&&!a.fitnessId&&!a.telescopeId
+   liveVisitors.push(sampleVisitor(id,livePose,now,running,MOVEMENT.runSpeed))
+  }
+  return liveVisitors
+ }}
+}
+export function PreviewPigeons({live=false}:{live?:boolean}={}) {
+ const samplePose=useAvatarFrameSampler()
+ const liveInputs=useMemo(()=>liveHabitat(samplePose),[samplePose])
+ return <ParkPigeons quality="high" habitat={live?liveInputs:habitat}/>
+}

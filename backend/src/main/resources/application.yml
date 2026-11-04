@@ -28,9 +28,11 @@ ontop:
       # DEV는 최초 적용 시각을 환경 파일에 고정한다. 미설정이면 기존 서비스는 기동하며 새 API는 503이다.
       started-at: ${PARK_RANKING_STARTED_AT:}
   admin:
-    # 서버에서 확정한 내부 회원 ID만 관리자 권한을 얻는다. 지급 ID는 조회 ID에도 포함해야 한다.
+    # 서버에서 확정한 내부 회원 ID만 관리자 권한을 얻는다. 쓰기 권한 ID는 조회 ID에도 포함해야 한다.
     read-ids: ${ADMIN_READ_IDS:${FEEDBACK_ADMINISTRATOR_IDS:}}
     grant-ids: ${ADMIN_GRANT_IDS:}
+    # 미설정 시 기존 지급 관리자에게 운영 전환 권한을 부여해 배포 환경변수 추가 전에도 관리할 수 있다.
+    operation-ids: ${ADMIN_OPERATION_IDS:${ADMIN_GRANT_IDS:}}
   analytics:
     # 백업 복원본에서 만든 집계 파일만 읽는다. 원본 행동 로그에 접근하지 않는다.
     snapshot-path: ${ANALYTICS_SNAPSHOT_PATH:/run/ontop/analytics/admin-summary.json}

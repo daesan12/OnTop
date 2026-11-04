@@ -68,6 +68,7 @@ beforeEach(async () => {
     if (url === '/api/v1/channels') return json({ items: [{ channelId: 'channel-1', name: '공원', currentUsers: 0, capacity: 4, joinable: true }] })
     if (url === '/api/v1/users/me') return json({ userId: 101, nickname: '회원', characterGender: 'MALE' })
     if (url === '/api/v1/auth/websocket-ticket') return json({ ticket: 'fixture-ticket', expiresIn: 30 })
+    if (url === '/api/v1/world/fitness/rewards/status') return json({ todayEarned: 12 })
     if (url.startsWith('/api/v1/tables?')) return json({ tables: [] })
     throw new Error('Unexpected request: ' + url)
   }))
@@ -88,6 +89,11 @@ afterEach(async () => {
 })
 
 describe('M05 fitness guards at the real Spring transport boundary', () => {
+  it('운동 수입 경로는 조회만 허용하고 임의 사용자와 지급 요청은 거절한다', async () => {
+    expect(await runtime.requestJSON('/api/v1/world/fitness/rewards/status')).toEqual({ todayEarned: 12 })
+    await expect(runtime.requestJSON('/api/v1/world/fitness/rewards/status', { method: 'POST' })).rejects.toThrow()
+    await expect(runtime.requestJSON('/api/v1/world/fitness/rewards/status?userId=999')).rejects.toThrow()
+  })
   it.each(['pending', 'occupied'] as const)('blocks other facilities and nonzero movement while %s, but preserves stop and post-release input', async mode => {
     const station = FITNESS_STATIONS[0]!, anchors = fitnessAnchors(station.id)
     runtime.move(0, 0, false)

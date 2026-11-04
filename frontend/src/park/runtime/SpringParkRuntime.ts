@@ -5,6 +5,7 @@ import {
   restoreAuthSession,
 } from '../../auth/authFlow'
 import { SharedSocket, ServerError } from '../../network/socketClient'
+import { routeCoopMessage, subscribeCoop } from '../../features/skewer/coop/contracts'
 import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
 import { OneCardPrankEvents, ONECARD_PRANKS_ENABLED, type PrankScope } from '../../game/onecard/prankEvents'
 import { OneCardDefenseEvents, ONECARD_DEFENSE_ENABLED } from '../../game/onecard/defenseEvents'
@@ -34,6 +35,8 @@ import {
 import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, canPlayDice, receiveGame, tableBusy, useGame } from '../../game/store'
+import { canUndoAction, type OmokUndoInput } from '../../game/omok/undo'
+import { canDrawAction, type OmokDrawInput } from '../../game/omok/draw'
 import { forgetTabGames, keepTabGame, latestEndedGame, readTabGame } from '../../game/resultRecovery'
 import { canStartForfeit, canRetryForfeit, definiteForfeitRejection, forfeitError, interruptForfeit, parseForfeitResult, resetForfeit, useForfeit } from '../../game/forfeit'
 import { validDiceAction } from '../../game/farkle/scoring'
@@ -277,6 +280,12 @@ export class ParkRuntime implements ParkRuntimePort {
     void this.spectator.set(reference && intent ? { gameId: reference.gameId,
       scope: JSON.stringify([this.generation, intent.userId, intent.channelId, intent.tableId, intent.benchScope]) } : null)
   }
+  cooperativeGame = {
+    scope: () => { const s = useSession.getState(); return { userId: s.sessionId, channelId: s.roomId, connected: this.active && this.socket.connected && s.status === 'connected' && s.mapCompatible } },
+    request: (type: string, payload: Record<string, unknown>, expected: readonly string[], onId?: (id: string) => void) => this.socket.request(type, payload, expected, onId),
+    subscribe: subscribeCoop,
+    requestJSON: (path: string, init?: RequestInit) => this.requestJSON(path, init),
+  }
   private facilities = new FacilityClient({
     mapVersion: () => this.mapAdmission.expected.mapVersion,
     scope: () => {
@@ -423,14 +432,21 @@ export class ParkRuntime implements ParkRuntimePort {
     const rankingRequest = BUNGEOPPANG_RANKINGS_ENABLED && method === 'GET'
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     const parkRankingRequest = method === 'GET' && path === '/api/v1/rankings/park'
+    const fitnessRewardRequest = method === 'GET' && path === '/api/v1/world/fitness/rewards/status'
     const skewerAdmission = method === 'POST' && path === '/api/v1/minigames/skewer/admissions'
+    const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
+      || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
+      || method === 'GET' && path === '/api/v1/minigames/skewer/coop/rankings'
+      || method === 'POST' && ['/api/v1/minigames/skewer/coop/rooms', '/api/v1/minigames/skewer/coop/leave'].includes(path)
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
+    const plusMinusRequest = (method === 'GET' && path === '/api/v1/minigames/plus-minus/status')
+      || (method === 'POST' && path === '/api/v1/minigames/plus-minus/rounds')
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission
-      && !rpsRouletteRequest && !raffleRequest
+      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
+      && !rpsRouletteRequest && !plusMinusRequest && !raffleRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
@@ -630,6 +646,11 @@ export class ParkRuntime implements ParkRuntimePort {
       if (this.mapReady && this.mapAdmission.allowed && session.status === 'connected'
         && session.mapCompatible && session.roomId && !session.pending)
         this.notesChanges.accept(message)
+      return
+    }
+    if (routeCoopMessage(message)) {
+      if (message.type === 'GAME_CONNECTION_STATE' && String(message.payload.gameId ?? '').startsWith('skewer-coop-') && !useGame.getState().game)
+        useGame.setState({ recovery: 'LOBBY' })
       return
     }
     if (this.oneCardDefense.accept(message)) return
@@ -1304,6 +1325,40 @@ export class ParkRuntime implements ParkRuntimePort {
         if (generation === this.generation) useGame.setState({ pending: false })
       }
     })
+  actOmokUndo = (input: OmokUndoInput) => this.action(async () => {
+    const own = useSession.getState(), game = useGame.getState().game
+    if (own.status !== 'connected' || !game?.omok || !canUndoAction(own.sessionId, input))
+      throw new Error('무르기 요청·응답 권한과 최신 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: game.gameId, actionId: crypto.randomUUID(),
+        expectedVersion: game.version, input: { ...input } }, ['GAME_ACTION_RESULT'])
+    } catch (cause) {
+      if (generation === this.generation && useGame.getState().permittedGameId === game.gameId)
+        useGame.setState({ uncertain: !(cause instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(cause.code)) })
+      throw cause
+    } finally {
+      if (generation === this.generation) useGame.setState({ pending: false })
+    }
+  })
+  actOmokDraw = (input: OmokDrawInput) => this.action(async () => {
+    const own = useSession.getState(), game = useGame.getState().game
+    if (own.status !== 'connected' || !game?.omok || !canDrawAction(own.sessionId, input))
+      throw new Error('무승부 요청·응답 권한과 최신 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: game.gameId, actionId: crypto.randomUUID(),
+        expectedVersion: game.version, input: { ...input } }, ['GAME_ACTION_RESULT'])
+    } catch (cause) {
+      if (generation === this.generation && useGame.getState().permittedGameId === game.gameId)
+        useGame.setState({ uncertain: !(cause instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(cause.code)) })
+      throw cause
+    } finally {
+      if (generation === this.generation) useGame.setState({ pending: false })
+    }
+  })
   actDice = (kind: 'roll' | 'bank', selectedIds: readonly number[]) => this.action(async () => {
     const own = useSession.getState(), g = useGame.getState().game
     if (own.status !== 'connected' || !g?.dice || !canPlayDice(own.sessionId) || !validDiceAction(g.dice, kind, selectedIds))

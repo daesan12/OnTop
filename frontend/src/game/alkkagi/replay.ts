@@ -12,7 +12,7 @@ export type Wall = { owner: number; x: number; y: number; length: number; thickn
 export const snapshotWalls = (s: Snapshot | null) => s?.walls ?? (s?.wall ? [s.wall] : [])
 export interface Snapshot {
   gameId: string; version: number; tick: number; simulationId: number; serverNow: number
-  stage: 'WAITING' | 'AIMING' | 'SIMULATING' | 'CHOOSING' | 'FINISHED'; turn: number; turnNumber: number
+  stage: 'WAITING' | 'COIN_TOSS' | 'AIMING' | 'SIMULATING' | 'CHOOSING' | 'FINISHED'; turn: number; turnNumber: number
   turnDeadline: number; matchDeadline: number; winner: number | null; endReason: string | null
   pieces: Piece[]; timeouts: number[]; provisional: boolean
   settings: { halfWidth: number; halfHeight: number; maximumImpulse: number; deceleration: number; restitution: number }
@@ -29,6 +29,9 @@ export interface Snapshot {
     growScale: number; shrinkScale: number; defendMassMultiplier: number; effectOpponentTurns: number }
   itemUsedThisTurn?: boolean; extraShotsRemaining?: number
   lastItemEffect?: { version: number; turnNumber: number; actor: number; type: string; targets: string[] } | null
+  cardCounts?: number[]
+  coinTossEndsAt?: string
+  itemEffects?: { version: number; turnNumber: number; actor: number; type: string; targets: string[]; at: number }[]
 }
 type Frame = { seq: number; at: number; state: Snapshot }
 

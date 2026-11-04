@@ -84,6 +84,8 @@ class FiveDynamicChannelsTests {
         }
 
         assertThat(channelIds).hasSize(5);
+        assertThat(channelQuery.listChannels().items()).extracting(item -> item.name())
+                .containsExactly("운영 공원 1", "운영 공원 2", "운영 공원 3", "운영 공원 4", "운영 공원 5");
         assertThat(tableIds).hasSize(80);
         for (int index = 0; index < 4; index++) {
             for (int count = 0; count < 2; count++) {

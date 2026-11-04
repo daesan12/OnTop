@@ -3,6 +3,7 @@
  * network/worldClient and game/store. Spring owns the existing transport.
  */
 export interface ParkRuntimePort {
+  cooperativeGame?: import('../../features/skewer/coop/contracts').CoopTransport
   start(): void
   stop(): Promise<void>
   addAuthListener(listener: () => void): () => void
@@ -35,6 +36,8 @@ export interface ParkRuntimePort {
   checkResult(): Promise<boolean>
   forfeitGame(gameId: string, retry?: boolean): Promise<boolean>
   placeOmok(x: number, y: number): Promise<boolean>
+  actOmokUndo?(input: import('../../game/omok/undo').OmokUndoInput): Promise<boolean>
+  actOmokDraw?(input: import('../../game/omok/draw').OmokDrawInput): Promise<boolean>
   actDice(kind: 'roll' | 'bank', selectedIds: readonly number[]): Promise<boolean>
   actOneCard(input: import('../../game/onecard/protocol').OneCardInput): Promise<boolean>
   flipOneCardHand?(targetUserId: string, cardIndex?: number, handVersion?: number): Promise<boolean>

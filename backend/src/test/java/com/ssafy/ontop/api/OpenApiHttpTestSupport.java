@@ -87,6 +87,9 @@ abstract class OpenApiHttpTestSupport {
                 "POST /api/v1/auth/websocket-ticket", "GET /api/v1/users/me", "PATCH /api/v1/users/me",
                 "DELETE /api/v1/users/me", "GET /api/v1/users/nickname-availability",
                 "POST /api/v1/users/onboarding", "GET /api/v1/admin/me", "GET /api/v1/admin/analytics/summary",
+                "POST /api/v1/admin/wallet-grants/preview", "POST /api/v1/admin/wallet-grants",
+                "GET /api/v1/operations/status", "GET /api/v1/admin/operations/status",
+                "PUT /api/v1/admin/operations/status",
                 "GET /api/v1/wallets/me",
                 "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings",
                 "GET /api/v1/rankings/park",
@@ -104,11 +107,12 @@ abstract class OpenApiHttpTestSupport {
         }
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
-                    "POST /api/v1/minigames/skewer/admissions",
+                    "POST /api/v1/minigames/skewer/admissions", "GET /api/v1/world/fitness/rewards/status",
                     "GET /api/v1/minigames/rps-roulette/status", "POST /api/v1/minigames/rps-roulette/rounds",
                     "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/hands",
                     "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/challenge",
                     "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/stop",
+                    "GET /api/v1/minigames/plus-minus/status", "POST /api/v1/minigames/plus-minus/rounds",
                     "GET /api/v1/minigames/sessions/{sessionId}",
                     "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                     "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
@@ -133,6 +137,27 @@ abstract class OpenApiHttpTestSupport {
         assertThat(api.path("info").path("description").asText()).isEqualTo("OnTop REST API Documentation");
         assertThat(api.path("info").path("version").asText()).isEqualTo(build.getVersion());
         assertThat(api.path("servers").get(0).path("url").asText()).isEqualTo("/");
+    }
+
+    @Test
+    void 관리자_일괄_지급은_Access전용이며_미리보기와_멱등_실행을_문서화한다() throws Exception {
+        JsonNode api = json();
+        JsonNode preview = api.at("/paths/~1api~1v1~1admin~1wallet-grants~1preview/post");
+        JsonNode execute = api.at("/paths/~1api~1v1~1admin~1wallet-grants/post");
+
+        assertThat(preview.at("/security/0").has("AccessJwt")).isTrue();
+        assertThat(execute.at("/security/0").has("AccessJwt")).isTrue();
+        assertThat(preview.path("tags").toString()).isEqualTo("[\"ADMIN\"]");
+        assertThat(execute.path("tags").toString()).isEqualTo("[\"ADMIN\"]");
+        assertThat(preview.at("/responses/200/content/application~1json/schema/$ref").asText())
+                .isEqualTo("#/components/schemas/AdminWalletGrantPreviewResponse");
+        assertThat(execute.at("/responses/200/content/application~1json/schema/$ref").asText())
+                .isEqualTo("#/components/schemas/AdminWalletGrantExecuteResponse");
+        assertThat(execute.path("responses").has("409")).isTrue();
+        assertThat(execute.path("responses").has("503")).isTrue();
+        JsonNode request = api.at("/components/schemas/AdminWalletGrantExecuteRequest/properties");
+        assertThat(request.has("requestId")).isTrue();
+        assertThat(request.has("expectedRecipientCount")).isTrue();
     }
 
     @Test
@@ -326,7 +351,8 @@ abstract class OpenApiHttpTestSupport {
         var nickname = api.at("/components/schemas/UserNicknameUpdateRequest/properties/nickname/pattern").asText();
         assertThat(java.util.regex.Pattern.compile(nickname).matcher("미지!").find()).isFalse();
         for (String path : Set.of("/api/v1/shop/purchases", "/api/v1/minigames/sessions",
-                "/api/v1/minigames/skewer/admissions", "/api/v1/minigames/rps-roulette/rounds")) {
+                "/api/v1/minigames/skewer/admissions", "/api/v1/minigames/rps-roulette/rounds",
+                "/api/v1/minigames/plus-minus/rounds")) {
             api.path("paths").path(path).path("post").path("parameters").forEach(parameter -> {
                 if (parameter.path("name").asText().equals("Idempotency-Key")) {
                     assertThat(parameter.at("/schema/pattern").asText()).isEqualTo("^[A-Za-z0-9_-]{1,64}$");

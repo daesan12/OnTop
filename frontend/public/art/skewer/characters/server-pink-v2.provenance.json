@@ -1,0 +1,28 @@
+{
+  "status": "local_runtime_colored_procedural_motion",
+  "reference": "server-pink-reference.png",
+  "sourceModel": "v3.1-20260211",
+  "textureModel": "v3.0-20250812",
+  "targetFaces": 15000,
+  "observedTriangles": 21126,
+  "observedBones": 28,
+  "observedAnimationClips": 0,
+  "runtimeMotion": "SculptedServer.ts: local joint walk, carry and cleaning poses; reduced-motion support and sole contact correction",
+  "totalCredits": 85,
+  "remainingCredits": 85,
+  "runtimeEnabled": true,
+  "sha256": "590251f926c4ebe09775e4b08343f99a476e0180feaef257d38e7b825a3cbb2f",
+  "assembly": "Retained rig geometry/skeleton, transferred repaired PBR images after all 21740 rig UVs matched the textured model.",
+  "issues": [
+    "Original albedo was grayscale; repaired with the approved texture task.",
+    "Provider walk retarget failed and was refunded. No downloaded walk clip; local joint motion is used instead.",
+    "Actual triangle count exceeds the requested 15000 target. This asset is used for one server character only."
+  ],
+  "tasks": [
+    { "type": "image_to_model", "id": "63a336e5-8ffb-451f-9a2c-658d5d6a9a32", "status": "success", "credits": 50 },
+    { "type": "animate_prerigcheck", "id": "3306c1ae-c72b-4af4-929c-446eaf421f6e", "status": "success", "credits": 0 },
+    { "type": "animate_rig", "id": "45673aaf-5bd8-4745-a7ea-c32653109124", "status": "success", "credits": 25 },
+    { "type": "animate_retarget", "id": "4df581d7-7bf7-4c9c-9dfd-bed2e93b9675", "status": "failed_refunded", "credits": 0 },
+    { "type": "texture_model", "id": "1390e2ad-3f47-4e85-943c-dd7d03e35e0b", "status": "success", "credits": 10 }
+  ]
+}

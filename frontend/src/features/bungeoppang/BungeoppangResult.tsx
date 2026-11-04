@@ -31,6 +31,8 @@ export function BungeoppangResult() {
   if (!grill) return null
   const summary = result ?? grill, today = result?.todayEarned ?? status?.todayEarned
   const v4 = isV4Grill(grill), preview = v4 && (bungeoppangV4Preview || bungeoppangV5Preview)
+  const served = result?.served ?? (v4 ? grill.served : undefined)
+  const customersServed = result?.customersServed ?? (v4 ? grill.customersServed : undefined)
   if (rankingOpen) return <PaperPopup key="ranking" title="붕어빵 전체 랭킹" label="붕어빵 전체 랭킹" closeLabel="랭킹 닫기"
     onClose={() => setRankingOpen(false)} className="bungeoppang-paper-result bungeoppang-ranking-popup">
     <RankingDetails feed={ranking} onBack={() => setRankingOpen(false)} />
@@ -46,8 +48,8 @@ export function BungeoppangResult() {
     <div className="paper-stats"><div><span>완성</span><b>{summary.made}개</b></div><div><span>실수</span><b className="paper-mistakes">{summary.failed}회</b></div></div>
     <RankingSummary feed={ranking} onOpen={() => setRankingOpen(true)} />
     <div className="paper-settlement" role="status"><strong><RewardCoinSource soundOnReveal receipt={gameId ? `minigame:${gameId}` : ''} amount={!bungeoppangService.mock && !preview ? result?.coinsGranted ?? 0 : 0}><img className="bung-result-coin" src={coinImage} alt="" width="28" height="28" draggable={false} />{preview ? `미리보기 · 환산 예상 ${result?.coinsCalculated ?? '확인 중'}냥` : result ? `받은 엽전 ${result.coinsGranted}냥` : submitError ? '보상 내역을 확인하지 못했어요' : '보상 확인 중'}</RewardCoinSource></strong>
-      <small>{preview ? '미리보기 · 실제 엽전 지급 없음' : result ? `오늘 번 엽전 ${today} / ${result.dailyCap}냥` : '확인이 끝나면 엽전에 반영돼요'}</small></div>
-    {result?.capReached && <p>오늘 장사는 끝! 게임은 계속할 수 있어요</p>}
+      <small>{preview ? '미리보기 · 실제 엽전 지급 없음' : result ? `미니게임 합산 수입 ${today} / ${result.dailyCap}냥` : '확인이 끝나면 엽전에 반영돼요'}</small></div>
+    {result?.capReached && <p>오늘 미니게임 보상 한도에 도달했어요. 게임은 계속할 수 있어요.</p>}
     {!preview && result && result.coinsGranted < result.coinsCalculated && <p>환산 {result.coinsCalculated}냥 중 오늘 한도를 적용해 {result.coinsGranted}냥을 받았어요.</p>}
     {submitError && <p className="paper-error" role="alert">{submitError.message}{submitError.retryable && !submitting && <button className="paper-text-button" onClick={() => void submitBungeoppang()}>같은 결과 다시 확인</button>}</p>}
     {startError && <p className="paper-error" role="alert">{startError}</p>}
@@ -59,8 +61,8 @@ export function BungeoppangResult() {
     </div>
     <div className="bung-result-score"><span>점수</span><b aria-label="점수">{summary.score.toLocaleString()}<small>점</small></b></div>
     <details><summary>장사 기록 자세히</summary><p>양면 황금 {summary.golden}개 · 버린 개수 {summary.wasted}개 · 최고 콤보 {summary.maxCombo}</p>
-      {v4 && <p>전달한 개수 {result?.served ?? grill.served}개 · 완료한 주문 {result?.customersServed ?? grill.customersServed}개</p>}
-      <p>엽전 환산 {R.pointsPerCoin}점당 1냥{preview && ' · 미리보기 · 실제 엽전 지급 없음'}</p></details>
+      {served !== undefined && customersServed !== undefined && <p>전달한 개수 {served}개 · 완료한 주문 {customersServed}개</p>}
+      <p>엽전 환산 {roundRules?.pointsPerCoin ?? R.pointsPerCoin}점당 1냥{preview && ' · 미리보기 · 실제 엽전 지급 없음'}</p></details>
     </section>
   </PaperPopup>
 }

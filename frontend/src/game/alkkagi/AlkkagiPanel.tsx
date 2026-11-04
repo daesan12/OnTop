@@ -6,13 +6,15 @@ import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { AlkkagiSurrender } from './AlkkagiSurrender'
 import { AlkkagiCardAward, AlkkagiChoiceFan } from './AlkkagiCardReveal'
 import { AlkkagiItemCard } from './AlkkagiItemCard'
+import { AlkkagiCoinToss, AlkkagiOpponentCards, AlkkagiUsedCard } from './AlkkagiPresentation'
+import { remainingMatchTime } from './presentation'
 import { useAlkkagiControls, useAlkkagiUI, cancelAlkkagiItem } from './parkControls'
 import './park.css'
 
 /** 공원 장면은 그대로 두고 오목과 같은 최소 HUD만 겹친다. */
 export function AlkkagiPanel() {
   const {session,game,g,state,actor,ready,canItem,preview,act,ui,selectItem,placeWall}=useAlkkagiControls()
-  const runtime=useParkRuntime(), [now,setNow]=useState(Date.now())
+  const runtime=useParkRuntime(), [now,setNow]=useState(state?.serverNow ?? 0)
   useEffect(()=>{
     if(!state)return
     const wall=state.serverNow,mono=performance.now(), update=()=>setNow(wall+performance.now()-mono)
@@ -24,7 +26,7 @@ export function AlkkagiPanel() {
   const name=(i:number)=>session.profiles[state.players[i]!]?.nickname ?? (i===0 ? '홍팀' : '청팀')
   return <section className="alkkagi-hud" aria-label="알까기 경기">
     <header className="alkkagi-match-header"><div data-turn={state.turn===0}><b>{name(0)}</b><span>홍 · {state.pieces.filter(p=>p.alive&&p.owner===0).length}알</span></div>
-      <div className="alkkagi-clock"><small>알까기</small><strong>{state.stage==='AIMING' ? left : state.stage==='CHOOSING' ? '비책' : state.stage==='FINISHED' ? '종료' : '충돌'}</strong></div>
+      <div className="alkkagi-clock"><small>알까기 · 전체 {remainingMatchTime(state.matchDeadline, state.stage==='COIN_TOSS' && state.coinTossEndsAt ? Date.parse(state.coinTossEndsAt) : state.status==='FINISHED' ? state.endedAt ?? now : now)}</small><strong>{state.stage==='AIMING' ? left : state.stage==='COIN_TOSS' ? '추첨' : state.stage==='CHOOSING' ? '비책' : state.stage==='FINISHED' ? '종료' : '충돌'}</strong></div>
       <div data-turn={state.turn===1}><b>{name(1)}</b><span>청 · {state.pieces.filter(p=>p.alive&&p.owner===1).length}알</span></div></header>
     {(game.error || ui.notice)&&<p className="alkkagi-hint" role="alert">{game.error || ui.notice}</p>}
     {state.stage==='AIMING'&&left<=10&&<strong className="alkkagi-warning">{left}초 남았습니다</strong>}
@@ -42,6 +44,9 @@ export function AlkkagiPanel() {
       actor={actor} stage={state.stage} enabled={actor>=0 ? ready : session.status==='connected' && !game.uncertain && game.watchedGameId===g.gameId}
       nickname={name(state.turn)} cards={g.alkkagiHand?.cards ?? []} />
     <AlkkagiSpectatorLabels />
+    {actor>=0 && state.cardCounts && <AlkkagiOpponentCards count={state.cardCounts[1-actor] ?? 0} nickname={name(1-actor)} />}
+    <AlkkagiCoinToss state={state} now={now} name={name(state.turn)} />
+    <AlkkagiUsedCard key={state.gameId} state={state} now={now} name={name} viewerActor={actor} />
     <AlkkagiCardAward hand={g.alkkagiHand} />
     {choice&&<AlkkagiChoiceFan key={choice.id} choice={choice} ready={ready}
       seconds={Math.max(0,Math.ceil((choice.deadline-now)/1000))}
