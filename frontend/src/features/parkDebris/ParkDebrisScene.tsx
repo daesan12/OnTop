@@ -4,7 +4,7 @@ import {BoxGeometry,BufferGeometry,Color,CylinderGeometry,ExtrudeGeometry,Float3
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
 import {TABLES,serviceWalkHeight,tableScale,type TableAnchor} from '../../park/mapConfig'
 import {estimatedServerTime,useSession} from '../../network/worldClient'
-import {DEBRIS_COINS,DEBRIS_RETENTION,debrisPieces,debrisVisible,type ParkDebris,useParkDebris} from './state'
+import {DEBRIS_COINS,DEBRIS_RETENTION,DEBRIS_SETTLE,debrisPieces,debrisVisible,type ParkDebris,useParkDebris} from './state'
 import {createBackTexture} from '../../game/onecard/artwork'
 import {farkleArt} from '../../game/farkle/art/FarkleProps'
 import {debrisLanding,debrisPose} from './motion'
@@ -61,7 +61,7 @@ function DebrisBatch({item,anchor}:{item:ParkDebris;anchor:TableAnchor}){
     const age=estimatedServerTime()-at
     root.current.visible=debrisVisible(item,estimatedServerTime())&&Math.hypot(camera.position.x-anchor.position[0],camera.position.z-anchor.position[2])<65
     if(!root.current.visible||settled.current)return
-    const sampleAge=reduced.matches?3000:age
+    const sampleAge=reduced.matches?DEBRIS_SETTLE:age
     const b=debrisPose(item,-1,sampleAge,1.09,paths[0]!.floor)
     board.current.visible=b.visible&&item.parts.includes('board')
     board.current.position.set(b.x,b.y,b.z);board.current.rotation.set(b.rx,b.ry,b.rz)

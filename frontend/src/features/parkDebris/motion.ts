@@ -1,4 +1,4 @@
-import {DEBRIS_COINS,DEBRIS_LAUNCH,type ParkDebris} from './state'
+import {DEBRIS_COINS,DEBRIS_LAUNCH,DEBRIS_SETTLE,type ParkDebris} from './state'
 
 const stoneStarts=[[-.2,.1],[0,.1],[.1,0],[0,-.1],[-.1,-.1]] as const
 
@@ -18,7 +18,7 @@ export function debrisLanding(item:ParkDebris,index:number) {
  * Collision-free scenery only; resting objects never push players or block paths. */
 export function debrisPose(item:ParkDebris,index:number,age:number,startY:number,floorY:number) {
   const landing=debrisLanding(item,index),board=index<0,flight=board?1650:1250+random(item.seed,index+60)*450
-  if(age>=2750)return {x:landing.x,z:landing.z,y:floorY,rx:0,ry:landing.yaw,rz:0,visible:true,settled:true}
+  if(age>=DEBRIS_SETTLE)return {x:landing.x,z:landing.z,y:floorY,rx:0,ry:landing.yaw,rz:0,visible:true,settled:true}
   const card = item.gameCode==='ONE_CARD'&&index>=DEBRIS_COINS,cardIndex=index-DEBRIS_COINS
   const launch=DEBRIS_LAUNCH+(card?cardIndex*18:0)
   const t=Math.max(0,Math.min(1,(age-launch)/flight)),turn=board?Math.PI*4:Math.PI*(4+2*(index%3))
@@ -27,5 +27,5 @@ export function debrisPose(item:ParkDebris,index:number,age:number,startY:number
   const bounce=t<1?0:Math.max(0,Math.sin(bounceAge*18))*Math.exp(-bounceAge*12)*(board?.08:.16)
   return {x:startX+(landing.x-startX)*t,z:startZ+(landing.z-startZ)*t,
     y:startY+(floorY-startY)*t+Math.sin(t*Math.PI)*(board?1.65:1.9)+bounce,
-    rx:-turn*t,ry:landing.yaw*t,rz:Math.sin(t*Math.PI)*.3,visible:age>=launch,settled:age>=2750}
+    rx:-turn*t,ry:landing.yaw*t,rz:Math.sin(t*Math.PI)*.3,visible:age>=launch,settled:age>=DEBRIS_SETTLE}
 }

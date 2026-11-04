@@ -1,4 +1,4 @@
-import {useEffect,useRef,useState,type ReactNode} from 'react'
+import {useEffect,useMemo,useRef,useState,type ReactNode} from 'react'
 import {useFrame} from '@react-three/fiber'
 import type {Group} from 'three'
 import {estimatedServerTime,useSession} from '../../network/worldClient'
@@ -18,16 +18,18 @@ export function useDebrisPresentation(tableId:string){
 
 /** Hide only the loose game surface, keeping the real park table/chairs usable. */
 export function DebrisGameSurface({anchorId,children}:{anchorId:string;children:ReactNode}){
-  const root=useRef<Group>(null)
+  const root=useRef<Group>(null),reduced=useMemo(()=>window.matchMedia('(prefers-reduced-motion: reduce)'),[])
   useFrame(()=>{
     if(!root.current)return
+    // 동작 줄이기에서는 잔해가 처음부터 바닥에 놓이므로, 발사 시점까지 판이 두 개로 보이지 않게 바로 숨긴다.
+    const hideAfter=reduced.matches?0:DEBRIS_LAUNCH
     const session=useSession.getState(),binding=session.bindings.find(b=>b.channelId===session.roomId&&b.anchorId===anchorId)
     const game=useGame.getState().game
     const current=session.tableStates[binding?.tableId??'']?.gameId
       ??(game&&((session.tableId||session.watchedTableId)===binding?.tableId)?game.gameId:null)
     const now=estimatedServerTime()
     root.current.visible=!useParkDebris.getState().items.some(item=>item.anchorId===anchorId
-      &&(!current||current===item.gameId)&&debrisVisible(item,now)&&now-Date.parse(item.occurredAt)>=DEBRIS_LAUNCH)
+      &&(!current||current===item.gameId)&&debrisVisible(item,now)&&now-Date.parse(item.occurredAt)>=hideAfter)
   })
   return <group ref={root} name={'game-surface-'+anchorId}>{children}</group>
 }
