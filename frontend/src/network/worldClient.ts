@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { acceptTyping, resetTyping } from '../features/chat/typingState'
 import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
 import { CHAT } from '../features/chat/settings'
 import { filterChat } from '../features/chat/filterChat'
@@ -197,6 +198,7 @@ export function showMovementNotice(message: string, sequence: number) {
 }
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
   resetParkDebris()
+  resetTyping()
   resetJumpmap()
   localMovement.reset()
   remoteMovement.reset()
@@ -461,6 +463,9 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
     return
   }
   switch (message.type) {
+    case 'WORLD_CHAT_TYPING_STATE':
+      acceptTyping(p,state.roomId)
+      return
     case 'CONNECTED':
       if (typeof p.userId !== 'string' || !p.userId)
         throw new Error('사용자 연결 상태를 확인할 수 없습니다.')

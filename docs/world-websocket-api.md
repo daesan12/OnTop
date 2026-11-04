@@ -1,5 +1,7 @@
 # 광장 WebSocket · 채널·이동·채팅
 
+닉네임 일반 표시 반경 50m·인원 제한 제거와 `WORLD_CHAT_TYPING_SET` / `WORLD_CHAT_TYPING_STATE`는 [입력 중 상태 계약](world-chat-typing-api.md)을 따른다. 채팅 본문 수신 반경 20m는 유지한다.
+
 2026-11-03 추가 공개 필드 `WORLD_STATE.gameWatches`와 `avatars[].activity=WATCHING`은
 [경기 관전 수·공개 활동](world-spectator-presence-api.md)을 따른다. 실제 승인된 진행 경기 관전자만 세며 종료 즉시 해제한다.
 

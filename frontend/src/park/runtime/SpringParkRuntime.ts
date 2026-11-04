@@ -898,6 +898,14 @@ export class ParkRuntime implements ParkRuntimePort {
       try { this.message(message) } catch (error) { this.report(error) }
     }
   }
+  sendTyping = async (typing: boolean) => {
+    const own=useSession.getState()
+    if(!this.active || own.status!=='connected' || !own.roomId || !own.mapCompatible)return false
+    try {
+      await this.socket.request('WORLD_CHAT_TYPING_SET',{typing},['WORLD_CHAT_TYPING_STATE'])
+      return true
+    } catch { return false }
+  }
   sendChat = (value: string) =>
     gameChatScope() ? this.sendSpectatorChat(filterChat(value)) :
     this.action(async () => {

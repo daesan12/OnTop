@@ -13,6 +13,7 @@ import { useOmokEvents } from '../../game/omok/spectatorEvents'
 import { gameChatScope } from './gameChat'
 import { noteTourAction } from '../welcomeTour/state'
 import { displayNickname } from '../gameMaster/displayName'
+import { useChatTyping } from './useChatTyping'
 
 const textControl = (target: EventTarget | null) => target instanceof HTMLElement
   && !!target.closest('input,textarea,select,button,a,[contenteditable="true"],[role="button"]')
@@ -32,6 +33,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
   const [open, setOpen] = useState(false), [history, setHistory] = useState(false)
   const [previewUntil, setPreviewUntil] = useState(0), [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false), [notice, setNotice] = useState('')
+  const typing=useChatTyping(runtime,open&&!sending)
   const input = useRef<HTMLInputElement>(null), log = useRef<HTMLDivElement>(null)
   const followLatest = useRef(true), inFlight = useRef(false), alive = useRef(false)
   const expanded = open || history || previewUntil > 0
@@ -57,6 +59,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
   }, [previewUntil])
 
   function close(preview = false) {
+    typing(false)
     setOpen(false)
     setPreviewUntil(preview ? Date.now() + CHAT.expandedDurationMs : 0)
     followLatest.current = true
@@ -67,6 +70,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
   async function send() {
     if (inFlight.current) return
     if (!draft.trim()) { setNotice(''); close(true); return }
+    typing(false)
     inFlight.current = true; setSending(true); setNotice('')
     const approved = await runtime.sendChat(draft)
     inFlight.current = false
@@ -118,7 +122,9 @@ function ChatPanel({ gameId }: { gameId: string }) {
     {notice && <p className="park-chat__notice" role="status">{notice}</p>}
     {open ? <form className="park-chat__composer park-chat__composer--open" onSubmit={event => { event.preventDefault(); void send() }}>
       <label className="visually-hidden" htmlFor="park-chat-input">{gameId ? '경기 채팅 메시지' : '주변 채팅 메시지'}</label>
-      <input id="park-chat-input" ref={input} value={draft} readOnly={sending} onChange={event => setDraft(event.target.value)}
+      <input id="park-chat-input" ref={input} value={draft} readOnly={sending}
+        onFocus={()=>typing(!!draft.trim())} onBlur={()=>typing(false)}
+        onChange={event => {setDraft(event.target.value);typing(!!event.target.value.trim())}}
         onKeyDown={event => {
           if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault()
         }} placeholder={gameId ? '이 경기 안에서만 대화해요' : '메시지를 입력하세요'} maxLength={gameId ? 200 : 400} autoComplete="off" />
