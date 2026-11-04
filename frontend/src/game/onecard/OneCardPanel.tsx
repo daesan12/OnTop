@@ -1,3 +1,4 @@
+import { GameSpectatorCount } from '../GameSpectatorCount'
 import { useEffect, useRef, useState } from 'react'
 import { resultSettlement } from '../../features/tableLobby/gatheringModel'
 import { useShallow } from 'zustand/react/shallow'
@@ -132,14 +133,14 @@ export function OneCardPanel() {
     {defense.error && <p role="alert">{defense.error}</p>}
     </div>
     {!spectator && finished && <p>{s.result ? resultSettlement(s.result) : '결과 확인 중'}</p>}
-    {(spectator || finished || recoveryBlocked() || s.uncertain || !!s.error) && <div className="onecard-recovery-controls"><div className="onecard-actions">
+    {(spectator || finished || recoveryBlocked() || s.uncertain || !!s.error) && <div className="onecard-recovery-controls">{spectator && <GameSpectatorCount />}<div className="onecard-actions">
       {(s.uncertain || !!s.error || recoveryBlocked()) && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 원카드 확인</button>}
       {recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
       {!spectator && finished && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
       {spectator && <button disabled={session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
     </div>
     </div>}
-    {!spectator && <OneCardForfeitDialog key={`${ownId}:${g.gameId}`} gameId={g.gameId} disabled={session.pending || !fresh} />}
+    {!spectator && <div className="onecard-game-tools"><GameSpectatorCount /><OneCardForfeitDialog key={`${ownId}:${g.gameId}`} gameId={g.gameId} disabled={session.pending || !fresh} /></div>}
     {!spectator && !finished && <OneCardDefenseOverlay held={hammerHeld} active={fresh && !s.pending} ownId={ownId} />}
   </section>
 }

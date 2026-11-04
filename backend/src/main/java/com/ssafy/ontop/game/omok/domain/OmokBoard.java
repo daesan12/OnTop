@@ -13,6 +13,7 @@ public final class OmokBoard {
     private Outcome outcome = Outcome.PLAYING;
     private Move lastMove;
     private final List<Move> moves = new ArrayList<>();
+    private List<Point> forbiddenMoves;
 
     public void place(Stone stone, int x, int y) {
         Objects.requireNonNull(stone);
@@ -28,6 +29,7 @@ public final class OmokBoard {
             cells[y][x] = stone.code();
         }
         moveCount++;
+        forbiddenMoves = null;
         lastMove = new Move(x, y, stone);
         moves.add(lastMove);
         for (int[] direction : DIRECTIONS) {
@@ -53,6 +55,7 @@ public final class OmokBoard {
         }
         moveCount = moves.size();
         lastMove = moves.isEmpty() ? null : moves.getLast();
+        forbiddenMoves = null;
     }
 
     public Snapshot snapshot() {
@@ -64,7 +67,26 @@ public final class OmokBoard {
             }
             board.add(List.copyOf(copy));
         }
-        return new Snapshot(List.copyOf(board), moveCount, outcome, lastMove);
+        return new Snapshot(List.copyOf(board), moveCount, outcome, lastMove, forbiddenMoves());
+    }
+
+    // Reuse the authoritative rule and calculate once per changed board, not per viewer/timer tick.
+    private List<Point> forbiddenMoves() {
+        if (outcome != Outcome.PLAYING) return List.of();
+        if (forbiddenMoves != null) return forbiddenMoves;
+        List<Point> result = new ArrayList<>();
+        long blacks = moves.stream().filter(move -> move.stone() == Stone.BLACK).count();
+        if (blacks >= 4) {
+            RenjuRules rules = new RenjuRules(cells);
+            for (int y = 0; y < SIZE; y++) for (int x = 0; x < SIZE; x++) {
+                if (cells[y][x] != 0) continue;
+                cells[y][x] = 1;
+                try { if (rules.forbidden(x, y)) result.add(new Point(x, y)); }
+                finally { cells[y][x] = 0; }
+            }
+        }
+        forbiddenMoves = List.copyOf(result);
+        return forbiddenMoves;
     }
 
     private int count(Stone stone, int x, int y, int dx, int dy) {
@@ -102,5 +124,7 @@ public final class OmokBoard {
 
     public record Move(int x, int y, Stone stone) { }
 
-    public record Snapshot(List<List<Integer>> board, int moveCount, Outcome outcome, Move lastMove) { }
+    public record Point(int x, int y) { }
+    public record Snapshot(List<List<Integer>> board, int moveCount, Outcome outcome, Move lastMove,
+            List<Point> forbiddenMoves) { }
 }

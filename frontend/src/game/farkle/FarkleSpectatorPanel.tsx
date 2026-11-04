@@ -1,3 +1,4 @@
+import { GameSpectatorCount } from '../GameSpectatorCount'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGame } from '../store'
@@ -44,7 +45,7 @@ export function FarkleSpectatorPanel() {
         label: (bust?.actorId ?? d.turnUserId) === id ? names[i] + (bust ? ' · 굴림 확인' : ' 차례') : names[i]!,
       }))} />
     <details className="farkle-spectator" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
-      <summary><span>관전 정보</span><span className="farkle-observer-turn-total">이번 턴 <strong>{d.turnScore.toLocaleString()}</strong>점</span><i aria-hidden="true">⌄</i></summary>
+      <summary><GameSpectatorCount /><span>관전 정보</span><span className="farkle-observer-turn-total">이번 턴 <strong>{d.turnScore.toLocaleString()}</strong>점</span><i aria-hidden="true">⌄</i></summary>
       <div className="farkle-observer-body">
         <p className="farkle-observer-table">관전 중 · {d.round}번째 턴 · {session.anchor ? 'TABLE ' + session.anchor.replace('table-', '').padStart(2, '0') + ' · ' : ''}주사위 한 판</p>
         <p className={'farkle-spectator-status' + (d.lastEvent === 'BUST' ? ' bust' : '')} role="status">{bust

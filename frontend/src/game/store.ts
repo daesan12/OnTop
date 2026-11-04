@@ -89,7 +89,8 @@ export function canPlace(
     x < 15 &&
     y >= 0 &&
     y < 15 &&
-    g.omok.board[y]![x] === 0
+    g.omok.board[y]![x] === 0 &&
+    (ownId !== g.omok.blackUserId || !g.omok.forbiddenMoves?.some(point => point.x === x && point.y === y))
   )
 }
 function applyGame(next: Game) {

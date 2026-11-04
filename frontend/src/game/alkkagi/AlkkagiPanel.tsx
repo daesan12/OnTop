@@ -1,3 +1,4 @@
+import { GameSpectatorCount } from '../GameSpectatorCount'
 import { AlkkagiTurnNotice } from './AlkkagiTurnNotice'
 import { AlkkagiSpectatorLabels } from './AlkkagiSpectatorLabels'
 import { SeatedLookButton } from '../../features/tableLobby/SeatedLookButton'
@@ -30,7 +31,7 @@ export function AlkkagiPanel() {
       <div data-turn={state.turn===1}><b>{name(1)}</b><span>청 · {state.pieces.filter(p=>p.alive&&p.owner===1).length}알</span></div></header>
     {(game.error || ui.notice)&&<p className="alkkagi-hint" role="alert">{game.error || ui.notice}</p>}
     {state.stage==='AIMING'&&left<=10&&<strong className="alkkagi-warning">{left}초 남았습니다</strong>}
-    <div className="alkkagi-actions">{actor>=0&&<SeatedLookButton />}{actor>=0 ? <AlkkagiSurrender key={g.gameId} context={{userId:session.sessionId,gameId:g.gameId,version:g.version}} disabled={!ready}/>
+    <div className="alkkagi-actions"><GameSpectatorCount />{actor>=0&&<SeatedLookButton />}{actor>=0 ? <AlkkagiSurrender key={g.gameId} context={{userId:session.sessionId,gameId:g.gameId,version:g.version}} disabled={!ready}/>
       : <button onClick={()=>void runtime.unwatchGame()}>관전 종료</button>}
       {game.uncertain&&<button onClick={()=>void runtime.checkRecovery()}>경기 다시 확인</button>}</div>
     {actor>=0&&<footer className="alkkagi-hand"><span>내 비책 {g.alkkagiHand?.cards.length ?? 0}장 · 벽 {state.wallsUsed?.[actor] ?? 0}/3</span><div>{g.alkkagiHand?.cards.map(c=><AlkkagiItemCard key={c.id} type={c.type} selected={ui.item?.id===c.id} disabled={!canItem || c.type==='WALL' && (state.wallsUsed?.[actor] ?? 0)>=3}

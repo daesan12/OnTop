@@ -1,3 +1,4 @@
+import { GameSpectatorCount } from '../GameSpectatorCount'
 import { SeatedLookButton } from '../../features/tableLobby/SeatedLookButton'
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -65,7 +66,7 @@ export function BridgePanel() {
       title={slot.status === 'OCCUPIED' ? `${slot.slot}점 · ${name(slot.userId!)}` : slot.status === 'VACATED' ? `${slot.slot}번 사용 완료 · 재사용 불가` : `${slot.slot}번 미사용`}>{slot.slot}{slot.status === 'VACATED' ? ' ×' : slot.status === 'OCCUPIED' ? ' ●' : ''}</span>)}</div>
     <small>{b.nextGoalSlot <= 8 ? `다음 골인 번호 ${b.nextGoalSlot}` : '1~8번 발급 완료'} · 사용 완료 슬롯은 정렬하거나 다시 채우지 않습니다.</small>
     </section>
-    <div className="mini-tools"><SeatedLookButton /><div className="bridge-actions"><button aria-expanded={rules} onClick={() => setRules(!rules)}>다리 규칙</button>
+    <div className="mini-tools"><GameSpectatorCount /><SeatedLookButton /><div className="bridge-actions"><button aria-expanded={rules} onClick={() => setRules(!rules)}>다리 규칙</button>
       <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkGame()}>최신 다리 확인</button>
       {recoveryBlocked() && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
       {!spectator && finished && <button disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}

@@ -3,6 +3,26 @@ import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three'
 import { advanceOmokCamera, omokTopDownHeight, omokSpectatorFrame } from '../../src/world/omokCamera'
 
 describe('original omok camera projection and transition', () => {
+  it.each([[1280,720],[1366,768],[1920,1080]])('enlarges the playing grid between side rails at %i×%i for either seat', (width, height) => {
+    const insets = {top:18,bottom:18,left:320,right:310}
+    const frame = omokSpectatorFrame(width,height,1,insets)
+    for (const side of [-1,1]) {
+      const camera = new PerspectiveCamera(42,width/height)
+      camera.up.set(0,0,-side)
+      camera.position.set(frame.offsetX*side,frame.height,frame.offsetZ*side)
+      camera.lookAt(frame.offsetX*side,0,frame.offsetZ*side);camera.updateMatrixWorld()
+      const a = new Vector3(-.8,0,0).project(camera), b = new Vector3(.8,0,0).project(camera)
+      const pixels = Math.abs(b.x-a.x)*width/2
+      expect(pixels).toBeGreaterThan(height-304)
+      for (const x of [-.8,.8]) for (const z of [-.8,.8]) {
+        const point = new Vector3(x,0,z).project(camera)
+        expect((point.x+1)*width/2).toBeGreaterThan(insets.left)
+        expect((point.x+1)*width/2).toBeLessThan(width-insets.right)
+        expect((1-point.y)*height/2).toBeGreaterThan(insets.top)
+        expect((1-point.y)*height/2).toBeLessThan(height-insets.bottom)
+      }
+    }
+  })
   it.each([[1920, 1080], [1366, 768], [1000, 700], [768, 1024], [390, 844]])('fits the complete spectator frame between HUD bounds at %i×%i', (width, height) => {
     const insets = { top: 110, bottom: 210, left: 20, right: 60 }
     for (const scale of [1, 1.3]) {

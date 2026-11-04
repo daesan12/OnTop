@@ -36,6 +36,8 @@ export interface Omok {
   status: 'PLAYING' | 'FINISHED'
   boardSize: 15
   board: number[][]
+  /** Server Renju preview for black; absent on older servers. */
+  forbiddenMoves?: { x: number; y: number }[]
   blackUserId: string
   whiteUserId: string
   turnUserId: string | null
@@ -153,6 +155,11 @@ export function parseOmok(p: unknown): Omok {
   )
     throw new Error('오목 상태 형식이 올바르지 않습니다.')
   const players = [p.blackUserId, p.whiteUserId]
+  const board = p.board as number[][]
+  if (p.forbiddenMoves !== undefined && (!Array.isArray(p.forbiddenMoves) || p.forbiddenMoves.length > 225
+    || !p.forbiddenMoves.every(m => record(m) && integer(m.x) && integer(m.y) && m.x < 15 && m.y < 15 && board[m.y]![m.x] === 0)
+    || new Set(p.forbiddenMoves.map(m => `${m.x},${m.y}`)).size !== p.forbiddenMoves.length))
+    throw new Error('오목 금수 위치를 확인해주세요.')
   if (p.drawRequestsUsed !== undefined && (!Array.isArray(p.drawRequestsUsed) || p.drawRequestsUsed.length > 2
     || new Set(p.drawRequestsUsed).size !== p.drawRequestsUsed.length || !p.drawRequestsUsed.every(u => players.includes(u))))
     throw new Error('오목 무승부 요청 횟수를 확인해주세요.')
@@ -207,6 +214,7 @@ export function parseOmok(p: unknown): Omok {
     status: p.status as Omok['status'],
     boardSize: 15,
     board: p.board.map((row) => [...row]),
+    ...(p.forbiddenMoves === undefined ? {} : { forbiddenMoves: (p.forbiddenMoves as {x: number; y: number}[]).map(m => ({x: m.x, y: m.y})) }),
     blackUserId: p.blackUserId,
     whiteUserId: p.whiteUserId,
     turnUserId: p.turnUserId as string | null,

@@ -118,3 +118,13 @@
   .omok-match-clock[data-urgent="true"] { animation:none; background:#7c3f27; box-shadow:0 0 0 2px #e3b977; }
   .omok-player-header>.omok-match-clock[data-urgent="true"] { animation:none; box-shadow:0 0 0 3px #bd7338; }
 }
+
+/* On wide screens, keep the HUD in side rails so the board can use the full height. */
+@media(min-width:1000px) {
+  .park-page[data-omok-focus="true"] .omok-player-header {inset:20px auto auto 20px;width:250px;display:flex;flex-direction:column;gap:12px;align-items:stretch}
+  .omok-player-header>.omok-match-player,.omok-player-header>.omok-match-clock {width:100%;max-width:100%}
+  .omok-player-header>.omok-match-player:last-child {justify-content:flex-start;text-align:left}
+  .park-page[data-omok-focus="true"] .omok-panel:not(.omok-spectator-hud) .focus-actions {width:210px;max-width:210px;flex-direction:column;align-items:stretch}
+  .park-page[data-omok-focus="true"] .omok-panel:not(.omok-spectator-hud) .focus-record {left:20px;bottom:130px;max-width:260px;flex-direction:column}
+  .park-page[data-omok-focus="true"] .omok-panel:not(.omok-spectator-hud) .focus-hint {left:20px;bottom:178px;transform:none;width:185px;max-width:185px;text-align:left}
+}

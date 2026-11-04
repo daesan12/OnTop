@@ -90,6 +90,18 @@ class OmokEngineTests {
     }
 
     @Test
+    void 공개상태와_재접속은_서버금수_위치를_동일하게_전달한다() throws Exception {
+        int[][] blacks = {{6,7},{8,7},{7,6},{7,8}};
+        for (int i = 0; i < blacks.length; i++) {
+            play(101, "black-preview-" + i, i * 2, blacks[i][0], blacks[i][1]);
+            play(202, "white-preview-" + i, i * 2 + 1, i * 2, 0);
+        }
+        JsonNode points = state().path("forbiddenMoves");
+        assertThat(points).isEqualTo(mapper.readTree("[{\"x\":7,\"y\":7}]"));
+        assertThat(engine.load(101).orElseThrow().state().path("forbiddenMoves")).isEqualTo(points);
+    }
+
+    @Test
     void 흑선공부터_실제착수와_다섯돌_승리까지_진행한다() throws Exception {
         assertThat(state().path("turnUserId").asText()).isEqualTo("101");
         for (int index = 0; index < 4; index++) {

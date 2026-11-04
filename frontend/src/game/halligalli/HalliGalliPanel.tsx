@@ -1,3 +1,4 @@
+import { GameSpectatorCount } from '../GameSpectatorCount'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGame, recoveryBlocked } from '../store'
@@ -78,7 +79,7 @@ export function HalliGalliPanel() {
       {s.error && <p role="alert">{s.error}</p>}
       {player && !playing && <p>{s.result ? resultSettlement(s.result) : '결과·정산 확인 전입니다.'}</p>}
     </div>
-    <nav className="hg-menu" aria-label="게임 메뉴">
+    <nav className="hg-menu" aria-label="게임 메뉴"><GameSpectatorCount />
       {player && <SeatedLookButton />}
       <button type="button" data-icon="manual" onClick={() => openManual('halligalli')}>게임 설명</button>
       {player && recoveryBlocked() && <button type="button" data-icon="refresh" disabled={session.pending || session.status !== 'connected'} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button>}

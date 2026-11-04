@@ -217,6 +217,12 @@ function OmokSurface({
     >
       <GomokuAssets blackAtSouth={blackAtSouth} reverseSupplies={reversed} />
       <BoardCoordinates />
+      {focused && game?.omok.status === 'PLAYING' && game.omok.turnUserId === game.omok.blackUserId
+        && game.omok.forbiddenMoves?.map(point => <mesh key={`forbidden-${point.x}-${point.y}`}
+          name={`omok-forbidden-${point.x}-${point.y}`} raycast={noRaycast}
+          position={[point.x * spacing - half, .006, point.y * spacing - half]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[.014, .021, 16]} /><meshBasicMaterial color="#ed4545" toneMapped={false} />
+        </mesh>)}
       {game && <OmokPings gameId={game.gameId} focused={focused} />}
       {/* Decorations never pick cells; keep the approved grid's original local coordinates. */}
       <mesh name="omok-pick-surface" position={[0, 0.0005, 0]} rotation={[-Math.PI / 2, 0, 0]}>

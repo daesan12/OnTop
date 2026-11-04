@@ -1,3 +1,4 @@
+import { GameSpectatorCount } from '../GameSpectatorCount'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useGame, recoveryBlocked } from '../store'
@@ -93,7 +94,7 @@ export function LedgerPanel() {
     </div>
   </section>
   {/* 장부가 스크롤 없이 한 화면에 들어오도록 게임 설정은 왼쪽 세로 메뉴로 분리한다. */}
-  <nav className="ledger-menu" aria-label="게임 메뉴">
+  <nav className="ledger-menu" aria-label="게임 메뉴"><GameSpectatorCount />
     {player && <SeatedLookButton />}
     <button onClick={() => openManual('ledger')}>게임 설명</button>
     <button aria-pressed={sound} onClick={() => setDiceSound(!sound)}>소리 {sound ? '켜짐' : '꺼짐'}</button>

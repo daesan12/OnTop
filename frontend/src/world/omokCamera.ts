@@ -6,8 +6,8 @@ export const OMOK_FOCUS_LAYER = 1
 
 /** The original board occupies 80% of the shorter viewport dimension. */
 export function omokTopDownHeight(aspect: number, scale: number, viewportHeight?: number) {
-  // Reserve symmetric HUD space so the grid never moves when the turn changes.
-  const fit = viewportHeight ? Math.max(.3, Math.min(.8, (viewportHeight - 304) / viewportHeight)) : GOMOKU.topDownScreenFill
+  // Fallback before the actual HUD bounds have been measured.
+  const fit = viewportHeight ? Math.max(.3, Math.min(.9, (viewportHeight - 184) / viewportHeight)) : GOMOKU.topDownScreenFill
   const span = OMOK_BOARD_ART_SPAN * scale / fit / Math.min(1, aspect)
   return span / (2 * Math.tan(GOMOKU.topDownFov * Math.PI / 360))
 }

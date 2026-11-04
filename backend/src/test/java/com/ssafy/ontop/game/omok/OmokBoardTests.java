@@ -12,6 +12,35 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OmokBoardTests {
+    @Test
+    void 금수_미리보기는_판을_보존하고_실제판정과_같으며_무르기에_갱신된다() {
+        OmokBoard board = new OmokBoard();
+        for (int[] p : new int[][]{{6, 7}, {8, 7}, {7, 6}, {7, 8}}) board.place(Stone.BLACK, p[0], p[1]);
+        var before = board.snapshot();
+        assertThat(before.forbiddenMoves()).contains(new OmokBoard.Point(7, 7));
+        assertThat(board.snapshot().forbiddenMoves()).isSameAs(before.forbiddenMoves());
+        assertThat(before.board().get(7).get(7)).isZero();
+        assertThatThrownBy(() -> board.place(Stone.BLACK, 7, 7)).isInstanceOf(OmokBoard.ForbiddenMove.class);
+        assertThat(board.snapshot()).isEqualTo(before);
+        board.place(Stone.WHITE, 7, 7);
+        assertThat(board.snapshot().forbiddenMoves()).doesNotContain(new OmokBoard.Point(7, 7));
+        board.undoPair();
+        assertThat(board.snapshot().forbiddenMoves()).isEmpty();
+        assertThat(before.forbiddenMoves()).contains(new OmokBoard.Point(7, 7));
+    }
+
+    @Test
+    void 장목_미리보기는_정확한_오목_승리와_구분한다() {
+        OmokBoard board = new OmokBoard();
+        for (int x : new int[]{2, 3, 4, 6, 7}) board.place(Stone.BLACK, x, 7);
+        assertThat(board.snapshot().forbiddenMoves()).contains(new OmokBoard.Point(5, 7));
+        OmokBoard five = new OmokBoard();
+        for (int x : new int[]{2, 3, 4, 6}) five.place(Stone.BLACK, x, 7);
+        assertThat(five.snapshot().forbiddenMoves()).doesNotContain(new OmokBoard.Point(5, 7));
+        five.place(Stone.BLACK, 5, 7);
+        assertThat(five.snapshot().outcome()).isEqualTo(Outcome.BLACK_WIN);
+        assertThat(five.snapshot().forbiddenMoves()).isEmpty();
+    }
     @ParameterizedTest
     @CsvSource({"0,0,1,0", "14,0,0,1", "0,0,1,1", "0,14,1,-1"})
     void 가로세로와_양대각선의_다섯돌을_양쪽끝에서도_판정한다(int x, int y, int dx, int dy) {
