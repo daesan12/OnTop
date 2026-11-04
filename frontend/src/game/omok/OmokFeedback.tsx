@@ -29,11 +29,11 @@ export function OmokFeedback() {
   return <div className="omok-feedback" hidden={manual} aria-label="관전자 응원과 위치 추천">
     {chats.map(chat => <div key={chat.eventId} className={`omok-floating-chat slot-${chat.slot}`} role="status"
       style={{ ...chatPosition(chat), animationDelay: `${-Math.max(0, 3000 - (chat.until - performance.now()))}ms` } as CSSProperties}>
-      <span>{profiles[chat.senderUserId]?.nickname ?? '관전자'}</span> {chat.text}
+      <span>{chat.displayName ?? profiles[chat.senderUserId]?.nickname ?? '관전자'}</span> {chat.text}
     </div>)}
     {pings.map(ping => <span className="omok-ping-label" key={ping.eventId} ref={element => {
       if (element) labels.set(ping.eventId, element); else labels.delete(ping.eventId)
-    }}>{profiles[ping.senderUserId]?.nickname ?? '관전자'} · {omokCoordinate(ping.x, ping.y)} 추천</span>)}
+    }}>{ping.displayName ?? profiles[ping.senderUserId]?.nickname ?? '관전자'} · {omokCoordinate(ping.x, ping.y)} 추천</span>)}
   </div>
 }
 

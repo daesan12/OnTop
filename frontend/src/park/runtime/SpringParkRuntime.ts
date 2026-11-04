@@ -7,6 +7,7 @@ import {
 import { SharedSocket, ServerError } from '../../network/socketClient'
 import { routeCoopMessage, subscribeCoop } from '../../features/skewer/coop/contracts'
 import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
+import { chatAuthorName } from '../../features/chat/author'
 import { OneCardPrankEvents, ONECARD_PRANKS_ENABLED, type PrankScope } from '../../game/onecard/prankEvents'
 import { OneCardDefenseEvents, ONECARD_DEFENSE_ENABLED } from '../../game/onecard/defenseEvents'
 import { BUNGEOPPANG_RANKINGS_ENABLED } from '../../features/bungeoppang/ranking'
@@ -206,6 +207,7 @@ export class ParkRuntime implements ParkRuntimePort {
       role: game.role, canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
   }
   private omokEvents = new OmokSpectatorEvents({
+    displayName: userId => chatAuthorName(useSession.getState().profiles[userId]),
     scope: () => this.gameEventScope(),
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })

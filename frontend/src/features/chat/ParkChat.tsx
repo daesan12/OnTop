@@ -39,7 +39,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
   const expanded = open || history || previewUntil > 0
   const full = open || history
   const feed = gameId ? historyMessages.filter(message => message.gameId === gameId).map(message => ({
-    id: message.eventId, userId: message.senderUserId, text: message.text,
+    id: message.eventId, userId: message.senderUserId, text: message.text, displayName: message.displayName,
   })) : session.messages
   const messages = full ? feed : feed.slice(-(expanded ? CHAT.previewRows : CHAT.collapsedRows))
 
@@ -113,7 +113,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
         {channelName && (expanded || !messages.length) && <p className="park-chat__system">{gameId ? '참가자와 승인된 관전자에게만 보여요' : `${channelName} 채널에 입장했어요`}</p>}
         {messages.map(message => <p className="park-chat__message" key={message.id}>
           <span className={'park-chat__author' + (message.userId === session.own ? ' park-chat__author--own' : '')}>
-            {displayNickname(session.profiles[message.userId], message.userId === session.own ? '나' : '산책자 ' + message.userId.slice(-6))}
+            {message.displayName ?? displayNickname(session.profiles[message.userId], message.userId === session.own ? '나' : '산책자 ' + message.userId.slice(-6))}
           </span><span>{message.text}</span>
         </p>)}
       </div>
