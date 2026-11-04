@@ -40,6 +40,13 @@ export function OnboardingPage({ onComplete, onReturnToLogin }: {
   }
   const nicknameProblem = nicknameInputProblem(nickname)
   const validNickname = nicknameProblem === null
+  const reservedNicknameFeedback = nicknameProblem === 'reserved'
+    ? 'GM으로 시작하는 닉네임은 사용할 수 없어요.'
+    : ''
+  const nicknameFeedback = reservedNicknameFeedback || feedback
+  const nicknameFeedbackIsError = Boolean(
+    reservedNicknameFeedback || errorCode || (feedback && !validNickname),
+  )
   const expired = errorCode === 'ONBOARDING_EXPIRED' || errorCode === 'USER_ALREADY_REGISTERED'
 
   const checkNickname = () => {
@@ -125,8 +132,8 @@ export function OnboardingPage({ onComplete, onReturnToLogin }: {
                     placeholder="사용할 닉네임을 입력해 주세요"
                     autoComplete="nickname"
                     aria-describedby="onboarding-name-help onboarding-feedback"
-                    aria-invalid={Boolean(feedback && (!validNickname
-                      || errorCode === 'USER_NICKNAME_ALREADY_EXISTS' || errorCode === 'USER_RESERVED_NICKNAME'))}
+                    aria-invalid={Boolean(reservedNicknameFeedback || (feedback && (!validNickname
+                      || errorCode === 'USER_NICKNAME_ALREADY_EXISTS' || errorCode === 'USER_RESERVED_NICKNAME')))}
                   />
                   <button type="button" onClick={checkNickname} disabled={!nickname || saving} title="입력 형식을 확인합니다. 중복 여부는 입장 시 서버에서 최종 확인합니다.">중복 확인</button>
                 </div>
@@ -134,7 +141,7 @@ export function OnboardingPage({ onComplete, onReturnToLogin }: {
                   <span>2~8자 · 한글, 영문, 숫자 · GM으로 시작할 수 없음</span>
                   <span>{nickname.length} / {NICKNAME_MAX}</span>
                 </div>
-                <p id="onboarding-feedback" className={`onboarding-feedback${errorCode || (feedback && !validNickname) ? ' onboarding-feedback--error' : ''}`} role="status" aria-live="polite">{feedback}</p>
+                <p id="onboarding-feedback" className={`onboarding-feedback${nicknameFeedbackIsError ? ' onboarding-feedback--error' : ''}`} role="status" aria-live="polite">{nicknameFeedback}</p>
               </div>
 
               <div className="onboarding-notice">
