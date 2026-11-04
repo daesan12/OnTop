@@ -72,3 +72,8 @@ export function visibleNotices(feed: NoticeFeed, elapsedMs: number) {
   const now = Date.parse(feed.serverTime) + Math.max(0, elapsedMs)
   return feed.announcements.filter(item => item.endsAt === null || Date.parse(item.endsAt) > now)
 }
+
+// 예약 시각은 서버 값 그대로 사용하되 가까운 경계가 이어져도 연속 폴링을 제한한다.
+export function noticeRefreshDelay(feed: Pick<NoticeFeed, 'serverTime' | 'refreshAt'>) {
+  return Math.max(2000, Math.min(10000, Date.parse(feed.refreshAt) - Date.parse(feed.serverTime)))
+}

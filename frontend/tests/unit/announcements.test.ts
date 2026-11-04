@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 const auth = vi.hoisted(() => ({ session: { status: 'AUTHENTICATED', accessToken: 'test' } as { status: 'AUTHENTICATED'; accessToken: string } | null, refresh: vi.fn<() => Promise<boolean>>() }))
 vi.mock('../../src/auth/authFlow', () => ({ getAuthSession: () => auth.session, restoreAuthSession: auth.refresh }))
-import { parseNoticeFeed, visibleNotices, loadNotices, saveAnnouncement } from '../../src/features/announcements/api'
+import { parseNoticeFeed, visibleNotices, loadNotices, saveAnnouncement, noticeRefreshDelay } from '../../src/features/announcements/api'
 const feed = { serverTime: '2026-11-04T00:00:00Z', refreshAt: '2026-11-04T00:00:10Z', announcements: [
   { id: 'a78baf0b-0246-4391-adef-a247f90ac50a', text: '<script>일반 텍스트</script>', endsAt: '2026-11-04T00:00:05Z', version: 0 },
 ] }
@@ -29,4 +29,12 @@ it('생성 재시도는 같은 UUID와 JSON을 사용하며 쿠키를 보내지 
   const draft = { title: '제목', text: '본문', published: false, displayOrder: 1, startsAt: null, endsAt: null, expectedVersion: 0 }
   await saveAnnouncement(feed.announcements[0]!.id, draft, true, new AbortController().signal)
   expect(fetcher.mock.calls[0]![1]).toMatchObject({ method: 'POST', credentials: 'omit', cache: 'no-store', body: JSON.stringify(draft) })
+})
+
+it.each([[-10, 2000], [0, 2000], [50, 2000], [1999, 2000], [2000, 2000], [5000, 5000], [30000, 10000]])('서버 경계 %dms는 다음 폴링까지 %dms를 보장한다', (boundary, delay) => {
+  const serverTime = '2026-11-04T00:00:00Z'
+  vi.spyOn(Date, 'now').mockReturnValue(Date.parse(serverTime) + 3600000)
+  try {
+    expect(noticeRefreshDelay({ serverTime, refreshAt: new Date(Date.parse(serverTime) + boundary).toISOString() })).toBe(delay)
+  } finally { vi.restoreAllMocks() }
 })

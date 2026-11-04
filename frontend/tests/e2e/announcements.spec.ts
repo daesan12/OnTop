@@ -50,10 +50,11 @@ test('조회 전용 관리자는 공지 편집을 열 수 없다', async ({ page
 test('공지는 맨 위 정중앙의 보기 전용이며 날씨는 분리되고 흐름이 멈추지 않는다', async ({ page }) => {
   await fixture(page)
   await page.route('**/api/v1/operations/status', route => route.fulfill({ json: { mode: 'NORMAL', notice: '', maintenanceStartedAt: null, expectedOpenAt: null, version: 1, updatedAt: new Date().toISOString(), serverTime: new Date().toISOString() } }))
-  await page.route('**/api/v1/announcements', route => route.fulfill({ json: {
-    serverTime: new Date().toISOString(), refreshAt: new Date(Date.now() + 10000).toISOString(),
+  const noticeRequestTimes: number[] = []
+  await page.route('**/api/v1/announcements', route => { noticeRequestTimes.push(Date.now()); return route.fulfill({ json: {
+    serverTime: new Date().toISOString(), refreshAt: new Date(Date.now() + 50).toISOString(),
     announcements: [{ id, text: initial.text, endsAt: null, version: 0 }],
-  } }))
+  } }) })
   await page.goto('/park')
   await expect(page.locator('canvas')).toBeVisible({ timeout: 90000 })
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
@@ -71,6 +72,12 @@ test('공지는 맨 위 정중앙의 보기 전용이며 날씨는 분리되고 
     await expect.poll(() => moving.evaluate(e => getComputedStyle(e).animationPlayState)).toBe('running')
   }
   await page.setViewportSize({ width: 1920, height: 1080 })
+  // 개발 StrictMode의 최초 effect 재실행은 제외하고 화면 준비 후 정기 폴링을 관찰한다.
+  noticeRequestTimes.length = 0
+  await expect.poll(() => noticeRequestTimes.length, { timeout: 6000 }).toBeGreaterThanOrEqual(2)
+  const intervals = noticeRequestTimes.slice(1).map((time, index) => time - noticeRequestTimes[index])
+  expect(intervals, JSON.stringify(intervals)).toEqual(expect.arrayContaining([expect.any(Number)]))
+  expect(intervals.every(interval => interval >= 1900), JSON.stringify(intervals)).toBe(true)
   await screenshot(page, 'announcements-park-readonly')
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await expect.poll(() => moving.evaluate(e => getComputedStyle(e).animationName)).toBe('none')

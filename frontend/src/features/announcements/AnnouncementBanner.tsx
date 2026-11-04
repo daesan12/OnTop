@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { loadNotices, visibleNotices, type NoticeFeed } from './api'
+import { loadNotices, noticeRefreshDelay, visibleNotices, type NoticeFeed } from './api'
 import './announcements.css'
 
 export function AnnouncementBanner() {
@@ -15,7 +15,7 @@ export function AnnouncementBanner() {
         const feed = await loadNotices(request.signal)
         if (stopped || turn !== serial) return
         received.current = performance.now(); setFeed(feed); setAge(0)
-        timer = setTimeout(() => void refresh(), Math.max(250, Math.min(10000, Date.parse(feed.refreshAt) - Date.parse(feed.serverTime))))
+        timer = setTimeout(() => void refresh(), noticeRefreshDelay(feed))
       } catch {
         if (!stopped && turn === serial) timer = setTimeout(() => void refresh(), 10000)
       }
