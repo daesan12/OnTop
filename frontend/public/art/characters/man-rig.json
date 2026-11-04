@@ -59,14 +59,14 @@
     {
       "name": "far-body",
       "triangles": 6000,
-      "vertices": 10392,
-      "pieces": 41
+      "vertices": 10263,
+      "pieces": 43
     },
     {
       "name": "near-body",
       "triangles": 31999,
-      "vertices": 40791,
-      "pieces": 57
+      "vertices": 39977,
+      "pieces": 60
     }
   ],
   "source": "man_raw.glb",

@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0|back|all rim_neck=20] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [beoseon=0.05] [clean_skin=TOP] [neck_poke=1 push_neck=0|back|all rim_neck=20] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -623,6 +623,40 @@ if opt.get('shoe_cap', '0') == '1' and 'SHOES' in G:
     bpy.context.view_layer.objects.active = it; bpy.ops.object.join()
     print('SHOES cap', n_cap, 'faces at z', round(zc - 0.0015, 4))
 
+# beoseon=dz (the gat's low shoes, like hanbok's white socks): with the shoes the body's foot was hidden up to a
+# sawtooth a few cm over the rim, so with no trousers on the leg ended ragged above the shoe and the ankle was missing
+# (user). White socks are made from the body's feet and lower legs, from just under the shoe's lid up to dz over the
+# rim, cut level there, 1.5 mm out, smoothed, on the bottom's lit white, part of the shoes; the shoes then hide the
+# leg up to that level too (under trousers they are hidden).
+BEOSEON = None
+if opt.get('beoseon') and 'SHOES' in G:
+    zc_ = boot_top + float(opt.get('shoe_level_up', 0.008)); BEOSEON = zc_ + float(opt['beoseon'])
+    lead = leading_bones(src_obj); pick = []
+    for p in src_obj.data.polygons:
+        votes = {}
+        for vi in p.vertices: votes[lead[vi]] = votes.get(lead[vi], 0) + 1
+        bone_ = max(votes, key=votes.get)
+        if (bone_ in FOOT_BONES or bone_ in BOTTOM_BONES) and zc_ - 0.006 < p.center.z < BEOSEON + 0.03: pick.append(p.index)
+    sk = src_obj.copy(); sk.data = src_obj.data.copy(); bpy.context.scene.collection.objects.link(sk)
+    kb = bmesh.new(); kb.from_mesh(sk.data); kb.faces.ensure_lookup_table(); keep_ = set(pick)
+    bmesh.ops.delete(kb, geom=[f for f in kb.faces if f.index not in keep_], context='FACES')
+    bmesh.ops.remove_doubles(kb, verts=kb.verts, dist=1e-5)
+    # (cut 1.2 cm over the level the leg is hidden to: the leg's hidden edge follows its faces, a sawtooth up to a
+    # face's height, and showed gaps over a sock cut at that level)
+    bmesh.ops.bisect_plane(kb, geom=kb.verts[:] + kb.edges[:] + kb.faces[:], plane_co=(0, 0, BEOSEON + 0.012), plane_no=(0, 0, 1), clear_outer=True)
+    kb.normal_update()
+    for v in kb.verts: v.co += v.normal * float(opt.get('beoseon_gap', 0.0015))
+    for _ in range(6):
+        bmesh.ops.smooth_vert(kb, verts=[v for v in kb.verts if not v.is_boundary], factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+    kb.to_mesh(sk.data); kb.free()
+    for g in list(sk.vertex_groups): sk.vertex_groups.remove(g)
+    uv_w, _ = lit_texel(G['BOTTOM'] if 'BOTTOM' in G else G['SHOES'])
+    on_texel(sk, G['SHOES'], uv_w)
+    sk.vertex_groups.new(name='part:socks').add(list(range(len(sk.data.vertices))), 1.0, 'REPLACE')
+    for x in bpy.data.objects: x.select_set(x in (G['SHOES'], sk))
+    bpy.context.view_layer.objects.active = G['SHOES']; bpy.ops.object.join()
+    print('BEOSEON socks up to z', round(BEOSEON, 3), len(pick), 'body faces')
+
 # dark_lining=SHOES (the gat's shoes): the low shoes' white inner lining showed round the ankle as white teeth.
 # The slot's light faces (texel at their UV centre brighter than dark_light, 0.6) take its dark texel (the median
 # of its darker half).
@@ -636,12 +670,18 @@ for slot in [x for x in opt.get('dark_lining', '').split(',') if x]:
     lum = {i: float(c.mean()) for i, c in fc.items()}
     # (a face is light when its centre or any corner is: white triangles with dark centres stayed at the throat)
     lum_max = {p.index: max([lum[p.index]] + [float(col(tuple(uvd[l].uv)).mean()) for l in p.loop_indices]) for p in it.data.polygons}
+    # (the white socks, part:socks, keep their white)
+    sock_g = {g.index for g in it.vertex_groups if g.name == 'part:socks'}
+    if sock_g:
+        for p in it.data.polygons:
+            if any(e.group in sock_g for e in it.data.vertices[p.vertices[0]].groups): lum[p.index] = lum_max[p.index] = -1.0
+        lum = {i: l_ for i, l_ in lum.items() if l_ >= 0}
     dark = sorted(lum, key=lum.get)[: max(1, len(lum) // 2)]
     dmed = np.median([lum[i] for i in dark]); di = min(dark, key=lambda i: abs(lum[i] - dmed))
     duv = np.mean([tuple(uvd[l].uv) for l in it.data.polygons[di].loop_indices], 0)
     n_ = 0
     for p in it.data.polygons:
-        if lum_max[p.index] > float(opt.get('dark_light', 0.6)):
+        if p.index in lum and lum_max[p.index] > float(opt.get('dark_light', 0.6)):
             for l in p.loop_indices: uvd[l].uv = duv
             n_ += 1
     print('DARK lining', slot, n_, 'light faces to', round(float(dmed), 2))
@@ -979,6 +1019,8 @@ for o in body:
             # under-layer takes it instead)
             if bone_ == 'Neck' or c.y < neck_xy[1]: tone_faces.append(p.index)
         if 'BOTTOM' in G and bone_ in BOTTOM_BONES and c.z > boot_top: cv.add('BOTTOM')
+        # (beoseon: the socks reach beoseon_top over the rim, the leg under it hidden with the shoes)
+        if 'SHOES' in G and BEOSEON and bone_ in BOTTOM_BONES and c.z < BEOSEON: cv.add('SHOES')
         if 'SHOES' in G and (bone_ in FOOT_BONES or (bone_ in BOTTOM_BONES and c.z <= boot_top)): cv.add('SHOES')
         if hair_bvh and bone_ in ('Head', 'HeadTop_End'):
             n = (mw.to_3x3() @ p.normal).normalized()
