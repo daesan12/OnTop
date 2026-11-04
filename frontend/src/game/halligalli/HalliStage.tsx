@@ -2,7 +2,7 @@ import { Fragment } from 'react'
 import { CardBack, FruitCard } from './FruitCard'
 import { FlipTimerBar } from './FlipTimerBar'
 import { bellLabel, useBellMark } from './Bell'
-import { stateLabel, turnLabel, type HalliTableProps } from './HalliTable'
+import { pileText, stateLabel, turnLabel, type HalliTableProps } from './HalliTable'
 import { stageRef } from './anchors'
 import { HalliFlights } from './HalliFlights'
 
@@ -28,16 +28,26 @@ export function HalliStage({ halli, gameId, viewerId, names, canFlip, canRing, o
           aria-label={`내 뒷면 카드 ${p.drawCount}장 · 눌러서 공개`}>{p.drawCount > 0 && <CardBack />}</button>}
         <section ref={stageRef(`label:${p.userId}`)} className="hg-seat hg-stage-seat" data-turn={turn || undefined}
           data-own={own || undefined} data-out={outKind}
-          aria-label={`${names[p.userId]}${turn ? ` · ${turnLabel(halli, p)}` : ''}${out ? ` · ${out}` : ''}`}>
-          <header className="hg-seat-name">
+          aria-label={`${names[p.userId]}${turn ? ` · ${turnLabel(halli, p, own)}` : ''}${out ? ` · ${out}` : ''}`}>
+          {own ? <>
+            {/* Own status bar, docked at the bottom centre: name | state | counts, timer | Space hint. */}
             <strong>{names[p.userId]}</strong>
-            {out ? <span className="hg-badge" data-kind={outKind}>{out}</span>
-              : turn ? <span className="hg-badge" data-kind="turn">{turnLabel(halli, p)}</span> : null}
-            <span className="hg-count">{p.cardCount}장</span>
-          </header>
-          <small className="hg-stage-piles">뒷면 {p.drawCount} · 공개 {p.faceUpCount}</small>
-          {own && keyHint && playing && <p className="hg-keys"><kbd>Space</kbd> 종 치기</p>}
-          {turn && <FlipTimerBar halli={halli} emphasis={own} />}
+            {(out || turn) && <><i className="hg-sep" aria-hidden="true" />
+              <span className="hg-badge" data-kind={outKind ?? 'turn'}>{out || turnLabel(halli, p, own)}</span></>}
+            <i className="hg-sep" aria-hidden="true" />
+            <span className="hg-own-count">남은 카드 {p.drawCount}</span>
+            <span className="hg-own-count">펼친 카드 {p.faceUpCount}</span>
+            {turn && <FlipTimerBar halli={halli} emphasis />}
+            {keyHint && playing && <><i className="hg-sep" aria-hidden="true" /><p className="hg-keys"><kbd>Space</kbd> 종 치기</p></>}
+          </> : <>
+            <header className="hg-seat-name">
+              <strong>{names[p.userId]}</strong>
+              {out ? <span className="hg-badge" data-kind={outKind}>{out}</span>
+                : turn ? <span className="hg-badge" data-kind="turn">{turnLabel(halli, p, own)}</span> : null}
+            </header>
+            <small className="hg-stage-piles">{pileText(p)}</small>
+            {turn && <FlipTimerBar halli={halli} />}
+          </>}
         </section>
       </Fragment>
     })}
