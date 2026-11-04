@@ -1,7 +1,12 @@
 import {create} from 'zustand'
 import {integer,record} from '../../network/protocol'
 
-export const DEBRIS_DURATION=2800,DEBRIS_LAUNCH=550,DEBRIS_COINS=12,DEBRIS_STONES=5
+/** 판은 판 엎기 동작(EMOTE_TABLE_FLIP, world/art/socialGestureMotion의 flipKeys)에서 손이 판 아래에서
+ * 위로 밀어 올리기 시작하는 순간(위로 퍼 올리는 키 1050→1450ms 구간 초반)에 떠난다. 캐릭터와 잔해는 둘 다
+ * 같은 서버 occurredAt을 매 프레임 표본화하므로 FPS와 무관하게 맞는다. 동작 키가 바뀌면 단위 테스트가 잡는다.
+ * 안착·연출 창은 원래 안무(발사 550, 안착 2750, 종료 2800)를 발사 시점과 함께 평행 이동한 값이다. */
+export const DEBRIS_LAUNCH=1150,DEBRIS_SETTLE=DEBRIS_LAUNCH+2200,DEBRIS_DURATION=DEBRIS_SETTLE+50
+export const DEBRIS_COINS=12,DEBRIS_STONES=5
 export const DEBRIS_RETENTION=15_000
 export function debrisPieces(code:ParkDebris['gameCode']) {
   if(code==='ALKKAGI')return []
