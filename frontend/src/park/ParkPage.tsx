@@ -45,6 +45,7 @@ import { parkVrZone } from '../features/vrZone/parkBridge'
 import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
 import { RpsRoulettePanel } from '../features/rpsRoulette/RpsRoulettePanel'
 import { PlusMinusPanel } from '../features/plusMinus/PlusMinusPanel'
+import { MolePanel } from '../features/mole/MolePanel'
 import { ArcadePicker } from '../features/arcade/ArcadePicker'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 
@@ -140,6 +141,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
         <RpsRoulettePanel />
         <ArcadePicker />
         <PlusMinusPanel />
+        <MolePanel />
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />

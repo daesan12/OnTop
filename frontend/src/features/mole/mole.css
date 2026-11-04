@@ -1,0 +1,148 @@
+/* 두더지 잡기 게임기. Gemini로 만든 실사 게임기 그림(assets/cabinet.webp) 위에 구멍·두더지·LED를 얹는다.
+   원색·불빛은 이 화면 안에서만 쓴다(FE 컨벤션 2.4 예외, 오락기 게임과 같음). */
+.mole-root{position:fixed;inset:0;z-index:70;display:grid;place-items:center;overflow:hidden;outline:none;background:#08060d;color:#2b1608;font-family:"Malgun Gothic",sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.mole-root *{box-sizing:border-box}
+.mole-root button{font:inherit;cursor:pointer}
+.mole-root button:focus-visible{outline:3px solid #6fc3ff;outline-offset:3px}
+.mole-root img{-webkit-user-drag:none}
+.mole-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+/* 그림 밖 여백은 같은 그림을 흐리게 깔아 오락실이 이어져 보이게 한다. */
+.mole-backdrop{position:absolute;inset:-40px;background:var(--mole-cabinet) center/cover;filter:blur(28px) brightness(.45) saturate(1.2)}
+.mole-stage{position:relative;width:min(100vw,calc(100dvh * 1920 / 1072));aspect-ratio:1920/1072;container-type:size;box-shadow:0 0 120px #000c}
+.mole-cabinet-art{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+.mole-stage>*{position:absolute}
+.mole-scoreboard{inset:0;pointer-events:none}
+.mole-scoreboard>*{position:absolute}
+/* LED: 그림의 어두운 창 안에 빨간 7세그먼트를 켠다. */
+.mole-led-label{display:grid;place-items:center;font-size:1.05cqw;font-weight:800;letter-spacing:.2em;color:#ffe9c2;text-shadow:0 0 6px #ffb02e66}
+.mole-led{display:flex;align-items:center;justify-content:center;padding:0 3%}
+.mole-led path.on,.mole-led rect.on,.mole-led circle.on{fill:#ff2a1a;filter:drop-shadow(0 0 .35px #ff5a3a) drop-shadow(0 0 1.2px #ff1a0a)}
+.mole-led path.off,.mole-led circle.off{fill:#ff2a1a12}
+.mole-led-combo{gap:2%}
+.mole-led-combo i{font-style:normal;font-weight:900;font-size:3.2cqw;line-height:1;color:#ff2a1a;text-shadow:0 0 8px #ff1a0a}
+.mole-led-combo svg{height:100%;max-width:70%}
+.mole-led-combo[data-hot] path.on,.mole-led-combo[data-hot] circle.on{fill:#ffd23f;filter:drop-shadow(0 0 1.2px #ffb02e)}
+.mole-led-combo[data-hot] i{color:#ffd23f;text-shadow:0 0 8px #ffb02e}
+/* 구간 막대: LED 판 아래 검은 띠 */
+.mole-phases{display:flex;gap:.6%}
+.mole-phase{position:relative;flex:1;overflow:hidden;border-radius:999px;background:#2a1a12;box-shadow:inset 0 1px 3px #000}
+.mole-phase i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,#ffe066,#ff8a1f)}
+.mole-phase:last-child i{background:linear-gradient(90deg,#ff6a3d,#ff2e63)}
+.mole-phase span{position:relative;display:grid;place-items:center;height:100%;font-size:.8cqw;font-weight:800;color:#fff6dc;text-shadow:0 1px 2px #000}
+.mole-phase[data-current] span{color:#2a1000;text-shadow:none}
+/* 피버: 판 둘레가 붉게 번쩍인다. */
+.mole-fever-strip{left:4.6%;right:4.4%;top:46.6%;bottom:8.6%;clip-path:polygon(16% 0,84% 0,100% 100%,0 100%);opacity:0;pointer-events:none;background:radial-gradient(ellipse at 50% 60%,transparent 60%,#ff2e6366 100%)}
+.mole-root[data-fever] .mole-fever-strip{animation:mole-fever .45s steps(1) infinite}
+/* 구멍: 뒤 그림 → 두더지 → 앞 테두리(아래 절반) 순서로 겹쳐 두더지가 구멍 안에서 올라온다. */
+.mole-hole{container-type:inline-size;padding:0;border:0;background:none;-webkit-tap-highlight-color:transparent}
+/* 고무 테두리가 판에 닿는 그림자 */
+.mole-hole::before{content:"";position:absolute;left:2%;right:2%;top:22%;bottom:-14%;border-radius:50%;background:radial-gradient(ellipse at 50% 45%,#000a 30%,#0000 70%);pointer-events:none}
+.mole-hole-back,.mole-hole-front{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+/* 앞 테두리: 구멍 입구 타원의 아래 둘레 바깥만 남겨, 두더지가 입구 앞 고무에 자연스럽게 가려지게 한다. */
+.mole-hole-front{z-index:2;-webkit-mask-image:radial-gradient(ellipse 38% 36.5% at 50% 50%,#0000 97%,#000 100%),linear-gradient(#0000 50%,#000 50%);-webkit-mask-composite:source-in;mask-image:radial-gradient(ellipse 38% 36.5% at 50% 50%,#0000 97%,#000 100%),linear-gradient(#0000 50%,#000 50%);mask-composite:intersect}
+.mole-slot{position:absolute;z-index:1;left:15%;width:70%;bottom:17%;aspect-ratio:341/420;clip-path:inset(-80% -30% 0 -30%);pointer-events:none}
+.mole-sprite{position:absolute;inset:0;transform:translateY(102%);transition:transform .1s cubic-bezier(.5,0,.9,.4)}
+.mole-body{position:absolute;inset:0;transform-origin:50% 100%}
+.mole-sprite img{position:absolute;left:0;bottom:0;width:100%;height:100%;object-fit:contain;object-position:bottom;filter:brightness(.97) saturate(.95) drop-shadow(0 .6cqw .8cqw #0007)}
+/* 같은 그림을 어둡게 겹쳐 구멍 가까운 아랫몸만 그늘지게 한다. 두더지 모양 밖은 칠하지 않는다. */
+.mole-sprite img.mole-shade{filter:brightness(.08);-webkit-mask-image:linear-gradient(to top,#000 0,#000c 10%,#0000 42%);mask-image:linear-gradient(to top,#000 0,#000c 10%,#0000 42%)}
+/* 튀어나올 때는 살짝 넘쳤다 자리 잡고, 나와 있는 동안은 숨 쉬듯 들썩인다. */
+.mole-sprite[data-pose="up"]{transform:translateY(16%);transition:transform .17s cubic-bezier(.28,1.7,.55,1)}
+.mole-sprite[data-pose="up"] .mole-body{animation:mole-bob .62s ease-in-out .17s infinite alternate}
+.mole-sprite[data-pose="bonk"]{transform:translateY(40%) scale(1.06,.8);transform-origin:50% 100%;transition:transform .05s ease-out;filter:brightness(.9)}
+.mole-stars{position:absolute;z-index:4;left:50%;top:-34%;width:52%;height:30%;transform:translateX(-50%);animation:mole-spin .32s linear}
+.mole-stars i{position:absolute;top:30%;width:22%;aspect-ratio:1;background:#ffe14a;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);filter:drop-shadow(0 0 1cqw #fff27a)}
+.mole-stars i:nth-child(1){left:0}.mole-stars i:nth-child(2){left:39%;top:0}.mole-stars i:nth-child(3){right:0}
+.mole-sprite[data-kind="GOLD"][data-pose="up"] img:not(.mole-shade){filter:drop-shadow(0 0 3cqw #fff27a) drop-shadow(0 .6cqw .8cqw #0007)}
+.mole-sprite[data-kind="DECOY"][data-pose="bonk"]{animation:mole-shake .28s}
+.mole-helmet-count{position:absolute;left:50%;top:5.5%;transform:translateX(-50%);font-size:15cqw;font-weight:900;line-height:1;color:#7a2a00;-webkit-text-stroke:1cqw #fff8c8;paint-order:stroke;text-shadow:0 .5cqw .8cqw #0005}
+/* 부딪힘: 맞은 자리에서 흰 충격파 고리가 퍼지고 불꽃 줄기가 튄다. 빈 구멍은 입구에서 먼지만 인다. */
+.mole-impact{position:absolute;z-index:4;left:50%;top:2%;width:84%;aspect-ratio:1.7;transform:translate(-50%,-50%);pointer-events:none}
+.mole-impact::before{content:"";position:absolute;inset:0;border-radius:50%;border:2.6cqw solid #fffbe8;box-shadow:0 0 4cqw #fff6,inset 0 0 4cqw #fff6;animation:mole-ring .3s ease-out forwards}
+.mole-impact i{position:absolute;left:50%;top:50%;width:3.4cqw;height:13cqw;margin:-6.5cqw 0 0 -1.7cqw;border-radius:2cqw;background:linear-gradient(#fff,#ffe066 70%,#ff9a1f);transform:rotate(var(--a)) translateY(-10cqw);animation:mole-spark .28s ease-out forwards}
+.mole-impact[data-kind="tap"]{width:62%;top:-10%}
+.mole-impact[data-kind="tap"] i{height:9cqw;width:2.6cqw}
+.mole-impact[data-kind="big"]{width:110%}
+.mole-impact[data-kind="big"]::before{border-color:#ffe066;box-shadow:0 0 7cqw #ffd23f,inset 0 0 5cqw #ffd23f88}
+.mole-impact[data-kind="big"] i{height:17cqw}
+.mole-impact[data-kind="dust"]{top:50%;width:70%}
+.mole-impact[data-kind="dust"]::before{border:0;background:radial-gradient(ellipse,#c8a57a99 0,#c8a57a55 40%,#0000 70%);box-shadow:none;animation:mole-dust .34s ease-out forwards}
+.mole-stage[data-shake]{animation:mole-board .18s linear}
+/* 헬멧 두더지: 칠 때마다 움찔하고 헬멧에 금이 하나씩 늘어난다. 마지막 한 방에 헬멧이 날아간다. */
+.mole-body[data-flinch]{animation:mole-flinch .12s ease-out!important}
+.mole-cracks{position:absolute;left:12%;top:1%;width:76%;height:31%;overflow:visible;pointer-events:none}
+.mole-cracks path{fill:none;stroke:#2a1400;stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+.mole-cracks path.glint{stroke:#fffbe0;stroke-width:3.4;transform:translate(2.2px,2px);opacity:.9}
+/* 움푹 파인 자국: 가운데는 어둡고 가장자리는 밝아 들어간 것처럼 보인다. */
+.mole-cracks ellipse{fill:#3e2400;opacity:.72;stroke:#fff3b0;stroke-width:1.6;stroke-opacity:.75}
+/* 맞을수록 헬멧만 거무스름하게 더러워진다(헬멧 부분만 잘라 겹친다). */
+.mole-sprite img.mole-scuff{clip-path:inset(0 0 69% 0);filter:brightness(.45) sepia(.7) contrast(1.2);mix-blend-mode:multiply}
+.mole-helmet-count{animation:mole-count-pop .16s ease-out}
+.mole-helmet-fly{position:absolute;z-index:4;left:15%;width:70%;bottom:17%;aspect-ratio:341/420;pointer-events:none;transform:translateY(16%);animation:mole-helmet-fly .46s cubic-bezier(.2,.75,.4,1) forwards}
+.mole-helmet-fly img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:bottom;clip-path:inset(0 0 69% 0);filter:drop-shadow(0 1cqw 1.4cqw #0008)}
+/* 실물 키캡 */
+.mole-keycap{position:absolute;z-index:3;left:50%;top:96%;display:grid;place-items:center;min-width:27cqw;height:24cqw;padding:0 5cqw;border:1px solid #c9b48c;border-bottom:3.2cqw solid #a8916a;border-radius:4.5cqw;background:linear-gradient(#fffdf6,#ece0c8);font:800 12cqw/1 ui-monospace,Consolas,monospace;color:#3b2a1a;transform:translateX(-50%) perspective(60cqw) rotateX(16deg);transform-origin:50% 100%;box-shadow:0 2.4cqw 3cqw #0005,inset 0 1px 0 #fff}
+.mole-hole:active .mole-keycap{transform:translate(-50%,1.4cqw) perspective(60cqw) rotateX(16deg);border-bottom-width:1.6cqw}
+.mole-hole[data-row="0"] .mole-keycap{top:93%}
+.mole-mallet{position:absolute;z-index:4;width:76%;right:-6%;top:-74%;transform-origin:20% 30%;animation:mole-swing .17s ease-out;pointer-events:none;filter:drop-shadow(0 2cqw 2cqw #0008)}
+.mole-fx{position:absolute;z-index:5;top:-30%;left:50%;font-weight:900;font-size:17cqw;white-space:nowrap;color:#fff;-webkit-text-stroke:1.2cqw #7a1208;paint-order:stroke;text-shadow:0 1.4cqw 0 #7a1208;transform:translateX(-50%);animation:mole-pop .52s ease-out forwards;pointer-events:none}
+.mole-fx[data-tone="gold"]{color:#ffe066;-webkit-text-stroke-color:#7a4a00;text-shadow:0 1.4cqw 0 #7a4a00,0 0 6cqw #fff27a}
+.mole-fx[data-tone="decoy"]{color:#ff6b6b;-webkit-text-stroke-color:#3a0a0a;font-size:13cqw}
+.mole-fx[data-tone="empty"]{color:#e8eef5;-webkit-text-stroke-color:#3a4654;text-shadow:0 1.4cqw 0 #3a4654;font-size:13cqw}
+/* 주황 몸통 위 안내와 START */
+.mole-base{display:flex;align-items:center;justify-content:space-between;gap:2%;padding:0 1%}
+.mole-base-status{min-width:0;margin:0;font-size:1cqw;font-weight:700;line-height:1.5;color:#fff6dc;text-shadow:0 1px 2px #000a}
+.mole-base-status p{margin:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.mole-base kbd{display:inline-block;min-width:1.5cqw;margin:0 .15cqw;padding:0 .3cqw;border:1px solid #b8a27c;border-bottom-width:2px;border-radius:4px;background:#fffaf0;color:#3b2a1a;font:700 .8cqw/1.3 ui-monospace,Consolas,monospace;text-shadow:none}
+.mole-start{flex:none;height:78%;min-width:9cqw;padding:0 2cqw;border:.25cqw solid #fff3d6;border-bottom-width:.5cqw;border-radius:999px;background:radial-gradient(circle at 40% 30%,#fff6b8,#ffd23f 45%,#e8a300);color:#5a3200;font-size:1.4cqw;font-weight:900;letter-spacing:.08em;box-shadow:0 0 1.6cqw #ffe06699}
+.mole-start:not(:disabled):hover{filter:brightness(1.06)}
+.mole-start:disabled{cursor:default;filter:grayscale(.5) brightness(.85)}
+.mole-error{color:#ffb4a8;font-weight:700}
+.mole-countdown{inset:0;z-index:6;display:grid;place-items:center;pointer-events:none}
+.mole-countdown b{font-size:16cqw;font-weight:900;color:#fff;-webkit-text-stroke:.35cqw #b21f10;paint-order:stroke;text-shadow:0 .6cqw 0 #7a1208,0 0 3cqw #ffe066;animation:mole-count 1s ease-out}
+.mole-corner{position:absolute;top:12px;right:14px;z-index:7;display:flex;gap:8px}
+.mole-ghost{min-height:38px;padding:0 14px;border:1px solid #ffffff55;border-radius:10px;background:#0006;color:#fff;font-weight:700;backdrop-filter:blur(4px)}
+.mole-close{width:38px;height:38px;border:0;border-radius:50%;background:#0006;color:#fff;font-size:22px!important;line-height:1}
+.mole-ghost:hover,.mole-close:not(:disabled):hover{background:#000a}
+/* 안내 카드 */
+.mole-overlay{position:absolute;inset:0;z-index:8;display:grid;place-items:center;padding:16px;background:#0d0a16a8}
+.mole-overlay>p{padding:14px 22px;border-radius:14px;background:#2b1608;color:#fff6dc;font-weight:700}
+.mole-card{width:min(420px,100%);padding:22px 24px;border:5px solid #ffd23f;border-radius:22px;background:linear-gradient(#fff8e6,#ffe9c0);text-align:center;box-shadow:0 20px 60px #000a}
+.mole-card h3{margin:0 0 10px;font-size:clamp(28px,5dvh,40px);font-weight:900;color:#c4121c}
+.mole-card p{margin:6px 0}
+.mole-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.mole-stats div{padding:8px 4px;border-radius:12px;background:#fff3d6;border:1px solid #e6c78f}
+.mole-stats dt{font-size:12px;color:#7a5a3a}
+.mole-stats dd{margin:2px 0 0;font-size:20px;font-weight:900;color:#3b2a1a}
+.mole-reward{font-size:30px;font-weight:900;color:#d48a00}
+.mole-note{font-size:13px;color:#6b4c2c}
+.mole-actions{display:flex;justify-content:center;gap:10px;margin-top:14px}
+.mole-actions button{min-height:44px;padding:0 20px;border:2px solid #c99a5a;border-radius:12px;background:#fff;color:#3b2a1a;font-weight:800}
+.mole-actions .mole-primary{border-color:#b85a07;background:linear-gradient(#ffd23f,#f39a12);color:#4a2a00}
+.mole-actions .mole-danger{border-color:#8a1410;background:#e8322a;color:#fff}
+@keyframes mole-swing{0%{transform:rotate(-42deg)}70%{transform:rotate(10deg)}100%{transform:rotate(0)}}
+@keyframes mole-pop{0%{opacity:0;transform:translate(-50%,10%) scale(.7)}20%{opacity:1;transform:translate(-50%,0) scale(1.1)}100%{opacity:0;transform:translate(-50%,-40%) scale(1)}}
+@keyframes mole-count{0%{transform:scale(1.6);opacity:0}30%{transform:scale(1);opacity:1}100%{transform:scale(.9);opacity:.8}}
+@keyframes mole-bob{0%{transform:translateY(0) scale(1)}100%{transform:translateY(-2.2%) scale(.99,1.02)}}
+@keyframes mole-spin{0%{transform:translateX(-50%) rotate(-25deg) scale(.6);opacity:0}30%{opacity:1}100%{transform:translateX(-50%) rotate(25deg) scale(1);opacity:.9}}
+@keyframes mole-ring{0%{transform:scale(.25);opacity:1}100%{transform:scale(1.2);opacity:0}}
+@keyframes mole-spark{0%{opacity:1;transform:rotate(var(--a)) translateY(-6cqw) scaleY(.3)}55%{opacity:1}100%{opacity:0;transform:rotate(var(--a)) translateY(-24cqw) scaleY(1)}}
+@keyframes mole-dust{0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.15) translateY(-8%);opacity:0}}
+@keyframes mole-board{0%,100%{transform:translate(0,0)}25%{transform:translate(-.25cqw,.18cqw)}50%{transform:translate(.22cqw,-.14cqw)}75%{transform:translate(-.12cqw,.1cqw)}}
+@keyframes mole-flinch{0%{transform:translateY(9%) scale(1.07,.88)}60%{transform:translateY(-2%) scale(.98,1.03)}100%{transform:none}}
+@keyframes mole-count-pop{0%{transform:translateX(-50%) scale(1.6)}100%{transform:translateX(-50%) scale(1)}}
+@keyframes mole-helmet-fly{0%{transform:translateY(16%) rotate(0);opacity:1}100%{transform:translate(48%,-105%) rotate(68deg);opacity:0}}
+@keyframes mole-fever{0%{opacity:1}50%{opacity:.15}}
+@keyframes mole-shake{0%,100%{transform:translate(0,40%) scale(1.06,.8)}25%{transform:translate(-6%,40%) scale(1.06,.8)}75%{transform:translate(6%,40%) scale(1.06,.8)}}
+@media (prefers-reduced-motion:reduce){.mole-stage[data-shake],.mole-body[data-flinch],.mole-helmet-count{animation:none!important}.mole-impact i,.mole-helmet-fly{display:none}.mole-sprite,.mole-sprite[data-pose="up"]{transition:none}.mole-sprite[data-pose="up"] .mole-body,.mole-stars{animation:none}.mole-root[data-fever] .mole-fever-strip,.mole-mallet,.mole-countdown b,.mole-sprite[data-kind="DECOY"][data-pose="bonk"]{animation:none}.mole-fx{animation-duration:.2s}}
+/* 설명서 그림 */
+.mole-figure{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:center;font-family:"Malgun Gothic",sans-serif}
+.mole-figure-board{display:flex;flex-direction:column;gap:8px;padding:14px 18px;border:4px solid #fff0c9;border-radius:16px;background:linear-gradient(#67b04a,#3d8a22);box-shadow:0 0 0 4px #e2641a}
+.mole-figure-row{display:grid;grid-template-columns:repeat(4,52px);gap:10px}
+.mole-figure-row[data-row="1"]{margin-left:31px}
+.mole-figure-row[data-row="0"]{margin-right:31px}
+.mole-figure-row span{display:grid;place-items:center;height:36px;border:1px solid #b8a27c;border-bottom:4px solid #9c8662;border-radius:8px;background:linear-gradient(#fffaf0,#e9dcc2);font:800 16px ui-monospace,Consolas,monospace;color:#3b2a1a}
+.mole-figure-kinds{display:grid;grid-template-columns:repeat(4,minmax(0,92px));gap:10px;margin:0;padding:0;list-style:none}
+.mole-figure-kinds li{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:12px;background:#fff3d6;border:1px solid #e6c78f;font-size:12px;font-weight:700;color:#3b2a1a;text-align:center}
+.mole-figure-kinds img{width:60px;height:64px;object-fit:contain}
+.mole-figure-kinds b{color:#c4121c}

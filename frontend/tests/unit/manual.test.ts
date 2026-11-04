@@ -31,7 +31,7 @@ describe('M15 input ownership and stale transitions',()=>{
   });
 });
 it('searches details across supported game/category boundaries without inventing later games',()=>{
-  expect(gameManuals.map(g=>g.id)).toEqual(['alkkagi','gomoku','farkle','onecard','bridge','ledger','halligalli','fish-bread','rps-roulette','plus-minus']);
+  expect(gameManuals.map(g=>g.id)).toEqual(['alkkagi','gomoku','farkle','onecard','bridge','ledger','halligalli','fish-bread','rps-roulette','plus-minus','whack-a-mole']);
   expect(filterManuals('minigame','도전 배수').map(g=>g.id)).toEqual(['rps-roulette']);
   expect(filterManuals('game','알까기').map(g=>g.id)).toEqual(['alkkagi']);
   expect(filterManuals('game','렌주 금수').map(g=>g.id)).toEqual(['gomoku']);
