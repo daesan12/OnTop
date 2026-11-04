@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [cull=1] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -159,6 +159,29 @@ def fill_small_holes(o, max_edges=30):
 for n, o in parts.items():
     k = fill_small_holes(o)
     if k: print('FILL', n, k, 'faces')
+
+# cull=1: within one slot, faces lying under another of its parts (every corner covered within cull_gap, 6 mm, along
+# the face's normal) are deleted. The dopo's upper body overlaps its skirt at the waist; decimated for the game the
+# two surfaces crossed and their crossing showed as a ragged grey seam (user).
+if opt.get('cull', '0') == '1':
+    gap = float(opt.get('cull_gap', 0.006))
+    for slot, names in SLOT_PARTS.items():
+        trees = {}
+        for n in names:
+            tb = bmesh.new(); tb.from_mesh(parts[n].data); trees[n] = BVHTree.FromBMesh(tb); tb.free()
+        for n in names:
+            o = parts[n]; cb = bmesh.new(); cb.from_mesh(o.data); cb.normal_update()
+            dead = []
+            for f in cb.faces:
+                nrm = f.normal
+                if nrm.length < 0.5: continue
+                for m, t in trees.items():
+                    if m == n: continue
+                    if all(t.ray_cast(v.co + nrm * 0.0005, nrm, gap)[0] is not None for v in f.verts) and                        t.ray_cast(f.calc_center_median() + nrm * 0.0005, nrm, gap)[0] is not None:
+                        dead.append(f); break
+            if dead:
+                bmesh.ops.delete(cb, geom=dead, context='FACES'); cb.to_mesh(o.data); print('CULL', n, len(dead), 'faces under other parts')
+            cb.free()
 
 # one item per slot
 G = {}
@@ -485,8 +508,13 @@ if opt.get('under_tops', '0') == '1' and 'BOTTOM' in G:
         c = mw @ p.center; n = (nm @ p.normal).normalized(); hide = set()
         for k, parts_ in tops.items():
             if c.z < lowest[k] + under_hem: continue
+            # (also straight out from the body's vertical axis: on the belly and hips the pants' normals point up or
+            # down past the robe, which left a ragged band of pants showing through below the dopo's sash)
+            rd = Vector((c.x, c.y - J['Hips'].y, 0))
+            rd = rd.normalized() if rd.length > 1e-6 else n
             for _, bvh_ in parts_:
-                if bvh_.ray_cast(c + n * 0.001, n, 0.06)[0] is not None or bvh_.ray_cast(c - n * 0.001, -n, 0.03)[0] is not None:
+                if bvh_.ray_cast(c + n * 0.001, n, 0.06)[0] is not None or bvh_.ray_cast(c - n * 0.001, -n, 0.03)[0] is not None                    or (c.z > J['LeftUpLeg'].z - 0.05 and (bvh_.ray_cast(c, rd, 0.08)[0] is not None
+                                                          or bvh_.ray_cast(c, -rd, 0.04)[0] is not None)):
                     hide.add(k); break
         groups.setdefault(frozenset(hide), []).append(p.index)
     for hide, faces in groups.items():
