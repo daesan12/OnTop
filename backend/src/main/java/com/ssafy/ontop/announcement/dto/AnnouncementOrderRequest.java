@@ -1,10 +1,12 @@
 package com.ssafy.ontop.announcement.dto;
 
 import java.util.HashSet;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
 
 public record AnnouncementOrderRequest(List<Item> items) {
+    @Schema(name = "AnnouncementOrderItem")
     public record Item(String id, long expectedVersion) { }
 
     public void validate() {

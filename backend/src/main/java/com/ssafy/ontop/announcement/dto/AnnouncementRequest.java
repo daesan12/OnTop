@@ -1,9 +1,10 @@
 package com.ssafy.ontop.announcement.dto;
 
 import java.time.Instant;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 public record AnnouncementRequest(String title, String text, boolean published, int displayOrder,
-        Instant startsAt, Instant endsAt, long expectedVersion) {
+        @Schema(nullable = true) Instant startsAt, @Schema(nullable = true) Instant endsAt, long expectedVersion) {
     public void validate() {
         if (title == null || title.isBlank() || title.strip().length() > 80
                 || text == null || text.isBlank() || text.strip().length() > 1000

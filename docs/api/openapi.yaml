@@ -65,6 +65,347 @@ paths:
                 $ref: "#/components/schemas/ServiceOperationResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/operations/announcements/{id}:
+    put:
+      tags:
+      - ANNOUNCEMENT
+      summary: 관리자 공지 수정
+      operationId: update_1
+      parameters:
+      - name: id
+        in: path
+        description: 공지 UUID
+        required: true
+        schema:
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementRequest"
+        required: true
+      responses:
+        "400":
+          description: ANNOUNCEMENT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: ANNOUNCEMENT_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "200":
+          description: 저장된 공지
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnnouncementResponse"
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - ANNOUNCEMENT
+      summary: 관리자 공지 생성·같은 ID 재시도
+      operationId: create
+      parameters:
+      - name: id
+        in: path
+        description: 공지 UUID
+        required: true
+        schema:
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementRequest"
+        required: true
+      responses:
+        "400":
+          description: ANNOUNCEMENT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: ANNOUNCEMENT_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "200":
+          description: 저장된 공지
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnnouncementResponse"
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+    delete:
+      tags:
+      - ANNOUNCEMENT
+      summary: 관리자 공지 삭제
+      operationId: remove
+      parameters:
+      - name: id
+        in: path
+        description: 공지 UUID
+        required: true
+        schema:
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          type: string
+          format: uuid
+      - name: version
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "400":
+          description: ANNOUNCEMENT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: ANNOUNCEMENT_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "204":
+          description: 처리 완료
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/announcements/order:
+    put:
+      tags:
+      - ANNOUNCEMENT
+      summary: 관리자 공지 카드 순서 일괄 저장
+      operationId: reorder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementOrderRequest"
+        required: true
+      responses:
+        "400":
+          description: ANNOUNCEMENT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: ANNOUNCEMENT_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "204":
+          description: 처리 완료
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
   /api/v1/users/onboarding:
     post:
       tags:
@@ -539,13 +880,13 @@ paths:
                 category:
                   type: string
                   description: 생략 시 free. 명시적 null은 허용하지 않는다.
+                  default: free
                   enum:
                   - daily
                   - cheer
                   - worry
                   - recommend
                   - free
-                  default: free
               additionalProperties: false
         required: true
       responses:
@@ -3459,7 +3800,7 @@ paths:
       description: "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지합니다\
         . 대소문자 무시 UNIQUE(탈퇴 회원 포함), 본인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기\
         를 저장합니다. 사전 조회와 별도로 트랜잭션에서 최종 중복 검증합니다."
-      operationId: update_1
+      operationId: update_2
       requestBody:
         content:
           application/json:
@@ -5088,18 +5429,18 @@ paths:
         required: false
         schema:
           type: string
+          default: ALL_TIME
           enum:
           - ALL_TIME
-          default: ALL_TIME
       - name: rulesVersion
         in: query
         required: false
         schema:
           type: string
+          default: v5
           enum:
           - v4
           - v5
-          default: v5
       - name: limit
         in: query
         required: false
@@ -5474,6 +5815,116 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
+  /api/v1/announcements:
+    get:
+      tags:
+      - ANNOUNCEMENT
+      summary: 회원 게시 공지 조회
+      description: 서버 시각 기준 현재 게시 본문만 표시 순서대로 반환합니다.
+      operationId: visible
+      responses:
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "200":
+          description: 게시 공지
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicAnnouncementsResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/announcements:
+    get:
+      tags:
+      - ANNOUNCEMENT
+      summary: 관리자 전체 공지 조회
+      description: "운영 관리자 전용. 숨김·기간 종료 포함, 삭제 제외."
+      operationId: list_1
+      responses:
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "200":
+          description: 전체 공지
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnnouncementResponse"
+      security:
+      - AccessJwt: []
   /api/v1/admin/me:
     get:
       tags:
@@ -5522,7 +5973,7 @@ paths:
       - FEEDBACK
       summary: 관리자 소리함 조회
       description: 서버 관리자 회원 ID 목록에 등록된 활성 회원만 조회합니다.
-      operationId: list_1
+      operationId: list_2
       parameters:
       - name: cursor
         in: query
@@ -5709,6 +6160,82 @@ components:
         serverTime:
           type: string
           format: date-time
+    AnnouncementRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        text:
+          type: string
+        published:
+          type: boolean
+        displayOrder:
+          type: integer
+          format: int32
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        expectedVersion:
+          type: integer
+          format: int64
+    AuthErrorResponse:
+      required:
+      - code
+      - message
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    AnnouncementResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        text:
+          type: string
+        published:
+          type: boolean
+        displayOrder:
+          type: integer
+          format: int32
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
+    AnnouncementOrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+        expectedVersion:
+          type: integer
+          format: int64
+    AnnouncementOrderRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementOrderItem"
     UserOnboardingRequest:
       required:
       - characterGender
@@ -5757,16 +6284,6 @@ components:
         expiresIn:
           type: integer
           format: int64
-    AuthErrorResponse:
-      required:
-      - code
-      - message
-      type: object
-      properties:
-        code:
-          type: string
-        message:
-          type: string
     PurchaseResponse:
       required:
       - balanceAfter
@@ -7866,6 +8383,33 @@ components:
         expiresIn:
           type: integer
           format: int64
+    PublicAnnouncement:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: integer
+          format: int64
+    PublicAnnouncementsResponse:
+      type: object
+      properties:
+        serverTime:
+          type: string
+          format: date-time
+        refreshAt:
+          type: string
+          format: date-time
+        announcements:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicAnnouncement"
     AdminAccessResponse:
       type: object
       properties:

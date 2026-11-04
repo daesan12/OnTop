@@ -49,6 +49,7 @@ test('조회 전용 관리자는 공지 편집을 열 수 없다', async ({ page
 
 test('공지는 맨 위 정중앙의 보기 전용이며 날씨는 분리되고 흐름이 멈추지 않는다', async ({ page }) => {
   await fixture(page)
+  await page.route('**/api/v1/operations/status', route => route.fulfill({ json: { mode: 'NORMAL', notice: '', maintenanceStartedAt: null, expectedOpenAt: null, version: 1, updatedAt: new Date().toISOString(), serverTime: new Date().toISOString() } }))
   await page.route('**/api/v1/announcements', route => route.fulfill({ json: {
     serverTime: new Date().toISOString(), refreshAt: new Date(Date.now() + 10000).toISOString(),
     announcements: [{ id, text: initial.text, endsAt: null, version: 0 }],
