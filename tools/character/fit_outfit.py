@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [under_tops=1] [skirt=TOP] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -462,6 +462,44 @@ for o in body:
     b2 = bmesh.new(); b2.from_mesh(me); b2.faces.ensure_lookup_table()
     bmesh.ops.delete(b2, geom=[f for f in b2.faces if f.index in covered], context='FACES'); b2.to_mesh(me); b2.free()
 print('BODY pieces added', pieces)
+# 4. under_tops=1: bottom faces that a top covers become item__BOTTOM__<set>__under_TOP<x>... pieces, hidden while that
+#    top is worn. The gat's made pants reach over the belly (their waist is cut level above the hidden body's top)
+#    and came out through the dopo (user); worn with other tops they could do the same. Covered: a top within
+#    6 cm out along the face's normal, or within 3 cm in (the pants already outside it), and more than under_hem
+#    (6 cm) above that top's lowest point, so the pants still show where a hem swings open.
+if opt.get('under_tops', '0') == '1' and 'BOTTOM' in G:
+    dg = bpy.context.evaluated_depsgraph_get()
+    tops = {}
+    for o in bpy.data.objects:
+        m = re.match(r'item__TOP__([a-z0-9]+)', o.name)
+        if o.type != 'MESH' or not m: continue
+        me = o.evaluated_get(dg).to_mesh(); tb = bmesh.new(); tb.from_mesh(me); tb.transform(o.matrix_world)
+        zs = [v.co.z for v in tb.verts]
+        lo_, bvh_ = min(zs), BVHTree.FromBMesh(tb)
+        tops.setdefault(m.group(1), []).append((lo_, bvh_)); tb.free(); o.evaluated_get(dg).to_mesh_clear()
+    it = G['BOTTOM']; mw = it.matrix_world; nm = mw.to_3x3()
+    under_hem = float(opt.get('under_hem', 0.06))
+    lowest = {k: min(lo_ for lo_, _ in v) for k, v in tops.items()}
+    groups = {}
+    for p in it.data.polygons:
+        c = mw @ p.center; n = (nm @ p.normal).normalized(); hide = set()
+        for k, parts_ in tops.items():
+            if c.z < lowest[k] + under_hem: continue
+            for _, bvh_ in parts_:
+                if bvh_.ray_cast(c + n * 0.001, n, 0.06)[0] is not None or bvh_.ray_cast(c - n * 0.001, -n, 0.03)[0] is not None:
+                    hide.add(k); break
+        groups.setdefault(frozenset(hide), []).append(p.index)
+    for hide, faces in groups.items():
+        if not hide: continue
+        c_ = it.copy(); c_.data = it.data.copy(); bpy.context.scene.collection.objects.link(c_)
+        b2 = bmesh.new(); b2.from_mesh(c_.data); b2.faces.ensure_lookup_table(); fs = set(faces)
+        bmesh.ops.delete(b2, geom=[f for f in b2.faces if f.index not in fs], context='FACES'); b2.to_mesh(c_.data); b2.free()
+        c_.name = f'item__BOTTOM__{SET}__under_' + '_'.join(f'TOP{k}' for k in sorted(hide))
+        print('UNDER', c_.name, len(faces), 'faces')
+    hidden = {i for hide, faces in groups.items() if hide for i in faces}
+    b2 = bmesh.new(); b2.from_mesh(it.data); b2.faces.ensure_lookup_table()
+    bmesh.ops.delete(b2, geom=[f for f in b2.faces if f.index in hidden], context='FACES'); b2.to_mesh(it.data); b2.free()
+
 # unique names the viewer and to_game parse: body__<tokens>, then _1, _2 for repeats (never .001: three.js drops dots)
 used, final = {}, []
 for i, o in enumerate([o for o in bpy.data.objects if o.type == 'MESH' and (o.get('tokens') is not None or re.sub(r'\.\d+$', '', o.name).startswith('body'))]):
