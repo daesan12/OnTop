@@ -1,12 +1,13 @@
 import { record } from '../../network/protocol'
 
 /** 서버 계약: docs/whack-a-mole-api.md. 화면은 서버 출현표를 그리고 진행 중 점수만 계산한다. 최종 점수·지급은 서버 값이다. */
-export const KEYS = ['Q', 'W', 'E', 'R', 'U', 'I', 'O', 'P'] as const
+/** 한 줄 아치 구멍 6개. 왼손 Q W E, 오른손 I O P. */
+export const KEYS = ['Q', 'W', 'E', 'I', 'O', 'P'] as const
 /** KeyboardEvent.code 기준. 한글 입력 상태에서도 물리 키 위치로 받는다. */
-export const KEY_CODES = ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyU', 'KeyI', 'KeyO', 'KeyP'] as const
+export const KEY_CODES = ['KeyQ', 'KeyW', 'KeyE', 'KeyI', 'KeyO', 'KeyP'] as const
 export const DURATION_MS = 90_000
 export const PHASE_MS = 30_000
-export const POINTS_PER_COIN = 30
+export const POINTS_PER_COIN = 45
 
 export type MoleKind = 'NORMAL' | 'GOLD' | 'RAPID' | 'DECOY'
 export interface MoleRules {

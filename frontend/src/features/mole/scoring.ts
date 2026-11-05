@@ -1,13 +1,20 @@
 import { KEYS, type Hit, type Mole, type MoleRules } from './protocol'
 
-/** 서버 MoleRules.score와 같은 판정. 바꿀 때는 backend MoleRulesTests와 tests/unit/mole.test.ts의 같은 기록을 함께 고친다. */
-export const REACTION_FLOOR_MS = 100
+/** 서버 MoleRules.score와 같은 판정(규칙 버전 2). 바꿀 때는 backend MoleRulesTests와 tests/unit/mole.test.ts의 같은 기록을 함께 고친다. */
+export const REACTION_FLOOR_MS = 60
 export const SAME_HOLE_MIN_MS = 60
 export const AFTERSHOCK_MS = 250
+/** 망치는 하나다. 한 번 친 뒤 이 시간 안의 다른 키는 세지 않는다. */
+export const MALLET_MS = 80
+/** 아무것도 없는 구멍을 치면 이 시간 동안 모든 키를 받지 않는다. */
+export const STUN_MS = 2000
+/** 기절을 봐주는 아슬아슬한 경우: 곧 나올 두더지(앞)와 막 들어간 두더지(뒤). */
+export const EARLY_GRACE_MS = 150
+export const LATE_GRACE_MS = 250
 
 export type HitEvent =
-  | { type: 'ignored' }
-  | { type: 'empty'; comboBroken: boolean }
+  | { type: 'ignored'; reason: 'range' | 'stunned' | 'mallet' | 'early' | 'aftershock' }
+  | { type: 'empty'; stunned: boolean }
   | { type: 'decoy'; mole: Mole }
   | { type: 'tap'; mole: Mole; left: number }
   | { type: 'catch'; mole: Mole; points: number; tenths: number }
@@ -21,6 +28,9 @@ export class MoleScorer {
   combo = 0
   maxCombo = 0
   caught = 0
+  /** 이 시각(판 시작 기준 ms)까지 기절해 있다. */
+  stunUntil = -Infinity
+  private lastSwing = -Infinity
   private readonly lastHit = KEYS.map(() => -Infinity)
   private readonly caughtAt = KEYS.map(() => -Infinity)
   private readonly taps = new Map<number, number>()
@@ -37,18 +47,26 @@ export class MoleScorer {
   tapsOf(id: number) { return this.taps.get(id) ?? 0 }
 
   hit(hole: number, at: number): HitEvent {
-    if (hole < 0 || hole >= KEYS.length || at < 0 || at > this.rules.durationMs) return { type: 'ignored' }
-    if (at - this.lastHit[hole]! < SAME_HOLE_MIN_MS) return { type: 'ignored' }
+    if (hole < 0 || hole >= KEYS.length || at < 0 || at > this.rules.durationMs) return { type: 'ignored', reason: 'range' }
+    if (at < this.stunUntil) return { type: 'ignored', reason: 'stunned' }
+    if (at - this.lastSwing < MALLET_MS || at - this.lastHit[hole]! < SAME_HOLE_MIN_MS) return { type: 'ignored', reason: 'mallet' }
+    this.lastSwing = at
     this.lastHit[hole] = at
     const mole = this.visible(hole, at)
-    if (mole && at - mole.appearAt < REACTION_FLOOR_MS) return { type: 'ignored' }
+    if (mole && at - mole.appearAt < REACTION_FLOOR_MS) return { type: 'ignored', reason: 'early' }
     if (!mole) {
-      const comboBroken = at - this.caughtAt[hole]! >= AFTERSHOCK_MS
-      if (comboBroken) this.combo = 0
-      return { type: 'empty', comboBroken }
+      if (at - this.caughtAt[hole]! < AFTERSHOCK_MS) return { type: 'ignored', reason: 'aftershock' }
+      if (this.moles.some(m => m.hole === hole && m.appearAt > at && m.appearAt - at <= EARLY_GRACE_MS)) {
+        return { type: 'ignored', reason: 'early' }
+      }
+      this.combo = 0
+      // 막 들어간 두더지를 늦게 친 것은 콤보만 끊고, 아무것도 없던 구멍은 기절한다.
+      const late = this.moles.some(m => m.hole === hole && m.leaveAt <= at && at - m.leaveAt <= LATE_GRACE_MS)
+      if (!late) this.stunUntil = at + STUN_MS
+      return { type: 'empty', stunned: !late }
     }
     if (mole.kind === 'DECOY') {
-      this.done.add(mole.id); this.score -= this.rules.decoyPenalty; this.combo = 0
+      this.done.add(mole.id); this.caughtAt[hole] = at; this.score -= this.rules.decoyPenalty; this.combo = 0
       return { type: 'decoy', mole }
     }
     if (mole.kind === 'RAPID') {
