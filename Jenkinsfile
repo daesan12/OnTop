@@ -219,7 +219,7 @@ export VERCEL_ORG_ID VERCEL_PROJECT_ID
 }
 cd frontend
 # This is the production target of the separate ontop-frontend-dev project.
-vercel deploy --prod --yes --local-config vercel.dev.json --project "$VERCEL_PROJECT_ID" --token "$VERCEL_TOKEN" > vercel-deployment-url.txt
+vercel deploy --prod --yes --local-config vercel.dev.json --project "$VERCEL_PROJECT_ID" --build-env VITE_WARDROBE_OUTFITS=true --build-env VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json --token "$VERCEL_TOKEN" > vercel-deployment-url.txt
 cat vercel-deployment-url.txt
 '''
                 }

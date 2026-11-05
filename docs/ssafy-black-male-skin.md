@@ -20,7 +20,7 @@
 2. 새 파일은 `backend/src/main/resources/db/shop/V152__register_ssafy_black_male_whole_skin.sql` 한 개다. 비판매·0원 카탈로그만 등록하고 누구에게도 자동 지급하지 않는다. 스킨용 V151 파일은 최종 소스와 MR 차이에서 제거한다.
 3. 실제 개발 DB에서 `items`, `user_items`, `set_code`와 V100/V102의 적용 이력, 전체 locations의 V152 중복을 먼저 확인한다. 미적용 V100/V102를 최신 DB에 임의로 소급 적용하거나 `outOfOrder`/repair/초기화로 우회하지 않는다. 이 작업은 실제 dev DB의 적용 이력을 직접 조회한 결과가 아니며 이미 적용된 팀원 migration을 변경하지 않는다.
 4. 배포 서버는 `SHOP_ENABLED=true`, Flyway locations에 기존 활성 경로와 `classpath:db/shop`이 필요하다. `application-db.yml`의 dev 프로필에는 기본적으로 migration/minigame만 있으므로 **실제 유효 설정**을 확인해야 한다. 이 MR은 서버 환경변수를 변경하지 않는다.
-5. 프런트엔드는 기존 Jenkins dev 빌드의 `VITE_WARDROBE_OUTFITS=true`를 사용한다. production의 의상 비활성 정책은 유지한다.
+5. 프런트엔드는 Jenkins의 로컬 빌드와 Vercel 원격 빌드에 `VITE_WARDROBE_OUTFITS=true`를 명시한다. 정확히 `dev.on-top.world`인 경우에도 기본 활성화하되 명시적 `false`는 존중한다. 그 외 배포 호스트의 기본 비활성 정책은 유지한다.
 6. dev 병합은 사용자 별도 승인 후 진행한다. Jenkins `ontop-dev`가 해당 병합 SHA로 성공했고 정적 파일과 V152가 반영됐는지 확인한다. 이번 스킨용 파일이 dev에서 내려받아지기 전에는 착용 완료라고 보고하지 않는다.
 
 ## 검수 계정 지급
@@ -55,3 +55,26 @@ WHERE ui.user_id = @skin_user_id AND i.set_code = 'SSAFY_BLACK_MALE_V3';
 - PC 브라우저에서 실제 Avatars 렌더러와 공개 장착 fixture로 기본/새 스킨 교체를 확인한다. fixture는 서버 소유권·다중 실제 계정 검수 결과가 아니다.
 - **실제 dev 지급·착용·재접속/다중 계정과 헤드셋 착용 검수는 별도**다. VR 검수는 사용자가 나중에 진행하기로 했다.
 - 실제 dev 브라우저에서는 의상 기능이 닫혀 있다는 안내와 WebGL2 불가 화면을 확인했다. 옷장은 새로고침 후 열렸으나 새 스킨은 아직 배포되지 않았다. 위의 유효 빌드 플래그·DB 경로 확인 및 계정 지급이 끝나야 실제 착용 검수를 진행할 수 있다. 로컬 새 스킨 장면은 같은 브라우저에서 렌더링됐다.
+
+## 마이룸 리뷰 보완과 판매 없는 착용 테스트
+
+- 더블클릭 카드와 하단 착용 버튼은 같은 `wholeSkinCompatible` 판정을 사용한다. 공통 착용 액션도 현재 프로필로 재검사해 다른 경로에서도 잘못된 성별의 장착 PATCH가 나가지 않게 한다. 이미 장착한 스킨을 벗는 동작은 허용한다.
+- 실제 dev를 새로고침해도 `의상은 곧 열려요`가 재현됐다. Jenkins #325의 로컬 dev 산출물과 실제 Vercel 공개 옷장 모듈이 달랐고, 공개 화면은 비활성 상태였다. Vercel 프로젝트 원본 설정은 로그인 권한이 없어 직접 확인하지 못했다. 원격 빌드에도 dev 활성값과 dev bindings를 `--build-env`로 전달해 로컬 셸 환경에만 의존하지 않게 보완했다([Vercel CLI 문서](https://vercel.com/docs/cli/deploy#build-env)).
+- 이 수정은 마이룸 프런트엔드의 활성 정책에 대한 것이다. 실제 서버 `SHOP_ENABLED`와 DB V100/V102/V152의 성공 이력은 별도 확인해야 한다. 현재 사용 가능한 SSH 키는 Jenkins 터널용으로 세션 명령이 거부되어 DB 설정 읽기·지급 SQL을 실행하지 못했다. 실제 서버 반영 완료로 보고하지 않는다.
+- 로컬 검수 fixture의 실제 `WardrobeScreen`과 서비스 어댑터에서 여자 캐릭터 더블클릭은 PATCH 0건, 남자 캐릭터 더블클릭 입기는 PATCH 1건/32,000 triangles, 두 번째 더블클릭 벗기는 PATCH 2건 누적/기본 25,639 triangles로 확인했다. 이 fixture의 API 응답은 로컬 mock이며 실제 dev 소유권 검수와 구분한다.
+- 리뷰 보완 후 전체 FE 테스트 2,404개 통과/6개 skip, 배포 설정 Python 테스트 5개 통과, 타입 검사와 dev park 빌드·map check·diff check 통과. 기존 전체 테스트 2,340개 기록은 앞선 기준의 결과다.
+- 뽑기나 기본 스킨 선택 기능은 이번에 구현하지 않는다. 테스트는 위의 지정 계정 지급 SQL로 비판매 스킨 5행을 지급하고 기존 옷장에서 착용·해제하는 방식이다. 지급 전에 실제 계정 ID, dev DB, 적용 이력을 확인한다. 전 계정 지급·자동 장착·판매 등록은 하지 않는다.
+
+DB 접속 권한이 있는 담당자가 먼저 확인할 읽기 쿼리(오직 dev DB에서 실행):
+
+```sql
+SELECT version, description, script, success
+FROM flyway_schema_history
+WHERE version IN ('100', '102', '151', '152') ORDER BY installed_rank;
+SELECT table_name, column_name
+FROM information_schema.columns
+WHERE table_schema = DATABASE()
+  AND table_name IN ('items', 'user_items') ORDER BY table_name, ordinal_position;
+```
+
+V100/V102가 미적용이면 V152 적용이나 기능 활성화부터 진행하지 않는다. 기존 DB의 선택 스키마 반영 경로를 먼저 검토해야 한다. 이미 적용된 이력과 미적용 SQL의 번호를 임의로 바꾸거나, 일괄 지급/구매로 테스트를 대체하지 않는다.
