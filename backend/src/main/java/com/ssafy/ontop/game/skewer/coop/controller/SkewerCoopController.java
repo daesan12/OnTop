@@ -8,6 +8,7 @@ import com.ssafy.ontop.game.skewer.coop.dto.SkewerCoopRankingResponse;
 import com.ssafy.ontop.game.skewer.coop.dto.SkewerCoopResultResponse;
 import com.ssafy.ontop.game.skewer.coop.service.SkewerCoopEngine;
 import com.ssafy.ontop.game.skewer.coop.service.SkewerCoopSettlementService;
+import com.ssafy.ontop.operation.config.NewActivity;
 import com.ssafy.ontop.table.service.TableHub;
 import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -67,6 +68,7 @@ public class SkewerCoopController {
     }
 
     @PostMapping("/rooms")
+    @NewActivity
     public ResponseEntity<JsonNode> enter(@AuthenticationPrincipal AuthenticatedUser user, @RequestBody JsonNode body) {
         long account = account(user);
         if (body == null || !body.isObject() || !body.path("channelId").isTextual() || body.size() != 2) {

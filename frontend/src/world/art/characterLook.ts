@@ -6,7 +6,8 @@ import { equipSlots, type EquipSlot, type PublicEquipment } from '../../network/
  * that cover them, plus that character's default items; outfit files hold only their items. Every mesh lists
  * its pieces (extras.pieces: [name, first index, index count]) and the game draws only the worn ones:
  * - `body` always, `body__TOPd_BOTTOMg` unless one of those items is worn;
- * - `item__TOP__d` while TOP d from that file is worn, `item__TOP__d__under_TOPb` unless TOP b is worn too.
+ * - `item__TOP__d` while TOP d from that file is worn, `item__TOP__d__under_TOPb` unless TOP b is worn too;
+ * - `item__HAIR__h__for_girl` like `item__HAIR__h`, on the girl only (`__for_man`: the man only).
  */
 export type CharacterVariant = 'man' | 'girl'
 export interface Worn { source: string; id: string }
@@ -57,10 +58,11 @@ export function pieceShown(name: string, source: string, variant: CharacterVaria
   const worn = new Set(Object.entries(look).map(([slot, piece]) => slot + piece.id))
   const body = name.match(/^body(?:__(\w+))?$/)
   if (body) return source === variant && !tokens(body[1]).some(token => worn.has(token))
-  const item = name.match(/^item__([A-Z]+)__([a-z0-9]+)(?:__under_(\w+))?$/)
-  if (!item) return false
+  // `__for_girl` / `__for_man`: a piece for that character only (a hat's hair: the girl's under it, or the man's)
+  const item = name.match(/^item__([A-Z]+)__([a-z0-9]+)(?:__for_(man|girl))?(?:__under_(\w+))?$/)
+  if (!item || (item[3] && item[3] !== variant)) return false
   const piece = look[item[1] as EquipSlot]
-  return !!piece && piece.source === source && piece.id === item[2] && !tokens(item[3]).some(token => worn.has(token))
+  return !!piece && piece.source === source && piece.id === item[2] && !tokens(item[4]).some(token => worn.has(token))
 }
 
 export type PieceRange = [name: string, start: number, count: number]
