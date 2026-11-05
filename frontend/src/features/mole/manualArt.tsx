@@ -1,7 +1,7 @@
 import { SPRITES } from './stage'
 import { KEYS } from './protocol'
 
-/** ① 구멍과 키 배치. 한 줄 아치로 왼손 Q W E, 오른손 I O P이고 가운데가 조금 더 벌어져 있다. */
+/** ① 구멍과 키 배치. 한 줄 아치로 왼손 S D F, 오른손 J K L이고 가운데가 조금 더 벌어져 있다. */
 export function MoleKeysFigure() {
   return <div className="mole-figure">
     <div className="mole-figure-board" aria-label="구멍 키 배치">

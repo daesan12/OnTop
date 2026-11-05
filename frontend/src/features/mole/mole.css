@@ -82,10 +82,10 @@
 /* 실물 키캡 */
 .mole-keycap{position:absolute;z-index:3;left:50%;top:96%;display:grid;place-items:center;min-width:27cqw;height:24cqw;padding:0 5cqw;border:1px solid #c9b48c;border-bottom:3.2cqw solid #a8916a;border-radius:4.5cqw;background:linear-gradient(#fffdf6,#ece0c8);font:800 12cqw/1 ui-monospace,Consolas,monospace;color:#3b2a1a;transform:translateX(-50%) perspective(60cqw) rotateX(16deg);transform-origin:50% 100%;box-shadow:0 2.4cqw 3cqw #0005,inset 0 1px 0 #fff}
 .mole-hole:active .mole-keycap{transform:translate(-50%,1.4cqw) perspective(60cqw) rotateX(16deg);border-bottom-width:1.6cqw}
-/* 망치는 하나다. 친 구멍으로 날아가(0.06초) 내리치고, 기절하면 그 자리에서 비틀거린다. */
-.mole-mallet-anchor{z-index:5;pointer-events:none;container-type:inline-size;transition:left .06s ease-out,top .06s ease-out}
+/* 망치: 친 구멍 위에 나타나 내리치고 사라진다(이동 없음). 기절하면 그 자리에서 비틀거린다. */
+.mole-mallet-anchor{z-index:5;pointer-events:none;container-type:inline-size}
 .mole-mallet{position:absolute;width:76%;right:-6%;top:-74%;transform-origin:20% 30%;opacity:0;pointer-events:none;filter:drop-shadow(0 2cqw 2cqw #0008)}
-.mole-mallet[data-swing]{opacity:1;animation:mole-swing .17s ease-out}
+.mole-mallet[data-swing]{opacity:1;animation:mole-swing .17s ease-out forwards}
 .mole-mallet[data-dizzy]{opacity:1;animation:mole-mallet-dizzy .5s ease-in-out infinite alternate;filter:drop-shadow(0 2cqw 2cqw #0008) saturate(.6)}
 .mole-dizzy{position:absolute;right:-4%;top:-96%;width:60%;height:26%;animation:mole-dizzy-spin 1s linear infinite}
 .mole-dizzy i{position:absolute;top:20%;width:24%;aspect-ratio:1;background:#ffe14a;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);filter:drop-shadow(0 0 1cqw #fff27a)}
@@ -131,7 +131,7 @@
 .mole-actions button{min-height:44px;padding:0 20px;border:2px solid #c99a5a;border-radius:12px;background:#fff;color:#3b2a1a;font-weight:800}
 .mole-actions .mole-primary{border-color:#b85a07;background:linear-gradient(#ffd23f,#f39a12);color:#4a2a00}
 .mole-actions .mole-danger{border-color:#8a1410;background:#e8322a;color:#fff}
-@keyframes mole-swing{0%{transform:rotate(-42deg)}70%{transform:rotate(10deg)}100%{transform:rotate(0)}}
+@keyframes mole-swing{0%{opacity:.2;transform:translateY(-14%) rotate(-42deg)}25%{opacity:1}70%{transform:rotate(10deg)}88%{opacity:1}100%{opacity:0;transform:rotate(0)}}
 @keyframes mole-pop{0%{opacity:0;transform:translate(-50%,10%) scale(.7)}20%{opacity:1;transform:translate(-50%,0) scale(1.1)}100%{opacity:0;transform:translate(-50%,-40%) scale(1)}}
 @keyframes mole-count{0%{transform:scale(1.6);opacity:0}30%{transform:scale(1);opacity:1}100%{transform:scale(.9);opacity:.8}}
 @keyframes mole-bob{0%{transform:translateY(0) scale(1)}100%{transform:translateY(-2.2%) scale(.99,1.02)}}
@@ -148,7 +148,7 @@
 @keyframes mole-stun-in{0%{transform:scale(1.3);opacity:0}100%{transform:none;opacity:1}}
 @keyframes mole-fever{0%{opacity:1}50%{opacity:.15}}
 @keyframes mole-shake{0%,100%{transform:translate(0,40%) scale(1.06,.8)}25%{transform:translate(-6%,40%) scale(1.06,.8)}75%{transform:translate(6%,40%) scale(1.06,.8)}}
-@media (prefers-reduced-motion:reduce){.mole-mallet-anchor{transition:none}.mole-mallet[data-dizzy],.mole-dizzy,.mole-stun{animation:none}.mole-stage[data-shake],.mole-body[data-flinch],.mole-helmet-count{animation:none!important}.mole-impact i,.mole-helmet-fly{display:none}.mole-sprite,.mole-sprite[data-pose="up"]{transition:none}.mole-sprite[data-pose="up"] .mole-body,.mole-stars{animation:none}.mole-root[data-fever] .mole-fever-strip,.mole-mallet,.mole-countdown b,.mole-sprite[data-kind="DECOY"][data-pose="bonk"]{animation:none}.mole-fx{animation-duration:.2s}}
+@media (prefers-reduced-motion:reduce){.mole-mallet[data-dizzy],.mole-dizzy,.mole-stun{animation:none}.mole-stage[data-shake],.mole-body[data-flinch],.mole-helmet-count{animation:none!important}.mole-impact i,.mole-helmet-fly{display:none}.mole-sprite,.mole-sprite[data-pose="up"]{transition:none}.mole-sprite[data-pose="up"] .mole-body,.mole-stars{animation:none}.mole-root[data-fever] .mole-fever-strip,.mole-mallet,.mole-countdown b,.mole-sprite[data-kind="DECOY"][data-pose="bonk"]{animation:none}.mole-fx{animation-duration:.2s}}
 /* 설명서 그림 */
 .mole-figure{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:center;font-family:"Malgun Gothic",sans-serif}
 .mole-figure-board{display:flex;gap:26px;padding:14px 18px;border:4px solid #fff0c9;border-radius:16px;background:linear-gradient(#67b04a,#3d8a22);box-shadow:0 0 0 4px #e2641a}

@@ -55,7 +55,7 @@ class MoleServiceTests {
 
         assertThat(round.moles()).hasSize(MoleRules.schedule(SEED).size());
         assertThat(round.moles().getFirst().kind()).isEqualTo(MoleRules.schedule(SEED).getFirst().kind().name());
-        assertThat(round.rules().keys()).containsExactly("Q", "W", "E", "I", "O", "P");
+        assertThat(round.rules().keys()).containsExactly("S", "D", "F", "J", "K", "L");
         assertThat(service.start(USER, "round-1").id()).isEqualTo(round.id());
         assertThat(wallet.balance()).isEqualTo(100);
         assertThat(repository.ledger).isEmpty();
@@ -73,7 +73,7 @@ class MoleServiceTests {
     }
 
     @Test
-    void 완료는_서버가_다시_계산한_점수로_45점당_1냥을_지급하고_다시_보내도_한_번만_준다() {
+    void 완료는_서버가_다시_계산한_점수로_40점당_1냥을_지급하고_다시_보내도_한_번만_준다() {
         var round = service.start(USER, "round-1");
         List<MoleDtos.Hit> hits = catchAll();
         MoleRules.Score expected = MoleRules.score(MoleRules.schedule(SEED),
@@ -84,7 +84,7 @@ class MoleServiceTests {
         var again = service.complete(USER, Long.parseLong(round.id()), List.of());
 
         assertThat(result.result().score()).isEqualTo(expected.score());
-        assertThat(result.result().reward()).isEqualTo(expected.coins()).isEqualTo(expected.score() / 45).isPositive();
+        assertThat(result.result().reward()).isEqualTo(expected.coins()).isEqualTo(expected.score() / 40).isPositive();
         assertThat(again.result()).isEqualTo(result.result());
         assertThat(wallet.balance()).isEqualTo(100 + expected.coins());
         assertThat(repository.ledger).singleElement().satisfies(entry -> {
