@@ -157,10 +157,11 @@
   2. Gemini에 넣고 포니테일과 분홍 머리끈만 목덜미의 낮은 쪽으로 바꾸게 한다. 앞머리·옆머리·색은 그대로, 뒤통수는 옆머리와 같은 볼륨과 머릿결로 채운다.
   3. Tripo 여러 면, Generate in Parts, Balanced, 4K 텍스처. 이번에는 머리카락(`tripo_part_0`)과 얼굴(`tripo_part_2`)이 따로 나와 나누지 않고 바로 맞춘다.
   4. Tripo 텍스처가 기본 머리보다 밝고 분홍빛이라, `recolor_hair.py`로 기본 머리 `e`의 색(채널별 평균·퍼짐)에 맞춘다.
+     - `drop_skin=0.006`: 가르마 가장자리에 Tripo가 두피색을 칠한 머리 조각이 이마에 흉터 같은 선으로 보였다(user). 피부색이면서 몸 표면과 6 mm 안에 있는 머리 면은 먼저 뺀다. 1.2 cm로 넓히면 정수리에 구멍이 났다.
 
 ```bash
 "$B" -b --python tools/character/fit_outfit.py -- shared_layers_hi.glb girl_lowbun_parts.glb hij_t.glb set=j s=1.065 head_fit=2 "map=HAIR:0"
-"$B" -b --python tools/character/recolor_hair.py -- hij_t.glb shared_layers_hij.glb item=j like=e
+"$B" -b --python tools/character/recolor_hair.py -- hij_t.glb shared_layers_hij.glb item=j like=e drop_skin=0.006
 ```
 
 - `i`와 `j`는 모자 아래 머리의 원본일 뿐이라 아이템으로 팔지 않는다(옷 파일에도 넣지 않는다).
