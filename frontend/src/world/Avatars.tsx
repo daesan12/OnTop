@@ -22,6 +22,7 @@ import { emptyEquipment } from '../network/equipment'
 import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from './art/characterLook'
 import { useOutfitSources } from './art/outfitSources'
 import { previewEquipment, useWardrobe } from '../features/wardrobe/state'
+import type { OwnedItem } from '../features/shop/contracts'
 import { WARDROBE_OUTFITS_ENABLED } from '../features/wardrobe/feature'
 import { roamingFirstPerson } from './roamingCamera'
 import { localMovement } from '../network/localMovementPrediction'
@@ -43,6 +44,7 @@ import {
   estimatedServerTime,
 } from '../network/worldClient'
 
+const noItems: OwnedItem[] = []
 function Avatar({
   id,
   rigs,
@@ -60,7 +62,8 @@ function Avatar({
   const own = useSession(state => state.sessionId === id)
   // The own avatar tries on the wardrobe's previewed item before it is worn.
   const previewId = useWardrobe(state => own && state.open ? state.previewId : 0)
-  const owned = useWardrobe(state => state.items)
+  // (only the own avatar previews; others keep one empty list, so a wardrobe refresh does not re-render them)
+  const owned = useWardrobe(state => own ? state.items : noItems)
   const worn = useMemo(() => previewId && previewEquipment(owned, previewId) || equipment, [previewId, owned, equipment])
   // Outfits closed (production build): every avatar keeps its default clothes, whatever is equipped.
   const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn])
