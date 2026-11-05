@@ -137,6 +137,7 @@ export class CoopClient {
       const code = (error as { code?: string }).code
       this.store.setState({ error: code === 'SKEWER_COOP_PASSWORD_INVALID' ? '비밀번호가 맞지 않아요.'
         : code === 'SKEWER_COOP_PASSWORD_THROTTLED' ? '비밀번호를 여러 번 확인했어요. 30초 후 다시 시도해 주세요.'
+        : code === 'SKEWER_COOP_ROOM_FULL' ? '가게 인원이 가득 찼어요. 다른 가게를 선택해 주세요.'
         : '가게에 입장하지 못했어요. 방이 닫혔거나 인원이 찼을 수 있어요. 목록에서 다시 선택해 주세요.' })
       return false
     }

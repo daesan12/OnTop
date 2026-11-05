@@ -34,6 +34,26 @@ describe('협동 방 탐색과 준비 취소', () => {
     expect(client.snapshot).toBeNull()
     expect(client.store.getState().error).toBe('비밀번호가 맞지 않아요.')
   })
+  it('비밀번호 확인 후 정원이 마감되면 정원 안내를 표시하고 다른 방을 고를 수 있게 유지한다', async () => {
+    const { client, requestJSON } = fixture()
+    client.store.setState({ lobbyPage: 'rooms' })
+    requestJSON.mockRejectedValue({ code: 'SKEWER_COOP_ROOM_FULL', message: '서버 요청에 실패했습니다. (409)' })
+
+    expect(await client.enter(id, { password: 'correct123' })).toBe(false)
+
+    expect(client.store.getState()).toMatchObject({ snapshot: null, pending: false, lobbyPage: 'rooms',
+      error: '가게 인원이 가득 찼어요. 다른 가게를 선택해 주세요.' })
+    expect(requestJSON).toHaveBeenCalledTimes(1)
+  })
+  it('반복 비밀번호 오류 제한은 정원 마감 안내와 구분한다', async () => {
+    const { client, requestJSON } = fixture()
+    requestJSON.mockRejectedValue({ code: 'SKEWER_COOP_PASSWORD_THROTTLED' })
+
+    expect(await client.enter(id, { password: 'wrong' })).toBe(false)
+
+    expect(client.store.getState().error).toContain('30초 후')
+    expect(client.store.getState().error).not.toContain('가득')
+  })
   it('두명이 역할선택중이어도 기권하지 않고 나간 뒤 방 목록으로 돌아온다', async () => {
     const { client, request, requestJSON } = fixture()
     client.store.setState({ snapshot: snapshot() })
