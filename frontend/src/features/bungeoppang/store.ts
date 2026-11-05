@@ -41,6 +41,7 @@ import {
   bungeoppangService as service,
   BungeoppangServiceError,
   type BungeoppangStatus,
+  type BungeoppangGame,
   type BungeoppangSubmitResult,
   type BungeoppangSubmit,
 } from "./service";
@@ -87,6 +88,7 @@ interface BungState {
   status: BungeoppangStatus | null;
   statusError: string | null;
   starting: boolean;
+  recovering: boolean;
   startError: string | null;
   confirmExit: boolean;
   helpOpen: boolean;
@@ -123,6 +125,7 @@ const initial = (): Omit<BungState, "phase" | "status" | "seenTips"> => ({
   gameId: "",
   statusError: null,
   starting: false,
+  recovering: false,
   startError: null,
   confirmExit: false,
   helpOpen: false,
@@ -259,7 +262,10 @@ export async function refreshBungeoppangStatus() {
   void refreshWallet(currentVisit);
   try {
     const status = await service.getStatus();
-    if (visit === currentVisit) set({ status, seenTips: status.seenTips, firstGame: status.isFirstGame });
+    if (visit === currentVisit) {
+      set({ status, seenTips: status.seenTips, firstGame: status.isFirstGame });
+      if (status.activeSessionId && !get().gameId) void restoreBungeoppang();
+    }
   } catch (error) {
     if (visit === currentVisit) set({ statusError: error instanceof Error ? error.message : '오늘 번 엽전을 불러오지 못했어요.' });
   }
@@ -351,10 +357,69 @@ export function resetBungeoppang() {
   clearHeldInput();
 }
 
+/** A fresh page has no local grill, but the authoritative activity survives socket reconnect. */
+export function watchBungeoppangRecovery() {
+  let attempted = false;
+  const observe = (s: ReturnType<typeof useSession.getState>, old = s) => {
+    if (s.status !== 'connected' || s.sessionId !== old.sessionId || s.roomId !== old.roomId) {
+      resetBungeoppang(); attempted = false;
+    }
+    if (s.activities[s.sessionId] !== 'BUNGEOPPANG') { attempted = false; return; }
+    if (!attempted && s.status === 'connected' && s.mapCompatible && !s.pending && s.roomId && get().phase === 'idle') {
+      // One automatic attempt per admitted activity; errors wait for the visible retry action.
+      attempted = true; void restoreBungeoppang();
+    }
+  };
+  const unsubscribe = useSession.subscribe(observe);
+  observe(useSession.getState());
+  return () => { unsubscribe(); resetBungeoppang(); };
+}
+
+export async function restoreBungeoppang() {
+  const session = useSession.getState(), state = get();
+  if (service.mock || !service.resumeGame || state.starting || state.abandonPending
+    || !['idle', 'entering', 'start'].includes(state.phase) || (!state.recovering && !!state.gameId)
+    || session.status !== 'connected' || !session.mapCompatible || !session.roomId || session.pending
+    || (!state.recovering && !state.status?.activeSessionId && session.activities[session.sessionId] !== 'BUNGEOPPANG')) return;
+  if (!state.recovering) {
+    ++visit;
+    rememberRoamingView(session.sessionId, session.roomId);
+    resetCustomerArrivalsV5();
+    clearTimeout(transitionTimer);
+    set({ phase: 'start', ...initial(), status: null, seenTips: [], recovering: true });
+    inputState.minigameOpen = true;
+    clearHeldInput();
+    view.active = true; view.returningUntil = 0;
+    startKey = ''; submission = null; orderSubmission = null; v5DeliveryFeedback = null;
+    if (document.pointerLockElement) void document.exitPointerLock();
+  }
+  const currentVisit = visit;
+  const current = () => visit === currentVisit && useSession.getState().sessionId === session.sessionId
+    && useSession.getState().roomId === session.roomId && useSession.getState().status === 'connected';
+  set({ starting: true, startError: null, abandonError: null });
+  try {
+    const status = await service.getStatus();
+    if (!current()) return;
+    set({ status, seenTips: status.seenTips, firstGame: status.isFirstGame });
+    if (!status.activeSessionId) { leaveBungeoppang(); return; }
+    set({ gameId: status.activeSessionId });
+    const game = await service.resumeGame(status.activeSessionId);
+    if (!current() || get().abandonPending) return;
+    if (game.gameId !== status.activeSessionId) throw new BungeoppangServiceError('INVALID_RESPONSE', '복구할 판을 확인하지 못했어요.', true);
+    applyBungeoppangGame(game, currentVisit);
+  } catch (error) {
+    if (!current()) return;
+    if (error instanceof BungeoppangServiceError && error.code === 'GAME_NOT_ACTIVE') {
+      set({ phase: 'result', recovering: false, starting: false,
+        submitError: { retryable: false, message: '이미 종료되거나 만료된 판이에요. 공원으로 돌아가거나 새 판을 시작해 주세요.' } });
+    } else set({ starting: false, startError: error instanceof Error ? error.message : '진행 중인 판을 복구하지 못했어요. 다시 확인해 주세요.' });
+  }
+}
+
 // ---------- 판 시작 ----------
 export async function startBungeoppang() {
   const s = get();
-  if (s.starting || !s.status || s.submitting || s.abandonPending || (s.phase !== "start" && s.phase !== "result")
+  if (s.recovering || s.starting || !s.status || s.submitting || s.abandonPending || (s.phase !== "start" && s.phase !== "result")
     || (s.phase === 'result' && !s.result && s.submitError?.retryable !== false)) return;
   const currentVisit = visit;
   set({ starting: true, startError: null });
@@ -372,6 +437,19 @@ export async function startBungeoppang() {
         "게임이 업데이트됐어요. 새로고침해 주세요.",
       );
     if (get().phase !== "start" && get().phase !== "result") return;
+    applyBungeoppangGame(game, currentVisit);
+  } catch (error) {
+    if (visit !== currentVisit) return;
+    set({
+      starting: false,
+      startError: error instanceof Error ? error.message : "연결이 불안정해요. 같은 요청으로 다시 시도해 주세요.",
+    });
+    if (error instanceof BungeoppangServiceError && !error.retryable) startKey = '';
+  }
+}
+
+/** New starts and reload recovery use the same authoritative clock/state installation. */
+function applyBungeoppangGame(game: BungeoppangGame, currentVisit: number) {
     const sync = game.v5?.timeSync ?? game.v4?.timeSync;
     if (game.v4?.timing && !sync) throw new BungeoppangServiceError('INVALID_RESPONSE', '서버 시간을 확인하지 못했어요.', true);
     if (sync && sync.status !== 'PLAYING' && sync.status !== 'COMPLETED')
@@ -413,8 +491,9 @@ export async function startBungeoppang() {
       manualPaused:sync?.timing.paused??false,
       manualPausePending:false,
       manualPauseError:null,
+      recovering: false,
       grill: game.v5 ? game.v5.grill ?? v5.createGrill(game.heats, game.v5.orders, game.v5.rules)
-        : game.v4 ? v4.createGrill(game.heats, game.v4.order, game.v4.rules) : createGrill(game.heats, R),
+        : game.v4 ? game.v4.grill ?? v4.createGrill(game.heats, game.v4.order, game.v4.rules) : createGrill(game.heats, R),
       rules: Object.freeze({ ...roundRules }),
       selectedCustomer: null,
       choosingWaste: false,
@@ -437,14 +516,6 @@ export async function startBungeoppang() {
     (document.activeElement as HTMLElement | null)?.blur?.();
     if (sync?.result) { acceptServerResult(sync.result); void refreshWallet(currentVisit); }
     else { tip("START"); startLoop(); advanceBungeoppangTime(); }
-  } catch (error) {
-    if (visit !== currentVisit) return;
-    set({
-      starting: false,
-      startError: error instanceof Error ? error.message : "연결이 불안정해요. 같은 요청으로 다시 시도해 주세요.",
-    });
-    if (error instanceof BungeoppangServiceError && !error.retryable) startKey = '';
-  }
 }
 
 // ---------- 플레이 입력 ----------
@@ -787,6 +858,7 @@ export function escapeBungeoppang() {
   const s = get();
   if (s.abandonPending) return;
   if (s.helpOpen) { setBungeoppangHelp(false); return; }
+  if (s.recovering) { if (!s.starting && s.gameId) set({ confirmExit: !s.confirmExit }); return; }
   if (s.phase === 'result' && !s.result && s.submitError?.retryable !== false) {
     set({ confirmExit: !s.confirmExit }); return;
   }
@@ -798,10 +870,11 @@ export function continueBungeoppang() {
   set({ confirmExit: false });
 }
 export async function quitBungeoppang() {
-  const { gameId, phase, abandonPending } = get();
+  const { gameId, phase, abandonPending, recovering, starting } = get();
   if (abandonPending) return;
+  if (recovering && (starting || !gameId)) return;
   const currentVisit = visit;
-  if (!gameId || !['countdown', 'play'].includes(phase)) { leaveBungeoppang(); return; }
+  if (!gameId || (!recovering && !['countdown', 'play'].includes(phase))) { leaveBungeoppang(); return; }
   set({ abandonPending: true, abandonError: null });
   try {
     await service.abandon(gameId);

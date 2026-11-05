@@ -159,6 +159,15 @@ Story 2 복구에는 `?includeProgress=true`를 사용하며 서버가 승인한
 `?deliveryKey=<Idempotency-Key>`를 함께 주면 해당 키의 영속 납품 결론을 `deliveryLookup`으로 조회한다.
 타인 판과 없는 판은 같은 404다.
 
+### 새로고침·재접속 시 FE 복구 (v4/v5)
+
+- 월드 입장과 맵 확인이 끝난 뒤 본인의 `BUNGEOPPANG` 활동이 남아 있으면 기존 로비 GET의 `activeSessionId`로 같은 판을 조회한다. 새 판 시작 POST를 보내지 않는다.
+- `GET /api/v1/minigames/sessions/{id}?includeSource=true&includeProgress=true`로 저장된 규칙·불세기·주문·승인 로그를 받고, 최신 서버 시각과 checkpoint를 재확인해 조리 화면을 복원한다. 서버가 승인하지 않은 입력은 복구 대상이 아니다.
+- 원래 `timing`을 사용하므로 새로고침으로 제한 시간이 늘어나지 않는다. 승인 prefix 해시가 맞지 않는 응답은 적용하지 않는다.
+- 연결 실패는 복구 안내와 명시적 재시도를 표시한다. 매 월드 상태 수신마다 자동 재요청하지 않는다. 판 ID가 확인된 뒤 사용자가 포기를 선택한 경우에만 기존 abandon API를 호출한다.
+- 이미 종료·만료된 판은 안내와 공원 복귀 경로를 표시한다. 복구 중 접속·계정·채널이 바뀌면 이전 응답을 화면에 적용하지 않는다.
+- 서버의 재접속 활동 유지, 이동 제한, 납품 검증·정산·보상 계약과 DB 스키마는 변경하지 않는다.
+
 ### v4 납품 승인과 checkpoint 복구
 
 `POST /api/v1/minigames/sessions/{id}/deliveries`

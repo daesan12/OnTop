@@ -314,32 +314,23 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
     async getStatus() {
       const p = await request(`${path}?rulesVersion=v4`);
       if (!record(p) || p.rulesVersion !== 'v4' || !whole(p.todayEarned) || !whole(p.dailyCap)
+        || !(p.activeSessionId == null || id(p.activeSessionId))
         || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.seenTips)
         || !p.seenTips.every(value => typeof value === 'string')) return fail();
       return { rulesVersion: 'v4', todayEarned: Number(p.todayEarned), dailyCap: Number(p.dailyCap),
-        isFirstGame: p.isFirstGame, seenTips: [...p.seenTips] as string[] };
+        isFirstGame: p.isFirstGame, seenTips: [...p.seenTips] as string[], activeSessionId: p.activeSessionId as string | null | undefined };
     },
     async startGame(key) {
       if (!keyPattern.test(key)) return fail();
       const p = await request(path, post({ minigameType: 'BUNGEOPPANG', rulesVersion: 'v4' }, key));
-      if (!record(p) || !id(p.minigameSessionId) || p.minigameType !== 'BUNGEOPPANG' || p.status !== 'PLAYING'
-        || p.rulesVersion !== 'v4' || typeof p.configVersion !== 'string' || !instant(p.startedAt)
-        || !record(p.timing) || !Array.isArray(p.heats) || typeof p.isFirstGame !== 'boolean') return fail();
-      const timing = toTiming(p.timing);
-      const rules = toRules(p.rules);
-      if (p.heats.length !== rules.heatListLength || !p.heats.every(value => whole(value)
-        && Number(value) >= rules.heatMin && Number(value) <= rules.heatMax)) return fail();
-      const checkpoint = toCheckpoint(p.checkpoint);
-      if (!checkpoint.currentOrder) return fail();
-      const order = checkpoint.currentOrder;
-      const source: SessionSource = { configVersion: p.configVersion, rules, heats: [...p.heats] as number[],
-        checkpoint, accepted: [], orders: [order], acceptedLocalCount: 0, timing };
-      sessions.set(p.minigameSessionId, source);
-      // A replayed POST receipt may be old. Only a fresh GET supplies a clock/status observation.
-      const timeSync = await service.syncTimeV4!(p.minigameSessionId);
-      return { gameId: p.minigameSessionId, startedAt: p.startedAt, rulesVersion: 'v4', heats: [...source.heats],
-        isFirstGame: p.isFirstGame, v4: { configVersion: source.configVersion, order, rules,
-          timing, timeSync, checkpoint } } satisfies BungeoppangGame;
+      return loadRound(p, false);
+    },
+    async resumeGame(gameId) {
+      const p = await request(`${sessionPath(gameId)}?includeSource=true&includeProgress=true`);
+      if (!record(p) || p.minigameSessionId !== gameId) return fail();
+      if (!['PLAYING', 'COMPLETED'].includes(String(p.status)))
+        throw new BungeoppangServiceError('GAME_NOT_ACTIVE', messages.GAME_NOT_ACTIVE!);
+      return loadRound(p, true);
     },
     async syncTimeV4(gameId): Promise<BungeoppangTimeSync> {
       const source = sessions.get(gameId);
@@ -403,6 +394,7 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       if (accepted.length !== checkpoint.throughSeq || !accepted.every((entry, index) => record(entry)
         && entry.seq === index + 1 && typeof entry.action === 'string' && whole(entry.t))) return fail();
       const orders = p.issuedOrders.map(toOrder);
+      if (await prefixHash(gameId, source.configVersion, accepted) !== checkpoint.prefixHash) return fail();
       source.accepted = accepted.map(entry => ({ ...entry })); source.orders = orders;
       source.checkpoint = checkpoint; source.acceptedLocalCount = accepted.length;
       return { grill: grillFromCheckpoint(source), checkpoint };
@@ -443,6 +435,29 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       return Number(p.balance);
     },
   };
+  async function loadRound(p: unknown, restoring: boolean): Promise<BungeoppangGame> {
+    if (!record(p) || !id(p.minigameSessionId) || (!restoring && p.minigameType !== 'BUNGEOPPANG')
+      || !['PLAYING', ...(restoring ? ['COMPLETED'] : [])].includes(String(p.status))
+      || p.rulesVersion !== 'v4' || typeof p.configVersion !== 'string' || !instant(p.startedAt)
+      || !record(p.timing) || !Array.isArray(p.heats) || typeof p.isFirstGame !== 'boolean') return fail();
+    const timing = toTiming(p.timing), rules = toRules(p.rules);
+    if (p.heats.length !== rules.heatListLength || !p.heats.every(value => whole(value)
+      && Number(value) >= rules.heatMin && Number(value) <= rules.heatMax)) return fail();
+    const checkpoint = toCheckpoint(p.checkpoint);
+    const order = checkpoint.currentOrder ?? (restoring && Array.isArray(p.issuedOrders) && p.issuedOrders.length
+      ? toOrder(p.issuedOrders[0]) : null);
+    if (!order) return fail();
+    const source: SessionSource = { configVersion: p.configVersion, rules, heats: [...p.heats] as number[],
+      checkpoint, accepted: [], orders: [order], acceptedLocalCount: 0, timing };
+    sessions.set(p.minigameSessionId, source);
+    // A fresh GET supplies status/time; recovering the prefix never POSTs another start.
+    const timeSync = await service.syncTimeV4!(p.minigameSessionId);
+    const recovered = restoring && timeSync.status === 'PLAYING' ? await service.recoverV4!(p.minigameSessionId) : null;
+    return { gameId: p.minigameSessionId, startedAt: p.startedAt, rulesVersion: 'v4', heats: [...source.heats],
+      isFirstGame: p.isFirstGame, v4: { configVersion: source.configVersion, order, rules,
+        timing: timeSync.timing, timeSync, checkpoint: recovered?.checkpoint ?? checkpoint,
+        ...(recovered ? { grill: recovered.grill } : {}) } };
+  }
   return service;
 }
 

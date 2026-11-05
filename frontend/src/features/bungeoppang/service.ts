@@ -14,13 +14,14 @@ import type { RoundTiming, ServerTimeSample } from './serverTime'
 
 export interface BungeoppangStatus {
   todayEarned: number; dailyCap: number; isFirstGame: boolean; seenTips: string[]; rulesVersion: string
+  activeSessionId?: string | null
 }
 export interface BungeoppangGame {
   gameId: string; startedAt: string; rulesVersion: string; heats: number[]; isFirstGame: boolean
   v4?: { configVersion?: string; order: BreadOrder; rules: Readonly<BungeoppangRules & { rulesVersion: 'v4' }>
     timing?: RoundTiming
     timeSync?: BungeoppangTimeSync
-    checkpoint?: V4Checkpoint }
+    checkpoint?: V4Checkpoint; grill?: import('./rulesV4').GrillState }
   v5?: { orders: CustomerOrder[]; rules: Readonly<BungeoppangRules>; grill?: V5Grill;
     timing?: RoundTiming; timeSync?: BungeoppangTimeSync }
 }
@@ -49,6 +50,8 @@ export interface BungeoppangService {
   readonly mock: boolean
   getStatus(): Promise<BungeoppangStatus>
   startGame(key: string): Promise<BungeoppangGame>
+  /** Existing GET source/progress contract; never creates or restarts a round. */
+  resumeGame?(gameId: string): Promise<BungeoppangGame>
   submitResult(request: BungeoppangSubmit): Promise<BungeoppangSubmitResult>
   abandon(gameId: string): Promise<void>
   balance(): Promise<number>

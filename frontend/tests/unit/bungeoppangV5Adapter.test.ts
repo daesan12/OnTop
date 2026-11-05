@@ -36,6 +36,30 @@ const deliveryInput: BungeoppangSubmit = { gameId: '901', log: [...fixture.log.s
   clientScore: 10, seenTips: [], deliveryKey: 'delivery-two' };
 
 describe('v5 draft REST port, opt-in only', () => {
+  it.each([R, BUNGEOPPANG_V5_LEGACY])('restores approved v5 progress and the original $durationMs ms deadline without another start', async rules => {
+    const p = await responses(rules), log = deliveryInput.log as GrillLogEntry[];
+    const acceptedLog = log.map((entry, index) => ({ seq: index + 1, action: entry.action, t: entry.t,
+      ...(entry.action === 'DELIVER' ? { orderId: entry.orderId, deliveryKey: 'delivery-two' }
+        : { slot: entry.slot, ...(entry.action === 'FILL' ? { filling: entry.filling } : {}) }) }));
+    const hash = await prefixHash('901', p.start.configVersion, acceptedLog, 'v5');
+    const grill = replay(log, heats, fixture.orders, rules);
+    const source = { ...p.start, ...p.session, serverNow: '2026-10-27T00:00:40.000Z',
+      checkpoint: wireCheckpoint(grill, 1, hash), acceptedLog };
+    const request = vi.fn().mockResolvedValue(source);
+    const restored = await createBungeoppangV5Service(request).resumeGame!('901');
+    expect(restored.v5?.grill?.log).toHaveLength(log.length);
+    expect(restored.v5?.grill?.score).toBe(grill.score);
+    expect(restored.v5?.timeSync?.timing).toEqual(p.start.timing);
+    expect(request.mock.calls[0]![0]).toBe('/api/v1/minigames/sessions/901?includeSource=true&includeProgress=true');
+    expect(request.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
+  });
+  it('retains the v5 active session and refuses a corrupted recovery prefix', async () => {
+    const lobby = { rulesVersion: 'v5', todayEarned: 0, dailyCap: 500, isFirstGame: false, seenTips: [], activeSessionId: '901' };
+    await expect(createBungeoppangV5Service(vi.fn().mockResolvedValue(lobby)).getStatus()).resolves.toMatchObject({ activeSessionId: '901' });
+    const p = await responses();
+    const bad = { ...p.start, ...p.session, checkpoint: { ...p.start.checkpoint, prefixHash: '0'.repeat(64) } };
+    await expect(createBungeoppangV5Service(vi.fn().mockResolvedValue(bad)).resumeGame!('901')).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
   it('uses server pause revisions and accepts only uniformly shifted timing after pause and resume',async()=>{
     const p=await responses();
     let paused=false,revision=0,offset=0;

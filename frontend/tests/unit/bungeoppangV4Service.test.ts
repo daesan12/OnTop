@@ -115,6 +115,34 @@ describe('Bungeoppang v4 production REST adapter', () => {
     expect(recovery.grill).toMatchObject({ score: 20, orderIndex: 1, order: nextOrder, log: { length: 9 } });
   });
 
+  it('restores an already delivered round in a fresh adapter using only existing GET endpoints', async () => {
+    const acceptedLog = localLog.map((entry, index) => ({ seq: index + 1, action: entry.action, t: entry.t,
+      ...(['POUR', 'FILL', 'TURN', 'DISCARD'].includes(entry.action) ? { slot: entry.slot } : {}),
+      ...(entry.action === 'FILL' ? { filling: 'filling' in entry ? entry.filling : 'bean' } : {}),
+      ...(entry.action === 'DELIVER' ? { orderId: '1', deliveryKey: 'delivery-901-1' } : {}) }));
+    const source = { ...start, ...startedSession, serverNow: '2026-10-27T00:00:35.000Z',
+      checkpoint: acceptedCheckpoint, acceptedLog, issuedOrders: [firstOrder, nextOrder] };
+    const request = vi.fn().mockResolvedValue(source);
+    const restored = await createBungeoppangV4Service(request).resumeGame!('901');
+    expect(restored.v4?.grill).toMatchObject({ score: 20, made: 2, order: nextOrder, log: { length: 9 } });
+    expect(restored.v4?.timeSync).toMatchObject({ timing, sample: { serverNowMs: Date.parse(source.serverNow) } });
+    expect(request.mock.calls[0]![0]).toBe('/api/v1/minigames/sessions/901?includeSource=true&includeProgress=true');
+    expect(request.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
+  });
+
+  it('retains the active session id and rejects malformed ids without treating them as no active round', async () => {
+    const lobby = { rulesVersion: 'v4', todayEarned: 0, dailyCap: 500, isFirstGame: false, seenTips: [], activeSessionId: '901' };
+    await expect(createBungeoppangV4Service(vi.fn().mockResolvedValue(lobby)).getStatus()).resolves.toMatchObject({ activeSessionId: '901' });
+    await expect(createBungeoppangV4Service(vi.fn().mockResolvedValue({ ...lobby, activeSessionId: '../901' })).getStatus())
+      .rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+
+  it('does not restart or complete an expired source during reload recovery', async () => {
+    const request = vi.fn().mockResolvedValue({ minigameSessionId: '901', status: 'INVALID' });
+    await expect(createBungeoppangV4Service(request).resumeGame!('901')).rejects.toMatchObject({ code: 'GAME_NOT_ACTIVE' });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it('freezes the final idempotency key and sends the canonical full log contract', async () => {
     const request = vi.fn().mockResolvedValueOnce(start).mockResolvedValueOnce(startedSession).mockResolvedValueOnce(completed);
     const service = createBungeoppangV4Service(request);
