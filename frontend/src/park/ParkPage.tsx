@@ -37,6 +37,7 @@ import { ChannelMenu } from '../features/parkMenus/ChannelMenu'
 import { ChannelEntryGate } from '../features/parkMenus/ChannelEntryGate'
 import { AccountMenu } from '../features/parkMenus/AccountMenu'
 import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
+import { useWalletSync } from '../features/wallet/useWalletSync'
 import { LocationChip } from '../features/parkMenus/LocationChip'
 import { JumpmapHud } from '../features/jumpmap/JumpmapHud'
 import { useJumpmapController } from '../features/jumpmap/useJumpmapController'
@@ -87,6 +88,7 @@ export function ParkPage(props: ParkProps) {
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
 function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: ParkProps) {
+  useWalletSync()
   useJumpmapController()
   const gameplayActive = useParkGameplayActive()
   useParkOperationGate(gameplayActive, onOperationBlocked)
@@ -134,9 +136,9 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
           <div className="park-dock-settings"><SettingsLauncher /></div>
           <div className="park-dock-wardrobe"><WardrobeLauncher /></div>
         </div>}
-        <div hidden={omokFocus} inert={bungeoppang || omokFocus}>
+        {!omokFocus && <div inert={bungeoppang}>
           <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
-        </div>
+        </div>}
 
         <div className="park-chat-layer" hidden={bungeoppang} inert={bungeoppang}>
           {omokChat ? <SpectatorChat /> : !omokFocus && <ParkChat key={`${session.sessionId}:${session.roomId}`} />}

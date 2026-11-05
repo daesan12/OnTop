@@ -7,6 +7,14 @@ const owned = { userItemId: 11, item, quantity: 1, equipped: true }
 const attempt = { key: 'same-purchase-key', itemId: 1, quantity: 1, name: item.name }
 const receipt = { purchaseId: 'test-receipt', itemId: 1, quantity: 1, unitPrice: 10, totalPrice: 10, balanceAfter: 90, userItemId: 11 }
 describe('existing shop REST contract', () => {
+  it.each([
+    { balance: '100', reservedBalance: 0, availableBalance: 100 },
+    { balance: 100, reservedBalance: 101, availableBalance: -1 },
+    { balance: Number.MAX_SAFE_INTEGER + 1, reservedBalance: 0, availableBalance: Number.MAX_SAFE_INTEGER + 1 },
+    { balance: 100, reservedBalance: 30, availableBalance: 100 },
+  ])('상점·옷장 공통 지갑 조회도 잘못된 잔액을 거절한다: %j', async value => {
+    await expect(createShopService(vi.fn().mockResolvedValue(value)).wallet()).rejects.toMatchObject({ code: 'INVALID_RESPONSE' })
+  })
   it('uses only the four specified methods/payloads and reads a fresh wallet separately', async () => {
     const request = vi.fn().mockResolvedValueOnce({ items: [item] }).mockResolvedValueOnce(receipt)
       .mockResolvedValueOnce({ items: [owned] }).mockResolvedValueOnce({ equipment: [owned] })

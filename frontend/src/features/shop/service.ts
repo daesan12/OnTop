@@ -2,6 +2,7 @@ import { record, integer } from '../../network/protocol'
 import { isEquipSlot } from '../../network/equipment'
 import { RestError } from '../../network/restError'
 import type { OwnedItem, PurchaseAttempt, ShopItem, ShopService } from './contracts'
+import { walletSnapshot } from '../wallet/balance'
 
 const positive = (value: unknown): value is number => integer(value) && value > 0
 const text = (value: unknown): value is string => typeof value === 'string' && !!value.trim()
@@ -103,9 +104,7 @@ export function createShopService(requestJSON: (path: string, init?: RequestInit
     },
     async wallet(signal) {
       const p = await request('/api/v1/wallets/me', { signal })
-      if (!record(p) || !integer(p.balance) || !integer(p.reservedBalance) || !integer(p.availableBalance)
-        || p.balance - p.reservedBalance !== p.availableBalance) return invalid()
-      return { balance: p.balance, reservedBalance: p.reservedBalance, availableBalance: p.availableBalance }
+      try { return walletSnapshot(p) } catch { return invalid() }
     },
   }
 }
