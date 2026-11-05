@@ -86,6 +86,7 @@ export class CoopClient {
       return
     }
     try {
+      const requestedGame = this.snapshot?.gameId
       const value = await this.transport.requestJSON(`/api/v1/minigames/skewer/coop/rooms?channelId=${encodeURIComponent(scope.channelId)}`) as { mine?: unknown; rooms?: unknown }
       if (this.stopped) return
       if (Array.isArray(value.rooms)) this.store.setState({ rooms: value.rooms.filter((room): room is CoopRoom =>
@@ -97,6 +98,9 @@ export class CoopClient {
         const first = this.snapshot?.registered !== true && mine.registered
         this.install(mine)
         if (first || mine.registered && this.recoveredGame !== mine.gameId) await this.recover()
+      } else if (value.mine === null && requestedGame && this.snapshot?.gameId === requestedGame
+        && !this.store.getState().pending) {
+        this.dismissRoom(requestedGame, '이전 가게가 닫혔거나 보관 시간이 지났어요. 다른 가게를 선택해 주세요.')
       }
       this.store.setState({ connected: true })
     } catch (error) { if (!this.stopped) this.store.setState({ error: '가게에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.' }) }

@@ -19,6 +19,42 @@ function fixture() {
   return { client, request, requestJSON }
 }
 describe('협동 방 탐색과 준비 취소', () => {
+  it('오래 끊겼다가 돌아와 이전 방이 만료되면 목록으로 돌아오고 기권을 전송하지 않는다', async () => {
+    const { client, request, requestJSON } = fixture()
+    client.store.setState({ snapshot: snapshot() })
+    requestJSON.mockResolvedValue({ mine: null, rooms: [] })
+
+    await client.refresh()
+
+    expect(client.snapshot).toBeNull()
+    expect(client.store.getState().lobbyPage).toBe('rooms')
+    expect(client.store.getState().error).toContain('보관 시간이 지났어요')
+    expect(request).not.toHaveBeenCalled()
+  })
+  it('이전 목록 응답이 늦게 와도 새로 들어간 방은 만료 처리하지 않는다', async () => {
+    const { client, requestJSON } = fixture()
+    client.store.setState({ snapshot: snapshot() })
+    let resolve!: (value: unknown) => void
+    requestJSON.mockImplementation(() => new Promise(done => { resolve = done }))
+    const pending = client.refresh()
+    const next = { ...snapshot(), gameId: `${id.slice(0, -1)}2` }
+    client.store.setState({ snapshot: next })
+    resolve({ mine: null, rooms: [] })
+
+    await pending
+
+    expect(client.snapshot?.gameId).toBe(next.gameId)
+    expect(client.store.getState().error).toBe('')
+  })
+  it('입장 처리 중인 빈 목록은 현재 방을 만료시키지 않는다', async () => {
+    const { client, requestJSON } = fixture()
+    client.store.setState({ snapshot: snapshot(), pending: true })
+    requestJSON.mockResolvedValue({ mine: null, rooms: [] })
+
+    await client.refresh()
+
+    expect(client.snapshot?.gameId).toBe(id)
+  })
   it('가게 이름과 비밀번호를 POST 본문으로만 전송한다', async () => {
     const { client, requestJSON } = fixture()
     requestJSON.mockResolvedValue({ ...snapshot(), registered: false })
