@@ -127,15 +127,15 @@
       "outfit": "gat",
       "source": {
         "file": "gat_rawJ.glb",
-        "sha256": "fa323bfa7b6dedd9b4903466af53007b794f208847c6f2e3fb7441bafa782c23",
-        "bytes": 7198764,
+        "sha256": "e15fac9d46b43bae52f6fe31b155c9f11793c92ff829a2383763762e308672a2",
+        "bytes": 6977744,
         "triangles": 74999,
         "generator": "Tripo items on a shared base (user supplied)"
       },
       "runtime": {
         "file": "outfits/gat.glb",
-        "sha256": "1a65db9f3fe31be1aa49f2a9dd112bb46c5f07f6be768f6c73488060c49e8f27",
-        "bytes": 3373000,
+        "sha256": "49c38bc39af20479285cd500888c80bde168a74c0bdecae31351f757412b6404",
+        "bytes": 3232604,
         "triangles": {
           "far": 6000,
           "near": 74999
@@ -148,13 +148,13 @@
         {
           "name": "far-body",
           "triangles": 6000,
-          "vertices": 10001,
-          "pieces": 9
+          "vertices": 10011,
+          "pieces": 10
         },
         {
           "name": "near-body",
           "triangles": 74999,
-          "vertices": 88400,
+          "vertices": 83228,
           "pieces": 15
         }
       ],
