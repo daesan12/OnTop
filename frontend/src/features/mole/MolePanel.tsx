@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { openManual } from '../manual/manualState'
 import { RewardCoinSource } from '../wallet/RewardCoinFlight'
 import { PREVIEW_RULES } from './preview'
-import { KEY_CODES, KEYS, type Hit, type Mole } from './protocol'
-import { comboTenths, MoleScorer } from './scoring'
+import { KEY_CODES, KEYS, POINTS_PER_COIN, type Hit, type Mole } from './protocol'
+import { comboTenths, MoleScorer, STUN_MS } from './scoring'
 import { SevenSegment } from './SevenSegment'
-import { ART, BASE, HOLES, LED_LABELS, LEDS, PHASES, SPRITES } from './stage'
+import { ART, BASE, HOLES, LED_LABELS, LEDS, PHASES, SPRITES, STUN } from './stage'
 import { beginMolePlay, closeMole, finishMole, startMole, useMole } from './store'
 import './mole.css'
 
@@ -17,6 +17,8 @@ const PHASE_LABELS = ['1구간', '2구간', '피버'] as const
 const IMPACT_MS = 360
 const FLINCH_MS = 120
 const SHAKE_MS = 180
+/** 망치 한 번 내리치는 시간. 친 구멍마다 따로 나타났다 사라진다. */
+const SWING_MS = 170
 /** 헬멧에 늘어나는 금. 한 번 칠 때마다 한 줄씩 더 보인다(헬멧 그림 위쪽 영역, 100×60 기준). */
 const CRACKS = ['M50 1 46 12 53 19 47 30 52 40', 'M49 19 37 25 27 22M37 25 33 37', 'M51 30 64 27 74 33M64 27 69 15', 'M47 30 43 44 50 54M27 22 18 31M74 33 83 40'] as const
 const SPARKS = [0, 45, 90, 135, 180, 225, 270, 315] as const
@@ -24,6 +26,7 @@ const SPARKS = [0, 45, 90, 135, 180, 225, 270, 315] as const
 interface Fx { id: number; hole: number; text: string; tone: 'catch' | 'gold' | 'empty' | 'decoy'; at: number }
 /** 부딪힘: hit 두더지 머리 · tap 헬멧 연타 · big 금색/고슴도치(판이 흔들림) · dust 빈 구멍 */
 interface Impact { id: number; hole: number; kind: 'hit' | 'tap' | 'big' | 'dust'; at: number }
+interface Swing { id: number; hole: number; at: number }
 
 export function MolePanel() {
   const open = useMole(s => s.open)
@@ -41,7 +44,9 @@ function MoleScreen() {
   const rules = round?.rules ?? state?.rules ?? PREVIEW_RULES
   const [now, setNow] = useState(() => performance.now())
   const [fx, setFx] = useState<Fx[]>([])
-  const [swing, setSwing] = useState<{ hole: number; at: number } | null>(null)
+  const [swings, setSwings] = useState<Swing[]>([])
+  /** 기절시킨 구멍. 기절하는 동안 그 자리에서 망치가 비틀거린다. */
+  const [dizzyHole, setDizzyHole] = useState<number | null>(null)
   const [impacts, setImpacts] = useState<Impact[]>([])
   const shakeAt = useRef(-Infinity)
   const tapAt = useRef(new Map<number, number>())
@@ -64,7 +69,7 @@ function MoleScreen() {
     hits.current = []
     bonks.current = new Map()
     tapAt.current = new Map()
-    setFx([]); setImpacts([]); setConfirmQuit(false)
+    setFx([]); setImpacts([]); setSwings([]); setDizzyHole(null); setConfirmQuit(false)
   }, [phase, round])
 
   useEffect(() => {
@@ -89,12 +94,15 @@ function MoleScreen() {
     if (at < 0 || at > rules.durationMs) return
     hits.current.push({ hole, at })
     const event = scorer.current.hit(hole, at)
-    setSwing({ hole, at: wall })
+    // 기절했거나 같은 구멍을 너무 빨리 다시 누르면 망치가 나오지 않는다.
+    if (event.type === 'ignored' && (event.reason === 'stunned' || event.reason === 'repeat')) return
+    setSwings(list => [...list.filter(s => wall - s.at < SWING_MS), { id: ++fxSeq.current, hole, at: wall }])
+    if (event.type === 'empty' && event.stunned) setDizzyHole(hole)
     if (event.type === 'catch' || event.type === 'decoy') bonks.current.set(event.mole.id, at)
     const shown: Pick<Fx, 'text' | 'tone'> | null = event.type === 'catch'
       ? { text: `+${event.points}`, tone: event.mole.kind === 'GOLD' ? 'gold' : 'catch' }
       : event.type === 'decoy' ? { text: `아야! −${rules.decoyPenalty}`, tone: 'decoy' }
-      : event.type === 'empty' && event.comboBroken ? { text: '헛!', tone: 'empty' } : null
+      : event.type === 'empty' ? { text: event.stunned ? `헛손질! ${STUN_MS / 1000}초` : '헛!', tone: 'empty' } : null
     if (shown) setFx(list => [...list.filter(f => wall - f.at < FX_MS), { id: ++fxSeq.current, hole, at: wall, ...shown }])
     if (event.type === 'tap') tapAt.current.set(event.mole.id, wall)
     const kind: Impact['kind'] | null = event.type === 'decoy' || (event.type === 'catch' && event.mole.kind === 'GOLD') ? 'big'
@@ -138,6 +146,7 @@ function MoleScreen() {
   const remaining = playing ? rules.durationMs - elapsed : phase === 'submitting' || phase === 'result' ? 0 : rules.durationMs
   const countdown = phase === 'countdown' ? Math.max(1, Math.ceil((COUNTDOWN_MS - (now - clock.current.countdownAt)) / 1000)) : 0
   const todayEarned = state?.todayEarned ?? 0, dailyCap = state?.dailyCap ?? 500
+  const stunLeft = live && playing ? Math.max(0, live.stunUntil - elapsed) : 0
 
   const taps = (mole: Mole) => live?.tapsOf(mole.id) ?? 0
   const holeView = (hole: number) => {
@@ -152,7 +161,7 @@ function MoleScreen() {
   return <div ref={root} className="mole-root" role="dialog" aria-modal="true" aria-labelledby="mole-title" tabIndex={-1}
     data-phase={phase} data-fever={phaseIndex === 2 || undefined} style={{ '--mole-cabinet': `url(${ART.cabinet})` } as CSSProperties}>
     <div className="mole-backdrop" aria-hidden="true" />
-    <div className="mole-stage" data-shake={now - shakeAt.current < SHAKE_MS || undefined}>
+    <div className="mole-stage" data-shake={now - shakeAt.current < SHAKE_MS || undefined} data-stunned={stunLeft > 0 || undefined}>
       <img className="mole-cabinet-art" src={ART.cabinet} alt="" draggable={false} />
       <h2 id="mole-title" className="mole-sr">두더지 잡기</h2>
       <div className="mole-scoreboard" role="group" aria-label={`점수 ${score} · 남은 시간 ${clockLabel(remaining)} · 콤보 ${combo}`}>
@@ -173,8 +182,7 @@ function MoleScreen() {
       <div className="mole-fever-strip" aria-hidden="true" />
       {HOLES.map((place, hole) => {
         const view = holeView(hole), mole = view.mole
-        const swinging = swing && swing.hole === hole && now - swing.at < 170
-        return <button key={hole} type="button" className="mole-hole" style={place} aria-label={`${KEYS[hole]} 구멍`} data-hole={hole} data-row={hole < 4 ? 0 : 1}
+        return <button key={hole} type="button" className="mole-hole" style={place} aria-label={`${KEYS[hole]} 구멍`} data-hole={hole}
           onPointerDown={event => { event.preventDefault(); strike(hole) }} tabIndex={-1}>
           <img className="mole-hole-back" src={ART.hole} alt="" draggable={false} />
           <span className="mole-slot">
@@ -204,18 +212,30 @@ function MoleScreen() {
             {i.kind !== 'dust' && SPARKS.map(a => <i key={a} style={{ '--a': `${a}deg` } as CSSProperties} />)}
           </span>)}
           <kbd className="mole-keycap">{KEYS[hole]}</kbd>
-          {swinging && <img className="mole-mallet" src={ART.mallet} alt="" draggable={false} />}
           {fx.filter(f => f.hole === hole && now - f.at < FX_MS).map(f =>
             <span key={f.id} className="mole-fx" data-tone={f.tone} aria-hidden="true">{f.text}</span>)}
         </button>
       })}
+      {/* 친 구멍 위에 망치가 나타나 내리치고 사라진다. 구멍 사이를 날아다니지 않는다. */}
+      {swings.filter(s => now - s.at < SWING_MS && !(stunLeft > 0 && s.hole === dizzyHole)).map(s =>
+        <div key={s.id} className="mole-mallet-anchor" style={HOLES[s.hole]} aria-hidden="true">
+          <img className="mole-mallet" src={ART.mallet} alt="" draggable={false} data-swing />
+        </div>)}
+      {/* 기절하면 기절시킨 구멍 위에서 망치가 비틀거린다. */}
+      {stunLeft > 0 && dizzyHole !== null && <div className="mole-mallet-anchor" style={HOLES[dizzyHole]} aria-hidden="true">
+        <img className="mole-mallet" src={ART.mallet} alt="" draggable={false} data-dizzy />
+        <span className="mole-dizzy"><i /><i /><i /></span>
+      </div>}
+      {stunLeft > 0 && <div className="mole-stun" style={STUN} role="status">
+        <b>기절! {(stunLeft / 1000).toFixed(1)}초</b><i style={{ width: `${stunLeft / STUN_MS * 100}%` }} />
+      </div>}
       <footer className="mole-base" style={BASE}>
         {playing || phase === 'countdown'
           ? <p className="mole-base-status">콤보 {combo} · 최고 {live?.maxCombo ?? 0} · 잡은 두더지 {live?.caught ?? 0}</p>
           : <div className="mole-base-status" role="status">
-            <p>윗줄 <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> · 아랫줄 <kbd>U</kbd><kbd>I</kbd><kbd>O</kbd><kbd>P</kbd> 키나 클릭 · 헬멧은 숫자만큼 연타 · 고슴도치는 치지 마세요</p>
+            <p>왼손 <kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> · 오른손 <kbd>J</kbd><kbd>K</kbd><kbd>L</kbd> · 클릭도 돼요 · 헬멧은 숫자만큼 연타 · 고슴도치는 피하기 · 빈 구멍은 2초 기절</p>
             {error ? <p className="mole-error" role="alert">{error}</p>
-              : <p>참가비 없음 · 30점당 1냥 · 오늘 미니게임 {todayEarned}/{dailyCap}냥 · 최고 {state?.bestScore ?? 0}점</p>}
+              : <p>참가비 없음 · {state?.rules.pointsPerCoin ?? POINTS_PER_COIN}점당 1냥 · 오늘 미니게임 {todayEarned}/{dailyCap}냥 · 최고 {state?.bestScore ?? 0}점</p>}
           </div>}
         <button type="button" className="mole-start" disabled={phase !== 'idle' && phase !== 'result'} onClick={() => void startMole()}>
           {phase === 'starting' ? '준비 중…' : phase === 'result' ? '다시 하기' : 'START'}</button>

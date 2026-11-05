@@ -3,6 +3,7 @@ import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { GameArt } from '../manual/GameArt'
 import { openManual } from '../manual/manualState'
 import { moleManual } from '../mole/manual'
+import { POINTS_PER_COIN as MOLE_POINTS_PER_COIN } from '../mole/protocol'
 import { useMole } from '../mole/store'
 import { plusMinusManual } from '../plusMinus/manual'
 import { DAILY_PLAYS as PLUS_MINUS_DAILY, FEE as PLUS_MINUS_FEE } from '../plusMinus/protocol'
@@ -50,7 +51,7 @@ function ArcadeDialog() {
       limitLabel: '오늘 남은 판', limit: plays(plusLeft, plus?.rules.dailyPlays ?? PLUS_MINUS_DAILY), playsLeft: plusLeft,
       inProgress: false },
     { id: 'whack-a-mole', name: moleManual.title, tagline: moleManual.subtitle, summary: moleManual.summary,
-      fee: '무료', prize: '30점당 1냥 · 하루 상한 안에서',
+      fee: '무료', prize: `${mole?.rules.pointsPerCoin ?? MOLE_POINTS_PER_COIN}점당 1냥 · 하루 상한 안에서`,
       limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null,
       inProgress: false },
   ]
