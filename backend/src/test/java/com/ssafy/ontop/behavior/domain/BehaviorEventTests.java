@@ -50,6 +50,14 @@ class BehaviorEventTests {
     }
 
     @Test
+    void 출처를_정하지_않으면_서버_기록으로_본다() {
+        assertThat(BehaviorEvent.builder(BehaviorEventType.CHAT_SENT, AT).build().source())
+                .isEqualTo(BehaviorSource.SERVER);
+        assertThat(BehaviorEvent.builder(BehaviorEventType.PERF_REPORT, AT).source(BehaviorSource.CLIENT).build()
+                .source()).isEqualTo(BehaviorSource.CLIENT);
+    }
+
+    @Test
     void 발생_시각이_없으면_만들지_않는다() {
         assertThatThrownBy(() -> BehaviorEvent.builder(BehaviorEventType.WS_CONNECTED, null).build())
                 .isInstanceOf(NullPointerException.class);

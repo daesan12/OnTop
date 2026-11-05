@@ -110,13 +110,31 @@
 
 ### 클라이언트 (단계 2)
 
-| event_type | 수집 시점 | props |
-| --- | --- | --- |
-| `SCREEN_VIEWED` | `App.tsx`의 `page` 변경 | `screen`(`login`/`onboarding`/`park`) |
-| `ONBOARDING_STEP` | 온보딩 단계 이동·포기 | `step`, `action` |
-| `PERF_REPORT` | 공원 진입 후 1분마다 | `performance/metrics.ts`의 `fps`, `p95`, `slowFrames`, `drawCalls`, `dpr`, `renderer`, 품질 단계 |
+`source=CLIENT`로 저장한다. 클라이언트는 `frontend/src/features/behaviorLog`, 서버 허용 목록은 `ClientBehaviorIntake`(S15P31B105-344).
 
-로그인 전 화면은 회원 ID가 없으므로 단계 2에서 익명 방문 ID를 둘지 함께 정한다.
+| event_type | 수집 시점 | props | 상태 |
+| --- | --- | --- | --- |
+| `PERF_REPORT` | 공원에 있는 동안 1분마다. 그 사이 그린 프레임이 없으면(탭 숨김 등) 보내지 않는다 | `windowSec`, `frames`·`slowFrames`(그 1분 동안 센 수), `fps`·`p95Ms`·`p99Ms`(최근 최대 600프레임 기준), `drawCalls`, `triangles`, `dpr`, `renderMode`, `quality`, `device`(`desktop`/`mobile`), `gpu`(제조사 분류) | 구현 |
+| `ONBOARDING_STEP` | 첫 입장 체험 투어(`features/welcomeTour`) 상태가 바뀔 때 | `flow`(`welcome_tour`), `action`(`start`/`step_done`/`collapse`/`resume`/`abandon`/`finish`), `step`(`flight`/`walk`/`greet`/`map`/`minigame`/`table`), `replay`(설명서의 다시 보기), `doneCount`, `elapsedSec` | 구현 |
+| `SCREEN_VIEWED` | `App.tsx`의 `page` 변경 | `screen`(`login`/`onboarding`/`park`) | 보류 |
+
+- GPU 이름 원문은 기기를 가려낼 수 있어 보내지 않는다. `apple`·`intel`·`nvidia`·`amd`·`adreno`·`mali`·`powervr`·`software`·`other`·`unknown` 중 하나로만 보낸다. 해상도와 User-Agent도 보내지 않는다.
+- 온보딩(닉네임·캐릭터 고르기) 화면은 아직 회원이 아니라 보낼 수 없다. 가입 완료는 서버의 `USER_ONBOARDED`로 본다. `ONBOARDING_STEP`은 가입 뒤 공원의 첫 입장 투어를 다룬다.
+- `SCREEN_VIEWED`는 로그인 전 화면이 회원 ID가 없어 보류한다. 익명 방문 ID를 둘지 팀이 정한 뒤 진행한다.
+- 투어를 마치기 전에 공원을 나가면서 로그아웃하면 그 `abandon`은 보내지 못할 수 있다(보낼 때 로그인 회원이 아니면 큐를 비운다).
+
+**수집 API** `POST /api/v1/behavior-events` (로그인 회원, Bearer)
+
+```json
+{"events":[{"type":"ONBOARDING_STEP","ageMs":1200,"props":{"flow":"welcome_tour","action":"step_done","step":"walk","replay":false,"doneCount":1,"elapsedSec":40}}]}
+```
+
+- 한 번에 1~20건. 묶음 모양이 틀리면 400, 맞으면 202와 `{"accepted":n,"dropped":m}`.
+- 이벤트·속성·값 범위를 허용 목록으로 검사하고 하나라도 벗어난 이벤트는 통째로 버린다(건수만 돌려준다). 모르는 속성도 버린다.
+- 발생 시각은 클라이언트 시계 대신 `ageMs`(몇 ms 전에 일어났는지, 최대 15분)를 서버 시각에서 빼서 정한다. 기기 시계가 틀려도 순서가 맞는다.
+- 회원별 1분에 30건까지만 받는다. 넘친 것은 버린다.
+- `user_id`와 `login_session_id`는 인증 정보에서 서버가 채운다. 클라이언트가 보낸 값은 받지 않는다.
+- 클라이언트는 1분마다 모인 것을 보내고, 탭을 숨기거나 떠날 때 `keepalive`로 보낸다. 401·429·5xx·네트워크 실패면 다음에 다시 보내고, 큐는 60건을 넘으면 오래된 것부터 버린다. 실패는 게임을 막지 않는다.
 
 ## 4. 저장 구조
 
@@ -178,7 +196,7 @@ TableHub / ShopService / Auth 서비스
   → behavior_events
 채널 물리 스레드: 1초마다 움직이는 사용자의 위치를 같은 큐에 넣음
   → world_position_samples
-클라이언트 → POST /api/v1/behavior-events (단계 2, 인증 필요, 묶음 전송)
+클라이언트 → POST /api/v1/behavior-events (인증 필요, 묶음 전송) → ClientBehaviorIntake → 같은 큐
 ```
 
 - 커밋 후에만 의미가 있는 이벤트(로그아웃, 탈퇴, 구매, 장착)는 `@TransactionalEventListener(AFTER_COMMIT)`로 받는다. 저장소에는 `MemberWebSocketConnections.revoked`가 같은 방식을 쓴다.
@@ -216,7 +234,7 @@ TableHub / ShopService / Auth 서비스
 ## 6. 단계
 
 1. **서버 단계 1:** 테이블·Logger·접속·광장·테이블 이벤트·위치 좌표. 첫 분석은 퍼널(로그인 → 첫 경기), 체류 시간, 테이블 대기 시간, 위치 히트맵.
-2. **클라이언트 단계 2:** 수집 API, 화면 전환, 프레임 보고.
+2. **클라이언트 단계 2:** 수집 API, 프레임 보고, 첫 입장 투어 단계(S15P31B105-344). 화면 전환은 익명 방문 ID 결정 뒤.
 3. **정산 단계 3:** 정산 Gateway가 생기면 `GAME_SETTLED`를 연결한다.
 4. **분석:** SQL 기반 지표 쿼리 정리 → 필요하면 대시보드. 쿼리·검증 도구와 실행 방법은 [analytics/README.md](../analytics/README.md)(S15P31B105-178).
 
