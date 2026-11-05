@@ -4,8 +4,8 @@ import { BUNGEOPPANG_V5 as R, BUNGEOPPANG_V5_LEGACY } from './config';
 import { completeResult, createBungeoppangV4Service, prefixHash, toCheckpoint, toRules, toTiming } from './serviceV4';
 import { validateCustomers, type CustomerOrder, type GrillState } from './rulesV5';
 import { BREAD_FILLINGS, type BungeoppangRules, type GrillLogEntry } from './rulesV4';
-import { BungeoppangServiceError, messages, type BungeoppangGame, type BungeoppangService, type BungeoppangSubmit } from './service';
-import {validTimingUpdate,type RoundTiming} from './serverTime';
+import { BungeoppangServiceError, messages, type BungeoppangGame, type BungeoppangService, type BungeoppangSubmit, type BungeoppangTimeSync } from './service';
+import {validTimingUpdate,type RoundTiming,type ServerTimeSample} from './serverTime';
 
 type WireAction = { seq: number; action: GrillLogEntry['action']; t: number; slot?: number;
   filling?: GrillLogEntry['filling']; breadId?: number; orderId?: string; deliveryKey?: string };
@@ -120,11 +120,14 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
       return loadRound(p, false);
     },
     async resumeGame(gameId) {
+      const sentAt = performance.now();
       const p = await request(`${sessionPath(gameId)}?includeSource=true&includeProgress=true`);
+      const receivedAt = performance.now();
       if (!record(p) || p.minigameSessionId !== gameId) return fail();
       if (!['PLAYING', 'COMPLETED'].includes(String(p.status)))
         throw new BungeoppangServiceError('GAME_NOT_ACTIVE', messages.GAME_NOT_ACTIVE!);
-      return loadRound(p, true);
+      if (typeof p.serverNow !== 'string' || !Number.isFinite(Date.parse(p.serverNow))) return fail();
+      return loadRound(p, true, { serverNowMs: Date.parse(p.serverNow), receivedAt, rttMs: receivedAt - sentAt });
     },
     async syncTimeV4(gameId) {
       const s = source(gameId), sent = performance.now(), p = await request(sessionPath(gameId)), receivedAt = performance.now();
@@ -186,7 +189,7 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
     },
     balance: () => createBungeoppangV4Service(requestJSON).balance(),
   };
-  async function loadRound(p: unknown, restoring: boolean): Promise<BungeoppangGame> {
+  async function loadRound(p: unknown, restoring: boolean, sample?: ServerTimeSample): Promise<BungeoppangGame> {
     if (!record(p) || !id(p.minigameSessionId) || p.rulesVersion !== 'v5'
       || (!restoring && p.minigameType !== 'BUNGEOPPANG')
       || !['PLAYING', ...(restoring ? ['COMPLETED'] : [])].includes(String(p.status))
@@ -206,11 +209,16 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
     const accepted = restoring ? p.acceptedLog as WireAction[] : [], heats = p.heats as number[];
     const initial = checkpoint(p.checkpoint, { rules, heats }, localLog(accepted, rules));
     if (restoring && await prefixHash(p.minigameSessionId, p.configVersion, accepted, 'v5') !== initial.hash) return fail();
+    if (restoring && (!sample || (p.status === 'PLAYING' && sample.rttMs > 1000)))
+      throw new BungeoppangServiceError('TIME_SYNC_SLOW', '서버 시간을 다시 확인해 주세요.', true);
+    const result = restoring && p.status === 'COMPLETED' ? completeResult(p.result, p.minigameSessionId, 'v5') : undefined;
     if (!sources.has(p.minigameSessionId)) { sources.clear(); frozen.clear(); }
     sources.set(p.minigameSessionId, { config: p.configVersion, rules, timing, heats: [...heats],
       grill: initial.grill, accepted: structuredClone(accepted), revision: initial.revision });
-    const timeSync = await service.syncTimeV4!(p.minigameSessionId);
-    const current = timeSync.status === 'PLAYING' ? await service.recoverV5!(p.minigameSessionId) : initial;
+    const timeSync: BungeoppangTimeSync = restoring
+      ? { timing, sample: sample!, status: p.status as 'PLAYING' | 'COMPLETED', ...(result ? { result } : {}) }
+      : await service.syncTimeV4!(p.minigameSessionId);
+    const current = !restoring && timeSync.status === 'PLAYING' ? await service.recoverV5!(p.minigameSessionId) : initial;
     return { gameId: p.minigameSessionId, startedAt: p.startedAt, rulesVersion: 'v5', heats: [...heats],
       isFirstGame: p.isFirstGame, v5: { orders: current.grill.activeOrders, rules, grill: current.grill,
         timing: timeSync.timing, timeSync } };

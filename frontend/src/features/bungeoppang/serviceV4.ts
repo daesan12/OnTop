@@ -16,7 +16,7 @@ import {
   type BungeoppangSubmit,
   type BungeoppangTimeSync,
 } from './service';
-import {validTimingUpdate,type RoundTiming} from './serverTime';
+import {validTimingUpdate,type RoundTiming,type ServerTimeSample} from './serverTime';
 
 type RequestJson = (path: string, init?: RequestInit) => Promise<unknown>;
 type WireAction = {
@@ -326,11 +326,14 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       return loadRound(p, false);
     },
     async resumeGame(gameId) {
+      const sentAt = performance.now();
       const p = await request(`${sessionPath(gameId)}?includeSource=true&includeProgress=true`);
+      const receivedAt = performance.now();
       if (!record(p) || p.minigameSessionId !== gameId) return fail();
       if (!['PLAYING', 'COMPLETED'].includes(String(p.status)))
         throw new BungeoppangServiceError('GAME_NOT_ACTIVE', messages.GAME_NOT_ACTIVE!);
-      return loadRound(p, true);
+      if (!instant(p.serverNow)) return fail();
+      return loadRound(p, true, { serverNowMs: Date.parse(p.serverNow), receivedAt, rttMs: receivedAt - sentAt });
     },
     async syncTimeV4(gameId): Promise<BungeoppangTimeSync> {
       const source = sessions.get(gameId);
@@ -389,15 +392,7 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       const p = await request(`${sessionPath(gameId)}?includeProgress=true`);
       if (!record(p) || p.minigameSessionId !== gameId || p.rulesVersion !== 'v4' || p.status !== 'PLAYING'
         || !Array.isArray(p.acceptedLog) || !Array.isArray(p.issuedOrders)) return fail();
-      const checkpoint = toCheckpoint(p.checkpoint);
-      const accepted = p.acceptedLog as WireAction[];
-      if (accepted.length !== checkpoint.throughSeq || !accepted.every((entry, index) => record(entry)
-        && entry.seq === index + 1 && typeof entry.action === 'string' && whole(entry.t))) return fail();
-      const orders = p.issuedOrders.map(toOrder);
-      if (await prefixHash(gameId, source.configVersion, accepted) !== checkpoint.prefixHash) return fail();
-      source.accepted = accepted.map(entry => ({ ...entry })); source.orders = orders;
-      source.checkpoint = checkpoint; source.acceptedLocalCount = accepted.length;
-      return { grill: grillFromCheckpoint(source), checkpoint };
+      return restoreProgress(gameId, source, p);
     },
     async submitResult(input) {
       const source = sessions.get(input.gameId);
@@ -435,7 +430,18 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
       return Number(p.balance);
     },
   };
-  async function loadRound(p: unknown, restoring: boolean): Promise<BungeoppangGame> {
+  async function restoreProgress(gameId: string, source: SessionSource, p: Record<string, unknown>) {
+    if (!Array.isArray(p.acceptedLog) || !Array.isArray(p.issuedOrders)) return fail();
+    const checkpoint = toCheckpoint(p.checkpoint), accepted = p.acceptedLog as WireAction[];
+    if (accepted.length !== checkpoint.throughSeq || !accepted.every((entry, index) => record(entry)
+      && entry.seq === index + 1 && typeof entry.action === 'string' && whole(entry.t))) return fail();
+    const orders = p.issuedOrders.map(toOrder);
+    if (await prefixHash(gameId, source.configVersion, accepted) !== checkpoint.prefixHash) return fail();
+    source.accepted = accepted.map(entry => ({ ...entry })); source.orders = orders;
+    source.checkpoint = checkpoint; source.acceptedLocalCount = accepted.length;
+    return { grill: grillFromCheckpoint(source), checkpoint };
+  }
+  async function loadRound(p: unknown, restoring: boolean, sample?: ServerTimeSample): Promise<BungeoppangGame> {
     if (!record(p) || !id(p.minigameSessionId) || (!restoring && p.minigameType !== 'BUNGEOPPANG')
       || !['PLAYING', ...(restoring ? ['COMPLETED'] : [])].includes(String(p.status))
       || p.rulesVersion !== 'v4' || typeof p.configVersion !== 'string' || !instant(p.startedAt)
@@ -449,10 +455,15 @@ export function createBungeoppangV4Service(requestJSON: RequestJson): Bungeoppan
     if (!order) return fail();
     const source: SessionSource = { configVersion: p.configVersion, rules, heats: [...p.heats] as number[],
       checkpoint, accepted: [], orders: [order], acceptedLocalCount: 0, timing };
+    if (restoring && (!sample || (p.status === 'PLAYING' && sample.rttMs > 1000)))
+      throw new BungeoppangServiceError('TIME_SYNC_SLOW', '연결 지연으로 시간을 확인하지 못했어요. 같은 판의 시간을 다시 확인해 주세요.', true);
+    // Restore one coherent source/progress/time snapshot; a start receipt still needs a fresh GET.
+    const recovered = restoring ? await restoreProgress(p.minigameSessionId, source, p) : null;
+    const result = restoring && p.status === 'COMPLETED' ? completeResult(p.result, p.minigameSessionId) : undefined;
     sessions.set(p.minigameSessionId, source);
-    // A fresh GET supplies status/time; recovering the prefix never POSTs another start.
-    const timeSync = await service.syncTimeV4!(p.minigameSessionId);
-    const recovered = restoring && timeSync.status === 'PLAYING' ? await service.recoverV4!(p.minigameSessionId) : null;
+    const timeSync: BungeoppangTimeSync = restoring
+      ? { timing, sample: sample!, status: p.status as 'PLAYING' | 'COMPLETED', ...(result ? { result } : {}) }
+      : await service.syncTimeV4!(p.minigameSessionId);
     return { gameId: p.minigameSessionId, startedAt: p.startedAt, rulesVersion: 'v4', heats: [...source.heats],
       isFirstGame: p.isFirstGame, v4: { configVersion: source.configVersion, order, rules,
         timing: timeSync.timing, timeSync, checkpoint: recovered?.checkpoint ?? checkpoint,

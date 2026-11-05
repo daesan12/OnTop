@@ -51,7 +51,28 @@ describe('v5 draft REST port, opt-in only', () => {
     expect(restored.v5?.grill?.score).toBe(grill.score);
     expect(restored.v5?.timeSync?.timing).toEqual(p.start.timing);
     expect(request.mock.calls[0]![0]).toBe('/api/v1/minigames/sessions/901?includeSource=true&includeProgress=true');
+    expect(request).toHaveBeenCalledTimes(1);
     expect(request.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
+  });
+  it('uses the first recovery response RTT and server clock without another time/progress GET', async () => {
+    const p = await responses();
+    vi.spyOn(performance, 'now').mockReturnValueOnce(500).mockReturnValueOnce(560);
+    const request = vi.fn().mockResolvedValue(p.start);
+    const restored = await createBungeoppangV5Service(request).resumeGame!('901');
+    expect(restored.v5?.timeSync?.sample).toEqual({ serverNowMs: Date.parse(p.start.serverNow), receivedAt: 560, rttMs: 60 });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it('refuses a slow recovery snapshot and leaves retry explicit', async () => {
+    const p = await responses();
+    vi.spyOn(performance, 'now').mockReturnValueOnce(0).mockReturnValueOnce(1200);
+    const request = vi.fn().mockResolvedValue(p.start);
+    await expect(createBungeoppangV5Service(request).resumeGame!('901')).rejects.toMatchObject({ code: 'TIME_SYNC_SLOW' });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it('rejects a recovery snapshot without a valid server timestamp', async () => {
+    const p = await responses(), request = vi.fn().mockResolvedValue({ ...p.start, serverNow: 'bad' });
+    await expect(createBungeoppangV5Service(request).resumeGame!('901')).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    expect(request).toHaveBeenCalledTimes(1);
   });
   it('retains the v5 active session and refuses a corrupted recovery prefix', async () => {
     const lobby = { rulesVersion: 'v5', todayEarned: 0, dailyCap: 500, isFirstGame: false, seenTips: [], activeSessionId: '901' };

@@ -127,7 +127,40 @@ describe('Bungeoppang v4 production REST adapter', () => {
     expect(restored.v4?.grill).toMatchObject({ score: 20, made: 2, order: nextOrder, log: { length: 9 } });
     expect(restored.v4?.timeSync).toMatchObject({ timing, sample: { serverNowMs: Date.parse(source.serverNow) } });
     expect(request.mock.calls[0]![0]).toBe('/api/v1/minigames/sessions/901?includeSource=true&includeProgress=true');
+    expect(request).toHaveBeenCalledTimes(1);
     expect(request.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
+  });
+
+  it('anchors a single recovery response to its own request RTT, not the PC clock', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(0);
+    vi.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValueOnce(180);
+    const source = { ...start, ...startedSession, acceptedLog: [], issuedOrders: [firstOrder] };
+    const request = vi.fn().mockResolvedValue(source);
+    const restored = await createBungeoppangV4Service(request).resumeGame!('901');
+    expect(restored.v4?.timeSync?.sample).toEqual({ serverNowMs: Date.parse(source.serverNow), receivedAt: 180, rttMs: 80 });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a slow recovery snapshot without another request or extending its deadline', async () => {
+    vi.spyOn(performance, 'now').mockReturnValueOnce(0).mockReturnValueOnce(1200);
+    const request = vi.fn().mockResolvedValue({ ...start, ...startedSession, acceptedLog: [], issuedOrders: [firstOrder] });
+    await expect(createBungeoppangV4Service(request).resumeGame!('901')).rejects.toMatchObject({ code: 'TIME_SYNC_SLOW' });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects corrupted initial progress instead of relying on another GET to repair it', async () => {
+    const request = vi.fn().mockResolvedValue({ ...start, ...startedSession, acceptedLog: [], issuedOrders: [firstOrder],
+      checkpoint: { ...start.checkpoint, prefixHash: '0'.repeat(64) } });
+    await expect(createBungeoppangV4Service(request).resumeGame!('901')).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores an already completed result from the same recovery snapshot', async () => {
+    const request = vi.fn().mockResolvedValue({ ...start, ...startedSession, status: 'COMPLETED',
+      result: completed, acceptedLog: [], issuedOrders: [firstOrder] });
+    const restored = await createBungeoppangV4Service(request).resumeGame!('901');
+    expect(restored.v4?.timeSync).toMatchObject({ status: 'COMPLETED', result: { coinsGranted: 0 } });
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   it('retains the active session id and rejects malformed ids without treating them as no active round', async () => {

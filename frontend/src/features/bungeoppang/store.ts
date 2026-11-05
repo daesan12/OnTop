@@ -89,6 +89,7 @@ interface BungState {
   statusError: string | null;
   starting: boolean;
   recovering: boolean;
+  recoveryDeferred: boolean;
   startError: string | null;
   confirmExit: boolean;
   helpOpen: boolean;
@@ -126,6 +127,7 @@ const initial = (): Omit<BungState, "phase" | "status" | "seenTips"> => ({
   statusError: null,
   starting: false,
   recovering: false,
+  recoveryDeferred: false,
   startError: null,
   confirmExit: false,
   helpOpen: false,
@@ -335,7 +337,7 @@ export function leaveBungeoppang() {
 }
 /** 연결이 끊기는 등 화면을 바로 정리해야 할 때. */
 export function resetBungeoppang() {
-  if (get().phase === 'idle' && !view.active && !view.returningUntil) return;
+  if (get().phase === 'idle' && !get().recoveryDeferred && !view.active && !view.returningUntil) return;
   ++visit;
   resetCustomerArrivalsV5();
   clearTimeout(transitionTimer);
@@ -364,7 +366,11 @@ export function watchBungeoppangRecovery() {
     if (s.status !== 'connected' || s.sessionId !== old.sessionId || s.roomId !== old.roomId) {
       resetBungeoppang(); attempted = false;
     }
-    if (s.activities[s.sessionId] !== 'BUNGEOPPANG') { attempted = false; return; }
+    if (s.activities[s.sessionId] !== 'BUNGEOPPANG') {
+      attempted = false;
+      if (get().recoveryDeferred) resetBungeoppang();
+      return;
+    }
     if (!attempted && s.status === 'connected' && s.mapCompatible && !s.pending && s.roomId && get().phase === 'idle') {
       // One automatic attempt per admitted activity; errors wait for the visible retry action.
       attempted = true; void restoreBungeoppang();
@@ -381,7 +387,7 @@ export async function restoreBungeoppang() {
     || !['idle', 'entering', 'start'].includes(state.phase) || (!state.recovering && !!state.gameId)
     || session.status !== 'connected' || !session.mapCompatible || !session.roomId || session.pending
     || (!state.recovering && !state.status?.activeSessionId && session.activities[session.sessionId] !== 'BUNGEOPPANG')) return;
-  if (!state.recovering) {
+  if (!state.recovering || state.recoveryDeferred) {
     ++visit;
     rememberRoamingView(session.sessionId, session.roomId);
     resetCustomerArrivalsV5();
@@ -414,6 +420,14 @@ export async function restoreBungeoppang() {
         submitError: { retryable: false, message: '이미 종료되거나 만료된 판이에요. 공원으로 돌아가거나 새 판을 시작해 주세요.' } });
     } else set({ starting: false, startError: error instanceof Error ? error.message : '진행 중인 판을 복구하지 못했어요. 다시 확인해 주세요.' });
   }
+}
+
+/** Dismiss only the failed lookup UI; an unidentified server round is never implicitly abandoned. */
+export function dismissBungeoppangRecovery() {
+  const s = get();
+  if (!s.recovering || s.starting || s.abandonPending || s.gameId) return;
+  leaveBungeoppang();
+  set({ recovering: true, recoveryDeferred: true, startError: s.startError });
 }
 
 // ---------- 판 시작 ----------
@@ -492,6 +506,7 @@ function applyBungeoppangGame(game: BungeoppangGame, currentVisit: number) {
       manualPausePending:false,
       manualPauseError:null,
       recovering: false,
+      recoveryDeferred: false,
       grill: game.v5 ? game.v5.grill ?? v5.createGrill(game.heats, game.v5.orders, game.v5.rules)
         : game.v4 ? game.v4.grill ?? v4.createGrill(game.heats, game.v4.order, game.v4.rules) : createGrill(game.heats, R),
       rules: Object.freeze({ ...roundRules }),
@@ -858,7 +873,13 @@ export function escapeBungeoppang() {
   const s = get();
   if (s.abandonPending) return;
   if (s.helpOpen) { setBungeoppangHelp(false); return; }
-  if (s.recovering) { if (!s.starting && s.gameId) set({ confirmExit: !s.confirmExit }); return; }
+  if (s.recovering) {
+    if (!s.starting) {
+      if (s.gameId) set({ confirmExit: !s.confirmExit });
+      else dismissBungeoppangRecovery();
+    }
+    return;
+  }
   if (s.phase === 'result' && !s.result && s.submitError?.retryable !== false) {
     set({ confirmExit: !s.confirmExit }); return;
   }

@@ -5,7 +5,7 @@ vi.mock('../../src/features/bungeoppang/service', async original => ({
     submitResult: vi.fn(), abandon: vi.fn(), balance: vi.fn(), nextOrder: vi.fn() },
 }))
 import { bungeoppangService as service, BungeoppangServiceError, type BungeoppangGame } from '../../src/features/bungeoppang/service'
-import { restoreBungeoppang, watchBungeoppangRecovery, resetBungeoppang, useBungeoppang, escapeBungeoppang, quitBungeoppang } from '../../src/features/bungeoppang/store'
+import { restoreBungeoppang, watchBungeoppangRecovery, resetBungeoppang, useBungeoppang, escapeBungeoppang, quitBungeoppang, dismissBungeoppangRecovery } from '../../src/features/bungeoppang/store'
 import { useSession } from '../../src/network/worldClient'
 import { inputState } from '../../src/world/inputOwnership'
 import { bungeoppangClock as clock, bungeoppangView as view } from '../../src/features/bungeoppang/bungeoppangView'
@@ -105,4 +105,45 @@ it('shows a terminal explanation instead of retrying or creating another round',
   expect(useBungeoppang.getState()).toMatchObject({ phase: 'result', recovering: false, submitError: { retryable: false } })
   escapeBungeoppang(); expect(inputState.minigameOpen).toBe(false)
   expect(service.startGame).not.toHaveBeenCalled(); expect(service.submitResult).not.toHaveBeenCalled()
+})
+
+it('lets an initial lookup failure leave the overlay while preserving an explicit pending recovery', async () => {
+  vi.mocked(service.getStatus).mockRejectedValueOnce(new Error('로비 조회 실패'))
+  const stop = watchBungeoppangRecovery()
+  try {
+    await vi.advanceTimersByTimeAsync(0)
+    expect(useBungeoppang.getState()).toMatchObject({ phase: 'start', gameId: '', starting: false })
+    escapeBungeoppang()
+    expect(useBungeoppang.getState()).toMatchObject({ phase: 'idle', recovering: true, recoveryDeferred: true })
+    expect(inputState.minigameOpen).toBe(false); expect(view.active).toBe(false)
+    expect(useSession.getState().activities['101']).toBe('BUNGEOPPANG')
+    for (let i = 0; i < 30; i++) useSession.setState({ playerCount: i })
+    expect(service.getStatus).toHaveBeenCalledTimes(1)
+    expect(service.abandon).not.toHaveBeenCalled()
+    await restoreBungeoppang()
+    expect(useBungeoppang.getState()).toMatchObject({ phase: 'play', recoveryDeferred: false })
+    expect(view.active).toBe(true); expect(inputState.minigameOpen).toBe(true)
+  } finally { stop() }
+})
+
+it('clears a dismissed recovery notice when the server activity ends', async () => {
+  vi.mocked(service.getStatus).mockRejectedValueOnce(new Error('로비 조회 실패'))
+  const stop = watchBungeoppangRecovery()
+  try {
+    await vi.advanceTimersByTimeAsync(0); dismissBungeoppangRecovery()
+    view.returningUntil = 0 // The camera easing can finish before the server activity expires.
+    useSession.setState({ activities: {} })
+    expect(useBungeoppang.getState()).toMatchObject({ phase: 'idle', recoveryDeferred: false, recovering: false })
+    expect(service.abandon).not.toHaveBeenCalled()
+  } finally { stop() }
+})
+
+it('does not dismiss an in-flight lookup or a known round without its abandon ACK', async () => {
+  let resolve!: (value: typeof status) => void
+  vi.mocked(service.getStatus).mockReturnValueOnce(new Promise(r => { resolve = r }))
+  const pending = restoreBungeoppang()
+  escapeBungeoppang(); dismissBungeoppangRecovery()
+  expect(useBungeoppang.getState()).toMatchObject({ phase: 'start', starting: true, recoveryDeferred: false })
+  resolve(status); await pending
+  expect(useBungeoppang.getState().phase).toBe('play')
 })
