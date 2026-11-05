@@ -7,6 +7,7 @@
 - 최초 구현 통합 기준: `origin/dev@211c4f16340af6c5dd127ffb3372d7815b90e4b1`.
 - 리뷰 수정 기준: `origin/dev@2e336bc3405de8d139b284fcd14526eccb6dad7a`. 기존 공유 브랜치 이력을 보존하는 merge로 반영했으며 충돌은 없었다.
 - 2026-11-06 원격 동기화 기준: `origin/dev@4f1b02f98cee6e0cb12623589fcd1701086b67b8`. 공유 브랜치의 기존 커밋을 보존한 merge이며 텍스트 충돌은 없었다. `WorldChannelRegistry`, runtime, `avatarMotion` 자동 병합 결과에서 기존 운반 기능과 최신 스피드 두더지 경로·스킨·착석 보정을 함께 확인했다.
+- 2026-11-06 재리뷰 기준: `origin/dev@ad7ec4bd17fd18d7f8fb8cf8f2ec7ee29db34a7c`. 기존 MR !379의 기록과 원래 브랜치는 보존하고 `feat/avatar-carry-throw-review`에서 최신 dev를 merge했다. 텍스트 충돌은 없었으며 `WorldPhysics`의 이동 경로별 점프 검증과 `worldClient`의 지갑 필드를 함께 유지했다.
 - 최신 생성 맵: `c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07`.
 - 검수 서버: `node node_modules/vite/bin/vite.js --mode park-integration --host 127.0.0.1 --port 5296 --strictPort`.
 - 다른 작업 폴더·미커밋 코드·맵 원본은 수정하지 않는다. 새 DB migration과 에셋·패키지 추가는 없다.
@@ -95,3 +96,7 @@ node node_modules/@playwright/test/cli.js test --config playwright.carry.config.
 2026-11-06 최신 dev 통합(`4f1b02f9`) 재검증: 프런트 전체 2,408개 통과·기존 조건부 6개 제외, 소스·테스트 타입 검사 통과, 서버 관련 97개 통과. 서버 범위는 기존 운반·시설·이동·따라가기·낙하 복구·활동 제한과 새 스피드 두더지 규칙·서비스다. 최신 생성 맵 빌드와 Edge의 E 들기→던지기·Esc·채팅 입력 보호 및 1440×900/900×540 검수가 통과했다. 원격에 이미 존재하는 V151·V152는 원문 그대로 가져왔으며 신규 migration을 만들거나 DB에 적용하지 않았다.
 
 공통 변경은 `TableProtocol`, `TableHub`, `WorldChannelRegistry`, `WorldPhysics`, `WorldEmoteService`, FE `protocol/worldClient`, runtime 포트, E/Esc 입력, 공통 상호작용 선택·안내, 캐릭터 모션·표시 연결이다. 게임별 내부 엔진·맵 배치·카메라 수식·인증·지갑 구현은 변경하지 않는다.
+
+재리뷰 준비 중 `WorldCarryFlowTests`의 관전 상태 직접 주입이 실제 월드 틱의 관전 목록 동기화로 지워지는 경합을 확인했다. 관전 거절 검증은 최신 생성 맵의 실제 테이블과 거리 권한, `GAME_WATCH`/`GAME_UNWATCH`와 공개 상태 gateway 대역을 사용하는 실제 소켓 구독 경로로 보완했다. 운영 코드와 거리 권한 판정은 변경하지 않았다.
+
+재리뷰 프런트 검증(`ad7ec4bd` 통합): 전체 2,436개 통과·조건부 8개 제외, 소스·테스트 타입 검사 및 공원 Vite 빌드 통과. Edge에서 E 들기→시선 방향 던지기, Esc, 활동 중 대상 제외, 채팅 입력 보호, 1440×900/900×540 화면 검수가 통과했다. 서버 관전 테스트 보완 후 실제 소켓 10개가 통과했다. 실제 배포 서버·OAuth·DB 연결 및 다중 접속 부하 검증은 이번에도 수행하지 않았다.

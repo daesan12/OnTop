@@ -1,12 +1,16 @@
 package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.game.state.GameStateGateway;
+import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -37,6 +41,7 @@ class WorldCarryFlowTests {
     @LocalServerPort private int port;
     @Autowired private WorldChannelRegistry channels;
     @Autowired private TableHub hub;
+    @Autowired private WorldMapRuntime runtime;
 
     @Test
     void 실제소켓에서_들기_양쪽방송_권한_중복_던지기와_채널격리를_확인한다() throws Exception {
@@ -71,8 +76,13 @@ class WorldCarryFlowTests {
                 switch (activity) {
                     case "GAME" -> channels.boardGames(Map.of(busy.userId, "game"));
                     case "MINIGAME" -> channels.minigameActivity(busy.userId, actorBusy ? 1 : 2, Duration.ofSeconds(60));
-                    case "WATCH" -> channels.gameWatches(Map.of(busy.userId,
-                            new WorldChannelRegistry.GameWatch("game", "table")));
+                    case "WATCH" -> {
+                        var point = runtime.tableLayout("a").getFirst().point();
+                        channels.move(busy.userId, new WorldChannelRegistry.Position(1, point.x(), .8, point.z(), 0));
+                        JsonNode watching = busy.request("GAME_WATCH", Map.of("gameId", "game"));
+                        assertThat(watching.path("type").asText()).as("관전 승인 응답: %s", watching)
+                                .isEqualTo("GAME_STATE");
+                    }
                     case "EMOTE" -> assertThat(busy.request("WORLD_EMOTE_SEND", Map.of("emoteCode", "WAVE"))
                             .path("type").asText()).isEqualTo("WORLD_EMOTE_EVENT");
                     case "FOLLOW" -> assertThat(busy.request("WORLD_FOLLOW_START",
@@ -83,7 +93,10 @@ class WorldCarryFlowTests {
                 assertCode(first.request("WORLD_CARRY_PICKUP", Map.of("targetId", second.userId)),
                         "CARRY_ACTIVITY_CONFLICT");
                 channels.boardGames(Map.of());
-                channels.gameWatches(Map.of());
+                if (activity.equals("WATCH")) {
+                    assertThat(busy.request("GAME_UNWATCH", Map.of()).path("type").asText())
+                            .isEqualTo("GAME_WATCH_LEFT");
+                }
                 channels.minigameActivity(busy.userId, actorBusy ? 1 : 2, Duration.ZERO);
             }
         }
@@ -180,6 +193,16 @@ class WorldCarryFlowTests {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class CarryWorldFixture {
+        // 관전 상태를 직접 주입하면 월드 틱이 지운다. 실제 승인된 구독 경로를 사용한다.
+        @Bean @Primary
+        GameStateGateway carryWatchStates(ObjectMapper mapper, WorldMapRuntime runtime) {
+            return (userId, gameId) -> gameId.equals("game")
+                    ? Optional.of(new GameStateView(userId, gameId, 1, GameStateView.Role.SPECTATOR,
+                            mapper.createObjectNode().put("status", "PLAYING"), mapper.createObjectNode(),
+                            runtime.tableLayout("a").getFirst().tableId()))
+                    : Optional.empty();
+        }
+
         @Bean @Primary
         WorldChannelRegistry carryWorld(WorldChannelProperties properties, WorldMapRuntime runtime) {
             var time = new AtomicLong();
