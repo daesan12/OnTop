@@ -241,6 +241,10 @@ public final class SkewerCoopEngine implements GameEngine {
             if (command.expectedVersion() != match.actionVersion) {
                 throw new Rejected(Rejection.STALE_VERSION);
             }
+            if (Set.of("RESTART_REQUEST", "RESTART_REPLY").contains(command.input().path("type").asText())
+                    && match.players().stream().anyMatch(player -> !connected.test(player, match.channelId))) {
+                throw new Rejected(Rejection.INVALID_ACTION);
+            }
             match.act(command.userId(), command.input(), clock.millis());
             result = new GameActionResult(command.userId(), command.gameId(), command.actionId(), match.version);
             receipts.put(key, new Receipt(command, result));
