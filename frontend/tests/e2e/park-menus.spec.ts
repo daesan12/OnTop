@@ -17,7 +17,7 @@ async function openMenu(page: Page) {
   await expect(menu(page)).toBeVisible()
 }
 /** Later routes win over the shared fixture, so only the profile endpoints are replaced here. */
-async function profileRoutes(page: Page, options: { taken?: string[]; patch?: number; remove?: number } = {}) {
+async function profileRoutes(page: Page, options: { taken?: string[]; inappropriate?: string[]; patch?: number | 'inappropriate'; remove?: number } = {}) {
   const calls: { method: string; path: string; body: unknown }[] = []
   await page.route(/\/api\/v1\/users\/(me|nickname-availability)(\?.*)?$/, async route => {
     const request = route.request(), url = new URL(request.url())
@@ -26,11 +26,15 @@ async function profileRoutes(page: Page, options: { taken?: string[]; patch?: nu
     calls.push({ method: request.method(), path: url.pathname + url.search, body: request.postDataJSON() ?? null })
     if (url.pathname === '/api/v1/users/nickname-availability') {
       const nickname = url.searchParams.get('nickname')!
+      if (options.inappropriate?.includes(nickname))
+        return route.fulfill({ status: 400, json: { code: 'USER_INAPPROPRIATE_NICKNAME', message: 'server message' } })
       return route.fulfill({ json: { nickname, available: !options.taken?.includes(nickname) } })
     }
     if (request.method() === 'PATCH')
       return options.patch === 409
         ? route.fulfill({ status: 409, json: { code: 'USER_NICKNAME_ALREADY_EXISTS', message: 'taken' } })
+        : options.patch === 'inappropriate'
+        ? route.fulfill({ status: 400, json: { code: 'USER_INAPPROPRIATE_NICKNAME', message: 'server message' } })
         : route.fulfill({ json: { userId: 101, nickname: (request.postDataJSON() as { nickname: string }).nickname, characterGender: 'MALE' } })
     if (request.method() === 'DELETE')
       return options.remove === 503
@@ -162,6 +166,25 @@ test('a nickname taken between the check and the save stays in the dialog as a 4
   await dialog.getByRole('button', { name: '중복 확인' }).click()
   await dialog.getByRole('button', { name: '저장', exact: true }).click()
   await expect(dialog).toContainText('이미 사용 중인 닉네임이에요.')
+  await expect(page.locator('.park-account__nickname')).toHaveText('공원 산책자')
+})
+
+test('a forbidden-word nickname shows the same message from the check and the save', async ({ page }) => {
+  await fixture(page); await loaded(page)
+  await profileRoutes(page, { inappropriate: ['부적절1'], patch: 'inappropriate' })
+  await openMenu(page); await menu(page).getByRole('menuitem', { name: /내 정보/ }).click()
+  const dialog = page.getByRole('dialog', { name: '내 정보' })
+  const input = dialog.getByRole('textbox', { name: '닉네임' })
+  await input.fill('부적절1')
+  await dialog.getByRole('button', { name: '중복 확인' }).click()
+  await expect(dialog).toContainText('사용할 수 없는 표현이 포함된 닉네임이에요.')
+  await expect(dialog.getByRole('button', { name: '저장', exact: true })).toBeDisabled()
+  // A save that only the server rejects (for example a direct request) reads the same.
+  await input.fill('부적절2')
+  await dialog.getByRole('button', { name: '중복 확인' }).click()
+  await dialog.getByRole('button', { name: '저장', exact: true }).click()
+  await expect(dialog).toContainText('사용할 수 없는 표현이 포함된 닉네임이에요.')
+  await expect(dialog).not.toContainText('server message')
   await expect(page.locator('.park-account__nickname')).toHaveText('공원 산책자')
 })
 
