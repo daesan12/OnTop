@@ -3,6 +3,18 @@ import { Texture, Vector4, VideoTexture, type Camera, type Material, type Scene,
 const nextTurn = () => new Promise<void>(resolve => setTimeout(resolve, 0))
 interface PreparationView { position: readonly [number, number, number]; target: readonly [number, number, number] }
 
+/** A shared material may compile more than its current LOD/skinning program. */
+export async function waitForScenePrograms(renderer: WebGLRenderer, live: () => boolean) {
+  const context = renderer.getContext()
+  const parallel = context.getExtension('KHR_parallel_shader_compile')
+  if (parallel) {
+    while (live() && renderer.info.programs?.some(program => program.program
+      && !context.getProgramParameter(program.program as WebGLProgram, parallel.COMPLETION_STATUS_KHR))) {
+      await nextTurn()
+    }
+  }
+}
+
 /** Upload active geometry/instance buffers outside the current field of view.
  * A one-pixel scissor keeps the normal output colour space and shader variants,
  * unlike an offscreen render target. Keep the active lighting and camera intact. */
@@ -92,23 +104,13 @@ export async function prepareScene(
   await compiling
   // compileAsync tracks one current program per material. A shared material can
   // also produce instanced/skinned variants; wait for every prepared program.
-  const waitForPrograms = async () => {
-    const context = renderer.getContext()
-    const parallel = context.getExtension('KHR_parallel_shader_compile')
-    if (parallel) {
-      while (live() && renderer.info.programs?.some(program => program.program
-        && !context.getProgramParameter(program.program as WebGLProgram, parallel.COMPLETION_STATUS_KHR))) {
-        await nextTurn()
-      }
-    }
-  }
-  await waitForPrograms()
+  await waitForScenePrograms(renderer, live)
   if (options.warmGeometry && live()) {
     warmSceneGeometry(renderer, scene, camera, options.views)
     // The first draw initializes morph/instance features on late/inactive meshes.
     // Cache their night variants too before the player can reveal them.
     if (options.warmLighting) await compile()
-    await waitForPrograms()
+    await waitForScenePrograms(renderer, live)
     performance.mark('park-scene-buffers-ready')
   }
   performance.mark('park-scene-programs-ready')

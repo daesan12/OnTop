@@ -87,8 +87,16 @@ function Avatar({
   const motion = useMemo(() => createAvatarMotion(model), [model])
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
   const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
+  const gl = useThree(state => state.gl)
+  const scene = useThree(state => state.scene)
+  const camera = useThree(state => state.camera)
   const overlapOpacity = useRef(1)
   const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
+  useEffect(() => {
+    void appearance.prepare(gl, camera, scene).catch(error => {
+      console.error('아바타 반투명 셰이더를 준비하지 못했습니다.', error)
+    })
+  }, [appearance, gl, camera, scene])
   useLayoutEffect(() => {
     rigs.set(id, {
       root: root.current!,
