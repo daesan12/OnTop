@@ -12,13 +12,14 @@ import java.util.SplittableRandom;
  * 화면(frontend/src/features/mole/scoring.ts)은 같은 계산으로 진행 중 점수만 보여 주며 최종 점수는 서버 값이다.
  */
 public final class MoleRules {
-    public static final int RULES_VERSION = 1;
+    /** 2: 빈 구멍 2초 기절·망치 하나·반응 기준 0.06초·구멍 6개 한 줄·더 오래 머무는 두더지·45점당 1냥 (S15P31B105-340). */
+    public static final int RULES_VERSION = 2;
     public static final ZoneId KST = ZoneId.of("Asia/Seoul");
     public static final int DURATION_MS = 90_000;
     public static final int PHASE_MS = 30_000;
-    /** 구멍 순서. 0~3은 윗줄, 4~7은 반 칸 오른쪽으로 밀린 아랫줄이다. */
-    public static final List<String> KEYS = List.of("Q", "W", "E", "R", "U", "I", "O", "P");
-    public static final int POINTS_PER_COIN = 30;
+    /** 구멍 순서. 한 줄 아치로 왼손 Q W E, 오른손 I O P. */
+    public static final List<String> KEYS = List.of("Q", "W", "E", "I", "O", "P");
+    public static final int POINTS_PER_COIN = 45;
     public static final int NORMAL_POINTS = 10;
     public static final int GOLD_POINTS = 30;
     public static final int DECOY_PENALTY = 20;
@@ -27,8 +28,15 @@ public final class MoleRules {
     /** 콤보 배수(×10). 10콤보 ×1.2, 20콤보 ×1.5, 30콤보 ×2. */
     public static final List<Integer> COMBO_STEPS = List.of(10, 20, 30);
     public static final List<Integer> COMBO_TENTHS = List.of(10, 12, 15, 20);
-    /** 출현 직후 이 시간 안의 타격은 사람이 본 뒤 친 것으로 보지 않는다. */
-    public static final int REACTION_FLOOR_MS = 100;
+    /** 출현 직후 이 시간 안의 타격은 사람이 본 뒤 친 것으로 보지 않는다. 올라오는 모션(약 0.17초) 대부분은 잡힌다. */
+    public static final int REACTION_FLOOR_MS = 60;
+    /** 망치는 하나다. 한 번 친 뒤 이 시간 안의 다른 키는 세지 않아 동시 누르기를 막는다. */
+    public static final int MALLET_MS = 80;
+    /** 아무것도 없는 구멍을 치면 이 시간 동안 모든 키를 받지 않는다. */
+    public static final int STUN_MS = 2_000;
+    /** 기절을 봐주는 아슬아슬한 경우: 곧 나올 두더지(앞)와 막 들어간 두더지(뒤). */
+    public static final int EARLY_GRACE_MS = 150;
+    public static final int LATE_GRACE_MS = 250;
     /** 같은 구멍 타격 간격 하한. 이보다 빠른 입력은 연타로 세지 않는다. */
     public static final int SAME_HOLE_MIN_MS = 60;
     /** 두더지를 잡은 직후 같은 구멍 잔타는 빈 곳 타격으로 보지 않는다. */
@@ -43,9 +51,9 @@ public final class MoleRules {
     }
 
     static final List<Phase> PHASES = List.of(
-            new Phase(820, 2, 900, 6, 8, 4, 3),
-            new Phase(590, 3, 750, 8, 10, 7, 4),
-            new Phase(450, 4, 600, 9, 12, 9, 5));
+            new Phase(656, 2, 1_100, 6, 8, 4, 3),
+            new Phase(472, 2, 950, 8, 10, 7, 4),
+            new Phase(360, 3, 800, 9, 12, 9, 5));
 
     public record Mole(int id, int hole, Kind kind, int hits, int appearAt, int leaveAt) {
     }
@@ -101,8 +109,8 @@ public final class MoleRules {
                     : Kind.NORMAL;
             int hits = kind == Kind.RAPID ? 2 + random.nextInt(phase.rapidMax() - 1) : 1;
             int stay = switch (kind) {
-                case GOLD -> phase.stayMs() / 2;
-                case RAPID -> hits * 200 + 500;
+                case GOLD -> phase.stayMs() * 55 / 100;
+                case RAPID -> hits * 220 + 600;
                 default -> phase.stayMs();
             };
             if (at + stay > DURATION_MS) {
@@ -130,6 +138,7 @@ public final class MoleRules {
     /**
      * 타격 기록을 시간 순서로 다시 계산한다. 나와 있는 두더지를 치면 점수와 콤보가 오르고,
      * 빈 구멍이나 치면 안 되는 친구를 치면 콤보가 끊긴다. 두더지가 그냥 도망가는 것은 콤보를 끊지 않는다.
+     * 아무것도 없는 구멍을 치면 2초 기절하고, 망치는 하나라 0.08초 안의 다른 키는 세지 않는다.
      */
     public static Score score(List<Mole> moles, List<Hit> hits) {
         List<Hit> ordered = hits.stream()
@@ -145,12 +154,15 @@ public final class MoleRules {
         int combo = 0;
         int maxCombo = 0;
         int caught = 0;
+        int lastSwing = Integer.MIN_VALUE / 2;
+        int stunUntil = Integer.MIN_VALUE / 2;
         for (Hit hit : ordered) {
             int hole = hit.hole();
             int at = hit.at();
-            if (at - lastHit[hole] < SAME_HOLE_MIN_MS) {
+            if (at < stunUntil || at - lastSwing < MALLET_MS || at - lastHit[hole] < SAME_HOLE_MIN_MS) {
                 continue;
             }
+            lastSwing = at;
             lastHit[hole] = at;
             Mole mole = null;
             for (Mole candidate : moles) {
@@ -164,13 +176,19 @@ public final class MoleRules {
                 continue;
             }
             if (mole == null) {
-                if (at - caughtAt[hole] >= AFTERSHOCK_MS) {
-                    combo = 0;
+                if (at - caughtAt[hole] < AFTERSHOCK_MS || appearsSoon(moles, hole, at)) {
+                    continue;
+                }
+                combo = 0;
+                // 막 들어간 두더지를 늦게 친 것은 콤보만 끊고, 아무것도 없던 구멍은 기절한다.
+                if (!leftRecently(moles, hole, at)) {
+                    stunUntil = at + STUN_MS;
                 }
                 continue;
             }
             if (mole.kind() == Kind.DECOY) {
                 done[mole.id()] = true;
+                caughtAt[hole] = at;
                 score -= DECOY_PENALTY;
                 combo = 0;
                 continue;
@@ -192,5 +210,15 @@ public final class MoleRules {
         }
         int total = Math.max(0, score);
         return new Score(total, maxCombo, caught, coins(total));
+    }
+
+    private static boolean appearsSoon(List<Mole> moles, int hole, int at) {
+        return moles.stream().anyMatch(mole -> mole.hole() == hole && mole.appearAt() > at
+                && mole.appearAt() - at <= EARLY_GRACE_MS);
+    }
+
+    private static boolean leftRecently(List<Mole> moles, int hole, int at) {
+        return moles.stream().anyMatch(mole -> mole.hole() == hole && mole.leaveAt() <= at
+                && at - mole.leaveAt() <= LATE_GRACE_MS);
     }
 }

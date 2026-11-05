@@ -1,25 +1,25 @@
 /* 두더지 잡기 게임기. Gemini로 만든 실사 게임기 그림(assets/cabinet.webp) 위에 구멍·두더지·LED를 얹는다.
    원색·불빛은 이 화면 안에서만 쓴다(FE 컨벤션 2.4 예외, 오락기 게임과 같음). */
-.mole-root{position:fixed;inset:0;z-index:70;display:grid;place-items:center;overflow:hidden;outline:none;background:#08060d;color:#2b1608;font-family:"Malgun Gothic",sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.mole-root{position:fixed;inset:0;z-index:70;display:grid;place-items:center;overflow:hidden;outline:none;background:#bfe3f7;color:#2b1608;font-family:"Malgun Gothic",sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .mole-root *{box-sizing:border-box}
 .mole-root button{font:inherit;cursor:pointer}
 .mole-root button:focus-visible{outline:3px solid #6fc3ff;outline-offset:3px}
 .mole-root img{-webkit-user-drag:none}
 .mole-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-/* 그림 밖 여백은 같은 그림을 흐리게 깔아 오락실이 이어져 보이게 한다. */
-.mole-backdrop{position:absolute;inset:-40px;background:var(--mole-cabinet) center/cover;filter:blur(28px) brightness(.45) saturate(1.2)}
-.mole-stage{position:relative;width:min(100vw,calc(100dvh * 1920 / 1072));aspect-ratio:1920/1072;container-type:size;box-shadow:0 0 120px #000c}
+/* 그림 밖 여백은 같은 그림을 흐리게 깔아 공원이 이어져 보이게 한다. */
+.mole-backdrop{position:absolute;inset:-40px;background:var(--mole-cabinet) center/cover;filter:blur(28px) brightness(.92) saturate(1.1)}
+.mole-stage{position:relative;width:min(100vw,calc(100dvh * 1920 / 1072));aspect-ratio:1920/1072;container-type:size;box-shadow:0 0 80px #0003}
 .mole-cabinet-art{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
 .mole-stage>*{position:absolute}
 .mole-scoreboard{inset:0;pointer-events:none}
 .mole-scoreboard>*{position:absolute}
 /* LED: 그림의 어두운 창 안에 빨간 7세그먼트를 켠다. */
 .mole-led-label{display:grid;place-items:center;font-size:1.05cqw;font-weight:800;letter-spacing:.2em;color:#ffe9c2;text-shadow:0 0 6px #ffb02e66}
-.mole-led{display:flex;align-items:center;justify-content:center;padding:0 3%}
+.mole-led{display:flex;align-items:center;justify-content:center;padding:.5cqw .7cqw}
 .mole-led path.on,.mole-led rect.on,.mole-led circle.on{fill:#ff2a1a;filter:drop-shadow(0 0 .35px #ff5a3a) drop-shadow(0 0 1.2px #ff1a0a)}
 .mole-led path.off,.mole-led circle.off{fill:#ff2a1a12}
 .mole-led-combo{gap:2%}
-.mole-led-combo i{font-style:normal;font-weight:900;font-size:3.2cqw;line-height:1;color:#ff2a1a;text-shadow:0 0 8px #ff1a0a}
+.mole-led-combo i{font-style:normal;font-weight:900;font-size:2.2cqw;line-height:1;color:#ff2a1a;text-shadow:0 0 8px #ff1a0a}
 .mole-led-combo svg{height:100%;max-width:70%}
 .mole-led-combo[data-hot] path.on,.mole-led-combo[data-hot] circle.on{fill:#ffd23f;filter:drop-shadow(0 0 1.2px #ffb02e)}
 .mole-led-combo[data-hot] i{color:#ffd23f;text-shadow:0 0 8px #ffb02e}
@@ -29,9 +29,8 @@
 .mole-phase i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,#ffe066,#ff8a1f)}
 .mole-phase:last-child i{background:linear-gradient(90deg,#ff6a3d,#ff2e63)}
 .mole-phase span{position:relative;display:grid;place-items:center;height:100%;font-size:.8cqw;font-weight:800;color:#fff6dc;text-shadow:0 1px 2px #000}
-.mole-phase[data-current] span{color:#2a1000;text-shadow:none}
-/* 피버: 판 둘레가 붉게 번쩍인다. */
-.mole-fever-strip{left:4.6%;right:4.4%;top:46.6%;bottom:8.6%;clip-path:polygon(16% 0,84% 0,100% 100%,0 100%);opacity:0;pointer-events:none;background:radial-gradient(ellipse at 50% 60%,transparent 60%,#ff2e6366 100%)}
+/* 피버: 판 둘레가 붉게 번쩍인다. 판 모양(뒤가 조금 좁은 사다리꼴)을 따라 자른다. */
+.mole-fever-strip{left:12.8%;right:13%;top:57.4%;bottom:0;clip-path:polygon(18% 0,82% 0,100% 55%,100% 100%,0 100%,0 55%);opacity:0;pointer-events:none;background:radial-gradient(ellipse at 50% 60%,transparent 60%,#ff2e6366 100%)}
 .mole-root[data-fever] .mole-fever-strip{animation:mole-fever .45s steps(1) infinite}
 /* 구멍: 뒤 그림 → 두더지 → 앞 테두리(아래 절반) 순서로 겹쳐 두더지가 구멍 안에서 올라온다. */
 .mole-hole{container-type:inline-size;padding:0;border:0;background:none;-webkit-tap-highlight-color:transparent}
@@ -83,14 +82,26 @@
 /* 실물 키캡 */
 .mole-keycap{position:absolute;z-index:3;left:50%;top:96%;display:grid;place-items:center;min-width:27cqw;height:24cqw;padding:0 5cqw;border:1px solid #c9b48c;border-bottom:3.2cqw solid #a8916a;border-radius:4.5cqw;background:linear-gradient(#fffdf6,#ece0c8);font:800 12cqw/1 ui-monospace,Consolas,monospace;color:#3b2a1a;transform:translateX(-50%) perspective(60cqw) rotateX(16deg);transform-origin:50% 100%;box-shadow:0 2.4cqw 3cqw #0005,inset 0 1px 0 #fff}
 .mole-hole:active .mole-keycap{transform:translate(-50%,1.4cqw) perspective(60cqw) rotateX(16deg);border-bottom-width:1.6cqw}
-.mole-hole[data-row="0"] .mole-keycap{top:93%}
-.mole-mallet{position:absolute;z-index:4;width:76%;right:-6%;top:-74%;transform-origin:20% 30%;animation:mole-swing .17s ease-out;pointer-events:none;filter:drop-shadow(0 2cqw 2cqw #0008)}
+/* 망치는 하나다. 친 구멍으로 날아가(0.06초) 내리치고, 기절하면 그 자리에서 비틀거린다. */
+.mole-mallet-anchor{z-index:5;pointer-events:none;container-type:inline-size;transition:left .06s ease-out,top .06s ease-out}
+.mole-mallet{position:absolute;width:76%;right:-6%;top:-74%;transform-origin:20% 30%;opacity:0;pointer-events:none;filter:drop-shadow(0 2cqw 2cqw #0008)}
+.mole-mallet[data-swing]{opacity:1;animation:mole-swing .17s ease-out}
+.mole-mallet[data-dizzy]{opacity:1;animation:mole-mallet-dizzy .5s ease-in-out infinite alternate;filter:drop-shadow(0 2cqw 2cqw #0008) saturate(.6)}
+.mole-dizzy{position:absolute;right:-4%;top:-96%;width:60%;height:26%;animation:mole-dizzy-spin 1s linear infinite}
+.mole-dizzy i{position:absolute;top:20%;width:24%;aspect-ratio:1;background:#ffe14a;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);filter:drop-shadow(0 0 1cqw #fff27a)}
+.mole-dizzy i:nth-child(1){left:0}.mole-dizzy i:nth-child(2){left:38%;top:0}.mole-dizzy i:nth-child(3){right:0}
+/* 기절하는 동안 키캡은 회색, 판 위쪽 가운데에 남은 시간이 줄어든다. */
+.mole-stage[data-stunned] .mole-keycap{filter:grayscale(1) brightness(.72)}
+.mole-stage[data-stunned] .mole-hole{cursor:not-allowed}
+.mole-stun{z-index:6;display:grid;place-items:center;align-content:center;gap:.4cqw;padding:.4cqw 1cqw;border:.2cqw solid #fff3d6;border-radius:1.2cqw;background:#2a0a14e6;box-shadow:0 0 2cqw #ff2e6388;pointer-events:none;animation:mole-stun-in .18s ease-out}
+.mole-stun b{font-size:1.5cqw;font-weight:900;color:#ffe066;letter-spacing:.04em}
+.mole-stun i{justify-self:start;height:.55cqw;border-radius:999px;background:linear-gradient(90deg,#ff2e63,#ffb02e)}
 .mole-fx{position:absolute;z-index:5;top:-30%;left:50%;font-weight:900;font-size:17cqw;white-space:nowrap;color:#fff;-webkit-text-stroke:1.2cqw #7a1208;paint-order:stroke;text-shadow:0 1.4cqw 0 #7a1208;transform:translateX(-50%);animation:mole-pop .52s ease-out forwards;pointer-events:none}
 .mole-fx[data-tone="gold"]{color:#ffe066;-webkit-text-stroke-color:#7a4a00;text-shadow:0 1.4cqw 0 #7a4a00,0 0 6cqw #fff27a}
 .mole-fx[data-tone="decoy"]{color:#ff6b6b;-webkit-text-stroke-color:#3a0a0a;font-size:13cqw}
 .mole-fx[data-tone="empty"]{color:#e8eef5;-webkit-text-stroke-color:#3a4654;text-shadow:0 1.4cqw 0 #3a4654;font-size:13cqw}
 /* 주황 몸통 위 안내와 START */
-.mole-base{display:flex;align-items:center;justify-content:space-between;gap:2%;padding:0 1%}
+.mole-base{display:flex;align-items:center;justify-content:space-between;gap:2%;padding:0 .6% 0 1.6%;border-radius:999px;background:#6b3510d9;box-shadow:0 .3cqw 1cqw #0004}
 .mole-base-status{min-width:0;margin:0;font-size:1cqw;font-weight:700;line-height:1.5;color:#fff6dc;text-shadow:0 1px 2px #000a}
 .mole-base-status p{margin:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .mole-base kbd{display:inline-block;min-width:1.5cqw;margin:0 .15cqw;padding:0 .3cqw;border:1px solid #b8a27c;border-bottom-width:2px;border-radius:4px;background:#fffaf0;color:#3b2a1a;font:700 .8cqw/1.3 ui-monospace,Consolas,monospace;text-shadow:none}
@@ -132,16 +143,20 @@
 @keyframes mole-flinch{0%{transform:translateY(9%) scale(1.07,.88)}60%{transform:translateY(-2%) scale(.98,1.03)}100%{transform:none}}
 @keyframes mole-count-pop{0%{transform:translateX(-50%) scale(1.6)}100%{transform:translateX(-50%) scale(1)}}
 @keyframes mole-helmet-fly{0%{transform:translateY(16%) rotate(0);opacity:1}100%{transform:translate(48%,-105%) rotate(68deg);opacity:0}}
+@keyframes mole-mallet-dizzy{0%{transform:rotate(-18deg) translateY(6%)}100%{transform:rotate(8deg) translateY(10%)}}
+@keyframes mole-dizzy-spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+@keyframes mole-stun-in{0%{transform:scale(1.3);opacity:0}100%{transform:none;opacity:1}}
 @keyframes mole-fever{0%{opacity:1}50%{opacity:.15}}
 @keyframes mole-shake{0%,100%{transform:translate(0,40%) scale(1.06,.8)}25%{transform:translate(-6%,40%) scale(1.06,.8)}75%{transform:translate(6%,40%) scale(1.06,.8)}}
-@media (prefers-reduced-motion:reduce){.mole-stage[data-shake],.mole-body[data-flinch],.mole-helmet-count{animation:none!important}.mole-impact i,.mole-helmet-fly{display:none}.mole-sprite,.mole-sprite[data-pose="up"]{transition:none}.mole-sprite[data-pose="up"] .mole-body,.mole-stars{animation:none}.mole-root[data-fever] .mole-fever-strip,.mole-mallet,.mole-countdown b,.mole-sprite[data-kind="DECOY"][data-pose="bonk"]{animation:none}.mole-fx{animation-duration:.2s}}
+@media (prefers-reduced-motion:reduce){.mole-mallet-anchor{transition:none}.mole-mallet[data-dizzy],.mole-dizzy,.mole-stun{animation:none}.mole-stage[data-shake],.mole-body[data-flinch],.mole-helmet-count{animation:none!important}.mole-impact i,.mole-helmet-fly{display:none}.mole-sprite,.mole-sprite[data-pose="up"]{transition:none}.mole-sprite[data-pose="up"] .mole-body,.mole-stars{animation:none}.mole-root[data-fever] .mole-fever-strip,.mole-mallet,.mole-countdown b,.mole-sprite[data-kind="DECOY"][data-pose="bonk"]{animation:none}.mole-fx{animation-duration:.2s}}
 /* 설명서 그림 */
 .mole-figure{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:center;font-family:"Malgun Gothic",sans-serif}
-.mole-figure-board{display:flex;flex-direction:column;gap:8px;padding:14px 18px;border:4px solid #fff0c9;border-radius:16px;background:linear-gradient(#67b04a,#3d8a22);box-shadow:0 0 0 4px #e2641a}
-.mole-figure-row{display:grid;grid-template-columns:repeat(4,52px);gap:10px}
-.mole-figure-row[data-row="1"]{margin-left:31px}
-.mole-figure-row[data-row="0"]{margin-right:31px}
-.mole-figure-row span{display:grid;place-items:center;height:36px;border:1px solid #b8a27c;border-bottom:4px solid #9c8662;border-radius:8px;background:linear-gradient(#fffaf0,#e9dcc2);font:800 16px ui-monospace,Consolas,monospace;color:#3b2a1a}
+.mole-figure-board{display:flex;gap:26px;padding:14px 18px;border:4px solid #fff0c9;border-radius:16px;background:linear-gradient(#67b04a,#3d8a22);box-shadow:0 0 0 4px #e2641a}
+.mole-figure-hand{display:grid;grid-template-columns:repeat(3,52px);gap:10px}
+/* 아치: 바깥 구멍이 앞(아래), 가운데 구멍이 뒤(위)에 있다. */
+.mole-figure-hand span:nth-child(2){transform:translateY(-8px)}
+.mole-figure-hand[data-side="0"] span:nth-child(3),.mole-figure-hand[data-side="1"] span:nth-child(1){transform:translateY(-12px)}
+.mole-figure-hand span{display:grid;place-items:center;height:36px;border:1px solid #b8a27c;border-bottom:4px solid #9c8662;border-radius:8px;background:linear-gradient(#fffaf0,#e9dcc2);font:800 16px ui-monospace,Consolas,monospace;color:#3b2a1a}
 .mole-figure-kinds{display:grid;grid-template-columns:repeat(4,minmax(0,92px));gap:10px;margin:0;padding:0;list-style:none}
 .mole-figure-kinds li{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:12px;background:#fff3d6;border:1px solid #e6c78f;font-size:12px;font-weight:700;color:#3b2a1a;text-align:center}
 .mole-figure-kinds img{width:60px;height:64px;object-fit:contain}
