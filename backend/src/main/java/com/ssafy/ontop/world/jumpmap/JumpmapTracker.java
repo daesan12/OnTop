@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -70,6 +71,15 @@ public final class JumpmapTracker {
     }
 
     public List<Signal> observe(String userId, String channelId, Sample sample, long nowMs) {
+        return observe(userId, channelId, sample, nowMs, () -> true);
+    }
+
+    /**
+     * 배출·점검 전부터 진행 중인 판은 끝까지 처리하되, 새 판만 시작하지 않는다.
+     * 착지 알림은 공원 연출이므로 시작 허용 여부와 무관하게 유지한다.
+     */
+    public List<Signal> observe(String userId, String channelId, Sample sample, long nowMs,
+            BooleanSupplier newActivityAllowed) {
         UserState state = users.computeIfAbsent(userId, ignored -> new UserState());
         var signals = new ArrayList<Signal>();
         if (state.run != null && !channelId.equals(state.channelId)) {
@@ -113,7 +123,8 @@ public final class JumpmapTracker {
                 }
                 if (state.run != null) {
                     progress(userId, state, state.run.land(sample.block(), sample.gate(), nowMs), nowMs, signals);
-                } else if (sample.block() == JumpRun.START_BLOCK && !sample.following() && member(userId)) {
+                } else if (sample.block() == JumpRun.START_BLOCK && !sample.following() && member(userId)
+                        && newActivityAllowed.getAsBoolean()) {
                     state.run = new JumpRun(runIds.get(), nowMs,
                             course.stages().stream().map(JumpCourse.Stage::reward).toList(), sample.feet());
                     signals.add(new Started(userId, channelId, state.run.runId(), nowMs));

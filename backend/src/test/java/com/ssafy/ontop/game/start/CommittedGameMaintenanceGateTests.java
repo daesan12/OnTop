@@ -1,7 +1,9 @@
 package com.ssafy.ontop.game.start;
 
 import com.ssafy.ontop.operation.domain.ServiceOperationMode;
+import com.ssafy.ontop.operation.domain.ServiceOperationState;
 import com.ssafy.ontop.operation.repository.InMemoryServiceOperationStateStore;
+import com.ssafy.ontop.operation.repository.ServiceOperationStateStore;
 import com.ssafy.ontop.operation.service.ServiceOperationService;
 import java.time.Clock;
 import java.time.Instant;
@@ -10,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataRetrievalFailureException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -36,6 +39,35 @@ class CommittedGameMaintenanceGateTests {
 
         assertThat(result.outcome()).isEqualTo(GameStartResult.Outcome.REJECTED);
         assertThat(result.code()).isEqualTo("SERVICE_DRAINING");
+        verifyNoInteractions(gateway);
+    }
+
+    @Test
+    void 운영_상태를_읽지_못하면_판돈_예약_전에_새_보드게임을_거절한다() {
+        ServiceOperationStateStore failingStore = new ServiceOperationStateStore() {
+            @Override
+            public ServiceOperationState load() {
+                throw new DataRetrievalFailureException("operation state unavailable");
+            }
+
+            @Override
+            public boolean update(ServiceOperationState state, long expectedVersion) {
+                return false;
+            }
+        };
+        GameStartGateway gateway = mock(GameStartGateway.class);
+        var service = new CommittedGameStartService(gateway, Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                true, false);
+        service.configureOperationGate(new ServiceOperationService(failingStore, Clock.systemUTC()));
+        var command = new GameStartCommand(UUID.randomUUID(), "table-1", 1, "OMOK", List.of(
+                new GameStartCommand.Participant("101", 1),
+                new GameStartCommand.Participant("202", 2)));
+
+        GameStartResult result = service.start(command);
+
+        assertThat(result.outcome()).isEqualTo(GameStartResult.Outcome.REJECTED);
+        assertThat(result.code()).isEqualTo("SERVICE_OPERATION_UNAVAILABLE");
         verifyNoInteractions(gateway);
     }
 }

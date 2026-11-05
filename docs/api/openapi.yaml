@@ -3142,6 +3142,66 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/behavior-events:
+    post:
+      tags:
+      - BEHAVIOR
+      summary: 클라이언트 행동 로그 묶음 전송
+      description: PERF_REPORT·ONBOARDING_STEP만 받는다. 허용하지 않은 이벤트·속성·값은 그 이벤트만 버리고
+        건수로 알려 준다.
+      operationId: collect
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonNode"
+            example:
+              events:
+              - type: ONBOARDING_STEP
+                ageMs: 1200
+                props:
+                  flow: welcome_tour
+                  action: step_done
+                  step: walk
+                  replay: false
+                  doneCount: 1
+        required: true
+      responses:
+        "202":
+          description: 받은 건수와 버린 건수
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BehaviorCollectResult"
+        "400":
+          description: "INVALID_REQUEST: events가 1~20개 배열이 아님"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BehaviorErrorResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/auth/websocket-ticket:
     post:
       tags:
@@ -7460,6 +7520,22 @@ components:
           type: string
           format: date-time
           nullable: true
+    BehaviorCollectResult:
+      type: object
+      properties:
+        accepted:
+          type: integer
+          format: int32
+        dropped:
+          type: integer
+          format: int32
+    BehaviorErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
     Ticket:
       required:
       - expiresIn
