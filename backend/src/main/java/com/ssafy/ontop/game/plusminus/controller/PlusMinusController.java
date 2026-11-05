@@ -5,6 +5,7 @@ import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.game.plusminus.dto.PlusMinusStateResponse;
 import com.ssafy.ontop.game.plusminus.service.PlusMinusException;
 import com.ssafy.ontop.game.plusminus.service.PlusMinusService;
+import com.ssafy.ontop.operation.config.NewActivity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -60,6 +61,7 @@ public class PlusMinusController {
     }
 
     @PostMapping("/rounds")
+    @NewActivity
     @Operation(operationId = "startPlusMinusRound", summary = "더하기 빼기 아케이드 START",
             description = "참가비 30냥과 하루 판 수를 차감하고 세 릴의 칸을 정해 지급까지 한 번에 정산합니다. "
                     + "정지 버튼은 화면 연출이며 결과를 바꾸지 않습니다. "

@@ -7,6 +7,7 @@ import com.ssafy.ontop.game.rpsroulette.dto.RpsRouletteStartRequest;
 import com.ssafy.ontop.game.rpsroulette.dto.RpsRouletteStateResponse;
 import com.ssafy.ontop.game.rpsroulette.service.RpsRouletteException;
 import com.ssafy.ontop.game.rpsroulette.service.RpsRouletteService;
+import com.ssafy.ontop.operation.config.NewActivity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -66,6 +67,7 @@ public class RpsRouletteController {
     }
 
     @PostMapping("/rounds")
+    @NewActivity
     @Operation(operationId = "startRpsRouletteRound", summary = "가위바위보 룰렛 START",
             description = "참가비(10/20/30냥)와 하루 판 수를 차감하고 첫 대결의 기계 손 커밋을 발급합니다. "
                     + "Idempotency-Key를 재사용하면 같은 판을 반환하며 다시 차감하지 않습니다.")
