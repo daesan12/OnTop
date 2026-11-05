@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { ParkAssetLoader } from '../../src/world/art/assetLoader'
 
 /** Actual shipped compressed geometry/skin; omit images for CPU-only Node tests. */
-export async function characterSource(name: 'man' | 'girl') {
+export async function characterSource(name: 'man' | 'girl' | 'skins/ssafy-black-male-v3') {
   const bytes = fs.readFileSync(`public/art/characters/${name}.glb`)
   const jsonLength = bytes.readUInt32LE(12)
   const doc = JSON.parse(bytes.subarray(20, 20 + jsonLength).toString())

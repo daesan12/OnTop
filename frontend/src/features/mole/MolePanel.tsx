@@ -8,6 +8,7 @@ import { SevenSegment } from './SevenSegment'
 import { ART, BASE, HOLES, LED_LABELS, LEDS, PHASES, SPRITES, STUN } from './stage'
 import { beginMolePlay, closeMole, finishMole, startMole, useMole } from './store'
 import './mole.css'
+import { MoleStartGuide } from '../arcade/MoleStartGuide'
 
 const COUNTDOWN_MS = 3000
 const FX_MS = 520
@@ -161,7 +162,7 @@ function MoleScreen() {
   return <div ref={root} className="mole-root" role="dialog" aria-modal="true" aria-labelledby="mole-title" tabIndex={-1}
     data-phase={phase} data-fever={phaseIndex === 2 || undefined} style={{ '--mole-cabinet': `url(${ART.cabinet})` } as CSSProperties}>
     <div className="mole-backdrop" aria-hidden="true" />
-    <div className="mole-stage" data-shake={now - shakeAt.current < SHAKE_MS || undefined} data-stunned={stunLeft > 0 || undefined}>
+    <div className="mole-stage" inert={phase === 'idle'} data-shake={now - shakeAt.current < SHAKE_MS || undefined} data-stunned={stunLeft > 0 || undefined}>
       <img className="mole-cabinet-art" src={ART.cabinet} alt="" draggable={false} />
       <h2 id="mole-title" className="mole-sr">두더지 잡기</h2>
       <div className="mole-scoreboard" role="group" aria-label={`점수 ${score} · 남은 시간 ${clockLabel(remaining)} · 콤보 ${combo}`}>
@@ -243,11 +244,16 @@ function MoleScreen() {
       {phase === 'countdown' && <div className="mole-countdown" aria-live="assertive"><b key={countdown}>{countdown}</b></div>}
     </div>
 
-    <div className="mole-corner">
+    {phase === 'idle' && <MoleStartGuide name="두더지 잡기" headline="튀어나오면, 망치로 쾅!"
+      description={<>다양한 두더지를 잡고 콤보를 이어가요.<br />헬멧 두더지는 연타, 고슴도치는 피해 주세요.</>}
+      seconds={rules.durationMs / 1000} keyGroups={[KEYS.slice(0,3),KEYS.slice(3)]}
+      details={<><p>{rules.pointsPerCoin}점당 1냥 · 오늘 미니게임 {todayEarned}/{dailyCap}냥</p><p>빈 구멍을 치면 2초 기절해요.</p></>}
+      error={error} onStart={() => void startMole()} onClose={closeMole} onManual={() => openManual('whack-a-mole')} />}
+    {phase !== 'idle' && <div className="mole-corner">
       <button type="button" className="mole-ghost" onClick={() => openManual('whack-a-mole')}>설명서</button>
       <button type="button" className="mole-close" aria-label="게임기 닫기" onClick={() => playing ? setConfirmQuit(true) : closeMole()}
         disabled={phase === 'submitting'}>×</button>
-    </div>
+    </div>}
     {phase === 'submitting' && <div className="mole-overlay" role="status"><p>점수를 확인하고 있어요…</p></div>}
     {confirmQuit && playing && <div className="mole-overlay" role="alertdialog" aria-label="그만하기 확인">
       <div className="mole-card"><h3>그만할까요?</h3><p>이번 판은 보상 없이 끝나요.</p>

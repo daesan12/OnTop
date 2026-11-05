@@ -50,6 +50,24 @@ NicknameValidator를 온보딩 요청 DTO와 이 API가 공유한다.
 운영진 사칭 방지를 위해 대소문자와 관계없이 `GM`으로 시작하는 닉네임도 거절한다.
 `게임GM`, `온탑GM`처럼 `GM`이 맨 앞에 없는 닉네임은 기존 형식 규칙에 따라 허용한다.
 
+### 욕설·비속어 금칙어
+
+형식·GM 접두어 검사를 통과한 닉네임에 금칙어 검사를 한다. 걸리면 `USER_INAPPROPRIATE_NICKNAME`(400)이다.
+같은 NicknameValidator를 쓰므로 이 조회·온보딩·닉네임 수정(DTO와 User.changeNickname)에 같은 규칙이 적용된다.
+
+- 목록: `backend/src/main/resources/nickname/forbidden-words.txt`(금칙어),
+  `allowed-words.txt`(금칙어를 품은 정상 단어). 한 줄 한 단어, `#` 주석. 완성형 한글·영문·숫자만 쓴다.
+  파일이 없거나 형식이 틀리면 기동에 실패한다(필터 없이 동작하지 않음). 목록 변경은 MR·재배포로 반영한다.
+- 비교: 영문은 소문자로 바꿔 대소문자를 무시하고, 닉네임 어디에 있어도(부분 문자열) 찾는다.
+- 숫자 삽입 우회: 숫자를 뺀 형태(`시1발` → `시발`)도 함께 검사한다.
+- 예외: 금칙어 등장 위치가 허용 단어(`시발점` 등) 안에 완전히 들어 있을 때만 허용한다.
+  허용 단어 밖에 금칙어가 하나라도 더 있으면(`시발점시발`) 거절한다.
+- 공백·특수문자·자모(초성)·전각 문자를 끼운 우회는 기존 형식 규칙에서 `USER_INVALID_NICKNAME`으로 이미 거절된다.
+- 오탐 방지: 정상 단어를 품는 짧은 표현(`시바`, `새끼`, `미친`, 영문 `ass`·`shit` 등)은 목록에 넣지 않는다.
+  유사 음절·로마자 변형 등 목록에 없는 표현은 거르지 못한다.
+- 응답 메시지는 고정 문구이며 어떤 단어가 걸렸는지, 금칙어 목록은 노출하지 않는다. FE는 목록을 복제하지 않는다.
+- 기존에 저장된 닉네임은 다시 검증하지 않는다. 로그인·조회·표시는 그대로이며, 등록·수정 요청에만 적용된다.
+
 신규 회원은 기존 existsByNickname, 기존 회원은 existsByNicknameAndIdNot으로 조회한다.
 두 쿼리와 UNIQUE 모두 기존 nickname 컬럼의 utf8mb4_0900_as_ci를 사용하므로 대소문자를 무시한다.
 Java의 equalsIgnoreCase나 별도 collation으로 중복 판단을 대체하지 않는다.
@@ -67,6 +85,7 @@ USER-05의 최종 중복 검증/DB UNIQUE/트랜잭션/닉네임 충돌 409 재�
 | --- | --- | --- |
 | 400 | USER_INVALID_NICKNAME | 닉네임 누락/형식 오류 |
 | 400 | USER_RESERVED_NICKNAME | 대소문자와 관계없이 GM으로 시작하는 예약 닉네임 |
+| 400 | USER_INAPPROPRIATE_NICKNAME | 욕설·비속어 금칙어 포함(중복 조회 전에 거절) |
 | 401 | AUTH_AUTHENTICATION_REQUIRED | 인증 헤더 없음 |
 | 401 | AUTH_INVALID_ACCESS_TOKEN | Bearer 형식/중복 헤더/잘못된 Access/다른 용도 |
 | 401 | AUTH_INVALID_ONBOARDING_TOKEN | 온보딩 위조/만료/소비/선점 중 |

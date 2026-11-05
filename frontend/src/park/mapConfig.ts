@@ -3,6 +3,7 @@ export * from '../config'
 import * as base from '../config'
 import { EXPECTED_MAP_VERSION as LEGACY_MAP_VERSION } from '../config/mapVersion'
 import { PARK_LAYOUT as p } from '../map/park'
+import { buildInteractionData } from '../map/park/interactionData'
 import { PARK_MAP_VERSION } from '../map/park/generated/mapVersion'
 import { GENERATED_PARK_ENABLED as generated } from './mapSelection'
 import type { BoxCollider, Vec3 } from '../config/world'
@@ -21,6 +22,12 @@ export const TABLES = generated ? p.DRAFT_TABLES : base.TABLES
 export const BENCHES = generated ? p.data.interactions.benches.map(b => b.position) : base.BENCHES
 export const BENCH_IDS = generated ? p.data.interactions.benches.map(b => b.id) : base.BENCHES.map((_, n) => 'bench-' + n)
 export const BENCH_YAWS = generated ? p.data.interactions.benches.map(b => b.yaw) : base.BENCH_YAWS
+/** Seat contact uses the same per-bench heights as the selected map's geometry and physics. */
+const generatedBenchSites = generated ? buildInteractionData({ definition: p.SETTINGS,
+  pavilions: p.DRAFT_PAVILIONS, towerBenches: p.DRAFT_TOWER_BENCHES, plazaBenches: p.PLAZA_BENCHES,
+  restBenches: p.PLAZA_REST_BENCHES, fitness: p.DRAFT_FITNESS_STATIONS, decks: p.lake.FISHING_DECKS }).benchSites : []
+export const BENCH_SEAT_HEIGHTS: ReadonlyMap<string, number> = generated ? new Map(generatedBenchSites.map(b => [b.id, b.seatHeight]))
+  : new Map(base.BENCHES.map((_, i) => [`bench-${i}`, base.BENCH_PAVILIONS[i] ? 0.56 : 0.58]))
 export const FITNESS_STATIONS = generated ? p.DRAFT_FITNESS_STATIONS : base.FITNESS_STATIONS
 // Diagonal stations need enough clearance to step outside their effective footprint.
 export const FITNESS = generated ? {...base.FITNESS,exitOffset:p.SETTINGS.fitness.exitOffset} : base.FITNESS
