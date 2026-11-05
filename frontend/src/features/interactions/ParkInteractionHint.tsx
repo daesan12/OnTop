@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { useSession } from '../../network/worldClient'
+import { avatars, useSession } from '../../network/worldClient'
+import { parkRuntime } from '../../park/runtime/runtime'
+import { panelOwnsKeys } from '../../world/inputOwnership'
 import { useBenchState } from './benchState'
 import { benchService } from './benchService'
 import { getParkInteraction, interactWithPark, type ParkInteraction } from './parkInteraction'
@@ -21,14 +23,19 @@ export function ParkInteractionHint() {
   const { pending, error } = useBenchState(useShallow(s => ({ pending: s.pending, error: s.error })))
   const fitness = useFitnessState(useShallow(s => ({ pending: s.pending, error: s.error })))
   const telescopePending = useTelescopeState(s => s.pending)
+  const actionPending = useSession(s => s.pending)
   const fitnessRewards = useFacilityState(s => s.options?.fitnessRewardsEnabled === true)
   const joiningTable = useTableLobby(s => !!s.joiningAnchorId)
   const entryNotice = useTableLobby(s => s.entryNotice)
   const omokWatching = useGame(s => s.game?.role === 'SPECTATOR' && !!s.game.omok && !!s.watchedGameId)
   const [target, setTarget] = useState<ParkInteraction | null>(null)
+  const [carry, setCarry] = useState<import('../../network/protocol').CarryState | null>(null)
   useEffect(() => {
     const sample = () => {
+      parkRuntime.setInteractionBusy?.(panelOwnsKeys())
       const next = getParkInteraction()
+      const carrying = avatars.get(useSession.getState().sessionId)?.carry ?? null
+      setCarry(old => old?.carryId === carrying?.carryId && old?.role === carrying?.role ? old : carrying)
       setTarget(old => old?.id === next?.id && old?.label === next?.label && old?.seat === next?.seat && old?.occupied === next?.occupied
         && old?.available === next?.available && old?.occupant === next?.occupant ? old : next)
     }
@@ -36,7 +43,7 @@ export function ParkInteractionHint() {
     const timer = setInterval(sample, 100)
     return () => clearInterval(timer)
   }, [])
-  if (!target && !benchId && !fitnessId && !pending && !fitness.pending && !telescopePending && !joiningTable && !error && !fitness.error) return null
+  if (!target && !carry && !benchId && !fitnessId && !pending && !fitness.pending && !telescopePending && !joiningTable && !error && !fitness.error) return null
   const station = findFitness(fitnessId)
   return <aside className="park-runtime-panel park-interaction" aria-label="가까운 상호작용"
     hidden={omokWatching}
@@ -58,6 +65,12 @@ export function ParkInteractionHint() {
       {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
       {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}
     </button>}
+    {carry?.role === 'CARRIED' && <strong>다른 산책자가 나를 들고 있어요</strong>}
+    {carry?.role === 'THROWN' && <span role="status">날아가는 중 · 착지하면 다시 움직일 수 있어요</span>}
+    {carry && carry.role !== 'THROWN' && <button type="button" aria-keyshortcuts="Escape"
+      disabled={actionPending} onClick={event => {
+        void parkRuntime.releaseAvatar?.(carry.carryId); event.currentTarget.blur()
+      }}><kbd>Esc</kbd> {carry.role === 'CARRIED' ? '내려오기' : '내려놓기'}</button>}
     {target?.kind === 'table' && target.id === entryNotice?.anchorId
       && <span role="status">{entryNotice.text}</span>}
     {joiningTable && <span role="status">자리를 확인하고 있어요…</span>}

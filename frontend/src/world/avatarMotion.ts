@@ -21,7 +21,7 @@ import type { DefeatReaction } from '../game/presentation/defeat'
 type Avatar = Pick<AvatarSnapshot,
   'connected' | 'moving' | 'running' | 'swimming' | 'seatIndex' |
   'benchId' | 'tableId' | 'fitnessId' | 'fitnessStartedAt' |
-  'telescopeId' | 'telescopePitch' | 'emote' | 'emoteAt'
+  'telescopeId' | 'telescopePitch' | 'emote' | 'emoteAt' | 'carry'
 >
 type Rig = ReturnType<typeof createCharacterRig>
 const stations = new Map(FITNESS_STATIONS.map(station => [station.id, station]))
@@ -51,7 +51,7 @@ export function avatarEmoteAge(avatar: Avatar, now: number): number | null {
 }
 
 export function avatarPoseActive(avatar: Avatar, now: number) {
-  return avatar.connected && (avatar.moving || !!avatar.fitnessId || avatar.swimming || avatarEmoteAge(avatar, now) !== null)
+  return avatar.connected && (avatar.moving || !!avatar.carry || !!avatar.fitnessId || avatar.swimming || avatarEmoteAge(avatar, now) !== null)
 }
 
 /** Standing still on the ground plays the authored idle: it never settles, so it is sampled while near. */
@@ -60,14 +60,14 @@ export function avatarPoseAmbient(avatar: Avatar) {
 }
 
 export function avatarPoseKey(a: Avatar) {
-  return `${a.connected}|${a.moving}|${a.running}|${a.tableId}|${a.seatIndex}|${a.benchId}|${a.fitnessId}|${a.fitnessStartedAt}|${a.telescopeId}|${a.telescopePitch}|${a.swimming}|${a.emote}|${a.emoteAt}`
+  return `${a.connected}|${a.moving}|${a.running}|${a.tableId}|${a.seatIndex}|${a.benchId}|${a.fitnessId}|${a.fitnessStartedAt}|${a.telescopeId}|${a.telescopePitch}|${a.swimming}|${a.emote}|${a.emoteAt}|${a.carry?.role ?? ''}`
 }
 
 /** Per-player mutable pose state; no React updates or per-frame vectors. */
 export function createAvatarMotion(model: Rig) {
   const fitness = createFitnessMotion(), gait = createGait()
   const grip = createFitnessGrip(), hipFit = new Vector3(), clip = createClipPose()
-  let phase = 0, swimPhase = 0, move = 0, run = 0
+  let phase = 0, swimPhase = 0, move = 0, run = 0, previousCarry = '', releaseAge = 1
   return {
     apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void) {
       const kind = avatarPoseKind(avatar)
@@ -156,8 +156,27 @@ export function createAvatarMotion(model: Rig) {
       }
       if (reaction && avatar.connected && (kind === 'ground' || seated) && !avatar.moving) sampleDefeatMotion(reaction.kind, now - reaction.at, model)
       if (seated && age === null && !reaction) seatedPose?.(model)
+      const role = avatar.carry?.role ?? ''
+      if (previousCarry === 'CARRIER' && !role) releaseAge = 0
+      previousCarry = role
+      releaseAge += dt
+      if (role === 'CARRIER' || releaseAge < .35) {
+        const reach = role === 'CARRIER' ? 2.65 : 2.65 - Math.sin(releaseAge / .35 * Math.PI / 2) * 1.7
+        set('upperArm_L', reach, 0, -.25)
+        set('upperArm_R', reach, 0, .25)
+        set('lowerArm_L', -.4)
+        set('lowerArm_R', -.4)
+        model.handPose('L', 'cup'); model.handPose('R', 'cup')
+      } else if (role === 'CARRIED' || role === 'THROWN') {
+        figure.rotation.set(role === 'THROWN' ? -.3 : 0, 0, role === 'CARRIED' ? Math.PI / 2 : Math.sin(now / 130) * .12)
+        hipFit.set(0, model.hipHeight, 0).applyEuler(figure.rotation)
+        figure.position.set(-hipFit.x, model.hipHeight - hipFit.y, -hipFit.z)
+        set('upperArm_L', .5, 0, -.9); set('upperArm_R', .5, 0, .9)
+        set('upperLeg_L', -.35); set('upperLeg_R', .3)
+        set('lowerLeg_L', .6); set('lowerLeg_R', .4)
+      }
       model.apply(delta)
-      if (kind === 'ground' || kind === 'telescope') {
+      if (!role && (kind === 'ground' || kind === 'telescope') || role === 'CARRIER') {
         figure.position.y = pavingLift(pose.x, pose.z, pose.y - 0.8) + model.groundShift() + 0.003
       }
     },
