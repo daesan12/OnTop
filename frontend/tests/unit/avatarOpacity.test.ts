@@ -25,7 +25,7 @@ it('keeps the avatar hidden until the camera clears it, then smoothly reveals it
 })
 
 const renderer = () => ({ compileAsync: vi.fn(() => Promise.resolve()),
-  getContext: () => ({ getExtension: () => null }) }) as unknown as WebGLRenderer
+  getContext: () => ({ getExtension: () => null, isContextLost: () => false }) }) as unknown as WebGLRenderer
 
 it('fades all LOD materials without changing a peer that shares the same asset materials', async () => {
   const geometry = new BoxGeometry(), material = new MeshStandardMaterial({ opacity: .8 })
@@ -86,7 +86,7 @@ it('prepares a late avatar before overlap, restores live materials/lights immedi
   expect(clone).toHaveBeenCalledOnce()
   const pending = opacity.prepare(gl, camera, scene)
   expect(opacity.prepare(gl, camera, scene)).toBe(pending)
-  expect(compiled).toEqual([false, false, true])
+  expect(compiled).toEqual([false, true])
   expect(near.material).toBe(material); expect(far.material).toBe(material); expect(lamp.visible).toBe(false)
   opacity.set(.4)
   expect(near.material).toBe(material)
@@ -95,7 +95,7 @@ it('prepares a late avatar before overlap, restores live materials/lights immedi
   expect(near.material.opacity).toBe(.4)
   opacity.set(1); opacity.set(.4)
   expect(clone).toHaveBeenCalledOnce()
-  expect(gl.compileAsync).toHaveBeenCalledTimes(3)
+  expect(gl.compileAsync).toHaveBeenCalledTimes(2)
   opacity.dispose(); material.dispose(); geometry.dispose()
 })
 
@@ -121,6 +121,55 @@ it('does not reattach disposed fade materials when an avatar leaves during prepa
   const pending = opacity.prepare(gl, new PerspectiveCamera(), new Scene())
   opacity.dispose(); release(); await pending
   opacity.set(.4)
+  expect(root.material).toBe(material)
+  material.dispose(); geometry.dispose()
+})
+
+it.each([[true, true], [false, false], [true, false]])('compiles each required light-pool state once and restores a mixed pool: %j', async (first, second) => {
+  const geometry = new BoxGeometry(), material = new MeshStandardMaterial(), root = new Mesh(geometry, material)
+  const scene = new Scene(), lights = [new PointLight(), new PointLight()]
+  lights.forEach((light, index) => { light.visible = index ? second : first; light.userData.warmNightLight = true })
+  scene.add(root, ...lights)
+  const opacity = createAvatarOpacity(root), states: boolean[][] = [], gl = renderer()
+  vi.spyOn(gl, 'compileAsync').mockImplementation(() => { states.push(lights.map(light => light.visible)); return Promise.resolve(root) })
+  await opacity.prepare(gl, new PerspectiveCamera(), scene)
+  expect(states).toEqual(first === second ? [[first, second], [!first, !second]]
+    : [[first, second], [false, false], [true, true]])
+  expect(lights.map(light => light.visible)).toEqual([first, second])
+  opacity.dispose(); material.dispose(); geometry.dispose()
+})
+
+it('reprepares after context restoration and never promotes a cancelled generation to ready', async () => {
+  const geometry = new BoxGeometry(), material = new MeshStandardMaterial(), root = new Mesh(geometry, material)
+  const opacity = createAvatarOpacity(root), gl = renderer(), releases: (() => void)[] = []
+  vi.spyOn(gl, 'compileAsync').mockImplementation(() => new Promise(resolve => releases.push(() => resolve(root))))
+  const old = opacity.prepare(gl, new PerspectiveCamera(), new Scene())
+  opacity.invalidate()
+  const current = opacity.prepare(gl, new PerspectiveCamera(), new Scene())
+  releases[0]!(); await old
+  opacity.set(.4); expect(root.material).toBe(material)
+  releases[1]!(); await current
+  opacity.set(.4); expect(root.material).not.toBe(material)
+  expect(root.material.opacity).toBe(.4)
+  const disposed = vi.spyOn(root.material, 'dispose')
+  opacity.dispose(); opacity.dispose()
+  expect(disposed).toHaveBeenCalledOnce(); expect(root.material).toBe(material)
+  material.dispose(); geometry.dispose()
+})
+
+it('supports setup-cleanup-setup with fresh copies on the same model', async () => {
+  const geometry = new BoxGeometry(), material = new MeshStandardMaterial(), root = new Mesh(geometry, material)
+  const gl = renderer(), camera = new PerspectiveCamera(), scene = new Scene()
+  const first = createAvatarOpacity(root)
+  await first.prepare(gl, camera, scene); first.set(.4)
+  const oldCopy = root.material, oldDisposal = vi.spyOn(oldCopy, 'dispose')
+  first.dispose()
+  expect(root.material).toBe(material)
+  const second = createAvatarOpacity(root)
+  await second.prepare(gl, camera, scene); second.set(.4)
+  expect(root.material).not.toBe(oldCopy); expect(root.material).not.toBe(material)
+  expect(root.material.opacity).toBe(.4); expect(oldDisposal).toHaveBeenCalledOnce()
+  second.dispose()
   expect(root.material).toBe(material)
   material.dispose(); geometry.dispose()
 })

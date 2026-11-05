@@ -6,6 +6,7 @@ export function createAvatarOpacity(root: Object3D) {
   const copies = new Map<Material, Material>()
   let previous = 1
   let ready = false, disposed = false, preparation: Promise<void> | undefined
+  let generation = 0
   function faded(source: Material) {
     let material = copies.get(source)
     if (!material) {
@@ -28,6 +29,8 @@ export function createAvatarOpacity(root: Object3D) {
     prepare(renderer: WebGLRenderer, camera: Camera, scene: Scene) {
       if (preparation) return preparation
       if (disposed) return Promise.resolve()
+      const startedGeneration = generation
+      const live = () => !disposed && generation === startedGeneration
       const lights: { object: Object3D; visible: boolean }[] = []
       scene.traverse(object => {
         if ('isLight' in object && object.userData.warmNightLight) lights.push({ object, visible: object.visible })
@@ -39,8 +42,11 @@ export function createAvatarOpacity(root: Object3D) {
       try {
         for (const surface of surfaces) surface.mesh.material = surface.faded
         compiling.push(renderer.compileAsync(root, camera, scene))
+        // Skip the current uniform state; a mixed pool still needs its own variant.
+        const modes = lights.every(light => light.visible) ? [false]
+          : lights.every(light => !light.visible) ? [true] : [false, true]
         if (lights.length) {
-          for (const visible of [false, true]) {
+          for (const visible of modes) {
             for (const light of lights) light.object.visible = visible
             compiling.push(renderer.compileAsync(root, camera, scene))
           }
@@ -51,10 +57,16 @@ export function createAvatarOpacity(root: Object3D) {
         surfaces.forEach((surface, index) => { surface.mesh.material = materials[index]! })
         for (const light of lights) light.object.visible = light.visible
       }
-      preparation = Promise.all(compiling)
-        .then(() => waitForScenePrograms(renderer, () => !disposed))
-        .then(() => { if (!disposed) ready = true })
+      preparation = waitForScenePrograms(renderer, live, Promise.all(compiling))
+        .then(() => { if (live()) ready = true })
       return preparation
+    },
+    invalidate() {
+      generation++
+      ready = false
+      preparation = undefined
+      previous = 1
+      restore()
     },
     set(opacity: number) {
       // Late joiners keep the original material until their fade shaders are ready.
@@ -69,7 +81,9 @@ export function createAvatarOpacity(root: Object3D) {
       for (const [source, material] of copies) material.opacity = source.opacity * opacity
     },
     dispose() {
+      if (disposed) return
       disposed = true
+      generation++
       ready = false
       restore()
       for (const material of copies.values()) material.dispose()
