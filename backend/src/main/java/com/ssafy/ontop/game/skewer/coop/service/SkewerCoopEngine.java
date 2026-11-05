@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +44,7 @@ public final class SkewerCoopEngine implements GameEngine {
     private final Consumer<Object> events;
     private final Consumer<Long> recoveryChanged;
     private final BiPredicate<Long, String> connected;
+    private final BooleanSupplier newActivityAllowed;
     private final Random random;
     private final double duration;
     private final Map<String, SkewerCoopMatch> games = new LinkedHashMap<>();
@@ -57,13 +59,20 @@ public final class SkewerCoopEngine implements GameEngine {
 
     public SkewerCoopEngine(ObjectMapper mapper, Clock clock, GameEngineRouter router, Consumer<Object> events,
             Consumer<Long> recoveryChanged, BiPredicate<Long, String> connected, Random random, double duration) {
-        this(mapper, clock, router, events, recoveryChanged, connected, random, duration, result -> { });
+        this(mapper, clock, router, events, recoveryChanged, connected, random, duration, result -> { }, () -> true);
     }
 
     public SkewerCoopEngine(ObjectMapper mapper, Clock clock, GameEngineRouter router, Consumer<Object> events,
             Consumer<Long> recoveryChanged, BiPredicate<Long, String> connected, Random random, double duration,
             Consumer<SkewerCoopFinished> recordResult) {
+        this(mapper, clock, router, events, recoveryChanged, connected, random, duration, recordResult, () -> true);
+    }
+
+    public SkewerCoopEngine(ObjectMapper mapper, Clock clock, GameEngineRouter router, Consumer<Object> events,
+            Consumer<Long> recoveryChanged, BiPredicate<Long, String> connected, Random random, double duration,
+            Consumer<SkewerCoopFinished> recordResult, BooleanSupplier newActivityAllowed) {
         this.recordResult = recordResult;
+        this.newActivityAllowed = newActivityAllowed;
         this.mapper = mapper;
         this.clock = clock;
         this.router = router;
@@ -186,6 +195,10 @@ public final class SkewerCoopEngine implements GameEngine {
             }
             if (command.expectedVersion() != match.actionVersion) {
                 throw new Rejected(Rejection.STALE_VERSION);
+            }
+            if (command.input().path("type").asText().equals("READY")
+                    && command.input().path("ready").asBoolean() && !newActivityAllowed.getAsBoolean()) {
+                throw new Rejected(Rejection.NOT_ACTIVE);
             }
             match.act(command.userId(), command.input(), clock.millis());
             result = new GameActionResult(command.userId(), command.gameId(), command.actionId(), match.version);

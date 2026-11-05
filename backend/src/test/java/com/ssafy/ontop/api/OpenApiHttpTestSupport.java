@@ -90,12 +90,16 @@ abstract class OpenApiHttpTestSupport {
                 "POST /api/v1/admin/wallet-grants/preview", "POST /api/v1/admin/wallet-grants",
                 "GET /api/v1/operations/status", "GET /api/v1/admin/operations/status",
                 "PUT /api/v1/admin/operations/status",
+                "GET /api/v1/announcements", "GET /api/v1/admin/operations/announcements",
+                "POST /api/v1/admin/operations/announcements/{id}", "PUT /api/v1/admin/operations/announcements/{id}",
+                "DELETE /api/v1/admin/operations/announcements/{id}", "PUT /api/v1/admin/operations/announcements/order",
                 "GET /api/v1/wallets/me",
                 "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings",
                 "GET /api/v1/rankings/park",
                 "GET /api/v1/raffles/current", "POST /api/v1/raffles/current/tickets",
                 "GET /api/v1/minigames/bungeoppang/rankings",
-                "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats"));
+                "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
+                "POST /api/v1/behavior-events"));
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("GET /api/v1/channels", "GET /api/v1/tables"));
             assertThat(api.at("/components/schemas/TableSummaryResponse/properties/gameId/nullable").asBoolean())
@@ -113,6 +117,8 @@ abstract class OpenApiHttpTestSupport {
                     "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/challenge",
                     "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/stop",
                     "GET /api/v1/minigames/plus-minus/status", "POST /api/v1/minigames/plus-minus/rounds",
+                    "GET /api/v1/minigames/whack-a-mole/status", "POST /api/v1/minigames/whack-a-mole/rounds",
+                    "POST /api/v1/minigames/whack-a-mole/rounds/{roundId}/complete",
                     "GET /api/v1/minigames/sessions/{sessionId}",
                     "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                     "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
@@ -224,7 +230,7 @@ abstract class OpenApiHttpTestSupport {
         JsonNode nickname = schemas.at("/UserNicknameUpdateRequest/properties/nickname");
         assertThat(nickname.path("minLength").asInt()).isEqualTo(2);
         assertThat(nickname.path("maxLength").asInt()).isEqualTo(8);
-        assertThat(nickname.path("pattern").asText()).isEqualTo("^[가-힣A-Za-z0-9]{2,8}$");
+        assertThat(nickname.path("pattern").asText()).isEqualTo("^(?![Gg][Mm])[가-힣A-Za-z0-9]{2,8}$");
         assertThat(schemas.at("/UserNicknameUpdateRequest/additionalProperties").asBoolean(true)).isFalse();
         assertThat(schemas.at("/UserOnboardingRequest/properties/characterGender/enum").toString())
                 .isEqualTo("[\"MALE\",\"FEMALE\"]");
@@ -352,7 +358,7 @@ abstract class OpenApiHttpTestSupport {
         assertThat(java.util.regex.Pattern.compile(nickname).matcher("미지!").find()).isFalse();
         for (String path : Set.of("/api/v1/shop/purchases", "/api/v1/minigames/sessions",
                 "/api/v1/minigames/skewer/admissions", "/api/v1/minigames/rps-roulette/rounds",
-                "/api/v1/minigames/plus-minus/rounds")) {
+                "/api/v1/minigames/plus-minus/rounds", "/api/v1/minigames/whack-a-mole/rounds")) {
             api.path("paths").path(path).path("post").path("parameters").forEach(parameter -> {
                 if (parameter.path("name").asText().equals("Idempotency-Key")) {
                     assertThat(parameter.at("/schema/pattern").asText()).isEqualTo("^[A-Za-z0-9_-]{1,64}$");
@@ -384,5 +390,22 @@ abstract class OpenApiHttpTestSupport {
 
     URI uri(String path) {
         return URI.create("http://127.0.0.1:" + port + path);
+    }
+    @Test
+    void 공지_응답과_카드순서_계약을_구분해_문서화한다() throws Exception {
+        var api = json();
+        for (String field : Set.of("PublicAnnouncement/endsAt", "AnnouncementResponse/startsAt", "AnnouncementResponse/endsAt", "AnnouncementRequest/startsAt", "AnnouncementRequest/endsAt")) {
+            var parts = field.split("/");
+            assertThat(api.at("/components/schemas/" + parts[0] + "/properties/" + parts[1] + "/nullable").asBoolean()).isTrue();
+        }
+        assertThat(api.at("/paths/~1api~1v1~1announcements/get/responses/200/content/application~1json/schema/$ref").asText())
+                .isEqualTo("#/components/schemas/PublicAnnouncementsResponse");
+        assertThat(api.at("/paths/~1api~1v1~1admin~1operations~1announcements~1{id}/put/parameters/0/schema/format").asText()).isEqualTo("uuid");
+        assertThat(api.at("/paths/~1api~1v1~1admin~1operations~1announcements~1order/put/security/0").has("AccessJwt")).isTrue();
+        assertThat(api.at("/paths/~1api~1v1~1admin~1operations~1announcements~1order/put/responses").has("204")).isTrue();
+        assertThat(api.at("/components/schemas/AnnouncementOrderRequest/properties/items/items/$ref").asText())
+                .isEqualTo("#/components/schemas/AnnouncementOrderItem");
+        assertThat(api.at("/components/schemas/PublicAnnouncementsResponse/properties/announcements/items/$ref").asText())
+                .isEqualTo("#/components/schemas/PublicAnnouncement");
     }
 }

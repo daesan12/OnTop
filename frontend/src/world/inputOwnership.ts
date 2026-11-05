@@ -14,9 +14,16 @@ export function clearRoamingInput() {
 }
 const dialogOpen = () => typeof document !== 'undefined' && !!document.querySelector('dialog[open], [role="dialog"]')
 export const panelOwnsKeys = () => Object.values(inputState).some(Boolean) || dialogOpen()
+/** Return keyboard ownership only when no other panel is using it. */
+export function focusParkCanvas() {
+  if (!panelOwnsKeys() && typeof document !== 'undefined')
+    document.querySelector<HTMLCanvasElement>('canvas')?.focus({ preventScroll: true })
+}
 /** The wardrobe keeps other shortcuts closed but lets the avatar walk and the view turn behind it. */
 export const panelOwnsMovement = () =>
   Object.entries(inputState).some(([panel, open]) => open && panel !== 'wardrobeOpen') || dialogOpen()
+/** Chat keeps keyboard shortcuts but leaves mouse clicks on game controls to the game. */
+export const panelOwnsGameClicks = () => Object.entries(inputState).some(([panel, open]) => open && panel !== 'chatOpen')
 export function textInputOwnsKeys(target: EventTarget | null) {
   return target instanceof HTMLElement && !!target.closest(
     'input,textarea,select,button,a,[contenteditable="true"],[role="dialog"],dialog[open]',

@@ -40,14 +40,24 @@
 - 가위바위보 룰렛: 1일차 101 참가비 10(패)·20(1.5배 30 지급), 102 참가비 30(2배 60 지급), 2일차 105 참가비 10(진행 중)
 - 주간 추첨(10/26 주): 101 2장·102 1장, 장당 100
 - 2일차 103 점프맵 3구간 보상(2+4+7=13)
+- 두더지: 1일차 102 30냥, 101은 이미 공동 한도 500에 닿아 계산 20냥이 0냥으로 깎임(둘 다 규칙 1)
+  2일차는 규칙 2(45점당 1냥)·규칙 3(40점당 1냥) 판. 정산된 판은 점수가 낮아 계산 보상이 0냥이라 원장에 없다
+- 플러스마이너스(참가비 30): 1일차 102 꽝, 2일차 103 지급 40, 101 잭팟 500
+- 꼬치 협동: 1일차 101·102 팀이 끝까지(4분) 300점 → 각 300냥(101의 꼬치 보상이 이 판)
 - 104는 탈퇴 회원(지갑은 남지만 잔액 분포에서 제외)
-- 최종 잔액: 101=396, 102=39, 103=129, 104=99, 105=145
+- 최종 잔액: 101=866, 102=339, 103=139, 104=99, 105=145
 
 점프맵(jump_runs, 기능 테이블. 코스 course-1, 8일차만 구간 수가 다른 course-2)
 - 1일차: 101 7구간 완주(175초, 100냥), 102 출발 직후 낙하
 - 2일차: 103 3구간 뒤 호수 착수(13냥), 104 1구간 뒤 연결 끊김(의심 판), 105 진행 중
 - 1일차 102 낙하 판에는 finish_ms가 0으로 남은 오염 데이터를 넣는다(24번 최고 기록 방어 확인)
 - 8일차: 101 course-2에서 2구간 뒤 낙하(25번 구간 번호가 코스별 최대 구간까지만 나오는지 확인)
+
+클라이언트 로그(source=CLIENT, 접속해 있던 시간 안에만 넣는다)
+- 성능 보고: 1일차 101 desktop·nvidia 2건(fps 60·50), 102 desktop·intel 1건(fps 25),
+  103 mobile·adreno 1건(fps 40) / 2일차 101 desktop·nvidia 1건(fps 58), 103 mobile·adreno 1건(fps 20)
+- 첫 입장 체험 투어: 101 모든 단계 완료(중간에 접었다 이어 함), 102 걷기까지 하고 인사하기에서 닫음,
+  103 환영 비행 중 이탈, 104는 투어 기록 없음 / 2일차 101 다시 보기(replay) 걷기 뒤 닫음(깔때기에서 제외)
 
 경기(game_sessions·game_participants, 기능 테이블. 행동 로그 game_id는 경기 번호와 같다)
 - 경기 1(1일차 오목)·경기 2(2일차 주사위)는 위 행동 로그와 같은 경기
@@ -71,7 +81,20 @@ def build_seed() -> str:
 
     def event(at: str, event_type: str, user_id: int | None, *, channel: str | None = None,
               table: str | None = None, game: str | None = None, **props) -> None:
-        events.append((at, event_type, user_id, channel, table, game, props))
+        events.append((at, event_type, user_id, channel, table, game, props, "SERVER"))
+
+    def perf(at: str, user_id: int, device: str, gpu: str, fps: float, p95: float, frames: int,
+             slow: int) -> None:
+        events.append((at, "PERF_REPORT", user_id, None, None, None, dict(
+            windowSec=60, frames=frames, slowFrames=slow, fps=fps, p95Ms=p95, p99Ms=p95 * 2, drawCalls=300,
+            triangles=120000, dpr=1.0, renderMode="continuous", quality="low", device=device, gpu=gpu), "CLIENT"))
+
+    def tour(at: str, user_id: int, action: str, step: str | None = None, *, done: int = 0,
+             replay: bool = False) -> None:
+        props = dict(flow="welcome_tour", action=action, replay=replay, doneCount=done, elapsedSec=0)
+        if step:
+            props["step"] = step
+        events.append((at, "ONBOARDING_STEP", user_id, None, None, None, props, "CLIENT"))
 
     def facility(at: str, user_id: int, lease_id: str, facility_id: str, kind: str, seat: int,
                  end_reason: str | None = None, duration_ms: int | None = None) -> None:
@@ -161,6 +184,33 @@ def build_seed() -> str:
     # 8일차
     event("2026-11-03 01:00:00", "WS_CONNECTED", 101)
     event("2026-11-03 01:10:00", "WS_DISCONNECTED", 101, reason="SOCKET_CLOSED")
+
+    # 클라이언트 로그
+    perf("2026-10-27 01:01:00", 101, "desktop", "nvidia", 60.0, 18.0, 3600, 0)
+    perf("2026-10-27 01:02:00", 101, "desktop", "nvidia", 50.0, 25.0, 3000, 30)
+    perf("2026-10-27 01:02:05", 102, "desktop", "intel", 25.0, 60.0, 1500, 300)
+    perf("2026-10-27 02:01:05", 103, "mobile", "adreno", 40.0, 33.3, 2400, 24)
+    perf("2026-10-28 01:01:00", 101, "desktop", "nvidia", 58.0, 20.0, 3480, 0)
+    perf("2026-10-28 05:01:00", 103, "mobile", "adreno", 20.0, 70.0, 1200, 240)
+    tour("2026-10-27 01:00:10", 101, "start")
+    tour("2026-10-27 01:00:16", 101, "step_done", "flight")
+    tour("2026-10-27 01:00:40", 101, "step_done", "walk", done=1)
+    tour("2026-10-27 01:01:00", 101, "step_done", "greet", done=2)
+    tour("2026-10-27 01:03:00", 101, "collapse", done=2)
+    tour("2026-10-27 01:04:00", 101, "resume", done=2)
+    tour("2026-10-27 01:05:00", 101, "step_done", "table", done=3)
+    tour("2026-10-27 01:12:00", 101, "step_done", "map", done=4)
+    tour("2026-10-27 01:14:00", 101, "step_done", "minigame", done=5)
+    tour("2026-10-27 01:14:00.001", 101, "finish", done=5)
+    tour("2026-10-27 01:01:10", 102, "start")
+    tour("2026-10-27 01:01:16", 102, "step_done", "flight")
+    tour("2026-10-27 01:01:40", 102, "step_done", "walk", done=1)
+    tour("2026-10-27 01:01:50", 102, "abandon", "greet", done=1)
+    tour("2026-10-27 02:00:10", 103, "start")
+    tour("2026-10-27 02:00:12", 103, "abandon", "flight")
+    tour("2026-10-28 01:00:20", 101, "start", replay=True)
+    tour("2026-10-28 01:00:40", 101, "step_done", "walk", done=1, replay=True)
+    tour("2026-10-28 01:01:00", 101, "abandon", "greet", done=1, replay=True)
 
     # 위치
     position("2026-10-27 01:00:05", 101, 0, 34, False)
@@ -264,6 +314,13 @@ def wallet_sql() -> list[str]:
         (105, "MINIGAME_ENTRY_FEE", None, None, None, -10, 0, "2026-10-28 01:16:00"),
         *[(103, "JUMP_GATE_REWARD", None, None, None, coins, 0, f"2026-10-28 05:04:{gate * 10:02d}")
           for gate, coins in enumerate([2, 4, 7], start=1)],
+        (102, "MOLE_REWARD", None, None, None, 30, 0, "2026-10-27 01:06:00"),
+        (102, "MINIGAME_ENTRY_FEE", None, None, None, -30, 0, "2026-10-27 01:07:00"),
+        (102, "SKEWER_REWARD", None, None, None, 300, 0, "2026-10-27 01:50:00"),
+        (103, "MINIGAME_ENTRY_FEE", None, None, None, -30, 0, "2026-10-28 05:07:00"),
+        (103, "PLUS_MINUS_PAYOUT", None, None, None, 40, 0, "2026-10-28 05:07:30"),
+        (101, "MINIGAME_ENTRY_FEE", None, None, None, -30, 0, "2026-10-28 01:08:00"),
+        (101, "PLUS_MINUS_PAYOUT", None, None, None, 500, 0, "2026-10-28 01:08:30"),
     ]
     balances: dict[int, int] = {}
     for user_id, _, _, _, _, balance_delta, _, _ in entries:
@@ -338,6 +395,54 @@ def minigame_extra_sql() -> list[str]:
             f"'{phase}', {sql_value(outcome)}, {payout}, {deadline}, '{timestamp(started)}', "
             f"{sql_value(settled and timestamp(settled))});"
         )
+    # 두더지 (회원, 요청 키, 규칙, 상태, 시작, 정산, 점수, 최대 콤보, 잡은 수, 지급).
+    # 계산 보상은 규칙 1은 30점, 2는 45점, 3은 40점당 1냥(V149·V150 CHECK와 같다).
+    for user_id, key, rules, status, started, settled, score, combo, caught, reward in [
+        (102, "m-1", 1, "SETTLED", "2026-10-27 01:05:00", "2026-10-27 01:06:00", 900, 12, 40, 30),
+        (101, "m-2", 1, "SETTLED", "2026-10-27 01:52:00", "2026-10-27 01:53:00", 600, 8, 25, 0),
+        (103, "m-5", 2, "SETTLED", "2026-10-28 05:01:30", "2026-10-28 05:02:30", 44, 3, 2, 0),
+        (103, "m-3", 2, "EXPIRED", "2026-10-28 05:06:00", "2026-10-28 05:08:00", None, None, None, None),
+        (105, "m-6", 3, "SETTLED", "2026-10-28 01:10:00", "2026-10-28 01:11:00", 39, 2, 3, 0),
+        (105, "m-4", 3, "ACTIVE", "2026-10-28 01:17:00", None, None, None, None, None),
+    ]:
+        calculated = None if score is None else score // {1: 30, 2: 45, 3: 40}[rules]
+        lines.append(
+            "INSERT INTO mole_rounds (user_id, request_key, seed, rules_version, status, started_at, settled_at, "
+            f"score, max_combo, caught, calculated_reward, reward) VALUES ({user_id}, '{key}', 1, {rules}, "
+            f"'{status}', "
+            f"'{timestamp(started)}', {sql_value(settled and timestamp(settled))}, {sql_value(score)}, "
+            f"{sql_value(combo)}, {sql_value(caught)}, {sql_value(calculated)}, {sql_value(reward)});"
+        )
+    # 플러스마이너스 (회원, 요청 키, KST 날짜, 결과, 결과값, 지급, 시각). 참가비 30 고정, 지급 = 결과값 × 10.
+    for user_id, key, day, outcome, value, payout, at in [
+        (102, "p-1", "2026-10-27", "LOST", -2, 0, "2026-10-27 01:07:00"),
+        (103, "p-2", "2026-10-28", "PAID", 4, 40, "2026-10-28 05:07:00"),
+        (101, "p-3", "2026-10-28", "JACKPOT", None, 500, "2026-10-28 01:08:00"),
+    ]:
+        lines.append(
+            "INSERT INTO plus_minus_rounds (user_id, request_key, fee, play_date, first_cell, operator_cell, "
+            f"second_cell, result_value, outcome, payout, played_at) VALUES ({user_id}, '{key}', 30, '{day}', "
+            f"1, 0, 2, {sql_value(value)}, '{outcome}', {payout}, '{timestamp(at)}');"
+        )
+    # 꼬치 협동 (판, 낮은·높은 회원, 요리사, 서버, 점수, 서빙, 경과 ms, 종료 사유, 랭킹 인정, 종료 시각)
+    for game, low, high, chef, server, score, served, elapsed, reason, eligible, ended in [
+        ("sk-1", 101, 102, 101, 102, 300, 15, 240000, "SKEWER_TIME_UP", True, "2026-10-27 01:49:30"),
+        ("sk-2", 103, 105, None, None, 40, 2, 60000, "SKEWER_PLAYER_LEFT", False, "2026-10-28 03:30:00"),
+    ]:
+        lines.append(
+            "INSERT INTO skewer_coop_results (game_id, result_hash, rules_version, table_id, team_low_id, "
+            "team_high_id, chef_user_id, server_user_id, team_score, served, elapsed_ms, duration_ms, end_reason, "
+            f"ranking_eligible, ranking_reason, ended_at) VALUES ('{game}', '{'0' * 64}', 'coop-v1', 't9', {low}, "
+            f"{high}, {sql_value(chef)}, {sql_value(server)}, {score}, {served}, {elapsed}, 240000, '{reason}', "
+            f"{int(eligible)}, '{'ELIGIBLE' if eligible else 'NOT_TIME_UP'}', '{timestamp(ended)}');"
+        )
+    # 꼬치 협동 보상: 1번 판 두 사람 각 300냥(원장 SKEWER_REWARD와 같음)
+    for user_id, role, earned, balance in [(101, "chef", 500, 596), (102, "server", 360, 409)]:
+        lines.append(
+            "INSERT INTO skewer_coop_rewards (game_id, user_id, player_role, coins_calculated, coins_granted, "
+            f"earned_at_settlement, balance_after, reward_date, settled_at) VALUES ('sk-1', {user_id}, '{role}', "
+            f"300, 300, {earned}, {balance}, '2026-10-27', '2026-10-27 01:50:00.000');"
+        )
     return lines
 
 
@@ -384,12 +489,12 @@ def game_sql() -> list[str]:
 
 def to_sql(events: list[tuple], positions: list[tuple]) -> str:
     lines = ["SET time_zone = '+00:00';"]
-    for number, (at, event_type, user_id, channel, table, game, props) in enumerate(events):
+    for number, (at, event_type, user_id, channel, table, game, props, source) in enumerate(events):
         event_id = uuid.uuid5(NAMESPACE, str(number)).hex
         lines.append(
             "INSERT INTO behavior_events (event_id, event_type, schema_version, source, occurred_at, user_id, "
             "channel_id, table_id, game_id, props) VALUES ("
-            f"UNHEX('{event_id}'), '{event_type}', 1, 'SERVER', '{timestamp(at)}', {sql_value(user_id)}, "
+            f"UNHEX('{event_id}'), '{event_type}', 1, '{source}', '{timestamp(at)}', {sql_value(user_id)}, "
             f"{sql_value(channel)}, {sql_value(table)}, {sql_value(game)}, "
             f"{sql_value(json.dumps(props) if props else None)});"
         )

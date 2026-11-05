@@ -304,6 +304,11 @@ class RestSecurityTests {
                         entry.getKey().getMethodsCondition().getMethods().stream().map(method -> method + " " + path)))
                 .toList();
         assertThat(mappings).containsExactlyInAnyOrder("GET /api/v1/auth/{provider}/authorize",
+                "GET /api/v1/announcements", "GET /api/v1/admin/operations/announcements",
+                "POST /api/v1/admin/operations/announcements/{id}",
+                "PUT /api/v1/admin/operations/announcements/{id}",
+                "PUT /api/v1/admin/operations/announcements/order",
+                "DELETE /api/v1/admin/operations/announcements/{id}",
                 "GET /api/v1/auth/{provider}/callback", "POST /api/v1/auth/exchange", "POST /api/v1/auth/refresh",
                 "POST /api/v1/auth/logout", "POST /api/v1/users/onboarding", "GET /api/v1/users/me",
                 "GET /api/v1/users/nickname-availability",
@@ -318,6 +323,7 @@ class RestSecurityTests {
                 "GET /api/v1/raffles/current", "POST /api/v1/raffles/current/tickets",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
+                "POST /api/v1/behavior-events",
                 "GET /api/v1/channels",
                 "GET /api/v1/world/fitness/rewards/status",
                 "GET /api/v1/tables", "GET /dev/tables", "GET /dev/world-config",
@@ -330,6 +336,8 @@ class RestSecurityTests {
                 "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/challenge",
                 "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/stop",
                 "GET /api/v1/minigames/plus-minus/status", "POST /api/v1/minigames/plus-minus/rounds",
+                "GET /api/v1/minigames/whack-a-mole/status", "POST /api/v1/minigames/whack-a-mole/rounds",
+                "POST /api/v1/minigames/whack-a-mole/rounds/{roundId}/complete",
                 "GET /api/v1/minigames/sessions/{sessionId}",
                 "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                 "POST /api/v1/minigames/sessions/{sessionId}/deliveries",

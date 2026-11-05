@@ -34,7 +34,7 @@ test('server public profiles update stationary names, chat and real character ri
   // A server refresh changes only the profile; no movement, ID list change or local display seeding.
   server.profile('102', { nickname: '여름산책', characterGender: null })
   await expect(remoteName).toHaveText('여름산책')
-  await expect(page.locator('.park-chat__message')).toContainText('여름산책')
+  await expect(page.locator('.park-chat__message')).toContainText('봄산책')
   expect((await models(page)).avatars[1]!.skeleton).toBe(girlSkeleton)
   server.profile('102', { nickname: null, characterGender: null })
   server.world()

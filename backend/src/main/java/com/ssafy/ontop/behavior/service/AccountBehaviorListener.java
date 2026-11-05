@@ -49,6 +49,10 @@ public class AccountBehaviorListener {
     /** ShopService가 커밋 후에 발행한다. */
     @EventListener
     public void equipped(EquipmentChanged event) {
+        // 해제(기본 옷으로)는 itemId 없이 외형 동기화만 알린다. 장착 기록이 아니다.
+        if (event.itemId() == null) {
+            return;
+        }
         behaviorLog.record(() -> BehaviorEvent.builder(BehaviorEventType.ITEM_EQUIPPED, clock.instant())
                 .userId(event.userId())
                 .prop("itemId", event.itemId())

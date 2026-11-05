@@ -2,6 +2,9 @@ import { useEffect, useRef } from 'react'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { GameArt } from '../manual/GameArt'
 import { openManual } from '../manual/manualState'
+import { moleManual } from '../mole/manual'
+import { POINTS_PER_COIN as MOLE_POINTS_PER_COIN } from '../mole/protocol'
+import { useMole } from '../mole/store'
 import { plusMinusManual } from '../plusMinus/manual'
 import { DAILY_PLAYS as PLUS_MINUS_DAILY, FEE as PLUS_MINUS_FEE } from '../plusMinus/protocol'
 import { usePlusMinus } from '../plusMinus/store'
@@ -13,7 +16,7 @@ import './arcade.css'
 
 interface Choice {
   id: ArcadeGame; name: string; tagline: string; summary: string
-  fee: string; prize: string; playsLeft: number | null; dailyPlays: number; inProgress: boolean
+  fee: string; prize: string; limitLabel: string; limit: string; playsLeft: number | null; inProgress: boolean
 }
 
 export function ArcadePicker() {
@@ -21,10 +24,10 @@ export function ArcadePicker() {
   return open ? <ArcadeDialog /> : null
 }
 
-/** 테이블 태블릿의 게임 고르기와 같은 한지 화면. 혼자 하는 게임이라 인원·판돈·준비 대신 참가비와 오늘 남은 판을 보여 준다. */
+/** 테이블 태블릿의 게임 고르기와 같은 한지 화면. 혼자 하는 게임이라 인원·판돈·준비 대신 참가비와 오늘 남은 판(무료 게임은 오늘 받은 엽전)을 보여 준다. */
 function ArcadeDialog() {
   const selected = useArcade(s => s.selected)
-  const rps = useRpsRoulette(s => s.data), plus = usePlusMinus(s => s.data)
+  const rps = useRpsRoulette(s => s.data), plus = usePlusMinus(s => s.data), mole = useMole(s => s.state)
   const rpsBusy = useRpsRoulette(s => s.busy === 'status'), plusBusy = usePlusMinus(s => s.busy === 'status')
   const busy = rpsBusy || plusBusy
   const dialog = useRef<HTMLDialogElement>(null)
@@ -35,19 +38,25 @@ function ArcadeDialog() {
     return () => el?.close()
   }, [])
 
+  const plays = (left: number | null, daily: number) => left === null ? (busy ? '확인 중' : '-') : `${left} / ${daily}판`
+  const rpsLeft = rps ? Math.max(0, rps.rules.dailyPlays - rps.playedToday) : null
+  const plusLeft = plus ? Math.max(0, plus.rules.dailyPlays - plus.playedToday) : null
   const choices: Choice[] = [
     { id: 'rps-roulette', name: rpsRouletteManual.title, tagline: rpsRouletteManual.subtitle, summary: rpsRouletteManual.summary,
       fee: `${(rps?.rules.fees ?? [10, 20, 30]).join(' · ')}냥`, prize: '참가비 × 룰렛 칸 × 도전 배수',
-      playsLeft: rps ? Math.max(0, rps.rules.dailyPlays - rps.playedToday) : null, dailyPlays: rps?.rules.dailyPlays ?? 15,
+      limitLabel: '오늘 남은 판', limit: plays(rpsLeft, rps?.rules.dailyPlays ?? 15), playsLeft: rpsLeft,
       inProgress: !!rps?.round && rps.round.phase !== 'SETTLED' },
     { id: 'plus-minus', name: plusMinusManual.title, tagline: plusMinusManual.subtitle, summary: plusMinusManual.summary,
       fee: `${plus?.rules.fee ?? PLUS_MINUS_FEE}냥`, prize: '결괏값 × 10냥 · 7 + 잭팟 500냥',
-      playsLeft: plus ? Math.max(0, plus.rules.dailyPlays - plus.playedToday) : null, dailyPlays: plus?.rules.dailyPlays ?? PLUS_MINUS_DAILY,
+      limitLabel: '오늘 남은 판', limit: plays(plusLeft, plus?.rules.dailyPlays ?? PLUS_MINUS_DAILY), playsLeft: plusLeft,
+      inProgress: false },
+    { id: 'whack-a-mole', name: moleManual.title, tagline: moleManual.subtitle, summary: moleManual.summary,
+      fee: '무료', prize: `${mole?.rules.pointsPerCoin ?? MOLE_POINTS_PER_COIN}점당 1냥 · 하루 상한 안에서`,
+      limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null,
       inProgress: false },
   ]
   const choice = choices.find(c => c.id === selected)!
   const balance = rps?.availableBalance ?? plus?.availableBalance
-  const plays = (c: Choice) => c.playsLeft === null ? (busy ? '확인 중' : '-') : `${c.playsLeft} / ${c.dailyPlays}판`
 
   return <dialog ref={dialog} className="table-paper-popup arcade-picker" aria-labelledby="arcade-picker-title"
     onCancel={event => { event.preventDefault(); closeArcade() }}>
@@ -55,7 +64,7 @@ function ArcadeDialog() {
       <header className="arcade-title">
         <b className="arcade-brand">온탑 오락기</b>
         <h2 id="arcade-picker-title">어떤 게임을 할까요?</h2>
-        <p>혼자 즐기는 게임이에요. 엽전을 넣고 바로 시작해요.</p>
+        <p>혼자 즐기는 게임이에요. 골라서 바로 시작해요.</p>
         {balance !== undefined && <p className="arcade-balance"><img className="arcade-coin" src={coinImage} alt="" />보유 {balance.toLocaleString('ko-KR')}냥</p>}
       </header>
       <div className="arcade-selection">
@@ -65,9 +74,8 @@ function ArcadeDialog() {
             <GameArt game={c.id} />
             {c.inProgress && <b className="arcade-badge">진행 중</b>}
             <span><strong>{c.name}</strong><small>혼자 · {c.fee}</small></span>
-            <em>오늘 남은 판 {plays(c)}</em>
+            <em>{c.limitLabel} {c.limit}</em>
           </button>)}
-          <p className="arcade-coming">새 오락기 게임 준비 중</p>
         </div>
         <div className="arcade-detail">
           <small>선택한 게임</small>
@@ -76,8 +84,8 @@ function ArcadeDialog() {
           <GameArt game={choice.id} />
           <p className="arcade-summary">{choice.summary}</p>
           <dl className="arcade-terms">
-            <div><dt>참가비</dt><dd><img className="arcade-coin" src={coinImage} alt="" />{choice.fee}</dd></div>
-            <div><dt>오늘 남은 판</dt><dd>{plays(choice)}</dd></div>
+            <div><dt>참가비</dt><dd>{choice.fee !== '무료' && <img className="arcade-coin" src={coinImage} alt="" />}{choice.fee}</dd></div>
+            <div><dt>{choice.limitLabel}</dt><dd>{choice.limit}</dd></div>
             <div><dt>받는 엽전</dt><dd>{choice.prize}</dd></div>
           </dl>
           {choice.inProgress && <p className="arcade-note" role="status">끝나지 않은 판이 있어요. 이어서 해요.</p>}

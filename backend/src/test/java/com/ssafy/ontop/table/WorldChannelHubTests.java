@@ -178,9 +178,10 @@ class WorldChannelHubTests {
             Object message = invocation.getArgument(0);
             if (message instanceof TextMessage text) {
                 JsonNode value = mapper.readTree(text.getPayload());
-                // 위치·잔해는 별도 테스트에서 검증하고 여기서는 채널·테이블 계약만 읽는다.
+                // 위치·잔해·입력중 상태는 별도 테스트에서 검증하고 여기서는 채널·테이블 계약만 읽는다.
                 String type = value.path("type").asText();
-                if (!type.equals("WORLD_STATE") && !type.equals("WORLD_PARK_DEBRIS_STATE")) {
+                if (!type.equals("WORLD_STATE") && !type.equals("WORLD_PARK_DEBRIS_STATE")
+                        && !type.equals("WORLD_CHAT_TYPING_STATE")) {
                     peer.messages.add(ReadyConsent.received(peer, value));
                 }
             }

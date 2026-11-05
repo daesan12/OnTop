@@ -7,18 +7,13 @@ import com.ssafy.ontop.operation.service.ServiceOperationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Set;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.MediaType;
+import org.springframework.transaction.TransactionException;
+import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 final class NewActivityGateInterceptor implements HandlerInterceptor {
-    private static final Set<String> START_PATHS = Set.of(
-            "/api/v1/minigames/sessions",
-            "/api/v1/minigames/skewer/admissions",
-            "/api/v1/minigames/skewer/coop/rooms",
-            "/api/v1/minigames/plus-minus/rounds",
-            "/api/v1/minigames/rps-roulette/rounds");
-
     private final ServiceOperationService operations;
     private final ObjectMapper mapper;
 
@@ -30,19 +25,28 @@ final class NewActivityGateInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws IOException {
-        if (!request.getMethod().equals("POST") || !START_PATHS.contains(request.getRequestURI())) {
+        if (!(handler instanceof HandlerMethod method) || !method.hasMethodAnnotation(NewActivity.class)) {
             return true;
         }
-        ServiceOperationState state = operations.current();
+        ServiceOperationState state;
+        try {
+            state = operations.current();
+        } catch (DataAccessException | TransactionException exception) {
+            reject(response, "SERVICE_OPERATION_UNAVAILABLE", "운영 상태를 확인하고 있어요. 잠시 후 다시 시도해주세요.");
+            return false;
+        }
         if (state.allowsNewActivity()) {
             return true;
         }
-        response.setStatus(503);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        reject(response, "SERVICE_" + state.mode().name(), state.notice());
+        return false;
+    }
+
+    private void reject(HttpServletResponse response, String code, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Cache-Control", "no-store");
-        mapper.writeValue(response.getOutputStream(), new AuthErrorResponse(
-                "SERVICE_" + state.mode().name(), state.notice()));
-        return false;
+        mapper.writeValue(response.getOutputStream(), new AuthErrorResponse(code, message));
     }
 }

@@ -155,6 +155,7 @@ MySQL 중복키 메시지에는 providerUserId가 포함될 수 있어 Hibernate
 | --- | --- | --- |
 | 400 | USER_INVALID_ONBOARDING_REQUEST | 누락/잘못된 JSON·자료형·추가 필드·Content-Type |
 | 400 | USER_INVALID_NICKNAME | 닉네임 형식 |
+| 400 | USER_RESERVED_NICKNAME | 대소문자와 관계없이 GM으로 시작하는 예약 닉네임 |
 | 400 | USER_INVALID_CHARACTER_GENDER | 성별 값 |
 | 401 | AUTH_INVALID_ONBOARDING_TOKEN | 누락·위조·만료·처리 중·소비됨·무효화됨·일반 JWT |
 | 403 | AUTH_ORIGIN_NOT_ALLOWED | Origin/preflight/Fetch Metadata 거절 |
@@ -175,7 +176,9 @@ MySQL 중복키 메시지에는 providerUserId가 포함될 수 있어 Hibernate
 5. 최초 발급 후 10분 안에 이 문서의 POST를 호출한다. Authorization: Bearer에는 onboardingToken만 넣는다.
    기존에 사용 중인 닉네임으로 409 USER_NICKNAME_ALREADY_EXISTS를 확인한 뒤, 같은 토큰과 새 닉네임으로
    재시도하면 201이어야 한다. 반복 409로 발급 시각/만료를 연장할 수 없다. 새 회원 생성은 로컬에서 승인 후 진행한다.
-   온보딩 요청에 JSESSIONID를 보내지 않아도 201이어야 한다. Refresh 쿠키를 사용할 API 호스트는 일관되게 사용한다.
+   온보딩 요청에 JSESSIONID를 보내지 않아도 201이어야 한다. `GM`, `gm123`은
+   `USER_RESERVED_NICKNAME`으로 400이며 토큰을 소비하지 않아야 한다.
+   Refresh 쿠키를 사용할 API 호스트는 일관되게 사용한다.
 6. 201의 사용자 정보·Access JWT, Refresh Set-Cookie를 확인한다. JWT 서명·클레임 확인은
    [로컬 검증 방법](auth-exchange.md#브라우저postman-수동-테스트)을 사용하고 외부 JWT 사이트에 붙여넣지 않는다.
 7. DB에서 승인한 새 사용자 1행과 해당 ID를 참조하는 Refresh 1행 증가를 로컬에서 확인한다.

@@ -36,6 +36,7 @@ import { useFeedbackState } from '../features/feedback/state'
 import { useNotesState } from '../features/notes/state'
 import { benchBoardLook, benchLook, benchTable, benchViewScope, spectatorClearHeight, useBenchSpectator } from '../features/interactions/benchSpectator'
 import { advanceOmokCamera, OMOK_FOCUS_LAYER, omokTopDownHeight, omokSpectatorFrame } from './omokCamera'
+import { omokFocusLighting } from './boardFocusLighting'
 import { wardrobeView } from '../features/wardrobe/view'
 
 /** Whole-figure framing used by the wardrobe zoom (the avatar plus a little headroom). */
@@ -107,6 +108,7 @@ export function CameraRig() {
       }
       omokCamera.ready = false
       omokCamera.anchorId = ''
+      omokFocusLighting.requested = false
       mountedCamera.layers.set(0)
       raycaster.layers.set(0)
       resetSeatedLook()
@@ -119,6 +121,7 @@ export function CameraRig() {
   useFrame(({ camera, scene }, delta) => {
     diceCamera.ready = false
     omokCamera.ready = false
+    omokFocusLighting.requested = false
     camera.layers.set(0)
     raycaster.layers.set(0)
     scan.current += delta
@@ -286,6 +289,8 @@ export function CameraRig() {
     const ownAlkkagi = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'ALKKAGI'
       || game?.role === 'PLAYER' && !!game.alkkagi)
     const focusedAlkkagi = alkkagiCamera && (game?.role === 'PLAYER' ? !looking : spectatorBoard)
+    // Omok only: the fixed board lighting applies on frames that keep this focus layer (not Alkkagi).
+    omokFocusLighting.requested = focusedOmok
     if (focusedOmok || focusedAlkkagi) {
       camera.layers.set(OMOK_FOCUS_LAYER)
       raycaster.layers.set(OMOK_FOCUS_LAYER)
@@ -375,9 +380,10 @@ export function CameraRig() {
     } else if (focusedOmok && camera instanceof PerspectiveCamera) {
       const anchor = spectatorOmok ? (closeAnchor ?? watchedAnchor)! : TABLES.find(t => t.id === avatar.tableId)!
       state.look.set(anchor.position[0], anchor.position[1] + OMOK_BOARD_Y + .017, anchor.position[2])
-      if (spectatorOmok) {
+      if (omokSpectatorViewport.gameId === game?.gameId) {
         const frame = omokSpectatorFrame(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(anchor), omokSpectatorViewport.insets)
-        state.look.x += frame.offsetX; state.look.z += frame.offsetZ
+        const orientation = !spectatorOmok && avatar.seatIndex === 1 ? -1 : 1
+        state.look.x += frame.offsetX * orientation; state.look.z += frame.offsetZ * orientation
         state.desired.copy(state.look); state.desired.y += frame.height
       } else {
         state.desired.copy(state.look)

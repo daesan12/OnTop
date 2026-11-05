@@ -7,6 +7,7 @@ import {
 import { SharedSocket, ServerError } from '../../network/socketClient'
 import { routeCoopMessage, subscribeCoop } from '../../features/skewer/coop/contracts'
 import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
+import { chatAuthorName } from '../../features/chat/author'
 import { OneCardPrankEvents, ONECARD_PRANKS_ENABLED, type PrankScope } from '../../game/onecard/prankEvents'
 import { OneCardDefenseEvents, ONECARD_DEFENSE_ENABLED } from '../../game/onecard/defenseEvents'
 import { BUNGEOPPANG_RANKINGS_ENABLED } from '../../features/bungeoppang/ranking'
@@ -16,7 +17,7 @@ import {MapAdmission,MAP_UPDATE_MESSAGE,type MapIdentity} from '../../network/ma
 import { FacilityClient } from '../../network/facilityClient'
 import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
-import { clearRoamingInput, inputState } from '../../world/inputOwnership'
+import { clearRoamingInput, inputState, focusParkCanvas } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
 import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
 import { gameChatScope } from '../../features/chat/gameChat'
@@ -64,6 +65,7 @@ import { parseEmoteBindings, previewEmoteBindings, type EmoteId } from '../../fe
 import { emoteSignal, useEmoteState } from '../../features/emotes/state'
 import { mockEmote } from '../../features/emotes/mock/MockEmoteService'
 import { GAME_CONSTRUCTION_NOTICE, gameSelection, isTableGamePlayable, waitingForRound, type TableGameCode } from '../../features/tableLobby/model'
+import { recommendedChannel, rememberChannel, rememberedChannel } from '../../features/parkMenus/channelEntry'
 import { publicMatchService } from '../../features/tableLobby/publicMatch'
 import { PublicGameWatcher } from '../../features/tableLobby/PublicGameWatcher'
 import { FollowClient } from '../../features/follow/serverClient'
@@ -206,6 +208,7 @@ export class ParkRuntime implements ParkRuntimePort {
       role: game.role, canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
   }
   private omokEvents = new OmokSpectatorEvents({
+    displayName: userId => chatAuthorName(useSession.getState().profiles[userId]),
     scope: () => this.gameEventScope(),
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
@@ -442,11 +445,13 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
     const plusMinusRequest = (method === 'GET' && path === '/api/v1/minigames/plus-minus/status')
       || (method === 'POST' && path === '/api/v1/minigames/plus-minus/rounds')
+    const moleRequest = (method === 'GET' && path === '/api/v1/minigames/whack-a-mole/status')
+      || (method === 'POST' && /^\/api\/v1\/minigames\/whack-a-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
-      && !rpsRouletteRequest && !plusMinusRequest && !raffleRequest && !fitnessRewardRequest
+      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !raffleRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
@@ -587,12 +592,17 @@ export class ParkRuntime implements ParkRuntimePort {
     this.retryCount = 0
     void this.boot()
   }
+  private async loadChannels() {
+    const body = await this.getJSON('/api/v1/channels', { signal: this.bootAbort?.signal })
+    if (!record(body) || !Array.isArray(body.items)) throw new Error('채널 목록을 확인할 수 없습니다.')
+    const channels = body.items.map(channel)
+    useSession.setState({ channels })
+    return channels
+  }
   refreshChannels = async (): Promise<boolean> => {
     if (!this.active) return false
     try {
-      const body = await this.getJSON('/api/v1/channels', { signal: this.bootAbort?.signal })
-      if (!record(body) || !Array.isArray(body.items)) throw new Error('채널 목록을 확인할 수 없습니다.')
-      useSession.setState({ channels: body.items.map(channel) })
+      await this.loadChannels()
       return true
     } catch (error) {
       this.report(error)
@@ -760,9 +770,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   private enterPreferredChannel() {
-    const channels=useSession.getState().channels
-    const selected=channels.find(c=>c.channelId===this.preferredChannel)??(channels.length===1?channels[0]:undefined)
-    if(selected&&this.mapAdmission.allowed)void this.selectChannel(selected.channelId)
+    if(this.mapAdmission.allowed)void this.enterRecommendedChannel()
   }
   private async confirmMap() {
     const generation=this.generation
@@ -811,8 +819,7 @@ export class ParkRuntime implements ParkRuntimePort {
       }
     }
   }
-  selectChannel = (channelId: string) =>
-    this.action(async () => {
+  private async joinChannel(channelId: string) {
       if (!this.mapReady) throw new Error('서버 맵 버전 확인을 먼저 완료해주세요.')
       const state = useSession.getState()
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
@@ -839,13 +846,10 @@ export class ParkRuntime implements ParkRuntimePort {
       this.inputSequence = 0
       const generation = this.generation
       try {
-        try {
-          await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
-        } catch (error) {
-          await this.refreshChannels()
-          throw error
-        }
+        await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
+        useSession.setState({ error: '' })
         this.preferredChannel = channelId
+        rememberChannel(state.sessionId, channelId)
         this.retryCount = 0
         if (followService.mode === 'server') void this.follow.begin().catch(() => {})
         // Initial world messages keep their existing order. Facilities explicitly query after CHANNEL_JOIN.
@@ -873,7 +877,34 @@ export class ParkRuntime implements ParkRuntimePort {
         // With or without the list, held seat states are read once now through the normal handlers.
         this.applyInitialStates(generation)
       }
+  }
+  selectChannel = (channelId: string) =>
+    this.action(async () => {
+      try {
+        await this.joinChannel(channelId)
+      } catch (error) {
+        try { await this.loadChannels() } catch { /* Keep the original join error. */ }
+        throw error
+      }
     })
+  enterRecommendedChannel = () => this.action(async () => {
+    const state = useSession.getState()
+    if (state.roomId) return
+    const preferred = this.preferredChannel || rememberedChannel(state.sessionId)
+    const selected = recommendedChannel(state.channels, preferred)
+    if (!selected) throw new Error('지금 입장할 수 있는 공원이 없습니다. 잠시 후 다시 시도해주세요.')
+    try {
+      await this.joinChannel(selected.channelId)
+      return
+    } catch (error) {
+      if (!(error instanceof ServerError) || !['CHANNEL_FULL', 'CHANNEL_NOT_FOUND'].includes(error.code)) throw error
+      const refreshed = await this.loadChannels()
+      const alternative = recommendedChannel(refreshed, preferred, selected.channelId)
+        ?? recommendedChannel(refreshed, preferred)
+      if (!alternative) throw new Error('입장 가능한 공원이 바뀌었습니다. 채널을 직접 선택해주세요.')
+      await this.joinChannel(alternative.channelId)
+    }
+  })
   /** Existing handlers drop seat states that precede the table list; hold them, in arrival order, until it exists. */
   private holdInitialState(message: Envelope) {
     const held = this.initialStates
@@ -895,6 +926,14 @@ export class ParkRuntime implements ParkRuntimePort {
     for (const message of [...held.filter(m => m.type === 'TABLE_STATE'), ...held.filter(m => m.type !== 'TABLE_STATE')]) {
       try { this.message(message) } catch (error) { this.report(error) }
     }
+  }
+  sendTyping = async (typing: boolean) => {
+    const own=useSession.getState()
+    if(!this.active || own.status!=='connected' || !own.roomId || !own.mapCompatible)return false
+    try {
+      await this.socket.request('WORLD_CHAT_TYPING_SET',{typing},['WORLD_CHAT_TYPING_STATE'])
+      return true
+    } catch { return false }
   }
   sendChat = (value: string) =>
     gameChatScope() ? this.sendSpectatorChat(filterChat(value)) :
@@ -1058,7 +1097,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const ok = await this.action(async () => {
       try {
         if (this.tableClosing && !await this.tableClosing) throw new Error('이전 테이블 구독 종료를 먼저 확인해주세요.')
-        if (s.watchedTableId && s.watchedTableId !== tableId && !await this.unwatchGame()) throw new Error('기존 경기 관전 종료를 확인해주세요.')
+        if (s.watchedTableId && s.watchedTableId !== tableId && !await this.unwatchGame(true)) throw new Error('기존 경기 관전 종료를 확인해주세요.')
         const list = await this.getJSON(`/api/v1/tables?channelId=${encodeURIComponent(channelId)}`, { signal: this.bootAbort?.signal })
         if (!current()) return
         if (!record(list) || !Array.isArray(list.tables)) throw new Error('테이블 목록을 확인할 수 없습니다.')
@@ -1316,7 +1355,9 @@ export class ParkRuntime implements ParkRuntimePort {
           useGame.setState({
             uncertain: !explicitRejection,
             error:
-              error instanceof Error
+              error instanceof ServerError && error.code === 'GAME_ACTION_FORBIDDEN_MOVE'
+                ? '흑은 삼삼·사사·장목 금수에 놓을 수 없어요. 빨간 표시를 확인해주세요.'
+                : error instanceof Error
                 ? error.message
                 : '착수 결과를 확인해주세요.',
           })
@@ -1552,12 +1593,22 @@ export class ParkRuntime implements ParkRuntimePort {
     useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
     return this.spectator.set({ gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) }, true)
   }
-  unwatchGame = async (): Promise<boolean> => {
+  unwatchGame = async (preserveInspection = false): Promise<boolean> => {
     if (this.spectatorIntent?.awaitingStart) { this.closeTable(); return true }
+    const ending = useSession.getState(), generation = this.generation, inspection = this.inspection
     this.spectatorIntent = null
     useTableLobby.setState({ spectatorRequested: false })
     const approved = await this.spectator.set(null, true)
-    if (approved) resetBenchSpectator()
+    const current = useSession.getState()
+    if (approved && generation === this.generation && inspection === this.inspection
+      && current.sessionId === ending.sessionId && current.roomId === ending.roomId
+      && current.focusedAnchorId === ending.focusedAnchorId && !this.spectatorIntent && !useGame.getState().watchedGameId) {
+      resetBenchSpectator()
+      // A standing spectator has no table panel after leaving the match.
+      // Retaining focusedAnchorId silently disables G and other park controls.
+      if (!preserveInspection && !current.benchId && !current.tableId) this.closeTable()
+      if (!preserveInspection) focusParkCanvas()
+    }
     return approved
   }
   closeTable = () => {

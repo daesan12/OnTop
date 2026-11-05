@@ -123,15 +123,15 @@ test('generated park spectator fits the board around the HUD and sends H8 withou
       expect(camera.ready).toBe(true); expect(camera.viewport).toEqual([size.width, size.height])
       const top = (await header.boundingBox())!
       const bottom = Math.min((await page.locator('.omok-spectator-toolbar').boundingBox())!.y,
-        (await page.locator('.omok-spectator-chat').boundingBox())!.y)
+        (await page.locator('.park-chat').boundingBox())!.y)
       for (const corner of camera.corners) {
         expect(corner[0]).toBeGreaterThan(5); expect(corner[0]).toBeLessThan(size.width - 5)
         expect(corner[1]).toBeGreaterThan(top.y + top.height + 5); expect(corner[1]).toBeLessThan(bottom - 5)
       }
     }).toPass({ timeout: 15000 })
     if (size.width === 390) {
-      await page.getByRole('button', { name: '경기 채팅 열기', exact: true }).click()
-      await expect(page.getByRole('form', { name: '오목 관전 채팅' }).getByRole('textbox')).toBeFocused()
+      await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
+      await expect(page.getByRole('region', { name: '경기 채팅' }).getByRole('textbox')).toBeFocused()
       await page.keyboard.press('Escape')
       await screenshot(page, 'new-map-observer-mobile')
     }

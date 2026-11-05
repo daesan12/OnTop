@@ -89,17 +89,15 @@ beforeEach(() => {
 afterEach(async () => { await runtime.stop(); clearAuthSession(); vi.unstubAllGlobals() })
 
 describe('seat states that precede CHANNEL_JOIN and the table list', () => {
-  it('does not let an early recovery block initial channel selection after refresh', async () => {
+  it('automatically enters the recommended channel before applying an early recovery', async () => {
     multipleChannels = true
     activation = [['GAME_CONNECTION_STATE', {status:'RESTORED',gameId:'7',version:3,state:omok()}],
       ['TABLE_STATE',table],['GAME_START_STATE',start('PLAYING')]]
     runtime = new ParkRuntime(); await restoreAuthSession(true); runtime.start()
-    await vi.waitFor(()=>expect(useSession.getState().status).toBe('connected'))
-    expect(useGame.getState().game).toBeNull()
-    expect(tableBusy()).toBe(false)
-    expect(await runtime.selectChannel('c')).toBe(true)
-    expect(useSession.getState()).toMatchObject({roomId:'c',tableId:'server-table',seatIndex:0})
-    expect(useGame.getState()).toMatchObject({recovery:'RESTORED',permittedGameId:'7',start:{phase:'PLAYING'}})
+    await vi.waitFor(()=>expect(useSession.getState()).toMatchObject({status:'connected',roomId:'c',tableId:'server-table',seatIndex:0}))
+    await vi.waitFor(()=>expect(useGame.getState()).toMatchObject({recovery:'RESTORED',permittedGameId:'7',start:{phase:'PLAYING'}}))
+    expect(socket.requests.filter(request=>request.type==='CHANNEL_JOIN').map(request=>request.payload.channelId)).toEqual(['c'])
+    expect(tableBusy()).toBe(true)
     expect(canPlace('101',7,7)).toBe(true)
   })
   it('restores a WAITING lease seat, host wait and this table\'s start state', async () => {

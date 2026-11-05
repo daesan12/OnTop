@@ -8,7 +8,7 @@
 | --- | --- |
 | `ADMIN_READ_IDS` | 소리함·집계 조회가 가능한 내부 회원 ID의 쉼표 구분 목록 |
 | `ADMIN_GRANT_IDS` | 일괄 엽전 지급이 가능한 내부 회원 ID의 쉼표 구분 목록 |
-| `ADMIN_OPERATION_IDS` | 배출·점검·정상 운영 상태를 전환할 수 있는 내부 회원 ID의 쉼표 구분 목록 |
+| `ADMIN_OPERATION_IDS` | 운영 상태 전환·일반 공지 관리가 가능한 내부 회원 ID의 쉼표 구분 목록 |
 
 `ADMIN_GRANT_IDS`와 `ADMIN_OPERATION_IDS`의 모든 ID는 `ADMIN_READ_IDS`에도 있어야 한다. 운영 전환 ID를
 생략하면 기존 지급 관리자에게 운영 전환 권한을 부여한다. 누락되거나 양수가 아닌 ID가 있으면 앱 시작 시
@@ -26,11 +26,17 @@
 | `POST /api/v1/admin/wallet-grants` | 지급 실행 |
 | `GET /api/v1/admin/operations/status` | 운영 상태 조회 |
 | `PUT /api/v1/admin/operations/status` | 운영 상태 전환 |
+| `GET /api/v1/admin/operations/announcements` | 공지 관리(운영) |
+| `POST/PUT/DELETE /api/v1/admin/operations/announcements/{id}` | 공지 관리(운영) |
 | 그 밖의 `/api/v1/admin/**` | 거절 |
 
 `GET /api/v1/admin/me`는 `{ "canRead": true, "canGrant": false, "canOperate": true }` 형식으로 현재
 권한을 반환하며 캐시하지 않는다. 미로그인은 401, 권한이 없는 회원은 403이다. 프론트엔드의 화면 접근
 처리는 서버 권한 검사를 대신하지 않는다.
+
+일반 공지는 `/admin/announcements`에서 관리한다. 공원 회원 조회는 `GET /api/v1/announcements`이며
+점검 모드 안내와 별개다. 신규 저장소 V148은 현재 로컬 작성만 완료했고 실제 DB 적용 전이다.
+요청·예약 기간·충돌 처리 계약은 [공지 API](announcements-api.md)를 따른다.
 
 관리자 화면은 로그인 후 `/admin` 주소로 직접 연다. 공원 UI에는 관리자 진입 메뉴를 두지 않는다. 화면도 `/api/v1/admin/me`로 권한을 확인한 뒤 소리함 목록을 표시하며, 일반 회원에게는 권한 없음 화면을 보여준다. `/admin/feedback` 주소로 직접 들어와도 같은 권한 확인을 거친다.
 

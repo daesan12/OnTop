@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useGame, canPlayDice } from '../store'
 import { useSession } from '../../network/worldClient'
-import { inputState, clearRoamingInput } from '../../world/inputOwnership'
+import { inputState, clearRoamingInput, panelOwnsGameClicks } from '../../world/inputOwnership'
 import { resetSeatedLook } from '../../features/tableLobby/state'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { eligibleDice, validDiceAction } from './scoring'
@@ -57,7 +57,7 @@ export function syncDiceUI(animate = false) {
 export function diceCanAct() {
   const s = useSession.getState(), ui = useDiceUI.getState()
   return s.status === 'connected' && !s.pending && canPlayDice(s.sessionId)
-    && !Object.values(inputState).some(Boolean) && !ui.scoreOpen && performance.now() >= ui.animationUntil
+    && !panelOwnsGameClicks() && !ui.scoreOpen && performance.now() >= ui.animationUntil
 }
 export function selectedDice() { return useDiceUI.getState().scope === diceScope() ? useDiceUI.getState().selectedIds : [] }
 export function canRollDice() {
@@ -128,7 +128,7 @@ export function installDiceControls() {
       e.preventDefault(); toggleScoreSheet(); return
     }
     if (e.repeat || e.isComposing || e.ctrlKey || e.altKey || e.metaKey || document.hidden
-      || (e.target instanceof HTMLElement && !!e.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],dialog[open]'))
+      || (e.target instanceof HTMLElement && !!e.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],dialog[open],.game-hud-menu'))
       || Object.entries(inputState).some(([key, v]) => key !== 'minigameOpen' && v)) return
     if (e.code === 'KeyT') { e.preventDefault(); toggleScoreSheet() }
     if (e.code === 'KeyR') { e.preventDefault(); rollDice() }

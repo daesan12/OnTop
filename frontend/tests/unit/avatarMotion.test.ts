@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Group, SkinnedMesh, Vector3 } from 'three'
 import { characterSource } from '../fixtures/characterRig'
 import { characterBones, createCharacterRig } from '../../src/world/art/CharacterRig'
+import { drawnVertices } from '../../src/world/art/characterLook'
 import { avatarEmoteAge, avatarPoseActive, avatarPoseAmbient, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from '../../src/world/avatarMotion'
 import { AvatarPoseCadence } from '../../src/performance/avatarPoseCadence'
 import { CHARACTER, CLAP_EMOTE, FITNESS_STATIONS, SOCIAL_GESTURES } from '../../src/config'
@@ -99,7 +100,8 @@ describe('avatar pose transitions and resource ownership', () => {
       mesh.skeleton.update()
       const p = mesh.geometry.attributes.position!, weights = mesh.geometry.attributes.skinWeight!, indices = mesh.geometry.attributes.skinIndex!
       let bottom = Infinity, samples = 0
-      for (let i = 0; i < p.count; i++) {
+      // Only drawn vertices: pieces hidden under the worn clothes stay in the shared attributes.
+      for (const i of drawnVertices(mesh.geometry)) {
         if (p.getY(i) < rig.hipHeight - 0.2 || p.getY(i) > rig.hipHeight + 0.1) continue
         let support = 0
         for (let j = 0; j < 4; j++) if (['hips', 'spine'].includes(mesh.skeleton.bones[indices.getComponent(i, j)]!.name)) support += weights.getComponent(i, j)

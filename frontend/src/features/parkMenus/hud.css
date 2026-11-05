@@ -187,8 +187,8 @@
 .park-chat__radius { flex-shrink:0; padding: 2px 8px 3px; border-radius: 4px; color: #e8b451; background: rgba(232, 180, 81, 0.18); font-size: 12px; font-weight: 500; }
 .park-page .park-chat__heading button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: none; }
 .park-page .park-chat__heading button:hover { background: rgba(247, 241, 229, 0.1); }
-.park-page .park-chat__heading button img { width: 18px; height: 18px; transition: transform 150ms; }
-.park-page .park-chat__heading button[aria-expanded='true'] img { transform: rotate(180deg); }
+.park-page .park-chat__heading button img { width: 18px; height: 18px; transform: rotate(180deg); transition: transform 150ms; }
+.park-page .park-chat__heading button[aria-expanded='true'] img { transform: none; }
 .park-chat__system { margin: 0; color: rgba(247, 241, 229, 0.55); font-size: 14px; font-weight: 500; }
 .park-page .park-chat__message { gap: 12px; font-size: 17px; }
 .park-page .park-chat__author { flex: 0 0 auto; max-width: 160px; color: #e8b451; font-weight: 700; }
@@ -216,6 +216,16 @@
 .park-page .park-chat__composer--open { border: 0; }
 .park-page .park-chat__composer--open input { color: #292620; }
 .park-page .park-chat__composer--open input::placeholder { color: rgba(41, 38, 32, 0.5); }
+.park-page .park-chat[data-game-id]:not([data-game-id='']) {
+  width: min(360px, calc(100vw - 32px)); max-height: min(42dvh, 360px);
+  gap: 8px; padding: 12px 14px;
+}
+.park-page .park-chat[data-game-id] .park-chat__heading { margin-bottom: 8px; padding-bottom: 8px; }
+.park-page .park-chat[data-game-id] .park-chat__heading h1 { font-size: 15px; }
+.park-page .park-chat[data-game-id] .park-chat__message { font-size: 14px; }
+.park-page .park-chat[data-game-id] .park-chat__composer { --chat-composer-height: 40px; font-size: 14px; }
+.park-page .park-chat[data-history='false']:not(:has(.park-chat__composer--open)) .park-chat__messages { height: auto; }
+.park-page .park-chat[data-history='false']:not(:has(.park-chat__composer--open)) .park-chat__list { flex: 0 1 auto; max-height: 144px; }
 .park-page .park-chat__composer--open button[type='button'] { color: #53604f; background: none; }
 .park-page .park-chat__history-hint,
 .park-page .park-chat__notice { color: rgba(247, 241, 229, 0.7); }
