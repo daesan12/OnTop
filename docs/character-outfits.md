@@ -15,7 +15,7 @@
   - 그래서 새 옷은 **자기 한 벌을 입었을 때만** 맞으면 된다. 다른 상의·하의·신발과 섞어 입는 경우는 생기지 않는다.
   - 부위별로 섞어 입게 했을 때는 바지가 다른 상의를 뚫거나, 바지 없이 신발만 신으면 발목이 비는 문제가 옷마다 생겼다.
 - **캐릭터별 조각.** `item__HAIR__h__for_girl`처럼 `__for_man`/`__for_girl`이 붙은 조각은 그 캐릭터에게만 보인다(④-2).
-- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`g`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`)이고, 새 옷은 `h`부터 쓴다.
+- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`i`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`, 갓·도포 `h`, 모자 아래 여자 쪽머리 `i`)이고, 새 옷은 `j`부터 쓴다.
 - **몸 조각.** 의상에 가려지는 몸은 `body__TOPd_BOTTOMg`처럼 가리는 의상 이름이 붙은 조각으로 잘려 있다. 이 조각은 그 의상 중 하나라도 입으면 숨는다. 의상 조각 `item__BOTTOM__d__under_TOPb`는 `TOP b`를 함께 입으면 숨는다.
 - **게임 파일**(`frontend/public/art/characters/`):
   - `man.glb`, `girl.glb`: 공용 몸의 모든 조각 + 그 캐릭터의 기본 옷.
@@ -132,25 +132,38 @@
 모자와 머리카락이 한 아이템인 머리 아이템(갓, 장군 투구)은 남녀가 같이 쓴다. 그래서 머리카락을 캐릭터별 조각으로 따로 둔다.
 
 - 조각 이름은 `item__HAIR__<문자>__for_man` / `item__HAIR__<문자>__for_girl`이다. 게임은 그 캐릭터에만 그린다(`characterLook.ts`).
-- 머리카락은 기본 캐릭터의 머리(남자 `b`, 여자 `e`)를 복사해 쓴다. Tripo 머리보다 깔끔하고 기본 모습과 머릿결이 같다.
+- 남자 머리카락은 기본 머리 `b`를 복사해 쓴다. Tripo 머리보다 깔끔하고 기본 모습과 머릿결이 같다.
+- 여자는 기본 머리 `e`(포니테일)를 쓰면 모자 아래에서 어색해서, 모자용 머리 `i`(가르마를 탄 낮은 쪽머리)를 따로 만들었다.
+  1. 공용 몸 T자 시트(`pose_sheet.py pose=t`)를 Gemini에 넣고, 몸·얼굴·배치는 그대로 두고 머리만 그리게 했다: 가운데 가르마, 머리에 붙게 빗어 넘긴 머리, 목덜미의 작은 쪽. 모자·장신구는 넣지 않는다.
+  2. Tripo 여러 면(정면 / Left = 오른쪽 아래 / Right = 오른쪽 위 / 뒤), Generate in Parts, Balanced, 4K 텍스처.
+  3. Tripo가 머리카락과 얼굴 피부를 한 부품으로 냈다. `split_head.py`가 텍스처 밝기로 나눈다(머리 `tripo_part_90`, 얼굴 `tripo_part_91`). 눈가의 어두운 선이 머리로 잡혀서, 2000면보다 작은 머리 조각은 지운다.
+  4. 머리만 기준 빌드에 맞춘다. 얼굴(`head_fit`)로 맞추니 크기 1.002배로 몸과 거의 같았다.
+
+```bash
+"$B" -b --python tools/character/split_head.py -- girl_bun_parts.glb girl_bun_split.glb part=1 min_island=2000
+"$B" -b --python tools/character/fit_outfit.py -- shared_layers_h.glb girl_bun_split.glb shared_layers_hi.glb set=i s=1.065 head_fit=91 "map=HAIR:90,3"
+```
+
+- `i`는 모자 아래 머리의 원본일 뿐이라 아이템으로 팔지 않는다(옷 파일에도 넣지 않는다).
 - `tools/character/hat_hair.py`가 머리카락을 모자 안으로 넣는다.
   - 머리 중심에서 그 점 사이에 모자가 있으면, 그 점을 모자 안쪽 3 mm로 당긴다.
   - 모두 당겨져 모자 속에 숨은 면은 지운다.
-  - `drop_hair=1`은 모자 아이템에 있던 Tripo 머리(갈색 조각)를 뺀다.
+  - `drop_hair=1`은 모자 아이템에 있던 Tripo 머리(갈색 조각)를 뺀다. 20면보다 작은 부스러기도 함께 뺀다(`crumbs`). 이마 앞에 뜬 삼각형 두 개가 남자 앞머리에 가려 있다가, 이마가 드러난 쪽머리에서 검은 자국으로 보였다(게임은 면 양쪽을 그린다).
 
 ```bash
-"$B" -b --python tools/character/hat_hair.py -- shared_layers_h.glb hh1.glb set=h drop_hair=1        # 갓: 남녀 모두 기본 머리로
-"$B" -b --python tools/character/hat_hair.py -- hh1.glb hh2.glb set=g man= girl=e cap_for=man,cap_black crown_for=girl,1.2,0.045 down=0 pull=0   # 장군 투구
+"$B" -b --python tools/character/hat_hair.py -- shared_layers_hi.glb hh1.glb set=h drop_hair=1 girl=i        # 갓: 남자 기본 머리, 여자 쪽머리
+"$B" -b --python tools/character/hat_hair.py -- hh1.glb hh2.glb set=g man= girl=i cap_for=man,cap_black crown_for=girl,1.15,0.035 down=0 pull=0   # 장군 투구
 ```
 
 - 갓은 머리 중심에서 바깥으로 당기는 것에 더해, 위에서 아래로도 검사해 챙 위로 삐져나온 머리를 챙 아래로 누른다(`down`, 기본 12 cm). 왕관 모양 투구에는 쓰지 않는다(`down=0`).
 - 장군 투구는 두건(검은 모자)이 머리를 덮는 모양이라, 여자에게 씌우면 뒤로 검은 공처럼 보였다. 그래서 여자에게는 두건을 빼고 왕관을 머리 위에 얹는다.
   - `cap_for=man,cap_black`: 두건(재질 `cap_black`과 거의 검은 면)은 남자 조각으로만 두고, 두건이 가리던 두피는 여자 조각에 되살린다(같이 가리던 상의가 있으면 `__under_` 규칙 유지).
-  - `crown_for=girl,1.2,0.045`: 여자용 왕관을 머리 중심 기준 1.2배, 4.5 cm 위로 복사해 머리 위에 얹는다. 원래 크기면 왕관이 머리에 파묻혔다.
+  - `crown_for=girl,1.15,0.035`: 여자용 왕관을 머리 중심 기준 1.15배, 3.5 cm 위로 복사해 머리 위에 얹는다. 원래 크기면 왕관 뒤쪽이 머리에 파묻혔고, 포니테일 때 쓰던 1.2배·4.5 cm는 쪽머리 위에서 떠 보였다.
   - `pull=0`: 여자 머리는 당기지 않는다. 당기면 왕관을 지나는 머리카락이 가시처럼 삐죽해졌다.
 
 - 머리를 넣은 옷 파일은 `to_game.py`의 `near`를 머리 몫만큼 올린다(갓 4만 → 7만 5천). 그대로 두면 촘촘한 머리가 삼각형을 다 가져가 도포가 거칠어지고 어깨에 구멍이 생겼다(도포 17,324 → 6,674). 머리를 미리 크게 줄이면(`hair_faces`) 머리 텍스처가 줄무늬처럼 깨져서 쓰지 않는다.
-- 카드 그림은 `item_art.py ... variant=girl`로 `-girl` 그림(`outfit-gat-h-hair-girl.webp`)을 따로 만든다. 옷장은 여자 캐릭터일 때 이 그림을 먼저 쓴다.
+- 카드 그림은 `item_art.py ... variant=girl view=-1,0.5,0.2`로 `-girl` 그림(`outfit-gat-h-hair-girl.webp`)을 따로 만든다. 옷장은 여자 캐릭터일 때 이 그림을 먼저 쓴다.
+  - 쪽머리는 얼굴을 덮지 않아 앞에서 그리면 머리 안쪽이 비어 보인다. 그래서 옆뒤(`view`)에서 쪽이 보이게 그린다.
 
 ### ⑤ 빌드 확인
 

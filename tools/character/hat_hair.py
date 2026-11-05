@@ -52,8 +52,23 @@ if opt.get('drop_hair', '0') == '1':
                         if nf not in seen: seen.add(nf); grp.append(nf); st.append(nf)
             c = np.mean([P[min(h_ - 1, int(l[uvl].uv.y * h_)), min(w_ - 1, int(l[uvl].uv.x * w_))] for g in grp for l in g.loops], 0)
             if c.mean() > 0.16 and c[0] - c[2] > 0.06: brown += grp
-        bmesh.ops.delete(bm, geom=brown, context='FACES'); bm.to_mesh(o.data); bm.free()
-        print('DROP', o.name, len(brown), 'brown hair faces')
+        bmesh.ops.delete(bm, geom=brown, context='FACES')
+        # and crumbs, pieces of under `crumbs` (20) faces joined by position (the import split the mesh along UV
+        # seams): two single dark triangles of Tripo's hair floated before the forehead, hidden by the man's fringe,
+        # two black marks on the girl's bare forehead in the game, which draws both sides (user)
+        root = {}
+        def find(k):
+            while root.setdefault(k, k) != k: root[k] = root[root[k]]; k = root[k]
+            return k
+        key = lambda v: tuple(round(x, 5) for x in v.co)
+        for f in bm.faces:
+            ks = [key(v) for v in f.verts]
+            for k in ks[1:]: root[find(k)] = find(ks[0])
+        size = {}
+        for f in bm.faces: r = find(key(f.verts[0])); size[r] = size.get(r, 0) + 1
+        crumbs = [f for f in bm.faces if size[find(key(f.verts[0]))] < int(opt.get('crumbs', 20))]
+        bmesh.ops.delete(bm, geom=crumbs, context='FACES'); bm.to_mesh(o.data); bm.free()
+        print('DROP', o.name, len(brown), 'brown hair faces,', len(crumbs), 'crumb faces')
 
 # cap_for=man,MAT (the general's helmet): the cap under the crown (material MAT, cap_black) becomes the man's piece,
 # item__HAIR__<set>__for_man; the girl wears the crown on her own hair instead (the black dome behind the crown looked

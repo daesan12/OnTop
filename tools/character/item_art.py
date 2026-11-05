@@ -4,7 +4,8 @@ like the default parts' pictures (frontend/src/features/wardrobe/parts), lit by 
 Writes <out_dir>/outfit-<file>-<set>-<slot>.raw.png; fit them to the card with the same 232 px width afterwards.
 together=TOP,BOTTOM,SHOES also draws those slots as one picture, <out_dir>/set-<file>-<set>.raw.png (a set's card:
 the wardrobe's outfit is worn as one). cut_above=dz leaves out of the top's and the set's pictures what lies over
-dz above the neck joint. variant=girl draws a hat's girl hair (__for_girl) and writes -girl pictures."""
+dz above the neck joint. variant=girl draws a hat's girl hair (__for_girl) and writes -girl pictures. view=dx,dy,dz
+looks from another direction (default -0.35,-1,0.15)."""
 import bpy, sys, os, re
 from mathutils import Vector
 a = sys.argv[sys.argv.index('--') + 1:]
@@ -32,7 +33,9 @@ w.node_tree.nodes['Background'].inputs[0].default_value = (1, 1, 1, 1); w.node_t
 sun = bpy.data.objects.new('s', bpy.data.lights.new('s', 'SUN')); sun.data.energy = 1.6; sc.collection.objects.link(sun); sun.rotation_euler = (0.9, 0.2, 0.5)
 cam = bpy.data.objects.new('c', bpy.data.cameras.new('c')); sc.collection.objects.link(cam); sc.camera = cam
 cam.data.type = 'ORTHO'
-d = Vector((-0.35, -1, 0.15)).normalized()
+# (view=dx,dy,dz: another direction; the girl's bun under a hat, seen from the front, showed the hollow inside of
+# the hair, the face being the body's)
+d = Vector([float(x) for x in opt['view'].split(',')] if opt.get('view') else (-0.35, -1, 0.15)).normalized()
 dg = bpy.context.evaluated_depsgraph_get()
 jobs = list(items.items())
 if opt.get('together'):
