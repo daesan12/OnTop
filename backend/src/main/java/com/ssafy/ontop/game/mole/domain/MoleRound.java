@@ -92,6 +92,10 @@ public class MoleRound {
         return seed;
     }
 
+    public int rulesVersion() {
+        return rulesVersion;
+    }
+
     public Status status() {
         return status;
     }
