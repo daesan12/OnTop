@@ -327,14 +327,14 @@ export class LocalMovementPrediction {
   displayFlags(at: number) {
     const active = this.ready && !!this.baseline && at - this.baseline.at <= this.horizon
     const physical = active ? this.sim?.movementFlags?.() : undefined
+    const effective = this.effectiveIntent()
     // Manual ground input owns only the own avatar's stride. Collision still
     // owns its physical velocity/position; water, air and automatic follow keep it.
     if (active && this.tuned && this.positionMode && this.sim?.groundedForLocomotion?.()
       && (!this.steering || this.steeringSuppressed)) {
-      const moving = !!(this.intent.dx || this.intent.dz)
-      return { moving, running: moving && this.intent.run }
+      const moving = !!(effective.dx || effective.dz)
+      return { moving, running: moving && effective.run }
     }
-    const effective = this.effectiveIntent()
     return physical ?? { moving: !!(active && (effective.dx || effective.dz)), running: !!(active && effective.run) }
   }
   metrics() { return { firstResponseMs: [...this.responseTimes], correctionMetres: [...this.corrections],
