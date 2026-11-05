@@ -9,7 +9,7 @@ const probe = (page: Page) => page.evaluate(async source => (await import(source
 const overlap = (page: Page, value: boolean) => page.evaluate(async ({ source, value }) =>
   (await import(source)).setDiagnosticOverlap(value), { source: probePath, value })
 
-test('첫 겹침과 반복 겹침에서 셰이더를 추가 생성하지 않고 입력과 카메라를 갱신한다', async ({ page }) => {
+test('겹침 성능과 재질 정리 및 WebGL 컨텍스트 복원 후 반투명을 유지한다', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => {
@@ -52,8 +52,27 @@ test('첫 겹침과 반복 겹침에서 셰이더를 추가 생성하지 않고 
     const repeated = await probe(page)
     expect(repeated.programs).toBe(before.programs)
     expect(repeated.frames).toBeGreaterThan(10)
+    await expect.poll(async () => (await probe(page)).fadedMaterials).toBeGreaterThan(0)
+    await page.evaluate(async source => {
+      const diagnostic = await import(source)
+      diagnostic.watchPeerDisposal(); diagnostic.setDiagnosticPeerPresent(false)
+    }, probePath)
+    await expect.poll(async () => (await probe(page)).hasPeer).toBe(false)
+    const departed = (await probe(page)).disposal
+    expect(departed.expected).toBeGreaterThan(0)
+    expect(departed.disposed).toBe(departed.expected)
+    expect(departed.restored).toBe(true)
+    await page.evaluate(async source => (await import(source)).setDiagnosticPeerPresent(true), probePath)
+    await expect.poll(async () => (await probe(page)).fadedMaterials).toBeGreaterThan(0)
+    await page.evaluate(async source => (await import(source)).loseDiagnosticContext(), probePath)
+    await expect.poll(async () => (await probe(page)).contextLost).toBe(true)
+    await page.evaluate(async source => (await import(source)).restoreDiagnosticContext(), probePath)
+    await expect.poll(async () => (await probe(page)).contextLost).toBe(false)
+    await expect.poll(async () => (await probe(page)).fadedMaterials, { timeout: 10000 }).toBeGreaterThan(0)
+    const restored = await probe(page)
+    expect(restored.own.x).toBeGreaterThan(first.own.x)
     expect(errors).toEqual([])
-    const evidence = { before, first, repeated, requestsBefore, requestsAfter, errors }
+    const evidence = { before, first, repeated, departed, restored, requestsBefore, requestsAfter, errors }
     console.log(JSON.stringify(evidence))
     const directory = process.env.QA_ARTIFACT_DIR ?? path.join(os.tmpdir(), 'ontop-jumpmap-overlap')
     await fs.mkdir(directory, { recursive: true })
