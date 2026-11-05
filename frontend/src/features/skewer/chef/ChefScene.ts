@@ -14,7 +14,7 @@ import { INITIAL_PANTRY } from '../cooperativeMenu'
 import { closingTime } from '../closingTime'
 
 export type ChefMode = 'pc' | 'vr'
-type Pick = { ingredient: IngredientId } | { action: 'thread' | 'unthread' | 'submit' | 'stick' | 'coop' } | { slot: number }
+type Pick = { ingredient: IngredientId } | { action: 'thread' | 'unthread' | 'submit' | 'stick' | 'coop' | 'restartRequest' | 'restartAccept' | 'restartDecline' } | { slot: number }
 type Held = { ingredient: IngredientId; root: THREE.Group }
 const HOME = new THREE.Vector3(0, 1.25, .48), TIP = new THREE.Vector3(1.3, 0, 0)
 const COUNTER_TOP = 1.02
@@ -74,6 +74,12 @@ export class ChefScene {
   private readonly coopCanvas = document.createElement('canvas')
   private coopTexture?: THREE.CanvasTexture
   private coopPanel?: THREE.Group
+  private readonly restartRequest = new THREE.Group()
+  private readonly restartReply = new THREE.Group()
+  private readonly restartChoices = new THREE.Group()
+  private readonly restartWaiting = new THREE.Group()
+  private lastRestart = ''
+  private round = 0
   private actionSignature = ''; private feedback = ''; private feedbackUntil = 0
   private readonly timerTexture: THREE.CanvasTexture
   private readonly clock: THREE.Mesh
@@ -328,6 +334,19 @@ export class ChefScene {
       const greeting = this.mesh(new THREE.PlaneGeometry(1.6, .32), new THREE.MeshBasicMaterial({ map: this.coopTexture, toneMapped: false }))
       a.place(this.coopPanel, greeting, 2.59, 1.76, -1.43)
       this.hitBox(this.coopPanel, new THREE.Vector3(2.59, 1.76, -1.43), new THREE.Vector3(1.65, .33, .12), { action: 'coop' })
+      r.add(this.restartRequest, this.restartReply)
+      a.place(this.restartRequest, this.sign('다시 시작 요청', 1.25, .24), 2.59, 2.2, -1.43)
+      this.hitBox(this.restartRequest, new THREE.Vector3(2.59, 2.2, -1.43), new THREE.Vector3(1.3, .28, .12), { action: 'restartRequest' })
+      a.place(this.restartReply, a.box(3.7, 1.12, .06, '#f4e6cb', .025), 0, 2.03, -.45)
+      a.place(this.restartReply, this.sign('함께 다시 시작할까요?', 3.4, .24), 0, 2.36, -.4)
+      a.place(this.restartReply, this.sign('점수·주문 초기화 / 15초 내 응답', 3.4, .18), 0, 2.10, -.4)
+      this.restartReply.add(this.restartChoices)
+      this.restartReply.add(this.restartWaiting)
+      a.place(this.restartWaiting, this.sign('친구의 응답을 기다리고 있어요', 3.4, .24), 0, 1.77, -.39)
+      for (const [x, label, action] of [[-.88, '기존 경기 계속', 'restartDecline'], [.88, '동의하고 다시 시작', 'restartAccept']] as const) {
+        a.place(this.restartChoices, this.sign(label, 1.6, .24), x, 1.77, -.39)
+        this.hitBox(this.restartChoices, new THREE.Vector3(x, 1.77, -.39), new THREE.Vector3(1.65, .3, .12), { action })
+      }
     }
   }
   private recipe(ids: readonly IngredientId[], scale: number) {
@@ -459,6 +478,12 @@ export class ChefScene {
     this.camera.fov = 65; this.camera.updateProjectionMatrix(); this.host.dataset.mode = mode
   }
   private activate(pick: Pick) {
+    if ('action' in pick && ['restartRequest', 'restartAccept', 'restartDecline'].includes(pick.action)) {
+      if (pick.action === 'restartRequest' && !this.view.cooperative?.paused) this.action({ type: 'restartRequest' })
+      if (pick.action === 'restartAccept' && this.view.cooperative?.restart && !this.view.cooperative.restart.own) this.action({ type: 'restartAccept' })
+      if (pick.action === 'restartDecline' && this.view.cooperative?.restart && !this.view.cooperative.restart.own) this.action({ type: 'restartDecline' })
+      return
+    }
     if (chefPresentation(this.view).blocked && !('action' in pick && pick.action === 'coop')) return
     if ('ingredient' in pick) this.action({ type: 'select', ingredient: pick.ingredient })
     else if ('slot' in pick) { if (this.receiptMotion) return; const job = this.view.visible[pick.slot]; if (job) this.action({ type: 'choose', id: job.id }) }
@@ -560,7 +585,7 @@ export class ChefScene {
         else if (good) { this.feedback = ''; this.action({ type: 'thread', ingredient: held.ingredient }) }
         else this.showNotice('꼬치 끝에 재료의 중심과 방향을 맞춰 주세요.')
       }
-      const grab = () => { const pick = this.controllerHit(i)?.object.userData.pick as Pick | undefined; if (pick && 'action' in pick && pick.action === 'stick' && this.owner === null && !this.held.has(i)) { c.attach(this.skewer); this.skewer.rotation.set(0, 0, 0); this.skewer.position.set(1.51 * this.kitchen.scale.x, 0, -.12); this.owner = i } }
+      const grab = () => { const pick = this.controllerHit(i)?.object.userData.pick as Pick | undefined; if (pick && 'action' in pick && pick.action === 'stick' && !chefPresentation(this.view).blocked && this.owner === null && !this.held.has(i)) { c.attach(this.skewer); this.skewer.rotation.set(0, 0, 0); this.skewer.position.set(1.51 * this.kitchen.scale.x, 0, -.12); this.owner = i } }
       const release = () => { if (this.owner === i) this.returnStick() }
       const disconnect = () => { this.held.get(i)?.root.removeFromParent(); this.held.delete(i); release(); if (this.session) this.showNotice('컨트롤러 연결을 확인해 주세요.') }
       c.addEventListener('selectstart', start); c.addEventListener('selectend', end); c.addEventListener('squeezestart', grab); c.addEventListener('squeezeend', release); c.addEventListener('disconnected', disconnect)
@@ -602,6 +627,18 @@ export class ChefScene {
     const now = performance.now(), dt = this.last ? Math.min(.1, (now - this.last) / 1000) : 0; this.last = now
     this.view = this.step(this.session && this.session.visibilityState !== 'visible' ? 0 : dt)
     const v = this.view, signature = v.skewer.join(',')
+    const restart = v.cooperative?.restart
+    if ((restart && restart.id !== this.lastRestart) || (v.cooperative?.round ?? 0) !== this.round) {
+      this.held.forEach(held => held.root.removeFromParent()); this.held.clear(); this.returnStick()
+      this.receiptMotion = null; this.previousOrders = []; this.previousCompleted = v.completed ?? 0
+      this.feedback = ''; this.feedbackUntil = 0; this.actionSignature = ''
+      this.round = v.cooperative?.round ?? 0
+    }
+    this.lastRestart = restart?.id ?? ''
+    this.restartRequest.visible = (this.mode === 'vr' || !!this.session) && v.cooperative?.phase === 'PLAYING' && !v.cooperative.paused
+    this.restartReply.visible = (this.mode === 'vr' || !!this.session) && !!restart
+    this.restartChoices.visible = !!restart && !restart.own
+    this.restartWaiting.visible = !!restart && restart.own
     if (signature !== this.signature) { this.signature = signature; this.assembled.clear(); this.assembled.add(this.recipe(v.skewer, 2.1)) }
     const passSignature = v.pass.map(d => d.id).join(',')
     if (passSignature !== this.passSignature) {

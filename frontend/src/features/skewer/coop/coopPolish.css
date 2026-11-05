@@ -68,3 +68,5 @@
   .skewer-coop .coop-pick-card { min-height: 260px; }
 }
 @media (prefers-reduced-motion: reduce) { .skewer-coop .coop-pick-card { transition: none; } .skewer-coop .coop-pick-card:not(:disabled):hover { transform: none; } }
+
+.skewer-coop .coop-chef-tools{position:fixed;top:14px;right:20px;z-index:8;display:flex;gap:8px}.skewer-coop .coop-chef-tools button{width:42px;height:42px;border:1px solid #e0cfa5;border-bottom:3px solid #392418;border-radius:12px;background:#68432ef5;color:#fff3d9;font-family:inherit;font-size:24px;font-weight:700;line-height:1;cursor:pointer}.skewer-coop .coop-chef-tools button:disabled{opacity:.5;cursor:default}.skewer-coop .coop-chef-tools button:focus-visible{outline:3px solid #d9a15b;outline-offset:3px}.skewer-coop .coop-restart-dialog small{display:block;margin-top:20px;padding:6px 8px;background:#fff8e6c9;border-radius:5px;color:#70583f}.skewer-coop .coop-restart-dialog h2{font-size:32px}@media(max-width:600px){.skewer-coop .coop-chef-tools{top:76px;right:12px}.skewer-coop .coop-restart-dialog h2{font-size:26px}.skewer-coop .coop-restart-dialog .skewer-exit-actions button{font-size:13px;padding:12px 8px}}

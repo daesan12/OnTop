@@ -144,12 +144,16 @@ export class CoopClient {
   }
   act(input: Record<string, unknown>, quiet = false) {
     const gameId = this.snapshot?.gameId
+    const round = this.snapshot?.publicState.round ?? 0
     const work = async () => {
-      if (this.stopped || !gameId || gameId !== this.snapshot?.gameId || !this.transport.scope().connected) return
-      if ((this.inputBlocked || this.snapshot.publicState.paused) && !['PAUSE', 'CHEF_MODE'].includes(String(input.type))) return
+      if (this.stopped || !gameId || gameId !== this.snapshot?.gameId || !this.transport.scope().connected
+        || round !== (this.snapshot.publicState.round ?? 0)) return
+      if ((this.inputBlocked || this.snapshot.publicState.paused) && !['PAUSE', 'CHEF_MODE', 'RESTART_REPLY'].includes(String(input.type))) return
       if (input.type === 'GREET' && (!this.snapshot.publicState.greeting.active || this.snapshot.publicState.greeting.answered)) return
       const actionId = crypto.randomUUID()
       for (let attempt = 0; attempt < 4; attempt++) {
+        if (round !== (this.snapshot?.publicState.round ?? 0)) return
+        if (input.type === 'RESTART_REPLY' && input.requestId !== this.snapshot?.publicState.restart?.id) return
         try {
           await this.request('GAME_ACTION_SEND', { gameId, actionId, expectedVersion: this.snapshot!.publicState.actionVersion, input }, ['GAME_ACTION_RESULT'])
           await this.sync()

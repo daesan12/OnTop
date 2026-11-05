@@ -17,7 +17,9 @@ import './serviceVenue.css'
 import './serviceTools.css'
 
 const anchor = (name: string) => ({ left: `var(--hall-${name}-x,50%)`, top: `var(--hall-${name}-y,50%)` }) as CSSProperties
-export default function ServiceHallPage({ driver, inputBlocked = false }: { driver?: HallDriver; inputBlocked?: boolean } = {}) {
+export default function ServiceHallPage({ driver, inputBlocked = false, onPause, onRestart }: {
+  driver?: HallDriver; inputBlocked?: boolean; onPause?: () => void; onRestart?: () => void
+} = {}) {
   useGameDragScroll('.service-hall')
   const model = useRef<HallDriver | null>(null); model.current ??= driver ?? new HallPreview()
   const host = useRef<HTMLDivElement>(null), keys = useRef(new Set<string>()), guide = useRef<HTMLDialogElement>(null), storage = useRef<HTMLDialogElement>(null)
@@ -100,7 +102,7 @@ export default function ServiceHallPage({ driver, inputBlocked = false }: { driv
       </div>
     </div>
     <ServiceHud view={view} />
-    <nav className="service-tools" aria-label="게임 도구">{!driver?.online ? <button aria-label="일시정지" onClick={() => { keys.current.clear(); model.current!.release(); setLocalPaused(true); setView(model.current!.view()) }}><HallIcon name="pause" /></button> : null}<button aria-label="서빙 이용 안내" onClick={() => { keys.current.clear(); model.current!.release(); guide.current?.showModal(); setView(model.current!.view()) }}><HallIcon name="help" /></button>{!driver?.online ? <button onClick={() => { keys.current.clear(); model.current!.release(); setRestartOpen(true) }} title="다시 시작" aria-label="다시 시작"><HallIcon name="reset" /></button> : null}</nav>
+    <nav className="service-tools" aria-label="게임 도구">{!driver?.online || onPause ? <button aria-label="일시정지" onClick={() => { if (onPause) { onPause(); return }; keys.current.clear(); model.current!.release(); setLocalPaused(true); setView(model.current!.view()) }}><HallIcon name="pause" /></button> : null}<button aria-label="서빙 이용 안내" onClick={() => { keys.current.clear(); model.current!.release(); guide.current?.showModal(); setView(model.current!.view()) }}><HallIcon name="help" /></button>{!driver?.online || onRestart ? <button disabled={inputBlocked} onClick={() => { if (onRestart) { onRestart(); return }; keys.current.clear(); model.current!.release(); setRestartOpen(true) }} title="다시 시작" aria-label={driver?.online ? "다시 시작 요청" : "다시 시작"}><HallIcon name="reset" /></button> : null}</nav>
     {view.message ? <p className={`service-feedback${view.message.startsWith('오배송') ? ' is-misdelivery' : ''}`} role="status" key={view.revision}>{view.message}</p> : null}
     {error ? <p className="service-error" role="alert">{error}</p> : null}
     {!driver?.online ? <ExitConfirmation open={localPaused} onContinue={() => setLocalPaused(false)} onExit={() => location.assign('/vr-zone.html')} /> : null}
