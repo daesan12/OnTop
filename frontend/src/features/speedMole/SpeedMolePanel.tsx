@@ -9,7 +9,7 @@ import './speed-mole.css'
 
 type Phase = 'ready' | 'countdown' | 'playing' | 'result'
 interface Feedback { id: number; hole: number; kind: 'hit' | 'miss'; at: number }
-const layout = SPEED_MOLE_KEYS.map((_, index) => ({ left: `${26 + (index % 4) * 16}%`, top: `${index < 4 ? 64 : 83}%` }))
+const layout = SPEED_MOLE_KEYS.map((_, index) => ({ left: `${26 + (index % 4) * 16}%`, top: `${index < 4 ? 61 : 80}%` }))
 const keySummary = `${SPEED_MOLE_KEYS.slice(0, 4).join('')} / ${SPEED_MOLE_KEYS.slice(4).join('')}`
 
 /** Standalone local play surface. It never submits a score, spends money or grants a reward. */
