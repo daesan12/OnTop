@@ -15,11 +15,20 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@EnabledIfEnvironmentVariable(named = "FENCE_MOVEMENT_DIR", matches = ".+")
 class FenceMovementPathTests {
     @Test
+    @EnabledIfEnvironmentVariable(named = "FENCE_MOVEMENT_DIR", matches = ".+")
     void 실제_FE_위치보고의_울타리_이동과_짧은착지_재점프를_보정없이_승인한다() throws Exception {
-        var directory = Path.of(System.getenv("FENCE_MOVEMENT_DIR"));
+        replay(Path.of(System.getenv("FENCE_MOVEMENT_DIR")), "position-paths", 224);
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "FENCE_BACKPRESSURE_DIR", matches = ".+")
+    void 전송_지연과_64점_가득찬_경로도_버리지않고_기존_검증으로_승인한다() throws Exception {
+        replay(Path.of(System.getenv("FENCE_BACKPRESSURE_DIR")), "backpressure-paths", 89);
+    }
+
+    private void replay(Path directory, String filename, int expectedScenarios) throws Exception {
         var mapper = new ObjectMapper();
         var scene = PreparedParkMap.load(Path.of("../frontend/generated/park/server-map.json"),
                 Path.of("../frontend/generated/park/manifest.json"), Set.of("channel-1")).createScene();
@@ -33,7 +42,7 @@ class FenceMovementPathTests {
             }
         }
         int accepted = 0, scenarios = 0;
-        for (var trace : mapper.readTree(directory.resolve("position-paths.json").toFile())) {
+        for (var trace : mapper.readTree(directory.resolve(filename + ".json").toFile())) {
             scenarios++;
             var now = new AtomicLong();
             try (var world = new WorldPhysics(scene, true, now::get, true, JumpCourse.loadDefault())) {
@@ -58,11 +67,15 @@ class FenceMovementPathTests {
                 }
             }
         }
-        mapper.writerWithDefaultPrettyPrinter().writeValue(directory.resolve("validation.json").toFile(),
+        var resultFile = filename.equals("position-paths") ? "validation.json" : "backpressure-validation.json";
+        mapper.writerWithDefaultPrettyPrinter().writeValue(directory.resolve(resultFile).toFile(),
                 Map.of("scenarios", scenarios, "accepted", accepted, "firstRejections", failures,
                         "maxSamples", sizes.stream().mapToInt(Integer::intValue).max().orElse(0),
                         "averageSamples", sizes.stream().mapToInt(Integer::intValue).average().orElse(0)));
-        assertThat(failures).as("See validation.json for rejected actual FE position reports").isEmpty();
-        assertThat(scenarios).isEqualTo(224);
+        assertThat(failures).as("See %s for rejected actual FE position reports", resultFile).isEmpty();
+        assertThat(scenarios).isEqualTo(expectedScenarios);
+        if (filename.equals("backpressure-paths")) {
+            assertThat(sizes).contains(64);
+        }
     }
 }

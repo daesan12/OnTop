@@ -1,5 +1,7 @@
 # 울타리 이동과 짧은 착지·재점프 보정 수정
 
+> 2026-11-06 추가: 아래의 64점 초과 시 끝점 fallback 제약은 폐기했다. 경로를 버리지 않고 추가 예측을 보류하는 방식과 최신 dev 통합 검증은 [추가 기록](movement-backpressure-20261106.md)을 따른다. 이 문서의 수치는 2026-11-05 당시 결과다.
+
 - 브랜치: `fix/jumpmap-overlap-prewarm`, 기존 MR !376에 누적. 머지 보류.
 - 기준: `origin/dev@86ab0c00f947c77a4f1de0b061b51afd5f67cf74`. 공유 이력을 보존해 반영했으며 충돌 없음. 마지막 통합은 운영 상태 주입의 부분 컨텍스트 보정 1건이며 FE·맵·물리 소스 변경은 없었다.
 - 공통 경로: FE `network/localMovementPrediction.ts`, `network/predictionPhysics.ts`; BE `world/movement/ClientPositionValidator.java`, `WorldPhysics.java`.
