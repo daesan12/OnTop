@@ -126,6 +126,21 @@ for o in hats:
         bmesh.ops.delete(t, geom=[f for f, k in zip(t.faces, is_dark) if k], context='FACES')
         tmp = bpy.data.meshes.new('c'); cap.to_mesh(tmp); cap.free(); cb_.from_mesh(tmp); bpy.data.meshes.remove(tmp)
         print('OVER', sum(is_dark), 'dark cap faces of', len(is_dark))
+    # straps=N: pieces of the hat under N faces (joined by position) are not in the way: the gat's chin strings hang
+    # past the girl's face-framing strands, which were pulled in and cut off as if under the hat (user)
+    if int(opt.get('straps', 0)):
+        root = {}
+        def find(k):
+            while root.setdefault(k, k) != k: root[k] = root[root[k]]; k = root[k]
+            return k
+        key = lambda v: tuple(round(x, 5) for x in v.co)
+        for f in t.faces:
+            ks = [key(v) for v in f.verts]
+            for k in ks[1:]: root[find(k)] = find(ks[0])
+        size = {}
+        for f in t.faces: r = find(key(f.verts[0])); size[r] = size.get(r, 0) + 1
+        small = [f for f in t.faces if size[find(key(f.verts[0]))] < int(opt['straps'])]
+        bmesh.ops.delete(t, geom=small, context='FACES'); print('STRAPS', len(small), 'faces left out of the hat\'s way')
     tmp = bpy.data.meshes.new('t'); t.to_mesh(tmp); t.free(); hb.from_mesh(tmp); bpy.data.meshes.remove(tmp)
 hat_bvh = BVHTree.FromBMesh(hb); hb.free()
 cap_bvh = BVHTree.FromBMesh(cb_) if OVER else None; cb_.free()

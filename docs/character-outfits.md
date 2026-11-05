@@ -156,10 +156,11 @@
   - `drop_hair=1`은 모자 아이템에 있던 Tripo 머리(갈색 조각)를 뺀다. 20면보다 작은 부스러기도 함께 뺀다(`crumbs`). 이마 앞에 뜬 삼각형 두 개가 남자 앞머리에 가려 있다가, 이마가 드러난 쪽머리에서 검은 자국으로 보였다(게임은 면 양쪽을 그린다).
 
 ```bash
-"$B" -b --python tools/character/hat_hair.py -- shared_layers_hi.glb hh1.glb set=h drop_hair=1 girl=i        # 갓: 남자 기본 머리, 여자 쪽머리
+"$B" -b --python tools/character/hat_hair.py -- shared_layers_hi.glb hh1.glb set=h drop_hair=1 girl=i straps=1000        # 갓: 남자 기본 머리, 여자 앞머리 쪽머리
 "$B" -b --python tools/character/hat_hair.py -- hh1.glb hh2.glb set=g man= girl=i cap_for=man,cap_black crown_for=girl,1.15,0.035 down=0 pull=0   # 장군 투구
 ```
 
+- `straps=1000`: 1000면보다 작은 모자 조각(갓의 턱끈)은 모자 안쪽을 판단할 때 빼고 본다. 턱끈이 얼굴 옆 머리 바로 바깥을 지나서, 옆머리가 모자 속으로 당겨져 잘려 나갔다. 투구에는 옆머리가 있는데 갓에는 없어서 남자처럼 보였다(user).
 - 갓은 머리 중심에서 바깥으로 당기는 것에 더해, 위에서 아래로도 검사해 챙 위로 삐져나온 머리를 챙 아래로 누른다(`down`, 기본 12 cm). 왕관 모양 투구에는 쓰지 않는다(`down=0`).
 - 장군 투구는 두건(검은 모자)이 머리를 덮는 모양이라, 여자에게 씌우면 뒤로 검은 공처럼 보였다. 그래서 여자에게는 두건을 빼고 왕관을 머리 위에 얹는다.
   - `cap_for=man,cap_black`: 두건(재질 `cap_black`과 거의 검은 면)은 남자 조각으로만 두고, 두건이 가리던 두피는 여자 조각에 되살린다(같이 가리던 상의가 있으면 `__under_` 규칙 유지).

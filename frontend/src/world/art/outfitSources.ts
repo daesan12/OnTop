@@ -3,7 +3,7 @@ import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { ParkAssetLoader } from './assetLoader'
 
 /** Outfit files are fetched when someone first wears one, not with the park: most visitors never need them. */
-export const outfitUrl = (name: string) => `/art/characters/outfits/${name}.glb?rig=15`
+export const outfitUrl = (name: string) => `/art/characters/outfits/${name}.glb?rig=16`
 
 const loaded = new Map<string, GLTF>()
 const requested = new Set<string>()
