@@ -1,5 +1,6 @@
 package com.ssafy.ontop.world.movement;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import java.nio.file.Path;
 import java.util.Set;
@@ -15,9 +16,19 @@ class WorldCarryPhysicsTests {
     private final AtomicLong now = new AtomicLong();
 
     private WorldPhysics pair(boolean clientPositions) throws Exception {
+        return pair(clientPositions, false);
+    }
+
+    private WorldPhysics pair(boolean clientPositions, boolean obstacles) throws Exception {
         Path directory = Path.of("../frontend/generated/park");
         var scene = PreparedParkMap.load(directory.resolve("server-map.json"), directory.resolve("manifest.json"),
                 Set.of("one")).createScene();
+        if (obstacles) {
+            ObjectNode data = scene.data.deepCopy();
+            addBox(data, "carry-wall", 20, 1.7, 78, .5, 1.7, .5);
+            addBox(data, "carry-ceiling", 24, 2.6, 78, 1, .2, 1);
+            scene = ParkScene.fromPreparedData(data, scene.metadata());
+        }
         var physics = new WorldPhysics(scene, clientPositions, now::get, clientPositions);
         physics.add("a");
         physics.add("b");
@@ -25,6 +36,64 @@ class WorldCarryPhysicsTests {
         physics.place("b", 1, .84, 78);
         step(physics, 5);
         return physics;
+    }
+
+    @Test
+    void 머리위에_다른_플레이어가_겹쳐도_운반은_유지되고_정적천장에서는_해제한다() throws Exception {
+        try (var physics = pair(false, true)) {
+            physics.add("c");
+            physics.place("c", 0, 2.54, 78);
+
+            assertThat(physics.pickup("a", "b")).isTrue();
+            step(physics, 1);
+            assertThat(physics.carryState("b").role()).isEqualTo("CARRIED");
+            physics.place("a", 24, .84, 78);
+            step(physics, 1);
+
+            assertThat(physics.carryState("b")).isNull();
+            assertThat(physics.snapshot("b").x()).isCloseTo(24, within(.1));
+        }
+    }
+
+    @Test
+    void 멀리_운반한뒤_현재위치가_막히면_주변의_안전지점으로_내려놓는다() throws Exception {
+        try (var physics = pair(false, true)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            physics.place("a", 18, .84, 78);
+            step(physics, 5);
+            physics.place("a", 20, .84, 78);
+
+            physics.releaseCarry("a");
+
+            var released = physics.snapshot("b");
+            assertThat(released.x()).isBetween(17.5, 22.5);
+            assertThat(physics.canStand(released.x(), released.y(), released.z())).isTrue();
+            step(physics, 5);
+            assertThat(physics.snapshot("b").x()).isGreaterThan(17);
+        }
+    }
+
+    @Test
+    void 캐시도_현재위치도_막히면_최초위치로_돌아가지않고_주변을_찾는다() throws Exception {
+        try (var physics = pair(false, true)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            physics.place("a", 20, .84, 78);
+
+            physics.releaseCarry("a");
+
+            var released = physics.snapshot("b");
+            assertThat(released.x()).isBetween(16d, 24d);
+            assertThat(physics.canStand(released.x(), released.y(), released.z())).isTrue();
+        }
+    }
+
+    private void addBox(ObjectNode data, String id, double x, double y, double z,
+            double halfX, double halfY, double halfZ) {
+        var box = data.withArray("boxes").addObject();
+        box.put("id", id);
+        box.put("yaw", 0);
+        box.putArray("center").add(x).add(y).add(z);
+        box.putArray("half").add(halfX).add(halfY).add(halfZ);
     }
 
     @ParameterizedTest

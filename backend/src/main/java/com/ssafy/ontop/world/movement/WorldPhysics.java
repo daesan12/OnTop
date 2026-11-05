@@ -516,6 +516,11 @@ public final class WorldPhysics implements AutoCloseable {
             } else {
                 carried.body.warp(next);
                 carried.yaw = carrier.yaw;
+                Vector3f ground = carrier.body.getPhysicsLocation(null);
+                if (carrier.motion.grounded() && ground.distanceSquared(carried.carrySafe) >= .04f
+                        && canStand(ground.x, ground.y, ground.z)) {
+                    carried.carrySafe.set(ground);
+                }
             }
         }
         for (var entry : actors.entrySet()) {
@@ -1074,7 +1079,7 @@ public final class WorldPhysics implements AutoCloseable {
                     .anyMatch(hit -> hit.getCollisionObject().getCollisionGroup() == 2)) { return false; }
             Vector3f lifted = origin.add(0, CARRY_HEIGHT, 0);
             if (!canOccupy(lifted)) { return false; }
-            target.carryReturn = target.body.getPhysicsLocation(null).clone();
+            target.carrySafe = target.body.getPhysicsLocation(null).clone();
             hold(targetId, lifted.x, lifted.y, lifted.z, carrier.yaw);
             target.carriedBy = carrierId;
             carrier.carryingId = targetId;
@@ -1130,8 +1135,9 @@ public final class WorldPhysics implements AutoCloseable {
             if (target.carriedBy == null || !(entry.getKey().equals(id) || target.carriedBy.equals(id))) { continue; }
             Actor carrier = actors.get(target.carriedBy);
             if (carrier != null) { carrier.carryingId = null; }
-            Vector3f exit = carrier == null ? target.carryReturn : carrier.body.getPhysicsLocation(null);
-            if (!canOccupy(exit)) { exit = target.carryReturn; }
+            Vector3f origin = carrier == null ? target.body.getPhysicsLocation(null).add(0, -CARRY_HEIGHT, 0)
+                    : carrier.body.getPhysicsLocation(null);
+            Vector3f exit = carryExit(origin, target);
             target.carriedBy = null;
             target.carryReadyTick = physicsTick + CARRY_COOLDOWN_TICKS;
             target.body.warp(exit);
@@ -1146,9 +1152,27 @@ public final class WorldPhysics implements AutoCloseable {
         standProbe.setPhysicsLocation(center);
         boolean[] blocked = {false};
         space.contactTest(standProbe, event -> {
-            if (event.getDistance1() < -.04f) { blocked[0] = true; }
+            var other = event.getObjectA() == standProbe ? event.getObjectB() : event.getObjectA();
+            if (other.getCollisionGroup() == 2 && event.getDistance1() < -.04f) { blocked[0] = true; }
         });
         return !blocked[0];
+    }
+
+    private Vector3f carryExit(Vector3f origin, Actor target) {
+        if (canStand(origin.x, origin.y, origin.z)) { return origin; }
+        Vector3f safe = target.carrySafe;
+        if (safe != null && safe.distanceSquared(origin) <= 16 && canStand(safe.x, safe.y, safe.z)) {
+            return safe.clone();
+        }
+        // 탐색은 해제 순간에만 한다. 걷던 높이의 가까운 지지면을 우선해 다른 층으로 옮기지 않는다.
+        Vector3f nearby = nearbyStand(origin);
+        if (nearby != null) { return nearby; }
+        if (canOccupy(origin)) { return origin; }
+        Vector3f below = localGroundSupport(origin.x, origin.z);
+        if (below != null) { return below; }
+        // 지형이 바뀌어 근처에 착지점이 없는 예외에도, 운반 중 마지막으로 검증한 위치만 사용한다.
+        if (safe != null && canStand(safe.x, safe.y, safe.z)) { return safe.clone(); }
+        return validatedFallback(target, (float) scene.data.path("world").path("halfSize").asDouble() - 1);
     }
 
     /** 하차 전 캡슐 관통과 발밑 지지면을 검사한다. */
@@ -1275,7 +1299,7 @@ public final class WorldPhysics implements AutoCloseable {
 
     private static final class Actor {
         String carriedBy, carryingId, carryId, throwerId;
-        Vector3f carryReturn;
+        Vector3f carrySafe;
         int throwTicks;
         long carryReadyTick, carryStartedTick;
         double throwX, throwZ;
