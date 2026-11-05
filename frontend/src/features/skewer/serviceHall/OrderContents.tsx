@@ -9,18 +9,24 @@ const COMMON_SKEWER_ICON: readonly IngredientId[] = ['tomato', 'pepper', 'beef']
 export function OrderContents({ table, dishes, sake, summarized = false }: {
   table: number; dishes: readonly { recipe: readonly IngredientId[] }[]; sake: number; summarized?: boolean
 }) {
+  if (summarized) return <div className="service-order-summary">
+    <b className="service-order-table">{table}</b>
+    {dishes.length > 0 ? <span className="service-order-menu is-skewer" aria-label={`꼬치 ${dishes.length}개`}>
+      <MenuArt recipe={COMMON_SKEWER_ICON} label="꼬치" angled />
+      <sup aria-hidden="true">{dishes.length}</sup>
+    </span> : null}
+    {sake > 0 ? <span className="service-order-menu is-sake" aria-label={`사케 ${sake}병`}>
+      <HallIcon name="sake" /><sup aria-hidden="true">{sake}</sup>
+    </span> : null}
+  </div>
   return <div className="service-order-cells">
     <b className="service-order-number">{String(table).padStart(2, '0')}</b>
-    <div className="service-order-recipes">{summarized ?
-      <div className={`service-order-recipe${dishes.length ? '' : ' is-empty'}`} data-quantity={dishes.length}>
-        <MenuArt recipe={COMMON_SKEWER_ICON} label={`${table}번 꼬치 ${dishes.length}개`} angled />
-        <b className="service-order-quantity">×{dishes.length}</b>
-      </div> : groupOrderDishes(dishes).map(group =>
+    <div className="service-order-recipes">{groupOrderDishes(dishes).map(group =>
       <div className="service-order-recipe" key={group.key} data-quantity={group.count}>
         <MenuArt recipe={group.recipe} label={`${table}번 꼬치 ${group.count}개`} angled />
         <b className="service-order-quantity">×{group.count}</b>
       </div>,
-    )}{!summarized && !dishes.length && <span className="service-order-done">꼬치 완료</span>}</div>
+    )}{!dishes.length && <span className="service-order-done">꼬치 완료</span>}</div>
     <span className={`service-order-sake${sake ? '' : ' is-empty'}`} aria-label={`사케 ${sake}병`}>
       <HallIcon name="sake" /><b className="service-order-quantity">×{sake}</b>
     </span>

@@ -15,6 +15,7 @@ import './serviceHall.css'
 import './serviceHud.css'
 import './serviceVenue.css'
 import './serviceTools.css'
+import './tableOrderLabels.css'
 
 const anchor = (name: string) => ({ left: `var(--hall-${name}-x,50%)`, top: `var(--hall-${name}-y,50%)` }) as CSSProperties
 export default function ServiceHallPage({ driver, inputBlocked = false, onPause, onRestart }: {
@@ -80,7 +81,7 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
             <button className={`service-table-target${at?.kind === 'table' && at.id === plan.id ? ' is-near' : ''}`} style={anchor(`table-${plan.id}`)} aria-label={`${plan.id}번 ${plan.capacity}인 테이블로 이동`} title={`${plan.id}번 · ${STATUS_LABEL[table.status]}`} onClick={event => { navigate(tableDestination(view.position, plan)); event.currentTarget.blur() }} />
             {table.status !== 'clean' ? <div className={`service-bubble is-${table.status}${showFood ? ' is-order' : ''}`} style={anchor(`bubble-${plan.id}`)} role="img" aria-label={`${plan.id}번 ${STATUS_LABEL[table.status]}${showFood ? `: 남은 꼬치 ${remainingDishes.length}개, 사케 ${sakeLeft}병` : ''}`}>
               {showFood ? <OrderContents table={plan.id} dishes={remainingDishes} sake={sakeLeft} summarized />
-                : <div className="service-bubble-heading"><b>{String(plan.id).padStart(2, '0')}</b><span className="service-bubble-state">{table.status === 'eating' ? '식사 중' : STATUS_LABEL[table.status]}</span><HallIcon name={table.status === 'dirty' ? 'broom' : table.status === 'cooking' ? 'pot' : table.status === 'eating' ? 'check' : 'order'} /></div>}
+                : <div className="service-bubble-heading"><b>{plan.id}</b><span className="service-bubble-state">{table.status === 'eating' ? '식사 중' : STATUS_LABEL[table.status]}</span><HallIcon name={table.status === 'dirty' ? 'broom' : table.status === 'cooking' ? 'pot' : table.status === 'eating' ? 'check' : 'order'} /></div>}
             </div> : null}
           </div>
         })}

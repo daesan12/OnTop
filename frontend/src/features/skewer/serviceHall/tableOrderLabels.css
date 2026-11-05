@@ -1,0 +1,50 @@
+/* Tabletop labels: one short line, without a speech tail over the walking lanes. */
+.service-hall .service-bubble,
+.service-hall .service-bubble.is-order {
+  transform:translate(-50%,-50%); min-width:0; min-height:0; max-width:none;
+  padding:3px 5px; gap:0; border:1px solid #c3a47aaa; border-radius:8px;
+  background:#fff7eaef; box-shadow:0 2px 4px #30180d26;
+}
+.service-hall .service-bubble::after { display:none; }
+.service-hall .service-order-summary { display:flex; align-items:center; gap:4px; white-space:nowrap; }
+.service-hall .service-order-table,
+.service-hall .service-bubble-heading > b {
+  display:grid; place-items:center; flex:none; min-width:0; width:18px; height:18px; padding:0;
+  border-radius:50%; color:#fff7e5; background:#69482f; font-size:11px; line-height:1;
+}
+.service-hall .service-order-menu { position:relative; display:flex; align-items:center; flex:none; height:24px; }
+.service-hall .service-order-menu.is-skewer { width:38px; }
+.service-hall .service-order-summary .service-menu-art { width:32px; height:24px; object-fit:contain; filter:none; }
+.service-hall .service-order-menu.is-sake { width:24px; }
+.service-hall .service-order-menu .service-icon { width:15px; height:23px; }
+.service-hall .service-order-menu sup {
+  position:absolute; right:0; top:-1px; min-width:9px; text-align:center;
+  color:#543622; font:800 11px/1.1 'Malgun Gothic',sans-serif;
+}
+.service-hall .service-bubble-heading { width:auto; gap:5px; }
+.service-hall .service-bubble-heading > .service-icon { width:16px; height:18px; }
+.service-hall .service-bubble-state { font-size:10px; }
+.service-hall [data-capacity='1'] .service-bubble.is-order { padding:2px; }
+.service-hall [data-capacity='1'] .service-order-summary { gap:3px; }
+.service-hall [data-capacity='1'] .service-order-table { width:15px; height:15px; font-size:10px; }
+.service-hall [data-capacity='1'] .service-order-menu.is-skewer { width:27px; }
+.service-hall [data-capacity='1'] .service-order-summary .service-menu-art { width:24px; height:21px; }
+.service-hall [data-capacity='1'] .service-order-menu.is-sake { width:19px; }
+.service-hall [data-capacity='1'] .service-order-menu .service-icon { width:12px; height:20px; }
+.service-hall [data-capacity='1'] .service-order-menu sup { font-size:10px; }
+@media(max-width:600px) {
+  .service-hall .service-bubble, .service-hall .service-bubble.is-order { padding:2px 3px; border-radius:6px; }
+  .service-hall .service-order-summary { gap:3px; }
+  .service-hall .service-order-table, .service-hall .service-bubble-heading > b { width:15px; height:15px; font-size:10px; }
+  .service-hall .service-order-menu { height:21px; }
+  .service-hall .service-order-menu.is-skewer { width:30px; }
+  .service-hall .service-order-summary .service-menu-art { width:25px; height:21px; }
+  .service-hall .service-order-menu.is-sake { width:21px; }
+  .service-hall .service-order-menu .service-icon { width:13px; height:20px; }
+  .service-hall .service-order-menu sup { font-size:10px; }
+}
+/* On short laptop windows, fixed inventory panels must leave the tabletop labels visible. */
+@media(min-width:601px) and (max-width:1000px) and (max-height:500px) {
+  .service-hall .service-held { scale:.78; transform-origin:bottom left; }
+  .service-hall .service-carry { scale:.78; transform-origin:bottom right; }
+}

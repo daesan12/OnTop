@@ -435,7 +435,11 @@ export class ServiceScene {
     this.project('orders', STATIONS.orders.x, 1.45, -6.2); this.project('pickup', STATIONS.pickup.x, 1.45, -6.2); this.project('fridge', STATIONS.fridge.x, 2.5, -5.9)
     this.project('storage', STATIONS.storage.x, 1.45, -6.2)
     this.project('washer', STATIONS.washer.x, 2.1, -6.0)
-    TABLES.forEach(t => { this.project(`table-${t.id}`, t.x, .96, t.z); this.project(`bubble-${t.id}`, t.x, Math.max(2.15, ...(this.guests.get(t.id) ?? []).map(actor => actor.orderBubbleHeight())), t.z - (t.capacity === 1 ? .55 : .30)) })
+    TABLES.forEach(t => {
+      this.project(`table-${t.id}`, t.x, TOP, t.z)
+      // 테이블 상판 안쪽에 고정해 손님 키와 관계없이 통로를 비워 둔다.
+      this.project(`bubble-${t.id}`, t.x, TOP + .08, t.z + .12)
+    })
     this.project('queue', 0, 2.45, ROOM.queueZ)
     this.project('action', view.position.x + (view.position.x > 0 ? -1.6 : 1.6), 2.35, view.position.z + .15)
     this.project('queue-feet', 0, 0, ROOM.queueZ + .3)
