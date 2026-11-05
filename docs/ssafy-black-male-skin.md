@@ -2,7 +2,7 @@
 
 ## 변경과 장착 계약
 
-- 최종 기준: `origin/dev@687f720c4cb495ead3f4fbd227fa4383baf514bc`(최초 작업 기준 86ab0c00).
+- 최종 기준: `origin/dev@5ac9c38374f9440818a9e7c2ca735b8bbc414c91`(최초 작업 기준 86ab0c00).
 - 최신 dev 통합 중 `WardrobeScreen.tsx`의 남녀별 썸네일 인자와 `outfitSources.ts`의 rig=23 캐시 키 충돌을 해결했다. 최신 남녀 헤어/카메라/옷장 변경과 통짜 스킨 경로를 함께 보존했다.
 - 작업 브랜치: `feat/S15P31B105-319-ssafy-whole-skin`. 기존 옷장/5슬롯 세트 계약(S15P31B105-319)을 재사용한다.
 - `frontend/public/art/characters/skins/ssafy-black-male-v3.glb`: 몸·얼굴·머리·옷이 포함된 파일 하나, 1,627,276 bytes, 공통 49관절, near 32,000 / far 6,000 triangles, 2048 WebP atlas.
@@ -16,16 +16,16 @@
 
 ## 배포 전 확인
 
-1. 사용자 최종 지시로 **V151**을 사용한다(V152 지정을 철회). 팀원이 V151을 사용할 예정이라고 공유했으므로 팀원 쪽 번호 변경 조율이 필요하다. 조율 완료를 가정하지 않는다. 새 원격/열린 MR/로컬 worktree/팀 예약을 병합 직전에 다시 확인한다.
-2. 새 파일은 `backend/src/main/resources/db/shop/V151__register_ssafy_black_male_whole_skin.sql` 한 개다. 비판매·0원 카탈로그만 등록하고 누구에게도 자동 지급하지 않는다.
-3. 실제 개발 DB에서 `items`, `user_items`, `set_code`와 V100/V102의 적용 이력, 전체 locations의 V151 중복을 먼저 확인한다. 미적용 V100/V102를 최신 DB에 임의로 소급 적용하거나 `outOfOrder`/repair/초기화로 우회하지 않는다.
+1. 2026-11-05 사용자 최종 정정으로 **V152**를 사용한다. 팀원의 `db/minigame/V151__create_speed_mole_rounds.sql`이 dev에 반영됐으며 그대로 보존한다. 우리 스킨의 V151은 작업 브랜치에만 있었고 이 작업에서 공유 DB에 적용하지 않았다. 해당 파일을 새 커밋에서 V152로 변경하며 이미 푸시한 이력은 재작성하지 않는다. 변경 전 원격 참조 50개와 로컬 worktree 107곳에서 V152 파일이 없음을 확인했다. 팀의 미공유 예약은 확인 범위 밖이므로 사용자 지정 번호를 기준으로 하되 병합 직전 다시 확인한다.
+2. 새 파일은 `backend/src/main/resources/db/shop/V152__register_ssafy_black_male_whole_skin.sql` 한 개다. 비판매·0원 카탈로그만 등록하고 누구에게도 자동 지급하지 않는다. 스킨용 V151 파일은 최종 소스와 MR 차이에서 제거한다.
+3. 실제 개발 DB에서 `items`, `user_items`, `set_code`와 V100/V102의 적용 이력, 전체 locations의 V152 중복을 먼저 확인한다. 미적용 V100/V102를 최신 DB에 임의로 소급 적용하거나 `outOfOrder`/repair/초기화로 우회하지 않는다. 이 작업은 실제 dev DB의 적용 이력을 직접 조회한 결과가 아니며 이미 적용된 팀원 migration을 변경하지 않는다.
 4. 배포 서버는 `SHOP_ENABLED=true`, Flyway locations에 기존 활성 경로와 `classpath:db/shop`이 필요하다. `application-db.yml`의 dev 프로필에는 기본적으로 migration/minigame만 있으므로 **실제 유효 설정**을 확인해야 한다. 이 MR은 서버 환경변수를 변경하지 않는다.
 5. 프런트엔드는 기존 Jenkins dev 빌드의 `VITE_WARDROBE_OUTFITS=true`를 사용한다. production의 의상 비활성 정책은 유지한다.
-6. dev 병합은 사용자 별도 승인 후 진행한다. Jenkins `ontop-dev`가 해당 병합 SHA로 성공했고 정적 파일과 V151이 반영됐는지 확인한다. 이번 스킨용 파일이 dev에서 내려받아지기 전에는 착용 완료라고 보고하지 않는다.
+6. dev 병합은 사용자 별도 승인 후 진행한다. Jenkins `ontop-dev`가 해당 병합 SHA로 성공했고 정적 파일과 V152가 반영됐는지 확인한다. 이번 스킨용 파일이 dev에서 내려받아지기 전에는 착용 완료라고 보고하지 않는다.
 
 ## 검수 계정 지급
 
-V151 적용 뒤 지정된 **개발 DB와 계정 ID**를 확인하고 기존 장착을 건드리지 않도록 아래를 트랜잭션으로 실행한다. 예시 ID는 넣지 않는다. 실제 계정 ID를 운영자가 주입해야 한다.
+V152 적용 뒤 지정된 **개발 DB와 계정 ID**를 확인하고 기존 장착을 건드리지 않도록 아래를 트랜잭션으로 실행한다. 예시 ID는 넣지 않는다. 실제 계정 ID를 운영자가 주입해야 한다.
 
 ```sql
 -- SET @skin_user_id = 확인한_검수_계정_ID;
@@ -49,7 +49,7 @@ WHERE ui.user_id = @skin_user_id AND i.set_code = 'SSAFY_BLACK_MALE_V3';
 - 관련 FE 단위 테스트 통과: 부분/혼합 키 방어, 5슬롯 미리보기, 다른 부위 선택 시 전체 해제, 기존 man/girl 및 실제 새 GLB의 모션·LOD·개인별 자원 소유권, 맵 벤치 높이.
 - 최신 dev 통합 후 전체 FE **2,340개 통과, 6개 skip**, 260개 테스트 파일 통과. 초기 실행의 맵 임시 파일 권한 실패는 권한을 갖춘 재실행에서 해소됐으며, 최종 전체 실행에는 실패가 없다.
 - 기존 BE `ShopEquipmentSetTests` 9개 통과: 5부위 일괄 착용/해제 및 다른 옷으로 교체.
-- MySQL 8.4 임시 컨테이너에서 V100 → V102 → V151 등록 성공. 신규 상점과 기존 보유 의상이 있는 상점 각각 5슬롯/단일 키·세트/비판매·0원/기존 장착 보존 확인. 전체 애플리케이션 신규 DB 구축이나 실제 dev Flyway 이력 검수와는 구분한다.
+- MySQL 8.4 임시 컨테이너에서 V100 → V102 → 스킨 등록 SQL 성공(초기 V151 검증, 최종 파일은 V152로 재검증). 신규 상점과 기존 보유 의상이 있는 상점 각각 5슬롯/단일 키·세트/비판매·0원/기존 장착 보존 확인. 전체 애플리케이션 신규 DB 구축이나 실제 dev Flyway 이력 검수와는 구분한다.
 - 타입 검사, 개발 배포 설정의 park 빌드, map check 통과. 맵 `c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07`, 18 tables/536 obstacles 유지.
 - 앞선 자산 검수: 43 모션 × 두 LOD, 21,870 frames에서 비정상 수치 없음. 모든 삼각형 간 관통이나 얼굴 morph 감정표현 통과를 의미하지 않는다. 원본 게임 모션만 재사용한다.
 - PC 브라우저에서 실제 Avatars 렌더러와 공개 장착 fixture로 기본/새 스킨 교체를 확인한다. fixture는 서버 소유권·다중 실제 계정 검수 결과가 아니다.

@@ -1,4 +1,5 @@
--- 사용자 최종 지정 V151. 선택적 db/shop 스키마에만 등록한다.
+-- 사용자 최종 지정 V152. 팀원의 db/minigame V151은 그대로 보존한다.
+-- 선택적 db/shop 스키마에만 등록한다.
 -- 배포 전 팀 예약 및 전체 location의 버전 중복을 확인한다.
 -- 통짜 GLB 한 개를 기존 5슬롯 세트 계약으로 착용한다. 검수용이며 판매·자동 지급은 하지 않는다.
 INSERT INTO items (item_code, name, item_type, equip_slot, price, image_key, is_for_sale, set_code) VALUES
