@@ -130,7 +130,7 @@ export async function refreshWardrobe() {
   if (wallet.status === 'fulfilled') {
     useWardrobe.setState({ balance: wallet.value.balance })
     const account = useSession.getState().account
-    if (account) useSession.setState({ account: { ...account, balance: wallet.value.balance } })
+    if (account) useSession.setState({ account: { ...account, balance: wallet.value.balance, reservedBalance: wallet.value.reservedBalance } })
   }
 }
 export function setWardrobeFilter(filter: WardrobeFilter) { useWardrobe.setState({ filter }) }

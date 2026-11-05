@@ -134,9 +134,9 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
           <div className="park-dock-settings"><SettingsLauncher /></div>
           <div className="park-dock-wardrobe"><WardrobeLauncher /></div>
         </div>}
-        {!omokFocus && <div inert={bungeoppang}>
+        <div hidden={omokFocus} inert={bungeoppang || omokFocus}>
           <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
-        </div>}
+        </div>
 
         <div className="park-chat-layer" hidden={bungeoppang} inert={bungeoppang}>
           {omokChat ? <SpectatorChat /> : !omokFocus && <ParkChat key={`${session.sessionId}:${session.roomId}`} />}

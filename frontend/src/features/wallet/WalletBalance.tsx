@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from '../../network/worldClient'
 import { RestError } from '../../network/restError'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
-import { walletBalance } from './balance'
+import { useGame } from '../../game/store'
+import { spendableBalance, walletSnapshot } from './balance'
 import { useWalletSettlement } from './settlementRefresh'
 import './wallet.css'
 
@@ -11,12 +12,16 @@ type BalanceError = 'not-ready' | 'unavailable' | 'failed' | null
 export function WalletBalance() {
   const runtime = useParkRuntime()
   const owner = useSession(s => s.sessionId), connected = useSession(s => s.status === 'connected')
-  const balance = useSession(s => s.account?.balance ?? null)
+  const balance = useSession(s => spendableBalance(s.account))
+  const reserved = useSession(s => s.account?.reservedBalance ?? 0)
   const settlement = useWalletSettlement(s => s.owner === owner ? s.revision : 0)
+  // 예약 커밋 이후 PLAYING, 예약 해제 이후 WAITING에도 서버 지갑을 다시 읽는다.
+  const reservation = useGame(s => s.start && !s.start.simulation
+    ? JSON.stringify([s.start.tableId, s.start.startAttemptId, s.start.gameSessionId, s.start.phase]) : '')
   const [loading, setLoading] = useState(false), [error, setError] = useState<BalanceError>(null)
   const request = useRef({ id: 0, revision: 0, abort: null as AbortController | null })
   useEffect(() => useSession.subscribe((next, previous) => {
-    if (next.account?.balance !== previous.account?.balance) {
+    if (next.account?.balance !== previous.account?.balance || next.account?.reservedBalance !== previous.account?.reservedBalance) {
       request.current.revision++
       setError(null)
     }
@@ -32,13 +37,14 @@ export function WalletBalance() {
     const current = () => !abort.signal.aborted && id === request.current.id
       && useSession.getState().sessionId === session.sessionId && useSession.getState().status === 'connected'
     try {
-      const value = walletBalance(await runtime.requestJSON('/api/v1/wallets/me', {
+      const value = walletSnapshot(await runtime.requestJSON('/api/v1/wallets/me', {
         signal: AbortSignal.any([abort.signal, AbortSignal.timeout(10000)]), cache: 'no-store',
       }))
       if (!current()) return
       // A purchase/settlement may have already published a newer balance during this GET.
       const account = useSession.getState().account
-      if (revision === request.current.revision && account) useSession.setState({ account: { ...account, balance: value } })
+      if (revision === request.current.revision && account) useSession.setState({ account: { ...account,
+        balance: value.balance, reservedBalance: value.reservedBalance } })
     } catch (cause) {
       if (!current() || revision !== request.current.revision) return
       setError(cause instanceof RestError && cause.code === 'WALLET_NOT_READY' ? 'not-ready'
@@ -51,7 +57,7 @@ export function WalletBalance() {
     setLoading(false); setError(null)
     if (owner && connected) void refresh()
     return cancel
-  }, [owner, connected, settlement, refresh, cancel])
+  }, [owner, connected, settlement, reservation, refresh, cancel])
   useEffect(() => {
     if (!owner || !connected) return
     const recheck = () => {
@@ -81,7 +87,8 @@ export function WalletBalance() {
     : error === 'unavailable' ? '지갑 서비스에 연결하지 못했어요. 잠시 후 자동으로 다시 확인해요.'
     : '잔액을 확인하지 못했어요. 잠시 후 자동으로 다시 확인해요.'
   return <span className="park-wallet" aria-busy={loading}>
-    <span className="park-account__balance" data-unknown={balance === null} aria-label="보유 엽전" aria-live="polite">
+    <span className="park-account__balance" data-unknown={balance === null} aria-label="보유 엽전" aria-live="polite"
+      title={reserved ? `판돈 ${reserved.toLocaleString('ko-KR')}냥 예약 중 · 사용 가능 잔액` : undefined}>
       {balance === null ? unknown : <>{balance.toLocaleString('ko-KR')}<i className="park-wallet__unit">냥</i></>}
     </span>
     {error && <span className="park-wallet__notice" role="status">
