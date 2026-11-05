@@ -66,6 +66,10 @@ function wardrobeFrame(camera: PerspectiveCamera) {
     WARDROBE_FRAME.height / (2 * tan * wardrobeView.fill))) }
 }
 
+/** The angles the wardrobe's easing last wrote, and how long it has eased since the wardrobe closed. */
+let aimWritten: { yaw: number; pitch: number } | null = null
+let aimAge = 0
+
 export function CameraRig() {
   const { gl, camera: mountedCamera, raycaster } = useThree()
   const reducedMotion=useMemo(()=>window.matchMedia('(prefers-reduced-motion: reduce)'),[])
@@ -469,12 +473,21 @@ export function CameraRig() {
           feet.z - Math.sin(yaw) * side + Math.cos(yaw) * Math.cos(pitch) * close))
       }
       const aim = wardrobeView.aim
-      if (aim) {
+      // After the wardrobe closes the view eases back to where it was, but gives way at once to the player turning
+      // it (the angles differ from what this wrote last frame) and after 1.5 s at most: held until it converged,
+      // the camera kept pulling back to the old view against every turn.
+      const turned = !!aimWritten && !wardrobeView.active
+        && (Math.abs(viewControls.yaw - aimWritten.yaw) > 1e-5 || Math.abs(viewControls.pitch - aimWritten.pitch) > 1e-5)
+      aimAge = wardrobeView.active || !aim ? 0 : aimAge + delta
+      if (aim && (turned || aimAge > 1.5)) wardrobeView.aim = null
+      if (wardrobeView.aim) {
         const t = 1 - Math.exp(-6 * Math.min(delta, 0.1))
-        viewControls.yaw = turnToward(viewControls.yaw, aim.yaw, t)
-        viewControls.pitch += (aim.pitch - viewControls.pitch) * t
-        if (Math.abs(Math.sin(aim.yaw - viewControls.yaw)) < 0.002 && Math.abs(aim.pitch - viewControls.pitch) < 0.002) wardrobeView.aim = null
+        viewControls.yaw = turnToward(viewControls.yaw, wardrobeView.aim.yaw, t)
+        viewControls.pitch += (wardrobeView.aim.pitch - viewControls.pitch) * t
+        aimWritten = { yaw: viewControls.yaw, pitch: viewControls.pitch }
+        if (Math.abs(Math.sin(wardrobeView.aim.yaw - viewControls.yaw)) < 0.002 && Math.abs(wardrobeView.aim.pitch - viewControls.pitch) < 0.002) wardrobeView.aim = null
       }
+      if (!wardrobeView.aim) aimWritten = null
       const center = state.center.copy(state.focus)
       let distance = viewControls.distance
       const w = wardrobeView.blend
