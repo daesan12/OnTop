@@ -14,6 +14,7 @@ import com.ssafy.ontop.minigame.service.BungeoppangV5DeliveryContract;
 import com.ssafy.ontop.minigame.service.MinigameException;
 import com.ssafy.ontop.minigame.service.MinigameService;
 import com.ssafy.ontop.minigame.service.StoredMinigameResponseException;
+import com.ssafy.ontop.operation.config.NewActivity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -63,6 +64,7 @@ public class MinigameController {
     }
 
     @PostMapping
+    @NewActivity
     @Operation(summary = "붕어빵 세션 시작", description = "같은 회원·Idempotency-Key는 최초 세션 생성 응답을 반환합니다.")
     @ApiResponse(responseCode = "201", description = "생성 또는 같은 키의 최초 생성 응답",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = MinigameStartResponse.class)))

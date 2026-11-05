@@ -11,6 +11,7 @@ import { ExitConfirmation } from '../ExitConfirmation'
 import { RestartConfirmation } from './RestartConfirmation'
 import { GreetingEvent, GREETING_IMAGE } from './GreetingEvent'
 import { useGameDragScroll } from '../useGameDragScroll'
+import { cooperativeSkewerGameplayActive, setCooperativeSkewerActivity } from '../activity'
 import './coop.css'
 import './coopScreens.css'
 import './coopPolish.css'
@@ -32,6 +33,10 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
   const [chefMode, setChefMode] = useState<'pc' | 'vr' | null>(null)
   useEffect(() => { client.start(); return () => client.stop() }, [client])
   useEffect(() => { setChefMode(null); setEquipmentOpen(false) }, [snapshot?.gameId])
+  useEffect(() => {
+    setCooperativeSkewerActivity(cooperativeSkewerGameplayActive(pub?.phase))
+    return () => setCooperativeSkewerActivity(false)
+  }, [pub?.phase])
   useEffect(() => { const image = new Image(); image.src = GREETING_IMAGE }, [])
   useEffect(() => {
     const greet = (event: KeyboardEvent) => {

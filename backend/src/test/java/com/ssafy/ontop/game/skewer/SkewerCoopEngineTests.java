@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
+import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.skewer.coop.service.SkewerCoopEngine;
@@ -24,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -162,6 +164,16 @@ class SkewerCoopEngineTests {
 
         assertThat(fixture.view(101).publicState().path("rankingEligible").asBoolean()).isFalse();
         assertThat(fixture.view(101).publicState().path("chefVR").asBoolean()).isTrue();
+    }
+
+    @Test
+    void 배출_중인_기존_대기방은_준비를_눌러_새_경기를_시작할_수_없다() {
+        Fixture fixture = new Fixture(2400, () -> false);
+        fixture.roles();
+
+        assertThatThrownBy(() -> fixture.act(101, Map.of("type", "READY", "ready", true)))
+                .isInstanceOfSatisfying(GameActionGateway.Rejected.class,
+                        rejected -> assertThat(rejected.reason()).isEqualTo(GameActionGateway.Rejection.NOT_ACTIVE));
     }
 
     @Test
@@ -847,13 +859,22 @@ class SkewerCoopEngineTests {
             this(duration, result -> { });
         }
 
+        Fixture(double duration, BooleanSupplier newActivityAllowed) {
+            this(duration, result -> { }, new Random(18), newActivityAllowed);
+        }
+
         Fixture(double duration, java.util.function.Consumer<SkewerCoopFinished> recorder) {
             this(duration, recorder, new Random(18));
         }
 
         Fixture(double duration, java.util.function.Consumer<SkewerCoopFinished> recorder, Random random) {
+            this(duration, recorder, random, () -> true);
+        }
+
+        Fixture(double duration, java.util.function.Consumer<SkewerCoopFinished> recorder, Random random,
+                BooleanSupplier newActivityAllowed) {
             engine = new SkewerCoopEngine(mapper, clock, router, events::add, user -> { },
-                    (user, channel) -> connected || user == 101, random, duration, recorder);
+                    (user, channel) -> connected || user == 101, random, duration, recorder, newActivityAllowed);
             id = engine.create(101, "park", "create").path("gameId").asText();
             engine.join(202, "park", id);
         }

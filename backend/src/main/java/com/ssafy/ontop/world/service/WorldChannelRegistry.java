@@ -1,6 +1,7 @@
 package com.ssafy.ontop.world.service;
 
 import com.ssafy.ontop.config.RuntimeProfiles;
+import com.ssafy.ontop.operation.service.ServiceOperationService;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.DynamicChannelsProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
@@ -15,11 +16,14 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionException;
 
 @Service
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -48,6 +52,18 @@ public class WorldChannelRegistry implements ChannelPresence {
     private long lastPatch;
     private boolean clientPositions;
     private boolean tunedMovement;
+    private BooleanSupplier newActivityAllowed = () -> true;
+
+    @Autowired
+    void configureServiceOperation(ServiceOperationService operations) {
+        newActivityAllowed = () -> {
+            try {
+                return operations.allowsNewActivity();
+            } catch (DataAccessException | TransactionException exception) {
+                return false;
+            }
+        };
+    }
 
     @Autowired
     void configurePositionReports(@Value("${ontop.world.movement.client-position:false}") boolean enabled,
@@ -174,7 +190,8 @@ public class WorldChannelRegistry implements ChannelPresence {
         var sample = new com.ssafy.ontop.world.jumpmap.JumpmapTracker.Sample(surface, support.colliderId(),
                 pad == null ? -1 : pad.block(), pad == null ? null : pad.gate(), observation.swimming(),
                 observation.feet(), observation.relocations(), following);
-        queueJumpmap(room, jumpmap.observe(userId, room.definition.channelId(), sample, nowNanos / 1_000_000));
+        queueJumpmap(room, jumpmap.observe(userId, room.definition.channelId(), sample,
+                nowNanos / 1_000_000, newActivityAllowed));
     }
 
     /** 지형 메시와 지형보다 0.5m 낮은 바닥(광장·코트·길)은 지면(FALL), 그 위의 구조물은 판을 잇는다. */
