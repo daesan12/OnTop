@@ -20,7 +20,7 @@ it('compresses straight reports and clears old path samples on a correction epoc
   expect(report.path).toEqual([{ x: report.x, y: report.y, z: report.z, jump: false }])
   prediction.sample(100, { ...origin })
   prediction.reconcile('path', { ...origin, x: 2 }, { ...tuned, epoch: 2, tick: 1, correctionReason: 'COLLISION' }, true, 100)
-  expect(prediction.positionReport(2, walk, 100)?.path).toBeUndefined()
+  expect(prediction.positionReport(2, walk, 100)?.path).toEqual([{ x: 2, y: origin.y, z: origin.z, jump: false }])
   expect(prediction.positionReport(3, walk, 160)?.path?.every(point => point.x >= 2)).toBe(true)
   prediction.reset()
 })
@@ -43,16 +43,42 @@ it('reports an actual buffered takeoff and its preceding landing even when the r
   prediction.reset()
 })
 
-it('bounds a stalled sender path and starts a fresh path after the endpoint fallback', async () => {
+it('retains all 64 samples and holds before overflow, then resumes without catching up elapsed wall time', async () => {
   let p = { ...origin }, steps = 0
   const simulation: PredictionSimulation = { reset(pose) { p = { ...pose } },
     step() { steps++; p.x += .001; p.y += steps % 2 ? .001 : -.001 }, pose: () => ({ ...p }),
-    stepJumped: () => false, stepSupported: () => steps % 2 === 0, setChairs() {}, dispose() {} }
+    stepJumped: () => steps === 31, stepSupported: () => steps % 2 === 0, setChairs() {}, dispose() {} }
   const prediction = new LocalMovementPrediction(async () => simulation, () => 0)
   prediction.reconcile('path', origin, tuned, true, 0); await prediction.prepare()
+  for (let time = 1; time <= 1000; time++) prediction.sample(time, { ...origin })
+  expect(steps).toBe(64)
+  const report = prediction.positionReport(1, stop, 1000)!
+  expect(report.path).toHaveLength(64)
+  expect(report.path![30]?.jump).toBe(true)
+  expect(report.path!.at(-1)).toMatchObject({ x: report.x, y: report.y, z: report.z })
+  const held = report.x
+  const resumed = prediction.positionReport(2, stop, 1060)!
+  expect(resumed.path!.length).toBeLessThanOrEqual(4)
+  expect(resumed.x - held).toBeCloseTo(.004)
+  expect(steps).toBe(68)
+  prediction.reset()
+})
+
+it('bounds a delayed straight batch by physical duration even when it compresses to one sample', async () => {
+  let p = { ...origin }
+  const simulation: PredictionSimulation = { reset(pose) { p = { ...pose } },
+    step(input, seconds) { p.x += input.dx * 6 * seconds }, pose: () => ({ ...p }),
+    stepJumped: () => false, stepSupported: () => true, setChairs() {}, dispose() {} }
+  const prediction = new LocalMovementPrediction(async () => simulation, () => 0)
+  prediction.reconcile('path', origin, tuned, true, 0); await prediction.prepare()
+  const walk = { ...stop, dx: 1 }
+  prediction.intend(walk, 0)
   for (let time = 10; time <= 1000; time += 10) prediction.sample(time, { ...origin })
-  expect(prediction.positionReport(1, stop, 1000)?.path).toBeUndefined()
-  expect(prediction.positionReport(2, stop, 1060)?.path?.length).toBeLessThanOrEqual(64)
+  const held = prediction.positionReport(1, walk, 1000)!
+  expect(held.x).toBeCloseTo(.6)
+  expect(held.path).toHaveLength(1)
+  const resumed = prediction.positionReport(2, walk, 1060)!
+  expect(resumed.x - held.x).toBeCloseTo(.36)
   prediction.reset()
 })
 it('approved old position only renews the lease; it never resets/replays newer local physics', async () => {
