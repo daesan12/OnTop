@@ -1,9 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { speedMoleHole, SpeedMoleRound, SPEED_MOLE_CODES, SPEED_MOLE_KEYS, SPEED_MOLE_DURATION_MS } from '../../src/features/speedMole/game'
+import { speedMoleHole, SpeedMoleRound, SPEED_MOLE_CODES, SPEED_MOLE_KEYS, SPEED_MOLE_DURATION_MS, SPEED_MOLE_COUNTDOWN_MS } from '../../src/features/speedMole/game'
 
 describe('separate speed mole local rules', () => {
-  it('maps TYUI then GHJK to exactly eight physical keys', () => {
-    expect(SPEED_MOLE_KEYS).toEqual(['T', 'Y', 'U', 'I', 'G', 'H', 'J', 'K'])
+  it('counts down 3, 2, 1 before allowing hits and grants the full 60 seconds afterwards', () => {
+    const round = new SpeedMoleRound(100 + SPEED_MOLE_COUNTDOWN_MS, () => 0)
+    for (const [at, count] of [[100, 3], [1099, 3], [1100, 2], [2100, 1], [3099, 1]]) {
+      expect(round.phaseAt(at!)).toBe('countdown')
+      expect(round.countdown(at!)).toBe(count)
+      expect(round.strike(round.targets[0]!.hole, at!)).toEqual({ kind: 'ignored' })
+      expect(round.remaining(at!)).toBe(60000)
+    }
+    expect(round.phaseAt(3100)).toBe('playing'); expect(round.countdown(3100)).toBe(0)
+    expect(round.strike(round.targets[0]!.hole, 3100)).toMatchObject({ kind: 'hit', score: 1 })
+    expect(round.remaining(3100)).toBe(60000)
+    expect(round.phaseAt(63100)).toBe('result')
+  })
+  it('handles a background return past both countdown and game deadline without restarting either clock', () => {
+    const round = new SpeedMoleRound(3000)
+    expect(round.phaseAt(4000)).toBe('playing'); expect(round.remaining(4000)).toBe(59000)
+    expect(round.phaseAt(100000)).toBe('result'); expect(round.remaining(100000)).toBe(0)
+  })
+  it('maps ERIO then DFKL to exactly eight physical keys', () => {
+    expect(SPEED_MOLE_KEYS).toEqual(['E', 'R', 'I', 'O', 'D', 'F', 'K', 'L'])
     expect(new Set(SPEED_MOLE_CODES).size).toBe(8)
   })
   it('keeps four distinct moles waiting indefinitely until hit', () => {
@@ -64,11 +82,12 @@ describe('separate speed mole local rules', () => {
     a.strike(a.targets[0]!.hole, 0)
     expect(b.score).toBe(0); expect(b.hits).toBe(0)
   })
-  it('ignores native hold repeats but accepts a new H press even if keyup was lost', () => {
-    expect(speedMoleHole('KeyH', false)).toBe(5)
-    expect(speedMoleHole('KeyH', true)).toBeNull()
-    expect(speedMoleHole('KeyH', false)).toBe(5)
+  it('ignores native hold repeats but accepts a new F press even if keyup was lost', () => {
+    expect(speedMoleHole('KeyF', false)).toBe(5)
+    expect(speedMoleHole('KeyF', true)).toBeNull()
+    expect(speedMoleHole('KeyF', false)).toBe(5)
     expect(speedMoleHole('KeyQ', false)).toBeNull()
+    expect(speedMoleHole('KeyH', false)).toBeNull()
   })
   it.each(SPEED_MOLE_CODES)('maps %s to its own active hole and removes exactly that target', code => {
     const hole = speedMoleHole(code)!
