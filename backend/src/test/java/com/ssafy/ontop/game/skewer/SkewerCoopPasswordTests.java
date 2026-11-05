@@ -20,6 +20,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -73,6 +74,61 @@ class SkewerCoopPasswordTests {
         assertThatThrownBy(() -> engine.join(404, "other-channel", id, "abcd"))
                 .isInstanceOf(IllegalStateException.class).isNotInstanceOf(SkewerCoopRoomAccess.RoomFullException.class);
         verify(access, times(2)).accepts("abcd");
+    }
+
+    @Test
+    void 이미_닫힌방은_해시를_계산하지_않고_실패기록도_변경하지_않는다() {
+        String id = room(101);
+        invalid(id);
+        var access = lockedAccess();
+        accessMap().put(id, access);
+        engine.leaveWaiting(101, id);
+
+        assertThatThrownBy(() -> engine.join(202, "park", id, "abcd"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("가게가 닫혔어요. 목록에서 다른 가게를 선택해 주세요.");
+
+        verify(access, never()).accepts("abcd");
+        assertThat(failureMap().get(202L)).containsExactly(1_000L);
+        assertThat(checksInFlight()).isEmpty();
+        assertThatThrownBy(() -> engine.join(202, "other-channel", id, "abcd"))
+                .hasMessage("같은 공원의 참가 가능한 방을 선택해주세요.");
+    }
+
+    @Test
+    void 올바른_비밀번호_검증중_방이_취소되면_실패기록과_진행표시를_정리하고_입장을_거절한다() throws Exception {
+        String id = room(101);
+        invalid(id);
+        var access = lockedAccess();
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(access.accepts("abcd")).thenAnswer(call -> {
+            entered.countDown();
+            assertThat(release.await(5, TimeUnit.SECONDS)).isTrue();
+            return true;
+        });
+        accessMap().put(id, access);
+
+        try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+            var pending = workers.submit(() -> engine.join(202, "park", id, "abcd"));
+            try {
+                assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+                workers.submit(() -> engine.leaveWaiting(101, id)).get(2, TimeUnit.SECONDS);
+            } finally {
+                release.countDown();
+            }
+            assertThatThrownBy(() -> pending.get(5, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(IllegalStateException.class)
+                    .hasRootCauseMessage("가게가 닫혔어요. 목록에서 다른 가게를 선택해 주세요.");
+        }
+
+        assertThat(failureMap()).doesNotContainKey(202L);
+        assertThat(checksInFlight()).isEmpty();
+        assertThat(engine.load(202, id)).isEmpty();
+        assertThat(engine.load(101, id).orElseThrow().publicState().path("endReason").asText())
+                .isEqualTo("SKEWER_CANCELLED");
+        String next = room(303);
+        assertThat(engine.join(202, "park", next, "abcd").path("registered").asBoolean()).isTrue();
     }
 
     @Test

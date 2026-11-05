@@ -52,6 +52,12 @@ class SkewerCoopControllerTests {
     }
 
     @Test
+    void 비밀번호_검증중_방이_닫히면_비밀번호_오류와_다른_코드로_응답한다() throws Exception {
+        거절_응답(new SkewerCoopRoomAccess.RoomClosedException(), "SKEWER_COOP_ROOM_CLOSED",
+                "가게가 닫혔어요. 목록에서 다른 가게를 선택해 주세요.");
+    }
+
+    @Test
     void 틀린_비밀번호는_정원마감과_구분해_응답한다() throws Exception {
         거절_응답(new SkewerCoopRoomAccess.PasswordRejected(false), "SKEWER_COOP_PASSWORD_INVALID",
                 "비밀번호가 맞지 않아요.");

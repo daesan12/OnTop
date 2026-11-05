@@ -25,7 +25,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 class SkewerCoopMaintenanceTests {
@@ -133,6 +135,46 @@ class SkewerCoopMaintenanceTests {
         }
         assertThat(saved).hasSize(1);
         assertThatThrownBy(() -> router.apply(action)).hasMessage("ACCESS_DENIED");
+    }
+
+    @Test
+    void 만료된_방의_영수증만_제거하고_다른방의_동일키_재시도는_전체탐색없이_보존한다() {
+        String first = joined(101, 202, "first");
+        var firstAction = new GameActionCommand(101, first, "same-action", 0,
+                mapper.valueToTree(Map.of("type", "ROLE", "role", "server")));
+        engine.apply(firstAction);
+        engine.forfeit(new GameForfeitCommand(101, first, "same-quit"));
+        engine.persistTerminalResults();
+        now.addAndGet(1_000);
+        String second = joined(101, 202, "second");
+        var secondAction = new GameActionCommand(101, second, "same-action", 0,
+                mapper.valueToTree(Map.of("type", "ROLE", "role", "server")));
+        var secondReceipt = engine.apply(secondAction);
+        var secondQuit = new GameForfeitCommand(101, second, "same-quit");
+        engine.forfeit(secondQuit);
+        engine.persistTerminalResults();
+        // 시간 측정 대신 전체 영수증 순회 자체를 막아 락 안의 작업량이 다른 방 기록에 비례하지 않음을 검증한다.
+        for (String name : List.of("receipts", "forfeits")) {
+            var guarded = spy(cache(name));
+            doThrow(new AssertionError("다른 방 영수증까지 전체 순회함: " + name)).when(guarded).values();
+            doThrow(new AssertionError("다른 방 영수증까지 전체 순회함: " + name)).when(guarded).entrySet();
+            ReflectionTestUtils.setField(engine, name, guarded);
+        }
+
+        now.set(1_801_000);
+        assertThatCode(engine::tick).doesNotThrowAnyException();
+
+        assertThat(engine.load(101, first)).isEmpty();
+        assertThat(engine.load(101, second)).isPresent();
+        assertThat(router.apply(secondAction)).isEqualTo(secondReceipt);
+        assertThat(router.forfeit(secondQuit).duplicate()).isTrue();
+        assertThat(cache("receipts").size()).isEqualTo(1);
+        assertThat(cache("forfeits").size()).isEqualTo(1);
+        now.addAndGet(1_000);
+        engine.tick();
+        assertThat(cache("receipts").size()).isZero();
+        assertThat(cache("forfeits").size()).isZero();
+        assertThat(saved).hasSize(2);
     }
 
     @Test

@@ -4,6 +4,12 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 /** 대기 방의 표시 정보와 비밀번호. 해시는 공개 상태나 결과에 포함하지 않는다. */
 public final class SkewerCoopRoomAccess {
+    public static final class RoomClosedException extends IllegalStateException {
+        public RoomClosedException() {
+            super("가게가 닫혔어요. 목록에서 다른 가게를 선택해 주세요.");
+        }
+    }
+
     public static final class RoomFullException extends IllegalStateException {
         public RoomFullException() {
             super("가게 인원이 가득 찼어요. 다른 가게를 선택해 주세요.");

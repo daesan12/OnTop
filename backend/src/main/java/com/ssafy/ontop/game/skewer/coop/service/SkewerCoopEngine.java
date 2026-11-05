@@ -63,8 +63,9 @@ public final class SkewerCoopEngine implements GameEngine {
     private final Map<Long, String> latest = new HashMap<>();
     private final Map<Long, String> recoveryLatest = new HashMap<>();
     private final Map<String, String> creations = new HashMap<>();
-    private final Map<String, Receipt> receipts = new HashMap<>();
-    private final Map<String, GameForfeitResult> forfeits = new HashMap<>();
+    // 경기 수명과 영수증 수명을 함께 관리해 만료 시 다른 경기의 영수증을 순회하지 않는다.
+    private final Map<String, Map<String, Receipt>> receipts = new HashMap<>();
+    private final Map<String, Map<String, GameForfeitResult>> forfeits = new HashMap<>();
     private final Set<String> completed = new HashSet<>();
     private final Set<String> dismissed = new HashSet<>();
     private final GameLifecycle lifecycle = new GameLifecycle();
@@ -270,8 +271,9 @@ public final class SkewerCoopEngine implements GameEngine {
         GameActionResult result;
         synchronized (this) {
             SkewerCoopMatch match = requireMember(command.userId(), command.gameId());
-            String key = command.gameId() + ":" + command.userId() + ":" + command.actionId();
-            Receipt previous = receipts.get(key);
+            String key = command.userId() + ":" + command.actionId();
+            Map<String, Receipt> gameReceipts = receipts.get(command.gameId());
+            Receipt previous = gameReceipts == null ? null : gameReceipts.get(key);
             if (previous != null) {
                 if (!previous.command().equals(command)) {
                     throw new Rejected(Rejection.ACTION_ID_CONFLICT);
@@ -291,7 +293,8 @@ public final class SkewerCoopEngine implements GameEngine {
             }
             match.act(command.userId(), command.input(), clock.millis());
             result = new GameActionResult(command.userId(), command.gameId(), command.actionId(), match.version);
-            receipts.put(key, new Receipt(command, result));
+            receipts.computeIfAbsent(command.gameId(), ignored -> new HashMap<>())
+                    .put(key, new Receipt(command, result));
         }
         events.accept(new GameStateChanged(command.gameId(), result.version()));
         return result;
@@ -302,8 +305,9 @@ public final class SkewerCoopEngine implements GameEngine {
         GameForfeitResult result;
         synchronized (this) {
             SkewerCoopMatch match = requireMember(command.userId(), command.gameId());
-            String key = command.userId() + ":" + command.gameId() + ":" + command.actionId();
-            GameForfeitResult previous = forfeits.get(key);
+            String key = command.userId() + ":" + command.actionId();
+            Map<String, GameForfeitResult> gameForfeits = forfeits.get(command.gameId());
+            GameForfeitResult previous = gameForfeits == null ? null : gameForfeits.get(key);
             if (previous != null) {
                 return new GameForfeitResult(previous.userId(), previous.gameId(), previous.actionId(),
                         previous.version(), true);
@@ -311,7 +315,7 @@ public final class SkewerCoopEngine implements GameEngine {
             match.finish("SKEWER_FORFEIT");
             queueTerminalResult(match);
             result = new GameForfeitResult(command.userId(), match.id, command.actionId(), match.version, false);
-            forfeits.put(key, result);
+            forfeits.computeIfAbsent(command.gameId(), ignored -> new HashMap<>()).put(key, result);
         }
         return result;
     }
@@ -414,12 +418,12 @@ public final class SkewerCoopEngine implements GameEngine {
             roomAccess.remove(id);
             retireAt.remove(id);
             terminalRetryAt.remove(id);
+            receipts.remove(id);
+            forfeits.remove(id);
         });
         latest.values().removeIf(expired::contains);
         recoveryLatest.values().removeIf(expired::contains);
         creations.values().removeIf(expired::contains);
-        receipts.values().removeIf(receipt -> expired.contains(receipt.command().gameId()));
-        forfeits.values().removeIf(receipt -> expired.contains(receipt.gameId()));
         completed.removeAll(expired);
         dismissed.removeIf(key -> expired.contains(key.substring(key.indexOf(':') + 1)));
     }
@@ -427,8 +431,11 @@ public final class SkewerCoopEngine implements GameEngine {
     // 호출자는 엔진 락을 보유한다. 채널·종료 여부 확인 후에만 정원 정보를 구분해 반환한다.
     private SkewerCoopMatch requireJoinableRoom(long user, String channel, String id) {
         SkewerCoopMatch match = games.get(id);
-        if (match == null || !match.channelId.equals(channel) || match.finished()) {
+        if (match == null || !match.channelId.equals(channel)) {
             throw new IllegalStateException("같은 공원의 참가 가능한 방을 선택해주세요.");
+        }
+        if (match.finished()) {
+            throw new SkewerCoopRoomAccess.RoomClosedException();
         }
         if (!match.contains(user) && match.players().size() >= 2) {
             throw new SkewerCoopRoomAccess.RoomFullException();
