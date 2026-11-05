@@ -323,6 +323,7 @@ class RestSecurityTests {
                 "GET /api/v1/raffles/current", "POST /api/v1/raffles/current/tickets",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
+                "POST /api/v1/behavior-events",
                 "GET /api/v1/channels",
                 "GET /api/v1/world/fitness/rewards/status",
                 "GET /api/v1/tables", "GET /dev/tables", "GET /dev/world-config",
