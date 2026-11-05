@@ -91,10 +91,17 @@ public class SkewerCoopController {
             engine.waitingPlayers(channel, body.path("gameId").asText())
                     .forEach(player -> hub.requireSkewerWaitingPlayer(player, channel));
         }
-        JsonNode result = body.has("gameId") ? engine.join(account, channel, body.path("gameId").asText(), body.path("password").asText(""))
-                : engine.create(account, channel, body.path("requestKey").asText(),
-                        body.path("roomName").asText("함께 여는 꼬치집"), profiles.findProfile(account).nickname(),
-                        body.path("password").asText(""));
+        JsonNode result;
+        if (body.has("gameId")) {
+            result = engine.join(account, channel, body.path("gameId").asText(), body.path("password").asText(""));
+        } else {
+            // 인증 정보에는 닉네임이 없다. 활성 회원 조회 실패 시 방을 만들지 않으며 임의 이름으로 대체하지 않는다.
+            String nickname = profiles.findProfile(account).nickname();
+            // DB 조회 중 공원 연결·위치가 바뀔 수 있으므로 방 상태를 변경하기 직전에 다시 확인한다.
+            hub.requireSkewerEntry(account, channel, engine.owns(account, channel));
+            result = engine.create(account, channel, body.path("requestKey").asText(),
+                    body.path("roomName").asText("함께 여는 꼬치집"), nickname, body.path("password").asText(""));
+        }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(result);
     }
 

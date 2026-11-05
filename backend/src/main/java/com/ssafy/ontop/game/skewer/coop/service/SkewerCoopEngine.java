@@ -49,6 +49,7 @@ public final class SkewerCoopEngine implements GameEngine {
     private final Map<String, SkewerCoopMatch> games = new LinkedHashMap<>();
     private final Map<String, SkewerCoopRoomAccess> roomAccess = new HashMap<>();
     private final Map<Long, List<Long>> passwordAttempts = new HashMap<>();
+    private final Set<Long> passwordChecks = new HashSet<>();
     private final Map<Long, String> latest = new HashMap<>();
     private final Map<Long, String> recoveryLatest = new HashMap<>();
     private final Map<String, String> creations = new HashMap<>();
@@ -129,13 +130,36 @@ public final class SkewerCoopEngine implements GameEngine {
             if (!member && access.locked()) {
                 long now = clock.millis();
                 passwordAttempts.entrySet().removeIf(entry -> entry.getValue().stream().allMatch(at -> now - at >= 30_000));
-                List<Long> attempts = passwordAttempts.computeIfAbsent(user, ignored -> new ArrayList<>());
-                attempts.removeIf(at -> now - at >= 30_000);
-                if (attempts.size() >= 5) throw new SkewerCoopRoomAccess.PasswordRejected(true);
-                attempts.add(now);
+                List<Long> attempts = passwordAttempts.get(user);
+                if (attempts != null) {
+                    attempts.removeIf(at -> now - at >= 30_000);
+                }
+                if ((attempts != null && attempts.size() >= 5) || !passwordChecks.add(user)) {
+                    throw new SkewerCoopRoomAccess.PasswordRejected(true);
+                }
             }
         }
-        if (!member && !access.accepts(password)) throw new SkewerCoopRoomAccess.PasswordRejected(false);
+        if (!member && access.locked()) {
+            boolean verified = false;
+            boolean accepted = false;
+            try {
+                // 해시는 공유 락 밖에서 계산하되 사용자별 진행 중 검증은 하나만 허용한다.
+                accepted = access.accepts(password);
+                verified = true;
+            } finally {
+                synchronized (this) {
+                    passwordChecks.remove(user);
+                    if (verified && accepted) {
+                        passwordAttempts.remove(user);
+                    } else if (verified) {
+                        passwordAttempts.computeIfAbsent(user, ignored -> new ArrayList<>()).add(clock.millis());
+                    }
+                }
+            }
+            if (!accepted) {
+                throw new SkewerCoopRoomAccess.PasswordRejected(false);
+            }
+        }
         SkewerCoopMatch match;
         synchronized (this) {
             match = games.get(id);

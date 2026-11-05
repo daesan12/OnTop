@@ -3,6 +3,7 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.security.AuthenticatedUser;
+import com.ssafy.ontop.auth.security.RestAuthenticationException;
 import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
@@ -24,6 +25,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
@@ -36,7 +39,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class TableHubSkewerEntryTests {
@@ -59,6 +66,69 @@ class TableHubSkewerEntryTests {
     @AfterEach
     void 종료한다() {
         hub.shutdown();
+    }
+
+    @Test
+    void 방장_프로필_실패와_탈퇴는_방을_남기지_않고_같은_키로_재시도할수있다() throws Exception {
+        peer(101);
+        entranceAt(101);
+        for (var error : new RestAuthenticationException.Error[] {
+                RestAuthenticationException.Error.STORAGE, RestAuthenticationException.Error.MEMBER_CHANGED}) {
+            when(profiles.findProfile(101)).thenThrow(new RestAuthenticationException(error));
+
+            assertThatThrownBy(() -> enter(101, "requestKey", "retry"))
+                    .isInstanceOfSatisfying(RestAuthenticationException.class,
+                            exception -> assertThat(exception.error()).isEqualTo(error));
+
+            assertThat(engine.rooms(101, "park").path("rooms")).isEmpty();
+            assertThat(engine.owns(101, "park")).isFalse();
+            doReturn(new UserProfileResponse(101, "서버의 방장", null))
+                    .when(profiles).findProfile(101);
+        }
+
+        assertThat(enter(101, "requestKey", "retry").at("/publicState/hostNickname").asText())
+                .isEqualTo("서버의 방장");
+        assertThat(engine.rooms(101, "park").path("rooms").size()).isEqualTo(1);
+    }
+
+    @Test
+    void 프로필_지연중에도_엔진은_응답하고_연결이_끊기면_방을_만들지_않는다() throws Exception {
+        Peer host = peer(101);
+        entranceAt(101);
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(profiles.findProfile(101)).thenAnswer(call -> {
+            entered.countDown();
+            assertThat(release.await(5, TimeUnit.SECONDS)).isTrue();
+            return new UserProfileResponse(101, "공원친구", null);
+        });
+
+        try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+            var pending = workers.submit(() -> enter(101, "requestKey", "slow"));
+            try {
+                assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+                assertThat(workers.submit(() -> engine.rooms(202, "park")).get(2, TimeUnit.SECONDS)
+                        .path("rooms")).isEmpty();
+                hub.disconnect(host.id);
+            } finally {
+                release.countDown();
+            }
+            assertThatThrownBy(() -> pending.get(5, TimeUnit.SECONDS)).hasCauseInstanceOf(IllegalStateException.class);
+        }
+        assertThat(engine.rooms(101, "park").path("rooms")).isEmpty();
+    }
+
+    @Test
+    void 프로필은_방_생성시_한번만_조회하고_참가자는_다시_조회하지_않는다() throws Exception {
+        peer(101);
+        entranceAt(101);
+        String id = enter(101, "requestKey", "once").path("gameId").asText();
+        peer(202);
+
+        assertThat(enter(202, "gameId", id).path("registered").asBoolean()).isTrue();
+
+        verify(profiles, times(1)).findProfile(101);
+        verify(profiles, never()).findProfile(202);
     }
 
     @Test
