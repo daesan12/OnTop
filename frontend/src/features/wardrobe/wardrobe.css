@@ -292,6 +292,8 @@
   background: #fff;
   text-align: left;
   transition: border-color 120ms, box-shadow 120ms;
+  /* (a double tap wears or takes off: no double-tap zoom on touch screens, review) */
+  touch-action: manipulation;
 }
 .wardrobe-card:hover:not(:disabled) { border-color: #b9d6f6; }
 .wardrobe-card[aria-pressed='true'] { border: 2px solid var(--wardrobe-blue); background: #f4f9ff; box-shadow: 0 6px 14px rgba(58, 140, 230, 0.18); }
@@ -308,6 +310,8 @@
   background: #f3efe6;
 }
 .wardrobe-art img { width: 92%; height: 92%; object-fit: contain; }
+.wardrobe-art[data-whole-skin='true'] { position: relative; }
+.wardrobe-art[data-whole-skin='true'] img { position: absolute; inset: 4%; }
 .wardrobe-art[data-slot='HAIR'] { background: #f6ece2; }
 .wardrobe-art[data-slot='FACE'] { background: #eef2e8; }
 .wardrobe-art[data-slot='TOP'] { background: #e9eef8; }

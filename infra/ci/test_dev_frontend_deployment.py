@@ -9,6 +9,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class DevFrontendDeploymentTests(unittest.TestCase):
+    def test_remote_dev_build_explicitly_receives_wardrobe_and_dev_bindings(self):
+        pipeline = (ROOT / "Jenkinsfile").read_text(encoding="utf-8")
+        command = next(line for line in pipeline.splitlines() if line.startswith("vercel deploy "))
+        self.assertIn("--local-config vercel.dev.json", command)
+        self.assertIn("--build-env VITE_WARDROBE_OUTFITS=true", command)
+        self.assertIn("--build-env VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json", command)
+
     def test_prod_and_dev_use_their_generated_bindings_without_changing_service_routes(self):
         prod = json.loads((ROOT / "frontend/vercel.json").read_text(encoding="utf-8"))
         dev = json.loads((ROOT / "frontend/vercel.dev.json").read_text(encoding="utf-8"))

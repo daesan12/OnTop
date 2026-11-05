@@ -9,6 +9,7 @@ import { createShopService, ShopError } from '../shop/service'
 import { wardrobeView } from './view'
 import { gameplayMenusLocked } from '../parkMenus/gameplayLock'
 import { WARDROBE_OUTFITS_ENABLED } from './feature'
+import { wholeSkinCompatible } from '../../world/art/wholeSkin'
 
 /** Slightly above eye level, so the zoomed figure is seen almost straight on. */
 const WARDROBE_PITCH = 0.16
@@ -161,6 +162,11 @@ export async function wearPreviewedItem() {
   const s = useWardrobe.getState(), owner = s.owner, generation = epoch
   const target = s.items.find(owned => owned.userItemId === s.previewId)
   if (!current(owner, generation) || !target || target.equipped || s.equipping || s.loading) return
+  const variant = useSession.getState().profiles[owner]?.character === 'girl' ? 'girl' : 'man'
+  if (!wholeSkinCompatible(variant, target.item.imageKey)) {
+    useWardrobe.setState({ equipError: '이 스킨은 남자 캐릭터 전용이에요.' })
+    return
+  }
   const abort = writeAbort = new AbortController()
   useWardrobe.setState({ equipping: target.userItemId, equipError: '', notice: '' })
   try {

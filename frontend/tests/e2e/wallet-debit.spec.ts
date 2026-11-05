@@ -16,9 +16,10 @@ test(`판돈 예약과 ${outcome} 정산을 새로고침 없이 잔액에 반영
   } }))
   await page.goto('/park')
   await expect(page).toHaveTitle(/OnTop/)
+  await expect(page.getByLabel('공원 기본 화면', { exact: true })).toBeVisible({ timeout: 90_000 })
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
   const balance = page.getByLabel('보유 엽전', { exact: true })
-  await expect(balance).toHaveText('100냥')
+  await expect(balance).toHaveText('100냥', { timeout: 30_000 })
   await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
   // 공통 지갑 검증에서는 서버 fixture로 판돈 설정을 확정한다.
   server.configureTablet({ gameCode: 'OMOK', playerCount: 2, betAmountPerPlayer: 30 })
