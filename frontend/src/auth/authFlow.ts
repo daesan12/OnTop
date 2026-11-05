@@ -76,9 +76,50 @@ export async function logout(): Promise<void> {
   clearAuthSession()
 }
 
+export type OnboardingNicknameAvailability = 'available' | 'taken' | 'format' | 'reserved' | 'unavailable'
+
+const ONBOARDING_EXPIRED_MESSAGE = '설정 시간이 만료되었어요. 다시 로그인해 주세요.'
+
+function errorCode(body: unknown): string | null {
+  return body && typeof body === 'object' && 'code' in body && typeof body.code === 'string' ? body.code : null
+}
+
+/** GET /api/v1/users/nickname-availability with the onboarding Bearer. A check only: the server
+ * neither consumes nor extends the onboarding token, and the result reserves nothing. */
+export async function checkOnboardingNickname(nickname: string, signal?: AbortSignal): Promise<OnboardingNicknameAvailability> {
+  if (currentSession?.status !== 'ONBOARDING_REQUIRED') {
+    throw new OnboardingError(ONBOARDING_EXPIRED_MESSAGE, 'ONBOARDING_EXPIRED')
+  }
+  const generation = sessionGeneration
+  let response: Response
+  try {
+    response = await fetch(`/api/v1/users/nickname-availability?nickname=${encodeURIComponent(nickname)}`, {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${currentSession.onboardingToken}` },
+      signal,
+    })
+  } catch (error) {
+    if (signal?.aborted) throw error
+    return 'unavailable'
+  }
+  const body: unknown = await response.json().catch(() => null)
+  if (response.status === 401) {
+    if (generation === sessionGeneration) clearAuthSession()
+    throw new OnboardingError(ONBOARDING_EXPIRED_MESSAGE, 'ONBOARDING_EXPIRED')
+  }
+  if (response.ok) {
+    const available = body && typeof body === 'object' && 'available' in body ? body.available : undefined
+    return typeof available === 'boolean' ? (available ? 'available' : 'taken') : 'unavailable'
+  }
+  const code = errorCode(body)
+  if (code === 'USER_RESERVED_NICKNAME') return 'reserved'
+  if (code === 'USER_INVALID_NICKNAME') return 'format'
+  return 'unavailable'
+}
+
 export async function completeOnboarding(nickname: string, characterGender: CharacterGender): Promise<void> {
   if (currentSession?.status !== 'ONBOARDING_REQUIRED') {
-    throw new OnboardingError('설정 시간이 만료되었어요. 다시 로그인해 주세요.', 'ONBOARDING_EXPIRED')
+    throw new OnboardingError(ONBOARDING_EXPIRED_MESSAGE, 'ONBOARDING_EXPIRED')
   }
 
   const response = await fetch('/api/v1/users/onboarding', {
@@ -94,14 +135,23 @@ export async function completeOnboarding(nickname: string, characterGender: Char
   const body: unknown = await response.json().catch(() => null)
 
   if (!response.ok) {
-    const code = body && typeof body === 'object' && 'code' in body && typeof body.code === 'string'
-      ? body.code : 'ONBOARDING_FAILED'
+    const code = errorCode(body) ?? 'ONBOARDING_FAILED'
     if (response.status === 401) {
       clearAuthSession()
-      throw new OnboardingError('설정 시간이 만료되었어요. 다시 로그인해 주세요.', 'ONBOARDING_EXPIRED')
+      throw new OnboardingError(ONBOARDING_EXPIRED_MESSAGE, 'ONBOARDING_EXPIRED')
     }
     if (code === 'USER_NICKNAME_ALREADY_EXISTS') {
+      // A passed availability check reserves nothing: someone may register the name first.
       throw new OnboardingError('이미 사용 중인 닉네임이에요. 다른 이름을 입력해 주세요.', code)
+    }
+    if (code === 'USER_RESERVED_NICKNAME') {
+      throw new OnboardingError('GM으로 시작하는 닉네임은 사용할 수 없어요.', code)
+    }
+    if (code === 'USER_INVALID_NICKNAME') {
+      throw new OnboardingError('한글, 영문, 숫자로 2~8자 입력해 주세요.', code)
+    }
+    if (code === 'USER_INVALID_CHARACTER_GENDER' || code === 'USER_INVALID_ONBOARDING_REQUEST') {
+      throw new OnboardingError('입력한 정보를 확인하고 다시 시도해 주세요.', code)
     }
     if (code === 'USER_ALREADY_REGISTERED') {
       clearAuthSession()
