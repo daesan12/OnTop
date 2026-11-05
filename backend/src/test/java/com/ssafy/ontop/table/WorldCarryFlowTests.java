@@ -90,6 +90,23 @@ class WorldCarryFlowTests {
     }
 
     @Test
+    void 일반_창점유는_작은_확인응답만_보내고_즉시_전체방송하지않는다() throws Exception {
+        try (var first = client("naver", "a"); var second = client("ssafy", "a")) {
+            second.request("WORLD_FOLLOW_CHECK", Map.of());
+            second.assertNoMessageDuring(message -> message.path("type").asText().equals("WORLD_STATE"), () -> {
+                for (int i = 0; i < 6; i++) {
+                    JsonNode response = first.request("WORLD_INTERACTION_SET", Map.of("busy", i % 2 == 0));
+                    assertThat(response.path("type").asText()).isEqualTo("WORLD_INTERACTION_STATE");
+                    assertThat(response.path("payload").size()).isEqualTo(2);
+                    assertThat(response.at("/payload/channelId").asText()).isEqualTo("a");
+                    assertThat(response.at("/payload/busy").asBoolean()).isEqualTo(i % 2 == 0);
+                }
+                return null;
+            });
+        }
+    }
+
+    @Test
     void 창을_연_상대는_들수없고_운반중_창을열면_던지지않고_내려놓는다() throws Exception {
         try (var first = client("naver", "a"); var second = client("ssafy", "a")) {
             second.request("WORLD_INTERACTION_SET", Map.of("busy", true));
@@ -100,6 +117,8 @@ class WorldCarryFlowTests {
 
             second.request("WORLD_INTERACTION_SET", Map.of("busy", true));
 
+            first.await(message -> message.path("type").asText().equals("WORLD_STATE")
+                    && carry(message, first.userId).isNull());
             assertThat(channels.carryState(first.userId)).isNull();
             assertThat(channels.carryState(second.userId)).isNull();
         }

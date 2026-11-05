@@ -603,7 +603,8 @@ export async function fixture(
       if (type === 'WORLD_INTERACTION_SET') {
         interactionBusy = payload.busy === true
         if (interactionBusy) for (const id of Object.keys(carries)) carries[id] = null
-        world(ws, requestId); return
+        emit(ws, 'WORLD_INTERACTION_STATE', { channelId: 'fixture-channel', busy: interactionBusy }, requestId)
+        world(ws); return
       }
       if (options.carry && type === 'WORLD_CARRY_PICKUP') {
         const carryId = crypto.randomUUID(), targetId = String(payload.targetId)

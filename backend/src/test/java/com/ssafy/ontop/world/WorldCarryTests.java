@@ -3,6 +3,7 @@ package com.ssafy.ontop.world;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldMapProperties;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
+import com.ssafy.ontop.world.movement.WorldPhysics;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
 import java.util.List;
@@ -14,6 +15,45 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WorldCarryTests {
+    @Test
+    void 일반_창점유_변경은_응답에_월드를_싣지않고_100ms_방송에_합친다() throws Exception {
+        try (var pair = pair()) {
+            var registry = pair.registry();
+            pair.time().set(200_000_000L);
+            registry.advance(java.util.Set.of());
+
+            for (int i = 0; i < 20; i++) {
+                var change = registry.interactionBusy("a", i % 2 == 0);
+                assertThat(change.released()).isNull();
+                assertThat(registry.advance(java.util.Set.of())).isEmpty();
+            }
+            assertThat(registry.interactionBusy("a", true).released()).isNull();
+            long version = registry.worldState("one").version();
+            registry.interactionBusy("a", true);
+            assertThat(registry.worldState("one").version()).isEqualTo(version);
+            pair.time().addAndGet(WorldPhysics.STEP_NANOS * 2);
+            assertThat(registry.advance(java.util.Set.of())).isEmpty();
+            pair.time().addAndGet(100_000_000L);
+
+            assertThat(registry.advance(java.util.Set.of())).singleElement().satisfies(world ->
+                    assertThat(world.avatars()).anyMatch(avatar -> avatar.userId().equals("a")
+                            && Boolean.TRUE.equals(avatar.interactionBusy())));
+        }
+    }
+
+    @Test
+    void 운반_해제는_플래그_방송주기를_기다리지않고_즉시_월드를_제공한다() throws Exception {
+        try (var pair = pair()) {
+            var registry = pair.registry();
+            registry.pickup("a", "b");
+
+            var change = registry.interactionBusy("b", true);
+
+            assertThat(change.released()).isNotNull();
+            assertThat(change.released().avatars()).allMatch(avatar -> avatar.carry() == null);
+        }
+    }
+
     @Test
     void 게임_관전_시설_수영_거리와_다른채널을_양쪽에_검사한다() throws Exception {
         for (String user : List.of("a", "b")) {
@@ -65,10 +105,10 @@ class WorldCarryTests {
         registry.join("b", "one");
         registry.move("a", new WorldChannelRegistry.Position(0, 0, .84, 78, 0));
         registry.move("b", new WorldChannelRegistry.Position(0, 1, .84, 78, 0));
-        return new Pair(registry);
+        return new Pair(registry, time);
     }
 
-    private record Pair(WorldChannelRegistry registry) implements AutoCloseable {
+    private record Pair(WorldChannelRegistry registry, AtomicLong time) implements AutoCloseable {
         @Override
         public void close() { registry.clear(); }
     }

@@ -1008,7 +1008,9 @@ export class ParkRuntime implements ParkRuntimePort {
       && useSession.getState().roomId === session.roomId && useSession.getState().sessionId === session.sessionId
     if (status.pending || status.busy === busy || performance.now() < status.retryAt) return
     status.pending = true
-    void this.socket.request('WORLD_INTERACTION_SET', { busy }, ['WORLD_STATE']).then(() => {
+    void this.socket.request('WORLD_INTERACTION_SET', { busy }, ['WORLD_INTERACTION_STATE']).then(response => {
+      if (response.payload.channelId !== session.roomId || response.payload.busy !== busy)
+        throw new Error('창 점유 응답을 확인해주세요.')
       if (current()) status.busy = busy
     }).catch(error => {
       if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }

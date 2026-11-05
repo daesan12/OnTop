@@ -58,11 +58,18 @@ test('E picks up a nearby player, throws along the camera, and blocks games and 
   await page.keyboard.press('Enter')
   const chat = page.getByLabel('주변 채팅 메시지')
   await expect(chat).toBeFocused()
+  await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_INTERACTION_SET'
+    && message.payload.busy === true).length).toBeGreaterThan(0)
+  const busyRequests = server.sent.filter(message => message.type === 'WORLD_INTERACTION_SET').length
+  // Observe several 100ms samples: an unchanged open window must not send another packet.
+  await page.waitForTimeout(350)
+  expect(server.sent.filter(message => message.type === 'WORLD_INTERACTION_SET')).toHaveLength(busyRequests)
   await chat.fill('e')
   const before = server.sent.filter(message => message.type.startsWith('WORLD_CARRY')).length
   await chat.press('KeyE')
   expect(server.sent.filter(message => message.type.startsWith('WORLD_CARRY')).length).toBe(before)
   await page.keyboard.press('Escape')
+  await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_INTERACTION_SET').at(-1)?.payload.busy).toBe(false)
   await page.setViewportSize({ width: 900, height: 540 })
   await page.locator('canvas').focus()
   await page.keyboard.press('KeyE')

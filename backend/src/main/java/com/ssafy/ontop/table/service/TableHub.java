@@ -900,8 +900,7 @@ public class TableHub {
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
                 case "WORLD_CARRY_PICKUP", "WORLD_CARRY_THROW", "WORLD_CARRY_RELEASE" -> carry(member, request);
-                case "WORLD_INTERACTION_SET" -> publishWorld(channels.interactionBusy(member.userId(),
-                        request.payload().path("busy").asBoolean()), member, request.requestId());
+                case "WORLD_INTERACTION_SET" -> interactionBusy(member, request);
                 case "WORLD_FOLLOW_START", "WORLD_FOLLOW_STOP", "WORLD_FOLLOW_CHECK" -> follow(member, request);
                 case "WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FACILITY_USE",
                         "WORLD_FACILITY_RELEASE", "WORLD_FACILITY_AIM" -> facility(member, request);
@@ -1808,6 +1807,15 @@ public class TableHub {
                     payload.path("dy").asDouble(), payload.path("dz").asDouble());
         }
         publishWorld(state, member, request.requestId());
+    }
+
+    private void interactionBusy(Member member, Request request) {
+        var change = channels.interactionBusy(member.userId(), request.payload().path("busy").asBoolean());
+        member.peer().offer(protocol.encode(request.requestId(), "WORLD_INTERACTION_STATE",
+                Map.of("channelId", change.channelId(), "busy", change.busy())));
+        if (change.released() != null) {
+            publishWorld(change.released(), null, null);
+        }
     }
 
     private boolean carryBusy(String userId) {

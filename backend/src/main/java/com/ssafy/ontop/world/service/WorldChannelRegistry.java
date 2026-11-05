@@ -521,15 +521,22 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     /** 창의 종류나 내용을 노출하지 않고 본인 UI의 조작 점유만 공유한다. 게임 권한 검사는 별도로 유지한다. */
-    public synchronized WorldState interactionBusy(String userId, boolean busy) {
+    public record InteractionChange(String channelId, boolean busy, WorldState released) { }
+
+    public synchronized InteractionChange interactionBusy(String userId, boolean busy) {
         Room room = rooms.get(membership.get(userId));
         if (room == null) { throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요."); }
         boolean changed = busy ? room.interactionBusy.add(userId) : room.interactionBusy.remove(userId);
         if (changed) {
-            if (busy) { room.physics.releaseCarry(userId); }
-            return refreshCarry(room);
+            if (busy && room.physics.carryState(userId) != null) {
+                room.physics.releaseCarry(userId);
+                return new InteractionChange(room.definition.channelId(), busy, refreshCarry(room));
+            }
+            // 일반 창 점유는 위치를 다시 읽지 않고 기존 10Hz 월드 방송에 합친다.
+            room.worldVersion++;
+            room.dirty = true;
         }
-        return room.worldState();
+        return new InteractionChange(room.definition.channelId(), busy, null);
     }
 
     public synchronized WorldState pickup(String userId, String targetId) {
