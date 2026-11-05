@@ -72,10 +72,13 @@ function requeue(batch: Queued[]) {
 }
 
 /**
- * 모아 둔 것을 한 묶음 보낸다. keepalive는 페이지를 떠날 때 쓰며 응답을 기다리지 않는다.
- * 로그인 회원이 아니면 다른 회원 이름으로 남지 않도록 큐를 비운다.
+ * 모아 둔 것을 한 묶음 보낸다. 로그인 회원이 아니면 다른 회원 이름으로 남지 않도록 큐를 비운다.
+ * 모든 요청을 keepalive로 보내 주기 전송 도중 탭을 닫아도 보내던 묶음이 끊기지 않는다.
+ * leaving(탭 숨김·떠남)이면 응답을 기다리지 않고, 주기 전송이 보내는 중이어도 큐에 남은 것만 따로 보낸다.
+ * 두 요청이 큐에서 꺼낸 묶음은 서로 겹치지 않으므로 같은 이벤트를 두 번 보내지 않는다.
+ * 발생 시각은 서버가 ageMs로 정하므로 묶음이 도착하는 순서가 바뀌어도 이벤트 순서는 그대로다.
  */
-export async function flushBehavior({ keepalive = false }: { keepalive?: boolean } = {}) {
+export async function flushBehavior({ leaving = false }: { leaving?: boolean } = {}) {
   try {
     const session = getAuthSession()
     if (session?.status !== 'AUTHENTICATED') {
@@ -84,15 +87,15 @@ export async function flushBehavior({ keepalive = false }: { keepalive?: boolean
     }
     const now = performance.now()
     for (let i = queue.length - 1; i >= 0; i--) if (now - queue[i].at > MAX_AGE_MS) queue.splice(i, 1)
-    if (!queue.length || sending && !keepalive) return
+    if (!queue.length || sending && !leaving) return
     const batch = queue.splice(0, MAX_BATCH)
     const body = JSON.stringify({ events: batch.map(({ type, props, at }) =>
       ({ type, ageMs: Math.max(0, Math.round(now - at)), props })) })
     const request = fetch(ENDPOINT, {
-      method: 'POST', keepalive, credentials: 'omit', cache: 'no-store',
+      method: 'POST', keepalive: true, credentials: 'omit', cache: 'no-store',
       headers: { Authorization: `Bearer ${session.accessToken}`, 'Content-Type': 'application/json' }, body,
     })
-    if (keepalive) {
+    if (leaving) {
       request.catch(() => undefined)
       return
     }

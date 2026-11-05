@@ -14,7 +14,7 @@ export function startBehaviorReporting(quality: QualityPreset) {
     if (props) logBehavior({ type: 'PERF_REPORT', props })
     void flushBehavior()
   }, PERF_REPORT_INTERVAL_MS)
-  const leave = () => void flushBehavior({ keepalive: true })
+  const leave = () => void flushBehavior({ leaving: true })
   const hidden = () => { if (document.visibilityState === 'hidden') leave() }
   document.addEventListener('visibilitychange', hidden)
   window.addEventListener('pagehide', leave)

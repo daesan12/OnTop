@@ -24,7 +24,13 @@ import org.springframework.stereotype.Component;
 public class ClientBehaviorIntake {
 
     public static final int MAX_BATCH = 20;
-    /** 회원 한 명이 1분에 남길 수 있는 건수. 성능 보고 1건/분과 투어 단계 몇 건이 넉넉히 들어간다. */
+    /**
+     * 회원 한 명이 1분에 남길 수 있는 건수. 성능 보고 1건/분과 투어 단계 몇 건이 넉넉히 들어간다.
+     * 서버 시각 기준 고정 1분 창이며 운영은 앱 인스턴스 하나(compose.prod.yaml의 app, 공원 상태도 메모리에 있다)를 전제로 한다.
+     * 창이 바뀐 뒤 첫 요청에서 지난 창의 기록을 통째로 비우므로 맵에는 많아야 한 창 동안 보낸 회원만 남는다.
+     * 창 경계 앞뒤로 최대 두 배까지 받을 수 있지만 분석용 표본의 남용 방지 목적에는 충분하다.
+     * 인스턴스를 늘리면 인스턴스마다 따로 세므로 공용 저장소(예: Redis) 기반 제한으로 바꿔야 한다.
+     */
     static final int PER_MINUTE_LIMIT = 30;
     static final long MAX_AGE_MS = Duration.ofMinutes(15).toMillis();
 

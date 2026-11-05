@@ -84,9 +84,31 @@ describe('클라이언트 행동 로그 전송', () => {
     vi.stubGlobal('fetch', fetch)
     logBehavior(step())
 
-    await flushBehavior({ keepalive: true })
+    await flushBehavior({ leaving: true })
 
     expect((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].keepalive).toBe(true)
+    expect(queuedBehaviorCount()).toBe(0)
+  })
+
+  it('주기 전송 중에 떠나면 보내던 묶음은 keepalive로 이어 가고 남은 것만 따로 보낸다', async () => {
+    let answer: (response: Response) => void = () => undefined
+    const fetch = vi.fn((_url: string, _init: RequestInit) => fetch.mock.calls.length === 1
+      ? new Promise<Response>(resolve => { answer = resolve })
+      : Promise.resolve(new Response('{}', { status: 202 })))
+    vi.stubGlobal('fetch', fetch)
+    for (let i = 0; i < MAX_BATCH + 2; i++) logBehavior(step(i < MAX_BATCH ? 'collapse' : 'resume'))
+
+    const periodic = flushBehavior()
+    await flushBehavior()
+    await flushBehavior({ leaving: true })
+    answer(new Response('{}', { status: 202 }))
+    await periodic
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+    const sent = fetch.mock.calls.map(([, init]) => JSON.parse(String(init.body)).events as { props: { action: string } }[])
+    expect(fetch.mock.calls.every(([, init]) => init.keepalive === true)).toBe(true)
+    expect(sent.map(events => events.length)).toEqual([MAX_BATCH, 2])
+    expect(sent[1].every(event => event.props.action === 'resume')).toBe(true)
     expect(queuedBehaviorCount()).toBe(0)
   })
 
