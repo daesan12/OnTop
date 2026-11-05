@@ -5,6 +5,18 @@ import { canReachVrEntrance, vrEntrance } from '../../src/features/vrZone/anchor
 import { VR_CATALOG_SLOTS, VR_GAMES } from '../../src/features/vrZone/catalog'
 
 describe('VR zone entry fees', () => {
+  it('opens the free co-op entry without reading a wallet or buying a solo ticket', async () => {
+    let balanceReads = 0, purchases = 0
+    const zone = new VrZoneController({ mode: 'unavailable', balance: async () => { balanceReads++; return 0 }, start: async () => { purchases++; throw new Error('paid solo disabled') } }, true)
+    zone.openFree()
+    expect(zone.store.getState()).toMatchObject({ phase: 'catalog', balance: null, loading: false })
+    expect(await zone.authorize()).toBe(false)
+    zone.select('skewer'); zone.prepare('pc')
+    expect(zone.store.getState().phase).toBe('catalog')
+    expect(balanceReads).toBe(0)
+    expect(purchases).toBe(0)
+    expect(zone.close()).toBe(true)
+  })
   it('blocks park game selection, both play modes and payment while under construction', async () => {
     const money = new LocalVrAdmission()
     let purchases = 0
