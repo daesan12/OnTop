@@ -28,7 +28,7 @@ export function equipmentProbe() {
   return { approved: s.equipment, models: s.ids.map(id => {
     const avatar = root().scene.getObjectByName('avatar-' + id)
     return { id: avatar?.name, equipment: (avatar?.userData.equipment ?? []) as import('../../src/network/equipment').PublicEquipment[],
-      assetsPending: avatar?.userData.equipmentAssetsPending }
+      look: avatar?.userData.look as string | undefined }
   }) }
 }
 import { _roots } from '@react-three/fiber'

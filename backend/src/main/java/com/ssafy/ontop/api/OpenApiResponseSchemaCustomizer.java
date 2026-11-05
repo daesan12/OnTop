@@ -28,7 +28,7 @@ public class OpenApiResponseSchemaCustomizer implements OpenApiCustomizer {
             }
         }
         for (var field : List.of("TableSummaryResponse.gameCode", "TableSummaryResponse.targetScore",
-                "ItemResponse.equipSlot", "MinigameStatusResponse.score", "MinigameStatusResponse.endedAt",
+                "ItemResponse.equipSlot", "ItemResponse.setCode", "MinigameStatusResponse.score", "MinigameStatusResponse.endedAt",
                 "FeedbackListResponse.nextCursor", "Entry.authorUserId", "FeedbackErrorResponse.nextAllowedAt",
                 "NotesErrorResponse.nextAllowedAt", "ShopErrorResponse.details", "MinigameErrorResponse.details",
                 "MinigameErrorResponse.detail", "MinigameErrorResponse.index")) {

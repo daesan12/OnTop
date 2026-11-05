@@ -61,6 +61,6 @@
       "destination": "/index.html"
     }
   ],
-  "buildCommand": "VITE_ALKKAGI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park",
+  "buildCommand": "VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park",
   "outputDirectory": "dist-park"
 }
