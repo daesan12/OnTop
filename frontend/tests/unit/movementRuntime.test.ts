@@ -7,6 +7,7 @@ import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import { inputState } from '../../src/world/inputOwnership'
 import { createBungeoppangV4Service } from '../../src/features/bungeoppang/serviceV4'
 import { createBungeoppangV5Service } from '../../src/features/bungeoppang/serviceV5'
+import { SpeedMoleService } from '../../src/features/speedMole/service'
 
 const sockets: MovementSocket[] = []
 class MovementSocket implements SocketLike {
@@ -335,4 +336,22 @@ describe('M02 real runtime delivery through the existing SharedSocket', () => {
       expect(moves()[1]!.payload).toEqual({ seq: 2, dx: 1, dz: 0, run: false, jump: false })
     },
   )
+})
+
+it('passes speed mole start, completion and ranking through the real park request gate and rejects other methods', async () => {
+  const fetcher = vi.mocked(fetch), fallback = fetcher.getMockImplementation()!
+  fetcher.mockImplementation(async (url, init) => {
+    const path = String(url)
+    if (path === '/api/v1/minigames/speed-mole/rounds') return json({ id:'7',seed:1,rulesVersion:1,serverNow:'2030-01-01T00:00:00Z',startedAt:'2030-01-01T00:00:03Z',durationMs:60000 })
+    if (path === '/api/v1/minigames/speed-mole/rounds/7/complete') return json({ id:'7',rulesVersion:1,score:1,hits:1,misses:0,completedAt:'2030-01-01T00:01:03Z',calculatedReward:0,reward:0,todayEarned:0,dailyCap:500 })
+    if (path === '/api/v1/minigames/speed-mole/rankings?limit=20&offset=0') return json({ rulesVersion:1,period:'ALL_TIME',totalParticipants:0,offset:0,limit:20,items:[],me:null,hasMore:false })
+    return fallback(url,init)
+  })
+  const service = new SpeedMoleService(runtime.requestJSON)
+  expect((await service.start('replay_key')).id).toBe('7')
+  expect((await service.complete('7',[{hole:1,at:0}])).score).toBe(1)
+  expect((await service.rankings()).items).toEqual([])
+  await expect(runtime.requestJSON('/api/v1/minigames/speed-mole/rounds')).rejects.toThrow('현재 공원')
+  await expect(runtime.requestJSON('/api/v1/minigames/speed-mole/rankings?limit=20&offset=0',{method:'POST'})).rejects.toThrow('현재 공원')
+  await expect(runtime.requestJSON('/api/v1/minigames/speed-mole/rounds/7/complete',{method:'DELETE'})).rejects.toThrow('현재 공원')
 })

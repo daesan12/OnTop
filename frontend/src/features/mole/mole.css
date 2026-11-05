@@ -1,6 +1,6 @@
 /* 두더지 잡기 게임기. Gemini로 만든 실사 게임기 그림(assets/cabinet.webp) 위에 구멍·두더지·LED를 얹는다.
    원색·불빛은 이 화면 안에서만 쓴다(FE 컨벤션 2.4 예외, 오락기 게임과 같음). */
-.mole-root{position:fixed;inset:0;z-index:70;display:grid;place-items:center;overflow:hidden;outline:none;background:#bfe3f7;color:#2b1608;font-family:"Malgun Gothic",sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.mole-root{position:fixed;inset:0;z-index:70;display:grid;place-items:center;overflow:clip;outline:none;background:#bfe3f7;color:#2b1608;font-family:"Malgun Gothic",sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .mole-root *{box-sizing:border-box}
 .mole-root button{font:inherit;cursor:pointer}
 .mole-root button:focus-visible{outline:3px solid #6fc3ff;outline-offset:3px}

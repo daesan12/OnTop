@@ -1195,6 +1195,68 @@ paths:
                 $ref: "#/components/schemas/Settlement"
       security:
       - AccessJwt: []
+  /api/v1/minigames/speed-mole/rounds:
+    post:
+      tags:
+      - MINIGAME
+      summary: 스피드 두더지 서버 판 시작
+      operationId: startSpeedMoleRound
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          type: string
+      responses:
+        "201":
+          description: 새 판 또는 같은 시작 요청 재확인
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SpeedMoleRound"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/speed-mole/rounds/{roundId}/complete:
+    post:
+      tags:
+      - MINIGAME
+      summary: 타격 재계산 후 스피드 두더지 기록·공통 일일 상한 보상 확정
+      operationId: completeSpeedMoleRound
+      parameters:
+      - name: roundId
+        in: path
+        required: true
+        schema:
+          pattern: "^[1-9][0-9]{0,18}$"
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeedMoleComplete"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SpeedMoleResult"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/skewer/admissions:
     post:
       tags:
@@ -5135,6 +5197,41 @@ paths:
                 $ref: "#/components/schemas/State"
       security:
       - AccessJwt: []
+  /api/v1/minigames/speed-mole/rankings:
+    get:
+      tags:
+      - MINIGAME
+      summary: 개인 최고·전체 기간 스피드 두더지 랭킹
+      operationId: getSpeedMoleRankings
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SpeedMoleRankings"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/sessions/{sessionId}:
     get:
       tags:
@@ -6588,6 +6685,74 @@ components:
           type: integer
           format: int32
         bestScore:
+          type: integer
+          format: int32
+    SpeedMoleRound:
+      type: object
+      properties:
+        id:
+          type: string
+        seed:
+          type: integer
+          format: int64
+        rulesVersion:
+          type: integer
+          format: int32
+        serverNow:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        durationMs:
+          type: integer
+          format: int32
+    SpeedMoleComplete:
+      type: object
+      properties:
+        taps:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tap"
+    Tap:
+      type: object
+      properties:
+        hole:
+          type: integer
+          format: int32
+        at:
+          type: integer
+          format: int32
+    SpeedMoleResult:
+      type: object
+      properties:
+        id:
+          type: string
+        rulesVersion:
+          type: integer
+          format: int32
+        score:
+          type: integer
+          format: int32
+        hits:
+          type: integer
+          format: int32
+        misses:
+          type: integer
+          format: int32
+        completedAt:
+          type: string
+          format: date-time
+        calculatedReward:
+          type: integer
+          format: int32
+        reward:
+          type: integer
+          format: int32
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
           type: integer
           format: int32
     SkewerAdmissionResponse:
@@ -8291,6 +8456,56 @@ components:
           $ref: "#/components/schemas/Rules"
         last:
           $ref: "#/components/schemas/Result"
+    SpeedMoleRankingItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        score:
+          type: integer
+          format: int32
+        hits:
+          type: integer
+          format: int32
+        misses:
+          type: integer
+          format: int32
+        completedAt:
+          type: string
+          format: date-time
+    SpeedMoleRankings:
+      type: object
+      properties:
+        rulesVersion:
+          type: integer
+          format: int32
+        period:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        totalParticipants:
+          type: integer
+          format: int64
+        offset:
+          type: integer
+          format: int32
+        limit:
+          type: integer
+          format: int32
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpeedMoleRankingItem"
+        me:
+          $ref: "#/components/schemas/SpeedMoleRankingItem"
+        hasMore:
+          type: boolean
     BungeoppangStatusResponse:
       required:
       - dailyCap
