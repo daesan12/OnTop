@@ -137,14 +137,17 @@ public final class ClientPositionValidator {
                 || !path.getLast().pose.equals(candidate.pose)) {
             return deny("INVALID_PATH");
         }
-        // 중간점 수로 보고 전체의 수직 이동 한도를 잘게 나눠 늘리지 못한다.
+        // 낙하 한도는 중간점 수와 무관하다. 상승 한도에는 검증된 중간 착지만 반영한다.
         double seconds = Math.max(0, (now - approvedAt) / 1e9);
         double rise = candidate.pose.y - approved.y;
         double launchSpeed = geometry.jumpSpeed(approved, true);
         boolean takeoff = path.stream().anyMatch(Sample::jump);
-        if (rise < -85 * seconds - .7 || rise > launchSpeed * seconds + .7
-                && !(takeoff && geometry.supported(approved) && rise <= tunedRise(launchSpeed))) {
+        if (rise < -85 * seconds - .7) {
             return deny("VERTICAL");
+        }
+        double ceilingY = approved.y + launchSpeed * seconds + .7;
+        if (takeoff && geometry.supported(approved)) {
+            ceilingY = Math.max(ceilingY, approved.y + tunedRise(launchSpeed));
         }
         var before = new Checkpoint(approved, sequence, approvedAt, budgetAt, budget, flight,
                 airWindowAt, airWindowY, pendingJumpUntil, groundLaunchSpeed);
@@ -153,11 +156,23 @@ public final class ClientPositionValidator {
             Decision result = null;
             for (int index = 0; index < path.size(); index++) {
                 var sample = path.get(index);
+                var from = approved;
+                var previousFlight = flight;
                 result = acceptSample(new Candidate(candidate.seq, candidate.epoch, sample.pose,
                         candidate.run, sample.jump, candidate.yaw, candidate.manual), now, index == 0);
                 if (!result.accepted) {
                     return new Decision(false, result.reason, before.approved, before.sequence);
                 }
+                // 충돌/예산/점프 검사를 통과해 실제로 새 Flight를 만든 지지 출발점만 인정한다.
+                // 공중 jump 표식이나 아직 검증하지 않은 높은 발판은 한도를 늘리지 못한다.
+                if (flight != null && flight != previousFlight && flight.speed > 0 && flight.ceilingY == null
+                        && ((flight.originY == from.y && geometry.supported(from))
+                        || (flight.originY == approved.y && geometry.supported(approved)))) {
+                    ceilingY = Math.max(ceilingY, flight.originY + tunedRise(flight.speed));
+                }
+            }
+            if (candidate.pose.y > ceilingY) {
+                return new Decision(false, "VERTICAL", before.approved, before.sequence);
             }
             committed = true;
             return result;
