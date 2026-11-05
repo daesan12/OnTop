@@ -73,7 +73,7 @@ export async function refreshShop() {
   })
   if (wallet.status === 'fulfilled') {
     const account = useSession.getState().account
-    if (account) useSession.setState({ account: { ...account, balance: wallet.value.balance } })
+    if (account) useSession.setState({ account: { ...account, balance: wallet.value.balance, reservedBalance: wallet.value.reservedBalance } })
   }
 }
 export function selectShopItem(item: ShopItem) {

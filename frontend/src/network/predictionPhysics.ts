@@ -48,6 +48,7 @@ class PredictionPhysics implements PredictionSimulation {
   private followTarget: {x:number;z:number} | undefined
   private surfaceFlags = {moving:false,running:false}
   private vy = 0
+  private launchedJump = false
   private grounded = false
   private yaw = Math.PI
   private climbY = 0
@@ -137,6 +138,7 @@ class PredictionPhysics implements PredictionSimulation {
     for (const chair of this.chairs) chair.collider.setEnabled(chair.number <= (counts.get(chair.anchor) ?? 2))
   }
   step(input: MovementIntent, dt: number) {
+    this.launchedJump = false
     this.syncJumpCourse()
     const p = this.body.translation()
     const swimming = lakeRadiusAt(p.x, p.z) < 1
@@ -153,6 +155,7 @@ class PredictionPhysics implements PredictionSimulation {
       // Gliding there is fine, but the server rejects a jump without its own support.
       const support = this.grounded && (this.serverSupport ?? this.jumpSupported(p))
       const jump = this.jumpEnabled ? this.jumpGrace.step(input.jump, support, dt) : input.jump && support
+      this.launchedJump = jump
       this.tunedActive = true; this.stepTuned({ ...input, jump }, dt, jump); return
     }
     this.tunedActive = false; this.serverSupport = undefined
@@ -164,6 +167,7 @@ class PredictionPhysics implements PredictionSimulation {
     }
     const jump = this.jumpEnabled ? this.jumpGrace.step(input.jump, this.grounded && !swimming, dt) : input.jump && this.grounded
     if (jump && !swimming) {
+      this.launchedJump = true
       const footY=p.y-MOVEMENT.halfHeight-MOVEMENT.radius-MOVEMENT.offset
       const onPavilion=this.onPavilion(p)
       this.vy = onPavilion ? PARK_DATA.physics.pavilionJumpSpeed : predictionTowerSurface(p.x, footY, p.z)
@@ -267,6 +271,8 @@ class PredictionPhysics implements PredictionSimulation {
     return GENERATED_PARK_ENABLED&&PARK_PAVILIONS.some(site=>Math.abs(foot-site.floor)<.15&&Math.hypot(pose.x-site.x,pose.z-site.z)<4.5*site.scale+.3)
   }
   movementFlags() { return this.tunedActive ? this.parkMotion.flags() : this.surfaceFlags }
+  stepJumped() { return this.launchedJump }
+  stepSupported() { return this.serverSupport ?? this.grounded }
   pose(): Pose { return { ...this.body.translation(), yaw: this.yaw } }
   dispose() { this.world.free() }
 }

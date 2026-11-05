@@ -1,18 +1,33 @@
 package com.ssafy.ontop.world.movement;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
 /** Server-approved movement. The tuned profile accepts bounded client physics, never arbitrary positions. */
 public final class ClientPositionValidator {
     public record Pose(double x, double y, double z) {}
-    public record Candidate(long seq, long epoch, Pose pose, boolean run, boolean jump, double yaw, boolean manual) {
+    public record Sample(Pose pose, boolean jump) {}
+    public record Candidate(long seq, long epoch, Pose pose, boolean run, boolean jump, double yaw, boolean manual,
+            List<Sample> path) {
+        public Candidate {
+            if (path != null) {
+                path = List.copyOf(path);
+            }
+        }
+        public Candidate(long seq, long epoch, Pose pose, boolean run, boolean jump, double yaw, boolean manual) {
+            this(seq, epoch, pose, run, jump, yaw, manual, null);
+        }
         public Candidate(long seq, long epoch, Pose pose, boolean run, boolean jump, double yaw) { this(seq, epoch, pose, run, jump, yaw, true); }
         public Candidate(long seq, long epoch, Pose pose, boolean run, boolean jump) { this(seq, epoch, pose, run, jump, 0); }
         public static Candidate parse(JsonNode node) {
-            var allowed = Set.of("seq", "epoch", "x", "y", "z", "run", "jump", "yaw", "manual");
-            if (node == null || !node.isObject() || node.size() != (node.has("manual") ? 9 : 8)) throw new IllegalArgumentException("fields");
+            var allowed = Set.of("seq", "epoch", "x", "y", "z", "run", "jump", "yaw", "manual", "path");
+            if (node == null || !node.isObject()
+                    || node.size() != 8 + (node.has("manual") ? 1 : 0) + (node.has("path") ? 1 : 0)) {
+                throw new IllegalArgumentException("fields");
+            }
             node.fieldNames().forEachRemaining(key -> { if (!allowed.contains(key)) throw new IllegalArgumentException("fields"); });
             for (var key : Set.of("seq", "epoch")) if (!node.path(key).isIntegralNumber() || !node.path(key).canConvertToLong())
                 throw new IllegalArgumentException("sequence");
@@ -20,9 +35,30 @@ public final class ClientPositionValidator {
                 throw new IllegalArgumentException("coordinates");
             if (!node.path("run").isBoolean() || !node.path("jump").isBoolean()) throw new IllegalArgumentException("intent");
             if (node.has("manual") && !node.path("manual").isBoolean()) throw new IllegalArgumentException("manual");
+            List<Sample> path = null;
+            if (node.has("path")) {
+                var points = node.path("path");
+                if (!points.isArray() || points.isEmpty() || points.size() > MAX_PATH_SAMPLES) {
+                    throw new IllegalArgumentException("path");
+                }
+                path = new ArrayList<>();
+                for (var point : points) {
+                    if (!point.isObject() || point.size() != 4 || !point.path("jump").isBoolean()) {
+                        throw new IllegalArgumentException("path sample");
+                    }
+                    for (var key : Set.of("x", "y", "z")) {
+                        if (!point.path(key).isNumber() || !Double.isFinite(point.path(key).asDouble())) {
+                            throw new IllegalArgumentException("path coordinates");
+                        }
+                    }
+                    path.add(new Sample(new Pose(point.path("x").asDouble(), point.path("y").asDouble(),
+                            point.path("z").asDouble()), point.path("jump").asBoolean()));
+                }
+            }
             return new Candidate(node.path("seq").asLong(), node.path("epoch").asLong(),
                     new Pose(node.path("x").asDouble(), node.path("y").asDouble(), node.path("z").asDouble()),
-                    node.path("run").asBoolean(), node.path("jump").asBoolean(), node.path("yaw").asDouble(), !node.has("manual") || node.path("manual").asBoolean());
+                    node.path("run").asBoolean(), node.path("jump").asBoolean(), node.path("yaw").asDouble(),
+                    !node.has("manual") || node.path("manual").asBoolean(), path);
         }
     }
     interface Geometry {
@@ -45,6 +81,7 @@ public final class ClientPositionValidator {
         Flight(double originY, long started, double speed) { this(originY, started, speed, null); }
     }
     private static final long FRESHNESS = 500_000_000L;
+    private static final int MAX_PATH_SAMPLES = 64;
     private static final double BURST_SECONDS = .35; // Bounded scheduler/TCP batching.
     private final LongSupplier clock;
     private final Geometry geometry;
@@ -91,10 +128,79 @@ public final class ClientPositionValidator {
     synchronized void blocked(boolean value) { blocked = value; }
     synchronized Decision accept(Candidate candidate) {
         long now = clock.getAsLong();
+        if (candidate == null || candidate.path == null) {
+            return acceptSample(candidate, now, true);
+        }
+        var path = candidate.path;
+        if (!tuned || !finite(candidate.pose) || path.isEmpty() || path.size() > MAX_PATH_SAMPLES
+                || path.stream().anyMatch(sample -> !finite(sample.pose))
+                || !path.getLast().pose.equals(candidate.pose)) {
+            return deny("INVALID_PATH");
+        }
+        // 낙하 한도는 중간점 수와 무관하다. 상승 한도에는 검증된 중간 착지만 반영한다.
+        double seconds = Math.max(0, (now - approvedAt) / 1e9);
+        double rise = candidate.pose.y - approved.y;
+        double launchSpeed = geometry.jumpSpeed(approved, true);
+        boolean takeoff = path.stream().anyMatch(Sample::jump);
+        if (rise < -85 * seconds - .7) {
+            return deny("VERTICAL");
+        }
+        double ceilingY = approved.y + launchSpeed * seconds + .7;
+        if (takeoff && geometry.supported(approved)) {
+            ceilingY = Math.max(ceilingY, approved.y + tunedRise(launchSpeed));
+        }
+        var before = new Checkpoint(approved, sequence, approvedAt, budgetAt, budget, flight,
+                airWindowAt, airWindowY, pendingJumpUntil, groundLaunchSpeed);
+        boolean committed = false;
+        try {
+            Decision result = null;
+            for (int index = 0; index < path.size(); index++) {
+                var sample = path.get(index);
+                var from = approved;
+                var previousFlight = flight;
+                result = acceptSample(new Candidate(candidate.seq, candidate.epoch, sample.pose,
+                        candidate.run, sample.jump, candidate.yaw, candidate.manual), now, index == 0);
+                if (!result.accepted) {
+                    return new Decision(false, result.reason, before.approved, before.sequence);
+                }
+                // 충돌/예산/점프 검사를 통과해 실제로 새 Flight를 만든 지지 출발점만 인정한다.
+                // 공중 jump 표식이나 아직 검증하지 않은 높은 발판은 한도를 늘리지 못한다.
+                if (flight != null && flight != previousFlight && flight.speed > 0 && flight.ceilingY == null
+                        && ((flight.originY == from.y && geometry.supported(from))
+                        || (flight.originY == approved.y && geometry.supported(approved)))) {
+                    ceilingY = Math.max(ceilingY, flight.originY + tunedRise(flight.speed));
+                }
+            }
+            if (candidate.pose.y > ceilingY) {
+                return new Decision(false, "VERTICAL", before.approved, before.sequence);
+            }
+            committed = true;
+            return result;
+        } finally {
+            if (!committed) {
+                approved = before.approved;
+                sequence = before.sequence;
+                approvedAt = before.approvedAt;
+                budgetAt = before.budgetAt;
+                budget = before.budget;
+                flight = before.flight;
+                airWindowAt = before.airWindowAt;
+                airWindowY = before.airWindowY;
+                pendingJumpUntil = before.pendingJumpUntil;
+                groundLaunchSpeed = before.groundLaunchSpeed;
+            }
+        }
+    }
+
+    private record Checkpoint(Pose approved, long sequence, long approvedAt, long budgetAt, double budget,
+            Flight flight, long airWindowAt, double airWindowY, long pendingJumpUntil, double groundLaunchSpeed) {}
+
+    /** 모든 중간점은 같은 서버 수신 시각을 사용한다. 클라이언트가 시간이나 이동 예산을 늘릴 수 없다. */
+    private Decision acceptSample(Candidate candidate, long now, boolean checkSequence) {
         if (blocked) return deny("ACTIVITY");
         if (candidate == null || !finite(candidate.pose) || !Double.isFinite(candidate.yaw)) return deny("INVALID");
         if (candidate.epoch != epoch) return deny("EPOCH");
-        if (candidate.seq <= sequence || candidate.seq < 1 || candidate.seq > 0xffff_ffffL) return deny("SEQUENCE");
+        if (checkSequence && (candidate.seq <= sequence || candidate.seq < 1 || candidate.seq > 0xffff_ffffL)) return deny("SEQUENCE");
         if (now - budgetAt < 0 || now - approvedAt < 0) return deny("CLOCK");
         if (now - approvedAt > (tuned ? 2_000_000_000L : FRESHNESS)) return deny("STALE");
         Pose target = candidate.pose;

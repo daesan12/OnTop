@@ -24,6 +24,31 @@ import org.springframework.test.annotation.DirtiesContext;
 class UnifiedMovementFlowTests {
     @LocalServerPort int port;
     @Autowired WorldChannelRegistry channels;
+    @Test void 경로가_있는_위치보고도_인증소켓에서_검증하고_공중재점프를_거절한다() throws Exception {
+        try (var client = connect("naver")) {
+            join(client);
+            var state = fixture(client, 0, .84, 36);
+            long epoch = own(state, client.userId).at("/motion/epoch").asLong();
+            Thread.sleep(60); // 위치 인계의 초기 예산은 0이며 실제 송신 주기만큼 서버 시각을 진행한다.
+            var accepted = client.request("WORLD_POSITION", Map.of("seq", 1, "epoch", epoch,
+                    "x", .2, "y", .84, "z", 36, "yaw", 0, "run", false, "jump", false, "manual", true,
+                    "path", java.util.List.of(Map.of("x", .1, "y", .84, "z", 36, "jump", false),
+                            Map.of("x", .2, "y", .84, "z", 36, "jump", false))));
+            var approved = own(accepted.path("payload"), client.userId);
+            assertThat(approved.at("/position/lastInputSeq").asLong()).as("%s", approved).isEqualTo(1);
+            assertThat(approved.at("/motion/epoch").asLong()).isEqualTo(epoch);
+            var rejected = client.request("WORLD_POSITION", Map.of("seq", 2, "epoch", epoch,
+                    "x", .2, "y", 3, "z", 36, "yaw", 0, "run", false, "jump", true, "manual", true,
+                    "path", java.util.List.of(Map.of("x", .2, "y", 1.3, "z", 36, "jump", true),
+                            Map.of("x", .2, "y", 1.9, "z", 36, "jump", true),
+                            Map.of("x", .2, "y", 2.5, "z", 36, "jump", true),
+                            Map.of("x", .2, "y", 3, "z", 36, "jump", true))));
+            var corrected = own(rejected.path("payload"), client.userId);
+            assertThat(corrected.at("/motion/correctionReason").asText()).isIn("JUMP_HEIGHT", "VERTICAL");
+            assertThat(corrected.at("/position/y").asDouble()).isCloseTo(.84, within(.001));
+            assertThat(corrected.at("/position/lastInputSeq").asLong()).isEqualTo(1);
+        }
+    }
     @Test void 검증복구_따라가기_수동해제_무보고_단절복귀를_같은소켓계약으로_확인한다() throws Exception {
         long previousEpoch;
         try(var first=connect("naver");var second=connect("ssafy")){
@@ -84,10 +109,10 @@ class UnifiedMovementFlowTests {
         var reply=c.request("WORLD_POSITION",Map.of("seq",seq,"epoch",epoch,"x",x,"y",y,"z",z,"yaw",0,"run",run,"jump",false,"manual",manual));
         assertThat(reply.path("type").asText()).isEqualTo("WORLD_STATE");return own(reply.path("payload"),c.userId);
     }
-    private void fixture(ScenarioClient c,double x,double y,double z) throws Exception {
+    private JsonNode fixture(ScenarioClient c,double x,double y,double z) throws Exception {
         channels.releaseFacility(c.userId,new WorldFacilityService.Pose(x,y,z,0));
-        c.await(m->m.path("type").asText().equals("WORLD_STATE")&&Math.abs(own(m.path("payload"),c.userId).at("/position/x").asDouble()-x)<.01
-            &&own(m.path("payload"),c.userId).at("/motion/authority").asText().equals("CLIENT_VALIDATED"));
+        return c.await(m->m.path("type").asText().equals("WORLD_STATE")&&Math.abs(own(m.path("payload"),c.userId).at("/position/x").asDouble()-x)<.01
+            &&own(m.path("payload"),c.userId).at("/motion/authority").asText().equals("CLIENT_VALIDATED")).path("payload");
     }
     private JsonNode own(JsonNode state,String id){for(var a:state.path("avatars"))if(a.path("userId").asText().equals(id))return a;return com.fasterxml.jackson.databind.node.MissingNode.getInstance();}
 }
