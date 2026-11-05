@@ -3,9 +3,10 @@ import { CUSTOMER_ASSETS_V5 } from '../../../bungeoppang/customerAssetsV5'
 import { CustomerModelPoolV5, instantiateCustomerV5 } from '../../../bungeoppang/customerModelV5'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { FLOOR_DEPTH_SCALE } from './HallFloor'
+import { RESTAURANT_ACTOR_HEIGHT } from './CharacterScale'
 
 // Skewer-owned proportions. Never change the original bungeoppang metadata or GLBs.
-export const DINING_GUEST_HEIGHTS = [1.82, 2.12, 2.12, 2.08, 1.82, 2.10] as const
+export const DINING_GUEST_HEIGHTS = CUSTOMER_ASSETS_V5.map(() => RESTAURANT_ACTOR_HEIGHT)
 export const DINING_SEAT_HEIGHT = .5425
 
 export class DiningGuests {

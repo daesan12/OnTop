@@ -3,7 +3,8 @@ import { expect, it, vi } from 'vitest'
 import { Group } from 'three'
 import { ParkAssetLoader } from '../../src/world/art/assetLoader'
 import { CUSTOMER_ASSETS_V5 } from '../../src/features/bungeoppang/customerAssetsV5'
-import { DiningGuest } from '../../src/features/skewer/serviceHall/rendering/DiningGuests'
+import { DiningGuest, DINING_GUEST_HEIGHTS } from '../../src/features/skewer/serviceHall/rendering/DiningGuests'
+import { RESTAURANT_ACTOR_HEIGHT } from '../../src/features/skewer/serviceHall/rendering/CharacterScale'
 import { GuestJourney } from '../../src/features/skewer/serviceHall/rendering/GuestJourney'
 import { TABLES, walkable } from '../../src/features/skewer/serviceHall/plan'
 import type { ToyActor } from '../../src/features/skewer/serviceHall/rendering/ToyPeople'
@@ -23,6 +24,7 @@ async function rig(id: string) {
 }
 
 it.each(CUSTOMER_ASSETS_V5.map((asset, index) => [asset.id, index] as const))('%s 실제 리그는 걷기 후에도 의자와 발 접점을 유지한다', async (id, index) => {
+  expect(DINING_GUEST_HEIGHTS[index]).toBe(RESTAURANT_ACTOR_HEIGHT)
   const guest = new DiningGuest(await rig(id), index), parent = new Group(); parent.add(guest.root)
   const hall = new Group(); hall.scale.z = FLOOR_DEPTH_SCALE; hall.add(parent)
   for (const yaw of [0, Math.PI / 2, -Math.PI / 2]) {
