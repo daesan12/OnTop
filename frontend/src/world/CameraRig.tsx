@@ -92,7 +92,11 @@ export function CameraRig() {
     [],
   )
   const occlusion = useMemo(() => new CameraOcclusionFader(), []),
-    scan = useRef(1)
+    scan = useRef(1),
+    // The angles the wardrobe's easing last wrote, how long it has eased toward the current aim, and that aim: kept per
+    // mounted rig (module variables would carry a remounted rig the last one's values, review).
+    aimTrack = useRef<{ written: { yaw: number; pitch: number } | null; age: number; seen: { yaw: number; pitch: number } | null }>(
+      { written: null, age: 0, seen: null })
   useEffect(() => installRoamingInput(gl.domElement), [gl])
   useEffect(
     () => () => {
@@ -474,12 +478,23 @@ export function CameraRig() {
           feet.z - Math.sin(yaw) * side + Math.cos(yaw) * Math.cos(pitch) * close))
       }
       const aim = wardrobeView.aim
-      if (aim) {
+      // The view eases to the wardrobe's front on open and back to where it was on close, but gives way at once to
+      // the player turning it (the angles differ from what this wrote last frame) and after 1.5 s at most: held
+      // until it converged, the camera pulled back against every drag, even one started right after opening.
+      const track = aimTrack.current, written = track.written
+      const turned = !!written
+        && (Math.abs(viewControls.yaw - written.yaw) > 1e-5 || Math.abs(viewControls.pitch - written.pitch) > 1e-5)
+      if (aim !== track.seen) { track.seen = aim; track.age = 0; if (aim) track.written = null }
+      track.age = aim ? track.age + delta : 0
+      if (aim && (turned || track.age > 1.5)) wardrobeView.aim = null
+      if (wardrobeView.aim) {
         const t = 1 - Math.exp(-6 * Math.min(delta, 0.1))
-        viewControls.yaw = turnToward(viewControls.yaw, aim.yaw, t)
-        viewControls.pitch += (aim.pitch - viewControls.pitch) * t
-        if (Math.abs(Math.sin(aim.yaw - viewControls.yaw)) < 0.002 && Math.abs(aim.pitch - viewControls.pitch) < 0.002) wardrobeView.aim = null
+        viewControls.yaw = turnToward(viewControls.yaw, wardrobeView.aim.yaw, t)
+        viewControls.pitch += (wardrobeView.aim.pitch - viewControls.pitch) * t
+        track.written = { yaw: viewControls.yaw, pitch: viewControls.pitch }
+        if (Math.abs(Math.sin(wardrobeView.aim.yaw - viewControls.yaw)) < 0.002 && Math.abs(wardrobeView.aim.pitch - viewControls.pitch) < 0.002) wardrobeView.aim = null
       }
+      if (!wardrobeView.aim) track.written = null
       const center = state.center.copy(state.focus)
       let distance = viewControls.distance
       const w = wardrobeView.blend
