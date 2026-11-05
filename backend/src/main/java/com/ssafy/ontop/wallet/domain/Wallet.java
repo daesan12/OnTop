@@ -34,6 +34,10 @@ public class Wallet {
         return id;
     }
 
+    public long userId() {
+        return userId;
+    }
+
     public long balance() {
         return balance;
     }
@@ -84,6 +88,15 @@ public class Wallet {
         balance = Math.addExact(balance, amount);
         updatedAt = Instant.now();
     }
+
+    public void creditAdminGrant(long amount, Instant now) {
+        if (amount <= 0 || reserved < 0 || balance < reserved) {
+            throw new IllegalArgumentException("관리자 지급 금액과 지갑 상태를 확인하세요.");
+        }
+        balance = Math.addExact(balance, amount);
+        updatedAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+    }
+
     public static Wallet forSignup(long userId, Instant now) {
         if (userId <= 0) {
             throw new IllegalArgumentException("내부 회원 ID가 필요합니다.");

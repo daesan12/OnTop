@@ -16,8 +16,9 @@ import java.util.Set;
 /** 서버 엔진 이벤트만 수신한다. JSON/공개 정산 요청 DTO가 아니다. */
 final class VerifiedGameFinish {
     private static final Map<String, Set<String>> REASONS = Map.of(
-            "OMOK", Set.of("FIVE_IN_ROW", "BOARD_FULL", "TURN_TIMEOUT", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
-            "DICE", Set.of("TARGET_REACHED", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
+            "OMOK", Set.of("FIVE_IN_ROW", "BOARD_FULL", "AGREED_DRAW", "TURN_TIMEOUT", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
+            "DICE", Set.of("TARGET_REACHED", "LAST_PLAYER_STANDING", "RECONNECT_EXPIRED", "LOGOUT",
+                    "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
             "ONE_CARD", Set.of("EMPTY_HAND", "STALEMATE", "PLAYER_LEFT"),
             "LIAR_BRIDGE", Set.of("THREE_GOALS", "LAST_PLAYER_STANDING", "GOAL_SLOTS_EXHAUSTED",
                     "NO_RUNNABLE_PAWNS", "ABORTED_NO_PLAYERS"),
@@ -56,7 +57,7 @@ final class VerifiedGameFinish {
             if (event.participants().stream().anyMatch(p -> p.result() != expected)) {
                 throw new IllegalArgumentException("무효 경기 판정을 확인하세요.");
             }
-        } else if (event.endReason().equals("BOARD_FULL") || "ALKKAGI".equals(event.gameCode()) && winners == 0
+        } else if (Set.of("BOARD_FULL", "AGREED_DRAW").contains(event.endReason()) || "ALKKAGI".equals(event.gameCode()) && winners == 0
                 && Set.of("PIECES_OUT", "MATCH_TIME_LIMIT").contains(event.endReason())) {
             if (event.participants().stream().anyMatch(p -> p.result() != GameFinished.Result.DRAW)) {
                 throw new IllegalArgumentException("무승부 판정을 확인하세요.");

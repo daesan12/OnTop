@@ -122,6 +122,13 @@ public final class GameEngineRouter implements GameEngine {
         }
     }
 
+    @Override
+    public boolean isUnreservedSession(GameRecoverySnapshot snapshot) {
+        Registration registration = registration(snapshot.gameId());
+        return registration != null && registration.players().contains(snapshot.userId())
+                && registration.engine().isUnreservedSession(snapshot);
+    }
+
     private synchronized Registration registration(String gameId) {
         return games.get(gameId);
     }

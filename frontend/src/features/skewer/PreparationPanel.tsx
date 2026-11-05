@@ -68,7 +68,7 @@ export function EntryPanel({ start, startVR, pending, notice, supported, entryFe
       </div>
     </div>
     {vr ? <VRControls /> : <PCControls />}
-    <div className="sk-prep-wrap-tip"><strong>주문 그림의 감싼 위치도 맞춰요</strong><p>치즈·베이컨은 <b>앞끝 → 감쌀 음식 → 뒤끝</b> 순서로 꽂아요.</p></div>
+    <div className="sk-prep-wrap-tip"><strong>그림대로 한 조각씩 꽂아요</strong><p>치즈·베이컨은 <b>큐브 모양으로 각각 최대 2개</b> 사용할 수 있어요.</p></div>
     <p className="sk-prep-rules">혼자 플레이 · 주문당 35초 · 끝에서부터 하나씩 빼기</p>
     <form id="sk-preparation-form" onSubmit={event => { event.preventDefault(); if (!pending) { if (vr) startVR(); else start() } }}>
       {playMode ? <div className="sk-prep-selected-mode"><span>{label}</span></div> : <fieldset className="sk-prep-mode" disabled={pending}><legend>플레이 방식</legend><label><input type="radio" name="sk-play-mode" value="pc" checked={!vr} onChange={() => setPracticeMode('pc')} />PC 연습</label><label><input type="radio" name="sk-play-mode" value="vr" checked={vr} onChange={() => setPracticeMode('vr')} />VR 플레이</label></fieldset>}

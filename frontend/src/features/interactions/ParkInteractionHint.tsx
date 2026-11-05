@@ -14,6 +14,7 @@ import { telescopeService } from '../telescopes/service'
 import { BenchSpectatorControls } from './BenchSpectatorControls'
 import { useTableLobby } from '../tableLobby/state'
 import { useGame } from '../../game/store'
+import { FitnessRewardPanel } from '../fitness/FitnessRewardPanel'
 
 export function ParkInteractionHint() {
   const { benchId, fitnessId } = useSession(useShallow(s => ({ benchId: s.benchId, fitnessId: s.fitnessId })))
@@ -44,7 +45,7 @@ export function ParkInteractionHint() {
     {fitnessId ? <>
       <strong>{station?.name} 이용 중{fitnessService.mode === 'mock' ? ' · 목업' : ''}</strong>
       <small>{station?.instruction}</small>
-      {fitnessRewards && <small>게임 6시간마다 1냥 · 하차·접속 종료 시 시간 초기화</small>}
+      {fitnessRewards && <FitnessRewardPanel />}
     </> : benchId ? <>
       <strong>벤치 이용 중{benchService.mode === 'mock' ? ' · 목업' : ''}</strong>
       <BenchSpectatorControls />

@@ -247,6 +247,7 @@ public final class OmokEngine implements GameEngine {
                 .put("boardSize", 15).put("blackUserId", Long.toString(state.blackUserId()))
                 .put("whiteUserId", Long.toString(state.whiteUserId())).put("moveCount", state.board().moveCount());
         data.set("board", mapper.valueToTree(state.board().board()));
+        data.set("forbiddenMoves", mapper.valueToTree(state.board().forbiddenMoves()));
         data.put("turnUserId", state.turnUserId() == null ? null : Long.toString(state.turnUserId()));
         data.put("winnerUserId", state.winnerUserId() == null ? null : Long.toString(state.winnerUserId()));
         data.put("turnDeadline", state.turnDeadline() == null ? null : state.turnDeadline().toString());
@@ -256,6 +257,15 @@ public final class OmokEngine implements GameEngine {
             data.put("coinTossEndsAt", coinTossEnds.get(state.gameId()).toString());
         }
         data.set("lastMove", mapper.valueToTree(state.board().lastMove()));
+        if (state.undo() == null) data.putNull("undo");
+        else data.putObject("undo").put("requestId", state.undo().requestId())
+                .put("requesterUserId", state.undo().requesterUserId()).put("deadline", state.undo().deadline().toString());
+        data.set("undoDecision", mapper.valueToTree(state.undoDecision()));
+        if (state.draw() == null) data.putNull("draw");
+        else data.putObject("draw").put("requestId", state.draw().requestId())
+                .put("requesterUserId", state.draw().requesterUserId()).put("deadline", state.draw().deadline().toString());
+        data.set("drawDecision", mapper.valueToTree(state.drawDecision()));
+        data.set("drawRequestsUsed", mapper.valueToTree(state.drawRequestsUsed()));
         return data;
     }
 

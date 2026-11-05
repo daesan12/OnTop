@@ -6,8 +6,8 @@ export const OMOK_FOCUS_LAYER = 1
 
 /** The original board occupies 80% of the shorter viewport dimension. */
 export function omokTopDownHeight(aspect: number, scale: number, viewportHeight?: number) {
-  // Reserve symmetric HUD space so the grid never moves when the turn changes.
-  const fit = viewportHeight ? Math.max(.3, Math.min(.8, (viewportHeight - 304) / viewportHeight)) : GOMOKU.topDownScreenFill
+  // Fallback before the actual HUD bounds have been measured.
+  const fit = viewportHeight ? Math.max(.3, Math.min(.9, (viewportHeight - 184) / viewportHeight)) : GOMOKU.topDownScreenFill
   const span = OMOK_BOARD_ART_SPAN * scale / fit / Math.min(1, aspect)
   return span / (2 * Math.tan(GOMOKU.topDownFov * Math.PI / 360))
 }
@@ -17,8 +17,9 @@ export function omokSpectatorFrame(width: number, height: number, scale: number,
   insets: { top: number; bottom: number; left: number; right: number }) {
   const usableWidth = Math.max(1, width - insets.left - insets.right)
   const usableHeight = Math.max(1, height - insets.top - insets.bottom)
-  const pixels = Math.min(usableWidth, usableHeight)
-  const unitsPerPixel = (OMOK_BOARD_ART_SPAN + .04) * scale / pixels
+  // Wide side rails also leave room for the two decorative stone bowls.
+  const horizontalSpan = width >= 1120 ? 2.2 : OMOK_BOARD_ART_SPAN + .04
+  const unitsPerPixel = Math.max(horizontalSpan / usableWidth, (OMOK_BOARD_ART_SPAN + .04) / usableHeight) * scale
   return {
     height: unitsPerPixel * height / (2 * Math.tan(GOMOKU.topDownFov * Math.PI / 360)),
     offsetX: -(insets.left + usableWidth / 2 - width / 2) * unitsPerPixel,

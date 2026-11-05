@@ -1,7 +1,9 @@
 import { create } from 'zustand'
+import { acceptTyping, resetTyping } from '../features/chat/typingState'
 import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
 import { CHAT } from '../features/chat/settings'
 import { filterChat } from '../features/chat/filterChat'
+import { chatAuthorName } from '../features/chat/author'
 import {
   channelState,
   worldState,
@@ -79,12 +81,14 @@ export interface AvatarSnapshot {
 export interface ChatMessage {
   id: string
   userId: string
+  displayName?: string
   text: string
   sentAt: string
 }
 /** Display values shared by users/me and approved WORLD_STATE public profiles. */
 export interface DisplayProfile {
   nickname: string
+  nicknameKnown?: boolean
   character: CharacterId
   gameMaster?: boolean
 }
@@ -122,6 +126,7 @@ export interface Session {
   profiles: Record<string, DisplayProfile>
   equipment: Record<string, readonly PublicEquipment[]>
   activities: Record<string, AvatarActivity>
+  gameWatches: Record<string, { gameId: string; tableId: string }>
   account: { nickname: string; balance: number | null } | null
 }
 const initial = (): Session => ({
@@ -156,6 +161,7 @@ const initial = (): Session => ({
   profiles: {},
   equipment: {},
   activities: {},
+  gameWatches: {},
   account: null,
 })
 export const useSession = create<Session>(initial)
@@ -195,6 +201,7 @@ export function showMovementNotice(message: string, sequence: number) {
 }
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
   resetParkDebris()
+  resetTyping()
   resetJumpmap()
   localMovement.reset()
   remoteMovement.reset()
@@ -272,6 +279,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
     profiles: profiles[sessionId] ? { [sessionId]: profiles[sessionId] } : {},
     equipment: {},
     activities: {},
+    gameWatches: {},
   })
 }
 export function sampleAvatar(
@@ -292,7 +300,8 @@ export function sampleAvatar(
 function predictionAllowed() {
   const s = useSession.getState(), own = avatars.get(s.sessionId)
   return !!own && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
-    && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1') && !s.activities[s.sessionId]
+    && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1')
+    && (!s.activities[s.sessionId] || s.activities[s.sessionId] === 'WATCHING')
 }
 // UTC event time advances on a monotonic clock after CONNECTED; world day rendering is separate.
 export const estimatedServerTime = () => eventClock.ready ? eventClock.now(performance.now()) : Date.now()
@@ -457,6 +466,9 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
     return
   }
   switch (message.type) {
+    case 'WORLD_CHAT_TYPING_STATE':
+      acceptTyping(p,state.roomId)
+      return
     case 'CONNECTED':
       if (typeof p.userId !== 'string' || !p.userId)
         throw new Error('사용자 연결 상태를 확인할 수 없습니다.')
@@ -544,9 +556,10 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
           character: avatar.characterGender === 'FEMALE' ? 'girl' : avatar.characterGender === 'MALE' ? 'man'
             : previous?.character ?? 'man',
           ...(gameMaster ? { gameMaster: true } : {}),
+          ...(avatar.nickname == null && (!previous || previous.nicknameKnown === false) ? { nicknameKnown: false } : {}),
         }
         if (previous?.nickname !== profile.nickname || previous?.character !== profile.character
-          || !!previous?.gameMaster !== !!profile.gameMaster) {
+            || !!previous?.gameMaster !== !!profile.gameMaster || previous?.nicknameKnown !== profile.nicknameKnown) {
           if (profiles === state.profiles) profiles = { ...profiles }
           profiles[avatar.userId] = profile
         }
@@ -628,8 +641,12 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       useSession.setState({
         ids: ids.join('\0') === state.ids.join('\0') ? state.ids : ids,
         profiles,
+        ...(state.messages.some(message => !message.displayName && chatAuthorName(profiles[message.userId]))
+          ? { messages: state.messages.map(message => message.displayName ? message
+            : { ...message, displayName: chatAuthorName(profiles[message.userId]) }) } : {}),
         equipment,
         activities,
+        gameWatches: mapCompatible ? next.gameWatches ?? {} : {},
         publicTables,
         ...(state.account && profiles[state.sessionId]
           && state.account.nickname !== profiles[state.sessionId]!.nickname
@@ -676,6 +693,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       const chat = {
         id: p.messageId,
         userId: p.userId,
+        displayName: chatAuthorName(state.profiles[p.userId]),
         text: filterChat(p.text),
         sentAt: p.sentAt,
       }

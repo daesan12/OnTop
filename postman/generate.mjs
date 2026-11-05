@@ -269,7 +269,8 @@ const joinA = () => message('01 광장 A 입장 → CHANNEL_STATE + WORLD_STATE'
 const locate = () => message('이동 입력 → WORLD_STATE (채널 입장 시 서버 스폰)',
     'WORLD_MOVE', { seq: 1, dx: 0, dz: -1, run: false, jump: false });
 const sitA = () => message('05 A 테이블 착석 → TABLE_STATE', 'TABLE_JOIN', { tableId: '{{tableIdA}}' });
-const ready = flag => message(flag ? '07 준비 → TABLE_STATE' : '추가 준비 취소 → TABLE_STATE', 'READY_SET', { ready: flag });
+// READY=true: DB 제품 프로필은 사용 가능 잔액을 먼저 확인하고 부족 시 INSUFFICIENT_BALANCE + 부족액을 응답합니다. 준비는 차감/예약을 하지 않으며 시작 직전 DB 재검증은 유지합니다.
+const ready = flag => message(flag ? '07 준비 → TABLE_STATE (잔액 부족 시 ERROR)' : '추가 준비 취소 → TABLE_STATE', 'READY_SET', { ready: flag });
 const leave = () => message('추가 테이블 퇴장 → TABLE_LEFT', 'TABLE_LEAVE');
 const channelLeave = () => message('추가 광장 퇴장 → CHANNEL_LEFT (착석 중이면 먼저 테이블 퇴장)', 'CHANNEL_LEAVE');
 const select = code => message(code === 'OMOK' ? '06 첫 착석자 오목 선택 → TABLE_STATE'
@@ -358,7 +359,9 @@ const wsItems = [
     wsRequest('06 경기 통신 — 인증·엔진 연동 대기',
         '현재 기본 dev 연결에서 정상 결과는 아래 이름의 오류입니다. 임의 인증 헤더를 넣지 마세요. '
         + '오목은 실제 엔진이 있으며 local에서 ontop.games.omok.enabled=true로 선택 활성화합니다. 실제 인증 사용자 검증과 서버 내부 참가 확정 후 경기 생성 연결이 필요합니다. 옵션만 켜거나 04/05 시작 검증을 실행해 실제 오목을 시작할 수는 없습니다. gameId를 실제 경기 ID로 바꿉니다. '
-        + '오목 input은 x/y 두 필드만 허용하며 각각 0~14 정수인 판 좌표입니다. 02 예제는 흑 첫 수(7,7), expectedVersion=0입니다. 이후 최신 GAME_STATE.version과 본인 차례에 맞춰 수정합니다. '
+        + '오목 착수 input은 x/y 두 필드만 허용하며 각각 0~14 정수인 판 좌표입니다. 02 예제는 흑 첫 수(7,7), expectedVersion=0입니다. 이후 최신 GAME_STATE.version과 본인 차례에 맞춰 수정합니다. '
+        + '2026-11-03 로컬 무르기: GAME_ACTION_SEND input={kind:"undoRequest"}, 상대는 {kind:"undoRespond",requestId:"요청자-actionId",accept:true|false}. 내차례·2수 이상·상대동의·직전2돌 취소·같은차례·횟수무제한. 응답은 최대10초/착수마감 중 빠른 시각까지이며 대기·거절·만료는 기존 시계 유지, 유효 수락 확정은 서버 현재시각부터 새30초입니다. 같은 actionId 수락 재확인은 재연장하지 않습니다. 대기중 착수 차단. GAME_STATE.undo=null|{requestId,requesterUserId,deadline}, undoDecision=null|{requestId,status:ACCEPTED|REJECTED|EXPIRED}. 최신 expectedVersion/새 actionId 사용, 동일요청재확인은 중복 미반영. 종료·정산은 되돌리지 않으며 개발 서버 적용은 별도입니다. '
+        + '2026-11-03 합의 무승부: input={kind:"drawRequest"}, 상대는 {kind:"drawRespond",requestId:"요청 actionId",accept:true|false}. 내차례·각자경기당1회·응답최대10초와 원래 착수마감 중 빠른 시각까지이며 시계는 계속 흐릅니다. 유효요청은 거절/무응답에도1회 사용, 복구/무르기로 초기화하지 않습니다. 대기중 착수·무르기 겹침 차단. publicState.draw/drawDecision/drawRequestsUsed를 받고 수락 시 FINISHED/AGREED_DRAW/양측DRAW입니다. 종료 저장 입구도 사유와 전원DRAW를 검증하며 스키마·지급 계산 변경은 없습니다. 실제 배포·DB 정산 인수는 별도입니다. 11-4~6은 새 경기 독립 분기이며 실제 최신version으로 치환합니다. '
         + 'actionId는 같은 행동 재확인에만 재사용하고 새 행동은 새 ID를 사용합니다. '
         + '참가자는 복구 후 입력 성공 시 본인 공개/개인 GAME_STATE를 자동 수신합니다. '
         + '관전자는 채널·미터 방향 입력·서버 테이블 좌표와 Gateway 내부 tableId가 필요하며 중심 20m 이내에서 GAME_WATCH합니다. 성공 후 빈 privateState의 GAME_STATE만 수신하며 GAME_UNWATCH 또는 범위 이탈로 해제합니다. '
@@ -367,7 +370,7 @@ const wsItems = [
         + '경기 종료 시 4종 엔진의 서버 종료 알림이 현재 참가자 본인의 저장 결과를 1회 자동 조회합니다. 실제 시작부터 같은 경기 좌석을 유지한 현재 연결만 GAME_RESULT(requestId=null)를 수신합니다. TABLE_LEAVE 승인 후에는 GAME_START_STATE.phase=NOT_SEATED, GAME_RECONNECT_CHECK는 PENDING 다음 LOBBY이며 과거 종료 경기·자동 결과를 다시 보내지 않습니다. 미착석 GAME_START_CHECK는 기존 ERROR.code=NOT_SEATED입니다. 같은 테이블 재착석도 과거 경기를 되살리지 않으며 명시 GAME_RESULT_CHECK로 본인 이력은 계속 조회합니다. 미저장·읽기 실패 때는 가짜 결과/자동 오류를 보내지 않습니다. 이후 DB 담당의 커밋 알림으로 PENDING/null → SETTLED/본인 확정 순증감을 수신하거나 07 GAME_RESULT_CHECK로 재조회합니다. 결과 version과 경기 상태 version은 별개이며 결과 조회는 지급을 실행하지 않습니다. '
         + '진행 중 오목 채팅은 복구·착석 완료 후 PLAYER GAME_STATE를 받은 플레이어와 승인 관전자 모두 GAME_SPECTATOR_CHAT_SEND {gameId,eventId,text}를 사용합니다. GAME_SPECTATOR_CHAT_MESSAGE의 발신자 ACK는 원 requestId, 나머지는 null입니다. eventId는 소문자 UUID, text는 1~200 코드포인트, 최소1초 간격·TTL3초·중복 재확인 정책을 유지합니다. 핑 OMOK_SPECTATOR_PING_SEND는 관전자 전용이며 플레이어는 GAME_SPECTATOR_ACCESS_DENIED입니다. '
         + '오목은 15×15 렌주·흑 선공·흑 정확히 5목/백 5개 이상 승리. 흑 33·44·장목은 GAME_ACTION_FORBIDDEN_MOVE로 거절하고 판·버전·차례·턴 마감은 유지합니다. 같은 수의 정확한 5목은 금수보다 우선합니다. 한 수 30초 도달 시 시간패·총시간 제한 없음입니다. 복귀해도 기존 turnDeadline은 유지하며 재접속 유예보다 턴 마감이 먼저면 종료합니다. '
-        + 'publicState에는 gameCode/status, boardSize/board[y][x](0빈칸/1흑/2백), blackUserId/whiteUserId, moveCount/lastMove, turnUserId/turnDeadline, winnerUserId/endReason/endedAt이 있습니다. 참가자·관전자 privateState는 모두 {}입니다. 종료 사유는 FIVE_IN_ROW, BOARD_FULL, TURN_TIMEOUT, RECONNECT_EXPIRED이며 종료 후 차례·턴 마감은 null입니다. 승패 상태는 정산 확정이 아니며 엽전 지급은 별도입니다. '
+        + 'publicState에는 gameCode/status, boardSize/board[y][x](0빈칸/1흑/2백), forbiddenMoves:[{x,y,kind:"33"|"44"|"6"}](서버 렌주 판정의 흑 금수 위치·종류, 빈 배열 가능), blackUserId/whiteUserId, moveCount/lastMove, turnUserId/turnDeadline, winnerUserId/endReason/endedAt이 있습니다. 참가자·관전자 privateState는 모두 {}입니다. 종료 사유는 FIVE_IN_ROW, BOARD_FULL, TURN_TIMEOUT, RECONNECT_EXPIRED이며 종료 후 차례·턴 마감은 null입니다. 승패 상태는 정산 확정이 아니며 엽전 지급은 별도입니다. '
         + '09/10은 02 성공 후 actionId·원래 버전을 유지하고 각각 중복 확인·내용 충돌을 검사합니다. 11은 복귀 조회이며 마감을 연장하지 않습니다. 기본 dev에서는 여전히 인증 오류가 정상이고 경기 성공 시연용이 아닙니다.',
         [message('01 경기 상태 조회 → dev: GAME_STATE_AUTH_REQUIRED', 'GAME_STATE_CHECK', { gameId: '{{gameId}}' }),
             message('02 경기 입력 → dev: GAME_ACTION_AUTH_REQUIRED', 'GAME_ACTION_SEND',
@@ -386,6 +389,18 @@ const wsItems = [
             message('10 오목 같은 actionId 다른 좌표 — ACTION_ID_CONFLICT', 'GAME_ACTION_SEND',
                   { gameId: '{{gameId}}', actionId: 'omok-move-1', expectedVersion: 0, input: { x: 8, y: 7 } }),
             message('11 오목 복귀 조회 — 기존 판·버전·턴 마감 유지', 'GAME_RECONNECT_CHECK'),
+            message('11-1 오목 무르기 요청 — 내 차례·두 돌 이상·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'omok-undo-request-1', expectedVersion: 2, input: { kind: 'undoRequest' } }),
+            message('11-2 오목 무르기 수락 — 상대 계정·10초 이내·최신 버전', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'omok-undo-response-1', expectedVersion: 3, input: { kind: 'undoRespond', requestId: 'omok-undo-request-1', accept: true } }),
+            message('11-3 오목 무르기 거절 — 수락과 택일·상대 계정', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'omok-undo-decline-1', expectedVersion: 3, input: { kind: 'undoRespond', requestId: 'omok-undo-request-1', accept: false } }),
+            message('11-4 오목 무승부 요청 — 내 차례·경기당1회·독립 분기', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'omok-draw-request-1', expectedVersion: 0, input: { kind: 'drawRequest' } }),
+            message('11-5 오목 무승부 수락 — 상대 계정·최대10초', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'omok-draw-response-1', expectedVersion: 1, input: { kind: 'drawRespond', requestId: 'omok-draw-request-1', accept: true } }),
+            message('11-6 오목 무승부 거절 — 수락과 택일·상대 계정', 'GAME_ACTION_SEND',
+                  { gameId: '{{gameId}}', actionId: 'omok-draw-decline-1', expectedVersion: 1, input: { kind: 'drawRespond', requestId: 'omok-draw-request-1', accept: false } }),
             message('12 주사위 첫 굴림 — DICE 경기·현재 차례·version0', 'GAME_ACTION_SEND',
                   { gameId: '{{gameId}}', actionId: 'dice-roll-1', expectedVersion: 0, input: { kind: 'roll', selectedIds: [] } }),
             message('13 주사위 재굴림 — 0번이 득점할 때·최신 버전으로 수정', 'GAME_ACTION_SEND',
@@ -462,7 +477,7 @@ wsItems[5].description += '\n\n' + bridgeGuide;
 wsItems.push({ ...wsRequest('07 로그인 사용자 — 1회용 접속권',
     '먼저 HTTP10을 보내 30초 접속권을 받으세요. 개인 로컬 websocketTicket에 넣고 즉시 Connect. '
     + 'HTTP10과 같은 Origin을 사용하고 재접속마다 새 접속권을 발급합니다. JWT는 URL에 넣지 않습니다. '
-    + 'CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. '
+    + 'READY_SET은 DB 제품 프로필에서 사용 가능 잔액(전체−예약)이 판돈보다 적으면 INSUFFICIENT_BALANCE로 준비를 막고 요청자에게 부족액을 안내합니다. READY_BALANCE_UNAVAILABLE은 조회 실패, READY_CHECK_PENDING은 확인 중, READY_CHECK_CANCELLED는 취소입니다. 준비 취소는 허용하며 실제 시작 DB 잠금·예약 재검증은 유지합니다. 시작의 WAITING/INSUFFICIENT_BALANCE는 전원 준비 해제와 안내가 필요합니다. CONNECTED 내부ID → TABLE_JOIN → GAME_SELECT → READY_SET, 중복 연결1008·heartbeat·30초복구는 기존 계약입니다. '
     + '실제 시작은 ontop.game-start.enabled=true + 실제 B GameStartGateway + 사용할 엔진이 필요합니다. '
     + '전원 준비 → STARTING → 전원 판돈 예약 커밋 후 PLAYING(simulation=false), GAME_CONNECTION_STATE로 본인 상태/조작권 복구. '
     + '시작 시 즉시 차감하지 않고 종료 정산 때 예약 해제·차감·승자 지급을 확정합니다. 실제 DB 처리는 별도입니다. '
@@ -546,7 +561,7 @@ for (const request of bungeoRankingRequests) {
 httpItems.push(...bungeoRankingRequests);
 
 const historyDescription = 'HISTORY-01/02. 기존 회원 Access JWT·db 프로필 필요. 본인 종료/무효 경기만 DB ID 내림차순, size1~100·기본20. '
-    + 'gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. '
+    + 'gameCode OMOK/DICE/ONE_CARD/LIAR_BRIDGE/DICE_LEDGER/HALLI_GALLI/ALKKAGI, 정산대기는 내역과 확정 승패에 포함. 무효는 내역만 표시·통계 제외. '
     + 'played=wins+losses+forfeits+draws, 기권을 losses에 중복 포함하지 않음. 조회는 판돈/정산/원장을 수정하지 않음. '
     + 'cursor는 마지막 경기 DB ID 문자열. 뒤늦게 종료된 경기는 새 첫 조회에서 다시 확인. docs/game-history-api.md.';
 const historyReadTest = `pm.test('본인 경기 내역 계약', () => {
@@ -751,6 +766,8 @@ wsItems.push(wsRequest('알까기 관전자 커서·훈수 — 로컬 공원',
     message('알까기 훈수 → ALKKAGI_SPECTATOR_EVENT','ALKKAGI_SPECTATOR_SEND',
       {gameId:'{{gameId}}',eventId:'{{$guid}}',basedOnVersion:'{{gameVersion}}',kind:'ADVICE',pieceId:'p0',dx:0.8,dy:-0.6,power:0.8})
 ]));
+const qaPresenceGuide = '\n\n2026-11-03 로컬 QA 계약(배포 전): WORLD_STATE.gameWatches는 회원 ID→{gameId,tableId}의 승인 진행 경기 관전 명부입니다. 참가자/승인 대기/TABLE_WATCH 제외, 동일 회원1명, 종료/퇴장/단절/20m이탈 시 해제. avatars[].activity=WATCHING, 같은 gameId의 명부 수를 표시합니다. 알까기는 예약 확정 후 2.5초 COIN_TOSS/coinTossEndsAt(UTC ISO), 이후 전체12분/첫30초. 추첨 중 액션 NOT_ACTIVE. cardCounts=[홍,청]만 공개, 미사용 ID/종류는 개인 상태에만. itemEffects 최대16건은 사용 확정 {version,turnNumber,actor,type,targets,at(Unix ms)}, gameId+version 중복 방지·최초/재접속 과거 연출 제외. 같은 actionId는 소모/이력 증가 없음. docs/alkkagi-items.md 및 docs/world-spectator-presence-api.md.';
+for(const item of wsItems) item.description += qaPresenceGuide;
 const wsV3 = { name: 'OnTop WebSocket', $kind: 'collection', description: wsGuide + appearanceGuide + publicProfileGuide + seatGuide
         + facilityGuide + followGuide + mapGuide + tabletGuide + reactionGuide + prankGuide,
     items: wsItems };

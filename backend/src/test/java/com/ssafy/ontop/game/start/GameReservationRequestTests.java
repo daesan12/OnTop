@@ -39,6 +39,16 @@ class GameReservationRequestTests {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {2, 3, 4})
+    void 주사위_예약은_선택한_모든_좌석과_목표를_보존한다(int count) {
+        String[] users = java.util.stream.IntStream.rangeClosed(1, count).mapToObj(String::valueOf).toArray(String[]::new);
+        var request = GameReservationRequest.from(command("table", 1, "DICE", 4000, users));
+
+        assertThat(request.userIds()).hasSize(count);
+        assertThat(request.command().targetScore()).isEqualTo(4000);
+    }
+
     @Test
     void 지원하지않는_게임과_인원과_주사위목표누락은_DB전에_거절한다() {
         for (var invalid : List.of(command("table", 1, "UNKNOWN", null, "10", "20"),

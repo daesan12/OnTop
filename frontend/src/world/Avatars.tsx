@@ -2,11 +2,12 @@ import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
 import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { useFrame, useLoader } from '@react-three/fiber'
-import { Group, Vector3 } from 'three'
+import { useFrame, useLoader, useThree } from '@react-three/fiber'
+import { Group, Matrix4, Vector3 } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls, createCharacterRig } from './worldAssets'
-import { avatarPoseActive, avatarPoseAmbient, avatarPoseKey, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
+import { avatarPoseActive, avatarPoseAmbient, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
+import { AvatarPresentation } from './avatarPresentation'
 import { SwimmingRipples } from './SwimmingRipples'
 
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
@@ -14,6 +15,9 @@ import { CHARACTER } from '../park/mapConfig'
 import { FartCloud } from './art/FartCloud'
 import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
 import { createAvatarOpacity } from './avatarOpacity'
+import { avatarMenuRaycast } from './avatarMenuPicking'
+import { useAvatarFrameSampler } from './AvatarPoseFrame'
+import type { AvatarSampler } from '../network/avatarFrame'
 import { emptyEquipment } from '../network/equipment'
 import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from './art/characterLook'
 import { useOutfitSources } from './art/outfitSources'
@@ -35,7 +39,6 @@ import {
 } from './AvatarOverlays'
 import {
   avatars,
-  sampleAvatar,
   useSession,
   estimatedServerTime,
 } from '../network/worldClient'
@@ -43,9 +46,13 @@ import {
 function Avatar({
   id,
   rigs,
+  menuRaycast,
+  samplePose,
 }: {
   id: string
   rigs: Map<string, AvatarAnchors>
+  menuRaycast: Group['raycast']
+  samplePose: AvatarSampler
 }) {
   const sources = useLoader(ParkAssetLoader, characterUrls)
   const variant = useSession(state => state.profiles[id]?.character === 'girl' ? 'girl' : 'man')
@@ -70,7 +77,10 @@ function Avatar({
   const figure = useRef<Group>(null)
   const marker = useRef<Group>(null)
   const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
+  const overlapPose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const worldPosition = useMemo(() => new Vector3(), [])
+  const inverseRoot = useMemo(() => new Matrix4(), [])
+  const presentation = useMemo(() => new AvatarPresentation(), [])
   const motion = useMemo(() => createAvatarMotion(model), [model])
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
   const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
@@ -91,12 +101,12 @@ function Avatar({
     const avatar = avatars.get(id)
     if (!avatar || !root.current || !figure.current) return
     const frameAt = performance.now()
-    sampleAvatar(avatar, frameAt, pose)
+    samplePose(avatar, frameAt, pose)
     const seated = avatar.seatIndex >= 0
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
-    const ownPose = ownAvatar && sampleAvatar(ownAvatar, frameAt, { ...ownAvatar.current })
+    const ownPose = ownAvatar && samplePose(ownAvatar, frameAt, overlapPose)
     const overlap = !!ownPose && Math.hypot(pose.x - ownPose.x, pose.z - ownPose.z) < .7 && Math.abs(pose.y - ownPose.y) < 1.8
     const targetOpacity = overlap ? .4 : 1
     overlapOpacity.current = targetOpacity + (overlapOpacity.current - targetOpacity) * Math.exp(-Math.min(delta, .1) * 6)
@@ -123,7 +133,7 @@ function Avatar({
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
-    const displayAvatar = displayFlags ? { ...avatar, ...displayFlags } : avatar
+    const displayAvatar = presentation.sample(avatar, displayFlags)
     const active = !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
@@ -132,7 +142,7 @@ function Avatar({
       distance,
       own,
       active,
-      `${avatarPoseKey(avatar)}|${reaction?.key ?? ''}|${holdingCards}|${active ? '' : `${avatar.current.x}|${avatar.current.y}|${avatar.current.z}`}`,
+      presentation.key(avatar, reaction?.key ?? '', holdingCards, active),
       !reaction && avatarPoseAmbient(displayAvatar),
     )
     if (!poseDelta) return
@@ -140,7 +150,8 @@ function Avatar({
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
-    root.current.worldToLocal(worldPosition)
+    // getWorldPosition already refreshed the ancestor matrices above.
+    worldPosition.applyMatrix4(inverseRoot.copy(root.current.matrixWorld).invert())
     if (marker.current) {
       marker.current.position.copy(worldPosition)
       marker.current.position.y += 0.16
@@ -151,8 +162,7 @@ function Avatar({
       ref={root}
       name={`avatar-${id}`}
       dispose={null}
-      // A registered handler raycasts the whole posed model on every canvas
-      // press/release/click, even though the local avatar has no context menu.
+      raycast={menuRaycast}
       onContextMenu={own ? undefined : event => {
         if (id === useSession.getState().sessionId) return
         event.stopPropagation(); event.nativeEvent.preventDefault()
@@ -177,12 +187,16 @@ export function Avatars({
   overlayTargets: OverlayTargets
 }) {
   const ids = useSession((state) => state.ids)
+  const samplePose = useAvatarFrameSampler()
   const rigs = useMemo(() => new Map<string, AvatarAnchors>(), [])
+  const lastEvent = useThree(state => state.internal.lastEvent)
+  const inputRaycaster = useThree(state => state.raycaster)
+  const menuRaycast = useMemo(() => avatarMenuRaycast(() => lastEvent.current, inputRaycaster), [lastEvent, inputRaycaster])
   useEffect(installGameReactions, [])
   return (
     <group name="visitors">
       {ids.map((id) => (
-        <Avatar key={id} id={id} rigs={rigs} />
+        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} />
       ))}
       <SwimmingRipples />
 

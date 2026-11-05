@@ -18,7 +18,7 @@ function wireCheckpoint(state: GrillState, revision: number, hash: string) {
 }
 
 describe.each([
-  { name: 'two minutes', R: { ...BUNGEOPPANG_V5, queueComplaintPenalty: 0 }, flow: twoMinuteFlow, config: 'v5-20261029.1' },
+  { name: 'two minutes', R: { ...BUNGEOPPANG_V5, pointsPerCoin: 15, queueComplaintPenalty: 0 }, flow: twoMinuteFlow, config: 'v5-20261029.1' },
   // Keep the fixture already used by BE tests intact during deployment transition.
   { name: 'legacy three minutes', R: BUNGEOPPANG_V5_LEGACY, flow: legacyFlow, config: 'v5-20261027.1' },
 ])('v5 shared full-round flow: $name', ({ R, flow, config }) => {

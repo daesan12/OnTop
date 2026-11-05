@@ -31,6 +31,7 @@ export function openParkVrZone() {
   clearRoamingInput()
   inputState.minigameOpen = true
   if (document.pointerLockElement) document.exitPointerLock()
-  void parkVrZone.open()
+  if (import.meta.env.VITE_SKEWER_COOP_ENABLED === 'true') parkVrZone.openFree()
+  else void parkVrZone.open()
   return true
 }

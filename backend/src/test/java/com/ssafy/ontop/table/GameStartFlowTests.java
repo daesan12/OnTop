@@ -239,7 +239,7 @@ class GameStartFlowTests {
         hub.disconnect(first.id);
 
         second.request("GAME_START_CHECK", Map.of());
-        second.await(message -> message.path("payload").path("code").asText().equals("START_REJECTED"));
+        second.await(message -> message.path("payload").path("code").asText().equals("INSUFFICIENT_BALANCE"));
         JsonNode state = second.request("TABLE_JOIN", Map.of("tableId", "table-1")).path("payload");
 
         assertThat(state.path("seats").get(0).path("userId").isNull()).isTrue();

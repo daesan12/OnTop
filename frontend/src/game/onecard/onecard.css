@@ -138,7 +138,7 @@
 .onecard-forfeit-dialog .onecard-forfeit-confirm { background:#8d453e; border-color:#d3917a; }
 .onecard-forfeit-dialog button:focus-visible { outline:2px solid #edce76; outline-offset:3px; }
 .onecard-forfeit-actions { display:flex; justify-content:center; flex-wrap:wrap; gap:10px; margin-top:24px; }
-.park-page:has(.prototype-game.minigame-hud,.prototype-game.farkle-hud):where(:not(:has(.onecard-game-hud))) .park-chat__composer { --chat-composer-height:36px; }
+.park-page:has(.prototype-game.minigame-hud):where(:not(:has(.onecard-game-hud))) .park-chat__composer { --chat-composer-height:36px; }
 @media(max-width:800px) {
  .park-page .onecard-game-hud.onecard-panel .onecard-turn-timer { top:12px; left:12px; min-width:90px; padding:10px 12px; gap:3px; }
  .park-page .onecard-game-hud.onecard-panel .onecard-turn-timer strong { font-size:34px; }
@@ -299,3 +299,9 @@
 }
 @media(prefers-reduced-motion:reduce) { .onecard-turn-cue[data-own=true] { animation:none; } }
 .onecard-panel .onecard-opening-status { position:absolute; top:170px; left:50%; transform:translateX(-50%); padding:8px 16px; border:1px solid #c5a76a80; border-radius:6px; background:#30271ff2; color:#f7edcf; font-size:14px; pointer-events:none; }
+
+/* Presence and exit share a wrapping layout, not competing fixed coordinates. */
+.park-page .onecard-game-hud.onecard-panel .onecard-game-tools {position:absolute;top:26px;right:24px;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;max-width:calc(100% - 48px)}
+.park-page .onecard-game-hud.onecard-panel .onecard-game-tools .onecard-forfeit-trigger {position:static}
+.onecard-recovery-controls {display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+@media(max-width:700px){.park-page .onecard-game-hud.onecard-panel .onecard-game-tools {top:126px;left:14px;right:auto;justify-content:flex-start}}

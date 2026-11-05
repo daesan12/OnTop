@@ -1,0 +1,238 @@
+/* Serving-only presentation: a visible entrance and compact, segmented picture orders. */
+.service-hall .service-bubble.is-order {
+  display: block; padding: 4px 6px; max-width: none; border: 1px solid #c3a47a;
+  border-bottom: 2px solid #94704c; border-radius: 11px; background: #fff4dd;
+  color: #553822; box-shadow: 0 4px 12px #30180d40;
+}
+.service-hall .service-bubble.is-order:after { background: #fff4dd; }
+.service-hall .service-order-cells { display: grid; grid-template-columns: 22px auto auto; align-items: center; gap: 0; }
+.service-hall .service-order-number { display: grid; place-items: center; align-self: center; height: 25px; border-radius: 4px; background: #543622; color: #fff4dd; font-size: 13px; font-variant-numeric: tabular-nums; }
+.service-hall .service-order-recipes { margin-left: 5px; padding: 0 5px; border-left: 1px solid #a98a61; display: flex; flex-direction: column; justify-content: center; min-height: 32px; }
+.service-hall .service-order-recipe { display: flex; align-items: center; gap: 2px; }
+.service-hall .service-order-recipe .service-menu-art { width: 72px; height: 34px; object-fit: contain; filter: drop-shadow(0 2px 1px #7b3e2026); }
+.service-hall .service-order-recipes:has(.service-order-recipe + .service-order-recipe) .service-menu-art { height: 27px; }
+.service-hall .service-order-quantity { font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.service-hall .service-order-sake { display: flex; align-items: center; justify-content: center; gap: 2px; border-left: 1px solid #a98a61; padding-left: 5px; align-self: stretch; min-width: 34px; }
+.service-hall .service-order-sake .service-icon { width: 16px; height: 27px; color: #547168; }
+.service-hall .service-order-sake.is-empty { opacity: .45; }
+.service-hall .service-order-done { font-size: 11px; padding: 6px; }
+.service-hall .service-station, .service-hall .service-fridge { color: #61432d; transform: translate(-50%, -50%); background: #fff1d8f2; border-color: #c3a176; border-bottom-color: #7c573a; }
+.service-hall .service-washer { transform: translate(-50%,calc(-50% - 21px)); }
+.service-hall .service-queue { color: #fff2d8; background: #503826ed; border-color: #c4a476; }
+.service-hall .service-scoreboard { top: 12px; padding: 5px 12px; }
+.service-hall .service-stat { height: 43px; width: 145px; }
+.service-hall .service-stat strong { font-size: 25px; }
+.service-hall .service-served b { font-size: 17px; }
+.service-hall .service-controls { bottom: 12px; padding: 5px 10px; gap: 0; max-width: calc(100vw - 660px); }
+.service-hall .service-next-task { display: none; }
+.service-hall .service-tools { top: 14px; }
+@media (max-width: 1200px) {
+  .service-hall .service-order-recipe .service-menu-art { width: 68px; height: 26px; }
+  .service-hall .service-order-recipes:has(.service-order-recipe + .service-order-recipe) .service-menu-art { height: 26px; }
+  .service-hall .service-order-number { font-size: 15px; height: 26px; }
+  .service-hall .service-order-quantity { font-size: 12px; }
+  .service-hall .service-controls { max-width: calc(100vw - 590px); }
+}
+@media (max-width: 900px) {
+  .service-hall .service-order-cells { grid-template-columns: 22px auto auto; }
+  .service-hall .service-order-number { font-size: 12px; height: 23px; }
+  .service-hall .service-order-recipes { margin-left: 4px; padding: 0 4px; min-height: 30px; }
+  .service-hall .service-order-recipe .service-menu-art { width: 64px; height: 30px; }
+  .service-hall .service-order-recipes:has(.service-order-recipe + .service-order-recipe) .service-menu-art { height: 26px; }
+  .service-hall .service-order-quantity { font-size: 10px; }
+  .service-hall .service-order-sake { padding-left: 4px; min-width: 32px; }
+  .service-hall .service-order-sake .service-icon { width: 15px; height: 25px; }
+  .service-hall .service-controls { display: none; }
+}
+@media (max-width: 600px) {
+  .service-hall .service-scoreboard { left: 8px; top: 8px; padding: 5px 6px; }
+  .service-hall .service-stat { width: 106px; height: 39px; gap: 5px; padding: 0 5px; }
+  .service-hall .service-stat strong { font-size: 20px; white-space: nowrap; }
+  .service-hall .service-stat strong small { font-size: 9px; margin-left: 2px; }
+  .service-hall .service-bubble.is-order { padding: 3px 4px; border-radius: 9px; }
+  .service-hall .service-order-cells { grid-template-columns: 17px auto auto; }
+  .service-hall .service-order-number { font-size: 10px; height: 20px; }
+  .service-hall .service-order-recipe .service-menu-art { width: 53px; height: 30px; }
+  .service-hall .service-order-recipes:has(.service-order-recipe + .service-order-recipe) .service-menu-art { height: 26px; }
+  .service-hall .service-order-sake { min-width: 25px; padding-left: 2px; gap: 1px; }
+  .service-hall .service-order-sake .service-icon { width: 11px; height: 21px; }
+  .service-hall .service-order-quantity { font-size: 8px; }
+  .service-hall .service-tools { top: 74px; }
+}
+
+/* Matching compact strips for collected tickets and carried food. */
+.service-hall .service-held, .service-hall .service-carry { bottom:12px; width:240px; padding:8px; border:1px solid #b4936c88; border-radius:9px; background:#4e3428e8; color:#fff1d8; box-shadow:0 3px 8px #25170e30; }
+.service-hall .service-held { left:14px; }
+.service-hall .service-carry { right:14px; width:260px; }
+.service-hall .service-held h2, .service-hall .service-carry h2 { min-height:0; padding-bottom:6px; font-size:11px; flex-wrap:nowrap; }
+.service-hall .service-held h2 b, .service-hall .service-carry h2 b { color:#e0c5a1; font-size:9px; }
+.service-hall .service-held > div { display:grid; grid-template-columns:1fr; gap:4px; }
+.service-hall .service-held-ticket, .service-hall .service-plate-slot, .service-hall .service-plate-slot.is-full { display:flex; justify-content:center; height:auto; min-height:30px; padding:3px 5px; border:1px solid #cfb890; border-radius:6px; background:#fff3dc; color:#493b28; box-shadow:none; }
+.service-hall .service-held-ticket:before { display:none; }
+.service-hall .service-held-ticket.is-empty, .service-hall .service-plate-slot:not(.is-full) { flex-direction:row; align-items:center; gap:5px; background:#ffffff08; border:1px solid #c4a47444; color:#dcc5a4; }
+.service-hall .service-held-ticket.is-empty .service-icon { width:13px; height:13px; }
+.service-hall .service-held-ticket.is-empty small, .service-hall .service-plate-slot small { color:#dcc5a4; font-size:10px; }
+.service-hall :is(.service-held-ticket, .service-plate-slot) .service-order-cells { width:100%; grid-template-columns:22px minmax(0,1fr) auto; align-items:center; }
+.service-hall :is(.service-held-ticket, .service-plate-slot) .service-order-number { height:22px; font-size:12px; background:#465a43; border-radius:3px; }
+.service-hall :is(.service-held-ticket, .service-plate-slot) .service-order-recipes { margin-left:5px; padding:0 7px; min-height:22px; border-left:1px solid #b79f7a; }
+.service-hall :is(.service-held-ticket, .service-plate-slot) .service-order-recipe .service-menu-art { width:76px; height:24px; flex:1; min-width:0; margin:0; }
+.service-hall :is(.service-held-ticket, .service-plate-slot) .service-order-recipes:has(.service-order-recipe + .service-order-recipe) .service-menu-art { height:22px; }
+.service-hall :is(.service-held-ticket, .service-plate-slot) .service-order-quantity { font-size:11px; }
+.service-hall .service-held-ticket .service-order-sake { width:80px; box-sizing:border-box; padding:0 8px; gap:8px; border-left:1px solid #b79f7a; }
+.service-hall .service-held-ticket .service-order-sake .service-icon { width:22px; height:34px; }
+.service-hall .service-carry-slots { grid-template-columns:minmax(0,1fr) 96px; grid-template-rows:auto auto; gap:4px; align-items:stretch; }
+.service-hall .service-plate-slot { grid-column:1; }
+.service-hall .service-plate-slot .service-order-cells { grid-template-columns:22px minmax(0,1fr); }
+.service-hall .service-bottle-slots { grid-column:2; grid-row:1 / 3; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:1fr 1fr; justify-content:stretch; justify-items:stretch; align-items:stretch; gap:4px; padding:0; border:0; background:transparent; }
+.service-hall .service-bottle-slot { display:grid; place-items:center; min-height:30px; border:1px solid #c4a47444; border-radius:6px; background:#ffffff08; }
+.service-hall .service-bottle-slot.is-full { background:#fff3dc; border-color:#cfb890; }
+.service-hall .service-bottle-slots .service-icon { width:22px; height:34px; color:#547168; opacity:.25; }
+.service-hall .service-bottle-slot.is-full .service-icon { opacity:1; }
+.service-hall .service-panel-note, .service-hall .service-carry-rule { display:none; }
+.service-hall .service-dirty-slot { height:36px; background:#fff3dc; border:1px solid #cfb890; border-radius:6px; }
+.service-hall .is-dirty-carry .service-carry-rule { display:block; color:#e0c5a1; font-size:9px; min-height:0; padding-top:5px; }
+@media (max-width:600px) {
+ .service-hall .service-held, .service-hall .service-carry { width:calc(50% - 12px); bottom:8px; padding:5px; }
+ .service-hall .service-held { left:8px; }
+ .service-hall .service-carry { right:8px; }
+ .service-hall .service-held h2, .service-hall .service-carry h2 { font-size:10px; flex-wrap:wrap; min-height:28px; }
+ .service-hall .service-carry h2 b { font-size:8px; }
+ .service-hall :is(.service-held-ticket, .service-plate-slot) .service-order-recipes { padding:0 5px; }
+ .service-hall :is(.service-held-ticket, .service-plate-slot) .service-order-recipe .service-menu-art { width:48px; height:24px; }
+ .service-hall :is(.service-held-ticket, .service-plate-slot) .service-order-quantity { font-size:9px; }
+ .service-hall .service-carry-slots { grid-template-columns:minmax(0,1fr) 42px; }
+ .service-hall .service-held-ticket .service-order-sake { width:40px; min-width:0; padding:0 3px; gap:2px; }
+ .service-hall .service-held-ticket .service-order-sake .service-icon, .service-hall .service-bottle-slots .service-icon { width:18px; height:28px; }
+}
+
+.service-hall .service-feedback.is-misdelivery { background:#8c3c2a; color:#fff4dd; border:1px solid #e9ab7e; }
+
+/* 화면 좌표에 고정: 주문 수량과 카메라 위치가 바뀌어도 패널은 움직이지 않는다. */
+.service-hall .service-scoreboard, .service-hall .service-tools, .service-hall .service-controls { position:fixed; }
+.service-hall .service-held, .service-hall .service-carry { position:fixed; height:144px; display:flex; flex-direction:column; box-sizing:border-box; }
+.service-hall .service-held > div, .service-hall .service-carry-slots { flex:1; min-height:0; grid-template-rows:1fr 1fr; }
+.service-hall .service-held-ticket, .service-hall .service-plate-slot { min-height:0; }
+.service-hall .service-dirty-slots { flex:1; align-items:center; }
+@media(max-width:600px) {
+ .service-hall .service-held, .service-hall .service-carry { height:154px; }
+}
+
+.service-hall .service-station, .service-hall .service-fridge { transform:translate(-50%, calc(-50% - 24px)); }
+.service-hall .service-washer { transform:translate(-50%, calc(-50% - 45px)); }
+
+/* Receipt slips stay in the fixed HUD; customer bubbles and the tray keep their own styles. */
+.service-hall .service-held { height:176px; padding:0 0 5px; border:0; background:transparent; box-shadow:none; backdrop-filter:none; }
+.service-hall .service-held h2 { align-self:flex-start; min-height:0; padding:3px 8px; margin-bottom:4px; gap:12px; border-radius:4px; background:#4e3428e8; }
+.service-hall .service-held h2 b { margin-left:0; }
+.service-hall .service-held > div { gap:10px; }
+.service-hall .service-held-ticket {
+ position:relative; display:flex; flex-direction:column; justify-content:flex-start;
+ padding:5px 9px 4px; border:0; border-top:1px solid #fffdf7; border-radius:2px 2px 0 0;
+ background:linear-gradient(100deg,#f5efdf 0%,#fffaf0 12%,#fffaf0 88%,#f8f2e6 100%);
+ color:#453a2e; filter:drop-shadow(0 3px 2px #30201540);
+}
+.service-hall .service-held-ticket:not(.is-empty)::after {
+ content:''; position:absolute; left:0; right:0; bottom:-5px; height:5px;
+ background:linear-gradient(135deg,#fffaf0 25%,transparent 25%) -5px 0 / 10px 10px,
+            linear-gradient(225deg,#fffaf0 25%,transparent 25%) -5px 0 / 10px 10px;
+ pointer-events:none;
+}
+.service-hall .service-receipt-heading {
+ display:flex; justify-content:space-between; flex:none; padding-bottom:3px; margin-bottom:3px;
+ border-bottom:1px dashed #b4a58d; color:#81725c; font-size:8px; font-weight:500; line-height:1; letter-spacing:.08em;
+}
+.service-hall .service-held-ticket .service-order-cells { flex:1; grid-template-columns:25px minmax(0,1fr) 56px; }
+.service-hall .service-held-ticket .service-order-number {
+ height:auto; background:none; border-radius:0; color:#41382f; font:700 20px/1 ui-monospace,monospace; letter-spacing:-.05em;
+}
+.service-hall .service-held-ticket .service-order-recipes { margin-left:5px; padding:0 5px; border-left:1px dashed #c8baa5; }
+.service-hall .service-held-ticket .service-order-recipe .service-menu-art { width:70px; height:28px; filter:none; }
+.service-hall .service-held-ticket .service-order-recipes:has(.service-order-recipe + .service-order-recipe) .service-menu-art { height:20px; }
+.service-hall .service-held-ticket .service-order-quantity { font:600 11px/1 ui-monospace,monospace; color:#514434; }
+.service-hall .service-held-ticket .service-order-sake { width:56px; padding:0 4px; gap:4px; border-left:1px dashed #c8baa5; }
+.service-hall .service-held-ticket .service-order-sake .service-icon { width:18px; height:28px; }
+.service-hall .service-held-ticket.is-empty { justify-content:center; border:1px dashed #bba68380; border-radius:2px; background:#fff3dc99; filter:none; }
+.service-hall .service-held-ticket.is-empty small { color:#8d7a60; }
+@media(max-width:600px) {
+ .service-hall .service-held { height:176px; padding:0 0 5px; }
+ .service-hall .service-held-ticket { padding:5px 5px 4px; }
+ .service-hall .service-held-ticket .service-order-cells { grid-template-columns:20px minmax(0,1fr) 36px; }
+ .service-hall .service-held-ticket .service-order-number { font-size:17px; }
+ .service-hall .service-held-ticket .service-order-recipes { margin-left:3px; padding:0 3px; }
+ .service-hall .service-held-ticket .service-order-recipe .service-menu-art { width:48px; }
+ .service-hall .service-held-ticket .service-order-quantity { font-size:9px; }
+ .service-hall .service-held-ticket .service-order-sake { width:36px; padding:0 2px; gap:2px; }
+ .service-hall .service-held-ticket .service-order-sake .service-icon { width:14px; height:25px; }
+}
+
+/* Two wooden shelves, brass rails and castors: inventory is fixed to the screen. */
+.service-hall .service-carry,
+.service-hall .service-carry.is-dirty-carry {
+ height:180px; padding:0 0 25px; border:0; border-radius:0; background:transparent;
+ box-shadow:none; backdrop-filter:none; isolation:isolate;
+}
+.service-hall .service-carry h2 {
+ position:relative; z-index:1; align-self:stretch; min-height:23px; margin:0 10px 0 6px; padding:3px 7px;
+ border-radius:4px; background:#4e3428ed; color:#fff1d8; font-size:11px; flex-wrap:nowrap;
+}
+.service-hall .service-carry h2 b { color:#e0c5a1; font-size:9px; }
+.service-hall .service-cart-frame { position:absolute; inset:25px 0 0; z-index:0; pointer-events:none; filter:drop-shadow(0 3px 2px #26180f40); }
+.service-hall .service-cart-frame i { position:absolute; display:block; box-sizing:border-box; }
+.service-hall .service-cart-post { top:8px; bottom:13px; width:7px; border:1px solid #79614a; border-radius:4px; background:linear-gradient(90deg,#997856,#ead4ac 48%,#a88b64); }
+.service-hall .service-cart-post.is-left { left:5px; }
+.service-hall .service-cart-post.is-right { right:9px; }
+.service-hall .service-cart-handle { top:0; left:4px; right:8px; height:27px; border:5px solid #bb9970; border-bottom:0; border-radius:10px 10px 0 0; box-shadow:inset 0 2px 0 #efdbb7,0 -1px 0 #6d5038; }
+.service-hall .service-cart-shelf { left:0; right:4px; height:10px; border:1px solid #6c432a; border-radius:3px; background:linear-gradient(#c3955f 0 35%,#93613e 36% 80%,#65412e 81%); box-shadow:0 2px 1px #35201530; }
+.service-hall .service-cart-shelf.is-upper { top:calc(50% - 15px); }
+.service-hall .service-cart-shelf.is-lower { bottom:17px; }
+.service-hall .service-cart-wheel { bottom:0; width:17px; height:17px; border:4px solid #443b34; border-radius:50%; background:#b5a18b; box-shadow:inset 0 0 0 1px #e0cdb0,0 2px 1px #2e211c44; }
+.service-hall .service-cart-wheel::before { content:''; position:absolute; top:-10px; left:2px; width:5px; height:7px; background:#92785b; border-radius:1px; }
+.service-hall .service-cart-wheel.is-left { left:18px; }
+.service-hall .service-cart-wheel.is-right { right:22px; }
+.service-hall .service-carry-slots,
+.service-hall .service-dirty-slots {
+ position:relative; z-index:1; flex:1; min-height:0; padding:11px 15px 1px 12px;
+ grid-template-rows:1fr 1fr; row-gap:12px; align-items:stretch;
+}
+.service-hall .service-carry-slots { grid-template-columns:minmax(0,1fr) 62px; column-gap:7px; }
+.service-hall .service-carry .service-plate-slot,
+.service-hall .service-carry .service-bottle-slot {
+ min-height:0; height:auto; border:1px solid #c8a77766; border-bottom:0; border-radius:5px 5px 2px 2px;
+ background:#65442c80; box-shadow:inset 0 1px 5px #301a1230;
+}
+.service-hall .service-carry .service-plate-slot.is-full,
+.service-hall .service-carry .service-bottle-slot.is-full {
+ background:linear-gradient(#fff7e5,#f0dfbd); border-color:#cfb58d; box-shadow:0 1px 3px #51321b26;
+}
+.service-hall .service-carry .service-plate-slot small { color:#f2dfbc; font-size:10px; }
+.service-hall .service-carry .service-order-number { background:#735037; color:#fff5df; }
+.service-hall .service-carry .service-order-recipes { border-left:1px solid #cfb58d; padding:0 5px; }
+.service-hall .service-carry .service-order-recipe .service-menu-art { width:70px; height:30px; }
+.service-hall .service-carry .service-bottle-slots { row-gap:12px; }
+.service-hall .service-carry .service-bottle-slots > span { opacity:1; }
+.service-hall .service-carry .service-bottle-slots .service-icon { width:22px; height:32px; opacity:.3; }
+.service-hall .service-carry .service-bottle-slot.is-full .service-icon { opacity:1; }
+.service-hall .service-dirty-slots { grid-template-columns:1fr; }
+.service-hall .service-carry .service-dirty-slot { height:auto; min-height:0; padding:3px 7px; grid-template-columns:28px 1fr; border-radius:5px; color:#624731; background:#d6c3a5; border:1px solid #b3926c; }
+.service-hall .service-carry .service-dirty-slot.is-full { background:#f0dfc2; }
+.service-hall .service-carry .service-dirty-slot strong { font-size:11px; }
+.service-hall .service-carry .service-dirty-slot small { font-size:9px; }
+.service-hall .is-dirty-carry .service-carry-rule {
+ position:absolute; bottom:100%; right:0; width:100%; box-sizing:border-box; margin-bottom:5px; padding:5px 7px;
+ background:#543b2df2; border-radius:4px; color:#fff1d6; font-size:9px;
+}
+@media(max-width:600px) {
+ .service-hall .service-carry, .service-hall .service-carry.is-dirty-carry { height:180px; padding:0 0 25px; }
+ .service-hall .service-carry h2 { margin-left:4px; margin-right:6px; padding:3px 4px; font-size:9px; gap:3px; }
+ .service-hall .service-carry h2 > .service-icon { width:12px; height:14px; }
+ .service-hall .service-carry h2 b { max-width:none; overflow:visible; font-size:8px; letter-spacing:-.04em; }
+ .service-hall .service-carry-slots, .service-hall .service-dirty-slots { padding-left:12px; padding-right:15px; }
+ .service-hall .service-carry-slots { grid-template-columns:minmax(0,1fr) 32px; column-gap:4px; }
+ .service-hall .service-carry .service-order-cells { grid-template-columns:17px minmax(0,1fr); }
+ .service-hall .service-carry .service-order-number { font-size:10px; }
+ .service-hall .service-carry .service-order-recipes { margin-left:3px; padding:0 2px; }
+ .service-hall .service-carry .service-order-recipe .service-menu-art { width:34px; height:26px; }
+ .service-hall .service-carry .service-order-quantity { font-size:8px; }
+ .service-hall .service-carry .service-plate-slot small { font-size:8px; }
+ .service-hall .service-carry .service-bottle-slots .service-icon { width:19px; height:29px; }
+}

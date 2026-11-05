@@ -1,0 +1,7 @@
+# 정상 계정·지갑 연결: local,db,skewer-coop 또는 dev,db,skewer-coop.
+# 서버/컨테이너를 교체해도 유지되는 해당 인스턴스 전용 디렉터리를 지정한다.
+ontop:
+  games:
+    skewer-coop:
+      enabled: true
+      journal-path: ${SKEWER_COOP_JOURNAL_PATH}

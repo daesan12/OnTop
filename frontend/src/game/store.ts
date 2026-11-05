@@ -79,6 +79,7 @@ export function canPlace(
     !forfeitBlocksInput(g.gameId) &&
     g.version >= s.awaitingVersion &&
     g.omok.status === 'PLAYING' &&
+    !g.omok.undo && !g.omok.draw &&
     g.omok.turnUserId === ownId &&
     (!g.omok.coinTossEndsAt || Date.parse(g.omok.coinTossEndsAt) <= now) &&
     Date.parse(g.omok.turnDeadline!) > now &&
@@ -88,7 +89,8 @@ export function canPlace(
     x < 15 &&
     y >= 0 &&
     y < 15 &&
-    g.omok.board[y]![x] === 0
+    g.omok.board[y]![x] === 0 &&
+    (ownId !== g.omok.blackUserId || !g.omok.forbiddenMoves?.some(point => point.x === x && point.y === y))
   )
 }
 function applyGame(next: Game) {

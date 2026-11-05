@@ -15,22 +15,35 @@ test('reference start guide renders three illustrated steps at desktop and mobil
  const server = await bungeoppangFixture(page)
  await page.setViewportSize({ width:1710, height:920 }); await open(page)
  await expect(guide(page).getByRole('heading', { name:'붕어빵 굽기', exact:true })).toBeVisible()
- await expect(guide(page).getByRole('listitem')).toHaveCount(3)
+ await expect(guide(page).getByRole('list', {name:'붕어빵 굽는 방법'}).getByRole('listitem')).toHaveCount(3)
  await expect(guide(page).getByRole('heading', {name:'익는 상태를 보고',exact:true})).toBeVisible()
  await expect(guide(page).getByRole('heading', {name:'클릭해서 뒤집기',exact:true})).toBeVisible()
  await expect(guide(page).getByRole('heading', {name:'양쪽이 익으면 완성!',exact:true})).toBeVisible()
  await expect(guide(page)).not.toContainText('서버가 발급한 불 세기로')
+ await expect(guide(page)).not.toContainText(/점당 1냥|한국 시간|운동 보상|점프맵과 합산/)
  await expect(page.getByRole('button', {name:'F1 조작 안내',exact:true})).toHaveCount(0)
  await expect(guide(page).getByRole('button', {name:'시작',exact:true})).toBeEnabled()
  await screenshot(page,'bungeoppang-start-reference-desktop')
- for(const size of [{width:1280,height:720},{width:390,height:844}]) {
+ for(const size of [{width:1280,height:720},{width:390,height:844},{width:800,height:450}]) {
   await page.setViewportSize(size)
   const box=await guide(page).boundingBox()
   expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.y).toBeGreaterThanOrEqual(0)
   expect(box!.x+box!.width).toBeLessThanOrEqual(size.width)
   expect(box!.y+box!.height).toBeLessThanOrEqual(size.height)
   expect(await guide(page).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+  await expect(guide(page)).toHaveCSS('scrollbar-width','none')
+  const centers = await guide(page).locator('.bung-start-steps > li > img').evaluateAll(images => images.map(image => {
+   const picture=image.getBoundingClientRect(), column=image.parentElement!.getBoundingClientRect()
+   return { offset:Math.abs(picture.x+picture.width/2-column.x-column.width/2), width:picture.width }
+  }))
+  for(const image of centers) { expect(image.offset).toBeLessThanOrEqual(1); expect(image.width).toBeGreaterThan(60) }
+  await guide(page).focus(); await page.keyboard.press('Home')
+  await guide(page).getByRole('heading', {name:'붕어빵 굽기',exact:true}).scrollIntoViewIfNeeded()
   await screenshot(page,`bungeoppang-start-${size.width}`)
+  await guide(page).getByRole('button', {name:'시작',exact:true}).scrollIntoViewIfNeeded()
+  await expect(guide(page).getByRole('button', {name:'시작',exact:true})).toBeInViewport()
+  await guide(page).getByRole('button', {name:/나가기/}).scrollIntoViewIfNeeded()
+  await expect(guide(page).getByRole('button', {name:/나가기/})).toBeInViewport()
  }
  const start=guide(page).getByRole('button', {name:'시작',exact:true})
  await start.scrollIntoViewIfNeeded(); await expect(start).toBeInViewport()

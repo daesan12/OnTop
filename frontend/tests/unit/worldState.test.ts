@@ -32,6 +32,33 @@ function channel() {
   })
 }
 beforeEach(() => resetWorld())
+it('fills a delayed nickname once, then keeps it when the author leaves', () => {
+  channel()
+  const snapshot = (version: number, others: object[]) => emit('WORLD_STATE', { channelId: 'a', version,
+    mapVersion: EXPECTED_MAP_VERSION, avatars: [{ userId: '101', position }, ...others] })
+  snapshot(1, [{ userId: '102', characterGender: 'MALE', position }])
+  emit('WORLD_CHAT_MESSAGE', { messageId: 'early', channelId: 'a', userId: '102', text: '조회 전', sentAt: '2026-11-04T00:00:00Z' })
+  expect(useSession.getState().messages[0]!.displayName).toBeUndefined()
+  snapshot(2, [{ userId: '102', nickname: '뒤늦은이름', characterGender: 'MALE', position }])
+  expect(useSession.getState().messages[0]!.displayName).toBe('뒤늦은이름')
+  snapshot(3, [])
+  expect(useSession.getState().messages[0]!.displayName).toBe('뒤늦은이름')
+})
+it('keeps each received chat author after departure, nickname edits and re-entry', () => {
+  channel()
+  const snapshot = (version: number, others: object[]) => emit('WORLD_STATE', { channelId: 'a', version,
+    mapVersion: EXPECTED_MAP_VERSION, avatars: [{ userId: '101', position }, ...others] })
+  snapshot(1, [{ userId: '102', nickname: '봄산책', characterGender: 'MALE', gameMaster: true, position }])
+  emit('WORLD_CHAT_MESSAGE', { messageId: 'old', channelId: 'a', userId: '102', text: '처음', sentAt: '2026-11-04T00:00:00Z' })
+  const before = useSession.getState().messages[0]!.displayName
+  expect(before).toBe('GM 봄산책')
+  snapshot(2, [])
+  expect(useSession.getState().profiles['102']).toBeUndefined()
+  expect(useSession.getState().messages[0]!.displayName).toBe(before)
+  snapshot(3, [{ userId: '102', nickname: '여름산책', characterGender: 'MALE', position }])
+  emit('WORLD_CHAT_MESSAGE', { messageId: 'new', channelId: 'a', userId: '102', text: '다시', sentAt: '2026-11-04T00:00:01Z' })
+  expect(useSession.getState().messages.map(message => message.displayName)).toEqual(['GM 봄산책', '여름산책'])
+})
 describe('server snapshots and visibility', () => {
   it('keeps 100 approved masked messages and one ten-second bubble without accepting a duplicate or foreign channel', () => {
     channel()

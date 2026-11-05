@@ -6,6 +6,14 @@ import type { Envelope } from '../../network/protocol'
 export const useWalletSettlement = create(() => ({ owner: '', revision: 0 }))
 let owner = ''
 const seen = new Set<string>()
+let pendingRewardSound: { owner: string; level: number } | null = null
+
+/** 다음 확정 잔액 갱신에만 적용한다. 하차 뒤 지급되어도 운동 획득음은 작게 재생한다. */
+export function consumeWalletRewardSoundLevel(userId: string) {
+  const pending = pendingRewardSound
+  pendingRewardSound = null
+  return pending?.owner === userId ? pending.level : 1
+}
 
 export function refreshWalletAfterSettlement(userId: string, receipt: string) {
   if (!userId || !receipt) return
@@ -13,6 +21,7 @@ export function refreshWalletAfterSettlement(userId: string, receipt: string) {
   if (seen.has(receipt)) return
   seen.add(receipt)
   if (seen.size > 64) seen.delete(seen.values().next().value!)
+  pendingRewardSound = { owner: userId, level: receipt.startsWith('fitness:') ? .7 : 1 }
   useWalletSettlement.setState(s => ({ owner: userId, revision: s.revision + 1 }))
 }
 

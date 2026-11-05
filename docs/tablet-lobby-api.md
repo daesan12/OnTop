@@ -108,6 +108,8 @@ MANUAL 대기석의 일반 네트워크 종료는 동일 로그인 세션에서 
 
 ## 오류·검증 범위
 
+사용 가능 잔액은 기존 지갑 조회의 availableBalance(전체 잔액−예약액)를 사용한다. 판돈보다 적거나 조회에 실패하면 준비 완료를 막고 부족액 또는 재조회 버튼을 표시한다. 서버 READY_SET도 독립적으로 검사하며 준비 취소는 막지 않는다. 실제 시작의 DB 재검증·예약은 유지하고 부족으로 거절되면 전원 준비 해제와 안내를 표시한다([준비 상세](websocket-api/03-ready-set.md#사용-가능-잔액-사전-확인)).
+
 INVALID_PAYLOAD(형식/필드), NOT_SEATED, TABLE_BUSY, NOT_GAME_SELECTOR, GAME_SETTINGS_CHANGED, GAME_CONFIGURATION_INVALID, GAME_OPTIONS_REQUIRED, TABLE_NOT_READY, START_NOT_CONFIGURED, START_ACTION_CONFLICT/EXPIRED. 만료 직후 요청은 이미 퇴장했으므로 NOT_SEATED가 될 수 있다. 오류는 원래 requestId에 대응하며 상태는 최신 조회로 확인한다.
 
 TabletPolicyTests: 정확한 정원·설정 원자성·타이머·추첨 후보. TabletStartFlowTests: 실제 Hub/직렬화/송신·예약 경계 대역·만료·재접속/로그아웃·정산 승계. TabletWebSocketTests: 내장 서버의 인증된 실제 Raw WebSocket 왕복. 대역의 예약/정산 알림은 실제 DB 트랜잭션 성공을 의미하지 않는다.

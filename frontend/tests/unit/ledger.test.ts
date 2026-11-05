@@ -11,7 +11,7 @@ const empty = () => Object.fromEntries(LEDGER_CATEGORIES.map(c => [c, null])) as
 function ledgerState(count = 2, overrides: Record<string, unknown> = {}) {
   const players = Array.from({ length: count }, (_, i) => ({ userId: String(101 + i), forfeited: false, scores: empty(),
     upperSubtotal: 0, upperBonus: 0, total: 0 }))
-  return { gameCode: 'DICE_LEDGER', status: 'PLAYING', turnTimeLimitMs: 30000, maxRolls: 3, upperBonusThreshold: 63, upperBonus: 35,
+  return { gameCode: 'DICE_LEDGER', status: 'PLAYING', turnTimeLimitMs: 20000, maxRolls: 3, upperBonusThreshold: 63, upperBonus: 35,
     turnUserId: '101', turnId: 1, round: 1, rollCount: 1, rollId: 1, lastEvent: 'ROLL',
     turnDeadline: new Date(Date.now() + 20_000).toISOString(), endReason: null, endedAt: null,
     categories: [...LEDGER_CATEGORIES], winnerUserIds: [], players,

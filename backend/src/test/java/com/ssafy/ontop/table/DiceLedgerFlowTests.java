@@ -16,7 +16,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.*;
 
-/** 실제 소켓으로 주사위 장부 입력·관전·관전자 훈수 핑·30초 자동 기록을 검증한다. 인증·시작은 테스트 대역이다. */
+/** 실제 소켓으로 주사위 장부 입력·관전·관전자 훈수 핑·20초 자동 기록을 검증한다. 인증·시작은 테스트 대역이다. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true", "ontop.games.ledger.enabled=true",
         "ontop.websocket.heartbeat.interval=200ms", "ontop.websocket.heartbeat.timeout=2s",
@@ -95,7 +95,7 @@ class DiceLedgerFlowTests {
             assertThat(scored.path("turnUserId").asText()).isEqualTo(Long.toString(actor == 101 ? 202 : 101));
             assertThat(scored.path("lastScored").path("category").asText()).isEqualTo("CHOICE");
 
-            clock.advanceSeconds(30);
+            clock.advanceSeconds(20);
             var timeout = viewer.await(message -> version(message, 3)).path("payload").path("publicState");
             assertThat(timeout.path("lastEvent").asText()).isEqualTo("TURN_TIMEOUT");
             assertThat(timeout.path("lastScored").path("auto").asBoolean()).isTrue();
@@ -124,7 +124,7 @@ class DiceLedgerFlowTests {
             }
         }
         System.out.println("[PASS] 주사위 장부 실제엔진/SecureRandom/RawWS: 굴림·기록·관전자 칸/주사위 핑·핑 거절·"
-                + "30초 자동 기록·heartbeat 복귀. 인증/시작은대역·제어시계,DB/지급아님.");
+                + "20초 자동 기록·heartbeat 복귀. 인증/시작은대역·제어시계,DB/지급아님.");
     }
 
     private Map<String, Object> action(String id, long version, Map<String, Object> input) {

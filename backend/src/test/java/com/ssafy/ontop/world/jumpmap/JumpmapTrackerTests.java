@@ -177,6 +177,6 @@ class JumpmapTrackerTests {
         var gate = tracker.observe("7", "c1", pad(24), at += 300);
         assertThat(gate).filteredOn(JumpmapTracker.Progress.class::isInstance)
                 .singleElement().extracting(s -> ((JumpmapTracker.Progress) s).outcome())
-                .isEqualTo(new JumpRun.GatePassed(1, at - 200, 2));
+                .isEqualTo(new JumpRun.GatePassed(1, at - 200, 5));
     }
 }

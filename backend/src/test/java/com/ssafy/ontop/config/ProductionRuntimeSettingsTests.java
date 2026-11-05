@@ -96,4 +96,14 @@ class ProductionRuntimeSettingsTests {
                 .run(context -> assertThat(context.getEnvironment().getProperty("spring.flyway.locations"))
                         .isEqualTo("classpath:db/migration,classpath:db/minigame"));
     }
+
+    @Test
+    void 개발_붕어빵_v5는_환경변수로만_명시적으로_켠다() {
+        var runner = new ApplicationContextRunner().withInitializer(new ConfigDataApplicationContextInitializer())
+                .withPropertyValues("spring.profiles.active=dev,db");
+        runner.run(context -> assertThat(context.getEnvironment()
+                .getProperty("ontop.minigames.bungeoppang-v5-enabled")).isEqualTo("false"));
+        runner.withPropertyValues("BUNGEOPPANG_V5_ENABLED=true").run(context -> assertThat(context.getEnvironment()
+                .getProperty("ontop.minigames.bungeoppang-v5-enabled")).isEqualTo("true"));
+    }
 }

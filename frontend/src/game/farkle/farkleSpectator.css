@@ -1,0 +1,57 @@
+/* DICE observer HUD: share the player's walnut/gold palette without changing park chat. */
+.park-page .farkle-observer-hud { --observer-ink: #f5ecd7; --observer-muted: #d1c2a2; --observer-gold: #edbd65; --observer-line: #b88b4e70; position: absolute; inset: 0; z-index: 9; pointer-events: none; color: var(--observer-ink); font: 14px/1.5 'Malgun Gothic', sans-serif; }
+.park-page:has(.farkle-observer-hud) .park-hud .park-roaming-ui,
+.park-page:has(.farkle-observer-hud) .park-quick-button,
+.park-page:has(.farkle-observer-hud) .manual-launcher,
+.park-page:has(.farkle-observer-hud) .park-runtime-tools,
+.park-page:has(.farkle-observer-hud) .park-camera-controls,
+.park-page:has(.farkle-observer-hud) .park-shortcuts { display: none; }
+.park-page .farkle-observer-hud .farkle-spectator { position: absolute; right: 24px; bottom: 24px; top: auto; width: 308px; max-height: calc(100dvh - 188px); overflow: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 0; border: 1px solid #bd934d; border-radius: 14px; color: var(--observer-ink); background: linear-gradient(125deg, #3a2b1ff5, #201c17fa); box-shadow: inset 0 0 0 3px #d9b27117, 0 8px 24px #24170c44; pointer-events: auto; scrollbar-width: none; }
+.farkle-observer-hud .farkle-spectator::-webkit-scrollbar { display: none; }
+.farkle-observer-hud .farkle-spectator > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; position: sticky; top: 0; z-index: 1; list-style: none; padding: 15px 16px; color: #f4dfb5; background: #30241a; cursor: pointer; font-size: 13px; }
+.farkle-observer-hud .farkle-spectator > summary::-webkit-details-marker { display: none; }
+.farkle-observer-hud .farkle-spectator > summary i { font-size: 18px; font-style: normal; }
+.farkle-observer-hud .farkle-spectator[open] > summary i { transform: rotate(180deg); }
+.farkle-observer-turn-total { white-space: nowrap; color: var(--observer-muted); }
+.farkle-observer-turn-total strong { margin-inline: 4px; color: var(--observer-gold); font-size: 22px; font-variant-numeric: tabular-nums; }
+.farkle-observer-body { padding: 0 16px 14px; border-top: 1px solid var(--observer-line); }
+.park-page .farkle-observer-hud .farkle-observer-table { font-size: 11px; color: var(--observer-muted); margin: 12px 0 8px; }
+.park-page .farkle-observer-hud .farkle-spectator-status { background: #98733f24; border: 1px solid #c3995144; padding: 10px; margin: 8px 0 14px; color: #f6e5c3; font-size: 14px; }
+.park-page .farkle-observer-hud .farkle-spectator-status.bust { background: #743c2e; }
+.farkle-observer-hud .farkle-spectator-dice { display: grid; grid-template-columns: 52px repeat(6, minmax(0, 1fr)); gap: 4px; align-items: center; margin-block: 10px; }
+.farkle-observer-hud .farkle-spectator-dice > small:first-child { width: auto; font-size: 11px; color: var(--observer-muted); white-space: nowrap; }
+.farkle-observer-die { display: inline-flex; align-items: center; }
+.farkle-observer-die .dice-face { --die-size: 28px; padding: 4px; }
+.farkle-observer-rolling { display: grid; place-items: center; width: 28px; height: 28px; color: var(--observer-gold); font-size: 14px; }
+.farkle-observer-hud .farkle-spectator footer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 16px; }
+.farkle-observer-hud .farkle-spectator-views { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-column: 1 / -1; gap: 7px; }
+.park-page .farkle-observer-hud .farkle-spectator button { min-width: 0; min-height: 44px; padding: 7px 5px; color: var(--observer-ink); background: #493a28; border: 1px solid #b88b4e80; border-radius: 7px; font: 500 12px/1.4 'Malgun Gothic', sans-serif; cursor: pointer; word-break: keep-all; }
+.park-page .farkle-observer-hud .farkle-spectator button[aria-pressed=true] { border-color: #edbd65; color: #ffdda0; background: #66502f; }
+.park-page .farkle-observer-hud .farkle-spectator button:hover:not(:disabled) { border-color: #edbd65; background: #60482d; }
+.farkle-observer-hud button:focus-visible, .farkle-observer-hud summary:focus-visible { outline: 2px solid #ffe2a1; outline-offset: -4px; }
+.farkle-observer-hud button:disabled { opacity: .5; cursor: default; }
+.park-page .farkle-observer-hud .farkle-spectator-note { font-size: 11px; line-height: 1.6; color: var(--observer-muted); margin: 12px 0 0; }
+.farkle-observer-hud [role=alert] { color: #ffc49e; overflow-wrap: anywhere; }
+@media (max-width: 1099px) {
+  .park-page:has(.farkle-observer-hud) .park-account { visibility: hidden; }
+  .park-page .farkle-observer-hud .farkle-spectator { top: 128px; right: 16px; bottom: auto; width: 248px; max-height: calc(100dvh - 144px); }
+  .farkle-observer-hud .farkle-spectator > summary { padding: 12px; }
+  .farkle-observer-body { padding-inline: 12px; }
+  .farkle-observer-die .dice-face { --die-size: 24px; padding: 3px; }
+}
+@media (max-width: 699px) {
+  .park-page .farkle-observer-hud .farkle-spectator { top: 124px; right: 12px; width: calc(100vw - 24px); max-height: max(148px, calc(100dvh - 300px)); }
+  .farkle-observer-die .dice-face { --die-size: 28px; }
+}
+
+@media (max-height: 600px) and (min-width: 700px) {
+  .park-page .farkle-observer-hud .farkle-spectator { left: 16px; right: auto; top: 128px; bottom: auto; width: min(400px, calc(55vw - 32px)); max-height: calc(100dvh - 144px); }
+}
+@media (max-height: 600px) and (min-width: 1100px) {
+  .park-page .farkle-observer-hud .farkle-spectator { top: 164px; max-height: calc(100dvh - 180px); }
+}
+
+/* Keep the shared scorebar above the compact observer disclosure when park menus are hidden. */
+@media (max-width: 800px) {
+  .park-page .farkle-observer-hud .farkle-scoreboard.farkle-observer-scorebar { top: 12px; }
+}

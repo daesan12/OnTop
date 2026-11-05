@@ -12,6 +12,8 @@ public final class OmokBoard {
     private int moveCount;
     private Outcome outcome = Outcome.PLAYING;
     private Move lastMove;
+    private final List<Move> moves = new ArrayList<>();
+    private List<Point> forbiddenMoves;
 
     public void place(Stone stone, int x, int y) {
         Objects.requireNonNull(stone);
@@ -27,7 +29,9 @@ public final class OmokBoard {
             cells[y][x] = stone.code();
         }
         moveCount++;
+        forbiddenMoves = null;
         lastMove = new Move(x, y, stone);
+        moves.add(lastMove);
         for (int[] direction : DIRECTIONS) {
             int connected = 1 + count(stone, x, y, direction[0], direction[1])
                     + count(stone, x, y, -direction[0], -direction[1]);
@@ -41,6 +45,19 @@ public final class OmokBoard {
         }
     }
 
+    public void undoPair() {
+        if (outcome != Outcome.PLAYING || moves.size() < 2) {
+            throw new IllegalStateException("진행 중인 두 수만 무를 수 있습니다.");
+        }
+        for (int i = 0; i < 2; i++) {
+            Move move = moves.removeLast();
+            cells[move.y()][move.x()] = 0;
+        }
+        moveCount = moves.size();
+        lastMove = moves.isEmpty() ? null : moves.getLast();
+        forbiddenMoves = null;
+    }
+
     public Snapshot snapshot() {
         List<List<Integer>> board = new ArrayList<>();
         for (int[] row : cells) {
@@ -50,7 +67,29 @@ public final class OmokBoard {
             }
             board.add(List.copyOf(copy));
         }
-        return new Snapshot(List.copyOf(board), moveCount, outcome, lastMove);
+        return new Snapshot(List.copyOf(board), moveCount, outcome, lastMove, forbiddenMoves());
+    }
+
+    // Reuse the authoritative rule and calculate once per changed board, not per viewer/timer tick.
+    private List<Point> forbiddenMoves() {
+        if (outcome != Outcome.PLAYING) return List.of();
+        if (forbiddenMoves != null) return forbiddenMoves;
+        List<Point> result = new ArrayList<>();
+        long blacks = moves.stream().filter(move -> move.stone() == Stone.BLACK).count();
+        if (blacks >= 4) {
+            RenjuRules rules = new RenjuRules(cells);
+            for (int y = 0; y < SIZE; y++) for (int x = 0; x < SIZE; x++) {
+                if (cells[y][x] != 0) continue;
+                cells[y][x] = 1;
+                try {
+                    String kind = rules.reason(x, y);
+                    if (kind != null) result.add(new Point(x, y, kind));
+                }
+                finally { cells[y][x] = 0; }
+            }
+        }
+        forbiddenMoves = List.copyOf(result);
+        return forbiddenMoves;
     }
 
     private int count(Stone stone, int x, int y, int dx, int dy) {
@@ -88,5 +127,7 @@ public final class OmokBoard {
 
     public record Move(int x, int y, Stone stone) { }
 
-    public record Snapshot(List<List<Integer>> board, int moveCount, Outcome outcome, Move lastMove) { }
+    public record Point(int x, int y, String kind) { }
+    public record Snapshot(List<List<Integer>> board, int moveCount, Outcome outcome, Move lastMove,
+            List<Point> forbiddenMoves) { }
 }

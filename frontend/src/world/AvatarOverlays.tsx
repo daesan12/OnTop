@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Vector3, type Object3D } from 'three'
+import { type Object3D } from 'three'
+import { OverlayProjection, OverlayView } from './overlayProjection'
 import { OVERHEAD } from '../park/mapConfig'
 import { avatars, useSession } from '../network/worldClient'
 import { useGathering } from '../features/tableLobby/gathering'
@@ -13,6 +14,7 @@ import { ownGameActivity } from './avatarActivity'
 import { useOmokEvents } from '../game/omok/spectatorEvents'
 import { gameChatScope } from '../features/chat/gameChat'
 import { displayNickname } from '../features/gameMaster/displayName'
+import { TypingIndicator } from '../features/chat/TypingIndicator'
 
 export interface AvatarAnchors {
   root: Object3D
@@ -85,6 +87,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
       {speaking && <div className="avatar-speech">{bubble.text}</div>}
       {activityLabel && <div className="avatar-speech avatar-activity">{activityLabel}</div>}
       <div className="avatar-nickname">{nickname}</div>
+      <TypingIndicator userId={id} />
       <OneCardOverhead userId={id} />
       {participant && <div className={`gathering-role${participant.ready ? ' is-ready' : ''}`} style={{ display: 'block' }}>{participant.label}</div>}
     </div>
@@ -96,7 +99,7 @@ export function AvatarOverlays({ targets }: { targets: OverlayTargets }) {
   const ids = useSession((state) => state.ids)
   return (
     <div className="avatar-overlays" aria-hidden="true">
-      {ids.slice(0, OVERHEAD.maxVisible).map((id) => (
+      {ids.map((id) => (
         <AvatarOverlay key={id} id={id} targets={targets} />
       ))}
     </div>
@@ -111,7 +114,8 @@ export function AvatarOverlayPositions({
   rigs: Map<string, AvatarAnchors>
   targets: OverlayTargets
 }) {
-  const point = useMemo(() => new Vector3(), [])
+  const view = useMemo(() => new OverlayView(), [])
+  const projections = useMemo(() => new WeakMap<HTMLDivElement, OverlayProjection>(), [])
   const lastTransforms = useRef(new Map<string, string>())
   useFrame(({ camera, size }) => {
     const session = useSession.getState()
@@ -121,6 +125,7 @@ export function AvatarOverlayPositions({
       : OVERHEAD.maxDistance
     const topdown = camera.layers.mask === 1 << OMOK_FOCUS_LAYER
     camera.updateMatrixWorld()
+    view.update(camera, size.width, size.height)
     for (const [id, element] of targets) {
       const avatar = avatars.get(id)
       const rig = rigs.get(id)
@@ -136,29 +141,22 @@ export function AvatarOverlayPositions({
       )
       if (visible && rig) {
         rig.head.updateWorldMatrix(true, false)
-        point.set(0, OVERHEAD.headOffset, 0).applyMatrix4(rig.head.matrixWorld)
-        point.project(camera)
-        visible =
-          point.z >= -1 &&
-          point.z <= 1 &&
-          Math.abs(point.x) <= 1 &&
-          Math.abs(point.y) <= 1
+        let projection = projections.get(element)
+        if (!projection) {
+          projection = new OverlayProjection(); projections.set(element, projection)
+          lastTransforms.current.delete(id)
+        }
+        const bounds = overlaySizes.get(element)
+        const result = projection.project(rig.head.matrixWorld, camera, view,
+          bounds?.width ?? 260, bounds?.height ?? 40, OVERHEAD.headOffset)
+        visible = result.visible
         if (visible) {
-          const projectedX = ((point.x + 1) * size.width) / 2
-          const projectedY = ((1 - point.y) * size.height) / 2
           // An on-screen head can still have its multi-line speech above the
           // viewport. Keep that bubble whole without revealing off-screen players.
-          const bounds = overlaySizes.get(element)
-          const halfWidth = (bounds?.width ?? 260) / 2
-          const screenX = Math.max(
-            halfWidth + 8,
-            Math.min(size.width - halfWidth - 8, projectedX),
-          )
-          const screenY = Math.max((bounds?.height ?? 40) + 8, projectedY)
-          avatarScreenPositions.set(id, { x: screenX, y: screenY })
-          const x = screenX.toFixed(1)
-          const y = screenY.toFixed(1)
-          const transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -100%)`
+          const previous = avatarScreenPositions.get(id)
+          if (!previous || previous.x !== result.x || previous.y !== result.y)
+            avatarScreenPositions.set(id, { x: result.x, y: result.y })
+          const transform = result.transform
           if (lastTransforms.current.get(id) !== transform) {
             element.style.transform = transform
             lastTransforms.current.set(id, transform)

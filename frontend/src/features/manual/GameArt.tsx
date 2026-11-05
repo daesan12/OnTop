@@ -3,12 +3,14 @@ import fruitDdaengManualArt from "../../game/halligalli/assets/manual.webp";
 import ledgerThumbnail from "../../game/ledger/assets/thumbnail.webp";
 import fishBreadThumbnail from "../bungeoppang/assets/thumbnail.webp";
 import rpsRouletteThumbnail from "../rpsRoulette/assets/thumbnail.webp";
+import moleThumbnail from "../mole/assets/thumbnail.webp";
 
 const gameThumbnails: Partial<Record<ManualGameId, string>> = {
   halligalli: fruitDdaengManualArt,
   ledger: ledgerThumbnail,
   "fish-bread": fishBreadThumbnail,
   "rps-roulette": rpsRouletteThumbnail,
+  "whack-a-mole": moleThumbnail,
 };
 
 /** Local game illustrations: no external asset requests. */
@@ -36,6 +38,20 @@ export function BookIcon() {
 export function GameArt({ game }: { game: ManualGameId }) {
   const thumbnail = gameThumbnails[game];
   if (thumbnail) return <img className={`manual-art art-${game}`} src={thumbnail} alt="" aria-hidden="true" style={{ objectFit: "cover" }} />;
+  if (game === "plus-minus")
+    return (
+      <svg className={`manual-art art-${game}`} viewBox="0 0 320 180" aria-hidden="true">
+        <rect width="320" height="180" fill="#ff8a1f" />
+        <text x="160" y="40" textAnchor="middle" fill="#ffe066" stroke="#b3121c" strokeWidth="5" paintOrder="stroke" fontSize="28" fontWeight="800">더하기 빼기</text>
+        {[[78, "7"], [160, "+"], [242, "5"]].map(([x, label]) => (
+          <g key={x}>
+            <circle cx={x} cy="108" r={label === "+" ? 30 : 44} fill={label === "+" ? "#1f5fd0" : "#2a0404"} stroke="#fff3c4" strokeWidth="4" />
+            <text x={x} y="108" textAnchor="middle" dominantBaseline="central" fill={label === "+" ? "#fff" : "#ff3b30"} fontSize="40" fontWeight="800">{label}</text>
+          </g>
+        ))}
+        <text x="160" y="168" textAnchor="middle" fill="#2a0404" fontSize="15" fontWeight="800">= 12 → 120냥</text>
+      </svg>
+    );
   if (["alkkagi", "janggi", "fishing", "jump", "vr-jump"].includes(game))
     return (
       <svg

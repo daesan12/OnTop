@@ -15,9 +15,397 @@ tags:
   description: 보유 엽전 랭킹
 - name: Park Ranking
   description: 공원 랭킹판의 보유량 목록과 미니게임 우승자
+- name: FITNESS
+  description: 운동기구 보상 상태 조회
 - name: HISTORY
   description: 인증된 본인의 종료 경기 내역과 게임별 전적
 paths:
+  /api/v1/admin/operations/status:
+    get:
+      tags:
+      - ADMIN
+      summary: 관리자 서비스 운영 상태 조회
+      operationId: status
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceOperationResponse"
+      security:
+      - AccessJwt: []
+    put:
+      tags:
+      - ADMIN
+      summary: 서비스 배출·점검·정상 상태 전환
+      operationId: update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceOperationUpdateRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceOperationResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/announcements/{id}:
+    put:
+      tags:
+      - ANNOUNCEMENT
+      summary: 관리자 공지 수정
+      operationId: update_1
+      parameters:
+      - name: id
+        in: path
+        description: 공지 UUID
+        required: true
+        schema:
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementRequest"
+        required: true
+      responses:
+        "400":
+          description: ANNOUNCEMENT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: ANNOUNCEMENT_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "200":
+          description: 저장된 공지
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnnouncementResponse"
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - ANNOUNCEMENT
+      summary: 관리자 공지 생성·같은 ID 재시도
+      operationId: create
+      parameters:
+      - name: id
+        in: path
+        description: 공지 UUID
+        required: true
+        schema:
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementRequest"
+        required: true
+      responses:
+        "400":
+          description: ANNOUNCEMENT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: ANNOUNCEMENT_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "200":
+          description: 저장된 공지
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnnouncementResponse"
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+    delete:
+      tags:
+      - ANNOUNCEMENT
+      summary: 관리자 공지 삭제
+      operationId: remove
+      parameters:
+      - name: id
+        in: path
+        description: 공지 UUID
+        required: true
+        schema:
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          type: string
+          format: uuid
+      - name: version
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "400":
+          description: ANNOUNCEMENT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: ANNOUNCEMENT_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "204":
+          description: 처리 완료
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/announcements/order:
+    put:
+      tags:
+      - ANNOUNCEMENT
+      summary: 관리자 공지 카드 순서 일괄 저장
+      operationId: reorder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementOrderRequest"
+        required: true
+      responses:
+        "400":
+          description: ANNOUNCEMENT_INVALID
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
+          description: ANNOUNCEMENT_CONFLICT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "204":
+          description: 처리 완료
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
   /api/v1/users/onboarding:
     post:
       tags:
@@ -62,7 +450,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserOnboardingResponse"
         "400":
-          description: USER_INVALID_ONBOARDING_REQUEST / USER_INVALID_NICKNAME / USER_INVALID_CHARACTER_GENDER
+          description: USER_INVALID_ONBOARDING_REQUEST / USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME
+            / USER_INVALID_CHARACTER_GENDER
           headers:
             Cache-Control:
               description: no-store
@@ -609,6 +998,203 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/minigames/whack-a-mole/rounds:
+    post:
+      tags:
+      - MINIGAME
+      summary: 두더지 잡기 시작
+      description: 참가비 없이 새 판을 열고 90초 출현표를 반환합니다. 끝내지 않은 이전 판은 보상 없이 닫습니다. Idempotency-Key를
+        재사용하면 같은 판을 반환합니다.
+      operationId: startWhackAMoleRound
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          type: string
+      responses:
+        "400":
+          description: MOLE_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "404":
+          description: MOLE_ROUND_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "409":
+          description: WALLET_NOT_READY / MOLE_ROUND_NOT_FINISHED / MOLE_ROUND_EXPIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "503":
+          description: MOLE_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+        "201":
+          description: 새 판 또는 같은 요청 재확인
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Round"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/whack-a-mole/rounds/{roundId}/complete:
+    post:
+      tags:
+      - MINIGAME
+      summary: 두더지 잡기 완료
+      description: "타격 기록(구멍 0~7, 판 시작 기준 ms)으로 서버가 점수를 다시 계산하고 30점당 1냥을 미니게임 공통 하\
+        루 상한 안에서 지급합니다. 이미 정산한 판은 같은 결과를 반환합니다."
+      operationId: completeWhackAMoleRound
+      parameters:
+      - name: roundId
+        in: path
+        required: true
+        schema:
+          pattern: "^[1-9][0-9]{0,18}$"
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteRequest"
+      responses:
+        "400":
+          description: MOLE_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "404":
+          description: MOLE_ROUND_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "409":
+          description: WALLET_NOT_READY / MOLE_ROUND_NOT_FINISHED / MOLE_ROUND_EXPIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "503":
+          description: MOLE_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "200":
+          description: 정산 결과
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Settlement"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/skewer/admissions:
     post:
       tags:
@@ -715,13 +1301,13 @@ paths:
         영 prod,db에서도 기능 플래그로 활성화할 수 있습니다. dev는 기본 활성화하며 공통 스키마에 V110/V111, v4 초기화\
         \ V124, 납품 영수증 V125, 최종 정산 V126을 추가합니다. 운영은 DB 이력과 마이그레이션 위치 검토가 먼저 필요합니다\
         . 버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4는 납품 승인·checkpoint·다음 주문, 마지막 미승인 납품 검\
-        증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다. v2는 60초, 15점당 1냥, 모든 미니게임 합산 KST 하루 500냥\
+        증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다. v2는 60초, 5점당 1냥, 모든 미니게임 합산 KST 하루 500냥\
         \ 상한을 사용합니다. 탭 이동 중에도 시간은 흐르며, v4·v5는 F1 설명서 일시정지 API와 점수·최대 콤보 랭킹을 제공합니다\
         . score·rewardAmount·userId를 본문에 넣지 않습니다. 상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을\
         \ 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다. v5(신규 판 120초·90초부터 가속, 기존 v5-20261027.1 판은\
         \ 저장된 180초·150초 규칙 유지, 활성 손님 3명, 선택 납품·충원, V128)도 제공하며 v5는 서버 설정 ontop.minigames.bungeoppang-v5-enabled=true일\
         \ 때만 받고, 기본값(false)에서는 409 RULES_VERSION_MISMATCH입니다."
-      operationId: status
+      operationId: status_1
       parameters:
       - name: rulesVersion
         in: query
@@ -831,7 +1417,7 @@ paths:
         서 사용하며, 운영 prod,db에서도 기능 플래그로 활성화할 수 있습니다. dev는 기본 활성화하며 공통 스키마에 V110/V111,\
         \ v4 초기화 V124, 납품 영수증 V125, 최종 정산 V126을 추가합니다. 운영은 DB 이력과 마이그레이션 위치 검토가 먼저\
         \ 필요합니다. 버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4는 납품 승인·checkpoint·다음 주문, 마지막 미\
-        승인 납품 검증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다. v2는 60초, 15점당 1냥, 모든 미니게임 합산 KST\
+        승인 납품 검증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다. v2는 60초, 5점당 1냥, 모든 미니게임 합산 KST\
         \ 하루 500냥 상한을 사용합니다. 탭 이동 중에도 시간은 흐르며, v4·v5는 F1 설명서 일시정지 API와 점수·최대 콤보 랭킹\
         을 제공합니다. score·rewardAmount·userId를 본문에 넣지 않습니다. 상태 GET도 지갑 잠금과 만료 세션 INVALID\
         \ 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다. v5(신규 판 120초·90초부터 가속, 기존 v5-20261027.1\
@@ -979,7 +1565,7 @@ paths:
         \ dev는 기본 활성화하며 공통 스키마에 V110/V111, v4 초기화 V124, 납품 영수증 V125, 최종 정산 V126을 추\
         가합니다. 운영은 DB 이력과 마이그레이션 위치 검토가 먼저 필요합니다. 버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4는\
         \ 납품 승인·checkpoint·다음 주문, 마지막 미승인 납품 검증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다\
-        . v2는 60초, 15점당 1냥, 모든 미니게임 합산 KST 하루 500냥 상한을 사용합니다. 탭 이동 중에도 시간은 흐르며, v4·\
+        . v2는 60초, 5점당 1냥, 모든 미니게임 합산 KST 하루 500냥 상한을 사용합니다. 탭 이동 중에도 시간은 흐르며, v4·\
         v5는 F1 설명서 일시정지 API와 점수·최대 콤보 랭킹을 제공합니다. score·rewardAmount·userId를 본문에 넣지\
         \ 않습니다. 상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다. v5(신\
         규 판 120초·90초부터 가속, 기존 v5-20261027.1 판은 저장된 180초·150초 규칙 유지, 활성 손님 3명, 선택 납\
@@ -1122,8 +1708,8 @@ paths:
         서도 기능 플래그로 활성화할 수 있습니다. dev는 기본 활성화하며 공통 스키마에 V110/V111, v4 초기화 V124, 납품 영\
         수증 V125, 최종 정산 V126을 추가합니다. 운영은 DB 이력과 마이그레이션 위치 검토가 먼저 필요합니다. 버전 생략은 기존 v2이\
         고 v4는 명시적으로 선택합니다. v4는 납품 승인·checkpoint·다음 주문, 마지막 미승인 납품 검증, 영속 멱등 완료와 Wallet\
-        \ 일일 한도 지급을 제공합니다. v2는 60초, 15점당 1냥, 모든 미니게임 합산 KST 하루 500냥 상한을 사용합니다. 탭 이\
-        동 중에도 시간은 흐르며, v4·v5는 F1 설명서 일시정지 API와 점수·최대 콤보 랭킹을 제공합니다. score·rewardAmount·\
+        \ 일일 한도 지급을 제공합니다. v2는 60초, 5점당 1냥, 모든 미니게임 합산 KST 하루 500냥 상한을 사용합니다. 탭 이동\
+        \ 중에도 시간은 흐르며, v4·v5는 F1 설명서 일시정지 API와 점수·최대 콤보 랭킹을 제공합니다. score·rewardAmount·\
         userId를 본문에 넣지 않습니다. 상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜\
         잭션이 아닙니다. v5(신규 판 120초·90초부터 가속, 기존 v5-20261027.1 판은 저장된 180초·150초 규칙 유지,\
         \ 활성 손님 3명, 선택 납품·충원, V128)도 제공하며 v5는 서버 설정 ontop.minigames.bungeoppang-v5-enabled=true일\
@@ -1449,8 +2035,8 @@ paths:
         서도 기능 플래그로 활성화할 수 있습니다. dev는 기본 활성화하며 공통 스키마에 V110/V111, v4 초기화 V124, 납품 영\
         수증 V125, 최종 정산 V126을 추가합니다. 운영은 DB 이력과 마이그레이션 위치 검토가 먼저 필요합니다. 버전 생략은 기존 v2이\
         고 v4는 명시적으로 선택합니다. v4는 납품 승인·checkpoint·다음 주문, 마지막 미승인 납품 검증, 영속 멱등 완료와 Wallet\
-        \ 일일 한도 지급을 제공합니다. v2는 60초, 15점당 1냥, 모든 미니게임 합산 KST 하루 500냥 상한을 사용합니다. 탭 이\
-        동 중에도 시간은 흐르며, v4·v5는 F1 설명서 일시정지 API와 점수·최대 콤보 랭킹을 제공합니다. score·rewardAmount·\
+        \ 일일 한도 지급을 제공합니다. v2는 60초, 5점당 1냥, 모든 미니게임 합산 KST 하루 500냥 상한을 사용합니다. 탭 이동\
+        \ 중에도 시간은 흐르며, v4·v5는 F1 설명서 일시정지 API와 점수·최대 콤보 랭킹을 제공합니다. score·rewardAmount·\
         userId를 본문에 넣지 않습니다. 상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜\
         잭션이 아닙니다. v5(신규 판 120초·90초부터 가속, 기존 v5-20261027.1 판은 저장된 180초·150초 규칙 유지,\
         \ 활성 손님 3명, 선택 납품·충원, V128)도 제공하며 v5는 서버 설정 ontop.minigames.bungeoppang-v5-enabled=true일\
@@ -1838,7 +2424,7 @@ paths:
         \ 운영 prod,db에서도 기능 플래그로 활성화할 수 있습니다. dev는 기본 활성화하며 공통 스키마에 V110/V111, v4 초\
         기화 V124, 납품 영수증 V125, 최종 정산 V126을 추가합니다. 운영은 DB 이력과 마이그레이션 위치 검토가 먼저 필요합니다\
         . 버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4는 납품 승인·checkpoint·다음 주문, 마지막 미승인 납품 검\
-        증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다. v2는 60초, 15점당 1냥, 모든 미니게임 합산 KST 하루 500냥\
+        증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다. v2는 60초, 5점당 1냥, 모든 미니게임 합산 KST 하루 500냥\
         \ 상한을 사용합니다. 탭 이동 중에도 시간은 흐르며, v4·v5는 F1 설명서 일시정지 API와 점수·최대 콤보 랭킹을 제공합니다\
         . score·rewardAmount·userId를 본문에 넣지 않습니다. 상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을\
         \ 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다. v5(신규 판 120초·90초부터 가속, 기존 v5-20261027.1 판은\
@@ -2314,6 +2900,92 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RpsRouletteStateResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/plus-minus/rounds:
+    post:
+      tags:
+      - MINIGAME
+      summary: 더하기 빼기 아케이드 START
+      description: 참가비 30냥과 하루 판 수를 차감하고 세 릴의 칸을 정해 지급까지 한 번에 정산합니다. 정지 버튼은 화면 연출이며
+        결과를 바꾸지 않습니다. Idempotency-Key를 재사용하면 같은 판을 반환하며 다시 차감하지 않습니다.
+      operationId: startPlusMinusRound
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          type: string
+      responses:
+        "400":
+          description: PLUS_MINUS_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "409":
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / PLUS_MINUS_DAILY_LIMIT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "503":
+          description: PLUS_MINUS_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "201":
+          description: 정산된 판 또는 같은 요청 재확인
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
       security:
       - AccessJwt: []
   /api/v1/minigames/jumpmap/tips:
@@ -2839,6 +3511,157 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - OAuthSession: []
+  /api/v1/admin/wallet-grants:
+    post:
+      tags:
+      - ADMIN
+      summary: 전 회원 엽전 일괄 지급
+      operationId: execute
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminWalletGrantExecuteRequest"
+        required: true
+      responses:
+        "200":
+          description: 일괄 지급 완료 또는 멱등 재요청 결과
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWalletGrantExecuteResponse"
+        "400":
+          description: INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "403":
+          description: AUTH_ACCESS_DENIED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "409":
+          description: 대상 변경 / 지갑 미준비 / 요청 ID 충돌
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "503":
+          description: ADMIN_WALLET_GRANT_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/wallet-grants/preview:
+    post:
+      tags:
+      - ADMIN
+      summary: 전 회원 엽전 지급 미리보기
+      operationId: preview
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminWalletGrantPreviewRequest"
+        required: true
+      responses:
+        "200":
+          description: 대상 인원과 총 지급액 반환
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWalletGrantPreviewResponse"
+        "400":
+          description: INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "401":
+          description: AUTH_AUTHENTICATION_REQUIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "403":
+          description: AUTH_ACCESS_DENIED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+        "503":
+          description: ADMIN_WALLET_GRANT_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/users/me:
     get:
       tags:
@@ -2974,10 +3797,10 @@ paths:
       tags:
       - User
       summary: 내 닉네임 수정
-      description: "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자. 대소문자 무시 UNIQUE(탈퇴 회원 포함),\
-        \ 본인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기를 저장합니다. 사전 조회와 별도로 트랜잭션에서\
-        \ 최종 중복 검증합니다."
-      operationId: update
+      description: "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지합니다\
+        . 대소문자 무시 UNIQUE(탈퇴 회원 포함), 본인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기\
+        를 저장합니다. 사전 조회와 별도로 트랜잭션에서 최종 중복 검증합니다."
+      operationId: update_2
       requestBody:
         content:
           application/json:
@@ -2998,6 +3821,7 @@ paths:
                 $ref: "#/components/schemas/UserProfileResponse"
         "400":
           description: USER_INVALID_NICKNAME_UPDATE_REQUEST / USER_INVALID_NICKNAME
+            / USER_RESERVED_NICKNAME
           headers:
             Cache-Control:
               description: no-store
@@ -3191,6 +4015,51 @@ paths:
                 - $ref: "#/components/schemas/ShopErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/world/fitness/rewards/status:
+    get:
+      tags:
+      - FITNESS
+      summary: 본인 운동기구 일일 수입 조회
+      description: "실제 60초마다 1냥, 한국 시간 하루 최대 300냥으로 미니게임 500냥과 별도입니다. todayEarned는\
+        \ 확정된 원장 합계이며 nextRewardAt은 지급 예정 경계입니다. 지급 지연 중에는 과거 시각일 수 있으며, 한도 도달·미이용\
+        \ 시 null입니다. 하차 시 미완료 시간은 초기화됩니다. 조회는 지급이나 지갑 생성을 수행하지 않습니다."
+      operationId: getFitnessRewardStatus
+      responses:
+        "200":
+          description: "본인 운동 수입 (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FitnessRewardStatusResponse"
+        "401":
+          description: 활성 회원 인증 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: "FITNESS_UNAVAILABLE: 수입 조회 지연"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
   /api/v1/wallets/me:
     get:
       tags:
@@ -3382,9 +4251,9 @@ paths:
       tags:
       - User
       summary: 닉네임 사용 가능 여부
-      description: "Access JWT 또는 온보딩 전용 Bearer 중 하나를 사용합니다. 온보딩 토큰은 소비/연장하지 않습니다\
-        . 완성형 한글/영문/숫자 2~8자, 대소문자 무시, 탈퇴 회원 포함. 기존 회원의 현재 닉네임은 true입니다. 조회는 예약이 아니\
-        며 실제 가입/변경 시 최종 검증이 필요합니다."
+      description: Access JWT 또는 온보딩 전용 Bearer 중 하나를 사용합니다. 온보딩 토큰은 소비/연장하지 않습니다.
+        완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지합니다. 중복은 대소문자를 무시하고 탈퇴 회원도 포함합니다.
+        기존 회원의 현재 닉네임은 true입니다. 조회는 예약이 아니며 실제 가입/변경 시 최종 검증이 필요합니다.
       operationId: check
       parameters:
       - name: nickname
@@ -3393,7 +4262,7 @@ paths:
         schema:
           maxLength: 8
           minLength: 2
-          pattern: "^[가-힣A-Za-z0-9]{2,8}$"
+          pattern: "^(?![Gg][Mm])[가-힣A-Za-z0-9]{2,8}$"
           type: string
           example: 온탑고수
       responses:
@@ -3409,7 +4278,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/NicknameAvailabilityResponse"
         "400":
-          description: USER_INVALID_NICKNAME
+          description: USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME
           headers:
             Cache-Control:
               description: no-store
@@ -3576,6 +4445,7 @@ paths:
           - LIAR_BRIDGE
           - DICE_LEDGER
           - HALLI_GALLI
+          - ALKKAGI
       responses:
         "200":
           description: 본인 경기 내역 (no-store)
@@ -4099,6 +4969,112 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/operations/status:
+    get:
+      tags:
+      - OPERATION
+      summary: 공개 서비스 운영 상태 조회
+      description: 점검 화면에 사용할 상태와 예상 재개 시각을 반환합니다.
+      operationId: status_2
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceOperationResponse"
+  /api/v1/minigames/whack-a-mole/status:
+    get:
+      tags:
+      - MINIGAME
+      summary: 두더지 잡기 상태 조회
+      description: "오늘 받은 미니게임 보상 합계, 하루 상한, 최고 점수, 규칙과 가장 최근 정산 판을 반환합니다."
+      operationId: getWhackAMoleStatus
+      responses:
+        "400":
+          description: MOLE_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "404":
+          description: MOLE_ROUND_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "409":
+          description: WALLET_NOT_READY / MOLE_ROUND_NOT_FINISHED / MOLE_ROUND_EXPIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "503":
+          description: MOLE_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+        "200":
+          description: 현재 상태
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/State"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/sessions/{sessionId}:
     get:
       tags:
@@ -4108,7 +5084,7 @@ paths:
         \ dev는 기본 활성화하며 공통 스키마에 V110/V111, v4 초기화 V124, 납품 영수증 V125, 최종 정산 V126을 추\
         가합니다. 운영은 DB 이력과 마이그레이션 위치 검토가 먼저 필요합니다. 버전 생략은 기존 v2이고 v4는 명시적으로 선택합니다. v4는\
         \ 납품 승인·checkpoint·다음 주문, 마지막 미승인 납품 검증, 영속 멱등 완료와 Wallet 일일 한도 지급을 제공합니다\
-        . v2는 60초, 15점당 1냥, 모든 미니게임 합산 KST 하루 500냥 상한을 사용합니다. 탭 이동 중에도 시간은 흐르며, v4·\
+        . v2는 60초, 5점당 1냥, 모든 미니게임 합산 KST 하루 500냥 상한을 사용합니다. 탭 이동 중에도 시간은 흐르며, v4·\
         v5는 F1 설명서 일시정지 API와 점수·최대 콤보 랭킹을 제공합니다. score·rewardAmount·userId를 본문에 넣지\
         \ 않습니다. 상태 GET도 지갑 잠금과 만료 세션 INVALID 갱신을 수행할 수 있습니다. 읽기 전용 트랜잭션이 아닙니다. v5(신\
         규 판 120초·90초부터 가속, 기존 v5-20261027.1 판은 저장된 180초·150초 규칙 유지, 활성 손님 3명, 선택 납\
@@ -4313,13 +5289,89 @@ paths:
                 $ref: "#/components/schemas/RpsRouletteStateResponse"
       security:
       - AccessJwt: []
+  /api/v1/minigames/plus-minus/status:
+    get:
+      tags:
+      - MINIGAME
+      summary: 더하기 빼기 아케이드 상태 조회
+      description: "오늘 판 수, 사용 가능 잔액, 릴 구성과 가장 최근 판을 반환합니다."
+      operationId: getPlusMinusStatus
+      responses:
+        "400":
+          description: PLUS_MINUS_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "409":
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / PLUS_MINUS_DAILY_LIMIT
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "503":
+          description: PLUS_MINUS_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+        "200":
+          description: 현재 상태
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PlusMinusStateResponse"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/jumpmap/status:
     get:
       tags:
       - MINIGAME
       summary: 점프맵 상태
       description: "activeRun은 요청 채널에 있을 때만, lastRun은 최근 종료 판을 잠시만 담는다."
-      operationId: status_1
+      operationId: status_3
       parameters:
       - name: channelId
         in: query
@@ -4767,6 +5819,116 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
+  /api/v1/announcements:
+    get:
+      tags:
+      - ANNOUNCEMENT
+      summary: 회원 게시 공지 조회
+      description: 서버 시각 기준 현재 게시 본문만 표시 순서대로 반환합니다.
+      operationId: visible
+      responses:
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "200":
+          description: 게시 공지
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicAnnouncementsResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/announcements:
+    get:
+      tags:
+      - ANNOUNCEMENT
+      summary: 관리자 전체 공지 조회
+      description: "운영 관리자 전용. 숨김·기간 종료 포함, 삭제 제외."
+      operationId: list_1
+      responses:
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 접근 권한 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 공지 저장소 준비 중 또는 조회 실패
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "200":
+          description: 전체 공지
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnnouncementResponse"
+      security:
+      - AccessJwt: []
   /api/v1/admin/me:
     get:
       tags:
@@ -4815,7 +5977,7 @@ paths:
       - FEEDBACK
       summary: 관리자 소리함 조회
       description: 서버 관리자 회원 ID 목록에 등록된 활성 회원만 조회합니다.
-      operationId: list_1
+      operationId: list_2
       parameters:
       - name: cursor
         in: query
@@ -4963,6 +6125,121 @@ paths:
       - AccessJwt: []
 components:
   schemas:
+    ServiceOperationUpdateRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum:
+          - NORMAL
+          - DRAINING
+          - MAINTENANCE
+        notice:
+          type: string
+        expectedOpenAt:
+          type: string
+          format: date-time
+        expectedVersion:
+          type: integer
+          format: int64
+    ServiceOperationResponse:
+      type: object
+      properties:
+        mode:
+          type: string
+        notice:
+          type: string
+        maintenanceStartedAt:
+          type: string
+          format: date-time
+        expectedOpenAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
+        serverTime:
+          type: string
+          format: date-time
+    AnnouncementRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        text:
+          type: string
+        published:
+          type: boolean
+        displayOrder:
+          type: integer
+          format: int32
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        expectedVersion:
+          type: integer
+          format: int64
+    AuthErrorResponse:
+      required:
+      - code
+      - message
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    AnnouncementResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        text:
+          type: string
+        published:
+          type: boolean
+        displayOrder:
+          type: integer
+          format: int32
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
+    AnnouncementOrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+        expectedVersion:
+          type: integer
+          format: int64
+    AnnouncementOrderRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementOrderItem"
     UserOnboardingRequest:
       required:
       - characterGender
@@ -4972,7 +6249,7 @@ components:
         nickname:
           maxLength: 8
           minLength: 2
-          pattern: "^[가-힣A-Za-z0-9]{2,8}$"
+          pattern: "^(?![Gg][Mm])[가-힣A-Za-z0-9]{2,8}$"
           type: string
           example: 미지
         characterGender:
@@ -5011,16 +6288,6 @@ components:
         expiresIn:
           type: integer
           format: int64
-    AuthErrorResponse:
-      required:
-      - code
-      - message
-      type: object
-      properties:
-        code:
-          type: string
-        message:
-          type: string
     PurchaseResponse:
       required:
       - balanceAfter
@@ -5136,6 +6403,133 @@ components:
           type: string
           format: date-time
           nullable: true
+    Mole:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+        hole:
+          type: integer
+          format: int32
+        kind:
+          type: string
+        hits:
+          type: integer
+          format: int32
+        appearAt:
+          type: integer
+          format: int32
+        leaveAt:
+          type: integer
+          format: int32
+    Round:
+      type: object
+      properties:
+        id:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        rules:
+          $ref: "#/components/schemas/Rules"
+        moles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Mole"
+    Rules:
+      type: object
+      properties:
+        durationMs:
+          type: integer
+          format: int32
+        phaseMs:
+          type: integer
+          format: int32
+        keys:
+          type: array
+          items:
+            type: string
+        pointsPerCoin:
+          type: integer
+          format: int32
+        normalPoints:
+          type: integer
+          format: int32
+        goldPoints:
+          type: integer
+          format: int32
+        decoyPenalty:
+          type: integer
+          format: int32
+        rapidPoints:
+          type: array
+          items:
+            type: integer
+            format: int32
+        comboSteps:
+          type: array
+          items:
+            type: integer
+            format: int32
+        comboTenths:
+          type: array
+          items:
+            type: integer
+            format: int32
+    CompleteRequest:
+      type: object
+      properties:
+        hits:
+          type: array
+          items:
+            $ref: "#/components/schemas/Hit"
+    Hit:
+      type: object
+      properties:
+        hole:
+          type: integer
+          format: int32
+        at:
+          type: integer
+          format: int32
+    Result:
+      type: object
+      properties:
+        id:
+          type: string
+        score:
+          type: integer
+          format: int32
+        maxCombo:
+          type: integer
+          format: int32
+        caught:
+          type: integer
+          format: int32
+        calculatedReward:
+          type: integer
+          format: int32
+        reward:
+          type: integer
+          format: int32
+        settledAt:
+          type: string
+          format: date-time
+    Settlement:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/Result"
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
+        bestScore:
+          type: integer
+          format: int32
     SkewerAdmissionResponse:
       required:
       - availableBalance
@@ -5919,6 +7313,123 @@ components:
           - ROCK
           - SCISSORS
           - PAPER
+    PlusMinusRound:
+      required:
+      - first
+      - firstCell
+      - id
+      - operator
+      - operatorCell
+      - outcome
+      - payout
+      - playedAt
+      - second
+      - secondCell
+      type: object
+      properties:
+        id:
+          type: string
+        firstCell:
+          type: integer
+          format: int32
+        operatorCell:
+          type: integer
+          format: int32
+        secondCell:
+          type: integer
+          format: int32
+        first:
+          type: integer
+          format: int32
+        operator:
+          type: string
+          enum:
+          - "+"
+          - "-"
+        second:
+          type: integer
+          description: -1은 JACKPOT
+          format: int32
+        result:
+          type: integer
+          description: JACKPOT 칸이면 null
+          format: int32
+        outcome:
+          type: string
+          enum:
+          - LOST
+          - PAID
+          - JACKPOT
+        payout:
+          type: integer
+          format: int32
+        playedAt:
+          type: string
+          format: date-time
+    PlusMinusRules:
+      required:
+      - dailyPlays
+      - fee
+      - firstReel
+      - jackpotFirst
+      - jackpotPayout
+      - operatorReel
+      - pointPayout
+      - secondReel
+      type: object
+      properties:
+        fee:
+          type: integer
+          format: int32
+        dailyPlays:
+          type: integer
+          format: int32
+        firstReel:
+          type: array
+          items:
+            type: integer
+            format: int32
+        operatorReel:
+          type: array
+          items:
+            type: string
+        secondReel:
+          type: array
+          description: -1은 JACKPOT 칸
+          items:
+            type: integer
+            description: -1은 JACKPOT 칸
+            format: int32
+        pointPayout:
+          type: integer
+          format: int32
+        jackpotFirst:
+          type: integer
+          format: int32
+        jackpotPayout:
+          type: integer
+          format: int32
+    PlusMinusStateResponse:
+      required:
+      - availableBalance
+      - playedToday
+      - rules
+      - serverNow
+      type: object
+      properties:
+        serverNow:
+          type: string
+          format: date-time
+        availableBalance:
+          type: integer
+          format: int64
+        playedToday:
+          type: integer
+          format: int32
+        rules:
+          $ref: "#/components/schemas/PlusMinusRules"
+        round:
+          $ref: "#/components/schemas/PlusMinusRound"
     FeedbackReceiptResponse:
       required:
       - acceptedAt
@@ -6020,6 +7531,70 @@ components:
           type: integer
           format: int64
           example: 600
+    AdminWalletGrantExecuteRequest:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        amountPerMember:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        expectedRecipientCount:
+          type: integer
+          format: int64
+    AdminWalletGrantExecuteResponse:
+      type: object
+      properties:
+        batchId:
+          type: integer
+          format: int64
+        requestId:
+          type: string
+          format: uuid
+        amountPerMember:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        recipientCount:
+          type: integer
+          format: int64
+        totalAmount:
+          type: integer
+          format: int64
+        executedAt:
+          type: string
+          format: date-time
+    AdminWalletGrantPreviewRequest:
+      type: object
+      properties:
+        amountPerMember:
+          type: integer
+          format: int64
+        reason:
+          type: string
+    AdminWalletGrantPreviewResponse:
+      type: object
+      properties:
+        amountPerMember:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        recipientCount:
+          type: integer
+          format: int64
+        missingWalletCount:
+          type: integer
+          format: int64
+        totalAmount:
+          type: integer
+          format: int64
+        executable:
+          type: boolean
     UserNicknameUpdateRequest:
       required:
       - nickname
@@ -6028,7 +7603,7 @@ components:
         nickname:
           maxLength: 8
           minLength: 2
-          pattern: "^[가-힣A-Za-z0-9]{2,8}$"
+          pattern: "^(?![Gg][Mm])[가-힣A-Za-z0-9]{2,8}$"
           type: string
           example: 온탑고수
       additionalProperties: false
@@ -6121,6 +7696,41 @@ components:
           format: int32
         equipped:
           type: boolean
+    FitnessRewardStatusResponse:
+      required:
+      - activeLeaseId
+      - dailyCap
+      - earningsDate
+      - enabled
+      - nextRewardAt
+      - rewardIntervalSeconds
+      - serverNow
+      - todayEarned
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        earningsDate:
+          type: string
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
+        rewardIntervalSeconds:
+          type: integer
+          format: int32
+        serverNow:
+          type: integer
+          format: int64
+        nextRewardAt:
+          type: integer
+          format: int64
+          nullable: true
+        activeLeaseId:
+          type: string
+          nullable: true
     WalletBalanceResponse:
       required:
       - availableBalance
@@ -6586,6 +8196,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NoteResponse"
+    State:
+      type: object
+      properties:
+        serverNow:
+          type: string
+          format: date-time
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
+        bestScore:
+          type: integer
+          format: int32
+        rules:
+          $ref: "#/components/schemas/Rules"
+        last:
+          $ref: "#/components/schemas/Result"
     BungeoppangStatusResponse:
       required:
       - dailyCap
@@ -6762,12 +8391,41 @@ components:
         expiresIn:
           type: integer
           format: int64
+    PublicAnnouncement:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: integer
+          format: int64
+    PublicAnnouncementsResponse:
+      type: object
+      properties:
+        serverTime:
+          type: string
+          format: date-time
+        refreshAt:
+          type: string
+          format: date-time
+        announcements:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicAnnouncement"
     AdminAccessResponse:
       type: object
       properties:
         canRead:
           type: boolean
         canGrant:
+          type: boolean
+        canOperate:
           type: boolean
     Entry:
       required:

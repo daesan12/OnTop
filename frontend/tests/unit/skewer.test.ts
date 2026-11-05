@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { COUNTDOWN_MS, ENDING_MS, GREETING_MS, INSERT_ALIGNMENT, INSERT_RADIUS, ORDER_MS, SERVING_Z, availableEnds, canServe, canThread, createDeck, fabricSpans, formatTime, gameReducer, initialGame, matchesOrder, transitionText, validRecipe } from '../../src/features/skewer/game'
+import { COUNTDOWN_MS, ENDING_MS, GREETING_MS, INSERT_ALIGNMENT, INSERT_RADIUS, ORDER_MS, SERVING_Z, availablePieces, canServe, canThread, createDeck, formatTime, gameReducer, initialGame, matchesOrder, transitionText, validRecipe } from '../../src/features/skewer/game'
 import type { GameCard, GameState, IngredientId, OrderCard } from '../../src/features/skewer/game'
 
 const recipe: IngredientId[] = ['tomato', 'cheese', 'pepper', 'shrimp', 'cheese', 'bacon', 'beef', 'bacon']
@@ -46,7 +46,7 @@ describe('start and completion transitions', () => {
   })
 })
 
-describe('original-style skewer assembly', () => {
+describe('cube skewer assembly', () => {
   it('selection does not add ingredients; threading is a separate action', () => {
     const selected = gameReducer(start(), { type: 'select', ingredient: 'tomato', now: 2000 })
     expect(selected.pending).toBe('tomato')
@@ -58,17 +58,19 @@ describe('original-style skewer assembly', () => {
     const duplicate = fill(first, ['tomato'])
     expect(duplicate.skewer).toEqual(['tomato'])
     expect(duplicate.feedback).toBe('error')
-    expect(availableEnds(first.skewer, 'tomato')).toBe(0)
+    expect(availablePieces(first.skewer, 'tomato')).toBe(0)
   })
-  it('provides two fabric holes, and a third use is rejected', () => {
+  it('provides three independent cubes, rejects a fourth, and forbids single-cube completion', () => {
     const first = fill(start(), ['cheese', 'tomato'])
-    expect(availableEnds(first.skewer, 'cheese')).toBe(1)
+    expect(availablePieces(first.skewer, 'cheese')).toBe(2)
     expect(validRecipe(first.skewer)).toBe(false)
     const complete = fill(first, ['cheese'])
     expect(validRecipe(complete.skewer)).toBe(true)
-    expect(fill(complete, ['cheese']).skewer).toEqual(complete.skewer)
+    const triple = fill(complete, ['cheese'])
+    expect(validRecipe(triple.skewer)).toBe(true)
+    expect(fill(triple, ['cheese']).skewer).toEqual(triple.skewer)
   })
-  it('checks both fabric endpoints and rejects the right solids in the wrong wrap', () => {
+  it('checks cube positions, counts and every other ingredient', () => {
     expect(matchesOrder(recipe, recipe)).toBe(true)
     expect(matchesOrder(['tomato', 'pepper', 'cheese', 'shrimp', 'cheese', 'bacon', 'beef', 'bacon'], recipe)).toBe(false)
     expect(matchesOrder(recipe.filter(id => id !== 'cheese'), recipe)).toBe(false)
@@ -76,17 +78,22 @@ describe('original-style skewer assembly', () => {
   it('accepts a whole-skewer reversal without imposing artificial cube rotations', () => {
     expect(matchesOrder([...recipe].reverse(), recipe)).toBe(true)
   })
-  it('supports nested, crossing, folded and still-open fabric spans', () => {
-    expect(fabricSpans(['cheese', 'bacon', 'tomato', 'cheese', 'bacon'])).toEqual([{ id: 'cheese', start: 0, end: 3 }, { id: 'bacon', start: 1, end: 4 }])
-    expect(fabricSpans(['cheese', 'cheese', 'tomato'])).toEqual([{ id: 'cheese', start: 0, end: 1 }])
-    expect(fabricSpans(['cheese', 'tomato'])).toEqual([{ id: 'cheese', start: 0, end: null }])
+  it('requires two or three cubes of each used kind and rejects unknown ingredients', () => {
+    expect(matchesOrder(['cheese', 'tomato'], ['cheese', 'tomato'])).toBe(false)
+    expect(matchesOrder(['bacon'], ['bacon'])).toBe(false)
+    expect(validRecipe(['cheese', 'cheese', 'cheese'])).toBe(true)
+    expect(validRecipe(['cheese', 'cheese', 'cheese', 'cheese'])).toBe(false)
+    expect(validRecipe(['bacon', 'bacon', 'bacon'])).toBe(true)
+    expect(validRecipe(['bacon', 'bacon', 'bacon', 'bacon'])).toBe(false)
+    expect(validRecipe(['mushroom'] as IngredientId[])).toBe(false)
+    expect(validRecipe([])).toBe(false)
   })
   it('returns only the end piece and restores its inventory availability', () => {
     const full = fill(start())
     const undone = gameReducer(full, { type: 'unthread', now: 3000 })
     expect(undone.skewer).toEqual(recipe.slice(0, -1))
-    expect(availableEnds(undone.skewer, 'bacon')).toBe(1)
-    expect(availableEnds(undone.skewer, 'beef')).toBe(0)
+    expect(availablePieces(undone.skewer, 'bacon')).toBe(2)
+    expect(availablePieces(undone.skewer, 'beef')).toBe(0)
   })
   it('awards menu value once, preserving the served skewer for retrieval next round', () => {
     const result = gameReducer(fill(start()), { type: 'submit', now: 3000 })

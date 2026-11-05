@@ -5,7 +5,9 @@ export const DIE_PIPS: Record<number, readonly number[]> = {
 }
 export function DiceFace({ value }: { value: number }) {
   return <span className="dice-face" role="img" aria-label={`${value}눈`} data-face={value}>
-    {Array.from({ length: 9 }, (_, i) => <i key={i} data-pip={DIE_PIPS[value]?.includes(i) || undefined} />)}
+    <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+      {DIE_PIPS[value]?.map(pip => <circle key={pip} data-pip cx={20 + pip % 3 * 30} cy={20 + Math.floor(pip / 3) * 30} r="9" />)}
+    </svg>
   </span>
 }
 export function DiceFaces({ values }: { values: readonly number[] }) {

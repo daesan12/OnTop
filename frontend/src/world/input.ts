@@ -256,9 +256,11 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) {
       event.preventDefault(); benchDragging = benchScope; canvas.focus({ preventScroll: true }); return
     }
+    const game = useGame.getState().game
+    if (game?.role === 'PLAYER' && game.dice?.status === 'PLAYING') return
     if (event.button === 2 && scope && session.status === 'connected'
       && !Object.values(inputState).some(Boolean) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName ?? '')) {
-      event.preventDefault()
+      if (event.button === 2) event.preventDefault()
       seatDragging = scope
       canvas.focus({ preventScroll: true })
       return
@@ -278,8 +280,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       turnBenchLook(event.movementX); return
     }
     if (seatDragging) {
-      const session = useSession.getState()
-      if (seatDragging !== seatScope(session) || session.status !== 'connected' || Object.values(inputState).some(Boolean)) {
+      const session = useSession.getState(), game = useGame.getState().game
+      if (game?.role === 'PLAYER' && game.dice?.status === 'PLAYING' || seatDragging !== seatScope(session) || session.status !== 'connected' || Object.values(inputState).some(Boolean)) {
         seatDragging = ''
         return
       }

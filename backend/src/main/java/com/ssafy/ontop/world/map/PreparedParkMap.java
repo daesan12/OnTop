@@ -31,6 +31,7 @@ public final class PreparedParkMap {
     private final Catalog facilities;
     private final Reach notes;
     private final Reach feedback;
+    private final Reach vrEntrance;
 
     private PreparedParkMap(GeneratedParkMapLoader.ValidatedMap map, Set<String> channels) throws IOException {
         JsonNode data = map.document().path("data");
@@ -65,6 +66,12 @@ public final class PreparedParkMap {
         Pose base = position(mailbox.path("position"), 0);
         feedback = new Reach(new Pose(base.x(), base.y() + 0.8, base.z(), 0),
                 positive(mailbox.path("radius")), 0.7, false);
+        vrEntrance = java.util.stream.StreamSupport.stream(data.path("facilities").spliterator(), false)
+                .filter(node -> "vr-experience-hall".equals(node.path("id").asText())).findFirst().map(vr -> {
+                    Pose site = position(vr.path("position"), vr.path("yaw").asDouble());
+                    return new Reach(new Pose(site.x() + Math.sin(site.yaw()) * 7.7, 0.8,
+                            site.z() + Math.cos(site.yaw()) * 7.7, site.yaw()), 2.8, 0.9, false);
+                }).orElse(null);
         collisionData = physicsData(map);
         metadata = map.metadata();
     }
@@ -80,6 +87,7 @@ public final class PreparedParkMap {
     public Catalog facilities() { return facilities; }
     public Reach notes() { return notes; }
     public Reach feedback() { return feedback; }
+    public java.util.Optional<Reach> vrEntrance() { return java.util.Optional.ofNullable(vrEntrance); }
 
     /** 명시적으로 선택한 별도 장면을 생성하며 ParkScene.load()의 기본 장면을 교체하지 않는다. */
     public ParkScene createScene() {

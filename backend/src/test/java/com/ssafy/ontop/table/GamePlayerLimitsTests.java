@@ -47,7 +47,7 @@ class GamePlayerLimitsTests {
         room.leave("second");
         room.setReady("third", true);
         room.setReady("fourth", true);
-        room.selectGame(TableGame.DICE);
+        room.selectGame(TableGame.OMOK);
         assertThat(room.snapshot().seats()).extracting(TableRoom.Seat::userId).containsExactly("third", "fourth");
         assertThat(room.snapshot().selectorUserId()).isEqualTo("third");
         assertThat(room.snapshot().allReady()).isFalse();

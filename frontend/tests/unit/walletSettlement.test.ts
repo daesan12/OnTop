@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { receiveWalletSettlement, refreshWalletAfterSettlement, useWalletSettlement } from '../../src/features/wallet/settlementRefresh'
+import { consumeWalletRewardSoundLevel, receiveWalletSettlement, refreshWalletAfterSettlement, useWalletSettlement } from '../../src/features/wallet/settlementRefresh'
 import type { Envelope } from '../../src/network/protocol'
 
 const receipt = (userId: string, version = 2): Envelope => ({
@@ -44,4 +44,22 @@ test('fitness server receipt refreshes once and rejects foreign or malformed rec
   receiveWalletSettlement(message, userId)
   receiveWalletSettlement(message, userId)
   expect(useWalletSettlement.getState()).toEqual({ owner: userId, revision: before + 1 })
+})
+
+test('운동 획득음만 낮추고 중복 영수증과 다른 보상 및 다른 계정에는 음량을 남기지 않는다', () => {
+  const userId = 'quiet-fitness-owner'
+  const message: Envelope = { requestId: null, type: 'FITNESS_REWARD', payload: {
+    userId, receipt: 'fitness:01234567-89ab-cdef-0123-456789abcdef:10',
+  } }
+  receiveWalletSettlement(message, userId)
+  expect(consumeWalletRewardSoundLevel(userId)).toBe(.7)
+  receiveWalletSettlement(message, userId)
+  expect(consumeWalletRewardSoundLevel(userId)).toBe(1)
+  refreshWalletAfterSettlement(userId, 'jumpmap:channel:1')
+  expect(consumeWalletRewardSoundLevel(userId)).toBe(1)
+  refreshWalletAfterSettlement(userId, 'fitness:another-visit:1')
+  refreshWalletAfterSettlement(userId, 'board:match:1')
+  expect(consumeWalletRewardSoundLevel(userId)).toBe(1)
+  refreshWalletAfterSettlement(userId, 'fitness:another-visit:2')
+  expect(consumeWalletRewardSoundLevel('another-account')).toBe(1)
 })

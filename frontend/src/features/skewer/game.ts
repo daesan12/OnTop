@@ -1,14 +1,13 @@
 export const INGREDIENTS = [
-  { id: 'tomato', name: '토마토', color: '#c74530', key: '1', fabric: false },
-  { id: 'pepper', name: '피망', color: '#618446', key: '2', fabric: false },
-  { id: 'shrimp', name: '새우', color: '#df936f', key: '3', fabric: false },
-  { id: 'beef', name: '고기', color: '#985747', key: '4', fabric: false },
-  { id: 'cheese', name: '치즈', color: '#d4ad40', key: '5', fabric: true },
-  { id: 'bacon', name: '베이컨', color: '#bf7580', key: '6', fabric: true },
+  { id: 'tomato', name: '방울토마토', color: '#c74530', key: '1', limit: 1 },
+  { id: 'pepper', name: '피망', color: '#618446', key: '2', limit: 1 },
+  { id: 'shrimp', name: '새우', color: '#df936f', key: '3', limit: 1 },
+  { id: 'beef', name: '고기', color: '#985747', key: '4', limit: 1 },
+  { id: 'cheese', name: '치즈', color: '#d4ad40', key: '5', limit: 3 },
+  { id: 'bacon', name: '베이컨', color: '#bf7580', key: '6', limit: 3 },
 ] as const
 
 export type IngredientId = typeof INGREDIENTS[number]['id']
-export type FabricId = 'cheese' | 'bacon'
 export type Phase = 'ready' | 'countdown' | 'playing' | 'paused' | 'result' | 'ending' | 'finished'
 // Match the bungeoppang intro (3, 2, 1, start) and closing beat.
 export const COUNTDOWN_MS = 3_500
@@ -57,33 +56,22 @@ export type GameAction =
   | { type: 'restart' | 'home'; now: number; deck: GameCard[] }
   | { type: 'select' | 'thread'; ingredient: IngredientId; now: number }
 
-export function isFabric(id: IngredientId): id is FabricId { return id === 'cheese' || id === 'bacon' }
 export function ingredientName(id: IngredientId): string { return INGREDIENTS.find(item => item.id === id)!.name }
 export function currentCard(state: GameState): GameCard { return state.deck[state.cardIndex] }
-export function availableEnds(skewer: readonly IngredientId[], id: IngredientId): number {
-  return (isFabric(id) ? 2 : 1) - skewer.filter(item => item === id).length
+export function availablePieces(skewer: readonly IngredientId[], id: IngredientId): number {
+  return INGREDIENTS.find(item => item.id === id)!.limit - skewer.filter(item => item === id).length
 }
 export function pieceLabel(ids: readonly IngredientId[], index: number): string {
-  const id = ids[index]
-  if (!isFabric(id)) return ingredientName(id)
-  return `${ingredientName(id)} ${ids.indexOf(id) === index ? '앞끝' : '뒤끝'}`
+  return ingredientName(ids[index])
 }
-export function fabricSpans(ids: readonly IngredientId[]): { id: FabricId; start: number; end: number | null }[] {
-  return (['cheese', 'bacon'] as const).flatMap(id => {
-    const start = ids.indexOf(id)
-    if (start < 0) return []
-    const end = ids.indexOf(id, start + 1)
-    return [{ id, start, end: end < 0 ? null : end }]
-  })
+export function validAssembly(ids: readonly IngredientId[]): boolean {
+  return ids.length > 0 && ids.every(id => INGREDIENTS.some(item => item.id === id))
+    && INGREDIENTS.every(item => ids.filter(id => id === item.id).length <= item.limit)
 }
+// 조립 중에는 한 개도 가능하지만 완성 주문에는 큐브를 2~3개 사용한다.
 export function validRecipe(ids: readonly IngredientId[]): boolean {
-  if (!ids.some(id => !isFabric(id))) return false
-  return INGREDIENTS.every(item => {
-    const count = ids.filter(id => id === item.id).length
-    return item.fabric ? count === 0 || count === 2 : count <= 1
-  })
+  return validAssembly(ids) && ['cheese', 'bacon'].every(cube => ids.filter(id => id === cube).length !== 1)
 }
-// Fabric ends are positions too; checking solids alone would accept wrong wraps.
 // A whole-skewer reversal is valid, rather than imposing a false orientation rule.
 export function matchesOrder(skewer: readonly IngredientId[], order: readonly IngredientId[]): boolean {
   if (!validRecipe(skewer) || skewer.length !== order.length) return false
@@ -116,11 +104,11 @@ export function createDeck(random: () => number = Math.random): GameCard[] {
       ['bacon', a, b, 'bacon', c, d],
       ['cheese', a, 'bacon', b, c, 'cheese', d, 'bacon'],
       ['bacon', a, 'cheese', b, c, 'cheese', d, 'bacon'],
-      [a, 'cheese', 'cheese', b, 'bacon', c, d, 'bacon'],
-      ['cheese', 'bacon', a, b, c, d, 'bacon', 'cheese'],
+      [a, 'cheese', 'cheese', b, 'bacon', c, 'cheese', d, 'bacon'],
+      ['cheese', 'bacon', a, b, 'bacon', c, d, 'bacon', 'cheese'],
     ]
     const variant = index % recipes.length
-    return { kind: 'order', id: `order-${index}`, name: ['치즈 사이로', '베이컨 한 바퀴', '엇갈린 두 겹', '겹겹이 감싸기', '접고 감싸기', '전체를 두 겹으로'][variant],
+    return { kind: 'order', id: `order-${index}`, name: ['치즈 큐브 꼬치', '베이컨 큐브 꼬치', '모둠 큐브 꼬치', '더블 큐브 꼬치', '치즈 듬뿍 꼬치', '스페셜 모둠 꼬치'][variant],
       recipe: recipes[variant], value: variant < 2 ? 2 : 3 }
   })
   const mixed = shuffle(orders, random)
@@ -131,7 +119,7 @@ export function createDeck(random: () => number = Math.random): GameCard[] {
 }
 export function initialGame(deck: GameCard[] = createDeck()): GameState {
   return { phase: 'ready', pausedFrom: null, deck, cardIndex: 0, skewer: [], pending: null, score: 0, served: 0, mistakes: 0,
-    remainingMs: ORDER_MS, deadline: null, message: '음식을 순서대로 꽂고 치즈·베이컨으로 감싸 주문을 완성하세요.', feedback: 'neutral', rounds: [] }
+    remainingMs: ORDER_MS, deadline: null, message: '음식을 순서대로 꽂아 주문을 완성하세요. 치즈·베이컨 큐브는 사용한다면 각각 2~3개를 꽂아 주세요.', feedback: 'neutral', rounds: [] }
 }
 function reveal(state: GameState, index: number, now: number): GameState {
   const card = state.deck[index]
@@ -141,7 +129,7 @@ function reveal(state: GameState, index: number, now: number): GameState {
   }
   const remainingMs = card.kind === 'greeting' ? GREETING_MS : ORDER_MS
   return { ...state, cardIndex: index, phase: 'playing', pending: null, remainingMs, deadline: now + remainingMs,
-    message: card.kind === 'greeting' ? '어서 옵쇼! 3초 안에 인사 버튼을 누르세요.' : '치즈·베이컨의 양끝 위치까지 맞추세요. 이전 꼬치는 끝에서부터 빼서 다시 사용합니다.', feedback: 'neutral' }
+    message: card.kind === 'greeting' ? '어서 옵쇼! 3초 안에 인사 버튼을 누르세요.' : '모든 재료의 순서와 개수를 맞추세요. 이전 꼬치는 끝에서부터 빼서 다시 사용합니다.', feedback: 'neutral' }
 }
 function begin(state: GameState, now: number): GameState {
   return { ...state, phase: 'countdown', remainingMs: COUNTDOWN_MS, deadline: now + COUNTDOWN_MS, message: '잠시 후 시작해요.' }
@@ -182,11 +170,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   if (card.kind !== 'order') return current
   switch (action.type) {
     case 'select':
-      if (availableEnds(current.skewer, action.ingredient) <= 0) return { ...current, message: '이미 사용 중인 재료입니다. 꼬치 끝에서부터 빼서 돌려놓으세요.', feedback: 'error' }
-      return { ...current, pending: action.ingredient, message: `${ingredientName(action.ingredient)}${isFabric(action.ingredient) ? ` ${availableEnds(current.skewer, action.ingredient) === 2 ? '앞끝' : '뒤끝'}` : ''} 선택 · 꼬치 끝에 끼우세요.`, feedback: 'neutral' }
+      if (availablePieces(current.skewer, action.ingredient) <= 0) return { ...current, message: '이미 사용 중인 재료입니다. 꼬치 끝에서부터 빼서 돌려놓으세요.', feedback: 'error' }
+      return { ...current, pending: action.ingredient, message: `${ingredientName(action.ingredient)} 선택 · 꼬치 끝에 끼우세요.`, feedback: 'neutral' }
     case 'thread': {
       const id = action.ingredient
-      if (availableEnds(current.skewer, id) <= 0) return { ...current, pending: null, message: '이 재료는 모두 사용 중입니다.', feedback: 'error' }
+      if (availablePieces(current.skewer, id) <= 0) return { ...current, pending: null, message: '이 재료는 모두 사용 중입니다.', feedback: 'error' }
       const skewer = [...current.skewer, id]
       return { ...current, skewer, pending: null, message: `${pieceLabel(skewer, skewer.length - 1)} 끼우기 완료`, feedback: 'neutral' }
     }
@@ -199,7 +187,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         rounds: [...current.rounds, { cardId: card.id, kind: 'order', name: card.name, success: correct, points: correct ? card.value : 0, reason: correct ? 'served' : 'wrong-order' }],
         served: current.served + (correct ? 1 : 0), mistakes: current.mistakes + (correct ? 0 : 1),
         message: correct ? `맛있게 드세요! 매출 +${card.value}점 · 꼬치를 회수하고 다음 주문을 준비하세요.`
-          : '주문과 다른 꼬치예요. 재료 순서와 감싼 위치를 함께 확인해보세요.', feedback: correct ? 'success' : 'error' }
+          : '주문과 다른 꼬치예요. 재료 순서와 개수를 함께 확인해보세요.', feedback: correct ? 'success' : 'error' }
     }
     default: return current
   }

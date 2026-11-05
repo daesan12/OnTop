@@ -42,9 +42,10 @@ public class AdminAccessController {
             throw new RestAuthenticationException(RestAuthenticationException.Error.REQUIRED);
         }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(new AdminAccessResponse(access.canRead(user.userId()), access.canGrant(user.userId())));
+                .body(new AdminAccessResponse(access.canRead(user.userId()), access.canGrant(user.userId()),
+                        access.canOperate(user.userId())));
     }
 
-    public record AdminAccessResponse(boolean canRead, boolean canGrant) {
+    public record AdminAccessResponse(boolean canRead, boolean canGrant, boolean canOperate) {
     }
 }

@@ -1,0 +1,4 @@
+:is(.skewer-coop,.chef-app,.service-hall), :is(.skewer-coop,.chef-app,.service-hall) * { scrollbar-width: none; }
+:is(.skewer-coop,.chef-app,.service-hall)::-webkit-scrollbar, :is(.skewer-coop,.chef-app,.service-hall) *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+:is(.skewer-coop,.chef-app,.service-hall) :is(.table-paper-popup,dialog,.coop-room-list) { overscroll-behavior: contain; touch-action: pan-y; }
+:is(.skewer-coop,.chef-app,.service-hall) .skewer-dragging { cursor: grabbing; user-select: none; }

@@ -7,15 +7,19 @@ import { ParkPage } from './park/ParkPage'
 import { forgetTabGames } from './game/resultRecovery'
 import { preloadWorldAssets } from './world/worldAssets'
 import { preloadWorldCanvas } from './park/loadWorldCanvas'
+import { MaintenancePage } from './features/operation/MaintenancePage'
+import { loadServiceOperation, unavailableServiceOperation, type ServiceOperationStatus } from './features/operation/serviceOperation'
 
 const AdminShell = lazy(() => import('./features/admin/AdminShell').then(m => ({ default: m.AdminShell })))
-type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'admin' | 'admin-feedback' | 'admin-analytics'
+type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'maintenance'
+  | 'admin' | 'admin-feedback' | 'admin-analytics' | 'admin-wallet-grants' | 'admin-announcements'
 
 export default function App() {
   const [page, setPage] = useState<Page>(() =>
     window.location.pathname === '/auth/callback' ? 'callback' : 'checking',
   )
   const [exitError, setExitError] = useState('')
+  const [operation, setOperation] = useState<ServiceOperationStatus | null>(null)
 
   useEffect(() => {
     if (page === 'callback' || page === 'onboarding'
@@ -47,32 +51,56 @@ export default function App() {
   useEffect(() => {
     if (page !== 'checking') return
     let active = true
-    restoreInitialAuthSession().then((authenticated) => {
+    const restore = async () => {
+      if (!window.location.pathname.startsWith('/admin')) {
+        try {
+          const status = await loadServiceOperation()
+          if (!active) return
+          if (status.mode !== 'NORMAL') {
+            setOperation(status)
+            setPage('maintenance')
+            return
+          }
+        } catch {
+          if (!active) return
+          setOperation(unavailableServiceOperation())
+          setPage('maintenance')
+          return
+        }
+      }
+      const authenticated = await restoreInitialAuthSession()
       if (!active) return
       if (authenticated) {
         const path = window.location.pathname
         const next = path === '/admin/feedback' ? 'admin-feedback'
-          : path === '/admin/analytics' ? 'admin-analytics' : path === '/admin' ? 'admin' : 'park'
+          : path === '/admin/announcements' ? 'admin-announcements'
+          : path === '/admin/analytics' ? 'admin-analytics' : path === '/admin/wallet-grants' ? 'admin-wallet-grants'
+            : path === '/admin' ? 'admin' : 'park'
         window.history.replaceState(null, '', next === 'admin-feedback' ? '/admin/feedback'
-          : next === 'admin-analytics' ? '/admin/analytics' : next === 'admin' ? '/admin' : '/park')
+          : next === 'admin-announcements' ? '/admin/announcements'
+          : next === 'admin-analytics' ? '/admin/analytics' : next === 'admin-wallet-grants' ? '/admin/wallet-grants'
+            : next === 'admin' ? '/admin' : '/park')
         setPage(next)
       } else {
         if (window.location.pathname !== '/') window.history.replaceState(null, '', '/')
         setPage('login')
       }
-    })
+    }
+    void restore()
     return () => { active = false }
   }, [page])
 
   const onAuthenticated = useCallback(() => {
     window.history.replaceState(null, '', '/park')
-    setPage('park')
+    setPage('checking')
   }, [])
 
-  const onAdminNavigate = useCallback((section: 'home' | 'feedback' | 'analytics') => {
-    const path = section === 'home' ? '/admin' : section === 'feedback' ? '/admin/feedback' : '/admin/analytics'
+  const onAdminNavigate = useCallback((section: 'home' | 'feedback' | 'analytics' | 'wallet-grants' | 'announcements') => {
+    const path = section === 'home' ? '/admin' : section === 'feedback' ? '/admin/feedback'
+      : section === 'announcements' ? '/admin/announcements' : section === 'analytics' ? '/admin/analytics' : '/admin/wallet-grants'
     window.history.pushState(null, '', path)
-    setPage(section === 'home' ? 'admin' : section === 'feedback' ? 'admin-feedback' : 'admin-analytics')
+    setPage(section === 'home' ? 'admin' : section === 'feedback' ? 'admin-feedback'
+      : section === 'announcements' ? 'admin-announcements' : section === 'analytics' ? 'admin-analytics' : 'admin-wallet-grants')
   }, [])
 
   const onOnboardingRequired = useCallback(() => {
@@ -107,9 +135,14 @@ export default function App() {
   if (page === 'park' && getAuthSession()?.status === 'AUTHENTICATED') {
     return <ParkPage onExit={onExit} exitError={exitError} onAuthEnded={onReturnToLogin} />
   }
-  if ((page === 'admin' || page === 'admin-feedback' || page === 'admin-analytics') && getAuthSession()?.status === 'AUTHENTICATED') {
+  if (page === 'maintenance' && operation) {
+    return <MaintenancePage status={operation} onRetry={() => setPage('checking')} />
+  }
+  if ((page === 'admin' || page === 'admin-feedback' || page === 'admin-analytics' || page === 'admin-wallet-grants' || page === 'admin-announcements')
+    && getAuthSession()?.status === 'AUTHENTICATED') {
     return <Suspense fallback={<main className="auth-loading" role="status">관리자 화면 준비 중…</main>}>
-      <AdminShell section={page === 'admin' ? 'home' : page === 'admin-feedback' ? 'feedback' : 'analytics'} onNavigate={onAdminNavigate}
+      <AdminShell section={page === 'admin' ? 'home' : page === 'admin-feedback' ? 'feedback'
+        : page === 'admin-announcements' ? 'announcements' : page === 'admin-analytics' ? 'analytics' : 'wallet-grants'} onNavigate={onAdminNavigate}
         onReturn={onAuthenticated} onAuthEnded={onReturnToLogin} />
     </Suspense>
   }

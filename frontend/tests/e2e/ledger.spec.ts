@@ -45,11 +45,15 @@ test('주사위 장부 참가자: 굴림·예상 점수·보관·관전자 훈�
   await page.getByRole('button', { name: '앉기', exact: true }).click(); await page.getByLabel('1인 참가비').fill('1')
   await page.getByRole('button', { name: '주사위 장부 선택', exact: true }).click()
   await expect(page.getByRole('button', { name: '주사위 장부 선택', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByText('2~4인 · 주사위 5개 · 세 번 굴려 12칸 기록 · 차례 30초')).toBeVisible()
+  await expect(page.getByText('2~4인 · 주사위 5개 · 세 번 굴려 12칸 기록 · 굴림마다 20초')).toBeVisible()
   await screenshot(page, 'ledger-01-lobby')
 
   await page.getByRole('button', { name: '준비', exact: true }).click(); server.confirmStart()
   await expect(p.getByRole('status').first()).toContainText('내 차례 · 굴려 주세요')
+  // 내 차례 동안 화면 위쪽 배너가 상시 표시되고, 아직 안 굴렸으면 굴리기 버튼이 깜빡인다.
+  await expect(page.locator('.ledger-turn-cue')).toContainText('내 차례주사위를 굴려 주세요')
+  await expect(p).toHaveAttribute('data-my-turn', 'true')
+  await expect(p.getByRole('button', { name: /굴리기/ })).toHaveAttribute('data-attention', 'true')
   await expect(p.getByLabel('주사위 장부 점수판').locator('thead th')).toHaveCount(4)
   await settle(page); await screenshot(page, 'ledger-02-turn-start')
 
@@ -58,6 +62,8 @@ test('주사위 장부 참가자: 굴림·예상 점수·보관·관전자 훈�
   await expect(p.getByRole('button', { name: '포카드 기록 · 예상 24점', exact: true })).toBeVisible()
   await expect(p.getByRole('button', { name: '풀하우스 기록 · 예상 0점', exact: true })).toBeVisible()
   await expect(p.getByRole('button', { name: '자유 기록 · 예상 29점', exact: true })).toBeVisible()
+  await expect(page.locator('.ledger-turn-cue')).toContainText('다시 굴리거나 장부 칸에 기록하세요')
+  await expect(p.getByRole('button', { name: /굴리기/ })).not.toHaveAttribute('data-attention')
   await settle(page); await clearOfDock(page); await screenshot(page, 'ledger-03-rolled-preview')
   await fitsWithoutOverlap(page)
   await page.setViewportSize({ width: 1280, height: 720 }); await expect(p).toBeInViewport(); await clearOfDock(page); await fitsWithoutOverlap(page)
@@ -79,11 +85,13 @@ test('주사위 장부 참가자: 굴림·예상 점수·보관·관전자 훈�
   const after = server.ledgerState().players; after[0] = ledgerCard('101', { FIVE_OF_A_KIND: 50 })
   server.ledgerReply({ kind: 'score', category: 'FIVE_OF_A_KIND' }, { players: after, turnUserId: '102', turnId: 2, rollCount: 0, dice: [],
     lastScored: { userId: '101', category: 'FIVE_OF_A_KIND', points: 50, auto: false, turnId: 1 }, lastEvent: 'SCORE',
-    turnDeadline: new Date(Date.now() + 30000).toISOString() })
+    turnDeadline: new Date(Date.now() + 20000).toISOString() })
   await p.getByRole('button', { name: '장원 기록 · 예상 50점', exact: true }).click()
   await expect(p.getByRole('status').first()).toContainText('참가자 2 차례')
   await expect(p.locator('td[data-fresh]')).toHaveText('50')
   await expect(p.getByRole('button', { name: /굴리기/ })).toBeDisabled()
+  await expect(page.locator('.ledger-turn-cue')).toHaveCount(0)
+  await expect(p).not.toHaveAttribute('data-my-turn')
   await screenshot(page, 'ledger-05-scored-next-turn')
 
   const auto = server.ledgerState().players; auto[1] = ledgerCard('102', { CHOICE: 21 })

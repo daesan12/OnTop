@@ -1,0 +1,92 @@
+/* Preserve each game's materials; reserve usable space for its controls first. */
+.park-page:has(.minigame-hud,.ledger-panel,.halligalli-panel) .park-chat .park-chat__author {
+  flex:0 1 36%;min-width:0;max-width:36%;white-space:nowrap;
+}
+.park-page:has(.minigame-hud,.ledger-panel,.halligalli-panel) .park-chat .park-chat__message>span:last-child {
+  flex:1;min-width:0;line-height:1.5;
+}
+.park-page .omok-spectator-chat .omok-chat-log p {font-size:12px;line-height:1.55;color:inherit}
+.park-page :is(.bridge-panel,.ledger-menu) {scrollbar-width:thin;overscroll-behavior:contain}
+.park-page .ledger-board thead th>span {cursor:help}
+.park-page .hg-feedback {
+  left:12px;right:auto;top:124px;bottom:auto;transform:none;max-width:180px;max-height:120px;
+  text-align:left;overflow-wrap:anywhere;overflow:auto;pointer-events:auto;
+}
+
+/* A tall central recovery box must not cover the player's action row. */
+.park-page .onecard-game-hud.onecard-panel .onecard-actions-panel>.onecard-recovery-controls {
+  position:static;inset:auto;transform:none;width:auto;max-width:100%;max-height:100px;
+  box-sizing:border-box;overflow:auto;padding:4px 8px;background:none;border:0;box-shadow:none;
+}
+.park-page .onecard-game-hud.onecard-panel[data-role=PLAYER] .onecard-recovery-controls .onecard-actions {
+  display:flex;flex-direction:column;align-items:stretch;
+}
+.park-page .onecard-game-hud.onecard-panel[data-role=PLAYER] .onecard-recovery-controls button {min-height:36px}
+.park-page .onecard-game-hud.onecard-panel .onecard-actions-panel>.mini-feedback {
+  position:static;inset:auto;transform:none;width:auto;max-width:100%;max-height:80px;overflow:auto;
+}
+
+@media(max-width:1180px) {
+  /* The collapsed conversation stays in a corner instead of covering cards or menus. */
+  .park-page:has(.onecard-game-hud,.ledger-panel,.halligalli-panel) .park-chat {
+    left:12px;bottom:12px;width:min(260px,calc(100% - 24px));max-height:180px;padding:10px;transform:none;
+  }
+  .park-page:has(.onecard-game-hud,.ledger-panel,.halligalli-panel) .park-chat__heading {padding-bottom:5px}
+  .park-page:has(.onecard-game-hud,.ledger-panel,.halligalli-panel) .park-chat__heading h1 {font-size:14px}
+  .park-page:has(.onecard-game-hud,.ledger-panel,.halligalli-panel) .park-chat__message {font-size:12px;gap:8px}
+  .park-page:has(.onecard-game-hud,.ledger-panel,.halligalli-panel) .park-chat__composer {
+    --chat-composer-height:36px;font-size:12px;border-radius:9px;
+  }
+  .park-page:has(.onecard-game-hud,.ledger-panel,.halligalli-panel) .park-chat__list {max-height:76px}
+  .park-page:has(.onecard-game-hud,.ledger-panel,.halligalli-panel) .park-chat[data-expanded=true] {
+    max-height:min(280px,46dvh);
+  }
+  .park-page:has(.onecard-game-hud,.ledger-panel,.halligalli-panel) .park-chat[data-expanded=true] .park-chat__list {max-height:none}
+  .park-page .ledger-menu {top:124px;transform:none;max-height:calc(100dvh - 340px);overflow-y:auto}
+}
+@media(min-width:801px) and (max-width:1180px) {
+  /* Four-player seats reach the previous right-hand menu at laptop widths. */
+  .park-page .hg-menu {
+    top:auto;left:auto;right:12px;bottom:12px;width:224px;max-width:calc(100% - 24px);
+    flex-direction:column;align-items:stretch;padding:6px;gap:6px;border-radius:12px;
+  }
+  .park-page .hg-menu button {width:auto;min-height:36px;font-size:12px;gap:6px;padding:0 10px}
+  .park-page .hg-menu button::after {display:none}
+  .park-page .hg-menu-danger {border-top:1px solid #f7f1e52e;border-left:0;padding:6px 0 0}
+}
+@media(max-width:800px) {
+  .park-page .onecard-game-hud .onecard-turn-cue {top:174px;max-width:calc(100% - 32px);box-sizing:border-box;overflow-wrap:anywhere}
+  .park-page .hg-seat {min-width:0;width:100%}
+  .park-page .hg-seat-name strong {min-width:0;flex-shrink:1}
+  .park-page .hg-feedback {left:auto;right:8px;top:auto;bottom:80px;max-width:46vw;max-height:80px}
+}
+@media(max-width:600px) {
+  .park-page:has(.ledger-panel) :is(.park-location,.park-location-chip,.park-channel-menu,.park-account) {display:none}
+  .park-page:has(.ledger-panel) :is(.park-quick-dock,.park-dock-wardrobe,.park-dock-settings) {visibility:hidden}
+  .park-page .ledger-menu {top:12px;left:12px;right:12px;width:auto;max-height:120px;transform:none}
+  .park-page .ledger-panel {left:12px;right:12px;width:auto;bottom:220px;max-height:calc(100dvh - 370px)}
+  .park-page:has(.halligalli-panel) .park-chat:not([data-expanded=true]) .park-chat__messages {display:none}
+}
+@media(max-width:800px) and (max-height:650px) {
+  .park-page .onecard-game-hud.onecard-panel .onecard-actions-panel {max-height:max(140px,calc(100dvh - 410px));overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+  .park-page .halligalli-panel {--hg-card-w:42px;--hg-bell:76px}
+  .park-page .hg-table {top:94px;bottom:132px;gap:6px}
+}
+@media(max-width:800px) and (max-height:480px) {
+  .park-page:has(.onecard-game-hud,.ledger-panel,.halligalli-panel) .park-chat:not([data-expanded=true]) {width:220px}
+  .park-page:has(.onecard-game-hud,.ledger-panel,.halligalli-panel) .park-chat:not([data-expanded=true]) .park-chat__messages {display:none}
+  .park-page .onecard-game-hud.onecard-panel .onecard-actions-panel {max-height:max(140px,calc(100dvh - 180px));scrollbar-width:thin}
+  .park-page .onecard-game-hud .onecard-turn-cue {display:none}
+  .park-page .onecard-game-hud.onecard-panel .onecard-game-tools {top:auto;left:auto;right:12px;bottom:12px;max-width:calc(100% - 260px)}
+  .park-page:has(.ledger-panel) :is(.park-location,.park-location-chip,.park-channel-menu,.park-account) {display:none}
+  .park-page .ledger-menu {top:12px;left:12px;right:auto;width:220px;max-height:calc(100dvh - 90px);flex-direction:column}
+  .park-page .ledger-menu button {width:100%}
+  .park-page .ledger-panel {left:248px;right:12px;top:12px;bottom:12px;width:auto;max-height:calc(100dvh - 24px)}
+  .park-page .hg-table {top:66px;bottom:64px;grid-template-areas:'left center right' 'bottom center top';grid-template-rows:1fr 1fr;gap:4px}
+  .park-page .hg-feedback {bottom:12px;max-width:calc(100% - 260px);max-height:52px}
+}
+@media(max-width:520px) and (max-height:480px) {
+  .park-page .ledger-menu {right:12px;width:auto;max-height:108px;flex-direction:row}
+  .park-page .ledger-menu button {width:auto}
+  .park-page .ledger-panel {left:12px;top:132px;bottom:84px;max-height:calc(100dvh - 216px)}
+}

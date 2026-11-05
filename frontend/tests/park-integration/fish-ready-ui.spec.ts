@@ -63,12 +63,17 @@ test('minigame result is compact, uses plain score copy and opens a score/combo 
     const {BUNGEOPPANG_V5:R}=await import('/src/features/bungeoppang/config.ts' as string);
     const orders=[{orderId:'1',customerSlot:0,availableAfterSeq:0,items:{bean:2,custard:0,pizza:0,chocolate:0}}];
     useBungeoppang.setState({phase:'result',gameId:'result-ui',rules:{...R},grill:{...createGrill(Array(2048).fill(100),orders,R),made:15,score:1230,maxCombo:12},
-      result:{score:1230,made:15,failed:1,golden:10,wasted:0,maxCombo:12,coinsCalculated:82,coinsGranted:82,todayEarned:82,dailyCap:500,capReached:false},submitting:false});
+      result:{score:1230,made:15,failed:1,golden:10,wasted:0,maxCombo:12,coinsCalculated:246,coinsGranted:246,todayEarned:246,dailyCap:500,capReached:false},submitting:false});
   });
   const result=page.getByRole('dialog',{name:'붕어빵 결과',exact:true});
   await expect(result).toContainText('3위');await expect(result).not.toContainText('서버 확정');
   await result.locator('summary').click();await expect(result).not.toContainText('서버 정산 완료');
   await expect(result).toContainText('최고 콤보 12');
+  await expect(result).toContainText('5점당 1냥');
+  await page.evaluate(async()=>{const {useBungeoppang}=await import('/src/features/bungeoppang/store.ts' as string);useBungeoppang.setState(()=>({rules:{...useBungeoppang.getState().rules!,pointsPerCoin:15}}))});
+  await expect(result).toContainText('15점당 1냥');
+  await page.evaluate(async()=>{const {useBungeoppang}=await import('/src/features/bungeoppang/store.ts' as string);useBungeoppang.setState(()=>({rules:{...useBungeoppang.getState().rules!,pointsPerCoin:5}}))});
+  await expect(result).toContainText('받은 엽전 246냥');
   for(const viewport of [{width:1920,height:1080},{width:1366,height:768},{width:390,height:844}]){
     await page.setViewportSize(viewport);const box=(await result.boundingBox())!;
     expect(box.width).toBeLessThanOrEqual(480);expect(box.y).toBeGreaterThanOrEqual(0);

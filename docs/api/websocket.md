@@ -1,5 +1,7 @@
 # OnTop WebSocket 연결 및 메시지 계약
 
+닉네임 50m 표시와 채팅 입력 중 상태는 [WORLD_CHAT_TYPING_SET / WORLD_CHAT_TYPING_STATE](../world-chat-typing-api.md)를 따른다.
+
 완성 텍스트의 공통 빈도·동시 접속 상한과 1013/1009 종료는 [유입 제한](../websocket-ingress-limits.md)을 따른다.
 로컬 구현이며 운영 수치·신뢰 프록시·FE 지연 재연결 정책은 협의 전이다.
 
@@ -112,6 +114,7 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | C 좌표 검증 이동 (dev 기본) | WORLD_POSITION | WORLD_STATE; local 명시 활성·dev 기본 활성·prod 제외. [계약](../world-movement-prediction.md#c-좌표-검증-이동-계약-dev-기본-적용-prod-제외) |
 | 클라이언트 물리 준비 실패 시 서버 이동 복귀 | WORLD_POSITION_FALLBACK | WORLD_STATE; C 모드에서 사용, payload는 현재 epoch |
 | 채팅·감정 | WORLD_CHAT_SEND / WORLD_EMOTE_SEND | WORLD_CHAT_MESSAGE / WORLD_EMOTE_EVENT / WORLD_EMOTE_CANCELLED |
+| 채팅 입력 중 | WORLD_CHAT_TYPING_SET | WORLD_CHAT_TYPING_STATE |
 | 따라가기 | WORLD_FOLLOW_CHECK / WORLD_FOLLOW_START / WORLD_FOLLOW_STOP | WORLD_FOLLOW_STATE ([상세](../world-follow-api.md)) |
 | 시설 | WORLD_FACILITY_CHECK / WORLD_FACILITY_CATALOG / WORLD_FACILITY_USE / WORLD_FACILITY_RELEASE / WORLD_FACILITY_AIM | [시설 계약](../world-facility-api.md)의 상태·목록·이용 응답 |
 | 착석·준비 | TABLE_JOIN / TABLE_LEAVE / READY_SET / GAME_SELECT | TABLE_STATE / TABLE_LEFT |
@@ -152,7 +155,7 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 
 세부 필드와 선택적4종 엔진 계약은 기존 [경기 통신](../websocket-api/09-game-communication.md),
 [경기 입력](../game-action-api.md), [결과](../game-result-api.md), [광장](../world-websocket-api.md)를 따른다.
-현재 TableProtocol의 클라이언트 요청은 42종이다. ERROR와 CONNECTED는 요청 타입이 아니다.
+현재 TableProtocol의 클라이언트 요청은 43종이다. ERROR와 CONNECTED는 요청 타입이 아니다.
 게스트 인증, 다중 인스턴스 접속권/연결 추적 및 다른 boot의 미완료 경기 자동 반환은 미지원이다.
 
 ## Story 174 결과·전달·복구

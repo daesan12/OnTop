@@ -367,7 +367,8 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
     },
     groundShift() {
       root.updateMatrixWorld(true)
-      updateSkeletons()
+      // CPU skinning reads bone.matrixWorld directly. The renderer uploads the
+      // skeleton once for its render frame; no duplicate bone palette is needed here.
       let bottom = Infinity
       for (const { mesh, i } of soleIndices) {
         mesh.getVertexPosition(i, solePoint)

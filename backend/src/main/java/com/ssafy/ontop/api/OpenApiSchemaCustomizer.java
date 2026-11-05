@@ -64,7 +64,8 @@ public class OpenApiSchemaCustomizer implements OperationCustomizer {
         if (controller.equals("NicknameAvailabilityController")) {
             operation.getParameters().stream().filter(p -> "nickname".equals(p.getName())).forEach(p -> {
                 p.setRequired(true);
-                p.setSchema(new StringSchema().minLength(2).maxLength(8).pattern("^[가-힣A-Za-z0-9]{2,8}$")
+                p.setSchema(new StringSchema().minLength(2).maxLength(8)
+                        .pattern("^(?![Gg][Mm])[가-힣A-Za-z0-9]{2,8}$")
                         .example("온탑고수"));
             });
         }

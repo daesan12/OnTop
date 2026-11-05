@@ -1,0 +1,63 @@
+/* Shared chrome only: the board, pieces, cards, scoring and action permissions belong to each game. */
+.park-page {
+  --game-hud-surface:#29251ff2;
+  --game-hud-line:#bca77975;
+  --game-hud-text:#f5efde;
+  --game-hud-muted:#c8bda6;
+  --game-hud-gold:#f0d28b;
+  --game-hud-rail:224px;
+  --game-hud-edge:20px;
+}
+.park-page .game-hud-menu {
+  position:fixed;inset:var(--game-hud-edge) var(--game-hud-edge) auto auto;width:var(--game-hud-rail);
+  display:flex;flex-direction:column;align-items:stretch;gap:10px;z-index:36;pointer-events:auto;
+  color:var(--game-hud-text);font:500 14px/1.5 'Malgun Gothic',sans-serif;
+}
+.park-page .game-hud-menu[data-embedded=true] {position:relative;inset:auto;width:100%}
+.park-page .game-hud-menu>.game-spectator-count {align-self:flex-end;position:static;margin:0;transform:none}
+.park-page .game-hud-menu details {position:relative;border:1px solid var(--game-hud-line);border-radius:12px;background:var(--game-hud-surface);box-shadow:0 4px 16px #0003}
+.park-page .game-hud-menu summary {display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;list-style:none;cursor:pointer;box-sizing:border-box}
+.park-page .game-hud-menu summary::-webkit-details-marker {display:none}
+.park-page .game-hud-menu summary>span {margin-left:auto;transition:transform .15s}
+.park-page .game-hud-menu details[open]>summary>span {transform:rotate(180deg)}
+.park-page .game-hud-menu-content {display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:10px;border-top:1px solid var(--game-hud-line);max-height:min(420px,calc(100dvh - 180px));overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.park-page .game-hud-menu-content :is(button,[role=group]) {max-width:100%;box-sizing:border-box}
+.park-page .game-hud-menu-content>div:not([role=dialog]) {display:flex;flex-direction:column;gap:8px}
+.park-page .game-hud-menu-content button {
+  position:static;inset:auto;transform:none;width:100%;min-height:40px;margin:0;padding:8px 12px;display:flex;align-items:center;justify-content:center;gap:8px;
+  border:1px solid var(--game-hud-line);border-radius:8px;background:#ffffff09;color:var(--game-hud-text);
+  font:500 13px/1.5 'Malgun Gothic',sans-serif;text-align:center;white-space:normal;cursor:pointer;
+}
+.park-page .game-hud-menu-content button::before,.park-page .game-hud-menu-content button::after {display:none}
+.park-page .game-hud-menu-content button>svg {width:18px;height:18px;flex:0 0 18px}
+.park-page .game-hud-menu-content button>kbd {font-family:inherit;font-size:11px;line-height:1.4;opacity:.65;margin-left:auto}
+.park-page .game-hud-menu-content button>span {white-space:nowrap}
+.park-page .game-hud-menu-content button:hover:not(:disabled) {background:#f0d28b1a;border-color:var(--game-hud-gold)}
+.park-page .game-hud-menu-content button[aria-pressed=true] {background:#f0d28b25;border-color:var(--game-hud-gold);color:var(--game-hud-gold)}
+.park-page .game-hud-menu-content button:disabled {opacity:.45;cursor:default}
+.park-page .game-hud-menu :is(button,summary):focus-visible {outline:2px solid var(--game-hud-gold);outline-offset:3px}
+.park-page .game-hud-menu-content :is(.game-forfeit,.hg-menu-danger) {padding-top:8px;border-top:1px solid var(--game-hud-line)}
+.park-page .game-hud-menu-content :is(.game-forfeit>button,.onecard-forfeit-trigger,.hg-forfeit-trigger) {color:#f6bba9;border-color:#c7826877}
+.park-page .game-hud-menu-content :is(p,small) {font-size:12px;line-height:1.55;white-space:normal;overflow-wrap:anywhere}
+.park-page .game-hud-clock {
+  position:fixed;inset:var(--game-hud-edge) auto auto var(--game-hud-edge);width:var(--game-hud-rail);box-sizing:border-box;z-index:26;
+  display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:14px 16px;border:1px solid var(--game-hud-line);
+  border-radius:12px;background:var(--game-hud-surface);color:var(--game-hud-text);font:500 14px/1.5 'Malgun Gothic',sans-serif;pointer-events:none;
+}
+.park-page .game-hud-eyebrow {font-size:11px;color:var(--game-hud-muted);letter-spacing:.08em}
+/* "게임명 · N냥" inherits the eyebrow text style. Only the stake may shrink (ellipsis), so the name and the card never wrap or grow. */
+.park-page .game-hud-eyebrow:has(>.game-hud-title) {max-width:100%}
+.park-page .game-hud-title {display:flex;min-width:0;white-space:nowrap}
+.park-page .game-hud-stake {min-width:0;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:999px) {.park-page .game-hud-stake {display:none}}
+.park-page .game-hud-turn {max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.park-page .game-hud-clock strong {font:600 36px/1.05 'Malgun Gothic',sans-serif;font-variant-numeric:tabular-nums;color:var(--game-hud-gold)}
+.park-page .game-hud-clock strong small {font-size:13px;margin-left:5px;font-weight:500}
+.park-page .game-hud-clock progress {display:block;width:100%;height:5px;border:0;border-radius:6px;overflow:hidden;appearance:none;accent-color:var(--game-hud-gold);background:#ffffff15}
+.park-page .game-hud-clock progress::-webkit-progress-bar {background:#ffffff15;border-radius:6px}
+.park-page .game-hud-clock progress::-webkit-progress-value {background:var(--game-hud-gold);border-radius:6px;transition:width .1s linear}
+.park-page .game-hud-clock progress::-moz-progress-bar {background:var(--game-hud-gold)}
+.park-page .game-hud-clock-hint {font-size:11px;color:var(--game-hud-muted);line-height:1.5;overflow-wrap:anywhere}
+.park-page .game-hud-clock[data-my-turn=true] {border-color:var(--game-hud-gold)}
+.park-page .game-hud-clock[data-urgent=true] {--game-hud-gold:#f6b39b;border-color:#b57760}
+@media(prefers-reduced-motion:reduce) {.park-page .game-hud-menu summary>span,.park-page .game-hud-clock progress::-webkit-progress-value {transition:none}}

@@ -44,7 +44,7 @@ for (const own of ['101', '102'] as const) test(`scorebook pips, raycasts, timer
   } else await panel(page).getByRole('button', { name: 'R 굴리기', exact: true }).click()
   await expect(panel(page).getByRole('button', { name: '주사위 1: 1', exact: true })).toBeEnabled()
   for (const id of [0, 1, 2, 3]) await clickObject(page, `farkle-die-${id}`)
-  await expect(panel(page).getByRole('button', { name: 'Q Bank · 1,550점', exact: true })).toBeEnabled()
+  await expect(panel(page).getByRole('button', { name: 'Q 점수 챙기기 · 1,550점', exact: true })).toBeEnabled()
   await screenshot(page, `dice-compact-${own}`)
   const deadline = await page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game?.dice?.turnDeadline)
   await clickObject(page, 'farkle-scorebook-prop')
@@ -62,7 +62,7 @@ for (const own of ['101', '102'] as const) test(`scorebook pips, raycasts, timer
   for (const [rule, faces] of [['straight-1-5', [1, 2, 3, 4, 5]], ['straight-2-6', [2, 3, 4, 5, 6]], ['straight-1-6', [1, 2, 3, 4, 5, 6]]] as const) {
     const dice = sheet.locator(`[data-rule=${rule}] .dice-face`)
     await expect(dice).toHaveCount(faces.length)
-    for (let i = 0; i < faces.length; i++) await expect(dice.nth(i).locator('i[data-pip]')).toHaveCount(faces[i]!)
+    for (let i = 0; i < faces.length; i++) await expect(dice.nth(i).locator('circle[data-pip]')).toHaveCount(faces[i]!)
   }
   const actionCount = server.sent.filter(m => m.type === 'GAME_ACTION_SEND').length
   await page.keyboard.press('KeyR'); await page.keyboard.press('KeyQ'); await page.keyboard.press('Tab')

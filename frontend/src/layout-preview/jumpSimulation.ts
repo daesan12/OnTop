@@ -4,6 +4,7 @@ import { swimmingAt,DRAFT_LAKE } from './lakeLayout'
 import { JUMP_PADS,JUMP_GATES,JUMP_STAGES,JUMP_START,containsJumpPad,type JumpPad } from './jumpCourse'
 
 export const JUMP_RULES={walk:6.25,run:9,speed:6.2,gravity:18,terminal:20,coyote:.1,buffer:.15,step:.22} as const
+export const JUMP_PREVIEW_DAILY_CAP=500
 export type JumpHit={id:number;pad:JumpPad;time:number;kind:'land'|'leave'}
 export type JumpResult={kind:'fall'|'water'|'complete';stage:number;coins:number;time:number;best:boolean;at:number}
 export function createJumpSession(){return {
@@ -25,7 +26,7 @@ export const previewLandingSurfaces=[
 ]
 export function queueJump(s:JumpSession){s.bufferUntil=s.time+JUMP_RULES.buffer}
 function message(s:JumpSession,text:string){s.banner=text;s.bannerUntil=s.time+2.4}
-function grant(s:JumpSession,stage:number){const value=Math.min(JUMP_STAGES[stage]!.reward,100-s.today);s.today+=value;s.coins+=value;return value}
+function grant(s:JumpSession,stage:number){const value=Math.min(JUMP_STAGES[stage]!.reward,Math.max(0,JUMP_PREVIEW_DAILY_CAP-s.today));s.today+=value;s.coins+=value;return value}
 function finish(s:JumpSession,kind:JumpResult['kind']) {
   if(!s.active)return
   if(kind==='complete') {

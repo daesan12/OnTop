@@ -1,0 +1,137 @@
+/* OnTop tabletop chrome: hanji time card, lacquer controls, brass edges. Boards remain the focal point. */
+.park-page:has(.game-hud-menu) {
+  --game-hud-surface:linear-gradient(135deg,#354039f5,#222b25fa);
+  --game-hud-line:#bdab79a3;--game-hud-text:#f5edda;--game-hud-muted:#cabf9f;--game-hud-gold:#e6cd8c;
+  --game-hud-font:'BusanDandiMyeongjo',serif;
+}
+.park-page .game-hud-menu {font-family:var(--game-hud-font);letter-spacing:.01em}
+.park-page .game-hud-menu details {border-radius:8px;box-shadow:inset 0 0 0 3px #dac38d0c,0 6px 18px #21170f33}
+.park-page .game-hud-menu summary {font-size:15px;min-height:46px}
+.park-page .game-hud-menu summary>svg {color:var(--game-hud-gold)}
+.park-page .game-hud-menu-content button {font-family:var(--game-hud-font);font-size:14px;border-radius:5px;min-height:42px;background:#e9d9b908}
+.park-page .game-hud-menu-content button:hover:not(:disabled) {background:#d1b16f24}
+.park-page .game-hud-menu .game-spectator-count {font:13px/1.5 var(--game-hud-font);border-radius:20px;padding:6px 12px;background:#242e27dc;border-color:#c6b07766;box-shadow:none}
+.park-page .game-hud-clock {
+  padding:16px 18px 15px;gap:7px;border:1px solid #bba46c;border-radius:4px 14px 4px 14px;
+  background:linear-gradient(110deg,#fff9e8,#ede0ba);color:#353b2c;
+  box-shadow:inset 0 0 0 4px #fffaf040,inset 0 0 0 5px #a78a4a35,0 5px 18px #231b1233;font-family:var(--game-hud-font);
+}
+.park-page .game-hud-clock::after {content:'';position:absolute;width:14px;height:14px;right:10px;top:10px;border-top:1px solid #9b7e48;border-right:1px solid #9b7e48;pointer-events:none}
+.park-page .game-hud-eyebrow {display:flex;align-items:center;gap:7px;color:#716141;font-size:12px;letter-spacing:0}
+.park-page .game-hud-turn {font-size:15px;color:#4a4b36}
+.park-page .game-hud-clock strong {font:700 44px/1 var(--game-hud-font);color:#344e3d;letter-spacing:-.04em}
+.park-page .game-hud-clock strong small {font-family:var(--game-hud-font);font-size:14px;letter-spacing:0}
+.park-page .game-hud-clock[data-phase=true] strong {font-size:26px;line-height:1.4;letter-spacing:0}
+.park-page .game-hud-clock-hint {color:#75694e;font-size:12px}
+.park-page .game-hud-clock progress {background:#b59b632b;accent-color:#547252}
+.park-page .game-hud-clock progress::-webkit-progress-bar {background:#b59b632b}
+.park-page .game-hud-clock progress::-webkit-progress-value {background:#547252}
+.park-page .game-hud-clock progress::-moz-progress-bar {background:#547252}
+.park-page .game-hud-clock[data-my-turn=true] {border-color:#4b7152}
+.park-page .game-hud-clock[data-my-turn=true] .game-hud-turn {color:#315b3c}
+.park-page .game-hud-clock[data-urgent=true] strong {color:#9a4635}
+.park-page .game-hud-clock[data-urgent=true] progress::-webkit-progress-value {background:#9a4635}
+.park-page .game-hud-clock[data-urgent=true] progress::-moz-progress-bar {background:#9a4635}
+
+/* 게임 중에는 화면 크기와 상관없이 오른쪽 아래 빠른 메뉴(옷장·지도·감정표현·설명서·설정)를 숨긴다.
+   감정표현 창과 알림은 .emotes 밖이나 안에 그대로 두고 버튼만 숨긴다. 게임이 닫히면 다시 보인다. */
+.park-page:has(.game-hud-menu) :is(.park-quick-dock,.park-dock-wardrobe,.park-dock-settings,.park-map>.park-quick-button,.emotes>.emote-wheel-trigger,.manual-launcher) {display:none}
+
+/* Game chrome occupies side rails on PC; the common park controls return when the game closes. */
+@media(min-width:1000px) {
+  .park-page:has(.game-hud-menu) :is(.park-location,.park-location-chip,.park-account) {display:none}
+  .park-page[data-omok-focus=true] .omok-rail-hud :is(.omok-match-header,.omok-player-header) {position:fixed;inset:212px auto auto 20px;transform:none;width:224px;display:flex;flex-direction:column;gap:8px}
+  .park-page .omok-rail-hud .omok-match-player {width:100%;box-sizing:border-box;padding:10px 14px;border-radius:7px;background:#27362df0;border-color:#bdab7970}
+  .park-page[data-omok-focus=true] .omok-rail-hud :is(.omok-player-bottom,.omok-spectator-toolbar) {position:fixed;inset:20px 20px 20px auto;width:224px;max-width:224px;padding:0;transform:none;display:flex;flex-direction:column;gap:12px;pointer-events:none;background:none;border:0}
+  .park-page .omok-rail-hud .omok-play-tools {display:flex;flex-direction:column;gap:12px;width:100%;max-width:none;pointer-events:auto}
+  .park-page .omok-rail-hud .omok-play-tools>.game-hud-menu {order:-1}
+  .park-page .omok-rail-hud .omok-negotiations {display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start;max-height:calc(100dvh - 390px);overflow:auto}
+  .park-page .omok-rail-hud .omok-play-notes {position:static;inset:auto;width:100%;font-size:12px;line-height:1.6;order:3;margin-top:auto}
+  .park-page .omok-rail-hud .focus-error {font-size:12px;overflow:auto;max-height:180px;pointer-events:auto}
+  .park-page .omok-rail-hud .omok-ping-status {position:static;inset:auto;transform:none;width:auto;max-width:100%;max-height:140px;overflow:auto;box-sizing:border-box;margin:0;font-size:12px;line-height:1.6;pointer-events:auto}
+  .park-page .omok-rail-hud .focus-hint {font-size:12px;line-height:1.6}
+  .park-page .omok-rail-hud .omok-request-trigger {font:14px/1.5 var(--game-hud-font);border-radius:6px;padding:9px 12px;background:#2a372df2;color:#eee2c5;border-color:#bdab7980}
+  .park-page .omok-rail-hud .omok-request-card {position:static;inset:auto;transform:none;width:100%;box-sizing:border-box}
+  .park-page .alkkagi-match-header {position:fixed;inset:20px auto auto 50%;transform:translateX(-50%);width:min(440px,calc(100vw - 560px));min-width:0;display:flex;flex-direction:row;gap:8px;filter:none}
+  .park-page .alkkagi-match-header>div {min-width:0;box-sizing:border-box;text-align:left;padding:12px 14px;border-radius:7px;background:#27362df0;border-color:#bdab7970}
+  .park-page .alkkagi-hint {position:fixed;top:390px;left:20px;right:auto;transform:none;max-width:224px;white-space:normal;box-sizing:border-box;line-height:1.6;border-radius:6px}
+  .park-page .alkkagi-opponent-hand {top:43%;max-width:max(76px,calc((100vw - 72vh)/2 - 32px))}
+  .park-page .onecard-turn-cue {display:none}
+  .park-page .onecard-public {font-family:var(--game-hud-font)}
+  .park-page .farkle-player-hud.farkle-hud .farkle-message {max-width:calc(100vw - 540px);top:120px;left:50%;font:15px/1.6 var(--game-hud-font)}
+  .park-page .ledger-panel {top:var(--game-hud-menu-bottom,132px);left:auto;right:20px;bottom:auto;width:min(380px,32vw);max-height:calc(100dvh - var(--game-hud-menu-bottom,132px) - 20px);border-radius:8px;font-family:var(--game-hud-font);background:#27362df2;color:var(--game-hud-text);border-color:#bdab7970}
+  .park-page .ledger-panel .ledger-head {min-height:32px}
+  .park-page .ledger-status {font-size:14px;line-height:1.6}
+  .park-page .prototype-game.bridge-panel {inset:var(--game-hud-menu-bottom,132px) 20px auto auto;width:min(420px,calc(100vw - 560px));max-height:calc(100dvh - var(--game-hud-menu-bottom,132px) - 20px);font-family:var(--game-hud-font);background:#27362df2;color:var(--game-hud-text);border:1px solid #bdab7970;border-radius:8px;padding:14px;box-sizing:border-box;scrollbar-width:thin;overscroll-behavior:contain}
+  .park-page .bridge-panel .mini-heading {position:static;transform:none;width:auto;background:none;padding:0;border:0;text-align:left}
+  .park-page .bridge-panel .mini-heading>small,.park-page .bridge-panel .mini-heading>p {display:none}
+  .park-page .bridge-panel .mini-heading h2 {font-size:18px;margin:0 0 12px}
+  .park-page .bridge-panel .mini-status {position:static;transform:none;width:auto;text-align:left;margin:10px 0;max-width:none}
+  .park-page .prototype-game.bridge-panel {overflow-y:auto;overflow-x:hidden}
+  .park-page .prototype-game.bridge-panel :is(.mini-scoreboard,.bridge-main-actions,.bridge-goals,.mini-feedback) {position:static;inset:auto;transform:none;width:auto;max-width:100%;max-height:none;margin:0 0 12px;box-sizing:border-box}
+  .park-page .prototype-game.bridge-panel .mini-scoreboard {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .park-page .bridge-panel .bridge-main-actions {display:flex;flex-direction:column;gap:8px}
+  .park-page .bridge-panel .bridge-main-actions p {font-size:13px;line-height:1.6}
+  .park-page .farkle-observer-hud .farkle-spectator {right:20px;bottom:20px;width:308px;max-height:calc(100dvh - var(--game-hud-menu-bottom,132px) - 40px);font-family:var(--game-hud-font);background:#27362df2;border-color:#bdab7970;border-radius:8px}
+  .park-page .hg-feedback {top:212px;max-width:224px;left:20px;max-height:170px;background:#27362df2;border-radius:6px;box-sizing:border-box;padding:10px 12px;font:13px/1.6 var(--game-hud-font)}
+
+  .park-page:has(.game-hud-menu) :is(.park-chat,.omok-spectator-chat) {
+    position:fixed;inset:auto auto 20px 20px;width:280px;max-width:280px;max-height:260px;transform:none;
+    box-sizing:border-box;border:1px solid #bdab7980;border-radius:8px;padding:12px 14px;background:#27362df2;
+    color:#f5edda;font:13px/1.6 var(--game-hud-font);z-index:30;pointer-events:auto;box-shadow:0 5px 18px #1a140c22;
+  }
+  .park-page:has(.game-hud-menu) .park-chat__heading {padding-bottom:8px}
+  .park-page:has(.game-hud-menu) .park-chat__heading h1 {font:15px/1.5 var(--game-hud-font)}
+  .park-page:has(.game-hud-menu) .park-chat__message {font:13px/1.6 var(--game-hud-font);gap:8px}
+  .park-page:has(.game-hud-menu) .park-chat__author {max-width:34%;flex:0 1 34%;min-width:0}
+  .park-page:has(.game-hud-menu) .park-chat__message>span:last-child {flex:1;min-width:0}
+  .park-page:has(.game-hud-menu) .park-chat__list {max-height:148px}
+  .park-page:has(.game-hud-menu) .park-chat__composer {--chat-composer-height:38px;height:38px;font:13px/1.5 var(--game-hud-font);border-radius:5px}
+  .park-page:has(.game-hud-menu) .park-chat[data-expanded=true] {max-height:min(440px,55dvh)}
+  .park-page:has(.game-hud-menu) .park-chat[data-expanded=true] .park-chat__list {max-height:310px}
+  .park-page:has(.game-hud-menu) .omok-spectator-chat .omok-chat-log {max-height:148px;font:13px/1.6 var(--game-hud-font)}
+  .park-page:has(.game-hud-menu) .omok-chat-body {font:15px/1.5 var(--game-hud-font)}
+  .park-page:has(.game-hud-menu) .omok-chat-body>label {display:flex;align-items:center;gap:8px;margin:8px 0;color:#f5edda;font-size:15px}
+  .park-page:has(.game-hud-menu) .omok-chat-body>label small {font-size:11px;color:#e6cd8c;background:#d7bd7824;border-radius:3px;padding:2px 5px}
+  .park-page:has(.game-hud-menu) .omok-chat-body>div {display:flex;align-items:center;gap:4px;background:#f4efdf;border:1px solid #bca779;border-radius:5px;padding:0 5px;min-width:0}
+  .park-page:has(.game-hud-menu) .omok-spectator-chat input {height:38px;min-width:0;flex:1;box-sizing:border-box;font:13px/1.5 var(--game-hud-font);border:0;background:transparent;color:#413a2b;padding:6px 4px;border-radius:5px}
+  .park-page:has(.game-hud-menu) .omok-chat-body button[type=submit] {width:27px;height:27px;min-width:27px;min-height:27px;padding:4px;border:0;border-radius:50%;background:#d5b55f;display:grid;place-items:center}
+  .park-page:has(.game-hud-menu) .omok-chat-body button[type=submit]:disabled {opacity:.45}
+  .park-page:has(.game-hud-menu) .omok-chat-body>p {font-size:11px;color:#c8bda6;margin:6px 0 0}
+  .park-page:has(.game-hud-menu) .omok-chat-log p {display:flex;gap:8px;font-size:13px}
+  .park-page:has(.game-hud-menu) .omok-chat-log strong {flex:0 1 34%;min-width:0;max-width:34%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6cd8c}
+  .park-page:has(.game-hud-menu) .omok-chat-log p>span {flex:1;min-width:0;overflow-wrap:anywhere}
+  .park-page[data-omok-focus=true]:has(.game-hud-menu) .omok-spectator-chat {max-height:min(260px,max(100px,calc(100dvh - var(--omok-side-header-height,380px) - 56px)));overflow:auto}
+}
+.park-page .game-hud-menu .bridge-rules {position:static;inset:auto;transform:none;width:auto;max-width:100%;max-height:none;padding:8px 0;box-sizing:border-box;background:none;border:0;font:12px/1.6 var(--game-hud-font);color:var(--game-hud-text)}
+.park-page .game-hud-menu .bridge-actions {position:static;inset:auto;transform:none;width:auto;min-width:0;max-width:100%;padding:0;margin:0}
+.park-page .game-turn-notice {
+  position:fixed;inset:clamp(156px,21vh,228px) auto auto 50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:5px;box-sizing:border-box;
+  width:min(500px,calc(100vw - 40px));padding:12px 24px;pointer-events:none;z-index:38;
+  text-align:center;background:linear-gradient(90deg,transparent,#172c26ed 20%,#172c26ed 80%,transparent);
+  color:#eee9db;animation:game-turn-reveal 1.5s ease-out both;
+}
+.park-page .game-turn-notice strong {
+  display:block;max-width:100%;margin:0;padding:0;color:inherit;font:700 clamp(24px,3vw,42px)/1.2 var(--game-hud-font);
+  letter-spacing:.03em;overflow-wrap:anywhere;text-shadow:0 2px 8px #0006;-webkit-text-stroke:0;animation:none;
+}
+.park-page .game-turn-notice[data-own=true] {color:#f4d58d}
+.park-page .game-turn-notice small {font:13px/1.5 var(--game-hud-font);color:#eee9db}
+@keyframes game-turn-reveal {0%{opacity:0;translate:0 8px}15%,70%{opacity:1;translate:0 0}100%{opacity:0;translate:0 -5px}}
+@media(prefers-reduced-motion:reduce){.park-page .game-turn-notice{animation:none}}
+.park-page .game-hud-turn[data-rapid-turn=true] {animation:game-hud-rapid-turn .3s ease-out both}
+@keyframes game-hud-rapid-turn {from{background:#b89b4055}to{background:transparent}}
+@media(prefers-reduced-motion:reduce){.park-page .game-hud-turn[data-rapid-turn=true]{animation:none}}
+@media(max-width:999px) {
+  .park-page {--game-hud-rail:min(180px,calc(50vw - 18px));--game-hud-edge:12px}
+  .park-page .game-hud-clock {padding:10px 12px;gap:4px}
+  .park-page .game-hud-clock strong {font-size:30px}
+  .park-page .game-hud-clock-hint {display:none}
+  .park-page:has(.game-hud-menu) :is(.park-location,.park-account) {display:none}
+  .park-page .onecard-game-hud.onecard-panel .onecard-public {top:154px}
+  .park-page .onecard-game-hud .onecard-turn-cue {display:none}
+  .park-page[data-omok-focus=true] .omok-rail-hud .omok-match-header {top:154px}
+  .park-page .alkkagi-match-header {top:154px}
+  .park-page .halligalli-panel .hg-table {top:180px}
+}

@@ -15,7 +15,7 @@
       "name": "석탑",
       "theme": "stone",
       "count": 24,
-      "reward": 2,
+      "reward": 5,
       "asmr": "왁스 크랙",
       "stage": 1,
       "subtitle": "돌탑을 따라 한 걸음"
@@ -24,7 +24,7 @@
       "name": "오목돌",
       "theme": "gomoku",
       "count": 9,
-      "reward": 4,
+      "reward": 10,
       "asmr": "키캡",
       "stage": 2,
       "subtitle": "또각또각, 하늘로"
@@ -33,7 +33,7 @@
       "name": "붕어빵",
       "theme": "fish",
       "count": 13,
-      "reward": 7,
+      "reward": 20,
       "asmr": "크런치",
       "stage": 3,
       "subtitle": "노릇한 구름길"
@@ -42,7 +42,7 @@
       "name": "구름",
       "theme": "cloud",
       "count": 12,
-      "reward": 11,
+      "reward": 30,
       "asmr": "스퀴시",
       "stage": 4,
       "subtitle": "폭신한 하늘 계단"
@@ -51,7 +51,7 @@
       "name": "청사초롱",
       "theme": "lantern",
       "count": 17,
-      "reward": 16,
+      "reward": 40,
       "asmr": "팝잇",
       "stage": 5,
       "subtitle": "공원 위 반짝이는 길"
@@ -60,7 +60,7 @@
       "name": "방패연",
       "theme": "kite",
       "count": 18,
-      "reward": 24,
+      "reward": 60,
       "asmr": "한지 크리스피",
       "stage": 6,
       "subtitle": "바람을 타고"
@@ -69,7 +69,7 @@
       "name": "연잎",
       "theme": "lily",
       "count": 14,
-      "reward": 36,
+      "reward": 85,
       "asmr": "물 · 슬라임",
       "stage": 7,
       "subtitle": "호수로 뛰어들어요"
@@ -4407,7 +4407,7 @@
     },
     {
       "path": "src/layout-preview/jumpCourse.ts",
-      "sha256": "8f78898d78ba683c7c50df8db68b28a73c8db27bd0433d9ca18df8a995432b39"
+      "sha256": "849e5f641826f8fcee95da7c00d2fc057fda00e55882a7a8bd6e7ddc0dd05ab5"
     },
     {
       "path": "src/map/park/definition.ts",
