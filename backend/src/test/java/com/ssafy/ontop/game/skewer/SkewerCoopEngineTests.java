@@ -381,11 +381,16 @@ class SkewerCoopEngineTests {
                 .isInstanceOf(RuntimeException.class);
         fixture.prepare();
         assertThat(fixture.engine.join(202, "park", fixture.id).path("gameId").asText()).isEqualTo(fixture.id);
+        JsonNode original = fixture.secret(101).at("/hall/tables/0/bill/dishes/0").deepCopy();
         assertThat(fixture.secret(202).path("chef").path("visible")).isEmpty();
         fixture.receiveFirst();
         assertThat(fixture.secret(202).toString()).doesNotContain("recipe");
         fixture.deliverOrder();
         assertThat(fixture.secret(202).path("chef").path("visible")).hasSize(1);
+        JsonNode received = fixture.secret(202).at("/chef/visible/0");
+        assertThat(received.path("id")).isEqualTo(original.path("id"));
+        assertThat(received.path("table")).isEqualTo(original.path("table"));
+        assertThat(received.path("recipe")).isEqualTo(original.path("recipe"));
         assertThat(fixture.secret(202).has("hall")).isFalse();
     }
 
@@ -465,13 +470,23 @@ class SkewerCoopEngineTests {
         fixture.walk(-2.6, -4.25);
         fixture.interact();
 
-        String hidden = fixture.secret(101).at("/hall/kitchen/2/id").asText();
+        JsonNode kitchen = fixture.secret(101).at("/hall/kitchen").deepCopy();
+        String hidden = kitchen.at("/2/id").asText();
         assertThat(fixture.secret(202).at("/chef/visible")).hasSize(2);
+        for (int index = 0; index < 2; index++) {
+            JsonNode visible = fixture.secret(202).at("/chef/visible/" + index);
+            assertThat(visible.path("id")).isEqualTo(kitchen.get(index).path("id"));
+            assertThat(visible.path("table")).isEqualTo(kitchen.get(index).path("table"));
+            assertThat(visible.path("recipe")).isEqualTo(kitchen.get(index).path("recipe"));
+        }
         assertThat(fixture.secret(202).at("/chef/waiting").asInt()).isEqualTo(1);
         assertThat(fixture.secret(202).toString()).doesNotContain(hidden);
         assertThatThrownBy(() -> fixture.act(202, Map.of("type", "CHOOSE", "id", hidden)))
                 .isInstanceOf(RuntimeException.class);
         fixture.cookFirst();
+        assertThat(fixture.secret(202).at("/chef/visible/0/recipe")).isEqualTo(kitchen.at("/1/recipe"));
+        assertThat(fixture.secret(202).at("/chef/visible/1/id").asText()).isEqualTo(hidden);
+        assertThat(fixture.secret(202).at("/chef/visible/1/recipe")).isEqualTo(kitchen.at("/2/recipe"));
         fixture.cookFirst();
         fixture.assembleFirst();
         JsonNode before = fixture.secret(202);
