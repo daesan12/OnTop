@@ -10,6 +10,7 @@ import {
   type WardrobeFilter, type WardrobeGroup,
 } from './state'
 import { wornPiece } from '../../world/art/characterLook'
+import { knownWholeSkin, wholeSkinCompatible } from '../../world/art/wholeSkin'
 import { WARDROBE_OUTFITS_ENABLED } from './feature'
 import { wardrobeView } from './view'
 import { outfitImage, setImage, useItemArt, type CharacterVariant } from './itemArt'
@@ -21,7 +22,7 @@ const walkKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown'
 
 function ItemArt({ owned, variant }: { owned: OwnedItem; variant: CharacterVariant }) {
   const art = useItemArt(variant, owned.item.equipSlot!, owned.item.name)
-  return <span className="wardrobe-art" data-slot={owned.item.equipSlot}>
+  return <span className="wardrobe-art" data-slot={owned.item.equipSlot} data-whole-skin={!!knownWholeSkin(owned.item.imageKey)}>
     <img src={setImage(owned.item.setCode) ?? outfitImage(owned.item.imageKey, owned.item.equipSlot!, variant) ?? art} alt="" />
   </span>
 }
@@ -112,6 +113,7 @@ export function WardrobeScreen() {
   const visible = cards.filter(owned => (s.filter === 'ALL' || groupsOf(owned).includes(s.filter))
     && (!query || label(owned).includes(query) || setPieces(s.items, owned).some(other => other.item.name.includes(query))))
   const preview = s.items.find(owned => owned.userItemId === s.previewId)
+  const incompatibleSkin = !!preview && !wholeSkinCompatible(variant, preview.item.imageKey)
   const previewed = (owned: OwnedItem) => !!preview && setPieces(s.items, owned).includes(preview)
   const worn = (group: WardrobeGroup) => group === 'OUTFIT'
     ? OUTFIT_SLOTS.map(slot => s.items.find(owned => owned.equipped && owned.item.equipSlot === slot)).find(Boolean)
@@ -148,7 +150,8 @@ export function WardrobeScreen() {
         <span>{preview ? `미리보기 · ${label(preview)}` : '내 캐릭터'}</span>
         <button type="button" aria-label="오른쪽으로 돌리기" onClick={() => turnWardrobeView(QUARTER_TURN)}>›</button>
       </div>
-      {preview && !wornPiece(preview.item.imageKey) && <p className="wardrobe-stage__note" role="note">의상 3D 모델이 준비되면 캐릭터에 바로 보여요. 지금은 착용 정보만 바뀌어요.</p>}
+      {preview && knownWholeSkin(preview.item.imageKey) && <p className="wardrobe-stage__note" role="note">남자 캐릭터 전용 · 머리·얼굴·옷을 한 번에 입는 스킨이에요.</p>}
+      {preview && !knownWholeSkin(preview.item.imageKey) && !wornPiece(preview.item.imageKey) && <p className="wardrobe-stage__note" role="note">의상 3D 모델이 준비되면 캐릭터에 바로 보여요. 지금은 착용 정보만 바뀌어요.</p>}
     </section>
     <p className="wardrobe-hint"><span aria-hidden="true">🖱</span>WASD 이동 · 드래그로 회전 · 더블클릭으로 입기·벗기 · Esc 닫기</p>
 
@@ -176,7 +179,7 @@ export function WardrobeScreen() {
           <button type="button" onClick={() => void refreshWardrobe()}>다시 불러오기</button>
         </div> : !s.ready ? <div className="wardrobe-empty" role="status"><b>옷장을 여는 중이에요…</b></div>
         : !s.items.length ? <div className="wardrobe-empty" role="status">
-          <b>아직 가진 의상이 없어요</b><p>상점에서 의상을 구매하면 여기에서 골라 입을 수 있어요.</p>
+          <b>아직 가진 의상이 없어요</b><p>보유한 스킨이 생기면 여기에서 골라 입을 수 있어요.</p>
         </div> : !visible.length ? <div className="wardrobe-empty" role="status">
           <b>찾는 의상이 없어요</b><p>다른 칸을 고르거나 검색어를 바꿔 보세요.</p>
         </div> : <ul className="wardrobe-grid">
@@ -187,6 +190,7 @@ export function WardrobeScreen() {
               // A double click wears it, or takes it off when it is already worn (the two clicks before it preview it).
               onDoubleClick={() => {
                 previewWardrobeItem(owned.userItemId)
+                if (!owned.equipped && !wholeSkinCompatible(variant, owned.item.imageKey)) return
                 void (owned.equipped ? takeOffPreviewedItem() : wearPreviewedItem())
               }}>
               <ItemArt owned={owned} variant={variant} />
@@ -208,7 +212,7 @@ export function WardrobeScreen() {
               ? <button type="button" className="wardrobe-wear" disabled={!!s.equipping || s.loading} onClick={() => void takeOffPreviewedItem()}>
                 {s.equipping ? '벗는 중…' : preview.item.setCode ? '세트 벗기' : '벗기'}
               </button>
-              : <button type="button" className="wardrobe-wear" disabled={!!s.equipping || s.loading} onClick={() => void wearPreviewedItem()}>
+              : <button type="button" className="wardrobe-wear" disabled={!!s.equipping || s.loading || incompatibleSkin} onClick={() => void wearPreviewedItem()}>
                 {s.equipping ? '착용하는 중…' : preview.item.setCode ? '세트 입기' : '착용하기'}
               </button>}
             <button type="button" className="wardrobe-cancel" disabled={!!s.equipping} onClick={cancelWardrobePreview}>미리보기 취소</button>

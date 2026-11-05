@@ -2,7 +2,7 @@ import { Vector3, type Group } from 'three'
 import type { AvatarSnapshot, Pose } from '../network/worldClient'
 import {
   AVATAR,
-  BENCH_PAVILIONS,
+  BENCH_SEAT_HEIGHTS,
   CHARACTER,
   FITNESS_STATIONS,
   NETWORK,
@@ -27,11 +27,9 @@ type Rig = ReturnType<typeof createCharacterRig>
 const stations = new Map(FITNESS_STATIONS.map(station => [station.id, station]))
 const defaultDurationEmotes = new Set(['EMOTE_TSK', 'EMOTE_APPLAUSE_REQUEST', 'EMOTE_FART'])
 const supportedHipPoses = new Set(['rower', 'situp', 'inversion', 'legpress', 'pulldown'])
-const slattedBenches = new Set(BENCH_PAVILIONS.flatMap((pavilion, i) => pavilion ? [] : [`bench-${i}`]))
-
-/** ParkFurniture's slats top out at .58m; stone and pavilion seats at .56m. */
+/** Map-local seat height above the bench base; table/unknown seats retain the shared default. */
 export function avatarSeatSurface(benchId: string) {
-  return slattedBenches.has(benchId) ? 0.58 : CHARACTER.seatedHipHeight
+  return BENCH_SEAT_HEIGHTS.get(benchId) ?? CHARACTER.seatedHipHeight
 }
 
 /** Presentation precedence only. Occupancy/permissions come from the adapter. */
