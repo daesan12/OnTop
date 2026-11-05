@@ -6,7 +6,7 @@ import type { MolePort } from './service'
 export const PREVIEW_RULES: MoleRules = { durationMs: DURATION_MS, phaseMs: PHASE_MS, keys: [...KEYS], pointsPerCoin: POINTS_PER_COIN,
   normalPoints: 10, goldPoints: 30, decoyPenalty: 20, rapidPoints: [0, 0, 20, 30, 45, 60], comboSteps: [10, 20, 30],
   comboTenths: [10, 12, 15, 20] }
-const PHASES = [[820, 2, 900, 6, 8, 4, 3], [590, 3, 750, 8, 10, 7, 4], [450, 4, 600, 9, 12, 9, 5]] as const
+const PHASES = [[656, 2, 1100, 6, 8, 4, 3], [472, 2, 950, 8, 10, 7, 4], [360, 3, 800, 9, 12, 9, 5]] as const
 
 /** 화면 확인용 출현표. 서버 MoleRules.schedule과 같은 규칙이지만 난수는 다르다. 실제 판에는 쓰지 않는다. */
 export function previewSchedule(seed = Date.now()) {
@@ -23,7 +23,7 @@ export function previewSchedule(seed = Date.now()) {
     const hole = free[Math.floor(random() * free.length)]!, roll = Math.floor(random() * 100)
     const kind: MoleKind = roll < gold ? 'GOLD' : roll < gold + rapid ? 'RAPID' : roll < gold + rapid + decoy ? 'DECOY' : 'NORMAL'
     const hits = kind === 'RAPID' ? 2 + Math.floor(random() * (rapidMax - 1)) : 1
-    const life = kind === 'GOLD' ? stay / 2 : kind === 'RAPID' ? hits * 200 + 500 : stay
+    const life = kind === 'GOLD' ? Math.floor(stay * 55 / 100) : kind === 'RAPID' ? hits * 220 + 600 : stay
     if (at + life > DURATION_MS) break
     moles.push({ id: moles.length, hole, kind, hits, appearAt: at, leaveAt: at + life })
     busy[hole] = at + life

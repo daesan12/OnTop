@@ -47,7 +47,7 @@ class MoleMySqlTests {
     }
 
     @Test
-    void V147_적용_후_완료가_점수와_공통_상한_보상을_한_행과_한_원장에_남긴다() {
+    void V149_적용_후_완료가_점수와_공통_상한_보상을_한_행과_한_원장에_남긴다() {
         long user = 회원();
         long round = Long.parseLong(service.start(user, "round-1").id());
         판을_끝낸다(round);
@@ -55,7 +55,7 @@ class MoleMySqlTests {
         var settled = service.complete(user, round, 다_잡기(round));
 
         assertThat(flyway.info().pending()).isEmpty();
-        assertThat(settled.result().reward()).isPositive().isEqualTo(settled.result().score() / 30);
+        assertThat(settled.result().reward()).isPositive().isEqualTo(settled.result().score() / 45);
         assertThat(잔액(user)).isEqualTo(100L + settled.result().reward());
         assertThat(원장수(user, "MOLE_REWARD")).isEqualTo(1);
         assertThat(settled.todayEarned()).isEqualTo(settled.result().reward());
@@ -99,7 +99,7 @@ class MoleMySqlTests {
         for (MoleRules.Mole mole : MoleRules.schedule(seed)) {
             if (mole.kind() != MoleRules.Kind.DECOY) {
                 for (int tap = 0; tap < mole.hits(); tap++) {
-                    hits.add(new MoleDtos.Hit(mole.hole(), mole.appearAt() + 120 + tap * 70));
+                    hits.add(new MoleDtos.Hit(mole.hole(), mole.appearAt() + 120 + tap * 90));
                 }
             }
         }

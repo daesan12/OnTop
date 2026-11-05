@@ -1,12 +1,12 @@
 import { SPRITES } from './stage'
 import { KEYS } from './protocol'
 
-/** ① 구멍과 키 배치. 아랫줄은 반 칸 오른쪽이다. */
+/** ① 구멍과 키 배치. 한 줄 아치로 왼손 Q W E, 오른손 I O P이고 가운데가 조금 더 벌어져 있다. */
 export function MoleKeysFigure() {
   return <div className="mole-figure">
     <div className="mole-figure-board" aria-label="구멍 키 배치">
-      {[0, 1].map(row => <div key={row} className="mole-figure-row" data-row={row}>
-        {KEYS.slice(row * 4, row * 4 + 4).map(key => <span key={key}>{key}</span>)}
+      {[KEYS.slice(0, 3), KEYS.slice(3)].map((hand, side) => <div key={side} className="mole-figure-hand" data-side={side}>
+        {hand.map(key => <span key={key}>{key}</span>)}
       </div>)}
     </div>
   </div>
