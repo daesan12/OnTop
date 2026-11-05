@@ -136,18 +136,18 @@ if (Test-Path analytics/out) { Remove-Item -Recurse -Force analytics/out }
 - 회원 번호가 없는 이벤트(local 개발 사용자)는 사용자 지표에서 빠진다. 팀원 테스트 계정은 아직 걸러내지 않는다.
 - 로그를 켜기 전에 시작된 경기·접속은 짝이 맞지 않아 일부 지표에서 빠진다.
 - 위치는 움직이는 동안만 1초마다 기록하므로 히트맵의 이동량은 "체류 시간"이 아니라 "지나다닌 양"이다.
-- 12~13번이 읽는 `minigame_sessions`·`bungeoppang_records`·`bungeoppang_v4_rounds`(`db/minigame`)는 운영 Flyway 경로에 없고 dev에만 적용돼 있어, 운영 백업에서는 쿼리가 실패한다(2026-10-30 `infra/app/prod.app.env.example`의 `DB_MIGRATION_LOCATIONS=classpath:db/migration` 기준. 운영 서버의 실제 값이 바뀌었으면 다시 확인한다). 14~15번이 읽는 `feedback_messages`는 2026-10-27부터 공통 마이그레이션 V127로 옮겨졌지만, V127이 배포되기 전 백업에는 테이블이 없다.
+- 12번이 읽는 `minigame_sessions`·`bungeoppang_records`·`bungeoppang_v4_rounds`와 24~26번이 읽는 점프맵·룰렛 테이블은 `db/minigame` 경로의 마이그레이션이다. 2026-11-03 운영 DB의 `flyway_schema_history`에서 V129~V140(`db/minigame`·`db/notes` 포함)이 2026-11-02에 모두 `success=1`로 적용된 것을 확인했다. 따라서 그 이후 운영 백업에서는 0~27번이 모두 동작한다. 그보다 이전 백업에는 해당 테이블이 없어 그 쿼리가 실패한다. 저장소의 `infra/app/prod.app.env.example`(`DB_MIGRATION_LOCATIONS=classpath:db/migration`)은 실제 운영 설정과 다르므로, 경로를 판단할 때는 운영 DB의 `flyway_schema_history`를 기준으로 한다. 14~15번이 읽는 `feedback_messages`는 2026-10-27부터 공통 마이그레이션 V127로 옮겨졌지만, V127이 배포되기 전 백업에는 테이블이 없다.
 - 붕어빵 판 버전(12번 `game_version`)은 v2, `v4-20261027.1`(60초), `v5-20261027.1`(3분, 10/29 이전 발급 판), `v5-20261029.1`(2분)이다. v2는 제출 기한 10분이 지나면 기한 초과다. 일일 보상 한도는 버전과 관계없이 같다. 12번 평균 시간은 사용자가 직접 멈춘 시간(V132 `manual_paused_ms`)을 뺀 값이다.
 - 서버가 90일 지난 소리함 제출을 지우므로, 소리함 지표는 지워지기 전 백업으로 본다. 탈퇴하면 작성자 회원 번호가 지워진다.
 - 쿼리는 백업 한 건을 기준으로 한다. 여러 백업을 합쳐 보면 같은 행이 겹치므로 각 테이블의 `id`로 중복을 지운 뒤 집계한다.
 - 익명 메모(`anonymous_notes`)는 행동 로그를 남기지 않기로 했다(S15P31B105-212). 서버가 최신 120개만 남기고 지우므로 `created_at`으로 센 건수는 남아 있는 메모 기준이며, 전체·일별 작성 수로 해석하지 않는다.
-- 붕어빵 12번은 판 시작일, 13번은 판 종료일 기준이라 자정 근처의 판은 두 쿼리에서 날짜가 다를 수 있다.
+- 붕어빵 12번은 판 시작일, 13번은 원장 지급 시각 기준이라 자정 근처의 판은 두 쿼리에서 날짜가 다를 수 있다.
 - 19~20번은 지갑 원장(`wallet_transactions`)과 지갑(`wallets`)을 읽는다. 금액은 이 원장이 원본이며 행동 로그 금액보다 우선한다. 20번은 백업 시점 한 장면이라 날짜별 추이는 백업 여러 건을 따로 돌려 비교한다. 회원별 잔액 목록은 만들지 않는다.
 - 21번은 행동 로그 `GAME_STARTED` 기준이라 로그를 켜기 전 경기는 빠진다. 2026-11 이후 판돈 0 경기(V139)가 허용되어 최소 판돈이 0일 수 있다. 판돈 0 경기도 예약·정산 원장이 금액 0으로 남으므로 19번의 경기 원장 거래 수에는 잡히지만 엽전 흐름에는 영향이 없다.
 - 13번의 공동 일일 한도는 2026-11부터 붕어빵 단독 100냥에서 미니게임 공동 500냥(`MinigameRewardBudget.DAILY_CAP`)으로 바뀌었다. 서버처럼 지갑 원장의 `MINIGAME_REWARD`(붕어빵)·`JUMP_GATE_REWARD`(점프맵)·`SKEWER_REWARD`(꼬치) 양수 금액을 KST 하루로 합산한다. 이 변경 전 날짜의 도달 비율은 당시 한도(100)와 다르게 보인다.
 - 19번에 새로 보이는 원장 유형: `MINIGAME_ENTRY_FEE`(가위바위보 룰렛·꼬치 입장료, 출처는 `idempotency_key` 접두어 `rps-roulette:`·`skewer:`), `RPS_ROULETTE_PAYOUT`(룰렛 지급), `RAFFLE_PURCHASE`(주간 추첨 구매), `FITNESS_REWARD`(운동기구 보상 1냥), `JUMP_GATE_REWARD`(점프맵 구간 보상).
 - 22~23번은 경기 테이블(`game_sessions`·`game_participants`, 공통 마이그레이션 V112·V122·V123)을 읽는다. 행동 로그의 `game_id`는 `game_sessions.id`와 같은 값이다. 경기 수·결과의 원본은 이 테이블이다.
-- 24~27번은 점프맵(`jump_runs`, `db/minigame` V131)·가위바위보 룰렛(`rps_roulette_rounds`, `db/minigame` V136)·주간 추첨(`raffle_rounds`·`raffle_tickets`, 공통 V140) 기능 테이블을 읽는다. 행동 로그는 따로 남기지 않는다. `db/minigame` 테이블은 12~13번과 같이 운영 Flyway 경로에 들어가기 전 백업에는 없어 24~26번이 실패한다.
+- 24~27번은 점프맵(`jump_runs`, `db/minigame` V131)·가위바위보 룰렛(`rps_roulette_rounds`, `db/minigame` V136)·주간 추첨(`raffle_rounds`·`raffle_tickets`, 공통 V140) 기능 테이블을 읽는다. 행동 로그는 따로 남기지 않는다. 운영 DB에는 2026-11-02에 적용됐으므로 그 이전 백업에서는 24~27번이 실패한다.
 - 점프맵 구간 보상(`JUMP_GATE_REWARD`)은 하루 100냥 상한(`jump_daily_earnings`)과 미니게임 공동 한도(13번) 둘 다에 걸린다. 25번은 끝난 도전 중 의심 판을 뺀 것만 센다.
 
 ## 구역 수정

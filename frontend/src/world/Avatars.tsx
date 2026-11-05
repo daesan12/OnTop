@@ -19,6 +19,11 @@ import { avatarMenuRaycast } from './avatarMenuPicking'
 import { useAvatarFrameSampler } from './AvatarPoseFrame'
 import type { AvatarSampler } from '../network/avatarFrame'
 import { emptyEquipment } from '../network/equipment'
+import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from './art/characterLook'
+import { useOutfitSources } from './art/outfitSources'
+import { previewEquipment, useWardrobe } from '../features/wardrobe/state'
+import type { OwnedItem } from '../features/shop/contracts'
+import { WARDROBE_OUTFITS_ENABLED } from '../features/wardrobe/feature'
 import { roamingFirstPerson } from './roamingCamera'
 import { localMovement } from '../network/localMovementPrediction'
 import { useJumpmap } from '../features/jumpmap/state'
@@ -39,6 +44,7 @@ import {
   estimatedServerTime,
 } from '../network/worldClient'
 
+const noItems: OwnedItem[] = []
 function Avatar({
   id,
   rigs,
@@ -51,12 +57,24 @@ function Avatar({
   samplePose: AvatarSampler
 }) {
   const sources = useLoader(ParkAssetLoader, characterUrls)
-  const variant = useSession(state => state.profiles[id]?.character ?? 'man')
+  const variant = useSession(state => state.profiles[id]?.character === 'girl' ? 'girl' : 'man')
   const equipment = useSession(state => state.equipment[id] ?? emptyEquipment)
   const own = useSession(state => state.sessionId === id)
+  // The own avatar tries on the wardrobe's previewed item before it is worn.
+  const previewId = useWardrobe(state => own && state.open ? state.previewId : 0)
+  // (only the own avatar previews; others keep one empty list, so a wardrobe refresh does not re-render them)
+  const owned = useWardrobe(state => own ? state.items : noItems)
+  const worn = useMemo(() => previewId && previewEquipment(owned, previewId) || equipment, [previewId, owned, equipment])
+  // Outfits closed (production build): every avatar keeps its default clothes, whatever is equipped.
+  const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn])
+  const outfits = useOutfitSources(lookSources(look).filter(source => !isCharacterSource(source)))
+  const files = useMemo(() => new Map([['man', sources[0]!], ['girl', sources[1]!], ...outfits]), [sources, outfits])
+  const shown = availableLook(variant, look, source => files.has(source))
+  const shownKey = lookKey(shown)
   const model = useMemo(
-    () => createCharacterRig(sources[variant === 'girl' ? 1 : 0]!),
-    [sources, variant],
+    () => createCharacterRig(sources[variant === 'girl' ? 1 : 0]!, shown, files),
+    // (`shown` is fully described by its key)
+    [sources, variant, shownKey, files],
   )
   const root = useRef<Group>(null)
   const figure = useRef<Group>(null)
@@ -155,7 +173,7 @@ function Avatar({
       }}
       // Approved public appearance reaches the renderer. No guessed asset or material
       // substitution: product-specific models/textures have not been supplied yet.
-      userData={{ character: variant, equipment, equipmentAssetsPending: equipment.length > 0 }}
+      userData={{ character: variant, equipment, look: shownKey }}
     >
       <FartCloud id={id} />
       <group ref={figure} name={`figure-${id}`}>

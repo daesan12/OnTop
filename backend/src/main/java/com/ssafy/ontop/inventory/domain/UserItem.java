@@ -56,6 +56,10 @@ public class UserItem {
         equipped = false;
     }
 
+    public boolean equipped() {
+        return equipped;
+    }
+
     public OwnedItemResponse toOwnedItem() {
         return new OwnedItemResponse(id, item.toItem(), quantity, equipped);
     }

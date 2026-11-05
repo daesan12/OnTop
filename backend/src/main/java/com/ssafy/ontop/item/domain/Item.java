@@ -33,12 +33,15 @@ public class Item {
     private String imageKey;
     @Column(name = "is_for_sale", nullable = false)
     private boolean forSale;
+    /** 세트 의상 묶음. 같은 값의 부위들은 함께 입고 벗는다. 일반 의상은 null. */
+    @Column(name = "set_code", length = 50)
+    private String setCode;
 
     protected Item() {
     }
 
     public ItemResponse toItem() {
-        return new ItemResponse(id, itemCode, name, itemType, equipSlot, price, imageKey);
+        return new ItemResponse(id, itemCode, name, itemType, equipSlot, price, imageKey, setCode);
     }
 
     public boolean isForSale() {

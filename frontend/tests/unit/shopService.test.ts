@@ -70,4 +70,16 @@ describe('existing shop REST contract', () => {
     expect(await shop.items()).toEqual([{ ...item, equipSlot: null, imageKey: null }])
     await expect(shop.equip(11)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' })
   })
+  it('reads set codes and takes an item off with equipped:false', async () => {
+    const piece = { ...item, itemId: 2, itemCode: 'GENERAL_TOP', imageKey: 'outfit/general/g', setCode: 'GENERAL' }
+    const request = vi.fn().mockResolvedValueOnce({ items: [{ ...owned, item: piece }] })
+      .mockResolvedValueOnce({ equipment: [] }).mockResolvedValueOnce({ equipment: [{ ...owned, userItemId: 12 }] })
+    const shop = createShopService(request)
+    expect((await shop.inventory())[0]!.item.setCode).toBe('GENERAL')
+    expect(await shop.unequip(11)).toEqual([])
+    expect([request.mock.calls[1]![0], request.mock.calls[1]![1].method]).toEqual(['/api/v1/users/me/equipment', 'PATCH'])
+    expect(JSON.parse(request.mock.calls[1]![1].body)).toEqual({ userItemId: 11, equipped: false })
+    // The taken-off item may not come back as worn.
+    await expect(shop.unequip(12)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' })
+  })
 })

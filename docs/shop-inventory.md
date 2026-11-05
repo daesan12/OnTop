@@ -95,6 +95,31 @@ JPA EntityManager·JPQL 저장소를 사용한다. 지갑 PESSIMISTIC_WRITE(MySQ
 
 공개 필드는 `WORLD_STATE.payload.avatars[].equipment`이며 itemId·itemCode·equipSlot·imageKey만 최대5개 전달한다. null은 아직 조회되지 않았거나 기능 비활성/조회 실패인 상태이므로 기존 외형을 지우지 않는다. []는 조회 성공·장착 없음이다. 가격·보유 ID·수량은 공개하지 않는다. 기존 REST 응답은 그대로다. [메시지 계약](world-websocket-api.md#의상-변경-동기화)을 참고한다. 실제 3D 에셋 매핑·프론트 렌더링 연동은 별도 협의이며 신규 WS 요청/의상 해제·소비 API는 추가하지 않았다.
 
+## 세트 의상·장착 해제·3D 외형 (2026-11-02, S15P31B105-319)
+
+- `items.set_code`(선택적 db/shop `V102`, NULL 허용): 같은 값의 보유 의상은 한 벌로 함께 입고 벗는다(예: 장군 `GENERAL` 5부위).
+  - 세트 한 부위를 장착하면 보유한 같은 세트 부위를 모두 장착하고, 그 부위들의 기존 의상을 해제한다.
+  - 일반 의상을 세트 부위에 장착하면 세트 전체를 해제한다(나머지 부위는 기본 옷).
+  - 상품·보유 응답의 `item`에 `setCode`(문자열 또는 null)가 추가된다. 기존 필드는 그대로다.
+- 해제: `PATCH /api/v1/users/me/equipment` `{"userItemId":1,"equipped":false}`. 그 부위는 기본 옷으로 돌아가며 세트 부위면 세트 전체를 해제한다.
+
+## 옷 한 벌 (2026-11-05, S15P31B105-338)
+
+- 마이룸은 **머리 · 얼굴 · 옷** 세 칸이다. 옷은 상의·하의·신발을 한 벌로 입는다. 데이터의 부위(`equip_slot`)는 그대로 다섯 개다.
+- 장착: 상의·하의·신발 중 한 부위라도 입으면 옷 부위(상의·하의·신발)를 모두 해제하고 새로 고른 것만 입는다.
+  - 세트면 세트 부위를 모두 입는다.
+  - 낱개 의상이면 나머지 옷 부위는 기본 옷이 된다.
+  - 머리·얼굴은 건드리지 않는다.
+- 해제: 옷 부위를 해제하면 상의·하의·신발 모두 기본 옷으로 돌아간다. 머리·얼굴 해제는 그 부위만 돌아간다.
+- 한 벌로 파는 의상은 상의·하의·신발에 같은 `set_code`를 준다. 머리·얼굴 아이템에는 `set_code`를 주지 않는다(따로 쓴다).
+  응답은 장착과 같은 전체 장착 목록이다. 이미 해제된 의상은 변경·알림 없이 현재 목록을 돌려준다. 기존 `{"userItemId":1}` 장착 요청은 그대로다.
+  해제는 커밋 뒤 `EquipmentChanged(userId)`(itemId 없음)로 외형만 다시 전파하고 장착 행동 로그(ITEM_EQUIPPED)는 남기지 않는다.
+- 3D 외형: 장착 의상의 `imageKey`가 `outfit/<파일>/<아이템>`이면 캐릭터에 그 조각을 입힌다. 파일은 캐릭터(`man`, `girl`: 기본 옷)
+  또는 `frontend/public/art/characters/outfits/<파일>.glb`이며, 아이템은 공용 몸 빌드의 의상 문자다(장군 `outfit/general/g`).
+  다른 형식의 imageKey는 기본 옷을 유지한다. 캐릭터 파일의 메시 extras.pieces에 몸 조각·의상 조각 범위가 들어 있고,
+  게임은 입은 의상에 가려지는 몸 조각을 숨긴다(`frontend/src/world/art/characterLook.ts`).
+- 운영 공개 전: 프론트 옷장 의상과 3D 외형은 `VITE_WARDROBE_OUTFITS=true`인 개발 빌드와 로컬 개발에서만 켜진다. 운영 빌드는 옷장 의상 목록을 읽지 않고, 장착 정보가 있어도 기본 옷을 그린다. 서버 API는 그대로다.
+
 ## DB 연결 경계
 
 선택적 `backend/src/main/resources/db/shop/V100__create_shop_inventory.sql`은 items/user_items/shop_purchases만 만든다. 현재 기본 Flyway 위치 db/migration에는 포함하지 않았다. 이미 팀 스키마가 있는 DB에 중복 적용하지 말고 최종 DDL과 대조 후 해당 위치를 통합한다. 사용자·지갑·경기·공통 원장은 재정의하지 않는다.

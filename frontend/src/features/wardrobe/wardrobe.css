@@ -123,13 +123,11 @@
   transform: translate(-50%, -50%);
   transition: box-shadow 120ms, border-color 120ms;
 }
-/* On one ellipse round the avatar (centre 50% 46%, radii 38% 30%): head, face, feet left; top, bottom right. */
-.wardrobe-bubble[data-slot='HAIR'] { left: 21%; top: 27%; }
-.wardrobe-bubble[data-slot='FACE'] { left: 12%; top: 46%; }
-.wardrobe-bubble[data-slot='SHOES'] { left: 21%; top: 65%; }
-.wardrobe-bubble[data-slot='TOP'] { left: 84%; top: 33%; }
-.wardrobe-bubble[data-slot='BOTTOM'] { left: 84%; top: 59%; }
-/* Reserve room above the rotation controls and keep a real gap between the three left slots. */
+/* On one ellipse round the avatar (centre 50% 46%, radii 38% 30%): head and face left, the outfit right. */
+.wardrobe-bubble[data-slot='HAIR'] { left: 16%; top: 32%; }
+.wardrobe-bubble[data-slot='FACE'] { left: 16%; top: 60%; }
+.wardrobe-bubble[data-slot='OUTFIT'] { left: 84%; top: 46%; }
+/* Reserve room above the rotation controls and keep a real gap between the two left places. */
 .wardrobe-bubbles__side[data-side='left'] {
   position: absolute;
   top: 16px;
@@ -137,8 +135,8 @@
   left: calc(12% - var(--bubble) / 2);
   width: calc(9% + var(--bubble));
   display: grid;
-  grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 24px;
   align-items: center;
   justify-items: start;
 }
@@ -149,8 +147,7 @@
   left: calc(84% - var(--bubble) / 2);
   width: var(--bubble);
   display: grid;
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 24px;
+  grid-template-rows: minmax(0, 1fr);
   align-items: center;
   justify-items: center;
 }
@@ -162,7 +159,7 @@
   aspect-ratio: 1;
   transform: none;
 }
-.wardrobe-bubbles__side[data-side='left'] .wardrobe-bubble:not([data-slot='FACE']) { justify-self: end; }
+.wardrobe-bubbles__side[data-side='left'] .wardrobe-bubble[data-slot='HAIR'] { justify-self: end; }
 .wardrobe-bubble:hover { border-color: #d9f2cb; }
 .wardrobe-bubble[aria-pressed='true'] { border-color: #6ae39b; box-shadow: 0 0 0 4px rgba(106, 227, 155, 0.45), 0 10px 24px rgba(0, 0, 0, 0.22); }
 .wardrobe-bubble__art { display: grid; place-items: center; width: 76%; height: 56%; min-height: 0; overflow: hidden; }

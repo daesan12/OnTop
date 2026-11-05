@@ -4,6 +4,7 @@ import { parkRuntime } from '../../park/runtime/runtime'
 import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputOwnership'
 import { emoteSlots as slots, emoteSector as sector, type Emote } from './catalog'
 import { emoteUnavailable } from './availability'
+import { emoteKeyboardBlocked } from './keyboard'
 import { useEmoteState } from './state'
 import { noteTourAction } from '../welcomeTour/state'
 import './emotes.css'
@@ -187,15 +188,14 @@ export function EmoteWheel() {
       const target = event.target;
       if (
         event.code !== "KeyG" ||
+        event.defaultPrevented ||
         event.repeat ||
         event.isComposing ||
         event.keyCode === 229 ||
         event.ctrlKey ||
         event.metaKey ||
         event.altKey ||
-        (target instanceof HTMLElement &&
-          (target.isContentEditable ||
-            ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName)))
+        emoteKeyboardBlocked(target)
       )
         return;
       event.preventDefault();
