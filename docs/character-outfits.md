@@ -152,9 +152,10 @@
 ```
 
 - `j`는 `no_ponytail.py`가 만든다. 뒤쪽 절반(y > 0)에서 몸 표면과 3.5 cm 넘게 떨어진 면이 포니테일과 머리끈이다. 더 느슨하게(5 cm 이상) 자르면 포니테일 뿌리가 남았다. 떼어 낸 자리는 머리 안쪽 면이 채워서 뒤에서 짧은 머리처럼 보이고, 대부분 갓 챙에 가린다.
+- `cap=1`: 자르면서 옆 가닥 사이가 벌어져 머리 옆이 구멍 난 것처럼 비어 보였다(user). 머리 밑 두피(이마 쪽 `cap_y=-0.05`보다 뒤, 높이 `cap_z=0.7` 위) 위 2.5 mm에 머리색 한 가지의 밑층을 깔아, 틈으로 머리색 그늘이 보이게 한다. 이마는 빼서 앞머리 사이가 갈색으로 막히지 않게 한다.
 
 ```bash
-"$B" -b --python tools/character/no_ponytail.py -- shared_layers_hi.glb shared_layers_hij.glb new=j dist=0.035 ymin=0.0
+"$B" -b --python tools/character/no_ponytail.py -- shared_layers_hi.glb shared_layers_hij.glb new=j dist=0.035 ymin=0.0 cap=1
 ```
 
 - `i`와 `j`는 모자 아래 머리의 원본일 뿐이라 아이템으로 팔지 않는다(옷 파일에도 넣지 않는다).
