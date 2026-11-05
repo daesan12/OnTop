@@ -35,6 +35,8 @@ MIGRATIONS = [
     ROOT / "backend/src/main/resources/db/minigame/V143__create_plus_minus_rounds.sql",
     ROOT / "backend/src/main/resources/db/minigame/V145__create_skewer_coop_results.sql",
     ROOT / "backend/src/main/resources/db/minigame/V147__create_mole_rounds.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V149__mole_rules_v2_reward_rate.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V150__mole_rules_v3_reward_rate.sql",
 ]
 DATABASE = "analytics_verify"
 
@@ -278,12 +280,18 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "max_tickets_per_buyer": "0", "buyers_at_limit": "0", "coins_spent": "0"},
     ],
     "28_mole_daily.sql": [
-        {"kst_date": "2026-10-27", "rounds": "2", "players": "2", "settled": "2", "expired": "0", "active": "0",
-         "avg_score": "750.0", "max_score": "900", "avg_max_combo": "10.0", "avg_caught": "32.5",
-         "calculated_coins": "50", "rewarded_coins": "30", "capped_coins": "20"},
-        {"kst_date": "2026-10-28", "rounds": "2", "players": "2", "settled": "0", "expired": "1", "active": "1",
-         "avg_score": "NULL", "max_score": "NULL", "avg_max_combo": "NULL", "avg_caught": "NULL",
-         "calculated_coins": "0", "rewarded_coins": "0", "capped_coins": "0"},
+        {"kst_date": "2026-10-27", "rules_version": "1", "points_per_coin": "30", "rounds": "2", "players": "2",
+         "settled": "2", "expired": "0", "active": "0", "avg_score": "750.0", "max_score": "900",
+         "avg_max_combo": "10.0", "avg_caught": "32.5", "calculated_coins": "50", "rewarded_coins": "30",
+         "capped_coins": "20"},
+        {"kst_date": "2026-10-28", "rules_version": "2", "points_per_coin": "45", "rounds": "2", "players": "1",
+         "settled": "1", "expired": "1", "active": "0", "avg_score": "44.0", "max_score": "44",
+         "avg_max_combo": "3.0", "avg_caught": "2.0", "calculated_coins": "0", "rewarded_coins": "0",
+         "capped_coins": "0"},
+        {"kst_date": "2026-10-28", "rules_version": "3", "points_per_coin": "40", "rounds": "2", "players": "1",
+         "settled": "1", "expired": "0", "active": "1", "avg_score": "39.0", "max_score": "39",
+         "avg_max_combo": "2.0", "avg_caught": "3.0", "calculated_coins": "0", "rewarded_coins": "0",
+         "capped_coins": "0"},
     ],
     "29_plus_minus_daily.sql": [
         {"kst_date": "2026-10-27", "rounds": "1", "players": "1", "lost": "1", "paid": "0", "jackpot": "0",

@@ -40,7 +40,8 @@
 - 가위바위보 룰렛: 1일차 101 참가비 10(패)·20(1.5배 30 지급), 102 참가비 30(2배 60 지급), 2일차 105 참가비 10(진행 중)
 - 주간 추첨(10/26 주): 101 2장·102 1장, 장당 100
 - 2일차 103 점프맵 3구간 보상(2+4+7=13)
-- 두더지: 1일차 102 30냥, 101은 이미 공동 한도 500에 닿아 계산 20냥이 0냥으로 깎임
+- 두더지: 1일차 102 30냥, 101은 이미 공동 한도 500에 닿아 계산 20냥이 0냥으로 깎임(둘 다 규칙 1)
+  2일차는 규칙 2(45점당 1냥)·규칙 3(40점당 1냥) 판. 정산된 판은 점수가 낮아 계산 보상이 0냥이라 원장에 없다
 - 플러스마이너스(참가비 30): 1일차 102 꽝, 2일차 103 지급 40, 101 잭팟 500
 - 꼬치 협동: 1일차 101·102 팀이 끝까지(4분) 300점 → 각 300냥(101의 꼬치 보상이 이 판)
 - 104는 탈퇴 회원(지갑은 남지만 잔액 분포에서 제외)
@@ -394,17 +395,21 @@ def minigame_extra_sql() -> list[str]:
             f"'{phase}', {sql_value(outcome)}, {payout}, {deadline}, '{timestamp(started)}', "
             f"{sql_value(settled and timestamp(settled))});"
         )
-    # 두더지 (회원, 요청 키, 상태, 시작, 정산, 점수, 최대 콤보, 잡은 수, 지급). 계산 보상은 점수 30점당 1냥.
-    for user_id, key, status, started, settled, score, combo, caught, reward in [
-        (102, "m-1", "SETTLED", "2026-10-27 01:05:00", "2026-10-27 01:06:00", 900, 12, 40, 30),
-        (101, "m-2", "SETTLED", "2026-10-27 01:52:00", "2026-10-27 01:53:00", 600, 8, 25, 0),
-        (103, "m-3", "EXPIRED", "2026-10-28 05:06:00", "2026-10-28 05:08:00", None, None, None, None),
-        (105, "m-4", "ACTIVE", "2026-10-28 01:17:00", None, None, None, None, None),
+    # 두더지 (회원, 요청 키, 규칙, 상태, 시작, 정산, 점수, 최대 콤보, 잡은 수, 지급).
+    # 계산 보상은 규칙 1은 30점, 2는 45점, 3은 40점당 1냥(V149·V150 CHECK와 같다).
+    for user_id, key, rules, status, started, settled, score, combo, caught, reward in [
+        (102, "m-1", 1, "SETTLED", "2026-10-27 01:05:00", "2026-10-27 01:06:00", 900, 12, 40, 30),
+        (101, "m-2", 1, "SETTLED", "2026-10-27 01:52:00", "2026-10-27 01:53:00", 600, 8, 25, 0),
+        (103, "m-5", 2, "SETTLED", "2026-10-28 05:01:30", "2026-10-28 05:02:30", 44, 3, 2, 0),
+        (103, "m-3", 2, "EXPIRED", "2026-10-28 05:06:00", "2026-10-28 05:08:00", None, None, None, None),
+        (105, "m-6", 3, "SETTLED", "2026-10-28 01:10:00", "2026-10-28 01:11:00", 39, 2, 3, 0),
+        (105, "m-4", 3, "ACTIVE", "2026-10-28 01:17:00", None, None, None, None, None),
     ]:
-        calculated = None if score is None else score // 30
+        calculated = None if score is None else score // {1: 30, 2: 45, 3: 40}[rules]
         lines.append(
             "INSERT INTO mole_rounds (user_id, request_key, seed, rules_version, status, started_at, settled_at, "
-            f"score, max_combo, caught, calculated_reward, reward) VALUES ({user_id}, '{key}', 1, 1, '{status}', "
+            f"score, max_combo, caught, calculated_reward, reward) VALUES ({user_id}, '{key}', 1, {rules}, "
+            f"'{status}', "
             f"'{timestamp(started)}', {sql_value(settled and timestamp(settled))}, {sql_value(score)}, "
             f"{sql_value(combo)}, {sql_value(caught)}, {sql_value(calculated)}, {sql_value(reward)});"
         )
