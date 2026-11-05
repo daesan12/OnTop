@@ -20,8 +20,8 @@ describe('separate speed mole local rules', () => {
     expect(round.phaseAt(4000)).toBe('playing'); expect(round.remaining(4000)).toBe(59000)
     expect(round.phaseAt(100000)).toBe('result'); expect(round.remaining(100000)).toBe(0)
   })
-  it('maps ERIO then DFKL to exactly eight physical keys', () => {
-    expect(SPEED_MOLE_KEYS).toEqual(['E', 'R', 'I', 'O', 'D', 'F', 'K', 'L'])
+  it('maps RTYU then FGHJ to exactly eight physical keys', () => {
+    expect(SPEED_MOLE_KEYS).toEqual(['R', 'T', 'Y', 'U', 'F', 'G', 'H', 'J'])
     expect(new Set(SPEED_MOLE_CODES).size).toBe(8)
   })
   it('keeps four distinct moles waiting indefinitely until hit', () => {
@@ -82,12 +82,12 @@ describe('separate speed mole local rules', () => {
     a.strike(a.targets[0]!.hole, 0)
     expect(b.score).toBe(0); expect(b.hits).toBe(0)
   })
-  it('ignores native hold repeats but accepts a new F press even if keyup was lost', () => {
-    expect(speedMoleHole('KeyF', false)).toBe(5)
-    expect(speedMoleHole('KeyF', true)).toBeNull()
-    expect(speedMoleHole('KeyF', false)).toBe(5)
+  it('ignores native hold repeats but accepts a new G press even if keyup was lost', () => {
+    expect(speedMoleHole('KeyG', false)).toBe(5)
+    expect(speedMoleHole('KeyG', true)).toBeNull()
+    expect(speedMoleHole('KeyG', false)).toBe(5)
     expect(speedMoleHole('KeyQ', false)).toBeNull()
-    expect(speedMoleHole('KeyH', false)).toBeNull()
+    expect(speedMoleHole('KeyO', false)).toBeNull()
   })
   it.each(SPEED_MOLE_CODES)('maps %s to its own active hole and removes exactly that target', code => {
     const hole = speedMoleHole(code)!

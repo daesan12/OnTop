@@ -1,5 +1,5 @@
 /** Separate, local-only play model. No wallet, server score or legacy mole rules are used. */
-export const SPEED_MOLE_KEYS = ['E', 'R', 'I', 'O', 'D', 'F', 'K', 'L'] as const
+export const SPEED_MOLE_KEYS = ['R', 'T', 'Y', 'U', 'F', 'G', 'H', 'J'] as const
 export const SPEED_MOLE_CODES = SPEED_MOLE_KEYS.map(key => `Key${key}`)
 export const SPEED_MOLE_DURATION_MS = 60_000
 export const SPEED_MOLE_COUNTDOWN_MS = 3_000
