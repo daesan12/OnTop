@@ -16,6 +16,7 @@ import './serviceHud.css'
 import './serviceVenue.css'
 import './serviceTools.css'
 import './tableOrderLabels.css'
+import './serviceInventory.css'
 
 const anchor = (name: string) => ({ left: `var(--hall-${name}-x,50%)`, top: `var(--hall-${name}-y,50%)` }) as CSSProperties
 export default function ServiceHallPage({ driver, inputBlocked = false, onPause, onRestart }: {

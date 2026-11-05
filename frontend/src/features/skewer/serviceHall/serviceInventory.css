@@ -1,0 +1,41 @@
+/* Keep the fixed inventories outside the projected restaurant, including its entrance. */
+.service-hall[data-inventory-layout] .service-held,
+.service-hall[data-inventory-layout] .service-carry { scale:1; bottom:12px; }
+.service-hall[data-inventory-layout='sides'] .service-held { left:12px; }
+.service-hall[data-inventory-layout='sides'] .service-carry { right:12px; }
+.service-hall[data-inventory-layout='sides'] .service-held,
+.service-hall[data-inventory-layout='sides'] .service-carry { width:var(--service-inventory-width); }
+
+.service-hall[data-inventory-layout='bottom'] { --service-inventory-dock:228px; }
+.service-hall[data-inventory-layout='bottom'] .service-stage { bottom:var(--service-inventory-dock); }
+.service-hall[data-inventory-layout='bottom']::after {
+  content:''; position:absolute; inset:auto 0 0; height:var(--service-inventory-dock); z-index:2;
+  background:linear-gradient(#5b423325,#3c2b24a6); border-top:1px solid #d7ba8a30; pointer-events:none;
+}
+.service-hall[data-inventory-layout='bottom'] .service-held { left:8px; width:min(240px,calc(50% - 16px)); }
+.service-hall[data-inventory-layout='bottom'] .service-carry { right:8px; width:min(260px,calc(50% - 16px)); }
+.service-hall[data-inventory-layout='bottom'] .is-dirty-carry .service-carry-rule {
+  position:fixed; top:calc(100% - var(--service-inventory-dock) + 4px); bottom:auto;
+  right:8px; width:min(260px,calc(50% - 16px)); margin:0; padding:3px 5px; font-size:8px;
+}
+
+/* A compact shelf still shows two separate dishes and two separate sake bottles. */
+.service-hall[data-inventory-layout] .service-held-ticket { padding:5px 5px 4px; }
+.service-hall[data-inventory-layout] .service-held-ticket .service-order-cells { grid-template-columns:20px minmax(0,1fr) 34px; }
+.service-hall[data-inventory-layout] .service-held-ticket .service-order-number { font-size:17px; }
+.service-hall[data-inventory-layout] .service-held-ticket .service-order-recipes { margin-left:3px; padding:0 3px; }
+.service-hall[data-inventory-layout] .service-held-ticket .service-order-recipe .service-menu-art { width:100%; max-width:70px; }
+.service-hall[data-inventory-layout] .service-held-ticket .service-order-quantity { font-size:9px; }
+.service-hall[data-inventory-layout] .service-held-ticket .service-order-sake { width:34px; padding:0 2px; gap:2px; }
+.service-hall[data-inventory-layout] .service-held-ticket .service-order-sake .service-icon { width:14px; height:25px; }
+.service-hall[data-inventory-layout] .service-carry h2 { margin-left:4px; margin-right:6px; padding:3px 4px; font-size:9px; gap:3px; }
+.service-hall[data-inventory-layout] .service-carry h2 > .service-icon { width:12px; height:14px; }
+.service-hall[data-inventory-layout] .service-carry h2 b { max-width:none; overflow:visible; font-size:8px; letter-spacing:-.04em; }
+.service-hall[data-inventory-layout] .service-carry-slots { grid-template-columns:minmax(0,1fr) 32px; column-gap:4px; }
+.service-hall[data-inventory-layout] .service-carry .service-order-cells { grid-template-columns:17px minmax(0,1fr); }
+.service-hall[data-inventory-layout] .service-carry .service-order-number { font-size:10px; }
+.service-hall[data-inventory-layout] .service-carry .service-order-recipes { margin-left:3px; padding:0 2px; }
+.service-hall[data-inventory-layout] .service-carry .service-order-recipe .service-menu-art { width:100%; max-width:70px; height:26px; }
+.service-hall[data-inventory-layout] .service-carry .service-order-quantity { font-size:8px; }
+.service-hall[data-inventory-layout] .service-carry .service-plate-slot small { font-size:8px; }
+.service-hall[data-inventory-layout] .service-carry .service-bottle-slots .service-icon { width:19px; height:29px; }

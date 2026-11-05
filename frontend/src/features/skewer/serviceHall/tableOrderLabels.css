@@ -43,8 +43,3 @@
   .service-hall .service-order-menu .service-icon { width:13px; height:20px; }
   .service-hall .service-order-menu sup { font-size:10px; }
 }
-/* On short laptop windows, fixed inventory panels must leave the tabletop labels visible. */
-@media(min-width:601px) and (max-width:1000px) and (max-height:500px) {
-  .service-hall .service-held { scale:.78; transform-origin:bottom left; }
-  .service-hall .service-carry { scale:.78; transform-origin:bottom right; }
-}

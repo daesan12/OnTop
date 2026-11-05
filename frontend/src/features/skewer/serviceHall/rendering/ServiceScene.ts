@@ -451,8 +451,9 @@ export class ServiceScene {
     this.host.style.setProperty(`--hall-${name}-x`, `${(this.projection.x + 1) * 50}%`); this.host.style.setProperty(`--hall-${name}-y`, `${(1 - this.projection.y) * 50}%`)
   }
   private resize = () => {
-    const { width, height } = this.host.getBoundingClientRect(); if (!width || !height || this.disposed) return
-    const ratio = width / height
+    const root = this.host.parentElement
+    if (!root || this.disposed) return
+    const viewport = root.getBoundingClientRect(); if (!viewport.width || !viewport.height) return
     // 홀과 입구가 구도의 기준이다. 뒤쪽 석탑은 화면 위로 잘려도 되며 HUD와 겹칠 수 있다.
     const corners = [
       ...[-12.2, 12.2].map(x => new THREE.Vector3(x, 2.8, -7.5)),
@@ -464,14 +465,27 @@ export class ServiceScene {
     this.camera.up.set(0, 1, 0)
     this.host.dataset.camera = 'orthographic-whole-venue-40deg'
     this.camera.position.set(0, .7 + 60 * Math.sin(angle), 60 * Math.cos(angle)); this.camera.lookAt(0, .7, 0); this.camera.updateMatrixWorld()
-    const pose = (span: number) => { this.camera.left = -span * ratio; this.camera.right = span * ratio; this.camera.top = span; this.camera.bottom = -span; this.camera.updateProjectionMatrix() }
-    let low = 6, high = 100
-    for (let i = 0; i < 20; i++) {
-      const distance = (low + high) / 2; pose(distance)
-      const fits = corners.every(corner => { const p = corner.clone(); p.z *= FLOOR_DEPTH_SCALE; p.project(this.camera); return Math.abs(p.x) < .82 && p.y < .94 && p.y > -.80 })
-      if (fits) high = distance; else low = distance
+    const fit = (width: number, height: number) => {
+      const ratio = width / height
+      const pose = (span: number) => { this.camera.left = -span * ratio; this.camera.right = span * ratio; this.camera.top = span; this.camera.bottom = -span; this.camera.updateProjectionMatrix() }
+      let low = 6, high = 100
+      for (let i = 0; i < 20; i++) {
+        const distance = (low + high) / 2; pose(distance)
+        const fits = corners.every(corner => { const p = corner.clone(); p.z *= FLOOR_DEPTH_SCALE; p.project(this.camera); return Math.abs(p.x) < .82 && p.y < .94 && p.y > -.80 })
+        if (fits) high = distance; else low = distance
+      }
+      pose(high)
     }
-    pose(high)
+    // Measure against the full viewport first, so reserving a bottom dock cannot
+    // oscillate the ResizeObserver between layouts. X is independent of depth in this camera.
+    fit(viewport.width, viewport.height)
+    const edge = new THREE.Vector3(-12.4, 0, 0).project(this.camera)
+    const gutter = (edge.x + 1) * viewport.width / 2
+    root.dataset.inventoryLayout = gutter - 24 >= 144 ? 'sides' : 'bottom'
+    root.style.setProperty('--service-inventory-width', `${Math.min(240, Math.floor(gutter - 24))}px`)
+    const { width, height } = this.host.getBoundingClientRect()
+    if (!width || !height) return
+    fit(width, height)
     this.renderer.setSize(width, height, false); this.post.resize(width, height)
   }
   private onClick = (event: PointerEvent) => {
