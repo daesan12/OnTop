@@ -15,9 +15,10 @@
 .service-hall[data-inventory-layout='bottom'] .service-held { left:8px; width:min(240px,calc(50% - 16px)); }
 .service-hall[data-inventory-layout='bottom'] .service-carry { right:8px; width:min(260px,calc(50% - 16px)); }
 .service-hall[data-inventory-layout='bottom'] .is-dirty-carry .service-carry-rule {
-  position:fixed; top:calc(100% - var(--service-inventory-dock) + 4px); bottom:auto;
-  right:8px; width:min(260px,calc(50% - 16px)); margin:0; padding:3px 5px; font-size:8px;
+  position:absolute; top:auto; bottom:100%; right:0; width:100%;
+  margin:0 0 4px; padding:3px 5px; font-size:8px;
 }
+.service-hall[data-inventory-layout] .service-dirty-slot > small { grid-column:2; }
 
 /* A compact shelf still shows two separate dishes and two separate sake bottles. */
 .service-hall[data-inventory-layout] .service-held-ticket { padding:5px 5px 4px; }
