@@ -29,6 +29,9 @@ public class SpeedMoleRepository {
         jdbc.update("UPDATE speed_mole_rounds SET status='SETTLED', score=?, hits=?, misses=?, completed_at=? "
                 + "WHERE id=? AND status='ACTIVE'", score.score(), score.hits(), score.misses(), Timestamp.from(at), id);
     }
+    public long latestId(long user) {
+        return jdbc.queryForObject("SELECT COALESCE(MAX(id),0) FROM speed_mole_rounds WHERE user_id=?", Long.class, user);
+    }
     public List<SpeedMoleDtos.Item> ranked(int limit, int offset) {
         return jdbc.query(BESTS + "SELECT * FROM ranked ORDER BY score DESC, misses ASC, completed_at ASC, id ASC LIMIT ? OFFSET ?",
                 SpeedMoleRepository::item, limit, offset);

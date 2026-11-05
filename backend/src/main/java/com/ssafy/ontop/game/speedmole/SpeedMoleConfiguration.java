@@ -9,12 +9,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import jakarta.persistence.EntityManager;
 
 @Configuration(proxyBeanMethods = false)
 @Profile(RuntimeProfiles.PRODUCT_FEATURE_WITH_DB)
 @ConditionalOnProperty(name = "ontop.minigames.enabled", havingValue = "true")
 public class SpeedMoleConfiguration {
-    @Bean SpeedMoleService speedMoleService(JdbcTemplate jdbc, PlatformTransactionManager manager) {
-        return new SpeedMoleService(new SpeedMoleRepository(jdbc), manager, Clock.systemUTC(), new SecureRandom());
+    @Bean SpeedMoleService speedMoleService(JdbcTemplate jdbc, PlatformTransactionManager manager, EntityManager entities) {
+        return new SpeedMoleService(new SpeedMoleRepository(jdbc), manager, Clock.systemUTC(), new SecureRandom(), new SpeedMoleRewards(entities));
     }
 }

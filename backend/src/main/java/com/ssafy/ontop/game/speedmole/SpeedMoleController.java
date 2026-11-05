@@ -51,7 +51,7 @@ public class SpeedMoleController {
         return ResponseEntity.status(201).cacheControl(CacheControl.noStore()).body(service().start(id, keys.getFirst()));
     }
     @PostMapping("/rounds/{roundId}/complete")
-    @Operation(operationId = "completeSpeedMoleRound", summary = "타격 재계산 후 스피드 두더지 랭킹 기록 확정 (보상 없음)")
+    @Operation(operationId = "completeSpeedMoleRound", summary = "타격 재계산 후 스피드 두더지 기록·공통 일일 상한 보상 확정")
     public ResponseEntity<SpeedMoleDtos.Result> complete(@AuthenticationPrincipal AuthenticatedUser user,
             @PathVariable String roundId, @RequestBody SpeedMoleDtos.Complete body) {
         long uid = user(user), id;

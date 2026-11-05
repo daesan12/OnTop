@@ -1228,7 +1228,7 @@ paths:
     post:
       tags:
       - MINIGAME
-      summary: 타격 재계산 후 스피드 두더지 랭킹 기록 확정 (보상 없음)
+      summary: 타격 재계산 후 스피드 두더지 기록·공통 일일 상한 보상 확정
       operationId: completeSpeedMoleRound
       parameters:
       - name: roundId
@@ -6743,6 +6743,18 @@ components:
         completedAt:
           type: string
           format: date-time
+        calculatedReward:
+          type: integer
+          format: int32
+        reward:
+          type: integer
+          format: int32
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
+          type: integer
+          format: int32
     SkewerAdmissionResponse:
       required:
       - availableBalance

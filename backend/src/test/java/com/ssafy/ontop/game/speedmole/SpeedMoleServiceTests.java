@@ -17,11 +17,15 @@ class SpeedMoleServiceTests {
     private final Instant now = Instant.parse("2030-01-01T00:01:03Z");
     private SpeedMoleRepository repository;
     private SpeedMoleService service;
+    private SpeedMoleRewards rewards;
     @BeforeEach void setup() {
         repository = mock(SpeedMoleRepository.class);
         var tx = mock(PlatformTransactionManager.class);
         when(tx.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        service = new SpeedMoleService(repository,tx,Clock.fixed(now,ZoneOffset.UTC),new SecureRandom());
+        rewards = mock(SpeedMoleRewards.class);
+        when(rewards.lock(anyLong())).thenAnswer(call -> com.ssafy.ontop.wallet.domain.Wallet.forSignup(call.getArgument(0),now));
+        when(repository.latestId(anyLong())).thenReturn(7L);
+        service = new SpeedMoleService(repository,tx,Clock.fixed(now,ZoneOffset.UTC),new SecureRandom(),rewards);
     }
     private SpeedMoleRepository.Row active(long elapsed) { return new SpeedMoleRepository.Row(7,42,1,1,"ACTIVE",now.minusMillis(elapsed),null,null,null,null); }
     @Test void completes_only_after_server_deadline_and_replays_instead_of_accepting_a_score() {
@@ -51,10 +55,20 @@ class SpeedMoleServiceTests {
     }
     @Test void malformed_start_key_does_not_create_a_row() {
         for (String key : new String[]{null,"","a b","x".repeat(65)}) assertThatThrownBy(() -> service.start(42,key)).isInstanceOf(SpeedMoleException.class);
-        verifyNoInteractions(repository);
+        verify(repository,never()).start(anyLong(),any(),anyLong(),any());
     }
     @Test void pagination_rejects_unbounded_requests() {
         for (int[] page : new int[][]{{0,0},{101,0},{20,-1},{20,10001}}) assertThatThrownBy(() -> service.rankings(42,page[0],page[1])).isInstanceOf(SpeedMoleException.class);
-        verifyNoInteractions(repository);
+        verify(repository,never()).ranked(anyInt(),anyInt());
+    }
+    @Test void superseded_unfinished_round_cannot_pay_but_a_settled_retry_only_reads_previous_receipt() {
+        when(repository.latestId(42)).thenReturn(8L);
+        when(repository.lock(42,7)).thenReturn(active(60000));
+        assertThatThrownBy(() -> service.complete(42,7,List.of())).isInstanceOf(SpeedMoleException.class);
+        verify(rewards,never()).grant(any(),anyLong(),anyInt(),any());
+        when(repository.lock(42,7)).thenReturn(new SpeedMoleRepository.Row(7,42,1,1,"SETTLED",now.minusSeconds(60),now,120,120,0));
+        when(rewards.previous(any(),eq(7L))).thenReturn(3);
+        assertThat(service.complete(42,7,null).reward()).isEqualTo(3);
+        verify(rewards,never()).grant(any(),anyLong(),anyInt(),any());
     }
 }

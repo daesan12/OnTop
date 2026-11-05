@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "OnTop Speed Mole",
-    "description": "스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 두더지·지갑·공원 랭킹판은 변경하지 않음. 41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. 42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. 서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. 44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.",
+    "description": "스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 지갑·공통 예산을 재사용해40점당1냥/미니게임공통KST하루500냥 상한으로 지급. 추가스키마없음. 공원 랭킹판은 변경하지 않음. 41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. 42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. 서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. 새 판은 이전 미완료 판을 대체하며 완료/원장/지갑은한트랜잭션, 중복재시도는최초지급만반환,과거무보상기록소급지급없음. 완료응답 calculatedReward/reward/todayEarned/dailyCap 확인. 44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -10,7 +10,7 @@
       "request": {
         "method": "POST",
         "url": "{{baseUrl}}/api/v1/minigames/speed-mole/rounds",
-        "description": "스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 두더지·지갑·공원 랭킹판은 변경하지 않음. 41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. 42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. 서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. 44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.",
+        "description": "스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 지갑·공통 예산을 재사용해40점당1냥/미니게임공통KST하루500냥 상한으로 지급. 추가스키마없음. 공원 랭킹판은 변경하지 않음. 41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. 42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. 서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. 새 판은 이전 미완료 판을 대체하며 완료/원장/지갑은한트랜잭션, 중복재시도는최초지급만반환,과거무보상기록소급지급없음. 완료응답 calculatedReward/reward/todayEarned/dailyCap 확인. 44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.",
         "auth": {
           "type": "noauth"
         },
@@ -53,7 +53,7 @@
       "request": {
         "method": "POST",
         "url": "{{baseUrl}}/api/v1/minigames/speed-mole/rounds/{{speedMoleRoundId}}/complete",
-        "description": "스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 두더지·지갑·공원 랭킹판은 변경하지 않음. 41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. 42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. 서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. 44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.",
+        "description": "스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 지갑·공통 예산을 재사용해40점당1냥/미니게임공통KST하루500냥 상한으로 지급. 추가스키마없음. 공원 랭킹판은 변경하지 않음. 41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. 42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. 서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. 새 판은 이전 미완료 판을 대체하며 완료/원장/지갑은한트랜잭션, 중복재시도는최초지급만반환,과거무보상기록소급지급없음. 완료응답 calculatedReward/reward/todayEarned/dailyCap 확인. 44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.",
         "auth": {
           "type": "noauth"
         },
@@ -93,7 +93,7 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
-              "pm.test('서버 확정 기록',()=>{const r=pm.response.json();pm.expect(r.id).to.eql(pm.environment.get('speedMoleRoundId'));pm.expect(r.rulesVersion).to.eql(1);});"
+              "pm.test('서버 확정 기록·보상',()=>{const r=pm.response.json();pm.expect(r.id).to.eql(pm.environment.get('speedMoleRoundId'));pm.expect(r.rulesVersion).to.eql(1);pm.expect(r.calculatedReward).to.eql(Math.floor(r.score/40));pm.expect(r.reward).to.be.at.most(r.calculatedReward);pm.expect(r.dailyCap).to.eql(500);});"
             ]
           }
         }
@@ -104,7 +104,7 @@
       "request": {
         "method": "POST",
         "url": "{{baseUrl}}/api/v1/minigames/speed-mole/rounds/{{speedMoleRoundId}}/complete",
-        "description": "스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 두더지·지갑·공원 랭킹판은 변경하지 않음. 41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. 42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. 서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. 44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.",
+        "description": "스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 지갑·공통 예산을 재사용해40점당1냥/미니게임공통KST하루500냥 상한으로 지급. 추가스키마없음. 공원 랭킹판은 변경하지 않음. 41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. 42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. 서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. 새 판은 이전 미완료 판을 대체하며 완료/원장/지갑은한트랜잭션, 중복재시도는최초지급만반환,과거무보상기록소급지급없음. 완료응답 calculatedReward/reward/todayEarned/dailyCap 확인. 44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.",
         "auth": {
           "type": "noauth"
         },
@@ -144,7 +144,7 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
-              "pm.test('서버 확정 기록',()=>{const r=pm.response.json();pm.expect(r.id).to.eql(pm.environment.get('speedMoleRoundId'));pm.expect(r.rulesVersion).to.eql(1);});"
+              "pm.test('서버 확정 기록·보상',()=>{const r=pm.response.json();pm.expect(r.id).to.eql(pm.environment.get('speedMoleRoundId'));pm.expect(r.rulesVersion).to.eql(1);pm.expect(r.calculatedReward).to.eql(Math.floor(r.score/40));pm.expect(r.reward).to.be.at.most(r.calculatedReward);pm.expect(r.dailyCap).to.eql(500);});"
             ]
           }
         }
@@ -155,7 +155,7 @@
       "request": {
         "method": "GET",
         "url": "{{baseUrl}}/api/v1/minigames/speed-mole/rankings?limit=20&offset=0",
-        "description": "스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 두더지·지갑·공원 랭킹판은 변경하지 않음. 41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. 42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. 서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. 44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.",
+        "description": "스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 지갑·공통 예산을 재사용해40점당1냥/미니게임공통KST하루500냥 상한으로 지급. 추가스키마없음. 공원 랭킹판은 변경하지 않음. 41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. 42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. 서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. 새 판은 이전 미완료 판을 대체하며 완료/원장/지갑은한트랜잭션, 중복재시도는최초지급만반환,과거무보상기록소급지급없음. 완료응답 calculatedReward/reward/todayEarned/dailyCap 확인. 44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.",
         "auth": {
           "type": "noauth"
         },

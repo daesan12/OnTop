@@ -26,6 +26,7 @@ class SpeedMoleMySqlTests {
     @Autowired private SpeedMoleService service;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private Flyway flyway;
+    @Autowired private org.springframework.transaction.PlatformTransactionManager transactions;
     @DynamicPropertySource static void isolatedOnly(DynamicPropertyRegistry registry) {
         String url = System.getenv("TEST_SPEED_MOLE_DB_URL");
         if (url == null || !url.matches("jdbc:mysql://127\\.0\\.0\\.1:[0-9]+/ontop_speed_mole_test_[A-Za-z0-9_]+(?:\\?.*)?"))
@@ -34,7 +35,7 @@ class SpeedMoleMySqlTests {
         registry.add("spring.datasource.username", () -> System.getenv("TEST_SPEED_MOLE_DB_USERNAME"));
         registry.add("spring.datasource.password", () -> System.getenv("TEST_SPEED_MOLE_DB_PASSWORD"));
     }
-    @Test void V151_and_duplicate_start_completion_need_no_wallet_and_write_one_result() throws Exception {
+    @Test void V151_and_duplicate_start_completion_write_one_result_and_one_reward() throws Exception {
         long user = user();
         try (var pool = Executors.newFixedThreadPool(6)) {
             var starts = new java.util.ArrayList<java.util.concurrent.Future<SpeedMoleDtos.Round>>();
@@ -44,14 +45,17 @@ class SpeedMoleMySqlTests {
             assertThat(rounds.stream().map(SpeedMoleDtos.Round::id).distinct()).hasSize(1);
             long id = Long.parseLong(rounds.getFirst().id());
             jdbc.update("UPDATE speed_mole_rounds SET seed=1, started_at=? WHERE id=?",Timestamp.from(Instant.now().minusSeconds(61)),id);
+            var taps = taps(1,120);
             var finishes = new java.util.ArrayList<java.util.concurrent.Future<SpeedMoleDtos.Result>>();
-            for (int i=0;i<6;i++) finishes.add(pool.submit(() -> service.complete(user,id,List.of(new SpeedMoleRules.Tap(1,0)))));
+            for (int i=0;i<6;i++) finishes.add(pool.submit(() -> service.complete(user,id,taps)));
             var results = new java.util.ArrayList<SpeedMoleDtos.Result>();
             for (var f:finishes) results.add(f.get(15,TimeUnit.SECONDS));
             assertThat(results.stream().distinct()).hasSize(1);
-            assertThat(results.getFirst().score()).isEqualTo(1);
+            assertThat(results.getFirst().score()).isEqualTo(120);
+            assertThat(results.getFirst().reward()).isEqualTo(3);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM speed_mole_rounds WHERE user_id=? AND status='SETTLED'",Long.class,user)).isEqualTo(1);
-            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallets WHERE user_id=?",Long.class,user)).isZero();
+            assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(103);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions WHERE idempotency_key=?",Long.class,"mole:reward:speed:"+id)).isEqualTo(1);
         }
         assertThat(flyway.info().pending()).isEmpty();
     }
@@ -94,7 +98,55 @@ class SpeedMoleMySqlTests {
         long id=USERS.incrementAndGet();
         jdbc.update("INSERT INTO users(id,login_provider,provider_user_id,nickname,character_gender,created_at,updated_at) VALUES (?,'NAVER',?,?,'MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3))",
                 id,UUID.randomUUID().toString(),"s"+id);
+        jdbc.update("INSERT INTO wallets(user_id,balance,reserved_balance) VALUES (?,100,0)",id);
         return id;
+    }
+    private static List<SpeedMoleRules.Tap> taps(long seed,int count) {
+        var result = new java.util.ArrayList<SpeedMoleRules.Tap>();
+        // The prefix replay identifies which of the 8 holes is active next; only test fixtures synthesize taps.
+        for(int i=0;i<count;i++) {
+            for(int hole=0;hole<8;hole++) {
+                var candidate = new java.util.ArrayList<>(result); candidate.add(new SpeedMoleRules.Tap(hole,i*10));
+                if(SpeedMoleRules.replay(seed,candidate).hits()==i+1) { result=candidate; break; }
+            }
+        }
+        return result;
+    }
+    @Test void common_budget_caps_rewards_and_an_old_ranking_is_not_retroactively_paid() {
+        long user=user();
+        jdbc.update("UPDATE wallets SET balance=597 WHERE user_id=?",user);
+        jdbc.update("INSERT INTO wallet_transactions(wallet_id,transaction_type,balance_delta,reserved_delta,idempotency_key,created_at) "
+                +"SELECT id,'MINIGAME_REWARD',497,0,?,CURRENT_TIMESTAMP(3) FROM wallets WHERE user_id=?",UUID.randomUUID().toString(),user);
+        long id=Long.parseLong(service.start(user,"cap").id());
+        jdbc.update("UPDATE speed_mole_rounds SET seed=1,started_at=? WHERE id=?",Timestamp.from(Instant.now().minusSeconds(61)),id);
+        var result=service.complete(user,id,taps(1,200));
+        assertThat(result.calculatedReward()).isEqualTo(5); assertThat(result.reward()).isEqualTo(3); assertThat(result.todayEarned()).isEqualTo(500);
+        assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(600);
+        long next=Long.parseLong(service.start(user,"cap-next").id());
+        jdbc.update("UPDATE speed_mole_rounds SET seed=1,started_at=? WHERE id=?",Timestamp.from(Instant.now().minusSeconds(61)),next);
+        assertThat(service.complete(user,next,taps(1,80)).reward()).isZero();
+        long oldUser=user(); settled(oldUser,120,0,Instant.now().minusSeconds(120),1);
+        long old=jdbc.queryForObject("SELECT id FROM speed_mole_rounds WHERE user_id=?",Long.class,oldUser);
+        assertThat(service.complete(oldUser,old,List.of()).reward()).isZero();
+        assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,oldUser)).isEqualTo(100);
+    }
+    @Test void outer_transaction_failure_rolls_back_round_wallet_and_ledger_together() {
+        long user=user(); long id=Long.parseLong(service.start(user,"rollback").id());
+        jdbc.update("UPDATE speed_mole_rounds SET seed=1,started_at=? WHERE id=?",Timestamp.from(Instant.now().minusSeconds(61)),id);
+        var tx=new org.springframework.transaction.support.TransactionTemplate(transactions);
+        tx.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);
+        assertThatThrownBy(()->tx.executeWithoutResult(status->{ service.complete(user,id,taps(1,120)); throw new IllegalStateException("test rollback"); }))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT status FROM speed_mole_rounds WHERE id=?",String.class,id)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(100);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions WHERE idempotency_key=?",Long.class,"mole:reward:speed:"+id)).isZero();
+    }
+    @Test void opening_a_new_round_invalidates_an_unfinished_older_round() {
+        long user=user();long old=Long.parseLong(service.start(user,"old").id());
+        jdbc.update("UPDATE speed_mole_rounds SET seed=1,started_at=? WHERE id=?",Timestamp.from(Instant.now().minusSeconds(61)),old);
+        service.start(user,"new");
+        assertThatThrownBy(()->service.complete(user,old,taps(1,80))).isInstanceOf(SpeedMoleException.class).hasMessageContaining("다른 창");
+        assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(100);
     }
     private void settled(long user,int score,int misses,Instant at,int version) {
         jdbc.update("INSERT INTO speed_mole_rounds(user_id,request_key,seed,rules_version,status,started_at,completed_at,score,hits,misses) VALUES (?,?,1,?,'SETTLED',?,?,?,?,?)",

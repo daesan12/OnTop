@@ -11,7 +11,8 @@ public final class SpeedMoleDtos {
     @Schema(name = "SpeedMoleComplete")
     public record Complete(List<SpeedMoleRules.Tap> taps) { }
     @Schema(name = "SpeedMoleResult")
-    public record Result(String id, int rulesVersion, int score, int hits, int misses, Instant completedAt) { }
+    public record Result(String id, int rulesVersion, int score, int hits, int misses, Instant completedAt,
+                         int calculatedReward, int reward, long todayEarned, int dailyCap) { }
     @Schema(name = "SpeedMoleRankingItem")
     public record Item(long rank, String userId, String nickname, int score, int hits, int misses, Instant completedAt) { }
     @Schema(name = "SpeedMoleRankings")

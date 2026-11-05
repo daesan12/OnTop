@@ -582,17 +582,17 @@ const historyRequests = [
 for(const request of historyRequests) request.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}];
 httpItems.push(...historyRequests);
 
-const speedMoleGuide = '스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 두더지·지갑·공원 랭킹판은 변경하지 않음. '
+const speedMoleGuide = '스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 지갑·공통 예산을 재사용해40점당1냥/미니게임공통KST하루500냥 상한으로 지급. 추가스키마없음. 공원 랭킹판은 변경하지 않음. '
     + '41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. '
     + '42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. '
-    + '서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. '
+    + '서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. 새 판은 이전 미완료 판을 대체하며 완료/원장/지갑은한트랜잭션, 중복재시도는최초지급만반환,과거무보상기록소급지급없음. 완료응답 calculatedReward/reward/todayEarned/dailyCap 확인. '
     + '44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.';
 const speedStart = http('41 스피드 두더지 시작 — 새 키 또는 같은 키 재확인','/api/v1/minigames/speed-mole/rounds',201,speedMoleGuide,
     `if(pm.response.code===201){const r=pm.response.json();pm.environment.set('speedMoleRoundId',r.id);}`,
     requireEnvironment+`\nif(!/^[A-Za-z0-9_-]{1,64}$/.test(pm.environment.get('speedMoleRequestKey')||'')) throw new Error('개인 환경 speedMoleRequestKey를 설정하세요. 새 판은 새 키, 재시도는 같은 키입니다.');`);
 speedStart.method='POST';speedStart.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'},{key:'Idempotency-Key',value:'{{speedMoleRequestKey}}'}];
 const speedFinish = http('42 스피드 두더지 완료 — 서버 마감 후 제출','/api/v1/minigames/speed-mole/rounds/{{speedMoleRoundId}}/complete',200,speedMoleGuide,
-    `pm.test('서버 확정 기록',()=>{const r=pm.response.json();pm.expect(r.id).to.eql(pm.environment.get('speedMoleRoundId'));pm.expect(r.rulesVersion).to.eql(1);});`,requireEnvironment);
+    `pm.test('서버 확정 기록·보상',()=>{const r=pm.response.json();pm.expect(r.id).to.eql(pm.environment.get('speedMoleRoundId'));pm.expect(r.rulesVersion).to.eql(1);pm.expect(r.calculatedReward).to.eql(Math.floor(r.score/40));pm.expect(r.reward).to.be.at.most(r.calculatedReward);pm.expect(r.dailyCap).to.eql(500);});`,requireEnvironment);
 speedFinish.method='POST';speedFinish.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'},{key:'Content-Type',value:'application/json'}];
 speedFinish.body={mode:'raw',raw:'{"taps":{{speedMoleTaps}}}',options:{raw:{language:'json'}}};
 const speedRetry=structuredClone(speedFinish);speedRetry.name='43 스피드 두더지 완료 재확인 — 같은 판·같은 로그';
