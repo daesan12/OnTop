@@ -22,7 +22,7 @@ const walkKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown'
 function ItemArt({ owned, variant }: { owned: OwnedItem; variant: CharacterVariant }) {
   const art = useItemArt(variant, owned.item.equipSlot!, owned.item.name)
   return <span className="wardrobe-art" data-slot={owned.item.equipSlot}>
-    <img src={setImage(owned.item.setCode) ?? outfitImage(owned.item.imageKey, owned.item.equipSlot!) ?? art} alt="" />
+    <img src={setImage(owned.item.setCode) ?? outfitImage(owned.item.imageKey, owned.item.equipSlot!, variant) ?? art} alt="" />
   </span>
 }
 
@@ -40,7 +40,7 @@ function SlotBubble({ group, worn, label, variant, active }: { group: WardrobeGr
       if (worn) previewWardrobeItem(worn.userItemId)
     }}>
     <span className="wardrobe-bubble__art" data-kind={worn ? 'item' : 'part'}>
-      <img src={(worn && (setImage(worn.item.setCode) ?? outfitImage(worn.item.imageKey, slot))) ?? art} alt="" />
+      <img src={(worn && (setImage(worn.item.setCode) ?? outfitImage(worn.item.imageKey, slot, variant))) ?? art} alt="" />
     </span>
     <b>{groupLabels[group]}</b>
     <small>{worn ? label ?? worn.item.name : '기본'}</small>

@@ -17,8 +17,8 @@ tokens = lambda rule: re.findall(r'[A-Z]+[a-z0-9]+', rule or '')
 def shown(name, src):
     m = re.match(r'^body(?:__(\w+))?$', name)
     if m: return src == variant and not any(t in worn for t in tokens(m.group(1)))
-    m = re.match(r'^item__([A-Z]+)__([a-z0-9]+)(?:__under_(\w+))?$', name)
-    return bool(m) and look.get(m.group(1)) == f'{src}/{m.group(2)}' and not any(t in worn for t in tokens(m.group(3)))
+    m = re.match(r'^item__([A-Z]+)__([a-z0-9]+)(?:__for_(man|girl))?(?:__under_(\w+))?$', name)
+    return bool(m) and (not m.group(3) or m.group(3) == variant) and look.get(m.group(1)) == f'{src}/{m.group(2)}'         and not any(t in worn for t in tokens(m.group(4)))
 bpy.ops.wm.read_factory_settings(use_empty=True)
 for src, p in files:
     b = open(p, 'rb').read(); n = struct.unpack('<I', b[12:16])[0]; j = json.loads(b[20:20 + n])
