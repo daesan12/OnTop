@@ -1,24 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import { gameTurnCue, TurnNoticeMemory, sharedTurnNoticeMemory } from '../../src/game/turnNotice'
 import { resetGame } from '../../src/game/store'
-import type { Game } from '../../src/game/protocol'
+import { publicGame, type PublicGameKind } from '../fixtures/publicGame'
 import { bridgeState } from '../fixtures/bridge'
 import { ledgerState } from '../fixtures/ledger'
 import { halliState } from '../fixtures/halligalli'
 
 const now = Date.parse('2026-11-04T00:00:00Z'), deadline = new Date(now + 30000).toISOString()
 const names = {'101':{nickname:'대산'},'102':{nickname:'공원지기'}}
-const game = (field: string, state: object, role: 'PLAYER'|'SPECTATOR' = 'PLAYER'): Game =>
-  ({gameId:'turn-test',version:4,role,[field]:state} as Game)
+const game = publicGame
+const onePlayers = ['101','102'].map(userId => ({ userId, active: true, cardCount: 7, oneCardUntil: null, oneCardStatus: 'none' as const }))
 const states = {
   omok:{status:'PLAYING',turnUserId:'101',turnDeadline:deadline,moveCount:2},
-  onecard:{status:'PLAYING',turnUserId:'101',turnDeadline:deadline,turnCount:8,players:[{userId:'101',active:true,cardCount:7},{userId:'102',active:true,cardCount:7}]},
+  onecard:{status:'PLAYING',turnUserId:'101',turnDeadline:deadline,turnCount:8,players:onePlayers},
   dice:{status:'PLAYING',turnUserId:'101',turnDeadline:deadline},
   bridge:bridgeState(2),ledger:ledgerState(2),
 }
 
 describe('서버 공개 차례의 참가자/관전자 안내',()=>{
-  for (const [field,state] of Object.entries(states)) {
+  for (const [field,state] of Object.entries(states) as [PublicGameKind, object][]) {
     it(`${field}: 참가자만 내 차례, 상대/관전은 관점에 맞게 표시`,()=>{
       expect(gameTurnCue(game(field,state),'101',names,now)).toMatchObject({own:true,text:'내 차례!'})
       expect(gameTurnCue(game(field,state),'102',names,now)).toMatchObject({own:false,text:'상대 차례'})
@@ -36,7 +36,7 @@ describe('서버 공개 차례의 참가자/관전자 안내',()=>{
   it('동전·카드 배분 중에는 일반 차례를 재생하지 않는다',()=>{
     expect(gameTurnCue(game('omok',{...states.omok,turnDeadline:new Date(now-1).toISOString()}),'101',names,now)).toBeNull()
     expect(gameTurnCue(game('omok',{...states.omok,coinTossEndsAt:deadline}),'101',names,now)).toBeNull()
-    expect(gameTurnCue(game('onecard',{...states.onecard,dealEndsAt:deadline,turnCount:1,players:[{active:true,cardCount:7},{active:true,cardCount:7}]}),'101',names,now)).toBeNull()
+    expect(gameTurnCue(game('onecard',{...states.onecard,dealEndsAt:deadline,turnCount:1,players:onePlayers}),'101',names,now)).toBeNull()
     expect(gameTurnCue(null,'101',names,now)).toBeNull()
   })
   it('과일 땡은 빠른 연속 공개·종 결과·관전자 입장에도 중앙 차례 알림을 만들지 않는다',()=>{

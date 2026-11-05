@@ -49,6 +49,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/admin/announcements",
+      "destination": "/index.html"
+    },
+    {
       "source": "/admin/feedback",
       "destination": "/index.html"
     },

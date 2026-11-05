@@ -82,6 +82,17 @@ function nearTable() {
     benchId: '', fitnessId: '', fitnessStartedAt: 0, telescopeId: '', telescopeYaw: 0, telescopePitch: 0, followTargetId: '' })
   return TABLES[0]!.id
 }
+it('standing spectator exit releases hidden table focus; a newer inspection survives late cleanup', async () => {
+  const anchor = nearTable()
+  useSession.setState({ focusedAnchorId: anchor })
+  expect(await runtime.unwatchGame()).toBe(true)
+  expect(useSession.getState().focusedAnchorId).toBe('')
+  useSession.setState({ focusedAnchorId: anchor })
+  const exiting = runtime.unwatchGame()
+  useSession.setState({ focusedAnchorId: 'new-inspection' })
+  expect(await exiting).toBe(true)
+  expect(useSession.getState().focusedAnchorId).toBe('new-inspection')
+})
 it('a waiting broadcast before the forfeit receipt releases the finished game request', async () => {
   const wire = JSON.parse(readFileSync(new URL('../fixtures/alkkagi-forfeit.json', import.meta.url), 'utf8'))
   useSession.setState({tableId:table.tableId,seatIndex:0,mapCompatible:true})

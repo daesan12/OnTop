@@ -32,7 +32,7 @@ export function SpectatorExit() {
     const exit = (event: KeyboardEvent) => {
       if (event.code !== 'Escape' || event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229
         || event.ctrlKey || event.altKey || event.metaKey || leaving.current || document.hidden
-        || Object.values(inputState).some(Boolean) || document.querySelector('dialog[open],[role="dialog"],.park-chat[data-expanded="true"]')
+        || Object.values(inputState).some(Boolean) || document.querySelector('dialog[open],[role="dialog"],.park-chat[data-history="true"],.park-chat__composer--open')
         || event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable="true"]')) return
       event.preventDefault(); event.stopPropagation(); leaving.current = true
       void runtime.unwatchGame().finally(() => { leaving.current = false })

@@ -17,7 +17,7 @@ import {MapAdmission,MAP_UPDATE_MESSAGE,type MapIdentity} from '../../network/ma
 import { FacilityClient } from '../../network/facilityClient'
 import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
-import { clearRoamingInput, inputState } from '../../world/inputOwnership'
+import { clearRoamingInput, inputState, focusParkCanvas } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
 import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
 import { gameChatScope } from '../../features/chat/gameChat'
@@ -1070,7 +1070,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const ok = await this.action(async () => {
       try {
         if (this.tableClosing && !await this.tableClosing) throw new Error('이전 테이블 구독 종료를 먼저 확인해주세요.')
-        if (s.watchedTableId && s.watchedTableId !== tableId && !await this.unwatchGame()) throw new Error('기존 경기 관전 종료를 확인해주세요.')
+        if (s.watchedTableId && s.watchedTableId !== tableId && !await this.unwatchGame(true)) throw new Error('기존 경기 관전 종료를 확인해주세요.')
         const list = await this.getJSON(`/api/v1/tables?channelId=${encodeURIComponent(channelId)}`, { signal: this.bootAbort?.signal })
         if (!current()) return
         if (!record(list) || !Array.isArray(list.tables)) throw new Error('테이블 목록을 확인할 수 없습니다.')
@@ -1566,12 +1566,22 @@ export class ParkRuntime implements ParkRuntimePort {
     useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
     return this.spectator.set({ gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) }, true)
   }
-  unwatchGame = async (): Promise<boolean> => {
+  unwatchGame = async (preserveInspection = false): Promise<boolean> => {
     if (this.spectatorIntent?.awaitingStart) { this.closeTable(); return true }
+    const ending = useSession.getState(), generation = this.generation, inspection = this.inspection
     this.spectatorIntent = null
     useTableLobby.setState({ spectatorRequested: false })
     const approved = await this.spectator.set(null, true)
-    if (approved) resetBenchSpectator()
+    const current = useSession.getState()
+    if (approved && generation === this.generation && inspection === this.inspection
+      && current.sessionId === ending.sessionId && current.roomId === ending.roomId
+      && current.focusedAnchorId === ending.focusedAnchorId && !this.spectatorIntent && !useGame.getState().watchedGameId) {
+      resetBenchSpectator()
+      // A standing spectator has no table panel after leaving the match.
+      // Retaining focusedAnchorId silently disables G and other park controls.
+      if (!preserveInspection && !current.benchId && !current.tableId) this.closeTable()
+      if (!preserveInspection) focusParkCanvas()
+    }
     return approved
   }
   closeTable = () => {
