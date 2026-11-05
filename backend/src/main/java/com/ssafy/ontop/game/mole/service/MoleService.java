@@ -19,7 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 참가비 없이 실력으로 엽전을 버는 1인 미니게임. 서버가 시드로 출현표를 정하고, 완료 때 타격 기록을 다시 계산해
- * 45점당 1냥(규칙 2)을 미니게임 공통 하루 상한 안에서 지급한다. 판정 엔진과 분리해 공통 지갑·원장만 사용한다.
+ * 40점당 1냥(규칙 3)을 미니게임 공통 하루 상한 안에서 지급한다. 판정 엔진과 분리해 공통 지갑·원장만 사용한다.
  */
 public class MoleService {
     private static final String REQUEST_KEY = "[A-Za-z0-9_-]{1,64}";

@@ -1,11 +1,9 @@
 import { KEYS, type Hit, type Mole, type MoleRules } from './protocol'
 
-/** 서버 MoleRules.score와 같은 판정(규칙 버전 2). 바꿀 때는 backend MoleRulesTests와 tests/unit/mole.test.ts의 같은 기록을 함께 고친다. */
+/** 서버 MoleRules.score와 같은 판정(규칙 버전 3). 바꿀 때는 backend MoleRulesTests와 tests/unit/mole.test.ts의 같은 기록을 함께 고친다. */
 export const REACTION_FLOOR_MS = 60
 export const SAME_HOLE_MIN_MS = 60
 export const AFTERSHOCK_MS = 250
-/** 망치는 하나다. 한 번 친 뒤 이 시간 안의 다른 키는 세지 않는다. */
-export const MALLET_MS = 80
 /** 아무것도 없는 구멍을 치면 이 시간 동안 모든 키를 받지 않는다. */
 export const STUN_MS = 2000
 /** 기절을 봐주는 아슬아슬한 경우: 곧 나올 두더지(앞)와 막 들어간 두더지(뒤). */
@@ -13,7 +11,7 @@ export const EARLY_GRACE_MS = 150
 export const LATE_GRACE_MS = 250
 
 export type HitEvent =
-  | { type: 'ignored'; reason: 'range' | 'stunned' | 'mallet' | 'early' | 'aftershock' }
+  | { type: 'ignored'; reason: 'range' | 'stunned' | 'repeat' | 'early' | 'aftershock' }
   | { type: 'empty'; stunned: boolean }
   | { type: 'decoy'; mole: Mole }
   | { type: 'tap'; mole: Mole; left: number }
@@ -30,7 +28,6 @@ export class MoleScorer {
   caught = 0
   /** 이 시각(판 시작 기준 ms)까지 기절해 있다. */
   stunUntil = -Infinity
-  private lastSwing = -Infinity
   private readonly lastHit = KEYS.map(() => -Infinity)
   private readonly caughtAt = KEYS.map(() => -Infinity)
   private readonly taps = new Map<number, number>()
@@ -49,8 +46,7 @@ export class MoleScorer {
   hit(hole: number, at: number): HitEvent {
     if (hole < 0 || hole >= KEYS.length || at < 0 || at > this.rules.durationMs) return { type: 'ignored', reason: 'range' }
     if (at < this.stunUntil) return { type: 'ignored', reason: 'stunned' }
-    if (at - this.lastSwing < MALLET_MS || at - this.lastHit[hole]! < SAME_HOLE_MIN_MS) return { type: 'ignored', reason: 'mallet' }
-    this.lastSwing = at
+    if (at - this.lastHit[hole]! < SAME_HOLE_MIN_MS) return { type: 'ignored', reason: 'repeat' }
     this.lastHit[hole] = at
     const mole = this.visible(hole, at)
     if (mole && at - mole.appearAt < REACTION_FLOOR_MS) return { type: 'ignored', reason: 'early' }

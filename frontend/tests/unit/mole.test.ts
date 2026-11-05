@@ -36,10 +36,11 @@ describe('whack-a-mole scoring (same records as backend MoleRulesTests)', () => 
     expect(scoreHits(moles, rules, [{ hole: 1, at: 900 }, { hole: 1, at: 3200 }]).caught).toBe(1)
   })
 
-  it('has one mallet: a second key within 0.08 s does not count, and a rising mole can be hit', () => {
-    const moles = [mole(0, 0, 'NORMAL', 1, 0, 900), mole(1, 1, 'NORMAL', 1, 0, 900)]
-    expect(scoreHits(moles, rules, [{ hole: 0, at: 300 }, { hole: 1, at: 330 }]).caught).toBe(1)
-    expect(scoreHits(moles, rules, [{ hole: 0, at: 300 }, { hole: 1, at: 380 }]).caught).toBe(2)
+  it('counts different holes hit together, ignores the same hole again within 60 ms, and a rising mole can be hit', () => {
+    const moles = [mole(0, 0, 'NORMAL', 1, 0, 900), mole(1, 1, 'NORMAL', 1, 0, 900), mole(2, 2, 'RAPID', 2, 0, 1040)]
+    expect(scoreHits(moles, rules, [{ hole: 0, at: 300 }, { hole: 1, at: 300 }]).caught).toBe(2)
+    expect(scoreHits(moles, rules, [{ hole: 2, at: 300 }, { hole: 2, at: 330 }]).caught).toBe(0)
+    expect(scoreHits(moles, rules, [{ hole: 2, at: 300 }, { hole: 2, at: 360 }]).caught).toBe(1)
     expect(scoreHits(moles, rules, [{ hole: 0, at: 70 }]).caught).toBe(1)
     expect(scoreHits(moles, rules, [{ hole: 0, at: 50 }]).caught).toBe(0)
   })
@@ -47,7 +48,7 @@ describe('whack-a-mole scoring (same records as backend MoleRulesTests)', () => 
   it('reports each hit so the screen can show taps left and the combo', () => {
     const scorer = new MoleScorer([mole(0, 4, 'RAPID', 2, 0, 900)], rules)
     expect(scorer.hit(4, 150)).toMatchObject({ type: 'tap', left: 1 })
-    expect(scorer.hit(4, 180)).toEqual({ type: 'ignored', reason: 'mallet' })
+    expect(scorer.hit(4, 180)).toEqual({ type: 'ignored', reason: 'repeat' })
     expect(scorer.hit(4, 260)).toMatchObject({ type: 'catch', points: 20, tenths: 10 })
     expect(scorer.hit(4, 400)).toEqual({ type: 'ignored', reason: 'aftershock' })
     expect(scorer.hit(4, 700)).toEqual({ type: 'empty', stunned: true })
@@ -56,9 +57,9 @@ describe('whack-a-mole scoring (same records as backend MoleRulesTests)', () => 
   })
 
   it('maps keys by physical position so the Korean input mode does not matter', () => {
-    expect(KEYS.join('')).toBe('QWEIOP')
-    expect(KEY_CODES).toEqual(['KeyQ', 'KeyW', 'KeyE', 'KeyI', 'KeyO', 'KeyP'])
-    expect(rules.pointsPerCoin).toBe(45)
+    expect(KEYS.join('')).toBe('SDFJKL')
+    expect(KEY_CODES).toEqual(['KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL'])
+    expect(rules.pointsPerCoin).toBe(40)
   })
 })
 

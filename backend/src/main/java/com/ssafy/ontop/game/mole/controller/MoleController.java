@@ -84,7 +84,7 @@ public class MoleController {
 
     @PostMapping("/rounds/{roundId}/complete")
     @Operation(operationId = "completeWhackAMoleRound", summary = "두더지 잡기 완료",
-            description = "타격 기록(구멍 0~5, 판 시작 기준 ms)으로 서버가 점수를 다시 계산하고 45점당 1냥을 "
+            description = "타격 기록(구멍 0~5, 판 시작 기준 ms)으로 서버가 점수를 다시 계산하고 40점당 1냥을 "
                     + "미니게임 공통 하루 상한 안에서 지급합니다. 이미 정산한 판은 같은 결과를 반환합니다.")
     @ApiResponse(responseCode = "200", description = "정산 결과",
             content = @Content(schema = @Schema(implementation = MoleDtos.Settlement.class)))
