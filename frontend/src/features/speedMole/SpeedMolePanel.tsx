@@ -4,12 +4,12 @@ import holeArt from '../mole/assets/hole.webp'
 import moleArt from '../mole/assets/mole.webp'
 import malletArt from '../mole/assets/mallet.webp'
 import { SevenSegment } from '../mole/SevenSegment'
-import { SpeedMoleKeys, SpeedMoleRound, SPEED_MOLE_CODES, SPEED_MOLE_DURATION_MS, SPEED_MOLE_KEYS } from './game'
+import { speedMoleHole, SpeedMoleRound, SPEED_MOLE_CODES, SPEED_MOLE_DURATION_MS, SPEED_MOLE_KEYS } from './game'
 import './speed-mole.css'
 
 type Phase = 'ready' | 'playing' | 'result'
 interface Feedback { id: number; hole: number; kind: 'hit' | 'miss'; at: number }
-const layout = SPEED_MOLE_KEYS.map((_, index) => ({ left: `${29 + (index % 4) * 11}%`, top: `${index < 4 ? 67 : 87}%` }))
+const layout = SPEED_MOLE_KEYS.map((_, index) => ({ left: `${29 + (index % 4) * 11}%`, top: `${index < 4 ? 67 : 88}%` }))
 
 /** Standalone local play surface. It never submits a score, spends money or grants a reward. */
 export function SpeedMolePanel({ onClose }: { onClose: () => void }) {
@@ -19,7 +19,6 @@ export function SpeedMolePanel({ onClose }: { onClose: () => void }) {
   const [feedback, setFeedback] = useState<Feedback[]>([])
   const [swing, setSwing] = useState<Feedback | null>(null)
   const round = useRef<SpeedMoleRound | null>(null)
-  const keys = useRef(new SpeedMoleKeys())
   const seq = useRef(0)
   const root = useRef<HTMLDivElement>(null)
   const handlers = useRef({ strike: (_hole: number) => {}, start: () => {}, escape: () => {} })
@@ -31,7 +30,7 @@ export function SpeedMolePanel({ onClose }: { onClose: () => void }) {
   const start = () => {
     const at = performance.now()
     round.current = new SpeedMoleRound(at)
-    keys.current.clear(); setFeedback([]); setSwing(null); setConfirmQuit(false); setNow(at); setPhase('playing')
+    setFeedback([]); setSwing(null); setConfirmQuit(false); setNow(at); setPhase('playing')
     root.current?.focus()
   }
   const strike = (index: number) => {
@@ -44,7 +43,7 @@ export function SpeedMolePanel({ onClose }: { onClose: () => void }) {
   }
   handlers.current = { strike, start, escape: () => active ? setConfirmQuit(value => !value) : onClose() }
 
-  useEffect(() => { root.current?.focus(); return () => keys.current.clear() }, [])
+  useEffect(() => { root.current?.focus() }, [])
   useEffect(() => {
     if (!active) return
     let frame = 0, lastPaint = 0
@@ -58,22 +57,16 @@ export function SpeedMolePanel({ onClose }: { onClose: () => void }) {
   }, [active])
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
-      if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return
+      if (event.ctrlKey || event.metaKey || event.altKey) return
       if (event.target instanceof HTMLElement && event.target.closest('input, textarea, select, [contenteditable="true"]')) return
       if (SPEED_MOLE_CODES.includes(event.code)) {
         event.preventDefault()
-        const index = keys.current.down(event.code, event.repeat)
+        const index = speedMoleHole(event.code, event.repeat)
         if (index !== null) handlers.current.strike(index)
       } else if (event.code === 'Escape' && !event.repeat) { event.preventDefault(); handlers.current.escape() }
     }
-    const up = (event: KeyboardEvent) => keys.current.up(event.code)
-    const clear = () => keys.current.clear()
-    document.addEventListener('keydown', down); document.addEventListener('keyup', up)
-    window.addEventListener('blur', clear); document.addEventListener('visibilitychange', clear)
-    return () => {
-      document.removeEventListener('keydown', down); document.removeEventListener('keyup', up)
-      window.removeEventListener('blur', clear); document.removeEventListener('visibilitychange', clear)
-    }
+    document.addEventListener('keydown', down)
+    return () => document.removeEventListener('keydown', down)
   }, [])
 
   return <div ref={root} className="speed-mole" role="dialog" aria-modal="true" aria-labelledby="speed-mole-title" tabIndex={-1}

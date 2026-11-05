@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SpeedMoleKeys, SpeedMoleRound, SPEED_MOLE_CODES, SPEED_MOLE_KEYS, SPEED_MOLE_DURATION_MS } from '../../src/features/speedMole/game'
+import { speedMoleHole, SpeedMoleRound, SPEED_MOLE_CODES, SPEED_MOLE_KEYS, SPEED_MOLE_DURATION_MS } from '../../src/features/speedMole/game'
 
 describe('separate speed mole local rules', () => {
   it('maps TYUI then GHJK to exactly eight physical keys', () => {
@@ -64,12 +64,21 @@ describe('separate speed mole local rules', () => {
     a.strike(a.targets[0]!.hole, 0)
     expect(b.score).toBe(0); expect(b.hits).toBe(0)
   })
-  it('scores a physical key only once until keyup, and clears held keys on focus loss', () => {
-    const keys = new SpeedMoleKeys()
-    expect(keys.down('KeyT')).toBe(0)
-    expect(keys.down('KeyT', true)).toBeNull(); expect(keys.down('KeyT')).toBeNull()
-    keys.up('KeyT'); expect(keys.down('KeyT')).toBe(0)
-    keys.clear(); expect(keys.down('KeyT')).toBe(0)
-    expect(keys.down('KeyQ')).toBeNull()
+  it('ignores native hold repeats but accepts a new H press even if keyup was lost', () => {
+    expect(speedMoleHole('KeyH', false)).toBe(5)
+    expect(speedMoleHole('KeyH', true)).toBeNull()
+    expect(speedMoleHole('KeyH', false)).toBe(5)
+    expect(speedMoleHole('KeyQ', false)).toBeNull()
+  })
+  it.each(SPEED_MOLE_CODES)('maps %s to its own active hole and removes exactly that target', code => {
+    const hole = speedMoleHole(code)!
+    const round = new SpeedMoleRound(0, () => hole / 8)
+    // Arrange a valid four-hole board with this physical key active.
+    round.targets[0] = { id: 100, hole, appearedAt: 0 }
+    round.targets.splice(1, 3, ...SPEED_MOLE_KEYS.map((_, h) => h).filter(h => h !== hole).slice(0, 3)
+      .map((h, i) => ({ id: i + 101, hole: h, appearedAt: 0 })))
+    expect(round.strike(hole, 1)).toMatchObject({ kind: 'hit', score: 1 })
+    expect(round.targets.some(t => t.hole === hole)).toBe(false)
+    expect(round.targets).toHaveLength(4)
   })
 })

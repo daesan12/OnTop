@@ -39,14 +39,8 @@ export class SpeedMoleRound {
   }
 }
 
-/** Physical key codes also work while Korean input is selected; held keys score only once. */
-export class SpeedMoleKeys {
-  private held = new Set<string>()
-  down(code: string, repeat = false) {
-    const hole = SPEED_MOLE_CODES.indexOf(code)
-    if (hole < 0 || repeat || this.held.has(code)) return null
-    this.held.add(code); return hole
-  }
-  up(code: string) { this.held.delete(code) }
-  clear() { this.held.clear() }
+/** Native repeat distinguishes a held key from a fresh press even if a keyup was lost. */
+export function speedMoleHole(code: string, repeat = false) {
+  const hole = SPEED_MOLE_CODES.indexOf(code)
+  return hole < 0 || repeat ? null : hole
 }
