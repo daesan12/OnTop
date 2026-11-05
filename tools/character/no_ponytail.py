@@ -1,4 +1,4 @@
-"""The girl's default hair e without its ponytail, as a new hair item: -- <shared.glb> <out.glb> [new=j] [dist=0.035] [ymin=0.0] [squash=k] [cap=1]
+"""The girl's default hair e without its ponytail, as a new hair item: -- <shared.glb> <out.glb> [new=j] [dist=0.035] [ymin=0.0] [squash=k] [cap=1] [back=i back_y=0.0]
 Hair faces behind ymin (the back half) whose middle lies farther than dist from the body's surface are the ponytail and
 its scrunchie; they go. The copy becomes item__HAIR__<new> (weights and texture kept)."""
 import bpy, bmesh, sys, os, re
@@ -136,6 +136,41 @@ if opt.get('cap', '0') == '1' and hairs:
     for x in bpy.data.objects: x.select_set(x in caps or x is c)
     bpy.context.view_layer.objects.active = c; bpy.ops.object.join()
     print('CAP', sum(1 for _ in caps), 'body pieces under the hair joined; hair now', len(c.data.polygons), 'faces')
+# back=i: the back of another hair item (the Tripo bun hair i: smooth hair down to the nape and a low bun) under this
+# one, recoloured to this hair's colours (mean and spread per channel), so the head is not bare behind and looks like
+# real hair. The ponytail laid down over it (squash) looked messy (user). Its faces before back_y and on the ears go.
+if opt.get('back') and hairs:
+    import numpy as np
+    c = hairs[0]
+    src_ = [o for o in bpy.data.objects if o.type == 'MESH' and base(o) == f"item__HAIR__{opt['back']}"]
+    def texels(o):
+        img = next(n.image for m in o.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
+        w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)
+        uvd = o.data.uv_layers.active.data; T = []
+        for p in list(o.data.polygons)[::5]:
+            u = uvd[p.loop_indices[0]].uv
+            T.append(P[min(h_ - 1, int(u.y * h_)), min(w_ - 1, int(u.x * w_)), :3])
+        return img, P, np.array(T)
+    _, _, Te = texels(c)
+    BY = float(opt.get('back_y', 0.0)); joined = []
+    for s_ in src_:
+        k = s_.copy(); k.data = s_.data.copy(); bpy.context.scene.collection.objects.link(k)
+        kmw = k.matrix_world; b = bmesh.new(); b.from_mesh(k.data)
+        bmesh.ops.delete(b, geom=[f for f in b.faces if (kmw @ f.calc_center_median()).y < BY or ear(kmw @ f.calc_center_median())], context='FACES')
+        b.to_mesh(k.data); b.free()
+        img, P, Ti = texels(k)
+        mi, si, me_, se = Ti.mean(0), Ti.std(0) + 1e-4, Te.mean(0), Te.std(0)
+        Q = P.copy(); Q[..., :3] = np.clip((P[..., :3] - mi) / si * se + me_, 0, 1)
+        new = bpy.data.images.new(f"{img.name}_as_{base(c)}", img.size[0], img.size[1], alpha=True)
+        new.pixels[:] = Q.ravel(); new.pack()
+        for i_, m in enumerate(k.data.materials):
+            m2 = m.copy(); k.data.materials[i_] = m2
+            for nd in m2.node_tree.nodes:
+                if nd.type == 'TEX_IMAGE' and nd.image: nd.image = new
+        joined.append(k)
+        print('BACK', s_.name, len(k.data.polygons), 'faces, colour', mi.round(2).tolist(), '->', me_.round(2).tolist())
+    for x in bpy.data.objects: x.select_set(x in joined or x is c)
+    bpy.context.view_layer.objects.active = c; bpy.ops.object.join()
 if ad:
     for t in ad.nla_tracks: t.mute = False
     ad.action = active
