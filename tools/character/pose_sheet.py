@@ -1,5 +1,5 @@
 """The shared body alone in the game's rest (arms down, game_pose.py), rendered from four sides as a 2x2 sheet
-like the original base sheet (front, right side, back, left side), for generating outfits: -- <shared_layers.glb> <out.png> [size=1024] [pose=t]
+like the original base sheet (front, right side, back, left side), for generating outfits: -- <shared_layers.glb> <out.png> [size=1024] [pose=t] [keep=item__HAIR__e]
 (pose=t keeps the T-pose; outfits are generated on it, see docs/character-outfits.md)
 Rigid outfits made on the T-pose sheet had to be bent 70 degrees at the shoulders and broke."""
 import bpy, sys, os, math, re
@@ -13,7 +13,9 @@ from game_pose import bind_pose
 bpy.ops.wm.read_factory_settings(use_empty=True); bpy.ops.import_scene.gltf(filepath=src)
 arm = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
 for o in list(bpy.data.objects):
-    if o.type == 'MESH' and not re.sub(r'\.\d+$', '', o.name).startswith('body'): bpy.data.objects.remove(o)
+    # (keep=item__HAIR__e: those items stay too, e.g. the girl's hair, for a hairstyle sheet)
+    keep = tuple(['body'] + [k for k in opt.get('keep', '').split(',') if k])
+    if o.type == 'MESH' and not re.sub(r'\.\d+$', '', o.name).startswith(keep): bpy.data.objects.remove(o)
 if opt.get('pose', 'down') == 'down': bind_pose(arm)
 else:   # pose=t: the body's own T-pose (outfits for Tripo are generated on it; the arms-down remake was rejected)
     for t in (arm.animation_data.nla_tracks if arm.animation_data else []): t.mute = True
