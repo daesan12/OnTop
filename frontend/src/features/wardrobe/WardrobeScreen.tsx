@@ -10,7 +10,7 @@ import {
   type WardrobeFilter, type WardrobeGroup,
 } from './state'
 import { wornPiece } from '../../world/art/characterLook'
-import { knownWholeSkin } from '../../world/art/wholeSkin'
+import { knownWholeSkin, wholeSkinCompatible } from '../../world/art/wholeSkin'
 import { WARDROBE_OUTFITS_ENABLED } from './feature'
 import { wardrobeView } from './view'
 import { outfitImage, setImage, useItemArt, type CharacterVariant } from './itemArt'
@@ -113,8 +113,7 @@ export function WardrobeScreen() {
   const visible = cards.filter(owned => (s.filter === 'ALL' || groupsOf(owned).includes(s.filter))
     && (!query || label(owned).includes(query) || setPieces(s.items, owned).some(other => other.item.name.includes(query))))
   const preview = s.items.find(owned => owned.userItemId === s.previewId)
-  const incompatibleSkin = !!preview && !!knownWholeSkin(preview.item.imageKey)
-    && knownWholeSkin(preview.item.imageKey)!.variant !== variant
+  const incompatibleSkin = !!preview && !wholeSkinCompatible(variant, preview.item.imageKey)
   const previewed = (owned: OwnedItem) => !!preview && setPieces(s.items, owned).includes(preview)
   const worn = (group: WardrobeGroup) => group === 'OUTFIT'
     ? OUTFIT_SLOTS.map(slot => s.items.find(owned => owned.equipped && owned.item.equipSlot === slot)).find(Boolean)
@@ -180,7 +179,7 @@ export function WardrobeScreen() {
           <button type="button" onClick={() => void refreshWardrobe()}>다시 불러오기</button>
         </div> : !s.ready ? <div className="wardrobe-empty" role="status"><b>옷장을 여는 중이에요…</b></div>
         : !s.items.length ? <div className="wardrobe-empty" role="status">
-          <b>아직 가진 의상이 없어요</b><p>상점에서 의상을 구매하면 여기에서 골라 입을 수 있어요.</p>
+          <b>아직 가진 의상이 없어요</b><p>보유한 스킨이 생기면 여기에서 골라 입을 수 있어요.</p>
         </div> : !visible.length ? <div className="wardrobe-empty" role="status">
           <b>찾는 의상이 없어요</b><p>다른 칸을 고르거나 검색어를 바꿔 보세요.</p>
         </div> : <ul className="wardrobe-grid">
@@ -191,6 +190,7 @@ export function WardrobeScreen() {
               // A double click wears it, or takes it off when it is already worn (the two clicks before it preview it).
               onDoubleClick={() => {
                 previewWardrobeItem(owned.userItemId)
+                if (!owned.equipped && !wholeSkinCompatible(variant, owned.item.imageKey)) return
                 void (owned.equipped ? takeOffPreviewedItem() : wearPreviewedItem())
               }}>
               <ItemArt owned={owned} variant={variant} />

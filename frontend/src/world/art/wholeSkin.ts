@@ -14,6 +14,10 @@ const skins = [ssafyBlackMale] as const
 
 export const knownWholeSkin = (imageKey: string | null) => skins.find(skin => skin.imageKey === imageKey)
 export const wholeSkinUrl = (source: string) => skins.find(skin => skin.source === source)?.url
+export function wholeSkinCompatible(variant: CharacterVariant, imageKey: string | null) {
+  const skin = knownWholeSkin(imageKey)
+  return !skin || skin.variant === variant
+}
 
 /** Partial, mixed, unknown or incompatible equipment never replaces the base body. */
 export function resolveWholeSkin(variant: CharacterVariant, equipment: readonly PublicEquipment[]) {

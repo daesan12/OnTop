@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { equipSlots, type PublicEquipment } from '../../src/network/equipment'
-import { resolveWholeSkin, ssafyBlackMale, wholeSkinUrl } from '../../src/world/art/wholeSkin'
-import { previewEquipment, wearing } from '../../src/features/wardrobe/state'
+import { resolveWholeSkin, ssafyBlackMale, wholeSkinCompatible, wholeSkinUrl } from '../../src/world/art/wholeSkin'
+import { previewEquipment, useWardrobe, wearing, wearPreviewedItem } from '../../src/features/wardrobe/state'
 import type { OwnedItem } from '../../src/features/shop/contracts'
+import { useSession } from '../../src/network/worldClient'
+import { parkRuntime } from '../../src/park/runtime/runtime'
 
 const items: OwnedItem[] = equipSlots.map((equipSlot, i) => ({
   userItemId: i + 1, quantity: 1, equipped: false,
@@ -12,6 +14,27 @@ const items: OwnedItem[] = equipSlots.map((equipSlot, i) => ({
 const equipment = previewEquipment(items, 3)!
 
 describe('whole skin selection through public equipment', () => {
+  it('checks the same compatibility rule for a card and the wear button', () => {
+    expect(wholeSkinCompatible('man', ssafyBlackMale.imageKey)).toBe(true)
+    expect(wholeSkinCompatible('girl', ssafyBlackMale.imageKey)).toBe(false)
+    expect(wholeSkinCompatible('girl', 'outfit/gat/h')).toBe(true)
+    expect(wholeSkinCompatible('man', null)).toBe(true)
+  })
+  it('sends no equipment request for an incompatible skin, even through a direct action', async () => {
+    const beforeSession = useSession.getState(), beforeWardrobe = useWardrobe.getState()
+    const request = vi.spyOn(parkRuntime, 'requestJSON')
+    try {
+      useSession.setState({ sessionId: 'skin-review', roomId: 'review', status: 'connected',
+        profiles: { 'skin-review': { character: 'girl', nickname: '검수' } } })
+      useWardrobe.setState({ open: true, owner: 'skin-review', items, previewId: 3, equipping: 0, loading: false })
+      await wearPreviewedItem()
+      expect(request).not.toHaveBeenCalled()
+      expect(useWardrobe.getState().equipError).toBe('이 스킨은 남자 캐릭터 전용이에요.')
+      expect(useWardrobe.getState().equipping).toBe(0)
+    } finally {
+      useSession.setState(beforeSession, true); useWardrobe.setState(beforeWardrobe, true); request.mockRestore()
+    }
+  })
   it('uses one asset only for a complete compatible five-slot set, in any order', () => {
     expect(resolveWholeSkin('man', equipment)).toBe(ssafyBlackMale)
     expect(resolveWholeSkin('man', [...equipment].reverse())).toBe(ssafyBlackMale)
