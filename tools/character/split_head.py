@@ -1,5 +1,5 @@
 """Split a Tripo head part (hair and face skin came out as one part) by texel colour:
--- <parts.glb> <out.glb> part=1 [hair=90] [face=91] [dark=0.5] [smooth=4] [min_island=300] [cut=x,y,z] [brows=zlo,zhi,xmax]
+-- <parts.glb> <out.glb> part=1 [hair=90] [face=91] [dark=0.5] [smooth=4] [min_island=300] [cut=x,y,z] [brows=zlo,zhi,xmax] [face_above=z]
 Each face is hair when its mean texel brightness is under `dark`; then `smooth` passes of neighbour majority vote
 clean the edge. The hair becomes tripo_part_<hair>, the skin tripo_part_<face>; every other part is kept."""
 import bpy, bmesh, sys, os
@@ -70,6 +70,9 @@ for name, keep in ((HAIR, True), (FACE, False)):
                         if nf not in seen: seen.add(nf); grp.append(nf); st.append(nf)
             if len(grp) < int(opt.get('min_island', 300)): small += grp
         bmesh.ops.delete(b, geom=small, context='FACES'); print('SPLIT', len(small), 'faces in small hair islands dropped')
+    elif opt.get('face_above'):   # (the face for head_fit: the skin above the chin; with the neck in it the fit went 19 cm off)
+        z0 = float(opt['face_above']); mw = c.matrix_world
+        bmesh.ops.delete(b, geom=[f for f in b.faces if (mw @ f.calc_center_median()).z < z0], context='FACES')
     b.to_mesh(c.data); b.free(); c.name = name
 bpy.data.objects.remove(o)
 bpy.ops.export_scene.gltf(filepath=out, export_format='GLB', export_image_format='AUTO')

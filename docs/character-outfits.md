@@ -133,17 +133,19 @@
 
 - 조각 이름은 `item__HAIR__<문자>__for_man` / `item__HAIR__<문자>__for_girl`이다. 게임은 그 캐릭터에만 그린다(`characterLook.ts`).
 - 남자 머리카락은 기본 머리 `b`를 복사해 쓴다. Tripo 머리보다 깔끔하고 기본 모습과 머릿결이 같다.
-- 여자는 기본 머리 `e`(포니테일)를 쓰면 모자 아래에서 어색해서, 모자용 머리 `i`(시스루 앞머리, 얼굴 옆으로 내린 가는 머리, 낮은 쪽머리)를 따로 만들었다. 처음에는 가르마를 탄 올백 쪽머리로 했는데, 이마가 다 드러나 정면에서 남자처럼 보였다(user).
-  1. 공용 몸 T자 시트(`pose_sheet.py pose=t`)를 Gemini에 넣고, 몸·얼굴·배치는 그대로 두고 머리만 그리게 했다: 눈썹이 보이는 얇은 앞머리, 귀 앞으로 턱까지 내린 가는 머리, 나머지는 목덜미의 둥근 쪽. 정수리와 뒤는 머리에 붙게 해서 모자가 얹히게 한다. 모자·장신구는 넣지 않는다.
+- 여자는 기본 머리 `e`(포니테일)를 쓰면 모자 아래에서 어색해서, 모자용 머리 `i`(눈썹을 덮는 두꺼운 앞머리, 얼굴 옆으로 내린 가는 머리, 낮은 쪽머리)를 따로 만들었다.
+  - 처음 만든 가르마 올백 쪽머리는 이마가 다 드러나 정면에서 남자처럼 보였다(user).
+  - 두 번째로 만든 눈썹이 보이는 시스루 앞머리는, 모델 눈썹을 지운 자리가 앞머리 끝에서 들쭉날쭉하게 잘려 이상해 보였다(user). 그래서 눈썹을 덮는 앞머리로 바꿨다. 이제 눈썹은 앞머리 밑에 가려져 지울 필요가 없다(`split_head.py`의 `brows=`는 이때 쓴 옵션이다).
+  1. 공용 몸 T자 시트(`pose_sheet.py pose=t`)를 Gemini에 넣고, 몸·얼굴·배치는 그대로 두고 머리만 그리게 했다: 이마를 다 덮고 눈 바로 위에서 고르게 끝나는 두꺼운 앞머리(틈 없이), 귀 앞으로 턱까지 내린 가는 머리, 목덜미의 둥근 쪽. 정수리와 뒤는 머리에 붙게 해서 모자가 얹히게 한다. 모자·장신구는 넣지 않는다.
   2. Tripo 여러 면(정면 / Left = 오른쪽 아래 / Right = 오른쪽 위 / 뒤), Generate in Parts, Balanced, 4K 텍스처.
-  3. Tripo가 머리카락을 피부·티셔츠와 한 부품(`tripo_part_0`)으로 냈다. `split_head.py`가 텍스처 밝기로 나눈다(머리 `tripo_part_90`).
-     - `cut=0.1,0.0,0.645`: 목 앞의 티셔츠 깃 안쪽(어두운 띠)은 머리가 아니다.
-     - `brows=0.775,0.825,0.13`: 모델의 눈썹이 이마와 같은 면에 그려져 머리로 잡혔고, 몸의 눈썹 위에 겹쳐 두꺼워 보였다. 그 높이에서 뒤(머리 안쪽) 2 cm 안에 아무것도 없는 앞쪽 면은 두개골 위의 눈썹이라 지운다. 앞머리는 이마 몇 mm 앞에 떠 있어서 남는다. 띠를 넓히면(0.74~0.88) 앞머리 밑의 두피까지 지워져 앞머리 사이로 피부가 보였다.
-  4. 머리만 기준 빌드에 맞춘다(쪽 `tripo_part_7`, 턱 아래로 내린 머리끝 `11`·`12`). 얼굴 부품(`tripo_part_1`)으로 맞추니 크기 0.984배였다.
+  3. Tripo가 머리카락과 얼굴을 한 부품(`tripo_part_0`, 쪽만 `tripo_part_2`)으로 냈다. `split_head.py`가 텍스처 밝기로 나눈다(머리 `tripo_part_90`, 얼굴 `tripo_part_91`).
+     - `cut=0.1,-0.12,0.755`: 앞머리 아래 얼굴 앞쪽(어두운 눈동자)은 머리가 아니다.
+     - `face_above=0.62`: 맞추기(`head_fit`)에 쓰는 얼굴은 턱 위만 남긴다. 목까지 들어 있으면 맞추기가 19 cm 어긋났다.
+  4. 머리만 기준 빌드에 맞춘다. 얼굴로 맞추니 크기 0.986배였다.
 
 ```bash
-"$B" -b --python tools/character/split_head.py -- girl_bangs_parts.glb girl_bangs_split.glb part=0 min_island=300 cut=0.1,0.0,0.645 brows=0.775,0.825,0.13
-"$B" -b --python tools/character/fit_outfit.py -- shared_layers_h.glb girl_bangs_split.glb shared_layers_hi.glb set=i s=1.065 head_fit=1 "map=HAIR:90,7,11,12"
+"$B" -b --python tools/character/split_head.py -- girl_fringe_parts.glb girl_fringe_split.glb part=0 min_island=300 cut=0.1,-0.12,0.755 face_above=0.62
+"$B" -b --python tools/character/fit_outfit.py -- shared_layers_h.glb girl_fringe_split.glb shared_layers_hi.glb set=i s=1.065 head_fit=91 "map=HAIR:90,2"
 ```
 
 - `i`는 모자 아래 머리의 원본일 뿐이라 아이템으로 팔지 않는다(옷 파일에도 넣지 않는다).
