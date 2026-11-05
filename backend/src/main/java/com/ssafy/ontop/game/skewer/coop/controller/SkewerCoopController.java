@@ -124,7 +124,9 @@ public class SkewerCoopController {
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class, GameActionGateway.Rejected.class})
     ResponseEntity<Map<String, String>> failed(RuntimeException exception) {
         boolean denied = exception instanceof GameActionGateway.Rejected;
-        String code = exception instanceof SkewerCoopRoomAccess.PasswordRejected password ? password.code() : "SKEWER_COOP_REJECTED";
+        String code = exception instanceof SkewerCoopRoomAccess.PasswordRejected password ? password.code()
+                : exception instanceof SkewerCoopRoomAccess.RoomFullException
+                        ? "SKEWER_COOP_ROOM_FULL" : "SKEWER_COOP_REJECTED";
         return ResponseEntity.status(denied ? 403 : 409).cacheControl(CacheControl.noStore()).body(Map.of(
                 "code", code, "message", denied ? "참가 권한을 확인해주세요." : exception.getMessage()));
     }

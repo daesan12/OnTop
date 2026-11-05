@@ -34,6 +34,9 @@ import org.slf4j.LoggerFactory;
 /** 무료 경기 엔진. 소켓·인증·복구는 공통 경로를 사용하고 실제 지갑이나 DB를 수정하지 않는다. */
 public final class SkewerCoopEngine implements GameEngine {
     private static final Logger log = LoggerFactory.getLogger(SkewerCoopEngine.class);
+    private static final long PASSWORD_FAILURE_WINDOW_MILLIS = 30_000;
+    private static final long PASSWORD_CLEANUP_INTERVAL_MILLIS = 1_000;
+    private static final int MAX_PASSWORD_FAILURES = 5;
     private final Consumer<SkewerCoopFinished> recordResult;
     private final Map<String, SkewerCoopFinished> terminalResults = new HashMap<>();
     private final Map<String, Long> terminalRetryAt = new HashMap<>();
@@ -50,6 +53,7 @@ public final class SkewerCoopEngine implements GameEngine {
     private final Map<String, SkewerCoopRoomAccess> roomAccess = new HashMap<>();
     private final Map<Long, List<Long>> passwordAttempts = new HashMap<>();
     private final Set<Long> passwordChecks = new HashSet<>();
+    private long nextPasswordCleanupAt;
     private final Map<Long, String> latest = new HashMap<>();
     private final Map<Long, String> recoveryLatest = new HashMap<>();
     private final Map<String, String> creations = new HashMap<>();
@@ -121,20 +125,19 @@ public final class SkewerCoopEngine implements GameEngine {
         SkewerCoopRoomAccess access;
         boolean member;
         synchronized (this) {
-            SkewerCoopMatch candidate = games.get(id);
-            if (candidate == null || !candidate.channelId.equals(channel) || !candidate.canJoin(user)) {
-                throw new IllegalStateException("같은 공원의 참가 가능한 방을 선택해주세요.");
-            }
+            SkewerCoopMatch candidate = requireJoinableRoom(user, channel, id);
             access = roomAccess.get(id);
             member = candidate.contains(user);
             if (!member && access.locked()) {
                 long now = clock.millis();
-                passwordAttempts.entrySet().removeIf(entry -> entry.getValue().stream().allMatch(at -> now - at >= 30_000));
                 List<Long> attempts = passwordAttempts.get(user);
                 if (attempts != null) {
-                    attempts.removeIf(at -> now - at >= 30_000);
+                    attempts.removeIf(at -> now - at >= PASSWORD_FAILURE_WINDOW_MILLIS);
+                    if (attempts.isEmpty()) {
+                        passwordAttempts.remove(user);
+                    }
                 }
-                if ((attempts != null && attempts.size() >= 5) || !passwordChecks.add(user)) {
+                if ((attempts != null && attempts.size() >= MAX_PASSWORD_FAILURES) || !passwordChecks.add(user)) {
                     throw new SkewerCoopRoomAccess.PasswordRejected(true);
                 }
             }
@@ -162,9 +165,8 @@ public final class SkewerCoopEngine implements GameEngine {
         }
         SkewerCoopMatch match;
         synchronized (this) {
-            match = games.get(id);
-            if (match == null || !match.canJoin(user) || !channel.equals(match.channelId)
-                    || current(user).filter(value -> value != match && occupiesRoom(value)).isPresent()) {
+            match = requireJoinableRoom(user, channel, id);
+            if (current(user).filter(value -> value != match && occupiesRoom(value)).isPresent()) {
                 throw new IllegalStateException("같은 공원의 참가 가능한 방을 선택해주세요.");
             }
             if (!match.registered() && match.players().size() == 1 && !match.contains(user)) {
@@ -339,9 +341,17 @@ public final class SkewerCoopEngine implements GameEngine {
     public void tick() {
         List<Object> notices = new ArrayList<>();
         synchronized (this) {
+            long now = clock.millis();
+            if (now >= nextPasswordCleanupAt) {
+                passwordAttempts.values().removeIf(attempts -> {
+                    attempts.removeIf(at -> now - at >= PASSWORD_FAILURE_WINDOW_MILLIS);
+                    return attempts.isEmpty();
+                });
+                nextPasswordCleanupAt = now + PASSWORD_CLEANUP_INTERVAL_MILLIS;
+            }
             for (SkewerCoopMatch match : games.values()) {
                 long before = match.version;
-                match.tick(clock.millis(), user -> connected.test(user, match.channelId));
+                match.tick(now, user -> connected.test(user, match.channelId));
                 if (match.finished()) {
                     queueTerminalResult(match);
                 } else if (match.registered() && before != match.version) {
@@ -350,6 +360,21 @@ public final class SkewerCoopEngine implements GameEngine {
             }
         }
         notices.forEach(events);
+    }
+
+    // 호출자는 엔진 락을 보유한다. 채널·종료 여부 확인 후에만 정원 정보를 구분해 반환한다.
+    private SkewerCoopMatch requireJoinableRoom(long user, String channel, String id) {
+        SkewerCoopMatch match = games.get(id);
+        if (match == null || !match.channelId.equals(channel) || match.finished()) {
+            throw new IllegalStateException("같은 공원의 참가 가능한 방을 선택해주세요.");
+        }
+        if (!match.contains(user) && match.players().size() >= 2) {
+            throw new SkewerCoopRoomAccess.RoomFullException();
+        }
+        if (!match.canJoin(user)) {
+            throw new IllegalStateException("같은 공원의 참가 가능한 방을 선택해주세요.");
+        }
+        return match;
     }
 
     private boolean occupiesRoom(SkewerCoopMatch match) {
