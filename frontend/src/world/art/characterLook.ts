@@ -60,7 +60,7 @@ export function pieceShown(name: string, source: string, variant: CharacterVaria
   if (body) return source === variant && !tokens(body[1]).some(token => worn.has(token))
   // `__for_girl` / `__for_man`: a piece for that character only (a hat's hair: the girl's under it, or the man's)
   const item = name.match(/^item__([A-Z]+)__([a-z0-9]+)(?:__for_(man|girl))?(?:__under_(\w+))?$/)
-  if (!item || item[3] && item[3] !== variant) return false
+  if (!item || (item[3] && item[3] !== variant)) return false
   const piece = look[item[1] as EquipSlot]
   return !!piece && piece.source === source && piece.id === item[2] && !tokens(item[4]).some(token => worn.has(token))
 }
