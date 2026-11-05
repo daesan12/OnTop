@@ -18,7 +18,8 @@ const variables = {
     followTargetId: '', followId: '', tableVersion: 0, startActionId: 'replace-on-new-start-keep-on-retry',
     mapId: 'park', mapVersion: 'replace-with-your-frontend-map-version',
     prankEventId: '', prankAttemptId: '', prankEffectId: '', prankTargetId: '', prankTurnCount: 0,
-    bungeoRankingCursor: '', bungeoRankingSnapshotId: '', historyCursor: ''
+    bungeoRankingCursor: '', bungeoRankingSnapshotId: '', historyCursor: '',
+    speedMoleRoundId: '', speedMoleRequestKey: '', speedMoleTaps: '[]'
 };
 
 const statusTest = status => `pm.test('HTTP ${status}', () => pm.response.to.have.status(${status}));`;
@@ -527,9 +528,7 @@ for (const request of [rankingSuccess, rankingInvalid]) {
     request.headers = [{ key: 'Authorization', value: 'Bearer {{accessToken}}' }];
 }
 httpItems.push(rankingSuccess, rankingInvalid, rankingAnonymous);
-const bungeoRankingDescription = '붕어빵 v4/v5 개인 최고 전체 랭킹. 기존 회원 JWT/db 필요. made DESC·failed ASC, 동점1,1,3·완료시각 우선. '
-    + '완료·정산 확정만 포함(보상0도 포함). 첫 페이지는 최신 DB, 후속은 동일2분 스냅샷. cursor는 같은 사용자/버전/limit로만 사용. '
-    + '409 RANKING_SNAPSHOT_EXPIRED면 처음부터 재조회. 신규 SQL/팀원 완료코드 변경 없음. 개발 서버 배포·실계정 검수 별도. docs/bungeoppang-rankings-api.md';
+const bungeoRankingDescription = "붕어빵 v4/v5 개인 최고 전체 랭킹. 기존 회원 JWT/db 필요. score DESC·같은 경기 maxCombo DESC, 동점1,1,3·정산시각 우선. 완료·정산 확정만 포함(보상0도 포함). 첫 페이지는 최신 DB, 후속은 동일2분 스냅샷. cursor는 같은 사용자/버전/플레이시간/limit로만 사용. 409 RANKING_SNAPSHOT_EXPIRED면 처음부터 재조회. 랭킹은 기존 정산 기록을 조회합니다. F1 일시정지는 별도 V132 적용이 필요합니다. 개발 서버 배포·실계정 검수 별도. docs/bungeoppang-rankings-api.md";
 const bungeoRankingTest = `pm.test('개인 최고 랭킹 계약', () => {
     const b = pm.response.json();
     pm.expect(b.basis).to.eql('PERSONAL_BEST');
@@ -546,9 +545,9 @@ if (pm.response.code === 200) {
     pm.environment.set('bungeoRankingSnapshotId', b.snapshotId);
 }`;
 const bungeoRankingRequests = [
-    http('33 붕어빵 v5 개인 최고 전체 랭킹', '/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit=20', 200,
+    http('33 붕어빵 v5 개인 최고 전체 랭킹', '/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&durationMs=120000&limit=20', 200,
         bungeoRankingDescription, bungeoV5RankingTest),
-    http('34 붕어빵 v5 다음 페이지 — cursor 있을 때만', '/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&limit=20&cursor={{bungeoRankingCursor}}', 200,
+    http('34 붕어빵 v5 다음 페이지 — cursor 있을 때만', '/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v5&durationMs=120000&limit=20&cursor={{bungeoRankingCursor}}', 200,
         bungeoRankingDescription, bungeoV5RankingTest, requireEnvironment + `\nif (!pm.environment.get('bungeoRankingCursor')) throw new Error('다음 페이지가 없습니다. 33부터 조회하세요.');`),
     http('35 붕어빵 v4 랭킹 — 별도 첫 조회', '/api/v1/minigames/bungeoppang/rankings?period=ALL_TIME&rulesVersion=v4&limit=20', 200,
         bungeoRankingDescription, bungeoRankingTest),
@@ -582,6 +581,25 @@ const historyRequests = [
 ];
 for(const request of historyRequests) request.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}];
 httpItems.push(...historyRequests);
+
+const speedMoleGuide = '스피드 두더지: V151 적용과 minigames 활성화 후 사용. 기존 두더지·지갑·공원 랭킹판은 변경하지 않음. '
+    + '41은 준비3초+플레이60초의 서버 판. 새 판은 새 speedMoleRequestKey, 유실 재확인은 같은 키. '
+    + '42/43은 60초 마감 후30초 이내 같은 판·타격 기록을 제출. 빈 로그는0점이며 예시로 치팅 방지를 증명하지 않음. '
+    + '서버가 seed/타격을 재생해 점수·성공·실수를 확정하며 클라이언트 점수는 보내지 않음. '
+    + '44는 최고점수↓/실수↑, 동점공동순위·먼저완료순. docs/speed-mole-api.md. 실제 배포·DB 검증 상태는 별도 확인.';
+const speedStart = http('41 스피드 두더지 시작 — 새 키 또는 같은 키 재확인','/api/v1/minigames/speed-mole/rounds',201,speedMoleGuide,
+    `if(pm.response.code===201){const r=pm.response.json();pm.environment.set('speedMoleRoundId',r.id);}`,
+    requireEnvironment+`\nif(!/^[A-Za-z0-9_-]{1,64}$/.test(pm.environment.get('speedMoleRequestKey')||'')) throw new Error('개인 환경 speedMoleRequestKey를 설정하세요. 새 판은 새 키, 재시도는 같은 키입니다.');`);
+speedStart.method='POST';speedStart.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'},{key:'Idempotency-Key',value:'{{speedMoleRequestKey}}'}];
+const speedFinish = http('42 스피드 두더지 완료 — 서버 마감 후 제출','/api/v1/minigames/speed-mole/rounds/{{speedMoleRoundId}}/complete',200,speedMoleGuide,
+    `pm.test('서버 확정 기록',()=>{const r=pm.response.json();pm.expect(r.id).to.eql(pm.environment.get('speedMoleRoundId'));pm.expect(r.rulesVersion).to.eql(1);});`,requireEnvironment);
+speedFinish.method='POST';speedFinish.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'},{key:'Content-Type',value:'application/json'}];
+speedFinish.body={mode:'raw',raw:'{"taps":{{speedMoleTaps}}}',options:{raw:{language:'json'}}};
+const speedRetry=structuredClone(speedFinish);speedRetry.name='43 스피드 두더지 완료 재확인 — 같은 판·같은 로그';
+const speedRanking=http('44 스피드 두더지 전체 랭킹·내 최고','/api/v1/minigames/speed-mole/rankings?limit=20&offset=0',200,speedMoleGuide,
+    `pm.test('전체 기간 개인 최고',()=>{const r=pm.response.json();pm.expect(r.rulesVersion).to.eql(1);pm.expect(r.period).to.eql('ALL_TIME');pm.expect(r.items).to.be.an('array');});`,requireEnvironment);
+speedRanking.headers=[{key:'Authorization',value:'Bearer {{accessToken}}'}];
+httpItems.push(speedStart,speedFinish,speedRetry,speedRanking);
 
 const httpV3 = { name: 'OnTop HTTP', $kind: 'collection', description: guide, items: httpItems };
 const wsGuide = '# 근거리 채팅·관전 테스트 (20m)\n\n'
@@ -803,6 +821,7 @@ const outputs = new Map([
         description: 'SHOP-01/02 · INVENTORY-01/02. 13목록→14구매→15동일키 재요청→16보유→17장착. 18은 같은키 충돌 검사. local,db 또는 dev,db + ontop.shop.enabled=true(dev: SHOP_ENABLED=true) + 공통/상점 스키마가 필요합니다. dev는 기본 비활성이며 기존 V100 적용 이력·버전 순서 확인 후 기존 Flyway locations에 db/shop을 명시적으로 추가합니다. 공유 DB/SQL/이력은 자동 변경하지 않습니다. 실제 배포 후 개인 환경 baseUrl=https://dev-api.on-top.world와 해당 서버 Access JWT를 사용합니다. 기존 예제 Origin={{baseUrl}}는 개발 API 호스트가 되어403일 수 있으므로 AUTH_ALLOWED_ORIGINS에 등록된 실제 프론트 주소로 바꾸거나 비브라우저 Postman에서는 Origin 헤더를 제외하세요. 보유 의상 재구매는 서버에서 거절하고 소비형은 수량을 누적합니다. 테스트 계정의 개인 로컬 Access JWT만 사용하고 공유하지 마세요. 기본 DB에 스키마를 자동 적용하지 않았습니다. 실제 DB 초기화·공통 재화 통합·3D 외형 계약은 별도 확인합니다.\n\n2026-10-22: 상점 저장 처리를 JPA 엔티티·JPQL로 전환했습니다. 기존 6개 요청·응답·중복 구매 방지·롤백 계약은 그대로이며 예제 수정 없이 사용할 수 있습니다.' + appearanceGuide},
         item: httpV21.item.slice(12,18)}, null, 2) + '\n'],
     ['OnTop-HTTP.postman_collection.json', JSON.stringify(httpV21, null, 2) + '\n'],
+    ['OnTop-Speed-Mole.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Speed Mole',description:speedMoleGuide},item:httpV21.item.slice(40,44)},null,2)+'\n'],
     ['OnTop-Feedback.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Feedback',
         description:feedbackDescription + ' 환경 accessToken/channelIdA/baseUrl 사용. 24는 새 접수 키,25는 원래 키 복구,26은 관리자 JWT로 조회. 실제 비밀키·토큰은 파일에 포함하지 않습니다.'},item:httpV21.item.slice(23,26)},null,2)+'\n'],
     ['OnTop-Notes.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Notes',description:notesDescription},item:httpV21.item.slice(26,29)},null,2)+'\n'],
