@@ -5,6 +5,7 @@ import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.game.skewer.dto.SkewerAdmissionResponse;
 import com.ssafy.ontop.game.skewer.service.SkewerAdmissionException;
 import com.ssafy.ontop.game.skewer.service.SkewerAdmissionService;
+import com.ssafy.ontop.operation.config.NewActivity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -44,6 +45,7 @@ public class SkewerAdmissionController {
     }
 
     @PostMapping
+    @NewActivity
     @Operation(operationId = "startSkewerAdmission", summary = "온탑 꼬치왕 한 판 이용권 구매", description = "서버 고정 이용료 10냥. "
             + "Idempotency-Key를 재사용하면 같은 영수증을 반환하며 다시 차감하지 않습니다. "
             + "판돈·점수 보상·환불은 없으며, 사용자와 가격을 요청 본문에서 받지 않습니다.")
