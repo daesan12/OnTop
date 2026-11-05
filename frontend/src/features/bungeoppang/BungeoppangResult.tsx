@@ -28,7 +28,11 @@ export function BungeoppangResult() {
   // v5 boards are split by play length; the round's stored rules decide which board this result belongs to.
   const ranking = useBungeoppangRanking(rulesVersion, `${gameId}/${!!result}`, !!grill,
     rankingDurationMs(rulesVersion, roundRules))
-  if (!grill) return null
+  if (!grill) return submitError?.retryable === false
+    ? <PaperPopup title="붕어빵 판 종료" label="붕어빵 복구 종료" onClose={escapeBungeoppang} className="bungeoppang-paper-result">
+      <p role="status">{submitError.message}</p>
+      <button className="bung-result-action--park" onClick={escapeBungeoppang}>공원으로</button>
+    </PaperPopup> : null
   const summary = result ?? grill, today = result?.todayEarned ?? status?.todayEarned
   const v4 = isV4Grill(grill), preview = v4 && (bungeoppangV4Preview || bungeoppangV5Preview)
   const served = result?.served ?? (v4 ? grill.served : undefined)

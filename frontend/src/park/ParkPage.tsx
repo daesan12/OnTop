@@ -34,6 +34,7 @@ import { ParkChat } from '../features/chat/ParkChat'
 import { useGame } from '../game/store'
 import { OmokFeedback, SpectatorChat } from '../game/omok/OmokFeedback'
 import { ChannelMenu } from '../features/parkMenus/ChannelMenu'
+import { ChannelEntryGate } from '../features/parkMenus/ChannelEntryGate'
 import { AccountMenu } from '../features/parkMenus/AccountMenu'
 import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
 import { LocationChip } from '../features/parkMenus/LocationChip'
@@ -48,7 +49,11 @@ import { PlusMinusPanel } from '../features/plusMinus/PlusMinusPanel'
 import { MolePanel } from '../features/mole/MolePanel'
 import { ArcadePicker } from '../features/arcade/ArcadePicker'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
+import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
+import { useParkGameplayActive } from '../features/operation/parkGameplay'
+import { useParkOperationGate } from '../features/operation/useParkOperationGate'
+import type { ServiceOperationStatus } from '../features/operation/serviceOperation'
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -66,7 +71,12 @@ function getHudScale(): number {
   return Math.min(1, window.innerWidth / 1920, window.innerHeight / 1080)
 }
 
-type ParkProps = { onExit: () => void; exitError: string; onAuthEnded: () => void }
+type ParkProps = {
+  onExit: () => void
+  exitError: string
+  onAuthEnded: () => void
+  onOperationBlocked: (status: ServiceOperationStatus) => void
+}
 export function ParkPage(props: ParkProps) {
   useLayoutEffect(() => {
     // Keep local debugging available; explicit opt-in exercises the production guard in QA.
@@ -75,8 +85,10 @@ export function ParkPage(props: ParkProps) {
   }, [])
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
-function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
+function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: ParkProps) {
   useJumpmapController()
+  const gameplayActive = useParkGameplayActive()
+  useParkOperationGate(gameplayActive, onOperationBlocked)
   const vrPhase = useStore(parkVrZone.store, state => state.phase)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
@@ -110,6 +122,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
+      <ChannelEntryGate />
       <AnnouncementBanner />
       {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">
@@ -134,6 +147,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
           ))}
         </aside>}
       </div>
+      <BehaviorReporter quality={quality} />
       <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
         <ParkTools />
         <ParkInteractionHint />

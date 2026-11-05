@@ -5,6 +5,7 @@ import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.game.mole.dto.MoleDtos;
 import com.ssafy.ontop.game.mole.service.MoleException;
 import com.ssafy.ontop.game.mole.service.MoleService;
+import com.ssafy.ontop.operation.config.NewActivity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -64,6 +65,7 @@ public class MoleController {
     }
 
     @PostMapping("/rounds")
+    @NewActivity
     @Operation(operationId = "startWhackAMoleRound", summary = "두더지 잡기 시작",
             description = "참가비 없이 새 판을 열고 90초 출현표를 반환합니다. 끝내지 않은 이전 판은 보상 없이 닫습니다. "
                     + "Idempotency-Key를 재사용하면 같은 판을 반환합니다.")
@@ -84,7 +86,7 @@ public class MoleController {
 
     @PostMapping("/rounds/{roundId}/complete")
     @Operation(operationId = "completeWhackAMoleRound", summary = "두더지 잡기 완료",
-            description = "타격 기록(구멍 0~5, 판 시작 기준 ms)으로 서버가 점수를 다시 계산하고 45점당 1냥을 "
+            description = "타격 기록(구멍 0~5, 판 시작 기준 ms)으로 서버가 점수를 다시 계산하고 40점당 1냥을 "
                     + "미니게임 공통 하루 상한 안에서 지급합니다. 이미 정산한 판은 같은 결과를 반환합니다.")
     @ApiResponse(responseCode = "200", description = "정산 결과",
             content = @Content(schema = @Schema(implementation = MoleDtos.Settlement.class)))

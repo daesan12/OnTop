@@ -16,6 +16,35 @@
 .bung-root img {
   -webkit-user-drag: none;
 }
+.bung-recovery-notice {
+  position: fixed;
+  z-index: 40;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: min(460px, calc(100vw - 32px));
+  padding: 14px 18px;
+  box-sizing: border-box;
+  border: 1px solid #cdbb91;
+  border-radius: 12px;
+  color: #f9eed8;
+  background: #292c24f5;
+  font-family: inherit;
+}
+.bung-recovery-notice p { margin: 4px 0 0; font-size: 12px; }
+.bung-recovery-notice button {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid #cdbb91;
+  border-radius: 8px;
+  background: #f2e4c6;
+  color: #3b2a1a;
+  font: inherit;
+  cursor: pointer;
+}
 .bung-preview-note { position: absolute; top: 66px; left: 50%; transform: translateX(-50%); padding: 4px 12px; background: #fff5d5; border-radius: 6px; font-size: 12px; }
 .bung-customer, .bung-tray { position: absolute; top: 145px; width: 210px; padding: 16px; font-size: 13px; }
 .bung-customer { left: 22px; }

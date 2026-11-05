@@ -63,7 +63,7 @@ class MoleRulesTests {
 
         var score = MoleRules.score(moles, hits);
 
-        // 구멍1 300은 금색을 잡은 직후 잔타, 1040은 출현 60ms 안, 1160은 망치 80ms 안이라 무시한다.
+        // 구멍1 300은 금색을 잡은 직후 잔타, 1040은 출현 60ms 안, 1160은 같은 구멍 60ms 안이라 무시한다.
         // 1130·1250·1400 세 번으로 연타 완료. 구멍3 1600은 고슴도치를 친 직후 잔타다.
         // 구멍5 1700은 아무것도 없는 구멍이라 2초 기절해 2000의 타격은 무시된다.
         assertThat(score).isEqualTo(new MoleRules.Score(30 + 10 + 30 - 20, 3, 3, 1));
@@ -101,11 +101,13 @@ class MoleRulesTests {
     }
 
     @Test
-    void 망치는_하나라_동시에_누른_키는_먼저_누른_것만_치고_올라오는_모션_중에도_잡힌다() {
-        List<Mole> moles = List.of(new Mole(0, 0, Kind.NORMAL, 1, 0, 900), new Mole(1, 1, Kind.NORMAL, 1, 0, 900));
+    void 다른_구멍은_동시에_쳐도_모두_세고_같은_구멍은_60ms_안에_다시_세지_않고_올라오는_모션_중에도_잡힌다() {
+        List<Mole> moles = List.of(new Mole(0, 0, Kind.NORMAL, 1, 0, 900), new Mole(1, 1, Kind.NORMAL, 1, 0, 900),
+                new Mole(2, 2, Kind.RAPID, 2, 0, 1040));
 
-        assertThat(MoleRules.score(moles, List.of(new Hit(0, 300), new Hit(1, 330))).caught()).isEqualTo(1);
-        assertThat(MoleRules.score(moles, List.of(new Hit(0, 300), new Hit(1, 380))).caught()).isEqualTo(2);
+        assertThat(MoleRules.score(moles, List.of(new Hit(0, 300), new Hit(1, 300))).caught()).isEqualTo(2);
+        assertThat(MoleRules.score(moles, List.of(new Hit(2, 300), new Hit(2, 330))).caught()).isZero();
+        assertThat(MoleRules.score(moles, List.of(new Hit(2, 300), new Hit(2, 360))).caught()).isEqualTo(1);
         assertThat(MoleRules.score(moles, List.of(new Hit(0, 70))).caught()).isEqualTo(1);
         assertThat(MoleRules.score(moles, List.of(new Hit(0, 50))).caught()).isZero();
     }
@@ -122,10 +124,10 @@ class MoleRulesTests {
     }
 
     @Test
-    void 연타_점수는_클릭당_10에_4회_5점_5회_10점을_더하고_엽전은_45점당_1냥이다() {
+    void 연타_점수는_클릭당_10에_4회_5점_5회_10점을_더하고_엽전은_40점당_1냥이다() {
         assertThat(MoleRules.RAPID_POINTS.subList(2, 6)).containsExactly(20, 30, 45, 60);
-        assertThat(MoleRules.coins(89)).isEqualTo(1);
-        assertThat(MoleRules.coins(90)).isEqualTo(2);
+        assertThat(MoleRules.coins(79)).isEqualTo(1);
+        assertThat(MoleRules.coins(80)).isEqualTo(2);
         assertThat(MoleRules.score(List.of(new Mole(0, 3, Kind.DECOY, 1, 0, 900)), List.of(new Hit(3, 300))))
                 .isEqualTo(new MoleRules.Score(0, 0, 0, 0));
     }

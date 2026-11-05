@@ -9,7 +9,6 @@ import { BungeoppangBurner } from './BungeoppangBurner';
 import { v5HeatEls } from './layoutV5';
 import { BreadToken, CustomerScene, FeedbackFlights, ToolFeedback, TrashBin, ingredientStyle } from './BungeoppangFeedback';
 import { inputState } from "../../world/inputOwnership";
-import { useSession } from "../../network/worldClient";
 import {
   bungeoppangClock as clock,
   slotOverlayEls,
@@ -23,7 +22,9 @@ import {
   leaveBungeoppang,
   pressBungeoppangSlot,
   quitBungeoppang,
-  resetBungeoppang,
+  dismissBungeoppangRecovery,
+  restoreBungeoppang,
+  watchBungeoppangRecovery,
   refreshBungeoppangStatus,
   refreshBungeoppangWallet,
   setBungeoppangHelp,
@@ -61,18 +62,12 @@ const typing = () => {
 /** 붕어빵 미니게임 화면. 3D 철판은 BungeoppangGrill, 여기는 HUD·패널·입력이다. */
 export function BungeoppangHud() {
   const phase = useBungeoppang((s) => s.phase);
+  const recovering = useBungeoppang(s => s.recovering);
+  const deferred = useBungeoppang(s => s.recoveryDeferred);
   const v5 = useBungeoppang(s => isV4Grill(s.grill) && isV5Grill(s.grill));
   useMinigameInput(phase !== "idle");
-  useEffect(() => {
-    const unsubscribe = useSession.subscribe((s, old) => {
-      if (s.status !== "connected" || s.sessionId !== old.sessionId || s.roomId !== old.roomId) resetBungeoppang();
-    });
-    return () => {
-      unsubscribe();
-      resetBungeoppang();
-    };
-  }, []);
-  if (phase === "idle") return null;
+  useEffect(watchBungeoppangRecovery, []);
+  if (phase === "idle") return deferred ? <BungeoppangRecoveryNotice /> : null;
   const playing =
     phase === "countdown" || phase === "play" || phase === "ending";
   return (
@@ -85,7 +80,7 @@ export function BungeoppangHud() {
       <Popups />
       <FeedbackFlights />
       {!v5 && <TipBubble />}
-      {phase === "start" && <StartPanel />}
+      {phase === "start" && (recovering ? <RecoveryPanel /> : <StartPanel />)}
       {phase === "countdown" && <Countdown />}
       {phase === "ending" && <div className="bung-big-text">끝!</div>}
       {phase === "result" && <BungeoppangResult />}
@@ -94,6 +89,29 @@ export function BungeoppangHud() {
       {phase !== 'leaving' && phase !== 'result' && phase !== 'start' && <button className="bung-help-button" onClick={() => setBungeoppangHelp(true)}>F1 조작 안내</button>}
     </div>
   );
+}
+
+export function BungeoppangRecoveryNotice() {
+  return <aside className="bung-recovery-notice" aria-label="붕어빵 복구 대기">
+    <div><strong>붕어빵 복구 대기</strong><p>진행 중인 판 확인 전에는 이동이 제한될 수 있어요.</p></div>
+    <button type="button" onClick={() => void restoreBungeoppang()}>다시 불러오기</button>
+  </aside>;
+}
+
+export function RecoveryPanel() {
+  const { starting, startError, gameId, abandonPending, abandonError } = useBungeoppang();
+  return <section className="bung-panel bung-start" aria-label="진행 중인 붕어빵 복구">
+    <h2>붕어빵 굽기 이어하기</h2>
+    <p role="status">{starting ? '진행 중인 판과 남은 시간을 확인하고 있어요…' : '연결을 확인한 뒤 같은 판을 다시 불러와 주세요.'}</p>
+    <p>서버가 승인한 기록부터 이어져요. 아직 전송하지 않은 조리 입력은 복구되지 않을 수 있어요.</p>
+    {startError && <p className="bung-error" role="alert">{startError}</p>}
+    <button type="button" className="bung-primary" disabled={starting || abandonPending} onClick={() => void restoreBungeoppang()}>다시 불러오기</button>
+    <button type="button" disabled={starting || abandonPending}
+      onClick={gameId ? escapeBungeoppang : dismissBungeoppangRecovery}>
+      {gameId ? '그만두고 공원으로' : '공원 화면 보기'}
+    </button>
+    {abandonError && <p className="bung-error" role="alert">{abandonError}</p>}
+  </section>;
 }
 
 function TimeSyncStatus() {

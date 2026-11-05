@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
 @Import(com.ssafy.ontop.auth.websocket.MemberAuthenticationFixture.class)
 class MoleHttpTests {
     private static final MoleDtos.Rules RULES = new MoleDtos.Rules(90_000, 30_000,
-            List.of("Q", "W", "E", "I", "O", "P"), 45, 10, 30, 20, List.of(0, 0, 20, 30, 45, 60),
+            List.of("S", "D", "F", "J", "K", "L"), 40, 10, 30, 20, List.of(0, 0, 20, 30, 45, 60),
             List.of(10, 20, 30), List.of(10, 12, 15, 20));
     private static final MoleDtos.Result RESULT = new MoleDtos.Result("7", 1380, 24, 96, 46, 46,
             Instant.parse("2026-11-04T03:01:33Z"));
@@ -70,7 +70,7 @@ class MoleHttpTests {
         var response = http.send(요청("/status", 토큰()).GET().build(), HttpResponse.BodyHandlers.ofString());
 
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.body()).contains("\"todayEarned\":120", "\"dailyCap\":500", "\"pointsPerCoin\":45");
+        assertThat(response.body()).contains("\"todayEarned\":120", "\"dailyCap\":500", "\"pointsPerCoin\":40");
         assertThat(response.headers().firstValue("Cache-Control")).hasValue("no-store");
     }
 

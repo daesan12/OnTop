@@ -8,6 +8,7 @@ import com.ssafy.ontop.game.halligalli.service.HalliGalliEngine;
 import com.ssafy.ontop.game.ledger.service.DiceLedgerEngine;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
+import com.ssafy.ontop.operation.domain.ServiceOperationState;
 import com.ssafy.ontop.operation.service.ServiceOperationService;
 import java.util.List;
 import java.util.Optional;
@@ -15,7 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionException;
 
 /** 판돈 예약 저장은 Gateway가 담당한다. 전원 예약 커밋을 확인한 뒤에만 메모리 엔진을 생성한다. 즉시 차감하지 않는다. */
 @Service
@@ -98,8 +101,14 @@ public class CommittedGameStartService {
     }
 
     public GameStartResult start(GameStartCommand command) {
-        if (!operations.allowsNewActivity()) {
-            return GameStartResult.rejected(command.startAttemptId(), "SERVICE_DRAINING");
+        ServiceOperationState operation;
+        try {
+            operation = operations.current();
+        } catch (DataAccessException | TransactionException exception) {
+            return GameStartResult.rejected(command.startAttemptId(), "SERVICE_OPERATION_UNAVAILABLE");
+        }
+        if (!operation.allowsNewActivity()) {
+            return GameStartResult.rejected(command.startAttemptId(), "SERVICE_" + operation.mode().name());
         }
         // 아직 엔진이 없거나 주사위 목표 점수가 정해지지 않았으면 예약 요청 전에 거절한다.
         if (!supported(command)) {

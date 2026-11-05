@@ -4,8 +4,8 @@ import { BUNGEOPPANG_V5 as R, BUNGEOPPANG_V5_LEGACY } from './config';
 import { completeResult, createBungeoppangV4Service, prefixHash, toCheckpoint, toRules, toTiming } from './serviceV4';
 import { validateCustomers, type CustomerOrder, type GrillState } from './rulesV5';
 import { BREAD_FILLINGS, type BungeoppangRules, type GrillLogEntry } from './rulesV4';
-import { BungeoppangServiceError, messages, type BungeoppangService, type BungeoppangSubmit } from './service';
-import {validTimingUpdate,type RoundTiming} from './serverTime';
+import { BungeoppangServiceError, messages, type BungeoppangGame, type BungeoppangService, type BungeoppangSubmit, type BungeoppangTimeSync } from './service';
+import {validTimingUpdate,type RoundTiming,type ServerTimeSample} from './serverTime';
 
 type WireAction = { seq: number; action: GrillLogEntry['action']; t: number; slot?: number;
   filling?: GrillLogEntry['filling']; breadId?: number; orderId?: string; deliveryKey?: string };
@@ -108,35 +108,26 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
     async getStatus() {
       const p = await request(`${path}?rulesVersion=v5`);
       if (!record(p) || p.rulesVersion !== 'v5' || !whole(p.todayEarned) || p.dailyCap !== 500
+        || !(p.activeSessionId == null || id(p.activeSessionId))
         || p.todayEarned > p.dailyCap || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.seenTips)
         || !p.seenTips.every(t => typeof t === 'string')) return fail();
       return { rulesVersion: 'v5', todayEarned: p.todayEarned, dailyCap: p.dailyCap,
-        isFirstGame: p.isFirstGame, seenTips: p.seenTips as string[] };
+        isFirstGame: p.isFirstGame, seenTips: p.seenTips as string[], activeSessionId: p.activeSessionId as string | null | undefined };
     },
     async startGame(key) {
       if (!keyOk(key)) return fail();
       const p = await request(path, post({ minigameType: 'BUNGEOPPANG', rulesVersion: 'v5' }, key));
-      if (!record(p) || !id(p.minigameSessionId) || p.rulesVersion !== 'v5' || p.minigameType !== 'BUNGEOPPANG'
-        || p.status !== 'PLAYING' || typeof p.configVersion !== 'string' || typeof p.startedAt !== 'string'
-        || !Number.isFinite(Date.parse(p.startedAt)) || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.heats)) return fail();
-      const rules = { ...toRules(p.rules), queueComplaintPenalty: record(p.rules) && p.rules.queueComplaintPenalty === 5 ? 5 : 0 };
-      const timing = toTiming(p.timing, rules.durationMs);
-      const supportedTiming = [R, BUNGEOPPANG_V5_LEGACY].some(profile =>
-        rules.durationMs === profile.durationMs && rules.rushFromMs === profile.rushFromMs);
-      if (!record(p.rules) || p.rules.heatAssignment !== 'FILL' || p.rules.maxActiveOrders !== 3
-        || rules.slots !== 6 || !supportedTiming || rules.trayCapacity !== 10
-        || rules.sideMs !== 8000 || rules.rushSideMs !== 6000 || rules.heatMin !== 85 || rules.heatMax !== 115
-        || p.heats.length !== rules.heatListLength || rules.heatListLength < 1 || rules.heatListLength > 4096
-        || rules.maxLogEntries < 1 || rules.maxLogEntries > 3600
-        || !p.heats.every(h => whole(h) && h >= rules.heatMin && h <= rules.heatMax)) return fail();
-      const heats = p.heats as number[], initial = checkpoint(p.checkpoint, { rules, heats }, []);
-      if (!sources.has(p.minigameSessionId)) { sources.clear(); frozen.clear(); }
-      sources.set(p.minigameSessionId, { config: p.configVersion, rules, timing, heats: [...heats],
-        grill: initial.grill, accepted: [], revision: initial.revision });
-      const timeSync = await service.syncTimeV4!(p.minigameSessionId);
-      const current = timeSync.status === 'PLAYING' ? await service.recoverV5!(p.minigameSessionId) : initial;
-      return { gameId: p.minigameSessionId, startedAt: p.startedAt, rulesVersion: 'v5', heats: [...heats],
-        isFirstGame: p.isFirstGame, v5: { orders: current.grill.activeOrders, rules, grill: current.grill, timing, timeSync } };
+      return loadRound(p, false);
+    },
+    async resumeGame(gameId) {
+      const sentAt = performance.now();
+      const p = await request(`${sessionPath(gameId)}?includeSource=true&includeProgress=true`);
+      const receivedAt = performance.now();
+      if (!record(p) || p.minigameSessionId !== gameId) return fail();
+      if (!['PLAYING', 'COMPLETED'].includes(String(p.status)))
+        throw new BungeoppangServiceError('GAME_NOT_ACTIVE', messages.GAME_NOT_ACTIVE!);
+      if (typeof p.serverNow !== 'string' || !Number.isFinite(Date.parse(p.serverNow))) return fail();
+      return loadRound(p, true, { serverNowMs: Date.parse(p.serverNow), receivedAt, rttMs: receivedAt - sentAt });
     },
     async syncTimeV4(gameId) {
       const s = source(gameId), sent = performance.now(), p = await request(sessionPath(gameId)), receivedAt = performance.now();
@@ -198,5 +189,39 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
     },
     balance: () => createBungeoppangV4Service(requestJSON).balance(),
   };
+  async function loadRound(p: unknown, restoring: boolean, sample?: ServerTimeSample): Promise<BungeoppangGame> {
+    if (!record(p) || !id(p.minigameSessionId) || p.rulesVersion !== 'v5'
+      || (!restoring && p.minigameType !== 'BUNGEOPPANG')
+      || !['PLAYING', ...(restoring ? ['COMPLETED'] : [])].includes(String(p.status))
+      || typeof p.configVersion !== 'string' || typeof p.startedAt !== 'string'
+      || !Number.isFinite(Date.parse(p.startedAt)) || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.heats)) return fail();
+    const rules = { ...toRules(p.rules), queueComplaintPenalty: record(p.rules) && p.rules.queueComplaintPenalty === 5 ? 5 : 0 };
+    const timing = toTiming(p.timing, rules.durationMs);
+    const supportedTiming = [R, BUNGEOPPANG_V5_LEGACY].some(profile =>
+      rules.durationMs === profile.durationMs && rules.rushFromMs === profile.rushFromMs);
+    if (!record(p.rules) || p.rules.heatAssignment !== 'FILL' || p.rules.maxActiveOrders !== 3
+      || rules.slots !== 6 || !supportedTiming || rules.trayCapacity !== 10
+      || rules.sideMs !== 8000 || rules.rushSideMs !== 6000 || rules.heatMin !== 85 || rules.heatMax !== 115
+      || p.heats.length !== rules.heatListLength || rules.heatListLength < 1 || rules.heatListLength > 4096
+      || rules.maxLogEntries < 1 || rules.maxLogEntries > 3600
+      || !p.heats.every(h => whole(h) && h >= rules.heatMin && h <= rules.heatMax)) return fail();
+    if (restoring && !Array.isArray(p.acceptedLog)) return fail();
+    const accepted = restoring ? p.acceptedLog as WireAction[] : [], heats = p.heats as number[];
+    const initial = checkpoint(p.checkpoint, { rules, heats }, localLog(accepted, rules));
+    if (restoring && await prefixHash(p.minigameSessionId, p.configVersion, accepted, 'v5') !== initial.hash) return fail();
+    if (restoring && (!sample || (p.status === 'PLAYING' && sample.rttMs > 1000)))
+      throw new BungeoppangServiceError('TIME_SYNC_SLOW', '서버 시간을 다시 확인해 주세요.', true);
+    const result = restoring && p.status === 'COMPLETED' ? completeResult(p.result, p.minigameSessionId, 'v5') : undefined;
+    if (!sources.has(p.minigameSessionId)) { sources.clear(); frozen.clear(); }
+    sources.set(p.minigameSessionId, { config: p.configVersion, rules, timing, heats: [...heats],
+      grill: initial.grill, accepted: structuredClone(accepted), revision: initial.revision });
+    const timeSync: BungeoppangTimeSync = restoring
+      ? { timing, sample: sample!, status: p.status as 'PLAYING' | 'COMPLETED', ...(result ? { result } : {}) }
+      : await service.syncTimeV4!(p.minigameSessionId);
+    const current = !restoring && timeSync.status === 'PLAYING' ? await service.recoverV5!(p.minigameSessionId) : initial;
+    return { gameId: p.minigameSessionId, startedAt: p.startedAt, rulesVersion: 'v5', heats: [...heats],
+      isFirstGame: p.isFirstGame, v5: { orders: current.grill.activeOrders, rules, grill: current.grill,
+        timing: timeSync.timing, timeSync } };
+  }
   return service;
 }

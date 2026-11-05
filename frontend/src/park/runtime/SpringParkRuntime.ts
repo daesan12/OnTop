@@ -65,6 +65,7 @@ import { parseEmoteBindings, previewEmoteBindings, type EmoteId } from '../../fe
 import { emoteSignal, useEmoteState } from '../../features/emotes/state'
 import { mockEmote } from '../../features/emotes/mock/MockEmoteService'
 import { GAME_CONSTRUCTION_NOTICE, gameSelection, isTableGamePlayable, waitingForRound, type TableGameCode } from '../../features/tableLobby/model'
+import { recommendedChannel, rememberChannel, rememberedChannel } from '../../features/parkMenus/channelEntry'
 import { publicMatchService } from '../../features/tableLobby/publicMatch'
 import { PublicGameWatcher } from '../../features/tableLobby/PublicGameWatcher'
 import { FollowClient } from '../../features/follow/serverClient'
@@ -591,12 +592,17 @@ export class ParkRuntime implements ParkRuntimePort {
     this.retryCount = 0
     void this.boot()
   }
+  private async loadChannels() {
+    const body = await this.getJSON('/api/v1/channels', { signal: this.bootAbort?.signal })
+    if (!record(body) || !Array.isArray(body.items)) throw new Error('채널 목록을 확인할 수 없습니다.')
+    const channels = body.items.map(channel)
+    useSession.setState({ channels })
+    return channels
+  }
   refreshChannels = async (): Promise<boolean> => {
     if (!this.active) return false
     try {
-      const body = await this.getJSON('/api/v1/channels', { signal: this.bootAbort?.signal })
-      if (!record(body) || !Array.isArray(body.items)) throw new Error('채널 목록을 확인할 수 없습니다.')
-      useSession.setState({ channels: body.items.map(channel) })
+      await this.loadChannels()
       return true
     } catch (error) {
       this.report(error)
@@ -764,9 +770,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   private enterPreferredChannel() {
-    const channels=useSession.getState().channels
-    const selected=channels.find(c=>c.channelId===this.preferredChannel)??(channels.length===1?channels[0]:undefined)
-    if(selected&&this.mapAdmission.allowed)void this.selectChannel(selected.channelId)
+    if(this.mapAdmission.allowed)void this.enterRecommendedChannel()
   }
   private async confirmMap() {
     const generation=this.generation
@@ -815,8 +819,7 @@ export class ParkRuntime implements ParkRuntimePort {
       }
     }
   }
-  selectChannel = (channelId: string) =>
-    this.action(async () => {
+  private async joinChannel(channelId: string) {
       if (!this.mapReady) throw new Error('서버 맵 버전 확인을 먼저 완료해주세요.')
       const state = useSession.getState()
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
@@ -843,13 +846,10 @@ export class ParkRuntime implements ParkRuntimePort {
       this.inputSequence = 0
       const generation = this.generation
       try {
-        try {
-          await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
-        } catch (error) {
-          await this.refreshChannels()
-          throw error
-        }
+        await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
+        useSession.setState({ error: '' })
         this.preferredChannel = channelId
+        rememberChannel(state.sessionId, channelId)
         this.retryCount = 0
         if (followService.mode === 'server') void this.follow.begin().catch(() => {})
         // Initial world messages keep their existing order. Facilities explicitly query after CHANNEL_JOIN.
@@ -877,7 +877,34 @@ export class ParkRuntime implements ParkRuntimePort {
         // With or without the list, held seat states are read once now through the normal handlers.
         this.applyInitialStates(generation)
       }
+  }
+  selectChannel = (channelId: string) =>
+    this.action(async () => {
+      try {
+        await this.joinChannel(channelId)
+      } catch (error) {
+        try { await this.loadChannels() } catch { /* Keep the original join error. */ }
+        throw error
+      }
     })
+  enterRecommendedChannel = () => this.action(async () => {
+    const state = useSession.getState()
+    if (state.roomId) return
+    const preferred = this.preferredChannel || rememberedChannel(state.sessionId)
+    const selected = recommendedChannel(state.channels, preferred)
+    if (!selected) throw new Error('지금 입장할 수 있는 공원이 없습니다. 잠시 후 다시 시도해주세요.')
+    try {
+      await this.joinChannel(selected.channelId)
+      return
+    } catch (error) {
+      if (!(error instanceof ServerError) || !['CHANNEL_FULL', 'CHANNEL_NOT_FOUND'].includes(error.code)) throw error
+      const refreshed = await this.loadChannels()
+      const alternative = recommendedChannel(refreshed, preferred, selected.channelId)
+        ?? recommendedChannel(refreshed, preferred)
+      if (!alternative) throw new Error('입장 가능한 공원이 바뀌었습니다. 채널을 직접 선택해주세요.')
+      await this.joinChannel(alternative.channelId)
+    }
+  })
   /** Existing handlers drop seat states that precede the table list; hold them, in arrival order, until it exists. */
   private holdInitialState(message: Envelope) {
     const held = this.initialStates
