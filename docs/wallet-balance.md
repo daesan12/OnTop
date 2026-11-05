@@ -21,6 +21,24 @@ HTTP 200:
 
 세 필드는 Java long/JSON 정수(OpenAPI int64)다. balance는 예약액을 포함한 전체 보유 코인이다.
 `availableBalance = balance - reservedBalance`이며 전액 예약이면 0이다. 실제 balance=0인 지갑과 미생성 상태를 구분한다.
+
+### 공원 잔액 표시 (2026-11-05)
+
+- `fix/wallet-debit-sync`는 `origin/dev@2e336bc3405de8d139b284fcd14526eccb6dad7a`에서 분기했다. 푸시 직전 dev가 `86ab0c00`으로 변경되어 기존 이력을 보존하는 merge로 추가 반영했다. 충돌은 없었고 추가 dev 변경은 BE 월드 서비스의 운영 상태 주입 한 줄뿐이며 검증한 FE 소스는 동일하다. 기존 작업은 별도 worktree에 보존했다.
+- 공원 HUD와 내 메뉴는 서버가 확정한 예약금을 제외한 사용 가능 잔액을 표시한다. 총액은 account.balance에 보존해 예약 해제와 실제 보상 입금을 구분한다.
+- 게임 시작·대기실 복귀 및 확정 정산 시 GET을 다시 호출한다. 오목·알까기가 HUD를 숨겨도 잔액 컴포넌트는 유지한다. 요청 전 임의 차감이나 클라이언트 정산은 하지 않는다.
+- 예: 100냥에서 판돈 30냥 예약 → 표시 70냥. 패배 정산은 총액 70/예약 0 → 표시 70냥, 승리는 총액 130/예약 0 → 표시 130냥, 무효 환불은 총액 100/예약 0 → 표시 100냥이다.
+- 공통 변경: wallet 표시·파서, Session의 예약금 필드, AccountMenu/ParkPage, shop/wardrobe의 서버 지갑 동기화. 게임 규칙·서버 정산·DB·Flyway·FE/BE API 계약 변경은 없다.
+- 검증: 관련 단위 37건, FE 타입 검사·빌드, Edge의 예약/패배/승리/무효 환불/정산 알림 누락 후 대기실 복구. HTTP/WS는 fixture이며 실제 서버 다인 플레이·운영 배포 확인과 구분한다.
+- 독립 재현: frontend에서 기존 `pnpm dev --host 127.0.0.1 --port 5197 --strictPort`와 `pnpm exec playwright test tests/e2e/wallet-debit.spec.ts`. 이번 검수 서버는 5199, Edge 1280×720을 사용했다. Browser 플러그인이 없어 저장소 Playwright를 직접 실행했다.
+
+### 최신 dev 재통합 (2026-11-06)
+
+- 기준: `origin/dev@4f1b02f98cee6e0cb12623589fcd1701086b67b8`. 공유 작업 브랜치 `fix/wallet-debit-sync`에서 기존 이력을 보존하는 merge로 반영했다. 미커밋 변경이 없는 상태에서 시작했고 충돌은 없었다.
+- 함께 변경된 `ParkPage.tsx`의 스피드 두더지 진입과 `wardrobe/state.ts`의 스킨 호환성 검사를 보존하면서 지갑 상시 갱신·예약금 동기화가 남아 있는지 확인했다. dev에 이미 있는 V151/V152는 그대로 통합했으며 이 작업에서 migration을 새로 만들거나 수정하지 않았다.
+- 관련 단위 107건, 소스·테스트 타입 검사, FE 프로덕션 빌드 및 `git diff --check`를 통과했다. Edge 1280×720에서 예약→패배/승리/무효 환불/정산 알림 누락 후 복구 4건을 다시 통과했다. HTTP/WS fixture 검증이며 실제 서버·DB 검증은 포함하지 않는다.
+- 최초 공원 로딩 전 잔액을 검사하던 e2e 대기를 공원 화면 진입 완료 기준으로 보완했다. MR !383을 갱신하며 dev로의 머지와 브랜치 삭제는 보류한다.
+
 회원 ID, 지갑 ID, 소셜 식별자, 인증 정보는 응답하지 않는다.
 
 ## 인증·오류·캐시

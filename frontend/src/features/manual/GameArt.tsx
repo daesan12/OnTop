@@ -4,6 +4,7 @@ import ledgerThumbnail from "../../game/ledger/assets/thumbnail.webp";
 import fishBreadThumbnail from "../bungeoppang/assets/thumbnail.webp";
 import rpsRouletteThumbnail from "../rpsRoulette/assets/thumbnail.webp";
 import moleThumbnail from "../mole/assets/thumbnail.webp";
+import speedMoleThumbnail from "../speedMole/assets/thumbnail.png";
 
 const gameThumbnails: Partial<Record<ManualGameId, string>> = {
   halligalli: fruitDdaengManualArt,
@@ -11,6 +12,7 @@ const gameThumbnails: Partial<Record<ManualGameId, string>> = {
   "fish-bread": fishBreadThumbnail,
   "rps-roulette": rpsRouletteThumbnail,
   "whack-a-mole": moleThumbnail,
+  "speed-mole": speedMoleThumbnail,
 };
 
 /** Local game illustrations: no external asset requests. */

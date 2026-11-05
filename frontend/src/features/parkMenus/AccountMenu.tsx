@@ -4,6 +4,7 @@ import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { WalletBalance } from '../wallet/WalletBalance'
+import { spendableBalance } from '../wallet/balance'
 import { useOwnPortrait } from './characterPortrait'
 import { MenuDialog } from './MenuDialog'
 import { NicknameDoneDialog, ProfileDialog } from './ProfileDialog'
@@ -30,7 +31,7 @@ export function AccountMenu({ exitError, onExit, onWithdrawn }: {
 }) {
   const account = useSession(useShallow(s => ({
     nickname: displayNickname(s.profiles[s.sessionId], s.account?.nickname ?? '정보 미연동'),
-    balance: s.account?.balance ?? null,
+    balance: spendableBalance(s.account),
   })))
   const portrait = useOwnPortrait()
   const [open, setOpen] = useState(false)

@@ -59,7 +59,7 @@ describe('avatar pose transitions and resource ownership', () => {
     }
   })
 
-  for (const name of ['man', 'girl'] as const) {
+  for (const name of ['man', 'girl', 'skins/ssafy-black-male-v3'] as const) {
     it(`${name}: a near idle keeps playing, a distant one sleeps, and both resume the next gesture`, async () => {
       const source = await characterSource(name), rig = createCharacterRig(source), reference = createCharacterRig(source)
       const motion = createAvatarMotion(rig), fullMotion = createAvatarMotion(reference), cadence = new AvatarPoseCadence()
@@ -113,7 +113,7 @@ describe('avatar pose transitions and resource ownership', () => {
       expect(samples).toBeGreaterThan(50)
       expect(worldBottom).toBeGreaterThanOrEqual(CHARACTER.seatedHipHeight)
       expect(worldBottom).toBeLessThan(CHARACTER.seatedHipHeight + 0.015)
-      expect(avatarSeatSurface('bench-0') + rig.seatedHipLift - rig.hipHeight + bottom).toBeGreaterThan(0.58)
+      expect(avatarSeatSurface('bench-0') + rig.seatedHipLift - rig.hipHeight + bottom).toBeGreaterThan(avatarSeatSurface('bench-0'))
       rig.dispose()
     })
     it(`${name}: swims with the authored crawl, kicks and a stable pelvis at 30/60fps`, async () => {

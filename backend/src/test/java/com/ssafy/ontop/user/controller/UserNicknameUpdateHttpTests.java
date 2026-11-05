@@ -129,6 +129,14 @@ class UserNicknameUpdateHttpTests {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"시발", "씨1발", "나는병신", "FUCK"})
+    void 욕설_비속어는_부적절_닉네임_오류이다(String nickname) throws Exception {
+        error(patch("Bearer " + access, mapper.writeValueAsString(Map.of("nickname", nickname))),
+                400, "USER_INAPPROPRIATE_NICKNAME");
+        verifyNoInteractions(persistence);
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"", "{}", "[]", "null", "{bad", "{\"nickname\":null}", "{\"nickname\":1}",
             "{\"nickname\":\"가나\",\"userId\":999}", "{\"nickname\":\"가나\",\"characterGender\":\"MALE\"}"})
     void 요청은_nickname_문자열_한_필드만_허용한다(String body) throws Exception {

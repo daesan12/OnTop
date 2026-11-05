@@ -48,6 +48,7 @@ import { RpsRoulettePanel } from '../features/rpsRoulette/RpsRoulettePanel'
 import { PlusMinusPanel } from '../features/plusMinus/PlusMinusPanel'
 import { MolePanel } from '../features/mole/MolePanel'
 import { ArcadePicker } from '../features/arcade/ArcadePicker'
+import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
@@ -133,9 +134,9 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
           <div className="park-dock-settings"><SettingsLauncher /></div>
           <div className="park-dock-wardrobe"><WardrobeLauncher /></div>
         </div>}
-        {!omokFocus && <div inert={bungeoppang}>
+        <div hidden={omokFocus} inert={bungeoppang || omokFocus}>
           <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
-        </div>}
+        </div>
 
         <div className="park-chat-layer" hidden={bungeoppang} inert={bungeoppang}>
           {omokChat ? <SpectatorChat /> : !omokFocus && <ParkChat key={`${session.sessionId}:${session.roomId}`} />}
@@ -158,6 +159,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <ArcadePicker />
         <PlusMinusPanel />
         <MolePanel />
+        <SpeedMoleHost />
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />

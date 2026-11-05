@@ -173,6 +173,7 @@
 }
 
 .onboarding-feedback--error { color: #a44631; }
+.onboarding-feedback--info { color: #8b8f7d; }
 
 .onboarding-notice {
   display: flex;
