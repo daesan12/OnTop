@@ -98,7 +98,8 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/rankings/park",
                 "GET /api/v1/raffles/current", "POST /api/v1/raffles/current/tickets",
                 "GET /api/v1/minigames/bungeoppang/rankings",
-                "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats"));
+                "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
+                "POST /api/v1/behavior-events"));
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("GET /api/v1/channels", "GET /api/v1/tables"));
             assertThat(api.at("/components/schemas/TableSummaryResponse/properties/gameId/nullable").asBoolean())

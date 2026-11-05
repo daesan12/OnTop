@@ -5,6 +5,7 @@ import com.ssafy.ontop.behavior.domain.BehaviorEvent;
 import com.ssafy.ontop.behavior.domain.BehaviorEventType;
 import com.ssafy.ontop.behavior.domain.BehaviorSource;
 import com.ssafy.ontop.behavior.domain.LoginSessionKey;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -186,6 +187,8 @@ public class ClientBehaviorIntake {
         return value -> value.isTextual() && values.contains(value.textValue()) ? value.textValue() : null;
     }
 
+    /** API 문서에서 다른 Result와 겹치지 않도록 이름을 따로 둔다. */
+    @Schema(name = "BehaviorCollectResult")
     public record Result(int accepted, int dropped) {
     }
 
