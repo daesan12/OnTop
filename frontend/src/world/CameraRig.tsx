@@ -69,6 +69,7 @@ function wardrobeFrame(camera: PerspectiveCamera) {
 /** The angles the wardrobe's easing last wrote, and how long it has eased since the wardrobe closed. */
 let aimWritten: { yaw: number; pitch: number } | null = null
 let aimAge = 0
+let aimSeen: { yaw: number; pitch: number } | null = null
 
 export function CameraRig() {
   const { gl, camera: mountedCamera, raycaster } = useThree()
@@ -473,12 +474,13 @@ export function CameraRig() {
           feet.z - Math.sin(yaw) * side + Math.cos(yaw) * Math.cos(pitch) * close))
       }
       const aim = wardrobeView.aim
-      // After the wardrobe closes the view eases back to where it was, but gives way at once to the player turning
-      // it (the angles differ from what this wrote last frame) and after 1.5 s at most: held until it converged,
-      // the camera kept pulling back to the old view against every turn.
-      const turned = !!aimWritten && !wardrobeView.active
+      // The view eases to the wardrobe's front on open and back to where it was on close, but gives way at once to
+      // the player turning it (the angles differ from what this wrote last frame) and after 1.5 s at most: held
+      // until it converged, the camera pulled back against every drag, even one started right after opening.
+      const turned = !!aimWritten
         && (Math.abs(viewControls.yaw - aimWritten.yaw) > 1e-5 || Math.abs(viewControls.pitch - aimWritten.pitch) > 1e-5)
-      aimAge = wardrobeView.active || !aim ? 0 : aimAge + delta
+      if (aim !== aimSeen) { aimSeen = aim; aimAge = 0; if (aim) aimWritten = null }
+      aimAge = aim ? aimAge + delta : 0
       if (aim && (turned || aimAge > 1.5)) wardrobeView.aim = null
       if (wardrobeView.aim) {
         const t = 1 - Math.exp(-6 * Math.min(delta, 0.1))
