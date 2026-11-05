@@ -1,6 +1,6 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0|back|all rim_neck=20] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0|back|all rim_neck=20] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0] [hair_trim=z,y]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -921,6 +921,28 @@ for slot, it in G.items():
     for n in names_: it.vertex_groups.remove(it.vertex_groups['part:' + n])
     it.parent = arm; md = it.modifiers.new('Armature', 'ARMATURE'); md.object = arm
     print('WEIGHTS', slot)
+
+# hair_trim=z,y (the gat's hair): a strand's tip lay flat on the forehead just over the right eyebrow and read as a
+# second eyebrow (user). The hair's faces under z and in front of y go, and so do small loose bits (under 100 faces)
+# there.
+if opt.get('hair_trim') and 'HAIR' in G:
+    zt, yt = map(float, opt['hair_trim'].split(','))
+    hb = bmesh.new(); hb.from_mesh(G['HAIR'].data); hb.faces.ensure_lookup_table()
+    front = lambda c: c.y < yt
+    dead = {f for f in hb.faces if front(f.calc_center_median()) and f.calc_center_median().z < zt}
+    seen = set()
+    for f in hb.faces:
+        if f in seen: continue
+        grp = [f]; seen.add(f); stack = [f]
+        while stack:
+            g = stack.pop()
+            for e in g.edges:
+                for nf in e.link_faces:
+                    if nf not in seen: seen.add(nf); grp.append(nf); stack.append(nf)
+        c = sum((g.calc_center_median() for g in grp), Vector()) / len(grp)
+        if len(grp) < 100 and front(c) and c.z < zt + 0.05: dead.update(grp)
+    bmesh.ops.delete(hb, geom=list(dead), context='FACES'); hb.to_mesh(G['HAIR'].data); hb.free()
+    print('HAIR trim', len(dead), 'faces on the forehead')
 
 # 3. which body faces each item covers, by body region (the face's leading bone)
 sleeve_x = max(abs(v.co.x) for v in G['TOP'].data.vertices) if 'TOP' in G else 0

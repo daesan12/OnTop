@@ -77,7 +77,7 @@
 새 옷은 `tools/character/fit_outfit.py`를 쓴다. `add_set.py`(장군)에서 장군 전용 보정을 뺀 범용 스크립트다.
 
 ```bash
-"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10;SHOES:6,8" skirt=TOP pants=1 sleeve_drape=0.4 sleeves=3,5 under_tops=1 cull=1 lining=1 v_cut=-0.0088,0.498,-0.040,0.602,0.034,0.602 v_cut_margin=0.012 lining_down=0.09 pants_hem=0.003 shoe_level=1 shoe_level_up=-0.001 shoe_level_r=0.075 dark_lining=SHOES clean_dark=TOP predecimate=0:5000 shoe_cap=1 shoe_cap_depth=0.01 clean_skin=TOP brighten=TOP,BOTTOM despeck=1 pants_full=1.7 pants_low=1.55 neck_poke=1 push_neck=back rim_neck=20 rim_neck_down=0.07 neck_tone=1 lining_tone=skin v_cut_up=0 lining_up=0.006 lining_front=-0.015 "seam=12>3,5" under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9
+"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10;SHOES:6,8" skirt=TOP pants=1 sleeve_drape=0.4 sleeves=3,5 under_tops=1 cull=1 lining=1 v_cut=-0.0088,0.498,-0.040,0.602,0.034,0.602 v_cut_margin=0.012 lining_down=0.09 pants_hem=0.003 shoe_level=1 shoe_level_up=-0.001 shoe_level_r=0.075 dark_lining=SHOES clean_dark=TOP predecimate=0:5000 shoe_cap=1 shoe_cap_depth=0.01 clean_skin=TOP brighten=TOP,BOTTOM despeck=1 pants_full=1.7 pants_low=1.55 neck_poke=1 push_neck=back rim_neck=20 rim_neck_down=0.07 neck_tone=1 lining_tone=skin v_cut_up=0 lining_up=0.006 lining_front=-0.015 "seam=12>3,5" under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9 hair_trim=0.845,-0.12
 ```
 
 위는 갓·도포(세트 h)를 만든 그대로의 명령이다. 숫자 값(`v_cut` 좌표 등)은 이 옷에 맞춘 것이라 새 옷에서는 다시 잰다.
@@ -109,6 +109,7 @@
 | `neck_tone=1` | 그 상의를 입으면 보이는 목을 한 가지 피부색으로 바꾼다. 몸 텍스처의 목 아래 접힌 선과 분홍빛 띠가 열린 옷깃 사이로 층져 보였다. 색은 목의 평균 피부색에 가장 가까운 옷 텍스처 칸을 쓴다. **몸 조각이 바뀌므로 man·girl도 다시 만든다** |
 | `lining_tone=skin` | `neck_tone=1`과 같이 쓰면 따로 안감을 두지 않고, 목과 V자 안의 가슴을 몸 모양 그대로 한 면으로 이어 한 가지 피부색으로 칠한다(Tripo 원본처럼). 목 아래 주름은 이 복사본에서 펴고(`neck_tone_smooth`), 가슴 쪽은 2.5 mm 안으로 넣는다(`neck_tone_sink`, 옷깃을 뚫지 않게). 흰 안감이면 티셔츠처럼, 0.3 mm 띄운 안감이면 윗선이 줄처럼 층져 보였다 |
 | `lining_up`, `lining_front` | 목 안감 윗선 높이(목 관절 기준)와 앞쪽 범위. 목 피부가 끝나는 곳(-0.005)보다 낮으면 그 사이가 구멍이 된다 |
+| `hair_trim=z,y` | 머리(HAIR)에서 높이 z 아래이고 앞쪽 y보다 앞에 있는 면과, 그 근처의 작은 조각(100면 미만)을 지운다. 갓 머리카락 끝 한 가닥이 이마에 붙어 오른쪽 눈썹 위에 눈썹이 하나 더 있는 것처럼 보였다 |
 | `clean_skin=TOP` | Tripo가 옷에 잘못 칠한 피부색 면을 옷 색으로 바꾼다 |
 | `brighten=TOP,BOTTOM despeck=1` | 회색으로 나온 흰 옷을 시트처럼 하얗게 올리고, 흰 천의 회색 점을 지운다(어두운 색은 그대로) |
 
