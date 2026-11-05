@@ -140,8 +140,14 @@
 
 ```bash
 "$B" -b --python tools/character/hat_hair.py -- shared_layers_h.glb hh1.glb set=h drop_hair=1        # 갓: 남녀 모두 기본 머리로
-"$B" -b --python tools/character/hat_hair.py -- hh1.glb hh2.glb set=g man= girl=e                    # 장군 투구: 남자는 그대로, 여자 머리만
+"$B" -b --python tools/character/hat_hair.py -- hh1.glb hh2.glb set=g man= girl=e cap_for=man,cap_black crown_for=girl,1.2,0.045 down=0 pull=0   # 장군 투구
 ```
+
+- 갓은 머리 중심에서 바깥으로 당기는 것에 더해, 위에서 아래로도 검사해 챙 위로 삐져나온 머리를 챙 아래로 누른다(`down`, 기본 12 cm). 왕관 모양 투구에는 쓰지 않는다(`down=0`).
+- 장군 투구는 두건(검은 모자)이 머리를 덮는 모양이라, 여자에게 씌우면 뒤로 검은 공처럼 보였다. 그래서 여자에게는 두건을 빼고 왕관을 머리 위에 얹는다.
+  - `cap_for=man,cap_black`: 두건(재질 `cap_black`과 거의 검은 면)은 남자 조각으로만 두고, 두건이 가리던 두피는 여자 조각에 되살린다(같이 가리던 상의가 있으면 `__under_` 규칙 유지).
+  - `crown_for=girl,1.2,0.045`: 여자용 왕관을 머리 중심 기준 1.2배, 4.5 cm 위로 복사해 머리 위에 얹는다. 원래 크기면 왕관이 머리에 파묻혔다.
+  - `pull=0`: 여자 머리는 당기지 않는다. 당기면 왕관을 지나는 머리카락이 가시처럼 삐죽해졌다.
 
 - 머리를 넣은 옷 파일은 `to_game.py`의 `near`를 머리 몫만큼 올린다(갓 4만 → 7만 5천). 그대로 두면 촘촘한 머리가 삼각형을 다 가져가 도포가 거칠어지고 어깨에 구멍이 생겼다(도포 17,324 → 6,674). 머리를 미리 크게 줄이면(`hair_faces`) 머리 텍스처가 줄무늬처럼 깨져서 쓰지 않는다.
 - 카드 그림은 `item_art.py ... variant=girl`로 `-girl` 그림(`outfit-gat-h-hair-girl.webp`)을 따로 만든다. 옷장은 여자 캐릭터일 때 이 그림을 먼저 쓴다.
