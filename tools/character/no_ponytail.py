@@ -138,7 +138,8 @@ if opt.get('cap', '0') == '1' and hairs:
     print('CAP', sum(1 for _ in caps), 'body pieces under the hair joined; hair now', len(c.data.polygons), 'faces')
 # back=i: the back of another hair item (the Tripo bun hair i: smooth hair down to the nape and a low bun) under this
 # one, recoloured to this hair's colours (mean and spread per channel), so the head is not bare behind and looks like
-# real hair. The ponytail laid down over it (squash) looked messy (user). Its faces before back_y and on the ears go.
+# real hair. The ponytail laid down over it (squash) looked messy (user). Its faces before back_y go (not those by
+# the ears: that hair fits round them, and without it the nape behind the ears looked empty, user).
 if opt.get('back') and hairs:
     import numpy as np
     c = hairs[0]
@@ -156,7 +157,7 @@ if opt.get('back') and hairs:
     for s_ in src_:
         k = s_.copy(); k.data = s_.data.copy(); bpy.context.scene.collection.objects.link(k)
         kmw = k.matrix_world; b = bmesh.new(); b.from_mesh(k.data)
-        bmesh.ops.delete(b, geom=[f for f in b.faces if (kmw @ f.calc_center_median()).y < BY or ear(kmw @ f.calc_center_median())], context='FACES')
+        bmesh.ops.delete(b, geom=[f for f in b.faces if (kmw @ f.calc_center_median()).y < BY], context='FACES')
         b.to_mesh(k.data); b.free()
         img, P, Ti = texels(k)
         mi, si, me_, se = Ti.mean(0), Ti.std(0) + 1e-4, Te.mean(0), Te.std(0)
