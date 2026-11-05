@@ -140,11 +140,12 @@
   2. Tripo 여러 면(정면 / Left = 오른쪽 아래 / Right = 오른쪽 위 / 뒤), Generate in Parts, Balanced, 4K 텍스처.
   3. Tripo가 머리카락과 얼굴을 한 부품(`tripo_part_0`, 쪽만 `tripo_part_2`)으로 냈다. `split_head.py`가 텍스처 밝기로 나눈다(머리 `tripo_part_90`, 얼굴 `tripo_part_91`).
      - `cut=0.1,-0.12,0.755`: 앞머리 아래 얼굴 앞쪽(어두운 눈동자)은 머리가 아니다.
-     - `face_above=0.62`: 맞추기(`head_fit`)에 쓰는 얼굴은 턱 위만 남긴다. 목까지 들어 있으면 맞추기가 19 cm 어긋났다.
+     - `under=0.70,0.80,0.17,0.008`: 앞머리 끝 바로 아래 얼굴에 붙어 있던 어두운 면(모델의 눈꺼풀 선, 두피 가장자리)이 앞머리 밑으로 검게 번져 보였다(user). 그 높이에서 얼굴 피부와 8 mm 안에 있는 면은 머리가 아니다. 앞머리는 얼굴보다 1 cm 넘게 앞에 떠 있어서 남는다. 깊이(y)로 자르면 이마가 뒤로 휘는 양옆에서 앞머리 끝까지 잘렸다.
+     - `face_above=0.62`: 맞추기(`head_fit`)에 쓰는 얼굴은 턱 위만 남긴다. 목까지 들어 있으면 맞추기가 19 cm 어긋났다. 잘라 낸 면(`cut`, `under`)은 얼굴에도 넣지 않는다. 넣으면 맞추기가 1.6 cm 움직였다.
   4. 머리만 기준 빌드에 맞춘다. 얼굴로 맞추니 크기 0.986배였다.
 
 ```bash
-"$B" -b --python tools/character/split_head.py -- girl_fringe_parts.glb girl_fringe_split.glb part=0 min_island=300 cut=0.1,-0.12,0.755 face_above=0.62
+"$B" -b --python tools/character/split_head.py -- girl_fringe_parts.glb girl_fringe_split.glb part=0 min_island=300 cut=0.1,-0.12,0.755 under=0.70,0.80,0.17,0.008 face_above=0.62
 "$B" -b --python tools/character/fit_outfit.py -- shared_layers_h.glb girl_fringe_split.glb shared_layers_hi.glb set=i s=1.065 head_fit=91 "map=HAIR:90,2"
 ```
 
