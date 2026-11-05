@@ -54,13 +54,14 @@ for (const anchor of tables) test(`${anchor.id}: 돌 테이블은 정보 팝업 
   await expect.poll(role).toBe('SPECTATOR')
   expect(server.sent.filter(r => r.type === 'GAME_WATCH')).toHaveLength(watchRequests)
   expect(server.sent.filter(r => r.type === 'GAME_ACTION_SEND')).toHaveLength(0)
-  const chat = page.getByLabel('관전 채팅 · 판을 눌러 위치 추천')
+  const chat = page.getByLabel('경기 채팅 메시지')
+  await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
   await expect(chat).toBeEnabled()
   await chat.fill('돌 테이블에서도 같이 봐요')
   await page.keyboard.press('Enter')
   expect(server.sent.filter(r => r.type === 'GAME_SPECTATOR_CHAT_SEND')).toHaveLength(1)
   expect(server.sent.filter(r => r.type === 'WORLD_CHAT_SEND')).toHaveLength(0)
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('Enter'); await page.keyboard.press('Enter')
   let previous: number[] | null = null
   await expect.poll(async () => {
     const position: number[] = await page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).cameraPosition())

@@ -23,7 +23,9 @@ async function wardrobeRoutes(page: Page, options: { owned?: OwnedItem[]; disabl
     if (options.disabled) return route.fulfill({ status: 503, json: { code: 'SHOP_NOT_CONFIGURED', message: 'disabled' } })
     if (path === '/api/v1/users/me/items') return route.fulfill({ json: { items: owned } })
     const target = owned.find(item => item.userItemId === (request.postDataJSON() as { userItemId: number }).userItemId)!
-    for (const item of owned) if (item.item.equipSlot === target.item.equipSlot) item.equipped = item === target
+    // The server's rule: top, bottom and shoes are one outfit, so any of them takes the others off.
+    const place = (slot: OwnedItem['item']['equipSlot']) => slot === 'HAIR' || slot === 'FACE' ? slot : 'OUTFIT'
+    for (const item of owned) if (place(item.item.equipSlot) === place(target.item.equipSlot)) item.equipped = item === target
     return route.fulfill({ json: { equipment: owned.filter(item => item.equipped) } })
   })
   return calls
@@ -61,13 +63,14 @@ test('dock 옷장 opens 마이룸: slots, tabs, search, preview and wear call th
   expect(Math.abs(framed.screen[1])).toBeLessThan(0.35)
   // Default parts are rendered from the own character; a worn item is that render in the item's colour.
   await expect(dialog.locator('.wardrobe-bubble[data-slot="HAIR"] img')).toHaveAttribute('src', /man-hair/)
-  await expect(dialog.locator('.wardrobe-bubble[data-slot="TOP"] .wardrobe-bubble__art')).toHaveAttribute('data-kind', 'item')
-  await expect(dialog.locator('.wardrobe-bubble[data-slot="TOP"] img')).toHaveAttribute('src', /^data:image\//)
-  await expect(dialog.getByRole('button', { name: '베이지 카고 팬츠 하의 착용 중' }).locator('img')).toHaveAttribute('src', /^data:image\//)
-  await expect(dialog.getByRole('button', { name: '화이트 스니커즈 신발' }).locator('img')).toHaveAttribute('src', /^data:image\//)
-  // A ring round the avatar: head, face and feet on its left, top and bottom on its right.
+  await expect(dialog.locator('.wardrobe-bubble[data-slot="OUTFIT"] .wardrobe-bubble__art')).toHaveAttribute('data-kind', 'item')
+  await expect(dialog.locator('.wardrobe-bubble[data-slot="OUTFIT"] img')).toHaveAttribute('src', /^data:image\//)
+  await expect(dialog.getByRole('button', { name: '베이지 카고 팬츠 옷 · 하의 착용 중' }).locator('img')).toHaveAttribute('src', /^data:image\//)
+  await expect(dialog.getByRole('button', { name: '화이트 스니커즈 옷 · 신발' }).locator('img')).toHaveAttribute('src', /^data:image\//)
+  // Three places round the avatar: head and face on its left, the outfit on its right.
+  await expect(dialog.locator('.wardrobe-bubble')).toHaveCount(3)
   const stageBox = (await dialog.locator('.wardrobe-stage').boundingBox())!, middle = stageBox.x + stageBox.width / 2
-  for (const [slot, left] of [['HAIR', true], ['FACE', true], ['SHOES', true], ['TOP', false], ['BOTTOM', false]] as const) {
+  for (const [slot, left] of [['HAIR', true], ['FACE', true], ['OUTFIT', false]] as const) {
     const box = (await dialog.locator(`.wardrobe-bubble[data-slot="${slot}"]`).boundingBox())!
     expect(box.x + box.width / 2 < middle, slot).toBe(left)
   }
@@ -80,9 +83,12 @@ test('dock 옷장 opens 마이룸: slots, tabs, search, preview and wear call th
   // Consumables stay in the shop; six wearable outfits are listed.
   await expect(dialog.locator('.wardrobe-card')).toHaveCount(6)
   await expect(dialog.getByRole('navigation', { name: '착용 부위' })).toContainText('아이보리 맨투맨')
-  await expect(dialog.getByRole('button', { name: '아이보리 맨투맨 상의 착용 중' })).toBeVisible()
-  await dialog.getByRole('group', { name: '부위 분류' }).getByRole('button', { name: '하의' }).click()
-  await expect(dialog.locator('.wardrobe-card')).toHaveCount(2)
+  await expect(dialog.getByRole('button', { name: '아이보리 맨투맨 옷 · 상의 착용 중' })).toBeVisible()
+  await expect(dialog.getByRole('group', { name: '부위 분류' }).getByRole('button')).toHaveText(['전체', '머리', '얼굴', '옷'])
+  await dialog.getByRole('group', { name: '부위 분류' }).getByRole('button', { name: '옷' }).click()
+  await expect(dialog.locator('.wardrobe-card')).toHaveCount(6)
+  await dialog.getByRole('group', { name: '부위 분류' }).getByRole('button', { name: '머리' }).click()
+  await expect(dialog.locator('.wardrobe-card')).toHaveCount(0)
   await dialog.getByRole('group', { name: '부위 분류' }).getByRole('button', { name: '전체' }).click()
   await dialog.getByRole('searchbox', { name: '아이템 찾기' }).fill('후드')
   await expect(dialog.locator('.wardrobe-card')).toHaveCount(2)
@@ -91,17 +97,17 @@ test('dock 옷장 opens 마이룸: slots, tabs, search, preview and wear call th
   await dialog.getByRole('searchbox', { name: '아이템 찾기' }).press('KeyW')
   expect(server.sent.filter(m => m.type === 'WORLD_MOVE' && (m.payload.dx || m.payload.dz))).toHaveLength(moves)
   await dialog.getByRole('searchbox', { name: '아이템 찾기' }).fill('후드')
-  await dialog.getByRole('button', { name: '밤산책 후드 상의' }).click()
+  await dialog.getByRole('button', { name: '밤산책 후드 옷 · 상의' }).click()
   await expect(dialog.locator('.wardrobe-detail')).toContainText('밤산책 후드')
   await expect(dialog.locator('.wardrobe-stage')).toContainText('미리보기 · 밤산책 후드')
   await screenshot(page, 'wardrobe-preview')
   await dialog.getByRole('button', { name: '착용하기' }).click()
   await expect(dialog.locator('.wardrobe-detail')).toContainText('밤산책 후드 착용을 확인했어요.')
-  await expect(dialog.getByRole('button', { name: '밤산책 후드 상의 착용 중' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: '밤산책 후드 옷 · 상의 착용 중' })).toBeVisible()
   await expect(dialog.getByRole('navigation', { name: '착용 부위' })).toContainText('밤산책 후드')
   expect(calls.filter(c => c.method === 'PATCH')).toEqual([{ method: 'PATCH', path: '/api/v1/users/me/equipment', body: { userItemId: 12 } }])
-  await expect(dialog.locator('.wardrobe-bubble[data-slot="TOP"]')).toContainText('밤산책 후드')
-  await dialog.getByRole('button', { name: '초록 후드 상의' }).click()
+  await expect(dialog.locator('.wardrobe-bubble[data-slot="OUTFIT"]')).toContainText('밤산책 후드')
+  await dialog.getByRole('button', { name: '초록 후드 옷 · 상의' }).click()
   // A clicked card keeps focus, yet walking keys still reach the park.
   const afterClick = walked(server)
   await page.keyboard.down('KeyD'); await page.waitForTimeout(400); await page.keyboard.up('KeyD')

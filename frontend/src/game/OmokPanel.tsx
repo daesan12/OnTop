@@ -121,7 +121,7 @@ export function OmokPanel() {
   useLayoutEffect(() => {
     if (!spectatorGameId || !header.current || !toolbar.current) return
     const root = document.querySelector<HTMLElement>('.park-page')!
-    const chat = document.querySelector<HTMLElement>('.omok-spectator-chat')
+    const chat = document.querySelector<HTMLElement>('.park-chat')
     const notice = document.querySelector<HTMLElement>('.park-runtime-status')
     const measure = () => {
       if (!header.current || !toolbar.current) return
@@ -140,7 +140,7 @@ export function OmokPanel() {
         }
         return
       }
-      const chatAtTop = window.matchMedia(spectator ? '(max-width:1280px)' : '(max-width:1000px)').matches
+      const chatAtTop = !!chatRect && chatRect.top < innerHeight / 2
       const sideTools = !spectator && !chatAtTop ? toolbar.current!.querySelector('.omok-play-tools')?.getBoundingClientRect() : null
       const notes = sideTools ? toolbar.current!.querySelector('.omok-play-notes')?.getBoundingClientRect() : null
       omokSpectatorViewport.gameId = spectatorGameId

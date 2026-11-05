@@ -7,10 +7,12 @@ import { MeshoptEncoder, MeshoptDecoder } from 'meshoptimizer'
 
 // Compress runtime characters exported uncompressed (float buffers, one PNG atlas) into
 // public/art/characters, and refresh their manifest record and rig summary.
-// Usage: node scripts/prepare-characters.mjs man=<man_raw.glb> girl=<girl_raw.glb>
+// Usage: node scripts/prepare-characters.mjs man=<man_raw.glb> girl=<girl_raw.glb> [outfit:general=<raw.glb>]
+// Characters carry the shared body and their default items; an outfit file carries only its items
+// (public/art/characters/outfits). Every mesh lists its pieces (extras.pieces) for the wardrobe.
 const jobs = process.argv.slice(2).map((arg) => arg.split('='))
-if (!jobs.length || jobs.some(([name, file]) => !['man', 'girl'].includes(name) || !file))
-  throw new Error('Usage: node scripts/prepare-characters.mjs man=<raw.glb> girl=<raw.glb>')
+if (!jobs.length || jobs.some(([name, file]) => !(['man', 'girl'].includes(name) || /^outfit:[a-z0-9-]+$/.test(name)) || !file))
+  throw new Error('Usage: node scripts/prepare-characters.mjs man=<raw.glb> girl=<raw.glb> [outfit:<name>=<raw.glb>]')
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'),
   out = path.join(root, 'public/art/characters')
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex')
@@ -101,32 +103,41 @@ const manifestFile = path.join(out, 'manifest.json'),
 manifest.provenance =
   'User supplied Tripo drafts for this project; outfits generated in Tripo from the user’s own Gemini-edited sheets; no independent license assertion.'
 manifest.process =
-  'One shared bald base body (Tripo whole model, Mixamo 65-joint skin) dressed in layered items fitted onto it; the default outfit’s visible body pieces and items joined and welded, arms posed down 20.5° and taken as the bind pose, scaled to 1.7 m, Mixamo weights summed onto the 49 identity-axis runtime joints (four normalized influences); near and far LODs by decimation, one fresh unwrap baked into one atlas; lossless Meshopt geometry.'
+  'One shared bald base body (Tripo whole model, Mixamo 65-joint skin) dressed in layered items fitted onto it; every body piece and the default outfit’s items (an outfit file: its items only) joined and welded, triangles grouped by piece (mesh extras.pieces), arms posed down 20.5° and taken as the bind pose, scaled to 1.7 m, Mixamo weights summed onto the 49 identity-axis runtime joints (four normalized influences); near and far LODs by decimation, one fresh unwrap baked into one atlas; lossless Meshopt geometry.'
 manifest.textureAtlas =
   'One 2048x2048 RGB colour WebP per character baked from the items’ own textures, shared across LODs/instances. No normal or metallic-roughness maps. WebP reduces transfer only; KTX2 GPU compression is not applied.'
-for (const [name, file] of jobs) {
+for (const [job, file] of jobs) {
+  const outfit = job.startsWith('outfit:'),
+    name = outfit ? job.slice(7) : job,
+    runtimeFile = outfit ? `outfits/${name}.glb` : `${name}.glb`
   const input = await fs.readFile(file),
     { doc, output } = await pack(input)
-  await fs.writeFile(path.join(out, `${name}.glb`), output)
+  await fs.mkdir(path.join(out, 'outfits'), { recursive: true })
+  await fs.writeFile(path.join(out, runtimeFile), output)
   const parts = doc.meshes.map((mesh) => {
     const p = mesh.primitives[0]
-    return { name: mesh.name, triangles: doc.accessors[p.indices].count / 3, vertices: doc.accessors[p.attributes.POSITION].count }
+    return { name: mesh.name, triangles: doc.accessors[p.indices].count / 3, vertices: doc.accessors[p.attributes.POSITION].count,
+      pieces: (mesh.extras?.pieces ?? []).length }
   })
   const rig = doc.nodes.find((n) => n.name === 'CharacterRig').extras,
     tri = Object.fromEntries(parts.map((p) => [p.name.split('-')[0], p.triangles]))
   const record = {
-    character: name,
+    ...(outfit ? { outfit: name } : { character: name }),
     source: { file: path.basename(file), sha256: sha(input), bytes: input.length, triangles: tri.near, generator: 'Tripo items on a shared base (user supplied)' },
-    runtime: { file: `${name}.glb`, sha256: sha(output), bytes: output.length, triangles: tri },
+    runtime: { file: runtimeFile, sha256: sha(output), bytes: output.length, triangles: tri },
     heightMeters: rig.heightMeters,
     bones: doc.skins[0].joints.length,
     surfaceRevision: rig.surfaceRevision,
     parts,
-    limitations: ['Layered items joined into one surface; outfits are not swappable at runtime', 'Authored idle/walk/run/swim clips (src/world/art/characterClips.json); seated, machine and gesture poses procedural; no facial rig or cloth simulation'],
+    limitations: ['Pieces share one surface and atlas per file; the game draws the pieces an avatar wears (outfits from other files are drawn as their own mesh)', 'Authored idle/walk/run/swim clips (src/world/art/characterClips.json); seated, machine and gesture poses procedural; no facial rig or cloth simulation'],
   }
-  const i = manifest.records.findIndex((r) => r.character === name)
+  const i = manifest.records.findIndex((r) => (outfit ? r.outfit : r.character) === name)
   if (i < 0) manifest.records.push(record)
   else manifest.records[i] = record
+  if (outfit) {
+    console.log(job, `${(input.length / 1e6).toFixed(2)} MB -> ${(output.length / 1e6).toFixed(2)} MB`, tri)
+    continue
+  }
   // Rig summary: each joint's rest position in model space (identity rest rotations, so translations add up).
   const parent = new Map()
   doc.nodes.forEach((n, k) => (n.children ?? []).forEach((c) => parent.set(c, k)))

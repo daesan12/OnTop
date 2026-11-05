@@ -16,7 +16,7 @@ class DevFrontendDeploymentTests(unittest.TestCase):
                          "VITE_ALKKAGI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.prod.json pnpm run build:park")
         self.assertEqual(prod.pop("outputDirectory"), "dist-park")
         self.assertEqual(dev.pop("buildCommand"),
-                         "VITE_ALKKAGI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park")
+                         "VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park")
         self.assertEqual(dev.pop("outputDirectory"), "dist-park")
         self.assertEqual(dev, prod)
 

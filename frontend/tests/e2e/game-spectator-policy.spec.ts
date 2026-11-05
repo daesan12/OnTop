@@ -31,19 +31,24 @@ for (const kind of ['omok', 'onecard', 'dice', 'bridge'] as const) test(`${kind}
   })).toEqual({ map: false, wardrobe: false })
   await expect(page.getByRole('region', { name: '주변 채팅', exact: true })).toHaveCount(0)
   const text = `이 경기만 ${kind}`
-  if (kind === 'omok') {
-    const input = page.getByLabel('관전 채팅 · 판을 눌러 위치 추천')
-    await expect(input).toBeEnabled(); await input.fill(text); await page.keyboard.press('Enter')
-  } else {
-    await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
-    await page.getByRole('textbox', { name: '경기 채팅 메시지', exact: true }).fill(text)
-    await page.keyboard.press('Enter')
-  }
+  await page.getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
+  const input = page.getByRole('textbox', { name: '경기 채팅 메시지', exact: true })
+  await input.fill(text)
+  await input.press('Escape')
+  await expect(input).toBeFocused()
+  await expect(input).toHaveValue(text)
+  expect(server.sent.some(message => message.type === 'GAME_UNWATCH')).toBe(false)
+  await page.keyboard.press('Enter')
   if (kind === 'omok') await expect(page.locator('.omok-floating-chat')).toContainText(text)
   else await expect(page.getByRole('region', { name: '경기 채팅', exact: true }).getByText(text, { exact: true })).toBeVisible()
   expect(server.sent.filter(message => message.type === 'GAME_SPECTATOR_CHAT_SEND')).toHaveLength(1)
   expect(server.sent.filter(message => message.type === 'WORLD_CHAT_SEND')).toHaveLength(0)
-  await page.keyboard.press('Escape') // Editing/history closes before the spectator session.
+  await expect(input).toHaveCount(0)
+  await page.keyboard.press('Enter')
+  await expect(input).toHaveValue('')
+  await input.press('Enter') // Empty Enter ends editing without sending or leaving the match.
+  await expect(input).toHaveCount(0)
+  expect(server.sent.filter(message => message.type === 'GAME_SPECTATOR_CHAT_SEND')).toHaveLength(1)
   await expect.poll(() => page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game?.role)).toBe('SPECTATOR')
   await page.locator('canvas').focus(); await page.keyboard.press('Escape')
   await expect.poll(() => page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().watchedGameId)).toBe('')
