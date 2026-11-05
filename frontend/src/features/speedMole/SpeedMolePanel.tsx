@@ -8,7 +8,9 @@ import { inputState } from '../../world/inputOwnership'
 import { speedMoleHole, speedMoleRandom, SpeedMoleRound, SPEED_MOLE_CODES, SPEED_MOLE_COUNTDOWN_MS, SPEED_MOLE_DURATION_MS, SPEED_MOLE_KEYS } from './game'
 import { speedMoleService, SpeedMoleError, type SpeedMoleResult, type SpeedMoleSession, type SpeedMoleTap } from './service'
 import { SpeedMoleRankings } from './SpeedMoleRankings'
+import { SpeedMoleTrophy } from './SpeedMoleRankingBoard'
 import './speed-mole.css'
+import './speed-mole-menus.css'
 
 type Phase = 'ready' | 'starting' | 'countdown' | 'playing' | 'result'
 interface Feedback { id: number; hole: number; kind: 'hit' | 'miss'; at: number }
@@ -131,7 +133,7 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
   return <div ref={root} className="speed-mole" role="dialog" aria-modal="true" aria-labelledby="speed-mole-title" tabIndex={-1}
     style={{ '--speed-cabinet': `url(${cabinet})` } as CSSProperties}>
     <div className="speed-mole__backdrop" />
-    <header className="speed-mole__heading"><span>온탑 오락실 · 새 게임</span><h1 id="speed-mole-title">스피드 두더지</h1><small>4마리를 멈추지 말고 톡, 톡!</small></header>
+    <header className="speed-mole__heading"><span>온탑 오락실</span><h1 id="speed-mole-title">스피드 두더지</h1><small>4마리를 멈추지 말고 톡, 톡!</small></header>
     <button type="button" className="speed-mole__close" onClick={() => handlers.current.escape()} aria-label="스피드 두더지 닫기">×</button>
     <div className="speed-mole__stage">
       <img className="speed-mole__cabinet" src={cabinet} alt="" draggable={false} />
@@ -159,17 +161,19 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
       {swing && now - swing.at < 120 && <img key={swing.id} className="speed-mole__mallet" src={malletArt} alt="" style={layout[swing.hole]} />}
       <div className="speed-mole__rules">성공 <b>+1</b><span>·</span>실수 <b>−3</b><span>·</span>최저 0점<span>·</span>입력 잠금 없음</div>
     </div>
-    {phase === 'ready' && <div className="speed-mole__veil"><section className="speed-mole__card" aria-label="게임 시작 안내">
-      <span className="speed-mole__eyebrow">60 SECONDS · 8 HOLES · 4 MOLES</span><h2>보고, 바로 톡!</h2>
-      <p>두더지 4마리가 계속 기다리고 있어요.<br />잡으면 다른 빈 구멍에 바로 나타나요.</p>
-      <div className="speed-mole__keys">{[0, 4].map(from => <div key={from}>{SPEED_MOLE_KEYS.slice(from, from + 4).map(key => <kbd key={key}>{key}</kbd>)}</div>)}</div>
-      <button className="speed-mole__primary" type="button" onClick={start}>60초 도전 시작 <span>→</span></button>
-      {!localPreview && <button className="speed-mole__rank-button" onClick={() => setRankingsOpen(true)}>내 최고 기록 · 전체 랭킹</button>}
-      {error && <p role="alert">{error}</p>}
-      <small>Enter / Space로도 시작 · 3초 준비 후 60초 도전</small>
-      <small>키보드 또는 구멍 클릭 · 키를 누르고 있어도 1회만 판정해요.</small>
+    {phase === 'ready' && <div className="speed-mole__veil"><section className="speed-mole__card speed-mole__card--ready" aria-label="게임 시작 안내">
+      <div className="speed-mole__intro-art" aria-hidden="true"><span>60초 도전</span><img src={moleArt} alt="" /><img src={holeArt} alt="" /></div>
+      <div className="speed-mole__intro-content"><span className="speed-mole__eyebrow">온탑 오락실</span><h2>보고, 바로 톡!</h2>
+        <p>4마리를 잡는 순간, 다음 두더지가 쏙!<br />60초 동안 나만의 최고 기록에 도전해요.</p>
+        <div className="speed-mole__keys" aria-label={`키보드 ${keySummary}`}>{[0, 4].map(from => <div key={from}>{SPEED_MOLE_KEYS.slice(from, from + 4).map(key => <kbd key={key}>{key}</kbd>)}</div>)}</div>
+        <div className="speed-mole__scoring"><span>성공 <b>+1점</b></span><span>실수 <b>−3점</b></span><span>최저 <b>0점</b></span></div>
+        <button className="speed-mole__primary" type="button" onClick={start}>도전 시작 <kbd>Enter</kbd></button>
+        {!localPreview && <button className="speed-mole__rank-button" onClick={() => setRankingsOpen(true)}><SpeedMoleTrophy />내 최고 기록 · 전체 랭킹</button>}
+        {error && <p role="alert">{error}</p>}
+        <small>Enter / Space 시작 · 3초 준비 후 60초 도전<br />키보드 또는 구멍 클릭으로 플레이해요.</small>
+      </div>
     </section></div>}
-    {phase === 'starting' && <div className="speed-mole__veil"><section className="speed-mole__card" role="status"><h2>경기를 준비하고 있어요…</h2><p>서버가 시작 시각과 구멍 순서를 정하고 있어요.</p></section></div>}
+    {phase === 'starting' && <div className="speed-mole__veil"><section className="speed-mole__card" role="status"><h2>두더지들이 준비 중이에요</h2><p>잠시만요. 곧 3초 카운트다운이 시작돼요.</p></section></div>}
     {phase === 'countdown' && <div className="speed-mole__countdown" role="status" aria-label="시작 카운트다운" aria-live="assertive">
       <span>준비하세요!</span><b key={game?.countdown(now)}>{game?.countdown(now)}</b><small>{keySummary} · 곧 시작해요</small>
     </div>}
@@ -177,17 +181,17 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
       <h2>여기서 그만할까요?</h2><p>남은 시간은 계속 흐르고 있어요.</p>
       <div className="speed-mole__actions"><button className="speed-mole__primary" onClick={() => setConfirmQuit(false)}>계속하기</button><button onClick={onClose}>게임 선택으로</button></div>
     </section></div>}
-    {phase === 'result' && <div className="speed-mole__veil"><section className="speed-mole__card" role="status" aria-label="스피드 두더지 결과">
-      <span className="speed-mole__eyebrow">TIME UP!</span><h2>60초, 수고했어요!</h2><strong className="speed-mole__result-score">{display?.score ?? 0}<small>점</small></strong>
+    {phase === 'result' && <div className="speed-mole__veil"><section className="speed-mole__card speed-mole__card--result" aria-label="스피드 두더지 결과">
+      <div className="speed-mole__result-medal"><SpeedMoleTrophy /></div><span className="speed-mole__eyebrow">도전 완료</span><h2>60초의 손끝 기록</h2><strong className="speed-mole__result-score">{display?.score ?? 0}<small>점</small></strong>
       <dl><div><dt>성공</dt><dd>{display?.hits ?? 0}회</dd></div><div><dt>실수</dt><dd>{display?.misses ?? 0}회</dd></div><div><dt>정확도</dt><dd>{accuracy}%</dd></div></dl>
-      {!localPreview && <p role="status">{saving ? '서버가 점수를 확인하고 있어요…' : saved ? '서버 검증 완료 · 최고 기록과 랭킹에 반영했어요.' : '기록 저장 결과를 아직 확인하지 못했어요.'}</p>}
+      {!localPreview && <p className="speed-mole__save-state" data-saved={!!saved} role="status">{saving ? '기록을 확인하고 있어요…' : saved ? '기록 저장 완료 · 내 최고 기록은 랭킹에서 확인해요.' : '기록 저장 결과를 아직 확인하지 못했어요.'}</p>}
       {error && <p role="alert">{error}</p>}
       {!localPreview && !saved && !saving && <button onClick={() => void save()}>같은 기록 저장 다시 확인</button>}
-      {!localPreview && <button className="speed-mole__rank-button" disabled={saving} onClick={() => setRankingsOpen(true)}>내 최고 기록 · 전체 랭킹</button>}
-      <div className="speed-mole__actions"><button className="speed-mole__primary" disabled={saving} onClick={start}>한 판 더!</button><button onClick={onClose}>게임 선택으로</button></div>
+      {!localPreview && <button className="speed-mole__rank-button" disabled={saving} onClick={() => setRankingsOpen(true)}><SpeedMoleTrophy />내 최고 기록 · 전체 랭킹</button>}
+      <div className="speed-mole__actions"><button className="speed-mole__primary" disabled={saving} onClick={start}>한 판 더!</button><button onClick={onClose}>게임 선택</button></div>
       <small>Enter / Space로 다시 도전</small>
     </section></div>}
     {rankingsOpen && <SpeedMoleRankings onClose={() => { setRankingsOpen(false); root.current?.focus() }} />}
-    <footer className="speed-mole__local">{localPreview ? '로컬 조작 시안 · 기록·랭킹 저장 없음' : '서버 검증 기록 · 엽전 지급 없음'}</footer>
+    <footer className="speed-mole__local">{localPreview ? '로컬 조작 시안 · 기록·랭킹 저장 없음' : '무료 도전 · 엽전 보상 없음'}</footer>
   </div>
 }
