@@ -73,6 +73,37 @@ class JumpmapTrackerTests {
     }
 
     @Test
+    void 배출_중에는_착지_알림만_보내고_새_판은_시작하지_않는다() {
+        var tracker = tracker();
+        tracker.observe("7", "c1", ground("vr-court-floor"), 0, () -> false);
+        tracker.observe("7", "c1", air(), 100, () -> false);
+
+        assertThat(tracker.observe("7", "c1", pad(0), 200, () -> false))
+                .containsExactly(new JumpmapTracker.Step("7", "c1", 0));
+        assertThat(tracker.active("7", 200)).isEmpty();
+    }
+
+    @Test
+    void 운영상태는_새_판을_시작할_수_있는_착지에서만_조회한다() {
+        var tracker = tracker();
+        var checks = new AtomicInteger();
+        var allowed = (java.util.function.BooleanSupplier) () -> {
+            checks.incrementAndGet();
+            return true;
+        };
+
+        tracker.observe("7", "c1", ground("vr-court-floor"), 0, allowed);
+        tracker.observe("7", "c1", air(), 100, allowed);
+        tracker.observe("7", "c1", pad(1), 200, allowed);
+        tracker.observe("7", "c1", air(), 300, allowed);
+        assertThat(checks).hasValue(0);
+
+        tracker.observe("7", "c1", pad(0), 400, allowed);
+        assertThat(checks).hasValue(1);
+        assertThat(tracker.active("7", 400)).isPresent();
+    }
+
+    @Test
     void 입장_첫표본에서_이미_서있던_발판은_착지가_아니다() {
         var tracker = tracker();
         assertThat(tracker.observe("7", "c1", pad(0), 0)).isEmpty();

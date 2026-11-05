@@ -118,6 +118,11 @@ export default function App() {
     setPage('login')
   }, [])
 
+  const onOperationBlocked = useCallback((status: ServiceOperationStatus) => {
+    setOperation(status)
+    setPage('maintenance')
+  }, [])
+
   const onExit = async () => {
     setExitError('')
     try {
@@ -137,7 +142,8 @@ export default function App() {
     return <OnboardingPage onComplete={onAuthenticated} onReturnToLogin={onReturnToLogin} />
   }
   if (page === 'park' && getAuthSession()?.status === 'AUTHENTICATED') {
-    return <ParkPage onExit={onExit} exitError={exitError} onAuthEnded={onReturnToLogin} />
+    return <ParkPage onExit={onExit} exitError={exitError} onAuthEnded={onReturnToLogin}
+      onOperationBlocked={onOperationBlocked} />
   }
   if (page === 'maintenance' && operation) {
     return <MaintenancePage status={operation} onRetry={() => setPage('checking')} />

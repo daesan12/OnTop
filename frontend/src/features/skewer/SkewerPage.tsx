@@ -8,6 +8,7 @@ import { SkewerResult } from './SkewerResult'
 import { EntryPanel } from './PreparationPanel'
 import { assemblyGuide, nextInstruction } from './presentation'
 import { SkewerFeedback } from './feedback'
+import { setSoloSkewerActivity, soloSkewerGameplayActive } from './activity'
 import './skewer.css'
 import './preparation.css'
 
@@ -38,6 +39,10 @@ export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultE
   const latest = useRef(state)
   latest.current = state
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  useEffect(() => {
+    setSoloSkewerActivity(soloSkewerGameplayActive(state.phase, starting))
+    return () => setSoloSkewerActivity(false)
+  }, [starting, state.phase])
 
   const toggleSound = useCallback(() => {
     const next = !mutedRef.current
