@@ -75,6 +75,13 @@ test('dock 옷장 opens 마이룸: slots, tabs, search, preview and wear call th
     const box = (await dialog.locator(`.wardrobe-bubble[data-slot="${slot}"]`).boundingBox())!
     expect(box.x + box.width / 2 < middle, slot).toBe(left)
   }
+  // A bubble with something worn picks that item on the right too; a second click goes back to the whole list.
+  await dialog.locator('.wardrobe-bubble[data-slot="OUTFIT"]').click()
+  await expect(dialog.getByRole('button', { name: '아이보리 맨투맨 옷 · 상의 착용 중' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(dialog.locator('.wardrobe-detail')).toContainText('아이보리 맨투맨')
+  await dialog.locator('.wardrobe-bubble[data-slot="OUTFIT"]').click()
+  await expect(dialog.locator('.wardrobe-detail')).toContainText('입어 볼 의상을 골라 주세요.')
+  await expect(dialog.locator('.wardrobe-card')).toHaveCount(6)
   // Not a modal: the avatar keeps walking with the wardrobe open.
   const before = walked(server)
   await page.keyboard.down('KeyW'); await page.waitForTimeout(400); await page.keyboard.up('KeyW')

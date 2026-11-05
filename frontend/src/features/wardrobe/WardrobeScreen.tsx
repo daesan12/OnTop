@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import leafImage from '../../assets/entry/park-leaf.webp'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { equipSlots, type EquipSlot } from '../../network/equipment'
@@ -31,8 +31,14 @@ function ItemArt({ owned, variant }: { owned: OwnedItem; variant: CharacterVaria
 function SlotBubble({ group, worn, label, variant, active }: { group: WardrobeGroup; worn?: OwnedItem; label?: string; variant: CharacterVariant; active: boolean }) {
   const slot: EquipSlot = worn?.item.equipSlot ?? (group === 'OUTFIT' ? 'TOP' : group)
   const art = useItemArt(variant, slot, worn?.item.name)
+  // With something worn there, the click also picks it in the list on the right (preview and highlight); a second
+  // click goes back to the whole list.
   return <button type="button" className="wardrobe-bubble" data-slot={group} aria-pressed={active}
-    onClick={() => setWardrobeFilter(active ? 'ALL' : group)}>
+    onClick={() => {
+      if (active) { setWardrobeFilter('ALL'); if (worn) cancelWardrobePreview(); return }
+      setWardrobeFilter(group)
+      if (worn) previewWardrobeItem(worn.userItemId)
+    }}>
     <span className="wardrobe-bubble__art" data-kind={worn ? 'item' : 'part'}>
       <img src={(worn && (setImage(worn.item.setCode) ?? outfitImage(worn.item.imageKey, slot))) ?? art} alt="" />
     </span>
@@ -53,6 +59,11 @@ export function WardrobeScreen() {
   const owner = useSession(state => state.sessionId)
   const variant: CharacterVariant = useSession(state => state.profiles[state.sessionId]?.character === 'girl' ? 'girl' : 'man')
   const stage = useRef<HTMLElement>(null)
+  const list = useRef<HTMLDivElement>(null)
+  // The picked card is brought into view (it may sit below the fold, picked from a bubble).
+  useEffect(() => {
+    if (s.previewId) list.current?.querySelector<HTMLElement>('.wardrobe-card[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest' })
+  }, [s.previewId, s.filter])
   const shown = s.open && s.owner === owner
   // The park camera frames the avatar inside the stage box, wherever the layout puts it.
   useLayoutEffect(() => {
@@ -155,7 +166,7 @@ export function WardrobeScreen() {
         </button>)}
       </div>
 
-      <div className="wardrobe-list" aria-busy={s.loading}>
+      <div ref={list} className="wardrobe-list" aria-busy={s.loading}>
         {!WARDROBE_OUTFITS_ENABLED ? <div className="wardrobe-empty" role="status">
           <b>의상은 곧 열려요</b><p>지금은 기본 옷만 입을 수 있어요. 여러 의상을 골라 입는 기능을 준비하고 있어요.</p>
         </div> : s.unavailable ? <div className="wardrobe-empty" role="status">
