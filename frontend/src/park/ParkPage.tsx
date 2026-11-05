@@ -34,6 +34,7 @@ import { ParkChat } from '../features/chat/ParkChat'
 import { useGame } from '../game/store'
 import { OmokFeedback, SpectatorChat } from '../game/omok/OmokFeedback'
 import { ChannelMenu } from '../features/parkMenus/ChannelMenu'
+import { ChannelEntryGate } from '../features/parkMenus/ChannelEntryGate'
 import { AccountMenu } from '../features/parkMenus/AccountMenu'
 import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
 import { LocationChip } from '../features/parkMenus/LocationChip'
@@ -110,6 +111,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
+      <ChannelEntryGate />
       <AnnouncementBanner />
       {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">
