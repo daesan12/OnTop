@@ -90,6 +90,16 @@ class JdbcBehaviorStoreMySqlTests {
     }
 
     @Test
+    void 클라이언트가_보고한_이벤트는_CLIENT_출처로_저장한다() {
+        store.save(List.of(BehaviorEvent.builder(BehaviorEventType.PERF_REPORT, AT).userId(101L)
+                .source(com.ssafy.ontop.behavior.domain.BehaviorSource.CLIENT).prop("fps", 58.3).build()), List.of());
+
+        Map<String, Object> row = jdbc.queryForMap("SELECT event_type, source FROM behavior_events");
+        assertThat(row.get("event_type")).isEqualTo("PERF_REPORT");
+        assertThat(row.get("source")).isEqualTo("CLIENT");
+    }
+
+    @Test
     void props와_사용자가_없는_이벤트는_NULL로_저장한다() {
         store.save(List.of(BehaviorEvent.builder(BehaviorEventType.WS_CONNECTED, AT).build()), List.of());
 
