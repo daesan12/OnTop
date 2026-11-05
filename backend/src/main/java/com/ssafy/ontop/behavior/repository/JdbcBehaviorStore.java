@@ -25,7 +25,7 @@ public class JdbcBehaviorStore implements BehaviorStore {
     private static final String INSERT_EVENT = """
             INSERT INTO behavior_events (event_id, event_type, schema_version, source, occurred_at, user_id,
                 login_session_id, connection_id, channel_id, table_id, game_id, props)
-            VALUES (?, ?, 1, 'SERVER', ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
     private static final String INSERT_POSITION = """
             INSERT INTO world_position_samples (user_id, channel_id, sampled_at, x, y, z, moving, running, swimming,
@@ -58,14 +58,15 @@ public class JdbcBehaviorStore implements BehaviorStore {
     private void bindEvent(PreparedStatement statement, BehaviorEvent event) throws SQLException {
         statement.setBytes(1, toBytes(event.eventId()));
         statement.setString(2, event.type().name());
-        setUtc(statement, 3, event.occurredAt());
-        setLong(statement, 4, event.userId());
-        statement.setString(5, event.loginSessionId());
-        statement.setString(6, event.connectionId());
-        statement.setString(7, event.channelId());
-        statement.setString(8, event.tableId());
-        statement.setString(9, event.gameId());
-        statement.setString(10, event.props().isEmpty() ? null : toJson(event));
+        statement.setString(3, event.source().name());
+        setUtc(statement, 4, event.occurredAt());
+        setLong(statement, 5, event.userId());
+        statement.setString(6, event.loginSessionId());
+        statement.setString(7, event.connectionId());
+        statement.setString(8, event.channelId());
+        statement.setString(9, event.tableId());
+        statement.setString(10, event.gameId());
+        statement.setString(11, event.props().isEmpty() ? null : toJson(event));
     }
 
     private void bindPosition(PreparedStatement statement, PositionSample sample) throws SQLException {

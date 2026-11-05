@@ -25,5 +25,8 @@ public enum BehaviorEventType {
     GAME_SETTLED,
     GAME_RECONNECTED,
     SHOP_PURCHASED,
-    ITEM_EQUIPPED
+    ITEM_EQUIPPED,
+    // 아래는 클라이언트가 보고한다(source=CLIENT). 허용 속성은 ClientBehaviorIntake.
+    ONBOARDING_STEP,
+    PERF_REPORT
 }
