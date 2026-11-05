@@ -51,7 +51,10 @@ it('marks only the active current-turn opponent and follows turn changes', () =>
   expect(opponentRows(state(4, { turnUserId: '101' }), '101', profiles).every(r => !r.current)).toBe(true)
   const html = hud(state(4, { turnUserId: '103' }))
   expect(html.match(/data-current="true"/g)).toHaveLength(1)
-  expect(html).toMatch(/data-current="true"><span class="onecard-opponent-name">GM 준<\/span>/)
+  expect(html).toMatch(/data-current="true"><span class="onecard-opponent-who"><span class="onecard-opponent-label">상대 ·<\/span><span class="onecard-opponent-name">GM 준<\/span><\/span>/)
+  // Every opponent row carries the same guide label before the (ellipsized) nickname, for 2 and 4 players alike.
+  expect(html.match(/<span class="onecard-opponent-label">상대 ·<\/span>/g)).toHaveLength(3)
+  expect(hud(state(2)).match(/<span class="onecard-opponent-label">상대 ·<\/span><span class="onecard-opponent-name">하늘별빛바다구름<\/span>/g)).toHaveLength(1)
 })
 it('shows a forfeit instead of a number and reuses the GM display and seat fallback rules', () => {
   const forfeited = state(4, { players: state(4).players.map(p => p.userId === '103' ? { ...p, active: false, cardCount: 0 } : p) })

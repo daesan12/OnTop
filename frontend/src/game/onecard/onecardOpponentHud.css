@@ -11,6 +11,11 @@
   display:flex; align-items:center; gap:8px; min-height:26px; margin:0; padding:2px 9px; box-sizing:border-box;
   border-radius:5px; background:#140e0b2e;
 }
+/* "상대 ·" 안내는 줄어들지 않고, 긴 닉네임(GM 접두 포함)만 말줄임한다. */
+.park-page .onecard-game-hud.onecard-panel .onecard-opponent-who { flex:1; min-width:0; display:flex; align-items:center; gap:5px; }
+.park-page .onecard-game-hud.onecard-panel .onecard-opponent-label {
+  flex:none; color:#a8998a; font-size:12px; line-height:1.4; letter-spacing:-.01em; white-space:nowrap;
+}
 .park-page .onecard-game-hud.onecard-panel .onecard-opponent-name {
   flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; line-height:1.4;
 }
@@ -31,6 +36,7 @@
 .park-page .onecard-game-hud.onecard-panel .onecard-opponent-hud[data-fit=compact] { gap:0; padding:2px 4px; }
 .park-page .onecard-game-hud.onecard-panel .onecard-opponent-hud[data-fit=compact]>li { min-height:17px; padding:0 7px; border-radius:3px; }
 .park-page .onecard-game-hud.onecard-panel .onecard-opponent-hud[data-fit=compact] :is(.onecard-opponent-name,.onecard-opponent-count) { font-size:13px; line-height:17px; }
+.park-page .onecard-game-hud.onecard-panel .onecard-opponent-hud[data-fit=compact] .onecard-opponent-label { font-size:11px; line-height:17px; }
 .park-page .onecard-game-hud.onecard-panel .onecard-opponent-hud[data-fit=hidden] { visibility:hidden; }
 /* 공통 레일이 줄어드는 화면과 낮은 화면에서는 손패·조작과 기존 상단 배치를 우선하고 머리 위 표시만 남긴다. */
 @media (max-width:999px), (max-height:700px) {
