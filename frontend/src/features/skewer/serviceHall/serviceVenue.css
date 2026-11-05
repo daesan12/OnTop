@@ -15,6 +15,7 @@
 .service-hall .service-order-sake { display: flex; align-items: center; justify-content: center; gap: 2px; border-left: 1px solid #a98a61; padding-left: 5px; align-self: stretch; min-width: 34px; }
 .service-hall .service-order-sake .service-icon { width: 16px; height: 27px; color: #547168; }
 .service-hall .service-order-sake.is-empty { opacity: .45; }
+.service-hall .service-bubble .service-order-recipe.is-empty { opacity: .45; }
 .service-hall .service-order-done { font-size: 11px; padding: 6px; }
 .service-hall .service-station, .service-hall .service-fridge { color: #61432d; transform: translate(-50%, -50%); background: #fff1d8f2; border-color: #c3a176; border-bottom-color: #7c573a; }
 .service-hall .service-washer { transform: translate(-50%,calc(-50% - 21px)); }
