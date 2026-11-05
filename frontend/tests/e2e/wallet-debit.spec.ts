@@ -30,6 +30,7 @@ test(`판돈 예약과 ${outcome} 정산을 새로고침 없이 잔액에 반영
     const { useSession } = await import('/src/network/worldClient.ts' as string)
     return (useSession.getState().account as { reservedBalance?: number })?.reservedBalance
   })).toBe(30)
+  await expect(page.locator('.park-account')).toHaveCount(0) // HUD 언마운트와 독립적으로 갱신한다.
   server.finishGame('NORMAL', outcome === 'win' ? '101' : '102')
   await expect(balance).toHaveText('70냥')
   await expect(balance).toHaveAttribute('title', /30냥 예약 중/)

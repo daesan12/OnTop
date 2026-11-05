@@ -761,6 +761,15 @@ public final class WorldPhysics implements AutoCloseable {
             if (candidate.jump() && positionCollision.supported(before)) {
                 a.reportedJumpSpeed = scene.policy.jumpSpeed(new Vector3f((float) before.x(), (float) before.y(), (float) before.z()), tunedMovement);
             }
+            if (candidate.path() != null) {
+                var takeoff = before;
+                for (var sample : candidate.path()) {
+                    if (sample.jump() && positionCollision.supported(takeoff)) {
+                        a.reportedJumpSpeed = positionCollision.jumpSpeed(takeoff, sample.pose(), tunedMovement);
+                    }
+                    takeoff = sample.pose();
+                }
+            }
             double seconds = Math.max(.001, (now - a.receivedAt) / 1e9);
             double vy = Math.max(tunedMovement ? -78.4 : -20, Math.min(Math.max(number("jumpSpeed"), a.reportedJumpSpeed), (p.y() - before.y()) / seconds));
             a.body.warp(new Vector3f((float) p.x(), (float) p.y(), (float) p.z()));

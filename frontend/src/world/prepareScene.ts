@@ -1,7 +1,28 @@
 import { Texture, Vector4, VideoTexture, type Camera, type Material, type Scene, type WebGLRenderer } from 'three'
 
 const nextTurn = () => new Promise<void>(resolve => setTimeout(resolve, 0))
+const PROGRAM_TIMEOUT_MS = 30_000
 interface PreparationView { position: readonly [number, number, number]; target: readonly [number, number, number] }
+
+/** A shared material may compile more than its current LOD/skinning program. */
+export async function waitForScenePrograms(renderer: WebGLRenderer, live: () => boolean, compilation?: Promise<unknown>) {
+  const context = renderer.getContext()
+  const parallel = context.getExtension('KHR_parallel_shader_compile')
+  const status = { pending: !!compilation, failed: false, error: undefined as unknown }
+  // Guard compileAsync's own pending promise as well as the remaining LOD programs.
+  compilation?.then(() => { status.pending = false }, error => {
+    status.pending = false; status.failed = true; status.error = error
+  })
+  const started = performance.now()
+  while (live()) {
+    if (context.isContextLost()) throw new Error('WebGL 컨텍스트가 유실되어 셰이더 준비를 중단했습니다.')
+    if (status.failed) throw status.error
+    if (!status.pending && (!parallel || !renderer.info.programs?.some(program => program.program
+      && !context.getProgramParameter(program.program as WebGLProgram, parallel.COMPLETION_STATUS_KHR)))) return
+    if (performance.now() - started >= PROGRAM_TIMEOUT_MS) throw new Error('셰이더 준비 대기 시간을 초과했습니다.')
+    await new Promise<void>(resolve => setTimeout(resolve, 10))
+  }
+}
 
 /** Upload active geometry/instance buffers outside the current field of view.
  * A one-pixel scissor keeps the normal output colour space and shader variants,
@@ -89,26 +110,16 @@ export async function prepareScene(
     }
   }
   performance.mark('park-scene-textures-ready')
-  await compiling
   // compileAsync tracks one current program per material. A shared material can
   // also produce instanced/skinned variants; wait for every prepared program.
-  const waitForPrograms = async () => {
-    const context = renderer.getContext()
-    const parallel = context.getExtension('KHR_parallel_shader_compile')
-    if (parallel) {
-      while (live() && renderer.info.programs?.some(program => program.program
-        && !context.getProgramParameter(program.program as WebGLProgram, parallel.COMPLETION_STATUS_KHR))) {
-        await nextTurn()
-      }
-    }
-  }
-  await waitForPrograms()
+  await waitForScenePrograms(renderer, live, compiling)
+  if (!live()) return
   if (options.warmGeometry && live()) {
     warmSceneGeometry(renderer, scene, camera, options.views)
     // The first draw initializes morph/instance features on late/inactive meshes.
     // Cache their night variants too before the player can reveal them.
-    if (options.warmLighting) await compile()
-    await waitForPrograms()
+    await waitForScenePrograms(renderer, live, options.warmLighting ? compile() : undefined)
+    if (!live()) return
     performance.mark('park-scene-buffers-ready')
   }
   performance.mark('park-scene-programs-ready')

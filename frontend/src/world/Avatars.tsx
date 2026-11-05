@@ -90,20 +90,38 @@ function Avatar({
   const presentation = useMemo(() => new AvatarPresentation(), [])
   const motion = useMemo(() => createAvatarMotion(model), [model])
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
-  const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
+  const appearance = useRef<ReturnType<typeof createAvatarOpacity> | null>(null)
+  const rendererState = useThree(state => state.get)
   const overlapOpacity = useRef(1)
   const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   useLayoutEffect(() => {
-    rigs.set(id, {
-      root: root.current!,
-      head: marker.current!,
-    })
+    // Create in setup: StrictMode may replay cleanup/setup while retaining the model.
+    const current = createAvatarOpacity(model.root)
+    appearance.current = current
+    rigs.set(id, { root: root.current!, head: marker.current! })
+    const { gl } = rendererState()
+    let active = true
+    const prepare = () => {
+      const { camera, scene } = rendererState()
+      void current.prepare(gl, camera, scene).catch(error => {
+        if (active && !gl.getContext().isContextLost()) console.error('아바타 반투명 셰이더를 준비하지 못했습니다.', error)
+      })
+    }
+    const lost = () => current.invalidate()
+    const restored = () => { current.invalidate(); prepare() }
+    gl.domElement.addEventListener('webglcontextlost', lost)
+    gl.domElement.addEventListener('webglcontextrestored', restored)
+    prepare()
     return () => {
+      active = false
+      gl.domElement.removeEventListener('webglcontextlost', lost)
+      gl.domElement.removeEventListener('webglcontextrestored', restored)
       rigs.delete(id)
-      appearance.dispose()
+      if (appearance.current === current) appearance.current = null
+      current.dispose()
       model.dispose()
     }
-  }, [id, rigs, model, appearance])
+  }, [id, rigs, model, rendererState])
   useFrame(({ camera }, delta) => {
     const avatar = avatars.get(id)
     if (!avatar || !root.current || !figure.current) return
@@ -122,7 +140,7 @@ function Avatar({
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
     root.current.visible = opacity > 0 && !(own && parkXRView.active) && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
-    appearance.set(root.current.visible ? opacity : 1)
+    appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     root.current.position.set(
       pose.x,
