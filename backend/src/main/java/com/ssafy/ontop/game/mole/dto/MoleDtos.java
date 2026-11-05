@@ -28,7 +28,7 @@ public final class MoleDtos {
     public record Round(String id, Instant startedAt, Rules rules, List<Mole> moles) {
     }
 
-    /** hole은 0~5(Q W E I O P), at은 판 시작 기준 ms이다. */
+    /** hole은 0~5(S D F J K L), at은 판 시작 기준 ms이다. */
     public record Hit(int hole, int at) {
     }
 
