@@ -36,6 +36,36 @@ class GameEngineRouterTests {
     private final OmokEngine second = engine();
 
     @Test
+    void 종료기록_정리는_진행중_경기와_다른엔진의_기록을_지우지않는다() {
+        first.create("old", "table", 101, 202);
+
+        assertThat(router.forgetFinished(first, "old")).isFalse();
+        assertThatThrownBy(() -> router.forgetFinished(second, "old")).isInstanceOf(IllegalStateException.class);
+        assertThat(router.load(101, "old")).isPresent();
+
+        router.graceExpired(expiration(101, "old"));
+        second.create("new", "table", 101, 202);
+        assertThat(router.forgetFinished(first, "old")).isTrue();
+        assertThat(router.forgetFinished(first, "old")).isTrue();
+        assertThat(router.load(101, "old")).isEmpty();
+        assertThat(router.load(101).orElseThrow().gameId()).isEqualTo("new");
+        assertThatThrownBy(() -> first.create("third", "other", 101, 303)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void 복구조회중_종료보존이_만료되면_라우터_불일치_오류없이_빈상태를_반환한다() {
+        GameEngine expired = mock(GameEngine.class);
+        router.register(expired, "expired", "table", List.of(101L, 202L));
+        router.finished(expired, "expired");
+        when(expired.load(101)).thenAnswer(call -> {
+            router.forgetFinished(expired, "expired");
+            return Optional.empty();
+        });
+
+        assertThat(router.load(101)).isEmpty();
+    }
+
+    @Test
     void 복구조회중_다음경기가_등록되면_새경기로_다시조회한다() {
         GameEngine switching = mock(GameEngine.class);
         router.register(switching, "old", "table", List.of(101L, 202L));

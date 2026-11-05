@@ -37,9 +37,13 @@ public final class SkewerCoopEngine implements GameEngine {
     private static final long PASSWORD_FAILURE_WINDOW_MILLIS = 30_000;
     private static final long PASSWORD_CLEANUP_INTERVAL_MILLIS = 1_000;
     private static final int MAX_PASSWORD_FAILURES = 5;
+    private static final long CANCELLED_RETENTION_MILLIS = 60_000;
+    private static final long FINISHED_RETENTION_MILLIS = 30 * 60_000;
+    private static final int MAX_RETAINED_ROOMS = 1024;
     private final Consumer<SkewerCoopFinished> recordResult;
     private final Map<String, SkewerCoopFinished> terminalResults = new HashMap<>();
     private final Map<String, Long> terminalRetryAt = new HashMap<>();
+    private final Map<String, Long> retireAt = new HashMap<>();
     private final AtomicBoolean terminalWriterRunning = new AtomicBoolean();
     private final ObjectMapper mapper;
     private final Clock clock;
@@ -102,7 +106,7 @@ public final class SkewerCoopEngine implements GameEngine {
                 }
                 return room(user, existing);
             }
-            if (current(user).filter(this::occupiesRoom).isPresent()
+            if (games.size() >= MAX_RETAINED_ROOMS || current(user).filter(this::occupiesRoom).isPresent()
                     || games.values().stream().filter(this::occupiesRoom).count() >= 64) {
                 throw new IllegalStateException("기존 방을 나가거나 잠시 후 다시 시도해주세요.");
             }
@@ -230,6 +234,7 @@ public final class SkewerCoopEngine implements GameEngine {
             if (cancelled) {
                 match.finish("SKEWER_CANCELLED");
                 completed.add(id);
+                retireAt.putIfAbsent(id, clock.millis() + CANCELLED_RETENTION_MILLIS);
                 if (match.registered()) router.finished(this, id);
             }
             dismissed.add(user + ":" + id);
@@ -348,18 +353,62 @@ public final class SkewerCoopEngine implements GameEngine {
                     return attempts.isEmpty();
                 });
                 nextPasswordCleanupAt = now + PASSWORD_CLEANUP_INTERVAL_MILLIS;
+                removeExpiredRooms(now);
             }
             for (SkewerCoopMatch match : games.values()) {
-                long before = match.version;
-                match.tick(now, user -> connected.test(user, match.channelId));
+                try {
+                    long before = match.version;
+                    match.tick(now, user -> connected.test(user, match.channelId));
+                    if (!match.finished() && match.registered() && before != match.version) {
+                        notices.add(new GameStateChanged(match.id, match.version));
+                    }
+                } catch (RuntimeException exception) {
+                    // 불완전하게 갱신된 한 경기를 계속 진행하지 않고 정상 영속 인계 경로로 종료한다.
+                    log.error("꼬치왕 경기 틱 오류로 해당 경기만 종료합니다: gameId={}", match.id, exception);
+                    match.finish("SKEWER_RUNTIME_ERROR");
+                }
                 if (match.finished()) {
-                    queueTerminalResult(match);
-                } else if (match.registered() && before != match.version) {
-                    notices.add(new GameStateChanged(match.id, match.version));
+                    try {
+                        queueTerminalResult(match);
+                    } catch (RuntimeException exception) {
+                        // 결과 구성 실패도 다른 방의 틱을 중단하지 않는다. 원본은 다음 틱까지 보존한다.
+                        log.error("꼬치왕 종료 결과 구성을 재시도합니다: gameId={}", match.id, exception);
+                    }
                 }
             }
         }
-        notices.forEach(events);
+        publishNotices(notices);
+    }
+
+    private void removeExpiredRooms(long now) {
+        Set<String> expired = new HashSet<>();
+        for (var entry : retireAt.entrySet()) {
+            String id = entry.getKey();
+            SkewerCoopMatch match = games.get(id);
+            if (entry.getValue() > now || match == null || !match.finished() || terminalResults.containsKey(id)
+                    || match.registered() && !completed.contains(id)) {
+                continue;
+            }
+            if (router.forgetFinished(this, id)) {
+                expired.add(id);
+            }
+        }
+        if (expired.isEmpty()) {
+            return;
+        }
+        expired.forEach(id -> {
+            games.remove(id);
+            roomAccess.remove(id);
+            retireAt.remove(id);
+            terminalRetryAt.remove(id);
+        });
+        latest.values().removeIf(expired::contains);
+        recoveryLatest.values().removeIf(expired::contains);
+        creations.values().removeIf(expired::contains);
+        receipts.values().removeIf(receipt -> expired.contains(receipt.command().gameId()));
+        forfeits.values().removeIf(receipt -> expired.contains(receipt.gameId()));
+        completed.removeAll(expired);
+        dismissed.removeIf(key -> expired.contains(key.substring(key.indexOf(':') + 1)));
     }
 
     // 호출자는 엔진 락을 보유한다. 채널·종료 여부 확인 후에만 정원 정보를 구분해 반환한다.
@@ -383,7 +432,11 @@ public final class SkewerCoopEngine implements GameEngine {
 
     // 엔진 락 안에서는 결과를 고정하기만 한다. 저장 대기도 64개 방 제한에 포함한다.
     private void queueTerminalResult(SkewerCoopMatch match) {
-        if (!match.registered() || completed.contains(match.id)) {
+        if (!match.registered()) {
+            retireAt.putIfAbsent(match.id, clock.millis() + CANCELLED_RETENTION_MILLIS);
+            return;
+        }
+        if (completed.contains(match.id)) {
             return;
         }
         terminalResults.computeIfAbsent(match.id, id -> terminalResult(match));
@@ -435,15 +488,20 @@ public final class SkewerCoopEngine implements GameEngine {
             terminalResults.remove(id);
             terminalRetryAt.remove(id);
             router.finished(this, id);
+            retireAt.putIfAbsent(id, clock.millis() + FINISHED_RETENTION_MILLIS);
             notices.add(new GameStateChanged(id, games.get(id).version));
             notices.add(result);
         }
+        publishNotices(notices);
+    }
+
+    private void publishNotices(List<Object> notices) {
         for (Object notice : notices) {
             try {
                 events.accept(notice);
             } catch (RuntimeException exception) {
-                // 한 알림 소비자의 오류가 다른 경기의 영속 저장 작업자를 중단하지 않는다.
-                log.error("꼬치왕 영속 인계 후 종료 알림에 실패했습니다: gameId={}", id, exception);
+                // 한 알림 소비자의 오류가 다른 방의 상태·종료 알림까지 막지 않는다.
+                log.error("꼬치왕 알림 발행에 실패했습니다: eventType={}", notice.getClass().getSimpleName(), exception);
             }
         }
     }
