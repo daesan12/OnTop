@@ -343,7 +343,7 @@ it('passes speed mole start, completion and ranking through the real park reques
   fetcher.mockImplementation(async (url, init) => {
     const path = String(url)
     if (path === '/api/v1/minigames/speed-mole/rounds') return json({ id:'7',seed:1,rulesVersion:1,serverNow:'2030-01-01T00:00:00Z',startedAt:'2030-01-01T00:00:03Z',durationMs:60000 })
-    if (path === '/api/v1/minigames/speed-mole/rounds/7/complete') return json({ id:'7',rulesVersion:1,score:1,hits:1,misses:0,completedAt:'2030-01-01T00:01:03Z' })
+    if (path === '/api/v1/minigames/speed-mole/rounds/7/complete') return json({ id:'7',rulesVersion:1,score:1,hits:1,misses:0,completedAt:'2030-01-01T00:01:03Z',calculatedReward:0,reward:0,todayEarned:0,dailyCap:500 })
     if (path === '/api/v1/minigames/speed-mole/rankings?limit=20&offset=0') return json({ rulesVersion:1,period:'ALL_TIME',totalParticipants:0,offset:0,limit:20,items:[],me:null,hasMore:false })
     return fallback(url,init)
   })

@@ -3,7 +3,7 @@ import { parkRuntime } from '../../park/runtime/runtime'
 const BASE = '/api/v1/minigames/speed-mole'
 export interface SpeedMoleSession { id: string; seed: number; rulesVersion: number; serverNow: string; startedAt: string; durationMs: number }
 export interface SpeedMoleTap { hole: number; at: number }
-export interface SpeedMoleResult { id: string; rulesVersion: number; score: number; hits: number; misses: number; completedAt: string }
+export interface SpeedMoleResult { id: string; rulesVersion: number; score: number; hits: number; misses: number; completedAt: string; calculatedReward: number; reward: number; todayEarned: number; dailyCap: number }
 export interface SpeedMoleRankingItem { rank: number; userId: string; nickname: string; score: number; hits: number; misses: number; completedAt: string }
 export interface SpeedMoleRankings { rulesVersion: number; period: string; totalParticipants: number; offset: number; limit: number; items: SpeedMoleRankingItem[]; me: SpeedMoleRankingItem | null; hasMore: boolean }
 export class SpeedMoleError extends Error {
@@ -15,6 +15,8 @@ const messages: Record<string, string> = {
   SPEED_MOLE_ROUND_EXPIRED: '기록 제출 시간이 지났어요. 이번 판은 랭킹에 저장되지 않았어요.',
   SPEED_MOLE_ROUND_FINISHED: '이미 완료된 시작 요청이에요. 다시 시작해 주세요.',
   SPEED_MOLE_INVALID_TAPS: '타격 기록을 확인하지 못했어요. 이번 판은 저장되지 않았어요.',
+  SPEED_MOLE_ROUND_SUPERSEDED: '다른 창에서 새 판을 시작했어요. 새로 시작해 주세요.',
+  WALLET_NOT_READY: '지갑을 확인한 뒤 다시 시작해 주세요.',
 }
 type Request = (path: string, init?: RequestInit) => Promise<unknown>
 function rankingItem(value: unknown): value is SpeedMoleRankingItem {
@@ -46,7 +48,10 @@ export class SpeedMoleService {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taps }),
     }) as SpeedMoleResult
     if (!value || value.id !== id || value.rulesVersion !== 1 || ![value.score, value.hits, value.misses].every(n => Number.isInteger(n) && n >= 0)
-      || value.score > value.hits || !Number.isFinite(Date.parse(value.completedAt))) throw new SpeedMoleError('저장 응답을 확인하지 못했어요. 다시 확인해 주세요.')
+      || value.score > value.hits || !Number.isFinite(Date.parse(value.completedAt))
+      || ![value.calculatedReward,value.reward,value.todayEarned,value.dailyCap].every(n=>Number.isSafeInteger(n)&&n>=0)
+      || value.calculatedReward !== Math.floor(value.score / 40) || value.reward > value.calculatedReward || value.reward > value.dailyCap || value.dailyCap !== 500)
+      throw new SpeedMoleError('저장 응답을 확인하지 못했어요. 다시 확인해 주세요.')
     return value
   }
   async rankings(offset = 0): Promise<SpeedMoleRankings> {

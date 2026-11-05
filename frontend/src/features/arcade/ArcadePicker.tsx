@@ -59,8 +59,8 @@ function ArcadeDialog() {
   ]
   if (speedMoleTrialEnabled()) choices.push({
     id: 'speed-mole', name: speedMoleManual.title, tagline: speedMoleManual.subtitle, summary: speedMoleManual.summary,
-    fee: '무료', prize: '엽전 보상 없음 · 서버 최고 기록·랭킹 저장',
-    limitLabel: '플레이 시간', limit: '3초 준비 후 60초', playsLeft: null, inProgress: false,
+    fee: '무료', prize: `${MOLE_POINTS_PER_COIN}점당 1냥 · 하루 상한 안에서`,
+    limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null, inProgress: false,
   })
   const choice = choices.find(c => c.id === selected)!
   const balance = rps?.availableBalance ?? plus?.availableBalance
