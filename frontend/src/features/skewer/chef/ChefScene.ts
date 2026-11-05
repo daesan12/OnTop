@@ -11,6 +11,7 @@ import type { ChefView, ChefAction, ChefJob } from './model'
 import { chefPresentation } from './chefPresentation'
 import { ChefHall } from './ChefHall'
 import { INITIAL_PANTRY } from '../cooperativeMenu'
+import { closingTime } from '../closingTime'
 
 export type ChefMode = 'pc' | 'vr'
 type Pick = { ingredient: IngredientId } | { action: 'thread' | 'unthread' | 'submit' | 'stick' | 'coop' } | { slot: number }
@@ -420,18 +421,24 @@ export class ChefScene {
   }
   private paintClock() {
     const ctx = this.timerCanvas.getContext('2d')!, s = Math.ceil(this.view.seconds)
+    const closing = closingTime(this.view.seconds)
     ctx.clearRect(0, 0, 1200, 240)
     ctx.fillStyle = '#302c27'; ctx.beginPath(); ctx.roundRect(4, 4, 1192, 232, 24); ctx.fill()
     ctx.strokeStyle = '#9b744e'; ctx.lineWidth = 5; ctx.stroke()
+    if (closing.phase !== 'normal') {
+      ctx.fillStyle = closing.phase === 'warning' ? '#694a26' : '#783a2c'
+      ctx.beginPath(); ctx.roundRect(12, 12, 385, 216, 18); ctx.fill()
+      ctx.fillStyle = closing.color; ctx.fillRect(35, 208, 340 * Math.min(1, s / 60), 5)
+    }
     const entries = [
-      ['남은 시간', String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0')],
+      [closing.label, String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0')],
       ['팀 점수', (this.view.cooperative?.score ?? 0).toLocaleString('ko-KR') + '점'],
       ['요리 완료', String(this.view.completed ?? 0) + '개'],
     ]
     entries.forEach(([label, value], i) => {
       const x = 200 + i * 400
       ctx.textAlign = 'center'; ctx.fillStyle = '#d1bd96'; ctx.font = '30px "Malgun Gothic",sans-serif'; ctx.fillText(label, x, 66)
-      ctx.fillStyle = '#ffe8ba'; ctx.font = '700 72px "Malgun Gothic",sans-serif'; ctx.fillText(value, x, 164, 360)
+      ctx.fillStyle = i === 0 ? closing.color : '#ffe8ba'; ctx.font = '700 72px "Malgun Gothic",sans-serif'; ctx.fillText(value, x, 164, 360)
       if (i > 0) { ctx.strokeStyle = '#766044'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(i * 400, 38); ctx.lineTo(i * 400, 196); ctx.stroke() }
     })
     this.timerTexture.needsUpdate = true

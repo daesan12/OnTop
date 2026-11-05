@@ -16,6 +16,8 @@ import './chef.css'
 import './chefHud.css'
 import './chefPc.css'
 import './chefVr.css'
+import { ClosingNotice } from '../ClosingNotice'
+import { closingTime } from '../closingTime'
 
 const modeFromURL = (): ChefMode => new URLSearchParams(location.search).get('mode') === 'vr' ? 'vr' : 'pc'
 export default function ChefPage({ driver, onXRChanged, onExit, preferredMode, allowVR = true }: { driver?: ChefDriver; onXRChanged?: (active: boolean) => void; onExit?: () => void; preferredMode?: ChefMode; allowVR?: boolean } = {}) {
@@ -62,15 +64,17 @@ export default function ChefPage({ driver, onXRChanged, onExit, preferredMode, a
   const enterVR = async () => { if (pending || !allowVR) return; setPending(true); try { await scene.current?.enterVR() } catch (e) { setNotice(e instanceof Error ? e.message : 'VR 연결을 확인해 주세요.') } finally { setPending(false) } }
   const pantry = mode === 'pc' ? view.pantry ?? INITIAL_PANTRY : INITIAL_PANTRY
   const seconds = Math.ceil(view.seconds)
+  const closing = closingTime(view.seconds)
   const presentation = chefPresentation(view), assembly = presentation.guide
   const recipeGuide = assembly ? <div className="chef-recipe-guide" aria-label="선택한 주문 조립 안내"><MenuArt recipe={assembly.expected} label="선택한 주문 완성 그림" /><ol aria-label="꽂는 순서">{assembly.expected.map((id, i) => <li key={i} data-ingredient={id} className={i < assembly.completed ? 'is-done' : i === assembly.next ? 'is-next' : ''}><b>{i + 1}</b><IngredientIcon id={id} /><span>{ingredientName(id)}</span></li>)}</ol><p>{recipeNotes(assembly.expected).join(' ')}</p></div> : null
   const closeGuide = () => { guide.current?.close(); host.current?.querySelector('canvas')?.focus({ preventScroll: true }) }
   return <main className={`chef-app is-${mode}${xrActive ? ' is-immersive' : ''}`} data-testid="chef-app" data-mode={mode} data-xr={xrActive} data-stack={view.skewer.join(',')}>
+    <ClosingNotice seconds={view.seconds} />
     <div className="chef-stage" ref={host}>
       {INGREDIENTS.map(item => <button className="chef-ingredient-hit" key={item.id} style={{ left: `var(--chef-ingredient-${item.id}-x,50%)`, top: `var(--chef-ingredient-${item.id}-y,50%)` } as CSSProperties} aria-label={`${pantry.indexOf(item.id) + 1} ${item.name} 선택`} aria-pressed={view.ingredient === item.id} onClick={e => { act({ type: 'select', ingredient: item.id }); e.currentTarget.blur() }} />)}
       {view.visible.map((job, i) => <button className="chef-world-order-hit" data-order={job.id} data-recipe={job.recipe.join(',')} key={job.id} style={{ left: `var(--chef-order-${i}-x,50%)`, top: `var(--chef-order-${i}-y,50%)` }} aria-label={`${job.table}번 주문 선택`} aria-pressed={view.selectedJob === job.id} onClick={e => { if (host.current?.dataset.orderTransition === 'true') return; act({ type: 'choose', id: job.id }); e.currentTarget.blur() }} />)}
     </div>
-    {mode === 'vr' ? <aside className="chef-round"><div className="chef-clock-label">{driver?.online ? '남은 영업 시간' : '남은 연습 시간'}</div><time aria-label={driver?.online ? '남은 영업 시간' : '남은 연습 시간'}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</time>{view.cooperative?.score !== undefined ? <p className="chef-team-score">팀 점수 <strong>{view.cooperative.score.toLocaleString('ko-KR')}</strong></p> : null}<p className="chef-eligibility">{view.cooperative?.rankingEligible === false ? '팀 랭킹 제외 · 보상 가능' : xrActive ? driver?.online ? 'VR 연결 · 공동 경기' : 'VR 연습' : 'VR을 연결해 주세요'}</p>{mode === 'vr' ? <button className="chef-enter-vr" disabled={!supported || pending} onClick={() => void enterVR()}>{pending ? 'VR 연결 중…' : xrActive ? 'VR 종료' : supported ? 'VR 시작' : 'VR 연결 필요'}</button> : null}</aside> : null}
+    {mode === 'vr' ? <aside className="chef-round" data-clock-phase={closing.phase}><div className="chef-clock-label">{driver?.online ? '남은 영업 시간' : '남은 연습 시간'}</div><time aria-label={driver?.online ? '남은 영업 시간' : '남은 연습 시간'}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</time>{view.cooperative?.score !== undefined ? <p className="chef-team-score">팀 점수 <strong>{view.cooperative.score.toLocaleString('ko-KR')}</strong></p> : null}<p className="chef-eligibility">{view.cooperative?.rankingEligible === false ? '팀 랭킹 제외 · 보상 가능' : xrActive ? driver?.online ? 'VR 연결 · 공동 경기' : 'VR 연습' : 'VR을 연결해 주세요'}</p>{mode === 'vr' ? <button className="chef-enter-vr" disabled={!supported || pending} onClick={() => void enterVR()}>{pending ? 'VR 연결 중…' : xrActive ? 'VR 종료' : supported ? 'VR 시작' : 'VR 연결 필요'}</button> : null}</aside> : null}
     <section className="chef-accessible-readout" aria-label="영업 상태와 주문 영수증">
       <time data-testid="remaining-time">{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</time>
       <span data-testid="team-score">{view.cooperative?.score ?? 0}점</span>
