@@ -33,14 +33,14 @@ public class UserNicknameUpdateController {
         this.service = service;
     }
 
-    @Operation(summary = "내 닉네임 수정", description = "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지합니다. 대소문자 무시 UNIQUE(탈퇴 회원 포함), 본인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기를 저장합니다. 사전 조회와 별도로 트랜잭션에서 최종 중복 검증합니다.",
+    @Operation(summary = "내 닉네임 수정", description = "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지하며(USER_RESERVED_NICKNAME), 욕설·비속어가 포함되면 USER_INAPPROPRIATE_NICKNAME입니다. 대소문자 무시 UNIQUE(탈퇴 회원 포함), 본인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기를 저장합니다. 사전 조회와 별도로 트랜잭션에서 최종 중복 검증합니다.",
             security = {@SecurityRequirement(name = "AccessJwt")},
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
                     content = @Content(schema = @Schema(implementation = UserNicknameUpdateRequest.class))))
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "성공 (Cache-Control: no-store)",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserProfileResponse.class))),
-        @ApiResponse(responseCode = "400", description = "USER_INVALID_NICKNAME_UPDATE_REQUEST / USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME",
+        @ApiResponse(responseCode = "400", description = "USER_INVALID_NICKNAME_UPDATE_REQUEST / USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME / USER_INAPPROPRIATE_NICKNAME",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorResponse.class))),
         @ApiResponse(responseCode = "401", description = "AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN / AUTH_MEMBER_STATE_CHANGED",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorResponse.class))),

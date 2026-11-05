@@ -1,5 +1,10 @@
 import { OnboardingError, type OnboardingNicknameAvailability } from '../auth/authFlow'
-import { nicknameInputProblem } from '../features/user/nicknamePolicy'
+import {
+  NICKNAME_INAPPROPRIATE_MESSAGE,
+  NICKNAME_RESERVED_MESSAGE,
+  nicknameInputProblem,
+  nicknameServerProblem,
+} from '../features/user/nicknamePolicy'
 
 export type NicknameCheckStatus = 'checking' | OnboardingNicknameAvailability
 /** A result belongs to the exact value it checked; any edit makes it stale. */
@@ -56,7 +61,8 @@ const MESSAGES: Record<NicknameCheckStatus | 'needs-check', NicknameFeedback> = 
   available: { message: '사용 가능한 닉네임이에요.', tone: 'ok' },
   taken: { message: '이미 사용 중인 닉네임이에요.', tone: 'error' },
   format: { message: '한글, 영문, 숫자로 2~8자 입력해 주세요.', tone: 'error' },
-  reserved: { message: 'GM으로 시작하는 닉네임은 사용할 수 없어요.', tone: 'error' },
+  reserved: { message: NICKNAME_RESERVED_MESSAGE, tone: 'error' },
+  inappropriate: { message: NICKNAME_INAPPROPRIATE_MESSAGE, tone: 'error' },
   unavailable: { message: '닉네임을 확인하지 못했어요. 다시 시도해 주세요.', tone: 'error' },
 }
 
@@ -83,13 +89,12 @@ export function nicknameFeedback(nickname: string, check: NicknameCheck | null):
 export function blocksSubmit(nickname: string, check: NicknameCheck | null) {
   const status = currentNicknameCheck(nickname, check)
   return nicknameInputProblem(nickname) !== null
-    || status === 'taken' || status === 'format' || status === 'reserved'
+    || status === 'taken' || status === 'format' || status === 'reserved' || status === 'inappropriate'
 }
 
-/** Maps a final onboarding rejection back onto the nickname so the input shows the same message. */
+/** Maps a final onboarding rejection back onto the nickname so the input shows the same message as a check. */
 export function nicknameCheckFromOnboardingError(nickname: string, code: string): NicknameCheck | null {
   if (code === 'USER_NICKNAME_ALREADY_EXISTS') return { value: nickname, status: 'taken' }
-  if (code === 'USER_RESERVED_NICKNAME') return { value: nickname, status: 'reserved' }
-  if (code === 'USER_INVALID_NICKNAME') return { value: nickname, status: 'format' }
-  return null
+  const problem = nicknameServerProblem(code)
+  return problem ? { value: nickname, status: problem } : null
 }

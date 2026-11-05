@@ -114,4 +114,19 @@ test('onboarding submits without a check and shows the final server rejection on
   await input.fill('산책대장')
   await submit.click()
   await expect(feedback).toHaveText('GM으로 시작하는 닉네임은 사용할 수 없어요.')
+
+  // The server's forbidden-word rejection reads the same from a check and from the final save.
+  const inappropriate = { status: 400, json: { code: 'USER_INAPPROPRIATE_NICKNAME', message: 'server message' } }
+  await page.unroute('**/api/v1/users/nickname-availability?**')
+  await page.route('**/api/v1/users/nickname-availability?**', route => route.fulfill(inappropriate))
+  await input.fill('부적절1')
+  await page.getByRole('button', { name: '중복 확인' }).click()
+  await expect(feedback).toHaveText('사용할 수 없는 표현이 포함된 닉네임이에요.')
+  await expect(submit).toBeDisabled()
+  await page.unroute('**/api/v1/users/onboarding')
+  await page.route('**/api/v1/users/onboarding', route => route.fulfill(inappropriate))
+  await input.fill('부적절2')
+  await submit.click()
+  await expect(feedback).toHaveText('사용할 수 없는 표현이 포함된 닉네임이에요.')
+  await expect(feedback).not.toContainText('server message')
 })

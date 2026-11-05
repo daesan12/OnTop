@@ -411,10 +411,11 @@ paths:
       tags:
       - User
       summary: 신규 회원 온보딩
-      description: 온보딩 전용 Bearer만 허용하며 JSESSIONID가 필요 없습니다. nickname/characterGender만
-        입력합니다. 회원·지갑·최초 100코인 SIGNUP_BONUS 원장·Refresh 저장은 원자적입니다. 201 성공 후 토큰 소비;
-        확인된 닉네임 충돌+롤백(409 USER_NICKNAME_ALREADY_EXISTS)만 같은 토큰으로 재시도하며 최초 만료는 연장하지
-        않습니다. 중복 소셜 계정/기타 실패/커밋 불명은 새 OAuth가 필요합니다.
+      description: "온보딩 전용 Bearer만 허용하며 JSESSIONID가 필요 없습니다. nickname/characterGender만\
+        \ 입력합니다. 닉네임은 중복 조회·닉네임 수정과 같은 규칙(완성형 한글/영문/숫자 2~8자, GM 접두어 금지, 욕설·비속어 금지\
+        )으로 최종 검증합니다. 회원·지갑·최초 100코인 SIGNUP_BONUS 원장·Refresh 저장은 원자적입니다. 201 성공 후\
+        \ 토큰 소비; 확인된 닉네임 충돌+롤백(409 USER_NICKNAME_ALREADY_EXISTS)만 같은 토큰으로 재시도하며 최초\
+        \ 만료는 연장하지 않습니다. 중복 소셜 계정/기타 실패/커밋 불명은 새 OAuth가 필요합니다."
       operationId: onboard
       parameters:
       - name: Origin
@@ -451,7 +452,7 @@ paths:
                 $ref: "#/components/schemas/UserOnboardingResponse"
         "400":
           description: USER_INVALID_ONBOARDING_REQUEST / USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME
-            / USER_INVALID_CHARACTER_GENDER
+            / USER_INAPPROPRIATE_NICKNAME / USER_INVALID_CHARACTER_GENDER
           headers:
             Cache-Control:
               description: no-store
@@ -3797,9 +3798,10 @@ paths:
       tags:
       - User
       summary: 내 닉네임 수정
-      description: "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지합니다\
-        . 대소문자 무시 UNIQUE(탈퇴 회원 포함), 본인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기\
-        를 저장합니다. 사전 조회와 별도로 트랜잭션에서 최종 중복 검증합니다."
+      description: "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지하며(USER_RESERVED_NICKNAME),\
+        \ 욕설·비속어가 포함되면 USER_INAPPROPRIATE_NICKNAME입니다. 대소문자 무시 UNIQUE(탈퇴 회원 포함), 본\
+        인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기를 저장합니다. 사전 조회와 별도로 트랜잭션에서 최종\
+        \ 중복 검증합니다."
       operationId: update_2
       requestBody:
         content:
@@ -3821,7 +3823,7 @@ paths:
                 $ref: "#/components/schemas/UserProfileResponse"
         "400":
           description: USER_INVALID_NICKNAME_UPDATE_REQUEST / USER_INVALID_NICKNAME
-            / USER_RESERVED_NICKNAME
+            / USER_RESERVED_NICKNAME / USER_INAPPROPRIATE_NICKNAME
           headers:
             Cache-Control:
               description: no-store
@@ -4251,9 +4253,10 @@ paths:
       tags:
       - User
       summary: 닉네임 사용 가능 여부
-      description: Access JWT 또는 온보딩 전용 Bearer 중 하나를 사용합니다. 온보딩 토큰은 소비/연장하지 않습니다.
-        완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지합니다. 중복은 대소문자를 무시하고 탈퇴 회원도 포함합니다.
-        기존 회원의 현재 닉네임은 true입니다. 조회는 예약이 아니며 실제 가입/변경 시 최종 검증이 필요합니다.
+      description: "Access JWT 또는 온보딩 전용 Bearer 중 하나를 사용합니다. 온보딩 토큰은 소비/연장하지 않습니다\
+        . 완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지하며(USER_RESERVED_NICKNAME), 욕설·\
+        비속어가 포함되면 USER_INAPPROPRIATE_NICKNAME입니다. 중복은 대소문자를 무시하고 탈퇴 회원도 포함합니다. 기존\
+        \ 회원의 현재 닉네임은 true입니다. 조회는 예약이 아니며 실제 가입/변경 시 최종 검증이 필요합니다."
       operationId: check
       parameters:
       - name: nickname
@@ -4278,7 +4281,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/NicknameAvailabilityResponse"
         "400":
-          description: USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME
+          description: USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME / USER_INAPPROPRIATE_NICKNAME
           headers:
             Cache-Control:
               description: no-store

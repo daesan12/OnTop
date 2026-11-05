@@ -1,3 +1,10 @@
+import {
+  NICKNAME_INAPPROPRIATE_MESSAGE,
+  NICKNAME_RESERVED_MESSAGE,
+  nicknameServerProblem,
+  type NicknameServerProblem,
+} from '../features/user/nicknamePolicy'
+
 export type AuthSession =
   | { status: 'AUTHENTICATED'; accessToken: string }
   | { status: 'ONBOARDING_REQUIRED'; onboardingToken: string }
@@ -76,7 +83,7 @@ export async function logout(): Promise<void> {
   clearAuthSession()
 }
 
-export type OnboardingNicknameAvailability = 'available' | 'taken' | 'format' | 'reserved' | 'unavailable'
+export type OnboardingNicknameAvailability = 'available' | 'taken' | NicknameServerProblem | 'unavailable'
 
 const ONBOARDING_EXPIRED_MESSAGE = '설정 시간이 만료되었어요. 다시 로그인해 주세요.'
 
@@ -111,10 +118,7 @@ export async function checkOnboardingNickname(nickname: string, signal?: AbortSi
     const available = body && typeof body === 'object' && 'available' in body ? body.available : undefined
     return typeof available === 'boolean' ? (available ? 'available' : 'taken') : 'unavailable'
   }
-  const code = errorCode(body)
-  if (code === 'USER_RESERVED_NICKNAME') return 'reserved'
-  if (code === 'USER_INVALID_NICKNAME') return 'format'
-  return 'unavailable'
+  return nicknameServerProblem(errorCode(body)) ?? 'unavailable'
 }
 
 export async function completeOnboarding(nickname: string, characterGender: CharacterGender): Promise<void> {
@@ -145,7 +149,10 @@ export async function completeOnboarding(nickname: string, characterGender: Char
       throw new OnboardingError('이미 사용 중인 닉네임이에요. 다른 이름을 입력해 주세요.', code)
     }
     if (code === 'USER_RESERVED_NICKNAME') {
-      throw new OnboardingError('GM으로 시작하는 닉네임은 사용할 수 없어요.', code)
+      throw new OnboardingError(NICKNAME_RESERVED_MESSAGE, code)
+    }
+    if (code === 'USER_INAPPROPRIATE_NICKNAME') {
+      throw new OnboardingError(NICKNAME_INAPPROPRIATE_MESSAGE, code)
     }
     if (code === 'USER_INVALID_NICKNAME') {
       throw new OnboardingError('한글, 영문, 숫자로 2~8자 입력해 주세요.', code)

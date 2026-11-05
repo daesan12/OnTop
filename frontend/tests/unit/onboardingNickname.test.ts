@@ -63,6 +63,8 @@ describe('checkOnboardingNickname', () => {
     expect(await checkOnboardingNickname('gm123')).toBe('reserved')
     respondWith(error(400, 'USER_INVALID_NICKNAME'))
     expect(await checkOnboardingNickname('가!')).toBe('format')
+    respondWith(error(400, 'USER_INAPPROPRIATE_NICKNAME'))
+    expect(await checkOnboardingNickname('욕설닉네임')).toBe('inappropriate')
   })
 
   it('reports server, network and malformed answers as unavailable without ending onboarding', async () => {
@@ -96,6 +98,7 @@ describe('completeOnboarding', () => {
     [409, 'USER_NICKNAME_ALREADY_EXISTS', '이미 사용 중인 닉네임이에요. 다른 이름을 입력해 주세요.'],
     [400, 'USER_RESERVED_NICKNAME', 'GM으로 시작하는 닉네임은 사용할 수 없어요.'],
     [400, 'USER_INVALID_NICKNAME', '한글, 영문, 숫자로 2~8자 입력해 주세요.'],
+    [400, 'USER_INAPPROPRIATE_NICKNAME', '사용할 수 없는 표현이 포함된 닉네임이에요.'],
     [400, 'USER_INVALID_CHARACTER_GENDER', '입력한 정보를 확인하고 다시 시도해 주세요.'],
     [503, 'USER_ONBOARDING_UNAVAILABLE', '설정을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.'],
   ])('keeps the %s %s rejection distinct', async (status, code, message) => {
@@ -185,6 +188,13 @@ describe('nickname feedback', () => {
     expect(nicknameFeedback('산책자', { value: '산책자', status: 'unavailable' })?.message).toBe('닉네임을 확인하지 못했어요. 다시 시도해 주세요.')
   })
 
+  it('shows the same forbidden-word message for a check and a final save', () => {
+    const fromCheck = nicknameFeedback('욕설닉네임', { value: '욕설닉네임', status: 'inappropriate' })
+    const fromSave = nicknameFeedback('욕설닉네임', nicknameCheckFromOnboardingError('욕설닉네임', 'USER_INAPPROPRIATE_NICKNAME'))
+    expect(fromCheck).toEqual({ message: '사용할 수 없는 표현이 포함된 닉네임이에요.', tone: 'error' })
+    expect(fromSave).toEqual(fromCheck)
+  })
+
   it('invalidates a result as soon as the nickname changes', () => {
     const available = { value: '산책자', status: 'available' as const }
     expect(nicknameFeedback('산책자1', available)?.message).toBe('중복 확인이 필요해요.')
@@ -203,6 +213,7 @@ describe('nickname feedback', () => {
   })
 
   it('never requires a check to submit, but blocks a known rejection', () => {
+    expect(blocksSubmit('산책자', { value: '산책자', status: 'inappropriate' })).toBe(true)
     expect(blocksSubmit('산책자', null)).toBe(false)
     expect(blocksSubmit('산책자', { value: '산책자', status: 'checking' })).toBe(false)
     expect(blocksSubmit('산책자', { value: '산책자', status: 'unavailable' })).toBe(false)
