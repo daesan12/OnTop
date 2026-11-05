@@ -52,9 +52,11 @@ keep = []
 for o in list(bpy.data.objects):
     if o.type != 'MESH': continue
     n = re.sub(r'\.\d+$', '', o.name)
-    m = re.match(r'item__([A-Z]+)__([a-z0-9]+)(?:__under_(\w+?))?(?:_\d+)?$', n)
+    m = re.match(r'item__([A-Z]+)__([a-z0-9]+)(?:__for_(?:man|girl))?(?:__under_(\w+?))?(?:_\d+)?$', n)
     b = re.match(r'body(?:__(\w+))?$', re.sub(r'_\d+$', '', n))
-    show = (m and worn(m.group(1), m.group(2)) and not any(worn(s, i) for s, i in parse(m.group(3)))) or \
+    fv = re.search(r'__for_(man|girl)', n)
+    show = (m and worn(m.group(1), m.group(2)) and not any(worn(s, i) for s, i in parse(m.group(3)))
+            and not (fv and variant in ('man', 'girl') and fv.group(1) != variant)) or \
            (b and not any(worn(s, i) for s, i in parse(b.group(1))))
     if PIECES:
         # pieces=1 (마이룸 slots): every body piece (body=0 drops them: an outfit file) and every piece of the picked
