@@ -50,6 +50,7 @@ import { PlusMinusPanel } from '../features/plusMinus/PlusMinusPanel'
 import { MolePanel } from '../features/mole/MolePanel'
 import { ArcadePicker } from '../features/arcade/ArcadePicker'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
+import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
 
 const shortcuts = [
@@ -137,6 +138,7 @@ function ParkContent({ onExit, exitError, onAuthEnded }: ParkProps) {
           ))}
         </aside>}
       </div>
+      <BehaviorReporter quality={quality} />
       <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
         <ParkTools />
         <ParkInteractionHint />

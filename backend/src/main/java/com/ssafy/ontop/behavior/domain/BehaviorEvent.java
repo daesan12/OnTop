@@ -9,12 +9,13 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * 서버가 성공 처리한 사용자 행동 한 건. 채팅 본문·토큰·IP 같은 원문은 props에 넣지 않는다.
+ * 서버가 성공 처리했거나 클라이언트가 보고한 사용자 행동 한 건. 채팅 본문·토큰·IP 같은 원문은 props에 넣지 않는다.
  * props 값은 JSON으로 그대로 저장할 수 있는 문자열·숫자·boolean과 그 목록만 허용한다.
+ * source가 없으면 서버가 기록한 것(SERVER)으로 본다.
  */
 public record BehaviorEvent(UUID eventId, BehaviorEventType type, Instant occurredAt, Long userId,
         String loginSessionId, String connectionId, String channelId, String tableId, String gameId,
-        Map<String, Object> props) implements BehaviorRecord {
+        Map<String, Object> props, BehaviorSource source) implements BehaviorRecord {
 
     private static final int MAX_ID_LENGTH = 64;
     private static final int MAX_GAME_ID_LENGTH = 120;
@@ -31,6 +32,7 @@ public record BehaviorEvent(UUID eventId, BehaviorEventType type, Instant occurr
         checkLength("gameId", gameId, MAX_GAME_ID_LENGTH);
         props = props == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(props));
         props.forEach(BehaviorEvent::checkProp);
+        source = source == null ? BehaviorSource.SERVER : source;
     }
 
     public static Builder builder(BehaviorEventType type, Instant occurredAt) {
@@ -74,6 +76,7 @@ public record BehaviorEvent(UUID eventId, BehaviorEventType type, Instant occurr
         private String channelId;
         private String tableId;
         private String gameId;
+        private BehaviorSource source = BehaviorSource.SERVER;
 
         private Builder(BehaviorEventType type, Instant occurredAt) {
             this.type = type;
@@ -110,6 +113,11 @@ public record BehaviorEvent(UUID eventId, BehaviorEventType type, Instant occurr
             return this;
         }
 
+        public Builder source(BehaviorSource source) {
+            this.source = source;
+            return this;
+        }
+
         /** 값이 null이면 키를 남기지 않는다. */
         public Builder prop(String key, Object value) {
             if (value != null) {
@@ -120,7 +128,7 @@ public record BehaviorEvent(UUID eventId, BehaviorEventType type, Instant occurr
 
         public BehaviorEvent build() {
             return new BehaviorEvent(UUID.randomUUID(), type, occurredAt, userId, loginSessionId, connectionId,
-                    channelId, tableId, gameId, props);
+                    channelId, tableId, gameId, props, source);
         }
     }
 }
