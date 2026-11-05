@@ -8,20 +8,23 @@ import { useSession } from '../../network/worldClient'
 import { ParkAssetLoader } from '../../world/art/assetLoader'
 import { characterUrls, createCharacterRig } from '../../world/art/CharacterRig'
 import { partImage } from '../wardrobe/itemArt'
+import { knownWholeSkin, resolveWholeSkin } from '../../world/art/wholeSkin'
+import { WARDROBE_OUTFITS_ENABLED } from '../wardrobe/feature'
 
 const SIZE = 192
-const sources = new Map<CharacterId, Promise<GLTF>>()
+const sources = new Map<string, Promise<GLTF>>()
 const portraits = new Map<string, Promise<string>>()
 
-function source(character: CharacterId) {
-  let gltf = sources.get(character)
-  if (!gltf) sources.set(character, gltf = new ParkAssetLoader().loadAsync(characterUrls[character === 'girl' ? 1 : 0]!))
+function source(character: CharacterId, skinKey?: string) {
+  const skin = knownWholeSkin(skinKey ?? null), key = skin?.imageKey ?? character
+  let gltf = sources.get(key)
+  if (!gltf) sources.set(key, gltf = new ParkAssetLoader().loadAsync(skin?.url ?? characterUrls[character === 'girl' ? 1 : 0]!))
   return gltf
 }
 
 /** Head-and-shoulders shot of the actual park model, taken once into a still image (no live canvas in the HUD). */
-async function shoot(character: CharacterId) {
-  const model = createCharacterRig(await source(character))
+async function shoot(character: CharacterId, skinKey?: string) {
+  const model = createCharacterRig(await source(character, skinKey))
   // The tablet portraits' relaxed arms-down pose.
   model.reset(); model.set('upperArm_L', 0, 0, -0.95); model.set('upperArm_R', 0, 0, 0.95)
   for (let i = 0; i < 12; i++) model.apply(0.1)
@@ -48,21 +51,22 @@ async function shoot(character: CharacterId) {
 /** The own character's profile picture. The outfit is part of the key, so worn clothes are re-shot
  * as soon as the park model shows them; until a shot is ready the pre-rendered face of the same model stands in. */
 export function useOwnPortrait() {
-  const { character, outfit } = useSession(useShallow(s => ({
+  const { character, outfit, skinKey } = useSession(useShallow(s => ({
     character: s.profiles[s.sessionId]?.character,
     outfit: (s.equipment[s.sessionId] ?? emptyEquipment).map(item => item.itemId).sort().join(','),
+    skinKey: WARDROBE_OUTFITS_ENABLED ? resolveWholeSkin(s.profiles[s.sessionId]?.character === 'girl' ? 'girl' : 'man', s.equipment[s.sessionId] ?? emptyEquipment)?.imageKey : undefined,
   })))
-  const key = `${character}|${outfit}`
+  const key = `${character}|${outfit}|${skinKey ?? ''}`
   const [shot, setShot] = useState<{ key: string; url: string } | null>(null)
   useEffect(() => {
     if (!character) return
     let live = true, portrait = portraits.get(key)
     if (!portrait) {
-      portraits.set(key, portrait = shoot(character))
+      portraits.set(key, portrait = shoot(character, skinKey))
       portrait.catch(() => portraits.delete(key))
     }
     portrait.then(url => { if (live) setShot({ key, url }) }, () => {})
     return () => { live = false }
-  }, [key, character])
+  }, [key, character, skinKey])
   return shot?.key === key ? shot.url : partImage(character ?? 'man', 'FACE')!
 }

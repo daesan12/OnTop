@@ -6,7 +6,7 @@ import { parkName } from '../parkMenus/parkName'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { useOwnPortrait } from './characterPortrait'
 import { MenuDialog } from './MenuDialog'
-import { NICKNAME_MAX, nicknameInputProblem } from '../user/nicknamePolicy'
+import { NICKNAME_INAPPROPRIATE_MESSAGE, NICKNAME_MAX, NICKNAME_RESERVED_MESSAGE, nicknameInputProblem } from '../user/nicknamePolicy'
 import { checkNickname, nicknameProblem, updateNickname, type NicknameProblem } from './service'
 import closeIcon from './icons/icon-close.svg'
 import lockIcon from './icons/icon-lock.svg'
@@ -19,7 +19,8 @@ type Check = { value: string; status: 'checking' | 'available' | NicknameProblem
 const helpText = {
   idle: ' 2~8자 · 한글, 영문, 숫자만 쓸 수 있어요. 바꾼 이름은 바로 공원에 보여요',
   format: '2~8자 한글, 영문, 숫자만 쓸 수 있어요.',
-  reserved: 'GM으로 시작하는 닉네임은 사용할 수 없어요.',
+  reserved: NICKNAME_RESERVED_MESSAGE,
+  inappropriate: NICKNAME_INAPPROPRIATE_MESSAGE,
   taken: '이미 사용 중인 닉네임이에요. 다른 이름을 입력해 주세요.',
   unavailable: '지금은 닉네임을 확인할 수 없어요. 잠시 후 다시 시도해 주세요.',
   checking: '닉네임을 확인하고 있어요…',
@@ -45,7 +46,8 @@ export function ProfileDialog({ onClose, onSaved }: { onClose: () => void; onSav
   const valid = inputProblem === null
   const result = check?.value === value ? check.status : null
   const problem = changed && value && inputProblem ? inputProblem
-    : result === 'format' || result === 'reserved' || result === 'taken' || result === 'unavailable' ? result : null
+    : result === 'format' || result === 'reserved' || result === 'inappropriate' || result === 'taken'
+      || result === 'unavailable' ? result : null
   const canCheck = changed && valid && result !== 'checking' && !saving
   const canSave = changed && result === 'available' && !saving
   const help = problem ?? (result === 'checking' || result === 'available' ? result : 'idle')

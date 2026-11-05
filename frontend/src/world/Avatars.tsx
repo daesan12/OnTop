@@ -21,6 +21,7 @@ import type { AvatarSampler } from '../network/avatarFrame'
 import { emptyEquipment } from '../network/equipment'
 import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from './art/characterLook'
 import { useOutfitSources } from './art/outfitSources'
+import { resolveWholeSkin } from './art/wholeSkin'
 import { previewEquipment, useWardrobe } from '../features/wardrobe/state'
 import type { OwnedItem } from '../features/shop/contracts'
 import { WARDROBE_OUTFITS_ENABLED } from '../features/wardrobe/feature'
@@ -67,14 +68,16 @@ function Avatar({
   const worn = useMemo(() => previewId && previewEquipment(owned, previewId) || equipment, [previewId, owned, equipment])
   // Outfits closed (production build): every avatar keeps its default clothes, whatever is equipped.
   const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn])
-  const outfits = useOutfitSources(lookSources(look).filter(source => !isCharacterSource(source)))
+  const wholeSkin = WARDROBE_OUTFITS_ENABLED ? resolveWholeSkin(variant, worn) : undefined
+  const outfits = useOutfitSources(wholeSkin ? [wholeSkin.source] : lookSources(look).filter(source => !isCharacterSource(source)))
+  const wholeSource = wholeSkin && outfits.get(wholeSkin.source)
   const files = useMemo(() => new Map([['man', sources[0]!], ['girl', sources[1]!], ...outfits]), [sources, outfits])
   const shown = availableLook(variant, look, source => files.has(source))
   const shownKey = lookKey(shown)
   const model = useMemo(
-    () => createCharacterRig(sources[variant === 'girl' ? 1 : 0]!, shown, files),
+    () => wholeSource ? createCharacterRig(wholeSource) : createCharacterRig(sources[variant === 'girl' ? 1 : 0]!, shown, files),
     // (`shown` is fully described by its key)
-    [sources, variant, shownKey, files],
+    [sources, variant, shownKey, files, wholeSource],
   )
   const root = useRef<Group>(null)
   const figure = useRef<Group>(null)
@@ -173,7 +176,7 @@ function Avatar({
       }}
       // Approved public appearance reaches the renderer. No guessed asset or material
       // substitution: product-specific models/textures have not been supplied yet.
-      userData={{ character: variant, equipment, look: shownKey }}
+      userData={{ character: variant, equipment, look: shownKey, wholeSkin: wholeSource ? wholeSkin?.imageKey : undefined }}
     >
       <FartCloud id={id} />
       <group ref={figure} name={`figure-${id}`}>

@@ -39,6 +39,7 @@ public class MinigamePreflightFilter extends OncePerRequestFilter {
                         + "(?:/(?:complete|abandon|deliveries|manual-pause))?)?"
                         + "|rps-roulette/(?:status|rounds(?:/[1-9][0-9]{0,18}/(?:hands|challenge|stop))?)"
                         + "|plus-minus/(?:status|rounds)"
+                        + "|speed-mole/(?:rankings|rounds(?:/[1-9][0-9]{0,18}/complete)?)"
                         + "|whack-a-mole/(?:status|rounds(?:/[1-9][0-9]{0,18}/complete)?))");
     }
 

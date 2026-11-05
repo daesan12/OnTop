@@ -6,6 +6,7 @@
 - 시작 기준: `origin/dev@a6408f75932feddf60f5659a76a6f3b95b13630f`.
 - 최초 구현 통합 기준: `origin/dev@211c4f16340af6c5dd127ffb3372d7815b90e4b1`.
 - 리뷰 수정 기준: `origin/dev@2e336bc3405de8d139b284fcd14526eccb6dad7a`. 기존 공유 브랜치 이력을 보존하는 merge로 반영했으며 충돌은 없었다.
+- 2026-11-06 원격 동기화 기준: `origin/dev@4f1b02f98cee6e0cb12623589fcd1701086b67b8`. 공유 브랜치의 기존 커밋을 보존한 merge이며 텍스트 충돌은 없었다. `WorldChannelRegistry`, runtime, `avatarMotion` 자동 병합 결과에서 기존 운반 기능과 최신 스피드 두더지 경로·스킨·착석 보정을 함께 확인했다.
 - 최신 생성 맵: `c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07`.
 - 검수 서버: `node node_modules/vite/bin/vite.js --mode park-integration --host 127.0.0.1 --port 5296 --strictPort`.
 - 다른 작업 폴더·미커밋 코드·맵 원본은 수정하지 않는다. 새 DB migration과 에셋·패키지 추가는 없다.
@@ -90,5 +91,7 @@ node node_modules/@playwright/test/cli.js test --config playwright.carry.config.
 - 기존 Three.Clock 폐기 예정 안내, 셰이더 부동소수점 정밀도 경고, 빌드의 큰 청크 안내는 남아 있다. 브라우저 실행 오류나 빌드 실패는 없었다.
 
 리뷰 수정 기준(`2e336bc3`) 재검증: 서버 85개 통과(리뷰 전용 22개 포함), 프런트 관련 21개 통과, 전체 소스·테스트 타입 검사 및 최신 생성 맵 빌드 통과. Edge 전용 설정에서 E/Esc, 채팅 점유 변경 시 1회 전송, 1440×900 및 900×540 화면 검증이 통과했다. 이번 서버 검사에는 공통 이동·따라가기·시설·의자·낙하 복구·미니게임 활동과 최신 dev의 신규 활동 제한 테스트를 포함했다.
+
+2026-11-06 최신 dev 통합(`4f1b02f9`) 재검증: 프런트 전체 2,408개 통과·기존 조건부 6개 제외, 소스·테스트 타입 검사 통과, 서버 관련 97개 통과. 서버 범위는 기존 운반·시설·이동·따라가기·낙하 복구·활동 제한과 새 스피드 두더지 규칙·서비스다. 최신 생성 맵 빌드와 Edge의 E 들기→던지기·Esc·채팅 입력 보호 및 1440×900/900×540 검수가 통과했다. 원격에 이미 존재하는 V151·V152는 원문 그대로 가져왔으며 신규 migration을 만들거나 DB에 적용하지 않았다.
 
 공통 변경은 `TableProtocol`, `TableHub`, `WorldChannelRegistry`, `WorldPhysics`, `WorldEmoteService`, FE `protocol/worldClient`, runtime 포트, E/Esc 입력, 공통 상호작용 선택·안내, 캐릭터 모션·표시 연결이다. 게임별 내부 엔진·맵 배치·카메라 수식·인증·지갑 구현은 변경하지 않는다.

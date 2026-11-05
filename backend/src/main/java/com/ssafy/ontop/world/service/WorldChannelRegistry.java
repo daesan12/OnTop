@@ -54,7 +54,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     private boolean tunedMovement;
     private BooleanSupplier newActivityAllowed = () -> true;
 
-    @Autowired
+    @Autowired(required = false)
     void configureServiceOperation(ServiceOperationService operations) {
         newActivityAllowed = () -> {
             try {
