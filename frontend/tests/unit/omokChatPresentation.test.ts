@@ -30,8 +30,9 @@ beforeEach(()=>{
 })
 it('floating messages may expire while the full spectator transcript remains readable',()=>{
   const html=renderToStaticMarkup(createElement(SpectatorChat))
-  expect(html).toContain('role="log"');expect(html).toContain('경기 채팅 기록')
-  expect(html).toContain(text);expect(html).toContain('검수 관전자');expect(html).toContain('data-has-history="true"')
+  expect(html).toContain('role="log"');expect(html).toContain('aria-label="경기 채팅"')
+  expect(html).toContain('aria-label="채팅 기록 보기"');expect(html).toContain('data-game-id="g"')
+  expect(html).toContain(text);expect(html).toContain('검수 관전자')
   useGame.setState(s=>({game:{...s.game!,gameId:'other'} as never}))
   expect(renderToStaticMarkup(createElement(SpectatorChat))).not.toContain(text)
 })

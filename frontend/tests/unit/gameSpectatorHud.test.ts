@@ -14,7 +14,7 @@ vi.mock('../../src/network/worldClient',async original=>{
 import { GamePanel } from '../../src/game/GamePanel'
 import { useGame, resetGame } from '../../src/game/store'
 import { useSession } from '../../src/network/worldClient'
-import type { Game } from '../../src/game/protocol'
+import { publicGame, type PublicGameKind } from '../fixtures/publicGame'
 import { bridgeState } from '../fixtures/bridge'
 import { ledgerState } from '../fixtures/ledger'
 import { halliState } from '../fixtures/halligalli'
@@ -35,9 +35,9 @@ beforeEach(()=>{
   useSession.setState({sessionId:'505',status:'connected',profiles:{'101':{userId:'101',nickname:'대산'} as never,'102':{userId:'102',nickname:'공원지기'} as never},tableId:'',watchedTableId:'table-1',roomId:'channel-1',bindings:[],pending:false,error:'',gameWatches:{}})
 })
 afterEach(()=>{resetGame();vi.unstubAllGlobals()})
-for (const [field,state] of Object.entries(fixtures)) {
+for (const [field,state] of Object.entries(fixtures) as [PublicGameKind, object][]) {
   it(`${field} 관전자 HUD는 차례·관전 종료를 제공하고 참가자 전용 조작을 노출하지 않는다`,()=>{
-    useGame.setState({game:{gameId:'observer-test',version:4,role:'SPECTATOR',[field]:state,hand:null,secret:null,alkkagiHand:null} as Game,watchedGameId:'observer-test',recovery:'RESTORED'})
+    useGame.setState({game:{...publicGame(field,state,'SPECTATOR'),gameId:'observer-test'},watchedGameId:'observer-test',recovery:'RESTORED'})
     const html=renderToStaticMarkup(createElement(GamePanel))
     expect(html).toContain('게임 메뉴')
     expect(html).toContain('관전 종료')

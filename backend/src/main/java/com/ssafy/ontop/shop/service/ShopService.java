@@ -4,6 +4,7 @@ import com.ssafy.ontop.behavior.domain.BehaviorEvent;
 import com.ssafy.ontop.behavior.domain.BehaviorEventType;
 import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.inventory.domain.UserItem;
+import com.ssafy.ontop.item.domain.EquipSlot;
 import com.ssafy.ontop.item.domain.ItemType;
 import com.ssafy.ontop.shop.ShopException;
 import com.ssafy.ontop.shop.domain.DuplicateEquipmentPolicy;
@@ -18,7 +19,11 @@ import com.ssafy.ontop.shop.repository.ShopRepository;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +36,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /** JPA 지갑 행 잠금 안에서 차감·보유 지급·원장·영수증을 함께 커밋한다. */
 public class ShopService {
+
+    /** 마이룸의 "옷" 한 칸: 상의·하의·신발은 한 벌로 입고 벗는다(머리·얼굴은 따로). */
+    static final Set<EquipSlot> OUTFIT_SLOTS = Set.copyOf(EnumSet.of(EquipSlot.TOP, EquipSlot.BOTTOM, EquipSlot.SHOES));
     private static final Logger log = LoggerFactory.getLogger(ShopService.class);
     private final ShopRepository repository;
     private final TransactionTemplate transactions;
@@ -138,12 +146,18 @@ public class ShopService {
             if (selectedItem.itemType() != ItemType.EQUIPMENT || selectedItem.equipSlot() == null) {
                 throw error(409, "ITEM_NOT_EQUIPPABLE", "장착 가능한 의상이 아닙니다.");
             }
-            for (var holding : holdings) {
-                if (holding.toOwnedItem().item().equipSlot() == selectedItem.equipSlot()) {
-                    holding.unequip();
-                }
+            // 세트 의상은 보유한 같은 세트 부위를 모두 함께 입는다.
+            var wearing = holdings.stream().filter(value -> value.quantity() > 0
+                    && (value == selected || selectedItem.setCode() != null
+                            && selectedItem.setCode().equals(value.toOwnedItem().item().setCode()))).toList();
+            var slots = EnumSet.noneOf(EquipSlot.class);
+            wearing.forEach(value -> slots.add(value.toOwnedItem().item().equipSlot()));
+            // 옷(상의·하의·신발)은 한 벌로 입는다: 그중 한 부위라도 입으면 옷 부위를 모두 벗기고 새 한 벌만 입는다.
+            if (!Collections.disjoint(slots, OUTFIT_SLOTS)) {
+                slots.addAll(OUTFIT_SLOTS);
             }
-            selected.equip();
+            takeOff(holdings, slots);
+            wearing.forEach(UserItem::equip);
             repository.flush();
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
@@ -156,6 +170,59 @@ public class ShopService {
         });
     }
 
+    /** 장착 해제: 그 부위는 기본 옷으로 돌아간다(옷 부위면 상의·하의·신발 모두). 세트 의상이면 세트 전체를 벗는다.
+     * 이미 벗은 의상은 그대로 돌려준다. */
+    public EquipmentResponse unequip(long userId, long userItemId) {
+        if (userId <= 0 || userItemId <= 0) {
+            throw error(400, "INVALID_REQUEST", "보유 아이템을 확인하세요.");
+        }
+        return transactions.execute(status -> {
+            lockWallet(userId);
+            var holdings = repository.ownedForUpdate(userId);
+            var selected = holdings.stream()
+                    .filter(value -> value.id() == userItemId && value.quantity() > 0).findFirst()
+                    .orElseThrow(() -> error(404, "OWNED_ITEM_NOT_FOUND", "보유한 아이템이 없습니다."));
+            var selectedItem = selected.toOwnedItem().item();
+            if (selectedItem.itemType() != ItemType.EQUIPMENT || selectedItem.equipSlot() == null) {
+                throw error(409, "ITEM_NOT_EQUIPPABLE", "장착 가능한 의상이 아닙니다.");
+            }
+            if (selected.equipped()) {
+                // 옷 부위를 벗으면 옷 전체(상의·하의·신발)가 기본 옷으로 돌아간다.
+                takeOff(holdings, OUTFIT_SLOTS.contains(selectedItem.equipSlot())
+                        ? EnumSet.copyOf(OUTFIT_SLOTS) : EnumSet.of(selectedItem.equipSlot()));
+                repository.flush();
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        equipmentCommitted(userId, null);
+                    }
+                });
+            }
+            return new EquipmentResponse(holdings.stream().map(UserItem::toOwnedItem)
+                    .filter(item -> item.quantity() > 0 && item.equipped()).toList());
+        });
+    }
+
+    /** 주어진 부위에 입은 의상을 벗긴다. 벗긴 의상이 세트 부위면 그 세트의 다른 부위도 함께 벗긴다. */
+    private static void takeOff(List<UserItem> holdings, Set<EquipSlot> slots) {
+        Set<String> sets = new HashSet<>();
+        for (var holding : holdings) {
+            var item = holding.toOwnedItem().item();
+            if (holding.equipped() && slots.contains(item.equipSlot())) {
+                holding.unequip();
+                if (item.setCode() != null) {
+                    sets.add(item.setCode());
+                }
+            }
+        }
+        for (var holding : holdings) {
+            var setCode = holding.toOwnedItem().item().setCode();
+            if (holding.equipped() && setCode != null && sets.contains(setCode)) {
+                holding.unequip();
+            }
+        }
+    }
+
     private void purchaseCommitted(long userId, PurchaseResponse purchase) {
         behaviorLog.record(() -> BehaviorEvent.builder(BehaviorEventType.SHOP_PURCHASED, Instant.now())
                 .userId(userId)
@@ -165,7 +232,7 @@ public class ShopService {
                 .build());
     }
 
-    private void equipmentCommitted(long userId, long itemId) {
+    private void equipmentCommitted(long userId, Long itemId) {
         try {
             events.publishEvent(new EquipmentChanged(userId, itemId));
         } catch (RuntimeException exception) {

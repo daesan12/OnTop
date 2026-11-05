@@ -24,6 +24,7 @@ import { ParkSun } from './ParkSun'
 import { EnvironmentScene } from './EnvironmentScene'
 import { ParkPigeons } from './pigeons/ParkPigeons'
 import { NightLighting } from './NightLighting'
+import { OmokFocusLighting } from './boardFocusLighting'
 import { CameraRig } from './CameraRig'
 import { ParkXRBridge } from '../features/parkXR/ParkXRBridge'
 
@@ -186,6 +187,8 @@ export const WorldCanvas = memo(function WorldCanvas({
             {GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>:<PlaceholderWorld quality={quality} />}
             {GENERATED_PARK_ENABLED && <ServiceJumpCourse />}
             <RpsRouletteCabinet />
+            {/* Same Suspense boundary as SceneReady: both use positive frame priorities around its render. */}
+            <OmokFocusLighting />
             <SceneReady onReady={onReady} />
           </Suspense>
           <Avatars overlayTargets={overlayTargets} />

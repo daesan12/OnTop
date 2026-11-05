@@ -1,25 +1,22 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three'
 import { useSession } from '../../network/worldClient'
-import { useChatTyping } from '../../features/chat/useChatTyping'
-import { useParkRuntime } from '../../park/runtime/ParkRuntime'
+import { ParkChat } from '../../features/chat/ParkChat'
+import { inputState } from '../../world/inputOwnership'
 import { useManual } from '../../features/manual/manualState'
-import { setChatInputOpen, inputState } from '../../world/inputOwnership'
 import { useGame } from '../store'
 import { OMOK_FOCUS_LAYER, omokSpectatorFrame } from '../../world/omokCamera'
 import { omokSpectatorViewport } from '../cameraState'
 import { GOMOKU } from '../../config/gomoku'
 import { OMOK_BOARD_ART_SPAN } from './boardLayout'
 import { placeFloatingChats, type ChatRect } from './chatPlacement'
-import chatIcon from '../../features/parkMenus/icons/chat-bubble.svg'
-import sendIcon from '../../features/parkMenus/icons/chat-send.svg'
 import { OMOK_HALF, OMOK_SPACING, omokCoordinate } from '../omokPresentation'
 import { useOmokEvents, type DisplayEvent, type PingEvent } from './spectatorEvents'
 import './omokFocus.css'
 
 const labels = new Map<string, HTMLSpanElement>()
-const chatHudSelectors='.omok-match-header,.omok-play-tools,.omok-play-notes,.omok-spectator-actions,.omok-ping-status,.focus-error,.omok-spectator-chat,.park-runtime-status,.game-hud-clock,.game-hud-menu'
+const chatHudSelectors='.omok-match-header,.omok-play-tools,.omok-play-notes,.omok-spectator-actions,.omok-ping-status,.focus-error,.park-chat,.park-runtime-status,.game-hud-clock,.game-hud-menu'
 export function OmokFeedback() {
   const chats = useOmokEvents(s => s.chats), pings = useOmokEvents(s => s.pings)
   const profiles = useSession(s => s.profiles), manual = useManual(s => s.open)
@@ -120,62 +117,5 @@ export function OmokPings({ gameId, focused }: { gameId: string; focused: boolea
   return <>{pings.filter(p => p.gameId === gameId).map(p => <Ping key={p.eventId} ping={p} focused={focused} />)}</>
 }
 
-export function SpectatorChat() {
-  const runtime = useParkRuntime(), canSend = useOmokEvents(s => s.canSend), sending = useOmokEvents(s => s.sending)
-  const error = useOmokEvents(s => s.error), scope = useOmokEvents(s => s.scope)
-  const [draft, setDraft] = useState(''), [notice, setNotice] = useState(''), [open, setOpen] = useState(false)
-  const typing=useChatTyping(runtime,open&&canSend&&!sending)
-  const input = useRef<HTMLInputElement>(null)
-  const log=useRef<HTMLDivElement>(null), followLatest=useRef(true)
-  const history=useOmokEvents(s=>s.history), gameId=useGame(s=>s.game?.gameId)
-  const profiles=useSession(s=>s.profiles)
-  const messages=history.filter(message=>message.gameId===gameId)
-  const player = useGame(s => s.game?.role === 'PLAYER')
-  const omok = useGame(s => !!s.game?.omok)
-  const compact = omok && !player
-  useEffect(()=>{if(log.current&&followLatest.current)log.current.scrollTop=log.current.scrollHeight},[history,open])
-  useEffect(() => { setDraft(''); setNotice(''); setOpen(false);followLatest.current=true; return () => setChatInputOpen(false) }, [scope])
-  useEffect(() => { if (open) input.current?.focus() }, [open])
-  useEffect(() => { if (!canSend) { input.current?.blur(); setChatInputOpen(false) } }, [canSend])
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229
-        || event.ctrlKey || event.altKey || event.metaKey) return
-      if (event.code === 'Escape' && document.activeElement === input.current) {
-        event.preventDefault(); setOpen(false); input.current?.blur(); document.querySelector<HTMLCanvasElement>('canvas')?.focus(); return
-      }
-      if (event.code !== 'Enter' || !canSend || event.target === input.current
-        || Object.entries(inputState).some(([panel, open]) => panel !== 'chatOpen' && open)
-        || document.querySelector('dialog[open],[role="dialog"]')
-        || event.target instanceof Element && event.target.closest('input,textarea,select,button,a,summary,[contenteditable="true"],[role="button"]')) return
-      event.preventDefault(); setOpen(true); input.current?.focus()
-    }
-    window.addEventListener('keydown', key)
-    return () => window.removeEventListener('keydown', key)
-  }, [canSend])
-  async function send(event: FormEvent) {
-    event.preventDefault(); if (sending || !canSend) return
-    typing(false)
-    const text = draft
-    if (await runtime.sendSpectatorChat(text)) { setDraft(''); setNotice('전달 요청이 승인됐어요.'); }
-  }
-  return <form className="omok-spectator-chat" data-open={open} data-compact={compact} data-has-history={messages.length>0} onSubmit={event => void send(event)} aria-label={player ? '경기 채팅' : '관전 채팅'}>
-    <button className="omok-chat-toggle" type="button" aria-expanded={open} aria-controls="omok-chat-body" onClick={() => {
-      setOpen(!open)
-      if (open) { input.current?.blur(); document.querySelector<HTMLCanvasElement>('canvas')?.focus() }
-    }}>{open ? '채팅 닫기' : compact ? '관전 채팅 · Enter' : '경기 채팅 열기'}</button>
-    <div className="omok-chat-log" role="log" aria-label="경기 채팅 기록" aria-live="polite" aria-relevant="additions" ref={log}
-      onScroll={event=>{const e=event.currentTarget;followLatest.current=e.scrollHeight-e.scrollTop-e.clientHeight<24}}>
-      {messages.map(message=><p key={message.eventId}><strong title={message.displayName??profiles[message.senderUserId]?.nickname??'관전자'}>{message.displayName??profiles[message.senderUserId]?.nickname??'관전자'}</strong><span>{message.text}</span></p>)}
-    </div>
-    <div id="omok-chat-body" className="omok-chat-body">
-    <label htmlFor="omok-spectator-message"><img src={chatIcon} width="17" height="17" alt=""/>{player ? '경기 채팅' : '관전 채팅'}<small>이 경기만</small></label>
-    <div><input id="omok-spectator-message" ref={input} value={draft} disabled={!canSend} readOnly={sending} aria-keyshortcuts="Enter" aria-label={player?'경기 채팅':omok?'관전 채팅 · 판을 눌러 위치 추천':'관전 채팅'}
-      placeholder={canSend ? '이 경기 안에서만 대화해요' : player ? '경기 연결을 확인해주세요' : '관전 승인을 확인해주세요'} maxLength={400} autoComplete="off"
-      onFocus={() => {setChatInputOpen(true);typing(!!draft.trim())}} onBlur={() => {setChatInputOpen(false);typing(false)}}
-      onChange={event => { setDraft(event.target.value); setNotice('');typing(!!event.target.value.trim()) }}
-      onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) event.preventDefault() }} />
-      <button type="submit" aria-label="보내기" title="메시지 보내기" disabled={!canSend || sending || !draft.trim()}><img src={sendIcon} width="17" height="17" alt=""/></button></div>
-    <p role="status">{error || notice || (!player&&omok?'판 클릭으로 위치 추천 · Enter로 채팅':'Enter로 입력·전송 · Esc로 입력 종료')}</p></div>
-  </form>
-}
+/** All games share the same Enter/send/Escape lifecycle and private game feed. */
+export function SpectatorChat() { return <ParkChat /> }
