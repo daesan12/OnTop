@@ -12,7 +12,7 @@ export function SpeedMoleRankingBoard({ data, busy, error, offset, onLoad, onClo
 }) {
   return <section className="speed-records">
     <header className="speed-records__heading">
-      <div className="speed-records__title"><SpeedMoleTrophy /><div><span>온탑 오락실</span><h2 id="speed-mole-ranking-title">스피드 두더지 명예의 전당</h2></div></div>
+      <div className="speed-records__title"><SpeedMoleTrophy /><div><span>온탑 오락실</span><h2 id="speed-mole-ranking-title">스피드 두더지 잡기 명예의 전당</h2></div></div>
       <button type="button" className="speed-records__close" onClick={onClose} aria-label="랭킹 닫기">×</button>
     </header>
     <div className="speed-records__body">
@@ -32,7 +32,7 @@ export function SpeedMoleRankingBoard({ data, busy, error, offset, onLoad, onClo
         {error && <div className="speed-records__error" role="alert"><p>{error}</p><button type="button" onClick={() => onLoad(offset)} disabled={busy}>다시 불러오기</button></div>}
         {busy && <p className="speed-records__loading" role="status">기록판을 불러오고 있어요…</p>}
         {data && data.items.length > 0 ? <div key={offset} className="speed-records__scroll" tabIndex={0} role="region" aria-label="전체 랭킹 목록">
-          <table className="speed-records__table"><caption>스피드 두더지 전체 랭킹. 점수와 실수가 같으면 공동 순위입니다.</caption>
+          <table className="speed-records__table"><caption>스피드 두더지 잡기 전체 랭킹. 점수와 실수가 같으면 공동 순위입니다.</caption>
             <colgroup><col className="speed-records__rank-col" /><col /><col className="speed-records__score-col" /><col className="speed-records__miss-col" /></colgroup>
             <thead><tr><th scope="col">순위</th><th scope="col">도전자</th><th scope="col">최고 점수</th><th scope="col">실수</th></tr></thead>
             <tbody>{data.items.map(item => <tr key={item.userId} data-me={item.userId === data.me?.userId} data-podium={item.rank <= 3 ? item.rank : undefined}>

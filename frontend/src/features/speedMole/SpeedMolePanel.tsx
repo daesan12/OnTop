@@ -142,8 +142,8 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
   return <div ref={root} className="speed-mole" role="dialog" aria-modal="true" aria-labelledby="speed-mole-title" tabIndex={-1}
     style={{ '--speed-cabinet': `url(${cabinet})` } as CSSProperties}>
     <div className="speed-mole__backdrop" />
-    <header className="speed-mole__heading"><span>온탑 오락실</span><h1 id="speed-mole-title">스피드 두더지</h1><small>기존 두더지보다 더 스피드하게!</small></header>
-    {phase !== 'ready' && <button type="button" className="speed-mole__close" onClick={() => handlers.current.escape()} aria-label="스피드 두더지 닫기">×</button>}
+    <header className="speed-mole__heading"><span>온탑 오락실</span><h1 id="speed-mole-title">스피드 두더지 잡기</h1><small>기존 두더지보다 더 스피드하게!</small></header>
+    {phase !== 'ready' && <button type="button" className="speed-mole__close" onClick={() => handlers.current.escape()} aria-label="스피드 두더지 잡기 닫기">×</button>}
     <div className="speed-mole__stage">
       <img className="speed-mole__cabinet" src={cabinet} alt="" draggable={false} />
       <div className="speed-mole__led speed-mole__led--score" aria-label={`점수 ${display?.score ?? 0}점`}><span>점수</span><SevenSegment text={String(display?.score ?? 0).padStart(3, '0')} /></div>
@@ -170,7 +170,7 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
       {swing && now - swing.at < 120 && <img key={swing.id} className="speed-mole__mallet" src={malletArt} alt="" style={layout[swing.hole]} />}
       <div className="speed-mole__rules">성공 <b>+1</b><span>·</span>실수 <b>−3</b><span>·</span>최저 0점<span>·</span>입력 잠금 없음</div>
     </div>
-    {phase === 'ready' && <MoleStartGuide name="스피드 두더지" headline="더 빠르게, 톡! 톡!"
+    {phase === 'ready' && <MoleStartGuide name="스피드 두더지 잡기" headline="더 빠르게, 톡! 톡!"
       description={<>기존 두더지 잡기보다 더 스피드하게 즐겨요.<br />60초 동안 나만의 최고 기록에 도전해요.</>}
       seconds={60} keyGroups={[SPEED_MOLE_KEYS.slice(0,4),SPEED_MOLE_KEYS.slice(4)]} twoRows
       details={<><p><span>성공 <b>+1점</b></span><span>실수 <b>−3점</b></span><span>최저 <b>0점</b></span></p>{!localPreview && <p>{POINTS_PER_COIN}점당 1냥 · 오늘 미니게임 {commonRewards ? `${commonRewards.todayEarned}/${commonRewards.dailyCap}냥` : '확인 중'}</p>}</>}
@@ -184,7 +184,7 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
       <h2>여기서 그만할까요?</h2><p>남은 시간은 계속 흐르고 있어요.</p>
       <div className="speed-mole__actions"><button className="speed-mole__primary" onClick={() => setConfirmQuit(false)}>계속하기</button><button onClick={onClose}>게임 선택으로</button></div>
     </section></div>}
-    {phase === 'result' && <div className="speed-mole__veil"><section className="speed-mole__card speed-mole__card--result" aria-label="스피드 두더지 결과">
+    {phase === 'result' && <div className="speed-mole__veil"><section className="speed-mole__card speed-mole__card--result" aria-label="스피드 두더지 잡기 결과">
       <div className="speed-mole__result-medal"><SpeedMoleTrophy /></div><span className="speed-mole__eyebrow">도전 완료</span><h2>60초의 손끝 기록</h2><strong className="speed-mole__result-score">{display?.score ?? 0}<small>점</small></strong>
       <dl><div><dt>성공</dt><dd>{display?.hits ?? 0}회</dd></div><div><dt>실수</dt><dd>{display?.misses ?? 0}회</dd></div><div><dt>정확도</dt><dd>{accuracy}%</dd></div></dl>
       {!localPreview && <p className="speed-mole__save-state" data-saved={!!saved} role="status">{saving ? '기록을 확인하고 있어요…' : saved ? '기록 저장 완료 · 내 최고 기록은 랭킹에서 확인해요.' : '기록 저장 결과를 아직 확인하지 못했어요.'}</p>}
