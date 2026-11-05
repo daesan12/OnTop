@@ -52,6 +52,12 @@
 - 1일차 102 낙하 판에는 finish_ms가 0으로 남은 오염 데이터를 넣는다(24번 최고 기록 방어 확인)
 - 8일차: 101 course-2에서 2구간 뒤 낙하(25번 구간 번호가 코스별 최대 구간까지만 나오는지 확인)
 
+클라이언트 로그(source=CLIENT, 접속해 있던 시간 안에만 넣는다)
+- 성능 보고: 1일차 101 desktop·nvidia 2건(fps 60·50), 102 desktop·intel 1건(fps 25),
+  103 mobile·adreno 1건(fps 40) / 2일차 101 desktop·nvidia 1건(fps 58), 103 mobile·adreno 1건(fps 20)
+- 첫 입장 체험 투어: 101 모든 단계 완료(중간에 접었다 이어 함), 102 걷기까지 하고 인사하기에서 닫음,
+  103 환영 비행 중 이탈, 104는 투어 기록 없음 / 2일차 101 다시 보기(replay) 걷기 뒤 닫음(깔때기에서 제외)
+
 경기(game_sessions·game_participants, 기능 테이블. 행동 로그 game_id는 경기 번호와 같다)
 - 경기 1(1일차 오목)·경기 2(2일차 주사위)는 위 행동 로그와 같은 경기
 - 경기 3: 2일차 KST 12:00 103·104 오목. 행동 로그가 없는 경기(로그 유실 구간 가정)
@@ -74,7 +80,20 @@ def build_seed() -> str:
 
     def event(at: str, event_type: str, user_id: int | None, *, channel: str | None = None,
               table: str | None = None, game: str | None = None, **props) -> None:
-        events.append((at, event_type, user_id, channel, table, game, props))
+        events.append((at, event_type, user_id, channel, table, game, props, "SERVER"))
+
+    def perf(at: str, user_id: int, device: str, gpu: str, fps: float, p95: float, frames: int,
+             slow: int) -> None:
+        events.append((at, "PERF_REPORT", user_id, None, None, None, dict(
+            windowSec=60, frames=frames, slowFrames=slow, fps=fps, p95Ms=p95, p99Ms=p95 * 2, drawCalls=300,
+            triangles=120000, dpr=1.0, renderMode="continuous", quality="low", device=device, gpu=gpu), "CLIENT"))
+
+    def tour(at: str, user_id: int, action: str, step: str | None = None, *, done: int = 0,
+             replay: bool = False) -> None:
+        props = dict(flow="welcome_tour", action=action, replay=replay, doneCount=done, elapsedSec=0)
+        if step:
+            props["step"] = step
+        events.append((at, "ONBOARDING_STEP", user_id, None, None, None, props, "CLIENT"))
 
     def facility(at: str, user_id: int, lease_id: str, facility_id: str, kind: str, seat: int,
                  end_reason: str | None = None, duration_ms: int | None = None) -> None:
@@ -164,6 +183,33 @@ def build_seed() -> str:
     # 8일차
     event("2026-11-03 01:00:00", "WS_CONNECTED", 101)
     event("2026-11-03 01:10:00", "WS_DISCONNECTED", 101, reason="SOCKET_CLOSED")
+
+    # 클라이언트 로그
+    perf("2026-10-27 01:01:00", 101, "desktop", "nvidia", 60.0, 18.0, 3600, 0)
+    perf("2026-10-27 01:02:00", 101, "desktop", "nvidia", 50.0, 25.0, 3000, 30)
+    perf("2026-10-27 01:02:05", 102, "desktop", "intel", 25.0, 60.0, 1500, 300)
+    perf("2026-10-27 02:01:05", 103, "mobile", "adreno", 40.0, 33.3, 2400, 24)
+    perf("2026-10-28 01:01:00", 101, "desktop", "nvidia", 58.0, 20.0, 3480, 0)
+    perf("2026-10-28 05:01:00", 103, "mobile", "adreno", 20.0, 70.0, 1200, 240)
+    tour("2026-10-27 01:00:10", 101, "start")
+    tour("2026-10-27 01:00:16", 101, "step_done", "flight")
+    tour("2026-10-27 01:00:40", 101, "step_done", "walk", done=1)
+    tour("2026-10-27 01:01:00", 101, "step_done", "greet", done=2)
+    tour("2026-10-27 01:03:00", 101, "collapse", done=2)
+    tour("2026-10-27 01:04:00", 101, "resume", done=2)
+    tour("2026-10-27 01:05:00", 101, "step_done", "table", done=3)
+    tour("2026-10-27 01:12:00", 101, "step_done", "map", done=4)
+    tour("2026-10-27 01:14:00", 101, "step_done", "minigame", done=5)
+    tour("2026-10-27 01:14:00.001", 101, "finish", done=5)
+    tour("2026-10-27 01:01:10", 102, "start")
+    tour("2026-10-27 01:01:16", 102, "step_done", "flight")
+    tour("2026-10-27 01:01:40", 102, "step_done", "walk", done=1)
+    tour("2026-10-27 01:01:50", 102, "abandon", "greet", done=1)
+    tour("2026-10-27 02:00:10", 103, "start")
+    tour("2026-10-27 02:00:12", 103, "abandon", "flight")
+    tour("2026-10-28 01:00:20", 101, "start", replay=True)
+    tour("2026-10-28 01:00:40", 101, "step_done", "walk", done=1, replay=True)
+    tour("2026-10-28 01:01:00", 101, "abandon", "greet", done=1, replay=True)
 
     # 위치
     position("2026-10-27 01:00:05", 101, 0, 34, False)
@@ -438,12 +484,12 @@ def game_sql() -> list[str]:
 
 def to_sql(events: list[tuple], positions: list[tuple]) -> str:
     lines = ["SET time_zone = '+00:00';"]
-    for number, (at, event_type, user_id, channel, table, game, props) in enumerate(events):
+    for number, (at, event_type, user_id, channel, table, game, props, source) in enumerate(events):
         event_id = uuid.uuid5(NAMESPACE, str(number)).hex
         lines.append(
             "INSERT INTO behavior_events (event_id, event_type, schema_version, source, occurred_at, user_id, "
             "channel_id, table_id, game_id, props) VALUES ("
-            f"UNHEX('{event_id}'), '{event_type}', 1, 'SERVER', '{timestamp(at)}', {sql_value(user_id)}, "
+            f"UNHEX('{event_id}'), '{event_type}', 1, '{source}', '{timestamp(at)}', {sql_value(user_id)}, "
             f"{sql_value(channel)}, {sql_value(table)}, {sql_value(game)}, "
             f"{sql_value(json.dumps(props) if props else None)});"
         )

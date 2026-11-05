@@ -299,6 +299,28 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "avg_served": "2.0", "avg_minutes": "1.0", "time_up": "0", "ended_early": "1", "ranking_eligible": "0",
          "calculated_coins": "0", "granted_coins": "0"},
     ],
+    "31_client_performance.sql": [
+        {"kst_date": "2026-10-27", "device": "desktop", "gpu": "intel", "reports": "1", "users": "1",
+         "avg_fps": "25.0", "avg_p95_ms": "60.0", "slow_frame_pct": "20.00", "low_fps_report_pct": "100.0"},
+        {"kst_date": "2026-10-27", "device": "desktop", "gpu": "nvidia", "reports": "2", "users": "1",
+         "avg_fps": "55.0", "avg_p95_ms": "21.5", "slow_frame_pct": "0.45", "low_fps_report_pct": "0.0"},
+        {"kst_date": "2026-10-27", "device": "mobile", "gpu": "adreno", "reports": "1", "users": "1",
+         "avg_fps": "40.0", "avg_p95_ms": "33.3", "slow_frame_pct": "1.00", "low_fps_report_pct": "0.0"},
+        {"kst_date": "2026-10-28", "device": "desktop", "gpu": "nvidia", "reports": "1", "users": "1",
+         "avg_fps": "58.0", "avg_p95_ms": "20.0", "slow_frame_pct": "0.00", "low_fps_report_pct": "0.0"},
+        {"kst_date": "2026-10-28", "device": "mobile", "gpu": "adreno", "reports": "1", "users": "1",
+         "avg_fps": "20.0", "avg_p95_ms": "70.0", "slow_frame_pct": "20.00", "low_fps_report_pct": "100.0"},
+    ],
+    "32_welcome_tour_funnel.sql": [
+        {"step_order": "0", "step": "start", "done_users": "3", "abandoned_users": "0"},
+        {"step_order": "1", "step": "flight", "done_users": "2", "abandoned_users": "1"},
+        {"step_order": "2", "step": "walk", "done_users": "2", "abandoned_users": "0"},
+        {"step_order": "3", "step": "greet", "done_users": "1", "abandoned_users": "1"},
+        {"step_order": "4", "step": "map", "done_users": "1", "abandoned_users": "0"},
+        {"step_order": "5", "step": "minigame", "done_users": "1", "abandoned_users": "0"},
+        {"step_order": "6", "step": "table", "done_users": "1", "abandoned_users": "0"},
+        {"step_order": "7", "step": "finish", "done_users": "1", "abandoned_users": "0"},
+    ],
 }
 
 
