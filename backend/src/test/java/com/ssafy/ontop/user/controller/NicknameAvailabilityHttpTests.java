@@ -121,7 +121,14 @@ class NicknameAvailabilityHttpTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"가나", "가나다라마바사아", "Ab12", "게임GM", "온탑GM"})
+    @ValueSource(strings = {"시발", "씨1발", "나는병신", "FUCK"})
+    void 욕설_비속어는_중복_조회_전에_부적절_닉네임_오류이다(String nickname) throws Exception {
+        error(get("Bearer " + token, nickname), 400, "USER_INAPPROPRIATE_NICKNAME");
+        verifyNoInteractions(users);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"가나", "가나다라마바사아", "Ab12", "게임GM", "온탑GM", "시발점", "class"})
     void 경계값과_허용_문자는_200이다(String nickname) throws Exception {
         assertThat(get("Bearer " + token, nickname).statusCode()).isEqualTo(200);
     }

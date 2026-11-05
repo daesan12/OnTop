@@ -1,8 +1,17 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import maleImage from '../assets/onboarding-character-male.png'
 import femaleImage from '../assets/onboarding-character-female.png'
-import { completeOnboarding, OnboardingError, type CharacterGender } from '../auth/authFlow'
-import { NICKNAME_MAX, nicknameInputProblem } from '../features/user/nicknamePolicy'
+import { checkOnboardingNickname, completeOnboarding, OnboardingError, type CharacterGender } from '../auth/authFlow'
+import { NICKNAME_MAX } from '../features/user/nicknamePolicy'
+import {
+  blocksSubmit,
+  createNicknameChecker,
+  currentNicknameCheck,
+  localNicknameCheck,
+  nicknameCheckFromOnboardingError,
+  nicknameFeedback,
+  type NicknameCheck,
+} from './nicknameCheck'
 import { requestWelcomeTour } from '../features/welcomeTour/pending'
 import './onboarding.css'
 
@@ -21,13 +30,17 @@ export function OnboardingPage({ onComplete, onReturnToLogin }: {
   const [feedback, setFeedback] = useState('')
   const [errorCode, setErrorCode] = useState('')
   const [saving, setSaving] = useState(false)
+  const [check, setCheck] = useState<NicknameCheck | null>(null)
   const nicknameRef = useRef<HTMLInputElement>(null)
+  const [checker] = useState(() => createNicknameChecker(checkOnboardingNickname))
 
   useEffect(() => {
     const updateViewport = () => setViewport(getViewport())
     window.addEventListener('resize', updateViewport)
     return () => window.removeEventListener('resize', updateViewport)
   }, [])
+
+  useEffect(() => () => checker.cancel(), [checker])
 
   const compact = viewport.width <= 900
   const scale = Math.min(1, viewport.width / 1920, viewport.height / 1080)
@@ -38,28 +51,45 @@ export function OnboardingPage({ onComplete, onReturnToLogin }: {
   const cardStyle: CSSProperties | undefined = compact ? undefined : {
     transform: `scale(${scale})`,
   }
-  const nicknameProblem = nicknameInputProblem(nickname)
-  const validNickname = nicknameProblem === null
-  const reservedNicknameFeedback = nicknameProblem === 'reserved'
-    ? 'GM으로 시작하는 닉네임은 사용할 수 없어요.'
-    : ''
-  const nicknameFeedback = reservedNicknameFeedback || feedback
-  const nicknameFeedbackIsError = Boolean(
-    reservedNicknameFeedback || errorCode || (feedback && !validNickname),
-  )
   const expired = errorCode === 'ONBOARDING_EXPIRED' || errorCode === 'USER_ALREADY_REGISTERED'
+  const checkStatus = currentNicknameCheck(nickname, check)
+  // A submit error that is not about the nickname itself (expiry, network, storage) wins over the check.
+  const nicknameStatus = feedback ? { message: feedback, tone: 'error' as const } : nicknameFeedback(nickname, check)
+  const nicknameRejected = nicknameStatus?.tone === 'error'
+    && checkStatus !== 'unavailable' && !feedback
+  const submitBlocked = blocksSubmit(nickname, check)
 
-  const checkNickname = () => {
+  const checkNickname = async () => {
+    if (saving || expired) return
+    setFeedback('')
     setErrorCode('')
-    setFeedback(validNickname ? '입력 형식이 맞아요. 실제 중복 여부는 공원 입장 시 확인합니다.'
-      : nicknameProblem === 'reserved' ? 'GM으로 시작하는 닉네임은 사용할 수 없어요.'
-      : '한글, 영문, 숫자로 2~8자 입력해 주세요.')
-    if (!validNickname) nicknameRef.current?.focus()
+    const local = localNicknameCheck(nickname)
+    if (local) {
+      checker.cancel()
+      setCheck(local)
+      nicknameRef.current?.focus()
+      return
+    }
+    const target = nickname
+    setCheck({ value: target, status: 'checking' })
+    try {
+      const result = await checker.check(target)
+      if (result) setCheck(result)
+    } catch (error) {
+      setCheck(null)
+      if (error instanceof OnboardingError) {
+        setErrorCode(error.code)
+        setFeedback(error.message)
+      }
+    }
   }
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (saving || !validNickname || !agreed || expired) return
+    if (saving || submitBlocked || !agreed || expired) return
+    // The server validates the nickname again; a pending check must not overwrite the outcome.
+    checker.cancel()
+    if (checkStatus === 'checking') setCheck(null)
     setSaving(true)
     setFeedback('')
     setErrorCode('')
@@ -69,10 +99,13 @@ export function OnboardingPage({ onComplete, onReturnToLogin }: {
       onComplete()
     } catch (error) {
       if (error instanceof OnboardingError) {
-        setErrorCode(error.code)
-        setFeedback(error.message)
-        if (error.code === 'USER_NICKNAME_ALREADY_EXISTS' || error.code === 'USER_RESERVED_NICKNAME') {
+        const rejected = nicknameCheckFromOnboardingError(nickname, error.code)
+        if (rejected) {
+          setCheck(rejected)
           nicknameRef.current?.focus()
+        } else {
+          setErrorCode(error.code)
+          setFeedback(error.message)
         }
       } else {
         setFeedback('네트워크 연결을 확인하고 다시 시도해 주세요.')
@@ -124,24 +157,28 @@ export function OnboardingPage({ onComplete, onReturnToLogin }: {
                     ref={nicknameRef}
                     value={nickname}
                     onChange={(event) => {
+                      // Any edit makes the previous check stale and drops a pending answer.
+                      checker.cancel()
+                      setCheck(null)
                       setNickname(event.target.value)
-                      setFeedback('')
-                      setErrorCode('')
+                      if (!expired) {
+                        setFeedback('')
+                        setErrorCode('')
+                      }
                     }}
                     maxLength={NICKNAME_MAX}
                     placeholder="사용할 닉네임을 입력해 주세요"
                     autoComplete="nickname"
                     aria-describedby="onboarding-name-help onboarding-feedback"
-                    aria-invalid={Boolean(reservedNicknameFeedback || (feedback && (!validNickname
-                      || errorCode === 'USER_NICKNAME_ALREADY_EXISTS' || errorCode === 'USER_RESERVED_NICKNAME')))}
+                    aria-invalid={nicknameRejected}
                   />
-                  <button type="button" onClick={checkNickname} disabled={!nickname || saving} title="입력 형식을 확인합니다. 중복 여부는 입장 시 서버에서 최종 확인합니다.">중복 확인</button>
+                  <button type="button" onClick={() => void checkNickname()} disabled={!nickname || saving || expired || checkStatus === 'checking'} title="닉네임을 지금 사용할 수 있는지 확인합니다. 공원 입장 시 한 번 더 확인합니다.">중복 확인</button>
                 </div>
                 <div id="onboarding-name-help" className="onboarding-name-help">
                   <span>2~8자 · 한글, 영문, 숫자 · GM으로 시작할 수 없음</span>
                   <span>{nickname.length} / {NICKNAME_MAX}</span>
                 </div>
-                <p id="onboarding-feedback" className={`onboarding-feedback${nicknameFeedbackIsError ? ' onboarding-feedback--error' : ''}`} role="status" aria-live="polite">{nicknameFeedback}</p>
+                <p id="onboarding-feedback" className={`onboarding-feedback${nicknameStatus?.tone === 'error' ? ' onboarding-feedback--error' : nicknameStatus?.tone === 'info' ? ' onboarding-feedback--info' : ''}`} role="status" aria-live="polite">{nicknameStatus?.message ?? ''}</p>
               </div>
 
               <div className="onboarding-notice">
@@ -158,11 +195,11 @@ export function OnboardingPage({ onComplete, onReturnToLogin }: {
                 {expired ? (
                   <button className="onboarding-submit" type="button" onClick={onReturnToLogin}>다시 로그인하기</button>
                 ) : (
-                  <button className="onboarding-submit" type="submit" disabled={!validNickname || !agreed || saving}>
+                  <button className="onboarding-submit" type="submit" disabled={submitBlocked || !agreed || saving}>
                     {saving ? '설정 저장 중…' : '공원 입장하기'}
                   </button>
                 )}
-                <p>{validNickname && agreed ? '입장할 때 닉네임 중복 여부를 확인해요' : '닉네임 입력과 안내 동의를 완료해 주세요'}</p>
+                <p>{!submitBlocked && agreed ? '입장할 때 닉네임을 한 번 더 확인해요' : '닉네임 입력과 안내 동의를 완료해 주세요'}</p>
               </div>
             </form>
           </div>

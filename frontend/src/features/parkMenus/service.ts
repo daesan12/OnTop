@@ -2,15 +2,15 @@ import { RestError } from '../../network/restError'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { useSession } from '../../network/worldClient'
 import type { ParkRuntimePort } from '../../park/runtime/contracts'
-import type { NicknameInputProblem } from '../user/nicknamePolicy'
+import { nicknameServerProblem, type NicknameServerProblem } from '../user/nicknamePolicy'
 
-export type NicknameProblem = NicknameInputProblem | 'taken' | 'unavailable'
+export type NicknameProblem = NicknameServerProblem | 'taken' | 'unavailable'
 
+/** Same mapping for the availability GET and the PATCH, so a check and a save show the same message. */
 export function nicknameProblem(error: unknown): NicknameProblem {
-  if (error instanceof RestError && error.code === 'USER_NICKNAME_ALREADY_EXISTS') return 'taken'
-  if (error instanceof RestError && error.code === 'USER_RESERVED_NICKNAME') return 'reserved'
-  if (error instanceof RestError && error.code === 'USER_INVALID_NICKNAME') return 'format'
-  return 'unavailable'
+  if (!(error instanceof RestError)) return 'unavailable'
+  if (error.code === 'USER_NICKNAME_ALREADY_EXISTS') return 'taken'
+  return nicknameServerProblem(error.code) ?? 'unavailable'
 }
 
 /** GET /api/v1/users/nickname-availability — a check only; it reserves nothing. */

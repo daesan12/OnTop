@@ -180,6 +180,7 @@ DELETE는 Soft Delete + 모든 Refresh 계열 폐기를 한 트랜잭션에서 �
 
 Auth/User/Security 오류는 `{code,message}`다. 닉네임 중복은 `USER_NICKNAME_ALREADY_EXISTS`(409),
 잘못된 닉네임은 `USER_INVALID_NICKNAME`(400), GM 접두어는 `USER_RESERVED_NICKNAME`(400),
+욕설·비속어 금칙어는 `USER_INAPPROPRIATE_NICKNAME`(400, 조회·온보딩·닉네임 수정 공통),
 탈퇴 DB 실패는 `USER_WITHDRAWAL_UNAVAILABLE`(503)이다.
 기존 Channel/Table/Shop 오류에는 `details:null`이 추가되며, Minigame·Feedback·Notes의 추가 오류 필드도 각각 구분한다.
 각 operation에 실제 DTO·허용 요청 필드·성공/오류 상태·주요 code·Cache-Control/Set-Cookie/Location을 기술한다.

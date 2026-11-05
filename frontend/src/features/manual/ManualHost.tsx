@@ -11,6 +11,7 @@ import { useGame } from "../../game/store";
 import { gameState } from "../../game/protocol";
 import { useBungeoppang, syncBungeoppangManualPause } from "../bungeoppang/store";
 import { useJumpmap } from "../jumpmap/state";
+import { useSpeedMole } from "../speedMole/store";
 import { BookIcon } from "./GameArt";
 import {
   closeManual,
@@ -63,7 +64,7 @@ function openContextManual() {
   const game = useGame.getState().game;
   const code = game ? gameState(game).gameCode : session.tableStates[session.tableId || session.watchedTableId]?.gameCode;
   const pages: Record<string, ManualGameId> = { ALKKAGI:"alkkagi", OMOK:"gomoku", DICE:"farkle", ONE_CARD:"onecard", LIAR_BRIDGE:"bridge", DICE_LEDGER:"ledger", HALLI_GALLI:"halligalli" };
-  openManual(useBungeoppang.getState().phase !== "idle" ? "fish-bread" : session.telescopeId ? "places" : pages[code ?? ""] ?? (useJumpmap.getState().run ? "jump" : undefined));
+  openManual(useSpeedMole.getState().open ? "speed-mole" : useBungeoppang.getState().phase !== "idle" ? "fish-bread" : session.telescopeId ? "places" : pages[code ?? ""] ?? (useJumpmap.getState().run ? "jump" : undefined));
 
 }
 

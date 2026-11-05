@@ -144,6 +144,18 @@ class UserOnboardingControllerTests {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"시발", "씨1발", "나는병신", "FUCK"})
+    void 욕설_비속어_닉네임은_거절하고_토큰을_소비하지_않는다(String nickname) throws Exception {
+        String token = issue();
+
+        onboard(token, session, nickname, "MALE").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("USER_INAPPROPRIATE_NICKNAME"));
+
+        assertTokenValid(token);
+        verifyNoInteractions(persistence);
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"OTHER", "male", "female", "", "MALE "})
     void 성별은_정확한_enum_문자열만_허용한다(String gender) throws Exception {
         String token = issue();

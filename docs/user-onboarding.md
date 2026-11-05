@@ -156,6 +156,7 @@ MySQL 중복키 메시지에는 providerUserId가 포함될 수 있어 Hibernate
 | 400 | USER_INVALID_ONBOARDING_REQUEST | 누락/잘못된 JSON·자료형·추가 필드·Content-Type |
 | 400 | USER_INVALID_NICKNAME | 닉네임 형식 |
 | 400 | USER_RESERVED_NICKNAME | 대소문자와 관계없이 GM으로 시작하는 예약 닉네임 |
+| 400 | USER_INAPPROPRIATE_NICKNAME | 욕설·비속어 금칙어 포함([규칙](nickname-availability.md#욕설비속어-금칙어)), 토큰은 소비하지 않음 |
 | 400 | USER_INVALID_CHARACTER_GENDER | 성별 값 |
 | 401 | AUTH_INVALID_ONBOARDING_TOKEN | 누락·위조·만료·처리 중·소비됨·무효화됨·일반 JWT |
 | 403 | AUTH_ORIGIN_NOT_ALLOWED | Origin/preflight/Fetch Metadata 거절 |

@@ -16,6 +16,7 @@ export const manualGameIds = [
   "rps-roulette",
   "plus-minus",
   "whack-a-mole",
+  "speed-mole",
 ] as const;
 export type ManualGameId = (typeof manualGameIds)[number];
 export type ManualCategory = "game" | "minigame" | "vr";

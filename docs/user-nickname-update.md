@@ -37,6 +37,8 @@ UserNicknameUpdateRequest와 User.changeNickname은 기존 NicknameValidator를 
 한글 완성형/영문/숫자 2~8자만 허용하며 trim/소문자 변환 등 보정을 하지 않는다.
 운영진 사칭 방지를 위해 대소문자와 관계없이 `GM`으로 시작하는 닉네임은 거절한다.
 `게임GM`, `온탑GM`처럼 `GM`이 맨 앞에 없는 닉네임은 허용한다.
+욕설·비속어 금칙어가 포함되면 `USER_INAPPROPRIATE_NICKNAME`(400)이다. 목록·매칭 규칙은
+[닉네임 사용 가능 여부](nickname-availability.md#욕설비속어-금칙어)와 같다. 이미 저장된 닉네임은 다시 검증하지 않는다.
 중복 판정은 USER-04와 동일한 existsByNicknameAndIdNot과 기존 nickname collation
 utf8mb4_0900_as_ci를 사용한다. 다른 회원과 탈퇴 회원의 닉네임도 중복이다.
 자신의 ID만 제외하므로 현재 닉네임과 대소문자 변형은 허용한다.
@@ -85,6 +87,7 @@ USER-05의 최종 중복 검증·UNIQUE·409 토큰 재시도 정책은 그대�
 | 400 | USER_INVALID_NICKNAME_UPDATE_REQUEST | 본문 없음/잘못된 JSON/문자열 아님/필드 누락·추가 |
 | 400 | USER_INVALID_NICKNAME | 닉네임 형식 오류 |
 | 400 | USER_RESERVED_NICKNAME | 대소문자와 관계없이 GM으로 시작하는 예약 닉네임 |
+| 400 | USER_INAPPROPRIATE_NICKNAME | 욕설·비속어 금칙어 포함 |
 | 401 | AUTH_AUTHENTICATION_REQUIRED / AUTH_INVALID_ACCESS_TOKEN | 인증 없음/위조/만료/다른 용도 |
 | 401 | AUTH_MEMBER_STATE_CHANGED | 없는 회원/탈퇴/로그인 계열 무효 |
 | 403 | 기존 AUTH_ORIGIN_NOT_ALLOWED / AUTH_ACCESS_DENIED | Origin 또는 권한 정책 위반 |
