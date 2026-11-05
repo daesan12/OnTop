@@ -127,7 +127,7 @@ export interface Session {
   equipment: Record<string, readonly PublicEquipment[]>
   activities: Record<string, AvatarActivity>
   gameWatches: Record<string, { gameId: string; tableId: string }>
-  account: { nickname: string; balance: number | null } | null
+  account: { nickname: string; balance: number | null; reservedBalance?: number } | null
 }
 const initial = (): Session => ({
   status: 'idle',
