@@ -1,5 +1,5 @@
 """Split a Tripo head part (hair and face skin came out as one part) by texel colour:
--- <parts.glb> <out.glb> part=1 [hair=90] [face=91] [dark=0.5] [smooth=4]
+-- <parts.glb> <out.glb> part=1 [hair=90] [face=91] [dark=0.5] [smooth=4] [min_island=300] [cut=x,y,z] [brows=zlo,zhi,xmax]
 Each face is hair when its mean texel brightness is under `dark`; then `smooth` passes of neighbour majority vote
 clean the edge. The hair becomes tripo_part_<hair>, the skin tripo_part_<face>; every other part is kept."""
 import bpy, bmesh, sys, os
@@ -24,6 +24,34 @@ nb = [[g.index for e in f.edges for g in e.link_faces if g is not f] for f in bm
 for _ in range(SMOOTH):
     hair = np.array([(hair[n].sum() * 2 > len(n)) if n and hair[n].sum() * 2 != len(n) else hair[i] for i, n in enumerate(nb)])
 bm.free()
+# cut=x,y,z: hair faces with |x| < x, y < y and z < z are not hair (the shirt collar's dark inside, when Tripo gave the
+# hair, the shirt and the skin as one part)
+if opt.get('cut'):
+    cx, cy, cz = (float(v) for v in opt['cut'].split(','))
+    mw = o.matrix_world
+    for i, p in enumerate(o.data.polygons):
+        c = mw @ p.center
+        if abs(c.x) < cx and c.y < cy and c.z < cz: hair[i] = False
+# brows=zlo,zhi,xmax: the model's own eyebrows are painted on the same surface as the forehead and came out as hair,
+# over the body's own brows. In that band, a front hair face with nothing behind it within 2 cm (looking into the head)
+# lies on the skull: a brow, dropped. The fringe hangs a few millimetres before the forehead, so it has.
+if opt.get('brows'):
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+    zlo, zhi, xm = (float(v) for v in opt['brows'].split(','))
+    dg = bpy.context.evaluated_depsgraph_get(); allb = bmesh.new()
+    for x in bpy.data.objects:
+        if x.type == 'MESH':
+            t = bmesh.new(); t.from_mesh(x.data); t.transform(x.matrix_world)
+            tmp = bpy.data.meshes.new('t'); t.to_mesh(tmp); t.free(); allb.from_mesh(tmp); bpy.data.meshes.remove(tmp)
+    tree = BVHTree.FromBMesh(allb); allb.free()
+    mw = o.matrix_world; nbrow = 0
+    for i, p in enumerate(o.data.polygons):
+        if not hair[i]: continue
+        c = mw @ p.center; n = (mw.to_3x3() @ p.normal).normalized()
+        if not (zlo < c.z < zhi and abs(c.x) < xm and n.y < -0.3): continue
+        if tree.ray_cast(c + Vector((0, 0.0005, 0)), Vector((0, 1, 0)), 0.02)[0] is None: hair[i] = False; nbrow += 1
+    print('SPLIT', nbrow, 'brow faces dropped')
 print('SPLIT', PART, int(hair.sum()), 'hair faces,', int((~hair).sum()), 'skin faces')
 for name, keep in ((HAIR, True), (FACE, False)):
     c = o.copy(); c.data = o.data.copy(); bpy.context.scene.collection.objects.link(c)

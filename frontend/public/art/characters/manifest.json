@@ -87,18 +87,18 @@
       "outfit": "general",
       "source": {
         "file": "general_raw.glb",
-        "sha256": "be437bb5258de47802cbb2a15c3b6bee9b72e0a59c913790ec63e3a7bf319a06",
-        "bytes": 8233248,
-        "triangles": 91313,
+        "sha256": "5fcf2f82f01cf55e1cb55ad56afb2e676937538dec757f4aefd3ebdaf246952c",
+        "bytes": 8575768,
+        "triangles": 97353,
         "generator": "Tripo items on a shared base (user supplied)"
       },
       "runtime": {
         "file": "outfits/general.glb",
-        "sha256": "c2575283b72e0d7f4cda73ff1aba4afc6b0168ea26ec6fbf430ee1a5f4b18b69",
-        "bytes": 3192192,
+        "sha256": "97c2be0aeb5a4f94cf59d00b7623a3b88c6ef1d4a733d1f80a4cf871390ce8f2",
+        "bytes": 3426344,
         "triangles": {
-          "far": 5999,
-          "near": 91313
+          "far": 6000,
+          "near": 97353
         }
       },
       "heightMeters": 1.7,
@@ -107,14 +107,14 @@
       "parts": [
         {
           "name": "far-body",
-          "triangles": 5999,
-          "vertices": 10486,
+          "triangles": 6000,
+          "vertices": 10725,
           "pieces": 7
         },
         {
           "name": "near-body",
-          "triangles": 91313,
-          "vertices": 78680,
+          "triangles": 97353,
+          "vertices": 86560,
           "pieces": 7
         }
       ],
@@ -127,18 +127,18 @@
       "outfit": "gat",
       "source": {
         "file": "gat_raw.glb",
-        "sha256": "6d6c0625d0d0469f4238119c444dede6030323b578c562166f5671242db30e1f",
-        "bytes": 6755572,
-        "triangles": 74999,
+        "sha256": "eb7ecd4ef18468881fbfae4d08c225fda43afa8f598befba03b9caee006ed9d3",
+        "bytes": 6975252,
+        "triangles": 75000,
         "generator": "Tripo items on a shared base (user supplied)"
       },
       "runtime": {
         "file": "outfits/gat.glb",
-        "sha256": "b6122483a6a191ed6b3645316ce980893384dee96dbcb79c39c8b15459948c82",
-        "bytes": 3134664,
+        "sha256": "b8507cbc2894b792b6df3635a0bd0a421ad7c6dfa70a901b7b6a728dc2960511",
+        "bytes": 3248712,
         "triangles": {
           "far": 6000,
-          "near": 74999
+          "near": 75000
         }
       },
       "heightMeters": 1.7,
@@ -148,13 +148,13 @@
         {
           "name": "far-body",
           "triangles": 6000,
-          "vertices": 9577,
-          "pieces": 12
+          "vertices": 9869,
+          "pieces": 11
         },
         {
           "name": "near-body",
-          "triangles": 74999,
-          "vertices": 79699,
+          "triangles": 75000,
+          "vertices": 83653,
           "pieces": 15
         }
       ],
