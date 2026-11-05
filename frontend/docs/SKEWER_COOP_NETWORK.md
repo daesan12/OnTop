@@ -1,5 +1,14 @@
 # 온탑 꼬치왕 — 서로 다른 컴퓨터의 2인 연결
 
+## 2026-11-05 MR !381 방별 영수증 정리·입장 취소 경합 보강
+
+- 작업 브랜치 `feat/quest-vr`. 시작 시 최신 `origin/dev@2e336bc3` 포함을 확인했고, 검증 중 추가된 `86ab0c00`(부분 월드 컨텍스트 운영 상태 주입)을 `8d9ae997`로 통합했다. 충돌 없음. 기존 미커밋 검수 자료와 별도 VR worktree는 보존했다. 이번 게임 수정은 `game/skewer/coop`, 대응 테스트와 프런트 `features/skewer/coop/client.ts`에 한정하며, 새 서버나 포트는 열지 않았다.
+- 행동/기권 영수증을 `gameId → 사용자·actionId → 영수증`으로 묶는다. 만료된 방의 맵만 제거하므로 다른 방의 전체 영수증을 순회하지 않는다. 별도 인덱스·개별 영수증 TTL을 두지 않으며, 기존 방 보존 기간·미저장 결과 보존·중복 행동/기권 응답·충돌 검사를 유지한다. 같은 사용자가 다른 경기에서 동일 actionId를 사용해도 섞이지 않는다.
+- 비밀번호 해시 전후의 방 검사를 유지한다. 이미 닫힌 방은 BCrypt를 실행하지 않으며, 올바른 비밀번호 검증 중 방이 취소되면 이전 실패 기록과 진행 중 검증 표시를 정리한 뒤 입장을 거절한다. 같은 채널에서 확인된 종료방은 HTTP 409 `SKEWER_COOP_ROOM_CLOSED`로 구분하고 프런트는 “가게가 닫혔어요. 목록에서 다른 가게를 선택해 주세요.”를 표시한다. 없는 방·다른 채널은 기존 일반 거절로 남겨 상태를 노출하지 않는다. 정원 마감·비밀번호 오류·재시도 제한 계약은 유지한다.
+- 제품 수정 전 새 회귀 3개가 전체 순회/종료 안내 차이로 실패하는 것을 확인했다. 수정 후 만료 중 전체 순회 차단, 다른 방의 동일 키 재시도 보존, 닫힌 방의 해시 미실행, 해시 지연 중 취소·공유 락 응답·실패 기록/진행 표시 해제·다른 방 재입장, HTTP 오류 코드와 FE 목록 유지까지 검증했다.
+- 최신 dev 통합 후 꼬치왕·저널·정산·라우터·재접속·입장·공원/운영 설정 백엔드 151개 통과(실패/제외 0), 프런트 방 탐색·재시작·결과·공원 진입·검색 30개와 제품 TypeScript 통과. 독립 실행은 `backend`의 `gradlew test --tests '*Skewer*Tests' --tests '*GameEngineRouterTests' --tests '*GameReconnect*Tests' --tests '*TableHubSkewerEntryTests' --tests '*WorldChannelRegistryTests' --tests '*NewActivityGateInterceptorTests' --tests '*ServiceOperationServiceTests'`, `frontend`의 `node node_modules/vitest/vitest.mjs run tests/unit/skewerCoopRooms.test.ts tests/unit/skewerCoopRestart.test.ts tests/unit/skewerCoopResult.test.ts tests/unit/parkSkewerEntry.test.ts tests/unit/skewerRoomSearch.test.ts`와 `node node_modules/typescript/bin/tsc --noEmit`이다.
+- 이번 범위에서 공통 인증·지갑·맵·신규 Flyway 변경은 없다. 실제 DB·Quest·두 노트북·운영 부하 측정은 미검수이며, 전체 지연 해소를 보장하는 측정 결과로 해석하지 않는다. 기존 Draft MR !381에 갱신하고 dev 머지·배포·브랜치 삭제는 보류한다.
+
 ## 2026-11-05 틱 예외 격리·종료 기록 만료 — 검수 후 수정
 
 - 시작 fetch에서 `origin/dev@deb37290`(자동 채널 입장 복구 테스트)을 확인하고 `62f8d567`로 반영했다. 충돌 없음. 작업 브랜치 `feat/quest-vr`, 기존 검수 파일과 별도 VR worktree 변경은 보존했다.

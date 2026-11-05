@@ -90,6 +90,17 @@ describe('협동 방 탐색과 준비 취소', () => {
     expect(client.store.getState().error).toContain('30초 후')
     expect(client.store.getState().error).not.toContain('가득')
   })
+  it('비밀번호 확인 중 방이 닫히면 종료 안내를 표시하고 방 목록에서 다시 선택할 수 있다', async () => {
+    const { client, requestJSON } = fixture()
+    client.store.setState({ lobbyPage: 'rooms' })
+    requestJSON.mockRejectedValue({ code: 'SKEWER_COOP_ROOM_CLOSED' })
+
+    expect(await client.enter(id, { password: 'correct123' })).toBe(false)
+
+    expect(client.store.getState()).toMatchObject({ snapshot: null, pending: false, lobbyPage: 'rooms',
+      error: '가게가 닫혔어요. 목록에서 다른 가게를 선택해 주세요.' })
+    expect(requestJSON).toHaveBeenCalledTimes(1)
+  })
   it('두명이 역할선택중이어도 기권하지 않고 나간 뒤 방 목록으로 돌아온다', async () => {
     const { client, request, requestJSON } = fixture()
     client.store.setState({ snapshot: snapshot() })
