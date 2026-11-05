@@ -4,7 +4,8 @@ was one character's. Here each character's default hair (man b, girl e) is copie
 __for_girl (the game draws it on that character only, characterLook.ts) and kept inside the hat: every hair vertex the
 hat lies between the head's centre and it is pulled in to `gap` (3 mm) inside the hat, so the hair shows only where
 it comes out from under the hat (under the brim, below a cap). drop_hair=1 also takes the hat item's own brown hair
-(Tripo's, rougher than the default hair) out of it; its dark parts (hat, ribbon) stay. man= or girl= empty: none."""
+(Tripo's, rougher than the default hair) out of it; its dark parts (hat, ribbon) stay. man= or girl= empty: none.
+hair_faces=N cuts each copy down to about N faces (off: raise the outfit's near budget instead). strict=1 (a cap fitting the skull) keeps only the hair wholly outside the hat, in pieces of strict_min faces or more."""
 import bpy, bmesh, sys, re, os
 import numpy as np
 from mathutils import Vector
@@ -85,10 +86,38 @@ for variant in ('man', 'girl'):
         # faces wholly pulled in lie under the hat, never seen: they go (the helmet hid nine tenths of the girl's hair)
         cb = bmesh.new(); cb.from_mesh(c.data)
         gone = [f for f in cb.faces if all(v.index in pulled for v in f.verts)]
+        # strict=1 (a cap that fits the skull, the general's): every face touching the cap goes, and the bits of
+        # hair left loose (islands under strict_min, 300 faces): pressed flat onto the cap, they lay round the ears
+        # as ragged patches (user)
+        if opt.get('strict', '0') == '1':
+            gone = [f for f in cb.faces if any(v.index in pulled for v in f.verts)]
         bmesh.ops.delete(cb, geom=gone, context='FACES')
+        if opt.get('strict', '0') == '1':
+            seen, small = set(), []
+            for f in cb.faces:
+                if f in seen: continue
+                grp = [f]; seen.add(f); st = [f]
+                while st:
+                    g = st.pop()
+                    for e in g.edges:
+                        for nf in e.link_faces:
+                            if nf not in seen: seen.add(nf); grp.append(nf); st.append(nf)
+                if len(grp) < int(opt.get('strict_min', 300)): small += grp
+            bmesh.ops.delete(cb, geom=small, context='FACES'); print('HAIR', len(small), 'loose faces dropped')
         bmesh.ops.delete(cb, geom=[v for v in cb.verts if not v.link_faces], context='VERTS')
         cb.to_mesh(c.data); cb.free()
         print('HAIR', len(gone), 'faces wholly under the hat dropped')
+        # (hair_faces=N: the copy is cut down to about N faces. Off by default: cut hard (3000) the hair's texture went
+        # streaky; give the outfit file a bigger near budget instead, or the dense hair takes it and the robe comes
+        # out coarse with holes at the shoulders, user)
+        target = int(opt.get('hair_faces', 0))
+        if target and len(c.data.polygons) > target:
+            md = c.modifiers.new('dec', 'DECIMATE'); md.ratio = target / len(c.data.polygons); md.use_collapse_triangulate = True
+            for m_ in list(c.modifiers):
+                if m_.type == 'ARMATURE': c.modifiers.remove(m_)
+            bpy.context.view_layer.objects.active = c; bpy.ops.object.modifier_apply(modifier='dec')
+            am = c.modifiers.new('Armature', 'ARMATURE'); am.object = arm
+            print('HAIR decimated to', len(c.data.polygons), 'faces')
         c.name = f'item__HAIR__{SET}__for_{variant}' + (f'_{k}' if k else '')
         print('HAIR', c.name, 'from', o.name, len(c.data.vertices), 'vertices,', n_, 'pulled inside the hat')
 

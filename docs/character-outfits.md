@@ -143,6 +143,7 @@
 "$B" -b --python tools/character/hat_hair.py -- hh1.glb hh2.glb set=g man= girl=e                    # 장군 투구: 남자는 그대로, 여자 머리만
 ```
 
+- 머리를 넣은 옷 파일은 `to_game.py`의 `near`를 머리 몫만큼 올린다(갓 4만 → 7만 5천). 그대로 두면 촘촘한 머리가 삼각형을 다 가져가 도포가 거칠어지고 어깨에 구멍이 생겼다(도포 17,324 → 6,674). 머리를 미리 크게 줄이면(`hair_faces`) 머리 텍스처가 줄무늬처럼 깨져서 쓰지 않는다.
 - 카드 그림은 `item_art.py ... variant=girl`로 `-girl` 그림(`outfit-gat-h-hair-girl.webp`)을 따로 만든다. 옷장은 여자 캐릭터일 때 이 그림을 먼저 쓴다.
 
 ### ⑤ 빌드 확인
