@@ -139,7 +139,7 @@ export function WardrobeScreen() {
       </div>
       {preview && !wornPiece(preview.item.imageKey) && <p className="wardrobe-stage__note" role="note">의상 3D 모델이 준비되면 캐릭터에 바로 보여요. 지금은 착용 정보만 바뀌어요.</p>}
     </section>
-    <p className="wardrobe-hint"><span aria-hidden="true">🖱</span>WASD 이동 · 드래그로 회전 · Esc 닫기</p>
+    <p className="wardrobe-hint"><span aria-hidden="true">🖱</span>WASD 이동 · 드래그로 회전 · 더블클릭으로 입기·벗기 · Esc 닫기</p>
 
     <section className="wardrobe-panel" aria-labelledby="wardrobe-heading">
       <header className="wardrobe-panel__header">
@@ -172,7 +172,12 @@ export function WardrobeScreen() {
           {visible.map(owned => <li key={owned.userItemId}>
             <button type="button" className="wardrobe-card" aria-pressed={previewed(owned)}
               aria-label={`${label(owned)} ${slotText(owned)}${owned.equipped ? ' 착용 중' : ''}`}
-              disabled={!!s.equipping} onClick={() => previewWardrobeItem(owned.userItemId)}>
+              disabled={!!s.equipping} onClick={() => previewWardrobeItem(owned.userItemId)}
+              // A double click wears it, or takes it off when it is already worn (the two clicks before it preview it).
+              onDoubleClick={() => {
+                previewWardrobeItem(owned.userItemId)
+                void (owned.equipped ? takeOffPreviewedItem() : wearPreviewedItem())
+              }}>
               <ItemArt owned={owned} variant={variant} />
               {owned.equipped ? <span className="wardrobe-badge wardrobe-badge--worn">착용 중</span>
                 : previewed(owned) && <span className="wardrobe-badge wardrobe-badge--preview">미리보기</span>}
@@ -197,7 +202,7 @@ export function WardrobeScreen() {
               </button>}
             <button type="button" className="wardrobe-cancel" disabled={!!s.equipping} onClick={cancelWardrobePreview}>미리보기 취소</button>
           </div>
-        </> : <p className="wardrobe-detail__empty">{s.notice || '입어 볼 의상을 골라 주세요.'}</p>}
+        </> : <p className="wardrobe-detail__empty">{s.notice || '입어 볼 의상을 골라 주세요. 두 번 누르면 바로 입어요.'}</p>}
         {s.equipError && <p className="wardrobe-message" role="alert">{s.equipError}</p>}
       </footer>
     </section>

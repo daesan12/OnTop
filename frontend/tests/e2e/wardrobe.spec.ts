@@ -25,7 +25,8 @@ async function wardrobeRoutes(page: Page, options: { owned?: OwnedItem[]; disabl
     const target = owned.find(item => item.userItemId === (request.postDataJSON() as { userItemId: number }).userItemId)!
     // The server's rule: top, bottom and shoes are one outfit, so any of them takes the others off.
     const place = (slot: OwnedItem['item']['equipSlot']) => slot === 'HAIR' || slot === 'FACE' ? slot : 'OUTFIT'
-    for (const item of owned) if (place(item.item.equipSlot) === place(target.item.equipSlot)) item.equipped = item === target
+    const off = (request.postDataJSON() as { equipped?: boolean }).equipped === false
+    for (const item of owned) if (place(item.item.equipSlot) === place(target.item.equipSlot)) item.equipped = !off && item === target
     return route.fulfill({ json: { equipment: owned.filter(item => item.equipped) } })
   })
   return calls
@@ -112,12 +113,18 @@ test('dock 옷장 opens 마이룸: slots, tabs, search, preview and wear call th
   const afterClick = walked(server)
   await page.keyboard.down('KeyD'); await page.waitForTimeout(400); await page.keyboard.up('KeyD')
   await expect.poll(() => walked(server)).toBeGreaterThan(afterClick)
+  // A double click wears the card at once, and a second double click on the worn card takes the outfit off.
+  await dialog.getByRole('button', { name: '초록 후드 옷 · 상의' }).dblclick()
+  await expect(dialog.getByRole('button', { name: '초록 후드 옷 · 상의 착용 중' })).toBeVisible()
+  await dialog.getByRole('button', { name: '초록 후드 옷 · 상의 착용 중' }).dblclick()
+  await expect(dialog.getByRole('button', { name: '초록 후드 옷 · 상의', exact: true })).toBeVisible()
+  await dialog.getByRole('button', { name: '초록 후드 옷 · 상의' }).click()
   await dialog.getByRole('button', { name: '미리보기 취소' }).click()
   await expect(dialog.locator('.wardrobe-detail')).toContainText('입어 볼 의상을 골라 주세요.')
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
   await expect.poll(async () => (await cameraProbe(page))?.distance ?? 0, { timeout: 10000 }).toBeGreaterThan(5)
-  expect(calls.filter(c => c.method === 'PATCH')).toHaveLength(1)
+  expect(calls.filter(c => c.method === 'PATCH')).toHaveLength(3)
 })
 
 test('a disabled shop server shows the wardrobe as not ready, and an empty inventory says so', async ({ page }) => {
