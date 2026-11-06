@@ -12,9 +12,11 @@ import { chefPresentation } from './chefPresentation'
 import { ChefHall } from './ChefHall'
 import { INITIAL_PANTRY } from '../cooperativeMenu'
 import { closingTime } from '../closingTime'
+import { chefVRArt, paintChefVRGuide } from './vrGuide'
+import { paintGuidePaper, paintGuideButton, paintGuideNotePaper, TOUCH_GUIDE_COLORS } from '../../vrGuide/touchControllerGuide'
 
 export type ChefMode = 'pc' | 'vr'
-type Pick = { ingredient: IngredientId } | { action: 'thread' | 'unthread' | 'submit' | 'stick' | 'coop' | 'restartRequest' | 'restartAccept' | 'restartDecline' } | { slot: number }
+type Pick = { ingredient: IngredientId } | { action: 'thread' | 'unthread' | 'submit' | 'stick' | 'coop' | 'restartRequest' | 'restartAccept' | 'restartDecline' | 'guide' | 'closeGuide' } | { slot: number }
 type Held = { ingredient: IngredientId; root: THREE.Group }
 const HOME = new THREE.Vector3(0, 1.25, .48), TIP = new THREE.Vector3(1.3, 0, 0)
 const COUNTER_TOP = 1.02
@@ -84,14 +86,21 @@ export class ChefScene {
   private readonly timerTexture: THREE.CanvasTexture
   private readonly clock: THREE.Mesh
   private readonly previewControllers = new THREE.Group()
+  private readonly guideRoot = new THREE.Group()
+  private readonly guideButton = new THREE.Group()
+  private readonly guideCanvas = document.createElement('canvas')
+  private readonly guideImage = new Image()
+  private readonly guidePaper = new Image()
+  private guideTexture!: THREE.CanvasTexture
   private readonly controllers: THREE.XRTargetRaySpace[] = []
   private readonly held = new Map<number, Held>()
   private readonly onEndListeners: (() => void)[] = []
   private readonly observer: ResizeObserver
   private readonly marker: THREE.Mesh
   private view: ChefView; private mode: ChefMode; private disposed = false; private session: XRSession | null = null
+  private releaseVR?: () => void
   private owner: number | null = null; private signature = ''; private passSignature = ''; private boardSignature = ''; private timerSecond = -1; private last = 0
-  constructor(private host: HTMLElement, initial: ChefView, mode: ChefMode, private step: (dt: number) => ChefView, private action: (action: ChefAction) => void, private notice: (s: string) => void, private xrChanged: (active: boolean) => void) {
+  constructor(private host: HTMLElement, initial: ChefView, mode: ChefMode, private step: (dt: number) => ChefView, private action: (action: ChefAction) => void, private notice: (s: string) => void, private xrChanged: (active: boolean) => void, private beforeXR?: () => Promise<() => void>) {
     this.view = initial; this.mode = mode; this.previousCompleted = initial.completed ?? 0; this.previousOrders = initial.visible.map(job => ({ ...job, recipe: [...job.recipe] }))
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = .9
@@ -138,7 +147,7 @@ export class ChefScene {
     this.skewer.add(this.undoHint)
     this.world.place(this.previewControllers, this.controllerModel(), -.72, 1.00, 1.28).rotation.set(-.5, .4, -.2)
     this.world.place(this.previewControllers, this.controllerModel(), 1.12, 1.05, 1.20).rotation.set(-.5, -.5, .2)
-    this.kitchen.add(this.previewControllers); this.setupControllers(); this.setMode(mode)
+    this.kitchen.add(this.previewControllers); this.buildVRGuide(); this.setupControllers(); this.setMode(mode)
     this.world.wood([this.world.material('#b77b43'), this.world.material('#825030'), this.world.material('#744323')], undefined, true)
     this.observer = new ResizeObserver(this.resize); this.observer.observe(host); this.resize()
     this.renderer.setAnimationLoop(this.render); host.dataset.ready = 'true'; host.dataset.geometry = 'live-three-kitchen'
@@ -331,7 +340,7 @@ export class ChefScene {
     if (this.view.cooperative) {
       this.coopCanvas.width = 768; this.coopCanvas.height = 190; this.coopTexture = this.texture(this.coopCanvas)
       this.coopPanel = new THREE.Group(); r.add(this.coopPanel)
-      const greeting = this.mesh(new THREE.PlaneGeometry(1.6, .32), new THREE.MeshBasicMaterial({ map: this.coopTexture, toneMapped: false }))
+      const greeting = this.mesh(new THREE.PlaneGeometry(1.6, .32), new THREE.MeshBasicMaterial({ map: this.coopTexture, transparent: true, toneMapped: false }))
       a.place(this.coopPanel, greeting, 2.59, 1.76, -1.43)
       this.hitBox(this.coopPanel, new THREE.Vector3(2.59, 1.76, -1.43), new THREE.Vector3(1.65, .33, .12), { action: 'coop' })
       r.add(this.restartRequest, this.restartReply)
@@ -354,16 +363,59 @@ export class ChefScene {
     for (const [i, id] of ids.entries()) { const food = this.foods.create(id); food.scale.setScalar(scale * assembledFoodScale(ids)); food.position.x = (positions[i] + .06) * scale; group.add(food) }
     group.traverse(o => { if (o instanceof THREE.Mesh) o.castShadow = true }); return group
   }
+  private buildVRGuide() {
+    this.guideCanvas.width = 1536; this.guideCanvas.height = 1152
+    this.guideTexture = this.texture(this.guideCanvas)
+    const panel = this.mesh(new THREE.PlaneGeometry(1.28, .96), new THREE.MeshBasicMaterial({ map: this.guideTexture, depthTest: false, depthWrite: false, transparent: true, toneMapped: false }))
+    panel.name = 'chef-vr-guide'; panel.renderOrder = 10010
+    this.guideRoot.add(panel); this.guideRoot.visible = false; this.scene.add(this.guideRoot)
+    this.hitBox(this.guideRoot, new THREE.Vector3(0, -.407, .01), new THREE.Vector3(1.18, .078, .02), { action: 'closeGuide' })
+    const button = this.sign('VR 조작 안내', 1.10, .25)
+    button.userData.pick = { action: 'guide' }; this.pickables.push(button)
+    this.guideButton.add(button); this.guideButton.position.set(-2.05, 1.75, .70); this.kitchen.add(this.guideButton)
+    this.guideImage.onload = () => { if (!this.disposed) this.paintGuide() }
+    this.guideImage.src = chefVRArt
+    const repaintPaper = () => {
+      if (this.disposed) return
+      this.paintGuide(); this.paintBoard(); this.actionSignature = ''; this.paintActions()
+    }
+    this.guidePaper.onload = repaintPaper
+    this.guidePaper.src = '/art/tablet/hanji.webp'
+    this.paintGuide()
+    void document.fonts.load('700 62px ChefMyeongjo').then(repaintPaper).catch(() => undefined)
+  }
+  private paintGuide() {
+    paintChefVRGuide(this.guideCanvas.getContext('2d')!, this.guideImage, !!this.view.cooperative, this.guidePaper)
+    this.guideTexture.needsUpdate = true
+    this.host.dataset.vrGuideArtReady = String(this.guideImage.complete && this.guideImage.naturalWidth > 0)
+  }
+  get vrGuideOpen() { return this.guideRoot.visible }
+  showVRGuide(open = true) {
+    if (open && this.mode !== 'vr') return
+    if (open) {
+      // Help owns the controller input; opening/closing never sends a game action.
+      this.held.forEach(held => held.root.removeFromParent()); this.held.clear(); this.returnStick()
+      const camera = this.session ? this.renderer.xr.getCamera() : this.camera
+      camera.getWorldPosition(this.v); camera.getWorldQuaternion(this.q)
+      this.guideRoot.quaternion.copy(this.q)
+      if (this.session) this.guideRoot.rotation.set(0, new THREE.Euler().setFromQuaternion(this.q, 'YXZ').y, 0)
+      this.guideRoot.position.copy(this.v).add(this.v2.set(0, 0, -1.5).applyQuaternion(this.guideRoot.quaternion))
+      this.paintGuide()
+    }
+    this.guideRoot.visible = open; this.host.dataset.vrGuide = String(open)
+  }
   private paintBoard() {
     const ctx = this.board.getContext('2d')!, v = this.view, presentation = chefPresentation(v)
     ctx.clearRect(0, 0, 1536, 720)
     const result = v.cooperative?.result
     if (result) {
-      ctx.fillStyle = '#f5ecda'; ctx.fillRect(0, 0, 1536, 720)
-      ctx.fillStyle = '#463324'; ctx.textAlign = 'center'; ctx.font = '700 74px "Malgun Gothic",sans-serif'; ctx.fillText('영업 완료!', 768, 160)
-      ctx.font = '700 105px "Malgun Gothic",sans-serif'; ctx.fillText(`팀 점수 ${result.score.toLocaleString('ko-KR')}점`, 768, 310, 1400)
+      paintGuidePaper(ctx, 720, this.guidePaper)
+      ctx.fillStyle = TOUCH_GUIDE_COLORS.ink; ctx.textAlign = 'center'; ctx.font = '700 74px ChefMyeongjo, "Malgun Gothic",serif'; ctx.fillText('영업 완료!', 768, 140)
+      ctx.strokeStyle = '#d4c5a5'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(80, 180); ctx.lineTo(1456, 180); ctx.stroke()
+      ctx.font = '700 105px ChefMyeongjo, "Malgun Gothic",serif'; ctx.fillText(`팀 점수 ${result.score.toLocaleString('ko-KR')}점`, 768, 310, 1400)
       ctx.font = '700 43px "Malgun Gothic",sans-serif'; ctx.fillText(result.reward, 768, 425, 1400); ctx.fillText(result.ranking, 768, 510, 1400)
-      ctx.font = '700 35px "Malgun Gothic",sans-serif'; ctx.fillText('오른쪽 「공원으로」 버튼을 선택해요', 768, 640, 1400)
+      paintGuideNotePaper(ctx, 600)
+      ctx.fillStyle = TOUCH_GUIDE_COLORS.muted; ctx.font = '400 35px "Malgun Gothic",sans-serif'; ctx.fillText('오른쪽 「공원으로」 버튼을 선택해요', 768, 640, 1400)
       this.boardTexture.needsUpdate = true; return
     }
     const drawReceipt = (job: ChefJob | undefined, slot: number, alpha = 1, dy = 0) => {
@@ -436,7 +488,16 @@ export class ChefScene {
       ctx.font = '700 30px "Malgun Gothic",sans-serif'; ctx.fillText(sub, 384, 144, 720); texture.needsUpdate = true
     }
     paint(this.submitCanvas, this.submitTexture, p.submitReady ? '완성 접시 놓기' : p.submitLabel, `트리거 · 전달대 ${this.view.pass.length} / 2`, p.submitReady)
-    if (this.coopTexture) paint(this.coopCanvas, this.coopTexture, coopLabel, coop?.phase === 'PLAYING' && !coop.greeting ? '완성한 접시를 전달해요' : '트리거로 선택', !!coop?.greeting && !coop.answered && !coop.paused)
+    if (this.coopTexture) {
+      if (coop?.phase === 'FINISHED') {
+        const ctx = this.coopCanvas.getContext('2d')!
+        ctx.save(); ctx.scale(.5, .5); paintGuidePaper(ctx, 380, this.guidePaper); ctx.restore()
+        paintGuideButton(ctx, 16, 16, 736, 112, coopLabel, false)
+        ctx.textAlign = 'center'; ctx.fillStyle = TOUCH_GUIDE_COLORS.ink; ctx.font = '400 30px "Malgun Gothic",sans-serif'
+        ctx.fillText('트리거로 선택', 384, 166, 720)
+        this.coopTexture.needsUpdate = true
+      } else paint(this.coopCanvas, this.coopTexture, coopLabel, coop?.phase === 'PLAYING' && !coop.greeting ? '완성한 접시를 전달해요' : '트리거로 선택', !!coop?.greeting && !coop.answered && !coop.paused)
+    }
   }
   private paintClock() {
     const ctx = this.timerCanvas.getContext('2d')!, s = Math.ceil(this.view.seconds)
@@ -465,6 +526,8 @@ export class ChefScene {
 
   setMode(mode: ChefMode) {
     this.mode = mode
+    this.guideButton.visible = mode === 'vr'
+    if (mode !== 'vr') this.showVRGuide(false)
     this.passFurniture.position.set(.15, .05, 1.5)
     this.pass.position.copy(this.passFurniture.position)
     this.grillStation.visible = false
@@ -478,6 +541,10 @@ export class ChefScene {
     this.camera.fov = 65; this.camera.updateProjectionMatrix(); this.host.dataset.mode = mode
   }
   private activate(pick: Pick) {
+    if ('action' in pick && (pick.action === 'guide' || pick.action === 'closeGuide')) {
+      this.showVRGuide(pick.action === 'guide'); return
+    }
+    if (this.guideRoot.visible) return
     if ('action' in pick && ['restartRequest', 'restartAccept', 'restartDecline'].includes(pick.action)) {
       if (pick.action === 'restartRequest' && !this.view.cooperative?.paused) this.action({ type: 'restartRequest' })
       if (pick.action === 'restartAccept' && this.view.cooperative?.restart && !this.view.cooperative.restart.own) this.action({ type: 'restartAccept' })
@@ -492,7 +559,7 @@ export class ChefScene {
       else if (this.view.cooperative?.greeting && !this.view.cooperative.answered) this.action({ type: 'greet' })
       else if (this.view.cooperative?.phase === 'WAITING') this.action({ type: 'ready' })
     }
-    else if (pick.action !== 'stick') this.action({ type: pick.action })
+    else if (pick.action === 'thread' || pick.action === 'unthread' || pick.action === 'submit') this.action({ type: pick.action })
   }
   private pointer = (event: PointerEvent) => {
     if (event.button !== 0 || this.session) return
@@ -555,7 +622,11 @@ export class ChefScene {
     }
     this.arrivals = this.arrivals.filter(arrival => now - arrival.started < 360)
   }
-  private visiblePickables() { return this.pickables.filter(mesh => { for (let o: THREE.Object3D | null = mesh; o; o = o.parent) if (!o.visible) return false; return true }) }
+  private visiblePickables() { return this.pickables.filter(mesh => {
+    if (this.guideRoot.visible && mesh.userData.pick?.action !== 'closeGuide') return false
+    for (let o: THREE.Object3D | null = mesh; o; o = o.parent) if (!o.visible) return false
+    return true
+  }) }
   private controllerModel() {
     const a = this.world, root = new THREE.Group(); const grip = a.cylinder(.035, .16, '#e5e4dc', .045); grip.rotation.x = .25; a.place(root, grip, 0, -.07, .025)
     a.place(root, a.box(.09, .035, .12, '#252c2b', .02), 0, .01, 0)
@@ -585,7 +656,7 @@ export class ChefScene {
         else if (good) { this.feedback = ''; this.action({ type: 'thread', ingredient: held.ingredient }) }
         else this.showNotice('꼬치 끝에 재료의 중심과 방향을 맞춰 주세요.')
       }
-      const grab = () => { const pick = this.controllerHit(i)?.object.userData.pick as Pick | undefined; if (pick && 'action' in pick && pick.action === 'stick' && !chefPresentation(this.view).blocked && this.owner === null && !this.held.has(i)) { c.attach(this.skewer); this.skewer.rotation.set(0, 0, 0); this.skewer.position.set(1.51 * this.kitchen.scale.x, 0, -.12); this.owner = i } }
+      const grab = () => { if (this.guideRoot.visible) return; const pick = this.controllerHit(i)?.object.userData.pick as Pick | undefined; if (pick && 'action' in pick && pick.action === 'stick' && !chefPresentation(this.view).blocked && this.owner === null && !this.held.has(i)) { c.attach(this.skewer); this.skewer.rotation.set(0, 0, 0); this.skewer.position.set(1.51 * this.kitchen.scale.x, 0, -.12); this.owner = i } }
       const release = () => { if (this.owner === i) this.returnStick() }
       const disconnect = () => { this.held.get(i)?.root.removeFromParent(); this.held.delete(i); release(); if (this.session) this.showNotice('컨트롤러 연결을 확인해 주세요.') }
       c.addEventListener('selectstart', start); c.addEventListener('selectend', end); c.addEventListener('squeezestart', grab); c.addEventListener('squeezeend', release); c.addEventListener('disconnected', disconnect)
@@ -608,15 +679,21 @@ export class ChefScene {
     if (!window.isSecureContext || !navigator.xr) throw new Error('VR은 보안 주소와 WebXR 지원 브라우저가 필요해요. 현재 화면에서는 VR 시점을 미리 볼 수 있어요.')
     this.unlockSound()
     const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] })
-    if (this.disposed) { await session.end(); return }
-    this.session = session; session.addEventListener('end', this.sessionEnded)
-    // Authored desktop units become a 1 m-high counter and ~1 m skewer in physical XR meters.
-    this.kitchen.scale.setScalar(.4); this.kitchen.position.y = .62
-    this.dolly.position.set(0, 0, .95); this.camera.position.set(0, 0, 0); this.camera.rotation.set(0, 0, 0)
-    try { await this.renderer.xr.setSession(session); this.renderer.xr.setFoveation(1); this.xrChanged(true); this.timerSecond = -1 }
+    try {
+      this.releaseVR = await this.beforeXR?.()
+      if (this.disposed) { this.releaseVR?.(); this.releaseVR = undefined; await session.end(); return }
+      this.session = session; session.addEventListener('end', this.sessionEnded)
+      this.showVRGuide(false)
+      // Authored desktop units become a 1 m-high counter and ~1 m skewer in physical XR meters.
+      this.kitchen.scale.setScalar(.4); this.kitchen.position.y = .62
+      this.dolly.position.set(0, 0, .95); this.camera.position.set(0, 0, 0); this.camera.rotation.set(0, 0, 0)
+      await this.renderer.xr.setSession(session); this.renderer.xr.setFoveation(1); this.xrChanged(true); this.timerSecond = -1
+    }
     catch (e) { await session.end().catch(() => undefined); this.sessionEnded(); throw e }
   }
   private sessionEnded = () => {
+    this.releaseVR?.(); this.releaseVR = undefined
+    this.showVRGuide(false)
     this.session?.removeEventListener('end', this.sessionEnded); this.session = null; this.held.forEach(h => h.root.removeFromParent()); this.held.clear(); this.returnStick(); this.kitchen.scale.setScalar(1); this.kitchen.position.y = 0; this.setMode(this.mode); this.timerSecond = -1; this.xrChanged(false); this.resize()
   }
   private project(name: string, x: number, y: number, z: number) { this.v.set(x, y, z).project(this.camera); this.host.style.setProperty(`--chef-${name}-x`, `${(this.v.x + 1) * 50}%`); this.host.style.setProperty(`--chef-${name}-y`, `${(1 - this.v.y) * 50}%`) }
@@ -625,7 +702,7 @@ export class ChefScene {
   private render = () => {
     if (this.disposed) return
     const now = performance.now(), dt = this.last ? Math.min(.1, (now - this.last) / 1000) : 0; this.last = now
-    this.view = this.step(this.session && this.session.visibilityState !== 'visible' ? 0 : dt)
+    this.view = this.step(this.guideRoot.visible || this.session && this.session.visibilityState !== 'visible' ? 0 : dt)
     const v = this.view, signature = v.skewer.join(',')
     const restart = v.cooperative?.restart
     if ((restart && restart.id !== this.lastRestart) || (v.cooperative?.round ?? 0) !== this.round) {
@@ -694,10 +771,14 @@ export class ChefScene {
     this.updateSpatialFocus(now)
     this.undoTarget.getWorldPosition(this.v2); this.project('undo', this.v2.x, this.v2.y, this.v2.z)
     this.passFurniture.localToWorld(this.v2.set(2.59, 1.3, -1.22)); this.project('submit', this.v2.x, this.v2.y, this.v2.z)
+    this.guideButton.getWorldPosition(this.v2); this.project('guide', this.v2.x, this.v2.y, this.v2.z)
+    this.guideRoot.localToWorld(this.v2.set(0, -.407, .02)); this.project('guide-close', this.v2.x, this.v2.y, this.v2.z)
     if (this.session) this.renderer.render(this.scene, this.camera)
     else this.post.render()
   }
   dispose() {
+    this.releaseVR?.(); this.releaseVR = undefined
+    this.guideImage.onload = this.guidePaper.onload = null
     this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); this.onEndListeners.forEach(fn => fn()); this.renderer.domElement.removeEventListener('pointerdown', this.pointer); this.renderer.domElement.removeEventListener('pointermove', this.pointerMove); this.renderer.domElement.removeEventListener('pointerleave', this.pointerLeave); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)
     if (this.session) { this.session.removeEventListener('end', this.sessionEnded); void this.session.end().catch(() => undefined) }
     if (this.sound) void this.sound.close().catch(() => undefined)

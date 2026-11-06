@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 const folder = process.env.SKEWER_CHEF_EVIDENCE
 async function capture(page: Page, name: string) { if (folder) { await mkdir(folder, { recursive: true }); await page.screenshot({ path: path.join(folder, `${name}.png`) }) } }
@@ -13,6 +13,64 @@ async function cook(page: Page, recipe: string[]) {
  }
 }
 async function currentRecipe(page: Page) { return (await page.locator('.chef-world-order-hit[aria-pressed=true]').getAttribute('data-recipe'))!.split(',') }
+
+test('VR 설명서는 기존 그림과 컨트롤러 안내를 보여주고 공간 안내를 닫아 조작에 복귀한다', async ({ page }) => {
+ const errors: string[] = []
+ page.on('pageerror', e => errors.push(e.message))
+ page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+ await open(page, 'vr'); await expect(page).toHaveTitle(/OnTop|꼬치왕/)
+ const stage = page.locator('.chef-stage'), app = page.getByTestId('chef-app')
+ await expect(stage).toHaveAttribute('data-vr-guide-art-ready', 'true')
+ await page.getByRole('button', { name: '요리사 이용 안내' }).click()
+ const dialog = page.getByRole('dialog', { name: '요리사 이용 안내' })
+ await expect(dialog).toContainText('온탑 꼬치왕 · VR 조작 안내')
+ await expect(dialog).not.toContainText('Space')
+ await expect(dialog).not.toContainText('R로')
+ await expect.poll(() => dialog.locator('.chef-guide-art').evaluate(img => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+ await expect(dialog.getByRole('img', { name: /좌우 컨트롤러 버튼 위치/ })).toBeVisible()
+ await expect(dialog.locator('.chef-recipe-guide img')).toHaveJSProperty('complete', true)
+ await capture(page, 'vr-guide-desktop')
+ for (const [width, height] of [[390, 844], [844, 390]]) {
+  await page.setViewportSize({ width, height })
+  await expect(dialog).toBeVisible()
+  await dialog.evaluate(el => el.scrollTop = el.scrollHeight)
+  const button = dialog.getByRole('button', { name: '주방으로 돌아가기' })
+  await expect(button).toBeInViewport()
+  const bounds = (await dialog.boundingBox())!
+  expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1)
+  await capture(page, `vr-guide-${width}x${height}`)
+ }
+ await dialog.getByRole('button', { name: '주방으로 돌아가기' }).click()
+ await page.setViewportSize({ width: 1664, height: 941 })
+ const pointAt = async (target: string) => {
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+  return stage.evaluate((el, target) => {
+   const box = el.getBoundingClientRect(), css = getComputedStyle(el)
+   return { x: box.x + parseFloat(css.getPropertyValue(`--chef-${target}-x`)) * box.width / 100,
+    y: box.y + parseFloat(css.getPropertyValue(`--chef-${target}-y`)) * box.height / 100 }
+  }, target)
+ }
+ await cook(page, ['tomato'])
+ const before = await app.getAttribute('data-stack')
+ const help = await pointAt('guide'); await page.mouse.click(help.x, help.y)
+ await expect(stage).toHaveAttribute('data-vr-guide', 'true')
+ await expect(dialog).toHaveCount(0)
+ await capture(page, 'vr-guide-spatial')
+ if (folder) {
+  const png = await page.evaluate(async () => (await import('/tests/skewer-chef/guideProbe.ts' as string)).captureGuideTexture())
+  await writeFile(path.join(folder, 'chef-vr-controls-native.png'), Buffer.from(png.split(',')[1]!, 'base64'))
+ }
+ await page.keyboard.press('1'); await page.keyboard.press('Space'); await page.keyboard.press('r')
+ await page.locator('.chef-ingredient-hit').first().click({ force: true })
+ const submit = await pointAt('submit'); await page.mouse.click(submit.x, submit.y)
+ await expect(app).toHaveAttribute('data-stack', before!)
+ await expect(stage).toHaveAttribute('data-completed', '0')
+ const close = await pointAt('guide-close'); await page.mouse.click(close.x, close.y)
+ await expect(stage).toHaveAttribute('data-vr-guide', 'false')
+ await page.keyboard.press('Backspace'); await expect(app).toHaveAttribute('data-stack', '')
+ await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+ expect(errors).toEqual([])
+})
 
 test('큰 영수증과 중앙 HUD에서 R 제출·재료 재배치·전달대 용량을 확인한다', async ({ page }) => {
  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))

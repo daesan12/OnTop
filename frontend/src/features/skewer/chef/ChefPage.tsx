@@ -11,6 +11,8 @@ import type { ChefMode } from './ChefScene'
 import type { ChefDriver } from '../coop/drivers'
 import { INITIAL_PANTRY } from '../cooperativeMenu'
 import { chefPresentation } from './chefPresentation'
+import { CHEF_VR_STEPS, chefVRArt } from './vrGuide'
+import { TouchControllerGuide } from '../../vrGuide/TouchControllerDiagram'
 import { useGameDragScroll } from '../useGameDragScroll'
 import './chef.css'
 import './chefHud.css'
@@ -20,7 +22,7 @@ import { ClosingNotice } from '../ClosingNotice'
 import { closingTime } from '../closingTime'
 
 const modeFromURL = (): ChefMode => new URLSearchParams(location.search).get('mode') === 'vr' ? 'vr' : 'pc'
-export default function ChefPage({ driver, onXRChanged, onExit, preferredMode, allowVR = true }: { driver?: ChefDriver; onXRChanged?: (active: boolean) => void; onExit?: () => void; preferredMode?: ChefMode; allowVR?: boolean } = {}) {
+export default function ChefPage({ driver, onXRChanged, onExit, preferredMode, allowVR = true, protectVR }: { driver?: ChefDriver; onXRChanged?: (active: boolean) => void; onExit?: () => void; preferredMode?: ChefMode; allowVR?: boolean; protectVR?: () => Promise<() => void> } = {}) {
   useGameDragScroll('.chef-app', !driver?.online)
   const model = useRef<ChefDriver | null>(null); model.current ??= driver ?? new ChefPreview()
   const host = useRef<HTMLDivElement>(null), scene = useRef<ChefScene | null>(null), guide = useRef<HTMLDialogElement>(null)
@@ -28,6 +30,7 @@ export default function ChefPage({ driver, onXRChanged, onExit, preferredMode, a
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [xrActive, setXRActive] = useState(false), [supported, setSupported] = useState(false), [pending, setPending] = useState(false)
   const modeRef = useRef(mode); modeRef.current = mode
   const act = (action: ChefAction) => {
+    if (scene.current?.vrGuideOpen) return
     if (action.type === 'exit') { onExit?.(); return }
     if (action.type === 'ready' && !xrActive) { setNotice('VR을 먼저 연결해 주세요.'); return }
     model.current!.action(action); setNotice(''); setView(model.current!.view())
@@ -42,11 +45,11 @@ export default function ChefPage({ driver, onXRChanged, onExit, preferredMode, a
         const current = model.current!.view(), now = performance.now()
         if (now - lastPublish > 90 && live) { setView(current); lastPublish = now }
         return current
-      }, action => actRef.current(action), text => { if (live) setNotice(text) }, active => { if (live) { setXRActive(active); if (active) setMode('vr'); onXRChanged?.(active) } })
+      }, action => actRef.current(action), text => { if (live) setNotice(text) }, active => { if (live) { setXRActive(active); if (active) setMode('vr'); onXRChanged?.(active) } }, driver?.online ? () => protectVR ? protectVR() : Promise.reject(new Error('VR 플레이 보호 연결이 필요해요.')) : undefined)
     } catch (e) { setError(e instanceof Error ? e.message : '주방을 불러오지 못했어요.') }
     if (allowVR && window.isSecureContext && navigator.xr) void navigator.xr.isSessionSupported('immersive-vr').then(value => { if (live) setSupported(value) }).catch(() => { if (live) setSupported(false) })
     const key = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.altKey || e.metaKey || e.isComposing || e.repeat || guide.current?.open || e.target instanceof Element && e.target.closest('input,textarea,select,[contenteditable=true],dialog,[role=dialog]')) return
+      if (e.ctrlKey || e.altKey || e.metaKey || e.isComposing || e.repeat || guide.current?.open || scene.current?.vrGuideOpen || e.target instanceof Element && e.target.closest('input,textarea,select,[contenteditable=true],dialog,[role=dialog]')) return
       if (e.target instanceof Element && e.target.closest('button,a') && ['Space', 'Enter'].includes(e.code)) return
       const slot = /^(Digit|Numpad)([1-6])$/.exec(e.code)
       const order = modeRef.current === 'pc' ? model.current!.view().pantry ?? INITIAL_PANTRY : INITIAL_PANTRY
@@ -87,6 +90,19 @@ export default function ChefPage({ driver, onXRChanged, onExit, preferredMode, a
     {mode === 'vr' ? <footer className="chef-controls"><div className="chef-pantry" aria-label="조리 재료">{INGREDIENTS.map(item => <button key={item.id} aria-label={`${item.name} 재료 고르기`} aria-pressed={view.ingredient === item.id} disabled={presentation.blocked || !view.visible.length || availablePieces(view.skewer, item.id) <= 0} onClick={e => { act({ type: 'select', ingredient: item.id }); e.currentTarget.blur() }}><kbd>{item.key}</kbd><IngredientIcon id={item.id} /><span>{item.name}</span></button>)}</div><div className="chef-keys"><button onClick={() => act({ type: 'thread' })} disabled={presentation.blocked || !view.visible.length || availablePieces(view.skewer, view.ingredient) <= 0}><kbd>Space</kbd> {ingredientName(view.ingredient)} 꽂기</button><button onClick={() => act({ type: 'unthread' })} disabled={presentation.blocked || !view.skewer.length}><kbd>⌫</kbd> 끝 재료 빼기</button></div><button className="chef-submit" data-ready={presentation.submitReady} aria-label="완성 접시 제출" onClick={() => act({ type: 'submit' })} disabled={presentation.blocked || !view.skewer.length || !view.visible.length || view.pass.length >= 2}><kbd>R</kbd><span>{presentation.submitLabel}</span></button></footer> : null}
     {mode === 'vr' ? <p className="chef-local-note">{driver?.online ? '공동 경기 · 20점당 각자 1냥 · 모든 미니게임 합산 하루 최대 500냥' : '연습 모드 · 엽전과 랭킹 기록 없음'}</p> : null}
     {error ? <p className="chef-error" role="alert">{error}</p> : null}
-    <dialog ref={guide} className="chef-guide" aria-label="요리사 이용 안내" onCancel={e => { e.preventDefault(); closeGuide() }}><button className="chef-close" aria-label="안내 닫기" onClick={closeGuide}>×</button><h2>요리사 주방을 둘러보세요</h2><p>전달받은 주문 두 장 중 하나를 골라 꼬치를 만들어요.<br />치즈·베이컨은 각각 2~3개를 사용하고, 같은 큐브 사이에는 다른 재료를 정확히 한 개 끼워요. 제출할 때마다 PC 제작대의 재료 순서가 바뀌어요.</p>{recipeGuide}<ul><li>PC: 숫자·클릭으로 선택 → Space로 꽂기 → R로 완성·제출</li>{allowVR ? <li>VR: 트리거로 음식 집기 → 꼬치 끝에서 놓기. 그립으로 꼬치를 잡을 수 있어요. 끝 재료를 가리켜 트리거로 빼고, 오른쪽 전달대 접시를 가리켜 트리거로 제출해요.</li> : null}<li>틀린 꼬치도 제출돼요. 제출 전에는 마지막 재료부터 빼서 고칠 수 있어요.</li><li>{driver?.online ? '전달대가 두 접시로 차면 친구가 접시를 수령할 때까지 기다려요.' : '전달대가 두 접시로 차면, 아래 접시 비우기로 공간을 비울 수 있어요.'}</li></ul><p className="chef-guide-note">{driver?.online ? '안내를 읽는 동안에도 영업 시간은 흘러요.' : '연습 모드에서는 보상과 랭킹을 기록하지 않아요. 홀의 서빙 캐릭터는 동선 미리보기이며 실제 동료와 연결되지 않았어요.'} PC·VR 팀 기록은 따로 집계해요. 경기 중 방식을 바꾸면 해당 경기의 랭킹에서 제외돼요.</p>{!driver?.online ? <div className="chef-demo-tools"><button onClick={() => { model.current = new ChefPreview(); setView(model.current.view()); setNotice('') }}>주방 초기화</button><button onClick={() => { (model.current as ChefPreview).clearIncoming(); setView(model.current!.view()) }}>주문 없는 상태</button><button onClick={() => { (model.current as ChefPreview).receiveSamples(); setView(model.current!.view()) }}>연습 주문 받기</button><button onClick={() => act({ type: 'pickup' })}>전달대 접시 비우기</button></div> : null}<button className="chef-guide-done" onClick={closeGuide}>주방으로 돌아가기</button></dialog>
+    <dialog ref={guide} className="chef-guide" aria-label="요리사 이용 안내" onCancel={e => { e.preventDefault(); closeGuide() }}>
+      <button className="chef-close" aria-label="안내 닫기" onClick={closeGuide}>×</button>
+      <h2>{mode === 'vr' ? '온탑 꼬치왕 · VR 조작 안내' : '요리사 주방을 둘러보세요'}</h2>
+      {mode === 'vr' ? <img className="chef-guide-art" src={chefVRArt} alt="기존 꼬치왕 VR 주방과 주문표" /> : null}
+      {mode === 'vr' ? <TouchControllerGuide mode="chef" /> : null}
+      <p>전달받은 주문 두 장 중 하나를 골라 꼬치를 만들어요.<br />치즈·베이컨은 각각 2~3개를 사용하고, 같은 큐브 사이에는 다른 재료를 정확히 한 개 끼워요.{mode === 'pc' ? ' 제출할 때마다 PC 제작대의 재료 순서가 바뀌어요.' : ''}</p>
+      {recipeGuide}
+      {mode === 'vr' ? <ol className="chef-vr-guide-steps" aria-label="VR 컨트롤러 조작 순서">{CHEF_VR_STEPS.map(([title, detail]) => <li key={title}><strong>{title}</strong><p>{detail}</p></li>)}</ol> : null}
+      {mode === 'vr' ? <p>검지 트리거로 가리킨 대상을 선택하고, 옆면 그립으로 꼬치를 잡아요. VR 안에서는 주방의 ‘VR 조작 안내’를 가리켜 트리거로 다시 열고, 아래 닫기 버튼도 트리거로 눌러요.</p> : null}
+      <ul>{mode === 'pc' ? <><li>PC: 숫자·클릭으로 선택 → Space로 꽂기 → R로 완성·제출</li>{allowVR ? <li>VR: 트리거로 음식 집기 → 꼬치 끝에서 놓기. 그립으로 꼬치를 잡을 수 있어요. 끝 재료를 가리켜 트리거로 빼고, 오른쪽 전달대 접시를 가리켜 트리거로 제출해요.</li> : null}</> : null}<li>틀린 꼬치도 제출돼요. 제출 전에는 마지막 재료부터 빼서 고칠 수 있어요.</li><li>{driver?.online ? '전달대가 두 접시로 차면 친구가 접시를 수령할 때까지 기다려요.' : '전달대가 두 접시로 차면, 아래 접시 비우기로 공간을 비울 수 있어요.'}</li></ul>
+      <p className="chef-guide-note">{driver?.online ? '안내를 읽는 동안에도 영업 시간은 흘러요.' : '연습 모드에서는 보상과 랭킹을 기록하지 않아요. 홀의 서빙 캐릭터는 동선 미리보기이며 실제 동료와 연결되지 않았어요.'} PC·VR 팀 기록은 따로 집계해요. 경기 중 방식을 바꾸면 해당 경기의 랭킹에서 제외돼요.</p>
+      {!driver?.online ? <div className="chef-demo-tools"><button onClick={() => { model.current = new ChefPreview(); setView(model.current.view()); setNotice('') }}>주방 초기화</button><button onClick={() => { (model.current as ChefPreview).clearIncoming(); setView(model.current!.view()) }}>주문 없는 상태</button><button onClick={() => { (model.current as ChefPreview).receiveSamples(); setView(model.current!.view()) }}>연습 주문 받기</button><button onClick={() => act({ type: 'pickup' })}>전달대 접시 비우기</button></div> : null}
+      <button className="chef-guide-done" onClick={closeGuide}>주방으로 돌아가기</button>
+    </dialog>
   </main>
 }

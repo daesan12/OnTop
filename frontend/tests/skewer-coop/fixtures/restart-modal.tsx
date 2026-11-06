@@ -51,6 +51,7 @@ const transport: CoopTransport = {
   },
 }
 function App() {
+  const [closed, setClosed] = useState(false)
   const [reply, setReply] = useState('응답 없음')
   useEffect(() => {
     const receive = (event: Event) => setReply((event as CustomEvent<string>).detail)
@@ -62,7 +63,7 @@ function App() {
       <button onClick={() => ask(true)}>내 재시작 요청</button>
       <output aria-label="재시작 응답">{reply}</output>
     </nav>
-    <CoopHost transport={transport} onClose={() => {}} />
+    {closed ? <main aria-label="일반 공원 복귀">일반 공원으로 돌아왔어요.</main> : <CoopHost transport={transport} onClose={() => setClosed(true)} />}
   </>
 }
 createRoot(document.getElementById('root')!).render(<App />)
