@@ -18,4 +18,8 @@ public final class AdminAccessPolicy {
     public boolean canOperate(long userId) {
         return properties.operationIds().contains(userId);
     }
+
+    public boolean canViewContacts(long userId) {
+        return properties.contactIds().contains(userId);
+    }
 }
