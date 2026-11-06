@@ -80,3 +80,11 @@ WHERE table_schema = DATABASE() AND table_name = 'skewer_coop_results' AND colum
 - 단위 183개, 제품/테스트 TypeScript, park-integration 빌드 통과. 이전 빌드의 큰 번들·Three CJS 경고는 남는다.
 - 별도 검수 폴더의 지연/거절 가능한 lazy 대역으로 실제 진입 상태 컴포넌트를 렌더링해 로딩, 오류 경계, Esc 복귀, 재입장 후 성공을 확인했다. 기본 데스크톱과 좁은 화면(브라우저 배율 적용 후 CSS viewport 487×750)에서 팝업·복귀 버튼 접근 및 숨겨진 스크롤바를 확인했다. 첫 검수 도구 실행은 Fast Refresh 충돌로 실패해 제품 소스를 변경하지 않고 별도 캐시·도구 설정으로 분리한 뒤 정상 검수했다.
 - 위 지연·실패 재현은 로컬 대역이다. 실제 DEV 확인은 수정 전 E 진입 성공 범위이며, 새 코드의 배포·실제 장애 재현·Quest 실기기 검수 완료를 뜻하지 않는다. 기존 입구 예외 전반을 해제하는 우회는 추가하지 않았다.
+
+## 최신 dev 통합 — 2026-11-07
+
+- `origin/dev@1afba71d4246dea5e070a93f508b8fec80e05b26`의 할리갈리 자연 탈락자 퇴장·착석 제한과 DEV 모니터링 변경을 `feat/quest-vr`에 이력 보존 merge로 반영했다. Git 충돌은 없었고 기존 꼬치왕 진입 수정·미커밋 프리뷰는 보존했다. 원격의 삭제된 브랜치를 가리키는 fetch 설정은 변경하지 않고 명시적 heads refspec으로 최신 원격을 조회했다.
+- 통합 과정에서 최신 dev의 `halligalliLeaveMenu.test.ts`가 필수 `children` 속성을 생략해 테스트 TypeScript 검사에 실패했다. 같은 자식을 `createElement` props의 `children`으로 명시해 타입 오류만 수정했다. 게임 동작·공통 Provider 계약은 변경하지 않았다.
+- 꼬치왕·VR 존·공원 진입·할리갈리·테이블 로비/입구 관련 FE 27파일 284개 통과. 수정한 할리갈리 메뉴 4개도 재실행 통과. 제품/테스트 TypeScript 및 park-integration Vite 빌드 통과. 큰 번들·Three CJS 경고는 남는다.
+- 꼬치왕·할리갈리 자연 탈락자 퇴장·DEV 모니터링/공통 소켓 관련 BE 17파일 109개 통과(실패·제외 0). 최초 실행의 Gradle 캐시 권한 오류는 정상 권한으로 재실행해 해결했다. 신규 DB/Flyway 변경은 없다.
+- 통합 후 원격을 재조회해 동일 dev 기준임을 확인했다. 이번 검수는 자동 검사·빌드이며 실제 DEV 배포, 두 노트북 플레이, Quest 실기기 검수나 Jenkins 성공을 뜻하지 않는다. 기존 MR !422를 갱신하며 dev 머지·브랜치 삭제는 별도다.

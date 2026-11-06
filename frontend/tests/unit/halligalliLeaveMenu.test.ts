@@ -31,8 +31,8 @@ const playing = (own: Record<string, unknown>) => {
   useGame.setState({ start: { tableId: 't', revision: 1, phase: 'PLAYING', startAttemptId: 'a', gameCode: 'HALLI_GALLI',
     gameSessionId: 'halli', code: null, simulation: false } as never })
 }
-const menu = () => renderToStaticMarkup(createElement(ParkRuntimeProvider, { onAuthEnded: () => {} },
-  createElement(HalliForfeit, { gameId: 'halli', disabled: false })))
+const menu = () => renderToStaticMarkup(createElement(ParkRuntimeProvider, { onAuthEnded: () => {},
+  children: createElement(HalliForfeit, { gameId: 'halli', disabled: false }) }))
 beforeEach(() => {
   resetGame(); resetForfeit()
   useSession.setState({ status: 'connected', sessionId: '101', pending: false })
