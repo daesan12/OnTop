@@ -116,6 +116,8 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 채팅·감정 | WORLD_CHAT_SEND / WORLD_EMOTE_SEND | WORLD_CHAT_MESSAGE / WORLD_EMOTE_EVENT / WORLD_EMOTE_CANCELLED |
 | 채팅 입력 중 | WORLD_CHAT_TYPING_SET | WORLD_CHAT_TYPING_STATE |
 | 따라가기 | WORLD_FOLLOW_CHECK / WORLD_FOLLOW_START / WORLD_FOLLOW_STOP | WORLD_FOLLOW_STATE ([상세](../world-follow-api.md)) |
+| 캐릭터 운반 | WORLD_CARRY_PICKUP / WORLD_CARRY_THROW / WORLD_CARRY_RELEASE | WORLD_STATE |
+| 창 입력 점유 | WORLD_INTERACTION_SET | WORLD_INTERACTION_STATE (운반 해제 시 WORLD_STATE도 방송) |
 | 시설 | WORLD_FACILITY_CHECK / WORLD_FACILITY_CATALOG / WORLD_FACILITY_USE / WORLD_FACILITY_RELEASE / WORLD_FACILITY_AIM | [시설 계약](../world-facility-api.md)의 상태·목록·이용 응답 |
 | 착석·준비 | TABLE_JOIN / TABLE_LEAVE / READY_SET / GAME_SELECT | TABLE_STATE / TABLE_LEFT |
 | 대기 테이블 보기 | TABLE_WATCH / TABLE_UNWATCH | TABLE_WATCH_STATE / TABLE_WATCH_LEFT |
@@ -155,8 +157,30 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 
 세부 필드와 선택적4종 엔진 계약은 기존 [경기 통신](../websocket-api/09-game-communication.md),
 [경기 입력](../game-action-api.md), [결과](../game-result-api.md), [광장](../world-websocket-api.md)를 따른다.
-현재 TableProtocol의 클라이언트 요청은 43종이다. ERROR와 CONNECTED는 요청 타입이 아니다.
+현재 TableProtocol의 클라이언트 요청은 47종이다. ERROR와 CONNECTED는 요청 타입이 아니다.
 게스트 인증, 다중 인스턴스 접속권/연결 추적 및 다른 boot의 미완료 경기 자동 반환은 미지원이다.
+
+## 캐릭터 들기·던지기와 창 입력 점유
+
+인증된 기존 연결과 채널을 사용하며 요청자 ID는 서버 연결에서 가져온다. 추가 userId 필드는 허용하지 않는다.
+
+| 요청 | payload | 성공 응답 |
+| --- | --- | --- |
+| WORLD_CARRY_PICKUP | `{targetId}`: 같은 채널의 다른 사용자 ID | WORLD_STATE |
+| WORLD_CARRY_THROW | `{carryId, dx, dy, dz}`: 현재 관계의 UUID와 정규화된 시선 방향 | WORLD_STATE |
+| WORLD_CARRY_RELEASE | `{carryId}`: 현재 운반 관계의 UUID | WORLD_STATE |
+| WORLD_INTERACTION_SET | `{busy}`: 본인 창의 입력 점유 여부(boolean) | WORLD_INTERACTION_STATE `{channelId, busy}` |
+
+WORLD_STATE의 `avatars[].carry`는 null 또는 `{carryId, partnerId, role}`이며 role은 CARRIER/CARRIED/THROWN이다.
+창 점유 중인 사용자는 `interactionBusy: true`를 공유한다. 일반 창 점유 변경은 작은 확인 응답을 보내고
+다른 사용자에게는 기존 10Hz 방송에 합쳐 전달한다. 실제 운반 해제가 발생한 경우에는 즉시 WORLD_STATE를 방송한다.
+
+들기·던지기는 본인과 상대방의 게임·관전·시설·수영·감정표현·따라가기·점프맵·창 점유 상태를 검사한다.
+최대 운반 시간은 5초이며 만료·Esc·막힌 공간·이탈 시 현재 위치 주변의 안전한 위치에 내려놓는다.
+중복되거나 낡은 carryId 요청은 거절하며 비행 중 수동 위치 보고로 서버 좌표를 덮어쓸 수 없다.
+주요 오류는 CARRY_ACTIVITY_CONFLICT, CARRY_TARGET_UNAVAILABLE, CARRY_OUT_OF_RANGE,
+CARRY_UNAVAILABLE, CARRY_LINK_MISMATCH, INVALID_PAYLOAD다. 상세 동작과 검증 범위는
+[공원 캐릭터 들기·던지기](../../frontend/docs/AVATAR_CARRY_THROW.md)를 따른다. 서버 재시작 시 운반 관계 복원은 지원하지 않는다.
 
 ## Story 174 결과·전달·복구
 
