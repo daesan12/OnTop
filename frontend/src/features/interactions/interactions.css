@@ -33,6 +33,15 @@
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
+  animation: carry-escape-tap .65s ease-in-out infinite;
+}
+.park-interaction .carry-escape-hint__keys kbd:last-child { animation-delay: -.325s; }
+@keyframes carry-escape-tap {
+  0%, 45%, 100% { transform: translateY(0); background: #f7f1e5; box-shadow: 0 1px 0 #8b7e64; }
+  12%, 28% { transform: translateY(2px); background: #e5c774; box-shadow: 0 0 0 #8b7e64; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .park-interaction .carry-escape-hint__keys kbd { animation: none; }
 }
 @media (max-width: 900px) {
   .park-page .park-interaction[data-fitness-id],

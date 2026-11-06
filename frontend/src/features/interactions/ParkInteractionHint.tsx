@@ -72,7 +72,6 @@ export function ParkInteractionHint() {
         <span className="carry-escape-hint__keys" aria-hidden="true">
           <kbd>A</kbd><span>↔</span><kbd>D</kbd>
         </span>
-        <span>번갈아 {CARRY_ESCAPE_PRESSES}회 · 내려오기</span>
       </span>}
     {carry?.role === 'THROWN' && <span role="status">날아가는 중 · 착지하면 다시 움직일 수 있어요</span>}
     {carry?.role === 'CARRIER' && <button type="button" aria-keyshortcuts="Escape"

@@ -246,6 +246,7 @@ for (const perspective of ['third-person', 'first-person']) {
 }
 
 test('a carried player escapes only with six alternating AD presses, without movement or repeat-key escape', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
   const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
   await page.goto('/park')
   await readyCarryScene(page)
@@ -259,6 +260,16 @@ test('a carried player escapes only with six alternating AD presses, without mov
   const escape = page.getByRole('status', { name: 'A와 D를 번갈아 6회 눌러 내려오기' })
   await expect(escape).toBeVisible()
   await expect(escape.locator('kbd')).toHaveText(['A', 'D'])
+  await expect(escape).toHaveText('A↔D')
+  const keyDepthDifference = () => escape.locator('kbd').evaluateAll(keys => {
+    const depths = keys.map(key => {
+      const transform = getComputedStyle(key).transform
+      return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42
+    })
+    return depths[0]! - depths[1]!
+  })
+  await expect.poll(keyDepthDifference).toBeGreaterThan(.7)
+  await expect.poll(keyDepthDifference).toBeLessThan(-.7)
   await expect(page.getByRole('button', { name: /내려오기/ })).toHaveCount(0)
   await page.locator('canvas').focus()
   await page.keyboard.press('Escape')
@@ -289,6 +300,9 @@ test('a carried player escapes only with six alternating AD presses, without mov
   const hintBox = await escape.boundingBox(), chatBox = await page.getByRole('region', { name: '주변 채팅', exact: true }).boundingBox()
   expect(hintBox!.y + hintBox!.height).toBeLessThan(chatBox!.y)
   await screenshot(page, 'carry-ad-escape-short')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect.poll(() => escape.locator('kbd').evaluateAll(keys =>
+    keys.every(key => key.getAnimations().length === 0))).toBe(true)
   const movementBefore = server.sent.filter(message => message.type === 'WORLD_MOVE'
     && (message.payload.dx || message.payload.dz)).length
   for (const key of ['KeyD', 'KeyA', 'KeyD', 'KeyA', 'KeyD']) await page.keyboard.press(key)
