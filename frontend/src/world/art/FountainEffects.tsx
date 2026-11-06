@@ -1,3 +1,4 @@
+import { cameraWorldPosition } from '../xrView'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import {
@@ -127,8 +128,8 @@ export function FountainEffects({ quality }: { quality: QualityPreset }) {
   useFrame(({ camera, size, gl }) => {
     const visible =
       Math.hypot(
-        camera.position.x - FOUNTAIN.x,
-        camera.position.z - FOUNTAIN.z,
+        cameraWorldPosition(camera).x - FOUNTAIN.x,
+        cameraWorldPosition(camera).z - FOUNTAIN.z,
       ) < preset.effectDistance
     if (group.current) group.current.visible = visible
     resources.streams.uniforms.time.value = positiveModulo(

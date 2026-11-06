@@ -1,3 +1,4 @@
+import { cameraWorldPosition } from '../xrView'
 import { SIMPLE_MAP } from './mapRenderProfile'
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
@@ -42,7 +43,7 @@ export function LakeFish({ quality }: { quality: QualityPreset }) {
   }, [preset.fish])
   useFrame(({ camera }) => {
     const visible =
-      Math.hypot(camera.position.x - LAKE.x, camera.position.z - LAKE.z) <
+      Math.hypot(cameraWorldPosition(camera).x - LAKE.x, cameraWorldPosition(camera).z - LAKE.z) <
       preset.effectDistance
     for (const mesh of [body.current, tail.current])
       if (mesh) mesh.visible = visible

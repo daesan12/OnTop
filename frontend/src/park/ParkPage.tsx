@@ -29,6 +29,7 @@ import { ShopHost } from '../features/shop/ShopHost'
 import { WardrobeLauncher, WardrobeHost } from '../features/wardrobe/WardrobeHost'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
 import { CameraControls } from '../features/camera/CameraControls'
+import { ParkXRControls } from '../features/parkXR/ParkXRControls'
 import { FollowMenu } from '../features/follow/FollowMenu'
 import { ParkChat } from '../features/chat/ParkChat'
 import { useGame } from '../game/store'
@@ -171,6 +172,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <WardrobeHost />
         <AdvertisementLink />
         <CameraControls />
+        <ParkXRControls />
         <FollowMenu />
         <ParkMap />
         <ParkNavigation />

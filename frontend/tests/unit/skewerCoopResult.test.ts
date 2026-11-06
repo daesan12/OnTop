@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { parseCoopResult, parseCoopRanking } from '../../src/features/skewer/coop/contracts'
+import { endReasonText, rankingReasonText } from '../../src/features/skewer/coop/CoopResultPanel'
 
 const gameId = 'skewer-coop-00000000-0000-4000-8000-000000000001'
 const receipt = () => ({ gameId, status: 'SETTLED', teamScore: 2400, served: 3, endReason: 'SKEWER_TIME_UP', rankingStatus: 'REGISTERED', rankingReason: 'ELIGIBLE', coinsCalculated: 120, coinsGranted: 10, todayEarned: 500, dailyCap: 500, remainingToday: 0, balance: 600, rewardDate: '2026-11-02', settledAt: '2026-11-02T12:00:00Z' })
 
 describe('꼬치왕 개인 정산 응답', () => {
+  it('진행 오류 종료를 정상 완료나 참가자 기권으로 안내하지 않는다', () => {
+    const result = parseCoopResult({ ...receipt(), endReason: 'SKEWER_RUNTIME_ERROR', rankingStatus: 'EXCLUDED', rankingReason: 'EARLY_END' }, gameId)
+    expect(endReasonText(result.endReason)).toContain('진행 중 문제가 생겨')
+    expect(endReasonText('SKEWER_TIME_UP')).toBe('둘이 함께 만든 오늘의 기록')
+    expect(rankingReasonText(result.rankingReason)).toContain('랭킹에 등록하지 않아요')
+  })
   it('환산액과 일일 한도로 줄어든 실제 지급액을 구분한다', () => {
     const result = parseCoopResult(receipt(), gameId)
     expect(result.coinsCalculated).toBe(120)

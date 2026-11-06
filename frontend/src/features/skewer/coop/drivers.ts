@@ -17,6 +17,7 @@ export class OnlineHall implements HallDriver {
   private sendingMove = false
   private cleaningPressed = false
   private lastView?: HallView
+  private round = -1
   constructor(private client: CoopClient) {}
   view(): HallView {
     const snapshot = this.client.snapshot!, pub = snapshot.publicState, hall = snapshot.privateState.hall!
@@ -27,6 +28,11 @@ export class OnlineHall implements HallDriver {
   private sync() {
     const snapshot = this.client.snapshot, hall = snapshot?.privateState.hall
     if (!snapshot || !hall) return
+    if (this.round !== (snapshot.publicState.round ?? 0)) {
+      this.round = snapshot.publicState.round ?? 0
+      this.helper.position = { ...hall.position }; this.storageOpen = false; this.navigating = false
+      this.cleaningPressed = false; this.lastMove = '0.00:0.00'; this.movementAt = 0
+    }
     if (snapshot.version !== this.lastVersion) {
       this.lastVersion = snapshot.version
       // 이동만 짧게 예측한다. 음식·주문·타이머·점수는 서버 스냅샷을 그대로 표시한다.
@@ -97,22 +103,33 @@ export class OnlineChef implements ChefDriver {
   private ingredient: ChefView['ingredient'] = 'tomato'
   private lastView?: ChefView
   private lastCompleted = 0
+  private round = -1
   constructor(private client: CoopClient) {}
   view(): ChefView {
     const snapshot = this.client.snapshot!, pub = snapshot.publicState
     if (!snapshot.privateState.chef && this.lastView) return this.lastView
     const chef = snapshot.privateState.chef
-    if (chef && (chef.completed ?? 0) !== this.lastCompleted) {
+    if (chef && ((chef.completed ?? 0) !== this.lastCompleted || this.round !== (pub.round ?? 0))) {
+      this.round = pub.round ?? 0
       this.lastCompleted = chef.completed ?? 0
       this.ingredient = chef.pantry?.[0] ?? 'tomato'
     }
     const receipt = this.client.store.getState().result
     return this.lastView = { ...snapshot.privateState.chef!, ingredient: this.ingredient, revision: snapshot.version, seconds: pub.remaining, started: pub.phase === 'PLAYING', message: pub.message,
-      cooperative: { phase: pub.phase, greeting: pub.greeting.active, answered: pub.greeting.answered, speech: pub.greeting.speech, countdown: pub.countdown, paused: pub.paused, score: pub.score, rankingEligible: pub.rankingEligible,
+      cooperative: { round: pub.round ?? 0, restart: pub.restart ? { id: pub.restart.id, own: pub.restart.requestedBy === this.client.transport.scope().userId } : null,
+        phase: pub.phase, greeting: pub.greeting.active, answered: pub.greeting.answered, speech: pub.greeting.speech, countdown: pub.countdown, paused: pub.paused, score: pub.score, rankingEligible: pub.rankingEligible,
         result: pub.phase === 'FINISHED' ? { score: pub.score, reward: receipt?.status === 'SETTLED' ? `받은 엽전 ${receipt.coinsGranted}냥 · 오늘 남은 한도 ${receipt.remainingToday}냥` : receipt?.status === 'UNAVAILABLE' ? '이번 경기의 보상을 확인할 수 없어요' : '개인 보상 확인 중', ranking: receipt?.rankingStatus === 'REGISTERED' ? 'VR 팀 기록 등록 완료' : pub.rankingEligible ? 'VR 팀 기록 확인 중' : '팀 랭킹 미등록 · 엽전 보상 가능' } : undefined } }
   }
   step(_dt: number) {}
   action(action: ChefAction) {
+    if (action.type === 'restartRequest') { if (this.client.playable) void this.client.act({ type: 'RESTART_REQUEST' }); return }
+    if (action.type === 'restartAccept' || action.type === 'restartDecline') {
+      const request = this.client.snapshot?.publicState.restart
+      if (request && request.requestedBy !== this.client.transport.scope().userId) {
+        void this.client.act({ type: 'RESTART_REPLY', requestId: request.id, accept: action.type === 'restartAccept' })
+      }
+      return
+    }
     if (action.type === 'ready') { void this.client.act({ type: 'READY', ready: true }); return }
     if (action.type === 'greet') { if (!this.client.inputBlocked && !this.client.snapshot?.publicState.paused) void this.client.act({ type: 'GREET' }); return }
     if (action.type === 'select') { this.ingredient = action.ingredient; return }

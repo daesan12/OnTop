@@ -27,6 +27,7 @@ public final class SkewerCoopMatch {
             List.of("bacon", "beef", "bacon", "shrimp", "bacon", "cheese", "pepper", "cheese", "tomato"));
     public static final int CLEAN_POINTS = 2, COLLECTION_POINTS = 2, WASHER_LOAD_POINTS = 3;
     public static final int WRONG_DELIVERY_PENALTY = 10;
+    private static final long RESTART_RESPONSE_MILLIS = 15_000;
     private static final int[] POINTS = {100, 100, 240, 160, 160, 240};
     private static final double[] TABLE_X = {-7.5, 0, 7.5, -7.5, 0, 7.5};
     private static final Map<String, Point> STATIONS = Map.of(
@@ -61,6 +62,8 @@ public final class SkewerCoopMatch {
     private Point position = new Point(-2.8, 1.15);
     private final List<Point> path = new ArrayList<>();
     private long lastTick, movementAt, dishSequence, dirtySequence;
+    private long restartSequence, restartRequester, restartExpiresAt;
+    private int round;
     private int sake, score, served, washerCompleted, cleanTable, greetingIndex;
     private String message = "두 사람이 모이면 역할을 고르고 준비해주세요.";
     public final String id;
@@ -89,6 +92,7 @@ public final class SkewerCoopMatch {
     public List<Long> players() { return List.copyOf(players); }
     public boolean contains(long user) { return players.contains(user); }
     public boolean finished() { return phase.equals("FINISHED"); }
+    public boolean waiting() { return phase.equals("WAITING"); }
     public boolean registered() { return registered; }
     public void registered(boolean value) { registered = value; }
     public boolean canJoin(long user) {
@@ -124,6 +128,18 @@ public final class SkewerCoopMatch {
         }
         if (missing.values().stream().anyMatch(at -> now - at >= 30000)) {
             finish("SKEWER_DISCONNECT_TIMEOUT");
+            return;
+        }
+        if (restartRequester != 0 && (!missing.isEmpty() || now >= restartExpiresAt)) {
+            clearRestart();
+            message = missing.isEmpty() ? "다시 시작 응답 시간이 지나 기존 경기를 이어가요."
+                    : "연결이 끊겨 다시 시작 요청을 취소했어요.";
+            actionVersion++;
+            version++;
+            return;
+        }
+        if (restartRequester != 0) {
+            // 응답 제한은 벽시계를 사용한다. 영업·인사·세척 시간은 동의 대기 중 멈춘다.
             return;
         }
         if (!missing.isEmpty() || !pausedBy.isEmpty() || phase.equals("WAITING")) {
@@ -216,6 +232,7 @@ public final class SkewerCoopMatch {
             case "CHEF_MODE" -> Set.of("type", "vr");
             case "READY" -> Set.of("type", "ready");
             case "PAUSE" -> Set.of("type", "paused");
+            case "RESTART_REPLY" -> Set.of("type", "requestId", "accept");
             case "MOVE" -> Set.of("type", "dx", "dz");
             case "NAVIGATE" -> Set.of("type", "x", "z");
             case "TAKE_STORED", "CHOOSE" -> Set.of("type", "id");
@@ -226,7 +243,29 @@ public final class SkewerCoopMatch {
         if (finished()) {
             throw new Rejected(Rejection.GAME_FINISHED);
         }
-        if (type.equals("ROLE")) {
+        if (type.equals("RESTART_REQUEST")) {
+            require((phase.equals("PLAYING") || phase.equals("COUNTDOWN")) && players.size() == 2
+                    && missing.isEmpty() && pausedBy.isEmpty() && restartRequester == 0);
+            restartSequence++;
+            restartRequester = user;
+            restartExpiresAt = now + RESTART_RESPONSE_MILLIS;
+            velocityX = 0;
+            velocityZ = 0;
+            path.clear();
+            lastTick = now;
+        } else if (type.equals("RESTART_REPLY")) {
+            require(restartRequester != 0 && user != restartRequester && now < restartExpiresAt
+                    && missing.isEmpty() && input.path("requestId").isTextual()
+                    && input.path("requestId").asText().equals(Long.toString(restartSequence))
+                    && input.path("accept").isBoolean());
+            if (input.path("accept").asBoolean()) {
+                restart(now);
+            } else {
+                clearRestart();
+                lastTick = now;
+                message = "친구가 다시 시작을 거절했어요. 기존 경기를 이어가요.";
+            }
+        } else if (type.equals("ROLE")) {
             require(phase.equals("WAITING") && players.size() == 2);
             String role = input.path("role").asText();
             require(List.of("chef", "server").contains(role));
@@ -252,7 +291,8 @@ public final class SkewerCoopMatch {
                 rankingEligible = chefVR;
             }
         } else if (type.equals("PAUSE")) {
-            require((phase.equals("COUNTDOWN") || phase.equals("PLAYING")) && input.path("paused").isBoolean());
+            require((phase.equals("COUNTDOWN") || phase.equals("PLAYING")) && input.path("paused").isBoolean()
+                    && restartRequester == 0);
             // 각 참가자는 자신의 확인창만 해제할 수 있다. 다른 참가자의 일시정지는 유지한다.
             if (input.path("paused").asBoolean()) {
                 pausedBy.add(user);
@@ -266,11 +306,13 @@ public final class SkewerCoopMatch {
             }
             lastTick = now;
         } else if (type.equals("GREET")) {
-            require(greetingActive() && missing.isEmpty() && pausedBy.isEmpty() && !greetingAnswers.containsKey(user));
+            require(greetingActive() && missing.isEmpty() && pausedBy.isEmpty() && restartRequester == 0
+                    && !greetingAnswers.containsKey(user));
             greetingAnswers.put(user, greetingElapsed);
             speechUntil.put(user, elapsed + 2.5);
         } else {
-            require(phase.equals("PLAYING") && missing.isEmpty() && pausedBy.isEmpty() && !greetingActive());
+            require(phase.equals("PLAYING") && missing.isEmpty() && pausedBy.isEmpty() && restartRequester == 0
+                    && !greetingActive());
             if ("server".equals(roles.get(user))) {
                 serverAction(type, input, now);
             } else if ("chef".equals(roles.get(user))) {
@@ -534,10 +576,68 @@ public final class SkewerCoopMatch {
         }
     }
 
+    private void clearRestart() {
+        restartRequester = 0;
+        restartExpiresAt = 0;
+    }
+
+    private void restart(long now) {
+        clearRestart();
+        round++;
+        phase = "COUNTDOWN";
+        countdown = 3;
+        elapsed = 0;
+        serviceElapsed = 0;
+        greetingElapsed = 0;
+        greetingIndex = 0;
+        greetingAnswers.clear();
+        speechUntil.clear();
+        greetingAt[0] = duration * (.22 + random.nextDouble() * .12);
+        greetingAt[1] = duration * (.60 + random.nextDouble() * .14);
+        tables.clear();
+        for (int table = 1; table <= 6; table++) {
+            tables.add(new Table(table));
+        }
+        held.clear();
+        jobs.clear();
+        pass.clear();
+        carry.clear();
+        stored.clear();
+        dirty.clear();
+        washing.clear();
+        skewer.clear();
+        menuBag.clear();
+        queue.clear();
+        queue.addAll(List.of(1, 2, 1));
+        pantry.clear();
+        pantry.addAll(List.of("tomato", "pepper", "shrimp", "beef", "cheese", "bacon"));
+        selectedJob = null;
+        sake = 0;
+        score = 0;
+        served = 0;
+        completed = 0;
+        washerCompleted = 0;
+        washRemaining = 0;
+        cleanTable = 0;
+        cleanProgress = 0;
+        nextArrival = 0;
+        nextQueue = 12;
+        velocityX = 0;
+        velocityZ = 0;
+        path.clear();
+        position = new Point(-2.8, 1.15);
+        movementAt = now;
+        lastTick = now;
+        // 경기 ID·행동 버전·접시 ID와 랭킹 제외 이력은 유지한다. 중도 재시작은 정산하지 않는다.
+        rankingEligible = rankingEligible && chefVR;
+        message = "두 사람이 동의했어요. 다시 영업을 준비해요!";
+    }
+
     public void finish(String reason) {
         if (!finished()) {
             phase = "FINISHED";
             pausedBy.clear();
+            clearRestart();
             endReason = reason;
             if (!"SKEWER_TIME_UP".equals(reason)) {
                 rankingEligible = false;
@@ -559,12 +659,18 @@ public final class SkewerCoopMatch {
         ObjectNode view = mapper.createObjectNode();
         view.put("gameCode", CODE).put("phase", phase).put("channelId", channelId);
         view.put("actionVersion", actionVersion);
+        view.put("round", round);
+        view.set("restart", restartRequester == 0 ? mapper.nullNode() : mapper.valueToTree(Map.of(
+                "id", Long.toString(restartSequence), "requestedBy", Long.toString(restartRequester),
+                "expiresAt", restartExpiresAt)));
         view.put("remaining", Math.max(0, duration - elapsed)).put("countdown", countdown);
         view.put("elapsed", elapsed).put("score", score).put("served", served);
         view.put("rankingEligible", rankingEligible && chefVR).put("chefVR", chefVR);
         view.put("rewardStatus", "SERVER_SETTLEMENT").put("entryFee", 0);
-        view.put("message", message).put("paused", !finished() && (!missing.isEmpty() || !pausedBy.isEmpty()));
-        view.put("pauseReason", finished() ? "" : !missing.isEmpty() ? "DISCONNECTED" : !pausedBy.isEmpty() ? "EXIT_CONFIRM" : "");
+        view.put("message", message).put("paused", !finished()
+                && (!missing.isEmpty() || !pausedBy.isEmpty() || restartRequester != 0));
+        view.put("pauseReason", finished() ? "" : !missing.isEmpty() ? "DISCONNECTED"
+                : restartRequester != 0 ? "RESTART_CONFIRM" : !pausedBy.isEmpty() ? "EXIT_CONFIRM" : "");
         view.set("pausedBy", mapper.valueToTree(pausedBy.stream().map(String::valueOf).toList()));
         view.put("endReason", endReason);
         view.set("players", mapper.valueToTree(players.stream().map(player -> Map.of(

@@ -1,3 +1,4 @@
+import { cameraWorldPosition } from './xrView'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import {
@@ -136,7 +137,7 @@ export function NightLighting({ quality }: { quality: QualityPreset }) {
       state.elapsed = 0
       for (const p of state.ranked)
         p.distance =
-          (camera.position.x - p.x) ** 2 + (camera.position.z - p.z) ** 2
+          (cameraWorldPosition(camera).x - p.x) ** 2 + (cameraWorldPosition(camera).z - p.z) ** 2
       state.ranked.sort((a, b) => a.distance - b.distance)
       for (let i = 0; i < state.slots.length; i++)
         state.slots[i].target = state.ranked[i].i
@@ -156,8 +157,8 @@ export function NightLighting({ quality }: { quality: QualityPreset }) {
       } else if (slot.index >= 0) {
         const p = candidates[slot.index]
         const distance = Math.hypot(
-          camera.position.x - p.x,
-          camera.position.z - p.z,
+          cameraWorldPosition(camera).x - p.x,
+          cameraWorldPosition(camera).z - p.z,
         )
         const target =
           p.strength * frame.night * (1 - smoothRange(18, 28, distance))
