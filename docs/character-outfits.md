@@ -192,13 +192,19 @@
 - Tripo 부품: 0 전립, 1 머리(머리카락·구슬·얼굴이 한 부품), 10 전복 윗부분, 6·8 소매, 2 전복 자락, 11 주황 안감, 3 띠와 술, 4·5 목화, 7·9 손(버림). 바지는 나오지 않았다.
 - `satto_prep.py`: 부품 1을 색으로 나눠 머리카락(90, 버림), 구슬(92, 모자 아이템), 턱 위 얼굴(91, `head_fit`)로 만들고, 자락(2)을 93으로 복사한다. 93은 하의 자리에 두어 `pants=1`이 몸 표면으로 만든 바지에 검은색을 준다.
 - 모자 아래 머리: 구슬 끈(1774면)이 얼굴 옆을 지나 옆머리를 잘라 내지 않게 `straps=2000`. 구슬이 주황이라 `drop_hair=1`(갈색 조각 빼기)은 쓰지 않는다.
+- 옷깃: 게임에서 흰 깃·주황 띠가 번지고 끊겨 보였다(user). 두 가지를 고쳤다.
+  - 원본 얼룩: `flat_collar.py`가 목 주변 전복 텍스처를 흰색·주황·검정으로 나누고(`win=31` 다수결로 얼룩과 끊긴 검은 끈 제거) 각각 한 색으로 칠한다.
+  - 게임 변환: 각도 1.5도로 새로 펼친 조각이 수천 개라 조각 사이 여백이 아틀라스를 차지해, 옷깃에 텍셀이 적게 돌아가 계단처럼 뭉개졌다. `repack=1`로 여백을 줄여 다시 배치한다. `atlas=4096`이나 `bake=project`, 목 주변 감량 제외로는 나아지지 않았다.
 
 ```bash
 "$B" -b --python tools/character/satto_prep.py -- satto_outfit_parts.glb satto_parts_prep.glb
 "$B" -b --python tools/character/fit_outfit.py -- shared_layers_hij.glb satto_parts_prep.glb shared_k.glb set=k s=1.065 head_fit=91 "map=HAIR:0,92;TOP:10,6,8,2,11,3;BOTTOM:93;SHOES:4,5" skirt=TOP pants=1 under_tops=1 cull=1 "seam=10>6,8" dark_lining=SHOES shoe_cap=1 shoe_cap_depth=0.01 under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9 push_neck=back rim_neck=20
 "$B" -b --python tools/character/hat_hair.py -- shared_k.glb hk.glb set=k girl=j straps=2000
-"$B" -b --python tools/character/to_game.py -- hk.glb out/satto_raw.glb satto HAIR=k TOP=k BOTTOM=k SHOES=k pieces=1 body=0 near=75000 atlas=2048 fill=1 keep_head=0
+"$B" -b --python tools/character/flat_collar.py -- hk.glb hk_c.glb set=k win=31
+"$B" -b --python tools/character/to_game.py -- hk_c.glb out/satto_raw.glb satto HAIR=k TOP=k BOTTOM=k SHOES=k pieces=1 body=0 near=75000 atlas=2048 fill=1 keep_head=0 repack=1
 ```
+
+- 카드(`item_art.py`)도 `hk_c.glb`에서 그린다.
 
 - 새 몸 조각(`TOPk` 등)이 생기므로 남자·여자 파일도 `hk.glb`에서 다시 만들고, 캐릭터 캐시 번호(`characterAssets.ts`의 `?rig=`)를 올린다.
 
