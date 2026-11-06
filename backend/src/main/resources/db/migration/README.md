@@ -34,6 +34,10 @@ S15P31B105-296의 `V133__create_anonymous_notes.sql`은 이전 `db/notes` V121·
 S15P31B105-232의 `V142__create_admin_wallet_grants.sql`은 전 회원 일괄 엽전 지급 배치와 회원별 원장 연결
 감사 기록을 추가한다. V141은 동시 작업 담당자가 먼저 배포하며, V142를 그보다 먼저 운영 DB에 적용하지 않는다.
 
+S15P31B105-352의 `V153__create_event_awards.sql`은 이벤트 회차·상품 슬롯·당첨 결과·암호화 연락처·
+결과 확정 실행 기록을 추가한다. 기존 응모권 구매 데이터는 변경하지 않는다. 배포 전 V153 번호를
+다른 팀의 동시 작업과 조율한다. 관계 및 검증 기준은 `docs/event-awards-schema.md`를 따른다.
+
 users의 collation·시각·탈퇴 데이터 보존 및 실제 MySQL 테스트는
 저장소 루트의 `docs/users-schema.md`를 따른다.
 
