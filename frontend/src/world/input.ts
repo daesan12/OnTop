@@ -62,6 +62,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     textInputOwnsKeys(document.activeElement) ||
     !useSession.getState().mapCompatible ||
     !!useGame.getState().watchedGameId ||
+    !!(avatars.get(useSession.getState().sessionId)?.carry && avatars.get(useSession.getState().sessionId)?.carry?.role !== 'CARRIER') ||
     !!useSession.getState().tableId
   const stop = () => {
     keys.clear()
@@ -167,6 +168,14 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const down = (event: KeyboardEvent) => {
     if (event.defaultPrevented || parkXRView.ownsInput) return
     const session = useSession.getState(), table = session.tableStates[session.tableId]
+    const carry = avatars.get(session.sessionId)?.carry
+    if (event.code === 'Escape' && !event.repeat && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey
+      && carry && carry.role !== 'THROWN' && session.status === 'connected' && !document.hidden
+      && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) {
+      event.preventDefault()
+      void parkRuntime.releaseAvatar?.(carry.carryId)
+      return
+    }
     // A bench watcher must be able to stand even while GAME_WATCH blocks roaming.
     if (session.benchId && movement.has(event.code) && !event.code.startsWith('Shift') && !event.repeat
       && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey && session.status === 'connected'

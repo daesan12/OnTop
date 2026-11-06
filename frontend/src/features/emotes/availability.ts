@@ -17,6 +17,7 @@ export function emoteUnavailable(id: EmoteId, now = estimatedServerTime()): stri
   if (!findEmote(id) || emoteSource(id) === 'unavailable') return '서버 연결 준비 중'
   if (session.status !== 'connected' || !session.roomId || !session.mapCompatible || !avatar?.connected) return '공원 연결을 확인해주세요'
   if (state.pending) return '감정표현 응답을 기다리고 있어요'
+  if (avatar?.carry) return '들기·던지기가 끝난 뒤 사용해주세요'
   if (now < state.readyAt) return `다음 감정표현까지 ${Math.ceil((state.readyAt - now) / 1000)}초`
   if (session.pending || useBenchState.getState().pending || useFitnessState.getState().pending || useTelescopeState.getState().pending || tableBusy()) return '현재 작업을 마친 뒤 사용해주세요'
   if (avatar.seatIndex >= 0 || session.tableId || session.benchId || avatar.fitnessId || avatar.telescopeId || avatar.swimming) return '시설 이용·수영을 마친 뒤 사용해주세요'

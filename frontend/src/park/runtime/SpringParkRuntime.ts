@@ -998,10 +998,40 @@ export class ParkRuntime implements ParkRuntimePort {
     const s = useSession.getState()
     return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
+  private interactionStatus = { scope: '', busy: false, pending: false, retryAt: 0 }
+  setInteractionBusy = (busy: boolean) => {
+    const session = useSession.getState(), scope = JSON.stringify([this.generation, session.sessionId, session.roomId])
+    if (!this.active || session.status !== 'connected' || !session.roomId || !session.mapCompatible
+      || !session.carrySupported || !this.socket.connected) return
+    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, pending: false, retryAt: 0 }
+    const status = this.interactionStatus
+    const generation = this.generation
+    const current = () => this.active && this.generation === generation && this.interactionStatus === status
+      && useSession.getState().roomId === session.roomId && useSession.getState().sessionId === session.sessionId
+    if (status.pending || status.busy === busy || performance.now() < status.retryAt) return
+    status.pending = true
+    void this.socket.request('WORLD_INTERACTION_SET', { busy }, ['WORLD_INTERACTION_STATE']).then(response => {
+      if (response.payload.channelId !== session.roomId || response.payload.busy !== busy)
+        throw new Error('창 점유 응답을 확인해주세요.')
+      if (current()) status.busy = busy
+    }).catch(error => {
+      if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
+    }).finally(() => { status.pending = false })
+  }
+  pickupAvatar = (targetId: string) => this.action(async () => {
+    await this.socket.request('WORLD_CARRY_PICKUP', { targetId }, ['WORLD_STATE'])
+  })
+  throwAvatar = (carryId: string, direction: { dx: number; dy: number; dz: number }) => this.action(async () => {
+    await this.socket.request('WORLD_CARRY_THROW', { carryId, ...direction }, ['WORLD_STATE'])
+  })
+  releaseAvatar = (carryId: string) => this.action(async () => {
+    await this.socket.request('WORLD_CARRY_RELEASE', { carryId }, ['WORLD_STATE'])
+  })
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
       && !facilityMovementBlocked(s.sessionId)
+      && (!avatars.get(s.sessionId)?.carry || avatars.get(s.sessionId)?.carry?.role === 'CARRIER')
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
       && (!inputState.minigameOpen || stoppedIntent(intent))
       && (!useTableLobby.getState().joiningAnchorId || stoppedIntent(intent))

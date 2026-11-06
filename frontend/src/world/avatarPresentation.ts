@@ -1,7 +1,7 @@
 import type { AvatarSnapshot } from '../network/worldClient'
 
 const fields = ['connected', 'moving', 'running', 'tableId', 'seatIndex', 'benchId', 'fitnessId',
-  'fitnessStartedAt', 'telescopeId', 'telescopePitch', 'swimming', 'emote', 'emoteAt'] as const
+  'fitnessStartedAt', 'telescopeId', 'telescopePitch', 'swimming', 'emote', 'emoteAt', 'carry'] as const
 type Avatar = Pick<AvatarSnapshot, typeof fields[number]>
 type Flags = Pick<AvatarSnapshot, 'moving' | 'running'> & Partial<Pick<AvatarSnapshot, 'swimming'>>
 

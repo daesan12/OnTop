@@ -22,6 +22,7 @@ export interface PredictionSimulation {
   pose(): Pose
   setChairs(counts: ReadonlyMap<string, number>): void
   movementFlags?(): {moving:boolean;running:boolean} | undefined
+  groundedForLocomotion?(): boolean
   stepJumped?(): boolean
   stepSupported?(): boolean
   dispose(): void
@@ -327,6 +328,13 @@ export class LocalMovementPrediction {
     const active = this.ready && !!this.baseline && at - this.baseline.at <= this.horizon
     const physical = active ? this.sim?.movementFlags?.() : undefined
     const effective = this.effectiveIntent()
+    // Manual ground input owns only the own avatar's stride. Collision still
+    // owns its physical velocity/position; water, air and automatic follow keep it.
+    if (active && this.tuned && this.positionMode && this.sim?.groundedForLocomotion?.()
+      && (!this.steering || this.steeringSuppressed)) {
+      const moving = !!(effective.dx || effective.dz)
+      return { moving, running: moving && effective.run }
+    }
     return physical ?? { moving: !!(active && (effective.dx || effective.dz)), running: !!(active && effective.run) }
   }
   metrics() { return { firstResponseMs: [...this.responseTimes], correctionMetres: [...this.corrections],

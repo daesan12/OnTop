@@ -1,5 +1,14 @@
 # 온탑 꼬치왕 — 서로 다른 컴퓨터의 2인 연결
 
+## 2026-11-06 운반 기능 최신 dev 통합·MR !397 리뷰 검토
+
+- 작업 브랜치 `feat/quest-vr`에 `origin/dev@2641b10a9f9558888322b2b5e99681cfc7bce402`를 반영했다. 캐릭터 들기/던지기·안전한 해제 위치·5초 운반 한도·활동 제한과 공개 WS 계약, 충돌 중 이동 모션, 원카드 상대 HUD 변경 등 38개 파일이 들어왔다. 수동 충돌은 없었으며 `world/input.ts` 자동 통합에서 XR 입력 소유권과 운반 입력을 함께 보존했다. 별도 VR worktree와 기존 미추적 검수 파일은 변경하지 않았다.
+- 자동 리뷰 `!397#note_3005261`의 타이머 지적은 현 코드에서 재현되지 않는다. `SkewerCoopMatch.tick()`의 시작에서 분기와 관계없이 `lastTick = now`를 갱신한다. 기존 응답 시간초과·거절·연결 끊김·중복/낡은 재시작 응답 회귀가 통과했다. 타임아웃 분기에 같은 대입을 중복 추가하지 않는다.
+- VR 모달 지적은 활성화 전 보강 대상으로 권한다. `CoopHost`는 실제 XR 활성 상태를 자체 상태로 보존하지 않고 `RestartConfirmation`은 요청이 있으면 `showModal()`을 호출한다. `onXRChanged`에서 받은 실제 세션 상태를 기준으로 DOM 모달을 닫고 숨기며, VR에서는 기존 `ChefScene`의 3D 동의/거절만 사용하고 세션 종료 시 요청이 남아 있으면 DOM 모달을 복원하는 방향이다. 모드 선택만으로 PC 대체 화면의 응답까지 숨기면 안 된다. 이번 요청은 검토/추천이므로 제품 수정은 하지 않았다. 운영 VR 선택은 기존처럼 비활성 상태다.
+- 말풍선 부모 변경 제안은 그대로 적용하지 않는다. 홀/요리사 홀의 상위 `FLOOR_DEPTH_SCALE` 비균일 스케일을 `DiningGuest`가 방향별 역변환으로 상쇄한다. 현재 부모와 제안 부모를 yaw 0/45/90/-90도로 비교한 Three.js 월드 변환 검수에서 현재 말풍선 크기는 `(3.15, .985)`로 일정했고, `ToyActor.root`로 옮기면 45도에서 폭 3.6693, 90도에서 4.1236으로 최대 약 31% 늘어났다. 기존 `disposeGuest()`의 말풍선 재질 해제와 모델 교체 시 재부착 흐름도 확인했다. 계층을 분리하려면 동일한 스케일 보정을 별도 적용해야 한다.
+- 백엔드 꼬치왕/저널/정산·라우터/재접속/입장·운반 소켓/물리·프로필/공개 WS 문서 회귀 174개 통과(실패/제외 0). 프런트 꼬치왕·운반·충돌 모션·원카드 HUD·XR/복구 회귀 29파일 251개 통과(실패/제외 0). 제품 및 XR TypeScript와 dev 환경 플래그의 공원 빌드, 맵 `c05d8ada`/코스 `5e03c470`, diff 검사 통과. 기존 번들/Three 경고는 유지한다.
+- 독립 검증은 기존 Gradle `*Skewer*Tests`, `*GameEngineRouterTests`, `*GameReconnect*Tests`, `*TableHubSkewerEntryTests`, `*WorldCarry*Tests`, `*WorldProfileFlowTests`, `*WorldChannelRegistryTests`, `*WebSocketDocumentationTests`와 Vitest `skewer parkSkewerEntry carry avatarContactMotion avatarMotion onecardOpponentHud parkXR jumpmapXR movementRuntime reconnectTableState channelEntry`를 사용했다. 새 서버/포트·신규 Flyway·DB 적용·꼬치왕 제품 변경은 없다. 실제 Quest·두 노트북·MySQL 지급·배포 Jenkins는 미확인이다. 기존 Draft MR !397에 업데이트하고 dev 머지·배포·브랜치 삭제는 보류한다.
+
 ## 2026-11-06 최신 dev 추가 통합·자동 리뷰 재요청
 
 - 사용자 요청에 따라 `feat/quest-vr`에 `origin/dev@ad7ec4bd17fd18d7f8fb8cf8f2ec7ee29db34a7c`를 실제 통합했다. 이동 경로/상승 한도·겹침 반투명/셰이더 준비·지갑 루트 동기화 등 원격 39개 파일을 반영했으며 수동 충돌은 없었다. `ParkPage.tsx`와 `Avatars.tsx`의 자동 통합에서 공원 XR/무료 협동 진입과 최신 동기화·자원 수명을 함께 보존했다. 꼬치왕 게임 소스·이전 리뷰 수정·DB migration은 변경하지 않았다.

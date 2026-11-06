@@ -68,6 +68,14 @@ import { omokCamera } from '../../src/game/cameraState'
 import { Matrix4 } from 'three'
 import { useGame } from '../../src/game/store'
 import { avatars, sampleAvatar, estimatedServerTime, type AvatarSnapshot } from '../../src/network/worldClient'
+import { interactionAim } from '../../src/features/interactions/interactionAim'
+
+export function carryProbe() {
+  return { carries: Object.fromEntries([...avatars].map(([id, avatar]) => [id, avatar.carry ?? null])),
+    aim: { dx: interactionAim.dx, dy: interactionAim.dy, dz: interactionAim.dz } }
+}
+
+export function faceCarryTarget() { viewControls.yaw = Math.PI }
 import { SkinnedMesh, ShaderMaterial } from 'three'
 import { FITNESS_STATIONS } from '../../src/config'
 import { ADVERTISEMENT_SCHEDULE } from '../../src/world/art/advertisementMedia'
