@@ -16,11 +16,13 @@ import { SculptedChef } from './SculptedChef'
 import { SculptedServer } from './SculptedServer'
 import type { ToyActor } from './ToyPeople'
 import { HALL_STYLE } from './HallStyle'
+import { HallMotion } from './HallMotion'
 import { createHallFloor, FLOOR_COLUMNS, FLOOR_ROWS, FLOOR_DEPTH_SCALE } from './HallFloor'
 type Actor = ToyActor
 const SEAT = .49, TOP = .96
 /** New serving-first room. Layout coordinates and live meshes share one world space. */
 export class ServiceScene {
+  private readonly serverMotion = new HallMotion()
   private sculptedChef: SculptedChef | null = null
   private sculptedServer: SculptedServer | null = null
   private readonly scene = new THREE.Scene()
@@ -57,7 +59,7 @@ export class ServiceScene {
   private readonly washerWater = new THREE.Group()
   private washerLamp: THREE.Mesh | null = null
   private washerKey = ''
-  private carryKey = ''; private passKey = ''; private disposed = false; private frame = 0; private last = 0
+  private carryKey = ''; private passKey = ''; private disposed = false; private last = 0
   private readonly observer: ResizeObserver
   private readonly ray = new THREE.Raycaster(); private readonly pointer = new THREE.Vector2(); private readonly hit = new THREE.Vector3()
   private readonly projection = new THREE.Vector3()
@@ -373,9 +375,10 @@ export class ServiceScene {
     }
     this.host.dataset.promenadeStep = `${this.walkers[0].actor.root.position.x.toFixed(2)},${this.walkers[0].actor.root.position.z.toFixed(2)}`
     if (this.server) {
-      const actor = this.server, dx = view.position.x - actor.root.position.x, dz = view.position.z - actor.root.position.z, moving = Math.hypot(dx, dz) > .004
-      if (moving) { const yaw = Math.atan2(dx, dz), delta = Math.atan2(Math.sin(yaw - actor.root.rotation.y), Math.cos(yaw - actor.root.rotation.y)); actor.root.rotation.y += delta * Math.min(1, dt * 18) }
-      actor.root.position.set(view.position.x, 0, view.position.z); actor.pose(dt, { moving, carrying: !!(view.carry.length || view.sake || view.dirtyDishes.length), cleaning: !!view.clean, reduced: this.reduced })
+      this.serverMotion.update(view.position, dt, view.finished)
+      const actor = this.server, moving = this.serverMotion.moving
+      actor.root.rotation.y = this.serverMotion.yaw
+      actor.root.position.set(this.serverMotion.position.x, 0, this.serverMotion.position.z); actor.pose(dt, { moving, carrying: !!(view.carry.length || view.sake || view.dirtyDishes.length), cleaning: !!view.clean, reduced: this.reduced })
       if (this.sculptedServer) {
         this.sculptedServer.root.position.copy(actor.root.position)
         this.sculptedServer.pose(dt, { moving, carrying: !!(view.carry.length || view.sake || view.dirtyDishes.length), cleaning: !!view.clean, reduced: this.reduced }, actor.root.rotation.y)
@@ -498,7 +501,7 @@ export class ServiceScene {
     if (this.disposed) return
     const now = performance.now(), dt = this.last ? Math.max(0, (now - this.last) / 1000) : 0; this.last = now
     // Native rendering and controller sampling stay out of React's component updates.
-    this.update(this.step(dt), Math.min(.05, dt)); if (++this.frame % 2 === 0 || dt > .025) this.post.render()
+    this.update(this.step(dt), Math.min(.05, dt)); this.post.render()
   }
   dispose() {
     this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); this.renderer.domElement.removeEventListener('pointerdown', this.onClick); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)
