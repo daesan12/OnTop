@@ -1,4 +1,5 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
+import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
 import {
   clearAuthSession,
   getAuthSession,
@@ -284,6 +285,7 @@ export class ParkRuntime implements ParkRuntimePort {
       scope: JSON.stringify([this.generation, intent.userId, intent.channelId, intent.tableId, intent.benchScope]) } : null)
   }
   cooperativeGame = {
+    protectVR: () => acquireVRProtection(this),
     scope: () => { const s = useSession.getState(); return { userId: s.sessionId, channelId: s.roomId, connected: this.active && this.socket.connected && s.status === 'connected' && s.mapCompatible } },
     request: (type: string, payload: Record<string, unknown>, expected: readonly string[], onId?: (id: string) => void) => this.socket.request(type, payload, expected, onId),
     subscribe: subscribeCoop,
@@ -998,25 +1000,38 @@ export class ParkRuntime implements ParkRuntimePort {
     const s = useSession.getState()
     return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
-  private interactionStatus = { scope: '', busy: false, pending: false, retryAt: 0 }
-  setInteractionBusy = (busy: boolean) => {
+  private interactionStatus = { scope: '', busy: false, desired: false, pending: null as Promise<boolean> | null, retryAt: 0 }
+  setInteractionBusy = (busy: boolean, confirm = false) => {
     const session = useSession.getState(), scope = JSON.stringify([this.generation, session.sessionId, session.roomId])
     if (!this.active || session.status !== 'connected' || !session.roomId || !session.mapCompatible
-      || !session.carrySupported || !this.socket.connected) return
-    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, pending: false, retryAt: 0 }
+      || !this.socket.connected) return Promise.resolve(false)
+    if (!session.carrySupported) return Promise.resolve(!confirm)
+    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, desired: false, pending: null, retryAt: 0 }
     const status = this.interactionStatus
+    status.desired = busy
+    let confirmNeeded = confirm
     const generation = this.generation
     const current = () => this.active && this.generation === generation && this.interactionStatus === status
       && useSession.getState().roomId === session.roomId && useSession.getState().sessionId === session.sessionId
-    if (status.pending || status.busy === busy || performance.now() < status.retryAt) return
-    status.pending = true
-    void this.socket.request('WORLD_INTERACTION_SET', { busy }, ['WORLD_INTERACTION_STATE']).then(response => {
-      if (response.payload.channelId !== session.roomId || response.payload.busy !== busy)
-        throw new Error('창 점유 응답을 확인해주세요.')
-      if (current()) status.busy = busy
-    }).catch(error => {
-      if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
-    }).finally(() => { status.pending = false })
+    const sync = (): Promise<boolean> => {
+      if (!current()) return Promise.resolve(false)
+      if (status.pending) return status.pending.then(ok => ok ? sync() : false)
+      const desired = status.desired || vrCarryProtection.active
+      if (status.busy === desired && !confirmNeeded) return Promise.resolve(true)
+      if (performance.now() < status.retryAt) return Promise.resolve(false)
+      confirmNeeded = false
+      status.pending = this.socket.request('WORLD_INTERACTION_SET', { busy: desired }, ['WORLD_INTERACTION_STATE']).then(response => {
+        if (response.payload.channelId !== session.roomId || response.payload.busy !== desired)
+          throw new Error('창 점유 응답을 확인해주세요.')
+        if (!current()) return false
+        status.busy = desired; return true
+      }).catch(error => {
+        if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
+        return false
+      }).finally(() => { status.pending = null })
+      return status.pending.then(ok => ok ? sync() : false)
+    }
+    return sync()
   }
   // Carry commands stay in the park: retain mouse look while actionBusy still serializes requests.
   pickupAvatar = (targetId: string) => this.action(async () => {

@@ -11,9 +11,14 @@ import { JumpmapXRPanel } from '../jumpmap/JumpmapXRPanel'
 import type { JumpmapXRAction } from '../jumpmap/xrModel'
 import { ParkXRMovement } from './movement'
 import { useParkXR } from './state'
+import { useJumpmap, closeJumpCompletion } from '../jumpmap/state'
+import { nearJumpmapStart, inJumpmapXRRegion, parkVRPreviewEnabled } from '../jumpmap/xrEntry'
+import { acquireVRProtection } from '../vrSession/protection'
 
 /** XR follows the existing predicted/replicated avatar; it never integrates a second player. */
 export class ParkXRController {
+  private kind: 'park-preview' | 'jumpmap' = 'park-preview'
+  private releaseVR?: () => void
   private session: XRSession | null = null
   private referenceSpace: XRReferenceSpace | null = null
   private disposed = false
@@ -49,7 +54,10 @@ export class ParkXRController {
     this.saved = { parent: camera.parent, position: camera.position.clone(), rotation: camera.quaternion.clone(), up: camera.up.clone(), projection: camera.projectionMatrix.clone(), inverse: camera.projectionMatrixInverse.clone(), layers: camera.layers.mask }
     this.rig.name = 'park-xr-rig'; this.headAnchor.name = 'park-xr-head'
     this.rig.add(this.headAnchor); this.rig.visible = false; scene.add(this.rig)
-    this.panel = new JumpmapXRPanel(scene, this.headAnchor)
+    this.panel = new JumpmapXRPanel(scene, this.headAnchor, () => {
+      if (this.kind !== 'jumpmap') return false
+      void this.end('점프맵을 마치고 일반 공원으로 돌아왔어요.'); return true
+    })
     for (let index = 0; index < 2; index++) {
       const grip = gl.xr.getControllerGrip(index)
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(.045, .1, .06), new THREE.MeshLambertMaterial({ color: index ? '#5b9178' : '#b69b5c' }))
@@ -69,8 +77,18 @@ export class ParkXRController {
     })
   }
 
-  start = async (): Promise<void> => {
+  start = (): Promise<void> => this.begin('park-preview')
+  startJumpmap = (): Promise<void> => this.begin('jumpmap')
+  private async begin(kind: 'park-preview' | 'jumpmap'): Promise<void> {
     if (this.disposed || useParkXR.getState().phase !== 'idle') return
+    if (kind === 'park-preview' && !parkVRPreviewEnabled()) {
+      useParkXR.setState({ error: '공원 자유이동 VR은 개발 미리보기에서만 사용할 수 있어요.' }); return
+    }
+    const own = avatars.get(useSession.getState().sessionId)
+    if (kind === 'jumpmap' && (!own || !nearJumpmapStart(own.current) || !useJumpmap.getState().available || own.carry || own.swimming)) {
+      useParkXR.setState({ error: '다른 행동을 마친 뒤 돌탑 출발 지점에서 VR을 시작해 주세요.' }); return
+    }
+    this.kind = kind
     this.gl.domElement.focus({ preventScroll: true })
     if (!canControlRoamingCamera()) {
       useParkXR.setState({ error: '공원에 연결된 산책 상태에서 시작해 주세요. 열린 메뉴나 게임을 먼저 닫아주세요.', notice: '' }); return
@@ -83,12 +101,17 @@ export class ParkXRController {
     }
     this.scope = this.currentScope()
     clearRoamingInput(); this.movement.reset(); parkXRView.ownsInput = true
-    useParkXR.setState({ phase: 'requesting', error: '', notice: '' })
+    useParkXR.setState({ phase: 'requesting', mode: kind, error: '', notice: '' })
     let granted: XRSession | null = null
     try {
       // Preserve user activation: request the immersive session before any other await.
       granted = await navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'] })
-      if (this.disposed || this.currentScope() !== this.scope || !canControlRoamingCamera()) { await granted.end(); return }
+      const release = await acquireVRProtection(parkRuntime)
+      if (this.disposed || this.currentScope() !== this.scope || !canControlRoamingCamera()
+        || kind === 'jumpmap' && (!avatars.get(useSession.getState().sessionId) || !nearJumpmapStart(avatars.get(useSession.getState().sessionId)!.current))) {
+        release(); await granted.end(); return
+      }
+      this.releaseVR = release
       this.session = granted; this.ending = false; this.started = false
       this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
       this.saved.parent = this.camera.parent; this.saved.layers = this.camera.layers.mask
@@ -107,7 +130,7 @@ export class ParkXRController {
       this.gl.xr.setFoveation(1)
       this.referenceSpace = this.gl.xr.getReferenceSpace()
       this.referenceSpace?.addEventListener?.('reset', this.recentered)
-      this.panel.reset(); this.panelKey = ''; parkXRView.active = true
+      this.panel.gameOnly = kind === 'jumpmap'; this.panel.reset(); this.panelKey = ''; parkXRView.active = true
       useParkXR.setState({ phase: 'active', notice: '왼쪽 스틱 이동 · A 점프 · 왼손 그립 달리기 · X 놀이 방법 · B VR 종료' })
     } catch (error) {
       if (granted) await granted.end().catch(() => undefined)
@@ -133,6 +156,12 @@ export class ParkXRController {
       if (!this.disposed) useParkXR.setState({ phase: 'active', error: 'VR 종료 요청을 완료하지 못했어요. Meta 버튼으로 브라우저 메뉴를 열어 종료해 주세요.' })
     }
   }
+  showGuide = () => {
+    if (this.session && useParkXR.getState().phase === 'active') {
+      if (this.kind === 'jumpmap') this.panel.toggleGuide()
+      else this.panel.showParkGuide()
+    }
+  }
 
   private currentScope(): string { const s = useSession.getState(); return `${s.sessionId}|${s.roomId}|${s.mapVersion}` }
   private recentered = (): void => { this.started = false; this.yaw = viewControls.yaw; this.panel.recenter(); this.interrupted() }
@@ -148,6 +177,8 @@ export class ParkXRController {
   }
   private finished = (): void => { this.restore(); if (!this.disposed) useParkXR.setState({ phase: 'idle' }) }
   private restore(): void {
+    this.releaseVR?.(); this.releaseVR = undefined
+    if (this.kind === 'jumpmap') closeJumpCompletion()
     this.session?.removeEventListener('end', this.finished)
     this.session?.removeEventListener('visibilitychange', this.interrupted)
     this.session?.removeEventListener('inputsourceschange', this.interrupted)
@@ -203,6 +234,9 @@ export class ParkXRController {
     const avatar = avatars.get(useSession.getState().sessionId)
     if (!avatar) { void this.end('공원 캐릭터 연결을 다시 확인해 주세요.'); return }
     sampleAvatar(avatar, now, this.pose)
+    if (this.kind === 'jumpmap' && (avatar.swimming || !inJumpmapXRRegion(avatar.current))) {
+      void this.end('점프맵 구역을 벗어나 일반 공원으로 돌아왔어요.'); return
+    }
     this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8, this.pose.z - this.offset.z)
     parkXRView.position.copy(this.head).applyQuaternion(this.rig.quaternion).add(this.rig.position)
     this.panel.update(now, parkXRView.position, this.headYaw, this.rig.position)
