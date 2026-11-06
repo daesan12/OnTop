@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.test.annotation.DirtiesContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true",
@@ -99,6 +100,10 @@ class WorldCarryFlowTests {
                 }
                 channels.minigameActivity(busy.userId, actorBusy ? 1 : 2, Duration.ZERO);
             }
+            // 로컬 소켓 종료는 서버의 연결 정리 완료를 보장하지 않는다.
+            // 같은 계정으로 다음 경우를 시작하기 전에 중복 접속 점유 해제를 확인한다.
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                    assertThat(hub.metricsSnapshot().activeConnections()).isZero());
         }
     }
 
