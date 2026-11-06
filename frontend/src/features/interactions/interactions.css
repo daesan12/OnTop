@@ -13,27 +13,27 @@
 .park-interaction kbd { margin-right: 8px; }
 .park-page .park-interaction[hidden] { display:none; }
 .park-interaction small { max-width: 360px; line-height: 1.5; }
-.carry-escape-hint { display: grid; justify-items: center; gap: 8px; }
-.carry-escape-hint__keys { display: flex; gap: 6px; padding-bottom: 4px; }
+.park-page .park-interaction[data-carry-role="CARRIED"] { padding: 8px 10px; border-radius: 9px; font-size: 13px; }
+.carry-escape-hint { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.carry-escape-hint__keys { display: flex; align-items: center; gap: 4px; }
 .park-interaction .carry-escape-hint__keys kbd {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 40px;
+  width: 22px;
+  height: 24px;
   margin: 0;
   padding: 0;
   border: 1px solid #ded0b2;
-  border-bottom: 4px solid #c7b899;
-  border-radius: 7px;
+  border-bottom: 2px solid #c7b899;
+  border-radius: 4px;
   color: #292620;
   background: #f7f1e5;
-  box-shadow: 0 3px 0 #8b7e64;
+  box-shadow: 0 1px 0 #8b7e64;
   font-family: inherit;
-  font-size: 20px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1;
 }
-.carry-escape-hint small { color: #dfd9bd; }
 @media (max-width: 900px) {
   .park-page .park-interaction[data-fitness-id],
   .park-page .park-interaction[data-carry-role],

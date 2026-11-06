@@ -171,7 +171,7 @@ for (const firstPerson of [false, true]) {
       { userId: '101', position: { ...flags, y: 2.54 }, carry: { carryId, partnerId: '102', role: 'CARRIED' } },
       { userId: '102', position: { ...flags, y: .84 }, carry: { carryId, partnerId: '101', role: 'CARRIER' } },
     ] })
-    const escape = page.getByRole('status').filter({ hasText: '번갈아 6회 눌러 내려오기' })
+    const escape = page.getByRole('status', { name: 'A와 D를 번갈아 6회 눌러 내려오기' })
     await expect(escape).toBeVisible()
     for (const key of ['KeyA', 'KeyD', 'KeyA', 'KeyD', 'KeyA', 'KeyD']) await page.keyboard.press(key)
     await expect(escape).toBeHidden()
@@ -256,9 +256,9 @@ test('a carried player escapes only with six alternating AD presses, without mov
     { userId: '101', position: { ...flags, y: 2.54 }, carry: { carryId, partnerId: '102', role: 'CARRIED' } },
     { userId: '102', position: { ...flags, y: .84 }, carry: { carryId, partnerId: '101', role: 'CARRIER' } },
   ] })
-  const escape = page.getByRole('status').filter({ hasText: '번갈아 6회 눌러 내려오기' })
+  const escape = page.getByRole('status', { name: 'A와 D를 번갈아 6회 눌러 내려오기' })
   await expect(escape).toBeVisible()
-  await expect(escape.locator('kbd')).toHaveText(['A', 'D', 'A', 'D', 'A', 'D'])
+  await expect(escape.locator('kbd')).toHaveText(['A', 'D'])
   await expect(page.getByRole('button', { name: /내려오기/ })).toHaveCount(0)
   await page.locator('canvas').focus()
   await page.keyboard.press('Escape')
