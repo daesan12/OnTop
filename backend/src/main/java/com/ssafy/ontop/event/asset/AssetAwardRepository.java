@@ -7,6 +7,7 @@ import com.ssafy.ontop.event.asset.AssetBalanceReconstruction.Wallet;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -78,14 +79,30 @@ final class AssetAwardRepository {
                 Timestamp.from(startsAt), Timestamp.from(endsAt));
     }
 
-    void insertSnapshot(long roundId, Snapshot snapshot, boolean gm, Instant capturedAt) {
-        jdbc.update("""
+    void insertSnapshots(long roundId, List<SnapshotEntry> entries, Instant capturedAt) {
+        if (entries.isEmpty()) {
+            return;
+        }
+        Timestamp captured = Timestamp.from(capturedAt);
+        jdbc.batchUpdate("""
                 INSERT INTO event_asset_snapshots(event_round_id, user_id, wallet_id, coin_balance,
                     first_reached_at, first_reached_transaction_id, excluded_gm, captured_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, roundId, snapshot.userId(), snapshot.walletId(), snapshot.coinBalance(),
-                Timestamp.from(snapshot.firstReachedAt()), snapshot.firstReachedTransactionId(),
-                gm, Timestamp.from(capturedAt));
+                """, entries, 500, (statement, entry) -> {
+            Snapshot snapshot = entry.snapshot();
+            statement.setLong(1, roundId);
+            statement.setLong(2, snapshot.userId());
+            statement.setLong(3, snapshot.walletId());
+            statement.setLong(4, snapshot.coinBalance());
+            statement.setTimestamp(5, Timestamp.from(snapshot.firstReachedAt()));
+            if (snapshot.firstReachedTransactionId() == null) {
+                statement.setNull(6, Types.BIGINT);
+            } else {
+                statement.setLong(6, snapshot.firstReachedTransactionId());
+            }
+            statement.setBoolean(7, entry.excludedGm());
+            statement.setTimestamp(8, captured);
+        });
     }
 
     void insertWinner(long roundId, Slot slot, Snapshot snapshot, Instant selectedAt) {
@@ -149,6 +166,7 @@ final class AssetAwardRepository {
 
     record Round(long id, LocalDate week, Instant startsAt, Instant endsAt,
             Instant announcesAt, Instant finalizedAt) {}
+    record SnapshotEntry(Snapshot snapshot, boolean excludedGm) {}
     record Slot(long id, int place, int slotNumber, String prizeName) {}
     record Counts(int candidateCount, int excludedGmCount) {}
 }

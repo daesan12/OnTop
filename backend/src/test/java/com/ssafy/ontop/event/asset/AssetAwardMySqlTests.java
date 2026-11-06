@@ -64,7 +64,11 @@ class AssetAwardMySqlTests {
         var repository = new AssetAwardRepository(jdbc);
         var manager = new DataSourceTransactionManager(datasource);
         var before = service(repository, admins, manager, END.plusSeconds(299));
+        assertThat(repository.round(WEEK, false)).isEmpty();
         assertThat(before.memberResult(WEEK, early).status()).isEqualTo("NOT_ANNOUNCED");
+        assertThat(service(repository, admins, manager, END.plusSeconds(9 * 3600))
+                .memberResult(WEEK, early).status()).isEqualTo("PENDING");
+        assertThat(repository.round(WEEK, false)).isEmpty();
         assertThatThrownBy(() -> before.finalizeRound(WEEK, gm))
                 .isInstanceOf(AssetAwardException.class)
                 .satisfies(error -> assertThat(((AssetAwardException) error).code())

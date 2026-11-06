@@ -3,6 +3,7 @@ package com.ssafy.ontop.event.asset;
 import com.ssafy.ontop.admin.security.AdminAccessPolicy;
 import com.ssafy.ontop.event.asset.AssetAwardRepository.Counts;
 import com.ssafy.ontop.event.asset.AssetAwardRepository.Round;
+import com.ssafy.ontop.event.asset.AssetAwardRepository.SnapshotEntry;
 import com.ssafy.ontop.event.asset.AssetAwardRepository.Slot;
 import com.ssafy.ontop.event.asset.AssetAwardResponse.AssetWinner;
 import com.ssafy.ontop.event.asset.AssetBalanceReconstruction.Snapshot;
@@ -13,6 +14,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -158,16 +160,19 @@ final class AssetAwardService {
                 repository.wallets(round.endsAt()),
                 repository.changes(round.startsAt(), round.endsAt()),
                 round.startsAt(), round.endsAt());
+        List<SnapshotEntry> entries = new ArrayList<>(snapshots.size());
         int excludedGmCount = 0;
         for (Snapshot snapshot : snapshots) {
             boolean gm = administrators.canRead(snapshot.userId());
-            repository.insertSnapshot(round.id(), snapshot, gm, now);
+            entries.add(new SnapshotEntry(snapshot, gm));
             if (gm) {
                 excludedGmCount++;
             }
         }
-        List<Snapshot> ranked = snapshots.stream()
-                .filter(snapshot -> !administrators.canRead(snapshot.userId()))
+        repository.insertSnapshots(round.id(), entries, now);
+        List<Snapshot> ranked = entries.stream()
+                .filter(entry -> !entry.excludedGm())
+                .map(SnapshotEntry::snapshot)
                 .sorted(RANKING).limit(PRIZES.length).toList();
         for (int index = 0; index < ranked.size(); index++) {
             repository.insertWinner(round.id(), slots.get(index), ranked.get(index), now);
