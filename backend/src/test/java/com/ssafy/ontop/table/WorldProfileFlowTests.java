@@ -96,10 +96,11 @@ class WorldProfileFlowTests {
             for (JsonNode avatar : state.path("payload").path("avatars")) {
                 assertThat(avatar.properties().stream().map(Map.Entry::getKey)).containsExactlyInAnyOrder(
                         "userId", "position", "equipment", "nickname", "characterGender", "gameMaster",
-                        "tableSeat", "activity", "motion");
+                        "tableSeat", "activity", "motion", "carry");
                 assertThat(avatar.path("gameMaster").asBoolean()).isFalse();
                 assertThat(avatar.path("tableSeat").isNull()).isTrue();
                 assertThat(avatar.path("activity").isNull()).isTrue();
+                assertThat(avatar.path("carry").isNull()).isTrue();
             }
             changed.set(true);
             hub.refreshProfiles();
