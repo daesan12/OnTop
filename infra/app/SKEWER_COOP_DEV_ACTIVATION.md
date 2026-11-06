@@ -13,9 +13,29 @@
 - 협동 REST/엔진은 `ontop.games.skewer-coop.enabled=true`일 때만 등록된다.
 - `skewer-coop` 프로필이 이를 활성화하고 영속 저널 경로를 요구한다.
 - 기본 DEV Compose는 `dev,db`만 사용한다. 별도 app.env 설정 여부는 서버에서 확인해야 한다.
+- `application-db.yml`의 `dev & db & !prod & !production` 블록은 이미
+  `classpath:db/migration,classpath:db/minigame`을 함께 읽는다. V145 적용 여부와 협동 API 활성화는
+  별개다. 기본 Flyway 경로만 보고 DEV에 V145가 빠졌다고 추정하지 않는다.
 - 기존 배포 실행기는 협동 override를 선택하지 않았다. 이제 deploy.env에 영속 디렉터리를
   명시하면 generated-map override 뒤에 협동 override도 계속 적용한다. 기본 배포는 그대로다.
 - 저장소 파일은 서버에 자동 설치되지 않는다. 아래 작업은 인프라 담당자가 한다.
+
+Jenkins #338 전체 로그에서 `62bfd9d0583382e19b9524d54d5439c791d74dd0` 이미지가
+2026-11-06 11:49:58 KST에 배포되어 health 검사를 통과했고 `Finished: SUCCESS`인 것을 확인했다.
+해당 SHA에는 V145와 협동 컨트롤러가 포함되어 있다. 따라서 사용자 응답(12:04:14 KST) 이전에
+협동 코드를 포함한 이미지가 배포된 기록은 있다. 이후 수동 변경, 실제 요청이 도달한 컨테이너와
+그 환경변수/실행 인수는 아직 확인하지 못했으므로 활성화 누락은 최종 확정 전이다.
+
+`SkewerCoopActivationTests`는 실제 application YAML을 읽고 `dev,db`에서 미니게임 migration
+경로가 포함되면서 컨트롤러는 없는 것, `skewer-coop` 추가 시 컨트롤러가 등록되는 것,
+명시적으로 false로 덮으면 다시 제외되는 것을 재현한다. DB·게임 서비스는 대역이며 공유 서버
+설정을 검증한 것은 아니다. 관련 컨트롤러·DB·운영 프로필 검사와 합계 15개 통과했다.
+첫 시도는 테스트 대역에 실제 TableHub의 autowired 후처리가 적용되어 실패했으며,
+준비된 singleton 대역을 등록해 의존성을 격리한 뒤 재실행해 통과했다.
+
+V145는 방 생성/입장료용 SQL이 아니라 `skewer_coop_results`(팀 결과·랭킹 근거)와
+`skewer_coop_rewards`(개인 지급 영수증)를 만든다. 기능을 켠 DB 앱에서 두 테이블이 없으면
+`JdbcSkewerCoopResultStore`가 기동을 거절한다. 따라서 404만 보고 V145 누락으로 단정하지 않는다.
 
 ## 1. 실제 실패 원인과 DB 확인 (읽기 전용)
 
