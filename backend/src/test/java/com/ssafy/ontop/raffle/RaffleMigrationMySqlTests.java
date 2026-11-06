@@ -34,6 +34,7 @@ class RaffleMigrationMySqlTests {
             var flyway = Flyway.configure()
                     .dataSource(url, username, password)
                     .locations("classpath:db/migration")
+                    .target("140")
                     .baselineOnMigrate(false)
                     .outOfOrder(false)
                     .load();
