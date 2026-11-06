@@ -119,14 +119,16 @@ export class CoopClient {
     } catch (error) { if (!this.stopped) this.store.setState({ resultError: '보상을 불러오지 못했어요. 다시 확인해 주세요.' }) }
     finally { if (!this.stopped) this.store.setState({ resultPending: false }) }
   }
-  async refreshRanking() {
-    if (this.store.getState().rankingPending) return
-    this.store.setState({ rankingPending: true, rankingError: '' })
+  private rankingRequest = 0
+  async refreshRanking(mode: 'PC' | 'VR' = this.snapshot?.publicState.rankingMode ?? (this.snapshot?.publicState.chefVR ? 'VR' : 'PC')) {
+    const request = ++this.rankingRequest
+    this.store.setState({ rankingPending: true, rankingError: '', ranking: null })
     try {
-      const value = await this.transport.requestJSON('/api/v1/minigames/skewer/coop/rankings')
-      if (!this.stopped && this.owner === this.transport.scope().userId) this.store.setState({ ranking: parseCoopRanking(value) })
-    } catch (error) { if (!this.stopped) this.store.setState({ rankingError: '팀 랭킹을 불러오지 못했어요. 다시 시도해 주세요.' }) }
-    finally { if (!this.stopped) this.store.setState({ rankingPending: false }) }
+      const value = parseCoopRanking(await this.transport.requestJSON(`/api/v1/minigames/skewer/coop/rankings?mode=${mode}`))
+      if (value.playMode !== mode) throw new Error('플레이 방식이 다른 랭킹입니다.')
+      if (request === this.rankingRequest && !this.stopped && this.owner === this.transport.scope().userId) this.store.setState({ ranking: value })
+    } catch (error) { if (request === this.rankingRequest && !this.stopped) this.store.setState({ rankingError: '팀 랭킹을 불러오지 못했어요. 다시 시도해 주세요.' }) }
+    finally { if (request === this.rankingRequest && !this.stopped) this.store.setState({ rankingPending: false }) }
   }
   async enter(gameId?: string, options: { roomName?: string; password?: string } = {}) {
     if (this.store.getState().pending) return false

@@ -133,10 +133,17 @@ public class SkewerCoopSettlementService {
     }
 
     public SkewerCoopRankingResponse ranking(long user) {
+        return ranking(user, "VR");
+    }
+
+    public SkewerCoopRankingResponse ranking(long user, String mode) {
+        if (!java.util.Set.of("PC", "VR").contains(mode)) {
+            throw new IllegalArgumentException("랭킹 플레이 방식을 확인해주세요.");
+        }
         if (store == null) {
             throw new IllegalStateException("랭킹 저장소가 연결되지 않았습니다.");
         }
-        return store.ranking(user, clock.instant());
+        return store.ranking(user, clock.instant(), mode);
     }
 
     private static void requireId(String id) {

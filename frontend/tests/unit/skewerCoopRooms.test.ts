@@ -19,6 +19,18 @@ function fixture() {
   return { client, request, requestJSON }
 }
 describe('협동 방 탐색과 준비 취소', () => {
+  it('랭킹 방식 전환 시 늦은 이전 응답이 현재 방식의 기록을 덮지 않는다', async () => {
+    const { client, requestJSON } = fixture()
+    const ranking = (playMode: 'PC' | 'VR') => ({ rulesVersion: 'coop-v1', period: 'ALL_TIME', aggregation: 'TEAM_BEST', asOf: '2026-11-06T00:00:00Z', items: [], myBest: null, playMode })
+    let resolvePC!: (value: unknown) => void
+    requestJSON.mockImplementationOnce(() => new Promise(done => { resolvePC = done }))
+    requestJSON.mockResolvedValueOnce(ranking('VR'))
+    const pc = client.refreshRanking('PC')
+    await client.refreshRanking('VR')
+    resolvePC(ranking('PC')); await pc
+    expect(client.store.getState().ranking?.playMode).toBe('VR')
+    expect(requestJSON.mock.calls.map(([path]) => path)).toEqual(['/api/v1/minigames/skewer/coop/rankings?mode=PC', '/api/v1/minigames/skewer/coop/rankings?mode=VR'])
+  })
   it('협동 API가 배포되지 않은 경우 방 정원 문제로 잘못 안내하지 않는다', async () => {
     const { client, requestJSON } = fixture()
     requestJSON.mockRejectedValue({ status: 404, code: 'HTTP_ERROR' })

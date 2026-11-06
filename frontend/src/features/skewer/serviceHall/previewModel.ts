@@ -10,7 +10,7 @@ export type PreviewTable = { id: number; status: Status; people: number; bill: B
 export type Party = { id: number; size: 1 | 2 }
 export type DirtyDishes = { id: number; table: number; settings: 1 | 2 }
 export type Washer = { load: DirtyDishes[]; remaining: number; completed: number }
-// Local playtest values, not final balance or a server contract. One batch, no extra input while washing.
+// Local preview mirrors the two-slot server washer; adding dishes restarts its batch timer.
 export const DISHWASHING_PREVIEW = { carryCapacity: 2, batchCapacity: 2, cycleSeconds: 8 } as const
 export const BUSINESS_PREVIEW_SECONDS = 240
 export const WRONG_DELIVERY_PENALTY = 10
@@ -55,7 +55,7 @@ export class HallPreview {
     const at = this.nearest(); if (!at) return null
     if (at.kind === 'washer') {
       if (!this.dirtyDishes.length) return this.washer.load.length ? '자동 세척 중' : '수거한 식기가 없어요'
-      return this.washer.load.length ? `세척 중 · ${Math.ceil(this.washer.remaining)}초 후 투입` : null
+      return this.washer.load.length >= DISHWASHING_PREVIEW.batchCapacity ? `세척기 가득 참 · ${Math.ceil(this.washer.remaining)}초 후 투입` : null
     }
     if (at.kind === 'storage' && !this.dirtyDishes.length && !this.carry.length && !this.stored.length) return '맡길 꼬치를 가져오세요'
     if (at.kind !== 'table') return this.dirtyDishes.length ? '식기를 세척기에 넣어 주세요' : null
@@ -84,11 +84,11 @@ export class HallPreview {
     const at = this.nearest(); if (!at) return
     const blocked = this.blockedReason(); if (blocked) return this.changed(blocked)
     if (at.kind === 'washer') {
-      // Transfer ownership once; repeated E cannot duplicate the load or restart a running cycle.
-      this.washer.load = this.dirtyDishes.splice(0, DISHWASHING_PREVIEW.batchCapacity)
-      this.score += this.washer.load.length * 3
+      const added = this.dirtyDishes.splice(0, DISHWASHING_PREVIEW.batchCapacity - this.washer.load.length)
+      this.washer.load.push(...added)
+      this.score += added.length * 3
       this.washer.remaining = DISHWASHING_PREVIEW.cycleSeconds
-      this.changed(`세척기 투입 +${this.washer.load.length * 3}점! 자동 세척 중에도 주문·음식 업무를 할 수 있어요.`); return
+      this.changed(`세척기 투입 +${added.length * 3}점! 마지막 투입부터 8초간 세척해요.`); return
     }
     if (at.kind === 'orders') {
       if (!this.held.length) return this.changed('손님에게 받은 주문표를 먼저 가져오세요.')

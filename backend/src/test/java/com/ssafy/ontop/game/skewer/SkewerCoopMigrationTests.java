@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Tag("mysql")
 class SkewerCoopMigrationTests {
     @Test
-    void 기존_랭킹과_선행_마이그레이션_회원_지갑을_보존하며_V145로_올린다() throws Exception {
+    void 기존_결과와_회원_지갑을_보존하며_V154로_올린다() throws Exception {
         String url = System.getenv("TEST_SKEWER_COOP_MIGRATION_DB_URL");
         if (url == null || !url.matches("jdbc:mysql://127\\.0\\.0\\.1:[0-9]+/ontop_skewer_coop_upgrade_[A-Za-z0-9_]+(?:\\?.*)?")) {
             throw new IllegalStateException("순차 적용은 loopback의 새 전용 upgrade DB에서만 검증합니다.");
@@ -29,7 +29,7 @@ class SkewerCoopMigrationTests {
         }
         var available = Flyway.configure().dataSource(url, user, password)
                 .locations(locations.toArray(String[]::new)).load();
-        MigrationVersion skewerVersion = MigrationVersion.fromVersion("145");
+        MigrationVersion skewerVersion = MigrationVersion.fromVersion("154");
         MigrationVersion previousVersion = Arrays.stream(available.info().all())
                 .map(migration -> migration.getVersion())
                 .filter(version -> version != null && version.compareTo(skewerVersion) < 0)
@@ -45,17 +45,27 @@ class SkewerCoopMigrationTests {
                 var statement = connection.createStatement()) {
             statement.executeUpdate("""
                     INSERT INTO users(login_provider,provider_user_id,nickname,character_gender,created_at,updated_at)
-                    VALUES ('SSAFY','skewer-migration-fixture','이력보존','MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3))
+                    VALUES ('SSAFY','skewer-migration-fixture','이력보존','MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3)),
+                           ('SSAFY','skewer-migration-partner','동료보존','MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3))
                     """);
             statement.executeUpdate("""
                     INSERT INTO wallets(user_id,balance,reserved_balance)
                     SELECT id,137,0 FROM users WHERE provider_user_id='skewer-migration-fixture'
                     """);
+            statement.executeUpdate("""
+                    INSERT INTO skewer_coop_results(game_id,result_hash,rules_version,table_id,
+                        team_low_id,team_high_id,chef_user_id,server_user_id,team_score,served,
+                        elapsed_ms,duration_ms,end_reason,ranking_eligible,ranking_reason,ended_at)
+                    SELECT 'skewer-coop-legacy',REPEAT('a',64),'coop-v1','vr:legacy',
+                        a.id,b.id,a.id,b.id,100,1,240000,240000,'SKEWER_TIME_UP',TRUE,'ELIGIBLE',CURRENT_TIMESTAMP(3)
+                    FROM users a JOIN users b ON b.provider_user_id='skewer-migration-partner'
+                    WHERE a.provider_user_id='skewer-migration-fixture'
+                    """);
         }
         var after = Flyway.configure().dataSource(url, user, password)
                 .locations(locations.toArray(String[]::new)).target(skewerVersion).load();
         assertThat(after.migrate().migrationsExecuted).isEqualTo(1);
-        assertThat(after.info().current().getVersion().getVersion()).isEqualTo("145");
+        assertThat(after.info().current().getVersion().getVersion()).isEqualTo("154");
         after.validate();
         assertThat(after.migrate().migrationsExecuted).isZero();
         try (var connection = DriverManager.getConnection(url, user, password);
@@ -66,6 +76,14 @@ class SkewerCoopMigrationTests {
                         """)) {
             assertThat(rows.next()).isTrue();
             assertThat(rows.getLong(1)).isEqualTo(137);
+        }
+        try (var connection = DriverManager.getConnection(url, user, password);
+                var rows = connection.createStatement().executeQuery(
+                        "SELECT play_mode,team_score,ranking_eligible FROM skewer_coop_results")) {
+            assertThat(rows.next()).isTrue();
+            assertThat(rows.getString(1)).isEqualTo("VR");
+            assertThat(rows.getInt(2)).isEqualTo(100);
+            assertThat(rows.getBoolean(3)).isTrue();
         }
     }
 }
