@@ -5,6 +5,19 @@ const pose = (x: number, moving = true) => ({ x, y: .8, z: 0, yaw: 0, moving, ru
 const motion = (tick: number, epoch = 0) => ({ tick, epoch, appliedInputSeq: tick, inputAgeMs: 0,
   velocityY: 0, grounded: true, inputActive: true })
 describe('remote server-tick snapshot interpolation', () => {
+  it('preserves the server throw speed without relaxing the normal walking catch-up limit', () => {
+    const thrown = new RemoteMovement(0), normal = new RemoteMovement(0), flight = pose(0), walk = pose(0)
+    for (const buffer of [thrown, normal]) {
+      buffer.push('other', pose(0), motion(0), 0)
+      buffer.sample('other', 0, pose(0))
+      buffer.push('other', pose(1.4), motion(3), 100)
+    }
+    thrown.sample('other', 100, flight, 14)
+    normal.sample('other', 100, walk)
+    expect(flight.x).toBeCloseTo(1.4)
+    expect(walk.x).toBeLessThan(1.4)
+  })
+
   it('uses the delayed server timeline instead of restarting a blend at every arrival', () => {
     const buffer = new RemoteMovement(120)
     buffer.push('other', pose(0), motion(0), 0)

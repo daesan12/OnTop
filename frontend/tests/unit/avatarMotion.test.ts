@@ -60,6 +60,34 @@ describe('avatar pose transitions and resource ownership', () => {
   })
 
   for (const name of ['man', 'girl', 'skins/ssafy-black-male-v3'] as const) {
+    it(`${name}: rests the held body closer to the carrier and eases into the throw pose`, async () => {
+      const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
+      const figure = new Group(), hips = new Vector3()
+      figure.add(rig.root)
+      const carry = { carryId: 'carry', partnerId: 'carrier', role: 'CARRIED' as const }
+      for (let frame = 0; frame < 60; frame++) motion.apply(avatar({ carry }), 0, 1 / 60, pose, figure)
+      figure.updateMatrixWorld(true)
+      rig.bones.hips.getWorldPosition(hips)
+      expect(rig.hipHeight - hips.y).toBeGreaterThan(.35)
+      expect(rig.hipHeight - hips.y).toBeLessThan(.75)
+      const held = hips.clone()
+
+      const thrown = avatar({ carry: { ...carry, role: 'THROWN' } })
+      motion.apply(thrown, 0, 1 / 60, pose, figure)
+      figure.updateMatrixWorld(true)
+      rig.bones.hips.getWorldPosition(hips)
+      expect(hips.distanceTo(held)).toBeLessThan(.2)
+      const launchPitch = figure.rotation.x
+      expect(Math.abs(figure.rotation.z)).toBeGreaterThan(1)
+      for (let frame = 0; frame < 60; frame++) motion.apply(thrown, 0, 1 / 60, pose, figure)
+      figure.updateMatrixWorld(true)
+      rig.bones.hips.getWorldPosition(hips)
+      expect(hips.y).toBeCloseTo(rig.hipHeight, 3)
+      expect(Math.abs(figure.rotation.x - launchPitch)).toBeGreaterThan(1)
+      expect(figure.scale.toArray()).toEqual([1, 1, 1])
+      rig.dispose()
+    })
+
     it(`${name}: a near idle keeps playing, a distant one sleeps, and both resume the next gesture`, async () => {
       const source = await characterSource(name), rig = createCharacterRig(source), reference = createCharacterRig(source)
       const motion = createAvatarMotion(rig), fullMotion = createAvatarMotion(reference), cadence = new AvatarPoseCadence()
