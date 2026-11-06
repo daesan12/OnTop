@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { SculptedChef } from './SculptedChef'
 import type { ToyPose } from './ToyPeople'
+import { RESTAURANT_ACTOR_HEIGHT } from './CharacterScale'
 
 export const SCULPTED_SERVER_URL = '/art/skewer/characters/server-pink-v2.glb'
 type Joint = { bone: THREE.Bone; rest: THREE.Quaternion; axis: THREE.Vector3 }
@@ -23,7 +24,7 @@ export class SculptedServer {
   private readonly soles: { mesh: THREE.SkinnedMesh; index: number }[] = []
 
   static async load() {
-    const avatar = await SculptedChef.load({ url: SCULPTED_SERVER_URL, name: 'skewer-sculpted-server', height: 2.55 })
+    const avatar = await SculptedChef.load({ url: SCULPTED_SERVER_URL, name: 'skewer-sculpted-server', height: RESTAURANT_ACTOR_HEIGHT })
     try { return new SculptedServer(avatar) }
     catch (error) { avatar.dispose(); throw error }
   }

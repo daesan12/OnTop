@@ -1,5 +1,7 @@
 # OnTop
 
+VR 전용 작업 브랜치: **`feat/quest-vr`**. [실행 방법과 작업 범위](frontend/docs/vr/readme.md)를 먼저 확인하세요.
+
 - [FE 디자인 컨벤션 · 신규 게임 UI · 관전자 채팅/핑](docs/conventions/frontend-design.md)
 - [신규 게임 Backend 구현 가이드 (1차 초안)](docs/conventions/backend-new-game.md)
 - [Swagger UI / REST OpenAPI 실행·인증·명세 갱신](docs/api/README.md)

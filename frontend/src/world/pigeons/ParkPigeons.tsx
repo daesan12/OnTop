@@ -1,3 +1,4 @@
+import { cameraWorldPosition } from '../xrView'
 import { CompactInstances } from './compactInstances'
 import { useMemo, useRef, useLayoutEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
@@ -117,7 +118,7 @@ export function ParkPigeons({ quality,habitat }: { quality: QualityPreset;habita
       const peck =
         b.mode === 'idle' ? Math.max(0, Math.sin(b.age * 3 + b.phase)) ** 8 : 0
       const visible =
-        Math.hypot(camera.position.x - b.x, camera.position.z - b.z) <
+        Math.hypot(cameraWorldPosition(camera).x - b.x, cameraWorldPosition(camera).z - b.z) <
         (quality === 'low' ? 42 : 70)
       if (!visible) return
       state.root.position.set(b.x, b.y, b.z)

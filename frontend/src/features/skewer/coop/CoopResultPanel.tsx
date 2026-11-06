@@ -7,8 +7,13 @@ import cover from './art/result-celebration.png'
 import type { CoopClient } from './client'
 
 export const rankingReasonText = (reason?: string) => reason === 'NON_VR' ? '요리사가 VR 없이 진행했거나 경기 중 PC로 전환했어요.'
-  : reason === 'EARLY_END' ? '기권·연결 종료 경기는 팀 랭킹에 등록하지 않아요.'
+  : reason === 'EARLY_END' ? '영업을 끝까지 마치지 못한 경기는 팀 랭킹에 등록하지 않아요.'
     : reason === 'RULES_MISMATCH' ? '현재 랭킹과 영업시간 규칙이 달라요.' : 'VR 요리사로 영업을 끝까지 완료한 팀 기록이에요.'
+
+export const endReasonText = (reason: string | null) => reason === 'SKEWER_RUNTIME_ERROR'
+  ? '진행 중 문제가 생겨 이번 경기를 마쳤어요. 보상 확인 후 다시 시작해 주세요.'
+  : reason === 'SKEWER_DISCONNECT_TIMEOUT' ? '재접속 대기 시간이 끝나 경기를 마쳤어요.'
+    : reason === 'SKEWER_FORFEIT' ? '참가자가 공동 경기를 종료했어요.' : '둘이 함께 만든 오늘의 기록'
 
 export function CoopResultPanel({ client, leaving, onClose }: { client: CoopClient; leaving: boolean; onClose: () => void }) {
   const state = useStore(client.store), pub = state.snapshot!.publicState, result = state.result
@@ -27,7 +32,7 @@ export function CoopResultPanel({ client, leaving, onClose }: { client: CoopClie
   return <PaperPopup title="온탑 꼬치왕 · 공동 경기 결과" label="공동 경기 결과" className="coop-result-paper" onClose={onClose} closeLabel="결과 창 닫기">
     <section aria-label="공동 경기 결과 요약" data-settlement={result?.status ?? 'PENDING'}>
       <header className="coop-result-heading"><ResultTrophy /><h2>오늘도 수고했어요!</h2></header>
-      <p className="paper-subtitle">{pub.endReason === 'SKEWER_DISCONNECT_TIMEOUT' ? '재접속 대기 시간이 끝나 경기를 마쳤어요.' : pub.endReason === 'SKEWER_FORFEIT' ? '참가자가 공동 경기를 종료했어요.' : '둘이 함께 만든 오늘의 기록'}</p>
+      <p className="paper-subtitle">{endReasonText(pub.endReason)}</p>
       <div className="coop-result-layout"><div className="coop-team-record">
         <img className="coop-result-art" src={cover} alt="완성한 꼬치 접시를 들고 기뻐하는 요리사" />
         <div className="coop-result-score"><span>우리 팀이 함께 만든 점수</span><strong>{pub.score.toLocaleString('ko-KR')}<small>점</small></strong></div>

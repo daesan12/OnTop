@@ -38,6 +38,7 @@ import { benchBoardLook, benchLook, benchTable, benchViewScope, spectatorClearHe
 import { advanceOmokCamera, OMOK_FOCUS_LAYER, omokTopDownHeight, omokSpectatorFrame } from './omokCamera'
 import { omokFocusLighting } from './boardFocusLighting'
 import { wardrobeView } from '../features/wardrobe/view'
+import { parkXRView } from './xrView'
 
 /** Whole-figure framing used by the wardrobe zoom (the avatar plus a little headroom). */
 const WARDROBE_FRAME = { height: CHARACTER.height * 1.08, minDistance: 1.4, maxDistance: 5 }
@@ -128,6 +129,12 @@ export function CameraRig() {
     omokFocusLighting.requested = false
     camera.layers.set(0)
     raycaster.layers.set(0)
+    if (parkXRView.ownsInput) {
+      interactionAim.ready = false
+      cameraOcclusion.strength.value = 0
+      occlusion.reset()
+      return
+    }
     scan.current += delta
     wardrobeView.blend += (Number(wardrobeView.active) - wardrobeView.blend) * (1 - Math.exp(-5 * Math.min(delta, 0.1)))
     if (Math.abs(Number(wardrobeView.active) - wardrobeView.blend) < 0.001) wardrobeView.blend = Number(wardrobeView.active)

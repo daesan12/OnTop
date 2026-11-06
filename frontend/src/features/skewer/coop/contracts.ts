@@ -9,14 +9,20 @@ export interface CoopTransport {
   requestJSON(path: string, init?: RequestInit): Promise<unknown>
 }
 export interface CoopPublic {
+  roomName?: string; hostNickname?: string; locked?: boolean
   gameCode: 'SKEWER_COOP'; phase: 'WAITING' | 'COUNTDOWN' | 'PLAYING' | 'FINISHED'; channelId: string
   remaining: number; elapsed: number; countdown: number; score: number; served: number; paused: boolean
   actionVersion: number
-  pauseReason?: '' | 'DISCONNECTED' | 'EXIT_CONFIRM'
+  pauseReason?: '' | 'DISCONNECTED' | 'EXIT_CONFIRM' | 'RESTART_CONFIRM'
   pausedBy?: string[]
+  round?: number
+  restart?: { id: string; requestedBy: string; expiresAt: number } | null
   rankingEligible: boolean; chefVR: boolean; entryFee: 0; rewardStatus: 'SERVER_SETTLEMENT' | 'NOT_CONNECTED'; message: string; endReason: string | null
   players: { userId: string; role: '' | 'chef' | 'server'; ready: boolean; connected: boolean }[]
   greeting: { active: boolean; index: number; remaining: number; answered: boolean; responded: number; speech: boolean }
+}
+export interface CoopRoom {
+  gameId: string; players: number; mine: boolean; roomName: string; hostNickname: string; locked: boolean
 }
 export interface CoopSnapshot {
   gameId: string; version: number; registered: boolean; publicState: CoopPublic
@@ -61,6 +67,12 @@ export function parseCoop(value: unknown): CoopSnapshot | null {
   if (!object(value) || typeof value.gameId !== 'string' || !/^skewer-coop-[a-f0-9-]{36}$/.test(value.gameId)
     || !Number.isSafeInteger(value.version) || (value.version as number) < 0 || !object(value.publicState) || !object(value.privateState)) return null
   const p = value.publicState, secret = value.privateState
+  if (p.round !== undefined && !nonnegative(p.round)) return null
+  const restart = p.restart
+  if (restart != null && (!object(restart) || typeof restart.id !== 'string'
+    || !/^\d+$/.test(restart.id) || typeof restart.requestedBy !== 'string'
+    || !Array.isArray(p.players) || !p.players.some(player => object(player) && player.userId === restart.requestedBy)
+    || !nonnegative(restart.expiresAt) || p.paused !== true || p.pauseReason !== 'RESTART_CONFIRM')) return null
   if (p.gameCode !== 'SKEWER_COOP' || !['WAITING', 'COUNTDOWN', 'PLAYING', 'FINISHED'].includes(String(p.phase))
     || typeof p.channelId !== 'string' || !Array.isArray(p.players) || p.players.length < 1 || p.players.length > 2
     || p.players.some(player => !object(player) || typeof player.userId !== 'string' || !['', 'chef', 'server'].includes(String(player.role)))

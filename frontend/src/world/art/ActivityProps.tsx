@@ -1,3 +1,4 @@
+import { cameraWorldPosition } from '../xrView'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, SRGBColorSpace } from 'three'
@@ -92,7 +93,7 @@ export function FishBreadCart() {
     if (
       !requestedRef.current &&
       useSession.getState().status === 'connected' &&
-      (camera.position.x - cart.x) ** 2 + (camera.position.z - cart.z) ** 2 <
+      (cameraWorldPosition(camera).x - cart.x) ** 2 + (cameraWorldPosition(camera).z - cart.z) ** 2 <
         40 ** 2
     ) {
       requestedRef.current = true

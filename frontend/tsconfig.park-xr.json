@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.tests.json",
+  "include": ["src", "tests/park-xr", "tests/unit/parkXRController.test.ts", "tests/unit/parkXRMovement.test.ts", "tests/unit/jumpmapXR.test.ts", "playwright.park-xr.config.ts"]
+}

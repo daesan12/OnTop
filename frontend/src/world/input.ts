@@ -1,4 +1,5 @@
 import { CAMERA, TELESCOPE } from '../config'
+import { parkXRView } from './xrView'
 import { avatars, useSession } from '../network/worldClient'
 import { parkRuntime } from '../park/runtime/runtime'
 
@@ -53,6 +54,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     hadMovement = false
   const intent: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
   const blocked = () =>
+    parkXRView.ownsInput ||
     document.hidden ||
     useSession.getState().status !== 'connected' ||
     !avatars.has(useSession.getState().sessionId) ||
@@ -127,7 +129,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (benchView.scope !== benchViewScope(useSession.getState()) || benchView.view === 'seated') rotate(x, y)
     else if (benchView.view === 'participants') turnBenchLook(x)
   }
-  const mouseLook = installMouseLook(canvas, () => lookOwner() !== null, look, stop, cancelMouseLookReturn)
+  const mouseLook = installMouseLook(canvas, () => !parkXRView.ownsInput && lookOwner() !== null, look, stop, cancelMouseLookReturn)
   const clear = () => { mouseLook.release(); stop() }
   // Entering a bench, telescope or fitness station clears movement keys but keeps mouse look;
   // callers that open a panel or minigame release it, as does any clear while simply roaming.
@@ -146,6 +148,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   }
   const abandonMouseLook = () => { scenePointerOwners.clear(); cancelMouseLookReturn(); clear() }
   const changePerspective = () => {
+    if (parkXRView.ownsInput) return
     if (!canControlRoamingCamera()) return
     stop()
     toggleCameraPerspective()
@@ -163,7 +166,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     stop()
   }
   const down = (event: KeyboardEvent) => {
-    if (event.defaultPrevented) return
+    if (event.defaultPrevented || parkXRView.ownsInput) return
     const session = useSession.getState(), table = session.tableStates[session.tableId]
     const carry = avatars.get(session.sessionId)?.carry
     if (event.code === 'Escape' && !event.repeat && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey
@@ -257,6 +260,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (changed && movement.has(event.code) && !blocked() && !useSession.getState().telescopeId) sendIntent()
   }
   const pointerDown = (event: PointerEvent) => {
+    if (parkXRView.ownsInput) return
     if (event.defaultPrevented || scenePointerOwners.has(event.pointerId)) return
     if (mouseLook.locked()) return
     const session = useSession.getState(), scope = seatScope(session)
@@ -328,6 +332,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     )
   }
   const interval = setInterval(() => {
+    // XR owns both intent and the idle position heartbeat until its session ends.
+    if (parkXRView.ownsInput) return
     const owner = lookOwner()
     if (owner === null) mouseLook.release()
     else if (owner !== 'hold' && mouseLookReturn.requested) mouseLook.resume()

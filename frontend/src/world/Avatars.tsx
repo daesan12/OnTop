@@ -4,6 +4,7 @@ import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Matrix4, Vector3 } from 'three'
+import { cameraWorldPosition, parkXRView } from './xrView'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls, createCharacterRig } from './worldAssets'
 import { avatarPoseActive, avatarPoseAmbient, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
@@ -137,7 +138,7 @@ function Avatar({
     if (Math.abs(overlapOpacity.current - targetOpacity) < .001) overlapOpacity.current = targetOpacity
     const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : overlapOpacity.current
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
-    root.current.visible = opacity > 0 && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
+    root.current.visible = opacity > 0 && !(own && parkXRView.active) && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
@@ -150,7 +151,7 @@ function Avatar({
     if (!root.current.visible) return
     // The visitors parent has an identity transform; this position is already
     // in world space. Avoid walking/updating the ancestor matrices per avatar.
-    const distance = camera.position.distanceTo(root.current.position)
+    const distance = cameraWorldPosition(camera).distanceTo(root.current.position)
     model.lod(distance)
     const now = estimatedServerTime()
     const reaction = gameReaction(id, avatar, now)

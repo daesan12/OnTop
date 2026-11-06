@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
+import { RESTAURANT_ACTOR_HEIGHT } from './CharacterScale'
 
 export const SCULPTED_CHEF_URL = '/art/skewer/characters/chef-blue-v2.glb'
 export type SculptedModelOptions = { url?: string; name?: string; height?: number; facingYaw?: number }
@@ -31,7 +32,7 @@ export class SculptedChef {
     if (!Number.isFinite(height) || height < .001) throw new Error('Invalid skewer chef bounds')
     const center = bounds.getCenter(new THREE.Vector3())
     // Retain the sculpt's proportions; root is used for world placement only.
-    const fit = new THREE.Group(), scale = (options.height ?? 2.55) / height
+    const fit = new THREE.Group(), scale = (options.height ?? RESTAURANT_ACTOR_HEIGHT) / height
     fit.scale.setScalar(scale)
     // This generated GLB faces +X; the hall actors face +Z.
     fit.rotation.y = options.facingYaw ?? -Math.PI / 2
