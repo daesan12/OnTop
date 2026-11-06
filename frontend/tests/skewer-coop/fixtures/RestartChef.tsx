@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ChefDriver } from '../../../src/features/skewer/coop/drivers'
 
 // Session lifecycle callback double; it does not emulate a real WebXR session.
@@ -6,8 +6,10 @@ export default function RestartChef({ driver, onXRChanged, preferredMode }: {
   driver: ChefDriver; onXRChanged: (active: boolean) => void; preferredMode: string
 }) {
   const [active, setActive] = useState(false)
-  const change = (value: boolean) => { setActive(value); onXRChanged(value) }
-  return <section aria-label="모의 요리사" style={{ position: 'fixed', top: 100, left: 20, color: '#fff' }}>
+  // Like ChefScene, retain the callback installed on mount across lobby/game transitions.
+  const xrChanged = useRef(onXRChanged)
+  const change = (value: boolean) => { setActive(value); xrChanged.current(value) }
+  return <section aria-label="모의 요리사" style={{ position: 'fixed', zIndex: 10001, top: 100, left: 20, color: '#fff' }}>
     <p>선택 모드 {preferredMode} / 실제 세션 {active ? '연결' : '해제'}</p>
     <button onClick={() => change(true)}>모의 VR 연결</button>
     <button onClick={() => setTimeout(() => change(true), 3000)}>모의 VR 연결 예약</button>

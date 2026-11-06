@@ -106,7 +106,13 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
     const ended = wasXR.current && !active
     wasXR.current = active
     setXRActive(active)
-    if (ended) { void exit(); return }
+    if (ended) {
+      // The scene retains its first callback; read the live snapshot after equipment checks.
+      if (client.snapshot?.publicState.phase !== 'WAITING') { void exit(); return }
+      setEquipmentOpen(false)
+      if (client.snapshot.publicState.players.some(player => player.userId === transport.scope().userId && player.ready))
+        void client.act({ type: 'READY', ready: false })
+    }
     if (active) { setEquipmentOpen(false); setChefMode('vr') }
     if (client.snapshot?.privateState.role === 'chef' && client.snapshot.publicState.phase !== 'FINISHED') void client.act({ type: 'CHEF_MODE', vr: active })
   }
