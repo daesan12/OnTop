@@ -8,6 +8,32 @@ async function readyCarryScene(page: Page) {
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
 }
 
+test('pickup hint and E accept the added 20cm of reach and stop outside 2.2m', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
+  await page.goto('/park')
+  await readyCarryScene(page)
+  await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).faceCarryTarget())
+  const pickup = page.getByRole('button', { name: /님 들기/ })
+  // First observe the outside state, so an old visible hint cannot satisfy the inside check.
+  server.remotePose({ z: 75.79 })
+  await expect(pickup).toBeHidden()
+  await page.locator('canvas').focus()
+  await page.keyboard.press('KeyE')
+  expect(server.sent.filter(message => message.type === 'WORLD_CARRY_PICKUP')).toHaveLength(0)
+  server.remotePose({ z: 75.9 })
+  await expect(pickup).toBeVisible()
+  await screenshot(page, 'carry-reach-2point1m')
+  await page.keyboard.press('KeyE')
+  await expect(page.getByRole('button', { name: /바라보는 방향으로 던지기/ })).toBeVisible()
+  expect(server.sent.filter(message => message.type === 'WORLD_CARRY_PICKUP')).toHaveLength(1)
+  await expect(page).toHaveTitle('OnTop')
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
 for (const firstPerson of [false, true]) {
   test(`native mouse look survives pickup, throw and E escape (${firstPerson ? 'first' : 'third'} person)`, async ({ page }) => {
     const errors: string[] = []

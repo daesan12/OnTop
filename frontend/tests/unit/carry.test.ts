@@ -37,6 +37,14 @@ it('selects a nearby player and sends one pickup or normalized camera-direction 
   expect(parkRuntime.throwAvatar).toHaveBeenCalledWith(carryId, { dx: 0, dy: .6, dz: -.8 })
 })
 
+it.each([
+  [2.1, 0, true], [2.2, 0, true], [-2.2, 0, true], [0, 2.19, true],
+  [2.2001, 0, false], [0, 2.21, false], [1.3, 1.7, true], [1.6, 1.6, false],
+] as const)('offers pickup at horizontal offset (%s, %s) only within 2.2m: %s', (x, z, available) => {
+  Object.assign(avatars.get('102')!.current, { x, z })
+  expect(carryInteraction()?.kind === 'avatar-pickup').toBe(available)
+})
+
 it('reads the actual camera on E instead of a stale aim snapshot or the avatar heading', () => {
   const camera = new PerspectiveCamera()
   setInteractionCamera(camera)
