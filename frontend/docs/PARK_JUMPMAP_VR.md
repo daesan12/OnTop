@@ -3,7 +3,7 @@
 - 현재 작업 위치: `C:\Users\SSAFY\Desktop\OnTop\quest-vr`.
 - 현재 작업 브랜치: `feat/quest-vr-games` (MR !425). 원격 `VR`의 직접 푸시 금지 보호를 유지한다. `VR`은 2026-11-04 `feat/quest-vr`에서 이름을 변경한 원본 브랜치다.
 - 2026-11-07 원격 반영 승인: 사용자가 미커밋 VR 작업의 커밋·푸시와 `dev` 대상 MR 생성을 요청했다. 머지는 사용자 확인 후 별도로 진행한다. `VR`의 직접 푸시 금지 보호를 유지하고 동일 작업 커밋을 `feat/quest-vr-games`에 푸시해 MR 소스로 사용한다. 아래 로컬 전용 보류 기록은 당시 상태다.
-- 현재 통합 기준: `origin/dev@69950c6f` (2026-11-07, MR !425 작업 브랜치에 이력 보존 방식으로 반영).
+- 현재 통합 기준: `origin/dev@fa9223ff7670abccc9be7d13aafdf3fae83d56fc` (2026-11-07, MR !425 작업 브랜치에 이력 보존 방식으로 반영).
 - 이관 원본: `park-jumpmap-vr-20261104`, `feat/park-jumpmap-vr-local-20261104@324db890`의 미커밋 VR 변경. 원본은 삭제·변경하지 않고 보존한다.
 - 기존 `quest-locomotion-poc`의 미커밋 작업과 독립 이동 화면은 원래 위치에 보존한다. 2026-11-04 사용자 승인으로 feat/quest-vr에 커밋·푸시하며 dev/master 머지·배포는 진행하지 않는다.
 
@@ -356,3 +356,13 @@ Browser plugin not available → 기존 Playwright·설치된 Chrome/SwiftShader
 - 통합 후 제품/전체 tests TypeScript, 관련 FE unit 24파일 175개, park-integration 빌드 통과. BE SkewerCoopFeedbackTests/EngineTests/RoomTests/SettlementServiceTests/ResultJournalTests 5파일 52개 통과, 실패·skip 0건.
 - 통합 후 Playwright 협동 호스트 9개(대기실 유지 및 최신 단계 종료 포함), 독립 요리사 7개, 새 PC 입력/결과 2개, 전체 VR 흐름 1개를 재검증해 19개 통과했다. 이번 피드백 수정 후 통과한 공원/점프맵 12개는 추가 dev에서 소스 변경이 없어 재사용한다(고유 검사 합계 31개). 전체 흐름 화면 21장은 외부 output의 flow-latest-dev에 다시 저장했다.
 - 이번 사용자 요청인 대기실 방 유지와 서버 경계 500ms 유예는 최종 통합 코드에서도 유지된다. 실제 Quest/실제 다인 로그인·DB 정산은 미검수이며 모든 브라우저 검사는 fixture 경로다. dev 머지·배포·브랜치 삭제는 계속 보류한다.
+
+## 2026-11-07 최신 dev의 서빙 이동 반응 개선 통합
+
+- `origin/dev@fa9223ff7670abccc9be7d13aafdf3fae83d56fc`를 현재 MR 작업 브랜치 `feat/quest-vr-games`에 반영했다. 시작 시 미커밋 작업은 없었고 6파일의 이동 반응·표시/검사/기록 변경이 병합 충돌 없이 적용됐다. 공통 컨벤션 문서는 기존 기준과 동일하다.
+- 서빙 담당이 출발하거나 방향을 바꿀 때 기존 held-input heartbeat를 기다리지 않고 변경 의도를 보내며, HallMotion은 서버 이동 방향을 기준으로 회전·표시 지연을 조정한다. 실제 위치·충돌·상호작용은 기존 서버 기준을 유지한다.
+- 기존 게임 전용 VR 진입, 한지 컨트롤러 안내, VR 운반 보호, 대기실 장비 점검 종료 시 방 유지, 점프맵 서버 경계 이탈 500ms 유예는 보존했다. 새 API·BE·DB/Flyway·맵·의존성 변경은 없다.
+- 제품/전체 tests TypeScript, git diff --check, 관련 unit 7파일 65개와 park-integration Vite 빌드 통과. 서빙 드라이버·HallMotion·서비스 홀·협동 피드백/재시작·XR 경계/보호를 검사했다. 영향 없는 전체 unit·BE 검사는 추가 실행하지 않았다.
+- 기존 Playwright 독립 서비스 홀 7개와 협동 호스트 9개 총 16개 통과. 실제 화면의 이동·서빙·식기/청소·재시작·작은 화면 접근, 대기실 VR 유지/재연결과 경기 단계별 종료 복귀를 확인했다. 홀 테스트 중 Vite의 ResizeObserver loop completed with undelivered notifications 알림 3건을 관찰했으며 기존 페이지/콘솔 오류 검증을 포함한 검사는 통과했다. Three 셰이더 정밀도 및 빌드 번들 경고도 남는다.
+- 브라우저 검사는 독립 preview/참가자·서버 fixture이며 실제 다인 서버·Quest 실기기·정산 검수가 아니다. 추가된 실제 서버 network.spec.ts는 이번에 실행하지 않았다. 외부 build 로그: `OnTop/output/quest-vr-dev-sync-fa9223ff/build.log`.
+- 검증 후 이력 보존 병합 커밋을 같은 MR 소스 브랜치에 정상 푸시하며 MR !425의 기준/검증 기록을 갱신한다. dev/master 머지·배포·자동 머지·브랜치 삭제는 보류한다.

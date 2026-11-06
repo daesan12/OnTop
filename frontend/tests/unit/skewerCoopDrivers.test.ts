@@ -13,6 +13,54 @@ function fixture() {
   return { client, driver: new OnlineHall(client as unknown as CoopClient), hall, act }
 }
 describe('협동 홀 입력의 서버 판정 경계', () => {
+  it('시작과 방향 전환은 이동 유지 주기를 기다리지 않고 다음 프레임에 보낸다', async () => {
+    const clock = vi.spyOn(performance, 'now')
+    try {
+      const { driver, act } = fixture()
+      clock.mockReturnValue(10)
+      driver.step(1 / 60, 1, 0)
+      await Promise.resolve()
+      clock.mockReturnValue(26)
+      driver.step(1 / 60, -1, 0)
+      await Promise.resolve()
+      clock.mockReturnValue(42)
+      driver.step(1 / 60, 0, 1)
+      await Promise.resolve()
+      clock.mockReturnValue(58)
+      driver.step(1 / 60, 0, 0)
+      expect(act.mock.calls.map(([input]) => input)).toEqual([
+        { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: -1, dz: 0 },
+        { type: 'MOVE', dx: 0, dz: 1 }, { type: 'MOVE', dx: 0, dz: 0 },
+      ])
+    } finally { clock.mockRestore() }
+  })
+  it('같은 이동을 유지할 때는 프레임마다 요청을 추가하지 않는다', async () => {
+    const clock = vi.spyOn(performance, 'now')
+    try {
+      const { driver, act } = fixture()
+      for (let now = 0; now < 300; now += 16) {
+        clock.mockReturnValue(now)
+        driver.step(1 / 60, 1, 0)
+        await Promise.resolve()
+      }
+      expect(act).toHaveBeenCalledTimes(2)
+    } finally { clock.mockRestore() }
+  })
+  it('응답을 기다리는 중 방향이 여러 번 바뀌어도 요청을 쌓지 않고 최신 입력만 보낸다', async () => {
+    const { driver, act } = fixture()
+    let acknowledge!: () => void
+    act.mockImplementationOnce(() => new Promise<void>(resolve => { acknowledge = resolve }))
+    driver.step(1 / 60, 1, 0)
+    driver.step(1 / 60, -1, 0)
+    driver.step(1 / 60, 0, 1)
+    expect(act).toHaveBeenCalledTimes(1)
+    acknowledge()
+    await Promise.resolve()
+    driver.step(1 / 60, 0, 0)
+    expect(act.mock.calls.map(([input]) => input)).toEqual([
+      { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: 0, dz: 0 },
+    ])
+  })
   it('늦은 서버 좌표를 받으며 전진해도 화면 위치가 주기적으로 뒤로 튀지 않는다', () => {
     const { client, driver, hall } = fixture()
     const start = { ...hall.position }

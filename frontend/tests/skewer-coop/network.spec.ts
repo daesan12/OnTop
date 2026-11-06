@@ -132,17 +132,16 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
       const url = '/src/features/skewer/serviceHall/rendering/HallMotion.ts'
       const { HallMotion } = await import(/* @vite-ignore */ url)
       const update = HallMotion.prototype.update
-      const samples: { x: number; yaw: number }[] = []
+      const samples: { x: number; yaw: number; moving: boolean }[] = []
       HallMotion.prototype.update = function (...args: unknown[]) {
         update.apply(this, args)
-        samples.push({ x: this.position.x, yaw: this.yaw })
+        samples.push({ x: this.position.x, yaw: this.yaw, moving: this.moving })
       }
       Reflect.set(window, 'skewerMotionSamples', samples)
       Reflect.set(window, 'stopSkewerMotionCapture', () => { HallMotion.prototype.update = update })
     })
     await server.keyboard.down('d'); await server.waitForTimeout(900); await server.keyboard.up('d')
     const motion = await server.evaluate(() => {
-      Reflect.get(window, 'stopSkewerMotionCapture')()
       return Reflect.get(window, 'skewerMotionSamples') as { x: number; yaw: number }[]
     })
     expect(motion.length).toBeGreaterThan(10)
@@ -152,6 +151,18 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
       if (motion[frame].x - motion[frame - 1].x > .005) expect(Math.sin(motion[frame].yaw)).toBeGreaterThanOrEqual(0)
     }
     await capture(server, 'coop-forward-motion')
+    await server.evaluate(() => { Reflect.get(window, 'skewerMotionSamples').length = 0 })
+    await server.keyboard.down('a'); await server.waitForTimeout(650); await server.keyboard.up('a')
+    await server.waitForTimeout(450)
+    const reversed = await server.evaluate(() => {
+      Reflect.get(window, 'stopSkewerMotionCapture')()
+      return Reflect.get(window, 'skewerMotionSamples') as { x: number; yaw: number; moving: boolean }[]
+    })
+    expect(reversed[0].x - reversed.at(-1)!.x).toBeGreaterThan(.7)
+    expect(Math.sin(reversed.at(-1)!.yaw)).toBeLessThan(-.99)
+    expect(reversed.at(-1)!.moving).toBe(false)
+    expect(Math.abs(reversed.at(-1)!.x - latest.get(server).privateState.hall.position.x)).toBeLessThan(.03)
+    await capture(server, 'coop-reverse-stop-motion')
     await walk(server, '1번 1인 테이블로 이동', /E 1번 주문 받기/)
     await server.keyboard.press('e')
     await expect(server.locator('[data-table="1"]')).toHaveAttribute('data-status', 'collected')
