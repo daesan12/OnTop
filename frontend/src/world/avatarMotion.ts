@@ -65,7 +65,7 @@ export function avatarPoseKey(a: Avatar) {
 export function createAvatarMotion(model: Rig) {
   const fitness = createFitnessMotion(), gait = createGait()
   const grip = createFitnessGrip(), hipFit = new Vector3(), clip = createClipPose()
-  let phase = 0, swimPhase = 0, move = 0, run = 0, previousCarry = '', releaseAge = 1, carrySupport = 0
+  let phase = 0, swimPhase = 0, move = 0, run = 0, previousCarry = '', releaseAge = 1, carrySupport = 0, throwAge = 0
   return {
     apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void) {
       const kind = avatarPoseKind(avatar)
@@ -155,6 +155,7 @@ export function createAvatarMotion(model: Rig) {
       if (reaction && avatar.connected && (kind === 'ground' || seated) && !avatar.moving) sampleDefeatMotion(reaction.kind, now - reaction.at, model)
       if (seated && age === null && !reaction) seatedPose?.(model)
       const role = avatar.carry?.role ?? ''
+      throwAge = role === 'THROWN' && previousCarry === 'THROWN' ? throwAge + dt : 0
       carrySupport += ((role === 'CARRIED' ? 1 : 0) - carrySupport) * (1 - Math.exp(-dt * 18))
       if (previousCarry === 'CARRIER' && !role) releaseAge = 0
       previousCarry = role
@@ -167,7 +168,9 @@ export function createAvatarMotion(model: Rig) {
         set('lowerArm_R', -.4)
         model.handPose('L', 'cup'); model.handPose('R', 'cup')
       } else if (role === 'CARRIED' || role === 'THROWN') {
-        figure.rotation.set(role === 'THROWN' ? -.3 : 0, 0, role === 'CARRIED' ? Math.PI / 2 : Math.sin(now / 130) * .12)
+        // 내려놓는 직립 자세 대신, 들린 자세에서 이어지는 짧은 공중 회전.
+        figure.rotation.set(role === 'THROWN' ? -.25 - Math.min(throwAge, .8) * 4 : 0,
+          0, Math.PI / 2 + (role === 'THROWN' ? Math.sin(throwAge * 9) * .12 : 0))
         hipFit.set(0, model.hipHeight, 0).applyEuler(figure.rotation)
         figure.position.set(-hipFit.x, model.hipHeight - hipFit.y, -hipFit.z)
         const spread = role === 'CARRIED' ? .55 : .9

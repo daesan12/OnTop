@@ -77,10 +77,13 @@ describe('avatar pose transitions and resource ownership', () => {
       figure.updateMatrixWorld(true)
       rig.bones.hips.getWorldPosition(hips)
       expect(hips.distanceTo(held)).toBeLessThan(.2)
+      const launchPitch = figure.rotation.x
+      expect(Math.abs(figure.rotation.z)).toBeGreaterThan(1)
       for (let frame = 0; frame < 60; frame++) motion.apply(thrown, 0, 1 / 60, pose, figure)
       figure.updateMatrixWorld(true)
       rig.bones.hips.getWorldPosition(hips)
       expect(hips.y).toBeCloseTo(rig.hipHeight, 3)
+      expect(Math.abs(figure.rotation.x - launchPitch)).toBeGreaterThan(1)
       expect(figure.scale.toArray()).toEqual([1, 1, 1])
       rig.dispose()
     })

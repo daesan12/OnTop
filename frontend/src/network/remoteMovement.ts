@@ -51,7 +51,7 @@ export class RemoteMovement {
     track.frames = track.frames.slice(-16)
     this.received++
   }
-  sample(id: string, at: number, target: Pose): boolean {
+  sample(id: string, at: number, target: Pose, maxSpeed = MOVEMENT.runSpeed + MOVEMENT.walkSpeed / 2): boolean {
     const track = this.tracks.get(id)
     if (!track?.frames.length) return false
     const frames = track.frames, desiredTick = (at - this.offset - this.delay) / TICK_MS
@@ -74,7 +74,7 @@ export class RemoteMovement {
     if (previous) {
       const seconds = Math.max(0, at - previous.at) / 1000
       const dx = x - previous.pose.x, dz = z - previous.pose.z
-      const horizontal = Math.hypot(dx, dz), limit = (MOVEMENT.runSpeed + MOVEMENT.walkSpeed / 2) * seconds
+      const horizontal = Math.hypot(dx, dz), limit = maxSpeed * seconds
       const ratio = horizontal > 0 ? Math.min(1, limit / horizontal) : 1
       x = previous.pose.x + dx * ratio; z = previous.pose.z + dz * ratio
       y = previous.pose.y + Math.max(MOVEMENT.maxFallSpeed * seconds,

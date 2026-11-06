@@ -308,7 +308,7 @@ export function sampleAvatar(
     if (!predictionAllowed()) localMovement.suspend()
     else if (localMovement.sample(now, target)) return target
   } else if (avatar.userId && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId
-    && remoteMovement.sample(avatar.userId, now, target)) {
+    && remoteMovement.sample(avatar.userId, now, target, avatar.carry?.role === 'THROWN' ? 14 : undefined)) {
     return target
   }
   return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
