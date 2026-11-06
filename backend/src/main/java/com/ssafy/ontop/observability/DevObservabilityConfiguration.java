@@ -38,7 +38,7 @@ public class DevObservabilityConfiguration {
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
     SecurityFilterChain devPrometheusSecurity(HttpSecurity http) throws Exception {
-        return http.securityMatcher("/actuator/prometheus")
+        return http.securityMatcher("/actuator/prometheus", "/actuator/health")
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth.anyRequest().access((authentication, context) ->
                         new org.springframework.security.authorization.AuthorizationDecision(
@@ -73,16 +73,13 @@ public class DevObservabilityConfiguration {
                 }
                 ProxyFactory proxy = new ProxyFactory(bean);
                 proxy.setProxyTargetClass(true);
+                Timer textTimer = registerHandlerTimer("text");
+                Timer controlTimer = registerHandlerTimer("control");
                 proxy.addAdvice((MethodInterceptor) call -> {
                     if (!call.getMethod().getName().equals("handleMessage")) {
                         return call.proceed();
                     }
-                    Timer timer = Timer.builder("ontop.websocket.handler.duration")
-                            .tag("kind", call.getArguments()[1] instanceof TextMessage ? "text" : "control")
-                            .description("Synchronous handler; excludes queue, network and client rendering")
-                            .publishPercentileHistogram().minimumExpectedValue(Duration.ofNanos(10_000))
-                            .maximumExpectedValue(Duration.ofSeconds(5))
-                            .register(io.micrometer.core.instrument.Metrics.globalRegistry);
+                    Timer timer = call.getArguments()[1] instanceof TextMessage ? textTimer : controlTimer;
                     long start = System.nanoTime();
                     try {
                         return call.proceed();
@@ -93,5 +90,14 @@ public class DevObservabilityConfiguration {
                 return proxy.getProxy();
             }
         };
+    }
+
+    private static Timer registerHandlerTimer(String kind) {
+        return Timer.builder("ontop.websocket.handler.duration")
+                .tag("kind", kind)
+                .description("Synchronous handler; excludes queue, network and client rendering")
+                .publishPercentileHistogram().minimumExpectedValue(Duration.ofNanos(10_000))
+                .maximumExpectedValue(Duration.ofSeconds(5))
+                .register(io.micrometer.core.instrument.Metrics.globalRegistry);
     }
 }

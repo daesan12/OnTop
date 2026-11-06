@@ -61,6 +61,7 @@ class DevMetricsBoundaryTests {
     @Test
     void healthCheckMovesToManagementPort() throws Exception {
         assertThat(get(8082, "/actuator/health").statusCode()).isEqualTo(200);
+        assertThat(get(applicationPort, "/actuator/health").statusCode()).isEqualTo(403);
     }
 
     private HttpResponse<String> get(int port, String path) throws Exception {
@@ -77,8 +78,7 @@ class DevMetricsBoundaryTests {
         @Bean
         @Order(1)
         SecurityFilterChain fallback(HttpSecurity http) throws Exception {
-            return http.authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/health").permitAll()
-                    .anyRequest().denyAll()).build();
+            return http.authorizeHttpRequests(auth -> auth.anyRequest().denyAll()).build();
         }
     }
 }

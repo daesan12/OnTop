@@ -22,6 +22,8 @@ DEV에는 Prometheus와 MySQL exporter를 두고 Grafana는 개인 PC에서 실�
 
 `infra/app/compose.dev.yaml`에 이 폴더의 `compose.app.yaml`을 추가 overlay로 사용한다
 기존 맵 및 저널 overlay와 외부 환경 파일은 유지한다
+`SPRING_PROFILES_ACTIVE`는 목록 병합이 아니라 덮어쓰기이므로 기존 Compose와 환경 파일의 활성 프로필을 먼저 확인하고 DEV에서 필요한 기존 목록에 `observe-dev`를 추가하도록 이 overlay 값을 조정한다
+예시 `dev,db,observe-dev`를 현재 서버의 전체 프로필 목록이라고 가정하지 않는다
 Compose 상대경로는 첫 번째 Compose 파일 기준이므로 기존 배포의 파일 순서를 유지한다
 인프라 담당자가 현재 설치 경로와 Jenkins 배포 방식을 대조해 적용해야 한다
 
