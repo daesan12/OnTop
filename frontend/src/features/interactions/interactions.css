@@ -13,6 +13,27 @@
 .park-interaction kbd { margin-right: 8px; }
 .park-page .park-interaction[hidden] { display:none; }
 .park-interaction small { max-width: 360px; line-height: 1.5; }
+.carry-escape-hint { display: grid; justify-items: center; gap: 8px; }
+.carry-escape-hint__keys { display: flex; gap: 6px; padding-bottom: 4px; }
+.park-interaction .carry-escape-hint__keys kbd {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #ded0b2;
+  border-bottom: 4px solid #c7b899;
+  border-radius: 7px;
+  color: #292620;
+  background: #f7f1e5;
+  box-shadow: 0 3px 0 #8b7e64;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+.carry-escape-hint small { color: #dfd9bd; }
 @media (max-width: 900px) {
   .park-page .park-interaction[data-fitness-id],
   .park-page .park-interaction[data-carry-role],
