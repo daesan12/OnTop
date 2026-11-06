@@ -3,7 +3,7 @@ import { avatars, estimatedServerTime, useSession, type AvatarSnapshot } from '.
 import { useFollow } from '../follow/state'
 import { useJumpmap } from '../jumpmap/state'
 import { useEmoteState } from '../emotes/state'
-import { interactionAim, interactionScore } from '../interactions/interactionAim'
+import { interactionAim, interactionScore, readInteractionDirection } from '../interactions/interactionAim'
 import { parkRuntime } from '../../park/runtime/runtime'
 
 export function carryPlayerAvailable(id: string, avatar: AvatarSnapshot, now = estimatedServerTime()) {
@@ -40,10 +40,12 @@ export function carryInteraction() {
 export function interactWithAvatar(kind: 'avatar-pickup' | 'avatar-throw', targetId: string) {
   if (kind === 'avatar-pickup') { void parkRuntime.pickupAvatar?.(targetId); return }
   const carry = avatars.get(useSession.getState().sessionId)?.carry
-  if (carry?.role !== 'CARRIER' || !interactionAim.ready) return
-  const length = Math.hypot(interactionAim.dx, interactionAim.dy, interactionAim.dz)
+  if (carry?.role !== 'CARRIER') return
+  const direction = readInteractionDirection()
+  if (!direction) return
+  const length = Math.hypot(direction.dx, direction.dy, direction.dz)
   if (!Number.isFinite(length) || length < .001) return
   void parkRuntime.throwAvatar?.(carry.carryId, {
-    dx: interactionAim.dx / length, dy: interactionAim.dy / length, dz: interactionAim.dz / length,
+    dx: direction.dx / length, dy: direction.dy / length, dz: direction.dz / length,
   })
 }

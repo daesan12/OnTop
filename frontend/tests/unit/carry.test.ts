@@ -2,7 +2,8 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { avatars, receive, resetWorld, useSession } from '../../src/network/worldClient'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import { carryInteraction, carryPlayerAvailable, interactWithAvatar } from '../../src/features/carry/interaction'
-import { interactionAim } from '../../src/features/interactions/interactionAim'
+import { interactionAim, setInteractionCamera } from '../../src/features/interactions/interactionAim'
+import { PerspectiveCamera } from 'three'
 import { parkRuntime } from '../../src/park/runtime/runtime'
 import { worldState } from '../../src/network/protocol'
 import { useFollow } from '../../src/features/follow/state'
@@ -11,6 +12,7 @@ vi.mock('../../src/park/runtime/runtime', () => ({ parkRuntime: { pickupAvatar: 
 const carryId = '11111111-1111-4111-8111-111111111111'
 beforeEach(() => {
   vi.clearAllMocks()
+  setInteractionCamera(null)
   resetWorld()
   receive({ type: 'CONNECTED', requestId: null, payload: { userId: '101' } })
   receive({ type: 'CHANNEL_STATE', requestId: null, payload: {
@@ -33,6 +35,23 @@ it('selects a nearby player and sends one pickup or normalized camera-direction 
   Object.assign(interactionAim, { dx: 0, dy: .6, dz: -.8 })
   interactWithAvatar('avatar-throw', '102')
   expect(parkRuntime.throwAvatar).toHaveBeenCalledWith(carryId, { dx: 0, dy: .6, dz: -.8 })
+})
+
+it('reads the actual camera on E instead of a stale aim snapshot or the avatar heading', () => {
+  const camera = new PerspectiveCamera()
+  setInteractionCamera(camera)
+  avatars.get('101')!.carry = { carryId, partnerId: '102', role: 'CARRIER' }
+  for (const [x, y, z] of [[1, .4, 0], [-1, -.4, 0], [0, .3, 1]]) {
+    camera.lookAt(x!, y!, z!)
+    interactWithAvatar('avatar-throw', '102')
+    const length = Math.hypot(x!, y!, z!)
+    const sent = vi.mocked(parkRuntime.throwAvatar!).mock.calls.at(-1)![1]
+    expect(sent.dx).toBeCloseTo(x! / length)
+    expect(sent.dy).toBeCloseTo(y! / length)
+    expect(sent.dz).toBeCloseTo(z! / length)
+  }
+  expect(interactionAim.dz).toBe(-1)
+  setInteractionCamera(null)
 })
 
 it('excludes both participants during games, facilities, swimming, emotes and following', () => {
