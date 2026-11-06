@@ -550,7 +550,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             throw new ChannelException("CARRY_ACTIVITY_CONFLICT", "상대방과 본인의 다른 행동을 마친 뒤 사용해주세요.");
         }
         Position carrier = positionOf(userId), target = positionOf(targetId);
-        if (Math.hypot(carrier.x() - target.x(), carrier.z() - target.z()) > 2.2
+        if (Math.hypot(carrier.x() - target.x(), carrier.z() - target.z()) > 2.6
                 || Math.abs(carrier.y() - target.y()) > .8) {
             throw new ChannelException("CARRY_OUT_OF_RANGE", "가까운 같은 높이의 사용자를 선택해주세요.");
         }

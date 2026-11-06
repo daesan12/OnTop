@@ -261,20 +261,41 @@ class WorldCarryPhysicsTests {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void 캐릭터를_들고_5초_직전까지_유지하고_5초에_자동으로_내려놓는다(boolean clientPositions) throws Exception {
+    void 캐릭터는_시간제한없이_유지되고_명시적_해제에만_내려놓는다(boolean clientPositions) throws Exception {
         try (var physics = pair(clientPositions)) {
             assertThat(physics.pickup("a", "b")).isTrue();
             String carryId = physics.carryState("a").carryId();
-            step(physics, 149);
-            assertThat(physics.carryState("a").role()).isEqualTo("CARRIER");
+            // 과거 5초/15초 제한을 모두 지나 1분이 흘러도 관계와 위치가 유지된다.
+            step(physics, 1800);
+            assertThat(physics.carryState("a").carryId()).isEqualTo(carryId);
             assertThat(physics.carryState("b").role()).isEqualTo("CARRIED");
+            assertThat(physics.snapshot("b").y() - physics.snapshot("a").y()).isCloseTo(1.7, within(.01));
 
-            step(physics, 1);
+            physics.releaseCarry("b");
 
             assertThat(physics.carryState("a")).isNull();
             assertThat(physics.carryState("b")).isNull();
             assertThat(physics.throwCarried("a", carryId, 1, 0, 0)).isFalse();
+            // 직접 해제는 틱 사이에 실행된다. 착지 물리 틱이 지난 뒤 평상시 권한으로 복귀한다.
+            step(physics, 5);
             assertThat(physics.snapshot("b").motion().authority()).isEqualTo(clientPositions ? "CLIENT_VALIDATED" : null);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 일분이상_운반한뒤에도_기존_관계로_던질수있다(boolean clientPositions) throws Exception {
+        try (var physics = pair(clientPositions)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            String carryId = physics.carryState("a").carryId();
+            step(physics, 1800);
+
+            assertThat(physics.throwCarried("a", carryId, -1, 0, 0)).isTrue();
+            step(physics, 6);
+
+            assertThat(physics.carryState("b").role()).isEqualTo("THROWN");
+            assertThat(physics.snapshot("b").x()).isLessThan(-2.5);
+            assertThat(physics.carryState("a")).isNull();
         }
     }
 
