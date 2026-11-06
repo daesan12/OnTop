@@ -22,6 +22,7 @@ import {
   leaveBungeoppang,
   pressBungeoppangSlot,
   quitBungeoppang,
+  restartBungeoppang,
   dismissBungeoppangRecovery,
   restoreBungeoppang,
   watchBungeoppangRecovery,
@@ -64,6 +65,7 @@ export function BungeoppangHud() {
   const phase = useBungeoppang((s) => s.phase);
   const recovering = useBungeoppang(s => s.recovering);
   const deferred = useBungeoppang(s => s.recoveryDeferred);
+  const restarting = useBungeoppang(s => s.restarting);
   const v5 = useBungeoppang(s => isV4Grill(s.grill) && isV5Grill(s.grill));
   useMinigameInput(phase !== "idle");
   useEffect(watchBungeoppangRecovery, []);
@@ -80,7 +82,8 @@ export function BungeoppangHud() {
       <Popups />
       <FeedbackFlights />
       {!v5 && <TipBubble />}
-      {phase === "start" && (recovering ? <RecoveryPanel /> : <StartPanel />)}
+      {phase === "start" && (recovering ? <RecoveryPanel /> : restarting
+        ? <div className="bung-big-text bung-restarting" role="status">새 판 준비 중…</div> : <StartPanel />)}
       {phase === "countdown" && <Countdown />}
       {phase === "ending" && <div className="bung-big-text">끝!</div>}
       {phase === "result" && <BungeoppangResult />}
@@ -576,8 +579,12 @@ function ExitConfirm() {
   const open = useBungeoppang((s) => s.confirmExit);
   const phase = useBungeoppang(s => s.phase);
   const pending = useBungeoppang(s => s.abandonPending);
+  const restarting = useBungeoppang(s => s.restarting);
   const error = useBungeoppang(s => s.abandonError);
+  const recovering = useBungeoppang(s => s.recovering);
   if (!open) return null;
+  // 다시하기는 진행 중인 판에서만 제공한다. 결과 화면에는 '다시 도전'이 있고 복구 중에는 판 상태가 없다.
+  const canRestart = !recovering && (phase === 'countdown' || phase === 'play');
   return (
     <div className="bung-dim">
       <section
@@ -586,15 +593,22 @@ function ExitConfirm() {
         aria-label="그만두기 확인"
       >
         <h2>그만둘까요?</h2>
-        <p>{phase === 'result' ? '정산 결과를 아직 확인하지 못했어요. 나가면 이 화면의 재시도 기록을 잃습니다.' : '그만두면 이번 판은 포기 처리돼요. 타이머는 계속 흘러요.'}</p>
+        <p>{phase === 'result' ? '정산 결과를 아직 확인하지 못했어요. 나가면 이 화면의 재시도 기록을 잃습니다.'
+          : canRestart ? '그만두거나 다시 시작하면 이번 판의 점수와 보상은 사라져요.' : '그만두면 이번 판은 포기 처리돼요. 타이머는 계속 흘러요.'}</p>
+        {pending && <p role="status" className="bung-confirm-status">{restarting ? '이번 판을 정리하고 새 판을 준비하고 있어요…' : '포기 처리를 확인하고 있어요…'}</p>}
         {error && <p role="alert" className="bung-error">{error}</p>}
-        <div className="bung-row">
-          <button type="button" disabled={pending} onClick={() => void quitBungeoppang()}>
-            {pending ? '포기 확인 중…' : '그만두기'}
+        <div className="bung-confirm-actions">
+          {canRestart && (
+            <button type="button" className="bung-confirm-restart" disabled={pending} onClick={() => void restartBungeoppang()}>
+              {restarting ? '새 판 준비 중…' : '다시하기'}
+            </button>
+          )}
+          <button type="button" className="bung-confirm-quit" disabled={pending} onClick={() => void quitBungeoppang()}>
+            {pending && !restarting ? '포기 확인 중…' : '그만두기'}
           </button>
           <button
             type="button"
-            className="bung-primary"
+            className="bung-confirm-continue"
             onClick={continueBungeoppang}
             autoFocus
             disabled={pending}
