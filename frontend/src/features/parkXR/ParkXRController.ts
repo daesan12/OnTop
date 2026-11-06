@@ -15,6 +15,8 @@ import { useJumpmap, closeJumpCompletion } from '../jumpmap/state'
 import { nearJumpmapStart, inJumpmapXRRegion, parkVRPreviewEnabled } from '../jumpmap/xrEntry'
 import { acquireVRProtection } from '../vrSession/protection'
 
+const JUMPMAP_EXIT_GRACE_MS = 500
+
 /** XR follows the existing predicted/replicated avatar; it never integrates a second player. */
 export class ParkXRController {
   private kind: 'park-preview' | 'jumpmap' = 'park-preview'
@@ -23,6 +25,7 @@ export class ParkXRController {
   private referenceSpace: XRReferenceSpace | null = null
   private disposed = false
   private ending = false
+  private outsideSince: number | null = null
   private scope = ''
   private started = false
   private yaw = 0
@@ -112,7 +115,7 @@ export class ParkXRController {
         release(); await granted.end(); return
       }
       this.releaseVR = release
-      this.session = granted; this.ending = false; this.started = false
+      this.session = granted; this.ending = false; this.started = false; this.outsideSince = null
       this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
       this.saved.parent = this.camera.parent; this.saved.layers = this.camera.layers.mask
       this.saved.position.copy(this.camera.position); this.saved.rotation.copy(this.camera.quaternion); this.saved.up.copy(this.camera.up)
@@ -167,6 +170,7 @@ export class ParkXRController {
   private recentered = (): void => { this.started = false; this.yaw = viewControls.yaw; this.panel.recenter(); this.interrupted() }
   private interrupted = (): void => {
     if (!this.session) return
+    this.outsideSince = null
     this.movement.reset(); this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
     this.panel.setVisible(false)
     // Other games may suspend the render loop; don't wait for a frame to release XR.
@@ -177,6 +181,7 @@ export class ParkXRController {
   }
   private finished = (): void => { this.restore(); if (!this.disposed) useParkXR.setState({ phase: 'idle' }) }
   private restore(): void {
+    this.outsideSince = null
     this.releaseVR?.(); this.releaseVR = undefined
     if (this.kind === 'jumpmap') closeJumpCompletion()
     this.session?.removeEventListener('end', this.finished)
@@ -203,6 +208,7 @@ export class ParkXRController {
     }
     const space = this.gl.xr.getReferenceSpace(), viewer = frame && space ? frame.getViewerPose(space) : null
     if (document.hidden || session.visibilityState !== 'visible' || !viewer || this.ending) {
+      this.outsideSince = null
       this.movement.update(emptyInput(), this.headYaw, performance.now(), false)
       this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
       this.headAnchor.visible = false; this.panel.setVisible(false); this.rays.forEach(({ line }) => { line.visible = false }); return
@@ -234,8 +240,14 @@ export class ParkXRController {
     const avatar = avatars.get(useSession.getState().sessionId)
     if (!avatar) { void this.end('공원 캐릭터 연결을 다시 확인해 주세요.'); return }
     sampleAvatar(avatar, now, this.pose)
-    if (this.kind === 'jumpmap' && (avatar.swimming || !inJumpmapXRRegion(avatar.current))) {
-      void this.end('점프맵 구역을 벗어나 일반 공원으로 돌아왔어요.'); return
+    if (this.kind === 'jumpmap') {
+      // Keep server authority. Only a continuously observed boundary exit gets a grace period;
+      // a display prediction/correction must not end the session on its own.
+      if (inJumpmapXRRegion(avatar.current)) this.outsideSince = null
+      else this.outsideSince ??= now
+      if (avatar.swimming || this.outsideSince !== null && now - this.outsideSince >= JUMPMAP_EXIT_GRACE_MS) {
+        void this.end('점프맵 구역을 벗어나 일반 공원으로 돌아왔어요.'); return
+      }
     }
     this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8, this.pose.z - this.offset.z)
     parkXRView.position.copy(this.head).applyQuaternion(this.rig.quaternion).add(this.rig.position)

@@ -1,10 +1,13 @@
 import * as THREE from 'three'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-const harness = vi.hoisted(() => ({ hit: vi.fn(), activate: vi.fn(), hover: vi.fn() }))
+const harness = vi.hoisted(() => ({ hit: vi.fn(), activate: vi.fn(), hover: vi.fn(),
+  avatar: { current: { x: 0, y: 0, z: 0 }, swimming: false },
+  display: { x: 10, y: .8, z: 20, yaw: 0 },
+}))
 vi.mock('../../src/network/worldClient', () => ({
-  avatars: new Map([['peer', {}]]),
-  sampleAvatar: (_avatar: unknown, _now: number, pose: object) => Object.assign(pose, { x: 10, y: .8, z: 20, yaw: 0 }),
+  avatars: new Map([['peer', harness.avatar]]),
+  sampleAvatar: (_avatar: unknown, _now: number, pose: object) => Object.assign(pose, harness.display),
   useSession: { getState: () => ({ sessionId: 'peer', roomId: 'park', mapVersion: 'map', status: 'connected', mapCompatible: true }), subscribe: () => () => {} },
 }))
 vi.mock('../../src/park/runtime/runtime', () => ({ parkRuntime: { move: vi.fn(), stopMovement: vi.fn() } }))
@@ -20,7 +23,14 @@ vi.mock('../../src/features/jumpmap/JumpmapXRPanel', () => ({ JumpmapXRPanel: cl
 
 import { ParkXRController } from '../../src/features/parkXR/ParkXRController'
 import { parkXRView } from '../../src/world/xrView'
+import { START } from '../../src/features/jumpmap/course'
 
+beforeEach(() => {
+  vi.clearAllMocks()
+  harness.avatar.current = { x: START.x, y: START.y + .8, z: START.z }
+  harness.avatar.swimming = false
+  Object.assign(harness.display, { x: 10, y: .8, z: 20, yaw: 0 })
+})
 afterEach(() => { parkXRView.active = false; vi.unstubAllGlobals() })
 
 it('양손 레이저가 반복 프레임의 벡터를 재사용하고 올바른 월드 좌표와 오른손 선택을 유지한다', () => {
@@ -60,4 +70,71 @@ it('양손 레이저가 반복 프레임의 벡터를 재사용하고 올바른 
     expect(harness.activate).toHaveBeenCalledExactlyOnceWith('ranking')
     expect(harness.hover).toHaveBeenLastCalledWith('ranking')
   } finally { controller.dispose() }
+})
+
+function jumpmapSession() {
+  vi.stubGlobal('window', { addEventListener() {}, removeEventListener() {} })
+  vi.stubGlobal('document', { hidden: false, addEventListener() {}, removeEventListener() {} })
+  const session = { visibilityState: 'visible', inputSources: [], removeEventListener: vi.fn(), end: vi.fn(async () => {}) }
+  const gl = { xr: { getControllerGrip: () => new THREE.Group(), getController: () => new THREE.Group(), getReferenceSpace: () => ({}) } }
+  const controller = new ParkXRController(gl as unknown as THREE.WebGLRenderer, new THREE.PerspectiveCamera(), new THREE.Scene())
+  Reflect.set(controller, 'session', session); Reflect.set(controller, 'scope', 'peer|park|map'); Reflect.set(controller, 'kind', 'jumpmap')
+  parkXRView.active = true
+  let tracked = true
+  const frame = { getViewerPose: () => tracked ? { transform: {
+    position: { x: 0, y: 1.6, z: 0 }, orientation: { x: 0, y: 0, z: 0, w: 1 },
+  } } : null }
+  const now = vi.spyOn(performance, 'now')
+  return { session, controller, track: (value: boolean) => { tracked = value },
+    update: (at: number) => { now.mockReturnValue(at); controller.update(frame as unknown as XRFrame) } }
+}
+const outside = () => { harness.avatar.current = { x: -150, y: .8, z: -150 } }
+const inside = () => { harness.avatar.current = { x: START.x, y: START.y + .8, z: START.z } }
+
+it('서버가 구역 안이면 표시 예측이 밖이어도 종료하지 않고 서버 이탈이 500ms 지속되면 종료한다', () => {
+  const s = jumpmapSession()
+  try {
+    Object.assign(harness.display, { x: -150, y: .8, z: -150 })
+    s.update(0); s.update(1000)
+    expect(s.session.end).not.toHaveBeenCalled()
+    Object.assign(harness.display, harness.avatar.current)
+    outside(); s.update(1100); s.update(1599)
+    expect(s.session.end).not.toHaveBeenCalled()
+    s.update(1600)
+    expect(s.session.end).toHaveBeenCalledExactlyOnceWith()
+  } finally { s.controller.dispose() }
+})
+
+it('유예 중 서버 위치가 복귀하면 짧은 이탈을 누적하지 않는다', () => {
+  const s = jumpmapSession()
+  try {
+    outside(); s.update(0); s.update(400)
+    inside(); s.update(450)
+    outside(); s.update(600); s.update(1099)
+    expect(s.session.end).not.toHaveBeenCalled()
+    s.update(1100)
+    expect(s.session.end).toHaveBeenCalledExactlyOnceWith()
+  } finally { s.controller.dispose() }
+})
+
+it('추적 중단 시간은 경계 이탈 유예에 포함하지 않는다', () => {
+  const s = jumpmapSession()
+  try {
+    outside(); s.update(0); s.update(400)
+    s.track(false); s.update(450)
+    s.track(true); s.update(2000); s.update(2499)
+    expect(s.session.end).not.toHaveBeenCalled()
+    s.update(2500)
+    expect(s.session.end).toHaveBeenCalledExactlyOnceWith()
+  } finally { s.controller.dispose() }
+})
+
+it('서버 낙수는 경계 유예 없이 즉시 종료한다', () => {
+  const s = jumpmapSession()
+  try {
+    s.update(0)
+    harness.avatar.swimming = true
+    s.update(1)
+    expect(s.session.end).toHaveBeenCalledExactlyOnceWith()
+  } finally { s.controller.dispose() }
 })
