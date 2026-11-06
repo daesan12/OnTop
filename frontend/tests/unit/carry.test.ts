@@ -7,6 +7,7 @@ import { PerspectiveCamera } from 'three'
 import { parkRuntime } from '../../src/park/runtime/runtime'
 import { worldState } from '../../src/network/protocol'
 import { useFollow } from '../../src/features/follow/state'
+import { localMovement } from '../../src/network/localMovementPrediction'
 
 vi.mock('../../src/park/runtime/runtime', () => ({ parkRuntime: { pickupAvatar: vi.fn(), throwAvatar: vi.fn() } }))
 const carryId = '11111111-1111-4111-8111-111111111111'
@@ -26,7 +27,7 @@ beforeEach(() => {
   Object.assign(interactionAim, { ready: true, x: 0, y: 1, z: 5, dx: 0, dy: 0, dz: -1 })
 })
 
-it('selects a nearby player and sends one pickup or normalized camera-direction throw', () => {
+it('selects a nearby player and throws along the character front even when the camera faces backwards', () => {
   expect(carryInteraction()).toMatchObject({ kind: 'avatar-pickup', id: '102' })
   interactWithAvatar('avatar-pickup', '102')
   expect(parkRuntime.pickupAvatar).toHaveBeenCalledWith('102')
@@ -34,31 +35,36 @@ it('selects a nearby player and sends one pickup or normalized camera-direction 
   expect(carryInteraction()).toMatchObject({ kind: 'avatar-throw' })
   Object.assign(interactionAim, { dx: 0, dy: .6, dz: -.8 })
   interactWithAvatar('avatar-throw', '102')
-  expect(parkRuntime.throwAvatar).toHaveBeenCalledWith(carryId, { dx: 0, dy: .6, dz: -.8 })
+  expect(parkRuntime.throwAvatar).toHaveBeenCalledWith(carryId, { dx: 0, dy: 0, dz: 1 })
 })
 
 it.each([
-  [2.1, 0, true], [2.2, 0, true], [-2.2, 0, true], [0, 2.19, true],
-  [2.2001, 0, false], [0, 2.21, false], [1.3, 1.7, true], [1.6, 1.6, false],
-] as const)('offers pickup at horizontal offset (%s, %s) only within 2.2m: %s', (x, z, available) => {
+  [2.5, 0, true], [2.6, 0, true], [-2.6, 0, true], [0, 2.59, true],
+  [2.6001, 0, false], [0, 2.61, false], [1.8, 1.8, true], [1.9, 1.9, false],
+] as const)('offers pickup at horizontal offset (%s, %s) only within 2.6m: %s', (x, z, available) => {
   Object.assign(avatars.get('102')!.current, { x, z })
   expect(carryInteraction()?.kind === 'avatar-pickup').toBe(available)
 })
 
-it('reads the actual camera on E instead of a stale aim snapshot or the avatar heading', () => {
+it('uses the displayed predicted heading on E independently of camera yaw and pitch or stale server yaw', () => {
   const camera = new PerspectiveCamera()
   setInteractionCamera(camera)
   avatars.get('101')!.carry = { carryId, partnerId: '102', role: 'CARRIER' }
-  for (const [x, y, z] of [[1, .4, 0], [-1, -.4, 0], [0, .3, 1]]) {
-    camera.lookAt(x!, y!, z!)
+  let yaw = 0
+  vi.spyOn(localMovement, 'sample').mockImplementation((_now, pose) => {
+    Object.assign(pose, { x: 0, y: .84, z: 0, yaw }); return true
+  })
+  for (const heading of [0, Math.PI / 2, -Math.PI / 2, Math.PI]) {
+    yaw = heading
+    camera.lookAt(-Math.sin(yaw), .6, -Math.cos(yaw))
     interactWithAvatar('avatar-throw', '102')
-    const length = Math.hypot(x!, y!, z!)
     const sent = vi.mocked(parkRuntime.throwAvatar!).mock.calls.at(-1)![1]
-    expect(sent.dx).toBeCloseTo(x! / length)
-    expect(sent.dy).toBeCloseTo(y! / length)
-    expect(sent.dz).toBeCloseTo(z! / length)
+    expect(sent.dx).toBeCloseTo(Math.sin(yaw))
+    expect(sent.dy).toBe(0)
+    expect(sent.dz).toBeCloseTo(Math.cos(yaw))
   }
   expect(interactionAim.dz).toBe(-1)
+  expect(avatars.get('101')!.current.yaw).toBe(0)
   setInteractionCamera(null)
 })
 

@@ -19,7 +19,6 @@ public final class WorldPhysics implements AutoCloseable {
     public static final long STEP_NANOS = 1_000_000_000L / 30;
     private static final float DT = 1f / 30;
     private static final float CARRY_HEIGHT = 1.7f;
-    private static final int MAX_CARRY_TICKS = 150;
     private static final int MAX_THROW_TICKS = 90;
     private static final int CARRY_COOLDOWN_TICKS = 30;
     private static final double THROW_SPEED = 14;
@@ -513,7 +512,7 @@ public final class WorldPhysics implements AutoCloseable {
             if (carried.carriedBy == null) { continue; }
             Actor carrier = actors.get(carried.carriedBy);
             Vector3f next = carrier == null ? null : carrier.body.getPhysicsLocation(null).add(0, CARRY_HEIGHT, 0);
-            if (next == null || physicsTick - carried.carryStartedTick >= MAX_CARRY_TICKS || !canOccupy(next)) {
+            if (next == null || !canOccupy(next)) {
                 releaseCarryNow(entry.getKey());
             } else {
                 carried.body.warp(next);
@@ -1098,7 +1097,6 @@ public final class WorldPhysics implements AutoCloseable {
             hold(targetId, lifted.x, lifted.y, lifted.z, carrier.yaw);
             target.carriedBy = carrierId;
             carrier.carryingId = targetId;
-            target.carryStartedTick = physicsTick;
             target.carryId = java.util.UUID.randomUUID().toString();
             return true;
         });
@@ -1318,7 +1316,7 @@ public final class WorldPhysics implements AutoCloseable {
         String carriedBy, carryingId, carryId, throwerId;
         Vector3f carrySafe;
         int throwTicks;
-        long carryReadyTick, carryStartedTick;
+        long carryReadyTick;
         double throwX, throwZ;
         final PhysicsCharacter body;
         final int slot;

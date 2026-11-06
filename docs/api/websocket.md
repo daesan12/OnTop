@@ -167,7 +167,7 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 | 요청 | payload | 성공 응답 |
 | --- | --- | --- |
 | WORLD_CARRY_PICKUP | `{targetId}`: 같은 채널의 다른 사용자 ID | WORLD_STATE |
-| WORLD_CARRY_THROW | `{carryId, dx, dy, dz}`: 현재 관계의 UUID와 정규화된 시선 방향 | WORLD_STATE |
+| WORLD_CARRY_THROW | `{carryId, dx, dy, dz}`: 현재 관계의 UUID와 정규화된 투척 방향. FE는 입력 순간 캐릭터 정면 `(sin(yaw), 0, cos(yaw))` 전송 | WORLD_STATE |
 | WORLD_CARRY_RELEASE | `{carryId}`: 현재 운반 관계의 UUID | WORLD_STATE |
 | WORLD_INTERACTION_SET | `{busy}`: 본인 창의 입력 점유 여부(boolean) | WORLD_INTERACTION_STATE `{channelId, busy}` |
 
@@ -176,7 +176,10 @@ WORLD_STATE의 `avatars[].carry`는 null 또는 `{carryId, partnerId, role}`이�
 다른 사용자에게는 기존 10Hz 방송에 합쳐 전달한다. 실제 운반 해제가 발생한 경우에는 즉시 WORLD_STATE를 방송한다.
 
 들기·던지기는 본인과 상대방의 게임·관전·시설·수영·감정표현·따라가기·점프맵·창 점유 상태를 검사한다.
-최대 운반 시간은 5초이며 만료·피운반자의 E 탈출·운반자의 Esc 내려놓기·막힌 공간·이탈 시 현재 위치 주변의 안전한 위치에 내려놓는다.
+들기는 수평 거리 2.6m·높이 차이 0.8m 이내를 검사하며 시간 제한 없이 유지한다.
+피운반자는 A·D를 번갈아 6회 눌러 탈출한다. 같은 키·1초 이상 입력 중단·포커스/운반 관계 변경은 진행을 초기화하며 키 자동 반복은 세지 않는다.
+FE는 완성된 입력에서 기존 WORLD_CARRY_RELEASE를 한 번 요청한다. 키별 WS 요청은 추가하지 않으며 서버는 기존 인증·carryId 권한을 검사한다.
+운반자의 Esc 내려놓기·창/활동 점유·막힌 공간·이탈 시에도 현재 위치 주변의 안전한 위치에 내려놓는다.
 중복되거나 낡은 carryId 요청은 거절하며 비행 중 수동 위치 보고로 서버 좌표를 덮어쓸 수 없다.
 주요 오류는 CARRY_ACTIVITY_CONFLICT, CARRY_TARGET_UNAVAILABLE, CARRY_OUT_OF_RANGE,
 CARRY_UNAVAILABLE, CARRY_LINK_MISMATCH, INVALID_PAYLOAD다. 상세 동작과 검증 범위는
