@@ -55,6 +55,43 @@ class WorldCarryPhysicsTests {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 달리는_운반자를_따라_좌표와_보간용_틱을_매번_갱신한다(boolean clientPositions) throws Exception {
+        try (var physics = pair(clientPositions)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            long previousTick = physics.snapshot("b").motion().tick();
+
+            for (int i = 1; i <= 30; i++) {
+                var carrier = physics.snapshot("a");
+                if (clientPositions) {
+                    now.addAndGet(WorldPhysics.STEP_NANOS);
+                    var approved = physics.report("a", new ClientPositionValidator.Candidate(i,
+                            carrier.motion().epoch(),
+                            new ClientPositionValidator.Pose(carrier.x() + .15, carrier.y(), carrier.z()),
+                            true, false), now.get());
+                    assertThat(approved.x()).isCloseTo(carrier.x() + .15, within(.01));
+                    physics.step(now.get(), Set.of());
+                } else {
+                    assertThat(physics.input("a", new MoveInput(i, 1, 0, true, false), now.get())).isTrue();
+                    step(physics, 1);
+                }
+
+                carrier = physics.snapshot("a");
+                var carried = physics.snapshot("b");
+                assertThat(physics.carryState("b").role()).isEqualTo("CARRIED");
+                assertThat(carried.x()).isCloseTo(carrier.x(), within(.01));
+                assertThat(carried.y()).isCloseTo(carrier.y() + 1.7, within(.01));
+                assertThat(carried.z()).isCloseTo(carrier.z(), within(.01));
+                assertThat(carried.motion().tick()).isGreaterThan(previousTick);
+                assertThat(carried.motion().authority()).isNull();
+                previousTick = carried.motion().tick();
+            }
+
+            assertThat(physics.snapshot("a").x()).isGreaterThan(3);
+        }
+    }
+
     @Test
     void 멀리_운반한뒤_현재위치가_막히면_주변의_안전지점으로_내려놓는다() throws Exception {
         try (var physics = pair(false, true)) {

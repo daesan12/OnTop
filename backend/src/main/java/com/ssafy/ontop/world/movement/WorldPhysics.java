@@ -516,6 +516,10 @@ public final class WorldPhysics implements AutoCloseable {
             } else {
                 carried.body.warp(next);
                 carried.yaw = carrier.yaw;
+                // 피운반자는 물리 계산에서 제외되지만 좌표 스트림의 틱은 진행해야 한다.
+                // 같은 틱을 재사용하면 원격 보간기가 갱신된 운반 좌표를 중복으로 버린다.
+                carried.motion = new Motion(carried.motionEpoch, physicsTick, carried.seq, 0,
+                        (next.y - carried.beforeStepY) / DT, false, false);
                 Vector3f ground = carrier.body.getPhysicsLocation(null);
                 if (carrier.motion.grounded() && ground.distanceSquared(carried.carrySafe) >= .04f
                         && canStand(ground.x, ground.y, ground.z)) {
