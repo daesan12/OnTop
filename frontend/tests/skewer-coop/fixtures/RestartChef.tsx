@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ChefDriver } from '../../../src/features/skewer/coop/drivers'
 
-// Session lifecycle callback double: production keeps VR selection disabled until device QA.
+// Session lifecycle callback double; it does not emulate a real WebXR session.
 export default function RestartChef({ driver, onXRChanged, preferredMode }: {
   driver: ChefDriver; onXRChanged: (active: boolean) => void; preferredMode: string
 }) {

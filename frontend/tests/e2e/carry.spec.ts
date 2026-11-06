@@ -72,7 +72,7 @@ for (const [mode, carrierHeight, targetHeight, targetMoving] of [
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
-    const server = await fixture(page, { generatedPark: true, carry: true,
+    const server = await fixture(page, { generatedPark: true, carry: true, chatDelayMs: 650,
       position: { x: 0, y: carrierHeight, z: 78, yaw: Math.PI } })
     await page.goto('/park')
     await readyCarryScene(page)
@@ -251,12 +251,7 @@ test('a carried player escapes only with six alternating AD presses, without mov
   await page.goto('/park')
   await readyCarryScene(page)
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
-  const carryId = '11111111-1111-4111-8111-111111111111'
-  const flags = { x: 0, z: 78, yaw: Math.PI, moving: false, running: false, swimming: false, lastInputSeq: 0 }
-  server.worldSnapshot({ avatars: [
-    { userId: '101', position: { ...flags, y: 2.54 }, carry: { carryId, partnerId: '102', role: 'CARRIED' } },
-    { userId: '102', position: { ...flags, y: .84 }, carry: { carryId, partnerId: '101', role: 'CARRIER' } },
-  ] })
+  server.carryPlayers('102', '101')
   const escape = page.getByRole('status', { name: 'A와 D를 번갈아 6회 눌러 내려오기' })
   await expect(escape).toBeVisible()
   await expect(escape.locator('kbd')).toHaveText(['A', 'D'])
@@ -284,14 +279,13 @@ test('a carried player escapes only with six alternating AD presses, without mov
   const chat = page.getByLabel('주변 채팅 메시지')
   await expect(chat).toBeFocused()
   await chat.press('KeyA'); await chat.press('KeyD')
+  // Observe multiple busy-state samples: chatting preserves this same hold.
+  await page.waitForTimeout(350)
+  await expect(escape).toBeVisible()
+  expect(server.sent.some(message => message.type === 'WORLD_INTERACTION_SET' && message.payload.busy)).toBe(false)
   expect(server.sent.filter(message => message.type === 'WORLD_CARRY_RELEASE')).toHaveLength(0)
   await page.keyboard.press('Escape')
-  await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_INTERACTION_SET').at(-1)?.payload.busy).toBe(false)
-  // UI opening safely releases carry on the server; a new hold must not reuse old key progress.
-  server.worldSnapshot({ avatars: [
-    { userId: '101', position: { ...flags, y: 2.54 }, carry: { carryId, partnerId: '102', role: 'CARRIED' } },
-    { userId: '102', position: { ...flags, y: .84 }, carry: { carryId, partnerId: '101', role: 'CARRIER' } },
-  ] })
+  // The same hold must not reuse the partial key progress from before chat.
   await expect(escape).toBeVisible()
   await page.locator('canvas').focus()
   await screenshot(page, 'carry-ad-escape')
@@ -314,6 +308,60 @@ test('a carried player escapes only with six alternating AD presses, without mov
   expect(server.sent.filter(message => message.type === 'WORLD_MOVE'
     && (message.payload.dx || message.payload.dz))).toHaveLength(movementBefore)
 })
+
+for (const role of ['CARRIER', 'CARRIED'] as const) {
+  test(`chat preserves the same carry while typing and sending (${role})`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+    const server = await fixture(page, { generatedPark: true, carry: true,
+      position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
+    await page.goto('/park')
+    await readyCarryScene(page)
+    server.carryPlayers(role === 'CARRIER' ? '101' : '102', role === 'CARRIED' ? '101' : '102')
+    const ownCarry = () => page.evaluate(async () =>
+      (await import('/tests/e2e/sceneProbe.ts' as string)).carryProbe().carries['101'])
+    await expect.poll(async () => (await ownCarry())?.role).toBe(role)
+    const initial = await ownCarry()
+    const moveCount = () => server.sent.filter(message => message.type === 'WORLD_MOVE'
+      && (message.payload.dx || message.payload.dz)).length
+    const movementBefore = moveCount()
+    await page.locator('canvas').focus()
+    await page.keyboard.press('Enter')
+    const chat = page.getByLabel('주변 채팅 메시지')
+    await expect(chat).toBeFocused()
+    await chat.pressSequentially('adadade')
+    // This spans multiple 100ms samples and would release both players before the fix.
+    await page.waitForTimeout(350)
+    expect(await ownCarry()).toEqual(initial)
+    expect(server.sent.some(message => message.type === 'WORLD_INTERACTION_SET' && message.payload.busy)).toBe(false)
+    expect(server.sent.filter(message => message.type.startsWith('WORLD_CARRY'))).toHaveLength(0)
+    expect(moveCount()).toBe(movementBefore)
+    await screenshot(page, `carry-chat-${role.toLowerCase()}`)
+    await chat.press('Enter')
+    await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CHAT_SEND').length).toBe(1)
+    await page.waitForTimeout(350)
+    expect(await ownCarry()).toEqual(initial)
+    expect(server.sent.some(message => message.type === 'WORLD_INTERACTION_SET' && message.payload.busy)).toBe(false)
+    await expect(chat).toBeHidden()
+    expect(await ownCarry()).toEqual(initial)
+    await page.keyboard.press('Enter')
+    await expect(chat).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(chat).toBeHidden()
+    expect(await ownCarry()).toEqual(initial)
+    // A real non-chat panel still requests the existing safe release.
+    await page.keyboard.press('KeyM')
+    await expect(page.getByRole('dialog', { name: '공원 지도창', exact: true })).toBeVisible()
+    await expect.poll(() => server.sent.some(message => message.type === 'WORLD_INTERACTION_SET'
+      && message.payload.busy === true)).toBe(true)
+    await expect.poll(ownCarry).toBeNull()
+    await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+    expect(page.url()).toContain('/park')
+    expect(await page.title()).not.toBe('')
+    expect(errors).toEqual([])
+  })
+}
 
 test('throw snapshots render a rising flight and tumbling body instead of an upright drop', async ({ page }) => {
   const errors: string[] = []

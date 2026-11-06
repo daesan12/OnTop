@@ -93,7 +93,7 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
             <img src={mode === 'vr' ? chefVRChoiceArt : chefPCChoiceArt} alt="" draggable={false} /><span className="coop-card-title">{mode.toUpperCase()}</span>
             {mode === 'vr' && !SKEWER_CHEF_VR_ENABLED ? <span className="coop-construction-badge">공사 중</span> : null}
             <span className="coop-card-device">{mode === 'vr' ? '헤드셋 · 컨트롤러' : '키보드 · 마우스'}</span>
-            <span className="coop-card-rule">{mode === 'vr' ? SKEWER_CHEF_VR_ENABLED ? '팀 랭킹 도전' : '공사 중 · 곧 만나요' : '엽전 보상 가능 · 랭킹 미등록'}</span>
+            <span className="coop-card-rule">{mode === 'vr' ? SKEWER_CHEF_VR_ENABLED ? '팀 랭킹 도전' : '공사 중 · 곧 만나요' : 'PC 팀 랭킹 도전'}</span>
           </button>)}</div><button className="coop-back-choice" onClick={() => setChangingRole(true)}>← 역할 다시 고르기</button>
         </> : role ? <>
         <div className="coop-prep-nav"><button disabled={acting || player?.ready || pub.chefVR && role === 'chef'} onClick={() => setChangingRole(true)}>← 역할 다시 고르기</button>{role === 'chef' ? <button disabled={acting || player?.ready || pub.chefVR} onClick={() => onChefMode(null)}>플레이 방식 바꾸기</button> : null}</div>
@@ -109,7 +109,7 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
               : role === 'server' ? <p className="coop-guide-tip">음식과 더러운 식기는 함께 들 수 없어요. 꼬치는 보관대에, 사케는 냉장고에 내려놓으세요.</p> : null}
           </div>
         </div>
-        <div className={`coop-ranking-notice${vr ? ' is-vr' : ''}`}><b>{vr ? 'VR 팀 랭킹 도전' : '무료 플레이 · 엽전 보상'}</b><span>{vr ? '요리사가 끝까지 VR로 플레이하면 팀 기록이 남아요.' : 'PC 요리 팀은 랭킹에 등록되지 않아요. 엽전 보상은 받을 수 있어요.'}</span></div>
+        <div className={`coop-ranking-notice${vr ? ' is-vr' : ''}`}><b>{vr ? 'VR 팀 랭킹 도전' : 'PC 팀 랭킹 도전'}</b><span>PC·VR 기록은 따로 집계해요. 경기 중 방식을 바꾸면 랭킹에서 제외돼요. 엽전 보상은 동일해요.</span></div>
         <footer className="coop-ready-footer"><div className="coop-team-status" aria-label="참가자 준비 상태">{pub.players.map(p => <div key={p.userId} data-ready={p.ready}><span className="coop-status-dot" /><span><b>{p.userId === owner ? '나' : '친구'}</b> · {p.role === 'chef' ? '요리사' : p.role === 'server' ? '서빙 담당' : '역할 선택 중'}<small>{!p.connected ? '연결 확인 중' : p.ready ? '준비 완료' : '준비 전'}</small></span></div>)}</div>
           <div className="coop-ready-action"><button className="paper-primary" disabled={(!ready && !player?.ready) || acting} onClick={() => void act({ type: 'READY', ready: !player?.ready })}>{acting ? '변경 중…' : player?.ready ? '준비 취소' : '준비 완료'}</button>{readyHint ? <small>{readyHint}</small> : null}</div>
         </footer>

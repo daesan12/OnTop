@@ -45,6 +45,7 @@ public class JdbcSkewerCoopResultStore implements SkewerCoopResultStore {
                 FROM skewer_coop_results r
                 JOIN users c ON c.id = r.chef_user_id JOIN users s ON s.id = r.server_user_id
                 WHERE r.ranking_eligible = TRUE AND r.end_reason = 'SKEWER_TIME_UP'
+                  AND r.play_mode = ?
                   AND r.rules_version = 'coop-v1' AND r.duration_ms = 240000
                   AND c.deleted_at IS NULL AND s.deleted_at IS NULL
             ), ranked AS (
@@ -68,6 +69,13 @@ public class JdbcSkewerCoopResultStore implements SkewerCoopResultStore {
         if (tables == null || tables != 2) {
             throw new IllegalStateException("꼬치왕 보상에는 db/minigame V145 적용이 필요합니다.");
         }
+        Integer modeColumn = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'skewer_coop_results' AND COLUMN_NAME = 'play_mode'
+                """, Integer.class);
+        if (modeColumn == null || modeColumn != 1) {
+            throw new IllegalStateException("꼬치왕 PC/VR 랭킹에는 db/minigame V156 적용이 필요합니다.");
+        }
     }
 
     @Override
@@ -81,14 +89,14 @@ public class JdbcSkewerCoopResultStore implements SkewerCoopResultStore {
             jdbc.update("""
                     INSERT INTO skewer_coop_results(game_id, result_hash, rules_version, table_id,
                         team_low_id, team_high_id, chef_user_id, server_user_id, team_score, served,
-                        elapsed_ms, duration_ms, end_reason, ranking_eligible, ranking_reason, ended_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        elapsed_ms, duration_ms, end_reason, ranking_eligible, ranking_reason, ended_at, play_mode)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE game_id = game_id
                     """, event.result().gameId(), hash(event), SkewerCoopFinished.RULES_VERSION,
                     event.result().tableId(), users.getFirst(), users.getLast(), event.chefUserId(),
                     event.serverUserId(), event.teamScore(), event.served(), event.elapsedMillis(),
                     event.durationMillis(), event.result().endReason(), "ELIGIBLE".equals(event.rankingReason()),
-                    event.rankingReason(), Timestamp.from(event.result().endedAt()));
+                    event.rankingReason(), Timestamp.from(event.result().endedAt()), event.rankingMode());
             String saved = jdbc.queryForObject(
                     "SELECT result_hash FROM skewer_coop_results WHERE game_id = ? FOR UPDATE",
                     String.class, event.result().gameId());
@@ -165,14 +173,22 @@ public class JdbcSkewerCoopResultStore implements SkewerCoopResultStore {
 
     @Override
     public SkewerCoopRankingResponse ranking(long user, Instant now) {
+        return ranking(user, now, "VR");
+    }
+
+    @Override
+    public SkewerCoopRankingResponse ranking(long user, Instant now, String mode) {
+        if (!List.of("PC", "VR").contains(mode)) {
+            throw new IllegalArgumentException("랭킹 플레이 방식을 확인해주세요.");
+        }
         return transactions.execute(status -> {
             var items = jdbc.query(RANKING + " ORDER BY team_score DESC, ended_at, game_id LIMIT 20",
-                    JdbcSkewerCoopResultStore::item);
+                    JdbcSkewerCoopResultStore::item, mode);
             var mine = jdbc.query(RANKING + " WHERE team_low_id = ? OR team_high_id = ?"
                             + " ORDER BY team_score DESC, ended_at, game_id LIMIT 1",
-                    JdbcSkewerCoopResultStore::item, user, user);
+                    JdbcSkewerCoopResultStore::item, mode, user, user);
             return new SkewerCoopRankingResponse(SkewerCoopFinished.RULES_VERSION, "ALL_TIME", "TEAM_BEST", now,
-                    items, mine.isEmpty() ? null : mine.getFirst());
+                    items, mine.isEmpty() ? null : mine.getFirst(), mode);
         });
     }
 
@@ -195,7 +211,7 @@ public class JdbcSkewerCoopResultStore implements SkewerCoopResultStore {
     private static String hash(SkewerCoopFinished result) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(result.toString().getBytes(StandardCharsets.UTF_8)));
+                    .digest(result.digestInput().getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("결과 해시를 만들 수 없습니다.", exception);
         }

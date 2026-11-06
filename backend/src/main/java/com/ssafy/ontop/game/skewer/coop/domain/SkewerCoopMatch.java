@@ -57,6 +57,7 @@ public final class SkewerCoopMatch {
     private final double[] greetingAt;
     private String phase = "WAITING", selectedJob, endReason;
     private boolean chefVR, rankingEligible = true, registered;
+    private String rankingMode = "PC";
     private double elapsed, serviceElapsed, countdown, greetingElapsed, washRemaining;
     private double nextArrival = 0, nextQueue = 12, cleanProgress, velocityX, velocityZ;
     private Point position = new Point(-2.8, 1.15);
@@ -279,7 +280,7 @@ public final class SkewerCoopMatch {
         } else if (type.equals("CHEF_MODE")) {
             require("chef".equals(roles.get(user)) && input.path("vr").isBoolean());
             chefVR = input.path("vr").asBoolean();
-            if (!phase.equals("WAITING") && !chefVR) {
+            if (!phase.equals("WAITING") && chefVR != rankingMode.equals("VR")) {
                 rankingEligible = false;
             }
         } else if (type.equals("READY")) {
@@ -288,7 +289,8 @@ public final class SkewerCoopMatch {
             if (players.stream().allMatch(player -> Boolean.TRUE.equals(ready.get(player)))) {
                 phase = "COUNTDOWN";
                 countdown = 3;
-                rankingEligible = chefVR;
+                rankingEligible = true;
+                rankingMode = chefVR ? "VR" : "PC";
             }
         } else if (type.equals("PAUSE")) {
             require((phase.equals("COUNTDOWN") || phase.equals("PLAYING")) && input.path("paused").isBoolean()
@@ -382,11 +384,12 @@ public final class SkewerCoopMatch {
         }
         require(type.equals("INTERACT"));
         if (at.equals("washer")) {
-            require(!dirty.isEmpty() && washing.isEmpty());
-            score += dirty.size() * WASHER_LOAD_POINTS;
-            message = "세척기 투입 +" + dirty.size() * WASHER_LOAD_POINTS + "점! 자동 세척을 시작해요.";
-            washing.addAll(dirty);
-            dirty.clear();
+            require(!dirty.isEmpty() && washing.size() < 2);
+            int loaded = Math.min(dirty.size(), 2 - washing.size());
+            score += loaded * WASHER_LOAD_POINTS;
+            message = "세척기 투입 +" + loaded * WASHER_LOAD_POINTS + "점! 마지막 투입부터 8초간 세척해요.";
+            washing.addAll(dirty.subList(0, loaded));
+            dirty.subList(0, loaded).clear();
             washRemaining = 8;
             return;
         }
@@ -629,7 +632,6 @@ public final class SkewerCoopMatch {
         movementAt = now;
         lastTick = now;
         // 경기 ID·행동 버전·접시 ID와 랭킹 제외 이력은 유지한다. 중도 재시작은 정산하지 않는다.
-        rankingEligible = rankingEligible && chefVR;
         message = "두 사람이 동의했어요. 다시 영업을 준비해요!";
     }
 
@@ -665,7 +667,7 @@ public final class SkewerCoopMatch {
                 "expiresAt", restartExpiresAt)));
         view.put("remaining", Math.max(0, duration - elapsed)).put("countdown", countdown);
         view.put("elapsed", elapsed).put("score", score).put("served", served);
-        view.put("rankingEligible", rankingEligible && chefVR).put("chefVR", chefVR);
+        view.put("rankingEligible", rankingEligible).put("chefVR", chefVR).put("rankingMode", rankingMode);
         view.put("rewardStatus", "SERVER_SETTLEMENT").put("entryFee", 0);
         view.put("message", message).put("paused", !finished()
                 && (!missing.isEmpty() || !pausedBy.isEmpty() || restartRequester != 0));
@@ -727,7 +729,7 @@ public final class SkewerCoopMatch {
     }
 
     private void move(double seconds) {
-        double step = Math.min(.1, seconds) * 3.75;
+        double step = Math.min(.1, seconds) * 5.0;
         while (!path.isEmpty() && position.distance(path.getFirst()) < .14) {
             path.removeFirst();
         }
