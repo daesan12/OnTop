@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
-import type { carryThrowGestureFrames } from './sceneProbe'
+import type { carryRenderedFrames, carrySequenceFrames, carryThrowGestureFrames } from './sceneProbe'
 
 async function readyCarryScene(page: Page) {
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible({ timeout: 90000 })
@@ -44,7 +44,7 @@ for (const [view, orbit] of [['forward', 0], ['opposite', Math.PI], ['sideways',
     const dx = Number(launch.dx), dz = Number(launch.dz), length = Math.hypot(dx, dz)
     const flags = { moving: false, running: false, swimming: false, lastInputSeq: 0 }
     const frames = []
-    for (let tick = 1; tick <= 10; tick++) {
+    for (let tick = 1; tick <= 22; tick++) {
       const t = tick / 60
       server.worldSnapshot({ avatars: [
         { userId: '101', carry: null, position: { ...flags, x: 0, y: .84, z: 78, yaw: Math.PI } },
@@ -52,7 +52,8 @@ for (const [view, orbit] of [['forward', 0], ['opposite', Math.PI], ['sideways',
           position: { ...flags, x: dx * 14 * t, y: 2.54 + 8 * t - 15 * t * t, z: 78 + dz * 14 * t, yaw: Math.PI } },
       ] })
       frames.push(...await sample(1))
-      if (tick === 7) await screenshot(page, `carry-forward-throw-${view}`)
+      if (tick === 7) await screenshot(page, `carry-pull-forward-${view}`)
+      if (tick === 16) await screenshot(page, `carry-forward-throw-${view}`)
     }
     const reach = frames.map(frame => Math.min(...frame.hands.map(hand => (hand[0]! * dx + hand[2]! * dz) / length)))
     expect(Math.max(...reach)).toBeGreaterThan(.2)
@@ -63,6 +64,47 @@ for (const [view, orbit] of [['forward', 0], ['opposite', Math.PI], ['sideways',
     expect(errors).toEqual([])
   })
 }
+
+test('shoulder carry pulls the body forward before the push and joins the live flight without a pop', async ({ page }) => {
+  const server = await fixture(page, { generatedPark: true, carry: true,
+    position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
+  await page.goto('/park')
+  await readyCarryScene(page)
+  server.carryPlayers('101', '102')
+  await expect(page.getByRole('button', { name: /캐릭터 방향으로 던지기/ })).toBeVisible()
+  await page.evaluate(async () => {
+    const { viewControls } = await import('/src/world/cameraPerspective.ts' as string)
+    viewControls.yaw = Math.PI / 2; viewControls.pitch = .1; viewControls.distance = 4.8
+    await (await import('/tests/e2e/sceneProbe.ts' as string)).carryRenderedFrames(12)
+  })
+  await screenshot(page, 'carry-shoulder-side')
+  const capture: ReturnType<typeof carrySequenceFrames> = page.evaluate(async () =>
+    (await import('/tests/e2e/sceneProbe.ts' as string)).carrySequenceFrames(65))
+  await page.locator('canvas').focus()
+  await page.keyboard.press('KeyE')
+  await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CARRY_THROW').length).toBe(1)
+  const launch = server.sent.find(message => message.type === 'WORLD_CARRY_THROW')!.payload
+  const start = performance.now(), flags = { moving: false, running: false, swimming: false, lastInputSeq: 0 }
+  const timer = setInterval(() => {
+    const t = (performance.now() - start) / 1000
+    server.worldSnapshot({ avatars: [
+      { userId: '101', carry: null, position: { ...flags, x: 0, y: .84, z: 78, yaw: Math.PI } },
+      { userId: '102', carry: { carryId: launch.carryId, partnerId: '101', role: 'THROWN' },
+        position: { ...flags, x: Number(launch.dx) * 14 * t, y: Math.max(.84, 2.54 + 8 * t - 15 * t * t),
+          z: 78 + Number(launch.dz) * 14 * t, yaw: Math.PI } },
+    ] })
+  }, 33)
+  let frames: Awaited<typeof capture>
+  try { frames = await capture } finally { clearInterval(timer) }
+  await test.info().attach('shoulder-throw-sequence', { body: JSON.stringify(frames), contentType: 'application/json' })
+  expect(frames.some(frame => frame.age >= 0 && frame.age < .07 && frame.supportZ < -.1)).toBe(true)
+  expect(frames.some(frame => frame.age > .12 && frame.age < .22 && frame.supportZ > 0)).toBe(true)
+  expect(frames.some(frame => frame.age > .22 && frame.age < .34 && frame.handsZ > .2)).toBe(true)
+  expect(frames.some(frame => frame.age > .5 && frame.distance > 4)).toBe(true)
+  const released = frames.findIndex(frame => frame.age >= 0)
+  if (released > 0) expect(Math.hypot(...frames[released]!.hip.map((value, axis) => value - frames[released - 1]!.hip[axis]!))).toBeLessThan(.25)
+  expect(Number(launch.dx)).toBeCloseTo(0, 2); expect(Number(launch.dz)).toBeCloseTo(-1, 2)
+})
 
 for (const [mode, carrierHeight, targetHeight, targetMoving] of [
   ['running', .84, .84, true], ['jumping-target', .84, 1.84, false],
@@ -431,7 +473,7 @@ test('held avatar follows the rendered carrier every frame while running and cha
   await page.locator('canvas').focus()
   await page.keyboard.press('KeyE')
   await expect(page.getByRole('button', { name: /캐릭터 방향으로 던지기/ })).toBeVisible()
-  const frames: { carrier: number[]; carried: number[]; yawDifference: number }[] = []
+  const frames: Awaited<ReturnType<typeof carryRenderedFrames>> = []
   await page.keyboard.down('ShiftLeft')
   for (const key of ['KeyW', 'KeyD']) {
     await page.keyboard.down(key)
@@ -443,11 +485,12 @@ test('held avatar follows the rendered carrier every frame while running and cha
   }
   await screenshot(page, 'carry-running-follow-desktop')
   await page.keyboard.up('ShiftLeft')
-  for (const { carrier, carried, yawDifference } of frames) {
-    // The two render subscribers sample performance.now separately within a frame.
-    expect(Math.abs(carried[0]! - carrier[0]!)).toBeLessThan(.01)
-    expect(Math.abs(carried[1]! - carrier[1]! - 1.7)).toBeLessThan(.01)
-    expect(Math.abs(carried[2]! - carrier[2]!)).toBeLessThan(.01)
+  for (const { supportDelta, handGap, yawDifference } of frames) {
+    // The held hips follow the posed shoulders, including the carrier's stride bob.
+    expect(supportDelta[0]!).toBeCloseTo(.06, 2)
+    expect(supportDelta[1]!).toBeCloseTo(.08, 2)
+    expect(supportDelta[2]!).toBeCloseTo(-.28, 2)
+    expect(handGap).toBeLessThan(.5)
     // Independent pose samples can differ slightly during a fast heading interpolation.
     expect(Math.abs(Math.atan2(Math.sin(yawDifference), Math.cos(yawDifference)))).toBeLessThan(.03)
   }

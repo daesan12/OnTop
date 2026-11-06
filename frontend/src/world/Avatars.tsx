@@ -8,6 +8,7 @@ import { cameraWorldPosition, parkXRView } from './xrView'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls, createCharacterRig } from './worldAssets'
 import { avatarPoseActive, avatarPoseAmbient, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
+import { createCarryMotion } from './avatarCarryMotion'
 import { AvatarPresentation } from './avatarPresentation'
 import { SwimmingRipples } from './SwimmingRipples'
 
@@ -52,11 +53,13 @@ function Avatar({
   rigs,
   menuRaycast,
   samplePose,
+  carryMotion,
 }: {
   id: string
   rigs: Map<string, AvatarAnchors>
   menuRaycast: Group['raycast']
   samplePose: AvatarSampler
+  carryMotion: ReturnType<typeof createCarryMotion>
 }) {
   const sources = useLoader(ParkAssetLoader, characterUrls)
   const variant = useSession(state => state.profiles[id]?.character === 'girl' ? 'girl' : 'man')
@@ -153,7 +156,8 @@ function Avatar({
       pose.z,
     )
     root.current.rotation.y = pose.yaw
-    if (!root.current.visible) return
+    const carryAnimation = carryMotion.get(id)
+    if (!root.current.visible && !carryAnimation) return
     // The visitors parent has an identity transform; this position is already
     // in world space. Avoid walking/updating the ancestor matrices per avatar.
     const distance = cameraWorldPosition(camera).distanceTo(root.current.position)
@@ -164,7 +168,7 @@ function Avatar({
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
     const displayAvatar = presentation.sample(avatar, displayFlags)
-    const active = !!reaction || avatarPoseActive(displayAvatar, now)
+    const active = !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -180,7 +184,8 @@ function Avatar({
     const throwFlight = partner?.carry?.role === 'THROWN' && partner.carry.partnerId === id
       && partner.carry.carryId === carriedPartner.current.carryId ? partner : null
     motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
-      holdingCards ? oneCardHoldingPose : undefined, throwFlight)
+      holdingCards ? oneCardHoldingPose : undefined, throwFlight,
+      carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
@@ -223,6 +228,9 @@ export function Avatars({
   const ids = useSession((state) => state.ids)
   const samplePose = useAvatarFrameSampler()
   const rigs = useMemo(() => new Map<string, AvatarAnchors>(), [])
+  const carryMotion = useMemo(createCarryMotion, [])
+  useFrame(() => carryMotion.update(avatars, performance.now()), -1.5)
+  useFrame(() => carryMotion.place(rigs), -.5)
   const lastEvent = useThree(state => state.internal.lastEvent)
   const inputRaycaster = useThree(state => state.raycaster)
   const menuRaycast = useMemo(() => avatarMenuRaycast(() => lastEvent.current, inputRaycaster), [lastEvent, inputRaycaster])
@@ -230,7 +238,7 @@ export function Avatars({
   return (
     <group name="visitors">
       {ids.map((id) => (
-        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} />
+        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} carryMotion={carryMotion} />
       ))}
       <SwimmingRipples />
 

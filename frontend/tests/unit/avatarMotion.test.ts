@@ -75,7 +75,7 @@ describe('avatar pose transitions and resource ownership', () => {
         const flight = { current: { x: 0, y: 2.54, z: 0, yaw: 0 } }
         motion.apply(avatar(), 0, 1 / fps, facing, figure, null, undefined, flight)
         flight.current.x = dx! * .4; flight.current.z = dz! * .4
-        for (let frame = 0; frame < fps * .2; frame++) motion.apply(avatar(), 0, 1 / fps, facing, figure, null, undefined, flight)
+        for (let frame = 0; frame < fps * .28; frame++) motion.apply(avatar(), 0, 1 / fps, facing, figure, null, undefined, flight)
         base.updateMatrixWorld(true)
         for (const side of ['L', 'R'] as const) {
           rig.bones[`hand_${side}`].getWorldPosition(hand)
@@ -91,24 +91,25 @@ describe('avatar pose transitions and resource ownership', () => {
       }
     })
 
-    it(`${name}: supports and releases toward the character front instead of behind the shoulders`, async () => {
+    it(`${name}: supports behind the shoulders and relaxes on a drop without a throw gesture`, async () => {
       const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
       const figure = new Group(), hand = new Vector3(), shoulder = new Vector3()
       figure.add(rig.root)
       const carrying = avatar({ carry: { carryId: 'carry', partnerId: 'other', role: 'CARRIER' } })
       for (let frame = 0; frame < 60; frame++) motion.apply(carrying, 0, 1 / 60, pose, figure)
+      const carryLean = Math.abs(rig.bones.spine.rotation.x)
       for (const state of [carrying, avatar()]) {
         for (let frame = 0; frame < 12; frame++) {
           motion.apply(state, 0, 1 / 60, pose, figure)
           if (!state.carry) {
             expect(figure.rotation.y).toBe(0)
-            expect(Math.abs(rig.bones.spine.rotation.x)).toBeLessThan(.06)
+            expect(Math.abs(rig.bones.spine.rotation.x)).toBeLessThanOrEqual(carryLean)
           }
           figure.updateMatrixWorld(true)
           for (const side of ['L', 'R'] as const) {
             rig.bones[`hand_${side}`].getWorldPosition(hand)
             rig.bones[`upperArm_${side}`].getWorldPosition(shoulder)
-            expect(hand.z - shoulder.z).toBeGreaterThan(.1)
+            if (state.carry) expect(hand.z - shoulder.z).toBeLessThan(-.1)
           }
         }
       }
@@ -133,7 +134,7 @@ describe('avatar pose transitions and resource ownership', () => {
       rig.dispose()
     })
 
-    it(`${name}: rests the held body closer to the carrier and eases into the throw pose`, async () => {
+    it(`${name}: pivots around the hips and eases into flight without scaling the body`, async () => {
       const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
       const figure = new Group(), hips = new Vector3()
       figure.add(rig.root)
@@ -141,8 +142,7 @@ describe('avatar pose transitions and resource ownership', () => {
       for (let frame = 0; frame < 60; frame++) motion.apply(avatar({ carry }), 0, 1 / 60, pose, figure)
       figure.updateMatrixWorld(true)
       rig.bones.hips.getWorldPosition(hips)
-      expect(rig.hipHeight - hips.y).toBeGreaterThan(.35)
-      expect(rig.hipHeight - hips.y).toBeLessThan(.75)
+      expect(hips.y).toBeCloseTo(rig.hipHeight, 3)
       const held = hips.clone()
 
       const thrown = avatar({ carry: { ...carry, role: 'THROWN' } })

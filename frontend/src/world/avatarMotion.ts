@@ -17,6 +17,7 @@ import { sampleCharacterEmote } from './art/characterEmotes'
 import { createFitnessGrip } from './art/fitnessGrip'
 import { sampleDefeatMotion } from './art/defeatMotion'
 import type { DefeatReaction } from '../game/presentation/defeat'
+import { carryEase, CARRY_PULL_SECONDS, CARRY_RELEASE_SECONDS, CARRY_FINISH_SECONDS } from './avatarCarryMotion'
 
 type Avatar = Pick<AvatarSnapshot,
   'connected' | 'moving' | 'running' | 'swimming' | 'seatIndex' |
@@ -65,10 +66,10 @@ export function avatarPoseKey(a: Avatar) {
 export function createAvatarMotion(model: Rig) {
   const fitness = createFitnessMotion(), gait = createGait()
   const grip = createFitnessGrip(), hipFit = new Vector3(), clip = createClipPose()
-  let phase = 0, swimPhase = 0, move = 0, run = 0, previousCarry = '', releaseAge = 1, carrySupport = 0, throwAge = 0
+  let phase = 0, swimPhase = 0, move = 0, run = 0, previousCarry = '', releaseAge = 1, throwAge = 0
   let releasingThrow = false, releaseYaw = 0, releaseTurn = 0, releaseDirectionKnown = false, launchX = 0, launchZ = 0
   return {
-    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void, throwFlight?: Pick<AvatarSnapshot, 'current'> | null) {
+    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void, throwFlight?: Pick<AvatarSnapshot, 'current'> | null, carryThrowAge?: number) {
       const kind = avatarPoseKind(avatar)
       const seated = kind === 'seated'
       const age = avatarEmoteAge(avatar, now)
@@ -156,8 +157,8 @@ export function createAvatarMotion(model: Rig) {
       if (reaction && avatar.connected && (kind === 'ground' || seated) && !avatar.moving) sampleDefeatMotion(reaction.kind, now - reaction.at, model)
       if (seated && age === null && !reaction) seatedPose?.(model)
       const role = avatar.carry?.role ?? ''
-      throwAge = role === 'THROWN' && previousCarry === 'THROWN' ? throwAge + dt : 0
-      carrySupport += ((role === 'CARRIED' ? 1 : 0) - carrySupport) * (1 - Math.exp(-dt * 18))
+      throwAge = role !== 'THROWN' ? 0 : carryThrowAge !== undefined
+        ? Math.max(0, carryThrowAge - CARRY_RELEASE_SECONDS) : previousCarry === 'THROWN' ? throwAge + dt : 0
       if (previousCarry === 'CARRIER' && !role) {
         releaseAge = 0
         releasingThrow = !!throwFlight
@@ -169,6 +170,7 @@ export function createAvatarMotion(model: Rig) {
       }
       previousCarry = role
       releaseAge += dt
+      if (carryThrowAge !== undefined) releaseAge = carryThrowAge
       if (releasingThrow && !releaseDirectionKnown && throwFlight) {
         const dx = throwFlight.current.x - launchX, dz = throwFlight.current.z - launchZ
         if (Math.hypot(dx, dz) > .01) {
@@ -176,26 +178,32 @@ export function createAvatarMotion(model: Rig) {
           releaseDirectionKnown = true
         }
       }
-      if (role === 'CARRIER' || !role && kind === 'ground' && age === null && !reaction && releaseAge < .45) {
-        // 정면은 +Z다. 음수 X 회전으로 받친 팔을 앞쪽으로 뻗는다.
+      if (role === 'CARRIER' || !role && kind === 'ground' && age === null && !reaction && releaseAge < CARRY_FINISH_SECONDS) {
         const throwing = !role && releasingThrow
-        const drive = Math.sin(Math.min(1, releaseAge / (throwing ? .22 : .45)) * Math.PI / 2)
-        const reach = role === 'CARRIER' ? -2.35 : -2.35 + drive * (throwing ? 1.25 : 2.35)
-        set('upperArm_L', reach, 0, -.25)
-        set('upperArm_R', reach, 0, .25)
-        set('lowerArm_L', throwing ? .4 * (1 - drive) : .4)
-        set('lowerArm_R', throwing ? .4 * (1 - drive) : .4)
-        model.handPose('L', throwing ? 'open' : 'cup'); model.handPose('R', throwing ? 'open' : 'cup')
+        const pull = throwing ? carryEase(releaseAge / CARRY_PULL_SECONDS) : 0
+        const push = throwing ? carryEase((releaseAge - CARRY_PULL_SECONDS) / .1) : 0
+        const recover = throwing ? carryEase((releaseAge - .3) / .18) : 0
+        const weight = role === 'CARRIER' ? 1 : 1 - carryEase(releaseAge / CARRY_FINISH_SECONDS)
+        for (const side of ['L', 'R'] as const) {
+          const sign = side === 'L' ? 1 : -1
+          // Short arms support the back beside the shoulders, then travel across the front.
+          model.reachHand(side, sign * .32, model.hipHeight + .43 + .12 * Math.sin(pull * Math.PI) - .12 * recover,
+            -.26 + .4 * pull + .42 * push - .4 * recover,
+            0, 0, sign * .2, throwing ? 1 : weight, false)
+          model.handPose(side, throwing && releaseAge >= CARRY_RELEASE_SECONDS ? 'open' : 'cup')
+        }
+        set('spine', role === 'CARRIER' ? .12 + .04 * run : 0)
         if (throwing) {
           const turn = Math.atan2(Math.sin(releaseYaw - pose.yaw), Math.cos(releaseYaw - pose.yaw))
           releaseTurn += Math.atan2(Math.sin(turn - releaseTurn), Math.cos(turn - releaseTurn)) * (1 - Math.exp(-dt * 30))
-          figure.rotation.y = releaseTurn * Math.min(1, Math.max(0, (.45 - releaseAge) / .13))
-          set('spine', .18 * Math.sin(Math.min(1, releaseAge / .45) * Math.PI))
+          figure.rotation.y = releaseTurn * Math.min(1, Math.max(0, (CARRY_FINISH_SECONDS - releaseAge) / .13))
+          set('spine', -.08 * Math.sin(pull * Math.PI) + .24 * Math.sin(push * Math.PI / 2) * (1 - recover))
         }
       } else if (role === 'CARRIED' || role === 'THROWN') {
         // 내려놓는 직립 자세 대신, 들린 자세에서 이어지는 짧은 공중 회전.
-        figure.rotation.set(role === 'THROWN' ? -.25 - Math.min(throwAge, .8) * 4 : 0,
-          0, Math.PI / 2 + (role === 'THROWN' ? Math.sin(throwAge * 9) * .12 : 0))
+        const flightAge = throwAge
+        figure.rotation.set(role === 'THROWN' ? -.1 - Math.min(flightAge, .8) * 4 : -.1,
+          0, Math.PI / 2 + (role === 'THROWN' ? Math.sin(flightAge * 9) * .12 : 0))
         hipFit.set(0, model.hipHeight, 0).applyEuler(figure.rotation)
         figure.position.set(-hipFit.x, model.hipHeight - hipFit.y, -hipFit.z)
         // 리그의 팔 축에 Euler 각을 고정하면 손/팔꿈치가 몸통 안으로 접힌다.
@@ -214,10 +222,7 @@ export function createAvatarMotion(model: Rig) {
       if (!role && (kind === 'ground' || kind === 'telescope') || role === 'CARRIER') {
         figure.position.y = pavingLift(pose.x, pose.z, pose.y - 0.8) + model.groundShift() + 0.003
       }
-      // 머리 위 충돌/투척 기준은 유지하고, 몸은 팔 가까이에 받쳐진 높이로 내린다.
-      // 투척·해제 때도 오프셋을 서서히 없애 모델이 위로 튀지 않게 한다.
-      figure.position.y -= .55 * carrySupport
-      figure.position.z += .12 * carrySupport
+      // The paired presentation pass fits the held hips to the actual carrier shoulders.
     },
   }
 }
