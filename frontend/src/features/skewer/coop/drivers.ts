@@ -47,7 +47,8 @@ export class OnlineHall implements HallDriver {
     this.sync()
     if (!this.client.playable || this.storageOpen) { dx = 0; dz = 0 }
     const now = performance.now(), value = `${dx.toFixed(2)}:${dz.toFixed(2)}`
-    if (this.client.playable && !this.sendingMove && ((dx !== 0 || dz !== 0) && now - this.movementAt > 150 || value !== this.lastMove && dx === 0 && dz === 0)) {
+    // Direction changes must not wait for the held-input heartbeat.
+    if (this.client.playable && !this.sendingMove && (value !== this.lastMove || (dx !== 0 || dz !== 0) && now - this.movementAt > 150)) {
       this.movementAt = now; this.lastMove = value; this.sendingMove = true
       void this.client.act({ type: 'MOVE', dx, dz }, true)?.finally(() => { this.sendingMove = false })
     }
