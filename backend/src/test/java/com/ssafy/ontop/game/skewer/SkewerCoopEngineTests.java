@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
+import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.skewer.coop.service.SkewerCoopEngine;
@@ -24,12 +25,157 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SkewerCoopEngineTests {
+    @Test
+    void 상대가_동의해야만_같은_경기를_초기화하고_중간_결과는_정산하지_않는다() {
+        Fixture fixture = new Fixture(2400);
+        fixture.prepare();
+        fixture.receiveFirst();
+        fixture.deliverOrder();
+        fixture.cookFirst();
+        long beforeVersion = fixture.view(101).version();
+        fixture.act(101, Map.of("type", "RESTART_REQUEST"));
+        String requestId = fixture.view(101).publicState().at("/restart/id").asText();
+        JsonNode hall = fixture.secret(101).deepCopy();
+        JsonNode chef = fixture.secret(202).deepCopy();
+        double remaining = fixture.view(101).publicState().path("remaining").asDouble();
+
+        fixture.advance(2);
+
+        assertThat(fixture.secret(101)).isEqualTo(hall);
+        assertThat(fixture.secret(202)).isEqualTo(chef);
+        assertThat(fixture.view(202).publicState().path("remaining").asDouble()).isEqualTo(remaining);
+        assertThatThrownBy(() -> fixture.act(101, Map.of("type", "RESTART_REPLY",
+                "requestId", requestId, "accept", true))).hasMessage("INVALID_ACTION");
+        fixture.act(202, Map.of("type", "RESTART_REPLY", "requestId", requestId, "accept", true));
+
+        JsonNode state = fixture.view(101).publicState();
+        assertThat(state.path("phase").asText()).isEqualTo("COUNTDOWN");
+        assertThat(state.path("countdown").asDouble()).isEqualTo(3);
+        assertThat(state.path("round").asInt()).isEqualTo(1);
+        assertThat(state.path("score").asInt()).isZero();
+        assertThat(state.path("served").asInt()).isZero();
+        assertThat(state.path("remaining").asDouble()).isEqualTo(2400);
+        assertThat(state.path("restart").isNull()).isTrue();
+        assertThat(fixture.view(101).version()).isGreaterThan(beforeVersion);
+        assertThat(fixture.secret(101).path("role").asText()).isEqualTo("server");
+        assertThat(fixture.secret(202).path("role").asText()).isEqualTo("chef");
+        assertThat(fixture.secret(101).at("/hall/pass")).isEmpty();
+        assertThat(fixture.secret(101).at("/hall/held")).isEmpty();
+        assertThat(fixture.secret(202).at("/chef/visible")).isEmpty();
+        assertThat(fixture.secret(202).at("/chef/completed").asInt()).isZero();
+        assertThat(fixture.events.stream().filter(SkewerCoopFinished.class::isInstance)).isEmpty();
+        assertThat(fixture.engine.load(101).orElseThrow().gameId()).isEqualTo(fixture.id);
+        fixture.advance(3.2);
+        assertThat(fixture.view(101).publicState().path("phase").asText()).isEqualTo("PLAYING");
+    }
+
+    @Test
+    void 거절과_응답_시간초과는_기존_주문과_시간을_보존하고_늦은_동의를_거절한다() {
+        Fixture fixture = new Fixture(2400);
+        fixture.prepare();
+        fixture.receiveFirst();
+        fixture.deliverOrder();
+        fixture.act(202, Map.of("type", "THREAD", "ingredient", "tomato"));
+        fixture.act(202, Map.of("type", "RESTART_REQUEST"));
+        String first = fixture.view(101).publicState().at("/restart/id").asText();
+        JsonNode chef = fixture.secret(202).deepCopy();
+        double elapsed = fixture.view(101).publicState().path("elapsed").asDouble();
+        fixture.act(101, Map.of("type", "RESTART_REPLY", "requestId", first, "accept", false));
+        assertThat(fixture.secret(202)).isEqualTo(chef);
+        assertThat(fixture.view(101).publicState().path("paused").asBoolean()).isFalse();
+
+        fixture.act(101, Map.of("type", "RESTART_REQUEST"));
+        String second = fixture.view(202).publicState().at("/restart/id").asText();
+        assertThat(second).isNotEqualTo(first);
+        assertThatThrownBy(() -> fixture.act(202, Map.of("type", "RESTART_REPLY",
+                "requestId", first, "accept", true))).hasMessage("INVALID_ACTION");
+        fixture.advance(15);
+
+        assertThat(fixture.view(101).publicState().path("restart").isNull()).isTrue();
+        assertThat(fixture.view(101).publicState().path("round").asInt()).isZero();
+        assertThat(fixture.view(101).publicState().path("elapsed").asDouble()).isEqualTo(elapsed);
+        assertThat(fixture.secret(202)).isEqualTo(chef);
+        assertThatThrownBy(() -> fixture.act(202, Map.of("type", "RESTART_REPLY",
+                "requestId", second, "accept", true))).hasMessage("INVALID_ACTION");
+    }
+
+    @Test
+    void 재시작_동의는_중복_낡은버전_비참가자_동시요청을_방어한다() {
+        Fixture fixture = new Fixture(2400);
+        fixture.prepare();
+        fixture.act(101, Map.of("type", "RESTART_REQUEST"));
+        String requestId = fixture.view(202).publicState().at("/restart/id").asText();
+        assertThatThrownBy(() -> fixture.act(202, Map.of("type", "RESTART_REQUEST")))
+                .hasMessage("INVALID_ACTION");
+        assertThatThrownBy(() -> fixture.act(303, Map.of("type", "RESTART_REPLY",
+                "requestId", requestId, "accept", true))).isInstanceOf(RuntimeException.class);
+        long version = fixture.view(202).publicState().path("actionVersion").asLong();
+        var command = new GameActionCommand(202, fixture.id, "restart-once", version,
+                fixture.mapper.valueToTree(Map.of("type", "RESTART_REPLY", "requestId", requestId, "accept", true)));
+
+        var accepted = fixture.engine.apply(command);
+
+        assertThat(fixture.engine.apply(command)).isEqualTo(accepted);
+        assertThat(fixture.view(101).publicState().path("round").asInt()).isEqualTo(1);
+        assertThatThrownBy(() -> fixture.engine.apply(new GameActionCommand(101, fixture.id, "old-input", version,
+                fixture.mapper.valueToTree(Map.of("type", "MOVE", "dx", 1, "dz", 0)))))
+                .hasMessage("STALE_VERSION");
+    }
+
+    @Test
+    void 연결이_끊기면_요청을_취소하며_기존_삼십초_종료와_정산을_유지한다() {
+        Fixture fixture = new Fixture(2400);
+        fixture.prepare();
+        fixture.act(101, Map.of("type", "RESTART_REQUEST"));
+        String requestId = fixture.view(202).publicState().at("/restart/id").asText();
+        fixture.connected = false;
+        assertThatThrownBy(() -> fixture.act(202, Map.of("type", "RESTART_REPLY",
+                "requestId", requestId, "accept", true))).hasMessage("INVALID_ACTION");
+
+        fixture.advance(1);
+
+        assertThat(fixture.view(101).publicState().path("restart").isNull()).isTrue();
+        assertThat(fixture.view(101).publicState().path("pauseReason").asText()).isEqualTo("DISCONNECTED");
+        assertThat(fixture.view(101).publicState().path("round").asInt()).isZero();
+        fixture.advance(30);
+        assertThat(fixture.view(101).publicState().path("endReason").asText()).isEqualTo("SKEWER_DISCONNECT_TIMEOUT");
+        assertThat(fixture.events.stream().filter(SkewerCoopFinished.class::isInstance)).hasSize(1);
+    }
+
+    @Test
+    void 재시작해도_PC_전환으로_제외된_랭킹_자격은_돌아오지_않는다() {
+        Fixture fixture = new Fixture(2400);
+        fixture.roles();
+        fixture.act(202, Map.of("type", "CHEF_MODE", "vr", true));
+        fixture.ready();
+        fixture.act(202, Map.of("type", "CHEF_MODE", "vr", false));
+        fixture.act(202, Map.of("type", "CHEF_MODE", "vr", true));
+        fixture.act(202, Map.of("type", "RESTART_REQUEST"));
+        String requestId = fixture.view(101).publicState().at("/restart/id").asText();
+
+        fixture.act(101, Map.of("type", "RESTART_REPLY", "requestId", requestId, "accept", true));
+
+        assertThat(fixture.view(101).publicState().path("rankingEligible").asBoolean()).isFalse();
+        assertThat(fixture.view(101).publicState().path("chefVR").asBoolean()).isTrue();
+    }
+
+    @Test
+    void 배출_중인_기존_대기방은_준비를_눌러_새_경기를_시작할_수_없다() {
+        Fixture fixture = new Fixture(2400, () -> false);
+        fixture.roles();
+
+        assertThatThrownBy(() -> fixture.act(101, Map.of("type", "READY", "ready", true)))
+                .isInstanceOfSatisfying(GameActionGateway.Rejected.class,
+                        rejected -> assertThat(rejected.reason()).isEqualTo(GameActionGateway.Rejection.NOT_ACTIVE));
+    }
+
     @Test
     void 요리사는_실시간_서빙_위치와_외형만_보고_미전달_주문은_볼_수_없다() {
         Fixture fixture = new Fixture(2400);
@@ -247,11 +393,16 @@ class SkewerCoopEngineTests {
                 .isInstanceOf(RuntimeException.class);
         fixture.prepare();
         assertThat(fixture.engine.join(202, "park", fixture.id).path("gameId").asText()).isEqualTo(fixture.id);
+        JsonNode original = fixture.secret(101).at("/hall/tables/0/bill/dishes/0").deepCopy();
         assertThat(fixture.secret(202).path("chef").path("visible")).isEmpty();
         fixture.receiveFirst();
         assertThat(fixture.secret(202).toString()).doesNotContain("recipe");
         fixture.deliverOrder();
         assertThat(fixture.secret(202).path("chef").path("visible")).hasSize(1);
+        JsonNode received = fixture.secret(202).at("/chef/visible/0");
+        assertThat(received.path("id")).isEqualTo(original.path("id"));
+        assertThat(received.path("table")).isEqualTo(original.path("table"));
+        assertThat(received.path("recipe")).isEqualTo(original.path("recipe"));
         assertThat(fixture.secret(202).has("hall")).isFalse();
     }
 
@@ -331,13 +482,23 @@ class SkewerCoopEngineTests {
         fixture.walk(-2.6, -4.25);
         fixture.interact();
 
-        String hidden = fixture.secret(101).at("/hall/kitchen/2/id").asText();
+        JsonNode kitchen = fixture.secret(101).at("/hall/kitchen").deepCopy();
+        String hidden = kitchen.at("/2/id").asText();
         assertThat(fixture.secret(202).at("/chef/visible")).hasSize(2);
+        for (int index = 0; index < 2; index++) {
+            JsonNode visible = fixture.secret(202).at("/chef/visible/" + index);
+            assertThat(visible.path("id")).isEqualTo(kitchen.get(index).path("id"));
+            assertThat(visible.path("table")).isEqualTo(kitchen.get(index).path("table"));
+            assertThat(visible.path("recipe")).isEqualTo(kitchen.get(index).path("recipe"));
+        }
         assertThat(fixture.secret(202).at("/chef/waiting").asInt()).isEqualTo(1);
         assertThat(fixture.secret(202).toString()).doesNotContain(hidden);
         assertThatThrownBy(() -> fixture.act(202, Map.of("type", "CHOOSE", "id", hidden)))
                 .isInstanceOf(RuntimeException.class);
         fixture.cookFirst();
+        assertThat(fixture.secret(202).at("/chef/visible/0/recipe")).isEqualTo(kitchen.at("/1/recipe"));
+        assertThat(fixture.secret(202).at("/chef/visible/1/id").asText()).isEqualTo(hidden);
+        assertThat(fixture.secret(202).at("/chef/visible/1/recipe")).isEqualTo(kitchen.at("/2/recipe"));
         fixture.cookFirst();
         fixture.assembleFirst();
         JsonNode before = fixture.secret(202);
@@ -698,13 +859,22 @@ class SkewerCoopEngineTests {
             this(duration, result -> { });
         }
 
+        Fixture(double duration, BooleanSupplier newActivityAllowed) {
+            this(duration, result -> { }, new Random(18), newActivityAllowed);
+        }
+
         Fixture(double duration, java.util.function.Consumer<SkewerCoopFinished> recorder) {
             this(duration, recorder, new Random(18));
         }
 
         Fixture(double duration, java.util.function.Consumer<SkewerCoopFinished> recorder, Random random) {
+            this(duration, recorder, random, () -> true);
+        }
+
+        Fixture(double duration, java.util.function.Consumer<SkewerCoopFinished> recorder, Random random,
+                BooleanSupplier newActivityAllowed) {
             engine = new SkewerCoopEngine(mapper, clock, router, events::add, user -> { },
-                    (user, channel) -> connected || user == 101, random, duration, recorder);
+                    (user, channel) -> connected || user == 101, random, duration, recorder, newActivityAllowed);
             id = engine.create(101, "park", "create").path("gameId").asText();
             engine.join(202, "park", id);
         }

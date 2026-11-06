@@ -59,8 +59,11 @@ export interface WorldState {
     tableSeat?: PublicTableSeat | null
     activity?: AvatarActivity | null
     motion?: MotionSnapshot | null
+    carry?: CarryState | null
+    interactionBusy?: boolean
   }[]
 }
+export interface CarryState { carryId: string; partnerId: string; role: 'CARRIER' | 'CARRIED' | 'THROWN' }
 export interface TableSummary {
   tableId: string
   capacity: number
@@ -204,6 +207,10 @@ export function worldState(value: Record<string, unknown>): WorldState {
         && (a.gameMaster === undefined || typeof a.gameMaster === 'boolean')
         && (a.equipment == null || validPublicEquipment(a.equipment))
         && tableSeat(a.tableSeat)
+        && (a.interactionBusy === undefined || typeof a.interactionBusy === 'boolean')
+        && (a.carry == null || record(a.carry) && text(a.carry.carryId) && a.carry.carryId.length === 36
+          && text(a.carry.partnerId) && a.carry.partnerId !== a.userId
+          && ['CARRIER', 'CARRIED', 'THROWN'].includes(String(a.carry.role)))
         && (a.activity == null || isAvatarActivity(a.activity)) && motion(a.motion),
     )
   )

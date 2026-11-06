@@ -22,6 +22,7 @@ import type { AvatarSampler } from '../network/avatarFrame'
 import { emptyEquipment } from '../network/equipment'
 import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from './art/characterLook'
 import { useOutfitSources } from './art/outfitSources'
+import { resolveWholeSkin } from './art/wholeSkin'
 import { previewEquipment, useWardrobe } from '../features/wardrobe/state'
 import type { OwnedItem } from '../features/shop/contracts'
 import { WARDROBE_OUTFITS_ENABLED } from '../features/wardrobe/feature'
@@ -68,14 +69,16 @@ function Avatar({
   const worn = useMemo(() => previewId && previewEquipment(owned, previewId) || equipment, [previewId, owned, equipment])
   // Outfits closed (production build): every avatar keeps its default clothes, whatever is equipped.
   const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn])
-  const outfits = useOutfitSources(lookSources(look).filter(source => !isCharacterSource(source)))
+  const wholeSkin = WARDROBE_OUTFITS_ENABLED ? resolveWholeSkin(variant, worn) : undefined
+  const outfits = useOutfitSources(wholeSkin ? [wholeSkin.source] : lookSources(look).filter(source => !isCharacterSource(source)))
+  const wholeSource = wholeSkin && outfits.get(wholeSkin.source)
   const files = useMemo(() => new Map([['man', sources[0]!], ['girl', sources[1]!], ...outfits]), [sources, outfits])
   const shown = availableLook(variant, look, source => files.has(source))
   const shownKey = lookKey(shown)
   const model = useMemo(
-    () => createCharacterRig(sources[variant === 'girl' ? 1 : 0]!, shown, files),
+    () => wholeSource ? createCharacterRig(wholeSource) : createCharacterRig(sources[variant === 'girl' ? 1 : 0]!, shown, files),
     // (`shown` is fully described by its key)
-    [sources, variant, shownKey, files],
+    [sources, variant, shownKey, files, wholeSource],
   )
   const root = useRef<Group>(null)
   const figure = useRef<Group>(null)
@@ -86,24 +89,47 @@ function Avatar({
   const inverseRoot = useMemo(() => new Matrix4(), [])
   const presentation = useMemo(() => new AvatarPresentation(), [])
   const motion = useMemo(() => createAvatarMotion(model), [model])
+  const carriedPartner = useRef({ id: '', carryId: '' })
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
-  const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
+  const appearance = useRef<ReturnType<typeof createAvatarOpacity> | null>(null)
+  const rendererState = useThree(state => state.get)
   const overlapOpacity = useRef(1)
   const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   useLayoutEffect(() => {
-    rigs.set(id, {
-      root: root.current!,
-      head: marker.current!,
-    })
+    // Create in setup: StrictMode may replay cleanup/setup while retaining the model.
+    const current = createAvatarOpacity(model.root)
+    appearance.current = current
+    rigs.set(id, { root: root.current!, head: marker.current! })
+    const { gl } = rendererState()
+    let active = true
+    const prepare = () => {
+      const { camera, scene } = rendererState()
+      void current.prepare(gl, camera, scene).catch(error => {
+        if (active && !gl.getContext().isContextLost()) console.error('아바타 반투명 셰이더를 준비하지 못했습니다.', error)
+      })
+    }
+    const lost = () => current.invalidate()
+    const restored = () => { current.invalidate(); prepare() }
+    gl.domElement.addEventListener('webglcontextlost', lost)
+    gl.domElement.addEventListener('webglcontextrestored', restored)
+    prepare()
     return () => {
+      active = false
+      gl.domElement.removeEventListener('webglcontextlost', lost)
+      gl.domElement.removeEventListener('webglcontextrestored', restored)
       rigs.delete(id)
-      appearance.dispose()
+      if (appearance.current === current) appearance.current = null
+      current.dispose()
       model.dispose()
     }
-  }, [id, rigs, model, appearance])
+  }, [id, rigs, model, rendererState])
   useFrame(({ camera }, delta) => {
     const avatar = avatars.get(id)
     if (!avatar || !root.current || !figure.current) return
+    if (avatar.carry?.role === 'CARRIER') {
+      carriedPartner.current.id = avatar.carry.partnerId
+      carriedPartner.current.carryId = avatar.carry.carryId
+    }
     const frameAt = performance.now()
     samplePose(avatar, frameAt, pose)
     const seated = avatar.seatIndex >= 0
@@ -119,7 +145,7 @@ function Avatar({
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
     root.current.visible = opacity > 0 && !(own && parkXRView.active) && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
-    appearance.set(root.current.visible ? opacity : 1)
+    appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     root.current.position.set(
       pose.x,
@@ -150,7 +176,11 @@ function Avatar({
       !reaction && avatarPoseAmbient(displayAvatar),
     )
     if (!poseDelta) return
-    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)
+    const partner = avatars.get(carriedPartner.current.id)
+    const throwFlight = partner?.carry?.role === 'THROWN' && partner.carry.partnerId === id
+      && partner.carry.carryId === carriedPartner.current.carryId ? partner : null
+    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
+      holdingCards ? oneCardHoldingPose : undefined, throwFlight)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
@@ -174,7 +204,7 @@ function Avatar({
       }}
       // Approved public appearance reaches the renderer. No guessed asset or material
       // substitution: product-specific models/textures have not been supplied yet.
-      userData={{ character: variant, equipment, look: shownKey }}
+      userData={{ character: variant, equipment, look: shownKey, wholeSkin: wholeSource ? wholeSkin?.imageKey : undefined }}
     >
       <FartCloud id={id} />
       <group ref={figure} name={`figure-${id}`}>

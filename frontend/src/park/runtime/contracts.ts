@@ -15,6 +15,7 @@ export interface ParkRuntimePort {
   releaseFacility(leaseId: string, signal: AbortSignal): Promise<void>
   aimFacility(leaseId: string, aim: { yaw: number; pitch: number }, signal: AbortSignal): Promise<{ yaw: number; pitch: number }>
   selectChannel(channelId: string): Promise<boolean>
+  enterRecommendedChannel(): Promise<boolean>
   refreshChannels(): Promise<boolean>
   sendChat(text: string): Promise<boolean>
   sendTyping?(typing: boolean): Promise<boolean>
@@ -22,6 +23,10 @@ export interface ParkRuntimePort {
   pingOmok(x: number, y: number): Promise<boolean>
   pingLedger(target: import('../../game/ledger/protocol').LedgerPingTarget): Promise<boolean>
   sendEmote(id: import('../../features/emotes/catalog').EmoteId): Promise<boolean>
+  pickupAvatar?(targetId: string): Promise<boolean>
+  throwAvatar?(carryId: string, direction: { dx: number; dy: number; dz: number }): Promise<boolean>
+  releaseAvatar?(carryId: string): Promise<boolean>
+  setInteractionBusy?(busy: boolean): void
   move(dx: number, dz: number, run: boolean, jump?: boolean): void
   stopMovement(): void
   inspectTable(anchorId: string, watch?: boolean): void

@@ -14,14 +14,15 @@
   - 데이터의 부위는 그대로 다섯 개다. 세 칸은 옷장 화면과 장착 규칙에서만 나뉜다.
   - 그래서 새 옷은 **자기 한 벌을 입었을 때만** 맞으면 된다. 다른 상의·하의·신발과 섞어 입는 경우는 생기지 않는다.
   - 부위별로 섞어 입게 했을 때는 바지가 다른 상의를 뚫거나, 바지 없이 신발만 신으면 발목이 비는 문제가 옷마다 생겼다.
-- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`g`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`)이고, 새 옷은 `h`부터 쓴다.
+- **캐릭터별 조각.** `item__HAIR__h__for_girl`처럼 `__for_man`/`__for_girl`이 붙은 조각은 그 캐릭터에게만 보인다(④-2).
+- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`j`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`, 갓·도포 `h`, 투구 아래 여자 앞머리 쪽머리 `i`, 갓 아래 여자 기본 머리 모양의 낮은 쪽머리 `j`, 사또 `k`)이고, 새 옷은 `l`부터 쓴다.
 - **몸 조각.** 의상에 가려지는 몸은 `body__TOPd_BOTTOMg`처럼 가리는 의상 이름이 붙은 조각으로 잘려 있다. 이 조각은 그 의상 중 하나라도 입으면 숨는다. 의상 조각 `item__BOTTOM__d__under_TOPb`는 `TOP b`를 함께 입으면 숨는다.
 - **게임 파일**(`frontend/public/art/characters/`):
   - `man.glb`, `girl.glb`: 공용 몸의 모든 조각 + 그 캐릭터의 기본 옷.
   - `outfits/<이름>.glb`: 그 옷의 부위 조각만 담는다. 누군가 처음 입을 때만 내려받는다.
   - 각 메시의 `extras.pieces`에 조각 이름과 범위가 들어 있고, 게임은 입은 옷에 맞는 조각만 그린다(`frontend/src/world/art/characterLook.ts`).
 - **아이템과 연결.** DB `items.image_key`를 `outfit/<파일>/<의상 문자>`로 적으면 그 조각을 입힌다(예: 장군 `outfit/general/g`).
-  - 한 벌인 옷은 상의·하의·신발에 `items.set_code`를 같은 값으로 둔다(장군 `GENERAL`, 갓·도포 `DOPO`). 세트는 한 벌로만 입고 벗는다.
+  - 한 벌인 옷은 상의·하의·신발에 `items.set_code`를 같은 값으로 둔다(장군 `GENERAL`, 갓·도포 `DOPO`, 사또 `SATTO`). 세트는 한 벌로만 입고 벗는다.
   - 머리·얼굴 아이템에는 `set_code`를 두지 않는다(따로 쓴다).
 
 - **운영에서는 아직 꺼져 있다.** 옷장 의상은 개발 빌드(`VITE_WARDROBE_OUTFITS=true`, `frontend/vercel.dev.json`과 `Jenkinsfile`)와 로컬 개발에서만 켜진다. 운영 빌드에서는 다음처럼 동작한다(`frontend/src/features/wardrobe/feature.ts`).
@@ -126,12 +127,103 @@
 - **조각 이름은 `_1`, `_2`로 붙인다.** `.001`처럼 점을 쓰면 three.js가 점을 지워서 규칙 해석이 깨진다.
 - **부품의 작은 구멍(30변 이하)은 메운다.** Tripo 부품에는 구멍이 자주 있다.
 
+### ④-2 모자 아래 머리 (남녀별)
+
+모자와 머리카락이 한 아이템인 머리 아이템(갓, 장군 투구)은 남녀가 같이 쓴다. 그래서 머리카락을 캐릭터별 조각으로 따로 둔다.
+
+- 조각 이름은 `item__HAIR__<문자>__for_man` / `item__HAIR__<문자>__for_girl`이다. 게임은 그 캐릭터에만 그린다(`characterLook.ts`).
+- 남자 머리카락은 기본 머리 `b`를 복사해 쓴다. Tripo 머리보다 깔끔하고 기본 모습과 머릿결이 같다.
+- 여자는 기본 머리 `e`(포니테일)를 쓰면 모자 아래에서 어색해서, 모자마다 머리를 따로 둔다.
+  - **갓: `j`, 기본 머리 모양에 포니테일 대신 낮은 쪽.** 앞머리 쪽머리 `i`와 나란히 비교한 뒤 기본 머리 쪽을 골랐다(user). 모자를 벗은 모습과 앞머리·옆머리가 이어진다.
+  - **장군 투구: `i`(눈썹을 덮는 두꺼운 앞머리, 얼굴 옆으로 내린 가는 머리, 낮은 쪽머리).** 아래는 `i`를 만든 순서다.
+  - 처음 만든 가르마 올백 쪽머리는 이마가 다 드러나 정면에서 남자처럼 보였다(user).
+  - 두 번째로 만든 눈썹이 보이는 시스루 앞머리는, 모델 눈썹을 지운 자리가 앞머리 끝에서 들쭉날쭉하게 잘려 이상해 보였다(user). 그래서 눈썹을 덮는 앞머리로 바꿨다. 이제 눈썹은 앞머리 밑에 가려져 지울 필요가 없다(`split_head.py`의 `brows=`는 이때 쓴 옵션이다).
+  1. 공용 몸 T자 시트(`pose_sheet.py pose=t`)를 Gemini에 넣고, 몸·얼굴·배치는 그대로 두고 머리만 그리게 했다: 이마를 다 덮고 눈 바로 위에서 고르게 끝나는 두꺼운 앞머리(틈 없이), 귀 앞으로 턱까지 내린 가는 머리, 목덜미의 둥근 쪽. 정수리와 뒤는 머리에 붙게 해서 모자가 얹히게 한다. 모자·장신구는 넣지 않는다.
+  2. Tripo 여러 면(정면 / Left = 오른쪽 아래 / Right = 오른쪽 위 / 뒤), Generate in Parts, Balanced, 4K 텍스처.
+  3. Tripo가 머리카락과 얼굴을 한 부품(`tripo_part_0`, 쪽만 `tripo_part_2`)으로 냈다. `split_head.py`가 텍스처 밝기로 나눈다(머리 `tripo_part_90`, 얼굴 `tripo_part_91`).
+     - `cut=0.1,-0.12,0.755`: 앞머리 아래 얼굴 앞쪽(어두운 눈동자)은 머리가 아니다.
+     - `under=0.70,0.80,0.17,0.008`: 앞머리 끝 바로 아래 얼굴에 붙어 있던 어두운 면(모델의 눈꺼풀 선, 두피 가장자리)이 앞머리 밑으로 검게 번져 보였다(user). 그 높이에서 얼굴 피부와 8 mm 안에 있는 면은 머리가 아니다. 앞머리는 얼굴보다 1 cm 넘게 앞에 떠 있어서 남는다. 깊이(y)로 자르면 이마가 뒤로 휘는 양옆에서 앞머리 끝까지 잘렸다.
+     - `face_above=0.62`: 맞추기(`head_fit`)에 쓰는 얼굴은 턱 위만 남긴다. 목까지 들어 있으면 맞추기가 19 cm 어긋났다. 잘라 낸 면(`cut`, `under`)은 얼굴에도 넣지 않는다. 넣으면 맞추기가 1.6 cm 움직였다.
+  4. 머리만 기준 빌드에 맞춘다. 얼굴로 맞추니 크기 0.986배였다.
+
+```bash
+"$B" -b --python tools/character/split_head.py -- girl_fringe_parts.glb girl_fringe_split.glb part=0 min_island=300 cut=0.1,-0.12,0.755 under=0.70,0.80,0.17,0.008 face_above=0.62
+"$B" -b --python tools/character/fit_outfit.py -- shared_layers_h.glb girl_fringe_split.glb shared_layers_hi.glb set=i s=1.065 head_fit=91 "map=HAIR:90,2"
+```
+
+- `j`는 기본 머리를 Tripo로 다시 만든 머리다.
+  - 처음에는 기본 머리 `e`에서 포니테일만 잘라 냈다. 그러자 뒤통수 아래가 비어 빡빡이처럼 보였다(user). 포니테일을 뒤통수에 눕히거나 다른 머리의 뒤쪽을 붙여 메워 봤지만, 높낮이와 음영이 옆머리와 달라 여전히 머리카락이 없는 것처럼 보였다(user). 한 머리를 이어 붙이는 방법으로는 자연스럽지 않아서, 한 덩어리 머리를 새로 만들었다.
+  1. `pose_sheet.py pose=t keep=item__HAIR__e`로 기본 머리를 쓴 몸의 T자 시트를 그린다.
+  2. Gemini에 넣고 포니테일과 분홍 머리끈만 목덜미의 낮은 쪽으로 바꾸게 한다. 앞머리·옆머리·색은 그대로, 뒤통수는 옆머리와 같은 볼륨과 머릿결로 채운다.
+  3. Tripo 여러 면, Generate in Parts, Balanced, 4K 텍스처. 이번에는 머리카락(`tripo_part_0`)과 얼굴(`tripo_part_2`)이 따로 나와 나누지 않고 바로 맞춘다.
+  4. Tripo 텍스처가 기본 머리보다 밝고 분홍빛이라, `recolor_hair.py`로 기본 머리 `e`의 색(채널별 평균·퍼짐)에 맞춘다.
+     - `drop_skin=0.006`: 가르마 가장자리에 Tripo가 두피색을 칠한 머리 조각이 이마에 흉터 같은 선으로 보였다(user). 피부색이면서 몸 표면과 6 mm 안에 있는 머리 면은 먼저 뺀다. 1.2 cm로 넓히면 정수리에 구멍이 났다.
+
+```bash
+"$B" -b --python tools/character/fit_outfit.py -- shared_layers_hi.glb girl_lowbun_parts.glb hij_t.glb set=j s=1.065 head_fit=2 "map=HAIR:0"
+"$B" -b --python tools/character/recolor_hair.py -- hij_t.glb shared_layers_hij.glb item=j like=e drop_skin=0.006
+```
+
+- `i`와 `j`는 모자 아래 머리의 원본일 뿐이라 아이템으로 팔지 않는다(옷 파일에도 넣지 않는다).
+- `tools/character/hat_hair.py`가 머리카락을 모자 안으로 넣는다.
+  - 머리 중심에서 그 점 사이에 모자가 있으면, 그 점을 모자 안쪽 3 mm로 당긴다.
+  - 모두 당겨져 모자 속에 숨은 면은 지운다.
+  - `drop_hair=1`은 모자 아이템에 있던 Tripo 머리(갈색 조각)를 뺀다. 20면보다 작은 부스러기도 함께 뺀다(`crumbs`). 이마 앞에 뜬 삼각형 두 개가 남자 앞머리에 가려 있다가, 이마가 드러난 쪽머리에서 검은 자국으로 보였다(게임은 면 양쪽을 그린다).
+
+```bash
+"$B" -b --python tools/character/hat_hair.py -- shared_layers_hij.glb hh1.glb set=h drop_hair=1 girl=j straps=1000        # 갓: 남자 기본 머리, 여자 포니테일 뗀 기본 머리
+"$B" -b --python tools/character/hat_hair.py -- hh1.glb hh2.glb set=g man= girl=i cap_for=man,cap_black crown_for=girl,1.15,0.035 down=0 pull=0   # 장군 투구
+```
+
+- `straps=1000`: 1000면보다 작은 모자 조각(갓의 턱끈)은 모자 안쪽을 판단할 때 빼고 본다. 턱끈이 얼굴 옆 머리 바로 바깥을 지나서, 옆머리가 모자 속으로 당겨져 잘려 나갔다. 투구에는 옆머리가 있는데 갓에는 없어서 남자처럼 보였다(user).
+- 갓은 머리 중심에서 바깥으로 당기는 것에 더해, 위에서 아래로도 검사해 챙 위로 삐져나온 머리를 챙 아래로 누른다(`down`, 기본 12 cm). 왕관 모양 투구에는 쓰지 않는다(`down=0`).
+- 장군 투구는 두건(검은 모자)이 머리를 덮는 모양이라, 여자에게 씌우면 뒤로 검은 공처럼 보였다. 그래서 여자에게는 두건을 빼고 왕관을 머리 위에 얹는다.
+  - `cap_for=man,cap_black`: 두건(재질 `cap_black`과 거의 검은 면)은 남자 조각으로만 두고, 두건이 가리던 두피는 여자 조각에 되살린다(같이 가리던 상의가 있으면 `__under_` 규칙 유지).
+  - `crown_for=girl,1.15,0.035`: 여자용 왕관을 머리 중심 기준 1.15배, 3.5 cm 위로 복사해 머리 위에 얹는다. 원래 크기면 왕관 뒤쪽이 머리에 파묻혔고, 포니테일 때 쓰던 1.2배·4.5 cm는 쪽머리 위에서 떠 보였다.
+  - `pull=0`: 여자 머리는 당기지 않는다. 당기면 왕관을 지나는 머리카락이 가시처럼 삐죽해졌다.
+
+- 머리를 넣은 옷 파일은 `to_game.py`의 `near`를 머리 몫만큼 올린다(갓 4만 → 7만 5천). 그대로 두면 촘촘한 머리가 삼각형을 다 가져가 도포가 거칠어지고 어깨에 구멍이 생겼다(도포 17,324 → 6,674). 머리를 미리 크게 줄이면(`hair_faces`) 머리 텍스처가 줄무늬처럼 깨져서 쓰지 않는다.
+- 카드 그림은 `item_art.py ... variant=girl`로 `-girl` 그림(`outfit-gat-h-hair-girl.webp`)을 따로 만든다. 옷장은 여자 캐릭터일 때 이 그림을 먼저 쓴다.
+  - 투구의 쪽머리(`i`)는 얼굴을 덮지 않아 앞에서 그리면 머리 안쪽이 비어 보인다. 그래서 `view=-1,0.5,0.2`로 옆뒤에서 쪽이 보이게 그린다. 갓의 기본 머리(`j`)는 앞에서 그린다.
+
+### ④-3 예시: 사또 (세트 `k`, S15P31B105-361)
+
+- 디자인: 공용 몸 T자 시트에 전립(붉은 술·호박 구슬 끈), 검은 전복, 붉은 소매, 주황 안감, 파란 띠와 노란 술, 검은 목화. 손에 드는 등채는 손 부위가 없어 넣지 않았다. 대머리 위에 모자만 얹으면 어색해 보여서(user) 모자 아래 머리를 그려 넣고, 앞머리를 정돈해 다시 그렸다. 시트의 머리는 모자 높이를 잡는 데만 쓰고, 게임에서는 캐릭터별 머리(남자 `b`, 여자 `j`)를 넣는다.
+- Tripo 부품: 0 전립, 1 머리(머리카락·구슬·얼굴이 한 부품), 10 전복 윗부분, 6·8 소매, 2 전복 자락, 11 주황 안감, 3 띠와 술, 4·5 목화, 7·9 손(버림). 바지는 나오지 않았다.
+- `satto_prep.py`: 부품 1을 색으로 나눠 머리카락(90, 버림), 구슬(92, 모자 아이템), 턱 위 얼굴(91, `head_fit`)로 만들고, 자락(2)을 93으로 복사한다. 93은 하의 자리에 두어 `pants=1`이 몸 표면으로 만든 바지에 검은색을 준다.
+- 모자 아래 머리: 구슬 끈(1774면)이 얼굴 옆을 지나 옆머리를 잘라 내지 않게 `straps=2000`. 구슬이 주황이라 `drop_hair=1`(갈색 조각 빼기)은 쓰지 않는다.
+- 옷깃: 게임에서 흰 깃·주황 띠가 번지고 끊겨 보였다(user). 두 가지를 고쳤다.
+  - 원본 얼룩: `flat_collar.py`가 목 주변 전복 텍스처를 흰색·주황·검정으로 나누고(`win=31` 다수결로 얼룩과 끊긴 검은 끈 제거) 각각 한 색으로 칠한다.
+  - 그래도 왼쪽 주황 띠가 V 끝까지 오지 않고 오른쪽 띠에 검은 톱니가 파고들었다(user). `mirror=1`: 앞에서 본 지도(1mm 칸마다 가장 앞 면)로 좌우를 맞춰 더 밝은 쪽 색(주황 > 흰색 > 검정)을 준다. 오른쪽 섶이 왼쪽 섶을 덮는 여밈이라 3D 거울점으로는 가려진 안쪽 섶에 맞춰졌다.
+  - 가운데 검은 줄은 칠이 아니라 두 섶 사이 틈(옷 뒤판 안쪽이 보임)이었다. `plug=1`: 틈을 흰색·주황(반대편 색)의 면으로 뒤에서 막고, 틈 안의 텍스처 넓이 0인 가는 면은 지운다. 그 주변의 가는 면은 지도 색으로 다시 칠한다(한 텍셀 색이라 흰 깃 속에 검은 가시로 보였다).
+  - 위에서 보면 목 아래로 바닥이 비쳤다(user). 게임은 면의 앞쪽만 그리는데 깃이 목 앞에서 떨어져 있어, 틈으로 옷 안쪽(그려지지 않음)을 지나 뒤가 보였다. `lining=0.12`: 목 관절 12cm 아래부터 위의 상의 면을 안쪽으로 뒤집어 0.5mm 안에 한 겹 더 둔다(같은 텍셀·가중치).
+  - 목 양옆 깃 안쪽이 검고 목 아래 안감이 회색으로 보여, 양옆은 흰색·가운데는 피부색으로 해 달라고 했다(user). `inner=1`: 목을 향한 면과 목 바로 옆 깃 윗부분의 검은 텍셀을 흰색으로. `skin=0.04`: 앞 가운데(|x| < 4cm) 안감에 몸의 목 색을 준다(상의 텍스처의 쓰지 않는 자리에 칠한 피부색 칸).
+  - 게임 변환: 각도 1.5도로 새로 펼친 조각이 수천 개라 조각 사이 여백이 아틀라스를 차지해, 옷깃에 텍셀이 적게 돌아가 계단처럼 뭉개졌다. `repack=1`로 여백을 줄여 다시 배치한다. `atlas=4096`이나 `bake=project`, 목 주변 감량 제외로는 나아지지 않았다.
+
+```bash
+"$B" -b --python tools/character/satto_prep.py -- satto_outfit_parts.glb satto_parts_prep.glb
+"$B" -b --python tools/character/fit_outfit.py -- shared_layers_hij.glb satto_parts_prep.glb shared_k.glb set=k s=1.065 head_fit=91 "map=HAIR:0,92;TOP:10,6,8,2,11,3;BOTTOM:93;SHOES:4,5" skirt=TOP pants=1 under_tops=1 cull=1 "seam=10>6,8" dark_lining=SHOES shoe_cap=1 shoe_cap_depth=0.01 under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9 push_neck=back rim_neck=20
+"$B" -b --python tools/character/hat_hair.py -- shared_k.glb hk.glb set=k girl=j straps=2000
+"$B" -b --python tools/character/flat_collar.py -- hk.glb hk_c.glb set=k win=31 mirror=1 plug=1 lining=0.12 inner=1 skin=0.04
+"$B" -b --python tools/character/to_game.py -- hk_c.glb out/satto_raw.glb satto HAIR=k TOP=k BOTTOM=k SHOES=k pieces=1 body=0 near=75000 atlas=2048 fill=1 keep_head=0 repack=1
+```
+
+- 카드(`item_art.py`)도 `hk_c.glb`에서 그린다.
+
+- 새 몸 조각(`TOPk` 등)이 생기므로 남자·여자 파일도 `hk.glb`에서 다시 만들고, 캐릭터 캐시 번호(`characterAssets.ts`의 `?rig=`)를 올린다.
+
 ### ⑤ 빌드 확인
 
 임의 방향에서 그려 본다(`POSE=idle:100`으로 자세를 줄 수 있다).
 
 ```bash
 "$B" -b --python tools/character/look.py -- out/front.png 0,-1,0.1 0,0,0.8 1.2 shared_layers_h.glb
+```
+
+걷기·달리기에서 옷이 뚫리는지는 `pose_look.py`로 본다. 그 옷 세트를 입었을 때 게임이 보여 주는 몸 조각과 옷 조각만 남기고, 동작의 프레임마다 앞·뒤·옆을 그린다(카메라는 엉덩이를 따라간다).
+
+```bash
+"$B" -b --python tools/character/pose_look.py -- hk.glb out/pose set=k variant=girl frames=walk:4,walk:30,run:4,run:18
 ```
 
 ### ⑥ 게임용 파일 만들기
@@ -222,9 +314,14 @@ INSERT INTO items (item_code, name, item_type, equip_slot, price, image_key, is_
  ('GENERAL_HAIR', '장군 투구', 'EQUIPMENT', 'HAIR', 0, 'outfit/general/g', FALSE, NULL),
  ('GENERAL_TOP', '장군 갑옷', 'EQUIPMENT', 'TOP', 0, 'outfit/general/g', FALSE, 'GENERAL'),
  ('GENERAL_BOTTOM', '장군 바지', 'EQUIPMENT', 'BOTTOM', 0, 'outfit/general/g', FALSE, 'GENERAL'),
- ('GENERAL_SHOES', '장군 장화', 'EQUIPMENT', 'SHOES', 0, 'outfit/general/g', FALSE, 'GENERAL');
+ ('GENERAL_SHOES', '장군 장화', 'EQUIPMENT', 'SHOES', 0, 'outfit/general/g', FALSE, 'GENERAL'),
+ ('SATTO_HAIR', '전립', 'EQUIPMENT', 'HAIR', 0, 'outfit/satto/k', FALSE, NULL),
+ ('SATTO_TOP', '사또 전복', 'EQUIPMENT', 'TOP', 0, 'outfit/satto/k', FALSE, 'SATTO'),
+ ('SATTO_BOTTOM', '사또 바지', 'EQUIPMENT', 'BOTTOM', 0, 'outfit/satto/k', FALSE, 'SATTO'),
+ ('SATTO_SHOES', '사또 목화', 'EQUIPMENT', 'SHOES', 0, 'outfit/satto/k', FALSE, 'SATTO');
 ```
 
+- `is_for_sale`이 `FALSE`면 상점 목록에 안 나오고 살 수도 없다. 위 예시는 `user_items`에 직접 넣어 옷장에서 입어 보는 용도다. 상점 진열·구매까지 확인하려면 `TRUE`와 가격을 넣는다.
 - 머리·얼굴은 `set_code`를 `NULL`로 둔다. 옷 칸에서 따로 고르게 된다.
 - 한 벌인 옷은 상의·하의·신발 세 개 모두 같은 `set_code`를 둔다. 하나라도 빠지면 그 부위는 기본 옷이 된다.
 - 상의 하나만 있는 낱개 옷(`set_code` `NULL`)도 입을 수 있다. 이때 하의·신발은 기본 옷이 된다. 그 조합에서 보기 좋은지 확인해야 하니, 되도록 한 벌로 만든다.

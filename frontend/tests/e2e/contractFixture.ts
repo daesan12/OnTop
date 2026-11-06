@@ -54,6 +54,8 @@ export async function fixture(
     manualMovement?: boolean
     ownUserId?: '101' | '102' | '505'
     emoteBindings?: boolean | 'development'
+    carry?: boolean
+    chatDelayMs?: number
     publicProfiles?: Record<string, { nickname?: string | null; characterGender?: 'MALE' | 'FEMALE' | null }>
     position?: { x: number; y: number; z: number; yaw: number }
     anchorId?: string
@@ -113,11 +115,14 @@ export async function fixture(
   let emoteCounter = 0, chatCounter = 0
   let lastEmote: { eventId: string; channelId: string; userId: string; emoteCode: string; sentAt: string } | undefined
   let emoteRequestId = ''
-  let remotePosition: Partial<typeof position> = {}
+  let remotePosition: Partial<typeof position> = options.carry
+    ? { x: position.x, y: position.y, z: position.z - 1 } : {}
   const publicProfiles = { ...options.publicProfiles }
   const publicEquipment: Record<string, PublicEquipment[] | null> = {}
   const publicSeats: Record<string, { tableId: string; seatNumber: number } | null> = {}
   const activities: Record<string, AvatarActivity | null> = {}
+  const carries: Record<string, import('../../src/network/protocol').CarryState | null> = {}
+  let interactionBusy = false
   let rejectGameWatch = false
   let watchingGame = false
   let watchMode: 'normal' | 'reject' | 'hold' = 'normal', watchRequestId = '', selectorOverride: string | undefined, targetScore: number | null = null
@@ -285,6 +290,10 @@ export async function fixture(
       mode: 'NORMAL', notice: '', maintenanceStartedAt: null, expectedOpenAt: null,
       version: 1, updatedAt: new Date().toISOString(), serverTime: new Date().toISOString(),
     } })
+    if (url.pathname === '/api/v1/announcements') return route.fulfill({ json: {
+      serverTime: new Date().toISOString(), refreshAt: new Date(Date.now() + 60000).toISOString(), announcements: [],
+    } })
+    if (url.pathname === '/api/v1/behavior-events') return route.fulfill({ status: 204 })
     if (url.pathname === '/api/v1/minigames/jumpmap/status' && route.request().method() === 'GET')
       return route.fulfill({ json: disabledJumpmapStatus('fixture-channel', expectedMapVersion) })
     if (url.pathname.endsWith('/auth/refresh'))
@@ -387,6 +396,8 @@ export async function fixture(
             equipment: publicEquipment[userId] ?? null,
             ...(userId in publicSeats ? { tableSeat: publicSeats[userId] } : {}),
             activity: activities[userId] ?? null,
+            ...(options.carry ? { carry: carries[userId] ?? null } : {}),
+            ...(userId === ownId && interactionBusy ? { interactionBusy: true } : {}),
             position:
               userId === ownId
                 ? position
@@ -395,6 +406,8 @@ export async function fixture(
                     x: anchor.position[0] + (i % 4) * 2,
                     z: anchor.position[2] - 2 - Math.floor(i / 4) * 2,
                     ...(i === 1 ? remotePosition : {}),
+                    ...(carries[userId]?.role === 'CARRIED' ? { x: position.x, y: position.y + 1.7, z: position.z }
+                      : carries[userId]?.role === 'THROWN' ? { x: position.x, y: position.y + 1.7, z: position.z } : {}),
                   },
           })),
           ...patch,
@@ -588,6 +601,30 @@ export async function fixture(
       }
       if (facilities.handle(type, payload, requestId)) return
       if (follow.handle(type, payload, requestId)) return
+      if (type === 'WORLD_INTERACTION_SET') {
+        interactionBusy = payload.busy === true
+        if (interactionBusy) for (const id of Object.keys(carries)) carries[id] = null
+        emit(ws, 'WORLD_INTERACTION_STATE', { channelId: 'fixture-channel', busy: interactionBusy }, requestId)
+        world(ws); return
+      }
+      if (options.carry && type === 'WORLD_CARRY_PICKUP') {
+        const carryId = crypto.randomUUID(), targetId = String(payload.targetId)
+        carries[ownId] = { carryId, partnerId: targetId, role: 'CARRIER' }
+        carries[targetId] = { carryId, partnerId: ownId, role: 'CARRIED' }
+        world(ws, requestId); return
+      }
+      if (options.carry && type === 'WORLD_CARRY_THROW') {
+        const carrier = carries[ownId]
+        if (carrier?.role === 'CARRIER') {
+          carries[carrier.partnerId] = { carryId: carrier.carryId, partnerId: ownId, role: 'THROWN' }
+          carries[ownId] = null
+        }
+        world(ws, requestId); return
+      }
+      if (options.carry && type === 'WORLD_CARRY_RELEASE') {
+        for (const id of Object.keys(carries)) carries[id] = null
+        world(ws, requestId); return
+      }
       if (type === 'CHANNEL_JOIN') {
         ws.send(
           JSON.stringify({
@@ -619,6 +656,8 @@ export async function fixture(
             z: position.z + Number(payload.dz) * 0.1,
             moving: !!(payload.dx || payload.dz),
             running: payload.run,
+            ...(options.carry && (payload.dx || payload.dz)
+              ? { yaw: Math.atan2(Number(payload.dx), Number(payload.dz)) } : {}),
           } : {}),
           lastInputSeq: payload.seq,
         })
@@ -630,7 +669,7 @@ export async function fixture(
         return
       }
       if (type === 'WORLD_CHAT_SEND') {
-        ws.send(
+        const respond = () => ws.send(
           JSON.stringify(
             rejectChat
               ? {
@@ -654,6 +693,8 @@ export async function fixture(
                 },
           ),
         )
+        if (options.chatDelayMs) setTimeout(respond, options.chatDelayMs)
+        else respond()
       }
       if (type === 'WORLD_EMOTE_SEND') {
         emoteRequestId = requestId
@@ -832,6 +873,16 @@ export async function fixture(
     },
     worldSnapshot: (patch: Record<string, unknown>) => {
       for (const ws of sockets) world(ws, null, patch)
+    },
+    carryPlayers: (carrierId: string, carriedId: string) => {
+      const carryId = crypto.randomUUID()
+      carries[carrierId] = { carryId, partnerId: carriedId, role: 'CARRIER' }
+      carries[carriedId] = { carryId, partnerId: carrierId, role: 'CARRIED' }
+      for (const ws of sockets) world(ws)
+    },
+    releaseCarry: () => {
+      for (const id of Object.keys(carries)) carries[id] = null
+      for (const ws of sockets) world(ws)
     },
     activity: (userId: string, activity: AvatarActivity | null) => {
       activities[userId] = activity

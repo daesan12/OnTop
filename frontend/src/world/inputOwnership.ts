@@ -14,6 +14,9 @@ export function clearRoamingInput() {
 }
 const dialogOpen = () => typeof document !== 'undefined' && !!document.querySelector('dialog[open], [role="dialog"]')
 export const panelOwnsKeys = () => Object.values(inputState).some(Boolean) || dialogOpen()
+/** Chat preserves an existing carry, while idle chat users and other panels stay protected. */
+export const panelBlocksCarry = (carryActive: boolean) =>
+  Object.entries(inputState).some(([panel, open]) => open && (panel !== 'chatOpen' || !carryActive)) || dialogOpen()
 /** Return keyboard ownership only when no other panel is using it. */
 export function focusParkCanvas() {
   if (!panelOwnsKeys() && typeof document !== 'undefined')

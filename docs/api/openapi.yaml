@@ -20,6 +20,39 @@ tags:
 - name: HISTORY
   description: 인증된 본인의 종료 경기 내역과 게임별 전적
 paths:
+  /api/v1/events/winnings/weeks/{weekStart}/contact:
+    put:
+      tags:
+      - Event Winner Contacts
+      summary: 발표된 당첨자 본인의 연락처 제출·기한 내 수정
+      operationId: submitContact
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ContactResponse"
+      security:
+      - AccessJwt: []
   /api/v1/admin/operations/status:
     get:
       tags:
@@ -411,10 +444,11 @@ paths:
       tags:
       - User
       summary: 신규 회원 온보딩
-      description: 온보딩 전용 Bearer만 허용하며 JSESSIONID가 필요 없습니다. nickname/characterGender만
-        입력합니다. 회원·지갑·최초 100코인 SIGNUP_BONUS 원장·Refresh 저장은 원자적입니다. 201 성공 후 토큰 소비;
-        확인된 닉네임 충돌+롤백(409 USER_NICKNAME_ALREADY_EXISTS)만 같은 토큰으로 재시도하며 최초 만료는 연장하지
-        않습니다. 중복 소셜 계정/기타 실패/커밋 불명은 새 OAuth가 필요합니다.
+      description: "온보딩 전용 Bearer만 허용하며 JSESSIONID가 필요 없습니다. nickname/characterGender만\
+        \ 입력합니다. 닉네임은 중복 조회·닉네임 수정과 같은 규칙(완성형 한글/영문/숫자 2~8자, GM 접두어 금지, 욕설·비속어 금지\
+        )으로 최종 검증합니다. 회원·지갑·최초 100코인 SIGNUP_BONUS 원장·Refresh 저장은 원자적입니다. 201 성공 후\
+        \ 토큰 소비; 확인된 닉네임 충돌+롤백(409 USER_NICKNAME_ALREADY_EXISTS)만 같은 토큰으로 재시도하며 최초\
+        \ 만료는 연장하지 않습니다. 중복 소셜 계정/기타 실패/커밋 불명은 새 OAuth가 필요합니다."
       operationId: onboard
       parameters:
       - name: Origin
@@ -451,7 +485,7 @@ paths:
                 $ref: "#/components/schemas/UserOnboardingResponse"
         "400":
           description: USER_INVALID_ONBOARDING_REQUEST / USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME
-            / USER_INVALID_CHARACTER_GENDER
+            / USER_INAPPROPRIATE_NICKNAME / USER_INVALID_CHARACTER_GENDER
           headers:
             Cache-Control:
               description: no-store
@@ -1108,7 +1142,6 @@ paths:
         in: path
         required: true
         schema:
-          pattern: "^[1-9][0-9]{0,18}$"
           type: string
       requestBody:
         content:
@@ -1193,6 +1226,67 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Settlement"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/speed-mole/rounds:
+    post:
+      tags:
+      - MINIGAME
+      summary: 스피드 두더지 서버 판 시작
+      operationId: startSpeedMoleRound
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          type: string
+      responses:
+        "201":
+          description: 새 판 또는 같은 시작 요청 재확인
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SpeedMoleRound"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/speed-mole/rounds/{roundId}/complete:
+    post:
+      tags:
+      - MINIGAME
+      summary: 타격 재계산 후 스피드 두더지 기록·공통 일일 상한 보상 확정
+      operationId: completeSpeedMoleRound
+      parameters:
+      - name: roundId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeedMoleComplete"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SpeedMoleResult"
       security:
       - AccessJwt: []
   /api/v1/minigames/skewer/admissions:
@@ -3142,6 +3236,66 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/behavior-events:
+    post:
+      tags:
+      - BEHAVIOR
+      summary: 클라이언트 행동 로그 묶음 전송
+      description: PERF_REPORT·ONBOARDING_STEP만 받는다. 허용하지 않은 이벤트·속성·값은 그 이벤트만 버리고
+        건수로 알려 준다.
+      operationId: collect
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonNode"
+            example:
+              events:
+              - type: ONBOARDING_STEP
+                ageMs: 1200
+                props:
+                  flow: welcome_tour
+                  action: step_done
+                  step: walk
+                  replay: false
+                  doneCount: 1
+        required: true
+      responses:
+        "202":
+          description: 받은 건수와 버린 건수
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BehaviorCollectResult"
+        "400":
+          description: "INVALID_REQUEST: events가 1~20개 배열이 아님"
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BehaviorErrorResponse"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/auth/websocket-ticket:
     post:
       tags:
@@ -3662,6 +3816,95 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/admin/raffles/rounds/{weekStart}/finalize:
+    post:
+      tags:
+      - Raffle
+      summary: 관리자 응모권 추첨 확정·재시도
+      operationId: finalizeRound
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RaffleDrawResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize:
+    post:
+      tags:
+      - Event Awards
+      summary: 관리자 미니게임 행사 결과 확정·재시도
+      operationId: finalizeRound_1
+      parameters:
+      - name: type
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - bungeoppang
+          - jumpmap
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MinigameAwardResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/assets/rounds/{weekStart}/finalize:
+    post:
+      tags:
+      - Event Awards
+      summary: 관리자 엽전 보유량 행사 결과 확정·재시도
+      operationId: finalizeRound_2
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AssetAwardResponse"
+      security:
+      - AccessJwt: []
   /api/v1/users/me:
     get:
       tags:
@@ -3797,9 +4040,10 @@ paths:
       tags:
       - User
       summary: 내 닉네임 수정
-      description: "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지합니다\
-        . 대소문자 무시 UNIQUE(탈퇴 회원 포함), 본인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기\
-        를 저장합니다. 사전 조회와 별도로 트랜잭션에서 최종 중복 검증합니다."
+      description: "nickname만 수정합니다. 완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지하며(USER_RESERVED_NICKNAME),\
+        \ 욕설·비속어가 포함되면 USER_INAPPROPRIATE_NICKNAME입니다. 대소문자 무시 UNIQUE(탈퇴 회원 포함), 본\
+        인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기를 저장합니다. 사전 조회와 별도로 트랜잭션에서 최종\
+        \ 중복 검증합니다."
       operationId: update_2
       requestBody:
         content:
@@ -3821,7 +4065,7 @@ paths:
                 $ref: "#/components/schemas/UserProfileResponse"
         "400":
           description: USER_INVALID_NICKNAME_UPDATE_REQUEST / USER_INVALID_NICKNAME
-            / USER_RESERVED_NICKNAME
+            / USER_RESERVED_NICKNAME / USER_INAPPROPRIATE_NICKNAME
           headers:
             Cache-Control:
               description: no-store
@@ -4251,9 +4495,10 @@ paths:
       tags:
       - User
       summary: 닉네임 사용 가능 여부
-      description: Access JWT 또는 온보딩 전용 Bearer 중 하나를 사용합니다. 온보딩 토큰은 소비/연장하지 않습니다.
-        완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지합니다. 중복은 대소문자를 무시하고 탈퇴 회원도 포함합니다.
-        기존 회원의 현재 닉네임은 true입니다. 조회는 예약이 아니며 실제 가입/변경 시 최종 검증이 필요합니다.
+      description: "Access JWT 또는 온보딩 전용 Bearer 중 하나를 사용합니다. 온보딩 토큰은 소비/연장하지 않습니다\
+        . 완성형 한글/영문/숫자 2~8자이며 GM 접두어는 대소문자와 무관하게 금지하며(USER_RESERVED_NICKNAME), 욕설·\
+        비속어가 포함되면 USER_INAPPROPRIATE_NICKNAME입니다. 중복은 대소문자를 무시하고 탈퇴 회원도 포함합니다. 기존\
+        \ 회원의 현재 닉네임은 true입니다. 조회는 예약이 아니며 실제 가입/변경 시 최종 검증이 필요합니다."
       operationId: check
       parameters:
       - name: nickname
@@ -4278,7 +4523,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/NicknameAvailabilityResponse"
         "400":
-          description: USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME
+          description: USER_INVALID_NICKNAME / USER_RESERVED_NICKNAME / USER_INAPPROPRIATE_NICKNAME
           headers:
             Cache-Control:
               description: no-store
@@ -4915,6 +5160,33 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/raffles/rounds/{weekStart}/result:
+    get:
+      tags:
+      - Raffle
+      summary: 본인의 주간 응모권 추첨 결과
+      operationId: memberResult
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RaffleMemberResultResponse"
+      security:
+      - AccessJwt: []
   /api/v1/raffles/current:
     get:
       tags:
@@ -5073,6 +5345,41 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/State"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/speed-mole/rankings:
+    get:
+      tags:
+      - MINIGAME
+      summary: 개인 최고·전체 기간 스피드 두더지 랭킹
+      operationId: getSpeedMoleRankings
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SpeedMoleRankings"
       security:
       - AccessJwt: []
   /api/v1/minigames/sessions/{sessionId}:
@@ -5536,6 +5843,111 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/events/winnings/me:
+    get:
+      tags:
+      - Event Winner Contacts
+      summary: 본인의 발표된 당첨 내역·연락처 제출 상태
+      operationId: ownWinnings
+      parameters:
+      - name: weekStart
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 100
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WinningResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/events/minigames/{type}/rounds/{weekStart}/result:
+    get:
+      tags:
+      - Event Awards
+      summary: 본인의 미니게임 행사 결과
+      operationId: memberResult_1
+      parameters:
+      - name: type
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - bungeoppang
+          - jumpmap
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MinigameMemberAwardResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/events/assets/rounds/{weekStart}/result:
+    get:
+      tags:
+      - Event Awards
+      summary: 본인의 엽전 보유량 행사 결과
+      operationId: memberResult_2
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AssetMemberAwardResponse"
+      security:
+      - AccessJwt: []
   /api/v1/channels:
     get:
       tags:
@@ -5873,6 +6285,33 @@ paths:
                 $ref: "#/components/schemas/PublicAnnouncementsResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/raffles/rounds/{weekStart}:
+    get:
+      tags:
+      - Raffle
+      summary: 관리자 응모권 추첨 결과 조회
+      operationId: adminResult
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RaffleDrawResponse"
+      security:
+      - AccessJwt: []
   /api/v1/admin/operations/announcements:
     get:
       tags:
@@ -6070,6 +6509,146 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/events/winners:
+    get:
+      tags:
+      - Event Winner Contacts
+      summary: 관리자 당첨자·연락처 제출 상태 목록
+      operationId: adminWinners
+      parameters:
+      - name: weekStart
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: contactStatus
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AdminListResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/winners/{winnerId}/contact:
+    get:
+      tags:
+      - Event Winner Contacts
+      summary: 권한 있는 관리자만 연락처 원문 조회·접근 기록
+      operationId: reveal
+      parameters:
+      - name: winnerId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RevealedContact"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/minigames/{type}/rounds/{weekStart}:
+    get:
+      tags:
+      - Event Awards
+      summary: 관리자 미니게임 행사 결과 조회
+      operationId: adminResult_1
+      parameters:
+      - name: type
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - bungeoppang
+          - jumpmap
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MinigameAwardResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/assets/rounds/{weekStart}:
+    get:
+      tags:
+      - Event Awards
+      summary: 관리자 엽전 보유량 행사 결과 조회
+      operationId: adminResult_2
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AssetAwardResponse"
+      security:
+      - AccessJwt: []
   /api/v1/admin/analytics/summary:
     get:
       tags:
@@ -6125,6 +6704,27 @@ paths:
       - AccessJwt: []
 components:
   schemas:
+    ContactRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+    ContactResponse:
+      type: object
+      properties:
+        weekStart:
+          type: string
+          format: date
+        status:
+          type: string
+        maskedPhone:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        submissionDeadline:
+          type: string
+          format: date-time
     ServiceOperationUpdateRequest:
       type: object
       properties:
@@ -6528,6 +7128,74 @@ components:
           type: integer
           format: int32
         bestScore:
+          type: integer
+          format: int32
+    SpeedMoleRound:
+      type: object
+      properties:
+        id:
+          type: string
+        seed:
+          type: integer
+          format: int64
+        rulesVersion:
+          type: integer
+          format: int32
+        serverNow:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        durationMs:
+          type: integer
+          format: int32
+    SpeedMoleComplete:
+      type: object
+      properties:
+        taps:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tap"
+    Tap:
+      type: object
+      properties:
+        hole:
+          type: integer
+          format: int32
+        at:
+          type: integer
+          format: int32
+    SpeedMoleResult:
+      type: object
+      properties:
+        id:
+          type: string
+        rulesVersion:
+          type: integer
+          format: int32
+        score:
+          type: integer
+          format: int32
+        hits:
+          type: integer
+          format: int32
+        misses:
+          type: integer
+          format: int32
+        completedAt:
+          type: string
+          format: date-time
+        calculatedReward:
+          type: integer
+          format: int32
+        reward:
+          type: integer
+          format: int32
+        todayEarned:
+          type: integer
+          format: int64
+        dailyCap:
           type: integer
           format: int32
     SkewerAdmissionResponse:
@@ -7460,6 +8128,22 @@ components:
           type: string
           format: date-time
           nullable: true
+    BehaviorCollectResult:
+      type: object
+      properties:
+        accepted:
+          type: integer
+          format: int32
+        dropped:
+          type: integer
+          format: int32
+    BehaviorErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
     Ticket:
       required:
       - expiresIn
@@ -7595,6 +8279,141 @@ components:
           format: int64
         executable:
           type: boolean
+    RaffleDrawResponse:
+      type: object
+      properties:
+        weekStartDate:
+          type: string
+          format: date
+        announcesAt:
+          type: string
+          format: date-time
+        finalized:
+          type: boolean
+        alreadyFinalized:
+          type: boolean
+        expectedPrizeCount:
+          type: integer
+          format: int32
+        awardedPrizeCount:
+          type: integer
+          format: int32
+        vacantPrizeCount:
+          type: integer
+          format: int32
+        winners:
+          type: array
+          items:
+            $ref: "#/components/schemas/Winner"
+    Winner:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        raffleTicketId:
+          type: integer
+          format: int64
+        ticketNumber:
+          type: integer
+          format: int32
+        place:
+          type: integer
+          format: int32
+        slotNumber:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+    MinigameAwardResponse:
+      type: object
+      properties:
+        eventType:
+          type: string
+          enum:
+          - BUNGEOPPANG
+          - JUMPMAP
+        weekStartDate:
+          type: string
+          format: date
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        announcesAt:
+          type: string
+          format: date-time
+        finalized:
+          type: boolean
+        alreadyFinalized:
+          type: boolean
+        candidateCount:
+          type: integer
+          format: int32
+        excludedGmCount:
+          type: integer
+          format: int32
+        vacant:
+          type: boolean
+        winner:
+          $ref: "#/components/schemas/Winner"
+    AssetAwardResponse:
+      type: object
+      properties:
+        eventType:
+          type: string
+        valuationBasis:
+          type: string
+        weekStartDate:
+          type: string
+          format: date
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        announcesAt:
+          type: string
+          format: date-time
+        finalized:
+          type: boolean
+        alreadyFinalized:
+          type: boolean
+        candidateCount:
+          type: integer
+          format: int32
+        excludedGmCount:
+          type: integer
+          format: int32
+        winners:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssetWinner"
+    AssetWinner:
+      type: object
+      properties:
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        sourceRecordId:
+          type: string
+        sourceValue:
+          type: integer
+          format: int64
+        sourceAchievedAt:
+          type: string
+          format: date-time
+        selectedAt:
+          type: string
+          format: date-time
     UserNicknameUpdateRequest:
       required:
       - nickname
@@ -8133,6 +8952,32 @@ components:
         updatedAt:
           type: string
           format: date-time
+    Prize:
+      type: object
+      properties:
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        ticketNumber:
+          type: integer
+          format: int32
+    RaffleMemberResultResponse:
+      type: object
+      properties:
+        weekStartDate:
+          type: string
+          format: date
+        announcesAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        prizes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Prize"
     CurrentRaffleResponse:
       type: object
       properties:
@@ -8215,6 +9060,56 @@ components:
           $ref: "#/components/schemas/Rules"
         last:
           $ref: "#/components/schemas/Result"
+    SpeedMoleRankingItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        score:
+          type: integer
+          format: int32
+        hits:
+          type: integer
+          format: int32
+        misses:
+          type: integer
+          format: int32
+        completedAt:
+          type: string
+          format: date-time
+    SpeedMoleRankings:
+      type: object
+      properties:
+        rulesVersion:
+          type: integer
+          format: int32
+        period:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        totalParticipants:
+          type: integer
+          format: int64
+        offset:
+          type: integer
+          format: int32
+        limit:
+          type: integer
+          format: int32
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpeedMoleRankingItem"
+        me:
+          $ref: "#/components/schemas/SpeedMoleRankingItem"
+        hasMore:
+          type: boolean
     BungeoppangStatusResponse:
       required:
       - dailyCap
@@ -8350,6 +9245,84 @@ components:
         nextCursor:
           type: string
           nullable: true
+    WinningResponse:
+      type: object
+      properties:
+        winnerId:
+          type: integer
+          format: int64
+        weekStart:
+          type: string
+          format: date
+        eventType:
+          type: string
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        announcedAt:
+          type: string
+          format: date-time
+        submissionDeadline:
+          type: string
+          format: date-time
+        contactStatus:
+          type: string
+        maskedPhone:
+          type: string
+        contactExpiresAt:
+          type: string
+          format: date-time
+    MinigameMemberAwardResponse:
+      type: object
+      properties:
+        eventType:
+          type: string
+          enum:
+          - BUNGEOPPANG
+          - JUMPMAP
+        weekStartDate:
+          type: string
+          format: date
+        announcesAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        prize:
+          $ref: "#/components/schemas/Prize"
+    AssetMemberAwardResponse:
+      type: object
+      properties:
+        eventType:
+          type: string
+        valuationBasis:
+          type: string
+        weekStartDate:
+          type: string
+          format: date
+        announcesAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        prize:
+          $ref: "#/components/schemas/AssetPrize"
+    AssetPrize:
+      type: object
+      properties:
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        coinBalance:
+          type: integer
+          format: int64
+        firstReachedAt:
+          type: string
+          format: date-time
     ChannelListResponse:
       required:
       - items
@@ -8427,6 +9400,8 @@ components:
           type: boolean
         canOperate:
           type: boolean
+        canViewContacts:
+          type: boolean
     Entry:
       required:
       - acceptedAt
@@ -8462,6 +9437,58 @@ components:
         nextCursor:
           type: string
           nullable: true
+    AdminListResponse:
+      type: object
+      properties:
+        winners:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminWinnerResponse"
+        limit:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int32
+        hasMore:
+          type: boolean
+    AdminWinnerResponse:
+      type: object
+      properties:
+        winnerId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        weekStart:
+          type: string
+          format: date
+        eventType:
+          type: string
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        contactStatus:
+          type: string
+        maskedPhone:
+          type: string
+        contactExpiresAt:
+          type: string
+          format: date-time
+    RevealedContact:
+      type: object
+      properties:
+        winnerId:
+          type: integer
+          format: int64
+        phone:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
     AnalyticsSnapshot:
       type: object
       properties:

@@ -31,6 +31,16 @@ describe('character look (wardrobe pieces)', () => {
     expect(pieceShown('item__BOTTOM__d__under_TOPd', 'man', 'man', plain)).toBe(false)
     expect(pieceShown('item__BOTTOM__d__under_TOPb', 'man', 'man', plain)).toBe(true)
   })
+  it('shows a hat’s per-character hair only on that character', () => {
+    const gat: PublicEquipment = { itemId: 8, itemCode: 'GAT_HAIR', equipSlot: 'HAIR', imageKey: 'outfit/gat/h' }
+    const man = resolveLook('man', [gat]), girl = resolveLook('girl', [gat])
+    expect(pieceShown('item__HAIR__h', 'gat', 'girl', girl)).toBe(true)
+    expect(pieceShown('item__HAIR__h__for_girl', 'gat', 'girl', girl)).toBe(true)
+    expect(pieceShown('item__HAIR__h__for_man', 'gat', 'girl', girl)).toBe(false)
+    expect(pieceShown('item__HAIR__h__for_man', 'gat', 'man', man)).toBe(true)
+    expect(pieceShown('item__HAIR__h__for_girl', 'gat', 'man', man)).toBe(false)
+    expect(pieceShown('item__HAIR__h__for_girl', 'gat', 'girl', resolveLook('girl', []))).toBe(false)
+  })
   it('keeps the default in a slot until its file has arrived', () => {
     const look = resolveLook('girl', [general[2]!, { itemId: 7, itemCode: 'BOB', equipSlot: 'HAIR', imageKey: 'outfit/man/b' }])
     expect(lookKey(availableLook('girl', look, source => source !== 'general'))).toBe('man/b|-|girl/d|girl/d|girl/d')

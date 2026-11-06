@@ -63,6 +63,26 @@ public final class GameEngineRouter implements GameEngine {
         }
     }
 
+    /** 소유 엔진의 보존 기간이 끝난 종료 기록만 제거한다. 진행 중인 다른 경기 점유는 보존한다. */
+    public synchronized boolean forgetFinished(GameEngine engine, String gameId) {
+        Registration registration = games.get(gameId);
+        if (registration == null) {
+            return true;
+        }
+        if (registration.engine() != engine) {
+            throw new IllegalStateException("다른 엔진의 경기 기록을 제거할 수 없습니다.");
+        }
+        if (gameId.equals(activeTables.get(registration.tableId()))
+                || registration.players().stream().anyMatch(user -> gameId.equals(activeUsers.get(user)))) {
+            return false;
+        }
+        games.remove(gameId);
+        for (long user : registration.players()) {
+            latest.remove(user, gameId);
+        }
+        return true;
+    }
+
     @Override
     public GameActionResult apply(GameActionCommand command) {
         Registration registration = registration(command.gameId());

@@ -147,18 +147,22 @@ describe('새 꼬치왕 매장 동선 프리뷰', () => {
     expect(m.washer).toEqual({ load: [], remaining: 0, completed: 1 }); expect(m.carry).toHaveLength(1)
     advance(m, 1); expect(m.washer.completed).toBe(1)
   })
-  it('작동 중인 세척기에 새 식기를 넣으면 새 식기와 기존 세척 진행을 보존한다', () => {
+  it('세척 중 빈칸에 다음 식기를 넣고 새 투입분만 점수를 받는다', () => {
     const m = new HallPreview()
     m.position = { ...TABLES[1].approach }; m.press(); advance(m, 1.6)
     m.position = { ...STATIONS.washer }; m.press()
     m.tables[4].status = 'dirty'; m.tables[4].people = 0
     m.position = { ...TABLES[4].approach }; m.press(); advance(m, 1.6)
-    const snapshot = m.view()
+    const score = m.score
     m.position = { ...STATIONS.washer }; m.press()
-    expect(m.dirtyDishes).toEqual(snapshot.dirtyDishes); expect(m.washer).toEqual(snapshot.washer); expect(m.message).toContain('세척 중')
-    advance(m, DISHWASHING_PREVIEW.cycleSeconds)
-    m.press(); expect(m.dirtyDishes).toHaveLength(0); expect(m.washer.load.map(d => d.table)).toEqual([5])
-    expect(m.washer.completed).toBe(1)
+    expect(m.dirtyDishes).toHaveLength(0); expect(m.washer.load.map(d => d.table)).toEqual([2, 5])
+    expect(m.score).toBe(score + 3)
+    expect(m.washer.remaining).toBe(DISHWASHING_PREVIEW.cycleSeconds)
+    m.dirtyDishes.push({ id: 99, table: 3, settings: 1 })
+    m.press(); expect(m.dirtyDishes).toHaveLength(1); expect(m.score).toBe(score + 3)
+    advance(m, DISHWASHING_PREVIEW.cycleSeconds + .1)
+    expect(m.washer.completed).toBe(2)
+    m.press(); expect(m.dirtyDishes).toHaveLength(0); expect(m.washer.load.map(d => d.table)).toEqual([3])
   })
   it('식기를 아직 세척하지 않아도 수거한 테이블에는 다음 손님이 앉는다', () => {
     const m = new HallPreview()

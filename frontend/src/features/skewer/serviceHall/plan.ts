@@ -29,7 +29,7 @@ export function walkable(p: Point): boolean {
   return !furniture.some(b => Math.abs(p.x - b.x) < b.halfX + PLAYER_RADIUS && Math.abs(p.z - b.z) < b.halfZ + PLAYER_RADIUS)
 }
 export function move(p: Point, dx: number, dz: number, seconds: number): Point {
-  const length = Math.max(1, Math.hypot(dx, dz)), step = Math.min(.05, Math.max(0, seconds)) * 3.75
+  const length = Math.max(1, Math.hypot(dx, dz)), step = Math.min(.05, Math.max(0, seconds)) * 5.0
   const next = { ...p }
   if (walkable({ x: next.x + dx / length * step, z: next.z })) next.x += dx / length * step
   if (walkable({ x: next.x, z: next.z + dz / length * step })) next.z += dz / length * step

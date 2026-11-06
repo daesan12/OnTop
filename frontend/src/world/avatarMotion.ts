@@ -2,7 +2,7 @@ import { Vector3, type Group } from 'three'
 import type { AvatarSnapshot, Pose } from '../network/worldClient'
 import {
   AVATAR,
-  BENCH_PAVILIONS,
+  BENCH_SEAT_HEIGHTS,
   CHARACTER,
   FITNESS_STATIONS,
   NETWORK,
@@ -21,17 +21,15 @@ import type { DefeatReaction } from '../game/presentation/defeat'
 type Avatar = Pick<AvatarSnapshot,
   'connected' | 'moving' | 'running' | 'swimming' | 'seatIndex' |
   'benchId' | 'tableId' | 'fitnessId' | 'fitnessStartedAt' |
-  'telescopeId' | 'telescopePitch' | 'emote' | 'emoteAt'
+  'telescopeId' | 'telescopePitch' | 'emote' | 'emoteAt' | 'carry'
 >
 type Rig = ReturnType<typeof createCharacterRig>
 const stations = new Map(FITNESS_STATIONS.map(station => [station.id, station]))
 const defaultDurationEmotes = new Set(['EMOTE_TSK', 'EMOTE_APPLAUSE_REQUEST', 'EMOTE_FART'])
 const supportedHipPoses = new Set(['rower', 'situp', 'inversion', 'legpress', 'pulldown'])
-const slattedBenches = new Set(BENCH_PAVILIONS.flatMap((pavilion, i) => pavilion ? [] : [`bench-${i}`]))
-
-/** ParkFurniture's slats top out at .58m; stone and pavilion seats at .56m. */
+/** Map-local seat height above the bench base; table/unknown seats retain the shared default. */
 export function avatarSeatSurface(benchId: string) {
-  return slattedBenches.has(benchId) ? 0.58 : CHARACTER.seatedHipHeight
+  return BENCH_SEAT_HEIGHTS.get(benchId) ?? CHARACTER.seatedHipHeight
 }
 
 /** Presentation precedence only. Occupancy/permissions come from the adapter. */
@@ -51,7 +49,7 @@ export function avatarEmoteAge(avatar: Avatar, now: number): number | null {
 }
 
 export function avatarPoseActive(avatar: Avatar, now: number) {
-  return avatar.connected && (avatar.moving || !!avatar.fitnessId || avatar.swimming || avatarEmoteAge(avatar, now) !== null)
+  return avatar.connected && (avatar.moving || !!avatar.carry || !!avatar.fitnessId || avatar.swimming || avatarEmoteAge(avatar, now) !== null)
 }
 
 /** Standing still on the ground plays the authored idle: it never settles, so it is sampled while near. */
@@ -60,16 +58,17 @@ export function avatarPoseAmbient(avatar: Avatar) {
 }
 
 export function avatarPoseKey(a: Avatar) {
-  return `${a.connected}|${a.moving}|${a.running}|${a.tableId}|${a.seatIndex}|${a.benchId}|${a.fitnessId}|${a.fitnessStartedAt}|${a.telescopeId}|${a.telescopePitch}|${a.swimming}|${a.emote}|${a.emoteAt}`
+  return `${a.connected}|${a.moving}|${a.running}|${a.tableId}|${a.seatIndex}|${a.benchId}|${a.fitnessId}|${a.fitnessStartedAt}|${a.telescopeId}|${a.telescopePitch}|${a.swimming}|${a.emote}|${a.emoteAt}|${a.carry?.role ?? ''}`
 }
 
 /** Per-player mutable pose state; no React updates or per-frame vectors. */
 export function createAvatarMotion(model: Rig) {
   const fitness = createFitnessMotion(), gait = createGait()
   const grip = createFitnessGrip(), hipFit = new Vector3(), clip = createClipPose()
-  let phase = 0, swimPhase = 0, move = 0, run = 0
+  let phase = 0, swimPhase = 0, move = 0, run = 0, previousCarry = '', releaseAge = 1, carrySupport = 0, throwAge = 0
+  let releasingThrow = false, releaseYaw = 0, releaseTurn = 0, releaseDirectionKnown = false, launchX = 0, launchZ = 0
   return {
-    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void) {
+    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void, throwFlight?: Pick<AvatarSnapshot, 'current'> | null) {
       const kind = avatarPoseKind(avatar)
       const seated = kind === 'seated'
       const age = avatarEmoteAge(avatar, now)
@@ -156,10 +155,69 @@ export function createAvatarMotion(model: Rig) {
       }
       if (reaction && avatar.connected && (kind === 'ground' || seated) && !avatar.moving) sampleDefeatMotion(reaction.kind, now - reaction.at, model)
       if (seated && age === null && !reaction) seatedPose?.(model)
+      const role = avatar.carry?.role ?? ''
+      throwAge = role === 'THROWN' && previousCarry === 'THROWN' ? throwAge + dt : 0
+      carrySupport += ((role === 'CARRIED' ? 1 : 0) - carrySupport) * (1 - Math.exp(-dt * 18))
+      if (previousCarry === 'CARRIER' && !role) {
+        releaseAge = 0
+        releasingThrow = !!throwFlight
+        releaseDirectionKnown = false
+        releaseYaw = pose.yaw
+        releaseTurn = 0
+        launchX = throwFlight?.current.x ?? pose.x
+        launchZ = throwFlight?.current.z ?? pose.z
+      }
+      previousCarry = role
+      releaseAge += dt
+      if (releasingThrow && !releaseDirectionKnown && throwFlight) {
+        const dx = throwFlight.current.x - launchX, dz = throwFlight.current.z - launchZ
+        if (Math.hypot(dx, dz) > .01) {
+          releaseYaw = Math.atan2(dx, dz)
+          releaseDirectionKnown = true
+        }
+      }
+      if (role === 'CARRIER' || !role && kind === 'ground' && age === null && !reaction && releaseAge < .45) {
+        // 정면은 +Z다. 음수 X 회전으로 받친 팔을 앞쪽으로 뻗는다.
+        const throwing = !role && releasingThrow
+        const drive = Math.sin(Math.min(1, releaseAge / (throwing ? .22 : .45)) * Math.PI / 2)
+        const reach = role === 'CARRIER' ? -2.35 : -2.35 + drive * (throwing ? 1.25 : 2.35)
+        set('upperArm_L', reach, 0, -.25)
+        set('upperArm_R', reach, 0, .25)
+        set('lowerArm_L', throwing ? .4 * (1 - drive) : .4)
+        set('lowerArm_R', throwing ? .4 * (1 - drive) : .4)
+        model.handPose('L', throwing ? 'open' : 'cup'); model.handPose('R', throwing ? 'open' : 'cup')
+        if (throwing) {
+          const turn = Math.atan2(Math.sin(releaseYaw - pose.yaw), Math.cos(releaseYaw - pose.yaw))
+          releaseTurn += Math.atan2(Math.sin(turn - releaseTurn), Math.cos(turn - releaseTurn)) * (1 - Math.exp(-dt * 30))
+          figure.rotation.y = releaseTurn * Math.min(1, Math.max(0, (.45 - releaseAge) / .13))
+          set('spine', .18 * Math.sin(Math.min(1, releaseAge / .45) * Math.PI))
+        }
+      } else if (role === 'CARRIED' || role === 'THROWN') {
+        // 내려놓는 직립 자세 대신, 들린 자세에서 이어지는 짧은 공중 회전.
+        figure.rotation.set(role === 'THROWN' ? -.25 - Math.min(throwAge, .8) * 4 : 0,
+          0, Math.PI / 2 + (role === 'THROWN' ? Math.sin(throwAge * 9) * .12 : 0))
+        hipFit.set(0, model.hipHeight, 0).applyEuler(figure.rotation)
+        figure.position.set(-hipFit.x, model.hipHeight - hipFit.y, -hipFit.z)
+        // 리그의 팔 축에 Euler 각을 고정하면 손/팔꿈치가 몸통 안으로 접힌다.
+        // 실제 팔 길이와 바깥쪽 팔꿈치 pole을 쓰는 기존 IK로 양팔을 몸 밖에 유지한다.
+        for (const side of ['L', 'R'] as const) {
+          const sign = side === 'L' ? 1 : -1
+          model.reachHand(side, sign * (role === 'CARRIED' ? .42 : .48),
+            model.hipHeight + (role === 'CARRIED' ? .12 : .23), role === 'CARRIED' ? .14 : .04,
+            0, 0, sign * .2, 1, false)
+          model.handPose(side, role === 'CARRIED' ? 'cup' : 'open')
+        }
+        set('upperLeg_L', -.35); set('upperLeg_R', .3)
+        set('lowerLeg_L', .6); set('lowerLeg_R', .4)
+      }
       model.apply(delta)
-      if (kind === 'ground' || kind === 'telescope') {
+      if (!role && (kind === 'ground' || kind === 'telescope') || role === 'CARRIER') {
         figure.position.y = pavingLift(pose.x, pose.z, pose.y - 0.8) + model.groundShift() + 0.003
       }
+      // 머리 위 충돌/투척 기준은 유지하고, 몸은 팔 가까이에 받쳐진 높이로 내린다.
+      // 투척·해제 때도 오프셋을 서서히 없애 모델이 위로 튀지 않게 한다.
+      figure.position.y -= .55 * carrySupport
+      figure.position.z += .12 * carrySupport
     },
   }
 }

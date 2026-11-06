@@ -33,6 +33,18 @@ test('minigame recovery invalidates once per accepted receipt and isolates accou
   expect(useWalletSettlement.getState()).toEqual({ owner: 'another-owner', revision: before + 2 })
 })
 
+test('패배의 음수 정산도 한 번 갱신하고 대기 결과는 갱신하지 않는다', () => {
+  const owner = 'wallet-loss-owner', message = receipt(owner)
+  message.payload.myCoinDelta = -10
+  message.payload.participants = [{ userId: owner, result: 'LOSE' }, { userId: 'other', result: 'WIN' }]
+  const before = useWalletSettlement.getState().revision
+  receiveWalletSettlement({ ...message, payload: { ...message.payload, settlementStatus: 'PENDING', myCoinDelta: null } }, owner)
+  expect(useWalletSettlement.getState().revision).toBe(before)
+  receiveWalletSettlement(message, owner)
+  receiveWalletSettlement(message, owner)
+  expect(useWalletSettlement.getState()).toEqual({ owner, revision: before + 1 })
+})
+
 test('fitness server receipt refreshes once and rejects foreign or malformed receipts', () => {
   const userId = 'fitness-owner', before = useWalletSettlement.getState().revision
   const message: Envelope = { requestId: null, type: 'FITNESS_REWARD', payload: {

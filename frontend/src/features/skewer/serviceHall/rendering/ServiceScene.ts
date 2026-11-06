@@ -11,15 +11,18 @@ import { RestaurantPost } from './RestaurantPost'
 import { ParkSurroundings } from './ParkSurroundings'
 import { TowerRestaurant } from './TowerRestaurant'
 import { ToyPeople } from './ToyPeople'
+import { GuestJourney } from './GuestJourney'
 import { SculptedChef } from './SculptedChef'
 import { SculptedServer } from './SculptedServer'
 import type { ToyActor } from './ToyPeople'
 import { HALL_STYLE } from './HallStyle'
+import { HallMotion } from './HallMotion'
 import { createHallFloor, FLOOR_COLUMNS, FLOOR_ROWS, FLOOR_DEPTH_SCALE } from './HallFloor'
 type Actor = ToyActor
 const SEAT = .49, TOP = .96
 /** New serving-first room. Layout coordinates and live meshes share one world space. */
 export class ServiceScene {
+  private readonly serverMotion = new HallMotion()
   private sculptedChef: SculptedChef | null = null
   private sculptedServer: SculptedServer | null = null
   private readonly scene = new THREE.Scene()
@@ -37,6 +40,7 @@ export class ServiceScene {
   private readonly tableDishes = new Map<number, THREE.Group>()
   private readonly tableSignatures = new Map<number, string>()
   private readonly guests = new Map<number, Actor[]>()
+  private readonly journeys = new Map<Actor, GuestJourney>()
   private readonly queue = new Map<number, THREE.Group>()
   private readonly actors: Actor[] = []
   private readonly people = new ToyPeople(this.art)
@@ -44,6 +48,8 @@ export class ServiceScene {
   private park: ParkSurroundings | null = null
   private readonly walkers: { actor: Actor; side: number; offset: number; lane: number }[] = []
   private promenadeTime = 0
+  private guestElapsed?: number
+  private guestTimeBudget = 0
   private server: Actor | null = null
   private readonly carry = new THREE.Group()
   private readonly pass = new THREE.Group()
@@ -53,7 +59,7 @@ export class ServiceScene {
   private readonly washerWater = new THREE.Group()
   private washerLamp: THREE.Mesh | null = null
   private washerKey = ''
-  private carryKey = ''; private passKey = ''; private disposed = false; private frame = 0; private last = 0
+  private carryKey = ''; private passKey = ''; private disposed = false; private last = 0
   private readonly observer: ResizeObserver
   private readonly ray = new THREE.Raycaster(); private readonly pointer = new THREE.Vector2(); private readonly hit = new THREE.Vector3()
   private readonly projection = new THREE.Vector3()
@@ -294,6 +300,7 @@ export class ServiceScene {
       const person = this.people.create(index, role, seated); person.root.position.x = x; person.root.position.z = z; person.root.rotation.y = yaw; this.scene.add(person.root); this.actors.push(person); return person
     }
     TABLES.forEach(t => this.guests.set(t.id, t.seats.map((seat, index) => actor(t.id + index, seat.x, seat.z, seat.yaw, 'guest', true))))
+    this.guests.forEach(list => list.forEach((actor, index) => this.journeys.set(actor, new GuestJourney(actor, index === 0))))
     this.server = actor(1, START.x, START.z, 0, 'server'); this.server.root.add(this.carry)
     this.host.dataset.serverModel = 'loading'
     void SculptedServer.load().then(server => {
@@ -333,7 +340,7 @@ export class ServiceScene {
     this.host.dataset.guestModel = 'loading'
     void this.people.guestsReady.then(loaded => {
       if (this.disposed) return
-      this.host.dataset.guestModel = loaded ? 'blender' : 'fallback'
+      this.host.dataset.guestModel = loaded ? 'bungeoppang' : 'fallback'
       this.inspectContacts()
     })
   }
@@ -354,6 +361,10 @@ export class ServiceScene {
     return root
   }
   private update(view: HallView, dt: number) {
+    if (this.guestElapsed !== undefined) this.guestTimeBudget = view.elapsed < this.guestElapsed ? 0 : this.guestTimeBudget + view.elapsed - this.guestElapsed
+    const guestDt = Math.max(0, Math.min(dt, this.guestTimeBudget))
+    this.guestTimeBudget -= guestDt
+    this.guestElapsed = view.elapsed
     if (!view.finished && !this.reduced) this.promenadeTime += dt
     for (const walker of this.walkers) {
       const phase = (this.promenadeTime * .72 + walker.offset) % 36, forward = phase < 18
@@ -364,16 +375,17 @@ export class ServiceScene {
     }
     this.host.dataset.promenadeStep = `${this.walkers[0].actor.root.position.x.toFixed(2)},${this.walkers[0].actor.root.position.z.toFixed(2)}`
     if (this.server) {
-      const actor = this.server, dx = view.position.x - actor.root.position.x, dz = view.position.z - actor.root.position.z, moving = Math.hypot(dx, dz) > .004
-      if (moving) { const yaw = Math.atan2(dx, dz), delta = Math.atan2(Math.sin(yaw - actor.root.rotation.y), Math.cos(yaw - actor.root.rotation.y)); actor.root.rotation.y += delta * Math.min(1, dt * 18) }
-      actor.root.position.set(view.position.x, 0, view.position.z); actor.pose(dt, { moving, carrying: !!(view.carry.length || view.sake || view.dirtyDishes.length), cleaning: !!view.clean, reduced: this.reduced })
+      this.serverMotion.update(view.position, dt, view.finished)
+      const actor = this.server, moving = this.serverMotion.moving
+      actor.root.rotation.y = this.serverMotion.yaw
+      actor.root.position.set(this.serverMotion.position.x, 0, this.serverMotion.position.z); actor.pose(dt, { moving, carrying: !!(view.carry.length || view.sake || view.dirtyDishes.length), cleaning: !!view.clean, reduced: this.reduced })
       if (this.sculptedServer) {
         this.sculptedServer.root.position.copy(actor.root.position)
         this.sculptedServer.pose(dt, { moving, carrying: !!(view.carry.length || view.sake || view.dirtyDishes.length), cleaning: !!view.clean, reduced: this.reduced }, actor.root.rotation.y)
       }
     }
     for (const table of view.tables) {
-      const people = this.guests.get(table.id); people?.forEach((actor, index) => { actor.root.visible = index < table.people; actor.pose(dt, { eating: table.status === 'eating', reduced: this.reduced }) })
+      const people = this.guests.get(table.id); people?.forEach((actor, index) => this.journeys.get(actor)!.update(index < table.people, table.status === 'eating', guestDt, this.reduced))
       const signature = JSON.stringify([table.status, table.bill?.dishes.map(d => d.delivered), table.bill?.sakeDelivered])
       if (this.tableSignatures.get(table.id) === signature) continue
       this.tableSignatures.set(table.id, signature); const root = this.tableDishes.get(table.id)!; root.clear()
@@ -391,6 +403,7 @@ export class ServiceScene {
       const party = view.queue[slot - 1]; root.visible = !!party
       root.children.forEach((person, index) => { person.visible = !!party && index < party.size })
     })
+    this.actors.filter(actor => !actor.seated && actor.role === 'guest').forEach(actor => actor.pose(guestDt, { reduced: this.reduced }))
     const carryKey = `${view.carry.map(d => d.id)}:${view.sake}:${view.dirtyDishes.map(d => d.id)}`
     if (carryKey !== this.carryKey) {
       this.carryKey = carryKey; this.carry.clear()
@@ -425,7 +438,11 @@ export class ServiceScene {
     this.project('orders', STATIONS.orders.x, 1.45, -6.2); this.project('pickup', STATIONS.pickup.x, 1.45, -6.2); this.project('fridge', STATIONS.fridge.x, 2.5, -5.9)
     this.project('storage', STATIONS.storage.x, 1.45, -6.2)
     this.project('washer', STATIONS.washer.x, 2.1, -6.0)
-    TABLES.forEach(t => { this.project(`table-${t.id}`, t.x, .96, t.z); this.project(`bubble-${t.id}`, t.x, t.capacity === 1 ? 2.6 : 2.15, t.z - (t.capacity === 1 ? .55 : .30)) })
+    TABLES.forEach(t => {
+      this.project(`table-${t.id}`, t.x, TOP, t.z)
+      // 테이블 상판 안쪽에 고정해 손님 키와 관계없이 통로를 비워 둔다.
+      this.project(`bubble-${t.id}`, t.x, TOP + .08, t.z + .12)
+    })
     this.project('queue', 0, 2.45, ROOM.queueZ)
     this.project('action', view.position.x + (view.position.x > 0 ? -1.6 : 1.6), 2.35, view.position.z + .15)
     this.project('queue-feet', 0, 0, ROOM.queueZ + .3)
@@ -437,8 +454,9 @@ export class ServiceScene {
     this.host.style.setProperty(`--hall-${name}-x`, `${(this.projection.x + 1) * 50}%`); this.host.style.setProperty(`--hall-${name}-y`, `${(1 - this.projection.y) * 50}%`)
   }
   private resize = () => {
-    const { width, height } = this.host.getBoundingClientRect(); if (!width || !height || this.disposed) return
-    const ratio = width / height
+    const root = this.host.parentElement
+    if (!root || this.disposed) return
+    const viewport = root.getBoundingClientRect(); if (!viewport.width || !viewport.height) return
     // 홀과 입구가 구도의 기준이다. 뒤쪽 석탑은 화면 위로 잘려도 되며 HUD와 겹칠 수 있다.
     const corners = [
       ...[-12.2, 12.2].map(x => new THREE.Vector3(x, 2.8, -7.5)),
@@ -450,14 +468,27 @@ export class ServiceScene {
     this.camera.up.set(0, 1, 0)
     this.host.dataset.camera = 'orthographic-whole-venue-40deg'
     this.camera.position.set(0, .7 + 60 * Math.sin(angle), 60 * Math.cos(angle)); this.camera.lookAt(0, .7, 0); this.camera.updateMatrixWorld()
-    const pose = (span: number) => { this.camera.left = -span * ratio; this.camera.right = span * ratio; this.camera.top = span; this.camera.bottom = -span; this.camera.updateProjectionMatrix() }
-    let low = 6, high = 100
-    for (let i = 0; i < 20; i++) {
-      const distance = (low + high) / 2; pose(distance)
-      const fits = corners.every(corner => { const p = corner.clone(); p.z *= FLOOR_DEPTH_SCALE; p.project(this.camera); return Math.abs(p.x) < .82 && p.y < .94 && p.y > -.80 })
-      if (fits) high = distance; else low = distance
+    const fit = (width: number, height: number) => {
+      const ratio = width / height
+      const pose = (span: number) => { this.camera.left = -span * ratio; this.camera.right = span * ratio; this.camera.top = span; this.camera.bottom = -span; this.camera.updateProjectionMatrix() }
+      let low = 6, high = 100
+      for (let i = 0; i < 20; i++) {
+        const distance = (low + high) / 2; pose(distance)
+        const fits = corners.every(corner => { const p = corner.clone(); p.z *= FLOOR_DEPTH_SCALE; p.project(this.camera); return Math.abs(p.x) < .82 && p.y < .94 && p.y > -.80 })
+        if (fits) high = distance; else low = distance
+      }
+      pose(high)
     }
-    pose(high)
+    // Measure against the full viewport first, so reserving a bottom dock cannot
+    // oscillate the ResizeObserver between layouts. X is independent of depth in this camera.
+    fit(viewport.width, viewport.height)
+    const edge = new THREE.Vector3(-12.4, 0, 0).project(this.camera)
+    const gutter = (edge.x + 1) * viewport.width / 2
+    root.dataset.inventoryLayout = gutter - 24 >= 144 ? 'sides' : 'bottom'
+    root.style.setProperty('--service-inventory-width', `${Math.min(240, Math.floor(gutter - 24))}px`)
+    const { width, height } = this.host.getBoundingClientRect()
+    if (!width || !height) return
+    fit(width, height)
     this.renderer.setSize(width, height, false); this.post.resize(width, height)
   }
   private onClick = (event: PointerEvent) => {
@@ -470,7 +501,7 @@ export class ServiceScene {
     if (this.disposed) return
     const now = performance.now(), dt = this.last ? Math.max(0, (now - this.last) / 1000) : 0; this.last = now
     // Native rendering and controller sampling stay out of React's component updates.
-    this.update(this.step(dt), Math.min(.05, dt)); if (++this.frame % 2 === 0 || dt > .025) this.post.render()
+    this.update(this.step(dt), Math.min(.05, dt)); this.post.render()
   }
   dispose() {
     this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); this.renderer.domElement.removeEventListener('pointerdown', this.onClick); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)

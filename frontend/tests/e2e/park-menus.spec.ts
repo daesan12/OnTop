@@ -17,7 +17,7 @@ async function openMenu(page: Page) {
   await expect(menu(page)).toBeVisible()
 }
 /** Later routes win over the shared fixture, so only the profile endpoints are replaced here. */
-async function profileRoutes(page: Page, options: { taken?: string[]; patch?: number; remove?: number } = {}) {
+async function profileRoutes(page: Page, options: { taken?: string[]; inappropriate?: string[]; patch?: number | 'inappropriate'; remove?: number } = {}) {
   const calls: { method: string; path: string; body: unknown }[] = []
   await page.route(/\/api\/v1\/users\/(me|nickname-availability)(\?.*)?$/, async route => {
     const request = route.request(), url = new URL(request.url())
@@ -26,11 +26,15 @@ async function profileRoutes(page: Page, options: { taken?: string[]; patch?: nu
     calls.push({ method: request.method(), path: url.pathname + url.search, body: request.postDataJSON() ?? null })
     if (url.pathname === '/api/v1/users/nickname-availability') {
       const nickname = url.searchParams.get('nickname')!
+      if (options.inappropriate?.includes(nickname))
+        return route.fulfill({ status: 400, json: { code: 'USER_INAPPROPRIATE_NICKNAME', message: 'server message' } })
       return route.fulfill({ json: { nickname, available: !options.taken?.includes(nickname) } })
     }
     if (request.method() === 'PATCH')
       return options.patch === 409
         ? route.fulfill({ status: 409, json: { code: 'USER_NICKNAME_ALREADY_EXISTS', message: 'taken' } })
+        : options.patch === 'inappropriate'
+        ? route.fulfill({ status: 400, json: { code: 'USER_INAPPROPRIATE_NICKNAME', message: 'server message' } })
         : route.fulfill({ json: { userId: 101, nickname: (request.postDataJSON() as { nickname: string }).nickname, characterGender: 'MALE' } })
     if (request.method() === 'DELETE')
       return options.remove === 503
@@ -47,16 +51,12 @@ test('channel dropdown shows current and full channels and keeps the seated-tabl
     { channelId: 'fixture-channel', name: '공원 01', currentUsers: 2, capacity: 16, joinable: true },
     { channelId: 'full-channel', name: '공원 03', currentUsers: 16, capacity: 16, joinable: false },
   ] } }))
-  await page.goto('/park')
+  await loaded(page)
   const dropdown = page.getByRole('region', { name: '채널 선택' })
-  // Several channels: the first entry still asks for a choice, but the chip folds and unfolds it.
-  await expect(dropdown).toBeVisible({ timeout: 90000 })
-  const chip = page.getByRole('button', { name: '현재 공원과 접속 인원' })
-  await chip.click(); await expect(dropdown).toBeHidden(); await expect(chip).toHaveAttribute('aria-expanded', 'false')
-  await chip.click(); await expect(dropdown).toBeVisible()
-  await dropdown.getByRole('button', { name: /공원 01/ }).click()
+  // Automatic entry keeps the channel list folded; it remains available for manual movement.
   await expect(dropdown).toBeHidden()
-  await chip.click()
+  const chip = page.getByRole('button', { name: '현재 공원과 접속 인원' })
+  await chip.click(); await expect(dropdown).toBeVisible()
   await expect(chip).toHaveAttribute('aria-expanded', 'true')
   await expect(dropdown.getByRole('button', { name: /공원 01/ })).toContainText('현재')
   await expect(dropdown.getByRole('button', { name: /공원 03/ })).toContainText('가득 참')
@@ -65,6 +65,33 @@ test('channel dropdown shows current and full channels and keeps the seated-tabl
   await screenshot(page, 'park-menus-channel')
   await page.keyboard.press('Escape')
   await expect(dropdown).toBeHidden()
+})
+
+test('first entry automatically requests the least occupied joinable channel', async ({ page }) => {
+  const server = await fixture(page)
+  await page.route('**/api/v1/channels', route => route.fulfill({ json: { items: [
+    { channelId: 'busy-channel', name: '공원 01', currentUsers: 12, capacity: 16, joinable: true },
+    { channelId: 'quiet-channel', name: '공원 02', currentUsers: 3, capacity: 16, joinable: true },
+    { channelId: 'full-channel', name: '공원 03', currentUsers: 16, capacity: 16, joinable: false },
+  ] } }))
+  await loaded(page)
+  await expect.poll(() => server.sent.find(message => message.type === 'CHANNEL_JOIN')?.payload.channelId)
+    .toBe('quiet-channel')
+})
+
+test('when every channel is full the center gate offers manual recovery', async ({ page }) => {
+  const server = await fixture(page)
+  await page.route('**/api/v1/channels', route => route.fulfill({ json: { items: [
+    { channelId: 'full-1', name: '공원 01', currentUsers: 16, capacity: 16, joinable: false },
+    { channelId: 'full-2', name: '공원 02', currentUsers: 16, capacity: 16, joinable: false },
+  ] } }))
+  await page.goto('/park')
+  const gate = page.getByRole('dialog', { name: '공원 입장' })
+  await expect(gate).toBeVisible({ timeout: 90000 })
+  await expect(gate).toContainText('입장할 공원을 골라주세요')
+  await expect(gate.getByRole('button', { name: /공원 01/ })).toBeDisabled()
+  await expect(gate.getByRole('button', { name: /공원 02/ })).toBeDisabled()
+  expect(server.sent.filter(message => message.type === 'CHANNEL_JOIN')).toHaveLength(0)
 })
 
 test('table placement uses the live channel response when static bindings are absent', async ({ page }) => {
@@ -139,6 +166,25 @@ test('a nickname taken between the check and the save stays in the dialog as a 4
   await dialog.getByRole('button', { name: '중복 확인' }).click()
   await dialog.getByRole('button', { name: '저장', exact: true }).click()
   await expect(dialog).toContainText('이미 사용 중인 닉네임이에요.')
+  await expect(page.locator('.park-account__nickname')).toHaveText('공원 산책자')
+})
+
+test('a forbidden-word nickname shows the same message from the check and the save', async ({ page }) => {
+  await fixture(page); await loaded(page)
+  await profileRoutes(page, { inappropriate: ['부적절1'], patch: 'inappropriate' })
+  await openMenu(page); await menu(page).getByRole('menuitem', { name: /내 정보/ }).click()
+  const dialog = page.getByRole('dialog', { name: '내 정보' })
+  const input = dialog.getByRole('textbox', { name: '닉네임' })
+  await input.fill('부적절1')
+  await dialog.getByRole('button', { name: '중복 확인' }).click()
+  await expect(dialog).toContainText('사용할 수 없는 표현이 포함된 닉네임이에요.')
+  await expect(dialog.getByRole('button', { name: '저장', exact: true })).toBeDisabled()
+  // A save that only the server rejects (for example a direct request) reads the same.
+  await input.fill('부적절2')
+  await dialog.getByRole('button', { name: '중복 확인' }).click()
+  await dialog.getByRole('button', { name: '저장', exact: true }).click()
+  await expect(dialog).toContainText('사용할 수 없는 표현이 포함된 닉네임이에요.')
+  await expect(dialog).not.toContainText('server message')
   await expect(page.locator('.park-account__nickname')).toHaveText('공원 산책자')
 })
 

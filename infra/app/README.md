@@ -115,6 +115,44 @@ DEV·PROD 모두 기본 OFF이며 저장소 변경만으로 켜지지 않는다.
    `NOTES_ENABLED=false`로 되돌려 다시 재생성한다.
 4. `Flyway locations`·`SPRING_FLYWAY_LOCATIONS`는 바꾸지 않는다.
 
+## DEV 꼬치왕 협동 활성화 (S15P31B105-298)
+
+꼬치왕 협동 API는 `skewer-coop` Spring 프로필과 영속 정산 저널이 함께 준비된 DEV에서만 켠다.
+프로필만 추가하거나 호스트 임시 디렉터리를 마운트하면 재배포·재부팅 뒤 정산 복구 계약을 보장할 수 없다.
+`V145` 및 `skewer_coop_results`, `skewer_coop_rewards`가 먼저 적용됐는지 아래 읽기 전용 점검을 통과해야 한다.
+
+```bash
+cd /opt/ontop
+sudo docker compose --env-file /etc/ontop/dev-app/deploy.env \
+  -f infra/app/compose.dev.yaml exec -T mysql \
+  sh -s -- ontop_dev < infra/app/verify-skewer-coop-db.sh
+```
+
+점검이 통과한 뒤 인프라 담당자가 다음 순서로 활성화한다. 실제 `.env` 내용은 출력하지 않는다.
+
+1. 검토된 커밋의 `compose.skewer-coop.yaml`을 `/opt/ontop/infra/app/`에, `deploy-dev.sh`를
+   `/usr/local/sbin/ontop-deploy-dev`에 각각 `root:root` 0644, 0750으로 설치한다.
+2. `sudo install -d -o 10001 -g 10001 -m 0700 /var/lib/ontop/skewer-coop`으로 인스턴스 전용 저널을 만든다.
+3. `/etc/ontop/dev-app/deploy.env`에
+   `SKEWER_COOP_JOURNAL_HOST_DIR=/var/lib/ontop/skewer-coop`을 한 번만 추가한다.
+4. 기본 Compose와 현재 generated-map override에 `compose.skewer-coop.yaml`까지 더해
+   `docker compose config --quiet`을 실행한다. 설정 값이 출력되는 일반 `config`는 사용하지 않는다.
+5. `/etc/ontop/dev-app/skewer-coop.enabled`를 `root:root`, 0600의 빈 마커 파일로 만든 뒤 앱만
+   `up -d --no-deps --force-recreate app`으로 재생성한다.
+6. 앱 health가 `UP`이고 컨테이너의 `SPRING_PROFILES_INCLUDE=skewer-coop`,
+   `SKEWER_COOP_JOURNAL_PATH=/var/lib/ontop/skewer-coop`인지 확인한다. 인증하지 않은 요청의
+   401은 인증 필터 도달만 확인하며 컨트롤러 등록을 보장하지 않는다. 정상 계정으로 공원에 입장한
+   브라우저에서 `GET /api/v1/minigames/skewer/coop/rooms`가 200을 반환하는지 확인하고,
+   VR 입구에서 방 생성 → 역할 선택까지 검증한다. 토큰을 로그·채팅에 복사하지 않는다.
+
+이후 Jenkins의 `ontop-deploy-dev`는 활성화 마커가 있는 동안 override를 자동으로 유지한다. 배포 전마다
+저널 경로가 절대경로이고, 심볼릭 링크가 아니며, UID/GID 10001 소유·0700인지 검사한다. 하나라도 다르면
+기존 앱을 건드리기 전에 배포를 중단한다.
+
+긴급 비활성화 시 마커를 별도 `.disabled` 이름으로 옮긴 뒤 기본 Compose와 generated-map override만으로
+앱을 재생성한다. `/var/lib/ontop/skewer-coop`은 미정산 복구 자료이므로 삭제하지 않는다. 활성화·비활성화
+모두 진행 중인 협동 방이 없는 유지보수 시간에 수행한다.
+
 ## 저장소 파일과 비밀정보
 
 | 서버 | Compose | 루트 소유 설정 파일 | DB 비밀번호 파일 |

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { HallPreview } from '../../src/features/skewer/serviceHall/previewModel'
-import { TABLES } from '../../src/features/skewer/serviceHall/plan'
+import { STATIONS, TABLES } from '../../src/features/skewer/serviceHall/plan'
 import { OnlineHall, OnlineChef } from '../../src/features/skewer/coop/drivers'
 import { ChefPreview } from '../../src/features/skewer/chef/model'
 import type { CoopClient } from '../../src/features/skewer/coop/client'
@@ -57,6 +57,31 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
   it('가만히 있을 때 불필요한 이동 요청을 반복하지 않는다', async () => {
     const { driver, act } = fixture()
     for (let i = 0; i < 10; i++) { driver.step(.05); await Promise.resolve() }
+    expect(act).not.toHaveBeenCalled()
+  })
+  it('세척 중 빈 칸에 넣을 수량을 안내하고 서버에 투입 요청만 보낸다', () => {
+    const { driver, hall, act } = fixture()
+    hall.position = { ...STATIONS.washer }
+    hall.washer = { load: [{ id: 1, table: 1, settings: 1 }], remaining: 4, completed: 0 }
+    hall.dirtyDishes = [{ id: 2, table: 2, settings: 2 }, { id: 3, table: 3, settings: 1 }]
+
+    expect(driver.actionLabel()).toBe('식기 1테이블분 넣기')
+    expect(driver.blockedReason()).toBeNull()
+    driver.press()
+
+    expect(act.mock.calls.map(([input]) => input.type)).toEqual(['MOVE', 'INTERACT'])
+    expect(hall.washer.load).toHaveLength(1)
+    expect(hall.dirtyDishes).toHaveLength(2)
+  })
+  it('세척기가 가득 차면 추가 투입을 보내지 않는다', () => {
+    const { driver, hall, act } = fixture()
+    hall.position = { ...STATIONS.washer }
+    hall.washer = { load: [{ id: 1, table: 1, settings: 1 }, { id: 2, table: 2, settings: 2 }], remaining: 4, completed: 0 }
+    hall.dirtyDishes = [{ id: 3, table: 3, settings: 1 }]
+
+    driver.press()
+
+    expect(driver.blockedReason()).toContain('세척기 가득 참')
     expect(act).not.toHaveBeenCalled()
   })
   it('잘못된 게임 코드와 미전달 원본 주문이 섞인 요리사 상태 구조를 거절한다', () => {

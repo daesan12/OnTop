@@ -65,6 +65,7 @@ import { parseEmoteBindings, previewEmoteBindings, type EmoteId } from '../../fe
 import { emoteSignal, useEmoteState } from '../../features/emotes/state'
 import { mockEmote } from '../../features/emotes/mock/MockEmoteService'
 import { GAME_CONSTRUCTION_NOTICE, gameSelection, isTableGamePlayable, waitingForRound, type TableGameCode } from '../../features/tableLobby/model'
+import { recommendedChannel, rememberChannel, rememberedChannel } from '../../features/parkMenus/channelEntry'
 import { publicMatchService } from '../../features/tableLobby/publicMatch'
 import { PublicGameWatcher } from '../../features/tableLobby/PublicGameWatcher'
 import { FollowClient } from '../../features/follow/serverClient'
@@ -438,7 +439,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const skewerAdmission = method === 'POST' && path === '/api/v1/minigames/skewer/admissions'
     const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
-      || method === 'GET' && path === '/api/v1/minigames/skewer/coop/rankings'
+      || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR))?$/.test(path)
       || method === 'POST' && ['/api/v1/minigames/skewer/coop/rooms', '/api/v1/minigames/skewer/coop/leave'].includes(path)
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
@@ -446,11 +447,13 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'POST' && path === '/api/v1/minigames/plus-minus/rounds')
     const moleRequest = (method === 'GET' && path === '/api/v1/minigames/whack-a-mole/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/whack-a-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
+    const speedMoleRequest = (method === 'GET' && /^\/api\/v1\/minigames\/speed-mole\/rankings\?limit=20&offset=\d{1,5}$/.test(path))
+      || (method === 'POST' && /^\/api\/v1\/minigames\/speed-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
-      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !raffleRequest && !fitnessRewardRequest
+      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !raffleRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
@@ -591,12 +594,17 @@ export class ParkRuntime implements ParkRuntimePort {
     this.retryCount = 0
     void this.boot()
   }
+  private async loadChannels() {
+    const body = await this.getJSON('/api/v1/channels', { signal: this.bootAbort?.signal })
+    if (!record(body) || !Array.isArray(body.items)) throw new Error('채널 목록을 확인할 수 없습니다.')
+    const channels = body.items.map(channel)
+    useSession.setState({ channels })
+    return channels
+  }
   refreshChannels = async (): Promise<boolean> => {
     if (!this.active) return false
     try {
-      const body = await this.getJSON('/api/v1/channels', { signal: this.bootAbort?.signal })
-      if (!record(body) || !Array.isArray(body.items)) throw new Error('채널 목록을 확인할 수 없습니다.')
-      useSession.setState({ channels: body.items.map(channel) })
+      await this.loadChannels()
       return true
     } catch (error) {
       this.report(error)
@@ -764,9 +772,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   private enterPreferredChannel() {
-    const channels=useSession.getState().channels
-    const selected=channels.find(c=>c.channelId===this.preferredChannel)??(channels.length===1?channels[0]:undefined)
-    if(selected&&this.mapAdmission.allowed)void this.selectChannel(selected.channelId)
+    if(this.mapAdmission.allowed)void this.enterRecommendedChannel()
   }
   private async confirmMap() {
     const generation=this.generation
@@ -795,10 +801,10 @@ export class ParkRuntime implements ParkRuntimePort {
     // No automatic retry loop with the same stale bundle. The user chooses refresh/reconnect.
     void this.socket.disconnect()
   }
-  private async action(job: () => Promise<unknown>) {
+  private async action(job: () => Promise<unknown>, { blockControls = true } = {}) {
     if (!this.active || this.actionBusy || !this.mapAdmission.allowed) return false
     this.actionBusy = true
-    useSession.setState({ pending: true, error: '' })
+    useSession.setState(blockControls ? { pending: true, error: '' } : { error: '' })
     const generation = this.generation
     try {
       await job()
@@ -811,12 +817,11 @@ export class ParkRuntime implements ParkRuntimePort {
     } finally {
       if (generation === this.generation) {
         this.actionBusy = false
-        useSession.setState({ pending: false })
+        if (blockControls) useSession.setState({ pending: false })
       }
     }
   }
-  selectChannel = (channelId: string) =>
-    this.action(async () => {
+  private async joinChannel(channelId: string) {
       if (!this.mapReady) throw new Error('서버 맵 버전 확인을 먼저 완료해주세요.')
       const state = useSession.getState()
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
@@ -843,13 +848,10 @@ export class ParkRuntime implements ParkRuntimePort {
       this.inputSequence = 0
       const generation = this.generation
       try {
-        try {
-          await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
-        } catch (error) {
-          await this.refreshChannels()
-          throw error
-        }
+        await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
+        useSession.setState({ error: '' })
         this.preferredChannel = channelId
+        rememberChannel(state.sessionId, channelId)
         this.retryCount = 0
         if (followService.mode === 'server') void this.follow.begin().catch(() => {})
         // Initial world messages keep their existing order. Facilities explicitly query after CHANNEL_JOIN.
@@ -877,7 +879,34 @@ export class ParkRuntime implements ParkRuntimePort {
         // With or without the list, held seat states are read once now through the normal handlers.
         this.applyInitialStates(generation)
       }
+  }
+  selectChannel = (channelId: string) =>
+    this.action(async () => {
+      try {
+        await this.joinChannel(channelId)
+      } catch (error) {
+        try { await this.loadChannels() } catch { /* Keep the original join error. */ }
+        throw error
+      }
     })
+  enterRecommendedChannel = () => this.action(async () => {
+    const state = useSession.getState()
+    if (state.roomId) return
+    const preferred = this.preferredChannel || rememberedChannel(state.sessionId)
+    const selected = recommendedChannel(state.channels, preferred)
+    if (!selected) throw new Error('지금 입장할 수 있는 공원이 없습니다. 잠시 후 다시 시도해주세요.')
+    try {
+      await this.joinChannel(selected.channelId)
+      return
+    } catch (error) {
+      if (!(error instanceof ServerError) || !['CHANNEL_FULL', 'CHANNEL_NOT_FOUND'].includes(error.code)) throw error
+      const refreshed = await this.loadChannels()
+      const alternative = recommendedChannel(refreshed, preferred, selected.channelId)
+        ?? recommendedChannel(refreshed, preferred)
+      if (!alternative) throw new Error('입장 가능한 공원이 바뀌었습니다. 채널을 직접 선택해주세요.')
+      await this.joinChannel(alternative.channelId)
+    }
+  })
   /** Existing handlers drop seat states that precede the table list; hold them, in arrival order, until it exists. */
   private holdInitialState(message: Envelope) {
     const held = this.initialStates
@@ -918,7 +947,7 @@ export class ParkRuntime implements ParkRuntimePort {
         'WORLD_CHAT_MESSAGE',
       ])
       // Only server echoes enter the message list. No optimistic duplicate or automatic replay.
-    })
+    }, { blockControls: !avatars.get(useSession.getState().sessionId)?.carry })
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return
@@ -969,10 +998,41 @@ export class ParkRuntime implements ParkRuntimePort {
     const s = useSession.getState()
     return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
+  private interactionStatus = { scope: '', busy: false, pending: false, retryAt: 0 }
+  setInteractionBusy = (busy: boolean) => {
+    const session = useSession.getState(), scope = JSON.stringify([this.generation, session.sessionId, session.roomId])
+    if (!this.active || session.status !== 'connected' || !session.roomId || !session.mapCompatible
+      || !session.carrySupported || !this.socket.connected) return
+    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, pending: false, retryAt: 0 }
+    const status = this.interactionStatus
+    const generation = this.generation
+    const current = () => this.active && this.generation === generation && this.interactionStatus === status
+      && useSession.getState().roomId === session.roomId && useSession.getState().sessionId === session.sessionId
+    if (status.pending || status.busy === busy || performance.now() < status.retryAt) return
+    status.pending = true
+    void this.socket.request('WORLD_INTERACTION_SET', { busy }, ['WORLD_INTERACTION_STATE']).then(response => {
+      if (response.payload.channelId !== session.roomId || response.payload.busy !== busy)
+        throw new Error('창 점유 응답을 확인해주세요.')
+      if (current()) status.busy = busy
+    }).catch(error => {
+      if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
+    }).finally(() => { status.pending = false })
+  }
+  // Carry commands stay in the park: retain mouse look while actionBusy still serializes requests.
+  pickupAvatar = (targetId: string) => this.action(async () => {
+    await this.socket.request('WORLD_CARRY_PICKUP', { targetId }, ['WORLD_STATE'])
+  }, { blockControls: false })
+  throwAvatar = (carryId: string, direction: { dx: number; dy: number; dz: number }) => this.action(async () => {
+    await this.socket.request('WORLD_CARRY_THROW', { carryId, ...direction }, ['WORLD_STATE'])
+  }, { blockControls: false })
+  releaseAvatar = (carryId: string) => this.action(async () => {
+    await this.socket.request('WORLD_CARRY_RELEASE', { carryId }, ['WORLD_STATE'])
+  }, { blockControls: false })
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
       && !facilityMovementBlocked(s.sessionId)
+      && (!avatars.get(s.sessionId)?.carry || avatars.get(s.sessionId)?.carry?.role === 'CARRIER')
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
       && (!inputState.minigameOpen || stoppedIntent(intent))
       && (!useTableLobby.getState().joiningAnchorId || stoppedIntent(intent))

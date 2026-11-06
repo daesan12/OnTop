@@ -22,6 +22,9 @@ export interface PredictionSimulation {
   pose(): Pose
   setChairs(counts: ReadonlyMap<string, number>): void
   movementFlags?(): {moving:boolean;running:boolean} | undefined
+  groundedForLocomotion?(): boolean
+  stepJumped?(): boolean
+  stepSupported?(): boolean
   dispose(): void
 }
 const STOP: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
@@ -30,6 +33,18 @@ const distance = (a: Pose, b: Pose) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.
 const angleDelta = (from: number, to: number) => Math.atan2(Math.sin(to - from), Math.cos(to - from))
 type IntentFrame = { at: number; intent: MovementIntent }
 type SentFrame = { seq: number; at: number; jumpAt: number }
+type PositionSample = { x: number; y: number; z: number; jump: boolean }
+type PathPoint = PositionSample & { supported: boolean }
+const MAX_PATH_SAMPLES = 64
+// One unsent batch must also fit the existing bounded server movement budget.
+const MAX_PENDING_PHYSICS_MS = 100
+function redundantPoint(a: PathPoint, b: PathPoint, c: PathPoint) {
+  if (b.jump || c.jump || a.supported !== b.supported || b.supported !== c.supported) return false
+  const x = c.x - a.x, y = c.y - a.y, z = c.z - a.z, length2 = x * x + y * y + z * z
+  if (!length2) return a.x === b.x && a.y === b.y && a.z === b.z
+  const t = ((b.x - a.x) * x + (b.y - a.y) * y + (b.z - a.z) * z) / length2
+  return t >= 0 && t <= 1 && Math.hypot(b.x - a.x - t * x, b.y - a.y - t * y, b.z - a.z - t * z) <= .0005
+}
 function last<T>(values: T[], predicate: (value: T) => boolean): T | undefined {
   for (let i = values.length - 1; i >= 0; i--) if (predicate(values[i]!)) return values[i]
 }
@@ -43,6 +58,9 @@ export class LocalMovementPrediction {
   private baseline: { pose: Pose; motion: MotionSnapshot; at: number; anchor: number } | undefined
   private timeline: IntentFrame[] = []
   private sent: SentFrame[] = []
+  private positionPath: PathPoint[] = []
+  private pathAnchor: PathPoint | undefined
+  private pendingPhysicsMs = 0
   private simulatedAt = 0
   private intent: MovementIntent = { ...STOP }
   private correction = { x: 0, y: 0, z: 0, at: 0 }
@@ -84,9 +102,15 @@ export class LocalMovementPrediction {
     this.advance(at)
     if (this.tuned && intent.jump && !this.pendingPositionJump) this.pendingPositionJump={epoch:this.baseline.motion.epoch,seq}
     const effective = this.effectiveIntent(intent)
-    return { seq, epoch: this.baseline.motion.epoch, ...this.sim!.pose(), run: effective.run,
+    const pose = this.sim!.pose()
+    const path = this.tuned && this.sim!.stepJumped
+      ? this.positionPath.length ? this.positionPath.map(({ supported: _support, ...sample }) => sample)
+        : [{ x: pose.x, y: pose.y, z: pose.z, jump: false }] : undefined
+    this.clearPositionPath()
+    return { seq, epoch: this.baseline.motion.epoch, ...pose, run: effective.run,
       jump: intent.jump || !!this.pendingPositionJump,
-      manual: !!(intent.dx || intent.dz || intent.jump || this.pendingPositionJump || this.steeringSuppressed) }
+      manual: !!(intent.dx || intent.dz || intent.jump || this.pendingPositionJump || this.steeringSuppressed || path?.some(p => p.jump)),
+      ...(path ? { path } : {}) }
   }
   async prepare() {
     if (this.unavailable || this.sim || this.preparing) return this.preparing
@@ -116,6 +140,7 @@ export class LocalMovementPrediction {
     ++this.generation
     this.sim?.dispose(); this.sim = undefined; this.preparing = undefined
     this.scope = ''; this.baseline = undefined; this.timeline = []; this.sent = []
+    this.clearPositionPath()
     this.pendingPositionJump=undefined
     this.intent = { ...STOP }; this.allowed = false; this.firstInput = undefined
     this.lastJumpAt = -Infinity
@@ -133,6 +158,7 @@ export class LocalMovementPrediction {
     this.sim?.setFollowTarget?.(undefined)
     this.pendingPositionJump=undefined
     this.timeline = []; this.sent = []; this.intent = { ...STOP }; this.firstInput = undefined
+    this.clearPositionPath()
     this.allowed = false; this.correction = { x: 0, y: 0, z: 0, at: 0 }
     this.facing = undefined
     this.displayed = undefined
@@ -191,6 +217,7 @@ export class LocalMovementPrediction {
     if (!this.sim) { void this.prepare(); return }
     this.sim.setMotionProfile?.(motion.profile)
     this.sim.reset(pose, motion.velocityY, motion.grounded, motion.jumpGrace)
+    this.clearPositionPath()
     this.simulatedAt = newEpoch ? at : anchor
     this.lastJumpAt = this.acknowledgedJumpAt
     if (newEpoch) {
@@ -301,6 +328,13 @@ export class LocalMovementPrediction {
     const active = this.ready && !!this.baseline && at - this.baseline.at <= this.horizon
     const physical = active ? this.sim?.movementFlags?.() : undefined
     const effective = this.effectiveIntent()
+    // Manual ground input owns only the own avatar's stride. Collision still
+    // owns its physical velocity/position; water, air and automatic follow keep it.
+    if (active && this.tuned && this.positionMode && this.sim?.groundedForLocomotion?.()
+      && (!this.steering || this.steeringSuppressed)) {
+      const moving = !!(effective.dx || effective.dz)
+      return { moving, running: moving && effective.run }
+    }
     return physical ?? { moving: !!(active && (effective.dx || effective.dz)), running: !!(active && effective.run) }
   }
   metrics() { return { firstResponseMs: [...this.responseTimes], correctionMetres: [...this.corrections],
@@ -357,8 +391,31 @@ export class LocalMovementPrediction {
     let cursor = start
     const integrate = (until: number) => {
       while (cursor < until - .0001) {
-        const ms = Math.min(1000 / 60, until - cursor)
+        const tracing = this.tuned && this.positionMode && this.sim!.stepJumped
+        if (tracing && (this.positionPath.length >= MAX_PATH_SAMPLES
+          || this.pendingPhysicsMs >= MAX_PENDING_PHYSICS_MS - .0001)) {
+          // Hold the last physical pose BEFORE an unreportable step. Keep every
+          // turn/landing/takeoff and discard elapsed wall time, never the path.
+          cursor = until
+          return
+        }
+        const ms = Math.min(1000 / 60, until - cursor,
+          tracing ? MAX_PENDING_PHYSICS_MS - this.pendingPhysicsMs : Infinity)
+        if (tracing && !this.pathAnchor) {
+          const p = this.sim!.pose()
+          this.pathAnchor = { x: p.x, y: p.y, z: p.z, jump: false, supported: this.sim!.stepSupported?.() ?? false }
+        }
         this.sim!.step(input, ms / 1000)
+        if (tracing) {
+          this.pendingPhysicsMs += ms
+          const pose = this.sim!.pose()
+          const point = { x: pose.x, y: pose.y, z: pose.z, jump: this.sim!.stepJumped!(), supported: this.sim!.stepSupported?.() ?? false }
+          const b = this.positionPath.at(-1), a = this.positionPath.at(-2) ?? this.pathAnchor!
+          // Straight ground movement costs one server sample. Preserve curves,
+          // support transitions and actual (including buffered) takeoffs.
+          if (b && redundantPoint(a, b, point)) this.positionPath[this.positionPath.length - 1] = point
+          else this.positionPath.push(point)
+        }
         if (input.jump) this.lastJumpAt = jumpAt
         input = { ...input, jump: false }; cursor += ms
       }
@@ -368,6 +425,9 @@ export class LocalMovementPrediction {
       integrate(frame.at); input = { ...frame.intent }; jumpAt = frame.at
     }
     integrate(end); this.simulatedAt = end
+  }
+  private clearPositionPath() {
+    this.positionPath = []; this.pathAnchor = undefined; this.pendingPhysicsMs = 0
   }
 }
 export const localMovement = new LocalMovementPrediction()

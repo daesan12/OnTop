@@ -12,15 +12,7 @@ export interface ServiceOperationStatus {
 
 const modes = new Set<ServiceOperationMode>(['NORMAL', 'DRAINING', 'MAINTENANCE'])
 
-export async function loadServiceOperation(signal?: AbortSignal): Promise<ServiceOperationStatus> {
-  const response = await fetch('/api/v1/operations/status', {
-    method: 'GET',
-    cache: 'no-store',
-    credentials: 'omit',
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
-  })
-  if (!response.ok) throw new Error('운영 상태를 확인하지 못했습니다.')
-  const value: unknown = await response.json().catch(() => null)
+export function parseServiceOperationStatus(value: unknown): ServiceOperationStatus {
   if (!value || typeof value !== 'object') throw new Error('운영 상태 응답을 확인하지 못했습니다.')
   const candidate = value as Partial<ServiceOperationStatus>
   if (!modes.has(candidate.mode as ServiceOperationMode) || typeof candidate.notice !== 'string'
@@ -31,6 +23,17 @@ export async function loadServiceOperation(signal?: AbortSignal): Promise<Servic
     throw new Error('운영 상태 응답을 확인하지 못했습니다.')
   }
   return candidate as ServiceOperationStatus
+}
+
+export async function loadServiceOperation(signal?: AbortSignal): Promise<ServiceOperationStatus> {
+  const response = await fetch('/api/v1/operations/status', {
+    method: 'GET',
+    cache: 'no-store',
+    credentials: 'omit',
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
+  })
+  if (!response.ok) throw new Error('운영 상태를 확인하지 못했습니다.')
+  return parseServiceOperationStatus(await response.json().catch(() => null))
 }
 
 export function unavailableServiceOperation(): ServiceOperationStatus {

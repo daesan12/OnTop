@@ -69,8 +69,18 @@ public class RestSecurityConfiguration {
                 .securityContext(context -> context.securityContextRepository(new NullSecurityContextRepository()))
                 .addFilterBefore(new RestCorsFilter(origins, mapper, errors), BearerTokenAuthenticationFilter.class)
                 .authorizeHttpRequests(authorize -> authorize.requestMatchers("/actuator/**").denyAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/admin/events/winners/*/contact")
+                                .hasRole("ADMIN_CONTACT")
                         .requestMatchers(HttpMethod.GET, "/api/v1/admin/me", "/api/v1/admin/feedback",
-                                "/api/v1/admin/analytics/**").hasRole("ADMIN_READ")
+                                "/api/v1/admin/analytics/**", "/api/v1/admin/raffles/rounds/*",
+                                "/api/v1/admin/events/minigames/*/rounds/*",
+                                "/api/v1/admin/events/assets/rounds/*",
+                                "/api/v1/admin/events/winners")
+                                .hasRole("ADMIN_READ")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/admin/raffles/rounds/*/finalize",
+                                "/api/v1/admin/events/minigames/*/rounds/*/finalize",
+                                "/api/v1/admin/events/assets/rounds/*/finalize")
+                                .hasRole("ADMIN_OPERATION")
                         .requestMatchers("/api/v1/admin/wallet-grants", "/api/v1/admin/wallet-grants/**")
                                 .hasRole("ADMIN_GRANT")
                         .requestMatchers("/api/v1/admin/operations", "/api/v1/admin/operations/**")
@@ -92,6 +102,9 @@ public class RestSecurityConfiguration {
                             }
                             if (adminAccess.canOperate(user.userId())) {
                                 authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN_OPERATION"));
+                            }
+                            if (adminAccess.canViewContacts(user.userId())) {
+                                authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN_CONTACT"));
                             }
                             var result = UsernamePasswordAuthenticationToken.authenticated(user, null,
                                     authorities);

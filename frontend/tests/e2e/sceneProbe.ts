@@ -68,6 +68,62 @@ import { omokCamera } from '../../src/game/cameraState'
 import { Matrix4 } from 'three'
 import { useGame } from '../../src/game/store'
 import { avatars, sampleAvatar, estimatedServerTime, type AvatarSnapshot } from '../../src/network/worldClient'
+import { interactionAim } from '../../src/features/interactions/interactionAim'
+
+let carryInputDirection: number[] | null = null
+export function captureNextCarryThrow() {
+  carryInputDirection = null
+  const capture = (event: KeyboardEvent) => {
+    if (event.code !== 'KeyE' || event.repeat) return
+    const yaw = root().scene.getObjectByName('avatar-' + useSession.getState().sessionId)!.rotation.y
+    carryInputDirection = [Math.sin(yaw), 0, Math.cos(yaw)]
+    window.removeEventListener('keydown', capture, true)
+  }
+  window.addEventListener('keydown', capture, true)
+}
+
+export function carryProbe() {
+  return { carries: Object.fromEntries([...avatars].map(([id, avatar]) => [id, avatar.carry ?? null])),
+    aim: { dx: interactionAim.dx, dy: interactionAim.dy, dz: interactionAim.dz }, inputDirection: carryInputDirection }
+}
+
+export function faceCarryTarget(pitch?: number) {
+  viewControls.yaw = Math.PI
+  if (pitch !== undefined) viewControls.pitch = pitch
+}
+
+export async function carryThrowGestureFrames(count: number) {
+  const frames = []
+  for (let frame = 0; frame < count; frame++) {
+    await new Promise(requestAnimationFrame)
+    const carrier = root().scene.getObjectByName('avatar-101')!
+    const figure = carrier.getObjectByName('figure-101')!
+    const hands = ['L', 'R'].map(side => carrier.getObjectByName(`hand_${side}`)!
+      .getWorldPosition(new Vector3()).sub(carrier.getObjectByName(`upperArm_${side}`)!
+        .getWorldPosition(new Vector3())).toArray())
+    frames.push({ hands, yaw: carrier.rotation.y, figureYaw: figure.rotation.y,
+      spine: carrier.getObjectByName('spine')!.rotation.x })
+  }
+  return frames
+}
+
+export function carryFlightProbe() {
+  const scene = root().scene, carrier = scene.getObjectByName('avatar-101')!, carried = scene.getObjectByName('avatar-102')!
+  const figure = scene.getObjectByName('figure-102')!
+  return { distance: Math.hypot(carried.position.x - carrier.position.x, carried.position.z - carrier.position.z),
+    height: carried.position.y, pitch: figure.rotation.x, roll: figure.rotation.z }
+}
+
+export async function carryRenderedFrames(count: number) {
+  const frames: { carrier: number[]; carried: number[]; yawDifference: number }[] = []
+  for (let i = 0; i < count; i++) {
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    const scene = root().scene, carrier = scene.getObjectByName('avatar-101')!, carried = scene.getObjectByName('avatar-102')!
+    frames.push({ carrier: carrier.position.toArray(), carried: carried.position.toArray(),
+      yawDifference: carried.rotation.y - carrier.rotation.y })
+  }
+  return frames
+}
 import { SkinnedMesh, ShaderMaterial } from 'three'
 import { FITNESS_STATIONS } from '../../src/config'
 import { ADVERTISEMENT_SCHEDULE } from '../../src/world/art/advertisementMedia'
@@ -240,6 +296,7 @@ export function adCameraProbe() {
   const own = avatars.get(s.sessionId)
   return { controls: { ...viewControls }, camera: camera.position.toArray(), direction: camera.getWorldDirection(new Vector3()).toArray(),
     pose: own ? { ...own.current } : null,
+    renderedYaw: scene.getObjectByName('avatar-' + s.sessionId)?.rotation.y,
     ownVisible: scene.getObjectByName('avatar-' + s.sessionId)?.visible,
     remoteVisible: scene.getObjectByName('avatar-102')?.visible,
     active: document.pointerLockElement === document.querySelector('canvas') }

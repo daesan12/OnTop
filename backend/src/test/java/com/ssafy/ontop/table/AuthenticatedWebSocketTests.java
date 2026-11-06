@@ -82,10 +82,19 @@ class AuthenticatedWebSocketTests {
             assertThat(forged.path("payload").path("code").asText()).isEqualTo("INVALID_PAYLOAD");
             assertThat(second.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"))
                     .path("payload").path("code").asText()).isEqualTo("NOT_GAME_SELECTOR");
-            first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
-            first.request("READY_SET", Map.of("ready", true));
-            assertThat(second.request("READY_SET", Map.of("ready", true)).path("payload")
-                    .path("allReady").asBoolean()).isTrue();
+            JsonNode selected = first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK"));
+            assertThat(selected.path("type").asText()).isEqualTo("TABLE_STATE");
+            long selectedVersion = selected.path("payload").path("version").asLong();
+            // 방장 응답 수신은 상대 소켓의 설정 수신을 보장하지 않는다. 실제 받은 설정에 동의한 뒤 준비한다.
+            second.await(message -> message.path("type").asText().equals("TABLE_STATE")
+                    && message.path("payload").path("version").asLong() >= selectedVersion
+                    && message.path("payload").path("gameCode").asText().equals("OMOK")
+                    && message.path("payload").path("betAmountPerPlayer").asLong() == 1);
+            JsonNode firstReady = first.request("READY_SET", Map.of("ready", true));
+            assertThat(firstReady.path("type").asText()).as(firstReady.toString()).isEqualTo("TABLE_STATE");
+            JsonNode secondReady = second.request("READY_SET", Map.of("ready", true));
+            assertThat(secondReady.path("type").asText()).as(secondReady.toString()).isEqualTo("TABLE_STATE");
+            assertThat(secondReady.path("payload").path("allReady").asBoolean()).isTrue();
             first.request("TABLE_LEAVE", Map.of());
             second.request("TABLE_LEAVE", Map.of());
         }

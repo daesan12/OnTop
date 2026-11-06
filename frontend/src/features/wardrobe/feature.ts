@@ -1,7 +1,10 @@
-/** Wardrobe outfits (마이룸 customising) are on in the dev build (VITE_WARDROBE_OUTFITS=true, like the
- * alkkagi flag) and in local development, and off in the production build until they open to users: the
- * wardrobe then lists no outfits and every avatar keeps its default clothes, whatever the server sends. */
-export function wardrobeOutfitsEnabled(env: { VITE_WARDROBE_OUTFITS?: string; DEV?: boolean }) {
-  return env.VITE_WARDROBE_OUTFITS === 'true' || !!env.DEV && env.VITE_WARDROBE_OUTFITS !== 'false'
+/** The deployed development park remains testable even if its remote build omits the dev flag.
+ * Explicit false closes it; other deployed hosts retain the existing closed-by-default policy. */
+export function wardrobeOutfitsEnabled(
+  env: { VITE_WARDROBE_OUTFITS?: string; DEV?: boolean },
+  hostname = typeof window === 'undefined' ? '' : (window.location?.hostname ?? ''),
+) {
+  return env.VITE_WARDROBE_OUTFITS === 'true'
+    || (!!env.DEV || hostname === 'dev.on-top.world') && env.VITE_WARDROBE_OUTFITS !== 'false'
 }
 export const WARDROBE_OUTFITS_ENABLED = wardrobeOutfitsEnabled(import.meta.env)

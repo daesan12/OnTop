@@ -44,7 +44,13 @@ def classify(paths: list[str]) -> dict[str, int]:
             result["FRONTEND_CHANGED"] = 1
         elif normalized == "Jenkinsfile" or normalized.startswith("infra/ci/"):
             result["CI_CONFIG_CHANGED"] = 1
-        elif normalized == "infra/app/compose.dev.yaml" or normalized.startswith(
+        elif normalized.endswith(".md"):
+            continue
+        elif normalized in (
+            "infra/app/compose.dev.yaml",
+            "infra/app/compose.skewer-coop.yaml",
+            "infra/app/verify-skewer-coop-db.sh",
+        ) or normalized.startswith(
             "infra/app/nginx/"
         ) or normalized.startswith("infra/app/dev."):
             result["DEV_CONFIG_CHANGED"] = 1
@@ -60,7 +66,6 @@ def classify(paths: list[str]) -> dict[str, int]:
         elif normalized == ".gitignore" or (
             normalized.startswith("docs/")
             or normalized.startswith("analytics/")
-            or normalized.endswith(".md")
         ):
             # Documentation, offline analytics and Git ignore rules do not change the app.
             continue

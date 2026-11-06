@@ -63,7 +63,8 @@ async function boot() {
     }
   } })
   createRoot(document.getElementById('root')!).render(<>
-    <ParkPage onExit={async () => { await parkRuntime.stop(); location.reload() }} exitError="" onAuthEnded={() => location.reload()} />
+    <ParkPage onExit={async () => { await parkRuntime.stop(); location.reload() }} exitError=""
+      onAuthEnded={() => location.reload()} onOperationBlocked={() => location.reload()} />
     <LocalChannelEntry />
     <nav style={{position:'fixed',bottom:8,left:8,zIndex:65,background:'#fff8df',padding:8,borderRadius:8}} aria-label="로컬 공원 검수">
       <strong>로컬 검수 · 실제 회원/재화 없음</strong> · <a href="?role=red" target="_blank">홍팀</a> · <a href="?role=green" target="_blank">청팀</a> · <a href="?role=viewer" target="_blank">관전</a>

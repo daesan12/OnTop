@@ -15,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -97,8 +98,22 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings",
                 "GET /api/v1/rankings/park",
                 "GET /api/v1/raffles/current", "POST /api/v1/raffles/current/tickets",
+                "GET /api/v1/raffles/rounds/{weekStart}/result",
+                "GET /api/v1/admin/raffles/rounds/{weekStart}",
+                "POST /api/v1/admin/raffles/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
+                "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
+                "POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/assets/rounds/{weekStart}/result",
+                "GET /api/v1/admin/events/assets/rounds/{weekStart}",
+                "POST /api/v1/admin/events/assets/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/winnings/me",
+                "PUT /api/v1/events/winnings/weeks/{weekStart}/contact",
+                "GET /api/v1/admin/events/winners",
+                "GET /api/v1/admin/events/winners/{winnerId}/contact",
                 "GET /api/v1/minigames/bungeoppang/rankings",
-                "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats"));
+                "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
+                "POST /api/v1/behavior-events"));
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("GET /api/v1/channels", "GET /api/v1/tables"));
             assertThat(api.at("/components/schemas/TableSummaryResponse/properties/gameId/nullable").asBoolean())
@@ -118,6 +133,8 @@ abstract class OpenApiHttpTestSupport {
                     "GET /api/v1/minigames/plus-minus/status", "POST /api/v1/minigames/plus-minus/rounds",
                     "GET /api/v1/minigames/whack-a-mole/status", "POST /api/v1/minigames/whack-a-mole/rounds",
                     "POST /api/v1/minigames/whack-a-mole/rounds/{roundId}/complete",
+                    "POST /api/v1/minigames/speed-mole/rounds", "POST /api/v1/minigames/speed-mole/rounds/{roundId}/complete",
+                    "GET /api/v1/minigames/speed-mole/rankings",
                     "GET /api/v1/minigames/sessions/{sessionId}",
                     "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                     "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
@@ -337,6 +354,46 @@ abstract class OpenApiHttpTestSupport {
                 assertThat(schema.path("required").size()).isEqualTo(schema.path("properties").size());
             }
         }
+    }
+
+    @Test
+    void 미니게임_행사_type은_문자열_열거형이고_세션_ID는_숫자_패턴이다() throws Exception {
+        var paths = json().path("paths");
+        for (String path : List.of(
+                "/api/v1/events/minigames/{type}/rounds/{weekStart}/result",
+                "/api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
+                "/api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize")) {
+            var operation = paths.path(path).path(path.endsWith("/finalize") ? "post" : "get");
+            assertThat(operation.isMissingNode()).isFalse();
+            var schema = pathParameter(operation, "type").path("schema");
+            assertThat(schema.path("type").asText()).isEqualTo("string");
+            assertThat(schema.path("enum").toString()).isEqualTo("[\"bungeoppang\",\"jumpmap\"]");
+            assertThat(schema.has("pattern")).isFalse();
+        }
+        var complete = paths.path("/api/v1/minigames/sessions/{sessionId}/complete").path("post");
+        assertThat(pathParameter(complete, "sessionId").path("schema").path("pattern").asText())
+                .isEqualTo("^[1-9][0-9]{0,18}$");
+    }
+
+    @Test
+    void 엽전_행사_당첨자_문서는_미니게임_상품_스키마와_구분한다() throws Exception {
+        var schemas = json().at("/components/schemas");
+        assertThat(schemas.at("/AssetAwardResponse/properties/winners/items/$ref").asText())
+                .isEqualTo("#/components/schemas/AssetWinner");
+        assertThat(schemas.at("/AssetMemberAwardResponse/properties/prize/$ref").asText())
+                .isEqualTo("#/components/schemas/AssetPrize");
+        assertThat(schemas.at("/AssetWinner/properties/place/type").asText()).isEqualTo("integer");
+        assertThat(schemas.at("/AssetPrize/properties/coinBalance/type").asText())
+                .isEqualTo("integer");
+    }
+
+    private JsonNode pathParameter(JsonNode operation, String name) {
+        for (JsonNode parameter : operation.path("parameters")) {
+            if (parameter.path("name").asText().equals(name)) {
+                return parameter;
+            }
+        }
+        throw new AssertionError("OpenAPI path parameter is missing: " + name);
     }
 
     @Test

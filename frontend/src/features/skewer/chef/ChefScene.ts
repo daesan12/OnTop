@@ -11,9 +11,10 @@ import type { ChefView, ChefAction, ChefJob } from './model'
 import { chefPresentation } from './chefPresentation'
 import { ChefHall } from './ChefHall'
 import { INITIAL_PANTRY } from '../cooperativeMenu'
+import { closingTime } from '../closingTime'
 
 export type ChefMode = 'pc' | 'vr'
-type Pick = { ingredient: IngredientId } | { action: 'thread' | 'unthread' | 'submit' | 'stick' | 'coop' } | { slot: number }
+type Pick = { ingredient: IngredientId } | { action: 'thread' | 'unthread' | 'submit' | 'stick' | 'coop' | 'restartRequest' | 'restartAccept' | 'restartDecline' } | { slot: number }
 type Held = { ingredient: IngredientId; root: THREE.Group }
 const HOME = new THREE.Vector3(0, 1.25, .48), TIP = new THREE.Vector3(1.3, 0, 0)
 const COUNTER_TOP = 1.02
@@ -73,6 +74,12 @@ export class ChefScene {
   private readonly coopCanvas = document.createElement('canvas')
   private coopTexture?: THREE.CanvasTexture
   private coopPanel?: THREE.Group
+  private readonly restartRequest = new THREE.Group()
+  private readonly restartReply = new THREE.Group()
+  private readonly restartChoices = new THREE.Group()
+  private readonly restartWaiting = new THREE.Group()
+  private lastRestart = ''
+  private round = 0
   private actionSignature = ''; private feedback = ''; private feedbackUntil = 0
   private readonly timerTexture: THREE.CanvasTexture
   private readonly clock: THREE.Mesh
@@ -83,7 +90,7 @@ export class ChefScene {
   private readonly observer: ResizeObserver
   private readonly marker: THREE.Mesh
   private view: ChefView; private mode: ChefMode; private disposed = false; private session: XRSession | null = null
-  private owner: number | null = null; private signature = ''; private passSignature = ''; private boardSignature = ''; private timerSecond = -1; private last = 0; private frame = 0
+  private owner: number | null = null; private signature = ''; private passSignature = ''; private boardSignature = ''; private timerSecond = -1; private last = 0
   constructor(private host: HTMLElement, initial: ChefView, mode: ChefMode, private step: (dt: number) => ChefView, private action: (action: ChefAction) => void, private notice: (s: string) => void, private xrChanged: (active: boolean) => void) {
     this.view = initial; this.mode = mode; this.previousCompleted = initial.completed ?? 0; this.previousOrders = initial.visible.map(job => ({ ...job, recipe: [...job.recipe] }))
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); this.renderer.outputColorSpace = THREE.SRGBColorSpace
@@ -199,10 +206,10 @@ export class ChefScene {
     const target = this.mesh(new THREE.BoxGeometry(size.x, size.y, size.z), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }))
     target.castShadow = target.receiveShadow = false; target.position.copy(p); target.userData.pick = pick; parent.add(target); this.pickables.push(target); return target
   }
-  private counterSign(text: string, width: number, height: number, x: number, z: number, parent: THREE.Group = this.world.root, shortcut?: string) {
+  private counterSign(text: string, width: number, height: number, x: number, z: number, parent: THREE.Group = this.world.root, shortcut?: string, lift = 0) {
     const alternative = ['wood', 'menu', 'minimal'].includes(this.labelStyle ?? '')
     const a = this.world, tilt = alternative ? -.3 : -.6, footHeight = .035
-    const stand = a.place(parent, new THREE.Group(), x, COUNTER_TOP, z)
+    const stand = a.place(parent, new THREE.Group(), x, COUNTER_TOP + lift, z)
     if (this.labelStyle !== 'minimal') a.place(stand, a.box(width + .025, footHeight, .15, '#68452d', .01), 0, footHeight / 2, 0)
     // Anchor the bottom edge above the counter, including the tilted backing's thickness.
     const centerY = footHeight + height / 2 * Math.cos(tilt) + .012
@@ -210,7 +217,7 @@ export class ChefScene {
     back.rotation.x = tilt
     const label = this.sign(text, width, height, shortcut, true)
     label.position.z = .015; back.add(label)
-    return new THREE.Vector3(x, COUNTER_TOP + centerY, z)
+    return new THREE.Vector3(x, COUNTER_TOP + lift + centerY, z)
   }
   private buildKitchen() {
     const a = this.world, r = a.root
@@ -288,10 +295,10 @@ export class ChefScene {
         const food = this.foods.create(item.id); food.scale.setScalar(1.75); food.rotation.set(.2, j % 2 ? .2 : -.3, 0)
         a.place(bowl, food, (j % 3 - 1) * .19, .18 + Math.floor(j / 3) * .035, (Math.floor(j / 3) - 1) * .15)
       }
-      this.counterSign(item.name, .75, .21, 0, -.17, station)
+      this.counterSign(item.name, .75, .21, 0, -1.12, station, undefined, .42)
       const number = this.sign(String(i + 1), .14, .14, undefined, true)
       const alternative = ['wood', 'menu', 'minimal'].includes(this.labelStyle ?? '')
-      number.rotation.x = alternative ? -.3 : -.6; a.place(r, number, x - .29, alternative ? 1.17 : 1.16, -.09)
+      number.rotation.x = alternative ? -.3 : -.6; a.place(r, number, x - .29, alternative ? 1.59 : 1.58, -1.04)
       const ring = a.place(station, new THREE.Group(), 0, 1.25, z)
       const gold = new THREE.MeshBasicMaterial({ color: '#ffd468', toneMapped: false })
       for (const side of [-1, 1]) { a.place(ring, this.mesh(new THREE.BoxGeometry(.83, .014, .016), gold), 0, 0, side * .352); a.place(ring, this.mesh(new THREE.BoxGeometry(.016, .014, .72), gold), side * .406, 0, 0) }
@@ -327,6 +334,19 @@ export class ChefScene {
       const greeting = this.mesh(new THREE.PlaneGeometry(1.6, .32), new THREE.MeshBasicMaterial({ map: this.coopTexture, toneMapped: false }))
       a.place(this.coopPanel, greeting, 2.59, 1.76, -1.43)
       this.hitBox(this.coopPanel, new THREE.Vector3(2.59, 1.76, -1.43), new THREE.Vector3(1.65, .33, .12), { action: 'coop' })
+      r.add(this.restartRequest, this.restartReply)
+      a.place(this.restartRequest, this.sign('다시 시작 요청', 1.25, .24), 2.59, 2.2, -1.43)
+      this.hitBox(this.restartRequest, new THREE.Vector3(2.59, 2.2, -1.43), new THREE.Vector3(1.3, .28, .12), { action: 'restartRequest' })
+      a.place(this.restartReply, a.box(3.7, 1.12, .06, '#f4e6cb', .025), 0, 2.03, -.45)
+      a.place(this.restartReply, this.sign('함께 다시 시작할까요?', 3.4, .24), 0, 2.36, -.4)
+      a.place(this.restartReply, this.sign('점수·주문 초기화 / 15초 내 응답', 3.4, .18), 0, 2.10, -.4)
+      this.restartReply.add(this.restartChoices)
+      this.restartReply.add(this.restartWaiting)
+      a.place(this.restartWaiting, this.sign('친구의 응답을 기다리고 있어요', 3.4, .24), 0, 1.77, -.39)
+      for (const [x, label, action] of [[-.88, '기존 경기 계속', 'restartDecline'], [.88, '동의하고 다시 시작', 'restartAccept']] as const) {
+        a.place(this.restartChoices, this.sign(label, 1.6, .24), x, 1.77, -.39)
+        this.hitBox(this.restartChoices, new THREE.Vector3(x, 1.77, -.39), new THREE.Vector3(1.65, .3, .12), { action })
+      }
     }
   }
   private recipe(ids: readonly IngredientId[], scale: number) {
@@ -420,18 +440,24 @@ export class ChefScene {
   }
   private paintClock() {
     const ctx = this.timerCanvas.getContext('2d')!, s = Math.ceil(this.view.seconds)
+    const closing = closingTime(this.view.seconds)
     ctx.clearRect(0, 0, 1200, 240)
     ctx.fillStyle = '#302c27'; ctx.beginPath(); ctx.roundRect(4, 4, 1192, 232, 24); ctx.fill()
     ctx.strokeStyle = '#9b744e'; ctx.lineWidth = 5; ctx.stroke()
+    if (closing.phase !== 'normal') {
+      ctx.fillStyle = closing.phase === 'warning' ? '#694a26' : '#783a2c'
+      ctx.beginPath(); ctx.roundRect(12, 12, 385, 216, 18); ctx.fill()
+      ctx.fillStyle = closing.color; ctx.fillRect(35, 208, 340 * Math.min(1, s / 60), 5)
+    }
     const entries = [
-      ['남은 시간', String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0')],
+      [closing.label, String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0')],
       ['팀 점수', (this.view.cooperative?.score ?? 0).toLocaleString('ko-KR') + '점'],
       ['요리 완료', String(this.view.completed ?? 0) + '개'],
     ]
     entries.forEach(([label, value], i) => {
       const x = 200 + i * 400
       ctx.textAlign = 'center'; ctx.fillStyle = '#d1bd96'; ctx.font = '30px "Malgun Gothic",sans-serif'; ctx.fillText(label, x, 66)
-      ctx.fillStyle = '#ffe8ba'; ctx.font = '700 72px "Malgun Gothic",sans-serif'; ctx.fillText(value, x, 164, 360)
+      ctx.fillStyle = i === 0 ? closing.color : '#ffe8ba'; ctx.font = '700 72px "Malgun Gothic",sans-serif'; ctx.fillText(value, x, 164, 360)
       if (i > 0) { ctx.strokeStyle = '#766044'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(i * 400, 38); ctx.lineTo(i * 400, 196); ctx.stroke() }
     })
     this.timerTexture.needsUpdate = true
@@ -452,6 +478,12 @@ export class ChefScene {
     this.camera.fov = 65; this.camera.updateProjectionMatrix(); this.host.dataset.mode = mode
   }
   private activate(pick: Pick) {
+    if ('action' in pick && ['restartRequest', 'restartAccept', 'restartDecline'].includes(pick.action)) {
+      if (pick.action === 'restartRequest' && !this.view.cooperative?.paused) this.action({ type: 'restartRequest' })
+      if (pick.action === 'restartAccept' && this.view.cooperative?.restart && !this.view.cooperative.restart.own) this.action({ type: 'restartAccept' })
+      if (pick.action === 'restartDecline' && this.view.cooperative?.restart && !this.view.cooperative.restart.own) this.action({ type: 'restartDecline' })
+      return
+    }
     if (chefPresentation(this.view).blocked && !('action' in pick && pick.action === 'coop')) return
     if ('ingredient' in pick) this.action({ type: 'select', ingredient: pick.ingredient })
     else if ('slot' in pick) { if (this.receiptMotion) return; const job = this.view.visible[pick.slot]; if (job) this.action({ type: 'choose', id: job.id }) }
@@ -553,7 +585,7 @@ export class ChefScene {
         else if (good) { this.feedback = ''; this.action({ type: 'thread', ingredient: held.ingredient }) }
         else this.showNotice('꼬치 끝에 재료의 중심과 방향을 맞춰 주세요.')
       }
-      const grab = () => { const pick = this.controllerHit(i)?.object.userData.pick as Pick | undefined; if (pick && 'action' in pick && pick.action === 'stick' && this.owner === null && !this.held.has(i)) { c.attach(this.skewer); this.skewer.rotation.set(0, 0, 0); this.skewer.position.set(1.51 * this.kitchen.scale.x, 0, -.12); this.owner = i } }
+      const grab = () => { const pick = this.controllerHit(i)?.object.userData.pick as Pick | undefined; if (pick && 'action' in pick && pick.action === 'stick' && !chefPresentation(this.view).blocked && this.owner === null && !this.held.has(i)) { c.attach(this.skewer); this.skewer.rotation.set(0, 0, 0); this.skewer.position.set(1.51 * this.kitchen.scale.x, 0, -.12); this.owner = i } }
       const release = () => { if (this.owner === i) this.returnStick() }
       const disconnect = () => { this.held.get(i)?.root.removeFromParent(); this.held.delete(i); release(); if (this.session) this.showNotice('컨트롤러 연결을 확인해 주세요.') }
       c.addEventListener('selectstart', start); c.addEventListener('selectend', end); c.addEventListener('squeezestart', grab); c.addEventListener('squeezeend', release); c.addEventListener('disconnected', disconnect)
@@ -595,6 +627,18 @@ export class ChefScene {
     const now = performance.now(), dt = this.last ? Math.min(.1, (now - this.last) / 1000) : 0; this.last = now
     this.view = this.step(this.session && this.session.visibilityState !== 'visible' ? 0 : dt)
     const v = this.view, signature = v.skewer.join(',')
+    const restart = v.cooperative?.restart
+    if ((restart && restart.id !== this.lastRestart) || (v.cooperative?.round ?? 0) !== this.round) {
+      this.held.forEach(held => held.root.removeFromParent()); this.held.clear(); this.returnStick()
+      this.receiptMotion = null; this.previousOrders = []; this.previousCompleted = v.completed ?? 0
+      this.feedback = ''; this.feedbackUntil = 0; this.actionSignature = ''
+      this.round = v.cooperative?.round ?? 0
+    }
+    this.lastRestart = restart?.id ?? ''
+    this.restartRequest.visible = (this.mode === 'vr' || !!this.session) && v.cooperative?.phase === 'PLAYING' && !v.cooperative.paused
+    this.restartReply.visible = (this.mode === 'vr' || !!this.session) && !!restart
+    this.restartChoices.visible = !!restart && !restart.own
+    this.restartWaiting.visible = !!restart && restart.own
     if (signature !== this.signature) { this.signature = signature; this.assembled.clear(); this.assembled.add(this.recipe(v.skewer, 2.1)) }
     const passSignature = v.pass.map(d => d.id).join(',')
     if (passSignature !== this.passSignature) {
@@ -651,7 +695,7 @@ export class ChefScene {
     this.undoTarget.getWorldPosition(this.v2); this.project('undo', this.v2.x, this.v2.y, this.v2.z)
     this.passFurniture.localToWorld(this.v2.set(2.59, 1.3, -1.22)); this.project('submit', this.v2.x, this.v2.y, this.v2.z)
     if (this.session) this.renderer.render(this.scene, this.camera)
-    else if (++this.frame % 2 === 0 || dt > .025) this.post.render()
+    else this.post.render()
   }
   dispose() {
     this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); this.onEndListeners.forEach(fn => fn()); this.renderer.domElement.removeEventListener('pointerdown', this.pointer); this.renderer.domElement.removeEventListener('pointermove', this.pointerMove); this.renderer.domElement.removeEventListener('pointerleave', this.pointerLeave); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)

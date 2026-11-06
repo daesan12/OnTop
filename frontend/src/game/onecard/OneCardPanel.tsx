@@ -18,6 +18,7 @@ import { useOneCardPranks } from './prankEvents'
 import { useOneCardDefense } from './defenseEvents'
 import { OneCardDefenseOverlay } from './OneCardDefense'
 import { OneCardSpectatorHands } from './OneCardSpectatorHands'
+import { OneCardOpponentHud } from './OneCardOpponentHud'
 import { useHammerShortcut } from './useHammerShortcut'
 import { OneCardSuitChoice } from './OneCardSuitChoice'
 import { dealtCount, openingActive, openingAge, SHUFFLE_MS } from './opening'
@@ -101,6 +102,7 @@ export function OneCardPanel() {
       <small>{({ none: '남은 손패', pending: '원카드 선언 대기', declared: '원카드 선언!', caught: '미선언 벌칙', expired: '선언 시간 종료' })[p.oneCardStatus]}</small>
       {p.oneCardStatus === 'pending' && !finished && <small>반응 시간 약 {windowLeft(p.oneCardUntil)}초</small>}
     </div>)}</div>
+    {!spectator && !finished && <OneCardOpponentHud state={o} ownId={ownId} profiles={session.profiles} handCount={hand?.hand.length ?? 0} />}
     <div className="onecard-public" aria-label="바닥 카드와 공격 정보">
       <div className={`onecard-card ${redCard(o.topCard) ? 'red' : ''}`} aria-label={`바닥 카드 ${cardLabel(o.topCard)}`}><CardFace card={o.topCard} /></div>
       <div className="onecard-public-details"><span className="onecard-public-heading">현재 카드</span><p>현재 무늬: {SUIT_GLYPH[o.activeSuit]} {SUIT_NAME[o.activeSuit]}</p>

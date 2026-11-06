@@ -4,6 +4,83 @@ import { LocalMovementPrediction, type PredictionSimulation } from '../../src/ne
 const origin = { x: 0, y: .84, z: 0, yaw: 0 }
 const motion = { epoch: 1, tick: 0, appliedInputSeq: 0, inputAgeMs: 0,
   velocityY: 0, grounded: true, inputActive: true, authority: 'CLIENT_VALIDATED' as const }
+const tuned = { ...motion, profile: 'PARK_V1' as const }
+const stop = { dx: 0, dz: 0, run: false, jump: false }
+
+it('compresses straight reports and clears old path samples on a correction epoch', async () => {
+  let p = { ...origin }
+  const simulation: PredictionSimulation = { reset(pose) { p = { ...pose } },
+    step(input, seconds) { p.x += input.dx * 6 * seconds }, pose: () => ({ ...p }),
+    stepJumped: () => false, stepSupported: () => true, setChairs() {}, dispose() {} }
+  const prediction = new LocalMovementPrediction(async () => simulation, () => 0)
+  prediction.reconcile('path', origin, tuned, true, 0); await prediction.prepare()
+  const walk = { ...stop, dx: 1 }
+  prediction.intend(walk, 0)
+  const report = prediction.positionReport(1, walk, 60)!
+  expect(report.path).toEqual([{ x: report.x, y: report.y, z: report.z, jump: false }])
+  prediction.sample(100, { ...origin })
+  prediction.reconcile('path', { ...origin, x: 2 }, { ...tuned, epoch: 2, tick: 1, correctionReason: 'COLLISION' }, true, 100)
+  expect(prediction.positionReport(2, walk, 100)?.path).toEqual([{ x: 2, y: origin.y, z: origin.z, jump: false }])
+  expect(prediction.positionReport(3, walk, 160)?.path?.every(point => point.x >= 2)).toBe(true)
+  prediction.reset()
+})
+
+it('reports an actual buffered takeoff and its preceding landing even when the raw jump key is no longer pressed', async () => {
+  let p = { ...origin }, steps = 0
+  const simulation: PredictionSimulation = { reset(pose) { p = { ...pose }; steps = 0 },
+    step() { steps++; p.y = steps === 1 ? 1.1 : steps === 2 ? .84 : 1.2 }, pose: () => ({ ...p }),
+    stepJumped: () => steps === 3, stepSupported: () => steps === 2, setChairs() {}, dispose() {} }
+  const prediction = new LocalMovementPrediction(async () => simulation, () => 0)
+  prediction.reconcile('path', origin, tuned, true, 0); await prediction.prepare()
+  prediction.intend({ ...stop, jump: true }, 0)
+  prediction.intend(stop, 10)
+  const report = prediction.positionReport(1, stop, 60)!
+  expect(report.jump).toBe(false)
+  const takeoff = report.path!.findIndex(point => point.jump)
+  expect(takeoff).toBeGreaterThan(0)
+  expect(report.path![takeoff - 1]?.y).toBe(.84)
+  expect(report.path?.every(point => !('supported' in point))).toBe(true)
+  prediction.reset()
+})
+
+it('retains all 64 samples and holds before overflow, then resumes without catching up elapsed wall time', async () => {
+  let p = { ...origin }, steps = 0
+  const simulation: PredictionSimulation = { reset(pose) { p = { ...pose } },
+    step() { steps++; p.x += .001; p.y += steps % 2 ? .001 : -.001 }, pose: () => ({ ...p }),
+    stepJumped: () => steps === 31, stepSupported: () => steps % 2 === 0, setChairs() {}, dispose() {} }
+  const prediction = new LocalMovementPrediction(async () => simulation, () => 0)
+  prediction.reconcile('path', origin, tuned, true, 0); await prediction.prepare()
+  for (let time = 1; time <= 1000; time++) prediction.sample(time, { ...origin })
+  expect(steps).toBe(64)
+  const report = prediction.positionReport(1, stop, 1000)!
+  expect(report.path).toHaveLength(64)
+  expect(report.path![30]?.jump).toBe(true)
+  expect(report.path!.at(-1)).toMatchObject({ x: report.x, y: report.y, z: report.z })
+  const held = report.x
+  const resumed = prediction.positionReport(2, stop, 1060)!
+  expect(resumed.path!.length).toBeLessThanOrEqual(4)
+  expect(resumed.x - held).toBeCloseTo(.004)
+  expect(steps).toBe(68)
+  prediction.reset()
+})
+
+it('bounds a delayed straight batch by physical duration even when it compresses to one sample', async () => {
+  let p = { ...origin }
+  const simulation: PredictionSimulation = { reset(pose) { p = { ...pose } },
+    step(input, seconds) { p.x += input.dx * 6 * seconds }, pose: () => ({ ...p }),
+    stepJumped: () => false, stepSupported: () => true, setChairs() {}, dispose() {} }
+  const prediction = new LocalMovementPrediction(async () => simulation, () => 0)
+  prediction.reconcile('path', origin, tuned, true, 0); await prediction.prepare()
+  const walk = { ...stop, dx: 1 }
+  prediction.intend(walk, 0)
+  for (let time = 10; time <= 1000; time += 10) prediction.sample(time, { ...origin })
+  const held = prediction.positionReport(1, walk, 1000)!
+  expect(held.x).toBeCloseTo(.6)
+  expect(held.path).toHaveLength(1)
+  const resumed = prediction.positionReport(2, walk, 1060)!
+  expect(resumed.x - held.x).toBeCloseTo(.36)
+  prediction.reset()
+})
 it('approved old position only renews the lease; it never resets/replays newer local physics', async () => {
   let resets = 0, p = { ...origin }
   const simulation: PredictionSimulation = {

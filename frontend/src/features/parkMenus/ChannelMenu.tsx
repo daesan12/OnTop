@@ -21,11 +21,9 @@ export function ChannelMenu() {
   })))
   const telescopeBusy = useTelescopeState(s => s.pending || !!s.placements[state.ownId])
   const [open, setOpen] = useState(false)
-  // First entry with several channels opens the list once; the chip can still fold it away.
-  const [dismissed, setDismissed] = useState(false)
   const root = useRef<HTMLDivElement>(null)
-  const shown = open || (!state.roomId && state.channels.length > 1 && !dismissed)
-  const fold = () => { setOpen(false); setDismissed(true) }
+  const shown = open
+  const fold = () => setOpen(false)
   useEffect(() => {
     if (!shown) return
     const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) fold() }
