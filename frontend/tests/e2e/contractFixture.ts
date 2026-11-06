@@ -406,7 +406,7 @@ export async function fixture(
                     z: anchor.position[2] - 2 - Math.floor(i / 4) * 2,
                     ...(i === 1 ? remotePosition : {}),
                     ...(carries[userId]?.role === 'CARRIED' ? { x: position.x, y: position.y + 1.7, z: position.z }
-                      : carries[userId]?.role === 'THROWN' ? { x: position.x + 2, y: position.y + 1, z: position.z - 3 } : {}),
+                      : carries[userId]?.role === 'THROWN' ? { x: position.x, y: position.y + 1.7, z: position.z } : {}),
                   },
           })),
           ...patch,

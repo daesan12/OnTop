@@ -1,11 +1,67 @@
 import { expect, test, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
+import type { carryThrowGestureFrames } from './sceneProbe'
 
 async function readyCarryScene(page: Page) {
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
   await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length),
     { timeout: 90000 }).toBeGreaterThan(0)
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+}
+
+for (const [view, orbit] of [['forward', 0], ['opposite', Math.PI], ['sideways', Math.PI / 2]] as const) {
+  test(`throw gesture reaches along actual flight with ${view} camera aim`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+    const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
+    await page.goto('/park')
+    await readyCarryScene(page)
+    await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).faceCarryTarget())
+    await expect(page.getByRole('button', { name: /님 들기/ })).toBeVisible()
+    await page.locator('canvas').focus()
+    await page.keyboard.press('KeyE')
+    await expect(page.getByRole('button', { name: /바라보는 방향으로 던지기/ })).toBeVisible()
+    await page.evaluate(async yaw => {
+      const { viewControls } = await import('/src/world/cameraPerspective.ts' as string)
+      viewControls.yaw = yaw; viewControls.pitch = 0
+    }, orbit)
+    await expect.poll(async () => page.evaluate(async () => Math.abs((await import('/tests/e2e/sceneProbe.ts' as string))
+      .adCameraProbe().direction[1]!))).toBeLessThan(.05)
+    const sample = (count: number): ReturnType<typeof carryThrowGestureFrames> => page.evaluate(async frames =>
+      (await import('/tests/e2e/sceneProbe.ts' as string)).carryThrowGestureFrames(frames), count)
+    await sample(12)
+    await page.keyboard.press('KeyE')
+    await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CARRY_THROW').length).toBe(1)
+    const launch = server.sent.find(message => message.type === 'WORLD_CARRY_THROW')!.payload
+    // The acknowledgement is the release position; subsequent public physics snapshots provide flight direction.
+    await sample(2)
+    // Turn the viewing camera after release: the gesture must keep following the original flight.
+    await page.evaluate(async yaw => {
+      const { viewControls } = await import('/src/world/cameraPerspective.ts' as string)
+      viewControls.yaw = yaw + Math.PI / 2; viewControls.pitch = .2; viewControls.distance = 4.5
+    }, orbit)
+    const dx = Number(launch.dx), dz = Number(launch.dz), length = Math.hypot(dx, dz)
+    const flags = { moving: false, running: false, swimming: false, lastInputSeq: 0 }
+    const frames = []
+    for (let tick = 1; tick <= 10; tick++) {
+      const t = tick / 60
+      server.worldSnapshot({ avatars: [
+        { userId: '101', carry: null, position: { ...flags, x: 0, y: .84, z: 78, yaw: Math.PI } },
+        { userId: '102', carry: { carryId: launch.carryId, partnerId: '101', role: 'THROWN' },
+          position: { ...flags, x: dx * 14 * t, y: 2.54 + 8 * t - 15 * t * t, z: 78 + dz * 14 * t, yaw: Math.PI } },
+      ] })
+      frames.push(...await sample(1))
+      if (tick === 7) await screenshot(page, `carry-forward-throw-${view}`)
+    }
+    const reach = frames.map(frame => Math.min(...frame.hands.map(hand => (hand[0]! * dx + hand[2]! * dz) / length)))
+    expect(Math.max(...reach)).toBeGreaterThan(.2)
+    expect(Math.max(...frames.map(frame => frame.spine))).toBeGreaterThan(.08)
+    for (const frame of frames) expect(frame.yaw).toBeCloseTo(Math.PI)
+    await expect(page).toHaveTitle('OnTop')
+    await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+    expect(errors).toEqual([])
+  })
 }
 
 test('pickup hint and E accept the added 20cm of reach and stop outside 2.2m', async ({ page }) => {
