@@ -105,6 +105,28 @@ inventory는 확정 당시 재고이므로 오래된 영수증 복구 후에는 
 가챠 등록 상품은 보유 응답의 setCode를 `gacha:상품코드`로 매핑해 실제 통합 단위로 입고 벗는다.
 collection_code는 수집 디자인 분류용이며 장착 묶음으로 사용하지 않는다. 등록되지 않은 기존 의상 장착 계약은 유지한다.
 
+## V156 DB 스키마 변경과 기존 데이터 영향
+
+`V156__create_shared_gacha.sql`은 아래 **7개 테이블을 새로 생성**한다. 기존 테이블의 컬럼 추가·삭제·변경, 기존 데이터 수정은 없다.
+
+| 새 테이블 | 저장하는 내용 | 주요 식별자·제약 |
+| --- | --- | --- |
+| `gacha_machine` | 환경 전체가 공유하는 현재 회차·상태 버전·등급별 남은 칸 | PK `id=1`인 한 행. 최초 회차1·버전0·수량1/2/4/8/15로 생성 |
+| `gacha_inventory` | 회원별 뽑기권과 1~4등 상자 수량 | PK/FK `user_id → users.id`, 재고 음수 금지 |
+| `gacha_products` | 논리 의상 상품 코드·이름·등급·호환 캐릭터·이미지·수집 디자인·활성 여부 | PK `product_code`, 등급1~4·호환ANY/MALE/FEMALE 제한. 기본 비활성 |
+| `gacha_product_items` | 상품 하나에 포함되는 기존 물리 아이템 ID | PK `(product_code,item_id)`, `item_id` 중복 소속 금지, 상품 FK |
+| `gacha_receipts` | 구매·추첨·개봉 작업의 종류·대상·최초 확정 응답 JSON·시각 | PK `(user_id,operation_id)`, 회원 FK. 같은 작업 재시도에 기존 결과 반환 |
+| `gacha_events` | 커밋과 함께 저장하는 공개 기계 상태·1등 공지 | 증가 PK `id`, 고유 `event_id`, JSON payload·시각 |
+| `gacha_delivery_cursors` | 서버 노드가 어디까지 이벤트를 전달했는지 | PK `node_id`, 마지막 처리 이벤트 ID. 재시작 후 미전달분 재시도 |
+
+기존 `wallets`와 `wallet_transactions`는 기존 구조 그대로 차감·지급·원장 기록에 사용한다. 새 거래 유형 `GACHA_PURCHASE`/`GACHA_PAYOUT`은 기존 문자열 컬럼의 값이며 새 컬럼이 아니다. 획득 의상은 기존 `items`와 `user_items`를 사용한다. 티켓과 미개봉 상자는 `user_items`에 섞지 않는다.
+
+`equipmentValue`·`totalAssets`는 **새 DB 컬럼이 아니라 조회 계산 결과와 API 응답 필드**다. 기존 보유품을 일괄 수정하지 않고, 등록 상품의 구성 아이템을 전부 보유했는지 조회해 상품 가치를 한 번만 합산한다.
+
+선택 적용되는 상점 스키마가 없는 서버도 V156 자체는 적용할 수 있도록 `gacha_product_items.item_id`에는 `items` FK를 걸지 않는다. 기능을 켜기 전 실제 `items` 대응표가 필요하며, 구매·개봉에서 아이템 존재/종류/부위 구성을 서버가 검증한다. 마이그레이션에는 실제 상품·의상 지급·기존 재고 변환·테스트 회원 데이터가 들어 있지 않다.
+
+현재 적용 범위는 공용 DB와 분리한 loopback 검증 DB뿐이다. 개발·운영 DB 적용과 배포는 아직 수행하지 않았다. 공용 적용 시에는 기존 Flyway 성공 이력·팀 공유한 V156 순서 확인 → 기존 상점 스키마 확인 → V156 정상 적용 확인 → 실제 상품 매핑 등록 → 모델·진입점 검수 → 명시적 기능 활성화 순서로 진행한다. 기존 SQL 수정·repair·outOfOrder·DB 초기화는 사용하지 않는다.
+
 ## 등록·배포
 
 V156은 새로운 가챠 테이블만 추가한다. 선택적 db/shop 테이블에 FK를 걸지 않아 SHOP 미활성 서버의 기본 마이그레이션을 막지 않는다.
