@@ -196,13 +196,14 @@
   - 원본 얼룩: `flat_collar.py`가 목 주변 전복 텍스처를 흰색·주황·검정으로 나누고(`win=31` 다수결로 얼룩과 끊긴 검은 끈 제거) 각각 한 색으로 칠한다.
   - 그래도 왼쪽 주황 띠가 V 끝까지 오지 않고 오른쪽 띠에 검은 톱니가 파고들었다(user). `mirror=1`: 앞에서 본 지도(1mm 칸마다 가장 앞 면)로 좌우를 맞춰 더 밝은 쪽 색(주황 > 흰색 > 검정)을 준다. 오른쪽 섶이 왼쪽 섶을 덮는 여밈이라 3D 거울점으로는 가려진 안쪽 섶에 맞춰졌다.
   - 가운데 검은 줄은 칠이 아니라 두 섶 사이 틈(옷 뒤판 안쪽이 보임)이었다. `plug=1`: 틈을 흰색·주황(반대편 색)의 면으로 뒤에서 막고, 틈 안의 텍스처 넓이 0인 가는 면은 지운다. 그 주변의 가는 면은 지도 색으로 다시 칠한다(한 텍셀 색이라 흰 깃 속에 검은 가시로 보였다).
+  - 위에서 보면 목 아래로 바닥이 비쳤다(user). 게임은 면의 앞쪽만 그리는데 깃이 목 앞에서 떨어져 있어, 틈으로 옷 안쪽(그려지지 않음)을 지나 뒤가 보였다. `lining=0.12`: 목 관절 12cm 아래부터 위의 상의 면을 안쪽으로 뒤집어 0.5mm 안에 한 겹 더 둔다(같은 텍셀·가중치).
   - 게임 변환: 각도 1.5도로 새로 펼친 조각이 수천 개라 조각 사이 여백이 아틀라스를 차지해, 옷깃에 텍셀이 적게 돌아가 계단처럼 뭉개졌다. `repack=1`로 여백을 줄여 다시 배치한다. `atlas=4096`이나 `bake=project`, 목 주변 감량 제외로는 나아지지 않았다.
 
 ```bash
 "$B" -b --python tools/character/satto_prep.py -- satto_outfit_parts.glb satto_parts_prep.glb
 "$B" -b --python tools/character/fit_outfit.py -- shared_layers_hij.glb satto_parts_prep.glb shared_k.glb set=k s=1.065 head_fit=91 "map=HAIR:0,92;TOP:10,6,8,2,11,3;BOTTOM:93;SHOES:4,5" skirt=TOP pants=1 under_tops=1 cull=1 "seam=10>6,8" dark_lining=SHOES shoe_cap=1 shoe_cap_depth=0.01 under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9 push_neck=back rim_neck=20
 "$B" -b --python tools/character/hat_hair.py -- shared_k.glb hk.glb set=k girl=j straps=2000
-"$B" -b --python tools/character/flat_collar.py -- hk.glb hk_c.glb set=k win=31 mirror=1 plug=1
+"$B" -b --python tools/character/flat_collar.py -- hk.glb hk_c.glb set=k win=31 mirror=1 plug=1 lining=0.12
 "$B" -b --python tools/character/to_game.py -- hk_c.glb out/satto_raw.glb satto HAIR=k TOP=k BOTTOM=k SHOES=k pieces=1 body=0 near=75000 atlas=2048 fill=1 keep_head=0 repack=1
 ```
 

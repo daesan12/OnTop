@@ -1,5 +1,5 @@
 """A collar in clean flat colours: -- <shared.glb> <out.glb> set=k [down=0.13] [up=0.04] [xmax=0.1] [win=15] [grow=6] [white=0.5]
-       [mirror=1] [plug=1]
+       [mirror=1] [plug=1] [lining=0.12]
 Tripo painted the 사또's collar (white inner collar, orange band, the black vest around them) with blotches and a
 broken black tie between them; in the game it looked smeared and broken (user). Around the neck (neck joint `down`
 below to `up` above, |x| < xmax) the set's top faces are drawn into a mask in their texture (grown `grow` texels).
@@ -12,7 +12,10 @@ The black stripe down the middle was no paint: the opening between the two flaps
 robe's back showed. plug=1 closes it from behind: the front view's hole (cells with no front surface but front
 surface on all four sides), grown two cells under the flaps, becomes a grid of quads just behind the surfaces around
 it, each cell on its mirror cell's sort (white above, the orange band below), each corner skinned like the nearest
-top vertex. The zero-UV-area slivers in the opening go; around it they take the view's sort."""
+top vertex. The zero-UV-area slivers in the opening go; around it they take the view's sort.
+lining=d: the game draws front faces only, and the collar stands off the neck in front; seen from above, the gap
+showed the ground through the robe's culled inside (user). The top's faces from d below the neck joint up get an
+inner copy, turned inward and 0.5 mm in, on the same texels and weights."""
 import bpy, bmesh, sys, os, re
 import numpy as np
 from mathutils import Vector
@@ -24,6 +27,7 @@ opt = dict(x.split('=', 1) for x in a[2:])
 SET = opt['set']; DOWN, UP, XM = float(opt.get('down', 0.13)), float(opt.get('up', 0.04)), float(opt.get('xmax', 0.1))
 WIN, GROW = int(opt.get('win', 15)), int(opt.get('grow', 6))
 MIRROR, PLUG = opt.get('mirror', '0') == '1', opt.get('plug', '0') == '1'
+LINING = float(opt.get('lining', 0))
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=src)
 arm = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
@@ -205,6 +209,15 @@ for o in [o for o in bpy.data.objects if o.type == 'MESH' and base(o).startswith
             for g in o.data.vertices[near[k]].groups: o.vertex_groups[g.group].add([vi], g.weight, 'REPLACE')
         print('PLUG', int(big.sum()), 'hole cells,', faces, 'quads')
     img.pixels[:] = P.ravel(); img.pack(); done.add(img.name)
+    if LINING:
+        bm = bmesh.new(); bm.from_mesh(o.data); bm.normal_update()
+        inside = [f for f in bm.faces if all(abs((mw @ v.co).x) < XM and (mw @ v.co).z > neck.z - LINING for v in f.verts)]
+        dup = bmesh.ops.duplicate(bm, geom=inside + list({e for f in inside for e in f.edges}) + list({v for f in inside for v in f.verts}))
+        new_f = [g for g in dup['geom'] if isinstance(g, bmesh.types.BMFace)]
+        for v in (g for g in dup['geom'] if isinstance(g, bmesh.types.BMVert)): v.co -= v.normal * (0.0005 / mw.to_scale().x)
+        bmesh.ops.reverse_faces(bm, faces=new_f)
+        bm.to_mesh(o.data); bm.free()
+        print('LINING', len(new_f), 'faces')
 if ad:
     for t in ad.nla_tracks: t.mute = False
     ad.action = active
