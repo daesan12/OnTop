@@ -90,7 +90,7 @@ export class ChefScene {
   private readonly observer: ResizeObserver
   private readonly marker: THREE.Mesh
   private view: ChefView; private mode: ChefMode; private disposed = false; private session: XRSession | null = null
-  private owner: number | null = null; private signature = ''; private passSignature = ''; private boardSignature = ''; private timerSecond = -1; private last = 0; private frame = 0
+  private owner: number | null = null; private signature = ''; private passSignature = ''; private boardSignature = ''; private timerSecond = -1; private last = 0
   constructor(private host: HTMLElement, initial: ChefView, mode: ChefMode, private step: (dt: number) => ChefView, private action: (action: ChefAction) => void, private notice: (s: string) => void, private xrChanged: (active: boolean) => void) {
     this.view = initial; this.mode = mode; this.previousCompleted = initial.completed ?? 0; this.previousOrders = initial.visible.map(job => ({ ...job, recipe: [...job.recipe] }))
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); this.renderer.outputColorSpace = THREE.SRGBColorSpace
@@ -206,10 +206,10 @@ export class ChefScene {
     const target = this.mesh(new THREE.BoxGeometry(size.x, size.y, size.z), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }))
     target.castShadow = target.receiveShadow = false; target.position.copy(p); target.userData.pick = pick; parent.add(target); this.pickables.push(target); return target
   }
-  private counterSign(text: string, width: number, height: number, x: number, z: number, parent: THREE.Group = this.world.root, shortcut?: string) {
+  private counterSign(text: string, width: number, height: number, x: number, z: number, parent: THREE.Group = this.world.root, shortcut?: string, lift = 0) {
     const alternative = ['wood', 'menu', 'minimal'].includes(this.labelStyle ?? '')
     const a = this.world, tilt = alternative ? -.3 : -.6, footHeight = .035
-    const stand = a.place(parent, new THREE.Group(), x, COUNTER_TOP, z)
+    const stand = a.place(parent, new THREE.Group(), x, COUNTER_TOP + lift, z)
     if (this.labelStyle !== 'minimal') a.place(stand, a.box(width + .025, footHeight, .15, '#68452d', .01), 0, footHeight / 2, 0)
     // Anchor the bottom edge above the counter, including the tilted backing's thickness.
     const centerY = footHeight + height / 2 * Math.cos(tilt) + .012
@@ -217,7 +217,7 @@ export class ChefScene {
     back.rotation.x = tilt
     const label = this.sign(text, width, height, shortcut, true)
     label.position.z = .015; back.add(label)
-    return new THREE.Vector3(x, COUNTER_TOP + centerY, z)
+    return new THREE.Vector3(x, COUNTER_TOP + lift + centerY, z)
   }
   private buildKitchen() {
     const a = this.world, r = a.root
@@ -295,10 +295,10 @@ export class ChefScene {
         const food = this.foods.create(item.id); food.scale.setScalar(1.75); food.rotation.set(.2, j % 2 ? .2 : -.3, 0)
         a.place(bowl, food, (j % 3 - 1) * .19, .18 + Math.floor(j / 3) * .035, (Math.floor(j / 3) - 1) * .15)
       }
-      this.counterSign(item.name, .75, .21, 0, -.17, station)
+      this.counterSign(item.name, .75, .21, 0, -1.12, station, undefined, .42)
       const number = this.sign(String(i + 1), .14, .14, undefined, true)
       const alternative = ['wood', 'menu', 'minimal'].includes(this.labelStyle ?? '')
-      number.rotation.x = alternative ? -.3 : -.6; a.place(r, number, x - .29, alternative ? 1.17 : 1.16, -.09)
+      number.rotation.x = alternative ? -.3 : -.6; a.place(r, number, x - .29, alternative ? 1.59 : 1.58, -1.04)
       const ring = a.place(station, new THREE.Group(), 0, 1.25, z)
       const gold = new THREE.MeshBasicMaterial({ color: '#ffd468', toneMapped: false })
       for (const side of [-1, 1]) { a.place(ring, this.mesh(new THREE.BoxGeometry(.83, .014, .016), gold), 0, 0, side * .352); a.place(ring, this.mesh(new THREE.BoxGeometry(.016, .014, .72), gold), side * .406, 0, 0) }
@@ -695,7 +695,7 @@ export class ChefScene {
     this.undoTarget.getWorldPosition(this.v2); this.project('undo', this.v2.x, this.v2.y, this.v2.z)
     this.passFurniture.localToWorld(this.v2.set(2.59, 1.3, -1.22)); this.project('submit', this.v2.x, this.v2.y, this.v2.z)
     if (this.session) this.renderer.render(this.scene, this.camera)
-    else if (++this.frame % 2 === 0 || dt > .025) this.post.render()
+    else this.post.render()
   }
   dispose() {
     this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); this.onEndListeners.forEach(fn => fn()); this.renderer.domElement.removeEventListener('pointerdown', this.pointer); this.renderer.domElement.removeEventListener('pointermove', this.pointerMove); this.renderer.domElement.removeEventListener('pointerleave', this.pointerLeave); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)

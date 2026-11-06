@@ -30,7 +30,7 @@ test('큰 영수증과 중앙 HUD에서 R 제출·재료 재배치·전달대 �
  await cook(page, await currentRecipe(page)); await page.keyboard.press('r'); await expect(page.getByTestId('cooking-completed')).toHaveText('2개')
  await capture(page, '02-pc-delivery')
  await cook(page, await currentRecipe(page)); const stack = await page.getByTestId('chef-app').getAttribute('data-stack')
- await page.keyboard.press('r'); await expect(page.getByRole('status')).toContainText('가득')
+ await page.keyboard.press('r'); await expect(page.getByRole('status').filter({hasText:'가득'})).toBeVisible()
  await expect(page.getByTestId('chef-app')).toHaveAttribute('data-stack',stack!)
  await page.getByRole('button',{name:'요리사 이용 안내'}).click(); await page.getByRole('button',{name:'전달대 접시 비우기',exact:true}).click(); await page.getByRole('button',{name:'주방으로 돌아가기'}).click()
  await page.keyboard.press('r'); await expect(page.getByTestId('cooking-completed')).toHaveText('3개')
@@ -39,7 +39,7 @@ test('큰 영수증과 중앙 HUD에서 R 제출·재료 재배치·전달대 �
 
 test('큐브 간격을 지키고 틀린 주문도 R로 실제 조립 모습 그대로 제출한다', async ({page}) => {
  await open(page)
- await cook(page,['cheese']); await page.keyboard.press('r'); await expect(page.getByRole('status')).toContainText('2~3개')
+ await cook(page,['cheese']); await page.keyboard.press('r'); await expect(page.getByRole('status').filter({hasText:'2~3개'})).toBeVisible()
  await cook(page,['cheese']); await expect(page.getByTestId('chef-app')).toHaveAttribute('data-stack','cheese')
  await cook(page,['tomato','pepper','cheese']); await expect(page.getByTestId('chef-app')).toHaveAttribute('data-stack','cheese,tomato,pepper')
  await page.keyboard.press('Backspace'); await cook(page,['cheese']); await page.keyboard.press('r')

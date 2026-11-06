@@ -119,14 +119,16 @@ export class CoopClient {
     } catch (error) { if (!this.stopped) this.store.setState({ resultError: '보상을 불러오지 못했어요. 다시 확인해 주세요.' }) }
     finally { if (!this.stopped) this.store.setState({ resultPending: false }) }
   }
-  async refreshRanking() {
-    if (this.store.getState().rankingPending) return
-    this.store.setState({ rankingPending: true, rankingError: '' })
+  private rankingRequest = 0
+  async refreshRanking(mode: 'PC' | 'VR' = this.snapshot?.publicState.rankingMode ?? (this.snapshot?.publicState.chefVR ? 'VR' : 'PC')) {
+    const request = ++this.rankingRequest
+    this.store.setState({ rankingPending: true, rankingError: '', ranking: null })
     try {
-      const value = await this.transport.requestJSON('/api/v1/minigames/skewer/coop/rankings')
-      if (!this.stopped && this.owner === this.transport.scope().userId) this.store.setState({ ranking: parseCoopRanking(value) })
-    } catch (error) { if (!this.stopped) this.store.setState({ rankingError: '팀 랭킹을 불러오지 못했어요. 다시 시도해 주세요.' }) }
-    finally { if (!this.stopped) this.store.setState({ rankingPending: false }) }
+      const value = parseCoopRanking(await this.transport.requestJSON(`/api/v1/minigames/skewer/coop/rankings?mode=${mode}`))
+      if (value.playMode !== mode) throw new Error('플레이 방식이 다른 랭킹입니다.')
+      if (request === this.rankingRequest && !this.stopped && this.owner === this.transport.scope().userId) this.store.setState({ ranking: value })
+    } catch (error) { if (request === this.rankingRequest && !this.stopped) this.store.setState({ rankingError: '팀 랭킹을 불러오지 못했어요. 다시 시도해 주세요.' }) }
+    finally { if (request === this.rankingRequest && !this.stopped) this.store.setState({ rankingPending: false }) }
   }
   async enter(gameId?: string, options: { roomName?: string; password?: string } = {}) {
     if (this.store.getState().pending) return false
@@ -138,12 +140,16 @@ export class CoopClient {
       await this.recover()
       return !!this.snapshot
     } catch (error) {
-      const code = (error as { code?: string }).code
+      const failure = error && typeof error === 'object' ? error as { code?: string; status?: number } : {}
+      const code = failure.code
       this.store.setState({ error: code === 'SKEWER_COOP_PASSWORD_INVALID' ? '비밀번호가 맞지 않아요.'
         : code === 'SKEWER_COOP_PASSWORD_THROTTLED' ? '비밀번호를 여러 번 확인했어요. 30초 후 다시 시도해 주세요.'
         : code === 'SKEWER_COOP_ROOM_FULL' ? '가게 인원이 가득 찼어요. 다른 가게를 선택해 주세요.'
         : code === 'SKEWER_COOP_ROOM_CLOSED' ? '가게가 닫혔어요. 목록에서 다른 가게를 선택해 주세요.'
-        : '가게에 입장하지 못했어요. 방이 닫혔거나 인원이 찼을 수 있어요. 목록에서 다시 선택해 주세요.' })
+        : failure.status === 404 ? '지금은 협동 가게를 열 수 없어요. 잠시 후 다시 시도해 주세요.'
+        : code === 'SKEWER_COOP_STORAGE_UNAVAILABLE' ? '가게 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.'
+        : gameId ? '가게에 참가하지 못했어요. 목록을 새로고침하고 다시 시도해 주세요.'
+        : '가게를 열지 못했어요. 연결을 확인하고 다시 시도해 주세요.' })
       return false
     }
     finally { this.store.setState({ pending: false }) }
