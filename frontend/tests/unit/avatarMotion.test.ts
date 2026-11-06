@@ -60,6 +60,61 @@ describe('avatar pose transitions and resource ownership', () => {
   })
 
   for (const name of ['man', 'girl', 'skins/ssafy-black-male-v3'] as const) {
+    it(`${name}: turns the throwing gesture toward actual flight and returns to the original heading`, async () => {
+      for (const fps of [30, 60]) for (const [heading, dx, dz] of [
+        [0, 0, 1], [0, 0, -1], [Math.PI / 2, -1, 0], [-Math.PI / 2, .6, -.8],
+      ]) {
+        const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
+        const base = new Group(), figure = new Group(), hand = new Vector3(), shoulder = new Vector3()
+        base.rotation.y = heading!
+        base.add(figure); figure.add(rig.root)
+        const facing = { ...pose, yaw: heading! }
+        for (let frame = 0; frame < fps; frame++) motion.apply(avatar({ carry: {
+          carryId: 'carry', partnerId: 'other', role: 'CARRIER',
+        } }), 0, 1 / fps, facing, figure)
+        const flight = { current: { x: 0, y: 2.54, z: 0, yaw: 0 } }
+        motion.apply(avatar(), 0, 1 / fps, facing, figure, null, undefined, flight)
+        flight.current.x = dx! * .4; flight.current.z = dz! * .4
+        for (let frame = 0; frame < fps * .2; frame++) motion.apply(avatar(), 0, 1 / fps, facing, figure, null, undefined, flight)
+        base.updateMatrixWorld(true)
+        for (const side of ['L', 'R'] as const) {
+          rig.bones[`hand_${side}`].getWorldPosition(hand)
+          rig.bones[`upperArm_${side}`].getWorldPosition(shoulder)
+          hand.sub(shoulder)
+          expect(hand.x * dx! + hand.z * dz!).toBeGreaterThan(.2)
+        }
+        expect(rig.bones.spine.rotation.x).toBeGreaterThan(.1)
+        for (let frame = 0; frame < fps * .75; frame++) motion.apply(avatar(), 0, 1 / fps, facing, figure, null, undefined, flight)
+        expect(figure.rotation.y).toBe(0)
+        expect(base.rotation.y).toBe(heading)
+        rig.dispose()
+      }
+    })
+
+    it(`${name}: supports and releases toward the character front instead of behind the shoulders`, async () => {
+      const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
+      const figure = new Group(), hand = new Vector3(), shoulder = new Vector3()
+      figure.add(rig.root)
+      const carrying = avatar({ carry: { carryId: 'carry', partnerId: 'other', role: 'CARRIER' } })
+      for (let frame = 0; frame < 60; frame++) motion.apply(carrying, 0, 1 / 60, pose, figure)
+      for (const state of [carrying, avatar()]) {
+        for (let frame = 0; frame < 12; frame++) {
+          motion.apply(state, 0, 1 / 60, pose, figure)
+          if (!state.carry) {
+            expect(figure.rotation.y).toBe(0)
+            expect(Math.abs(rig.bones.spine.rotation.x)).toBeLessThan(.06)
+          }
+          figure.updateMatrixWorld(true)
+          for (const side of ['L', 'R'] as const) {
+            rig.bones[`hand_${side}`].getWorldPosition(hand)
+            rig.bones[`upperArm_${side}`].getWorldPosition(shoulder)
+            expect(hand.z - shoulder.z).toBeGreaterThan(.1)
+          }
+        }
+      }
+      rig.dispose()
+    })
+
     it(`${name}: keeps both hands outside the torso throughout carry and flight`, async () => {
       const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
       const figure = new Group(), point = new Vector3()

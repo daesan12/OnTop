@@ -89,6 +89,7 @@ function Avatar({
   const inverseRoot = useMemo(() => new Matrix4(), [])
   const presentation = useMemo(() => new AvatarPresentation(), [])
   const motion = useMemo(() => createAvatarMotion(model), [model])
+  const carriedPartner = useRef({ id: '', carryId: '' })
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
   const appearance = useRef<ReturnType<typeof createAvatarOpacity> | null>(null)
   const rendererState = useThree(state => state.get)
@@ -125,6 +126,10 @@ function Avatar({
   useFrame(({ camera }, delta) => {
     const avatar = avatars.get(id)
     if (!avatar || !root.current || !figure.current) return
+    if (avatar.carry?.role === 'CARRIER') {
+      carriedPartner.current.id = avatar.carry.partnerId
+      carriedPartner.current.carryId = avatar.carry.carryId
+    }
     const frameAt = performance.now()
     samplePose(avatar, frameAt, pose)
     const seated = avatar.seatIndex >= 0
@@ -171,7 +176,11 @@ function Avatar({
       !reaction && avatarPoseAmbient(displayAvatar),
     )
     if (!poseDelta) return
-    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)
+    const partner = avatars.get(carriedPartner.current.id)
+    const throwFlight = partner?.carry?.role === 'THROWN' && partner.carry.partnerId === id
+      && partner.carry.carryId === carriedPartner.current.carryId ? partner : null
+    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
+      holdingCards ? oneCardHoldingPose : undefined, throwFlight)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
