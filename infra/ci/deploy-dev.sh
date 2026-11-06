@@ -12,6 +12,7 @@ env_file=/etc/ontop/dev-app/deploy.env
 compose_file=/opt/ontop/infra/app/compose.dev.yaml
 generated_compose=/opt/ontop/infra/app/compose.generated-map.yaml
 generated_marker=/etc/ontop/dev-app/park-map.enabled
+skewer_compose=/opt/ontop/infra/app/compose.skewer-coop.yaml
 record_dir=/var/lib/ontop/ci
 record_file=$record_dir/dev-deployments.tsv
 
@@ -32,6 +33,20 @@ if [[ -f $generated_marker ]]; then
     exit 1
   }
   compose_args+=(-f "$generated_compose")
+fi
+
+# The journal must survive app replacement; activation is an operator opt-in.
+skewer_journal_dir=$(sed -n 's/^SKEWER_COOP_JOURNAL_HOST_DIR=//p' "$env_file" | head -n 1)
+if [[ -n $skewer_journal_dir ]]; then
+  [[ $skewer_journal_dir == /* && -d $skewer_journal_dir && -f $skewer_compose ]] || {
+    echo 'Skewer coop requires an existing absolute journal directory and Compose override.' >&2
+    exit 1
+  }
+  [[ $(stat -c '%u:%g:%a' "$skewer_journal_dir") == 10001:10001:700 ]] || {
+    echo 'Skewer coop journal directory must be owned by 10001:10001 with mode 0700.' >&2
+    exit 1
+  }
+  compose_args+=(-f "$skewer_compose")
 fi
 
 old_image=$(sed -n 's/^BACKEND_IMAGE=//p' "$env_file" | head -n 1)
