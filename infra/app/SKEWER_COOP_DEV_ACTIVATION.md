@@ -2,8 +2,12 @@
 
 ## 확인된 범위
 
-2026-11-06 DEV 브라우저에서 방 목록 조회와 방 생성 실패를 재현했다. 아직 HTTP 상태·응답 코드와
-실제 컨테이너 환경/공유 DB는 확인하지 못했다. 아래는 **설정 누락 후보에 대한 절차**이며
+2026-11-06 DEV 브라우저에서 방 목록 조회와 방 생성 실패를 재현했다. 사용자가 제공한 실제 응답은
+`status: 404`, `error: Not Found`, `path: /api/v1/minigames/skewer/coop/rooms`다
+(응답 시각 `2026-11-06T03:04:14.487+00:00`). 최신 코드의 주소와 일치하므로 정원/방 폐쇄 거절이
+아닌 API 경로 제공 문제를 확인했다. 협동 기능 비활성, 구버전 이미지, 다른 백엔드로 전달되는 경우는
+실제 실행 환경에서 구분해야 한다. 실제 컨테이너 환경/공유 DB는 아직 확인하지 못했다.
+아래는 **설정 누락 후보에 대한 절차**이며
 운영 서버를 이미 수정했다는 기록이 아니다.
 
 - 협동 REST/엔진은 `ontop.games.skewer-coop.enabled=true`일 때만 등록된다.
@@ -17,6 +21,22 @@
 
 로그인한 브라우저의 Network에서 `/api/v1/minigames/skewer/coop/rooms`의 GET/POST 상태와
 응답 `code`, `message`만 확인한다. 토큰/쿠키는 공유하지 않는다.
+
+인프라 담당자는 현재 앱 이미지와 필요한 설정만 제한해서 조회한다. `SPRING_PROFILES_INCLUDE`가
+없다는 사실만으로 비활성을 확정하지 않는다. active 프로필이나 별도 property로 활성화했을 수도 있다.
+다음 조회는 비밀 값 전체를 출력하지 않으며, 이미지 SHA와 profile/feature/journal 설정만 확인한다.
+
+```bash
+sudo docker inspect --format '{{.Config.Image}}' ontop-dev-app-app-1
+sudo docker exec ontop-dev-app-app-1 sh -c '
+for key in SPRING_PROFILES_ACTIVE SPRING_PROFILES_INCLUDE ONTOP_GAMES_SKEWERCOOP_ENABLED SKEWER_COOP_JOURNAL_PATH; do
+  printf "%s=" "$key"
+  printenv "$key" || true
+done'
+```
+
+프로필 이름이 맞아도 실행 인수·다른 설정에서 끈 경우가 있을 수 있어 앱 시작 로그의 활성 프로필과
+기능 설정도 확인한다. 전체 환경변수, DB 비밀번호, JWT, OAuth 값은 공유하지 않는다.
 
 | 응답 | 확인할 내용 |
 | --- | --- |
