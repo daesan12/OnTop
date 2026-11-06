@@ -947,7 +947,7 @@ export class ParkRuntime implements ParkRuntimePort {
         'WORLD_CHAT_MESSAGE',
       ])
       // Only server echoes enter the message list. No optimistic duplicate or automatic replay.
-    })
+    }, { blockControls: !avatars.get(useSession.getState().sessionId)?.carry })
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return

@@ -171,6 +171,8 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 | WORLD_CARRY_RELEASE | `{carryId}`: 현재 운반 관계의 UUID | WORLD_STATE |
 | WORLD_INTERACTION_SET | `{busy}`: 본인 창의 입력 점유 여부(boolean) | WORLD_INTERACTION_STATE `{channelId, busy}` |
 
+FE는 기존 운반·비행 중의 채팅 입력/전송을 창 점유에서 제외해 관계를 유지한다. 채팅의 이동·투척·A/D 탈출 키 차단은 유지하며, 운반 중이 아닌 채팅 사용자의 들기 방지와 다른 창의 안전 해제는 기존대로 적용한다. WS 필드와 서버 판정 계약은 변경하지 않는다.
+
 WORLD_STATE의 `avatars[].carry`는 null 또는 `{carryId, partnerId, role}`이며 role은 CARRIER/CARRIED/THROWN이다.
 창 점유 중인 사용자는 `interactionBusy: true`를 공유한다. 일반 창 점유 변경은 작은 확인 응답을 보내고
 다른 사용자에게는 기존 10Hz 방송에 합쳐 전달한다. 실제 운반 해제가 발생한 경우에는 즉시 WORLD_STATE를 방송한다.

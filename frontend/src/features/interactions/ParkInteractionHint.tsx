@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { avatars, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
-import { panelOwnsKeys } from '../../world/inputOwnership'
+import { panelBlocksCarry } from '../../world/inputOwnership'
 import { useBenchState } from './benchState'
 import { benchService } from './benchService'
 import { getParkInteraction, interactWithPark, type ParkInteraction } from './parkInteraction'
@@ -33,9 +33,9 @@ export function ParkInteractionHint() {
   const [carry, setCarry] = useState<import('../../network/protocol').CarryState | null>(null)
   useEffect(() => {
     const sample = () => {
-      parkRuntime.setInteractionBusy?.(panelOwnsKeys())
-      const next = getParkInteraction()
       const carrying = avatars.get(useSession.getState().sessionId)?.carry ?? null
+      parkRuntime.setInteractionBusy?.(panelBlocksCarry(!!carrying))
+      const next = getParkInteraction()
       setCarry(old => old?.carryId === carrying?.carryId && old?.role === carrying?.role ? old : carrying)
       setTarget(old => old?.id === next?.id && old?.label === next?.label && old?.seat === next?.seat && old?.occupied === next?.occupied
         && old?.available === next?.available && old?.occupant === next?.occupant ? old : next)
