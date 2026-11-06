@@ -98,6 +98,8 @@ interface BungState {
   manualPauseError: string | null;
   abandonPending: boolean;
   abandonError: string | null;
+  /** ESC 다시하기: abandon 승인부터 새 판 적용까지 한 흐름으로 묶는다. */
+  restarting: boolean;
   walletError: string | null;
   /** 마우스를 올린 칸. 동작 이름 표시용(포인터 이벤트 때만 바뀜). */
   hover: number | null;
@@ -136,6 +138,7 @@ const initial = (): Omit<BungState, "phase" | "status" | "seenTips"> => ({
   manualPauseError: null,
   abandonPending: false,
   abandonError: null,
+  restarting: false,
   walletError: null,
   hover: null,
   firstGame: false,
@@ -871,7 +874,7 @@ function onEvent(event: GrillEvent | v4.GrillEvent, before: AnyGrill, afterOverr
 // ---------- 나가기 확인 ----------
 export function escapeBungeoppang() {
   const s = get();
-  if (s.abandonPending) return;
+  if (s.abandonPending || s.restarting) return;
   if (s.helpOpen) { setBungeoppangHelp(false); return; }
   if (s.recovering) {
     if (!s.starting) {
@@ -888,11 +891,12 @@ export function escapeBungeoppang() {
     set({ confirmExit: !s.confirmExit });
 }
 export function continueBungeoppang() {
+  if (get().abandonPending || get().restarting) return;
   set({ confirmExit: false });
 }
 export async function quitBungeoppang() {
-  const { gameId, phase, abandonPending, recovering, starting } = get();
-  if (abandonPending) return;
+  const { gameId, phase, abandonPending, recovering, starting, restarting } = get();
+  if (abandonPending || restarting) return;
   if (recovering && (starting || !gameId)) return;
   const currentVisit = visit;
   if (!gameId || (!recovering && !['countdown', 'play'].includes(phase))) { leaveBungeoppang(); return; }
@@ -908,6 +912,55 @@ export async function quitBungeoppang() {
       if (get().phase === 'ending' || get().phase === 'result') void submitBungeoppang();
     }
   }
+}
+/**
+ * ESC 다시하기. 서버가 현재 판을 포기(또는 이미 무효)로 확인한 뒤에만 새 판을 시작한다.
+ * idle을 거치지 않으므로 카메라·입력 소유권이 유지되고 새로고침 복구(watchBungeoppangRecovery)가 끼어들지 않는다.
+ */
+export async function restartBungeoppang() {
+  const s = get();
+  if (s.abandonPending || s.restarting || s.starting || s.recovering || s.submitting || !s.gameId || !s.status
+    || !['countdown', 'play'].includes(s.phase)) return;
+  const abandonVisit = visit;
+  set({ abandonPending: true, abandonError: null, restarting: true });
+  try {
+    await service.abandon(s.gameId);
+  } catch (error) {
+    if (visit !== abandonVisit) return;
+    const code = error instanceof BungeoppangServiceError ? error.code : '';
+    // 만료 등으로 이미 무효 종료된 판은 보상이 없으므로 그대로 새 판을 시작한다.
+    if (code !== 'MINIGAME_ALREADY_INVALID') {
+      const completed = code === 'MINIGAME_ALREADY_COMPLETED';
+      set({ abandonPending: false, restarting: false, abandonError: completed
+        ? '이미 정산이 끝난 판이라 새 판을 시작하지 않았어요. 결과를 확인해 주세요.'
+        : error instanceof Error ? error.message : '포기 요청을 확인하지 못했어요. 다시 시도해 주세요.' });
+      const phase = get().phase;
+      if (phase === 'ending' || phase === 'result') void submitBungeoppang();
+      else if (completed) void syncBungeoppangTime();
+      return;
+    }
+  }
+  if (visit !== abandonVisit) return;
+  // 이전 판의 루프·타이머·리스너를 끊고 visit을 올려 늦게 오는 이전 판 응답을 모두 무시한다.
+  ++visit;
+  resetCustomerArrivalsV5();
+  clearTimeout(transitionTimer);
+  clearTimeout(tipTimer);
+  cancelAnimationFrame(raf);
+  clearInterval(loopTimer);
+  removeClockListeners();
+  timedGameId = '';
+  clock.pausedAt = null;
+  startKey = '';
+  submission = null;
+  orderSubmission = null;
+  v5DeliveryFeedback = null;
+  const startVisit = visit;
+  // status·seenTips와 화면 소유권은 유지한다. restarting 동안 HUD는 시작 안내 대신 준비 문구만 보인다.
+  set({ phase: 'start', ...initial(), restarting: true });
+  await startBungeoppang();
+  // 실패하면 시작 안내 화면에서 오류와 재시도(같은 Idempotency-Key)·나가기를 제공한다.
+  if (visit === startVisit && get().restarting) set({ restarting: false });
 }
 
 // ---------- 결과 제출 ----------
