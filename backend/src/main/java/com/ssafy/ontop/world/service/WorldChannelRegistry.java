@@ -528,7 +528,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (room == null) { throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요."); }
         boolean changed = busy ? room.interactionBusy.add(userId) : room.interactionBusy.remove(userId);
         if (changed) {
-            if (busy && room.physics.carryState(userId) != null) {
+            if (busy && room.physics != null && room.physics.carryState(userId) != null) {
                 room.physics.releaseCarry(userId);
                 return new InteractionChange(room.definition.channelId(), busy, refreshCarry(room));
             }

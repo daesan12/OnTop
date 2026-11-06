@@ -103,3 +103,5 @@ node node_modules/@playwright/test/cli.js test --config playwright.carry.config.
 재리뷰 프런트 검증(`ad7ec4bd` 통합): 전체 2,436개 통과·조건부 8개 제외, 소스·테스트 타입 검사 및 공원 Vite 빌드 통과. Edge에서 E 들기→시선 방향 던지기, Esc, 활동 중 대상 제외, 채팅 입력 보호, 1440×900/900×540 화면 검수가 통과했다. 서버 관전 테스트 보완 후 실제 소켓 10개가 통과했다. 실제 배포 서버·OAuth·DB 연결 및 다중 접속 부하 검증은 이번에도 수행하지 않았다.
 
 5초 제한 검증(`e4741f09` 통합): 운반 관련 서버 23개와 프런트 운반·최신 접촉 동작 6개가 통과했다. 서버 권한 및 클라이언트 위치 검증 모드 모두에서 149틱까지 운반 유지, 150틱째 양쪽 운반 해제, 낡은 carryId로 던지기 거절, 이동 권한 복원을 확인했다. `git diff --check` 통과. 게임·다른 활동 제한과 안전한 내려놓기 경로는 그대로 사용한다.
+
+null 가드 보완(`origin/dev@c800b1b8e513a21fe984afa6b711d75efb4d2ad8` 통합, 충돌 없음): 사용자 승인에 따라 `WorldChannelRegistry.interactionBusy`의 운반 해제 조건에 `room.physics != null`만 추가했다. 운반·창 점유·채널 입퇴장·동시 요청 서버 회귀 31개와 최신 dev의 원카드 HUD 단위 테스트 6개, `git diff --check`가 통과했다. `publishWorld`와 `Actor.motion` 초기화 경로는 검토 후 현행을 유지했다.
