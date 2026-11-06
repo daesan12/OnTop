@@ -19,6 +19,7 @@ for (const name of ['man', 'girl', 'skins/ssafy-black-male-v3'] as const) {
     for (const fps of [30, 60]) {
       const carrierRig = createCharacterRig(source), targetRig = createCharacterRig(source)
       const carrier = new Group(), carried = new Group(), carrierFigure = new Group(), carriedFigure = new Group()
+      carrierFigure.name = 'figure-carrier'
       carrier.add(carrierFigure); carrierFigure.add(carrierRig.root)
       carried.add(carriedFigure); carriedFigure.add(targetRig.root)
       const rigs = new Map([['carrier', { root: carrier }], ['target', { root: carried }]])
@@ -51,16 +52,19 @@ for (const name of ['man', 'girl', 'skins/ssafy-black-male-v3'] as const) {
       carrierRig.bones.hand_L.getWorldPosition(hand)
       expect(hand.clone().sub(hip).length()).toBeLessThan(.45)
       own.carry = null; other.carry = { ...targetCarry, role: 'THROWN' }
+      const launchYaw = pose.yaw
       const start = step(0), positions: Vector3[] = [start]
       for (let frame = 1; frame <= Math.ceil(fps * .6); frame++) {
         const age = frame / fps
-        flight.current.x = pose.x + Math.sin(pose.yaw) * 14 * age
-        flight.current.z = Math.cos(pose.yaw) * 14 * age
+        // Continue steering the carrier after release; support and hands keep the original flight direction.
+        pose.yaw = launchYaw + age * 2
+        flight.current.x = pose.x + Math.sin(launchYaw) * 14 * age
+        flight.current.z = Math.cos(launchYaw) * 14 * age
         flight.current.y = 2.54 + 8 * age - 15 * age * age
         positions.push(step(age))
         if (age < .16) {
           carrierRig.bones.upperArm_L.getWorldPosition(left); carrierRig.bones.upperArm_R.getWorldPosition(right)
-          const delta = hip.clone().sub(left.add(right).multiplyScalar(.5)).applyAxisAngle(new Vector3(0, 1, 0), -pose.yaw)
+          const delta = hip.clone().sub(left.add(right).multiplyScalar(.5)).applyAxisAngle(new Vector3(0, 1, 0), -pose.yaw - carrierFigure.rotation.y)
           expect(delta.z).toBeGreaterThan(-.28)
         }
       }

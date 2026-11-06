@@ -8,7 +8,7 @@ export const carryEase = (t: number) => { const x = Math.max(0, Math.min(1, t));
 
 type CarryPair = {
   carryId: string; carrierId: string; carriedId: string; releasedAt: number | null; age: number
-  carrierRig?: { root: Object3D }; carriedRig?: { root: Object3D }; left?: Object3D; right?: Object3D; hips?: Object3D
+  carrierRig?: { root: Object3D }; carriedRig?: { root: Object3D }; left?: Object3D; right?: Object3D; hips?: Object3D; facing?: Object3D
 }
 type PublicAvatar = Pick<AvatarSnapshot, 'carry' | 'connected'>
 
@@ -62,6 +62,7 @@ export function createCarryMotion() {
           pair.carrierRig = carrierRig; pair.carriedRig = carriedRig
           pair.left = carrier.getObjectByName('upperArm_L'); pair.right = carrier.getObjectByName('upperArm_R')
           pair.hips = carried.getObjectByName('hips')
+          pair.facing = carrier.getObjectByName(`figure-${pair.carrierId}`)
         }
         if (!pair.left || !pair.right || !pair.hips) continue
         pair.left.getWorldPosition(shoulder); pair.right.getWorldPosition(otherShoulder)
@@ -73,7 +74,7 @@ export function createCarryMotion() {
         // Rest across the upper back, then lift across the shoulders and push toward +Z.
         const z = -.28 + .4 * pull + .4 * push
         offset.set(.06 * (1 - pull), .08 + .12 * Math.sin(pull * Math.PI) - .04 * push, z)
-        const yaw = carrier.rotation.y, x = offset.x
+        const yaw = carrier.rotation.y + (pair.facing?.rotation.y ?? 0), x = offset.x
         offset.x = x * Math.cos(yaw) + z * Math.sin(yaw)
         offset.z = z * Math.cos(yaw) - x * Math.sin(yaw)
         shoulder.add(offset)
