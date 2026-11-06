@@ -1,9 +1,9 @@
 # Quest 2 · 공원과 돌탑 점프맵 VR
 
 - 현재 작업 위치: `C:\Users\SSAFY\Desktop\OnTop\quest-vr`.
-- 현재 브랜치: `VR` (2026-11-04 `feat/quest-vr`에서 이름 변경).
+- 현재 작업 브랜치: `feat/quest-vr-games` (MR !425). 원격 `VR`의 직접 푸시 금지 보호를 유지한다. `VR`은 2026-11-04 `feat/quest-vr`에서 이름을 변경한 원본 브랜치다.
 - 2026-11-07 원격 반영 승인: 사용자가 미커밋 VR 작업의 커밋·푸시와 `dev` 대상 MR 생성을 요청했다. 머지는 사용자 확인 후 별도로 진행한다. `VR`의 직접 푸시 금지 보호를 유지하고 동일 작업 커밋을 `feat/quest-vr-games`에 푸시해 MR 소스로 사용한다. 아래 로컬 전용 보류 기록은 당시 상태다.
-- 현재 통합 기준: `origin/dev@f1c3549a40094027d0e17788bdb73b0bd139ad3b` (2026-11-07, 로컬 통합 커밋 `46866adb`).
+- 현재 통합 기준: `origin/dev@69950c6f` (2026-11-07, MR !425 작업 브랜치에 이력 보존 방식으로 반영).
 - 이관 원본: `park-jumpmap-vr-20261104`, `feat/park-jumpmap-vr-local-20261104@324db890`의 미커밋 VR 변경. 원본은 삭제·변경하지 않고 보존한다.
 - 기존 `quest-locomotion-poc`의 미커밋 작업과 독립 이동 화면은 원래 위치에 보존한다. 2026-11-04 사용자 승인으로 feat/quest-vr에 커밋·푸시하며 dev/master 머지·배포는 진행하지 않는다.
 
@@ -347,3 +347,12 @@ Browser plugin not available → 기존 Playwright·설치된 Chrome/SwiftShader
 - 검증: 제품/전체 tests TypeScript, git diff --check 통과. 관련 unit 6파일 34개 통과(서버/표시 위치 불일치, 499/500ms 경계, 짧은 이탈 후 복귀, 추적 중단, 낙수 포함). Playwright 협동 호스트 9개 + 공원/점프맵 12개 + 전체 VR 화면 흐름 1개 = 22개 통과. 프레임·세션/서버·참가자는 테스트 대역이며 실제 Quest 검수는 미수행이다.
 - map/course 생성물 --check와 park-integration Vite 빌드 통과, 맵·코스 변경 0건. 기존 Three.Clock/셰이더·번들 경고는 남는다. BE 제품·공통 WS/API·DB/Flyway·의존성 변경이 없어 BE 검사를 추가 실행하지 않았다.
 - 21개 전체 흐름 화면, 대기실 유지 화면과 build 로그를 외부 `OnTop/output/quest-vr-review-fixes-20261107`에 저장했다. 기존 MR !425에 기능별 커밋을 정상 푸시하며 자동 머지·배포·소스 브랜치 삭제는 보류한다. Jenkins dev 전용 빌드의 실행 여부는 푸시 후 확인한다.
+
+## 2026-11-07 검증 중 추가된 dev 통합
+
+- 최종 원격 재확인에서 새 dev `69950c6fa694451f1158f5ea839ec7de688dd18c`(꼬치왕 QA 피드백 MR)이 추가된 것을 확인해 같은 MR 브랜치에 통합했다. dev에 반영한 기능을 다시 개발하거나 dev로 머지한 작업이 아니라, 기준 변경을 가져온 이력 보존 merge다.
+- 가져온 범위: PC 숫자 전용 재료 입력, 서버 서빙 이동/경유점 속도 보정, FE 서빙 좌표 후퇴 방지, 결과 보상 갱신과 레이아웃 개선 및 관련 검사. 신규 Flyway·맵 변경 없음.
+- ChefPage.tsx 안내 1곳에서 충돌이 발생했다. 최신 dev의 PC 숫자 1–6 안내·PC 클릭 차단과 기존 VR 한지/컨트롤러 도식·조작 안내를 함께 보존했다. ChefScene의 PC 포인터 제한도 유지했다. 충돌 표식·미해결 항목 0건.
+- 통합 후 제품/전체 tests TypeScript, 관련 FE unit 24파일 175개, park-integration 빌드 통과. BE SkewerCoopFeedbackTests/EngineTests/RoomTests/SettlementServiceTests/ResultJournalTests 5파일 52개 통과, 실패·skip 0건.
+- 통합 후 Playwright 협동 호스트 9개(대기실 유지 및 최신 단계 종료 포함), 독립 요리사 7개, 새 PC 입력/결과 2개, 전체 VR 흐름 1개를 재검증해 19개 통과했다. 이번 피드백 수정 후 통과한 공원/점프맵 12개는 추가 dev에서 소스 변경이 없어 재사용한다(고유 검사 합계 31개). 전체 흐름 화면 21장은 외부 output의 flow-latest-dev에 다시 저장했다.
+- 이번 사용자 요청인 대기실 방 유지와 서버 경계 500ms 유예는 최종 통합 코드에서도 유지된다. 실제 Quest/실제 다인 로그인·DB 정산은 미검수이며 모든 브라우저 검사는 fixture 경로다. dev 머지·배포·브랜치 삭제는 계속 보류한다.
