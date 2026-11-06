@@ -3,6 +3,7 @@ package com.ssafy.ontop.game.skewer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.game.skewer.coop.domain.SkewerCoopMatch;
 import com.ssafy.ontop.game.skewer.coop.service.SkewerCoopFinished;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -51,17 +52,94 @@ class SkewerCoopFeedbackTests {
                 new SkewerCoopMatch.Point(-2.6, -4.25), new SkewerCoopMatch.Point(2.2, -4.25),
                 new SkewerCoopMatch.Point(10, -4.25), new SkewerCoopMatch.Point(-6.4, -4.25),
                 new SkewerCoopMatch.Point(6.6, -4.25));
+        var arrivalTicks = new ArrayList<Integer>();
 
         for (var destination : destinations) {
             match.act(101, mapper.valueToTree(Map.of("type", "NAVIGATE", "x", destination.x(),
                     "z", destination.z())), 3200);
-            for (int tick = 0; tick < 300; tick++) {
+            int ticks = 0;
+            double remaining;
+            do {
                 ReflectionTestUtils.invokeMethod(match, "move", .1);
                 var position = (SkewerCoopMatch.Point) ReflectionTestUtils.getField(match, "position");
                 assertThat((Boolean) ReflectionTestUtils.invokeMethod(match, "walkable", position)).isTrue();
-            }
+                remaining = Math.hypot(position.x() - destination.x(), position.z() - destination.z());
+                ticks++;
+            } while (remaining > .000001 && ticks < 300);
             var position = (SkewerCoopMatch.Point) ReflectionTestUtils.getField(match, "position");
             assertThat(Math.hypot(position.x() - destination.x(), position.z() - destination.z())).isLessThan(.000001);
+            arrivalTicks.add(ticks);
+        }
+        // 반복 상한 적용 전 같은 생성 경로에서 측정한 100ms 틱 수다.
+        assertThat(arrivalTicks).containsExactly(12, 15, 15, 35, 16, 16, 33, 10, 16, 33, 26);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 촘촘한_경유점은_한_틱에_모두_처리하지_않고_다음_틱에_이어간다() {
+        var match = playing();
+        ReflectionTestUtils.setField(match, "position", new SkewerCoopMatch.Point(0, 1.25));
+        var path = (List<SkewerCoopMatch.Point>) ReflectionTestUtils.getField(match, "path");
+        for (int index = 1; index <= 100; index++) {
+            path.add(new SkewerCoopMatch.Point(index * .000002, 1.25));
+        }
+        path.add(new SkewerCoopMatch.Point(.5, 1.25));
+
+        ReflectionTestUtils.invokeMethod(match, "move", .1);
+
+        assertThat(match.privateView(101).at("/hall/position/x").asDouble()).isBetween(.000001, .001);
+        assertThat(path).isNotEmpty();
+        for (int tick = 0; tick < 30; tick++) {
+            ReflectionTestUtils.invokeMethod(match, "move", .1);
+        }
+        assertThat(match.privateView(101).at("/hall/position/x").asDouble()).isEqualTo(.5);
+        assertThat(path).isEmpty();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 중복_경유점_정리도_한_틱의_처리_상한에_포함한다() {
+        var match = playing();
+        var start = new SkewerCoopMatch.Point(0, 1.25);
+        ReflectionTestUtils.setField(match, "position", start);
+        var path = (List<SkewerCoopMatch.Point>) ReflectionTestUtils.getField(match, "path");
+        for (int index = 0; index < 100; index++) {
+            path.add(start);
+        }
+        path.add(new SkewerCoopMatch.Point(.5, 1.25));
+
+        ReflectionTestUtils.invokeMethod(match, "move", .1);
+
+        assertThat(match.privateView(101).at("/hall/position/x").asDouble()).isZero();
+        assertThat(path).hasSizeBetween(2, 100);
+        for (int tick = 0; tick < 10; tick++) {
+            ReflectionTestUtils.invokeMethod(match, "move", .1);
+        }
+        assertThat(match.privateView(101).at("/hall/position/x").asDouble()).isEqualTo(.5);
+        assertThat(path).isEmpty();
+    }
+
+    @Test
+    void 키보드_직선과_대각선_이동의_속도와_틱_상한을_유지한다() {
+        for (var direction : List.of(new SkewerCoopMatch.Point(1, 0), new SkewerCoopMatch.Point(-1, 0),
+                new SkewerCoopMatch.Point(0, 1), new SkewerCoopMatch.Point(0, -1),
+                new SkewerCoopMatch.Point(1, 1))) {
+            for (double seconds : new double[] {0, .016, .05, .1, .5}) {
+                var match = playing();
+                ReflectionTestUtils.setField(match, "position", new SkewerCoopMatch.Point(0, 1.25));
+                match.act(101, mapper.valueToTree(Map.of("type", "MOVE", "dx", direction.x(),
+                        "dz", direction.z())), 3200);
+
+                ReflectionTestUtils.invokeMethod(match, "move", seconds);
+
+                var position = (SkewerCoopMatch.Point) ReflectionTestUtils.getField(match, "position");
+                double distance = Math.min(.1, seconds) * 5;
+                double length = Math.hypot(direction.x(), direction.z());
+                assertThat(position.x()).isCloseTo(distance * direction.x() / length,
+                        org.assertj.core.data.Offset.offset(.000001));
+                assertThat(position.z()).isCloseTo(1.25 + distance * direction.z() / length,
+                        org.assertj.core.data.Offset.offset(.000001));
+            }
         }
     }
 
