@@ -43,9 +43,10 @@ public class AdminAccessController {
         }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(new AdminAccessResponse(access.canRead(user.userId()), access.canGrant(user.userId()),
-                        access.canOperate(user.userId())));
+                        access.canOperate(user.userId()), access.canViewContacts(user.userId())));
     }
 
-    public record AdminAccessResponse(boolean canRead, boolean canGrant, boolean canOperate) {
+    public record AdminAccessResponse(boolean canRead, boolean canGrant, boolean canOperate,
+            boolean canViewContacts) {
     }
 }

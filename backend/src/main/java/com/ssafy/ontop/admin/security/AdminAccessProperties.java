@@ -2,16 +2,25 @@ package com.ssafy.ontop.admin.security;
 
 import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 @ConfigurationProperties(prefix = "ontop.admin")
-public record AdminAccessProperties(Set<Long> readIds, Set<Long> grantIds, Set<Long> operationIds) {
+public record AdminAccessProperties(Set<Long> readIds, Set<Long> grantIds, Set<Long> operationIds,
+        Set<Long> contactIds) {
+    @ConstructorBinding
     public AdminAccessProperties {
         readIds = validIds(readIds);
         grantIds = validIds(grantIds);
         operationIds = operationIds == null || operationIds.isEmpty() ? grantIds : validIds(operationIds);
-        if (!readIds.containsAll(grantIds) || !readIds.containsAll(operationIds)) {
-            throw new IllegalArgumentException("쓰기 권한 관리자는 조회 관리자에도 포함해야 합니다.");
+        contactIds = validIds(contactIds);
+        if (!readIds.containsAll(grantIds) || !readIds.containsAll(operationIds)
+                || !readIds.containsAll(contactIds)) {
+            throw new IllegalArgumentException("관리자 세부 권한 ID는 조회 관리자에도 포함해야 합니다.");
         }
+    }
+
+    public AdminAccessProperties(Set<Long> readIds, Set<Long> grantIds, Set<Long> operationIds) {
+        this(readIds, grantIds, operationIds, Set.of());
     }
 
     private static Set<Long> validIds(Set<Long> ids) {
