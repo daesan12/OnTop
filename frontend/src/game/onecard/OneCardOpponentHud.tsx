@@ -72,7 +72,7 @@ export function OneCardOpponentHud({ state, ownId, profiles, handCount }: {
   if (!rows.length) return null
   return <ul ref={ref} className="onecard-opponent-hud" aria-hidden="true">
     {rows.map(row => <li key={row.userId} data-current={row.current || undefined} data-forfeited={row.forfeited || undefined}>
-      <span className="onecard-opponent-name">{row.name}</span>
+      <span className="onecard-opponent-who"><span className="onecard-opponent-label">상대 ·</span><span className="onecard-opponent-name">{row.name}</span></span>
       {row.count && <b className="onecard-opponent-count">{row.count}</b>}
     </li>)}
   </ul>
