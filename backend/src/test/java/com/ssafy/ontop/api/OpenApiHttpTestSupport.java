@@ -100,6 +100,9 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/raffles/rounds/{weekStart}/result",
                 "GET /api/v1/admin/raffles/rounds/{weekStart}",
                 "POST /api/v1/admin/raffles/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
+                "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
+                "POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
                 "POST /api/v1/behavior-events"));
