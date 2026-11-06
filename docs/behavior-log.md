@@ -83,7 +83,7 @@
 | event_type | 연결 지점 | props | 단계 | 상태 |
 | --- | --- | --- | --- | --- |
 | `TABLE_JOINED` | `TableHub.join` 새 착석 | | 1 | 구현 |
-| `TABLE_LEFT` | `TableHub.leave`, `disconnect`의 좌석 정리, 태블릿 재접속 유예 만료(`expireWaitingReconnects`), 방장 시작 만료(`checkHostTimeout`) | `byDisconnect`, `reason`(LEAVE·DISCONNECT·RECONNECT_EXPIRED·HOST_START_TIMEOUT) | 1 | 구현 |
+| `TABLE_LEFT` | `TableHub.leave`, `disconnect`의 좌석 정리, 태블릿 재접속 유예 만료(`expireWaitingReconnects`), 방장 시작 만료(`checkHostTimeout`), 할리갈리 자연 탈락자의 경기 중 퇴장(`releaseDepartedSeat`) | `byDisconnect`, `reason`(LEAVE·DISCONNECT·RECONNECT_EXPIRED·HOST_START_TIMEOUT·ELIMINATED_LEAVE) | 1 | 구현 |
 | `TABLE_READY_SET` | `TableHub.ready` 상태 변경 | `ready` | 1 | 구현 |
 | `GAME_SELECTED` | `TableHub.selectGame`(자동 시작), `TableHub.configureTable`(태블릿 수동 시작) 변경 | `gameCode`, `targetScore`(주사위), `betAmountPerPlayer`, `startMode`(AUTO·MANUAL), `selectedPlayers`(MANUAL만) | 1 | 구현 |
 | `TABLE_WATCHED` | `TableHub.watch` 새 관전 | | 1 | 구현 |
