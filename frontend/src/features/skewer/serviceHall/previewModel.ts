@@ -70,7 +70,7 @@ export class HallPreview {
     const at = this.nearest()
     if (!at) return '가까이 이동해 주세요'
     const blocked = this.blockedReason(); if (blocked) return blocked
-    if (at.kind === 'washer') return `식기 ${this.dirtyDishes.length}테이블분 넣기`
+    if (at.kind === 'washer') return `식기 ${Math.min(this.dirtyDishes.length, DISHWASHING_PREVIEW.batchCapacity - this.washer.load.length)}테이블분 넣기`
     if (at.kind === 'orders') return this.held.length ? '주문표 전달' : '주문 전달대'
     if (at.kind === 'pickup') return '완성 접시 받기'
     if (at.kind === 'fridge') return '사케 꺼내기'

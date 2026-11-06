@@ -130,6 +130,7 @@ test('새 6개 테이블에서 주문 전달 · 두 접시와 두 병 운반 · 
   await page.keyboard.press('e')
   await expect(page.locator('.service-stage')).toHaveAttribute('data-carry-mode', 'empty')
   await expect(page.locator('.service-washer')).toHaveAttribute('data-state', 'washing')
+  await expect(page.locator('.service-washer')).toContainText('세척 중 1/2')
   await expect(page.getByRole('progressbar', { name: '자동 세척 진행' })).toBeVisible()
   await page.getByRole('button', { name: '서빙 이용 안내' }).click()
   const progressBefore = await page.getByRole('progressbar', { name: '자동 세척 진행' }).getAttribute('aria-valuenow')

@@ -93,7 +93,7 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
         <button className={`service-station service-washer${washing ? ' is-washing' : ''}`} data-state={washing ? 'washing' : 'idle'} style={anchor('washer')}
           onClick={event => { navigate(STATIONS.washer); event.currentTarget.blur() }} aria-label="자동 식기세척기로 이동">
           <span className="service-washer-title"><HallIcon name="washer" />자동 식기세척기</span>
-          <small>{washing ? `세척 중 · ${Math.ceil(view.washer.remaining)}초` : view.washer.completed ? '세척 완료 · 투입 가능' : 'E로 식기 넣기'}</small>
+          <small>{washing ? `세척 중 ${view.washer.load.length}/2 · ${Math.ceil(view.washer.remaining)}초` : view.washer.completed ? '세척 완료 · 투입 가능' : 'E로 식기 넣기'}</small>
           {washing ? <span className="service-wash-meter" role="progressbar" aria-label="자동 세척 진행" aria-valuemin={0} aria-valuemax={100} aria-valuenow={washProgress}><i style={{ width: `${washProgress}%` }} /></span> : null}
         </button>
         {view.queue.length ? <div className="service-queue" style={anchor('queue')}><HallIcon name="people" />입구 대기 <b>{view.queue.length}팀</b></div> : null}
