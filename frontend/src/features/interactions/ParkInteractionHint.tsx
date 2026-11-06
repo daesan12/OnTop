@@ -67,10 +67,12 @@ export function ParkInteractionHint() {
       {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
       {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}
     </button>}
-    {carry?.role === 'CARRIED' && <>
-      <strong>다른 산책자가 나를 들고 있어요</strong>
-      <span role="status"><kbd>A</kbd> · <kbd>D</kbd> 번갈아 {CARRY_ESCAPE_PRESSES}회 눌러 내려오기</span>
-    </>}
+    {carry?.role === 'CARRIED' &&
+      <span role="status" className="carry-escape-hint" aria-label={`A와 D를 번갈아 ${CARRY_ESCAPE_PRESSES}회 눌러 내려오기`}>
+        <span className="carry-escape-hint__keys" aria-hidden="true">
+          <kbd>A</kbd><span>↔</span><kbd>D</kbd>
+        </span>
+      </span>}
     {carry?.role === 'THROWN' && <span role="status">날아가는 중 · 착지하면 다시 움직일 수 있어요</span>}
     {carry?.role === 'CARRIER' && <button type="button" aria-keyshortcuts="Escape"
       disabled={actionPending} onClick={event => {
