@@ -67,10 +67,10 @@ export function ParkInteractionHint() {
     </button>}
     {carry?.role === 'CARRIED' && <strong>다른 산책자가 나를 들고 있어요</strong>}
     {carry?.role === 'THROWN' && <span role="status">날아가는 중 · 착지하면 다시 움직일 수 있어요</span>}
-    {carry && carry.role !== 'THROWN' && <button type="button" aria-keyshortcuts="Escape"
+    {carry && carry.role !== 'THROWN' && <button type="button" aria-keyshortcuts={carry.role === 'CARRIED' ? 'E' : 'Escape'}
       disabled={actionPending} onClick={event => {
         void parkRuntime.releaseAvatar?.(carry.carryId); event.currentTarget.blur()
-      }}><kbd>Esc</kbd> {carry.role === 'CARRIED' ? '내려오기' : '내려놓기'}</button>}
+      }}><kbd>{carry.role === 'CARRIED' ? 'E' : 'Esc'}</kbd> {carry.role === 'CARRIED' ? '내려오기' : '내려놓기'}</button>}
     {target?.kind === 'table' && target.id === entryNotice?.anchorId
       && <span role="status">{entryNotice.text}</span>}
     {joiningTable && <span role="status">자리를 확인하고 있어요…</span>}
