@@ -23,25 +23,26 @@
 
 ## DB·배포
 
-- 사용자 승인 번호 **V154**, `backend/src/main/resources/db/minigame/V154__add_skewer_coop_play_mode.sql` 한 개다. 결과의 `play_mode`와 방식별 랭킹 인덱스를 추가한다. 기존 V145는 수정하지 않는다.
-- 생성 전 원격 V153까지, 다른 로컬 worktree의 V155를 확인했다. V154는 사용자 승인 후 생성했으며 공유 DB에 적용하지 않았다.
+- 사용자 승인 번호 **V155**, `backend/src/main/resources/db/minigame/V155__add_skewer_coop_play_mode.sql` 한 개다. 결과의 `play_mode`와 방식별 랭킹 인덱스를 추가한다. 기존 V145는 수정하지 않는다.
+- 처음 승인받은 V154는 푸시 전 새 이벤트용 V154와 충돌했다. 사용자가 다른 로컬 V155를 V156으로 이관 완료했다고 확인하고 꼬치왕 V155를 승인했다. 원격·로컬 worktree에 V155가 없는 것을 재확인한 뒤 미배포 소스만 V155로 변경했다. 공유 DB에는 적용하지 않았다.
 - 기존 행의 기본값은 VR이다. 과거 PC·전환으로 제외된 경기는 소급 등록하지 않는다. 기존 결과·지갑·지급 영수증을 변경하지 않는다.
 - 이전 저널의 mode 누락은 legacy VR로 읽고, 구 record의 해시 입력을 그대로 보존한다. 재시도 시 동일 경기의 정산 충돌·중복 지급을 방지한다.
-- 새 백엔드는 V154의 `play_mode`가 없으면 기동을 거절한다. `dev,db`의 기존 `db/minigame` Flyway location에서 V154를 정상 적용한 뒤 배포 상태를 확인한다. V154를 건너뛴 공유 DB에는 임의 outOfOrder·repair·초기화를 하지 않는다.
-- 기존 `verify-skewer-coop-db.sh`는 **V145와 두 테이블만** 확인한다. 이 검사 성공은 V154 적용 증거가 아니다. 승인된 DB 조회 경로에서 다음 읽기 전용 조회도 확인한다.
+- 새 백엔드는 V155의 `play_mode`가 없으면 기동을 거절한다. `dev,db`의 기존 `db/minigame` Flyway location에서 V155를 정상 적용한 뒤 배포 상태를 확인한다. V155를 건너뛴 공유 DB에는 임의 outOfOrder·repair·초기화를 하지 않는다.
+- 기존 `verify-skewer-coop-db.sh`는 **V145와 두 테이블만** 확인한다. 이 검사 성공은 V155 적용 증거가 아니다. 승인된 DB 조회 경로에서 다음 읽기 전용 조회도 확인한다.
 
 ```sql
-SELECT version, description, success FROM flyway_schema_history WHERE version = '154';
+SELECT version, description, success FROM flyway_schema_history WHERE version = '155';
 SELECT column_name, column_type FROM information_schema.columns
 WHERE table_schema = DATABASE() AND table_name = 'skewer_coop_results' AND column_name = 'play_mode';
 ```
 
 ## 검증 기록과 한계
 
-- `origin/dev@0ddee961`까지 작업 이력에 merge로 반영했다. 이번 피드백 수정과 충돌은 없었고 다른 작업·미커밋 프리뷰를 보존했다.
-- 백엔드 꼬치왕·최신 dev 운반 관련 125개 검사 통과. 별도 MySQL 8.4에서 8개 검사 통과: V153→V154·기존 잔액/결과 보존, 방식별 팀 최고 기록, 중복/롤백/일일 합산 한도, 프로세스 재시작 후 저널 복구, 정상 계정/JWT 경로를 포함한다.
+- `origin/dev@3fb0d044`까지 작업 이력에 merge로 반영했다. 이번 피드백 수정과 충돌은 없었고 다른 작업·미커밋 프리뷰를 보존했다.
+- 백엔드 꼬치왕·최신 dev 운반 관련 125개 검사 통과. 별도 MySQL 8.4에서 8개 검사 통과: 팀원 이벤트 V154 적용 후 V154→V155·기존 잔액/결과 보존, 방식별 팀 최고 기록, 중복/롤백/일일 합산 한도, 프로세스 재시작 후 저널 복구, 정상 계정/JWT 경로를 포함한다.
 - MySQL 검수 첫 준비는 초기 임시 서버의 소켓 준비 상태를 잘못 감지했고 TCP 준비 검사로 수정했다. 다음 실행의 하루 한도 검사는 검수 JDBC 시간대 누락으로 실패했다. 운영 설정 예시와 같은 UTC 세션으로 새 격리 DB에서 재실행해 8개 모두 통과했다. 운영 보상 코드를 바꿔 우회하지 않았다.
 - 프론트 꼬치왕·공통 API 경로 201개 검사, 앱·테스트 TypeScript 및 협동 활성화 공원 빌드 통과. 브라우저 검수는 저장소 Playwright를 사용했다(Browser plugin not available). PC 1664×941·1366×768·900×600·390×844와 VR 데스크톱 미리보기를 확인한다.
 - 로컬 독립 실행은 frontend에서 `node node_modules/vite/bin/vite.js --config vite.skewer-chef.config.ts` 또는 `--config vite.skewer-service-hall.config.ts`다. 이는 샘플 상태이며 실제 보상 지급 검증 화면이 아니다.
 - 실제 DEV 방 생성 성공과 2인 역할 선택·진행은 앞선 사용자 조작 화면으로 확인했지만, 이번 변경의 공유 DEV 배포·두 물리 노트북 플레이·Quest 실기기 검수는 수행하지 않았다. FPS 개선 수치는 측정하지 않았으며 실제 기기 GPU 부하 검수가 남아 있다.
+- 독립 브라우저 요리사 6개·홀 7개 시나리오도 통과했다. 이전 모델명·단일 status 요소를 기대하던 낡은 검사 선택자는 현재 손님 모델과 실제 행동 안내 기준으로 수정했다. 전체 프론트 검사는 첫 실행에서 임시 파일 교체 EPERM 1건(2,546 통과·8 제외), 정상 권한 재실행에서 기존 맵 테스트 7건 시간 초과(2,540 통과·8 제외)가 있었다. 해당 맵 5파일 50개를 단일 worker로 별도 실행해 모두 통과했다. 전체 검사를 한 번에 모두 통과한 것으로 보고하지 않는다.
 - 기존 큰 번들·Three.js 셰이더 정밀도 경고가 남아 있다. 공유 서버 변경·머지·배포·브랜치 삭제는 별도다.
