@@ -51,6 +51,11 @@ public class OpenApiSchemaCustomizer implements OperationCustomizer {
             operation.getParameters().stream().filter(p -> "provider".equals(p.getName())).forEach(p ->
                     p.setSchema(new StringSchema()._enum(List.of("ssafy", "naver"))));
         }
+        if (controller.equals("MinigameAwardController") && operation.getParameters() != null) {
+            operation.getParameters().stream().filter(p -> "path".equals(p.getIn())
+                    && "type".equals(p.getName())).forEach(p ->
+                    p.setSchema(new StringSchema()._enum(List.of("bungeoppang", "jumpmap"))));
+        }
         if (controller.equals("AuthCallbackController")) {
             query(operation, "state", true, new StringSchema(), "동일 OAuth 세션/provider의 서버 발급 state");
             query(operation, "code", false, new StringSchema().maxLength(4096), "성공 시 공급자 인가 코드");

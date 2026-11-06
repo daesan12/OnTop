@@ -1109,7 +1109,6 @@ paths:
         in: path
         required: true
         schema:
-          pattern: "^[1-9][0-9]{0,18}$"
           type: string
       requestBody:
         content:
@@ -1236,7 +1235,6 @@ paths:
         in: path
         required: true
         schema:
-          pattern: "^[1-9][0-9]{0,18}$"
           type: string
       requestBody:
         content:
@@ -3823,8 +3821,10 @@ paths:
         in: path
         required: true
         schema:
-          pattern: "^[1-9][0-9]{0,18}$"
           type: string
+          enum:
+          - bungeoppang
+          - jumpmap
       - name: weekStart
         in: path
         required: true
@@ -5794,8 +5794,10 @@ paths:
         in: path
         required: true
         schema:
-          pattern: "^[1-9][0-9]{0,18}$"
           type: string
+          enum:
+          - bungeoppang
+          - jumpmap
       - name: weekStart
         in: path
         required: true
@@ -6388,8 +6390,10 @@ paths:
         in: path
         required: true
         schema:
-          pattern: "^[1-9][0-9]{0,18}$"
           type: string
+          enum:
+          - bungeoppang
+          - jumpmap
       - name: weekStart
         in: path
         required: true

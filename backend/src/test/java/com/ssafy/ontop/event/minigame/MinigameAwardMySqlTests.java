@@ -82,6 +82,7 @@ class MinigameAwardMySqlTests {
         jump(invalid, 1_000, "2026-11-03T02:05:00Z", "FINISH", "v3", true);
 
         var tooEarly = service("2026-11-08T15:04:59.999Z");
+        assertThat(repository.round(MinigameAwardType.BUNGEOPPANG, WEEK, false)).isEmpty();
         assertThat(tooEarly.memberResult(MinigameAwardType.BUNGEOPPANG, WEEK, early).status())
                 .isEqualTo("NOT_ANNOUNCED");
         assertThatThrownBy(() -> tooEarly.finalizeRound(MinigameAwardType.BUNGEOPPANG, WEEK, gm))
