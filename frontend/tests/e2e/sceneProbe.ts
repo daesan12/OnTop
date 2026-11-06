@@ -75,7 +75,8 @@ export function captureNextCarryThrow() {
   carryInputDirection = null
   const capture = (event: KeyboardEvent) => {
     if (event.code !== 'KeyE' || event.repeat) return
-    carryInputDirection = root().camera.getWorldDirection(new Vector3()).toArray()
+    const yaw = root().scene.getObjectByName('avatar-' + useSession.getState().sessionId)!.rotation.y
+    carryInputDirection = [Math.sin(yaw), 0, Math.cos(yaw)]
     window.removeEventListener('keydown', capture, true)
   }
   window.addEventListener('keydown', capture, true)
@@ -295,6 +296,7 @@ export function adCameraProbe() {
   const own = avatars.get(s.sessionId)
   return { controls: { ...viewControls }, camera: camera.position.toArray(), direction: camera.getWorldDirection(new Vector3()).toArray(),
     pose: own ? { ...own.current } : null,
+    renderedYaw: scene.getObjectByName('avatar-' + s.sessionId)?.rotation.y,
     ownVisible: scene.getObjectByName('avatar-' + s.sessionId)?.visible,
     remoteVisible: scene.getObjectByName('avatar-102')?.visible,
     active: document.pointerLockElement === document.querySelector('canvas') }

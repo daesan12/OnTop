@@ -655,6 +655,8 @@ export async function fixture(
             z: position.z + Number(payload.dz) * 0.1,
             moving: !!(payload.dx || payload.dz),
             running: payload.run,
+            ...(options.carry && (payload.dx || payload.dz)
+              ? { yaw: Math.atan2(Number(payload.dx), Number(payload.dz)) } : {}),
           } : {}),
           lastInputSeq: payload.seq,
         })

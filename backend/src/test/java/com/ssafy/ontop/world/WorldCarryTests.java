@@ -18,9 +18,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WorldCarryTests {
     @ParameterizedTest
-    @CsvSource({"2.1,0,true", "2.2,0,true", "-2.2,0,true", "0,2.19,true",
-            "2.2001,0,false", "0,2.21,false", "1.3,1.7,true", "1.6,1.6,false"})
-    void 들기_수평거리는_2점2미터까지_허용하고_바깥은_거절한다(
+    @CsvSource({"2.5,0,true", "2.6,0,true", "-2.6,0,true", "0,2.59,true",
+            "2.6001,0,false", "0,2.61,false", "1.8,1.8,true", "1.9,1.9,false"})
+    void 들기_수평거리는_2점6미터까지_허용하고_바깥은_거절한다(
             double x, double z, boolean available) throws Exception {
         try (var pair = pair()) {
             var registry = pair.registry();

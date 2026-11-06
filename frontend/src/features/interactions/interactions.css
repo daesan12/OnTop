@@ -15,6 +15,7 @@
 .park-interaction small { max-width: 360px; line-height: 1.5; }
 @media (max-width: 900px) {
   .park-page .park-interaction[data-fitness-id],
+  .park-page .park-interaction[data-carry-role],
   .park-page .park-interaction[data-target-kind="table"] { bottom: 210px; }
 }
 @media (max-width: 600px) {

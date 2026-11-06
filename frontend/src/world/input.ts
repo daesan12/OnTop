@@ -2,6 +2,7 @@ import { CAMERA, TELESCOPE } from '../config'
 import { parkXRView } from './xrView'
 import { avatars, useSession } from '../network/worldClient'
 import { parkRuntime } from '../park/runtime/runtime'
+import { createCarryEscape } from '../features/carry/escape'
 
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { standBench } from '../features/interactions/benchController'
@@ -32,6 +33,7 @@ export function nearestTable(): string | null {
 }
 export function installRoamingInput(canvas: HTMLCanvasElement) {
   const keys = new Set<string>()
+  const carryEscape = createCarryEscape()
   const movement = new Set([
     'KeyW',
     'KeyA',
@@ -65,6 +67,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     !!(avatars.get(useSession.getState().sessionId)?.carry && avatars.get(useSession.getState().sessionId)?.carry?.role !== 'CARRIER') ||
     !!useSession.getState().tableId
   const stop = () => {
+    carryEscape.reset()
     keys.clear()
     drag = jump = hadMovement = false
     seatDragging = ''
@@ -166,12 +169,24 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     stop()
   }
   const down = (event: KeyboardEvent) => {
-    if (event.defaultPrevented || parkXRView.ownsInput) return
+    if (event.defaultPrevented || parkXRView.ownsInput) { carryEscape.reset(); return }
     const session = useSession.getState(), table = session.tableStates[session.tableId]
     const carry = avatars.get(session.sessionId)?.carry
-    const carryReleaseKey = carry?.role === 'CARRIED' ? 'KeyE' : 'Escape'
-    if (event.code === carryReleaseKey && !event.repeat && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey
-      && carry && carry.role !== 'THROWN' && session.status === 'connected' && !document.hidden
+    if (carry?.role === 'CARRIED') {
+      if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey || session.pending
+        || session.status !== 'connected' || !session.mapCompatible || document.hidden
+        || panelOwnsKeys() || textInputOwnsKeys(document.activeElement)) { carryEscape.reset(); return }
+      if (event.code === 'KeyA' || event.code === 'KeyD') {
+        event.preventDefault()
+        if (!event.repeat && carryEscape.press(carry.carryId, event.code, performance.now())) {
+          void parkRuntime.releaseAvatar?.(carry.carryId).then(ok => { if (!ok) carryEscape.reset() })
+        }
+      } else carryEscape.reset()
+      return
+    }
+    carryEscape.reset()
+    if (event.code === 'Escape' && !event.repeat && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey
+      && carry?.role === 'CARRIER' && session.status === 'connected' && !document.hidden
       && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) {
       event.preventDefault()
       void parkRuntime.releaseAvatar?.(carry.carryId)
@@ -334,7 +349,9 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   }
   const interval = setInterval(() => {
     // XR owns both intent and the idle position heartbeat until its session ends.
-    if (parkXRView.ownsInput) return
+    if (parkXRView.ownsInput) { carryEscape.reset(); return }
+    if (avatars.get(useSession.getState().sessionId)?.carry?.role !== 'CARRIED' || panelOwnsKeys()
+      || textInputOwnsKeys(document.activeElement)) carryEscape.reset()
     const owner = lookOwner()
     if (owner === null) mouseLook.release()
     else if (owner !== 'hold' && mouseLookReturn.requested) mouseLook.resume()
