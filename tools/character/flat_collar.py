@@ -1,5 +1,5 @@
 """A collar in clean flat colours: -- <shared.glb> <out.glb> set=k [down=0.13] [up=0.04] [xmax=0.1] [win=15] [grow=6] [white=0.5]
-       [mirror=1] [plug=1] [lining=0.12]
+       [mirror=1] [plug=1] [lining=0.12] [inner=1] [skin=0.04]
 Tripo painted the 사또's collar (white inner collar, orange band, the black vest around them) with blotches and a
 broken black tie between them; in the game it looked smeared and broken (user). Around the neck (neck joint `down`
 below to `up` above, |x| < xmax) the set's top faces are drawn into a mask in their texture (grown `grow` texels).
@@ -15,7 +15,11 @@ it, each cell on its mirror cell's sort (white above, the orange band below), ea
 top vertex. The zero-UV-area slivers in the opening go; around it they take the view's sort.
 lining=d: the game draws front faces only, and the collar stands off the neck in front; seen from above, the gap
 showed the ground through the robe's culled inside (user). The top's faces from d below the neck joint up get an
-inner copy, turned inward and 0.5 mm in, on the same texels and weights."""
+inner copy, turned inward and 0.5 mm in, on the same texels and weights.
+Seen from above the collar's inside still showed dark beside the neck and a grey band in front of it (user): inner=1
+paints the dark texels of faces turned to the neck (from 3 cm below the neck joint up, within 8 cm of it), and of
+the rim right beside the neck, white;
+skin=w gives the lining's front, |x| < w, the body's neck colour (a patch painted on an unused part of the texture)."""
 import bpy, bmesh, sys, os, re
 import numpy as np
 from mathutils import Vector
@@ -27,7 +31,7 @@ opt = dict(x.split('=', 1) for x in a[2:])
 SET = opt['set']; DOWN, UP, XM = float(opt.get('down', 0.13)), float(opt.get('up', 0.04)), float(opt.get('xmax', 0.1))
 WIN, GROW = int(opt.get('win', 15)), int(opt.get('grow', 6))
 MIRROR, PLUG = opt.get('mirror', '0') == '1', opt.get('plug', '0') == '1'
-LINING = float(opt.get('lining', 0))
+LINING = float(opt.get('lining', 0)); INNER, SKIN = opt.get('inner', '0') == '1', float(opt.get('skin', 0))
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=src)
 arm = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
@@ -47,9 +51,9 @@ def box_sum(m, r):
     return c[2 * r + 1:, 2 * r + 1:] - c[:-2 * r - 1, 2 * r + 1:] - c[2 * r + 1:, :-2 * r - 1] + c[:-2 * r - 1, :-2 * r - 1]
 
 
-def fill_triangles(mask, tris, pos, has):
-    """Rasterize UV triangles (texel coordinates) into mask; pos takes each texel's surface point."""
-    for ((x0, y0), (x1, y1), (x2, y2)), (A, B, C) in tris:
+def fill_triangles(mask, tris, pos=None, has=None, nrm=None):
+    """Rasterize UV triangles (texel coordinates) into mask; pos and nrm take each texel's surface point and normal."""
+    for ((x0, y0), (x1, y1), (x2, y2)), (A, B, C), N in tris:
         xs, ys = (x0, x1, x2), (y0, y1, y2)
         lx, hx = max(0, int(min(xs))), min(mask.shape[1] - 1, int(max(xs)) + 1)
         ly, hy = max(0, int(min(ys))), min(mask.shape[0] - 1, int(max(ys)) + 1)
@@ -61,6 +65,8 @@ def fill_triangles(mask, tris, pos, has):
         l1 = ((y2 - y0) * (X - x2) + (x0 - x2) * (Y - y2)) / d
         inside = (l0 >= -0.02) & (l1 >= -0.02) & (1 - l0 - l1 >= -0.02)
         mask[ly:hy + 1, lx:hx + 1] |= inside
+        if pos is None: continue
+        nrm[ly:hy + 1, lx:hx + 1][inside] = N
         w0, w1 = l0[inside][:, None], l1[inside][:, None]
         pos[ly:hy + 1, lx:hx + 1][inside] = w0 * A + w1 * B + (1 - w0 - w1) * C
         has[ly:hy + 1, lx:hx + 1] |= inside
@@ -79,10 +85,12 @@ for o in [o for o in bpy.data.objects if o.type == 'MESH' and base(o).startswith
         if not any(abs(c.x) < XM and neck.z - DOWN < c.z < neck.z + UP for c in vs): continue
         us = [(uvd[l].uv.x * w_, uvd[l].uv.y * h_) for l in p.loop_indices]
         ps = [np.array(mw @ o.data.vertices[v].co, np.float32) for v in p.vertices]
-        for k in range(1, len(us) - 1): tris.append(((us[0], us[k], us[k + 1]), (ps[0], ps[k], ps[k + 1])))
+        N = np.array((mw.to_3x3() @ p.normal).normalized(), np.float32)
+        for k in range(1, len(us) - 1): tris.append(((us[0], us[k], us[k + 1]), (ps[0], ps[k], ps[k + 1]), N))
     if not tris: continue
     mask = np.zeros((h_, w_), bool); has = np.zeros((h_, w_), bool); pos = np.zeros((h_, w_, 3), np.float32)
-    fill_triangles(mask, tris, pos, has)
+    nrm = np.zeros((h_, w_, 3), np.float32)
+    fill_triangles(mask, tris, pos, has, nrm)
     if GROW: mask = box_sum(mask.astype(np.float32), GROW) > 0
     C = P[..., :3]
     # white only where bright: the vest's grey sheen sorted as white left pale blotches on it
@@ -120,6 +128,13 @@ for o in [o for o in bpy.data.objects if o.type == 'MESH' and base(o).startswith
         # (specks where the two sides' borders did not quite meet: a small majority once more)
         votes = np.stack([box_sum(((sm == k) & has).astype(np.float32), 3) for k in range(3)])
         sm = np.where(has, votes.argmax(0), sm)
+    if INNER:
+        R = pos[..., :2] - np.array([neck.x, neck.y], np.float32); rl = np.linalg.norm(R, axis=2); nl = np.linalg.norm(nrm[..., :2], axis=2)
+        turned = (R * nrm[..., :2]).sum(2) < -0.3 * rl * nl
+        # (and the collar's rim right beside the neck, whichever way it faces: dark streaks were left along it)
+        inner = has & (turned | (pos[..., 2] > neck.z - 0.01) & (rl < 0.065)) & (pos[..., 2] > neck.z - 0.03) & (rl < 0.08) & (sm == 2)
+        sm[inner] = 0; print('COLLAR', img.name, 'inner dark texels to white', int(inner.sum()))
+    if MIRROR or INNER:
         # the grown margin (no surface point): the sort of the surface texels around it
         votes = np.stack([box_sum(((sm == k) & has).astype(np.float32), GROW + 1) for k in range(3)])
         edge = mask & ~has; sm[edge] = votes.argmax(0)[edge]
@@ -208,6 +223,30 @@ for o in [o for o in bpy.data.objects if o.type == 'MESH' and base(o).startswith
         for k, vi in idx.items():
             for g in o.data.vertices[near[k]].groups: o.vertex_groups[g.group].add([vi], g.weight, 'REPLACE')
         print('PLUG', int(big.sum()), 'hole cells,', faces, 'quads')
+    skin_uv = None
+    if SKIN and LINING:
+        # the neck's colour: the body's faces in front of the neck joint
+        cols = []
+        for b in [b for b in bpy.data.objects if b.type == 'MESH' and base(b).startswith('body')]:
+            bim = next((n.image for m in b.data.materials if m and m.node_tree for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image), None)
+            if not bim: continue
+            BP = np.array(bim.pixels[:], np.float32).reshape(bim.size[1], bim.size[0], -1); bu = b.data.uv_layers.active.data; bw = b.matrix_world
+            for p in b.data.polygons:
+                c = bw @ p.center
+                if abs(c.x) < 0.02 and c.y < neck.y and neck.z - 0.02 < c.z < neck.z + 0.03:
+                    for li in p.loop_indices:
+                        u = bu[li].uv; cols.append(BP[min(BP.shape[0] - 1, int(u.y * BP.shape[0])), min(BP.shape[1] - 1, int(u.x * BP.shape[1])), :3])
+        skin = np.median(cols, 0)
+        # a patch of it where no face of the top samples the texture
+        cov = np.zeros((h_, w_), bool); allt = []; uvd = o.data.uv_layers.active.data   # (the plug rebuilt the mesh)
+        for p in o.data.polygons:
+            us = [(uvd[l].uv.x * w_, uvd[l].uv.y * h_) for l in p.loop_indices]
+            for k in range(1, len(us) - 1): allt.append(((us[0], us[k], us[k + 1]), (None, None, None), None))
+        fill_triangles(cov, allt)
+        free = box_sum(cov.astype(np.float32), 8) == 0; free[:16] = free[-16:] = False; free[:, :16] = free[:, -16:] = False
+        fz, fx = (int(v[0]) for v in np.nonzero(free))
+        P[fz - 6:fz + 7, fx - 6:fx + 7, :3] = skin; skin_uv = ((fx + 0.5) / w_, (fz + 0.5) / h_)
+        print('SKIN', skin.round(2).tolist(), 'at texel', fx, fz)
     img.pixels[:] = P.ravel(); img.pack(); done.add(img.name)
     if LINING:
         bm = bmesh.new(); bm.from_mesh(o.data); bm.normal_update()
@@ -216,6 +255,14 @@ for o in [o for o in bpy.data.objects if o.type == 'MESH' and base(o).startswith
         new_f = [g for g in dup['geom'] if isinstance(g, bmesh.types.BMFace)]
         for v in (g for g in dup['geom'] if isinstance(g, bmesh.types.BMVert)): v.co -= v.normal * (0.0005 / mw.to_scale().x)
         bmesh.ops.reverse_faces(bm, faces=new_f)
+        if skin_uv:
+            uvl = bm.loops.layers.uv.active; sk = 0
+            for f in new_f:
+                c = mw @ f.calc_center_median()
+                if c.y < neck.y - 0.01 and abs(c.x) < SKIN and c.z > neck.z - 0.05:
+                    for l in f.loops: l[uvl].uv = skin_uv
+                    sk += 1
+            print('LINING', sk, 'front faces in skin')
         bm.to_mesh(o.data); bm.free()
         print('LINING', len(new_f), 'faces')
 if ad:
