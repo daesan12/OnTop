@@ -17,6 +17,7 @@ import { BenchSpectatorControls } from './BenchSpectatorControls'
 import { useTableLobby } from '../tableLobby/state'
 import { useGame } from '../../game/store'
 import { FitnessRewardPanel } from '../fitness/FitnessRewardPanel'
+import { CARRY_ESCAPE_PRESSES } from '../carry/escape'
 
 export function ParkInteractionHint() {
   const { benchId, fitnessId } = useSession(useShallow(s => ({ benchId: s.benchId, fitnessId: s.fitnessId })))
@@ -47,6 +48,7 @@ export function ParkInteractionHint() {
   const station = findFitness(fitnessId)
   return <aside className="park-runtime-panel park-interaction" aria-label="가까운 상호작용"
     hidden={omokWatching}
+    data-carry-role={carry?.role}
     data-target-id={fitnessId || target?.id || benchId} data-target-kind={target?.kind}
     data-fitness-id={fitnessId || (target?.kind === 'fitness' ? target.id : undefined)}>
     {fitnessId ? <>
@@ -65,12 +67,15 @@ export function ParkInteractionHint() {
       {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
       {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}
     </button>}
-    {carry?.role === 'CARRIED' && <strong>다른 산책자가 나를 들고 있어요</strong>}
+    {carry?.role === 'CARRIED' && <>
+      <strong>다른 산책자가 나를 들고 있어요</strong>
+      <span role="status"><kbd>A</kbd> · <kbd>D</kbd> 번갈아 {CARRY_ESCAPE_PRESSES}회 눌러 내려오기</span>
+    </>}
     {carry?.role === 'THROWN' && <span role="status">날아가는 중 · 착지하면 다시 움직일 수 있어요</span>}
-    {carry && carry.role !== 'THROWN' && <button type="button" aria-keyshortcuts={carry.role === 'CARRIED' ? 'E' : 'Escape'}
+    {carry?.role === 'CARRIER' && <button type="button" aria-keyshortcuts="Escape"
       disabled={actionPending} onClick={event => {
         void parkRuntime.releaseAvatar?.(carry.carryId); event.currentTarget.blur()
-      }}><kbd>{carry.role === 'CARRIED' ? 'E' : 'Esc'}</kbd> {carry.role === 'CARRIED' ? '내려오기' : '내려놓기'}</button>}
+      }}><kbd>Esc</kbd> 내려놓기</button>}
     {target?.kind === 'table' && target.id === entryNotice?.anchorId
       && <span role="status">{entryNotice.text}</span>}
     {joiningTable && <span role="status">자리를 확인하고 있어요…</span>}
