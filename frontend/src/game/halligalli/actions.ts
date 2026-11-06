@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { useGame } from '../store'
-import { forfeitBlocksInput } from '../forfeit'
+import { forfeitBlocksInput, useForfeit } from '../forfeit'
 import type { HalliGalli, HalliInput } from './protocol'
 
 export type RingMark = 'queued' | 'sent'
@@ -48,6 +48,22 @@ export function canRingHalli(ownId: string, bellWindowId: number) {
   const own = ownGame(ownId)
   return !!own && own.h.bellWindowId !== null && own.h.bellWindowId === bellWindowId
     && halliRingMark(own.g.gameId, bellWindowId) === undefined
+}
+
+/**
+ * A naturally eliminated player (eliminated, not forfeited) may stand up while the others keep playing. This only
+ * decides whether the own TABLE_LEAVE is worth sending: the server re-checks the latest engine state and never
+ * records a forfeit. A pending or uncertain forfeit attempt keeps its own re-check flow first.
+ */
+export function canLeaveEliminatedHalli(ownId: string, s = useGame.getState()) {
+  const g = s.game, attempt = useForfeit.getState().attempt
+  if (!g?.halli || g.role !== 'PLAYER' || !ownId || g.gameId !== s.permittedGameId || s.watchedGameId || s.pending
+    || !['RESTORED', 'ELIMINATED'].includes(s.recovery) || s.start?.phase !== 'PLAYING' || g.halli.status !== 'PLAYING')
+    return false
+  if (attempt?.gameId === g.gameId && attempt.userId === ownId && ['pending', 'uncertain'].includes(attempt.status))
+    return false
+  const me = g.halli.players.find(p => p.userId === ownId)
+  return !!me && me.eliminated && !me.forfeited
 }
 
 export type HalliOutcome = { kind: 'quiet' | 'rejected' | 'uncertain'; message: string }

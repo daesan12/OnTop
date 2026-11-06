@@ -1,0 +1,33 @@
+name: ontop-grafana-dev-local
+services:
+  grafana:
+    image: grafana/grafana:12.2.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ontop-local-admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana-password
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/ontop-dev.json
+    secrets:
+      - source: grafana-password
+        target: grafana-password
+    volumes:
+      - ./grafana-local/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports: ["127.0.0.1:${GRAFANA_LOCAL_PORT:-13001}:3000"]
+    mem_limit: 384m
+    cpus: 0.4
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: local
+      options: {max-size: "10m", max-file: "2"}
+volumes:
+  grafana-data:
+secrets:
+  grafana-password:
+    file: ${GRAFANA_LOCAL_PASSWORD_FILE:?Prepare a private LOCAL password file first}

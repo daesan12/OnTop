@@ -83,6 +83,7 @@ FE는 null/ID 변경 시 기존 GAME_UNWATCH 후 현재 ID로 요청한다. TABL
 
 - 명시적 종료는 같은 requestId로 완료 응답한다. 종료 후 해당 테이블의 알림을 보내지 않는다. 이미 송신 큐에 들어간 이전 알림은 종료 응답보다 앞에 도착할 수 있으므로 종료 응답에서 캐시를 비운다.
 - 성공한 `TABLE_JOIN`은 `requestId:null`의 `TABLE_WATCH_LEFT` 다음 기존 착석 응답을 보낸다. 착석 거절은 구독을 유지한다. 다른 테이블 착석도 성공해야 기존 구독을 정리한다.
+- 이전 경기 정산 전이라 착석이 `MEMBER_ALREADY_IN_GAME`으로 거절되는 회원도 `TABLE_WATCH`·`GAME_WATCH` 관전은 기존 조건 그대로 이용한다. 미정산 참가 확인은 실제 좌석 배정(`TABLE_JOIN`)에만 적용한다.
 - 성공한 `CHANNEL_LEAVE`는 `TABLE_WATCH_LEFT(null)` 다음 `CHANNEL_LEFT(요청 ID)`를 보낸다. 오류는 기존 구독을 유지한다.
 - 연결 종료·heartbeat 종료는 구독을 제거하며 종료 알림을 보내지 않는다. 재접속은 새 구독이 필요하다. 앱 종료도 메모리를 정리한다.
 
