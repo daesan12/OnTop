@@ -23,15 +23,15 @@
 
 ## DB·배포
 
-- 사용자 승인 번호 **V155**, `backend/src/main/resources/db/minigame/V155__add_skewer_coop_play_mode.sql` 한 개다. 결과의 `play_mode`와 방식별 랭킹 인덱스를 추가한다. 기존 V145는 수정하지 않는다.
-- 처음 승인받은 V154는 푸시 전 새 이벤트용 V154와 충돌했다. 사용자가 다른 로컬 V155를 V156으로 이관 완료했다고 확인하고 꼬치왕 V155를 승인했다. 원격·로컬 worktree에 V155가 없는 것을 재확인한 뒤 미배포 소스만 V155로 변경했다. 공유 DB에는 적용하지 않았다.
+- 사용자 승인 번호 **V156**, `backend/src/main/resources/db/minigame/V156__add_skewer_coop_play_mode.sql` 한 개다. 결과의 `play_mode`와 방식별 랭킹 인덱스를 추가한다. 기존 V145는 수정하지 않는다.
+- 처음 V154는 새 이벤트 V154와 겹쳐 V155로 변경했다. 이후 수상자 연락처 작업이 별도로 V155를 사용해 사용자가 꼬치왕 V156을 승인했다. OnTop 전체·등록된 117 worktree·원격 브랜치에서 V156 파일이 없는 것을 확인한 뒤 미배포 소스 한 개만 재지정했다. 공유 DB·기존 적용 이력은 변경하지 않았다.
 - 기존 행의 기본값은 VR이다. 과거 PC·전환으로 제외된 경기는 소급 등록하지 않는다. 기존 결과·지갑·지급 영수증을 변경하지 않는다.
 - 이전 저널의 mode 누락은 legacy VR로 읽고, 구 record의 해시 입력을 그대로 보존한다. 재시도 시 동일 경기의 정산 충돌·중복 지급을 방지한다.
-- 새 백엔드는 V155의 `play_mode`가 없으면 기동을 거절한다. `dev,db`의 기존 `db/minigame` Flyway location에서 V155를 정상 적용한 뒤 배포 상태를 확인한다. V155를 건너뛴 공유 DB에는 임의 outOfOrder·repair·초기화를 하지 않는다.
-- 기존 `verify-skewer-coop-db.sh`는 **V145와 두 테이블만** 확인한다. 이 검사 성공은 V155 적용 증거가 아니다. 승인된 DB 조회 경로에서 다음 읽기 전용 조회도 확인한다.
+- 새 백엔드는 V156의 `play_mode`가 없으면 기동을 거절한다. `dev,db`의 기존 `db/minigame` Flyway location에서 V156을 정상 적용한 뒤 배포 상태를 확인한다. V156을 건너뛴 공유 DB에는 임의 outOfOrder·repair·초기화를 하지 않는다.
+- 기존 `verify-skewer-coop-db.sh`는 **V145와 두 테이블만** 확인한다. 이 검사 성공은 V156 적용 증거가 아니다. 승인된 DB 조회 경로에서 다음 읽기 전용 조회도 확인한다.
 
 ```sql
-SELECT version, description, success FROM flyway_schema_history WHERE version = '155';
+SELECT version, description, success FROM flyway_schema_history WHERE version = '156';
 SELECT column_name, column_type FROM information_schema.columns
 WHERE table_schema = DATABASE() AND table_name = 'skewer_coop_results' AND column_name = 'play_mode';
 ```
@@ -39,7 +39,7 @@ WHERE table_schema = DATABASE() AND table_name = 'skewer_coop_results' AND colum
 ## 검증 기록과 한계
 
 - `origin/dev@3fb0d044`까지 작업 이력에 merge로 반영했다. 이번 피드백 수정과 충돌은 없었고 다른 작업·미커밋 프리뷰를 보존했다.
-- 백엔드 꼬치왕·최신 dev 운반 관련 125개 검사 통과. 별도 MySQL 8.4에서 8개 검사 통과: 팀원 이벤트 V154 적용 후 V154→V155·기존 잔액/결과 보존, 방식별 팀 최고 기록, 중복/롤백/일일 합산 한도, 프로세스 재시작 후 저널 복구, 정상 계정/JWT 경로를 포함한다.
+- 백엔드 꼬치왕·최신 dev 운반 관련 125개 검사 통과. 별도 MySQL 8.4에서 8개 검사 통과: 번호 변경 전 팀원 이벤트 V154 적용 후 V154→V155·기존 잔액/결과 보존, 방식별 팀 최고 기록, 중복/롤백/일일 합산 한도, 프로세스 재시작 후 저널 복구, 정상 계정/JWT 경로를 포함한다.
 - MySQL 검수 첫 준비는 초기 임시 서버의 소켓 준비 상태를 잘못 감지했고 TCP 준비 검사로 수정했다. 다음 실행의 하루 한도 검사는 검수 JDBC 시간대 누락으로 실패했다. 운영 설정 예시와 같은 UTC 세션으로 새 격리 DB에서 재실행해 8개 모두 통과했다. 운영 보상 코드를 바꿔 우회하지 않았다.
 - 프론트 꼬치왕·공통 API 경로 201개 검사, 앱·테스트 TypeScript 및 협동 활성화 공원 빌드 통과. 브라우저 검수는 저장소 Playwright를 사용했다(Browser plugin not available). PC 1664×941·1366×768·900×600·390×844와 VR 데스크톱 미리보기를 확인한다.
 - 로컬 독립 실행은 frontend에서 `node node_modules/vite/bin/vite.js --config vite.skewer-chef.config.ts` 또는 `--config vite.skewer-service-hall.config.ts`다. 이는 샘플 상태이며 실제 보상 지급 검증 화면이 아니다.
@@ -49,9 +49,16 @@ WHERE table_schema = DATABASE() AND table_name = 'skewer_coop_results' AND colum
 
 ## 후속 마무리 검수
 
-- 최신 `origin/dev@3fb0d044`가 이미 작업 이력에 포함되어 있어 불필요한 통합 커밋은 만들지 않았다. V155 계약은 유지하며 신규 migration은 추가하지 않는다.
+- 최신 `origin/dev@3fb0d044`가 이미 작업 이력에 포함되어 있어 불필요한 통합 커밋은 만들지 않았다. V156 계약은 유지하며 신규 migration은 추가하지 않는다.
 - 세척기 한 칸만 비었는데 식기 두 묶음을 들었을 때, 실제로 들어갈 **한 테이블분**을 안내한다. 화면에 `세척 중 1/2`처럼 현재 점유량도 표시한다.
 - 온라인 드라이버 검사는 추가 투입 시 실제 서버에 INTERACT만 요청하며 로컬 스냅샷의 식기·세척량을 임의 변경하지 않는 것, 가득 찼을 때 요청하지 않는 것을 확인한다.
 - 정상 파일 권한·단일 worker로 전체 프론트 검사를 다시 실행해 **2,549개 통과·조건부 제외 8개·실패 0개**를 확인했다. 위 EPERM/시간 초과는 이전 시도 기록이며 이번 전체 실행은 해당 맵 검사까지 통과했다. 제품/테스트 TypeScript와 실제 홀의 서빙→정리·수거→자동 세척 브라우저 시나리오도 통과했다.
 - 이번 후속 수정은 FE 안내와 검증만 변경한다. 앞서 V155에서 통과한 MySQL 8.4 8개 및 꼬치왕/인증/자산상 관련 백엔드 127개 결과는 유지하며, 공유 DEV 배포·물리 노트북·Quest 실기기 검수 완료로 해석하지 않는다.
 - 푸시 전 최신 `origin/dev@e53fed39`의 공통 운반 물리·키 안내 변경이 추가되어 충돌 없이 merge했다. 통합 후 꼬치왕/운반/공통 runtime FE 231개, 제품/테스트 TypeScript, 협동 활성화 공원 빌드, 관련 BE 141개가 모두 통과했다. 전체 FE 2,549개 실행은 이 추가 dev 통합 전 기준이며 통합 후에는 영향 범위를 재검증했다.
+
+## V156 최종 재지정·머지 순서
+
+- 새 원격 `feat/S15P31B105-356-winner-contact-api`가 이벤트 연락처 이력용 V155를 사용한다. 꼬치왕은 사용자 승인 V156 한 개를 사용한다. 이벤트 SQL과 꼬치왕 기존 V145는 수정하지 않는다.
+- 이벤트 V155의 MR !419가 dev에 먼저 머지된 것을 확인하고 `origin/dev@0e4f0515`를 이력 보존 merge로 반영했다. V156 작업 파일 5개의 해시를 통합 전후 대조해 보존을 확인했다. 임의 outOfOrder·repair·기존 DB 번호 변경으로 우회하지 않는다.
+- 추가 dev 통합 전 `7e9e686b` 기준 전체 FE 2,554 통과/8 조건부 제외/실패 0, 전체 BE 3,416개 중 3,389 통과/27 조건부 제외/실패 0을 확인했다. BE 전체는 약 17분 소요됐으며 통합 후에는 새 변경의 영향 범위를 재검증한다.
+- 실제로 통합된 V155를 포함한 새 MySQL 8.4에서 V155→V156 순차 적용·구 결과/잔액 보존·방식별 랭킹·일일 한도·중복/롤백·저널 재시작·계정 권한 8개를 통과했다. 추가 검증용 SQL 복사본을 끼워 넣지 않고 실제 최신 dev migration을 사용했다. 통합 후 꼬치왕·인증·관리 권한·연락처 암호화 관련 BE 129개도 통과했다.

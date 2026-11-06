@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Tag("mysql")
 class SkewerCoopMigrationTests {
     @Test
-    void 기존_결과와_회원_지갑을_보존하며_V155로_올린다() throws Exception {
+    void 기존_결과와_회원_지갑을_보존하며_V156으로_올린다() throws Exception {
         String url = System.getenv("TEST_SKEWER_COOP_MIGRATION_DB_URL");
         if (url == null || !url.matches("jdbc:mysql://127\\.0\\.0\\.1:[0-9]+/ontop_skewer_coop_upgrade_[A-Za-z0-9_]+(?:\\?.*)?")) {
             throw new IllegalStateException("순차 적용은 loopback의 새 전용 upgrade DB에서만 검증합니다.");
@@ -29,7 +29,7 @@ class SkewerCoopMigrationTests {
         }
         var available = Flyway.configure().dataSource(url, user, password)
                 .locations(locations.toArray(String[]::new)).load();
-        MigrationVersion skewerVersion = MigrationVersion.fromVersion("155");
+        MigrationVersion skewerVersion = MigrationVersion.fromVersion("156");
         MigrationVersion previousVersion = Arrays.stream(available.info().all())
                 .map(migration -> migration.getVersion())
                 .filter(version -> version != null && version.compareTo(skewerVersion) < 0)
@@ -65,7 +65,7 @@ class SkewerCoopMigrationTests {
         var after = Flyway.configure().dataSource(url, user, password)
                 .locations(locations.toArray(String[]::new)).target(skewerVersion).load();
         assertThat(after.migrate().migrationsExecuted).isEqualTo(1);
-        assertThat(after.info().current().getVersion().getVersion()).isEqualTo("155");
+        assertThat(after.info().current().getVersion().getVersion()).isEqualTo("156");
         after.validate();
         assertThat(after.migrate().migrationsExecuted).isZero();
         try (var connection = DriverManager.getConnection(url, user, password);

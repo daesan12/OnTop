@@ -74,7 +74,7 @@ public class JdbcSkewerCoopResultStore implements SkewerCoopResultStore {
                   AND TABLE_NAME = 'skewer_coop_results' AND COLUMN_NAME = 'play_mode'
                 """, Integer.class);
         if (modeColumn == null || modeColumn != 1) {
-            throw new IllegalStateException("꼬치왕 PC/VR 랭킹에는 db/minigame V155 적용이 필요합니다.");
+            throw new IllegalStateException("꼬치왕 PC/VR 랭킹에는 db/minigame V156 적용이 필요합니다.");
         }
     }
 
