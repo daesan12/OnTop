@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useSession } from '../../network/worldClient'
 import { OnDemandContent } from '../../park/OnDemandContent'
 import wardrobeIcon from '../parkMenus/icons/dock-wardrobe.svg'
-import { closeWardrobe, openWardrobe, resetWardrobe, useWardrobe } from './state'
+import { closeWardrobe, openWardrobe, resetWardrobe, useWardrobe, refreshWardrobe } from './state'
 import { useGameplayMenusLocked } from '../parkMenus/gameplayLock'
 
 const loadScreen = () => import('./WardrobeScreen').then(module => ({ default: module.WardrobeScreen }))
@@ -22,6 +22,8 @@ export function WardrobeHost() {
   const gameplayLocked = useGameplayMenusLocked()
   useEffect(() => { if (gameplayLocked) closeWardrobe() }, [gameplayLocked])
   useEffect(() => {
+    const inventoryChanged = () => { void refreshWardrobe() }
+    window.addEventListener('ontop-gacha-committed', inventoryChanged)
     const unsubscribe = useSession.subscribe((next, old) => {
       const { owner } = useWardrobe.getState()
       if (next.sessionId && owner && next.sessionId !== owner) resetWardrobe()
@@ -35,6 +37,7 @@ export function WardrobeHost() {
     window.addEventListener('ontop-manual-open', closeWardrobe)
     window.addEventListener('keydown', escape, true)
     return () => {
+      window.removeEventListener('ontop-gacha-committed', inventoryChanged)
       unsubscribe(); window.removeEventListener('ontop-manual-open', closeWardrobe)
       window.removeEventListener('keydown', escape, true); resetWardrobe()
     }

@@ -54,6 +54,7 @@ import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
+import { GachaLifecycle } from '../features/gacha/GachaPanel'
 import { useParkGameplayActive } from '../features/operation/parkGameplay'
 import { useParkOperationGate } from '../features/operation/useParkOperationGate'
 import type { ServiceOperationStatus } from '../features/operation/serviceOperation'
@@ -128,6 +129,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <RewardCoinFlight />
       <ChannelEntryGate />
       <AnnouncementBanner />
+      <GachaLifecycle />
       {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>

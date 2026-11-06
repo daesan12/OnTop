@@ -451,9 +451,12 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'POST' && /^\/api\/v1\/minigames\/speed-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
+    const gachaRequest = (method === 'GET' && (path === '/api/v1/gacha'
+      || /^\/api\/v1\/gacha\/operations\/[A-Za-z0-9_-]{1,64}$/.test(path)))
+      || (method === 'POST' && ['/api/v1/gacha/tickets', '/api/v1/gacha/draws', '/api/v1/gacha/boxes/open'].includes(path))
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
-      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !raffleRequest && !fitnessRewardRequest
+      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
