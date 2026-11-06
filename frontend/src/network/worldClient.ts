@@ -292,6 +292,18 @@ export function sampleAvatar(
   now: number,
   target: Pose,
 ): Pose {
+  const carry = avatar.carry
+  if (carry?.role === 'CARRIED') {
+    const carrier = avatars.get(carry.partnerId), partner = carrier?.carry
+    if (carrier && partner?.role === 'CARRIER' && partner.carryId === carry.carryId
+      && partner.partnerId === avatar.userId) {
+      // Share the carrier's display clock, including local prediction. Independent
+      // remote interpolation otherwise leaves the held model behind while running.
+      sampleAvatar(carrier, now, target)
+      target.y += 1.7
+      return target
+    }
+  }
   if (avatar === avatars.get(useSession.getState().sessionId)) {
     if (!predictionAllowed()) localMovement.suspend()
     else if (localMovement.sample(now, target)) return target

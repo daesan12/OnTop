@@ -1,6 +1,52 @@
 import { expect, test } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 
+test('held avatar follows the rendered carrier every frame while running and changing direction', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
+  await page.goto('/park')
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  await page.evaluate(async () => {
+    const path = '/tests/e2e/sceneProbe.ts'
+    ;(await import(path)).faceCarryTarget()
+  })
+  await expect(page.getByRole('button', { name: /님 들기/ })).toBeVisible()
+  await page.locator('canvas').focus()
+  await page.keyboard.press('KeyE')
+  await expect(page.getByRole('button', { name: /바라보는 방향으로 던지기/ })).toBeVisible()
+  const frames: { carrier: number[]; carried: number[]; yawDifference: number }[] = []
+  await page.keyboard.down('ShiftLeft')
+  for (const key of ['KeyW', 'KeyD']) {
+    await page.keyboard.down(key)
+    frames.push(...await page.evaluate(async () => {
+      const path = '/tests/e2e/sceneProbe.ts'
+      return (await import(path)).carryRenderedFrames(35)
+    }))
+    await page.keyboard.up(key)
+  }
+  await screenshot(page, 'carry-running-follow-desktop')
+  await page.keyboard.up('ShiftLeft')
+  for (const { carrier, carried, yawDifference } of frames) {
+    // The two render subscribers sample performance.now separately within a frame.
+    expect(Math.abs(carried[0]! - carrier[0]!)).toBeLessThan(.01)
+    expect(Math.abs(carried[1]! - carrier[1]! - 1.7)).toBeLessThan(.01)
+    expect(Math.abs(carried[2]! - carrier[2]!)).toBeLessThan(.01)
+    expect(Math.abs(yawDifference)).toBeLessThan(.01)
+  }
+  const start = frames[0]!.carrier, end = frames.at(-1)!.carrier
+  expect(Math.hypot(end[0]! - start[0]!, end[2]! - start[2]!)).toBeGreaterThan(.5)
+  expect(server.sent.some(message => message.type === 'WORLD_MOVE' && message.payload.run === true)).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CARRY_RELEASE').length).toBe(1)
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  expect(page.url()).toContain('/park')
+  expect(await page.title()).not.toBe('')
+  expect(errors).toEqual([])
+})
+
 test('E picks up a nearby player, throws along the camera, and blocks games and chat', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))

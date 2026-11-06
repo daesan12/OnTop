@@ -76,6 +76,17 @@ export function carryProbe() {
 }
 
 export function faceCarryTarget() { viewControls.yaw = Math.PI }
+
+export async function carryRenderedFrames(count: number) {
+  const frames: { carrier: number[]; carried: number[]; yawDifference: number }[] = []
+  for (let i = 0; i < count; i++) {
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    const scene = root().scene, carrier = scene.getObjectByName('avatar-101')!, carried = scene.getObjectByName('avatar-102')!
+    frames.push({ carrier: carrier.position.toArray(), carried: carried.position.toArray(),
+      yawDifference: carried.rotation.y - carrier.rotation.y })
+  }
+  return frames
+}
 import { SkinnedMesh, ShaderMaterial } from 'three'
 import { FITNESS_STATIONS } from '../../src/config'
 import { ADVERTISEMENT_SCHEDULE } from '../../src/world/art/advertisementMedia'
