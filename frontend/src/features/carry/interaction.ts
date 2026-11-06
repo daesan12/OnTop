@@ -28,9 +28,9 @@ export function carryInteraction() {
   if (own.carry || !parkRuntime.pickupAvatar || !interactionAim.ready) return null
   let target: { id: string; distance: number; score: number } | null = null
   for (const [id, avatar] of avatars) {
-    if (id === session.sessionId || avatar.carry || avatar.moving || !carryPlayerAvailable(id, avatar)) continue
+    if (id === session.sessionId || avatar.carry || !carryPlayerAvailable(id, avatar)) continue
     const distance = Math.hypot(own.current.x - avatar.current.x, own.current.z - avatar.current.z)
-    if (distance > 2.6 || Math.abs(own.current.y - avatar.current.y) > .8) continue
+    if (distance > 2.6 || Math.abs(own.current.y - avatar.current.y) > 2) continue
     const score = interactionScore(distance, avatar.current)
     if (!Number.isFinite(score) || target && target.score <= score) continue
     target = { id, distance, score }

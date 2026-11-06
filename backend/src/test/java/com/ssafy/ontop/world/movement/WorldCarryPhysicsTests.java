@@ -16,6 +16,69 @@ import static org.assertj.core.api.Assertions.within;
 class WorldCarryPhysicsTests {
     private final AtomicLong now = new AtomicLong();
 
+    @Test
+    void 달리는_중이어도_정적벽_너머의_상대는_들수없다() throws Exception {
+        try (var physics = pair(false, true)) {
+            physics.place("a", 18.9, .84, 78);
+            physics.place("b", 21.1, .84, 78);
+            physics.input("b", new MoveInput(1, 1, 0, true, false), now.get());
+
+            assertThat(physics.pickup("a", "b")).isFalse();
+            assertThat(physics.carryState("a")).isNull();
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,a", "false,b", "true,a", "true,b"})
+    void 달리는_점프_도중_어느쪽이_공중에_있어도_들고_던질수있다(
+            boolean clientPositions, String jumper) throws Exception {
+        try (var physics = pair(clientPositions)) {
+            var start = physics.snapshot(jumper);
+            if (clientPositions) {
+                for (int seq = 1; seq <= 2; seq++) {
+                    now.addAndGet(100_000_000L);
+                    var approved = physics.report(jumper, new ClientPositionValidator.Candidate(seq,
+                            start.motion().epoch(), new ClientPositionValidator.Pose(
+                            start.x() + seq * .1, start.y() + (seq == 1 ? .65 : 1), start.z()), true, seq == 1),
+                            now.get());
+                    assertThat(approved.motion().correctionReason()).isNull();
+                }
+            } else {
+                assertThat(physics.input(jumper, new MoveInput(1, 1, 0, true, true), now.get())).isTrue();
+                step(physics, 5);
+            }
+            assertThat(physics.snapshot(jumper).motion().grounded()).isFalse();
+            assertThat(physics.snapshot(jumper).y()).isGreaterThan(start.y() + .3);
+            assertThat(physics.hasMovementActivity(jumper, now.get())).isTrue();
+
+            assertThat(physics.pickup("a", "b")).isTrue();
+            assertThat(physics.hasMovementActivity("b", now.get())).isFalse();
+            step(physics, 2);
+            assertThat(physics.snapshot("b").y()).isCloseTo(physics.snapshot("a").y() + 1.7, within(.01));
+            var launch = physics.snapshot("b");
+            assertThat(physics.throwCarried("a", physics.carryState("a").carryId(), -1, 0, 0)).isTrue();
+            step(physics, 6);
+
+            assertThat(physics.carryState("b").role()).isEqualTo("THROWN");
+            assertThat(physics.snapshot("b").x()).isLessThan(launch.x() - 2.5);
+        }
+    }
+
+    @Test
+    void 점프가_물리틱에_적용되기_전에도_들수있고_운반자의_점프를_유지한다() throws Exception {
+        try (var physics = pair(false)) {
+            double startY = physics.snapshot("a").y();
+            assertThat(physics.input("a", new MoveInput(1, 0, 0, false, true), now.get())).isTrue();
+
+            assertThat(physics.pickup("a", "b")).isTrue();
+            step(physics, 5);
+
+            assertThat(physics.snapshot("a").y()).isGreaterThan(startY + .3);
+            assertThat(physics.carryState("b").role()).isEqualTo("CARRIED");
+            assertThat(physics.snapshot("b").y()).isCloseTo(physics.snapshot("a").y() + 1.7, within(.01));
+        }
+    }
+
     @ParameterizedTest
     @CsvSource({"false,-1,0", "true,-1,0", "false,0,1", "true,0,1", "false,0,-1", "true,0,-1",
             "false,0.6,-0.8", "true,0.6,-0.8"})

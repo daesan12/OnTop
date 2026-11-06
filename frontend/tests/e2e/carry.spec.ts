@@ -3,7 +3,7 @@ import { fixture, screenshot } from './contractFixture'
 import type { carryThrowGestureFrames } from './sceneProbe'
 
 async function readyCarryScene(page: Page) {
-  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible({ timeout: 90000 })
   await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length),
     { timeout: 90000 }).toBeGreaterThan(0)
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
@@ -58,6 +58,41 @@ for (const [view, orbit] of [['forward', 0], ['opposite', Math.PI], ['sideways',
     expect(Math.max(...reach)).toBeGreaterThan(.2)
     expect(Math.max(...frames.map(frame => frame.spine))).toBeGreaterThan(.08)
     for (const frame of frames) expect(frame.yaw).toBeCloseTo(Math.PI)
+    await expect(page).toHaveTitle('OnTop')
+    await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+    expect(errors).toEqual([])
+  })
+}
+
+for (const [mode, carrierHeight, targetHeight, targetMoving] of [
+  ['running', .84, .84, true], ['jumping-target', .84, 1.84, false],
+  ['jumping-carrier', 1.84, .84, false], ['both-jumping', 1.84, 1.84, true],
+] as const) {
+  test(`pickup and throw remain available while ${mode}`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+    const server = await fixture(page, { generatedPark: true, carry: true,
+      position: { x: 0, y: carrierHeight, z: 78, yaw: Math.PI } })
+    await page.goto('/park')
+    await readyCarryScene(page)
+    server.remotePose({ x: 0, y: targetHeight, z: 77, moving: targetMoving, running: targetMoving })
+    await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).faceCarryTarget())
+    await expect(page.getByRole('button', { name: /님 들기/ })).toBeVisible()
+    await page.locator('canvas').focus()
+    if (mode === 'running') {
+      await page.keyboard.down('ShiftLeft'); await page.keyboard.down('KeyD')
+      await expect.poll(() => server.sent.some(message => message.type === 'WORLD_MOVE'
+        && message.payload.run === true && (message.payload.dx || message.payload.dz))).toBeTruthy()
+    }
+    await page.keyboard.press('KeyE')
+    await page.keyboard.up('KeyD'); await page.keyboard.up('ShiftLeft')
+    await expect(page.getByRole('button', { name: /캐릭터 방향으로 던지기/ })).toBeVisible()
+    await screenshot(page, `carry-pickup-${mode}`)
+    await page.keyboard.press('KeyE')
+    await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CARRY_THROW').length).toBe(1)
+    await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string))
+      .carryProbe().carries['102']?.role)).toBe('THROWN')
     await expect(page).toHaveTitle('OnTop')
     await expect(page.locator('vite-error-overlay')).toHaveCount(0)
     expect(errors).toEqual([])
@@ -136,7 +171,7 @@ for (const firstPerson of [false, true]) {
       { userId: '101', position: { ...flags, y: 2.54 }, carry: { carryId, partnerId: '102', role: 'CARRIED' } },
       { userId: '102', position: { ...flags, y: .84 }, carry: { carryId, partnerId: '101', role: 'CARRIER' } },
     ] })
-    const escape = page.getByRole('status').filter({ hasText: '번갈아 6회 눌러 내려오기' })
+    const escape = page.getByRole('status', { name: 'A와 D를 번갈아 6회 눌러 내려오기' })
     await expect(escape).toBeVisible()
     for (const key of ['KeyA', 'KeyD', 'KeyA', 'KeyD', 'KeyA', 'KeyD']) await page.keyboard.press(key)
     await expect(escape).toBeHidden()
@@ -211,6 +246,7 @@ for (const perspective of ['third-person', 'first-person']) {
 }
 
 test('a carried player escapes only with six alternating AD presses, without movement or repeat-key escape', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
   const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
   await page.goto('/park')
   await readyCarryScene(page)
@@ -221,8 +257,19 @@ test('a carried player escapes only with six alternating AD presses, without mov
     { userId: '101', position: { ...flags, y: 2.54 }, carry: { carryId, partnerId: '102', role: 'CARRIED' } },
     { userId: '102', position: { ...flags, y: .84 }, carry: { carryId, partnerId: '101', role: 'CARRIER' } },
   ] })
-  const escape = page.getByRole('status').filter({ hasText: '번갈아 6회 눌러 내려오기' })
+  const escape = page.getByRole('status', { name: 'A와 D를 번갈아 6회 눌러 내려오기' })
   await expect(escape).toBeVisible()
+  await expect(escape.locator('kbd')).toHaveText(['A', 'D'])
+  await expect(escape).toHaveText('A↔D')
+  const keyDepthDifference = () => escape.locator('kbd').evaluateAll(keys => {
+    const depths = keys.map(key => {
+      const transform = getComputedStyle(key).transform
+      return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42
+    })
+    return depths[0]! - depths[1]!
+  })
+  await expect.poll(keyDepthDifference).toBeGreaterThan(.7)
+  await expect.poll(keyDepthDifference).toBeLessThan(-.7)
   await expect(page.getByRole('button', { name: /내려오기/ })).toHaveCount(0)
   await page.locator('canvas').focus()
   await page.keyboard.press('Escape')
@@ -253,6 +300,9 @@ test('a carried player escapes only with six alternating AD presses, without mov
   const hintBox = await escape.boundingBox(), chatBox = await page.getByRole('region', { name: '주변 채팅', exact: true }).boundingBox()
   expect(hintBox!.y + hintBox!.height).toBeLessThan(chatBox!.y)
   await screenshot(page, 'carry-ad-escape-short')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect.poll(() => escape.locator('kbd').evaluateAll(keys =>
+    keys.every(key => key.getAnimations().length === 0))).toBe(true)
   const movementBefore = server.sent.filter(message => message.type === 'WORLD_MOVE'
     && (message.payload.dx || message.payload.dz)).length
   for (const key of ['KeyD', 'KeyA', 'KeyD', 'KeyA', 'KeyD']) await page.keyboard.press(key)

@@ -86,14 +86,28 @@ it('excludes both participants during games, facilities, swimming, emotes and fo
   expect(carryInteraction()).toBeNull()
 })
 
-it('never offers pickup for distant, moving, carried or thrown players or while pending', () => {
+it.each([false, true])('offers pickup while both players move or jump (running=%s)', running => {
+  const own = avatars.get('101')!, other = avatars.get('102')!
+  own.moving = other.moving = true
+  own.running = other.running = running
+  for (const id of ['101', '102']) {
+    Object.assign(avatars.get(id)!.current, { y: 1.84 })
+    expect(carryInteraction()).toMatchObject({ kind: 'avatar-pickup', id: '102' })
+    avatars.get(id)!.current.y = .84
+  }
+})
+
+it.each([1, 2, 2.0001])('keeps a bounded vertical pickup reach while allowing jumping height %s', height => {
+  avatars.get('101')!.current.y = .84
+  avatars.get('102')!.current.y = .84 + height
+  expect(carryInteraction()?.kind === 'avatar-pickup').toBe(height <= 2)
+})
+
+it('never offers pickup for distant, carried or thrown players or while pending', () => {
   const other = avatars.get('102')!
   other.current.x = 3
   expect(carryInteraction()).toBeNull()
   other.current.x = 0
-  other.moving = true
-  expect(carryInteraction()).toBeNull()
-  other.moving = false
   for (const role of ['CARRIED', 'THROWN'] as const) {
     other.carry = { carryId, partnerId: '101', role }
     expect(carryInteraction()).toBeNull()
