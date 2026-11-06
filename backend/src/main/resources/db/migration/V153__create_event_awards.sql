@@ -46,7 +46,7 @@ CREATE TABLE event_prize_slots (
     CONSTRAINT uk_event_prize_slots_round_place_slot UNIQUE (event_round_id, place, slot_number),
     CONSTRAINT uk_event_prize_slots_id_round UNIQUE (id, event_round_id),
     CONSTRAINT fk_event_prize_slots_round FOREIGN KEY (event_round_id) REFERENCES event_rounds(id),
-    CONSTRAINT ck_event_prize_slots_place CHECK (place BETWEEN 1 AND 3),
+    CONSTRAINT ck_event_prize_slots_place CHECK (place > 0),
     CONSTRAINT ck_event_prize_slots_slot CHECK (slot_number > 0),
     CONSTRAINT ck_event_prize_slots_name CHECK (CHAR_LENGTH(TRIM(prize_name)) BETWEEN 1 AND 120)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_bin;

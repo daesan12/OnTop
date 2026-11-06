@@ -57,8 +57,15 @@ class EventAwardMigrationMySqlTests {
                     """);
             statement.executeUpdate("""
                     INSERT INTO event_prize_slots(event_round_id, place, slot_number, prize_name) VALUES
-                    (2, 1, 1, 'coffee'), (2, 1, 2, 'coffee'), (1, 1, 1, 'chicken')
+                    (2, 1, 1, 'coffee'), (2, 1, 2, 'coffee'),
+                    (1, 1, 1, 'chicken'), (2, 4, 1, 'bonus')
                     """);
+            assertThat(count(statement, "event_prize_slots", "place=4")).isOne();
+            assertThatThrownBy(() -> statement.executeUpdate("""
+                    INSERT INTO event_prize_slots(event_round_id, place, slot_number, prize_name)
+                    VALUES (2, 0, 1, 'invalid')
+                    """)).isInstanceOf(SQLException.class)
+                    .satisfies(error -> assertThat(((SQLException) error).getErrorCode()).isEqualTo(3819));
             statement.executeUpdate("""
                     INSERT INTO event_winners(event_round_id, prize_slot_id, user_id,
                         source_record_id, source_value, source_achieved_at, selected_at)
