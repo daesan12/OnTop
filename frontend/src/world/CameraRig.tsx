@@ -12,7 +12,7 @@ import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 import { CAMERA, CHARACTER, GOMOKU, PARK_SIZE, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale, tableSeats } from '../park/mapConfig'
 import { WELCOME_FLIGHT_MS, welcomeFlight, welcomeFlightPose } from '../features/welcomeTour/flight'
 import { telescopeView } from '../features/telescopeView'
-import { interactionAim } from '../features/interactions/interactionAim'
+import { interactionAim, setInteractionCamera } from '../features/interactions/interactionAim'
 import { useGame } from '../game/store'
 import { omokCamera, omokSpectatorViewport } from '../game/cameraState'
 import { OMOK_BOARD_Y } from '../game/omokPresentation'
@@ -103,6 +103,7 @@ export function CameraRig() {
     () => () => {
       occlusion.dispose()
       interactionAim.ready = false
+      setInteractionCamera(null)
       if (state.bench) Object.assign(viewControls, state.savedView)
       if (state.telescope) {
         Object.assign(viewControls, state.savedTelescopeView)
@@ -557,6 +558,7 @@ export function CameraRig() {
     }
     diceCamera.ready = diceFocus || diceSpectator ? omokSettled : !!(spectatorBoard && game?.dice) && camera.position.distanceTo(state.desired) < .005
     camera.getWorldDirection(state.direction)
+    setInteractionCamera(camera)
     interactionAim.ready = true
     interactionAim.x = camera.position.x
     interactionAim.y = camera.position.y

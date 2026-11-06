@@ -169,7 +169,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (event.defaultPrevented || parkXRView.ownsInput) return
     const session = useSession.getState(), table = session.tableStates[session.tableId]
     const carry = avatars.get(session.sessionId)?.carry
-    if (event.code === 'Escape' && !event.repeat && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey
+    const carryReleaseKey = carry?.role === 'CARRIED' ? 'KeyE' : 'Escape'
+    if (event.code === carryReleaseKey && !event.repeat && !event.isComposing && !event.ctrlKey && !event.altKey && !event.metaKey
       && carry && carry.role !== 'THROWN' && session.status === 'connected' && !document.hidden
       && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)) {
       event.preventDefault()

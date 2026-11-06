@@ -70,12 +70,26 @@ import { useGame } from '../../src/game/store'
 import { avatars, sampleAvatar, estimatedServerTime, type AvatarSnapshot } from '../../src/network/worldClient'
 import { interactionAim } from '../../src/features/interactions/interactionAim'
 
-export function carryProbe() {
-  return { carries: Object.fromEntries([...avatars].map(([id, avatar]) => [id, avatar.carry ?? null])),
-    aim: { dx: interactionAim.dx, dy: interactionAim.dy, dz: interactionAim.dz } }
+let carryInputDirection: number[] | null = null
+export function captureNextCarryThrow() {
+  carryInputDirection = null
+  const capture = (event: KeyboardEvent) => {
+    if (event.code !== 'KeyE' || event.repeat) return
+    carryInputDirection = root().camera.getWorldDirection(new Vector3()).toArray()
+    window.removeEventListener('keydown', capture, true)
+  }
+  window.addEventListener('keydown', capture, true)
 }
 
-export function faceCarryTarget() { viewControls.yaw = Math.PI }
+export function carryProbe() {
+  return { carries: Object.fromEntries([...avatars].map(([id, avatar]) => [id, avatar.carry ?? null])),
+    aim: { dx: interactionAim.dx, dy: interactionAim.dy, dz: interactionAim.dz }, inputDirection: carryInputDirection }
+}
+
+export function faceCarryTarget(pitch?: number) {
+  viewControls.yaw = Math.PI
+  if (pitch !== undefined) viewControls.pitch = pitch
+}
 
 export function carryFlightProbe() {
   const scene = root().scene, carrier = scene.getObjectByName('avatar-101')!, carried = scene.getObjectByName('avatar-102')!
