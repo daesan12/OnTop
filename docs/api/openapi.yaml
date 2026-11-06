@@ -3785,6 +3785,33 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/admin/raffles/rounds/{weekStart}/finalize:
+    post:
+      tags:
+      - Raffle
+      summary: 관리자 응모권 추첨 확정·재시도
+      operationId: finalizeRound
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RaffleDrawResponse"
+      security:
+      - AccessJwt: []
   /api/v1/users/me:
     get:
       tags:
@@ -5040,6 +5067,33 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/raffles/rounds/{weekStart}/result:
+    get:
+      tags:
+      - Raffle
+      summary: 본인의 주간 응모권 추첨 결과
+      operationId: memberResult
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RaffleMemberResultResponse"
+      security:
+      - AccessJwt: []
   /api/v1/raffles/current:
     get:
       tags:
@@ -6031,6 +6085,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublicAnnouncementsResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/raffles/rounds/{weekStart}:
+    get:
+      tags:
+      - Raffle
+      summary: 관리자 응모권 추첨 결과 조회
+      operationId: adminResult
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RaffleDrawResponse"
       security:
       - AccessJwt: []
   /api/v1/admin/operations/announcements:
@@ -7839,6 +7920,52 @@ components:
           format: int64
         executable:
           type: boolean
+    RaffleDrawResponse:
+      type: object
+      properties:
+        weekStartDate:
+          type: string
+          format: date
+        announcesAt:
+          type: string
+          format: date-time
+        finalized:
+          type: boolean
+        alreadyFinalized:
+          type: boolean
+        expectedPrizeCount:
+          type: integer
+          format: int32
+        awardedPrizeCount:
+          type: integer
+          format: int32
+        vacantPrizeCount:
+          type: integer
+          format: int32
+        winners:
+          type: array
+          items:
+            $ref: "#/components/schemas/Winner"
+    Winner:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        raffleTicketId:
+          type: integer
+          format: int64
+        ticketNumber:
+          type: integer
+          format: int32
+        place:
+          type: integer
+          format: int32
+        slotNumber:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
     UserNicknameUpdateRequest:
       required:
       - nickname
@@ -8377,6 +8504,32 @@ components:
         updatedAt:
           type: string
           format: date-time
+    Prize:
+      type: object
+      properties:
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        ticketNumber:
+          type: integer
+          format: int32
+    RaffleMemberResultResponse:
+      type: object
+      properties:
+        weekStartDate:
+          type: string
+          format: date
+        announcesAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        prizes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Prize"
     CurrentRaffleResponse:
       type: object
       properties:

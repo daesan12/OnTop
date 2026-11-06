@@ -6,6 +6,7 @@ ontop:
     enabled: ${SHOP_ENABLED:false}
   raffle:
     enabled: ${RAFFLE_ENABLED:false}
+    draw-enabled: ${RAFFLE_DRAW_ENABLED:true}
   # DB 시작 Gateway를 등록한 뒤 명시적으로 켠다. 시연용 Gateway는 dev에 등록하지 않는다.
   game-start:
     enabled: ${GAME_START_ENABLED:false}

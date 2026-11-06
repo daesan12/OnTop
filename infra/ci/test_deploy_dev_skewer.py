@@ -55,6 +55,7 @@ class DevSkewerDeploymentTests(unittest.TestCase):
         journal.chmod(mode)
         with self.env_file.open("a") as target:
             target.write(f"SKEWER_COOP_JOURNAL_HOST_DIR={journal}\n")
+        (self.env_file.parent / "skewer-coop.enabled").touch()
         return journal
 
     def test_default_deployment_keeps_coop_disabled(self):
@@ -82,6 +83,7 @@ class DevSkewerDeploymentTests(unittest.TestCase):
             self.assertIn("compose.skewer-coop.yaml", call)
 
     def test_missing_journal_blocks_before_changing_image_or_recreating_app(self):
+        (self.env_file.parent / "skewer-coop.enabled").touch()
         with self.env_file.open("a") as target:
             target.write("SKEWER_COOP_JOURNAL_HOST_DIR=/missing-journal\n")
         before = self.env_file.read_text()
@@ -98,7 +100,7 @@ class DevSkewerDeploymentTests(unittest.TestCase):
                 journal.chmod(mode)
                 result = self.run_deploy()
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn("10001:10001", result.stderr)
+                self.assertIn("ownership, permissions", result.stderr)
                 self.assertNotIn("compose ", self.log.read_text())
 
 

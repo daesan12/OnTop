@@ -10,11 +10,36 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WorldCarryTests {
+    @ParameterizedTest
+    @CsvSource({"2.1,0,true", "2.2,0,true", "-2.2,0,true", "0,2.19,true",
+            "2.2001,0,false", "0,2.21,false", "1.3,1.7,true", "1.6,1.6,false"})
+    void 들기_수평거리는_2점2미터까지_허용하고_바깥은_거절한다(
+            double x, double z, boolean available) throws Exception {
+        try (var pair = pair()) {
+            var registry = pair.registry();
+            registry.move("b", new WorldChannelRegistry.Position(1, x, .84, 78 + z, 0));
+
+            if (available) {
+                registry.pickup("a", "b");
+                assertThat(registry.carryState("a").role()).isEqualTo("CARRIER");
+                assertThat(registry.carryState("b").role()).isEqualTo("CARRIED");
+            } else {
+                assertThatThrownBy(() -> registry.pickup("a", "b"))
+                        .isInstanceOfSatisfying(WorldChannelRegistry.ChannelException.class,
+                                exception -> assertThat(exception.code()).isEqualTo("CARRY_OUT_OF_RANGE"));
+                assertThat(registry.carryState("a")).isNull();
+                assertThat(registry.carryState("b")).isNull();
+            }
+        }
+    }
+
     @Test
     void 일반_창점유_변경은_응답에_월드를_싣지않고_100ms_방송에_합친다() throws Exception {
         try (var pair = pair()) {

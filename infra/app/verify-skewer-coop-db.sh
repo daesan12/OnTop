@@ -3,8 +3,8 @@ set -eu
 umask 077
 
 case "${1:-}" in
-  ontop_dev) database=$1 ;;
-  *) echo 'Usage: sh verify-skewer-coop-db.sh ontop_dev' >&2; exit 2 ;;
+  ontop_dev|ontop) database=$1 ;;
+  *) echo 'Usage: sh verify-skewer-coop-db.sh ontop_dev|ontop' >&2; exit 2 ;;
 esac
 
 config=$(mktemp /dev/shm/ontop-mysql-client.XXXXXX)
@@ -13,12 +13,18 @@ password=$(cat /run/secrets/mysql_root_password)
 printf '[client]\nuser=root\npassword=%s\n' "$password" > "$config"
 unset password
 
-# Read-only: no account data, wallet balances, or pending-result payloads.
-mysql "--defaults-extra-file=$config" "$database" -e '
-SELECT installed_rank, version, script, success
-FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 12;
-SELECT version, script, success FROM flyway_schema_history WHERE version="145";
-SELECT COUNT(*) AS skewer_coop_table_count FROM information_schema.tables
-WHERE table_schema=DATABASE()
-  AND table_name IN ("skewer_coop_results", "skewer_coop_rewards");
-'
+migration=$(
+  mysql "--defaults-extra-file=$config" --batch --skip-column-names "$database" -e \
+    "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '145' AND success = 1;"
+)
+tables=$(
+  mysql "--defaults-extra-file=$config" --batch --skip-column-names information_schema -e \
+    "SELECT COUNT(*) FROM tables WHERE table_schema = '$database' AND table_name IN ('skewer_coop_results', 'skewer_coop_rewards');"
+)
+
+if [ "$migration" != 1 ] || [ "$tables" != 2 ]; then
+  echo "Skewer coop DB preflight failed: V145 success=$migration, settlement tables=$tables/2." >&2
+  exit 1
+fi
+
+echo "Skewer coop DB preflight passed for $database: V145 and both settlement tables are present."

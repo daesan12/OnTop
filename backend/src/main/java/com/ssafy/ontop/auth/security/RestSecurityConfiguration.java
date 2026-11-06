@@ -70,7 +70,10 @@ public class RestSecurityConfiguration {
                 .addFilterBefore(new RestCorsFilter(origins, mapper, errors), BearerTokenAuthenticationFilter.class)
                 .authorizeHttpRequests(authorize -> authorize.requestMatchers("/actuator/**").denyAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/admin/me", "/api/v1/admin/feedback",
-                                "/api/v1/admin/analytics/**").hasRole("ADMIN_READ")
+                                "/api/v1/admin/analytics/**", "/api/v1/admin/raffles/rounds/*")
+                                .hasRole("ADMIN_READ")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/admin/raffles/rounds/*/finalize")
+                                .hasRole("ADMIN_OPERATION")
                         .requestMatchers("/api/v1/admin/wallet-grants", "/api/v1/admin/wallet-grants/**")
                                 .hasRole("ADMIN_GRANT")
                         .requestMatchers("/api/v1/admin/operations", "/api/v1/admin/operations/**")

@@ -91,6 +91,30 @@ afterEach(async () => {
 })
 
 describe('M14 authenticated REST and movement ownership boundary', () => {
+  it.each(['pickup', 'throw', 'release'] as const)('keeps roaming controls during a pending carry %s while serializing requests', async kind => {
+    const carryId = '11111111-1111-4111-8111-111111111111'
+    const send = () => kind === 'pickup' ? runtime.pickupAvatar('102')
+      : kind === 'throw' ? runtime.throwAvatar(carryId, { dx: 0, dy: 0, dz: -1 })
+      : runtime.releaseAvatar(carryId)
+    const type = `WORLD_CARRY_${kind.toUpperCase()}`
+    const pending = send()
+    expect(useSession.getState().pending).toBe(false)
+    expect(await send()).toBe(false)
+    expect(socket.requests.filter(request => request.type === type)).toHaveLength(1)
+    const request = socket.requests.at(-1)!
+    socket.emit('ERROR', { code: 'CARRY_UNAVAILABLE', message: '운반 상태를 확인해주세요.' }, request.requestId)
+    expect(await pending).toBe(false)
+    expect(useSession.getState().pending).toBe(false)
+    // A rejected request must release the serial action guard for the next attempt.
+    const retry = send()
+    const next = socket.requests.at(-1)!
+    expect(socket.requests.filter(request => request.type === type)).toHaveLength(2)
+    socket.emit('WORLD_STATE', { channelId: 'channel-1', version: ++version, mapVersion: EXPECTED_MAP_VERSION,
+      avatars: [{ userId: '101', position }] }, next.requestId)
+    expect(await retry).toBe(true)
+    expect(useSession.getState().pending).toBe(false)
+  })
+
   it.each([true,false])('sends manual paused=%s with the existing authentication and pause revision',async paused=>{
     vi.mocked(fetch).mockResolvedValueOnce(json({timing:{paused,pauseRevision:paused?1:2}}))
     const path='/api/v1/minigames/sessions/901/manual-pause'

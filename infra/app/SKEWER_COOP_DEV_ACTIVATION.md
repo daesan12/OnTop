@@ -16,8 +16,9 @@
 - `application-db.yml`의 `dev & db & !prod & !production` 블록은 이미
   `classpath:db/migration,classpath:db/minigame`을 함께 읽는다. V145 적용 여부와 협동 API 활성화는
   별개다. 기본 Flyway 경로만 보고 DEV에 V145가 빠졌다고 추정하지 않는다.
-- 기존 배포 실행기는 협동 override를 선택하지 않았다. 이제 deploy.env에 영속 디렉터리를
-  명시하면 generated-map override 뒤에 협동 override도 계속 적용한다. 기본 배포는 그대로다.
+- 기존 배포 실행기는 협동 override를 선택하지 않았다. 최신 dev의 인프라 작업을 반영해
+  `/etc/ontop/dev-app/skewer-coop.enabled` 마커가 있을 때 영속 폴더를 검사하고
+  generated-map override 뒤에 협동 override를 적용한다. 경로 지정만으로는 활성화되지 않는다.
 - 저장소 파일은 서버에 자동 설치되지 않는다. 아래 작업은 인프라 담당자가 한다.
 
 Jenkins #338 전체 로그에서 `62bfd9d0583382e19b9524d54d5439c791d74dd0` 이미지가
@@ -75,7 +76,8 @@ sudo docker compose --env-file /etc/ontop/dev-app/deploy.env \
   < infra/app/verify-skewer-coop-db.sh
 ```
 
-`145 / V145__create_skewer_coop_results.sql / success=1`과 `skewer_coop_table_count=2`를 확인한다.
+`Skewer coop DB preflight passed`와 종료 코드 0을 확인한다. 이 검사는 V145 성공 이력 1건과
+꼬치왕 테이블 2개를 모두 확인하며 조건이 다르면 실패한다.
 다른 V145 또는 일부 테이블만 있으면 중단한다. DB가 V145보다 앞서 있으면 기존 합의된
 migration locations로 순차 적용 계획을 검토한다. **최신 DB가 이미 V145를 지났는데 V145가
 없다면 단순히 locations만 추가하면 안 된다.** 기존 이력/SQL은 보존하고 신규 보완 migration이
@@ -90,14 +92,14 @@ migration locations로 순차 적용 계획을 검토한다. **최신 DB가 이�
 - 인스턴스 전용 빈 디렉터리를 준비한다. 기존 저널 폴더가 있다면 지우거나 공유하지 않는다.
 
 ```bash
-sudo install -d -o 10001 -g 10001 -m 0700 /var/lib/ontop/skewer-coop/dev
+sudo install -d -o 10001 -g 10001 -m 0700 /var/lib/ontop/skewer-coop
 ```
 
 `/etc/ontop/dev-app/deploy.env`에 아래 한 줄을 추가한다(기존 이미지·맵·DB 설정 보존).
 단순 절대 경로로 쓰고 따옴표/인라인 주석을 붙이지 않는다.
 
 ```dotenv
-SKEWER_COOP_JOURNAL_HOST_DIR=/var/lib/ontop/skewer-coop/dev
+SKEWER_COOP_JOURNAL_HOST_DIR=/var/lib/ontop/skewer-coop
 ```
 
 공유 DB/기존 프로필·migration locations는 확인한 실제 값을 유지한다. 협동 override는
@@ -111,6 +113,8 @@ SKEWER_COOP_JOURNAL_HOST_DIR=/var/lib/ontop/skewer-coop/dev
 
 ```bash
 cd /opt/ontop
+# DB 검사·영속 폴더·설치 파일을 먼저 준비한 뒤 활성화 마커를 생성한다.
+sudo install -o root -g root -m 0600 /dev/null /etc/ontop/dev-app/skewer-coop.enabled
 # 현재 generated 맵을 사용하는 DEV 기준: park-map.enabled와 맵 경로의 일치를 먼저 확인한다.
 sudo docker compose --env-file /etc/ontop/dev-app/deploy.env \
   -f infra/app/compose.dev.yaml -f infra/app/compose.generated-map.yaml \
@@ -133,3 +137,11 @@ sudo docker compose --env-file /etc/ontop/dev-app/deploy.env \
 `infra/ci/test_deploy_dev_skewer.py`는 격리된 Linux 컨테이너에서 배포 실행기 원본을 복사해
 외부 명령을 stub으로 바꿔 검사한다. 서버·Docker 소켓·실제 DB에는 연결하지 않는다.
 기본 비활성, generated 맵과 협동 override 동시 유지, 경로 누락·권한 오류 시 이미지 변경 전 차단을 확인한다.
+
+## 설정 반영 후 재검수
+
+사용자 재확인 응답(2026-11-06 14:32:01 KST)도 같은 경로의 `404 Not Found`다.
+DEV를 새로고침하고 실제 VR 입구에서 테스트 방 생성도 재시도했지만 역할 선택으로 넘어가지 않았다.
+설정 파일의 존재와 실행 컨테이너에 적용된 설정을 구분해야 한다. 마커·설치된 실행기·Compose
+적용 및 앱 재생성 여부, 실제 요청 대상의 활성 프로필을 인프라 담당자가 확인해야 한다.
+이 재검수로 활성화 완료 또는 V145 누락을 확정하지 않았다. DB/서버 설정은 변경하지 않았다.

@@ -17,6 +17,27 @@ class WorldCarryPhysicsTests {
     private final AtomicLong now = new AtomicLong();
 
     @ParameterizedTest
+    @CsvSource({"false,-1,0", "true,-1,0", "false,0,1", "true,0,1", "false,0,-1", "true,0,-1",
+            "false,0.6,-0.8", "true,0.6,-0.8"})
+    void 투척은_캐리어_방향과_무관하게_요청한_수평_시선을_따른다(
+            boolean clientPositions, double aimX, double aimZ) throws Exception {
+        try (var physics = pair(clientPositions)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            var start = physics.snapshot("b");
+
+            assertThat(physics.throwCarried("a", physics.carryState("a").carryId(), aimX, 0, aimZ)).isTrue();
+            step(physics, 6);
+
+            var airborne = physics.snapshot("b");
+            double dx = airborne.x() - start.x();
+            double dz = airborne.z() - start.z();
+            assertThat(physics.carryState("b").role()).isEqualTo("THROWN");
+            assertThat(dx * aimX + dz * aimZ).isGreaterThan(2.5);
+            assertThat(dx * aimZ - dz * aimX).isCloseTo(0, within(.01));
+        }
+    }
+
+    @ParameterizedTest
     @CsvSource({"false,-0.5", "true,-0.5", "false,0.0", "true,0.0", "false,0.5", "true,0.5"})
     void 시선_방향으로_던지면_상승하는_포물선으로_충분히_날아간뒤_착지한다(
             boolean clientPositions, double aimY) throws Exception {

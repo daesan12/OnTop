@@ -13,6 +13,7 @@ compose_file=/opt/ontop/infra/app/compose.dev.yaml
 generated_compose=/opt/ontop/infra/app/compose.generated-map.yaml
 generated_marker=/etc/ontop/dev-app/park-map.enabled
 skewer_compose=/opt/ontop/infra/app/compose.skewer-coop.yaml
+skewer_marker=/etc/ontop/dev-app/skewer-coop.enabled
 record_dir=/var/lib/ontop/ci
 record_file=$record_dir/dev-deployments.tsv
 
@@ -34,16 +35,13 @@ if [[ -f $generated_marker ]]; then
   }
   compose_args+=(-f "$generated_compose")
 fi
-
-# The journal must survive app replacement; activation is an operator opt-in.
-skewer_journal_dir=$(sed -n 's/^SKEWER_COOP_JOURNAL_HOST_DIR=//p' "$env_file" | head -n 1)
-if [[ -n $skewer_journal_dir ]]; then
-  [[ $skewer_journal_dir == /* && -d $skewer_journal_dir && -f $skewer_compose ]] || {
-    echo 'Skewer coop requires an existing absolute journal directory and Compose override.' >&2
-    exit 1
-  }
-  [[ $(stat -c '%u:%g:%a' "$skewer_journal_dir") == 10001:10001:700 ]] || {
-    echo 'Skewer coop journal directory must be owned by 10001:10001 with mode 0700.' >&2
+if [[ -f $skewer_marker ]]; then
+  skewer_journal_dir=$(sed -n 's/^SKEWER_COOP_JOURNAL_HOST_DIR=//p' "$env_file" | head -n 1)
+  [[ -f $skewer_compose && $skewer_journal_dir == /* \
+    && -d $skewer_journal_dir && ! -L $skewer_journal_dir \
+    && $(stat -c '%u:%g' "$skewer_journal_dir") == 10001:10001 \
+    && $(stat -c '%a' "$skewer_journal_dir") == 700 ]] || {
+    echo 'Skewer coop marker, journal directory, ownership, permissions, or Compose override are inconsistent.' >&2
     exit 1
   }
   compose_args+=(-f "$skewer_compose")

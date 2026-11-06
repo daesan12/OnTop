@@ -801,10 +801,10 @@ export class ParkRuntime implements ParkRuntimePort {
     // No automatic retry loop with the same stale bundle. The user chooses refresh/reconnect.
     void this.socket.disconnect()
   }
-  private async action(job: () => Promise<unknown>) {
+  private async action(job: () => Promise<unknown>, { blockControls = true } = {}) {
     if (!this.active || this.actionBusy || !this.mapAdmission.allowed) return false
     this.actionBusy = true
-    useSession.setState({ pending: true, error: '' })
+    useSession.setState(blockControls ? { pending: true, error: '' } : { error: '' })
     const generation = this.generation
     try {
       await job()
@@ -817,7 +817,7 @@ export class ParkRuntime implements ParkRuntimePort {
     } finally {
       if (generation === this.generation) {
         this.actionBusy = false
-        useSession.setState({ pending: false })
+        if (blockControls) useSession.setState({ pending: false })
       }
     }
   }
@@ -1018,15 +1018,16 @@ export class ParkRuntime implements ParkRuntimePort {
       if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
     }).finally(() => { status.pending = false })
   }
+  // Carry commands stay in the park: retain mouse look while actionBusy still serializes requests.
   pickupAvatar = (targetId: string) => this.action(async () => {
     await this.socket.request('WORLD_CARRY_PICKUP', { targetId }, ['WORLD_STATE'])
-  })
+  }, { blockControls: false })
   throwAvatar = (carryId: string, direction: { dx: number; dy: number; dz: number }) => this.action(async () => {
     await this.socket.request('WORLD_CARRY_THROW', { carryId, ...direction }, ['WORLD_STATE'])
-  })
+  }, { blockControls: false })
   releaseAvatar = (carryId: string) => this.action(async () => {
     await this.socket.request('WORLD_CARRY_RELEASE', { carryId }, ['WORLD_STATE'])
-  })
+  }, { blockControls: false })
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
