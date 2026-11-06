@@ -140,13 +140,22 @@ class WorldCarryPhysicsTests {
         }
     }
 
-    @Test
-    void 캐릭터를_계속_들고_있어도_15초후에는_자동으로_내려놓는다() throws Exception {
-        try (var physics = pair(true)) {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 캐릭터를_들고_5초_직전까지_유지하고_5초에_자동으로_내려놓는다(boolean clientPositions) throws Exception {
+        try (var physics = pair(clientPositions)) {
             assertThat(physics.pickup("a", "b")).isTrue();
-            step(physics, 451);
+            String carryId = physics.carryState("a").carryId();
+            step(physics, 149);
+            assertThat(physics.carryState("a").role()).isEqualTo("CARRIER");
+            assertThat(physics.carryState("b").role()).isEqualTo("CARRIED");
+
+            step(physics, 1);
+
             assertThat(physics.carryState("a")).isNull();
             assertThat(physics.carryState("b")).isNull();
+            assertThat(physics.throwCarried("a", carryId, 1, 0, 0)).isFalse();
+            assertThat(physics.snapshot("b").motion().authority()).isEqualTo(clientPositions ? "CLIENT_VALIDATED" : null);
         }
     }
 

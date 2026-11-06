@@ -19,7 +19,7 @@ public final class WorldPhysics implements AutoCloseable {
     public static final long STEP_NANOS = 1_000_000_000L / 30;
     private static final float DT = 1f / 30;
     private static final float CARRY_HEIGHT = 1.7f;
-    private static final int MAX_CARRY_TICKS = 450;
+    private static final int MAX_CARRY_TICKS = 150;
     private static final int MAX_THROW_TICKS = 90;
     private static final int CARRY_COOLDOWN_TICKS = 30;
     private static final double THROW_SPEED = 9;
