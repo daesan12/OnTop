@@ -173,9 +173,15 @@ export function createAvatarMotion(model: Rig) {
           0, Math.PI / 2 + (role === 'THROWN' ? Math.sin(throwAge * 9) * .12 : 0))
         hipFit.set(0, model.hipHeight, 0).applyEuler(figure.rotation)
         figure.position.set(-hipFit.x, model.hipHeight - hipFit.y, -hipFit.z)
-        const spread = role === 'CARRIED' ? .55 : .9
-        set('upperArm_L', .5, 0, -spread); set('upperArm_R', .5, 0, spread)
-        if (role === 'CARRIED') { set('lowerArm_L', -.5); set('lowerArm_R', -.5) }
+        // 리그의 팔 축에 Euler 각을 고정하면 손/팔꿈치가 몸통 안으로 접힌다.
+        // 실제 팔 길이와 바깥쪽 팔꿈치 pole을 쓰는 기존 IK로 양팔을 몸 밖에 유지한다.
+        for (const side of ['L', 'R'] as const) {
+          const sign = side === 'L' ? 1 : -1
+          model.reachHand(side, sign * (role === 'CARRIED' ? .42 : .48),
+            model.hipHeight + (role === 'CARRIED' ? .12 : .23), role === 'CARRIED' ? .14 : .04,
+            0, 0, sign * .2, 1, false)
+          model.handPose(side, role === 'CARRIED' ? 'cup' : 'open')
+        }
         set('upperLeg_L', -.35); set('upperLeg_R', .3)
         set('lowerLeg_L', .6); set('lowerLeg_R', .4)
       }

@@ -60,6 +60,24 @@ describe('avatar pose transitions and resource ownership', () => {
   })
 
   for (const name of ['man', 'girl', 'skins/ssafy-black-male-v3'] as const) {
+    it(`${name}: keeps both hands outside the torso throughout carry and flight`, async () => {
+      const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
+      const figure = new Group(), point = new Vector3()
+      figure.add(rig.root)
+      for (const role of ['CARRIER', 'CARRIED', 'THROWN'] as const) {
+        for (let frame = 0; frame < 60; frame++) {
+          motion.apply(avatar({ carry: { carryId: 'carry', partnerId: 'other', role } }), 0, 1 / 60, pose, figure)
+          figure.updateMatrixWorld(true)
+          for (const side of ['L', 'R'] as const) {
+            rig.bones[`hand_${side}`].getWorldPosition(point)
+            rig.root.worldToLocal(point)
+            expect(point.x * (side === 'L' ? 1 : -1)).toBeGreaterThan(.16)
+          }
+        }
+      }
+      rig.dispose()
+    })
+
     it(`${name}: rests the held body closer to the carrier and eases into the throw pose`, async () => {
       const rig = createCharacterRig(await characterSource(name)), motion = createAvatarMotion(rig)
       const figure = new Group(), hips = new Vector3()

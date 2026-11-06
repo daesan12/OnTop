@@ -1,5 +1,177 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
+
+async function readyCarryScene(page: Page) {
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length),
+    { timeout: 90000 }).toBeGreaterThan(0)
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+}
+
+test('pickup hint and E accept the added 20cm of reach and stop outside 2.2m', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
+  await page.goto('/park')
+  await readyCarryScene(page)
+  await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).faceCarryTarget())
+  const pickup = page.getByRole('button', { name: /님 들기/ })
+  // First observe the outside state, so an old visible hint cannot satisfy the inside check.
+  server.remotePose({ z: 75.79 })
+  await expect(pickup).toBeHidden()
+  await page.locator('canvas').focus()
+  await page.keyboard.press('KeyE')
+  expect(server.sent.filter(message => message.type === 'WORLD_CARRY_PICKUP')).toHaveLength(0)
+  server.remotePose({ z: 75.9 })
+  await expect(pickup).toBeVisible()
+  await screenshot(page, 'carry-reach-2point1m')
+  await page.keyboard.press('KeyE')
+  await expect(page.getByRole('button', { name: /바라보는 방향으로 던지기/ })).toBeVisible()
+  expect(server.sent.filter(message => message.type === 'WORLD_CARRY_PICKUP')).toHaveLength(1)
+  await expect(page).toHaveTitle('OnTop')
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+for (const firstPerson of [false, true]) {
+  test(`native mouse look survives pickup, throw and E escape (${firstPerson ? 'first' : 'third'} person)`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+    const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
+    await page.goto('/park')
+    await readyCarryScene(page)
+    const probe = () => page.evaluate(async () =>
+      (await import('/tests/e2e/sceneProbe.ts' as string)).adCameraProbe())
+    const faceTarget = () => page.evaluate(async first => {
+      const { viewControls } = await import('/src/world/cameraPerspective.ts' as string)
+      // The orbit camera sees the target between itself and the own avatar; the eye camera
+      // must turn to the opposite heading to see that same nearby target.
+      viewControls.yaw = first ? 0 : Math.PI
+      viewControls.pitch = .48
+    }, firstPerson)
+    await faceTarget()
+    const pickup = page.getByRole('button', { name: /님 들기/ })
+    const throwing = page.getByRole('button', { name: /바라보는 방향으로 던지기/ })
+    await expect(pickup).toBeVisible()
+    await page.locator('canvas').focus()
+    if (firstPerson) await page.keyboard.press('KeyV')
+    await expect.poll(async () => (await probe()).direction[2]! * (firstPerson ? -1 : 1)).toBeGreaterThan(.7)
+    await expect(pickup).toBeVisible()
+    await page.keyboard.press('Control')
+    await expect.poll(async () => (await probe()).active).toBe(true)
+    await page.keyboard.press('KeyE')
+    await expect(throwing).toBeVisible()
+    expect((await probe()).active).toBe(true)
+    const before = (await probe()).controls.yaw
+    await page.mouse.move(700, 350)
+    await page.mouse.move(780, 350, { steps: 8 })
+    await expect.poll(async () => (await probe()).controls.yaw).not.toBe(before)
+    await screenshot(page, `carry-mouse-look-${firstPerson ? 'first' : 'third'}-person`)
+    await page.keyboard.press('KeyE')
+    await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CARRY_THROW').length).toBe(1)
+    await expect(throwing).toBeHidden()
+    expect((await probe()).active).toBe(true)
+
+    const carryId = '11111111-1111-4111-8111-111111111111'
+    const flags = { x: 0, z: 78, yaw: Math.PI, moving: false, running: false, swimming: false, lastInputSeq: 0 }
+    server.worldSnapshot({ avatars: [
+      { userId: '101', position: { ...flags, y: 2.54 }, carry: { carryId, partnerId: '102', role: 'CARRIED' } },
+      { userId: '102', position: { ...flags, y: .84 }, carry: { carryId, partnerId: '101', role: 'CARRIER' } },
+    ] })
+    const escape = page.getByRole('button', { name: 'E 내려오기', exact: true })
+    await expect(escape).toBeVisible()
+    await page.keyboard.press('KeyE')
+    await expect(escape).toBeHidden()
+    expect((await probe()).active).toBe(true)
+    // Explicit unlock still works, and a pickup made while unlocked must not acquire it.
+    await page.keyboard.press('Control')
+    await expect.poll(async () => (await probe()).active).toBe(false)
+    await faceTarget()
+    await expect(pickup).toBeVisible()
+    await page.keyboard.press('KeyE')
+    await expect(throwing).toBeVisible()
+    expect((await probe()).active).toBe(false)
+    await page.keyboard.press('Control')
+    await expect.poll(async () => (await probe()).active).toBe(true)
+    await page.keyboard.press('Enter')
+    await expect(page.getByLabel('주변 채팅 메시지')).toBeFocused()
+    expect((await probe()).active).toBe(false)
+    await expect(page).toHaveTitle('OnTop')
+    await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+    expect(errors).toEqual([])
+  })
+}
+
+for (const perspective of ['third-person', 'first-person']) {
+  test(`E throws along the turned camera independently of avatar heading (${perspective})`, async ({ page }) => {
+    const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
+    await page.goto('/park')
+    await readyCarryScene(page)
+    await page.evaluate(async () => {
+      const path = '/tests/e2e/sceneProbe.ts'
+      ;(await import(path)).faceCarryTarget()
+    })
+    await expect(page.getByRole('button', { name: /님 들기/ })).toBeVisible()
+    await page.locator('canvas').focus()
+    await page.keyboard.press('KeyE')
+    await expect(page.getByRole('button', { name: /바라보는 방향으로 던지기/ })).toBeVisible()
+    if (perspective === 'first-person') await page.keyboard.press('KeyV')
+    await page.mouse.move(1100, 400)
+    await page.mouse.down()
+    await page.mouse.move(750, 360, { steps: 14 })
+    await page.mouse.up()
+    const camera = () => page.evaluate(async () => {
+      const path = '/tests/e2e/sceneProbe.ts'
+      return (await import(path)).adCameraProbe()
+    })
+    await expect.poll(async () => Math.abs((await camera()).direction[0]!)).toBeGreaterThan(.7)
+    const view = await camera()
+    expect(view.pose!.yaw).toBeCloseTo(Math.PI)
+    await screenshot(page, `carry-camera-aim-${perspective}`)
+    await page.evaluate(async () => {
+      const path = '/tests/e2e/sceneProbe.ts'
+      ;(await import(path)).captureNextCarryThrow()
+    })
+    await page.keyboard.press('KeyE')
+    await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CARRY_THROW').length).toBe(1)
+    const sent = server.sent.find(message => message.type === 'WORLD_CARRY_THROW')!.payload
+    const direction = await page.evaluate(async () => {
+      const path = '/tests/e2e/sceneProbe.ts'
+      return (await import(path)).carryProbe().inputDirection!
+    })
+    expect(sent.dx).toBeCloseTo(direction[0]!, 6)
+    expect(sent.dy).toBeCloseTo(direction[1]!, 6)
+    expect(sent.dz).toBeCloseTo(direction[2]!, 6)
+  })
+}
+
+test('a carried player escapes with E and repeat E does not pick someone up', async ({ page }) => {
+  const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
+  await page.goto('/park')
+  await readyCarryScene(page)
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
+  const carryId = '11111111-1111-4111-8111-111111111111'
+  const flags = { x: 0, z: 78, yaw: Math.PI, moving: false, running: false, swimming: false, lastInputSeq: 0 }
+  server.worldSnapshot({ avatars: [
+    { userId: '101', position: { ...flags, y: 2.54 }, carry: { carryId, partnerId: '102', role: 'CARRIED' } },
+    { userId: '102', position: { ...flags, y: .84 }, carry: { carryId, partnerId: '101', role: 'CARRIER' } },
+  ] })
+  const escape = page.getByRole('button', { name: 'E 내려오기', exact: true })
+  await expect(escape).toBeVisible()
+  await expect(escape).toHaveAttribute('aria-keyshortcuts', 'E')
+  await page.locator('canvas').focus()
+  await page.keyboard.press('Escape')
+  expect(server.sent.filter(message => message.type === 'WORLD_CARRY_RELEASE')).toHaveLength(0)
+  await screenshot(page, 'carry-e-escape')
+  await page.keyboard.down('KeyE')
+  await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CARRY_RELEASE').length).toBe(1)
+  await page.keyboard.down('KeyE')
+  await page.keyboard.up('KeyE')
+  await expect(escape).toBeHidden()
+  expect(server.sent.filter(message => message.type === 'WORLD_CARRY_PICKUP')).toHaveLength(0)
+})
 
 test('throw snapshots render a rising flight and tumbling body instead of an upright drop', async ({ page }) => {
   const errors: string[] = []
@@ -7,15 +179,19 @@ test('throw snapshots render a rising flight and tumbling body instead of an upr
   const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
   await page.goto('/park')
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
-  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  await readyCarryScene(page)
   await page.evaluate(async () => {
     const path = '/tests/e2e/sceneProbe.ts'
-    ;(await import(path)).faceCarryTarget()
+    ;(await import(path)).faceCarryTarget(0)
   })
   await expect(page.getByRole('button', { name: /님 들기/ })).toBeVisible()
   await page.locator('canvas').focus()
   await page.keyboard.press('KeyE')
   await expect(page.getByRole('button', { name: /바라보는 방향으로 던지기/ })).toBeVisible()
+  await expect.poll(async () => page.evaluate(async () => {
+    const path = '/tests/e2e/sceneProbe.ts'
+    return Math.abs((await import(path)).adCameraProbe().direction[1]!)
+  })).toBeLessThan(.05)
   await page.keyboard.press('KeyE')
   await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CARRY_THROW').length).toBe(1)
   const launch = server.sent.find(message => message.type === 'WORLD_CARRY_THROW')!.payload
@@ -56,7 +232,7 @@ test('held avatar follows the rendered carrier every frame while running and cha
   const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
   await page.goto('/park')
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
-  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  await readyCarryScene(page)
   await page.evaluate(async () => {
     const path = '/tests/e2e/sceneProbe.ts'
     ;(await import(path)).faceCarryTarget()
@@ -105,7 +281,7 @@ test('E picks up a nearby player, throws along the camera, and blocks games and 
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
   await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length),
     { timeout: 90000 }).toBeGreaterThan(0)
-  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
+  await readyCarryScene(page)
   await page.evaluate(async () => {
     const path = '/tests/e2e/sceneProbe.ts'
     ;(await import(path)).faceCarryTarget()

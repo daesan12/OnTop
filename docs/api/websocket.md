@@ -176,7 +176,7 @@ WORLD_STATE의 `avatars[].carry`는 null 또는 `{carryId, partnerId, role}`이�
 다른 사용자에게는 기존 10Hz 방송에 합쳐 전달한다. 실제 운반 해제가 발생한 경우에는 즉시 WORLD_STATE를 방송한다.
 
 들기·던지기는 본인과 상대방의 게임·관전·시설·수영·감정표현·따라가기·점프맵·창 점유 상태를 검사한다.
-최대 운반 시간은 5초이며 만료·Esc·막힌 공간·이탈 시 현재 위치 주변의 안전한 위치에 내려놓는다.
+최대 운반 시간은 5초이며 만료·피운반자의 E 탈출·운반자의 Esc 내려놓기·막힌 공간·이탈 시 현재 위치 주변의 안전한 위치에 내려놓는다.
 중복되거나 낡은 carryId 요청은 거절하며 비행 중 수동 위치 보고로 서버 좌표를 덮어쓸 수 없다.
 주요 오류는 CARRY_ACTIVITY_CONFLICT, CARRY_TARGET_UNAVAILABLE, CARRY_OUT_OF_RANGE,
 CARRY_UNAVAILABLE, CARRY_LINK_MISMATCH, INVALID_PAYLOAD다. 상세 동작과 검증 범위는
