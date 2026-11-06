@@ -1,5 +1,71 @@
 # 꼬치왕 협동 피드백 반영 — 2026-11-06
 
+## 2026-11-07 이동·요리사 입력·결과 QA
+
+- 기준: fetch 후 `origin/dev@f1c3549a40094027d0e17788bdb73b0bd139ad3b`를 그대로 체크아웃한
+  `OnTop/qa-skewer-20261107`, 작업 브랜치 `fix/skewer-qa-feedback-20261107`.
+  기존 worktree의 미커밋 작업을 보존했고 통합 충돌은 없었다. 수정 후 재조회에서도 같은 dev 기준을 확인했다.
+- 게임 코드 `SKEWER_COOP`. 변경 경로는 게임 내부 FE `features/skewer/chef`, `features/skewer/coop`,
+  BE `game/skewer/coop`와 해당 검증 코드다. 공통 맵·입력·카메라·인증·통신·지갑 파일은 변경하지 않는다.
+  FE/BE 액션·스냅샷·정산 계약과 기존 충돌 경계, 일일 보상 한도를 유지한다. Flyway 추가·수정 없음.
+
+### 원인과 수정
+
+- 기존 `OnlineHall`은 확인되지 않은 로컬 이동을 매 프레임 누적하고, 서버 위치와 0.65 이상 벌어지면
+  뒤로 되돌렸다. 지연된 서버 틱을 재현하면 한 프레임에 x=-1.80에서 -2.72로 후퇴했고,
+  표시 보간이 후퇴 방향을 바라보게 만들었다. 서버 좌표를 일관되게 사용하고 기존 `HallMotion`으로
+  프레임 사이를 보간한다. 이동 ACK 뒤의 불필요한 상태 확인 왕복도 제거한다.
+  `GAME_STATE` 브로드캐스트·주기 복구와 낡은 버전/복구 오류 재확인은 유지한다.
+- 클릭 경로는 0.25 간격의 경유점에 도착할 때 해당 틱의 남은 이동량을 버렸다.
+  다음 경유점에 이동량을 이어 쓰고 작은 단위로 기존 축별 충돌을 검사한다.
+  기존 맵에서 전체 6개 테이블과 5개 시설까지 도착하며 가구를 통과하지 않는 것을 확인했다.
+  맵 확대는 이번 떨림·시선 반전의 해결책으로 적용하지 않는다.
+- PC 재료 클릭 선택과 3D 꼬치 끝 클릭 꽂기를 차단한다. 숫자 1–6 선택 → Space 꽂기,
+  Backspace 빼기, R 제출과 주문표 선택을 유지한다. VR 집기·놓기 입력은 유지한다.
+- 조립/제출의 잘못된 액션은 “주문표를 다시 확인해 주세요. 재료와 꽂는 순서가 맞는지 살펴봐 주세요.”로
+  안내한다. 서빙 거리·운반 등 다른 거절 사유는 기존 안내를 유지한다.
+- 기존 서버 정산은 최대 2초 주기를, 화면은 주기 조회와 3초 재조회 간격을 기다렸다.
+  서버 정산 확인 주기를 250ms로 줄이고 종료 알림 즉시 개인 영수증을 읽는다.
+  미확정 응답은 500ms 뒤 다시 읽고, 오류는 3초 뒤 재시도한다. 확정/확인 불가/화면 종료 시
+  자동 조회를 중단한다. 확인되지 않은 금액을 지갑에 더하지 않으며 기존 영수증·멱등 정산을 유지한다.
+- 보상 기준의 “소수점은 버리고”를 삭제한다. 결과 좌우 내용과 두 하단 버튼의 너비를 맞추고,
+  버튼 높이도 동일하게 한다. 작은 화면에서는 세로 배치와 실제 스크롤을 유지한다.
+  펼친 보상 설명에는 한지 장식과 겹치지 않도록 읽는 배경을 둔다.
+
+### 실행과 검증
+
+독립 주방은 `frontend`에서 `node node_modules/vite/bin/vite.js --config vite.skewer-chef.config.ts`로
+실행한다(`127.0.0.1:5240/skewer-chef.html?mode=pc`). 두 계정 통합 검수는 아래 기존 진입점을 사용한다.
+
+```powershell
+# frontend: 최신 생성 맵 확인
+node scripts/generate-park-map.mjs
+# backend: 격리된 로컬 검수 서버. 실제 DB/재화 없음
+./gradlew.bat skewerCoopDemo --console=plain
+# frontend: 서버와 같은 최신 생성 맵 모드가 필수
+node node_modules/vite/bin/vite.js --config vite.skewer-coop.config.ts --mode park-integration
+```
+
+- 서버 `127.0.0.1:19185`, FE `127.0.0.1:5244`. `skewerCoopDemo`는 실제 공통 HTTP/WS와 게임 엔진에
+  연결하지만 인증 계정·지갑은 검수용 대역이다. 실제 OAuth·공유 DB·실제 지급 검수와 구분한다.
+- 수정 전 FE 후퇴/가구 앞 예측 이동 2건, BE 경유점 이동량 1건의 실패를 재현한 후 수정했다.
+- 백엔드 `./gradlew.bat test --tests '*Skewer*Tests' --console=plain`: 99개 통과, 실패/제외 0.
+- 프런트 `node node_modules/vitest/vitest.mjs run skewer parkSkewerEntry`: 21파일 160개 통과.
+  제품/테스트 TypeScript, 최신 생성 맵·코스 검사와 공원 통합 빌드도 통과했다.
+- Browser plugin not available: 프로젝트 Playwright와 설치된 Chrome을 사용했다.
+  `playwright.skewer-feedback.config.ts` 2개, 기존 `playwright.skewer-chef.config.ts` 6개,
+  `playwright.skewer-coop.config.ts network.spec.ts` 1개, 총 9개 브라우저 테스트 통과.
+- UI 검수는 `1440×900`, `900×500`, `390×844`에서 결과 영역/버튼 크기와 안내·마지막 버튼까지
+  스크롤 접근을 확인했다. 페이지 제목·빈 화면·Vite 오류 오버레이·관련 콘솔 오류 검사도 통과했다.
+  기존 Three/ANGLE 정밀도·폐기 예정 경고와 번들 크기 경고는 남아 있다.
+- 두 브라우저에서 최신 공원 진입 → 같은 방 → 역할/준비 → 전진 프레임 좌표·시선 확인 → 주문·제작 →
+  보관·서빙 → 인사 → 연결 끊김/재접속 → 종료/결과 → 공원 복귀 → 새 방을 검증했다.
+  최신 공원의 자동 채널 선택과 PC 랭킹 계약에 맞춰 기존 검수 진입부/기대값을 갱신했다.
+- 캡처는 저장소 밖 Codex visualizations의 `skewer-qa-20261107/ui`, `network`에 보존한다.
+  Quest 실기기·실제 다중 노트북/외부 네트워크·MySQL 지급 지연의 실측·Jenkins 배포 검수는 별도다.
+
+---
+
 이 문서는 기존 VR 전용 랭킹·세척 중 추가 투입 금지 설명보다 우선한다.
 게임 코드는 `SKEWER_COOP`, 작업 브랜치는 `feat/quest-vr`다.
 

@@ -7,6 +7,7 @@ export class CoopClient {
   readonly store = createStore<{ snapshot: CoopSnapshot | null; rooms: CoopRoom[]; lobbyPage: 'home' | 'rooms'; error: string; pending: boolean; connected: boolean; result: CoopResult | null; resultError: string; resultPending: boolean; ranking: CoopRanking | null; rankingError: string; rankingPending: boolean }>(() => ({ snapshot: null, rooms: [], lobbyPage: 'home', error: '', pending: false, connected: true, result: null, resultError: '', resultPending: false, ranking: null, rankingError: '', rankingPending: false }))
   private cleanup?: () => void
   private poll?: ReturnType<typeof setTimeout>
+  private resultPoll?: ReturnType<typeof setTimeout>
   private chain: Promise<void> = Promise.resolve()
   private requestIds = new Set<string>()
   private stopped = false
@@ -30,7 +31,7 @@ export class CoopClient {
     }
     void refresh()
   }
-  stop() { this.stopped = true; clearTimeout(this.poll); this.cleanup?.() }
+  stop() { this.stopped = true; clearTimeout(this.poll); clearTimeout(this.resultPoll); this.cleanup?.() }
   private accept(message: Envelope) {
     if (message.type === 'ERROR' && message.requestId && this.requestIds.has(message.requestId)) return true
     if (message.type === 'GAME_CONNECTION_STATE' && this.snapshot && !message.payload.gameId) return true
@@ -51,15 +52,17 @@ export class CoopClient {
       this.dismissRoom(snapshot.gameId, '준비 중인 방이 닫혔어요. 다른 가게를 선택해 주세요.')
       return
     }
-    if (current?.gameId !== snapshot.gameId) { this.resultAt = 0; this.store.setState({ result: null, resultError: '', ranking: null, rankingError: '' }) }
+    if (current?.gameId !== snapshot.gameId) { clearTimeout(this.resultPoll); this.resultAt = 0; this.store.setState({ result: null, resultPending: false, resultError: '', ranking: null, rankingError: '' }) }
     this.store.setState({ snapshot })
+    if (snapshot.publicState.phase === 'FINISHED' && (current?.gameId !== snapshot.gameId || current.publicState.phase !== 'FINISHED')) void this.refreshResult()
   }
   private dismissRoom(gameId: string, error = '') {
     this.dismissedGames.add(gameId)
     this.requestKey = crypto.randomUUID()
     this.recoveredGame = ''
     this.inputBlocked = false
-    this.store.setState({ snapshot: null, lobbyPage: 'rooms', error, result: null, resultError: '', ranking: null })
+    clearTimeout(this.resultPoll)
+    this.store.setState({ snapshot: null, lobbyPage: 'rooms', error, result: null, resultPending: false, resultError: '', ranking: null })
   }
   private async request(type: string, payload: Record<string, unknown>, expected: readonly string[]) {
     let id = ''
@@ -82,7 +85,7 @@ export class CoopClient {
     this.store.setState({ connected: scope.connected })
     if (!scope.connected || !scope.channelId || scope.userId !== this.owner) { this.recoveredGame = ''; return }
     if (this.snapshot?.publicState.phase === 'FINISHED') {
-      if (this.store.getState().result?.status !== 'SETTLED' && Date.now() - this.resultAt > 3000) await this.refreshResult()
+      if (!this.resultPoll && !['SETTLED', 'UNAVAILABLE'].includes(this.store.getState().result?.status ?? '') && Date.now() - this.resultAt > 1000) await this.refreshResult()
       return
     }
     try {
@@ -107,7 +110,10 @@ export class CoopClient {
   }
   async refreshResult() {
     const gameId = this.snapshot?.gameId
-    if (!gameId || this.snapshot?.publicState.phase !== 'FINISHED' || this.store.getState().resultPending) return
+    if (!gameId || this.snapshot?.publicState.phase !== 'FINISHED' || this.store.getState().resultPending
+      || this.stopped || this.owner !== this.transport.scope().userId || !this.transport.scope().connected) return
+    clearTimeout(this.resultPoll)
+    this.resultPoll = undefined
     this.resultAt = Date.now()
     this.store.setState({ resultPending: true, resultError: '' })
     try {
@@ -116,8 +122,19 @@ export class CoopClient {
       const result = parseCoopResult(value, gameId)
       this.store.setState({ result })
       if (result.status === 'SETTLED') refreshWalletAfterSettlement(this.owner, `skewer-coop:${gameId}`)
-    } catch (error) { if (!this.stopped) this.store.setState({ resultError: '보상을 불러오지 못했어요. 다시 확인해 주세요.' }) }
-    finally { if (!this.stopped) this.store.setState({ resultPending: false }) }
+    } catch (error) {
+      if (!this.stopped && this.owner === this.transport.scope().userId && this.snapshot?.gameId === gameId) {
+        this.store.setState({ resultError: '보상을 불러오지 못했어요. 다시 확인해 주세요.' })
+      }
+    }
+    finally {
+      if (!this.stopped && this.owner === this.transport.scope().userId && this.snapshot?.gameId === gameId) {
+        this.store.setState({ resultPending: false })
+        if (!['SETTLED', 'UNAVAILABLE'].includes(this.store.getState().result?.status ?? '')) {
+          this.resultPoll = setTimeout(() => { this.resultPoll = undefined; void this.refreshResult() }, this.store.getState().resultError ? 3000 : 500)
+        }
+      }
+    }
   }
   private rankingRequest = 0
   async refreshRanking(mode: 'PC' | 'VR' = this.snapshot?.publicState.rankingMode ?? (this.snapshot?.publicState.chefVR ? 'VR' : 'PC')) {
@@ -168,14 +185,17 @@ export class CoopClient {
         if (input.type === 'RESTART_REPLY' && input.requestId !== this.snapshot?.publicState.restart?.id) return
         try {
           await this.request('GAME_ACTION_SEND', { gameId, actionId, expectedVersion: this.snapshot!.publicState.actionVersion, input }, ['GAME_ACTION_RESULT'])
-          await this.sync()
+          // MOVE는 매 틱의 GAME_STATE로 확인한다. 추가 왕복으로 다음 이동/정지 입력을 지연시키지 않는다.
+          if (input.type !== 'MOVE') await this.sync()
           if (!quiet) this.store.setState({ error: '' })
           return
         } catch (error) {
           const code = (error as { code?: string }).code
           if (code === 'GAME_ACTION_STALE_VERSION') { await this.sync(); continue }
           if (code === 'GAME_RECOVERY_REQUIRED') { await this.recover(); continue }
-          if (!quiet) this.store.setState({ error: code === 'GAME_ACTION_INVALID_ACTION' ? '지금은 할 수 없는 행동이에요. 주문·거리·운반 상태를 확인해주세요.' : '요청을 완료하지 못했어요. 다시 시도해 주세요.' })
+          if (!quiet) this.store.setState({ error: code === 'GAME_ACTION_INVALID_ACTION'
+            ? ['THREAD', 'SUBMIT'].includes(String(input.type)) ? '주문표를 다시 확인해 주세요. 재료와 꽂는 순서가 맞는지 살펴봐 주세요.' : '지금은 할 수 없는 행동이에요. 주문·거리·운반 상태를 확인해주세요.'
+            : '요청을 완료하지 못했어요. 다시 시도해 주세요.' })
           return
         }
       }
