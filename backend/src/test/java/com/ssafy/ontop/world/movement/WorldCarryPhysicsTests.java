@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,6 +15,34 @@ import static org.assertj.core.api.Assertions.within;
 
 class WorldCarryPhysicsTests {
     private final AtomicLong now = new AtomicLong();
+
+    @ParameterizedTest
+    @CsvSource({"false,-0.5", "true,-0.5", "false,0.0", "true,0.0", "false,0.5", "true,0.5"})
+    void 시선_방향으로_던지면_상승하는_포물선으로_충분히_날아간뒤_착지한다(
+            boolean clientPositions, double aimY) throws Exception {
+        try (var physics = pair(clientPositions)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            var start = physics.snapshot("b");
+            assertThat(physics.throwCarried("a", physics.carryState("a").carryId(),
+                    Math.sqrt(1 - aimY * aimY), aimY, 0)).isTrue();
+            double peak = start.y();
+            int ticks = 0;
+            while (physics.carryState("b") != null && ticks < 90) {
+                step(physics, 1);
+                peak = Math.max(peak, physics.snapshot("b").y());
+                ticks++;
+            }
+
+            var landed = physics.snapshot("b");
+            double distance = landed.x() - start.x();
+            assertThat(distance).as("aimY=%s distance=%s peakRise=%s ticks=%s",
+                    aimY, distance, peak - start.y(), ticks).isBetween(6d, 24d);
+            assertThat(peak - start.y()).isGreaterThan(.3);
+            assertThat(ticks).isBetween(15, 75);
+            assertThat(physics.carryState("b")).isNull();
+            assertThat(landed.y()).isBetween(.7, 1.1);
+        }
+    }
 
     private WorldPhysics pair(boolean clientPositions) throws Exception {
         return pair(clientPositions, false);

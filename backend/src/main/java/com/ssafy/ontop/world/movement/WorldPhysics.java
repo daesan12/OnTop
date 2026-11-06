@@ -22,7 +22,9 @@ public final class WorldPhysics implements AutoCloseable {
     private static final int MAX_CARRY_TICKS = 150;
     private static final int MAX_THROW_TICKS = 90;
     private static final int CARRY_COOLDOWN_TICKS = 30;
-    private static final double THROW_SPEED = 9;
+    private static final double THROW_SPEED = 14;
+    private static final double THROW_LIFT = 8;
+    private static final double THROW_AIM_LIFT = 6;
     /** 측정한 ghost sweep 관통 시작 속도(약 27m/s)의 절반 이하. */
     private static final double FAST_FALL_SWEEP = 12;
     private ParkScene scene;
@@ -1118,7 +1120,9 @@ public final class WorldPhysics implements AutoCloseable {
             carrier.carryReadyTick = physicsTick + CARRY_COOLDOWN_TICKS;
             space.addCollisionObject(target.body);
             target.body.setGravity(-number("gravity"));
-            target.body.jump(new Vector3f(0, (float) (dy * THROW_SPEED + 3), 0));
+            // 기본 카메라가 아래를 향해도 짧은 낙하가 아닌 포물선으로 출발한다.
+            // 위/아래 시선은 체공 높이를 조절하고 수평 방향은 그대로 유지한다.
+            target.body.jump(new Vector3f(0, (float) (THROW_LIFT + dy * THROW_AIM_LIFT), 0));
             target.airborne = true;
             resetMotion(target);
             return true;
