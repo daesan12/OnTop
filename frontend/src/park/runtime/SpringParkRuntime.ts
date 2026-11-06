@@ -48,7 +48,7 @@ import type { BridgeInput } from '../../game/bridge/protocol'
 import { canActLedger } from '../../game/ledger/actions'
 import type { LedgerInput, LedgerPingTarget } from '../../game/ledger/protocol'
 import { LedgerPingEvents } from '../../game/ledger/pings'
-import { canFlipHalli, canRingHalli, classifyHalliError, halliNotice, markHalliRing } from '../../game/halligalli/actions'
+import { canFlipHalli, canLeaveEliminatedHalli, canRingHalli, classifyHalliError, halliNotice, markHalliRing } from '../../game/halligalli/actions'
 import type { HalliInput } from '../../game/halligalli/protocol'
 import { loadParkBindings } from './deployment'
 import type { ParkRuntimePort } from './contracts'
@@ -1202,7 +1202,8 @@ export class ParkRuntime implements ParkRuntimePort {
     })
   leaveTable = () =>
     this.action(async () => {
-      if (tableBusy())
+      // Only a naturally eliminated HALLI_GALLI player sends the same TABLE_LEAVE mid-game; the server re-checks the engine.
+      if (tableBusy() && !canLeaveEliminatedHalli(useSession.getState().sessionId))
         throw new Error('경기 진행·복구·정산 중에는 일어날 수 없습니다.')
       await this.socket.request('TABLE_LEAVE', {}, ['TABLE_LEFT'])
     })
