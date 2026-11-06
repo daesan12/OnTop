@@ -17,7 +17,7 @@ class ChangeClassificationTests(unittest.TestCase):
         self.assertEqual((flags["BACKEND_CHANGED"], flags["FRONTEND_CHANGED"]), (1, 1))
 
     def test_docs_only(self):
-        flags = classify(["README.md", "docs/auth.md"])
+        flags = classify(["README.md", "docs/auth.md", "infra/app/README.md"])
         self.assertFalse(any(flags.values()))
 
     def test_analytics_only(self):
@@ -47,6 +47,14 @@ class ChangeClassificationTests(unittest.TestCase):
         self.assertEqual(flags["PROD_CONFIG_CHANGED"], 1)
         self.assertEqual(flags["DEV_CONFIG_CHANGED"], 1)
         self.assertEqual((flags["BACKEND_CHANGED"], flags["FRONTEND_CHANGED"]), (0, 0))
+
+    def test_skewer_coop_rollout_files_are_dev_only(self):
+        flags = classify([
+            "infra/app/compose.skewer-coop.yaml",
+            "infra/app/verify-skewer-coop-db.sh",
+        ])
+        self.assertEqual(flags["DEV_CONFIG_CHANGED"], 1)
+        self.assertEqual(flags["PROD_CONFIG_CHANGED"], 0)
 
     def test_ci_change_uses_pipeline_checks(self):
         flags = classify(["Jenkinsfile"])

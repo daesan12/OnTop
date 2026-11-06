@@ -14,6 +14,7 @@ class DevFrontendDeploymentTests(unittest.TestCase):
         command = next(line for line in pipeline.splitlines() if line.startswith("vercel deploy "))
         self.assertIn("--local-config vercel.dev.json", command)
         self.assertIn("--build-env VITE_WARDROBE_OUTFITS=true", command)
+        self.assertIn("--build-env VITE_SKEWER_COOP_ENABLED=true", command)
         self.assertIn("--build-env VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json", command)
 
     def test_prod_and_dev_use_their_generated_bindings_without_changing_service_routes(self):
@@ -23,7 +24,7 @@ class DevFrontendDeploymentTests(unittest.TestCase):
                          "VITE_ALKKAGI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.prod.json pnpm run build:park")
         self.assertEqual(prod.pop("outputDirectory"), "dist-park")
         self.assertEqual(dev.pop("buildCommand"),
-                         "VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park")
+                         "VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_SKEWER_COOP_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park")
         self.assertEqual(dev.pop("outputDirectory"), "dist-park")
         self.assertEqual(dev, prod)
 
