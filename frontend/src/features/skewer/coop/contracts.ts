@@ -3,6 +3,7 @@ import type { HallView } from '../serviceHall/previewModel'
 import type { ChefView } from '../chef/model'
 
 export interface CoopTransport {
+  protectVR?(): Promise<() => void>
   scope(): { userId: string; channelId: string | null; connected: boolean }
   request(type: string, payload: Record<string, unknown>, expected: readonly string[], onId?: (id: string) => void): Promise<Envelope>
   subscribe(listener: (message: Envelope) => boolean): () => void
