@@ -4,6 +4,55 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 const source = '/tests/park-integration/fenceMovementProbe.ts'
+
+test('사물 정면에서 입력 모션을 유지하고 키 해제·채팅 전환에는 멈추며 옆으로 이동한다', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const server = await parkFixture(page, { clientPositions: true })
+  await page.route('**/api/v1/operations/status', route => route.fulfill({ json: {
+    mode: 'NORMAL', notice: '', maintenanceStartedAt: null, expectedOpenAt: null, version: 1,
+    updatedAt: new Date().toISOString(), serverTime: new Date().toISOString(),
+  } }))
+  await page.goto('/park')
+  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length), { timeout: 100000 }).toBeGreaterThan(0)
+  await page.evaluate(async s => (await import(s)).setupFenceMovement(), source)
+  const read = () => page.evaluate(async s => (await import(s)).readFenceMovement(), source)
+  server.place({ x: 12, y: .84, z: 8.5, yaw: 0 })
+  await expect.poll(async () => (await read()).epoch).toBe(2)
+  await page.locator('canvas').focus()
+  await page.keyboard.down('Shift'); await page.keyboard.down('d')
+  try {
+    await expect.poll(async () => (await read()).predicted.x).toBeGreaterThan(12.59)
+    const held = await read(), samples = []
+    for (let n = 0; n < 12; n++) { await page.waitForTimeout(50); samples.push(await read()) }
+    expect(samples.every(s => Math.abs(s.predicted.x - held.predicted.x) < .02 && s.flags.running)).toBe(true)
+    const thighs = samples.map(s => s.legAngles[0]!)
+    expect(thighs.every(Number.isFinite)).toBe(true)
+    expect(Math.max(...thighs) - Math.min(...thighs)).toBeGreaterThan(.2)
+    const directory = process.env.QA_ARTIFACT_DIR ?? path.join(os.tmpdir(), 'ontop-fence-movement')
+    await fs.mkdir(directory, { recursive: true })
+    await page.screenshot({ path: path.join(directory, 'contact-held-run.png') })
+    await page.keyboard.up('Shift')
+    await expect.poll(async () => (await read()).flags).toEqual({ moving: true, running: false })
+    await page.keyboard.up('d')
+    await expect.poll(async () => (await read()).flags).toEqual({ moving: false, running: false })
+    await page.waitForTimeout(600)
+    const released = await read()
+    await page.screenshot({ path: path.join(directory, 'contact-released-idle.png') })
+    await page.keyboard.down('d'); await page.keyboard.down('s')
+    await expect.poll(async () => (await read()).predicted.z).toBeGreaterThan(9.3)
+    expect((await read()).predicted.x).toBeLessThan(12.7)
+    await page.keyboard.up('s')
+    await page.getByRole('region', { name: '주변 채팅', exact: true }).getByRole('button', { name: '채팅 입력창 열기', exact: true }).click()
+    await expect.poll(async () => (await read()).flags).toEqual({ moving: false, running: false })
+    const chat = await read()
+    expect(errors).toEqual([])
+    await fs.writeFile(path.join(directory, 'browser-contact-motion.json'), JSON.stringify({ held, samples, released, chat, errors,
+      scope: 'Real DOM held keys, latest map, Rapier and rendered leg rotations. Echo mock, no production server.' }, null, 2))
+  } finally {
+    await page.keyboard.up('d'); await page.keyboard.up('s'); await page.keyboard.up('Shift')
+  }
+})
 test('울타리에서 전송 콜백이 밀려도 경로를 보존하고 키 재입력 없이 이동을 재개한다', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))

@@ -22,11 +22,14 @@ export function setupFenceMovement() {
   finishWelcomeFlight(); useJumpmap.setState({ available: true }); viewControls.yaw = 0
 }
 export function readFenceMovement() {
-  const camera = _roots.get(document.querySelector('canvas')!)?.store.getState().camera
+  const state = _roots.get(document.querySelector('canvas')!)?.store.getState()
+  const camera = state?.camera
+  const root = state?.scene.getObjectByName(`avatar-${useSession.getState().sessionId}`)
+  const legAngles = ['upperLeg_L', 'upperLeg_R'].map(name => root?.getObjectByName(name)?.rotation.x ?? null)
   const predicted = { ...avatars.get(useSession.getState().sessionId)!.current }
   localMovement.sample(performance.now(), predicted)
   return { own: avatars.get(useSession.getState().sessionId)?.current, epoch: localMovement.epoch,
-    predicted,
+    predicted, legAngles,
     ready: localMovement.ready, flags: localMovement.displayFlags(performance.now()),
     camera: camera?.position.toArray(), metrics: localMovement.metrics(), inputState: { ...inputState } }
 }

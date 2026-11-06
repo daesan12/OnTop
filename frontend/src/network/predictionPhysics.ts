@@ -271,6 +271,8 @@ class PredictionPhysics implements PredictionSimulation {
     return GENERATED_PARK_ENABLED&&PARK_PAVILIONS.some(site=>Math.abs(foot-site.floor)<.15&&Math.hypot(pose.x-site.x,pose.z-site.z)<4.5*site.scale+.3)
   }
   movementFlags() { return this.tunedActive ? this.parkMotion.flags() : this.surfaceFlags }
+  /** Airborne, swimming and water-exit climbing retain their physical animation flags. */
+  groundedForLocomotion() { return this.tunedActive && this.grounded }
   stepJumped() { return this.launchedJump }
   stepSupported() { return this.serverSupport ?? this.grounded }
   pose(): Pose { return { ...this.body.translation(), yaw: this.yaw } }
