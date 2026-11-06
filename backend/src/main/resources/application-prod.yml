@@ -28,6 +28,10 @@ ontop:
   raffle:
     enabled: ${RAFFLE_ENABLED:false}
     draw-enabled: ${RAFFLE_DRAW_ENABLED:true}
+  event:
+    minigame:
+      enabled: ${MINIGAME_AWARD_ENABLED:false}
+      auto-enabled: ${MINIGAME_AWARD_AUTO_ENABLED:true}
   notes:
     enabled: ${NOTES_ENABLED:false}
     privacy-secret: ${NOTES_PRIVACY_SECRET:}

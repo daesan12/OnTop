@@ -1109,7 +1109,6 @@ paths:
         in: path
         required: true
         schema:
-          pattern: "^[1-9][0-9]{0,18}$"
           type: string
       requestBody:
         content:
@@ -1236,7 +1235,6 @@ paths:
         in: path
         required: true
         schema:
-          pattern: "^[1-9][0-9]{0,18}$"
           type: string
       requestBody:
         content:
@@ -3812,6 +3810,41 @@ paths:
                 $ref: "#/components/schemas/RaffleDrawResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize:
+    post:
+      tags:
+      - Event Awards
+      summary: 관리자 미니게임 행사 결과 확정·재시도
+      operationId: finalizeRound_1
+      parameters:
+      - name: type
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - bungeoppang
+          - jumpmap
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MinigameAwardResponse"
+      security:
+      - AccessJwt: []
   /api/v1/users/me:
     get:
       tags:
@@ -5750,6 +5783,41 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/events/minigames/{type}/rounds/{weekStart}/result:
+    get:
+      tags:
+      - Event Awards
+      summary: 본인의 미니게임 행사 결과
+      operationId: memberResult_1
+      parameters:
+      - name: type
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - bungeoppang
+          - jumpmap
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MinigameMemberAwardResponse"
+      security:
+      - AccessJwt: []
   /api/v1/channels:
     get:
       tags:
@@ -6309,6 +6377,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/minigames/{type}/rounds/{weekStart}:
+    get:
+      tags:
+      - Event Awards
+      summary: 관리자 미니게임 행사 결과 조회
+      operationId: adminResult_1
+      parameters:
+      - name: type
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - bungeoppang
+          - jumpmap
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MinigameAwardResponse"
       security:
       - AccessJwt: []
   /api/v1/admin/analytics/summary:
@@ -7966,6 +8069,40 @@ components:
           format: int32
         prizeName:
           type: string
+    MinigameAwardResponse:
+      type: object
+      properties:
+        eventType:
+          type: string
+          enum:
+          - BUNGEOPPANG
+          - JUMPMAP
+        weekStartDate:
+          type: string
+          format: date
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        announcesAt:
+          type: string
+          format: date-time
+        finalized:
+          type: boolean
+        alreadyFinalized:
+          type: boolean
+        candidateCount:
+          type: integer
+          format: int32
+        excludedGmCount:
+          type: integer
+          format: int32
+        vacant:
+          type: boolean
+        winner:
+          $ref: "#/components/schemas/Winner"
     UserNicknameUpdateRequest:
       required:
       - nickname
@@ -8797,6 +8934,24 @@ components:
         nextCursor:
           type: string
           nullable: true
+    MinigameMemberAwardResponse:
+      type: object
+      properties:
+        eventType:
+          type: string
+          enum:
+          - BUNGEOPPANG
+          - JUMPMAP
+        weekStartDate:
+          type: string
+          format: date
+        announcesAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        prize:
+          $ref: "#/components/schemas/Prize"
     ChannelListResponse:
       required:
       - items

@@ -92,6 +92,9 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 | Raffle | GET /api/v1/raffles/rounds/{weekStart}/result | Access JWT·본인 결과만 | 200 |
 | Raffle | GET /api/v1/admin/raffles/rounds/{weekStart} | Access JWT·관리자 조회 | 200 |
 | Raffle | POST /api/v1/admin/raffles/rounds/{weekStart}/finalize | Access JWT·관리자 운영·판매 마감 후 | 200 |
+| Event Awards | GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result | Access JWT·본인 결과만 | 200 |
+| Event Awards | GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart} | Access JWT·관리자 조회 | 200 |
+| Event Awards | POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize | Access JWT·관리자 운영·기록 마감 후 | 200 |
 
 정적 export는 OpenApiLocalTests가 Feedback/Notes를 켠 실제 local 문서에서 생성한다.
 local/dev의 endpoint 목록은 해당 기능 플래그 조건에 따라 OpenAPI·보안 회귀 테스트에서 정확히 비교한다.

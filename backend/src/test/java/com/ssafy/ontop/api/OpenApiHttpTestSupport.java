@@ -15,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -100,6 +101,9 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/raffles/rounds/{weekStart}/result",
                 "GET /api/v1/admin/raffles/rounds/{weekStart}",
                 "POST /api/v1/admin/raffles/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
+                "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
+                "POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
                 "POST /api/v1/behavior-events"));
@@ -343,6 +347,34 @@ abstract class OpenApiHttpTestSupport {
                 assertThat(schema.path("required").size()).isEqualTo(schema.path("properties").size());
             }
         }
+    }
+
+    @Test
+    void 미니게임_행사_type은_문자열_열거형이고_세션_ID는_숫자_패턴이다() throws Exception {
+        var paths = json().path("paths");
+        for (String path : List.of(
+                "/api/v1/events/minigames/{type}/rounds/{weekStart}/result",
+                "/api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
+                "/api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize")) {
+            var operation = paths.path(path).path(path.endsWith("/finalize") ? "post" : "get");
+            assertThat(operation.isMissingNode()).isFalse();
+            var schema = pathParameter(operation, "type").path("schema");
+            assertThat(schema.path("type").asText()).isEqualTo("string");
+            assertThat(schema.path("enum").toString()).isEqualTo("[\"bungeoppang\",\"jumpmap\"]");
+            assertThat(schema.has("pattern")).isFalse();
+        }
+        var complete = paths.path("/api/v1/minigames/sessions/{sessionId}/complete").path("post");
+        assertThat(pathParameter(complete, "sessionId").path("schema").path("pattern").asText())
+                .isEqualTo("^[1-9][0-9]{0,18}$");
+    }
+
+    private JsonNode pathParameter(JsonNode operation, String name) {
+        for (JsonNode parameter : operation.path("parameters")) {
+            if (parameter.path("name").asText().equals(name)) {
+                return parameter;
+            }
+        }
+        throw new AssertionError("OpenAPI path parameter is missing: " + name);
     }
 
     @Test

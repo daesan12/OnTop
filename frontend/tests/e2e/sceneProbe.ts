@@ -91,6 +91,21 @@ export function faceCarryTarget(pitch?: number) {
   if (pitch !== undefined) viewControls.pitch = pitch
 }
 
+export async function carryThrowGestureFrames(count: number) {
+  const frames = []
+  for (let frame = 0; frame < count; frame++) {
+    await new Promise(requestAnimationFrame)
+    const carrier = root().scene.getObjectByName('avatar-101')!
+    const figure = carrier.getObjectByName('figure-101')!
+    const hands = ['L', 'R'].map(side => carrier.getObjectByName(`hand_${side}`)!
+      .getWorldPosition(new Vector3()).sub(carrier.getObjectByName(`upperArm_${side}`)!
+        .getWorldPosition(new Vector3())).toArray())
+    frames.push({ hands, yaw: carrier.rotation.y, figureYaw: figure.rotation.y,
+      spine: carrier.getObjectByName('spine')!.rotation.x })
+  }
+  return frames
+}
+
 export function carryFlightProbe() {
   const scene = root().scene, carrier = scene.getObjectByName('avatar-101')!, carried = scene.getObjectByName('avatar-102')!
   const figure = scene.getObjectByName('figure-102')!

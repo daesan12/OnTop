@@ -66,8 +66,9 @@ export function createAvatarMotion(model: Rig) {
   const fitness = createFitnessMotion(), gait = createGait()
   const grip = createFitnessGrip(), hipFit = new Vector3(), clip = createClipPose()
   let phase = 0, swimPhase = 0, move = 0, run = 0, previousCarry = '', releaseAge = 1, carrySupport = 0, throwAge = 0
+  let releasingThrow = false, releaseYaw = 0, releaseTurn = 0, releaseDirectionKnown = false, launchX = 0, launchZ = 0
   return {
-    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void) {
+    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void, throwFlight?: Pick<AvatarSnapshot, 'current'> | null) {
       const kind = avatarPoseKind(avatar)
       const seated = kind === 'seated'
       const age = avatarEmoteAge(avatar, now)
@@ -157,16 +158,40 @@ export function createAvatarMotion(model: Rig) {
       const role = avatar.carry?.role ?? ''
       throwAge = role === 'THROWN' && previousCarry === 'THROWN' ? throwAge + dt : 0
       carrySupport += ((role === 'CARRIED' ? 1 : 0) - carrySupport) * (1 - Math.exp(-dt * 18))
-      if (previousCarry === 'CARRIER' && !role) releaseAge = 0
+      if (previousCarry === 'CARRIER' && !role) {
+        releaseAge = 0
+        releasingThrow = !!throwFlight
+        releaseDirectionKnown = false
+        releaseYaw = pose.yaw
+        releaseTurn = 0
+        launchX = throwFlight?.current.x ?? pose.x
+        launchZ = throwFlight?.current.z ?? pose.z
+      }
       previousCarry = role
       releaseAge += dt
-      if (role === 'CARRIER' || releaseAge < .35) {
-        const reach = role === 'CARRIER' ? 2.35 : 2.35 - Math.sin(releaseAge / .35 * Math.PI / 2) * 1.4
+      if (releasingThrow && !releaseDirectionKnown && throwFlight) {
+        const dx = throwFlight.current.x - launchX, dz = throwFlight.current.z - launchZ
+        if (Math.hypot(dx, dz) > .01) {
+          releaseYaw = Math.atan2(dx, dz)
+          releaseDirectionKnown = true
+        }
+      }
+      if (role === 'CARRIER' || !role && kind === 'ground' && age === null && !reaction && releaseAge < .45) {
+        // 정면은 +Z다. 음수 X 회전으로 받친 팔을 앞쪽으로 뻗는다.
+        const throwing = !role && releasingThrow
+        const drive = Math.sin(Math.min(1, releaseAge / (throwing ? .22 : .45)) * Math.PI / 2)
+        const reach = role === 'CARRIER' ? -2.35 : -2.35 + drive * (throwing ? 1.25 : 2.35)
         set('upperArm_L', reach, 0, -.25)
         set('upperArm_R', reach, 0, .25)
-        set('lowerArm_L', -.4)
-        set('lowerArm_R', -.4)
-        model.handPose('L', 'cup'); model.handPose('R', 'cup')
+        set('lowerArm_L', throwing ? .4 * (1 - drive) : .4)
+        set('lowerArm_R', throwing ? .4 * (1 - drive) : .4)
+        model.handPose('L', throwing ? 'open' : 'cup'); model.handPose('R', throwing ? 'open' : 'cup')
+        if (throwing) {
+          const turn = Math.atan2(Math.sin(releaseYaw - pose.yaw), Math.cos(releaseYaw - pose.yaw))
+          releaseTurn += Math.atan2(Math.sin(turn - releaseTurn), Math.cos(turn - releaseTurn)) * (1 - Math.exp(-dt * 30))
+          figure.rotation.y = releaseTurn * Math.min(1, Math.max(0, (.45 - releaseAge) / .13))
+          set('spine', .18 * Math.sin(Math.min(1, releaseAge / .45) * Math.PI))
+        }
       } else if (role === 'CARRIED' || role === 'THROWN') {
         // 내려놓는 직립 자세 대신, 들린 자세에서 이어지는 짧은 공중 회전.
         figure.rotation.set(role === 'THROWN' ? -.25 - Math.min(throwAge, .8) * 4 : 0,
@@ -192,7 +217,7 @@ export function createAvatarMotion(model: Rig) {
       // 머리 위 충돌/투척 기준은 유지하고, 몸은 팔 가까이에 받쳐진 높이로 내린다.
       // 투척·해제 때도 오프셋을 서서히 없애 모델이 위로 튀지 않게 한다.
       figure.position.y -= .55 * carrySupport
-      figure.position.z -= .12 * carrySupport
+      figure.position.z += .12 * carrySupport
     },
   }
 }
