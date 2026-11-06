@@ -167,15 +167,15 @@
       "outfit": "satto",
       "source": {
         "file": "satto_raw.glb",
-        "sha256": "bf622bf1959cadf46ecc1697db9636a40ca6bea0b81897dcc9ca39f92097f0f9",
-        "bytes": 8790372,
+        "sha256": "f2f679f685764c3a20648b2f3f93f3724beda51bd2a10a735b5f8323fddd8969",
+        "bytes": 8759492,
         "triangles": 75000,
         "generator": "Tripo items on a shared base (user supplied)"
       },
       "runtime": {
         "file": "outfits/satto.glb",
-        "sha256": "e22420937b4f09105701a2e1970a32f4d8e451ace14d685c5c2aeeda24bd8260",
-        "bytes": 3392268,
+        "sha256": "bb382aa9eb3071514b5c78fb478ef69db5da6cdbe8705f9e14bd391bb3a35104",
+        "bytes": 3367304,
         "triangles": {
           "far": 6000,
           "near": 75000
@@ -188,13 +188,13 @@
         {
           "name": "far-body",
           "triangles": 6000,
-          "vertices": 10249,
-          "pieces": 12
+          "vertices": 10176,
+          "pieces": 11
         },
         {
           "name": "near-body",
           "triangles": 75000,
-          "vertices": 87341,
+          "vertices": 86829,
           "pieces": 18
         }
       ],
