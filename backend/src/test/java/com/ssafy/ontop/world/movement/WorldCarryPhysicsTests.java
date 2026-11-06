@@ -110,6 +110,38 @@ class WorldCarryPhysicsTests {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 연속_상승과_정지와_하강에서_운반_수직속도는_직전_틱의_높이만_반영한다(boolean clientPositions) throws Exception {
+        try (var physics = pair(clientPositions)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            double previousHeight = physics.snapshot("a").y();
+            long previousTick = physics.snapshot("b").motion().tick();
+            double[] heights = {1.0, 1.1, 1.2, 1.3, 1.4, 1.4, 1.4, 1.4, 1.3, 1.2, 1.1, 1.0, .9, .84};
+
+            // 지형/입력 검증과 분리한 높이 경로로 상승·정지·하강을 세 차례 반복한다.
+            // 기대 속도는 피운반자의 내부 캐시가 아닌 운반자의 실제 스냅샷 차이에서 구한다.
+            for (int cycle = 0; cycle < 3; cycle++) {
+                for (double height : heights) {
+                    physics.place("a", 0, height, 78);
+                    step(physics, 1);
+
+                    var carrier = physics.snapshot("a");
+                    var carried = physics.snapshot("b");
+                    double expectedVelocity = (carrier.y() - previousHeight) * 30;
+                    assertThat(physics.carryState("b").role()).isEqualTo("CARRIED");
+                    assertThat(carried.y()).isCloseTo(carrier.y() + 1.7, within(.00001));
+                    assertThat(carried.motion().tick()).isEqualTo(previousTick + 1);
+                    assertThat(carried.motion().velocityY())
+                            .as("clientPositions=%s cycle=%s height=%s", clientPositions, cycle, height)
+                            .isCloseTo(expectedVelocity, within(.0001));
+                    previousHeight = carrier.y();
+                    previousTick = carried.motion().tick();
+                }
+            }
+        }
+    }
+
     @Test
     void 캐시도_현재위치도_막히면_최초위치로_돌아가지않고_주변을_찾는다() throws Exception {
         try (var physics = pair(false, true)) {
