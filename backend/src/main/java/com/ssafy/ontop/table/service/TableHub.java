@@ -885,6 +885,10 @@ public class TableHub {
                     && !restoredChannelAccess(member, request)) {
                 fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
             }
+            if (channels.carryState(member.userId()) != null && Set.of("TABLE_JOIN", "TABLE_WATCH", "GAME_WATCH",
+                    "WORLD_FACILITY_USE", "WORLD_FOLLOW_START", "WORLD_EMOTE_SEND").contains(request.type())) {
+                fail(request, "CARRY_ACTIVITY_CONFLICT", "들기·던지기가 끝난 뒤 다른 행동을 시작해주세요.");
+            }
             switch (request.type()) {
                 case "GAME_WATCH" -> watchGame(sessionId, member, request);
                 case "CHANNEL_JOIN" -> joinChannel(member, request);
@@ -895,6 +899,8 @@ public class TableHub {
                         channels.disablePosition(member.userId(), request.payload().path("epoch").asLong()).state()));
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
+                case "WORLD_CARRY_PICKUP", "WORLD_CARRY_THROW", "WORLD_CARRY_RELEASE" -> carry(member, request);
+                case "WORLD_INTERACTION_SET" -> interactionBusy(member, request);
                 case "WORLD_FOLLOW_START", "WORLD_FOLLOW_STOP", "WORLD_FOLLOW_CHECK" -> follow(member, request);
                 case "WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FACILITY_USE",
                         "WORLD_FACILITY_RELEASE", "WORLD_FACILITY_AIM" -> facility(member, request);
@@ -1692,6 +1698,7 @@ public class TableHub {
     private boolean canFollow(String userId) {
         var position = channels.positionOf(userId);
         return position != null && !position.swimming() && !seating.containsKey(userId)
+                && channels.carryState(userId) == null
                 && facilities.current(userId) == null;
     }
 
@@ -1738,7 +1745,8 @@ public class TableHub {
         if (position == null) {
             fail(request, "WORLD_POSITION_REQUIRED", "광장 위치를 확인해주세요.");
         }
-        if (seating.containsKey(member.userId()) || facilities.current(member.userId()) != null
+        if (channels.carryState(member.userId()) != null || seating.containsKey(member.userId())
+                || facilities.current(member.userId()) != null
                 || position.moving() || position.running() || position.swimming()
                 || channels.hasMovementActivity(member.userId())) {
             fail(request, "EMOTE_ACTIVITY_CONFLICT", "이동·수영·테이블·시설 이용을 마친 뒤 사용해주세요.");
@@ -1767,6 +1775,54 @@ public class TableHub {
                 target.peer().offer(notification);
             }
         }
+    }
+
+    private void carry(Member member, Request request) {
+        String userId = member.userId();
+        if (request.type().equals("WORLD_CARRY_RELEASE")) {
+            publishWorld(channels.releaseCarry(userId, request.payload().path("carryId").asText()),
+                    member, request.requestId());
+            return;
+        }
+        String targetId = request.payload().path("targetId").asText();
+        if (request.type().equals("WORLD_CARRY_THROW")) {
+            var current = channels.carryState(userId);
+            if (current != null) { targetId = current.partnerId(); }
+        }
+        String channel = channels.channelOf(userId);
+        String partnerId = targetId;
+        if (channel == null || !channels.isInChannel(targetId, channel) || !members.values().stream()
+                .anyMatch(target -> target.userId().equals(partnerId))) {
+            fail(request, "CARRY_TARGET_UNAVAILABLE", "같은 채널의 연결된 사용자를 선택해주세요.");
+        }
+        if (carryBusy(userId) || carryBusy(targetId)) {
+            fail(request, "CARRY_ACTIVITY_CONFLICT", "상대방과 본인의 게임·시설·다른 행동을 마친 뒤 사용해주세요.");
+        }
+        WorldChannelRegistry.WorldState state;
+        if (request.type().equals("WORLD_CARRY_PICKUP")) {
+            state = channels.pickup(userId, targetId);
+        } else {
+            var payload = request.payload();
+            state = channels.throwCarried(userId, payload.path("carryId").asText(), payload.path("dx").asDouble(),
+                    payload.path("dy").asDouble(), payload.path("dz").asDouble());
+        }
+        publishWorld(state, member, request.requestId());
+    }
+
+    private void interactionBusy(Member member, Request request) {
+        var change = channels.interactionBusy(member.userId(), request.payload().path("busy").asBoolean());
+        member.peer().offer(protocol.encode(request.requestId(), "WORLD_INTERACTION_STATE",
+                Map.of("channelId", change.channelId(), "busy", change.busy())));
+        if (change.released() != null) {
+            publishWorld(change.released(), null, null);
+        }
+    }
+
+    private boolean carryBusy(String userId) {
+        return seating.containsKey(userId) || facilities.current(userId) != null || emotes.isActive(userId)
+                || !channels.carryAvailable(userId)
+                || follows.activeStates().stream().flatMap(state -> state.links().stream())
+                        .anyMatch(link -> link.followerId().equals(userId) || link.targetId().equals(userId));
     }
 
     private void publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {

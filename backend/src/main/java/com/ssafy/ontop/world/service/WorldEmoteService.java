@@ -112,6 +112,11 @@ public class WorldEmoteService {
         accepted.remove(userId);
     }
 
+    public synchronized boolean isActive(String userId) {
+        Active active = lastEvents.get(userId);
+        return active != null && nanoTime.getAsLong() - active.at() < active.duration();
+    }
+
     public synchronized void clear() {
         lastSent.clear();
         lastEvents.clear();

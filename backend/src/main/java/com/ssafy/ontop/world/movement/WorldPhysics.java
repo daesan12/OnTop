@@ -18,6 +18,11 @@ public final class WorldPhysics implements AutoCloseable {
     private long physicsTick;
     public static final long STEP_NANOS = 1_000_000_000L / 30;
     private static final float DT = 1f / 30;
+    private static final float CARRY_HEIGHT = 1.7f;
+    private static final int MAX_CARRY_TICKS = 150;
+    private static final int MAX_THROW_TICKS = 90;
+    private static final int CARRY_COOLDOWN_TICKS = 30;
+    private static final double THROW_SPEED = 9;
     /** 측정한 ghost sweep 관통 시작 속도(약 27m/s)의 절반 이하. */
     private static final double FAST_FALL_SWEEP = 12;
     private ParkScene scene;
@@ -256,6 +261,7 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private void removeNow(String id) {
+        releaseCarryNow(id);
         Actor actor = actors.remove(id);
         if (actor != null && !actor.seated && !actor.clientControlled) {
             space.removeCollisionObject(actor.body);
@@ -282,6 +288,7 @@ public final class WorldPhysics implements AutoCloseable {
 
     private boolean inputNow(String id, MoveInput input, long now) {
         Actor actor = actors.get(id);
+        if (actor.carriedBy != null || actor.throwTicks > 0) { return false; }
         if (actor.clientControlled) {
             if (tunedMovement) return false; // A direction-only packet cannot downgrade the selected movement engine.
             // An already-open old client only knows WORLD_MOVE. Keep it usable during rollout.
@@ -351,6 +358,7 @@ public final class WorldPhysics implements AutoCloseable {
         for (var entry : actors.entrySet()) {
             Actor a = entry.getValue();
             a.beforeStepY = a.body.getPhysicsLocation(null).y;
+            if (a.carriedBy != null) { continue; }
             if (seated.contains(entry.getKey())) {
                 stop(entry.getKey());
                 if (!a.seated) {
@@ -371,7 +379,8 @@ public final class WorldPhysics implements AutoCloseable {
             }
             // Automatic follow must advance even when the browser is throttled/minimized.
             if (tunedMovement && clientPositions && following.containsKey(entry.getKey()) && a.clientControlled) serverControl(a);
-            if (tunedMovement && clientPositions && !a.clientControlled && !a.positionDisabled && !following.containsKey(entry.getKey())) {
+            if (tunedMovement && clientPositions && !a.clientControlled && !a.positionDisabled
+                    && a.throwTicks == 0 && !following.containsKey(entry.getKey())) {
                 resumeClientControl(a);
             }
             if (!tunedMovement && a.clientControlled && (following.containsKey(entry.getKey()) || specialMovement(a.body.getPhysicsLocation(null)))) {
@@ -418,6 +427,11 @@ public final class WorldPhysics implements AutoCloseable {
                                             .asDouble()
                             : number(active && input.run() ? "runSpeed" : "walkSpeed");
             double dx = active ? input.dx() : 0, dz = active ? input.dz() : 0;
+            if (a.throwTicks > 0) {
+                dx = a.throwX / speed;
+                dz = a.throwZ / speed;
+                active = false;
+            }
             if (course != null) {
                 // 기본 ghost sweep은 겹친 몸체만 검사해 얇은 발판을 약 27m/s 이상 낙하에서 지나칠 수 있다.
                 // 코스 활성 채널에서 빠르게 떨어지는 틱만 world sweep으로 경로 전체를 검사한다.
@@ -493,6 +507,23 @@ public final class WorldPhysics implements AutoCloseable {
         }
         space.update(DT, 0);
         for (var entry : actors.entrySet()) {
+            Actor carried = entry.getValue();
+            if (carried.carriedBy == null) { continue; }
+            Actor carrier = actors.get(carried.carriedBy);
+            Vector3f next = carrier == null ? null : carrier.body.getPhysicsLocation(null).add(0, CARRY_HEIGHT, 0);
+            if (next == null || physicsTick - carried.carryStartedTick >= MAX_CARRY_TICKS || !canOccupy(next)) {
+                releaseCarryNow(entry.getKey());
+            } else {
+                carried.body.warp(next);
+                carried.yaw = carrier.yaw;
+                Vector3f ground = carrier.body.getPhysicsLocation(null);
+                if (carrier.motion.grounded() && ground.distanceSquared(carried.carrySafe) >= .04f
+                        && canStand(ground.x, ground.y, ground.z)) {
+                    carried.carrySafe.set(ground);
+                }
+            }
+        }
+        for (var entry : actors.entrySet()) {
             Actor a = entry.getValue();
             if (a.seated || a.clientControlled) { continue; }
             Vector3f position = a.body.getPhysicsLocation(null);
@@ -537,7 +568,14 @@ public final class WorldPhysics implements AutoCloseable {
                 }
             }
             a.airborne = !a.seated && !supported;
+            if (a.throwTicks > 0 && (--a.throwTicks == 0 || supported || a.swimming)) {
+                a.throwTicks = 0;
+                a.throwX = a.throwZ = 0;
+                stopNow(entry.getKey());
+                resetMotion(a);
+            }
             if (clientPositions && !a.positionDisabled
+                    && a.throwTicks == 0
                     && !following.containsKey(entry.getKey()) && !specialMovement(a.body.getPhysicsLocation(null))
                     && supported) {
                 stopNow(entry.getKey());
@@ -990,6 +1028,7 @@ public final class WorldPhysics implements AutoCloseable {
     /** 시설 이용 자세는 충돌 계산에서 분리하고, 이전 이동 입력을 폐기한다. */
     public void hold(String id, double x, double y, double z, double yaw) {
         call(() -> {
+            releaseCarryNow(id);
             Actor actor = actors.get(id);
             stopNow(id);
             if (!actor.seated) {
@@ -1007,6 +1046,142 @@ public final class WorldPhysics implements AutoCloseable {
             actor.airborne = false;
             return null;
         });
+    }
+
+    /** 관계는 서버 물리와 같은 수명으로 관리해 채널 이동·접속 종료 때 함께 정리한다. */
+    public record Carry(String carryId, String partnerId, String role) { }
+
+    public Carry carryState(String id) {
+        return call(() -> carryStateNow(id));
+    }
+
+    public Map<String, Carry> carryStates() {
+        return call(() -> {
+            Map<String, Carry> result = new HashMap<>();
+            for (String id : actors.keySet()) {
+                Carry carry = carryStateNow(id);
+                if (carry != null) { result.put(id, carry); }
+            }
+            return Map.copyOf(result);
+        });
+    }
+
+    private Carry carryStateNow(String id) {
+        Actor actor = actors.get(id);
+        if (actor == null) { return null; }
+        if (actor.carriedBy != null) { return new Carry(actor.carryId, actor.carriedBy, "CARRIED"); }
+        if (actor.throwTicks > 0) { return new Carry(actor.carryId, actor.throwerId, "THROWN"); }
+        Actor target = actors.get(actor.carryingId);
+        return target == null ? null : new Carry(target.carryId, actor.carryingId, "CARRIER");
+    }
+
+    public boolean pickup(String carrierId, String targetId) {
+        return call(() -> {
+            Actor carrier = actors.get(carrierId), target = actors.get(targetId);
+            if (carrier == null || target == null || carrierId.equals(targetId)
+                    || carryState(carrierId) != null || carryState(targetId) != null
+                    || carrier.airborne || carrier.jumpQueued || carrier.jumpRequestTick >= 0
+                    || physicsTick < carrier.carryReadyTick || physicsTick < target.carryReadyTick) { return false; }
+            Vector3f origin = carrier.body.getPhysicsLocation(null);
+            Vector3f destination = target.body.getPhysicsLocation(null);
+            if (space.rayTest(origin, destination).stream()
+                    .anyMatch(hit -> hit.getCollisionObject().getCollisionGroup() == 2)) { return false; }
+            Vector3f lifted = origin.add(0, CARRY_HEIGHT, 0);
+            if (!canOccupy(lifted)) { return false; }
+            target.carrySafe = target.body.getPhysicsLocation(null).clone();
+            hold(targetId, lifted.x, lifted.y, lifted.z, carrier.yaw);
+            target.carriedBy = carrierId;
+            carrier.carryingId = targetId;
+            target.carryStartedTick = physicsTick;
+            target.carryId = java.util.UUID.randomUUID().toString();
+            return true;
+        });
+    }
+
+    public boolean throwCarried(String carrierId, String carryId, double dx, double dy, double dz) {
+        return call(() -> {
+            Actor carrier = actors.get(carrierId);
+            Actor target = carrier == null ? null : actors.get(carrier.carryingId);
+            if (target == null || !carryId.equals(target.carryId)) { return false; }
+            carrier.carryingId = null;
+            target.carriedBy = null;
+            target.throwerId = carrierId;
+            target.seated = false;
+            target.throwTicks = MAX_THROW_TICKS;
+            target.throwX = dx * THROW_SPEED;
+            target.throwZ = dz * THROW_SPEED;
+            target.carryReadyTick = physicsTick + CARRY_COOLDOWN_TICKS;
+            carrier.carryReadyTick = physicsTick + CARRY_COOLDOWN_TICKS;
+            space.addCollisionObject(target.body);
+            target.body.setGravity(-number("gravity"));
+            target.body.jump(new Vector3f(0, (float) (dy * THROW_SPEED + 3), 0));
+            target.airborne = true;
+            resetMotion(target);
+            return true;
+        });
+    }
+
+    public void pruneCarries(java.util.Set<String> unavailable) {
+        call(() -> {
+            unavailable.forEach(this::releaseCarryNow);
+            return null;
+        });
+    }
+
+    public void releaseCarry(String id) {
+        call(() -> { releaseCarryNow(id); return null; });
+    }
+
+    private void releaseCarryNow(String id) {
+        for (var entry : actors.entrySet()) {
+            Actor target = entry.getValue();
+            if (entry.getKey().equals(id) && target.throwTicks > 0) {
+                target.throwTicks = 0;
+                target.throwX = target.throwZ = 0;
+                stopNow(id);
+                resetMotion(target);
+            }
+            if (target.carriedBy == null || !(entry.getKey().equals(id) || target.carriedBy.equals(id))) { continue; }
+            Actor carrier = actors.get(target.carriedBy);
+            if (carrier != null) { carrier.carryingId = null; }
+            Vector3f origin = carrier == null ? target.body.getPhysicsLocation(null).add(0, -CARRY_HEIGHT, 0)
+                    : carrier.body.getPhysicsLocation(null);
+            Vector3f exit = carryExit(origin, target);
+            target.carriedBy = null;
+            target.carryReadyTick = physicsTick + CARRY_COOLDOWN_TICKS;
+            target.body.warp(exit);
+            target.seated = false;
+            space.addCollisionObject(target.body);
+            stopNow(entry.getKey());
+            resetMotion(target);
+        }
+    }
+
+    private boolean canOccupy(Vector3f center) {
+        standProbe.setPhysicsLocation(center);
+        boolean[] blocked = {false};
+        space.contactTest(standProbe, event -> {
+            var other = event.getObjectA() == standProbe ? event.getObjectB() : event.getObjectA();
+            if (other.getCollisionGroup() == 2 && event.getDistance1() < -.04f) { blocked[0] = true; }
+        });
+        return !blocked[0];
+    }
+
+    private Vector3f carryExit(Vector3f origin, Actor target) {
+        if (canStand(origin.x, origin.y, origin.z)) { return origin; }
+        Vector3f safe = target.carrySafe;
+        if (safe != null && safe.distanceSquared(origin) <= 16 && canStand(safe.x, safe.y, safe.z)) {
+            return safe.clone();
+        }
+        // 탐색은 해제 순간에만 한다. 걷던 높이의 가까운 지지면을 우선해 다른 층으로 옮기지 않는다.
+        Vector3f nearby = nearbyStand(origin);
+        if (nearby != null) { return nearby; }
+        if (canOccupy(origin)) { return origin; }
+        Vector3f below = localGroundSupport(origin.x, origin.z);
+        if (below != null) { return below; }
+        // 지형이 바뀌어 근처에 착지점이 없는 예외에도, 운반 중 마지막으로 검증한 위치만 사용한다.
+        if (safe != null && canStand(safe.x, safe.y, safe.z)) { return safe.clone(); }
+        return validatedFallback(target, (float) scene.data.path("world").path("halfSize").asDouble() - 1);
     }
 
     /** 하차 전 캡슐 관통과 발밑 지지면을 검사한다. */
@@ -1132,6 +1307,11 @@ public final class WorldPhysics implements AutoCloseable {
     public record Steering(double dx, double dz, boolean run, double targetX, double targetZ) {}
 
     private static final class Actor {
+        String carriedBy, carryingId, carryId, throwerId;
+        Vector3f carrySafe;
+        int throwTicks;
+        long carryReadyTick, carryStartedTick;
+        double throwX, throwZ;
         final PhysicsCharacter body;
         final int slot;
         final Vector3f lastSafe;
