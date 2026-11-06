@@ -3845,6 +3845,33 @@ paths:
                 $ref: "#/components/schemas/MinigameAwardResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/events/assets/rounds/{weekStart}/finalize:
+    post:
+      tags:
+      - Event Awards
+      summary: 관리자 엽전 보유량 행사 결과 확정·재시도
+      operationId: finalizeRound_2
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AssetAwardResponse"
+      security:
+      - AccessJwt: []
   /api/v1/users/me:
     get:
       tags:
@@ -5818,6 +5845,33 @@ paths:
                 $ref: "#/components/schemas/MinigameMemberAwardResponse"
       security:
       - AccessJwt: []
+  /api/v1/events/assets/rounds/{weekStart}/result:
+    get:
+      tags:
+      - Event Awards
+      summary: 본인의 엽전 보유량 행사 결과
+      operationId: memberResult_2
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AssetMemberAwardResponse"
+      security:
+      - AccessJwt: []
   /api/v1/channels:
     get:
       tags:
@@ -6412,6 +6466,33 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/MinigameAwardResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/assets/rounds/{weekStart}:
+    get:
+      tags:
+      - Event Awards
+      summary: 관리자 엽전 보유량 행사 결과 조회
+      operationId: adminResult_2
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AssetAwardResponse"
       security:
       - AccessJwt: []
   /api/v1/admin/analytics/summary:
@@ -8103,6 +8184,61 @@ components:
           type: boolean
         winner:
           $ref: "#/components/schemas/Winner"
+    AssetAwardResponse:
+      type: object
+      properties:
+        eventType:
+          type: string
+        valuationBasis:
+          type: string
+        weekStartDate:
+          type: string
+          format: date
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        announcesAt:
+          type: string
+          format: date-time
+        finalized:
+          type: boolean
+        alreadyFinalized:
+          type: boolean
+        candidateCount:
+          type: integer
+          format: int32
+        excludedGmCount:
+          type: integer
+          format: int32
+        winners:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssetWinner"
+    AssetWinner:
+      type: object
+      properties:
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        sourceRecordId:
+          type: string
+        sourceValue:
+          type: integer
+          format: int64
+        sourceAchievedAt:
+          type: string
+          format: date-time
+        selectedAt:
+          type: string
+          format: date-time
     UserNicknameUpdateRequest:
       required:
       - nickname
@@ -8952,6 +9088,37 @@ components:
           type: string
         prize:
           $ref: "#/components/schemas/Prize"
+    AssetMemberAwardResponse:
+      type: object
+      properties:
+        eventType:
+          type: string
+        valuationBasis:
+          type: string
+        weekStartDate:
+          type: string
+          format: date
+        announcesAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        prize:
+          $ref: "#/components/schemas/AssetPrize"
+    AssetPrize:
+      type: object
+      properties:
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        coinBalance:
+          type: integer
+          format: int64
+        firstReachedAt:
+          type: string
+          format: date-time
     ChannelListResponse:
       required:
       - items
