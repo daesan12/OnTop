@@ -7,6 +7,7 @@ import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { clearRoamingInput } from '../../world/inputOwnership'
 import { canRetryForfeit, canStartForfeit, useForfeit } from '../forfeit'
 import { useGame } from '../store'
+import { canLeaveEliminatedHalli } from './actions'
 
 /**
  * Menu trigger and a centred confirmation (the shared PaperPopup, like ALKKAGI). Presentation only: the shared forfeit
@@ -31,6 +32,15 @@ export function HalliForfeit({ gameId, disabled }: { gameId: string; disabled: b
   // Closes on its own once the server shows this player out (or the game over); a pending request stays reachable.
   useEffect(() => { if (!playing && !recovering) setOpen(false) }, [playing, recovering])
   useEffect(() => { if (open) clearRoamingInput() }, [open])
+  // A naturally eliminated player gets the leave action in the same slot, without a confirmation: it never changes
+  // the result. The plain TABLE_LEAVE returns to the park through the usual TABLE_LEFT handling.
+  const eliminated = !playing && !recovering && state.game?.gameId === gameId && state.game.role === 'PLAYER'
+    && state.game.halli?.status === 'PLAYING'
+    && state.game.halli.players.some(p => p.userId === session.userId && p.eliminated && !p.forfeited)
+  if (eliminated) return <div className="hg-menu-danger">
+    <button type="button" data-icon="exit" disabled={!connected || disabled || session.pending
+      || !canLeaveEliminatedHalli(session.userId, state)} onClick={() => void runtime.leaveTable()}>테이블 나가기</button>
+  </div>
   if (!playing && !recovering) return null
   const close = () => setOpen(false)
   return <div className="hg-menu-danger">

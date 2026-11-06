@@ -58,7 +58,7 @@ export function HalliGalliPanel() {
     : h.turnUserId === own ? '내 차례 · 뒷면 카드를 눌러 공개하세요'
     : `${names[h.turnUserId]} 차례 · 같은 과일이 정확히 5개면 종!`
   const standing = !player ? '관전 중 · 종과 카드는 참가자만 다룰 수 있어요'
-    : me?.forfeited ? '기권했어요 · 공개 카드는 판정에 계속 남아요' : me?.eliminated ? '탈락했어요 · 경기를 끝까지 볼 수 있어요' : ''
+    : me?.forfeited ? '기권했어요 · 공개 카드는 판정에 계속 남아요' : me?.eliminated ? '탈락했습니다. 경기를 끝까지 관전하거나 테이블에서 나갈 수 있어요.' : ''
   const Table = projected ? HalliStage : HalliTable
   return <section className="halligalli-panel" aria-label="과일 땡" data-role={g.role} data-status={h.status} data-layout={projected ? 'stage' : 'fixed'}>
     {/* No status bar on screen: the seat labels show the turn. Screen readers still hear the status and the last event. */}
