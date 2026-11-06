@@ -29,7 +29,17 @@ async function login(browser: Browser, role: 'red' | 'green', fresh = true) {
   const code = (await response.json()).exchangeCode
   await page.goto('/auth/callback#exchange_code=' + code)
   console.info('[coop] 로그인 후 채널 선택:', role, fresh)
-  await page.getByRole('button', { name: /^연동 테스트 A/ }).click({ timeout: 60000 })
+  const channel = page.getByRole('button', { name: /^연동 테스트 A/ })
+  // 최신 공원은 로그인 후 이전/기본 채널에 바로 연결될 수도 있다.
+  await expect.poll(async () => await channel.isVisible() || await page.evaluate(async () => {
+    const url = '/src/network/worldClient.ts', world = await import(/* @vite-ignore */ url)
+    return world.useSession.getState().status === 'connected'
+  }), { timeout: 60000 }).toBe(true)
+  if (await channel.isVisible()) await channel.click()
+  else {
+    await page.getByRole('button', { name: '현재 공원과 접속 인원', exact: true }).click()
+    await page.getByRole('region', { name: '채널 선택', exact: true }).getByRole('button', { name: /^연동 테스트 A/ }).click()
+  }
   await expect.poll(() => page.evaluate(async () => {
     const url = '/src/network/worldClient.ts', m = await import(/* @vite-ignore */ url)
     const state = m.useSession.getState()
@@ -117,6 +127,31 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
     await expect(server.locator('[data-table="1"]')).toHaveAttribute('data-status', 'unreceived', { timeout: 10000 })
     expect(latest.get(chef).privateState.chef.visible).toEqual([])
     expect(JSON.stringify(latest.get(chef))).not.toContain('"recipe"')
+    // 실제 서버 스냅샷을 표시하는 프레임에서 전진 중 뒤로 보정/반전되는지 확인한다.
+    await server.evaluate(async () => {
+      const url = '/src/features/skewer/serviceHall/rendering/HallMotion.ts'
+      const { HallMotion } = await import(/* @vite-ignore */ url)
+      const update = HallMotion.prototype.update
+      const samples: { x: number; yaw: number }[] = []
+      HallMotion.prototype.update = function (...args: unknown[]) {
+        update.apply(this, args)
+        samples.push({ x: this.position.x, yaw: this.yaw })
+      }
+      Reflect.set(window, 'skewerMotionSamples', samples)
+      Reflect.set(window, 'stopSkewerMotionCapture', () => { HallMotion.prototype.update = update })
+    })
+    await server.keyboard.down('d'); await server.waitForTimeout(900); await server.keyboard.up('d')
+    const motion = await server.evaluate(() => {
+      Reflect.get(window, 'stopSkewerMotionCapture')()
+      return Reflect.get(window, 'skewerMotionSamples') as { x: number; yaw: number }[]
+    })
+    expect(motion.length).toBeGreaterThan(10)
+    expect(motion.at(-1)!.x - motion[0].x).toBeGreaterThan(1)
+    for (let frame = 1; frame < motion.length; frame++) {
+      expect(motion[frame].x).toBeGreaterThanOrEqual(motion[frame - 1].x - .000001)
+      if (motion[frame].x - motion[frame - 1].x > .005) expect(Math.sin(motion[frame].yaw)).toBeGreaterThanOrEqual(0)
+    }
+    await capture(server, 'coop-forward-motion')
     await walk(server, '1번 1인 테이블로 이동', /E 1번 주문 받기/)
     await server.keyboard.press('e')
     await expect(server.locator('[data-table="1"]')).toHaveAttribute('data-status', 'collected')
@@ -163,7 +198,7 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
     await expect(server.locator('[data-table="1"]')).toHaveAttribute('data-status', 'eating', { timeout: 10000 })
     await expect.poll(() => latest.get(chef).publicState.score).toBeGreaterThan(0)
     expect(latest.get(server).publicState.score).toBe(latest.get(chef).publicState.score)
-    expect(latest.get(chef).publicState.rankingEligible).toBe(false)
+    expect(latest.get(chef).publicState.rankingEligible).toBe(true)
     await capture(server, 'coop-server-served')
     const greeting = server.getByRole('region', { name: '함께 인사하기', exact: true })
     await expect(greeting).toBeVisible({ timeout: 90000 })

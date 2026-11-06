@@ -1,5 +1,5 @@
 import { HallPreview, type HallView } from '../serviceHall/previewModel'
-import { move, distance, type Point } from '../serviceHall/plan'
+import type { Point } from '../serviceHall/plan'
 import { ChefPreview, type ChefAction, type ChefView } from '../chef/model'
 import type { CoopClient } from './client'
 
@@ -9,7 +9,6 @@ export type ChefDriver = Pick<ChefPreview, 'view' | 'step' | 'action'> & { onlin
 export class OnlineHall implements HallDriver {
   readonly online = true
   private helper = new HallPreview()
-  private navigating = false
   private storageOpen = false
   private movementAt = 0
   private lastMove = '0.00:0.00'
@@ -30,33 +29,32 @@ export class OnlineHall implements HallDriver {
     if (!snapshot || !hall) return
     if (this.round !== (snapshot.publicState.round ?? 0)) {
       this.round = snapshot.publicState.round ?? 0
-      this.helper.position = { ...hall.position }; this.storageOpen = false; this.navigating = false
+      this.helper.position = { ...hall.position }; this.storageOpen = false
       this.cleaningPressed = false; this.lastMove = '0.00:0.00'; this.movementAt = 0
     }
     if (snapshot.version !== this.lastVersion) {
       this.lastVersion = snapshot.version
-      // 이동만 짧게 예측한다. 음식·주문·타이머·점수는 서버 스냅샷을 그대로 표시한다.
-      if (this.navigating || distance(this.helper.position, hall.position) > .65 || !this.client.playable) this.helper.position = { ...hall.position }
+      // 확인되지 않은 입력을 누적하면 100ms 서버 틱마다 뒤로 보정되어 시선도 반전된다.
+      // 충돌·위치는 서버값을 따르고 프레임 사이의 부드러운 표시는 HallMotion이 담당한다.
+      this.helper.position = { ...hall.position }
     }
     this.helper.tables = hall.tables; this.helper.carry = hall.carry; this.helper.pass = hall.pass
     this.helper.stored = hall.stored; this.helper.sake = hall.sake; this.helper.dirtyDishes = hall.dirtyDishes
     this.helper.washer = hall.washer; this.helper.held = hall.held; this.helper.elapsed = snapshot.publicState.elapsed
-    if (snapshot.publicState.phase === 'FINISHED' || snapshot.publicState.paused) { this.storageOpen = false; this.navigating = false }
+    if (snapshot.publicState.phase === 'FINISHED' || snapshot.publicState.paused) this.storageOpen = false
   }
-  step(dt: number, dx = 0, dz = 0) {
+  step(_dt: number, dx = 0, dz = 0) {
     this.sync()
     if (!this.client.playable || this.storageOpen) { dx = 0; dz = 0 }
-    if (dx || dz) this.navigating = false
     const now = performance.now(), value = `${dx.toFixed(2)}:${dz.toFixed(2)}`
     if (this.client.playable && !this.sendingMove && ((dx !== 0 || dz !== 0) && now - this.movementAt > 150 || value !== this.lastMove && dx === 0 && dz === 0)) {
       this.movementAt = now; this.lastMove = value; this.sendingMove = true
       void this.client.act({ type: 'MOVE', dx, dz }, true)?.finally(() => { this.sendingMove = false })
     }
-    this.helper.position = move(this.helper.position, dx, dz, dt)
   }
   navigate(point: Point) {
     if (this.client.playable && !this.storageOpen) {
-      this.navigating = true; this.lastMove = '0.00:0.00'
+      this.lastMove = '0.00:0.00'
       void this.client.act({ type: 'NAVIGATE', x: point.x, z: point.z })
     }
   }
@@ -76,7 +74,6 @@ export class OnlineHall implements HallDriver {
   press() {
     if (this.storageOpen || this.blockedReason()) return
     if (this.nearest()?.kind === 'storage' && !this.helper.carry.length) { this.openStorage(); return }
-    this.navigating = false
     const at = this.nearest()
     this.cleaningPressed = at?.kind === 'table' && this.helper.tables.find(table => table.id === at.id)?.status === 'dirty'
     void this.client.act({ type: 'MOVE', dx: 0, dz: 0 }, true)
@@ -89,7 +86,7 @@ export class OnlineHall implements HallDriver {
     if (this.nearest()?.kind === 'fridge' && this.helper.sake) void this.client.act({ type: 'RETURN_SAKE' })
     else if (this.nearest()?.kind === 'storage') this.openStorage()
   }
-  private openStorage() { if (this.helper.stored.length) { this.storageOpen = true; this.navigating = false; void this.client.act({ type: 'MOVE', dx: 0, dz: 0 }, true) } }
+  private openStorage() { if (this.helper.stored.length) { this.storageOpen = true; void this.client.act({ type: 'MOVE', dx: 0, dz: 0 }, true) } }
   closeStorage() { this.storageOpen = false }
   takeStored(id: string) { if (!this.storageOpen || this.secondaryBlockedReason()) return; this.storageOpen = false; void this.client.act({ type: 'TAKE_STORED', id }) }
   release() {

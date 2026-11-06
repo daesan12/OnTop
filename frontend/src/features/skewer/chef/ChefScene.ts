@@ -498,7 +498,10 @@ export class ChefScene {
     if (event.button !== 0 || this.session) return
     this.unlockSound()
     const r = this.renderer.domElement.getBoundingClientRect(); this.ray.setFromCamera(new THREE.Vector2((event.clientX - r.left) / r.width * 2 - 1, 1 - (event.clientY - r.top) / r.height * 2), this.camera)
-    const hit = this.ray.intersectObjects(this.visiblePickables(), false)[0]; if (hit) this.activate(hit.object.userData.pick)
+    const hit = this.ray.intersectObjects(this.visiblePickables(), false)[0]
+    const pick = hit?.object.userData.pick as Pick | undefined
+    if (!pick || this.mode === 'pc' && ('ingredient' in pick || 'action' in pick && pick.action === 'thread')) return
+    this.activate(pick)
   }
   private pointerMove = (event: PointerEvent) => {
     const r = this.renderer.domElement.getBoundingClientRect()

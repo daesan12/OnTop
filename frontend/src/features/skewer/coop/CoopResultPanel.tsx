@@ -56,7 +56,7 @@ export function CoopResultPanel({ client, leaving, onClose }: { client: CoopClie
       {!settled ? <button className="paper-text-button" disabled={state.resultPending} onClick={() => void client.refreshResult()}>보상 다시 확인</button> : null}
       </div></div>
       <div className="paper-actions"><button className="paper-primary" onClick={onClose} disabled={leaving}>{leaving ? '공원으로 이동 중…' : '공원으로 돌아가기'}</button><button onClick={openRanking}>팀 랭킹 보기</button></div>
-      <details><summary>보상 기준 자세히</summary><p>팀 점수 20점당 두 사람에게 각각 1냥을 환산해요. 소수점은 버리고, 모든 미니게임에서 오늘 받은 보상을 합쳐 각자 최대 500냥까지 받을 수 있어요.</p><p>반납·보관 중이거나 아직 손님에게 전달하지 않은 음식은 점수에 포함하지 않아요.</p>{settled ? <p>오늘 받은 보상 · 보유 엽전 {result.balance?.toLocaleString('ko-KR')}냥</p> : <p>잠시 후 보상 다시 확인을 눌러 주세요.</p>}</details>
+      <details><summary>보상 기준 자세히</summary><p>팀 점수 20점당 두 사람에게 각각 1냥을 환산해요. 모든 미니게임에서 오늘 받은 보상을 합쳐 각자 최대 500냥까지 받을 수 있어요.</p><p>반납·보관 중이거나 아직 손님에게 전달하지 않은 음식은 점수에 포함하지 않아요.</p>{settled ? <p>오늘 받은 보상 · 보유 엽전 {result.balance?.toLocaleString('ko-KR')}냥</p> : <p>잠시 후 보상 다시 확인을 눌러 주세요.</p>}</details>
     </section>
   </PaperPopup>
 }
