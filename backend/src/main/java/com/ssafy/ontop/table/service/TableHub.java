@@ -2749,6 +2749,14 @@ public class TableHub {
         }
     }
 
+    /** 모든 채널의 접속자에게 동일한 DB 확정 기계 상태를 보낸다. 본인 재고는 방송하지 않는다. */
+    public synchronized void publishGacha(com.ssafy.ontop.gacha.GachaDtos.Event event) {
+        String message = protocol.encode(null, "GACHA_STATE", event);
+        for (Member target : members.values()) {
+            if (isMapReady(target)) target.peer().offer(message);
+        }
+    }
+
     private void publishParkDebris(String channelId) {
         String message = protocol.encode(null, "WORLD_PARK_DEBRIS_STATE", parkDebrisState(channelId));
         for (Member target : members.values()) {

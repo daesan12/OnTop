@@ -142,6 +142,10 @@ abstract class OpenApiHttpTestSupport {
             }
         }
         Set<String> actual = new HashSet<>();
+        if (environment.acceptsProfiles(Profiles.of(com.ssafy.ontop.config.RuntimeProfiles.PRODUCT_FEATURE))) {
+            expected.addAll(Set.of("GET /api/v1/gacha", "GET /api/v1/gacha/operations/{operationId}",
+                    "POST /api/v1/gacha/tickets", "POST /api/v1/gacha/draws", "POST /api/v1/gacha/boxes/open"));
+        }
         api.path("paths").fields().forEachRemaining(path -> path.getValue().fieldNames().forEachRemaining(method ->
                 actual.add(method.toUpperCase() + " " + path.getKey())));
         assertThat(actual).isEqualTo(expected);
