@@ -89,6 +89,9 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 | Feedback | GET /api/v1/admin/feedback | Access JWT·서버 관리자 ID 목록 | 200 |
 | Notes | POST /api/v1/notes | Access JWT·위치/활동 검사 | 201 |
 | Notes | GET /api/v1/notes | Access JWT·위치/활동 검사 | 200 |
+| Raffle | GET /api/v1/raffles/rounds/{weekStart}/result | Access JWT·본인 결과만 | 200 |
+| Raffle | GET /api/v1/admin/raffles/rounds/{weekStart} | Access JWT·관리자 조회 | 200 |
+| Raffle | POST /api/v1/admin/raffles/rounds/{weekStart}/finalize | Access JWT·관리자 운영·판매 마감 후 | 200 |
 
 정적 export는 OpenApiLocalTests가 Feedback/Notes를 켠 실제 local 문서에서 생성한다.
 local/dev의 endpoint 목록은 해당 기능 플래그 조건에 따라 OpenAPI·보안 회귀 테스트에서 정확히 비교한다.
