@@ -1,0 +1,31 @@
+spring:
+  config:
+    activate:
+      on-profile: "dev & !local & !prod & !production"
+  jpa:
+    properties:
+      hibernate:
+        generate_statistics: true
+management:
+  server:
+    address: 0.0.0.0
+    port: 8082
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: ontop-dev
+      environment: dev
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      minimum-expected-value:
+        http.server.requests: 1ms
+      maximum-expected-value:
+        http.server.requests: 5s
+logging:
+  level:
+    org.hibernate.stat: WARN
+    org.hibernate.engine.internal.StatisticalLoggingSessionEventListener: WARN
