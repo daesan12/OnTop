@@ -15,14 +15,14 @@
   - 그래서 새 옷은 **자기 한 벌을 입었을 때만** 맞으면 된다. 다른 상의·하의·신발과 섞어 입는 경우는 생기지 않는다.
   - 부위별로 섞어 입게 했을 때는 바지가 다른 상의를 뚫거나, 바지 없이 신발만 신으면 발목이 비는 문제가 옷마다 생겼다.
 - **캐릭터별 조각.** `item__HAIR__h__for_girl`처럼 `__for_man`/`__for_girl`이 붙은 조각은 그 캐릭터에게만 보인다(④-2).
-- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`j`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`, 갓·도포 `h`, 투구 아래 여자 앞머리 쪽머리 `i`, 갓 아래 포니테일 뗀 여자 기본 머리 `j`)이고, 새 옷은 `k`부터 쓴다.
+- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`j`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`, 갓·도포 `h`, 투구 아래 여자 앞머리 쪽머리 `i`, 갓 아래 여자 기본 머리 모양의 낮은 쪽머리 `j`, 사또 `k`)이고, 새 옷은 `l`부터 쓴다.
 - **몸 조각.** 의상에 가려지는 몸은 `body__TOPd_BOTTOMg`처럼 가리는 의상 이름이 붙은 조각으로 잘려 있다. 이 조각은 그 의상 중 하나라도 입으면 숨는다. 의상 조각 `item__BOTTOM__d__under_TOPb`는 `TOP b`를 함께 입으면 숨는다.
 - **게임 파일**(`frontend/public/art/characters/`):
   - `man.glb`, `girl.glb`: 공용 몸의 모든 조각 + 그 캐릭터의 기본 옷.
   - `outfits/<이름>.glb`: 그 옷의 부위 조각만 담는다. 누군가 처음 입을 때만 내려받는다.
   - 각 메시의 `extras.pieces`에 조각 이름과 범위가 들어 있고, 게임은 입은 옷에 맞는 조각만 그린다(`frontend/src/world/art/characterLook.ts`).
 - **아이템과 연결.** DB `items.image_key`를 `outfit/<파일>/<의상 문자>`로 적으면 그 조각을 입힌다(예: 장군 `outfit/general/g`).
-  - 한 벌인 옷은 상의·하의·신발에 `items.set_code`를 같은 값으로 둔다(장군 `GENERAL`, 갓·도포 `DOPO`). 세트는 한 벌로만 입고 벗는다.
+  - 한 벌인 옷은 상의·하의·신발에 `items.set_code`를 같은 값으로 둔다(장군 `GENERAL`, 갓·도포 `DOPO`, 사또 `SATTO`). 세트는 한 벌로만 입고 벗는다.
   - 머리·얼굴 아이템에는 `set_code`를 두지 않는다(따로 쓴다).
 
 - **운영에서는 아직 꺼져 있다.** 옷장 의상은 개발 빌드(`VITE_WARDROBE_OUTFITS=true`, `frontend/vercel.dev.json`과 `Jenkinsfile`)와 로컬 개발에서만 켜진다. 운영 빌드에서는 다음처럼 동작한다(`frontend/src/features/wardrobe/feature.ts`).
@@ -186,12 +186,34 @@
 - 카드 그림은 `item_art.py ... variant=girl`로 `-girl` 그림(`outfit-gat-h-hair-girl.webp`)을 따로 만든다. 옷장은 여자 캐릭터일 때 이 그림을 먼저 쓴다.
   - 투구의 쪽머리(`i`)는 얼굴을 덮지 않아 앞에서 그리면 머리 안쪽이 비어 보인다. 그래서 `view=-1,0.5,0.2`로 옆뒤에서 쪽이 보이게 그린다. 갓의 기본 머리(`j`)는 앞에서 그린다.
 
+### ④-3 예시: 사또 (세트 `k`, S15P31B105-361)
+
+- 디자인: 공용 몸 T자 시트에 전립(붉은 술·호박 구슬 끈), 검은 전복, 붉은 소매, 주황 안감, 파란 띠와 노란 술, 검은 목화. 손에 드는 등채는 손 부위가 없어 넣지 않았다. 대머리 위에 모자만 얹으면 어색해 보여서(user) 모자 아래 머리를 그려 넣고, 앞머리를 정돈해 다시 그렸다. 시트의 머리는 모자 높이를 잡는 데만 쓰고, 게임에서는 캐릭터별 머리(남자 `b`, 여자 `j`)를 넣는다.
+- Tripo 부품: 0 전립, 1 머리(머리카락·구슬·얼굴이 한 부품), 10 전복 윗부분, 6·8 소매, 2 전복 자락, 11 주황 안감, 3 띠와 술, 4·5 목화, 7·9 손(버림). 바지는 나오지 않았다.
+- `satto_prep.py`: 부품 1을 색으로 나눠 머리카락(90, 버림), 구슬(92, 모자 아이템), 턱 위 얼굴(91, `head_fit`)로 만들고, 자락(2)을 93으로 복사한다. 93은 하의 자리에 두어 `pants=1`이 몸 표면으로 만든 바지에 검은색을 준다.
+- 모자 아래 머리: 구슬 끈(1774면)이 얼굴 옆을 지나 옆머리를 잘라 내지 않게 `straps=2000`. 구슬이 주황이라 `drop_hair=1`(갈색 조각 빼기)은 쓰지 않는다.
+
+```bash
+"$B" -b --python tools/character/satto_prep.py -- satto_outfit_parts.glb satto_parts_prep.glb
+"$B" -b --python tools/character/fit_outfit.py -- shared_layers_hij.glb satto_parts_prep.glb shared_k.glb set=k s=1.065 head_fit=91 "map=HAIR:0,92;TOP:10,6,8,2,11,3;BOTTOM:93;SHOES:4,5" skirt=TOP pants=1 under_tops=1 cull=1 "seam=10>6,8" dark_lining=SHOES shoe_cap=1 shoe_cap_depth=0.01 under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9 push_neck=back rim_neck=20
+"$B" -b --python tools/character/hat_hair.py -- shared_k.glb hk.glb set=k girl=j straps=2000
+"$B" -b --python tools/character/to_game.py -- hk.glb out/satto_raw.glb satto HAIR=k TOP=k BOTTOM=k SHOES=k pieces=1 body=0 near=75000 atlas=2048 fill=1 keep_head=0
+```
+
+- 새 몸 조각(`TOPk` 등)이 생기므로 남자·여자 파일도 `hk.glb`에서 다시 만들고, 캐릭터 캐시 번호(`characterAssets.ts`의 `?rig=`)를 올린다.
+
 ### ⑤ 빌드 확인
 
 임의 방향에서 그려 본다(`POSE=idle:100`으로 자세를 줄 수 있다).
 
 ```bash
 "$B" -b --python tools/character/look.py -- out/front.png 0,-1,0.1 0,0,0.8 1.2 shared_layers_h.glb
+```
+
+걷기·달리기에서 옷이 뚫리는지는 `pose_look.py`로 본다. 그 옷 세트를 입었을 때 게임이 보여 주는 몸 조각과 옷 조각만 남기고, 동작의 프레임마다 앞·뒤·옆을 그린다(카메라는 엉덩이를 따라간다).
+
+```bash
+"$B" -b --python tools/character/pose_look.py -- hk.glb out/pose set=k variant=girl frames=walk:4,walk:30,run:4,run:18
 ```
 
 ### ⑥ 게임용 파일 만들기
@@ -282,7 +304,11 @@ INSERT INTO items (item_code, name, item_type, equip_slot, price, image_key, is_
  ('GENERAL_HAIR', '장군 투구', 'EQUIPMENT', 'HAIR', 0, 'outfit/general/g', FALSE, NULL),
  ('GENERAL_TOP', '장군 갑옷', 'EQUIPMENT', 'TOP', 0, 'outfit/general/g', FALSE, 'GENERAL'),
  ('GENERAL_BOTTOM', '장군 바지', 'EQUIPMENT', 'BOTTOM', 0, 'outfit/general/g', FALSE, 'GENERAL'),
- ('GENERAL_SHOES', '장군 장화', 'EQUIPMENT', 'SHOES', 0, 'outfit/general/g', FALSE, 'GENERAL');
+ ('GENERAL_SHOES', '장군 장화', 'EQUIPMENT', 'SHOES', 0, 'outfit/general/g', FALSE, 'GENERAL'),
+ ('SATTO_HAIR', '전립', 'EQUIPMENT', 'HAIR', 0, 'outfit/satto/k', FALSE, NULL),
+ ('SATTO_TOP', '사또 전복', 'EQUIPMENT', 'TOP', 0, 'outfit/satto/k', FALSE, 'SATTO'),
+ ('SATTO_BOTTOM', '사또 바지', 'EQUIPMENT', 'BOTTOM', 0, 'outfit/satto/k', FALSE, 'SATTO'),
+ ('SATTO_SHOES', '사또 목화', 'EQUIPMENT', 'SHOES', 0, 'outfit/satto/k', FALSE, 'SATTO');
 ```
 
 - 머리·얼굴은 `set_code`를 `NULL`로 둔다. 옷 칸에서 따로 고르게 된다.
