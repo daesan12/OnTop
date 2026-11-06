@@ -31,8 +31,10 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
   const [restartPending, setRestartPending] = useState(false)
   const [equipmentOpen, setEquipmentOpen] = useState(false)
   const [chefMode, setChefMode] = useState<'pc' | 'vr' | null>(null)
+  const [xrActive, setXRActive] = useState(false)
   useEffect(() => { client.start(); return () => client.stop() }, [client])
   useEffect(() => { setChefMode(null); setEquipmentOpen(false) }, [snapshot?.gameId])
+  useEffect(() => { setXRActive(false) }, [role])
   useEffect(() => {
     setCooperativeSkewerActivity(cooperativeSkewerGameplayActive(pub?.phase))
     return () => setCooperativeSkewerActivity(false)
@@ -99,7 +101,11 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
     catch { client.store.setState({ error: '방을 나가지 못했어요. 다시 시도해 주세요.' }) }
     finally { setLeaving(false) }
   }
-  const xr = (active: boolean) => { if (active) { setEquipmentOpen(false); setChefMode('vr') }; if (client.snapshot?.privateState.role === 'chef' && client.snapshot.publicState.phase !== 'FINISHED') void client.act({ type: 'CHEF_MODE', vr: active }) }
+  const xr = (active: boolean) => {
+    setXRActive(active)
+    if (active) { setEquipmentOpen(false); setChefMode('vr') }
+    if (client.snapshot?.privateState.role === 'chef' && client.snapshot.publicState.phase !== 'FINISHED') void client.act({ type: 'CHEF_MODE', vr: active })
+  }
   return createPortal(<div className="skewer-coop" data-testid="skewer-coop" data-role={role || undefined} data-phase={pub?.phase ?? 'ROOMS'} data-version={snapshot?.version}>
     <Suspense fallback={<p className="coop-loading" role="status">가게를 준비하고 있어요…</p>}>
       {role === 'server' ? <Hall key={pub?.round ?? 0} driver={hall} inputBlocked={confirmExit || restartPending || !!pub?.paused || !state.connected} onPause={() => void changePause(true)} onRestart={() => void restart()} /> : role === 'chef' ? <Chef driver={chef} allowVR={SKEWER_CHEF_VR_ENABLED} preferredMode={chefMode ?? 'pc'} onXRChanged={xr} onExit={() => pub?.phase === 'FINISHED' ? void exit() : void changePause(true)} /> : <div className="coop-backdrop" />}
@@ -120,7 +126,9 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
       <button aria-label="일시정지" disabled={restartPending || !!pub.paused} onClick={() => void changePause(true)}>Ⅱ</button>
       <button aria-label="다시 시작 요청" disabled={restartPending || !!pub.paused || !state.connected} onClick={() => void restart()}>↻</button>
     </nav> : null}
-    <RestartConfirmation request={pub?.restart ?? null} own={pub?.restart?.requestedBy === transport.scope().userId}
-      busy={restartPending || !state.connected} error={state.error} onReply={accept => void restart(accept)} />
+    {/* 몰입형 세션의 포커스를 DOM 모달로 가져오지 않는다. 세션 종료 시 남은 요청을 다시 표시한다. */}
+    {role === 'chef' && xrActive ? null : <RestartConfirmation request={pub?.restart ?? null}
+      own={pub?.restart?.requestedBy === transport.scope().userId}
+      busy={restartPending || !state.connected} error={state.error} onReply={accept => void restart(accept)} />}
   </div>, document.body)
 }

@@ -1,5 +1,14 @@
 # 온탑 꼬치왕 — 서로 다른 컴퓨터의 2인 연결
 
+## 2026-11-06 VR 재시작 DOM 모달 보호 반영
+
+- 시작 fetch에서 `origin/dev@2641b10a9f9558888322b2b5e99681cfc7bce402`가 `feat/quest-vr` 이력에 이미 포함된 것을 확인했다. 불필요한 통합 커밋 없이 해당 기준에서 작업했다. 미추적 검수 자료·다른 worktree는 보존한다.
+- `CoopHost`가 `ChefPage.onXRChanged`의 실제 세션 연결/종료 알림을 상태로 보존한다. VR 요리사의 몰입형 세션 중에는 `RestartConfirmation`을 렌더링하지 않아 네이티브 DOM `showModal()`이 포커스를 가져오지 않는다. 열린 PC 모달 도중 세션이 시작되면 모달을 제거하고, 세션 종료 후 유효한 서버 요청이 남아 있으면 기존 DOM 모달을 다시 연다. 역할 교체 시 이전 요리사의 세션 표시를 정리한다.
+- 선택 모드와 실제 세션을 구분한다. VR 선택값이 남아 있어도 미연결/종료 상태에서는 PC 응답창을 제공한다. VR 응답은 기존 `ChefScene` → `OnlineChef`의 3D 동의·거절 경로를 유지한다. 요청자 대기창도 같은 규칙을 따르며 만료된 요청을 복원하지 않는다. 서버의 공동 동의·15초 제한·일시정지·정산/랭킹 계약은 변경하지 않는다. 온라인 VR 선택 잠금도 유지한다.
+- Playwright 회귀 5개 통과: PC 요리사/서빙 담당 동의·거절, VR 중 DOM 모달 없이 기존 드라이버 응답, 열린 모달 도중 세션 진입 및 종료 후 복원, VR 중 만료 후 미복원, 요청자 대기창의 종료 후 복원. 실제 `CoopHost`/`RestartConfirmation`과 네이티브 dialog를 실행하며 무거운 GPU 장면·XR 연결 콜백과 transport만 대역으로 사용한다. 페이지 제목·빈 화면/런타임 오류·Vite 오류 오버레이·콘솔 오류 검사도 포함한다. 실제 WebXR 세션·레이저 충돌·Quest 동작 검수와 구분한다.
+- 독립 실행: `frontend`에서 `node node_modules/@playwright/test/cli.js test --config playwright.skewer-restart.config.ts --reporter=line`. 전용 dev 서버 `127.0.0.1:5263`을 테스트 동안만 사용하며 서버/출력은 Playwright가 관리한다. 기본 진입점은 `/tests/skewer-coop/fixtures/restart-modal.html`; GPU 대역은 테스트 route에서만 교체하며 배포 번들/온라인 게임에는 포함하지 않는다. Browser 플러그인/스킬이 없는 환경에서 기존 프로젝트 Playwright runner를 사용했다(`Browser plugin not available`).
+- 꼬치왕/공원 진입 unit 19파일 145개, 제품·테스트·XR TypeScript, dev 플래그 공원 빌드와 diff 검사 통과. 기존 번들/Three 경고는 유지한다. 공통 파일·백엔드·FE/BE 계약·Flyway 변경은 없다. 신규 실제 DB 연결·두 노트북·Quest·Jenkins 배포 성공은 미검수다. 기존 Draft MR !397에 반영하며 dev 머지·배포·브랜치 삭제는 보류한다.
+
 ## 2026-11-06 운반 기능 최신 dev 통합·MR !397 리뷰 검토
 
 - 작업 브랜치 `feat/quest-vr`에 `origin/dev@2641b10a9f9558888322b2b5e99681cfc7bce402`를 반영했다. 캐릭터 들기/던지기·안전한 해제 위치·5초 운반 한도·활동 제한과 공개 WS 계약, 충돌 중 이동 모션, 원카드 상대 HUD 변경 등 38개 파일이 들어왔다. 수동 충돌은 없었으며 `world/input.ts` 자동 통합에서 XR 입력 소유권과 운반 입력을 함께 보존했다. 별도 VR worktree와 기존 미추적 검수 파일은 변경하지 않았다.
