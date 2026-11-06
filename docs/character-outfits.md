@@ -321,6 +321,7 @@ INSERT INTO items (item_code, name, item_type, equip_slot, price, image_key, is_
  ('SATTO_SHOES', '사또 목화', 'EQUIPMENT', 'SHOES', 0, 'outfit/satto/k', FALSE, 'SATTO');
 ```
 
+- `is_for_sale`이 `FALSE`면 상점 목록에 안 나오고 살 수도 없다. 위 예시는 `user_items`에 직접 넣어 옷장에서 입어 보는 용도다. 상점 진열·구매까지 확인하려면 `TRUE`와 가격을 넣는다.
 - 머리·얼굴은 `set_code`를 `NULL`로 둔다. 옷 칸에서 따로 고르게 된다.
 - 한 벌인 옷은 상의·하의·신발 세 개 모두 같은 `set_code`를 둔다. 하나라도 빠지면 그 부위는 기본 옷이 된다.
 - 상의 하나만 있는 낱개 옷(`set_code` `NULL`)도 입을 수 있다. 이때 하의·신발은 기본 옷이 된다. 그 조합에서 보기 좋은지 확인해야 하니, 되도록 한 벌로 만든다.
