@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,6 +15,34 @@ import static org.assertj.core.api.Assertions.within;
 
 class WorldCarryPhysicsTests {
     private final AtomicLong now = new AtomicLong();
+
+    @ParameterizedTest
+    @CsvSource({"false,-0.5", "true,-0.5", "false,0.0", "true,0.0", "false,0.5", "true,0.5"})
+    void 시선_방향으로_던지면_상승하는_포물선으로_충분히_날아간뒤_착지한다(
+            boolean clientPositions, double aimY) throws Exception {
+        try (var physics = pair(clientPositions)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            var start = physics.snapshot("b");
+            assertThat(physics.throwCarried("a", physics.carryState("a").carryId(),
+                    Math.sqrt(1 - aimY * aimY), aimY, 0)).isTrue();
+            double peak = start.y();
+            int ticks = 0;
+            while (physics.carryState("b") != null && ticks < 90) {
+                step(physics, 1);
+                peak = Math.max(peak, physics.snapshot("b").y());
+                ticks++;
+            }
+
+            var landed = physics.snapshot("b");
+            double distance = landed.x() - start.x();
+            assertThat(distance).as("aimY=%s distance=%s peakRise=%s ticks=%s",
+                    aimY, distance, peak - start.y(), ticks).isBetween(6d, 24d);
+            assertThat(peak - start.y()).isGreaterThan(.3);
+            assertThat(ticks).isBetween(15, 75);
+            assertThat(physics.carryState("b")).isNull();
+            assertThat(landed.y()).isBetween(.7, 1.1);
+        }
+    }
 
     private WorldPhysics pair(boolean clientPositions) throws Exception {
         return pair(clientPositions, false);
@@ -55,6 +84,43 @@ class WorldCarryPhysicsTests {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 달리는_운반자를_따라_좌표와_보간용_틱을_매번_갱신한다(boolean clientPositions) throws Exception {
+        try (var physics = pair(clientPositions)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            long previousTick = physics.snapshot("b").motion().tick();
+
+            for (int i = 1; i <= 30; i++) {
+                var carrier = physics.snapshot("a");
+                if (clientPositions) {
+                    now.addAndGet(WorldPhysics.STEP_NANOS);
+                    var approved = physics.report("a", new ClientPositionValidator.Candidate(i,
+                            carrier.motion().epoch(),
+                            new ClientPositionValidator.Pose(carrier.x() + .15, carrier.y(), carrier.z()),
+                            true, false), now.get());
+                    assertThat(approved.x()).isCloseTo(carrier.x() + .15, within(.01));
+                    physics.step(now.get(), Set.of());
+                } else {
+                    assertThat(physics.input("a", new MoveInput(i, 1, 0, true, false), now.get())).isTrue();
+                    step(physics, 1);
+                }
+
+                carrier = physics.snapshot("a");
+                var carried = physics.snapshot("b");
+                assertThat(physics.carryState("b").role()).isEqualTo("CARRIED");
+                assertThat(carried.x()).isCloseTo(carrier.x(), within(.01));
+                assertThat(carried.y()).isCloseTo(carrier.y() + 1.7, within(.01));
+                assertThat(carried.z()).isCloseTo(carrier.z(), within(.01));
+                assertThat(carried.motion().tick()).isGreaterThan(previousTick);
+                assertThat(carried.motion().authority()).isNull();
+                previousTick = carried.motion().tick();
+            }
+
+            assertThat(physics.snapshot("a").x()).isGreaterThan(3);
+        }
+    }
+
     @Test
     void 멀리_운반한뒤_현재위치가_막히면_주변의_안전지점으로_내려놓는다() throws Exception {
         try (var physics = pair(false, true)) {
@@ -70,6 +136,38 @@ class WorldCarryPhysicsTests {
             assertThat(physics.canStand(released.x(), released.y(), released.z())).isTrue();
             step(physics, 5);
             assertThat(physics.snapshot("b").x()).isGreaterThan(17);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 연속_상승과_정지와_하강에서_운반_수직속도는_직전_틱의_높이만_반영한다(boolean clientPositions) throws Exception {
+        try (var physics = pair(clientPositions)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            double previousHeight = physics.snapshot("a").y();
+            long previousTick = physics.snapshot("b").motion().tick();
+            double[] heights = {1.0, 1.1, 1.2, 1.3, 1.4, 1.4, 1.4, 1.4, 1.3, 1.2, 1.1, 1.0, .9, .84};
+
+            // 지형/입력 검증과 분리한 높이 경로로 상승·정지·하강을 세 차례 반복한다.
+            // 기대 속도는 피운반자의 내부 캐시가 아닌 운반자의 실제 스냅샷 차이에서 구한다.
+            for (int cycle = 0; cycle < 3; cycle++) {
+                for (double height : heights) {
+                    physics.place("a", 0, height, 78);
+                    step(physics, 1);
+
+                    var carrier = physics.snapshot("a");
+                    var carried = physics.snapshot("b");
+                    double expectedVelocity = (carrier.y() - previousHeight) * 30;
+                    assertThat(physics.carryState("b").role()).isEqualTo("CARRIED");
+                    assertThat(carried.y()).isCloseTo(carrier.y() + 1.7, within(.00001));
+                    assertThat(carried.motion().tick()).isEqualTo(previousTick + 1);
+                    assertThat(carried.motion().velocityY())
+                            .as("clientPositions=%s cycle=%s height=%s", clientPositions, cycle, height)
+                            .isCloseTo(expectedVelocity, within(.0001));
+                    previousHeight = carrier.y();
+                    previousTick = carried.motion().tick();
+                }
+            }
         }
     }
 
