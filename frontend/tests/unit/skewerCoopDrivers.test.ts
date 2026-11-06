@@ -13,6 +13,26 @@ function fixture() {
   return { client, driver: new OnlineHall(client as unknown as CoopClient), hall, act }
 }
 describe('협동 홀 입력의 서버 판정 경계', () => {
+  it('늦은 서버 좌표를 받으며 전진해도 화면 위치가 주기적으로 뒤로 튀지 않는다', () => {
+    const { client, driver, hall } = fixture()
+    const start = { ...hall.position }
+    let previous = start.x
+    for (let frame = 0; frame < 120; frame++) {
+      if (frame % 6 === 0) {
+        hall.position = { x: start.x + Math.max(0, frame - 18) / 60 * 4.8, z: start.z }
+        client.snapshot.version++
+      }
+      driver.step(1 / 60, 1, 0)
+      expect(driver.view().position.x).toBeGreaterThanOrEqual(previous)
+      previous = driver.view().position.x
+    }
+  })
+  it('서버가 가구 앞에서 멈추면 화면만 가구 안으로 예측 이동하지 않는다', () => {
+    const { driver, hall } = fixture()
+    hall.position = { x: -1.4, z: -1.55 }
+    for (let frame = 0; frame < 90; frame++) driver.step(1 / 60, 1, 0)
+    expect(driver.view().position).toEqual(hall.position)
+  })
   it('요리사 화면은 서버가 갱신한 동료 위치를 그대로 전달한다', () => {
     const { client } = fixture(), source = client as unknown as CoopClient
     source.snapshot!.privateState = { role: 'chef', chef: { ...new ChefPreview().view(), hallSight: { position: { x: 1, z: 2 }, carrying: false, cleaning: false, tables: [] } } }

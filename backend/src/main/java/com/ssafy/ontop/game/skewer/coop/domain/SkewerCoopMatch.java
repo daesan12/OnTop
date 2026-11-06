@@ -729,25 +729,35 @@ public final class SkewerCoopMatch {
     }
 
     private void move(double seconds) {
-        double step = Math.min(.1, seconds) * 5.0;
-        while (!path.isEmpty() && position.distance(path.getFirst()) < .14) {
-            path.removeFirst();
-        }
-        double dx = velocityX, dz = velocityZ;
-        if (!path.isEmpty()) {
-            Point goal = path.getFirst();
-            double length = position.distance(goal);
-            dx = (goal.x - position.x) / length;
-            dz = (goal.z - position.z) / length;
-            step = Math.min(step, length);
-        }
-        Point next = new Point(position.x + dx * step, position.z);
-        if (walkable(next)) {
-            position = next;
-        }
-        next = new Point(position.x, position.z + dz * step);
-        if (walkable(next)) {
-            position = next;
+        double remaining = Math.min(.1, Math.max(0, seconds)) * 5.0;
+        // 짧은 경유점에 도착해도 이번 틱의 남은 이동량을 다음 구간에 사용한다.
+        // 작은 단위로 기존 축별 충돌 검사를 유지해 가구 모서리를 건너뛰지 않는다.
+        while (remaining > .000001) {
+            while (!path.isEmpty() && position.distance(path.getFirst()) < .000001) {
+                path.removeFirst();
+            }
+            double dx = velocityX, dz = velocityZ;
+            double step = Math.min(.1, remaining);
+            if (!path.isEmpty()) {
+                Point goal = path.getFirst();
+                double length = position.distance(goal);
+                dx = (goal.x - position.x) / length;
+                dz = (goal.z - position.z) / length;
+                step = Math.min(step, length);
+            }
+            Point before = position;
+            Point next = new Point(position.x + dx * step, position.z);
+            if (walkable(next)) {
+                position = next;
+            }
+            next = new Point(position.x, position.z + dz * step);
+            if (walkable(next)) {
+                position = next;
+            }
+            if (position.distance(before) < .000001) {
+                break;
+            }
+            remaining -= step;
         }
     }
 

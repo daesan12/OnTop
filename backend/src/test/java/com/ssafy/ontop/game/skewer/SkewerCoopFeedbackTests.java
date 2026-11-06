@@ -29,6 +29,43 @@ class SkewerCoopFeedbackTests {
     }
 
     @Test
+    void 클릭_이동은_경유점을_지나도_남은_이동량을_사용한다() {
+        var match = playing();
+        ReflectionTestUtils.setField(match, "position", new SkewerCoopMatch.Point(-2.75, 1.25));
+        match.act(101, mapper.valueToTree(Map.of("type", "NAVIGATE", "x", 2.25, "z", 1.25)), 3200);
+
+        for (long time = 3300; time <= 3900; time += 100) {
+            double before = match.privateView(101).at("/hall/position/x").asDouble();
+            match.tick(time, user -> true);
+            double after = match.privateView(101).at("/hall/position/x").asDouble();
+            assertThat(after - before).isCloseTo(.5, org.assertj.core.data.Offset.offset(.000001));
+        }
+    }
+
+    @Test
+    void 클릭_이동은_가구를_통과하지_않고_모든_테이블과_전달대에_도착한다() {
+        var match = playing();
+        var destinations = List.of(new SkewerCoopMatch.Point(-7.5, 0), new SkewerCoopMatch.Point(0, 0),
+                new SkewerCoopMatch.Point(7.5, 0), new SkewerCoopMatch.Point(-7.5, 2.1),
+                new SkewerCoopMatch.Point(0, 2.1), new SkewerCoopMatch.Point(7.5, 2.1),
+                new SkewerCoopMatch.Point(-2.6, -4.25), new SkewerCoopMatch.Point(2.2, -4.25),
+                new SkewerCoopMatch.Point(10, -4.25), new SkewerCoopMatch.Point(-6.4, -4.25),
+                new SkewerCoopMatch.Point(6.6, -4.25));
+
+        for (var destination : destinations) {
+            match.act(101, mapper.valueToTree(Map.of("type", "NAVIGATE", "x", destination.x(),
+                    "z", destination.z())), 3200);
+            for (int tick = 0; tick < 300; tick++) {
+                ReflectionTestUtils.invokeMethod(match, "move", .1);
+                var position = (SkewerCoopMatch.Point) ReflectionTestUtils.getField(match, "position");
+                assertThat((Boolean) ReflectionTestUtils.invokeMethod(match, "walkable", position)).isTrue();
+            }
+            var position = (SkewerCoopMatch.Point) ReflectionTestUtils.getField(match, "position");
+            assertThat(Math.hypot(position.x() - destination.x(), position.z() - destination.z())).isLessThan(.000001);
+        }
+    }
+
+    @Test
     void PC도_PC랭킹_대상이지만_경기중_방식을_바꾸면_자격을_복구하지_않는다() {
         var match = playing();
         assertThat(match.publicView(101).path("rankingEligible").asBoolean()).isTrue();
