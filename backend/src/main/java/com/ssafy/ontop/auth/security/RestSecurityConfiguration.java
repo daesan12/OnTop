@@ -71,10 +71,12 @@ public class RestSecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize.requestMatchers("/actuator/**").denyAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/admin/me", "/api/v1/admin/feedback",
                                 "/api/v1/admin/analytics/**", "/api/v1/admin/raffles/rounds/*",
-                                "/api/v1/admin/events/minigames/*/rounds/*")
+                                "/api/v1/admin/events/minigames/*/rounds/*",
+                                "/api/v1/admin/events/assets/rounds/*")
                                 .hasRole("ADMIN_READ")
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/raffles/rounds/*/finalize",
-                                "/api/v1/admin/events/minigames/*/rounds/*/finalize")
+                                "/api/v1/admin/events/minigames/*/rounds/*/finalize",
+                                "/api/v1/admin/events/assets/rounds/*/finalize")
                                 .hasRole("ADMIN_OPERATION")
                         .requestMatchers("/api/v1/admin/wallet-grants", "/api/v1/admin/wallet-grants/**")
                                 .hasRole("ADMIN_GRANT")

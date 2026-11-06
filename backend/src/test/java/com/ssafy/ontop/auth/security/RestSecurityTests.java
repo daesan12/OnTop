@@ -235,6 +235,19 @@ class RestSecurityTests {
     }
 
     @Test
+    void 엽전_보유량_행사_결과도_관리자_조회와_운영_권한을_분리한다() throws Exception {
+        String adminPath = "/api/v1/admin/events/assets/rounds/2026-11-09";
+        mvc.perform(get(adminPath)).andExpect(status().isUnauthorized());
+        mvc.perform(authAs(44, get(adminPath))).andExpect(status().isForbidden());
+        mvc.perform(auth(get(adminPath))).andExpect(status().isServiceUnavailable());
+        mvc.perform(auth(post(adminPath + "/finalize"))).andExpect(status().isForbidden());
+        mvc.perform(authAs(43, post(adminPath + "/finalize")))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(get("/api/v1/events/assets/rounds/2026-11-09/result"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void 관리자_집계는_조회_권한이_있는_회원에게만_반환한다() throws Exception {
         var summary = new AnalyticsSnapshot(1, "2026-10-27T00:00:00Z", "2026-10-27T01:00:00Z",
                 List.of(new AnalyticsSnapshot.Daily("2026-10-27", 3, 1, 4, 2)), List.of(), List.of());
@@ -353,6 +366,9 @@ class RestSecurityTests {
                 "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
                 "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
                 "POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/assets/rounds/{weekStart}/result",
+                "GET /api/v1/admin/events/assets/rounds/{weekStart}",
+                "POST /api/v1/admin/events/assets/rounds/{weekStart}/finalize",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
                 "POST /api/v1/behavior-events",
