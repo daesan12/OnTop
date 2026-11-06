@@ -1085,7 +1085,6 @@ public final class WorldPhysics implements AutoCloseable {
             Actor carrier = actors.get(carrierId), target = actors.get(targetId);
             if (carrier == null || target == null || carrierId.equals(targetId)
                     || carryState(carrierId) != null || carryState(targetId) != null
-                    || carrier.airborne || carrier.jumpQueued || carrier.jumpRequestTick >= 0
                     || physicsTick < carrier.carryReadyTick || physicsTick < target.carryReadyTick) { return false; }
             Vector3f origin = carrier.body.getPhysicsLocation(null);
             Vector3f destination = target.body.getPhysicsLocation(null);

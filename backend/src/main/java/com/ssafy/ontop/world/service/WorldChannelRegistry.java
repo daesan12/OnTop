@@ -545,14 +545,13 @@ public class WorldChannelRegistry implements ChannelPresence {
             throw new ChannelException("CARRY_TARGET_UNAVAILABLE", "같은 채널의 다른 사용자를 선택해주세요.");
         }
         if (!carryAvailable(userId) || !carryAvailable(targetId)
-                || carryState(userId) != null || carryState(targetId) != null
-                || hasMovementActivity(targetId)) {
+                || carryState(userId) != null || carryState(targetId) != null) {
             throw new ChannelException("CARRY_ACTIVITY_CONFLICT", "상대방과 본인의 다른 행동을 마친 뒤 사용해주세요.");
         }
         Position carrier = positionOf(userId), target = positionOf(targetId);
         if (Math.hypot(carrier.x() - target.x(), carrier.z() - target.z()) > 2.6
-                || Math.abs(carrier.y() - target.y()) > .8) {
-            throw new ChannelException("CARRY_OUT_OF_RANGE", "가까운 같은 높이의 사용자를 선택해주세요.");
+                || Math.abs(carrier.y() - target.y()) > 2) {
+            throw new ChannelException("CARRY_OUT_OF_RANGE", "가까운 사용자를 선택해주세요.");
         }
         if (!room.physics.pickup(userId, targetId)) {
             throw new ChannelException("CARRY_UNAVAILABLE", "잠시 기다리거나 넓은 곳에서 다시 시도해주세요.");

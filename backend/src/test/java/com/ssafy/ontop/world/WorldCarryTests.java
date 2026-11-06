@@ -3,6 +3,7 @@ package com.ssafy.ontop.world;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldMapProperties;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
+import com.ssafy.ontop.world.movement.MoveInput;
 import com.ssafy.ontop.world.movement.WorldPhysics;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
@@ -17,6 +18,42 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WorldCarryTests {
+    @ParameterizedTest
+    @CsvSource({"a,false", "b,false", "a,true", "b,true"})
+    void 어느쪽이_달리거나_점프입력중이어도_들고_던질수있다(String movingUser, boolean jump) throws Exception {
+        try (var pair = pair()) {
+            var registry = pair.registry();
+            registry.input(movingUser, new MoveInput(1, 1, 0, true, jump));
+            assertThat(registry.hasMovementActivity(movingUser)).isTrue();
+
+            registry.pickup("a", "b");
+            String carryId = registry.carryState("a").carryId();
+            registry.throwCarried("a", carryId, -1, 0, 0);
+
+            assertThat(registry.carryState("b").role()).isEqualTo("THROWN");
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"a,1,true", "b,1,true", "a,2,true", "b,2,true", "a,2.0001,false", "b,2.0001,false"})
+    void 점프를_잡을수있게_양방향_높이차_2미터까지_허용한다(
+            String elevatedUser, double height, boolean available) throws Exception {
+        try (var pair = pair()) {
+            var registry = pair.registry();
+            registry.move(elevatedUser, new WorldChannelRegistry.Position(1,
+                    elevatedUser.equals("a") ? 0 : 1, .84 + height, 78, 0));
+
+            if (available) {
+                registry.pickup("a", "b");
+                assertThat(registry.carryState("b").role()).isEqualTo("CARRIED");
+            } else {
+                assertThatThrownBy(() -> registry.pickup("a", "b"))
+                        .isInstanceOfSatisfying(WorldChannelRegistry.ChannelException.class,
+                                exception -> assertThat(exception.code()).isEqualTo("CARRY_OUT_OF_RANGE"));
+            }
+        }
+    }
+
     @ParameterizedTest
     @CsvSource({"2.5,0,true", "2.6,0,true", "-2.6,0,true", "0,2.59,true",
             "2.6001,0,false", "0,2.61,false", "1.8,1.8,true", "1.9,1.9,false"})
