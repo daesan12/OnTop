@@ -55,6 +55,7 @@ export async function fixture(
     ownUserId?: '101' | '102' | '505'
     emoteBindings?: boolean | 'development'
     carry?: boolean
+    chatDelayMs?: number
     publicProfiles?: Record<string, { nickname?: string | null; characterGender?: 'MALE' | 'FEMALE' | null }>
     position?: { x: number; y: number; z: number; yaw: number }
     anchorId?: string
@@ -668,7 +669,7 @@ export async function fixture(
         return
       }
       if (type === 'WORLD_CHAT_SEND') {
-        ws.send(
+        const respond = () => ws.send(
           JSON.stringify(
             rejectChat
               ? {
@@ -692,6 +693,8 @@ export async function fixture(
                 },
           ),
         )
+        if (options.chatDelayMs) setTimeout(respond, options.chatDelayMs)
+        else respond()
       }
       if (type === 'WORLD_EMOTE_SEND') {
         emoteRequestId = requestId
@@ -870,6 +873,12 @@ export async function fixture(
     },
     worldSnapshot: (patch: Record<string, unknown>) => {
       for (const ws of sockets) world(ws, null, patch)
+    },
+    carryPlayers: (carrierId: string, carriedId: string) => {
+      const carryId = crypto.randomUUID()
+      carries[carrierId] = { carryId, partnerId: carriedId, role: 'CARRIER' }
+      carries[carriedId] = { carryId, partnerId: carrierId, role: 'CARRIED' }
+      for (const ws of sockets) world(ws)
     },
     releaseCarry: () => {
       for (const id of Object.keys(carries)) carries[id] = null
