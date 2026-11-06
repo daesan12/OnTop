@@ -38,12 +38,14 @@ public final class WinnerContactService {
         this.reads.setReadOnly(true);
     }
 
-    public List<WinningResponse> ownWinnings(long userId, LocalDate week) {
+    public List<WinningResponse> ownWinnings(long userId, LocalDate week, int limit, int offset) {
         requireAccount(userId);
         validateWeek(week);
+        validatePage(limit, offset);
         return Objects.requireNonNull(reads.execute(status -> {
             Instant now = now();
-            return repository.ownAwards(userId, week, now).stream().map(this::response).toList();
+            return repository.ownAwards(userId, week, now, limit, offset).stream()
+                    .map(this::response).toList();
         }));
     }
 
@@ -69,6 +71,7 @@ public final class WinnerContactService {
             Contact existing = repository.contact(userId, week).orElse(null);
             if (existing != null && now.isBefore(existing.expiresAt())
                     && crypto.decrypt(userId, week, existing.keyId(), existing.encrypted()).equals(phone)) {
+                // A retry does not alter the phone, first submission, expiry, or last actual update.
                 return new ContactResponse(week, "SUBMITTED", mask(existing.lastFour()),
                         existing.expiresAt(), deadline);
             }
@@ -95,7 +98,8 @@ public final class WinnerContactService {
         validateWeek(week);
         String checkedType = optionalType(type);
         String checkedStatus = optionalStatus(contactStatus);
-        if (limit < 1 || limit > 100 || offset < 0 || offset > 100_000) {
+        validatePage(limit, offset);
+        if (offset > 100_000) {
             throw error(400, "EVENT_CONTACT_BAD_PAGE", "조회 범위가 올바르지 않습니다.");
         }
         return Objects.requireNonNull(reads.execute(status -> {
@@ -207,6 +211,12 @@ public final class WinnerContactService {
     private void requireWeek(LocalDate week) {
         if (week == null || week.getDayOfWeek() != DayOfWeek.MONDAY) {
             throw error(400, "EVENT_CONTACT_BAD_WEEK", "행사 주차는 월요일 날짜여야 합니다.");
+        }
+    }
+
+    private void validatePage(int limit, int offset) {
+        if (limit < 1 || limit > 100 || offset < 0) {
+            throw error(400, "EVENT_CONTACT_BAD_PAGE", "조회 범위가 올바르지 않습니다.");
         }
     }
 

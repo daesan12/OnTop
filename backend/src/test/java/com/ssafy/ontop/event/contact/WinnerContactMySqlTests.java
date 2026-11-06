@@ -7,7 +7,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
@@ -59,10 +61,10 @@ class WinnerContactMySqlTests {
         award("BUNGEOPPANG", winner, gm, "bread");
 
         var before = service(ANNOUNCEMENT.minusMillis(1));
-        assertThat(before.ownWinnings(winner, WEEK)).isEmpty();
+        assertThat(before.ownWinnings(winner, WEEK, 100, 0)).isEmpty();
         assertCode(() -> before.submit(winner, WEEK, "01012345678"), "EVENT_CONTACT_NOT_WINNER");
         var service = service(ANNOUNCEMENT.plusSeconds(30));
-        assertThat(service.ownWinnings(winner, WEEK)).hasSize(2)
+        assertThat(service.ownWinnings(winner, WEEK, 100, 0)).hasSize(2)
                 .allSatisfy(item -> assertThat(item.contactStatus()).isEqualTo("NOT_SUBMITTED"));
         assertCode(() -> service.submit(outsider, WEEK, "01012345678"), "EVENT_CONTACT_NOT_WINNER");
         assertCode(() -> service.submit(winner, WEEK, "bad-phone"), "EVENT_CONTACT_BAD_PHONE");
@@ -72,8 +74,13 @@ class WinnerContactMySqlTests {
         assertThat(submitted.expiresAt()).isEqualTo(ANNOUNCEMENT.plusSeconds(30)
                 .plusSeconds(14 * 24 * 3600));
         byte[] firstCipher = repository.contact(winner, WEEK).orElseThrow().encrypted();
+        Timestamp firstUpdate = jdbc.queryForObject(
+                "SELECT last_updated_at FROM event_contact_receipts WHERE user_id = ?", Timestamp.class, winner);
         service.submit(winner, WEEK, "01012345678");
         assertThat(repository.contact(winner, WEEK).orElseThrow().encrypted()).isEqualTo(firstCipher);
+        assertThat(jdbc.queryForObject(
+                "SELECT last_updated_at FROM event_contact_receipts WHERE user_id = ?", Timestamp.class, winner))
+                .isEqualTo(firstUpdate);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_contact_receipts", Integer.class)).isOne();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_winner_contacts", Integer.class)).isOne();
         assertThat(jdbc.queryForObject("SELECT HEX(encrypted_phone) FROM event_winner_contacts",
@@ -95,13 +102,27 @@ class WinnerContactMySqlTests {
 
         var expired = service(submitted.expiresAt());
         assertCode(() -> expired.reveal(gm, 1), "EVENT_CONTACT_NOT_FOUND");
-        assertThat(expired.ownWinnings(winner, WEEK)).hasSize(2)
+        assertThat(expired.ownWinnings(winner, WEEK, 100, 0)).hasSize(2)
                 .allSatisfy(item -> assertThat(item.contactStatus()).isEqualTo("EXPIRED"));
         assertThat(expired.deleteExpired()).isOne();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_winner_contacts", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_contact_receipts", Integer.class)).isOne();
         assertThat(expired.adminWinners(gm, WEEK, "JUMPMAP", "EXPIRED", 20, 0).winners())
                 .hasSize(1).first().satisfies(item -> assertThat(item.maskedPhone()).isNull());
+
+        for (int index = 1; index <= 101; index++) {
+            olderAward(winner, gm, index);
+        }
+        var firstPage = service.ownWinnings(winner, null, 100, 0);
+        var secondPage = service.ownWinnings(winner, null, 100, 100);
+        assertThat(firstPage).hasSize(100);
+        assertThat(secondPage).hasSize(3);
+        var ids = new HashSet<Long>();
+        firstPage.forEach(item -> ids.add(item.winnerId()));
+        secondPage.forEach(item -> ids.add(item.winnerId()));
+        assertThat(ids).hasSize(103);
+        assertThat(service.ownWinnings(winner, WEEK, 100, 0)).hasSize(2);
+        assertCode(() -> service.ownWinnings(winner, null, 0, 0), "EVENT_CONTACT_BAD_PAGE");
     }
 
     private WinnerContactService service(Instant now) {
@@ -114,8 +135,8 @@ class WinnerContactMySqlTests {
                 INSERT INTO users(login_provider, provider_user_id, nickname, character_gender,
                     created_at, updated_at) VALUES ('SSAFY', ?, ?, 'MALE', ?, ?)
                 """, UUID.randomUUID().toString(), nickname,
-                Timestamp.from(ANNOUNCEMENT.minusSeconds(1_000_000)),
-                Timestamp.from(ANNOUNCEMENT.minusSeconds(1_000_000)));
+                Timestamp.from(ANNOUNCEMENT.minusSeconds(100_000_000)),
+                Timestamp.from(ANNOUNCEMENT.minusSeconds(100_000_000)));
         return jdbc.queryForObject("SELECT id FROM users WHERE nickname = ?", Long.class, nickname);
     }
 
@@ -135,6 +156,27 @@ class WinnerContactMySqlTests {
                 Long.class, round);
         jdbc.update("INSERT INTO event_winners(event_round_id, prize_slot_id, user_id, selected_at) "
                 + "VALUES (?, ?, ?, ?)", round, slot, winner, Timestamp.from(ANNOUNCEMENT));
+    }
+
+    private void olderAward(long winner, long gm, int weeksAgo) {
+        LocalDate week = WEEK.minusWeeks(weeksAgo);
+        Instant announcement = ANNOUNCEMENT.minus(7L * weeksAgo, ChronoUnit.DAYS);
+        jdbc.update("""
+                INSERT INTO event_rounds(event_type, week_start_date, starts_at, ends_at,
+                    announces_at, finalized_at, finalization_source, finalized_by_user_id)
+                VALUES ('JUMPMAP', ?, ?, ?, ?, ?, 'ADMIN', ?)
+                """, java.sql.Date.valueOf(week), Timestamp.from(announcement.minus(8, ChronoUnit.DAYS)),
+                Timestamp.from(announcement.minus(9, ChronoUnit.HOURS)),
+                Timestamp.from(announcement), Timestamp.from(announcement), gm);
+        long round = jdbc.queryForObject("SELECT id FROM event_rounds "
+                + "WHERE event_type = 'JUMPMAP' AND week_start_date = ?", Long.class,
+                java.sql.Date.valueOf(week));
+        jdbc.update("INSERT INTO event_prize_slots(event_round_id, place, slot_number, prize_name) "
+                + "VALUES (?, 1, 1, 'coffee')", round);
+        long slot = jdbc.queryForObject("SELECT id FROM event_prize_slots WHERE event_round_id = ?",
+                Long.class, round);
+        jdbc.update("INSERT INTO event_winners(event_round_id, prize_slot_id, user_id, selected_at) "
+                + "VALUES (?, ?, ?, ?)", round, slot, winner, Timestamp.from(announcement));
     }
 
     private void assertCode(Runnable action, String code) {

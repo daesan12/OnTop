@@ -37,7 +37,7 @@ public final class WinnerContactRepository {
         }, userId, java.sql.Date.valueOf(week), Timestamp.from(now), Timestamp.from(now));
     }
 
-    public List<AwardRow> ownAwards(long userId, LocalDate week, Instant now) {
+    public List<AwardRow> ownAwards(long userId, LocalDate week, Instant now, int limit, int offset) {
         String sql = """
                 SELECT w.id AS winner_id, w.user_id, r.week_start_date, r.event_type,
                        s.place, s.prize_name, r.announces_at, r.finalized_at,
@@ -55,13 +55,15 @@ public final class WinnerContactRepository {
                   AND r.announces_at <= ? AND r.finalized_at <= ?
                 """ + (week == null ? "" : " AND r.week_start_date = ?") + """
                 ORDER BY r.week_start_date DESC, r.event_type, s.place, w.id
-                LIMIT 100
+                LIMIT ? OFFSET ?
                 """;
         List<Object> args = new ArrayList<>(List.of(Timestamp.from(now), userId,
                 Timestamp.from(now), Timestamp.from(now)));
         if (week != null) {
             args.add(java.sql.Date.valueOf(week));
         }
+        args.add(limit);
+        args.add(offset);
         return jdbc.query(sql, (rows, index) -> award(rows), args.toArray());
     }
 

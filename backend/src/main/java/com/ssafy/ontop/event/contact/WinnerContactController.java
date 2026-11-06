@@ -42,8 +42,10 @@ public class WinnerContactController {
             security = @SecurityRequirement(name = "AccessJwt"))
     public ResponseEntity<List<WinningResponse>> ownWinnings(Principal principal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate weekStart) {
-        return ok(service().ownWinnings(account(principal), weekStart));
+            LocalDate weekStart,
+            @RequestParam(defaultValue = "100") int limit,
+            @RequestParam(defaultValue = "0") int offset) {
+        return ok(service().ownWinnings(account(principal), weekStart, limit, offset));
     }
 
     @PutMapping("/api/v1/events/winnings/weeks/{weekStart}/contact")
