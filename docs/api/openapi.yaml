@@ -98,6 +98,64 @@ paths:
                 $ref: "#/components/schemas/ServiceOperationResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/operations/skins/{id}:
+    get:
+      tags:
+      - SKIN
+      summary: 스킨 등록 상세 복구
+      operationId: getSkinRegistration
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+    put:
+      tags:
+      - SKIN
+      summary: 스킨 정보 수정
+      description: "version 충돌 시409, 공개한 상품의 등급·구성 변경 금지"
+      operationId: updateSkinRegistration
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Save"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/admin/operations/announcements/{id}:
     put:
       tags:
@@ -945,13 +1003,13 @@ paths:
                 category:
                   type: string
                   description: 생략 시 free. 명시적 null은 허용하지 않는다.
+                  default: free
                   enum:
                   - daily
                   - cheer
                   - worry
                   - recommend
                   - free
-                  default: free
               additionalProperties: false
         required: true
       responses:
@@ -4016,6 +4074,182 @@ paths:
                 $ref: "#/components/schemas/RaffleDrawResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/operations/skins:
+    get:
+      tags:
+      - SKIN
+      summary: 스킨 등록 목록 조회
+      description: "최신 200건, 지정 스킨 관리자만 조회"
+      operationId: listSkinRegistrations
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - SKIN
+      summary: 스킨 상품 임시저장
+      operationId: createSkinRegistration
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Definition"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/{id}/uploads:
+    post:
+      tags:
+      - SKIN
+      summary: GLB·WebP 업로드 URL 발급
+      description: "최대5분, 임시 경로만 서명. AWS 미설정503, 파일한도400"
+      operationId: issueSkinUpload
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/{id}/uploads/{uploadId}/verify:
+    post:
+      tags:
+      - SKIN
+      summary: 파일 바이트·해시·렌더러 규격 검증
+      operationId: verifySkinUpload
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: uploadId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/{id}/publish:
+    post:
+      tags:
+      - SKIN
+      summary: 검수한 스킨 공개
+      description: "검증 파일만 기존 상품/아이템에 원자 연결. 같은 파일 공개 재요청은 동일 결과, 검증 전409"
+      operationId: publishSkinRegistration
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Publish"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/{id}/disable:
+    post:
+      tags:
+      - SKIN
+      summary: 스킨 신규 획득 중단
+      description: 기존 보유·착용·과거 영수증은 보존
+      operationId: disableSkinRegistration
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Version"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/admin/operations/feedback/{receiptId}/replies:
     post:
       tags:
@@ -5217,6 +5451,27 @@ paths:
                       nullable: true
       security:
       - AccessJwt: []
+  /api/v1/skins/assets:
+    get:
+      tags:
+      - SKIN
+      summary: 공개 의상 파일 목록
+      description: "인증 회원 전용. 임시 파일·서명 URL 제외, 비활성 상품의 기존 파일은 유지"
+      operationId: listSkinAssets
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/shop/items:
     get:
       tags:
@@ -6064,18 +6319,18 @@ paths:
         required: false
         schema:
           type: string
+          default: ALL_TIME
           enum:
           - ALL_TIME
-          default: ALL_TIME
       - name: rulesVersion
         in: query
         required: false
         schema:
           type: string
+          default: v5
           enum:
           - v4
           - v5
-          default: v5
       - name: limit
         in: query
         required: false
@@ -6711,6 +6966,26 @@ paths:
                 $ref: "#/components/schemas/RaffleDrawResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/operations/skins/settings:
+    get:
+      tags:
+      - SKIN
+      summary: 스킨 등록 권한·업로드 설정 조회
+      operationId: skinSettings
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/admin/operations/announcements:
     get:
       tags:
@@ -7163,6 +7438,32 @@ components:
         serverTime:
           type: string
           format: date-time
+    Definition:
+      type: object
+      properties:
+        productCode:
+          type: string
+        name:
+          type: string
+        grade:
+          type: integer
+          format: int32
+        compatibility:
+          type: string
+        wearMode:
+          type: string
+        slots:
+          type: array
+          items:
+            type: string
+    Save:
+      type: object
+      properties:
+        version:
+          type: integer
+          format: int64
+        definition:
+          $ref: "#/components/schemas/Definition"
     AnnouncementRequest:
       type: object
       properties:
@@ -8886,6 +9187,42 @@ components:
           format: int32
         prizeName:
           type: string
+    FileSpec:
+      type: object
+      properties:
+        name:
+          type: string
+        bytes:
+          type: integer
+          format: int64
+        sha256:
+          type: string
+    UploadRequest:
+      type: object
+      properties:
+        version:
+          type: integer
+          format: int64
+        model:
+          $ref: "#/components/schemas/FileSpec"
+        image:
+          $ref: "#/components/schemas/FileSpec"
+    Publish:
+      type: object
+      properties:
+        version:
+          type: integer
+          format: int64
+        uploadId:
+          type: string
+        reviewed:
+          type: boolean
+    Version:
+      type: object
+      properties:
+        version:
+          type: integer
+          format: int64
     FeedbackReplyInput:
       required:
       - expectedVersion

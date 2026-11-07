@@ -24,6 +24,7 @@ repositories {
 }
 
 dependencies {
+    implementation 'software.amazon.awssdk:s3:2.31.77'
     implementation 'org.dyn4j:dyn4j:6.0.0'
     implementation 'com.github.stephengold:Minie:9.0.3'
     implementation 'org.jmonkeyengine:jme3-desktop:3.8.1-stable'
@@ -91,6 +92,18 @@ tasks.named('test') {
     }
 }
 
+// 자식 검수 JVM의 classpath를 인자로 반복하면 SDK 추가 후 Windows 32K 한도를 넘는다.
+// 실제 test runtime 파일 목록은 동일하게 유지하고 manifest의 Class-Path로 전달한다.
+def mysqlRuntimeClasspathJar = tasks.register('mysqlRuntimeClasspathJar', Jar) {
+    dependsOn testClasses
+    archiveFileName = 'mysql-runtime-classpath.jar'
+    destinationDirectory = layout.buildDirectory.dir('tmp/mysql-classpath')
+    outputs.upToDateWhen { false }
+    doFirst {
+        manifest.attributes('Class-Path': sourceSets.test.runtimeClasspath.files.collect { it.toURI().toASCIIString() }.join(' '))
+    }
+}
+
 tasks.register('mysqlTest', Test) {
     description = '별도 MySQL 8.4 DB에서 V1/V2·제약조건·JPA 매핑·인증 상태와 교환 검증'
     group = 'verification'
@@ -105,7 +118,8 @@ tasks.register('mysqlTest', Test) {
     // 개별 테스트의 풀 크기·동시성은 유지하고, 오래된 테스트 컨텍스트와 유휴 풀만 닫는다.
     systemProperty 'spring.test.context.cache.maxSize', '8'
     // 격리 outbox 재시작 테스트의 별도 JVM에 동일한 테스트 classpath를 전달한다.
-    systemProperty 'ontop.test.runtime-classpath', sourceSets.test.runtimeClasspath.asPath
+    dependsOn mysqlRuntimeClasspathJar
+    systemProperty 'ontop.test.runtime-classpath', mysqlRuntimeClasspathJar.get().archiveFile.get().asFile.absolutePath
     outputs.upToDateWhen { false }
     outputs.cacheIf { false }
     testLogging {

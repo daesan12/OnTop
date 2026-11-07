@@ -10,6 +10,7 @@ import { characterUrls, createCharacterRig } from '../../world/art/CharacterRig'
 import { partImage } from '../wardrobe/itemArt'
 import { knownWholeSkin, resolveWholeSkin } from '../../world/art/wholeSkin'
 import { WARDROBE_OUTFITS_ENABLED } from '../wardrobe/feature'
+import { useSkinCatalog } from '../../world/art/skinCatalog'
 
 const SIZE = 192
 const sources = new Map<string, Promise<GLTF>>()
@@ -51,6 +52,7 @@ async function shoot(character: CharacterId, skinKey?: string) {
 /** The own character's profile picture. The outfit is part of the key, so worn clothes are re-shot
  * as soon as the park model shows them; until a shot is ready the pre-rendered face of the same model stands in. */
 export function useOwnPortrait() {
+  useSkinCatalog(s => s.revision)
   const { character, outfit, skinKey } = useSession(useShallow(s => ({
     character: s.profiles[s.sessionId]?.character,
     outfit: (s.equipment[s.sessionId] ?? emptyEquipment).map(item => item.itemId).sort().join(','),

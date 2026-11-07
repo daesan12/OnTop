@@ -156,6 +156,12 @@ abstract class OpenApiHttpTestSupport {
         }
         Set<String> actual = new HashSet<>();
         if (environment.acceptsProfiles(Profiles.of(com.ssafy.ontop.config.RuntimeProfiles.PRODUCT_FEATURE))) {
+            expected.addAll(Set.of("GET /api/v1/skins/assets", "GET /api/v1/admin/operations/skins/settings",
+                    "GET /api/v1/admin/operations/skins", "POST /api/v1/admin/operations/skins",
+                    "GET /api/v1/admin/operations/skins/{id}", "PUT /api/v1/admin/operations/skins/{id}",
+                    "POST /api/v1/admin/operations/skins/{id}/uploads",
+                    "POST /api/v1/admin/operations/skins/{id}/uploads/{uploadId}/verify",
+                    "POST /api/v1/admin/operations/skins/{id}/publish", "POST /api/v1/admin/operations/skins/{id}/disable"));
             expected.addAll(Set.of("GET /api/v1/gacha", "GET /api/v1/gacha/operations/{operationId}",
                     "POST /api/v1/gacha/tickets", "POST /api/v1/gacha/draws", "POST /api/v1/gacha/boxes/open"));
         }

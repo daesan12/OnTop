@@ -164,7 +164,7 @@ export async function wearPreviewedItem() {
   if (!current(owner, generation) || !target || target.equipped || s.equipping || s.loading) return
   const variant = useSession.getState().profiles[owner]?.character === 'girl' ? 'girl' : 'man'
   if (!wholeSkinCompatible(variant, target.item.imageKey)) {
-    useWardrobe.setState({ equipError: '이 스킨은 남자 캐릭터 전용이에요.' })
+    useWardrobe.setState({ equipError: `이 스킨은 ${variant === 'girl' ? '남자' : '여자'} 캐릭터 전용이에요.` })
     return
   }
   const abort = writeAbort = new AbortController()

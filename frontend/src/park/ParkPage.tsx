@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { installBrowserShortcutGuard } from './browserShortcuts'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
+import { SkinCatalogLifecycle } from '../features/skins/SkinCatalogLifecycle'
 import { ParkScene } from './ParkScene'
 import { ParkBgm } from '../audio/ParkBgm'
 import { ParkSfx } from '../audio/ParkSfx'
@@ -147,6 +148,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <ChannelEntryGate />
       <AnnouncementBanner hidden={hideAnnouncements} />
       <GachaLifecycle />
+      <SkinCatalogLifecycle />
       <NotificationCenter key={session.sessionId} hidden={gameplayActive} />
       {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">
