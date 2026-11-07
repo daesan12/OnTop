@@ -35,7 +35,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
   const [previewUntil, setPreviewUntil] = useState(0), [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false), [notice, setNotice] = useState('')
   const typing=useChatTyping(runtime,open&&!sending)
-  const input = useRef<HTMLInputElement>(null), log = useRef<HTMLDivElement>(null)
+  const panel = useRef<HTMLElement>(null), input = useRef<HTMLInputElement>(null), log = useRef<HTMLDivElement>(null)
   const followLatest = useRef(true), inFlight = useRef(false), alive = useRef(false)
   const expanded = open || history || previewUntil > 0
   const full = open || history
@@ -59,15 +59,25 @@ function ChatPanel({ gameId }: { gameId: string }) {
     return () => clearTimeout(timer)
   }, [previewUntil])
 
-  function close(preview = false) {
+  function close(preview = false, restoreFocus = true) {
     typing(false)
     setChatInputOpen(false)
     setOpen(false)
     setPreviewUntil(preview ? Date.now() + CHAT.expandedDurationMs : 0)
     followLatest.current = true
     input.current?.blur()
-    focusParkCanvas()
+    if (restoreFocus) focusParkCanvas()
   }
+  useEffect(() => {
+    if (!open) return
+    const outside = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || panel.current?.contains(event.target)) return
+      close(false, !textControl(event.target))
+    }
+    // Release ownership before the canvas handles this same click; keep other UI controls usable.
+    document.addEventListener('pointerdown', outside, true)
+    return () => document.removeEventListener('pointerdown', outside, true)
+  }, [open])
   function openInput() { followLatest.current = true; setNotice(''); setOpen(true) }
   function toggleHistory() { followLatest.current = true; setHistory(s => !s); setPreviewUntil(0) }
   async function send() {
@@ -85,7 +95,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
     if (!alive.current) return
     if (!approved) { setNotice('전송하지 못했어요. 내용을 보관했으니 안내를 확인하고 다시 보내주세요.'); return }
     noteTourAction('chat')
-    setDraft(''); close(true)
+    setDraft(''); close(true, inputState.chatOpen)
   }
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -111,7 +121,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
     return () => window.removeEventListener('keydown', key)
   }, [open, history, previewUntil, spectator, gameId])
 
-  return <section className="park-chat" aria-label={gameId ? '경기 채팅' : '주변 채팅'} data-game-id={gameId || undefined} data-expanded={expanded} data-history={history}>
+  return <section ref={panel} className="park-chat" aria-label={gameId ? '경기 채팅' : '주변 채팅'} data-game-id={gameId || undefined} data-expanded={expanded} data-history={history}>
     <div className="park-chat__messages">
       <div className="park-chat__heading"><h1><img src={chatIcon} alt="" />{gameId ? '경기 채팅' : '주변 채팅'}<span className="park-chat__radius">{gameId ? '이 경기만' : `반경 ${CHAT.radiusMeters}m`}</span></h1>
         <button type="button" aria-label={history ? '채팅 기록 접기' : '채팅 기록 보기'} aria-expanded={history} aria-keyshortcuts="Z" onClick={toggleHistory}
