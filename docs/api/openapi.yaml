@@ -8292,6 +8292,12 @@ components:
           type: boolean
         alreadyFinalized:
           type: boolean
+        candidateCount:
+          type: integer
+          format: int32
+        excludedGmCount:
+          type: integer
+          format: int32
         expectedPrizeCount:
           type: integer
           format: int32

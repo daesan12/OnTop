@@ -22,7 +22,7 @@
 | 요청 | 권한 | 응답 |
 | --- | --- | --- |
 | `GET /api/v1/raffles/rounds/{weekStart}/result` | 로그인 회원 | 발표 전 `NOT_ANNOUNCED`, 추첨 지연 시 `PENDING`, 발표 후 본인의 `SELECTED`·`NOT_SELECTED` |
-| `GET /api/v1/admin/raffles/rounds/{weekStart}` | 관리자 조회 | 등수·상품·당첨 회원 ID·응모권과 빈 슬롯 수 |
+| `GET /api/v1/admin/raffles/rounds/{weekStart}` | 관리자 조회 | 등수·상품·당첨 회원 ID·응모권, 빈 슬롯 수, 확정 시 후보 응모권·제외 GM 응모권 수 |
 | `POST /api/v1/admin/raffles/rounds/{weekStart}/finalize` | 관리자 운영 | 마감 후 추첨 확정 또는 이미 확정된 동일 결과 |
 
 `weekStart`는 KST 월요일 날짜(`YYYY-MM-DD`)다. 모든 응답은 `Cache-Control: no-store`를 사용한다. 회원 API는 다른 회원의 결과를 반환하지 않는다. 연락처 제출과 관리자 연락처 조회는 후속 작업이다.

@@ -186,6 +186,7 @@ public class RaffleDrawingService {
 
     private RaffleDrawResponse response(EventRound round, boolean alreadyFinalized) {
         List<Winner> winners = drawings.winners(round.id());
+        var counts = drawings.successfulCounts(round.id()).orElse(null);
         boolean finalized = round.finalizedAt() != null || !winners.isEmpty();
         // A zero-winner draw is also final: re-read the persisted finalization marker.
         if (!finalized) {
@@ -193,7 +194,10 @@ public class RaffleDrawingService {
                     .map(current -> current.finalizedAt() != null).orElse(false);
         }
         return new RaffleDrawResponse(round.weekStartDate(), round.announcesAt(),
-                finalized, alreadyFinalized, PRIZE_COUNT, winners.size(),
+                finalized, alreadyFinalized,
+                counts == null ? null : counts.candidateCount(),
+                counts == null ? null : counts.excludedGmCount(),
+                PRIZE_COUNT, winners.size(),
                 PRIZE_COUNT - winners.size(), winners);
     }
 

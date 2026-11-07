@@ -76,9 +76,12 @@ class RaffleDrawingMySqlTests {
         assertThat(result.winners()).extracting(winner -> winner.userId())
                 .containsExactly(first, second);
         assertThat(result.expectedPrizeCount()).isEqualTo(8);
+        assertThat(result.candidateCount()).isEqualTo(4);
+        assertThat(result.excludedGmCount()).isOne();
         assertThat(result.vacantPrizeCount()).isEqualTo(6);
         assertThat(draw.memberResult(week, first).status()).isEqualTo("NOT_ANNOUNCED");
         assertThat(draw.memberResult(week, first).prizes()).isEmpty();
+        assertThat(draw.adminResult(week, gm).candidateCount()).isEqualTo(4);
         assertThat(draw.adminResult(week, gm).winners()).hasSize(2);
         assertThat(draw.finalizeRound(week, gm).winners()).isEqualTo(result.winners());
         assertThat(jdbc.queryForObject("""

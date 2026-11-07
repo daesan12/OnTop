@@ -1,6 +1,6 @@
 import { getAuthSession, restoreAuthSession } from '../../auth/authFlow'
 
-export interface AdminAccess { canRead: boolean; canGrant: boolean; canOperate: boolean }
+export interface AdminAccess { canRead: boolean; canGrant: boolean; canOperate: boolean; canViewContacts: boolean }
 
 export class AdminAccessError extends Error {
   constructor(message: string, readonly kind: 'unauthenticated' | 'forbidden' | 'unavailable') {
@@ -49,5 +49,6 @@ export async function loadAdminAccess(signal: AbortSignal): Promise<AdminAccess>
     || typeof body.canOperate !== 'boolean') {
     throw new AdminAccessError('관리자 권한 응답을 확인하지 못했습니다. 다시 시도해주세요.', 'unavailable')
   }
-  return { canRead: body.canRead, canGrant: body.canGrant, canOperate: body.canOperate }
+  return { canRead: body.canRead, canGrant: body.canGrant, canOperate: body.canOperate,
+    canViewContacts: 'canViewContacts' in body && body.canViewContacts === true }
 }

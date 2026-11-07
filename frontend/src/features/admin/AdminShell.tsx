@@ -5,6 +5,7 @@ import { AdminAnalyticsPage } from './AdminAnalyticsPage'
 import { AdminWalletGrantPage } from './AdminWalletGrantPage'
 import { AdminAnnouncementsPage } from '../announcements/AdminAnnouncementsPage'
 import { AdminServiceOperationPage } from './AdminServiceOperationPage'
+import { AdminEventsPage } from './AdminEventsPage'
 import { adminRoutes, type AdminSection } from './adminRoutes'
 import logo from '../../assets/entry/ontop-logo.webp'
 import '../feedback/adminFeedback.css'
@@ -25,7 +26,7 @@ const menuItems: readonly MenuItem[] = [
   { section: 'announcements', label: '공지 관리', title: '공원 공지',
     description: '공지 문구·게시 순서·예약 기간을 관리합니다.', permission: 'operate' },
   { section: 'events', label: '이벤트 관리', title: '이벤트 관리',
-    description: '응모권 추첨과 당첨 결과를 확인하는 화면을 준비 중입니다.', permission: 'read' },
+    description: '응모권·게임·엽전 행사 결과를 확정하고 당첨자 제출 현황을 조회합니다.', permission: 'read' },
   { section: 'feedback', label: '소리함', title: '소리함 의견',
     description: '이용자가 남긴 비공개 의견을 확인합니다.', permission: 'read' },
   { section: 'analytics', label: '이용 분석', title: '이용 분석',
@@ -88,7 +89,7 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
           ? '이용자가 비공개로 남긴 의견입니다. 서버에서 조회 권한을 확인합니다.'
           : section === 'operations' ? '신규 활동 차단부터 점검 종료까지 운영 상태를 안전하게 전환합니다.'
           : section === 'announcements' ? '소식을 적고 올리면 공원 맨 위 공지에 표시돼요.'
-          : section === 'events' ? '추첨과 당첨자 조회 화면을 준비 중입니다.'
+          : section === 'events' ? '회차별 행사 결과와 당첨자 제출 현황을 확인합니다.'
           : section === 'analytics' ? '행동 로그를 백업 기준으로 집계한 결과입니다. 서버에서 조회 권한을 확인합니다.'
             : '대상 인원과 총액을 미리 확인한 뒤 모든 활성 회원에게 엽전을 지급합니다.'}</p>}
     </header>
@@ -118,9 +119,7 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
         : <section role="alert">운영 관리자 권한이 필요합니다.</section>
         : section === 'announcements' ? state.access.canOperate ? <AdminAnnouncementsPage onAuthEnded={onAuthEnded} />
         : <section role="alert">운영 관리자 권한이 필요합니다.</section>
-        : section === 'events' ? <section className="admin-feedback-content" aria-label="이벤트 관리">
-          <h2>이벤트 관리</h2><p>추첨과 당첨자 조회 화면을 준비 중입니다.</p>
-        </section>
+        : section === 'events' ? <AdminEventsPage access={state.access} onAuthEnded={onAuthEnded} />
         : section === 'feedback' ? <AdminFeedbackPage onAuthEnded={onAuthEnded} />
         : section === 'analytics' ? <AdminAnalyticsPage onAuthEnded={onAuthEnded} />
           : state.access.canGrant ? <AdminWalletGrantPage onAuthEnded={onAuthEnded} />
