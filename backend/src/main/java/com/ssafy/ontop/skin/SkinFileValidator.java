@@ -60,10 +60,11 @@ public class SkinFileValidator {
                     meshes+=root.path("meshes").path(node.path("mesh").asInt(-1)).path("primitives").size();
                     near|=node.path("name").asText().startsWith("near-");far|=node.path("name").asText().startsWith("far-");
                 }
-                String expected=d.compatibility().equals("FEMALE")?"girl":"man";
+                Set<String> expected=d.compatibility().equals("ANY")?Set.of("man","girl"):
+                        Set.of(d.compatibility().equals("FEMALE")?"girl":"man");
                 boolean correctVariant=false;
                 for(JsonNode node:root.path("nodes")) if(node.path("name").asText().equals("CharacterRig"))
-                    correctVariant=node.path("extras").path("variant").asText("man").equals(expected);
+                    correctVariant=expected.contains(node.path("extras").path("variant").asText("man"));
                 if(!near||!far||!correctVariant) throw SkinException.invalid("근·원거리 표면과 캐릭터 성별을 확인해주세요.");
                 if(meshes!=2&&meshes!=10) throw SkinException.invalid("통합 스킨의 근거리·원거리 표면 구성을 확인해주세요.");
             } else {

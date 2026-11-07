@@ -19,9 +19,16 @@ class SkinRulesTests {
     private Definition whole() { return new Definition("SPRING_SET","봄꽃 한복",2,"MALE","WHOLE",SkinRules.SLOTS); }
     @Test void whole_and_clothing_require_complete_slots() {
         assertThat(SkinRules.validate(whole()).slots()).hasSize(5);
-        assertThatThrownBy(()->SkinRules.validate(new Definition("ABC","옷",1,"ANY","WHOLE",SkinRules.SLOTS))).isInstanceOf(SkinException.class);
+        assertThat(SkinRules.validate(new Definition("ABC","옷",1,"ANY","WHOLE",SkinRules.SLOTS)).compatibility()).isEqualTo("ANY");
         assertThatThrownBy(()->SkinRules.validate(new Definition("ABC","옷",1,"MALE","PARTS",List.of("TOP")))).isInstanceOf(SkinException.class);
         assertThatThrownBy(()->SkinRules.validate(new Definition("ABC","옷",1,"MALE","PARTS",List.of("HAIR","HAIR")))).isInstanceOf(SkinException.class);
+    }
+    @Test void separate_female_file_is_only_for_paired_whole_skins() {
+        var paired=new Definition("ABC","한복",1,"ANY","WHOLE",SkinRules.SLOTS);
+        var female=new FileSpec("female.glb",20,"a".repeat(64));
+        SkinRules.femaleModel(paired,female);
+        assertThatThrownBy(()->SkinRules.femaleModel(whole(),female)).isInstanceOf(SkinException.class);
+        assertThatThrownBy(()->SkinRules.femaleModel(new Definition("ABC","모자",1,"ANY","PARTS",List.of("HAIR")),female)).isInstanceOf(SkinException.class);
     }
     @Test void paths_limits_hashes_and_ids_are_not_client_controlled() {
         SkinRules.file(new FileSpec("skin.glb",20,"a".repeat(64)),".glb",20);
@@ -34,6 +41,8 @@ class SkinRulesTests {
         byte[] image=Files.readAllBytes(Path.of("../frontend/src/assets/entry/yeopjeon-icon.webp"));
         var validator=new SkinFileValidator(new ObjectMapper());
         validator.validate(model,image,whole(),SkinFileValidator.sha256(model),SkinFileValidator.sha256(image));
+        validator.validate(model,image,SkinRules.modelDefinition(whole(),"ANY"),SkinFileValidator.sha256(model),SkinFileValidator.sha256(image));
+        assertThatThrownBy(()->validator.validate(model,image,SkinRules.modelDefinition(whole(),"FEMALE"),SkinFileValidator.sha256(model),SkinFileValidator.sha256(image))).isInstanceOf(SkinException.class);
         assertThatThrownBy(()->validator.validate(model,image,whole(),"0".repeat(64),SkinFileValidator.sha256(image))).isInstanceOf(SkinException.class);
         byte[] fake="not a glb".getBytes();
         assertThatThrownBy(()->validator.validate(fake,image,whole(),SkinFileValidator.sha256(fake),SkinFileValidator.sha256(image))).isInstanceOf(SkinException.class);

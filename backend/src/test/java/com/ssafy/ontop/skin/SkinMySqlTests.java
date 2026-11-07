@@ -67,8 +67,8 @@ class SkinMySqlTests {
     }
     Definition definition(String code) { return new Definition(code,"등록 검수 의상",2,"MALE","WHOLE",SkinRules.SLOTS); }
     @Test void sql_order_and_real_http_registration_verify_publish_disable_are_atomic() throws Exception {
-        assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IN ('157','158','159','160','161') ORDER BY installed_rank",String.class))
-                .containsExactly("157","158","159","160","161");
+        assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IN ('157','158','159','160','161','162') ORDER BY installed_rank",String.class))
+                .containsExactly("157","158","159","160","161","162");
         var created=send("POST","",definition("REGTEST_FULL"),admin);assertThat(created.statusCode()).isEqualTo(200);
         String id=read(created).path("id").asText();
         String upload=uploaded(id);
@@ -156,6 +156,65 @@ class SkinMySqlTests {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_items WHERE user_id=9402 AND is_equipped=TRUE",Integer.class)).isEqualTo(5);
         assertThat(gacha.open(9402,"skin-registry-open",2)).isEqualTo(result);
         assertThat(jdbc.queryForObject("SELECT second_boxes FROM gacha_inventory WHERE user_id=9402",Long.class)).isEqualTo(1);
+    }
+    @Test void paired_models_are_two_files_but_one_product_and_choose_distinct_character_ids() throws Exception {
+        var e=service.create(9401,SkinRules.modelDefinition(definition("REGTEST_PAIR"),"ANY"));
+        byte[] female=Files.readAllBytes(Path.of("../frontend/public/art/characters/girl.glb"));
+        var ticket=service.issue(9401,e.id(),new UploadRequest(0,spec(model,"male.glb"),spec(image,"image.webp"),spec(female,"female.glb")));
+        String prefix=jdbc.queryForObject("SELECT object_prefix FROM skin_uploads WHERE id=?",String.class,ticket.uploadId());
+        assertThat(ticket.femaleModel()).isNotNull();
+        storage.data.put(prefix+"/incoming/model.glb",model);storage.data.put(prefix+"/incoming/image.webp",image);
+        // 한쪽 파일만 도착한 상태는 성공·공개로 처리하지 않는다.
+        assertThatThrownBy(()->service.verify(9401,e.id(),ticket.uploadId())).isInstanceOf(SkinException.class);
+        assertThat(service.assets()).isEmpty();
+        assertThatThrownBy(()->service.publish(9401,e.id(),new Publish(0,ticket.uploadId(),true))).isInstanceOf(SkinException.class);
+        storage.data.put(prefix+"/incoming/female.glb",female);
+        var verified=service.verifyView(9401,e.id(),ticket.uploadId());
+        assertThat(verified.maleModelId()).isNotEqualTo(verified.femaleModelId());
+        assertThat(verified.femaleModelUrl()).endsWith("/published/female.glb");
+        service.publish(9401,e.id(),new Publish(0,ticket.uploadId(),true));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM skin_models",Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM skin_upload_models",Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM gacha_products WHERE product_code='REGTEST_PAIR'",Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM items WHERE item_code LIKE 'SK_REGTEST_PAIR_%'",Integer.class)).isEqualTo(5);
+        assertThat(service.assets().getFirst().femaleModelId()).isEqualTo(verified.femaleModelId());
+    }
+    @Test void common_skin_has_one_model_referenced_by_both_characters() throws Exception {
+        var e=service.create(9401,SkinRules.modelDefinition(definition("REGTEST_COMMON"),"ANY"));String upload=uploaded(e.id());
+        var verified=service.verifyView(9401,e.id(),upload);
+        assertThat(verified.maleModelId()).isNotNull().isEqualTo(verified.femaleModelId());
+        assertThat(verified.femaleModelUrl()).isEqualTo(verified.modelUrl());
+        service.publish(9401,e.id(),new Publish(0,upload,true));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM skin_models",Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM skin_upload_models",Integer.class)).isEqualTo(2);
+        assertThat(service.assets().getFirst().compatibility()).isEqualTo("ANY");
+    }
+    @Test void male_model_in_female_slot_is_rejected_and_cannot_publish() throws Exception {
+        var e=service.create(9401,SkinRules.modelDefinition(definition("REGTEST_BADPAIR"),"ANY"));
+        byte[] anotherMale=Files.readAllBytes(Path.of("../frontend/public/art/characters/man.glb"));
+        var ticket=service.issue(9401,e.id(),new UploadRequest(0,spec(model,"male.glb"),spec(image,"image.webp"),spec(anotherMale,"female.glb")));
+        String prefix=jdbc.queryForObject("SELECT object_prefix FROM skin_uploads WHERE id=?",String.class,ticket.uploadId());
+        storage.data.put(prefix+"/incoming/model.glb",model);storage.data.put(prefix+"/incoming/image.webp",image);storage.data.put(prefix+"/incoming/female.glb",anotherMale);
+        assertThatThrownBy(()->service.verify(9401,e.id(),ticket.uploadId())).isInstanceOf(SkinException.class).hasMessageContaining("성별");
+        assertThat(jdbc.queryForObject("SELECT verified_at IS NULL FROM skin_uploads WHERE id=?",Boolean.class,ticket.uploadId())).isTrue();
+        assertThatThrownBy(()->service.publish(9401,e.id(),new Publish(0,ticket.uploadId(),true))).isInstanceOf(SkinException.class);
+    }
+    @Test void selecting_identical_common_file_twice_reuses_one_model_row() {
+        var e=service.create(9401,SkinRules.modelDefinition(definition("REGTEST_SAME"),"ANY"));
+        var ticket=service.issue(9401,e.id(),new UploadRequest(0,spec(model,"male.glb"),spec(image,"image.webp"),spec(model,"same.glb")));
+        assertThat(ticket.femaleModel()).isNull();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM skin_models",Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT model_id) FROM skin_upload_models",Integer.class)).isEqualTo(1);
+    }
+    @Test void incomplete_links_never_skip_model_validation_and_other_versions_cannot_be_linked() throws Exception {
+        var e=service.create(9401,SkinRules.modelDefinition(definition("REGTEST_LINKS"),"ANY"));String first=uploaded(e.id()),second=uploaded(e.id());
+        String otherModel=jdbc.queryForObject("SELECT id FROM skin_models WHERE upload_id=?",String.class,second);
+        assertThatThrownBy(()->jdbc.update("UPDATE skin_upload_models SET model_id=? WHERE upload_id=? AND character_gender='FEMALE'",otherModel,first))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        jdbc.update("DELETE FROM skin_upload_models WHERE upload_id=? AND character_gender='FEMALE'",first);
+        assertThatThrownBy(()->service.verify(9401,e.id(),first)).isInstanceOf(SkinException.class).hasMessageContaining("모델 연결");
+        assertThat(jdbc.queryForObject("SELECT verified_at IS NULL FROM skin_uploads WHERE id=?",Boolean.class,first)).isTrue();
+        assertThatThrownBy(()->service.publish(9401,e.id(),new Publish(0,first,true))).isInstanceOf(SkinException.class);
     }
     String uploaded(String id) throws Exception { return uploaded(id,0); }
     String uploaded(String id,long version) throws Exception {
