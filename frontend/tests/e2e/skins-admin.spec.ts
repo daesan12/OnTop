@@ -10,7 +10,7 @@ const cdn = 'https://cdn.example.test/published/'
 async function setup(page: Page, ready: boolean) {
   await fixture(page)
   await page.route('**/api/v1/admin/me', r => r.fulfill({ json: { canRead: true, canOperate: true, canGrant: false } }))
-  let entry: Record<string, unknown> | null = null, posts = 0, published = 0, conflict = false, puts = 0
+  let entry: Record<string, unknown> | null = null, posts = 0, published = 0, conflict = false, puts = 0, separate = false
   await page.route('**/api/v1/admin/operations/skins**', async route => {
     const request = route.request(), p = new URL(request.url()).pathname
     expect(request.headers().authorization).toBe('Bearer fixture-access')
@@ -26,9 +26,11 @@ async function setup(page: Page, ready: boolean) {
     }
     if (p.endsWith('/uploads')) {
       expect(request.postDataJSON().model.sha256).toMatch(/^[0-9a-f]{64}$/)
-      return route.fulfill({ json: { uploadId, expiresAt: '2030-01-01T00:00:00Z', model: { url: 'https://upload.example.test/model', headers: { 'Content-Type': 'model/gltf-binary' } }, image: { url: 'https://upload.example.test/image', headers: { 'Content-Type': 'image/webp' } } } })
+      separate = !!request.postDataJSON().femaleModel
+      if (separate) expect(request.postDataJSON().femaleModel.sha256).toMatch(/^[0-9a-f]{64}$/)
+      return route.fulfill({ json: { uploadId, expiresAt: '2030-01-01T00:00:00Z', model: { url: 'https://upload.example.test/model', headers: { 'Content-Type': 'model/gltf-binary' } }, image: { url: 'https://upload.example.test/image', headers: { 'Content-Type': 'image/webp' } }, femaleModel: separate ? { url: 'https://upload.example.test/female', headers: { 'Content-Type': 'model/gltf-binary' } } : null } })
     }
-    if (p.endsWith('/verify')) return route.fulfill({ json: { uploadId, modelUrl: cdn + 'model.glb', imageUrl: cdn + 'image.webp' } })
+    if (p.endsWith('/verify')) return route.fulfill({ json: { uploadId, modelUrl: cdn + 'model.glb', imageUrl: cdn + 'image.webp', femaleModelUrl: separate ? cdn + 'female.glb' : null } })
     if (p.endsWith('/publish')) {
       published++; expect(request.postDataJSON()).toEqual({ version: 0, uploadId, reviewed: true })
       entry = { ...entry, state: 'PUBLISHED', version: 1, publishedUploadId: uploadId }; return route.fulfill({ json: entry })
@@ -40,9 +42,9 @@ async function setup(page: Page, ready: boolean) {
     expect(route.request().headers().authorization).toBeUndefined(); puts++
     return route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' } })
   })
-  await page.route(cdn + '**', route => route.fulfill({ path: route.request().url().endsWith('.glb') ? modelPath : imagePath,
+  await page.route(cdn + '**', route => route.fulfill({ path: route.request().url().endsWith('female.glb') ? path.resolve('public/art/characters/girl.glb') : route.request().url().endsWith('.glb') ? modelPath : imagePath,
     contentType: route.request().url().endsWith('.glb') ? 'model/gltf-binary' : 'image/webp', headers: { 'Access-Control-Allow-Origin': '*' } }))
-  return { get posts() { return posts }, get published() { return published }, get puts() { return puts }, conflict() { conflict = true } }
+  return { get posts() { return posts }, get published() { return published }, get puts() { return puts }, get separate() { return separate }, conflict() { conflict = true } }
 }
 async function save(page: Page) {
   await page.getByLabel('상품 코드', { exact: true }).fill(initial.productCode)
@@ -121,4 +123,49 @@ test('공용 PARTS의 실제 표시 조각이 없으면 미리보기 단계에�
   await page.getByLabel('미리보기·캐릭터 크기·착용 규격을 검수했어요.').check()
   await expect(page.getByRole('button', { name: '검수한 스킨 공개' })).toBeDisabled()
   expect(state.published).toBe(0)
+})
+
+test('남녀 모델 두 개를 한 상품으로 검수하고 모두 업로드한 뒤 공개한다', async ({ page }, info) => {
+  const state = await setup(page, true); await page.goto('/admin/skins')
+  await page.getByLabel('착용 캐릭터', { exact: true }).selectOption('ANY'); await save(page)
+  await page.getByLabel('남캐용 GLB 모델', { exact: true }).setInputFiles(modelPath)
+  await page.getByLabel('WebP 대표 이미지', { exact: true }).setInputFiles(imagePath)
+  await expect(page.getByRole('button', { name: '파일 업로드·검증' })).toBeDisabled()
+  await page.getByLabel('여캐용 GLB 모델', { exact: true }).setInputFiles(path.resolve('public/art/characters/girl.glb'))
+  await page.getByRole('button', { name: '파일 업로드·검증' }).click()
+  await page.getByLabel('미리보기·캐릭터 크기·착용 규격을 검수했어요.').check()
+  await expect(page.getByRole('button', { name: '검수한 스킨 공개' })).toBeEnabled({ timeout: 60000 })
+  await page.screenshot({ path: info.outputPath('skin-paired-models.png'), fullPage: true })
+  await page.getByRole('button', { name: '검수한 스킨 공개' }).click()
+  await expect(page.getByText('스킨을 공개했어요.', { exact: false })).toBeVisible()
+  expect(state.puts).toBe(3); expect(state.separate).toBe(true); expect(state.published).toBe(1)
+})
+
+test('공용 파일은 한 번만 업로드하고 양쪽에 미리보기하며 변경하면 검수를 무효화한다', async ({ page }, info) => {
+  const state = await setup(page, true); await page.goto('/admin/skins')
+  await page.getByLabel('착용 캐릭터', { exact: true }).selectOption('ANY'); await save(page)
+  await page.getByLabel('남녀 같은 공용 파일 사용').check()
+  await page.getByLabel('공용 GLB 모델', { exact: true }).setInputFiles(modelPath)
+  await page.getByLabel('WebP 대표 이미지', { exact: true }).setInputFiles(imagePath)
+  await page.getByRole('button', { name: '파일 업로드·검증' }).click()
+  await page.getByLabel('미리보기·캐릭터 크기·착용 규격을 검수했어요.').check()
+  await expect(page.getByRole('button', { name: '검수한 스킨 공개' })).toBeEnabled({ timeout: 60000 })
+  await page.screenshot({ path: info.outputPath('skin-common-model.png'), fullPage: true })
+  expect(state.puts).toBe(2); expect(state.separate).toBe(false)
+  await page.getByLabel('남녀 같은 공용 파일 사용').uncheck()
+  await expect(page.getByRole('heading', { name: '공개 전 검수' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '파일 업로드·검증' })).toBeDisabled()
+  expect(state.published).toBe(0)
+})
+
+test('같은 파일을 남녀 두 칸에 골라도 한 모델로 업로드한다', async ({ page }) => {
+  const state = await setup(page, true); await page.goto('/admin/skins')
+  await page.getByLabel('착용 캐릭터', { exact: true }).selectOption('ANY'); await save(page)
+  await page.getByLabel('남캐용 GLB 모델', { exact: true }).setInputFiles(modelPath)
+  await page.getByLabel('여캐용 GLB 모델', { exact: true }).setInputFiles(modelPath)
+  await page.getByLabel('WebP 대표 이미지', { exact: true }).setInputFiles(imagePath)
+  await page.getByRole('button', { name: '파일 업로드·검증' }).click()
+  await page.getByLabel('미리보기·캐릭터 크기·착용 규격을 검수했어요.').check()
+  await expect(page.getByRole('button', { name: '검수한 스킨 공개' })).toBeEnabled({ timeout: 60000 })
+  expect(state.puts).toBe(2); expect(state.separate).toBe(false)
 })

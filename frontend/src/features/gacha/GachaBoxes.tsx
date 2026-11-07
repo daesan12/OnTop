@@ -95,7 +95,8 @@ function GarmentMesh({url}:{url:string}){
 }
 export function ProductDisplay({product}:{product:GachaProduct}){
  useSkinCatalog(s=>s.revision)
- const model=knownWholeSkin(product.imageKey),owned=useWardrobe(s=>s.items.find(i=>product.itemIds.includes(i.item.itemId)))
+ const variant=useSession(s=>s.profiles[s.sessionId]?.character==='girl'?'girl':'man')
+ const model=knownWholeSkin(product.imageKey,variant),owned=useWardrobe(s=>s.items.find(i=>product.itemIds.includes(i.item.itemId)))
  const picture=catalogAsset(product.imageKey)?.imageUrl??setImage(product.code)??(owned?setImage(owned.item.setCode)??outfitImage(product.imageKey,owned.item.equipSlot!):undefined)
  if(model)return <ArtBoundary key={product.imageKey} fallback={<div className="open-asset-message">의상 모델을 불러오지 못했어요.<br/>획득 내역은 옷장에 보관돼요.</div>}>
   <Suspense fallback={<div className="open-asset-message" role="status">의상 모습을 불러오고 있어요…</div>}>

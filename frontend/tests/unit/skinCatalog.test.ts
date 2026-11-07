@@ -13,6 +13,24 @@ const asset: SkinAsset = { imageKey: 'catalog/11111111-1111-4111-8111-1111111111
   compatibility: 'FEMALE', wearMode: 'WHOLE', slots: [...equipSlots], modelUrl: 'https://cdn.example.test/published/model.glb', imageUrl: 'https://cdn.example.test/published/image.webp' }
 afterEach(() => { replaceSkinCatalog([]); vi.unstubAllGlobals() })
 describe('registered skin catalog', () => {
+  it('one product chooses a distinct model by character and common skins reuse one file', () => {
+    const paired = { ...asset, compatibility: 'ANY' as const, femaleModelUrl: 'https://cdn.example.test/published/female.glb' }
+    replaceSkinCatalog([paired])
+    const equipment = equipSlots.map((equipSlot, i) => ({ itemId: i + 1, itemCode: 'TEST_' + equipSlot, equipSlot, imageKey: asset.imageKey }))
+    const male = resolveWholeSkin('man', equipment)!, female = resolveWholeSkin('girl', equipment)!
+    expect(male.url).toBe(asset.modelUrl)
+    expect(female.url).toBe(paired.femaleModelUrl)
+    expect(male.source).not.toBe(female.source)
+    expect(outfitUrl(female.source)).toBe(paired.femaleModelUrl)
+    expect(female.setCode).toBe(male.setCode)
+    expect(wholeSkinCompatible('man', paired.imageKey)).toBe(true)
+    expect(wholeSkinCompatible('girl', paired.imageKey)).toBe(true)
+    replaceSkinCatalog([{ ...paired, femaleModelUrl: paired.modelUrl }])
+    expect(resolveWholeSkin('girl', equipment)?.url).toBe(paired.modelUrl)
+    replaceSkinCatalog([{ ...paired, femaleModelUrl: undefined }])
+    expect(resolveWholeSkin('girl', equipment)?.url).toBe(paired.modelUrl)
+    expect(() => replaceSkinCatalog([{ ...paired, femaleModelUrl: 'javascript:alert(1)' }])).toThrow()
+  })
   it('shows the awarded imageKey even when a product code resembles another set code', () => {
     const other = { ...asset, imageKey: 'catalog/22222222-2222-4222-8222-222222222222', productCode: 'SK_HANBOK',
       wearMode: 'PARTS' as const, slots: ['HAIR' as const], imageUrl: 'https://cdn.example.test/actual-award.webp' }

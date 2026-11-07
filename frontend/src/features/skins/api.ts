@@ -7,9 +7,9 @@ export interface SkinDefinition { productCode: string; name: string; grade: numb
 export interface SkinEntry { id: string; definition: SkinDefinition; state: 'DRAFT' | 'PUBLISHED' | 'DISABLED'; version: number; publishedUploadId: string | null; updatedAt: string }
 export interface SkinSettings { storageReady: boolean; maxModelBytes: number; maxImageBytes: number; urlTtlSeconds: number }
 export interface SkinTarget { url: string; headers: Record<string, string> }
-export interface SkinTicket { uploadId: string; expiresAt: string; model: SkinTarget; image: SkinTarget }
-export interface SkinVerified { uploadId: string; modelUrl: string; imageUrl: string }
-export interface SkinAsset { imageKey: string; productCode: string; name: string; grade: number; compatibility: SkinDefinition['compatibility']; wearMode: SkinDefinition['wearMode']; slots: SkinSlot[]; modelUrl: string; imageUrl: string }
+export interface SkinTicket { uploadId: string; expiresAt: string; model: SkinTarget; image: SkinTarget; femaleModel?: SkinTarget | null }
+export interface SkinVerified { uploadId: string; modelUrl: string; imageUrl: string; femaleModelUrl?: string | null; maleModelId?: string | null; femaleModelId?: string | null }
+export interface SkinAsset extends Omit<SkinVerified, 'uploadId'> { imageKey: string; productCode: string; name: string; grade: number; compatibility: SkinDefinition['compatibility']; wearMode: SkinDefinition['wearMode']; slots: SkinSlot[] }
 
 export async function skinRequest<T>(path: string, signal: AbortSignal, method = 'GET', body?: unknown): Promise<T> {
   try { return await inboxRequest(skinRoot + path, signal, method, body) as T }
@@ -23,7 +23,7 @@ export async function skinRequest<T>(path: string, signal: AbortSignal, method =
       SKIN_CODE_EXISTS: '이미 등록된 상품 코드예요. 목록에서 기존 등록을 확인해주세요.',
       SKIN_PRODUCT_CODE_CONFLICT: '기존 상품이 사용하는 코드예요. 새 상품 코드를 사용해주세요.',
       SKIN_NOT_VERIFIED: '파일 검증을 먼저 완료해주세요.',
-      SKIN_UPLOAD_INCOMPLETE: '두 파일 업로드가 완료되지 않았어요. 파일을 다시 업로드해주세요.',
+      SKIN_UPLOAD_INCOMPLETE: '선택한 파일 업로드가 완료되지 않았어요. 파일을 다시 업로드해주세요.',
       SKIN_NOT_FOUND: '등록한 스킨을 찾지 못했어요. 목록을 다시 조회해주세요.',
       SKIN_UPLOAD_NOT_FOUND: '업로드한 파일 버전을 찾지 못했어요.',
       SKIN_INVALID_REQUEST: '상품 입력값과 파일 규격을 확인해주세요. 모델 뼈대·LOD·부위 이름도 OnTop 규격이어야 해요.',
