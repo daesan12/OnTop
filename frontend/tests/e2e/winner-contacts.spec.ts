@@ -59,3 +59,24 @@ test('a member without announced winnings sees no contact prompt', async ({ page
   await page.getByRole('menuitem', { name: /내 당첨 내역/ }).click()
   await expect(page.getByText('아직 발표된 당첨 내역이 없어요.')).toBeVisible()
 })
+
+test('a failed refresh hides stale winnings until a new query succeeds', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-10T00:00:00Z') })
+  await fixture(page)
+  let fail = false
+  await page.route('**/api/v1/events/winnings/me?*', route => fail
+    ? route.fulfill({ status: 503, json: { code: 'TEMPORARY', message: '지금은 조회할 수 없습니다.' } })
+    : route.fulfill({ json: [award] }))
+  await page.goto('/park')
+  const dialog = page.getByRole('dialog', { name: '내 당첨 내역' })
+  await expect(dialog.getByText('황올 세트')).toBeVisible({ timeout: 90000 })
+  await dialog.getByRole('button', { name: '당첨 내역 닫기' }).click()
+  fail = true
+  await page.getByRole('button', { name: '내 메뉴', exact: true }).click()
+  await page.getByRole('menuitem', { name: /내 당첨 내역/ }).click()
+  await expect(dialog.getByText('지금은 조회할 수 없습니다.')).toBeVisible()
+  await expect(dialog.getByText('황올 세트')).toHaveCount(0)
+  fail = false
+  await dialog.getByRole('button', { name: '다시 조회' }).click()
+  await expect(dialog.getByText('황올 세트')).toBeVisible()
+})

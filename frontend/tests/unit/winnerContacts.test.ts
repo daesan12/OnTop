@@ -21,6 +21,9 @@ it('shows only validated award fields and groups multiple wins into one weekly c
 it('accepts the server phone formats and enforces the announced submission deadline', () => {
   expect(normalizePhone('010-1234-5678')).toBe('01012345678')
   expect(normalizePhone('011 123 4567')).toBe('0111234567')
+  expect(parseReceipt({ weekStart: week, status: 'SUBMITTED', maskedPhone: '***-****-4567',
+    expiresAt: '2026-11-23T00:00:00Z', submissionDeadline: base.submissionDeadline }, week).maskedPhone)
+    .toBe('***-****-4567')
   expect(normalizePhone('010-123-4567')).toBeNull()
   expect(canSubmit('NOT_SUBMITTED', base.submissionDeadline, Date.parse(base.submissionDeadline) - 1)).toBe(true)
   expect(canSubmit('NOT_SUBMITTED', base.submissionDeadline, Date.parse(base.submissionDeadline))).toBe(false)

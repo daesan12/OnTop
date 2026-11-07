@@ -31,6 +31,7 @@ export class WinnerContactsError extends Error {
 const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
 const validInstant = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value))
 const validWeek = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+// The backend hides the entire prefix as ***-****-xxxx for both 10 and 11 digit numbers.
 const validMask = (value: unknown): value is string => typeof value === 'string' && /^\*{3}-\*{4}-\d{4}$/.test(value)
 const invalid = (): never => { throw new WinnerContactsError('당첨 내역 응답을 확인하지 못했습니다. 다시 조회해주세요.', 'INVALID_RESPONSE') }
 

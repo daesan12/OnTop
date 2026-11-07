@@ -34,6 +34,7 @@ export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Pr
   useEffect(() => {
     const controller = request.current = new AbortController()
     setLoadError('')
+    setItems(null)
     void loadMyWinnings(controller.signal).then(result => {
       if (controller.signal.aborted) return
       setItems(result)
