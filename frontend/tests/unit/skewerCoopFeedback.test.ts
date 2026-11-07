@@ -174,4 +174,20 @@ describe('꼬치왕 QA 피드백 회귀', () => {
     expect(request.mock.calls.map(([type]) => type)).toEqual(['GAME_ACTION_SEND', 'GAME_STATE_CHECK'])
     client.stop()
   })
+  it.each(['paused', 'greeting', 'finished'] as const)('E 입력 복구 중 %s 상태로 바뀌면 지난 상호작용을 다시 보내지 않는다', async state => {
+    const { client, request } = fixture()
+    const snapshot = finished(); snapshot.publicState.phase = 'PLAYING'
+    client.store.setState({ snapshot })
+    const updated = structuredClone(snapshot)
+    updated.version++; updated.publicState.actionVersion++
+    if (state === 'paused') updated.publicState.paused = true
+    if (state === 'greeting') updated.publicState.greeting.active = true
+    if (state === 'finished') updated.publicState.phase = 'FINISHED'
+    request.mockRejectedValueOnce({ code: 'GAME_ACTION_STALE_VERSION' })
+      .mockResolvedValueOnce({ type: 'GAME_STATE', payload: updated } as unknown as Envelope)
+    await client.act({ type: 'INTERACT' })
+    expect(request.mock.calls.map(([type]) => type)).toEqual(['GAME_ACTION_SEND', 'GAME_STATE_CHECK'])
+    expect(client.store.getState().error).toBe('')
+    client.stop()
+  })
 })
