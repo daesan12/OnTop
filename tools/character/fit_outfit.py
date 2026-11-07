@@ -1,6 +1,7 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
        [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0|back|all rim_neck=20] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0] [hair_trim=z,y]
+       [lining_hidden=1] [skin_any=1] [wing_parts=N,M wing_blend=0.025] [cover_hands=1] [hair_hides_front=0.03 | hair_hides_above=z]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -250,9 +251,9 @@ def lit_texel(it, pct=80):
     light = cs[cs.mean(1) >= np.percentile(cs.mean(1), pct)]; med = np.median(light, 0)
     return tuple(uvd[int(np.argmin(((cs - med) ** 2).sum(1))) * 7].uv), med
 
-def on_texel(o, like, uv0):
-    """o's faces on one texel of item `like`'s own material and UV layer."""
-    o.data.materials.clear(); o.data.materials.append(like.data.materials[0])
+def on_texel(o, like, uv0, mi=0):
+    """o's faces on one texel of item `like`'s own material (index mi) and UV layer."""
+    o.data.materials.clear(); o.data.materials.append(like.data.materials[mi])
     name = like.data.uv_layers.active.name
     for u in list(o.data.uv_layers): o.data.uv_layers.remove(u)
     lay = o.data.uv_layers.new(name=name)
@@ -463,16 +464,25 @@ def skin_texel(it):
             u_ = np.mean([tuple(uvb[l].uv) for l in p.loop_indices], 0)
             cols.append(PB[min(h2 - 1, max(0, int(u_[1] * h2))), min(w2 - 1, max(0, int(u_[0] * w2)))])
     target = np.median(np.array(cols), 0) if cols else np.array([0.73, 0.52, 0.43])
-    img = next(n.image for m in it.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
-    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
-    st = 4; Ps = P[::st, ::st]; loc_var = np.zeros(Ps.shape[:2], np.float32)
-    for dy in (-2, -1, 1, 2):
-        for dx in (-2, -1, 1, 2):
-            loc_var = np.maximum(loc_var, np.abs(np.roll(np.roll(Ps, dy, 0), dx, 1) - Ps).sum(2))
-    dist = ((Ps - target) ** 2).sum(2) + (loc_var > 0.03) * 10
-    yy, xx = np.unravel_index(int(np.argmin(dist)), dist.shape)
-    _skin_cache['uv'] = ((xx * st + 0.5) / w_, (yy * st + 0.5) / h_)
-    print('SKIN neck', target.round(3).tolist(), '-> texel', Ps[yy, xx].round(3).tolist(), 'from', len(cols), 'faces')
+    # skin_any=1 (the muscle outfit): every material's image is searched, not the first only: an item joined from
+    # parts with their own textures had no even skin patch in its first, and the lining came out grey. (Only the
+    # lining takes the material with it; neck_tone and v_paint keep the first)
+    best = None
+    mats = list(enumerate(it.data.materials)) if opt.get('skin_any', '0') == '1' else list(enumerate(it.data.materials))[:1]
+    for mi, m in mats:
+        img = next((n.image for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image), None) if m and m.node_tree else None
+        if not img: continue
+        w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
+        st = 4; Ps = P[::st, ::st]; loc_var = np.zeros(Ps.shape[:2], np.float32)
+        for dy in (-2, -1, 1, 2):
+            for dx in (-2, -1, 1, 2):
+                loc_var = np.maximum(loc_var, np.abs(np.roll(np.roll(Ps, dy, 0), dx, 1) - Ps).sum(2))
+        dist = ((Ps - target) ** 2).sum(2) + (loc_var > 0.03) * 10
+        yy, xx = np.unravel_index(int(np.argmin(dist)), dist.shape)
+        if best is None or dist[yy, xx] < best[0]:
+            best = (dist[yy, xx], mi, ((xx * st + 0.5) / w_, (yy * st + 0.5) / h_), Ps[yy, xx])
+    _, _skin_cache['mi'], _skin_cache['uv'], col = best
+    print('SKIN neck', target.round(3).tolist(), '-> texel', col.round(3).tolist(), 'material', best[1], 'from', len(cols), 'faces')
     return _skin_cache['uv']
 
 if opt.get('lining', '0') == '1' and 'TOP' in G:
@@ -482,6 +492,15 @@ if opt.get('lining', '0') == '1' and 'TOP' in G:
     pick = [p.index for p in src_obj.data.polygons
             if nz - down_ < p.center.z < nz + up_ + 0.02 and math.hypot(p.center.x - nx, p.center.y - ny) < r_
             and p.center.y < ny - float(opt.get('lining_front', 0.01))]
+    # lining_hidden=1: only the body faces the top hides (led by a TOP bone, as in the cover rule), so the lining
+    # meets the neck's own faces along their edge instead of a level cut across them
+    if opt.get('lining_hidden', '0') == '1':
+        _lead = leading_bones(src_obj)
+        def _bone(p):
+            votes = {}
+            for vi in p.vertices: votes[_lead[vi]] = votes.get(_lead[vi], 0) + 1
+            return max(votes, key=votes.get)
+        pick = [i for i in pick if _bone(src_obj.data.polygons[i]) in TOP_BONES]
     ln = src_obj.copy(); ln.data = src_obj.data.copy(); bpy.context.scene.collection.objects.link(ln)
     lb = bmesh.new(); lb.from_mesh(ln.data); lb.faces.ensure_lookup_table(); keep_ = set(pick)
     bmesh.ops.delete(lb, geom=[f for f in lb.faces if f.index not in keep_], context='FACES')
@@ -554,7 +573,7 @@ if opt.get('lining', '0') == '1' and 'TOP' in G:
     # (the top's middle tone: on its lit white the lapels' shaded inner edges stood out as teeth)
     # lining_tone=skin (the gat's dopo, like Tripo's own: the V shows the chest's skin running on from the neck;
     # the white "shirt" in it read as a separate band, user)
-    if opt.get('lining_tone') == 'skin': on_texel(ln, G['TOP'], skin_texel(G['TOP']))
+    if opt.get('lining_tone') == 'skin': on_texel(ln, G['TOP'], skin_texel(G['TOP']), _skin_cache['mi'])
     else:
         uv0, med = lit_texel(G['TOP'], float(opt.get('lining_tone', 40))); on_texel(ln, G['TOP'], uv0)
     ln.vertex_groups.new(name='part:lining').add(list(range(len(ln.data.vertices))), 1.0, 'REPLACE')
@@ -886,7 +905,28 @@ for slot, it in G.items():
             for e in v.groups:
                 if e.group in idx: Wm[v.index, bi[idx[e.group]]] = e.weight
                 elif e.group in pidx: part_of[v.index] = pidx[e.group]
-        Pp = np.array([tuple(v.co) for v in it.data.vertices]); Wn = Wm.copy()
+        Pp = np.array([tuple(v.co) for v in it.data.vertices])
+        # wing_parts=N,M (the pigeon's wings): a wing made on the T-pose hangs under the arm, so its lower feathers lay
+        # nearest the ribs and took the chest's weights; with the arm lowered the wing tore. Its vertices follow the
+        # arm chain only, by their distance out from the body: shoulder, upper arm, forearm, hand (blended over
+        # wing_blend, 2.5 cm, at each joint)
+        wb = float(opt.get('wing_blend', 0.025))
+        for wn in [x for x in opt.get('wing_parts', '').split(',') if x]:
+            ids = np.where(part_of == 'tripo_part_' + wn)[0]
+            for i in ids:
+                side = 'Left' if Pp[i][0] > 0 else 'Right'; ax = abs(Pp[i][0])
+                chain = [side + n for n in ('Shoulder', 'Arm', 'ForeArm', 'Hand')]
+                cuts = [abs(J[n].x) for n in chain[1:]]
+                w_ = np.zeros(len(chain))
+                k = sum(ax >= c for c in cuts); w_[k] = 1.0
+                for j, c in enumerate(cuts):        # blend across joint j+1 (between chain[j] and chain[j+1])
+                    if abs(ax - c) < wb:
+                        t = 0.5 + (ax - c) / (2 * wb); w_[:] = 0; w_[j] = 1 - t; w_[j + 1] = t
+                Wm[i] = 0
+                for n, x in zip(chain, w_):
+                    if x > 0 and n in bi: Wm[i, bi[n]] = x
+            print('WING weights part', wn, len(ids), 'vertices on the arm chain')
+        Wn = Wm.copy()
         for n in names_:
             ids = np.where(part_of == n)[0]
             kd = KDTree(len(ids))
@@ -982,6 +1022,8 @@ for o in body:
         bone_ = max(votes, key=votes.get)
         cv = set()
         if 'TOP' in G and bone_ in TOP_BONES and not (bone_.endswith('ForeArm') and abs(c.x) > sleeve_x - 0.01): cv.add('TOP')
+        # cover_hands=1 (the pigeon's wings reach past the hands): the hands too, else the thumbs came out over them
+        if 'TOP' in G and opt.get('cover_hands', '0') == '1' and 'Hand' in bone_: cv.add('TOP')
         if c.z > neck_z - 0.005 and math.hypot(c.x - neck_xy[0], c.y - neck_xy[1]) < 0.065:
             cv.discard('TOP')
             if top_bvh_ and c.z < neck_z + 0.04:
@@ -1002,7 +1044,13 @@ for o in body:
             if bone_ == 'Neck' or c.y < neck_xy[1]: tone_faces.append(p.index)
         if 'BOTTOM' in G and bone_ in BOTTOM_BONES and c.z > boot_top: cv.add('BOTTOM')
         if 'SHOES' in G and (bone_ in FOOT_BONES or (bone_ in BOTTOM_BONES and c.z <= boot_top)): cv.add('SHOES')
-        if hair_bvh and bone_ in ('Head', 'HeadTop_End'):
+        # (hair_hides_front, metres: with a hood only the faces behind the head joint less this are hidden; the
+        # pigeon's hood hid the cheeks along its opening too, and they showed as holes)
+        # (hair_hides_above, metres: or, for a hat, only the faces over this height, wherever they face; the
+        # scarecrow's floppy hat covers the crown in front too, and the scalp came through it there)
+        front_ok = 'hair_hides_front' not in opt or c.y > J['Head'].y - float(opt['hair_hides_front'])
+        above_ok = 'hair_hides_above' not in opt or c.z > float(opt['hair_hides_above'])
+        if hair_bvh and bone_ in ('Head', 'HeadTop_End') and front_ok and above_ok:
             n = (mw.to_3x3() @ p.normal).normalized()
             if hair_bvh.ray_cast(c + n * 0.001, n, 0.02)[0] is not None: cv.add('HAIR')
         cover.append(cv)
