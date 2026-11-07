@@ -9,6 +9,7 @@ export class HallMotion {
   private walkingTail = 0
   private readonly previousTarget = { x: 0, z: 0 }
   private targetYaw = 0
+  private yawVelocity = 0
 
   update(target: Point, seconds: number, paused = false, interpolated = false) {
     const dt = Math.min(.1, Math.max(0, seconds))
@@ -19,15 +20,19 @@ export class HallMotion {
     if (!this.initialized || distance > 3) {
       this.position.x = target.x; this.position.z = target.z
       this.initialized = true; this.walkingTail = 0; this.moving = false
-      this.targetYaw = this.yaw
+      this.targetYaw = this.yaw; this.yawVelocity = 0
       return
     }
-    if (paused) { this.moving = false; this.walkingTail = 0; return }
+    if (paused) { this.moving = false; this.walkingTail = 0; this.yawVelocity = 0; return }
     // Face authoritative travel, not the residual distance of the rendered position.
     // A quick reversal can arrive while the displayed character is still catching up.
     if (Math.hypot(travelX, travelZ) > .001) this.targetYaw = Math.atan2(travelX, travelZ)
     const turn = Math.atan2(Math.sin(this.targetYaw - this.yaw), Math.cos(this.targetYaw - this.yaw))
-    this.yaw += turn * (1 - Math.exp(-dt * 48))
+    // 180도 전환의 첫 프레임이 튀지 않도록 각속도까지 연속인 임계 감쇠를 사용한다.
+    const omega = 44, decay = Math.exp(-omega * dt)
+    const offset = -turn, change = (this.yawVelocity + omega * offset) * dt
+    this.yaw += turn + (offset + change) * decay
+    this.yawVelocity = (this.yawVelocity - omega * change) * decay
     if (distance > .025) this.walkingTail = .06
     else this.walkingTail = Math.max(0, this.walkingTail - dt)
     // PositionPlayback/로컬 프레임 이동은 이미 연속 좌표다. 다시 보간하면 회전 경로가 줄어든다.

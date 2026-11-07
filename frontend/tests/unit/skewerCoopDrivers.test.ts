@@ -77,12 +77,45 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
     for (let frame = 0; frame < 120; frame++) {
       if (frame % 6 === 0) {
         hall.position = { x: start.x + Math.max(0, frame - 18) / 60 * 4.8, z: start.z }
+        client.snapshot.publicState.elapsed = frame / 60
         client.snapshot.version++
       }
       driver.step(1 / 60, 1, 0)
       expect(driver.view().position.x).toBeGreaterThanOrEqual(previous)
       previous = driver.view().position.x
     }
+  })
+  it('MOVE 확인 응답이 추가되어도 서버 시각으로 위치를 일정하게 재생한다', () => {
+    const { client, driver, hall } = fixture()
+    const start = { ...hall.position }, steps: number[] = []
+    let previous = start.x, sample = 0
+    for (let frame = 0; frame <= 120; frame++) {
+      const next = sample + 1
+      if (frame === next * 6 + (next % 2 ? 2 : 0)) {
+        sample = next; hall.position = { x: start.x + sample * .58, z: start.z }
+        client.snapshot.publicState.elapsed = sample * .1; client.snapshot.version++
+      }
+      if (frame % 4 === 0) client.snapshot.version++
+      driver.step(1 / 60, 1, 0)
+      const x = driver.view().position.x
+      if (frame > 30) steps.push(x - previous)
+      previous = x
+    }
+    expect(Math.min(...steps)).toBeGreaterThan(.09)
+    expect(Math.max(...steps) - Math.min(...steps)).toBeLessThan(.000001)
+  })
+  it.each([0, .6])('화면 복귀·긴 프레임 공백 dt=%s 뒤 서버 시각을 다시 맞춘다', dt => {
+    const { client, driver, hall } = fixture()
+    driver.step(1 / 60)
+    hall.position = { x: hall.position.x + 1, z: hall.position.z }
+    client.snapshot.publicState.elapsed = 10; client.snapshot.version++
+    driver.step(dt)
+    expect(driver.view().position).toEqual(hall.position)
+    client.snapshot.publicState.elapsed = 10.1
+    hall.position = { x: hall.position.x + .58, z: hall.position.z }; client.snapshot.version++
+    for (let i = 0; i < 12; i++) driver.step(1 / 60)
+    expect(driver.view().position.x).toBeGreaterThan(hall.position.x - .58)
+    expect(driver.view().position.x).toBeLessThanOrEqual(hall.position.x)
   })
   it('이전 방향 응답만 지연돼도 새 방향의 이동 유지 요청은 계속 전송한다', async () => {
     const clock = vi.spyOn(performance, 'now').mockReturnValue(0)

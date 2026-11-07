@@ -37,6 +37,7 @@ let holdMoves = new URLSearchParams(location.search).has('holdMoves')
 const moveReplies: (() => void)[] = []
 window.setInterval(() => {
   if (state.privateState.hall && state.publicState.phase === 'PLAYING' && !state.publicState.paused && (velocity.dx || velocity.dz)) {
+    state.publicState.elapsed += .05
     state.privateState.hall.position = move(state.privateState.hall.position, velocity.dx, velocity.dz, .05)
     state.version++; publish()
   }
