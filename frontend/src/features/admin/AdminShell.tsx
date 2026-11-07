@@ -5,15 +5,14 @@ import { AdminAnalyticsPage } from './AdminAnalyticsPage'
 import { AdminWalletGrantPage } from './AdminWalletGrantPage'
 import { AdminAnnouncementsPage } from '../announcements/AdminAnnouncementsPage'
 import { AdminServiceOperationPage } from './AdminServiceOperationPage'
+import { adminRoutes, type AdminSection } from './adminRoutes'
 import logo from '../../assets/entry/ontop-logo.webp'
 import '../feedback/adminFeedback.css'
 import './adminShell.css'
 
-type Section = 'home' | 'feedback' | 'analytics' | 'wallet-grants' | 'announcements' | 'operations' | 'events'
-type MenuSection = Exclude<Section, 'home'>
+type MenuSection = Exclude<AdminSection, 'home'>
 type MenuItem = {
   section: MenuSection
-  href: string
   label: string
   title: string
   description: string
@@ -21,17 +20,17 @@ type MenuItem = {
 }
 
 const menuItems: readonly MenuItem[] = [
-  { section: 'operations', href: '/admin/operations', label: '운영 제어', title: '서비스 운영 제어',
+  { section: 'operations', label: '운영 제어', title: '서비스 운영 제어',
     description: '신규 활동 차단·점검·정상 운영 상태를 안전하게 전환합니다.', permission: 'operate' },
-  { section: 'announcements', href: '/admin/announcements', label: '공지 관리', title: '공원 공지',
+  { section: 'announcements', label: '공지 관리', title: '공원 공지',
     description: '공지 문구·게시 순서·예약 기간을 관리합니다.', permission: 'operate' },
-  { section: 'events', href: '/admin/events', label: '이벤트 관리', title: '이벤트 관리',
+  { section: 'events', label: '이벤트 관리', title: '이벤트 관리',
     description: '응모권 추첨과 당첨 결과를 확인하는 화면을 준비 중입니다.', permission: 'read' },
-  { section: 'feedback', href: '/admin/feedback', label: '소리함', title: '소리함 의견',
+  { section: 'feedback', label: '소리함', title: '소리함 의견',
     description: '이용자가 남긴 비공개 의견을 확인합니다.', permission: 'read' },
-  { section: 'analytics', href: '/admin/analytics', label: '이용 분석', title: '이용 분석',
+  { section: 'analytics', label: '이용 분석', title: '이용 분석',
     description: '일별 이용 흐름과 게임별 집계를 확인합니다.', permission: 'read' },
-  { section: 'wallet-grants', href: '/admin/wallet-grants', label: '엽전 지급', title: '전 회원 엽전 지급',
+  { section: 'wallet-grants', label: '엽전 지급', title: '전 회원 엽전 지급',
     description: '대상과 총액을 미리 확인하고 활성 회원 전체에 엽전을 지급합니다.', permission: 'grant' },
 ]
 
@@ -43,8 +42,8 @@ type AccessState = { status: 'loading' } | { status: 'ready'; access: AdminAcces
   | { status: 'forbidden' } | { status: 'unavailable'; message: string }
 
 export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
-  section: Section
-  onNavigate: (section: Section) => void
+  section: AdminSection
+  onNavigate: (section: AdminSection) => void
   onReturn: () => void
   onAuthEnded: () => void
 }) {
@@ -103,15 +102,15 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
     </section>}
     {state.status === 'ready' && <>
       <nav className="admin-shell-nav" aria-label="관리자 메뉴">
-        <a href="/admin" aria-current={section === 'home' ? 'page' : undefined}
+        <a href={adminRoutes.home.path} aria-current={section === 'home' ? 'page' : undefined}
           onClick={event => { event.preventDefault(); onNavigate('home') }}>관리자 홈</a>
-        {visibleItems.map(item => <a key={item.section} href={item.href}
+        {visibleItems.map(item => <a key={item.section} href={adminRoutes[item.section].path}
           aria-current={section === item.section ? 'page' : undefined}
           onClick={event => { event.preventDefault(); onNavigate(item.section) }}>{item.label}</a>)}
       </nav>
       {section === 'home' ? <section className="admin-feedback-content admin-shell-home" aria-label="관리자 기능">
         <h2>관리자 기능</h2>
-        {visibleItems.map(item => <a key={item.section} href={item.href}
+        {visibleItems.map(item => <a key={item.section} href={adminRoutes[item.section].path}
           onClick={event => { event.preventDefault(); onNavigate(item.section) }}>
           <strong>{item.title}</strong><span>{item.description}</span>
         </a>)}
