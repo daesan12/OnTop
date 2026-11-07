@@ -55,7 +55,7 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
         const current = model.current!.view(), now = performance.now()
         if (now - publishedAt > 80) { setView(current); publishedAt = now }
         return current
-      }, setError)
+      }, setError, () => blockedRef.current || document.hidden || !!guide.current?.open && !driver?.online)
     } catch (error) { setError(error instanceof Error ? error.message : '매장 화면을 열지 못했어요.') }
     window.addEventListener('keydown', keydown); window.addEventListener('keyup', keyup); window.addEventListener('blur', blur)
     return () => { scene?.dispose(); disposeMenuArt(); window.removeEventListener('keydown', keydown); window.removeEventListener('keyup', keyup); window.removeEventListener('blur', blur) }
