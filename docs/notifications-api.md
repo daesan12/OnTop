@@ -164,3 +164,17 @@ FE는 리스트의 받기·수령 완료와 중앙 보상 팝업(뒤 알림함 �
 | 503 | REWARD_UNAVAILABLE | 저장소·필수 V157 미설정·지급 실패, 같은 요청 재확인 |
 
 V160은 `personal_notifications.reply_id`를 nullable로 확장하고 `notification_rewards`를 추가한다. 기존 V158·V159 SQL은 수정하지 않는다. V158이 먼저 필요하고 뽑기권은 미병합 V157 저장소와 함께 적용해야 한다. 번호·순서 확인 후 스키마 → BE → FE로 인수한다. 이번 권한은 V160 로컬 작성·격리 DB 검증·로컬 커밋이며 푸시·MR·공용 DB·배포는 하지 않는다.
+
+
+## 관리자 회원별 보상 관리 · 2026-11-07 로컬
+
+관리자 메뉴는 **보상 관리**로 표시한다. 닉네임 전체 또는 내부 회원 ID 검색 → 닉네임/ID 선택 → 기존 발급 폼 확인·발송 → 회원별 내역 조회 순서다. 전 회원 즉시 엽전 지급은 기존 기능으로 분리한다.
+
+- GET /api/v1/admin/wallet-grants/rewards/recipients?query=닉네임또는ID: 활성 회원 정확 검색. 최대20건의 [{userId,nickname}]. 이메일·로그인 식별자 등 비노출. 검색어 NFC 정규화·공백 제거·1~19자, 제어문자 거절. 부분검색 아님.
+- GET /api/v1/admin/wallet-grants/rewards?userId=202&cursor=123: 해당 회원 발송 이력. 최신 ID 순20건, {items:[{notificationId,title,kind,amount,createdAt,expiresAt,claimedAt,status}],nextCursor}. claimedAt와 nextCursor는 nullable. status는 PENDING(수령 대기), CLAIMED(수령 완료), EXPIRED(미수령 기한 만료). 수령한 뒤 만료돼도 CLAIMED다. 조회는 보존 중인 내역이며 회원 탈퇴 시 기존 알림 삭제 정책을 따른다.
+- 두 GET 모두 ADMIN_GRANT와 활성 관리자 canGrant 확인, no-store. 읽기 관리자만으로는 조회 불가. 잘못된 ID/커서/검색어400. 기존 인증 오류·저장소503 계약 유지.
+- 확인/발송 중에는 회원 변경 금지. 확정 거절은 입력 수정, 응답 유실은 같은 UUID로 재시도한다. 성공하면 이력을 다시 불러온다. 관리자 새로고침으로 수령 상태 확인, 이전 내역 더 보기 제공.
+- 보상 종류/수량/제목/메시지/기한/수령 처리는 기존 공통 발급·수령 경계를 재사용한다. 향후 종류 추가 시 명시적 kind 및 해당 재화 처리/검증을 추가한다. 임의 종류를 신뢰하지 않는다.
+- 추가 SQL·스키마 변경 없음. V160 로컬 승인 및 V157 티켓 통합 의존성은 기존과 같다. 푸시·배포 없음.
+
+검증: 격리 MySQL15건(이번 관리자 조회3건 포함), FE 단위25건, 브라우저8건(관리자 선택/발송/수령상태 포함, 인증·REST 대역) 통과. 독립 읽기전용 리뷰 새 P1/P2 없음. API 인벤토리2개를 추가해 실제 OpenAPI 재생성 검사16건 통과. Postman 로컬10예제 생성, 웹 저장 미확인.

@@ -77,6 +77,23 @@ public class NotificationRewardRepository {
         return after;
     }
 
+    /** 닉네임 정확 검색·내부 ID 검색. 로그인 식별자 등은 반환하지 않는다. */
+    public java.util.List<User> recipients(String query) {
+        Long id = null;
+        try { if (query.matches("[1-9][0-9]{0,18}")) { id = Long.valueOf(query); } }
+        catch (NumberFormatException ignored) { }
+        return entities.createQuery("select u from User u where u.deletedAt is null"
+                        + " and (u.nickname = :query or u.id = :id) order by u.id", User.class)
+                .setParameter("query", query).setParameter("id", id).setMaxResults(20).getResultList();
+    }
+
+    public java.util.List<Object[]> history(long user, long cursor) {
+        return entities.createQuery("select n, r from PersonalNotification n, NotificationReward r"
+                        + " where n.id = r.notificationId and n.userId = :user and n.id < :cursor"
+                        + " order by n.id desc", Object[].class)
+                .setParameter("user", user).setParameter("cursor", cursor).setMaxResults(21).getResultList();
+    }
+
     public void requireTicketStorage() {
         entities.createNativeQuery("SELECT user_id FROM gacha_inventory LIMIT 1").getResultList();
     }

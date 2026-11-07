@@ -3,8 +3,10 @@ import { InboxError, isNotificationId, rewardLabel, sendReward, type RewardGrant
 import './rewards.css'
 
 /** 전 회원 즉시 지급과 구분되는, 회원 한 명의 알림함으로 보내는 수령형 보상. */
-export function AdminRewardGrantForm({ onAuthEnded }: { onAuthEnded: () => void }) {
-  const [user, setUser] = useState(''), [kind, setKind] = useState<RewardKind>('GACHA_TICKET')
+export function AdminRewardGrantForm({ onAuthEnded, recipient, onSent, onPendingChange }: {
+  onAuthEnded: () => void; recipient?: { userId: string; nickname: string }; onSent?: () => void; onPendingChange?: (value: boolean) => void
+}) {
+  const [user, setUser] = useState(recipient?.userId ?? ''), [kind, setKind] = useState<RewardKind>('GACHA_TICKET')
   const [amount, setAmount] = useState('1'), [title, setTitle] = useState(''), [text, setText] = useState(''), [expiry, setExpiry] = useState('')
   const [command, setCommand] = useState<RewardGrantInput | null>(null), [done, setDone] = useState(''), [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -20,6 +22,7 @@ export function AdminRewardGrantForm({ onAuthEnded }: { onAuthEnded: () => void 
     }
     setCommand({ operationId: crypto.randomUUID(), userId: user, kind, amount: count,
       title: title.trim(), text: text.trim(), expiresAt: expires.toISOString() })
+    onPendingChange?.(true)
   }
   const send = async () => {
     if (!command || pending.current) return
@@ -30,6 +33,7 @@ export function AdminRewardGrantForm({ onAuthEnded }: { onAuthEnded: () => void 
       if (controller.signal.aborted) return
       setDone(`회원 #${command.userId}에게 ${rewardLabel(command)}을 보냈어요. 본인이 받아야 보유량에 반영됩니다.`)
       setCommand(null); setText(''); setTitle('')
+      onPendingChange?.(false); onSent?.()
     } catch (cause) {
       if (controller.signal.aborted) return
       if (cause instanceof InboxError && cause.status === 401) { onAuthEnded(); return }
@@ -40,7 +44,8 @@ export function AdminRewardGrantForm({ onAuthEnded }: { onAuthEnded: () => void 
   return <section className="admin-feedback-content admin-reward-form" aria-label="개인 보상 보내기">
     <h2>알림함으로 선물 보내기</h2><p>한 회원에게 엽전이나 뽑기권을 보내요. 수령 전에는 보유량이 늘어나지 않습니다.</p>
     <fieldset disabled={busy || !!command}>
-      <label>받는 회원 ID<input inputMode="numeric" value={user} onChange={event => setUser(event.target.value)} placeholder="내부 회원 ID"/></label>
+      {recipient ? <p className="admin-reward-recipient"><strong>{recipient.nickname}</strong> · 회원 #{recipient.userId}</p>
+        : <label>받는 회원 ID<input inputMode="numeric" value={user} onChange={event => setUser(event.target.value)} placeholder="내부 회원 ID"/></label>}
       <label>보상 종류<select value={kind} onChange={event => setKind(event.target.value as RewardKind)}><option value="GACHA_TICKET">뽑기권</option><option value="COIN">엽전</option></select></label>
       <label>수량<input inputMode="numeric" value={amount} onChange={event => setAmount(event.target.value)}/></label>
       <label>알림 제목<input value={title} maxLength={100} onChange={event => setTitle(event.target.value)}/></label>
@@ -48,10 +53,10 @@ export function AdminRewardGrantForm({ onAuthEnded }: { onAuthEnded: () => void 
       <label>수령 기한<input type="datetime-local" value={expiry} onChange={event => setExpiry(event.target.value)}/></label>
     </fieldset>
     {!command ? <button onClick={preview}>보낼 내용 확인</button> : <div className="admin-reward-confirm">
-      <strong>회원 #{command.userId} · {rewardLabel(command)}</strong><p>{command.title}</p>
+      <strong>{recipient?.nickname ?? '회원'} #{command.userId} · {rewardLabel(command)}</strong><p>{command.title}</p><p className="admin-reward-message">{command.text}</p>
       <p>수령 기한 {new Date(command.expiresAt).toLocaleString('ko-KR')}</p>
       <button disabled={busy} onClick={() => void send()}>{busy ? '발송 확인 중…' : error ? '같은 요청으로 다시 확인' : '이 내용으로 보상 보내기'}</button>
-      {canEdit && <button disabled={busy} onClick={() => { setCommand(null); setError('') }}>입력 수정</button>}
+      {canEdit && <button disabled={busy} onClick={() => { setCommand(null); setError(''); onPendingChange?.(false) }}>입력 수정</button>}
     </div>}
     {error && <p role="alert">{error}</p>}{done && <p role="status">{done}</p>}
   </section>

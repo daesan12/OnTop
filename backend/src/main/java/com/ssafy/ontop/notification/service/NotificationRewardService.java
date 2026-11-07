@@ -71,6 +71,44 @@ public class NotificationRewardService {
         }));
     }
 
+    public java.util.List<Recipient> recipients(long administrator, String query) {
+        return Objects.requireNonNull(transactions.execute(transaction -> {
+            requireAdministrator(administrator);
+            return repository.recipients(query).stream()
+                    .map(user -> new Recipient(user.getId().toString(), user.getNickname())).toList();
+        }));
+    }
+
+    public HistoryPage history(long administrator, long userId, long cursor) {
+        return Objects.requireNonNull(transactions.execute(transaction -> {
+            requireAdministrator(administrator);
+            var rows = repository.history(userId, cursor);
+            Instant now = now();
+            var items = rows.stream().limit(20).map(row -> {
+                var n = (PersonalNotification) row[0];
+                var r = (NotificationReward) row[1];
+                return new HistoryEntry(n.id().toString(), n.title(), r.kind(), r.amount(), n.createdAt(),
+                        n.expiresAt(), r.claimedAt(), r.claimedAt() != null ? "CLAIMED"
+                        : n.expiresAt().isAfter(now) ? "PENDING" : "EXPIRED");
+            }).toList();
+            return new HistoryPage(items, rows.size() > 20 ? items.getLast().notificationId() : null);
+        }));
+    }
+
+    private void requireAdministrator(long administrator) {
+        if (!administrators.canGrant(administrator)) {
+            throw new FeedbackException(403, "REWARD_GRANT_REQUIRED", "재화 지급 권한이 필요합니다.");
+        }
+        if (!repository.member(administrator)) { throw unauthenticated(); }
+    }
+
+    public record Recipient(String userId, String nickname) { }
+    public record HistoryPage(java.util.List<HistoryEntry> items,
+            @io.swagger.v3.oas.annotations.media.Schema(nullable = true) String nextCursor) { }
+    public record HistoryEntry(String notificationId, String title, NotificationReward.Kind kind, long amount,
+            Instant createdAt, Instant expiresAt,
+            @io.swagger.v3.oas.annotations.media.Schema(nullable = true) Instant claimedAt, String status) { }
+
     public ClaimResponse claim(long userId, long notificationId) {
         return Objects.requireNonNull(transactions.execute(transaction -> {
             if (!repository.member(userId)) { throw unauthenticated(); }

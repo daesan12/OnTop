@@ -6,8 +6,9 @@ test.beforeAll(async()=>{
   await writeFile(html,'<!doctype html><html lang="ko"><meta charset="utf-8"><div id="root"></div><script type="module" src="/src/reward-harness.local.tsx"></script></html>',{flag:'wx'})
   await writeFile(script,`import React from 'react';import {createRoot} from 'react-dom/client';
 import {restoreAuthSession} from './auth/authFlow';import {NotificationCenter} from './features/notifications/NotificationCenter';import {AdminRewardGrantForm} from './features/notifications/AdminRewardGrantForm';import './features/feedback/adminFeedback.css';
+import {AdminRewardManager} from './features/notifications/AdminRewardManager';
 await restoreAuthSession(true);document.body.style.cssText='margin:0;background:linear-gradient(135deg,#273d31,#617654);min-height:100vh';
-const admin=new URLSearchParams(location.search).has('admin');createRoot(document.getElementById('root')!).render(<main className={admin?'admin-feedback-page':'park-page'}><small>로컬 검수 · 실제 컴포넌트 / 인증·REST 대역</small>{admin?<AdminRewardGrantForm onAuthEnded={()=>{}}/>:<NotificationCenter/>}</main>);`,{flag:'wx'})
+const params=new URLSearchParams(location.search),admin=params.has('admin');createRoot(document.getElementById('root')!).render(<main className={admin?'admin-feedback-page':'park-page'}><small>로컬 검수 · 실제 컴포넌트 / 인증·REST 대역</small>{params.has('manager')?<AdminRewardManager onAuthEnded={()=>{}}/>:admin?<AdminRewardGrantForm onAuthEnded={()=>{}}/>:<NotificationCenter/>}</main>);`,{flag:'wx'})
 })
 test.afterAll(async()=>{await unlink(html);await unlink(script)})
 
@@ -29,6 +30,10 @@ async function fixture(page:Page){
       return route.fulfill({json:{notificationId:id,kind:coin?'COIN':'GACHA_TICKET',amount:coin?1000:3,
         claimedAt:'2026-11-07T09:01:00Z',balanceAfter:coin?1100:null,ticketsAfter:coin?null:3}})
     }
+    if(path==='/api/v1/admin/wallet-grants/rewards/recipients')return route.fulfill({json:[{userId:'8202',nickname:'온탑산책자'}]})
+    if(path==='/api/v1/admin/wallet-grants/rewards' && route.request().method()==='GET')return route.fulfill({json:{items:keys.length?[{
+      notificationId:'14',title:'소중한 의견 감사합니다',kind:'COIN',amount:1000,createdAt:'2026-11-07T09:00:00Z',expiresAt:'2030-01-01T00:00:00Z',claimedAt:claimed.has('14')?'2026-11-07T09:01:00Z':null,status:claimed.has('14')?'CLAIMED':'PENDING',
+    }]:[],nextCursor:null}})
     if(path==='/api/v1/admin/wallet-grants/rewards'){
       const body=route.request().postDataJSON();keys.push(body.operationId)
       if(rejectAdmin)return route.fulfill({status:409,json:{code:'REWARD_RECIPIENT_UNAVAILABLE'}})
@@ -66,6 +71,24 @@ test('엽전과 뽑기권을 받고 정렬된 팝업과 수령완료를 확인�
   await page.keyboard.press('Escape');await expect(popup).toHaveCount(0)
   await expect(page.getByRole('dialog',{name:'알림함'})).toBeVisible()
   await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('관리자는 닉네임으로 선택하고 발송 뒤 수령 상태를 확인한다',async({page},info)=>{
+  const state=await fixture(page);await page.goto('/reward-harness.local.html?admin&manager')
+  await page.getByLabel('회원 찾기').fill('온탑산책자');await page.getByRole('button',{name:'회원 검색'}).click()
+  await page.getByRole('button',{name:/온탑산책자.*회원 #8202/}).click()
+  await expect(page.getByText('아직 발송한 보상이 없어요.')).toBeVisible()
+  await page.getByLabel('보상 종류').selectOption('COIN');await page.getByLabel('수량',{exact:true}).fill('1000')
+  await page.getByLabel('알림 제목').fill('소중한 의견 감사합니다');await page.getByLabel('함께 보낼 메시지').fill('온탑에서 보내는 작은 선물입니다.')
+  await page.getByLabel('수령 기한').fill('2030-01-01T09:00');await page.getByRole('button',{name:'보낼 내용 확인'}).click()
+  await expect(page.getByRole('button',{name:'회원 검색'})).toBeDisabled()
+  await expect(page.locator('.admin-reward-confirm')).toContainText('온탑산책자 #8202')
+  await page.getByRole('button',{name:'이 내용으로 보상 보내기'}).click()
+  const history=page.getByRole('region',{name:'보상 발송 내역'})
+  await expect(history.getByText('수령 대기',{exact:true})).toBeVisible()
+  state.claimed.add('14');await history.getByRole('button',{name:'내역 새로고침'}).click()
+  await expect(history.getByText('수령 완료',{exact:true})).toBeVisible()
+  await page.screenshot({path:info.outputPath('admin-reward-manager.png'),fullPage:true})
 })
 
 test('수령 응답 유실 후 같은 보상을 다시 확인하고 중복 클릭을 막는다',async({page})=>{

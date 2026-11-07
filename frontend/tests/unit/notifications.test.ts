@@ -77,3 +77,22 @@ it('claims the owned notification without sending recipient or amount and verifi
   expect(()=>parseRewardReceipt({...receipt,balanceAfter:null},'12')).toThrow()
   expect(()=>parseRewardReceipt({...receipt,ticketsAfter:3},'12')).toThrow()
 })
+
+it('관리자 회원검색은 안전한 ID와 닉네임을 확인한다', async () => {
+  const { findRewardRecipients } = await import('../../src/features/notifications/api')
+  const fetcher = vi.fn().mockResolvedValue(Response.json([{userId:'202',nickname:'산책자'}])); vi.stubGlobal('fetch',fetcher)
+  expect(await findRewardRecipients('산책자',new AbortController().signal)).toEqual([{userId:'202',nickname:'산책자'}])
+  expect(String(fetcher.mock.calls[0][0])).toContain(encodeURIComponent('산책자'))
+  fetcher.mockResolvedValueOnce(Response.json([{userId:'0',nickname:'산책자'}]))
+  await expect(findRewardRecipients('산책자',new AbortController().signal)).rejects.toThrow()
+})
+it('보상 이력은 수령 상태와 커서 정합성을 확인한다',async()=>{
+  const {loadRewardHistory}=await import('../../src/features/notifications/api')
+  const row={notificationId:'12',title:'선물',kind:'COIN',amount:100,createdAt:'2026-11-07T09:00:00Z',expiresAt:'2030-01-01T00:00:00Z',claimedAt:null,status:'PENDING'}
+  const fetcher=vi.fn().mockResolvedValue(Response.json({items:[row],nextCursor:'12'}));vi.stubGlobal('fetch',fetcher)
+  expect((await loadRewardHistory('202','',new AbortController().signal)).nextCursor).toBe('12')
+  fetcher.mockResolvedValueOnce(Response.json({items:[{...row,status:'CLAIMED'}],nextCursor:null}))
+  await expect(loadRewardHistory('202','',new AbortController().signal)).rejects.toThrow()
+  fetcher.mockResolvedValueOnce(Response.json({items:[row],nextCursor:'13'}))
+  await expect(loadRewardHistory('202','',new AbortController().signal)).rejects.toThrow()
+})

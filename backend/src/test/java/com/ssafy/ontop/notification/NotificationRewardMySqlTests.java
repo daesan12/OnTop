@@ -124,6 +124,49 @@ class NotificationRewardMySqlTests {
     }
 
     @Test
+    void 지급관리자만_활성회원을_찾고_보상상태를_조회한다() throws Exception {
+        var found = request("GET", grantPath() + "/recipients?query=8202", null, admin);
+        assertThat(found.statusCode()).isEqualTo(200);
+        assertThat(read(found).get(0).path("nickname").asText()).isEqualTo("선물8202");
+        assertThat(read(found).get(0).size()).isEqualTo(2);
+        String query = java.net.URLEncoder.encode("선물8202", java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(read(request("GET", grantPath() + "/recipients?query=" + query, null, admin)).size()).isEqualTo(1);
+        assertThat(request("GET", grantPath() + "/recipients?query=8202", null, other).statusCode()).isEqualTo(403);
+        assertThat(request("GET", grantPath() + "?userId=8202", null, other).statusCode()).isEqualTo(403);
+        assertThat(request("GET", grantPath() + "?userId=0", null, admin).statusCode()).isEqualTo(400);
+        assertThat(request("GET", grantPath() + "/recipients?query=", null, admin).statusCode()).isEqualTo(400);
+        jdbc.update("UPDATE users SET deleted_at=CURRENT_TIMESTAMP(3) WHERE id=8303");
+        assertThat(read(request("GET", grantPath() + "/recipients?query=8303", null, admin)).isEmpty()).isTrue();
+    }
+
+    @Test
+    void 발송내역은_회원별로_분리하고_수령과_만료를_구분한다() throws Exception {
+        grant("COIN", 1);
+        String claimed = grant("COIN", 2), expired = grant("COIN", 3);
+        assertThat(request("POST", claimPath(claimed), null, member).statusCode()).isEqualTo(200);
+        jdbc.update("UPDATE personal_notifications SET expires_at='2020-01-01' WHERE id=?", expired);
+        var rows = read(request("GET", grantPath() + "?userId=8202", null, admin)).path("items");
+        assertThat(rows.size()).isEqualTo(3);
+        assertThat(rows.get(0).path("status").asText()).isEqualTo("EXPIRED");
+        assertThat(rows.get(1).path("status").asText()).isEqualTo("CLAIMED");
+        assertThat(rows.get(2).path("status").asText()).isEqualTo("PENDING");
+        assertThat(read(request("GET", grantPath() + "?userId=8303", null, admin)).path("items").isEmpty()).isTrue();
+        assertThat(balance()).isEqualTo(102);
+    }
+
+    @Test
+    void 발송내역은_커서로_이전페이지를_중복없이_조회한다() throws Exception {
+        for (int i = 0; i < 22; i++) { grant("COIN", 1); }
+        var first = read(request("GET", grantPath() + "?userId=8202", null, admin));
+        assertThat(first.path("items").size()).isEqualTo(20);
+        String cursor = first.path("nextCursor").asText();
+        var next = read(request("GET", grantPath() + "?userId=8202&cursor=" + cursor, null, admin));
+        assertThat(next.path("items").size()).isEqualTo(2);
+        assertThat(next.path("nextCursor").isNull()).isTrue();
+        assertThat(Long.parseLong(next.path("items").get(0).path("notificationId").asText())).isLessThan(Long.parseLong(cursor));
+    }
+
+    @Test
     void 뽑기권은_별도_잔고_없이_기존_보유함에_원하는_수량만큼_지급한다() throws Exception {
         for (long amount : new long[]{1, 3}) {
             String id = grant("GACHA_TICKET", amount);

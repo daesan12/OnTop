@@ -124,3 +124,32 @@ export function saveFeedbackStatus(id: string, status: FeedbackStatus, expectedV
   if (!isNotificationId(id)) return invalid()
   return inboxRequest(`/api/v1/admin/operations/feedback/${id}/status`, signal, 'PATCH', { status, expectedVersion })
 }
+
+export interface RewardRecipient { userId: string; nickname: string }
+export interface RewardHistoryEntry { notificationId: string; title: string; kind: RewardKind; amount: number; createdAt: string; expiresAt: string; claimedAt: string | null; status: 'PENDING' | 'CLAIMED' | 'EXPIRED' }
+export interface RewardHistoryPage { items: RewardHistoryEntry[]; nextCursor: string | null }
+export async function findRewardRecipients(query: string, signal: AbortSignal): Promise<RewardRecipient[]> {
+  const value = await inboxRequest('/api/v1/admin/wallet-grants/rewards/recipients?query=' + encodeURIComponent(query), signal)
+  if (!Array.isArray(value) || value.length > 20) return invalid()
+  return value.map(v => {
+    if (!record(v) || !isNotificationId(v.userId) || typeof v.nickname !== 'string' || !v.nickname.trim()) return invalid()
+    return { userId: v.userId, nickname: v.nickname }
+  })
+}
+export async function loadRewardHistory(userId: string, cursor: string, signal: AbortSignal): Promise<RewardHistoryPage> {
+  if (!isNotificationId(userId) || (cursor && !isNotificationId(cursor))) return invalid()
+  const value = await inboxRequest('/api/v1/admin/wallet-grants/rewards?userId=' + userId + (cursor ? '&cursor=' + cursor : ''), signal)
+  if (!record(value) || !Array.isArray(value.items) || value.items.length > 20) return invalid()
+  let previous = cursor ? BigInt(cursor) : 9223372036854775808n
+  const items = value.items.map(v => {
+    if (!record(v) || !isNotificationId(v.notificationId) || BigInt(v.notificationId) >= previous
+      || typeof v.title !== 'string' || (v.kind !== 'COIN' && v.kind !== 'GACHA_TICKET')
+      || !Number.isSafeInteger(v.amount) || Number(v.amount) <= 0 || !date(v.createdAt) || !date(v.expiresAt)
+      || !(v.claimedAt === null || date(v.claimedAt)) || !['PENDING','CLAIMED','EXPIRED'].includes(String(v.status))
+      || ((v.status === 'CLAIMED') !== (v.claimedAt !== null))) return invalid()
+    previous = BigInt(v.notificationId)
+    return v as unknown as RewardHistoryEntry
+  })
+  if (value.nextCursor !== null && (!isNotificationId(value.nextCursor) || value.nextCursor !== items.at(-1)?.notificationId)) return invalid()
+  return { items, nextCursor: value.nextCursor as string | null }
+}

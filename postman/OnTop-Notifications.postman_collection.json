@@ -30,6 +30,14 @@
       "value": ""
     },
     {
+      "key": "recipientQuery",
+      "value": ""
+    },
+    {
+      "key": "rewardHistoryCursor",
+      "value": ""
+    },
+    {
       "key": "rewardKind",
       "value": "GACHA_TICKET"
     },
@@ -300,6 +308,56 @@
             "exec": [
               "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
               "if(pm.response.code===200){const r=pm.response.json();pm.test('요청한 보상 영수증',()=>pm.expect(r.notificationId).to.eql(pm.collectionVariables.get('rewardNotificationId')));pm.test('수령 시각',()=>pm.expect(r.claimedAt).to.be.a('string'));}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 지급 관리자 · 닉네임 또는 ID 정확 검색",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/admin/wallet-grants/rewards/recipients?query={{recipientQuery}}",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminAccessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              ""
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 지급 관리자 · 회원별 발송·수령 이력(20건 커서)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/admin/wallet-grants/rewards?userId={{rewardUserId}}",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminAccessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200)pm.collectionVariables.set('rewardHistoryCursor',pm.response.json().nextCursor||'');"
             ]
           }
         }

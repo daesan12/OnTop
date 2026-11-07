@@ -70,6 +70,25 @@ public class NotificationRewardController {
         return ok(service().claim(user, id(notificationId)));
     }
 
+    @org.springframework.web.bind.annotation.GetMapping("/api/v1/admin/wallet-grants/rewards/recipients")
+    @Operation(operationId = "findPersonalRewardRecipient", summary = "지급 관리자 · 닉네임 정확 검색 또는 회원 ID 검색")
+    public ResponseEntity<java.util.List<NotificationRewardService.Recipient>> recipients(Principal principal,
+            @org.springframework.web.bind.annotation.RequestParam String query) {
+        long administrator = account(principal);
+        query = Normalizer.normalize(query.strip(), Normalizer.Form.NFC);
+        if (query.isBlank() || query.length() > 19 || query.codePoints().anyMatch(Character::isISOControl)) { throw invalid(); }
+        return ok(service().recipients(administrator, query));
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/api/v1/admin/wallet-grants/rewards")
+    @Operation(operationId = "listPersonalRewardGrants", summary = "지급 관리자 · 회원별 보상 발송·수령 이력")
+    public ResponseEntity<NotificationRewardService.HistoryPage> history(Principal principal,
+            @org.springframework.web.bind.annotation.RequestParam String userId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String cursor) {
+        long administrator = account(principal);
+        return ok(service().history(administrator, id(userId), cursor == null ? Long.MAX_VALUE : id(cursor)));
+    }
+
     private NotificationRewardService service() {
         var service = services.getIfAvailable();
         if (service == null) {

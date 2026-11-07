@@ -3778,6 +3778,37 @@ paths:
       security:
       - AccessJwt: []
   /api/v1/admin/wallet-grants/rewards:
+    get:
+      tags:
+      - NOTIFICATION
+      summary: 지급 관리자 · 회원별 보상 발송·수령 이력
+      operationId: listPersonalRewardGrants
+      parameters:
+      - name: userId
+        in: query
+        required: true
+        schema:
+          type: string
+          x-utf16-max-length: 64
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/HistoryPage"
+      security:
+      - AccessJwt: []
     post:
       tags:
       - NOTIFICATION
@@ -6491,6 +6522,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublicAnnouncementsResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/wallet-grants/rewards/recipients:
+    get:
+      tags:
+      - NOTIFICATION
+      summary: 지급 관리자 · 닉네임 정확 검색 또는 회원 ID 검색
+      operationId: findPersonalRewardRecipient
+      parameters:
+      - name: query
+        in: query
+        required: true
+        schema:
+          type: string
+          x-utf16-max-length: 64
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Recipient"
       security:
       - AccessJwt: []
   /api/v1/admin/raffles/rounds/{weekStart}:
@@ -9812,6 +9872,50 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PublicAnnouncement"
+    HistoryEntry:
+      type: object
+      properties:
+        notificationId:
+          type: string
+        title:
+          type: string
+        kind:
+          type: string
+          enum:
+          - COIN
+          - GACHA_TICKET
+        amount:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        claimedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+    HistoryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryEntry"
+        nextCursor:
+          type: string
+          nullable: true
+    Recipient:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
     AdminAccessResponse:
       type: object
       properties:

@@ -13,6 +13,7 @@ const collection = {
   variable: [{ key: 'receiptId', value: '' }, { key: 'feedbackVersion', value: '0' },
     { key: 'replyOperationId', value: '' }, { key: 'notificationId', value: '' },
     { key: 'rewardOperationId', value: '' }, { key: 'rewardUserId', value: '' },
+    { key: 'recipientQuery', value: '' }, { key: 'rewardHistoryCursor', value: '' },
     { key: 'rewardKind', value: 'GACHA_TICKET' }, { key: 'rewardAmount', value: '1' },
     { key: 'rewardExpiresAt', value: '2030-01-01T00:00:00Z' }, { key: 'rewardNotificationId', value: '' }],
   item: [
@@ -35,7 +36,10 @@ const collection = {
       "if(pm.response.code===200)pm.collectionVariables.set('rewardNotificationId',pm.response.json().notificationId);"),
     item('08 수신자 본인 · 보상 한 번 수령(재실행 동일 영수증)', 'POST', '/api/v1/notifications/{{rewardNotificationId}}/claim', 'accessToken', undefined, '',
       "if(pm.response.code===200){const r=pm.response.json();pm.test('요청한 보상 영수증',()=>pm.expect(r.notificationId).to.eql(pm.collectionVariables.get('rewardNotificationId')));pm.test('수령 시각',()=>pm.expect(r.claimedAt).to.be.a('string'));}"),
+    item('09 지급 관리자 · 닉네임 또는 ID 정확 검색', 'GET', '/api/v1/admin/wallet-grants/rewards/recipients?query={{recipientQuery}}', 'adminAccessToken'),
+    item('10 지급 관리자 · 회원별 발송·수령 이력(20건 커서)', 'GET', '/api/v1/admin/wallet-grants/rewards?userId={{rewardUserId}}', 'adminAccessToken', undefined, '',
+      "if(pm.response.code===200)pm.collectionVariables.set('rewardHistoryCursor',pm.response.json().nextCursor||'');"),
   ],
 }
 await writeFile(fileURLToPath(new URL('./OnTop-Notifications.postman_collection.json', import.meta.url)), JSON.stringify(collection, null, 2) + '\n')
-console.log('OnTop Notifications: 8 requests (no secrets)')
+console.log('OnTop Notifications: 10 requests (no secrets)')

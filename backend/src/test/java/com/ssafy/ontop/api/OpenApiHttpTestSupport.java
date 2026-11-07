@@ -94,6 +94,7 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/notifications", "GET /api/v1/notifications/{notificationId}",
                 "PATCH /api/v1/notifications/{notificationId}/read",
                 "POST /api/v1/notifications/{notificationId}/claim", "POST /api/v1/admin/wallet-grants/rewards",
+                "GET /api/v1/admin/wallet-grants/rewards", "GET /api/v1/admin/wallet-grants/rewards/recipients",
                 "POST /api/v1/admin/operations/feedback/{receiptId}/replies",
                 "PATCH /api/v1/admin/operations/feedback/{receiptId}/status",
                 "GET /api/v1/announcements", "GET /api/v1/admin/operations/announcements",
