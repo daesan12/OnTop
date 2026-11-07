@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record WorldProximityProperties(Double chatRadius, Double watchRadius, Map<String, Point> tables) {
 
     public WorldProximityProperties {
-        chatRadius = chatRadius == null ? 20.0 : chatRadius;
+        chatRadius = chatRadius == null ? 50.0 : chatRadius;
         watchRadius = watchRadius == null ? 20.0 : watchRadius;
         if (!Double.isFinite(chatRadius) || chatRadius <= 0 || !Double.isFinite(watchRadius) || watchRadius <= 0) {
             throw new IllegalArgumentException("근거리 반경은 유한한 양수여야 합니다.");

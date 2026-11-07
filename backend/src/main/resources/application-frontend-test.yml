@@ -25,7 +25,7 @@ ontop:
         name: 연동 테스트 B
         capacity: 4
     proximity:
-      chat-radius: 20
+      chat-radius: 50
       watch-radius: 20
       tables:
         table-6fcc18fe-a301-3142-a69f-f3f67d026d62: { x: -10, z: 18 }

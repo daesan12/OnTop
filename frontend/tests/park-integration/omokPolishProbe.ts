@@ -2,6 +2,10 @@ import { _roots } from '@react-three/fiber'
 import { Box3, Matrix4, Vector3, type InstancedMesh, type Mesh, type MeshStandardMaterial, type MeshBasicMaterial, type PlaneGeometry } from 'three'
 import { omokCamera } from '../../src/game/cameraState'
 
+export function omokForbiddenMarksVisible() {
+  return !!_roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName('omok-forbidden-marks')
+}
+
 export function omokPolishProbe() {
   const { scene, camera } = _roots.get(document.querySelector('canvas')!)!.store.getState()
   scene.updateMatrixWorld(true)

@@ -167,7 +167,7 @@ function Avatar({
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
-    const displayAvatar = presentation.sample(avatar, displayFlags)
+    const displayAvatar = presentation.sample(avatar, displayFlags, own ? undefined : pose, frameAt)
     const active = !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
