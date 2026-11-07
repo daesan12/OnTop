@@ -27,6 +27,7 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
   const businessClosing = useBusinessClosing(`${snapshot?.gameId}:${pub?.round ?? 0}`, pub?.phase, pub?.endReason)
   const hall = useMemo(() => new OnlineHall(client), [client]), chef = useMemo(() => new OnlineChef(client), [client])
   const [confirmExit, setConfirmExit] = useState(false), [leaving, setLeaving] = useState(false)
+  const leavingRef = useRef(false)
   const [pausePending, setPausePending] = useState(false)
   const pauseBusy = useRef(false)
   const restartBusy = useRef(false)
@@ -48,12 +49,13 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
       if (event.code === 'KeyG' && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey
         && !(event.target instanceof Element && event.target.closest('input,textarea,[contenteditable=true]'))
         && !client.inputBlocked && !client.snapshot?.publicState.paused
+        && !(role === 'chef' && chefMode === 'vr')
         && client.snapshot?.publicState.greeting.active && !client.snapshot.publicState.greeting.answered) {
         event.preventDefault(); void client.act({ type: 'GREET' })
       }
     }
     window.addEventListener('keydown', greet); return () => window.removeEventListener('keydown', greet)
-  }, [client])
+  }, [client, role, chefMode])
   const changePause = async (paused: boolean) => {
     if (pauseBusy.current || leaving || client.snapshot?.publicState.restart) return
     pauseBusy.current = true; setPausePending(true); client.inputBlocked = true
@@ -89,11 +91,12 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
     return () => window.removeEventListener('keydown', escape, true)
   })
   const exit = async () => {
-    if (leaving) return
+    if (leavingRef.current) return
+    leavingRef.current = true
     setLeaving(true)
     try { await client.leave(); client.stop(); onClose() }
     catch { client.store.setState({ error: '퇴장을 확인하지 못했어요. 연결을 확인하고 다시 시도해주세요.' }) }
-    finally { setLeaving(false) }
+    finally { leavingRef.current = false; setLeaving(false) }
   }
   const leaveLobby = async () => {
     if (!client.snapshot) { await exit(); return }
@@ -120,7 +123,9 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
   }
   return createPortal(<div className="skewer-coop" data-testid="skewer-coop" data-role={role || undefined} data-phase={pub?.phase ?? 'ROOMS'} data-version={snapshot?.version}>
     <Suspense fallback={<p className="coop-loading" role="status">가게를 준비하고 있어요…</p>}>
-      {role === 'server' ? <Hall key={pub?.round ?? 0} driver={hall} inputBlocked={confirmExit || restartPending || !!pub?.paused || !state.connected} onPause={() => void changePause(true)} onRestart={() => void restart()} /> : role === 'chef' ? <Chef key={`${snapshot?.gameId}:chef`} driver={chef} inputBlocked={confirmExit || restartPending || !!pub?.paused || !state.connected} onRestart={() => void restart()} allowVR={SKEWER_CHEF_VR_ENABLED} preferredMode={chefMode ?? 'pc'} protectVR={transport.protectVR} onXRChanged={xr} onExit={() => pub?.phase === 'FINISHED' ? void exit() : void changePause(true)} /> : <div className="coop-backdrop" />}
+      {role === 'server' ? <Hall key={pub?.round ?? 0} driver={hall} inputBlocked={confirmExit || restartPending || !!pub?.paused || !state.connected} onPause={() => void changePause(true)} onRestart={() => void restart()} /> : role === 'chef' ? <Chef key={`${snapshot?.gameId}:chef`} driver={chef} inputBlocked={confirmExit || restartPending || !!pub?.paused || !state.connected} onRestart={() => void restart()} allowVR={SKEWER_CHEF_VR_ENABLED} preferredMode={chefMode ?? 'pc'} protectVR={transport.protectVR} onXRChanged={xr} onExit={() => pub?.phase === 'FINISHED' ? void exit() : void changePause(true)}
+        pauseState={{ open: confirmExit, busy: pausePending || leaving, confirmed: !!pub?.pausedBy?.includes(transport.scope().userId), error: state.error }}
+        onContinue={() => void changePause(false)} onLeave={() => void exit()} /> : <div className="coop-backdrop" />}
     </Suspense>
     {pub && pub.phase !== 'WAITING' && pub.phase !== 'FINISHED' ? <div className="coop-meta"><strong>2인 협동 · 무료 플레이</strong><span>{pub.rankingEligible ? `${pub.rankingMode ?? (pub.chefVR ? 'VR' : 'PC')} 팀 랭킹 대상 · 정상 종료 시 등록` : '방식 전환 · 팀 랭킹 미등록'}</span></div> : null}
     {!snapshot || pub?.phase === 'WAITING' ? equipmentOpen && role === 'chef'
@@ -132,8 +137,9 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
     {pub?.greeting.speech ? <div className="coop-speech" role="status">어서 오세요!</div> : null}
     {businessClosing ? <BusinessClosing /> : pub?.phase === 'FINISHED' ? <CoopResultPanel client={client} leaving={leaving} onClose={() => void exit()} /> : null}
     {state.error && pub && pub.phase !== 'FINISHED' && (pub.phase !== 'WAITING' || equipmentOpen) ? <p className="coop-error" role="alert">{state.error}</p> : null}
-    <ExitConfirmation open={confirmExit} cooperative busy={pausePending || leaving} paused={!!pub?.paused}
+    {role === 'chef' && xrActive ? null : <ExitConfirmation open={confirmExit && !leaving} cooperative busy={pausePending || leaving} paused={!!pub?.paused}
       error={state.error} onContinue={() => void changePause(false)} onExit={() => void exit()} onRetry={() => void changePause(true)} />
+    }
 
     {/* 몰입형 세션의 포커스를 DOM 모달로 가져오지 않는다. 세션 종료 시 남은 요청을 다시 표시한다. */}
     {role === 'chef' && xrActive ? null : <RestartConfirmation request={pub?.restart ?? null}

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HallPreview } from '../../src/features/skewer/serviceHall/previewModel'
 import { CoopClient } from '../../src/features/skewer/coop/client'
 import { OnlineHall } from '../../src/features/skewer/coop/drivers'
+import { ChefPreview } from '../../src/features/skewer/chef/model'
 import { TABLES } from '../../src/features/skewer/serviceHall/plan'
 import type { CoopSnapshot, CoopTransport } from '../../src/features/skewer/coop/contracts'
 import { refreshWalletAfterSettlement } from '../../src/features/wallet/settlementRefresh'
@@ -172,6 +173,20 @@ describe('꼬치왕 QA 피드백 회귀', () => {
       .mockResolvedValueOnce({ type: 'GAME_STATE', payload: { ...snapshot, version: 21, publicState: { ...snapshot.publicState, paused: true } } } as unknown as Envelope)
     await client.act({ type: 'MOVE', dx: -1, dz: 0 }, true)
     expect(request.mock.calls.map(([type]) => type)).toEqual(['GAME_ACTION_SEND', 'GAME_STATE_CHECK'])
+    client.stop()
+  })
+  it.each(['THREAD', 'SUBMIT'] as const)('VR 요리사의 %s 복구 중 일시정지가 시작되면 지난 조작을 다시 보내지 않는다', async type => {
+    const { client, request } = fixture()
+    const snapshot = finished(); snapshot.publicState.phase = 'PLAYING'; snapshot.publicState.chefVR = true
+    snapshot.privateState = { role: 'chef', chef: new ChefPreview().view() }
+    snapshot.publicState.players[0].role = 'chef'; snapshot.publicState.players[1].role = 'server'
+    client.store.setState({ snapshot })
+    const updated = structuredClone(snapshot); updated.version++; updated.publicState.actionVersion++; updated.publicState.paused = true
+    request.mockRejectedValueOnce({ code: 'GAME_ACTION_STALE_VERSION' })
+      .mockResolvedValueOnce({ type: 'GAME_STATE', payload: updated } as unknown as Envelope)
+    await client.act({ type, ingredient: 'tomato' })
+    expect(request.mock.calls.map(([kind]) => kind)).toEqual(['GAME_ACTION_SEND', 'GAME_STATE_CHECK'])
+    expect(client.store.getState().error).toBe('')
     client.stop()
   })
   it.each(['paused', 'greeting', 'finished'] as const)('E 입력 복구 중 %s 상태로 바뀌면 지난 상호작용을 다시 보내지 않는다', async state => {
