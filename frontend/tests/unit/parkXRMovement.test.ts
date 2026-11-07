@@ -8,6 +8,16 @@ const create = () => {
 }
 const forward = { ...emptyInput(), forward: 1 }
 describe('공원 XR 이동 계약', () => {
+  it('새로 전송한 A 입력만 피드백에 알리고 안내·추적 차단 중에는 알리지 않는다', () => {
+    const port = { move: vi.fn(), stopMovement: vi.fn() }, jump = vi.fn(), driver = new ParkXRMovement(port, jump)
+    driver.update(emptyInput(), 0, 0, true)
+    driver.update({ ...emptyInput(), jump: true }, 0, 1, true)
+    driver.update({ ...emptyInput(), jump: true }, 0, 90, true)
+    expect(jump).toHaveBeenCalledTimes(1)
+    driver.update(emptyInput(), 0, 100, false)
+    driver.update({ ...emptyInput(), jump: true }, 0, 110, false)
+    expect(jump).toHaveBeenCalledTimes(1)
+  })
   it('검증한 Quest 표준 매핑을 공원 방향과 60ms 간격으로 전달한다', () => {
     const { port, driver } = create()
     driver.update(emptyInput(), 0, 0, true)

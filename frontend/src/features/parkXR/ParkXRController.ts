@@ -14,6 +14,7 @@ import { useParkXR } from './state'
 import { useJumpmap, closeJumpCompletion } from '../jumpmap/state'
 import { nearJumpmapStart, inJumpmapXRRegion, parkVRPreviewEnabled } from '../jumpmap/xrEntry'
 import { acquireVRProtection } from '../vrSession/protection'
+import { jumpmapXRFeedback } from '../jumpmap/xrFeedback'
 
 const JUMPMAP_EXIT_GRACE_MS = 500
 
@@ -45,7 +46,9 @@ export class ParkXRController {
   private readonly saved: { parent: THREE.Object3D | null; position: THREE.Vector3; rotation: THREE.Quaternion; up: THREE.Vector3; projection: THREE.Matrix4; inverse: THREE.Matrix4; layers: number }
   private readonly handles: { grip: THREE.Group; mesh: THREE.Mesh<THREE.BoxGeometry, THREE.MeshLambertMaterial> }[] = []
   private readonly rays: { target: THREE.Group; line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial> }[] = []
-  private readonly movement = new ParkXRMovement(parkRuntime)
+  private readonly movement = new ParkXRMovement(parkRuntime, () => {
+    if (this.kind === 'jumpmap') jumpmapXRFeedback.requestJump()
+  })
   private exitArmed = false
   private guideArmed = false
   private primaryArmed = false
@@ -134,6 +137,7 @@ export class ParkXRController {
       this.referenceSpace = this.gl.xr.getReferenceSpace()
       this.referenceSpace?.addEventListener?.('reset', this.recentered)
       this.panel.gameOnly = kind === 'jumpmap'; this.panel.reset(); this.panelKey = ''; parkXRView.active = true
+      if (kind === 'jumpmap') jumpmapXRFeedback.start(granted)
       useParkXR.setState({ phase: 'active', notice: '왼쪽 스틱 이동 · A 점프 · 왼손 그립 달리기 · X 놀이 방법 · B VR 종료' })
     } catch (error) {
       if (granted) await granted.end().catch(() => undefined)
@@ -152,6 +156,7 @@ export class ParkXRController {
 
   end = async (notice = 'VR을 종료했어요. 기존 공원 조작으로 돌아왔어요.'): Promise<void> => {
     if (!this.session || this.ending) return
+    jumpmapXRFeedback.suspend()
     this.ending = true; this.movement.reset(); useParkXR.setState({ phase: 'ending', notice })
     try { await this.session.end() }
     catch {
@@ -170,6 +175,7 @@ export class ParkXRController {
   private recentered = (): void => { this.started = false; this.yaw = viewControls.yaw; this.panel.recenter(); this.interrupted() }
   private interrupted = (): void => {
     if (!this.session) return
+    jumpmapXRFeedback.suspend()
     this.outsideSince = null
     this.movement.reset(); this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
     this.panel.setVisible(false)
@@ -181,6 +187,7 @@ export class ParkXRController {
   }
   private finished = (): void => { this.restore(); if (!this.disposed) useParkXR.setState({ phase: 'idle' }) }
   private restore(): void {
+    jumpmapXRFeedback.stop()
     this.outsideSince = null
     this.releaseVR?.(); this.releaseVR = undefined
     if (this.kind === 'jumpmap') closeJumpCompletion()
@@ -208,6 +215,7 @@ export class ParkXRController {
     }
     const space = this.gl.xr.getReferenceSpace(), viewer = frame && space ? frame.getViewerPose(space) : null
     if (document.hidden || session.visibilityState !== 'visible' || !viewer || this.ending) {
+      jumpmapXRFeedback.suspend()
       this.outsideSince = null
       this.movement.update(emptyInput(), this.headYaw, performance.now(), false)
       this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
@@ -263,6 +271,7 @@ export class ParkXRController {
     // Menus stop intent, not XR rendering or authoritative gravity. Idle position
     // heartbeats continue through the same runtime in CLIENT_VALIDATED mode.
     const turn = this.movement.update(this.panel.blocking ? emptyInput() : input, this.headYaw, now, true, localMovement.positionMode)
+    if (this.kind === 'jumpmap') jumpmapXRFeedback.update(avatar, !this.panel.blocking && !this.ending)
     if (turn) {
       this.direction.copy(this.head).applyQuaternion(this.rig.quaternion)
       this.yaw += turn; this.rig.rotation.set(0, this.yaw, 0)
