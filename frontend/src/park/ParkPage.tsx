@@ -54,6 +54,11 @@ import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
+import { useArcade } from '../features/arcade/store'
+import { useMole } from '../features/mole/store'
+import { usePlusMinus } from '../features/plusMinus/store'
+import { useRpsRoulette } from '../features/rpsRoulette/store'
+import { useSpeedMole } from '../features/speedMole/store'
 import { useParkGameplayActive } from '../features/operation/parkGameplay'
 import { useParkOperationGate } from '../features/operation/useParkOperationGate'
 import type { ServiceOperationStatus } from '../features/operation/serviceOperation'
@@ -95,6 +100,13 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   useParkOperationGate(gameplayActive, onOperationBlocked)
   const vrPhase = useStore(parkVrZone.store, state => state.phase)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
+  const arcadeOpen = useArcade(s => s.open)
+  const moleOpen = useMole(s => s.open)
+  const plusMinusOpen = usePlusMinus(s => s.open)
+  const rpsOpen = useRpsRoulette(s => s.open)
+  const speedMoleOpen = useSpeedMole(s => s.open)
+  const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
+    || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
@@ -127,7 +139,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <ParkSfx />
       <RewardCoinFlight />
       <ChannelEntryGate />
-      <AnnouncementBanner />
+      <AnnouncementBanner hidden={hideAnnouncements} />
       {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
