@@ -58,6 +58,13 @@ class DevSkewerDeploymentTests(unittest.TestCase):
         (self.env_file.parent / "skewer-coop.enabled").touch()
         return journal
 
+    def monitoring(self):
+        override = self.root / "opt/ontop/infra/monitoring/dev/compose.app.yaml"
+        override.parent.mkdir(parents=True)
+        override.touch()
+        (self.env_file.parent / "monitoring.enabled").touch()
+        return override
+
     def test_default_deployment_keeps_coop_disabled(self):
         result = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -81,6 +88,52 @@ class DevSkewerDeploymentTests(unittest.TestCase):
         for call in calls:
             self.assertIn("compose.generated-map.yaml", call)
             self.assertIn("compose.skewer-coop.yaml", call)
+
+    def test_monitoring_marker_adds_override_and_uses_internal_management_health(self):
+        self.monitoring()
+        result = self.run_deploy()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.log.read_text().splitlines()
+        compose_calls = [line for line in calls if line.startswith("compose ")]
+        self.assertTrue(compose_calls)
+        for call in compose_calls:
+            self.assertIn("infra/monitoring/dev/compose.app.yaml", call)
+        self.assertTrue(any(
+            "exec ontop-dev-app-app-1 curl" in call
+            and "127.0.0.1:8082/actuator/health" in call
+            for call in calls
+        ))
+
+    def test_monitoring_preserves_generated_map_and_skewer_overrides(self):
+        self.monitoring()
+        self.journal()
+        version = "c" * 64
+        map_dir = self.root / "opt/ontop/maps" / version
+        map_dir.mkdir(parents=True)
+        for name in ("server-map.json", "manifest.json"):
+            (map_dir / name).touch()
+        (self.compose_dir / "compose.generated-map.yaml").touch()
+        (self.env_file.parent / "park-map.enabled").write_text(version)
+        with self.env_file.open("a") as target:
+            target.write(f"PARK_MAP_HOST_DIR={map_dir}\n")
+        result = self.run_deploy()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        compose_calls = [line for line in self.log.read_text().splitlines()
+                         if line.startswith("compose ")]
+        self.assertTrue(compose_calls)
+        for call in compose_calls:
+            self.assertIn("compose.generated-map.yaml", call)
+            self.assertIn("compose.skewer-coop.yaml", call)
+            self.assertIn("infra/monitoring/dev/compose.app.yaml", call)
+
+    def test_monitoring_marker_without_override_blocks_before_recreation(self):
+        (self.env_file.parent / "monitoring.enabled").touch()
+        before = self.env_file.read_text()
+        result = self.run_deploy()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Monitoring marker", result.stderr)
+        self.assertEqual(self.env_file.read_text(), before)
+        self.assertNotIn("compose ", self.log.read_text())
 
     def test_missing_journal_blocks_before_changing_image_or_recreating_app(self):
         (self.env_file.parent / "skewer-coop.enabled").touch()

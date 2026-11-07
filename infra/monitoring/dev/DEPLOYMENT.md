@@ -35,7 +35,20 @@ Compose 상대경로는 첫 번째 Compose 파일 기준이므로 기존 배포�
 모니터링 반영 과정에서 미적용 DB 스키마를 실행하지 않도록 overlay의 Flyway는 꺼져 있다
 JPA validate는 유지하며 기존 DB가 현재 이미지와 맞는지는 사전에 확인한다
 DB 마이그레이션 재활성화는 별도 합의 범위다
-기본 DEV Compose와 Jenkins 파일은 이 MR에서 변경하지 않아 머지 자체로 계측 프로필이 켜지지 않는다
+DEV 자동 배포 스크립트는 `/etc/ontop/dev-app/monitoring.enabled` 마커가 있을 때만
+이 폴더의 `compose.app.yaml`을 마지막 overlay로 추가한다
+마커가 없으면 기존 8080 공개 헬스체크와 배포 구성을 그대로 사용한다
+따라서 머지만으로 계측 프로필이 켜지지는 않으며 서버 관리자가 설정 검증 후 마커를 설치해야 한다
+
+```sh
+sudo install -o root -g root -m 0600 /dev/null /etc/ontop/dev-app/monitoring.enabled
+```
+
+마커가 활성화된 배포는 컨테이너 health 상태와 내부
+`http://127.0.0.1:8082/actuator/health`를 모두 확인한다
+공개 `https://dev-api.on-top.world/actuator/health`는 `observe-dev`의 보안 경계 때문에
+배포 성공 판정에 사용하지 않는다
+생성 맵과 꼬치왕 협동 게임 마커가 함께 있으면 세 overlay를 모두 유지한다
 
 ## Prometheus와 DB 수집기
 
@@ -103,4 +116,7 @@ Linux PC에서도 같은 경로가 동작한다고 가정하지 않는다
 
 문제가 생기면 이 모니터링 프로젝트만 stop하고 앱은 이전 이미지 및 프로필과 healthcheck로 함께 복원한다
 `down -v`나 기존 DB 삭제 및 초기화와 Flyway repair는 사용하지 않는다
+자동 배포에서 모니터링을 해제해야 할 때는 먼저 현재 배포를 멈추고
+`/etc/ontop/dev-app/monitoring.enabled`를 제거한 뒤 기본 Compose 구성으로 앱을 재생성한다
+마커만 제거하고 실행 중인 앱을 그대로 두면 프로필과 healthcheck는 즉시 바뀌지 않는다
 서버 설치와 수집 완료는 머지 및 로컬 검증 완료와 별개로 확인한다
