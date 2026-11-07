@@ -1,0 +1,11 @@
+.park-page .avatar-vr-badge {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 0 5px;
+  border: 1px solid #c3a66a;
+  border-radius: 5px;
+  background: #244737;
+  color: #fff6dd;
+  font: 700 11px/1.4 'Malgun Gothic', sans-serif;
+  vertical-align: middle;
+}
