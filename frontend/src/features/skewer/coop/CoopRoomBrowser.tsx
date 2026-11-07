@@ -39,7 +39,6 @@ export function CoopRoomBrowser({ client, onClose }: { client: CoopClient; onClo
     await client.enter(room.gameId)
   }
   const heading = selected ? '비밀번호를 입력해 주세요' : creating ? '우리 가게를 열어요' : state.lobbyPage === 'rooms' ? '어느 가게에 함께할까요?' : '온탑 꼬치왕'
-  const backLabel = selected ? '방 목록으로' : creating || state.lobbyPage === 'rooms' ? '처음으로' : '공원으로 나가기'
   return <PaperPopup title="VR 체험관 · 2인 협동 미니게임" label={heading} className="coop-room-paper" onClose={back}
     closeLabel={selected ? '방 목록으로' : creating || state.lobbyPage === 'rooms' ? '이전 화면으로' : '공원으로 나가기'}>
     <header className="coop-room-heading"><p>{selected ? '친구끼리 여는 가게' : creating ? '방 만들기' : state.lobbyPage === 'rooms' ? '참가하기' : '둘이 함께 여는 작은 가게'}</p><h1 ref={headingRef} tabIndex={-1}>{heading}</h1>
@@ -65,6 +64,5 @@ export function CoopRoomBrowser({ client, onClose }: { client: CoopClient; onClo
       </li>)}</ul> : query.trim() && state.rooms.length ? <div className="coop-room-no-results"><strong>검색한 가게를 찾지 못했어요</strong><p>가게 이름이나 방장 닉네임을 다시 확인해 주세요.</p><button className="paper-primary" onClick={() => setQuery('')}>전체 가게 보기</button></div> : <div className="coop-room-no-results"><strong>아직 문을 연 가게가 없어요</strong><p>먼저 방을 만들고 친구를 초대해 보세요.</p><button className="paper-primary" onClick={() => setCreating(true)}>방 만들기</button></div>}
       <p className="coop-room-footnote">참가한 뒤 역할을 고르고, 두 사람 모두 준비하면 영업을 시작해요.</p>
     </> : <div className="coop-room-home"><figure><img src={cover} alt="주문에 맞춰 꼬치를 만드는 온탑 꼬치왕" draggable={false} /><figcaption>한 장의 주문표, 두 사람의 호흡</figcaption></figure><div><div className="coop-room-badges"><span>2인 협동</span><span>무료 플레이</span></div><h2>함께 운영할<br />가게를 골라보세요</h2><p>새 가게를 열거나<br />친구가 만든 가게에 참가할 수 있어요.</p><button className="paper-primary" disabled={busy} onClick={() => setCreating(true)}>방 만들기 <span aria-hidden="true">＋</span></button><button className="coop-room-join" onClick={() => { client.store.setState({ lobbyPage: 'rooms', error: '' }); void client.refresh() }}>참가하기 <span aria-hidden="true">→</span></button></div></div>}
-    <footer className="coop-lobby-navigation"><p>{selected ? '참가할 가게를 다시 고를 수 있어요.' : creating || state.lobbyPage === 'rooms' ? '가게 선택 화면으로 돌아가요.' : '공원으로 돌아갈 수 있어요.'}</p><button className="coop-leave-room" disabled={state.pending} onClick={back}>← {backLabel}</button></footer>
   </PaperPopup>
 }

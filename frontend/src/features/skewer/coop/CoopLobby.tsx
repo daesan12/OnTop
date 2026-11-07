@@ -117,7 +117,6 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
         </> : null}
       </>}
       {!pub || waiting ? <p className="coop-entry-reward">입장료 없이 즐겨요 <span>·</span> 팀 점수 20점당 각자 1냥 <span>·</span> 모든 미니게임 합산 하루 최대 500냥</p> : null}
-      <footer className="coop-lobby-navigation"><p>다른 가게에서 친구와 만날 수 있어요.</p><button className="coop-leave-room" disabled={state.pending} onClick={onClose}><span aria-hidden="true">↩</span><span>방 나가기<small>다른 방 선택</small></span></button></footer>
     </section>
   </PaperPopup>
 }

@@ -27,7 +27,7 @@ function health(page: Page) {
   }
 }
 
-test('입장과 방 생성 후에는 원래 표지가 보이고 닫기·방 나가기는 작은 화면에서도 접근된다', async ({ page }) => {
+test('입장과 방 생성 후에는 원래 표지가 보이고 하단 중복 나가기 없이 X로 닫는다', async ({ page }) => {
   const verify = health(page)
   await page.goto('/tests/skewer-coop/fixtures/play-feedback.html?lobby=home')
   await expect(page.locator('.coop-room-home img')).toHaveAttribute('src', /skewer-cover-lowpoly.png/)
@@ -38,14 +38,14 @@ test('입장과 방 생성 후에는 원래 표지가 보이고 닫기·방 나�
   for (const [width, height] of [[1440, 900], [900, 500], [390, 844]]) {
     await page.setViewportSize({ width, height })
     const dialog = page.getByRole('dialog', { name: '역할 선택과 준비', exact: true })
-    await dialog.locator('.coop-leave-room').scrollIntoViewIfNeeded()
-    await expect(dialog.locator('.coop-leave-room')).toBeInViewport()
+    await dialog.evaluate(el => { el.scrollTop = el.scrollHeight })
+    await expect(dialog.locator('.coop-lobby-navigation')).toHaveCount(0)
     await expect(dialog.locator('.paper-close')).toBeInViewport()
     await expect(dialog.locator('.paper-close')).toHaveCSS('background-color', 'rgb(120, 61, 43)')
     expect(await dialog.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1)
     await capture(page, `waiting-navigation-${width}x${height}`)
   }
-  await page.locator('.coop-leave-room').click()
+  await page.locator('.paper-close').click()
   await expect(page.getByRole('heading', { name: '어느 가게에 함께할까요?', exact: true })).toBeVisible()
   await verify()
 })
@@ -114,19 +114,18 @@ for (const role of ['chef', 'server']) test(`${role} 준비 화면은 역할에 
   for (const [width, height] of [[1440, 900], [900, 500], [390, 844]]) {
     await page.setViewportSize({ width, height })
     const dialog = page.getByRole('dialog', { name: '역할 선택과 준비', exact: true })
-    const [box, nav] = await dialog.evaluate(el => ['.coop-ready-footer', '.coop-lobby-navigation'].map(selector => {
+    const [box, notice] = await dialog.evaluate(el => ['.coop-ready-footer', '.coop-ranking-notice'].map(selector => {
       const r = el.querySelector(selector)!.getBoundingClientRect()
       return { x: r.x, y: r.y, width: r.width, height: r.height }
     }))
-    expect(Math.abs(box.x - nav.x)).toBeLessThanOrEqual(1)
-    expect(Math.abs(box.width - nav.width)).toBeLessThanOrEqual(1)
-    expect(nav.y - box.y - box.height).toBeGreaterThanOrEqual(11)
+    expect(Math.abs(box.x - notice.x)).toBeLessThanOrEqual(1)
+    expect(Math.abs(box.width - notice.width)).toBeLessThanOrEqual(1)
+    expect(box.y - notice.y - notice.height).toBeGreaterThanOrEqual(9)
+    await expect(dialog.locator('.coop-lobby-navigation')).toHaveCount(0)
     await expect(dialog.locator('.coop-guide-art figcaption')).toHaveCSS('min-height', '46px')
     await dialog.locator('.coop-ready-action button').scrollIntoViewIfNeeded()
     await dialog.locator('.coop-ready-action button').click({ trial: true })
     await expect(dialog.getByRole('button', { name: '방 나가기 · 다른 방 선택', exact: true })).toBeInViewport()
-    await dialog.locator('.coop-leave-room').scrollIntoViewIfNeeded()
-    await dialog.locator('.coop-leave-room').click({ trial: true })
     expect(await dialog.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1)
     await capture(page, `${role}-ready-footer-${width}x${height}`)
   }
