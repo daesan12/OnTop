@@ -1,7 +1,7 @@
 import { effectsOutput } from '../../audio/bgm'
 import { moverSfx, type MoverState } from '../../audio/sfxEvents'
 import type { AvatarSnapshot } from '../../network/worldClient'
-import { blockAtFeet } from './course'
+import { blockAtFeet, START } from './course'
 import { nearJumpmapStart } from './xrEntry'
 import { playJumpMotionSound, playJumpSound, preloadJumpMotionSounds } from './audio'
 
@@ -13,6 +13,12 @@ type Actuator = {
 }
 type HapticPad = { hapticActuators?: readonly Actuator[]; vibrationActuator?: Actuator | null }
 
+function resetActuator(actuator: Actuator) {
+  try {
+    void Promise.resolve(actuator.reset ? actuator.reset() : actuator.pulse?.(0, 0)).catch(() => undefined)
+  } catch { /* Disconnected/unsupported actuators must not interrupt XR. */ }
+}
+
 /** Presentation only: consumes replicated body motion, never moves the player or reads head height. */
 export class JumpmapXRFeedback {
   private session: XRSession | null = null
@@ -21,7 +27,7 @@ export class JumpmapXRFeedback {
   private context?: AudioContext
   private jumpRequestedAt: number | null = null
   private grounded = false
-  private readonly actuators = new Set<Actuator>()
+  private readonly actuators = new Map<'left' | 'right', Actuator>()
   get active() { return this.session !== null }
 
   start(session: XRSession) {
@@ -33,11 +39,7 @@ export class JumpmapXRFeedback {
     this.motion = undefined
     this.grounded = false; this.jumpRequestedAt = null
     this.abort?.abort(); this.abort = undefined
-    for (const actuator of this.actuators) {
-      try {
-        void Promise.resolve(actuator.reset ? actuator.reset() : actuator.pulse?.(0, 0)).catch(() => undefined)
-      } catch { /* Disconnected/unsupported actuators must not interrupt XR. */ }
-    }
+    for (const actuator of new Set(this.actuators.values())) resetActuator(actuator)
     this.actuators.clear()
   }
 
@@ -78,7 +80,7 @@ export class JumpmapXRFeedback {
       if (output) playJumpMotionSound('jump', { output, signal: this.abort.signal })
     }
     const pad = blockAtFeet({ ...p, y: p.y - .8 })
-    const contact = !!pad || nearJumpmapStart(p) && Math.abs(p.y - .8) < .12
+    const contact = !!pad || nearJumpmapStart(p) && Math.abs(p.y - .8 - START.y) < .12
     const airborne = motion.airborne || !!previous?.airborne || cues.includes('move-land')
     // Detect contact on the first replicated touchdown. An idle landing may
     // never receive another changed pose, so waiting for zero velocity misses it.
@@ -107,8 +109,10 @@ export class JumpmapXRFeedback {
       const pad = source.gamepad as unknown as HapticPad
       const actuator = pad.hapticActuators?.find(a => typeof a?.pulse === 'function') ?? pad.vibrationActuator
       if (!actuator) continue
+      const previous = this.actuators.get(source.handedness)
+      if (previous && previous !== actuator) resetActuator(previous)
+      this.actuators.set(source.handedness, actuator)
       try {
-        this.actuators.add(actuator)
         const result = actuator.pulse ? actuator.pulse(strength, duration)
           : actuator.playEffect?.('dual-rumble', { startDelay: 0, duration, weakMagnitude: strength, strongMagnitude: strength })
         void Promise.resolve(result).catch(() => undefined)

@@ -97,6 +97,31 @@ describe('돌탑 VR 도약·착지 피드백', () => {
     expect(sound.motion.mock.calls.map(c => c[0])).toEqual(['jump', 'land'])
     expect(sound.landing).not.toHaveBeenCalled()
   })
+  it('출발지 바닥 높이가 0이 아니어도 기준 높이를 따라 착지한다', () => {
+    const s = track(), original = START.y
+    try {
+      START.y = 2
+      const sample = (dy: number, at: number) => s.sample(START.y + .8 + dy, at, true, START.x, START.z)
+      sample(0, 0); sample(.62, 100); sample(.3, 200); sample(0, 300)
+      expect(sound.motion.mock.calls.map(c => c[0])).toEqual(['jump', 'land'])
+      expect(s.actuator.pulse).toHaveBeenCalledTimes(4)
+    } finally { START.y = original }
+  })
+  it('같은 손의 장치가 교체되면 이전 진동을 해제하고 종료 시 현재 장치만 정리한다', () => {
+    const old = { pulse: vi.fn(async () => true), reset: vi.fn(async () => 'complete') }
+    const next = { pulse: vi.fn(async () => true), reset: vi.fn(async () => 'complete') }
+    const source = { handedness: 'left', gamepad: { mapping: 'xr-standard', hapticActuators: [old] } }
+    const feedback = new JumpmapXRFeedback(); feedbacks.push(feedback)
+    feedback.start({ inputSources: [source] } as unknown as XRSession)
+    const y = pad.top + .8
+    feedback.update(avatar(y, 0), true); feedback.update(avatar(y + .62, 100), true)
+    feedback.update(avatar(y + .3, 200), true); feedback.update(avatar(y, 300), true)
+    source.gamepad.hapticActuators = [next]
+    feedback.update(avatar(y + .62, 400), true)
+    expect(old.reset).toHaveBeenCalledTimes(1); expect(next.pulse).toHaveBeenCalledTimes(1)
+    feedback.stop()
+    expect(old.reset).toHaveBeenCalledTimes(1); expect(next.reset).toHaveBeenCalledTimes(1)
+  })
   it('큰 좌표 보정과 낙수는 진동·착지음으로 바꾸지 않는다', () => {
     const s = track(), y = pad.top + .8
     s.sample(y, 0); s.sample(y + 20, 100); s.sample(y, 200)
