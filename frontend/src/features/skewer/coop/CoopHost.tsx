@@ -32,6 +32,7 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
   const [equipmentOpen, setEquipmentOpen] = useState(false)
   const [chefMode, setChefMode] = useState<'pc' | 'vr' | null>(null)
   const [xrActive, setXRActive] = useState(false)
+  const wasXR = useRef(false)
   useEffect(() => { client.start(); return () => client.stop() }, [client])
   useEffect(() => { setChefMode(null); setEquipmentOpen(false) }, [snapshot?.gameId])
   useEffect(() => { setXRActive(false) }, [role])
@@ -102,13 +103,22 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
     finally { setLeaving(false) }
   }
   const xr = (active: boolean) => {
+    const ended = wasXR.current && !active
+    wasXR.current = active
     setXRActive(active)
+    if (ended) {
+      // The scene retains its first callback; read the live snapshot after equipment checks.
+      if (client.snapshot?.publicState.phase !== 'WAITING') { void exit(); return }
+      setEquipmentOpen(false)
+      if (client.snapshot.publicState.players.some(player => player.userId === transport.scope().userId && player.ready))
+        void client.act({ type: 'READY', ready: false })
+    }
     if (active) { setEquipmentOpen(false); setChefMode('vr') }
     if (client.snapshot?.privateState.role === 'chef' && client.snapshot.publicState.phase !== 'FINISHED') void client.act({ type: 'CHEF_MODE', vr: active })
   }
   return createPortal(<div className="skewer-coop" data-testid="skewer-coop" data-role={role || undefined} data-phase={pub?.phase ?? 'ROOMS'} data-version={snapshot?.version}>
     <Suspense fallback={<p className="coop-loading" role="status">가게를 준비하고 있어요…</p>}>
-      {role === 'server' ? <Hall key={pub?.round ?? 0} driver={hall} inputBlocked={confirmExit || restartPending || !!pub?.paused || !state.connected} onPause={() => void changePause(true)} onRestart={() => void restart()} /> : role === 'chef' ? <Chef driver={chef} allowVR={SKEWER_CHEF_VR_ENABLED} preferredMode={chefMode ?? 'pc'} onXRChanged={xr} onExit={() => pub?.phase === 'FINISHED' ? void exit() : void changePause(true)} /> : <div className="coop-backdrop" />}
+      {role === 'server' ? <Hall key={pub?.round ?? 0} driver={hall} inputBlocked={confirmExit || restartPending || !!pub?.paused || !state.connected} onPause={() => void changePause(true)} onRestart={() => void restart()} /> : role === 'chef' ? <Chef driver={chef} allowVR={SKEWER_CHEF_VR_ENABLED} preferredMode={chefMode ?? 'pc'} protectVR={transport.protectVR} onXRChanged={xr} onExit={() => pub?.phase === 'FINISHED' ? void exit() : void changePause(true)} /> : <div className="coop-backdrop" />}
     </Suspense>
     {pub && pub.phase !== 'WAITING' && pub.phase !== 'FINISHED' ? <div className="coop-meta"><strong>2인 협동 · 무료 플레이</strong><span>{pub.rankingEligible ? `${pub.rankingMode ?? (pub.chefVR ? 'VR' : 'PC')} 팀 랭킹 대상 · 정상 종료 시 등록` : '방식 전환 · 팀 랭킹 미등록'}</span></div> : null}
     {!snapshot || pub?.phase === 'WAITING' ? equipmentOpen && role === 'chef'

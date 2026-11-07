@@ -4,6 +4,12 @@
 .park-page .park-xr-controls > button { min-height: 48px; padding: 10px 18px; border: 1px solid #c3a66a; border-radius: 10px; background: #244737ed; color: #fff6dd; font: inherit; cursor: pointer; }
 .park-page .park-xr-controls > button:disabled { opacity: .55; cursor: default; }
 .park-page .park-xr-controls > button:focus-visible { outline: 3px solid #e8b451; outline-offset: 3px; }
+.park-page .park-xr-controls > .park-xr-guide-button { display:block;margin-top:8px;background:#f5ecd8;color:#254d3b;border-color:#c49a4c; }
+.park-vr-guide-paper.table-paper-popup { box-sizing:border-box;width:min(960px,calc(100vw - 36px));padding:24px;color:#254d3b;scrollbar-width:none; }
+.park-vr-guide-paper::-webkit-scrollbar { display:none; }
+.park-vr-guide-paper.table-paper-popup h2 { font-size:36px; }
+.park-vr-guide-paper p { line-height:1.7; }
+@media(max-width:650px) { .park-vr-guide-paper.table-paper-popup { padding:20px 16px; }.park-vr-guide-paper.table-paper-popup h2 { font-size:27px; }.park-vr-guide-paper p { font-size:14px; } }
 .park-page .park-xr-controls > p { margin: 8px 0 0; padding: 8px 10px; background: #201d18e8; border-radius: 7px; font-size: 12px; line-height: 1.6; word-break: keep-all; }
 .park-page .park-xr-controls > [role="alert"] { color: #ffe0b7; }
 @media(max-width: 650px) { .park-page .park-xr-controls { top: 240px; max-width: 235px; max-height: max(60px, calc(100dvh - 440px)); } }

@@ -12,6 +12,15 @@ let timer: ReturnType<typeof setInterval>
 let targetAction: JumpmapXRAction | null = null
 let tracked = true
 const root = () => _roots.get(document.querySelector('canvas')!)!.store.getState()
+export function guideTexturePNG() {
+  const mesh = root().scene.getObjectByName('jumpmap-xr-dialog') as import('three').Mesh<import('three').PlaneGeometry, import('three').MeshBasicMaterial>
+  return (mesh.material.map!.image as HTMLCanvasElement).toDataURL('image/png')
+}
+export function sceneFramePNG() {
+  const state = root()
+  state.gl.render(state.scene, state.camera)
+  return state.gl.domElement.toDataURL('image/png')
+}
 export function install() {
   const state = root()
   const pad = () => ({ mapping: 'xr-standard', axes: [0, 0, 0, 0],

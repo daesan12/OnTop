@@ -12,6 +12,8 @@ import serviceHall from './art/service-hall-preview.png'
 import type { CoopClient } from './client'
 import { CoopRoomBrowser } from './CoopRoomBrowser'
 import { SKEWER_CHEF_VR_ENABLED } from './availability'
+import { CHEF_VR_STEPS } from '../chef/vrGuide'
+import { TouchControllerGuide } from '../../vrGuide/TouchControllerDiagram'
 
 const roles = [
   { id: 'chef', name: '요리사', device: SKEWER_CHEF_VR_ENABLED ? 'VR / 키보드·마우스' : '키보드·마우스 · VR 공사 중', image: chefVR, description: '그림 주문표를 보고 꼬치를 만들어요.' },
@@ -102,13 +104,14 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
             alt={role === 'server' ? '온탑 꼬치왕의 서빙 게임 화면' : vr ? '온탑 꼬치왕의 VR 주방 화면' : '온탑 꼬치왕의 PC 주방 화면'} draggable={false} />
             <figcaption>{role === 'server' ? '홀의 동선은 내가 책임져요' : vr ? '직접 집고 꽂는 나만의 주방' : '키보드와 마우스로 완성하는 꼬치'}</figcaption>
           </figure>
-          <div className="coop-role-guide"><ol>{steps[role].map(([title, description], index) => <li key={title}><b aria-hidden="true">{index + 1}</b><div><h2>{title}</h2><p>{description}</p></div></li>)}</ol>
-            <div className="coop-key-hints">{role === 'chef' ? vr ? <><span><kbd>트리거</kbd> 음식 집기·놓기</span><span><kbd>그립</kbd> 꼬치 잡기</span><span>완성하면 제출 버튼 선택</span></> : <><span><kbd>1–6</kbd> 재료 선택</span><span><kbd>Space</kbd> 꽂기</span><span><kbd>R</kbd> 완성·제출</span><span><kbd>⌫</kbd> 끝 재료 빼기</span></>
+          <div className="coop-role-guide"><ol>{(role === 'chef' && vr ? CHEF_VR_STEPS : steps[role]).map(([title, description], index) => <li key={title}><b aria-hidden="true">{index + 1}</b><div><h2>{title}</h2><p>{description}</p></div></li>)}</ol>
+            <div className="coop-key-hints">{role === 'chef' ? vr ? <><span><kbd>트리거</kbd> 주문·재료 선택 / 접시 제출</span><span><kbd>그립</kbd> 꼬치 잡기</span><span>주방의 VR 조작 안내로 다시 확인해요</span></> : <><span><kbd>1–6</kbd> 재료 선택</span><span><kbd>Space</kbd> 꽂기</span><span><kbd>R</kbd> 완성·제출</span><span><kbd>⌫</kbd> 끝 재료 빼기</span></>
               : <><span><kbd>WASD</kbd> 이동</span><span><kbd>E</kbd> 상호작용</span><span><kbd>R</kbd> 반납·재수령</span></>}</div>
             {role === 'chef' && vr ? <button className="coop-equipment-button" onClick={onEquipment}>{pub.chefVR ? 'VR 연결 확인하기' : '헤드셋 연결하기'} <span aria-hidden="true">↗</span></button>
               : role === 'server' ? <p className="coop-guide-tip">음식과 더러운 식기는 함께 들 수 없어요. 꼬치는 보관대에, 사케는 냉장고에 내려놓으세요.</p> : null}
           </div>
         </div>
+        {role === 'chef' && vr ? <TouchControllerGuide mode="chef" /> : null}
         <div className={`coop-ranking-notice${vr ? ' is-vr' : ''}`}><b>{vr ? 'VR 팀 랭킹 도전' : 'PC 팀 랭킹 도전'}</b><span>PC·VR 기록은 따로 집계해요. 경기 중 방식을 바꾸면 랭킹에서 제외돼요. 엽전 보상은 동일해요.</span></div>
         <footer className="coop-ready-footer"><div className="coop-team-status" aria-label="참가자 준비 상태">{pub.players.map(p => <div key={p.userId} data-ready={p.ready}><span className="coop-status-dot" /><span><b>{p.userId === owner ? '나' : '친구'}</b> · {p.role === 'chef' ? '요리사' : p.role === 'server' ? '서빙 담당' : '역할 선택 중'}<small>{!p.connected ? '연결 확인 중' : p.ready ? '준비 완료' : '준비 전'}</small></span></div>)}</div>
           <div className="coop-ready-action"><button className="paper-primary" disabled={(!ready && !player?.ready) || acting} onClick={() => void act({ type: 'READY', ready: !player?.ready })}>{acting ? '변경 중…' : player?.ready ? '준비 취소' : '준비 완료'}</button>{readyHint ? <small>{readyHint}</small> : null}</div>

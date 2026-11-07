@@ -18,6 +18,39 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WorldCarryTests {
+    @Test
+    void VR_플레이_보호_중에는_양방향_들기를_막고_보호_종료_후_허용한다() throws Exception {
+        try (var pair = pair()) {
+            var registry = pair.registry();
+            registry.interactionBusy("b", true);
+
+            assertThatThrownBy(() -> registry.pickup("a", "b"))
+                    .isInstanceOf(WorldChannelRegistry.ChannelException.class);
+            assertThatThrownBy(() -> registry.pickup("b", "a"))
+                    .isInstanceOf(WorldChannelRegistry.ChannelException.class);
+
+            registry.interactionBusy("b", false);
+            registry.pickup("a", "b");
+            assertThat(registry.carryState("b").role()).isEqualTo("CARRIED");
+        }
+    }
+
+    @Test
+    void VR_보호_시작과_들기가_겹쳐도_운반을_해제하고_늦은_던지기를_막는다() throws Exception {
+        try (var pair = pair()) {
+            var registry = pair.registry();
+            registry.pickup("a", "b");
+            String carryId = registry.carryState("a").carryId();
+
+            registry.interactionBusy("b", true);
+
+            assertThat(registry.carryState("a")).isNull();
+            assertThat(registry.carryState("b")).isNull();
+            assertThatThrownBy(() -> registry.throwCarried("a", carryId, 1, 0, 0))
+                    .isInstanceOf(WorldChannelRegistry.ChannelException.class);
+        }
+    }
+
     @ParameterizedTest
     @CsvSource({"a,false", "b,false", "a,true", "b,true"})
     void 어느쪽이_달리거나_점프입력중이어도_들고_던질수있다(String movingUser, boolean jump) throws Exception {
