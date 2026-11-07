@@ -39,7 +39,10 @@ with tempfile.TemporaryDirectory(prefix="ontop-monitor-config-") as temporary:
                          "-f", str(REPO / "infra/app/compose.dev.yaml"), "-f", str(HERE / "compose.app.yaml"),
                          "config", "--format", "json", env=environment).stdout)
     assert not app["services"]["app"].get("ports")
-    assert app["services"]["app"]["environment"]["SPRING_FLYWAY_ENABLED"] == "false"
+    # The persistent monitoring overlay must not disable the application's normal
+    # Flyway lifecycle. Otherwise a later image can validate new entities before
+    # its migrations have created the corresponding columns.
+    assert "SPRING_FLYWAY_ENABLED" not in app["services"]["app"]["environment"]
     assert "8082/actuator/health" in app["services"]["app"]["healthcheck"]["test"][-1]
     dashboard = json.loads((HERE / "grafana/dashboards/ontop-dev.json").read_text(encoding="utf-8"))
     rules = [{"record": "ontop_panel_check_" + str(i), "expr": target["expr"]}
