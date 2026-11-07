@@ -6,6 +6,7 @@ import type { CoopSnapshot, CoopTransport } from '../../../src/features/skewer/c
 import type { Envelope } from '../../../src/network/protocol'
 import ChefPage from '../../../src/features/skewer/chef/ChefPage'
 import { CoopClient } from '../../../src/features/skewer/coop/client'
+import { move } from '../../../src/features/skewer/serviceHall/plan'
 import { OnlineChef } from '../../../src/features/skewer/coop/drivers'
 import '../../../src/styles.css'
 
@@ -19,6 +20,16 @@ let state: CoopSnapshot = { gameId, version: 1, registered: true,
     rankingEligible: true, entryFee: 0, rewardStatus: 'SERVER_SETTLEMENT', message: '', endReason: null,
     players: [{ userId: '101', role, ready: true, connected: true }, { userId: '202', role: role === 'chef' ? 'server' : 'chef', ready: true, connected: true }],
     greeting: { active: false, index: 0, remaining: 0, answered: false, responded: 0, speech: false } } }
+if (new URLSearchParams(location.search).has('prepare')) {
+  state.publicState.phase = 'WAITING'; state.publicState.players.forEach(player => { player.ready = false })
+}
+let velocity = { dx: 0, dz: 0 }
+window.setInterval(() => {
+  if (state.privateState.hall && state.publicState.phase === 'PLAYING' && !state.publicState.paused && (velocity.dx || velocity.dz)) {
+    state.privateState.hall.position = move(state.privateState.hall.position, velocity.dx, velocity.dz, .05)
+    state.version++; publish()
+  }
+}, 50)
 let receive: ((message: Envelope) => boolean) | undefined
 if (state.privateState.chef) {
   const hall = new HallPreview().view()
@@ -31,12 +42,15 @@ const transport: CoopTransport = {
   subscribe: fn => { receive = fn; return () => { receive = undefined } },
   requestJSON: async path => path.includes('/result?') ? { gameId, status: 'UNAVAILABLE', teamScore: 432, served: 2, endReason: 'SKEWER_TIME_UP', rankingStatus: 'EXCLUDED', rankingReason: 'QA', coinsCalculated: 21, coinsGranted: null, todayEarned: null, dailyCap: 500, remainingToday: null, balance: null, rewardDate: null, settledAt: null } : { mine: structuredClone(state), rooms: [] },
   request: async (type, payload) => {
-    const input = payload.input as { type?: string; paused?: boolean } | undefined
+    const input = payload.input as { type?: string; paused?: boolean; dx?: number; dz?: number } | undefined
+    if (input?.type === 'MOVE') velocity = { dx: input.dx ?? 0, dz: input.dz ?? 0 }
     if (input?.type === 'PAUSE') { state.publicState.paused = !!input.paused; state.publicState.pausedBy = input.paused ? ['101'] : []; state.publicState.pauseReason = input.paused ? 'EXIT_CONFIRM' : ''; state.version++; publish() }
     return { type: type === 'GAME_STATE_CHECK' ? 'GAME_STATE' : 'GAME_ACTION_RESULT', payload: structuredClone(state) } as unknown as Envelope
   },
 }
 Reflect.set(window, 'skewerFeedback', {
+  position: () => state.privateState.hall?.position,
+  tableArrival: (remaining: number) => { const t = state.privateState.hall!.tables[2]; t.people = 1; t.status = remaining > 0 ? 'arriving' : 'unreceived'; t.arrivalRemaining = remaining; t.bill = remaining > 0 ? null : { dishes: [{ id: 'arrival', table: 3, recipe: ['tomato'], delivered: false }], sake: 0, sakeDelivered: 0 }; state.version++; publish() },
   clock: (remaining: number) => { state.publicState.remaining = remaining; state.version++; publish() },
   greeting: (outcome: '' | 'success' | 'missed' | 'active') => {
     state.publicState.greeting = { active: outcome === 'active', index: state.publicState.greeting.index + 1, remaining: 4.5, answered: false, responded: 0, speech: false, outcome: outcome === 'active' ? '' : outcome, bonus: outcome === 'success' ? 24 : 0 }

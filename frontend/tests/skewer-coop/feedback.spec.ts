@@ -4,7 +4,7 @@ import path from 'node:path'
 
 async function capture(page: Page, name: string) {
   const folder = process.env.SKEWER_FEEDBACK_EVIDENCE
-  if (folder) { await mkdir(folder, { recursive: true }); await page.screenshot({ path: path.join(folder, `${name}.png`) }) }
+  if (folder) { await mkdir(folder, { recursive: true }); await page.screenshot({ path: path.join(folder, `${name}.png`), animations: 'disabled' }) }
 }
 function health(page: Page) {
   const errors: string[] = []
@@ -16,6 +16,43 @@ function health(page: Page) {
   }
 }
 
+for (const role of ['chef', 'server']) test(`${role} 준비 이미지는 현재 캐릭터의 실제 게임 화면이다`, async ({ page }) => {
+  await page.goto(`/tests/skewer-coop/fixtures/play-feedback.html?role=${role}&prepare=1`)
+  if (role === 'chef') await page.getByRole('button', { name: 'PC로 요리하기', exact: true }).click()
+  const image = page.locator('.coop-guide-art img')
+  await expect(image).toHaveAttribute('src', new RegExp(`${role === 'server' ? 'service-hall' : 'chef-pc'}-current-v2.webp`))
+  await expect(image).toHaveJSProperty('complete', true)
+  expect(await image.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBe(1280)
+  await capture(page, `${role}-current-ready`)
+})
+
+test('서빙은 클릭해도 이동하지 않고 키보드로 이동하며 착석 전 주문 말풍선이 없다', async ({ page }) => {
+  const verify = health(page)
+  await page.goto('/tests/skewer-coop/fixtures/play-feedback.html?role=server')
+  await expect(page.locator('.service-stage')).toHaveAttribute('data-input-mode', 'keyboard-only')
+  await expect(page.locator('.service-stage')).toHaveAttribute('data-guest-model', 'bungeoppang', { timeout: 45000 })
+  const start = await page.evaluate(() => Reflect.get(window, 'skewerFeedback').position())
+  await page.getByRole('img', { name: '3번 1인 테이블', exact: true }).click({ force: true })
+  await page.getByRole('img', { name: '음식 수령대', exact: true }).click({ force: true })
+  await page.locator('.service-stage canvas').click({ position: { x: 900, y: 400 }, force: true })
+  await page.waitForTimeout(400)
+  expect(await page.evaluate(() => Reflect.get(window, 'skewerFeedback').position())).toEqual(start)
+  await page.keyboard.down('d'); await page.waitForTimeout(600); await page.keyboard.up('d')
+  expect((await page.evaluate(() => Reflect.get(window, 'skewerFeedback').position())).x).toBeGreaterThan(start.x + 2)
+  await page.evaluate(() => Reflect.get(window, 'skewerFeedback').tableArrival(6))
+  await expect(page.locator('[data-table="3"]')).toHaveAttribute('data-status', 'arriving')
+  await expect(page.locator('[data-table="3"] .service-bubble')).toHaveCount(0)
+  await page.evaluate(() => Reflect.get(window, 'skewerFeedback').tableArrival(0))
+  await expect(page.locator('[data-table="3"] .service-bubble')).toBeVisible()
+  for (const size of [{ width: 1366, height: 768 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(size)
+    for (const image of await page.locator('.service-bubble img').all()) expect(await image.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+    for (const bubble of await page.locator('.service-bubble').all()) expect(await bubble.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+    await capture(page, `keyboard-bubbles-${size.width}`)
+  }
+  await verify()
+})
+
 for (const role of ['chef', 'server']) test(`${role} 화면은 일시정지·인사·낡은 동료 응답에도 유지되고 종료 안내 뒤 결과로 간다`, async ({ page }) => {
   const verify = health(page)
   await page.goto(`/tests/skewer-coop/fixtures/play-feedback.html?role=${role}`)
@@ -23,7 +60,7 @@ for (const role of ['chef', 'server']) test(`${role} 화면은 일시정지·인
   await expect(page.getByTestId('skewer-coop')).toHaveAttribute('data-role', role)
   const stage = page.locator(role === 'chef' ? '.chef-stage' : '.service-stage')
   await expect(stage).toHaveAttribute('data-ready', 'true', { timeout: 45000 })
-  if (role === 'chef') await expect(stage).toHaveAttribute('data-park-source', 'current-park-geometry', { timeout: 30000 })
+  if (role === 'chef') await expect(stage).toHaveAttribute('data-park-source', 'stone-pagoda', { timeout: 30000 })
   await expect(page.getByTestId('served-count')).toHaveText('2')
   await stage.locator('canvas').evaluate(el => el.setAttribute('data-view-token', 'same-scene'))
   for (let n = 0; n < 5; n++) await page.evaluate(() => Reflect.get(window, 'skewerFeedback').corrupt())
@@ -94,11 +131,11 @@ test('확대한 서빙 가게와 공통 상단바는 작은 화면에서도 조�
   await verify()
 })
 
-test('VR 미리보기도 서빙 완료 수·공통 상단바·흑백 인사 결과와 현재 공원 배경을 사용한다', async ({ page }) => {
+test('VR 미리보기도 서빙 완료 수·공통 상단바·흑백 인사 결과와 석탑 배경을 사용한다', async ({ page }) => {
   const verify = health(page)
   await page.goto('/tests/skewer-coop/fixtures/play-feedback.html?role=chef&mode=vr')
   await expect(page.getByTestId('chef-app')).toHaveAttribute('data-mode', 'vr')
-  await expect(page.locator('.chef-stage')).toHaveAttribute('data-park-source', 'current-park-geometry', { timeout: 45000 })
+  await expect(page.locator('.chef-stage')).toHaveAttribute('data-park-source', 'stone-pagoda', { timeout: 45000 })
   await expect(page.getByTestId('served-count')).toHaveText('2')
   await capture(page, 'chef-vr-shared-status')
   await page.evaluate(() => Reflect.get(window, 'skewerFeedback').greeting('missed'))

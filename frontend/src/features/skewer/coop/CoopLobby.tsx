@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { useStore } from 'zustand'
 import { PaperPopup } from '../../tableLobby/PaperPopup'
-import cover from '../../vrZone/art/skewer-cover-lowpoly.png'
-import chefPC from './art/chef-pc-preview.png'
-import chefVR from './art/chef-vr-preview.png'
-import chefRoleArt from './art/chef-role-illustration.png'
-import chefVRChoiceArt from './art/chef-vr-choice-illustration.png'
-import chefPCChoiceArt from './art/chef-pc-choice-illustration.png'
-import serverRoleArt from './art/server-role-illustration.png'
-import serviceHall from './art/service-hall-preview.png'
+import cover from './art/service-hall-current-v2.webp'
+import chefPC from './art/chef-pc-current-v2.webp'
+import chefVR from './art/chef-vr-current-v2.webp'
+import chefRoleArt from './art/chef-pc-current-v2.webp'
+import chefVRChoiceArt from './art/chef-vr-current-v2.webp'
+import chefPCChoiceArt from './art/chef-pc-current-v2.webp'
+import serverRoleArt from './art/service-hall-current-v2.webp'
+import serviceHall from './art/service-hall-current-v2.webp'
 import type { CoopClient } from './client'
 import { CoopRoomBrowser } from './CoopRoomBrowser'
 import { SKEWER_CHEF_VR_ENABLED } from './availability'
@@ -17,7 +17,7 @@ import { TouchControllerGuide } from '../../vrGuide/TouchControllerDiagram'
 
 const roles = [
   { id: 'chef', name: '요리사', device: SKEWER_CHEF_VR_ENABLED ? 'VR / 키보드·마우스' : '키보드·마우스 · VR 공사 중', image: chefVR, description: '그림 주문표를 보고 꼬치를 만들어요.' },
-  { id: 'server', name: '서빙 담당', device: '키보드·마우스', image: serviceHall, description: '손님과 주방 사이를 연결해요.' },
+  { id: 'server', name: '서빙 담당', device: '키보드 이동', image: serviceHall, description: '손님과 주방 사이를 연결해요.' },
 ] as const
 
 const steps = {
