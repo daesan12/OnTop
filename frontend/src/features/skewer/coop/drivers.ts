@@ -2,6 +2,7 @@ import { HallPreview, type HallView } from '../serviceHall/previewModel'
 import type { Point } from '../serviceHall/plan'
 import { ChefPreview, type ChefAction, type ChefView } from '../chef/model'
 import type { CoopClient } from './client'
+import { PositionPlayback } from '../serviceHall/rendering/PositionPlayback'
 
 export type HallDriver = Pick<HallPreview, 'view' | 'step' | 'navigate' | 'nearest' | 'blockedReason' | 'actionLabel' | 'press' | 'secondaryLabel' | 'secondaryBlockedReason' | 'pressSecondary' | 'closeStorage' | 'takeStored' | 'release'> & { online?: boolean }
 export type ChefDriver = Pick<ChefPreview, 'view' | 'step' | 'action'> & { online?: boolean }
@@ -20,6 +21,7 @@ export class OnlineHall implements HallDriver {
   private feedback = new TimedFeedback()
   readonly online = true
   private helper = new HallPreview()
+  private playback = new PositionPlayback()
   private storageOpen = false
   private movementAt = 0
   private lastMove = '0.00:0.00'
@@ -41,13 +43,14 @@ export class OnlineHall implements HallDriver {
     if (this.round !== (snapshot.publicState.round ?? 0)) {
       this.round = snapshot.publicState.round ?? 0
       this.helper.position = { ...hall.position }; this.storageOpen = false
+      this.playback.reset(hall.position)
       this.cleaningPressed = false; this.lastMove = '0.00:0.00'; this.movementAt = 0
     }
     if (snapshot.version !== this.lastVersion) {
       this.lastVersion = snapshot.version
       // 확인되지 않은 입력을 누적하면 100ms 서버 틱마다 뒤로 보정되어 시선도 반전된다.
       // 충돌·위치는 서버값을 따르고 프레임 사이의 부드러운 표시는 HallMotion이 담당한다.
-      this.helper.position = { ...hall.position }
+      this.playback.push(hall.position)
     }
     this.helper.tables = hall.tables; this.helper.carry = hall.carry; this.helper.pass = hall.pass
     this.helper.stored = hall.stored; this.helper.sake = hall.sake; this.helper.dirtyDishes = hall.dirtyDishes
@@ -56,6 +59,9 @@ export class OnlineHall implements HallDriver {
   }
   step(_dt: number, dx = 0, dz = 0) {
     this.sync()
+    const position = this.client.snapshot?.privateState.hall?.position
+    if (!this.client.playable && position) this.playback.reset(position)
+    this.helper.position = this.playback.step(_dt)
     if (!this.client.playable || this.storageOpen) { dx = 0; dz = 0 }
     const now = performance.now(), value = `${dx.toFixed(2)}:${dz.toFixed(2)}`
     // Direction changes must not wait for the held-input heartbeat.
@@ -64,12 +70,7 @@ export class OnlineHall implements HallDriver {
       void this.client.act({ type: 'MOVE', dx, dz }, true)?.finally(() => { this.sendingMove = false })
     }
   }
-  navigate(point: Point) {
-    if (this.client.playable && !this.storageOpen) {
-      this.lastMove = '0.00:0.00'
-      void this.client.act({ type: 'NAVIGATE', x: point.x, z: point.z })
-    }
-  }
+  navigate(_point: Point) { /* 온라인 서빙은 키보드 MOVE만 전송한다. */ }
   private atServer<T>(read: () => T): T {
     this.sync()
     const predicted = this.helper.position

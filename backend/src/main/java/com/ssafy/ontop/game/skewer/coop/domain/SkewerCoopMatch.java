@@ -215,6 +215,11 @@ public final class SkewerCoopMatch {
             }
         }
         for (Table table : tables) {
+            if (table.state.equals("arriving") && serviceElapsed >= table.arrivalAt) {
+                table.state = "unreceived";
+                table.seatedAt = serviceElapsed;
+                actionVersion++;
+            }
             if (table.state.equals("eating") && serviceElapsed >= table.eatUntil) {
                 table.state = "dirty";
                 table.people = 0;
@@ -431,6 +436,7 @@ public final class SkewerCoopMatch {
             return;
         }
         Table table = tables.get(Integer.parseInt(at.substring(6)) - 1);
+        require(!table.state.equals("arriving"));
         if (table.state.equals("dirty")) {
             require(carry.isEmpty() && sake == 0 && dirty.size() < 2);
             if (cleanTable != table.id) {
@@ -567,7 +573,8 @@ public final class SkewerCoopMatch {
             if (target == null) {
                 continue;
             }
-            target.state = "unreceived";
+            target.state = "arriving";
+            target.arrivalAt = serviceElapsed + 6;
             target.people = size;
             target.settings = size;
             target.seatedAt = serviceElapsed;
@@ -731,7 +738,8 @@ public final class SkewerCoopMatch {
             sight.put("cleaning", cleanTable != 0);
             sight.set("tables", mapper.valueToTree(tables.stream().map(table -> Map.of(
                     "id", table.id, "people", table.people,
-                    "eating", table.state.equals("eating"), "dirty", table.state.equals("dirty"))).toList()));
+                    "eating", table.state.equals("eating"), "dirty", table.state.equals("dirty"),
+                    "arrivalRemaining", table.state.equals("arriving") ? Math.max(0, table.arrivalAt - serviceElapsed) : 0)).toList()));
             chef.set("hallSight", sight);
             chef.set("pass", mapper.valueToTree(pass.stream().map(Dish::view).toList()));
             result.set("chef", chef);
@@ -834,7 +842,7 @@ public final class SkewerCoopMatch {
     }
 
     private String nearest() {
-        double best = .92;
+        double best = 1.4;
         String target = null;
         for (var station : STATIONS.entrySet()) {
             double distance = position.distance(station.getValue());
@@ -893,11 +901,11 @@ public final class SkewerCoopMatch {
         }
     }
 
-    private static final class Table {
+    private final class Table {
         final int id;
         String state = "clean";
         int people, sake, sakeDelivered, settings = 1;
-        double seatedAt, eatUntil;
+        double seatedAt, eatUntil, arrivalAt;
         final List<Dish> dishes = new ArrayList<>();
 
         Table(int id) { this.id = id; }
@@ -907,8 +915,9 @@ public final class SkewerCoopMatch {
             view.put("id", id);
             view.put("status", state);
             view.put("people", people);
+            view.put("arrivalRemaining", state.equals("arriving") ? Math.max(0, arrivalAt - serviceElapsed) : 0);
             view.put("eatUntil", state.equals("eating") ? eatUntil : null);
-            view.put("bill", dishes.isEmpty() ? null : Map.of("dishes", dishes.stream().map(Dish::view).toList(),
+            view.put("bill", dishes.isEmpty() || state.equals("arriving") ? null : Map.of("dishes", dishes.stream().map(Dish::view).toList(),
                     "sake", sake, "sakeDelivered", sakeDelivered));
             return view;
         }

@@ -13,6 +13,11 @@ function fixture() {
   return { client, driver: new OnlineHall(client as unknown as CoopClient), hall, act }
 }
 describe('협동 홀 입력의 서버 판정 경계', () => {
+  it('이전 클릭 이동 진입점은 온라인 이동 요청을 전송하지 않는다', () => {
+    const { driver, act } = fixture()
+    driver.navigate({ x: 8, z: 0 })
+    expect(act).not.toHaveBeenCalled()
+  })
   it('시작과 방향 전환은 이동 유지 주기를 기다리지 않고 다음 프레임에 보낸다', async () => {
     const clock = vi.spyOn(performance, 'now')
     try {

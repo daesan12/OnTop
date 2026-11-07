@@ -94,7 +94,7 @@ describe('새 꼬치왕 매장 동선 프리뷰', () => {
   })
   it('입구 대기 손님은 깨끗한 알맞은 자리에 앉고 더러운 자리는 선택하지 않는다', () => {
     const m = new HallPreview(); advance(m, 12.1)
-    expect(m.tables[2].status).toBe('unreceived'); expect(m.tables[2].people).toBe(1); expect(m.queue.map(p => p.id)).toEqual([2, 3])
+    expect(m.tables[2].status).toBe('arriving'); expect(m.tables[2].bill).toBeNull(); advance(m, 6.1); expect(m.tables[2].status).toBe('unreceived'); expect(m.tables[2].people).toBe(1); expect(m.queue.map(p => p.id)).toEqual([2, 3])
     expect(m.tables[1].status).toBe('dirty')
   })
   it('꼬치 또는 사케를 하나라도 들고 있으면 테이블 정리와 식기 수거를 시작하지 않는다', () => {

@@ -16,6 +16,33 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SkewerCoopFeedbackTests {
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
+    @Test
+    void 착석_전에는_주문이_없고_접수도_거절하며_착석후_넓어진_거리에서_받을_수_있다() {
+        var match = playing();
+        ReflectionTestUtils.setField(match, "position", new SkewerCoopMatch.Point(-6.2, 0));
+
+        assertThat(match.privateView(101).at("/hall/tables/0/status").asText()).isEqualTo("arriving");
+        assertThat(match.privateView(101).at("/hall/tables/0/bill").isNull()).isTrue();
+        assertThatThrownBy(() -> match.act(101, mapper.valueToTree(Map.of("type", "INTERACT")), 3200))
+                .hasMessage("INVALID_ACTION");
+        for (long time = 3300; time <= 9500; time += 100) {
+            match.tick(time, user -> true);
+        }
+
+        assertThat(match.privateView(101).at("/hall/tables/0/status").asText()).isEqualTo("unreceived");
+        assertThat(match.privateView(101).at("/hall/tables/0/bill/dishes").size()).isEqualTo(1);
+        match.act(101, mapper.valueToTree(Map.of("type", "INTERACT")), 9500);
+        assertThat(match.privateView(101).at("/hall/held/0").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void 상호작용_범위_밖은_여전히_거절한다() {
+        var match = playing();
+        ReflectionTestUtils.setField(match, "position", new SkewerCoopMatch.Point(-5.9, 0));
+        assertThatThrownBy(() -> match.act(101, mapper.valueToTree(Map.of("type", "INTERACT")), 3200))
+                .hasMessage("INVALID_ACTION");
+    }
+
     private SkewerCoopMatch playing() {
         var match = new SkewerCoopMatch("fixture", "park", 101, mapper, new Random(3), 0, 240);
         match.join(202);

@@ -3,7 +3,7 @@ import type { IngredientId } from '../game'
 import { cooperativeRecipe, canThreadCooperative, validCooperativeRecipe, INITIAL_PANTRY, shuffledPantry } from '../cooperativeMenu'
 
 export type ChefJob = { id: string; table: number; recipe: IngredientId[] }
-export type HallSight = { position: { x: number; z: number }; carrying: boolean; cleaning: boolean; tables: { id: number; people: number; eating: boolean; dirty: boolean }[] }
+export type HallSight = { position: { x: number; z: number }; carrying: boolean; cleaning: boolean; tables: { id: number; people: number; eating: boolean; dirty: boolean; arrivalRemaining?: number }[] }
 export type ChefView = { hallSight?: HallSight; pantry?: IngredientId[]; completed?: number; visible: ChefJob[]; waiting: number; selectedJob: string | null; ingredient: IngredientId; skewer: IngredientId[]; pass: ChefJob[]; message: string; revision: number; seconds: number; started: boolean; cooperative?: { round?: number; restart?: { id: string; own: boolean } | null; phase: string; endReason?: string | null; greetingOutcome?: '' | 'success' | 'missed'; greetingBonus?: number; greeting: boolean; answered: boolean; speech: boolean; countdown: number; paused: boolean; score?: number; served?: number; rankingEligible?: boolean; result?: { score: number; reward: string; ranking: string } } }
 export type ChefAction = { type: 'select'; ingredient: IngredientId } | { type: 'thread'; ingredient?: IngredientId } | { type: 'choose'; id: string } | { type: 'unthread' | 'submit' | 'pickup' | 'ready' | 'greet' | 'exit' | 'restartRequest' | 'restartAccept' | 'restartDecline' }
 const samples = (): ChefJob[] => [

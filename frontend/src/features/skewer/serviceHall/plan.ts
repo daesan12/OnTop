@@ -12,6 +12,8 @@ export type Station = keyof typeof STATIONS
 export const START: Point = { x: -2.8, z: 1.15 }
 export const PLAYER_RADIUS = .32
 export const SERVER_SPEED = 6.5
+export const INTERACTION_RADIUS = 1.4
+export const GUEST_ARRIVAL_SECONDS = 6
 export const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z)
 export function tableApproaches(table: TablePlan): Point[] {
   return table.capacity === 1 ? [table.approach, { x: table.x - 1.65, z: table.z }, { x: table.x + 1.65, z: table.z }]

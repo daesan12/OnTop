@@ -108,7 +108,8 @@ export class ToyActor {
     if (this.role !== 'guest') return
     this.dining?.dispose(); this.dining = guest
     this.setBodyVisible(false); this.root.add(guest.root)
-    if (this.speech) guest.root.add(this.speech.root)
+    // 스켈레톤 보정 행렬 밖에서 그려 회전할 때 말풍선이 찌그러지지 않게 한다.
+    if (this.speech) this.root.add(this.speech.root)
     if (this.seated) this.root.position.y = 0
     this.root.userData.guestModel = 'bungeoppang'
     this.pose(0, {})
