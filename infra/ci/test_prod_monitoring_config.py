@@ -20,6 +20,7 @@ class ProdMonitoringConfigTests(unittest.TestCase):
 
         self.assertIn("SPRING_PROFILES_ACTIVE: prod,db,observe-prod", overlay)
         self.assertIn("127.0.0.1:8082/actuator/health", overlay)
+        self.assertIn("PROD_MONITORING_NGINX_CONFIG_FILE", overlay)
         self.assertNotIn("ports:", overlay)
 
     def test_public_health_routes_to_management_port_without_exposing_prometheus(self):
@@ -27,6 +28,7 @@ class ProdMonitoringConfigTests(unittest.TestCase):
 
         self.assertIn("location = /actuator/health", nginx)
         self.assertIn("proxy_pass http://app:8082;", nginx)
+        self.assertIn("proxy_set_header Host 127.0.0.1:8082;", nginx)
         self.assertNotIn("actuator/prometheus", nginx)
 
     def test_prometheus_targets_are_labeled_as_production(self):

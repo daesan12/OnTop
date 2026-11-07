@@ -42,6 +42,9 @@ Jira S15P31B105-370은 운영 앱 서버에 Prometheus와 MySQL exporter를 배�
 
 `infra/monitoring/prod/.env.example`을 `/etc/ontop/monitor-prod/monitor.env` 같은 root 전용 경로에
 복사한다. exporter 설정은 아래 형식으로 별도 저장한다.
+`PROD_MONITORING_NGINX_CONFIG_FILE`은 서버에 실제로 설치한 checkout의 절대경로로 지정한다.
+현재 표준 설치 경로는 `/opt/ontop/infra/monitoring/prod/nginx.tls.conf`이지만, 다른 경로에 설치했다면
+환경 파일의 값만 변경하고 Compose 파일을 직접 수정하지 않는다.
 
 ```ini
 [client]
@@ -65,11 +68,21 @@ python3 infra/monitoring/prod/check-config.py
 ## 수동 반영 순서
 
 1. 저장소의 `infra/monitoring/prod`를 `/opt/ontop/infra/monitoring/prod`에 설치한다.
-2. 기존 PROD Compose에 `compose.app.yaml`을 마지막 overlay로 추가해 결과를 `config --quiet`로 확인한다.
-3. 앱과 Nginx만 재생성하고 앱 컨테이너 내부 8082 health와 공개 health를 모두 확인한다.
-4. `compose.yaml`로 Prometheus와 exporter를 시작한다.
-5. Prometheus target API를 SSH 터널로 조회해 `ontop`, `mysql`, `prometheus`가 모두 UP인지 확인한다.
-6. 적용 전후 CPU, 메모리, 디스크, 컨테이너 재시작 횟수를 비교한다.
+2. 모니터링 Compose를 `create`까지만 실행해 컨테이너와 전용 network를 만들고 아직 시작하지 않는다.
+3. 아래 사전 점검으로 모니터링 network의 컨테이너가 WireGuard DB 주소의 3306에 도달하는지 확인한다.
+4. 기존 PROD Compose에 `compose.app.yaml`을 마지막 overlay로 추가해 결과를 `config --quiet`로 확인한다.
+5. 앱과 Nginx만 재생성하고 앱 컨테이너 내부 8082 health와 공개 health를 모두 확인한다.
+6. `compose.yaml`로 Prometheus와 exporter를 시작한다.
+7. Prometheus target API를 SSH 터널로 조회해 `ontop`, `mysql`, `prometheus`가 모두 UP인지 확인한다.
+8. 적용 전후 CPU, 메모리, 디스크, 컨테이너 재시작 횟수를 비교한다.
+
+```sh
+sudo docker run --rm --network ontop-monitor-prod_monitoring alpine:3.22 \
+  sh -c 'nc -zvw5 10.77.0.1 3306'
+```
+
+이 점검이 실패하면 exporter를 `network_mode: host`로 우회하거나 DB 포트를 공개하지 않는다. Docker bridge의
+호스트 WireGuard 라우팅과 방화벽·FORWARD 정책을 먼저 확인하고, 연결 경로가 승인될 때까지 수집기를 시작하지 않는다.
 
 실제 명령은 운영 백업과 배포 후보 SHA를 확인한 변경 시간에 작성한다. 문서 예시를 그대로 복사해 현재
 Compose overlay나 환경 파일을 누락시키지 않는다.

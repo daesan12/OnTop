@@ -35,6 +35,7 @@ with tempfile.TemporaryDirectory(prefix="ontop-monitor-prod-config-") as tempora
         NGINX_CONFIG_FILE=str(REPO / "infra/app/nginx/tls.conf"),
         ACME_WEBROOT_DIR=str(directory),
         TLS_DIR=str(directory),
+        PROD_MONITORING_NGINX_CONFIG_FILE=str(HERE / "nginx.tls.conf"),
     )
 
     monitoring = json.loads(
@@ -80,11 +81,12 @@ with tempfile.TemporaryDirectory(prefix="ontop-monitor-prod-config-") as tempora
         for volume in application["services"]["nginx"]["volumes"]
         if volume["target"] == "/etc/nginx/conf.d/default.conf"
     )
-    assert nginx_mount["source"] == "/opt/ontop/infra/monitoring/prod/nginx.tls.conf"
+    assert nginx_mount["source"] == str(HERE / "nginx.tls.conf")
 
     nginx = (HERE / "nginx.tls.conf").read_text(encoding="utf-8")
     assert "location = /actuator/health" in nginx
     assert "proxy_pass http://app:8082;" in nginx
+    assert "proxy_set_header Host 127.0.0.1:8082;" in nginx
     assert "actuator/prometheus" not in nginx
 
     target = "/check/prometheus.yml"

@@ -9,7 +9,7 @@ services:
   nginx:
     volumes:
       - type: bind
-        source: /opt/ontop/infra/monitoring/prod/nginx.tls.conf
+        source: ${PROD_MONITORING_NGINX_CONFIG_FILE:?Set the installed PROD monitoring Nginx config path}
         target: /etc/nginx/conf.d/default.conf
         read_only: true
         bind:
