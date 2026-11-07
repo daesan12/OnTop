@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { GameSpectatorCount } from './GameSpectatorCount'
+import { GameSpectatorStake } from './GameSpectatorStake'
 import { GameTurnNotice } from './GameTurnNotice'
 import { matchStake, stakeLabel } from './stake'
 import { useGame } from './store'
@@ -28,6 +29,7 @@ export function GameHudMenu({ children, embedded = false }: { children: ReactNod
   },[node])
   return <HudLayer embedded={embedded}><nav ref={setNode} className="game-hud-menu" data-embedded={embedded || undefined} aria-label="게임 메뉴">
     <GameSpectatorCount />
+    <GameSpectatorStake />
     <details ref={menu} onKeyDownCapture={event => {
       const node = menu.current
       if (event.key !== 'Escape' || !node?.open || !(event.target instanceof Node) || !node.contains(event.target)) return

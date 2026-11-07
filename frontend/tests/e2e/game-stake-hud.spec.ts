@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { TABLES } from '../../src/config'
 import { benchTable } from '../../src/features/interactions/benchSpectator'
 import { facilityCatalog } from '../fixtures/facilityCatalog'
+import { generatedFacilityCatalog } from '../park-integration/fixture'
 import { bridgeState } from '../fixtures/bridge'
 import { halliState } from '../fixtures/halligalli'
 import { ledgerState } from '../fixtures/ledger'
@@ -32,10 +33,70 @@ const normalOperations = (page: Page) => page.route('**/api/v1/operations/status
   maintenanceStartedAt: null, expectedOpenAt: null, version: 1, updatedAt: new Date().toISOString(), serverTime: new Date().toISOString() } }))
 async function openPark(page: Page) {
   await normalOperations(page)
+  await page.route('**/api/v1/notifications?*', route => route.fulfill({ json: { items: [], nextCursor: null, unreadCount: 0 } }))
+  await page.route('**/api/v1/events/winnings/me?*', route => route.fulfill({ json: [] }))
+  await page.route('**/api/v1/announcements', route => route.fulfill({ json: [] }))
+  await page.route('**/api/v1/skins/assets', route => route.fulfill({ json: [] }))
   await page.goto('/park'); await expect(page).toHaveTitle(/온탑|OnTop/i)
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
   await expect.poll(() => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().tables.length), { timeout: 90000 }).toBeGreaterThan(0)
+  await expect(page.locator('canvas')).toBeVisible({ timeout: 90000 })
+  await expect(page.getByText('공원을 준비하고 있어요…', { exact: true })).toBeHidden({ timeout: 90000 })
 }
+
+for (const key of ['omok', 'onecard'] as const) test(`${key} 관전자 판돈 카드는 작은 화면에서도 총액과 1인 판돈을 표시한다`, async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(`${message.text()} ${message.location().url}`) })
+  const g = GAMES[key]
+  await fixture(page, { players: 4, publicProfiles: names, ownUserId: '505' }); await openPark(page)
+  await sendTable(page, 'TABLE_WATCH_STATE', g.code, g.players, 1250)
+  await sendGame(page, 'SPECTATOR', g.state(), {}, 5)
+  const stake = page.getByRole('status', { name: '관전 경기 판돈', exact: true })
+  const amount = stake.locator('strong')
+  await expect(amount).toHaveText(`${(1250 * g.players).toLocaleString('ko-KR')}냥`)
+  await expect(stake).toContainText(`1인 1,250냥 × ${g.players}명`)
+  for (const viewport of [{ width: 1280, height: 720 }, { width: 960, height: 540 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport)
+    await expect(stake).toBeVisible()
+    expect(await stake.evaluate(element => {
+      const r = element.getBoundingClientRect()
+      return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight
+        && element.scrollWidth <= element.clientWidth + 1
+    })).toBe(true)
+    expect(await stake.evaluate(element => {
+      const r = element.getBoundingClientRect(), html = element as HTMLElement
+      const previous = html.style.pointerEvents
+      html.style.pointerEvents = 'auto'
+      const exposed = [0.25, 0.75].every(y => [0.25, 0.75].every(x =>
+        element.contains(document.elementFromPoint(r.left + r.width * x, r.top + r.height * y))))
+      html.style.pointerEvents = previous
+      return exposed
+    })).toBe(true)
+    const directory = process.env.QA_ARTIFACT_DIR
+    if (directory) {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(directory, { recursive: true })
+      await page.screenshot({ path: `${directory}/spectator-stakes-${key}-${viewport.width}.png` })
+    }
+  }
+  await sendTable(page, 'TABLE_WATCH_STATE', g.code, g.players, Math.floor(Number.MAX_SAFE_INTEGER / 4))
+  await expect(amount).toContainText(',')
+  expect(await stake.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+  await sendTable(page, 'TABLE_WATCH_STATE', g.code, g.players, 0)
+  await expect(amount).toHaveText('0냥')
+  await sendTable(page, 'TABLE_WATCH_STATE', g.code, g.players, 9999, 'another-game')
+  await expect(amount).toHaveText('확인 중')
+  await expect(stake).not.toContainText('9,999')
+  await expect(page.getByRole('button', { name: '기권', exact: true })).toHaveCount(0)
+  await page.evaluate(async () => {
+    const { resetGame } = await import('/src/game/store.ts' as string)
+    resetGame()
+  })
+  await expect(stake).toHaveCount(0)
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
 let tableVersion = 300
 /** TABLE_STATE (participant) or TABLE_WATCH_STATE (spectator) through the real client parser. */
 const sendTable = (page: Page, type: 'TABLE_STATE' | 'TABLE_WATCH_STATE', code: string, players: number, bet: number, gameId = 'stake-e2e') =>
@@ -143,10 +204,11 @@ test('오목 경기가 끝나면 판돈 표시를 숨긴다', async ({ page }) =
 })
 
 test('공개 관전 입장 경로의 TABLE_WATCH_STATE 판돈으로 같은 총액을 표시한다', async ({ page }) => {
-  const bench = facilityCatalog.facilities.find(f => f.kind === 'BENCH' && benchTable(f.facilityId)?.pavilionId === 'P1')!
+  const catalog = test.info().project.metadata.generatedPark ? generatedFacilityCatalog : facilityCatalog
+  const bench = catalog.facilities.find(f => f.kind === 'BENCH' && benchTable(f.facilityId)?.pavilionId === 'P1')!
   const anchor = benchTable(bench.facilityId)!
   await fixture(page, { omok: true, ownUserId: '505', players: 4, publicSpectator: true, onecard: 4, manualMovement: true, position: bench.center, anchorId: anchor.id })
-  await normalOperations(page); await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
+  await openPark(page)
   await expect.poll(() => page.evaluate(async () => {
     const session = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
     return session.status === 'connected' && session.bindings.length > 0
@@ -157,4 +219,10 @@ test('공개 관전 입장 경로의 TABLE_WATCH_STATE 판돈으로 같은 총�
   await expect.poll(() => page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game?.role)).toBe('SPECTATOR')
   // The fixture's public table carries a 1냥 per-player bet and four one-card participants.
   await expect(page.locator('.game-hud-clock .game-hud-eyebrow')).toHaveText('원카드\u00a0· 4냥', { timeout: 30000 })
+  const stake = page.getByRole('status', { name: '관전 경기 판돈', exact: true })
+  await expect(stake.locator('strong')).toHaveText('4냥')
+  await expect(stake).toContainText('1인 1냥 × 4명')
+  await page.locator('.game-hud-menu summary').click()
+  await page.getByRole('button', { name: '관전 종료', exact: true }).click()
+  await expect(stake).toHaveCount(0)
 })
