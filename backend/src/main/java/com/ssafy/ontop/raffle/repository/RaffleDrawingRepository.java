@@ -161,6 +161,16 @@ public class RaffleDrawingRepository {
                 """, candidateCount, excludedGmCount, winnerCount, Timestamp.from(now), attemptId);
     }
 
+    public Optional<OutcomeCounts> successfulCounts(long eventRoundId) {
+        return jdbc.query("""
+                SELECT candidate_count, excluded_gm_count FROM event_finalization_attempts
+                WHERE event_round_id = ? AND outcome = 'SUCCEEDED'
+                  AND candidate_count IS NOT NULL AND excluded_gm_count IS NOT NULL
+                ORDER BY id DESC LIMIT 1
+                """, (rows, index) -> new OutcomeCounts(rows.getInt("candidate_count"),
+                rows.getInt("excluded_gm_count")), eventRoundId).stream().findFirst();
+    }
+
     public void insertFailedAttempt(long eventRoundId, Long administratorUserId, Instant now) {
         jdbc.update("""
                 INSERT INTO event_finalization_attempts(
@@ -170,6 +180,8 @@ public class RaffleDrawingRepository {
                 """, eventRoundId, administratorUserId == null ? "AUTO" : "ADMIN",
                 administratorUserId, Timestamp.from(now), Timestamp.from(now));
     }
+
+    public record OutcomeCounts(int candidateCount, int excludedGmCount) {}
 
     private EventRound eventRound(ResultSet rows) throws SQLException {
         Timestamp finalizedAt = rows.getTimestamp("finalized_at");
