@@ -31,6 +31,7 @@ export function WardrobeHost() {
         || next.tableId || next.benchId || next.fitnessId || next.telescopeId || next.watchedTableId) closeWardrobe()
     })
     const escape = (event: KeyboardEvent) => {
+      if (document.querySelector('dialog.capsule-opening-dialog[open]')) return
       if (event.code !== 'Escape' || !useWardrobe.getState().open || event.isComposing) return
       event.preventDefault(); event.stopImmediatePropagation(); closeWardrobe()
     }

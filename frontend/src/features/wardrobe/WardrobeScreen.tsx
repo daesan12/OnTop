@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { GachaBoxes } from '../gacha/GachaPanel'
+import { GachaBoxes, GachaItemFooter } from '../gacha/GachaBoxes'
+import { useGacha } from '../gacha/state'
 import leafImage from '../../assets/entry/park-leaf.webp'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { equipSlots, type EquipSlot } from '../../network/equipment'
@@ -57,7 +58,12 @@ function Leaf({ className }: { className: string }) {
 }
 
 export function WardrobeScreen() {
-  const [showBoxes, setShowBoxes] = useState(false)
+  const [showBoxes, setShowBoxes] = useState(() => useGacha.getState().pending?.kind === 'OPEN')
+  useEffect(() => {
+    const showOutfits = () => setShowBoxes(false)
+    window.addEventListener('ontop-gacha-show-outfits', showOutfits)
+    return () => window.removeEventListener('ontop-gacha-show-outfits', showOutfits)
+  }, [])
   const s = useWardrobe()
   const owner = useSession(state => state.sessionId)
   const variant: CharacterVariant = useSession(state => state.profiles[state.sessionId]?.character === 'girl' ? 'girl' : 'man')
@@ -166,7 +172,7 @@ export function WardrobeScreen() {
         </label>
       </header>
       <div className="wardrobe-tabs" role="group" aria-label="부위 분류">
-        <button type="button" aria-pressed={showBoxes} onClick={() => setShowBoxes(true)}>상자 보관함</button>
+        <button type="button" aria-pressed={showBoxes} onClick={() => setShowBoxes(true)}>아이템</button>
         {tabs.map(tab => <button key={tab} type="button" aria-pressed={!showBoxes && s.filter === tab} onClick={() => { setShowBoxes(false); setWardrobeFilter(tab) }}>
           {tab === 'ALL' ? '전체' : groupLabels[tab]}
         </button>)}
@@ -207,7 +213,7 @@ export function WardrobeScreen() {
       </div>
 
       <footer className="wardrobe-detail" aria-live="polite">
-        {preview ? <>
+        {showBoxes ? <GachaItemFooter /> : preview ? <>
           <ItemArt owned={preview} variant={variant} />
           <div className="wardrobe-detail__text"><b>{label(preview)}</b><small>{detailText(preview)}</small></div>
           <div className="wardrobe-detail__actions">
@@ -221,7 +227,7 @@ export function WardrobeScreen() {
             <button type="button" className="wardrobe-cancel" disabled={!!s.equipping} onClick={cancelWardrobePreview}>미리보기 취소</button>
           </div>
         </> : <p className="wardrobe-detail__empty">{s.notice || '입어 볼 의상을 골라 주세요. 두 번 누르면 바로 입어요.'}</p>}
-        {s.equipError && <p className="wardrobe-message" role="alert">{s.equipError}</p>}
+        {!showBoxes && s.equipError && <p className="wardrobe-message" role="alert">{s.equipError}</p>}
       </footer>
     </section>
   </section>

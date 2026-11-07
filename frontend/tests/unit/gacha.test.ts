@@ -25,7 +25,7 @@ it('새 회차를 승인하고 같은 1등 공지를 중복 표시하지 않는�
   acceptGacha(event, 100); acceptGacha(event, 200)
   expect(useGachaEvents.getState().machine?.roundId).toBe('2')
   expect(useGachaEvents.getState().notices).toHaveLength(1)
-  expect(useGachaEvents.getState().notices[0]?.text).toContain('1등 의상 상자')
+  expect(useGachaEvents.getState().notices[0]?.text).toContain('S급 캡슐')
   acceptGacha({ ...event, eventId: 'bb7baf0b-0246-4391-adef-a247f90ac50a', machine: machine(1) }, 300)
   expect(useGachaEvents.getState().machine?.roundId).toBe('2')
 })

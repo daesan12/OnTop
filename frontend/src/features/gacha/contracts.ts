@@ -1,3 +1,5 @@
+import { capsuleName } from './labels'
+
 export interface GachaPrize { grade: number; initial: number; remaining: number; value: number }
 export interface GachaMachine { roundId: string; version: number; remaining: number; prizes: GachaPrize[] }
 export interface GachaInventory { tickets: number; boxes: { grade: number; quantity: number }[]; balance: number; availableBalance: number }
@@ -8,7 +10,7 @@ export interface GachaResult {
   product: GachaProduct | null; duplicate: boolean; paidCoins: number; awardedCoins: number
   inventory: GachaInventory; completedAt: string
 }
-export const gradeName = (grade: number) => grade === 5 ? '엽전' : `${grade}등 의상 상자`
+export const gradeName = capsuleName
 export const money = (value: number) => `${value.toLocaleString('ko-KR')}냥`
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)

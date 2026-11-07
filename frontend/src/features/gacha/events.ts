@@ -14,7 +14,7 @@ export function acceptGacha(value: Record<string, unknown>, receivedAt = perform
     const winner = value.winner
     if (!seen.has(value.eventId) && winner && typeof winner === 'object' && !Array.isArray(winner)
       && 'nickname' in winner && typeof winner.nickname === 'string' && winner.nickname.length <= 40) {
-      notices = [...notices, { id: value.eventId, text: `${winner.nickname}님이 1등 의상 상자에 당첨됐어요! 새로운 뽑기가 시작됩니다.`,
+      notices = [...notices, { id: value.eventId, text: `${winner.nickname}님이 S급 캡슐에 당첨됐어요! 보상이 새로 채워졌어요.`,
         version: machine.version, expiresAt: receivedAt + 30000 }].slice(-5)
     }
     seen.add(value.eventId)
