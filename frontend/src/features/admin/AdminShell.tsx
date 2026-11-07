@@ -7,6 +7,7 @@ import { AdminRewardManager } from '../notifications/AdminRewardManager'
 import { AdminAnnouncementsPage } from '../announcements/AdminAnnouncementsPage'
 import { AdminServiceOperationPage } from './AdminServiceOperationPage'
 import { AdminEventsPage } from './AdminEventsPage'
+import { AdminSkinsPage } from '../skins/AdminSkinsPage'
 import { adminRoutes, type AdminSection } from './adminRoutes'
 import logo from '../../assets/entry/ontop-logo.webp'
 import '../feedback/adminFeedback.css'
@@ -22,6 +23,8 @@ type MenuItem = {
 }
 
 const menuItems: readonly MenuItem[] = [
+  { section: 'skins', label: '스킨 공방', title: '스킨 등록·공개 관리',
+    description: '의상 파일과 상품 정보를 등록하고 검수 후 공개합니다.', permission: 'operate' },
   { section: 'operations', label: '운영 제어', title: '서비스 운영 제어',
     description: '신규 활동 차단·점검·정상 운영 상태를 안전하게 전환합니다.', permission: 'operate' },
   { section: 'announcements', label: '공지 관리', title: '공원 공지',
@@ -83,13 +86,14 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
       <small>온탑 · 관리자 전용</small>
       <h1 ref={heading} tabIndex={-1}>{section === 'home' ? '관리자 페이지'
         : section === 'operations' ? '서비스 운영 제어' : section === 'announcements' ? '공원 공지 관리'
-          : section === 'events' ? '이벤트 관리' : section === 'feedback' ? '소리함 의견 조회'
+          : section === 'skins' ? '스킨 공방' : section === 'events' ? '이벤트 관리' : section === 'feedback' ? '소리함 의견 조회'
             : section === 'analytics' ? '일별·게임별 분석' : '보상 관리'}</h1>
       {state.status === 'ready' && <p>{section === 'home'
         ? '관리자 기능을 선택해주세요.' : section === 'feedback'
           ? '이용자가 비공개로 남긴 의견입니다. 서버에서 조회 권한을 확인합니다.'
           : section === 'operations' ? '신규 활동 차단부터 점검 종료까지 운영 상태를 안전하게 전환합니다.'
           : section === 'announcements' ? '소식을 적고 올리면 공원 맨 위 공지에 표시돼요.'
+          : section === 'skins' ? '새 의상 상품과 파일 버전을 안전하게 등록하고 검수합니다.'
           : section === 'events' ? '회차별 행사 결과와 당첨자 제출 현황을 확인합니다.'
           : section === 'analytics' ? '행동 로그를 백업 기준으로 집계한 결과입니다. 서버에서 조회 권한을 확인합니다.'
             : '회원별 엽전·뽑기권 선물과 수령 상태를 확인하고, 전체 지급은 아래 별도 구역에서 진행합니다.'}</p>}
@@ -120,6 +124,8 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
         : <section role="alert">운영 관리자 권한이 필요합니다.</section>
         : section === 'announcements' ? state.access.canOperate ? <AdminAnnouncementsPage onAuthEnded={onAuthEnded} />
         : <section role="alert">운영 관리자 권한이 필요합니다.</section>
+        : section === 'skins' ? state.access.canOperate ? <AdminSkinsPage onAuthEnded={onAuthEnded} />
+          : <section role="alert">스킨 등록 운영 권한이 필요합니다.</section>
         : section === 'events' ? <AdminEventsPage access={state.access} onAuthEnded={onAuthEnded} />
         : section === 'feedback' ? <AdminFeedbackPage onAuthEnded={onAuthEnded} />
         : section === 'analytics' ? <AdminAnalyticsPage onAuthEnded={onAuthEnded} />

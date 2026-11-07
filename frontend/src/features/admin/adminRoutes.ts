@@ -3,6 +3,7 @@ export const adminRoutes = {
   operations: { path: '/admin/operations', page: 'admin-operations' },
   announcements: { path: '/admin/announcements', page: 'admin-announcements' },
   events: { path: '/admin/events', page: 'admin-events' },
+  skins: { path: '/admin/skins', page: 'admin-skins' },
   feedback: { path: '/admin/feedback', page: 'admin-feedback' },
   analytics: { path: '/admin/analytics', page: 'admin-analytics' },
   'wallet-grants': { path: '/admin/wallet-grants', page: 'admin-wallet-grants' },

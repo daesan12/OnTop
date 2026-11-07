@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry } from 'three'
 import { equipSlots, type EquipSlot, type PublicEquipment } from '../../network/equipment'
+import { catalogAsset, catalogSource } from './skinCatalog'
 
 /**
  * What an avatar wears, slot by slot. Character files hold the shared body, split into pieces by the items
@@ -26,6 +27,8 @@ export const defaultLook = (variant: CharacterVariant): Look => ({ ...defaults[v
  * (man, girl: their default items) or an outfit file under /art/characters/outfits. Anything else stays default. */
 const outfitKey = /^outfit\/([a-z0-9-]{1,40})\/([a-z0-9]{1,8})$/
 export function wornPiece(imageKey: string | null): Worn | null {
+  const asset = catalogAsset(imageKey)
+  if (asset?.wearMode === 'PARTS') return { source: catalogSource(asset), id: 'a' }
   const match = imageKey?.match(outfitKey)
   return match ? { source: match[1]!, id: match[2]! } : null
 }
