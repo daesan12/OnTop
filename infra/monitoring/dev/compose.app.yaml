@@ -5,8 +5,6 @@ services:
     environment:
       # Replaces the whole value: preserve confirmed DEV profiles and append observe-dev before applying.
       SPRING_PROFILES_ACTIVE: dev,db,observe-dev
-      # Observability installation must not apply pending schema migrations.
-      SPRING_FLYWAY_ENABLED: "false"
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "3", "http://127.0.0.1:8082/actuator/health"]
