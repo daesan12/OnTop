@@ -132,11 +132,11 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
       ? <div className="coop-equipment-return"><button onClick={() => setEquipmentOpen(false)}>← 역할·준비 화면으로</button><p>‘VR 시작’을 눌러 연결해 주세요.</p></div>
       : <CoopLobby key={snapshot?.gameId ?? 'browser'} client={client} chefMode={chefMode} onChefMode={setChefMode} onClose={() => void leaveLobby()} onEquipment={() => setEquipmentOpen(true)} /> : null}
     {pub?.phase === 'COUNTDOWN' ? <div className="coop-countdown" role="status"><strong>{Math.max(1, Math.ceil(pub.countdown))}</strong><span>곧 영업을 시작해요</span></div> : null}
-    {pub?.phase !== 'FINISHED' && (pub?.paused || !state.connected) && !confirmExit && !pub?.restart ? <div className="coop-pause" role="status"><strong>{pub?.pauseReason === 'EXIT_CONFIRM' && state.connected ? '친구가 잠시 쉬고 있어요' : '친구와 다시 연결하고 있어요'}</strong><p>{pub?.pauseReason === 'EXIT_CONFIRM' && state.connected ? '게임이 함께 멈췄어요. 친구가 돌아오면 이어서 진행해요.' : '영업 시간이 함께 멈췄어요. 30초 안에 돌아오면 이어서 진행해요.'}</p></div> : null}
+    {!(role === 'chef' && xrActive) && pub?.phase !== 'FINISHED' && (pub?.paused || !state.connected) && !confirmExit && !pub?.restart ? <div className="coop-pause" role="status"><strong>{pub?.pauseReason === 'EXIT_CONFIRM' && state.connected ? '친구가 잠시 쉬고 있어요' : '친구와 다시 연결하고 있어요'}</strong><p>{pub?.pauseReason === 'EXIT_CONFIRM' && state.connected ? '게임이 함께 멈췄어요. 친구가 돌아오면 이어서 진행해요.' : '영업 시간이 함께 멈췄어요. 30초 안에 돌아오면 이어서 진행해요.'}</p></div> : null}
     {(pub?.greeting.active || !!pub?.greeting.outcome) && !pub.paused && pub.phase === 'PLAYING' && !(role === 'chef' && chefMode === 'vr') ? <GreetingEvent key={pub.greeting.index} greeting={pub.greeting} onGreet={() => client.act({ type: 'GREET' })} /> : null}
     {pub?.greeting.speech ? <div className="coop-speech" role="status">어서 오세요!</div> : null}
     {businessClosing ? <BusinessClosing /> : pub?.phase === 'FINISHED' ? <CoopResultPanel client={client} leaving={leaving} onClose={() => void exit()} /> : null}
-    {state.error && pub && pub.phase !== 'FINISHED' && (pub.phase !== 'WAITING' || equipmentOpen) ? <p className="coop-error" role="alert">{state.error}</p> : null}
+    {!(role === 'chef' && xrActive) && state.error && pub && pub.phase !== 'FINISHED' && (pub.phase !== 'WAITING' || equipmentOpen) ? <p className="coop-error" role="alert">{state.error}</p> : null}
     {role === 'chef' && xrActive ? null : <ExitConfirmation open={confirmExit && !leaving} cooperative busy={pausePending || leaving} paused={!!pub?.paused}
       error={state.error} onContinue={() => void changePause(false)} onExit={() => void exit()} onRetry={() => void changePause(true)} />
     }

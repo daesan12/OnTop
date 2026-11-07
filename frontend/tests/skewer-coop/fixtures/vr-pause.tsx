@@ -22,8 +22,9 @@ let receive: ((message: Envelope) => boolean) | undefined
 const publish = () => { state.version++; receive?.({ type: 'GAME_STATE', payload: structuredClone(state) } as unknown as Envelope) }
 const calls: string[] = []
 let hold = false, fail = false, failLeave = false, release: (() => void) | undefined, protectionReleased = 0
+let failGreeting = false, loseGreetingReply = false, failCooking = false, connected = true
 const transport: CoopTransport = {
-  scope: () => ({ userId: '101', channelId: 'park', connected: true }),
+  scope: () => ({ userId: '101', channelId: 'park', connected }),
   protectVR: async () => () => { protectionReleased++ },
   subscribe: fn => { receive = fn; return () => { receive = undefined } },
   requestJSON: async (path, init) => {
@@ -35,6 +36,13 @@ const transport: CoopTransport = {
     if (type === 'GAME_FORFEIT') { calls.push('FORFEIT'); return { type: 'GAME_FORFEIT_RESULT', payload: {} } as Envelope }
     if (type === 'GAME_ACTION_SEND') {
       calls.push(input.type === 'PAUSE' ? `PAUSE:${input.paused}` : input.type)
+      if (input.type === 'THREAD' && failCooking) { failCooking = false; throw { code: 'GAME_ACTION_INVALID_ACTION' } }
+      if (input.type === 'GREET') {
+        if (hold) await new Promise<void>(resolve => { release = resolve })
+        if (failGreeting) { failGreeting = false; throw new Error('일시 통신 오류') }
+        state.publicState.greeting.answered = true
+        if (loseGreetingReply) { loseGreetingReply = false; state.version++; throw new Error('응답만 유실') }
+      }
       if (input.type === 'PAUSE') {
         if (hold) await new Promise<void>(resolve => { release = resolve })
         if (fail) { fail = false; throw { code: 'GAME_ACTION_INVALID_ACTION' } }
@@ -49,6 +57,7 @@ const transport: CoopTransport = {
 }
 let session: XRSession | null = null, renderer: WebGLRenderer | null = null, scene: Scene | null = null, kitchen: ChefScene | null = null
 let tracked = true, frames = 0, requested = 0, timer: ReturnType<typeof setInterval> | undefined
+let yaw = 0, clock = performance.now(), renderFrame: (() => void) | undefined
 const space = new EventTarget() as XRReferenceSpace
 const right = { handedness: 'right', gamepad: { mapping: 'xr-standard', buttons: Array.from({ length: 6 }, () => ({ pressed: false })) } } as unknown as XRInputSource
 Object.defineProperty(navigator, 'xr', { configurable: true, value: {
@@ -68,13 +77,15 @@ ChefScene.prototype.enterVR = async function () {
   renderer.xr.getCamera = () => internal.camera as ReturnType<WebGLRenderer['xr']['getCamera']>
   await enterVR.call(this)
   if (timer) clearInterval(timer)
-  timer = setInterval(() => {
+  renderFrame = () => {
     const current = session
     if (current) frames++
-    const frame = current ? { session: current, getViewerPose: () => tracked ? { transform: { orientation: new Quaternion(), position: new Vector3(0, 1.6, 0) } } : null } as unknown as XRFrame : undefined
-    if (current) { internal.camera.position.set(0, 1.6, 0); internal.camera.quaternion.identity(); internal.camera.updateMatrixWorld(true) }
-    internal.render(performance.now(), frame)
-  }, 40)
+    const orientation = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw * Math.PI / 180)
+    const frame = current ? { session: current, getViewerPose: () => tracked ? { transform: { orientation, position: new Vector3(0, 1.6, 0) } } : null } as unknown as XRFrame : undefined
+    if (current) { internal.camera.position.set(0, 1.6, 0); internal.camera.quaternion.copy(orientation); internal.camera.updateMatrixWorld(true) }
+    internal.render(clock, frame)
+  }
+  timer = setInterval(() => { clock = Math.max(clock + 40, performance.now()); renderFrame?.() }, 40)
 }
 async function select(action: string) {
   await new Promise(resolve => setTimeout(resolve, 80)) // publish 이후 실제 Scene 프레임에 메뉴를 반영한다.
@@ -101,7 +112,17 @@ Reflect.set(window, 'vrPauseQA', {
   select, hold: (value: boolean) => { hold = value }, fail: () => { fail = true }, failLeave: () => { failLeave = true },
   release: () => { hold = false; release?.(); release = undefined },
   tracked: (value: boolean) => { tracked = value },
-  snapshot: () => ({ calls: [...calls], modalCalls, frames, requested, rendererAttached: !!renderer, protected: !!session, protectionReleased, paused: state.publicState.paused }),
+  greeting: () => { Object.assign(state.publicState.greeting, { active: true, index: state.publicState.greeting.index + 1, remaining: 5, answered: false }); publish() },
+  turn: (degrees: number) => { const start = yaw; for (let i = 0; i <= 36; i++) { yaw = start + degrees * i / 36; clock += 40; renderFrame?.() } },
+  failGreeting: () => { failGreeting = true }, loseGreetingReply: () => { loseGreetingReply = true }, failCooking: () => { failCooking = true },
+  friend: (value: boolean) => {
+    state.publicState.players[1].connected = value
+    state.publicState.paused = !value || !!state.publicState.pausedBy?.length
+    state.publicState.pauseReason = !value ? 'DISCONNECTED' : state.publicState.paused ? 'EXIT_CONFIRM' : ''
+    publish()
+  },
+  connection: (value: boolean) => { connected = value },
+  snapshot: () => ({ calls: [...calls], modalCalls, frames, requested, rendererAttached: !!renderer, protected: !!session, protectionReleased, paused: state.publicState.paused, answered: state.publicState.greeting.answered }),
 })
 function App() {
   const [closed, setClosed] = useState(false)

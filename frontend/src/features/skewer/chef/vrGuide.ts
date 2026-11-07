@@ -37,6 +37,6 @@ export function paintChefVRGuide(ctx: CanvasRenderingContext2D, image: HTMLImage
   })
   paintGuideNotePaper(ctx, 950)
   ctx.fillStyle = muted; ctx.font = '30px "Malgun Gothic", sans-serif'
-  ctx.fillText(online ? '인사: 몸을 한 바퀴 돌려요(양방향) · 안내 중에도 영업 시간은 흘러요.' : '연습 모드 · 엽전과 랭킹 기록 없음', 64, 990)
+  ctx.fillText(online ? '인사: 몸 한 바퀴 · 전송 실패 시 카드 트리거 · 안내 중에도 시간은 흘러요.' : '연습 모드 · 엽전과 랭킹 기록 없음', 64, 990)
   paintGuideButton(ctx, 64, 1020, 1408, 88, '1 트리거로 안내 닫기', false)
 }

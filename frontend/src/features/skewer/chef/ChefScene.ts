@@ -12,6 +12,7 @@ import { chefPresentation } from './chefPresentation'
 import { ChefHall } from './ChefHall'
 import { GreetingTurn } from './GreetingTurn'
 import { CLOSED_PAUSE, PAUSE_BUTTONS, paintVRPause, VRPauseButton, type ChefPauseState } from './vrPause'
+import { paintRuntimeNotice } from './vrNotice'
 import { GREETING_IMAGE, MISSED_GREETING_IMAGE } from '../coop/GreetingEvent'
 import { paintBusinessStatus } from '../BusinessStatus'
 import { INITIAL_PANTRY } from '../cooperativeMenu'
@@ -92,6 +93,11 @@ export class ChefScene {
   private pauseTexture!: THREE.CanvasTexture
   private pauseSignature = ''
   private pauseRetryTarget?: THREE.Mesh
+  private readonly runtimeRoot = new THREE.Group()
+  private readonly runtimeCanvas = document.createElement('canvas')
+  private runtimeTexture!: THREE.CanvasTexture
+  private runtimeSignature = ''
+  private runtimeBlocked = false
   private readonly timerCanvas = document.createElement('canvas')
   private readonly submitCanvas = document.createElement('canvas')
   private submitTexture!: THREE.CanvasTexture
@@ -141,7 +147,7 @@ export class ChefScene {
     key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, far: 20 }); key.shadow.normalBias = .012
     const fill = new THREE.DirectionalLight('#cbd7d4', .45); fill.position.set(4, 5, -3); this.scene.add(key, fill)
     this.post = new RestaurantPost(this.renderer, this.scene, this.camera, .11)
-    this.buildKitchen(); this.buildVRPause(); this.kitchen.add(this.hall.root, this.skewer, this.pass); this.skewer.position.copy(HOME); this.skewer.add(this.assembled)
+    this.buildKitchen(); this.buildVRPause(); this.buildRuntimeNotice(); this.kitchen.add(this.hall.root, this.skewer, this.pass); this.skewer.position.copy(HOME); this.skewer.add(this.assembled)
     const stick = this.world.cylinder(.012, 2.6, '#ad763c'); stick.rotation.z = Math.PI / 2; this.skewer.add(stick)
     const handle = this.world.cylinder(.07, .42, '#744323'); handle.rotation.z = Math.PI / 2; this.world.place(this.skewer, handle, -1.51, 0, 0)
     this.hitBox(this.skewer, new THREE.Vector3(0, 0, 0), new THREE.Vector3(2.95, .17, .17), { action: 'stick' })
@@ -410,6 +416,11 @@ export class ChefScene {
       if (button.action === 'pauseRetry') this.pauseRetryTarget = target
     }
   }
+  private buildRuntimeNotice() {
+    this.runtimeCanvas.width = 1536; this.runtimeCanvas.height = 300; this.runtimeTexture = this.texture(this.runtimeCanvas)
+    const panel = this.mesh(new THREE.PlaneGeometry(1.65, .322), new THREE.MeshBasicMaterial({ map: this.runtimeTexture, transparent: true, toneMapped: false, depthTest: false, depthWrite: false }))
+    panel.renderOrder = 140; this.runtimeRoot.add(panel); this.dolly.add(this.runtimeRoot); this.runtimeRoot.visible = false
+  }
   private buildVRGuide() {
     this.guideCanvas.width = 1536; this.guideCanvas.height = 1152
     this.guideTexture = this.texture(this.guideCanvas)
@@ -615,7 +626,9 @@ export class ChefScene {
     else if ('slot' in pick) { if (this.receiptMotion) return; const job = this.view.visible[pick.slot]; if (job) this.action({ type: 'choose', id: job.id }) }
     else if (pick.action === 'coop') {
       if (this.view.cooperative?.phase === 'FINISHED') this.action({ type: 'exit' })
-      else if (this.view.cooperative?.greeting && !this.view.cooperative.answered && this.mode !== 'vr') this.action({ type: 'greet' })
+      else if (this.view.cooperative?.greeting && !this.view.cooperative.answered && !this.view.cooperative.paused
+        && !this.greetingBlocked && !this.view.cooperative.runtimeNotice?.blocking
+        && (this.mode !== 'vr' || this.greetingTurn.progress === 1 && this.view.cooperative.greetingDelivery === 'retry')) this.action({ type: 'greet' })
       else if (this.view.cooperative?.phase === 'WAITING') this.action({ type: 'ready' })
     }
     else if (pick.action === 'thread' || pick.action === 'unthread' || pick.action === 'submit') this.action({ type: pick.action })
@@ -685,6 +698,7 @@ export class ChefScene {
     this.arrivals = this.arrivals.filter(arrival => now - arrival.started < 360)
   }
   private visiblePickables() { return this.pickables.filter(mesh => {
+    if (this.view.cooperative?.runtimeNotice?.blocking && !['pause', 'resume', 'leave', 'pauseRetry'].includes(mesh.userData.pick?.action)) return false
     if (this.vrPauseOpen && !['resume', 'leave', 'pauseRetry'].includes(mesh.userData.pick?.action)) return false
     if (this.guideRoot.visible && mesh.userData.pick?.action !== 'closeGuide') return false
     for (let o: THREE.Object3D | null = mesh; o; o = o.parent) if (!o.visible) return false
@@ -755,7 +769,7 @@ export class ChefScene {
     catch (e) { await session.end().catch(() => undefined); this.sessionEnded(); throw e }
   }
   private sessionEnded = () => {
-    this.pauseButton.reset(); this.pauseRoot.visible = false
+    this.pauseButton.reset(); this.pauseRoot.visible = false; this.runtimeRoot.visible = false
     this.session?.removeEventListener('visibilitychange', this.greetingInterrupted)
     this.bindGreetingSpace(null); this.greetingTurn.reset()
     if (this.greetingPanel) {
@@ -789,7 +803,7 @@ export class ChefScene {
     if (pressed && !this.pauseState.busy && !c?.restart && ['PLAYING', 'COUNTDOWN'].includes(c?.phase ?? '')) {
       this.activate({ action: this.vrPauseOpen ? 'resume' : 'pause' })
     }
-    const gesturePose = !pressed && !this.greetingBlocked && !this.guideRoot.visible && !c?.paused && !this.vrPauseOpen ? pose : null
+    const gesturePose = !pressed && !this.greetingBlocked && !c?.runtimeNotice?.blocking && !this.guideRoot.visible && !c?.paused && !this.vrPauseOpen ? pose : null
     if (this.greetingTurn.update(event, gesturePose?.transform.orientation ?? null, now)) this.action({ type: 'greet' })
     // 회전 중에도 인사 안내와 진행률이 시야에서 사라지지 않도록 한다.
     if (this.session && pose && this.greetingPanel && (c?.greeting || c?.greetingOutcome)) {
@@ -803,6 +817,11 @@ export class ChefScene {
       this.pauseRoot.position.set(0, 0, -1.45).applyQuaternion(this.q).add(pose.transform.position)
       this.pauseRoot.quaternion.copy(this.q)
     }
+    if (this.session && pose) {
+      this.q.copy(pose.transform.orientation)
+      this.runtimeRoot.position.set(0, c?.runtimeNotice?.blocking ? -.12 : -.61, -1.5).applyQuaternion(this.q).add(pose.transform.position)
+      this.runtimeRoot.quaternion.copy(this.q)
+    }
     this.host.dataset.greetingTurn = String(Math.round(this.greetingTurn.progress * 100))
     this.host.dataset.greetingInput = this.mode === 'vr' ? 'physical-turn' : 'button'
   }
@@ -812,6 +831,12 @@ export class ChefScene {
     this.view = this.step(this.guideRoot.visible || this.session && this.session.visibilityState !== 'visible' ? 0 : dt)
     this.updateGreetingTurn(frame, now)
     const phase = this.view.cooperative?.phase ?? ''
+    const runtimeNotice = this.view.cooperative?.runtimeNotice
+    if (runtimeNotice?.blocking && !this.runtimeBlocked) {
+      this.showVRGuide(false); this.greetingTurn.invalidate()
+      this.held.forEach(held => held.root.removeFromParent()); this.held.clear(); this.returnStick()
+    }
+    this.runtimeBlocked = !!runtimeNotice?.blocking
     if (phase === 'FINISHED' && this.previousPhase === 'PLAYING' && this.view.cooperative?.endReason === 'SKEWER_TIME_UP') this.finishedAt = now
     if (phase !== 'FINISHED') this.finishedAt = 0
     this.previousPhase = phase
@@ -871,18 +896,28 @@ export class ChefScene {
     this.pauseTrigger.visible = (this.mode === 'vr' || !!this.session) && !!v.cooperative && ['PLAYING', 'COUNTDOWN'].includes(v.cooperative.phase) && !restart && !this.vrPauseOpen
     this.pauseRoot.visible = !!this.session && this.vrPauseOpen
     if (this.pauseRetryTarget) this.pauseRetryTarget.visible = !this.pauseState.busy && !this.pauseState.confirmed
-    const pauseKey = JSON.stringify([this.pauseState, this.guidePaper.complete])
+    const pauseState = runtimeNotice?.kind === 'connection' ? { ...this.pauseState, error: `${runtimeNotice.title}. ${runtimeNotice.detail}` } : this.pauseState
+    const pauseKey = JSON.stringify([pauseState, this.guidePaper.complete])
     if (this.pauseRoot.visible && pauseKey !== this.pauseSignature) {
-      this.pauseSignature = pauseKey; paintVRPause(this.pauseCanvas.getContext('2d')!, this.pauseState, this.guidePaper); this.pauseTexture.needsUpdate = true
+      this.pauseSignature = pauseKey; paintVRPause(this.pauseCanvas.getContext('2d')!, pauseState, this.guidePaper); this.pauseTexture.needsUpdate = true
     }
     this.host.dataset.pauseOpen = String(this.pauseRoot.visible)
     this.host.dataset.pauseBusy = String(this.pauseState.busy)
+    this.runtimeRoot.visible = !!this.session && !!runtimeNotice && !this.vrPauseOpen && !this.guideRoot.visible
+      && !(this.view.cooperative?.greeting && runtimeNotice.kind === 'error')
+    const runtimeKey = JSON.stringify([runtimeNotice, this.guidePaper.complete])
+    if (this.runtimeRoot.visible && runtimeNotice && runtimeKey !== this.runtimeSignature) {
+      this.runtimeSignature = runtimeKey; paintRuntimeNotice(this.runtimeCanvas.getContext('2d')!, runtimeNotice, this.guidePaper); this.runtimeTexture.needsUpdate = true
+    }
+    const noticeVisible = this.runtimeRoot.visible || this.pauseRoot.visible && runtimeNotice?.kind === 'connection'
+    this.host.dataset.runtimeNotice = noticeVisible ? runtimeNotice!.kind : ''
+    this.host.dataset.runtimeMessage = noticeVisible ? `${runtimeNotice!.title} ${runtimeNotice!.detail}` : ''
     if (this.coopPanel) this.coopPanel.visible = this.boardRoot.visible && !!v.cooperative && (v.cooperative.phase !== 'PLAYING' || !!v.cooperative.greeting || !!v.cooperative.paused)
     if (this.greetingPanel) {
       const c = v.cooperative
-      this.greetingPanel.visible = this.mode === 'vr' && !this.guideRoot.visible && !this.vrPauseOpen && !!c && !c.paused && c.phase === 'PLAYING' && (c.greeting || !!c.greetingOutcome)
+      this.greetingPanel.visible = this.mode === 'vr' && !this.guideRoot.visible && !this.vrPauseOpen && !c?.runtimeNotice?.blocking && !!c && !c.paused && c.phase === 'PLAYING' && (c.greeting || !!c.greetingOutcome)
       const progress = Math.round(this.greetingTurn.progress * 100), remaining = Math.ceil(c?.greetingRemaining ?? 0)
-      const key = [c?.greetingIndex, c?.greeting, c?.answered, c?.greetingOutcome, c?.greetingBonus, progress, remaining, !!this.session].join(':')
+      const key = [c?.greetingIndex, c?.greeting, c?.answered, c?.greetingOutcome, c?.greetingBonus, c?.greetingDelivery, progress, remaining, !!this.session].join(':')
       if (this.greetingPanel.visible && key !== this.greetingSignature) {
         this.greetingSignature = key
         const ctx = this.greetingCanvas.getContext('2d')!, missed = c?.greetingOutcome === 'missed', image = missed ? this.missedGreetingImage : this.greetingImage
@@ -890,7 +925,10 @@ export class ChefScene {
         if (image.complete && image.naturalWidth) ctx.drawImage(image, 40, 95, 520, 520)
         ctx.textAlign = 'center'; ctx.fillStyle = missed ? '#4c4c4c' : '#593c29'; ctx.font = '700 45px "Malgun Gothic",sans-serif'
         ctx.fillText(missed ? '아쉬워요!' : c?.greetingOutcome === 'success' ? '인사 완료!' : '함께 인사해요!', 300, 72)
-        ctx.font = '700 28px "Malgun Gothic",sans-serif'; ctx.fillText(missed ? '다음엔 함께 인사해요' : c?.greetingOutcome === 'success' ? '보너스 +' + (c.greetingBonus ?? 0) + '점' : c?.answered ? '친구를 기다려요' : this.session ? '제자리에서 몸을 한 바퀴 돌려요' : '헤드셋에서 몸을 한 바퀴 돌려요', 300, 665)
+        const delivery = c?.greetingDelivery
+        const retry = !!c?.greeting && !c.answered && progress === 100 && delivery === 'retry'
+        if (retry) { ctx.fillStyle = '#163d29'; ctx.beginPath(); ctx.roundRect(24, 624, 552, 55, 12); ctx.fill(); ctx.fillStyle = '#fff5df' }
+        ctx.font = '700 28px "Malgun Gothic",sans-serif'; ctx.fillText(missed ? '다음엔 함께 인사해요' : c?.greetingOutcome === 'success' ? '보너스 +' + (c.greetingBonus ?? 0) + '점' : c?.answered ? '친구를 기다려요' : delivery === 'pending' ? '인사를 전송하고 있어요…' : retry ? '인사 다시 보내기 · 트리거' : this.session ? '제자리에서 몸을 한 바퀴 돌려요' : '헤드셋에서 몸을 한 바퀴 돌려요', 300, 665, 530)
         if (c?.greeting && !c.answered) {
           ctx.fillStyle = '#deccb0'; ctx.fillRect(55, 690, 490, 16)
           ctx.fillStyle = '#4d7050'; ctx.fillRect(55, 690, 490 * progress / 100, 16)
@@ -899,6 +937,7 @@ export class ChefScene {
         }
         this.greetingTexture!.needsUpdate = true
       }
+      this.host.dataset.greetingDelivery = c?.answered ? 'confirmed' : c?.greetingDelivery ?? 'idle'
     }
     this.halos.forEach((ring, id) => { ring.visible = id === v.ingredient })
     const aligned = !chefPresentation(v).blocked && [...this.held.values()].some(h => this.heldReady(h)); (this.marker.material as THREE.MeshBasicMaterial).color.set(aligned ? '#70cb80' : '#f6c965')

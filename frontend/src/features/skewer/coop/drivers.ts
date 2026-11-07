@@ -3,6 +3,7 @@ import type { Point } from '../serviceHall/plan'
 import { ChefPreview, type ChefAction, type ChefView } from '../chef/model'
 import type { CoopClient } from './client'
 import { PositionPlayback } from '../serviceHall/rendering/PositionPlayback'
+import { chefRuntimeNotice } from '../chef/vrNotice'
 
 export type HallDriver = Pick<HallPreview, 'view' | 'step' | 'navigate' | 'nearest' | 'blockedReason' | 'actionLabel' | 'press' | 'secondaryLabel' | 'secondaryBlockedReason' | 'pressSecondary' | 'closeStorage' | 'takeStored' | 'release'> & { online?: boolean }
 export type ChefDriver = Pick<ChefPreview, 'view' | 'step' | 'action'> & { online?: boolean }
@@ -117,6 +118,16 @@ export class OnlineChef implements ChefDriver {
   private lastView?: ChefView
   private lastCompleted = 0
   private round = -1
+  private greetingRequest?: { key: string; pending: boolean }
+  private greetingKey() { const s = this.client.snapshot; return `${s?.gameId}:${s?.publicState.round ?? 0}:${s?.publicState.greeting.index}` }
+  private runtimeNotice() {
+    const pub = this.client.snapshot?.publicState
+    if (!pub) return
+    const state = this.client.store.getState(), scope = this.client.transport.scope()
+    return chefRuntimeNotice({ phase: pub.phase, connected: state.connected && scope.connected,
+      friendConnected: pub.players.filter(player => player.userId !== scope.userId).every(player => player.connected),
+      paused: pub.paused, ownPause: !!pub.pausedBy?.includes(scope.userId), pauseReason: pub.pauseReason, restarting: !!pub.restart, error: state.error })
+  }
   constructor(private client: CoopClient) {}
   view(): ChefView {
     const snapshot = this.client.snapshot!, pub = snapshot.publicState
@@ -127,14 +138,17 @@ export class OnlineChef implements ChefDriver {
       this.lastCompleted = chef.completed ?? 0
       this.ingredient = chef.pantry?.[0] ?? 'tomato'
     }
-    const receipt = this.client.store.getState().result
+    const state = this.client.store.getState(), receipt = state.result
+    const greetingDelivery = this.greetingRequest?.key === this.greetingKey() ? this.greetingRequest.pending ? 'pending' : 'retry' : 'idle'
+    const runtimeNotice = this.runtimeNotice()
     return this.lastView = { ...snapshot.privateState.chef!, ingredient: this.ingredient, revision: snapshot.version, seconds: pub.remaining, started: pub.phase === 'PLAYING', message: this.feedback.read(pub.message, pub.round ?? 0),
       cooperative: { round: pub.round ?? 0, restart: pub.restart ? { id: pub.restart.id, own: pub.restart.requestedBy === this.client.transport.scope().userId } : null,
-        phase: pub.phase, endReason: pub.endReason, greetingOutcome: pub.greeting.outcome, greetingBonus: pub.greeting.bonus, greetingIndex: pub.greeting.index, greetingRemaining: pub.greeting.remaining, greeting: pub.greeting.active, answered: pub.greeting.answered, speech: pub.greeting.speech, countdown: pub.countdown, paused: pub.paused, score: pub.score, served: pub.served, rankingEligible: pub.rankingEligible,
+        phase: pub.phase, endReason: pub.endReason, greetingOutcome: pub.greeting.outcome, greetingBonus: pub.greeting.bonus, greetingIndex: pub.greeting.index, greetingRemaining: pub.greeting.remaining, greetingDelivery, runtimeNotice, greeting: pub.greeting.active, answered: pub.greeting.answered, speech: pub.greeting.speech, countdown: pub.countdown, paused: pub.paused, score: pub.score, served: pub.served, rankingEligible: pub.rankingEligible,
         result: pub.phase === 'FINISHED' ? { score: pub.score, reward: receipt?.status === 'SETTLED' ? `받은 엽전 ${receipt.coinsGranted}냥 · 오늘 남은 한도 ${receipt.remainingToday}냥` : receipt?.status === 'UNAVAILABLE' ? '이번 경기의 보상을 확인할 수 없어요' : '개인 보상 확인 중', ranking: receipt?.rankingStatus === 'REGISTERED' ? `${pub.rankingMode ?? (pub.chefVR ? 'VR' : 'PC')} 팀 기록 등록 완료` : pub.rankingEligible ? `${pub.rankingMode ?? (pub.chefVR ? 'VR' : 'PC')} 팀 기록 확인 중` : '팀 랭킹 미등록 · 엽전 보상 가능' } : undefined } }
   }
   step(_dt: number) {}
   action(action: ChefAction) {
+    if (this.runtimeNotice()?.blocking && !['restartAccept', 'restartDecline'].includes(action.type)) return
     if (action.type === 'restartRequest') { if (this.client.playable) void this.client.act({ type: 'RESTART_REQUEST' }); return }
     if (action.type === 'restartAccept' || action.type === 'restartDecline') {
       const request = this.client.snapshot?.publicState.restart
@@ -144,7 +158,15 @@ export class OnlineChef implements ChefDriver {
       return
     }
     if (action.type === 'ready') { void this.client.act({ type: 'READY', ready: true }); return }
-    if (action.type === 'greet') { if (!this.client.inputBlocked && !this.client.snapshot?.publicState.paused) void this.client.act({ type: 'GREET' }); return }
+    if (action.type === 'greet') {
+      const pub = this.client.snapshot?.publicState, key = this.greetingKey()
+      if (!pub || pub.phase !== 'PLAYING' || !pub.greeting.active || pub.greeting.answered || pub.paused || this.client.inputBlocked
+        || !this.client.transport.scope().connected || this.greetingRequest?.key === key && this.greetingRequest.pending) return
+      const retry = this.greetingRequest?.key === key
+      const request = { key, pending: true }; this.greetingRequest = request
+      void this.client.act({ type: 'GREET' }, false, { refreshGreeting: retry }).finally(() => { request.pending = false })
+      return
+    }
     if (action.type === 'select') { this.ingredient = action.ingredient; return }
     if (!this.client.playable) return
     if (action.type === 'thread') void this.client.act({ type: 'THREAD', ingredient: action.ingredient ?? this.ingredient })
