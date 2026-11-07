@@ -2,6 +2,17 @@ import { expect, test, type Page } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const errors: string[] = []
+    Reflect.set(window, 'skewerWindowErrors', errors)
+    window.addEventListener('error', event => errors.push(event.message))
+  })
+})
+test.afterEach(async ({ page }) => {
+  expect(await page.evaluate(() => Reflect.get(window, 'skewerWindowErrors') ?? [])).toEqual([])
+})
+
 async function capture(page: Page, name: string) {
   const folder = process.env.SKEWER_FEEDBACK_EVIDENCE
   if (folder) { await mkdir(folder, { recursive: true }); await page.screenshot({ path: path.join(folder, `${name}.png`), animations: 'disabled' }) }
@@ -93,13 +104,33 @@ test('테이블 접근 안내는 유지하고 노란 테두리는 표시하지 �
 })
 
 for (const role of ['chef', 'server']) test(`${role} 준비 이미지는 기존 역할 일러스트다`, async ({ page }) => {
+  const verify = health(page)
   await page.goto(`/tests/skewer-coop/fixtures/play-feedback.html?role=${role}&prepare=1`)
   if (role === 'chef') await page.getByRole('button', { name: 'PC로 요리하기', exact: true }).click()
   const image = page.locator('.coop-guide-art img')
   await expect(image).toHaveAttribute('src', new RegExp(`${role === 'server' ? 'server-role' : 'chef-pc-choice'}-illustration.png`))
   await expect(image).toHaveJSProperty('complete', true, { timeout: 15000 })
   expect(await image.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(1000)
-  await capture(page, `${role}-illustrated-ready`)
+  for (const [width, height] of [[1440, 900], [900, 500], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    const dialog = page.getByRole('dialog', { name: '역할 선택과 준비', exact: true })
+    const [box, nav] = await dialog.evaluate(el => ['.coop-ready-footer', '.coop-lobby-navigation'].map(selector => {
+      const r = el.querySelector(selector)!.getBoundingClientRect()
+      return { x: r.x, y: r.y, width: r.width, height: r.height }
+    }))
+    expect(Math.abs(box.x - nav.x)).toBeLessThanOrEqual(1)
+    expect(Math.abs(box.width - nav.width)).toBeLessThanOrEqual(1)
+    expect(nav.y - box.y - box.height).toBeGreaterThanOrEqual(11)
+    await expect(dialog.locator('.coop-guide-art figcaption')).toHaveCSS('min-height', '46px')
+    await dialog.locator('.coop-ready-action button').scrollIntoViewIfNeeded()
+    await dialog.locator('.coop-ready-action button').click({ trial: true })
+    await expect(dialog.getByRole('button', { name: '방 나가기 · 다른 방 선택', exact: true })).toBeInViewport()
+    await dialog.locator('.coop-leave-room').scrollIntoViewIfNeeded()
+    await dialog.locator('.coop-leave-room').click({ trial: true })
+    expect(await dialog.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1)
+    await capture(page, `${role}-ready-footer-${width}x${height}`)
+  }
+  await verify()
 })
 
 test('서빙은 클릭해도 이동하지 않고 키보드로 이동하며 착석 전 주문 말풍선이 없다', async ({ page }) => {

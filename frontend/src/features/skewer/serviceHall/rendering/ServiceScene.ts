@@ -56,6 +56,7 @@ export class ServiceScene {
   private washerKey = ''
   private carryKey = ''; private passKey = ''; private disposed = false; private last = 0
   private readonly observer: ResizeObserver
+  private resizeFrame = 0
   private readonly projection = new THREE.Vector3()
   private readonly reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
   constructor(private readonly host: HTMLElement, private readonly step: (dt: number) => HallView, private readonly notice: (text: string) => void) {
@@ -79,7 +80,7 @@ export class ServiceScene {
     this.scene.add(this.carry); this.pass.position.set(STATIONS.pickup.x, 1.14, ROOM.counterZ + .60); this.scene.add(this.pass)
     this.storage.position.set(STATIONS.storage.x, 1.16, ROOM.counterZ + .08); this.scene.add(this.storage)
     // Solid, low-detail materials keep the serving routes legible at game scale.
-    this.observer = new ResizeObserver(this.resize); this.observer.observe(host); this.resize()
+    this.observer = new ResizeObserver(this.scheduleResize); this.observer.observe(host); this.resize()
     this.host.dataset.inputMode = 'keyboard-only'
     this.renderer.domElement.addEventListener('webglcontextlost', this.contextLost)
     this.art.batchStatic(new Set<THREE.Object3D>([this.washerWater, this.washerLamp!])); this.buildPeople(); this.renderer.setAnimationLoop(this.render)
@@ -431,6 +432,11 @@ export class ServiceScene {
     this.projection.set(x, y, z * FLOOR_DEPTH_SCALE).project(this.camera)
     this.host.style.setProperty(`--hall-${name}-x`, `${(this.projection.x + 1) * 50}%`); this.host.style.setProperty(`--hall-${name}-y`, `${(1 - this.projection.y) * 50}%`)
   }
+  private scheduleResize = () => {
+    if (this.disposed || this.resizeFrame) return
+    // 콜백 안에서 HUD 배치를 바꾸면 같은 ResizeObserver 전달 주기가 다시 발생한다.
+    this.resizeFrame = requestAnimationFrame(() => { this.resizeFrame = 0; this.resize() })
+  }
   private resize = () => {
     const root = this.host.parentElement
     if (!root || this.disposed) return
@@ -479,7 +485,7 @@ export class ServiceScene {
     this.update(this.step(dt), Math.min(.05, dt)); this.post.render()
   }
   dispose() {
-    this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)
+    this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); cancelAnimationFrame(this.resizeFrame); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)
     this.sculptedServer?.dispose(); this.sculptedChef?.dispose(); this.tower?.dispose(); this.parkInstances.forEach(mesh => mesh.dispose())
     this.people.dispose(); this.geometry.forEach(g => g.dispose()); this.materials.forEach(m => m.dispose()); this.textures.forEach(t => t.dispose()); this.labelTextures.clear(); this.foods.dispose(); this.art.dispose(); this.post.dispose(); this.environment.dispose(); this.renderer.dispose(); this.renderer.domElement.remove()
   }
