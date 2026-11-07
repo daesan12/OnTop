@@ -75,7 +75,7 @@ describe('avatar pose transitions and resource ownership', () => {
         const flight = { current: { x: 0, y: 2.54, z: 0, yaw: 0 } }
         motion.apply(avatar(), 0, 1 / fps, facing, figure, null, undefined, flight)
         flight.current.x = dx! * .4; flight.current.z = dz! * .4
-        for (let frame = 0; frame < fps * .28; frame++) motion.apply(avatar(), 0, 1 / fps, facing, figure, null, undefined, flight)
+        for (let frame = 0; frame < fps * .44; frame++) motion.apply(avatar(), 0, 1 / fps, facing, figure, null, undefined, flight)
         base.updateMatrixWorld(true)
         for (const side of ['L', 'R'] as const) {
           rig.bones[`hand_${side}`].getWorldPosition(hand)

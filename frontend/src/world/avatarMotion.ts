@@ -180,24 +180,27 @@ export function createAvatarMotion(model: Rig) {
       }
       if (role === 'CARRIER' || !role && kind === 'ground' && age === null && !reaction && releaseAge < CARRY_FINISH_SECONDS) {
         const throwing = !role && releasingThrow
-        const pull = throwing ? carryEase(releaseAge / CARRY_PULL_SECONDS) : 0
-        const push = throwing ? carryEase((releaseAge - CARRY_PULL_SECONDS) / .1) : 0
-        const recover = throwing ? carryEase((releaseAge - .3) / .18) : 0
+        const lift = throwing ? carryEase(releaseAge / .16) : 0
+        const pull = throwing ? carryEase((releaseAge - .16) / .18) : 0
+        const push = throwing ? carryEase((releaseAge - CARRY_PULL_SECONDS) / .12) : 0
+        const recover = throwing ? carryEase((releaseAge - .46) / .24) : 0
+        const duck = throwing ? .65 * lift * (1 - push) : 0
         const weight = role === 'CARRIER' ? 1 : 1 - carryEase(releaseAge / CARRY_FINISH_SECONDS)
         for (const side of ['L', 'R'] as const) {
           const sign = side === 'L' ? 1 : -1
-          // Short arms support the back beside the shoulders, then travel across the front.
-          model.reachHand(side, sign * .32, model.hipHeight + .43 + .12 * Math.sin(pull * Math.PI) - .12 * recover,
-            -.26 + .4 * pull + .42 * push - .4 * recover,
-            0, 0, sign * .2, throwing ? 1 : weight, false)
+          // Keep the raised-back support, then duck underneath the forward overhead sweep.
+          const reach = throwing ? 2.35 + .7 * lift + .75 * pull + 1.1 * push + (Math.PI * 2 - 4.9) * recover - duck : 2.35 * weight
+          set(`upperArm_${side}`, reach, 0, -sign * .25)
+          set(`lowerArm_${side}`, .4 - .28 * lift - .08 * push)
           model.handPose(side, throwing && releaseAge >= CARRY_RELEASE_SECONDS ? 'open' : 'cup')
         }
-        set('spine', role === 'CARRIER' ? .12 + .04 * run : 0)
+        set('spine', role === 'CARRIER' ? .03 + .03 * run : 0)
         if (throwing) {
           const turn = Math.atan2(Math.sin(releaseYaw - pose.yaw), Math.cos(releaseYaw - pose.yaw))
           releaseTurn += Math.atan2(Math.sin(turn - releaseTurn), Math.cos(turn - releaseTurn)) * (1 - Math.exp(-dt * 30))
           figure.rotation.y = releaseTurn * Math.min(1, Math.max(0, (CARRY_FINISH_SECONDS - releaseAge) / .13))
-          set('spine', -.08 * Math.sin(pull * Math.PI) + .24 * Math.sin(push * Math.PI / 2) * (1 - recover))
+          set('spine', duck + .24 * Math.sin(push * Math.PI / 2) * (1 - recover))
+          set('head', .25 * lift * (1 - push))
         }
       } else if (role === 'CARRIED' || role === 'THROWN') {
         // 내려놓는 직립 자세 대신, 들린 자세에서 이어지는 짧은 공중 회전.

@@ -1,14 +1,16 @@
 import { Vector3, type Object3D } from 'three'
 import type { AvatarSnapshot } from '../network/worldClient'
+import { createCarryClearance, separateCarryBodies } from './carryClearance'
 
-export const CARRY_PULL_SECONDS = .16
-export const CARRY_RELEASE_SECONDS = .22
-export const CARRY_FINISH_SECONDS = .48
+export const CARRY_PULL_SECONDS = .34
+export const CARRY_RELEASE_SECONDS = .42
+export const CARRY_FINISH_SECONDS = .7
 export const carryEase = (t: number) => { const x = Math.max(0, Math.min(1, t)); return x * x * (3 - 2 * x) }
 
 type CarryPair = {
   carryId: string; carrierId: string; carriedId: string; releasedAt: number | null; age: number
   carrierRig?: { root: Object3D }; carriedRig?: { root: Object3D }; left?: Object3D; right?: Object3D; hips?: Object3D; facing?: Object3D
+  carrierBody?: ReturnType<typeof createCarryClearance>; carriedBody?: ReturnType<typeof createCarryClearance>
 }
 type PublicAvatar = Pick<AvatarSnapshot, 'carry' | 'connected'>
 
@@ -16,6 +18,7 @@ type PublicAvatar = Pick<AvatarSnapshot, 'carry' | 'connected'>
 export function createCarryMotion() {
   const pairs = new Map<string, CarryPair>(), participants = new Map<string, CarryPair>()
   const shoulder = new Vector3(), otherShoulder = new Vector3(), hip = new Vector3(), offset = new Vector3()
+  const up = new Vector3(0, 1, 0), safeOrigin = new Vector3()
   const remove = (pair: CarryPair) => {
     pairs.delete(pair.carrierId)
     if (participants.get(pair.carrierId) === pair) participants.delete(pair.carrierId)
@@ -63,17 +66,19 @@ export function createCarryMotion() {
           pair.left = carrier.getObjectByName('upperArm_L'); pair.right = carrier.getObjectByName('upperArm_R')
           pair.hips = carried.getObjectByName('hips')
           pair.facing = carrier.getObjectByName(`figure-${pair.carrierId}`)
+          pair.carrierBody = createCarryClearance(carrier); pair.carriedBody = createCarryClearance(carried)
         }
         if (!pair.left || !pair.right || !pair.hips) continue
         pair.left.getWorldPosition(shoulder); pair.right.getWorldPosition(otherShoulder)
         shoulder.add(otherShoulder).multiplyScalar(.5)
         const throwing = pair.releasedAt !== null
-        const pull = throwing ? carryEase(pair.age / CARRY_PULL_SECONDS) : 0
-        const push = throwing ? carryEase((pair.age - CARRY_PULL_SECONDS) / .1) : 0
+        const lift = throwing ? carryEase(pair.age / .16) : 0
+        const pull = throwing ? carryEase((pair.age - .16) / .18) : 0
+        const push = throwing ? carryEase((pair.age - CARRY_PULL_SECONDS) / .12) : 0
         const blend = throwing ? carryEase((pair.age - CARRY_RELEASE_SECONDS) / (CARRY_FINISH_SECONDS - CARRY_RELEASE_SECONDS)) : 0
-        // Rest across the upper back, then lift across the shoulders and push toward +Z.
-        const z = -.28 + .4 * pull + .4 * push
-        offset.set(.06 * (1 - pull), .08 + .12 * Math.sin(pull * Math.PI) - .04 * push, z)
+        // The selected version-two support is unchanged. Only a throw leaves this anchor.
+        const z = -.35 - .13 * lift + 1.18 * pull + .4 * push
+        offset.set(.06 * (1 - pull), .33 + .6 * lift + .05 * Math.sin(pull * Math.PI) - .2 * push, z)
         const yaw = carrier.rotation.y + (pair.facing?.rotation.y ?? 0), x = offset.x
         offset.x = x * Math.cos(yaw) + z * Math.sin(yaw)
         offset.z = z * Math.cos(yaw) - x * Math.sin(yaw)
@@ -82,6 +87,11 @@ export function createCarryMotion() {
         // Visitors are an identity parent. This never changes public/predicted poses or collisions.
         carried.position.addScaledVector(shoulder.sub(hip), 1 - blend)
         carried.updateMatrixWorld(true)
+        // Never separate the held bodies: support/contact takes precedence while carrying.
+        // Once lifted, keep the overhead crossing clear while the carrier ducks underneath.
+        if (throwing && pair.age >= .16 && pair.carrierBody && pair.carriedBody) {
+          separateCarryBodies(pair.carrierBody, pair.carriedBody, carried, up, safeOrigin)
+        }
       }
     },
   }

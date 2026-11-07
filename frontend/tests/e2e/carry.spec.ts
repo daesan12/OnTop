@@ -4,7 +4,7 @@ import type { carryRenderedFrames, carrySequenceFrames, carryThrowGestureFrames 
 
 async function readyCarryScene(page: Page) {
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible({ timeout: 90000 })
-  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length),
+  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length).catch(() => 0),
     { timeout: 90000 }).toBeGreaterThan(0)
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
 }
@@ -44,16 +44,19 @@ for (const [view, orbit] of [['forward', 0], ['opposite', Math.PI], ['sideways',
     const dx = Number(launch.dx), dz = Number(launch.dz), length = Math.hypot(dx, dz)
     const flags = { moving: false, running: false, swimming: false, lastInputSeq: 0 }
     const frames = []
-    for (let tick = 1; tick <= 22; tick++) {
-      const t = tick / 60
+    const began = performance.now()
+    let pulled = false, pushed = false
+    // Observe the complete overhead windup, release and follow-through at any refresh rate.
+    while (performance.now() - began < 850) {
+      const t = (performance.now() - began) / 1000
       server.worldSnapshot({ avatars: [
         { userId: '101', carry: null, position: { ...flags, x: 0, y: .84, z: 78, yaw: Math.PI } },
         { userId: '102', carry: { carryId: launch.carryId, partnerId: '101', role: 'THROWN' },
           position: { ...flags, x: dx * 14 * t, y: 2.54 + 8 * t - 15 * t * t, z: 78 + dz * 14 * t, yaw: Math.PI } },
       ] })
       frames.push(...await sample(1))
-      if (tick === 7) await screenshot(page, `carry-pull-forward-${view}`)
-      if (tick === 16) await screenshot(page, `carry-forward-throw-${view}`)
+      if (!pulled && t > .12) { pulled = true; await screenshot(page, `carry-pull-forward-${view}`) }
+      if (!pushed && t > .44) { pushed = true; await screenshot(page, `carry-forward-throw-${view}`) }
     }
     const reach = frames.map(frame => Math.min(...frame.hands.map(hand => (hand[0]! * dx + hand[2]! * dz) / length)))
     expect(Math.max(...reach)).toBeGreaterThan(.2)
@@ -65,7 +68,7 @@ for (const [view, orbit] of [['forward', 0], ['opposite', Math.PI], ['sideways',
   })
 }
 
-test('shoulder carry pulls the body forward before the push and joins the live flight without a pop', async ({ page }) => {
+test('raised-back carry ducks under the overhead throw and joins the live flight without a pop', async ({ page }) => {
   const server = await fixture(page, { generatedPark: true, carry: true,
     position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
   await page.goto('/park')
@@ -98,9 +101,10 @@ test('shoulder carry pulls the body forward before the push and joins the live f
   try { frames = await capture } finally { clearInterval(timer) }
   await test.info().attach('shoulder-throw-sequence', { body: JSON.stringify(frames), contentType: 'application/json' })
   expect(frames.some(frame => frame.age >= 0 && frame.age < .07 && frame.supportZ < -.1)).toBe(true)
-  expect(frames.some(frame => frame.age > .12 && frame.age < .22 && frame.supportZ > 0)).toBe(true)
-  expect(frames.some(frame => frame.age > .22 && frame.age < .34 && frame.handsZ > .2)).toBe(true)
-  expect(frames.some(frame => frame.age > .5 && frame.distance > 4)).toBe(true)
+  expect(frames.some(frame => frame.age > .18 && frame.age < .34 && frame.spine > .35 && frame.supportY > .8)).toBe(true)
+  expect(frames.some(frame => frame.age > .3 && frame.age < .46 && frame.supportZ > 0)).toBe(true)
+  expect(frames.some(frame => frame.age > .4 && frame.age < .54 && frame.handsZ > .2)).toBe(true)
+  expect(frames.some(frame => frame.age > .72 && frame.distance > 4)).toBe(true)
   const released = frames.findIndex(frame => frame.age >= 0)
   if (released > 0) expect(Math.hypot(...frames[released]!.hip.map((value, axis) => value - frames[released - 1]!.hip[axis]!))).toBeLessThan(.25)
   expect(Number(launch.dx)).toBeCloseTo(0, 2); expect(Number(launch.dz)).toBeCloseTo(-1, 2)
@@ -488,9 +492,10 @@ test('held avatar follows the rendered carrier every frame while running and cha
   for (const { supportDelta, handGap, yawDifference } of frames) {
     // The held hips follow the posed shoulders, including the carrier's stride bob.
     expect(supportDelta[0]!).toBeCloseTo(.06, 2)
-    expect(supportDelta[1]!).toBeCloseTo(.08, 2)
-    expect(supportDelta[2]!).toBeCloseTo(-.28, 2)
-    expect(handGap).toBeLessThan(.5)
+    expect(supportDelta[1]!).toBeCloseTo(.33, 2)
+    expect(supportDelta[2]!).toBeCloseTo(-.35, 2)
+    // This measures hand-to-hip centers, including the held body's thickness.
+    expect(handGap).toBeLessThan(.55)
     // Independent pose samples can differ slightly during a fast heading interpolation.
     expect(Math.abs(Math.atan2(Math.sin(yawDifference), Math.cos(yawDifference)))).toBeLessThan(.03)
   }

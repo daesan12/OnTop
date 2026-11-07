@@ -108,12 +108,12 @@ export async function carryThrowGestureFrames(count: number) {
 }
 
 export async function carrySequenceFrames(count: number) {
-  const frames: { age: number; supportZ: number; handsZ: number; distance: number; hip: number[] }[] = []
+  const frames: { age: number; supportZ: number; supportY: number; spine: number; handsZ: number; distance: number; hip: number[] }[] = []
   const shoulder = new Vector3(), right = new Vector3(), hip = new Vector3(), hand = new Vector3(), up = new Vector3(0, 1, 0)
   let releasedAt: number | null = null
   const began = performance.now()
-  // High-refresh displays must still observe the flight after the 480ms handoff.
-  for (let frame = 0; performance.now() - began < 5000 && (frame < count || releasedAt === null || performance.now() - releasedAt < 700); frame++) {
+  // High-refresh displays must still observe the flight after the 700ms handoff.
+  for (let frame = 0; performance.now() - began < 5000 && (frame < count || releasedAt === null || performance.now() - releasedAt < 900); frame++) {
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
     const carrier = root().scene.getObjectByName('avatar-101')!, carried = root().scene.getObjectByName('avatar-102')!
     const thrown = avatars.get('102')?.carry?.role === 'THROWN'
@@ -129,6 +129,7 @@ export async function carrySequenceFrames(count: number) {
     }))
     frames.push({ age: releasedAt === null ? -1 : (performance.now() - releasedAt) / 1000,
       supportZ: hip.clone().sub(shoulder).applyAxisAngle(up, -carrier.rotation.y).z,
+      supportY: hip.y - shoulder.y, spine: carrier.getObjectByName('spine')!.rotation.x,
       handsZ, distance: carried.position.distanceTo(carrier.position), hip: hip.toArray() })
   }
   return frames
