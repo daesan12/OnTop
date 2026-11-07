@@ -33,12 +33,16 @@ export default function ChefPage({ driver, onXRChanged, onExit, onContinue, onLe
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [xrActive, setXRActive] = useState(false), [supported, setSupported] = useState(false), [pending, setPending] = useState(false)
   const modeRef = useRef(mode); modeRef.current = mode
   const act = (action: ChefAction) => {
+    // 일시정지 패널 조작은 요리 입력 차단 중에도 기존 전용 콜백으로 처리한다.
     if (action.type === 'pause' || action.type === 'pauseRetry') { onExit?.(); return }
     if (action.type === 'resume') { onContinue?.(); return }
     if (action.type === 'leave') { onLeave?.(); return }
-    if (action.type === 'exit') { onExit?.(); return }
     if ((scene.current?.vrPauseOpen || inputBlocked) && !['restartAccept', 'restartDecline'].includes(action.type)) return
     if (scene.current?.vrGuideOpen) return
+    if (action.type === 'exit') {
+      if (model.current!.view().cooperative?.phase === 'FINISHED') onExit?.()
+      return
+    }
     if (action.type === 'ready' && !xrActive) { setNotice('VR을 먼저 연결해 주세요.'); return }
     model.current!.action(action); setNotice(''); setView(model.current!.view())
   }

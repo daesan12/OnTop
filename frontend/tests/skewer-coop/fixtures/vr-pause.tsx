@@ -4,6 +4,7 @@ import { Quaternion, Vector3, WebGLRenderer } from 'three'
 import type { Camera, Scene } from 'three'
 import CoopHost from '../../../src/features/skewer/coop/CoopHost'
 import { ChefPreview } from '../../../src/features/skewer/chef/model'
+import type { ChefAction } from '../../../src/features/skewer/chef/model'
 import { ChefScene } from '../../../src/features/skewer/chef/ChefScene'
 import type { CoopSnapshot, CoopTransport } from '../../../src/features/skewer/coop/contracts'
 import type { Envelope } from '../../../src/network/protocol'
@@ -108,6 +109,10 @@ let modalCalls = 0
 HTMLDialogElement.prototype.showModal = function () { if (session) modalCalls++; showModal.call(this) }
 Reflect.set(window, 'vrPauseQA', {
   start: () => { state.publicState.phase = 'PLAYING'; publish() },
+  phase: (value: CoopSnapshot['publicState']['phase']) => { state.publicState.phase = value; publish() },
+  finish: () => { Object.assign(state.publicState, { phase: 'FINISHED', paused: false, pausedBy: [], endReason: 'SKEWER_FORFEIT' }); publish() },
+  // Scene 앞단의 허용 여부와 별개로 상위 입력이 Page 콜백에 직접 들어오는 경로를 검증한다.
+  dispatch: (action: ChefAction) => { if (!kitchen) throw new Error('주방 준비 전'); (kitchen as unknown as { action(action: ChefAction): void }).action(action) },
   b: (pressed: boolean) => Object.assign(right.gamepad!.buttons[5], { pressed }),
   select, hold: (value: boolean) => { hold = value }, fail: () => { fail = true }, failLeave: () => { failLeave = true },
   release: () => { hold = false; release?.(); release = undefined },

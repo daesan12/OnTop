@@ -28,7 +28,7 @@ async function pauseCommand(page: Page, name: string, value?: unknown) {
     return await (Reflect.get(window, 'vrPauseQA') as Record<string, (value?: unknown) => unknown>)[name](value)
   }, { name, value })
 }
-async function enterKitchenVR(page: Page) {
+async function enterKitchenVR(page: Page, start = true) {
   await page.goto('/tests/skewer-coop/fixtures/vr-pause.html')
   await page.getByRole('button', { name: 'VR로 요리하기', exact: true }).click()
   await capture(page, 'chef-vr-ready')
@@ -38,8 +38,10 @@ async function enterKitchenVR(page: Page) {
   await page.getByRole('button', { name: 'VR 시작', exact: true }).click()
   await expect.poll(() => pauseCommand(page, 'snapshot')).toMatchObject({ requested: 1, rendererAttached: true, protected: true })
   await expect.poll(async () => (await pauseCommand(page, 'snapshot') as { frames: number }).frames).toBeGreaterThan(1)
-  await pauseCommand(page, 'start')
-  await expect(page.getByTestId('skewer-coop')).toHaveAttribute('data-phase', 'PLAYING')
+  if (start) {
+    await pauseCommand(page, 'start')
+    await expect(page.getByTestId('skewer-coop')).toHaveAttribute('data-phase', 'PLAYING')
+  }
 }
 
 test('VR 오른손 B 일시정지·계속하기는 헤드셋 안에서 작동하고 DOM 모달을 열지 않는다', async ({ page }) => {
@@ -115,7 +117,7 @@ test('VR 실제 몸 회전만 인사로 인정하고 좌우 한 바퀴를 한 �
   await page.waitForTimeout(1000) // 인사 원본 이미지 로딩은 회전 판정과 별개다.
   await capture(page, 'vr-greeting-half-turn')
   await turnCommand(page, 'turn', -180)
-  expect(await turnCommand(page, 'snapshot')).toMatchObject({ count: 0, progress: 0 })
+  expect(await turnCommand(page, 'snapshot')).toMatchObject({ count: 0, progress: 50 })
   await turnCommand(page, 'turn', 360)
   expect(await turnCommand(page, 'snapshot')).toMatchObject({ count: 1, progress: 100 })
   await turnCommand(page, 'turn', 360)
@@ -125,6 +127,62 @@ test('VR 실제 몸 회전만 인사로 인정하고 좌우 한 바퀴를 한 �
   await turnCommand(page, 'start', 1)
   await turnCommand(page, 'turn', -360)
   expect(await turnCommand(page, 'snapshot')).toMatchObject({ count: 2, progress: 100 })
+  await verify()
+})
+
+test('VR 인사는 양쪽 모두 방향을 바꾼 지점부터 360도를 돌아 한 번만 전송한다', async ({ page }) => {
+  const verify = health(page)
+  await page.goto('/tests/skewer-coop/fixtures/greeting-turn.html')
+  await expect(page.locator('#host')).toHaveAttribute('data-fixture-ready', 'true')
+  await turnCommand(page, 'enter')
+  for (const [index, direction] of [1, -1].entries()) {
+    await turnCommand(page, 'start', index)
+    await turnCommand(page, 'turn', direction * 270)
+    expect(await turnCommand(page, 'snapshot')).toMatchObject({ count: index, progress: 75 })
+    await turnCommand(page, 'turn', -direction * 180)
+    expect(await turnCommand(page, 'snapshot')).toMatchObject({ count: index, progress: 50 })
+    await turnCommand(page, 'turn', -direction * 180)
+    expect(await turnCommand(page, 'snapshot')).toMatchObject({ count: index + 1, progress: 100 })
+    await turnCommand(page, 'turn', -direction * 360)
+    expect(await turnCommand(page, 'snapshot')).toMatchObject({ count: index + 1 })
+  }
+  await capture(page, 'vr-greeting-direction-reversal')
+  await verify()
+})
+
+test('상위 exit 입력은 준비·영업·일시정지·연결 차단에서 무시하고 종료 후 복귀만 허용한다', async ({ page }) => {
+  const verify = health(page)
+  await enterKitchenVR(page, false)
+  for (const phase of ['WAITING', 'COUNTDOWN', 'PLAYING']) {
+    await pauseCommand(page, 'phase', phase)
+    await expect(page.getByTestId('skewer-coop')).toHaveAttribute('data-phase', phase)
+    const before = await pauseCommand(page, 'snapshot') as { calls: string[] }
+    await pauseCommand(page, 'dispatch', { type: 'exit' })
+    expect((await pauseCommand(page, 'snapshot') as { calls: string[] }).calls).toEqual(before.calls)
+  }
+  await pauseCommand(page, 'select', 'pause')
+  await expect(page.locator('.chef-stage')).toHaveAttribute('data-pause-open', 'true')
+  await expect(page.locator('.chef-stage')).toHaveAttribute('data-pause-busy', 'false')
+  const paused = await pauseCommand(page, 'snapshot') as { calls: string[] }
+  await pauseCommand(page, 'dispatch', { type: 'exit' })
+  expect((await pauseCommand(page, 'snapshot') as { calls: string[] }).calls).toEqual(paused.calls)
+  await pauseCommand(page, 'select', 'resume')
+  await expect(page.locator('.chef-stage')).toHaveAttribute('data-pause-open', 'false')
+  await pauseCommand(page, 'friend', false)
+  await expect(page.locator('.chef-stage')).toHaveAttribute('data-runtime-notice', 'connection')
+  const disconnected = await pauseCommand(page, 'snapshot') as { calls: string[] }
+  await pauseCommand(page, 'dispatch', { type: 'exit' })
+  expect((await pauseCommand(page, 'snapshot') as { calls: string[] }).calls).toEqual(disconnected.calls)
+  await pauseCommand(page, 'friend', true)
+  await expect(page.locator('.chef-stage')).toHaveAttribute('data-runtime-notice', '')
+  await pauseCommand(page, 'finish')
+  await expect(page.getByTestId('skewer-coop')).toHaveAttribute('data-phase', 'FINISHED')
+  await capture(page, 'vr-finished-before-exit')
+  await pauseCommand(page, 'dispatch', { type: 'exit' })
+  await expect(page.getByRole('status')).toContainText('공원으로 돌아왔어요')
+  const finished = await pauseCommand(page, 'snapshot') as { calls: string[] }
+  expect(finished.calls.filter(call => call === 'LEAVE')).toHaveLength(1)
+  expect(finished.calls).not.toContain('FORFEIT')
   await verify()
 })
 
