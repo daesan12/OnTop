@@ -229,6 +229,9 @@ export function Avatars({
   const samplePose = useAvatarFrameSampler()
   const rigs = useMemo(() => new Map<string, AvatarAnchors>(), [])
   const carryMotion = useMemo(createCarryMotion, [])
+  // r3f v9 sorts numeric priorities, including fractions, from low to high.
+  // Sample (-2) -> carry state (-1.5) -> avatar poses (-1) -> carry placement (-.5) -> overlays (0).
+  // Keep these stages distinct so placement always uses this frame's posed shoulders.
   useFrame(() => carryMotion.update(avatars, performance.now()), -1.5)
   useFrame(() => carryMotion.place(rigs), -.5)
   const lastEvent = useThree(state => state.internal.lastEvent)

@@ -38,6 +38,7 @@ export function createCarryMotion() {
           pairs.set(id, pair); participants.set(id, pair); participants.set(carry.partnerId, pair)
         }
       }
+      // Walk stored pairs so even participants missing from avatars are removed from both maps.
       for (const pair of pairs.values()) {
         const carrier = avatars.get(pair.carrierId), carried = avatars.get(pair.carriedId)
         if (!carrier?.connected || !carried?.connected) { remove(pair); continue }

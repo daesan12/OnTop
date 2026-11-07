@@ -109,6 +109,23 @@ for (const name of ['man', 'girl', 'skins/ssafy-black-male-v3'] as const) {
   })
 }
 
+it.each(['carrier', 'both'] as const)('clears both participant references after removing %s from an active carry', removed => {
+  const carry = createCarryMotion(), own = makeAvatar(carrierCarry), other = makeAvatar(targetCarry)
+  const avatars = new Map([['carrier', own], ['target', other]])
+  carry.update(avatars, 0)
+  const pair = carry.get('carrier')
+  expect(pair).toBeDefined()
+  expect(carry.get('target')).toBe(pair)
+
+  // Keep the carry flags intact: disappearance alone must clean up the relationship.
+  if (removed === 'both') avatars.clear()
+  else avatars.delete('carrier')
+  carry.update(avatars, 16)
+
+  expect(carry.get('carrier')).toBeUndefined()
+  expect(carry.get('target')).toBeUndefined()
+})
+
 it('does not invent a windup for drops, changed relationships, disconnected players or flight-only late joins', () => {
   for (const mode of ['drop', 'changed', 'disconnected', 'removed', 'late'] as const) {
     const carry = createCarryMotion(), own = makeAvatar(carrierCarry), other = makeAvatar(targetCarry)
