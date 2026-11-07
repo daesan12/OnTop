@@ -61,6 +61,9 @@ export class ChefHall {
     a.place(this.tray,a.box(.8,.06,.55,'#825030'),0,1.1,.52)
     a.dishes(this.tray,0,1.14,.52,1,.85)
     void SculptedServer.load().then(actor=>{if(this.disposed){actor.dispose();return}this.sculpted=actor;actor.root.scale.z=1/FLOOR_DEPTH_SCALE;r.add(actor.root);this.server.setBodyVisible(false)}).catch(()=>undefined)
+    // 의자·테이블 등 고정 배경만 묶고 손님·서빙 담당·상태별 접시는 독립적으로 갱신한다.
+    a.batchStatic(new Set<THREE.Object3D>([this.server.root, ...this.dishes.values(),
+      ...[...this.guests.values()].flat().map(guest => guest.root)]))
   }
   private demo(dt:number): HallSight {
     this.demoWait=Math.max(0,this.demoWait-dt)

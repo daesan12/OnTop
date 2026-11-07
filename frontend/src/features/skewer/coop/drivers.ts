@@ -45,14 +45,14 @@ export class OnlineHall implements HallDriver {
     if (this.round !== (snapshot.publicState.round ?? 0)) {
       this.round = snapshot.publicState.round ?? 0
       this.helper.position = { ...hall.position }; this.storageOpen = false
-      this.playback.reset(hall.position)
+      this.playback.reset(hall.position, snapshot.publicState.elapsed)
       this.cleaningPressed = false; this.lastMove = '0.00:0.00'; this.movementAt = 0
     }
     if (snapshot.version !== this.lastVersion) {
       this.lastVersion = snapshot.version
       // 확인되지 않은 입력을 누적하면 100ms 서버 틱마다 뒤로 보정되어 시선도 반전된다.
       // 충돌·위치는 서버값을 따르고 프레임 사이의 부드러운 표시는 HallMotion이 담당한다.
-      this.playback.push(hall.position)
+      this.playback.push(hall.position, snapshot.publicState.elapsed)
     }
     this.helper.tables = hall.tables; this.helper.carry = hall.carry; this.helper.pass = hall.pass
     this.helper.stored = hall.stored; this.helper.sake = hall.sake; this.helper.dirtyDishes = hall.dirtyDishes
@@ -62,7 +62,9 @@ export class OnlineHall implements HallDriver {
   step(_dt: number, dx = 0, dz = 0) {
     this.sync()
     const position = this.client.snapshot?.privateState.hall?.position
-    if (!this.client.playable && position) this.playback.reset(position)
+    // Page는 화면 복귀 첫 프레임에 dt=0을 보낸다. 렌더가 멈춘 동안의 서버 시간을 재생하지 않는다.
+    if ((!this.client.playable || _dt === 0 || _dt > .25) && position)
+      this.playback.reset(position, this.client.snapshot?.publicState.elapsed)
     this.helper.position = this.playback.step(_dt)
     if (!this.client.playable || this.storageOpen) { dx = 0; dz = 0 }
     const now = performance.now(), value = `${dx.toFixed(2)}:${dz.toFixed(2)}`

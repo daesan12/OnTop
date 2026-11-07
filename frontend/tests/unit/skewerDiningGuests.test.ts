@@ -57,3 +57,31 @@ it('모든 좌석의 입장·착석·퇴장이 진행되고 일시정지 중에�
     journey.update(true, false, .05, true); expect(root.userData.diningPhase).toBe('seated')
   }
 })
+
+it.each(CUSTOMER_ASSETS_V5.map((asset, index) => [asset.id, index] as const))('%s 정지 자세는 재사용하고 착석·식사·회전·동작 재개는 즉시 반영한다', async (id, index) => {
+  const guest = new DiningGuest(await rig(id), index), parent = new Group(); parent.add(guest.root)
+  guest.update(.04, false, true, false, false, 0)
+  const actor = Reflect.get(guest, 'actor'), mixer = vi.spyOn(actor.mixer, 'update')
+  const matrices = vi.spyOn(guest.root, 'updateWorldMatrix')
+  const bones = () => { const values: number[] = []; guest.root.traverse(object => { if (object.type === 'Bone') values.push(...object.quaternion.toArray()) }); return values }
+  const before = bones()
+  for (let i = 0; i < 30; i++) guest.update(0, false, true, false, false, 0)
+  expect(mixer).not.toHaveBeenCalled(); expect(matrices).not.toHaveBeenCalled(); expect(bones()).toEqual(before)
+  // Zero elapsed time cannot suppress a new authoritative state or facing.
+  guest.update(0, true, false, false, false, 0)
+  expect(mixer).toHaveBeenCalled(); expect(matrices).toHaveBeenCalled()
+  expect(Math.abs(guest.root.userData.seatGap)).toBeLessThan(.001)
+  const seated = bones(); mixer.mockClear()
+  guest.update(0, true, false, true, false, 0); expect(mixer).toHaveBeenCalled(); mixer.mockClear()
+  parent.rotation.y = Math.PI / 2
+  guest.update(0, true, false, true, false, Math.PI / 2); expect(mixer).toHaveBeenCalled()
+  const frozenFeet = [...guest.root.userData.footGaps], frozenPose = bones()
+  for (let i = 0; i < 30; i++) guest.update(0, true, false, true, false, Math.PI / 2)
+  expect(guest.root.userData.footGaps).toEqual(frozenFeet); expect(bones()).toEqual(frozenPose)
+  guest.update(.04, true, false, true, true, Math.PI / 2); mixer.mockClear()
+  for (let i = 0; i < 30; i++) guest.update(.04, true, false, true, true, Math.PI / 2)
+  expect(mixer).not.toHaveBeenCalled()
+  guest.update(.04, false, true, false, false, Math.PI / 2)
+  expect(mixer).toHaveBeenCalled(); expect(bones()).not.toEqual(seated)
+  guest.dispose()
+}, 15000)

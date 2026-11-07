@@ -5,6 +5,7 @@ import { INGREDIENTS, availablePieces } from '../game'
 import type { IngredientId } from '../game'
 import { RestaurantSet } from '../serviceHall/rendering/RestaurantSet'
 import { RestaurantPost } from '../serviceHall/rendering/RestaurantPost'
+import { disposeRestaurantShadows } from '../serviceHall/rendering/sceneResources'
 import { menuSkewerIllustration } from '../serviceHall/menuSkewerIllustration'
 import { insertionReady } from './model'
 import type { ChefView, ChefAction, ChefJob } from './model'
@@ -184,6 +185,9 @@ export class ChefScene {
     this.world.place(this.previewControllers, this.controllerModel(), -.72, 1.00, 1.28).rotation.set(-.5, .4, -.2)
     this.world.place(this.previewControllers, this.controllerModel(), 1.12, 1.05, 1.20).rotation.set(-.5, -.5, .2)
     this.kitchen.add(this.previewControllers); this.buildVRGuide(); this.setupControllers(); this.setMode(mode)
+    // 재배치·표시 전환·선택이 필요한 그룹을 제외하고 고정 주방 장식만 재질별로 합친다.
+    this.world.batchStatic(new Set<THREE.Object3D>([...this.pantryGroups.values(), ...this.halos.values(),
+      this.passFurniture, this.grillStation, this.restartRequest, this.restartReply, ...this.pickables]))
     this.world.wood([this.world.material('#b77b43'), this.world.material('#825030'), this.world.material('#744323')], undefined, true)
     this.observer = new ResizeObserver(this.resize); this.observer.observe(host); this.resize()
     this.renderer.setAnimationLoop(this.render); host.dataset.ready = 'true'; host.dataset.geometry = 'live-three-kitchen'
@@ -574,6 +578,7 @@ export class ChefScene {
     }
   }
   private paintClock() {
+    if (this.mode === 'pc' && !this.session) return
     const pulse = this.reducedMotion.matches || this.view.cooperative?.paused ? 0 : (1 - Math.cos(performance.now() / 1400 * Math.PI * 2)) / 2
     paintBusinessStatus(this.timerCanvas.getContext('2d')!, this.view.seconds, this.view.cooperative?.score ?? 0, this.view.cooperative?.served ?? 0, pulse)
     this.timerTexture.needsUpdate = true
@@ -582,6 +587,7 @@ export class ChefScene {
   setMode(mode: ChefMode) {
     this.mode = mode
     this.guideButton.visible = mode === 'vr'
+    if (mode === 'vr') this.paintClock()
     if (mode !== 'vr') this.showVRGuide(false)
     this.passFurniture.position.set(.15, .05, 1.5)
     this.pass.position.copy(this.passFurniture.position)
@@ -970,6 +976,7 @@ export class ChefScene {
     this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); this.onEndListeners.forEach(fn => fn()); this.renderer.domElement.removeEventListener('pointerdown', this.pointer); this.renderer.domElement.removeEventListener('pointermove', this.pointerMove); this.renderer.domElement.removeEventListener('pointerleave', this.pointerLeave); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)
     if (this.session) { this.session.removeEventListener('end', this.sessionEnded); void this.session.end().catch(() => undefined) }
     if (this.sound) void this.sound.close().catch(() => undefined)
+    disposeRestaurantShadows(this.scene)
     this.geometry.forEach(g => g.dispose()); this.materials.forEach(m => m.dispose()); this.textures.forEach(t => t.dispose()); this.hall.dispose(); this.foods.dispose(); this.world.dispose(); this.env.dispose(); this.post.dispose(); this.renderer.dispose(); this.renderer.domElement.remove()
   }
 }

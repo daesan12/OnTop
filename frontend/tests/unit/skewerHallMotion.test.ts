@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { HallMotion } from '../../src/features/skewer/serviceHall/rendering/HallMotion'
 
 describe('홀 캐릭터 위치 표시', () => {
-  it('확정된 반대 방향으로 바뀌면 50ms 안에 회전의 90퍼센트를 반영한다', () => {
+  it('반대 방향 전환의 첫 프레임은 튀지 않고 100ms 안에 회전의 90퍼센트를 반영한다', () => {
     const motion = new HallMotion()
     motion.update({ x: 0, z: 0 }, 0)
     for (let frame = 0; frame < 30; frame++) motion.update({ x: .5, z: 0 }, 1 / 60)
-    for (let frame = 0; frame < 3; frame++) motion.update({ x: .4, z: 0 }, 1 / 60)
+    const before = motion.yaw
+    motion.update({ x: .4, z: 0 }, 1 / 60)
+    expect(Math.abs(motion.yaw - before)).toBeLessThan(Math.PI / 3)
+    for (let frame = 1; frame < 6; frame++) motion.update({ x: .4, z: 0 }, 1 / 60)
     const error = Math.abs(Math.atan2(Math.sin(motion.yaw + Math.PI / 2), Math.cos(motion.yaw + Math.PI / 2)))
     expect(error).toBeLessThan(Math.PI * .1)
   })

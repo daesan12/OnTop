@@ -7,6 +7,7 @@ import { DISHWASHING_PREVIEW } from '../previewModel'
 import type { HallView, Dish, DirtyDishes } from '../previewModel'
 import { RestaurantSet } from './RestaurantSet'
 import { RestaurantPost } from './RestaurantPost'
+import { disposeRestaurantShadows } from './sceneResources'
 import { TowerRestaurant } from './TowerRestaurant'
 import { ToyPeople } from './ToyPeople'
 import { GuestJourney } from './GuestJourney'
@@ -57,9 +58,13 @@ export class ServiceScene {
   private carryKey = ''; private passKey = ''; private disposed = false; private last = 0
   private readonly observer: ResizeObserver
   private resizeFrame = 0
+  private sceneDirty = true
+  private presentedPaused = false
+  private presentedRevision = -1
   private readonly projection = new THREE.Vector3()
   private readonly reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
-  constructor(private readonly host: HTMLElement, private readonly step: (dt: number) => HallView, private readonly notice: (text: string) => void) {
+  constructor(private readonly host: HTMLElement, private readonly step: (dt: number) => HallView, private readonly notice: (text: string) => void,
+    private readonly paused: () => boolean = () => false) {
     this.scene.scale.z = FLOOR_DEPTH_SCALE
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = .96
@@ -299,6 +304,7 @@ export class ServiceScene {
       server.root.scale.z = 1 / FLOOR_DEPTH_SCALE
       this.scene.add(server.root)
       this.sculptedServer = server
+      this.sceneDirty = true
       this.server!.setBodyVisible(false)
       this.host.dataset.serverModel = 'sculpted'
     }).catch(() => {
@@ -314,6 +320,7 @@ export class ServiceScene {
       chef.root.scale.z = 1 / FLOOR_DEPTH_SCALE
       this.scene.add(chef.root)
       this.sculptedChef = chef
+      this.sceneDirty = true
       chefFallback.root.visible = false
       this.host.dataset.chefModel = 'sculpted'
     }).catch(() => {
@@ -330,6 +337,7 @@ export class ServiceScene {
       if (this.disposed) return
       this.host.dataset.guestModel = loaded ? 'bungeoppang' : 'unavailable'
       this.inspectContacts()
+      this.sceneDirty = true
     })
   }
   private inspectContacts() {
@@ -475,17 +483,23 @@ export class ServiceScene {
     const { width, height } = this.host.getBoundingClientRect()
     if (!width || !height) return
     fit(width, height)
-    this.renderer.setSize(width, height, false); this.post.resize(width, height)
+    this.renderer.setSize(width, height, false); this.post.resize(width, height); this.sceneDirty = true
   }
   private contextLost = (event: Event) => { event.preventDefault(); this.notice('3D 화면 연결이 중단됐어요. 새로고침해 주세요.') }
   private render = () => {
     if (this.disposed) return
     const now = performance.now(), dt = this.last ? Math.max(0, (now - this.last) / 1000) : 0; this.last = now
     // Native rendering and controller sampling stay out of React's component updates.
-    this.update(this.step(dt), Math.min(.05, dt)); this.post.render()
+    const view = this.step(dt), paused = this.paused()
+    // Keep sampling the driver/HUD while paused so remote updates and resume remain immediate.
+    // Resize and asynchronous actor loads invalidate the retained canvas too.
+    if (paused && this.presentedPaused && view.revision === this.presentedRevision && !this.sceneDirty) return
+    this.update(view, paused ? 0 : Math.min(.05, dt)); this.post.render()
+    this.presentedPaused = paused; this.presentedRevision = view.revision; this.sceneDirty = false
   }
   dispose() {
     this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); cancelAnimationFrame(this.resizeFrame); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)
+    disposeRestaurantShadows(this.scene)
     this.sculptedServer?.dispose(); this.sculptedChef?.dispose(); this.tower?.dispose(); this.parkInstances.forEach(mesh => mesh.dispose())
     this.people.dispose(); this.geometry.forEach(g => g.dispose()); this.materials.forEach(m => m.dispose()); this.textures.forEach(t => t.dispose()); this.labelTextures.clear(); this.foods.dispose(); this.art.dispose(); this.post.dispose(); this.environment.dispose(); this.renderer.dispose(); this.renderer.domElement.remove()
   }
