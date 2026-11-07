@@ -81,8 +81,8 @@ class GachaMySqlTests {
     }
     private long amount(long user) { return jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user); }
     private long scalar(String sql,Object... args) { return jdbc.queryForObject(sql,Long.class,args); }
-    @Test void V156_and_missing_catalog_or_reserved_money_never_charge() {
-        assertThat(flyway.info().applied()).anySatisfy(m->assertThat(m.getVersion().getVersion()).isEqualTo("156"));
+    @Test void V157_and_missing_catalog_or_reserved_money_never_charge() {
+        assertThat(flyway.info().applied()).anySatisfy(m->assertThat(m.getVersion().getVersion()).isEqualTo("157"));
         long user=user(100);
         jdbc.update("UPDATE wallets SET reserved_balance=1 WHERE user_id=?",user);
         assertThatThrownBy(()->service(0).purchase(user,"reserved")).isInstanceOf(GachaException.class);
