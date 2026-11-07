@@ -21,6 +21,7 @@ public class FeedbackService {
     private final TableHub hub;
     private final FeedbackProperties properties;
     private final Clock clock;
+    private com.ssafy.ontop.notification.repository.NotificationRepository notifications;
 
     public FeedbackService(FeedbackRepository repository, PlatformTransactionManager manager,
             TableHub hub, FeedbackProperties properties, Clock clock) {
@@ -29,6 +30,10 @@ public class FeedbackService {
         this.hub = hub;
         this.properties = properties;
         this.clock = clock;
+    }
+
+    public void configureReplies(com.ssafy.ontop.notification.repository.NotificationRepository notifications) {
+        this.notifications = notifications;
     }
 
     public FeedbackReceiptResponse submit(long userId, String key, String channelId, FeedbackText text) {
@@ -68,9 +73,18 @@ public class FeedbackService {
             var rows = repository.list(beforeId, limit + 1, clock.instant().minus(Duration.ofDays(90)));
             var page = rows.stream().limit(limit).toList();
             String next = rows.size() > limit ? page.getLast().id().toString() : null;
+            var names = repository.nicknames(page.stream().map(FeedbackMessage::userId)
+                    .filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet()));
+            var replies = notifications == null ? java.util.Map.<Long, com.ssafy.ontop.feedback.domain.FeedbackReply>of()
+                    : notifications.latestReplies(page.stream().map(FeedbackMessage::id)
+                            .collect(java.util.stream.Collectors.toSet()));
             return new FeedbackListResponse(page.stream().map(message -> new FeedbackListResponse.Entry(
                     message.id().toString(), message.userId(), message.channelId(), message.body(),
-                    message.createdAt())).toList(), next);
+                    message.createdAt(), message.userId() == null ? null : names.get(message.userId()),
+                    message.status().name(), message.version(), replies.containsKey(message.id())
+                            ? new FeedbackListResponse.Reply(replies.get(message.id()).id(),
+                                    replies.get(message.id()).body(), replies.get(message.id()).createdAt()) : null))
+                    .toList(), next);
         }));
     }
 

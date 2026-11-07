@@ -3843,6 +3843,38 @@ paths:
                 $ref: "#/components/schemas/RaffleDrawResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/operations/feedback/{receiptId}/replies:
+    post:
+      tags:
+      - NOTIFICATION
+      summary: 운영진 답변·작성자 개인 알림 저장
+      operationId: replyToFeedback
+      parameters:
+      - name: receiptId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackReplyInput"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReplyResult"
+      security:
+      - AccessJwt: []
   /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize:
     post:
       tags:
@@ -4257,6 +4289,64 @@ paths:
                 anyOf:
                 - $ref: "#/components/schemas/AuthErrorResponse"
                 - $ref: "#/components/schemas/ShopErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/notifications/{notificationId}/read:
+    patch:
+      tags:
+      - NOTIFICATION
+      summary: 본인 알림 읽음 처리·동일 요청 재확인
+      operationId: readPersonalNotification
+      parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationDetailResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/feedback/{receiptId}/status:
+    patch:
+      tags:
+      - NOTIFICATION
+      summary: 소리함 처리 상태 변경·버전 충돌 차단
+      operationId: updateFeedbackStatus
+      parameters:
+      - name: receiptId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackStatusInput"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StatusResult"
       security:
       - AccessJwt: []
   /api/v1/world/fitness/rewards/status:
@@ -5260,6 +5350,67 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ServiceOperationResponse"
+  /api/v1/notifications:
+    get:
+      tags:
+      - NOTIFICATION
+      summary: 본인 알림 목록·미읽음 개수
+      operationId: listPersonalNotifications
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          pattern: "^(?:|[1-9][0-9]{0,18})$"
+          type: string
+          default: ""
+      - name: limit
+        in: query
+        required: false
+        schema:
+          pattern: "^(?:[1-9]|[1-4][0-9]|50)$"
+          type: string
+          default: "20"
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationListResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/notifications/{notificationId}:
+    get:
+      tags:
+      - NOTIFICATION
+      summary: 본인 알림 상세·관련 소리함 의견
+      operationId: getPersonalNotification
+      parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationDetailResponse"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/whack-a-mole/status:
     get:
       tags:
@@ -8325,6 +8476,45 @@ components:
           format: int32
         prizeName:
           type: string
+    FeedbackReplyInput:
+      required:
+      - expectedVersion
+      - operationId
+      - status
+      - text
+      type: object
+      properties:
+        operationId:
+          type: string
+        text:
+          type: string
+        status:
+          type: string
+          enum:
+          - RECEIVED
+          - REVIEWING
+          - RESOLVED
+        expectedVersion:
+          type: integer
+          format: int64
+      additionalProperties: false
+    ReplyResult:
+      type: object
+      properties:
+        replyId:
+          type: string
+        receiptId:
+          type: string
+        notificationId:
+          type: string
+        status:
+          type: string
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
     MinigameAwardResponse:
       type: object
       properties:
@@ -8515,6 +8705,56 @@ components:
           format: int32
         equipped:
           type: boolean
+    NotificationDetailResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        body:
+          type: string
+        feedbackId:
+          type: string
+        feedbackText:
+          type: string
+        feedbackStatus:
+          type: string
+    FeedbackStatusInput:
+      required:
+      - expectedVersion
+      - status
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - RECEIVED
+          - REVIEWING
+          - RESOLVED
+        expectedVersion:
+          type: integer
+          format: int64
+      additionalProperties: false
+    StatusResult:
+      type: object
+      properties:
+        receiptId:
+          type: string
+        status:
+          type: string
+        version:
+          type: integer
+          format: int64
     FitnessRewardStatusResponse:
       required:
       - activeLeaseId
@@ -9032,6 +9272,39 @@ components:
         purchasedAt:
           type: string
           format: date-time
+    NotificationListResponse:
+      required:
+      - items
+      - nextCursor
+      - unreadCount
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PersonalNotificationEntry"
+        nextCursor:
+          type: string
+          nullable: true
+        unreadCount:
+          type: integer
+          format: int64
+    PersonalNotificationEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
     NoteListResponse:
       required:
       - notes
@@ -9405,10 +9678,14 @@ components:
     Entry:
       required:
       - acceptedAt
+      - authorNickname
       - authorUserId
       - channelId
+      - latestReply
       - receiptId
+      - status
       - text
+      - version
       type: object
       properties:
         receiptId:
@@ -9424,6 +9701,16 @@ components:
         acceptedAt:
           type: string
           format: date-time
+        authorNickname:
+          type: string
+          nullable: true
+        status:
+          type: string
+        version:
+          type: integer
+          format: int64
+        latestReply:
+          $ref: "#/components/schemas/Reply"
     FeedbackListResponse:
       required:
       - items
@@ -9437,6 +9724,17 @@ components:
         nextCursor:
           type: string
           nullable: true
+    Reply:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      nullable: true
     AdminListResponse:
       type: object
       properties:

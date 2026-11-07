@@ -1,0 +1,213 @@
+{
+  "info": {
+    "name": "OnTop Notifications",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "소리함 답변 → 개인 알림함. 로컬 구현/격리 MySQL 검증 완료, DEV 미배포. V158 팀 번호·적용 순서 확인 전 푸시·공용 DB 적용 보류. adminAccessToken은 운영 관리자, accessToken은 작성자 개인 변수로만 설정. 다른 회원 토큰으로 상세/읽음 요청은 404. 보상 지급은 미구현. docs/notifications-api.md 참고."
+  },
+  "variable": [
+    {
+      "key": "receiptId",
+      "value": ""
+    },
+    {
+      "key": "feedbackVersion",
+      "value": "0"
+    },
+    {
+      "key": "replyOperationId",
+      "value": ""
+    },
+    {
+      "key": "notificationId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 관리자 소리함 목록·닉네임·최신 버전",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/admin/feedback?limit=20",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminAccessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200){const id=pm.collectionVariables.get('receiptId');const row=pm.response.json().items.find(x=>x.receiptId===id);if(row)pm.collectionVariables.set('feedbackVersion',row.version);}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 운영진 답변·동일 UUID 재시도",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/admin/operations/feedback/{{receiptId}}/replies",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminAccessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"operationId\": \"{{replyOperationId}}\",\n  \"text\": \"알려주신 문제를 수정했습니다. 소중한 의견 감사합니다!\",\n  \"status\": \"RESOLVED\",\n  \"expectedVersion\": {{feedbackVersion}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if(!pm.collectionVariables.get('receiptId'))throw new Error('01 목록에서 답변할 receiptId를 지정하세요.');",
+              "if(!pm.collectionVariables.get('replyOperationId'))pm.collectionVariables.set('replyOperationId',pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200){const x=pm.response.json();pm.collectionVariables.set('notificationId',x.notificationId);pm.collectionVariables.set('feedbackVersion',x.version);}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 작성자 알림 목록·미읽음 개수",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/notifications?limit=20",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              ""
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 작성자 알림 상세·읽음 변경 없음",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/notifications/{{notificationId}}",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              ""
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 작성자 읽음 처리·상세 반환",
+      "request": {
+        "method": "PATCH",
+        "url": "{{baseUrl}}/api/v1/notifications/{{notificationId}}/read",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200)pm.test('읽음 시각',()=>pm.expect(pm.response.json().readAt).to.be.a('string'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 관리자 처리 상태만 변경·알림 없음",
+      "request": {
+        "method": "PATCH",
+        "url": "{{baseUrl}}/api/v1/admin/operations/feedback/{{receiptId}}/status",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminAccessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"REVIEWING\",\n  \"expectedVersion\": {{feedbackVersion}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200)pm.collectionVariables.set('feedbackVersion',pm.response.json().version);"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

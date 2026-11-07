@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { installBrowserShortcutGuard } from './browserShortcuts'
+import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import { ParkScene } from './ParkScene'
 import { ParkBgm } from '../audio/ParkBgm'
 import { ParkSfx } from '../audio/ParkSfx'
@@ -128,6 +129,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <RewardCoinFlight />
       <ChannelEntryGate />
       <AnnouncementBanner />
+      <NotificationCenter key={session.sessionId} hidden={gameplayActive} />
       {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
