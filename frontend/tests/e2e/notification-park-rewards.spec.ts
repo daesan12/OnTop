@@ -61,7 +61,10 @@ test('공원 HUD에서 보상 알림을 열고 수령 후 권위 잔액을 다�
   }
   await page.setViewportSize({width:1920,height:1080})
   extra=true;await page.evaluate(()=>window.dispatchEvent(new Event('ontop:notifications-changed')))
-  await expect(page.getByText('새 알림',{exact:true})).toBeVisible()
+  await expect(page.getByText('새 알림이 도착했어요',{exact:true})).toBeVisible()
+  expect(await page.locator('.inbox-toast-copy strong').evaluate(el=>getComputedStyle(el).fontSize)).toBe('17px')
+  const arrival=await page.locator('.inbox-toast').boundingBox()
+  expect(arrival!.height).toBeGreaterThan(60)
   await page.screenshot({path:info.outputPath('reward-park-hud.png')})
   await page.getByRole('button',{name:/알림함/}).click()
   await expect(page.locator('.inbox-toast')).toHaveCount(0)

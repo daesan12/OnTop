@@ -36,7 +36,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
         if (entry.reward.kind === 'COIN') refreshWalletAfterSettlement(useSession.getState().sessionId, `notification:${entry.id}`)
         else window.dispatchEvent(new Event('ontop:gacha-inventory-changed'))
       }
-      if (!initial.current && value.unreadCount > unread.current) setToast('새 알림')
+      if (!initial.current && value.unreadCount > unread.current) setToast('새 알림이 도착했어요')
       initial.current = false; unread.current = value.unreadCount; cursor.current = next
       setPage(value); if (explicit) setError('')
     } catch (cause) {
@@ -62,7 +62,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
   }, [load])
   useEffect(() => {
     if (!toast) return
-    const timer = setTimeout(() => setToast(''), 3000)
+    const timer = setTimeout(() => setToast(''), 5000)
     return () => clearTimeout(timer)
   }, [toast])
   const close = useCallback(() => {
@@ -123,7 +123,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
       onClick={() => { clearRoamingInput(); document.exitPointerLock?.(); setToast(''); setOpen(true); setDetail(null); setTrail(['']); void load('', true) }}>
       <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg><span>알림</span>{!!page?.unreadCount && <b>{Math.min(99, page.unreadCount)}</b>}
     </button>
-    {toast && !open && <div className="inbox-toast" role="status"><span aria-hidden="true"/>{toast}</div>}
+    {toast && !open && <div className="inbox-toast" role="status"><span className="inbox-toast-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg></span><span className="inbox-toast-copy"><strong>{toast}</strong><small>알림함에서 확인해 주세요</small></span></div>}
   </div>
   return <>
     {!hidden && (hudHost ? createPortal(launcher, hudHost) : launcher)}
