@@ -1,9 +1,9 @@
 # Quest 2 · 공원과 돌탑 점프맵 VR
 
 - 현재 작업 위치: `C:\Users\SSAFY\Desktop\OnTop\quest-vr`.
-- 현재 작업 브랜치: `feat/quest-vr-games` (MR !425). 원격 `VR`의 직접 푸시 금지 보호를 유지한다. `VR`은 2026-11-04 `feat/quest-vr`에서 이름을 변경한 원본 브랜치다.
+- 현재 작업 브랜치: `feat/quest-vr-jump-feedback-20261107`. 기존 게임 전용 VR MR !425는 `dev@4f201bdf`에 머지됐으며 Jenkins #359 검증·개발 배포 후 MR 소스 브랜치를 정리했다. 원격 `VR`의 직접 푸시 금지 보호는 유지한다.
 - 2026-11-07 원격 반영 승인: 사용자가 미커밋 VR 작업의 커밋·푸시와 `dev` 대상 MR 생성을 요청했다. 머지는 사용자 확인 후 별도로 진행한다. `VR`의 직접 푸시 금지 보호를 유지하고 동일 작업 커밋을 `feat/quest-vr-games`에 푸시해 MR 소스로 사용한다. 아래 로컬 전용 보류 기록은 당시 상태다.
-- 현재 통합 기준: `origin/dev@fa9223ff7670abccc9be7d13aafdf3fae83d56fc` (2026-11-07, MR !425 작업 브랜치에 이력 보존 방식으로 반영).
+- 현재 통합 기준: `origin/dev@c20478f74a9dc22d1cc691746adec7f032639162` (2026-11-07, 점프맵 도약·착지 피드백 작업 시작 및 푸시 전 재확인).
 - 이관 원본: `park-jumpmap-vr-20261104`, `feat/park-jumpmap-vr-local-20261104@324db890`의 미커밋 VR 변경. 원본은 삭제·변경하지 않고 보존한다.
 - 기존 `quest-locomotion-poc`의 미커밋 작업과 독립 이동 화면은 원래 위치에 보존한다. 2026-11-04 사용자 승인으로 feat/quest-vr에 커밋·푸시하며 dev/master 머지·배포는 진행하지 않는다.
 
@@ -366,3 +366,17 @@ Browser plugin not available → 기존 Playwright·설치된 Chrome/SwiftShader
 - 기존 Playwright 독립 서비스 홀 7개와 협동 호스트 9개 총 16개 통과. 실제 화면의 이동·서빙·식기/청소·재시작·작은 화면 접근, 대기실 VR 유지/재연결과 경기 단계별 종료 복귀를 확인했다. 홀 테스트 중 Vite의 ResizeObserver loop completed with undelivered notifications 알림 3건을 관찰했으며 기존 페이지/콘솔 오류 검증을 포함한 검사는 통과했다. Three 셰이더 정밀도 및 빌드 번들 경고도 남는다.
 - 브라우저 검사는 독립 preview/참가자·서버 fixture이며 실제 다인 서버·Quest 실기기·정산 검수가 아니다. 추가된 실제 서버 network.spec.ts는 이번에 실행하지 않았다. 외부 build 로그: `OnTop/output/quest-vr-dev-sync-fa9223ff/build.log`.
 - 검증 후 이력 보존 병합 커밋을 같은 MR 소스 브랜치에 정상 푸시하며 MR !425의 기준/검증 기록을 갱신한다. dev/master 머지·배포·자동 머지·브랜치 삭제는 보류한다.
+
+## 2026-11-07 점프맵 VR 도약·착지 소리와 진동
+
+- 사용자 요청: 점프맵의 1인칭·왼쪽 스틱 이동·오른손 A 버튼 점프를 유지하면서 도약·착지 효과음과 컨트롤러 진동으로 몰입감을 보완한다. 실제 신체 점프, 카메라 흔들림·추가 이동 물리, 공원 자유이동 공개는 추가하지 않는다.
+- 기준: `origin/dev@c20478f74a9dc22d1cc691746adec7f032639162`, 작업 브랜치 `feat/quest-vr-jump-feedback-20261107`. 시작 시 미커밋 변경 없음. 기본 fetch의 삭제 브랜치 refspec 오류는 dev ref 명시 fetch로 우회했으며 공용 Git 설정은 바꾸지 않았다. 최신 dev에서 직접 분기했고 최종 재조회도 동일하므로 별도 통합 커밋·충돌은 없다.
+- 담당 구현: `features/jumpmap/{audio,xrFeedback}.ts`, `features/jumpmap/useJumpmapController.ts`, `features/parkXR/{ParkXRController,movement}.ts`. 도약은 새 A 요청과 실제 캐릭터 상승 또는 기존 서버 위치 기반 상승 검출로 확인한다. 머리 높이는 읽지 않는다. 정지한 뒤의 도약도 누락하지 않으며 누른 채 유지·거절·만료 입력만으로 반복 피드백하지 않는다.
+- 기존 `audio/bgm/move-jump.ogg`, `move-land.ogg`와 승인된 재질별 8개 착지음·체크포인트 차임을 재사용한다. VR의 도약·착지는 기존 jumpmap 효과음 버스로 보내 BGM 집중 믹스에서 작아지지 않게 하고, 사용자가 저장한 효과음 음량·음소거는 그대로 적용한다. 원본 음정·파일·길이·보상 규칙은 바꾸지 않았다. 최초 준비 후 캐시하고 늦은 디코딩·중단·종료 뒤에는 과거 소리를 재생하지 않는다.
+- 진동은 양손에 도약 0.16/40ms, 착지 최대 0.4/90ms의 짧은 펄스를 준다. 하강 속도로 착지 세기를 제한하고 구름·연잎·방패연은 더 부드럽게 한다. 정지한 채 같은 발판에 착지해도 최초 접촉에 한 번 재생한다. 공중 감속·큰 좌표 보정·낙수·중복 스냅샷·늦은 STEP 이벤트로 착지를 추가하지 않는다.
+- WebXR의 legacy `hapticActuators.pulse`와 `vibrationActuator.playEffect('dual-rumble')`를 선택적으로 사용한다. 미지원·분리·동기 예외·비동기 거절은 플레이와 소리를 차단하지 않는다. 안내/결과/랭킹 패널, 추적·가시성 중단, 입력 인터럽트, 종료·해제 시 기존 진동과 오디오 범위를 정리하고 복귀 때 과거 움직임을 재생하지 않는다.
+- 공통 연결 변경: `audio/ParkSoundscape.tsx`는 점프맵 XR이 활성화된 본인의 일반 도약·착지 중복음만 제외한다. 게임 내부 착지 hook도 같은 본인 중복만 제외해 지연된 서버 STEP과 겹치지 않게 한다. 다른 사용자·PC·개발용 공원 VR의 기존 효과음과 스틱·A·그립·회전·레이저 입력 계약은 유지한다. BE·WS/API·DB/Flyway·의존성·맵·코스·음원 에셋 변경 없음.
+- 검증: 제품 및 전체 tests TypeScript, 관련 unit 8파일 63개, 실제 Chrome의 모의 WebXR 브라우저 14개 통과. 새 2개 브라우저 검사는 오디오 노드의 실제 재생 URL과 양손 진동 요청을 기록해 도약/착지 각 1회, 늦은 STEP 중복 차단, 안내·추적 중단, 복귀 후 새 A 점프, 진동 미지원 및 세션 종료를 검증한다. 기존 12개는 권한 거절/PC 입력, 운반 보호, 경계·낙수·연결 해제, 결과·랭킹·늦은 정산·복귀와 낮은 화면의 안내 접근을 포함한다.
+- 독립 실행: `cd frontend`, `node node_modules/@playwright/test/cli.js test --config playwright.park-xr.config.ts feedback.spec.ts games-only.spec.ts parkXR.spec.ts`. Browser plugin not available → 기존 Playwright/Chrome을 사용했다. localhost:5289, 1440×900이며 기존 회귀에 390×844·844×390 화면 검사도 포함된다. 페이지 identity/비어 있지 않은 씬/오버레이 없음/앱 JS·콘솔 오류 없음/실제 입력·렌더 반응을 확인했다. WebXR·인증·HTTP/WS·참가자·위치는 fixture이며 실제 개발 서버·OAuth·다인 정산 검사와 실제 Quest의 음량·진동 체감 검수는 별도다.
+- 최신 맵 `c05d8ada…` 및 코스 `5e03c470…` 생성물 --check와 park-integration Vite 빌드 통과, 생성물 변경 0건. 기존 Three.Clock·셰이더 정밀도·큰 번들 경고는 유지된다. 외부 증거·로그: `OnTop/output/jumpmap-vr-feedback-20261107/`.
+- 검증 후 기능별 커밋·정상 푸시·dev 대상 새 MR을 준비한다. 이번 요청은 기존 MR !425의 머지와 별개이며 새 변경의 dev/master 머지·배포 및 작업 브랜치 삭제는 보류한다. Jenkins의 dev 기준 빌드를 이 소스 커밋의 검증으로 간주하지 않는다.
