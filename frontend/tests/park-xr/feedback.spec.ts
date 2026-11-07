@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
-import { identity, parkFixture } from '../park-integration/fixture'
+import { identity, parkFixture } from './fixture'
 import { disabledJumpmapStatus } from '../fixtures/jumpmap'
 import { COURSE, START } from '../../src/features/jumpmap/course'
 
@@ -9,6 +9,7 @@ for (const haptics of [true, false]) test(`점프맵 VR 도약·착지와 중단
   const errors: string[] = []
   page.on('pageerror', e => errors.push(e.message))
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+  page.on('response', response => { if (response.status() >= 400) console.info('[VR HTTP]', response.status(), response.url()) })
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'xr', { configurable: true, value: Object.assign(new EventTarget(), { isSessionSupported: async () => true }) })
     const urls = new WeakMap<ArrayBuffer, string>(), buffers = new WeakMap<AudioBuffer, string>()
@@ -35,10 +36,11 @@ for (const haptics of [true, false]) test(`점프맵 VR 도약·착지와 중단
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
   await expect.poll(() => page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).sceneReady()), { timeout: 90000 }).toBe(true)
   await expect(page.getByText('공원을 준비하고 있어요…', { exact: true })).toBeHidden({ timeout: 90000 })
-  server.place({ x: START.x, y: .8, z: START.z })
-  await expect(page.getByRole('button', { name: '돌탑 점프맵 VR 시작', exact: true })).toBeEnabled()
+  if (!haptics) server.place({ x: START.x, y: START.y + .8, z: START.z })
+  const start = page.getByRole('button', { name: haptics ? '공원 VR 시작' : '돌탑 점프맵 VR 시작', exact: true })
+  await expect(start).toBeEnabled()
   await page.evaluate(async ({ xr, haptics }) => (await import(xr)).install({ haptics }), { xr, haptics })
-  await page.getByRole('button', { name: '돌탑 점프맵 VR 시작', exact: true }).click()
+  await start.click()
   const state = () => page.evaluate(async p => (await import(p)).snapshot(), xr)
   const feedback = () => page.evaluate(async p => (await import(p)).feedbackSnapshot(), xr)
   const audio = () => page.evaluate(() => (window as unknown as { xrAudioStarts: string[] }).xrAudioStarts)

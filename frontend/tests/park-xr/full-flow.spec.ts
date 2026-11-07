@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { parkFixture, identity } from '../park-integration/fixture'
+import { parkFixture, identity } from './fixture'
 import { disabledJumpmapStatus } from '../fixtures/jumpmap'
 import { COURSE, START, COURSE_VERSION, RULES_VERSION, REWARDS, kstDate } from '../../src/features/jumpmap/course'
 
@@ -48,7 +48,7 @@ test('전체 VR 화면 검토: 공원 진입부터 점프맵 결과·종료와 �
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
   await expect.poll(() => page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).sceneReady()), { timeout: 90000 }).toBe(true)
   await expect(page.getByText('공원을 준비하고 있어요…', { exact: true })).toBeHidden({ timeout: 90000 })
-  await expect(page.getByRole('button', { name: '공원 VR 시작', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '공원 VR 시작', exact: true })).toBeEnabled()
   server.place({ x: START.x, y: START.y + .8, z: START.z })
   await expect(page.getByRole('button', { name: '돌탑 점프맵 VR 시작', exact: true })).toBeEnabled()
   await screenshot('park-01-entry')
@@ -83,6 +83,9 @@ test('전체 VR 화면 검토: 공원 진입부터 점프맵 결과·종료와 �
   await frame('park-07-ranking')
   await input(true); await expect.poll(async () => (await snapshot()).view?.title).toBe('돌탑 도전 완료')
   await input(); await page.waitForTimeout(100); await input(true)
+  await expect.poll(async () => (await snapshot()).view?.key).toBe('roaming')
+  expect((await snapshot()).active).toBe(true)
+  await input(); await page.waitForTimeout(100); await input(false, true)
   await expect.poll(async () => (await snapshot()).active).toBe(false)
   await screenshot('park-08-continue')
   server.place({ x: START.x, y: START.y + .8, z: START.z })
