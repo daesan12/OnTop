@@ -9,6 +9,7 @@ import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh'
 import { STATUS_PATH, TIPS_PATH, COURSE, blockAtFeet, kstDate, START } from './course'
 import { parseJumpStatus, type TipKey } from './protocol'
 import { anticipateGate, applyJumpStatus, bindJumpmap, onStep, presentStep, showTip, standing, useJumpmap } from './state'
+import { jumpmapXRFeedback } from './xrFeedback'
 
 /** One read model per admitted player/channel. No client start, gate, finish or reward command. */
 export function useJumpmapController() {
@@ -51,6 +52,8 @@ export function useJumpmapController() {
     })
     const stopSound = onStep((block, player, power) => {
       if (!inScope() || document.hidden) return
+      // XR owns local touchdown audio; late server STEP echoes must not replay it.
+      if (player === owner && jumpmapXRFeedback.active) return
       const own = avatars.get(owner), p = COURSE[block], output = effectsOutput('jumpmap')
       if (!own || !p || !output) return
       const pose = sampleAvatar(own, performance.now(), { ...own.current })

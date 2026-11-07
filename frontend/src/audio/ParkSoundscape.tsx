@@ -7,6 +7,7 @@ import { LAKE,isOnParkWalkway } from '../park/mapConfig'
 import { avatars, useSession } from '../network/worldClient'
 import { playSfx, setSfxListener, setSfxLoop } from './sfx'
 import { emoteSfx, moverSfx, type MoverState } from './sfxEvents'
+import { jumpmapXRFeedback } from '../features/jumpmap/xrFeedback'
 
 const forward = new Vector3()
 const movers = new Map<string, MoverState>()
@@ -29,7 +30,7 @@ export function ParkSoundscape() {
     setSfxLoop('amb-pond', 1, r <= 1 ? { x: ear.x, y: 0.2, z: ear.z }
       : { x: LAKE.x + (ear.x - LAKE.x) / r, y: 0.2, z: LAKE.z + (ear.z - LAKE.z) / r })
 
-    const profiles = useSession.getState().profiles
+    const { profiles, sessionId } = useSession.getState()
     for (const id of movers.keys()) if (!avatars.has(id)) { movers.delete(id); emotes.delete(id) }
     for (const [id, a] of avatars) {
       if (!a.connected) continue
@@ -47,7 +48,10 @@ export function ParkSoundscape() {
         paved: isOnParkWalkway(p.x, p.z),
       })
       movers.set(id, state)
-      for (const cue of cues) playSfx(cue, at)
+      for (const cue of cues) {
+        if (id === sessionId && jumpmapXRFeedback.active && (cue === 'move-jump' || cue === 'move-land')) continue
+        playSfx(cue, at)
+      }
     }
   })
   return null

@@ -11,7 +11,7 @@ export class ParkXRMovement {
   private moving = false
   private running = false
   private lastSend = -Infinity
-  constructor(private readonly port: XRMovementPort) {}
+  constructor(private readonly port: XRMovementPort, private readonly onJump?: () => void) {}
   reset(): void {
     this.latch.reset(); this.armed = false; this.moving = this.running = false; this.lastSend = -Infinity
     this.port.stopMovement()
@@ -31,6 +31,7 @@ export class ParkXRMovement {
     if (action.jump || moving !== this.moving || running !== this.running || now - this.lastSend >= MOVEMENT_INPUT_INTERVAL_MS) {
       if (moving || action.jump || this.moving || positionMode) {
         this.port.move(this.intent.dx, this.intent.dz, running, action.jump)
+        if (action.jump) this.onJump?.()
         this.lastSend = now
       }
     }
