@@ -4,6 +4,7 @@
 - 현재 작업 브랜치: `feat/quest-vr-free-roam-20261108`. 기존 게임 전용 VR MR !425와 점프 피드백 MR !433은 dev에 머지·개발 배포됐다. 원격 `VR`의 직접 푸시 금지 보호는 유지한다.
 - 2026-11-07 원격 반영 승인: 사용자가 미커밋 VR 작업의 커밋·푸시와 `dev` 대상 MR 생성을 요청했다. 머지는 사용자 확인 후 별도로 진행한다. `VR`의 직접 푸시 금지 보호를 유지하고 동일 작업 커밋을 `feat/quest-vr-games`에 푸시해 MR 소스로 사용한다. 아래 로컬 전용 보류 기록은 당시 상태다.
 - 현재 통합 기준: `origin/dev@88e1f60a58163530e2b4d1b30f4ffcddb34a3fcd` (2026-11-08, 공원 자유이동 VR 공개 작업 시작). 커밋·푸시·MR은 사용자 요청 범위이며 머지·배포는 별도 확인 전까지 보류한다.
+- MR !450 추가 범위: VR 실행 중 닉네임 옆 `VR` 배지와 종료·연결 해제 시 제거. FE와 BE를 함께 반영해야 하며 아래 VR 실행 표시 검증 기록을 따른다.
 - 이관 원본: `park-jumpmap-vr-20261104`, `feat/park-jumpmap-vr-local-20261104@324db890`의 미커밋 VR 변경. 원본은 삭제·변경하지 않고 보존한다.
 - 기존 `quest-locomotion-poc`의 미커밋 작업과 독립 이동 화면은 원래 위치에 보존한다. 2026-11-04 사용자 승인으로 feat/quest-vr에 커밋·푸시하며 dev/master 머지·배포는 진행하지 않는다.
 
@@ -399,3 +400,16 @@ Browser plugin not available → 기존 Playwright·설치된 Chrome/SwiftShader
 - 브라우저: `node node_modules/@playwright/test/cli.js test --config playwright.park-xr.config.ts games-only.spec.ts feedback.spec.ts parkXR.spec.ts` 16개 모두 통과. Browser plugin not available → 기존 Playwright/Chrome, `http://127.0.0.1:5289/park`, 1440×900 및 390×844·844×390 안내 접근 검증. 일반 진입→첫 발판→낙하/낙수→VR 이동→첫 발판 재도전, 계속되는 busy 보호·종료 시 해제, 두 진입 경로의 보호 실패 차단, 공원에서 진입한 점프맵 소리/양손 진동과 미지원, 안내/추적 중단, 권한 거절 후 PC 입력, 결과/랭킹/계속하기를 확인했다.
 - 최신 dev의 당첨 내역·알림·스킨 목록이 기존 브라우저 대역에서 404를 반환해 VR 전용 fixture에 정상 빈 응답을 추가했다. 공통 서버 fixture 이후 라우트를 등록하고 전체 오류 검사·시간 제한을 유지해 통과했다. 페이지 identity·비어 있지 않은 렌더·오류 오버레이 없음·앱 JS/콘솔 오류 없음·실제 입력/서버 메시지 및 렌더 반응을 확인했다.
 - 브라우저의 인증·HTTP/WS·위치·WebXR은 fixture다. 실제 OAuth/다인 서버·실기기 잡기/던지기 시도·Quest 음량/진동 체감/멀미 검수는 이번 검증에 포함되지 않는다. 기존 Three.Clock·셰이더 정밀도·큰 번들 경고는 남는다. 외부 증거/로그: `OnTop/output/park-vr-free-roam-20261108/`.
+
+## 2026-11-08 · VR 실행 표시 — MR !450 추가
+
+- 사용자 요청: VR 실행 중인 유저의 닉네임 옆에 `VR`을 표시하고 종료·연결 해제 시 제거한다. 기존 MR !450 소스 `feat/quest-vr-free-roam-20261108`에 커밋·푸시하며 머지·배포·소스 브랜치 삭제는 보류한다. 기준 dev는 `88e1f60a58163530e2b4d1b30f4ffcddb34a3fcd`이며 푸시 전 재조회에서도 변경이 없고 이미 소스 이력에 포함되어 통합 충돌·추가 병합 커밋은 없다.
+- 게임별 연결: 공원/점프맵과 꼬치왕 온라인 요리사가 이미 공유하는 `acquireVRProtection` 수명으로 전송한다. 일반 팝업 busy와 별도인 선택 boolean `vrActive`를 기존 `WORLD_INTERACTION_SET/STATE`에 추가하며 공개 `WORLD_STATE.avatars[].vrActive`로 같은 채널에 공유한다. 물리적 헤드셋 착용 감지 기능은 아니다. 스틱 이동·낙하·재도전 중 실행 상태는 유지하고 XR 종료 시만 해제한다.
+- 서버는 인증된 본인만 갱신하고 잘못된 타입·추가 userId·busy=false/vrActive=true를 거절한다. 기존 busy-only 요청/응답은 유지한다. VR 중에는 일반 창 닫기로 운반 보호가 풀리지 않고, VR 종료 후에도 열린 팝업 busy 보호는 유지한다. 같은 채널의 기존 약 10Hz 전체 스냅샷을 재사용하며 새 전송 루프는 없다.
+- 서버 연결 해제·퇴장 시 표시 정보를 제거하며 점프맵의 15초 아바타 보존 유예에서도 VR 표시는 즉시 제거한다. 재입장 시 복원하지 않는다. 클라이언트 자신의 연결 해제·채널 초기화와 원격 false/필드 누락/퇴장 스냅샷도 배지를 지운다. 조용한 네트워크 단절은 서버 연결 해제 감지 이후 원격 표시에서 사라진다.
+- 공통 변경: BE `WorldChannelRegistry`, `TableProtocol`, `TableHub`; FE `SpringParkRuntime`, `network/protocol`, `network/worldClient`, `AvatarOverlays`. 배지 CSS는 `features/vrSession/presence.css`의 `.park-page .avatar-vr-badge`로 제한하고 기존 닉네임·활동·말풍선 배치는 유지한다. 짙은 녹색/금색으로 조작 안내와 맞춘다. DB/Flyway·게임 규칙·맵/코스·에셋·의존성은 변경하지 않는다.
+- FE 독립 검증: `node node_modules/vitest/vitest.mjs run vrPresence vrProtection jumpmap parkXR carry bgm sfx --maxWorkers=4` 22파일/145개 통과. 제품 TypeScript와 전체 tests TypeScript 통과. VR 미지원 서버의 busy-only 승인으로는 진입하지 않는 경우도 검증했다. 맵/코스 `--check`와 `vite build --mode park-integration --outDir dist-park` 통과, 생성물 변경 0건.
+- BE 검증: `gradlew.bat test --tests com.ssafy.ontop.world.WorldCarryTests --tests com.ssafy.ontop.world.service.JumpmapRegistryTests --tests com.ssafy.ontop.table.TableProtocolTests --tests com.ssafy.ontop.table.WorldCarryFlowTests --no-daemon --max-workers=2` 114개 통과. 로컬 Spring 서버의 인증된 두 실제 WebSocket 연결로 VR 켜기→상대에게 방송→busy 유지 중 VR 종료→다시 켜기→소켓 종료→재접속 초기화를 확인했다. OAuth provider 및 DB는 기존 테스트 대역이며 개발 서버 접속 검증이 아니다.
+- 브라우저: `node node_modules/@playwright/test/cli.js test --config playwright.park-xr.config.ts presence.spec.ts games-only.spec.ts feedback.spec.ts parkXR.spec.ts` Chrome 19개 모두 통과. 다른 유저 닉네임 배지·일반 busy 구분·종료·퇴장·본인 B 종료/연결 해제와 기존 낙하·재도전·안내/입력/소리/진동 회귀를 확인했다. Browser plugin not available → 기존 Playwright/Chrome, localhost:5289, 1440×900 및 기존 안내의 390×844·844×390 검증을 사용했다.
+- 새 브라우저 fixture의 API 대역 등록 순서 때문에 처음에는 서비스 상태를 읽지 못해 진입이 지연됐다. 공통 fixture 뒤에 서비스 상태/공지 대역을 등록해 해결했다. 실행 중 소스 수정으로 발생한 기존 테스트의 Vite 탐색 중단도 수정 종료 후 전체 19개 재실행에서 해소됐다. 오류 검사와 시간 제한은 유지했다.
+- 한계: 브라우저 인증·HTTP/WS·위치·WebXR은 fixture다. 실제 Quest/개발 서버 OAuth·다인 플레이 QA는 미실시이며 기존 Three.Clock·셰이더 정밀도·큰 번들 경고가 남는다. 새 FE는 VR 승인에서 vrActive까지 확인하므로 BE 동시 반영이 필요하다. 증거: `OnTop/output/vr-presence-20261108/remote-vr-badge.png`, BE XML은 `backend/build/test-results/test/`, MR/Jenkins 확인은 같은 외부 증거 폴더에 기록한다. 이전 공원 자유이동 단독 변경의 BE·WS 무변경 설명은 이번 표시 추가 전의 범위다.
