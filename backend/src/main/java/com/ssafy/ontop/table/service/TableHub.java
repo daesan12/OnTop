@@ -1898,9 +1898,16 @@ public class TableHub {
     }
 
     private void interactionBusy(Member member, Request request) {
-        var change = channels.interactionBusy(member.userId(), request.payload().path("busy").asBoolean());
+        var change = channels.interactionBusy(member.userId(), request.payload().path("busy").asBoolean(),
+                request.payload().has("vrActive") ? request.payload().path("vrActive").asBoolean() : null);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("channelId", change.channelId());
+        payload.put("busy", change.busy());
+        if (request.payload().has("vrActive")) {
+            payload.put("vrActive", change.vrActive());
+        }
         member.peer().offer(protocol.encode(request.requestId(), "WORLD_INTERACTION_STATE",
-                Map.of("channelId", change.channelId(), "busy", change.busy())));
+                payload));
         if (change.released() != null) {
             publishWorld(change.released(), null, null);
         }
