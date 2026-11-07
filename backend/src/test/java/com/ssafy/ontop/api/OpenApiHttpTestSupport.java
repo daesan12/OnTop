@@ -91,6 +91,12 @@ abstract class OpenApiHttpTestSupport {
                 "POST /api/v1/admin/wallet-grants/preview", "POST /api/v1/admin/wallet-grants",
                 "GET /api/v1/operations/status", "GET /api/v1/admin/operations/status",
                 "PUT /api/v1/admin/operations/status",
+                "GET /api/v1/notifications", "GET /api/v1/notifications/{notificationId}",
+                "PATCH /api/v1/notifications/{notificationId}/read",
+                "POST /api/v1/notifications/{notificationId}/claim", "POST /api/v1/admin/wallet-grants/rewards",
+                "GET /api/v1/admin/wallet-grants/rewards", "GET /api/v1/admin/wallet-grants/rewards/recipients",
+                "POST /api/v1/admin/operations/feedback/{receiptId}/replies",
+                "PATCH /api/v1/admin/operations/feedback/{receiptId}/status",
                 "GET /api/v1/announcements", "GET /api/v1/admin/operations/announcements",
                 "POST /api/v1/admin/operations/announcements/{id}", "PUT /api/v1/admin/operations/announcements/{id}",
                 "DELETE /api/v1/admin/operations/announcements/{id}", "PUT /api/v1/admin/operations/announcements/order",
@@ -149,6 +155,10 @@ abstract class OpenApiHttpTestSupport {
             }
         }
         Set<String> actual = new HashSet<>();
+        if (environment.acceptsProfiles(Profiles.of(com.ssafy.ontop.config.RuntimeProfiles.PRODUCT_FEATURE))) {
+            expected.addAll(Set.of("GET /api/v1/gacha", "GET /api/v1/gacha/operations/{operationId}",
+                    "POST /api/v1/gacha/tickets", "POST /api/v1/gacha/draws", "POST /api/v1/gacha/boxes/open"));
+        }
         api.path("paths").fields().forEachRemaining(path -> path.getValue().fieldNames().forEachRemaining(method ->
                 actual.add(method.toUpperCase() + " " + path.getKey())));
         assertThat(actual).isEqualTo(expected);

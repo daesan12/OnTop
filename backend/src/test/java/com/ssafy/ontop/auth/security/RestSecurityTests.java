@@ -360,6 +360,12 @@ class RestSecurityTests {
                         entry.getKey().getMethodsCondition().getMethods().stream().map(method -> method + " " + path)))
                 .toList();
         assertThat(mappings).containsExactlyInAnyOrder("GET /api/v1/auth/{provider}/authorize",
+                "GET /api/v1/notifications", "GET /api/v1/notifications/{notificationId}",
+                "PATCH /api/v1/notifications/{notificationId}/read",
+                "POST /api/v1/notifications/{notificationId}/claim", "POST /api/v1/admin/wallet-grants/rewards",
+                "GET /api/v1/admin/wallet-grants/rewards", "GET /api/v1/admin/wallet-grants/rewards/recipients",
+                "POST /api/v1/admin/operations/feedback/{receiptId}/replies",
+                "PATCH /api/v1/admin/operations/feedback/{receiptId}/status",
                 "GET /api/v1/announcements", "GET /api/v1/admin/operations/announcements",
                 "POST /api/v1/admin/operations/announcements/{id}",
                 "PUT /api/v1/admin/operations/announcements/{id}",
@@ -397,6 +403,8 @@ class RestSecurityTests {
                 "GET /api/v1/world/fitness/rewards/status",
                 "GET /api/v1/tables", "GET /dev/tables", "GET /dev/world-config",
                 "GET /api/v1/shop/items", "POST /api/v1/shop/purchases",
+                "GET /api/v1/gacha", "GET /api/v1/gacha/operations/{operationId}",
+                "POST /api/v1/gacha/tickets", "POST /api/v1/gacha/draws", "POST /api/v1/gacha/boxes/open",
                 "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
                 "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
                 "POST /api/v1/minigames/skewer/admissions",

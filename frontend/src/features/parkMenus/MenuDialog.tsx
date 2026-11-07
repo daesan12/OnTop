@@ -24,6 +24,7 @@ export function MenuDialog({ label, className, backdropClassName = '', onClose, 
       if (event.code === 'Tab') {
         event.preventDefault()
         const controls = [...(card.current?.querySelectorAll<HTMLElement>('input:not(:disabled),button:not(:disabled)') ?? [])]
+          .filter(control => !control.closest('[inert]'))
         const index = controls.indexOf(document.activeElement as HTMLElement)
         controls[(index + (event.shiftKey ? controls.length - 1 : 1)) % controls.length]?.focus()
       }

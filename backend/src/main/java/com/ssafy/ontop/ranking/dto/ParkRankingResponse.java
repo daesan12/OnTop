@@ -14,7 +14,11 @@ public record ParkRankingResponse(@Size(max = 10) List<BalanceItem> balance,
         jumpmap = List.copyOf(jumpmap);
     }
 
-    public record BalanceItem(long rank, String userId, String nickname, long coinBalance, boolean gameMaster) {
+    public record BalanceItem(long rank, String userId, String nickname, long coinBalance, boolean gameMaster,
+                              long equipmentValue, long totalAssets) {
+        public BalanceItem(long rank,String userId,String nickname,long coinBalance,boolean gameMaster) {
+            this(rank,userId,nickname,coinBalance,gameMaster,0,coinBalance);
+        }
         public BalanceItem(long rank, String userId, String nickname, long coinBalance) {
             this(rank, userId, nickname, coinBalance, false);
         }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { installBrowserShortcutGuard } from './browserShortcuts'
+import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import { ParkScene } from './ParkScene'
 import { ParkBgm } from '../audio/ParkBgm'
 import { ParkSfx } from '../audio/ParkSfx'
@@ -60,6 +61,7 @@ import { useMole } from '../features/mole/store'
 import { usePlusMinus } from '../features/plusMinus/store'
 import { useRpsRoulette } from '../features/rpsRoulette/store'
 import { useSpeedMole } from '../features/speedMole/store'
+import { GachaLifecycle } from '../features/gacha/GachaPanel'
 import { useParkGameplayActive } from '../features/operation/parkGameplay'
 import { useParkOperationGate } from '../features/operation/useParkOperationGate'
 import type { ServiceOperationStatus } from '../features/operation/serviceOperation'
@@ -144,6 +146,8 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <RewardCoinFlight />
       <ChannelEntryGate />
       <AnnouncementBanner hidden={hideAnnouncements} />
+      <GachaLifecycle />
+      <NotificationCenter key={session.sessionId} hidden={gameplayActive} />
       {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>

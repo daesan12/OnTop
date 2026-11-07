@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { acceptGacha } from '../features/gacha/events'
 import { acceptTyping, resetTyping } from '../features/chat/typingState'
 import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
 import { CHAT } from '../features/chat/settings'
@@ -484,6 +485,13 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
     return
   }
   switch (message.type) {
+    case 'GACHA_STATE':
+      if (state.status === 'connected' && state.mapCompatible) acceptGacha(p)
+      return
+    case 'PERSONAL_NOTIFICATION_CHANGED':
+      if (typeof p.notificationId === 'string' && /^[1-9]\d{0,18}$/.test(p.notificationId))
+        window.dispatchEvent(new Event('ontop:notifications-changed'))
+      return
     case 'WORLD_CHAT_TYPING_STATE':
       acceptTyping(p,state.roomId)
       return

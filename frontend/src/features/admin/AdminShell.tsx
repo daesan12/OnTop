@@ -3,6 +3,7 @@ import { AdminFeedbackPage } from '../feedback/AdminFeedbackPage'
 import { AdminAccessError, loadAdminAccess, type AdminAccess } from './adminAccess'
 import { AdminAnalyticsPage } from './AdminAnalyticsPage'
 import { AdminWalletGrantPage } from './AdminWalletGrantPage'
+import { AdminRewardManager } from '../notifications/AdminRewardManager'
 import { AdminAnnouncementsPage } from '../announcements/AdminAnnouncementsPage'
 import { AdminServiceOperationPage } from './AdminServiceOperationPage'
 import { AdminEventsPage } from './AdminEventsPage'
@@ -31,8 +32,8 @@ const menuItems: readonly MenuItem[] = [
     description: '이용자가 남긴 비공개 의견을 확인합니다.', permission: 'read' },
   { section: 'analytics', label: '이용 분석', title: '이용 분석',
     description: '일별 이용 흐름과 게임별 집계를 확인합니다.', permission: 'read' },
-  { section: 'wallet-grants', label: '엽전 지급', title: '전 회원 엽전 지급',
-    description: '대상과 총액을 미리 확인하고 활성 회원 전체에 엽전을 지급합니다.', permission: 'grant' },
+  { section: 'wallet-grants', label: '보상 관리', title: '보상 관리',
+    description: '회원별 엽전·뽑기권 선물과 수령 내역, 전 회원 엽전 지급을 관리합니다.', permission: 'grant' },
 ]
 
 function canShow(item: MenuItem, access: AdminAccess): boolean {
@@ -83,7 +84,7 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
       <h1 ref={heading} tabIndex={-1}>{section === 'home' ? '관리자 페이지'
         : section === 'operations' ? '서비스 운영 제어' : section === 'announcements' ? '공원 공지 관리'
           : section === 'events' ? '이벤트 관리' : section === 'feedback' ? '소리함 의견 조회'
-            : section === 'analytics' ? '일별·게임별 분석' : '전 회원 엽전 지급'}</h1>
+            : section === 'analytics' ? '일별·게임별 분석' : '보상 관리'}</h1>
       {state.status === 'ready' && <p>{section === 'home'
         ? '관리자 기능을 선택해주세요.' : section === 'feedback'
           ? '이용자가 비공개로 남긴 의견입니다. 서버에서 조회 권한을 확인합니다.'
@@ -91,7 +92,7 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
           : section === 'announcements' ? '소식을 적고 올리면 공원 맨 위 공지에 표시돼요.'
           : section === 'events' ? '회차별 행사 결과와 당첨자 제출 현황을 확인합니다.'
           : section === 'analytics' ? '행동 로그를 백업 기준으로 집계한 결과입니다. 서버에서 조회 권한을 확인합니다.'
-            : '대상 인원과 총액을 미리 확인한 뒤 모든 활성 회원에게 엽전을 지급합니다.'}</p>}
+            : '회원별 엽전·뽑기권 선물과 수령 상태를 확인하고, 전체 지급은 아래 별도 구역에서 진행합니다.'}</p>}
     </header>
     {state.status === 'loading' && <p role="status">관리자 권한을 확인하고 있어요…</p>}
     {state.status === 'forbidden' && <section className="admin-feedback-content" role="alert">
@@ -122,7 +123,7 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
         : section === 'events' ? <AdminEventsPage access={state.access} onAuthEnded={onAuthEnded} />
         : section === 'feedback' ? <AdminFeedbackPage onAuthEnded={onAuthEnded} />
         : section === 'analytics' ? <AdminAnalyticsPage onAuthEnded={onAuthEnded} />
-          : state.access.canGrant ? <AdminWalletGrantPage onAuthEnded={onAuthEnded} />
+          : state.access.canGrant ? <><AdminRewardManager onAuthEnded={onAuthEnded} /><AdminWalletGrantPage onAuthEnded={onAuthEnded} /></>
             : <section className="admin-feedback-content" role="alert"><h2>지급 권한이 없습니다</h2>
               <p>엽전 지급 권한이 등록된 관리자 계정으로 다시 확인해주세요.</p></section>}
     </>}

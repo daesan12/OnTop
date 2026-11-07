@@ -66,10 +66,12 @@ export function useWalletSync() {
     ]
     const recheck = () => { if (!document.hidden) queue.request() }
     window.addEventListener('focus', recheck)
+    window.addEventListener('ontop-gacha-committed', recheck)
     window.addEventListener('online', recheck)
     document.addEventListener('visibilitychange', recheck)
     queue.request()
     return () => {
+      window.removeEventListener('ontop-gacha-committed', recheck)
       alive = false
       queue.dispose(); abort?.abort()
       if (retry !== undefined) clearTimeout(retry)

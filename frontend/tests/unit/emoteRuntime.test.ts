@@ -225,3 +225,20 @@ describe('M04 emote delivery through the existing Spring transport', () => {
     expect(await next).toBe(false)
   })
 })
+
+describe('가챠의 실제 Spring REST 전송 경계', () => {
+  it('인증된 구매·추첨·개봉·복구만 허용하고 임의 경로와 메서드는 차단한다', async () => {
+    const fetch = server(path => path.startsWith('/api/v1/gacha') ? json({ accepted: true }) : undefined)
+    await start()
+    await vi.waitFor(() => expect(useSession.getState().roomId).toBe('channel-1'))
+    for (const [path, method] of [
+      ['/api/v1/gacha', 'GET'], ['/api/v1/gacha/tickets', 'POST'], ['/api/v1/gacha/draws', 'POST'],
+      ['/api/v1/gacha/boxes/open', 'POST'], ['/api/v1/gacha/operations/operation-1', 'GET'],
+    ]) {
+      expect(await runtime.requestJSON(path!, { method })).toEqual({ accepted: true })
+      expect(fetch.mock.calls.at(-1)?.[1]?.headers).toMatchObject({ Authorization: 'Bearer fixture-access' })
+    }
+    for (const [path, method] of [['/api/v1/gacha/tickets', 'GET'], ['/api/v1/gacha/admin', 'POST'], ['/api/v1/gacha/operations/../users', 'GET']])
+      await expect(runtime.requestJSON(path!, { method })).rejects.toThrow('현재 공원에서 사용할 수 없는 요청')
+  })
+})

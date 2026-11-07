@@ -262,6 +262,7 @@ test('read-only administrator cannot discover or open the wallet grant controls'
   await page.route('**/api/v1/admin/me', route => route.fulfill({ json: { canRead: true, canGrant: false, canOperate: false } }))
   await page.goto('/admin')
   await expect(page.getByRole('link', { name: '엽전 지급', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: '보상 관리', exact: true })).toHaveCount(0)
   await expect(page.getByRole('link', { name: /전 회원 엽전 지급/ })).toHaveCount(0)
   await page.goto('/admin/wallet-grants')
   await expect(page.getByRole('heading', { name: '지급 권한이 없습니다' })).toBeVisible()
