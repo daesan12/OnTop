@@ -85,7 +85,10 @@ public final class TableProtocol {
             case "WORLD_CARRY_RELEASE" -> fields(payload, Set.of("carryId"))
                     && payload.path("carryId").isTextual()
                     && payload.path("carryId").asText().matches("[0-9a-f-]{36}");
-            case "WORLD_INTERACTION_SET" -> fields(payload, Set.of("busy")) && payload.path("busy").isBoolean();
+            case "WORLD_INTERACTION_SET" -> (fields(payload, Set.of("busy"))
+                    || fields(payload, Set.of("busy", "vrActive"))) && payload.path("busy").isBoolean()
+                    && (!payload.has("vrActive") || payload.path("vrActive").isBoolean())
+                    && (!payload.path("vrActive").asBoolean() || payload.path("busy").asBoolean());
             case "WORLD_FOLLOW_START" -> fields(payload, Set.of("targetId"))
                     && payload.path("targetId").isTextual()
                     && payload.path("targetId").asText().matches("[A-Za-z0-9_-]{1,80}");

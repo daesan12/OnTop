@@ -169,7 +169,7 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 | WORLD_CARRY_PICKUP | `{targetId}`: 같은 채널의 다른 사용자 ID | WORLD_STATE |
 | WORLD_CARRY_THROW | `{carryId, dx, dy, dz}`: 현재 관계의 UUID와 정규화된 투척 방향. FE는 입력 순간 캐릭터 정면 `(sin(yaw), 0, cos(yaw))` 전송 | WORLD_STATE |
 | WORLD_CARRY_RELEASE | `{carryId}`: 현재 운반 관계의 UUID | WORLD_STATE |
-| WORLD_INTERACTION_SET | `{busy}`: 본인 창의 입력 점유 여부(boolean) | WORLD_INTERACTION_STATE `{channelId, busy}` |
+| WORLD_INTERACTION_SET | `{busy, vrActive?}`: 본인 입력 점유와 별도 VR 실행 여부(boolean). VR true이면 busy도 true | WORLD_INTERACTION_STATE `{channelId, busy, vrActive?}`; vrActive를 요청한 경우에만 응답에도 포함 |
 
 FE는 기존 운반·비행 중의 채팅 입력/전송을 창 점유에서 제외해 관계를 유지한다. 채팅의 이동·투척·A/D 탈출 키 차단은 유지하며, 운반 중이 아닌 채팅 사용자의 들기 방지와 다른 창의 안전 해제는 기존대로 적용한다. WS 필드와 서버 판정 계약은 변경하지 않는다.
 

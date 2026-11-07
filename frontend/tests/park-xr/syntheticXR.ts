@@ -97,7 +97,7 @@ export function snapshot() {
   const pose = sampleAvatar(avatar, performance.now(), { ...avatar.current })
   const panel = scene.getObjectByName('jumpmap-xr-dialog')!.parent!
   const status = scene.getObjectByName('jumpmap-xr-status')!.parent!
-  return { phase: useParkXR.getState().phase, active: parkXRView.active, ownsInput: parkXRView.ownsInput,
+  return { phase: useParkXR.getState().phase, mode: useParkXR.getState().mode, active: parkXRView.active, ownsInput: parkXRView.ownsInput,
     position: camera.getWorldPosition(new Vector3()).toArray(), viewPosition: parkXRView.position.toArray(),
     parent: camera.parent?.type ?? null, pose,
     dialogBounds: [[-.69, -.46], [.69, .46]].map(([x, y]) => panel.localToWorld(new Vector3(x!, y!, 0)).project(camera).toArray()),

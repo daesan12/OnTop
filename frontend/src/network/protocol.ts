@@ -61,6 +61,7 @@ export interface WorldState {
     motion?: MotionSnapshot | null
     carry?: CarryState | null
     interactionBusy?: boolean
+    vrActive?: boolean
   }[]
 }
 export interface CarryState { carryId: string; partnerId: string; role: 'CARRIER' | 'CARRIED' | 'THROWN' }
@@ -208,6 +209,7 @@ export function worldState(value: Record<string, unknown>): WorldState {
         && (a.equipment == null || validPublicEquipment(a.equipment))
         && tableSeat(a.tableSeat)
         && (a.interactionBusy === undefined || typeof a.interactionBusy === 'boolean')
+        && (a.vrActive === undefined || typeof a.vrActive === 'boolean')
         && (a.carry == null || record(a.carry) && text(a.carry.carryId) && a.carry.carryId.length === 36
           && text(a.carry.partnerId) && a.carry.partnerId !== a.userId
           && ['CARRIER', 'CARRIED', 'THROWN'].includes(String(a.carry.role)))
