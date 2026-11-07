@@ -27,6 +27,6 @@ const collection = { info: { name: 'OnTop Gacha', schema: 'https://schema.getpos
 collection.item[3].request.body.raw = collection.item[3].request.body.raw.replace('"{{gachaBoxGrade}}"', '{{gachaBoxGrade}}');
 const target = new URL('./OnTop-Gacha.postman_collection.json', import.meta.url);
 const output = JSON.stringify(collection, null, 2) + '\n';
-if (check) { if (await readFile(target, 'utf8') !== output) throw new Error('가챠 컬렉션이 최신 생성물과 다릅니다.'); }
+if (check) { if ((await readFile(target, 'utf8')).replace(/\r\n/g, '\n') !== output) throw new Error('가챠 컬렉션이 최신 생성물과 다릅니다.'); }
 else await writeFile(target, output);
 console.log(`가챠 컬렉션 ${check ? '검사' : '생성'}: 5개 요청`);

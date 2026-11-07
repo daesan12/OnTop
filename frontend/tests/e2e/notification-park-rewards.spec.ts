@@ -9,6 +9,25 @@ test.beforeAll(async()=>{
 await restoreAuthSession(true);createRoot(document.getElementById('root')!).render(<ParkPage onExit={()=>{}} exitError="" onAuthEnded={()=>{}} onOperationBlocked={()=>{}}/>);`,{flag:'wx'})
 })
 
+test('알림 변경 힌트는 이미 열린 뽑기의 실제 재고를 다시 조회하며 자동 추첨하지 않는다',async({page})=>{
+  await parkFixture(page)
+  let tickets=0,draws=0
+  await page.route('**/api/v1/gacha**',route=>{
+    if(route.request().method()!=='GET'){draws++;return route.fulfill({status:500,json:{message:'이 검사는 추첨하지 않음'}})}
+    return route.fulfill({json:{enabled:true,ticketPrice:100,serverNow:new Date().toISOString(),
+      machine:{roundId:'1',version:0,remaining:30,refillEndsAt:null,prizes:[1,2,4,8,15].map((remaining,index)=>({grade:index+1,initial:remaining,remaining,value:[1000,500,250,100,20][index]}))},
+      inventory:{tickets,balance:100,availableBalance:100,boxes:[1,2,3,4].map(grade=>({grade,quantity:0}))},products:[]}})
+  })
+  await page.goto('/reward-park.local.html')
+  await expect.poll(()=>page.evaluate(async()=>(await import('/src/network/worldClient.ts' as string)).useSession.getState().status)).toBe('connected')
+  await page.evaluate(async()=>{(await import('/src/features/construction/model.ts' as string)).useConstructionNotice.setState({id:'layout-shop'})})
+  await expect(page.locator('.art-wallet')).toContainText('뽑기권 0장')
+  tickets=3
+  await page.evaluate(()=>window.dispatchEvent(new Event('ontop:notifications-changed')))
+  await expect(page.locator('.art-wallet')).toContainText('뽑기권 3장')
+  expect(draws).toBe(0)
+})
+
 test('안 읽음 붉은 점과 읽음 회색을 구분하고 읽은 보상도 받을 수 있다',async({page},info)=>{
   await parkFixture(page)
   const entries=[

@@ -46,6 +46,7 @@ import static org.mockito.Mockito.doCallRealMethod;
 @Tag("mysql")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=dev,db", "ontop.feedback.enabled=true",
+        "ontop.shop.enabled=true", "ontop.gacha.enabled=true", "ontop.gacha.broadcast-enabled=false",
         "ontop.admin.read-ids=8101,8303", "ontop.admin.grant-ids=8101",
         "spring.jpa.hibernate.ddl-auto=validate", "ontop.auth.allowed-origins=https://dev.on-top.world",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
@@ -58,6 +59,7 @@ class NotificationRewardMySqlTests {
     @Autowired Collector collector;
     @Autowired WalletRepository wallets;
     @Autowired PlatformTransactionManager manager;
+    @Autowired com.ssafy.ontop.gacha.GachaService gacha;
     @MockitoSpyBean NotificationRewardRepository repository;
     @LocalServerPort int port;
     private final ObjectMapper json = new ObjectMapper();
@@ -73,14 +75,10 @@ class NotificationRewardMySqlTests {
         if (url == null || !url.matches("jdbc:mysql://127\\.0\\.0\\.1:[0-9]+/ontop_feedback_test_reward_[A-Za-z0-9_]+(?:\\?.*)?")) {
             throw new IllegalStateException("격리 loopback 보상 테스트 DB가 필요합니다.");
         }
-        String dependency = System.getenv("TEST_REWARD_GACHA_LOCATION");
-        if (dependency == null || !dependency.endsWith("/output/reward-gacha-dependency")) {
-            throw new IllegalStateException("기존 V157 원본의 격리 검증 경로가 필요합니다.");
-        }
         registry.add("spring.datasource.url", () -> url);
         registry.add("spring.datasource.username", () -> System.getenv("TEST_FEEDBACK_DB_USERNAME"));
-        registry.add("spring.datasource.password", () -> System.getenv("TEST_FEEDBACK_DB_PASSWORD"));
-        registry.add("spring.flyway.locations", () -> "classpath:db/migration,classpath:db/minigame,filesystem:" + dependency);
+        registry.add("spring.datasource.password", () -> System.getenv().getOrDefault("TEST_FEEDBACK_DB_PASSWORD",""));
+        registry.add("spring.flyway.locations", () -> "classpath:db/migration,classpath:db/minigame,classpath:db/shop");
     }
 
     @BeforeEach
@@ -104,6 +102,70 @@ class NotificationRewardMySqlTests {
         jdbc.update("DELETE FROM personal_notifications WHERE user_id IN (8101,8202,8303)");
         jdbc.update("DELETE FROM wallet_transactions WHERE idempotency_key LIKE 'notification-reward:%'");
         jdbc.update("DELETE FROM gacha_inventory WHERE user_id IN (8101,8202,8303)");
+        jdbc.update("DELETE FROM gacha_receipts WHERE user_id IN (8101,8202,8303)");
+        jdbc.update("DELETE FROM user_items WHERE user_id=8202 AND item_id BETWEEN 910001 AND 910004");
+    }
+
+    @Test
+    void 통합_SQL과_실제_알림함_수령_추첨_개봉_구매를_연결한다() throws Exception {
+        assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IN ('157','158','159','160') AND success=TRUE ORDER BY installed_rank", String.class))
+                .containsExactly("157","158","159","160");
+        bridgeCatalog();
+        String reward=grant("GACHA_TICKET",2);
+        var claimed=request("POST",claimPath(reward),null,member);
+        assertThat(claimed.statusCode()).isEqualTo(200);
+        assertThat(request("POST",claimPath(reward),null,member).body()).isEqualTo(claimed.body());
+        var state=read(request("GET","/gacha",null,member));
+        assertThat(state.path("inventory").path("tickets").asLong()).isEqualTo(2);
+        String key=UUID.randomUUID().toString(),round=state.path("machine").path("roundId").asText();
+        String draw=json.writeValueAsString(Map.of("operationId",key,"roundId",round));
+        var won=request("POST","/gacha/draws",draw,member);
+        assertThat(won.statusCode()).as(won.body()).isEqualTo(200);
+        assertThat(read(won).path("grade").asInt()).isEqualTo(1);
+        assertThat(request("POST","/gacha/draws",draw,member).body()).isEqualTo(won.body());
+        assertThat(request("POST",claimPath(reward),null,member).body()).isEqualTo(claimed.body());
+        assertThat(gacha.state(8202).inventory().tickets()).isEqualTo(1);
+        var opened=request("POST","/gacha/boxes/open",json.writeValueAsString(Map.of("operationId",UUID.randomUUID().toString(),"grade",1)),member);
+        assertThat(opened.statusCode()).as(opened.body()).isEqualTo(200);
+        assertThat(read(opened).path("duplicate").asBoolean()).isFalse();
+        assertThat(read(opened).path("product").path("code").asText()).isEqualTo("BRIDGE_1");
+        String coins=grant("COIN",25);
+        assertThat(request("POST",claimPath(coins),null,member).statusCode()).isEqualTo(200);
+        assertThat(request("POST","/gacha/tickets",json.writeValueAsString(Map.of("operationId",UUID.randomUUID().toString())),member).statusCode()).isEqualTo(200);
+        assertThat(gacha.state(8202).inventory().tickets()).isEqualTo(2);
+        assertThat(balance()).isEqualTo(25);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_items WHERE user_id=8202 AND item_id=910001 AND quantity=1 AND is_equipped=FALSE",Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void 실제_추첨과_알림함_수령이_동시에_진행돼도_지급과_소비가_보존된다() throws Exception {
+        bridgeCatalog();
+        jdbc.update("INSERT INTO gacha_inventory(user_id,tickets) VALUES(8202,10)");
+        String id=grant("GACHA_TICKET",3),key=UUID.randomUUID().toString();
+        String round=gacha.state(8202).machine().roundId();
+        CountDownLatch start=new CountDownLatch(1);
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var claim=pool.submit(()->{start.await();return request("POST",claimPath(id),null,member);});
+            var draw=pool.submit(()->{start.await();return gacha.draw(8202,key,round);});
+            start.countDown();
+            assertThat(claim.get(20,java.util.concurrent.TimeUnit.SECONDS).statusCode()).isEqualTo(200);
+            var won=draw.get(20,java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(gacha.draw(8202,key,round)).isEqualTo(won);
+        }
+        assertThat(request("POST",claimPath(id),null,member).statusCode()).isEqualTo(200);
+        assertThat(gacha.state(8202).inventory().tickets()).isEqualTo(12);
+        assertThat(gacha.state(8202).inventory().boxes().getFirst().quantity()).isEqualTo(1);
+        assertThat(balance()).isEqualTo(100);
+    }
+
+    private void bridgeCatalog() {
+        for(int grade=1;grade<=4;grade++) {
+            long item=910000+grade;
+            jdbc.update("INSERT INTO items(id,item_code,name,item_type,equip_slot,price,image_key,is_for_sale) VALUES(?,?,?,'EQUIPMENT','HAIR',0,'test/bridge',FALSE) ON DUPLICATE KEY UPDATE name=VALUES(name)",item,"BRIDGE_"+grade,"통합검수"+grade);
+            jdbc.update("INSERT INTO gacha_products(product_code,name,grade,compatibility,image_key,active) VALUES(?,?,?,'ANY','test/bridge',TRUE) ON DUPLICATE KEY UPDATE active=TRUE", "BRIDGE_"+grade,"통합상품"+grade,grade);
+            jdbc.update("INSERT IGNORE INTO gacha_product_items(product_code,item_id) VALUES(?,?)","BRIDGE_"+grade,item);
+        }
+        jdbc.update("UPDATE gacha_machine SET round_id=round_id+1,state_version=state_version+1,first_remaining=1,second_remaining=0,third_remaining=0,fourth_remaining=0,coin_remaining=0,refill_ends_at=NULL WHERE id=1");
     }
 
     @Test

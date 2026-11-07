@@ -19,6 +19,13 @@ beforeEach(async () => {
   fixture.request.mockResolvedValue(state); await refreshGacha(); fixture.request.mockClear()
 })
 afterEach(() => vi.unstubAllGlobals())
+it('보유 수량 초과가 확정되면 미소비 요청을 정리한다',async()=>{
+  fixture.request.mockRejectedValueOnce(new RestError(409,'GACHA_CAPACITY_EXCEEDED','보유 한도 초과'))
+  await gachaAction('BUY')
+  expect(useGacha.getState().pending).toBeNull()
+  expect(fixture.storage.size).toBe(0)
+  expect(useGacha.getState().error).toBe('보유 한도 초과')
+})
 it('응답 유실과 인증·429 오류 후에도 동일 작업 ID를 유지한다', async () => {
   fixture.request.mockRejectedValueOnce(new Error('응답 유실'))
   await gachaAction('BUY')

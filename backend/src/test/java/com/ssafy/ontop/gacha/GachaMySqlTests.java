@@ -93,6 +93,28 @@ class GachaMySqlTests {
         assertThat(amount(user)).isEqualTo(100);
         assertThat(scalar("SELECT COUNT(*) FROM gacha_receipts WHERE user_id=?",user)).isZero();
     }
+    @Test void purchases_and_payouts_above_the_notification_safe_integer_limit_roll_back() {
+        long maximum=9_007_199_254_740_991L;
+        long buyer=user(1000);jdbc.update("INSERT INTO gacha_inventory(user_id,tickets) VALUES(?,?)",buyer,maximum);
+        assertThatThrownBy(()->service(0).purchase(buyer,"capacity-buy")).isInstanceOfSatisfying(GachaException.class,
+                e->assertThat(e.code()).isEqualTo("GACHA_CAPACITY_EXCEEDED"));
+        assertThat(amount(buyer)).isEqualTo(1000);
+        assertThat(service(0).state(buyer).inventory().tickets()).isEqualTo(maximum);
+        long winner=user(maximum-10);jdbc.update("INSERT INTO gacha_inventory(user_id,tickets) VALUES(?,1)",winner);
+        assertThatThrownBy(()->service(Integer.MAX_VALUE).draw(winner,"capacity-draw","1")).isInstanceOfSatisfying(GachaException.class,
+                e->assertThat(e.code()).isEqualTo("GACHA_CAPACITY_EXCEEDED"));
+        assertThat(amount(winner)).isEqualTo(maximum-10);
+        assertThat(service(0).state(winner).inventory().tickets()).isEqualTo(1);
+        assertThat(service(0).state(winner).machine().remaining()).isEqualTo(30);
+        long opener=user(maximum-1);jdbc.update("INSERT INTO gacha_inventory(user_id,first_boxes) VALUES(?,1)",opener);
+        jdbc.update("INSERT INTO user_items(user_id,item_id,quantity,is_equipped) VALUES(?,890001,1,FALSE)",opener);
+        assertThatThrownBy(()->service(0).open(opener,"capacity-open",1)).isInstanceOfSatisfying(GachaException.class,
+                e->assertThat(e.code()).isEqualTo("GACHA_CAPACITY_EXCEEDED"));
+        assertThat(service(0).state(opener).inventory().boxes().getFirst().quantity()).isEqualTo(1);
+        assertThat(amount(opener)).isEqualTo(maximum-1);
+        assertThat(scalar("SELECT COUNT(*) FROM gacha_receipts")).isZero();
+        assertThat(scalar("SELECT COUNT(*) FROM gacha_events")).isZero();
+    }
     @Test void six_retries_buy_once_and_conflicting_operation_is_rejected() throws Exception {
         long user=user(1000); var service=service(0);
         try(var workers=Executors.newFixedThreadPool(6)) {

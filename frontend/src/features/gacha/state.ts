@@ -76,7 +76,7 @@ export async function gachaAction(kind: Kind, grade?: number) {
     if (!present(owner, epoch)) return
     const refill = cause instanceof RestError && ['GACHA_ROUND_CHANGED','GACHA_REFILLING'].includes(cause.code)
     const rejected = cause instanceof RestError && ['INVALID_REQUEST', 'GACHA_ROUND_CHANGED', 'GACHA_REFILLING', 'GACHA_NO_TICKET',
-      'GACHA_NO_BOX', 'INSUFFICIENT_BALANCE', 'GACHA_NO_COMPATIBLE_PRODUCT'].includes(cause.code)
+      'GACHA_NO_BOX', 'INSUFFICIENT_BALANCE', 'GACHA_NO_COMPATIBLE_PRODUCT', 'GACHA_CAPACITY_EXCEEDED'].includes(cause.code)
     if (rejected) {
       save(owner, null); useGacha.setState({ pending: null })
     }

@@ -47,7 +47,7 @@ import static org.mockito.Mockito.doNothing;
         "spring.profiles.active=dev,db", "ontop.feedback.enabled=true",
         "ontop.admin.read-ids=101", "ontop.admin.operation-ids=101",
         "ontop.feedback.administrator-ids=101", "spring.jpa.hibernate.ddl-auto=validate",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame",
+        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/shop",
         "ontop.auth.allowed-origins=https://dev.on-top.world",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
@@ -75,7 +75,7 @@ class NotificationMySqlTests {
         }
         registry.add("spring.datasource.url", () -> url);
         registry.add("spring.datasource.username", () -> System.getenv("TEST_FEEDBACK_DB_USERNAME"));
-        registry.add("spring.datasource.password", () -> System.getenv("TEST_FEEDBACK_DB_PASSWORD"));
+        registry.add("spring.datasource.password", () -> System.getenv().getOrDefault("TEST_FEEDBACK_DB_PASSWORD",""));
     }
 
     @BeforeEach

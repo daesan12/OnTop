@@ -117,10 +117,17 @@ public class GachaService {
             if(awarded>0) wallet.creditReward(awarded);
             if(paid!=0||awarded!=0) ledger.saveAndFlush(WalletTransaction.gacha(wallet.id(),awarded-paid,ledgerKey(userId,key),now));
             entities.flush(); // JDBC 재고 응답과 JPA 지갑을 같은 커밋 기준으로 맞춘다.
-            Result result=new Result(key,kind,roundId,grade,product,duplicate,paid,awarded,repository.inventory(userId),now);
+            Result result=new Result(key,kind,roundId,grade,product,duplicate,paid,awarded,checkedInventory(repository.inventory(userId)),now);
             repository.receipt(userId,key,kind,target,write(result),now);
             return result;
         }));
+    }
+    private Inventory checkedInventory(Inventory inventory) {
+        long maximum=9_007_199_254_740_991L;
+        if(inventory.balance()>maximum || inventory.tickets()>maximum
+                || inventory.boxes().stream().anyMatch(box->box.quantity()>maximum))
+            throw new GachaException(409,"GACHA_CAPACITY_EXCEEDED","보유 가능한 엽전 또는 아이템 수량을 초과합니다.");
+        return inventory;
     }
     private boolean compatible(Product product,String gender) { return product.compatibility().equals("ANY")||product.compatibility().equals(gender); }
     private void validateKey(String key) {
