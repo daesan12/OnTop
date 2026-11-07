@@ -8,6 +8,29 @@ test.beforeAll(async()=>{
   await writeFile(script,`import React from 'react';import {createRoot} from 'react-dom/client';import {restoreAuthSession} from './auth/authFlow';import {ParkPage} from './park/ParkPage';
 await restoreAuthSession(true);createRoot(document.getElementById('root')!).render(<ParkPage onExit={()=>{}} exitError="" onAuthEnded={()=>{}} onOperationBlocked={()=>{}}/>);`,{flag:'wx'})
 })
+
+test('안 읽음 붉은 점과 읽음 회색을 구분하고 읽은 보상도 받을 수 있다',async({page},info)=>{
+  await parkFixture(page)
+  const entries=[
+    {id:'17',type:'FEEDBACK_REPLY',title:'보내주신 의견에 답변이 왔어요',readAt:null},
+    {id:'16',type:'REWARD',title:'함께해 주셔서 감사합니다',readAt:null,reward:{kind:'GACHA_TICKET',amount:3,expiresAt:'2030-01-01T00:00:00Z',claimedAt:null}},
+    {id:'15',type:'FEEDBACK_REPLY',title:'알려주신 문제를 수정했어요',readAt:'2026-11-07T09:01:00Z'},
+    {id:'14',type:'REWARD',title:'소중한 의견에 보내는 선물',readAt:'2026-11-07T09:01:00Z',reward:{kind:'COIN',amount:1000,expiresAt:'2030-01-01T00:00:00Z',claimedAt:null}},
+  ].map(row=>({...row,createdAt:'2026-11-07T09:00:00Z'}))
+  await page.route('**/api/v1/notifications?**',route=>route.fulfill({json:{items:entries,nextCursor:null,unreadCount:2}}))
+  await page.goto('/reward-park.local.html')
+  await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({timeout:90000})
+  await page.getByRole('button',{name:/알림함/}).click()
+  const dialog=page.getByRole('dialog',{name:'알림함',exact:true})
+  await expect(dialog.locator('.is-new .inbox-unread-dot')).toHaveCount(2)
+  await expect(dialog.locator('.is-read .inbox-read-label')).toHaveCount(2)
+  await expect(dialog.locator('.is-read .inbox-unread-dot')).toHaveCount(0)
+  await expect(dialog.getByRole('button',{name:'엽전 1,000냥 받기',exact:true})).toBeEnabled()
+  const unread=dialog.locator('.is-new').first(),read=dialog.locator('.is-read').first()
+  expect(await unread.evaluate(el=>getComputedStyle(el).backgroundColor)).not.toBe(await read.evaluate(el=>getComputedStyle(el).backgroundColor))
+  await dialog.evaluate(el=>Promise.all(el.getAnimations({subtree:true}).map(a=>a.finished)))
+  await page.screenshot({path:info.outputPath('inbox-read-unread.png')})
+})
 test.afterAll(async()=>{await unlink(html);await unlink(script)})
 
 /** 생성 공원의 실제 제품 화면. 인증/HTTP/WS만 대역이며 DB 검증과는 분리한다. */

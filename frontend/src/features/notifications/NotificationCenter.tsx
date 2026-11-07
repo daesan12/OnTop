@@ -146,7 +146,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
         <p className="inbox-subtitle">안 읽은 소식 {page?.unreadCount ?? 0}개 · {trail.length}페이지</p>
         <div className="inbox-list">{values.map(value => value.reward ? <div key={value.id}
           className={`inbox-row inbox-reward-row ${value.readAt ? 'is-read' : 'is-new'}`}>
-          <RewardIcon kind={value.reward.kind}/><span><strong>{rewardLabel(value.reward)}</strong><small>{value.title}</small>
+          <RewardIcon kind={value.reward.kind}/><span><strong className="inbox-title"><ReadState read={!!value.readAt}/>{rewardLabel(value.reward)}</strong><small>{value.title}</small>
             <time dateTime={value.reward.expiresAt}>수령 기한 · {new Date(value.reward.expiresAt).toLocaleString('ko-KR')}</time></span>
           <button className={value.reward.claimedAt ? '' : 'inbox-primary'} disabled={busy || !!value.reward.claimedAt}
             aria-label={`${rewardLabel(value.reward)} ${value.reward.claimedAt ? '수령 완료' : '받기'}`} onClick={() => void claim(value)}>
@@ -155,7 +155,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
             onClick={() => value.reward?.claimedAt ? void claim(value) : void show(value.id)}>›</button>
         </div> : <button key={value.id} className={`inbox-row ${value.readAt ? 'is-read' : 'is-new'}`}
             disabled={busy} onClick={() => void show(value.id)}>
-            <span className="inbox-envelope" aria-hidden="true">✉</span><span><strong>{value.title}</strong>
+            <span className="inbox-envelope" aria-hidden="true">✉</span><span><strong className="inbox-title"><ReadState read={!!value.readAt}/>{value.title}</strong>
               <small>보내주신 소리함 의견에 답변을 남겼습니다.</small><time dateTime={value.createdAt}>{new Date(value.createdAt).toLocaleString('ko-KR')}</time></span>
             <span className="inbox-row-arrow" aria-hidden="true">›</span></button>)}</div>
         {values.length === 0 && <p className="inbox-empty">{!page ? '알림을 확인하고 있어요.' : filter === 'reward' ? '아직 도착한 보상이 없어요.'
@@ -174,6 +174,11 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
       </section></div>}
     </MenuDialog>}
   </>
+}
+
+function ReadState({ read }: { read: boolean }) {
+  return read ? <span className="inbox-read-label">읽음</span>
+    : <><span className="inbox-unread-dot" aria-hidden="true"/><span className="inbox-sr-only">안 읽음 · </span></>
 }
 
 function RewardIcon({ kind }: { kind: 'COIN' | 'GACHA_TICKET' }) {
