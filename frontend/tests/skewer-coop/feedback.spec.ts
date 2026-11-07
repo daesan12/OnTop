@@ -64,7 +64,7 @@ test('역할과 PC·VR 선택은 기존 일러스트를 사용하고 준비 화�
   await expect(page.locator('.coop-guide-art img')).toHaveAttribute('src', /chef-pc-choice-illustration.png/)
   await page.getByRole('button', { name: '← 역할 다시 고르기', exact: true }).click()
   await page.getByRole('button', { name: '서빙 담당', exact: true }).click()
-  await expect(page.locator('.coop-guide-art img')).toHaveAttribute('src', /server-role-illustration.png/)
+  await expect(page.locator('.coop-guide-art img')).toHaveAttribute('src', /service-hall-preview.png/)
   await verify()
 })
 
@@ -103,12 +103,12 @@ test('테이블 접근 안내는 유지하고 노란 테두리는 표시하지 �
   await verify()
 })
 
-for (const role of ['chef', 'server']) test(`${role} 준비 이미지는 기존 역할 일러스트다`, async ({ page }) => {
+for (const role of ['chef', 'server']) test(`${role} 준비 화면은 역할에 맞는 이미지와 동일한 하단 규격을 사용한다`, async ({ page }) => {
   const verify = health(page)
   await page.goto(`/tests/skewer-coop/fixtures/play-feedback.html?role=${role}&prepare=1`)
   if (role === 'chef') await page.getByRole('button', { name: 'PC로 요리하기', exact: true }).click()
   const image = page.locator('.coop-guide-art img')
-  await expect(image).toHaveAttribute('src', new RegExp(`${role === 'server' ? 'server-role' : 'chef-pc-choice'}-illustration.png`))
+  await expect(image).toHaveAttribute('src', role === 'server' ? /service-hall-preview.png/ : /chef-pc-choice-illustration.png/)
   await expect(image).toHaveJSProperty('complete', true, { timeout: 15000 })
   expect(await image.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(1000)
   for (const [width, height] of [[1440, 900], [900, 500], [390, 844]]) {
