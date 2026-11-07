@@ -1941,6 +1941,18 @@ public class TableHub {
         }
     }
 
+    @org.springframework.transaction.event.TransactionalEventListener(
+            phase = org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT)
+    public synchronized void personalNotificationChanged(
+            com.ssafy.ontop.notification.service.PersonalNotificationChanged event) {
+        if (stopped) { return; }
+        String message = protocol.encode(null, "PERSONAL_NOTIFICATION_CHANGED",
+                Map.of("notificationId", event.notificationId()));
+        for (Member member : members.values()) {
+            if (member.userId().equals(Long.toString(event.userId()))) { member.peer().offer(message); }
+        }
+    }
+
     private void publishChannel(WorldChannelRegistry.State state, Member actor, String requestId) {
         for (Member target : members.values()) {
             if (state.userIds().contains(target.userId())) {

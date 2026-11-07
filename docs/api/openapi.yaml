@@ -768,6 +768,37 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/notifications/{notificationId}/claim:
+    post:
+      tags:
+      - NOTIFICATION
+      summary: 본인 보상 한 번 수령 · 재요청 시 확정 영수증
+      operationId: claimPersonalNotificationReward
+      parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonNode"
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClaimResponse"
+      security:
+      - AccessJwt: []
   /api/v1/notes:
     get:
       tags:
@@ -3824,6 +3855,63 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/admin/wallet-grants/rewards:
+    get:
+      tags:
+      - NOTIFICATION
+      summary: 지급 관리자 · 회원별 보상 발송·수령 이력
+      operationId: listPersonalRewardGrants
+      parameters:
+      - name: userId
+        in: query
+        required: true
+        schema:
+          type: string
+          x-utf16-max-length: 64
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/HistoryPage"
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - NOTIFICATION
+      summary: 지급 관리자 · 한 회원에게 수령형 보상 발송
+      operationId: grantPersonalNotificationReward
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RewardGrantInput"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/GrantResponse"
+      security:
+      - AccessJwt: []
   /api/v1/admin/wallet-grants/preview:
     post:
       tags:
@@ -3919,6 +4007,38 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RaffleDrawResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/feedback/{receiptId}/replies:
+    post:
+      tags:
+      - NOTIFICATION
+      summary: 운영진 답변·작성자 개인 알림 저장
+      operationId: replyToFeedback
+      parameters:
+      - name: receiptId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackReplyInput"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReplyResult"
       security:
       - AccessJwt: []
   /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize:
@@ -4335,6 +4455,64 @@ paths:
                 anyOf:
                 - $ref: "#/components/schemas/AuthErrorResponse"
                 - $ref: "#/components/schemas/ShopErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/notifications/{notificationId}/read:
+    patch:
+      tags:
+      - NOTIFICATION
+      summary: 본인 알림 읽음 처리·동일 요청 재확인
+      operationId: readPersonalNotification
+      parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationDetailResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/feedback/{receiptId}/status:
+    patch:
+      tags:
+      - NOTIFICATION
+      summary: 소리함 처리 상태 변경·버전 충돌 차단
+      operationId: updateFeedbackStatus
+      parameters:
+      - name: receiptId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackStatusInput"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StatusResult"
       security:
       - AccessJwt: []
   /api/v1/world/fitness/rewards/status:
@@ -5338,6 +5516,67 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ServiceOperationResponse"
+  /api/v1/notifications:
+    get:
+      tags:
+      - NOTIFICATION
+      summary: 본인 알림 목록·미읽음 개수
+      operationId: listPersonalNotifications
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          pattern: "^(?:|[1-9][0-9]{0,18})$"
+          type: string
+          default: ""
+      - name: limit
+        in: query
+        required: false
+        schema:
+          pattern: "^(?:[1-9]|[1-4][0-9]|50)$"
+          type: string
+          default: "20"
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationListResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/notifications/{notificationId}:
+    get:
+      tags:
+      - NOTIFICATION
+      summary: 본인 알림 상세·관련 소리함 의견
+      operationId: getPersonalNotification
+      parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/NotificationDetailResponse"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/whack-a-mole/status:
     get:
       tags:
@@ -6409,6 +6648,35 @@ paths:
                 $ref: "#/components/schemas/PublicAnnouncementsResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/wallet-grants/rewards/recipients:
+    get:
+      tags:
+      - NOTIFICATION
+      summary: 지급 관리자 · 닉네임 정확 검색 또는 회원 ID 검색
+      operationId: findPersonalRewardRecipient
+      parameters:
+      - name: query
+        in: query
+        required: true
+        schema:
+          type: string
+          x-utf16-max-length: 64
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Recipient"
+      security:
+      - AccessJwt: []
   /api/v1/admin/raffles/rounds/{weekStart}:
     get:
       tags:
@@ -7084,6 +7352,30 @@ components:
         remainingCount:
           type: integer
           format: int32
+    ClaimResponse:
+      type: object
+      properties:
+        notificationId:
+          type: string
+        kind:
+          type: string
+          enum:
+          - COIN
+          - GACHA_TICKET
+        amount:
+          type: integer
+          format: int64
+        claimedAt:
+          type: string
+          format: date-time
+        balanceAfter:
+          type: integer
+          format: int64
+          nullable: true
+        ticketsAfter:
+          type: integer
+          format: int64
+          nullable: true
     NoteReceiptResponse:
       required:
       - nextAllowedAt
@@ -8467,6 +8759,47 @@ components:
         executedAt:
           type: string
           format: date-time
+    RewardGrantInput:
+      required:
+      - amount
+      - expiresAt
+      - kind
+      - operationId
+      - text
+      - title
+      - userId
+      type: object
+      properties:
+        operationId:
+          type: string
+        userId:
+          type: string
+        kind:
+          type: string
+          enum:
+          - COIN
+          - GACHA_TICKET
+        amount:
+          type: integer
+          format: int64
+        title:
+          type: string
+        text:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    GrantResponse:
+      type: object
+      properties:
+        operationId:
+          type: string
+        notificationId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
     AdminWalletGrantPreviewRequest:
       type: object
       properties:
@@ -8546,6 +8879,45 @@ components:
           format: int32
         prizeName:
           type: string
+    FeedbackReplyInput:
+      required:
+      - expectedVersion
+      - operationId
+      - status
+      - text
+      type: object
+      properties:
+        operationId:
+          type: string
+        text:
+          type: string
+        status:
+          type: string
+          enum:
+          - RECEIVED
+          - REVIEWING
+          - RESOLVED
+        expectedVersion:
+          type: integer
+          format: int64
+      additionalProperties: false
+    ReplyResult:
+      type: object
+      properties:
+        replyId:
+          type: string
+        receiptId:
+          type: string
+        notificationId:
+          type: string
+        status:
+          type: string
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
     MinigameAwardResponse:
       type: object
       properties:
@@ -8736,6 +9108,80 @@ components:
           format: int32
         equipped:
           type: boolean
+    NotificationDetailResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        body:
+          type: string
+        feedbackId:
+          type: string
+          nullable: true
+        feedbackText:
+          type: string
+          nullable: true
+        feedbackStatus:
+          type: string
+          nullable: true
+        reward:
+          $ref: "#/components/schemas/NotificationRewardResponse"
+    NotificationRewardResponse:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+          - COIN
+          - GACHA_TICKET
+        amount:
+          type: integer
+          format: int64
+        expiresAt:
+          type: string
+          format: date-time
+        claimedAt:
+          type: string
+          format: date-time
+          nullable: true
+      nullable: true
+    FeedbackStatusInput:
+      required:
+      - expectedVersion
+      - status
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - RECEIVED
+          - REVIEWING
+          - RESOLVED
+        expectedVersion:
+          type: integer
+          format: int64
+      additionalProperties: false
+    StatusResult:
+      type: object
+      properties:
+        receiptId:
+          type: string
+        status:
+          type: string
+        version:
+          type: integer
+          format: int64
     FitnessRewardStatusResponse:
       required:
       - activeLeaseId
@@ -9275,6 +9721,41 @@ components:
         purchasedAt:
           type: string
           format: date-time
+    NotificationListResponse:
+      required:
+      - items
+      - nextCursor
+      - unreadCount
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PersonalNotificationEntry"
+        nextCursor:
+          type: string
+          nullable: true
+        unreadCount:
+          type: integer
+          format: int64
+    PersonalNotificationEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        reward:
+          $ref: "#/components/schemas/NotificationRewardResponse"
     NoteListResponse:
       required:
       - notes
@@ -9686,6 +10167,50 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PublicAnnouncement"
+    HistoryEntry:
+      type: object
+      properties:
+        notificationId:
+          type: string
+        title:
+          type: string
+        kind:
+          type: string
+          enum:
+          - COIN
+          - GACHA_TICKET
+        amount:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        claimedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+    HistoryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryEntry"
+        nextCursor:
+          type: string
+          nullable: true
+    Recipient:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
     AdminAccessResponse:
       type: object
       properties:
@@ -9700,10 +10225,14 @@ components:
     Entry:
       required:
       - acceptedAt
+      - authorNickname
       - authorUserId
       - channelId
+      - latestReply
       - receiptId
+      - status
       - text
+      - version
       type: object
       properties:
         receiptId:
@@ -9719,6 +10248,16 @@ components:
         acceptedAt:
           type: string
           format: date-time
+        authorNickname:
+          type: string
+          nullable: true
+        status:
+          type: string
+        version:
+          type: integer
+          format: int64
+        latestReply:
+          $ref: "#/components/schemas/Reply"
     FeedbackListResponse:
       required:
       - items
@@ -9732,6 +10271,17 @@ components:
         nextCursor:
           type: string
           nullable: true
+    Reply:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      nullable: true
     AdminListResponse:
       type: object
       properties:
