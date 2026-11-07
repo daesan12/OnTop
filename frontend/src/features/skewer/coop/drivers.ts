@@ -6,7 +6,18 @@ import type { CoopClient } from './client'
 export type HallDriver = Pick<HallPreview, 'view' | 'step' | 'navigate' | 'nearest' | 'blockedReason' | 'actionLabel' | 'press' | 'secondaryLabel' | 'secondaryBlockedReason' | 'pressSecondary' | 'closeStorage' | 'takeStored' | 'release'> & { online?: boolean }
 export type ChefDriver = Pick<ChefPreview, 'view' | 'step' | 'action'> & { online?: boolean }
 
+class TimedFeedback {
+  private key = ''
+  private at = 0
+  read(message: string, round: number) {
+    const now = performance.now(), key = `${round}:${message}`
+    if (key !== this.key) { this.key = key; this.at = now }
+    return now - this.at < 3500 ? message : ''
+  }
+}
+
 export class OnlineHall implements HallDriver {
+  private feedback = new TimedFeedback()
   readonly online = true
   private helper = new HallPreview()
   private storageOpen = false
@@ -22,7 +33,7 @@ export class OnlineHall implements HallDriver {
     const snapshot = this.client.snapshot!, pub = snapshot.publicState, hall = snapshot.privateState.hall!
     // 역할 변경 직후 React가 이전 장면을 해제하기 전 마지막 프레임을 보존한다.
     if (!hall && this.lastView) return this.lastView
-    return this.lastView = { ...hall, position: this.helper.position, storageOpen: this.storageOpen && !pub.paused && pub.phase === 'PLAYING', elapsed: pub.elapsed, remaining: pub.remaining, message: pub.message, score: pub.score, served: pub.served, finished: pub.phase === 'FINISHED', revision: snapshot.version }
+    return this.lastView = { ...hall, position: this.helper.position, storageOpen: this.storageOpen && !pub.paused && pub.phase === 'PLAYING', elapsed: pub.elapsed, remaining: pub.remaining, message: this.feedback.read(pub.message, pub.round ?? 0), score: pub.score, served: pub.served, finished: pub.phase === 'FINISHED', revision: snapshot.version }
   }
   private sync() {
     const snapshot = this.client.snapshot, hall = snapshot?.privateState.hall
@@ -97,6 +108,7 @@ export class OnlineHall implements HallDriver {
 }
 
 export class OnlineChef implements ChefDriver {
+  private feedback = new TimedFeedback()
   readonly online = true
   private ingredient: ChefView['ingredient'] = 'tomato'
   private lastView?: ChefView
@@ -113,9 +125,9 @@ export class OnlineChef implements ChefDriver {
       this.ingredient = chef.pantry?.[0] ?? 'tomato'
     }
     const receipt = this.client.store.getState().result
-    return this.lastView = { ...snapshot.privateState.chef!, ingredient: this.ingredient, revision: snapshot.version, seconds: pub.remaining, started: pub.phase === 'PLAYING', message: pub.message,
+    return this.lastView = { ...snapshot.privateState.chef!, ingredient: this.ingredient, revision: snapshot.version, seconds: pub.remaining, started: pub.phase === 'PLAYING', message: this.feedback.read(pub.message, pub.round ?? 0),
       cooperative: { round: pub.round ?? 0, restart: pub.restart ? { id: pub.restart.id, own: pub.restart.requestedBy === this.client.transport.scope().userId } : null,
-        phase: pub.phase, greeting: pub.greeting.active, answered: pub.greeting.answered, speech: pub.greeting.speech, countdown: pub.countdown, paused: pub.paused, score: pub.score, rankingEligible: pub.rankingEligible,
+        phase: pub.phase, endReason: pub.endReason, greetingOutcome: pub.greeting.outcome, greetingBonus: pub.greeting.bonus, greeting: pub.greeting.active, answered: pub.greeting.answered, speech: pub.greeting.speech, countdown: pub.countdown, paused: pub.paused, score: pub.score, served: pub.served, rankingEligible: pub.rankingEligible,
         result: pub.phase === 'FINISHED' ? { score: pub.score, reward: receipt?.status === 'SETTLED' ? `받은 엽전 ${receipt.coinsGranted}냥 · 오늘 남은 한도 ${receipt.remainingToday}냥` : receipt?.status === 'UNAVAILABLE' ? '이번 경기의 보상을 확인할 수 없어요' : '개인 보상 확인 중', ranking: receipt?.rankingStatus === 'REGISTERED' ? `${pub.rankingMode ?? (pub.chefVR ? 'VR' : 'PC')} 팀 기록 등록 완료` : pub.rankingEligible ? `${pub.rankingMode ?? (pub.chefVR ? 'VR' : 'PC')} 팀 기록 확인 중` : '팀 랭킹 미등록 · 엽전 보상 가능' } : undefined } }
   }
   step(_dt: number) {}

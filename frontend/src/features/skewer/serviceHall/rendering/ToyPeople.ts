@@ -19,7 +19,7 @@ export class ToyPeople {
       this.library = library
       this.guests.forEach(({ actor, variant }) => actor.applyDiningGuest(library.create(variant)))
       return true
-    }).catch(() => false) // Keep existing guests usable if the optional asset fails to load.
+    }).catch(() => false) // Missing models remain hidden; never show prototype bodies.
   }
   mesh(shape: 'ball' | 'body' | 'limb' | 'hair' | 'smile' | 'ring', color: string) {
     let g = this.geometry.get(shape)
@@ -36,6 +36,7 @@ export class ToyPeople {
   }
   create(index: number, role: 'guest' | 'server' | 'chef' = 'guest', seated = false): ToyActor {
     const actor = new ToyActor(this, this.art, index, role, seated)
+    actor.setBodyVisible(false)
     if (role === 'guest') {
       const variant = characterLook(index, role).variant
       this.guests.push({ actor, variant })
