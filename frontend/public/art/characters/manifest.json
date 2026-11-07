@@ -7,55 +7,15 @@
       "character": "man",
       "source": {
         "file": "man_raw.glb",
-        "sha256": "f0b027dfa93976c1e08535412f604f63734da5cf2346cbe38d7da8a03ae2cc24",
-        "bytes": 4791688,
-        "triangles": 31999,
-        "generator": "Tripo items on a shared base (user supplied)"
-      },
-      "runtime": {
-        "file": "man.glb",
-        "sha256": "2fe451a403f959b120d22b14662962ef25d8eec601cac624df55ce464666608d",
-        "bytes": 2018756,
-        "triangles": {
-          "far": 6000,
-          "near": 31999
-        }
-      },
-      "heightMeters": 1.7,
-      "bones": 49,
-      "surfaceRevision": 7,
-      "parts": [
-        {
-          "name": "far-body",
-          "triangles": 6000,
-          "vertices": 10354,
-          "pieces": 43
-        },
-        {
-          "name": "near-body",
-          "triangles": 31999,
-          "vertices": 40654,
-          "pieces": 60
-        }
-      ],
-      "limitations": [
-        "Pieces share one surface and atlas per file; the game draws the pieces an avatar wears (outfits from other files are drawn as their own mesh)",
-        "Authored idle/walk/run/swim clips (src/world/art/characterClips.json); seated, machine and gesture poses procedural; no facial rig or cloth simulation"
-      ]
-    },
-    {
-      "character": "girl",
-      "source": {
-        "file": "girl_raw.glb",
-        "sha256": "305198dcc9eeb36d8d7b5386d51807d6daeb88e262d3fe28d1210f81954b6913",
-        "bytes": 4954948,
+        "sha256": "1f524537d09d5f0340128559d2f5230978b342c22e75a14f470f7bde8f233318",
+        "bytes": 4756540,
         "triangles": 32000,
         "generator": "Tripo items on a shared base (user supplied)"
       },
       "runtime": {
-        "file": "girl.glb",
-        "sha256": "38a3fc4fc5194897de5794b18705df73a7224883050352458bf593c3614e0b50",
-        "bytes": 1984836,
+        "file": "man.glb",
+        "sha256": "3128bbae4282a1207a1b9efa5592495f97c5e48a53395d79bcda7fafc4b8b65e",
+        "bytes": 1982880,
         "triangles": {
           "far": 6000,
           "near": 32000
@@ -68,14 +28,54 @@
         {
           "name": "far-body",
           "triangles": 6000,
-          "vertices": 10710,
-          "pieces": 43
+          "vertices": 10457,
+          "pieces": 61
         },
         {
           "name": "near-body",
           "triangles": 32000,
-          "vertices": 40851,
-          "pieces": 60
+          "vertices": 39720,
+          "pieces": 75
+        }
+      ],
+      "limitations": [
+        "Pieces share one surface and atlas per file; the game draws the pieces an avatar wears (outfits from other files are drawn as their own mesh)",
+        "Authored idle/walk/run/swim clips (src/world/art/characterClips.json); seated, machine and gesture poses procedural; no facial rig or cloth simulation"
+      ]
+    },
+    {
+      "character": "girl",
+      "source": {
+        "file": "girl_raw.glb",
+        "sha256": "30c6ad277c949fae5db1771e280abe29b81f1103f710cfc00f146349e986dc91",
+        "bytes": 4909504,
+        "triangles": 32000,
+        "generator": "Tripo items on a shared base (user supplied)"
+      },
+      "runtime": {
+        "file": "girl.glb",
+        "sha256": "c230f675b99f2dd893715d5cf66e37d13729c7a8c5107061ffbbd02ad4a97659",
+        "bytes": 1943112,
+        "triangles": {
+          "far": 6000,
+          "near": 32000
+        }
+      },
+      "heightMeters": 1.7,
+      "bones": 49,
+      "surfaceRevision": 7,
+      "parts": [
+        {
+          "name": "far-body",
+          "triangles": 6000,
+          "vertices": 10796,
+          "pieces": 59
+        },
+        {
+          "name": "near-body",
+          "triangles": 32000,
+          "vertices": 39846,
+          "pieces": 75
         }
       ],
       "limitations": [
@@ -196,6 +196,126 @@
           "triangles": 75000,
           "vertices": 89036,
           "pieces": 18
+        }
+      ],
+      "limitations": [
+        "Pieces share one surface and atlas per file; the game draws the pieces an avatar wears (outfits from other files are drawn as their own mesh)",
+        "Authored idle/walk/run/swim clips (src/world/art/characterClips.json); seated, machine and gesture poses procedural; no facial rig or cloth simulation"
+      ]
+    },
+    {
+      "outfit": "muscle",
+      "source": {
+        "file": "muscle_raw.glb",
+        "sha256": "dbfee2a5f95c9c73c885365855d90acd9331567c14b548a1c9516467465f67db",
+        "bytes": 6493740,
+        "triangles": 60000,
+        "generator": "Tripo items on a shared base (user supplied)"
+      },
+      "runtime": {
+        "file": "outfits/muscle.glb",
+        "sha256": "ae853850a97d63aa3fc96caab89b05cb3c503cd18907f8f2fa7778e0c7d63cf6",
+        "bytes": 3125312,
+        "triangles": {
+          "far": 6000,
+          "near": 60000
+        }
+      },
+      "heightMeters": 1.7,
+      "bones": 49,
+      "surfaceRevision": 7,
+      "parts": [
+        {
+          "name": "far-body",
+          "triangles": 6000,
+          "vertices": 9953,
+          "pieces": 3
+        },
+        {
+          "name": "near-body",
+          "triangles": 60000,
+          "vertices": 77320,
+          "pieces": 3
+        }
+      ],
+      "limitations": [
+        "Pieces share one surface and atlas per file; the game draws the pieces an avatar wears (outfits from other files are drawn as their own mesh)",
+        "Authored idle/walk/run/swim clips (src/world/art/characterClips.json); seated, machine and gesture poses procedural; no facial rig or cloth simulation"
+      ]
+    },
+    {
+      "outfit": "pigeon",
+      "source": {
+        "file": "pigeon_raw.glb",
+        "sha256": "d6cfea170cc0d07d79e7d8ec9f1a6fa4fd91d8b254bcfbf68ae69a5beec0ddda",
+        "bytes": 6141048,
+        "triangles": 59999,
+        "generator": "Tripo items on a shared base (user supplied)"
+      },
+      "runtime": {
+        "file": "outfits/pigeon.glb",
+        "sha256": "47e50bdf68e8c295ca43ddead8a2c4512e591b890713624dbadd6af9e4bfea6b",
+        "bytes": 2856544,
+        "triangles": {
+          "far": 5999,
+          "near": 59999
+        }
+      },
+      "heightMeters": 1.7,
+      "bones": 49,
+      "surfaceRevision": 7,
+      "parts": [
+        {
+          "name": "far-body",
+          "triangles": 5999,
+          "vertices": 8265,
+          "pieces": 4
+        },
+        {
+          "name": "near-body",
+          "triangles": 59999,
+          "vertices": 77318,
+          "pieces": 4
+        }
+      ],
+      "limitations": [
+        "Pieces share one surface and atlas per file; the game draws the pieces an avatar wears (outfits from other files are drawn as their own mesh)",
+        "Authored idle/walk/run/swim clips (src/world/art/characterClips.json); seated, machine and gesture poses procedural; no facial rig or cloth simulation"
+      ]
+    },
+    {
+      "outfit": "scarecrow",
+      "source": {
+        "file": "scarecrow_raw.glb",
+        "sha256": "9edee6cbe81293536a1f75c9bdd6c0f9a95650edf6e59bc9d3d838988a2193ea",
+        "bytes": 7856544,
+        "triangles": 60000,
+        "generator": "Tripo items on a shared base (user supplied)"
+      },
+      "runtime": {
+        "file": "outfits/scarecrow.glb",
+        "sha256": "7744a7910713495cf8d1c28c323ea5d9ef17315d1226b5d7f801e829c8cd00f8",
+        "bytes": 3575512,
+        "triangles": {
+          "far": 6000,
+          "near": 60000
+        }
+      },
+      "heightMeters": 1.7,
+      "bones": 49,
+      "surfaceRevision": 7,
+      "parts": [
+        {
+          "name": "far-body",
+          "triangles": 6000,
+          "vertices": 10979,
+          "pieces": 4
+        },
+        {
+          "name": "near-body",
+          "triangles": 60000,
+          "vertices": 88017,
+          "pieces": 4
         }
       ],
       "limitations": [

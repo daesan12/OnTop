@@ -4,7 +4,7 @@ import { ParkAssetLoader } from './assetLoader'
 import { wholeSkinUrl } from './wholeSkin'
 
 /** Outfit files are fetched when someone first wears one, not with the park: most visitors never need them. */
-export const outfitUrl = (name: string) => wholeSkinUrl(name) ?? `/art/characters/outfits/${name}.glb?rig=23`
+export const outfitUrl = (name: string) => wholeSkinUrl(name) ?? `/art/characters/outfits/${name}.glb?rig=26`
 
 const loaded = new Map<string, GLTF>()
 const requested = new Set<string>()
