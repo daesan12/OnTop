@@ -1,0 +1,5 @@
+.skewer-coop .coop-business-closing{position:absolute;inset:0;z-index:24;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;background:#24170bc9;backdrop-filter:blur(3px);color:#fff0ce;pointer-events:all;text-align:center}
+.skewer-coop .coop-business-closing strong{font:700 clamp(46px,9vw,96px)/1.2 BusanDandiMyeongjo,serif;text-shadow:0 5px 0 #543325;animation:skewer-closing-arrive .45s ease-out both}
+.skewer-coop .coop-business-closing span{font-size:20px;letter-spacing:.1em}
+@keyframes skewer-closing-arrive{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.skewer-coop .coop-business-closing strong{animation:none}}

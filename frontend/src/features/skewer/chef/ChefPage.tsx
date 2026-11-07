@@ -18,11 +18,13 @@ import './chef.css'
 import './chefHud.css'
 import './chefPc.css'
 import './chefVr.css'
-import { ClosingNotice } from '../ClosingNotice'
 import { closingTime } from '../closingTime'
+import { BusinessStatus } from '../BusinessStatus'
+import { GameTools } from '../GameTools'
+import { useTransientMessage } from '../useTransientMessage'
 
 const modeFromURL = (): ChefMode => new URLSearchParams(location.search).get('mode') === 'vr' ? 'vr' : 'pc'
-export default function ChefPage({ driver, onXRChanged, onExit, preferredMode, allowVR = true, protectVR }: { driver?: ChefDriver; onXRChanged?: (active: boolean) => void; onExit?: () => void; preferredMode?: ChefMode; allowVR?: boolean; protectVR?: () => Promise<() => void> } = {}) {
+export default function ChefPage({ driver, onXRChanged, onExit, preferredMode, allowVR = true, protectVR, onRestart, inputBlocked = false }: { driver?: ChefDriver; onXRChanged?: (active: boolean) => void; onExit?: () => void; onRestart?: () => void; inputBlocked?: boolean; preferredMode?: ChefMode; allowVR?: boolean; protectVR?: () => Promise<() => void> } = {}) {
   useGameDragScroll('.chef-app', !driver?.online)
   const model = useRef<ChefDriver | null>(null); model.current ??= driver ?? new ChefPreview()
   const host = useRef<HTMLDivElement>(null), scene = useRef<ChefScene | null>(null), guide = useRef<HTMLDialogElement>(null)
@@ -65,6 +67,7 @@ export default function ChefPage({ driver, onXRChanged, onExit, preferredMode, a
   useEffect(() => { scene.current?.setMode(mode) }, [mode])
   useEffect(() => { if (!xrActive) setMode(allowVR ? preferredMode ?? modeFromURL() : 'pc') }, [preferredMode, xrActive, allowVR])
   const enterVR = async () => { if (pending || !allowVR) return; setPending(true); try { await scene.current?.enterVR() } catch (e) { setNotice(e instanceof Error ? e.message : 'VR 연결을 확인해 주세요.') } finally { setPending(false) } }
+  const message = useTransientMessage(view.message)
   const pantry = mode === 'pc' ? view.pantry ?? INITIAL_PANTRY : INITIAL_PANTRY
   const seconds = Math.ceil(view.seconds)
   const closing = closingTime(view.seconds)
@@ -72,20 +75,22 @@ export default function ChefPage({ driver, onXRChanged, onExit, preferredMode, a
   const recipeGuide = assembly ? <div className="chef-recipe-guide" aria-label="선택한 주문 조립 안내"><MenuArt recipe={assembly.expected} label="선택한 주문 완성 그림" /><ol aria-label="꽂는 순서">{assembly.expected.map((id, i) => <li key={i} data-ingredient={id} className={i < assembly.completed ? 'is-done' : i === assembly.next ? 'is-next' : ''}><b>{i + 1}</b><IngredientIcon id={id} /><span>{ingredientName(id)}</span></li>)}</ol><p>{recipeNotes(assembly.expected).join(' ')}</p></div> : null
   const closeGuide = () => { guide.current?.close(); host.current?.querySelector('canvas')?.focus({ preventScroll: true }) }
   return <main className={`chef-app is-${mode}${xrActive ? ' is-immersive' : ''}`} data-testid="chef-app" data-mode={mode} data-xr={xrActive} data-stack={view.skewer.join(',')}>
-    <ClosingNotice seconds={view.seconds} />
+    {mode === 'pc' ? <BusinessStatus seconds={view.seconds} score={view.cooperative?.score ?? 0} served={view.cooperative?.served ?? 0} paused={view.cooperative?.paused} /> : null}
+    {driver?.online ? <GameTools disabled={inputBlocked} onPause={onExit} onRestart={onRestart} onHelp={() => guide.current?.showModal()} /> : null}
     <div className="chef-stage" ref={host}>
       {INGREDIENTS.map(item => <button className="chef-ingredient-hit" disabled={mode === 'pc'} key={item.id} style={{ left: `var(--chef-ingredient-${item.id}-x,50%)`, top: `var(--chef-ingredient-${item.id}-y,50%)` } as CSSProperties} aria-label={`${pantry.indexOf(item.id) + 1} ${item.name} 선택`} aria-pressed={view.ingredient === item.id} onClick={e => { act({ type: 'select', ingredient: item.id }); e.currentTarget.blur() }} />)}
       {view.visible.map((job, i) => <button className="chef-world-order-hit" data-order={job.id} data-recipe={job.recipe.join(',')} key={job.id} style={{ left: `var(--chef-order-${i}-x,50%)`, top: `var(--chef-order-${i}-y,50%)` }} aria-label={`${job.table}번 주문 선택`} aria-pressed={view.selectedJob === job.id} onClick={e => { if (host.current?.dataset.orderTransition === 'true') return; act({ type: 'choose', id: job.id }); e.currentTarget.blur() }} />)}
     </div>
     {mode === 'vr' ? <aside className="chef-round" data-clock-phase={closing.phase}><div className="chef-clock-label">{driver?.online ? '남은 영업 시간' : '남은 연습 시간'}</div><time aria-label={driver?.online ? '남은 영업 시간' : '남은 연습 시간'}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</time>{view.cooperative?.score !== undefined ? <p className="chef-team-score">팀 점수 <strong>{view.cooperative.score.toLocaleString('ko-KR')}</strong></p> : null}<p className="chef-eligibility">{view.cooperative?.rankingEligible === false ? '팀 랭킹 제외 · 보상 가능' : xrActive ? driver?.online ? 'VR 연결 · 공동 경기' : 'VR 연습' : 'VR을 연결해 주세요'}</p>{mode === 'vr' ? <button className="chef-enter-vr" disabled={!supported || pending} onClick={() => void enterVR()}>{pending ? 'VR 연결 중…' : xrActive ? 'VR 종료' : supported ? 'VR 시작' : 'VR 연결 필요'}</button> : null}</aside> : null}
     <section className="chef-accessible-readout" aria-label="영업 상태와 주문 영수증">
-      <time data-testid="remaining-time">{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</time>
-      <span data-testid="team-score">{view.cooperative?.score ?? 0}점</span>
+      <time data-testid={mode === 'vr' ? 'remaining-time' : undefined}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</time>
+
+      {mode === 'vr' ? <><span data-testid="team-score">{view.cooperative?.score ?? 0}</span><span data-testid="served-count">{view.cooperative?.served ?? 0}</span></> : null}
       <span data-testid="cooking-completed">{view.completed ?? 0}개</span>
       {view.visible.map(job => <MenuArt key={job.id} recipe={job.recipe} label={job.table + '번 주문 그림'} />)}
     </section>
     {mode === 'vr' ? <section className="chef-pass-status" aria-label="완성 접시 전달대" data-full={view.pass.length >= 2}><div><strong>전달대</strong><span>{view.pass.length} / 2</span></div><div className="chef-pass-slots">{[0, 1].map(i => { const dish = view.pass[i]; return <div className="chef-pass-slot" key={i}>{dish ? <><b>{String(dish.table).padStart(2, '0')}번</b><MenuArt recipe={dish.recipe} label={`${dish.table}번 완성 접시`} /><small>수령 대기</small></> : <><span aria-hidden="true">＋</span><small>빈 접시 자리</small></>}</div> })}</div><p>{view.pass.length >= 2 ? '서빙 담당이 가져가면 제출할 수 있어요' : '완성한 꼬치는 이곳에서 전달해요'}</p></section> : null}
-    <p className="chef-status" role="status" data-idle={!notice && !view.message}>{notice || view.message || '주문 그림을 보고 재료를 골라보세요.'}</p>
+    <p className="chef-status" role="status" data-idle={!notice && !message}>{notice || message || '주문 그림을 보고 재료를 골라보세요.'}</p>
     {mode === 'pc' ? <div className="chef-pc-help" aria-label="키보드 조작법"><span><kbd>1–6</kbd> 재료 집기</span><span><kbd>Space</kbd> 꽂기</span><span><kbd>⌫</kbd> 빼기</span><span><kbd>R</kbd> 완성·전달대 제출</span><button aria-label="요리사 이용 안내" onClick={() => guide.current?.showModal()}>?</button></div> : <div className="chef-vr-hint"><strong>트리거</strong> 재료 집기 · 초록 고리에서 놓기 <span>끝 재료를 가리켜 빼기 · 오른쪽 접시에 제출</span><button aria-label="요리사 이용 안내" onClick={() => guide.current?.showModal()}>?</button></div>}
     {mode === 'vr' ? <footer className="chef-controls"><div className="chef-pantry" aria-label="조리 재료">{INGREDIENTS.map(item => <button key={item.id} aria-label={`${item.name} 재료 고르기`} aria-pressed={view.ingredient === item.id} disabled={presentation.blocked || !view.visible.length || availablePieces(view.skewer, item.id) <= 0} onClick={e => { act({ type: 'select', ingredient: item.id }); e.currentTarget.blur() }}><kbd>{item.key}</kbd><IngredientIcon id={item.id} /><span>{item.name}</span></button>)}</div><div className="chef-keys"><button onClick={() => act({ type: 'thread' })} disabled={presentation.blocked || !view.visible.length || availablePieces(view.skewer, view.ingredient) <= 0}><kbd>Space</kbd> {ingredientName(view.ingredient)} 꽂기</button><button onClick={() => act({ type: 'unthread' })} disabled={presentation.blocked || !view.skewer.length}><kbd>⌫</kbd> 끝 재료 빼기</button></div><button className="chef-submit" data-ready={presentation.submitReady} aria-label="완성 접시 제출" onClick={() => act({ type: 'submit' })} disabled={presentation.blocked || !view.skewer.length || !view.visible.length || view.pass.length >= 2}><kbd>R</kbd><span>{presentation.submitLabel}</span></button></footer> : null}
     {mode === 'vr' ? <p className="chef-local-note">{driver?.online ? '공동 경기 · 20점당 각자 1냥 · 모든 미니게임 합산 하루 최대 500냥' : '연습 모드 · 엽전과 랭킹 기록 없음'}</p> : null}

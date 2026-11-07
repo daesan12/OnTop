@@ -11,6 +11,8 @@ import { OrderContents } from './OrderContents'
 import type { HallDriver } from '../coop/drivers'
 import { useGameDragScroll } from '../useGameDragScroll'
 import { ExitConfirmation } from '../ExitConfirmation'
+import { GameTools } from '../GameTools'
+import { useTransientMessage } from '../useTransientMessage'
 import './serviceHall.css'
 import './serviceHud.css'
 import './serviceVenue.css'
@@ -63,6 +65,7 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
     if (view.storageOpen && !storage.current?.open) { keys.current.clear(); storage.current?.showModal() }
     else if (!view.storageOpen && storage.current?.open) storage.current.close()
   }, [view.storageOpen])
+  const message = useTransientMessage(view.message)
   const navigate = (p: Point) => { keys.current.clear(); model.current!.navigate(p) }, at = model.current.nearest()
   const blocked = model.current.blockedReason() ?? actionUnavailable(view, at), label = blocked ?? model.current.actionLabel()
   const secondaryLabel = model.current.secondaryLabel(), secondaryBlocked = model.current.secondaryBlockedReason()
@@ -103,9 +106,12 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
         {secondaryLabel ? <button className="service-secondary-action" style={anchor('action')} disabled={!!secondaryBlocked} title={secondaryBlocked ?? undefined} aria-label={`R ${secondaryLabel}`} onClick={() => { model.current!.pressSecondary(); setView(model.current!.view()) }}><kbd>R</kbd>{secondaryLabel}</button> : null}
       </div>
     </div>
-    <ServiceHud view={view} />
-    <nav className="service-tools" aria-label="게임 도구">{!driver?.online || onPause ? <button aria-label="일시정지" onClick={() => { if (onPause) { onPause(); return }; keys.current.clear(); model.current!.release(); setLocalPaused(true); setView(model.current!.view()) }}><HallIcon name="pause" /></button> : null}<button aria-label="서빙 이용 안내" onClick={() => { keys.current.clear(); model.current!.release(); guide.current?.showModal(); setView(model.current!.view()) }}><HallIcon name="help" /></button>{!driver?.online || onRestart ? <button disabled={inputBlocked} onClick={() => { if (onRestart) { onRestart(); return }; keys.current.clear(); model.current!.release(); setRestartOpen(true) }} title="다시 시작" aria-label={driver?.online ? "다시 시작 요청" : "다시 시작"}><HallIcon name="reset" /></button> : null}</nav>
-    {view.message ? <p className={`service-feedback${view.message.startsWith('오배송') ? ' is-misdelivery' : ''}`} role="status" key={view.revision}>{view.message}</p> : null}
+    <ServiceHud view={view} paused={inputBlocked || localPaused || restartOpen} />
+    <GameTools disabled={inputBlocked} helpLabel="서빙 이용 안내" restartLabel={driver?.online ? '다시 시작 요청' : '다시 시작'}
+      onPause={!driver?.online || onPause ? () => { keys.current.clear(); model.current!.release(); if (onPause) onPause(); else setLocalPaused(true) } : undefined}
+      onHelp={() => { keys.current.clear(); model.current!.release(); guide.current?.showModal(); setView(model.current!.view()) }}
+      onRestart={!driver?.online || onRestart ? () => { keys.current.clear(); model.current!.release(); if (onRestart) onRestart(); else setRestartOpen(true) } : undefined} />
+    {message ? <p className={`service-feedback${message.startsWith('오배송') ? ' is-misdelivery' : ''}`} role="status">{message}</p> : null}
     {error ? <p className="service-error" role="alert">{error}</p> : null}
     {!driver?.online ? <ExitConfirmation open={localPaused} onContinue={() => setLocalPaused(false)} onExit={() => location.assign('/vr-zone.html')} /> : null}
     {!driver?.online ? <ExitConfirmation open={restartOpen} intent="restart" onContinue={() => setRestartOpen(false)} onExit={() => { reset(); setRestartOpen(false) }} /> : null}

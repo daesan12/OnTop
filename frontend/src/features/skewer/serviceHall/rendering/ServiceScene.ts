@@ -313,7 +313,7 @@ export class ServiceScene {
       this.server!.setBodyVisible(false)
       this.host.dataset.serverModel = 'sculpted'
     }).catch(() => {
-      if (!this.disposed) this.host.dataset.serverModel = 'fallback'
+      if (!this.disposed) { this.host.dataset.serverModel = 'unavailable'; this.notice('서빙 캐릭터를 불러오지 못했어요. 새로고침해 주세요.') }
     })
     const ring = this.mesh(new THREE.RingGeometry(.40, .57, 40), new THREE.MeshBasicMaterial({ color: '#ffd052', transparent: true, opacity: .95, depthWrite: false, toneMapped: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = .035; ring.castShadow = false; this.server.root.add(ring)
     const chefFallback = actor(0, 0, ROOM.counterZ - 1.28, 0, 'chef')
@@ -329,7 +329,7 @@ export class ServiceScene {
       chefFallback.root.visible = false
       this.host.dataset.chefModel = 'sculpted'
     }).catch(() => {
-      if (!this.disposed) this.host.dataset.chefModel = 'fallback'
+      if (!this.disposed) this.host.dataset.chefModel = 'unavailable'
     })
     for (let party = 1; party <= 3; party++) {
       const group = new THREE.Group(); this.queue.set(party, group)
@@ -340,7 +340,7 @@ export class ServiceScene {
     this.host.dataset.guestModel = 'loading'
     void this.people.guestsReady.then(loaded => {
       if (this.disposed) return
-      this.host.dataset.guestModel = loaded ? 'bungeoppang' : 'fallback'
+      this.host.dataset.guestModel = loaded ? 'bungeoppang' : 'unavailable'
       this.inspectContacts()
     })
   }
@@ -457,6 +457,8 @@ export class ServiceScene {
     const root = this.host.parentElement
     if (!root || this.disposed) return
     const viewport = root.getBoundingClientRect(); if (!viewport.width || !viewport.height) return
+    const spacious = viewport.width >= 1100 && viewport.height >= 650
+      || viewport.width >= 850 && viewport.height >= 450 && viewport.height <= 600
     // 홀과 입구가 구도의 기준이다. 뒤쪽 석탑은 화면 위로 잘려도 되며 HUD와 겹칠 수 있다.
     const corners = [
       ...[-12.2, 12.2].map(x => new THREE.Vector3(x, 2.8, -7.5)),
@@ -474,7 +476,7 @@ export class ServiceScene {
       let low = 6, high = 100
       for (let i = 0; i < 20; i++) {
         const distance = (low + high) / 2; pose(distance)
-        const fits = corners.every(corner => { const p = corner.clone(); p.z *= FLOOR_DEPTH_SCALE; p.project(this.camera); return Math.abs(p.x) < .82 && p.y < .94 && p.y > -.80 })
+        const fits = corners.every(corner => { const p = corner.clone(); p.z *= FLOOR_DEPTH_SCALE; p.project(this.camera); return Math.abs(p.x) < (spacious ? .93 : .82) && p.y < (spacious ? .82 : .94) && p.y > (spacious ? -.87 : -.80) })
         if (fits) high = distance; else low = distance
       }
       pose(high)
@@ -484,7 +486,7 @@ export class ServiceScene {
     fit(viewport.width, viewport.height)
     const edge = new THREE.Vector3(-12.4, 0, 0).project(this.camera)
     const gutter = (edge.x + 1) * viewport.width / 2
-    root.dataset.inventoryLayout = gutter - 24 >= 144 ? 'sides' : 'bottom'
+    root.dataset.inventoryLayout = spacious ? 'corners' : gutter - 24 >= 144 ? 'sides' : 'bottom'
     root.style.setProperty('--service-inventory-width', `${Math.min(240, Math.floor(gutter - 24))}px`)
     const { width, height } = this.host.getBoundingClientRect()
     if (!width || !height) return

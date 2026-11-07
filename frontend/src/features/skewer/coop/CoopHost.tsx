@@ -9,9 +9,10 @@ import { CoopLobby } from './CoopLobby'
 import { SKEWER_CHEF_VR_ENABLED } from './availability'
 import { ExitConfirmation } from '../ExitConfirmation'
 import { RestartConfirmation } from './RestartConfirmation'
-import { GreetingEvent, GREETING_IMAGE } from './GreetingEvent'
+import { GreetingEvent, GREETING_IMAGE, MISSED_GREETING_IMAGE } from './GreetingEvent'
 import { useGameDragScroll } from '../useGameDragScroll'
 import { cooperativeSkewerGameplayActive, setCooperativeSkewerActivity } from '../activity'
+import { BusinessClosing, useBusinessClosing } from './BusinessClosing'
 import './coop.css'
 import './coopScreens.css'
 import './coopPolish.css'
@@ -23,6 +24,7 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
   const [client] = useState(() => new CoopClient(transport))
   const state = useStore(client.store), snapshot = state.snapshot, pub = snapshot?.publicState
   const role = snapshot?.privateState.role
+  const businessClosing = useBusinessClosing(`${snapshot?.gameId}:${pub?.round ?? 0}`, pub?.phase, pub?.endReason)
   const hall = useMemo(() => new OnlineHall(client), [client]), chef = useMemo(() => new OnlineChef(client), [client])
   const [confirmExit, setConfirmExit] = useState(false), [leaving, setLeaving] = useState(false)
   const [pausePending, setPausePending] = useState(false)
@@ -40,7 +42,7 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
     setCooperativeSkewerActivity(cooperativeSkewerGameplayActive(pub?.phase))
     return () => setCooperativeSkewerActivity(false)
   }, [pub?.phase])
-  useEffect(() => { const image = new Image(); image.src = GREETING_IMAGE }, [])
+  useEffect(() => { for (const src of [GREETING_IMAGE, MISSED_GREETING_IMAGE]) { const image = new Image(); image.src = src } }, [])
   useEffect(() => {
     const greet = (event: KeyboardEvent) => {
       if (event.code === 'KeyG' && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey
@@ -118,7 +120,7 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
   }
   return createPortal(<div className="skewer-coop" data-testid="skewer-coop" data-role={role || undefined} data-phase={pub?.phase ?? 'ROOMS'} data-version={snapshot?.version}>
     <Suspense fallback={<p className="coop-loading" role="status">가게를 준비하고 있어요…</p>}>
-      {role === 'server' ? <Hall key={pub?.round ?? 0} driver={hall} inputBlocked={confirmExit || restartPending || !!pub?.paused || !state.connected} onPause={() => void changePause(true)} onRestart={() => void restart()} /> : role === 'chef' ? <Chef driver={chef} allowVR={SKEWER_CHEF_VR_ENABLED} preferredMode={chefMode ?? 'pc'} protectVR={transport.protectVR} onXRChanged={xr} onExit={() => pub?.phase === 'FINISHED' ? void exit() : void changePause(true)} /> : <div className="coop-backdrop" />}
+      {role === 'server' ? <Hall key={pub?.round ?? 0} driver={hall} inputBlocked={confirmExit || restartPending || !!pub?.paused || !state.connected} onPause={() => void changePause(true)} onRestart={() => void restart()} /> : role === 'chef' ? <Chef key={`${snapshot?.gameId}:chef`} driver={chef} inputBlocked={confirmExit || restartPending || !!pub?.paused || !state.connected} onRestart={() => void restart()} allowVR={SKEWER_CHEF_VR_ENABLED} preferredMode={chefMode ?? 'pc'} protectVR={transport.protectVR} onXRChanged={xr} onExit={() => pub?.phase === 'FINISHED' ? void exit() : void changePause(true)} /> : <div className="coop-backdrop" />}
     </Suspense>
     {pub && pub.phase !== 'WAITING' && pub.phase !== 'FINISHED' ? <div className="coop-meta"><strong>2인 협동 · 무료 플레이</strong><span>{pub.rankingEligible ? `${pub.rankingMode ?? (pub.chefVR ? 'VR' : 'PC')} 팀 랭킹 대상 · 정상 종료 시 등록` : '방식 전환 · 팀 랭킹 미등록'}</span></div> : null}
     {!snapshot || pub?.phase === 'WAITING' ? equipmentOpen && role === 'chef'
@@ -126,16 +128,13 @@ export default function CoopHost({ transport, onClose }: { transport: CoopTransp
       : <CoopLobby key={snapshot?.gameId ?? 'browser'} client={client} chefMode={chefMode} onChefMode={setChefMode} onClose={() => void leaveLobby()} onEquipment={() => setEquipmentOpen(true)} /> : null}
     {pub?.phase === 'COUNTDOWN' ? <div className="coop-countdown" role="status"><strong>{Math.max(1, Math.ceil(pub.countdown))}</strong><span>곧 영업을 시작해요</span></div> : null}
     {pub?.phase !== 'FINISHED' && (pub?.paused || !state.connected) && !confirmExit && !pub?.restart ? <div className="coop-pause" role="status"><strong>{pub?.pauseReason === 'EXIT_CONFIRM' && state.connected ? '친구가 잠시 쉬고 있어요' : '친구와 다시 연결하고 있어요'}</strong><p>{pub?.pauseReason === 'EXIT_CONFIRM' && state.connected ? '게임이 함께 멈췄어요. 친구가 돌아오면 이어서 진행해요.' : '영업 시간이 함께 멈췄어요. 30초 안에 돌아오면 이어서 진행해요.'}</p></div> : null}
-    {pub?.greeting.active && !pub.paused && pub.phase === 'PLAYING' ? <GreetingEvent key={pub.greeting.index} greeting={pub.greeting} onGreet={() => client.act({ type: 'GREET' })} /> : null}
+    {(pub?.greeting.active || !!pub?.greeting.outcome) && !pub.paused && pub.phase === 'PLAYING' && !(role === 'chef' && chefMode === 'vr') ? <GreetingEvent key={pub.greeting.index} greeting={pub.greeting} onGreet={() => client.act({ type: 'GREET' })} /> : null}
     {pub?.greeting.speech ? <div className="coop-speech" role="status">어서 오세요!</div> : null}
-    {pub?.phase === 'FINISHED' ? <CoopResultPanel client={client} leaving={leaving} onClose={() => void exit()} /> : null}
+    {businessClosing ? <BusinessClosing /> : pub?.phase === 'FINISHED' ? <CoopResultPanel client={client} leaving={leaving} onClose={() => void exit()} /> : null}
     {state.error && pub && pub.phase !== 'FINISHED' && (pub.phase !== 'WAITING' || equipmentOpen) ? <p className="coop-error" role="alert">{state.error}</p> : null}
     <ExitConfirmation open={confirmExit} cooperative busy={pausePending || leaving} paused={!!pub?.paused}
       error={state.error} onContinue={() => void changePause(false)} onExit={() => void exit()} onRetry={() => void changePause(true)} />
-    {role === 'chef' && pub && ['PLAYING', 'COUNTDOWN'].includes(pub.phase) ? <nav className="coop-chef-tools" aria-label="게임 도구">
-      <button aria-label="일시정지" disabled={restartPending || !!pub.paused} onClick={() => void changePause(true)}>Ⅱ</button>
-      <button aria-label="다시 시작 요청" disabled={restartPending || !!pub.paused || !state.connected} onClick={() => void restart()}>↻</button>
-    </nav> : null}
+
     {/* 몰입형 세션의 포커스를 DOM 모달로 가져오지 않는다. 세션 종료 시 남은 요청을 다시 표시한다. */}
     {role === 'chef' && xrActive ? null : <RestartConfirmation request={pub?.restart ?? null}
       own={pub?.restart?.requestedBy === transport.scope().userId}

@@ -322,13 +322,13 @@ test('안내창은 이동을 막고 1280 화면과 작은 화면에서도 핵심
   await page.getByRole('button', { name: '다시 시작', exact: true }).click()
   await page.getByRole('dialog', { name: '처음부터 다시 시작할까요?', exact: true }).getByRole('button', { name: '다시 시작', exact: true }).click()
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  for (const selector of ['.service-scoreboard', '.service-tools', '.service-held', '.service-carry']) {
+  for (const selector of ['.skewer-business-status', '.skewer-game-tools', '.service-held', '.service-carry']) {
     const bounds = await page.locator(selector).boundingBox()
     expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(391)
   }
-  const status = await page.locator('.service-scoreboard').boundingBox()
+  const status = await page.locator('.skewer-business-status').boundingBox()
   expect(Math.abs(status!.x + status!.width / 2 - 195)).toBeLessThan(1)
-  await expect(page.locator('.service-served')).toBeVisible()
+  await expect(page.locator('[data-testid="served-count"]')).toBeVisible()
   await capture(page, 'hall-mobile')
   await page.getByRole('button', { name: '서빙 이용 안내' }).click()
   await expect(modal.getByRole('button', { name: '가게로 돌아가기' })).toBeInViewport()
@@ -365,7 +365,7 @@ test('탑 외관의 외부 행인은 이동하고 HUD는 화면 위치를 유지
   await expect(stage).toHaveAttribute('data-promenade-guests', '6')
   const before = await stage.getAttribute('data-promenade-step')
   await expect.poll(() => stage.getAttribute('data-promenade-step')).not.toBe(before)
-  const panels = ['.service-scoreboard', '.service-held', '.service-carry']
+  const panels = ['.skewer-business-status', '.service-held', '.service-carry']
   const boxes = await Promise.all(panels.map(s => page.locator(s).boundingBox()))
   await walk(page, '음식 수령대로 이동', /완성 접시 받기/)
   await page.keyboard.press('e')

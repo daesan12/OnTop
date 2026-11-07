@@ -67,6 +67,8 @@ export class ChefHall {
     return {position:this.demoPosition,carrying:true,cleaning:false,tables:TABLES.map(t=>({id:t.id,people:t.capacity,eating:t.id%2===0,dirty:false}))}
   }
   update(dt:number,sight:HallSight|undefined,online:boolean,paused:boolean,reduced:boolean) {
+    this.courtyard.update()
+    this.root.userData.parkSource=this.courtyard.root.userData.source
     const state=sight ?? (online?undefined:this.demo(paused?0:dt))
     this.server.root.visible=!!state;if(this.sculpted)this.sculpted.root.visible=!!state
     if(!state){this.guests.forEach(list=>list.forEach(g=>g.root.visible=false));return}

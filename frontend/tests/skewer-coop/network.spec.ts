@@ -127,6 +127,8 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
     await expect(server.locator('[data-table="1"]')).toHaveAttribute('data-status', 'unreceived', { timeout: 10000 })
     expect(latest.get(chef).privateState.chef.visible).toEqual([])
     expect(JSON.stringify(latest.get(chef))).not.toContain('"recipe"')
+    await expect(chef.locator('.chef-stage')).toHaveAttribute('data-park-source', 'current-park-geometry', { timeout: 30000 })
+    await chef.locator('.chef-stage canvas').evaluate(el => el.setAttribute('data-session-view', 'chef-through-gameplay'))
     // 실제 서버 스냅샷을 표시하는 프레임에서 전진 중 뒤로 보정/반전되는지 확인한다.
     await server.evaluate(async () => {
       const url = '/src/features/skewer/serviceHall/rendering/HallMotion.ts'
@@ -145,6 +147,7 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
       return Reflect.get(window, 'skewerMotionSamples') as { x: number; yaw: number }[]
     })
     expect(motion.length).toBeGreaterThan(10)
+    console.info('[coop] 전진 프레임:', motion.length, '이동 거리:', motion.at(-1)!.x - motion[0].x)
     expect(motion.at(-1)!.x - motion[0].x).toBeGreaterThan(1)
     for (let frame = 1; frame < motion.length; frame++) {
       expect(motion[frame].x).toBeGreaterThanOrEqual(motion[frame - 1].x - .000001)
@@ -221,6 +224,10 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
     await chef.keyboard.press('g')
     await expect(greeting).not.toBeVisible({ timeout: 8000 })
     await expect.poll(() => latest.get(chef).publicState.score).toBeGreaterThan(scoreBeforeGreeting)
+    await expect(chef.getByTestId('skewer-coop')).toHaveAttribute('data-role', 'chef')
+    await expect(chef.locator('.chef-stage canvas')).toHaveAttribute('data-session-view', 'chef-through-gameplay')
+    await expect(server.getByRole('region', { name: '인사 결과' })).toContainText('보너스 +')
+    await expect(server.getByRole('region', { name: '인사 결과' })).not.toBeVisible({ timeout: 4000 })
     await second.context.close()
     console.info('[coop] 친구 연결 끊기')
     await expect(server.getByText('친구와 다시 연결하고 있어요', { exact: true })).toBeVisible({ timeout: 12000 })
