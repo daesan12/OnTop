@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HallPreview } from '../../src/features/skewer/serviceHall/previewModel'
 import { CoopClient } from '../../src/features/skewer/coop/client'
+import { OnlineHall } from '../../src/features/skewer/coop/drivers'
+import { TABLES } from '../../src/features/skewer/serviceHall/plan'
 import type { CoopSnapshot, CoopTransport } from '../../src/features/skewer/coop/contracts'
 import { refreshWalletAfterSettlement } from '../../src/features/wallet/settlementRefresh'
 import type { Envelope } from '../../src/network/protocol'
@@ -30,6 +32,40 @@ function fixture() {
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
 
 describe('꼬치왕 QA 피드백 회귀', () => {
+  it('서버가 동시 입력을 거절해도 이동 직후 E로 주문을 받을 수 있다', async () => {
+    const { client, request } = fixture()
+    const snapshot = finished(); snapshot.publicState.phase = 'PLAYING'
+    snapshot.publicState.elapsed = 0; snapshot.publicState.remaining = 240
+    snapshot.privateState.hall!.position = { ...TABLES[0].approach }
+    client.store.setState({ snapshot })
+    let busy = false, release!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    const accepted: string[] = [], rejected: string[] = []
+    request.mockImplementation(async (type, payload) => {
+      if (type !== 'GAME_ACTION_SEND') return { type: 'GAME_STATE', payload: structuredClone(snapshot) } as unknown as Envelope
+      if (busy) { rejected.push('GAME_ACTION_PENDING'); throw { code: 'GAME_ACTION_PENDING' } }
+      busy = true
+      const input = payload.input as { type: string; dx?: number }
+      try {
+        if (input.type === 'MOVE' && input.dx === 1) await gate
+        accepted.push(input.type)
+        if (input.type === 'INTERACT') snapshot.privateState.hall!.held = [1]
+        return { type: 'GAME_ACTION_RESULT', payload: {} } as Envelope
+      } finally { busy = false }
+    })
+    const driver = new OnlineHall(client)
+    driver.step(0, 1, 0)
+    await Promise.resolve()
+    driver.press()
+    driver.step(0, 0, 1) // E 뒤 새 이동이 와도 상호작용 직전 정지는 보존한다.
+    release()
+    await client.act({ type: 'CLEAN_CANCEL' }, true)
+    expect(rejected).toEqual([])
+    expect(accepted.slice(0, 3)).toEqual(['MOVE', 'MOVE', 'INTERACT'])
+    expect(client.snapshot?.privateState.hall?.held).toEqual([1])
+    expect(client.store.getState().error).toBe('')
+    client.stop()
+  })
   it('종료 알림 즉시 영수증을 읽고 미확정이면 500ms 뒤 확정값으로 지갑을 갱신한다', async () => {
     vi.useFakeTimers()
     const { client, requestJSON, publish } = fixture()
@@ -83,7 +119,7 @@ describe('꼬치왕 QA 피드백 회귀', () => {
     expect(request.mock.calls.map(([type]) => type)).toEqual(['GAME_ACTION_SEND', 'GAME_ACTION_SEND'])
     client.stop()
   })
-  it('이전 이동 응답이 늦어도 방향 전환과 정지를 즉시 전송한다', async () => {
+  it('이전 이동 응답이 늦으면 대기 중인 방향을 최신 정지로 대체해 하나씩 전송한다', async () => {
     const { client, request } = fixture()
     const snapshot = finished(); snapshot.publicState.phase = 'PLAYING'
     client.store.setState({ snapshot })
@@ -94,11 +130,12 @@ describe('꼬치왕 QA 피드백 회귀', () => {
     const turn = client.act({ type: 'MOVE', dx: 0, dz: 1 }, true)
     const stop = client.act({ type: 'MOVE', dx: 0, dz: 0 }, true)
     await Promise.resolve()
-    expect(request.mock.calls.map(([, payload]) => payload.input)).toEqual([
-      { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: 0, dz: 1 }, { type: 'MOVE', dx: 0, dz: 0 },
-    ])
+    expect(request).toHaveBeenCalledTimes(1)
     acknowledge({ payload: {} } as Envelope)
     await Promise.all([first, turn, stop])
+    expect(request.mock.calls.map(([, payload]) => payload.input)).toEqual([
+      { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: 0, dz: 0 },
+    ])
     client.stop()
   })
   it('정지 뒤에 도착한 이전 이동의 버전 오류는 낡은 방향을 재전송하지 않는다', async () => {

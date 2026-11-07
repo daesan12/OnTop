@@ -16,7 +16,7 @@ function health(page: Page) {
   }
 }
 
-test('이동 응답이 보류되어도 키보드 방향 전환과 정지가 먼저 전달된다', async ({ page }) => {
+test('이동 응답 대기 중 방향 전환은 최신 입력으로 교체되고 확인 직후 전송된다', async ({ page }) => {
   const verify = health(page)
   await page.goto('/tests/skewer-coop/fixtures/play-feedback.html?role=server&holdMoves=1')
   await expect(page.getByTestId('service-hall')).toBeVisible()
@@ -26,6 +26,9 @@ test('이동 응답이 보류되어도 키보드 방향 전환과 정지가 먼�
   await page.keyboard.down('d')
   await expect.poll(async () => (await moves()).some(input => input.dx === 1)).toBe(true)
   await page.keyboard.up('d'); await page.keyboard.down('s')
+  await page.waitForTimeout(150)
+  expect(await moves()).toHaveLength(1)
+  await page.evaluate(() => Reflect.get(window, 'skewerFeedback').releaseMoves())
   await expect.poll(async () => (await moves()).some(input => input.dx === 0 && input.dz === 1), { intervals: [10, 20] }).toBe(true)
   await page.keyboard.up('s')
   await expect.poll(async () => (await moves()).at(-1)).toMatchObject({ dx: 0, dz: 0 })

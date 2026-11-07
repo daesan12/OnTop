@@ -25,7 +25,7 @@ if (new URLSearchParams(location.search).has('prepare')) {
 }
 let velocity = { dx: 0, dz: 0 }
 const moveRequests: { dx: number; dz: number; at: number }[] = []
-const holdMoves = new URLSearchParams(location.search).has('holdMoves')
+let holdMoves = new URLSearchParams(location.search).has('holdMoves')
 const moveReplies: (() => void)[] = []
 window.setInterval(() => {
   if (state.privateState.hall && state.publicState.phase === 'PLAYING' && !state.publicState.paused && (velocity.dx || velocity.dz)) {
@@ -58,7 +58,7 @@ const transport: CoopTransport = {
 Reflect.set(window, 'skewerFeedback', {
   position: () => state.privateState.hall?.position,
   moves: () => moveRequests,
-  releaseMoves: () => moveReplies.splice(0).forEach(resolve => resolve()),
+  releaseMoves: () => { holdMoves = false; moveReplies.splice(0).forEach(resolve => resolve()) },
   nearTable: (id: number) => { state.privateState.hall!.position = { ...TABLES.find(table => table.id === id)!.approach }; state.version++; publish() },
   tableArrival: (remaining: number) => { const t = state.privateState.hall!.tables[2]; t.people = 1; t.status = remaining > 0 ? 'arriving' : 'unreceived'; t.arrivalRemaining = remaining; t.bill = remaining > 0 ? null : { dishes: [{ id: 'arrival', table: 3, recipe: ['tomato'], delivered: false }], sake: 0, sakeDelivered: 0 }; state.version++; publish() },
   clock: (remaining: number) => { state.publicState.remaining = remaining; state.version++; publish() },
