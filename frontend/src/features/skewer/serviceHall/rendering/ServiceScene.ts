@@ -7,6 +7,7 @@ import { DISHWASHING_PREVIEW } from '../previewModel'
 import type { HallView, Dish, DirtyDishes } from '../previewModel'
 import { RestaurantSet } from './RestaurantSet'
 import { RestaurantPost } from './RestaurantPost'
+import { disposeRestaurantShadows } from './sceneResources'
 import { TowerRestaurant } from './TowerRestaurant'
 import { ToyPeople } from './ToyPeople'
 import { GuestJourney } from './GuestJourney'
@@ -486,6 +487,7 @@ export class ServiceScene {
   }
   dispose() {
     this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); cancelAnimationFrame(this.resizeFrame); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)
+    disposeRestaurantShadows(this.scene)
     this.sculptedServer?.dispose(); this.sculptedChef?.dispose(); this.tower?.dispose(); this.parkInstances.forEach(mesh => mesh.dispose())
     this.people.dispose(); this.geometry.forEach(g => g.dispose()); this.materials.forEach(m => m.dispose()); this.textures.forEach(t => t.dispose()); this.labelTextures.clear(); this.foods.dispose(); this.art.dispose(); this.post.dispose(); this.environment.dispose(); this.renderer.dispose(); this.renderer.domElement.remove()
   }
