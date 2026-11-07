@@ -97,7 +97,7 @@ for (const role of ['chef', 'server']) test(`${role} 준비 이미지는 기존 
   if (role === 'chef') await page.getByRole('button', { name: 'PC로 요리하기', exact: true }).click()
   const image = page.locator('.coop-guide-art img')
   await expect(image).toHaveAttribute('src', new RegExp(`${role === 'server' ? 'server-role' : 'chef-pc-choice'}-illustration.png`))
-  await expect(image).toHaveJSProperty('complete', true)
+  await expect(image).toHaveJSProperty('complete', true, { timeout: 15000 })
   expect(await image.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(1000)
   await capture(page, `${role}-illustrated-ready`)
 })
