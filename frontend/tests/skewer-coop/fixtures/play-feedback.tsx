@@ -24,6 +24,7 @@ if (new URLSearchParams(location.search).has('prepare')) {
   state.publicState.phase = 'WAITING'; state.publicState.players.forEach(player => { player.ready = false })
 }
 let velocity = { dx: 0, dz: 0 }
+let greetings = 0
 const lobby = new URLSearchParams(location.search).get('lobby')
 let joined = lobby !== 'home'
 if (lobby) {
@@ -60,6 +61,7 @@ const transport: CoopTransport = {
   },
   request: async (type, payload) => {
     const input = payload.input as { type?: string; paused?: boolean; dx?: number; dz?: number; role?: 'chef' | 'server' } | undefined
+    if (input?.type === 'GREET') { greetings++; state.publicState.greeting.answered = true; state.version++; publish() }
     if (input?.type === 'ROLE' && input.role) {
       state.publicState.players[0].role = input.role
       state.privateState = input.role === 'chef' ? { role: 'chef', chef: new ChefPreview().view() } : { role: 'server', hall: new HallPreview().view() }
@@ -75,6 +77,8 @@ const transport: CoopTransport = {
   },
 }
 Reflect.set(window, 'skewerFeedback', {
+  greetings: () => greetings,
+  playGreeting: () => { state.publicState.phase = 'PLAYING'; state.publicState.greeting.active = true; state.version++; publish() },
   position: () => state.privateState.hall?.position,
   moves: () => moveRequests,
   releaseMoves: () => { holdMoves = false; moveReplies.splice(0).forEach(resolve => resolve()) },

@@ -10,6 +10,8 @@ function fixture() {
   const hall = new HallPreview().view(), act = vi.fn((_input: Record<string, unknown>, _quiet?: boolean) => Promise.resolve())
   const client = { snapshot: { gameId: 'skewer-coop-00000000-0000-4000-8000-000000000000', version: 1,
     registered: true, privateState: { role: 'server', hall }, publicState: { gameCode: 'SKEWER_COOP', actionVersion: 1, phase: 'PLAYING', channelId: 'park', players: [{ userId: '101', role: 'server' }, { userId: '202', role: 'chef' }], elapsed: 0, remaining: 240, countdown: 0, score: 0, served: 0, greeting: { active: false }, paused: false } }, playable: true, act }
+  Object.assign(client, { transport: { scope: () => ({ userId: '101', channelId: 'park', connected: true }) } })
+  client.snapshot.publicState.players.forEach(player => Object.assign(player, { connected: true }))
   return { client, driver: new OnlineHall(client as unknown as CoopClient), hall, act }
 }
 describe('협동 홀 입력의 서버 판정 경계', () => {
@@ -106,7 +108,7 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
   it('요리사 화면은 서버가 갱신한 동료 위치를 그대로 전달한다', () => {
     const { client } = fixture(), source = client as unknown as CoopClient
     source.snapshot!.privateState = { role: 'chef', chef: { ...new ChefPreview().view(), hallSight: { position: { x: 1, z: 2 }, carrying: false, cleaning: false, tables: [] } } }
-    Object.assign(source, { store: { getState: () => ({ result: null }) } })
+    Object.assign(source, { store: { getState: () => ({ result: null, connected: true, error: '' }) } })
     const chef = new OnlineChef(source)
     expect(chef.view().hallSight?.position).toEqual({ x: 1, z: 2 })
     source.snapshot!.privateState.chef!.hallSight!.position = { x: 3, z: 4 }
@@ -124,7 +126,7 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
     const { client } = fixture()
     const source = client as unknown as CoopClient
     source.snapshot!.privateState = { role: 'chef', chef: new ChefPreview().view() }
-    Object.assign(source, { store: { getState: () => ({ result: null }) } })
+    Object.assign(source, { store: { getState: () => ({ result: null, connected: true, error: '' }) } })
     const chef = new OnlineChef(source), last = chef.view()
     source.snapshot!.privateState = { role: 'server', hall: new HallPreview().view() }
     expect(chef.view()).toBe(last)

@@ -183,21 +183,32 @@ export class CoopClient {
     }
     finally { this.store.setState({ pending: false }) }
   }
-  act(input: Record<string, unknown>, quiet = false, options: { preserveMovement?: boolean } = {}) {
+  act(input: Record<string, unknown>, quiet = false, options: { preserveMovement?: boolean; refreshGreeting?: boolean } = {}) {
     const gameId = this.snapshot?.gameId
     const round = this.snapshot?.publicState.round ?? 0
+    const greetingIndex = this.snapshot?.publicState.greeting.index
     const movement = input.type === 'MOVE'
     const gameplay = ['MOVE', 'INTERACT', 'RETURN_SAKE', 'TAKE_STORED', 'THREAD', 'CHOOSE', 'UNTHREAD', 'SUBMIT', 'RESTART_REQUEST'].includes(String(input.type))
     const sequence = movement ? ++this.movementSequence : 0
     const superseded = () => movement && !options.preserveMovement && sequence !== this.movementSequence
     const work = async () => {
+      // 응답 유실 뒤 재시도는 먼저 서버 확인. 늦게 도착한 이전 인사는 다음 이벤트에 보내지 않는다.
+      if (input.type === 'GREET' && options.refreshGreeting) {
+        if (this.stopped || gameId !== this.snapshot?.gameId || !this.transport.scope().connected
+          || round !== (this.snapshot?.publicState.round ?? 0) || greetingIndex !== this.snapshot?.publicState.greeting.index) return
+        await this.sync()
+      }
       const actionId = crypto.randomUUID()
       for (let attempt = 0; attempt < 4; attempt++) {
         if (this.stopped || !gameId || gameId !== this.snapshot?.gameId || !this.transport.scope().connected
           || round !== (this.snapshot.publicState.round ?? 0) || superseded() || gameplay && !this.playable) return
         // 상태 복구 중 일시정지·인사·영업 종료가 시작되면 지난 게임 입력을 재전송하지 않는다.
         if ((this.inputBlocked || this.snapshot.publicState.paused) && !['PAUSE', 'CHEF_MODE', 'RESTART_REPLY'].includes(String(input.type))) return
-        if (input.type === 'GREET' && (!this.snapshot.publicState.greeting.active || this.snapshot.publicState.greeting.answered)) return
+        if (input.type === 'GREET' && (this.snapshot.publicState.phase !== 'PLAYING' || greetingIndex !== this.snapshot.publicState.greeting.index
+          || !this.snapshot.publicState.greeting.active || this.snapshot.publicState.greeting.answered)) {
+          if (!quiet && greetingIndex === this.snapshot.publicState.greeting.index && this.snapshot.publicState.greeting.answered) this.store.setState({ error: '' })
+          return
+        }
         if (input.type === 'RESTART_REPLY' && input.requestId !== this.snapshot?.publicState.restart?.id) return
         try {
           await this.request('GAME_ACTION_SEND', { gameId, actionId, expectedVersion: this.snapshot!.publicState.actionVersion, input }, ['GAME_ACTION_RESULT'])
