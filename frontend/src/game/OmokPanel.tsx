@@ -131,6 +131,7 @@ export function OmokPanel() {
       root.style.setProperty('--omok-spectator-toolbar-height', `${toolbar.current!.getBoundingClientRect().height}px`)
       root.style.setProperty('--omok-side-header-height', `${header.current!.getBoundingClientRect().bottom + (notice?.getBoundingClientRect().height ?? 0)}px`)
       const chatRect = chat?.getBoundingClientRect()
+      root.style.setProperty('--omok-chat-height', `${chatRect?.height ?? 0}px`)
       if (innerWidth >= 1000) {
         omokSpectatorViewport.gameId = spectatorGameId
         omokSpectatorViewport.insets = {
@@ -159,7 +160,12 @@ export function OmokPanel() {
     return () => {
       observer.disconnect(); window.removeEventListener('resize', measure)
       if (omokSpectatorViewport.gameId === spectatorGameId) {
-        omokSpectatorViewport.gameId = ''; root.style.removeProperty('--omok-spectator-toolbar-height'); root.style.removeProperty('--omok-chat-top'); root.style.removeProperty('--omok-notice-top');root.style.removeProperty('--omok-side-header-height')
+        omokSpectatorViewport.gameId = ''
+        root.style.removeProperty('--omok-spectator-toolbar-height')
+        root.style.removeProperty('--omok-chat-top')
+        root.style.removeProperty('--omok-notice-top')
+        root.style.removeProperty('--omok-side-header-height')
+        root.style.removeProperty('--omok-chat-height')
       }
     }
   }, [spectatorGameId, spectator, connectionNotice])

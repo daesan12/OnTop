@@ -15,6 +15,13 @@
 }
 .park-page .game-hud-menu[data-embedded=true] {position:relative;inset:auto;width:100%}
 .park-page .game-hud-menu>.game-spectator-count {align-self:flex-end;position:static;margin:0;transform:none}
+.park-page .game-spectator-stake {min-width:0;padding:10px 12px;box-sizing:border-box;border:1px solid var(--game-hud-line);border-radius:10px;background:var(--game-hud-surface);font-variant-numeric:tabular-nums;pointer-events:none}
+.park-page .game-spectator-stake>div {display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:14px}
+.park-page .game-spectator-stake strong {min-width:0;font-size:16px;color:var(--game-hud-gold);overflow-wrap:anywhere;text-align:right}
+.park-page .game-spectator-stake small {display:block;margin-top:3px;font-size:12px;line-height:1.5;color:var(--game-hud-muted);overflow-wrap:anywhere}
+@media(max-width:999px) {
+  .park-page .omok-spectator-toolbar:has(.game-spectator-stake) {bottom:calc(var(--omok-chat-height,0px) + 32px)}
+}
 .park-page .game-hud-menu details {position:relative;border:1px solid var(--game-hud-line);border-radius:12px;background:var(--game-hud-surface);box-shadow:0 4px 16px #0003}
 .park-page .game-hud-menu summary {display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;list-style:none;cursor:pointer;box-sizing:border-box}
 .park-page .game-hud-menu summary::-webkit-details-marker {display:none}
