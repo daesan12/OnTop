@@ -183,20 +183,21 @@ export class CoopClient {
     }
     finally { this.store.setState({ pending: false }) }
   }
-  act(input: Record<string, unknown>, quiet = false) {
+  act(input: Record<string, unknown>, quiet = false, options: { preserveMovement?: boolean } = {}) {
     const gameId = this.snapshot?.gameId
     const round = this.snapshot?.publicState.round ?? 0
     const movement = input.type === 'MOVE'
+    const gameplay = ['MOVE', 'INTERACT', 'RETURN_SAKE', 'TAKE_STORED', 'THREAD', 'CHOOSE', 'UNTHREAD', 'SUBMIT', 'RESTART_REQUEST'].includes(String(input.type))
     const sequence = movement ? ++this.movementSequence : 0
-    const superseded = () => movement && sequence !== this.movementSequence
+    const superseded = () => movement && !options.preserveMovement && sequence !== this.movementSequence
     const work = async () => {
-      if (this.stopped || !gameId || gameId !== this.snapshot?.gameId || !this.transport.scope().connected
-        || round !== (this.snapshot.publicState.round ?? 0)) return
-      if ((this.inputBlocked || this.snapshot.publicState.paused) && !['PAUSE', 'CHEF_MODE', 'RESTART_REPLY'].includes(String(input.type))) return
-      if (input.type === 'GREET' && (!this.snapshot.publicState.greeting.active || this.snapshot.publicState.greeting.answered)) return
       const actionId = crypto.randomUUID()
       for (let attempt = 0; attempt < 4; attempt++) {
-        if (this.stopped || gameId !== this.snapshot?.gameId || round !== (this.snapshot?.publicState.round ?? 0) || superseded() || movement && !this.playable) return
+        if (this.stopped || !gameId || gameId !== this.snapshot?.gameId || !this.transport.scope().connected
+          || round !== (this.snapshot.publicState.round ?? 0) || superseded() || gameplay && !this.playable) return
+        // 상태 복구 중 일시정지·인사·영업 종료가 시작되면 지난 게임 입력을 재전송하지 않는다.
+        if ((this.inputBlocked || this.snapshot.publicState.paused) && !['PAUSE', 'CHEF_MODE', 'RESTART_REPLY'].includes(String(input.type))) return
+        if (input.type === 'GREET' && (!this.snapshot.publicState.greeting.active || this.snapshot.publicState.greeting.answered)) return
         if (input.type === 'RESTART_REPLY' && input.requestId !== this.snapshot?.publicState.restart?.id) return
         try {
           await this.request('GAME_ACTION_SEND', { gameId, actionId, expectedVersion: this.snapshot!.publicState.actionVersion, input }, ['GAME_ACTION_RESULT'])
@@ -217,9 +218,8 @@ export class CoopClient {
       }
       if (!quiet) this.store.setState({ error: '상태가 바뀌었어요. 다시 눌러주세요.' })
     }
-    // 같은 소켓의 전송 순서는 유지하되, 방향 전환·정지는 앞선 응답을 기다리지 않는다.
-    // MOVE는 actionVersion을 증가시키지 않는다. 낡은 이동의 재시도는 위에서 폐기한다.
-    if (movement) return work().catch(() => { if (!superseded()) this.store.setState({ error: '연결이 원활하지 않아요. 잠시 후 다시 시도해 주세요.' }) })
+    // 공통 WS는 세션당 입력 하나만 처리한다. MOVE도 이 순서를 지킨다.
+    // 대기 중 바뀐 이동은 위에서 최신 방향만 남기되 E 직전 정지는 보존한다.
     this.chain = this.chain.then(work).catch(() => { this.store.setState({ error: '연결이 원활하지 않아요. 잠시 후 다시 시도해 주세요.' }) })
     return this.chain
   }

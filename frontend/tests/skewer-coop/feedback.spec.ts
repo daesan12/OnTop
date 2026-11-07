@@ -2,6 +2,17 @@ import { expect, test, type Page } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const errors: string[] = []
+    Reflect.set(window, 'skewerWindowErrors', errors)
+    window.addEventListener('error', event => errors.push(event.message))
+  })
+})
+test.afterEach(async ({ page }) => {
+  expect(await page.evaluate(() => Reflect.get(window, 'skewerWindowErrors') ?? [])).toEqual([])
+})
+
 async function capture(page: Page, name: string) {
   const folder = process.env.SKEWER_FEEDBACK_EVIDENCE
   if (folder) { await mkdir(folder, { recursive: true }); await page.screenshot({ path: path.join(folder, `${name}.png`), animations: 'disabled' }) }
@@ -16,7 +27,48 @@ function health(page: Page) {
   }
 }
 
-test('이동 응답이 보류되어도 키보드 방향 전환과 정지가 먼저 전달된다', async ({ page }) => {
+test('입장과 방 생성 후에는 원래 표지가 보이고 하단 중복 나가기 없이 X로 닫는다', async ({ page }) => {
+  const verify = health(page)
+  await page.goto('/tests/skewer-coop/fixtures/play-feedback.html?lobby=home')
+  await expect(page.locator('.coop-room-home img')).toHaveAttribute('src', /skewer-cover-lowpoly.png/)
+  await page.getByRole('button', { name: '방 만들기', exact: true }).click()
+  await page.getByRole('button', { name: '방 만들기', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '친구를 기다리고 있어요', exact: true })).toBeVisible()
+  await expect(page.locator('.coop-entry-art img')).toHaveAttribute('src', /skewer-cover-lowpoly.png/)
+  for (const [width, height] of [[1440, 900], [900, 500], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    const dialog = page.getByRole('dialog', { name: '역할 선택과 준비', exact: true })
+    await dialog.evaluate(el => { el.scrollTop = el.scrollHeight })
+    await expect(dialog.locator('.coop-lobby-navigation')).toHaveCount(0)
+    await expect(dialog.locator('.paper-close')).toBeInViewport()
+    await expect(dialog.locator('.paper-close')).toHaveCSS('background-color', 'rgb(120, 61, 43)')
+    expect(await dialog.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1)
+    await capture(page, `waiting-navigation-${width}x${height}`)
+  }
+  await page.locator('.paper-close').click()
+  await expect(page.getByRole('heading', { name: '어느 가게에 함께할까요?', exact: true })).toBeVisible()
+  await verify()
+})
+
+test('역할과 PC·VR 선택은 기존 일러스트를 사용하고 준비 화면에서 역할을 다시 고를 수 있다', async ({ page }) => {
+  const verify = health(page)
+  await page.goto('/tests/skewer-coop/fixtures/play-feedback.html?lobby=roles')
+  await expect(page.locator('.coop-pick-card.is-chef img')).toHaveAttribute('src', /chef-role-illustration.png/)
+  await expect(page.locator('.coop-pick-card.is-server img')).toHaveAttribute('src', /server-role-illustration.png/)
+  await capture(page, 'restored-role-illustrations')
+  await page.getByRole('button', { name: '요리사', exact: true }).click()
+  await expect(page.locator('.coop-pick-card.is-pc img')).toHaveAttribute('src', /chef-pc-choice-illustration.png/)
+  await expect(page.locator('.coop-pick-card.is-vr img')).toHaveAttribute('src', /chef-vr-choice-illustration.png/)
+  await capture(page, 'restored-device-illustrations')
+  await page.getByRole('button', { name: 'PC로 요리하기', exact: true }).click()
+  await expect(page.locator('.coop-guide-art img')).toHaveAttribute('src', /chef-pc-choice-illustration.png/)
+  await page.getByRole('button', { name: '← 역할 다시 고르기', exact: true }).click()
+  await page.getByRole('button', { name: '서빙 담당', exact: true }).click()
+  await expect(page.locator('.coop-guide-art img')).toHaveAttribute('src', /service-hall-preview.png/)
+  await verify()
+})
+
+test('이동 응답 대기 중 방향 전환은 최신 입력으로 교체되고 확인 직후 전송된다', async ({ page }) => {
   const verify = health(page)
   await page.goto('/tests/skewer-coop/fixtures/play-feedback.html?role=server&holdMoves=1')
   await expect(page.getByTestId('service-hall')).toBeVisible()
@@ -26,6 +78,9 @@ test('이동 응답이 보류되어도 키보드 방향 전환과 정지가 먼�
   await page.keyboard.down('d')
   await expect.poll(async () => (await moves()).some(input => input.dx === 1)).toBe(true)
   await page.keyboard.up('d'); await page.keyboard.down('s')
+  await page.waitForTimeout(150)
+  expect(await moves()).toHaveLength(1)
+  await page.evaluate(() => Reflect.get(window, 'skewerFeedback').releaseMoves())
   await expect.poll(async () => (await moves()).some(input => input.dx === 0 && input.dz === 1), { intervals: [10, 20] }).toBe(true)
   await page.keyboard.up('s')
   await expect.poll(async () => (await moves()).at(-1)).toMatchObject({ dx: 0, dz: 0 })
@@ -48,14 +103,33 @@ test('테이블 접근 안내는 유지하고 노란 테두리는 표시하지 �
   await verify()
 })
 
-for (const role of ['chef', 'server']) test(`${role} 준비 이미지는 현재 캐릭터의 실제 게임 화면이다`, async ({ page }) => {
+for (const role of ['chef', 'server']) test(`${role} 준비 화면은 역할에 맞는 이미지와 동일한 하단 규격을 사용한다`, async ({ page }) => {
+  const verify = health(page)
   await page.goto(`/tests/skewer-coop/fixtures/play-feedback.html?role=${role}&prepare=1`)
   if (role === 'chef') await page.getByRole('button', { name: 'PC로 요리하기', exact: true }).click()
   const image = page.locator('.coop-guide-art img')
-  await expect(image).toHaveAttribute('src', new RegExp(`${role === 'server' ? 'service-hall' : 'chef-pc'}-current-v2.webp`))
-  await expect(image).toHaveJSProperty('complete', true)
-  expect(await image.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBe(1280)
-  await capture(page, `${role}-current-ready`)
+  await expect(image).toHaveAttribute('src', role === 'server' ? /service-hall-preview.png/ : /chef-pc-choice-illustration.png/)
+  await expect(image).toHaveJSProperty('complete', true, { timeout: 15000 })
+  expect(await image.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(1000)
+  for (const [width, height] of [[1440, 900], [900, 500], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    const dialog = page.getByRole('dialog', { name: '역할 선택과 준비', exact: true })
+    const [box, notice] = await dialog.evaluate(el => ['.coop-ready-footer', '.coop-ranking-notice'].map(selector => {
+      const r = el.querySelector(selector)!.getBoundingClientRect()
+      return { x: r.x, y: r.y, width: r.width, height: r.height }
+    }))
+    expect(Math.abs(box.x - notice.x)).toBeLessThanOrEqual(1)
+    expect(Math.abs(box.width - notice.width)).toBeLessThanOrEqual(1)
+    expect(box.y - notice.y - notice.height).toBeGreaterThanOrEqual(9)
+    await expect(dialog.locator('.coop-lobby-navigation')).toHaveCount(0)
+    await expect(dialog.locator('.coop-guide-art figcaption')).toHaveCSS('min-height', '46px')
+    await dialog.locator('.coop-ready-action button').scrollIntoViewIfNeeded()
+    await dialog.locator('.coop-ready-action button').click({ trial: true })
+    await expect(dialog.getByRole('button', { name: '방 나가기 · 다른 방 선택', exact: true })).toBeInViewport()
+    expect(await dialog.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1)
+    await capture(page, `${role}-ready-footer-${width}x${height}`)
+  }
+  await verify()
 })
 
 test('서빙은 클릭해도 이동하지 않고 키보드로 이동하며 착석 전 주문 말풍선이 없다', async ({ page }) => {

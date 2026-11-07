@@ -169,8 +169,14 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
     expect(reversed.at(-1)!.moving).toBe(false)
     expect(Math.abs(reversed.at(-1)!.x - latest.get(server).privateState.hall.position.x)).toBeLessThan(.03)
     await capture(server, 'coop-reverse-stop-motion')
+    // 빠른 방향 전환 직후에도 공통 소켓의 단일 입력 제한을 지켜야 한다.
+    for (const key of ['d', 's', 'a', 'w', 'd', 's', 'a', 'w']) {
+      await server.keyboard.down(key); await server.waitForTimeout(35); await server.keyboard.up(key)
+    }
     await walk(server, '1번 1인 테이블로 이동', /E 1번 주문 받기/)
+    await server.keyboard.down('d')
     await server.keyboard.press('e')
+    await server.keyboard.up('d')
     await expect(server.locator('[data-table="1"]')).toHaveAttribute('data-status', 'collected')
     expect(latest.get(chef).privateState.chef.visible).toEqual([])
     await walk(server, '주문 전달대로 이동', /E 주문표 전달/)
@@ -267,6 +273,8 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
       expect(returned.errors).toEqual([])
     } finally { await returned.context.close() }
     expect(first.errors).toEqual([]); expect(second.errors).toEqual([])
+    for (const page of [server, chef]) expect(actions.get(page)!.filter(action =>
+      ['GAME_ACTION_PENDING', 'GAME_ACTION_INVALID_ACTION'].includes(String((action as { code?: string }).code)))).toEqual([])
   } catch (error) {
     await capture(server, 'coop-failure-server'); await capture(chef, 'coop-failure-chef')
     console.info('[coop] 실패 시 입력·위치:', JSON.stringify({ actions: actions.get(server), position: latest.get(server)?.privateState.hall?.position, phase: latest.get(server)?.publicState.phase, version: latest.get(server)?.version }))

@@ -91,7 +91,7 @@ export class OnlineHall implements HallDriver {
     if (this.nearest()?.kind === 'storage' && !this.helper.carry.length) { this.openStorage(); return }
     const at = this.nearest()
     this.cleaningPressed = at?.kind === 'table' && this.helper.tables.find(table => table.id === at.id)?.status === 'dirty'
-    void this.client.act({ type: 'MOVE', dx: 0, dz: 0 }, true)
+    void this.client.act({ type: 'MOVE', dx: 0, dz: 0 }, true, { preserveMovement: true })
     void this.client.act({ type: 'INTERACT' })
   }
   secondaryLabel() { this.sync(); return this.helper.secondaryLabel() }
