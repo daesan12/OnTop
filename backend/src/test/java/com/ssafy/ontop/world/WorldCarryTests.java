@@ -19,6 +19,44 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WorldCarryTests {
     @Test
+    void VR_표시는_창점유와_구분하고_종료_후_창점유는_유지한다() throws Exception {
+        try (var pair = pair()) {
+            var registry = pair.registry();
+            registry.interactionBusy("b", true);
+            assertThat(registry.worldState("one").avatars()).allMatch(a -> a.vrActive() == null);
+
+            registry.interactionBusy("b", true, true);
+            assertThat(registry.worldState("one").avatars()).anyMatch(a -> a.userId().equals("b")
+                    && Boolean.TRUE.equals(a.vrActive()));
+            registry.interactionBusy("b", false);
+            assertThatThrownBy(() -> registry.pickup("a", "b"))
+                    .isInstanceOf(WorldChannelRegistry.ChannelException.class);
+
+            registry.interactionBusy("b", true, false);
+            assertThat(registry.worldState("one").avatars()).allMatch(a -> a.vrActive() == null);
+            assertThatThrownBy(() -> registry.pickup("a", "b"))
+                    .isInstanceOf(WorldChannelRegistry.ChannelException.class);
+            registry.interactionBusy("b", false, false);
+            assertThat(registry.pickup("a", "b")).isNotNull();
+        }
+    }
+
+    @Test
+    void 연결해제와_채널변경은_VR_표시를_지우고_재입장에_승계하지않는다() throws Exception {
+        try (var pair = pair()) {
+            var registry = pair.registry();
+            registry.interactionBusy("b", true, true);
+            registry.disconnect("b");
+            registry.join("b", "one");
+            assertThat(registry.worldState("one").avatars()).allMatch(a -> a.vrActive() == null);
+            registry.interactionBusy("b", true, true);
+            registry.leave("b");
+            registry.join("b", "two");
+            assertThat(registry.worldState("two").avatars()).allMatch(a -> a.vrActive() == null);
+        }
+    }
+
+    @Test
     void VR_플레이_보호_중에는_양방향_들기를_막고_보호_종료_후_허용한다() throws Exception {
         try (var pair = pair()) {
             var registry = pair.registry();

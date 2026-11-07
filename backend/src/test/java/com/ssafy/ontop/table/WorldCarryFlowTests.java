@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -43,6 +44,51 @@ class WorldCarryFlowTests {
     @Autowired private WorldChannelRegistry channels;
     @Autowired private TableHub hub;
     @Autowired private WorldMapRuntime runtime;
+    @Autowired @Qualifier("carryClock") private AtomicLong clock;
+
+    @Test
+    void VR_상태를_다른유저에게_보내고_종료와_소켓해제후_재접속에서_지운다() throws Exception {
+        try (var first = client("naver", "a")) {
+            String peerId;
+            try (var second = client("ssafy", "a")) {
+                peerId = second.userId;
+                var approved = second.request("WORLD_INTERACTION_SET", Map.of("busy", true, "vrActive", true));
+                assertThat(approved.at("/payload/vrActive").asBoolean()).isTrue();
+                clock.addAndGet(100_000_000L);
+                first.await(message -> vrActive(message, peerId));
+
+                second.request("WORLD_INTERACTION_SET", Map.of("busy", true, "vrActive", false));
+                clock.addAndGet(100_000_000L);
+                first.await(message -> message.path("type").asText().equals("WORLD_STATE")
+                        && !vrActive(message, peerId)
+                        && message.at("/payload/avatars").findValues("interactionBusy").stream()
+                                .anyMatch(JsonNode::asBoolean));
+                second.request("WORLD_INTERACTION_SET", Map.of("busy", true, "vrActive", true));
+                clock.addAndGet(100_000_000L);
+                first.await(message -> vrActive(message, peerId));
+            }
+            first.await(message -> message.path("type").asText().equals("WORLD_STATE")
+                    && message.at("/payload/avatars").findValues("userId").stream()
+                            .noneMatch(id -> id.asText().equals(peerId)));
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                    assertThat(hub.metricsSnapshot().activeConnections()).isEqualTo(1));
+            try (var rejoined = client("ssafy", "a")) {
+                assertThat(channels.worldState("a").avatars()).allMatch(a -> a.vrActive() == null);
+            }
+        }
+    }
+
+    private boolean vrActive(JsonNode message, String userId) {
+        if (!message.path("type").asText().equals("WORLD_STATE")) {
+            return false;
+        }
+        for (JsonNode avatar : message.at("/payload/avatars")) {
+            if (avatar.path("userId").asText().equals(userId)) {
+                return avatar.path("vrActive").asBoolean();
+            }
+        }
+        return false;
+    }
 
     @Test
     void 실제소켓에서_들기_양쪽방송_권한_중복_던지기와_채널격리를_확인한다() throws Exception {
@@ -198,6 +244,10 @@ class WorldCarryFlowTests {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class CarryWorldFixture {
+        @Bean
+        AtomicLong carryClock() {
+            return new AtomicLong();
+        }
         // 관전 상태를 직접 주입하면 월드 틱이 지운다. 실제 승인된 구독 경로를 사용한다.
         @Bean @Primary
         GameStateGateway carryWatchStates(ObjectMapper mapper, WorldMapRuntime runtime) {
@@ -209,8 +259,8 @@ class WorldCarryFlowTests {
         }
 
         @Bean @Primary
-        WorldChannelRegistry carryWorld(WorldChannelProperties properties, WorldMapRuntime runtime) {
-            var time = new AtomicLong();
+        WorldChannelRegistry carryWorld(WorldChannelProperties properties, WorldMapRuntime runtime,
+                @Qualifier("carryClock") AtomicLong time) {
             return new WorldChannelRegistry(properties, Duration.ofNanos(1), time::incrementAndGet, runtime.scene());
         }
     }

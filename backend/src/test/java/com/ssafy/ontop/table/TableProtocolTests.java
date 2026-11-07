@@ -16,6 +16,23 @@ class TableProtocolTests {
     private final TableProtocol protocol = new TableProtocol(new ObjectMapper());
 
     @ParameterizedTest
+    @ValueSource(strings = {"{\"busy\":true}", "{\"busy\":true,\"vrActive\":true}",
+            "{\"busy\":true,\"vrActive\":false}", "{\"busy\":false,\"vrActive\":false}"})
+    void 일반점유와_VR_점유의_호환_요청을_허용한다(String payload) {
+        assertThat(protocol.parse("{\"requestId\":\"vr\",\"type\":\"WORLD_INTERACTION_SET\",\"payload\":"
+                + payload + "}")).isNotNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"busy\":true,\"vrActive\":\"true\"}", "{\"busy\":true,\"vrActive\":null}",
+            "{\"busy\":false,\"vrActive\":true}", "{\"busy\":true,\"vrActive\":true,\"userId\":\"other\"}"})
+    void VR_표시의_형식과_다른사용자_위조필드를_거절한다(String payload) {
+        var error = catchThrowableOfType(RequestException.class, () -> protocol.parse(
+                "{\"requestId\":\"vr\",\"type\":\"WORLD_INTERACTION_SET\",\"payload\":" + payload + "}"));
+        assertThat(error.code()).isEqualTo("INVALID_PAYLOAD");
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"targetId\":null}", "{\"targetId\":202}",
             "{\"targetId\":\" \"}", "{\"targetId\":\"202\",\"userId\":\"101\"}",
             "{\"targetId\":\"202\",\"x\":1}"})

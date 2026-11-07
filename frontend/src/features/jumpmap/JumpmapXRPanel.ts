@@ -12,7 +12,7 @@ interface Button { id: JumpmapXRAction; x: number; y: number; width: number; hei
 
 /** In-world UI shares the normal jumpmap store. It never starts runs or grants coins. */
 export class JumpmapXRPanel {
-  gameOnly = false
+  inCourse = true
   readonly anchor = new THREE.Group()
   readonly statusAnchor = new THREE.Group()
   private readonly canvas = document.createElement('canvas')
@@ -44,7 +44,7 @@ export class JumpmapXRPanel {
   private readonly paperArt = new Image()
   private readonly parkArt = new Image()
 
-  constructor(scene: THREE.Scene, headAnchor: THREE.Group, private readonly finishVR?: () => boolean) {
+  constructor(scene: THREE.Scene, headAnchor: THREE.Group) {
     this.canvas.width = WIDTH; this.canvas.height = HEIGHT
     this.statusCanvas.width = WIDTH; this.statusCanvas.height = 290
     this.texture.colorSpace = this.statusTexture.colorSpace = THREE.SRGBColorSpace
@@ -65,10 +65,10 @@ export class JumpmapXRPanel {
   get blocking() { return this.view.buttons.length > 0 }
   get key() { return this.view.key }
   get hovered() { return this.hover }
-  toggleGuide() {
+  toggleGuide(park = false) {
     if (useJumpmap.getState().completion) return
-    if (this.parkGuide) { this.parkGuide = false; this.guide = false; return }
-    this.guide = !this.guide
+    if (this.parkGuide || this.guide) { this.parkGuide = this.guide = false; return }
+    this.parkGuide = park; this.guide = !park
   }
   showParkGuide() {
     if (useJumpmap.getState().completion) return
@@ -78,7 +78,7 @@ export class JumpmapXRPanel {
   /** Repaint at 5Hz; geometry/texture objects remain stable across all XR frames. */
   update(now: number, eye: THREE.Vector3, yaw: number, body: THREE.Vector3) {
     const state = useJumpmap.getState()
-    const base = jumpmapXRView(state, now, this.guide)
+    const base = jumpmapXRView(state, now, this.guide, this.inCourse)
     if (state.completion) this.parkGuide = false
     if (!base.key.startsWith('result:') && this.ranking) this.cancelRanking()
     this.view = this.ranking ? this.rankingView(base.key) : this.parkGuide ? {
@@ -86,11 +86,6 @@ export class JumpmapXRPanel {
       lines: ['왼쪽 스틱 이동 · 왼손 그립 달리기 · 오른손 A 점프', '오른쪽 스틱 30도 회전 · 왼손 X 안내 · 오른손 B VR 종료', '양손 레이저 + 검지 트리거로 패널 버튼을 선택해요.'],
       buttons: [{ id: 'jump-guide', label: '돌탑 놀이 방법' }, { id: 'continue', label: '안내 닫기 · A' }],
     } : base
-    if (this.gameOnly) this.view = { ...this.view,
-      lines: this.view.key.startsWith('result:') ? this.view.lines.map((line, i, lines) => i === lines.length - 1 ? '일반 공원으로 돌아가 다음 도전을 준비해요.' : line) : this.view.lines,
-      buttons: this.view.buttons
-      .filter(button => button.id !== 'park-guide')
-      .map(button => button.id === 'continue' && this.view.key.startsWith('result:') ? { ...button, label: '일반 공원으로 · A' } : button) }
     if (this.previousKey !== this.view.key) {
       this.previousKey = this.view.key; this.lastPaint = -Infinity; this.hover = null
       if (this.blocking) {
@@ -136,7 +131,6 @@ export class JumpmapXRPanel {
 
   activate(action: JumpmapXRAction) {
     if (!this.buttons.some(button => button.id === action)) return
-    if (action === 'continue' && this.view.key.startsWith('result:') && this.finishVR?.()) return
     if (action === 'continue') { this.guide = this.parkGuide = false; this.cancelRanking(); closeJumpCompletion() }
     if (action === 'park-guide') this.showParkGuide()
     if (action === 'jump-guide') { this.parkGuide = false; this.guide = true }

@@ -24,9 +24,14 @@ vi.mock('../../src/features/jumpmap/JumpmapXRPanel', () => ({ JumpmapXRPanel: cl
 import { ParkXRController } from '../../src/features/parkXR/ParkXRController'
 import { parkXRView } from '../../src/world/xrView'
 import { START } from '../../src/features/jumpmap/course'
+import { useJumpmap } from '../../src/features/jumpmap/state'
+import { useParkXR } from '../../src/features/parkXR/state'
+import { jumpmapXRFeedback } from '../../src/features/jumpmap/xrFeedback'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useJumpmap.setState({ available: true })
+  useParkXR.setState({ mode: 'jumpmap' })
   harness.avatar.current = { x: START.x, y: START.y + .8, z: START.z }
   harness.avatar.swimming = false
   Object.assign(harness.display, { x: 10, y: .8, z: 20, yaw: 0 })
@@ -91,33 +96,39 @@ function jumpmapSession() {
 const outside = () => { harness.avatar.current = { x: -150, y: .8, z: -150 } }
 const inside = () => { harness.avatar.current = { x: START.x, y: START.y + .8, z: START.z } }
 
-it('서버가 구역 안이면 표시 예측이 밖이어도 종료하지 않고 서버 이탈이 500ms 지속되면 종료한다', () => {
+it('서버 위치로 피드백 모드만 전환하고 표시 예측이나 장시간 구역 이탈로 VR을 종료하지 않는다', () => {
   const s = jumpmapSession()
   try {
     Object.assign(harness.display, { x: -150, y: .8, z: -150 })
     s.update(0); s.update(1000)
+    expect(useParkXR.getState().mode).toBe('jumpmap')
     expect(s.session.end).not.toHaveBeenCalled()
     Object.assign(harness.display, harness.avatar.current)
     outside(); s.update(1100); s.update(1599)
     expect(s.session.end).not.toHaveBeenCalled()
-    s.update(1600)
-    expect(s.session.end).toHaveBeenCalledExactlyOnceWith()
+    s.update(1600); s.update(10000)
+    expect(useParkXR.getState().mode).toBe('park')
+    expect(jumpmapXRFeedback.active).toBe(false)
+    expect(s.session.end).not.toHaveBeenCalled()
   } finally { s.controller.dispose() }
 })
 
-it('유예 중 서버 위치가 복귀하면 짧은 이탈을 누적하지 않는다', () => {
+it('공원과 출발점을 왕복해도 같은 세션을 유지하며 점프 피드백을 다시 연결한다', () => {
   const s = jumpmapSession()
   try {
     outside(); s.update(0); s.update(400)
     inside(); s.update(450)
+    expect(useParkXR.getState().mode).toBe('jumpmap')
+    expect(jumpmapXRFeedback.active).toBe(true)
     outside(); s.update(600); s.update(1099)
     expect(s.session.end).not.toHaveBeenCalled()
     s.update(1100)
-    expect(s.session.end).toHaveBeenCalledExactlyOnceWith()
+    expect(s.session.end).not.toHaveBeenCalled()
+    expect(useParkXR.getState().mode).toBe('park')
   } finally { s.controller.dispose() }
 })
 
-it('추적 중단 시간은 경계 이탈 유예에 포함하지 않는다', () => {
+it('구역 밖에서 추적이 중단됐다가 복구되어도 세션을 종료하지 않는다', () => {
   const s = jumpmapSession()
   try {
     outside(); s.update(0); s.update(400)
@@ -125,16 +136,18 @@ it('추적 중단 시간은 경계 이탈 유예에 포함하지 않는다', () 
     s.track(true); s.update(2000); s.update(2499)
     expect(s.session.end).not.toHaveBeenCalled()
     s.update(2500)
-    expect(s.session.end).toHaveBeenCalledExactlyOnceWith()
+    expect(s.session.end).not.toHaveBeenCalled()
   } finally { s.controller.dispose() }
 })
 
-it('서버 낙수는 경계 유예 없이 즉시 종료한다', () => {
+it('서버 낙수는 VR을 유지하고 전용 점프 피드백만 중단한다', () => {
   const s = jumpmapSession()
   try {
     s.update(0)
     harness.avatar.swimming = true
     s.update(1)
-    expect(s.session.end).toHaveBeenCalledExactlyOnceWith()
+    expect(s.session.end).not.toHaveBeenCalled()
+    expect(useParkXR.getState().mode).toBe('park')
+    expect(jumpmapXRFeedback.active).toBe(false)
   } finally { s.controller.dispose() }
 })

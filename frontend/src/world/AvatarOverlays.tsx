@@ -15,6 +15,7 @@ import { useOmokEvents } from '../game/omok/spectatorEvents'
 import { gameChatScope } from '../features/chat/gameChat'
 import { displayNickname } from '../features/gameMaster/displayName'
 import { TypingIndicator } from '../features/chat/TypingIndicator'
+import '../features/vrSession/presence.css'
 
 export interface AvatarAnchors {
   root: Object3D
@@ -41,6 +42,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
   const bubble = useMemo(() => gameId ? chat && { id: chat.eventId, text: chat.text, expiresAt: chat.until }
     : worldBubble, [gameId, chat, worldBubble])
   const own = useSession((state) => state.sessionId === id)
+  const vrActive = useSession(state => state.status === 'connected' && state.mapCompatible && !!state.vrPlayers[id])
   const activity = useSession(state => state.activities[id])
   const local = useSession(state => state.sessionId === id && state.status === 'connected' && state.mapCompatible)
   const playing = useGame(state => local && ownGameActivity(id, state))
@@ -86,7 +88,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
     >
       {speaking && <div className="avatar-speech">{bubble.text}</div>}
       {activityLabel && <div className="avatar-speech avatar-activity">{activityLabel}</div>}
-      <div className="avatar-nickname">{nickname}</div>
+      <div className="avatar-nickname">{nickname}{vrActive ? <span className="avatar-vr-badge" aria-label="VR 플레이 중">VR</span> : null}</div>
       <TypingIndicator userId={id} />
       <OneCardOverhead userId={id} />
       {participant && <div className={`gathering-role${participant.ready ? ' is-ready' : ''}`} style={{ display: 'block' }}>{participant.label}</div>}

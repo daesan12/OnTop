@@ -8,6 +8,15 @@
 공통 메시지 빈도·동시 접속 상한과 1013/1009 종료는 [유입 제한](websocket-ingress-limits.md)을 참고한다.
 로컬 구현이며 운영 수치·신뢰 프록시·FE 지연 재연결 정책은 아직 합의 전이다.
 
+## VR 실행 표시 (2026-11-08)
+
+- 기존 인증 연결에서 `WORLD_INTERACTION_SET`의 선택 boolean `vrActive`로 본인 VR 상태를 알린다. 시작은 `{busy:true, vrActive:true}`, 종료는 현재 일반 팝업 점유와 함께 `{busy:<팝업 점유>, vrActive:false}`를 전송한다. `userId` 추가나 `busy:false, vrActive:true`는 거절한다.
+- `WORLD_INTERACTION_STATE`는 `{channelId, busy}`를 유지하고, 요청에 `vrActive`가 있을 때만 같은 boolean 필드를 추가한다. 기존 `{busy}` 요청은 VR 상태를 변경하지 않으며 VR 실행 중에는 busy 보호를 해제하지 않는다. 일반 팝업 busy만으로 VR 표시를 켜지 않는다.
+- 같은 채널의 전체 `WORLD_STATE.avatars[]`에 실행 중인 사용자만 `vrActive:true`를 포함한다. false/누락/사용자 제거는 표시 해제다. 변경은 기존 약 10Hz 방송에 합치고 운반 해제 시 즉시 방송하는 기존 정책을 유지한다.
+- 공원·점프맵·꼬치왕 요리사의 공통 VR 보호 수명에 연결한다. VR 종료 시 표시를 지우되 팝업이 남아 있으면 일반 busy 보호는 유지한다. 서버가 연결 해제를 감지하면 VR 정보를 제거한다. 점프맵 재접속 유예로 아바타가 남는 경우에도 VR 표시는 제거한다. 재입장 시 이전 VR 상태를 복원하지 않는다. 클라이언트도 자신의 연결 해제·채널 초기화 시 표시를 지운다.
+- 닉네임 옆 `VR`은 클라이언트가 실행한 VR 세션의 표시이며, 물리적으로 헤드셋을 착용했는지 검증하는 정보는 아니다. 통신이 조용히 끊긴 경우 원격 사용자의 표시는 서버의 연결 해제 감지 이후 사라진다.
+- DB·migration·새 메시지 종류는 없다. 새 FE는 VR 시작 승인에서 `vrActive` 응답을 확인하므로 BE를 함께 반영해야 한다. 일반 팝업의 기존 요청/응답은 호환된다.
+
 연결 시 실제 로딩한 맵 정보와 입장 전 확인은 [맵 버전 계약](world-map-api.md)을 사용한다.
 버전 검사 활성화 시 WORLD_MAP_CONFIRM 성공 후 기존 CHANNEL_JOIN을 보낸다.
 
