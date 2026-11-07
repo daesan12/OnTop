@@ -9,6 +9,8 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
   const [detail, setDetail] = useState<NotificationDetail | null>(null), [error, setError] = useState('')
   const [busy, setBusy] = useState(false), [filter, setFilter] = useState<'all' | 'unread' | 'reward'>('all')
   const [toast, setToast] = useState(''), [trail, setTrail] = useState([''])
+  const [closing, setClosing] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const listing = useRef<AbortController | null>(null), reading = useRef<AbortController | null>(null)
   const cursor = useRef(''), initial = useRef(true), unread = useRef(0)
   const load = useCallback(async (next = cursor.current, explicit = false) => {
@@ -44,7 +46,26 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
     const timer = setTimeout(() => setToast(''), 4500)
     return () => clearTimeout(timer)
   }, [toast])
-  const close = useCallback(() => { reading.current?.abort(); setBusy(false); setOpen(false); setDetail(null); focusParkCanvas() }, [])
+  const close = useCallback(() => {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    closeTimer.current = null
+    reading.current?.abort(); setBusy(false); setClosing(false); setOpen(false); setDetail(null); focusParkCanvas()
+  }, [])
+  const fold = useCallback(() => {
+    if (closeTimer.current) return
+    reading.current?.abort(); setBusy(false)
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { close(); return }
+    setClosing(true)
+    // CSS의 420ms 접기가 끝난 뒤 포커스 소유권을 공원으로 돌린다.
+    closeTimer.current = setTimeout(close, 440)
+  }, [close])
+  useEffect(() => {
+    if (!open) {
+      if (closeTimer.current) clearTimeout(closeTimer.current)
+      closeTimer.current = null; setClosing(false)
+    }
+    return () => { if (closeTimer.current) clearTimeout(closeTimer.current) }
+  }, [open])
   useEffect(() => { if (hidden) close() }, [hidden, close])
   const show = async (id: string) => {
     reading.current?.abort()
@@ -64,9 +85,10 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
       <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg><span>알림</span>{!!page?.unreadCount && <b>{Math.min(99, page.unreadCount)}</b>}
     </button>}
     {!hidden && toast && !open && <div className="inbox-toast" role="status">✉ {toast}</div>}
-    {open && !hidden && <MenuDialog label={detail ? '운영진 메시지' : '알림함'} className="inbox-dialog" backdropClassName="inbox-backdrop" onClose={close}>
+    {open && !hidden && <MenuDialog label={detail ? '운영진 메시지' : '알림함'} className={`inbox-dialog${closing ? ' is-closing' : ''}`} backdropClassName={`inbox-backdrop${closing ? ' is-closing' : ''}`} onClose={fold}>
+      <div className="inbox-scroll-content" inert={closing}>
       <header><span className="inbox-eyebrow">온탑 우편함</span><h2>{detail ? '운영진 메시지' : '알림함'}</h2>
-        <button className="inbox-close" onClick={close} aria-label="알림함 닫기">×</button></header>
+        <button className="inbox-close" onClick={fold} aria-label="알림함 닫기">×</button></header>
       {error && <div className="inbox-error" role="alert">{error} <button onClick={() => void load(cursor.current, true)}>다시 조회</button></div>}
       {busy && <p role="status">메시지를 열고 있어요…</p>}
       {detail ? <article className="inbox-letter">
@@ -91,6 +113,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
           <button disabled={!page?.nextCursor || busy} onClick={() => { if (page?.nextCursor) { setTrail([...trail,page.nextCursor]); void load(page.nextCursor,true) } }}>다음</button></footer>
         <p className="inbox-footnote">읽은 메시지도 여기서 다시 확인할 수 있어요.</p>
       </>}
+      </div>
     </MenuDialog>}
   </>
 }

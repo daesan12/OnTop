@@ -38,6 +38,7 @@ test('알림 목록에서 상세 읽음과 다시 보기 및 닫기를 확인한
   const state=await fixture(page);await page.goto('/notification-harness.local.html')
   await page.getByRole('button',{name:/알림함/}).click()
   await expect(page.getByRole('dialog',{name:'알림함'})).toBeVisible()
+  await page.getByRole('dialog',{name:'알림함'}).evaluate(el => Promise.all(el.getAnimations({subtree:true}).map(a=>a.finished)))
   const box=await page.getByRole('dialog',{name:'알림함'}).boundingBox();expect(box!.x).toBeGreaterThan(400)
   await expect(page.getByText('안 읽은 소식 1개')).toBeVisible()
   await page.screenshot({path:testInfo.outputPath('inbox-list.png')})
@@ -51,6 +52,39 @@ test('알림 목록에서 상세 읽음과 다시 보기 및 닫기를 확인한
   await page.getByRole('button',{name:'보상',exact:true}).click()
   await expect(page.getByText('아직 도착한 보상이 없어요.')).toBeVisible()
   await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('두루마리가 펼쳐지고 세 가지 닫기 경로에서 접힌 뒤 사라진다',async({page},testInfo)=>{
+  await fixture(page);await page.goto('/notification-harness.local.html')
+  const launch=page.getByRole('button',{name:/알림함/}),dialog=page.getByRole('dialog',{name:'알림함'})
+  await launch.click()
+  const opening=await dialog.evaluate(el=>{
+    const animations=el.getAnimations({subtree:true}) as CSSAnimation[]
+    for(const animation of animations){animation.pause();animation.currentTime=180}
+    return {names:animations.map(a=>a.animationName),clip:getComputedStyle(el).clipPath,transform:getComputedStyle(el).transform}
+  })
+  expect(opening.names).toContain('inbox-unroll');expect(opening.names).toContain('inbox-top-unroll')
+  expect(opening.clip).toContain('inset');expect(opening.transform).toBe('none')
+  await page.screenshot({path:testInfo.outputPath('inbox-unrolling.png')})
+  await dialog.evaluate(el=>el.getAnimations({subtree:true}).forEach(a=>a.finish()))
+  await page.getByRole('button',{name:'알림함 닫기'}).click()
+  await expect(dialog).toHaveClass(/is-closing/)
+  await expect(dialog.locator('.inbox-scroll-content')).toHaveAttribute('inert','')
+  await expect(dialog).toHaveCount(0)
+  await expect(launch).toBeFocused()
+  await launch.click();await page.keyboard.press('Escape')
+  await expect(dialog).toHaveClass(/is-closing/);await expect(dialog).toHaveCount(0)
+  await launch.click();await page.locator('.inbox-backdrop').click({position:{x:10,y:10}})
+  await expect(dialog).toHaveClass(/is-closing/);await expect(dialog).toHaveCount(0)
+  await launch.click();await expect(dialog).not.toHaveClass(/is-closing/)
+})
+
+test('동작 줄이기 설정에서는 두루마리 효과를 생략하고 바로 닫는다',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});await fixture(page);await page.goto('/notification-harness.local.html')
+  await page.getByRole('button',{name:/알림함/}).click()
+  const dialog=page.getByRole('dialog',{name:'알림함'})
+  expect(await dialog.evaluate(el=>getComputedStyle(el).animationName)).toBe('none')
+  await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0)
 })
 test('관리자 답변 실패 후 입력과 요청 키를 보존하고 성공 시 새 답변을 표시한다',async({page},testInfo)=>{
   const state=await fixture(page);await page.goto('/notification-harness.local.html?admin')
