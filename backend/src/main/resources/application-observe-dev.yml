@@ -5,7 +5,10 @@ spring:
   jpa:
     properties:
       hibernate:
-        generate_statistics: true
+        generate_statistics: ${ONTOP_OBSERVABILITY_JPA_STATISTICS_ENABLED:true}
+ontop:
+  observability:
+    jpa-statistics-enabled: ${ONTOP_OBSERVABILITY_JPA_STATISTICS_ENABLED:true}
 management:
   server:
     address: 0.0.0.0
