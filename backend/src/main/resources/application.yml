@@ -36,6 +36,13 @@ ontop:
     grant-ids: ${ADMIN_GRANT_IDS:}
     # 미설정 시 기존 지급 관리자에게 운영 전환 권한을 부여해 배포 환경변수 추가 전에도 관리할 수 있다.
     operation-ids: ${ADMIN_OPERATION_IDS:${ADMIN_GRANT_IDS:}}
+    # 전화번호 원문 조회는 일반 관리자 조회보다 좁은 별도 권한이다.
+    contact-ids: ${ADMIN_CONTACT_IDS:}
+  event:
+    contact:
+      enabled: ${EVENT_CONTACT_ENABLED:false}
+      active-key-id: ${EVENT_CONTACT_ACTIVE_KEY_ID:}
+      keys: ${EVENT_CONTACT_KEYS:}
   analytics:
     # 백업 복원본에서 만든 집계 파일만 읽는다. 원본 행동 로그에 접근하지 않는다.
     snapshot-path: ${ANALYTICS_SNAPSHOT_PATH:/run/ontop/analytics/admin-summary.json}

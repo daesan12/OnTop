@@ -1,4 +1,5 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
+import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
 import {
   clearAuthSession,
   getAuthSession,
@@ -48,7 +49,7 @@ import type { BridgeInput } from '../../game/bridge/protocol'
 import { canActLedger } from '../../game/ledger/actions'
 import type { LedgerInput, LedgerPingTarget } from '../../game/ledger/protocol'
 import { LedgerPingEvents } from '../../game/ledger/pings'
-import { canFlipHalli, canRingHalli, classifyHalliError, halliNotice, markHalliRing } from '../../game/halligalli/actions'
+import { canFlipHalli, canLeaveEliminatedHalli, canRingHalli, classifyHalliError, halliNotice, markHalliRing } from '../../game/halligalli/actions'
 import type { HalliInput } from '../../game/halligalli/protocol'
 import { loadParkBindings } from './deployment'
 import type { ParkRuntimePort } from './contracts'
@@ -284,6 +285,7 @@ export class ParkRuntime implements ParkRuntimePort {
       scope: JSON.stringify([this.generation, intent.userId, intent.channelId, intent.tableId, intent.benchScope]) } : null)
   }
   cooperativeGame = {
+    protectVR: () => acquireVRProtection(this),
     scope: () => { const s = useSession.getState(); return { userId: s.sessionId, channelId: s.roomId, connected: this.active && this.socket.connected && s.status === 'connected' && s.mapCompatible } },
     request: (type: string, payload: Record<string, unknown>, expected: readonly string[], onId?: (id: string) => void) => this.socket.request(type, payload, expected, onId),
     subscribe: subscribeCoop,
@@ -439,7 +441,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const skewerAdmission = method === 'POST' && path === '/api/v1/minigames/skewer/admissions'
     const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
-      || method === 'GET' && path === '/api/v1/minigames/skewer/coop/rankings'
+      || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR))?$/.test(path)
       || method === 'POST' && ['/api/v1/minigames/skewer/coop/rooms', '/api/v1/minigames/skewer/coop/leave'].includes(path)
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
@@ -950,7 +952,7 @@ export class ParkRuntime implements ParkRuntimePort {
         'WORLD_CHAT_MESSAGE',
       ])
       // Only server echoes enter the message list. No optimistic duplicate or automatic replay.
-    })
+    }, { blockControls: !avatars.get(useSession.getState().sessionId)?.carry })
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return
@@ -1001,25 +1003,38 @@ export class ParkRuntime implements ParkRuntimePort {
     const s = useSession.getState()
     return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
-  private interactionStatus = { scope: '', busy: false, pending: false, retryAt: 0 }
-  setInteractionBusy = (busy: boolean) => {
+  private interactionStatus = { scope: '', busy: false, desired: false, pending: null as Promise<boolean> | null, retryAt: 0 }
+  setInteractionBusy = (busy: boolean, confirm = false) => {
     const session = useSession.getState(), scope = JSON.stringify([this.generation, session.sessionId, session.roomId])
     if (!this.active || session.status !== 'connected' || !session.roomId || !session.mapCompatible
-      || !session.carrySupported || !this.socket.connected) return
-    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, pending: false, retryAt: 0 }
+      || !this.socket.connected) return Promise.resolve(false)
+    if (!session.carrySupported) return Promise.resolve(!confirm)
+    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, desired: false, pending: null, retryAt: 0 }
     const status = this.interactionStatus
+    status.desired = busy
+    let confirmNeeded = confirm
     const generation = this.generation
     const current = () => this.active && this.generation === generation && this.interactionStatus === status
       && useSession.getState().roomId === session.roomId && useSession.getState().sessionId === session.sessionId
-    if (status.pending || status.busy === busy || performance.now() < status.retryAt) return
-    status.pending = true
-    void this.socket.request('WORLD_INTERACTION_SET', { busy }, ['WORLD_INTERACTION_STATE']).then(response => {
-      if (response.payload.channelId !== session.roomId || response.payload.busy !== busy)
-        throw new Error('창 점유 응답을 확인해주세요.')
-      if (current()) status.busy = busy
-    }).catch(error => {
-      if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
-    }).finally(() => { status.pending = false })
+    const sync = (): Promise<boolean> => {
+      if (!current()) return Promise.resolve(false)
+      if (status.pending) return status.pending.then(ok => ok ? sync() : false)
+      const desired = status.desired || vrCarryProtection.active
+      if (status.busy === desired && !confirmNeeded) return Promise.resolve(true)
+      if (performance.now() < status.retryAt) return Promise.resolve(false)
+      confirmNeeded = false
+      status.pending = this.socket.request('WORLD_INTERACTION_SET', { busy: desired }, ['WORLD_INTERACTION_STATE']).then(response => {
+        if (response.payload.channelId !== session.roomId || response.payload.busy !== desired)
+          throw new Error('창 점유 응답을 확인해주세요.')
+        if (!current()) return false
+        status.busy = desired; return true
+      }).catch(error => {
+        if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
+        return false
+      }).finally(() => { status.pending = null })
+      return status.pending.then(ok => ok ? sync() : false)
+    }
+    return sync()
   }
   // Carry commands stay in the park: retain mouse look while actionBusy still serializes requests.
   pickupAvatar = (targetId: string) => this.action(async () => {
@@ -1205,7 +1220,8 @@ export class ParkRuntime implements ParkRuntimePort {
     })
   leaveTable = () =>
     this.action(async () => {
-      if (tableBusy())
+      // Only a naturally eliminated HALLI_GALLI player sends the same TABLE_LEAVE mid-game; the server re-checks the engine.
+      if (tableBusy() && !canLeaveEliminatedHalli(useSession.getState().sessionId))
         throw new Error('경기 진행·복구·정산 중에는 일어날 수 없습니다.')
       await this.socket.request('TABLE_LEAVE', {}, ['TABLE_LEFT'])
     })

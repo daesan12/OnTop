@@ -1,21 +1,23 @@
 import { useState } from 'react'
 import { useStore } from 'zustand'
 import { PaperPopup } from '../../tableLobby/PaperPopup'
-import cover from '../../vrZone/art/skewer-cover-lowpoly.png'
-import chefPC from './art/chef-pc-preview.png'
-import chefVR from './art/chef-vr-preview.png'
-import chefRoleArt from './art/chef-role-illustration.png'
-import chefVRChoiceArt from './art/chef-vr-choice-illustration.png'
-import chefPCChoiceArt from './art/chef-pc-choice-illustration.png'
-import serverRoleArt from './art/server-role-illustration.png'
-import serviceHall from './art/service-hall-preview.png'
+import cover from './art/service-hall-current-v2.webp'
+import chefPC from './art/chef-pc-current-v2.webp'
+import chefVR from './art/chef-vr-current-v2.webp'
+import chefRoleArt from './art/chef-pc-current-v2.webp'
+import chefVRChoiceArt from './art/chef-vr-current-v2.webp'
+import chefPCChoiceArt from './art/chef-pc-current-v2.webp'
+import serverRoleArt from './art/service-hall-current-v2.webp'
+import serviceHall from './art/service-hall-current-v2.webp'
 import type { CoopClient } from './client'
 import { CoopRoomBrowser } from './CoopRoomBrowser'
 import { SKEWER_CHEF_VR_ENABLED } from './availability'
+import { CHEF_VR_STEPS } from '../chef/vrGuide'
+import { TouchControllerGuide } from '../../vrGuide/TouchControllerDiagram'
 
 const roles = [
   { id: 'chef', name: '요리사', device: SKEWER_CHEF_VR_ENABLED ? 'VR / 키보드·마우스' : '키보드·마우스 · VR 공사 중', image: chefVR, description: '그림 주문표를 보고 꼬치를 만들어요.' },
-  { id: 'server', name: '서빙 담당', device: '키보드·마우스', image: serviceHall, description: '손님과 주방 사이를 연결해요.' },
+  { id: 'server', name: '서빙 담당', device: '키보드 이동', image: serviceHall, description: '손님과 주방 사이를 연결해요.' },
 ] as const
 
 const steps = {
@@ -93,7 +95,7 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
             <img src={mode === 'vr' ? chefVRChoiceArt : chefPCChoiceArt} alt="" draggable={false} /><span className="coop-card-title">{mode.toUpperCase()}</span>
             {mode === 'vr' && !SKEWER_CHEF_VR_ENABLED ? <span className="coop-construction-badge">공사 중</span> : null}
             <span className="coop-card-device">{mode === 'vr' ? '헤드셋 · 컨트롤러' : '키보드 · 마우스'}</span>
-            <span className="coop-card-rule">{mode === 'vr' ? SKEWER_CHEF_VR_ENABLED ? '팀 랭킹 도전' : '공사 중 · 곧 만나요' : '엽전 보상 가능 · 랭킹 미등록'}</span>
+            <span className="coop-card-rule">{mode === 'vr' ? SKEWER_CHEF_VR_ENABLED ? '팀 랭킹 도전' : '공사 중 · 곧 만나요' : 'PC 팀 랭킹 도전'}</span>
           </button>)}</div><button className="coop-back-choice" onClick={() => setChangingRole(true)}>← 역할 다시 고르기</button>
         </> : role ? <>
         <div className="coop-prep-nav"><button disabled={acting || player?.ready || pub.chefVR && role === 'chef'} onClick={() => setChangingRole(true)}>← 역할 다시 고르기</button>{role === 'chef' ? <button disabled={acting || player?.ready || pub.chefVR} onClick={() => onChefMode(null)}>플레이 방식 바꾸기</button> : null}</div>
@@ -102,14 +104,15 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
             alt={role === 'server' ? '온탑 꼬치왕의 서빙 게임 화면' : vr ? '온탑 꼬치왕의 VR 주방 화면' : '온탑 꼬치왕의 PC 주방 화면'} draggable={false} />
             <figcaption>{role === 'server' ? '홀의 동선은 내가 책임져요' : vr ? '직접 집고 꽂는 나만의 주방' : '키보드와 마우스로 완성하는 꼬치'}</figcaption>
           </figure>
-          <div className="coop-role-guide"><ol>{steps[role].map(([title, description], index) => <li key={title}><b aria-hidden="true">{index + 1}</b><div><h2>{title}</h2><p>{description}</p></div></li>)}</ol>
-            <div className="coop-key-hints">{role === 'chef' ? vr ? <><span><kbd>트리거</kbd> 음식 집기·놓기</span><span><kbd>그립</kbd> 꼬치 잡기</span><span>완성하면 제출 버튼 선택</span></> : <><span><kbd>1–6</kbd> 재료 선택</span><span><kbd>Space</kbd> 꽂기</span><span><kbd>R</kbd> 완성·제출</span><span><kbd>⌫</kbd> 끝 재료 빼기</span></>
+          <div className="coop-role-guide"><ol>{(role === 'chef' && vr ? CHEF_VR_STEPS : steps[role]).map(([title, description], index) => <li key={title}><b aria-hidden="true">{index + 1}</b><div><h2>{title}</h2><p>{description}</p></div></li>)}</ol>
+            <div className="coop-key-hints">{role === 'chef' ? vr ? <><span><kbd>트리거</kbd> 주문·재료 선택 / 접시 제출</span><span><kbd>그립</kbd> 꼬치 잡기</span><span>주방의 VR 조작 안내로 다시 확인해요</span></> : <><span><kbd>1–6</kbd> 재료 선택</span><span><kbd>Space</kbd> 꽂기</span><span><kbd>R</kbd> 완성·제출</span><span><kbd>⌫</kbd> 끝 재료 빼기</span></>
               : <><span><kbd>WASD</kbd> 이동</span><span><kbd>E</kbd> 상호작용</span><span><kbd>R</kbd> 반납·재수령</span></>}</div>
             {role === 'chef' && vr ? <button className="coop-equipment-button" onClick={onEquipment}>{pub.chefVR ? 'VR 연결 확인하기' : '헤드셋 연결하기'} <span aria-hidden="true">↗</span></button>
               : role === 'server' ? <p className="coop-guide-tip">음식과 더러운 식기는 함께 들 수 없어요. 꼬치는 보관대에, 사케는 냉장고에 내려놓으세요.</p> : null}
           </div>
         </div>
-        <div className={`coop-ranking-notice${vr ? ' is-vr' : ''}`}><b>{vr ? 'VR 팀 랭킹 도전' : '무료 플레이 · 엽전 보상'}</b><span>{vr ? '요리사가 끝까지 VR로 플레이하면 팀 기록이 남아요.' : 'PC 요리 팀은 랭킹에 등록되지 않아요. 엽전 보상은 받을 수 있어요.'}</span></div>
+        {role === 'chef' && vr ? <TouchControllerGuide mode="chef" /> : null}
+        <div className={`coop-ranking-notice${vr ? ' is-vr' : ''}`}><b>{vr ? 'VR 팀 랭킹 도전' : 'PC 팀 랭킹 도전'}</b><span>PC·VR 기록은 따로 집계해요. 경기 중 방식을 바꾸면 랭킹에서 제외돼요. 엽전 보상은 동일해요.</span></div>
         <footer className="coop-ready-footer"><div className="coop-team-status" aria-label="참가자 준비 상태">{pub.players.map(p => <div key={p.userId} data-ready={p.ready}><span className="coop-status-dot" /><span><b>{p.userId === owner ? '나' : '친구'}</b> · {p.role === 'chef' ? '요리사' : p.role === 'server' ? '서빙 담당' : '역할 선택 중'}<small>{!p.connected ? '연결 확인 중' : p.ready ? '준비 완료' : '준비 전'}</small></span></div>)}</div>
           <div className="coop-ready-action"><button className="paper-primary" disabled={(!ready && !player?.ready) || acting} onClick={() => void act({ type: 'READY', ready: !player?.ready })}>{acting ? '변경 중…' : player?.ready ? '준비 취소' : '준비 완료'}</button>{readyHint ? <small>{readyHint}</small> : null}</div>
         </footer>

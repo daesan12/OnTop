@@ -15,14 +15,15 @@
   - 그래서 새 옷은 **자기 한 벌을 입었을 때만** 맞으면 된다. 다른 상의·하의·신발과 섞어 입는 경우는 생기지 않는다.
   - 부위별로 섞어 입게 했을 때는 바지가 다른 상의를 뚫거나, 바지 없이 신발만 신으면 발목이 비는 문제가 옷마다 생겼다.
 - **캐릭터별 조각.** `item__HAIR__h__for_girl`처럼 `__for_man`/`__for_girl`이 붙은 조각은 그 캐릭터에게만 보인다(④-2).
-- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`j`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`, 갓·도포 `h`, 투구 아래 여자 앞머리 쪽머리 `i`, 갓 아래 여자 기본 머리 모양의 낮은 쪽머리 `j`, 사또 `k`)이고, 새 옷은 `l`부터 쓴다.
+- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`j`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`, 갓·도포 `h`, 투구 아래 여자 앞머리 쪽머리 `i`, 갓 아래 여자 기본 머리 모양의 낮은 쪽머리 `j`, 사또 `k`, 근육 운동복 `l`, 비둘기 옷 `m`, 허수아비 옷 `n`)이고, 새 옷은 `o`부터 쓴다.
+  - 숨김 규칙은 부위와 문자(`TOPl`, `HAIRm`)만 보고 파일은 보지 않는다. 그래서 문자는 모든 옷을 통틀어 하나씩만 쓴다.
 - **몸 조각.** 의상에 가려지는 몸은 `body__TOPd_BOTTOMg`처럼 가리는 의상 이름이 붙은 조각으로 잘려 있다. 이 조각은 그 의상 중 하나라도 입으면 숨는다. 의상 조각 `item__BOTTOM__d__under_TOPb`는 `TOP b`를 함께 입으면 숨는다.
 - **게임 파일**(`frontend/public/art/characters/`):
   - `man.glb`, `girl.glb`: 공용 몸의 모든 조각 + 그 캐릭터의 기본 옷.
   - `outfits/<이름>.glb`: 그 옷의 부위 조각만 담는다. 누군가 처음 입을 때만 내려받는다.
   - 각 메시의 `extras.pieces`에 조각 이름과 범위가 들어 있고, 게임은 입은 옷에 맞는 조각만 그린다(`frontend/src/world/art/characterLook.ts`).
 - **아이템과 연결.** DB `items.image_key`를 `outfit/<파일>/<의상 문자>`로 적으면 그 조각을 입힌다(예: 장군 `outfit/general/g`).
-  - 한 벌인 옷은 상의·하의·신발에 `items.set_code`를 같은 값으로 둔다(장군 `GENERAL`, 갓·도포 `DOPO`, 사또 `SATTO`). 세트는 한 벌로만 입고 벗는다.
+  - 한 벌인 옷은 상의·하의·신발에 `items.set_code`를 같은 값으로 둔다(장군 `GENERAL`, 갓·도포 `DOPO`, 사또 `SATTO`, 근육 `MUSCLE`, 비둘기 `PIGEON`, 허수아비 `SCARECROW`). 세트는 한 벌로만 입고 벗는다.
   - 머리·얼굴 아이템에는 `set_code`를 두지 않는다(따로 쓴다).
 
 - **운영에서는 아직 꺼져 있다.** 옷장 의상은 개발 빌드(`VITE_WARDROBE_OUTFITS=true`, `frontend/vercel.dev.json`과 `Jenkinsfile`)와 로컬 개발에서만 켜진다. 운영 빌드에서는 다음처럼 동작한다(`frontend/src/features/wardrobe/feature.ts`).
@@ -35,7 +36,9 @@
 - Blender 5.2.3 (명령줄 `blender -b`로 실행한다).
 - 이 저장소의 `tools/character/` 스크립트.
 - **기준 빌드 파일**은 `docs/character-outfits/`에 있다.
-  - `shared_layers_gf.glb`(약 35 MB): 공용 몸, 지금까지의 모든 의상(`a`~`g`), 몸 조각, 뼈대, 동작이 들어 있다. 새 옷은 이 파일에 넣는다.
+  - `shared_layers_n.glb`(약 95 MB): 공용 몸, 지금까지의 모든 의상(`a`~`n`), 몸 조각, 뼈대, 동작이 들어 있다. 새 옷은 이 파일에 넣는다.
+    - 사또 작업의 `hk.glb`(지금 dev의 `man.glb`·`girl.glb`를 만든 빌드, 그 파일과 조각·해시가 같음)에 `l`·`m`·`n`을 넣은 것이다(④-4).
+    - 사또 옷깃 보정(`flat_collar.py`, ④-3)과 갓·장군 모자 아래 남녀별 머리(`hat_hair.py`, ④-2)는 옷 파일을 만들 때 따로 거친 단계라 이 빌드에는 없다. 갓·장군·사또 옷 파일을 다시 만들 때는 그 단계를 다시 거친다.
   - `outfit_d_pink.jpg`: 여자 기본 상의·신발의 분홍 색 이미지(여자 파일을 다시 만들 때 쓴다).
   - 새 옷을 넣은 빌드는 새 문자 이름(예: `shared_layers_h.glb`)으로 이 폴더에 올리고, 이전 기준 파일은 지운다. 이 문서의 파일 이름도 함께 고친다. 큰 파일이라 올릴 때마다 저장소가 그만큼 커지니, 옷이 완성됐을 때 한 번만 올린다.
 - Gemini(디자인 시트 편집)와 Tripo(3D 생성) 계정. Tripo는 크레딧을 쓴다(부품 생성 약 60, 4K 텍스처 약 20).
@@ -49,7 +52,7 @@
 1. 공용 몸의 T자 시트를 그린다(앞·오른쪽·뒤·왼쪽, 2x2).
 
    ```bash
-   "$B" -b --python tools/character/pose_sheet.py -- docs/character-outfits/shared_layers_gf.glb out/body_t.png size=1024 pose=t
+   "$B" -b --python tools/character/pose_sheet.py -- docs/character-outfits/shared_layers_n.glb out/body_t.png size=1024 pose=t
    ```
 
    - 팔을 내린 자세 시트(`pose=t` 없이)로 만든 장군은 Tripo의 팔이 몸과 맞지 않아 소매·어깨판이 뭉쳐서 버렸다.
@@ -70,7 +73,7 @@
 생성된 캐릭터는 머리가 공용 몸보다 작게 나오는 경우가 많다. 이때 머리 쪽은 ④의 `head_fit`으로 따로 맞춘다.
 
 ```bash
-"$B" -b --python tools/character/overlay.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb out/fit s=1.2
+"$B" -b --python tools/character/overlay.py -- docs/character-outfits/shared_layers_n.glb new_outfit_parts.glb out/fit s=1.2
 ```
 
 ### ④ 기준 빌드에 새 옷 넣기
@@ -81,7 +84,7 @@
 "$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10;SHOES:6,8" skirt=TOP pants=1 sleeve_drape=0.4 sleeves=3,5 under_tops=1 cull=1 lining=1 v_cut=-0.0088,0.498,-0.040,0.602,0.034,0.602 v_cut_margin=0.012 lining_down=0.09 pants_hem=0.003 shoe_level=1 shoe_level_up=-0.001 shoe_level_r=0.075 dark_lining=SHOES clean_dark=TOP predecimate=0:5000 shoe_cap=1 shoe_cap_depth=0.01 clean_skin=TOP brighten=TOP,BOTTOM despeck=1 pants_full=1.7 pants_low=1.55 neck_poke=1 push_neck=back rim_neck=20 rim_neck_down=0.07 neck_tone=1 lining_tone=skin v_cut_up=0 lining_up=0.006 lining_front=-0.015 "seam=12>3,5" under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9 hair_trim=0.845,-0.12
 ```
 
-위는 갓·도포(세트 h)를 만든 그대로의 명령이다. 숫자 값(`v_cut` 좌표 등)은 이 옷에 맞춘 것이라 새 옷에서는 다시 잰다.
+위는 갓·도포(세트 h)를 만든 그대로의 명령이다(그때의 기준 빌드 `shared_layers_gf.glb`는 지금 `shared_layers_n.glb`로 바뀌었다). 숫자 값(`v_cut` 좌표 등)은 이 옷에 맞춘 것이라 새 옷에서는 다시 잰다.
 
 | 옵션 | 뜻 |
 | --- | --- |
@@ -113,6 +116,12 @@
 | `hair_trim=z,y` | 머리(HAIR)에서 높이 z 아래이고 앞쪽 y보다 앞에 있는 면과, 그 근처의 작은 조각(100면 미만)을 지운다. 갓 머리카락 끝 한 가닥이 이마에 붙어 오른쪽 눈썹 위에 눈썹이 하나 더 있는 것처럼 보였다 |
 | `clean_skin=TOP` | Tripo가 옷에 잘못 칠한 피부색 면을 옷 색으로 바꾼다 |
 | `brighten=TOP,BOTTOM despeck=1` | 회색으로 나온 흰 옷을 시트처럼 하얗게 올리고, 흰 천의 회색 점을 지운다(어두운 색은 그대로) |
+| `lining_hidden=1` | 안감을 상의가 가린 몸 면(상의 뼈가 이끄는 면) 그대로 만든다. 목 면은 넣지 않아 안감이 목과 그 경계에서 만난다. 수평으로 자르는 `lining_up`만으로는, 높이면 목 위에 겹쳐 줄·얼룩이 생기고 낮추면 틈이 생겼다(근육 옷). 이때 `lining_up`은 넉넉히(0.05) 둔다 |
+| `skin_any=1` | `lining_tone=skin`의 피부색 칸을 상의의 모든 텍스처에서 찾는다(기본은 첫 텍스처만). 부품마다 텍스처가 따로인 옷에서 첫 텍스처(민소매)에 고른 피부 칸이 없어 안감이 회색으로 나왔다. 안감만 그 재질을 따라가고 `neck_tone`·`v_paint`는 첫 텍스처를 그대로 쓴다 |
+| `wing_parts=N,M` | 그 부품(날개)의 가중치를 가까운 몸 표면 대신 팔 사슬에서만 받는다. 점의 가로 위치로 어깨·위팔·아래팔·손을 고르고 관절마다 `wing_blend`(2.5 cm) 안에서 섞는다. T자에서 팔 아래로 늘어진 깃털이 옆구리 가중치를 받아, 팔을 내리면 날개가 찢어졌다(비둘기) |
+| `cover_hands=1` | 상의를 입으면 손도 숨긴다. 손보다 긴 날개 위로 엄지가 튀어나왔다 |
+| `hair_hides_front=0.03` | `hair_hides_scalp=1`과 함께. 머리 관절보다 이만큼 앞쪽까지만 숨긴다(귀·뒤통수). 후드가 입구 둘레의 볼까지 숨겨 구멍이 났다(비둘기) |
+| `hair_hides_above=z` | `hair_hides_scalp=1`과 함께. 높이 z(m) 위의 면만 숨긴다. 앞 꼭대기까지 덮는 모자는 앞쪽도 숨겨야 해서 앞뒤 대신 높이로 자른다(허수아비, 눈썹 위 0.80) |
 
 장군처럼 특별한 보정이 필요한 옷만 `add_set.py`를 복사해 쓴다. 그 보정들은 Tripo 부품 번호로 대상을 고르기 때문에, 다른 옷에 그대로 쓰면 엉뚱한 부품을 고친다.
 
@@ -212,6 +221,41 @@
 
 - 새 몸 조각(`TOPk` 등)이 생기므로 남자·여자 파일도 `hk.glb`에서 다시 만들고, 캐릭터 캐시 번호(`characterAssets.ts`의 `?rig=`)를 올린다.
 
+### ④-4 예시: 근육 운동복·비둘기·허수아비 (세트 `l`·`m`·`n`, S15P31B105-363)
+
+세 벌 모두 공용 몸 T자 시트에 옷을 입힌 사용자 시트로 만들었다. Tripo 여러 면, Generate in Parts, Balanced, 4K 텍스처, 배율 `s=1.0`(시트가 공용 몸 그대로라 실루엣이 겹친다). `hk.glb`에 `l` → `m` → `n` 차례로 넣는다.
+
+- **근육 운동복 `l`** (`MUSCLE`): 민소매·근육 팔·손목 밴드(상의), 반바지·근육 다리(하의), 운동화.
+  - 근육 팔다리는 피부지만 옷으로 넣는다. 공용 몸 팔다리를 쓰면 근육이 없어지고, 몸에 칠해진 흰 반팔·회색 속바지가 민소매·반바지 밖으로 보인다. 손목은 밴드가, 발목은 운동화가 이음매를 가린다.
+  - Tripo 피부가 몸보다 밝고 붉었다. `skin_match.py`가 몸(목·손·아래팔·정강이)의 피부 중앙값에 맞춰 부품 텍스처의 피부색 픽셀을 채널별로 곱한다(근육 음영은 남음).
+  - 앞 목 아래 피부가 버린 머리 부품에 있어 가슴이 비었다. 피부색 안감으로 채운다(`lining_hidden`, `skin_any`). `neck_tone`은 목 뒤 머리와 깃 사이에 자홍 틈·검은 톱니를 남겨 쓰지 않는다.
+- **비둘기 옷 `m`** (`PIGEON`): 후드·앞머리(머리), 날개(상의), 몸통 옷·꼬리(하의), 발(신발).
+  - Tripo가 몸통과 다리를 한 부품으로 냈다. 통째로 하의에 두고 상의는 날개만 둔다(한 벌로만 입어 상관없다).
+  - 날개는 `wing_parts`, 손은 `cover_hands`, 후드 아래 귀는 `hair_hides_front`.
+- **허수아비 옷 `n`** (`SCARECROW`): 모자(머리), 조끼·셔츠깃·소매·새끼줄 띠·방울·주머니(상의), 조끼 아랫단·반바지·바지·발목(하의), 신발. 맨 아래팔·손(12·13)은 버린다.
+  - Tripo가 생성된 머리와 조끼 윗부분을 한 부품(3)으로 냈다. `split_part.py`가 목 높이(0.56)에서 나누고, 위쪽(31)은 `head_fit`에만 쓴다. 아래쪽(30)에서 0.535 위의 살색 면(목 밑동)은 지운다.
+  - 생성된 머리가 작아 모자 정수리가 공용 몸 머리 안으로 들어갔고, 밀려 나온 모자가 깔때기처럼 찌그러져 두피가 비쳤다(user: 모자에 구멍). `head_fit=31`로 모자를 1.072배 키워 맞춘다. 모자 메시 자체에는 머리 입구 말고 열린 둘레가 없다.
+  - 찢어진 천 가장자리와 텍스처 이음매를 고정하면 게임 파일이 6만이 아니라 10만 삼각형으로 남았다. 게임 변환은 `keep_edges=pieces`(조각 경계만 고정). 가장자리도 오히려 깔끔했다.
+  - 조끼·셔츠의 갈색·베이지가 피부로 잡혀 `skin_match.py`는 쓰지 않는다.
+- **기준 빌드 크기:** 부품을 그대로 넣으니 `hk.glb` 71 MB가 세 벌 뒤 259 MB가 됐다(한 벌 116만~186만 면, 다른 옷은 3만~12만 면). 다 넣은 뒤 `shrink_items.py`로 새 세트를 한 벌 12만 면으로 줄인다(95 MB). 게임 파일은 줄이기 전과 같아 보였다.
+
+```bash
+"$B" -b --python tools/character/skin_match.py -- hk.glb muscle_outfit_parts.glb muscle_outfit_parts_tone.glb parts=1,5,6,7,8
+"$B" -b --python tools/character/fit_outfit.py -- hk.glb muscle_outfit_parts_tone.glb hk_l.glb set=l s=1.0 "map=TOP:1,7,8,11,12;BOTTOM:3,5,6;SHOES:2,4" cull=1 lining=1 lining_tone=skin lining_hidden=1 lining_up=0.05 lining_cull=0.006 skin_any=1 under_layer=1 under_layer_sink=0.012
+"$B" -b --python tools/character/fit_outfit.py -- hk_l.glb pigeon_outfit_parts.glb hk_lm.glb set=m s=1.0 "map=HAIR:1,7;TOP:2,3;BOTTOM:0,8,9,10,11,12,13;SHOES:4,5" cull=1 cover_hands=1 wing_parts=2,3 hair_hides_scalp=1 hair_hides_front=0.03 under_layer=1 under_layer_sink=0.012
+"$B" -b --python tools/character/split_part.py -- scarecrow_outfit_parts.glb scarecrow_split.glb part=3 z=0.56 skin_above=0.535
+"$B" -b --python tools/character/fit_outfit.py -- hk_lm.glb scarecrow_split.glb hk_lmn.glb set=n s=1.0 head_fit=31 "map=HAIR:0;TOP:30,1,14,4,11,5,8,9;BOTTOM:10,2,15,16;SHOES:6,7" cull=1 lining=1 lining_tone=skin lining_hidden=1 lining_up=0.05 skin_any=1 under_layer=1 under_layer_sink=0.012 hair_hides_scalp=1 hair_hides_above=0.80
+"$B" -b --python tools/character/shrink_items.py -- hk_lmn.glb docs/character-outfits/shared_layers_n.glb sets=l,m,n faces=120000
+# 게임 파일: 머리가 없는 옷은 keep_head=0 (높이로 정하는 "머리 부분"이 가슴·팔에 걸려 50만 삼각형으로 남았다)
+"$B" -b --python tools/character/to_game.py -- shared_layers_n.glb out/muscle_raw.glb muscle TOP=l BOTTOM=l SHOES=l pieces=1 body=0 near=60000 atlas=2048 fill=1 keep_head=0
+"$B" -b --python tools/character/to_game.py -- shared_layers_n.glb out/pigeon_raw.glb pigeon HAIR=m TOP=m BOTTOM=m SHOES=m pieces=1 body=0 near=60000 atlas=2048 fill=1 keep_head=0
+"$B" -b --python tools/character/to_game.py -- shared_layers_n.glb out/scarecrow_raw.glb scarecrow HAIR=n TOP=n BOTTOM=n SHOES=n pieces=1 body=0 near=60000 atlas=2048 fill=1 keep_edges=pieces
+```
+
+- 남자·여자 파일도 `shared_layers_n.glb`에서 ⑥의 명령으로 다시 만든다(새 몸 조각 `TOPl`·`HAIRm`·`HAIRn` 등).
+- 카드는 `item_art.py ... together=TOP,BOTTOM,SHOES cut_above=0.035`로 그리고 `tools/character/fit_cards.mjs`로 맞춘다(⑨).
+- 한 벌이 20분 넘게 걸린다(가중치 정리·부품 안 평균). 컴퓨터가 잠들면 Blender도 멈춰, 3시간 넘게 진행되지 않은 적이 있다.
+
 ### ⑤ 빌드 확인
 
 임의 방향에서 그려 본다(`POSE=idle:100`으로 자세를 줄 수 있다).
@@ -303,7 +347,7 @@ node scripts/prepare-characters.mjs man=../out/man_raw.glb girl=../out/girl_raw.
   "$B" -b --python tools/character/item_art.py -- shared_layers_h.glb out/art newoutfit h together=TOP,BOTTOM,SHOES cut_above=0.035
   ```
 
-  결과(`*.raw.png`)는 잘라서 가로 232 px로 줄이고 320 px 투명 칸 가운데에 놓는다.
+  결과(`*.raw.png`)는 잘라서 긴 쪽 232 px로 줄이고 320 px 투명 칸 가운데에 놓는다. 저장소 최상위에서 `node tools/character/fit_cards.mjs frontend/src/features/wardrobe/parts out/art/set-muscle-l.raw.png=set-muscle ...`가 이렇게 WebP로 만든다.
 
 ### ⑩ 아이템 등록과 로컬 확인
 

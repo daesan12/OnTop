@@ -3,6 +3,7 @@ import { INGREDIENTS } from './game'
 import { IngredientIcon } from './OrderDisplay'
 import vrIllustration from '../vrZone/art/skewer-vr-lowpoly.png'
 import pcIllustration from '../vrZone/art/skewer-pc-lowpoly.png'
+import { TouchControllerGuide } from '../vrGuide/TouchControllerDiagram'
 
 interface PreparationProps {
   start: () => void
@@ -67,7 +68,7 @@ export function EntryPanel({ start, startVR, pending, notice, supported, entryFe
         <ol className="sk-prep-mode-steps" aria-label={vr ? 'VR 플레이 순서' : '일반 플레이 순서'}>{steps.map(([title, detail], index) => <li key={title}><span>{index + 1}</span><div><h4>{title}</h4><p>{detail}</p></div></li>)}</ol>
       </div>
     </div>
-    {vr ? <VRControls /> : <PCControls />}
+    {vr ? <><TouchControllerGuide mode="solo" /><VRControls /></> : <PCControls />}
     <div className="sk-prep-wrap-tip"><strong>그림대로 한 조각씩 꽂아요</strong><p>치즈·베이컨은 <b>큐브 모양으로 각각 최대 2개</b> 사용할 수 있어요.</p></div>
     <p className="sk-prep-rules">혼자 플레이 · 주문당 35초 · 끝에서부터 하나씩 빼기</p>
     <form id="sk-preparation-form" onSubmit={event => { event.preventDefault(); if (!pending) { if (vr) startVR(); else start() } }}>

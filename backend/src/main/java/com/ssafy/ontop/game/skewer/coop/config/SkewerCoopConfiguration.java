@@ -90,7 +90,7 @@ public class SkewerCoopConfiguration {
     AutoCloseable skewerCoopSettlementTimer(SkewerCoopSettlementService settlements) {
         ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(
                 Thread.ofPlatform().daemon(true).name("skewer-coop-settlement").factory());
-        timer.scheduleWithFixedDelay(settlements::retry, 1, 2, TimeUnit.SECONDS);
+        timer.scheduleWithFixedDelay(settlements::retry, 250, 250, TimeUnit.MILLISECONDS);
         return () -> timer.shutdownNow();
     }
 }

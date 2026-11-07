@@ -79,7 +79,7 @@ export function getParkInteraction(): ParkInteraction | null {
   }
   if (canReachParkVr(p.current)) {
     const distance = Math.hypot(p.current.x - parkVrEntrance.x, p.current.z - parkVrEntrance.z)
-    choices.push({ kind: 'vr', id: 'vr-experience-hall', label: 'VR 게임 선택 · 한 판 10냥', occupied: false, available: true, distance,
+    choices.push({ kind: 'vr', id: 'vr-experience-hall', label: '온탑 꼬치왕 · 무료 협동 게임', occupied: false, available: true, distance,
       score: interactionScore(distance, { x: parkVrEntrance.x, y: 1.5, z: parkVrEntrance.z }) })
   }
   if (canReachBungeoppang(p.current)) {

@@ -38,6 +38,10 @@ S15P31B105-352의 `V153__create_event_awards.sql`은 이벤트 회차·상품 �
 결과 확정 실행 기록을 추가한다. 기존 응모권 구매 데이터는 변경하지 않는다. 배포 전 V153 번호를
 다른 팀의 동시 작업과 조율한다. 관계 및 검증 기준은 `docs/event-awards-schema.md`를 따른다.
 
+S15P31B105-356의 `V155__create_event_contact_audit.sql`은 최초 제출·만료 메타데이터와 관리자 원문 조회
+감사 기록을 추가한다. 기존 연락처가 있으면 14일 보관 상한을 적용하고 제출 메타데이터를 복사한다.
+전화번호 원문·암호화 키는 migration에 포함하지 않는다. 연락처 API 계약은 `docs/event-winner-contacts.md`를 따른다.
+
 users의 collation·시각·탈퇴 데이터 보존 및 실제 MySQL 테스트는
 저장소 루트의 `docs/users-schema.md`를 따른다.
 

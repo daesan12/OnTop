@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
-import type { carryThrowGestureFrames } from './sceneProbe'
+import type { carryRenderedFrames, carrySequenceFrames, carryThrowGestureFrames } from './sceneProbe'
 
 async function readyCarryScene(page: Page) {
-  await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
-  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length),
+  await expect(page.getByLabel('공원 기본 화면')).toBeVisible({ timeout: 90000 })
+  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length).catch(() => 0),
     { timeout: 90000 }).toBeGreaterThan(0)
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
 }
@@ -44,20 +44,101 @@ for (const [view, orbit] of [['forward', 0], ['opposite', Math.PI], ['sideways',
     const dx = Number(launch.dx), dz = Number(launch.dz), length = Math.hypot(dx, dz)
     const flags = { moving: false, running: false, swimming: false, lastInputSeq: 0 }
     const frames = []
-    for (let tick = 1; tick <= 10; tick++) {
-      const t = tick / 60
+    const began = performance.now()
+    let pulled = false, pushed = false
+    // Observe the complete overhead windup, release and follow-through at any refresh rate.
+    while (performance.now() - began < 850) {
+      const t = (performance.now() - began) / 1000
       server.worldSnapshot({ avatars: [
         { userId: '101', carry: null, position: { ...flags, x: 0, y: .84, z: 78, yaw: Math.PI } },
         { userId: '102', carry: { carryId: launch.carryId, partnerId: '101', role: 'THROWN' },
           position: { ...flags, x: dx * 14 * t, y: 2.54 + 8 * t - 15 * t * t, z: 78 + dz * 14 * t, yaw: Math.PI } },
       ] })
       frames.push(...await sample(1))
-      if (tick === 7) await screenshot(page, `carry-forward-throw-${view}`)
+      if (!pulled && t > .12) { pulled = true; await screenshot(page, `carry-pull-forward-${view}`) }
+      if (!pushed && t > .44) { pushed = true; await screenshot(page, `carry-forward-throw-${view}`) }
     }
     const reach = frames.map(frame => Math.min(...frame.hands.map(hand => (hand[0]! * dx + hand[2]! * dz) / length)))
     expect(Math.max(...reach)).toBeGreaterThan(.2)
     expect(Math.max(...frames.map(frame => frame.spine))).toBeGreaterThan(.08)
     for (const frame of frames) expect(frame.yaw).toBeCloseTo(Math.PI)
+    await expect(page).toHaveTitle('OnTop')
+    await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+    expect(errors).toEqual([])
+  })
+}
+
+test('raised-back carry ducks under the overhead throw and joins the live flight without a pop', async ({ page }) => {
+  const server = await fixture(page, { generatedPark: true, carry: true,
+    position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
+  await page.goto('/park')
+  await readyCarryScene(page)
+  server.carryPlayers('101', '102')
+  await expect(page.getByRole('button', { name: /캐릭터 방향으로 던지기/ })).toBeVisible()
+  await page.evaluate(async () => {
+    const { viewControls } = await import('/src/world/cameraPerspective.ts' as string)
+    viewControls.yaw = Math.PI / 2; viewControls.pitch = .1; viewControls.distance = 4.8
+    await (await import('/tests/e2e/sceneProbe.ts' as string)).carryRenderedFrames(12)
+  })
+  await screenshot(page, 'carry-shoulder-side')
+  const capture: ReturnType<typeof carrySequenceFrames> = page.evaluate(async () =>
+    (await import('/tests/e2e/sceneProbe.ts' as string)).carrySequenceFrames(65))
+  await page.locator('canvas').focus()
+  await page.keyboard.press('KeyE')
+  await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CARRY_THROW').length).toBe(1)
+  const launch = server.sent.find(message => message.type === 'WORLD_CARRY_THROW')!.payload
+  const start = performance.now(), flags = { moving: false, running: false, swimming: false, lastInputSeq: 0 }
+  const timer = setInterval(() => {
+    const t = (performance.now() - start) / 1000
+    server.worldSnapshot({ avatars: [
+      { userId: '101', carry: null, position: { ...flags, x: 0, y: .84, z: 78, yaw: Math.PI } },
+      { userId: '102', carry: { carryId: launch.carryId, partnerId: '101', role: 'THROWN' },
+        position: { ...flags, x: Number(launch.dx) * 14 * t, y: Math.max(.84, 2.54 + 8 * t - 15 * t * t),
+          z: 78 + Number(launch.dz) * 14 * t, yaw: Math.PI } },
+    ] })
+  }, 33)
+  let frames: Awaited<typeof capture>
+  try { frames = await capture } finally { clearInterval(timer) }
+  await test.info().attach('shoulder-throw-sequence', { body: JSON.stringify(frames), contentType: 'application/json' })
+  expect(frames.some(frame => frame.age >= 0 && frame.age < .07 && frame.supportZ < -.1)).toBe(true)
+  expect(frames.some(frame => frame.age > .18 && frame.age < .34 && frame.spine > .35 && frame.supportY > .8)).toBe(true)
+  expect(frames.some(frame => frame.age > .3 && frame.age < .46 && frame.supportZ > 0)).toBe(true)
+  expect(frames.some(frame => frame.age > .4 && frame.age < .54 && frame.handsZ > .2)).toBe(true)
+  expect(frames.some(frame => frame.age > .72 && frame.distance > 4)).toBe(true)
+  const released = frames.findIndex(frame => frame.age >= 0)
+  if (released > 0) expect(Math.hypot(...frames[released]!.hip.map((value, axis) => value - frames[released - 1]!.hip[axis]!))).toBeLessThan(.25)
+  expect(Number(launch.dx)).toBeCloseTo(0, 2); expect(Number(launch.dz)).toBeCloseTo(-1, 2)
+})
+
+for (const [mode, carrierHeight, targetHeight, targetMoving] of [
+  ['running', .84, .84, true], ['jumping-target', .84, 1.84, false],
+  ['jumping-carrier', 1.84, .84, false], ['both-jumping', 1.84, 1.84, true],
+] as const) {
+  test(`pickup and throw remain available while ${mode}`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+    const server = await fixture(page, { generatedPark: true, carry: true, chatDelayMs: 650,
+      position: { x: 0, y: carrierHeight, z: 78, yaw: Math.PI } })
+    await page.goto('/park')
+    await readyCarryScene(page)
+    server.remotePose({ x: 0, y: targetHeight, z: 77, moving: targetMoving, running: targetMoving })
+    await page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string)).faceCarryTarget())
+    await expect(page.getByRole('button', { name: /님 들기/ })).toBeVisible()
+    await page.locator('canvas').focus()
+    if (mode === 'running') {
+      await page.keyboard.down('ShiftLeft'); await page.keyboard.down('KeyD')
+      await expect.poll(() => server.sent.some(message => message.type === 'WORLD_MOVE'
+        && message.payload.run === true && (message.payload.dx || message.payload.dz))).toBeTruthy()
+    }
+    await page.keyboard.press('KeyE')
+    await page.keyboard.up('KeyD'); await page.keyboard.up('ShiftLeft')
+    await expect(page.getByRole('button', { name: /캐릭터 방향으로 던지기/ })).toBeVisible()
+    await screenshot(page, `carry-pickup-${mode}`)
+    await page.keyboard.press('KeyE')
+    await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CARRY_THROW').length).toBe(1)
+    await expect.poll(() => page.evaluate(async () => (await import('/tests/e2e/sceneProbe.ts' as string))
+      .carryProbe().carries['102']?.role)).toBe('THROWN')
     await expect(page).toHaveTitle('OnTop')
     await expect(page.locator('vite-error-overlay')).toHaveCount(0)
     expect(errors).toEqual([])
@@ -136,7 +217,7 @@ for (const firstPerson of [false, true]) {
       { userId: '101', position: { ...flags, y: 2.54 }, carry: { carryId, partnerId: '102', role: 'CARRIED' } },
       { userId: '102', position: { ...flags, y: .84 }, carry: { carryId, partnerId: '101', role: 'CARRIER' } },
     ] })
-    const escape = page.getByRole('status').filter({ hasText: '번갈아 6회 눌러 내려오기' })
+    const escape = page.getByRole('status', { name: 'A와 D를 번갈아 6회 눌러 내려오기' })
     await expect(escape).toBeVisible()
     for (const key of ['KeyA', 'KeyD', 'KeyA', 'KeyD', 'KeyA', 'KeyD']) await page.keyboard.press(key)
     await expect(escape).toBeHidden()
@@ -211,18 +292,25 @@ for (const perspective of ['third-person', 'first-person']) {
 }
 
 test('a carried player escapes only with six alternating AD presses, without movement or repeat-key escape', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
   const server = await fixture(page, { generatedPark: true, carry: true, position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
   await page.goto('/park')
   await readyCarryScene(page)
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible()
-  const carryId = '11111111-1111-4111-8111-111111111111'
-  const flags = { x: 0, z: 78, yaw: Math.PI, moving: false, running: false, swimming: false, lastInputSeq: 0 }
-  server.worldSnapshot({ avatars: [
-    { userId: '101', position: { ...flags, y: 2.54 }, carry: { carryId, partnerId: '102', role: 'CARRIED' } },
-    { userId: '102', position: { ...flags, y: .84 }, carry: { carryId, partnerId: '101', role: 'CARRIER' } },
-  ] })
-  const escape = page.getByRole('status').filter({ hasText: '번갈아 6회 눌러 내려오기' })
+  server.carryPlayers('102', '101')
+  const escape = page.getByRole('status', { name: 'A와 D를 번갈아 6회 눌러 내려오기' })
   await expect(escape).toBeVisible()
+  await expect(escape.locator('kbd')).toHaveText(['A', 'D'])
+  await expect(escape).toHaveText('A↔D')
+  const keyDepthDifference = () => escape.locator('kbd').evaluateAll(keys => {
+    const depths = keys.map(key => {
+      const transform = getComputedStyle(key).transform
+      return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42
+    })
+    return depths[0]! - depths[1]!
+  })
+  await expect.poll(keyDepthDifference).toBeGreaterThan(.7)
+  await expect.poll(keyDepthDifference).toBeLessThan(-.7)
   await expect(page.getByRole('button', { name: /내려오기/ })).toHaveCount(0)
   await page.locator('canvas').focus()
   await page.keyboard.press('Escape')
@@ -237,14 +325,13 @@ test('a carried player escapes only with six alternating AD presses, without mov
   const chat = page.getByLabel('주변 채팅 메시지')
   await expect(chat).toBeFocused()
   await chat.press('KeyA'); await chat.press('KeyD')
+  // Observe multiple busy-state samples: chatting preserves this same hold.
+  await page.waitForTimeout(350)
+  await expect(escape).toBeVisible()
+  expect(server.sent.some(message => message.type === 'WORLD_INTERACTION_SET' && message.payload.busy)).toBe(false)
   expect(server.sent.filter(message => message.type === 'WORLD_CARRY_RELEASE')).toHaveLength(0)
   await page.keyboard.press('Escape')
-  await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_INTERACTION_SET').at(-1)?.payload.busy).toBe(false)
-  // UI opening safely releases carry on the server; a new hold must not reuse old key progress.
-  server.worldSnapshot({ avatars: [
-    { userId: '101', position: { ...flags, y: 2.54 }, carry: { carryId, partnerId: '102', role: 'CARRIED' } },
-    { userId: '102', position: { ...flags, y: .84 }, carry: { carryId, partnerId: '101', role: 'CARRIER' } },
-  ] })
+  // The same hold must not reuse the partial key progress from before chat.
   await expect(escape).toBeVisible()
   await page.locator('canvas').focus()
   await screenshot(page, 'carry-ad-escape')
@@ -253,6 +340,9 @@ test('a carried player escapes only with six alternating AD presses, without mov
   const hintBox = await escape.boundingBox(), chatBox = await page.getByRole('region', { name: '주변 채팅', exact: true }).boundingBox()
   expect(hintBox!.y + hintBox!.height).toBeLessThan(chatBox!.y)
   await screenshot(page, 'carry-ad-escape-short')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect.poll(() => escape.locator('kbd').evaluateAll(keys =>
+    keys.every(key => key.getAnimations().length === 0))).toBe(true)
   const movementBefore = server.sent.filter(message => message.type === 'WORLD_MOVE'
     && (message.payload.dx || message.payload.dz)).length
   for (const key of ['KeyD', 'KeyA', 'KeyD', 'KeyA', 'KeyD']) await page.keyboard.press(key)
@@ -264,6 +354,60 @@ test('a carried player escapes only with six alternating AD presses, without mov
   expect(server.sent.filter(message => message.type === 'WORLD_MOVE'
     && (message.payload.dx || message.payload.dz))).toHaveLength(movementBefore)
 })
+
+for (const role of ['CARRIER', 'CARRIED'] as const) {
+  test(`chat preserves the same carry while typing and sending (${role})`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+    const server = await fixture(page, { generatedPark: true, carry: true,
+      position: { x: 0, y: .84, z: 78, yaw: Math.PI } })
+    await page.goto('/park')
+    await readyCarryScene(page)
+    server.carryPlayers(role === 'CARRIER' ? '101' : '102', role === 'CARRIED' ? '101' : '102')
+    const ownCarry = () => page.evaluate(async () =>
+      (await import('/tests/e2e/sceneProbe.ts' as string)).carryProbe().carries['101'])
+    await expect.poll(async () => (await ownCarry())?.role).toBe(role)
+    const initial = await ownCarry()
+    const moveCount = () => server.sent.filter(message => message.type === 'WORLD_MOVE'
+      && (message.payload.dx || message.payload.dz)).length
+    const movementBefore = moveCount()
+    await page.locator('canvas').focus()
+    await page.keyboard.press('Enter')
+    const chat = page.getByLabel('주변 채팅 메시지')
+    await expect(chat).toBeFocused()
+    await chat.pressSequentially('adadade')
+    // This spans multiple 100ms samples and would release both players before the fix.
+    await page.waitForTimeout(350)
+    expect(await ownCarry()).toEqual(initial)
+    expect(server.sent.some(message => message.type === 'WORLD_INTERACTION_SET' && message.payload.busy)).toBe(false)
+    expect(server.sent.filter(message => message.type.startsWith('WORLD_CARRY'))).toHaveLength(0)
+    expect(moveCount()).toBe(movementBefore)
+    await screenshot(page, `carry-chat-${role.toLowerCase()}`)
+    await chat.press('Enter')
+    await expect.poll(() => server.sent.filter(message => message.type === 'WORLD_CHAT_SEND').length).toBe(1)
+    await page.waitForTimeout(350)
+    expect(await ownCarry()).toEqual(initial)
+    expect(server.sent.some(message => message.type === 'WORLD_INTERACTION_SET' && message.payload.busy)).toBe(false)
+    await expect(chat).toBeHidden()
+    expect(await ownCarry()).toEqual(initial)
+    await page.keyboard.press('Enter')
+    await expect(chat).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(chat).toBeHidden()
+    expect(await ownCarry()).toEqual(initial)
+    // A real non-chat panel still requests the existing safe release.
+    await page.keyboard.press('KeyM')
+    await expect(page.getByRole('dialog', { name: '공원 지도창', exact: true })).toBeVisible()
+    await expect.poll(() => server.sent.some(message => message.type === 'WORLD_INTERACTION_SET'
+      && message.payload.busy === true)).toBe(true)
+    await expect.poll(ownCarry).toBeNull()
+    await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+    expect(page.url()).toContain('/park')
+    expect(await page.title()).not.toBe('')
+    expect(errors).toEqual([])
+  })
+}
 
 test('throw snapshots render a rising flight and tumbling body instead of an upright drop', async ({ page }) => {
   const errors: string[] = []
@@ -333,7 +477,7 @@ test('held avatar follows the rendered carrier every frame while running and cha
   await page.locator('canvas').focus()
   await page.keyboard.press('KeyE')
   await expect(page.getByRole('button', { name: /캐릭터 방향으로 던지기/ })).toBeVisible()
-  const frames: { carrier: number[]; carried: number[]; yawDifference: number }[] = []
+  const frames: Awaited<ReturnType<typeof carryRenderedFrames>> = []
   await page.keyboard.down('ShiftLeft')
   for (const key of ['KeyW', 'KeyD']) {
     await page.keyboard.down(key)
@@ -345,11 +489,13 @@ test('held avatar follows the rendered carrier every frame while running and cha
   }
   await screenshot(page, 'carry-running-follow-desktop')
   await page.keyboard.up('ShiftLeft')
-  for (const { carrier, carried, yawDifference } of frames) {
-    // The two render subscribers sample performance.now separately within a frame.
-    expect(Math.abs(carried[0]! - carrier[0]!)).toBeLessThan(.01)
-    expect(Math.abs(carried[1]! - carrier[1]! - 1.7)).toBeLessThan(.01)
-    expect(Math.abs(carried[2]! - carrier[2]!)).toBeLessThan(.01)
+  for (const { supportDelta, handGap, yawDifference } of frames) {
+    // The held hips follow the posed shoulders, including the carrier's stride bob.
+    expect(supportDelta[0]!).toBeCloseTo(.06, 2)
+    expect(supportDelta[1]!).toBeCloseTo(.33, 2)
+    expect(supportDelta[2]!).toBeCloseTo(-.35, 2)
+    // This measures hand-to-hip centers, including the held body's thickness.
+    expect(handGap).toBeLessThan(.55)
     // Independent pose samples can differ slightly during a fast heading interpolation.
     expect(Math.abs(Math.atan2(Math.sin(yawDifference), Math.cos(yawDifference)))).toBeLessThan(.03)
   }

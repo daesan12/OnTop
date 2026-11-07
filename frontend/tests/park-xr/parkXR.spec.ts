@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { identity, parkFixture } from '../park-integration/fixture'
 import { disabledJumpmapStatus } from '../fixtures/jumpmap'
 import { COURSE, COURSE_VERSION, RULES_VERSION, REWARDS, kstDate } from '../../src/features/jumpmap/course'
+import { writeFile } from 'node:fs/promises'
 
 const helper = '/tests/park-xr/syntheticXR.ts'
 const errors = new WeakMap<Page, string[]>()
@@ -25,7 +26,7 @@ const snapshot = (page: Page): Promise<ReturnType<typeof import('./syntheticXR')
 const input = (page: Page, forward = 0, jump = false, turn = 0, exit = false) =>
   page.evaluate(async ({ path, args }) => (await import(path)).input(...args), { path: helper, args: [forward, jump, turn, exit] })
 async function enter(page: Page, course = false) {
-  const server = await parkFixture(page)
+  const server = await parkFixture(page, { carrySupported: true })
   // Latest dev checks service availability before login. Keep this response inside browser QA.
   await page.route('**/api/v1/operations/status', route => {
     const now = new Date().toISOString()
@@ -40,7 +41,7 @@ async function enter(page: Page, course = false) {
   if (course) await page.route('**/api/v1/minigames/jumpmap/status?**', route => route.fulfill({ json: {
     ...disabledJumpmapStatus('channel-1'), enabled: true,
   } }))
-  await page.goto('/park')
+  await page.goto('/park?vrPreview=1')
   await expect(page).toHaveTitle('OnTop')
   await expect(page).toHaveURL(/\/park$/)
   await expect(page.getByRole('button', { name: '공원 VR 시작', exact: true })).toBeEnabled({ timeout: 90000 })
@@ -56,6 +57,52 @@ async function startSynthetic(page: Page, course = false) {
   await page.waitForTimeout(100)
   return server
 }
+
+test('공원 컨트롤러 안내를 시작 전에 읽고 VR 안에서 돌탑 안내와 전환한다', async ({ page }, info) => {
+  const server = await enter(page, true)
+  await page.getByRole('button', { name: 'VR 조작 안내', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '공원 VR 조작 안내', exact: true })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('img', { name: /좌우 컨트롤러 버튼 위치/ })).toBeVisible()
+  const openedAt = server.requests.length
+  await page.keyboard.down('w'); await page.keyboard.press('Space'); await page.waitForTimeout(100); await page.keyboard.up('w')
+  expect(server.requests.slice(openedAt).some(r => r.type === 'WORLD_MOVE' && (r.payload.dx || r.payload.dz || r.payload.jump))).toBe(false)
+  await page.screenshot({ path: info.outputPath('park-vr-guide-before-start.png'), animations: 'disabled' })
+  for (const size of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
+    await page.setViewportSize(size)
+    await dialog.getByRole('button', { name: '안내 닫기', exact: true }).scrollIntoViewIfNeeded()
+    await expect(dialog.getByRole('button', { name: '안내 닫기', exact: true })).toBeInViewport()
+    const rect = (await dialog.boundingBox())!
+    expect(rect.x).toBeGreaterThanOrEqual(0); expect(rect.x + rect.width).toBeLessThanOrEqual(size.width + 1)
+    await page.screenshot({ path: info.outputPath(`park-vr-guide-${size.width}x${size.height}.png`), animations: 'disabled' })
+  }
+  await dialog.getByRole('button', { name: '안내 닫기', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.evaluate(async path => (await import(path)).install(), helper)
+  await page.getByRole('button', { name: '공원 VR 시작', exact: true }).click()
+  await expect.poll(async () => (await snapshot(page)).active).toBe(true)
+  await page.getByRole('button', { name: 'VR 조작 안내', exact: true }).click()
+  await expect.poll(async () => (await snapshot(page)).view?.key).toBe('park-guide')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  const png = await page.evaluate(async path => (await import(path)).guideTexturePNG(), helper)
+  await writeFile(info.outputPath('park-vr-controls-native.png'), Buffer.from(png.split(',')[1]!, 'base64'))
+  await page.screenshot({ path: info.outputPath('park-vr-guide-immersive.png') })
+  const blockedAt = server.requests.length
+  await input(page, 1); await page.waitForTimeout(100)
+  expect(server.requests.slice(blockedAt).some(r => r.type === 'WORLD_MOVE' && (r.payload.dx || r.payload.dz || r.payload.jump))).toBe(false)
+  const select = async (action: string) => {
+    await page.evaluate(async ({ path, action }) => { const xr = await import(path); xr.aim(action); xr.buttons({ trigger: false }) }, { path: helper, action })
+    await page.waitForTimeout(100)
+    await page.evaluate(async path => (await import(path)).buttons({ trigger: true }), helper)
+  }
+  await select('jump-guide'); await expect.poll(async () => (await snapshot(page)).view?.key).toBe('guide')
+  await select('park-guide'); await expect.poll(async () => (await snapshot(page)).view?.key).toBe('park-guide')
+  expect((await snapshot(page)).active).toBe(true)
+  await input(page, 0, true); await expect.poll(async () => (await snapshot(page)).view?.key).toBe('roaming')
+  await input(page); await page.waitForTimeout(100); await input(page, 1)
+  await expect.poll(() => server.requests.slice(blockedAt).some(r => r.type === 'WORLD_MOVE' && r.payload.dz)).toBe(true)
+})
 test('VR 권한 거절 후 안내와 기존 키보드 이동·점프를 유지한다', async ({ page }, info) => {
   const server = await enter(page)
   await page.getByRole('button', { name: '공원 VR 시작', exact: true }).click()
@@ -149,6 +196,8 @@ test('VR 놀이 방법에서 이동을 잠그고 A로 닫은 뒤 중립 입력�
   await page.waitForTimeout(150)
   expect(server.requests.slice(count).some(r => r.type === 'WORLD_MOVE' && (r.payload.dx || r.payload.dz || r.payload.jump))).toBe(false)
   await page.screenshot({ path: info.outputPath('park-xr-guide.png') })
+  const png = await page.evaluate(async path => (await import(path)).guideTexturePNG(), helper)
+  await writeFile(info.outputPath('jumpmap-vr-controls-native.png'), Buffer.from(png.split(',')[1]!, 'base64'))
   await input(page, 1, true)
   await expect.poll(async () => (await snapshot(page)).view?.key).toBe('roaming')
   const closedAt = server.requests.length

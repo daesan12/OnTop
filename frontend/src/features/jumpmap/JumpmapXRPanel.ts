@@ -3,12 +3,16 @@ import { parkRuntime } from '../../park/runtime/runtime'
 import { closeJumpCompletion, useJumpmap } from './state'
 import { jumpmapXRView, xrTime, type JumpmapXRAction, type JumpmapXRView } from './xrModel'
 import { parseJumpmapRankings, type JumpmapRankings } from './ranking'
+import { paintJumpmapXRGuide } from './xrGuide'
+import { parkGuideArt, paintParkXRGuide } from '../parkXR/guide'
+import { paintGuideButton, paintGuideNotePaper, paintGuidePaper, TOUCH_GUIDE_COLORS } from '../vrGuide/touchControllerGuide'
 
 const WIDTH = 1536, HEIGHT = 1024
 interface Button { id: JumpmapXRAction; x: number; y: number; width: number; height: number }
 
 /** In-world UI shares the normal jumpmap store. It never starts runs or grants coins. */
 export class JumpmapXRPanel {
+  gameOnly = false
   readonly anchor = new THREE.Group()
   readonly statusAnchor = new THREE.Group()
   private readonly canvas = document.createElement('canvas')
@@ -30,13 +34,17 @@ export class JumpmapXRPanel {
   private readonly body = new THREE.Vector3()
   private readonly bodyDelta = new THREE.Vector3()
   private guide = false
+  private parkGuide = false
   private ranking = false
   private rankingAbort?: AbortController
   private rankings?: JumpmapRankings
   private rankingError = false
   private rankingPage = 0
+  private readonly guideArt = new Image()
+  private readonly paperArt = new Image()
+  private readonly parkArt = new Image()
 
-  constructor(scene: THREE.Scene, headAnchor: THREE.Group) {
+  constructor(scene: THREE.Scene, headAnchor: THREE.Group, private readonly finishVR?: () => boolean) {
     this.canvas.width = WIDTH; this.canvas.height = HEIGHT
     this.statusCanvas.width = WIDTH; this.statusCanvas.height = 290
     this.texture.colorSpace = this.statusTexture.colorSpace = THREE.SRGBColorSpace
@@ -48,6 +56,10 @@ export class JumpmapXRPanel {
     this.anchor.add(this.mesh); this.statusAnchor.add(this.statusMesh)
     this.anchor.visible = this.statusAnchor.visible = false
     scene.add(this.anchor); headAnchor.add(this.statusAnchor)
+    for (const [image, src] of [[this.guideArt, '/art/jumpmap/guide-3.webp'], [this.paperArt, '/art/tablet/hanji.webp'], [this.parkArt, parkGuideArt]] as const) {
+      image.onload = () => { this.signature = ''; this.lastPaint = -Infinity }
+      image.src = src
+    }
   }
 
   get blocking() { return this.view.buttons.length > 0 }
@@ -55,15 +67,30 @@ export class JumpmapXRPanel {
   get hovered() { return this.hover }
   toggleGuide() {
     if (useJumpmap.getState().completion) return
+    if (this.parkGuide) { this.parkGuide = false; this.guide = false; return }
     this.guide = !this.guide
+  }
+  showParkGuide() {
+    if (useJumpmap.getState().completion) return
+    this.parkGuide = true; this.guide = false
   }
 
   /** Repaint at 5Hz; geometry/texture objects remain stable across all XR frames. */
   update(now: number, eye: THREE.Vector3, yaw: number, body: THREE.Vector3) {
     const state = useJumpmap.getState()
     const base = jumpmapXRView(state, now, this.guide)
+    if (state.completion) this.parkGuide = false
     if (!base.key.startsWith('result:') && this.ranking) this.cancelRanking()
-    this.view = this.ranking ? this.rankingView(base.key) : base
+    this.view = this.ranking ? this.rankingView(base.key) : this.parkGuide ? {
+      key: 'park-guide', title: '공원 · VR 조작 안내',
+      lines: ['왼쪽 스틱 이동 · 왼손 그립 달리기 · 오른손 A 점프', '오른쪽 스틱 30도 회전 · 왼손 X 안내 · 오른손 B VR 종료', '양손 레이저 + 검지 트리거로 패널 버튼을 선택해요.'],
+      buttons: [{ id: 'jump-guide', label: '돌탑 놀이 방법' }, { id: 'continue', label: '안내 닫기 · A' }],
+    } : base
+    if (this.gameOnly) this.view = { ...this.view,
+      lines: this.view.key.startsWith('result:') ? this.view.lines.map((line, i, lines) => i === lines.length - 1 ? '일반 공원으로 돌아가 다음 도전을 준비해요.' : line) : this.view.lines,
+      buttons: this.view.buttons
+      .filter(button => button.id !== 'park-guide')
+      .map(button => button.id === 'continue' && this.view.key.startsWith('result:') ? { ...button, label: '일반 공원으로 · A' } : button) }
     if (this.previousKey !== this.view.key) {
       this.previousKey = this.view.key; this.lastPaint = -Infinity; this.hover = null
       if (this.blocking) {
@@ -109,7 +136,10 @@ export class JumpmapXRPanel {
 
   activate(action: JumpmapXRAction) {
     if (!this.buttons.some(button => button.id === action)) return
-    if (action === 'continue') { this.guide = false; this.cancelRanking(); closeJumpCompletion() }
+    if (action === 'continue' && this.view.key.startsWith('result:') && this.finishVR?.()) return
+    if (action === 'continue') { this.guide = this.parkGuide = false; this.cancelRanking(); closeJumpCompletion() }
+    if (action === 'park-guide') this.showParkGuide()
+    if (action === 'jump-guide') { this.parkGuide = false; this.guide = true }
     if (action === 'ranking' || action === 'retry') { this.ranking = true; void this.loadRankings() }
     if (action === 'back') this.cancelRanking()
     if (action === 'previous') this.rankingPage = Math.max(0, this.rankingPage - 1)
@@ -154,32 +184,50 @@ export class JumpmapXRPanel {
     if (!ctx) return
     this.signature = JSON.stringify(this.view)
     const height = this.blocking ? HEIGHT : 290
-    ctx.fillStyle = '#203c32'; ctx.fillRect(0, 0, WIDTH, height)
-    ctx.strokeStyle = '#d9ba76'; ctx.lineWidth = 5; ctx.strokeRect(8, 8, WIDTH - 16, height - 16)
-    ctx.fillStyle = '#fff4dc'; ctx.font = 'bold 60px "Malgun Gothic", sans-serif'
-    ctx.fillText(this.view.title, 56, this.blocking ? 105 : 78, WIDTH - 112)
-    ctx.font = `${this.blocking ? 42 : 45}px "Malgun Gothic", sans-serif`
-    this.view.lines.forEach((line, i) => ctx.fillText(line, 56, (this.blocking ? 210 : 163) + i * (this.blocking ? 74 : 70), WIDTH - 112))
+    const guide = this.view.key === 'guide' || this.view.key === 'park-guide'
+    if (this.view.key === 'park-guide') paintParkXRGuide(ctx, this.parkArt, this.paperArt)
+    else if (guide) paintJumpmapXRGuide(ctx, this.guideArt, this.paperArt)
+    else if (this.blocking) {
+      paintGuidePaper(ctx, HEIGHT, this.paperArt)
+      ctx.textAlign = 'center'; ctx.fillStyle = TOUCH_GUIDE_COLORS.ink
+      ctx.font = '700 72px "BusanDandiMyeongjo", "Malgun Gothic", serif'
+      ctx.fillText(this.view.title, WIDTH / 2, 122, WIDTH - 112)
+      ctx.strokeStyle = '#d4c5a5'; ctx.lineWidth = 2
+      ctx.beginPath(); ctx.moveTo(80, 157); ctx.lineTo(WIDTH - 80, 157); ctx.stroke()
+      const ranking = this.view.key.startsWith('ranking:')
+      this.view.lines.forEach((line, i) => {
+        const emphasis = !ranking && (i === 1 || i === 2)
+        ctx.fillStyle = i === 0 || i >= 4 && !ranking ? TOUCH_GUIDE_COLORS.muted : TOUCH_GUIDE_COLORS.ink
+        ctx.font = `${emphasis ? '700 50' : '400 40'}px "Malgun Gothic", sans-serif`
+        ctx.fillText(line, WIDTH / 2, 240 + i * 74, WIDTH - 128)
+      })
+      ctx.textAlign = 'left'
+    }
+    else {
+      ctx.fillStyle = '#203c32'; ctx.fillRect(0, 0, WIDTH, height)
+      ctx.strokeStyle = '#d9ba76'; ctx.lineWidth = 5; ctx.strokeRect(8, 8, WIDTH - 16, height - 16)
+      ctx.fillStyle = '#fff4dc'; ctx.font = 'bold 60px "Malgun Gothic", sans-serif'
+      ctx.fillText(this.view.title, 56, this.blocking ? 105 : 78, WIDTH - 112)
+      ctx.font = `${this.blocking ? 42 : 45}px "Malgun Gothic", sans-serif`
+      this.view.lines.forEach((line, i) => ctx.fillText(line, 56, (this.blocking ? 210 : 163) + i * (this.blocking ? 74 : 70), WIDTH - 112))
+    }
     this.buttons = []
     if (this.blocking) {
       const count = this.view.buttons.length, width = (WIDTH - 112 - (count - 1) * 24) / count
       this.buttons = this.view.buttons.map((button, i) => ({ id: button.id, x: 56 + i * (width + 24), y: 810, width, height: 112 }))
       this.buttons.forEach((button, i) => {
-        ctx.fillStyle = this.hover === button.id ? '#e9c577' : '#355d49'; ctx.fillRect(button.x, button.y, button.width, button.height)
-        ctx.strokeStyle = '#dfc384'; ctx.strokeRect(button.x, button.y, button.width, button.height)
-        ctx.fillStyle = this.hover === button.id ? '#203c32' : '#fff4dc'
-        ctx.font = 'bold 43px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center'
-        ctx.fillText(this.view.buttons[i]!.label, button.x + button.width / 2, button.y + 72, button.width - 20)
+        paintGuideButton(ctx, button.x, button.y, button.width, button.height, this.view.buttons[i]!.label, this.hover === button.id)
       })
-      ctx.textAlign = 'left'; ctx.fillStyle = '#e8d7af'; ctx.font = '35px "Malgun Gothic", sans-serif'
-      ctx.fillText('레이저 + 트리거 선택 · A 계속 / 뒤로 · B VR 종료', 56, 985, WIDTH - 112)
+      paintGuideNotePaper(ctx, 946)
+      ctx.textAlign = 'left'; ctx.fillStyle = TOUCH_GUIDE_COLORS.muted; ctx.font = '35px "Malgun Gothic", sans-serif'
+      ctx.fillText(guide ? '레이저 + 트리거 선택 · A 안내 닫기 · 실제로 뛰지 않아요' : '레이저 + 트리거 선택 · A 계속 / 뒤로 · B VR 종료', 56, 985, WIDTH - 112)
       this.texture.needsUpdate = true
     } else this.statusTexture.needsUpdate = true
     this.anchor.userData.view = this.statusAnchor.userData.view = this.view
   }
 
   reset() {
-    this.cancelRanking(); this.guide = false; this.previousKey = ''; this.hover = null; this.signature = ''
+    this.cancelRanking(); this.guide = this.parkGuide = false; this.previousKey = ''; this.hover = null; this.signature = ''
     this.view = jumpmapXRView(useJumpmap.getState(), performance.now(), false)
     this.anchor.visible = this.statusAnchor.visible = false
   }
@@ -187,6 +235,7 @@ export class JumpmapXRPanel {
   recenter() { this.previousKey = ''; this.signature = '' }
 
   dispose() {
+    this.guideArt.onload = this.paperArt.onload = this.parkArt.onload = null
     this.reset(); this.anchor.removeFromParent(); this.statusAnchor.removeFromParent()
     this.mesh.geometry.dispose(); this.statusMesh.geometry.dispose()
     this.material.dispose(); this.statusMaterial.dispose(); this.texture.dispose(); this.statusTexture.dispose()

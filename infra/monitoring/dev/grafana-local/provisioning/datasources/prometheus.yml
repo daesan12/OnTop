@@ -1,0 +1,10 @@
+apiVersion: 1
+datasources:
+  - name: OnTop DEV over SSH
+    uid: ontop-prometheus
+    type: prometheus
+    access: proxy
+    # Windows Docker Desktop: the SSH tunnel binds ONLY to the host loopback port19091.
+    url: http://host.docker.internal:19091
+    isDefault: true
+    editable: false

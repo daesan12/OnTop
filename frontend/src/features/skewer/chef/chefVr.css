@@ -11,6 +11,18 @@
  .chef-app.is-vr .chef-vr-hint{font-size:10px;bottom:12px}
 }
 .chef-app.is-vr.is-immersive>:not(.chef-stage){display:none}
+.chef-app.is-vr .chef-round time{display:none}
+.chef-app.is-vr .chef-round{top:74px}
+@media(max-width:1000px){.chef-app.is-vr .chef-round{top:140px}}
 
 
 .chef-app.is-vr .chef-vr-hint button{margin-left:10px;width:25px;height:25px;border:1px solid #c6a27588;border-radius:50%;background:#3b2b20c9;color:#fff0d8;cursor:pointer;pointer-events:auto}
+.chef-app .chef-guide-art{display:block;width:100%;height:auto;border-radius:5px;margin:12px 0 18px}
+.chef-app .chef-vr-guide-steps{padding-left:24px;margin:18px 0}
+.chef-app .chef-vr-guide-steps li{margin:12px 0}
+.chef-app .chef-vr-guide-steps p{margin:2px 0 0}
+.chef-app .chef-guide{scrollbar-width:none}
+.chef-app .chef-guide::-webkit-scrollbar{display:none}
+.chef-app.is-vr .chef-guide{color:#163d29;background:#f5ebd3 url('/art/tablet/hanji.webp') center / 100% 100%;border:3px double #b99c61;border-radius:15px;box-shadow:0 12px 45px #16261955,inset 0 0 0 5px #fff5de8c}
+.chef-app.is-vr .chef-guide h2,.chef-app.is-vr .chef-guide .chef-close{color:#163d29}
+.chef-app.is-vr .chef-guide-done{color:#fff5df;background:linear-gradient(#2b5035,#123321);border:3px double #c0a05a;border-radius:11px;box-shadow:0 3px 5px #543d1926}

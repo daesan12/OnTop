@@ -39,4 +39,16 @@ class AdminAccessPropertiesTests {
         assertThatThrownBy(() -> new AdminAccessProperties(Set.of(43L), Set.of(43L), Set.of(42L)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void 연락처_원문_조회는_조회_관리자_중_별도_지정한_계정만_가능하다() {
+        var access = new AdminAccessPolicy(new AdminAccessProperties(
+                Set.of(42L, 43L), Set.of(), Set.of(), Set.of(43L)));
+        assertThat(access.canRead(42)).isTrue();
+        assertThat(access.canViewContacts(42)).isFalse();
+        assertThat(access.canViewContacts(43)).isTrue();
+        assertThatThrownBy(() -> new AdminAccessProperties(
+                Set.of(42L), Set.of(), Set.of(), Set.of(43L)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

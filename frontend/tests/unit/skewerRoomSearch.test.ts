@@ -27,11 +27,11 @@ describe('가게 검색', () => {
 })
 describe('꼬치왕 공개 범위', () => {
   afterEach(() => { vi.unstubAllEnvs(); vi.resetModules() })
-  it('기본 공원 입장은 열되 요리사 VR 선택은 잠근다', async () => {
+  it('기본 공원 입장과 요리사 VR 선택을 연다', async () => {
     vi.stubEnv('VITE_SKEWER_COOP_ENABLED', undefined)
     const policy = await import('../../src/features/skewer/coop/availability')
     expect(policy.SKEWER_COOP_ENABLED).toBe(true)
-    expect(policy.SKEWER_CHEF_VR_ENABLED).toBe(false)
+    expect(policy.SKEWER_CHEF_VR_ENABLED).toBe(true)
   })
   it('명시적인 긴급 점검 설정은 존중한다', async () => {
     vi.stubEnv('VITE_SKEWER_COOP_ENABLED', 'false')

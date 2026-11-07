@@ -130,6 +130,25 @@ class JdbcSkewerCoopResultStoreTests {
     }
 
     @Test
+    void PC와_VR의_같은_팀_기록을_독립적으로_집계하고_각각_중복지급하지_않는다() {
+        long chef = member("분리요리사", true), server = member("분리서빙", true);
+        var legacy = event(chef, server, 1000, true, "SKEWER_TIME_UP");
+        var source = event(chef, server, 2000, true, "SKEWER_TIME_UP");
+        var pc = new SkewerCoopFinished(source.result(), source.teamScore(), source.served(),
+                chef, server, true, 240000, 240000, "PC");
+        store.settle(legacy, NOW);
+        store.settle(pc, NOW);
+        store.settle(pc, NOW);
+
+        assertThat(store.ranking(chef, NOW, "PC").playMode()).isEqualTo("PC");
+        assertThat(store.ranking(chef, NOW, "PC").items()).singleElement()
+                .satisfies(item -> assertThat(item.teamScore()).isEqualTo(2000));
+        assertThat(store.ranking(chef, NOW, "VR").items()).singleElement()
+                .satisfies(item -> assertThat(item.teamScore()).isEqualTo(1000));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM skewer_coop_rewards", Integer.class)).isEqualTo(4);
+    }
+
+    @Test
     void 한쪽_지갑이_없으면_공동결과와_두사람의_지급을_모두_롤백한다() {
         long chef = member("요리사", true), server = member("서빙", false);
         var event = event(chef, server, 2400, true, "SKEWER_TIME_UP");

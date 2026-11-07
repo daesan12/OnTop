@@ -1,0 +1,8 @@
+.vr-touch-guide-figure{margin:14px 0;color:#163d29;background:transparent}
+.vr-touch-guide-figure .vr-touch-guide-legend{display:none}
+@media(max-width:650px){
+ .vr-touch-guide-figure .vr-touch-guide-legend{display:grid;gap:12px;margin:0;padding:14px;list-style:none;text-align:left;font:14px/1.5 'Malgun Gothic',sans-serif}
+ .vr-touch-guide-figure .vr-touch-guide-legend li{display:flex;gap:10px;align-items:start}
+ .vr-touch-guide-figure .vr-touch-guide-legend li>b{flex:0 0 24px;height:24px;display:grid;place-items:center;border-radius:50%;background:#163d29;color:#fff4dc;font-size:13px}
+ .vr-touch-guide-figure .vr-touch-guide-legend p{margin:2px 0 0;color:#6f654e;font:inherit}
+}

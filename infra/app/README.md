@@ -140,8 +140,10 @@ sudo docker compose --env-file /etc/ontop/dev-app/deploy.env \
 5. `/etc/ontop/dev-app/skewer-coop.enabled`를 `root:root`, 0600의 빈 마커 파일로 만든 뒤 앱만
    `up -d --no-deps --force-recreate app`으로 재생성한다.
 6. 앱 health가 `UP`이고 컨테이너의 `SPRING_PROFILES_INCLUDE=skewer-coop`,
-   `SKEWER_COOP_JOURNAL_PATH=/var/lib/ontop/skewer-coop`인지 확인한다. 인증하지 않은
-   `GET /api/v1/minigames/skewer/coop/rooms`가 404가 아닌 401을 반환하면 컨트롤러 등록 경로까지 열린 것이다.
+   `SKEWER_COOP_JOURNAL_PATH=/var/lib/ontop/skewer-coop`인지 확인한다. 인증하지 않은 요청의
+   401은 인증 필터 도달만 확인하며 컨트롤러 등록을 보장하지 않는다. 정상 계정으로 공원에 입장한
+   브라우저에서 `GET /api/v1/minigames/skewer/coop/rooms`가 200을 반환하는지 확인하고,
+   VR 입구에서 방 생성 → 역할 선택까지 검증한다. 토큰을 로그·채팅에 복사하지 않는다.
 
 이후 Jenkins의 `ontop-deploy-dev`는 활성화 마커가 있는 동안 override를 자동으로 유지한다. 배포 전마다
 저널 경로가 절대경로이고, 심볼릭 링크가 아니며, UID/GID 10001 소유·0700인지 검사한다. 하나라도 다르면

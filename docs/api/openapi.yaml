@@ -20,6 +20,39 @@ tags:
 - name: HISTORY
   description: 인증된 본인의 종료 경기 내역과 게임별 전적
 paths:
+  /api/v1/events/winnings/weeks/{weekStart}/contact:
+    put:
+      tags:
+      - Event Winner Contacts
+      summary: 발표된 당첨자 본인의 연락처 제출·기한 내 수정
+      operationId: submitContact
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ContactResponse"
+      security:
+      - AccessJwt: []
   /api/v1/admin/operations/status:
     get:
       tags:
@@ -3923,6 +3956,33 @@ paths:
                 $ref: "#/components/schemas/MinigameAwardResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/events/assets/rounds/{weekStart}/finalize:
+    post:
+      tags:
+      - Event Awards
+      summary: 관리자 엽전 보유량 행사 결과 확정·재시도
+      operationId: finalizeRound_2
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AssetAwardResponse"
+      security:
+      - AccessJwt: []
   /api/v1/users/me:
     get:
       tags:
@@ -5907,6 +5967,49 @@ paths:
                 $ref: "#/components/schemas/GachaResult"
       security:
       - AccessJwt: []
+  /api/v1/events/winnings/me:
+    get:
+      tags:
+      - Event Winner Contacts
+      summary: 본인의 발표된 당첨 내역·연락처 제출 상태
+      operationId: ownWinnings
+      parameters:
+      - name: weekStart
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 100
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WinningResponse"
+      security:
+      - AccessJwt: []
   /api/v1/events/minigames/{type}/rounds/{weekStart}/result:
     get:
       tags:
@@ -5940,6 +6043,33 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/MinigameMemberAwardResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/events/assets/rounds/{weekStart}/result:
+    get:
+      tags:
+      - Event Awards
+      summary: 본인의 엽전 보유량 행사 결과
+      operationId: memberResult_2
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AssetMemberAwardResponse"
       security:
       - AccessJwt: []
   /api/v1/channels:
@@ -6503,6 +6633,84 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/events/winners:
+    get:
+      tags:
+      - Event Winner Contacts
+      summary: 관리자 당첨자·연락처 제출 상태 목록
+      operationId: adminWinners
+      parameters:
+      - name: weekStart
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: contactStatus
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AdminListResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/winners/{winnerId}/contact:
+    get:
+      tags:
+      - Event Winner Contacts
+      summary: 권한 있는 관리자만 연락처 원문 조회·접근 기록
+      operationId: reveal
+      parameters:
+      - name: winnerId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RevealedContact"
+      security:
+      - AccessJwt: []
   /api/v1/admin/events/minigames/{type}/rounds/{weekStart}:
     get:
       tags:
@@ -6536,6 +6744,33 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/MinigameAwardResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/assets/rounds/{weekStart}:
+    get:
+      tags:
+      - Event Awards
+      summary: 관리자 엽전 보유량 행사 결과 조회
+      operationId: adminResult_2
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AssetAwardResponse"
       security:
       - AccessJwt: []
   /api/v1/admin/analytics/summary:
@@ -6593,6 +6828,27 @@ paths:
       - AccessJwt: []
 components:
   schemas:
+    ContactRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+    ContactResponse:
+      type: object
+      properties:
+        weekStart:
+          type: string
+          format: date
+        status:
+          type: string
+        maskedPhone:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        submissionDeadline:
+          type: string
+          format: date-time
     ServiceOperationUpdateRequest:
       type: object
       properties:
@@ -8318,6 +8574,61 @@ components:
           type: boolean
         winner:
           $ref: "#/components/schemas/Winner"
+    AssetAwardResponse:
+      type: object
+      properties:
+        eventType:
+          type: string
+        valuationBasis:
+          type: string
+        weekStartDate:
+          type: string
+          format: date
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        announcesAt:
+          type: string
+          format: date-time
+        finalized:
+          type: boolean
+        alreadyFinalized:
+          type: boolean
+        candidateCount:
+          type: integer
+          format: int32
+        excludedGmCount:
+          type: integer
+          format: int32
+        winners:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssetWinner"
+    AssetWinner:
+      type: object
+      properties:
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        sourceRecordId:
+          type: string
+        sourceValue:
+          type: integer
+          format: int64
+        sourceAchievedAt:
+          type: string
+          format: date-time
+        selectedAt:
+          type: string
+          format: date-time
     UserNicknameUpdateRequest:
       required:
       - nickname
@@ -9217,6 +9528,35 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GachaProduct"
+    WinningResponse:
+      type: object
+      properties:
+        winnerId:
+          type: integer
+          format: int64
+        weekStart:
+          type: string
+          format: date
+        eventType:
+          type: string
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        announcedAt:
+          type: string
+          format: date-time
+        submissionDeadline:
+          type: string
+          format: date-time
+        contactStatus:
+          type: string
+        maskedPhone:
+          type: string
+        contactExpiresAt:
+          type: string
+          format: date-time
     MinigameMemberAwardResponse:
       type: object
       properties:
@@ -9235,6 +9575,37 @@ components:
           type: string
         prize:
           $ref: "#/components/schemas/Prize"
+    AssetMemberAwardResponse:
+      type: object
+      properties:
+        eventType:
+          type: string
+        valuationBasis:
+          type: string
+        weekStartDate:
+          type: string
+          format: date
+        announcesAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        prize:
+          $ref: "#/components/schemas/AssetPrize"
+    AssetPrize:
+      type: object
+      properties:
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        coinBalance:
+          type: integer
+          format: int64
+        firstReachedAt:
+          type: string
+          format: date-time
     ChannelListResponse:
       required:
       - items
@@ -9312,6 +9683,8 @@ components:
           type: boolean
         canOperate:
           type: boolean
+        canViewContacts:
+          type: boolean
     Entry:
       required:
       - acceptedAt
@@ -9347,6 +9720,58 @@ components:
         nextCursor:
           type: string
           nullable: true
+    AdminListResponse:
+      type: object
+      properties:
+        winners:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminWinnerResponse"
+        limit:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int32
+        hasMore:
+          type: boolean
+    AdminWinnerResponse:
+      type: object
+      properties:
+        winnerId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        weekStart:
+          type: string
+          format: date
+        eventType:
+          type: string
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        contactStatus:
+          type: string
+        maskedPhone:
+          type: string
+        contactExpiresAt:
+          type: string
+          format: date-time
+    RevealedContact:
+      type: object
+      properties:
+        winnerId:
+          type: integer
+          format: int64
+        phone:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
     AnalyticsSnapshot:
       type: object
       properties:

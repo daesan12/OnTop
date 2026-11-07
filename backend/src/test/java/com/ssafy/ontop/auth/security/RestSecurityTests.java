@@ -63,7 +63,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {"spring.profiles.active=local", "ontop.oauth.ssafy.client-id=fixture-ssafy",
-        "ontop.oauth.naver.client-id=fixture-naver", "ontop.admin.read-ids=42,43", "ontop.admin.grant-ids=43"})
+        "ontop.oauth.naver.client-id=fixture-naver", "ontop.admin.read-ids=42,43", "ontop.admin.grant-ids=43",
+        "ontop.admin.contact-ids=43"})
 @AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 @Import(RestSecurityTests.ProbeConfiguration.class)
 @org.springframework.test.context.TestPropertySource(properties = "ontop.websocket.authenticated=false")
@@ -191,6 +192,7 @@ class RestSecurityTests {
                 .andExpect(jsonPath("$.canRead").value(true))
                 .andExpect(jsonPath("$.canGrant").value(false))
                 .andExpect(jsonPath("$.canOperate").value(false))
+                .andExpect(jsonPath("$.canViewContacts").value(false))
                 .andExpect(header().string("Cache-Control", "no-store"));
         mvc.perform(auth(post("/api/v1/admin/wallet-grants/probe"))).andExpect(status().isForbidden());
         mvc.perform(auth(get("/api/v1/admin/operations/status"))).andExpect(status().isForbidden());
@@ -198,7 +200,8 @@ class RestSecurityTests {
         mvc.perform(authAs(43, get("/api/v1/admin/me"))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.canRead").value(true))
                 .andExpect(jsonPath("$.canGrant").value(true))
-                .andExpect(jsonPath("$.canOperate").value(true));
+                .andExpect(jsonPath("$.canOperate").value(true))
+                .andExpect(jsonPath("$.canViewContacts").value(true));
         mvc.perform(authAs(43, post("/api/v1/admin/wallet-grants/probe")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.allowed").value(true));
         mvc.perform(authAs(43, get("/api/v1/admin/operations/status"))).andExpect(status().isOk())
@@ -232,6 +235,33 @@ class RestSecurityTests {
                 .andExpect(status().isServiceUnavailable());
         mvc.perform(get("/api/v1/events/minigames/JUMPMAP/rounds/2026-11-02/result"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 엽전_보유량_행사_결과도_관리자_조회와_운영_권한을_분리한다() throws Exception {
+        String adminPath = "/api/v1/admin/events/assets/rounds/2026-11-09";
+        mvc.perform(get(adminPath)).andExpect(status().isUnauthorized());
+        mvc.perform(authAs(44, get(adminPath))).andExpect(status().isForbidden());
+        mvc.perform(auth(get(adminPath))).andExpect(status().isServiceUnavailable());
+        mvc.perform(auth(post(adminPath + "/finalize"))).andExpect(status().isForbidden());
+        mvc.perform(authAs(43, post(adminPath + "/finalize")))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(get("/api/v1/events/assets/rounds/2026-11-09/result"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 당첨자_연락처_목록과_원문_조회는_서로_다른_관리자_권한을_요구한다() throws Exception {
+        String list = "/api/v1/admin/events/winners";
+        String reveal = "/api/v1/admin/events/winners/1/contact";
+        mvc.perform(get(list)).andExpect(status().isUnauthorized());
+        mvc.perform(authAs(44, get(list))).andExpect(status().isForbidden());
+        mvc.perform(auth(get(list))).andExpect(status().isServiceUnavailable());
+        mvc.perform(auth(get(reveal))).andExpect(status().isForbidden());
+        mvc.perform(authAs(43, get(reveal))).andExpect(status().isServiceUnavailable());
+        mvc.perform(get("/api/v1/events/winnings/me")).andExpect(status().isUnauthorized());
+        mvc.perform(auth(get("/api/v1/events/winnings/me")))
+                .andExpect(status().isServiceUnavailable());
     }
 
     @Test
@@ -353,6 +383,13 @@ class RestSecurityTests {
                 "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
                 "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
                 "POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/assets/rounds/{weekStart}/result",
+                "GET /api/v1/admin/events/assets/rounds/{weekStart}",
+                "POST /api/v1/admin/events/assets/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/winnings/me",
+                "PUT /api/v1/events/winnings/weeks/{weekStart}/contact",
+                "GET /api/v1/admin/events/winners",
+                "GET /api/v1/admin/events/winners/{winnerId}/contact",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
                 "POST /api/v1/behavior-events",

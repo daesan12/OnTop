@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { avatars, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
-import { panelOwnsKeys } from '../../world/inputOwnership'
+import { panelBlocksCarry } from '../../world/inputOwnership'
 import { useBenchState } from './benchState'
 import { benchService } from './benchService'
 import { getParkInteraction, interactWithPark, type ParkInteraction } from './parkInteraction'
@@ -33,9 +33,9 @@ export function ParkInteractionHint() {
   const [carry, setCarry] = useState<import('../../network/protocol').CarryState | null>(null)
   useEffect(() => {
     const sample = () => {
-      parkRuntime.setInteractionBusy?.(panelOwnsKeys())
-      const next = getParkInteraction()
       const carrying = avatars.get(useSession.getState().sessionId)?.carry ?? null
+      parkRuntime.setInteractionBusy?.(panelBlocksCarry(!!carrying))
+      const next = getParkInteraction()
       setCarry(old => old?.carryId === carrying?.carryId && old?.role === carrying?.role ? old : carrying)
       setTarget(old => old?.id === next?.id && old?.label === next?.label && old?.seat === next?.seat && old?.occupied === next?.occupied
         && old?.available === next?.available && old?.occupant === next?.occupant ? old : next)
@@ -67,10 +67,12 @@ export function ParkInteractionHint() {
       {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
       {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}
     </button>}
-    {carry?.role === 'CARRIED' && <>
-      <strong>다른 산책자가 나를 들고 있어요</strong>
-      <span role="status"><kbd>A</kbd> · <kbd>D</kbd> 번갈아 {CARRY_ESCAPE_PRESSES}회 눌러 내려오기</span>
-    </>}
+    {carry?.role === 'CARRIED' &&
+      <span role="status" className="carry-escape-hint" aria-label={`A와 D를 번갈아 ${CARRY_ESCAPE_PRESSES}회 눌러 내려오기`}>
+        <span className="carry-escape-hint__keys" aria-hidden="true">
+          <kbd>A</kbd><span>↔</span><kbd>D</kbd>
+        </span>
+      </span>}
     {carry?.role === 'THROWN' && <span role="status">날아가는 중 · 착지하면 다시 움직일 수 있어요</span>}
     {carry?.role === 'CARRIER' && <button type="button" aria-keyshortcuts="Escape"
       disabled={actionPending} onClick={event => {

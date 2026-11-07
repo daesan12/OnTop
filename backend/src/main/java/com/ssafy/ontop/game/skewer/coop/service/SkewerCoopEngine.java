@@ -542,7 +542,7 @@ public final class SkewerCoopEngine implements GameEngine {
                 match.version, match.players(), match.players(), state.path("endReason").asText(), clock.instant()),
                 state.path("score").asInt(), state.path("served").asInt(), chef, server,
                 state.path("rankingEligible").asBoolean(), Math.round(state.path("elapsed").asDouble() * 1000),
-                Math.round(duration * 1000));
+                Math.round(duration * 1000), state.path("rankingMode").asText("VR"));
     }
 
     private Optional<SkewerCoopMatch> current(long user) {

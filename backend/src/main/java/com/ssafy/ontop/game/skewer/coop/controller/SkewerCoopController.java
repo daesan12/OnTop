@@ -55,8 +55,9 @@ public class SkewerCoopController {
     }
 
     @GetMapping("/rankings")
-    public ResponseEntity<SkewerCoopRankingResponse> rankings(@AuthenticationPrincipal AuthenticatedUser user) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(settlements.ranking(account(user)));
+    public ResponseEntity<SkewerCoopRankingResponse> rankings(@AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam(defaultValue = "VR") String mode) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(settlements.ranking(account(user), mode));
     }
 
     @ExceptionHandler({DataAccessException.class, TransactionException.class})

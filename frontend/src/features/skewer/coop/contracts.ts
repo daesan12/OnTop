@@ -3,6 +3,7 @@ import type { HallView } from '../serviceHall/previewModel'
 import type { ChefView } from '../chef/model'
 
 export interface CoopTransport {
+  protectVR?(): Promise<() => void>
   scope(): { userId: string; channelId: string | null; connected: boolean }
   request(type: string, payload: Record<string, unknown>, expected: readonly string[], onId?: (id: string) => void): Promise<Envelope>
   subscribe(listener: (message: Envelope) => boolean): () => void
@@ -17,9 +18,9 @@ export interface CoopPublic {
   pausedBy?: string[]
   round?: number
   restart?: { id: string; requestedBy: string; expiresAt: number } | null
-  rankingEligible: boolean; chefVR: boolean; entryFee: 0; rewardStatus: 'SERVER_SETTLEMENT' | 'NOT_CONNECTED'; message: string; endReason: string | null
+  rankingEligible: boolean; rankingMode?: 'PC' | 'VR'; chefVR: boolean; entryFee: 0; rewardStatus: 'SERVER_SETTLEMENT' | 'NOT_CONNECTED'; message: string; endReason: string | null
   players: { userId: string; role: '' | 'chef' | 'server'; ready: boolean; connected: boolean }[]
-  greeting: { active: boolean; index: number; remaining: number; answered: boolean; responded: number; speech: boolean }
+  greeting: { active: boolean; index: number; remaining: number; answered: boolean; responded: number; speech: boolean; outcome?: '' | 'success' | 'missed'; bonus?: number }
 }
 export interface CoopRoom {
   gameId: string; players: number; mine: boolean; roomName: string; hostNickname: string; locked: boolean
@@ -38,7 +39,7 @@ export interface CoopRankingItem {
   rank: number; gameId: string; chefUserId: string; chefNickname: string; serverUserId: string; serverNickname: string
   teamScore: number; served: number; endedAt: string
 }
-export interface CoopRanking { rulesVersion: string; period: string; aggregation: string; asOf: string; items: CoopRankingItem[]; myBest: CoopRankingItem | null }
+export interface CoopRanking { rulesVersion: string; period: string; aggregation: string; asOf: string; items: CoopRankingItem[]; myBest: CoopRankingItem | null; playMode?: 'PC' | 'VR' }
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 const nonnegative = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0
 export function parseCoopResult(value: unknown, gameId: string): CoopResult {
@@ -58,16 +59,20 @@ export function parseCoopRanking(value: unknown): CoopRanking {
   const item = (v: unknown) => object(v) && nonnegative(v.rank) && (v.rank as number) > 0 && nonnegative(v.teamScore) && nonnegative(v.served)
     && ['gameId', 'chefUserId', 'chefNickname', 'serverUserId', 'serverNickname', 'endedAt'].every(key => typeof v[key] === 'string')
   if (!object(value) || value.rulesVersion !== 'coop-v1' || value.period !== 'ALL_TIME' || value.aggregation !== 'TEAM_BEST'
+    || value.playMode !== undefined && !['PC', 'VR'].includes(String(value.playMode))
     || typeof value.asOf !== 'string'
     || !Array.isArray(value.items) || value.items.length > 20 || !value.items.every(item)
     || value.myBest !== null && !item(value.myBest)) throw new Error('팀 랭킹 응답을 확인해주세요.')
-  return value as unknown as CoopRanking
+  return { ...value, playMode: value.playMode ?? 'VR' } as unknown as CoopRanking
 }
 export function parseCoop(value: unknown): CoopSnapshot | null {
   if (!object(value) || typeof value.gameId !== 'string' || !/^skewer-coop-[a-f0-9-]{36}$/.test(value.gameId)
     || !Number.isSafeInteger(value.version) || (value.version as number) < 0 || !object(value.publicState) || !object(value.privateState)) return null
   const p = value.publicState, secret = value.privateState
+  if (p.rankingMode !== undefined && !['PC', 'VR'].includes(String(p.rankingMode))) return null
   if (p.round !== undefined && !nonnegative(p.round)) return null
+  if (object(p.greeting) && (p.greeting.outcome !== undefined && !['', 'success', 'missed'].includes(String(p.greeting.outcome))
+    || p.greeting.bonus !== undefined && (!nonnegative(p.greeting.bonus) || (p.greeting.bonus as number) > 50))) return null
   const restart = p.restart
   if (restart != null && (!object(restart) || typeof restart.id !== 'string'
     || !/^\d+$/.test(restart.id) || typeof restart.requestedBy !== 'string'

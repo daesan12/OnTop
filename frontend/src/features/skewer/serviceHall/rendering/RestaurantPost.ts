@@ -11,7 +11,7 @@ export class RestaurantPost {
   private readonly output = new OutputPass()
   private readonly renderPass: RenderPass
   private readonly ratio: number
-  constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, radius: number, intensity = .85) {
+  constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, radius: number, intensity = .85, ambientOcclusion = true) {
     this.ratio = Math.min(renderer.getPixelRatio(), 1.25)
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 2 })
     this.composer = new EffectComposer(renderer, target); this.composer.setPixelRatio(this.ratio)
@@ -20,7 +20,7 @@ export class RestaurantPost {
     this.ao.updateGtaoMaterial({ radius, thickness: radius * .65, distanceExponent: 1.5, distanceFallOff: 1.0, samples: 8, scale: 1.0 })
     this.ao.updatePdMaterial({ radius: 4, samples: 8, rings: 2 })
     this.ao.blendIntensity = intensity
-    this.composer.addPass(this.renderPass); this.composer.addPass(this.ao); this.composer.addPass(this.output)
+    this.composer.addPass(this.renderPass); if (ambientOcclusion) this.composer.addPass(this.ao); this.composer.addPass(this.output)
   }
   resize(width: number, height: number) {
     this.composer.setSize(width, height)

@@ -32,3 +32,7 @@
 @keyframes skewer-greeting-twinkle{0%,100%{opacity:.45;transform:scale(.7)}50%{opacity:1;transform:scale(1.2)}}
 @keyframes skewer-greeting-glow{0%,100%{opacity:.45;transform:scale(.98)}50%{opacity:.95;transform:scale(1.06)}}
 @media(prefers-reduced-motion:reduce){.skewer-coop .greeting-portrait,.skewer-coop .greeting-orbit,.skewer-coop .greeting-orbit i,.skewer-coop .greeting-glimmer{animation:none}.skewer-coop .greeting-orbit{opacity:.65}}
+
+.skewer-coop .coop-greeting-event[data-outcome=missed]{filter:grayscale(1) drop-shadow(0 9px 18px #33200c45)}
+.skewer-coop .coop-greeting-event[data-outcome] :is(.greeting-orbit,.greeting-glimmer){display:none}
+.skewer-coop .coop-greeting-event[data-outcome] .greeting-portrait{animation:none;background:#d1c7b6}

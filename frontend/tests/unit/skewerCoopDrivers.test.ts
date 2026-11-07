@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { HallPreview } from '../../src/features/skewer/serviceHall/previewModel'
-import { TABLES } from '../../src/features/skewer/serviceHall/plan'
+import { STATIONS, TABLES } from '../../src/features/skewer/serviceHall/plan'
 import { OnlineHall, OnlineChef } from '../../src/features/skewer/coop/drivers'
 import { ChefPreview } from '../../src/features/skewer/chef/model'
 import type { CoopClient } from '../../src/features/skewer/coop/client'
@@ -13,6 +13,79 @@ function fixture() {
   return { client, driver: new OnlineHall(client as unknown as CoopClient), hall, act }
 }
 describe('협동 홀 입력의 서버 판정 경계', () => {
+  it('이전 클릭 이동 진입점은 온라인 이동 요청을 전송하지 않는다', () => {
+    const { driver, act } = fixture()
+    driver.navigate({ x: 8, z: 0 })
+    expect(act).not.toHaveBeenCalled()
+  })
+  it('시작과 방향 전환은 이동 유지 주기를 기다리지 않고 다음 프레임에 보낸다', async () => {
+    const clock = vi.spyOn(performance, 'now')
+    try {
+      const { driver, act } = fixture()
+      clock.mockReturnValue(10)
+      driver.step(1 / 60, 1, 0)
+      await Promise.resolve()
+      clock.mockReturnValue(26)
+      driver.step(1 / 60, -1, 0)
+      await Promise.resolve()
+      clock.mockReturnValue(42)
+      driver.step(1 / 60, 0, 1)
+      await Promise.resolve()
+      clock.mockReturnValue(58)
+      driver.step(1 / 60, 0, 0)
+      expect(act.mock.calls.map(([input]) => input)).toEqual([
+        { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: -1, dz: 0 },
+        { type: 'MOVE', dx: 0, dz: 1 }, { type: 'MOVE', dx: 0, dz: 0 },
+      ])
+    } finally { clock.mockRestore() }
+  })
+  it('같은 이동을 유지할 때는 프레임마다 요청을 추가하지 않는다', async () => {
+    const clock = vi.spyOn(performance, 'now')
+    try {
+      const { driver, act } = fixture()
+      for (let now = 0; now < 300; now += 16) {
+        clock.mockReturnValue(now)
+        driver.step(1 / 60, 1, 0)
+        await Promise.resolve()
+      }
+      expect(act).toHaveBeenCalledTimes(2)
+    } finally { clock.mockRestore() }
+  })
+  it('응답을 기다리는 중 방향이 여러 번 바뀌어도 요청을 쌓지 않고 최신 입력만 보낸다', async () => {
+    const { driver, act } = fixture()
+    let acknowledge!: () => void
+    act.mockImplementationOnce(() => new Promise<void>(resolve => { acknowledge = resolve }))
+    driver.step(1 / 60, 1, 0)
+    driver.step(1 / 60, -1, 0)
+    driver.step(1 / 60, 0, 1)
+    expect(act).toHaveBeenCalledTimes(1)
+    acknowledge()
+    await Promise.resolve()
+    driver.step(1 / 60, 0, 0)
+    expect(act.mock.calls.map(([input]) => input)).toEqual([
+      { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: 0, dz: 0 },
+    ])
+  })
+  it('늦은 서버 좌표를 받으며 전진해도 화면 위치가 주기적으로 뒤로 튀지 않는다', () => {
+    const { client, driver, hall } = fixture()
+    const start = { ...hall.position }
+    let previous = start.x
+    for (let frame = 0; frame < 120; frame++) {
+      if (frame % 6 === 0) {
+        hall.position = { x: start.x + Math.max(0, frame - 18) / 60 * 4.8, z: start.z }
+        client.snapshot.version++
+      }
+      driver.step(1 / 60, 1, 0)
+      expect(driver.view().position.x).toBeGreaterThanOrEqual(previous)
+      previous = driver.view().position.x
+    }
+  })
+  it('서버가 가구 앞에서 멈추면 화면만 가구 안으로 예측 이동하지 않는다', () => {
+    const { driver, hall } = fixture()
+    hall.position = { x: -1.4, z: -1.55 }
+    for (let frame = 0; frame < 90; frame++) driver.step(1 / 60, 1, 0)
+    expect(driver.view().position).toEqual(hall.position)
+  })
   it('요리사 화면은 서버가 갱신한 동료 위치를 그대로 전달한다', () => {
     const { client } = fixture(), source = client as unknown as CoopClient
     source.snapshot!.privateState = { role: 'chef', chef: { ...new ChefPreview().view(), hallSight: { position: { x: 1, z: 2 }, carrying: false, cleaning: false, tables: [] } } }
@@ -57,6 +130,31 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
   it('가만히 있을 때 불필요한 이동 요청을 반복하지 않는다', async () => {
     const { driver, act } = fixture()
     for (let i = 0; i < 10; i++) { driver.step(.05); await Promise.resolve() }
+    expect(act).not.toHaveBeenCalled()
+  })
+  it('세척 중 빈 칸에 넣을 수량을 안내하고 서버에 투입 요청만 보낸다', () => {
+    const { driver, hall, act } = fixture()
+    hall.position = { ...STATIONS.washer }
+    hall.washer = { load: [{ id: 1, table: 1, settings: 1 }], remaining: 4, completed: 0 }
+    hall.dirtyDishes = [{ id: 2, table: 2, settings: 2 }, { id: 3, table: 3, settings: 1 }]
+
+    expect(driver.actionLabel()).toBe('식기 1테이블분 넣기')
+    expect(driver.blockedReason()).toBeNull()
+    driver.press()
+
+    expect(act.mock.calls.map(([input]) => input.type)).toEqual(['MOVE', 'INTERACT'])
+    expect(hall.washer.load).toHaveLength(1)
+    expect(hall.dirtyDishes).toHaveLength(2)
+  })
+  it('세척기가 가득 차면 추가 투입을 보내지 않는다', () => {
+    const { driver, hall, act } = fixture()
+    hall.position = { ...STATIONS.washer }
+    hall.washer = { load: [{ id: 1, table: 1, settings: 1 }, { id: 2, table: 2, settings: 2 }], remaining: 4, completed: 0 }
+    hall.dirtyDishes = [{ id: 3, table: 3, settings: 1 }]
+
+    driver.press()
+
+    expect(driver.blockedReason()).toContain('세척기 가득 참')
     expect(act).not.toHaveBeenCalled()
   })
   it('잘못된 게임 코드와 미전달 원본 주문이 섞인 요리사 상태 구조를 거절한다', () => {

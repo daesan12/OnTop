@@ -171,12 +171,15 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 | WORLD_CARRY_RELEASE | `{carryId}`: 현재 운반 관계의 UUID | WORLD_STATE |
 | WORLD_INTERACTION_SET | `{busy}`: 본인 창의 입력 점유 여부(boolean) | WORLD_INTERACTION_STATE `{channelId, busy}` |
 
+FE는 기존 운반·비행 중의 채팅 입력/전송을 창 점유에서 제외해 관계를 유지한다. 채팅의 이동·투척·A/D 탈출 키 차단은 유지하며, 운반 중이 아닌 채팅 사용자의 들기 방지와 다른 창의 안전 해제는 기존대로 적용한다. WS 필드와 서버 판정 계약은 변경하지 않는다.
+
 WORLD_STATE의 `avatars[].carry`는 null 또는 `{carryId, partnerId, role}`이며 role은 CARRIER/CARRIED/THROWN이다.
 창 점유 중인 사용자는 `interactionBusy: true`를 공유한다. 일반 창 점유 변경은 작은 확인 응답을 보내고
 다른 사용자에게는 기존 10Hz 방송에 합쳐 전달한다. 실제 운반 해제가 발생한 경우에는 즉시 WORLD_STATE를 방송한다.
 
 들기·던지기는 본인과 상대방의 게임·관전·시설·수영·감정표현·따라가기·점프맵·창 점유 상태를 검사한다.
-들기는 수평 거리 2.6m·높이 차이 0.8m 이내를 검사하며 시간 제한 없이 유지한다.
+들기는 수평 거리 2.6m·높이 차이 2m 이내를 검사하며 시간 제한 없이 유지한다.
+양쪽 모두 일반 달리기·점프 중에도 들고 던질 수 있다. 피운반자의 기존 이동/점프 입력은 들기 승인 시 정리한다.
 피운반자는 A·D를 번갈아 6회 눌러 탈출한다. 같은 키·1초 이상 입력 중단·포커스/운반 관계 변경은 진행을 초기화하며 키 자동 반복은 세지 않는다.
 FE는 완성된 입력에서 기존 WORLD_CARRY_RELEASE를 한 번 요청한다. 키별 WS 요청은 추가하지 않으며 서버는 기존 인증·carryId 권한을 검사한다.
 운반자의 Esc 내려놓기·창/활동 점유·막힌 공간·이탈 시에도 현재 위치 주변의 안전한 위치에 내려놓는다.

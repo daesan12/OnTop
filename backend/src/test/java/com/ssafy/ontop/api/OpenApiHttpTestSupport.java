@@ -104,6 +104,13 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
                 "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
                 "POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/assets/rounds/{weekStart}/result",
+                "GET /api/v1/admin/events/assets/rounds/{weekStart}",
+                "POST /api/v1/admin/events/assets/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/winnings/me",
+                "PUT /api/v1/events/winnings/weeks/{weekStart}/contact",
+                "GET /api/v1/admin/events/winners",
+                "GET /api/v1/admin/events/winners/{winnerId}/contact",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
                 "POST /api/v1/behavior-events"));
@@ -370,6 +377,18 @@ abstract class OpenApiHttpTestSupport {
         var complete = paths.path("/api/v1/minigames/sessions/{sessionId}/complete").path("post");
         assertThat(pathParameter(complete, "sessionId").path("schema").path("pattern").asText())
                 .isEqualTo("^[1-9][0-9]{0,18}$");
+    }
+
+    @Test
+    void 엽전_행사_당첨자_문서는_미니게임_상품_스키마와_구분한다() throws Exception {
+        var schemas = json().at("/components/schemas");
+        assertThat(schemas.at("/AssetAwardResponse/properties/winners/items/$ref").asText())
+                .isEqualTo("#/components/schemas/AssetWinner");
+        assertThat(schemas.at("/AssetMemberAwardResponse/properties/prize/$ref").asText())
+                .isEqualTo("#/components/schemas/AssetPrize");
+        assertThat(schemas.at("/AssetWinner/properties/place/type").asText()).isEqualTo("integer");
+        assertThat(schemas.at("/AssetPrize/properties/coinBalance/type").asText())
+                .isEqualTo("integer");
     }
 
     private JsonNode pathParameter(JsonNode operation, String name) {

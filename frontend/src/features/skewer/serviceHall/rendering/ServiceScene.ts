@@ -3,12 +3,10 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { FoodModels, foodPositions } from '../../foodModels'
 import type { IngredientId } from '../../game'
 import { TABLES, START, STATIONS, ROOM } from '../plan'
-import type { Point } from '../plan'
 import { DISHWASHING_PREVIEW } from '../previewModel'
 import type { HallView, Dish, DirtyDishes } from '../previewModel'
 import { RestaurantSet } from './RestaurantSet'
 import { RestaurantPost } from './RestaurantPost'
-import { ParkSurroundings } from './ParkSurroundings'
 import { TowerRestaurant } from './TowerRestaurant'
 import { ToyPeople } from './ToyPeople'
 import { GuestJourney } from './GuestJourney'
@@ -16,11 +14,13 @@ import { SculptedChef } from './SculptedChef'
 import { SculptedServer } from './SculptedServer'
 import type { ToyActor } from './ToyPeople'
 import { HALL_STYLE } from './HallStyle'
+import { HallMotion } from './HallMotion'
 import { createHallFloor, FLOOR_COLUMNS, FLOOR_ROWS, FLOOR_DEPTH_SCALE } from './HallFloor'
 type Actor = ToyActor
 const SEAT = .49, TOP = .96
 /** New serving-first room. Layout coordinates and live meshes share one world space. */
 export class ServiceScene {
+  private readonly serverMotion = new HallMotion()
   private sculptedChef: SculptedChef | null = null
   private sculptedServer: SculptedServer | null = null
   private readonly scene = new THREE.Scene()
@@ -43,9 +43,6 @@ export class ServiceScene {
   private readonly actors: Actor[] = []
   private readonly people = new ToyPeople(this.art)
   private tower: TowerRestaurant | null = null
-  private park: ParkSurroundings | null = null
-  private readonly walkers: { actor: Actor; side: number; offset: number; lane: number }[] = []
-  private promenadeTime = 0
   private guestElapsed?: number
   private guestTimeBudget = 0
   private server: Actor | null = null
@@ -57,18 +54,16 @@ export class ServiceScene {
   private readonly washerWater = new THREE.Group()
   private washerLamp: THREE.Mesh | null = null
   private washerKey = ''
-  private carryKey = ''; private passKey = ''; private disposed = false; private frame = 0; private last = 0
+  private carryKey = ''; private passKey = ''; private disposed = false; private last = 0
   private readonly observer: ResizeObserver
-  private readonly ray = new THREE.Raycaster(); private readonly pointer = new THREE.Vector2(); private readonly hit = new THREE.Vector3()
   private readonly projection = new THREE.Vector3()
-  private readonly floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
   private readonly reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
-  constructor(private readonly host: HTMLElement, private readonly step: (dt: number) => HallView, private readonly navigate: (point: Point) => void, private readonly notice: (text: string) => void) {
+  constructor(private readonly host: HTMLElement, private readonly step: (dt: number) => HallView, private readonly notice: (text: string) => void) {
     this.scene.scale.z = FLOOR_DEPTH_SCALE
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = .96
     this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFShadowMap
-    this.scene.background = new THREE.Color('#243f48'); this.renderer.domElement.setAttribute('aria-label', '석탑 앞에서 양옆 다리로 이어지는 꼬치집: 큰 정사각형 타일, 1인석 세 곳, 2인석 세 곳')
+    this.scene.background = new THREE.Color('#b1ac99'); this.renderer.domElement.setAttribute('aria-label', '석탑 안의 꼬치집: 1인석 세 곳, 2인석 세 곳')
     this.renderer.domElement.setAttribute('role', 'img'); host.appendChild(this.renderer.domElement)
     // Serving routes must read like an Overcooked stage, not a frontal restaurant illustration.
     this.camera.position.set(0, 39, 43); this.camera.lookAt(0, 1.5, -3); this.camera.updateMatrixWorld()
@@ -77,26 +72,17 @@ export class ServiceScene {
     this.environment = generator.fromScene(room, .04); room.dispose(); generator.dispose(); this.scene.environment = this.environment.texture; this.scene.environmentIntensity = .26
     this.scene.add(new THREE.HemisphereLight('#fff0dc', '#647078', .90))
     const key = new THREE.DirectionalLight('#ffe9ce', 2.7); key.position.set(-8, 15, 5); key.castShadow = true
-    key.shadow.radius = 4; key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -17, right: 17, top: 18, bottom: -18, far: 55 }); key.shadow.normalBias = .025; key.shadow.bias = -.00015
+    key.shadow.radius = 4; key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -17, right: 17, top: 18, bottom: -18, far: 55 }); key.shadow.normalBias = .025; key.shadow.bias = -.00015
     const fill = new THREE.DirectionalLight('#c7d9e5', .55); fill.position.set(6, 9, -6); this.scene.add(key, fill)
-    this.post = new RestaurantPost(this.renderer, this.scene, this.camera, .48, .58)
-    this.scene.add(this.art.root); this.buildPark(); this.buildRoom(); this.buildTables(); this.buildKitchen(); this.buildEntry(); this.tower = new TowerRestaurant(this.art); this.buildPromenade()
+    this.post = new RestaurantPost(this.renderer, this.scene, this.camera, .48, .58, false)
+    this.scene.add(this.art.root); this.buildPark(); this.buildRoom(); this.buildTables(); this.buildKitchen(); this.buildEntry(); this.tower = new TowerRestaurant(this.art); this.host.dataset.promenadeGuests = '0'; this.host.dataset.building = 'cutaway-tower'
     this.scene.add(this.carry); this.pass.position.set(STATIONS.pickup.x, 1.14, ROOM.counterZ + .60); this.scene.add(this.pass)
     this.storage.position.set(STATIONS.storage.x, 1.16, ROOM.counterZ + .08); this.scene.add(this.storage)
     // Solid, low-detail materials keep the serving routes legible at game scale.
     this.observer = new ResizeObserver(this.resize); this.observer.observe(host); this.resize()
-    this.renderer.domElement.addEventListener('pointerdown', this.onClick)
+    this.host.dataset.inputMode = 'keyboard-only'
     this.renderer.domElement.addEventListener('webglcontextlost', this.contextLost)
-    this.buildPeople(); this.renderer.setAnimationLoop(this.render)
-  }
-  private buildPromenade() {
-    for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
-      const actor = this.people.create(20 + i + (side > 0 ? 3 : 0))
-      this.scene.add(actor.root)
-      this.walkers.push({ actor, side, offset: i * 9 + (side > 0 ? 4 : 0), lane: i % 2 ? .50 : -.45 })
-    }
-    this.host.dataset.building = 'cutaway-tower'
-    this.host.dataset.promenadeGuests = String(this.walkers.length)
+    this.art.batchStatic(new Set<THREE.Object3D>([this.washerWater, this.washerLamp!])); this.buildPeople(); this.renderer.setAnimationLoop(this.render)
   }
   private mesh(geometry: THREE.BufferGeometry, material: THREE.Material) {
     this.geometry.add(geometry); this.materials.add(material); const mesh = new THREE.Mesh(geometry, material); mesh.castShadow = mesh.receiveShadow = true; return mesh
@@ -152,9 +138,13 @@ export class ServiceScene {
   }
   /** Decorative park scenery only; the shared serving coordinates and collision bounds stay unchanged. */
   private buildPark() {
-    this.park = new ParkSurroundings(this.art)
-    this.host.dataset.surroundings = 'stone-bridges'
-    this.host.dataset.sceneryBatches = JSON.stringify(this.park.batchCounts)
+    this.host.dataset.surroundings = 'stone-pagoda'
+    const a = this.art
+    a.place(a.root, a.box(52, .35, 30, '#aaa590', .02), 0, -.57, 0)
+    for (const side of [-1, 1]) {
+      a.place(a.root, a.box(1.5, 3.6, 20, '#aaa58e', .05), side * 14.4, 1.2, -.3)
+      a.place(a.root, a.box(2.1, .26, 20.5, '#858675', .04), side * 14.4, 3.05, -.3)
+    }
   }
   private redLantern(x: number, z: number) {
     const a = this.art, root = a.place(a.root, new THREE.Group(), x, 1.65, z)
@@ -311,7 +301,7 @@ export class ServiceScene {
       this.server!.setBodyVisible(false)
       this.host.dataset.serverModel = 'sculpted'
     }).catch(() => {
-      if (!this.disposed) this.host.dataset.serverModel = 'fallback'
+      if (!this.disposed) { this.host.dataset.serverModel = 'unavailable'; this.notice('서빙 캐릭터를 불러오지 못했어요. 새로고침해 주세요.') }
     })
     const ring = this.mesh(new THREE.RingGeometry(.40, .57, 40), new THREE.MeshBasicMaterial({ color: '#ffd052', transparent: true, opacity: .95, depthWrite: false, toneMapped: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = .035; ring.castShadow = false; this.server.root.add(ring)
     const chefFallback = actor(0, 0, ROOM.counterZ - 1.28, 0, 'chef')
@@ -327,7 +317,7 @@ export class ServiceScene {
       chefFallback.root.visible = false
       this.host.dataset.chefModel = 'sculpted'
     }).catch(() => {
-      if (!this.disposed) this.host.dataset.chefModel = 'fallback'
+      if (!this.disposed) this.host.dataset.chefModel = 'unavailable'
     })
     for (let party = 1; party <= 3; party++) {
       const group = new THREE.Group(); this.queue.set(party, group)
@@ -338,7 +328,7 @@ export class ServiceScene {
     this.host.dataset.guestModel = 'loading'
     void this.people.guestsReady.then(loaded => {
       if (this.disposed) return
-      this.host.dataset.guestModel = loaded ? 'bungeoppang' : 'fallback'
+      this.host.dataset.guestModel = loaded ? 'bungeoppang' : 'unavailable'
       this.inspectContacts()
     })
   }
@@ -363,26 +353,18 @@ export class ServiceScene {
     const guestDt = Math.max(0, Math.min(dt, this.guestTimeBudget))
     this.guestTimeBudget -= guestDt
     this.guestElapsed = view.elapsed
-    if (!view.finished && !this.reduced) this.promenadeTime += dt
-    for (const walker of this.walkers) {
-      const phase = (this.promenadeTime * .72 + walker.offset) % 36, forward = phase < 18
-      const distance = forward ? phase : 36 - phase
-      walker.actor.root.position.set(walker.side * (32 - distance), -.13, 1.8 + walker.lane)
-      walker.actor.root.rotation.y = -walker.side * Math.PI / 2 + (forward ? 0 : Math.PI)
-      walker.actor.pose(view.finished ? 0 : dt, { moving: !view.finished, reduced: this.reduced })
-    }
-    this.host.dataset.promenadeStep = `${this.walkers[0].actor.root.position.x.toFixed(2)},${this.walkers[0].actor.root.position.z.toFixed(2)}`
     if (this.server) {
-      const actor = this.server, dx = view.position.x - actor.root.position.x, dz = view.position.z - actor.root.position.z, moving = Math.hypot(dx, dz) > .004
-      if (moving) { const yaw = Math.atan2(dx, dz), delta = Math.atan2(Math.sin(yaw - actor.root.rotation.y), Math.cos(yaw - actor.root.rotation.y)); actor.root.rotation.y += delta * Math.min(1, dt * 18) }
-      actor.root.position.set(view.position.x, 0, view.position.z); actor.pose(dt, { moving, carrying: !!(view.carry.length || view.sake || view.dirtyDishes.length), cleaning: !!view.clean, reduced: this.reduced })
+      this.serverMotion.update(view.position, dt, view.finished)
+      const actor = this.server, moving = this.serverMotion.moving
+      actor.root.rotation.y = this.serverMotion.yaw
+      actor.root.position.set(this.serverMotion.position.x, 0, this.serverMotion.position.z); actor.pose(dt, { moving, carrying: !!(view.carry.length || view.sake || view.dirtyDishes.length), cleaning: !!view.clean, reduced: this.reduced })
       if (this.sculptedServer) {
         this.sculptedServer.root.position.copy(actor.root.position)
         this.sculptedServer.pose(dt, { moving, carrying: !!(view.carry.length || view.sake || view.dirtyDishes.length), cleaning: !!view.clean, reduced: this.reduced }, actor.root.rotation.y)
       }
     }
     for (const table of view.tables) {
-      const people = this.guests.get(table.id); people?.forEach((actor, index) => this.journeys.get(actor)!.update(index < table.people, table.status === 'eating', guestDt, this.reduced))
+      const people = this.guests.get(table.id); people?.forEach((actor, index) => this.journeys.get(actor)!.update(index < table.people, table.status === 'eating', guestDt, this.reduced, table.arrivalRemaining))
       const signature = JSON.stringify([table.status, table.bill?.dishes.map(d => d.delivered), table.bill?.sakeDelivered])
       if (this.tableSignatures.get(table.id) === signature) continue
       this.tableSignatures.set(table.id, signature); const root = this.tableDishes.get(table.id)!; root.clear()
@@ -400,7 +382,7 @@ export class ServiceScene {
       const party = view.queue[slot - 1]; root.visible = !!party
       root.children.forEach((person, index) => { person.visible = !!party && index < party.size })
     })
-    this.actors.filter(actor => !actor.seated && actor.role === 'guest').forEach(actor => actor.pose(guestDt, { reduced: this.reduced }))
+    this.actors.filter(actor => actor.root.visible && !actor.seated && actor.role === 'guest').forEach(actor => actor.pose(guestDt, { reduced: this.reduced }))
     const carryKey = `${view.carry.map(d => d.id)}:${view.sake}:${view.dirtyDishes.map(d => d.id)}`
     if (carryKey !== this.carryKey) {
       this.carryKey = carryKey; this.carry.clear()
@@ -454,6 +436,8 @@ export class ServiceScene {
     const root = this.host.parentElement
     if (!root || this.disposed) return
     const viewport = root.getBoundingClientRect(); if (!viewport.width || !viewport.height) return
+    const spacious = viewport.width >= 1100 && viewport.height >= 650
+      || viewport.width >= 850 && viewport.height >= 450 && viewport.height <= 600
     // 홀과 입구가 구도의 기준이다. 뒤쪽 석탑은 화면 위로 잘려도 되며 HUD와 겹칠 수 있다.
     const corners = [
       ...[-12.2, 12.2].map(x => new THREE.Vector3(x, 2.8, -7.5)),
@@ -471,7 +455,7 @@ export class ServiceScene {
       let low = 6, high = 100
       for (let i = 0; i < 20; i++) {
         const distance = (low + high) / 2; pose(distance)
-        const fits = corners.every(corner => { const p = corner.clone(); p.z *= FLOOR_DEPTH_SCALE; p.project(this.camera); return Math.abs(p.x) < .82 && p.y < .94 && p.y > -.80 })
+        const fits = corners.every(corner => { const p = corner.clone(); p.z *= FLOOR_DEPTH_SCALE; p.project(this.camera); return Math.abs(p.x) < (spacious ? .93 : .82) && p.y < (spacious ? .82 : .94) && p.y > (spacious ? -.87 : -.80) })
         if (fits) high = distance; else low = distance
       }
       pose(high)
@@ -481,28 +465,23 @@ export class ServiceScene {
     fit(viewport.width, viewport.height)
     const edge = new THREE.Vector3(-12.4, 0, 0).project(this.camera)
     const gutter = (edge.x + 1) * viewport.width / 2
-    root.dataset.inventoryLayout = gutter - 24 >= 144 ? 'sides' : 'bottom'
+    root.dataset.inventoryLayout = spacious ? 'corners' : gutter - 24 >= 144 ? 'sides' : 'bottom'
     root.style.setProperty('--service-inventory-width', `${Math.min(240, Math.floor(gutter - 24))}px`)
     const { width, height } = this.host.getBoundingClientRect()
     if (!width || !height) return
     fit(width, height)
     this.renderer.setSize(width, height, false); this.post.resize(width, height)
   }
-  private onClick = (event: PointerEvent) => {
-    if (event.button !== 0 || event.target !== this.renderer.domElement) return
-    const b = this.renderer.domElement.getBoundingClientRect(); this.pointer.set((event.clientX - b.left) / b.width * 2 - 1, -(event.clientY - b.top) / b.height * 2 + 1)
-    this.ray.setFromCamera(this.pointer, this.camera); if (this.ray.ray.intersectPlane(this.floor, this.hit)) this.navigate({ x: this.hit.x, z: this.hit.z / FLOOR_DEPTH_SCALE })
-  }
   private contextLost = (event: Event) => { event.preventDefault(); this.notice('3D 화면 연결이 중단됐어요. 새로고침해 주세요.') }
   private render = () => {
     if (this.disposed) return
     const now = performance.now(), dt = this.last ? Math.max(0, (now - this.last) / 1000) : 0; this.last = now
     // Native rendering and controller sampling stay out of React's component updates.
-    this.update(this.step(dt), Math.min(.05, dt)); if (++this.frame % 2 === 0 || dt > .025) this.post.render()
+    this.update(this.step(dt), Math.min(.05, dt)); this.post.render()
   }
   dispose() {
-    this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); this.renderer.domElement.removeEventListener('pointerdown', this.onClick); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)
-    this.sculptedServer?.dispose(); this.sculptedChef?.dispose(); this.tower?.dispose(); this.park?.dispose(); this.parkInstances.forEach(mesh => mesh.dispose())
+    this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)
+    this.sculptedServer?.dispose(); this.sculptedChef?.dispose(); this.tower?.dispose(); this.parkInstances.forEach(mesh => mesh.dispose())
     this.people.dispose(); this.geometry.forEach(g => g.dispose()); this.materials.forEach(m => m.dispose()); this.textures.forEach(t => t.dispose()); this.labelTextures.clear(); this.foods.dispose(); this.art.dispose(); this.post.dispose(); this.environment.dispose(); this.renderer.dispose(); this.renderer.domElement.remove()
   }
 }

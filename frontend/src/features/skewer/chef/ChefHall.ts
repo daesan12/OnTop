@@ -7,6 +7,8 @@ import { TABLES, ROOM, route } from '../serviceHall/plan'
 import type { HallSight } from './model'
 import { ChefCourtyard } from './ChefCourtyard'
 import { GuestJourney } from '../serviceHall/rendering/GuestJourney'
+import { HallMotion } from '../serviceHall/rendering/HallMotion'
+import { PositionPlayback } from '../serviceHall/rendering/PositionPlayback'
 
 /** Visual-only hall. Deliberately accepts no bills, recipes or customer bubbles. */
 export class ChefHall {
@@ -21,9 +23,10 @@ export class ChefHall {
   private guests = new Map<number, ToyActor[]>()
   private journeys = new Map<ToyActor, GuestJourney>()
   private dishes = new Map<number, THREE.Group>()
-  private initialized = false
+  private motion = new HallMotion()
+  private playback = new PositionPlayback()
+  private previousPosition?: { x: number; z: number }
   private disposed = false
-  private yaw = 0
   private demoPosition = { x: -2.8, z: 1.15 }
   private demoPath: { x: number; z: number }[] = []
   private demoStop = 0
@@ -67,20 +70,23 @@ export class ChefHall {
     return {position:this.demoPosition,carrying:true,cleaning:false,tables:TABLES.map(t=>({id:t.id,people:t.capacity,eating:t.id%2===0,dirty:false}))}
   }
   update(dt:number,sight:HallSight|undefined,online:boolean,paused:boolean,reduced:boolean) {
+    this.root.userData.parkSource=this.courtyard.root.userData.source
     const state=sight ?? (online?undefined:this.demo(paused?0:dt))
     this.server.root.visible=!!state;if(this.sculpted)this.sculpted.root.visible=!!state
     if(!state){this.guests.forEach(list=>list.forEach(g=>g.root.visible=false));return}
-    const p=this.server.root.position, target=state.position
-    if(!this.initialized){p.set(target.x,0,target.z);this.initialized=true}
-    const dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz),moving=!paused&&d>.025
-    if(moving)this.yaw=Math.atan2(dx,dz)
-    const blend=paused?0:1-Math.exp(-dt*15);p.x+=dx*blend;p.z+=dz*blend
-    this.server.root.rotation.y=this.yaw
+    if (online && (!this.previousPosition || state.position.x !== this.previousPosition.x || state.position.z !== this.previousPosition.z)) {
+      this.playback.push(state.position); this.previousPosition = { ...state.position }
+    }
+    if (paused) this.playback.reset(state.position)
+    this.motion.update(online ? this.playback.step(paused ? 0 : dt) : state.position,dt,paused)
+    const p=this.server.root.position,moving=this.motion.moving
+    p.set(this.motion.position.x,0,this.motion.position.z)
+    this.server.root.rotation.y=this.motion.yaw
     this.tray.visible=state.carrying
     const pose={moving,carrying:state.carrying,cleaning:!paused&&state.cleaning,reduced:reduced||paused}
     this.server.pose(dt,pose)
-    if(this.sculpted){this.sculpted.root.position.copy(p);this.sculpted.pose(dt,pose,this.yaw)}
-    this.guests.forEach((guests,id)=>{const table=state.tables.find(t=>t.id===id);guests.forEach((guest,i)=>this.journeys.get(guest)!.update(!!table&&i<table.people,!!table?.eating,paused?0:dt,reduced));this.dishes.get(id)!.visible=!!table&&(table.people>0||table.dirty)})
+    if(this.sculpted){this.sculpted.root.position.copy(p);this.sculpted.pose(dt,pose,this.motion.yaw)}
+    this.guests.forEach((guests,id)=>{const table=state.tables.find(t=>t.id===id);guests.forEach((guest,i)=>this.journeys.get(guest)!.update(!!table&&i<table.people,!!table?.eating,paused?0:dt,reduced,table?.arrivalRemaining));this.dishes.get(id)!.visible=!!table&&(table.people>0||table.dirty)})
     this.root.userData.serverPosition={x:p.x,z:p.z}
   }
   dispose(){this.disposed=true;this.sculpted?.dispose();this.people.dispose();this.courtyard.dispose();this.floor.texture.dispose();this.art.dispose()}
