@@ -137,7 +137,7 @@ public final class OmokEngine implements GameEngine {
             Snapshot state = game.snapshot();
             return Optional.of(new GameStateView(userId, gameId, state.version(), game.isPlayer(userId)
                     ? GameStateView.Role.PLAYER : GameStateView.Role.SPECTATOR,
-                    publicState(state), mapper.createObjectNode(), state.tableId()));
+                    publicState(state), privateState(state, userId), state.tableId()));
         }
     }
 
@@ -152,7 +152,7 @@ public final class OmokEngine implements GameEngine {
             Snapshot state = game.snapshot();
             return Optional.of(new GameRecoverySnapshot(userId, state.gameId(), 2, state.version(),
                     state.endedAt() == null ? GameRecoverySnapshot.Phase.PLAYING
-                            : GameRecoverySnapshot.Phase.FINISHED, publicState(state)));
+                            : GameRecoverySnapshot.Phase.FINISHED, recoveryState(state, userId)));
         }
     }
 
@@ -247,7 +247,6 @@ public final class OmokEngine implements GameEngine {
                 .put("boardSize", 15).put("blackUserId", Long.toString(state.blackUserId()))
                 .put("whiteUserId", Long.toString(state.whiteUserId())).put("moveCount", state.board().moveCount());
         data.set("board", mapper.valueToTree(state.board().board()));
-        data.set("forbiddenMoves", mapper.valueToTree(state.board().forbiddenMoves()));
         data.put("turnUserId", state.turnUserId() == null ? null : Long.toString(state.turnUserId()));
         data.put("winnerUserId", state.winnerUserId() == null ? null : Long.toString(state.winnerUserId()));
         data.put("turnDeadline", state.turnDeadline() == null ? null : state.turnDeadline().toString());
@@ -266,6 +265,21 @@ public final class OmokEngine implements GameEngine {
                 .put("requesterUserId", state.draw().requesterUserId()).put("deadline", state.draw().deadline().toString());
         data.set("drawDecision", mapper.valueToTree(state.drawDecision()));
         data.set("drawRequestsUsed", mapper.valueToTree(state.drawRequestsUsed()));
+        return data;
+    }
+
+    private ObjectNode privateState(Snapshot state, long userId) {
+        ObjectNode data = mapper.createObjectNode();
+        if (userId == state.blackUserId() && state.endedAt() == null) {
+            data.put("userId", Long.toString(userId));
+            data.set("forbiddenMoves", mapper.valueToTree(state.board().forbiddenMoves()));
+        }
+        return data;
+    }
+
+    private ObjectNode recoveryState(Snapshot state, long userId) {
+        ObjectNode data = publicState(state);
+        data.set("privateState", privateState(state, userId));
         return data;
     }
 
