@@ -1,14 +1,11 @@
 import { useState } from 'react'
 import { useStore } from 'zustand'
 import { PaperPopup } from '../../tableLobby/PaperPopup'
-import cover from './art/service-hall-current-v2.webp'
-import chefPC from './art/chef-pc-current-v2.webp'
-import chefVR from './art/chef-vr-current-v2.webp'
-import chefRoleArt from './art/chef-pc-current-v2.webp'
-import chefVRChoiceArt from './art/chef-vr-current-v2.webp'
-import chefPCChoiceArt from './art/chef-pc-current-v2.webp'
-import serverRoleArt from './art/service-hall-current-v2.webp'
-import serviceHall from './art/service-hall-current-v2.webp'
+import cover from '../../vrZone/art/skewer-cover-lowpoly.png'
+import chefRoleArt from './art/chef-role-illustration.png'
+import chefVRChoiceArt from './art/chef-vr-choice-illustration.png'
+import chefPCChoiceArt from './art/chef-pc-choice-illustration.png'
+import serverRoleArt from './art/server-role-illustration.png'
 import type { CoopClient } from './client'
 import { CoopRoomBrowser } from './CoopRoomBrowser'
 import { SKEWER_CHEF_VR_ENABLED } from './availability'
@@ -16,8 +13,8 @@ import { CHEF_VR_STEPS } from '../chef/vrGuide'
 import { TouchControllerGuide } from '../../vrGuide/TouchControllerDiagram'
 
 const roles = [
-  { id: 'chef', name: '요리사', device: SKEWER_CHEF_VR_ENABLED ? 'VR / 키보드·마우스' : '키보드·마우스 · VR 공사 중', image: chefVR, description: '그림 주문표를 보고 꼬치를 만들어요.' },
-  { id: 'server', name: '서빙 담당', device: '키보드 이동', image: serviceHall, description: '손님과 주방 사이를 연결해요.' },
+  { id: 'chef', name: '요리사', device: SKEWER_CHEF_VR_ENABLED ? 'VR / 키보드·마우스' : '키보드·마우스 · VR 공사 중', description: '그림 주문표를 보고 꼬치를 만들어요.' },
+  { id: 'server', name: '서빙 담당', device: '키보드 이동', description: '손님과 주방 사이를 연결해요.' },
 ] as const
 
 const steps = {
@@ -100,8 +97,8 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
         </> : role ? <>
         <div className="coop-prep-nav"><button disabled={acting || player?.ready || pub.chefVR && role === 'chef'} onClick={() => setChangingRole(true)}>← 역할 다시 고르기</button>{role === 'chef' ? <button disabled={acting || player?.ready || pub.chefVR} onClick={() => onChefMode(null)}>플레이 방식 바꾸기</button> : null}</div>
         <div className="coop-guide-layout">
-          <figure className="coop-guide-art"><img src={role === 'server' ? serviceHall : vr ? chefVR : chefPC}
-            alt={role === 'server' ? '온탑 꼬치왕의 서빙 게임 화면' : vr ? '온탑 꼬치왕의 VR 주방 화면' : '온탑 꼬치왕의 PC 주방 화면'} draggable={false} />
+          <figure className="coop-guide-art"><img src={role === 'server' ? serverRoleArt : vr ? chefVRChoiceArt : chefPCChoiceArt}
+            alt={role === 'server' ? '꼬치를 손님에게 전달하는 서빙 담당 일러스트' : vr ? '컨트롤러로 꼬치를 만드는 VR 요리 일러스트' : '키보드로 꼬치를 만드는 PC 요리 일러스트'} draggable={false} />
             <figcaption>{role === 'server' ? '홀의 동선은 내가 책임져요' : vr ? '직접 집고 꽂는 나만의 주방' : '키보드와 마우스로 완성하는 꼬치'}</figcaption>
           </figure>
           <div className="coop-role-guide"><ol>{(role === 'chef' && vr ? CHEF_VR_STEPS : steps[role]).map(([title, description], index) => <li key={title}><b aria-hidden="true">{index + 1}</b><div><h2>{title}</h2><p>{description}</p></div></li>)}</ol>
@@ -119,7 +116,7 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
         </> : null}
       </>}
       {!pub || waiting ? <p className="coop-entry-reward">입장료 없이 즐겨요 <span>·</span> 팀 점수 20점당 각자 1냥 <span>·</span> 모든 미니게임 합산 하루 최대 500냥</p> : null}
-      <button className="coop-back-choice" disabled={state.pending} onClick={onClose}>← 방 나가기 · 다른 방 선택</button>
+      <footer className="coop-lobby-navigation"><p>다른 가게에서 친구와 만날 수 있어요.</p><button className="coop-leave-room" disabled={state.pending} onClick={onClose}><span aria-hidden="true">↩</span><span>방 나가기<small>다른 방 선택</small></span></button></footer>
     </section>
   </PaperPopup>
 }
