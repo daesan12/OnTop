@@ -4,6 +4,13 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
 class GachaRulesTests {
+    @Test void refill_gate_opens_at_the_exact_server_deadline() {
+        var deadline=java.time.Instant.parse("2026-11-07T10:00:03Z");
+        assertThat(GachaRules.refilling(deadline,deadline.minusNanos(1))).isTrue();
+        assertThat(GachaRules.refilling(deadline,deadline)).isFalse();
+        assertThat(GachaRules.refilling(deadline,deadline.plusNanos(1))).isFalse();
+        assertThat(GachaRules.refilling(null,deadline)).isFalse();
+    }
     @Test void every_remaining_slot_has_exactly_one_outcome() {
         int[] hits=new int[5];
         for(int choice=0;choice<30;choice++) {

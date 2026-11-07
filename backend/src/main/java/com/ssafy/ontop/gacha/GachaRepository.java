@@ -15,6 +15,11 @@ public class GachaRepository {
     private static final String[] BOX_COLUMNS = {"first_boxes", "second_boxes", "third_boxes", "fourth_boxes"};
     public GachaRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
+    /** Every application node uses the shared database clock for the refill gate. */
+    public Instant serverNow() {
+        return jdbc.queryForObject("SELECT CURRENT_TIMESTAMP(3)", Timestamp.class).toInstant();
+    }
+
     public record Member(String nickname, String gender) { }
     public Member member(long userId, boolean lock) {
         return jdbc.query("SELECT nickname, character_gender FROM users WHERE id=? AND deleted_at IS NULL"
@@ -31,17 +36,20 @@ public class GachaRepository {
                 total += counts[i];
                 prizes.add(new Prize(i + 1, GachaRules.initial()[i], counts[i], i < 4 ? GachaRules.value(i + 1) : 20));
             }
-            return new Machine(rs.getString("round_id"), rs.getLong("state_version"), total, List.copyOf(prizes));
+            Timestamp refill=rs.getTimestamp("refill_ends_at");
+            return new Machine(rs.getString("round_id"), rs.getLong("state_version"), total, List.copyOf(prizes),
+                    refill==null?null:refill.toInstant());
         }).stream().findFirst().orElseThrow(() -> new GachaException(503, "GACHA_UNAVAILABLE", "뽑기 기계가 준비되지 않았습니다."));
     }
-    public Machine advance(Machine before, int selected) {
+    public Machine advance(Machine before, int selected, Instant now) {
         int[] counts = before.prizes().stream().mapToInt(Prize::remaining).toArray();
         counts[selected]--;
         long round = Long.parseLong(before.roundId());
         if (selected == 0) { round = Math.addExact(round, 1); counts = GachaRules.initial(); }
+        Timestamp deadline=selected==0?Timestamp.from(now.plusMillis(GachaRules.REFILL_MILLIS)):null;
         int changed = jdbc.update("UPDATE gacha_machine SET round_id=?,state_version=?,first_remaining=?,"
-                + "second_remaining=?,third_remaining=?,fourth_remaining=?,coin_remaining=? WHERE id=1 AND state_version=?",
-                round, Math.addExact(before.version(), 1), counts[0], counts[1], counts[2], counts[3], counts[4], before.version());
+                + "second_remaining=?,third_remaining=?,fourth_remaining=?,coin_remaining=?,refill_ends_at=? WHERE id=1 AND state_version=?",
+                round, Math.addExact(before.version(), 1), counts[0], counts[1], counts[2], counts[3], counts[4], deadline,before.version());
         if (changed != 1) throw new IllegalStateException("기계 잠금과 버전을 확인하세요.");
         return machine(false);
     }

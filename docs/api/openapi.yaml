@@ -9497,6 +9497,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GachaPrize"
+        refillEndsAt:
+          type: string
+          format: date-time
     GachaPrize:
       type: object
       properties:
@@ -9528,6 +9531,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GachaProduct"
+        serverNow:
+          type: string
+          format: date-time
     WinningResponse:
       type: object
       properties:

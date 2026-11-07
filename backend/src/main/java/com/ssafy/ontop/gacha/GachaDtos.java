@@ -7,13 +7,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public final class GachaDtos {
     private GachaDtos() { }
     @Schema(name="GachaPrize") public record Prize(int grade, int initial, int remaining, long value) { }
-    @Schema(name="GachaMachine") public record Machine(String roundId, long version, int remaining, List<Prize> prizes) { }
+    @Schema(name="GachaMachine") public record Machine(String roundId, long version, int remaining, List<Prize> prizes,
+                         Instant refillEndsAt) { }
     @Schema(name="GachaBox") public record Box(int grade, long quantity) { }
     @Schema(name="GachaInventory") public record Inventory(long tickets, List<Box> boxes, long balance, long availableBalance) { }
     @Schema(name="GachaProduct") public record Product(String code, String name, int grade, String compatibility, String imageKey,
                           List<Long> itemIds) { }
     @Schema(name="GachaState") public record State(boolean enabled, long ticketPrice, Machine machine, Inventory inventory,
-                        List<Product> products) { }
+                        List<Product> products, Instant serverNow) { }
     @Schema(name="GachaResult") public record Result(String operationId, String kind, String roundId, int grade, Product product,
                          boolean duplicate, long paidCoins, long awardedCoins, Inventory inventory,
                          Instant completedAt) { }

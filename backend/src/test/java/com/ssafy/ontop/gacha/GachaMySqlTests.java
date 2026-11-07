@@ -60,7 +60,7 @@ class GachaMySqlTests {
         jdbc.update("DELETE FROM shop_purchases WHERE user_id>=880000");
         jdbc.update("DELETE FROM user_items WHERE user_id>=880000");
         jdbc.update("DELETE FROM gacha_product_items");jdbc.update("DELETE FROM gacha_products");
-        jdbc.update("UPDATE gacha_machine SET round_id=1,state_version=0,first_remaining=1,second_remaining=2,third_remaining=4,fourth_remaining=8,coin_remaining=15 WHERE id=1");
+        jdbc.update("UPDATE gacha_machine SET round_id=1,state_version=0,first_remaining=1,second_remaining=2,third_remaining=4,fourth_remaining=8,coin_remaining=15,refill_ends_at=NULL WHERE id=1");
         for(int grade=1;grade<=4;grade++) {
             long id=890000+grade;
             jdbc.update("INSERT INTO items(id,item_code,name,item_type,equip_slot,price,image_key,is_for_sale,set_code) "
@@ -165,6 +165,7 @@ class GachaMySqlTests {
             service.draw(user,"rollback-first","1");throw new IllegalStateException("fixture rollback");
         })).isInstanceOf(IllegalStateException.class);
         assertThat(service.state(user).machine().roundId()).isEqualTo("1");
+        assertThat(service.state(user).machine().refillEndsAt()).isNull();
         assertThat(service.state(user).inventory().tickets()).isEqualTo(1);
         assertThat(scalar("SELECT COUNT(*) FROM gacha_events")).isZero();
         assertThatThrownBy(()->service.recover(user,"rollback-first")).isInstanceOf(GachaException.class);
@@ -178,7 +179,9 @@ class GachaMySqlTests {
         }
         assertThat(scalar("SELECT COUNT(*) FROM user_items WHERE user_id=? AND quantity>0",user)).isEqualTo(1);
         assertThat(scalar("SELECT COUNT(*) FROM user_items WHERE user_id=? AND is_equipped=TRUE",user)).isZero();
-        service.purchase(user,"buy2");service.draw(user,"first2","2");
+        service.purchase(user,"buy2");
+        jdbc.update("UPDATE gacha_machine SET refill_ends_at=DATE_SUB(CURRENT_TIMESTAMP(3),INTERVAL 1 SECOND) WHERE id=1");
+        service.draw(user,"first2","2");
         var duplicate=service.open(user,"open2",1);assertThat(duplicate.duplicate()).isTrue();
         assertThat(duplicate.awardedCoins()).isEqualTo(500);assertThat(amount(user)).isEqualTo(1300);
         assertThat(service.open(user,"open2",1)).isEqualTo(duplicate);
@@ -223,5 +226,39 @@ class GachaMySqlTests {
         assertThat(deliveredA.getFirst().eventId()).isEqualTo(deliveredB.getFirst().eventId());
         assertThat(deliveredA.getFirst().winner().winningRoundId()).isEqualTo("1");
         assertThat(deliveredA.getFirst().machine().roundId()).isEqualTo("2");
+        assertThat(deliveredA.getFirst().machine().refillEndsAt()).isNotNull();
+    }
+    @Test void refill_is_persisted_uses_shared_db_time_and_never_automatically_draws_the_next_round() {
+        assertThat(flyway.info().applied()).anySatisfy(m->assertThat(m.getVersion().getVersion()).isEqualTo("159"));
+        long a=user(1000),b=user(1000);var firstNode=service(0);
+        firstNode.purchase(a,"buy-a");firstNode.purchase(a,"buy-extra");firstNode.purchase(b,"buy-b");
+        var won=firstNode.draw(a,"won","1");
+        var state=firstNode.state(b);
+        assertThat(state.machine().refillEndsAt()).isEqualTo(won.completedAt().plusMillis(3000));
+        assertThat(state.serverNow()).isBefore(state.machine().refillEndsAt());
+        // Another instance with a deliberately wrong application clock cannot bypass the shared gate.
+        var nextNode=new GachaService(new GachaRepository(jdbc),wallets,ledger,entities,manager,json,
+                Clock.fixed(java.time.Instant.parse("2100-01-01T00:00:00Z"),java.time.ZoneOffset.UTC),bound->bound-1);
+        assertThat(nextNode.state(b).machine().refillEndsAt()).isEqualTo(state.machine().refillEndsAt());
+        assertThatThrownBy(()->nextNode.draw(b,"old-round","1")).isInstanceOfSatisfying(GachaException.class,
+                e->assertThat(e.code()).isEqualTo("GACHA_ROUND_CHANGED"));
+        assertThatThrownBy(()->nextNode.draw(b,"during-refill","2")).isInstanceOfSatisfying(GachaException.class,
+                e->assertThat(e.code()).isEqualTo("GACHA_REFILLING"));
+        assertThat(nextNode.state(b).inventory().tickets()).isEqualTo(1);
+        assertThat(amount(b)).isEqualTo(900);
+        assertThat(scalar("SELECT COUNT(*) FROM gacha_receipts WHERE user_id=? AND operation_kind='DRAW'",b)).isZero();
+        assertThat(scalar("SELECT COUNT(*) FROM gacha_events")).isEqualTo(1);
+        assertThat(nextNode.draw(a,"won","1")).isEqualTo(won); // Receipt precedes both gates.
+        assertThat(nextNode.recover(a,"won")).isEqualTo(won);
+        jdbc.update("UPDATE gacha_machine SET refill_ends_at=DATE_SUB(CURRENT_TIMESTAMP(3),INTERVAL 1 SECOND) WHERE id=1");
+        var resumed=nextNode.draw(b,"clicked-again","2");
+        assertThat(resumed.grade()).isEqualTo(5);
+        assertThat(nextNode.state(b).inventory().tickets()).isZero();
+        assertThat(nextNode.state(b).machine().refillEndsAt()).isNull();
+        assertThat(scalar("SELECT COUNT(*) FROM gacha_events")).isEqualTo(2);
+        // An old round remains rejected even after the waiting period; no rollover draw.
+        assertThatThrownBy(()->nextNode.draw(a,"late-old","1")).isInstanceOfSatisfying(GachaException.class,
+                e->assertThat(e.code()).isEqualTo("GACHA_ROUND_CHANGED"));
+        assertThat(nextNode.state(a).inventory().tickets()).isEqualTo(1);
     }
 }

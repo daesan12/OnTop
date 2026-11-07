@@ -40,7 +40,7 @@ public class GachaService {
     public State state(long userId) {
         return Objects.requireNonNull(transactions.execute(status->{
             repository.member(userId,false);
-            return new State(true,GachaRules.TICKET_PRICE,repository.machine(false),repository.inventory(userId),repository.products(true,false));
+            return new State(true,GachaRules.TICKET_PRICE,repository.machine(false),repository.inventory(userId),repository.products(true,false),repository.serverNow());
         }));
     }
     public Result recover(long userId,String key) {
@@ -91,12 +91,16 @@ public class GachaService {
                 paid=GachaRules.TICKET_PRICE; wallet.debit(paid,now); repository.ticket(userId,1);
             } else if(kind.equals("DRAW")) {
                 Machine before=repository.machine(true);
-                if(!before.roundId().equals(target)) throw new GachaException(409,"GACHA_ROUND_CHANGED","새 뽑기 회차가 시작됐습니다. 뽑기권은 사용되지 않았습니다.");
+                if(!before.roundId().equals(target)) throw new GachaException(409,"GACHA_ROUND_CHANGED","이번 뽑기가 종료됐어요. 뽑기권은 사용하지 않았어요.");
+                // Read after acquiring the machine lock: time spent waiting must not extend the gate.
+                now=repository.serverNow();
+                if(GachaRules.refilling(before.refillEndsAt(),now))
+                    throw new GachaException(409,"GACHA_REFILLING","캡슐을 채우고 있어요. 뽑기권은 사용하지 않았어요.");
                 repository.ticket(userId,-1);
                 int selected=GachaRules.select(before.prizes().stream().mapToInt(Prize::remaining).toArray(),random);
                 grade=selected+1; roundId=before.roundId();
                 if(grade==5) awarded=GachaRules.COIN_REWARD; else repository.box(userId,grade,1);
-                Machine after=repository.advance(before,selected);
+                Machine after=repository.advance(before,selected,now);
                 Winner winner=selected==0 ? new Winner(Long.toString(userId),member.nickname(),before.roundId()):null;
                 String eventId=UUID.randomUUID().toString();
                 repository.event(eventId,write(new Event(eventId,after,winner,now)),now);

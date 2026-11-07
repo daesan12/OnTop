@@ -38,4 +38,16 @@ class GachaHttpTests {
         unavailable.perform(get("/api/v1/gacha").principal(()->"42")).andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("GACHA_NOT_CONFIGURED"));
     }
+    @Test void refill_rejection_is_definitive_and_read_state_contains_shared_time() throws Exception {
+        doThrow(new GachaException(409,"GACHA_REFILLING","캡슐을 채우고 있어요. 뽑기권은 사용하지 않았어요."))
+                .when(service).draw(42,"during-refill","2");
+        http.perform(post("/api/v1/gacha/draws").principal(()->"42").contentType("application/json")
+                .content("{\"operationId\":\"during-refill\",\"roundId\":\"2\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("GACHA_REFILLING"));
+        var now=java.time.Instant.parse("2026-11-07T10:00:00Z");
+        when(service.state(42)).thenReturn(new GachaDtos.State(true,100,
+                new GachaDtos.Machine("2",1,30,java.util.List.of(),now.plusSeconds(3)),null,java.util.List.of(),now));
+        http.perform(get("/api/v1/gacha").principal(()->"42")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.machine.refillEndsAt").exists()).andExpect(jsonPath("$.serverNow").exists());
+    }
 }

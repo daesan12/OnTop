@@ -7,6 +7,10 @@ import java.util.function.IntUnaryOperator;
 public final class GachaRules {
     public static final long TICKET_PRICE = 100;
     public static final long COIN_REWARD = 20;
+    public static final long REFILL_MILLIS = 3000;
+    public static boolean refilling(java.time.Instant deadline, java.time.Instant now) {
+        return deadline!=null && now.isBefore(deadline);
+    }
     private static final int[] INITIAL = {1, 2, 4, 8, 15};
     private static final long[] VALUES = {1000, 500, 250, 100};
     private GachaRules() { }
