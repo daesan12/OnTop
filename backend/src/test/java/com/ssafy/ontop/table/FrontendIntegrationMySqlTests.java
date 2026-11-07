@@ -132,7 +132,7 @@ class FrontendIntegrationMySqlTests {
             park = mapper.readTree(stream);
         }
 
-        assertThat(proximity.chatRadius()).isEqualTo(20);
+        assertThat(proximity.chatRadius()).isEqualTo(50);
         assertThat(proximity.watchRadius()).isEqualTo(20);
         assertThat(proximity.tables()).hasSize(4);
         for (String channel : new String[]{"channel-1", "channel-2"}) {
