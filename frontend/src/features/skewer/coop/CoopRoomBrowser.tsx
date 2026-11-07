@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import { PaperPopup } from '../../tableLobby/PaperPopup'
-import cover from './art/service-hall-current-v2.webp'
+import cover from '../../vrZone/art/skewer-cover-lowpoly.png'
 import type { CoopClient } from './client'
 import type { CoopRoom } from './contracts'
 import { searchCoopRooms } from './roomSearch'

@@ -24,8 +24,15 @@ if (new URLSearchParams(location.search).has('prepare')) {
   state.publicState.phase = 'WAITING'; state.publicState.players.forEach(player => { player.ready = false })
 }
 let velocity = { dx: 0, dz: 0 }
+const lobby = new URLSearchParams(location.search).get('lobby')
+let joined = lobby !== 'home'
+if (lobby) {
+  state.publicState.phase = 'WAITING'; state.registered = false; state.privateState = { role: '' }
+  state.publicState.players.forEach(player => { player.role = ''; player.ready = false })
+  if (lobby !== 'roles') state.publicState.players = state.publicState.players.slice(0, 1)
+}
 const moveRequests: { dx: number; dz: number; at: number }[] = []
-const holdMoves = new URLSearchParams(location.search).has('holdMoves')
+let holdMoves = new URLSearchParams(location.search).has('holdMoves')
 const moveReplies: (() => void)[] = []
 window.setInterval(() => {
   if (state.privateState.hall && state.publicState.phase === 'PLAYING' && !state.publicState.paused && (velocity.dx || velocity.dz)) {
@@ -43,9 +50,21 @@ const publish = () => receive?.({ type: 'GAME_STATE', payload: structuredClone(s
 const transport: CoopTransport = {
   scope: () => ({ userId: '101', channelId: 'park', connected: true }),
   subscribe: fn => { receive = fn; return () => { receive = undefined } },
-  requestJSON: async path => path.includes('/result?') ? { gameId, status: 'UNAVAILABLE', teamScore: 432, served: 2, endReason: 'SKEWER_TIME_UP', rankingStatus: 'EXCLUDED', rankingReason: 'QA', coinsCalculated: 21, coinsGranted: null, todayEarned: null, dailyCap: 500, remainingToday: null, balance: null, rewardDate: null, settledAt: null } : { mine: structuredClone(state), rooms: [] },
+  requestJSON: async (path, init) => {
+    if (lobby && init?.method === 'POST') {
+      if (path.endsWith('/leave')) { joined = false; return {} }
+      joined = true; state.publicState.roomName = JSON.parse(String(init.body)).roomName
+      return structuredClone(state)
+    }
+    return path.includes('/result?') ? { gameId, status: 'UNAVAILABLE', teamScore: 432, served: 2, endReason: 'SKEWER_TIME_UP', rankingStatus: 'EXCLUDED', rankingReason: 'QA', coinsCalculated: 21, coinsGranted: null, todayEarned: null, dailyCap: 500, remainingToday: null, balance: null, rewardDate: null, settledAt: null } : { mine: joined ? structuredClone(state) : null, rooms: [] }
+  },
   request: async (type, payload) => {
-    const input = payload.input as { type?: string; paused?: boolean; dx?: number; dz?: number } | undefined
+    const input = payload.input as { type?: string; paused?: boolean; dx?: number; dz?: number; role?: 'chef' | 'server' } | undefined
+    if (input?.type === 'ROLE' && input.role) {
+      state.publicState.players[0].role = input.role
+      state.privateState = input.role === 'chef' ? { role: 'chef', chef: new ChefPreview().view() } : { role: 'server', hall: new HallPreview().view() }
+      state.version++; publish()
+    }
     if (input?.type === 'MOVE') {
       velocity = { dx: input.dx ?? 0, dz: input.dz ?? 0 }
       moveRequests.push({ ...velocity, at: performance.now() })
@@ -58,7 +77,7 @@ const transport: CoopTransport = {
 Reflect.set(window, 'skewerFeedback', {
   position: () => state.privateState.hall?.position,
   moves: () => moveRequests,
-  releaseMoves: () => moveReplies.splice(0).forEach(resolve => resolve()),
+  releaseMoves: () => { holdMoves = false; moveReplies.splice(0).forEach(resolve => resolve()) },
   nearTable: (id: number) => { state.privateState.hall!.position = { ...TABLES.find(table => table.id === id)!.approach }; state.version++; publish() },
   tableArrival: (remaining: number) => { const t = state.privateState.hall!.tables[2]; t.people = 1; t.status = remaining > 0 ? 'arriving' : 'unreceived'; t.arrivalRemaining = remaining; t.bill = remaining > 0 ? null : { dishes: [{ id: 'arrival', table: 3, recipe: ['tomato'], delivered: false }], sake: 0, sakeDelivered: 0 }; state.version++; publish() },
   clock: (remaining: number) => { state.publicState.remaining = remaining; state.version++; publish() },

@@ -27,7 +27,7 @@ export class HallMotion {
     // A quick reversal can arrive while the displayed character is still catching up.
     if (Math.hypot(travelX, travelZ) > .001) this.targetYaw = Math.atan2(travelX, travelZ)
     const turn = Math.atan2(Math.sin(this.targetYaw - this.yaw), Math.cos(this.targetYaw - this.yaw))
-    this.yaw += turn * (1 - Math.exp(-dt * 28))
+    this.yaw += turn * (1 - Math.exp(-dt * 48))
     if (distance > .025) this.walkingTail = .06
     else this.walkingTail = Math.max(0, this.walkingTail - dt)
     // PositionPlayback/로컬 프레임 이동은 이미 연속 좌표다. 다시 보간하면 회전 경로가 줄어든다.
