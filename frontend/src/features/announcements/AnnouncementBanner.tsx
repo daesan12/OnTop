@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { loadNotices, noticeRefreshDelay, visibleNotices, type NoticeFeed } from './api'
 import './announcements.css'
+import { useGachaEvents } from '../gacha/events'
 
 export function AnnouncementBanner({ hidden = false }: { hidden?: boolean }) {
+  const systemNotices = useGachaEvents(s => s.notices)
   const [feed, setFeed] = useState<NoticeFeed | null>(null), [age, setAge] = useState(0)
   const received = useRef(0), [index, setIndex] = useState(0)
   const [duration, setDuration] = useState(16), [width, setWidth] = useState(600), viewport = useRef<HTMLSpanElement>(null), text = useRef<HTMLSpanElement>(null)
@@ -25,7 +27,8 @@ export function AnnouncementBanner({ hidden = false }: { hidden?: boolean }) {
     const clock = setInterval(() => setAge(performance.now() - received.current), 1000)
     return () => { stopped = true; request?.abort(); clearTimeout(timer); clearInterval(clock); document.removeEventListener('visibilitychange', foreground) }
   }, [])
-  const values = feed && age < 30000 ? visibleNotices(feed, age) : []
+  const values = [...systemNotices.filter(n => n.expiresAt > performance.now()),
+    ...(feed && age < 30000 ? visibleNotices(feed, age) : [])]
   const active = values[index % (values.length || 1)]
   const signature = values.map(value => `${value.id}:${value.version}`).join('/')
   useEffect(() => { setIndex(0) }, [signature])

@@ -85,7 +85,7 @@ public class ParkRankingSnapshotService {
             // 세 조회가 모두 성공한 뒤 한 번에 교체한다. 실패한 회차는 직전 정상 응답을 유지한다.
             List<BalanceItem> balanceItems = balances.findTopTen().stream()
                     .map(row -> new BalanceItem(row.rank(), Long.toString(row.userId()),
-                            row.nickname(), row.coinBalance(), gameMasters.test(row.userId()))).toList();
+                            row.nickname(), row.coinBalance(), gameMasters.test(row.userId()), row.equipmentValue(), row.totalAssets())).toList();
             List<BungeoppangItem> bungeoppangItems = bungeoppang.findTopTen(startedAt).stream()
                     .map(row -> new BungeoppangItem(row.rank(), Long.toString(row.userId()), row.nickname(),
                             row.score(), row.maxCombo(), row.completedAt(), gameMasters.test(row.userId()))).toList();

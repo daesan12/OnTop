@@ -23,7 +23,13 @@ import org.springframework.transaction.PlatformTransactionManager;
 public class ShopConfiguration {
     @Bean
     ShopService shopService(ShopRepository repository, PlatformTransactionManager transactions,
-            ApplicationEventPublisher events, BehaviorLog behaviorLog) {
-        return new ShopService(repository, transactions, events, DuplicateEquipmentPolicy.REJECT, behaviorLog);
+            ApplicationEventPublisher events, BehaviorLog behaviorLog,
+            org.springframework.beans.factory.ObjectProvider<com.ssafy.ontop.gacha.GachaRepository> products) {
+        var service = new ShopService(repository, transactions, events, DuplicateEquipmentPolicy.REJECT, behaviorLog);
+        service.configureProductBundles(() -> {
+            var catalog = products.getIfAvailable();
+            return catalog == null ? java.util.Map.of() : catalog.bundles();
+        });
+        return service;
     }
 }

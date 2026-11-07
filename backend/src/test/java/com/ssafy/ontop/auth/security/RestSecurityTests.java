@@ -397,6 +397,8 @@ class RestSecurityTests {
                 "GET /api/v1/world/fitness/rewards/status",
                 "GET /api/v1/tables", "GET /dev/tables", "GET /dev/world-config",
                 "GET /api/v1/shop/items", "POST /api/v1/shop/purchases",
+                "GET /api/v1/gacha", "GET /api/v1/gacha/operations/{operationId}",
+                "POST /api/v1/gacha/tickets", "POST /api/v1/gacha/draws", "POST /api/v1/gacha/boxes/open",
                 "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
                 "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
                 "POST /api/v1/minigames/skewer/admissions",

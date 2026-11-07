@@ -3105,6 +3105,84 @@ paths:
                 type: string
       security:
       - AccessJwt: []
+  /api/v1/gacha/tickets:
+    post:
+      tags:
+      - Gacha
+      summary: 100냥으로 뽑기권 한 장 구매
+      operationId: purchase_2
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GachaBuyRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/GachaResult"
+      security:
+      - AccessJwt: []
+  /api/v1/gacha/draws:
+    post:
+      tags:
+      - Gacha
+      summary: 현재 회차에서 뽑기권 한 장 사용
+      operationId: draw
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GachaDrawRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/GachaResult"
+      security:
+      - AccessJwt: []
+  /api/v1/gacha/boxes/open:
+    post:
+      tags:
+      - Gacha
+      summary: 등급 상자 하나를 의상 또는 중복 엽전으로 교환
+      operationId: open
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GachaOpenRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/GachaResult"
+      security:
+      - AccessJwt: []
   /api/v1/feedback:
     post:
       tags:
@@ -5843,6 +5921,52 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/gacha:
+    get:
+      tags:
+      - Gacha
+      summary: 공유 뽑기 기계·본인 보관함·보상 목록
+      operationId: state
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/GachaState"
+      security:
+      - AccessJwt: []
+  /api/v1/gacha/operations/{operationId}:
+    get:
+      tags:
+      - Gacha
+      summary: 본인 뽑기 작업 결과 복구
+      operationId: recover
+      parameters:
+      - name: operationId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/GachaResult"
+      security:
+      - AccessJwt: []
   /api/v1/events/winnings/me:
     get:
       tags:
@@ -8098,6 +8222,97 @@ components:
           $ref: "#/components/schemas/PlusMinusRules"
         round:
           $ref: "#/components/schemas/PlusMinusRound"
+    GachaBuyRequest:
+      type: object
+      properties:
+        operationId:
+          type: string
+    GachaBox:
+      type: object
+      properties:
+        grade:
+          type: integer
+          format: int32
+        quantity:
+          type: integer
+          format: int64
+    GachaInventory:
+      type: object
+      properties:
+        tickets:
+          type: integer
+          format: int64
+        boxes:
+          type: array
+          items:
+            $ref: "#/components/schemas/GachaBox"
+        balance:
+          type: integer
+          format: int64
+        availableBalance:
+          type: integer
+          format: int64
+    GachaProduct:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        grade:
+          type: integer
+          format: int32
+        compatibility:
+          type: string
+        imageKey:
+          type: string
+        itemIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+    GachaResult:
+      type: object
+      properties:
+        operationId:
+          type: string
+        kind:
+          type: string
+        roundId:
+          type: string
+        grade:
+          type: integer
+          format: int32
+        product:
+          $ref: "#/components/schemas/GachaProduct"
+        duplicate:
+          type: boolean
+        paidCoins:
+          type: integer
+          format: int64
+        awardedCoins:
+          type: integer
+          format: int64
+        inventory:
+          $ref: "#/components/schemas/GachaInventory"
+        completedAt:
+          type: string
+          format: date-time
+    GachaDrawRequest:
+      type: object
+      properties:
+        operationId:
+          type: string
+        roundId:
+          type: string
+    GachaOpenRequest:
+      type: object
+      properties:
+        operationId:
+          type: string
+        grade:
+          type: integer
+          format: int32
     FeedbackReceiptResponse:
       required:
       - acceptedAt
@@ -8835,8 +9050,10 @@ components:
     RankingItem:
       required:
       - coinBalance
+      - equipmentValue
       - nickname
       - rank
+      - totalAssets
       - userId
       type: object
       properties:
@@ -8850,16 +9067,30 @@ components:
         coinBalance:
           type: integer
           format: int64
+        equipmentValue:
+          type: integer
+          format: int64
+        totalAssets:
+          type: integer
+          format: int64
     RankingMyRank:
       required:
       - coinBalance
+      - equipmentValue
       - rank
+      - totalAssets
       type: object
       properties:
         rank:
           type: integer
           format: int64
         coinBalance:
+          type: integer
+          format: int64
+        equipmentValue:
+          type: integer
+          format: int64
+        totalAssets:
           type: integer
           format: int64
       description: 본인 지갑이 없으면 null
@@ -8895,6 +9126,12 @@ components:
           format: int64
         gameMaster:
           type: boolean
+        equipmentValue:
+          type: integer
+          format: int64
+        totalAssets:
+          type: integer
+          format: int64
     BungeoppangItem:
       type: object
       properties:
@@ -9251,6 +9488,58 @@ components:
         nextCursor:
           type: string
           nullable: true
+    GachaMachine:
+      type: object
+      properties:
+        roundId:
+          type: string
+        version:
+          type: integer
+          format: int64
+        remaining:
+          type: integer
+          format: int32
+        prizes:
+          type: array
+          items:
+            $ref: "#/components/schemas/GachaPrize"
+        refillEndsAt:
+          type: string
+          format: date-time
+    GachaPrize:
+      type: object
+      properties:
+        grade:
+          type: integer
+          format: int32
+        initial:
+          type: integer
+          format: int32
+        remaining:
+          type: integer
+          format: int32
+        value:
+          type: integer
+          format: int64
+    GachaState:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        ticketPrice:
+          type: integer
+          format: int64
+        machine:
+          $ref: "#/components/schemas/GachaMachine"
+        inventory:
+          $ref: "#/components/schemas/GachaInventory"
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/GachaProduct"
+        serverNow:
+          type: string
+          format: date-time
     WinningResponse:
       type: object
       properties:
