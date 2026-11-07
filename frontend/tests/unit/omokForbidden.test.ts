@@ -2,6 +2,7 @@ import { beforeEach, expect, it } from 'vitest'
 import { parseGame, parseOmok, type OmokGame } from '../../src/game/protocol'
 import { canPlace, receiveGame, resetGame, useGame } from '../../src/game/store'
 import { resetForfeit } from '../../src/game/forfeit'
+import { canShowForbiddenMarks } from '../../src/game/omokPresentation'
 
 const now = Date.parse('2026-11-04T00:00:00Z')
 function sample() {
@@ -11,6 +12,19 @@ function sample() {
     lastMove:null, winnerUserId:null, endReason:null, endedAt:null, forbiddenMoves:[{x:7,y:7}] }
 }
 beforeEach(() => { resetGame(); resetForfeit() })
+it('shows forbidden guidance only to black on their active turn, including after recovery', () => {
+  const game:OmokGame = {gameId:'g',version:0,role:'PLAYER',omok:parseOmok(sample())}
+  expect(canShowForbiddenMarks(game, '101')).toBe(true)
+  expect(canShowForbiddenMarks(game, '202')).toBe(false)
+  expect(canShowForbiddenMarks(game, '')).toBe(false)
+  expect(canShowForbiddenMarks({...game,role:'SPECTATOR'}, '101')).toBe(false)
+  expect(canShowForbiddenMarks({...game,omok:{...game.omok,turnUserId:'202'}}, '101')).toBe(false)
+  expect(canShowForbiddenMarks({...game,omok:{...game.omok,status:'FINISHED'}}, '101')).toBe(false)
+  expect(canShowForbiddenMarks(null, '101')).toBe(false)
+  const restored = {...game,omok:parseOmok(JSON.parse(JSON.stringify(sample())))}
+  expect(canShowForbiddenMarks(restored, '101')).toBe(true)
+  expect(canShowForbiddenMarks(restored, '202')).toBe(false)
+})
 it('rejects marked black moves locally but leaves white unrestricted', () => {
   const game:OmokGame = {gameId:'g',version:0,role:'PLAYER',omok:parseOmok(sample(), '101')}
   useGame.setState({game,permittedGameId:'g',recovery:'RESTORED'})

@@ -191,6 +191,16 @@ export function omokCameraProbe() {
     backdropTriangles: backdrop ? (backdrop.geometry.index?.count ?? 0) / 3 : 0,
     overheads: [...document.querySelectorAll<HTMLElement>('.avatar-overlays > *')].filter(e => e.style.visibility !== 'hidden').length }
 }
+export function omokForbiddenProbe() {
+  let hasBoard = false
+  for (const canvas of document.querySelectorAll('canvas')) {
+    const scene = _roots.get(canvas)?.store.getState().scene
+    if (!scene) continue
+    if (scene.getObjectByName('omok-forbidden-marks')) return true
+    scene.traverse(object => { if (object.name.startsWith('omok-board-')) hasBoard = true })
+  }
+  return hasBoard ? false : null
+}
 export function omokCoordinateProbe() {
   const board = root().scene.getObjectByName('omok-board-' + (omokCamera.anchorId || useSession.getState().focusedAnchorId))
   const coordinates = board?.getObjectByName('omok-board-coordinates') as Mesh | undefined
