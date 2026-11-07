@@ -99,7 +99,7 @@ class SkewerCoopFeedbackTests {
             double before = match.privateView(101).at("/hall/position/x").asDouble();
             match.tick(time, user -> true);
             double after = match.privateView(101).at("/hall/position/x").asDouble();
-            assertThat(after - before).isCloseTo(.65, org.assertj.core.data.Offset.offset(.000001));
+            assertThat(after - before).isCloseTo(.58, org.assertj.core.data.Offset.offset(.000001));
         }
     }
 
@@ -133,7 +133,7 @@ class SkewerCoopFeedbackTests {
         // 반복 상한 적용 전 같은 생성 경로에서 측정한 100ms 틱 수다.
         int[] previousTicks = {12, 15, 15, 35, 16, 16, 33, 10, 16, 33, 26};
         for (int index = 0; index < previousTicks.length; index++) {
-            assertThat(arrivalTicks.get(index)).isLessThanOrEqualTo((int) Math.ceil(previousTicks[index] * 5.0 / 6.5) + 1);
+            assertThat(arrivalTicks.get(index)).isLessThanOrEqualTo((int) Math.ceil(previousTicks[index] * 5.0 / 5.8) + 1);
         }
     }
 
@@ -196,7 +196,7 @@ class SkewerCoopFeedbackTests {
                 ReflectionTestUtils.invokeMethod(match, "move", seconds);
 
                 var position = (SkewerCoopMatch.Point) ReflectionTestUtils.getField(match, "position");
-                double distance = Math.min(.1, seconds) * 6.5;
+                double distance = Math.min(.1, seconds) * 5.8;
                 double length = Math.hypot(direction.x(), direction.z());
                 assertThat(position.x()).isCloseTo(distance * direction.x() / length,
                         org.assertj.core.data.Offset.offset(.000001));
