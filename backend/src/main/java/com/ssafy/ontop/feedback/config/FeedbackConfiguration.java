@@ -8,6 +8,8 @@ import com.ssafy.ontop.feedback.service.FeedbackService;
 import com.ssafy.ontop.notification.domain.PersonalNotification;
 import com.ssafy.ontop.notification.repository.NotificationRepository;
 import com.ssafy.ontop.notification.service.NotificationService;
+import com.ssafy.ontop.notification.repository.NotificationRewardRepository;
+import com.ssafy.ontop.notification.service.NotificationRewardService;
 import com.ssafy.ontop.table.service.TableHub;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
@@ -44,6 +46,17 @@ public class FeedbackConfiguration {
     @Bean
     NotificationRepository notificationRepository(EntityManager entities) {
         return new NotificationRepository(entities);
+    }
+
+    @Bean
+    NotificationRewardRepository notificationRewardRepository(EntityManager entities) {
+        return new NotificationRewardRepository(entities);
+    }
+
+    @Bean
+    NotificationRewardService notificationRewardService(NotificationRewardRepository repository,
+            AdminAccessPolicy administrators, PlatformTransactionManager manager, ApplicationEventPublisher events) {
+        return new NotificationRewardService(repository, administrators, manager, events, Clock.systemUTC());
     }
 
     @Bean

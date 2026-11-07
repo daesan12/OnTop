@@ -2,9 +2,12 @@ import { getAuthSession, restoreAuthSession } from '../../auth/authFlow'
 import { record } from '../../network/protocol'
 
 export type FeedbackStatus = 'RECEIVED' | 'REVIEWING' | 'RESOLVED'
-export interface NotificationItem { id: string; type: 'FEEDBACK_REPLY'; title: string; createdAt: string; readAt: string | null }
+export type RewardKind = 'COIN' | 'GACHA_TICKET'
+export interface NotificationReward { kind: RewardKind; amount: number; expiresAt: string; claimedAt: string | null }
+export interface NotificationItem { id: string; type: 'FEEDBACK_REPLY' | 'REWARD'; title: string; createdAt: string; readAt: string | null; reward?: NotificationReward }
 export interface NotificationPage { items: NotificationItem[]; nextCursor: string | null; unreadCount: number }
-export interface NotificationDetail extends NotificationItem { body: string; feedbackId: string; feedbackText: string; feedbackStatus: FeedbackStatus }
+export interface NotificationDetail extends NotificationItem { body: string; feedbackId: string | null; feedbackText: string | null; feedbackStatus: FeedbackStatus | null }
+export interface RewardReceipt { notificationId: string; kind: RewardKind; amount: number; claimedAt: string; balanceAfter: number | null; ticketsAfter: number | null }
 export const statusLabels: Record<FeedbackStatus, string> = { RECEIVED: '접수', REVIEWING: '검토 중', RESOLVED: '반영 완료' }
 export const isFeedbackStatus = (v: unknown): v is FeedbackStatus => v === 'RECEIVED' || v === 'REVIEWING' || v === 'RESOLVED'
 export const isNotificationId = (v: unknown): v is string => typeof v === 'string' && /^[1-9]\d{0,18}$/.test(v) && BigInt(v) <= 9223372036854775807n
@@ -14,10 +17,18 @@ export class InboxError extends Error {
   constructor(message: string, readonly status = 0, readonly code = '') { super(message) }
 }
 function item(v: unknown): NotificationItem {
-  if (!record(v) || !isNotificationId(v.id) || v.type !== 'FEEDBACK_REPLY'
+  if (!record(v) || !isNotificationId(v.id) || (v.type !== 'FEEDBACK_REPLY' && v.type !== 'REWARD')
     || typeof v.title !== 'string' || !v.title.trim() || v.title.length > 100 || !date(v.createdAt)
     || !(v.readAt === null || date(v.readAt))) return invalid()
-  return { id: v.id, type: v.type, title: v.title, createdAt: v.createdAt, readAt: v.readAt }
+  const result: NotificationItem = { id: v.id, type: v.type, title: v.title, createdAt: v.createdAt, readAt: v.readAt }
+  if (v.type === 'REWARD') {
+    const reward = v.reward
+    if (!record(reward) || (reward.kind !== 'COIN' && reward.kind !== 'GACHA_TICKET')
+      || !Number.isSafeInteger(reward.amount) || Number(reward.amount) <= 0 || !date(reward.expiresAt)
+      || !(reward.claimedAt === null || date(reward.claimedAt))) return invalid()
+    result.reward = { kind: reward.kind, amount: Number(reward.amount), expiresAt: reward.expiresAt, claimedAt: reward.claimedAt }
+  }
+  return result
 }
 export function parseNotificationPage(v: unknown, cursor = ''): NotificationPage {
   if (!record(v) || !Array.isArray(v.items) || v.items.length > 20 || (cursor && !isNotificationId(cursor))
@@ -30,6 +41,10 @@ export function parseNotificationPage(v: unknown, cursor = ''): NotificationPage
 }
 export function parseNotificationDetail(v: unknown): NotificationDetail {
   const base = item(v)
+  if (base.type === 'REWARD') {
+    if (!record(v) || typeof v.body !== 'string' || !v.body.trim() || v.body.length > 1000) return invalid()
+    return { ...base, body: v.body, feedbackId: null, feedbackText: null, feedbackStatus: null }
+  }
   if (!record(v) || typeof v.body !== 'string' || !v.body.trim() || v.body.length > 2000
     || !isNotificationId(v.feedbackId) || typeof v.feedbackText !== 'string' || v.feedbackText.length > 600
     || !isFeedbackStatus(v.feedbackStatus)) return invalid()
@@ -59,12 +74,38 @@ export async function inboxRequest(path: string, signal: AbortSignal, method = '
   if (!response.ok) {
     const code = record(value) && typeof value.code === 'string' ? value.code : ''
     throw new InboxError(response.status === 401 ? '다시 로그인해주세요.' : response.status === 403 ? '운영 관리자 권한이 필요합니다.'
-      : code === 'FEEDBACK_RECIPIENT_UNAVAILABLE' ? '탈퇴한 작성자에게는 답변을 보낼 수 없어요.'
+      : code === 'REWARD_EXPIRED' ? '수령 기한이 지난 보상이에요.'
+      : code === 'REWARD_CAPACITY_EXCEEDED' ? '보유 가능한 수량을 초과해 수령하지 못했어요.'
+      : code === 'FEEDBACK_RECIPIENT_UNAVAILABLE' || code === 'REWARD_RECIPIENT_UNAVAILABLE' ? '탈퇴한 회원에게는 보낼 수 없어요.'
         : response.status === 404 ? '만료되었거나 찾을 수 없는 알림이에요.'
           : response.status === 409 ? '내용이 변경됐어요. 새로고침 후 다시 확인해주세요.'
             : '처리하지 못했어요. 입력을 유지했으니 다시 시도해주세요.', response.status, code)
   }
   return value
+}
+export const rewardLabel = (reward: Pick<NotificationReward, 'kind' | 'amount'>) =>
+  reward.kind === 'COIN' ? `엽전 ${reward.amount.toLocaleString('ko-KR')}냥` : `뽑기권 ${reward.amount.toLocaleString('ko-KR')}장`
+
+export function parseRewardReceipt(value: unknown, id: string): RewardReceipt {
+  if (!record(value) || value.notificationId !== id || !isNotificationId(id)
+    || (value.kind !== 'COIN' && value.kind !== 'GACHA_TICKET') || !Number.isSafeInteger(value.amount)
+    || Number(value.amount) <= 0 || !date(value.claimedAt)) return invalid()
+  const amount = value.kind === 'COIN' ? value.balanceAfter : value.ticketsAfter
+  if (!Number.isSafeInteger(amount) || Number(amount) < 0
+    || (value.kind === 'COIN' ? value.ticketsAfter : value.balanceAfter) !== null) return invalid()
+  return value as unknown as RewardReceipt
+}
+
+export async function claimReward(id: string, signal: AbortSignal) {
+  if (!isNotificationId(id)) return invalid()
+  return parseRewardReceipt(await inboxRequest(`/api/v1/notifications/${id}/claim`, signal, 'POST'), id)
+}
+
+export interface RewardGrantInput { operationId: string; userId: string; kind: RewardKind; amount: number; title: string; text: string; expiresAt: string }
+export async function sendReward(input: RewardGrantInput, signal: AbortSignal) {
+  const value = await inboxRequest('/api/v1/admin/wallet-grants/rewards', signal, 'POST', input)
+  if (!record(value) || value.operationId !== input.operationId || !isNotificationId(value.notificationId) || !date(value.createdAt)) return invalid()
+  return { operationId: value.operationId, notificationId: value.notificationId, createdAt: value.createdAt }
 }
 export async function loadNotifications(cursor: string, signal: AbortSignal) {
   return parseNotificationPage(await inboxRequest('/api/v1/notifications?limit=20' + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''), signal), cursor)

@@ -8,6 +8,7 @@ import com.ssafy.ontop.feedback.service.FeedbackException;
 import com.ssafy.ontop.notification.domain.PersonalNotification;
 import com.ssafy.ontop.notification.dto.NotificationDetailResponse;
 import com.ssafy.ontop.notification.dto.NotificationListResponse;
+import com.ssafy.ontop.notification.dto.NotificationRewardResponse;
 import com.ssafy.ontop.notification.repository.NotificationRepository;
 import java.time.Clock;
 import java.time.Duration;
@@ -46,8 +47,11 @@ public class NotificationService {
             Instant now = now();
             var rows = repository.list(userId, before, limit + 1, now);
             var page = rows.stream().limit(limit).toList();
+            var rewards = repository.rewards(page.stream().map(PersonalNotification::id)
+                    .collect(java.util.stream.Collectors.toSet()));
             return new NotificationListResponse(page.stream().map(n -> new NotificationListResponse.Entry(
-                    n.id().toString(), n.type(), n.title(), n.createdAt(), n.readAt())).toList(),
+                    n.id().toString(), n.type(), n.title(), n.createdAt(), n.readAt(),
+                    rewards.containsKey(n.id()) ? NotificationRewardResponse.of(rewards.get(n.id()), n.expiresAt()) : null)).toList(),
                     rows.size() > limit ? page.getLast().id().toString() : null, repository.unread(userId, now));
         }));
     }
@@ -57,6 +61,13 @@ public class NotificationService {
             member(userId);
             Instant now = now();
             var notification = repository.owned(userId, id, now).orElseThrow(NotificationService::notFound);
+            if (notification.type().equals("REWARD")) {
+                var reward = repository.reward(id).orElseThrow(NotificationService::notFound);
+                if (read) { notification.read(now); }
+                return new NotificationDetailResponse(notification.id().toString(), notification.type(),
+                        notification.title(), notification.createdAt(), notification.readAt(), reward.body(),
+                        null, null, null, NotificationRewardResponse.of(reward, notification.expiresAt()));
+            }
             var reply = repository.reply(notification.replyId()).orElseThrow(NotificationService::notFound);
             var message = available(reply.feedbackId(), false, now);
             if (!Objects.equals(message.userId(), userId)) { throw notFound(); }

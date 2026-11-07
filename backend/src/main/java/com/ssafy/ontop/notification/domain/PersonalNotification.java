@@ -16,7 +16,7 @@ public class PersonalNotification {
     private Long id;
     @Column(name = "user_id", nullable = false)
     private long userId;
-    @Column(name = "reply_id", nullable = false, length = 36, columnDefinition = "char(36)")
+    @Column(name = "reply_id", length = 36, columnDefinition = "char(36)")
     private String replyId;
     @Column(nullable = false, length = 32)
     private String type = "FEEDBACK_REPLY";
@@ -36,6 +36,13 @@ public class PersonalNotification {
         this.replyId = replyId;
         this.createdAt = now;
         this.expiresAt = expiresAt;
+    }
+
+    public static PersonalNotification reward(long userId, String title, Instant now, Instant expiresAt) {
+        var notification = new PersonalNotification(userId, null, now, expiresAt);
+        notification.type = "REWARD";
+        notification.title = title;
+        return notification;
     }
 
     public Long id() { return id; }

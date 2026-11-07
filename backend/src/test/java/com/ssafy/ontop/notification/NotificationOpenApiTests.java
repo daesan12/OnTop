@@ -32,6 +32,12 @@ class NotificationOpenApiTests {
             var request = api.at("/components/schemas/FeedbackReplyInput");
             assertThat(request.path("required")).hasSize(4);
             assertThat(request.path("additionalProperties").asBoolean()).isFalse();
+            for (String field : new String[]{"feedbackId", "feedbackText", "feedbackStatus"}) {
+                assertThat(api.at("/components/schemas/NotificationDetailResponse/properties/" + field + "/nullable").asBoolean()).isTrue();
+            }
+            for (String field : new String[]{"balanceAfter", "ticketsAfter"}) {
+                assertThat(api.at("/components/schemas/ClaimResponse/properties/" + field + "/nullable").asBoolean()).isTrue();
+            }
         }
     }
 }

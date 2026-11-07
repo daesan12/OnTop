@@ -362,6 +362,7 @@ class RestSecurityTests {
         assertThat(mappings).containsExactlyInAnyOrder("GET /api/v1/auth/{provider}/authorize",
                 "GET /api/v1/notifications", "GET /api/v1/notifications/{notificationId}",
                 "PATCH /api/v1/notifications/{notificationId}/read",
+                "POST /api/v1/notifications/{notificationId}/claim", "POST /api/v1/admin/wallet-grants/rewards",
                 "POST /api/v1/admin/operations/feedback/{receiptId}/replies",
                 "PATCH /api/v1/admin/operations/feedback/{receiptId}/status",
                 "GET /api/v1/announcements", "GET /api/v1/admin/operations/announcements",

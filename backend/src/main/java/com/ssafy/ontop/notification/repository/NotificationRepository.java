@@ -2,6 +2,7 @@ package com.ssafy.ontop.notification.repository;
 
 import com.ssafy.ontop.feedback.domain.FeedbackReply;
 import com.ssafy.ontop.notification.domain.PersonalNotification;
+import com.ssafy.ontop.notification.domain.NotificationReward;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.List;
@@ -63,4 +64,16 @@ public class NotificationRepository {
     }
 
     public void flush() { entities.flush(); }
+
+    public Map<Long, NotificationReward> rewards(Set<Long> ids) {
+        if (ids.isEmpty()) { return Map.of(); }
+        return entities.createQuery("select r from NotificationReward r where r.notificationId in :ids",
+                        NotificationReward.class).setParameter("ids", ids).getResultList().stream()
+                .collect(Collectors.toMap(NotificationReward::notificationId, Function.identity()));
+    }
+
+    public Optional<NotificationReward> reward(long notificationId) {
+        return entities.createQuery("select r from NotificationReward r where r.notificationId = :id",
+                NotificationReward.class).setParameter("id", notificationId).getResultStream().findFirst();
+    }
 }

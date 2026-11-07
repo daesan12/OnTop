@@ -16,7 +16,7 @@
 | 답변·개인 알림 생성 | POST /api/v1/admin/operations/feedback/{receiptId}/replies | 운영 관리자 |
 | 의견 처리 상태 변경 | PATCH /api/v1/admin/operations/feedback/{receiptId}/status | 운영 관리자 |
 
-`db` 프로필과 기존 `ontop.feedback.enabled=true`가 필요하다. 미설정이면 503이며 브라우저에서 가짜 성공으로 대체하지 않는다. 실제 보상·응모권 지급·수령 API는 이번 범위에 없다. 보상 탭은 빈 상태만 표시한다.
+`db` 프로필과 기존 `ontop.feedback.enabled=true`가 필요하다. 미설정이면 503이며 브라우저에서 가짜 성공으로 대체하지 않는다. 아래 보상 확장은 V160 로컬 구현이며, 뽑기권은 의상 뽑기용 `gacha_inventory.tickets`다. 주간 이벤트의 `raffle_tickets`(응모권)와 구분한다.
 
 ## 관리자 요청
 
@@ -93,3 +93,74 @@
 | 503 | NOTIFICATION_NOT_CONFIGURED / NOTIFICATION_UNAVAILABLE | 저장소 미설정·저장 실패, 동일 키로 재확인 |
 
 V158: `feedback_messages.status/version` 추가, `feedback_replies`, `personal_notifications` 생성. 기존 SQL·지갑·정산·회원 인증 코드는 변경하지 않는다. 배포 시 팀의 V158 번호·적용 순서 확인 → V158 적용 → BE → FE 순서로 확인한다. 실제 DEV 적용과 실제 계정 공동 검수는 아직 하지 않았다.
+
+## 수령형 보상 · V160 로컬 확장
+
+관리자 페이지의 기존 **엽전 지급** 메뉴 안에 **알림함으로 선물 보내기**를 추가했다. 기존 전 회원 즉시 지급과 구분하며, 이 기능은 단일 활성 회원에게 알림만 발송한다. 수령 전에는 재화를 늘리지 않는다. 발급은 기존 `ADMIN_GRANT`/`canGrant` 권한을 재사용한다. 운영 답변 권한만으로 재화를 발급할 수 없다.
+
+| 기능 | 메서드·경로 | 권한 |
+| --- | --- | --- |
+| 한 회원에게 수령형 보상 발송 | POST /api/v1/admin/wallet-grants/rewards | 재화 지급 관리자 |
+| 본인 보상 수령·영수증 재확인 | POST /api/v1/notifications/{notificationId}/claim | 수신자 본인 |
+
+발송 요청 예시(수량·기한은 예시이며 고정 지급 규칙이 아니다):
+
+```json
+{
+  "operationId": "5467d58d-3f10-4df1-adb5-8d47bde7c227",
+  "userId": "202",
+  "kind": "GACHA_TICKET",
+  "amount": 3,
+  "title": "소중한 의견 감사합니다",
+  "text": "온탑에서 보내는 작은 선물입니다.",
+  "expiresAt": "2030-01-01T00:00:00Z"
+}
+```
+
+`kind`는 `COIN`(엽전) 또는 `GACHA_TICKET`(의상 뽑기권). `userId`는 내부 회원 ID의 십진 문자열, `amount`는 1~9,007,199,254,740,991의 안전한 정수다. 제목 1~100자, 본문 1~1,000자(UTF-16 길이, NFC·제어문자 제거), 기한은 미래 UTC Instant·밀리초 정밀도다. MySQL TIMESTAMP 범위에 맞게 2038-01-19T03:14:07Z 이하만 허용한다. UI에서는 관리자 로컬 시각 입력을 ISO UTC로 변환한다. 발송 전 수신자 ID·수량·기한을 확인한다. 성공은 `operationId`, `notificationId`, `createdAt`이다.
+
+실패/응답 유실은 같은 UUID와 같은 내용을 재전송한다. 같은 키로 종류·수량·회원·본문·기한을 바꾸면 409다. 네트워크/503은 입력과 UUID를 잠그고 같은 요청 재확인만 제공하며, 확정 거절 400/403/404/409는 입력 수정을 허용한다. 보상 수정·회수·일괄 발급은 이번 기능에 포함하지 않는다.
+
+목록 `type: "REWARD"`에는 아래 `reward` 필드가 추가된다. 기존 답변은 `reward: null`이며 기존 필드를 유지한다. 보상 상세의 `body`는 관리자 메시지, `feedbackId/feedbackText/feedbackStatus`는 null이다. 상세 조회/읽음은 보유량을 늘리지 않는다.
+
+```json
+{
+  "kind": "GACHA_TICKET",
+  "amount": 3,
+  "expiresAt": "2030-01-01T00:00:00Z",
+  "claimedAt": null
+}
+```
+
+수령 요청은 본문 없음 또는 `{}`만 허용한다. 클라이언트가 회원 ID·종류·수량을 제출할 수 없다. 성공/같은 요청 재확인은 200이며 아래 최초 영수증을 유지한다. `balanceAfter`와 `ticketsAfter`는 **최초 수령 당시** 값이며 현재 잔액 조회가 아니다. 후속 구매·뽑기 후 재수령해도 재화를 추가하지 않는다.
+
+```json
+{
+  "notificationId": "12",
+  "kind": "COIN",
+  "amount": 1000,
+  "claimedAt": "2026-11-07T09:02:00Z",
+  "balanceAfter": 1100,
+  "ticketsAfter": null
+}
+```
+
+뽑기권은 `balanceAfter: null`, `ticketsAfter: 정수`다. 기존 답변의 90일 보관 규칙과 달리 보상은 관리자가 입력한 기한까지 노출·수령한다. 미수령 만료는 410, 이미 수령한 보상은 만료 뒤에도 같은 영수증을 재확인할 수 있다. 탈퇴 시 기존 개인 알림 삭제에 FK CASCADE로 보상도 삭제한다. 엽전 원장은 별도로 보존하며 재지급하지 않는다.
+
+### 지급 정합성·의존성
+
+발급/수령은 회원 공유 잠금 → 지갑 배타 잠금 → 보상 행 잠금 순서다. 기존 `Wallet.creditAdminGrant`를 호출하고 엽전은 `wallet_transactions.transaction_type=NOTIFICATION_REWARD`, 멱등키 `notification-reward:<UUID>`로 기록한다. 뽑기권은 기존 V157 `gacha_inventory.tickets`만 증가시키며 상자·기계 회차는 바꾸지 않는다. 팀원 엔티티/정산/인증 제품 코드를 수정하지 않기 위해 모듈 내부 저장 경계에서 JPA native SQL로 공통 원장·기존 티켓 테이블을 사용한다. 신규 JDBC 저장 구현은 없다.
+
+보유량 증가·원장·`claimed_at`·읽음은 같은 트랜잭션이며 실패 시 전부 롤백한다. 뽑기권 감사 이력은 보상 행과 최초 수령 영수증이다. 수량/총 보유량의 long overflow와 JS 안전 정수 초과를 409로 막는다. 신규 발송과 최초 수령 커밋 후 기존 수신자 전용 `PERSONAL_NOTIFICATION_CHANGED`를 사용한다.
+
+FE는 리스트의 받기·수령 완료와 중앙 보상 팝업(뒤 알림함 기준 약간 위, `+` 없는 수량)을 제공한다. 수령 완료 시 현재 회원의 지갑을 권위 API로 재조회한다. `ontop:gacha-inventory-changed`는 뽑기 보유량 재조회용 FE 힌트이며 미병합 뽑기 FE의 실제 구독 연결은 별도 통합 확인이 필요하다. 알림함 자체는 REST 재조회로 완료 상태를 확인한다.
+
+| HTTP | code | 의미 |
+| --- | --- | --- |
+| 403 | REWARD_GRANT_REQUIRED 또는 기존 ADMIN_GRANT 거절 | 재화 지급 권한 필요 |
+| 409 | REWARD_RECIPIENT_UNAVAILABLE / WALLET_NOT_READY | 활성 회원·지갑 초기화 확인 |
+| 409 | REWARD_CAPACITY_EXCEEDED | 총 보유량의 정수 범위 초과, 지급 없음 |
+| 410 | REWARD_EXPIRED | 미수령 보상 기한 만료 |
+| 503 | REWARD_UNAVAILABLE | 저장소·필수 V157 미설정·지급 실패, 같은 요청 재확인 |
+
+V160은 `personal_notifications.reply_id`를 nullable로 확장하고 `notification_rewards`를 추가한다. 기존 V158·V159 SQL은 수정하지 않는다. V158이 먼저 필요하고 뽑기권은 미병합 V157 저장소와 함께 적용해야 한다. 번호·순서 확인 후 스키마 → BE → FE로 인수한다. 이번 권한은 V160 로컬 작성·격리 DB 검증·로컬 커밋이며 푸시·MR·공용 DB·배포는 하지 않는다.

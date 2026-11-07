@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 const auth = vi.hoisted(() => ({ session: { status: 'AUTHENTICATED', accessToken: 'inbox-fixture' } as { status: 'AUTHENTICATED'; accessToken: string } | null, refresh: vi.fn<() => Promise<boolean>>() }))
 vi.mock('../../src/auth/authFlow', () => ({ getAuthSession: () => auth.session, restoreAuthSession: auth.refresh }))
 import { inboxRequest, loadNotifications, parseNotificationDetail, parseNotificationPage, readNotification, sendFeedbackReply } from '../../src/features/notifications/api'
+import { claimReward, parseRewardReceipt, rewardLabel } from '../../src/features/notifications/api'
 
 const row = { id: '12', type: 'FEEDBACK_REPLY', title: '운영진에게 메시지가 도착했어요', createdAt: '2026-11-07T09:00:00Z', readAt: null }
 beforeEach(() => { auth.session = { status: 'AUTHENTICATED', accessToken: 'inbox-fixture' }; auth.refresh.mockReset() })
@@ -52,4 +53,27 @@ it('does not report read success when the server returns another ID or no read t
 it('preserves meaningful conflict and recipient errors for the administrator',async()=>{
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({code:'FEEDBACK_RECIPIENT_UNAVAILABLE'},{status:409})))
   await expect(inboxRequest('/api/v1/admin/operations/feedback/7/replies',new AbortController().signal,'POST',{})).rejects.toMatchObject({code:'FEEDBACK_RECIPIENT_UNAVAILABLE',status:409})
+})
+
+const reward = { kind:'COIN' as const, amount:1000, expiresAt:'2030-01-01T00:00:00Z', claimedAt:null }
+it('keeps reward read state separate from claimed state and formats variable amounts without a plus sign',()=>{
+  const value = {...row,type:'REWARD',readAt:'2026-11-07T09:01:00Z',reward}
+  expect(parseNotificationPage({items:[value],nextCursor:null,unreadCount:0}).items[0]?.reward?.claimedAt).toBeNull()
+  expect(rewardLabel(reward)).toBe('엽전 1,000냥')
+  expect(rewardLabel({kind:'GACHA_TICKET',amount:1})).toBe('뽑기권 1장')
+  expect(parseNotificationDetail({...value,body:'작은 선물이에요',feedbackId:null,feedbackText:null,feedbackStatus:null}).feedbackId).toBeNull()
+})
+it.each([{...reward,amount:0},{...reward,amount:1.1},{...reward,amount:Number.MAX_SAFE_INTEGER+1},
+  {...reward,kind:'RAFFLE_TICKET'},{...reward,claimedAt:'invalid'},{...reward,expiresAt:'invalid'}])('rejects an invalid reward %j',v=>{
+  expect(()=>parseNotificationPage({items:[{...row,type:'REWARD',reward:v}],nextCursor:null,unreadCount:1})).toThrow()
+})
+it('claims the owned notification without sending recipient or amount and verifies the receipt',async()=>{
+  const receipt={notificationId:'12',kind:'COIN',amount:1000,claimedAt:'2026-11-07T09:02:00Z',balanceAfter:1100,ticketsAfter:null}
+  const fetcher=vi.fn().mockResolvedValue(Response.json(receipt));vi.stubGlobal('fetch',fetcher)
+  expect(await claimReward('12',new AbortController().signal)).toEqual(receipt)
+  expect(fetcher.mock.calls[0]![0]).toBe('/api/v1/notifications/12/claim')
+  expect(fetcher.mock.calls[0]![1].body).toBeUndefined()
+  expect(()=>parseRewardReceipt({...receipt,notificationId:'13'},'12')).toThrow()
+  expect(()=>parseRewardReceipt({...receipt,balanceAfter:null},'12')).toThrow()
+  expect(()=>parseRewardReceipt({...receipt,ticketsAfter:3},'12')).toThrow()
 })

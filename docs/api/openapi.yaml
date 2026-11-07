@@ -768,6 +768,37 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/notifications/{notificationId}/claim:
+    post:
+      tags:
+      - NOTIFICATION
+      summary: 본인 보상 한 번 수령 · 재요청 시 확정 영수증
+      operationId: claimPersonalNotificationReward
+      parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JsonNode"
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClaimResponse"
+      security:
+      - AccessJwt: []
   /api/v1/notes:
     get:
       tags:
@@ -3744,6 +3775,32 @@ paths:
             '*/*':
               schema:
                 type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/wallet-grants/rewards:
+    post:
+      tags:
+      - NOTIFICATION
+      summary: 지급 관리자 · 한 회원에게 수령형 보상 발송
+      operationId: grantPersonalNotificationReward
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RewardGrantInput"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/GrantResponse"
       security:
       - AccessJwt: []
   /api/v1/admin/wallet-grants/preview:
@@ -7111,6 +7168,30 @@ components:
         remainingCount:
           type: integer
           format: int32
+    ClaimResponse:
+      type: object
+      properties:
+        notificationId:
+          type: string
+        kind:
+          type: string
+          enum:
+          - COIN
+          - GACHA_TICKET
+        amount:
+          type: integer
+          format: int64
+        claimedAt:
+          type: string
+          format: date-time
+        balanceAfter:
+          type: integer
+          format: int64
+          nullable: true
+        ticketsAfter:
+          type: integer
+          format: int64
+          nullable: true
     NoteReceiptResponse:
       required:
       - nextAllowedAt
@@ -8403,6 +8484,47 @@ components:
         executedAt:
           type: string
           format: date-time
+    RewardGrantInput:
+      required:
+      - amount
+      - expiresAt
+      - kind
+      - operationId
+      - text
+      - title
+      - userId
+      type: object
+      properties:
+        operationId:
+          type: string
+        userId:
+          type: string
+        kind:
+          type: string
+          enum:
+          - COIN
+          - GACHA_TICKET
+        amount:
+          type: integer
+          format: int64
+        title:
+          type: string
+        text:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    GrantResponse:
+      type: object
+      properties:
+        operationId:
+          type: string
+        notificationId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
     AdminWalletGrantPreviewRequest:
       type: object
       properties:
@@ -8725,10 +8847,34 @@ components:
           type: string
         feedbackId:
           type: string
+          nullable: true
         feedbackText:
           type: string
+          nullable: true
         feedbackStatus:
           type: string
+          nullable: true
+        reward:
+          $ref: "#/components/schemas/NotificationRewardResponse"
+    NotificationRewardResponse:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+          - COIN
+          - GACHA_TICKET
+        amount:
+          type: integer
+          format: int64
+        expiresAt:
+          type: string
+          format: date-time
+        claimedAt:
+          type: string
+          format: date-time
+          nullable: true
+      nullable: true
     FeedbackStatusInput:
       required:
       - expectedVersion
@@ -9305,6 +9451,8 @@ components:
           type: string
           format: date-time
           nullable: true
+        reward:
+          $ref: "#/components/schemas/NotificationRewardResponse"
     NoteListResponse:
       required:
       - notes

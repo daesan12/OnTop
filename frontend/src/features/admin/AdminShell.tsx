@@ -3,6 +3,7 @@ import { AdminFeedbackPage } from '../feedback/AdminFeedbackPage'
 import { AdminAccessError, loadAdminAccess, type AdminAccess } from './adminAccess'
 import { AdminAnalyticsPage } from './AdminAnalyticsPage'
 import { AdminWalletGrantPage } from './AdminWalletGrantPage'
+import { AdminRewardGrantForm } from '../notifications/AdminRewardGrantForm'
 import { AdminAnnouncementsPage } from '../announcements/AdminAnnouncementsPage'
 import { AdminServiceOperationPage } from './AdminServiceOperationPage'
 import logo from '../../assets/entry/ontop-logo.webp'
@@ -105,7 +106,7 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
         : <section role="alert">운영 관리자 권한이 필요합니다.</section>
         : section === 'feedback' ? <AdminFeedbackPage onAuthEnded={onAuthEnded} />
         : section === 'analytics' ? <AdminAnalyticsPage onAuthEnded={onAuthEnded} />
-          : state.access.canGrant ? <AdminWalletGrantPage onAuthEnded={onAuthEnded} />
+          : state.access.canGrant ? <><AdminRewardGrantForm onAuthEnded={onAuthEnded} /><AdminWalletGrantPage onAuthEnded={onAuthEnded} /></>
             : <section className="admin-feedback-content" role="alert"><h2>지급 권한이 없습니다</h2>
               <p>엽전 지급 권한이 등록된 관리자 계정으로 다시 확인해주세요.</p></section>}
     </>}
