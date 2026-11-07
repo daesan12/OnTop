@@ -9,13 +9,13 @@ const request = (name, method, suffix, body, variable) => ({
   event: [...(variable ? [{ listen: 'prerequest', script: { type: 'text/javascript', exec: [
     `if (!pm.environment.get('${variable}')) pm.environment.set('${variable}', pm.variables.replaceIn('{{$guid}}'));`,
   ] } }] : []), { listen: 'test', script: { type: 'text/javascript', exec: [
-    "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
-    ...(suffix === '' ? ["if (pm.response.code === 200) pm.environment.set('gachaRoundId', pm.response.json().machine.roundId);"] : []),
+    ...(suffix === '/draws' ? ["pm.test('확정 또는 회차/보충 대기', () => { if (pm.response.code === 409) pm.expect(['GACHA_ROUND_CHANGED','GACHA_REFILLING']).to.include(pm.response.json().code); else pm.response.to.have.status(200); });", "if (pm.response.code === 409 && ['GACHA_ROUND_CHANGED','GACHA_REFILLING'].includes(pm.response.json().code)) pm.environment.unset('gachaDrawOperationId');"] : ["pm.test('HTTP 200', () => pm.response.to.have.status(200));"]),
+    ...(suffix === '' ? ["if (pm.response.code === 200) { const state = pm.response.json(); pm.environment.set('gachaRoundId', state.machine.roundId); pm.test('서버 시각·보충 종료 계약', () => { pm.expect(Number.isFinite(Date.parse(state.serverNow))).to.eql(true); pm.expect(state.machine.refillEndsAt === null || Number.isFinite(Date.parse(state.machine.refillEndsAt))).to.eql(true); }); }"] : []),
     ...(body ? ["if (pm.response.code === 200) pm.environment.set('gachaLastOperationId', pm.response.json().operationId);"] : []),
   ] } }],
 });
 const collection = { info: { name: 'OnTop Gacha', schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
-  description: 'V156·상점 스키마·실제 상품 등록 후 GACHA_ENABLED=true인 검수 환경에서 실행합니다. 실제 엽전을 소비합니다. 새 작업은 해당 operationId 환경변수를 비우고, 응답 유실 재시도는 그대로 유지하세요. DRAW는 직전 조회의 회차를 사용하며 회차 변경이면 권이 소비되지 않습니다. OPEN의 gachaBoxGrade는 실제 보유한 등급(1~4)을 지정합니다. 인증·403·429·타임아웃은 기존 복구키를 유지합니다. 웹 컬렉션 저장·실행과 파일 생성은 별개입니다.' },
+  description: 'V157·V159·상점 스키마·실제 상품 등록 후 GACHA_ENABLED=true인 검수 환경에서 실행합니다. V158은 별도 편지함 작업이며 실제 적용 순서는 팀과 확인합니다. 실제 엽전을 소비합니다. 새 작업은 해당 operationId 환경변수를 비우고, 응답 유실 재시도는 그대로 유지하세요. DRAW는 직전 조회의 회차를 사용합니다. S급 확정 후 서버 기준 3초 보충 대기이며 GACHA_ROUND_CHANGED/GACHA_REFILLING(409)은 티켓 소비 없이 거절하고 미확정 키만 정리합니다. 이때 01 GET으로 새 회차·serverNow·refillEndsAt을 확인하고 대기 종료 후 사용자가 직접 03을 다시 실행하세요. 자동 DRAW 재시도는 없습니다. 확정 결과 복구는 대기 중에도 기존 키로 가능합니다. OPEN의 gachaBoxGrade는 실제 보유한 등급(1~4)을 지정합니다. 인증·403·429·타임아웃은 기존 복구키를 유지합니다. 웹 컬렉션 저장·실행과 파일 생성은 별개입니다.' },
   variable: [{ key: 'baseUrl', value: 'http://127.0.0.1:8080' }, { key: 'accessToken', value: '' }, { key: 'gachaBoxGrade', value: '1' }],
   item: [request('01 기계·본인 보관함 조회', 'GET', ''),
     request('02 뽑기권 한 장 구매 (100냥)', 'POST', '/tickets', { operationId: '{{gachaBuyOperationId}}' }, 'gachaBuyOperationId'),

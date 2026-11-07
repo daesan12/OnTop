@@ -5,6 +5,7 @@ vi.mock('../../src/park/runtime/runtime', () => ({ parkRuntime: { requestJSON: f
 import { gachaAction, refreshGacha, resetGacha, useGacha } from '../../src/features/gacha/state'
 import { acceptGacha } from '../../src/features/gacha/events'
 import { RestError } from '../../src/network/restError'
+import { gachaClock, refillRemaining } from '../../src/features/gacha/timing'
 
 const machine = (version = 0, roundId = '1') => ({ version, roundId, remaining: 30,
   prizes: [1, 2, 4, 8, 15].map((remaining, i) => ({ grade: i + 1, initial: remaining, remaining, value: [1000, 500, 250, 100, 20][i] })) })
@@ -55,4 +56,43 @@ it('계정이 바뀌는 동안 도착한 결과는 다른 계정에 적용하지
   expect(fixture.storage.has('ontop:gacha:pending:42')).toBe(true)
   fixture.request.mockResolvedValue(state); await refreshGacha()
   expect(useGacha.getState().owner).toBe('99'); expect(useGacha.getState().pending).toBeNull()
+})
+it('서버 보충 중 응답은 키를 정리하고 GET만 하며 종료 후에도 자동 추첨하지 않는다', async () => {
+  const serverNow='2026-11-07T10:00:00.000Z',refillEndsAt='2026-11-07T10:00:03.000Z'
+  fixture.request.mockRejectedValueOnce(new RestError(409,'GACHA_REFILLING','보충 중'))
+    .mockResolvedValueOnce({...state,serverNow,machine:{...machine(1,'2'),refillEndsAt}})
+  await gachaAction('DRAW')
+  expect(useGacha.getState().pending).toBeNull()
+  expect(fixture.storage.size).toBe(0)
+  expect(useGacha.getState().error).toBe('')
+  expect(useGacha.getState().transition).toBe('REFILLING')
+  expect(fixture.request.mock.calls.filter(c=>c[1]?.method==='POST')).toHaveLength(1)
+  const current=useGacha.getState().state!.machine
+  expect(refillRemaining(current,performance.now()+4000)).toBe(0)
+  expect(fixture.request.mock.calls.filter(c=>c[1]?.method==='POST')).toHaveLength(1)
+  expect(useGacha.getState().state?.inventory.tickets).toBe(1)
+})
+it('알려진 보충 중에는 새 추첨을 보내지 않지만 구매는 허용한다', async () => {
+  const serverNow='2026-11-07T10:00:00.000Z',refillEndsAt='2026-11-07T10:00:03.000Z'
+  fixture.request.mockResolvedValueOnce({...state,serverNow,machine:{...machine(1,'2'),refillEndsAt}})
+  await refreshGacha();fixture.request.mockClear()
+  await gachaAction('DRAW');expect(fixture.request).not.toHaveBeenCalled()
+  expect(useGacha.getState().pending).toBeNull()
+  fixture.request.mockRejectedValueOnce(new Error('구매 응답 유실'))
+  await gachaAction('BUY')
+  expect(fixture.request.mock.calls[0]![0]).toBe('/api/v1/gacha/tickets')
+})
+it('다른 사람이 S급을 뽑아도 이미 확정됐을 수 있는 이전 ID는 복구한다', async () => {
+  fixture.request.mockRejectedValueOnce(new Error('응답 유실'));await gachaAction('DRAW')
+  const first=JSON.parse(fixture.request.mock.calls[0]![1].body)
+  const serverNow='2026-11-07T10:00:00.000Z',refillEndsAt='2026-11-07T10:00:03.000Z'
+  gachaClock.sync(Date.parse(serverNow),performance.now())
+  acceptGacha({eventId:'aa7baf0b-0246-4391-adef-a247f90ac50a',machine:{...machine(1,'2'),refillEndsAt},winner:null})
+  fixture.request.mockResolvedValueOnce({operationId:first.operationId,kind:'DRAW',roundId:'1',grade:1,product:null,duplicate:false,
+    paidCoins:0,awardedCoins:0,inventory,completedAt:serverNow}).mockResolvedValueOnce({...state,serverNow,machine:{...machine(1,'2'),refillEndsAt}})
+  await gachaAction('DRAW')
+  expect(JSON.parse(fixture.request.mock.calls[1]![1].body)).toEqual(first)
+  expect(useGacha.getState().result?.roundId).toBe('1')
+  expect(useGacha.getState().result?.operationId).toBe(first.operationId)
+  expect(useGacha.getState().pending).toBeNull()
 })

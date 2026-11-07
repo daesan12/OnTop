@@ -11,6 +11,8 @@ import { Machine3D, CapsuleHero3D } from './CapsuleScene'
 import { CoinToWallet } from './GachaBoxes'
 import { capsuleName, capsuleTier, displayGachaMessage } from './labels'
 import { GachaActionIcon } from './GachaActionIcon'
+import { RefillNotice } from './RefillNotice'
+import { refillRemaining } from './timing'
 import { armUnlock } from '../../audio/bgm'
 import { playSfx } from '../../audio/sfx'
 import './gachaPanel.css'
@@ -20,7 +22,7 @@ import './gachaActions.css'
 export function GachaPanel() {
   const connected=useSession(s=>s.status==='connected'&&!!s.roomId)
   const s=useGacha(), live=useGachaEvents(v=>v.machine), notices=useGachaEvents(v=>v.notices)
-  const [selected,setSelected]=useState(1), [now,setNow]=useState(0)
+  const [selected,setSelected]=useState(1), [now,setNow]=useState(()=>performance.now())
   const [reduced,setReduced]=useState(()=>matchMedia('(prefers-reduced-motion: reduce)').matches)
   const owner=useSession(v=>v.sessionId)
   const art=useCapsuleAssets()
@@ -33,13 +35,14 @@ export function GachaPanel() {
   const dialog=useRef<HTMLDialogElement>(null)
   useEffect(()=>{const media=matchMedia('(prefers-reduced-motion: reduce)');const update=()=>setReduced(media.matches)
     media.addEventListener('change',update);return()=>media.removeEventListener('change',update)},[])
-  useEffect(()=>{ const timer=setInterval(()=>setNow(performance.now()),1000);return()=>clearInterval(timer) },[])
+  useEffect(()=>{ const timer=setInterval(()=>setNow(performance.now()),100);return()=>clearInterval(timer) },[])
   useEffect(()=>{if(connected)void refreshGacha();else closeConstructionNotice()},[connected])
   useEffect(()=>{
     const d=dialog.current;if(!d||!connected)return
     d.showModal();return()=>d.close()
   },[connected])
   const machine=s.state&&live&&live.version>s.state.machine.version?live:s.state?.machine
+  const remaining=refillRemaining(machine,now), refilling=remaining>0
   const blocked=s.busy||drawing||!!s.pending||!s.state
   const prize=machine?.prizes.find(p=>p.grade===selected)
   const gender=useSession(v=>v.profiles[v.sessionId]?.character==='girl'?'FEMALE':'MALE')
@@ -48,7 +51,7 @@ export function GachaPanel() {
   const result=motion.phase==='reveal'?motion.result:null
   const sounded=useRef('')
   useEffect(()=>{if(result?.kind==='DRAW'&&result.grade!==5&&sounded.current!==result.operationId){sounded.current=result.operationId;playSfx(result.grade===1?'game-start':'ui-equip')}},[result])
-  const act=(kind:'BUY'|'DRAW')=>{if(!blocked&&(kind!=='DRAW'||art.status==='ready'&&sceneReady)){armUnlock();playSfx('ui-click');void motion.act(kind)}}
+  const act=(kind:'BUY'|'DRAW')=>{if(!blocked&&(kind!=='DRAW'||!refilling&&art.status==='ready'&&sceneReady)){armUnlock();playSfx('ui-click');void motion.act(kind)}}
   const retry=()=>{
     const pending=useGacha.getState().pending
     if(!pending)return
@@ -59,8 +62,8 @@ export function GachaPanel() {
   return <dialog ref={dialog} className="gacha-art-dialog" aria-label="의상 뽑기"
     onCancel={e=>{e.preventDefault();if(drawing)motion.skip();else closeConstructionNotice()}}
     onClose={()=>{if(!dialog.current?.open)closeConstructionNotice()}} onKeyDown={e=>e.stopPropagation()}>
-    <div className="gacha-art-stage" data-drawing={drawing} data-phase={motion.phase} data-reduced={reduced||motion.instant}>
-      <Machine3D phase={motion.phase} phaseStartedAt={motion.phaseStartedAt} grade={motion.result?.grade} reduced={reduced} onReady={sceneLoaded}/>
+    <div className="gacha-art-stage" data-drawing={drawing} data-phase={motion.phase} data-refilling={refilling&&!drawing&&!result} data-reduced={reduced||motion.instant}>
+      <Machine3D phase={motion.phase} phaseStartedAt={motion.phaseStartedAt} grade={motion.result?.grade} reduced={reduced} onReady={sceneLoaded} refillUntil={refilling&&!drawing&&!result?now+remaining:undefined}/>
       <div className="capsule-front-glass" aria-hidden="true"/>
       <h1 className="art-title">의상 뽑기</h1><p className="art-subtitle">모두가 함께하는 작은 행운</p>
       <div className="art-header-actions"><div className="art-wallet"><span>보유 엽전 <b>{s.state?money(s.state.inventory.balance):'확인 중'}</b></span>
@@ -86,13 +89,14 @@ export function GachaPanel() {
           <b>{p.remaining}<small>개</small></b>
         </div>)}
       </section>
+      {!drawing&&!result&&<RefillNotice remaining={remaining} transition={s.transition}/>}
       <p className="art-reset">S급 당첨 시 보상이 새로 채워져요</p>
       <p className="art-storage-hint">의상 캡슐은 마이룸에서 열어 보세요</p>
       <button className="art-storage art-button" aria-label="나의 옷장 · 캡슐 보관함" disabled={s.busy||drawing} onClick={()=>{dialog.current?.close();closeConstructionNotice();openWardrobe()}}><GachaActionIcon kind="wardrobe"/><span className="art-action-copy"><b>나의 옷장</b><small>모아 둔 캡슐 확인하기</small></span></button>
       <button className="art-buy art-button" aria-label={`뽑기권 구매 ${money(s.state?.ticketPrice??100)}`} disabled={blocked||!s.state||s.state.inventory.availableBalance<s.state.ticketPrice}
         onClick={()=>void act('BUY')}><GachaActionIcon kind="ticket"/><span className="art-action-copy"><b>뽑기권 구매</b><small>1장 · {money(s.state?.ticketPrice??100)}</small></span></button>
-      <button className="art-draw art-button" aria-label="뽑기권 1장 사용" disabled={blocked||art.status!=='ready'||!sceneReady||!s.state?.inventory.tickets} onClick={()=>void act('DRAW')}>
-        <GachaActionIcon kind="capsule"/><span className="art-action-copy"><b>{drawing?(motion.phase==='turning'?'손잡이를 돌려요…':motion.phase==='mixing'?'행운을 섞고 있어요…':'행운이 다가와요…'):'캡슐 뽑기'}</b><small>뽑기권 1장 사용</small></span></button>
+      <button className="art-draw art-button" aria-label="뽑기권 1장 사용" disabled={blocked||refilling||art.status!=='ready'||!sceneReady||!s.state?.inventory.tickets} onClick={()=>void act('DRAW')}>
+        <GachaActionIcon kind="capsule"/><span className="art-action-copy"><b>{drawing?(motion.phase==='turning'?'손잡이를 돌려요…':motion.phase==='mixing'?'행운을 섞고 있어요…':'행운이 다가와요…'):refilling?'캡슐 보충 중…':'캡슐 뽑기'}</b><small>뽑기권 1장 사용</small></span></button>
       {drawing&&<div className="art-draw-status" role="status"><span>{motion.phase==='mixing'?'공유 기계에서 결과를 확인하고 있어요':'행운의 캡슐을 꺼내고 있어요'}</span>
         <button onClick={motion.skip}>연출 건너뛰기</button></div>}
       {art.status==='error'&&<p className="art-error" role="alert">캡슐 그림을 불러오지 못했어요. 뽑기권은 사용하지 않았어요.<button onClick={art.retry}>그림 다시 불러오기</button></p>}

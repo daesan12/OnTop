@@ -41,18 +41,19 @@ export function useCapsuleDraw(active: boolean, owner: string, reduced: boolean)
     const controller = new AbortController(), { signal } = controller
     flight.current = controller; skipped.current = false
     const effectiveKind = s.pending?.kind ?? kind
+    let settled=false
     const current = () => !signal.aborted && flight.current === controller
       && useSession.getState().sessionId === owner && useSession.getState().status === 'connected'
     const wait = async (ms: number) => {
       const start = performance.now()
-      while (current() && !skipped.current && !reduce.current && performance.now() - start < ms)
+      while (current() && !skipped.current && !reduce.current && !(settled&&!useGacha.getState().result) && performance.now() - start < ms)
         await new Promise(resolve => setTimeout(resolve, 32))
     }
     const phase = (p: Phase) => { if (current()) setVisual(v => ({ ...v, phase: p, phaseStartedAt: performance.now() })) }
     try {
       setVisual({ busy: true, phase: effectiveKind === 'DRAW' ? 'turning' : 'idle', phaseStartedAt: performance.now(), result: null, instant: false })
       // gachaAction owns persisted operation IDs, idempotency and receipt recovery.
-      const request = gachaAction(kind)
+      const request = gachaAction(kind).finally(()=>{settled=true})
       const operationId = useGacha.getState().pending?.operationId
       if (effectiveKind === 'DRAW') { await wait(700); phase('mixing'); await wait(2600) }
       await request

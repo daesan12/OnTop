@@ -81,12 +81,13 @@ function StageCamera(){
  useLayoutEffect(()=>{camera.zoom=size.width/1000;camera.updateProjectionMatrix()},[camera,size.width])
  return null
 }
-function MachineBalls({phase,phaseStartedAt,grade,reduced,onReady}:{phase:Phase;phaseStartedAt:number;grade?:number;reduced:boolean;onReady:()=>void}){
+function MachineBalls({phase,phaseStartedAt,grade,reduced,onReady,refillUntil}:{phase:Phase;phaseStartedAt:number;grade?:number;reduced:boolean;onReady:()=>void;refillUntil?:number}){
  const refs=useRef<(Group|null)[]>([]),rolled=useRef<Group>(null),handle=useRef<Group>(null)
  const pile=useMemo(()=>new CapsulePile(),[])
  const grades=useMemo(mixedVisualGrades,[])
  const prior=useRef({phase,reduced})
  const initial=useMemo(()=>pile.balls.map(b=>({position:[b.x,b.y,b.z] as [number,number,number],rotation:[b.rx,b.ry,b.rz] as [number,number,number]})),[pile])
+ const fillOrder=useMemo(()=>{const order=initial.map((v,i)=>({y:v.position[1],i})).sort((a,b)=>a.y-b.y);const ranks:number[]=[];order.forEach((v,i)=>{ranks[v.i]=i});return ranks},[initial])
  useEffect(onReady,[onReady])
  useFrame((_,delta)=>{
   const dt=Math.min(.1,delta),selected=grades.indexOf(grade??0)
@@ -99,9 +100,11 @@ function MachineBalls({phase,phaseStartedAt,grade,reduced,onReady}:{phase:Phase;
   refs.current.forEach((ball,i)=>{
    if(!ball)return
    const winner=i===selected
-   ball.visible=!(winner&&['drop','landed','anticipation','reveal'].includes(phase))
+   const fill=refillUntil===undefined||reduced?1:Math.max(0,Math.min(1,1-(refillUntil-performance.now())/3000))
+   const enter=refillUntil===undefined||reduced?1:Math.min(1,(fill-fillOrder[i]!/grades.length*.7)/.3)
+   ball.visible=enter>=0&&!(winner&&['drop','landed','anticipation','reveal'].includes(phase))
    const body=pile.balls[i]!
-   ball.position.set(body.x,body.y,body.z)
+   ball.position.set(body.x,body.y+(1-Math.max(0,enter))**2*60,body.z)
    ball.rotation.set(body.rx,body.ry,body.rz)
   })
   if(handle.current&&!reduced&&energetic)handle.current.rotation.z-=dt*(phase==='turning'?8:4)
@@ -127,12 +130,12 @@ function MachineBalls({phase,phaseStartedAt,grade,reduced,onReady}:{phase:Phase;
   </group>
  </>
 }
-export function Machine3D({phase,phaseStartedAt,grade,reduced,onReady}:{phase:Phase;phaseStartedAt:number;grade?:number;reduced:boolean;onReady:()=>void}){
+export function Machine3D({phase,phaseStartedAt,grade,reduced,onReady,refillUntil}:{phase:Phase;phaseStartedAt:number;grade?:number;reduced:boolean;onReady:()=>void;refillUntil?:number}){
  return <div className="capsule-machine-3d" data-phase={phase}>
   <Canvas orthographic camera={{position:[0,0,800],near:.1,far:1600}} dpr={1} gl={{alpha:true,antialias:true}}
-   frameloop={reduced||phase==='idle'||phase==='reveal'?'demand':'always'}
+   frameloop={reduced||refillUntil===undefined&&(phase==='idle'||phase==='reveal')?'demand':'always'}
    fallback={<span className="capsule-3d-failure">3D 연출을 불러오지 못했어요. 뽑기 화면을 다시 열어 주세요.</span>}>
-   <StageCamera/><Lights/><MachineBalls phase={phase} phaseStartedAt={phaseStartedAt} grade={grade} reduced={reduced} onReady={onReady}/>
+   <StageCamera/><Lights/><MachineBalls phase={phase} phaseStartedAt={phaseStartedAt} grade={grade} reduced={reduced} onReady={onReady} refillUntil={refillUntil}/>
   </Canvas>
  </div>
 }
