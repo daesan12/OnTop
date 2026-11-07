@@ -9,6 +9,7 @@ export class CoopClient {
   private poll?: ReturnType<typeof setTimeout>
   private resultPoll?: ReturnType<typeof setTimeout>
   private chain: Promise<void> = Promise.resolve()
+  private movementSequence = 0
   private requestIds = new Set<string>()
   private stopped = false
   private owner: string
@@ -185,6 +186,9 @@ export class CoopClient {
   act(input: Record<string, unknown>, quiet = false) {
     const gameId = this.snapshot?.gameId
     const round = this.snapshot?.publicState.round ?? 0
+    const movement = input.type === 'MOVE'
+    const sequence = movement ? ++this.movementSequence : 0
+    const superseded = () => movement && sequence !== this.movementSequence
     const work = async () => {
       if (this.stopped || !gameId || gameId !== this.snapshot?.gameId || !this.transport.scope().connected
         || round !== (this.snapshot.publicState.round ?? 0)) return
@@ -192,7 +196,7 @@ export class CoopClient {
       if (input.type === 'GREET' && (!this.snapshot.publicState.greeting.active || this.snapshot.publicState.greeting.answered)) return
       const actionId = crypto.randomUUID()
       for (let attempt = 0; attempt < 4; attempt++) {
-        if (round !== (this.snapshot?.publicState.round ?? 0)) return
+        if (this.stopped || gameId !== this.snapshot?.gameId || round !== (this.snapshot?.publicState.round ?? 0) || superseded() || movement && !this.playable) return
         if (input.type === 'RESTART_REPLY' && input.requestId !== this.snapshot?.publicState.restart?.id) return
         try {
           await this.request('GAME_ACTION_SEND', { gameId, actionId, expectedVersion: this.snapshot!.publicState.actionVersion, input }, ['GAME_ACTION_RESULT'])
@@ -201,6 +205,7 @@ export class CoopClient {
           if (!quiet) this.store.setState({ error: '' })
           return
         } catch (error) {
+          if (superseded()) return
           const code = (error as { code?: string }).code
           if (code === 'GAME_ACTION_STALE_VERSION') { await this.sync(); continue }
           if (code === 'GAME_RECOVERY_REQUIRED') { await this.recover(); continue }
@@ -212,6 +217,9 @@ export class CoopClient {
       }
       if (!quiet) this.store.setState({ error: '상태가 바뀌었어요. 다시 눌러주세요.' })
     }
+    // 같은 소켓의 전송 순서는 유지하되, 방향 전환·정지는 앞선 응답을 기다리지 않는다.
+    // MOVE는 actionVersion을 증가시키지 않는다. 낡은 이동의 재시도는 위에서 폐기한다.
+    if (movement) return work().catch(() => { if (!superseded()) this.store.setState({ error: '연결이 원활하지 않아요. 잠시 후 다시 시도해 주세요.' }) })
     this.chain = this.chain.then(work).catch(() => { this.store.setState({ error: '연결이 원활하지 않아요. 잠시 후 다시 시도해 주세요.' }) })
     return this.chain
   }

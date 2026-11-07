@@ -78,7 +78,7 @@ export class ChefHall {
       this.playback.push(state.position); this.previousPosition = { ...state.position }
     }
     if (paused) this.playback.reset(state.position)
-    this.motion.update(online ? this.playback.step(paused ? 0 : dt) : state.position,dt,paused)
+    this.motion.update(online ? this.playback.step(paused ? 0 : dt) : state.position,dt,paused,true)
     const p=this.server.root.position,moving=this.motion.moving
     p.set(this.motion.position.x,0,this.motion.position.z)
     this.server.root.rotation.y=this.motion.yaw

@@ -354,7 +354,7 @@ export class ServiceScene {
     this.guestTimeBudget -= guestDt
     this.guestElapsed = view.elapsed
     if (this.server) {
-      this.serverMotion.update(view.position, dt, view.finished)
+      this.serverMotion.update(view.position, dt, view.finished, true)
       const actor = this.server, moving = this.serverMotion.moving
       actor.root.rotation.y = this.serverMotion.yaw
       actor.root.position.set(this.serverMotion.position.x, 0, this.serverMotion.position.z); actor.pose(dt, { moving, carrying: !!(view.carry.length || view.sake || view.dirtyDishes.length), cleaning: !!view.clean, reduced: this.reduced })
