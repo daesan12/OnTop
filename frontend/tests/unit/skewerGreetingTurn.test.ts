@@ -23,7 +23,37 @@ describe('VR 인사 실제 한 바퀴 회전', () => {
       const back = spin(turn, 170, 0, at); at = back.now
       expect(out.successes + back.successes).toBe(0)
     }
-    expect(turn.progress).toBeCloseTo(0)
+    expect(turn.progress).toBeLessThan(.5)
+  })
+  it.each([180, 270, -180, -270])('%s도 뒤 방향을 바꾸면 전환 지점부터 한 바퀴로 완료한다', partial => {
+    const turn = new GreetingTurn(), direction = Math.sign(partial)
+    const first = spin(turn, 0, partial)
+    const almost = spin(turn, partial, partial - direction * 359, first.now)
+    expect(almost.successes).toBe(0)
+    expect(turn.progress).toBeCloseTo(359 / 360)
+    expect(spin(turn, partial - direction * 359, partial - direction * 360, almost.now).successes).toBe(1)
+    expect(spin(turn, partial - direction * 360, partial - direction * 720, almost.now + 2200).successes).toBe(0)
+  })
+  it.each([1, -1])('방향 %s의 미세한 자세 흔들림은 진행도를 초기화하거나 늘리지 않는다', direction => {
+    const turn = new GreetingTurn(), first = spin(turn, 0, direction * 180)
+    let now = first.now
+    for (let n = 0; n < 20; n++) {
+      turn.update('0:0', pose(direction * 179.4), now += 20)
+      turn.update('0:0', pose(direction * 180), now += 20)
+    }
+    expect(turn.progress).toBeCloseTo(.5)
+    const almost = spin(turn, direction * 180, direction * 359, now)
+    expect(almost.successes).toBe(0)
+    expect(spin(turn, direction * 359, direction * 360, almost.now).successes).toBe(1)
+  })
+  it.each([270, -270])('%s도 뒤 작은 프레임 이동으로 천천히 반대로 돌아도 완료한다', partial => {
+    const turn = new GreetingTurn(), first = spin(turn, 0, partial)
+    let now = first.now, successes = 0
+    for (let n = 1; n <= 1440; n++) {
+      if (turn.update('0:0', pose(partial - Math.sign(partial) * n / 4), now += 10)) successes++
+    }
+    expect(successes).toBe(1)
+    expect(turn.progress).toBe(1)
   })
   it('인사 밖의 회전은 다음 인사에 더해지지 않고 이벤트가 바뀌면 새로 측정한다', () => {
     const turn = new GreetingTurn()
