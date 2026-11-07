@@ -83,4 +83,58 @@ describe('꼬치왕 QA 피드백 회귀', () => {
     expect(request.mock.calls.map(([type]) => type)).toEqual(['GAME_ACTION_SEND', 'GAME_ACTION_SEND'])
     client.stop()
   })
+  it('이전 이동 응답이 늦어도 방향 전환과 정지를 즉시 전송한다', async () => {
+    const { client, request } = fixture()
+    const snapshot = finished(); snapshot.publicState.phase = 'PLAYING'
+    client.store.setState({ snapshot })
+    let acknowledge!: (value: Envelope) => void
+    request.mockImplementationOnce(() => new Promise(resolve => { acknowledge = resolve }))
+    const first = client.act({ type: 'MOVE', dx: 1, dz: 0 }, true)
+    await Promise.resolve()
+    const turn = client.act({ type: 'MOVE', dx: 0, dz: 1 }, true)
+    const stop = client.act({ type: 'MOVE', dx: 0, dz: 0 }, true)
+    await Promise.resolve()
+    expect(request.mock.calls.map(([, payload]) => payload.input)).toEqual([
+      { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: 0, dz: 1 }, { type: 'MOVE', dx: 0, dz: 0 },
+    ])
+    acknowledge({ payload: {} } as Envelope)
+    await Promise.all([first, turn, stop])
+    client.stop()
+  })
+  it('정지 뒤에 도착한 이전 이동의 버전 오류는 낡은 방향을 재전송하지 않는다', async () => {
+    const { client, request } = fixture()
+    const snapshot = finished(); snapshot.publicState.phase = 'PLAYING'
+    client.store.setState({ snapshot })
+    let reject!: (reason: unknown) => void
+    request.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail }))
+    const first = client.act({ type: 'MOVE', dx: 1, dz: 0 }, true)
+    await Promise.resolve()
+    const stop = client.act({ type: 'MOVE', dx: 0, dz: 0 }, true)
+    reject({ code: 'GAME_ACTION_STALE_VERSION' })
+    await Promise.all([first, stop])
+    expect(request.mock.calls.map(([type]) => type)).toEqual(['GAME_ACTION_SEND', 'GAME_ACTION_SEND'])
+    expect(request.mock.calls[1][1].input).toEqual({ type: 'MOVE', dx: 0, dz: 0 })
+    client.stop()
+  })
+  it('최신 방향의 버전 오류는 상태를 갱신한 뒤 같은 입력 ID로 재시도한다', async () => {
+    const { client, request } = fixture()
+    const snapshot = finished(); snapshot.publicState.phase = 'PLAYING'
+    client.store.setState({ snapshot })
+    request.mockRejectedValueOnce({ code: 'GAME_ACTION_STALE_VERSION' })
+      .mockResolvedValueOnce({ type: 'GAME_STATE', payload: { ...snapshot, version: 21, publicState: { ...snapshot.publicState, actionVersion: 2 } } } as unknown as Envelope)
+    await client.act({ type: 'MOVE', dx: -1, dz: 0 }, true)
+    expect(request.mock.calls.map(([type]) => type)).toEqual(['GAME_ACTION_SEND', 'GAME_STATE_CHECK', 'GAME_ACTION_SEND'])
+    expect(request.mock.calls[2][1]).toMatchObject({ actionId: request.mock.calls[0][1].actionId, expectedVersion: 2, input: { type: 'MOVE', dx: -1, dz: 0 } })
+    client.stop()
+  })
+  it('이동 오류를 복구하는 동안 일시정지가 시작되면 방향을 다시 보내지 않는다', async () => {
+    const { client, request } = fixture()
+    const snapshot = finished(); snapshot.publicState.phase = 'PLAYING'
+    client.store.setState({ snapshot })
+    request.mockRejectedValueOnce({ code: 'GAME_ACTION_STALE_VERSION' })
+      .mockResolvedValueOnce({ type: 'GAME_STATE', payload: { ...snapshot, version: 21, publicState: { ...snapshot.publicState, paused: true } } } as unknown as Envelope)
+    await client.act({ type: 'MOVE', dx: -1, dz: 0 }, true)
+    expect(request.mock.calls.map(([type]) => type)).toEqual(['GAME_ACTION_SEND', 'GAME_STATE_CHECK'])
+    client.stop()
+  })
 })

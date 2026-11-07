@@ -13,7 +13,7 @@ export class ToyPeople {
   private library?: DiningGuests
   private disposed = false
   readonly guestsReady: Promise<boolean>
-  constructor(private art: RestaurantSet) {
+  constructor(private art: RestaurantSet, readonly guestSpeech = true) {
     this.guestsReady = DiningGuests.load().then(library => {
       if (this.disposed) { library.dispose(); return false }
       this.library = library
@@ -68,7 +68,7 @@ export class ToyActor {
     const look = characterLook(index, role)
     const { skin, shirt, pants, shoes } = look
     this.root.name = role === 'guest' ? 'guest-reference-' + look.variant : role + '-reference'
-    if (role === 'guest') { this.speech = new GuestSpeech(factory.speech, look.variant % 6); this.root.add(this.speech.root) }
+    if (role === 'guest' && factory.guestSpeech) { this.speech = new GuestSpeech(factory.speech, look.variant % 6); this.root.add(this.speech.root) }
     const ball = (parent: THREE.Object3D, color: string, x: number, y: number, z: number, sx: number, sy = sx, sz = sx) => {
       const m = factory.mesh('ball', color); m.scale.set(sx, sy, sz); art.place(parent, m, x, y, z); return m
     }
