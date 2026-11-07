@@ -16,7 +16,7 @@ export class ChefHall {
   private art = new RestaurantSet()
   private floor = createHallFloor(this.art)
   private courtyard = new ChefCourtyard(this.art)
-  private people = new ToyPeople(this.art)
+  private people = new ToyPeople(this.art, false)
   private server = this.people.create(1, 'server')
   private tray = new THREE.Group()
   private sculpted: SculptedServer | null = null

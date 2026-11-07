@@ -6,7 +6,7 @@ import type { CoopSnapshot, CoopTransport } from '../../../src/features/skewer/c
 import type { Envelope } from '../../../src/network/protocol'
 import ChefPage from '../../../src/features/skewer/chef/ChefPage'
 import { CoopClient } from '../../../src/features/skewer/coop/client'
-import { move } from '../../../src/features/skewer/serviceHall/plan'
+import { move, TABLES } from '../../../src/features/skewer/serviceHall/plan'
 import { OnlineChef } from '../../../src/features/skewer/coop/drivers'
 import '../../../src/styles.css'
 
@@ -24,6 +24,9 @@ if (new URLSearchParams(location.search).has('prepare')) {
   state.publicState.phase = 'WAITING'; state.publicState.players.forEach(player => { player.ready = false })
 }
 let velocity = { dx: 0, dz: 0 }
+const moveRequests: { dx: number; dz: number; at: number }[] = []
+const holdMoves = new URLSearchParams(location.search).has('holdMoves')
+const moveReplies: (() => void)[] = []
 window.setInterval(() => {
   if (state.privateState.hall && state.publicState.phase === 'PLAYING' && !state.publicState.paused && (velocity.dx || velocity.dz)) {
     state.privateState.hall.position = move(state.privateState.hall.position, velocity.dx, velocity.dz, .05)
@@ -43,13 +46,20 @@ const transport: CoopTransport = {
   requestJSON: async path => path.includes('/result?') ? { gameId, status: 'UNAVAILABLE', teamScore: 432, served: 2, endReason: 'SKEWER_TIME_UP', rankingStatus: 'EXCLUDED', rankingReason: 'QA', coinsCalculated: 21, coinsGranted: null, todayEarned: null, dailyCap: 500, remainingToday: null, balance: null, rewardDate: null, settledAt: null } : { mine: structuredClone(state), rooms: [] },
   request: async (type, payload) => {
     const input = payload.input as { type?: string; paused?: boolean; dx?: number; dz?: number } | undefined
-    if (input?.type === 'MOVE') velocity = { dx: input.dx ?? 0, dz: input.dz ?? 0 }
+    if (input?.type === 'MOVE') {
+      velocity = { dx: input.dx ?? 0, dz: input.dz ?? 0 }
+      moveRequests.push({ ...velocity, at: performance.now() })
+      if (holdMoves) await new Promise<void>(resolve => moveReplies.push(resolve))
+    }
     if (input?.type === 'PAUSE') { state.publicState.paused = !!input.paused; state.publicState.pausedBy = input.paused ? ['101'] : []; state.publicState.pauseReason = input.paused ? 'EXIT_CONFIRM' : ''; state.version++; publish() }
     return { type: type === 'GAME_STATE_CHECK' ? 'GAME_STATE' : 'GAME_ACTION_RESULT', payload: structuredClone(state) } as unknown as Envelope
   },
 }
 Reflect.set(window, 'skewerFeedback', {
   position: () => state.privateState.hall?.position,
+  moves: () => moveRequests,
+  releaseMoves: () => moveReplies.splice(0).forEach(resolve => resolve()),
+  nearTable: (id: number) => { state.privateState.hall!.position = { ...TABLES.find(table => table.id === id)!.approach }; state.version++; publish() },
   tableArrival: (remaining: number) => { const t = state.privateState.hall!.tables[2]; t.people = 1; t.status = remaining > 0 ? 'arriving' : 'unreceived'; t.arrivalRemaining = remaining; t.bill = remaining > 0 ? null : { dishes: [{ id: 'arrival', table: 3, recipe: ['tomato'], delivered: false }], sake: 0, sakeDelivered: 0 }; state.version++; publish() },
   clock: (remaining: number) => { state.publicState.remaining = remaining; state.version++; publish() },
   greeting: (outcome: '' | 'success' | 'missed' | 'active') => {

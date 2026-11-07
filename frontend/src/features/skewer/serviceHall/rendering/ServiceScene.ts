@@ -303,7 +303,6 @@ export class ServiceScene {
     }).catch(() => {
       if (!this.disposed) { this.host.dataset.serverModel = 'unavailable'; this.notice('서빙 캐릭터를 불러오지 못했어요. 새로고침해 주세요.') }
     })
-    const ring = this.mesh(new THREE.RingGeometry(.40, .57, 40), new THREE.MeshBasicMaterial({ color: '#ffd052', transparent: true, opacity: .95, depthWrite: false, toneMapped: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = .035; ring.castShadow = false; this.server.root.add(ring)
     const chefFallback = actor(0, 0, ROOM.counterZ - 1.28, 0, 'chef')
     this.host.dataset.chefModel = 'loading'
     void SculptedChef.load().then(chef => {
