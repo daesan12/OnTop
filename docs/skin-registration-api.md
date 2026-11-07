@@ -36,6 +36,8 @@ SKIN_UPLOAD_MAX_IMAGE_BYTES=2097152
 
 관리자 화면은 `/admin/skins`다. 관리자 API 접두사는 `/api/v1/admin/operations/skins`다.
 
+DEV/PROD의 Vercel 설정에서 `/admin/skins`를 `/index.html`로 연결한다. 관리자 내부 이동뿐 아니라 직접 주소 입력·새로고침도 같은 React 화면으로 진입해야 한다. 연결 누락 시 인증 검사 전에 Vercel 404가 발생한다.
+
 | 메서드·경로 | 동작 |
 | --- | --- |
 | GET /settings | 권한과 storageReady·파일 제한 |
