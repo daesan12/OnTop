@@ -28,6 +28,7 @@ async function loaded(page: Page, chatDelayMs = 0) {
   } }))
   await page.goto('/park')
   await expect(page).toHaveTitle('OnTop')
+  await expect(page.locator('.park-chat__radius')).toHaveText('반경 50m', { timeout: 90_000 })
   await expect(page.getByLabel('공원 기본 화면')).toBeVisible({ timeout: 90_000 })
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90_000 })
   await expect.poll(() => page.evaluate(async () =>

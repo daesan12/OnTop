@@ -4,7 +4,7 @@
   "webSocketUrl": "ws://localhost:8080/ws/tables",
   "frontendOrigin": "http://localhost:5173",
   "mapVersion": "544bc6fa3890c77e8de0ec91d27f93981b4d23a477918963757e4762294ba8d0",
-  "chatRadius": 20,
+  "chatRadius": 50,
   "watchRadius": 20,
   "tables": [
     {
