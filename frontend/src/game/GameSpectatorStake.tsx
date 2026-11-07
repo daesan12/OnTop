@@ -8,7 +8,7 @@ export function GameSpectatorStake() {
   const game = useGame(s => s.game)
   const tables = useSession(s => s.tableStates)
   const publicTables = useSession(s => s.tables)
-  if (game?.role !== 'SPECTATOR' || gameState(game).status !== 'PLAYING') return null
+  if (game?.role !== 'SPECTATOR' || gameState(game)?.status !== 'PLAYING') return null
   const stake = matchStakeDetails(game, tables, publicTables)
   return <div className="game-spectator-stake" role="status" aria-label="관전 경기 판돈">
     <div><span>총 판돈</span><strong>{stake ? stakeLabel(stake.total) : '확인 중'}</strong></div>

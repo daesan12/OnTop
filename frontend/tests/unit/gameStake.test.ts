@@ -68,6 +68,13 @@ it('상세 관전 상태가 오기 전에는 같은 경기 ID의 공개 테이�
 })
 
 const spectatorStake = () => renderToStaticMarkup(createElement(GameSpectatorStake))
+it('내부 게임 상태가 비어 있는 관전 스냅샷은 숨기고 동기화 후 정상 표시한다', () => {
+  state.game = { gameId: 'g-1', version: 1, role: 'SPECTATOR' } as unknown as Game
+  state.tableStates = table('g-1', 250)
+  expect(spectatorStake()).toBe('')
+  state.game = { ...omok(), role: 'SPECTATOR' }
+  expect(spectatorStake()).toContain('<strong>500냥</strong>')
+})
 it('관전자에게 총액과 1인 판돈·인원을 명확히 표시한다', () => {
   state.game = { ...omok(), role: 'SPECTATOR' }; state.tableStates = table('g-1', 250)
   expect(spectatorStake()).toContain('aria-label="관전 경기 판돈"')

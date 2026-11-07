@@ -97,6 +97,24 @@ for (const key of ['omok', 'onecard'] as const) test(`${key} 관전자 판돈 �
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
   expect(errors).toEqual([])
 })
+test('모바일 오목 관전 종료는 채팅 높이와 카메라 측정값을 정리한다', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await fixture(page, { players: 2, publicProfiles: names, ownUserId: '505' }); await openPark(page)
+  await sendTable(page, 'TABLE_WATCH_STATE', 'OMOK', 2, 1250)
+  await sendGame(page, 'SPECTATOR', omokState(), {}, 5)
+  const stake = page.getByRole('status', { name: '관전 경기 판돈', exact: true })
+  await expect(stake).toBeVisible()
+  const measurements = () => page.evaluate(async () => ({
+    chatHeight: document.querySelector<HTMLElement>('.park-page')!.style.getPropertyValue('--omok-chat-height'),
+    gameId: (await import('/src/game/cameraState.ts' as string)).omokSpectatorViewport.gameId,
+  }))
+  await expect.poll(async () => (await measurements()).chatHeight).toMatch(/^\d+(\.\d+)?px$/)
+  expect((await measurements()).gameId).toBe('stake-e2e')
+  await page.evaluate(async () => (await import('/src/game/store.ts' as string)).resetGame())
+  await expect(stake).toHaveCount(0)
+  await expect.poll(measurements).toEqual({ chatHeight: '', gameId: '' })
+})
+
 let tableVersion = 300
 /** TABLE_STATE (participant) or TABLE_WATCH_STATE (spectator) through the real client parser. */
 const sendTable = (page: Page, type: 'TABLE_STATE' | 'TABLE_WATCH_STATE', code: string, players: number, bet: number, gameId = 'stake-e2e') =>

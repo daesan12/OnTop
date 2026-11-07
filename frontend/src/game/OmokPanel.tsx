@@ -160,7 +160,12 @@ export function OmokPanel() {
     return () => {
       observer.disconnect(); window.removeEventListener('resize', measure)
       if (omokSpectatorViewport.gameId === spectatorGameId) {
-        omokSpectatorViewport.gameId = ''; root.style.removeProperty('--omok-spectator-toolbar-height'); root.style.removeProperty('--omok-chat-top'); root.style.removeProperty('--omok-notice-top');root.style.removeProperty('--omok-side-header-height');root.style.removeProperty('--omok-chat-height')
+        omokSpectatorViewport.gameId = ''
+        root.style.removeProperty('--omok-spectator-toolbar-height')
+        root.style.removeProperty('--omok-chat-top')
+        root.style.removeProperty('--omok-notice-top')
+        root.style.removeProperty('--omok-side-header-height')
+        root.style.removeProperty('--omok-chat-height')
       }
     }
   }, [spectatorGameId, spectator, connectionNotice])
