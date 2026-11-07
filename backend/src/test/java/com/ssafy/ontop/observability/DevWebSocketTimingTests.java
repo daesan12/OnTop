@@ -39,7 +39,7 @@ class DevWebSocketTimingTests {
         var registry = new SimpleMeterRegistry();
         Metrics.addRegistry(registry);
         try {
-            var measured = (TableWebSocketHandler) DevObservabilityConfiguration.devWebSocketTiming()
+            var measured = (TableWebSocketHandler) ObservabilityConfiguration.webSocketTiming()
                     .postProcessAfterInitialization(new TableWebSocketHandler(hub, true, connections), "handler");
             var textTimer = registry.get("ontop.websocket.handler.duration").tag("kind", "text").timer();
             var controlTimer = registry.get("ontop.websocket.handler.duration").tag("kind", "control").timer();
@@ -72,7 +72,7 @@ class DevWebSocketTimingTests {
             doThrow(new IllegalStateException("test failure")).when(hub).receive("test-socket", "test-message");
         }
         var original = new TableWebSocketHandler(hub, true, connections);
-        var measured = (TableWebSocketHandler) DevObservabilityConfiguration.devWebSocketTiming()
+        var measured = (TableWebSocketHandler) ObservabilityConfiguration.webSocketTiming()
                 .postProcessAfterInitialization(original, "handler");
         var registry = new SimpleMeterRegistry();
         Metrics.addRegistry(registry);
