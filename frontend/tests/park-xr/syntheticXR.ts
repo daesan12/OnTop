@@ -11,6 +11,9 @@ let left: Gamepad, right: Gamepad, session: XRSession
 let timer: ReturnType<typeof setInterval>
 let targetAction: JumpmapXRAction | null = null
 let tracked = true
+const feedbackPulses: { hand: string; strength: number; duration: number }[] = []
+let feedbackResets = 0
+export const feedbackSnapshot = () => ({ pulses: [...feedbackPulses], resets: feedbackResets })
 const root = () => _roots.get(document.querySelector('canvas')!)!.store.getState()
 export function guideTexturePNG() {
   const mesh = root().scene.getObjectByName('jumpmap-xr-dialog') as import('three').Mesh<import('three').PlaneGeometry, import('three').MeshBasicMaterial>
@@ -21,9 +24,13 @@ export function sceneFramePNG() {
   state.gl.render(state.scene, state.camera)
   return state.gl.domElement.toDataURL('image/png')
 }
-export function install() {
+export function install(options: { haptics?: boolean } = {}) {
   const state = root()
-  const pad = () => ({ mapping: 'xr-standard', axes: [0, 0, 0, 0],
+  feedbackPulses.length = 0; feedbackResets = 0
+  const pad = (hand: string) => ({ mapping: 'xr-standard', axes: [0, 0, 0, 0],
+    hapticActuators: options.haptics ? [{ pulse: async (strength: number, duration: number) => {
+      feedbackPulses.push({ hand, strength, duration }); return true
+    }, reset: async () => { feedbackResets++; return 'complete' } }] : [],
     buttons: Array.from({ length: 6 }, () => ({ pressed: false, touched: false, value: 0 })) }) as unknown as Gamepad
   let current: XRSession | null = null
   // Exercise our bridge and the real park intent/socket path while keeping desktop WebGL rendering.
@@ -31,7 +38,7 @@ export function install() {
   state.gl.xr.getSession = () => current
   state.gl.xr.getReferenceSpace = () => ({}) as XRReferenceSpace
   navigator.xr!.requestSession = async () => {
-    left = pad(); right = pad()
+    left = pad('left'); right = pad('right')
     session = Object.assign(new EventTarget(), { visibilityState: 'visible', inputSources: [
       { handedness: 'left', gamepad: left, targetRayMode: 'tracked-pointer', targetRaySpace: { hand: 'left' } },
       { handedness: 'right', gamepad: right, targetRayMode: 'tracked-pointer', targetRaySpace: { hand: 'right' } },

@@ -13,11 +13,12 @@ export const JUMP_LANDING_FILES = {
   lily: 'lotus.wav',
 } as const
 export type JumpLandingSound = keyof typeof JUMP_LANDING_FILES
+type JumpClip = JumpLandingSound | 'takeoff' | 'ground'
 type Output = { context: AudioContext; bus: AudioNode }
 type SoundOptions = { output: Output; remote?: boolean; level?: number; pan?: number; signal?: AbortSignal }
 
 const MAX_VOICES = 6, MAX_START_DELAY_MS = 150, LANDING_LEVEL = .45
-const buffers = new WeakMap<AudioContext, Map<JumpLandingSound, Promise<AudioBuffer | null>>>()
+const buffers = new WeakMap<AudioContext, Map<JumpClip, Promise<AudioBuffer | null>>>()
 let voices = 0, lastGateVariant = -1
 
 export function landingSoundForPad(pad: Pick<JumpPad, 'theme' | 'ordinal'>): JumpLandingSound | null {
@@ -27,12 +28,13 @@ export function landingSoundForPad(pad: Pick<JumpPad, 'theme' | 'ordinal'>): Jum
   return pad.theme
 }
 
-function loadLanding(context: AudioContext, name: JumpLandingSound) {
+function loadLanding(context: AudioContext, name: JumpClip) {
   let cache = buffers.get(context)
   if (!cache) { cache = new Map(); buffers.set(context, cache) }
   let buffer = cache.get(name)
   if (!buffer) {
-    buffer = fetch(`${import.meta.env.BASE_URL}audio/jumpmap/${JUMP_LANDING_FILES[name]}`)
+    const file = name === 'takeoff' ? 'bgm/move-jump.ogg' : name === 'ground' ? 'bgm/move-land.ogg' : `jumpmap/${JUMP_LANDING_FILES[name]}`
+    buffer = fetch(`${import.meta.env.BASE_URL}audio/${file}`)
       .then(response => response.ok ? response.arrayBuffer() : Promise.reject(new Error(String(response.status))))
       .then(data => context.decodeAudioData(data))
       // Missing/blocked audio must not affect movement or retry on every landing.
@@ -47,7 +49,16 @@ export async function preloadJumpSounds(context: AudioContext) {
   await Promise.all((Object.keys(JUMP_LANDING_FILES) as JumpLandingSound[]).map(name => loadLanding(context, name)))
 }
 
-function playGateSound({ context: ctx, bus }: Output, level: number, position: number, remote?: boolean) {
+/** VR keeps these existing park clips on the unducked jumpmap effects bus. */
+export async function preloadJumpMotionSounds(context: AudioContext) {
+  await Promise.all([loadLanding(context, 'takeoff'), loadLanding(context, 'ground')])
+}
+
+export function playJumpMotionSound(kind: 'jump' | 'land', options: SoundOptions) {
+  playClip(kind === 'jump' ? 'takeoff' : 'ground', options, kind === 'jump' ? .18 : .35)
+}
+
+function playGateSound({ context: ctx, bus }: Output, level: number, position: number, remote?: boolean, signal?: AbortSignal) {
   const variant = (lastGateVariant + 1 + Math.floor(Math.random() * 4)) % 5
   lastGateVariant = variant
   voices++; setTimeout(() => voices--, 650)
@@ -64,18 +75,29 @@ function playGateSound({ context: ctx, bus }: Output, level: number, position: n
     osc.frequency.setValueAtTime(base * (layer === 2 ? 1.5 : 1), at)
     osc.frequency.exponentialRampToValueAtTime(Math.max(50, base * .5), at + duration)
     osc.connect(gain); osc.start(at); osc.stop(at + duration + .02)
-    osc.onended = () => { osc.disconnect(); gain.disconnect(); pan.disconnect() }
+    const clean = () => { signal?.removeEventListener('abort', cancel); osc.disconnect(); gain.disconnect(); pan.disconnect() }
+    const cancel = () => { try { osc.stop() } catch { /* Already ended. */ } clean() }
+    osc.onended = clean
+    signal?.addEventListener('abort', cancel, { once: true })
   }
 }
 
 export function playJumpSound(hit: JumpHit, options: SoundOptions) {
-  const { context: ctx, bus } = options.output, level = options.level ?? 1
+  const { context: ctx } = options.output, level = options.level ?? 1
   if (hit.kind !== 'land' || document.hidden || ctx.state !== 'running' || options.signal?.aborted
     || voices >= MAX_VOICES || !Number.isFinite(level) || level <= 0) return
   const position = Number.isFinite(options.pan) ? Math.max(-1, Math.min(1, options.pan!)) : 0
-  if (hit.pad.theme === 'gate') { playGateSound(options.output, level, position, options.remote); return }
+  if (hit.pad.theme === 'gate') { playGateSound(options.output, level, position, options.remote, options.signal); return }
   const name = landingSoundForPad(hit.pad)
   if (!name) return
+  playClip(name, options, LANDING_LEVEL)
+}
+
+function playClip(name: JumpClip, options: SoundOptions, clipLevel: number) {
+  const { context: ctx, bus } = options.output, level = options.level ?? 1
+  if (document.hidden || ctx.state !== 'running' || options.signal?.aborted
+    || voices >= MAX_VOICES || !Number.isFinite(level) || level <= 0) return
+  const position = Number.isFinite(options.pan) ? Math.max(-1, Math.min(1, options.pan!)) : 0
   const requestedAt = performance.now()
   voices++
   void loadLanding(ctx, name).then(buffer => {
@@ -94,7 +116,7 @@ export function playJumpSound(hit: JumpHit, options: SoundOptions) {
       source = ctx.createBufferSource(); gain = ctx.createGain(); pan = ctx.createStereoPanner()
       source.buffer = buffer
       // Keep the approved pitch, duration and attack; only apply level and spatial pan.
-      gain.gain.value = LANDING_LEVEL * level; pan.pan.value = position
+      gain.gain.value = clipLevel * level; pan.pan.value = position
       source.connect(gain); gain.connect(pan); pan.connect(bus)
       source.onended = clean
       source.start(ctx.currentTime)
