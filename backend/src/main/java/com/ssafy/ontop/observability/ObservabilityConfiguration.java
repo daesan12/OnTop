@@ -11,6 +11,7 @@ import org.hibernate.SessionFactory;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,21 +24,32 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.socket.TextMessage;
 
-/** Optional DEV-only addition. No member-authentication or game classes are modified. */
+/** Optional environment-bound metrics configuration. Authentication and game behavior are not modified. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@Profile("observe-dev")
-public class DevObservabilityConfiguration {
-    public DevObservabilityConfiguration(Environment env) {
-        if (!env.acceptsProfiles(Profiles.of("dev"))
-                || env.acceptsProfiles(Profiles.of("local", "prod", "production"))) {
+@Profile({"observe-dev", "observe-prod"})
+public class ObservabilityConfiguration {
+    public ObservabilityConfiguration(Environment environment) {
+        boolean observeDev = environment.acceptsProfiles(Profiles.of("observe-dev"));
+        boolean observeProd = environment.acceptsProfiles(Profiles.of("observe-prod"));
+        if (observeDev == observeProd) {
+            throw new IllegalStateException("exactly one observability profile is required");
+        }
+
+        if (observeDev && (!environment.acceptsProfiles(Profiles.of("dev"))
+                || environment.acceptsProfiles(Profiles.of("local", "prod", "production")))) {
             throw new IllegalStateException("observe-dev requires DEV and rejects local/production");
+        }
+
+        if (observeProd && (!environment.acceptsProfiles(Profiles.of("prod", "production"))
+                || environment.acceptsProfiles(Profiles.of("local", "dev")))) {
+            throw new IllegalStateException("observe-prod requires production and rejects local/DEV");
         }
     }
 
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
-    SecurityFilterChain devPrometheusSecurity(HttpSecurity http) throws Exception {
+    SecurityFilterChain prometheusSecurity(HttpSecurity http) throws Exception {
         return http.securityMatcher("/actuator/prometheus", "/actuator/health")
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth.anyRequest().access((authentication, context) ->
@@ -47,7 +59,8 @@ public class DevObservabilityConfiguration {
     }
 
     @Bean
-    MeterBinder devJpaMetrics(ObjectProvider<EntityManagerFactory> factories) {
+    @ConditionalOnProperty(name = "ontop.observability.jpa-statistics-enabled", havingValue = "true")
+    MeterBinder jpaMetrics(ObjectProvider<EntityManagerFactory> factories) {
         return registry -> {
             EntityManagerFactory factory = factories.getIfAvailable();
             if (factory == null) {
@@ -55,16 +68,18 @@ public class DevObservabilityConfiguration {
             }
             var statistics = factory.unwrap(SessionFactory.class).getStatistics();
             FunctionCounter.builder("ontop.jpa.statements.prepared", statistics,
-                    s -> s.getPrepareStatementCount()).description("Prepared JDBC statements, not total DB executions")
+                    value -> value.getPrepareStatementCount())
+                    .description("Prepared JDBC statements, not total DB executions")
                     .register(registry);
             FunctionCounter.builder("ontop.jpa.queries.executed", statistics,
-                    s -> s.getQueryExecutionCount()).description("Hibernate query executions only")
+                    value -> value.getQueryExecutionCount())
+                    .description("Hibernate query executions only")
                     .register(registry);
         };
     }
 
     @Bean
-    static BeanPostProcessor devWebSocketTiming() {
+    static BeanPostProcessor webSocketTiming() {
         return new BeanPostProcessor() {
             @Override
             public Object postProcessAfterInitialization(Object bean, String name) {

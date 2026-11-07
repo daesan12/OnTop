@@ -1,15 +1,15 @@
 import { useEffect,useRef } from 'react'
-import { LuckyFacilityPanel } from '../luckyFacilities/LuckyFacilityPanel'
+import { GachaPanel } from '../gacha/GachaPanel'
 import { RafflePanel } from '../raffle/RafflePanel'
 import { constructionSites,useConstructionNotice,closeConstructionNotice } from './model'
 import './construction.css'
 
-/** The lottery room opens the weekly raffle; other sites stay local information without shopping, photo or server leases. */
+/** Registered kiosks open their real flow; unavailable sites retain the construction notice. */
 export function ConstructionNotice(){
   const id=useConstructionNotice(s=>s.id)
   useEffect(()=>()=>closeConstructionNotice(),[])
   if(id==='layout-drink')return <RafflePanel/>
-  if(id==='layout-shop')return <LuckyFacilityPanel/>
+  if(id==='layout-shop')return <GachaPanel/>
   return <ConstructionMessage/>
 }
 function ConstructionMessage(){

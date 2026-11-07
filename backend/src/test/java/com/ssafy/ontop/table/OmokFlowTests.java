@@ -70,8 +70,16 @@ class OmokFlowTests {
             assertThat(blackState.at("/payload/privateState/forbiddenMoves").size()).isEqualTo(1);
             assertThat(whiteState.findValues("forbiddenMoves")).isEmpty();
 
-            play(black, "legal-after-preview", 8, 0, 1);
-            assertThat(black.await(m -> stateVersion(m, 9)).at("/payload/privateState/forbiddenMoves").isArray()).isTrue();
+            // ACK보다 상태 방송이 먼저 도착할 수도 있다. request()는 ID가 다른 메시지를
+            // 소비하므로 두 응답 중 먼저 온 것을 보관한 뒤 나머지를 기다린다.
+            String requestId = black.sendRequest("GAME_ACTION_SEND", action("legal-after-preview", 8, 0, 1));
+            JsonNode first = black.await(m -> stateVersion(m, 9) || requestId.equals(m.path("requestId").asText()));
+            JsonNode changed = stateVersion(first, 9) ? first : black.await(m -> stateVersion(m, 9));
+            JsonNode result = stateVersion(first, 9)
+                    ? black.await(m -> requestId.equals(m.path("requestId").asText())) : first;
+            assertThat(result.path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
+            assertThat(result.at("/payload/version").asLong()).isEqualTo(9);
+            assertThat(changed.at("/payload/privateState/forbiddenMoves").isArray()).isTrue();
             assertThat(white.await(m -> stateVersion(m, 9)).findValues("forbiddenMoves")).isEmpty();
             assertThat(viewer.await(m -> stateVersion(m, 9)).findValues("forbiddenMoves")).isEmpty();
         }

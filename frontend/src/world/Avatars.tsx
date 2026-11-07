@@ -6,7 +6,8 @@ import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Matrix4, Vector3 } from 'three'
 import { cameraWorldPosition, parkXRView } from './xrView'
 import { ParkAssetLoader } from './art/assetLoader'
-import { characterUrls, createCharacterRig } from './worldAssets'
+import { characterUrls } from './worldAssets'
+import { createSafeCharacterRig } from './art/safeCharacterRig'
 import { avatarPoseActive, avatarPoseAmbient, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
 import { createCarryMotion } from './avatarCarryMotion'
 import { AvatarPresentation } from './avatarPresentation'
@@ -24,6 +25,7 @@ import { emptyEquipment } from '../network/equipment'
 import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from './art/characterLook'
 import { useOutfitSources } from './art/outfitSources'
 import { resolveWholeSkin } from './art/wholeSkin'
+import { useSkinCatalog } from './art/skinCatalog'
 import { previewEquipment, useWardrobe } from '../features/wardrobe/state'
 import type { OwnedItem } from '../features/shop/contracts'
 import { WARDROBE_OUTFITS_ENABLED } from '../features/wardrobe/feature'
@@ -70,8 +72,9 @@ function Avatar({
   // (only the own avatar previews; others keep one empty list, so a wardrobe refresh does not re-render them)
   const owned = useWardrobe(state => own ? state.items : noItems)
   const worn = useMemo(() => previewId && previewEquipment(owned, previewId) || equipment, [previewId, owned, equipment])
+  const catalogRevision = useSkinCatalog(s => s.revision)
   // Outfits closed (production build): every avatar keeps its default clothes, whatever is equipped.
-  const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn])
+  const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn, catalogRevision])
   const wholeSkin = WARDROBE_OUTFITS_ENABLED ? resolveWholeSkin(variant, worn) : undefined
   const outfits = useOutfitSources(wholeSkin ? [wholeSkin.source] : lookSources(look).filter(source => !isCharacterSource(source)))
   const wholeSource = wholeSkin && outfits.get(wholeSkin.source)
@@ -79,7 +82,7 @@ function Avatar({
   const shown = availableLook(variant, look, source => files.has(source))
   const shownKey = lookKey(shown)
   const model = useMemo(
-    () => wholeSource ? createCharacterRig(wholeSource) : createCharacterRig(sources[variant === 'girl' ? 1 : 0]!, shown, files),
+    () => createSafeCharacterRig(sources[variant === 'girl' ? 1 : 0]!, shown, files, wholeSource || undefined),
     // (`shown` is fully described by its key)
     [sources, variant, shownKey, files, wholeSource],
   )

@@ -12,7 +12,7 @@ class DevObservabilityGuardTests {
     void acceptsExplicitDev() {
         var environment = new StandardEnvironment();
         environment.setActiveProfiles("dev", "db", "observe-dev");
-        assertDoesNotThrow(() -> new DevObservabilityConfiguration(environment));
+        assertDoesNotThrow(() -> new ObservabilityConfiguration(environment));
     }
 
     @Test
@@ -20,10 +20,10 @@ class DevObservabilityGuardTests {
         for (String forbidden : new String[]{"prod", "production", "local"}) {
             var environment = new StandardEnvironment();
             environment.setActiveProfiles("dev", "observe-dev", forbidden);
-            assertThrows(IllegalStateException.class, () -> new DevObservabilityConfiguration(environment));
+            assertThrows(IllegalStateException.class, () -> new ObservabilityConfiguration(environment));
         }
         var environment = new StandardEnvironment();
         environment.setActiveProfiles("observe-dev", "db");
-        assertThrows(IllegalStateException.class, () -> new DevObservabilityConfiguration(environment));
+        assertThrows(IllegalStateException.class, () -> new ObservabilityConfiguration(environment));
     }
 }

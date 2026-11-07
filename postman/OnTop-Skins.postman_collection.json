@@ -1,0 +1,362 @@
+{
+  "info": {
+    "name": "OnTop Skin Registration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "V161/기존 상점·뽑기 스키마와 SKIN_REGISTRATION_ENABLED·등록자 권한이 필요합니다. AWS 미설정은 임시저장만 가능합니다. 실제 파일 bytes/SHA256을 입력하세요. 06의 서명 URL/headers로 두 파일을 직접 PUT한 뒤07을 실행합니다. PUT에는 회원 토큰을 보내지 마세요. 08은 실제 미리보기/착용 검수 후 직접 실행하며 실제 획득 대상에 등록합니다. 409는 현재 상태를 재조회하고 사용자가 결정합니다. 컬렉션 생성 검사는 웹 저장/실제 AWS 검수가 아닙니다."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "skinId",
+      "value": ""
+    },
+    {
+      "key": "skinUploadId",
+      "value": ""
+    },
+    {
+      "key": "skinModelSha256",
+      "value": ""
+    },
+    {
+      "key": "skinImageSha256",
+      "value": ""
+    },
+    {
+      "key": "skinVersion",
+      "value": "0"
+    },
+    {
+      "key": "skinModelBytes",
+      "value": "0"
+    },
+    {
+      "key": "skinImageBytes",
+      "value": "0"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 등록 권한·설정",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/admin/operations/skins/settings"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('설정·권한·입력 결과 확인', () => pm.expect([200,400,401,403,404,409,503]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) { const r=pm.response.json(); if(r.id && r.definition) pm.environment.set('skinId',r.id); if(Number.isInteger(r.version)) pm.environment.set('skinVersion',String(r.version)); if(r.uploadId) pm.environment.set('skinUploadId',r.uploadId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 등록 목록",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/admin/operations/skins"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('설정·권한·입력 결과 확인', () => pm.expect([200,400,401,403,404,409,503]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) { const r=pm.response.json(); if(r.id && r.definition) pm.environment.set('skinId',r.id); if(Number.isInteger(r.version)) pm.environment.set('skinVersion',String(r.version)); if(r.uploadId) pm.environment.set('skinUploadId',r.uploadId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 새 상품 임시저장",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/admin/operations/skins",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"productCode\": \"CHERRY_HANBOK\",\n  \"name\": \"봄꽃 한복\",\n  \"grade\": 2,\n  \"compatibility\": \"FEMALE\",\n  \"wearMode\": \"WHOLE\",\n  \"slots\": [\n    \"HAIR\",\n    \"FACE\",\n    \"TOP\",\n    \"BOTTOM\",\n    \"SHOES\"\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('설정·권한·입력 결과 확인', () => pm.expect([200,400,401,403,404,409,503]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) { const r=pm.response.json(); if(r.id && r.definition) pm.environment.set('skinId',r.id); if(Number.isInteger(r.version)) pm.environment.set('skinVersion',String(r.version)); if(r.uploadId) pm.environment.set('skinUploadId',r.uploadId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 등록 상태 복구",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/admin/operations/skins/{{skinId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('설정·권한·입력 결과 확인', () => pm.expect([200,400,401,403,404,409,503]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) { const r=pm.response.json(); if(r.id && r.definition) pm.environment.set('skinId',r.id); if(Number.isInteger(r.version)) pm.environment.set('skinVersion',String(r.version)); if(r.uploadId) pm.environment.set('skinUploadId',r.uploadId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 상품 정보 저장",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/admin/operations/skins/{{skinId}}",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"version\": {{skinVersion}},\n  \"definition\": {\n    \"productCode\": \"CHERRY_HANBOK\",\n    \"name\": \"봄꽃 한복\",\n    \"grade\": 2,\n    \"compatibility\": \"FEMALE\",\n    \"wearMode\": \"WHOLE\",\n    \"slots\": [\n      \"HAIR\",\n      \"FACE\",\n      \"TOP\",\n      \"BOTTOM\",\n      \"SHOES\"\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('설정·권한·입력 결과 확인', () => pm.expect([200,400,401,403,404,409,503]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) { const r=pm.response.json(); if(r.id && r.definition) pm.environment.set('skinId',r.id); if(Number.isInteger(r.version)) pm.environment.set('skinVersion',String(r.version)); if(r.uploadId) pm.environment.set('skinUploadId',r.uploadId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 실제 파일 길이·해시로 업로드 URL 발급",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/admin/operations/skins/{{skinId}}/uploads",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"version\": {{skinVersion}},\n  \"model\": {\n    \"name\": \"model.glb\",\n    \"bytes\": {{skinModelBytes}},\n    \"sha256\": \"{{skinModelSha256}}\"\n  },\n  \"image\": {\n    \"name\": \"image.webp\",\n    \"bytes\": {{skinImageBytes}},\n    \"sha256\": \"{{skinImageSha256}}\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('설정·권한·입력 결과 확인', () => pm.expect([200,400,401,403,404,409,503]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) { const r=pm.response.json(); if(r.id && r.definition) pm.environment.set('skinId',r.id); if(Number.isInteger(r.version)) pm.environment.set('skinVersion',String(r.version)); if(r.uploadId) pm.environment.set('skinUploadId',r.uploadId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 PUT 완료 파일 검증",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/admin/operations/skins/{{skinId}}/uploads/{{skinUploadId}}/verify"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('설정·권한·입력 결과 확인', () => pm.expect([200,400,401,403,404,409,503]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) { const r=pm.response.json(); if(r.id && r.definition) pm.environment.set('skinId',r.id); if(Number.isInteger(r.version)) pm.environment.set('skinVersion',String(r.version)); if(r.uploadId) pm.environment.set('skinUploadId',r.uploadId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 검수한 상품 공개",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/admin/operations/skins/{{skinId}}/publish",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"version\": {{skinVersion}},\n  \"uploadId\": \"{{skinUploadId}}\",\n  \"reviewed\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('설정·권한·입력 결과 확인', () => pm.expect([200,400,401,403,404,409,503]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) { const r=pm.response.json(); if(r.id && r.definition) pm.environment.set('skinId',r.id); if(Number.isInteger(r.version)) pm.environment.set('skinVersion',String(r.version)); if(r.uploadId) pm.environment.set('skinUploadId',r.uploadId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 신규 획득 중단",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/admin/operations/skins/{{skinId}}/disable",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"version\": {{skinVersion}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('설정·권한·입력 결과 확인', () => pm.expect([200,400,401,403,404,409,503]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) { const r=pm.response.json(); if(r.id && r.definition) pm.environment.set('skinId',r.id); if(Number.isInteger(r.version)) pm.environment.set('skinVersion',String(r.version)); if(r.uploadId) pm.environment.set('skinUploadId',r.uploadId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 회원 공개 파일 목록",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/skins/assets"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('설정·권한·입력 결과 확인', () => pm.expect([200,400,401,403,404,409,503]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) { const r=pm.response.json(); if(r.id && r.definition) pm.environment.set('skinId',r.id); if(Number.isInteger(r.version)) pm.environment.set('skinVersion',String(r.version)); if(r.uploadId) pm.environment.set('skinUploadId',r.uploadId); }"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

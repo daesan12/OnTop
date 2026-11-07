@@ -1,5 +1,11 @@
 import { GOMOKU } from '../config'
-import type { Omok } from './protocol'
+import type { Omok, OmokGame } from './protocol'
+
+// 금수 도움말은 흑 본인의 착수 화면에서만 제공한다.
+export function canShowForbiddenMarks(game: OmokGame | null, ownId: string) {
+  return !!game && game.role === 'PLAYER' && game.omok.status === 'PLAYING'
+    && game.omok.blackUserId === ownId && game.omok.turnUserId === ownId
+}
 
 export const OMOK_SIZE = 15
 // 두꺼운 판의 최하단(-114mm)이 테이블 상판을 침범하지 않도록 시각 루트만 높인다.

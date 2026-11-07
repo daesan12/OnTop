@@ -184,3 +184,8 @@ API 경로·요청·응답·동일 키 재요청은 그대로다. 의상 중복 
 - 엔티티: `shop/domain/ShopPurchase.java`, `item/domain/Item.java`, `inventory/domain/UserItem.java`, `wallet/domain/Wallet.java`, `wallet/domain/WalletTransaction.java`.
 - 상점 설정·서비스·저장소는 `shop/config`, `shop/service`, `shop/repository`, 응답은 `shop/dto/*Response`로 분리한다. 응답 JSON 필드와 엔티티 테이블·컬럼은 유지한다.
 - 인증 필터가 직접 참조하는 `shop/ShopController`와 `shop/ShopException`은 호환 위치를 유지한다. 인증·회원 코드 및 필터 구현은 수정하지 않는다.
+# 공유 뽑기 연결 · 2026-11-06
+
+새 의상 획득은 [공유 뽑기·상자 API](gacha-api.md)를 추가한다. 기존 직접 구매의 중복 거절 정책은 유지하며, **뽑기 상자 개봉만** 동일 상품 완전 보유 시 등급 가치의 50%를 지급한다. 티켓·상자는 별도 재고, 실제 의상은 기존 `user_items`에 지급한다.
+
+등록 상품의 물리 아이템은 응답 `setCode=gacha:<productCode>`로 묶는다. 같은 디자인의 수집 세트여도 상품 코드가 다르면 독립 장착하며, 한 통합 상품의 일부를 다른 상품으로 바꾸면 통합 상품 전체를 해제한다. 공개 `WORLD_STATE.avatars[].equipment` 필드와 커밋 후 외형 갱신 경로는 유지한다. 실제 모델 대응표 등록·현장 진입점과 모델 검수는 활성화 전 완료해야 한다.

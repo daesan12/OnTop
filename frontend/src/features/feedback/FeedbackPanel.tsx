@@ -97,6 +97,7 @@ function FeedbackComposer() {
             <h2><span className="feedback-brand"><FeedbackIcon kind="roof"/>온탑</span> 소리함</h2>
             <p className="feedback-intro">여러분의 소중한 의견이 더 좋은 온탑을 만듭니다.</p>
             <p id="feedback-description">게임에 대한 건의사항, 개선이 필요한 점, 버그 제보 등<br className="feedback-desktop-break"/> 어떤 의견이든 자유롭게 남겨주세요.</p>
+            <p className="feedback-disclosure">작성자 정보와 의견은 운영진만 확인할 수 있습니다.<br/>답변이 오면 알림함에서 확인할 수 있어요.</p>
           </header>
           <form onSubmit={event => { void submit(event) }}>
             <fieldset className="feedback-topics" disabled={state.pending || sealed}>

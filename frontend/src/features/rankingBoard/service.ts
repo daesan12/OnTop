@@ -1,7 +1,7 @@
 import { record } from '../../network/protocol'
 import { RestError } from '../../network/restError'
 
-export interface BalanceRankingEntry { rank: number; userId: string; nickname: string; coinBalance: number; gameMaster: boolean }
+export interface BalanceRankingEntry { rank: number; userId: string; nickname: string; coinBalance: number; gameMaster: boolean; equipmentValue?: number; totalAssets?: number }
 export interface BungeoppangRankingEntry { rank: number; userId: string; nickname: string; score: number; maxCombo: number; completedAt: string; gameMaster: boolean }
 export interface JumpmapRankingEntry { rank: number; userId: string; nickname: string; finishMs: number; completedAt: string; gameMaster: boolean }
 export interface ParkRankingSnapshot {
@@ -57,6 +57,11 @@ export function parseParkRanking(value: unknown): ParkRankingSnapshot {
     if (!record(item)) return invalid()
     const base = identity(item)
     if (!safeWhole(item.coinBalance)) return invalid()
+    if (item.equipmentValue !== undefined || item.totalAssets !== undefined) {
+      if (!safeWhole(item.equipmentValue) || !safeWhole(item.totalAssets)
+        || !Number.isSafeInteger(item.coinBalance + item.equipmentValue) || item.totalAssets !== item.coinBalance + item.equipmentValue) return invalid()
+      return { ...base, coinBalance: item.coinBalance, equipmentValue: item.equipmentValue, totalAssets: item.totalAssets }
+    }
     return { ...base, coinBalance: item.coinBalance }
   })
   const bungeoppang = list(value.bungeoppang, item => {
@@ -88,8 +93,8 @@ const updatedAt = new Intl.DateTimeFormat('ko-KR', {
 
 export function rankingColumns(snapshot: ParkRankingSnapshot): RankingDisplayColumn[] {
   return [
-    { key: 'balance', title: '보유량', description: '현재 보유 엽전 순', rows: snapshot.balance.map(item => ({
-      rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: `${number.format(item.coinBalance)}냥`,
+    { key: 'balance', title: '총자산', description: '보유 엽전 + 의상 가치', rows: snapshot.balance.map(item => ({
+      rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: `${number.format(item.totalAssets ?? item.coinBalance)}냥`,
     })) },
     { key: 'bungeoppang', title: '붕어빵 굽기', description: '점수 · 최대 콤보 · 먼저 완료', rows: snapshot.bungeoppang.map(item => ({
       rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: `${number.format(item.score)}점`,

@@ -23,6 +23,11 @@ springdoc:
   paths-to-match: /api/v1/**
 
 ontop:
+  gacha:
+    enabled: ${GACHA_ENABLED:false}
+    node-id: ${GACHA_NODE_ID:server-1}
+  skin:
+    enabled: ${SKIN_REGISTRATION_ENABLED:false}
   rankings:
     park:
       # DEV는 최초 적용 시각을 환경 파일에 고정한다. 미설정이면 기존 서비스는 기동하며 새 API는 503이다.

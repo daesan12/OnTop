@@ -1941,6 +1941,18 @@ public class TableHub {
         }
     }
 
+    @org.springframework.transaction.event.TransactionalEventListener(
+            phase = org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT)
+    public synchronized void personalNotificationChanged(
+            com.ssafy.ontop.notification.service.PersonalNotificationChanged event) {
+        if (stopped) { return; }
+        String message = protocol.encode(null, "PERSONAL_NOTIFICATION_CHANGED",
+                Map.of("notificationId", event.notificationId()));
+        for (Member member : members.values()) {
+            if (member.userId().equals(Long.toString(event.userId()))) { member.peer().offer(message); }
+        }
+    }
+
     private void publishChannel(WorldChannelRegistry.State state, Member actor, String requestId) {
         for (Member target : members.values()) {
             if (state.userIds().contains(target.userId())) {
@@ -2938,6 +2950,14 @@ public class TableHub {
     private void sendParkDebris(Member member, String channelId) {
         if (isMapReady(member)) {
             member.peer().offer(protocol.encode(null, "WORLD_PARK_DEBRIS_STATE", parkDebrisState(channelId)));
+        }
+    }
+
+    /** 모든 채널의 접속자에게 동일한 DB 확정 기계 상태를 보낸다. 본인 재고는 방송하지 않는다. */
+    public synchronized void publishGacha(com.ssafy.ontop.gacha.GachaDtos.Event event) {
+        String message = protocol.encode(null, "GACHA_STATE", event);
+        for (Member target : members.values()) {
+            if (isMapReady(target)) target.peer().offer(message);
         }
     }
 

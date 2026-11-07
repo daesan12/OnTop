@@ -61,6 +61,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/admin/skins",
+      "destination": "/index.html"
+    },
+    {
       "source": "/admin/feedback",
       "destination": "/index.html"
     },
