@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { clearRoamingInput, focusParkCanvas } from '../../world/inputOwnership'
 import { MenuDialog } from '../parkMenus/MenuDialog'
 import { InboxError, loadNotifications, readNotification, statusLabels, type NotificationPage, type NotificationDetail } from './api'
@@ -13,6 +14,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
   const [detail, setDetail] = useState<NotificationDetail | null>(null), [error, setError] = useState('')
   const [busy, setBusy] = useState(false), [filter, setFilter] = useState<'all' | 'unread' | 'reward'>('all')
   const [toast, setToast] = useState(''), [trail, setTrail] = useState([''])
+  const [hudHost, setHudHost] = useState<HTMLElement | null>(null)
   const [closing, setClosing] = useState(false)
   const [receipt, setReceipt] = useState<RewardReceipt | null>(null)
   const claimPending = useRef(false), confirm = useRef<HTMLButtonElement | null>(null)
@@ -34,7 +36,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
         if (entry.reward.kind === 'COIN') refreshWalletAfterSettlement(useSession.getState().sessionId, `notification:${entry.id}`)
         else window.dispatchEvent(new Event('ontop:gacha-inventory-changed'))
       }
-      if (!initial.current && value.unreadCount > unread.current) setToast('새로운 소식이 알림함에 도착했어요')
+      if (!initial.current && value.unreadCount > unread.current) setToast('새 알림')
       initial.current = false; unread.current = value.unreadCount; cursor.current = next
       setPage(value); if (explicit) setError('')
     } catch (cause) {
@@ -43,6 +45,8 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
       if (explicit) setError(cause instanceof Error ? cause.message : '알림을 가져오지 못했어요.')
     }
   }, [])
+  // 프로필과 같은 배치·축척을 따른다. 공지/화면 크기에 따른 프로필 이동도 함께 반영된다.
+  useEffect(() => { setHudHost(hidden ? null : document.querySelector<HTMLElement>('.park-account')) }, [hidden])
   useEffect(() => {
     let stopped = false
     const refresh = () => { if (!stopped && !document.hidden) void load() }
@@ -58,7 +62,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
   }, [load])
   useEffect(() => {
     if (!toast) return
-    const timer = setTimeout(() => setToast(''), 4500)
+    const timer = setTimeout(() => setToast(''), 3000)
     return () => clearTimeout(timer)
   }, [toast])
   const close = useCallback(() => {
@@ -82,7 +86,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
     return () => { if (closeTimer.current) clearTimeout(closeTimer.current) }
   }, [open])
   useEffect(() => { if (hidden) close() }, [hidden, close])
-  useEffect(() => { if (receipt) confirm.current?.focus() }, [receipt])
+  useEffect(() => { if (receipt) confirm.current?.focus({ preventScroll: true }) }, [receipt])
   const show = async (id: string) => {
     reading.current?.abort()
     const request = reading.current = new AbortController()
@@ -114,16 +118,19 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
   }
   const values = page?.items.filter(value => filter === 'all' || filter === 'reward' && value.type === 'REWARD'
     || filter === 'unread' && value.readAt === null) ?? []
-  return <>
-    {!hidden && <button className="inbox-launcher" aria-label={`알림함${page?.unreadCount ? ` · 안 읽은 알림 ${page.unreadCount}개` : ''}`}
-      onClick={() => { clearRoamingInput(); document.exitPointerLock?.(); setOpen(true); setDetail(null); setTrail(['']); void load('', true) }}>
+  const launcher = <div className="inbox-hud">
+    <button className="inbox-launcher" aria-expanded={open} aria-label={`알림함${page?.unreadCount ? ` · 안 읽은 알림 ${page.unreadCount}개` : ''}`}
+      onClick={() => { clearRoamingInput(); document.exitPointerLock?.(); setToast(''); setOpen(true); setDetail(null); setTrail(['']); void load('', true) }}>
       <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg><span>알림</span>{!!page?.unreadCount && <b>{Math.min(99, page.unreadCount)}</b>}
-    </button>}
-    {!hidden && toast && !open && <div className="inbox-toast" role="status">✉ {toast}</div>}
-    {open && !hidden && <MenuDialog label={receipt ? '보상 수령 완료' : detail ? '운영진 메시지' : '알림함'} className={`inbox-dialog${closing ? ' is-closing' : ''}`} backdropClassName={`inbox-backdrop${closing ? ' is-closing' : ''}`} onClose={receipt ? () => setReceipt(null) : fold}>
+    </button>
+    {toast && !open && <div className="inbox-toast" role="status"><span aria-hidden="true"/>{toast}</div>}
+  </div>
+  return <>
+    {!hidden && (hudHost ? createPortal(launcher, hudHost) : launcher)}
+    {open && !hidden && <MenuDialog label={receipt ? '보상 수령 완료' : detail ? '운영진 메시지' : '알림함'} className={`inbox-dialog${closing ? ' is-closing' : ''}${receipt ? ' has-reward' : ''}`} backdropClassName={`inbox-backdrop${closing ? ' is-closing' : ''}`} onClose={receipt ? () => setReceipt(null) : fold}>
       <div className="inbox-scroll-content" inert={closing || !!receipt}>
-      <header><span className="inbox-eyebrow">온탑 우편함</span><h2>{detail ? '운영진 메시지' : '알림함'}</h2>
-        <button className="inbox-close" onClick={fold} aria-label="알림함 닫기">×</button></header>
+      <button className="inbox-close" onClick={fold} aria-label="알림함 닫기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      <header><span className="inbox-eyebrow">온탑 우편함</span><h2>{detail ? '운영진 메시지' : '알림함'}</h2></header>
       {error && <div className="inbox-error" role="alert">{error} <button onClick={() => void load(cursor.current, true)}>다시 조회</button></div>}
       {busy && <p role="status">메시지를 열고 있어요…</p>}
       {detail ? <article className="inbox-letter">
@@ -161,7 +168,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
       </div>
       {receipt && <div className="inbox-reward-shade"><section className="inbox-reward-popup" aria-labelledby="reward-received-title">
         <span className="inbox-eyebrow">온탑의 작은 선물</span><h3 id="reward-received-title">보상을 받았어요!</h3>
-        <RewardIcon kind={receipt.kind}/><strong className="inbox-reward-amount">{rewardLabel(receipt)}</strong>
+        <div className={`inbox-reward-illustration is-${receipt.kind === 'COIN' ? 'coin' : 'ticket'}`} aria-hidden="true"><RewardIcon kind={receipt.kind}/><RewardIcon kind={receipt.kind}/><RewardIcon kind={receipt.kind}/></div><strong className="inbox-reward-amount">{rewardLabel(receipt)}</strong>
         <p>{receipt.kind === 'COIN' ? '지갑에 엽전이 추가됐어요.' : '보유 뽑기권에 추가됐어요.'}</p>
         <button ref={confirm} className="inbox-primary" onClick={() => setReceipt(null)}>확인</button>
       </section></div>}
