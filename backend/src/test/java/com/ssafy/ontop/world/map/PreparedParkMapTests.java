@@ -61,6 +61,8 @@ class PreparedParkMapTests {
         assertThat(park.bindings().get(16).tableId()).isEqualTo("table-c07ae818-2248-3150-8970-820b5529dfb7");
         assertThat(park.bindings().get(17).tableId()).isEqualTo("table-ce87bea5-89c6-3892-b08e-489bcbef8533");
         assertThat(park.proximity().tables()).hasSize(32);
+        assertThat(park.proximity().chatRadius()).isEqualTo(50);
+        assertThat(park.proximity().watchRadius()).isEqualTo(20);
         assertThat(park.proximity().tables().get(park.bindings().get(15).tableId()).x()).isEqualTo(16);
     }
 

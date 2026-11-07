@@ -81,7 +81,7 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
           const remainingDishes = table.bill?.dishes.filter(d => !d.delivered) ?? []
           const sakeLeft = table.bill ? table.bill.sake - table.bill.sakeDelivered : 0
           return <div key={plan.id} data-table={plan.id} data-capacity={plan.capacity} data-status={table.status}>
-            <div role="img" className={`service-table-target${at?.kind === 'table' && at.id === plan.id ? ' is-near' : ''}`} style={anchor(`table-${plan.id}`)} aria-label={`${plan.id}번 ${plan.capacity}인 테이블`} title={`${plan.id}번 · ${STATUS_LABEL[table.status]}`}  />
+            <div role="img" className="service-table-target" style={anchor(`table-${plan.id}`)} aria-label={`${plan.id}번 ${plan.capacity}인 테이블`} title={`${plan.id}번 · ${STATUS_LABEL[table.status]}`}  />
             {!['clean', 'arriving'].includes(table.status) ? <div className={`service-bubble is-${table.status}${showFood ? ' is-order' : ''}`} style={anchor(`bubble-${plan.id}`)} role="img" aria-label={`${plan.id}번 ${STATUS_LABEL[table.status]}${showFood ? `: 남은 꼬치 ${remainingDishes.length}개, 사케 ${sakeLeft}병` : ''}`}>
               {showFood ? <OrderContents table={plan.id} dishes={remainingDishes} sake={sakeLeft} summarized />
                 : <div className="service-bubble-heading"><b>{plan.id}</b><span className="service-bubble-state">{table.status === 'eating' ? '식사 중' : STATUS_LABEL[table.status]}</span><HallIcon name={table.status === 'dirty' ? 'broom' : table.status === 'cooking' ? 'pot' : table.status === 'eating' ? 'check' : 'order'} /></div>}

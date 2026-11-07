@@ -26,7 +26,8 @@ export class OnlineHall implements HallDriver {
   private movementAt = 0
   private lastMove = '0.00:0.00'
   private lastVersion = -1
-  private sendingMove = false
+  private moveSequence = 0
+  private pendingMove = 0
   private cleaningPressed = false
   private lastView?: HallView
   private round = -1
@@ -65,9 +66,10 @@ export class OnlineHall implements HallDriver {
     if (!this.client.playable || this.storageOpen) { dx = 0; dz = 0 }
     const now = performance.now(), value = `${dx.toFixed(2)}:${dz.toFixed(2)}`
     // Direction changes must not wait for the held-input heartbeat.
-    if (this.client.playable && !this.sendingMove && (value !== this.lastMove || (dx !== 0 || dz !== 0) && now - this.movementAt > 150)) {
-      this.movementAt = now; this.lastMove = value; this.sendingMove = true
-      void this.client.act({ type: 'MOVE', dx, dz }, true)?.finally(() => { this.sendingMove = false })
+    if (this.client.playable && (value !== this.lastMove || !this.pendingMove && (dx !== 0 || dz !== 0) && now - this.movementAt > 150)) {
+      const sequence = ++this.moveSequence
+      this.movementAt = now; this.lastMove = value; this.pendingMove = sequence
+      void this.client.act({ type: 'MOVE', dx, dz }, true)?.finally(() => { if (this.pendingMove === sequence) this.pendingMove = 0 })
     }
   }
   navigate(_point: Point) { /* 온라인 서빙은 키보드 MOVE만 전송한다. */ }

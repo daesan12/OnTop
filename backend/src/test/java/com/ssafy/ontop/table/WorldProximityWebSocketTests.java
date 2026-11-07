@@ -59,7 +59,7 @@ class WorldProximityWebSocketTests {
     }
 
     @Test
-    void 채팅은_20m경계까지_수신하고_멀거나_위치없는_사용자에게_전송하지않는다() throws Exception {
+    void 채팅은_50m경계까지_수신하고_멀거나_다른채널_사용자에게_전송하지않는다() throws Exception {
         try (ScenarioClient sender = connect("naver"); ScenarioClient receiver = connect("ssafy");
                 ScenarioClient unknown = connect("spectator")) {
             join(sender, "one");
@@ -67,12 +67,13 @@ class WorldProximityWebSocketTests {
             join(unknown, "one");
             assertThat(positions.positionOf(sender.userId)).isNotNull(); // 입장 시 서버 스폰을 부여한다.
             move(sender, 0, 0, 0);
-            move(receiver, 0, 12, 16);
-            JsonNode sent = sender.request("WORLD_CHAT_SEND", Map.of("text", "20m 경계"));
+            move(receiver, 0, 30, 40);
+            move(unknown, 0, -50.001, 0);
+            JsonNode sent = sender.request("WORLD_CHAT_SEND", Map.of("text", "50m 경계"));
             assertThat(receiver.await(m -> type(m, "WORLD_CHAT_MESSAGE")).path("payload"))
                     .isEqualTo(sent.path("payload"));
             unknown.assertNoMessage(m -> type(m, "WORLD_CHAT_MESSAGE"));
-            move(receiver, 1, 20.001, 0);
+            move(receiver, 1, 50.001, 0);
             receiver.assertNoMessageDuring(m -> type(m, "WORLD_CHAT_MESSAGE"),
                     () -> sender.request("WORLD_CHAT_SEND", Map.of("text", "범위 밖")));
             receiver.request("CHANNEL_LEAVE", Map.of());
@@ -176,16 +177,16 @@ class WorldProximityWebSocketTests {
             join(sender, "one");
             join(viewer, "one");
             move(sender, 0, 0, 0);
-            move(viewer, 0, 19, 0);
-            assertChat(sender, viewer, "19m 안");
-            move(viewer, 1, 20, 0);
-            assertChat(sender, viewer, "20m 경계");
-            move(viewer, 2, 21, 0);
+            move(viewer, 0, 49, 0);
+            assertChat(sender, viewer, "49m 안");
+            move(viewer, 1, 50, 0);
+            assertChat(sender, viewer, "50m 경계");
+            move(viewer, 2, 51, 0);
             viewer.assertNoMessageDuring(m -> type(m, "WORLD_CHAT_MESSAGE"),
-                    () -> sender.request("WORLD_CHAT_SEND", Map.of("text", "21m 밖")));
+                    () -> sender.request("WORLD_CHAT_SEND", Map.of("text", "51m 밖")));
             move(viewer, 3, 20, 0);
-            assertChat(sender, viewer, "20m 복귀");
-            System.out.println("[PASS] 채팅 19m·20m 수신 → 21m 미수신 → 20m 복귀 수신");
+            assertChat(sender, viewer, "20m 관전 범위로 복귀");
+            System.out.println("[PASS] 채팅 49m·50m 수신 → 51m 미수신 → 20m 관전 범위 복귀 수신");
 
             assertThat(type(viewer.request("TABLE_WATCH", Map.of("tableId", TABLE)), "TABLE_WATCH_STATE"))
                     .isTrue();

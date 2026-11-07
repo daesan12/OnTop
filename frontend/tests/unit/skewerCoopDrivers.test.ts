@@ -51,19 +51,21 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
       expect(act).toHaveBeenCalledTimes(2)
     } finally { clock.mockRestore() }
   })
-  it('응답을 기다리는 중 방향이 여러 번 바뀌어도 요청을 쌓지 않고 최신 입력만 보낸다', async () => {
+  it('응답을 기다리는 중에도 새 방향과 정지는 즉시 보내고 유지 입력은 중복하지 않는다', async () => {
     const { driver, act } = fixture()
     let acknowledge!: () => void
     act.mockImplementationOnce(() => new Promise<void>(resolve => { acknowledge = resolve }))
     driver.step(1 / 60, 1, 0)
     driver.step(1 / 60, -1, 0)
     driver.step(1 / 60, 0, 1)
-    expect(act).toHaveBeenCalledTimes(1)
+    for (let i = 0; i < 20; i++) driver.step(1 / 60, 0, 1)
+    expect(act).toHaveBeenCalledTimes(3)
     acknowledge()
     await Promise.resolve()
     driver.step(1 / 60, 0, 0)
     expect(act.mock.calls.map(([input]) => input)).toEqual([
-      { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: 0, dz: 0 },
+      { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: -1, dz: 0 },
+      { type: 'MOVE', dx: 0, dz: 1 }, { type: 'MOVE', dx: 0, dz: 0 },
     ])
   })
   it('늦은 서버 좌표를 받으며 전진해도 화면 위치가 주기적으로 뒤로 튀지 않는다', () => {
@@ -79,6 +81,21 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
       expect(driver.view().position.x).toBeGreaterThanOrEqual(previous)
       previous = driver.view().position.x
     }
+  })
+  it('이전 방향 응답만 지연돼도 새 방향의 이동 유지 요청은 계속 전송한다', async () => {
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(0)
+    const { driver, act } = fixture()
+    let acknowledge!: () => void
+    act.mockImplementationOnce(() => new Promise<void>(resolve => { acknowledge = resolve }))
+    try {
+      driver.step(1 / 60, 1, 0)
+      clock.mockReturnValue(16); driver.step(1 / 60, 0, 1)
+      await Promise.resolve()
+      clock.mockReturnValue(200); driver.step(1 / 60, 0, 1)
+      expect(act.mock.calls.map(([input]) => input)).toEqual([
+        { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: 0, dz: 1 }, { type: 'MOVE', dx: 0, dz: 1 },
+      ])
+    } finally { acknowledge(); clock.mockRestore() }
   })
   it('서버가 가구 앞에서 멈추면 화면만 가구 안으로 예측 이동하지 않는다', () => {
     const { driver, hall } = fixture()

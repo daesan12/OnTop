@@ -381,3 +381,9 @@ Browser plugin not available → 기존 Playwright·설치된 Chrome/SwiftShader
 - 최신 맵 `c05d8ada…` 및 코스 `5e03c470…` 생성물 --check와 park-integration Vite 빌드 통과, 생성물 변경 0건. 기존 Three.Clock·셰이더 정밀도·큰 번들 경고는 유지된다. 외부 증거·로그: `OnTop/output/jumpmap-vr-feedback-20261107/`.
 - 검증 후 기능별 커밋·정상 푸시·dev 대상 새 MR을 준비한다. 이번 요청은 기존 MR !425의 머지와 별개이며 새 변경의 dev/master 머지·배포 및 작업 브랜치 삭제는 보류한다. Jenkins의 dev 기준 빌드를 이 소스 커밋의 검증으로 간주하지 않는다.
 - MR !433 검토 보완: 출발 바닥 판정에 START.y를 반영해 높이 0을 가정하지 않는다. 진동 참조는 손별 한 개(최대 두 개)로 제한하고 같은 손의 장치 교체 시 이전 진동을 즉시 해제한다. 현재 입력 소스만 종료 때 조회하면 이미 교체된 장치의 취소를 놓칠 수 있어 이전 참조 취소 후 교체하는 방식을 사용했다. 비영점 출발 높이와 장치 교체 회귀 2개를 추가해 관련 unit은 65개이며, 변경된 피드백 브라우저 2개를 다시 검증하고 나머지 기존 VR 12개 결과를 재사용한다.
+
+### 2026-11-07 MR !433 최신 dev 통합·머지 전 재검증
+
+- 사용자가 검증 통과 시 MR !433을 dev로 머지하도록 명시적으로 요청했다. 최신 `origin/dev@33b0c001efec772dcf2c7cdaf0a809ff04f02d13`을 `feat/quest-vr-jump-feedback-20261107`에 이력 보존 방식으로 통합했으며 충돌은 없었다. 미커밋 작업 없이 시작했고 최신 채팅·꼬치왕·관리자 변경을 보존했다. 기본 fetch의 삭제된 원격 ref 오류는 dev와 작업 브랜치 ref를 명시해 우회했다.
+- 통합 결과에서 제품/전체 tests TypeScript, 관련 unit 15파일 97개(`vitest run jumpmap parkXR bgm sfx --maxWorkers=4`), Chrome 모의 WebXR 14개(`feedback.spec.ts games-only.spec.ts parkXR.spec.ts`)를 모두 다시 실행해 통과했다. 맵·코스 `--check`와 park-integration 빌드도 통과했고 생성물은 바뀌지 않았다. Browser plugin not available → 기존 Playwright/Chrome 사용. 실제 Quest·실제 OAuth/다인 서버 검수는 별도이며 기존 Three.Clock·셰이더 정밀도·번들 경고는 남는다.
+- 검증 후 통합 커밋을 정상 푸시하고 MR의 최신 커밋·머지 검사·승인 조건을 확인해 dev로 통합한다. Jenkins는 해당 머지 커밋의 성공 여부를 별도로 확인하며, 성공·미반영 변경 없음 확인 후 이 작업 브랜치만 삭제한다. 기존 보호 VR 브랜치와 다른 worktree는 보존한다. 빌드 로그는 `OnTop/output/jumpmap-vr-feedback-20261107/merge-build.log`에 보관한다.

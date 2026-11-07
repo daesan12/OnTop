@@ -16,6 +16,38 @@ function health(page: Page) {
   }
 }
 
+test('이동 응답이 보류되어도 키보드 방향 전환과 정지가 먼저 전달된다', async ({ page }) => {
+  const verify = health(page)
+  await page.goto('/tests/skewer-coop/fixtures/play-feedback.html?role=server&holdMoves=1')
+  await expect(page.getByTestId('service-hall')).toBeVisible()
+  await expect(page.locator('.service-stage')).toHaveAttribute('data-building', 'cutaway-tower')
+  await expect(page.locator('.service-stage')).toHaveAttribute('data-server-model', 'sculpted', { timeout: 45000 })
+  const moves = () => page.evaluate(() => Reflect.get(window, 'skewerFeedback').moves() as { dx: number; dz: number; at: number }[])
+  await page.keyboard.down('d')
+  await expect.poll(async () => (await moves()).some(input => input.dx === 1)).toBe(true)
+  await page.keyboard.up('d'); await page.keyboard.down('s')
+  await expect.poll(async () => (await moves()).some(input => input.dx === 0 && input.dz === 1), { intervals: [10, 20] }).toBe(true)
+  await page.keyboard.up('s')
+  await expect.poll(async () => (await moves()).at(-1)).toMatchObject({ dx: 0, dz: 0 })
+  await page.evaluate(() => Reflect.get(window, 'skewerFeedback').releaseMoves())
+  await capture(page, 'server-responsive-turn')
+  await verify()
+})
+
+test('테이블 접근 안내는 유지하고 노란 테두리는 표시하지 않는다', async ({ page }) => {
+  const verify = health(page)
+  await page.goto('/tests/skewer-coop/fixtures/play-feedback.html?role=server')
+  await expect(page.locator('.service-stage')).toHaveAttribute('data-building', 'cutaway-tower')
+  await page.evaluate(() => Reflect.get(window, 'skewerFeedback').nearTable(2))
+  await expect(page.getByRole('button', { name: /E 2번 청소하기/ })).toBeVisible()
+  await expect(page.locator('.service-table-target.is-near')).toHaveCount(0)
+  await expect(page.getByRole('img', { name: '2번 1인 테이블', exact: true })).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)')
+  await page.evaluate(() => Reflect.get(window, 'skewerFeedback').tableArrival(0))
+  await page.waitForTimeout(500)
+  await capture(page, 'server-no-yellow-highlight')
+  await verify()
+})
+
 for (const role of ['chef', 'server']) test(`${role} 준비 이미지는 현재 캐릭터의 실제 게임 화면이다`, async ({ page }) => {
   await page.goto(`/tests/skewer-coop/fixtures/play-feedback.html?role=${role}&prepare=1`)
   if (role === 'chef') await page.getByRole('button', { name: 'PC로 요리하기', exact: true }).click()
