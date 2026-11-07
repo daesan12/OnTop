@@ -20,6 +20,7 @@
 
 | 요청 | 필요 권한 |
 | --- | --- |
+| `/api/v1/admin/operations/skins/**` 및 목록 자체 | 운영 + 별도 `SKIN_ADMIN_USER_IDS`. [스킨 등록 계약](skin-registration-api.md) |
 | `GET /api/v1/admin/me` | 조회 |
 | `GET /api/v1/admin/events/winners` | 조회. 번호 끝 네 자리만 표시 |
 | `GET /api/v1/admin/events/winners/{winnerId}/contact` | 별도 연락처 권한. 원문 조회를 감사 기록에 저장 |
