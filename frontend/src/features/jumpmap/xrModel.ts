@@ -13,7 +13,7 @@ export const xrTime = (ms: number) => {
 }
 
 /** Presentation only. Completion and coins always come from the existing server store. */
-export function jumpmapXRView(s: JumpmapXRState, now: number, guide: boolean): JumpmapXRView {
+export function jumpmapXRView(s: JumpmapXRState, now: number, guide: boolean, inCourse = true): JumpmapXRView {
   const result = s.completion && s.result?.runId === s.completion.runId ? s.result : null
   if (result) {
     const total = REWARDS.reduce((sum, reward) => sum + reward, 0)
@@ -41,14 +41,14 @@ export function jumpmapXRView(s: JumpmapXRState, now: number, guide: boolean): J
   const run = s.run, stage = STAGES[Math.min(6, run?.gatesPassed ?? 0)]!
   const receipt = s.popup && now - s.popup.at < 1400
     ? s.popup.anticipated || s.popup.amount === null || /정산|확인/.test(s.popup.label) ? '구간 보상 확인 중…' : `구간 보상 +${s.popup.amount}냥` : ''
-  return { key: 'roaming', title: run ? `돌탑 · ${stage.name}  ${Math.min(7, run.gatesPassed + 1)} / 7구간` : '공원 VR · 돌탑 점프맵', lines: run ? [
+  return { key: 'roaming', title: run ? `돌탑 · ${stage.name}  ${Math.min(7, run.gatesPassed + 1)} / 7구간` : inCourse ? '공원 VR · 돌탑 점프맵' : '공원 VR', lines: run ? [
     `${xrTime(now - run.startedAt)}   ·   이번 ${run.runCoins}냥`,
     receipt || 'A 점프 · 왼손 그립 달리기 · X 놀이 방법',
   ] : [
     s.recovering ? '도전 상태를 다시 확인하고 있어요…'
       : s.result && now < s.result.until ? s.result.reason === 'FALL' || s.result.reason === 'LAKE'
-        ? '첫 발판으로 돌아가 다시 도전해요. 받은 엽전은 유지돼요.' : '도전이 종료됐어요. 첫 발판에서 다시 시작해요.'
+        ? 'VR은 유지돼요. 첫 발판으로 돌아가 다시 도전해요.' : '도전이 종료됐어요. 첫 발판에서 다시 시작해요.'
         : '왼쪽 스틱 이동 · A 점프 · 오른쪽 스틱 회전',
-    s.checked && !s.available ? s.error || '점프맵 연결을 준비하고 있어요.' : 'X 놀이 방법 · 왼손 그립 달리기 · B VR 종료',
+    inCourse && s.checked && !s.available ? s.error || '점프맵 연결을 준비하고 있어요.' : 'X 조작 안내 · 왼손 그립 달리기 · B VR 종료',
   ], buttons: [] }
 }

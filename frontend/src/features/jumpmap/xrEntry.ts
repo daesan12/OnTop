@@ -16,8 +16,3 @@ export function inJumpmapXRRegion(p: Position) {
     return Math.hypot(p.x - pad.x - t * dx, p.z - pad.z - t * dz) <= Math.max(pad.radius ?? 0, pad.halfX, pad.halfZ) + 2
   })
 }
-
-// Capture the explicit development request before the auth flow normalizes the park URL.
-const previewRequested = import.meta.env.DEV && typeof location !== 'undefined'
-  && new URLSearchParams(location.search).get('vrPreview') === '1'
-export const parkVRPreviewEnabled = () => previewRequested
