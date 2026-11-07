@@ -1,12 +1,12 @@
 import type { IngredientId } from '../game'
-import { TABLES, STATIONS, START, distance, move, route, tableApproaches } from './plan'
+import { followRoute, TABLES, STATIONS, START, distance, move, route, tableApproaches, INTERACTION_RADIUS, GUEST_ARRIVAL_SECONDS } from './plan'
 import type { Point, Station } from './plan'
 import { COOPERATIVE_RECIPES, cooperativeRecipe } from '../cooperativeMenu'
 
-export type Status = 'unreceived' | 'collected' | 'cooking' | 'ready' | 'eating' | 'dirty' | 'clean'
+export type Status = 'arriving' | 'unreceived' | 'collected' | 'cooking' | 'ready' | 'eating' | 'dirty' | 'clean'
 export type Dish = { id: string; table: number; recipe: IngredientId[]; delivered: boolean }
 export type Bill = { dishes: Dish[]; sake: number; sakeDelivered: number }
-export type PreviewTable = { id: number; status: Status; people: number; bill: Bill | null; eatUntil: number | null }
+export type PreviewTable = { id: number; status: Status; people: number; bill: Bill | null; eatUntil: number | null; arrivalRemaining?: number }
 export type Party = { id: number; size: 1 | 2 }
 export type DirtyDishes = { id: number; table: number; settings: 1 | 2 }
 export type Washer = { load: DirtyDishes[]; remaining: number; completed: number }
@@ -19,7 +19,7 @@ const MENU_PREVIEW_POINTS = [100, 100, 240, 160, 160, 240] as const
 export function previewDishPoints(recipe: readonly IngredientId[]) { return MENU_PREVIEW_POINTS[COOPERATIVE_RECIPES.findIndex(r => r.join(',') === recipe.join(','))] ?? 0 }
 export type HallView = { position: Point; tables: PreviewTable[]; held: number[]; carry: Dish[]; sake: number; dirtyDishes: DirtyDishes[]; washer: Washer; pass: Dish[]; stored: Dish[]; storageOpen: boolean; queue: Party[]; kitchen: Dish[]; clean: { table: number; progress: number } | null; message: string; revision: number; elapsed: number; score: number; remaining: number; finished: boolean; served: number }
 export const RECIPES = COOPERATIVE_RECIPES
-export const STATUS_LABEL: Record<Status, string> = { unreceived: '주문 미접수', collected: '주방 전달 대기', cooking: '조리 중', ready: '픽업 가능', eating: '식사 중', dirty: '청소 필요', clean: '빈자리' }
+export const STATUS_LABEL: Record<Status, string> = { arriving: '착석 중', unreceived: '주문 미접수', collected: '주방 전달 대기', cooking: '조리 중', ready: '픽업 가능', eating: '식사 중', dirty: '청소 필요', clean: '빈자리' }
 function bill(table: number, people: number, sake: number): Bill {
   return { dishes: Array.from({ length: people }, (_, i) => ({ id: `${table}-${i}`, table, recipe: cooperativeRecipe(table, i), delivered: false })), sake, sakeDelivered: 0 }
 }
@@ -48,7 +48,7 @@ export class HallPreview {
   nearest(): { kind: 'table'; id: number } | { kind: Station } | null {
     const choices = [...TABLES.flatMap(t => tableApproaches(t).map(point => ({ point, result: { kind: 'table' as const, id: t.id } }))), ...Object.entries(STATIONS).map(([kind, point]) => ({ point, result: { kind: kind as Station } }))]
     choices.sort((a, b) => distance(a.point, this.position) - distance(b.point, this.position))
-    return distance(choices[0].point, this.position) <= .92 ? choices[0].result : null
+    return distance(choices[0].point, this.position) <= INTERACTION_RADIUS ? choices[0].result : null
   }
   blockedReason(): string | null {
     if (this.finished) return '영업이 끝났어요'
@@ -60,6 +60,7 @@ export class HallPreview {
     if (at.kind === 'storage' && !this.dirtyDishes.length && !this.carry.length && !this.stored.length) return '맡길 꼬치를 가져오세요'
     if (at.kind !== 'table') return this.dirtyDishes.length ? '식기를 세척기에 넣어 주세요' : null
     const t = this.tables.find(t => t.id === at.id)!
+    if (t.status === 'arriving') return '손님이 자리에 앉고 있어요'
     if (t.status === 'dirty') {
       if (this.carry.length || this.sake) return '음식을 서빙하거나 반납해 주세요'
       if (this.dirtyDishes.length >= DISHWASHING_PREVIEW.carryCapacity) return '식기가 가득 찼어요 · 세척기에 비워 주세요'
@@ -181,9 +182,8 @@ export class HallPreview {
     if (this.storageOpen) { dx = 0; dz = 0 }
     if (this.message && this.elapsed - this.messageAt > 3.5) { this.message = ''; this.revision++ }
     if (dx || dz) { this.path = []; this.release() }
-    while (!dx && !dz && this.path[0] && distance(this.position, this.path[0]) < .14) this.path.shift()
-    if (!dx && !dz && this.path[0]) { dx = this.path[0].x - this.position.x; dz = this.path[0].z - this.position.z; const n = Math.hypot(dx, dz); dx /= n; dz /= n }
     if (dx || dz) this.position = move(this.position, dx, dz, dt)
+    else this.position = followRoute(this.position, this.path, dt)
     if (this.clean) {
       const at = this.nearest()
       if (dx || dz || at?.kind !== 'table' || at.id !== this.clean.table) this.release()
@@ -205,6 +205,10 @@ export class HallPreview {
         this.changed('자동 세척을 마쳤어요. 다음 식기를 넣을 수 있어요.')
       }
     }
+    for (const t of this.tables) if (t.status === 'arriving') {
+      t.arrivalRemaining = Math.max(0, (t.arrivalRemaining ?? 0) - clockDelta)
+      if (!t.arrivalRemaining) { t.status = 'unreceived'; t.bill = bill(t.id, t.people, t.people); this.changed() }
+    }
     for (const t of this.tables) if (t.status === 'eating' && t.eatUntil !== null && this.elapsed >= t.eatUntil) { t.status = 'dirty'; t.people = 0; t.eatUntil = null; this.changed() }
     if (this.elapsed >= this.nextArrival) {
       this.nextArrival = this.elapsed + 12
@@ -212,7 +216,7 @@ export class HallPreview {
       for (const party of this.queue) {
         const target = this.tables.filter(t => t.status === 'clean').sort((a, b) => TABLES[a.id - 1].capacity - TABLES[b.id - 1].capacity).find(t => TABLES[t.id - 1].capacity === party.size || party.size === 1 && !twoWaiting)
         if (!target) continue
-        target.status = 'unreceived'; target.people = party.size; target.bill = bill(target.id, party.size, party.size)
+        target.status = 'arriving'; target.people = party.size; target.bill = null; target.arrivalRemaining = GUEST_ARRIVAL_SECONDS
         this.queue = this.queue.filter(p => p.id !== party.id); this.changed(); break
       }
     }

@@ -43,11 +43,22 @@ export class CoopClient {
     }
     return ['GAME_STATE', 'GAME_CONNECTION_STATE'].includes(message.type)
   }
-  private install(snapshot: CoopSnapshot | null) {
+  private install(snapshot: CoopSnapshot | null, entering = false) {
     if (!snapshot || this.stopped || this.owner !== this.transport.scope().userId || this.dismissedGames.has(snapshot.gameId)) return
     const current = this.snapshot
+    if (current && current.gameId !== snapshot.gameId && !entering) return
     if (current?.gameId === snapshot.gameId && snapshot.version < current.version) return
-    if (!snapshot.publicState.players.some(player => player.userId === this.owner)) return
+    const own = snapshot.publicState.players.find(player => player.userId === this.owner)
+    // Public membership binds the private payload to this player, not their colleague.
+    if (!own || own.role !== snapshot.privateState.role) return
+    if (current?.gameId === snapshot.gameId && current.publicState.phase !== 'WAITING' && current.privateState.role) {
+      if (snapshot.privateState.role !== current.privateState.role) return
+      if ((snapshot.publicState.round ?? 0) < (current.publicState.round ?? 0)) return
+      if (snapshot.publicState.phase === 'WAITING') return
+      if (current.publicState.phase === 'FINISHED' && snapshot.publicState.phase !== 'FINISHED') return
+      if ((snapshot.publicState.round ?? 0) === (current.publicState.round ?? 0)
+        && current.publicState.phase === 'PLAYING' && snapshot.publicState.phase === 'COUNTDOWN') return
+    }
     if (snapshot.publicState.endReason === 'SKEWER_CANCELLED') {
       this.dismissRoom(snapshot.gameId, '준비 중인 방이 닫혔어요. 다른 가게를 선택해 주세요.')
       return
@@ -153,7 +164,7 @@ export class CoopClient {
     try {
       const channelId = this.transport.scope().channelId
       const result = await this.transport.requestJSON('/api/v1/minigames/skewer/coop/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(gameId ? { channelId, gameId, password: options.password ?? '' } : { channelId, requestKey: this.requestKey, roomName: options.roomName ?? '함께 여는 꼬치집', password: options.password ?? '' }) })
-      this.install(parseCoop(result))
+      this.install(parseCoop(result), true)
       await this.recover()
       return !!this.snapshot
     } catch (error) {

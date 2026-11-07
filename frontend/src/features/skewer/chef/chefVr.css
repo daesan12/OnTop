@@ -11,6 +11,9 @@
  .chef-app.is-vr .chef-vr-hint{font-size:10px;bottom:12px}
 }
 .chef-app.is-vr.is-immersive>:not(.chef-stage){display:none}
+.chef-app.is-vr .chef-round time{display:none}
+.chef-app.is-vr .chef-round{top:74px}
+@media(max-width:1000px){.chef-app.is-vr .chef-round{top:140px}}
 
 
 .chef-app.is-vr .chef-vr-hint button{margin-left:10px;width:25px;height:25px;border:1px solid #c6a27588;border-radius:50%;background:#3b2b20c9;color:#fff0d8;cursor:pointer;pointer-events:auto}

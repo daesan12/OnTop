@@ -598,7 +598,7 @@ class SkewerCoopEngineTests {
     @Test
     void 인사는_한판에_두번만_발생하며_응답중에도_영업시간이_흐르고_두명의_응답을_기다린다() {
         Fixture fixture = new Fixture(20);
-        fixture.prepare();
+        fixture.roles(); fixture.ready();
         int greetings = 0;
         for (int index = 0; index < 400
                 && !fixture.view(101).publicState().path("phase").asText().equals("FINISHED"); index++) {
@@ -622,7 +622,7 @@ class SkewerCoopEngineTests {
     @Test
     void 인사_응답중_영업시간이_끝나면_추가_인사와_보너스_없이_경기를_마친다() {
         Fixture fixture = new Fixture(2);
-        fixture.prepare();
+        fixture.roles(); fixture.ready();
         while (!fixture.view(101).publicState().at("/greeting/active").asBoolean()) {
             fixture.advance(.1);
         }
@@ -668,7 +668,7 @@ class SkewerCoopEngineTests {
         fixture.advance(4);
         long token = fixture.view(202).publicState().path("actionVersion").asLong();
         long displayed = fixture.view(202).version();
-        fixture.advance(3);
+        fixture.advance(.3);
         assertThat(fixture.view(202).version()).isGreaterThan(displayed);
         assertThat(fixture.view(202).publicState().path("actionVersion").asLong()).isEqualTo(token);
         var command = new GameActionCommand(202, fixture.id, "vr-mode", token,
@@ -895,7 +895,7 @@ class SkewerCoopEngineTests {
             act(202, Map.of("type", "READY", "ready", true));
             advance(3.2);
         }
-        void prepare() { roles(); ready(); }
+        void prepare() { roles(); ready(); advance(7); }
         void advance(double seconds) {
             for (int step = 0; step < Math.round(seconds * 10); step++) {
                 clock.millis += 100;
