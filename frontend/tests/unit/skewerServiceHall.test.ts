@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TABLES, STATIONS, START, ROOM, distance, move, route, walkable, tableApproaches, tableDestination } from '../../src/features/skewer/serviceHall/plan'
+import { followRoute, TABLES, STATIONS, START, ROOM, distance, move, route, walkable, tableApproaches, tableDestination } from '../../src/features/skewer/serviceHall/plan'
 import { BUSINESS_PREVIEW_SECONDS, DISHWASHING_PREVIEW, HallPreview } from '../../src/features/skewer/serviceHall/previewModel'
 const advance = (model: HallPreview, seconds: number) => { for (let i = 0; i < Math.ceil(seconds / .05); i++) model.step(.05) }
 describe('새 꼬치왕 매장 동선 프리뷰', () => {
@@ -48,13 +48,11 @@ describe('새 꼬치왕 매장 동선 프리뷰', () => {
     for (const from of points) for (const to of points) {
       if (distance(from, to) < .01) continue
       const path = route(from, to); expect(path.length, `${JSON.stringify(from)} → ${JSON.stringify(to)}`).toBeGreaterThan(0); expect(path.every(walkable)).toBe(true)
-      let p = from, index = 0
-      for (let step = 0; step < 3000 && index < path.length; step++) {
-        if (distance(p, path[index]) < .14) { index++; continue }
-        const dx = path[index].x - p.x, dz = path[index].z - p.z, n = Math.hypot(dx, dz)
-        p = move(p, dx / n, dz / n, .05); expect(walkable(p)).toBe(true)
+      let p = from
+      for (let step = 0; step < 3000 && path.length; step++) {
+        p = followRoute(p, path, .05); expect(walkable(p)).toBe(true)
       }
-      expect(distance(p, to)).toBeLessThan(.20)
+      expect(distance(p, to), JSON.stringify({ from, to, p, next: path[0] })).toBeLessThan(.20)
     }
   })
   it('의자·테이블 중심을 통과하지 않으며 대각선 이동도 빨라지지 않는다', () => {
@@ -96,7 +94,7 @@ describe('새 꼬치왕 매장 동선 프리뷰', () => {
   })
   it('입구 대기 손님은 깨끗한 알맞은 자리에 앉고 더러운 자리는 선택하지 않는다', () => {
     const m = new HallPreview(); advance(m, 12.1)
-    expect(m.tables[2].status).toBe('unreceived'); expect(m.tables[2].people).toBe(1); expect(m.queue.map(p => p.id)).toEqual([2, 3])
+    expect(m.tables[2].status).toBe('arriving'); expect(m.tables[2].bill).toBeNull(); advance(m, 6.1); expect(m.tables[2].status).toBe('unreceived'); expect(m.tables[2].people).toBe(1); expect(m.queue.map(p => p.id)).toEqual([2, 3])
     expect(m.tables[1].status).toBe('dirty')
   })
   it('꼬치 또는 사케를 하나라도 들고 있으면 테이블 정리와 식기 수거를 시작하지 않는다', () => {

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { HallPreview } from '../../src/features/skewer/serviceHall/previewModel'
 import { CoopClient } from '../../src/features/skewer/coop/client'
 import type { CoopSnapshot, CoopTransport } from '../../src/features/skewer/coop/contracts'
 import { refreshWalletAfterSettlement } from '../../src/features/wallet/settlementRefresh'
@@ -6,7 +7,7 @@ import type { Envelope } from '../../src/network/protocol'
 
 vi.mock('../../src/features/wallet/settlementRefresh', () => ({ refreshWalletAfterSettlement: vi.fn() }))
 const id = 'skewer-coop-00000000-0000-4000-8000-000000000001'
-const finished = (): CoopSnapshot => ({ gameId: id, version: 20, registered: true, privateState: { role: '' },
+const finished = (): CoopSnapshot => ({ gameId: id, version: 20, registered: true, privateState: { role: 'server', hall: new HallPreview().view() },
   publicState: { gameCode: 'SKEWER_COOP', phase: 'FINISHED', channelId: 'park', actionVersion: 1,
     remaining: 0, elapsed: 240, countdown: 0, score: 200, served: 1, paused: false, chefVR: false,
     rankingEligible: true, entryFee: 0, rewardStatus: 'SERVER_SETTLEMENT', message: '', endReason: 'SKEWER_TIME_UP',

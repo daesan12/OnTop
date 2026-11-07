@@ -3,8 +3,7 @@ import { MenuArt } from './MenuArt'
 import { OrderContents } from './OrderContents'
 import type { HallView } from './previewModel'
 import type { Station } from './plan'
-import { closingTime } from '../closingTime'
-import { ClosingNotice } from '../ClosingNotice'
+import { BusinessStatus } from '../BusinessStatus'
 
 type Nearby = { kind: 'table'; id: number } | { kind: Station } | null
 
@@ -35,17 +34,10 @@ export function nextTask(view: HallView) {
   return '홀을 살펴보며 다음 손님을 맞이하세요'
 }
 
-export function ServiceHud({ view }: { view: HallView }) {
+export function ServiceHud({ view, paused = false }: { view: HallView; paused?: boolean }) {
   const dirty = view.dirtyDishes.length > 0, food = view.carry.length > 0 || view.sake > 0
-  const seconds = Math.ceil(view.remaining), time = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
-  const closing = closingTime(view.remaining)
   return <>
-    <header className="service-scoreboard" aria-label="영업 상태">
-      <div className={`service-stat is-${closing.phase}`} data-clock-phase={closing.phase}><HallIcon name="clock" /><span>{closing.phase === 'normal' ? '남은 영업시간' : closing.label}<strong data-testid="remaining-time">{time}</strong></span></div>
-      <div className="service-stat"><HallIcon name="score" /><span>팀 점수<strong><span data-testid="team-score">{view.score.toLocaleString('ko-KR')}</span><small>점</small></strong></span></div>
-      <div className="service-served"><HallIcon name="check" /><span>서빙 완료<b>{view.served}팀</b></span></div>
-    </header>
-    <ClosingNotice seconds={view.remaining} />
+    <BusinessStatus seconds={view.remaining} score={view.score} served={view.served} paused={paused} />
     <section className="service-held" aria-label="받은 주문표">
       <h2>주문표 <b>{view.held.length}/2</b></h2>
       <div>{[0, 1].map(index => { const table = view.tables.find(t => t.id === view.held[index]); return <div className={`service-held-ticket${table ? '' : ' is-empty'}`} key={index}>

@@ -36,11 +36,13 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -62,7 +65,7 @@ class HalliGalliEliminatedLeaveTests {
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final GameReconnectTests.TestClock clock = new GameReconnectTests.TestClock();
     private final List<Object> events = new CopyOnWriteArrayList<>();
-    private final GameEngineRouter router = new GameEngineRouter();
+    private final GameEngineRouter router = spy(new GameEngineRouter());
     private final CommittedGameStartService starts = mock(CommittedGameStartService.class);
     // active_user_id 대역: 예약 시 참가자 전원에게 생기고, 정산 커밋 때만 사라진다.
     private final Map<Long, ActiveGameRecord> unsettled = new ConcurrentHashMap<>();
@@ -248,18 +251,38 @@ class HalliGalliEliminatedLeaveTests {
         assertThat(c.request("TABLE_UNWATCH", Map.of()).path("type").asText()).isEqualTo("TABLE_WATCH_LEFT");
 
         // 정산 커밋으로 예약 표시가 사라지고 원래 테이블이 대기 상태로 돌아오면 같은 요청으로 정상 착석한다.
-        hub.roundEnded(first, game);
-        unsettled.remove(101L);
-        unsettled.remove(202L);
-        unsettled.remove(303L);
-        hub.roundSettled(new com.ssafy.ontop.game.result.GameResultCommitted(new GameResultView(202, 2, game,
-                "HALLI_GALLI", GameResultView.Status.FINISHED, "LAST_PLAYER_STANDING",
-                GameResultView.SettlementStatus.SETTLED, BET, List.of(new GameResultView.Participant("101", "FORFEIT"),
-                        new GameResultView.Participant("202", "WIN"), new GameResultView.Participant("303", "LOSE")),
-                2L, clock.instant())));
-        assertThat(a.request("TABLE_JOIN", Map.of("tableId", first)).path("type").asText()).isEqualTo("TABLE_STATE");
-        assertThat(c.request("TABLE_JOIN", Map.of("tableId", first)).path("type").asText()).isEqualTo("TABLE_STATE");
-        assertThat(seats(a, first)).containsExactlyInAnyOrder("101", "202", "303");
+        CountDownLatch recoveryStarted = new CountDownLatch(1);
+        CountDownLatch releaseRecovery = new CountDownLatch(1);
+        doAnswer(call -> {
+            recoveryStarted.countDown();
+            if (!releaseRecovery.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("종료 후 경기 복구 조회를 해제하지 않았습니다.");
+            }
+            return call.callRealMethod();
+        }).when(router).load(101);
+        try {
+            hub.roundEnded(first, game);
+            assertThat(recoveryStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            unsettled.remove(101L);
+            unsettled.remove(202L);
+            unsettled.remove(303L);
+            hub.roundSettled(new com.ssafy.ontop.game.result.GameResultCommitted(new GameResultView(202, 2, game,
+                    "HALLI_GALLI", GameResultView.Status.FINISHED, "LAST_PLAYER_STANDING",
+                    GameResultView.SettlementStatus.SETTLED, BET, List.of(new GameResultView.Participant("101", "FORFEIT"),
+                            new GameResultView.Participant("202", "WIN"), new GameResultView.Participant("303", "LOSE")),
+                    2L, clock.instant())));
+            // 느린 CI에서도 복구 중 착석 보호를 유지하고, 실제 복구 완료 이후에만 다시 앉는다.
+            assertThat(code(a.request("TABLE_JOIN", Map.of("tableId", first)))).isEqualTo("GAME_RECOVERY_REQUIRED");
+            releaseRecovery.countDown();
+            a.awaitLobbyAccess();
+            c.awaitLobbyAccess();
+            JsonNode joined = a.request("TABLE_JOIN", Map.of("tableId", first));
+            assertThat(joined.path("type").asText()).as(joined.toString()).isEqualTo("TABLE_STATE");
+            assertThat(c.request("TABLE_JOIN", Map.of("tableId", first)).path("type").asText()).isEqualTo("TABLE_STATE");
+            assertThat(seats(a, first)).containsExactlyInAnyOrder("101", "202", "303");
+        } finally {
+            releaseRecovery.countDown();
+        }
     }
 
     private void play(String table, Peer... players) throws Exception {
@@ -388,6 +411,12 @@ class HalliGalliEliminatedLeaveTests {
         private JsonNode recovery(String status) throws Exception {
             return await(m -> m.path("type").asText().equals("GAME_CONNECTION_STATE")
                     && m.at("/payload/status").asText().equals(status));
+        }
+
+        // 지연된 예전 LOBBY 방송이 아니라 현재 복구 슬롯의 로비 허용 상태를 기다린다.
+        private void awaitLobbyAccess() {
+            Awaitility.await().atMost(Duration.ofSeconds(5))
+                    .until(() -> reconnect.canUseLobby(Long.parseLong(userId), id));
         }
 
         private JsonNode start(String phase) throws Exception {

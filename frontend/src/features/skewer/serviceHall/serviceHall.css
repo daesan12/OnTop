@@ -36,3 +36,6 @@
 .service-hall .service-storage-dish strong{display:block;font-size:14px;color:#344665}.service-hall .service-storage-dish .service-menu-art{height:68px;margin:5px 0 9px}.service-hall .service-storage-dish>span{display:block;padding:5px;border-radius:6px;background:#e4eee1;color:#345a48;font-size:12px;font-weight:700}
 .service-hall .service-storage-dish:hover{border-color:#598271;background:#f8fff5}.service-hall .service-storage-dialog .service-storage-time{font-size:12px;color:#7c6b48}
 @media(max-width:600px){.service-hall .service-secondary-action{transform:translate(-50%,42px);font-size:10px;gap:4px;min-height:28px;padding:3px 6px 3px 3px}.service-hall .service-secondary-action kbd{font-size:12px;min-height:19px;min-width:19px}.service-hall .service-storage-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:16px}.service-hall .service-storage-dish{padding:9px 6px}.service-hall .service-storage-dish strong{font-size:12px}.service-hall .service-storage-dish .service-menu-art{height:53px}.service-hall .service-storage-dish>span{font-size:11px}}
+
+/* 이동 지점 표시는 클릭·포커스를 받지 않는다. 실제 상호작용은 E 안내에서 한다. */
+.service-hall .service-table-target, .service-hall .service-station, .service-hall .service-fridge { pointer-events: none; cursor: default; }

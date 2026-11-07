@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { DISHWASHING_PREVIEW, HallPreview, STATUS_LABEL } from './previewModel'
-import { TABLES, STATIONS, tableDestination } from './plan'
-import type { Point } from './plan'
+import { TABLES } from './plan'
 import { ServiceScene } from './rendering/ServiceScene'
 import { MenuArt, disposeMenuArt } from './MenuArt'
 import { HallIcon } from './Icons'
@@ -11,6 +10,8 @@ import { OrderContents } from './OrderContents'
 import type { HallDriver } from '../coop/drivers'
 import { useGameDragScroll } from '../useGameDragScroll'
 import { ExitConfirmation } from '../ExitConfirmation'
+import { GameTools } from '../GameTools'
+import { useTransientMessage } from '../useTransientMessage'
 import './serviceHall.css'
 import './serviceHud.css'
 import './serviceVenue.css'
@@ -54,7 +55,7 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
         const current = model.current!.view(), now = performance.now()
         if (now - publishedAt > 80) { setView(current); publishedAt = now }
         return current
-      }, p => model.current!.navigate(p), setError)
+      }, setError)
     } catch (error) { setError(error instanceof Error ? error.message : '매장 화면을 열지 못했어요.') }
     window.addEventListener('keydown', keydown); window.addEventListener('keyup', keyup); window.addEventListener('blur', blur)
     return () => { scene?.dispose(); disposeMenuArt(); window.removeEventListener('keydown', keydown); window.removeEventListener('keyup', keyup); window.removeEventListener('blur', blur) }
@@ -63,7 +64,8 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
     if (view.storageOpen && !storage.current?.open) { keys.current.clear(); storage.current?.showModal() }
     else if (!view.storageOpen && storage.current?.open) storage.current.close()
   }, [view.storageOpen])
-  const navigate = (p: Point) => { keys.current.clear(); model.current!.navigate(p) }, at = model.current.nearest()
+  const message = useTransientMessage(view.message)
+  const at = model.current.nearest()
   const blocked = model.current.blockedReason() ?? actionUnavailable(view, at), label = blocked ?? model.current.actionLabel()
   const secondaryLabel = model.current.secondaryLabel(), secondaryBlocked = model.current.secondaryBlockedReason()
   const readyToAct = !blocked && !!at && (at.kind !== 'table' || !['clean', 'eating'].includes(view.tables.find(t => t.id === at.id)!.status))
@@ -79,23 +81,23 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
           const remainingDishes = table.bill?.dishes.filter(d => !d.delivered) ?? []
           const sakeLeft = table.bill ? table.bill.sake - table.bill.sakeDelivered : 0
           return <div key={plan.id} data-table={plan.id} data-capacity={plan.capacity} data-status={table.status}>
-            <button className={`service-table-target${at?.kind === 'table' && at.id === plan.id ? ' is-near' : ''}`} style={anchor(`table-${plan.id}`)} aria-label={`${plan.id}번 ${plan.capacity}인 테이블로 이동`} title={`${plan.id}번 · ${STATUS_LABEL[table.status]}`} onClick={event => { navigate(tableDestination(view.position, plan)); event.currentTarget.blur() }} />
-            {table.status !== 'clean' ? <div className={`service-bubble is-${table.status}${showFood ? ' is-order' : ''}`} style={anchor(`bubble-${plan.id}`)} role="img" aria-label={`${plan.id}번 ${STATUS_LABEL[table.status]}${showFood ? `: 남은 꼬치 ${remainingDishes.length}개, 사케 ${sakeLeft}병` : ''}`}>
+            <div role="img" className={`service-table-target${at?.kind === 'table' && at.id === plan.id ? ' is-near' : ''}`} style={anchor(`table-${plan.id}`)} aria-label={`${plan.id}번 ${plan.capacity}인 테이블`} title={`${plan.id}번 · ${STATUS_LABEL[table.status]}`}  />
+            {!['clean', 'arriving'].includes(table.status) ? <div className={`service-bubble is-${table.status}${showFood ? ' is-order' : ''}`} style={anchor(`bubble-${plan.id}`)} role="img" aria-label={`${plan.id}번 ${STATUS_LABEL[table.status]}${showFood ? `: 남은 꼬치 ${remainingDishes.length}개, 사케 ${sakeLeft}병` : ''}`}>
               {showFood ? <OrderContents table={plan.id} dishes={remainingDishes} sake={sakeLeft} summarized />
                 : <div className="service-bubble-heading"><b>{plan.id}</b><span className="service-bubble-state">{table.status === 'eating' ? '식사 중' : STATUS_LABEL[table.status]}</span><HallIcon name={table.status === 'dirty' ? 'broom' : table.status === 'cooking' ? 'pot' : table.status === 'eating' ? 'check' : 'order'} /></div>}
             </div> : null}
           </div>
         })}
-        <button className="service-station" style={anchor('orders')} onClick={event => { navigate(STATIONS.orders); event.currentTarget.blur() }} aria-label="주문 전달대로 이동"><HallIcon name="order" />주문 전달</button>
-        <button className="service-station" style={anchor('pickup')} onClick={event => { navigate(STATIONS.pickup); event.currentTarget.blur() }} aria-label="음식 수령대로 이동"><HallIcon name="cloche" />음식 수령{view.pass.length ? <b>{view.pass.length}</b> : null}</button>
-        <button className="service-fridge" style={anchor('fridge')} onClick={event => { navigate(STATIONS.fridge); event.currentTarget.blur() }} aria-label="사케 냉장고로 이동"><HallIcon name="sake" />사케 냉장고</button>
-        <button className="service-station service-storage-station" style={anchor('storage')} onClick={event => { navigate(STATIONS.storage); event.currentTarget.blur() }} aria-label="꼬치 임시 보관대로 이동"><HallIcon name="storage" />꼬치 보관{view.stored.length ? <b>{view.stored.length}</b> : null}</button>
-        <button className={`service-station service-washer${washing ? ' is-washing' : ''}`} data-state={washing ? 'washing' : 'idle'} style={anchor('washer')}
-          onClick={event => { navigate(STATIONS.washer); event.currentTarget.blur() }} aria-label="자동 식기세척기로 이동">
+        <div role="img" className="service-station" style={anchor('orders')}  aria-label="주문 전달대"><HallIcon name="order" />주문 전달</div>
+        <div role="img" className="service-station" style={anchor('pickup')}  aria-label="음식 수령대"><HallIcon name="cloche" />음식 수령{view.pass.length ? <b>{view.pass.length}</b> : null}</div>
+        <div role="img" className="service-fridge" style={anchor('fridge')}  aria-label="사케 냉장고"><HallIcon name="sake" />사케 냉장고</div>
+        <div role="img" className="service-station service-storage-station" style={anchor('storage')}  aria-label="꼬치 임시 보관대"><HallIcon name="storage" />꼬치 보관{view.stored.length ? <b>{view.stored.length}</b> : null}</div>
+        <div role="img" className={`service-station service-washer${washing ? ' is-washing' : ''}`} data-state={washing ? 'washing' : 'idle'} style={anchor('washer')}
+           aria-label="자동 식기세척기">
           <span className="service-washer-title"><HallIcon name="washer" />자동 식기세척기</span>
           <small>{washing ? `세척 중 ${view.washer.load.length}/2 · ${Math.ceil(view.washer.remaining)}초` : view.washer.completed ? '세척 완료 · 투입 가능' : 'E로 식기 넣기'}</small>
           {washing ? <span className="service-wash-meter" role="progressbar" aria-label="자동 세척 진행" aria-valuemin={0} aria-valuemax={100} aria-valuenow={washProgress}><i style={{ width: `${washProgress}%` }} /></span> : null}
-        </button>
+        </div>
         {view.queue.length ? <div className="service-queue" style={anchor('queue')}><HallIcon name="people" />입구 대기 <b>{view.queue.length}팀</b></div> : null}
         {at ? <button className={`service-action${view.clean ? ' is-cleaning' : ''}${blocked ? ' is-blocked' : ''}`} style={{ ...anchor('action'), '--clean': `${(view.clean?.progress ?? 0) * 100}%` } as CSSProperties}
           disabled={!readyToAct} aria-label={`E ${label}`} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); model.current!.press() }} onPointerUp={() => model.current!.release()} onPointerCancel={() => model.current!.release()}
@@ -103,9 +105,12 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
         {secondaryLabel ? <button className="service-secondary-action" style={anchor('action')} disabled={!!secondaryBlocked} title={secondaryBlocked ?? undefined} aria-label={`R ${secondaryLabel}`} onClick={() => { model.current!.pressSecondary(); setView(model.current!.view()) }}><kbd>R</kbd>{secondaryLabel}</button> : null}
       </div>
     </div>
-    <ServiceHud view={view} />
-    <nav className="service-tools" aria-label="게임 도구">{!driver?.online || onPause ? <button aria-label="일시정지" onClick={() => { if (onPause) { onPause(); return }; keys.current.clear(); model.current!.release(); setLocalPaused(true); setView(model.current!.view()) }}><HallIcon name="pause" /></button> : null}<button aria-label="서빙 이용 안내" onClick={() => { keys.current.clear(); model.current!.release(); guide.current?.showModal(); setView(model.current!.view()) }}><HallIcon name="help" /></button>{!driver?.online || onRestart ? <button disabled={inputBlocked} onClick={() => { if (onRestart) { onRestart(); return }; keys.current.clear(); model.current!.release(); setRestartOpen(true) }} title="다시 시작" aria-label={driver?.online ? "다시 시작 요청" : "다시 시작"}><HallIcon name="reset" /></button> : null}</nav>
-    {view.message ? <p className={`service-feedback${view.message.startsWith('오배송') ? ' is-misdelivery' : ''}`} role="status" key={view.revision}>{view.message}</p> : null}
+    <ServiceHud view={view} paused={inputBlocked || localPaused || restartOpen} />
+    <GameTools disabled={inputBlocked} helpLabel="서빙 이용 안내" restartLabel={driver?.online ? '다시 시작 요청' : '다시 시작'}
+      onPause={!driver?.online || onPause ? () => { keys.current.clear(); model.current!.release(); if (onPause) onPause(); else setLocalPaused(true) } : undefined}
+      onHelp={() => { keys.current.clear(); model.current!.release(); guide.current?.showModal(); setView(model.current!.view()) }}
+      onRestart={!driver?.online || onRestart ? () => { keys.current.clear(); model.current!.release(); if (onRestart) onRestart(); else setRestartOpen(true) } : undefined} />
+    {message ? <p className={`service-feedback${message.startsWith('오배송') ? ' is-misdelivery' : ''}`} role="status">{message}</p> : null}
     {error ? <p className="service-error" role="alert">{error}</p> : null}
     {!driver?.online ? <ExitConfirmation open={localPaused} onContinue={() => setLocalPaused(false)} onExit={() => location.assign('/vr-zone.html')} /> : null}
     {!driver?.online ? <ExitConfirmation open={restartOpen} intent="restart" onContinue={() => setRestartOpen(false)} onExit={() => { reset(); setRestartOpen(false) }} /> : null}
