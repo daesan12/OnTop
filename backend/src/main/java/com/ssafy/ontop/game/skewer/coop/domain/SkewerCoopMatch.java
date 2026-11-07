@@ -53,6 +53,9 @@ public final class SkewerCoopMatch {
     private int completed;
     private final List<Integer> queue = new ArrayList<>();
     private final Map<Long, Double> greetingAnswers = new HashMap<>();
+    private String greetingOutcome = "";
+    private int greetingBonus;
+    private double greetingResultUntil;
     private final Map<Long, Double> speechUntil = new HashMap<>();
     private final double duration;
     private final double[] greetingAt;
@@ -168,10 +171,13 @@ public final class SkewerCoopMatch {
                 int bonus = greetingAnswers.size() == 2
                         ? (int) Math.round(50 * Math.max(0, 1 - Collections.max(greetingAnswers.values()) / 5)) : 0;
                 score += bonus;
+                greetingOutcome = greetingAnswers.size() == 2 ? "success" : "missed";
+                greetingBonus = bonus;
+                greetingResultUntil = elapsed + 2;
                 greetingIndex++;
                 greetingAnswers.clear();
                 greetingElapsed = 0;
-                message = "인사 완료! +" + bonus + "점";
+                message = greetingOutcome.equals("success") ? "인사 완료! +" + bonus + "점" : "인사 시간이 지났어요. 다음 손님에게 인사해요.";
                 actionVersion++;
             }
             version++;
@@ -595,6 +601,9 @@ public final class SkewerCoopMatch {
         greetingElapsed = 0;
         greetingIndex = 0;
         greetingAnswers.clear();
+        greetingOutcome = "";
+        greetingBonus = 0;
+        greetingResultUntil = 0;
         speechUntil.clear();
         greetingAt[0] = duration * (.22 + random.nextDouble() * .12);
         greetingAt[1] = duration * (.60 + random.nextDouble() * .14);
@@ -681,7 +690,8 @@ public final class SkewerCoopMatch {
                 "ready", Boolean.TRUE.equals(ready.get(player)), "connected", !missing.containsKey(player))).toList()));
         view.set("greeting", mapper.valueToTree(Map.of("active", greetingActive(), "index", greetingIndex,
                 "remaining", Math.max(0, 5 - greetingElapsed), "answered", greetingAnswers.containsKey(user),
-                "responded", greetingAnswers.size(), "speech", speechUntil.getOrDefault(user, 0.0) > elapsed)));
+                "responded", greetingAnswers.size(), "speech", speechUntil.getOrDefault(user, 0.0) > elapsed,
+                "outcome", elapsed < greetingResultUntil ? greetingOutcome : "", "bonus", greetingBonus)));
         return view;
     }
 
@@ -730,10 +740,10 @@ public final class SkewerCoopMatch {
     }
 
     private void move(double seconds) {
-        double remaining = Math.min(.1, Math.max(0, seconds)) * 5.0;
+        double remaining = Math.min(.1, Math.max(0, seconds)) * 6.5;
         // 짧은 경유점에 도착해도 이번 틱의 남은 이동량을 다음 구간에 사용한다.
         // 작은 단위로 기존 축별 충돌 검사를 유지해 가구 모서리를 건너뛰지 않는다.
-        // 정상 경로는 0.25 간격이고 틱당 최대 0.5를 0.1씩 이동하므로 경유점 정리까지 여유를 둔다.
+        // 정상 경로는 0.25 간격이고 틱당 최대 0.65를 0.1씩 이동하므로 경유점 정리까지 여유를 둔다.
         // 중복·극소 간격 경유점도 같은 상한에 포함하며, 미처리 경로는 다음 틱에 이어간다.
         for (int iteration = 0; iteration < MAX_MOVEMENT_ITERATIONS && remaining > .000001; iteration++) {
             if (!path.isEmpty() && position.distance(path.getFirst()) < .000001) {

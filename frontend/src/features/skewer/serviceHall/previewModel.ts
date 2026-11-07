@@ -1,5 +1,5 @@
 import type { IngredientId } from '../game'
-import { TABLES, STATIONS, START, distance, move, route, tableApproaches } from './plan'
+import { followRoute, TABLES, STATIONS, START, distance, move, route, tableApproaches } from './plan'
 import type { Point, Station } from './plan'
 import { COOPERATIVE_RECIPES, cooperativeRecipe } from '../cooperativeMenu'
 
@@ -181,9 +181,8 @@ export class HallPreview {
     if (this.storageOpen) { dx = 0; dz = 0 }
     if (this.message && this.elapsed - this.messageAt > 3.5) { this.message = ''; this.revision++ }
     if (dx || dz) { this.path = []; this.release() }
-    while (!dx && !dz && this.path[0] && distance(this.position, this.path[0]) < .14) this.path.shift()
-    if (!dx && !dz && this.path[0]) { dx = this.path[0].x - this.position.x; dz = this.path[0].z - this.position.z; const n = Math.hypot(dx, dz); dx /= n; dz /= n }
     if (dx || dz) this.position = move(this.position, dx, dz, dt)
+    else this.position = followRoute(this.position, this.path, dt)
     if (this.clean) {
       const at = this.nearest()
       if (dx || dz || at?.kind !== 'table' || at.id !== this.clean.table) this.release()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TABLES, STATIONS, START, ROOM, distance, move, route, walkable, tableApproaches, tableDestination } from '../../src/features/skewer/serviceHall/plan'
+import { followRoute, TABLES, STATIONS, START, ROOM, distance, move, route, walkable, tableApproaches, tableDestination } from '../../src/features/skewer/serviceHall/plan'
 import { BUSINESS_PREVIEW_SECONDS, DISHWASHING_PREVIEW, HallPreview } from '../../src/features/skewer/serviceHall/previewModel'
 const advance = (model: HallPreview, seconds: number) => { for (let i = 0; i < Math.ceil(seconds / .05); i++) model.step(.05) }
 describe('새 꼬치왕 매장 동선 프리뷰', () => {
@@ -48,13 +48,11 @@ describe('새 꼬치왕 매장 동선 프리뷰', () => {
     for (const from of points) for (const to of points) {
       if (distance(from, to) < .01) continue
       const path = route(from, to); expect(path.length, `${JSON.stringify(from)} → ${JSON.stringify(to)}`).toBeGreaterThan(0); expect(path.every(walkable)).toBe(true)
-      let p = from, index = 0
-      for (let step = 0; step < 3000 && index < path.length; step++) {
-        if (distance(p, path[index]) < .14) { index++; continue }
-        const dx = path[index].x - p.x, dz = path[index].z - p.z, n = Math.hypot(dx, dz)
-        p = move(p, dx / n, dz / n, .05); expect(walkable(p)).toBe(true)
+      let p = from
+      for (let step = 0; step < 3000 && path.length; step++) {
+        p = followRoute(p, path, .05); expect(walkable(p)).toBe(true)
       }
-      expect(distance(p, to)).toBeLessThan(.20)
+      expect(distance(p, to), JSON.stringify({ from, to, p, next: path[0] })).toBeLessThan(.20)
     }
   })
   it('의자·테이블 중심을 통과하지 않으며 대각선 이동도 빨라지지 않는다', () => {
