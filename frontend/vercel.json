@@ -24,6 +24,7 @@
     { "source": "/admin/operations", "destination": "/index.html" },
     { "source": "/admin/announcements", "destination": "/index.html" },
     { "source": "/admin/events", "destination": "/index.html" },
+    { "source": "/admin/skins", "destination": "/index.html" },
     { "source": "/admin/feedback", "destination": "/index.html" },
     { "source": "/admin/analytics", "destination": "/index.html" },
     { "source": "/admin/wallet-grants", "destination": "/index.html" }
