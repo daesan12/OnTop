@@ -467,3 +467,8 @@ Browser plugin not available → 기존 Playwright·설치된 Chrome/SwiftShader
 - 첫 의견의 실패 → 재시도 성공 흐름은 기존 `enterVR` 시작의 `setXRError('')`로 초기화된다. 정상 종료 시에도 이전 오류가 남지 않는지 브라우저 회귀를 확장했다. WAITING에서 종료해 ChefPage가 언마운트되지 않은 채 대기실로 돌아온 뒤, 장비 화면을 다시 열어 오류 없음·시작 버튼 활성화·보호 해제를 확인했다. 보호 거절과 권한 거절 두 경우 모두 통과했다. 제품 상태 초기화 로직은 변경하지 않았다.
 - 두 번째 의견은 기존 방어를 확인했다. `TableProtocol.fields`는 필드 개수와 이름을 함께 비교해 `busy` 또는 `busy`+`vrActive` 외의 추가 필드를 거절하고 boolean 타입 및 VR/점유 조합을 검사한다. 후속 `interactionBusy`는 요청의 사용자 식별자를 읽지 않고 인증된 `member.userId()`만 사용한다. 이전 연결·다른 채널·추가 `userId` 거절과 상대 상태 불변, VR 운반 보호 유지 회귀는 그대로 통과했다. 서버 제품 로직이나 권한 범위는 추가 변경하지 않았다.
 - 이번 재검증은 Chrome 모의 WebXR 2개(`vr-start.spec.ts`), 전체 tests TypeScript, BE 82개(`TableHubSkewerEntryTests`, `TableProtocolTests`), `git diff --check`다. 앞선 159개 BE·288개 FE unit·11개 기존 주방 브라우저·제품 타입/맵/코스/빌드 결과는 제품 코드가 바뀌지 않아 재사용한다. 실제 Quest 수정 후 검수와 Jenkins 확인 제약은 위 기록과 같다. 테스트와 이 기록을 기존 MR !454에 반영하며 머지는 보류한다.
+
+### MR !454 머지 요청 전 확인
+
+- 사용자가 최신 dev 충돌·검증 확인 후 MR !454를 dev로 머지하도록 명시적으로 요청했다. 최신 원격 재조회 결과 dev는 `6fc5c152dc2555308a7733041e82943e9cab2a69`, 리뷰 반영 소스는 `9bd75c2fd27a71b78d14d62b2d79a6cdbc48f29e`다. dev가 소스 이력에 포함되어 있고 미반영 dev 커밋·충돌·미커밋 변경이 없다.
+- 제품 변경이 없어 위 기능/리뷰 검증 결과를 재사용하며 MR 전체 `git diff --check`도 통과했다. GitLab의 필수 승인·검사 조건을 유지한 공식 머지 경로만 사용한다. 실제 원격 dev에 소스가 포함됐는지와 해당 Jenkins 결과를 따로 확인하며, 완료를 확인하기 전 머지·빌드 성공으로 기록하거나 브랜치를 삭제하지 않는다.
