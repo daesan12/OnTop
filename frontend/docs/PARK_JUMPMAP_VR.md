@@ -1,9 +1,9 @@
 # Quest 2 · 공원과 돌탑 점프맵 VR
 
 - 현재 작업 위치: `C:\Users\SSAFY\Desktop\OnTop\quest-vr`.
-- 현재 작업 브랜치: `feat/quest-vr-free-roam-20261108`. 기존 게임 전용 VR MR !425와 점프 피드백 MR !433은 dev에 머지·개발 배포됐다. 원격 `VR`의 직접 푸시 금지 보호는 유지한다.
+- 현재 작업 브랜치: `feat/quest-vr` (2026-11-08 Quest 2 실기기 QA 수정). 기존 게임 전용 VR MR !425와 점프 피드백 MR !433은 dev에 머지·개발 배포됐다. 원격 `VR`의 직접 푸시 금지 보호는 유지한다.
 - 2026-11-07 원격 반영 승인: 사용자가 미커밋 VR 작업의 커밋·푸시와 `dev` 대상 MR 생성을 요청했다. 머지는 사용자 확인 후 별도로 진행한다. `VR`의 직접 푸시 금지 보호를 유지하고 동일 작업 커밋을 `feat/quest-vr-games`에 푸시해 MR 소스로 사용한다. 아래 로컬 전용 보류 기록은 당시 상태다.
-- 현재 통합 기준: `origin/dev@88e1f60a58163530e2b4d1b30f4ffcddb34a3fcd` (2026-11-08, 공원 자유이동 VR 공개 작업 시작). 커밋·푸시·MR은 사용자 요청 범위이며 머지·배포는 별도 확인 전까지 보류한다.
+- 현재 통합 기준: `origin/dev@e823d778c2f3e25100c762535d1822afa88177da` (2026-11-08, Quest 2 실기기 QA 수정 시작). 커밋·푸시·MR은 사용자 요청 범위이며 머지·배포는 별도 확인 전까지 보류한다.
 - MR !450 추가 범위: VR 실행 중 닉네임 옆 `VR` 배지와 종료·연결 해제 시 제거. FE와 BE를 함께 반영해야 하며 아래 VR 실행 표시 검증 기록을 따른다.
 - 이관 원본: `park-jumpmap-vr-20261104`, `feat/park-jumpmap-vr-local-20261104@324db890`의 미커밋 VR 변경. 원본은 삭제·변경하지 않고 보존한다.
 - 기존 `quest-locomotion-poc`의 미커밋 작업과 독립 이동 화면은 원래 위치에 보존한다. 2026-11-04 사용자 승인으로 feat/quest-vr에 커밋·푸시하며 dev/master 머지·배포는 진행하지 않는다.
@@ -413,3 +413,16 @@ Browser plugin not available → 기존 Playwright·설치된 Chrome/SwiftShader
 - 브라우저: `node node_modules/@playwright/test/cli.js test --config playwright.park-xr.config.ts presence.spec.ts games-only.spec.ts feedback.spec.ts parkXR.spec.ts` Chrome 19개 모두 통과. 다른 유저 닉네임 배지·일반 busy 구분·종료·퇴장·본인 B 종료/연결 해제와 기존 낙하·재도전·안내/입력/소리/진동 회귀를 확인했다. Browser plugin not available → 기존 Playwright/Chrome, localhost:5289, 1440×900 및 기존 안내의 390×844·844×390 검증을 사용했다.
 - 새 브라우저 fixture의 API 대역 등록 순서 때문에 처음에는 서비스 상태를 읽지 못해 진입이 지연됐다. 공통 fixture 뒤에 서비스 상태/공지 대역을 등록해 해결했다. 실행 중 소스 수정으로 발생한 기존 테스트의 Vite 탐색 중단도 수정 종료 후 전체 19개 재실행에서 해소됐다. 오류 검사와 시간 제한은 유지했다.
 - 한계: 브라우저 인증·HTTP/WS·위치·WebXR은 fixture다. 실제 Quest/개발 서버 OAuth·다인 플레이 QA는 미실시이며 기존 Three.Clock·셰이더 정밀도·큰 번들 경고가 남는다. 새 FE는 VR 승인에서 vrActive까지 확인하므로 BE 동시 반영이 필요하다. 증거: `OnTop/output/vr-presence-20261108/remote-vr-badge.png`, BE XML은 `backend/build/test-results/test/`, MR/Jenkins 확인은 같은 외부 증거 폴더에 기록한다. 이전 공원 자유이동 단독 변경의 BE·WS 무변경 설명은 이번 표시 추가 전의 범위다.
+
+## 2026-11-08 · Quest 2 실기기 QA — 입구·연속 회전·상시 안내판
+
+- 사용자 실기기 결과: 점프맵까지 테스트 완료. 꼬치왕 입구의 E 상호작용에 접근하지 못했고, 30도 스냅 회전의 방향 조절과 멀미를 지적했다. 계속 남는 문구는 정면을 따라다니는 VR 내부 안내판이라고 확인했다. 아래 구현은 이 피드백 이후의 수정이며 실제 Quest 재검수 완료를 뜻하지 않는다.
+- 기준 `origin/dev@e823d778c2f3e25100c762535d1822afa88177da`를 실제 `quest-vr` 작업 폴더에 반영하고 `feat/quest-vr`에서 작업했다. 작업 전 미커밋 변경은 없었고 최신 dev에서 새로 분기하여 통합 충돌이 없다. 과거 MR !450은 이미 dev에 머지됐으므로 이번 변경은 새 MR에서 검토하며 머지는 별도 요청 전 보류한다.
+- 담당 경로는 기존 `features/parkXR`, `features/jumpmap`, `features/vrGuide`다. 공통 연결은 기존 `features/vrZone/parkBridge`의 도달 거리 검사와 무료 협동 방 열기를 재사용한다. BE·WS/API·DB/Flyway·맵/코스·이동 물리·에셋·의존성 변경은 없다.
+- `SkewerXREntry`는 기존 입구에 닿을 수 있을 때만 보이는 월드 좌표의 한지/녹색 버튼이다. 머리 고정 팁이 아니며, 양손 레이저와 검지 트리거로 선택한다. 공원 XR 종료 이벤트에서 카메라·입력·보호를 반환한 뒤 기존 2인 협동 방 화면을 한 번만 연다. 입구를 벗어나거나 연결이 바뀌거나 XR 종료가 실패하면 열지 않는다. 준비 화면에서 요리사/VR 선택과 헤드셋 연결은 기존 절차를 따른다. 공원 XR과 주방 XR을 동시에 실행하지 않는다.
+- 오른쪽 스틱은 기울기에 비례하는 연속 회전으로 변경했다. 최대 60도/초, 18% 데드존 이후 제곱 응답으로 작은 기울기에서 정밀 회전한다. 프레임 간 경과 시간으로 계산하고 50ms까지만 반영해 지연 후 큰 회전을 막는다. 진입·추적 복구·안내 종료 후에는 스틱 중립을 확인한다. 기존 머리 중심 회전 보정과 카메라 기준 이동·A 점프·왼손 그립 달리기를 유지한다. 별도 standalone PoC의 공통 스냅 입력 구현은 바꾸지 않는다.
+- 공원/점프맵 플레이 중 머리를 따라다니던 작은 상태 안내판을 숨기고 불필요한 텍스처 갱신도 중단했다. X로 여는 기존 좌우 컨트롤러 번호/연결선 설명서와 A 닫기, 완주 결과·랭킹은 유지한다. 회전 문구도 실제 연속 회전에 맞췄다. 한지 원본·공원 로고·돌탑 그림·버튼 대비를 재사용한다.
+- FE 단위: `node node_modules/vitest/vitest.mjs run vrPresence vrProtection jumpmap parkXR carry bgm sfx skewerCoopDrivers --maxWorkers=4` 23파일/168개 통과. 프레임률에 따른 회전량 일치, 작은 스틱 정밀 회전·중립 복귀·긴 프레임 제한, XR 종료 후 입구 열기 순서·종료 실패 시 취소를 포함한다. 제품 및 전체 tests TypeScript, 맵/코스 --check, park-integration Vite 빌드 통과. 생성물 변경 0건.
+- 브라우저: `node node_modules/@playwright/test/cli.js test --config playwright.park-xr.config.ts device-feedback.spec.ts presence.spec.ts games-only.spec.ts feedback.spec.ts parkXR.spec.ts` Chrome 21개 통과. 새 진입/회전/안내 외에도 낙하·낙수 후 VR 유지, 재도전, 보호 거절·미지원, 추적/연결 중단, 한지 안내·결과/랭킹, 소리·진동, 닉네임 VR 표시를 재확인했다. Browser plugin not available → 기존 Playwright/Chrome, localhost:5289, 1440×900 및 기존 안내 390×844·844×390 검사를 사용한다. 페이지 identity·비어 있지 않은 렌더·오류 오버레이/앱 콘솔 오류 없음과 입력에 따른 화면·통신 반응을 검증한다.
+- 브라우저 인증·REST/WS·위치·WebXR은 테스트 대역이며 실제 서버 방 생성/동료 참가·기기 멀미 개선·진동 체감·VR ↔ Quest 브라우저 전환은 Quest 2에서 재확인해야 한다. 실제 서버 보상·정산을 이번 검증으로 보장하지 않는다. 기존 Three.Clock·셰이더 정밀도·큰 번들 경고가 남는다. 화면 증거는 `OnTop/output/vr-device-qa-20261108/`에 보관한다.
+- 추가 시각 검증: 입구를 향한 모의 머리 방향을 적용하기 전에 서버 위치뿐 아니라 실제 렌더 카메라의 보간 완료도 기다리도록 테스트를 보완했다. 이전 잘림은 순간 위치 이동 직후의 이전 카메라 위치로 시선을 계산한 테스트 타이밍 문제였으며 서비스 배치를 변경하지 않았다. 버튼 전체가 시야 안에 들어오는 투영 검사와 새 동선 2개를 각 2회 반복해 4회 통과했다.
