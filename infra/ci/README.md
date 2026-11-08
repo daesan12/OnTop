@@ -108,6 +108,29 @@ VERCEL_PROJECT_ID=prj_...
 
 운영 배포는 후속 전환·롤백 Story에서 승인된 이미지를 수동으로 승격한다. 운영 서버에서 다시 빌드하지 않는다. 배포 기록에는 Git 전체 SHA, `wooaw/ontop-backend:sha-<SHA>` 태그, Docker Hub 이미지 digest, 원본 Jenkins 빌드 URL, 실행 시각·담당자, 배포 전후 헬스 결과와 롤백 여부를 남긴다. 현재의 운영 이미지 태그는 `infra/app/README.md`에 기록된 수동 배포 버전이며, 이 CI Story가 운영 앱을 교체하지 않는다.
 
+## 백엔드 이미지의 Gradle 다운로드 실패 대응 (2026-11-08)
+
+`origin/dev@4b11db3abc9f2b25eec0d290ce15040e0e6a88e7`의 Jenkins 로그에서 백엔드 전체 테스트와 프론트엔드 테스트·빌드는 통과했지만, `backend/Dockerfile` 안의 새 Gradle 8.14.3 다운로드가 `Read timed out (10000ms)`으로 실패했다. 이후 백엔드·프론트엔드 개발 배포 단계는 건너뛰었으므로 테스트 성공을 배포 완료로 해석하지 않는다.
+
+- `fix/ci-gradle-download-20261108`은 위 최신 dev를 기준으로 작업하며 기존 VR 변경을 포함한다. 시작 시 통합 충돌은 없었다.
+- Wrapper의 `networkTimeout`을 10초에서 60초로 늘린다. Gradle 버전·공식 배포 URL·TLS 검증은 유지한다. 이 값은 네트워크 응답 대기 시간이며 전체 빌드 시간 제한을 해제하지 않는다.
+- Docker 빌더의 `/root/.gradle`을 BuildKit 캐시 마운트로 유지한다. 소스가 바뀌어 빌드 레이어를 다시 실행해도 배포본·의존성을 재사용한다. `sharing=locked`로 동시 쓰기를 막으며 캐시는 최종 실행 이미지에 포함하지 않는다. 빌더 변경·캐시 정리 뒤에는 다시 다운로드할 수 있어야 한다.
+- 첫 다운로드에서는 외부 일시 오류에도 대응하도록 `./gradlew --no-daemon --version`만 최대 3회, 실패 사이 5초 간격으로 실행한다. 세 번 모두 실패하면 이미지 빌드를 중단한다. 이어지는 `bootJar -x test`는 한 번 실행하며 컴파일 실패를 재시도로 숨기지 않는다.
+- 로컬 Docker에서도 공식 배포 URL이 연결하는 GitHub에서 HTTP 504가 발생했다. 타사 미러나 TLS 검증 해제 대신 제한된 재시도와 캐시를 사용한다. 외부 서비스의 장기 장애까지 성공을 보장하지 않는다.
+
+검증은 Jenkins와 같은 `linux/amd64` 이미지 빌드, 네트워크를 끄고 빌드 레이어를 다시 실행하는 캐시 검증, CI Python 테스트와 공원 전달본 검사로 진행한다. Jenkins 전체 파이프라인·Docker Hub 게시·개발 서버 배포는 MR 병합 뒤 해당 빌드 결과로 별도 확인한다. `tested.sha`와 서비스별 배포 성공 SHA를 임의 변경하거나 테스트 단계를 건너뛰지 않는다.
+
+로컬 검증 기록:
+
+- `docker build --platform linux/amd64 --progress plain --tag ontop-backend:ci-gradle-download-20261108 backend`: 이미지 생성 성공. 최종 이미지의 `app.jar`·실행 스크립트 존재와 실행 사용자 UID 10001을 확인했다.
+- CI Python 테스트 62개 중 Windows에서 55개 통과, Linux root 전용 7개는 네트워크 없는 읽기 전용 Docker 컨테이너에서 별도로 모두 통과했다. `check_park_handoff.py`와 `git diff --check`도 통과했다.
+- 다운로드 재검증에서 실제 HTTP 503 두 번 뒤 세 번째 시도가 성공했다. 네트워크를 끈 빈 캐시에서는 세 번 실패 후 이미지 생성을 중단하는 것도 확인했다.
+- 캐시를 채운 뒤 검증용 Dockerfile을 표준 입력으로 전달하고 임시 `ARG CI_CACHE_PROBE` 값을 바꿔 빌드 레이어를 무효화했다. `--target build --network none`에서 배포본 다운로드 없이 컴파일·`bootJar`가 52초에 성공해 캐시 재사용을 확인했다. 검증용 ARG는 저장소 Dockerfile에 추가하지 않았다. `--no-cache`는 캐시 마운트도 비울 수 있어 재사용 검증에 사용하지 않는다.
+- Jenkins 읽기 API는 HTTP 403으로 접근이 거절되어 새 Jenkins 실행 결과와 실제 개발 배포 완료 여부는 로컬 검증 범위에 포함하지 않는다.
+- MR !455 병합 전 최신 `origin/dev@4b11db3a`를 다시 가져와 작업 브랜치에 포함된 것을 확인했다. `git merge-tree --write-tree origin/dev HEAD`와 변경 범위 검사에 충돌이 없었고, CI 테스트 62개(Windows 55개·Linux 7개), 공원 전달본 검사, Docker 이미지 빌드를 재확인했다. 애플리케이션·빌드 설정은 검증한 `e152d908`과 동일하다. Jenkins 성공 확인 전에는 작업 브랜치를 삭제하지 않는다.
+
+참고: [Gradle Wrapper 네트워크 설정](https://docs.gradle.org/current/dsl/org.gradle.api.tasks.wrapper.Wrapper.html), [Docker 캐시 마운트](https://docs.docker.com/build/cache/optimize/).
+
 ## 실행 권한과 위험
 
 Jenkins 서비스 계정은 2026-10-23 사용자의 명시적 승인 후 Docker 그룹에 가입했고, `/usr/local/sbin/ontop-deploy-dev` 실행에만 비밀번호 없는 `sudo`를 허용했다. Jenkins 계정의 Docker API 접속 성공, 배포 스크립트의 잘못된 SHA 거부, 다른 `sudo` 명령 거부를 확인했다. Docker 그룹 자체는 호스트 root와 사실상 동등한 권한이므로 Jenkins 관리자·저장소의 `dev` 브랜치 쓰기 권한·Credentials 접근을 제한해야 한다. Jenkins 웹 관리 화면은 외부에 공개하지 않고 SSH 터널로만 연다.

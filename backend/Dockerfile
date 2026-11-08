@@ -5,7 +5,16 @@ COPY gradlew build.gradle settings.gradle ./
 COPY gradle ./gradle
 RUN sed -i 's/\r$//' ./gradlew && chmod +x ./gradlew
 COPY src ./src
-RUN ./gradlew --no-daemon bootJar -x test
+# 소스 변경 뒤에도 Gradle 배포본과 의존성을 다시 내려받지 않도록 빌더 캐시를 유지한다.
+RUN --mount=type=cache,id=ontop-backend-gradle,target=/root/.gradle,sharing=locked \
+    set -eu; \
+    for attempt in 1 2 3; do \
+        if ./gradlew --no-daemon --version; then break; fi; \
+        if [ "$attempt" -eq 3 ]; then exit 1; fi; \
+        echo "Gradle distribution download failed; retrying ($attempt/3)..."; \
+        sleep 5; \
+    done; \
+    ./gradlew --no-daemon bootJar -x test
 
 FROM eclipse-temurin:21-jre-jammy
 
