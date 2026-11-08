@@ -67,7 +67,7 @@ export function ParkXRControls() {
       <h2>{name} VR 조작 안내</h2>
       <p>왼쪽 스틱으로 걷고 고개를 돌려 공원을 둘러보세요.<br />돌탑 첫 발판을 밟으면 점프맵이 시작돼요. 떨어져도 VR을 유지하므로 출발점으로 돌아가 다시 도전할 수 있어요.<br />이동 중 왼손 그립을 누르면 달려요. 점프는 오른손 A 버튼이에요.</p>
       <TouchControllerGuide mode="park" />
-      <p>VR 안에서는 <strong>왼손 X</strong>로 안내판을 열어요.<br />안내판의 ‘공원 조작 안내’와 ‘돌탑 놀이 방법’을 가리켜 트리거로 바꿔 볼 수 있어요.</p>
+      <p>VR 안에서는 <strong>왼손 X</strong>로 안내판을 열고 닫아요. 평소에는 정면 안내판을 표시하지 않아요.<br />안내판의 ‘공원 조작 안내’와 ‘돌탑 놀이 방법’을 가리켜 트리거로 바꿔 볼 수 있어요.<br />꼬치왕 입구에서는 ‘꼬치왕 입장’ 버튼을 가리켜 검지 트리거로 선택하세요. 준비 화면으로 이동해요.</p>
       <p>실제로 뛰지 않고 버튼으로 점프해요. 안내판을 닫으면 공원 이동을 계속할 수 있어요.<br />VR 중에는 다른 유저가 잡거나 던질 수 없어요. 오른손 B로 VR을 종료하면 일반 공원 화면으로 돌아와요.</p>
       <button className="paper-primary" type="button" onClick={() => setGuideOpen(false)}>안내 닫기</button>
     </PaperPopup> : null}

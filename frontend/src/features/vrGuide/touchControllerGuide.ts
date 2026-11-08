@@ -3,7 +3,7 @@ const { ink, gold, paper, muted } = TOUCH_GUIDE_COLORS
 export type TouchGuideMode = 'park' | 'chef' | 'chef-practice' | 'solo'
 type Point = readonly [number, number]
 export const PARK_TOUCH_BINDINGS = [
-  ['이동', '왼쪽 스틱 기울이기'], ['달리기', '왼손 그립 + 이동'], ['안내 열기·닫기', '왼손 X 버튼'], ['30도 회전', '오른쪽 스틱 좌우'],
+  ['이동', '왼쪽 스틱 기울이기'], ['달리기', '왼손 그립 + 이동'], ['안내 열기·닫기', '왼손 X 버튼'], ['부드러운 회전', '오른쪽 스틱 좌우'],
   ['점프 / 안내 닫기', '오른손 A 버튼'], ['VR 종료', '오른손 B 버튼'], ['가리킨 버튼 선택', '양손 검지 트리거'],
 ]
 export function touchBindings(mode: TouchGuideMode): string[][] {
