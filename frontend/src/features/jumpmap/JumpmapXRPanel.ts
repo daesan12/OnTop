@@ -83,7 +83,7 @@ export class JumpmapXRPanel {
     if (!base.key.startsWith('result:') && this.ranking) this.cancelRanking()
     this.view = this.ranking ? this.rankingView(base.key) : this.parkGuide ? {
       key: 'park-guide', title: '공원 · VR 조작 안내',
-      lines: ['왼쪽 스틱 이동 · 왼손 그립 달리기 · 오른손 A 점프', '오른쪽 스틱 30도 회전 · 왼손 X 안내 · 오른손 B VR 종료', '양손 레이저 + 검지 트리거로 패널 버튼을 선택해요.'],
+      lines: ['왼쪽 스틱 이동 · 왼손 그립 달리기 · 오른손 A 점프', '오른쪽 스틱 부드러운 회전 · 왼손 X 안내 · 오른손 B VR 종료', '양손 레이저 + 검지 트리거로 패널 버튼을 선택해요.'],
       buttons: [{ id: 'jump-guide', label: '돌탑 놀이 방법' }, { id: 'continue', label: '안내 닫기 · A' }],
     } : base
     if (this.previousKey !== this.view.key) {
@@ -101,7 +101,8 @@ export class JumpmapXRPanel {
     }
     this.body.copy(body)
     this.anchor.visible = this.blocking
-    this.statusAnchor.visible = !this.blocking
+    // Playing never attaches a persistent tip board to the viewer's head.
+    this.statusAnchor.visible = false
     if (now - this.lastPaint >= 200) {
       this.lastPaint = now
       if (this.signature !== JSON.stringify(this.view)) this.paint()
@@ -110,7 +111,7 @@ export class JumpmapXRPanel {
 
   setVisible(visible: boolean) {
     this.anchor.visible = visible && this.blocking
-    this.statusAnchor.visible = visible && !this.blocking
+    this.statusAnchor.visible = false
   }
 
   /** Ray is in world coordinates, from the current XRFrame targetRaySpace. */
@@ -174,6 +175,11 @@ export class JumpmapXRPanel {
   private cancelRanking() { this.rankingAbort?.abort(); this.rankingAbort = undefined; this.ranking = false; this.rankings = undefined }
 
   private paint() {
+    this.anchor.userData.view = this.statusAnchor.userData.view = this.view
+    if (!this.blocking) {
+      this.buttons = []; this.signature = JSON.stringify(this.view)
+      return
+    }
     const ctx = (this.blocking ? this.canvas : this.statusCanvas).getContext('2d')
     if (!ctx) return
     this.signature = JSON.stringify(this.view)

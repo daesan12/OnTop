@@ -10,7 +10,7 @@ export function paintParkXRGuide(ctx: CanvasRenderingContext2D, image: HTMLImage
   ctx.font = '34px "Malgun Gothic", sans-serif'
   ctx.fillText('왼쪽 스틱으로 걷고, 고개를 돌려 공원을 둘러보세요.', 64, 157)
   ctx.fillStyle = muted; ctx.font = '29px "Malgun Gothic", sans-serif'
-  ctx.fillText('X로 안내 열기 · 안내판에서 공원 조작과 돌탑 놀이 방법을 바꿔봐요.', 64, 202)
+  ctx.fillText('X로 안내 열기·닫기 · 꼬치왕 입구 버튼은 검지 트리거로 선택해요.', 64, 202)
   if (image.complete && image.naturalWidth) {
     const scale = Math.min(215 / image.naturalWidth, 130 / image.naturalHeight)
     ctx.drawImage(image, 1257, 57, image.naturalWidth * scale, image.naturalHeight * scale)
