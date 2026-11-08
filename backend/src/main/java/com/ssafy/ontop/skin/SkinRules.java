@@ -16,10 +16,17 @@ public final class SkinRules {
                 ||d.slots().stream().distinct().count()!=d.slots().size()) throw SkinException.invalid("상품 코드·이름·등급·착용 정보를 확인해주세요.");
         long clothes=d.slots().stream().filter(s->List.of("TOP","BOTTOM","SHOES").contains(s)).count();
         if(clothes!=0&&clothes!=3) throw SkinException.invalid("옷은 상의·하의·신발을 한 벌로 등록해주세요.");
-        if(d.wearMode().equals("WHOLE")&&(d.slots().size()!=5||d.compatibility().equals("ANY")))
-            throw SkinException.invalid("통합 스킨은 5개 부위와 전용 캐릭터 성별을 지정해주세요.");
+        if(d.wearMode().equals("WHOLE")&&d.slots().size()!=5)
+            throw SkinException.invalid("통합 스킨은 5개 부위를 함께 등록해주세요.");
         return new Definition(d.productCode(),d.name().trim(),d.grade(),d.compatibility(),d.wearMode(),
                 SLOTS.stream().filter(d.slots()::contains).toList());
+    }
+    public static Definition modelDefinition(Definition d,String compatibility) {
+        return new Definition(d.productCode(),d.name(),d.grade(),compatibility,d.wearMode(),d.slots());
+    }
+    public static void femaleModel(Definition d,FileSpec file) {
+        if(file!=null&&(!d.wearMode().equals("WHOLE")||!d.compatibility().equals("ANY")))
+            throw SkinException.invalid("별도 여성용 모델은 남녀 공용 통합 스킨에서만 등록할 수 있어요.");
     }
     public static void file(FileSpec file,String extension,long max) {
         if(file==null||file.name()==null||!file.name().toLowerCase(java.util.Locale.ROOT).endsWith(extension)

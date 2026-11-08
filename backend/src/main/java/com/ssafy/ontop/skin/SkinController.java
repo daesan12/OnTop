@@ -35,7 +35,7 @@ public class SkinController {
     public ResponseEntity<?> create(Principal p,@RequestBody Definition input) { return ok(service().create(account(p),input)); }
     @PutMapping(ROOT+"/{id}") @Operation(operationId="updateSkinRegistration",summary="스킨 정보 수정",description="version 충돌 시409, 공개한 상품의 등급·구성 변경 금지")
     public ResponseEntity<?> save(Principal p,@PathVariable String id,@RequestBody Save input) { return ok(service().save(account(p),id,input)); }
-    @PostMapping(ROOT+"/{id}/uploads") @Operation(operationId="issueSkinUpload",summary="GLB·WebP 업로드 URL 발급",description="최대5분, 임시 경로만 서명. AWS 미설정503, 파일한도400")
+    @PostMapping(ROOT+"/{id}/uploads") @Operation(operationId="issueSkinUpload",summary="GLB·WebP 업로드 URL 발급",description="최대5분, 임시 경로만 서명. ANY 통합 스킨은 femaleModel로 여캐용 GLB를 추가하며 생략/동일 파일이면 같은 모델 ID를 공유. AWS 미설정503, 파일한도400")
     public ResponseEntity<?> upload(Principal p,@PathVariable String id,@RequestBody UploadRequest input) { return ok(service().issue(account(p),id,input)); }
     @PostMapping(ROOT+"/{id}/uploads/{uploadId}/verify") @Operation(operationId="verifySkinUpload",summary="파일 바이트·해시·렌더러 규격 검증")
     public ResponseEntity<?> verify(Principal p,@PathVariable String id,@PathVariable String uploadId) { return ok(service().verifyView(account(p),id,uploadId)); }

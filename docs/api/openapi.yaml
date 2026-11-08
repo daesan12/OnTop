@@ -4125,7 +4125,8 @@ paths:
       tags:
       - SKIN
       summary: GLB·WebP 업로드 URL 발급
-      description: "최대5분, 임시 경로만 서명. AWS 미설정503, 파일한도400"
+      description: "최대5분, 임시 경로만 서명. ANY 통합 스킨은 femaleModel로 여캐용 GLB를 추가하며 생략/동일 파\
+        일이면 같은 모델 ID를 공유. AWS 미설정503, 파일한도400"
       operationId: issueSkinUpload
       parameters:
       - name: id
@@ -9206,6 +9207,8 @@ components:
         model:
           $ref: "#/components/schemas/FileSpec"
         image:
+          $ref: "#/components/schemas/FileSpec"
+        femaleModel:
           $ref: "#/components/schemas/FileSpec"
     Publish:
       type: object

@@ -16,7 +16,7 @@ import { knownWholeSkin, wholeSkinCompatible } from '../../world/art/wholeSkin'
 import { WARDROBE_OUTFITS_ENABLED } from './feature'
 import { wardrobeView } from './view'
 import { outfitImage, setImage, useItemArt, type CharacterVariant } from './itemArt'
-import { useSkinCatalog } from '../../world/art/skinCatalog'
+import { catalogAsset, useSkinCatalog } from '../../world/art/skinCatalog'
 import './wardrobe.css'
 
 const tabs: WardrobeFilter[] = ['ALL', ...wardrobeGroups]
@@ -160,7 +160,7 @@ export function WardrobeScreen() {
         <span>{preview ? `미리보기 · ${label(preview)}` : '내 캐릭터'}</span>
         <button type="button" aria-label="오른쪽으로 돌리기" onClick={() => turnWardrobeView(QUARTER_TURN)}>›</button>
       </div>
-      {preview && knownWholeSkin(preview.item.imageKey) && <p className="wardrobe-stage__note" role="note">{knownWholeSkin(preview.item.imageKey)?.variant === 'girl' ? '여자' : '남자'} 캐릭터 전용 · 머리·얼굴·옷을 한 번에 입는 스킨이에요.</p>}
+      {preview && knownWholeSkin(preview.item.imageKey) && <p className="wardrobe-stage__note" role="note">{catalogAsset(preview.item.imageKey)?.compatibility === 'ANY' ? '남녀 모두 착용 가능' : `${knownWholeSkin(preview.item.imageKey)?.variant === 'girl' ? '여자' : '남자'} 캐릭터 전용`} · 머리·얼굴·옷을 한 번에 입는 스킨이에요.</p>}
       {preview && !knownWholeSkin(preview.item.imageKey) && !wornPiece(preview.item.imageKey) && <p className="wardrobe-stage__note" role="note">의상 3D 모델이 준비되면 캐릭터에 바로 보여요. 지금은 착용 정보만 바뀌어요.</p>}
     </section>
     <p className="wardrobe-hint"><span aria-hidden="true">🖱</span>WASD 이동 · 드래그로 회전 · 더블클릭으로 입기·벗기 · Esc 닫기</p>

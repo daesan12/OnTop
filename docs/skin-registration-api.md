@@ -26,7 +26,7 @@ SKIN_UPLOAD_MAX_IMAGE_BYTES=2097152
 ## 파일·상품 규격
 
 - GLB 2.0 최대20MiB, 정지 WebP 최대2MiB/가로·세로4096px. 이미지·버퍼는 GLB 안에 포함하고 외부 URI는 금지한다. 지원 필수 확장은 현재 로더의 `EXT_meshopt_compression`, `EXT_texture_webp`다. 압축 해제 후 선언 버퍼 합계는128MiB 이하로 제한한다.
-- 현재 캐릭터와 같은49개 관절 이름을 사용한다. WHOLE은 5부위와 MALE/FEMALE 전용이며 CharacterRig의 variant와 near-/far- LOD, 실제 primitive 표면 수2/10이 맞아야 한다. PARTS는 선택 부위별 `extras.pieces`의 `item__<SLOT>__a` 조각 계약을 사용한다. 옷은 TOP/BOTTOM/SHOES를 모두 포함한다.
+- 현재 캐릭터와 같은49개 관절 이름을 사용한다. WHOLE은 5부위를 함께 등록하며 MALE/FEMALE 전용 또는 ANY(남녀 모두)를 선택한다. CharacterRig의 variant와 near-/far- LOD, 실제 primitive 표면 수2/10이 맞아야 한다. 서로 다른 남녀 파일은 각각 man/girl 규격을 검사하고, 같은 공용 파일은 man/girl 중 해당 모델의 규격으로 검사한다. PARTS는 선택 부위별 `extras.pieces`의 `item__<SLOT>__a` 조각 계약을 사용한다. 옷은 TOP/BOTTOM/SHOES를 모두 포함한다.
 - 등록 화면은 기존 공원과 같은 `createCharacterRig`로 미리보기를 만들며 모델/대표 이미지가 로드되기 전 공개 버튼을 열지 않는다. 서버의 구조 검사와 담당자의 외형·크기·착용 검수는 별개다. 일반 GLB를 자동으로 리깅하거나 모든 glTF 기능을 지원하는 기능이 아니다.
 - 공용 PARTS는 남녀 양쪽에서 선택 부위를 표시할 조각을 요구한다. 화면도 양쪽 기본 캐릭터와 실제 리그를 생성하고 빈 조각은 거절한다. WHOLE과 PARTS의 시각·애니메이션 적합성은 실제 모델별 인수로 확인한다.
 - 상품 코드는 대문자/숫자/밑줄3~28자, 첫 글자 대문자다. 서버 `grade`1/2/3/4는 화면 S/A/B/C에 대응한다. 의상 상품 가치1000/500/250/100과 중복50%·기계 확률·뽑기권 가격은 기존 규칙 그대로다.
@@ -45,7 +45,7 @@ DEV/PROD의 Vercel 설정에서 `/admin/skins`를 `/index.html`로 연결한다.
 | POST / | 상품 임시저장 |
 | GET /{id} | 등록 상태·버전 재조회 |
 | PUT /{id} | version을 확인하고 상품 수정 |
-| POST /{id}/uploads | 두 파일의 길이/SHA-256으로5분 PUT URL 발급 |
+| POST /{id}/uploads | 모델·대표 이미지와 선택적 여성용 모델의 길이/SHA-256으로5분 PUT URL 발급 |
 | POST /{id}/uploads/{uploadId}/verify | 실제 파일 읽기·해시/구조/뼈대 검증·불변 경로 보관 |
 | POST /{id}/publish | version/uploadId/reviewed 확인 후 상품·아이템 원자 연결 |
 | POST /{id}/disable | 신규 획득 중단, 기존 보유·장착 유지 |
@@ -60,6 +60,17 @@ DEV/PROD의 Vercel 설정에서 `/admin/skins`를 `/index.html`로 연결한다.
 응답은 `{id, definition, state:"DRAFT", version:0, publishedUploadId:null, updatedAt}`다. 수정은 `{version:0, definition:{...}}`이고 상품 코드 자체는 바꾸지 못한다.
 
 업로드 요청은 `{version, model:{name,bytes,sha256}, image:{name,bytes,sha256}}`다. `sha256`은 실제 파일의 소문자64자리16진수다. 경로·버킷·URL은 클라이언트가 지정할 수 없다. 응답의 `{uploadId,expiresAt,model:{url,headers},image:{url,headers}}`를 사용해 브라우저가 S3에 직접 PUT한다. 이 PUT에는 회원 Authorization/쿠키를 전달하지 않는다.
+
+### 남녀 모델을 한 상품으로 등록
+
+- 통합 스킨의 착용 캐릭터를 `ANY`(남녀 모두)로 저장하면 남캐용·여캐용 GLB 입력칸이 열린다. `model`은 남캐용, 선택적 `femaleModel`은 여캐용이며 각 GLB는 개별20MiB 제한을 따른다. 이름·등급·대표 이미지는 상품 하나에 입력한다.
+- 같은 옷을 공용으로 쓰려면 **남녀 같은 공용 파일 사용**을 체크한다. `femaleModel`을 생략하여 한 번만 PUT하고 남녀가 같은 모델 ID를 참조한다. 두 칸에서 실제 바이트가 같은 파일을 골라도 길이·해시가 같으면 같은 모델로 처리한다.
+- 서로 다른 파일은 `femaleModel:{name,bytes,sha256}`를 함께 보낸다. 응답의 `femaleModel:{url,headers}`로 추가 PUT한 뒤 검증한다. 여성용 추가 파일은 `ANY + WHOLE`에서만 허용한다. 전용 스킨과 PARTS의 기존 단일 GLB 계약은 유지한다.
+- 검증·공개 목록 응답의 `maleModelId/femaleModelId`는 연결된 파일 ID다. 공용은 같은 ID이고, 남녀 별도 파일은 다른 ID다. `modelUrl`은 기존 기본 모델 주소, `femaleModelUrl`은 남녀 상품의 여캐 주소다. 공용에서는 두 URL도 같다. 이름·상품 코드·imageKey·보유·중복 보상·상품 가치는 하나로 유지한다.
+- 관리자 미리보기는 왼쪽 남캐용·오른쪽 여캐용을 함께 렌더링한다. 공개 후 공원·옷장·프로필·개봉 결과는 현재 캐릭터에 맞는 파일을 선택한다. 공용 통합 GLB는 남녀 모두 동일한 전체 외형을 사용하며 자동으로 체형을 변환하지 않는다.
+- V162는 `skin_models`(파일당 ID·업로드 버전·파일명·길이·해시)와 `skin_upload_models`(업로드 버전·착용 성별→모델 ID)를 추가한다. 서로 다른 업로드의 모델을 연결하지 못하도록 복합 FK를 둔다. V161의 기존 업로드는 기존 파일 정보로 모델 행을 만들고 성별에 맞춰 연결한다. 기존 V161 SQL·상품·재고·지갑은 수정하지 않는다. 2026-11-08 사용자에게 **V162 팀 공유·번호 사용·V161 다음 적용 순서 확인 완료**를 받았다. 공용 DB 적용은 배포 시 확인한다.
+
+2026-11-08 로컬 검증: 스킨·상점·뽑기 관련 Java 단위26개, 격리 MySQL 등록/연결13개 및 V161→V162 기존 데이터 이전1개를 통과했다. FE 전체 검사에서2707통과/8기존스킵·임시파일 rename 권한 실패1개가 있었고, 해당 파일12개 검사는 권한 환경을 바꿔 모두 통과했다(고유 테스트 기준2708통과). TypeScript 소스/테스트 검사와 park-integration 빌드도 통과했다. PC 브라우저는 기존6개와 남녀·공용·동일파일3개 시나리오를 검증했다. 브라우저는 기존 GLB·API/S3 대역을 사용했으며, DB 검증은 실제 MySQL과 S3 대역을 사용했다. 신규 모델 인수·실제 AWS·개발 서버 배포 검증은 아니다.
 
 임시 파일은 `skins/<환경>/<상품UUID>/<업로드UUID>/incoming/`이고, 검증한 바이트만 같은 버전의 `published/`에 조건부 생성한다. 아직 유효한 PUT URL로 임시 파일을 바꿔도 이미 봉인된 공개 파일은 변하지 않는다. S3 왕복·해시·GLB 파싱은 DB 트랜잭션 밖에서 수행하고, 완료 시 상품 행을 잠가 버전을 재검사한다. 실패 시 공개 상태로 넘어가지 않는다. 검증 응답의 `modelUrl/imageUrl`은 CDN 미리보기 주소이며 서명 PUT URL을 공개 목록에 저장하지 않는다.
 
@@ -104,3 +115,5 @@ DEV/PROD의 Vercel 설정에서 `/admin/skins`를 `/index.html`로 연결한다.
 - 기존 스킨 전용 loopback 검증 DB의 MySQL 8개 검사 통과. V157→160→161 순서·실제 인증 HTTP·동시 공개·멱등성·기존 상품 보호·개봉/장착을 재확인했으며 S3 저장은 대역이다.
 - FE 전체 2,702개 통과·기존 8개 스킵, 제품/테스트 TypeScript·브라우저 6개·개발용 제품 빌드·Postman 10요청 일치검사 통과. 생성 맵 변경 0개, 독립 BE/FE 최종 정적 리뷰의 새 P1/P2 없음.
 - 인프라 환경변수 설정 완료는 사용자 전달 사항이다. 실제 AWS 서명 PUT·IAM·CORS·OAC·CDN 조회와 배포 후 모델/착용 인수는 아직 검증하지 않았다. 이번 검증은 공용 DB·AWS 리소스를 변경하지 않았다.
+
+2026-11-08 MR 통합 검증: 최신 dev `facc87a7` 위에 이번 스킨 서버·화면 커밋만 적용했다. 충돌 없이 관련 FE22개·TypeScript·Java/실제 OpenAPI·격리 MySQL14개·PC 브라우저9개·park-integration 빌드·Postman 파일 일치를 재검증했다. 다른 대화의 로컬 뽑기 오류 수정은 MR에 포함하지 않는다.

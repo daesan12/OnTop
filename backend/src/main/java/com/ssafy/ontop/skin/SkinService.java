@@ -43,34 +43,52 @@ public class SkinService {
         access(user);SkinRules.id(id);if(!storage.ready()) throw SkinStorage.unavailable();
         if(request==null) throw SkinException.invalid("업로드할 파일이 필요합니다.");
         SkinRules.version(request.version());SkinRules.file(request.model(),".glb",settings.modelMax());SkinRules.file(request.image(),".webp",settings.imageMax());
+        Entry before=transactions.execute(s->repository.get(id,false));sameVersion(before,request.version());
+        SkinRules.femaleModel(before.definition(),request.femaleModel());
+        if(request.femaleModel()!=null) SkinRules.file(request.femaleModel(),".glb",settings.modelMax());
+        boolean separateFile=request.femaleModel()!=null&&!(request.model().bytes()==request.femaleModel().bytes()
+                &&request.model().sha256().equals(request.femaleModel().sha256()));
         String uploadId=UUID.randomUUID().toString(),prefix="skins/"+settings.environment()+"/"+id+"/"+uploadId;
         // 서명/자격 증명 조회는 DB 잠금을 잡기 전에 수행한다.
         Target model=storage.upload(prefix+"/incoming/model.glb",request.model(),"model/gltf-binary");
         Target image=storage.upload(prefix+"/incoming/image.webp",request.image(),"image/webp");
+        Target female=!separateFile?null:storage.upload(prefix+"/incoming/female.glb",request.femaleModel(),"model/gltf-binary");
         Upload u=transactions.execute(s->{Entry e=repository.get(id,true);sameVersion(e,request.version());
+            ModelFile primary=new ModelFile(UUID.randomUUID().toString(),"model.glb",request.model().bytes(),request.model().sha256());
+            ModelFile alternate=!separateFile?primary:new ModelFile(UUID.randomUUID().toString(),"female.glb",request.femaleModel().bytes(),request.femaleModel().sha256());
             Upload result=new Upload(uploadId,id,e.version(),request.model().bytes(),request.image().bytes(),request.model().sha256(),request.image().sha256(),prefix,
-                    repository.now().plusSeconds(settings.ttlSeconds()),null);repository.insertUpload(result,user);return result;});
-        return new UploadTicket(u.id(),u.expiresAt(),model,image);
+                    repository.now().plusSeconds(settings.ttlSeconds()),null,
+                    e.definition().compatibility().equals("FEMALE")?null:primary,e.definition().compatibility().equals("MALE")?null:alternate);
+            repository.insertUpload(result,user);return result;});
+        return new UploadTicket(u.id(),u.expiresAt(),model,image,female);
     }
     public Upload verify(long user,String id,String uploadId) {
         access(user);SkinRules.id(id);SkinRules.id(uploadId);
         Entry before=transactions.execute(s->repository.get(id,false));
         Upload upload=transactions.execute(s->repository.upload(id,uploadId));
+        requireModels(before.definition(),upload);
         if(upload.verifiedAt()!=null&&upload.id().equals(before.publishedUploadId())) return upload;
         sameVersion(before,upload.catalogVersion());
         if(upload.verifiedAt()!=null) return upload;
         // S3 왕복·파싱은 트랜잭션 밖. 크기를 먼저 제한하고 임시 PUT 경로를 불변 공개 경로에 봉인한다.
-        byte[] model=storage.read(upload.prefix()+"/incoming/model.glb",upload.modelBytes());
         byte[] image=storage.read(upload.prefix()+"/incoming/image.webp",upload.imageBytes());
-        files.validate(model,image,before.definition(),upload.modelSha256(),upload.imageSha256());
-        storage.seal(upload.prefix()+"/published/model.glb",model,"model/gltf-binary",upload.modelSha256());
+        boolean separate=upload.maleModel()!=null&&upload.femaleModel()!=null&&!upload.maleModel().id().equals(upload.femaleModel().id());
+        for(ModelFile file:java.util.stream.Stream.of(upload.maleModel(),upload.femaleModel()).filter(java.util.Objects::nonNull).distinct().toList()) {
+            // 파일별 검증·봉인은 트랜잭션 밖에서 수행한다. 둘 다 완료돼야 verified_at을 확정한다.
+            byte[] model=storage.read(upload.prefix()+"/incoming/"+file.fileName(),file.bytes());
+            Definition definition=separate?SkinRules.modelDefinition(before.definition(),file.equals(upload.maleModel())?"MALE":"FEMALE"):before.definition();
+            files.validate(model,image,definition,file.sha256(),upload.imageSha256());
+            storage.seal(upload.prefix()+"/published/"+file.fileName(),model,"model/gltf-binary",file.sha256());
+        }
         storage.seal(upload.prefix()+"/published/image.webp",image,"image/webp",upload.imageSha256());
         return transactions.execute(s->{Entry current=repository.get(id,true);sameVersion(current,upload.catalogVersion());
             repository.verified(uploadId);return repository.upload(id,uploadId);});
     }
     public Verified verifyView(long user,String id,String uploadId) {
         Upload u=verify(user,id,uploadId);
-        return new Verified(u.id(),storage.url(u.prefix()+"/published/model.glb"),storage.url(u.prefix()+"/published/image.webp"));
+        return new Verified(u.id(),storage.url(u.prefix()+"/published/model.glb"),storage.url(u.prefix()+"/published/image.webp"),
+                u.maleModel()!=null&&u.femaleModel()!=null?modelUrl(u.prefix(),u.femaleModel()):null,
+                u.maleModel()==null?null:u.maleModel().id(),u.femaleModel()==null?null:u.femaleModel().id());
     }
     public Entry publish(long user,String id,Publish request) {
         access(user);SkinRules.id(id);
@@ -78,6 +96,7 @@ public class SkinService {
         SkinRules.id(request.uploadId());SkinRules.version(request.version()); if(!storage.ready()) throw SkinStorage.unavailable();
         return transactions.execute(s->{
             Entry e=repository.get(id,true);Upload u=repository.upload(id,request.uploadId());
+            requireModels(e.definition(),u);
             if(e.state().equals("PUBLISHED")&&u.id().equals(e.publishedUploadId())) return e;
             sameVersion(e,request.version());if(!u.id().equals(e.publishedUploadId())) sameVersion(e,u.catalogVersion());
             if(u.verifiedAt()==null) throw new SkinException(409,"SKIN_NOT_VERIFIED","업로드 파일 검증을 먼저 완료해주세요.");
@@ -94,8 +113,16 @@ public class SkinService {
         return transactions.execute(s->repository.publishedUploads().stream().map(u->{
             var d=u.definition();
             return new Asset("catalog/"+u.uploadId(),d.productCode(),d.name(),d.grade(),d.compatibility(),d.wearMode(),d.slots(),
-                    storage.url(u.prefix()+"/published/model.glb"),storage.url(u.prefix()+"/published/image.webp"));
+                    storage.url(u.prefix()+"/published/model.glb"),storage.url(u.prefix()+"/published/image.webp"),
+                    u.maleModel()!=null&&u.femaleModel()!=null?modelUrl(u.prefix(),u.femaleModel()):null,
+                    u.maleModel()==null?null:u.maleModel().id(),u.femaleModel()==null?null:u.femaleModel().id());
         }).toList());
+    }
+    private String modelUrl(String prefix,ModelFile model) { return storage.url(prefix+"/published/"+model.fileName()); }
+    private static void requireModels(Definition definition,Upload upload) {
+        if((!definition.compatibility().equals("FEMALE")&&upload.maleModel()==null)
+                ||(!definition.compatibility().equals("MALE")&&upload.femaleModel()==null))
+            throw new SkinException(409,"SKIN_UPLOAD_INCOMPLETE","캐릭터별 모델 연결이 없어요. 파일을 다시 업로드해주세요.");
     }
     private static void sameVersion(Entry e,long version) {
         if(e.version()!=version) throw new SkinException(409,"SKIN_VERSION_CHANGED","다른 창에서 변경됐어요. 목록을 다시 불러온 뒤 확인해주세요.");

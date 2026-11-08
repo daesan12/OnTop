@@ -17,7 +17,7 @@ const sources = new Map<string, Promise<GLTF>>()
 const portraits = new Map<string, Promise<string>>()
 
 function source(character: CharacterId, skinKey?: string) {
-  const skin = knownWholeSkin(skinKey ?? null), key = skin?.imageKey ?? character
+  const skin = knownWholeSkin(skinKey ?? null, character === 'girl' ? 'girl' : 'man'), key = skin?.source ?? character
   let gltf = sources.get(key)
   if (!gltf) sources.set(key, gltf = new ParkAssetLoader().loadAsync(skin?.url ?? characterUrls[character === 'girl' ? 1 : 0]!))
   return gltf
