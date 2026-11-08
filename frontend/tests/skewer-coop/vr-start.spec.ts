@@ -12,7 +12,7 @@ async function prepare(page: Page) {
   await expect(page.locator('.chef-stage canvas')).toBeVisible()
 }
 
-for (const failure of ['failProtection', 'rejectSession']) test(`${failure} 시작 실패를 표시하고 방을 유지한 채 다시 연결한다`, async ({ page }) => {
+for (const failure of ['failProtection', 'rejectSession']) test(`${failure} 실패 후 재연결하고 정상 종료해도 이전 오류가 남지 않는다`, async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
@@ -45,6 +45,16 @@ for (const failure of ['failProtection', 'rejectSession']) test(`${failure} 시�
   await expect(page.getByTestId('chef-app')).toHaveAttribute('data-xr', 'true')
   await expect(alert).toHaveCount(0)
   expect(await command(page, 'snapshot')).toMatchObject({ requested: 2, protected: true, protectionReleased: 0, modalCalls: 0 })
+
+  // 대기실 종료는 ChefPage를 유지하므로 언마운트에 기대지 않고 오류 정리를 검증한다.
+  await command(page, 'endSession')
+  await expect(page.getByTestId('chef-app')).toHaveAttribute('data-xr', 'false')
+  await expect(page.getByRole('dialog', { name: '역할 선택과 준비', exact: true })).toBeVisible()
+  await expect(page.getByTestId('skewer-coop')).toHaveAttribute('data-phase', 'WAITING')
+  expect(await command(page, 'snapshot')).toMatchObject({ protected: false, protectionReleased: 1 })
+  await page.getByRole('button', { name: '헤드셋 연결하기', exact: true }).click()
+  await expect(alert).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'VR 시작', exact: true })).toBeEnabled()
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
   expect(errors).toEqual([])
 })

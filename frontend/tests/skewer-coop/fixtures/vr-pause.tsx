@@ -122,6 +122,7 @@ Reflect.set(window, 'vrPauseQA', {
   b: (pressed: boolean) => Object.assign(right.gamepad!.buttons[5], { pressed }),
   select, hold: (value: boolean) => { hold = value }, fail: () => { fail = true }, failLeave: () => { failLeave = true },
   failProtection: () => { failProtection = true }, rejectSession: () => { rejectSession = true },
+  endSession: () => session?.end(),
   release: () => { hold = false; release?.(); release = undefined },
   tracked: (value: boolean) => { tracked = value },
   greeting: () => { Object.assign(state.publicState.greeting, { active: true, index: state.publicState.greeting.index + 1, remaining: 5, answered: false }); publish() },
