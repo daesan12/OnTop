@@ -131,6 +131,23 @@ VERCEL_PROJECT_ID=prj_...
 
 참고: [Gradle Wrapper 네트워크 설정](https://docs.gradle.org/current/dsl/org.gradle.api.tasks.wrapper.Wrapper.html), [Docker 캐시 마운트](https://docs.docker.com/build/cache/optimize/).
 
+## 오목 관전 테스트의 타이머·Spy 설정 경합 (2026-11-08)
+
+`origin/dev@afffc5f0fc9ccd29bb54fbbd94d8bb34cde5f9aa`의 Jenkins는 백엔드 테스트 3,514개 중 `OmokSpectatorEventFlowTests`의 준비 단계에서 `UnfinishedStubbingException`이 발생해 실패했다. Docker 이미지 생성과 개발 배포에는 도달하지 않았다. 이 로그로 MR !455의 다운로드 보완이 실패했다고 판정할 수는 없다.
+
+이 테스트는 `@BeforeEach`에서 Spy 엔진의 `createWithCoinToss`를 설정하지만 실제 `omokTimer`가 200ms마다 같은 엔진을 호출한다. 타이머 호출이 설정 중인 Mockito stubbing을 소비할 수 있다. 기존 `CommittedStartFlowTests`와 동일하게 **해당 관전 테스트에서만** `omokTimer`를 대역으로 교체하고, 30초 시간패 검증은 테스트 시계를 전진한 뒤 `engine.tick()`으로 명시적으로 진행한다. 실제 스케줄러를 사용하는 `OmokFlowTests`의 시간패·종료 방송 검증은 유지한다.
+
+작업 브랜치는 `fix/omok-spectator-stubbing-20261108`이며 위 최신 dev에서 분기했다. 변경은 오목 관전 테스트와 이 CI 문서로 한정한다. 실제 엔진·타이머·FE/BE 통신 계약·DB·Flyway 및 Jenkins 검사 조건은 변경하지 않는다. 생성 맵 전달본을 준비한 관련 오목 테스트와 백엔드 전체 테스트로 검증하고, Jenkins 재빌드·배포 결과는 병합 후 별도로 확인한다.
+
+로컬 검증 기록:
+
+- 수정 전 관전 테스트 5개는 단독 실행에서 통과했다. Jenkins의 간헐 실패가 로컬에서 항상 재현되는 것으로 기록하지 않는다.
+- Windows·Java 21에서 관전 테스트, 실제 타이머를 사용하는 `OmokFlowTests`, 확정 시작 테스트, 오목 규칙·엔진 테스트 9개 클래스·110개가 모두 통과했다. 실행 명령은 `gradlew.bat --no-daemon test --tests 'com.ssafy.ontop.table.OmokSpectatorEventFlowTests' --tests 'com.ssafy.ontop.table.OmokFlowTests' --tests 'com.ssafy.ontop.table.CommittedStartFlowTests' --tests 'com.ssafy.ontop.game.omok.*'`이며 `TEST_GENERATED_MAP_DIR`에 최신 전달본을 준비했다.
+- Linux/amd64·Temurin Java 21.0.13에서 백엔드 전체 `test`가 18분 3초에 성공했다. JUnit XML 집계는 435개 클래스·3,514개 테스트, 실패 0·오류 0·기존 조건부 건너뜀 11개다. 수정한 관전 테스트 5개는 모두 실행·통과했다. 검증용 컨테이너에 실제 루트 문서, FE 생성 맵·점프맵 전달본·공통 fixture·필요한 스킨 에셋을 포함했다. 진행 로그용 Gradle init script와 Dockerfile은 로컬 `backend/build/ci-omok-stubbing/`에만 두었다.
+- `check_park_handoff.py --verify-results`로 생성 맵 관련 6개 클래스가 건너뜀·실패 없이 실행된 것을 확인했다. 실제 Jenkins의 전체 검사 재현 명령은 기존 `bash infra/ci/run-generated-map-tests.sh full`이다.
+- 커밋 전 최신 원격을 다시 확인했으며 dev 기준은 `afffc5f0`로 동일하다. 통합 충돌과 `git diff --check` 오류는 없다. 실제 게임 코드·프론트엔드·Docker/Gradle 빌드 설정은 기준 dev와 동일하다.
+- Jenkins API는 HTTP 403이어서 서버 재빌드·이미지 게시·개발 배포 성공은 확인하지 못했다. 이번 MR은 머지를 보류하고 Jenkins 성공 확인 전까지 작업 브랜치를 유지한다.
+
 ## 실행 권한과 위험
 
 Jenkins 서비스 계정은 2026-10-23 사용자의 명시적 승인 후 Docker 그룹에 가입했고, `/usr/local/sbin/ontop-deploy-dev` 실행에만 비밀번호 없는 `sudo`를 허용했다. Jenkins 계정의 Docker API 접속 성공, 배포 스크립트의 잘못된 SHA 거부, 다른 `sudo` 명령 거부를 확인했다. Docker 그룹 자체는 호스트 root와 사실상 동등한 권한이므로 Jenkins 관리자·저장소의 `dev` 브랜치 쓰기 권한·Credentials 접근을 제한해야 한다. Jenkins 웹 관리 화면은 외부에 공개하지 않고 SSH 터널로만 연다.
