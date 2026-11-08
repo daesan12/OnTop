@@ -37,6 +37,10 @@ MIGRATIONS = [
     ROOT / "backend/src/main/resources/db/minigame/V147__create_mole_rounds.sql",
     ROOT / "backend/src/main/resources/db/minigame/V149__mole_rules_v2_reward_rate.sql",
     ROOT / "backend/src/main/resources/db/minigame/V150__mole_rules_v3_reward_rate.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V156__add_skewer_coop_play_mode.sql",
+    ROOT / "backend/src/main/resources/db/migration/V157__create_shared_gacha.sql",
+    ROOT / "backend/src/main/resources/db/migration/V158__create_feedback_replies_and_personal_notifications.sql",
+    ROOT / "backend/src/main/resources/db/migration/V159__add_gacha_refill_deadline.sql",
 ]
 DATABASE = "analytics_verify"
 
@@ -124,8 +128,12 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "jumpmap_rewards": "13", "skewer_rewards": "0", "mole_rewards": "0"},
     ],
     "14_feedback_daily.sql": [
-        {"kst_date": "2026-10-27", "submissions": "4", "submitters": "2", "withdrawn_submissions": "1"},
-        {"kst_date": "2026-10-28", "submissions": "1", "submitters": "1", "withdrawn_submissions": "0"},
+        {"kst_date": "2026-10-27", "submissions": "4", "submitters": "2", "withdrawn_submissions": "1",
+         "replied_submissions": "2", "reply_pct": "50.0", "avg_first_reply_hours": "4.0",
+         "max_first_reply_hours": "6.0", "resolved": "2", "reviewing": "1", "received": "1"},
+        {"kst_date": "2026-10-28", "submissions": "1", "submitters": "1", "withdrawn_submissions": "0",
+         "replied_submissions": "1", "reply_pct": "100.0", "avg_first_reply_hours": "12.0",
+         "max_first_reply_hours": "12.0", "resolved": "1", "reviewing": "0", "received": "0"},
     ],
     "15_feedback_channels.sql": [
         {"channel_id": "one", "submissions": "3", "submitters": "1"},
@@ -300,10 +308,10 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "fees": "60", "payouts": "540", "payout_pct": "900.0", "absorbed_coins": "-480"},
     ],
     "30_skewer_coop_daily.sql": [
-        {"kst_date": "2026-10-27", "games": "1", "players": "2", "avg_team_score": "300.0", "max_team_score": "300",
+        {"kst_date": "2026-10-27", "play_mode": "VR", "games": "1", "players": "2", "avg_team_score": "300.0", "max_team_score": "300",
          "avg_served": "15.0", "avg_minutes": "4.0", "time_up": "1", "ended_early": "0", "ranking_eligible": "1",
          "calculated_coins": "600", "granted_coins": "600"},
-        {"kst_date": "2026-10-28", "games": "1", "players": "2", "avg_team_score": "40.0", "max_team_score": "40",
+        {"kst_date": "2026-10-28", "play_mode": "PC", "games": "1", "players": "2", "avg_team_score": "40.0", "max_team_score": "40",
          "avg_served": "2.0", "avg_minutes": "1.0", "time_up": "0", "ended_early": "1", "ranking_eligible": "0",
          "calculated_coins": "0", "granted_coins": "0"},
     ],
@@ -328,6 +336,16 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"step_order": "5", "step": "minigame", "done_users": "1", "abandoned_users": "0"},
         {"step_order": "6", "step": "table", "done_users": "1", "abandoned_users": "0"},
         {"step_order": "7", "step": "finish", "done_users": "1", "abandoned_users": "0"},
+    ],
+    "33_gacha_daily.sql": [
+        {"kst_date": "2026-10-27", "tickets_bought": "3", "buyers": "2", "draws": "3", "drawers": "2",
+         "rounds_drawn": "1", "grade1_boxes": "0", "grade2_boxes": "0", "grade3_boxes": "1", "grade4_boxes": "1",
+         "coin_capsules": "1", "opens": "1", "duplicates": "0", "coins_spent": "300", "coins_returned": "20",
+         "absorbed_coins": "280", "return_pct": "6.7"},
+        {"kst_date": "2026-10-28", "tickets_bought": "0", "buyers": "0", "draws": "1", "drawers": "1",
+         "rounds_drawn": "1", "grade1_boxes": "1", "grade2_boxes": "0", "grade3_boxes": "0", "grade4_boxes": "0",
+         "coin_capsules": "0", "opens": "1", "duplicates": "1", "coins_spent": "0", "coins_returned": "50",
+         "absorbed_coins": "-50", "return_pct": "NULL"},
     ],
 }
 
