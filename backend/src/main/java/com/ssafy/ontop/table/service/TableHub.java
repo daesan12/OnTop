@@ -1232,13 +1232,14 @@ public class TableHub {
                 builder -> builder.tableId(tableId).channelId(tableChannels.get(tableId)));
     }
 
-    /** Recovery permits the original channel and its read-only boot snapshots, never lobby actions. */
+    /** 복구된 원래 채널의 조회와 무료 경기 참가자 본인의 조작 점유만 허용한다. 로비 권한은 주지 않는다. */
     private boolean restoredChannelAccess(Member member, Request request) {
         if (member.accountId() == null || reconnect.isEmpty()) return false;
         String freeChannel = request.type().equals("CHANNEL_JOIN")
                 ? request.payload().path("channelId").asText() : channels.channelOf(member.userId());
         if ((request.type().equals("CHANNEL_JOIN")
-                || Set.of("WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FOLLOW_CHECK").contains(request.type()))
+                || Set.of("WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FOLLOW_CHECK",
+                        "WORLD_INTERACTION_SET").contains(request.type()))
                 && reconnect.get().canResumeUnreservedChannel(member.accountId(), member.sessionId(), freeChannel)) {
             return true;
         }

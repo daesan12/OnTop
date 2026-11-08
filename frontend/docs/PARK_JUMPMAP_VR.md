@@ -1,9 +1,9 @@
 # Quest 2 · 공원과 돌탑 점프맵 VR
 
 - 현재 작업 위치: `C:\Users\SSAFY\Desktop\OnTop\quest-vr`.
-- 현재 작업 브랜치: `feat/quest-vr` (2026-11-08 Quest 2 실기기 QA 수정). 기존 게임 전용 VR MR !425와 점프 피드백 MR !433은 dev에 머지·개발 배포됐다. 원격 `VR`의 직접 푸시 금지 보호는 유지한다.
+- 현재 작업 브랜치: `feat/quest-vr` (2026-11-08 꼬치왕 VR 보호 승인·시작 실패 안내 수정). 기존 게임 전용 VR MR !425와 점프 피드백 MR !433은 dev에 머지·개발 배포됐다. 원격 `VR`의 직접 푸시 금지 보호는 유지한다.
 - 2026-11-07 원격 반영 승인: 사용자가 미커밋 VR 작업의 커밋·푸시와 `dev` 대상 MR 생성을 요청했다. 머지는 사용자 확인 후 별도로 진행한다. `VR`의 직접 푸시 금지 보호를 유지하고 동일 작업 커밋을 `feat/quest-vr-games`에 푸시해 MR 소스로 사용한다. 아래 로컬 전용 보류 기록은 당시 상태다.
-- 현재 통합 기준: `origin/dev@e823d778c2f3e25100c762535d1822afa88177da` (2026-11-08, Quest 2 실기기 QA 수정 시작). 커밋·푸시·MR은 사용자 요청 범위이며 머지·배포는 별도 확인 전까지 보류한다.
+- 현재 통합 기준: `origin/dev@6fc5c152dc2555308a7733041e82943e9cab2a69` (2026-11-08, MR !453 머지 포함). 커밋·푸시·MR은 사용자 요청 범위이며 이번 수정의 머지·배포는 별도 확인 전까지 보류한다.
 - MR !450 추가 범위: VR 실행 중 닉네임 옆 `VR` 배지와 종료·연결 해제 시 제거. FE와 BE를 함께 반영해야 하며 아래 VR 실행 표시 검증 기록을 따른다.
 - 이관 원본: `park-jumpmap-vr-20261104`, `feat/park-jumpmap-vr-local-20261104@324db890`의 미커밋 VR 변경. 원본은 삭제·변경하지 않고 보존한다.
 - 기존 `quest-locomotion-poc`의 미커밋 작업과 독립 이동 화면은 원래 위치에 보존한다. 2026-11-04 사용자 승인으로 feat/quest-vr에 커밋·푸시하며 dev/master 머지·배포는 진행하지 않는다.
@@ -447,3 +447,28 @@ Browser plugin not available → 기존 Playwright·설치된 Chrome/SwiftShader
 1. 입구 카드의 제목·한지 가장자리를 레이저로 가리키고 트리거를 한 번 누른다. 기존 협동 방 화면이 한 번 열려야 한다. 카드 밖에서는 열리지 않아야 한다.
 2. 트리거를 누른 직후 오른손 B를 누른다. 공원 XR은 종료되고 협동 방 화면은 열리지 않아야 한다. 종료 처리가 빨라 입력이 전달되지 않은 경우와 전달된 경우를 구분해 기록한다.
 3. 트리거 직후 시스템 화면 열기 등으로 가시성/입력 중단을 발생시킨다. 앱이 중단 이벤트를 받은 경우 예약 입장이 취소되어야 한다. 실제 Quest의 이벤트 전달 순서와 브라우저 복귀 결과는 별도로 기록한다.
+
+## 2026-11-08 · 꼬치왕 참가 중 VR 보호 승인과 시작 실패 안내
+
+- 실제 Quest 2의 HTTPS 개발 사이트에서 원인을 확인했다. `requestSession('immersive-vr')`는 승인됐지만, 이어 보낸 `WORLD_INTERACTION_SET { busy: true, vrActive: true }`가 `GAME_RECOVERY_REQUIRED`로 거절됐다. 렌더러 연결 전에 보호 취득이 실패해 세션이 종료됐고, `.chef-status`는 VR 미리보기 스타일에서 숨겨져 원인을 읽을 수 없었다. 수정 전 진단 증거는 `OnTop/output/vr-device-qa-20261108/chef-start-device-diagnosis.json`이다.
+- 기준은 `origin/dev@6fc5c152dc2555308a7733041e82943e9cab2a69`, 작업 위치는 `OnTop/quest-vr`, 브랜치는 `feat/quest-vr`다. 이전 MR !453은 이미 머지됐으며 작업 브랜치도 삭제된 상태에서 최신 dev로 다시 분기했다. 미커밋 변경 없이 시작했고 추가 통합 커밋이나 충돌은 없다. 기본 fetch의 삭제된 원격 ref 오류는 dev ref 명시 fetch로 우회했다.
+- 공통 변경은 `backend/.../table/service/TableHub.java`의 기존 `restoredChannelAccess` 허용 목록 한 곳이다. 기존 `canResumeUnreservedChannel`을 재사용하므로 복구가 완료된 현재 연결, 서버에 등록된 무료 경기의 실제 참가자, 서버 스냅샷의 원래 채널이 모두 맞아야 본인의 조작 점유를 갱신한다. `TableProtocol`의 필드/타입 검사와 `WorldChannelRegistry`의 본인 상태·VR 표시·운반 보호 처리는 바꾸지 않았다. 일반 로비 권한을 부여하거나 공통 복구 검사를 통째로 건너뛰지 않는다.
+- 실제 꼬치왕 엔진과 `GameReconnectService`를 함께 연결한 Hub 회귀에서 수정 전 거절을 재현하고 수정 후 승인을 확인했다. 다른 유저의 VR 상태 불변, 잡기 거절, 일반 팝업 닫기 중 VR 보호 유지, XR 종료 후 남은 팝업 보호 유지, 로비 조작 거절, 다른 userId 추가 거절, 오래된 연결/다른 채널 거절을 포함한다. 별도 실제 WebSocket 운반 회귀도 실행했다.
+- FE는 `features/skewer/chef/ChefPage.tsx`와 `chefVr.css`에 시작 전용 오류를 추가했다. 보호 거절·VR 권한 거절·주방 초기화 실패를 시작 버튼 바로 아래 `role="alert"`로 표시하고, 다시 누를 때 이전 안내를 지운다. 실패 후 버튼과 방을 유지해 재시도할 수 있다. 기존 한지 원본과 이중 테두리·먹색 계열을 재사용하며 컨트롤러 도식·주방 그림·레이저·조작 계약은 유지한다.
+- BE 검증: `TableHubSkewerEntryTests`, `WorldCarryFlowTests`, `WorldCarryTests`, `TableProtocolTests`, `SkewerCoopEngineTests`, `SkewerCoopRoomTests` 156개 및 `GameCommunicationFlowTests`, `GameReconnectWebSocketTests` 3개 통과. 인증/DB/OAuth는 기존 테스트 대역이며 실제 개발 서버를 수정한 검증이 아니다. 게임 코드 `SKEWER_COOP`, 기존 무료 2인 계약·정산·DB/Flyway·맵·의존성은 변경하지 않는다.
+- FE 검증: `vitest run skewer vrProtection vrPresence carry --maxWorkers=4` 36파일/288개, 제품/전체 tests TypeScript, 최신 맵·코스 `--check`, park-integration Vite 빌드 통과. 맵·코스 생성물 변경 0건이며 기존 Three CJS·큰 번들 경고는 남는다.
+- 브라우저는 `Browser plugin not available`로 기존 Playwright/Chrome, `http://127.0.0.1:5244/tests/skewer-coop/fixtures/vr-pause.html`을 사용했다. 현재 작업 fixture임을 확인한 기존 Vite 서버를 재사용했다. 기존 주방 XR 회귀 11개와 새 시작 실패/권한 거절/재시도 2개를 통과했다. 실패 재현 → 눈에 보이는 안내 → 같은 WAITING 방 유지 → 버튼 재활성화 → 새 보호 취득 후 XR 시작 → 오류 제거를 확인했다. 1440×900, 390×844, 844×390에서 안내 전체가 뷰포트 안에 들어오며 실제 스크린샷도 확인했다. 페이지 identity·의미 있는 렌더·Vite 오류 오버레이 없음·앱 JS/콘솔 오류 없음·입력 후 상태 전환을 확인했다.
+- 새 실패 시나리오에서 테스트 대역이 멈춘 미리보기 루프를 복구하지 않아 크기 변경 뒤 배경만 보이는 문제가 있었다. 대역의 실패 분기에서 일반 렌더 루프를 재개하고 다음 두 프레임 뒤 캡처하도록 보완한 뒤 새 2개 검사를 다시 실행했다. 제품 렌더 동작을 변경해 검사를 통과시키지 않았다. 외부 화면 증거는 `OnTop/output/chef-vr-protection-fix-20261108/`다.
+- 이번 수정 이후의 실제 Quest 재검수는 미실시다. 사용자 검토·머지·Jenkins 배포 이후 개발 사이트를 새로고침하고, 협동 방 → 요리사 → VR 연결 → 양손 트리거 준비 완료 → 경기 → 종료를 다시 확인해야 한다. 진입 전 실제 오류 기록과 수정 후 로컬 검증을 구분한다. 커밋·푸시·dev 대상 새 MR까지만 진행하며 자동 머지·배포·빌드 확인 전 소스 브랜치 삭제는 하지 않는다.
+
+### MR !454 리뷰 확인 — 오류 잔존과 본인 상태 격리
+
+- 최신 `origin/dev@6fc5c152dc2555308a7733041e82943e9cab2a69`와 MR 소스를 다시 가져와 이력 포함과 미커밋 변경 없음을 확인했다. 추가 dev 통합이나 충돌 해결은 필요하지 않았다.
+- 첫 의견의 실패 → 재시도 성공 흐름은 기존 `enterVR` 시작의 `setXRError('')`로 초기화된다. 정상 종료 시에도 이전 오류가 남지 않는지 브라우저 회귀를 확장했다. WAITING에서 종료해 ChefPage가 언마운트되지 않은 채 대기실로 돌아온 뒤, 장비 화면을 다시 열어 오류 없음·시작 버튼 활성화·보호 해제를 확인했다. 보호 거절과 권한 거절 두 경우 모두 통과했다. 제품 상태 초기화 로직은 변경하지 않았다.
+- 두 번째 의견은 기존 방어를 확인했다. `TableProtocol.fields`는 필드 개수와 이름을 함께 비교해 `busy` 또는 `busy`+`vrActive` 외의 추가 필드를 거절하고 boolean 타입 및 VR/점유 조합을 검사한다. 후속 `interactionBusy`는 요청의 사용자 식별자를 읽지 않고 인증된 `member.userId()`만 사용한다. 이전 연결·다른 채널·추가 `userId` 거절과 상대 상태 불변, VR 운반 보호 유지 회귀는 그대로 통과했다. 서버 제품 로직이나 권한 범위는 추가 변경하지 않았다.
+- 이번 재검증은 Chrome 모의 WebXR 2개(`vr-start.spec.ts`), 전체 tests TypeScript, BE 82개(`TableHubSkewerEntryTests`, `TableProtocolTests`), `git diff --check`다. 앞선 159개 BE·288개 FE unit·11개 기존 주방 브라우저·제품 타입/맵/코스/빌드 결과는 제품 코드가 바뀌지 않아 재사용한다. 실제 Quest 수정 후 검수와 Jenkins 확인 제약은 위 기록과 같다. 테스트와 이 기록을 기존 MR !454에 반영하며 머지는 보류한다.
+
+### MR !454 머지 요청 전 확인
+
+- 사용자가 최신 dev 충돌·검증 확인 후 MR !454를 dev로 머지하도록 명시적으로 요청했다. 최신 원격 재조회 결과 dev는 `6fc5c152dc2555308a7733041e82943e9cab2a69`, 리뷰 반영 소스는 `9bd75c2fd27a71b78d14d62b2d79a6cdbc48f29e`다. dev가 소스 이력에 포함되어 있고 미반영 dev 커밋·충돌·미커밋 변경이 없다.
+- 제품 변경이 없어 위 기능/리뷰 검증 결과를 재사용하며 MR 전체 `git diff --check`도 통과했다. GitLab의 필수 승인·검사 조건을 유지한 공식 머지 경로만 사용한다. 실제 원격 dev에 소스가 포함됐는지와 해당 Jenkins 결과를 따로 확인하며, 완료를 확인하기 전 머지·빌드 성공으로 기록하거나 브랜치를 삭제하지 않는다.

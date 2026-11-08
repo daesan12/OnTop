@@ -24,9 +24,13 @@ const publish = () => { state.version++; receive?.({ type: 'GAME_STATE', payload
 const calls: string[] = []
 let hold = false, fail = false, failLeave = false, release: (() => void) | undefined, protectionReleased = 0
 let failGreeting = false, loseGreetingReply = false, failCooking = false, connected = true
+let failProtection = false, rejectSession = false
 const transport: CoopTransport = {
   scope: () => ({ userId: '101', channelId: 'park', connected }),
-  protectVR: async () => () => { protectionReleased++ },
+  protectVR: async () => {
+    if (failProtection) { failProtection = false; throw new Error('VR 플레이 보호를 확인하지 못했어요. 공원 연결을 확인하고 다시 시작해 주세요.') }
+    return () => { protectionReleased++ }
+  },
   subscribe: fn => { receive = fn; return () => { receive = undefined } },
   requestJSON: async (path, init) => {
     if (path.endsWith('/leave') && init?.method === 'POST') { calls.push('LEAVE'); if (failLeave) { failLeave = false; throw new Error('일시 오류') }; return {} }
@@ -65,6 +69,7 @@ Object.defineProperty(navigator, 'xr', { configurable: true, value: {
   isSessionSupported: async () => true,
   requestSession: async () => {
     requested++
+    if (rejectSession) { rejectSession = false; throw new DOMException('VR 접근 권한을 허용해 주세요.', 'SecurityError') }
     const created = Object.assign(new EventTarget(), { visibilityState: 'visible', inputSources: [right], end: async () => { session = null; created.dispatchEvent(new Event('end')) } }) as unknown as XRSession
     session = created; return created
   },
@@ -76,7 +81,8 @@ ChefScene.prototype.enterVR = async function () {
   renderer.setAnimationLoop(null)
   renderer.xr.setSession = async () => {}; renderer.xr.getReferenceSpace = () => space
   renderer.xr.getCamera = () => internal.camera as ReturnType<WebGLRenderer['xr']['getCamera']>
-  await enterVR.call(this)
+  try { await enterVR.call(this) }
+  catch (error) { renderer.setAnimationLoop(time => internal.render(time)); throw error }
   if (timer) clearInterval(timer)
   renderFrame = () => {
     const current = session
@@ -115,6 +121,8 @@ Reflect.set(window, 'vrPauseQA', {
   dispatch: (action: ChefAction) => { if (!kitchen) throw new Error('주방 준비 전'); (kitchen as unknown as { action(action: ChefAction): void }).action(action) },
   b: (pressed: boolean) => Object.assign(right.gamepad!.buttons[5], { pressed }),
   select, hold: (value: boolean) => { hold = value }, fail: () => { fail = true }, failLeave: () => { failLeave = true },
+  failProtection: () => { failProtection = true }, rejectSession: () => { rejectSession = true },
+  endSession: () => session?.end(),
   release: () => { hold = false; release?.(); release = undefined },
   tracked: (value: boolean) => { tracked = value },
   greeting: () => { Object.assign(state.publicState.greeting, { active: true, index: state.publicState.greeting.index + 1, remaining: 5, answered: false }); publish() },
