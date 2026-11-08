@@ -4,6 +4,7 @@
 .chef-app.is-vr .chef-round{top:16px;right:18px;min-width:0;padding:0;background:none;border:0;box-shadow:none}
 .chef-app.is-vr .chef-eligibility{font-size:10px;margin:0 0 6px;color:#f4e5ce}
 .chef-app.is-vr .chef-enter-vr{background:#835138;color:#fff1d9;border:1px solid #c6a275;border-radius:6px;font-size:12px;padding:9px 13px}
+.chef-app.is-vr .chef-vr-start-error{max-width:min(340px,calc(100vw - 32px));margin:10px 0 0;padding:12px 14px;color:#943b2e;background:#f5ebd3 url('/art/tablet/hanji.webp') center / cover;border:3px double #b99c61;border-radius:10px;font-size:13px;line-height:1.6;text-align:left;text-shadow:none;overflow-wrap:anywhere}
 .chef-app.is-vr .chef-vr-hint{bottom:16px;left:50%;transform:translateX(-50%);width:max-content;max-width:92%;text-align:center;font-size:12px;color:#fff0d8;text-shadow:0 2px 4px #26170d}
 .chef-app.is-vr .chef-world-order-hit{height:12%;border-radius:0}
 @media(max-width:800px){

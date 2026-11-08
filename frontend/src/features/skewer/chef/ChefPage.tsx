@@ -31,6 +31,7 @@ export default function ChefPage({ driver, onXRChanged, onExit, onContinue, onLe
   const host = useRef<HTMLDivElement>(null), scene = useRef<ChefScene | null>(null), guide = useRef<HTMLDialogElement>(null)
   const [view, setView] = useState(() => model.current!.view()), [mode, setMode] = useState<ChefMode>(() => allowVR ? preferredMode ?? modeFromURL() : 'pc')
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [xrActive, setXRActive] = useState(false), [supported, setSupported] = useState(false), [pending, setPending] = useState(false)
+  const [xrError, setXRError] = useState('')
   const modeRef = useRef(mode); modeRef.current = mode
   const act = (action: ChefAction) => {
     // 일시정지 패널 조작은 요리 입력 차단 중에도 기존 전용 콜백으로 처리한다.
@@ -77,7 +78,17 @@ export default function ChefPage({ driver, onXRChanged, onExit, onContinue, onLe
   useEffect(() => { scene.current?.setGreetingBlocked(inputBlocked) }, [inputBlocked])
   useEffect(() => { scene.current?.setPauseState(pauseState) }, [pauseState])
   useEffect(() => { if (!xrActive) setMode(allowVR ? preferredMode ?? modeFromURL() : 'pc') }, [preferredMode, xrActive, allowVR])
-  const enterVR = async () => { if (pending || !allowVR) return; setPending(true); try { await scene.current?.enterVR() } catch (e) { setNotice(e instanceof Error ? e.message : 'VR 연결을 확인해 주세요.') } finally { setPending(false) } }
+  const enterVR = async () => {
+    if (pending || !allowVR) return
+    setPending(true); setXRError('')
+    try {
+      if (!scene.current) throw new Error('주방을 준비하지 못했어요. 페이지를 새로고침한 뒤 다시 시도해 주세요.')
+      await scene.current.enterVR()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'VR 연결을 확인하고 다시 시도해 주세요.'
+      setXRError(message); setNotice(message)
+    } finally { setPending(false) }
+  }
   const message = useTransientMessage(view.message)
   const pantry = mode === 'pc' ? view.pantry ?? INITIAL_PANTRY : INITIAL_PANTRY
   const seconds = Math.ceil(view.seconds)
@@ -92,7 +103,7 @@ export default function ChefPage({ driver, onXRChanged, onExit, onContinue, onLe
       {INGREDIENTS.map(item => <button className="chef-ingredient-hit" disabled={mode === 'pc'} key={item.id} style={{ left: `var(--chef-ingredient-${item.id}-x,50%)`, top: `var(--chef-ingredient-${item.id}-y,50%)` } as CSSProperties} aria-label={`${pantry.indexOf(item.id) + 1} ${item.name} 선택`} aria-pressed={view.ingredient === item.id} onClick={e => { act({ type: 'select', ingredient: item.id }); e.currentTarget.blur() }} />)}
       {view.visible.map((job, i) => <button className="chef-world-order-hit" data-order={job.id} data-recipe={job.recipe.join(',')} key={job.id} style={{ left: `var(--chef-order-${i}-x,50%)`, top: `var(--chef-order-${i}-y,50%)` }} aria-label={`${job.table}번 주문 선택`} aria-pressed={view.selectedJob === job.id} onClick={e => { if (host.current?.dataset.orderTransition === 'true') return; act({ type: 'choose', id: job.id }); e.currentTarget.blur() }} />)}
     </div>
-    {mode === 'vr' ? <aside className="chef-round" data-clock-phase={closing.phase}><div className="chef-clock-label">{driver?.online ? '남은 영업 시간' : '남은 연습 시간'}</div><time aria-label={driver?.online ? '남은 영업 시간' : '남은 연습 시간'}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</time>{view.cooperative?.score !== undefined ? <p className="chef-team-score">팀 점수 <strong>{view.cooperative.score.toLocaleString('ko-KR')}</strong></p> : null}<p className="chef-eligibility">{view.cooperative?.rankingEligible === false ? '팀 랭킹 제외 · 보상 가능' : xrActive ? driver?.online ? 'VR 연결 · 공동 경기' : 'VR 연습' : 'VR을 연결해 주세요'}</p>{mode === 'vr' ? <button className="chef-enter-vr" disabled={!supported || pending} onClick={() => void enterVR()}>{pending ? 'VR 연결 중…' : xrActive ? 'VR 종료' : supported ? 'VR 시작' : 'VR 연결 필요'}</button> : null}</aside> : null}
+    {mode === 'vr' ? <aside className="chef-round" data-clock-phase={closing.phase}><div className="chef-clock-label">{driver?.online ? '남은 영업 시간' : '남은 연습 시간'}</div><time aria-label={driver?.online ? '남은 영업 시간' : '남은 연습 시간'}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</time>{view.cooperative?.score !== undefined ? <p className="chef-team-score">팀 점수 <strong>{view.cooperative.score.toLocaleString('ko-KR')}</strong></p> : null}<p className="chef-eligibility">{view.cooperative?.rankingEligible === false ? '팀 랭킹 제외 · 보상 가능' : xrActive ? driver?.online ? 'VR 연결 · 공동 경기' : 'VR 연습' : 'VR을 연결해 주세요'}</p>{mode === 'vr' ? <button className="chef-enter-vr" disabled={!supported || pending} onClick={() => void enterVR()}>{pending ? 'VR 연결 중…' : xrActive ? 'VR 종료' : supported ? 'VR 시작' : 'VR 연결 필요'}</button> : null}{xrError ? <p className="chef-vr-start-error" role="alert">{xrError}</p> : null}</aside> : null}
     <section className="chef-accessible-readout" aria-label="영업 상태와 주문 영수증">
       <time data-testid={mode === 'vr' ? 'remaining-time' : undefined}>{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</time>
 
