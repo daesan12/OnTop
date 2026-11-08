@@ -34,9 +34,11 @@ import { START } from '../../src/features/jumpmap/course'
 import { useJumpmap } from '../../src/features/jumpmap/state'
 import { useParkXR } from '../../src/features/parkXR/state'
 import { jumpmapXRFeedback } from '../../src/features/jumpmap/xrFeedback'
+import { DEFAULT_XR_COMFORT, requestXRHeightReset, setXRComfort, useXRComfort } from '../../src/features/parkXR/comfort'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useXRComfort.setState({ settings: { ...DEFAULT_XR_COMFORT }, heightRevision: 0, heightNotice: '' })
   harness.nearSkewer = false
   useJumpmap.setState({ available: true })
   useParkXR.setState({ mode: 'jumpmap' })
@@ -153,16 +155,67 @@ function jumpmapSession() {
   const controller = new ParkXRController(gl as unknown as THREE.WebGLRenderer, new THREE.PerspectiveCamera(), new THREE.Scene())
   Reflect.set(controller, 'session', session); Reflect.set(controller, 'scope', 'peer|park|map'); Reflect.set(controller, 'kind', 'jumpmap')
   parkXRView.active = true
-  let tracked = true
+  let tracked = true, headY = 1.6
   const frame = { getViewerPose: () => tracked ? { transform: {
-    position: { x: 0, y: 1.6, z: 0 }, orientation: { x: 0, y: 0, z: 0, w: 1 },
+    position: { x: 0, y: headY, z: 0 }, orientation: { x: 0, y: 0, z: 0, w: 1 },
   } } : null }
   const now = vi.spyOn(performance, 'now')
-  return { session, controller, track: (value: boolean) => { tracked = value },
+  return { session, controller, track: (value: boolean) => { tracked = value }, height: (value: number) => { headY = value },
     update: (at: number) => { now.mockReturnValue(at); controller.update(frame as unknown as XRFrame) } }
 }
 const outside = () => { harness.avatar.current = { x: -150, y: .8, z: -150 } }
 const inside = () => { harness.avatar.current = { x: START.x, y: START.y + .8, z: START.z } }
+
+it('좌식 눈높이는 처음 보정하고 실제 고개 움직임·플랫폼 높이를 그대로 유지한다', () => {
+  setXRComfort({ posture: 'seated' })
+  const s = jumpmapSession()
+  try {
+    s.height(1); s.update(0)
+    expect(parkXRView.position.y).toBeCloseTo(1.6)
+    s.height(.8); s.update(100)
+    expect(parkXRView.position.y).toBeCloseTo(1.4)
+    harness.display.y += 5; s.update(200)
+    expect(parkXRView.position.y).toBeCloseTo(6.4)
+    expect(harness.avatar.current.y).toBe(START.y + .8)
+  } finally { s.controller.dispose() }
+})
+
+it('재설정과 자세 변경은 움직이는 몸체에서 적용하지 않고 정지 후 한 번만 반영한다', () => {
+  setXRComfort({ posture: 'seated' })
+  const s = jumpmapSession()
+  try {
+    s.height(1); s.update(0)
+    s.height(1.3); requestXRHeightReset()
+    for (let time = 100; time <= 500; time += 100) { harness.display.y += .1; s.update(time) }
+    const foot = harness.display.y - .8
+    expect(parkXRView.position.y - foot).toBeCloseTo(1.9)
+    for (let time = 600; time <= 1100; time += 100) s.update(time)
+    expect(parkXRView.position.y - foot).toBeCloseTo(1.6)
+    s.height(1.1); s.update(1200)
+    expect(parkXRView.position.y - foot).toBeCloseTo(1.4)
+    setXRComfort({ posture: 'standing' })
+    for (let time = 1300; time <= 1800; time += 100) s.update(time)
+    expect(parkXRView.position.y - foot).toBeCloseTo(1.1)
+    expect(s.session.end).not.toHaveBeenCalled()
+  } finally { s.controller.dispose() }
+})
+
+it('재설정은 고개 높이도 안정된 뒤 적용하고 추적 중단 후 다시 기다린다', () => {
+  setXRComfort({ posture: 'seated' })
+  const s = jumpmapSession()
+  try {
+    s.height(1); s.update(0)
+    requestXRHeightReset()
+    for (let time = 100; time <= 600; time += 100) { s.height(1 + time / 1000); s.update(time) }
+    expect(parkXRView.position.y).toBeCloseTo(2.2)
+    s.track(false); s.update(700)
+    s.track(true); s.height(1.3)
+    for (let time = 800; time <= 1200; time += 100) s.update(time)
+    expect(parkXRView.position.y).toBeCloseTo(1.9)
+    s.update(1300)
+    expect(parkXRView.position.y).toBeCloseTo(1.6)
+  } finally { s.controller.dispose() }
+})
 
 it('서버 위치로 피드백 모드만 전환하고 표시 예측이나 장시간 구역 이탈로 VR을 종료하지 않는다', () => {
   const s = jumpmapSession()

@@ -1,8 +1,9 @@
 import { cameraRelativeMove, MOVEMENT_INPUT_INTERVAL_MS, type MovementIntent } from '../../network/movementInput'
 import { DEAD_ZONE, InputLatch, emptyInput, type MoveInput } from '../../world/xrInput'
+import { DEFAULT_XR_COMFORT, type XRComfortSettings } from './comfort'
 
-/** Maximum 60 degrees/second; light stick deflection gives fine aiming. */
-export const PARK_TURN_SPEED = Math.PI / 3
+/** 기본 90도/초. 데드존 밖 입력은 선형으로 반영해 중간 기울기도 충분히 회전한다. */
+export const PARK_TURN_SPEED = Math.PI / 2
 
 export interface XRMovementPort { move(dx: number, dz: number, run: boolean, jump?: boolean): void; stopMovement(): void }
 
@@ -22,7 +23,8 @@ export class ParkXRMovement {
     this.turnArmed = false; this.turnAt = null
     this.port.stopMovement()
   }
-  update(input: MoveInput, yaw: number, now: number, allowed: boolean, positionMode = false): number {
+  update(input: MoveInput, yaw: number, now: number, allowed: boolean, positionMode = false,
+    settings: XRComfortSettings = DEFAULT_XR_COMFORT): number {
     if (!allowed || !Number.isFinite(yaw) || !Number.isFinite(now)) {
       if (this.armed || this.moving) this.port.stopMovement()
       this.latch.reset(); this.armed = false; this.moving = this.running = false; this.lastSend = -Infinity
@@ -36,7 +38,13 @@ export class ParkXRMovement {
     const axis = Number.isFinite(input.turn) ? Math.max(-1, Math.min(1, input.turn)) : 0
     if (Math.abs(axis) <= DEAD_ZONE) this.turnArmed = true
     const strength = Math.max(0, (Math.abs(axis) - DEAD_ZONE) / (1 - DEAD_ZONE))
-    const turn = this.turnArmed ? -Math.sign(axis) * strength * strength * PARK_TURN_SPEED * dt : 0
+    let turn = 0
+    if (this.turnArmed && settings.turnMode === 'snap' && Math.abs(axis) >= .7) {
+      turn = -Math.sign(axis) * settings.snapAngle * Math.PI / 180
+      this.turnArmed = false
+    } else if (this.turnArmed && settings.turnMode === 'smooth') {
+      turn = -Math.sign(axis) * strength * settings.turnSpeed * Math.PI / 180 * dt
+    }
     const move = this.armed ? input : emptyInput()
     cameraRelativeMove(move.forward, move.strafe, yaw + turn, !!move.run, action.jump, this.intent)
     const moving = !!(this.intent.dx || this.intent.dz)

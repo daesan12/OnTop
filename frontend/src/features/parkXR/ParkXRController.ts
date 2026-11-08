@@ -17,6 +17,7 @@ import { acquireVRProtection } from '../vrSession/protection'
 import { jumpmapXRFeedback } from '../jumpmap/xrFeedback'
 import { SkewerXREntry } from './SkewerXREntry'
 import { canReachParkVr, openParkVrZone } from '../vrZone/parkBridge'
+import { setXRHeightNotice, useXRComfort, XRHeightCalibration } from './comfort'
 
 /** XR follows the existing predicted/replicated avatar; it never integrates a second player. */
 export class ParkXRController {
@@ -55,6 +56,14 @@ export class ParkXRController {
   private primaryArmed = false
   private selectArmed = false
   private panelKey = ''
+  private comfortSettings = useXRComfort.getState().settings
+  private readonly heightCalibration = new XRHeightCalibration()
+  private heightReady = false
+  private heightRevision = -1
+  private stationaryAt: number | null = null
+  private stationaryHeadY = 0
+  private calibrationFrame = -Infinity
+  private readonly calibrationPose = new THREE.Vector3()
   private readonly unsubscribe: () => void
 
   constructor(private readonly gl: THREE.WebGLRenderer, private readonly camera: THREE.Camera, scene: THREE.Scene) {
@@ -125,6 +134,7 @@ export class ParkXRController {
       this.saved.position.copy(this.camera.position); this.saved.rotation.copy(this.camera.quaternion); this.saved.up.copy(this.camera.up)
       this.saved.projection.copy(this.camera.projectionMatrix); this.saved.inverse.copy(this.camera.projectionMatrixInverse)
       this.yaw = viewControls.yaw; this.offset.set(0, 0, 0)
+      this.heightCalibration.reset(); this.heightReady = false; this.heightRevision = -1; this.stationaryAt = null
       sampleAvatar(avatars.get(useSession.getState().sessionId)!, performance.now(), this.pose)
       this.rig.position.set(this.pose.x, this.pose.y - .8, this.pose.z); this.rig.rotation.set(0, this.yaw, 0)
       this.rig.add(this.camera); this.rig.visible = true; this.headAnchor.visible = false; this.camera.layers.set(0)
@@ -173,9 +183,15 @@ export class ParkXRController {
       this.panel.toggleGuide(this.kind === 'park')
     }
   }
+  showSettings = () => {
+    if (this.session && useParkXR.getState().phase === 'active') this.panel.showComfort()
+  }
 
   private currentScope(): string { const s = useSession.getState(); return `${s.sessionId}|${s.roomId}|${s.mapVersion}` }
-  private recentered = (): void => { this.started = false; this.yaw = viewControls.yaw; this.panel.recenter(); this.interrupted() }
+  private recentered = (): void => {
+    this.started = false; this.heightReady = false; this.stationaryAt = null
+    this.yaw = viewControls.yaw; this.panel.recenter(); this.interrupted()
+  }
   private interrupted = (): void => {
     this.enterSkewerAfterEnd = false
     if (!this.session) return
@@ -216,6 +232,8 @@ export class ParkXRController {
     this.session?.removeEventListener('inputsourceschange', this.interrupted)
     this.referenceSpace?.removeEventListener?.('reset', this.recentered); this.referenceSpace = null
     this.session = null; this.ending = false; this.started = false; this.movement.reset()
+    this.heightCalibration.reset(); this.heightReady = false; this.stationaryAt = null
+    setXRHeightNotice('')
     parkXRView.active = parkXRView.ownsInput = false; this.rig.visible = false
     this.panel.reset(); this.rays.forEach(({ line }) => { line.visible = false })
     if (this.camera.parent === this.rig) {
@@ -238,6 +256,7 @@ export class ParkXRController {
     }
     const space = this.gl.xr.getReferenceSpace(), viewer = frame && space ? frame.getViewerPose(space) : null
     if (document.hidden || session.visibilityState !== 'visible' || !viewer || this.ending) {
+      this.stationaryAt = null; this.calibrationFrame = -Infinity
       jumpmapXRFeedback.suspend()
       this.movement.update(emptyInput(), this.headYaw, performance.now(), false)
       this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
@@ -280,7 +299,30 @@ export class ParkXRController {
       useParkXR.setState({ mode: kind })
     }
     this.panel.inCourse = kind === 'jumpmap'
-    this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8, this.pose.z - this.offset.z)
+    const comfort = useXRComfort.getState()
+    if (this.comfortSettings !== comfort.settings) {
+      this.comfortSettings = comfort.settings; this.movement.reset()
+    }
+    const stable = now - this.calibrationFrame <= 250 && !avatar.moving && !avatar.swimming
+      && !input.forward && !input.strafe && !input.jump
+      && Math.hypot(this.pose.x - this.calibrationPose.x, this.pose.y - this.calibrationPose.y,
+        this.pose.z - this.calibrationPose.z) < .002
+    if (!stable) this.stationaryAt = null
+    else if (this.stationaryAt === null || Math.abs(this.head.y - this.stationaryHeadY) > .015) {
+      this.stationaryAt = now; this.stationaryHeadY = this.head.y
+    }
+    this.calibrationPose.set(this.pose.x, this.pose.y, this.pose.z); this.calibrationFrame = now
+    if (!this.heightReady || this.heightRevision !== comfort.heightRevision) {
+      // 처음 진입은 즉시 보정하고, 플레이 중 재설정은 안내판에서 착지·정지를 기다린다.
+      if (!this.heightReady || this.panel.blocking && this.stationaryAt !== null && now - this.stationaryAt >= 400) {
+        if (this.heightCalibration.calibrate(this.head.y, comfort.settings)) {
+          this.heightReady = true; this.heightRevision = comfort.heightRevision
+          setXRHeightNotice(comfort.settings.posture === 'seated' ? '앉기 눈높이를 현재 자세에 맞췄어요.' : 'Quest 바닥 기준의 서기 눈높이예요.')
+          this.panel.recenter(); this.movement.reset()
+        } else setXRHeightNotice('헤드셋을 착용하고 바닥 추적을 확인해 주세요.')
+      } else setXRHeightNotice('착지하고 스틱을 놓으면 눈높이를 맞춰요.')
+    }
+    this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8 + this.heightCalibration.offset, this.pose.z - this.offset.z)
     parkXRView.position.copy(this.head).applyQuaternion(this.rig.quaternion).add(this.rig.position)
     this.panel.update(now, parkXRView.position, this.headYaw, this.rig.position)
     this.skewerEntry.update(avatar.current, parkXRView.position, !this.panel.blocking)
@@ -294,7 +336,8 @@ export class ParkXRController {
     if (this.panel.blocking && input.jump && this.primaryArmed) { this.primaryArmed = false; this.panel.primary() }
     // Menus stop intent, not XR rendering or authoritative gravity. Idle position
     // heartbeats continue through the same runtime in CLIENT_VALIDATED mode.
-    const turn = this.movement.update(this.panel.blocking ? emptyInput() : input, this.headYaw, now, true, localMovement.positionMode)
+    const turn = this.movement.update(this.panel.blocking ? emptyInput() : input, this.headYaw, now, true,
+      localMovement.positionMode, this.comfortSettings)
     if (this.kind === 'jumpmap') jumpmapXRFeedback.update(avatar, !this.panel.blocking && !this.ending)
     if (turn) {
       this.direction.copy(this.head).applyQuaternion(this.rig.quaternion)
@@ -303,7 +346,7 @@ export class ParkXRController {
       this.offset.add(this.rotated.sub(this.direction)); this.offset.y = 0; this.headYaw += turn
     }
     viewControls.yaw = this.headYaw
-    this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8, this.pose.z - this.offset.z)
+    this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8 + this.heightCalibration.offset, this.pose.z - this.offset.z)
     parkXRView.position.copy(this.head).applyQuaternion(this.rig.quaternion).add(this.rig.position)
     this.camera.position.copy(this.head); this.camera.quaternion.copy(this.rotation)
     this.headAnchor.position.copy(this.head); this.headAnchor.quaternion.copy(this.rotation); this.headAnchor.visible = true
