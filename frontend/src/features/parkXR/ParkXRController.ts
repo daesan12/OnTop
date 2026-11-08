@@ -60,6 +60,7 @@ export class ParkXRController {
   private readonly heightCalibration = new XRHeightCalibration()
   private heightReady = false
   private heightRevision = -1
+  private heightRequestRevision = -1
   private stationaryAt: number | null = null
   private stationaryHeadY = 0
   private calibrationFrame = -Infinity
@@ -134,7 +135,7 @@ export class ParkXRController {
       this.saved.position.copy(this.camera.position); this.saved.rotation.copy(this.camera.quaternion); this.saved.up.copy(this.camera.up)
       this.saved.projection.copy(this.camera.projectionMatrix); this.saved.inverse.copy(this.camera.projectionMatrixInverse)
       this.yaw = viewControls.yaw; this.offset.set(0, 0, 0)
-      this.heightCalibration.reset(); this.heightReady = false; this.heightRevision = -1; this.stationaryAt = null
+      this.heightCalibration.reset(); this.heightReady = false; this.heightRevision = this.heightRequestRevision = -1; this.stationaryAt = null
       sampleAvatar(avatars.get(useSession.getState().sessionId)!, performance.now(), this.pose)
       this.rig.position.set(this.pose.x, this.pose.y - .8, this.pose.z); this.rig.rotation.set(0, this.yaw, 0)
       this.rig.add(this.camera); this.rig.visible = true; this.headAnchor.visible = false; this.camera.layers.set(0)
@@ -233,6 +234,7 @@ export class ParkXRController {
     this.referenceSpace?.removeEventListener?.('reset', this.recentered); this.referenceSpace = null
     this.session = null; this.ending = false; this.started = false; this.movement.reset()
     this.heightCalibration.reset(); this.heightReady = false; this.stationaryAt = null
+    this.heightRevision = this.heightRequestRevision = -1
     setXRHeightNotice('')
     parkXRView.active = parkXRView.ownsInput = false; this.rig.visible = false
     this.panel.reset(); this.rays.forEach(({ line }) => { line.visible = false })
@@ -303,6 +305,12 @@ export class ParkXRController {
     if (this.comfortSettings !== comfort.settings) {
       this.comfortSettings = comfort.settings; this.movement.reset()
     }
+    // Count stability from each new request, including another reset while pending.
+    // Keep the applied revision separate so calibration remains pending until ready.
+    if (this.heightRequestRevision !== comfort.heightRevision) {
+      this.heightRequestRevision = comfort.heightRevision; this.stationaryAt = null
+    }
+    // readXRInput already zeroes raw stick drift inside the radial DEAD_ZONE.
     const stable = now - this.calibrationFrame <= 250 && !avatar.moving && !avatar.swimming
       && !input.forward && !input.strafe && !input.jump
       && Math.hypot(this.pose.x - this.calibrationPose.x, this.pose.y - this.calibrationPose.y,

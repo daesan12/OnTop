@@ -35,6 +35,7 @@ import { useJumpmap } from '../../src/features/jumpmap/state'
 import { useParkXR } from '../../src/features/parkXR/state'
 import { jumpmapXRFeedback } from '../../src/features/jumpmap/xrFeedback'
 import { DEFAULT_XR_COMFORT, requestXRHeightReset, setXRComfort, useXRComfort } from '../../src/features/parkXR/comfort'
+import { DEAD_ZONE, readXRInput } from '../../src/world/xrInput'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -213,6 +214,66 @@ it('재설정은 고개 높이도 안정된 뒤 적용하고 추적 중단 후 �
     for (let time = 800; time <= 1200; time += 100) s.update(time)
     expect(parkXRView.position.y).toBeCloseTo(1.9)
     s.update(1300)
+    expect(parkXRView.position.y).toBeCloseTo(1.6)
+  } finally { s.controller.dispose() }
+})
+
+it.each([.001, DEAD_ZONE, DEAD_ZONE + .001])('원시 스틱 %s는 이동과 같은 데드존 기준으로 눈높이 정지를 판단한다', axis => {
+  setXRComfort({ posture: 'seated' })
+  const s = jumpmapSession()
+  const sources = [{ handedness: 'left' as const, gamepad: {
+    mapping: 'xr-standard', axes: [0, 0, axis, 0], buttons: [],
+  } as unknown as Gamepad }]
+  try {
+    s.height(1); s.update(0)
+    Reflect.set(s.session, 'inputSources', sources)
+    const input = readXRInput(sources)
+    expect(Math.hypot(input.forward, input.strafe) === 0).toBe(axis <= DEAD_ZONE)
+    s.height(1.3); requestXRHeightReset()
+    for (let time = 100; time <= 600; time += 100) s.update(time)
+    // 데드존 바로 밖의 유효한 이동은 두 번째 데드존으로 무시하면 안 된다.
+    expect(parkXRView.position.y).toBeCloseTo(axis <= DEAD_ZONE ? 1.6 : 1.9)
+    Reflect.set(s.session, 'inputSources', [])
+    for (let time = 700; time <= 1100; time += 100) s.update(time)
+    expect(parkXRView.position.y).toBeCloseTo(1.6)
+  } finally { s.controller.dispose() }
+})
+
+it.each(['reset', 'posture', 'eye-height'] as const)('%s 요청은 이전 정지 시간을 쓰지 않고 새로 400ms 기다린다', action => {
+  setXRComfort({ posture: 'seated' })
+  const s = jumpmapSession()
+  try {
+    s.height(1); s.update(0)
+    s.height(1.3)
+    for (let time = 100; time <= 800; time += 100) s.update(time)
+    if (action === 'reset') requestXRHeightReset()
+    else if (action === 'posture') setXRComfort({ posture: 'standing' })
+    else setXRComfort({ seatedEyeHeight: 1.8 })
+    for (const time of [900, 1000, 1100, 1299]) {
+      s.update(time)
+      expect(parkXRView.position.y).toBeCloseTo(1.9)
+    }
+    s.update(1300)
+    expect(parkXRView.position.y).toBeCloseTo(action === 'posture' ? 1.3 : action === 'eye-height' ? 1.8 : 1.6)
+    s.height(1.2); s.update(1400)
+    expect(parkXRView.position.y).toBeCloseTo(action === 'posture' ? 1.2 : action === 'eye-height' ? 1.7 : 1.5)
+  } finally { s.controller.dispose() }
+})
+
+it('대기 중 재설정을 다시 누르면 마지막 요청부터 안정 시간을 다시 센다', () => {
+  setXRComfort({ posture: 'seated' })
+  const s = jumpmapSession()
+  try {
+    s.height(1); s.update(0)
+    s.height(1.3)
+    for (let time = 100; time <= 800; time += 100) s.update(time)
+    requestXRHeightReset(); s.update(900); s.update(1100)
+    requestXRHeightReset()
+    for (const time of [1150, 1400, 1500, 1549]) {
+      s.update(time)
+      expect(parkXRView.position.y).toBeCloseTo(1.9)
+    }
+    s.update(1550)
     expect(parkXRView.position.y).toBeCloseTo(1.6)
   } finally { s.controller.dispose() }
 })
