@@ -25,6 +25,22 @@ async function enter(page: Page) {
   return { server, errors }
 }
 
+async function approach(page: Page, server: Awaited<ReturnType<typeof enter>>['server']) {
+  const entrance = await page.evaluate(async () => (await import('/src/features/vrZone/parkBridge.ts' as string)).parkVrEntrance)
+  const position = { x: entrance.x + Math.sin(entrance.yaw) * 1.4, y: entrance.y,
+    z: entrance.z + Math.cos(entrance.yaw) * 1.4 }
+  server.place(position)
+  await expect.poll(async () => {
+    const s = await state(page)
+    return Math.max(Math.hypot(s.pose.x - position.x, s.pose.z - position.z),
+      Math.hypot(s.position[0] - position.x, s.position[2] - position.z))
+  }).toBeLessThan(.01)
+  await expect.poll(async () => (await state(page)).skewerEntryVisible).toBe(true)
+  await page.evaluate(async p => (await import(p)).faceSkewerEntry(), xr)
+  await expect.poll(async () => (await state(page)).entryBounds
+    .every((p: number[]) => Math.abs(p[0]!) < 1 && Math.abs(p[1]!) < 1)).toBe(true)
+}
+
 test('정면 팁 없이 연속·정밀 회전하고 X 안내를 닫으면 다시 시야를 비운다', async ({ page }, info) => {
   const { errors } = await enter(page)
   expect((await state(page)).statusVisible).toBe(false)
@@ -60,22 +76,10 @@ test('정면 팁 없이 연속·정밀 회전하고 X 안내를 닫으면 다시
 test('입구 밖에서는 버튼이 없고 입구에서는 키보드 없이 트리거로 협동 방에 진입한다', async ({ page }, info) => {
   const { server, errors } = await enter(page)
   expect((await state(page)).skewerEntryVisible).toBe(false)
-  const entrance = await page.evaluate(async () => (await import('/src/features/vrZone/parkBridge.ts' as string)).parkVrEntrance)
-  const approach = { x: entrance.x + Math.sin(entrance.yaw) * 1.4, y: entrance.y,
-    z: entrance.z + Math.cos(entrance.yaw) * 1.4 }
-  server.place(approach)
-  await expect.poll(async () => (await state(page)).skewerEntryVisible).toBe(true)
-  await expect.poll(async () => {
-    const s = await state(page)
-    return Math.max(Math.hypot(s.pose.x - approach.x, s.pose.z - approach.z),
-      Math.hypot(s.position[0] - approach.x, s.position[2] - approach.z))
-  }).toBeLessThan(.01)
-  await page.evaluate(async p => (await import(p)).faceSkewerEntry(), xr)
-  await expect.poll(async () => (await state(page)).entryBounds
-    .every((p: number[]) => Math.abs(p[0]!) < 1 && Math.abs(p[1]!) < 1)).toBe(true)
+  await approach(page, server)
   const frame = await page.evaluate(async p => (await import(p)).sceneFramePNG(), xr)
   await writeFile(info.outputPath('skewer-vr-entry.png'), Buffer.from(frame.split(',')[1]!, 'base64'))
-  await page.evaluate(async p => (await import(p)).aim('skewer-entry'), xr)
+  await page.evaluate(async p => (await import(p)).aim('skewer-entry-edge'), xr)
   await page.waitForTimeout(100)
   await page.evaluate(async p => (await import(p)).buttons({ trigger: true }), xr)
   await expect(page.getByRole('button', { name: /방 만들기/ }).first()).toBeVisible()
@@ -84,5 +88,28 @@ test('입구 밖에서는 버튼이 없고 입구에서는 키보드 없이 트�
   await expect.poll(() => server.requests.some(r => r.type === 'WORLD_INTERACTION_SET' && r.payload.vrActive === false)).toBe(true)
   await page.screenshot({ path: info.outputPath('skewer-coop-from-vr.png') })
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+for (const cancel of ['B', 'interrupt'] as const) test(`입구 선택 후 XR 종료 대기 중 ${cancel}로 취소하면 협동 방을 열지 않는다`, async ({ page }) => {
+  const { server, errors } = await enter(page)
+  await approach(page, server)
+  await page.evaluate(async p => {
+    const helper = await import(p); helper.holdEnd(); helper.aim('skewer-entry')
+  }, xr)
+  await page.waitForTimeout(100)
+  await page.evaluate(async p => (await import(p)).buttons({ trigger: true }), xr)
+  await expect.poll(async () => (await state(page)).phase).toBe('ending')
+  await page.evaluate(async ({ p, cancel }) => {
+    const helper = await import(p)
+    if (cancel === 'B') helper.input(0, false, 0, true)
+    else helper.visibility('visible-blurred')
+  }, { p: xr, cancel })
+  await page.waitForTimeout(100)
+  await page.evaluate(async p => (await import(p)).completeEnd(), xr)
+  await expect.poll(async () => (await state(page)).phase).toBe('idle')
+  expect(await page.evaluate(async () => (await import('/src/features/vrZone/parkBridge.ts' as string)).parkVrZone.store.getState().phase)).toBe('closed')
+  await expect(page.getByRole('button', { name: /방 만들기/ })).toHaveCount(0)
+  expect((await state(page)).ownsInput).toBe(false)
   expect(errors).toEqual([])
 })

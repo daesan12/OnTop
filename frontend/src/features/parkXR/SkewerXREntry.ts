@@ -37,8 +37,8 @@ export class SkewerXREntry {
     if (!this.visible) return false
     this.raycaster.set(origin, direction); this.hits.length = 0
     this.raycaster.intersectObject(this.mesh, false, this.hits)
-    const uv = this.hits[0]?.uv
-    return !!uv && uv.x >= 56 / 1536 && uv.x <= 1480 / 1536 && uv.y >= 56 / 384 && uv.y <= 246 / 384
+    // The card has one action. Include its title/paper margin for unsteady XR aiming.
+    return this.hits.length > 0
   }
   setHover(hovered: boolean) {
     if (hovered === this.hovered) return

@@ -155,7 +155,9 @@ export class ParkXRController {
     }
   }
 
-  end = async (notice = 'VR을 종료했어요. 기존 공원 조작으로 돌아왔어요.'): Promise<void> => {
+  end = async (notice = 'VR을 종료했어요. 기존 공원 조작으로 돌아왔어요.', reason: 'exit' | 'skewer' = 'exit'): Promise<void> => {
+    // A later ordinary exit overrides an entrance request, even while end() is pending.
+    if (reason !== 'skewer') this.enterSkewerAfterEnd = false
     if (!this.session || this.ending) return
     jumpmapXRFeedback.suspend()
     this.ending = true; this.movement.reset(); useParkXR.setState({ phase: 'ending', notice })
@@ -175,6 +177,7 @@ export class ParkXRController {
   private currentScope(): string { const s = useSession.getState(); return `${s.sessionId}|${s.roomId}|${s.mapVersion}` }
   private recentered = (): void => { this.started = false; this.yaw = viewControls.yaw; this.panel.recenter(); this.interrupted() }
   private interrupted = (): void => {
+    this.enterSkewerAfterEnd = false
     if (!this.session) return
     jumpmapXRFeedback.suspend()
     this.movement.reset(); this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
@@ -186,7 +189,7 @@ export class ParkXRController {
     })
   }
   private finished = (): void => {
-    const enterSkewer = this.enterSkewerAfterEnd && this.currentScope() === this.scope
+    const enterSkewer = this.enterSkewerAfterEnd && !this.exitPressed() && this.currentScope() === this.scope
     this.restore()
     if (!this.disposed) {
       useParkXR.setState({ phase: 'idle' })
@@ -197,7 +200,11 @@ export class ParkXRController {
     const own = avatars.get(useSession.getState().sessionId)
     if (!own?.connected || own.carry || !canReachParkVr(own.current) || this.ending || !this.session) return
     this.enterSkewerAfterEnd = true
-    void this.end('꼬치왕 준비 화면으로 이동해요.')
+    void this.end('꼬치왕 준비 화면으로 이동해요.', 'skewer')
+  }
+  private exitPressed(): boolean {
+    return Array.from(this.session?.inputSources ?? []).some(source => source.handedness === 'right'
+      && source.gamepad?.mapping === 'xr-standard' && source.gamepad.buttons[5]?.pressed)
   }
   private restore(): void {
     jumpmapXRFeedback.stop()
@@ -223,6 +230,9 @@ export class ParkXRController {
   update(frame?: XRFrame): void {
     const session = this.session
     if (!session || !parkXRView.active || this.disposed) return
+    // Closing can stop tracking/rendering. Sample cancellation before the early return,
+    // and check once more in finished() if no further XR frame reaches us.
+    if (this.ending && this.exitPressed()) this.enterSkewerAfterEnd = false
     if (this.currentScope() !== this.scope || useSession.getState().status !== 'connected') {
       void this.end('공원 연결 상태가 바뀌어 VR을 종료했어요.'); return
     }

@@ -77,6 +77,35 @@ it('입구 밖이거나 XR 종료가 실패하면 꼬치왕을 열지 않고 나
   } finally { s.controller.dispose() }
 })
 
+it.each(['ordinary-exit', 'interrupt', 'B-frame', 'B-without-frame'] as const)('꼬치왕 진입 직후 %s 취소는 종료 완료 후 모달을 열지 않는다', async cancel => {
+  const s = jumpmapSession()
+  harness.nearSkewer = true
+  let completeEnd!: () => void
+  const pending = new Promise<void>(resolve => { completeEnd = resolve })
+  s.session.end.mockReturnValue(pending)
+  try {
+    Reflect.get(s.controller, 'enterSkewer').call(s.controller)
+    expect(s.session.end).toHaveBeenCalledTimes(1)
+    if (cancel === 'ordinary-exit') await s.controller.end()
+    else if (cancel === 'interrupt') Reflect.get(s.controller, 'interrupted')()
+    else {
+      Reflect.set(s.session, 'inputSources', [{ handedness: 'right', gamepad: { mapping: 'xr-standard',
+        buttons: Array.from({ length: 6 }, (_, i) => ({ pressed: i === 5 })) } }])
+      if (cancel === 'B-frame') {
+        s.update(1)
+        // Prove that the closing frame itself cancelled, even if B is released before end.
+        Reflect.set(s.session, 'inputSources', [])
+      }
+    }
+    Reflect.get(s.controller, 'finished')()
+    completeEnd(); await pending
+    expect(harness.openSkewer).not.toHaveBeenCalled()
+    expect(parkXRView.active).toBe(false)
+    expect(useParkXR.getState().phase).toBe('idle')
+    expect(s.session.end).toHaveBeenCalledTimes(1)
+  } finally { completeEnd(); s.controller.dispose() }
+})
+
 it('양손 레이저가 반복 프레임의 벡터를 재사용하고 올바른 월드 좌표와 오른손 선택을 유지한다', () => {
   vi.stubGlobal('window', { addEventListener() {}, removeEventListener() {} })
   vi.stubGlobal('document', { hidden: false, addEventListener() {}, removeEventListener() {} })

@@ -9,7 +9,8 @@ import { inputState } from '../../src/world/inputOwnership'
 
 let left: Gamepad, right: Gamepad, session: XRSession
 let timer: ReturnType<typeof setInterval>
-let targetAction: JumpmapXRAction | 'skewer-entry' | null = null
+let targetAction: JumpmapXRAction | 'skewer-entry' | 'skewer-entry-edge' | null = null
+let endDeferred = false, finishEnd: (() => void) | undefined
 const viewerRotation = new Quaternion()
 let turnSamples: number[] = []
 let tracked = true
@@ -45,12 +46,13 @@ export function install(options: { haptics?: boolean } = {}) {
       { handedness: 'left', gamepad: left, targetRayMode: 'tracked-pointer', targetRaySpace: { hand: 'left' } },
       { handedness: 'right', gamepad: right, targetRayMode: 'tracked-pointer', targetRaySpace: { hand: 'right' } },
     ], end: async () => {
+      if (endDeferred) await new Promise<void>(resolve => { finishEnd = resolve })
       clearInterval(timer); current = null
       session.dispatchEvent(new Event('end'))
       state.setFrameloop('always')
     } }) as unknown as XRSession
     state.setFrameloop('never')
-    tracked = true; targetAction = null; viewerRotation.identity(); turnSamples = []
+    tracked = true; targetAction = null; viewerRotation.identity(); turnSamples = []; endDeferred = false; finishEnd = undefined
     const frame = { getViewerPose: () => tracked ? ({ transform: {
       position: { x: .3, y: 1.65, z: -.2 }, orientation: viewerRotation,
     } }) : null, getPose: () => {
@@ -61,6 +63,7 @@ export function install(options: { haptics?: boolean } = {}) {
       const position = { x: .55, y: 1.35, z: -.45 }
       let point: Vector3
       if (targetAction === 'skewer-entry') point = scene.getObjectByName('park-xr-skewer-entry')!.localToWorld(new Vector3(0, (.5 - 233 / 384) * .3, 0))
+      else if (targetAction === 'skewer-entry-edge') point = scene.getObjectByName('park-xr-skewer-entry')!.localToWorld(new Vector3(.58, .13, 0))
       else {
         if (index < 0 || !view) return { transform: { position, orientation: new Quaternion() } }
         const count = view.buttons.length, width = (1536 - 112 - (count - 1) * 24) / count
@@ -93,7 +96,9 @@ export function buttons({ run = false, guide = false, trigger = false }: { run?:
   Object.assign(left.buttons[4]!, { pressed: guide, value: Number(guide) })
   Object.assign(right.buttons[0]!, { pressed: trigger, value: Number(trigger) })
 }
-export function aim(action: JumpmapXRAction | 'skewer-entry' | null) { targetAction = action }
+export function aim(action: JumpmapXRAction | 'skewer-entry' | 'skewer-entry-edge' | null) { targetAction = action }
+export function holdEnd() { endDeferred = true }
+export function completeEnd() { endDeferred = false; finishEnd?.(); finishEnd = undefined }
 export function rotationSamples() { return [...turnSamples] }
 export function faceSkewerEntry() {
   const { scene, camera } = root(), rig = scene.getObjectByName('park-xr-rig')!
