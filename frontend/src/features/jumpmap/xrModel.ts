@@ -32,7 +32,7 @@ export function jumpmapXRView(s: JumpmapXRState, now: number, guide: boolean, in
   if (guide) return { key: 'guide', title: '돌탑 점프맵 · VR 안내', lines: [
     '첫 번째 돌에 착지하면 도전이 시작돼요.',
     '왼쪽 스틱 이동 · 왼손 그립을 누른 채 달리기',
-    '오른손 A 버튼 점프 · 오른쪽 스틱 좌우로 30도 회전',
+    '오른손 A 버튼 점프 · 오른쪽 스틱을 기울인 만큼 부드럽게 회전',
     '석탑부터 연잎까지 일곱 구간을 순서대로 통과해요.',
     `구간 보상 합계 ${REWARDS.reduce((sum, reward) => sum + reward, 0)}냥 · 하루 합산 ${DAILY_CAP}냥 한도`,
     '마지막 연잎에서 완주! 떨어져도 받은 엽전은 그대로예요.',

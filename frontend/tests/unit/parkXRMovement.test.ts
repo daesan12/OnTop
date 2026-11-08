@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ParkXRMovement } from '../../src/features/parkXR/movement'
-import { emptyInput, readXRInput, SNAP_ANGLE } from '../../src/world/xrInput'
+import { PARK_TURN_SPEED, ParkXRMovement } from '../../src/features/parkXR/movement'
+import { emptyInput, readXRInput } from '../../src/world/xrInput'
 
 const create = () => {
   const port = { move: vi.fn(), stopMovement: vi.fn() }
@@ -71,14 +71,39 @@ describe('공원 XR 이동 계약', () => {
     driver.update(forward, 0, 102, true)
     expect(port.move).toHaveBeenCalledTimes(2)
   })
-  it('스냅 회전은 한 번 적용하고 새 방향으로 이동한다', () => {
+  it('스틱을 유지하면 프레임 시간에 비례해 연속 회전하고 새 방향으로 이동한다', () => {
     const { port, driver } = create()
     driver.update(emptyInput(), 0, 0, true)
-    const turn = driver.update({ ...forward, turn: 1 }, 0, 1, true)
-    expect(turn).toBe(-SNAP_ANGLE)
-    expect(port.move.mock.calls[0]![0]).toBeCloseTo(.5)
-    expect(port.move.mock.calls[0]![1]).toBeCloseTo(-Math.sqrt(3) / 2)
-    expect(driver.update({ ...forward, turn: 1 }, turn, 70, true)).toBe(0)
+    const turn = driver.update({ ...forward, turn: 1 }, 0, 16, true)
+    expect(turn).toBeCloseTo(-PARK_TURN_SPEED * .016)
+    expect(port.move.mock.calls[0]![0]).toBeCloseTo(-Math.sin(turn))
+    expect(port.move.mock.calls[0]![1]).toBeCloseTo(-Math.cos(turn))
+    expect(driver.update({ ...forward, turn: 1 }, turn, 32, true)).toBeCloseTo(turn)
+  })
+  it('작은 기울기로 정밀 회전하고 복귀·긴 프레임에서 각도가 튀지 않는다', () => {
+    const { driver } = create()
+    driver.update({ ...emptyInput(), turn: 1 }, 0, 0, true)
+    expect(driver.update({ ...emptyInput(), turn: 1 }, 0, 16, true)).toBe(0)
+    driver.update(emptyInput(), 0, 32, true)
+    const fine = driver.update({ ...emptyInput(), turn: .4 }, 0, 48, true)
+    expect(Math.abs(fine)).toBeGreaterThan(0)
+    expect(Math.abs(fine)).toBeLessThan(PARK_TURN_SPEED * .016 / 4)
+    expect(Math.abs(driver.update({ ...emptyInput(), turn: 1 }, 0, 5000, true))).toBeCloseTo(PARK_TURN_SPEED * .05)
+    driver.update(emptyInput(), 0, 5010, false)
+    expect(driver.update({ ...emptyInput(), turn: 1 }, 0, 5020, true)).toBe(0)
+    driver.update(emptyInput(), 0, 5030, true)
+    expect(driver.update({ ...emptyInput(), turn: -.1 }, 0, 5040, true)).toBe(0)
+  })
+  it('30Hz와 90Hz에서 같은 시간의 총 회전량이 일치한다', () => {
+    const simulate = (hz: number) => {
+      const { driver } = create()
+      driver.update(emptyInput(), 0, 0, true)
+      let yaw = 0
+      for (let i = 1; i <= hz; i++) yaw += driver.update({ ...emptyInput(), turn: 1 }, yaw, i * 1000 / hz, true)
+      return yaw
+    }
+    expect(simulate(30)).toBeCloseTo(-PARK_TURN_SPEED)
+    expect(simulate(90)).toBeCloseTo(simulate(30))
   })
   it('클라이언트 위치 모드에서는 정지 상태도 같은 주기로 유지한다', () => {
     const { port, driver } = create()
