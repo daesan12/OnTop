@@ -37,6 +37,7 @@ import org.springframework.web.socket.WebSocketSession;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -215,6 +216,70 @@ class TableHubSkewerEntryTests {
                 .isEqualTo("TABLE_STATE");
         assertThatThrownBy(() -> hub.requireSkewerWaitingPlayer(101, "park"))
                 .hasMessageContaining("진행 중인 게임");
+    }
+
+    @Test
+    void 꼬치왕_복구참가자의_VR_보호는_로비권한과_분리하고_종료후_창보호도_유지한다() throws Exception {
+        Peer chef = peer(101);
+        entranceAt(101);
+        String game = enter(101, "requestKey", "vr-protection").path("gameId").asText();
+        Peer server = peer(202);
+        enter(202, "gameId", game);
+        Peer visitor = peer(303);
+        var recovery = new GameReconnectService(Optional.of(engine), Optional.empty());
+        try {
+            recovery.connected(101, chef.id, (id, view) -> { });
+            recovery.connected(202, server.id, (id, view) -> { });
+            recovery.connected(303, visitor.id, (id, view) -> { });
+            await().atMost(Duration.ofSeconds(3)).until(() ->
+                    recovery.canResumeUnreservedChannel(101, chef.id, "park")
+                            && recovery.canResumeUnreservedChannel(202, server.id, "park")
+                            && recovery.canUseLobby(303, visitor.id));
+            ReflectionTestUtils.setField(hub, "reconnect", Optional.of(recovery));
+            assertThat(recovery.canUseLobby(101, chef.id)).isFalse();
+
+            JsonNode approved = chef.request("WORLD_INTERACTION_SET", Map.of("busy", true, "vrActive", true));
+
+            assertThat(approved.path("type").asText()).isEqualTo("WORLD_INTERACTION_STATE");
+            assertThat(approved.at("/payload/vrActive").asBoolean()).isTrue();
+            assertThat(channels.carryAvailable("101")).isFalse();
+            assertThat(channels.worldState("park").avatars().stream().filter(a -> a.userId().equals("202")))
+                    .allMatch(a -> a.vrActive() == null);
+            assertThat(visitor.request("WORLD_CARRY_PICKUP", Map.of("targetId", "101"))
+                    .at("/payload/code").asText()).isEqualTo("CARRY_ACTIVITY_CONFLICT");
+            assertThat(chef.request("WORLD_INTERACTION_SET", Map.of("busy", false))
+                    .at("/payload/busy").asBoolean()).isTrue();
+            assertThat(channels.carryAvailable("101")).isFalse();
+            String table = hub.listTables("park").tables().getFirst().tableId();
+            assertThat(chef.request("TABLE_JOIN", Map.of("tableId", table)).at("/payload/code").asText())
+                    .isEqualTo("GAME_RECOVERY_REQUIRED");
+            assertThat(chef.request("WORLD_INTERACTION_SET",
+                    Map.of("busy", true, "vrActive", true, "userId", "202")).path("type").asText())
+                    .isEqualTo("ERROR");
+
+            JsonNode ended = chef.request("WORLD_INTERACTION_SET", Map.of("busy", true, "vrActive", false));
+            assertThat(ended.path("type").asText()).isEqualTo("WORLD_INTERACTION_STATE");
+            assertThat(ended.at("/payload/vrActive").asBoolean()).isFalse();
+            assertThat(ended.at("/payload/busy").asBoolean()).isTrue();
+            assertThat(channels.carryAvailable("101")).isFalse();
+        } finally {
+            recovery.shutdown();
+        }
+    }
+
+    @Test
+    void 복구가_완료된_현재연결의_원래채널이_아니면_VR_보호요청을_허용하지_않는다() throws Exception {
+        Peer chef = peer(101);
+        for (var scope : List.of(new String[] { "old-session", "park" }, new String[] { chef.id, "other" })) {
+            var recovery = mock(GameReconnectService.class);
+            when(recovery.canResumeUnreservedChannel(101, scope[0], scope[1])).thenReturn(true);
+            ReflectionTestUtils.setField(hub, "reconnect", Optional.of(recovery));
+
+            JsonNode denied = chef.request("WORLD_INTERACTION_SET", Map.of("busy", true, "vrActive", true));
+
+            assertThat(denied.at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
+            assertThat(channels.worldState("park").avatars()).allMatch(a -> a.vrActive() == null);
+        }
     }
 
     private JsonNode enter(long user, String key, String value) {
