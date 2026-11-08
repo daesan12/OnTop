@@ -6,6 +6,7 @@ import { parkXRView } from '../../src/world/xrView'
 import { useParkXR } from '../../src/features/parkXR/state'
 import { avatars, sampleAvatar, useSession } from '../../src/network/worldClient'
 import { inputState } from '../../src/world/inputOwnership'
+import { useXRComfort } from '../../src/features/parkXR/comfort'
 
 let left: Gamepad, right: Gamepad, session: XRSession
 let timer: ReturnType<typeof setInterval>
@@ -14,6 +15,8 @@ let endDeferred = false, finishEnd: (() => void) | undefined
 const viewerRotation = new Quaternion()
 let turnSamples: number[] = []
 let tracked = true
+let viewerHeight = 1.65
+export function height(value: number) { viewerHeight = value }
 const feedbackPulses: { hand: string; strength: number; duration: number }[] = []
 let feedbackResets = 0
 export const feedbackSnapshot = () => ({ pulses: [...feedbackPulses], resets: feedbackResets })
@@ -54,7 +57,7 @@ export function install(options: { haptics?: boolean } = {}) {
     state.setFrameloop('never')
     tracked = true; targetAction = null; viewerRotation.identity(); turnSamples = []; endDeferred = false; finishEnd = undefined
     const frame = { getViewerPose: () => tracked ? ({ transform: {
-      position: { x: .3, y: 1.65, z: -.2 }, orientation: viewerRotation,
+      position: { x: .3, y: viewerHeight, z: -.2 }, orientation: viewerRotation,
     } }) : null, getPose: () => {
       const { scene } = root(), rig = scene.getObjectByName('park-xr-rig')!
       const panel = scene.getObjectByName('jumpmap-xr-dialog')!
@@ -66,9 +69,9 @@ export function install(options: { haptics?: boolean } = {}) {
       else if (targetAction === 'skewer-entry-edge') point = scene.getObjectByName('park-xr-skewer-entry')!.localToWorld(new Vector3(.58, .13, 0))
       else {
         if (index < 0 || !view) return { transform: { position, orientation: new Quaternion() } }
-        const count = view.buttons.length, width = (1536 - 112 - (count - 1) * 24) / count
-        const pixelX = 56 + index * (width + 24) + width / 2
-        point = panel.localToWorld(new Vector3((pixelX / 1536 - .5) * 1.38, (.5 - 866 / 1024) * .92, 0))
+        const rect = (panel.userData.buttons as { x: number; y: number; width: number; height: number }[])[index]!
+        const pixelX = rect.x + rect.width / 2, pixelY = rect.y + rect.height / 2
+        point = panel.localToWorld(new Vector3((pixelX / 1536 - .5) * 1.38, (.5 - pixelY / 1024) * .92, 0))
       }
       rig.worldToLocal(point)
       const direction = point.sub(new Vector3(position.x, position.y, position.z)).normalize()
@@ -118,7 +121,8 @@ export function snapshot() {
   const pose = sampleAvatar(avatar, performance.now(), { ...avatar.current })
   const panel = scene.getObjectByName('jumpmap-xr-dialog')!.parent!
   const status = scene.getObjectByName('jumpmap-xr-status')!.parent!
-  return { phase: useParkXR.getState().phase, mode: useParkXR.getState().mode, active: parkXRView.active, ownsInput: parkXRView.ownsInput,
+  return { settings: useXRComfort.getState().settings, heightNotice: useXRComfort.getState().heightNotice,
+    phase: useParkXR.getState().phase, mode: useParkXR.getState().mode, active: parkXRView.active, ownsInput: parkXRView.ownsInput,
     position: camera.getWorldPosition(new Vector3()).toArray(), viewPosition: parkXRView.position.toArray(),
     parent: camera.parent?.type ?? null, pose,
     dialogBounds: [[-.69, -.46], [.69, .46]].map(([x, y]) => panel.localToWorld(new Vector3(x!, y!, 0)).project(camera).toArray()),

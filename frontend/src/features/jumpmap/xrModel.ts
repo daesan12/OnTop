@@ -3,6 +3,7 @@ import type { useJumpmap } from './state'
 
 export type JumpmapXRState = ReturnType<typeof useJumpmap.getState>
 export type JumpmapXRAction = 'continue' | 'ranking' | 'back' | 'previous' | 'next' | 'retry' | 'park-guide' | 'jump-guide'
+  | 'comfort' | 'comfort-back' | 'turn-mode' | 'turn-value' | 'posture' | 'eye-height' | 'reset-height'
 export interface JumpmapXRView {
   key: string; title: string; lines: string[]
   buttons: { id: JumpmapXRAction; label: string }[]
@@ -32,12 +33,12 @@ export function jumpmapXRView(s: JumpmapXRState, now: number, guide: boolean, in
   if (guide) return { key: 'guide', title: '돌탑 점프맵 · VR 안내', lines: [
     '첫 번째 돌에 착지하면 도전이 시작돼요.',
     '왼쪽 스틱 이동 · 왼손 그립을 누른 채 달리기',
-    '오른손 A 버튼 점프 · 오른쪽 스틱을 기울인 만큼 부드럽게 회전',
+    '오른손 A 버튼 점프 · 오른쪽 스틱 회전 (방식·속도 선택 가능)',
     '석탑부터 연잎까지 일곱 구간을 순서대로 통과해요.',
     `구간 보상 합계 ${REWARDS.reduce((sum, reward) => sum + reward, 0)}냥 · 하루 합산 ${DAILY_CAP}냥 한도`,
     '마지막 연잎에서 완주! 떨어져도 받은 엽전은 그대로예요.',
     '왼손 X 안내 열기·닫기 · 오른손 B VR 종료 · 실제로 뛰지 않아요.',
-  ], buttons: [{ id: 'park-guide', label: '공원 조작 안내' }, { id: 'continue', label: '안내 닫기 · A' }] }
+  ], buttons: [{ id: 'park-guide', label: '공원 조작 안내' }, { id: 'comfort', label: '편안함 설정' }, { id: 'continue', label: '안내 닫기 · A' }] }
   const run = s.run, stage = STAGES[Math.min(6, run?.gatesPassed ?? 0)]!
   const receipt = s.popup && now - s.popup.at < 1400
     ? s.popup.anticipated || s.popup.amount === null || /정산|확인/.test(s.popup.label) ? '구간 보상 확인 중…' : `구간 보상 +${s.popup.amount}냥` : ''

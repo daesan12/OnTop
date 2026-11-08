@@ -51,9 +51,12 @@ test('정면 팁 없이 연속·정밀 회전하고 X 안내를 닫으면 다시
   const samples: number[] = await page.evaluate(async p => (await import(p)).rotationSamples(), xr)
   const turns = samples.slice(offset)
   expect(turns.length).toBeGreaterThan(5)
-  expect(Math.abs(turns.at(-1)! - turns[0]!)).toBeGreaterThan(.01)
-  expect(Math.abs(turns.at(-1)! - turns[0]!)).toBeLessThan(.15)
-  expect(turns.slice(1).every((yaw, i) => Math.abs(yaw - turns[i]!) < .06)).toBe(true)
+  // 기본 90도/초의 선형 입력: .4 기울기는 약 24도/초다. 예전 제곱 감쇠보다 빠르되
+  // 단일 프레임은 50ms 한도 내에서만 회전해 시점이 한꺼번에 튀지 않는다.
+  expect(Math.abs(turns.at(-1)! - turns[0]!)).toBeGreaterThan(.1)
+  expect(Math.abs(turns.at(-1)! - turns[0]!)).toBeLessThan(.35)
+  const maxFrameTurn = 90 * Math.PI / 180 * .05 * (.4 - .18) / (1 - .18)
+  expect(turns.slice(1).every((yaw, i) => Math.abs(yaw - turns[i]!) <= maxFrameTurn + 1e-6)).toBe(true)
   await page.evaluate(async p => (await import(p)).input(0), xr)
   await page.waitForTimeout(100)
   const stopped = (await state(page)).rigYaw

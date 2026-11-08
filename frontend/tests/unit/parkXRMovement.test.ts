@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { PARK_TURN_SPEED, ParkXRMovement } from '../../src/features/parkXR/movement'
 import { emptyInput, readXRInput } from '../../src/world/xrInput'
+import { DEFAULT_XR_COMFORT } from '../../src/features/parkXR/comfort'
 
 const create = () => {
   const port = { move: vi.fn(), stopMovement: vi.fn() }
@@ -87,7 +88,8 @@ describe('공원 XR 이동 계약', () => {
     driver.update(emptyInput(), 0, 32, true)
     const fine = driver.update({ ...emptyInput(), turn: .4 }, 0, 48, true)
     expect(Math.abs(fine)).toBeGreaterThan(0)
-    expect(Math.abs(fine)).toBeLessThan(PARK_TURN_SPEED * .016 / 4)
+    expect(Math.abs(fine)).toBeGreaterThan(PARK_TURN_SPEED * .016 / 4)
+    expect(Math.abs(fine)).toBeLessThan(PARK_TURN_SPEED * .016 / 2)
     expect(Math.abs(driver.update({ ...emptyInput(), turn: 1 }, 0, 5000, true))).toBeCloseTo(PARK_TURN_SPEED * .05)
     driver.update(emptyInput(), 0, 5010, false)
     expect(driver.update({ ...emptyInput(), turn: 1 }, 0, 5020, true)).toBe(0)
@@ -104,6 +106,25 @@ describe('공원 XR 이동 계약', () => {
     }
     expect(simulate(30)).toBeCloseTo(-PARK_TURN_SPEED)
     expect(simulate(90)).toBeCloseTo(simulate(30))
+  })
+  it.each([60, 90, 120] as const)('선택한 %s도/초로 회전하고 중간 스틱도 선형으로 반영한다', speed => {
+    const { driver } = create(), settings = { ...DEFAULT_XR_COMFORT, turnSpeed: speed }
+    driver.update(emptyInput(), 0, 0, true, false, settings)
+    expect(driver.update({ ...emptyInput(), turn: 1 }, 0, 20, true, false, settings))
+      .toBeCloseTo(-speed * Math.PI / 180 * .02)
+    expect(driver.update({ ...emptyInput(), turn: .59 }, 0, 40, true, false, settings))
+      .toBeCloseTo(-speed * Math.PI / 180 * .02 / 2)
+  })
+  it.each([30, 45] as const)('스냅 %s도는 한 번만 적용하고 중앙 복귀·중단 후 해제를 기다린다', angle => {
+    const { driver } = create(), settings = { ...DEFAULT_XR_COMFORT, turnMode: 'snap' as const, snapAngle: angle }
+    driver.update(emptyInput(), 0, 0, true, false, settings)
+    expect(driver.update({ ...emptyInput(), turn: 1 }, 0, 20, true, false, settings)).toBeCloseTo(-angle * Math.PI / 180)
+    expect(driver.update({ ...emptyInput(), turn: 1 }, 0, 900, true, false, settings)).toBe(0)
+    expect(driver.update({ ...emptyInput(), turn: -1 }, 0, 950, true, false, settings)).toBe(0)
+    driver.update(emptyInput(), 0, 1000, true, false, settings)
+    expect(driver.update({ ...emptyInput(), turn: -1 }, 0, 1020, true, false, settings)).toBeCloseTo(angle * Math.PI / 180)
+    driver.update(emptyInput(), 0, 1040, false, false, settings)
+    expect(driver.update({ ...emptyInput(), turn: 1 }, 0, 1060, true, false, settings)).toBe(0)
   })
   it('클라이언트 위치 모드에서는 정지 상태도 같은 주기로 유지한다', () => {
     const { port, driver } = create()

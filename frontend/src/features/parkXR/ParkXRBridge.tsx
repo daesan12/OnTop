@@ -11,12 +11,14 @@ export function ParkXRBridge() {
     controller.current = current
     const end = () => current.end()
     parkXRActions.start = current.start; parkXRActions.startJumpmap = current.startJumpmap; parkXRActions.end = end; parkXRActions.guide = current.showGuide
+    parkXRActions.settings = current.showSettings
     useParkXR.setState({ ready: true, phase: 'idle', error: '', notice: '' })
     return () => {
       current.dispose()
       if (controller.current === current) controller.current = null
       if (parkXRActions.start === current.start) {
         parkXRActions.start = null; parkXRActions.startJumpmap = null; parkXRActions.end = null; parkXRActions.guide = null
+        parkXRActions.settings = null
         useParkXR.setState({ ready: false, phase: 'idle', error: '', notice: '' })
       }
     }
