@@ -31,6 +31,13 @@
 - 수정 후 관련 unit 41개(`parkXRController`, `parkXRMovement`, `xrComfort`), 제품/전체 tests TypeScript, `pnpm build:park`, `git diff --check`를 통과했다. 동일 `http://127.0.0.1:5289/park`의 Chrome 모의 WebXR 설정 시나리오 2개도 통과했다. Browser 플러그인이 없어 기존 Playwright를 사용했으며 준비 화면/작은 화면/VR 레이저·재설정·스냅·몸 위치·보호 유지·종료를 확인했다. 앞선 전체 회귀 결과는 제품 변경 범위를 고려하여 재사용하고 실제 개발 서버·Quest의 검수로 기록하지 않는다.
 - 사용자 안내에 요청 이후의 400ms 및 마지막 재요청 기준을 명시했다. 로그·스크린샷은 위 저장소 밖 증거 폴더에 `review-*`로 보관한다. 기존 MR !457에 커밋·푸시로 반영하며 머지·브랜치 삭제는 보류한다. Jenkins API가 403을 반환해 해당 빌드 성공은 확인하지 못했다.
 
+### MR !457 dev 병합 사전 확인
+
+- 사용자가 최신 dev와 충돌·검증 확인 후 MR !457을 dev에 병합하도록 명시적으로 요청했다. 원격 재조회 기준 dev는 `6618fdf749cb1071215ce6d31d761c3d68948d0a`, 기능/리뷰 소스는 `b444cf48401a48d5a6ae61718c2c2f86dc96cca2`다. dev가 소스 이력에 포함되어 있고 미커밋 변경·추가 통합 충돌은 없다.
+- 관련 unit 41개, 제품/전체 tests TypeScript, MR 전체 `git diff --check`를 다시 통과했다. 제품 소스 변경이 없어 직전 Chrome 모의 WebXR 설정 2개·공원 빌드와 위 전체 회귀 검증 결과를 재사용한다. 이 추가 커밋은 병합 사전 확인 기록만 추가하며 게임 동작·맵·계약을 바꾸지 않는다.
+- 브라우저/Computer Use 도구가 `failed to write kernel assets (os error 3)`로 실행되지 않아 화면 조작 대신 GitLab 공식 `merge_request.merge_when_pipeline_succeeds` push option으로 병합을 요청한다. GitLab 필수 승인·검사·대상 dev 조건은 유지하고 소스 자동 삭제는 끈다. 요청 성공과 실제 병합을 구분하며 원격 dev의 소스 포함을 확인하기 전 완료로 기록하지 않는다.
+- Jenkins API는 403으로 빌드 결과를 확인하지 못했다. 실제 병합과 해당 Jenkins 성공 확인 전 브랜치를 삭제하지 않으며, 실제 Quest 2의 수정 후 검수 제약도 유지한다.
+
 ## 플레이 범위
 
 **2026-11-06 최신 사용자 지시: 꼬치왕 VR의 공사 중 처리를 해제한다.** 온라인 요리사의 VR 선택·헤드셋 연결 경로를 허용한다. 기존 로컬 미커밋 작업의 커밋·푸시·MR·배포 보류는 별도 해제 전까지 유지한다. 아래 2026-11-05 잠금 확인은 당시의 기록이다.
