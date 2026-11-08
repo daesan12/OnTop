@@ -66,6 +66,7 @@
 의상 뽑기(gacha_receipts, V157. 원장 GACHA_* 행은 넣지 않아 19·20번 기대값은 그대로다)
 - 1일차: 101 뽑기권 2장 구매 → 엽전 캡슐(20냥)·3등 상자 → 3등 상자 열기(새 의상), 102 1장 구매 → 4등 상자(1회차)
 - 2일차: 102 4등 상자 열기(이미 가진 의상이라 50냥 환급), 103 알림함 뽑기권으로 1등 상자(2회차)
+- 10/29: 105 상자 열기 영수증에 금액 필드가 없음(33번 합계가 NULL 대신 0인지 확인)
 
 경기(game_sessions·game_participants, 기능 테이블. 행동 로그 game_id는 경기 번호와 같다)
 - 경기 1(1일차 오목)·경기 2(2일차 주사위)는 위 행동 로그와 같은 경기
@@ -481,9 +482,13 @@ def gacha_sql() -> list[str]:
         (102, "d3", "DRAW", "1", 4, False, 0, 0, "1", "2026-10-27 06:01:00"),
         (102, "o2", "OPEN", "4", 4, True, 0, 50, None, "2026-10-28 02:00:00"),
         (103, "d4", "DRAW", "2", 1, False, 0, 0, "2", "2026-10-28 06:00:00"),
+        # 금액 필드가 빠진 영수증(결과 형식이 바뀐 경우 가정). 그날 합계가 NULL이 아니라 0이어야 한다.
+        (105, "o3", "OPEN", "2", 2, False, None, None, None, "2026-10-29 03:00:00"),
     ]:
         result = {"operationId": key, "kind": kind, "roundId": round_id, "grade": grade, "product": None,
-                  "duplicate": duplicate, "paidCoins": paid, "awardedCoins": awarded}
+                  "duplicate": duplicate}
+        if paid is not None:
+            result.update(paidCoins=paid, awardedCoins=awarded)
         lines.append(
             "INSERT INTO gacha_receipts (user_id, operation_id, operation_kind, operation_target, result_json, "
             f"created_at) VALUES ({user_id}, '{key}', '{kind}', '{target}', '{json.dumps(result)}', "

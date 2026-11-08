@@ -346,6 +346,10 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "rounds_drawn": "1", "grade1_boxes": "1", "grade2_boxes": "0", "grade3_boxes": "0", "grade4_boxes": "0",
          "coin_capsules": "0", "opens": "1", "duplicates": "1", "coins_spent": "0", "coins_returned": "50",
          "absorbed_coins": "-50", "return_pct": "NULL"},
+        {"kst_date": "2026-10-29", "tickets_bought": "0", "buyers": "0", "draws": "0", "drawers": "0",
+         "rounds_drawn": "0", "grade1_boxes": "0", "grade2_boxes": "0", "grade3_boxes": "0", "grade4_boxes": "0",
+         "coin_capsules": "0", "opens": "1", "duplicates": "0", "coins_spent": "0", "coins_returned": "0",
+         "absorbed_coins": "0", "return_pct": "NULL"},
     ],
 }
 

@@ -16,8 +16,9 @@ WITH receipts AS (
            operation_kind AS kind,
            CAST(result_json->>'$.grade' AS SIGNED) AS grade,
            result_json->>'$.duplicate' = 'true' AS duplicate,
-           CAST(result_json->>'$.paidCoins' AS SIGNED) AS paid,
-           CAST(result_json->>'$.awardedCoins' AS SIGNED) AS awarded,
+           -- JSON 열은 DB가 필드를 강제하지 않는다. 결과 형식이 바뀌어 금액이 빠져도 0으로 보고 합계가 NULL이 되지 않게 한다.
+           COALESCE(CAST(result_json->>'$.paidCoins' AS SIGNED), 0) AS paid,
+           COALESCE(CAST(result_json->>'$.awardedCoins' AS SIGNED), 0) AS awarded,
            result_json->>'$.roundId' AS round_id
     FROM gacha_receipts
 )
