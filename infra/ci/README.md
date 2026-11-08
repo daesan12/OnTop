@@ -127,6 +127,7 @@ VERCEL_PROJECT_ID=prj_...
 - 다운로드 재검증에서 실제 HTTP 503 두 번 뒤 세 번째 시도가 성공했다. 네트워크를 끈 빈 캐시에서는 세 번 실패 후 이미지 생성을 중단하는 것도 확인했다.
 - 캐시를 채운 뒤 검증용 Dockerfile을 표준 입력으로 전달하고 임시 `ARG CI_CACHE_PROBE` 값을 바꿔 빌드 레이어를 무효화했다. `--target build --network none`에서 배포본 다운로드 없이 컴파일·`bootJar`가 52초에 성공해 캐시 재사용을 확인했다. 검증용 ARG는 저장소 Dockerfile에 추가하지 않았다. `--no-cache`는 캐시 마운트도 비울 수 있어 재사용 검증에 사용하지 않는다.
 - Jenkins 읽기 API는 HTTP 403으로 접근이 거절되어 새 Jenkins 실행 결과와 실제 개발 배포 완료 여부는 로컬 검증 범위에 포함하지 않는다.
+- MR !455 병합 전 최신 `origin/dev@4b11db3a`를 다시 가져와 작업 브랜치에 포함된 것을 확인했다. `git merge-tree --write-tree origin/dev HEAD`와 변경 범위 검사에 충돌이 없었고, CI 테스트 62개(Windows 55개·Linux 7개), 공원 전달본 검사, Docker 이미지 빌드를 재확인했다. 애플리케이션·빌드 설정은 검증한 `e152d908`과 동일하다. Jenkins 성공 확인 전에는 작업 브랜치를 삭제하지 않는다.
 
 참고: [Gradle Wrapper 네트워크 설정](https://docs.gradle.org/current/dsl/org.gradle.api.tasks.wrapper.Wrapper.html), [Docker 캐시 마운트](https://docs.docker.com/build/cache/optimize/).
 
