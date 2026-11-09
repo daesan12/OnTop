@@ -119,6 +119,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const [hudScale, setHudScale] = useState(getHudScale)
   const [winningsOpen, setWinningsOpen] = useState(false)
   const [winningsRefresh, setWinningsRefresh] = useState(0)
+  const [winningsWeek, setWinningsWeek] = useState<string | null>(null)
   const autoOpenWinnings = useCallback(() => setWinningsOpen(true), [])
 
   useEffect(() => {
@@ -149,7 +150,8 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <AnnouncementBanner hidden={hideAnnouncements} />
       <GachaLifecycle />
       <SkinCatalogLifecycle />
-      <NotificationCenter key={session.sessionId} hidden={gameplayActive} />
+      <NotificationCenter key={session.sessionId} hidden={gameplayActive}
+        onOpenWinnings={week => { setWinningsWeek(week); setWinningsRefresh(value => value + 1); setWinningsOpen(true) }} />
       {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
@@ -161,7 +163,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         </div>}
         {!omokFocus && <div inert={bungeoppang}>
           <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded}
-            onOpenWinnings={() => { setWinningsOpen(true); setWinningsRefresh(value => value + 1) }} />
+            onOpenWinnings={() => { setWinningsWeek(null); setWinningsOpen(true); setWinningsRefresh(value => value + 1) }} />
         </div>}
 
         <div className="park-chat-layer" hidden={bungeoppang} inert={bungeoppang}>
@@ -207,7 +209,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <OmokFeedback />
       <RankingBoardHost />
       <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions />} />
-      <WinnerContactsHost open={winningsOpen} refreshKey={winningsRefresh}
+      <WinnerContactsHost open={winningsOpen} refreshKey={winningsRefresh} selectedWeek={winningsWeek}
         onAutoOpen={autoOpenWinnings} onClose={() => setWinningsOpen(false)} />
     </main>
   )
