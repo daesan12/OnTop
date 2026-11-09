@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
 import {
-  isMondayWeek, parseAdminWinners, parseEventRound, parseRevealedContact, schedule, supportsWeek,
+  isMondayWeek, parseAdminWinners, parseEventRound, parseRaffleReview, parseRevealedContact,
+  schedule, supportsWeek,
 } from '../../src/features/admin/adminEvents'
 
 const week = '2026-11-02'
@@ -19,10 +20,26 @@ it('parses finalized raffle counts and preserves winner evidence', () => {
   const result = parseEventRound({ weekStartDate: week, announcesAt: '2026-11-09T00:00:00Z',
     finalized: true, candidateCount: 4, excludedGmCount: 1,
     expectedPrizeCount: 8, awardedPrizeCount: 1, vacantPrizeCount: 7,
-    winners: [{ userId: 5, ticketNumber: 12, place: 1, prizeName: '1등 상품' }],
+    winners: [{ userId: 5, nickname: '돼지병아리', ticketNumber: 12, place: 1, prizeName: '1등 상품' }],
   }, 'raffle', week)
   expect(result).toMatchObject({ candidateCount: 4, excludedGmCount: 1, awardedPrizeCount: 1 })
   expect(result.winners[0]?.evidence).toBe('응모권 #12')
+  expect(result.winners[0]?.nickname).toBe('돼지병아리')
+})
+
+it('parses a persisted review and rejects an inconsistent attempt', () => {
+  const review = { drawId: 7, weekStartDate: week, announcesAt: '2026-11-09T00:00:00Z',
+    attemptNumber: 2, status: 'REVIEW', requestedByUserId: 101, rerollReason: '운영 검토',
+    drawnAt: '2026-11-09T00:10:00Z', candidateCount: 4, excludedGmCount: 1,
+    expectedPrizeCount: 8, awardedPrizeCount: 1, vacantPrizeCount: 7,
+    picks: [{ userId: 5, nickname: '당첨자', raffleTicketId: 30, ticketNumber: 12,
+      place: 1, slotNumber: 1, prizeName: '1등 상품' }],
+  }
+  expect(parseRaffleReview(review, week)).toMatchObject({ drawId: 7, attemptNumber: 2,
+    picks: [{ nickname: '당첨자', evidence: '응모권 #12' }] })
+  expect(() => parseRaffleReview({ ...review, status: 'SUPERSEDED' }, week)).toThrow()
+  expect(() => parseRaffleReview({ ...review, vacantPrizeCount: 0 }, week)).toThrow()
+  expect(() => parseRaffleReview({ ...review, drawId: Number.MAX_SAFE_INTEGER + 1 }, week)).toThrow()
 })
 
 it('rejects inconsistent draw totals and malformed contact list responses', () => {
