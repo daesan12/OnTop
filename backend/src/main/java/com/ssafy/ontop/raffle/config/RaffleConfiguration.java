@@ -7,7 +7,6 @@ import com.ssafy.ontop.raffle.domain.RaffleNumberGenerator;
 import com.ssafy.ontop.raffle.repository.RaffleDrawingRepository;
 import com.ssafy.ontop.raffle.repository.RaffleRepository;
 import com.ssafy.ontop.raffle.service.RaffleDrawingService;
-import com.ssafy.ontop.raffle.service.RaffleDrawingScheduler;
 import com.ssafy.ontop.raffle.service.RaffleService;
 import com.ssafy.ontop.wallet.repository.WalletRepository;
 import com.ssafy.ontop.wallet.repository.WalletTransactionRepository;
@@ -55,12 +54,6 @@ public class RaffleConfiguration {
             @Value("${RAFFLE_DRAW_FIRST_WEEK:2026-11-02}") String firstWeek) {
         return new RaffleDrawingService(raffles, drawings, administrators, selector,
                 transactions, clock, LocalDate.parse(firstWeek));
-    }
-
-    @Bean
-    @ConditionalOnProperty(name = "ontop.raffle.draw-enabled", havingValue = "true")
-    RaffleDrawingScheduler raffleDrawingScheduler(RaffleDrawingService drawing) {
-        return new RaffleDrawingScheduler(drawing);
     }
 
     @Bean

@@ -6,7 +6,7 @@ ontop:
     enabled: ${SHOP_ENABLED:false}
   raffle:
     enabled: ${RAFFLE_ENABLED:false}
-    draw-enabled: ${RAFFLE_DRAW_ENABLED:true}
+    draw-enabled: ${RAFFLE_DRAW_ENABLED:false}
   event:
     minigame:
       enabled: ${MINIGAME_AWARD_ENABLED:false}

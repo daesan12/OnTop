@@ -4,6 +4,7 @@ import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.raffle.RaffleException;
 import com.ssafy.ontop.raffle.dto.RaffleDrawResponse;
 import com.ssafy.ontop.raffle.dto.RaffleMemberResultResponse;
+import com.ssafy.ontop.raffle.dto.RaffleReviewResponse;
 import com.ssafy.ontop.raffle.service.RaffleDrawingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -48,10 +50,38 @@ public class RaffleDrawingController {
     }
 
     @PostMapping("/api/v1/admin/raffles/rounds/{weekStart}/finalize")
-    @Operation(summary = "관리자 응모권 추첨 확정·재시도", security = @SecurityRequirement(name = "AccessJwt"))
+    @Operation(summary = "관리자가 검토한 응모권 추첨 시도 최종 확정",
+            security = @SecurityRequirement(name = "AccessJwt"))
     public ResponseEntity<RaffleDrawResponse> finalizeRound(Principal principal,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
+            @RequestBody ConfirmRequest request) {
+        return ok(service().confirmReview(weekStart, account(principal), request.drawId()));
+    }
+
+    @PostMapping("/api/v1/admin/raffles/rounds/{weekStart}/draws")
+    @Operation(summary = "응모권 추첨 결과를 검토용으로 저장",
+            security = @SecurityRequirement(name = "AccessJwt"))
+    public ResponseEntity<RaffleReviewResponse> createReview(Principal principal,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart) {
-        return ok(service().finalizeRound(weekStart, account(principal)));
+        return ok(service().createReview(weekStart, account(principal)));
+    }
+
+    @GetMapping("/api/v1/admin/raffles/rounds/{weekStart}/draws/current")
+    @Operation(summary = "현재 검토 중인 응모권 추첨 결과 조회",
+            security = @SecurityRequirement(name = "AccessJwt"))
+    public ResponseEntity<RaffleReviewResponse> currentReview(Principal principal,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart) {
+        return ok(service().currentReview(weekStart, account(principal)));
+    }
+
+    @PostMapping("/api/v1/admin/raffles/rounds/{weekStart}/draws/reroll")
+    @Operation(summary = "현재 검토 시도를 대체하고 사유를 남겨 재추첨",
+            security = @SecurityRequirement(name = "AccessJwt"))
+    public ResponseEntity<RaffleReviewResponse> reroll(Principal principal,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
+            @RequestBody RerollRequest request) {
+        return ok(service().reroll(weekStart, account(principal),
+                request.expectedDrawId(), request.reason()));
     }
 
     private RaffleDrawingService service() {
@@ -93,4 +123,8 @@ public class RaffleDrawingController {
     }
 
     public record ErrorResponse(String code, String message) {}
+
+    public record RerollRequest(long expectedDrawId, String reason) {}
+
+    public record ConfirmRequest(long drawId) {}
 }
