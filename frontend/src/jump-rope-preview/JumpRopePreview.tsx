@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { JumpRopeHud } from './JumpRopeHud'
 import { PreviewScene } from './PreviewScene'
-import { advancePreviewMotion, createPreviewMotion, requestJump, type PreviewPass } from './previewMotion'
+import type { PreviewPass } from './previewMotion'
 import { clearanceWindowMs } from './jumpRopeJudgement'
+import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, type RoundCue } from './previewRound'
 import './preview.css'
 
 const defaults = {
@@ -26,6 +27,7 @@ const defaults = {
   audience: false,
   perfectWindowMs: 50,
   clearanceMargin: 0.03,
+  reactionMs: 1350,
 }
 
 export type PreviewSettings = typeof defaults
@@ -58,6 +60,7 @@ const controls: { title: string; sliders: Slider[] }[] = [
   { title: '판정 조정', sliders: [
     ['perfectWindowMs', 'PERFECT 오차', 0, 150, 5, ' ms'],
     ['clearanceMargin', '줄 위 여유 높이', 0, 0.2, 0.01, ' m'],
+    ['reactionMs', 'MISS 연출 시간', 1100, 1800, 50, ' ms'],
   ] },
 ]
 
@@ -71,7 +74,7 @@ const demoActions = {
 } as const
 
 export type DemoAction = keyof typeof demoActions
-export type Demo = { action: DemoAction; startedAt: number }
+export type Demo = { action: DemoAction; startedAt: number; durationMs: number }
 
 const readyHud = { seconds: 60, score: 0, combo: 0, chances: 3 }
 const hudSamples = {
@@ -86,18 +89,29 @@ const hudSamples = {
 export function JumpRopePreview() {
   const [settings, setSettings] = useState(defaults)
   const [demo, setDemo] = useState<Demo | null>(null)
-  const [motion] = useState(createPreviewMotion)
+  const [round] = useState(createPreviewRound)
   const [ropePaused, setRopePaused] = useState(false)
+  const [cue, setCue] = useState<RoundCue>('3')
   const [lastPass, setLastPass] = useState<PreviewPass | null>(null)
   const [visiblePass, setVisiblePass] = useState<PreviewPass | null>(null)
+  const demoRef = useRef<Demo | null>(null)
+  const controlsRef = useRef({ settings, paused: false, cue: '3' as RoundCue })
   const { jumpHeight, jumpDuration } = settings
 
-  const step = useCallback((now: number, speed = ropePaused ? 0 : settings.ropeSpeed) => {
-    const latest = advancePreviewMotion(motion, now, speed, settings).at(-1)
+  const step = useCallback((now: number, speed?: number) => {
+    const controls = controlsRef.current
+    const { settings } = controls
+    const effectiveSpeed = speed ?? (controls.paused ? 0 : settings.ropeSpeed)
+    const latest = advancePreviewRound(round, now, effectiveSpeed, settings, settings.reactionMs)
+    const nextCue = roundCue(round, now)
+    if (nextCue !== controls.cue) {
+      controls.cue = nextCue
+      setCue(nextCue)
+    }
     if (!latest) return
     setLastPass(latest)
     setVisiblePass(latest)
-  }, [motion, ropePaused, settings])
+  }, [round])
 
   useEffect(() => {
     if (!visiblePass) return
@@ -114,36 +128,59 @@ export function JumpRopePreview() {
       event.preventDefault()
       if (!event.repeat) {
         const now = performance.now()
+        const playing = round.phase.kind === 'playing'
         step(now)
-        requestJump(motion, now, jumpHeight, jumpDuration)
+        if (playing) requestRoundJump(round, now, jumpHeight, jumpDuration)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [motion, jumpHeight, jumpDuration, step])
+  }, [round, jumpHeight, jumpDuration, step])
 
   function startDemo(action: DemoAction) {
     const now = performance.now()
+    const playing = round.phase.kind === 'playing'
     step(now)
-    if (action === 'jump' || action === 'perfect') requestJump(motion, now, jumpHeight, jumpDuration)
+    if ((action === 'jump' || action === 'perfect') && (!playing || !requestRoundJump(round, now, jumpHeight, jumpDuration))) return
+    const nextDemo = { action, startedAt: now, durationMs: settings.reactionMs }
+    demoRef.current = nextDemo
     setVisiblePass(null)
-    setDemo({ action, startedAt: now })
+    setDemo(nextDemo)
   }
 
   function resetScene() {
-    Object.assign(motion, createPreviewMotion())
+    resetPreviewRound(round)
+    demoRef.current = null
+    controlsRef.current.cue = '3'
+    setCue('3')
     setDemo(null)
     setLastPass(null)
     setVisiblePass(null)
   }
 
   function toggleRope() {
-    step(performance.now(), ropePaused ? settings.ropeSpeed : 0)
-    setRopePaused(!ropePaused)
+    const controls = controlsRef.current
+    const paused = !controls.paused
+    step(performance.now(), paused ? 0 : controls.settings.ropeSpeed)
+    controls.paused = paused
+    setRopePaused(paused)
+  }
+
+  function updateSettings(change: Partial<PreviewSettings>) {
+    const controls = controlsRef.current
+    const next = { ...controls.settings, ...change }
+    step(performance.now(), controls.paused ? 0 : next.ropeSpeed)
+    controls.settings = next
+    setSettings(next)
   }
 
   const windowMs = clearanceWindowMs(jumpHeight, jumpDuration * 1000, settings)
   const demoHud = demo && (!lastPass || demo.startedAt >= lastPass.at) ? hudSamples[demo.action] : readyHud
+  const countdown = cue === '3' || cue === '2' || cue === '1' || cue === 'GO!' ? cue : null
+  const paused = ropePaused || settings.ropeSpeed === 0
+  const status = cue === 'landing' ? '착지 중' : cue === 'reaction' ? '비둘기 비웃음'
+    : cue === 'GO!' ? '시작' : countdown ? paused ? '시작 대기 · 회전 일시 정지' : '시작 카운트다운'
+      : paused ? '회전 일시 정지' : '플레이 중'
 
   return (
     <main className="preview">
@@ -152,7 +189,7 @@ export function JumpRopePreview() {
           <p className="eyebrow">ONTOP / 개발 프리뷰</p>
           <h1>구구구 줄넘기</h1>
         </div>
-        <p className="preview-tag">03 · 줄넘기 판정</p>
+        <p className="preview-tag">04 · MISS 연출과 재시작</p>
       </header>
       <div className="preview-layout">
         <section className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={0}>
@@ -161,15 +198,17 @@ export function JumpRopePreview() {
             dpr={[1, 1.5]}
             fallback={<p className="canvas-fallback">이 브라우저에서 3D 화면을 열 수 없습니다.</p>}
           >
-            <PreviewScene settings={settings} demo={demo} motion={motion} step={step} />
+            <PreviewScene settings={settings} demoRef={demoRef} round={round} step={step} />
           </Canvas>
           <JumpRopeHud
             {...(visiblePass ? { ...readyHud, judgement: visiblePass.kind } : demoHud)}
             livePass={visiblePass?.number}
           />
+          {countdown && <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
         </section>
         <aside className="preview-panel" aria-label="실시간 조정 패널">
           <h2>실시간 조정</h2>
+          <p className="panel-note" aria-label="현재 게임 상태">현재 상태 · {status}</p>
           <p className="panel-note">Space로 점프합니다. 높이와 체공 시간은 다음 점프부터 적용됩니다. HUD는 샘플 값입니다.</p>
           {controls.map(group => (
             <fieldset key={group.title}>
@@ -185,8 +224,7 @@ export function JumpRopePreview() {
                     value={settings[key]}
                     onChange={event => {
                       const value = event.currentTarget.valueAsNumber
-                      step(performance.now(), key === 'ropeSpeed' && !ropePaused ? value : undefined)
-                      setSettings(current => ({ ...current, [key]: value }))
+                      updateSettings({ [key]: value })
                     }}
                   />
                   <output>{settings[key]}{unit}</output>
@@ -199,7 +237,7 @@ export function JumpRopePreview() {
                     checked={settings.audience}
                     onChange={event => {
                       const audience = event.currentTarget.checked
-                      setSettings(current => ({ ...current, audience }))
+                      updateSettings({ audience })
                     }}
                   />
                   관중 비둘기 표시

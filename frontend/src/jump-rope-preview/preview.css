@@ -163,6 +163,24 @@ button, input { font: inherit; }
 .rope-hud__feedback[data-judgement="perfect"] { background: #d5ebdd; border-color: #94b3a0; }
 .rope-hud__feedback[data-judgement="good"] { background: #f6e4ad; border-color: #c8ae67; }
 .rope-hud__feedback[data-judgement="miss"] { background: #f4cec3; border-color: #c99587; }
+.rope-countdown {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  min-width: 1.55em;
+  padding: 0.04em 0.26em;
+  border: 2px solid #758879;
+  border-radius: 0.25em;
+  background: #fff7e8f0;
+  box-shadow: 0 4px 14px #253a3426;
+  color: #253a34;
+  font-size: clamp(2.7rem, 8vw, 6.5rem);
+  font-weight: 900;
+  line-height: 1.05;
+  text-align: center;
+  pointer-events: none;
+}
 .rope-hud__feedback[data-live="true"] { animation: rope-feedback-fade 750ms linear both; }
 
 @keyframes rope-feedback-fade {

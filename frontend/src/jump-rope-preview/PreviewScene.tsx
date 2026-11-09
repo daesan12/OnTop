@@ -1,11 +1,12 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { PerspectiveCamera, QuadraticBezierCurve3, Vector3, type Group } from 'three'
 import type { Demo, PreviewSettings } from './JumpRopePreview'
-import { PigeonActor, type PigeonLook, type PigeonPose } from './PigeonActor'
+import { PigeonActor, type PigeonLook, type PigeonPose, type PigeonRig } from './PigeonActor'
 import { PreviewAvatar } from './PreviewAvatar'
 import { createGameRopeGeometry, ropeCenter } from './gameRopeGeometry'
-import type { PreviewMotion } from './previewMotion'
+import { samplePigeonLaugh } from './pigeonLaugh'
+import { ropeRestWeight, type PreviewRound } from './previewRound'
 
 const sky = '#e6efeb'
 const leftPose = { head: [0.01, -0.07, -0.15], eyelids: [0.7, 0.85], gaze: [0.7, 0] } satisfies PigeonPose
@@ -107,7 +108,7 @@ function UtilityPole({ attachment }: { attachment: Vector3 }) {
   )
 }
 
-function ParkUtilityLine({ showAudience }: { showAudience: boolean }) {
+function ParkUtilityLine({ showAudience, rigs }: { showAudience: boolean; rigs: (PigeonRig | null)[] }) {
   return (
     <group name="park-utility-line">
       <UtilityPole attachment={utilityWire.v0} />
@@ -116,14 +117,16 @@ function ParkUtilityLine({ showAudience }: { showAudience: boolean }) {
         <tubeGeometry args={[utilityWire, 40, wireRadius, 6, false]} />
         <meshBasicMaterial color="#555954" />
       </mesh>
-      {showAudience && audience.map(({ at, yaw, scale, look, pose }) => {
-        const perch = utilityWire.getPoint(at)
-        return (
-          <group key={at} position={[perch.x, perch.y + wireRadius, perch.z - 0.025 * scale]} rotation-y={yaw} scale={scale}>
-            <PigeonActor look={look} pose={pose} />
-          </group>
-        )
-      })}
+      <group visible={showAudience}>
+        {audience.map(({ at, yaw, scale, look, pose }, index) => {
+          const perch = utilityWire.getPoint(at)
+          return (
+            <group key={at} position={[perch.x, perch.y + wireRadius, perch.z - 0.025 * scale]} rotation-y={yaw} scale={scale}>
+              <PigeonActor look={look} pose={pose} rigRef={rig => { rigs[index] = rig }} />
+            </group>
+          )
+        })}
+      </group>
     </group>
   )
 }
@@ -200,10 +203,19 @@ function nodAtGrip(grip: Group, base: [number, number, number], phase: number, s
   )
 }
 
-export function PreviewScene({ settings, demo, motion, step }: {
+function applyLaugh(rig: PigeonRig, pose: PigeonPose, laugh: ReturnType<typeof samplePigeonLaugh>) {
+  rig.head.rotation.x += laugh.pitch
+  rig.head.rotation.y += laugh.yaw
+  rig.head.rotation.z += laugh.roll
+  rig.leftWing.rotation.z = (pose.leftWing?.[2] ?? 0) - laugh.wing
+  rig.rightWing.rotation.z = (pose.rightWing?.[2] ?? 0) + laugh.wing
+  rig.jaw.rotation.x = (pose.jaw ?? 0) + laugh.jaw
+}
+
+export function PreviewScene({ settings, demoRef, round, step }: {
   settings: PreviewSettings
-  demo: Demo | null
-  motion: PreviewMotion
+  demoRef: RefObject<Demo | null>
+  round: PreviewRound
   step: (now: number) => void
 }) {
   const avatar = useRef<Group>(null)
@@ -211,6 +223,9 @@ export function PreviewScene({ settings, demo, motion, step }: {
   const rightPigeon = useRef<Group>(null)
   const leftGrip = useRef<Group>(null)
   const rightGrip = useRef<Group>(null)
+  const holderLeft = useRef<PigeonRig>(null)
+  const holderRight = useRef<PigeonRig>(null)
+  const audienceRigs = useRef<(PigeonRig | null)[]>([])
   const { geometry, update, left, right, center } = useMemo(() => ({
     ...createGameRopeGeometry(),
     left: new Vector3(), right: new Vector3(), center: new Vector3(),
@@ -220,25 +235,40 @@ export function PreviewScene({ settings, demo, motion, step }: {
   useFrame(() => {
     const now = performance.now()
     step(now)
+    const { motion, phase } = round
+    const demo = demoRef.current
     const elapsed = demo ? (now - demo.startedAt) / 1000 : Infinity
     if (avatar.current) {
       avatar.current.rotation.z = demo?.action === 'miss' && elapsed < 0.45
         ? Math.sin(elapsed / 0.45 * Math.PI * 2) * 0.2 : 0
     }
-    const laughing = (demo?.action === 'laugh' || demo?.action === 'miss') && elapsed < 1.2
-    const bob = laughing ? Math.abs(Math.sin(elapsed * 17)) * 0.15 : 0
-    if (leftPigeon.current) leftPigeon.current.position.y = bob
-    if (rightPigeon.current) rightPigeon.current.position.y = bob
+    const laughElapsed = phase.kind === 'reaction' ? now - phase.startedAt
+      : demo?.action === 'laugh' || demo?.action === 'miss' ? elapsed * 1000 : Infinity
+    const laughDuration = phase.kind === 'reaction' ? phase.durationMs : demo?.durationMs ?? 0
+    const laughLeft = samplePigeonLaugh('holder', 0, laughElapsed, laughDuration)
+    const laughRight = samplePigeonLaugh('holder', 1, laughElapsed, laughDuration)
+    if (leftPigeon.current) leftPigeon.current.position.y = laughLeft.bob
+    if (rightPigeon.current) rightPigeon.current.position.y = laughRight.bob
+
+    audience.forEach(({ pose }, index) => {
+      const rig = audienceRigs.current[index]
+      if (!rig) return
+      rig.head.rotation.set(...(pose.head ?? [0, 0, 0]))
+      applyLaugh(rig, pose, samplePigeonLaugh('audience', index, laughElapsed, laughDuration))
+    })
 
     const gripL = leftGrip.current, gripR = rightGrip.current
     if (gripL && gripR) {
       nodAtGrip(gripL, leftPose.head, motion.angle, settings.pigeonNod)
       nodAtGrip(gripR, rightPose.head, motion.angle + 0.57, settings.pigeonNod * 0.83)
+      if (holderLeft.current) applyLaugh(holderLeft.current, leftPose, laughLeft)
+      if (holderRight.current) applyLaugh(holderRight.current, rightPose, laughRight)
       gripL.getWorldPosition(left)
       gripR.getWorldPosition(right)
       const radius = settings.ropeWidth / 2
       ropeCenter(center, motion.angle, settings.avatarX, settings.avatarZ, settings.avatarScale,
         settings.ropeHeight, settings.ropeSag, radius)
+      center.z -= (0.5 * settings.avatarScale + radius) * ropeRestWeight(round, now)
       update(left, right, center, radius)
     }
   }, -1)
@@ -252,21 +282,21 @@ export function PreviewScene({ settings, demo, motion, step }: {
       <hemisphereLight args={['#fff5e4', '#788f87', 1.95]} />
       <directionalLight position={[2.5, 6, 4]} intensity={2.25} />
       <ParkCourt />
-      <ParkUtilityLine showAudience={settings.audience} />
+      <ParkUtilityLine showAudience={settings.audience} rigs={audienceRigs.current} />
 
       <GroundShadow x={settings.avatarX} z={settings.avatarZ} width={0.95 * settings.avatarScale} depth={0.62 * settings.avatarScale} />
       <group position={[settings.avatarX, 0, settings.avatarZ]}>
         <group ref={avatar} scale={settings.avatarScale}>
-          <Suspense fallback={null}><PreviewAvatar motion={motion} scale={settings.avatarScale} /></Suspense>
+          <Suspense fallback={null}><PreviewAvatar motion={round.motion} scale={settings.avatarScale} /></Suspense>
         </group>
       </group>
       <GroundShadow x={-halfGap} z={-0.08} width={1.13 * settings.pigeonScale} depth={0.95 * settings.pigeonScale} />
       <group ref={leftPigeon} position={[-halfGap, 0, 0]} rotation={[0, 0.76, 0]} scale={settings.pigeonScale}>
-        <PigeonActor look="sage" pose={leftPose} gripRef={leftGrip} />
+        <PigeonActor look="sage" pose={leftPose} gripRef={leftGrip} rigRef={holderLeft} />
       </group>
       <GroundShadow x={halfGap} z={-0.08} width={1.13 * settings.pigeonScale} depth={0.95 * settings.pigeonScale} />
       <group ref={rightPigeon} position={[halfGap, 0, 0]} rotation={[0, -0.67, 0]} scale={settings.pigeonScale}>
-        <PigeonActor look="lilac" pose={rightPose} gripRef={rightGrip} />
+        <PigeonActor look="lilac" pose={rightPose} gripRef={rightGrip} rigRef={holderRight} />
       </group>
 
       <mesh geometry={geometry} frustumCulled={false} name="park-jump-rope">

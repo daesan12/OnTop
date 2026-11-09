@@ -36,13 +36,21 @@ export function requestJump(motion: PreviewMotion, now: number, peak: number, fl
   return true
 }
 
-export function advancePreviewMotion(motion: PreviewMotion, now: number, ropeSpeed: number, settings: JudgementSettings) {
+export function advancePreviewMotion(
+  motion: PreviewMotion, now: number, ropeSpeed: number, settings: JudgementSettings, stopOnMiss = false,
+) {
   const results: PreviewPass[] = []
   if (motion.lastAt !== null) {
     const step = advanceRope(motion.angle, motion.lastAt, now, motion.ropeSpeed)
     motion.angle = step.angle
     for (const at of step.passages) {
-      results.push({ ...judgePass(at, motion.jump, settings), number: ++motion.passCount })
+      const pass = { ...judgePass(at, motion.jump, settings), number: ++motion.passCount }
+      results.push(pass)
+      if (stopOnMiss && pass.kind === 'miss') {
+        motion.angle = 0
+        ropeSpeed = 0
+        break
+      }
     }
   }
   motion.lastAt = now

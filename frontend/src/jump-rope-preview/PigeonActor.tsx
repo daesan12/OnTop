@@ -1,4 +1,4 @@
-import type { Ref } from 'react'
+import { useImperativeHandle, useRef, type Ref } from 'react'
 import type { Group } from 'three'
 
 type Axes = [x: number, y: number, z: number]
@@ -62,11 +62,18 @@ function Eye({ side, lid, gaze, face }: {
 }
 
 /** Feet at the origin, +Z forward. Pose and grip are independent of any game. */
-export function PigeonActor({ look, pose = {}, gripRef }: {
+export type PigeonRig = { head: Group; leftWing: Group; rightWing: Group; jaw: Group }
+
+export function PigeonActor({ look, pose = {}, gripRef, rigRef }: {
   look: PigeonLook
   pose?: PigeonPose
   gripRef?: Ref<Group>
+  rigRef?: Ref<PigeonRig>
 }) {
+  const head = useRef<Group>(null), leftWing = useRef<Group>(null), rightWing = useRef<Group>(null), jaw = useRef<Group>(null)
+  useImperativeHandle(rigRef, () => ({
+    head: head.current!, leftWing: leftWing.current!, rightWing: rightWing.current!, jaw: jaw.current!,
+  }), [])
   const color = plumage[look]
   const eyelids = pose.eyelids ?? [0.25, 0.25]
   const gaze = pose.gaze ?? [0, 0]
@@ -88,6 +95,7 @@ export function PigeonActor({ look, pose = {}, gripRef }: {
         <group key={side}>
           <group
             name={side === -1 ? 'leftWing' : 'rightWing'}
+            ref={side === -1 ? leftWing : rightWing}
             position={[side * 0.255, 0.46, -0.028]}
             rotation={side === -1 ? pose.leftWing : pose.rightWing}
           >
@@ -112,7 +120,7 @@ export function PigeonActor({ look, pose = {}, gripRef }: {
       ))}
       <Plume position={[0, 0.571, 0.093]} scale={[0.225, 0.174, 0.214]} color={color.neck} />
       <Plume position={[0, 0.539, 0.197]} scale={[0.182, 0.097, 0.131]} color={color.neckTip} />
-      <group name="head" position={[0, 0.623, 0.103]} rotation={pose.head}>
+      <group ref={head} name="head" position={[0, 0.623, 0.103]} rotation={pose.head}>
         <Plume position={[0, 0.125, 0.028]} scale={[0.23, 0.224, 0.224]} color={color.face} />
         {sides.map((side, index) => <Eye key={side} side={side} lid={eyelids[index]!} gaze={gaze} face={color.face} />)}
         <Plume position={[0, 0.093, 0.238]} scale={[0.067, 0.043, 0.037]} color="#d8c6b9" />
@@ -120,7 +128,7 @@ export function PigeonActor({ look, pose = {}, gripRef }: {
           <cylinderGeometry args={[0.013, 0.076, 0.176, 6]} />
           <meshStandardMaterial color="#c49b71" roughness={0.9} flatShading />
         </mesh>
-        <group name="lowerBeak" position={[0, 0.017, 0.219]} rotation-x={pose.jaw ?? 0}>
+        <group ref={jaw} name="lowerBeak" position={[0, 0.017, 0.219]} rotation-x={pose.jaw ?? 0}>
           <mesh position={[0, -0.007, 0.074]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 1, 0.44]}>
             <cylinderGeometry args={[0.011, 0.061, 0.158, 6]} />
             <meshStandardMaterial color="#967959" roughness={0.92} flatShading />
