@@ -1,12 +1,24 @@
 import { useEffect } from 'react'
 import { useBungeoppang } from '../features/bungeoppang/store'
+import { useMole } from '../features/mole/store'
+import { usePlusMinus } from '../features/plusMinus/store'
+import { useRpsRoulette } from '../features/rpsRoulette/store'
 import { useShop } from '../features/shop/controller'
+import { useSpeedMole } from '../features/speedMole/store'
 import { useWardrobe } from '../features/wardrobe/state'
 import { useGame } from '../game/store'
 import { useSession } from '../network/worldClient'
 import { environmentFrame } from '../world/environmentState'
 import { playBgm, playSting } from './bgm'
-import { parkTrack, resultSting } from './bgmScene'
+import { parkTrack, resultSting, type BgmTrack } from './bgmScene'
+
+/** 두더지 잡기는 마지막 피버 구간에만 피버 곡, 가위바위보 룰렛·더하기 빼기는 게임방 곡을 함께 쓴다. */
+function arcadeTrack(): BgmTrack | null {
+  if (useSpeedMole.getState().open) return 'speed-mole-bgm'
+  const mole = useMole.getState()
+  if (mole.open) return mole.fever ? 'mole-bgm-fever' : 'mole-bgm-normal'
+  return useRpsRoulette.getState().open || usePlusMinus.getState().open ? 'arcade-room-bgm' : null
+}
 
 /** Picks the park loop on every relevant store change, and once a second for the time of day. */
 export function ParkBgm() {
@@ -16,6 +28,7 @@ export function ParkBgm() {
       playBgm(parkTrack({
         game: useGame.getState().game,
         bungeoppang: useBungeoppang.getState().phase !== 'idle',
+        arcade: arcadeTrack(),
         shopping: useShop.getState().open || useWardrobe.getState().open,
         telescope: !!session.telescopeId,
         seated: !!session.tableId && session.seatIndex >= 0,
@@ -24,7 +37,8 @@ export function ParkBgm() {
     }
     update()
     const timer = setInterval(update, 1000)
-    const stops = [useGame, useBungeoppang, useShop, useWardrobe, useSession].map(store => store.subscribe(update))
+    const stops = [useGame, useBungeoppang, useMole, useSpeedMole, useRpsRoulette, usePlusMinus, useShop, useWardrobe, useSession]
+      .map(store => store.subscribe(update))
     return () => { clearInterval(timer); stops.forEach(stop => stop()) }
   }, [])
 

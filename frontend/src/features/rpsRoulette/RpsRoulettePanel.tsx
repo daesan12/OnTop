@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { playSfx, setSfxLoop } from '../../audio/sfx'
 import { openManual } from '../manual/manualState'
 import { RewardCoinSource } from '../wallet/RewardCoinFlight'
 import { HANDS, HAND_LABEL, type Hand, type LedShape } from './ledHands'
@@ -13,11 +14,12 @@ import './rpsRoulette.css'
 
 const REVEAL_MS = 1100
 const SHUFFLE_MS = 90
+const SLOW_STEPS = 12
 /** 최소 두 바퀴 돈 뒤 마지막 12칸에서 느려진다. */
 function chaseTimeline(cell: number, cells: number) {
   const steps = cells * 2 + cell, times: number[] = []
   let at = 0
-  for (let i = 0; i <= steps; i++) { times.push(at); at += 28 + Math.max(0, i - (steps - 12)) * 24 }
+  for (let i = 0; i <= steps; i++) { times.push(at); at += 28 + Math.max(0, i - (steps - SLOW_STEPS)) * 24 }
   return { steps, times, duration: at }
 }
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -114,6 +116,13 @@ function RpsRouletteDialog() {
   const settledVisible = round?.phase === 'SETTLED' && !revealing && !spinning
   const chaseStep = spin && timeline && spinElapsed >= 0
     ? timeline.times.reduce((found, t, i) => t <= spinElapsed ? i : found, -1) : -1
+  // 일정한 속도로 도는 동안은 회전음을 반복하고, 감속이 시작되면 멈춤음을 한 번 낸다.
+  const spinSound = !spinning || chaseStep < 0 ? null : chaseStep < timeline!.steps - SLOW_STEPS ? 'fast' : 'slow'
+  useEffect(() => {
+    setSfxLoop('arcade-roulette-spin', spinSound === 'fast' ? 1 : 0)
+    if (spinSound === 'slow') playSfx('arcade-roulette-slow-stop')
+  }, [spinSound])
+  useEffect(() => () => setSfxLoop('arcade-roulette-spin', 0), [])
   const litCell = spinning ? (chaseStep < 0 ? null : chaseStep % roulette.length)
     : round?.outcome === 'PAID' && settledVisible ? round.rouletteCell : null
   const lamps = {
@@ -136,10 +145,11 @@ function RpsRouletteDialog() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing || event.repeat || document.querySelectorAll('dialog[open]').length > 1) return
       const index = ['1', '2', '3'].indexOf(event.key)
-      if (index >= 0 && keys.current.canHand) { event.preventDefault(); playRpsHand(HANDS[index]) }
+      // 키로 누른 버튼도 클릭과 같은 오락기 버튼 소리를 낸다.
+      if (index >= 0 && keys.current.canHand) { event.preventDefault(); playSfx('arcade-button'); playRpsHand(HANDS[index]) }
       else if (event.key === 'Enter' && keys.current.canStart
         && !(event.target instanceof HTMLElement && event.target.closest('button,input,select,textarea'))) {
-        event.preventDefault(); void startRpsRound()
+        event.preventDefault(); playSfx('arcade-button'); void startRpsRound()
       }
     }
     document.addEventListener('keydown', onKeyDown)

@@ -26,9 +26,11 @@ export interface MoleStore {
   round: MoleRound | null
   settlement: MoleSettlement | null
   error: string
+  /** 마지막 피버 구간을 진행 중이다. 배경음악만 이 값을 본다. */
+  fever: boolean
 }
 
-export const useMole = create<MoleStore>(() => ({ open: false, phase: 'idle', state: null, round: null, settlement: null, error: '' }))
+export const useMole = create<MoleStore>(() => ({ open: false, phase: 'idle', state: null, round: null, settlement: null, error: '', fever: false }))
 
 const message = (error: unknown) => error instanceof MoleError ? error.message : '게임기 상태를 확인하지 못했어요.'
 
@@ -44,7 +46,7 @@ export function openMole() {
 /** 진행 중에 닫으면 그 판은 보상 없이 끝난다. 서버는 다음 시작 때 이전 판을 닫는다. */
 export function closeMole() {
   inputState.minigameOpen = false
-  useMole.setState({ open: false, phase: 'idle', round: null })
+  useMole.setState({ open: false, phase: 'idle', round: null, fever: false })
 }
 
 export async function refreshMole() {

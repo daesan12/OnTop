@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { emoteSfx, gameSfx, moverSfx, STRIDE, type MoverSample, type MoverState } from '../../src/audio/sfxEvents'
+import { alkkagiCues, emoteSfx, gameSfx, moverSfx, STRIDE, type MoverSample, type MoverState } from '../../src/audio/sfxEvents'
 import type { Game } from '../../src/game/protocol'
 
 const omok = (turn: string, status = 'PLAYING', gameId = 'g1', role = 'PLAYER') =>
@@ -170,4 +170,27 @@ it('keeps the effects level apart from the music level', async () => {
   expect(useBgmSettings.getState()).toEqual({ volume: 50, muted: false })
   expect(JSON.parse(values.get('ontop-sfx-v1')!)).toEqual({ volume: 80, muted: false })
   expect(values.has('ontop-bgm-v1')).toBe(false)
+})
+
+const alkkagi = (turn: string, cards: string[] | null, gameId = 'a1') =>
+  ({ gameId, version: 1, role: 'PLAYER', alkkagi: { status: 'PLAYING', turnUserId: turn },
+    alkkagiHand: cards && { cards: cards.map(id => ({ id, type: 'WALL' })) } }) as unknown as Game
+
+it('알까기는 내 차례 알림 대신 차례 전환음을 쓰고, 새로 받은 비책 카드에만 카드음을 낸다', () => {
+  expect(gameSfx(null, alkkagi('me', ['c1']), 'me')).toEqual(['game-start'])
+  expect(gameSfx(alkkagi('other', ['c1']), alkkagi('me', ['c1']), 'me')).toEqual([])
+  expect(gameSfx(alkkagi('me', ['c1']), alkkagi('me', ['c1', 'c2']), 'me')).toEqual(['alkkagi-item'])
+  // 사용해서 줄어든 손패, 다른 경기의 손패, 관전자(손패 없음)는 획득이 아니다.
+  expect(gameSfx(alkkagi('me', ['c1', 'c2']), alkkagi('me', ['c2']), 'me')).toEqual([])
+  expect(gameSfx(alkkagi('me', ['c1']), alkkagi('me', ['c1', 'c2'], 'a2'), 'me')).not.toContain('alkkagi-item')
+  expect(gameSfx(alkkagi('me', null), alkkagi('me', null), 'me')).toEqual([])
+})
+
+it('알까기 피드백 이벤트를 효과음으로 바꾸고 같은 소리는 한 번만 가장 큰 세기로 낸다', () => {
+  const ev = (type: string, strength?: 'weak' | 'medium' | 'strong') => ({ id: type, type, at: 0, strength })
+  expect(alkkagiCues([ev('SHOT'), ev('TURN_CHANGED'), ev('ITEM_WALL'), ev('TURN_WARNING'), ev('GAME_FINISHED')]))
+    .toEqual([['alkkagi-shot', 1], ['alkkagi-turn-change', 1], ['alkkagi-item', 1]])
+  expect(alkkagiCues([ev('PIECE_HIT', 'weak'), ev('WALL_HIT', 'medium'), ev('PIECE_FALL'), ev('PIECE_FALL')]))
+    .toEqual([['alkkagi-collision', 0.75], ['alkkagi-fall', 1]])
+  expect(alkkagiCues([])).toEqual([])
 })
