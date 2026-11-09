@@ -7,6 +7,7 @@ import com.ssafy.ontop.event.contact.WinnerContactService.DeliveryResponse;
 import com.ssafy.ontop.event.contact.WinnerContactService.RevealedContact;
 import com.ssafy.ontop.event.contact.WinnerContactService.WinningResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.security.Principal;
@@ -141,7 +142,8 @@ public class WinnerContactController {
         }
     }
 
-    public record DeliveryRequest(Long expectedUserId) {}
+    public record DeliveryRequest(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Long expectedUserId) {}
 
     public record ErrorResponse(String code, String message) {}
 }

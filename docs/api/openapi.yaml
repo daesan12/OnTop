@@ -7881,6 +7881,8 @@ components:
           items:
             $ref: "#/components/schemas/AnnouncementOrderItem"
     DeliveryRequest:
+      required:
+      - expectedUserId
       type: object
       properties:
         expectedUserId:
