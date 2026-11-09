@@ -41,6 +41,9 @@ function RpsRouletteDialog() {
   const [reveal, setReveal] = useState<{ key: string; until: number } | null>(null)
   const [spin, setSpin] = useState<{ id: string; cell: number; startedAt: number } | null>(null)
   const firstData = useRef(true)
+  // 창을 열 때 이미 정산돼 있던 판은 지난 결과라 다시 보여도 정산음을 내지 않는다.
+  const [openedWith, setOpenedWith] = useState<string | null>()
+  if (openedWith === undefined && round) setOpenedWith(round.phase === 'SETTLED' ? round.id : null)
 
   useEffect(() => {
     const el = dialog.current
@@ -191,7 +194,7 @@ function RpsRouletteDialog() {
         <p className="rps-roulette-lcd" role="status" aria-live="polite">{message}</p>
         {settledVisible && round.outcome === 'PAID' && round.payout > 0 &&
           <p className="rps-roulette-payout">
-            <RewardCoinSource receipt={`rps-roulette:payout:${round.id}`} amount={round.payout} soundOnReveal>
+            <RewardCoinSource receipt={`rps-roulette:payout:${round.id}`} amount={round.payout} soundOnReveal={openedWith !== round.id}>
               +{round.payout.toLocaleString('ko-KR')}냥
             </RewardCoinSource>
             <small>보유 {data!.availableBalance.toLocaleString('ko-KR')}냥</small>

@@ -148,7 +148,7 @@ function PlusMinusDialog() {
           <p className="plus-minus-lcd" role="status" aria-live="polite">{message}</p>
           {shown && round.payout > 0 &&
             <p className="plus-minus-payout">
-              <RewardCoinSource receipt={`plus-minus:payout:${round.id}`} amount={round.payout} soundOnReveal>
+              <RewardCoinSource receipt={`plus-minus:payout:${round.id}`} amount={round.payout} soundOnReveal={celebrated === round.id}>
                 +{round.payout.toLocaleString('ko-KR')}냥
               </RewardCoinSource>
             </p>}
