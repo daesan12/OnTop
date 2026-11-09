@@ -59,6 +59,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -284,6 +285,25 @@ class RestSecurityTests {
                 .andExpect(status().isServiceUnavailable());
         mvc.perform(get("/api/v1/events/assets/rounds/2026-11-09/result"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 스킨_구성품과_세트_관리는_운영_관리자만_통과한다() throws Exception {
+        String root = "/api/v1/admin/operations/skins";
+        var endpoints = List.of(List.of("GET", root + "/components"), List.of("POST", root + "/components"),
+                List.of("GET", root + "/sets"), List.of("POST", root + "/sets"), List.of("PUT", root + "/sets/1"),
+                List.of("POST", root + "/sets/1/publish"), List.of("POST", root + "/sets/1/disable"));
+        for (var endpoint : endpoints) {
+            var method = org.springframework.http.HttpMethod.valueOf(endpoint.get(0));
+            String path = endpoint.get(1);
+            mvc.perform(request(method, path)).andExpect(status().isUnauthorized());
+            mvc.perform(authAs(44, request(method, path))).andExpect(status().isForbidden());
+            mvc.perform(auth(request(method, path))).andExpect(status().isForbidden());
+            mvc.perform(authAs(43, request(method, path)
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}")))
+                    .andExpect(result -> assertThat(result.getResponse().getStatus())
+                            .as(method + " " + path).isNotIn(401, 403));
+        }
     }
 
     @Test
