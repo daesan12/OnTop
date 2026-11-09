@@ -4,9 +4,10 @@ import { record } from '../../network/protocol'
 export type FeedbackStatus = 'RECEIVED' | 'REVIEWING' | 'RESOLVED'
 export type RewardKind = 'COIN' | 'GACHA_TICKET'
 export interface NotificationReward { kind: RewardKind; amount: number; expiresAt: string; claimedAt: string | null }
-export interface NotificationItem { id: string; type: 'FEEDBACK_REPLY' | 'REWARD'; title: string; createdAt: string; readAt: string | null; reward?: NotificationReward }
+export interface NotificationItem { id: string; type: 'FEEDBACK_REPLY' | 'REWARD' | 'EVENT_WINNER'; title: string; createdAt: string; readAt: string | null; reward?: NotificationReward; eventWeekStartDate?: string }
 export interface NotificationPage { items: NotificationItem[]; nextCursor: string | null; unreadCount: number }
-export interface NotificationDetail extends NotificationItem { body: string; feedbackId: string | null; feedbackText: string | null; feedbackStatus: FeedbackStatus | null }
+export interface EventWinnerDetails { weekStartDate: string; awards: { winnerId: string; eventType: string; place: number; prizeName: string; deliveryStatus: 'PENDING' | 'DELIVERED' }[]; contactStatus: 'NOT_SUBMITTED' | 'SUBMITTED' | 'EXPIRED'; contactEdited: boolean; submissionDeadline: string; allPrizesDelivered: boolean; contactActionRequired: boolean; contactEditable: boolean }
+export interface NotificationDetail extends NotificationItem { body: string; feedbackId: string | null; feedbackText: string | null; feedbackStatus: FeedbackStatus | null; event?: EventWinnerDetails }
 export interface RewardReceipt { notificationId: string; kind: RewardKind; amount: number; claimedAt: string; balanceAfter: number | null; ticketsAfter: number | null }
 export const statusLabels: Record<FeedbackStatus, string> = { RECEIVED: '접수', REVIEWING: '검토 중', RESOLVED: '반영 완료' }
 export const isFeedbackStatus = (v: unknown): v is FeedbackStatus => v === 'RECEIVED' || v === 'REVIEWING' || v === 'RESOLVED'
@@ -17,10 +18,14 @@ export class InboxError extends Error {
   constructor(message: string, readonly status = 0, readonly code = '') { super(message) }
 }
 function item(v: unknown): NotificationItem {
-  if (!record(v) || !isNotificationId(v.id) || (v.type !== 'FEEDBACK_REPLY' && v.type !== 'REWARD')
+  if (!record(v) || !isNotificationId(v.id) || (v.type !== 'FEEDBACK_REPLY' && v.type !== 'REWARD' && v.type !== 'EVENT_WINNER')
     || typeof v.title !== 'string' || !v.title.trim() || v.title.length > 100 || !date(v.createdAt)
     || !(v.readAt === null || date(v.readAt))) return invalid()
   const result: NotificationItem = { id: v.id, type: v.type, title: v.title, createdAt: v.createdAt, readAt: v.readAt }
+  if (v.type === 'EVENT_WINNER') {
+    if (typeof v.eventWeekStartDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v.eventWeekStartDate)) return invalid()
+    result.eventWeekStartDate = v.eventWeekStartDate
+  }
   if (v.type === 'REWARD') {
     const reward = v.reward
     if (!record(reward) || (reward.kind !== 'COIN' && reward.kind !== 'GACHA_TICKET')
@@ -41,6 +46,26 @@ export function parseNotificationPage(v: unknown, cursor = ''): NotificationPage
 }
 export function parseNotificationDetail(v: unknown): NotificationDetail {
   const base = item(v)
+  if (base.type === 'EVENT_WINNER') {
+    if (!record(v) || typeof v.body !== 'string' || !v.body.trim() || !record(v.event)
+      || v.event.weekStartDate !== base.eventWeekStartDate || !Array.isArray(v.event.awards)
+      || v.event.awards.length === 0 || v.event.awards.length > 100
+      || !['NOT_SUBMITTED', 'SUBMITTED', 'EXPIRED'].includes(String(v.event.contactStatus))
+      || typeof v.event.contactEdited !== 'boolean' || !date(v.event.submissionDeadline) || typeof v.event.allPrizesDelivered !== 'boolean'
+      || typeof v.event.contactActionRequired !== 'boolean' || typeof v.event.contactEditable !== 'boolean') return invalid()
+    const awards = v.event.awards.map(award => {
+      if (!record(award) || !isNotificationId(award.winnerId) || typeof award.eventType !== 'string'
+        || !Number.isSafeInteger(award.place) || Number(award.place) < 1
+        || typeof award.prizeName !== 'string' || !award.prizeName.trim()
+        || (award.deliveryStatus !== 'PENDING' && award.deliveryStatus !== 'DELIVERED')) return invalid()
+      return { winnerId: award.winnerId, eventType: award.eventType, place: Number(award.place), prizeName: award.prizeName,
+        deliveryStatus: award.deliveryStatus as 'PENDING' | 'DELIVERED' }
+    })
+    return { ...base, body: v.body, feedbackId: null, feedbackText: null, feedbackStatus: null,
+      event: { weekStartDate: v.event.weekStartDate as string, awards, contactStatus: v.event.contactStatus as EventWinnerDetails['contactStatus'], contactEdited: v.event.contactEdited as boolean,
+        submissionDeadline: v.event.submissionDeadline as string,
+        allPrizesDelivered: v.event.allPrizesDelivered as boolean, contactActionRequired: v.event.contactActionRequired as boolean, contactEditable: v.event.contactEditable as boolean } }
+  }
   if (base.type === 'REWARD') {
     if (!record(v) || typeof v.body !== 'string' || !v.body.trim() || v.body.length > 1000) return invalid()
     return { ...base, body: v.body, feedbackId: null, feedbackText: null, feedbackStatus: null }

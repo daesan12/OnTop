@@ -9,11 +9,14 @@ import com.ssafy.ontop.notification.domain.PersonalNotification;
 import com.ssafy.ontop.notification.dto.NotificationDetailResponse;
 import com.ssafy.ontop.notification.dto.NotificationListResponse;
 import com.ssafy.ontop.notification.dto.NotificationRewardResponse;
+import com.ssafy.ontop.notification.repository.EventWinnerNotificationRepository;
 import com.ssafy.ontop.notification.repository.NotificationRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Objects;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -22,16 +25,19 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class NotificationService {
     private final FeedbackRepository feedback;
     private final NotificationRepository repository;
+    private final EventWinnerNotificationRepository eventWinners;
     private final AdminAccessPolicy administrators;
     private final TransactionTemplate transactions;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public NotificationService(FeedbackRepository feedback, NotificationRepository repository,
+            EventWinnerNotificationRepository eventWinners,
             AdminAccessPolicy administrators, PlatformTransactionManager manager,
             ApplicationEventPublisher events, Clock clock) {
         this.feedback = feedback;
         this.repository = repository;
+        this.eventWinners = eventWinners;
         this.administrators = administrators;
         this.transactions = new TransactionTemplate(manager);
         // MySQL RR의 잠금 전 스냅샷이 직전 답변 커밋을 가리지 않도록 현재 읽기를 사용한다.
@@ -45,13 +51,16 @@ public class NotificationService {
         return Objects.requireNonNull(transactions.execute(transaction -> {
             member(userId);
             Instant now = now();
+            // The unique member/week key also backfills awards finalized before this feature shipped.
+            eventWinners.connectPublished(userId, now);
             var rows = repository.list(userId, before, limit + 1, now);
             var page = rows.stream().limit(limit).toList();
             var rewards = repository.rewards(page.stream().map(PersonalNotification::id)
                     .collect(java.util.stream.Collectors.toSet()));
             return new NotificationListResponse(page.stream().map(n -> new NotificationListResponse.Entry(
                     n.id().toString(), n.type(), n.title(), n.createdAt(), n.readAt(),
-                    rewards.containsKey(n.id()) ? NotificationRewardResponse.of(rewards.get(n.id()), n.expiresAt()) : null)).toList(),
+                    rewards.containsKey(n.id()) ? NotificationRewardResponse.of(rewards.get(n.id()), n.expiresAt()) : null,
+                    n.eventWeekStartDate())).toList(),
                     rows.size() > limit ? page.getLast().id().toString() : null, repository.unread(userId, now));
         }));
     }
@@ -61,6 +70,19 @@ public class NotificationService {
             member(userId);
             Instant now = now();
             var notification = repository.owned(userId, id, now).orElseThrow(NotificationService::notFound);
+            if (notification.type().equals("EVENT_WINNER")) {
+                LocalDate week = notification.eventWeekStartDate();
+                if (week == null) { throw notFound(); }
+                var awards = eventWinners.publishedAwards(userId, week, now);
+                if (awards.isEmpty()) { throw notFound(); }
+                var event = eventDetails(week, awards, now);
+                if (read) { notification.read(now); }
+                String body = event.allPrizesDelivered() ? "경품 지급이 완료되었습니다."
+                        : "당첨 내역과 연락처 제출 상태를 확인해 주세요.";
+                return new NotificationDetailResponse(notification.id().toString(), notification.type(),
+                        notification.title(), notification.createdAt(), notification.readAt(), body,
+                        null, null, null, null, event);
+            }
             if (notification.type().equals("REWARD")) {
                 var reward = repository.reward(id).orElseThrow(NotificationService::notFound);
                 if (read) { notification.read(now); }
@@ -76,6 +98,25 @@ public class NotificationService {
                     notification.title(), notification.createdAt(), notification.readAt(), reply.body(),
                     message.id().toString(), message.body(), message.status().name());
         }));
+    }
+
+    private static NotificationDetailResponse.EventWinnings eventDetails(LocalDate week,
+            List<EventWinnerNotificationRepository.Award> awards, Instant now) {
+        boolean allDelivered = awards.stream().allMatch(award -> award.deliveredAt() != null);
+        boolean submitted = awards.getFirst().contactSubmitted();
+        Instant contactExpiry = awards.getFirst().contactExpiresAt();
+        String contactStatus = !submitted ? "NOT_SUBMITTED"
+                : contactExpiry == null ? "EXPIRED" : "SUBMITTED";
+        Instant deadline = awards.stream().map(EventWinnerNotificationRepository.Award::publishedAt)
+                .max(Instant::compareTo).orElseThrow().plus(Duration.ofDays(7));
+        boolean editable = !allDelivered && now.isBefore(deadline)
+                && (!submitted || contactExpiry != null);
+        return new NotificationDetailResponse.EventWinnings(week,
+                awards.stream().map(award -> new NotificationDetailResponse.Award(award.winnerId(),
+                        award.eventType(), award.place(), award.prizeName(),
+                        award.deliveredAt() == null ? "PENDING" : "DELIVERED")).toList(),
+                contactStatus, awards.getFirst().contactEdited(), deadline, allDelivered,
+                editable && !submitted, editable);
     }
 
     public ReplyResult reply(long administrator, long receiptId, String operationId, String body,

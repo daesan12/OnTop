@@ -39,7 +39,7 @@ export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Pr
       if (controller.signal.aborted) return
       setItems(result)
       if (!autoShown.current && groupWinnings(result).some(group =>
-        group.status === 'NOT_SUBMITTED' && canSubmit(group.status, group.deadline))) {
+        group.actionRequired)) {
         autoShown.current = true
         onAutoOpen()
       }
@@ -116,7 +116,7 @@ export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Pr
       <button type="button" onClick={() => { request.current?.abort(); setReload(value => value + 1) }}>다시 조회</button></div>}
     {items && groups.length === 0 && <p className="winner-contacts-empty">아직 발표된 당첨 내역이 없어요.</p>}
     {groups.map(group => {
-      const editable = canSubmit(group.status, group.deadline, now)
+      const editable = group.editable && canSubmit(group.status, group.deadline, now)
       const showForm = editable && (group.status === 'NOT_SUBMITTED' || editingWeek === group.weekStart)
       return <section className="winner-contacts-week" key={group.weekStart} aria-label={`${group.weekStart} 주차 당첨`}>
         <h3>{group.weekStart} 주차</h3>
@@ -125,9 +125,10 @@ export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Pr
           <span>{award.prizeName}</span>
         </li>)}</ul>
         <p className="winner-contacts-deadline">연락처 제출·수정 마감: {kstDate(group.deadline)}</p>
+        {group.allDelivered && <p className="winner-contacts-success">모든 경품의 지급이 완료되었습니다.</p>}
         {group.status === 'SUBMITTED' && <p className="winner-contacts-success" role="status">연락처 제출 완료 · {group.maskedPhone}</p>}
         {group.status === 'EXPIRED' && <p className="winner-contacts-deadline">연락처 보관 기간이 종료되었습니다.</p>}
-        {group.status === 'NOT_SUBMITTED' && !editable && <p className="winner-contacts-deadline">연락처 제출 기간이 종료되었습니다.</p>}
+        {group.status === 'NOT_SUBMITTED' && !editable && !group.allDelivered && <p className="winner-contacts-deadline">연락처 제출 기간이 종료되었습니다.</p>}
         {group.status === 'SUBMITTED' && editable && !showForm && <button type="button" className="winner-contacts-secondary"
           onClick={() => setEditingWeek(group.weekStart)}>연락처 수정</button>}
         {showForm && <form onSubmit={event => void save(group.weekStart, event)} noValidate>

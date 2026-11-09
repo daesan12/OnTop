@@ -13,6 +13,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -53,6 +57,7 @@ import static org.mockito.Mockito.doNothing;
 })
 @Import(NotificationMySqlTests.EventsConfiguration.class)
 class NotificationMySqlTests {
+    private static final LocalDate EVENT_WEEK = LocalDate.of(2025, 12, 1);
     @Autowired JdbcTemplate jdbc;
     @Autowired AuthExchangePersistenceService issuer;
     @Autowired UserWithdrawalPersistenceService withdrawal;
@@ -80,6 +85,7 @@ class NotificationMySqlTests {
 
     @BeforeEach
     void 격리_의견과_회원만_초기화한다() {
+        cleanupEventFixture();
         jdbc.update("DELETE FROM feedback_messages");
         collector.events.clear();
         for (long id : new long[]{101, 202, 303}) {
@@ -92,6 +98,111 @@ class NotificationMySqlTests {
         member = token(202);
         other = token(303);
         doNothing().when(hub).requireFeedbackAccess(anyLong(), anyString(), anyDouble(), anyDouble(), anyDouble());
+    }
+
+    @Test
+    void 발표된_당첨만_주차별_알림으로_연결하고_지급_후에도_다시_확인한다() throws Exception {
+        Instant now = Instant.now();
+        long first = eventAward("JUMPMAP", now.minusSeconds(3600), now);
+        eventAward("BUNGEOPPANG", now.plusSeconds(3600), now);
+        try {
+            var firstList = json(request("GET", "/notifications", null, member));
+            assertThat(firstList.path("items")).hasSize(1);
+            String id = firstList.path("items").get(0).path("id").asText();
+            assertThat(firstList.path("items").get(0).path("type").asText()).isEqualTo("EVENT_WINNER");
+            assertThat(firstList.path("items").get(0).path("eventWeekStartDate").asText())
+                    .isEqualTo(EVENT_WEEK.toString());
+            assertThat(firstList.toString()).doesNotContain("01012345678");
+            assertThat(json(request("GET", "/notifications", null, member)).path("items").get(0)
+                    .path("id").asText()).isEqualTo(id);
+            assertThat(request("GET", "/notifications/" + id, null, other).statusCode()).isEqualTo(404);
+
+            var initial = json(request("PATCH", "/notifications/" + id + "/read", null, member));
+            assertThat(initial.path("event").path("awards")).hasSize(1);
+            assertThat(initial.path("event").path("contactActionRequired").asBoolean()).isTrue();
+            assertThat(initial.path("readAt").isNull()).isFalse();
+
+            jdbc.update("UPDATE event_rounds SET announces_at = ? WHERE event_type = 'BUNGEOPPANG'"
+                    + " AND week_start_date = ?", Timestamp.from(now.minusSeconds(1800)),
+                    java.sql.Date.valueOf(EVENT_WEEK));
+            var refreshed = json(request("GET", "/notifications", null, member));
+            assertThat(refreshed.path("items")).hasSize(1);
+            assertThat(refreshed.path("items").get(0).path("id").asText()).isEqualTo(id);
+            var multiple = json(request("GET", "/notifications/" + id, null, member));
+            assertThat(multiple.path("event").path("awards")).hasSize(2);
+            assertThat(multiple.path("event").path("allPrizesDelivered").asBoolean()).isFalse();
+
+            jdbc.update("INSERT INTO event_contact_receipts(user_id, week_start_date,"
+                    + " first_submitted_at, expires_at, last_updated_at) VALUES (202, ?, ?, ?, ?)",
+                    java.sql.Date.valueOf(EVENT_WEEK), Timestamp.from(now.minusSeconds(1200)),
+                    Timestamp.from(now.plusSeconds(14 * 86400L)), Timestamp.from(now.minusSeconds(600)));
+            jdbc.update("INSERT INTO event_winner_contacts(user_id, week_start_date, encrypted_phone,"
+                    + " encryption_key_id, phone_last_four, submitted_at, expires_at)"
+                    + " VALUES (202, ?, ?, 'fixture-key', '5678', ?, ?)",
+                    java.sql.Date.valueOf(EVENT_WEEK), new byte[]{1, 2, 3},
+                    Timestamp.from(now.minusSeconds(1200)), Timestamp.from(now.plusSeconds(14 * 86400L)));
+            var edited = json(request("GET", "/notifications/" + id, null, member));
+            assertThat(edited.path("event").path("contactStatus").asText()).isEqualTo("SUBMITTED");
+            assertThat(edited.path("event").path("contactEdited").asBoolean()).isTrue();
+            assertThat(edited.toString()).doesNotContain("5678", "encryptedPhone");
+
+            jdbc.update("INSERT INTO event_prize_deliveries(winner_id, delivered_by_user_id, delivered_at)"
+                    + " VALUES (?, 101, ?)", first, Timestamp.from(now));
+            assertThat(json(request("GET", "/notifications/" + id, null, member))
+                    .path("event").path("contactEditable").asBoolean()).isTrue();
+            jdbc.update("INSERT INTO event_prize_deliveries(winner_id, delivered_by_user_id, delivered_at)"
+                    + " SELECT w.id, 101, ? FROM event_winners w JOIN event_rounds r"
+                    + " ON r.id = w.event_round_id WHERE r.event_type = 'BUNGEOPPANG'"
+                    + " AND r.week_start_date = ?", Timestamp.from(now), java.sql.Date.valueOf(EVENT_WEEK));
+            var delivered = json(request("GET", "/notifications/" + id, null, member));
+            assertThat(delivered.path("event").path("allPrizesDelivered").asBoolean()).isTrue();
+            assertThat(delivered.path("event").path("contactActionRequired").asBoolean()).isFalse();
+            assertThat(delivered.path("event").path("contactEditable").asBoolean()).isFalse();
+            assertThat(delivered.path("event").path("awards")).hasSize(2);
+            assertThat(json(request("GET", "/notifications", null, member)).path("items"))
+                    .hasSize(1);
+        } finally {
+            cleanupEventFixture();
+        }
+    }
+
+    private long eventAward(String type, Instant announcement, Instant now) {
+        jdbc.update("""
+                INSERT INTO event_rounds(event_type, week_start_date, starts_at, ends_at,
+                    announces_at, finalized_at, finalization_source, finalized_by_user_id)
+                VALUES (?, ?, ?, ?, ?, ?, 'ADMIN', 101)
+                """, type, java.sql.Date.valueOf(EVENT_WEEK), Timestamp.from(now.minusSeconds(10800)),
+                Timestamp.from(now.minusSeconds(7200)), Timestamp.from(announcement),
+                Timestamp.from(now.minusSeconds(5400)));
+        long round = jdbc.queryForObject("SELECT id FROM event_rounds WHERE event_type = ?"
+                + " AND week_start_date = ?", Long.class, type, java.sql.Date.valueOf(EVENT_WEEK));
+        jdbc.update("INSERT INTO event_prize_slots(event_round_id, place, slot_number, prize_name)"
+                + " VALUES (?, 1, 1, '테스트 상품')", round);
+        long slot = jdbc.queryForObject("SELECT id FROM event_prize_slots WHERE event_round_id = ?",
+                Long.class, round);
+        jdbc.update("INSERT INTO event_winners(event_round_id, prize_slot_id, user_id, selected_at)"
+                + " VALUES (?, ?, 202, ?)", round, slot, Timestamp.from(now.minusSeconds(5000)));
+        return jdbc.queryForObject("SELECT id FROM event_winners WHERE event_round_id = ?", Long.class, round);
+    }
+
+    private void cleanupEventFixture() {
+        var week = java.sql.Date.valueOf(EVENT_WEEK);
+        List<Long> rounds = jdbc.queryForList("SELECT id FROM event_rounds WHERE week_start_date = ?",
+                Long.class, week);
+        jdbc.update("DELETE FROM personal_notifications WHERE user_id = 202"
+                + " AND event_week_start_date = ?", week);
+        jdbc.update("DELETE FROM event_winner_contacts WHERE user_id = 202 AND week_start_date = ?", week);
+        jdbc.update("DELETE FROM event_contact_receipts WHERE user_id = 202 AND week_start_date = ?", week);
+        for (long round : rounds) {
+            List<Long> winners = jdbc.queryForList("SELECT id FROM event_winners WHERE event_round_id = ?",
+                    Long.class, round);
+            for (long winner : winners) {
+                jdbc.update("DELETE FROM event_prize_deliveries WHERE winner_id = ?", winner);
+                jdbc.update("DELETE FROM event_winners WHERE id = ?", winner);
+            }
+            jdbc.update("DELETE FROM event_prize_slots WHERE event_round_id = ?", round);
+            jdbc.update("DELETE FROM event_rounds WHERE id = ?", round);
+        }
     }
 
     @Test

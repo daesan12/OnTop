@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -45,8 +46,10 @@ public final class WinnerContactService {
         validatePage(limit, offset);
         return Objects.requireNonNull(reads.execute(status -> {
             Instant now = now();
+            Map<LocalDate, Boolean> deliveryByWeek = repository.publishedDeliveryByWeek(userId, now);
             return repository.ownAwards(userId, week, now, limit, offset).stream()
-                    .map(this::response).toList();
+                    .map(row -> response(row, Boolean.TRUE.equals(deliveryByWeek.get(row.week())), now))
+                    .toList();
         }));
     }
 
@@ -61,6 +64,9 @@ public final class WinnerContactService {
             }
             Instant announcedAt = repository.latestAnnouncement(userId, week, now).orElseThrow(
                     () -> error(403, "EVENT_CONTACT_NOT_WINNER", "발표된 당첨 내역이 없습니다."));
+            if (Boolean.TRUE.equals(repository.publishedDeliveryByWeek(userId, now).get(week))) {
+                throw error(409, "EVENT_CONTACT_ALREADY_DELIVERED", "모든 경품의 지급이 완료되었습니다.");
+            }
             Instant deadline = announcedAt.plus(SUBMISSION_WINDOW);
             if (!now.isBefore(deadline)) {
                 throw error(409, "EVENT_CONTACT_SUBMISSION_CLOSED", "연락처 제출 기한이 지났습니다.");
@@ -143,6 +149,8 @@ public final class WinnerContactService {
             throw error(400, "EVENT_DELIVERY_BAD_REQUEST", "당첨자와 회원을 확인해 주세요.");
         }
         return Objects.requireNonNull(writes.execute(status -> {
+            // Serialize with member contact submission before checking the final delivery state.
+            repository.lockActiveUser(expectedUserId);
             DeliveryTarget target = repository.deliveryTarget(winnerId, true).orElseThrow(
                     () -> error(404, "EVENT_DELIVERY_NOT_FOUND", "당첨 건이 없습니다."));
             if (target.userId() != expectedUserId) {
@@ -166,12 +174,15 @@ public final class WinnerContactService {
         return Objects.requireNonNull(writes.execute(status -> repository.deleteExpired(now())));
     }
 
-    private WinningResponse response(AwardRow row) {
+    private WinningResponse response(AwardRow row, boolean allDelivered, Instant now) {
+        Instant deadline = publishedAt(row).plus(SUBMISSION_WINDOW);
+        String status = contactStatus(row);
+        boolean editable = !allDelivered && now.isBefore(deadline) && !status.equals("EXPIRED");
         return new WinningResponse(row.winnerId(), row.week(), row.eventType(), row.place(),
-                row.prizeName(), publishedAt(row), publishedAt(row).plus(SUBMISSION_WINDOW),
-                contactStatus(row), row.lastFour() == null ? null : mask(row.lastFour()),
+                row.prizeName(), publishedAt(row), deadline,
+                status, row.lastFour() == null ? null : mask(row.lastFour()),
                 row.contactExpiresAt(), row.deliveredAt() == null ? "PENDING" : "DELIVERED",
-                row.deliveredAt());
+                row.deliveredAt(), allDelivered, editable && status.equals("NOT_SUBMITTED"), editable);
     }
 
     private AdminWinnerResponse adminResponse(AwardRow row) {
@@ -269,7 +280,8 @@ public final class WinnerContactService {
     public record WinningResponse(long winnerId, LocalDate weekStart, String eventType,
             int place, String prizeName, Instant announcedAt, Instant submissionDeadline,
             String contactStatus, String maskedPhone, Instant contactExpiresAt,
-            String deliveryStatus, Instant deliveredAt) {}
+            String deliveryStatus, Instant deliveredAt, boolean allPrizesDelivered,
+            boolean contactActionRequired, boolean contactEditable) {}
 
     public record ContactResponse(LocalDate weekStart, String status, String maskedPhone,
             Instant expiresAt, Instant submissionDeadline) {}

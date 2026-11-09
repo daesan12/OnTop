@@ -65,7 +65,11 @@ class WinnerContactMySqlTests {
         assertCode(() -> before.submit(winner, WEEK, "01012345678"), "EVENT_CONTACT_NOT_WINNER");
         var service = service(ANNOUNCEMENT.plusSeconds(30));
         assertThat(service.ownWinnings(winner, WEEK, 100, 0)).hasSize(2)
-                .allSatisfy(item -> assertThat(item.contactStatus()).isEqualTo("NOT_SUBMITTED"));
+                .allSatisfy(item -> {
+                    assertThat(item.contactStatus()).isEqualTo("NOT_SUBMITTED");
+                    assertThat(item.contactActionRequired()).isTrue();
+                    assertThat(item.allPrizesDelivered()).isFalse();
+                });
         assertCode(() -> service.submit(outsider, WEEK, "01012345678"), "EVENT_CONTACT_NOT_WINNER");
         assertCode(() -> service.submit(winner, WEEK, "bad-phone"), "EVENT_CONTACT_BAD_PHONE");
 
@@ -96,11 +100,8 @@ class WinnerContactMySqlTests {
         assertThat(service.confirmDelivery(gm, 1, winner).alreadyDelivered()).isTrue();
         assertThat(service.ownWinnings(winner, WEEK, 100, 0)).extracting(item -> item.deliveryStatus())
                 .containsExactlyInAnyOrder("DELIVERED", "PENDING");
-        assertThat(service.confirmDelivery(gm, 2, winner).alreadyDelivered()).isFalse();
-        assertThat(service.adminWinners(gm, WEEK, null, null, 20, 0).winners())
-                .allSatisfy(item -> assertThat(item.deliveryStatus()).isEqualTo("DELIVERED"));
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_prize_deliveries", Integer.class))
-                .isEqualTo(2);
+        assertThat(service.ownWinnings(winner, WEEK, 100, 0))
+                .allSatisfy(item -> assertThat(item.contactEditable()).isTrue());
         assertCode(() -> service.reveal(reader, 1), "EVENT_CONTACT_ADMIN_FORBIDDEN");
         assertThat(service.reveal(gm, 1).phone()).isEqualTo("01012345678");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_contact_access_audit",
@@ -110,8 +111,19 @@ class WinnerContactMySqlTests {
         assertThat(corrected.submit(winner, WEEK, "010 5555 9999").expiresAt())
                 .isEqualTo(submitted.expiresAt());
         assertThat(corrected.reveal(gm, 2).phone()).isEqualTo("01055559999");
+        assertThat(service.confirmDelivery(gm, 2, winner).alreadyDelivered()).isFalse();
+        assertThat(service.adminWinners(gm, WEEK, null, null, 20, 0).winners())
+                .allSatisfy(item -> assertThat(item.deliveryStatus()).isEqualTo("DELIVERED"));
+        assertThat(service.ownWinnings(winner, WEEK, 100, 0)).allSatisfy(item -> {
+            assertThat(item.allPrizesDelivered()).isTrue();
+            assertThat(item.contactActionRequired()).isFalse();
+            assertThat(item.contactEditable()).isFalse();
+        });
+        assertCode(() -> corrected.submit(winner, WEEK, "01011112222"), "EVENT_CONTACT_ALREADY_DELIVERED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_prize_deliveries", Integer.class))
+                .isEqualTo(2);
         assertCode(() -> service(ANNOUNCEMENT.plusSeconds(7 * 24 * 3600))
-                .submit(winner, WEEK, "01011112222"), "EVENT_CONTACT_SUBMISSION_CLOSED");
+                .submit(winner, WEEK, "01011112222"), "EVENT_CONTACT_ALREADY_DELIVERED");
 
         var expired = service(submitted.expiresAt());
         assertCode(() -> expired.reveal(gm, 1), "EVENT_CONTACT_NOT_FOUND");
