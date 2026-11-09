@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { identity, parkFixture } from '../park-integration/fixture'
+import { identity, parkFixture } from './fixture'
 import { disabledJumpmapStatus } from '../fixtures/jumpmap'
 import { COURSE, COURSE_VERSION, RULES_VERSION, REWARDS, kstDate } from '../../src/features/jumpmap/course'
 import { writeFile } from 'node:fs/promises'
@@ -10,6 +10,7 @@ test.beforeEach(async ({ page }) => {
   const list: string[] = []; errors.set(page, list)
   page.on('pageerror', error => list.push(error.message))
   page.on('console', message => { if (message.type() === 'error') list.push(message.text()) })
+  page.on('response', response => { if (response.status() >= 400) console.info('[VR HTTP]', response.status(), response.url()) })
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'xr', { configurable: true, value: Object.assign(new EventTarget(), {
       isSessionSupported: async () => true,
@@ -41,7 +42,7 @@ async function enter(page: Page, course = false) {
   if (course) await page.route('**/api/v1/minigames/jumpmap/status?**', route => route.fulfill({ json: {
     ...disabledJumpmapStatus('channel-1'), enabled: true,
   } }))
-  await page.goto('/park?vrPreview=1')
+  await page.goto('/park')
   await expect(page).toHaveTitle('OnTop')
   await expect(page).toHaveURL(/\/park$/)
   await expect(page.getByRole('button', { name: '공원 VR 시작', exact: true })).toBeEnabled({ timeout: 90000 })
@@ -182,13 +183,13 @@ test('렌더 프레임이 중단되어도 연결을 잃으면 XR과 입력 소�
   expect(result.active).toBe(false); expect(result.ownsInput).toBe(false); expect(result.parent).toBeNull()
 })
 
-test('VR 놀이 방법에서 이동을 잠그고 A로 닫은 뒤 중립 입력으로 복귀한다', async ({ page }, info) => {
+test('공원 VR 조작 안내에서 이동을 잠그고 A로 닫은 뒤 중립 입력으로 복귀한다', async ({ page }, info) => {
   const server = await startSynthetic(page, true)
   await input(page, 1)
   await page.evaluate(async path => (await import(path)).buttons({ run: true }), helper)
   await expect.poll(() => server.requests.filter(r => r.type === 'WORLD_MOVE').at(-1)?.payload.run).toBe(true)
   await page.evaluate(async path => (await import(path)).buttons({ guide: true }), helper)
-  await expect.poll(async () => (await snapshot(page)).view?.key).toBe('guide')
+  await expect.poll(async () => (await snapshot(page)).view?.key).toBe('park-guide')
   expect((await snapshot(page)).active).toBe(true)
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect.poll(async () => (await snapshot(page)).dialogBounds.every(p => Math.abs(p[0]!) < 1 && Math.abs(p[1]!) < 1)).toBe(true)

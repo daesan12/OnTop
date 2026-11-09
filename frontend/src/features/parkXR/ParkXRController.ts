@@ -12,20 +12,21 @@ import type { JumpmapXRAction } from '../jumpmap/xrModel'
 import { ParkXRMovement } from './movement'
 import { useParkXR } from './state'
 import { useJumpmap, closeJumpCompletion } from '../jumpmap/state'
-import { nearJumpmapStart, inJumpmapXRRegion, parkVRPreviewEnabled } from '../jumpmap/xrEntry'
+import { nearJumpmapStart, inJumpmapXRRegion } from '../jumpmap/xrEntry'
 import { acquireVRProtection } from '../vrSession/protection'
-
-const JUMPMAP_EXIT_GRACE_MS = 500
+import { jumpmapXRFeedback } from '../jumpmap/xrFeedback'
+import { SkewerXREntry } from './SkewerXREntry'
+import { canReachParkVr, openParkVrZone } from '../vrZone/parkBridge'
+import { setXRHeightNotice, useXRComfort, XRHeightCalibration } from './comfort'
 
 /** XR follows the existing predicted/replicated avatar; it never integrates a second player. */
 export class ParkXRController {
-  private kind: 'park-preview' | 'jumpmap' = 'park-preview'
+  private kind: 'park' | 'jumpmap' = 'park'
   private releaseVR?: () => void
   private session: XRSession | null = null
   private referenceSpace: XRReferenceSpace | null = null
   private disposed = false
   private ending = false
-  private outsideSince: number | null = null
   private scope = ''
   private started = false
   private yaw = 0
@@ -33,6 +34,8 @@ export class ParkXRController {
   private readonly rig = new THREE.Group()
   private readonly headAnchor = new THREE.Group()
   private readonly panel: JumpmapXRPanel
+  private readonly skewerEntry: SkewerXREntry
+  private enterSkewerAfterEnd = false
   private readonly rotation = new THREE.Quaternion()
   private readonly direction = new THREE.Vector3()
   private readonly head = new THREE.Vector3()
@@ -45,22 +48,31 @@ export class ParkXRController {
   private readonly saved: { parent: THREE.Object3D | null; position: THREE.Vector3; rotation: THREE.Quaternion; up: THREE.Vector3; projection: THREE.Matrix4; inverse: THREE.Matrix4; layers: number }
   private readonly handles: { grip: THREE.Group; mesh: THREE.Mesh<THREE.BoxGeometry, THREE.MeshLambertMaterial> }[] = []
   private readonly rays: { target: THREE.Group; line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial> }[] = []
-  private readonly movement = new ParkXRMovement(parkRuntime)
+  private readonly movement = new ParkXRMovement(parkRuntime, () => {
+    if (this.kind === 'jumpmap') jumpmapXRFeedback.requestJump()
+  })
   private exitArmed = false
   private guideArmed = false
   private primaryArmed = false
   private selectArmed = false
   private panelKey = ''
+  private comfortSettings = useXRComfort.getState().settings
+  private readonly heightCalibration = new XRHeightCalibration()
+  private heightReady = false
+  private heightRevision = -1
+  private heightRequestRevision = -1
+  private stationaryAt: number | null = null
+  private stationaryHeadY = 0
+  private calibrationFrame = -Infinity
+  private readonly calibrationPose = new THREE.Vector3()
   private readonly unsubscribe: () => void
 
   constructor(private readonly gl: THREE.WebGLRenderer, private readonly camera: THREE.Camera, scene: THREE.Scene) {
     this.saved = { parent: camera.parent, position: camera.position.clone(), rotation: camera.quaternion.clone(), up: camera.up.clone(), projection: camera.projectionMatrix.clone(), inverse: camera.projectionMatrixInverse.clone(), layers: camera.layers.mask }
     this.rig.name = 'park-xr-rig'; this.headAnchor.name = 'park-xr-head'
     this.rig.add(this.headAnchor); this.rig.visible = false; scene.add(this.rig)
-    this.panel = new JumpmapXRPanel(scene, this.headAnchor, () => {
-      if (this.kind !== 'jumpmap') return false
-      void this.end('점프맵을 마치고 일반 공원으로 돌아왔어요.'); return true
-    })
+    this.panel = new JumpmapXRPanel(scene, this.headAnchor)
+    this.skewerEntry = new SkewerXREntry(scene)
     for (let index = 0; index < 2; index++) {
       const grip = gl.xr.getControllerGrip(index)
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(.045, .1, .06), new THREE.MeshLambertMaterial({ color: index ? '#5b9178' : '#b69b5c' }))
@@ -80,14 +92,14 @@ export class ParkXRController {
     })
   }
 
-  start = (): Promise<void> => this.begin('park-preview')
+  start = (): Promise<void> => this.begin('park')
   startJumpmap = (): Promise<void> => this.begin('jumpmap')
-  private async begin(kind: 'park-preview' | 'jumpmap'): Promise<void> {
+  private async begin(kind: 'park' | 'jumpmap'): Promise<void> {
     if (this.disposed || useParkXR.getState().phase !== 'idle') return
-    if (kind === 'park-preview' && !parkVRPreviewEnabled()) {
-      useParkXR.setState({ error: '공원 자유이동 VR은 개발 미리보기에서만 사용할 수 있어요.' }); return
-    }
     const own = avatars.get(useSession.getState().sessionId)
+    if (!own?.connected || own.carry) {
+      useParkXR.setState({ error: '다른 행동을 마친 뒤 공원에 연결된 상태에서 VR을 시작해 주세요.' }); return
+    }
     if (kind === 'jumpmap' && (!own || !nearJumpmapStart(own.current) || !useJumpmap.getState().available || own.carry || own.swimming)) {
       useParkXR.setState({ error: '다른 행동을 마친 뒤 돌탑 출발 지점에서 VR을 시작해 주세요.' }); return
     }
@@ -110,17 +122,20 @@ export class ParkXRController {
       // Preserve user activation: request the immersive session before any other await.
       granted = await navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'] })
       const release = await acquireVRProtection(parkRuntime)
+      const current = avatars.get(useSession.getState().sessionId)
       if (this.disposed || this.currentScope() !== this.scope || !canControlRoamingCamera()
-        || kind === 'jumpmap' && (!avatars.get(useSession.getState().sessionId) || !nearJumpmapStart(avatars.get(useSession.getState().sessionId)!.current))) {
+        || !current?.connected || current.carry
+        || kind === 'jumpmap' && (!nearJumpmapStart(current.current) || current.swimming || !useJumpmap.getState().available)) {
         release(); await granted.end(); return
       }
       this.releaseVR = release
-      this.session = granted; this.ending = false; this.started = false; this.outsideSince = null
+      this.session = granted; this.ending = false; this.started = false
       this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
       this.saved.parent = this.camera.parent; this.saved.layers = this.camera.layers.mask
       this.saved.position.copy(this.camera.position); this.saved.rotation.copy(this.camera.quaternion); this.saved.up.copy(this.camera.up)
       this.saved.projection.copy(this.camera.projectionMatrix); this.saved.inverse.copy(this.camera.projectionMatrixInverse)
       this.yaw = viewControls.yaw; this.offset.set(0, 0, 0)
+      this.heightCalibration.reset(); this.heightReady = false; this.heightRevision = this.heightRequestRevision = -1; this.stationaryAt = null
       sampleAvatar(avatars.get(useSession.getState().sessionId)!, performance.now(), this.pose)
       this.rig.position.set(this.pose.x, this.pose.y - .8, this.pose.z); this.rig.rotation.set(0, this.yaw, 0)
       this.rig.add(this.camera); this.rig.visible = true; this.headAnchor.visible = false; this.camera.layers.set(0)
@@ -133,7 +148,8 @@ export class ParkXRController {
       this.gl.xr.setFoveation(1)
       this.referenceSpace = this.gl.xr.getReferenceSpace()
       this.referenceSpace?.addEventListener?.('reset', this.recentered)
-      this.panel.gameOnly = kind === 'jumpmap'; this.panel.reset(); this.panelKey = ''; parkXRView.active = true
+      this.panel.inCourse = kind === 'jumpmap'; this.panel.reset(); this.panelKey = ''; parkXRView.active = true
+      if (kind === 'jumpmap') jumpmapXRFeedback.start(granted)
       useParkXR.setState({ phase: 'active', notice: '왼쪽 스틱 이동 · A 점프 · 왼손 그립 달리기 · X 놀이 방법 · B VR 종료' })
     } catch (error) {
       if (granted) await granted.end().catch(() => undefined)
@@ -150,45 +166,76 @@ export class ParkXRController {
     }
   }
 
-  end = async (notice = 'VR을 종료했어요. 기존 공원 조작으로 돌아왔어요.'): Promise<void> => {
+  end = async (notice = 'VR을 종료했어요. 기존 공원 조작으로 돌아왔어요.', reason: 'exit' | 'skewer' = 'exit'): Promise<void> => {
+    // A later ordinary exit overrides an entrance request, even while end() is pending.
+    if (reason !== 'skewer') this.enterSkewerAfterEnd = false
     if (!this.session || this.ending) return
+    jumpmapXRFeedback.suspend()
     this.ending = true; this.movement.reset(); useParkXR.setState({ phase: 'ending', notice })
     try { await this.session.end() }
     catch {
+      this.enterSkewerAfterEnd = false
       this.ending = false
       if (!this.disposed) useParkXR.setState({ phase: 'active', error: 'VR 종료 요청을 완료하지 못했어요. Meta 버튼으로 브라우저 메뉴를 열어 종료해 주세요.' })
     }
   }
   showGuide = () => {
     if (this.session && useParkXR.getState().phase === 'active') {
-      if (this.kind === 'jumpmap') this.panel.toggleGuide()
-      else this.panel.showParkGuide()
+      this.panel.toggleGuide(this.kind === 'park')
     }
+  }
+  showSettings = () => {
+    if (this.session && useParkXR.getState().phase === 'active') this.panel.showComfort()
   }
 
   private currentScope(): string { const s = useSession.getState(); return `${s.sessionId}|${s.roomId}|${s.mapVersion}` }
-  private recentered = (): void => { this.started = false; this.yaw = viewControls.yaw; this.panel.recenter(); this.interrupted() }
+  private recentered = (): void => {
+    this.started = false; this.heightReady = false; this.stationaryAt = null
+    this.yaw = viewControls.yaw; this.panel.recenter(); this.interrupted()
+  }
   private interrupted = (): void => {
+    this.enterSkewerAfterEnd = false
     if (!this.session) return
-    this.outsideSince = null
+    jumpmapXRFeedback.suspend()
     this.movement.reset(); this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
-    this.panel.setVisible(false)
+    this.panel.setVisible(false); this.skewerEntry.hide()
     // Other games may suspend the render loop; don't wait for a frame to release XR.
     queueMicrotask(() => {
       if (this.session && !document.hidden && this.session.visibilityState === 'visible' && !canControlRoamingCamera())
         void this.end('공원 메뉴·활동이 열려 VR을 종료했어요. 화면에서 확인 후 다시 시작해 주세요.')
     })
   }
-  private finished = (): void => { this.restore(); if (!this.disposed) useParkXR.setState({ phase: 'idle' }) }
+  private finished = (): void => {
+    const enterSkewer = this.enterSkewerAfterEnd && !this.exitPressed() && this.currentScope() === this.scope
+    this.restore()
+    if (!this.disposed) {
+      useParkXR.setState({ phase: 'idle' })
+      if (enterSkewer && !openParkVrZone()) useParkXR.setState({ error: '꼬치왕 입구와 공원 연결을 확인한 뒤 다시 선택해 주세요.' })
+    }
+  }
+  private enterSkewer(): void {
+    const own = avatars.get(useSession.getState().sessionId)
+    if (!own?.connected || own.carry || !canReachParkVr(own.current) || this.ending || !this.session) return
+    this.enterSkewerAfterEnd = true
+    void this.end('꼬치왕 준비 화면으로 이동해요.', 'skewer')
+  }
+  private exitPressed(): boolean {
+    return Array.from(this.session?.inputSources ?? []).some(source => source.handedness === 'right'
+      && source.gamepad?.mapping === 'xr-standard' && source.gamepad.buttons[5]?.pressed)
+  }
   private restore(): void {
-    this.outsideSince = null
+    jumpmapXRFeedback.stop()
+    this.enterSkewerAfterEnd = false; this.skewerEntry.hide()
     this.releaseVR?.(); this.releaseVR = undefined
-    if (this.kind === 'jumpmap') closeJumpCompletion()
+    closeJumpCompletion()
     this.session?.removeEventListener('end', this.finished)
     this.session?.removeEventListener('visibilitychange', this.interrupted)
     this.session?.removeEventListener('inputsourceschange', this.interrupted)
     this.referenceSpace?.removeEventListener?.('reset', this.recentered); this.referenceSpace = null
     this.session = null; this.ending = false; this.started = false; this.movement.reset()
+    this.heightCalibration.reset(); this.heightReady = false; this.stationaryAt = null
+    this.heightRevision = this.heightRequestRevision = -1
+    setXRHeightNotice('')
     parkXRView.active = parkXRView.ownsInput = false; this.rig.visible = false
     this.panel.reset(); this.rays.forEach(({ line }) => { line.visible = false })
     if (this.camera.parent === this.rig) {
@@ -203,15 +250,19 @@ export class ParkXRController {
   update(frame?: XRFrame): void {
     const session = this.session
     if (!session || !parkXRView.active || this.disposed) return
+    // Closing can stop tracking/rendering. Sample cancellation before the early return,
+    // and check once more in finished() if no further XR frame reaches us.
+    if (this.ending && this.exitPressed()) this.enterSkewerAfterEnd = false
     if (this.currentScope() !== this.scope || useSession.getState().status !== 'connected') {
       void this.end('공원 연결 상태가 바뀌어 VR을 종료했어요.'); return
     }
     const space = this.gl.xr.getReferenceSpace(), viewer = frame && space ? frame.getViewerPose(space) : null
     if (document.hidden || session.visibilityState !== 'visible' || !viewer || this.ending) {
-      this.outsideSince = null
+      this.stationaryAt = null; this.calibrationFrame = -Infinity
+      jumpmapXRFeedback.suspend()
       this.movement.update(emptyInput(), this.headYaw, performance.now(), false)
       this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
-      this.headAnchor.visible = false; this.panel.setVisible(false); this.rays.forEach(({ line }) => { line.visible = false }); return
+      this.headAnchor.visible = false; this.panel.setVisible(false); this.skewerEntry.hide(); this.rays.forEach(({ line }) => { line.visible = false }); return
     }
     if (!canControlRoamingCamera()) { void this.end('공원 메뉴·활동이 열려 VR을 종료했어요.'); return }
     const now = performance.now(), transform = viewer.transform
@@ -236,22 +287,53 @@ export class ParkXRController {
     if (!exit) this.exitArmed = true
     if (exit && this.exitArmed) { this.exitArmed = false; void this.end(); return }
     if (!guide) this.guideArmed = true
-    if (guide && this.guideArmed) { this.guideArmed = false; this.panel.toggleGuide() }
+    if (guide && this.guideArmed) { this.guideArmed = false; this.panel.toggleGuide(this.kind === 'park') }
     const avatar = avatars.get(useSession.getState().sessionId)
     if (!avatar) { void this.end('공원 캐릭터 연결을 다시 확인해 주세요.'); return }
     sampleAvatar(avatar, now, this.pose)
-    if (this.kind === 'jumpmap') {
-      // Keep server authority. Only a continuously observed boundary exit gets a grace period;
-      // a display prediction/correction must not end the session on its own.
-      if (inJumpmapXRRegion(avatar.current)) this.outsideSince = null
-      else this.outsideSince ??= now
-      if (avatar.swimming || this.outsideSince !== null && now - this.outsideSince >= JUMPMAP_EXIT_GRACE_MS) {
-        void this.end('점프맵 구역을 벗어나 일반 공원으로 돌아왔어요.'); return
-      }
+    // Server position selects presentation only. Falling/leaving the course must
+    // never release the immersive session or its server-confirmed carry protection.
+    const kind = !avatar.swimming && useJumpmap.getState().available && inJumpmapXRRegion(avatar.current) ? 'jumpmap' : 'park'
+    if (this.kind !== kind) {
+      this.kind = kind
+      if (kind === 'jumpmap') jumpmapXRFeedback.start(session)
+      else jumpmapXRFeedback.stop()
+      useParkXR.setState({ mode: kind })
     }
-    this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8, this.pose.z - this.offset.z)
+    this.panel.inCourse = kind === 'jumpmap'
+    const comfort = useXRComfort.getState()
+    if (this.comfortSettings !== comfort.settings) {
+      this.comfortSettings = comfort.settings; this.movement.reset()
+    }
+    // Count stability from each new request, including another reset while pending.
+    // Keep the applied revision separate so calibration remains pending until ready.
+    if (this.heightRequestRevision !== comfort.heightRevision) {
+      this.heightRequestRevision = comfort.heightRevision; this.stationaryAt = null
+    }
+    // readXRInput already zeroes raw stick drift inside the radial DEAD_ZONE.
+    const stable = now - this.calibrationFrame <= 250 && !avatar.moving && !avatar.swimming
+      && !input.forward && !input.strafe && !input.jump
+      && Math.hypot(this.pose.x - this.calibrationPose.x, this.pose.y - this.calibrationPose.y,
+        this.pose.z - this.calibrationPose.z) < .002
+    if (!stable) this.stationaryAt = null
+    else if (this.stationaryAt === null || Math.abs(this.head.y - this.stationaryHeadY) > .015) {
+      this.stationaryAt = now; this.stationaryHeadY = this.head.y
+    }
+    this.calibrationPose.set(this.pose.x, this.pose.y, this.pose.z); this.calibrationFrame = now
+    if (!this.heightReady || this.heightRevision !== comfort.heightRevision) {
+      // 처음 진입은 즉시 보정하고, 플레이 중 재설정은 안내판에서 착지·정지를 기다린다.
+      if (!this.heightReady || this.panel.blocking && this.stationaryAt !== null && now - this.stationaryAt >= 400) {
+        if (this.heightCalibration.calibrate(this.head.y, comfort.settings)) {
+          this.heightReady = true; this.heightRevision = comfort.heightRevision
+          setXRHeightNotice(comfort.settings.posture === 'seated' ? '앉기 눈높이를 현재 자세에 맞췄어요.' : 'Quest 바닥 기준의 서기 눈높이예요.')
+          this.panel.recenter(); this.movement.reset()
+        } else setXRHeightNotice('헤드셋을 착용하고 바닥 추적을 확인해 주세요.')
+      } else setXRHeightNotice('착지하고 스틱을 놓으면 눈높이를 맞춰요.')
+    }
+    this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8 + this.heightCalibration.offset, this.pose.z - this.offset.z)
     parkXRView.position.copy(this.head).applyQuaternion(this.rig.quaternion).add(this.rig.position)
     this.panel.update(now, parkXRView.position, this.headYaw, this.rig.position)
+    this.skewerEntry.update(avatar.current, parkXRView.position, !this.panel.blocking)
     if (this.panelKey !== this.panel.key) {
       this.panelKey = this.panel.key; this.movement.reset(); this.primaryArmed = this.selectArmed = false
     }
@@ -262,7 +344,9 @@ export class ParkXRController {
     if (this.panel.blocking && input.jump && this.primaryArmed) { this.primaryArmed = false; this.panel.primary() }
     // Menus stop intent, not XR rendering or authoritative gravity. Idle position
     // heartbeats continue through the same runtime in CLIENT_VALIDATED mode.
-    const turn = this.movement.update(this.panel.blocking ? emptyInput() : input, this.headYaw, now, true, localMovement.positionMode)
+    const turn = this.movement.update(this.panel.blocking ? emptyInput() : input, this.headYaw, now, true,
+      localMovement.positionMode, this.comfortSettings)
+    if (this.kind === 'jumpmap') jumpmapXRFeedback.update(avatar, !this.panel.blocking && !this.ending)
     if (turn) {
       this.direction.copy(this.head).applyQuaternion(this.rig.quaternion)
       this.yaw += turn; this.rig.rotation.set(0, this.yaw, 0)
@@ -270,26 +354,31 @@ export class ParkXRController {
       this.offset.add(this.rotated.sub(this.direction)); this.offset.y = 0; this.headYaw += turn
     }
     viewControls.yaw = this.headYaw
-    this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8, this.pose.z - this.offset.z)
+    this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8 + this.heightCalibration.offset, this.pose.z - this.offset.z)
     parkXRView.position.copy(this.head).applyQuaternion(this.rig.quaternion).add(this.rig.position)
     this.camera.position.copy(this.head); this.camera.quaternion.copy(this.rotation)
     this.headAnchor.position.copy(this.head); this.headAnchor.quaternion.copy(this.rotation); this.headAnchor.visible = true
     this.rig.updateMatrixWorld(true)
     let hover: JumpmapXRAction | null = null
+    let entryHovered = false
     let selected = false
-    this.rays.forEach(({ line }) => { line.visible = this.panel.blocking })
-    if (this.panel.blocking && frame && space) for (const source of session.inputSources) {
+    this.rays.forEach(({ line }) => { line.visible = this.panel.blocking || this.skewerEntry.visible })
+    if ((this.panel.blocking || this.skewerEntry.visible) && frame && space) for (const source of session.inputSources) {
       if (source.targetRayMode !== 'tracked-pointer') continue
       const ray = frame.getPose(source.targetRaySpace, space)
       if (!ray) continue
       this.rayOrigin.set(ray.transform.position.x, ray.transform.position.y, ray.transform.position.z).applyMatrix4(this.rig.matrixWorld)
       this.rayRotation.set(ray.transform.orientation.x, ray.transform.orientation.y, ray.transform.orientation.z, ray.transform.orientation.w)
       this.rayDirection.set(0, 0, -1).applyQuaternion(this.rayRotation).applyQuaternion(this.rig.quaternion)
-      const action = this.panel.hit(this.rayOrigin, this.rayDirection)
+      const action = this.panel.blocking ? this.panel.hit(this.rayOrigin, this.rayDirection) : null
+      const entry = !this.panel.blocking && this.skewerEntry.hit(this.rayOrigin, this.rayDirection)
+      entryHovered ||= entry
       if (action && (!hover || source.handedness === 'right')) hover = action
       if (action && selectNow && !selected && source.gamepad?.buttons[0]?.pressed) { selected = true; this.panel.activate(action) }
+      if (entry && selectNow && !selected && source.gamepad?.buttons[0]?.pressed) { selected = true; this.enterSkewer() }
     }
     this.panel.setHover(hover)
+    this.skewerEntry.setHover(entryHovered)
   }
 
   dispose(): void {
@@ -301,6 +390,6 @@ export class ParkXRController {
     document.removeEventListener('visibilitychange', this.interrupted); this.unsubscribe()
     for (const { grip, mesh } of this.handles) { mesh.removeFromParent(); grip.removeFromParent(); mesh.geometry.dispose(); mesh.material.dispose() }
     for (const { target, line } of this.rays) { target.removeFromParent(); line.removeFromParent(); line.geometry.dispose(); line.material.dispose() }
-    this.rig.removeFromParent(); this.panel.dispose()
+    this.rig.removeFromParent(); this.panel.dispose(); this.skewerEntry.dispose()
   }
 }

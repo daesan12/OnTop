@@ -25,13 +25,13 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
   const restRequests:{path:string;method:string;body:Record<string,unknown>}[]=[]
   const notes:{id:string;text:string;createdAt:string;category:NoteTopic}[]=[]
   let notesRevision=0
-  let interactionBusy=false
+  let interactionBusy=false,vrActive=false
   let motionEpoch=1,motionTick=0,grounded=true,velocityY=0
   let socket:WebSocketRoute,confirmationId='',version=0,channelVersion=0,facilityVersion=0,lease:FacilityLease|undefined,seated='',watched=''
   const fourPlayerTables=new Set<string>()
   const position={x:data.physics.spawn.position[0],y:data.physics.spawn.position[1],z:data.physics.spawn.position[2],yaw:Math.PI,moving:false,running:false,swimming:false,lastInputSeq:0}
   const emit=(type:string,payload:object,id:string|null=null)=>socket.send(JSON.stringify({type,payload,requestId:id}))
-  const world=(id:string|null=null)=>emit('WORLD_STATE',{channelId:'channel-1',version:++version,mapVersion:identity.mapVersion,avatars:[{userId:'101',position:{...position},...(options.carrySupported?{carry:null,interactionBusy}:{}),...(options.clientPositions?{motion:{epoch:motionEpoch,tick:++motionTick,appliedInputSeq:position.lastInputSeq,inputAgeMs:0,velocityY,grounded,inputActive:true,authority:'CLIENT_VALIDATED',profile:'PARK_V1'}}:{})}]},id)
+  const world=(id:string|null=null)=>emit('WORLD_STATE',{channelId:'channel-1',version:++version,mapVersion:identity.mapVersion,avatars:[{userId:'101',position:{...position},...(options.carrySupported?{carry:null,interactionBusy,vrActive}:{}),...(options.clientPositions?{motion:{epoch:motionEpoch,tick:++motionTick,appliedInputSeq:position.lastInputSeq,inputAgeMs:0,velocityY,grounded,inputActive:true,authority:'CLIENT_VALIDATED',profile:'PARK_V1'}}:{})}]},id)
   const occupancy=(id:string|null=null)=>emit('WORLD_FACILITY_STATE',{channelId:'channel-1',version:++facilityVersion,mapVersion:identity.mapVersion,occupancies:lease?[lease]:[]},id)
   const table=(id:string,requestId:string|null,type='TABLE_STATE')=>emit(type,{tableId:id,version:++version,capacity:4,minimumPlayers:2,seats:Array.from({length:4},(_,n)=>({seatNumber:n+1,userId:n===0&&seated===id?'101':null,ready:false})),allReady:false,selectorUserId:seated?'101':null,gameCode:fourPlayerTables.has(id)?'DICE':null,targetScore:null,betAmountPerPlayer:null,gameId:null},requestId)
   await page.route('**/api/v1/**',async route=>{
@@ -83,7 +83,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
       if(r.type==='WORLD_MOVE'){dx=r.payload.dx;dz=r.payload.dz;position.moving=!!(dx||dz);position.running=r.payload.run;position.lastInputSeq=r.payload.seq;world(r.requestId)}
       if(r.type==='WORLD_INTERACTION_SET'){
         if(options.denyInteraction)emit('ERROR',{code:'INTERACTION_UNAVAILABLE',message:'보호 상태를 확인하지 못했어요.'},r.requestId)
-        else {interactionBusy=r.payload.busy;emit('WORLD_INTERACTION_STATE',{channelId:'channel-1',busy:interactionBusy},r.requestId);world()}
+        else {if(r.payload.vrActive!==undefined)vrActive=r.payload.vrActive===true;interactionBusy=r.payload.busy||vrActive;emit('WORLD_INTERACTION_STATE',{channelId:'channel-1',busy:interactionBusy,...(r.payload.vrActive!==undefined?{vrActive}:{})},r.requestId);world()}
       }
       // Echo only: real server path validation is covered by FenceMovementPathTests.
       if(r.type==='WORLD_POSITION'&&options.clientPositions){const p=r.payload,moving=Math.hypot(Number(p.x)-position.x,Number(p.z)-position.z)>.0001;Object.assign(position,{x:p.x,y:p.y,z:p.z,yaw:p.yaw,moving,running:moving&&p.run,lastInputSeq:p.seq});world(r.requestId)}

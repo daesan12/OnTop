@@ -231,6 +231,21 @@ public class WalletTransaction {
         return entry;
     }
 
+    /** 의상 뽑기의 유료 구매·당첨/중복 환급. 미니게임 일일 보상 한도와 별개다. */
+    public static WalletTransaction gacha(long walletId, long delta, String key, Instant now) {
+        if (walletId <= 0 || delta == 0 || key == null || !key.startsWith("gacha:") || key.length() > 120) {
+            throw new IllegalArgumentException("뽑기 원장을 확인하세요.");
+        }
+        WalletTransaction transaction = new WalletTransaction();
+        transaction.walletId = walletId;
+        transaction.transactionType = delta < 0 ? "GACHA_PURCHASE" : "GACHA_PAYOUT";
+        transaction.balanceDelta = delta;
+        transaction.reservedDelta = 0;
+        transaction.idempotencyKey = key;
+        transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return transaction;
+    }
+
     public static WalletTransaction signupBonus(long walletId, long userId, Instant now) {
         if (walletId <= 0) {
             throw new IllegalArgumentException("저장된 지갑이 필요합니다.");

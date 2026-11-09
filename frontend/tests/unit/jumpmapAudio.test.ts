@@ -37,6 +37,42 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('approved jumpmap landing audio', () => {
+  it('VR 도약·바닥 착지는 기존 클립을 한 번만 준비하고 전달받은 효과음 버스를 사용한다', async () => {
+    const { preloadJumpMotionSounds, playJumpMotionSound } = await import('../../src/features/jumpmap/audio')
+    const a = makeAudio()
+    await preloadJumpMotionSounds(a.context); await preloadJumpMotionSounds(a.context)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(fetcher).toHaveBeenNthCalledWith(1, '/audio/bgm/move-jump.ogg')
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/audio/bgm/move-land.ogg')
+    playJumpMotionSound('jump', { output: a }); playJumpMotionSound('land', { output: a }); await flush()
+    expect(a.sources).toHaveLength(2)
+    expect(a.gains.map(g => g.gain.value)).toEqual([.18, .35])
+    expect(a.pans.every(p => p.connect.mock.calls[0]?.[0] === a.bus)).toBe(true)
+  })
+
+  it('VR 종료 후 늦게 디코딩된 도약음은 재생하지 않는다', async () => {
+    const { playJumpMotionSound } = await import('../../src/features/jumpmap/audio')
+    let resolve!: (value: ReturnType<typeof response>) => void
+    fetcher.mockImplementationOnce(() => new Promise(r => { resolve = r }))
+    const a = makeAudio(), abort = new AbortController()
+    playJumpMotionSound('jump', { output: a, signal: abort.signal }); abort.abort()
+    resolve(response()); await flush()
+    expect(a.sources).toHaveLength(0)
+  })
+
+  it('VR 안내·종료 시 이미 재생 중인 체크포인트 차임도 취소한다', async () => {
+    vi.useFakeTimers()
+    const { playJumpSound } = await import('../../src/features/jumpmap/audio')
+    const a = makeAudio(), abort = new AbortController()
+    playJumpSound(hit('gate'), { output: a, signal: abort.signal })
+    abort.abort()
+    for (const result of a.audio.createOscillator.mock.results) {
+      expect(result.value.stop).toHaveBeenCalledTimes(2)
+      expect(result.value.disconnect).toHaveBeenCalledTimes(1)
+    }
+    await vi.advanceTimersByTimeAsync(650)
+  })
+
   it('ships all eight exact approved PCM files with the final selected durations', async () => {
     const { JUMP_LANDING_FILES } = await import('../../src/features/jumpmap/audio')
     const selected = JSON.parse(readFileSync(new URL('../../public/audio/jumpmap/selection.json', import.meta.url), 'utf8')) as {

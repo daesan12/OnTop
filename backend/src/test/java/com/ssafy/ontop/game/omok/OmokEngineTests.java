@@ -90,15 +90,26 @@ class OmokEngineTests {
     }
 
     @Test
-    void 공개상태와_재접속은_서버금수_위치를_동일하게_전달한다() throws Exception {
+    void 금수_좌표는_흑의_개인상태와_복구에만_전달하고_백과_관전자에게_노출하지않는다() throws Exception {
         int[][] blacks = {{6,7},{8,7},{7,6},{7,8}};
         for (int i = 0; i < blacks.length; i++) {
             play(101, "black-preview-" + i, i * 2, blacks[i][0], blacks[i][1]);
             play(202, "white-preview-" + i, i * 2 + 1, i * 2, 0);
         }
-        JsonNode points = state().path("forbiddenMoves");
+        var black = engine.load(101, "game").orElseThrow();
+        var white = engine.load(202, "game").orElseThrow();
+        var spectator = engine.load(505, "game").orElseThrow();
+        JsonNode points = black.privateState().path("forbiddenMoves");
         assertThat(points).isEqualTo(mapper.readTree("[{\"x\":7,\"y\":7,\"kind\":\"33\"}]"));
-        assertThat(engine.load(101).orElseThrow().state().path("forbiddenMoves")).isEqualTo(points);
+        assertThat(black.privateState().path("userId").asText()).isEqualTo("101");
+        assertThat(black.publicState().has("forbiddenMoves")).isFalse();
+        assertThat(black.publicState()).isEqualTo(white.publicState()).isEqualTo(spectator.publicState());
+        assertThat(white.privateState().isEmpty()).isTrue();
+        assertThat(spectator.privateState().isEmpty()).isTrue();
+        assertThat(mapper.valueToTree(white).findValues("forbiddenMoves")).isEmpty();
+        assertThat(mapper.valueToTree(spectator).findValues("forbiddenMoves")).isEmpty();
+        assertThat(engine.load(101).orElseThrow().state().at("/privateState/forbiddenMoves")).isEqualTo(points);
+        assertThat(engine.load(202).orElseThrow().state().findValues("forbiddenMoves")).isEmpty();
     }
 
     @Test

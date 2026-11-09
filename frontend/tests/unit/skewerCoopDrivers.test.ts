@@ -10,9 +10,16 @@ function fixture() {
   const hall = new HallPreview().view(), act = vi.fn((_input: Record<string, unknown>, _quiet?: boolean) => Promise.resolve())
   const client = { snapshot: { gameId: 'skewer-coop-00000000-0000-4000-8000-000000000000', version: 1,
     registered: true, privateState: { role: 'server', hall }, publicState: { gameCode: 'SKEWER_COOP', actionVersion: 1, phase: 'PLAYING', channelId: 'park', players: [{ userId: '101', role: 'server' }, { userId: '202', role: 'chef' }], elapsed: 0, remaining: 240, countdown: 0, score: 0, served: 0, greeting: { active: false }, paused: false } }, playable: true, act }
+  Object.assign(client, { transport: { scope: () => ({ userId: '101', channelId: 'park', connected: true }) } })
+  client.snapshot.publicState.players.forEach(player => Object.assign(player, { connected: true }))
   return { client, driver: new OnlineHall(client as unknown as CoopClient), hall, act }
 }
 describe('협동 홀 입력의 서버 판정 경계', () => {
+  it('이전 클릭 이동 진입점은 온라인 이동 요청을 전송하지 않는다', () => {
+    const { driver, act } = fixture()
+    driver.navigate({ x: 8, z: 0 })
+    expect(act).not.toHaveBeenCalled()
+  })
   it('시작과 방향 전환은 이동 유지 주기를 기다리지 않고 다음 프레임에 보낸다', async () => {
     const clock = vi.spyOn(performance, 'now')
     try {
@@ -46,19 +53,21 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
       expect(act).toHaveBeenCalledTimes(2)
     } finally { clock.mockRestore() }
   })
-  it('응답을 기다리는 중 방향이 여러 번 바뀌어도 요청을 쌓지 않고 최신 입력만 보낸다', async () => {
+  it('응답을 기다리는 중에도 새 방향과 정지는 즉시 보내고 유지 입력은 중복하지 않는다', async () => {
     const { driver, act } = fixture()
     let acknowledge!: () => void
     act.mockImplementationOnce(() => new Promise<void>(resolve => { acknowledge = resolve }))
     driver.step(1 / 60, 1, 0)
     driver.step(1 / 60, -1, 0)
     driver.step(1 / 60, 0, 1)
-    expect(act).toHaveBeenCalledTimes(1)
+    for (let i = 0; i < 20; i++) driver.step(1 / 60, 0, 1)
+    expect(act).toHaveBeenCalledTimes(3)
     acknowledge()
     await Promise.resolve()
     driver.step(1 / 60, 0, 0)
     expect(act.mock.calls.map(([input]) => input)).toEqual([
-      { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: 0, dz: 0 },
+      { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: -1, dz: 0 },
+      { type: 'MOVE', dx: 0, dz: 1 }, { type: 'MOVE', dx: 0, dz: 0 },
     ])
   })
   it('늦은 서버 좌표를 받으며 전진해도 화면 위치가 주기적으로 뒤로 튀지 않는다', () => {
@@ -68,12 +77,60 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
     for (let frame = 0; frame < 120; frame++) {
       if (frame % 6 === 0) {
         hall.position = { x: start.x + Math.max(0, frame - 18) / 60 * 4.8, z: start.z }
+        client.snapshot.publicState.elapsed = frame / 60
         client.snapshot.version++
       }
       driver.step(1 / 60, 1, 0)
       expect(driver.view().position.x).toBeGreaterThanOrEqual(previous)
       previous = driver.view().position.x
     }
+  })
+  it('MOVE 확인 응답이 추가되어도 서버 시각으로 위치를 일정하게 재생한다', () => {
+    const { client, driver, hall } = fixture()
+    const start = { ...hall.position }, steps: number[] = []
+    let previous = start.x, sample = 0
+    for (let frame = 0; frame <= 120; frame++) {
+      const next = sample + 1
+      if (frame === next * 6 + (next % 2 ? 2 : 0)) {
+        sample = next; hall.position = { x: start.x + sample * .58, z: start.z }
+        client.snapshot.publicState.elapsed = sample * .1; client.snapshot.version++
+      }
+      if (frame % 4 === 0) client.snapshot.version++
+      driver.step(1 / 60, 1, 0)
+      const x = driver.view().position.x
+      if (frame > 30) steps.push(x - previous)
+      previous = x
+    }
+    expect(Math.min(...steps)).toBeGreaterThan(.09)
+    expect(Math.max(...steps) - Math.min(...steps)).toBeLessThan(.000001)
+  })
+  it.each([0, .6])('화면 복귀·긴 프레임 공백 dt=%s 뒤 서버 시각을 다시 맞춘다', dt => {
+    const { client, driver, hall } = fixture()
+    driver.step(1 / 60)
+    hall.position = { x: hall.position.x + 1, z: hall.position.z }
+    client.snapshot.publicState.elapsed = 10; client.snapshot.version++
+    driver.step(dt)
+    expect(driver.view().position).toEqual(hall.position)
+    client.snapshot.publicState.elapsed = 10.1
+    hall.position = { x: hall.position.x + .58, z: hall.position.z }; client.snapshot.version++
+    for (let i = 0; i < 12; i++) driver.step(1 / 60)
+    expect(driver.view().position.x).toBeGreaterThan(hall.position.x - .58)
+    expect(driver.view().position.x).toBeLessThanOrEqual(hall.position.x)
+  })
+  it('이전 방향 응답만 지연돼도 새 방향의 이동 유지 요청은 계속 전송한다', async () => {
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(0)
+    const { driver, act } = fixture()
+    let acknowledge!: () => void
+    act.mockImplementationOnce(() => new Promise<void>(resolve => { acknowledge = resolve }))
+    try {
+      driver.step(1 / 60, 1, 0)
+      clock.mockReturnValue(16); driver.step(1 / 60, 0, 1)
+      await Promise.resolve()
+      clock.mockReturnValue(200); driver.step(1 / 60, 0, 1)
+      expect(act.mock.calls.map(([input]) => input)).toEqual([
+        { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: 0, dz: 1 }, { type: 'MOVE', dx: 0, dz: 1 },
+      ])
+    } finally { acknowledge(); clock.mockRestore() }
   })
   it('서버가 가구 앞에서 멈추면 화면만 가구 안으로 예측 이동하지 않는다', () => {
     const { driver, hall } = fixture()
@@ -84,7 +141,7 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
   it('요리사 화면은 서버가 갱신한 동료 위치를 그대로 전달한다', () => {
     const { client } = fixture(), source = client as unknown as CoopClient
     source.snapshot!.privateState = { role: 'chef', chef: { ...new ChefPreview().view(), hallSight: { position: { x: 1, z: 2 }, carrying: false, cleaning: false, tables: [] } } }
-    Object.assign(source, { store: { getState: () => ({ result: null }) } })
+    Object.assign(source, { store: { getState: () => ({ result: null, connected: true, error: '' }) } })
     const chef = new OnlineChef(source)
     expect(chef.view().hallSight?.position).toEqual({ x: 1, z: 2 })
     source.snapshot!.privateState.chef!.hallSight!.position = { x: 3, z: 4 }
@@ -102,7 +159,7 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
     const { client } = fixture()
     const source = client as unknown as CoopClient
     source.snapshot!.privateState = { role: 'chef', chef: new ChefPreview().view() }
-    Object.assign(source, { store: { getState: () => ({ result: null }) } })
+    Object.assign(source, { store: { getState: () => ({ result: null, connected: true, error: '' }) } })
     const chef = new OnlineChef(source), last = chef.view()
     source.snapshot!.privateState = { role: 'server', hall: new HallPreview().view() }
     expect(chef.view()).toBe(last)

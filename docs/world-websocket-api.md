@@ -1,12 +1,21 @@
 # 광장 WebSocket · 채널·이동·채팅
 
-닉네임 일반 표시 반경 50m·인원 제한 제거와 `WORLD_CHAT_TYPING_SET` / `WORLD_CHAT_TYPING_STATE`는 [입력 중 상태 계약](world-chat-typing-api.md)을 따른다. 채팅 본문 수신 반경 20m는 유지한다.
+닉네임 일반 표시 반경 50m·인원 제한 제거와 `WORLD_CHAT_TYPING_SET` / `WORLD_CHAT_TYPING_STATE`는 [입력 중 상태 계약](world-chat-typing-api.md)을 따른다. 2026-11-07 사용자 확정으로 주변 채팅 수신 반경은 50m이며 관전 반경은 20m를 유지한다.
 
 2026-11-03 추가 공개 필드 `WORLD_STATE.gameWatches`와 `avatars[].activity=WATCHING`은
 [경기 관전 수·공개 활동](world-spectator-presence-api.md)을 따른다. 실제 승인된 진행 경기 관전자만 세며 종료 즉시 해제한다.
 
 공통 메시지 빈도·동시 접속 상한과 1013/1009 종료는 [유입 제한](websocket-ingress-limits.md)을 참고한다.
 로컬 구현이며 운영 수치·신뢰 프록시·FE 지연 재연결 정책은 아직 합의 전이다.
+
+## VR 실행 표시 (2026-11-08)
+
+- 기존 인증 연결에서 `WORLD_INTERACTION_SET`의 선택 boolean `vrActive`로 본인 VR 상태를 알린다. 시작은 `{busy:true, vrActive:true}`, 종료는 현재 일반 팝업 점유와 함께 `{busy:<팝업 점유>, vrActive:false}`를 전송한다. `userId` 추가나 `busy:false, vrActive:true`는 거절한다.
+- `WORLD_INTERACTION_STATE`는 `{channelId, busy}`를 유지하고, 요청에 `vrActive`가 있을 때만 같은 boolean 필드를 추가한다. 기존 `{busy}` 요청은 VR 상태를 변경하지 않으며 VR 실행 중에는 busy 보호를 해제하지 않는다. 일반 팝업 busy만으로 VR 표시를 켜지 않는다.
+- 같은 채널의 전체 `WORLD_STATE.avatars[]`에 실행 중인 사용자만 `vrActive:true`를 포함한다. false/누락/사용자 제거는 표시 해제다. 변경은 기존 약 10Hz 방송에 합치고 운반 해제 시 즉시 방송하는 기존 정책을 유지한다.
+- 공원·점프맵·꼬치왕 요리사의 공통 VR 보호 수명에 연결한다. VR 종료 시 표시를 지우되 팝업이 남아 있으면 일반 busy 보호는 유지한다. 서버가 연결 해제를 감지하면 VR 정보를 제거한다. 점프맵 재접속 유예로 아바타가 남는 경우에도 VR 표시는 제거한다. 재입장 시 이전 VR 상태를 복원하지 않는다. 클라이언트도 자신의 연결 해제·채널 초기화 시 표시를 지운다.
+- 닉네임 옆 `VR`은 클라이언트가 실행한 VR 세션의 표시이며, 물리적으로 헤드셋을 착용했는지 검증하는 정보는 아니다. 통신이 조용히 끊긴 경우 원격 사용자의 표시는 서버의 연결 해제 감지 이후 사라진다.
+- DB·migration·새 메시지 종류는 없다. 새 FE는 VR 시작 승인에서 `vrActive` 응답을 확인하므로 BE를 함께 반영해야 한다. 일반 팝업의 기존 요청/응답은 호환된다.
 
 연결 시 실제 로딩한 맵 정보와 입장 전 확인은 [맵 버전 계약](world-map-api.md)을 사용한다.
 버전 검사 활성화 시 WORLD_MAP_CONFIRM 성공 후 기존 CHANNEL_JOIN을 보낸다.
@@ -17,7 +26,7 @@
 
 기존 Raw WebSocket `/ws/tables` 연결을 재사용하며 별도 `/ws/world` 연결은 만들지 않는다. 인증은 기본 필수이고 비인증 개발 사용자는 명시적 local 환경에서만 허용한다. 비local의 WebSocket 기반 등록·Origin 검증·프로필 제한은 [현행 인증 계약](websocket-authentication.md#실행-조건)을 따른다. 기존 중복 접속 차단·heartbeat·연결별 송신 순서는 유지하며 상점 외형 조회 Gateway의 local·db 조건과 구분한다.
 
-기준은 [OnTop v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)의 광장·실시간 통신과 [채널 목록 계약](channel-query-api.md)이다. 아래 메시지 이름·필드·버전은 구현의 통신 계약이다. 같은 채널 위치 공유·채팅 송수신 기반을 구현했다. 채팅은 기본20m 근거리 필터와 서버 판정 위치를 사용한다. 채널 설정 시 채널별 테이블을 생성하고 해당 채널 입장 후에만 착석한다. [테이블 조회 계약](table-query-api.md)의 channelId 필터와 서버 발급 tableId를 사용한다. 채널 설정 없는 기존 개발 모드만 table-1·table-2를 유지한다.
+기준은 [OnTop v0.4](https://app.notion.com/p/OnTop_-_-154161842b868387b6ad0174db68ee71)의 광장·실시간 통신과 [채널 목록 계약](channel-query-api.md)이다. 아래 메시지 이름·필드·버전은 구현의 통신 계약이다. 같은 채널 위치 공유·채팅 송수신 기반을 구현했다. 채팅은 기본50m 근거리 필터와 서버 판정 위치를 사용한다. 채널 설정 시 채널별 테이블을 생성하고 해당 채널 입장 후에만 착석한다. [테이블 조회 계약](table-query-api.md)의 channelId 필터와 서버 발급 tableId를 사용한다. 채널 설정 없는 기존 개발 모드만 table-1·table-2를 유지한다.
 
 ## 입장
 
@@ -173,7 +182,7 @@
 }
 ```
 
-맵 밖 스폰을 막기 위해 제공 맵의 검증된16개 스폰 영역을 순환한다(아바타 간 충돌 제외). mapVersion은 수령 manifest의 SHA-256이며 위치·상품은 예시다. avatars는 입장 순서, version은 입퇴장·입력수락·위치/모션·장착 외형·공개 착석·미니게임 이용 상태 변화 시 증가하며 CHANNEL_STATE와 비교하지 않는다. 동일 채널의 낮은 버전은 무시하고 연결/채널 변경 시 캐시를 비운다. 프론트는 같은 맵 버전을 사용해 보간·서버 위치 보정을 담당한다. 기존 Colyseus adapter를 자동 변환한 것은 아니다. 채팅·관전20m는 이 서버 위치를 읽으며 테이블 좌표는 기존 서버 설정을 유지한다.
+맵 밖 스폰을 막기 위해 제공 맵의 검증된16개 스폰 영역을 순환한다(아바타 간 충돌 제외). mapVersion은 수령 manifest의 SHA-256이며 위치·상품은 예시다. avatars는 입장 순서, version은 입퇴장·입력수락·위치/모션·장착 외형·공개 착석·미니게임 이용 상태 변화 시 증가하며 CHANNEL_STATE와 비교하지 않는다. 동일 채널의 낮은 버전은 무시하고 연결/채널 변경 시 캐시를 비운다. 프론트는 같은 맵 버전을 사용해 보간·서버 위치 보정을 담당한다. 기존 Colyseus adapter를 자동 변환한 것은 아니다. 채팅50m·관전20m는 이 서버 위치를 읽으며 테이블 좌표는 기존 서버 설정을 유지한다.
 
 ### 공개 테이블 착석 동기화 · 2026-10-28
 
@@ -254,7 +263,7 @@ FE는 채팅 기록과 별도로 머리 위에 “붕어빵 뒤집는 중”을 
 
 ## 채널 채팅 기반 · WORLD_CHAT_SEND / WORLD_CHAT_MESSAGE
 
-현재 local 계약은 발신자 기준 같은 채널의 XZ 반경 20m 이내 전달이다. 채널 입장 시 서버 스폰을 부여한다. 방어적으로 위치가 없으면 WORLD_POSITION_REQUIRED다. [근거리 설정·관전 계약](world-proximity.md)을 함께 따른다.
+현재 local 계약은 발신자 기준 같은 채널의 XZ 반경 50m 이내 전달이다. 채널 입장 시 서버 스폰을 부여한다. 방어적으로 위치가 없으면 WORLD_POSITION_REQUIRED다. [근거리 설정·관전 계약](world-proximity.md)을 함께 따른다.
 
 ```json
 {
@@ -280,7 +289,7 @@ FE는 채팅 기록과 별도로 머리 위에 “붕어빵 뒤집는 중”을 
 }
 ```
 
-- 성공은 본인에게 원래 requestId의 WORLD_CHAT_MESSAGE, 같은 채널에서 위치가 확인되고 발신자 반경 20m 이내인 나머지 참가자에게 requestId=null인 같은 payload를 보낸다. 별도 ACK는 없다. 미입장·다른 채널·위치 미보고·범위 밖 타인에게 전달하지 않는다. 대기 착석자는 서버가 유지한 위치로 이용한다.
+- 성공은 본인에게 원래 requestId의 WORLD_CHAT_MESSAGE, 같은 채널에서 위치가 확인되고 발신자 반경 50m 이내인 나머지 참가자에게 requestId=null인 같은 payload를 보낸다. 별도 ACK는 없다. 미입장·다른 채널·위치 미보고·범위 밖 타인에게 전달하지 않는다. 대기 착석자는 서버가 유지한 위치로 이용한다.
 - `userId`는 서버 연결의 내부 ID, `messageId`는 서버 발급 UUID, `sentAt`은 서버 UTC 시각이다. 닉네임·프로필 연동은 아직 없다. 클라이언트가 userId/channelId/messageId/시각을 payload에 넣으면 INVALID_PAYLOAD다.
 - `text`는 문자열 하나만 허용한다. 앞뒤 공백을 제거한 1~200 Unicode 코드포인트이며 이모지 하나는 코드포인트 기준으로 센다. 조합 이모지는 여러 코드포인트일 수 있다. 빈 문자열·공백만·초과·개행/탭/제어문자·U+2028/U+2029 줄 구분 문자·짝 없는 surrogate는 INVALID_PAYLOAD다. HTML 같은 문자열은 일반 텍스트로 보존하므로 프론트는 textContent 등 텍스트 렌더링을 사용하며 HTML로 삽입하지 않는다.
 - 기본 최소 전송 간격은 사용자별 1초다. `ontop.world.chat.minimum-interval`로 0 초과~60초 이하를 설정한다. 빠른 재전송은 CHAT_TOO_FREQUENT이며 메시지를 전달하거나 마지막 성공 시간을 연장하지 않는다. 채널 이동·퇴장·재입장으로 간격을 초기화하지 않는다. 연결 종료·heartbeat·앱 종료에서는 관련 메모리를 정리한다.

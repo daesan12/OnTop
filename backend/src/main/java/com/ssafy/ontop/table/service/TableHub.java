@@ -1232,13 +1232,14 @@ public class TableHub {
                 builder -> builder.tableId(tableId).channelId(tableChannels.get(tableId)));
     }
 
-    /** Recovery permits the original channel and its read-only boot snapshots, never lobby actions. */
+    /** 복구된 원래 채널의 조회와 무료 경기 참가자 본인의 조작 점유만 허용한다. 로비 권한은 주지 않는다. */
     private boolean restoredChannelAccess(Member member, Request request) {
         if (member.accountId() == null || reconnect.isEmpty()) return false;
         String freeChannel = request.type().equals("CHANNEL_JOIN")
                 ? request.payload().path("channelId").asText() : channels.channelOf(member.userId());
         if ((request.type().equals("CHANNEL_JOIN")
-                || Set.of("WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FOLLOW_CHECK").contains(request.type()))
+                || Set.of("WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FOLLOW_CHECK",
+                        "WORLD_INTERACTION_SET").contains(request.type()))
                 && reconnect.get().canResumeUnreservedChannel(member.accountId(), member.sessionId(), freeChannel)) {
             return true;
         }
@@ -1898,9 +1899,16 @@ public class TableHub {
     }
 
     private void interactionBusy(Member member, Request request) {
-        var change = channels.interactionBusy(member.userId(), request.payload().path("busy").asBoolean());
+        var change = channels.interactionBusy(member.userId(), request.payload().path("busy").asBoolean(),
+                request.payload().has("vrActive") ? request.payload().path("vrActive").asBoolean() : null);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("channelId", change.channelId());
+        payload.put("busy", change.busy());
+        if (request.payload().has("vrActive")) {
+            payload.put("vrActive", change.vrActive());
+        }
         member.peer().offer(protocol.encode(request.requestId(), "WORLD_INTERACTION_STATE",
-                Map.of("channelId", change.channelId(), "busy", change.busy())));
+                payload));
         if (change.released() != null) {
             publishWorld(change.released(), null, null);
         }
@@ -1938,6 +1946,18 @@ public class TableHub {
         String message = protocol.encode(null, "NOTES_CHANGED", Map.of("revision", Long.toString(revision)));
         for (Member member : members.values()) {
             if (isMapReady(member) && channels.channelOf(member.userId()) != null) { member.peer().offer(message); }
+        }
+    }
+
+    @org.springframework.transaction.event.TransactionalEventListener(
+            phase = org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT)
+    public synchronized void personalNotificationChanged(
+            com.ssafy.ontop.notification.service.PersonalNotificationChanged event) {
+        if (stopped) { return; }
+        String message = protocol.encode(null, "PERSONAL_NOTIFICATION_CHANGED",
+                Map.of("notificationId", event.notificationId()));
+        for (Member member : members.values()) {
+            if (member.userId().equals(Long.toString(event.userId()))) { member.peer().offer(message); }
         }
     }
 
@@ -2938,6 +2958,14 @@ public class TableHub {
     private void sendParkDebris(Member member, String channelId) {
         if (isMapReady(member)) {
             member.peer().offer(protocol.encode(null, "WORLD_PARK_DEBRIS_STATE", parkDebrisState(channelId)));
+        }
+    }
+
+    /** 모든 채널의 접속자에게 동일한 DB 확정 기계 상태를 보낸다. 본인 재고는 방송하지 않는다. */
+    public synchronized void publishGacha(com.ssafy.ontop.gacha.GachaDtos.Event event) {
+        String message = protocol.encode(null, "GACHA_STATE", event);
+        for (Member target : members.values()) {
+            if (isMapReady(target)) target.peer().offer(message);
         }
     }
 

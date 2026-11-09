@@ -72,7 +72,7 @@ class DevMetricsBoundaryTests {
     @SpringBootConfiguration
     @EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class,
             FlywayAutoConfiguration.class})
-    @Import(DevObservabilityConfiguration.class)
+    @Import(ObservabilityConfiguration.class)
     static class Fixture {
 
         @Bean

@@ -1,4 +1,4 @@
-# 보유 엽전 랭킹
+# 총자산 랭킹
 
 공원 랭킹판의 보유량 TOP 10·붕어빵 우승자·점프맵 우승자와 1분 스냅샷 계약은
 [park-ranking-api.md](park-ranking-api.md)를 참고한다.
@@ -13,15 +13,17 @@ RANK-01 · 담당 장대산. 2026-10-25 사용자가 팀원 요청에 따른 추
 ```json
 {
   "items": [
-    { "rank": 1, "userId": "101", "nickname": "탑골대장", "coinBalance": 300 }
+    { "rank": 1, "userId": "101", "nickname": "탑골대장", "coinBalance": 300, "equipmentValue": 1000, "totalAssets": 1300 }
   ],
-  "myRank": { "rank": 3, "coinBalance": 100 },
+  "myRank": { "rank": 3, "coinBalance": 100, "equipmentValue": 0, "totalAssets": 100 },
   "updatedAt": "2026-10-25T10:00:00Z"
 }
 ```
 
 - `coinBalance`는 실제 `wallets.balance`이며 예약금도 포함한다. 초안의 `wallets.coin_balance`는 실제 컬럼명이 아니다.
-- 활성 회원 중 지갑이 존재하는 회원을 대상으로 보유량 내림차순. 동점은 `1,1,3`, 같은 잔액의 표시 순서는 userId 오름차순.
+- 활성 회원 중 지갑이 존재하는 회원을 대상으로 `totalAssets` 내림차순. 동점은 `1,1,3`, 같은 총자산의 표시 순서는 userId 오름차순.
+- `equipmentValue`는 완전 보유한 등록 의상 상품의 등급 가치 합계, `totalAssets = coinBalance + equipmentValue`다. 같은 상품의 수량·내부 부위·착용 상태로 중복 합산하지 않는다. 부분 보유는 제외하고 티켓·미개봉 상자는 합산하지 않는다. 상세 계약은 [의상 뽑기](gacha-api.md)를 따른다.
+- `GACHA_ENABLED=false`에서는 새 상품 테이블을 읽지 않고 `equipmentValue=0`, `totalAssets=coinBalance`로 기존 순위를 유지한다. 의상 가치가 등록된 기존 완전 보유 상품은 기능 활성화부터 합산된다.
 - items는 최대 limit명이다. 경계 동점이어도 인원을 초과해 반환하지 않는다. TOP 밖 본인 순위는 myRank로 제공한다.
 - 지갑 미생성 회원은 랭킹에서 제외하며 본인 지갑이 없으면 myRank=null이다. 조회로 지갑 생성·가입 지급을 수행하지 않는다.
 - `updatedAt`은 조회 시각이다. 정산 완료 시각이나 캐시 만료 시각이 아니다. 주간/시즌 리셋·추가 WS 방송은 구현하지 않는다.

@@ -6,8 +6,10 @@ import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Matrix4, Vector3 } from 'three'
 import { cameraWorldPosition, parkXRView } from './xrView'
 import { ParkAssetLoader } from './art/assetLoader'
-import { characterUrls, createCharacterRig } from './worldAssets'
+import { characterUrls } from './worldAssets'
+import { createSafeCharacterRig } from './art/safeCharacterRig'
 import { avatarPoseActive, avatarPoseAmbient, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
+import { createCarryMotion } from './avatarCarryMotion'
 import { AvatarPresentation } from './avatarPresentation'
 import { SwimmingRipples } from './SwimmingRipples'
 
@@ -23,6 +25,7 @@ import { emptyEquipment } from '../network/equipment'
 import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from './art/characterLook'
 import { useOutfitSources } from './art/outfitSources'
 import { resolveWholeSkin } from './art/wholeSkin'
+import { useSkinCatalog } from './art/skinCatalog'
 import { previewEquipment, useWardrobe } from '../features/wardrobe/state'
 import type { OwnedItem } from '../features/shop/contracts'
 import { WARDROBE_OUTFITS_ENABLED } from '../features/wardrobe/feature'
@@ -52,11 +55,13 @@ function Avatar({
   rigs,
   menuRaycast,
   samplePose,
+  carryMotion,
 }: {
   id: string
   rigs: Map<string, AvatarAnchors>
   menuRaycast: Group['raycast']
   samplePose: AvatarSampler
+  carryMotion: ReturnType<typeof createCarryMotion>
 }) {
   const sources = useLoader(ParkAssetLoader, characterUrls)
   const variant = useSession(state => state.profiles[id]?.character === 'girl' ? 'girl' : 'man')
@@ -67,8 +72,9 @@ function Avatar({
   // (only the own avatar previews; others keep one empty list, so a wardrobe refresh does not re-render them)
   const owned = useWardrobe(state => own ? state.items : noItems)
   const worn = useMemo(() => previewId && previewEquipment(owned, previewId) || equipment, [previewId, owned, equipment])
+  const catalogRevision = useSkinCatalog(s => s.revision)
   // Outfits closed (production build): every avatar keeps its default clothes, whatever is equipped.
-  const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn])
+  const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn, catalogRevision])
   const wholeSkin = WARDROBE_OUTFITS_ENABLED ? resolveWholeSkin(variant, worn) : undefined
   const outfits = useOutfitSources(wholeSkin ? [wholeSkin.source] : lookSources(look).filter(source => !isCharacterSource(source)))
   const wholeSource = wholeSkin && outfits.get(wholeSkin.source)
@@ -76,7 +82,7 @@ function Avatar({
   const shown = availableLook(variant, look, source => files.has(source))
   const shownKey = lookKey(shown)
   const model = useMemo(
-    () => wholeSource ? createCharacterRig(wholeSource) : createCharacterRig(sources[variant === 'girl' ? 1 : 0]!, shown, files),
+    () => createSafeCharacterRig(sources[variant === 'girl' ? 1 : 0]!, shown, files, wholeSource || undefined),
     // (`shown` is fully described by its key)
     [sources, variant, shownKey, files, wholeSource],
   )
@@ -153,7 +159,8 @@ function Avatar({
       pose.z,
     )
     root.current.rotation.y = pose.yaw
-    if (!root.current.visible) return
+    const carryAnimation = carryMotion.get(id)
+    if (!root.current.visible && !carryAnimation) return
     // The visitors parent has an identity transform; this position is already
     // in world space. Avoid walking/updating the ancestor matrices per avatar.
     const distance = cameraWorldPosition(camera).distanceTo(root.current.position)
@@ -163,8 +170,8 @@ function Avatar({
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
-    const displayAvatar = presentation.sample(avatar, displayFlags)
-    const active = !!reaction || avatarPoseActive(displayAvatar, now)
+    const displayAvatar = presentation.sample(avatar, displayFlags, own ? undefined : pose, frameAt)
+    const active = !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -180,7 +187,8 @@ function Avatar({
     const throwFlight = partner?.carry?.role === 'THROWN' && partner.carry.partnerId === id
       && partner.carry.carryId === carriedPartner.current.carryId ? partner : null
     motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
-      holdingCards ? oneCardHoldingPose : undefined, throwFlight)
+      holdingCards ? oneCardHoldingPose : undefined, throwFlight,
+      carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
@@ -223,6 +231,12 @@ export function Avatars({
   const ids = useSession((state) => state.ids)
   const samplePose = useAvatarFrameSampler()
   const rigs = useMemo(() => new Map<string, AvatarAnchors>(), [])
+  const carryMotion = useMemo(createCarryMotion, [])
+  // r3f v9 sorts numeric priorities, including fractions, from low to high.
+  // Sample (-2) -> carry state (-1.5) -> avatar poses (-1) -> carry placement (-.5) -> overlays (0).
+  // Keep these stages distinct so placement always uses this frame's posed shoulders.
+  useFrame(() => carryMotion.update(avatars, performance.now()), -1.5)
+  useFrame(() => carryMotion.place(rigs), -.5)
   const lastEvent = useThree(state => state.internal.lastEvent)
   const inputRaycaster = useThree(state => state.raycaster)
   const menuRaycast = useMemo(() => avatarMenuRaycast(() => lastEvent.current, inputRaycaster), [lastEvent, inputRaycaster])
@@ -230,7 +244,7 @@ export function Avatars({
   return (
     <group name="visitors">
       {ids.map((id) => (
-        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} />
+        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} carryMotion={carryMotion} />
       ))}
       <SwimmingRipples />
 

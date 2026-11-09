@@ -8,6 +8,7 @@ import type { HallSight } from './model'
 import { ChefCourtyard } from './ChefCourtyard'
 import { GuestJourney } from '../serviceHall/rendering/GuestJourney'
 import { HallMotion } from '../serviceHall/rendering/HallMotion'
+import { PositionPlayback } from '../serviceHall/rendering/PositionPlayback'
 
 /** Visual-only hall. Deliberately accepts no bills, recipes or customer bubbles. */
 export class ChefHall {
@@ -15,7 +16,7 @@ export class ChefHall {
   private art = new RestaurantSet()
   private floor = createHallFloor(this.art)
   private courtyard = new ChefCourtyard(this.art)
-  private people = new ToyPeople(this.art)
+  private people = new ToyPeople(this.art, false)
   private server = this.people.create(1, 'server')
   private tray = new THREE.Group()
   private sculpted: SculptedServer | null = null
@@ -23,6 +24,8 @@ export class ChefHall {
   private journeys = new Map<ToyActor, GuestJourney>()
   private dishes = new Map<number, THREE.Group>()
   private motion = new HallMotion()
+  private playback = new PositionPlayback()
+  private previousPosition?: { x: number; z: number }
   private disposed = false
   private demoPosition = { x: -2.8, z: 1.15 }
   private demoPath: { x: number; z: number }[] = []
@@ -58,6 +61,9 @@ export class ChefHall {
     a.place(this.tray,a.box(.8,.06,.55,'#825030'),0,1.1,.52)
     a.dishes(this.tray,0,1.14,.52,1,.85)
     void SculptedServer.load().then(actor=>{if(this.disposed){actor.dispose();return}this.sculpted=actor;actor.root.scale.z=1/FLOOR_DEPTH_SCALE;r.add(actor.root);this.server.setBodyVisible(false)}).catch(()=>undefined)
+    // 의자·테이블 등 고정 배경만 묶고 손님·서빙 담당·상태별 접시는 독립적으로 갱신한다.
+    a.batchStatic(new Set<THREE.Object3D>([this.server.root, ...this.dishes.values(),
+      ...[...this.guests.values()].flat().map(guest => guest.root)]))
   }
   private demo(dt:number): HallSight {
     this.demoWait=Math.max(0,this.demoWait-dt)
@@ -67,10 +73,15 @@ export class ChefHall {
     return {position:this.demoPosition,carrying:true,cleaning:false,tables:TABLES.map(t=>({id:t.id,people:t.capacity,eating:t.id%2===0,dirty:false}))}
   }
   update(dt:number,sight:HallSight|undefined,online:boolean,paused:boolean,reduced:boolean) {
+    this.root.userData.parkSource=this.courtyard.root.userData.source
     const state=sight ?? (online?undefined:this.demo(paused?0:dt))
     this.server.root.visible=!!state;if(this.sculpted)this.sculpted.root.visible=!!state
     if(!state){this.guests.forEach(list=>list.forEach(g=>g.root.visible=false));return}
-    this.motion.update(state.position,dt,paused)
+    if (online && (!this.previousPosition || state.position.x !== this.previousPosition.x || state.position.z !== this.previousPosition.z)) {
+      this.playback.push(state.position); this.previousPosition = { ...state.position }
+    }
+    if (paused) this.playback.reset(state.position)
+    this.motion.update(online ? this.playback.step(paused ? 0 : dt) : state.position,dt,paused,true)
     const p=this.server.root.position,moving=this.motion.moving
     p.set(this.motion.position.x,0,this.motion.position.z)
     this.server.root.rotation.y=this.motion.yaw
@@ -78,7 +89,7 @@ export class ChefHall {
     const pose={moving,carrying:state.carrying,cleaning:!paused&&state.cleaning,reduced:reduced||paused}
     this.server.pose(dt,pose)
     if(this.sculpted){this.sculpted.root.position.copy(p);this.sculpted.pose(dt,pose,this.motion.yaw)}
-    this.guests.forEach((guests,id)=>{const table=state.tables.find(t=>t.id===id);guests.forEach((guest,i)=>this.journeys.get(guest)!.update(!!table&&i<table.people,!!table?.eating,paused?0:dt,reduced));this.dishes.get(id)!.visible=!!table&&(table.people>0||table.dirty)})
+    this.guests.forEach((guests,id)=>{const table=state.tables.find(t=>t.id===id);guests.forEach((guest,i)=>this.journeys.get(guest)!.update(!!table&&i<table.people,!!table?.eating,paused?0:dt,reduced,table?.arrivalRemaining));this.dishes.get(id)!.visible=!!table&&(table.people>0||table.dirty)})
     this.root.userData.serverPosition={x:p.x,z:p.z}
   }
   dispose(){this.disposed=true;this.sculpted?.dispose();this.people.dispose();this.courtyard.dispose();this.floor.texture.dispose();this.art.dispose()}

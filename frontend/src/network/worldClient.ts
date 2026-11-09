@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { acceptGacha } from '../features/gacha/events'
 import { acceptTyping, resetTyping } from '../features/chat/typingState'
 import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
 import { CHAT } from '../features/chat/settings'
@@ -129,6 +130,7 @@ export interface Session {
   profiles: Record<string, DisplayProfile>
   equipment: Record<string, readonly PublicEquipment[]>
   activities: Record<string, AvatarActivity>
+  vrPlayers: Record<string, true>
   gameWatches: Record<string, { gameId: string; tableId: string }>
   account: { nickname: string; balance: number | null; reservedBalance?: number } | null
 }
@@ -165,6 +167,7 @@ const initial = (): Session => ({
   profiles: {},
   equipment: {},
   activities: {},
+  vrPlayers: {},
   gameWatches: {},
   account: null,
 })
@@ -284,6 +287,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
     profiles: profiles[sessionId] ? { [sessionId]: profiles[sessionId] } : {},
     equipment: {},
     activities: {},
+    vrPlayers: {},
     gameWatches: {},
   })
 }
@@ -484,6 +488,13 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
     return
   }
   switch (message.type) {
+    case 'GACHA_STATE':
+      if (state.status === 'connected' && state.mapCompatible) acceptGacha(p)
+      return
+    case 'PERSONAL_NOTIFICATION_CHANGED':
+      if (typeof p.notificationId === 'string' && /^[1-9]\d{0,18}$/.test(p.notificationId))
+        window.dispatchEvent(new Event('ontop:notifications-changed'))
+      return
     case 'WORLD_CHAT_TYPING_STATE':
       acceptTyping(p,state.roomId)
       return
@@ -536,6 +547,10 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       const activities = Object.keys(state.activities).length === Object.keys(nextActivities).length
         && Object.keys(nextActivities).every(id => state.activities[id] === nextActivities[id])
         ? state.activities : nextActivities
+      const nextVR: Session['vrPlayers'] = {}
+      for (const avatar of next.avatars) if (mapCompatible && avatar.vrActive === true) nextVR[avatar.userId] = true
+      const vrPlayers = Object.keys(state.vrPlayers).length === Object.keys(nextVR).length
+        && Object.keys(nextVR).every(id => state.vrPlayers[id]) ? state.vrPlayers : nextVR
       const publicTables = !mapCompatible || next.tables === undefined ? null
         : state.publicTables && Object.keys(state.publicTables).length === next.tables.length
           && next.tables.every(table => state.publicTables?.[table.tableId]?.anchorId === (table.anchorId ?? null)
@@ -666,6 +681,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
             : { ...message, displayName: chatAuthorName(profiles[message.userId]) }) } : {}),
         equipment,
         activities,
+        vrPlayers,
         gameWatches: mapCompatible ? next.gameWatches ?? {} : {},
         publicTables,
         ...(state.account && profiles[state.sessionId]

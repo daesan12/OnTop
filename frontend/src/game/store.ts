@@ -173,7 +173,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
       const next: Game = wrappedGame ? parseGame({ gameId: p.gameId, version: p.version, role: 'PLAYER',
         publicState: p.state.publicState, privateState: p.state.privateState }, ownId) : p.state.gameCode === 'DICE'
         ? { gameId: p.gameId, version: p.version, role: 'PLAYER', dice: parseFarkle(p.state) }
-        : { gameId: p.gameId, version: p.version, role: 'PLAYER', omok: parseOmok(p.state) }
+        : { gameId: p.gameId, version: p.version, role: 'PLAYER', omok: parseOmok(p.state, ownId, p.state.privateState) }
       if (!gamePlayers(next).includes(ownId))
         throw new Error('본인 경기 복구가 아닙니다.')
       if (s.permittedGameId && s.permittedGameId !== p.gameId) return

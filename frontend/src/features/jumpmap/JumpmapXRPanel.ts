@@ -6,13 +6,14 @@ import { parseJumpmapRankings, type JumpmapRankings } from './ranking'
 import { paintJumpmapXRGuide } from './xrGuide'
 import { parkGuideArt, paintParkXRGuide } from '../parkXR/guide'
 import { paintGuideButton, paintGuideNotePaper, paintGuidePaper, TOUCH_GUIDE_COLORS } from '../vrGuide/touchControllerGuide'
+import { requestXRHeightReset, setXRComfort, turnLabel, useXRComfort } from '../parkXR/comfort'
 
 const WIDTH = 1536, HEIGHT = 1024
 interface Button { id: JumpmapXRAction; x: number; y: number; width: number; height: number }
 
 /** In-world UI shares the normal jumpmap store. It never starts runs or grants coins. */
 export class JumpmapXRPanel {
-  gameOnly = false
+  inCourse = true
   readonly anchor = new THREE.Group()
   readonly statusAnchor = new THREE.Group()
   private readonly canvas = document.createElement('canvas')
@@ -35,6 +36,7 @@ export class JumpmapXRPanel {
   private readonly bodyDelta = new THREE.Vector3()
   private guide = false
   private parkGuide = false
+  private comfort = false
   private ranking = false
   private rankingAbort?: AbortController
   private rankings?: JumpmapRankings
@@ -44,7 +46,7 @@ export class JumpmapXRPanel {
   private readonly paperArt = new Image()
   private readonly parkArt = new Image()
 
-  constructor(scene: THREE.Scene, headAnchor: THREE.Group, private readonly finishVR?: () => boolean) {
+  constructor(scene: THREE.Scene, headAnchor: THREE.Group) {
     this.canvas.width = WIDTH; this.canvas.height = HEIGHT
     this.statusCanvas.width = WIDTH; this.statusCanvas.height = 290
     this.texture.colorSpace = this.statusTexture.colorSpace = THREE.SRGBColorSpace
@@ -65,32 +67,47 @@ export class JumpmapXRPanel {
   get blocking() { return this.view.buttons.length > 0 }
   get key() { return this.view.key }
   get hovered() { return this.hover }
-  toggleGuide() {
+  toggleGuide(park = false) {
     if (useJumpmap.getState().completion) return
-    if (this.parkGuide) { this.parkGuide = false; this.guide = false; return }
-    this.guide = !this.guide
+    if (this.parkGuide || this.guide || this.comfort) { this.parkGuide = this.guide = this.comfort = false; return }
+    this.parkGuide = park; this.guide = !park
   }
   showParkGuide() {
     if (useJumpmap.getState().completion) return
     this.parkGuide = true; this.guide = false
   }
+  showComfort() {
+    if (useJumpmap.getState().completion) return
+    if (!this.guide && !this.parkGuide) { this.parkGuide = !this.inCourse; this.guide = this.inCourse }
+    this.comfort = true
+  }
+
+  private comfortView(): JumpmapXRView {
+    const { settings: s, heightNotice } = useXRComfort.getState()
+    return { key: 'comfort', title: 'VR 편안함 설정', lines: [
+      '고개 움직임은 그대로 · 큰 방향 전환은 오른쪽 스틱',
+      heightNotice || '자세를 바꿨다면 멈춘 뒤 눈높이를 재설정하세요.',
+    ], buttons: [
+      { id: 'turn-mode', label: `회전 방식: ${turnLabel(s)}` },
+      { id: 'turn-value', label: s.turnMode === 'smooth' ? `회전 속도: ${s.turnSpeed}도/초` : `스냅 각도: ${s.snapAngle}도` },
+      { id: 'posture', label: `자세: ${s.posture === 'standing' ? '서서' : '앉아서'}` },
+      { id: 'eye-height', label: `앉기 기준: ${s.seatedEyeHeight.toFixed(1)}m` },
+      { id: 'reset-height', label: '현재 자세로 눈높이 재설정' },
+      { id: 'comfort-back', label: '안내로 돌아가기 · A' },
+    ] }
+  }
 
   /** Repaint at 5Hz; geometry/texture objects remain stable across all XR frames. */
   update(now: number, eye: THREE.Vector3, yaw: number, body: THREE.Vector3) {
     const state = useJumpmap.getState()
-    const base = jumpmapXRView(state, now, this.guide)
-    if (state.completion) this.parkGuide = false
+    const base = jumpmapXRView(state, now, this.guide, this.inCourse)
+    if (state.completion) this.parkGuide = this.comfort = false
     if (!base.key.startsWith('result:') && this.ranking) this.cancelRanking()
-    this.view = this.ranking ? this.rankingView(base.key) : this.parkGuide ? {
+    this.view = this.comfort ? this.comfortView() : this.ranking ? this.rankingView(base.key) : this.parkGuide ? {
       key: 'park-guide', title: '공원 · VR 조작 안내',
-      lines: ['왼쪽 스틱 이동 · 왼손 그립 달리기 · 오른손 A 점프', '오른쪽 스틱 30도 회전 · 왼손 X 안내 · 오른손 B VR 종료', '양손 레이저 + 검지 트리거로 패널 버튼을 선택해요.'],
-      buttons: [{ id: 'jump-guide', label: '돌탑 놀이 방법' }, { id: 'continue', label: '안내 닫기 · A' }],
+      lines: ['왼쪽 스틱 이동 · 왼손 그립 달리기 · 오른손 A 점프', '오른쪽 스틱 회전 · 왼손 X 안내 · 오른손 B VR 종료', '편안함 설정에서 회전 방식·속도와 눈높이를 바꿔요.'],
+      buttons: [{ id: 'jump-guide', label: '돌탑 놀이 방법' }, { id: 'comfort', label: '편안함 설정' }, { id: 'continue', label: '안내 닫기 · A' }],
     } : base
-    if (this.gameOnly) this.view = { ...this.view,
-      lines: this.view.key.startsWith('result:') ? this.view.lines.map((line, i, lines) => i === lines.length - 1 ? '일반 공원으로 돌아가 다음 도전을 준비해요.' : line) : this.view.lines,
-      buttons: this.view.buttons
-      .filter(button => button.id !== 'park-guide')
-      .map(button => button.id === 'continue' && this.view.key.startsWith('result:') ? { ...button, label: '일반 공원으로 · A' } : button) }
     if (this.previousKey !== this.view.key) {
       this.previousKey = this.view.key; this.lastPaint = -Infinity; this.hover = null
       if (this.blocking) {
@@ -106,7 +123,8 @@ export class JumpmapXRPanel {
     }
     this.body.copy(body)
     this.anchor.visible = this.blocking
-    this.statusAnchor.visible = !this.blocking
+    // Playing never attaches a persistent tip board to the viewer's head.
+    this.statusAnchor.visible = false
     if (now - this.lastPaint >= 200) {
       this.lastPaint = now
       if (this.signature !== JSON.stringify(this.view)) this.paint()
@@ -115,7 +133,7 @@ export class JumpmapXRPanel {
 
   setVisible(visible: boolean) {
     this.anchor.visible = visible && this.blocking
-    this.statusAnchor.visible = visible && !this.blocking
+    this.statusAnchor.visible = false
   }
 
   /** Ray is in world coordinates, from the current XRFrame targetRaySpace. */
@@ -136,7 +154,16 @@ export class JumpmapXRPanel {
 
   activate(action: JumpmapXRAction) {
     if (!this.buttons.some(button => button.id === action)) return
-    if (action === 'continue' && this.view.key.startsWith('result:') && this.finishVR?.()) return
+    const s = useXRComfort.getState().settings
+    if (action === 'comfort') this.showComfort()
+    if (action === 'comfort-back') this.comfort = false
+    if (action === 'turn-mode') setXRComfort({ turnMode: s.turnMode === 'smooth' ? 'snap' : 'smooth' })
+    if (action === 'turn-value') setXRComfort(s.turnMode === 'smooth'
+      ? { turnSpeed: s.turnSpeed === 60 ? 90 : s.turnSpeed === 90 ? 120 : 60 }
+      : { snapAngle: s.snapAngle === 30 ? 45 : 30 })
+    if (action === 'posture') setXRComfort({ posture: s.posture === 'standing' ? 'seated' : 'standing' })
+    if (action === 'eye-height') setXRComfort({ seatedEyeHeight: s.seatedEyeHeight === 1.4 ? 1.6 : s.seatedEyeHeight === 1.6 ? 1.8 : 1.4 })
+    if (action === 'reset-height') requestXRHeightReset()
     if (action === 'continue') { this.guide = this.parkGuide = false; this.cancelRanking(); closeJumpCompletion() }
     if (action === 'park-guide') this.showParkGuide()
     if (action === 'jump-guide') { this.parkGuide = false; this.guide = true }
@@ -147,7 +174,7 @@ export class JumpmapXRPanel {
     this.lastPaint = -Infinity
   }
 
-  primary() { this.activate(this.ranking ? 'back' : 'continue') }
+  primary() { this.activate(this.comfort ? 'comfort-back' : this.ranking ? 'back' : 'continue') }
 
   private async loadRankings() {
     this.rankingAbort?.abort()
@@ -180,6 +207,11 @@ export class JumpmapXRPanel {
   private cancelRanking() { this.rankingAbort?.abort(); this.rankingAbort = undefined; this.ranking = false; this.rankings = undefined }
 
   private paint() {
+    this.anchor.userData.view = this.statusAnchor.userData.view = this.view
+    if (!this.blocking) {
+      this.buttons = []; this.signature = JSON.stringify(this.view)
+      return
+    }
     const ctx = (this.blocking ? this.canvas : this.statusCanvas).getContext('2d')
     if (!ctx) return
     this.signature = JSON.stringify(this.view)
@@ -213,21 +245,26 @@ export class JumpmapXRPanel {
     }
     this.buttons = []
     if (this.blocking) {
-      const count = this.view.buttons.length, width = (WIDTH - 112 - (count - 1) * 24) / count
-      this.buttons = this.view.buttons.map((button, i) => ({ id: button.id, x: 56 + i * (width + 24), y: 810, width, height: 112 }))
+      const count = this.view.key === 'comfort' ? 2 : this.view.buttons.length
+      const width = (WIDTH - 112 - (count - 1) * 24) / count
+      this.buttons = this.view.buttons.map((button, i) => ({ id: button.id,
+        x: 56 + (i % count) * (width + 24), y: this.view.key === 'comfort' ? 370 + Math.floor(i / count) * 142 : 810,
+        width, height: 112 }))
+      this.mesh.userData.buttons = this.buttons
       this.buttons.forEach((button, i) => {
         paintGuideButton(ctx, button.x, button.y, button.width, button.height, this.view.buttons[i]!.label, this.hover === button.id)
       })
       paintGuideNotePaper(ctx, 946)
       ctx.textAlign = 'left'; ctx.fillStyle = TOUCH_GUIDE_COLORS.muted; ctx.font = '35px "Malgun Gothic", sans-serif'
-      ctx.fillText(guide ? '레이저 + 트리거 선택 · A 안내 닫기 · 실제로 뛰지 않아요' : '레이저 + 트리거 선택 · A 계속 / 뒤로 · B VR 종료', 56, 985, WIDTH - 112)
+      ctx.fillText(this.view.key === 'comfort' ? '레이저 + 트리거로 선택 · A 안내로 · X 닫기 · B VR 종료'
+        : guide ? '레이저 + 트리거 선택 · A 안내 닫기 · 실제로 뛰지 않아요' : '레이저 + 트리거 선택 · A 계속 / 뒤로 · B VR 종료', 56, 985, WIDTH - 112)
       this.texture.needsUpdate = true
     } else this.statusTexture.needsUpdate = true
     this.anchor.userData.view = this.statusAnchor.userData.view = this.view
   }
 
   reset() {
-    this.cancelRanking(); this.guide = this.parkGuide = false; this.previousKey = ''; this.hover = null; this.signature = ''
+    this.cancelRanking(); this.guide = this.parkGuide = this.comfort = false; this.previousKey = ''; this.hover = null; this.signature = ''
     this.view = jumpmapXRView(useJumpmap.getState(), performance.now(), false)
     this.anchor.visible = this.statusAnchor.visible = false
   }

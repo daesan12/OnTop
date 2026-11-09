@@ -1,15 +1,16 @@
 export const TOUCH_GUIDE_COLORS = { ink: '#163d29', gold: '#b99c61', paper: '#f5ebd3', muted: '#6f654e' } as const
 const { ink, gold, paper, muted } = TOUCH_GUIDE_COLORS
-export type TouchGuideMode = 'park' | 'chef' | 'solo'
+export type TouchGuideMode = 'park' | 'chef' | 'chef-practice' | 'solo'
 type Point = readonly [number, number]
 export const PARK_TOUCH_BINDINGS = [
-  ['이동', '왼쪽 스틱 기울이기'], ['달리기', '왼손 그립 + 이동'], ['안내 열기·닫기', '왼손 X 버튼'], ['30도 회전', '오른쪽 스틱 좌우'],
+  ['이동', '왼쪽 스틱 기울이기'], ['달리기', '왼손 그립 + 이동'], ['안내 열기·닫기', '왼손 X 버튼'], ['시점 회전', '오른쪽 스틱 좌우'],
   ['점프 / 안내 닫기', '오른손 A 버튼'], ['VR 종료', '오른손 B 버튼'], ['가리킨 버튼 선택', '양손 검지 트리거'],
 ]
 export function touchBindings(mode: TouchGuideMode): string[][] {
   return mode === 'park' ? PARK_TOUCH_BINDINGS : [
     ['선택·집기·놓기', '양손 검지 트리거'],
     [mode === 'solo' ? '꼬치 잡기·서빙' : '꼬치 잡기', '양손 옆면 그립'],
+    ...(mode === 'chef' ? [['일시정지·계속하기', '오른손 B 버튼']] : []),
   ]
 }
 function circle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fill: string, stroke: string = ink) {
@@ -43,14 +44,14 @@ function controller(ctx: CanvasRenderingContext2D, x: number, right: boolean, mo
   circle(ctx, -39, -8, 26, mode === 'park' ? '#e5bf71' : '#e4e2d6')
   circle(ctx, -39, -8, 17, mode === 'park' ? '#45674f' : '#9a9e8e')
   circle(ctx, 27, 18, 18, mode === 'park' ? '#e5bf71' : '#e4e2d6')
-  circle(ctx, 44, -18, 18, mode === 'park' && right ? '#e5bf71' : '#e4e2d6', mode === 'park' && right ? ink : '#a7aa98')
+  circle(ctx, 44, -18, 18, (mode === 'park' || mode === 'chef') && right ? '#e5bf71' : '#e4e2d6', (mode === 'park' || mode === 'chef') && right ? ink : '#a7aa98')
   circle(ctx, -13, 30, 8, '#e4e2d6', '#a7aa98')
   ctx.beginPath(); ctx.moveTo(-12, 222); ctx.lineTo(-12, 245); ctx.strokeStyle = '#a6946e'; ctx.lineWidth = 3; ctx.stroke()
   ctx.restore()
   // Draw face labels after mirroring so letters remain readable on both hands.
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 24px "Malgun Gothic", sans-serif'
   ctx.fillStyle = mode === 'park' ? ink : '#7d8472'; ctx.fillText(right ? 'A' : 'X', ...point(27, 18))
-  ctx.fillStyle = mode === 'park' && right ? ink : '#7d8472'; ctx.fillText(right ? 'B' : 'Y', ...point(44, -18))
+  ctx.fillStyle = (mode === 'park' || mode === 'chef') && right ? ink : '#7d8472'; ctx.fillText(right ? 'B' : 'Y', ...point(44, -18))
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'
   return { stick: point(-39, -8), primary: point(27, 18), secondary: point(44, -18), grip: point(52, 110), trigger: point(88, 33) }
 }
@@ -85,6 +86,7 @@ export function paintTouchControllerGuide(ctx: CanvasRenderingContext2D, mode: T
     ctx.lineTo(886, 560); ctx.lineTo(886, right.trigger[1]); ctx.lineTo(...right.trigger); ctx.stroke()
     circle(ctx, ...right.trigger, 5, gold, ink)
   } else {
+    if (mode === 'chef') callout(ctx, 3, [1280, 314], [[1147, 314], [right.secondary[0], 314], [right.secondary[0], right.secondary[1] - 18]])
     callout(ctx, 2, [256, 560], [[387, 560], left.grip])
     callout(ctx, 2, [1280, 560], [[1149, 560], right.grip])
     callout(ctx, 1, [768, 560], [[650, 560], [650, left.trigger[1]], left.trigger])
@@ -92,7 +94,7 @@ export function paintTouchControllerGuide(ctx: CanvasRenderingContext2D, mode: T
     ctx.lineTo(886, 560); ctx.lineTo(886, right.trigger[1]); ctx.lineTo(...right.trigger); ctx.stroke()
     circle(ctx, ...right.trigger, 5, gold, ink)
   }
-  const controls = touchBindings(mode), columns = mode === 'park' ? 4 : 2
+  const controls = touchBindings(mode), columns = mode === 'park' ? 4 : mode === 'chef' ? 3 : 2
   ctx.strokeStyle = '#d4c5a5'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(64, 620); ctx.lineTo(1472, 620); ctx.stroke()
   controls.forEach(([title, detail], i) => {
     const x = 64 + (i % columns) * (1416 / columns), y = i < columns ? 661 : 751

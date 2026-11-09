@@ -1,3 +1,4 @@
+import { keyboardWalk } from '../skewer-coop/keyboardWalk'
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
@@ -20,10 +21,15 @@ async function open(page: Page) {
   await page.goto('/skewer-service-hall.html')
   await expect(page.locator('.service-stage')).toHaveAttribute('data-ready', 'true', { timeout: 45000 })
   await expect(page.getByRole('alert')).toHaveCount(0)
+  await page.evaluate(async () => {
+    const url = '/src/features/skewer/serviceHall/previewModel.ts', { HallPreview } = await import(/* @vite-ignore */ url)
+    const view = HallPreview.prototype.view
+    HallPreview.prototype.view = function () { const current = view.call(this); Reflect.set(window, 'hallPosition', current.position); return current }
+  })
 }
 // Wait for the actual projected player anchor to stop, rather than jumping the model to a fixture position.
 async function walk(page: Page, name: string, action: RegExp) {
-  await page.getByRole('button', { name, exact: true }).click()
+  await keyboardWalk(page, name, () => page.evaluate(() => Reflect.get(window, 'hallPosition')), false)
   await expect(page.locator('.service-action')).toHaveAccessibleName(action, { timeout: 18000 })
   let last = '', stable = 0
   await expect.poll(async () => {
@@ -178,7 +184,7 @@ test('음식과 식기 운반을 분리하고 식기 운반 중 주문 접수·�
   await walk(page, '음식 수령대로 이동', /E 식기를 세척기에 넣어 주세요/)
   await page.keyboard.press('e')
   await expect(page.getByRole('img', { name: /운반 접시/ })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '음식 수령대로 이동' })).toContainText('2')
+  await expect(page.getByRole('img', { name: '음식 수령대' })).toContainText('2')
   await walk(page, '사케 냉장고로 이동', /E 식기를 세척기에 넣어 주세요/)
   await page.keyboard.press('e')
   await expect(page.getByRole('region', { name: '운반 중인 더러운 식기' })).toBeVisible()
@@ -222,8 +228,8 @@ test('사케 반납과 꼬치 임시 보관으로 손을 비우고 식기를 처
   await page.keyboard.press('e')
   await expect(page.locator('.service-stage')).toHaveAttribute('data-stored-count', '2')
   await expect(page.getByRole('img', { name: /운반 접시/ })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '음식 수령대로 이동' })).not.toContainText('2')
-  await expect(page.getByRole('button', { name: '꼬치 임시 보관대로 이동' })).toContainText('2')
+  await expect(page.getByRole('img', { name: '음식 수령대' })).not.toContainText('2')
+  await expect(page.getByRole('img', { name: '꼬치 임시 보관대' })).toContainText('2')
   await capture(page, 'hall-stored-plates')
 
   await walk(page, '2번 1인 테이블로 이동', /E 2번 청소하기/)
@@ -322,13 +328,13 @@ test('안내창은 이동을 막고 1280 화면과 작은 화면에서도 핵심
   await page.getByRole('button', { name: '다시 시작', exact: true }).click()
   await page.getByRole('dialog', { name: '처음부터 다시 시작할까요?', exact: true }).getByRole('button', { name: '다시 시작', exact: true }).click()
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  for (const selector of ['.service-scoreboard', '.service-tools', '.service-held', '.service-carry']) {
+  for (const selector of ['.skewer-business-status', '.skewer-game-tools', '.service-held', '.service-carry']) {
     const bounds = await page.locator(selector).boundingBox()
     expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(391)
   }
-  const status = await page.locator('.service-scoreboard').boundingBox()
+  const status = await page.locator('.skewer-business-status').boundingBox()
   expect(Math.abs(status!.x + status!.width / 2 - 195)).toBeLessThan(1)
-  await expect(page.locator('.service-served')).toBeVisible()
+  await expect(page.locator('[data-testid="served-count"]')).toBeVisible()
   await capture(page, 'hall-mobile')
   await page.getByRole('button', { name: '서빙 이용 안내' }).click()
   await expect(modal.getByRole('button', { name: '가게로 돌아가기' })).toBeInViewport()
@@ -358,20 +364,18 @@ test('다시 시작은 확인 중 시간을 멈추고 취소하면 유지하며 
 })
 
 
-test('탑 외관의 외부 행인은 이동하고 HUD는 화면 위치를 유지한다', async ({ page }) => {
+test('외부 행인 없이 석탑만 표시하고 HUD는 화면 위치를 유지한다', async ({ page }) => {
   await open(page)
   const stage = page.locator('.service-stage')
   await expect(stage).toHaveAttribute('data-building', 'cutaway-tower')
-  await expect(stage).toHaveAttribute('data-promenade-guests', '6')
-  const before = await stage.getAttribute('data-promenade-step')
-  await expect.poll(() => stage.getAttribute('data-promenade-step')).not.toBe(before)
-  const panels = ['.service-scoreboard', '.service-held', '.service-carry']
+  await expect(stage).toHaveAttribute('data-promenade-guests', '0')
+  await expect(stage).toHaveAttribute('data-surroundings', 'stone-pagoda')
+  const panels = ['.skewer-business-status', '.service-held', '.service-carry']
   const boxes = await Promise.all(panels.map(s => page.locator(s).boundingBox()))
   await walk(page, '음식 수령대로 이동', /완성 접시 받기/)
   await page.keyboard.press('e')
   await page.mouse.wheel(0, 400)
   for (const [i, selector] of panels.entries()) {
-    expect(await page.locator(selector).evaluate(el => getComputedStyle(el).position)).toBe('fixed')
     expect(await page.locator(selector).boundingBox()).toEqual(boxes[i])
   }
   await capture(page, 'tower-fixed-hud')

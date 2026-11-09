@@ -23,7 +23,7 @@ test('꼬치왕 VR 선택·연결을 열고 헤드셋 연결 확인 후에만 �
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 });
   const entrance = await page.evaluate(async () => (await import('/src/features/vrZone/parkBridge.ts' as string)).parkVrEntrance);
   server.place(entrance);
-  await page.getByRole('button', { name: /E 온탑 꼬치왕 · 무료 협동 게임/ }).click();
+    await page.getByRole('button', { name: /E 온탑 꼬치왕/ }).click();
   const catalog = page.getByRole('dialog', { name: '온탑 꼬치왕', exact: true });
   await expect(catalog.getByRole('button', { name: /^방 만들기/ })).toBeEnabled();
   await catalog.getByRole('button', { name: '공원으로 나가기', exact: true }).click();

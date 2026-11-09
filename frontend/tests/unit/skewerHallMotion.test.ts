@@ -2,6 +2,33 @@ import { describe, expect, it } from 'vitest'
 import { HallMotion } from '../../src/features/skewer/serviceHall/rendering/HallMotion'
 
 describe('홀 캐릭터 위치 표시', () => {
+  it('반대 방향 전환의 첫 프레임은 튀지 않고 100ms 안에 회전의 90퍼센트를 반영한다', () => {
+    const motion = new HallMotion()
+    motion.update({ x: 0, z: 0 }, 0)
+    for (let frame = 0; frame < 30; frame++) motion.update({ x: .5, z: 0 }, 1 / 60)
+    const before = motion.yaw
+    motion.update({ x: .4, z: 0 }, 1 / 60)
+    expect(Math.abs(motion.yaw - before)).toBeLessThan(Math.PI / 3)
+    for (let frame = 1; frame < 6; frame++) motion.update({ x: .4, z: 0 }, 1 / 60)
+    const error = Math.abs(Math.atan2(Math.sin(motion.yaw + Math.PI / 2), Math.cos(motion.yaw + Math.PI / 2)))
+    expect(error).toBeLessThan(Math.PI * .1)
+  })
+  it('이미 재생된 원형 이동은 추가 감속이나 반경 축소 없이 위치를 따라간다', () => {
+    for (const hz of [30, 60, 120]) {
+      const motion = new HallMotion(), radius = .5
+      motion.update({ x: radius, z: 0 }, 0)
+      let travel = 0
+      for (let frame = 1; frame <= hz; frame++) {
+        const angle = frame / hz * Math.PI * 2, target = { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius }
+        const before = { ...motion.position }
+        motion.update(target, 1 / hz, false, true)
+        expect(motion.position.x).toBeCloseTo(target.x, 10)
+        expect(motion.position.z).toBeCloseTo(target.z, 10)
+        travel += Math.hypot(motion.position.x - before.x, motion.position.z - before.z)
+      }
+      expect(travel).toBeGreaterThan(2 * Math.PI * radius * .99)
+    }
+  })
   it('30·60·120Hz에서 같은 시간 동안 위치와 회전 전환량이 같다', () => {
     const values = [30, 60, 120].map(hz => {
       const motion = new HallMotion()

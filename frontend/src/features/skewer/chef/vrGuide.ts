@@ -1,4 +1,4 @@
-import chefVRArt from '../coop/art/chef-vr-preview.png'
+import chefVRArt from '../coop/art/chef-vr-current-v2.webp'
 import { paintGuidePaper, paintGuideButton, paintGuideNotePaper, paintTouchControllerGuide, TOUCH_GUIDE_COLORS } from '../../vrGuide/touchControllerGuide'
 
 export { chefVRArt }
@@ -18,12 +18,12 @@ export function paintChefVRGuide(ctx: CanvasRenderingContext2D, image: HTMLImage
   ctx.font = '34px "Malgun Gothic", sans-serif'
   ctx.fillText('그림 주문표는 그대로, 양손 컨트롤러로 요리해요.', 64, 157)
   ctx.fillStyle = muted; ctx.font = '29px "Malgun Gothic", sans-serif'
-  ctx.fillText('1 검지 트리거 · 2 옆면 그립 · 스틱과 A/B/X/Y는 사용하지 않아요.', 64, 202)
+  ctx.fillText(online ? '1 검지 트리거 · 2 옆면 그립 · 3 오른손 B 일시정지 / 계속하기' : '1 검지 트리거 · 2 옆면 그립 · 스틱과 A/B/X/Y는 사용하지 않아요.', 64, 202)
   if (image.complete && image.naturalWidth) {
     const scale = Math.min(260 / image.naturalWidth, 145 / image.naturalHeight)
     ctx.drawImage(image, 1212, 57, image.naturalWidth * scale, image.naturalHeight * scale)
   }
-  paintTouchControllerGuide(ctx, 'chef')
+  paintTouchControllerGuide(ctx, online ? 'chef' : 'chef-practice')
   const steps = [
     ['주문표 선택', '1 주문표를 가리켜 트리거로 선택해요.'],
     ['재료 집고 꽂기', '1 누른 채 옮겨, 초록 고리에서 놓아요.'],
@@ -37,6 +37,6 @@ export function paintChefVRGuide(ctx: CanvasRenderingContext2D, image: HTMLImage
   })
   paintGuideNotePaper(ctx, 950)
   ctx.fillStyle = muted; ctx.font = '30px "Malgun Gothic", sans-serif'
-  ctx.fillText(online ? '안내를 읽는 동안에도 영업 시간은 흘러요.' : '연습 모드 · 엽전과 랭킹 기록 없음', 64, 990)
+  ctx.fillText(online ? '인사: 몸 한 바퀴 · 전송 실패 시 카드 트리거 · 안내 중에도 시간은 흘러요.' : '연습 모드 · 엽전과 랭킹 기록 없음', 64, 990)
   paintGuideButton(ctx, 64, 1020, 1408, 88, '1 트리거로 안내 닫기', false)
 }

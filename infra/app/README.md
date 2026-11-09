@@ -187,6 +187,10 @@ docker push "$IMAGE"
 - DEV-CI는 Ubuntu 26.04 인스턴스에 같은 스크립트로 Docker Engine과 Compose plugin을 설치했다. Jenkins 설정은 [`../ci/README.md`](../ci/README.md)를 따른다.
 - 새 DEV-CI 서버에서는 `sudo bash infra/app/bootstrap-dev.sh wooaw/ontop-backend:<태그>`로 저장소 밖의 설정·비밀번호 파일을 처음 한 번 만든다. 이미 존재하는 설정 파일은 재실행해도 덮어쓰지 않는다. 이미지 태그를 바꿀 때는 `/etc/ontop/dev-app/deploy.env`를 별도로 수정한다.
 - 두 서버의 호스트 방화벽과 AWS 보안 그룹은 80/443만 서비스용으로 열고, SSH는 관리자 IP로 제한한다. PROD-APP에서 DB의 WireGuard 주소로 접근하는 기존 경로를 유지한다. 앱 8080과 dev MySQL 3306은 외부에 공개하지 않는다.
+
+운영 모니터링은 `infra/monitoring/prod/DEPLOYMENT.md`의 별도 수동 절차를 따른다. `observe-prod`는
+management 8082를 Docker 내부에만 열고 Prometheus는 호스트 루프백에만 바인딩한다. 이 구성은 신규
+Flyway 마이그레이션을 추가하지 않으며, 일반 운영 이미지의 미적용 마이그레이션 검토를 대신하지 않는다.
 - 서버 시간 동기화, 디스크 여유, Docker 로그 용량을 확인한다. dev DB의 named volume을 삭제하면 데이터가 사라지므로 `docker compose down -v`를 운영 명령으로 사용하지 않는다.
 
 체크아웃 경로는 예시에서 `/opt/ontop`이다. 실제 경로에 맞춰 `deploy.env`의 `NGINX_CONFIG_FILE`을 수정한다.

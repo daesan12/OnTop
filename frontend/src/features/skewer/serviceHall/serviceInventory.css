@@ -1,4 +1,16 @@
 /* Keep the fixed inventories outside the projected restaurant, including its entrance. */
+.service-hall[data-inventory-layout='corners'] .service-stage{bottom:0}
+.service-hall[data-inventory-layout='corners'] .service-held{left:10px;width:210px}
+.service-hall[data-inventory-layout='corners'] .service-carry{right:10px;width:230px}
+.service-hall[data-inventory-layout='corners'] .service-controls{bottom:14px;max-width:calc(100% - 500px)}
+.service-hall[data-inventory-layout='corners'] .service-feedback{bottom:65px;max-width:calc(100% - 500px)}
+.service-hall[data-inventory-layout='corners'] .service-washer{transform:translate(-50%,calc(-50% + 22px))}
+@media(min-width:850px) and (max-height:600px){
+ .service-hall[data-inventory-layout='corners'] .service-held{width:120px}
+ .service-hall[data-inventory-layout='corners'] .service-carry{width:130px}
+ .service-hall[data-inventory-layout='corners'] .service-table-target{width:90px;height:64px}
+ .service-hall[data-inventory-layout='corners'] [data-capacity='1'] .service-table-target{width:70px;height:58px}
+}
 .service-hall[data-inventory-layout] .service-held,
 .service-hall[data-inventory-layout] .service-carry { scale:1; bottom:12px; }
 .service-hall[data-inventory-layout='sides'] .service-held { left:12px; }

@@ -20,7 +20,7 @@ export interface CoopPublic {
   restart?: { id: string; requestedBy: string; expiresAt: number } | null
   rankingEligible: boolean; rankingMode?: 'PC' | 'VR'; chefVR: boolean; entryFee: 0; rewardStatus: 'SERVER_SETTLEMENT' | 'NOT_CONNECTED'; message: string; endReason: string | null
   players: { userId: string; role: '' | 'chef' | 'server'; ready: boolean; connected: boolean }[]
-  greeting: { active: boolean; index: number; remaining: number; answered: boolean; responded: number; speech: boolean }
+  greeting: { active: boolean; index: number; remaining: number; answered: boolean; responded: number; speech: boolean; outcome?: '' | 'success' | 'missed'; bonus?: number }
 }
 export interface CoopRoom {
   gameId: string; players: number; mine: boolean; roomName: string; hostNickname: string; locked: boolean
@@ -71,6 +71,8 @@ export function parseCoop(value: unknown): CoopSnapshot | null {
   const p = value.publicState, secret = value.privateState
   if (p.rankingMode !== undefined && !['PC', 'VR'].includes(String(p.rankingMode))) return null
   if (p.round !== undefined && !nonnegative(p.round)) return null
+  if (object(p.greeting) && (p.greeting.outcome !== undefined && !['', 'success', 'missed'].includes(String(p.greeting.outcome))
+    || p.greeting.bonus !== undefined && (!nonnegative(p.greeting.bonus) || (p.greeting.bonus as number) > 50))) return null
   const restart = p.restart
   if (restart != null && (!object(restart) || typeof restart.id !== 'string'
     || !/^\d+$/.test(restart.id) || typeof restart.requestedBy !== 'string'

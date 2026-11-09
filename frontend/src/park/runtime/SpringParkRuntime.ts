@@ -453,9 +453,12 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'POST' && /^\/api\/v1\/minigames\/speed-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
+    const gachaRequest = (method === 'GET' && (path === '/api/v1/gacha'
+      || /^\/api\/v1\/gacha\/operations\/[A-Za-z0-9_-]{1,64}$/.test(path)))
+      || (method === 'POST' && ['/api/v1/gacha/tickets', '/api/v1/gacha/draws', '/api/v1/gacha/boxes/open'].includes(path))
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
-      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !raffleRequest && !fitnessRewardRequest
+      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
@@ -1000,13 +1003,13 @@ export class ParkRuntime implements ParkRuntimePort {
     const s = useSession.getState()
     return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
-  private interactionStatus = { scope: '', busy: false, desired: false, pending: null as Promise<boolean> | null, retryAt: 0 }
+  private interactionStatus = { scope: '', busy: false, vrActive: false, desired: false, pending: null as Promise<boolean> | null, retryAt: 0 }
   setInteractionBusy = (busy: boolean, confirm = false) => {
     const session = useSession.getState(), scope = JSON.stringify([this.generation, session.sessionId, session.roomId])
     if (!this.active || session.status !== 'connected' || !session.roomId || !session.mapCompatible
       || !this.socket.connected) return Promise.resolve(false)
     if (!session.carrySupported) return Promise.resolve(!confirm)
-    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, desired: false, pending: null, retryAt: 0 }
+    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, vrActive: false, desired: false, pending: null, retryAt: 0 }
     const status = this.interactionStatus
     status.desired = busy
     let confirmNeeded = confirm
@@ -1016,15 +1019,17 @@ export class ParkRuntime implements ParkRuntimePort {
     const sync = (): Promise<boolean> => {
       if (!current()) return Promise.resolve(false)
       if (status.pending) return status.pending.then(ok => ok ? sync() : false)
-      const desired = status.desired || vrCarryProtection.active
-      if (status.busy === desired && !confirmNeeded) return Promise.resolve(true)
+      const vrActive = vrCarryProtection.active, desired = status.desired || vrActive
+      if (status.busy === desired && status.vrActive === vrActive && !confirmNeeded) return Promise.resolve(true)
       if (performance.now() < status.retryAt) return Promise.resolve(false)
       confirmNeeded = false
-      status.pending = this.socket.request('WORLD_INTERACTION_SET', { busy: desired }, ['WORLD_INTERACTION_STATE']).then(response => {
-        if (response.payload.channelId !== session.roomId || response.payload.busy !== desired)
+      const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}) }
+      status.pending = this.socket.request('WORLD_INTERACTION_SET', payload, ['WORLD_INTERACTION_STATE']).then(response => {
+        if (response.payload.channelId !== session.roomId || response.payload.busy !== desired
+          || (response.payload.vrActive === true) !== vrActive)
           throw new Error('창 점유 응답을 확인해주세요.')
         if (!current()) return false
-        status.busy = desired; return true
+        status.busy = desired; status.vrActive = vrActive; return true
       }).catch(error => {
         if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
         return false

@@ -9,6 +9,7 @@ export class CoopClient {
   private poll?: ReturnType<typeof setTimeout>
   private resultPoll?: ReturnType<typeof setTimeout>
   private chain: Promise<void> = Promise.resolve()
+  private movementSequence = 0
   private requestIds = new Set<string>()
   private stopped = false
   private owner: string
@@ -43,11 +44,22 @@ export class CoopClient {
     }
     return ['GAME_STATE', 'GAME_CONNECTION_STATE'].includes(message.type)
   }
-  private install(snapshot: CoopSnapshot | null) {
+  private install(snapshot: CoopSnapshot | null, entering = false) {
     if (!snapshot || this.stopped || this.owner !== this.transport.scope().userId || this.dismissedGames.has(snapshot.gameId)) return
     const current = this.snapshot
+    if (current && current.gameId !== snapshot.gameId && !entering) return
     if (current?.gameId === snapshot.gameId && snapshot.version < current.version) return
-    if (!snapshot.publicState.players.some(player => player.userId === this.owner)) return
+    const own = snapshot.publicState.players.find(player => player.userId === this.owner)
+    // Public membership binds the private payload to this player, not their colleague.
+    if (!own || own.role !== snapshot.privateState.role) return
+    if (current?.gameId === snapshot.gameId && current.publicState.phase !== 'WAITING' && current.privateState.role) {
+      if (snapshot.privateState.role !== current.privateState.role) return
+      if ((snapshot.publicState.round ?? 0) < (current.publicState.round ?? 0)) return
+      if (snapshot.publicState.phase === 'WAITING') return
+      if (current.publicState.phase === 'FINISHED' && snapshot.publicState.phase !== 'FINISHED') return
+      if ((snapshot.publicState.round ?? 0) === (current.publicState.round ?? 0)
+        && current.publicState.phase === 'PLAYING' && snapshot.publicState.phase === 'COUNTDOWN') return
+    }
     if (snapshot.publicState.endReason === 'SKEWER_CANCELLED') {
       this.dismissRoom(snapshot.gameId, '준비 중인 방이 닫혔어요. 다른 가게를 선택해 주세요.')
       return
@@ -153,7 +165,7 @@ export class CoopClient {
     try {
       const channelId = this.transport.scope().channelId
       const result = await this.transport.requestJSON('/api/v1/minigames/skewer/coop/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(gameId ? { channelId, gameId, password: options.password ?? '' } : { channelId, requestKey: this.requestKey, roomName: options.roomName ?? '함께 여는 꼬치집', password: options.password ?? '' }) })
-      this.install(parseCoop(result))
+      this.install(parseCoop(result), true)
       await this.recover()
       return !!this.snapshot
     } catch (error) {
@@ -171,17 +183,32 @@ export class CoopClient {
     }
     finally { this.store.setState({ pending: false }) }
   }
-  act(input: Record<string, unknown>, quiet = false) {
+  act(input: Record<string, unknown>, quiet = false, options: { preserveMovement?: boolean; refreshGreeting?: boolean } = {}) {
     const gameId = this.snapshot?.gameId
     const round = this.snapshot?.publicState.round ?? 0
+    const greetingIndex = this.snapshot?.publicState.greeting.index
+    const movement = input.type === 'MOVE'
+    const gameplay = ['MOVE', 'INTERACT', 'RETURN_SAKE', 'TAKE_STORED', 'THREAD', 'CHOOSE', 'UNTHREAD', 'SUBMIT', 'RESTART_REQUEST'].includes(String(input.type))
+    const sequence = movement ? ++this.movementSequence : 0
+    const superseded = () => movement && !options.preserveMovement && sequence !== this.movementSequence
     const work = async () => {
-      if (this.stopped || !gameId || gameId !== this.snapshot?.gameId || !this.transport.scope().connected
-        || round !== (this.snapshot.publicState.round ?? 0)) return
-      if ((this.inputBlocked || this.snapshot.publicState.paused) && !['PAUSE', 'CHEF_MODE', 'RESTART_REPLY'].includes(String(input.type))) return
-      if (input.type === 'GREET' && (!this.snapshot.publicState.greeting.active || this.snapshot.publicState.greeting.answered)) return
+      // 응답 유실 뒤 재시도는 먼저 서버 확인. 늦게 도착한 이전 인사는 다음 이벤트에 보내지 않는다.
+      if (input.type === 'GREET' && options.refreshGreeting) {
+        if (this.stopped || gameId !== this.snapshot?.gameId || !this.transport.scope().connected
+          || round !== (this.snapshot?.publicState.round ?? 0) || greetingIndex !== this.snapshot?.publicState.greeting.index) return
+        await this.sync()
+      }
       const actionId = crypto.randomUUID()
       for (let attempt = 0; attempt < 4; attempt++) {
-        if (round !== (this.snapshot?.publicState.round ?? 0)) return
+        if (this.stopped || !gameId || gameId !== this.snapshot?.gameId || !this.transport.scope().connected
+          || round !== (this.snapshot.publicState.round ?? 0) || superseded() || gameplay && !this.playable) return
+        // 상태 복구 중 일시정지·인사·영업 종료가 시작되면 지난 게임 입력을 재전송하지 않는다.
+        if ((this.inputBlocked || this.snapshot.publicState.paused) && !['PAUSE', 'CHEF_MODE', 'RESTART_REPLY'].includes(String(input.type))) return
+        if (input.type === 'GREET' && (this.snapshot.publicState.phase !== 'PLAYING' || greetingIndex !== this.snapshot.publicState.greeting.index
+          || !this.snapshot.publicState.greeting.active || this.snapshot.publicState.greeting.answered)) {
+          if (!quiet && greetingIndex === this.snapshot.publicState.greeting.index && this.snapshot.publicState.greeting.answered) this.store.setState({ error: '' })
+          return
+        }
         if (input.type === 'RESTART_REPLY' && input.requestId !== this.snapshot?.publicState.restart?.id) return
         try {
           await this.request('GAME_ACTION_SEND', { gameId, actionId, expectedVersion: this.snapshot!.publicState.actionVersion, input }, ['GAME_ACTION_RESULT'])
@@ -190,6 +217,7 @@ export class CoopClient {
           if (!quiet) this.store.setState({ error: '' })
           return
         } catch (error) {
+          if (superseded()) return
           const code = (error as { code?: string }).code
           if (code === 'GAME_ACTION_STALE_VERSION') { await this.sync(); continue }
           if (code === 'GAME_RECOVERY_REQUIRED') { await this.recover(); continue }
@@ -201,6 +229,8 @@ export class CoopClient {
       }
       if (!quiet) this.store.setState({ error: '상태가 바뀌었어요. 다시 눌러주세요.' })
     }
+    // 공통 WS는 세션당 입력 하나만 처리한다. MOVE도 이 순서를 지킨다.
+    // 대기 중 바뀐 이동은 위에서 최신 방향만 남기되 E 직전 정지는 보존한다.
     this.chain = this.chain.then(work).catch(() => { this.store.setState({ error: '연결이 원활하지 않아요. 잠시 후 다시 시도해 주세요.' }) })
     return this.chain
   }

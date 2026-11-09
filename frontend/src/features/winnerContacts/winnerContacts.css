@@ -1,0 +1,41 @@
+.winner-contacts-dialog {
+  width: min(620px, 100%);
+  gap: 18px;
+  padding: 28px;
+  background: #f8f5e9;
+  font-family: 'BusanDandiMyeongjo', serif;
+}
+.winner-contacts-header { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+.winner-contacts-eyebrow { color: #746a50; font-size: 14px; }
+.winner-contacts-header h2 { margin: 4px 0 0; font-size: 30px; }
+.winner-contacts-header button {
+  flex: 0 0 auto; width: 36px; height: 36px; border: 1px solid #c7c0a9; border-radius: 9px;
+  color: #304434; background: #fffdf5; font: inherit; font-size: 26px; cursor: pointer;
+}
+.winner-contacts-intro { margin: 0; color: #596653; }
+.winner-contacts-empty, .winner-contacts-notice { padding: 24px; border-radius: 14px; background: #eeead9; }
+.winner-contacts-week { padding: 20px; border: 1px solid #d1cbb7; border-radius: 16px; background: #fffdf6; }
+.winner-contacts-week h3 { margin: 0 0 12px; font-size: 21px; }
+.winner-contacts-week ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.winner-contacts-week li { display: flex; flex-wrap: wrap; gap: 5px 12px; justify-content: space-between; }
+.winner-contacts-week li strong { color: #2f5139; }
+.winner-contacts-week li span { color: #4b5043; }
+.winner-contacts-deadline { margin: 14px 0 0; color: #675e49; font-size: 14px; }
+.winner-contacts-success { margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; color: #28533c; background: #e3efe3; }
+.winner-contacts-week form { display: grid; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid #e2ddcc; }
+.winner-contacts-week form > label:first-child { font-weight: 700; }
+.winner-contacts-week input[type='tel'] { width: 100%; min-height: 44px; box-sizing: border-box; padding: 10px 12px; border: 1px solid #9f9e86; border-radius: 8px; color: #25372b; background: white; font: inherit; }
+.winner-contacts-privacy { margin: 0; color: #665d49; font-size: 14px; line-height: 1.5; }
+.winner-contacts-consent { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.winner-contacts-consent input { width: 18px; height: 18px; accent-color: #35543a; }
+.winner-contacts-error { margin: 0; color: #a83125; font-size: 14px; }
+.winner-contacts-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.winner-contacts-actions button, .winner-contacts-notice button, .winner-contacts-secondary {
+  min-height: 40px; padding: 8px 15px; border: 1px solid #35543a; border-radius: 8px;
+  color: #fffdf6; background: #35543a; font: inherit; cursor: pointer;
+}
+.winner-contacts-actions .winner-contacts-secondary, .winner-contacts-week > .winner-contacts-secondary {
+  margin-top: 12px; color: #35543a; background: #f6f4e8;
+}
+.winner-contacts-actions button:disabled, .winner-contacts-header button:disabled { opacity: .5; cursor: default; }
+@media (max-width: 600px) { .winner-contacts-dialog { padding: 18px; } .winner-contacts-week { padding: 14px; } }

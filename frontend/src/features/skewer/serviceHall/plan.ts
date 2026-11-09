@@ -11,6 +11,9 @@ export const STATIONS = {
 export type Station = keyof typeof STATIONS
 export const START: Point = { x: -2.8, z: 1.15 }
 export const PLAYER_RADIUS = .32
+export const SERVER_SPEED = 5.8
+export const INTERACTION_RADIUS = 1.4
+export const GUEST_ARRIVAL_SECONDS = 6
 export const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z)
 export function tableApproaches(table: TablePlan): Point[] {
   return table.capacity === 1 ? [table.approach, { x: table.x - 1.65, z: table.z }, { x: table.x + 1.65, z: table.z }]
@@ -29,11 +32,24 @@ export function walkable(p: Point): boolean {
   return !furniture.some(b => Math.abs(p.x - b.x) < b.halfX + PLAYER_RADIUS && Math.abs(p.z - b.z) < b.halfZ + PLAYER_RADIUS)
 }
 export function move(p: Point, dx: number, dz: number, seconds: number): Point {
-  const length = Math.max(1, Math.hypot(dx, dz)), step = Math.min(.05, Math.max(0, seconds)) * 5.0
+  const length = Math.max(1, Math.hypot(dx, dz)), step = Math.min(.05, Math.max(0, seconds)) * SERVER_SPEED
   const next = { ...p }
   if (walkable({ x: next.x + dx / length * step, z: next.z })) next.x += dx / length * step
   if (walkable({ x: next.x, z: next.z + dz / length * step })) next.z += dz / length * step
   return next
+}
+/** Spend the whole frame across short waypoints without overshooting them. */
+export function followRoute(position: Point, path: Point[], seconds: number): Point {
+  let remaining = Math.min(.05, Math.max(0, seconds)) * SERVER_SPEED, p = position
+  for (let iteration = 0; iteration < 16 && path.length && remaining > .000001; iteration++) {
+    const goal = path[0], length = distance(p, goal)
+    if (length < .000001) { p = { ...goal }; path.shift(); continue }
+    const step = Math.min(.1, remaining, length)
+    const next = move(p, (goal.x - p.x) / length, (goal.z - p.z) / length, step / SERVER_SPEED)
+    if (distance(p, next) < .000001) break
+    p = distance(next, goal) < .000001 ? { ...goal } : next; remaining -= step
+  }
+  return p
 }
 /** Navigation is game-owned and never rewrites the park's map or input system. */
 export function route(start: Point, destination: Point): Point[] {

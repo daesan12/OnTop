@@ -132,3 +132,64 @@ test('지난 공지 검색과 카드 드래그·버튼 정렬은 저장 후 유�
   await expect(page.getByRole('button', { name: '순서 저장', exact: true })).toHaveCount(0)
   await expect(page.getByRole('list', { name: '공지 카드 목록' }).locator('li').first()).toContainText('지난 행사')
 })
+
+test('게임 참가·관전과 미니게임 화면에는 공지를 숨기고 복귀하면 최신 공지를 표시한다', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  await fixture(page, { omok: true, publicSpectator: true, ownUserId: '505', spectatorEvents: true })
+  let noticeText = initial.text, reads = 0
+  await page.route('**/api/v1/announcements', route => {
+    reads++
+    return route.fulfill({ json: { serverTime: new Date().toISOString(), refreshAt: new Date(Date.now() + 2000).toISOString(),
+      announcements: [{ id, text: noticeText, endsAt: null, version: reads }] } })
+  })
+  await page.goto('/park')
+  const banner = page.getByRole('complementary', { name: '공원 공지' })
+  await expect(banner).toBeVisible({ timeout: 90000 })
+  await expect.poll(() => page.evaluate(async () => {
+    const s = (await import('/src/network/worldClient.ts' as string)).useSession.getState()
+    return s.status === 'connected' && s.mapCompatible && s.bindings.length > 0 && !s.pending
+  })).toBe(true)
+  expect(await page.evaluate(async () => {
+    const { parkRuntime } = await import('/src/park/runtime/runtime.ts' as string)
+    const { TABLES } = await import('/src/park/mapConfig.ts' as string)
+    parkRuntime.inspectTable(TABLES[0].id, true)
+    return true
+  })).toBe(true)
+  await expect.poll(() => page.evaluate(async () => (await import('/src/game/store.ts' as string)).useGame.getState().game?.role)).toBe('SPECTATOR')
+  await expect(banner).toHaveCount(0)
+  // The same board state also suppresses the banner for a participant.
+  await page.evaluate(async () => {
+    const { useGame } = await import('/src/game/store.ts' as string)
+    useGame.setState({ game: { ...useGame.getState().game, role: 'PLAYER' } })
+  })
+  await expect(banner).toHaveCount(0)
+  await screenshot(page, 'announcements-hidden-in-game')
+  noticeText = '게임 중 갱신된 새 공지'
+  const before = reads
+  await expect.poll(() => reads, { timeout: 6000 }).toBeGreaterThan(before)
+  // Return the synthetic participant snapshot to the same observer role before leaving its view.
+  await page.evaluate(async () => {
+    const { useGame } = await import('/src/game/store.ts' as string)
+    useGame.setState({ game: { ...useGame.getState().game, role: 'SPECTATOR' } })
+  })
+  expect(await page.evaluate(async () => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.unwatchGame())).toBe(true)
+  await expect(banner).toContainText(noticeText)
+  for (const kind of ['arcade', 'mole', 'plusMinus', 'rpsRoulette', 'speedMole', 'bungeoppang', 'vr'] as const) {
+    const setOpen = async (open: boolean) => page.evaluate(async ({kind, open}) => {
+      switch (kind) {
+        case 'arcade': (await import('/src/features/arcade/store.ts' as string)).useArcade.setState({ open }); break
+        case 'mole': (await import('/src/features/mole/store.ts' as string)).useMole.setState({ open }); break
+        case 'plusMinus': (await import('/src/features/plusMinus/store.ts' as string)).usePlusMinus.setState({ open }); break
+        case 'rpsRoulette': (await import('/src/features/rpsRoulette/store.ts' as string)).useRpsRoulette.setState({ open }); break
+        case 'speedMole': (await import('/src/features/speedMole/store.ts' as string)).useSpeedMole.setState({ open }); break
+        case 'bungeoppang': (await import('/src/features/bungeoppang/store.ts' as string)).useBungeoppang.setState({ phase: open ? 'start' : 'idle' }); break
+        case 'vr': (await import('/src/features/vrZone/parkBridge.ts' as string)).parkVrZone.store.setState({ phase: open ? 'catalog' : 'closed' }); break
+      }
+    }, {kind, open})
+    await setOpen(true); await expect(banner, kind).toHaveCount(0)
+    await setOpen(false); await expect(banner, kind).toBeVisible()
+  }
+  await screenshot(page, 'announcements-return-to-park')
+  expect(errors).toEqual([])
+})

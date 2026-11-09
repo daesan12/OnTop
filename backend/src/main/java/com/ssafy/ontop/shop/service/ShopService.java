@@ -45,6 +45,22 @@ public class ShopService {
     private final ApplicationEventPublisher events;
     private final DuplicateEquipmentPolicy duplicatePolicy;
     private final BehaviorLog behaviorLog;
+    private java.util.function.Supplier<java.util.Map<Long,String>> productBundles = java.util.Map::of;
+
+    /** 수집 세트가 아니라 실제 분리 불가능한 상품 단위로 장착한다. 등록되지 않은 기존 의상은 유지한다. */
+    public void configureProductBundles(java.util.function.Supplier<java.util.Map<Long,String>> source) {
+        productBundles = java.util.Objects.requireNonNull(source);
+    }
+
+    private static OwnedItemResponse view(UserItem value, java.util.Map<Long,String> bundles) {
+        var owned = value.toOwnedItem();
+        String product = bundles.get(owned.item().itemId());
+        if (product == null) return owned;
+        var item = owned.item();
+        return new OwnedItemResponse(owned.userItemId(), new com.ssafy.ontop.shop.dto.ItemResponse(
+                item.itemId(),item.itemCode(),item.name(),item.itemType(),item.equipSlot(),item.price(),
+                item.imageKey(),"gacha:"+product),owned.quantity(),owned.equipped());
+    }
 
     public ShopService(ShopRepository repository, PlatformTransactionManager manager,
             ApplicationEventPublisher events, DuplicateEquipmentPolicy duplicatePolicy) {
@@ -139,24 +155,25 @@ public class ShopService {
         return transactions.execute(status -> {
             lockWallet(userId);
             var holdings = repository.ownedForUpdate(userId);
+            var bundles = productBundles.get();
             var selected = holdings.stream()
                     .filter(value -> value.id() == userItemId && value.quantity() > 0).findFirst()
                     .orElseThrow(() -> error(404, "OWNED_ITEM_NOT_FOUND", "보유한 아이템이 없습니다."));
-            var selectedItem = selected.toOwnedItem().item();
+            var selectedItem = view(selected,bundles).item();
             if (selectedItem.itemType() != ItemType.EQUIPMENT || selectedItem.equipSlot() == null) {
                 throw error(409, "ITEM_NOT_EQUIPPABLE", "장착 가능한 의상이 아닙니다.");
             }
             // 세트 의상은 보유한 같은 세트 부위를 모두 함께 입는다.
             var wearing = holdings.stream().filter(value -> value.quantity() > 0
                     && (value == selected || selectedItem.setCode() != null
-                            && selectedItem.setCode().equals(value.toOwnedItem().item().setCode()))).toList();
+                            && selectedItem.setCode().equals(view(value,bundles).item().setCode()))).toList();
             var slots = EnumSet.noneOf(EquipSlot.class);
             wearing.forEach(value -> slots.add(value.toOwnedItem().item().equipSlot()));
             // 옷(상의·하의·신발)은 한 벌로 입는다: 그중 한 부위라도 입으면 옷 부위를 모두 벗기고 새 한 벌만 입는다.
             if (!Collections.disjoint(slots, OUTFIT_SLOTS)) {
                 slots.addAll(OUTFIT_SLOTS);
             }
-            takeOff(holdings, slots);
+            takeOff(holdings, slots, bundles);
             wearing.forEach(UserItem::equip);
             repository.flush();
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -165,7 +182,7 @@ public class ShopService {
                     equipmentCommitted(userId, selectedItem.itemId());
                 }
             });
-            return new EquipmentResponse(holdings.stream().map(UserItem::toOwnedItem)
+            return new EquipmentResponse(holdings.stream().map(value -> view(value,bundles))
                     .filter(item -> item.quantity() > 0 && item.equipped()).toList());
         });
     }
@@ -179,6 +196,7 @@ public class ShopService {
         return transactions.execute(status -> {
             lockWallet(userId);
             var holdings = repository.ownedForUpdate(userId);
+            var bundles = productBundles.get();
             var selected = holdings.stream()
                     .filter(value -> value.id() == userItemId && value.quantity() > 0).findFirst()
                     .orElseThrow(() -> error(404, "OWNED_ITEM_NOT_FOUND", "보유한 아이템이 없습니다."));
@@ -189,7 +207,7 @@ public class ShopService {
             if (selected.equipped()) {
                 // 옷 부위를 벗으면 옷 전체(상의·하의·신발)가 기본 옷으로 돌아간다.
                 takeOff(holdings, OUTFIT_SLOTS.contains(selectedItem.equipSlot())
-                        ? EnumSet.copyOf(OUTFIT_SLOTS) : EnumSet.of(selectedItem.equipSlot()));
+                        ? EnumSet.copyOf(OUTFIT_SLOTS) : EnumSet.of(selectedItem.equipSlot()), bundles);
                 repository.flush();
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                     @Override
@@ -198,16 +216,16 @@ public class ShopService {
                     }
                 });
             }
-            return new EquipmentResponse(holdings.stream().map(UserItem::toOwnedItem)
+            return new EquipmentResponse(holdings.stream().map(value -> view(value,bundles))
                     .filter(item -> item.quantity() > 0 && item.equipped()).toList());
         });
     }
 
     /** 주어진 부위에 입은 의상을 벗긴다. 벗긴 의상이 세트 부위면 그 세트의 다른 부위도 함께 벗긴다. */
-    private static void takeOff(List<UserItem> holdings, Set<EquipSlot> slots) {
+    private static void takeOff(List<UserItem> holdings, Set<EquipSlot> slots, java.util.Map<Long,String> bundles) {
         Set<String> sets = new HashSet<>();
         for (var holding : holdings) {
-            var item = holding.toOwnedItem().item();
+            var item = view(holding,bundles).item();
             if (holding.equipped() && slots.contains(item.equipSlot())) {
                 holding.unequip();
                 if (item.setCode() != null) {
@@ -216,7 +234,7 @@ public class ShopService {
             }
         }
         for (var holding : holdings) {
-            var setCode = holding.toOwnedItem().item().setCode();
+            var setCode = view(holding,bundles).item().setCode();
             if (holding.equipped() && setCode != null && sets.contains(setCode)) {
                 holding.unequip();
             }
@@ -248,7 +266,8 @@ public class ShopService {
     }
 
     private List<OwnedItemResponse> owned(long userId, boolean equippedOnly) {
-        return repository.owned(userId).stream().map(UserItem::toOwnedItem)
+        var bundles = productBundles.get();
+        return repository.owned(userId).stream().map(value -> view(value,bundles))
                 .filter(item -> !equippedOnly || item.equipped()).toList();
     }
 

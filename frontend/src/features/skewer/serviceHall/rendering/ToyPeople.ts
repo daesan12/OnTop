@@ -13,13 +13,13 @@ export class ToyPeople {
   private library?: DiningGuests
   private disposed = false
   readonly guestsReady: Promise<boolean>
-  constructor(private art: RestaurantSet) {
+  constructor(private art: RestaurantSet, readonly guestSpeech = true) {
     this.guestsReady = DiningGuests.load().then(library => {
       if (this.disposed) { library.dispose(); return false }
       this.library = library
       this.guests.forEach(({ actor, variant }) => actor.applyDiningGuest(library.create(variant)))
       return true
-    }).catch(() => false) // Keep existing guests usable if the optional asset fails to load.
+    }).catch(() => false) // Missing models remain hidden; never show prototype bodies.
   }
   mesh(shape: 'ball' | 'body' | 'limb' | 'hair' | 'smile' | 'ring', color: string) {
     let g = this.geometry.get(shape)
@@ -36,6 +36,7 @@ export class ToyPeople {
   }
   create(index: number, role: 'guest' | 'server' | 'chef' = 'guest', seated = false): ToyActor {
     const actor = new ToyActor(this, this.art, index, role, seated)
+    actor.setBodyVisible(false)
     if (role === 'guest') {
       const variant = characterLook(index, role).variant
       this.guests.push({ actor, variant })
@@ -67,7 +68,7 @@ export class ToyActor {
     const look = characterLook(index, role)
     const { skin, shirt, pants, shoes } = look
     this.root.name = role === 'guest' ? 'guest-reference-' + look.variant : role + '-reference'
-    if (role === 'guest') { this.speech = new GuestSpeech(factory.speech, look.variant % 6); this.root.add(this.speech.root) }
+    if (role === 'guest' && factory.guestSpeech) { this.speech = new GuestSpeech(factory.speech, look.variant % 6); this.root.add(this.speech.root) }
     const ball = (parent: THREE.Object3D, color: string, x: number, y: number, z: number, sx: number, sy = sx, sz = sx) => {
       const m = factory.mesh('ball', color); m.scale.set(sx, sy, sz); art.place(parent, m, x, y, z); return m
     }
@@ -107,7 +108,8 @@ export class ToyActor {
     if (this.role !== 'guest') return
     this.dining?.dispose(); this.dining = guest
     this.setBodyVisible(false); this.root.add(guest.root)
-    if (this.speech) guest.root.add(this.speech.root)
+    // 스켈레톤 보정 행렬 밖에서 그려 회전할 때 말풍선이 찌그러지지 않게 한다.
+    if (this.speech) this.root.add(this.speech.root)
     if (this.seated) this.root.position.y = 0
     this.root.userData.guestModel = 'bungeoppang'
     this.pose(0, {})

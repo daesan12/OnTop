@@ -40,6 +40,12 @@ export class DiningGuest {
   private p = new THREE.Vector3(); private q = new THREE.Vector3(); private direction = new THREE.Vector3()
   private rotation = new THREE.Quaternion(); private parentRotation = new THREE.Quaternion(); private delta = new THREE.Quaternion()
   private correction = new THREE.Matrix4(); private turn = new THREE.Matrix4(); private inverseTurn = new THREE.Matrix4()
+  private worldToRoot = new THREE.Matrix4(); private scale = new THREE.Vector3()
+  private hip = new THREE.Vector3(); private knee = new THREE.Vector3(); private ankle = new THREE.Vector3()
+  private foot = new THREE.Vector3(); private axis = new THREE.Vector3(); private outward = new THREE.Vector3()
+  private targetKnee = new THREE.Vector3(); private shoulder = new THREE.Vector3()
+  private elbow = new THREE.Vector3(); private hand = new THREE.Vector3(); private shoeRotation = new THREE.Quaternion()
+  private poseState = -1; private poseYaw = NaN
   private depth = new THREE.Matrix4().makeScale(1, 1, 1 / FLOOR_DEPTH_SCALE)
   labelHeight = 2.1
   get standingHeight() { return DINING_GUEST_HEIGHTS[this.variant] }
@@ -49,62 +55,71 @@ export class DiningGuest {
     this.root.name = `bungeoppang-dining-${CUSTOMER_ASSETS_V5[variant].id}`
     this.actor.root.traverse(o => { if (o instanceof THREE.Bone) this.bones.set(o.name.replace('mixamorig:', '').replace('mixamorig', ''), o) })
     this.root.updateMatrixWorld(true)
-    for (const [i, side] of ['Left', 'Right'].entries()) this.footHeights[i] = this.localPosition(side + 'Foot').y
+    this.worldToRoot.copy(this.root.matrixWorld).invert()
+    for (const [i, side] of ['Left', 'Right'].entries()) this.footHeights[i] = this.localPosition(side + 'Foot', this.p).y
     this.base.copy(this.actor.root.position)
     this.root.matrixAutoUpdate = false
   }
-  private localPosition(name: string) {
+  private localPosition(name: string, target: THREE.Vector3) {
     const bone = this.bones.get(name)
     if (!bone) throw new Error(`Missing dining joint: ${name}`)
-    return this.root.worldToLocal(bone.getWorldPosition(new THREE.Vector3()))
+    return target.setFromMatrixPosition(bone.matrixWorld).applyMatrix4(this.worldToRoot)
   }
   /** Aim a joint in world space: imported rigs have different local axes and rest rotations. */
   private aim(name: string, child: string, target: THREE.Vector3) {
     const bone = this.bones.get(name)!, end = this.bones.get(child)!
-    this.root.updateMatrixWorld(true)
-    bone.getWorldPosition(this.p); end.getWorldPosition(this.q)
+    // The pose owns the matrix update order. Only the changed bone subtree is dirty.
+    this.p.setFromMatrixPosition(bone.matrixWorld); this.q.setFromMatrixPosition(end.matrixWorld)
     this.direction.copy(target).sub(this.p).normalize()
     this.delta.setFromUnitVectors(this.q.sub(this.p).normalize(), this.direction)
-    bone.getWorldQuaternion(this.rotation); bone.parent!.getWorldQuaternion(this.parentRotation)
+    bone.matrixWorld.decompose(this.q, this.rotation, this.scale)
+    bone.parent!.matrixWorld.decompose(this.q, this.parentRotation, this.scale)
     bone.quaternion.copy(this.parentRotation.invert().multiply(this.delta).multiply(this.rotation))
     bone.updateMatrixWorld(true)
   }
   update(dt: number, seated: boolean, moving: boolean, eating: boolean, reduced: boolean, yaw: number) {
+    const state = Number(seated) | Number(moving) << 1 | Number(eating) << 2 | Number(reduced) << 3
+    // A zero-time frame must still apply a new seated/motion/accessibility state.
+    if ((dt === 0 || reduced) && state === this.poseState && yaw === this.poseYaw) return
+    this.poseState = state; this.poseYaw = yaw
     // Cancel only the hall's floor depth stretch, before the character's facing rotation.
     this.root.matrix.copy(this.correction.copy(this.inverseTurn.makeRotationY(-yaw)).multiply(this.depth).multiply(this.turn.makeRotationY(yaw)))
     this.actor.root.position.copy(this.base)
     this.actor.play(moving && !reduced ? 'walk' : 'idle', reduced)
     this.actor.update(reduced ? 0 : dt, 0, 1)
-    this.root.updateMatrixWorld(true)
+    this.root.updateWorldMatrix(true, true)
+    this.worldToRoot.copy(this.root.matrixWorld).invert()
     if (!seated) return
     this.time += reduced ? 0 : dt
-    const hips = this.localPosition('Hips')
+    const hips = this.localPosition('Hips', this.p)
     this.actor.root.position.y += DINING_SEAT_HEIGHT + .12 - hips.y
     this.labelHeight = DINING_GUEST_HEIGHTS[this.variant] + this.actor.root.position.y + .25
     this.root.updateMatrixWorld(true)
     for (const [i, side] of ['Left', 'Right'].entries()) {
-      const hip = this.localPosition(side + 'UpLeg'), knee = this.localPosition(side + 'Leg'), ankle = this.localPosition(side + 'Foot')
+      const hip = this.localPosition(side + 'UpLeg', this.hip), knee = this.localPosition(side + 'Leg', this.knee), ankle = this.localPosition(side + 'Foot', this.ankle)
       const upper = hip.distanceTo(knee), lower = knee.distanceTo(ankle)
-      const foot = new THREE.Vector3(hip.x, this.footHeights[i], hip.z + upper * .93)
-      const axis = foot.clone().sub(hip), distance = axis.length(); axis.normalize()
+      const foot = this.foot.set(hip.x, this.footHeights[i], hip.z + upper * .93)
+      const axis = this.axis.copy(foot).sub(hip), distance = axis.length(); axis.normalize()
       const along = (upper * upper - lower * lower + distance * distance) / (2 * distance)
       const bend = Math.sqrt(Math.max(0, upper * upper - along * along))
-      const outward = new THREE.Vector3(0, -axis.z, axis.y).negate()
-      const targetKnee = hip.clone().addScaledVector(axis, along).addScaledVector(outward, bend)
+      const outward = this.outward.set(0, -axis.z, axis.y).negate()
+      const targetKnee = this.targetKnee.copy(hip).addScaledVector(axis, along).addScaledVector(outward, bend)
       // Keep the shoe's evaluated idle orientation while flexing the two leg bones.
-      const shoe = this.bones.get(side + 'Foot')!, shoeRotation = shoe.getWorldQuaternion(new THREE.Quaternion())
-      this.aim(side + 'UpLeg', side + 'Leg', this.root.localToWorld(targetKnee))
-      this.aim(side + 'Leg', side + 'Foot', this.root.localToWorld(foot))
-      shoe.quaternion.copy(shoe.parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(shoeRotation))
-      const shoulder = this.localPosition(side + 'Arm')
-      const elbow = shoulder.clone().add(new THREE.Vector3(i ? .04 : -.04, -.22, .13))
-      const hand = shoulder.clone().add(new THREE.Vector3(i ? -.10 : .10, -.28 + (eating && !reduced ? Math.sin(this.time * 2.8 + i) * .045 : 0), .39))
-      this.aim(side + 'Arm', side + 'ForeArm', this.root.localToWorld(elbow))
-      this.aim(side + 'ForeArm', side + 'Hand', this.root.localToWorld(hand))
+      const shoe = this.bones.get(side + 'Foot')!
+      shoe.matrixWorld.decompose(this.q, this.shoeRotation, this.scale)
+      this.aim(side + 'UpLeg', side + 'Leg', targetKnee.applyMatrix4(this.root.matrixWorld))
+      this.aim(side + 'Leg', side + 'Foot', foot.applyMatrix4(this.root.matrixWorld))
+      shoe.parent!.matrixWorld.decompose(this.q, this.parentRotation, this.scale)
+      shoe.quaternion.copy(this.parentRotation.invert().multiply(this.shoeRotation)); shoe.updateMatrixWorld(true)
+      const shoulder = this.localPosition(side + 'Arm', this.shoulder)
+      const elbow = this.elbow.set(i ? .04 : -.04, -.22, .13).add(shoulder)
+      const hand = this.hand.set(i ? -.10 : .10, -.28 + (eating && !reduced ? Math.sin(this.time * 2.8 + i) * .045 : 0), .39).add(shoulder)
+      this.aim(side + 'Arm', side + 'ForeArm', elbow.applyMatrix4(this.root.matrixWorld))
+      this.aim(side + 'ForeArm', side + 'Hand', hand.applyMatrix4(this.root.matrixWorld))
     }
-    this.root.updateMatrixWorld(true)
-    this.root.userData.seatGap = this.localPosition('Hips').y - .12 - DINING_SEAT_HEIGHT
-    this.root.userData.footGaps = ['Left', 'Right'].map((side, i) => this.localPosition(side + 'Foot').y - this.footHeights[i])
+    this.root.userData.seatGap = this.localPosition('Hips', this.p).y - .12 - DINING_SEAT_HEIGHT
+    const gaps = this.root.userData.footGaps ??= [0, 0]
+    for (const [i, side] of ['Left', 'Right'].entries()) gaps[i] = this.localPosition(side + 'Foot', this.p).y - this.footHeights[i]
   }
   dispose() { this.actor.dispose(); this.root.removeFromParent() }
 }

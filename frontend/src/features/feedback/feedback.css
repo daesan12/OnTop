@@ -127,3 +127,5 @@
 }
 @media (max-width: 420px) { .feedback-paper { padding: 31px 21px 25px; } .feedback-heading h2 { font-size: 31px; } .feedback-topics > div { gap: 5px; } .feedback-topic strong { font-size: 12px; } .feedback-desktop-break { display: none; } }
 @media (prefers-reduced-motion: reduce) { .feedback-backdrop, .feedback-paper, .feedback-paper-content, .feedback-flying-letter, .feedback-letter-flap, .feedback-flying-letter b, .feedback-delivery-status { animation: none !important; transition: none !important; } .feedback-flying-letter { display: none; } .feedback-dialog[data-phase=folding] .feedback-paper { opacity: 0; } }
+
+.feedback-disclosure{font-size:12px;line-height:1.5;color:#786c4d;text-align:center}

@@ -29,10 +29,10 @@ export class GuestSpeech {
   private remaining = 0
   private delay = 0
   private previous: Partial<Record<GuestGreeting, string>> = {}
-  private material = new THREE.SpriteMaterial({ transparent: true, depthWrite: false, toneMapped: false })
+  private material = new THREE.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false, toneMapped: false })
   constructor(private art: GuestSpeechArt, private variant = 0) {
     this.root = new THREE.Sprite(this.material); this.root.visible = false
-    this.root.scale.set(3.15, .985, 1); this.root.name = 'guest-greeting'
+    this.root.scale.set(2.5, .78125, 1); this.root.name = 'guest-greeting'; this.root.renderOrder = 50
   }
   get visible() { return this.remaining > 0 }
   show(kind: GuestGreeting) {

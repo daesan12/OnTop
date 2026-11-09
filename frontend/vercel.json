@@ -21,9 +21,13 @@
     { "source": "/onboarding", "destination": "/index.html" },
     { "source": "/park", "destination": "/index.html" },
     { "source": "/admin", "destination": "/index.html" },
+    { "source": "/admin/operations", "destination": "/index.html" },
     { "source": "/admin/announcements", "destination": "/index.html" },
+    { "source": "/admin/events", "destination": "/index.html" },
+    { "source": "/admin/skins", "destination": "/index.html" },
     { "source": "/admin/feedback", "destination": "/index.html" },
-    { "source": "/admin/analytics", "destination": "/index.html" }
+    { "source": "/admin/analytics", "destination": "/index.html" },
+    { "source": "/admin/wallet-grants", "destination": "/index.html" }
   ],
   "buildCommand": "VITE_ALKKAGI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.prod.json pnpm run build:park",
   "outputDirectory": "dist-park"

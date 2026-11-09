@@ -6,11 +6,20 @@ import { parkXRView } from '../../src/world/xrView'
 import { useParkXR } from '../../src/features/parkXR/state'
 import { avatars, sampleAvatar, useSession } from '../../src/network/worldClient'
 import { inputState } from '../../src/world/inputOwnership'
+import { useXRComfort } from '../../src/features/parkXR/comfort'
 
 let left: Gamepad, right: Gamepad, session: XRSession
 let timer: ReturnType<typeof setInterval>
-let targetAction: JumpmapXRAction | null = null
+let targetAction: JumpmapXRAction | 'skewer-entry' | 'skewer-entry-edge' | null = null
+let endDeferred = false, finishEnd: (() => void) | undefined
+const viewerRotation = new Quaternion()
+let turnSamples: number[] = []
 let tracked = true
+let viewerHeight = 1.65
+export function height(value: number) { viewerHeight = value }
+const feedbackPulses: { hand: string; strength: number; duration: number }[] = []
+let feedbackResets = 0
+export const feedbackSnapshot = () => ({ pulses: [...feedbackPulses], resets: feedbackResets })
 const root = () => _roots.get(document.querySelector('canvas')!)!.store.getState()
 export function guideTexturePNG() {
   const mesh = root().scene.getObjectByName('jumpmap-xr-dialog') as import('three').Mesh<import('three').PlaneGeometry, import('three').MeshBasicMaterial>
@@ -21,9 +30,13 @@ export function sceneFramePNG() {
   state.gl.render(state.scene, state.camera)
   return state.gl.domElement.toDataURL('image/png')
 }
-export function install() {
+export function install(options: { haptics?: boolean } = {}) {
   const state = root()
-  const pad = () => ({ mapping: 'xr-standard', axes: [0, 0, 0, 0],
+  feedbackPulses.length = 0; feedbackResets = 0
+  const pad = (hand: string) => ({ mapping: 'xr-standard', axes: [0, 0, 0, 0],
+    hapticActuators: options.haptics ? [{ pulse: async (strength: number, duration: number) => {
+      feedbackPulses.push({ hand, strength, duration }); return true
+    }, reset: async () => { feedbackResets++; return 'complete' } }] : [],
     buttons: Array.from({ length: 6 }, () => ({ pressed: false, touched: false, value: 0 })) }) as unknown as Gamepad
   let current: XRSession | null = null
   // Exercise our bridge and the real park intent/socket path while keeping desktop WebGL rendering.
@@ -31,34 +44,43 @@ export function install() {
   state.gl.xr.getSession = () => current
   state.gl.xr.getReferenceSpace = () => ({}) as XRReferenceSpace
   navigator.xr!.requestSession = async () => {
-    left = pad(); right = pad()
+    left = pad('left'); right = pad('right')
     session = Object.assign(new EventTarget(), { visibilityState: 'visible', inputSources: [
       { handedness: 'left', gamepad: left, targetRayMode: 'tracked-pointer', targetRaySpace: { hand: 'left' } },
       { handedness: 'right', gamepad: right, targetRayMode: 'tracked-pointer', targetRaySpace: { hand: 'right' } },
     ], end: async () => {
+      if (endDeferred) await new Promise<void>(resolve => { finishEnd = resolve })
       clearInterval(timer); current = null
       session.dispatchEvent(new Event('end'))
       state.setFrameloop('always')
     } }) as unknown as XRSession
     state.setFrameloop('never')
-    tracked = true; targetAction = null
+    tracked = true; targetAction = null; viewerRotation.identity(); turnSamples = []; endDeferred = false; finishEnd = undefined
     const frame = { getViewerPose: () => tracked ? ({ transform: {
-      position: { x: .3, y: 1.65, z: -.2 }, orientation: { x: 0, y: 0, z: 0, w: 1 },
+      position: { x: .3, y: viewerHeight, z: -.2 }, orientation: viewerRotation,
     } }) : null, getPose: () => {
       const { scene } = root(), rig = scene.getObjectByName('park-xr-rig')!
       const panel = scene.getObjectByName('jumpmap-xr-dialog')!
       const view = panel.parent!.userData.view as JumpmapXRView | undefined
       const index = view?.buttons.findIndex(b => b.id === targetAction) ?? -1
       const position = { x: .55, y: 1.35, z: -.45 }
-      if (index < 0 || !view) return { transform: { position, orientation: new Quaternion() } }
-      const count = view.buttons.length, width = (1536 - 112 - (count - 1) * 24) / count
-      const pixelX = 56 + index * (width + 24) + width / 2
-      const point = new Vector3((pixelX / 1536 - .5) * 1.38, (.5 - 866 / 1024) * .92, 0)
-      panel.localToWorld(point); rig.worldToLocal(point)
+      let point: Vector3
+      if (targetAction === 'skewer-entry') point = scene.getObjectByName('park-xr-skewer-entry')!.localToWorld(new Vector3(0, (.5 - 233 / 384) * .3, 0))
+      else if (targetAction === 'skewer-entry-edge') point = scene.getObjectByName('park-xr-skewer-entry')!.localToWorld(new Vector3(.58, .13, 0))
+      else {
+        if (index < 0 || !view) return { transform: { position, orientation: new Quaternion() } }
+        const rect = (panel.userData.buttons as { x: number; y: number; width: number; height: number }[])[index]!
+        const pixelX = rect.x + rect.width / 2, pixelY = rect.y + rect.height / 2
+        point = panel.localToWorld(new Vector3((pixelX / 1536 - .5) * 1.38, (.5 - pixelY / 1024) * .92, 0))
+      }
+      rig.worldToLocal(point)
       const direction = point.sub(new Vector3(position.x, position.y, position.z)).normalize()
       return { transform: { position, orientation: new Quaternion().setFromUnitVectors(new Vector3(0, 0, -1), direction) } }
     } } as unknown as XRFrame
-    timer = setInterval(() => advance(root().clock.elapsedTime + .016, false, root(), frame), 32)
+    timer = setInterval(() => {
+      advance(root().clock.elapsedTime + .016, false, root(), frame)
+      turnSamples.push(root().scene.getObjectByName('park-xr-rig')!.rotation.y)
+    }, 32)
     return session
   }
 }
@@ -77,7 +99,16 @@ export function buttons({ run = false, guide = false, trigger = false }: { run?:
   Object.assign(left.buttons[4]!, { pressed: guide, value: Number(guide) })
   Object.assign(right.buttons[0]!, { pressed: trigger, value: Number(trigger) })
 }
-export function aim(action: JumpmapXRAction | null) { targetAction = action }
+export function aim(action: JumpmapXRAction | 'skewer-entry' | 'skewer-entry-edge' | null) { targetAction = action }
+export function holdEnd() { endDeferred = true }
+export function completeEnd() { endDeferred = false; finishEnd?.(); finishEnd = undefined }
+export function rotationSamples() { return [...turnSamples] }
+export function faceSkewerEntry() {
+  const { scene, camera } = root(), rig = scene.getObjectByName('park-xr-rig')!
+  const direction = scene.getObjectByName('park-xr-skewer-entry')!.getWorldPosition(new Vector3())
+    .sub(camera.getWorldPosition(new Vector3())).applyQuaternion(rig.getWorldQuaternion(new Quaternion()).invert()).normalize()
+  viewerRotation.setFromUnitVectors(new Vector3(0, 0, -1), direction)
+}
 export function tracking(value: boolean) { tracked = value }
 export function menu(open: boolean) { inputState.mapOpen = open }
 export function disconnectWithoutFrames() {
@@ -90,10 +121,15 @@ export function snapshot() {
   const pose = sampleAvatar(avatar, performance.now(), { ...avatar.current })
   const panel = scene.getObjectByName('jumpmap-xr-dialog')!.parent!
   const status = scene.getObjectByName('jumpmap-xr-status')!.parent!
-  return { phase: useParkXR.getState().phase, active: parkXRView.active, ownsInput: parkXRView.ownsInput,
+  return { settings: useXRComfort.getState().settings, heightNotice: useXRComfort.getState().heightNotice,
+    phase: useParkXR.getState().phase, mode: useParkXR.getState().mode, active: parkXRView.active, ownsInput: parkXRView.ownsInput,
     position: camera.getWorldPosition(new Vector3()).toArray(), viewPosition: parkXRView.position.toArray(),
     parent: camera.parent?.type ?? null, pose,
     dialogBounds: [[-.69, -.46], [.69, .46]].map(([x, y]) => panel.localToWorld(new Vector3(x!, y!, 0)).project(camera).toArray()),
     ownVisible: scene.getObjectByName('avatar-' + useSession.getState().sessionId)?.visible,
+    rigYaw: scene.getObjectByName('park-xr-rig')!.rotation.y,
+    skewerEntryVisible: scene.getObjectByName('park-xr-skewer-entry')!.visible,
+    entryBounds: [[-.6, -.15], [.6, .15]].map(([x, y]) => scene.getObjectByName('park-xr-skewer-entry')!
+      .localToWorld(new Vector3(x!, y!, 0)).project(camera).toArray()),
     dialogVisible: panel.visible, statusVisible: status.visible, view: panel.userData.view as JumpmapXRView | undefined }
 }

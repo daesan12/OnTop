@@ -1,0 +1,45 @@
+-- 스킨 관리자 등록·파일 버전. 기존 상품/지갑/보유품 데이터는 변경하지 않는다.
+CREATE TABLE skin_catalog (
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+    product_code VARCHAR(28) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    grade TINYINT NOT NULL,
+    compatibility VARCHAR(10) NOT NULL,
+    wear_mode VARCHAR(10) NOT NULL,
+    slots VARCHAR(40) NOT NULL,
+    state VARCHAR(12) NOT NULL DEFAULT 'DRAFT',
+    state_version BIGINT NOT NULL DEFAULT 0,
+    published_upload_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    created_by BIGINT NULL,
+    updated_by BIGINT NULL,
+    created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    CONSTRAINT uk_skin_product_code UNIQUE (product_code),
+    CONSTRAINT ck_skin_grade CHECK (grade BETWEEN 1 AND 4),
+    CONSTRAINT ck_skin_compatibility CHECK (compatibility IN ('MALE','FEMALE','ANY')),
+    CONSTRAINT ck_skin_wear_mode CHECK (wear_mode IN ('PARTS','WHOLE')),
+    CONSTRAINT ck_skin_state CHECK (state IN ('DRAFT','PUBLISHED','DISABLED') AND state_version>=0),
+    CONSTRAINT fk_skin_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_skin_updater FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE skin_uploads (
+    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+    skin_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    catalog_version BIGINT NOT NULL,
+    model_bytes BIGINT NOT NULL,
+    image_bytes BIGINT NOT NULL,
+    model_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    image_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    object_prefix VARCHAR(200) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    expires_at TIMESTAMP(3) NOT NULL,
+    verified_at TIMESTAMP(3) NULL,
+    published_at TIMESTAMP(3) NULL,
+    created_by BIGINT NULL,
+    created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    INDEX ix_skin_uploads_skin (skin_id,created_at),
+    CONSTRAINT uk_skin_object_prefix UNIQUE (object_prefix),
+    CONSTRAINT fk_skin_upload_catalog FOREIGN KEY (skin_id) REFERENCES skin_catalog(id),
+    CONSTRAINT fk_skin_upload_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT ck_skin_upload_size CHECK (model_bytes BETWEEN 20 AND 20971520 AND image_bytes BETWEEN 12 AND 2097152)
+) ENGINE=InnoDB;

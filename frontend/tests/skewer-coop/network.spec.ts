@@ -1,3 +1,4 @@
+import { keyboardWalk } from './keyboardWalk'
 import { test, expect, type Browser, type Page } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
@@ -24,6 +25,8 @@ async function login(browser: Browser, role: 'red' | 'green', fresh = true) {
       if (m.type === 'GAME_CONNECTION_STATE' && m.payload.state?.publicState?.gameCode === 'SKEWER_COOP') latest.set(page, { ...m.payload.state, gameId: m.payload.gameId, version: m.payload.version })
     } catch { /* 바이너리 ping 등은 게임 상태가 아니다. */ }
   }) })
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: '온탑 로그인', exact: true })).toBeVisible()
   const response = await page.request.post('http://127.0.0.1:19185/dev/alkkagi-park/session', { data: { role } })
   expect(response.ok()).toBe(true)
   const code = (await response.json()).exchangeCode
@@ -96,7 +99,7 @@ async function joinRoom(page: Page) {
   await page.locator('.coop-room-cards').getByRole('button', { name: /참가하기/ }).click()
 }
 async function walk(page: Page, name: string, action: RegExp) {
-  await page.getByRole('button', { name, exact: true }).click()
+  await keyboardWalk(page, name, async () => latest.get(page).privateState.hall.position)
   await expect(page.locator('.service-action')).toHaveAccessibleName(action, { timeout: 20000 })
   let last = '', stable = 0
   await expect.poll(() => {
@@ -127,6 +130,8 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
     await expect(server.locator('[data-table="1"]')).toHaveAttribute('data-status', 'unreceived', { timeout: 10000 })
     expect(latest.get(chef).privateState.chef.visible).toEqual([])
     expect(JSON.stringify(latest.get(chef))).not.toContain('"recipe"')
+    await expect(chef.locator('.chef-stage')).toHaveAttribute('data-park-source', 'stone-pagoda', { timeout: 30000 })
+    await chef.locator('.chef-stage canvas').evaluate(el => el.setAttribute('data-session-view', 'chef-through-gameplay'))
     // 실제 서버 스냅샷을 표시하는 프레임에서 전진 중 뒤로 보정/반전되는지 확인한다.
     await server.evaluate(async () => {
       const url = '/src/features/skewer/serviceHall/rendering/HallMotion.ts'
@@ -145,6 +150,7 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
       return Reflect.get(window, 'skewerMotionSamples') as { x: number; yaw: number }[]
     })
     expect(motion.length).toBeGreaterThan(10)
+    console.info('[coop] 전진 프레임:', motion.length, '이동 거리:', motion.at(-1)!.x - motion[0].x)
     expect(motion.at(-1)!.x - motion[0].x).toBeGreaterThan(1)
     for (let frame = 1; frame < motion.length; frame++) {
       expect(motion[frame].x).toBeGreaterThanOrEqual(motion[frame - 1].x - .000001)
@@ -163,8 +169,14 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
     expect(reversed.at(-1)!.moving).toBe(false)
     expect(Math.abs(reversed.at(-1)!.x - latest.get(server).privateState.hall.position.x)).toBeLessThan(.03)
     await capture(server, 'coop-reverse-stop-motion')
+    // 빠른 방향 전환 직후에도 공통 소켓의 단일 입력 제한을 지켜야 한다.
+    for (const key of ['d', 's', 'a', 'w', 'd', 's', 'a', 'w']) {
+      await server.keyboard.down(key); await server.waitForTimeout(35); await server.keyboard.up(key)
+    }
     await walk(server, '1번 1인 테이블로 이동', /E 1번 주문 받기/)
+    await server.keyboard.down('d')
     await server.keyboard.press('e')
+    await server.keyboard.up('d')
     await expect(server.locator('[data-table="1"]')).toHaveAttribute('data-status', 'collected')
     expect(latest.get(chef).privateState.chef.visible).toEqual([])
     await walk(server, '주문 전달대로 이동', /E 주문표 전달/)
@@ -183,7 +195,7 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
     console.info('[coop] 요리사 제출')
     await expect(chef.getByTestId('cooking-completed')).toHaveText('1개')
     await expect.poll(() => latest.get(chef).privateState.chef.pass.length).toBe(1)
-    await expect(server.getByRole('button', { name: '음식 수령대로 이동', exact: true })).toContainText('1')
+    await expect(server.getByRole('img', { name: '음식 수령대', exact: true })).toContainText('1')
     await capture(chef, 'coop-chef-submitted')
     await walk(server, '음식 수령대로 이동', /E 완성 접시 받기/)
     await server.keyboard.press('e')
@@ -221,6 +233,10 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
     await chef.keyboard.press('g')
     await expect(greeting).not.toBeVisible({ timeout: 8000 })
     await expect.poll(() => latest.get(chef).publicState.score).toBeGreaterThan(scoreBeforeGreeting)
+    await expect(chef.getByTestId('skewer-coop')).toHaveAttribute('data-role', 'chef')
+    await expect(chef.locator('.chef-stage canvas')).toHaveAttribute('data-session-view', 'chef-through-gameplay')
+    await expect(server.getByRole('region', { name: '인사 결과' })).toContainText('보너스 +')
+    await expect(server.getByRole('region', { name: '인사 결과' })).not.toBeVisible({ timeout: 4000 })
     await second.context.close()
     console.info('[coop] 친구 연결 끊기')
     await expect(server.getByText('친구와 다시 연결하고 있어요', { exact: true })).toBeVisible({ timeout: 12000 })
@@ -257,6 +273,8 @@ test('독립 로그인 두 명이 최신 공원에서 만나 무료 방·역할�
       expect(returned.errors).toEqual([])
     } finally { await returned.context.close() }
     expect(first.errors).toEqual([]); expect(second.errors).toEqual([])
+    for (const page of [server, chef]) expect(actions.get(page)!.filter(action =>
+      ['GAME_ACTION_PENDING', 'GAME_ACTION_INVALID_ACTION'].includes(String((action as { code?: string }).code)))).toEqual([])
   } catch (error) {
     await capture(server, 'coop-failure-server'); await capture(chef, 'coop-failure-chef')
     console.info('[coop] 실패 시 입력·위치:', JSON.stringify({ actions: actions.get(server), position: latest.get(server)?.privateState.hall?.position, phase: latest.get(server)?.publicState.phase, version: latest.get(server)?.version }))

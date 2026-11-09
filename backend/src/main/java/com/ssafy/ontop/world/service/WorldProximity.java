@@ -60,7 +60,7 @@ public class WorldProximity {
         dynamicTables.remove(tableId);
     }
 
-    // hypot는 제곱 합의 overflow 없이 큰 유한 좌표도 안전하게 처리한다. 경계 20m는 포함한다.
+    // hypot는 제곱 합의 overflow 없이 큰 유한 좌표도 안전하게 처리한다. 설정된 반경의 경계도 포함한다.
     private boolean within(double x1, double z1, double x2, double z2, double radius) {
         return Math.hypot(x1 - x2, z1 - z2) <= radius;
     }

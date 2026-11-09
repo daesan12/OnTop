@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,6 +71,8 @@ class OmokSpectatorEventFlowTests {
     @Autowired private TableGameIdFlowTests.LifecycleEvents lifecycle;
     @MockitoBean private WebSocketAccountLookup accounts;
     @MockitoBean(name = "oauthClock") private Clock oauthClock;
+    // Spy 설정과 실제 타이머가 경합하지 않도록 시간 진행은 테스트에서 직접 제어한다.
+    @MockitoBean(name = "omokTimer") private ScheduledExecutorService omokTimer;
     private final List<ScenarioClient> clients = new ArrayList<>();
     private long moveSequence;
 
@@ -373,6 +376,7 @@ class OmokSpectatorEventFlowTests {
         assertThat(still.at("/publicState/moveCount").asInt()).isZero();
 
         clock.advanceSeconds(1);
+        engine.tick();
         JsonNode ended = viewer.await(m -> m.path("type").asText().equals("GAME_STATE")
                 && m.at("/payload/version").asLong() == 1);
         assertThat(ended.at("/payload/publicState/status").asText()).isEqualTo("FINISHED");

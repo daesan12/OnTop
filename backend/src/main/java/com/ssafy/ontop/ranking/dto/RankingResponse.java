@@ -11,8 +11,12 @@ public record RankingResponse(List<Item> items,
     }
 
     @Schema(name = "RankingItem")
-    public record Item(long rank, String userId, String nickname, long coinBalance) { }
+    public record Item(long rank, String userId, String nickname, long coinBalance, long equipmentValue, long totalAssets) {
+        public Item(long rank,String userId,String nickname,long coinBalance) { this(rank,userId,nickname,coinBalance,0,coinBalance); }
+    }
 
     @Schema(name = "RankingMyRank")
-    public record MyRank(long rank, long coinBalance) { }
+    public record MyRank(long rank, long coinBalance, long equipmentValue, long totalAssets) {
+        public MyRank(long rank,long coinBalance) { this(rank,coinBalance,0,coinBalance); }
+    }
 }

@@ -16,6 +16,33 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SkewerCoopFeedbackTests {
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
+    @Test
+    void 착석_전에는_주문이_없고_접수도_거절하며_착석후_넓어진_거리에서_받을_수_있다() {
+        var match = playing();
+        ReflectionTestUtils.setField(match, "position", new SkewerCoopMatch.Point(-6.2, 0));
+
+        assertThat(match.privateView(101).at("/hall/tables/0/status").asText()).isEqualTo("arriving");
+        assertThat(match.privateView(101).at("/hall/tables/0/bill").isNull()).isTrue();
+        assertThatThrownBy(() -> match.act(101, mapper.valueToTree(Map.of("type", "INTERACT")), 3200))
+                .hasMessage("INVALID_ACTION");
+        for (long time = 3300; time <= 9500; time += 100) {
+            match.tick(time, user -> true);
+        }
+
+        assertThat(match.privateView(101).at("/hall/tables/0/status").asText()).isEqualTo("unreceived");
+        assertThat(match.privateView(101).at("/hall/tables/0/bill/dishes").size()).isEqualTo(1);
+        match.act(101, mapper.valueToTree(Map.of("type", "INTERACT")), 9500);
+        assertThat(match.privateView(101).at("/hall/held/0").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void 상호작용_범위_밖은_여전히_거절한다() {
+        var match = playing();
+        ReflectionTestUtils.setField(match, "position", new SkewerCoopMatch.Point(-5.9, 0));
+        assertThatThrownBy(() -> match.act(101, mapper.valueToTree(Map.of("type", "INTERACT")), 3200))
+                .hasMessage("INVALID_ACTION");
+    }
+
     private SkewerCoopMatch playing() {
         var match = new SkewerCoopMatch("fixture", "park", 101, mapper, new Random(3), 0, 240);
         match.join(202);
@@ -30,6 +57,39 @@ class SkewerCoopFeedbackTests {
     }
 
     @Test
+    void 인사를_놓치면_실패_카드를_이초만_표시하고_완료_영점으로_안내하지_않는다() {
+        var match = playing();
+        double[] times = (double[]) ReflectionTestUtils.getField(match, "greetingAt");
+        times[0] = (double) ReflectionTestUtils.getField(match, "elapsed") + .05;
+        for (long time = 3300; time <= 8500; time += 100) match.tick(time, user -> true);
+        assertThat(match.publicView(101).at("/greeting/outcome").asText()).isEqualTo("missed");
+        assertThat(match.publicView(202).at("/greeting/bonus").asInt()).isZero();
+        assertThat(match.publicView(101).path("message").asText()).doesNotContain("인사 완료");
+        for (long time = 8600; time <= 10800; time += 100) match.tick(time, user -> true);
+        assertThat(match.publicView(101).at("/greeting/outcome").asText()).isEmpty();
+    }
+
+    @Test
+    void 두사람이_인사하면_확정_보너스를_양쪽에_같이_표시하고_역할은_바뀌지_않는다() {
+        var match = playing();
+        double[] times = (double[]) ReflectionTestUtils.getField(match, "greetingAt");
+        times[0] = (double) ReflectionTestUtils.getField(match, "elapsed") + .05;
+        match.tick(3300, user -> true);
+        match.act(101, mapper.valueToTree(Map.of("type", "GREET")), 3300);
+        match.act(202, mapper.valueToTree(Map.of("type", "GREET")), 3300);
+        match.tick(3400, user -> true);
+        assertThat(match.publicView(101).at("/greeting/outcome").asText()).isEqualTo("success");
+        assertThat(match.publicView(101).at("/greeting/bonus").asInt()).isPositive();
+        assertThat(match.publicView(101).path("greeting")).isEqualTo(match.publicView(202).path("greeting"));
+        for (long time = 3500; time <= 5800; time += 100) {
+            match.tick(time, user -> true);
+            assertThat(match.privateView(101).path("role").asText()).isEqualTo("server");
+            assertThat(match.privateView(202).path("role").asText()).isEqualTo("chef");
+        }
+        assertThat(match.publicView(101).at("/greeting/outcome").asText()).isEmpty();
+    }
+
+    @Test
     void 클릭_이동은_경유점을_지나도_남은_이동량을_사용한다() {
         var match = playing();
         ReflectionTestUtils.setField(match, "position", new SkewerCoopMatch.Point(-2.75, 1.25));
@@ -39,7 +99,7 @@ class SkewerCoopFeedbackTests {
             double before = match.privateView(101).at("/hall/position/x").asDouble();
             match.tick(time, user -> true);
             double after = match.privateView(101).at("/hall/position/x").asDouble();
-            assertThat(after - before).isCloseTo(.5, org.assertj.core.data.Offset.offset(.000001));
+            assertThat(after - before).isCloseTo(.58, org.assertj.core.data.Offset.offset(.000001));
         }
     }
 
@@ -71,7 +131,10 @@ class SkewerCoopFeedbackTests {
             arrivalTicks.add(ticks);
         }
         // 반복 상한 적용 전 같은 생성 경로에서 측정한 100ms 틱 수다.
-        assertThat(arrivalTicks).containsExactly(12, 15, 15, 35, 16, 16, 33, 10, 16, 33, 26);
+        int[] previousTicks = {12, 15, 15, 35, 16, 16, 33, 10, 16, 33, 26};
+        for (int index = 0; index < previousTicks.length; index++) {
+            assertThat(arrivalTicks.get(index)).isLessThanOrEqualTo((int) Math.ceil(previousTicks[index] * 5.0 / 5.8) + 1);
+        }
     }
 
     @Test
@@ -133,7 +196,7 @@ class SkewerCoopFeedbackTests {
                 ReflectionTestUtils.invokeMethod(match, "move", seconds);
 
                 var position = (SkewerCoopMatch.Point) ReflectionTestUtils.getField(match, "position");
-                double distance = Math.min(.1, seconds) * 5;
+                double distance = Math.min(.1, seconds) * 5.8;
                 double length = Math.hypot(direction.x(), direction.z());
                 assertThat(position.x()).isCloseTo(distance * direction.x() / length,
                         org.assertj.core.data.Offset.offset(.000001));

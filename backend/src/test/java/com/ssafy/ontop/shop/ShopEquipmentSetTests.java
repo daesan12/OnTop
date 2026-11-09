@@ -59,6 +59,24 @@ class ShopEquipmentSetTests {
     }
 
     @Test
+    void 수집_디자인이_같아도_상품이_다르면_머리_얼굴_옷을_섞어_입는다() {
+        shop.configureProductBundles(() -> java.util.Map.of(1L,"HEAD",2L,"FACE",3L,"OUTFIT",4L,"OUTFIT",5L,"OUTFIT"));
+        shop.equip(101,1);shop.equip(101,2);shop.equip(101,3);
+        assertThat(equipped()).containsExactlyInAnyOrder(1L,2L,3L,4L,5L);
+        shop.unequip(101,1);
+        assertThat(equipped()).containsExactlyInAnyOrder(2L,3L,4L,5L);
+    }
+
+    @Test
+    void 통합_상품의_일부를_교체하면_통합상품_전체를_벗는다() {
+        shop.configureProductBundles(() -> java.util.Map.of(1L,"HEAD_FACE",2L,"HEAD_FACE"));
+        shop.equip(101,1);
+        assertThat(equipped()).containsExactlyInAnyOrder(1L,2L);
+        shop.equip(101,7);
+        assertThat(equipped()).containsExactly(7L);
+    }
+
+    @Test
     void 세트를_입으면_그_부위의_일반_의상을_벗는다() {
         shop.equip(101, 6);
         shop.equip(101, 7);
