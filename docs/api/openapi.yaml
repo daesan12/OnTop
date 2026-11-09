@@ -1003,13 +1003,13 @@ paths:
                 category:
                   type: string
                   description: 생략 시 free. 명시적 null은 허용하지 않는다.
-                  default: free
                   enum:
                   - daily
                   - cheer
                   - worry
                   - recommend
                   - free
+                  default: free
               additionalProperties: false
         required: true
       responses:
@@ -6386,18 +6386,18 @@ paths:
         required: false
         schema:
           type: string
-          default: ALL_TIME
           enum:
           - ALL_TIME
+          default: ALL_TIME
       - name: rulesVersion
         in: query
         required: false
         schema:
           type: string
-          default: v5
           enum:
           - v4
           - v5
+          default: v5
       - name: limit
         in: query
         required: false
@@ -7048,16 +7048,38 @@ paths:
           format: date
       responses:
         "200":
-          description: OK
+          description: 현재 검토 중인 추첨 결과
           headers:
             Cache-Control:
               description: no-store
               schema:
                 type: string
           content:
-            '*/*':
+            application/json:
               schema:
                 $ref: "#/components/schemas/RaffleReviewResponse"
+        "404":
+          description: RAFFLE_ROUND_NOT_FOUND / RAFFLE_REVIEW_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RaffleErrorResponse"
+        "409":
+          description: RAFFLE_ALREADY_FINALIZED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RaffleErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/admin/operations/skins/settings:
@@ -10708,6 +10730,13 @@ components:
         userId:
           type: string
         nickname:
+          type: string
+    RaffleErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
           type: string
     AdminAccessResponse:
       type: object

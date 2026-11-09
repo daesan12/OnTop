@@ -80,6 +80,10 @@ class RaffleDrawingMySqlTests {
                 .isInstanceOf(RaffleException.class)
                 .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_ADMIN_FORBIDDEN"));
         assertThat(draw.memberResult(week, first).status()).isEqualTo("NOT_ANNOUNCED");
+        assertThatThrownBy(() -> draw.currentReview(week, gm))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code())
+                        .isEqualTo("RAFFLE_ROUND_NOT_FOUND"));
         var review = draw.createReview(week, gm);
         assertThat(review.picks()).extracting(winner -> winner.userId())
                 .containsExactly(first, second);
@@ -94,6 +98,14 @@ class RaffleDrawingMySqlTests {
                 .isInstanceOf(RaffleException.class)
                 .satisfies(error -> assertThat(((RaffleException) error).code())
                         .isEqualTo("RAFFLE_REROLL_REASON_REQUIRED"));
+        assertThatThrownBy(() -> draw.reroll(week, gm, review.drawId(), "가".repeat(501)))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code())
+                        .isEqualTo("RAFFLE_REROLL_REASON_REQUIRED"));
+        assertThatThrownBy(() -> draw.confirmReview(week, gm, 0))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code())
+                        .isEqualTo("RAFFLE_INVALID_DRAW_ID"));
         var rerolled = draw.reroll(week, gm, review.drawId(), "운영 검토 후 재추첨");
         assertThat(rerolled.drawId()).isNotEqualTo(review.drawId());
         assertThat(rerolled.attemptNumber()).isEqualTo(2);
@@ -110,6 +122,9 @@ class RaffleDrawingMySqlTests {
         assertThat(result.winners()).isEqualTo(rerolled.picks());
         assertThat(draw.confirmReview(week, gm, rerolled.drawId()).alreadyFinalized()).isTrue();
         assertThatThrownBy(() -> draw.createReview(week, gm))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_ALREADY_FINALIZED"));
+        assertThatThrownBy(() -> draw.currentReview(week, gm))
                 .isInstanceOf(RaffleException.class)
                 .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_ALREADY_FINALIZED"));
 
