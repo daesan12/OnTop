@@ -86,7 +86,6 @@ function MoleScreen() {
       beginMolePlay()
     } else if (phase === 'playing' && now - clock.current.playAt >= rules.durationMs) {
       setConfirmQuit(false)
-      playSfx('mole-finish')
       void finishMole(hits.current)
     }
   }, [phase, now, rules.durationMs])

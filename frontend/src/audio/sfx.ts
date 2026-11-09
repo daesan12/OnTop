@@ -8,7 +8,7 @@ export type SfxName = 'ui-click' | 'ui-manual' | 'ui-equip' | 'coin-gain'
   | 'move-jump' | 'move-land' | 'move-splash' | 'move-step-stone' | 'move-step-grass' | 'amb-pigeon-takeoff'
   | 'alkkagi-select' | 'alkkagi-shot' | 'alkkagi-collision' | 'alkkagi-fall' | 'alkkagi-item' | 'alkkagi-turn-change'
   | 'arcade-button' | 'arcade-roulette-slow-stop'
-  | 'mole-hit' | 'mole-hedgehog-hit' | 'mole-empty-stun' | 'mole-phase-change' | 'mole-finish'
+  | 'mole-hit' | 'mole-hedgehog-hit' | 'mole-empty-stun' | 'mole-phase-change'
 export type SfxLoop = 'dice-shake' | 'amb-fountain' | 'amb-pond' | 'arcade-roulette-spin'
 export interface SoundPoint { x: number; y: number; z: number }
 
@@ -26,7 +26,7 @@ const LEVEL: Record<SfxName | SfxLoop, number> = {
   'alkkagi-turn-change': 0.45,
   'arcade-button': 0.35, 'arcade-roulette-spin': 0.45, 'arcade-roulette-slow-stop': 0.5,
   // 기절음은 평균 음량이 다른 효과음보다 10dB 가까이 커서 낮춘다.
-  'mole-hit': 0.45, 'mole-hedgehog-hit': 0.55, 'mole-empty-stun': 0.3, 'mole-phase-change': 0.5, 'mole-finish': 0.55,
+  'mole-hit': 0.45, 'mole-hedgehog-hit': 0.55, 'mole-empty-stun': 0.3, 'mole-phase-change': 0.5,
 }
 const VARIANTS: Partial<Record<SfxName, number>> = { 'move-step-stone': 4, 'move-step-grass': 4 }
 // Placed sounds play at full level within `near` metres of the camera and fade to silence at `far`.

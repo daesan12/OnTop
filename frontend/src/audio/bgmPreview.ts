@@ -21,7 +21,7 @@ const effects: [string, [SfxName, string][]][] = [
   ['효과음 · 알까기', [['alkkagi-select', '말 선택'], ['alkkagi-shot', '발사'], ['alkkagi-collision', '충돌'], ['alkkagi-fall', '탈락'],
     ['alkkagi-item', '카드·아이템'], ['alkkagi-turn-change', '차례 전환']]],
   ['효과음 · 오락기', [['arcade-button', '버튼'], ['arcade-roulette-slow-stop', '룰렛 감속·멈춤'], ['mole-hit', '두더지 맞힘'],
-    ['mole-hedgehog-hit', '고슴도치'], ['mole-empty-stun', '빈 구멍 기절'], ['mole-phase-change', '구간 전환'], ['mole-finish', '종료']]],
+    ['mole-hedgehog-hit', '고슴도치'], ['mole-empty-stun', '빈 구멍 기절'], ['mole-phase-change', '구간 전환']]],
   ['효과음 · 붕어빵',[['bungeo-pour', '반죽'], ['bungeo-flip', '뒤집기'], ['bungeo-burn', '탐']]],
   ['효과음 · 감정표현', [['emote-clap', '박수'], ['emote-tsk', '쯧쯧'], ['emote-fart', '방귀'], ['emote-wave-male', '인사(남)'], ['emote-wave-female', '인사(여)']]],
   ['효과음 · 이동', [['move-step-stone', '돌길 발소리'], ['move-step-grass', '잔디 발소리'], ['move-jump', '점프'], ['move-land', '착지'], ['move-splash', '입수'], ['amb-pigeon-takeoff', '비둘기']]],
