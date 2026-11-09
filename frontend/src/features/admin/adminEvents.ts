@@ -2,15 +2,17 @@ import { getAuthSession, restoreAuthSession } from '../../auth/authFlow'
 import { record } from '../../network/protocol'
 
 export type EventKind = 'raffle' | 'bungeoppang' | 'jumpmap' | 'asset'
+export type EventSection = 'raffle' | 'minigames' | 'asset'
 export type WinnerType = 'RAFFLE' | 'BUNGEOPPANG' | 'JUMPMAP' | 'ASSET_VALUE'
 export type ContactStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'EXPIRED'
 
 export const firstMinigameWeek = '2026-11-02'
 export const assetWeek = '2026-11-09'
-export const eventKinds: readonly EventKind[] = ['raffle', 'bungeoppang', 'jumpmap', 'asset']
-export const eventLabels: Record<EventKind, string> = {
-  raffle: '응모권 추첨', bungeoppang: '붕어빵 1위', jumpmap: '점프맵 1위', asset: '엽전 보유량 순위',
+export const eventKinds: readonly EventSection[] = ['raffle', 'minigames', 'asset']
+export const eventLabels: Record<EventSection, string> = {
+  raffle: '응모권 추첨', minigames: '미니게임 1위', asset: '엽전 보유량 순위',
 }
+export const legacyMinigameLabels = { bungeoppang: '붕어빵', jumpmap: '점프맵' } as const
 export const winnerLabels: Record<WinnerType, string> = {
   RAFFLE: '응모권', BUNGEOPPANG: '붕어빵', JUMPMAP: '점프맵', ASSET_VALUE: '엽전 보유량',
 }
@@ -209,7 +211,7 @@ export function parseRevealedContact(value: unknown): RevealedContact {
   return { winnerId: value.winnerId, phone: value.phone, expiresAt: value.expiresAt }
 }
 
-async function request<T>(path: string, method: 'GET' | 'POST', signal: AbortSignal,
+export async function request<T>(path: string, method: 'GET' | 'POST', signal: AbortSignal,
   parse: (value: unknown) => T, payload?: Record<string, unknown>): Promise<T> {
   let owner = getAuthSession()
   if (owner?.status !== 'AUTHENTICATED') throw new AdminEventsError('다시 로그인해주세요.', 'UNAUTHENTICATED', 'unauthenticated')
