@@ -163,6 +163,17 @@ button, input { font: inherit; }
 .rope-hud__feedback[data-judgement="perfect"] { background: #d5ebdd; border-color: #94b3a0; }
 .rope-hud__feedback[data-judgement="good"] { background: #f6e4ad; border-color: #c8ae67; }
 .rope-hud__feedback[data-judgement="miss"] { background: #f4cec3; border-color: #c99587; }
+.rope-hud__feedback[data-live="true"] { animation: rope-feedback-fade 750ms linear both; }
+
+@keyframes rope-feedback-fade {
+  0%, 78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rope-hud__feedback[data-live="true"] { animation: none; }
+}
+
 .canvas-fallback { padding: 90px 16px 16px; }
 
 .preview-panel {

@@ -1,4 +1,5 @@
 import { BufferAttribute, BufferGeometry, DynamicDrawUsage, Vector3 } from 'three'
+import { ropeGroundGap } from './jumpRopeJudgement'
 
 const sections = 36
 const sides = 8
@@ -11,7 +12,7 @@ export function ropeCenter(
   out: Vector3, angle: number, avatarX: number, avatarZ: number, avatarScale: number,
   curvature: number, sag: number, radius: number,
 ) {
-  const lowest = radius + 0.017
+  const lowest = radius + ropeGroundGap
   const highest = 1.8 * avatarScale + 0.25
   const lift = (1 - Math.cos(angle)) / 2
   return out.set(

@@ -6,13 +6,14 @@ const feedbackText = {
   miss: { label: 'MISS', message: '푸드덕ㅋㅋ' },
 }
 
-export function JumpRopeHud({ seconds, score, combo, chances, judgement, note }: {
+export function JumpRopeHud({ seconds, score, combo, chances, judgement, note, livePass }: {
   seconds: number
   score: number
   combo: number
   chances: number
   judgement?: HudJudgement
   note?: string
+  livePass?: number
 }) {
   const feedback = judgement && feedbackText[judgement]
 
@@ -44,7 +45,7 @@ export function JumpRopeHud({ seconds, score, combo, chances, judgement, note }:
       </div>
       <div className="rope-hud__footer">
         <span className="rope-hud__place">탑골공원 놀이마당</span>
-        <output className="rope-hud__feedback" data-judgement={judgement} aria-live="polite">
+        <output key={livePass} className="rope-hud__feedback" data-judgement={judgement} data-live={livePass !== undefined} aria-live="polite">
           {feedback ? <><strong>{feedback.label}</strong> {feedback.message}</> : note}
         </output>
       </div>

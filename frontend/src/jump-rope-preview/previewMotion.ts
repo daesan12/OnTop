@@ -1,9 +1,11 @@
-const prepareMs = 70
+import { advanceRope, judgePass, jumpPrepareMs, sampleFlightHeight } from './jumpRopeJudgement'
+import type { JudgementSettings, JumpTiming, PassJudgement } from './jumpRopeJudgement'
+
 const landMs = 45
 const recoveryMs = 65
-const revolution = Math.PI * 2
 
-type Jump = { startedAt: number; flightMs: number; peak: number; from: Pose }
+type Jump = JumpTiming & { from: Pose }
+export type PreviewPass = PassJudgement & { number: number }
 export type JumpFrame = {
   phase: 'ready' | 'prepare' | 'air' | 'land' | 'recover'
   progress: number
@@ -17,12 +19,13 @@ export type PreviewMotion = {
   angle: number
   lastAt: number | null
   ropeSpeed: number
+  passCount: number
   jump: Jump | null
   frame: JumpFrame
 }
 
 export function createPreviewMotion(): PreviewMotion {
-  return { angle: 0, lastAt: null, ropeSpeed: 0, jump: null, frame: ready }
+  return { angle: 0, lastAt: null, ropeSpeed: 0, passCount: 0, jump: null, frame: ready }
 }
 
 export function requestJump(motion: PreviewMotion, now: number, peak: number, flightSeconds: number) {
@@ -33,32 +36,34 @@ export function requestJump(motion: PreviewMotion, now: number, peak: number, fl
   return true
 }
 
-export function advancePreviewMotion(motion: PreviewMotion, now: number, ropeSpeed: number) {
+export function advancePreviewMotion(motion: PreviewMotion, now: number, ropeSpeed: number, settings: JudgementSettings) {
+  const results: PreviewPass[] = []
   if (motion.lastAt !== null) {
-    const elapsed = Math.max(0, now - motion.lastAt) / 1000
-    motion.angle = (motion.angle + elapsed * motion.ropeSpeed * revolution) % revolution
+    const step = advanceRope(motion.angle, motion.lastAt, now, motion.ropeSpeed)
+    motion.angle = step.angle
+    for (const at of step.passages) {
+      results.push({ ...judgePass(at, motion.jump, settings), number: ++motion.passCount })
+    }
   }
   motion.lastAt = now
   motion.ropeSpeed = ropeSpeed
 
-  if (motion.jump) {
-    motion.frame = sampleJumpFrame(motion.jump, now)
-    if (motion.frame.phase === 'ready') motion.jump = null
-  }
+  motion.frame = motion.jump ? sampleJumpFrame(motion.jump, now) : ready
+  return results
 }
 
 function sampleJumpFrame(jump: Jump, now: number): JumpFrame {
   const elapsed = Math.max(0, now - jump.startedAt)
-  const airTime = elapsed - prepareMs
+  const airTime = elapsed - jumpPrepareMs
   const landTime = airTime - jump.flightMs
   const recoveryTime = landTime - landMs
 
   if (airTime < 0) {
-    return { phase: 'prepare', progress: elapsed / prepareMs, height: 0, from: jump.from }
+    return { phase: 'prepare', progress: elapsed / jumpPrepareMs, height: 0, from: jump.from }
   }
   if (landTime < 0) {
     const progress = airTime / jump.flightMs
-    return { phase: 'air', progress, height: 4 * jump.peak * progress * (1 - progress) }
+    return { phase: 'air', progress, height: sampleFlightHeight(progress, jump.peak) }
   }
   if (recoveryTime < 0) {
     return { phase: 'land', progress: landTime / landMs, height: 0 }

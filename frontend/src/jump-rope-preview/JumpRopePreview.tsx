@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { JumpRopeHud } from './JumpRopeHud'
 import { PreviewScene } from './PreviewScene'
-import { createPreviewMotion, requestJump } from './previewMotion'
+import { advancePreviewMotion, createPreviewMotion, requestJump, type PreviewPass } from './previewMotion'
+import { clearanceWindowMs } from './jumpRopeJudgement'
 import './preview.css'
 
 const defaults = {
@@ -23,6 +24,8 @@ const defaults = {
   pigeonGap: 4.6,
   pigeonScale: 1,
   audience: false,
+  perfectWindowMs: 50,
+  clearanceMargin: 0.03,
 }
 
 export type PreviewSettings = typeof defaults
@@ -51,6 +54,10 @@ const controls: { title: string; sliders: Slider[] }[] = [
     ['pigeonNod', '고개 움직임', 0, 1.5, 0.05, '×'],
     ['pigeonGap', '비둘기 간격', 3, 6, 0.1, ' m'],
     ['pigeonScale', '비둘기 크기', 0.6, 1.6, 0.05, '×'],
+  ] },
+  { title: '판정 조정', sliders: [
+    ['perfectWindowMs', 'PERFECT 오차', 0, 150, 5, ' ms'],
+    ['clearanceMargin', '줄 위 여유 높이', 0, 0.2, 0.01, ' m'],
   ] },
 ]
 
@@ -81,7 +88,22 @@ export function JumpRopePreview() {
   const [demo, setDemo] = useState<Demo | null>(null)
   const [motion] = useState(createPreviewMotion)
   const [ropePaused, setRopePaused] = useState(false)
+  const [lastPass, setLastPass] = useState<PreviewPass | null>(null)
+  const [visiblePass, setVisiblePass] = useState<PreviewPass | null>(null)
   const { jumpHeight, jumpDuration } = settings
+
+  const step = useCallback((now: number, speed = ropePaused ? 0 : settings.ropeSpeed) => {
+    const latest = advancePreviewMotion(motion, now, speed, settings).at(-1)
+    if (!latest) return
+    setLastPass(latest)
+    setVisiblePass(latest)
+  }, [motion, ropePaused, settings])
+
+  useEffect(() => {
+    if (!visiblePass) return
+    const timeout = window.setTimeout(() => setVisiblePass(null), 750)
+    return () => window.clearTimeout(timeout)
+  }, [visiblePass])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -90,22 +112,38 @@ export function JumpRopePreview() {
         'button, input:not([type="range"]), textarea, select, a[href], [contenteditable="true"]',
       )) return
       event.preventDefault()
-      if (!event.repeat) requestJump(motion, performance.now(), jumpHeight, jumpDuration)
+      if (!event.repeat) {
+        const now = performance.now()
+        step(now)
+        requestJump(motion, now, jumpHeight, jumpDuration)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [motion, jumpHeight, jumpDuration])
+  }, [motion, jumpHeight, jumpDuration, step])
 
   function startDemo(action: DemoAction) {
     const now = performance.now()
+    step(now)
     if (action === 'jump' || action === 'perfect') requestJump(motion, now, jumpHeight, jumpDuration)
+    setVisiblePass(null)
     setDemo({ action, startedAt: now })
   }
 
   function resetScene() {
     Object.assign(motion, createPreviewMotion())
     setDemo(null)
+    setLastPass(null)
+    setVisiblePass(null)
   }
+
+  function toggleRope() {
+    step(performance.now(), ropePaused ? settings.ropeSpeed : 0)
+    setRopePaused(!ropePaused)
+  }
+
+  const windowMs = clearanceWindowMs(jumpHeight, jumpDuration * 1000, settings)
+  const demoHud = demo && (!lastPass || demo.startedAt >= lastPass.at) ? hudSamples[demo.action] : readyHud
 
   return (
     <main className="preview">
@@ -114,7 +152,7 @@ export function JumpRopePreview() {
           <p className="eyebrow">ONTOP / 개발 프리뷰</p>
           <h1>구구구 줄넘기</h1>
         </div>
-        <p className="preview-tag">02 · 줄 회전과 점프</p>
+        <p className="preview-tag">03 · 줄넘기 판정</p>
       </header>
       <div className="preview-layout">
         <section className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={0}>
@@ -123,9 +161,12 @@ export function JumpRopePreview() {
             dpr={[1, 1.5]}
             fallback={<p className="canvas-fallback">이 브라우저에서 3D 화면을 열 수 없습니다.</p>}
           >
-            <PreviewScene settings={settings} demo={demo} motion={motion} ropePaused={ropePaused} />
+            <PreviewScene settings={settings} demo={demo} motion={motion} step={step} />
           </Canvas>
-          <JumpRopeHud {...(demo ? hudSamples[demo.action] : readyHud)} />
+          <JumpRopeHud
+            {...(visiblePass ? { ...readyHud, judgement: visiblePass.kind } : demoHud)}
+            livePass={visiblePass?.number}
+          />
         </section>
         <aside className="preview-panel" aria-label="실시간 조정 패널">
           <h2>실시간 조정</h2>
@@ -133,17 +174,18 @@ export function JumpRopePreview() {
           {controls.map(group => (
             <fieldset key={group.title}>
               <legend>{group.title}</legend>
-              {group.sliders.map(([key, label, min, max, step, unit]) => (
+              {group.sliders.map(([key, label, min, max, increment, unit]) => (
                 <label className="slider" key={key}>
                   <span>{label}</span>
                   <input
                     type="range"
                     min={min}
                     max={max}
-                    step={step}
+                    step={increment}
                     value={settings[key]}
                     onChange={event => {
                       const value = event.currentTarget.valueAsNumber
+                      step(performance.now(), key === 'ropeSpeed' && !ropePaused ? value : undefined)
                       setSettings(current => ({ ...current, [key]: value }))
                     }}
                   />
@@ -163,15 +205,32 @@ export function JumpRopePreview() {
                   관중 비둘기 표시
                 </label>
               )}
+              {group.title === '판정 조정' && (
+                <p className="panel-note">
+                  {windowMs
+                    ? `통과 ${Math.round(windowMs.latest)}~${Math.round(windowMs.earliest)}ms 전 입력으로 줄을 넘을 수 있습니다. PERFECT 중심은 ${Math.round(windowMs.ideal)}ms 전입니다.`
+                    : '현재 점프 높이로는 줄을 넘을 수 없습니다.'}
+                </p>
+              )}
             </fieldset>
           ))}
+          <fieldset>
+            <legend>마지막 판정</legend>
+            {lastPass ? (
+              <div className="panel-note" aria-label="실제 판정 상세">
+                <strong>{lastPass.number}번째 통과 · {lastPass.kind.toUpperCase()}</strong>
+                <div>입력 → 통과 {lastPass.inputLeadMs === null ? '입력 없음' : `${Math.round(lastPass.inputLeadMs)}ms`}</div>
+                <div>발 {lastPass.footHeight.toFixed(3)}m · 필요 {lastPass.requiredHeight.toFixed(3)}m</div>
+              </div>
+            ) : <p className="panel-note">아직 줄이 발밑을 통과하지 않았습니다.</p>}
+          </fieldset>
           <div className="demo-actions" aria-label="연출 테스트">
             {(Object.keys(demoActions) as DemoAction[]).map(action => (
               <button key={action} type="button" onClick={() => startDemo(action)}>
                 {demoActions[action]}
               </button>
             ))}
-            <button type="button" onClick={() => setRopePaused(paused => !paused)}>
+            <button type="button" onClick={toggleRope}>
               {ropePaused ? '줄 회전 재생' : '줄 회전 일시 정지'}
             </button>
             <button className="reset-button" type="button" onClick={resetScene}>게임 상태 초기화</button>

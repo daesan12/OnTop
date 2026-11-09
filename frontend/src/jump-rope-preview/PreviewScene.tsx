@@ -5,7 +5,7 @@ import type { Demo, PreviewSettings } from './JumpRopePreview'
 import { PigeonActor, type PigeonLook, type PigeonPose } from './PigeonActor'
 import { PreviewAvatar } from './PreviewAvatar'
 import { createGameRopeGeometry, ropeCenter } from './gameRopeGeometry'
-import { advancePreviewMotion, type PreviewMotion } from './previewMotion'
+import type { PreviewMotion } from './previewMotion'
 
 const sky = '#e6efeb'
 const leftPose = { head: [0.01, -0.07, -0.15], eyelids: [0.7, 0.85], gaze: [0.7, 0] } satisfies PigeonPose
@@ -200,11 +200,11 @@ function nodAtGrip(grip: Group, base: [number, number, number], phase: number, s
   )
 }
 
-export function PreviewScene({ settings, demo, motion, ropePaused }: {
+export function PreviewScene({ settings, demo, motion, step }: {
   settings: PreviewSettings
   demo: Demo | null
   motion: PreviewMotion
-  ropePaused: boolean
+  step: (now: number) => void
 }) {
   const avatar = useRef<Group>(null)
   const leftPigeon = useRef<Group>(null)
@@ -219,7 +219,7 @@ export function PreviewScene({ settings, demo, motion, ropePaused }: {
 
   useFrame(() => {
     const now = performance.now()
-    advancePreviewMotion(motion, now, ropePaused ? 0 : settings.ropeSpeed)
+    step(now)
     const elapsed = demo ? (now - demo.startedAt) / 1000 : Infinity
     if (avatar.current) {
       avatar.current.rotation.z = demo?.action === 'miss' && elapsed < 0.45
