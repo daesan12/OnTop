@@ -54,16 +54,16 @@ async function save(page: Page) {
   await expect(page.getByText('상품 정보를 임시저장했어요.', { exact: false })).toBeVisible()
 }
 test('AWS 없이 임시저장·재조회는 가능하고 업로드 성공을 가장하지 않는다', async ({ page }, info) => {
-  const state = await setup(page, false); await page.goto('/admin/skins'); await page.getByRole('button', { name: '기존 등록 상품', exact: true }).click(); await expect(page.getByText('파일 저장소 연결 준비 중')).toBeVisible()
+  const state = await setup(page, false); await page.goto('/admin/skins'); await page.getByText('예전에 등록한 의상을 찾고 있나요?', { exact: true }).click(); await page.getByRole('button', { name: '이전 의상 불러오기', exact: true }).click(); await expect(page.getByText('파일 저장소 연결 준비 중')).toBeVisible()
   await save(page); expect(state.posts).toBe(1)
   await expect(page.getByLabel('GLB 모델', { exact: true })).toBeDisabled()
-  await page.reload(); await page.getByRole('button', { name: '기존 등록 상품', exact: true }).click(); await page.getByRole('button', { name: /봄꽃 한복/ }).click()
+  await page.reload(); await page.getByText('예전에 등록한 의상을 찾고 있나요?', { exact: true }).click(); await page.getByRole('button', { name: '이전 의상 불러오기', exact: true }).click(); await page.getByRole('button', { name: /봄꽃 한복/ }).click()
   await expect(page.getByLabel('스킨 이름', { exact: true })).toHaveValue(initial.name)
   await page.screenshot({ path: info.outputPath('skin-draft-no-aws.png'), fullPage: true })
   expect(state.published).toBe(0)
 })
 test('실제 제품 화면에서 파일·리그 미리보기 후 한 번만 공개하고 비활성화한다', async ({ page }, info) => {
-  const state = await setup(page, true); await page.goto('/admin/skins'); await page.getByRole('button', { name: '기존 등록 상품', exact: true }).click(); await save(page)
+  const state = await setup(page, true); await page.goto('/admin/skins'); await page.getByText('예전에 등록한 의상을 찾고 있나요?', { exact: true }).click(); await page.getByRole('button', { name: '이전 의상 불러오기', exact: true }).click(); await save(page)
   await page.getByLabel('GLB 모델', { exact: true }).setInputFiles(modelPath)
   await page.getByLabel('WebP 대표 이미지', { exact: true }).setInputFiles(imagePath)
   await page.getByRole('button', { name: '파일 업로드·검증' }).click()
@@ -79,7 +79,7 @@ test('실제 제품 화면에서 파일·리그 미리보기 후 한 번만 공�
   await expect(page.getByText('신규 획득을 중단했어요.', { exact: false })).toBeVisible()
 })
 test('다중 창 버전 충돌은 입력을 보존하고 자동으로 다시 저장하지 않는다', async ({ page }) => {
-  const state = await setup(page, false); await page.goto('/admin/skins'); await page.getByRole('button', { name: '기존 등록 상품', exact: true }).click(); await save(page)
+  const state = await setup(page, false); await page.goto('/admin/skins'); await page.getByText('예전에 등록한 의상을 찾고 있나요?', { exact: true }).click(); await page.getByRole('button', { name: '이전 의상 불러오기', exact: true }).click(); await save(page)
   await page.getByLabel('스킨 이름', { exact: true }).fill('바꾸던 이름'); state.conflict()
   await page.getByRole('button', { name: '상품 정보 저장' }).click()
   await expect(page.getByText('다른 창에서 변경됐어요.', { exact: false })).toBeVisible()
@@ -87,7 +87,7 @@ test('다중 창 버전 충돌은 입력을 보존하고 자동으로 다시 저
   expect(state.posts).toBe(1)
 })
 test('등록 리그 생성 실패는 실제 기본 캐릭터로 격리한다', async ({ page }) => {
-  await setup(page, false); await page.goto('/admin/skins'); await page.getByRole('button', { name: '기존 등록 상품', exact: true }).click()
+  await setup(page, false); await page.goto('/admin/skins'); await page.getByText('예전에 등록한 의상을 찾고 있나요?', { exact: true }).click(); await page.getByRole('button', { name: '이전 의상 불러오기', exact: true }).click()
   const result = await page.evaluate(async () => {
     const { ParkAssetLoader } = await import('/src/world/art/assetLoader.ts' as string)
     const { characterUrls } = await import('/src/world/art/CharacterRig.ts' as string)
@@ -111,7 +111,7 @@ test('조회 전용 관리자는 등록 화면을 사용할 수 없다', async (
   expect(calls).toBe(0)
 })
 test('공용 PARTS의 실제 표시 조각이 없으면 미리보기 단계에서도 공개를 막는다', async ({ page }) => {
-  const state = await setup(page, true); await page.goto('/admin/skins'); await page.getByRole('button', { name: '기존 등록 상품', exact: true }).click(); await save(page)
+  const state = await setup(page, true); await page.goto('/admin/skins'); await page.getByText('예전에 등록한 의상을 찾고 있나요?', { exact: true }).click(); await page.getByRole('button', { name: '이전 의상 불러오기', exact: true }).click(); await save(page)
   await page.getByLabel('착용 방식', { exact: true }).selectOption('PARTS')
   await page.getByLabel('착용 캐릭터', { exact: true }).selectOption('ANY')
   await page.getByRole('button', { name: '상품 정보 저장' }).click()
@@ -127,7 +127,7 @@ test('공용 PARTS의 실제 표시 조각이 없으면 미리보기 단계에�
 })
 
 test('남녀 모델 두 개를 한 상품으로 검수하고 모두 업로드한 뒤 공개한다', async ({ page }, info) => {
-  const state = await setup(page, true); await page.goto('/admin/skins'); await page.getByRole('button', { name: '기존 등록 상품', exact: true }).click()
+  const state = await setup(page, true); await page.goto('/admin/skins'); await page.getByText('예전에 등록한 의상을 찾고 있나요?', { exact: true }).click(); await page.getByRole('button', { name: '이전 의상 불러오기', exact: true }).click()
   await page.getByLabel('착용 캐릭터', { exact: true }).selectOption('ANY'); await save(page)
   await page.getByLabel('남캐용 GLB 모델', { exact: true }).setInputFiles(modelPath)
   await page.getByLabel('WebP 대표 이미지', { exact: true }).setInputFiles(imagePath)
@@ -143,7 +143,7 @@ test('남녀 모델 두 개를 한 상품으로 검수하고 모두 업로드한
 })
 
 test('공용 파일은 한 번만 업로드하고 양쪽에 미리보기하며 변경하면 검수를 무효화한다', async ({ page }, info) => {
-  const state = await setup(page, true); await page.goto('/admin/skins'); await page.getByRole('button', { name: '기존 등록 상품', exact: true }).click()
+  const state = await setup(page, true); await page.goto('/admin/skins'); await page.getByText('예전에 등록한 의상을 찾고 있나요?', { exact: true }).click(); await page.getByRole('button', { name: '이전 의상 불러오기', exact: true }).click()
   await page.getByLabel('착용 캐릭터', { exact: true }).selectOption('ANY'); await save(page)
   await page.getByLabel('남녀 같은 공용 파일 사용').check()
   await page.getByLabel('공용 GLB 모델', { exact: true }).setInputFiles(modelPath)
@@ -160,7 +160,7 @@ test('공용 파일은 한 번만 업로드하고 양쪽에 미리보기하며 �
 })
 
 test('같은 파일을 남녀 두 칸에 골라도 한 모델로 업로드한다', async ({ page }) => {
-  const state = await setup(page, true); await page.goto('/admin/skins'); await page.getByRole('button', { name: '기존 등록 상품', exact: true }).click()
+  const state = await setup(page, true); await page.goto('/admin/skins'); await page.getByText('예전에 등록한 의상을 찾고 있나요?', { exact: true }).click(); await page.getByRole('button', { name: '이전 의상 불러오기', exact: true }).click()
   await page.getByLabel('착용 캐릭터', { exact: true }).selectOption('ANY'); await save(page)
   await page.getByLabel('남캐용 GLB 모델', { exact: true }).setInputFiles(modelPath)
   await page.getByLabel('여캐용 GLB 모델', { exact: true }).setInputFiles(modelPath)

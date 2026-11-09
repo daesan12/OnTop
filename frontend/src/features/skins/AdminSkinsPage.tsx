@@ -10,21 +10,48 @@ const initial: SkinDefinition = { productCode: '', name: '', grade: 4, compatibi
 const stateNames = { DRAFT: '임시저장', PUBLISHED: '공개 중', DISABLED: '신규 획득 중단' }
 const gradeNames = ['S', 'A', 'B', 'C']
 
+type WorkflowState = { busy: boolean; dirty: boolean }
+const newItem = (component: boolean): SkinDefinition => component
+  ? { ...initial, productCode: 'ITEM_' + crypto.randomUUID().replaceAll('-', '').slice(0, 16).toUpperCase(), wearMode: 'PARTS', slots: ['HAIR'] }
+  : initial
+
 export function AdminSkinsPage({ onAuthEnded }: { onAuthEnded: () => void }) {
   const [tab, setTab] = useState<'items' | 'sets' | 'legacy'>('items')
-  return <><nav className="skin-tabs" aria-label="스킨 공방 메뉴">{([['items', '아이템 관리'], ['sets', '세트 관리'], ['legacy', '기존 등록 상품']] as const).map(([value, label]) =>
-    <button key={value} aria-pressed={tab === value} onClick={() => setTab(value)}>{label}</button>)}</nav>
-    {tab === 'sets' ? <AdminSkinSets onAuthEnded={onAuthEnded}/> : <SkinItemEditor key={tab} onAuthEnded={onAuthEnded} component={tab === 'items'}/>}</>
+  const [seed, setSeed] = useState<SkinEntry | null>(null)
+  const [flow, setFlow] = useState<WorkflowState>({ busy: false, dirty: false })
+  const navigate = (next: typeof tab, item: SkinEntry | null = null) => {
+    if (flow.busy || (next === tab && !item)) return
+    if (flow.dirty && !window.confirm('아직 저장하지 않은 내용이 있어요. 이 화면을 나갈까요?')) return
+    setFlow({ busy: false, dirty: false }); setSeed(item); setTab(next)
+  }
+  return <div className="skin-workflow">
+    <header className="skin-flow-intro"><div><h2>옷을 준비하고, 세트로 선물하세요.</h2>
+      <p>먼저 입을 수 있는 의상 파일을 올린 뒤, 함께 뽑힐 의상들을 한 세트에 담아요.</p></div>
+      <span className="skin-flow-example">갓 + 도포 → 선비 세트</span></header>
+    <nav className="skin-flow-nav" aria-label="의상 등록 순서">
+      <button disabled={flow.busy} aria-current={tab === 'items' ? 'step' : undefined} onClick={() => navigate('items')}>
+        <span className="skin-flow-number">1</span><span><strong>의상 파일 등록</strong><small>이름·부위와 GLB 파일을 준비해요</small></span><span aria-hidden="true">→</span></button>
+      <button disabled={flow.busy} aria-current={tab === 'sets' ? 'step' : undefined} onClick={() => navigate('sets')}>
+        <span className="skin-flow-number">2</span><span><strong>뽑기 세트 만들기</strong><small>등록한 의상을 골라 함께 지급해요</small></span><span aria-hidden="true">→</span></button>
+    </nav>
+    {tab === 'sets' ? <AdminSkinSets onAuthEnded={onAuthEnded} initialItem={seed} onRegister={() => navigate('items')} onWorkflowChange={setFlow}/>
+      : <SkinItemEditor key={tab} onAuthEnded={onAuthEnded} component={tab === 'items'} onCompose={item => navigate('sets', item)} onWorkflowChange={setFlow}/>}
+    <details className="skin-previous"><summary>예전에 등록한 의상을 찾고 있나요?</summary><p>이전 방식으로 등록한 의상도 그대로 보관돼요. 여기서 파일과 공개 상태를 수정할 수 있어요.</p>
+      <button disabled={flow.busy} onClick={() => navigate('legacy')}>이전 의상 불러오기</button></details>
+  </div>
 }
-function SkinItemEditor({ onAuthEnded, component }: { onAuthEnded: () => void; component: boolean }) {
+function SkinItemEditor({ onAuthEnded, component, onCompose, onWorkflowChange }: {
+  onAuthEnded: () => void; component: boolean; onCompose: (item: SkinEntry) => void; onWorkflowChange: (state: WorkflowState) => void
+}) {
   const [settings, setSettings] = useState<SkinSettings | null>(null), [entries, setEntries] = useState<SkinEntry[]>([])
-  const [selected, setSelected] = useState<SkinEntry | null>(null), [form, setForm] = useState<SkinDefinition>(initial)
+  const [selected, setSelected] = useState<SkinEntry | null>(null), [form, setForm] = useState<SkinDefinition>(() => newItem(component))
   const [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [query, setQuery] = useState('')
   const [model, setModel] = useState<File | null>(null), [image, setImage] = useState<File | null>(null)
   const [femaleModel, setFemaleModel] = useState<File | null>(null), [sharedModel, setSharedModel] = useState(false)
   const [ticket, setTicket] = useState<SkinTicket | null>(null), [verified, setVerified] = useState<SkinVerified | null>(null)
   const [reviewed, setReviewed] = useState(false), [loaded, setLoaded] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
+  const draftBaseline = useRef(form)
   const flight = useRef<AbortController | null>(null), loading = useRef<AbortController | null>(null)
   const [reload, setReload] = useState(0), [fileKey, setFileKey] = useState(0)
   const modelLoaded = useCallback(() => setLoaded(true), [])
@@ -44,7 +71,7 @@ function SkinItemEditor({ onAuthEnded, component }: { onAuthEnded: () => void; c
   useEffect(() => () => { flight.current?.abort(); loading.current?.abort() }, [])
   const invalidateFiles = () => { setTicket(null); setVerified(null); setReviewed(false); setLoaded(false); setImageLoaded(false) }
   const resetFiles = () => { setModel(null); setFemaleModel(null); setSharedModel(false); setImage(null); invalidateFiles(); setFileKey(k => k + 1) }
-  const choose = (entry: SkinEntry | null) => { if (flight.current) return; setSelected(entry); setForm(entry?.definition ?? initial); resetFiles(); setMessage('') }
+  const choose = (entry: SkinEntry | null) => { if (flight.current || (unsaved && !window.confirm('저장하지 않은 내용이나 파일 선택이 있어요. 다른 의상을 열까요?'))) return; const next = entry?.definition ?? newItem(component); draftBaseline.current = next; setSelected(entry); setForm(next); resetFiles(); setMessage('') }
   const adopt = (entry: SkinEntry) => { setSelected(entry); setForm(entry.definition); setEntries(list => [entry, ...list.filter(e => e.id !== entry.id)]) }
   const run = async (action: (signal: AbortSignal) => Promise<void>) => {
     if (flight.current) return
@@ -56,9 +83,12 @@ function SkinItemEditor({ onAuthEnded, component }: { onAuthEnded: () => void; c
     const entry = await skinRequest<SkinEntry>(selected ? `/${selected.id}` : component ? '/components' : '', signal, selected ? 'PUT' : 'POST',
       selected ? { version: selected.version, definition: form } : form)
     if (signal.aborted) return
-    adopt(entry); resetFiles(); setMessage('상품 정보를 임시저장했어요. 다음으로 모델과 대표 이미지를 업로드해주세요.')
+    adopt(entry); resetFiles(); setMessage(component ? '이름과 부위를 저장했어요. 아래에서 의상 파일과 사진을 올려주세요.' : '상품 정보를 임시저장했어요. 다음으로 모델과 대표 이미지를 업로드해주세요.')
   })
   const dirty = !!selected && JSON.stringify(form) !== JSON.stringify(selected.definition)
+  const pendingFiles = !!(model || image || femaleModel) && (!verified || verified.uploadId !== selected?.publishedUploadId)
+  const unsaved = dirty || (!selected && JSON.stringify(form) !== JSON.stringify(draftBaseline.current)) || pendingFiles
+  useEffect(() => onWorkflowChange({ busy, dirty: unsaved }), [busy, unsaved, selected?.publishedUploadId, onWorkflowChange])
   const paired = form.compatibility === 'ANY'
   const needsFemale = paired && !sharedModel
   const sendFiles = () => run(async signal => {
@@ -86,39 +116,40 @@ function SkinItemEditor({ onAuthEnded, component }: { onAuthEnded: () => void; c
   const publish = () => run(async signal => {
     if (!selected || !verified || !reviewed || !loaded || !imageLoaded || dirty) return
     const result = await skinRequest<SkinEntry>(`/${selected.id}/publish`, signal, 'POST', { version: selected.version, uploadId: verified.uploadId, reviewed: true })
-    if (!signal.aborted) { adopt(result); setMessage(component ? '아이템을 공개했어요. 세트 관리에서 구성품으로 선택할 수 있어요.' : '스킨을 공개했어요. 뽑기 상품에 연결됐으며 기존 확률·등급 가치는 유지돼요.') }
+    if (!signal.aborted) { adopt(result); setMessage(component ? '의상 준비가 끝났어요. 이제 함께 지급할 세트를 만들어보세요.' : '스킨을 공개했어요. 뽑기 상품에 연결됐으며 기존 확률·등급 가치는 유지돼요.') }
   })
   return <section className="skin-admin" aria-label="스킨 등록 관리">
-    <div className="skin-admin-intro"><div><small>온탑 의상 공방</small><h2>새로운 모습을 준비해요</h2>
-      <p>{component ? '아이템 정보 → 파일 업로드·검증 → 공개 → 세트에서 선택' : '기존 등록 상품의 파일·공개 상태를 관리해요'}</p></div><button disabled={busy} onClick={() => { setMessage(''); setReload(v => v + 1) }}>목록 다시 조회</button></div>
+    <div className="skin-admin-intro"><div><small>온탑 의상 공방</small><h2>{component ? '어떤 의상을 등록할까요?' : '이전 의상 수정'}</h2>
+      <p>{component ? '머리·얼굴·옷 중 이 파일에 들어 있는 부위를 선택해주세요.' : '기존 등록 상품의 파일·공개 상태를 관리해요'}</p></div><button disabled={busy} onClick={() => { setMessage(''); setReload(v => v + 1) }}>목록 다시 조회</button></div>
     {message && <p className="skin-message" role="status">{message}</p>}
     {settings && !settings.storageReady && <aside className="skin-storage-note"><strong>파일 저장소 연결 준비 중</strong><p>상품 정보는 임시저장할 수 있어요. 실제 업로드·공개는 S3·CDN 연결 후 사용할 수 있어요.</p></aside>}
     {!settings ? <p>등록 권한과 저장소 설정을 확인해주세요.</p> : <div className="skin-workbench">
-      <aside className="skin-library"><div className="skin-library-title"><h3>등록한 스킨</h3><button disabled={busy} onClick={() => choose(null)}>＋ 새 상품</button></div>
-        <label>스킨 찾기<input value={query} onChange={e => setQuery(e.target.value)} placeholder="이름 또는 상품 코드"/></label>
+      <aside className="skin-library"><div className="skin-library-title"><h3>{component ? '준비한 의상' : '등록한 스킨'}</h3><button disabled={busy} onClick={() => choose(null)}>{component ? '＋ 새 의상' : '＋ 새 상품'}</button></div>
+        <label>{component ? '의상 찾기' : '스킨 찾기'}<input value={query} onChange={e => setQuery(e.target.value)} placeholder="이름 또는 상품 코드"/></label>
         <ul>{entries.filter(e => `${e.definition.name} ${e.definition.productCode}`.includes(query)).map(entry => <li key={entry.id}>
           <button disabled={busy} aria-pressed={entry.id === selected?.id} onClick={() => choose(entry)}>
-            <span className={'skin-grade grade-' + entry.definition.grade}>{gradeNames[entry.definition.grade - 1]}</span>
-            <span><strong>{entry.definition.name}</strong><small>{entry.definition.productCode}</small><em>{stateNames[entry.state]}</em></span>
+            {!component && <span className={'skin-grade grade-' + entry.definition.grade}>{gradeNames[entry.definition.grade - 1]}</span>}
+            <span><strong>{entry.definition.name}</strong>{!component && <small>{entry.definition.productCode}</small>}<em>{component ? entry.state === 'PUBLISHED' ? '세트에 담을 수 있어요' : entry.state === 'DRAFT' ? '파일 준비 중' : '새 세트 등록 중단' : stateNames[entry.state]}</em></span>
           </button></li>)}</ul>{!entries.length && <p>첫 스킨을 등록해보세요.</p>}
       </aside>
       <section className="skin-editor"><form onSubmit={e => { e.preventDefault(); void save() }}>
-        <h3>{selected ? '상품 정보' : '새 스킨 등록'}</h3><fieldset disabled={busy}>
-          <div className="skin-fields"><label>상품 코드<input aria-label="상품 코드" required pattern="[A-Z][A-Z0-9_]{2,27}" maxLength={28} value={form.productCode} disabled={!!selected}
-            placeholder="예: CHERRY_HANBOK" onChange={e => setForm({ ...form, productCode: e.target.value })}/><small>영문 대문자·숫자·밑줄, 3~28자</small></label>
-            <label>스킨 이름<input required maxLength={100} value={form.name} placeholder="예: 봄꽃 한복" onChange={e => setForm({ ...form, name: e.target.value })}/></label>
-            <label>등급<select aria-label="등급" value={form.grade} disabled={!!selected?.publishedUploadId} onChange={e => setForm({ ...form, grade: Number(e.target.value) })}>{gradeNames.map((n, i) => <option key={n} value={i + 1}>{n}급</option>)}</select></label>
+        <h3>{component ? '이름과 부위' : selected ? '상품 정보' : '새 스킨 등록'}</h3><fieldset disabled={busy}>
+          <div className="skin-fields">{component ? <details className="skin-code"><summary>관리 코드 · 자동 입력</summary><label>상품 코드<input aria-label="상품 코드" required pattern="[A-Z][A-Z0-9_]{2,27}" maxLength={28} value={form.productCode} disabled={!!selected}
+            placeholder="예: CHERRY_HANBOK" onChange={e => setForm({ ...form, productCode: e.target.value })}/><small>영문 대문자·숫자·밑줄, 3~28자</small></label></details> : <><label>상품 코드<input aria-label="상품 코드" required pattern="[A-Z][A-Z0-9_]{2,27}" maxLength={28} value={form.productCode} disabled={!!selected}
+            placeholder="예: CHERRY_HANBOK" onChange={e => setForm({ ...form, productCode: e.target.value })}/><small>영문 대문자·숫자·밑줄, 3~28자</small></label></>}
+            <label>{component ? '의상 이름' : '스킨 이름'}<input required maxLength={100} value={form.name} placeholder="예: 봄꽃 한복" onChange={e => setForm({ ...form, name: e.target.value })}/></label>
+            {!component && <label>등급<select aria-label="등급" value={form.grade} disabled={!!selected?.publishedUploadId} onChange={e => setForm({ ...form, grade: Number(e.target.value) })}>{gradeNames.map((n, i) => <option key={n} value={i + 1}>{n}급</option>)}</select></label>}
             <label>착용 캐릭터<select aria-label="착용 캐릭터" value={form.compatibility} disabled={!!selected?.publishedUploadId} onChange={e => setForm({ ...form, compatibility: e.target.value as SkinDefinition['compatibility'] })}>
               <option value="MALE">남자</option><option value="FEMALE">여자</option><option value="ANY">남녀 모두</option></select></label>
             <label>착용 방식<select aria-label="착용 방식" value={form.wearMode} disabled={!!selected?.publishedUploadId} onChange={e => setForm({ ...form, wearMode: e.target.value as SkinDefinition['wearMode'],
               ...(e.target.value === 'WHOLE' ? { slots: [...slotOrder] } : {}) })}>
-              <option value="WHOLE">통합 스킨 · 전체 외형</option><option value="PARTS">분리 의상 · 선택 부위</option></select></label>
+              <option value="WHOLE">몸 전체가 한 파일 · 통째로 착용</option><option value="PARTS">머리·얼굴·옷을 나눠 입는 의상</option></select></label>
           </div><div className="skin-slots" role="group" aria-label="포함 부위">{places.map(place => <label key={place}><input type="checkbox" checked={physicalSlots[place].every(slot => form.slots.includes(slot))} disabled={form.wearMode === 'WHOLE' || !!selected?.publishedUploadId}
             onChange={e => setForm({ ...form, slots: slotOrder.filter(s => physicalSlots[place].includes(s) ? e.target.checked : form.slots.includes(s)) })}/>{placeLabels[place]}</label>)}</div>
           <p className="skin-help">옷은 상의·하의·신발을 함께 등록해요. 통합 스킨은 머리·얼굴·옷을 함께 입고 벗어요.</p>
-          <button className="skin-primary" type="submit">{busy ? '처리 중…' : '상품 정보 저장'}</button>
+          <button className="skin-primary" type="submit">{busy ? '저장 중…' : component ? (selected ? '이름·부위 변경 저장' : '저장하고 파일 올리기 →') : '상품 정보 저장'}</button>
         </fieldset></form>
-        <section className="skin-upload"><h3>모델과 대표 이미지</h3><p>GLB 최대 20MiB · WebP 최대 2MiB · 새 파일은 별도 버전으로 보관해요.</p>
+        {(!component || selected) && <section className="skin-upload"><h3>{component ? '의상 파일과 사진을 올려주세요' : '모델과 대표 이미지'}</h3><p>GLB 최대 20MiB · WebP 최대 2MiB · 새 파일은 별도 버전으로 보관해요.</p>
           <fieldset key={fileKey} disabled={busy || !selected || !settings.storageReady || dirty}>
             {paired && <label className="skin-shared-choice"><input type="checkbox" checked={sharedModel} onChange={e => { setSharedModel(e.target.checked); invalidateFiles() }}/>남녀 같은 공용 파일 사용</label>}
             <div className={paired ? 'skin-model-pair' : ''}>
@@ -131,16 +162,19 @@ function SkinItemEditor({ onAuthEnded, component }: { onAuthEnded: () => void; c
             <button disabled={!model || !image || (needsFemale && !femaleModel)} onClick={() => void sendFiles()}>파일 업로드·검증</button>
             {ticket && !verified && <button onClick={() => void retryVerification()}>기존 업로드 검증 재확인</button>}
           </fieldset>{dirty && <p>변경한 상품 정보를 먼저 저장해주세요.</p>}
-          <p className="skin-help">OnTop 전용 뼈대와 LOD/의상 조각 규격이 필요해요. 일반 GLB 파일이 모두 바로 착용되는 것은 아니에요.</p>
+          <p className="skin-help">OnTop 전용 뼈대와 LOD/의상 조각 규격이 필요해요. 모델링 담당자가 전달한 OnTop용 GLB와 WebP 사진을 선택해주세요.</p>
           {selected?.publishedUploadId && <button disabled={busy || !settings.storageReady || dirty} onClick={() => void run(async signal => {
             const result = await skinRequest<SkinVerified>(`/${selected.id}/uploads/${selected.publishedUploadId}/verify`, signal, 'POST')
             if (!signal.aborted) { setVerified(result); setLoaded(false); setImageLoaded(false); setReviewed(false); setMessage('등록된 파일을 불러왔어요. 검수 후 다시 공개할 수 있어요.') }
           })}>등록한 파일 불러오기</button>}
-        </section>
+        </section>}
         {verified && <section className="skin-review"><h3>공개 전 검수</h3>{paired && <p>왼쪽은 남캐용, 오른쪽은 여캐용이에요. 양쪽 모델을 모두 확인해주세요.</p>}<div className="skin-preview"><SkinPreview url={verified.modelUrl} femaleModelUrl={verified.femaleModelUrl} definition={selected!.definition} onLoaded={modelLoaded}/><img src={verified.imageUrl} alt="등록한 대표 이미지" onLoad={() => setImageLoaded(true)} onError={() => { setImageLoaded(false); setMessage('대표 이미지를 표시하지 못했어요. 공개 전 파일·CDN 연결을 확인해주세요.') }}/></div>
           <label><input type="checkbox" checked={reviewed} disabled={busy} onChange={e => setReviewed(e.target.checked)}/>미리보기·캐릭터 크기·착용 규격을 검수했어요.</label>
-          <button className="skin-primary" disabled={busy || !reviewed || !loaded || !imageLoaded || dirty} onClick={() => void publish()}>검수한 스킨 공개</button>
+          <button className="skin-primary" disabled={busy || !reviewed || !loaded || !imageLoaded || dirty} onClick={() => void publish()}>{component ? '이 의상 사용 준비 완료' : '검수한 스킨 공개'}</button>
         </section>}
+        {component && selected?.publishedUploadId && <div className="skin-next"><div><strong>의상 파일 준비 완료</strong><p>이 파일만으로 뽑기 상품이 생기지는 않아요. 다음 단계에서 다른 의상과 함께 세트에 담아주세요.</p></div>
+          <button className="skin-primary" disabled={busy || dirty} onClick={() => onCompose(selected)}>이 의상으로 세트 만들기 →</button>
+          <button disabled={busy} onClick={() => choose(null)}>다른 의상도 등록하기</button></div>}
         {selected?.publishedUploadId && <div className="skin-disable"><p>공개 후 등급·부위 변경은 새 상품으로 등록해요. 획득을 중단해도 기존 보유 의상은 유지돼요.</p>
           <button disabled={busy || selected.state === 'DISABLED'} onClick={() => void run(async signal => {
             const e = await skinRequest<SkinEntry>(`/${selected.id}/disable`, signal, 'POST', { version: selected.version })
