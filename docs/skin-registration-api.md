@@ -120,7 +120,7 @@ DEV/PROD의 Vercel 설정에서 `/admin/skins`를 `/index.html`로 연결한다.
 
 ## 아이템 선등록·세트 구성 확장 (2026-11-09)
 
-V164 후보: skin_item_registrations / skin_item_parts / skin_sets / skin_set_members를 추가한다. 로컬 작성·격리 검증만 진행하며 팀 번호·순서 확인 전 푸시·병합·공용 적용을 보류한다. 기존 SQL·items/user_items/영수증은 변경하지 않는다.
+V165 후보: skin_item_registrations / skin_item_parts / skin_sets / skin_set_members를 추가한다. 로컬 작성·격리 검증만 진행하며 팀 번호·순서 확인 전 푸시·병합·공용 적용을 보류한다. 기존 SQL·items/user_items/영수증은 변경하지 않는다.
 
 - 관리자 기본 탭은 아이템 관리다. 파일 등록·검증·아이템 공개 후 세트 관리에서 고른다. 기존 등록 상품은 별도 탭에서 유지한다.
 - 화면 슬롯은 머리(HAIR), 얼굴(FACE), 옷(TOP+BOTTOM+SHOES) 세 칸이다. 머리+얼굴 아이템 하나는 두 칸을 함께 점유하며 삭제/빼기 시 함께 풀린다. 옷은 세 물리 부위를 항상 포함한다. 프론트 잠금과 별도로 서버도 부위 중복을409로 거절한다.
@@ -167,4 +167,4 @@ V164 후보: skin_item_registrations / skin_item_parts / skin_sets / skin_set_me
 
 기존 gacha_product_items의 item_id 유일 제약은 유지한다. 새 세트 구성은 skin_set_members/skin_item_parts에 보존하며, 조회·지급·자산 평가는 기존 상품 링크와 공개 세트 관계의 합집합을 사용한다. 기존 공개 링크는 삭제하지 않고 UNION으로 중복을 제거한다. 공용 머리+얼굴 및 옷을 남녀 세트에 함께 사용해도 각각 공개·개봉할 수 있다. API 형식·기존 보유품·상품별 자산 평가 정책·스키마는 변경하지 않았다.
 
-실제 loopback 앱/전용 MySQL에서 남녀 아이템 불러오기, 머리+얼굴 잠금·해제, 세트 저장·공개, 무작위 뽑기, 검수용 보유 B급 캡슐 개봉, 구성품별 착용과 재접속 후 유지를 확인했다. 무작위 뽑기의 등급 당첨과 특정 세트 개봉 검수는 구분한다. 저장소는 로컬 HTTPS 대역이며 AWS·공용 DB·개발 서버 검수 결과가 아니다. MySQL30개·단위/HTTP17개 및 bootJar 통과. V164 후보의 팀 공유·순서 확인 전 푸시·병합·공용 적용은 보류한다.
+실제 loopback 앱/전용 MySQL에서 남녀 아이템 불러오기, 머리+얼굴 잠금·해제, 세트 저장·공개, 무작위 뽑기, 검수용 보유 B급 캡슐 개봉, 구성품별 착용과 재접속 후 유지를 확인했다. 무작위 뽑기의 등급 당첨과 특정 세트 개봉 검수는 구분한다. 저장소는 로컬 HTTPS 대역이며 AWS·공용 DB·개발 서버 검수 결과가 아니다. MySQL30개·단위/HTTP17개 및 bootJar 통과. V165 후보의 팀 공유·순서 확인 전 푸시·병합·공용 적용은 보류한다.
