@@ -1,13 +1,15 @@
-import { Suspense, useEffect, useLayoutEffect, useRef } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { PerspectiveCamera, QuadraticBezierCurve3, TubeGeometry, Vector3, type Group, type Mesh } from 'three'
+import { PerspectiveCamera, QuadraticBezierCurve3, Vector3, type Group } from 'three'
 import type { Demo, PreviewSettings } from './JumpRopePreview'
 import { PigeonActor, type PigeonLook, type PigeonPose } from './PigeonActor'
 import { PreviewAvatar } from './PreviewAvatar'
+import { createGameRopeGeometry, ropeCenter } from './gameRopeGeometry'
+import { advancePreviewMotion, type PreviewMotion } from './previewMotion'
 
 const sky = '#e6efeb'
-const leftPose: PigeonPose = { head: [0.01, -0.07, -0.15], eyelids: [0.7, 0.85], gaze: [0.7, 0] }
-const rightPose: PigeonPose = { head: [0.08, 0.16, 0.22], eyelids: [0.53, 0.05], gaze: [-0.7, 0.4] }
+const leftPose = { head: [0.01, -0.07, -0.15], eyelids: [0.7, 0.85], gaze: [0.7, 0] } satisfies PigeonPose
+const rightPose = { head: [0.08, 0.16, 0.22], eyelids: [0.53, 0.05], gaze: [-0.7, 0.4] } satisfies PigeonPose
 const utilityWire = new QuadraticBezierCurve3(
   new Vector3(-5.6, 2.24, -3.46),
   new Vector3(-1.25, 1.57, -3.46),
@@ -189,35 +191,37 @@ function ParkCourt() {
   )
 }
 
-export function PreviewScene({ settings, demo }: { settings: PreviewSettings; demo: Demo | null }) {
+function nodAtGrip(grip: Group, base: [number, number, number], phase: number, strength: number) {
+  // The grip is a child of the head, so its world position follows the nod.
+  grip.parent?.rotation.set(
+    base[0] + strength * (0.17 * Math.sin(phase) + 0.025 * Math.sin(phase * 2)),
+    base[1] + strength * 0.035 * Math.cos(phase),
+    base[2] + strength * 0.06 * Math.sin(phase - 0.6),
+  )
+}
+
+export function PreviewScene({ settings, demo, motion, ropePaused }: {
+  settings: PreviewSettings
+  demo: Demo | null
+  motion: PreviewMotion
+  ropePaused: boolean
+}) {
   const avatar = useRef<Group>(null)
   const leftPigeon = useRef<Group>(null)
   const rightPigeon = useRef<Group>(null)
   const leftGrip = useRef<Group>(null)
   const rightGrip = useRef<Group>(null)
-  const rope = useRef<Mesh>(null)
-  const speedMarker = useRef<Mesh>(null)
-  const ropeShape = useRef({
-    curve: new QuadraticBezierCurve3(),
-    left: new Vector3(),
-    right: new Vector3(),
-    slack: -1,
-    width: -1,
-  })
-
-  useEffect(() => {
-    const mesh = rope.current
-    // Fast Refresh can retain the shape cache after disposing the rendered geometry.
-    ropeShape.current.width = -1
-    return () => mesh?.geometry.dispose()
-  }, [])
+  const { geometry, update, left, right, center } = useMemo(() => ({
+    ...createGameRopeGeometry(),
+    left: new Vector3(), right: new Vector3(), center: new Vector3(),
+  }), [])
+  useEffect(() => () => geometry.dispose(), [geometry])
 
   useFrame(() => {
-    const elapsed = demo ? (performance.now() - demo.startedAt) / 1000 : Infinity
-    const jumping = (demo?.action === 'jump' || demo?.action === 'perfect') && elapsed < settings.jumpDuration
+    const now = performance.now()
+    advancePreviewMotion(motion, now, ropePaused ? 0 : settings.ropeSpeed)
+    const elapsed = demo ? (now - demo.startedAt) / 1000 : Infinity
     if (avatar.current) {
-      const progress = jumping ? elapsed / settings.jumpDuration : 0
-      avatar.current.position.y = 4 * settings.jumpHeight * progress * (1 - progress)
       avatar.current.rotation.z = demo?.action === 'miss' && elapsed < 0.45
         ? Math.sin(elapsed / 0.45 * Math.PI * 2) * 0.2 : 0
     }
@@ -226,37 +230,18 @@ export function PreviewScene({ settings, demo }: { settings: PreviewSettings; de
     if (leftPigeon.current) leftPigeon.current.position.y = bob
     if (rightPigeon.current) rightPigeon.current.position.y = bob
 
-    const { curve, left, right } = ropeShape.current
-    if (rope.current && leftGrip.current && rightGrip.current) {
-      leftGrip.current.getWorldPosition(left)
-      rightGrip.current.getWorldPosition(right)
-      if (!curve.v0.equals(left) || !curve.v2.equals(right)
-        || ropeShape.current.slack !== settings.ropeHeight || ropeShape.current.width !== settings.ropeWidth) {
-        const gripHeight = (left.y + right.y) / 2
-        const centerHeight = Math.max(0.055, gripHeight - settings.ropeHeight)
-        curve.v0.copy(left)
-        curve.v1.lerpVectors(left, right, 0.5)
-        curve.v1.y = 2 * centerHeight - gripHeight
-        curve.v1.z += 0.88 + settings.ropeHeight * 0.55
-        curve.v2.copy(right)
-        curve.updateArcLengths()
-        ropeShape.current.slack = settings.ropeHeight
-        ropeShape.current.width = settings.ropeWidth
-        rope.current.geometry.dispose()
-        rope.current.geometry = new TubeGeometry(curve, 32, settings.ropeWidth / 2, 8, false)
-      }
+    const gripL = leftGrip.current, gripR = rightGrip.current
+    if (gripL && gripR) {
+      nodAtGrip(gripL, leftPose.head, motion.angle, settings.pigeonNod)
+      nodAtGrip(gripR, rightPose.head, motion.angle + 0.57, settings.pigeonNod * 0.83)
+      gripL.getWorldPosition(left)
+      gripR.getWorldPosition(right)
+      const radius = settings.ropeWidth / 2
+      ropeCenter(center, motion.angle, settings.avatarX, settings.avatarZ, settings.avatarScale,
+        settings.ropeHeight, settings.ropeSag, radius)
+      update(left, right, center, radius)
     }
-
-    if (speedMarker.current) {
-      speedMarker.current.visible = demo?.action === 'jump' && jumping
-      if (speedMarker.current.visible) {
-        const phase = elapsed * settings.ropeSpeed * 2 * Math.PI
-        speedMarker.current.position.copy(curve.v0)
-        speedMarker.current.position.y += Math.cos(phase) * 0.16
-        speedMarker.current.position.z += Math.sin(phase) * 0.16
-      }
-    }
-  })
+  }, -1)
 
   const halfGap = settings.pigeonGap / 2
   return (
@@ -272,7 +257,7 @@ export function PreviewScene({ settings, demo }: { settings: PreviewSettings; de
       <GroundShadow x={settings.avatarX} z={settings.avatarZ} width={0.95 * settings.avatarScale} depth={0.62 * settings.avatarScale} />
       <group position={[settings.avatarX, 0, settings.avatarZ]}>
         <group ref={avatar} scale={settings.avatarScale}>
-          <Suspense fallback={null}><PreviewAvatar /></Suspense>
+          <Suspense fallback={null}><PreviewAvatar motion={motion} scale={settings.avatarScale} /></Suspense>
         </group>
       </group>
       <GroundShadow x={-halfGap} z={-0.08} width={1.13 * settings.pigeonScale} depth={0.95 * settings.pigeonScale} />
@@ -284,12 +269,8 @@ export function PreviewScene({ settings, demo }: { settings: PreviewSettings; de
         <PigeonActor look="lilac" pose={rightPose} gripRef={rightGrip} />
       </group>
 
-      <mesh ref={rope} name="park-jump-rope">
+      <mesh geometry={geometry} frustumCulled={false} name="park-jump-rope">
         <meshStandardMaterial color="#374a47" roughness={0.88} />
-      </mesh>
-      <mesh ref={speedMarker} visible={false}>
-        <sphereGeometry args={[0.042, 10, 8]} />
-        <meshBasicMaterial color="#d4975d" />
       </mesh>
     </>
   )

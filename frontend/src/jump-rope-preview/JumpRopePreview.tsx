@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { JumpRopeHud } from './JumpRopeHud'
 import { PreviewScene } from './PreviewScene'
+import { createPreviewMotion, requestJump } from './previewMotion'
 import './preview.css'
 
 const defaults = {
@@ -12,11 +13,13 @@ const defaults = {
   avatarX: 0,
   avatarZ: 0,
   avatarScale: 1,
-  jumpHeight: 0.85,
-  jumpDuration: 0.65,
+  jumpHeight: 0.6,
+  jumpDuration: 0.4,
   ropeWidth: 0.035,
   ropeSpeed: 1,
   ropeHeight: 0.7,
+  ropeSag: 0.12,
+  pigeonNod: 0.65,
   pigeonGap: 4.6,
   pigeonScale: 1,
   audience: false,
@@ -42,8 +45,10 @@ const controls: { title: string; sliders: Slider[] }[] = [
   ] },
   { title: '전깃줄과 비둘기', sliders: [
     ['ropeWidth', '줄 두께', 0.01, 0.12, 0.005, ' m'],
-    ['ropeSpeed', '회전 속도 표식', 0, 3, 0.1, '회/초'],
-    ['ropeHeight', '줄 여유', 0.2, 1.5, 0.05, ' m'],
+    ['ropeSpeed', '줄 회전 속도', 0, 3, 0.1, '회/초'],
+    ['ropeHeight', '줄 곡률', 0.2, 1.5, 0.05, ''],
+    ['ropeSag', '줄 처짐', 0, 0.26, 0.01, ' m'],
+    ['pigeonNod', '고개 움직임', 0, 1.5, 0.05, '×'],
     ['pigeonGap', '비둘기 간격', 3, 6, 0.1, ' m'],
     ['pigeonScale', '비둘기 크기', 0.6, 1.6, 0.05, '×'],
   ] },
@@ -74,11 +79,32 @@ const hudSamples = {
 export function JumpRopePreview() {
   const [settings, setSettings] = useState(defaults)
   const [demo, setDemo] = useState<Demo | null>(null)
-  const [resetCount, setResetCount] = useState(0)
+  const [motion] = useState(createPreviewMotion)
+  const [ropePaused, setRopePaused] = useState(false)
+  const { jumpHeight, jumpDuration } = settings
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.code !== 'Space' || event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return
+      if (event.target instanceof HTMLElement && event.target.closest(
+        'button, input:not([type="range"]), textarea, select, a[href], [contenteditable="true"]',
+      )) return
+      event.preventDefault()
+      if (!event.repeat) requestJump(motion, performance.now(), jumpHeight, jumpDuration)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [motion, jumpHeight, jumpDuration])
+
+  function startDemo(action: DemoAction) {
+    const now = performance.now()
+    if (action === 'jump' || action === 'perfect') requestJump(motion, now, jumpHeight, jumpDuration)
+    setDemo({ action, startedAt: now })
+  }
 
   function resetScene() {
+    Object.assign(motion, createPreviewMotion())
     setDemo(null)
-    setResetCount(count => count + 1)
   }
 
   return (
@@ -88,22 +114,22 @@ export function JumpRopePreview() {
           <p className="eyebrow">ONTOP / 개발 프리뷰</p>
           <h1>구구구 줄넘기</h1>
         </div>
-        <p className="preview-tag">01 · 정지 디자인 시안</p>
+        <p className="preview-tag">02 · 줄 회전과 점프</p>
       </header>
       <div className="preview-layout">
-        <section className="preview-stage" aria-label="3D 줄넘기 무대">
+        <section className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={0}>
           <Canvas
             camera={{ fov: defaults.fov, near: 0.1, far: 40 }}
             dpr={[1, 1.5]}
             fallback={<p className="canvas-fallback">이 브라우저에서 3D 화면을 열 수 없습니다.</p>}
           >
-            <PreviewScene key={resetCount} settings={settings} demo={demo} />
+            <PreviewScene settings={settings} demo={demo} motion={motion} ropePaused={ropePaused} />
           </Canvas>
           <JumpRopeHud {...(demo ? hudSamples[demo.action] : readyHud)} />
         </section>
         <aside className="preview-panel" aria-label="실시간 조정 패널">
           <h2>실시간 조정</h2>
-          <p className="panel-note">HUD는 샘플 값입니다. 점프 테스트에서 속도 표식을 확인할 수 있습니다.</p>
+          <p className="panel-note">Space로 점프합니다. 높이와 체공 시간은 다음 점프부터 적용됩니다. HUD는 샘플 값입니다.</p>
           {controls.map(group => (
             <fieldset key={group.title}>
               <legend>{group.title}</legend>
@@ -141,10 +167,13 @@ export function JumpRopePreview() {
           ))}
           <div className="demo-actions" aria-label="연출 테스트">
             {(Object.keys(demoActions) as DemoAction[]).map(action => (
-              <button key={action} type="button" onClick={() => setDemo({ action, startedAt: performance.now() })}>
+              <button key={action} type="button" onClick={() => startDemo(action)}>
                 {demoActions[action]}
               </button>
             ))}
+            <button type="button" onClick={() => setRopePaused(paused => !paused)}>
+              {ropePaused ? '줄 회전 재생' : '줄 회전 일시 정지'}
+            </button>
             <button className="reset-button" type="button" onClick={resetScene}>게임 상태 초기화</button>
           </div>
         </aside>
