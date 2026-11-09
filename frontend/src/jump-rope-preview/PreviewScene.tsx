@@ -8,11 +8,17 @@ import { PreviewAvatar } from './PreviewAvatar'
 const sky = '#e6efeb'
 const leftPose: PigeonPose = { head: [0.01, -0.07, -0.15], eyelids: [0.7, 0.85], gaze: [0.7, 0] }
 const rightPose: PigeonPose = { head: [0.08, 0.16, 0.22], eyelids: [0.53, 0.05], gaze: [-0.7, 0.4] }
-const audience: { x: number; z: number; scale: number; look: PigeonLook; pose: PigeonPose }[] = [
-  { x: -2.45, z: -1.63, scale: 0.68, look: 'pearl', pose: { head: [-0.13, 0.09, -0.22], eyelids: [0.1, 0.1] } },
-  { x: -1.38, z: -2.16, scale: 0.75, look: 'ash', pose: { head: [0.08, -0.06, 0.08], eyelids: [0.7, 0.7], gaze: [0.5, 0] } },
-  { x: 0.37, z: -2.31, scale: 0.62, look: 'lilac', pose: { head: [-0.16, 0.15, 0.18], jaw: 0.14 } },
-  { x: 1.66, z: -1.93, scale: 0.72, look: 'sage', pose: { head: [0.05, -0.11, -0.19], eyelids: [0.2, 0.5] } },
+const utilityWire = new QuadraticBezierCurve3(
+  new Vector3(-5.6, 2.24, -3.46),
+  new Vector3(-1.25, 1.57, -3.46),
+  new Vector3(3.1, 2.4, -3.46),
+)
+const wireRadius = 0.014
+const audience: { at: number; yaw: number; scale: number; look: PigeonLook; pose: PigeonPose }[] = [
+  { at: 0.18, yaw: 0.12, scale: 0.72, look: 'pearl', pose: { head: [0.29, 0.18, -0.1], eyelids: [0.35, 0.48], gaze: [0.42, -0.46] } },
+  { at: 0.315, yaw: -0.12, scale: 0.78, look: 'ash', pose: { head: [0.03, -0.38, 0.12], eyelids: [0.72, 0.64], gaze: [-0.62, 0.05] } },
+  { at: 0.575, yaw: 0.08, scale: 0.67, look: 'lilac', pose: { head: [0.27, -0.16, 0.13], eyelids: [0.55, 0.43], gaze: [-0.23, -0.55] } },
+  { at: 0.79, yaw: -0.13, scale: 0.74, look: 'sage', pose: { head: [0.06, -0.39, -0.16], eyelids: [0.48, 0.7], gaze: [-0.65, 0.02] } },
 ]
 
 function PreviewCamera({ angle, distance, height, fov }: {
@@ -31,7 +37,7 @@ function PreviewCamera({ angle, distance, height, fov }: {
     const framing = Math.max(1, 1.23 * viewportHeight / width)
     camera.position.set(Math.sin(azimuth) * distance, height, Math.cos(azimuth) * distance)
     camera.fov = 360 / Math.PI * Math.atan(Math.tan(fov * Math.PI / 360) * framing)
-    camera.lookAt(0, 0.8, 0)
+    camera.lookAt(0, 1, 0)
     camera.updateProjectionMatrix()
   }, [angle, camera, distance, fov, height, viewportHeight, width])
 
@@ -53,12 +59,70 @@ const shadowFragment = `
   }
 `
 
-function GroundShadow({ x, z, width, depth }: { x: number; z: number; width: number; depth: number }) {
+function GroundShadow({ x, y = 0.006, z, width, depth }: { x: number; y?: number; z: number; width: number; depth: number }) {
   return (
-    <mesh position={[x, 0.006, z]} rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh position={[x, y, z]} rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={[width, depth]} />
       <shaderMaterial vertexShader={shadowVertex} fragmentShader={shadowFragment} transparent depthWrite={false} />
     </mesh>
+  )
+}
+
+function UtilityPole({ attachment }: { attachment: Vector3 }) {
+  const { x, y, z } = attachment
+  const ground = -0.17
+  const top = y + 0.27
+  const height = top - ground
+
+  return (
+    <group position={[x, 0, z - 0.19]}>
+      <GroundShadow x={0} y={ground + 0.002} z={0} width={0.68} depth={0.49} />
+      <mesh position-y={ground + height / 2}>
+        <cylinderGeometry args={[0.098, 0.16, height, 8]} />
+        <meshStandardMaterial color="#93918a" roughness={1} flatShading />
+      </mesh>
+      <mesh position-y={y - 0.17}>
+        <cylinderGeometry args={[0.117, 0.119, 0.055, 8]} />
+        <meshStandardMaterial color="#646964" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, y - 0.115, 0.095]}>
+        <boxGeometry args={[0.088, 0.07, 0.29]} />
+        <meshStandardMaterial color="#60655f" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, y - 0.115, 0.19]}>
+        <boxGeometry args={[0.62, 0.07, 0.115]} />
+        <meshStandardMaterial color="#73766e" roughness={0.96} />
+      </mesh>
+      <mesh position={[0, y - 0.051, 0.19]}>
+        <cylinderGeometry args={[0.034, 0.056, 0.1, 8]} />
+        <meshStandardMaterial color="#e1ded1" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, y - 0.021, 0.19]}>
+        <cylinderGeometry args={[0.06, 0.056, 0.025, 8]} />
+        <meshStandardMaterial color="#b7b8ac" roughness={0.9} />
+      </mesh>
+    </group>
+  )
+}
+
+function ParkUtilityLine({ showAudience }: { showAudience: boolean }) {
+  return (
+    <group name="park-utility-line">
+      <UtilityPole attachment={utilityWire.v0} />
+      <UtilityPole attachment={utilityWire.v2} />
+      <mesh name="park-background-wire">
+        <tubeGeometry args={[utilityWire, 40, wireRadius, 6, false]} />
+        <meshBasicMaterial color="#555954" />
+      </mesh>
+      {showAudience && audience.map(({ at, yaw, scale, look, pose }) => {
+        const perch = utilityWire.getPoint(at)
+        return (
+          <group key={at} position={[perch.x, perch.y + wireRadius, perch.z - 0.025 * scale]} rotation-y={yaw} scale={scale}>
+            <PigeonActor look={look} pose={pose} />
+          </group>
+        )
+      })}
+    </group>
   )
 }
 
@@ -143,6 +207,8 @@ export function PreviewScene({ settings, demo }: { settings: PreviewSettings; de
 
   useEffect(() => {
     const mesh = rope.current
+    // Fast Refresh can retain the shape cache after disposing the rendered geometry.
+    ropeShape.current.width = -1
     return () => mesh?.geometry.dispose()
   }, [])
 
@@ -201,6 +267,7 @@ export function PreviewScene({ settings, demo }: { settings: PreviewSettings; de
       <hemisphereLight args={['#fff5e4', '#788f87', 1.95]} />
       <directionalLight position={[2.5, 6, 4]} intensity={2.25} />
       <ParkCourt />
+      <ParkUtilityLine showAudience={settings.audience} />
 
       <GroundShadow x={settings.avatarX} z={settings.avatarZ} width={0.95 * settings.avatarScale} depth={0.62 * settings.avatarScale} />
       <group position={[settings.avatarX, 0, settings.avatarZ]}>
@@ -224,15 +291,6 @@ export function PreviewScene({ settings, demo }: { settings: PreviewSettings; de
         <sphereGeometry args={[0.042, 10, 8]} />
         <meshBasicMaterial color="#d4975d" />
       </mesh>
-
-      {settings.audience && audience.map(({ x, z, scale, look, pose }) => (
-        <group key={x}>
-          <GroundShadow x={x} z={z - 0.06} width={1.12 * scale} depth={0.95 * scale} />
-          <group position={[x, 0, z]} rotation={[0, x * -0.24, 0]} scale={scale}>
-            <PigeonActor look={look} pose={pose} />
-          </group>
-        </group>
-      ))}
     </>
   )
 }
