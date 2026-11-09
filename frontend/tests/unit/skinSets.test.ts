@@ -24,3 +24,20 @@ describe('세트 점유는 머리·얼굴·옷 세 칸', () => {
     expect(overlaps([whole], item('robe', ['TOP', 'BOTTOM', 'SHOES']))).toBe(true)
   })
 })
+
+import { skinModelMode } from '../../src/features/skins/api'
+function modelFile(doc: unknown) {
+  const json = new TextEncoder().encode(JSON.stringify(doc)), bytes = new Uint8Array(20 + json.length), view = new DataView(bytes.buffer)
+  view.setUint32(0, 0x46546c67, true); view.setUint32(4, 2, true); view.setUint32(8, bytes.length, true)
+  view.setUint32(12, json.length, true); view.setUint32(16, 0x4e4f534a, true); bytes.set(json, 20)
+  return new File([bytes], 'outfit.glb')
+}
+it('전체 슬롯을 가진 분리 모델도 파일 조각을 보고 PARTS로 판정한다', async () => {
+  expect(await skinModelMode(modelFile({ meshes: [{extras: {pieces: [['item__HAIR__a',0,3],['item__FACE__a',3,3],['item__TOP__a',6,3],['item__BOTTOM__a',9,3],['item__SHOES__a',12,3]]}}] }))).toBe('PARTS')
+  expect(await skinModelMode(modelFile({ nodes: [{extras: {pieces: [['item__HAIR__a',0,3]]}}] }))).toBe('PARTS')
+})
+it('통합 외형 파일은 WHOLE로 판정하고 잘못된 파일은 거절한다', async () => {
+  expect(await skinModelMode(modelFile({ nodes: [{name:'CharacterRig'}], meshes: [{}] }))).toBe('WHOLE')
+  expect(await skinModelMode(modelFile({meshes:[{extras:{pieces:[['body',0,3],['item__HAIR__a',3,3]]}}]}))).toBe('WHOLE')
+  await expect(skinModelMode(new File(['not a model'], 'broken.glb'))).rejects.toThrow()
+})

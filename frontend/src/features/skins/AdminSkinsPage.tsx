@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { InboxError } from '../notifications/api'
-import { fileSpec, skinRequest, slotOrder, uploadFile, type SkinDefinition, type SkinEntry, type SkinSettings, type SkinTicket, type SkinVerified } from './api'
+import { fileSpec, skinModelMode, skinRequest, slotOrder, uploadFile, type SkinDefinition, type SkinEntry, type SkinSettings, type SkinTicket, type SkinVerified } from './api'
 import { SkinPreview } from './SkinPreview'
 import './skins.css'
 import { AdminSkinSets } from './AdminSkinSets'
@@ -16,7 +16,7 @@ const newItem = (component: boolean): SkinDefinition => component
   : initial
 
 export function AdminSkinsPage({ onAuthEnded }: { onAuthEnded: () => void }) {
-  const [tab, setTab] = useState<'items' | 'sets' | 'legacy'>('items')
+  const [tab, setTab] = useState<'items' | 'sets' | 'legacy'>('sets')
   const [seed, setSeed] = useState<SkinEntry | null>(null)
   const [flow, setFlow] = useState<WorkflowState>({ busy: false, dirty: false })
   const navigate = (next: typeof tab, item: SkinEntry | null = null) => {
@@ -25,15 +25,7 @@ export function AdminSkinsPage({ onAuthEnded }: { onAuthEnded: () => void }) {
     setFlow({ busy: false, dirty: false }); setSeed(item); setTab(next)
   }
   return <div className="skin-workflow">
-    <header className="skin-flow-intro"><div><h2>옷을 준비하고, 세트로 선물하세요.</h2>
-      <p>먼저 입을 수 있는 의상 파일을 올린 뒤, 함께 뽑힐 의상들을 한 세트에 담아요.</p></div>
-      <span className="skin-flow-example">갓 + 도포 → 선비 세트</span></header>
-    <nav className="skin-flow-nav" aria-label="의상 등록 순서">
-      <button disabled={flow.busy} aria-current={tab === 'items' ? 'step' : undefined} onClick={() => navigate('items')}>
-        <span className="skin-flow-number">1</span><span><strong>의상 파일 등록</strong><small>이름·부위와 GLB 파일을 준비해요</small></span><span aria-hidden="true">→</span></button>
-      <button disabled={flow.busy} aria-current={tab === 'sets' ? 'step' : undefined} onClick={() => navigate('sets')}>
-        <span className="skin-flow-number">2</span><span><strong>뽑기 세트 만들기</strong><small>등록한 의상을 골라 함께 지급해요</small></span><span aria-hidden="true">→</span></button>
-    </nav>
+    {tab !== 'sets' && <div className="skin-file-back"><button disabled={flow.busy} onClick={() => navigate('sets')}>← 남녀 캐릭터 화면으로</button><p>이 파일에 들어 있는 부위를 체크하고, 파일과 사진을 올려주세요.</p></div>}
     {tab === 'sets' ? <AdminSkinSets onAuthEnded={onAuthEnded} initialItem={seed} onRegister={() => navigate('items')} onWorkflowChange={setFlow}/>
       : <SkinItemEditor key={tab} onAuthEnded={onAuthEnded} component={tab === 'items'} onCompose={item => navigate('sets', item)} onWorkflowChange={setFlow}/>}
     <details className="skin-previous"><summary>예전에 등록한 의상을 찾고 있나요?</summary><p>이전 방식으로 등록한 의상도 그대로 보관돼요. 여기서 파일과 공개 상태를 수정할 수 있어요.</p>
@@ -93,10 +85,19 @@ function SkinItemEditor({ onAuthEnded, component, onCompose, onWorkflowChange }:
   const needsFemale = paired && !sharedModel
   const sendFiles = () => run(async signal => {
     if (!selected || !settings?.storageReady || !model || !image || dirty || (needsFemale && !femaleModel)) return
+    const mode = selected.publishedUploadId ? selected.definition.wearMode : await skinModelMode(model)
+    if (!selected.publishedUploadId && needsFemale && femaleModel && await skinModelMode(femaleModel) !== mode) throw new Error('남녀 모델의 파일 구성이 달라요. 같은 종류의 의상 파일을 선택해주세요.')
+    if (mode === 'WHOLE' && selected.definition.slots.length !== slotOrder.length) throw new Error('전체 외형 파일이에요. 머리·얼굴·옷을 모두 체크하고 저장해주세요.')
+    let registration = selected
+    if (registration.definition.wearMode !== mode) {
+      registration = await skinRequest<SkinEntry>(`/${registration.id}`, signal, 'PUT', { version: registration.version, definition: { ...registration.definition, wearMode: mode } })
+      if (signal.aborted) return
+      adopt(registration)
+    }
     const [m, i, f] = await Promise.all([fileSpec(model, '.glb', settings.maxModelBytes), fileSpec(image, '.webp', settings.maxImageBytes),
       needsFemale && femaleModel ? fileSpec(femaleModel, '.glb', settings.maxModelBytes) : null])
     const separate = f && (f.bytes !== m.bytes || f.sha256 !== m.sha256)
-    const intent = await skinRequest<SkinTicket>(`/${selected.id}/uploads`, signal, 'POST', { version: selected.version, model: m, image: i, femaleModel: separate ? f : null })
+    const intent = await skinRequest<SkinTicket>(`/${selected.id}/uploads`, signal, 'POST', { version: registration.version, model: m, image: i, femaleModel: separate ? f : null })
     if (signal.aborted) return
     setTicket(intent); setVerified(null); setReviewed(false); setLoaded(false); setImageLoaded(false)
     setMessage('파일을 업로드하고 있어요. 화면을 닫으면 중단돼요.')
@@ -141,12 +142,10 @@ function SkinItemEditor({ onAuthEnded, component, onCompose, onWorkflowChange }:
             {!component && <label>등급<select aria-label="등급" value={form.grade} disabled={!!selected?.publishedUploadId} onChange={e => setForm({ ...form, grade: Number(e.target.value) })}>{gradeNames.map((n, i) => <option key={n} value={i + 1}>{n}급</option>)}</select></label>}
             <label>착용 캐릭터<select aria-label="착용 캐릭터" value={form.compatibility} disabled={!!selected?.publishedUploadId} onChange={e => setForm({ ...form, compatibility: e.target.value as SkinDefinition['compatibility'] })}>
               <option value="MALE">남자</option><option value="FEMALE">여자</option><option value="ANY">남녀 모두</option></select></label>
-            <label>착용 방식<select aria-label="착용 방식" value={form.wearMode} disabled={!!selected?.publishedUploadId} onChange={e => setForm({ ...form, wearMode: e.target.value as SkinDefinition['wearMode'],
-              ...(e.target.value === 'WHOLE' ? { slots: [...slotOrder] } : {}) })}>
-              <option value="WHOLE">몸 전체가 한 파일 · 통째로 착용</option><option value="PARTS">머리·얼굴·옷을 나눠 입는 의상</option></select></label>
-          </div><div className="skin-slots" role="group" aria-label="포함 부위">{places.map(place => <label key={place}><input type="checkbox" checked={physicalSlots[place].every(slot => form.slots.includes(slot))} disabled={form.wearMode === 'WHOLE' || !!selected?.publishedUploadId}
+
+          </div><div className="skin-slots" role="group" aria-label="포함 부위">{places.map(place => <label key={place}><input type="checkbox" checked={physicalSlots[place].every(slot => form.slots.includes(slot))} disabled={!!selected?.publishedUploadId}
             onChange={e => setForm({ ...form, slots: slotOrder.filter(s => physicalSlots[place].includes(s) ? e.target.checked : form.slots.includes(s)) })}/>{placeLabels[place]}</label>)}</div>
-          <p className="skin-help">옷은 상의·하의·신발을 함께 등록해요. 통합 스킨은 머리·얼굴·옷을 함께 입고 벗어요.</p>
+          <p className="skin-help">파일에 포함된 부위만 체크해주세요. 옷은 상의·하의·신발을 포함해요. 파일 형식은 자동으로 확인해요.</p>
           <button className="skin-primary" type="submit">{busy ? '저장 중…' : component ? (selected ? '이름·부위 변경 저장' : '저장하고 파일 올리기 →') : '상품 정보 저장'}</button>
         </fieldset></form>
         {(!component || selected) && <section className="skin-upload"><h3>{component ? '의상 파일과 사진을 올려주세요' : '모델과 대표 이미지'}</h3><p>GLB 최대 20MiB · WebP 최대 2MiB · 새 파일은 별도 버전으로 보관해요.</p>
