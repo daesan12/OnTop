@@ -3,6 +3,7 @@ package com.ssafy.ontop.event.contact;
 import com.ssafy.ontop.admin.security.AdminAccessPolicy;
 import com.ssafy.ontop.event.contact.WinnerContactRepository.AwardRow;
 import com.ssafy.ontop.event.contact.WinnerContactRepository.Contact;
+import com.ssafy.ontop.event.contact.WinnerContactRepository.DeliveryTarget;
 import com.ssafy.ontop.event.contact.WinnerContactRepository.Receipt;
 import java.time.Clock;
 import java.time.DayOfWeek;
@@ -133,6 +134,34 @@ public final class WinnerContactService {
         }));
     }
 
+    public DeliveryResponse confirmDelivery(long administratorId, long winnerId,
+            Long expectedUserId) {
+        if (!administrators.canOperate(administratorId)) {
+            throw error(403, "EVENT_DELIVERY_ADMIN_FORBIDDEN", "경품 지급 권한이 없습니다.");
+        }
+        if (winnerId <= 0 || expectedUserId == null || expectedUserId <= 0) {
+            throw error(400, "EVENT_DELIVERY_BAD_REQUEST", "당첨자와 회원을 확인해 주세요.");
+        }
+        return Objects.requireNonNull(writes.execute(status -> {
+            DeliveryTarget target = repository.deliveryTarget(winnerId, true).orElseThrow(
+                    () -> error(404, "EVENT_DELIVERY_NOT_FOUND", "당첨 건이 없습니다."));
+            if (target.userId() != expectedUserId) {
+                throw error(409, "EVENT_DELIVERY_TARGET_CHANGED", "당첨자를 다시 확인해 주세요.");
+            }
+            if (!target.finalized()) {
+                throw error(409, "EVENT_DELIVERY_NOT_FINALIZED", "확정 전 당첨 건은 지급할 수 없습니다.");
+            }
+            if (target.deliveredAt() != null) {
+                return new DeliveryResponse(winnerId, expectedUserId, "DELIVERED",
+                        target.deliveredByUserId(), target.deliveredAt(), true);
+            }
+            Instant deliveredAt = now();
+            repository.insertDelivery(winnerId, administratorId, deliveredAt);
+            return new DeliveryResponse(winnerId, expectedUserId, "DELIVERED",
+                    administratorId, deliveredAt, false);
+        }));
+    }
+
     public int deleteExpired() {
         return Objects.requireNonNull(writes.execute(status -> repository.deleteExpired(now())));
     }
@@ -141,13 +170,16 @@ public final class WinnerContactService {
         return new WinningResponse(row.winnerId(), row.week(), row.eventType(), row.place(),
                 row.prizeName(), publishedAt(row), publishedAt(row).plus(SUBMISSION_WINDOW),
                 contactStatus(row), row.lastFour() == null ? null : mask(row.lastFour()),
-                row.contactExpiresAt());
+                row.contactExpiresAt(), row.deliveredAt() == null ? "PENDING" : "DELIVERED",
+                row.deliveredAt());
     }
 
     private AdminWinnerResponse adminResponse(AwardRow row) {
-        return new AdminWinnerResponse(row.winnerId(), row.userId(), row.week(),
+        return new AdminWinnerResponse(row.winnerId(), row.userId(), row.nickname(), row.week(),
                 row.eventType(), row.place(), row.prizeName(), contactStatus(row),
-                row.lastFour() == null ? null : mask(row.lastFour()), row.contactExpiresAt());
+                row.lastFour() == null ? null : mask(row.lastFour()), row.contactExpiresAt(),
+                row.deliveredAt() == null ? "PENDING" : "DELIVERED",
+                row.deliveredByUserId(), row.deliveredAt());
     }
 
     private String contactStatus(AwardRow row) {
@@ -236,14 +268,19 @@ public final class WinnerContactService {
 
     public record WinningResponse(long winnerId, LocalDate weekStart, String eventType,
             int place, String prizeName, Instant announcedAt, Instant submissionDeadline,
-            String contactStatus, String maskedPhone, Instant contactExpiresAt) {}
+            String contactStatus, String maskedPhone, Instant contactExpiresAt,
+            String deliveryStatus, Instant deliveredAt) {}
 
     public record ContactResponse(LocalDate weekStart, String status, String maskedPhone,
             Instant expiresAt, Instant submissionDeadline) {}
 
-    public record AdminWinnerResponse(long winnerId, long userId, LocalDate weekStart,
+    public record AdminWinnerResponse(long winnerId, long userId, String nickname, LocalDate weekStart,
             String eventType, int place, String prizeName, String contactStatus,
-            String maskedPhone, Instant contactExpiresAt) {}
+            String maskedPhone, Instant contactExpiresAt, String deliveryStatus,
+            Long deliveredByUserId, Instant deliveredAt) {}
+
+    public record DeliveryResponse(long winnerId, long userId, String deliveryStatus,
+            long deliveredByUserId, Instant deliveredAt, boolean alreadyDelivered) {}
 
     public record AdminListResponse(List<AdminWinnerResponse> winners, int limit, int offset,
             boolean hasMore) {}

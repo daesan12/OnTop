@@ -497,6 +497,39 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/events/winners/{winnerId}/delivery:
+    put:
+      tags:
+      - Event Winner Contacts
+      summary: 관리자가 실제 경품 전달 후 당첨 건별 지급 완료 기록
+      operationId: confirmDelivery
+      parameters:
+      - name: winnerId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeliveryRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DeliveryResponse"
+      security:
+      - AccessJwt: []
   /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}:
     put:
       tags:
@@ -7847,6 +7880,31 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AnnouncementOrderItem"
+    DeliveryRequest:
+      type: object
+      properties:
+        expectedUserId:
+          type: integer
+          format: int64
+    DeliveryResponse:
+      type: object
+      properties:
+        winnerId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        deliveryStatus:
+          type: string
+        deliveredByUserId:
+          type: integer
+          format: int64
+        deliveredAt:
+          type: string
+          format: date-time
+        alreadyDelivered:
+          type: boolean
     WeeklyMinigameConfiguration:
       type: object
       properties:
@@ -9534,6 +9592,8 @@ components:
         userId:
           type: integer
           format: int64
+        nickname:
+          type: string
         raffleTicketId:
           type: integer
           format: int64
@@ -9731,6 +9791,8 @@ components:
         userId:
           type: integer
           format: int64
+        nickname:
+          type: string
         sourceRecordId:
           type: string
         sourceValue:
@@ -9805,6 +9867,8 @@ components:
         userId:
           type: integer
           format: int64
+        nickname:
+          type: string
         sourceRecordId:
           type: string
         sourceValue:
@@ -10859,6 +10923,11 @@ components:
         contactExpiresAt:
           type: string
           format: date-time
+        deliveryStatus:
+          type: string
+        deliveredAt:
+          type: string
+          format: date-time
     MinigameMemberAwardResponse:
       type: object
       properties:
@@ -11148,6 +11217,8 @@ components:
         userId:
           type: integer
           format: int64
+        nickname:
+          type: string
         weekStart:
           type: string
           format: date
@@ -11163,6 +11234,14 @@ components:
         maskedPhone:
           type: string
         contactExpiresAt:
+          type: string
+          format: date-time
+        deliveryStatus:
+          type: string
+        deliveredByUserId:
+          type: integer
+          format: int64
+        deliveredAt:
           type: string
           format: date-time
     RevealedContact:

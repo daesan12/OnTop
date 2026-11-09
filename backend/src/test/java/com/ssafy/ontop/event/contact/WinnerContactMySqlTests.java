@@ -56,7 +56,7 @@ class WinnerContactMySqlTests {
         long winner = member("winner");
         long outsider = member("outsider");
         administrators = new AdminAccessPolicy(new AdminAccessProperties(
-                Set.of(gm, reader), Set.of(), Set.of(), Set.of(gm)));
+                Set.of(gm, reader), Set.of(), Set.of(gm), Set.of(gm)));
         award("JUMPMAP", winner, gm, "coffee");
         award("BUNGEOPPANG", winner, gm, "bread");
 
@@ -88,6 +88,19 @@ class WinnerContactMySqlTests {
         assertThat(service.adminWinners(reader, WEEK, null, "SUBMITTED", 20, 0).winners())
                 .hasSize(2).allSatisfy(item -> assertThat(item.maskedPhone())
                         .isEqualTo("***-****-5678"));
+        assertThat(service.adminWinners(reader, WEEK, null, "SUBMITTED", 20, 0).winners())
+                .allSatisfy(item -> assertThat(item.nickname()).isEqualTo("winner"));
+        assertCode(() -> service.confirmDelivery(reader, 1, winner), "EVENT_DELIVERY_ADMIN_FORBIDDEN");
+        assertCode(() -> service.confirmDelivery(gm, 1, outsider), "EVENT_DELIVERY_TARGET_CHANGED");
+        assertThat(service.confirmDelivery(gm, 1, winner).alreadyDelivered()).isFalse();
+        assertThat(service.confirmDelivery(gm, 1, winner).alreadyDelivered()).isTrue();
+        assertThat(service.ownWinnings(winner, WEEK, 100, 0)).extracting(item -> item.deliveryStatus())
+                .containsExactlyInAnyOrder("DELIVERED", "PENDING");
+        assertThat(service.confirmDelivery(gm, 2, winner).alreadyDelivered()).isFalse();
+        assertThat(service.adminWinners(gm, WEEK, null, null, 20, 0).winners())
+                .allSatisfy(item -> assertThat(item.deliveryStatus()).isEqualTo("DELIVERED"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_prize_deliveries", Integer.class))
+                .isEqualTo(2);
         assertCode(() -> service.reveal(reader, 1), "EVENT_CONTACT_ADMIN_FORBIDDEN");
         assertThat(service.reveal(gm, 1).phone()).isEqualTo("01012345678");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_contact_access_audit",

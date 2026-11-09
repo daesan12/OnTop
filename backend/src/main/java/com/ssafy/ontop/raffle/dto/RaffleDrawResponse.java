@@ -8,6 +8,6 @@ public record RaffleDrawResponse(LocalDate weekStartDate, Instant announcesAt, b
         boolean alreadyFinalized, Integer candidateCount, Integer excludedGmCount,
         int expectedPrizeCount, int awardedPrizeCount, int vacantPrizeCount,
         List<Winner> winners) {
-    public record Winner(long userId, long raffleTicketId, int ticketNumber, int place,
-            int slotNumber, String prizeName) {}
+    public record Winner(long userId, String nickname, long raffleTicketId, int ticketNumber,
+            int place, int slotNumber, String prizeName) {}
 }

@@ -13,3 +13,11 @@
 응모권 백엔드 API는 [raffle-review-api.md](raffle-review-api.md)의 사전 추첨 → 검토 → 선택적 재추첨 → 최종 확정 흐름으로 전환되었습니다. 이 문서의 기존 관리자 화면은 아직 해당 흐름을 연결하지 않았습니다. 화면 연동 작업이 배포되기 전에는 응모권 확정 버튼이 성공하지 않습니다.
 
 당첨자 목록에는 연락처 마스킹 값과 제출 상태만 기본 노출합니다. 원문은 별도 권한이 있고 `SUBMITTED`인 당첨자의 버튼을 누를 때에만 API에 요청합니다. 브라우저 새로고침이나 필터 변경 후 원문을 유지하지 않습니다.
+
+## 당첨자 닉네임과 경품 지급 기록
+
+관리자 당첨자 목록은 `winnerId`, `userId`와 현재 닉네임을 함께 반환합니다. 응모권 사전 추첨·확정 결과와 미니게임·자산상 결과에도 닉네임을 반환합니다. 닉네임은 표시용이며, 지급 대상 식별은 변경되지 않는 내부 ID로 합니다.
+
+경품을 실제 전달한 뒤 운영 권한(`ADMIN_OPERATION_IDS`)이 있는 관리자는 `PUT /api/v1/admin/events/winners/{winnerId}/delivery`에 `{ "expectedUserId": 31 }`을 보냅니다. 서버는 당첨 건의 회원 ID와 확정 여부를 확인하고 `event_prize_deliveries`에 실행자와 시각을 기록합니다. 같은 당첨 건의 재요청은 기존 기록을 반환하며 `alreadyDelivered: true`로 구분됩니다. 한 회원에게 여러 상품이 있으면 각 `winnerId`를 별도로 지급 처리합니다. 이미 확정된 2026-11-02 회차도 동일한 API를 사용합니다.
+
+관리자 당첨자 목록에는 `deliveryStatus`, `deliveredByUserId`, `deliveredAt`이, 회원의 당첨 내역에는 `deliveryStatus`, `deliveredAt`이 포함됩니다. `PENDING`은 아직 수동 지급 완료 기록이 없다는 뜻입니다. 관리자 화면의 지급 버튼 연결과 당첨 알림 표시 제어는 후속 화면 작업에서 진행합니다.

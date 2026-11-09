@@ -126,7 +126,7 @@ public final class WeeklyMinigameAwardService {
                 if (admins.canRead(candidate.userId())) {
                     excluded++;
                 } else if (ranks.size() < PREVIEW_LIMIT) {
-                    ranks.add(new Rank(ranks.size() + 1, candidate.userId(), candidate.recordId(),
+                    ranks.add(new Rank(ranks.size() + 1, candidate.userId(), candidate.nickname(), candidate.recordId(),
                             candidate.sourceValue(), candidate.secondaryValue(), candidate.achievedAt()));
                 }
             }
@@ -314,7 +314,7 @@ public final class WeeklyMinigameAwardService {
     @Schema(name = "WeeklyMinigameSupportedGame")
     public record SupportedGame(String gameCode, String displayName, String rankingRuleVersion) {}
     @Schema(name = "WeeklyMinigameRank")
-    public record Rank(int place, long userId, String sourceRecordId, long sourceValue,
+    public record Rank(int place, long userId, String nickname, String sourceRecordId, long sourceValue,
             long secondaryValue, Instant achievedAt) {}
     @Schema(name = "WeeklyMinigameRanking")
     public record Ranking(Game game, String status, int candidateCount, int excludedGmCount,
