@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Canvas } from '@react-three/fiber'
+import { JumpRopeHud } from './JumpRopeHud'
 import { PreviewScene } from './PreviewScene'
 import './preview.css'
 
@@ -42,21 +43,33 @@ const controls: { title: string; sliders: Slider[] }[] = [
   { title: '전깃줄과 비둘기', sliders: [
     ['ropeWidth', '줄 두께', 0.01, 0.12, 0.005, ' m'],
     ['ropeSpeed', '회전 속도 표식', 0, 3, 0.1, '회/초'],
-    ['ropeHeight', '줄 높이', 0.2, 1.5, 0.05, ' m'],
+    ['ropeHeight', '줄 여유', 0.2, 1.5, 0.05, ' m'],
     ['pigeonGap', '비둘기 간격', 3, 6, 0.1, ' m'],
     ['pigeonScale', '비둘기 크기', 0.6, 1.6, 0.05, '×'],
   ] },
 ]
 
 const demoActions = {
-  jump: { button: '점프 테스트', result: '점프' },
-  perfect: { button: 'PERFECT 연출 테스트', result: 'PERFECT' },
-  miss: { button: 'MISS 연출 테스트', result: 'MISS' },
-  laugh: { button: '비둘기 웃음 연출 테스트', result: '구구구!' },
+  jump: '점프 테스트',
+  perfect: 'PERFECT 시안',
+  good: 'GOOD 시안',
+  miss: 'MISS 시안',
+  laugh: '비둘기 웃음 테스트',
+  end: '종료 시안',
 } as const
 
 export type DemoAction = keyof typeof demoActions
 export type Demo = { action: DemoAction; startedAt: number }
+
+const readyHud = { seconds: 60, score: 0, combo: 0, chances: 3 }
+const hudSamples = {
+  jump: { ...readyHud, note: '점프 테스트' },
+  perfect: { seconds: 42, score: 120, combo: 4, chances: 3, judgement: 'perfect' },
+  good: { seconds: 36, score: 140, combo: 5, chances: 3, judgement: 'good' },
+  miss: { seconds: 28, score: 140, combo: 0, chances: 2, judgement: 'miss' },
+  laugh: { ...readyHud, note: '구구구!' },
+  end: { seconds: 18, score: 140, combo: 0, chances: 0, note: '비둘기한테 졌습니다.' },
+} as const
 
 export function JumpRopePreview() {
   const [settings, setSettings] = useState(defaults)
@@ -75,7 +88,7 @@ export function JumpRopePreview() {
           <p className="eyebrow">ONTOP / 개발 프리뷰</p>
           <h1>구구구 줄넘기</h1>
         </div>
-        <p className="preview-tag">01 · 무대 리허설</p>
+        <p className="preview-tag">01 · 정지 디자인 시안</p>
       </header>
       <div className="preview-layout">
         <section className="preview-stage" aria-label="3D 줄넘기 무대">
@@ -86,17 +99,11 @@ export function JumpRopePreview() {
           >
             <PreviewScene key={resetCount} settings={settings} demo={demo} />
           </Canvas>
-          <div className="stage-label">
-            <strong>탑골공원 연습 무대</strong>
-            <span>임시 아바타 · 비둘기 · 전깃줄</span>
-          </div>
-          <output className="stage-result" data-action={demo?.action} aria-live="polite">
-            {demo ? demoActions[demo.action].result : '연출 대기'}
-          </output>
+          <JumpRopeHud {...(demo ? hudSamples[demo.action] : readyHud)} />
         </section>
         <aside className="preview-panel" aria-label="실시간 조정 패널">
           <h2>실시간 조정</h2>
-          <p className="panel-note">주황색 표식이 줄의 회전 속도를 보여줍니다.</p>
+          <p className="panel-note">HUD는 샘플 값입니다. 점프 테스트에서 속도 표식을 확인할 수 있습니다.</p>
           {controls.map(group => (
             <fieldset key={group.title}>
               <legend>{group.title}</legend>
@@ -135,7 +142,7 @@ export function JumpRopePreview() {
           <div className="demo-actions" aria-label="연출 테스트">
             {(Object.keys(demoActions) as DemoAction[]).map(action => (
               <button key={action} type="button" onClick={() => setDemo({ action, startedAt: performance.now() })}>
-                {demoActions[action].button}
+                {demoActions[action]}
               </button>
             ))}
             <button className="reset-button" type="button" onClick={resetScene}>게임 상태 초기화</button>
