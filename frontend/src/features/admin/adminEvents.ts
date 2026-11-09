@@ -17,9 +17,23 @@ export const winnerLabels: Record<WinnerType, string> = {
 
 export interface EventWinner {
   userId: number
+  nickname: string | null
   place: number
   prizeName: string
   evidence: string
+}
+export interface RaffleReview {
+  drawId: number
+  week: string
+  attemptNumber: number
+  drawnAt: string
+  rerollReason: string | null
+  candidateCount: number
+  excludedGmCount: number
+  expectedPrizeCount: number
+  awardedPrizeCount: number
+  vacantPrizeCount: number
+  picks: EventWinner[]
 }
 export interface EventRound {
   kind: EventKind
@@ -104,9 +118,10 @@ function roundPath(kind: EventKind, week: string) {
 
 function parseWinner(value: unknown, kind: EventKind): EventWinner {
   if (!record(value) || !positive(value.userId) || typeof value.prizeName !== 'string' || !value.prizeName) return invalid()
+  const nickname = typeof value.nickname === 'string' && value.nickname.trim() ? value.nickname.trim() : null
   if (kind === 'raffle') {
     if (!positive(value.place) || !positive(value.ticketNumber)) return invalid()
-    return { userId: value.userId, place: value.place, prizeName: value.prizeName,
+    return { userId: value.userId, nickname, place: value.place, prizeName: value.prizeName,
       evidence: `응모권 #${value.ticketNumber}` }
   }
   if (typeof value.sourceRecordId !== 'string' || !value.sourceRecordId || !integer(value.sourceValue)) return invalid()
@@ -114,8 +129,26 @@ function parseWinner(value: unknown, kind: EventKind): EventWinner {
   if (!positive(place)) return invalid()
   const detail = kind === 'asset' ? `${value.sourceValue.toLocaleString('ko-KR')}냥`
     : kind === 'jumpmap' ? `완주 기록 ${value.sourceValue}` : `점수 ${value.sourceValue.toLocaleString('ko-KR')}`
-  return { userId: value.userId, place, prizeName: value.prizeName,
+  return { userId: value.userId, nickname, place, prizeName: value.prizeName,
     evidence: `${detail} · 기록 ${value.sourceRecordId}` }
+}
+
+export function parseRaffleReview(value: unknown, week: string): RaffleReview {
+  if (!record(value) || value.weekStartDate !== week || value.status !== 'REVIEW'
+    || !positive(value.drawId) || !positive(value.attemptNumber) || !instant(value.drawnAt)
+    || !(value.rerollReason === null || typeof value.rerollReason === 'string')
+    || !integer(value.candidateCount) || !integer(value.excludedGmCount)
+    || value.excludedGmCount > value.candidateCount
+    || !integer(value.expectedPrizeCount) || !integer(value.awardedPrizeCount)
+    || !integer(value.vacantPrizeCount) || !Array.isArray(value.picks)) return invalid()
+  const picks = value.picks.map(item => parseWinner(item, 'raffle'))
+  if (picks.length !== value.awardedPrizeCount
+    || picks.length + value.vacantPrizeCount !== value.expectedPrizeCount) return invalid()
+  return { drawId: value.drawId, week, attemptNumber: value.attemptNumber,
+    drawnAt: value.drawnAt, rerollReason: value.rerollReason,
+    candidateCount: value.candidateCount, excludedGmCount: value.excludedGmCount,
+    expectedPrizeCount: value.expectedPrizeCount, awardedPrizeCount: value.awardedPrizeCount,
+    vacantPrizeCount: value.vacantPrizeCount, picks }
 }
 
 export function parseEventRound(value: unknown, kind: EventKind, week: string): EventRound {
@@ -177,13 +210,15 @@ export function parseRevealedContact(value: unknown): RevealedContact {
 }
 
 async function request<T>(path: string, method: 'GET' | 'POST', signal: AbortSignal,
-  parse: (value: unknown) => T): Promise<T> {
+  parse: (value: unknown) => T, payload?: Record<string, unknown>): Promise<T> {
   let owner = getAuthSession()
   if (owner?.status !== 'AUTHENTICATED') throw new AdminEventsError('다시 로그인해주세요.', 'UNAUTHENTICATED', 'unauthenticated')
   const current = () => !signal.aborted && getAuthSession() === owner
   const fetchOnce = () => fetch(path, { method, credentials: 'omit', cache: 'no-store',
     signal: AbortSignal.any([signal, AbortSignal.timeout(method === 'POST' ? 120_000 : 20_000)]),
-    headers: { Authorization: `Bearer ${owner!.status === 'AUTHENTICATED' ? owner!.accessToken : ''}` },
+    headers: { Authorization: `Bearer ${owner!.status === 'AUTHENTICATED' ? owner!.accessToken : ''}`,
+      ...(payload ? { 'Content-Type': 'application/json' } : {}) },
+    ...(payload ? { body: JSON.stringify(payload) } : {}),
   })
   const send = async () => {
     try { return await fetchOnce() } catch (cause) {
@@ -231,6 +266,34 @@ export async function loadEventRound(kind: EventKind, week: string, signal: Abor
 
 export function finalizeEventRound(kind: EventKind, week: string, signal: AbortSignal): Promise<EventRound> {
   return request(`${roundPath(kind, week)}/finalize`, 'POST', signal, value => parseEventRound(value, kind, week))
+}
+
+export async function loadCurrentRaffleReview(week: string, signal: AbortSignal): Promise<RaffleReview | null> {
+  try {
+    return await request(`${roundPath('raffle', week)}/draws/current`, 'GET', signal,
+      value => parseRaffleReview(value, week))
+  } catch (cause) {
+    if (cause instanceof AdminEventsError && cause.kind === 'not-found'
+      && ['RAFFLE_REVIEW_NOT_FOUND', 'RAFFLE_ROUND_NOT_FOUND'].includes(cause.code)) return null
+    throw cause
+  }
+}
+
+export function createRaffleReview(week: string, signal: AbortSignal): Promise<RaffleReview> {
+  return request(`${roundPath('raffle', week)}/draws`, 'POST', signal,
+    value => parseRaffleReview(value, week))
+}
+
+export function rerollRaffleReview(week: string, expectedDrawId: number, reason: string,
+  signal: AbortSignal): Promise<RaffleReview> {
+  return request(`${roundPath('raffle', week)}/draws/reroll`, 'POST', signal,
+    value => parseRaffleReview(value, week), { expectedDrawId, reason })
+}
+
+export function confirmRaffleReview(week: string, drawId: number,
+  signal: AbortSignal): Promise<EventRound> {
+  return request(`${roundPath('raffle', week)}/finalize`, 'POST', signal,
+    value => parseEventRound(value, 'raffle', week), { drawId })
 }
 
 export function loadEventWinners(week: string, type: WinnerType | '', contactStatus: ContactStatus | '',
