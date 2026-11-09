@@ -14,20 +14,23 @@ def pixels(img):
 
 # 1. the body's skin
 bpy.ops.wm.read_factory_settings(use_empty=True); bpy.ops.import_scene.gltf(filepath=a[0])
-body = next(o for o in bpy.data.objects if o.type == 'MESH' and o.name == 'body')
-img = next(n.image for m in body.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
-P = pixels(img); h, w = P.shape[:2]
-gname = {g.index: g.name.split(':')[-1] for g in body.vertex_groups}
+# (every body piece, body and body__<tokens>: with more outfits the neck, hands, forearms and shins all went to
+# body__ pieces and the plain body had none of them, S15P31B105-364)
 SKIN = ('Neck', 'LeftHand', 'RightHand', 'LeftForeArm', 'RightForeArm', 'LeftLeg', 'RightLeg')
-lead = [max(((e.weight, gname.get(e.group, '')) for e in v.groups), default=(0, ''))[1] for v in body.data.vertices]
-uv = body.data.uv_layers.active.data
 cols = []
-for p in body.data.polygons:
-    votes = {}
-    for vi in p.vertices: votes[lead[vi]] = votes.get(lead[vi], 0) + 1
-    if not any(max(votes, key=votes.get).startswith(s) for s in SKIN): continue
-    for li in p.loop_indices:
-        u, v = uv[li].uv; cols.append(P[min(h - 1, max(0, int(v * h))), min(w - 1, max(0, int(u * w))), :3])
+for body in [o for o in bpy.data.objects if o.type == 'MESH' and o.name.split('.')[0].startswith('body')]:
+    img = next((n.image for m in body.data.materials if m and m.node_tree for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image), None)
+    if not img or not body.data.uv_layers: continue
+    P = pixels(img); h, w = P.shape[:2]
+    gname = {g.index: g.name.split(':')[-1] for g in body.vertex_groups}
+    lead = [max(((e.weight, gname.get(e.group, '')) for e in v.groups), default=(0, ''))[1] for v in body.data.vertices]
+    uv = body.data.uv_layers.active.data
+    for p in body.data.polygons:
+        votes = {}
+        for vi in p.vertices: votes[lead[vi]] = votes.get(lead[vi], 0) + 1
+        if not any(max(votes, key=votes.get).startswith(s) for s in SKIN): continue
+        for li in p.loop_indices:
+            u, v = uv[li].uv; cols.append(P[min(h - 1, max(0, int(v * h))), min(w - 1, max(0, int(u * w))), :3])
 cols = np.array(cols)
 # keep the skin-like samples only (the neck's fold line, nails, any cloth edge out)
 cm = (cols[:, 0] > cols[:, 1]) & (cols[:, 1] > cols[:, 2]) & (cols.max(1) > 0.35)

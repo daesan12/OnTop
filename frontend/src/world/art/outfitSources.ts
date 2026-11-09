@@ -5,7 +5,7 @@ import { wholeSkinUrl } from './wholeSkin'
 import { catalogSourceUrl } from './skinCatalog'
 
 /** Outfit files are fetched when someone first wears one, not with the park: most visitors never need them. */
-export const outfitUrl = (name: string) => catalogSourceUrl(name) ?? wholeSkinUrl(name) ?? `/art/characters/outfits/${name}.glb?rig=26`
+export const outfitUrl = (name: string) => catalogSourceUrl(name) ?? wholeSkinUrl(name) ?? `/art/characters/outfits/${name}.glb?rig=27`
 
 const loaded = new Map<string, GLTF>()
 const requested = new Set<string>()
