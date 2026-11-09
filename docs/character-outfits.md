@@ -15,7 +15,7 @@
   - 그래서 새 옷은 **자기 한 벌을 입었을 때만** 맞으면 된다. 다른 상의·하의·신발과 섞어 입는 경우는 생기지 않는다.
   - 부위별로 섞어 입게 했을 때는 바지가 다른 상의를 뚫거나, 바지 없이 신발만 신으면 발목이 비는 문제가 옷마다 생겼다.
 - **캐릭터별 조각.** `item__HAIR__h__for_girl`처럼 `__for_man`/`__for_girl`이 붙은 조각은 그 캐릭터에게만 보인다(④-2).
-- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`j`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`, 갓·도포 `h`, 투구 아래 여자 앞머리 쪽머리 `i`, 갓 아래 여자 기본 머리 모양의 낮은 쪽머리 `j`, 사또 `k`, 근육 운동복 `l`, 비둘기 옷 `m`, 허수아비 옷 `n`)이고, 새 옷은 `o`부터 쓴다.
+- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`j`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`, 갓·도포 `h`, 투구 아래 여자 앞머리 쪽머리 `i`, 갓 아래 여자 기본 머리 모양의 낮은 쪽머리 `j`, 사또 `k`, 근육 운동복 `l`, 비둘기 옷 `m`, 허수아비 옷 `n`, 병아리 `o`, 사이버펑크 테크웨어 `p`, 제빵사 `q`, 힙한 스트릿웨어 `r`)이고, 새 옷은 `s`부터 쓴다.
   - 숨김 규칙은 부위와 문자(`TOPl`, `HAIRm`)만 보고 파일은 보지 않는다. 그래서 문자는 모든 옷을 통틀어 하나씩만 쓴다.
 - **몸 조각.** 의상에 가려지는 몸은 `body__TOPd_BOTTOMg`처럼 가리는 의상 이름이 붙은 조각으로 잘려 있다. 이 조각은 그 의상 중 하나라도 입으면 숨는다. 의상 조각 `item__BOTTOM__d__under_TOPb`는 `TOP b`를 함께 입으면 숨는다.
 - **게임 파일**(`frontend/public/art/characters/`):
@@ -23,7 +23,7 @@
   - `outfits/<이름>.glb`: 그 옷의 부위 조각만 담는다. 누군가 처음 입을 때만 내려받는다.
   - 각 메시의 `extras.pieces`에 조각 이름과 범위가 들어 있고, 게임은 입은 옷에 맞는 조각만 그린다(`frontend/src/world/art/characterLook.ts`).
 - **아이템과 연결.** DB `items.image_key`를 `outfit/<파일>/<의상 문자>`로 적으면 그 조각을 입힌다(예: 장군 `outfit/general/g`).
-  - 한 벌인 옷은 상의·하의·신발에 `items.set_code`를 같은 값으로 둔다(장군 `GENERAL`, 갓·도포 `DOPO`, 사또 `SATTO`, 근육 `MUSCLE`, 비둘기 `PIGEON`, 허수아비 `SCARECROW`). 세트는 한 벌로만 입고 벗는다.
+  - 한 벌인 옷은 상의·하의·신발에 `items.set_code`를 같은 값으로 둔다(장군 `GENERAL`, 갓·도포 `DOPO`, 사또 `SATTO`, 근육 `MUSCLE`, 비둘기 `PIGEON`, 허수아비 `SCARECROW`, 병아리 `CHICK`, 테크웨어 `CYBER`, 제빵사 `BAKER`, 스트릿웨어 `STREET`). 세트는 한 벌로만 입고 벗는다.
   - 머리·얼굴 아이템에는 `set_code`를 두지 않는다(따로 쓴다).
 
 - **운영에서는 아직 꺼져 있다.** 옷장 의상은 개발 빌드(`VITE_WARDROBE_OUTFITS=true`, `frontend/vercel.dev.json`과 `Jenkinsfile`)와 로컬 개발에서만 켜진다. 운영 빌드에서는 다음처럼 동작한다(`frontend/src/features/wardrobe/feature.ts`).
@@ -36,8 +36,8 @@
 - Blender 5.2.3 (명령줄 `blender -b`로 실행한다).
 - 이 저장소의 `tools/character/` 스크립트.
 - **기준 빌드 파일**은 `docs/character-outfits/`에 있다.
-  - `shared_layers_n.glb`(약 95 MB): 공용 몸, 지금까지의 모든 의상(`a`~`n`), 몸 조각, 뼈대, 동작이 들어 있다. 새 옷은 이 파일에 넣는다.
-    - 사또 작업의 `hk.glb`(지금 dev의 `man.glb`·`girl.glb`를 만든 빌드, 그 파일과 조각·해시가 같음)에 `l`·`m`·`n`을 넣은 것이다(④-4).
+  - `shared_layers_r.glb`(약 122 MiB): 공용 몸, 지금까지의 모든 의상(`a`부터 `r`까지), 몸 조각, 뼈대, 동작이 들어 있다. 새 옷은 이 파일에 넣는다.
+    - 사또 작업의 `hk.glb`에 `l`·`m`·`n`을 넣은 `shared_layers_n.glb`(④-4)에 `o`·`p`·`q`·`r`을 넣은 것이다(④-5). 지금의 `man.glb`·`girl.glb`는 이 빌드로 만들었다.
     - 사또 옷깃 보정(`flat_collar.py`, ④-3)과 갓·장군 모자 아래 남녀별 머리(`hat_hair.py`, ④-2)는 옷 파일을 만들 때 따로 거친 단계라 이 빌드에는 없다. 갓·장군·사또 옷 파일을 다시 만들 때는 그 단계를 다시 거친다.
   - `outfit_d_pink.jpg`: 여자 기본 상의·신발의 분홍 색 이미지(여자 파일을 다시 만들 때 쓴다).
   - 새 옷을 넣은 빌드는 새 문자 이름(예: `shared_layers_h.glb`)으로 이 폴더에 올리고, 이전 기준 파일은 지운다. 이 문서의 파일 이름도 함께 고친다. 큰 파일이라 올릴 때마다 저장소가 그만큼 커지니, 옷이 완성됐을 때 한 번만 올린다.
@@ -52,7 +52,7 @@
 1. 공용 몸의 T자 시트를 그린다(앞·오른쪽·뒤·왼쪽, 2x2).
 
    ```bash
-   "$B" -b --python tools/character/pose_sheet.py -- docs/character-outfits/shared_layers_n.glb out/body_t.png size=1024 pose=t
+   "$B" -b --python tools/character/pose_sheet.py -- docs/character-outfits/shared_layers_r.glb out/body_t.png size=1024 pose=t
    ```
 
    - 팔을 내린 자세 시트(`pose=t` 없이)로 만든 장군은 Tripo의 팔이 몸과 맞지 않아 소매·어깨판이 뭉쳐서 버렸다.
@@ -73,7 +73,7 @@
 생성된 캐릭터는 머리가 공용 몸보다 작게 나오는 경우가 많다. 이때 머리 쪽은 ④의 `head_fit`으로 따로 맞춘다.
 
 ```bash
-"$B" -b --python tools/character/overlay.py -- docs/character-outfits/shared_layers_n.glb new_outfit_parts.glb out/fit s=1.2
+"$B" -b --python tools/character/overlay.py -- docs/character-outfits/shared_layers_r.glb new_outfit_parts.glb out/fit s=1.2
 ```
 
 ### ④ 기준 빌드에 새 옷 넣기
@@ -84,7 +84,7 @@
 "$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_gf.glb new_outfit_parts.glb shared_layers_h.glb set=h s=1.065 head_fit=4 "map=HAIR:0,1;TOP:12,2,3,5,9;BOTTOM:7,10;SHOES:6,8" skirt=TOP pants=1 sleeve_drape=0.4 sleeves=3,5 under_tops=1 cull=1 lining=1 v_cut=-0.0088,0.498,-0.040,0.602,0.034,0.602 v_cut_margin=0.012 lining_down=0.09 pants_hem=0.003 shoe_level=1 shoe_level_up=-0.001 shoe_level_r=0.075 dark_lining=SHOES clean_dark=TOP predecimate=0:5000 shoe_cap=1 shoe_cap_depth=0.01 clean_skin=TOP brighten=TOP,BOTTOM despeck=1 pants_full=1.7 pants_low=1.55 neck_poke=1 push_neck=back rim_neck=20 rim_neck_down=0.07 neck_tone=1 lining_tone=skin v_cut_up=0 lining_up=0.006 lining_front=-0.015 "seam=12>3,5" under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9 hair_trim=0.845,-0.12
 ```
 
-위는 갓·도포(세트 h)를 만든 그대로의 명령이다(그때의 기준 빌드 `shared_layers_gf.glb`는 지금 `shared_layers_n.glb`로 바뀌었다). 숫자 값(`v_cut` 좌표 등)은 이 옷에 맞춘 것이라 새 옷에서는 다시 잰다.
+위는 갓·도포(세트 h)를 만든 그대로의 명령이다(그때의 기준 빌드 `shared_layers_gf.glb`는 지금 `shared_layers_r.glb`로 바뀌었다). 숫자 값(`v_cut` 좌표 등)은 이 옷에 맞춘 것이라 새 옷에서는 다시 잰다.
 
 | 옵션 | 뜻 |
 | --- | --- |
@@ -256,6 +256,68 @@
 - 카드는 `item_art.py ... together=TOP,BOTTOM,SHOES cut_above=0.035`로 그리고 `tools/character/fit_cards.mjs`로 맞춘다(⑨).
 - 한 벌이 20분 넘게 걸린다(가중치 정리·부품 안 평균). 컴퓨터가 잠들면 Blender도 멈춰, 3시간 넘게 진행되지 않은 적이 있다.
 
+### ④-5 예시: 병아리·사이버펑크 테크웨어·제빵사·힙한 스트릿웨어 (세트 `o`·`p`·`q`·`r`, S15P31B105-364·365·367·368)
+
+`shared_layers_n.glb`에 `o` → `p` → `q` → `r` 차례로 넣고, 한 벌을 넣을 때마다 `shrink_items.py`로 12만 면으로 줄인다. 병아리·테크웨어·스트릿웨어는 받은 그림을 Gemini로 공용 몸 T자 시트에 입혀 썼고, 제빵사는 사용자 시트를 그대로 썼다. 배율은 모두 `s=1.0`이다.
+
+- **병아리 `o`** (`CHICK`): 후드·앞머리·새싹(머리), 털 몸판·날개 소매·배(상의), 아랫단·발목(하의), 병아리 발(신발).
+  - Tripo가 후드·몸판·소매를 한 부품(0)으로 냈다. `chick_prep.py`가 위치로 후드(31)·날개 소매(32)·몸판(30)·아랫단(33)으로 나누고, T자보다 처진 소매를 들어 올린다.
+  - 생성된 머리가 작아 `head_fit=2`로 후드를 1.107배 키운다. 그러면 후드가 6 cm쯤 올라가 몸판과 사이에 목이 드러났다. 그래서 후드가 목 둘레 몸판(`collar_z`, `collar_x`)도 함께 가져간다.
+  - 소매는 `wing_parts`, 후드 아래 귀는 `hair_hides_front`. 발목 피부는 `skin_match.py`로 몸 피부색에 맞춘다(몸 피부를 `body` 하나에서만 찾아 실패해서, 모든 몸 조각에서 찾게 고쳤다).
+- **사이버펑크 테크웨어 `p`** (`CYBER`): 고글(얼굴, 머리는 캐릭터 자기 머리), 재킷·하네스·배낭끈(상의), 카고 바지·무릎 보호대(하의), 부츠(신발). 실제 팀 상표·글자는 넣지 않았다.
+  - 고글 띠를 머리 위에 맞추려고 남자 기본 머리를 쓴 T자 시트(`pose_sheet.py ... keep=item__HAIR__b`)에 입혔다.
+  - 재킷·바지·부츠가 한 부품(1)이라 `split_part.py`로 두 번 나눴다(z 0.31, 0.125).
+  - 고글 아래 생성된 얼굴은 턱과 귀뿐이라 `head_fit`이 고글을 6 cm 안으로 옮겼다. `head_fit` 없이 `face_scale=1.15`(머리 관절 기준으로 키움)를 쓴다. 가로로만 키우면 렌즈가 코와 눈 아래쪽을 덮었다.
+  - Tripo 반장갑은 생성된 가는 손에 맞춰져 몸 손 안에 묻혔다. 생성된 손가락을 쓰면 게임 파일에서 가시처럼 뭉개졌다. `gloves=1`이 몸 팔(손목 5 cm 앞부터 손가락 뿌리까지)을 잘라 장갑을 만든다. 한 텍셀로 칠한 장갑이 게임 변환에서 상자처럼 뭉개져, `glove_gap=0.005`로 띄우고 `to_game.py`에 `hold_flat=1`을 준다.
+- **제빵사 `q`** (`BAKER`): 요리사 모자(머리), 조리복·스카프·빵 바구니(상의), 앞치마·도구·바지(하의), 부츠(신발). 생성된 손·눈·눈썹은 버린다.
+  - 모자와 생성된 머리가 한 부품(0)이고 모자 띠가 기울어 높이로는 못 나눈다. `split_part.py by_skin=1 keep_largest=1`이 피부색 면(얼굴 40, `head_fit`용)과 나머지(모자 41, 딸려 온 눈 테두리를 빼고 가장 큰 덩어리만)로 나눈다.
+  - 소매가 몸 팔보다 4.4 cm 처져 `lift_arms.py`로 올린다.
+- **힙한 스트릿웨어 `r`** (`STREET`): 뒤로 쓴 야구 모자(머리), 후드티·크로스백(상의), 카고 조거(하의), 하이탑(신발). 운동화 상표는 넣지 않았다. 실루엣이 거의 겹쳐 앞뒤로 `dy=0.01`만 맞춘다.
+
+```bash
+# o 병아리
+"$B" -b --python tools/character/chick_prep.py -- chick_outfit_parts.glb chick_prep.glb
+"$B" -b --python tools/character/skin_match.py -- shared_layers_n.glb chick_prep.glb chick_prep_tone.glb parts=9,10
+"$B" -b --python tools/character/fit_outfit.py -- shared_layers_n.glb chick_prep_tone.glb hk_o.glb set=o s=1.0 head_fit=2 "map=HAIR:31,7,8;TOP:30,32,3;BOTTOM:33,9,10;SHOES:1,4" cull=1 wing_parts=32 hair_hides_scalp=1 hair_hides_front=0.03 under_layer=1 under_layer_sink=0.012
+"$B" -b --python tools/character/shrink_items.py -- hk_o.glb shared_layers_o.glb sets=o faces=120000
+# p 테크웨어
+"$B" -b --python tools/character/split_part.py -- cyber_outfit_parts.glb split_a.glb part=1 z=0.31 below=41 above=40
+"$B" -b --python tools/character/split_part.py -- split_a.glb cyber_split.glb part=41 z=0.125 below=42 above=43
+"$B" -b --python tools/character/fit_outfit.py -- shared_layers_o.glb cyber_split.glb hk_p.glb set=p s=1.0 face_scale=1.15 gloves=1 glove_gap=0.005 "map=FACE:5,4,12,15,30;TOP:40,10,11,20,21,23,31,32;BOTTOM:43,16,17,33,34,27,29;SHOES:42,8,9,18,19,24,28" cull=1 under_layer=1 under_layer_sink=0.012
+"$B" -b --python tools/character/shrink_items.py -- hk_p.glb shared_layers_p.glb sets=p faces=120000
+# q 제빵사
+"$B" -b --python tools/character/split_part.py -- baker_outfit_parts.glb baker_split.glb part=0 by_skin=1 keep_largest=1 below=40 above=41
+"$B" -b --python tools/character/lift_arms.py -- baker_split.glb baker_lift.glb parts=14,15,23,24 lift=0.33 from=0.1
+"$B" -b --python tools/character/fit_outfit.py -- shared_layers_p.glb baker_lift.glb hk_q.glb set=q s=1.0 head_fit=40 "map=HAIR:41;TOP:5,25,14,15,23,24,6,1,7,13,10,11,12,26,28;BOTTOM:2,3,9,20,29,35,36,8,22,27,30,37;SHOES:17,18,4,21" cull=1 hair_hides_scalp=1 under_layer=1 under_layer_sink=0.012
+"$B" -b --python tools/character/shrink_items.py -- hk_q.glb shared_layers_q.glb sets=q faces=120000
+# r 스트릿웨어
+"$B" -b --python tools/character/fit_outfit.py -- shared_layers_q.glb street_outfit_parts.glb hk_r.glb set=r s=1.0 dy=0.01 head_fit=1 "map=HAIR:3;TOP:0,4;BOTTOM:2,20,24,15;SHOES:6,7,5,14,10,11,12,13,16,17,22,23,25,26,28,29,30" cull=1 hair_hides_scalp=1 under_layer=1 under_layer_sink=0.012
+"$B" -b --python tools/character/shrink_items.py -- hk_r.glb docs/character-outfits/shared_layers_r.glb sets=r faces=120000
+# 게임 파일 (머리가 있는 옷도 keep_head=0, 테크웨어는 장갑 때문에 hold_flat=1)
+"$B" -b --python tools/character/to_game.py -- shared_layers_r.glb out/chick_raw.glb chick HAIR=o TOP=o BOTTOM=o SHOES=o pieces=1 body=0 near=60000 atlas=2048 fill=1 keep_head=0
+"$B" -b --python tools/character/to_game.py -- shared_layers_r.glb out/cyber_raw.glb cyber FACE=p TOP=p BOTTOM=p SHOES=p pieces=1 body=0 near=60000 atlas=2048 fill=1 keep_head=0 hold_flat=1
+"$B" -b --python tools/character/to_game.py -- shared_layers_r.glb out/baker_raw.glb baker HAIR=q TOP=q BOTTOM=q SHOES=q pieces=1 body=0 near=60000 atlas=2048 fill=1 keep_head=0
+"$B" -b --python tools/character/to_game.py -- shared_layers_r.glb out/street_raw.glb street HAIR=r TOP=r BOTTOM=r SHOES=r pieces=1 body=0 near=60000 atlas=2048 fill=1 keep_head=0
+```
+
+- 남자·여자 파일도 `shared_layers_r.glb`에서 ⑥의 명령으로 다시 만든다. 캐시 번호는 캐릭터 `rig=16`, 옷 `rig=27`.
+- 테크웨어 카드는 고글 부위가 얼굴(`outfit-cyber-p-face.webp`)이다.
+- 붐박스를 어깨에 얹은 바시티 재킷(S15P31B105-372)은 만들어 봤다가 뺐다. 공용 몸은 팔이 짧고(어깨에서 손목까지 17 cm) 머리가 커서, 손으로 머리 옆 소품을 받치게 하면 손이 꼬여 보이고 큰 소품은 머리를 파고든다.
+
+### ④-6 스킨 공방용 통합 스킨 파일
+
+dev의 관리자 스킨 공방(`docs/skin-registration-api.md`, S15P31B105-371)에 올릴 통합 스킨(WHOLE)은 몸·얼굴·머리·옷이 한 표면인 파일이다. `to_game.py`를 `pieces=1` 없이 variant `man`/`girl`로 돌리면 그 옷을 입은 모습 그대로 나온다(가려진 몸 조각은 빠진다).
+
+```bash
+"$B" -b --python tools/character/to_game.py -- shared_layers_r.glb out/chick-man_raw.glb man HAIR=o TOP=o BOTTOM=o SHOES=o near=60000 fill=1 keep_edges=pieces hold_flat=1
+"$B" -b --python tools/character/to_game.py -- shared_layers_r.glb out/chick-girl_raw.glb girl HAIR=o TOP=o BOTTOM=o SHOES=o near=60000 fill=1 keep_edges=pieces hold_flat=1
+```
+
+- 모자가 없는 옷은 남자 `HAIR=b`, 여자 `HAIR=e`를 넣는다(테크웨어·근육 운동복).
+- 갓·장군·사또는 이 빌드에 없는 `hat_hair.py`(④-2)와 `flat_collar.py`(④-3)를 먼저 다시 거친다. 그래야 여자 파일에 모자 아래 여자 머리가 들어간다.
+- 압축은 `prepare-characters.mjs`와 같은 방식(Meshopt, WebP)이어야 한다. 이 스크립트는 `public/`과 manifest에만 쓰니, 공방용 파일은 같은 압축을 다른 폴더로 내보내서 만든다. 서버가 GLB 20 MiB, WebP 2 MiB, 49개 관절, 근거리·원거리 표면, variant를 검사한다.
+- 공방의 부위별(PARTS) 등록은 조각 문자가 항상 `a`이고, 남자·여자 파일에 `a` 몸 조각이 없어 옷 밑의 몸이 숨지 않는다. 이 문서의 옷은 통합 스킨으로 올린다.
+
 ### ⑤ 빌드 확인
 
 임의 방향에서 그려 본다(`POSE=idle:100`으로 자세를 줄 수 있다).
@@ -391,6 +453,8 @@ INSERT INTO items (item_code, name, item_type, equip_slot, price, image_key, is_
 | 옷 이름 규칙이 안 먹음 | 조각 이름에 `.001` | `_1`로 이름 붙이기 |
 | 바지가 다른 상의를 뚫음, 바지를 벗고 갓 신발만 신으면 발목이 빔 | 상의·하의·신발을 부위별로 섞어 입게 해서 조합마다 몸 가림이 어긋남 | 마이룸을 머리·얼굴·옷 세 칸으로, 옷은 한 벌로만 입기(S15P31B105-338) |
 | 수정한 모델이 화면에 안 바뀜 | 브라우저가 예전 캐릭터 파일을 들고 있음 | `?rig=` 번호를 올리고 강력 새로고침 |
+| 모자·고글이 얼굴 안으로 들어가거나 엉뚱하게 커짐 | `head_fit`에 쓴 생성 얼굴이 고글·모자에 가려 턱·귀뿐이거나 목까지 붙어 있음 | 얼굴만 남기거나(`split_part.py by_skin=1`), `face_scale`로 머리 관절 기준으로 키우기(④-5) |
+| 반장갑 안으로 손이 비치거나 장갑이 상자처럼 뭉개짐 | 생성 장갑이 몸 손보다 가늘고, 한 색 면은 게임 변환에서 마음대로 줄어듦 | `gloves=1 glove_gap=0.005`, `to_game.py hold_flat=1`(④-5) |
 
 ## 5. 협의할 곳
 

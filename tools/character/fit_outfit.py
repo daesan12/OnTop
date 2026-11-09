@@ -1,7 +1,7 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
        [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0|back|all rim_neck=20] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0] [hair_trim=z,y]
-       [lining_hidden=1] [skin_any=1] [wing_parts=N,M wing_blend=0.025] [cover_hands=1] [hair_hides_front=0.03 | hair_hides_above=z]
+       [lining_hidden=1] [skin_any=1] [wing_parts=N,M wing_blend=0.025] [cover_hands=1] [hair_hides_front=0.03 | hair_hides_above=z] [face_scale=1.15] [gloves=1]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -110,6 +110,17 @@ if HEAD_FIT:
     print('HEAD fit: scale', round(float(np.cbrt(np.linalg.det(R_))), 3), 'shift', (100 * t_).round(1).tolist(), 'cm, median gap',
           round(1000 * float(np.median(d_)), 1), 'mm')
     bpy.data.objects.remove(face)
+# face_scale=1.15: the FACE parts grown about the head joint by that. The body's head is bigger than the generated
+# one: the goggles' rim sat up to 1.9 cm inside it at the temples, and grown only sideways their lens covered the
+# nose and half the eyes. head_fit did not help: the generated face under the goggles is only a chin and ears, and
+# fitting it moved the goggles 6 cm in (S15P31B105-365)
+if opt.get('face_scale'):
+    k_, h_ = float(opt['face_scale']), J['Head']
+    for n in SLOT_PARTS.get('FACE', []):
+        o = parts[n]
+        for v in o.data.vertices: v.co = h_ + (v.co - h_) * k_
+        o.data.update()
+    print('FACE scale', k_)
 print('PARTS', {slot: names for slot, names in SLOT_PARTS.items()})
 
 def fill_small_holes(o, max_edges=30):
@@ -799,12 +810,48 @@ if opt.get('socks', '0') == '1' and 'SHOES' in G:
     bpy.context.view_layer.objects.active = G['SHOES']; bpy.ops.object.join()
     print('SOCKS', len(pick), 'foot faces as white socks')
 
+# gloves=1 (the techwear's fingerless gloves): the body's arm from glove_cuff (5 cm) short of the wrist out to
+# glove_end (4 mm) past the middle finger's root, cut level across the arm at both ends, becomes gloves 2.5 mm out,
+# on the top's darkest cloth texel, part of the top; the fingers stay bare. Tripo's gloves were made round its
+# thinner hands and lay inside the body's; worn with its own fingers instead (cover_hands), the fingers went to spikes
+# once the outfit was reduced for the game; taken by the hand bone's lead, the palm's front (led by the fingers)
+# stayed bare and the edge was toothed (S15P31B105-365).
+if opt.get('gloves', '0') == '1' and 'TOP' in G:
+    x0_, x1_ = J['LeftHand'].x - float(opt.get('glove_cuff', 0.05)), J['LeftHandMiddle1'].x + float(opt.get('glove_end', 0.004))
+    pick = [p.index for p in src_obj.data.polygons if x0_ - 0.01 < abs(p.center.x) < x1_ + 0.01]
+    gl = src_obj.copy(); gl.data = src_obj.data.copy(); bpy.context.scene.collection.objects.link(gl)
+    gb = bmesh.new(); gb.from_mesh(gl.data); gb.faces.ensure_lookup_table(); keep_ = set(pick)
+    bmesh.ops.delete(gb, geom=[f for f in gb.faces if f.index not in keep_], context='FACES')
+    for sx_ in (1, -1):
+        for x_, keep_out in ((x0_, True), (x1_, False)):
+            # (that hand's own geometry only: the cuff cut on the left clears everything under its x, the right hand too)
+            side = lambda e: all(v.co.x * sx_ > 0 for v in (e.verts if hasattr(e, 'verts') else [e]))
+            bmesh.ops.bisect_plane(gb, geom=[g for g in gb.verts[:] + gb.edges[:] + gb.faces[:] if side(g)], plane_co=(sx_ * x_, 0, 0),
+                                   plane_no=(sx_, 0, 0), clear_inner=keep_out, clear_outer=not keep_out)
+    # (welded first: split along the body's UV seams, the pieces moved apart along their own normals in skin-coloured cracks)
+    bmesh.ops.remove_doubles(gb, verts=gb.verts, dist=1e-5)
+    gb.normal_update()
+    for v in gb.verts: v.co += v.normal * float(opt.get('glove_gap', 0.0025))
+    gb.to_mesh(gl.data); gb.free()
+    for g in list(gl.vertex_groups): gl.vertex_groups.remove(g)
+    top_ = G['TOP']; img = next(n.image for n in top_.data.materials[0].node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
+    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
+    uvd = top_.data.uv_layers.active.data
+    lis = [li for p in top_.data.polygons if p.material_index == 0 for li in p.loop_indices][::7]
+    cs = np.array([P[min(h_ - 1, int(uvd[li].uv[1] * h_)), min(w_ - 1, int(uvd[li].uv[0] * w_))] for li in lis])
+    dark = np.median(cs[cs.mean(1) <= np.percentile(cs.mean(1), 15)], 0)
+    on_texel(gl, top_, tuple(uvd[lis[int(np.argmin(((cs - dark) ** 2).sum(1)))]].uv))
+    gl.vertex_groups.new(name='part:gloves').add(list(range(len(gl.data.vertices))), 1.0, 'REPLACE')
+    for x in bpy.data.objects: x.select_set(x in (top_, gl))
+    bpy.context.view_layer.objects.active = top_; bpy.ops.object.join()
+    print('GLOVES', len(pick), 'hand faces, colour', dark.round(2).tolist())
+
 # 1. outside the body by 2 mm, where the item touches it (deeper, the body is hidden instead)
 for slot, it in G.items():
     lo, to = (-0.03, 0.004) if slot == 'HAIR' else (-0.004, 0.002)
     moved = 0
     # (made pants are laid out from the body already; pushed, their hem drawn in under the shoes' rim scattered)
-    made = {it.vertex_groups[g].index for g in ('part:pants', 'part:lining', 'part:socks', 'part:shoes') if g in it.vertex_groups}
+    made = {it.vertex_groups[g].index for g in ('part:pants', 'part:lining', 'part:socks', 'part:shoes', 'part:gloves') if g in it.vertex_groups}
     # (push_neck=0, the gat's dopo: pushed vertex by vertex, the top's collar went saw-toothed where it met the neck
     # and looked broken off, user; round the neck it is lifted smoothly instead, below)
     nk_skip = slot == 'TOP' and opt.get('push_neck', '1') in ('0', 'all', 'back')
