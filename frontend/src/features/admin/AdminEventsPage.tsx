@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AdminAccess } from './adminAccess'
 import { RaffleReviewPanel } from './RaffleReviewPanel'
+import { AdminMinigamePanel } from './AdminMinigamePanel'
 import {
   AdminEventsError, assetWeek, eventKinds, eventLabels, firstMinigameWeek,
   finalizeEventRound, isMondayWeek, kstMonday, loadEventRound, loadEventWinners,
   revealEventContact, schedule, supportsWeek, winnerLabels,
-  type AdminWinnersPage, type ContactStatus, type EventKind, type EventRound,
+  type AdminWinnersPage, type ContactStatus, type EventSection, type EventRound,
   type RevealedContact, type WinnerType,
 } from './adminEvents'
 import './adminEvents.css'
@@ -20,7 +21,7 @@ const contactLabels: Record<ContactStatus, string> = {
 export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; onAuthEnded: () => void }) {
   const [weekInput, setWeekInput] = useState(() => kstMonday())
   const week = isMondayWeek(weekInput) ? weekInput : null
-  const [kind, setKind] = useState<EventKind>('raffle')
+  const [kind, setKind] = useState<EventSection>('raffle')
   const [round, setRound] = useState<EventRound | null>(null)
   const [roundLoading, setRoundLoading] = useState(false)
   const [roundError, setRoundError] = useState('')
@@ -51,7 +52,7 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
   const refreshRound = useCallback(async () => {
     roundRequest.current?.abort()
     setConfirming(false); setRound(null); setRoundError(''); setNotice('')
-    if (!week || !supportsWeek(kind, week)) return
+    if (!week || kind === 'minigames' || !supportsWeek(kind, week)) return
     const controller = roundRequest.current = new AbortController()
     setRoundLoading(true)
     try {
@@ -97,7 +98,7 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
   }, [refreshRound, refreshWinners, hideContact])
 
   async function finalize() {
-    if (!week || kind === 'raffle' || !access.canOperate || finalizingRef.current || round?.finalized || !confirming) return
+    if (!week || kind === 'raffle' || kind === 'minigames' || !access.canOperate || finalizingRef.current || round?.finalized || !confirming) return
     const { eligibleAt } = schedule(week, kind)
     if (Date.now() < Date.parse(eligibleAt)) { setRoundError('마감 후 확정 가능 시각부터 실행할 수 있습니다.'); return }
     const controller = roundRequest.current = new AbortController()
@@ -141,9 +142,9 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
     finally { if (!controller.signal.aborted) setRevealingId(null) }
   }
 
-  const timing = week ? schedule(week, kind) : null
+  const timing = week && kind !== 'minigames' ? schedule(week, kind) : null
   const eligible = timing ? Date.now() >= Date.parse(timing.eligibleAt) : false
-  const supported = week ? supportsWeek(kind, week) : false
+  const supported = week && kind !== 'minigames' ? supportsWeek(kind, week) : false
 
   return <section className="admin-feedback-content admin-events" aria-label="이벤트 관리">
     <div className="admin-events-heading">
@@ -158,7 +159,8 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
       {eventKinds.map(item => <button key={item} type="button" disabled={finalizing} aria-pressed={kind === item}
         onClick={() => { setKind(item); setRound(null); setConfirming(false) }}>{eventLabels[item]}</button>)}
     </nav>
-    <div className="admin-events-panel">
+    {kind === 'minigames' ? <AdminMinigamePanel week={week} access={access}
+      onAuthEnded={onAuthEnded} onFinalized={() => { hideContact(); void refreshWinners() }} /> : <div className="admin-events-panel">
       <div className="admin-events-panel-head"><h3>{eventLabels[kind]} · {week || '회차 미선택'}</h3>
         <button type="button" onClick={() => void refreshRound()} disabled={!supported || roundLoading || finalizing}>결과 새로고침</button></div>
       {week && !supported && <p role="status">{kind === 'asset' ? `${assetWeek} 회차만 운영합니다.`
@@ -204,7 +206,7 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
         </div>}
         {kind !== 'raffle' && !access.canOperate && !round?.finalized && <p>결과 확정은 운영 권한이 있는 관리자만 실행할 수 있습니다.</p>}
       </>}
-    </div>
+    </div>}
     <div className="admin-events-panel">
       <div className="admin-events-panel-head"><h3>당첨자와 연락처 제출 현황</h3>
         <button type="button" disabled={!week || winnersLoading} onClick={() => {
