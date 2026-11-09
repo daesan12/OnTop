@@ -6,7 +6,9 @@
 - `to_game.py`, `game_pose.py`: 게임용 파일(조각 나눔 `pieces=1`)
 - `overlay.py`, `pose_sheet.py`, `look.py`, `render_look.py`, `holes.py`, `check_pieces.py`, `set_art.py`: 맞춰 보기·점검·옷장 그림
 - `to_clips.py`: 동작 데이터(모든 캐릭터에 영향, jin2v2와 협의)
-- `skin_match.py`: Tripo 부품의 피부색을 공용 몸 피부색에 맞춤(근육 운동복)
-- `split_part.py`: Tripo 부품 하나를 높이로 나눔(허수아비의 머리·조끼)
+- `skin_match.py`: Tripo 부품의 피부색을 공용 몸 피부색에 맞춤(근육 운동복, 병아리 발목)
+- `split_part.py`: Tripo 부품 하나를 높이로(허수아비의 머리·조끼, 테크웨어 상하의), 또는 피부색으로(`by_skin=1`, 제빵사의 모자·얼굴) 나눔
+- `chick_prep.py`: 병아리 부품 0을 후드·날개 소매·몸판·아랫단으로 나누고 소매를 들어 올림
+- `lift_arms.py`: T자보다 처진 소매를 공용 몸 팔 높이로 올림(제빵사)
 - `shrink_items.py`: 기준 빌드 안 새 세트의 면 수를 줄임(빌드 크기)
 - `fit_cards.mjs`: `item_art.py` 그림을 옷장 카드 규격(320 px, 긴 쪽 232 px, WebP)으로 맞춤
