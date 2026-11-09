@@ -159,7 +159,7 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
       {eventKinds.map(item => <button key={item} type="button" disabled={finalizing} aria-pressed={kind === item}
         onClick={() => { setKind(item); setRound(null); setConfirming(false) }}>{eventLabels[item]}</button>)}
     </nav>
-    {kind === 'minigames' ? <AdminMinigamePanel week={week} access={access}
+    {kind === 'minigames' ? <AdminMinigamePanel key={week ?? 'invalid'} week={week} access={access}
       onAuthEnded={onAuthEnded} onFinalized={() => { hideContact(); void refreshWinners() }} /> : <div className="admin-events-panel">
       <div className="admin-events-panel-head"><h3>{eventLabels[kind]} · {week || '회차 미선택'}</h3>
         <button type="button" onClick={() => void refreshRound()} disabled={!supported || roundLoading || finalizing}>결과 새로고침</button></div>

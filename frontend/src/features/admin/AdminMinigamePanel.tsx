@@ -27,13 +27,16 @@ export function AdminMinigamePanel({ week, access, onAuthEnded, onFinalized }: {
 
   const reload = useCallback(async () => {
     request.current?.abort()
-    setGames([]); setSelected(''); setError('')
+    setGames([]); setError('')
     if (!week || legacy || week < firstMinigameWeek) return
     const controller = request.current = new AbortController()
     setLoading(true)
     try {
       const result = await loadWeeklyGames(week, controller.signal)
-      if (!controller.signal.aborted) setGames(result)
+      if (!controller.signal.aborted) {
+        setGames(result)
+        setSelected(previous => result.some(game => game.gameCode === previous) ? previous : '')
+      }
     } catch (cause) {
       if (controller.signal.aborted) return
       if (cause instanceof AdminEventsError && cause.kind === 'unauthenticated') onAuthEnded()
@@ -214,7 +217,10 @@ function LegacyMinigame({ week, kind, access, onAuthEnded, onFinalized }: {
       if (cause instanceof AdminEventsError && cause.kind === 'unauthenticated') { onAuthEnded(); return }
       setError(cause instanceof Error ? cause.message : '확정 결과를 확인하지 못했습니다.')
       try { const current = await loadEventRound(kind, week, controller.signal)
-        if (!controller.signal.aborted) setRound(current)
+        if (!controller.signal.aborted) {
+          setRound(current)
+          if (current?.finalized) { setError(''); onFinalized() }
+        }
       } catch { setRound(null) }
     } finally { setBusy(false) }
   }

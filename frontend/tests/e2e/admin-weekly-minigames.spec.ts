@@ -63,6 +63,9 @@ test('registered games share one menu and confirm independently from verified ra
   await expect(page.getByRole('button', { name: '1위 확정 준비' })).toHaveCount(0)
   await page.getByLabel('미니게임 선택').selectOption('BUNGEOPPANG')
   await expect(page.getByText('기록 42', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: '게임 목록 새로고침' }).click()
+  await expect(page.getByLabel('미니게임 선택')).toHaveValue('BUNGEOPPANG')
+  await expect(page.getByText('기록 42', { exact: false })).toBeVisible()
   await page.getByRole('button', { name: '1위 확정 준비' }).click()
   expect(confirms).toBe(0)
   await page.getByRole('button', { name: '이 순위 최종 확정' }).click()
@@ -148,4 +151,37 @@ test('the old week still shows existing game results in the shared menu', async 
   await page.getByLabel('미니게임 선택').selectOption('jumpmap')
   await expect(page.getByText('점프왕')).toBeVisible()
   await expect(page.getByText('기존 회차')).toBeVisible()
+})
+
+test('legacy confirmation recovers a committed result and refreshes winners after a lost response', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-16T01:00:00Z') })
+  await fixture(page)
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: {
+    canRead: true, canGrant: false, canOperate: true, canViewContacts: false,
+  } }))
+  let winnerReads = 0, finalized = false
+  await page.route('**/api/v1/admin/events/winners?*', route => {
+    winnerReads++
+    return route.fulfill({ json: { winners: [], limit: 20, offset: 0, hasMore: false } })
+  })
+  await page.route('**/api/v1/admin/events/minigames/bungeoppang/rounds/2026-11-02**', route => {
+    if (route.request().method() === 'POST') {
+      finalized = true
+      return route.abort('failed')
+    }
+    return route.fulfill({ json: { weekStartDate: '2026-11-02',
+      endsAt: '2026-11-09T03:00:00Z', announcesAt: '2026-11-09T00:00:00Z',
+      finalized, candidateCount: 0, excludedGmCount: 0, winner: null } })
+  })
+  await page.goto('/admin/events')
+  await page.getByLabel('회차 시작일').fill('2026-11-02')
+  await page.getByRole('button', { name: '미니게임 1위' }).click()
+  await page.getByLabel('미니게임 선택').selectOption('bungeoppang')
+  await expect(page.getByRole('button', { name: '결과 확정 준비' })).toBeEnabled()
+  const before = winnerReads
+  await page.getByRole('button', { name: '결과 확정 준비' }).click()
+  await page.getByRole('button', { name: '확정 실행' }).click()
+  await expect(page.getByRole('heading', { name: '확정 결과' })).toBeVisible()
+  await expect(page.locator('.admin-events-game-detail [role="alert"]')).toHaveCount(0)
+  await expect.poll(() => winnerReads).toBeGreaterThan(before)
 })

@@ -21,10 +21,14 @@ it('accepts provisional, ready and finalized rankings while rejecting inconsiste
     ranks: [rank], winner: null }
   expect(parseWeeklyRanking(ready, week, 'BUNGEOPPANG').ranks[0]?.sourceRecordId).toBe('42')
   expect(parseWeeklyRanking({ ...ready, status: 'PROVISIONAL' }, week, 'BUNGEOPPANG').status).toBe('PROVISIONAL')
+  const { winner: _unused, ...withoutWinner } = ready
+  expect(parseWeeklyRanking(withoutWinner, week, 'BUNGEOPPANG').winner).toBeNull()
   const finalized = { ...ready, game: { ...game, finalizedAt: '2026-11-16T00:05:00Z' },
     status: 'FINALIZED', ranks: [], winner: { userId: 7, nickname: '우승자', sourceRecordId: '42',
       sourceValue: 616, sourceAchievedAt: rank.achievedAt, prizeName: '기프티콘' } }
   expect(parseWeeklyRanking(finalized, week, 'BUNGEOPPANG').winner?.nickname).toBe('우승자')
+  const { winner: _vacant, ...vacant } = finalized
+  expect(parseWeeklyRanking(vacant, week, 'BUNGEOPPANG').winner).toBeNull()
   expect(() => parseWeeklyRanking({ ...ready, excludedGmCount: 3 }, week, 'BUNGEOPPANG')).toThrow()
   expect(() => parseWeeklyRanking(ready, week, 'JUMPMAP')).toThrow()
   expect(() => parseWeeklyRanking({ ...finalized, ranks: [rank] }, week, 'BUNGEOPPANG')).toThrow()

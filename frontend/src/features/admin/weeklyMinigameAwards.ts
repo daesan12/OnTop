@@ -83,7 +83,7 @@ export function parseWeeklyRanking(value: unknown, week: string, gameCode: strin
       secondaryValue: item.secondaryValue, achievedAt: item.achievedAt }
   })
   let winner: WeeklyWinner | null = null
-  if (value.winner !== null) {
+  if (value.winner != null) {
     const item = value.winner
     if (!record(item) || !positive(item.userId) || !text(item.nickname)
       || !text(item.sourceRecordId) || !integer(item.sourceValue)
