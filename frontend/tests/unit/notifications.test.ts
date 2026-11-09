@@ -25,6 +25,21 @@ it('requires actual reply content and a related feedback ID in a message detail'
   expect(() => parseNotificationDetail({...detail,feedbackStatus:'BAD'})).toThrow()
   expect(() => parseNotificationDetail({...detail,feedbackId:'-1'})).toThrow()
 })
+it('keeps one event notification readable after all prizes are delivered', () => {
+  const eventRow = { ...row, type: 'EVENT_WINNER', eventWeekStartDate: '2026-11-02' }
+  expect(parseNotificationPage({ items: [eventRow], nextCursor: null, unreadCount: 1 }).items[0]?.type).toBe('EVENT_WINNER')
+  const event = { weekStartDate: '2026-11-02', awards: [
+    { winnerId: 31, eventType: 'RAFFLE', place: 1, prizeName: '상품', deliveryStatus: 'DELIVERED' }],
+    contactStatus: 'SUBMITTED', contactEdited: false, submissionDeadline: '2026-11-16T00:00:00Z',
+    allPrizesDelivered: true, contactActionRequired: false, contactEditable: false }
+  expect(parseNotificationDetail({ ...eventRow, body: '경품 지급이 완료되었습니다.', event }).event?.awards[0]?.winnerId).toBe('31')
+  expect(parseNotificationDetail({ ...eventRow, body: '경품 지급이 완료되었습니다.', event: {
+    ...event, awards: [{ ...event.awards[0], winnerId: '31' }] } }).event?.awards[0]?.winnerId).toBe('31')
+  expect(() => parseNotificationDetail({ ...eventRow, body: '당첨', event: {
+    ...event, awards: [{ ...event.awards[0], winnerId: Number.MAX_SAFE_INTEGER + 1 }] } })).toThrow()
+  expect(() => parseNotificationPage({ items: [{ ...eventRow, eventWeekStartDate: null }], nextCursor: null, unreadCount: 1 })).toThrow()
+  expect(() => parseNotificationDetail({ ...eventRow, body: '당첨', event: { ...event, awards: [] } })).toThrow()
+})
 it('uses the authenticated member endpoint without user-ID claims, cookies or persistent cache', async () => {
   const fetcher = vi.fn().mockResolvedValue(Response.json({items:[row],nextCursor:null,unreadCount:1})); vi.stubGlobal('fetch',fetcher)
   await loadNotifications('',new AbortController().signal)

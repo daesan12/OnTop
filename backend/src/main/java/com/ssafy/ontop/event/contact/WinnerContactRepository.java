@@ -7,6 +7,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -67,6 +69,20 @@ public final class WinnerContactRepository {
         args.add(limit);
         args.add(offset);
         return jdbc.query(sql, (rows, index) -> award(rows), args.toArray());
+    }
+
+    public Map<LocalDate, Boolean> publishedDeliveryByWeek(long userId, Instant now) {
+        return jdbc.query("""
+                SELECT r.week_start_date, COUNT(*) = COUNT(d.winner_id) AS all_delivered
+                FROM event_winners w
+                JOIN event_rounds r ON r.id = w.event_round_id
+                LEFT JOIN event_prize_deliveries d ON d.winner_id = w.id
+                WHERE w.user_id = ? AND r.finalized_at IS NOT NULL
+                  AND r.announces_at <= ? AND r.finalized_at <= ?
+                GROUP BY r.week_start_date
+                """, (rows, index) -> Map.entry(rows.getDate("week_start_date").toLocalDate(),
+                rows.getBoolean("all_delivered")), userId, Timestamp.from(now), Timestamp.from(now))
+                .stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public List<AwardRow> adminAwards(LocalDate week, String type, String status,

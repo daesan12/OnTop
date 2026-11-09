@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "personal_notifications")
@@ -28,6 +29,8 @@ public class PersonalNotification {
     private Instant expiresAt;
     @Column(name = "read_at")
     private Instant readAt;
+    @Column(name = "event_week_start_date")
+    private LocalDate eventWeekStartDate;
 
     protected PersonalNotification() { }
 
@@ -53,6 +56,7 @@ public class PersonalNotification {
     public Instant createdAt() { return createdAt; }
     public Instant expiresAt() { return expiresAt; }
     public Instant readAt() { return readAt; }
+    public LocalDate eventWeekStartDate() { return eventWeekStartDate; }
     public void read(Instant now) {
         if (readAt == null) { readAt = now; }
     }
