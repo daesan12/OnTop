@@ -1,6 +1,5 @@
 package com.ssafy.ontop.game.speedmole;
 
-import com.ssafy.ontop.game.mole.domain.MoleRules;
 import com.ssafy.ontop.game.mole.repository.MoleRepository;
 import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
 import com.ssafy.ontop.wallet.domain.Wallet;
@@ -27,7 +26,7 @@ public class SpeedMoleRewards {
                 today.plusDays(1).atStartOfDay(MinigameRewardBudget.KST).toInstant());
     }
     public int grant(Wallet wallet, long roundId, int score, Instant now) {
-        int granted = MinigameRewardBudget.grant(score / MoleRules.POINTS_PER_COIN, earned(wallet.userId(), now));
+        int granted = MinigameRewardBudget.grant(score / SpeedMoleRules.POINTS_PER_COIN, earned(wallet.userId(), now));
         if (granted > 0) {
             wallet.creditReward(granted);
             wallets.persist(WalletTransaction.moleReward(wallet.id(), granted, key(roundId), now));

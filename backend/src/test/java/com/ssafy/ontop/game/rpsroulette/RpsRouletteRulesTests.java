@@ -10,15 +10,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RpsRouletteRulesTests {
 
     @Test
-    void 룰렛은_30칸이고_1이_19칸이며_최대_10배다() {
+    void 룰렛은_30칸이고_1이_15칸이며_최대_10배다() {
         var cells = RpsRouletteRules.ROULETTE;
 
         long ones = cells.stream().filter(cell -> cell == 1).count();
         int sum = cells.stream().mapToInt(Integer::intValue).sum();
 
         assertThat(cells).hasSize(30);
-        assertThat(ones).isEqualTo(19);
-        assertThat(sum).isEqualTo(61);
+        assertThat(ones).isEqualTo(15);
+        assertThat(sum).isEqualTo(68);
         assertThat(cells.stream().mapToInt(Integer::intValue).max().orElseThrow()).isEqualTo(10);
     }
 
@@ -32,12 +32,12 @@ class RpsRouletteRulesTests {
     }
 
     @Test
-    void 지급액은_참가비_칸_배수의_곱이고_최대_600냥이다() {
+    void 지급액은_참가비_칸_배수의_곱이고_최대_1200냥이다() {
         int tenCell = RpsRouletteRules.ROULETTE.indexOf(10);
         int sevenCell = RpsRouletteRules.ROULETTE.indexOf(7);
 
-        assertThat(RpsRouletteRules.payout(30, 2, tenCell)).isEqualTo(600);
-        assertThat(RpsRouletteRules.payout(10, 1, sevenCell)).isEqualTo(105);
+        assertThat(RpsRouletteRules.payout(30, 2, tenCell)).isEqualTo(1200);
+        assertThat(RpsRouletteRules.payout(10, 1, sevenCell)).isEqualTo(140);
         assertThat(RpsRouletteRules.payout(20, 0, 1)).isEqualTo(20);
     }
 

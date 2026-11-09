@@ -19,7 +19,7 @@ export function RpsMachineFigure() {
     <div className="rps-roulette-figure-machine">
       <RouletteFace roulette={ROULETTE} litCell={15} led="SCISSORS" machineHand="SCISSORS"
         lamps={{ win: true, draw: false, lose: false, jackpot: false }} />
-      <div className="rps-roulette-figure-led"><b>×1.5</b><span>● ● ○</span><span>시간 ▮▮▮▮▮▮▯▯▯▯</span></div>
+      <div className="rps-roulette-figure-led"><b>×2.0</b><span>● ● ○</span><span>시간 ▮▮▮▮▮▮▯▯▯▯</span></div>
       <div className="rps-roulette-figure-deck">{HANDS.map(hand => <span key={hand}>{HAND_LABEL[hand]}</span>)}</div>
     </div>
     <ol>{parts.map(part => <li key={part}>{part}</li>)}</ol>
@@ -35,7 +35,7 @@ export function RpsHandsFigure() {
 
 /** ③ 도전 배수 사다리. */
 export function RpsLadderFigure() {
-  const steps = [['이겼다', '×1.0', '멈추면 참가비 × 칸'], ['도전 1차 성공', '×1.5', '지면 꽝'], ['도전 2차 성공', '×2.0', '바로 룰렛']]
+  const steps = [['이겼다', '×1.0', '멈추면 참가비 × 칸'], ['도전 1차 성공', '×2.0', '지면 꽝'], ['도전 2차 성공', '×4.0', '바로 룰렛']]
   return <div className="rps-roulette-figure rps-roulette-figure-ladder">
     {steps.map(([title, mult, note], i) => <div key={title}>
       <b>{mult}</b><span>{title}</span><small>{note}</small>{i < steps.length - 1 && <i aria-hidden="true">→</i>}

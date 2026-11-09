@@ -175,7 +175,7 @@ function RpsRouletteDialog() {
           <span className="rps-roulette-led-label">배수</span>
           <strong className="rps-roulette-mult">{multiplierText}</strong>
           <ol className="rps-roulette-steps" aria-label="도전 단계">
-            {['기본 1.0', '1차 1.5', '2차 2.0'].map((label, i) =>
+            {['기본 1.0', '1차 2.0', '2차 4.0'].map((label, i) =>
               <li key={label} data-on={level >= i || undefined} data-next={round?.challenging && live && i === level + 1 || undefined}>
                 <i aria-hidden="true" />{label}
               </li>)}
@@ -235,7 +235,7 @@ function RpsRouletteDialog() {
             </span>
             <span className="rps-roulette-label">
               {[1, 2].map(step => <span key={step} data-done={(round?.stakeLevel ?? 0) >= step && live || undefined}
-                data-next={canDecide && round!.stakeLevel + 1 === step || undefined}>{step}차 ×{step === 1 ? '1.5' : '2.0'}</span>)}
+                data-next={canDecide && round!.stakeLevel + 1 === step || undefined}>{step}차 ×{step === 1 ? '2.0' : '4.0'}</span>)}
             </span>
           </div>
           <div className="rps-roulette-control">

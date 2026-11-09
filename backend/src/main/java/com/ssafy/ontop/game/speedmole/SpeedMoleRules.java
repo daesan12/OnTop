@@ -6,6 +6,8 @@ import java.util.List;
 /** Version 1: same unsigned 32-bit LCG and ordered four-hole replacement as the client. */
 public final class SpeedMoleRules {
     public static final int VERSION = 1, DURATION_MS = 60_000, COUNTDOWN_MS = 3_000, MAX_TAPS = 6_000;
+    /** 기존 두더지(MoleRules)와 별도인 스피드 두더지 지급 비율. */
+    public static final int POINTS_PER_COIN = 5;
     public record Tap(int hole, int at) { }
     public record Score(int score, int hits, int misses) { }
     private long state;
