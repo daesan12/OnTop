@@ -7,6 +7,7 @@ import './winnerContacts.css'
 type Props = {
   open: boolean
   refreshKey: number
+  selectedWeek?: string | null
   onAutoOpen: () => void
   onClose: () => void
 }
@@ -16,7 +17,7 @@ const kstDate = (value: string) => new Intl.DateTimeFormat('ko-KR', {
   hour: 'numeric', minute: '2-digit',
 }).format(new Date(value))
 
-export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Props) {
+export function WinnerContactsHost({ open, refreshKey, selectedWeek, onAutoOpen, onClose }: Props) {
   const [items, setItems] = useState<Winning[] | null>(null)
   const [reload, setReload] = useState(0)
   const [loadError, setLoadError] = useState('')
@@ -30,6 +31,7 @@ export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Pr
   const submitRequest = useRef<AbortController | null>(null)
   const submitting = useRef(false)
   const autoShown = useRef(false)
+  const focusedRequest = useRef<number | null>(null)
 
   useEffect(() => {
     const controller = request.current = new AbortController()
@@ -57,6 +59,16 @@ export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Pr
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
     return () => window.clearInterval(timer)
   }, [open])
+  useEffect(() => {
+    if (!open || items === null || !selectedWeek || focusedRequest.current === refreshKey) return
+    const heading = [...document.querySelectorAll<HTMLElement>('.winner-contacts-week h3')]
+      .find(element => element.textContent === `${selectedWeek} 주차`)
+    if (heading) {
+      focusedRequest.current = refreshKey
+      heading.focus({ preventScroll: true })
+      heading.scrollIntoView({ block: 'nearest' })
+    }
+  }, [open, items, refreshKey, selectedWeek])
 
   async function save(week: string, event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -119,7 +131,7 @@ export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Pr
       const editable = group.editable && canSubmit(group.status, group.deadline, now)
       const showForm = editable && (group.status === 'NOT_SUBMITTED' || editingWeek === group.weekStart)
       return <section className="winner-contacts-week" key={group.weekStart} aria-label={`${group.weekStart} 주차 당첨`}>
-        <h3>{group.weekStart} 주차</h3>
+        <h3 tabIndex={-1}>{group.weekStart} 주차</h3>
         <ul>{group.awards.map(award => <li key={award.winnerId}>
           <strong>{awardLabels[award.eventType]} {award.place}등</strong>
           <span>{award.prizeName}</span>

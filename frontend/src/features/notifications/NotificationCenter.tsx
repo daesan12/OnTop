@@ -9,7 +9,7 @@ import { useSession } from '../../network/worldClient'
 import coinArt from '../../assets/entry/yeopjeon-icon.webp'
 import './notifications.css'
 
-export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
+export function NotificationCenter({ hidden = false, onOpenWinnings }: { hidden?: boolean; onOpenWinnings?: (week: string) => void }) {
   const [open, setOpen] = useState(false), [page, setPage] = useState<NotificationPage | null>(null)
   const [detail, setDetail] = useState<NotificationDetail | null>(null), [error, setError] = useState('')
   const [busy, setBusy] = useState(false), [filter, setFilter] = useState<'all' | 'unread' | 'reward'>('all')
@@ -116,6 +116,13 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
       if (!request.signal.aborted) setError(cause instanceof Error ? cause.message : '같은 보상으로 다시 확인해주세요.')
     } finally { claimPending.current = false; if (!request.signal.aborted) setBusy(false) }
   }
+  const openWinnings = () => {
+    if (!detail?.event || !onOpenWinnings) return
+    const week = detail.event.weekStartDate
+    reading.current?.abort()
+    setDetail(null); setOpen(false); setClosing(false); setError('')
+    onOpenWinnings(week)
+  }
   const values = page?.items.filter(value => filter === 'all' || filter === 'reward' && value.type === 'REWARD'
     || filter === 'unread' && value.readAt === null) ?? []
   const launcher = <div className="inbox-hud">
@@ -141,7 +148,12 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
         {detail.reward && <p>{rewardLabel(detail.reward)} · {detail.reward.claimedAt ? '수령 완료' : '아직 받지 않은 보상'}</p>}
         {detail.event && <aside><strong>{detail.event.weekStartDate} 주차 당첨 내역</strong>
           <ul>{detail.event.awards.map(award => <li key={award.winnerId}>{award.eventType} · {award.place}등 · {award.prizeName} · {award.deliveryStatus === 'DELIVERED' ? '지급 완료' : '지급 대기'}</li>)}</ul>
-          <p>{detail.event.allPrizesDelivered ? '모든 경품의 지급이 완료됐어요.' : detail.event.contactStatus === 'SUBMITTED' ? detail.event.contactEdited ? '연락처 수정 완료' : '연락처 입력 완료' : detail.event.contactStatus === 'EXPIRED' ? '연락처 보관 기간 종료' : '연락처 입력 대기'}</p></aside>}
+          <p>{detail.event.allPrizesDelivered ? '모든 경품의 지급이 완료됐어요.' : detail.event.contactStatus === 'SUBMITTED' ? detail.event.contactEdited ? '연락처 수정 완료' : '연락처 입력 완료' : detail.event.contactStatus === 'EXPIRED' ? '연락처 보관 기간 종료' : '연락처 입력 대기'}</p>
+          {onOpenWinnings && <button className="inbox-primary" onClick={openWinnings}>
+            {!detail.event.allPrizesDelivered && detail.event.contactEditable
+              ? detail.event.contactStatus === 'SUBMITTED' ? '연락처 확인·수정' : '연락처 입력하기'
+              : '내 당첨 내역 보기'}
+          </button>}</aside>}
         <button className="inbox-primary" onClick={() => { setDetail(null); setError('') }}>목록으로</button>
       </article> : <>
         <nav className="inbox-tabs" aria-label="알림 종류">{([['all','전체'],['unread','안 읽음'],['reward','보상']] as const).map(([key,label]) =>
