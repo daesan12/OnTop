@@ -9,6 +9,56 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("mysql")
 class SkinModelMigrationMySqlTests {
+    @Test void team_v164_then_skin_v165_preserve_existing_rows_and_payout_constraint() throws Exception {
+        String base=System.getenv("TEST_SKIN_DB_URL");
+        if(base==null||!base.matches("jdbc:mysql://127\\.0\\.0\\.1:[0-9]+/ontop_skin_test_[A-Za-z0-9_]+(?:\\?.*)?"))
+            throw new IllegalStateException("스킨 전용 loopback 검증 DB가 필요합니다.");
+        String database="ontop_skin_test_joint_"+UUID.randomUUID().toString().replace("-","");
+        String password=System.getenv().getOrDefault("TEST_SKIN_DB_PASSWORD","");
+        try(var connection=DriverManager.getConnection(base,"root",password);var statement=connection.createStatement()) {
+            statement.execute("CREATE DATABASE "+database+" CHARACTER SET utf8mb4");
+        }
+        String url=base.replaceFirst("/ontop_skin_test_[A-Za-z0-9_]+", "/"+database);
+        var config=Flyway.configure().dataSource(url,"root",password)
+                .locations("classpath:db/migration","classpath:db/minigame","classpath:db/shop");
+        config.target("163").load().migrate();
+        String skin=UUID.randomUUID().toString();
+        try(var connection=DriverManager.getConnection(url,"root",password);var statement=connection.createStatement()) {
+            statement.executeUpdate("INSERT INTO users(id,login_provider,provider_user_id,nickname,character_gender,created_at,updated_at) VALUES(950001,'NAVER','joint-migration','통합검수','MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3))");
+            statement.executeUpdate("INSERT INTO wallets(user_id,balance,reserved_balance) VALUES(950001,4321,123)");
+            statement.executeUpdate("INSERT INTO skin_catalog(id,product_code,name,grade,compatibility,wear_mode,slots) VALUES('"+skin+"','JOINT_LEGACY','기존 의상',4,'MALE','PARTS','HAIR')");
+            statement.executeUpdate("INSERT INTO rps_roulette_rounds(user_id,request_key,fee,play_date,phase,outcome,payout,started_at,settled_at) VALUES(950001,'before164',30,CURRENT_DATE,'SETTLED','PAID',600,CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3))");
+        }
+        assertThat(config.target("164").load().migrate().migrationsExecuted).isEqualTo(1);
+        try(var connection=DriverManager.getConnection(url,"root",password);var statement=connection.createStatement()) {
+            statement.executeUpdate("INSERT INTO rps_roulette_rounds(user_id,request_key,fee,play_date,phase,outcome,payout,started_at,settled_at) VALUES(950001,'after164',30,CURRENT_DATE,'SETTLED','PAID',1200,CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3))");
+        }
+        var latest=config.target("165").load();
+        assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
+        latest.validate();
+        assertThat(latest.migrate().migrationsExecuted).isZero();
+        try(var connection=DriverManager.getConnection(url,"root",password);var statement=connection.createStatement()) {
+            try(var result=statement.executeQuery("SELECT version,script,success FROM flyway_schema_history WHERE version IN ('164','165') ORDER BY installed_rank")) {
+                result.next();assertThat(result.getString(1)).isEqualTo("164");assertThat(result.getString(2)).isEqualTo("V164__raise_rps_roulette_payout_cap.sql");assertThat(result.getBoolean(3)).isTrue();
+                result.next();assertThat(result.getString(1)).isEqualTo("165");assertThat(result.getString(2)).isEqualTo("V165__create_skin_item_sets.sql");assertThat(result.getBoolean(3)).isTrue();
+                assertThat(result.next()).isFalse();
+            }
+            try(var result=statement.executeQuery("SELECT balance,reserved_balance FROM wallets WHERE user_id=950001")) {
+                result.next();assertThat(result.getLong(1)).isEqualTo(4321);assertThat(result.getLong(2)).isEqualTo(123);
+            }
+            try(var result=statement.executeQuery("SELECT name,state FROM skin_catalog WHERE id='"+skin+"'")) {
+                result.next();assertThat(result.getString(1)).isEqualTo("기존 의상");assertThat(result.getString(2)).isEqualTo("DRAFT");
+            }
+            try(var result=statement.executeQuery("SELECT payout FROM rps_roulette_rounds WHERE user_id=950001 ORDER BY id")) {
+                result.next();assertThat(result.getInt(1)).isEqualTo(600);result.next();assertThat(result.getInt(1)).isEqualTo(1200);
+            }
+            try(var result=statement.executeQuery("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('skin_item_registrations','skin_item_parts','skin_sets','skin_set_members')")) {
+                result.next();assertThat(result.getInt(1)).isEqualTo(4);
+            }
+            org.assertj.core.api.Assertions.assertThatThrownBy(()->statement.executeUpdate("UPDATE rps_roulette_rounds SET payout=1201 WHERE user_id=950001"))
+                    .isInstanceOf(java.sql.SQLException.class);
+        }
+    }
     @Test void v161_uploads_keep_their_file_and_gain_character_links() throws Exception {
         String base=System.getenv("TEST_SKIN_DB_URL");
         if(base==null||!base.matches("jdbc:mysql://127\\.0\\.0\\.1:[0-9]+/ontop_skin_test_[A-Za-z0-9_]+(?:\\?.*)?"))
