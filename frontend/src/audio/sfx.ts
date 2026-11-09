@@ -2,7 +2,7 @@ import { effectsOutput, loadSound } from './bgm'
 
 /** File names under public/audio/bgm (shared with the music), without .ogg or the variant suffix. */
 export type SfxName = 'ui-click' | 'ui-manual' | 'ui-equip' | 'coin-gain'
-  | 'game-ready' | 'game-start' | 'game-turn' | 'omok-place' | 'dice-roll' | 'card-draw' | 'card-one'
+  | 'game-ready' | 'game-start' | 'game-turn' | 'omok-place' | 'dice-roll' | 'card-draw' | 'card-one' | 'halli-bell'
   | 'bungeo-pour' | 'bungeo-flip' | 'bungeo-burn'
   | 'emote-clap' | 'emote-tsk' | 'emote-fart' | 'emote-wave-male' | 'emote-wave-female'
   | 'move-jump' | 'move-land' | 'move-splash' | 'move-step-stone' | 'move-step-grass' | 'amb-pigeon-takeoff'
@@ -14,6 +14,7 @@ const LEVEL: Record<SfxName | SfxLoop, number> = {
   'ui-click': 0.25, 'ui-manual': 0.5, 'ui-equip': 0.45, 'coin-gain': 0.5,
   'omok-place': .6,
   'game-ready': 0.5, 'game-start': 0.55, 'game-turn': 0.5, 'dice-roll': 0.6, 'card-draw': 0.5, 'card-one': 0.55,
+  'halli-bell': 0.55,
   'bungeo-pour': 0.5, 'bungeo-flip': 0.5, 'bungeo-burn': 0.45,
   'emote-clap': 0.55, 'emote-tsk': 0.6, 'emote-fart': 0.6, 'emote-wave-male': 0.45, 'emote-wave-female': 0.4,
   'move-jump': 0.18, 'move-land': 0.35, 'move-splash': 0.55, 'move-step-stone': 0.22, 'move-step-grass': 0.18,
@@ -49,6 +50,12 @@ function panner(context: AudioContext, at: SoundPoint, [near, far]: readonly [nu
   node.rolloffFactor = 1
   place(node, at)
   return node
+}
+
+/** Decodes a cue ahead of its first play into the shared cache; does nothing until audio is unlocked. */
+export function preloadSfx(name: SfxName) {
+  const out = effectsOutput()
+  if (out && !VARIANTS[name]) void loadSound(out.context, name)
 }
 
 /** Plays once; `at` places it in the park so it pans and fades with distance from the camera. */

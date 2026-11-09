@@ -39,6 +39,62 @@ it('starts a game once and cues only the turns that become mine', () => {
   expect(gameSfx(null, omok('me', 'PLAYING', 'g1', 'SPECTATOR'), 'me')).toEqual([])
 })
 
+// 할리갈리 공개 상태의 lastEvent만 본다. 시각은 서버 시간(NOW) 기준이다.
+const NOW = Date.parse('2026-11-09T01:00:00.000Z')
+const at = (ago: number) => new Date(NOW - ago).toISOString()
+type Ev = { type: string; userId: string; at: string }
+const ev = (type: string, userId = 'other', ago = 100): Ev => ({ type, userId, at: at(ago) })
+const halli = (version: number, lastEvent: Ev | null, o: { status?: string; turn?: string | null; gameId?: string; role?: string } = {}) =>
+  ({ gameId: o.gameId ?? 'h1', version, role: o.role ?? 'PLAYER', halli: { status: o.status ?? 'PLAYING',
+    turnUserId: o.turn === undefined ? 'other' : o.turn, lastEvent: lastEvent && { cardCount: 1, issuedCards: 0, ...lastEvent } } }) as unknown as Game
+
+it('서버가 인정한 정상 종·벌칙 종은 참가자와 관전자 모두 종소리를 한 번 재생한다', () => {
+  const flip = ev('FLIP', 'other', 500)
+  for (const type of ['RING_SUCCESS', 'RING_PENALTY']) {
+    expect(gameSfx(halli(4, flip), halli(5, ev(type)), 'me', NOW)).toEqual(['halli-bell'])
+    expect(gameSfx(halli(4, flip, { role: 'SPECTATOR' }), halli(5, ev(type), { role: 'SPECTATOR' }), 'me', NOW)).toEqual(['halli-bell'])
+  }
+})
+
+it('카드 뒤집기·거절·중복 종과 버전만 오른 상태에서는 종소리를 재생하지 않는다', () => {
+  const before = halli(4, ev('RING_SUCCESS', 'other', 700))
+  expect(gameSfx(before, halli(5, ev('FLIP')), 'me', NOW)).toEqual([])
+  expect(gameSfx(before, halli(5, ev('AUTO_FLIP')), 'me', NOW)).toEqual([])
+  // 거절된 종은 상태가 바뀌지 않는다. 같은 버전의 재전달도 같은 이벤트다.
+  const rung = halli(5, ev('RING_PENALTY'))
+  expect(gameSfx(rung, rung, 'me', NOW)).toEqual([])
+  expect(gameSfx(rung, halli(5, ev('RING_PENALTY')), 'me', NOW)).toEqual([])
+  // 기권 등으로 버전만 오르고 lastEvent가 그대로면 같은 종이다.
+  expect(gameSfx(rung, halli(6, ev('RING_PENALTY')), 'me', NOW)).toEqual([])
+})
+
+it('이전 상태가 없거나 다른 경기이거나 오래된 종은 재생하지 않는다', () => {
+  // 첫 수신·재접속(이전 상태 없음)과 관전 시작
+  expect(gameSfx(null, halli(5, ev('RING_SUCCESS')), 'me', NOW)).toEqual(['game-start'])
+  expect(gameSfx(null, halli(5, ev('RING_SUCCESS'), { role: 'SPECTATOR' }), 'me', NOW)).toEqual([])
+  // 다른 gameId의 상태를 이전 이벤트로 비교하지 않는다.
+  expect(gameSfx(halli(9, ev('FLIP'), { gameId: 'old' }), halli(5, ev('RING_SUCCESS')), 'me', NOW)).not.toContain('halli-bell')
+  // 카드 이동 연출과 같은 900ms 기준
+  expect(gameSfx(halli(4, null), halli(5, ev('RING_SUCCESS', 'other', 899)), 'me', NOW)).toEqual(['halli-bell'])
+  expect(gameSfx(halli(4, null), halli(5, ev('RING_SUCCESS', 'other', 900)), 'me', NOW)).toEqual([])
+  expect(gameSfx(halli(4, null), halli(5, ev('RING_SUCCESS', 'other', -900)), 'me', NOW)).toEqual([])
+})
+
+it('경기를 끝낸 마지막 종도 재생한다', () => {
+  expect(gameSfx(halli(4, ev('FLIP')), halli(5, ev('RING_SUCCESS', 'me'), { status: 'FINISHED', turn: null }), 'me', NOW))
+    .toEqual(['halli-bell'])
+  expect(gameSfx(halli(4, ev('FLIP')), halli(5, ev('RING_PENALTY', 'other'), { status: 'FINISHED', turn: null }), 'me', NOW))
+    .toEqual(['halli-bell'])
+})
+
+it('종이 울린 갱신에서는 차례 알림을 겹치지 않고, 종이 없으면 차례 알림은 그대로다', () => {
+  const flip = ev('FLIP', 'other', 500)
+  expect(gameSfx(halli(4, flip), halli(5, ev('RING_SUCCESS', 'me'), { turn: 'me' }), 'me', NOW)).toEqual(['halli-bell'])
+  expect(gameSfx(halli(4, flip), halli(5, ev('FLIP', 'other'), { turn: 'me' }), 'me', NOW)).toEqual(['game-turn'])
+  // 다른 게임의 차례 알림은 그대로다.
+  expect(gameSfx(omok('other'), omok('me'), 'me', NOW)).toEqual(['game-turn'])
+})
+
 it('rolls dice and draws or declares cards from state changes', () => {
   expect(gameSfx(dice(1), dice(2), 'me')).toEqual(['dice-roll'])
   expect(gameSfx(dice(2), dice(2), 'me')).toEqual([])
