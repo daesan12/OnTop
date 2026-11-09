@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -81,10 +82,21 @@ public class GachaRepository {
         Map<String,List<Long>> parts = new HashMap<>();
         jdbc.query("SELECT product_code,item_id FROM ("+GachaAssetSql.PRODUCT_ITEMS+") links ORDER BY product_code,item_id",
                 rs -> { parts.computeIfAbsent(rs.getString(1), ignored -> new ArrayList<>()).add(rs.getLong(2)); });
+        Map<String,Map<String,Component>> grouped=new HashMap<>();
+        jdbc.query("SELECT s.product_code,c.id,c.name,c.published_upload_id,c.slots,p.item_id FROM skin_sets s "
+                +"JOIN skin_set_members m ON m.set_id=s.id JOIN skin_catalog c ON c.id=m.skin_id "
+                +"LEFT JOIN skin_item_parts p ON p.skin_id=c.id ORDER BY s.product_code,c.id,p.item_id",rs->{
+            var byId=grouped.computeIfAbsent(rs.getString(1),k->new LinkedHashMap<>());
+            String id=rs.getString(2);var component=byId.get(id);
+            if(component==null) {
+                component=new Component(id,rs.getString(3),"catalog/"+rs.getString(4),new ArrayList<>(),List.of(rs.getString(5).split(",")));
+                byId.put(id,component);
+            }
+            long part=rs.getLong(6);if(!rs.wasNull())component.itemIds().add(part);
+        });
         Map<String,List<Component>> components=new HashMap<>();
-        jdbc.query("SELECT s.product_code,c.id,c.name,c.published_upload_id,c.slots FROM skin_sets s JOIN skin_set_members m ON m.set_id=s.id JOIN skin_catalog c ON c.id=m.skin_id ORDER BY s.product_code,c.id",
-                rs->{String id=rs.getString(2);var ids=jdbc.queryForList("SELECT item_id FROM skin_item_parts WHERE skin_id=? ORDER BY item_id",Long.class,id);
-                    components.computeIfAbsent(rs.getString(1),k->new ArrayList<>()).add(new Component(id,rs.getString(3),"catalog/"+rs.getString(4),ids,List.of(rs.getString(5).split(","))));});
+        grouped.forEach((code,byId)->components.put(code,byId.values().stream()
+                .map(c->new Component(c.id(),c.name(),c.imageKey(),List.copyOf(c.itemIds()),c.slots())).toList()));
         return jdbc.query("SELECT product_code,name,grade,compatibility,image_key FROM gacha_products"
                 +(activeOnly?" WHERE active=TRUE":"")+" ORDER BY product_code"+(lock?" FOR SHARE":""),
                 (rs,n)->new Product(rs.getString(1),rs.getString(2),rs.getInt(3),rs.getString(4),rs.getString(5),

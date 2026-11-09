@@ -174,3 +174,9 @@ V165 후보: skin_item_registrations / skin_item_parts / skin_sets / skin_set_me
 검증 기준 dev는 1d5f59e4다. 팀 V164(db/minigame/V164__raise_rps_roulette_payout_cap.sql)는 룰렛 지급 상한을 600→1200으로 변경하고, 우리 V165(db/migration/V165__create_skin_item_sets.sql)는 별도 스킨 테이블 4개를 추가한다. 두 원본 SQL은 수정하지 않았다. 기존 테스트·사용자 DB는 그대로 두고 새 loopback 검증 DB만 사용했다.
 
 공통·미니게임·상점 세 locations를 포함해 빈 DB 전체 적용과 V163→V164→V165 순차 적용을 검수한다. 업그레이드 테스트는 적용 전 넣은 잔액·예약금·의상·룰렛600 기록 보존, V164 뒤1200 기록 저장, V165 뒤1201 거절, 4개 테이블과 이력 순서, validate 성공·재실행0건을 확인한다. 이는 실제 공용 DB의 기존 버전/체크섬 이력 조사나 배포 완료를 의미하지 않는다.
+
+### MR 리뷰 반영: 조회 수와 구성품 키 (2026-11-09)
+
+GachaRepository.products는 구성품과 물리 부위를 한 번에 JOIN해 그룹화하며 상품 수와 무관하게 SQL3회로 조회한다. SkinRepository는 신규/기존 상품 모두 GeneratedKeyHolder로 생성 ID를 받아 슬롯별 ID 재조회를 제거한다. set_code는 기존 SK_<구성품 코드>를 유지하고 획득 세트와 착용 묶음을 분리한다. API·스키마·기존 보유품 변화는 없다.
+
+자산 집계는 UNION의 고유(product_code,item_id)를 유지하고 COUNT OVER로 필요한 부위 수를 한 번 산출해 상관 COUNT 서브쿼리를 없앴다. 격리 DB EXPLAIN에서 dependent1→0·UNION노드2→1을 확인했지만 구체화 노드는4로 남는다. 실제 응답시간·운영 부하 개선은 미측정이며 기존 완전 보유/부분 보유/중복 링크/상품별 가치/수량 비증식 정책을 회귀 검증한다.

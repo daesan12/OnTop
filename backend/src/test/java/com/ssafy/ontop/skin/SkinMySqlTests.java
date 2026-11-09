@@ -233,6 +233,28 @@ class SkinMySqlTests {
     SkinSetDtos.Definition setDefinition(String code,SkinDtos.Entry head,SkinDtos.Entry clothes) {
         return new SkinSetDtos.Definition(code,"선비 세트",2,"MALE",head.id(),List.of(head.id(),clothes.id()));
     }
+    @Test void catalog_query_count_and_component_insert_id_lookup_are_measured() throws Exception {
+        var head=componentFixture("REGTEST_HEAD",List.of("HAIR","FACE"));
+        var clothes=componentFixture("REGTEST_CLOTHES",List.of("TOP","BOTTOM","SHOES"));
+        var one=sets.create(9401,setDefinition("REGTEST_QUERY_ONE",head,clothes));sets.publish(9401,one.id(),0);
+        var probe=new SqlProbe(jdbc.getDataSource());
+        var products=new com.ssafy.ontop.gacha.GachaRepository(probe.jdbc);
+        assertThat(products.products(true,false)).filteredOn(p->p.code().equals("REGTEST_QUERY_ONE"))
+                .singleElement().satisfies(p->assertThat(p.components()).hasSize(2));
+        int single=probe.statements.size();probe.statements.clear();
+        var two=sets.create(9401,setDefinition("REGTEST_QUERY_TWO",head,clothes));sets.publish(9401,two.id(),0);
+        assertThat(products.products(true,false)).filteredOn(p->p.code().startsWith("REGTEST_QUERY_"))
+                .hasSize(2).allSatisfy(p->assertThat(p.components()).hasSize(2));
+        int shared=probe.statements.size();
+        var e=service.createComponent(9401,new Definition("REGTEST_QUERY_INSERT","조회 검수",2,"MALE","PARTS",List.of("HAIR","FACE")));
+        String upload=uploaded(e.id());var repository=new SkinRepository(jdbc);
+        var inserts=new SqlProbe(jdbc.getDataSource());
+        new SkinRepository(inserts.jdbc).publish(e,repository.upload(e.id(),upload),9401);
+        long idLookups=inserts.statements.stream().filter(s->s.startsWith("SELECT id FROM items WHERE item_code=")).count();
+        assertThat(repository.componentParts(e.id())).hasSize(2);
+        System.out.printf("SKIN_SQL_COUNT products_one_set=%d products_two_sets=%d component_two_slot_id_selects=%d%n",single,shared,idLookups);
+        assertThat(single).isEqualTo(3);assertThat(shared).isEqualTo(3);assertThat(idLookups).isZero();
+    }
     @Test void set_open_grants_all_components_but_head_and_clothes_equip_independently() throws Exception {
         var head=componentFixture("REGTEST_HEAD",List.of("HAIR","FACE"));
         var clothes=componentFixture("REGTEST_CLOTHES",List.of("TOP","BOTTOM","SHOES"));

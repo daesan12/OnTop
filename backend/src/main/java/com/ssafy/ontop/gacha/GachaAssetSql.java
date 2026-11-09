@@ -20,13 +20,15 @@ public final class GachaAssetSql {
                 FROM gacha_products p
                 JOIN (
                     SELECT ui.user_id, pi.product_code
-                    FROM (%s) pi
+                    FROM (
+                        SELECT product_code,item_id,COUNT(*) OVER (PARTITION BY product_code) required_count
+                        FROM (%s) product_items
+                    ) pi
                     JOIN user_items ui ON ui.item_id=pi.item_id AND ui.quantity>0
                     GROUP BY ui.user_id, pi.product_code
-                    HAVING COUNT(*)=(SELECT COUNT(*) FROM (%s) required_items
-                                     WHERE required_items.product_code=pi.product_code)
+                    HAVING COUNT(*)=MAX(pi.required_count)
                 ) ownership ON ownership.product_code=p.product_code
                 GROUP BY ownership.user_id
             ) ga ON ga.user_id=w.user_id
-            """.formatted(PRODUCT_ITEMS,PRODUCT_ITEMS);
+            """.formatted(PRODUCT_ITEMS);
 }

@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 
 public class SkinRepository {
     private static final String MODEL_JOINS=" LEFT JOIN skin_upload_models lm ON lm.upload_id=u.id AND lm.character_gender='MALE'"
@@ -64,13 +65,23 @@ public class SkinRepository {
     public boolean isComponent(String id) { return jdbc.queryForObject("SELECT COUNT(*) FROM skin_item_registrations WHERE skin_id=?",Integer.class,id)>0; }
     public void markComponent(String id) { jdbc.update("INSERT INTO skin_item_registrations VALUES(?)",id); }
     public List<Long> componentParts(String id) { return jdbc.queryForList("SELECT item_id FROM skin_item_parts WHERE skin_id=? ORDER BY item_id",Long.class,id); }
+    private long insertEquipment(Definition d,String slot,String key) {
+        var generated=new GeneratedKeyHolder();
+        jdbc.update(connection->{
+            var statement=connection.prepareStatement("INSERT INTO items(item_code,name,item_type,equip_slot,price,image_key,is_for_sale,set_code) VALUES(?,?,'EQUIPMENT',?,0,?,FALSE,?)",java.sql.Statement.RETURN_GENERATED_KEYS);
+            statement.setString(1,"SK_"+d.productCode()+"_"+slot);statement.setString(2,d.name());
+            statement.setString(3,slot);statement.setString(4,key);
+            statement.setString(5,d.slots().size()>1?"SK_"+d.productCode():null);
+            return statement;
+        },generated);
+        Number id=generated.getKey();
+        if(id==null)throw new IllegalStateException("착용 아이템 생성 ID가 반환되지 않았습니다.");
+        return id.longValue();
+    }
     private void publishComponent(Entry e,Upload u,long user) {
         var d=e.definition();String key="catalog/"+u.id();
         if(e.publishedUploadId()==null) for(String slot:d.slots()) {
-            String code="SK_"+d.productCode()+"_"+slot;
-            jdbc.update("INSERT INTO items(item_code,name,item_type,equip_slot,price,image_key,is_for_sale,set_code) VALUES(?,?,'EQUIPMENT',?,0,?,FALSE,?)",
-                    code,d.name(),slot,key,d.slots().size()>1?"SK_"+d.productCode():null);
-            Long part=jdbc.queryForObject("SELECT id FROM items WHERE item_code=?",Long.class,code);
+            long part=insertEquipment(d,slot,key);
             jdbc.update("INSERT INTO skin_item_parts VALUES(?,?)",e.id(),part);
         }
         jdbc.update("UPDATE items i JOIN skin_item_parts p ON p.item_id=i.id SET i.image_key=?,i.name=? WHERE p.skin_id=?",key,d.name(),e.id());
@@ -88,10 +99,7 @@ public class SkinRepository {
         if(existing.isEmpty()) {
             jdbc.update("INSERT INTO gacha_products(product_code,name,grade,compatibility,image_key,active) VALUES(?,?,?,?,?,FALSE)",d.productCode(),d.name(),d.grade(),d.compatibility(),key);
             for(String slot:d.slots()) {
-                String code="SK_"+d.productCode()+"_"+slot;
-                jdbc.update("INSERT INTO items(item_code,name,item_type,equip_slot,price,image_key,is_for_sale,set_code) VALUES(?,?,'EQUIPMENT',?,0,?,FALSE,?)",
-                        code,d.name(),slot,key,d.slots().size()>1?"SK_"+d.productCode():null);
-                Long id=jdbc.queryForObject("SELECT id FROM items WHERE item_code=?",Long.class,code);
+                long id=insertEquipment(d,slot,key);
                 jdbc.update("INSERT INTO gacha_product_items(product_code,item_id) VALUES(?,?)",d.productCode(),id);
             }
         } else if(e.publishedUploadId()==null) throw new SkinException(409,"SKIN_PRODUCT_CODE_CONFLICT","이미 사용 중인 상품 코드입니다.");
