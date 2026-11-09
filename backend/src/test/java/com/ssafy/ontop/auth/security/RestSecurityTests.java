@@ -58,6 +58,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -294,6 +295,11 @@ class RestSecurityTests {
         mvc.perform(auth(get(list))).andExpect(status().isServiceUnavailable());
         mvc.perform(auth(get(reveal))).andExpect(status().isForbidden());
         mvc.perform(authAs(43, get(reveal))).andExpect(status().isServiceUnavailable());
+        String delivery = "/api/v1/admin/events/winners/1/delivery";
+        mvc.perform(put(delivery)).andExpect(status().isUnauthorized());
+        mvc.perform(auth(put(delivery))).andExpect(status().isForbidden());
+        mvc.perform(authAs(43, put(delivery).contentType("application/json")
+                .content("{\"expectedUserId\":44}"))).andExpect(status().isServiceUnavailable());
         mvc.perform(get("/api/v1/events/winnings/me")).andExpect(status().isUnauthorized());
         mvc.perform(auth(get("/api/v1/events/winnings/me")))
                 .andExpect(status().isServiceUnavailable());
@@ -446,6 +452,7 @@ class RestSecurityTests {
                 "PUT /api/v1/events/winnings/weeks/{weekStart}/contact",
                 "GET /api/v1/admin/events/winners",
                 "GET /api/v1/admin/events/winners/{winnerId}/contact",
+                "PUT /api/v1/admin/events/winners/{winnerId}/delivery",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
                 "POST /api/v1/behavior-events",

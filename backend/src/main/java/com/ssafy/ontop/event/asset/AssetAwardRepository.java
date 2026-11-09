@@ -120,12 +120,13 @@ final class AssetAwardRepository {
 
     List<AssetWinner> winners(long roundId) {
         return jdbc.query("""
-                SELECT s.place, s.prize_name, w.user_id, w.source_record_id,
+                SELECT s.place, s.prize_name, w.user_id, u.nickname, w.source_record_id,
                        w.source_value, w.source_achieved_at, w.selected_at
                 FROM event_winners w JOIN event_prize_slots s ON s.id = w.prize_slot_id
+                JOIN users u ON u.id = w.user_id
                 WHERE w.event_round_id = ? ORDER BY s.place
                 """, (row, index) -> new AssetWinner(row.getInt("place"), row.getString("prize_name"),
-                row.getLong("user_id"), row.getString("source_record_id"),
+                row.getLong("user_id"), row.getString("nickname"), row.getString("source_record_id"),
                 row.getLong("source_value"), row.getTimestamp("source_achieved_at").toInstant(),
                 row.getTimestamp("selected_at").toInstant()), roundId);
     }

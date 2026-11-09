@@ -88,7 +88,8 @@ public class RestSecurityConfiguration {
                                 "/api/v1/admin/events/minigames/rounds/*/games/*/finalize",
                                 "/api/v1/admin/events/assets/rounds/*/finalize")
                                 .hasRole("ADMIN_OPERATION")
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/admin/events/minigames/rounds/*/games/*")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/admin/events/minigames/rounds/*/games/*",
+                                "/api/v1/admin/events/winners/*/delivery")
                                 .hasRole("ADMIN_OPERATION")
                         .requestMatchers("/api/v1/admin/wallet-grants", "/api/v1/admin/wallet-grants/**")
                                 .hasRole("ADMIN_GRANT")

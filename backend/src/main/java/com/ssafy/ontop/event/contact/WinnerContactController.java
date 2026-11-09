@@ -3,9 +3,11 @@ package com.ssafy.ontop.event.contact;
 import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.event.contact.WinnerContactService.AdminListResponse;
 import com.ssafy.ontop.event.contact.WinnerContactService.ContactResponse;
+import com.ssafy.ontop.event.contact.WinnerContactService.DeliveryResponse;
 import com.ssafy.ontop.event.contact.WinnerContactService.RevealedContact;
 import com.ssafy.ontop.event.contact.WinnerContactService.WinningResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.security.Principal;
@@ -79,6 +81,15 @@ public class WinnerContactController {
         return ok(service().reveal(account(principal), winnerId));
     }
 
+    @PutMapping("/api/v1/admin/events/winners/{winnerId}/delivery")
+    @Operation(summary = "관리자가 실제 경품 전달 후 당첨 건별 지급 완료 기록",
+            security = @SecurityRequirement(name = "AccessJwt"))
+    public ResponseEntity<DeliveryResponse> confirmDelivery(Principal principal,
+            @PathVariable long winnerId, @RequestBody DeliveryRequest request) {
+        return ok(service().confirmDelivery(account(principal), winnerId,
+                request == null ? null : request.expectedUserId()));
+    }
+
     private WinnerContactService service() {
         WinnerContactService service = services.getIfAvailable();
         if (service == null) {
@@ -130,6 +141,9 @@ public class WinnerContactController {
             return "ContactRequest[redacted]";
         }
     }
+
+    public record DeliveryRequest(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Long expectedUserId) {}
 
     public record ErrorResponse(String code, String message) {}
 }

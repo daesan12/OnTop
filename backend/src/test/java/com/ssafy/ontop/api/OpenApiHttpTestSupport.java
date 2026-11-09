@@ -126,6 +126,7 @@ abstract class OpenApiHttpTestSupport {
                 "PUT /api/v1/events/winnings/weeks/{weekStart}/contact",
                 "GET /api/v1/admin/events/winners",
                 "GET /api/v1/admin/events/winners/{winnerId}/contact",
+                "PUT /api/v1/admin/events/winners/{winnerId}/delivery",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
                 "POST /api/v1/behavior-events"));

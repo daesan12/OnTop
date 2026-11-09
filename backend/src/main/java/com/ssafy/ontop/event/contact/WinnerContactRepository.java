@@ -39,13 +39,15 @@ public final class WinnerContactRepository {
 
     public List<AwardRow> ownAwards(long userId, LocalDate week, Instant now, int limit, int offset) {
         String sql = """
-                SELECT w.id AS winner_id, w.user_id, r.week_start_date, r.event_type,
+                SELECT w.id AS winner_id, w.user_id, u.nickname, r.week_start_date, r.event_type,
                        s.place, s.prize_name, r.announces_at, r.finalized_at,
                        c.phone_last_four, c.expires_at AS contact_expires_at,
-                       receipt.first_submitted_at
+                       receipt.first_submitted_at, d.delivered_by_user_id, d.delivered_at
                 FROM event_winners w
+                JOIN users u ON u.id = w.user_id
                 JOIN event_rounds r ON r.id = w.event_round_id
                 JOIN event_prize_slots s ON s.id = w.prize_slot_id
+                LEFT JOIN event_prize_deliveries d ON d.winner_id = w.id
                 LEFT JOIN event_contact_receipts receipt
                     ON receipt.user_id = w.user_id AND receipt.week_start_date = r.week_start_date
                 LEFT JOIN event_winner_contacts c
@@ -70,13 +72,15 @@ public final class WinnerContactRepository {
     public List<AwardRow> adminAwards(LocalDate week, String type, String status,
             Instant now, int limit, int offset) {
         String sql = """
-                SELECT w.id AS winner_id, w.user_id, r.week_start_date, r.event_type,
+                SELECT w.id AS winner_id, w.user_id, u.nickname, r.week_start_date, r.event_type,
                        s.place, s.prize_name, r.announces_at, r.finalized_at,
                        c.phone_last_four, c.expires_at AS contact_expires_at,
-                       receipt.first_submitted_at
+                       receipt.first_submitted_at, d.delivered_by_user_id, d.delivered_at
                 FROM event_winners w
+                JOIN users u ON u.id = w.user_id
                 JOIN event_rounds r ON r.id = w.event_round_id
                 JOIN event_prize_slots s ON s.id = w.prize_slot_id
+                LEFT JOIN event_prize_deliveries d ON d.winner_id = w.id
                 LEFT JOIN event_contact_receipts receipt
                     ON receipt.user_id = w.user_id AND receipt.week_start_date = r.week_start_date
                 LEFT JOIN event_winner_contacts c
@@ -127,6 +131,29 @@ public final class WinnerContactRepository {
                     expiry == null ? null : expiry.toInstant());
         }, Timestamp.from(now), winnerId, Timestamp.from(now), Timestamp.from(now))
                 .stream().findFirst();
+    }
+
+    public Optional<DeliveryTarget> deliveryTarget(long winnerId, boolean lock) {
+        return jdbc.query("""
+                SELECT w.id, w.user_id, r.finalized_at, d.delivered_by_user_id, d.delivered_at
+                FROM event_winners w
+                JOIN event_rounds r ON r.id = w.event_round_id
+                LEFT JOIN event_prize_deliveries d ON d.winner_id = w.id
+                WHERE w.id = ?
+                """ + (lock ? " FOR UPDATE" : ""), (rows, index) -> {
+            Timestamp delivered = rows.getTimestamp("delivered_at");
+            Long deliveredBy = rows.getObject("delivered_by_user_id", Long.class);
+            return new DeliveryTarget(rows.getLong("id"), rows.getLong("user_id"),
+                    rows.getTimestamp("finalized_at") != null, deliveredBy,
+                    delivered == null ? null : delivered.toInstant());
+        }, winnerId).stream().findFirst();
+    }
+
+    public void insertDelivery(long winnerId, long administratorId, Instant now) {
+        jdbc.update("""
+                INSERT INTO event_prize_deliveries(winner_id, delivered_by_user_id, delivered_at)
+                VALUES (?, ?, ?)
+                """, winnerId, administratorId, Timestamp.from(now));
     }
 
     public Optional<Contact> contact(long userId, LocalDate week) {
@@ -191,18 +218,26 @@ public final class WinnerContactRepository {
     private AwardRow award(ResultSet rows) throws SQLException {
         Timestamp submitted = rows.getTimestamp("first_submitted_at");
         Timestamp expires = rows.getTimestamp("contact_expires_at");
+        Timestamp delivered = rows.getTimestamp("delivered_at");
         return new AwardRow(rows.getLong("winner_id"), rows.getLong("user_id"),
+                rows.getString("nickname"),
                 rows.getDate("week_start_date").toLocalDate(), rows.getString("event_type"),
                 rows.getInt("place"), rows.getString("prize_name"),
                 rows.getTimestamp("announces_at").toInstant(),
                 rows.getTimestamp("finalized_at").toInstant(),
                 rows.getString("phone_last_four"), submitted == null ? null : submitted.toInstant(),
-                expires == null ? null : expires.toInstant());
+                expires == null ? null : expires.toInstant(),
+                rows.getObject("delivered_by_user_id", Long.class),
+                delivered == null ? null : delivered.toInstant());
     }
 
-    public record AwardRow(long winnerId, long userId, LocalDate week, String eventType,
+    public record AwardRow(long winnerId, long userId, String nickname, LocalDate week, String eventType,
             int place, String prizeName, Instant announcesAt, Instant finalizedAt,
-            String lastFour, Instant firstSubmittedAt, Instant contactExpiresAt) {}
+            String lastFour, Instant firstSubmittedAt, Instant contactExpiresAt,
+            Long deliveredByUserId, Instant deliveredAt) {}
+
+    public record DeliveryTarget(long winnerId, long userId, boolean finalized,
+            Long deliveredByUserId, Instant deliveredAt) {}
 
     public record Contact(byte[] encrypted, String keyId, String lastFour, Instant expiresAt) {}
 
