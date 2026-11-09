@@ -65,8 +65,9 @@ public class SkinSetService {
                 var image=components.stream().filter(i->i.id().equals(d.imageSkinId())).findFirst().orElseThrow();
                 jdbc.update("INSERT INTO gacha_products(product_code,name,grade,compatibility,image_key,active) VALUES(?,?,?,?,?,FALSE)",
                         d.productCode(),d.name(),d.grade(),d.compatibility(),"catalog/"+image.publishedUploadId());
-                for(var component:components) for(long part:items.componentParts(component.id()))
-                    jdbc.update("INSERT INTO gacha_product_items VALUES(?,?)",d.productCode(),part);
+                // Existing gacha_product_items has UNIQUE(item_id) for legacy products.
+                // New set composition stays in skin_set_members/skin_item_parts so a common
+                // component can be reused by male and female products without copying ownership.
             }
             jdbc.update("UPDATE gacha_products SET active=TRUE WHERE product_code=?",d.productCode());
             jdbc.update("UPDATE skin_sets SET state='PUBLISHED',published_at=COALESCE(published_at,CURRENT_TIMESTAMP(3)),state_version=state_version+1,updated_at=CURRENT_TIMESTAMP(3) WHERE id=?",id);

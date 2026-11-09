@@ -79,7 +79,7 @@ public class GachaRepository {
     }
     public List<Product> products(boolean activeOnly, boolean lock) {
         Map<String,List<Long>> parts = new HashMap<>();
-        jdbc.query("SELECT product_code,item_id FROM gacha_product_items ORDER BY product_code,item_id",
+        jdbc.query("SELECT product_code,item_id FROM ("+GachaAssetSql.PRODUCT_ITEMS+") links ORDER BY product_code,item_id",
                 rs -> { parts.computeIfAbsent(rs.getString(1), ignored -> new ArrayList<>()).add(rs.getLong(2)); });
         Map<String,List<Component>> components=new HashMap<>();
         jdbc.query("SELECT s.product_code,c.id,c.name,c.published_upload_id,c.slots FROM skin_sets s JOIN skin_set_members m ON m.set_id=s.id JOIN skin_catalog c ON c.id=m.skin_id ORDER BY s.product_code,c.id",
