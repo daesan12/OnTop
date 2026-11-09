@@ -3,8 +3,8 @@ import { useManual } from '../features/manual/manualState'
 import { useWardrobe } from '../features/wardrobe/state'
 import { useDiceUI } from '../game/farkle/controls'
 import { useGame } from '../game/store'
-import { useSession } from '../network/worldClient'
-import { playSfx, setSfxLoop } from './sfx'
+import { estimatedServerTime, useSession } from '../network/worldClient'
+import { playSfx, preloadSfx, setSfxLoop } from './sfx'
 import { gameSfx } from './sfxEvents'
 import { useBungeoppang } from '../features/bungeoppang/store'
 import { consumeWalletRewardSoundLevel } from '../features/wallet/settlementRefresh'
@@ -18,7 +18,9 @@ export function ParkSfx() {
     const stops = [
       useGame.subscribe((next, prev) => {
         if (next.game === prev.game) return
-        for (const cue of gameSfx(prev.game, next.game, useSession.getState().sessionId)) playSfx(cue)
+        // 할리갈리 상태에 들어오면 종소리를 미리 디코드한다. 캐시된 뒤에는 조회만 하고, 잠금 해제 전이면 다음 갱신에서 다시 시도한다.
+        if (next.game?.halli) preloadSfx('halli-bell')
+        for (const cue of gameSfx(prev.game, next.game, useSession.getState().sessionId, estimatedServerTime())) playSfx(cue)
       }),
       useSession.subscribe((next, prev) => {
         const balance = next.account?.balance, before = prev.account?.balance

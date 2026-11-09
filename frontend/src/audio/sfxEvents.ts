@@ -1,5 +1,6 @@
 import type { CharacterId } from '../config/avatar'
 import { gameState, type Game } from '../game/protocol'
+import { eventKey, FLIGHT } from '../game/halligalli/flights'
 import type { SfxName } from './sfx'
 
 /** Who must act now: the bridge responder answers a declaration, otherwise the turn holder. */
@@ -13,8 +14,21 @@ export function turnOwner(g: Game): string | null {
   return g.bridge.stage === 'RESPONDING' ? g.bridge.responderUserId : g.bridge.turnUserId
 }
 
-/** Cues for one game update compared with the previous state of the same game. */
-export function gameSfx(prev: Game | null, next: Game | null, ownId: string): SfxName[] {
+/**
+ * 서버가 새로 인정한 할리갈리 종 판정(정상 종·벌칙 종 모두 카드 이동)만 true. 같은 경기의 이전 상태가 있어야 하므로
+ * 첫 수신·재접속·관전 시작의 과거 상태는 제외한다. 이벤트 키와 900ms 기준은 카드 이동 연출(flights)과 같다.
+ * 거절·중복 종은 상태가 바뀌지 않고, 이벤트 없이 버전만 오른 상태는 키가 같아 재생하지 않는다.
+ */
+function halliBellRung(before: Game | null, next: Game, serverNow: number) {
+  const event = next.halli?.lastEvent
+  if (!event || !before?.halli || (event.type !== 'RING_SUCCESS' && event.type !== 'RING_PENALTY')
+    || eventKey(before.halli.lastEvent) === eventKey(event)) return false
+  const age = serverNow - Date.parse(event.at)
+  return age > -FLIGHT.maxAge && age < FLIGHT.maxAge
+}
+
+/** Cues for one game update compared with the previous state of the same game. `serverNow` is server time. */
+export function gameSfx(prev: Game | null, next: Game | null, ownId: string, serverNow = Date.now()): SfxName[] {
   if (!next) return []
   const out: SfxName[] = []
   const before = prev?.gameId === next.gameId ? prev : null
@@ -23,11 +37,14 @@ export function gameSfx(prev: Game | null, next: Game | null, ownId: string): Sf
     && next.omok.moveCount === before.omok.moveCount + 1
     && before.omok.board[move.y]?.[move.x] === 0 && next.omok.board[move.y]?.[move.x] !== 0
   if (omokPlaced) out.push('omok-place')
+  // 경기를 끝낸 마지막 종도 울린다. 참가자·관전자 모두 같은 공개 상태로 판정한다.
+  const bell = halliBellRung(before, next, serverNow)
+  if (bell) out.push('halli-bell')
   // 마지막 승리 착수도 소리가 나며, 상태 복구·중복 스냅샷·거절 입력은 재생하지 않는다.
   if (gameState(next).status !== 'PLAYING') return out
   if (!before && next.role === 'PLAYER') out.push('game-start')
-  // 승인 착수에는 '탁'만 재생한다. 차례 알림의 전자음이 동시에 겹치지 않게 한다.
-  if (!omokPlaced && next.role === 'PLAYER' && turnOwner(next) === ownId && (!before || turnOwner(before) !== ownId)) out.push('game-turn')
+  // 승인 착수에는 '탁'만, 인정된 종에는 종소리만 재생한다. 차례 알림의 전자음이 동시에 겹치지 않게 한다.
+  if (!omokPlaced && !bell && next.role === 'PLAYER' && turnOwner(next) === ownId && (!before || turnOwner(before) !== ownId)) out.push('game-turn')
   if (!before) return out
   if (next.dice && before.dice && next.dice.rollId !== before.dice.rollId) out.push('dice-roll')
   if (next.onecard && before.onecard) {
