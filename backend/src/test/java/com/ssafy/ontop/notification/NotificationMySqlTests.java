@@ -5,6 +5,7 @@ import com.ssafy.ontop.auth.domain.LoginOutcome;
 import com.ssafy.ontop.auth.domain.OAuthProvider;
 import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
 import com.ssafy.ontop.notification.repository.NotificationRepository;
+import com.ssafy.ontop.event.contact.WinnerContactRepository;
 import com.ssafy.ontop.feedback.repository.FeedbackRepository;
 import com.ssafy.ontop.notification.service.PersonalNotificationChanged;
 import com.ssafy.ontop.table.service.TableHub;
@@ -122,15 +123,24 @@ class NotificationMySqlTests {
             assertThat(initial.path("event").path("contactActionRequired").asBoolean()).isTrue();
             assertThat(initial.path("readAt").isNull()).isFalse();
 
+            jdbc.update("INSERT INTO event_prize_deliveries(winner_id, delivered_by_user_id, delivered_at)"
+                    + " VALUES (?, 101, ?)", first, Timestamp.from(now));
+            var contacts = new WinnerContactRepository(jdbc);
+            assertThat(contacts.publishedDeliveryByWeek(202, Instant.now()).get(EVENT_WEEK)).isTrue();
+            assertThat(json(request("GET", "/notifications/" + id, null, member))
+                    .path("event").path("contactActionRequired").asBoolean()).isFalse();
+
             jdbc.update("UPDATE event_rounds SET announces_at = ? WHERE event_type = 'BUNGEOPPANG'"
                     + " AND week_start_date = ?", Timestamp.from(now.minusSeconds(1800)),
                     java.sql.Date.valueOf(EVENT_WEEK));
+            assertThat(contacts.publishedDeliveryByWeek(202, Instant.now()).get(EVENT_WEEK)).isFalse();
             var refreshed = json(request("GET", "/notifications", null, member));
             assertThat(refreshed.path("items")).hasSize(1);
             assertThat(refreshed.path("items").get(0).path("id").asText()).isEqualTo(id);
             var multiple = json(request("GET", "/notifications/" + id, null, member));
             assertThat(multiple.path("event").path("awards")).hasSize(2);
             assertThat(multiple.path("event").path("allPrizesDelivered").asBoolean()).isFalse();
+            assertThat(multiple.path("event").path("contactActionRequired").asBoolean()).isTrue();
 
             jdbc.update("INSERT INTO event_contact_receipts(user_id, week_start_date,"
                     + " first_submitted_at, expires_at, last_updated_at) VALUES (202, ?, ?, ?, ?)",
@@ -146,8 +156,6 @@ class NotificationMySqlTests {
             assertThat(edited.path("event").path("contactEdited").asBoolean()).isTrue();
             assertThat(edited.toString()).doesNotContain("5678", "encryptedPhone");
 
-            jdbc.update("INSERT INTO event_prize_deliveries(winner_id, delivered_by_user_id, delivered_at)"
-                    + " VALUES (?, 101, ?)", first, Timestamp.from(now));
             assertThat(json(request("GET", "/notifications/" + id, null, member))
                     .path("event").path("contactEditable").asBoolean()).isTrue();
             jdbc.update("INSERT INTO event_prize_deliveries(winner_id, delivered_by_user_id, delivered_at)"

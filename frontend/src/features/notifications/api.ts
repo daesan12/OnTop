@@ -12,6 +12,10 @@ export interface RewardReceipt { notificationId: string; kind: RewardKind; amoun
 export const statusLabels: Record<FeedbackStatus, string> = { RECEIVED: '접수', REVIEWING: '검토 중', RESOLVED: '반영 완료' }
 export const isFeedbackStatus = (v: unknown): v is FeedbackStatus => v === 'RECEIVED' || v === 'REVIEWING' || v === 'RESOLVED'
 export const isNotificationId = (v: unknown): v is string => typeof v === 'string' && /^[1-9]\d{0,18}$/.test(v) && BigInt(v) <= 9223372036854775807n
+const winnerId = (value: unknown): string | null => {
+  if (isNotificationId(value)) return value
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? String(value) : null
+}
 const date = (v: unknown): v is string => typeof v === 'string' && Number.isFinite(Date.parse(v))
 const invalid = (): never => { throw new InboxError('알림 응답을 확인하지 못했어요. 다시 확인해주세요.') }
 export class InboxError extends Error {
@@ -54,11 +58,13 @@ export function parseNotificationDetail(v: unknown): NotificationDetail {
       || typeof v.event.contactEdited !== 'boolean' || !date(v.event.submissionDeadline) || typeof v.event.allPrizesDelivered !== 'boolean'
       || typeof v.event.contactActionRequired !== 'boolean' || typeof v.event.contactEditable !== 'boolean') return invalid()
     const awards = v.event.awards.map(award => {
-      if (!record(award) || !isNotificationId(award.winnerId) || typeof award.eventType !== 'string'
+      if (!record(award)) return invalid()
+      const id = winnerId(award.winnerId)
+      if (id === null || typeof award.eventType !== 'string'
         || !Number.isSafeInteger(award.place) || Number(award.place) < 1
         || typeof award.prizeName !== 'string' || !award.prizeName.trim()
         || (award.deliveryStatus !== 'PENDING' && award.deliveryStatus !== 'DELIVERED')) return invalid()
-      return { winnerId: award.winnerId, eventType: award.eventType, place: Number(award.place), prizeName: award.prizeName,
+      return { winnerId: id, eventType: award.eventType, place: Number(award.place), prizeName: award.prizeName,
         deliveryStatus: award.deliveryStatus as 'PENDING' | 'DELIVERED' }
     })
     return { ...base, body: v.body, feedbackId: null, feedbackText: null, feedbackStatus: null,

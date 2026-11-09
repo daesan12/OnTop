@@ -51,8 +51,10 @@ public class NotificationService {
         return Objects.requireNonNull(transactions.execute(transaction -> {
             member(userId);
             Instant now = now();
-            // The unique member/week key also backfills awards finalized before this feature shipped.
-            eventWinners.connectPublished(userId, now);
+            // New notices belong on the first page; older cursor pages do not need backfill work.
+            if (before == Long.MAX_VALUE) {
+                eventWinners.connectPublished(userId, now);
+            }
             var rows = repository.list(userId, before, limit + 1, now);
             var page = rows.stream().limit(limit).toList();
             var rewards = repository.rewards(page.stream().map(PersonalNotification::id)

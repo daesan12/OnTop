@@ -15,6 +15,23 @@ public final class EventWinnerNotificationRepository {
     }
 
     public void connectPublished(long userId, Instant now) {
+        // Inbox polling is frequent. Check for a missing or outdated notice before any write.
+        if (jdbc.query("""
+                SELECT 1
+                FROM event_winners w
+                JOIN event_rounds r ON r.id = w.event_round_id
+                LEFT JOIN personal_notifications n ON n.user_id = w.user_id
+                    AND n.event_week_start_date = r.week_start_date AND n.type = 'EVENT_WINNER'
+                WHERE w.user_id = ? AND r.finalized_at IS NOT NULL
+                  AND r.announces_at <= ? AND r.finalized_at <= ?
+                  AND DATE_ADD(GREATEST(r.announces_at, r.finalized_at), INTERVAL 90 DAY) > ?
+                  AND (n.id IS NULL OR n.expires_at <
+                      DATE_ADD(GREATEST(r.announces_at, r.finalized_at), INTERVAL 90 DAY))
+                LIMIT 1
+                """, (rows, index) -> rows.getInt(1), userId,
+                Timestamp.from(now), Timestamp.from(now), Timestamp.from(now)).isEmpty()) {
+            return;
+        }
         jdbc.update("""
                 INSERT INTO personal_notifications(user_id, reply_id, type, title, created_at,
                     expires_at, event_week_start_date)
