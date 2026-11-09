@@ -519,7 +519,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Configuration"
+              $ref: "#/components/schemas/WeeklyMinigameConfiguration"
         required: true
       responses:
         "200":
@@ -532,7 +532,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/Game"
+                $ref: "#/components/schemas/WeeklyMinigameGameConfig"
       security:
       - AccessJwt: []
   /api/v1/users/onboarding:
@@ -4444,7 +4444,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/FinalizeRequest"
+              $ref: "#/components/schemas/WeeklyMinigameFinalizeRequest"
         required: true
       responses:
         "200":
@@ -4457,7 +4457,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/Ranking"
+                $ref: "#/components/schemas/WeeklyMinigameRanking"
       security:
       - AccessJwt: []
   /api/v1/admin/events/assets/rounds/{weekStart}/finalize:
@@ -6718,7 +6718,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/MemberResult"
+                $ref: "#/components/schemas/WeeklyMinigameMemberResult"
       security:
       - AccessJwt: []
   /api/v1/events/assets/rounds/{weekStart}/result:
@@ -7539,7 +7539,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SupportedGame"
+                  $ref: "#/components/schemas/WeeklyMinigameSupportedGame"
       security:
       - AccessJwt: []
   /api/v1/admin/events/minigames/rounds/{weekStart}/games:
@@ -7568,7 +7568,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Game"
+                  $ref: "#/components/schemas/WeeklyMinigameGameConfig"
       security:
       - AccessJwt: []
   /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}/ranking:
@@ -7600,7 +7600,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/Ranking"
+                $ref: "#/components/schemas/WeeklyMinigameRanking"
       security:
       - AccessJwt: []
   /api/v1/admin/events/assets/rounds/{weekStart}:
@@ -7847,7 +7847,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AnnouncementOrderItem"
-    Configuration:
+    WeeklyMinigameConfiguration:
       type: object
       properties:
         startsAt:
@@ -7867,7 +7867,7 @@ components:
           type: boolean
         prizeName:
           type: string
-    Game:
+    WeeklyMinigameGameConfig:
       type: object
       properties:
         gameCode:
@@ -9711,7 +9711,7 @@ components:
           type: boolean
         winner:
           $ref: "#/components/schemas/Winner"
-    FinalizeRequest:
+    WeeklyMinigameFinalizeRequest:
       type: object
       properties:
         candidateCount:
@@ -9722,7 +9722,7 @@ components:
           format: int32
         expectedSourceRecordId:
           type: string
-    Rank:
+    WeeklyMinigameRank:
       type: object
       properties:
         place:
@@ -9742,11 +9742,11 @@ components:
         achievedAt:
           type: string
           format: date-time
-    Ranking:
+    WeeklyMinigameRanking:
       type: object
       properties:
         game:
-          $ref: "#/components/schemas/Game"
+          $ref: "#/components/schemas/WeeklyMinigameGameConfig"
         status:
           type: string
         candidateCount:
@@ -9758,7 +9758,7 @@ components:
         ranks:
           type: array
           items:
-            $ref: "#/components/schemas/Rank"
+            $ref: "#/components/schemas/WeeklyMinigameRank"
         winner:
           $ref: "#/components/schemas/Winner"
     AssetAwardResponse:
@@ -10694,6 +10694,30 @@ components:
           type: string
           format: date-time
           nullable: true
+    Ranking:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RankingEntry"
+        me:
+          $ref: "#/components/schemas/RankingEntry"
+    RankingEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int32
+        userId:
+          type: string
+        nickname:
+          type: string
+        finishMs:
+          type: integer
+          format: int64
+        finishedAt:
+          type: string
     BungeoppangRankingItem:
       type: object
       properties:
@@ -10853,7 +10877,7 @@ components:
           type: string
         prize:
           $ref: "#/components/schemas/Prize"
-    MemberResult:
+    WeeklyMinigameMemberResult:
       type: object
       properties:
         gameCode:
@@ -10867,7 +10891,18 @@ components:
         status:
           type: string
         prize:
-          $ref: "#/components/schemas/Prize"
+          $ref: "#/components/schemas/WeeklyMinigamePrize"
+    WeeklyMinigamePrize:
+      type: object
+      properties:
+        prizeName:
+          type: string
+        sourceValue:
+          type: integer
+          format: int64
+        sourceAchievedAt:
+          type: string
+          format: date-time
     AssetMemberAwardResponse:
       type: object
       properties:
@@ -11141,7 +11176,7 @@ components:
         expiresAt:
           type: string
           format: date-time
-    SupportedGame:
+    WeeklyMinigameSupportedGame:
       type: object
       properties:
         gameCode:
@@ -11207,6 +11242,34 @@ components:
           type: integer
           format: int64
         gameCompleted:
+          type: integer
+          format: int64
+    Game:
+      type: object
+      properties:
+        date:
+          type: string
+        gameCode:
+          type: string
+        started:
+          type: integer
+          format: int64
+        ended:
+          type: integer
+          format: int64
+        completed:
+          type: integer
+          format: int64
+        forfeits:
+          type: integer
+          format: int64
+        participants:
+          type: integer
+          format: int64
+        durationSeconds:
+          type: integer
+          format: int64
+        timedGames:
           type: integer
           format: int64
     BungeoppangV4StartResponse:

@@ -193,6 +193,15 @@ class MinigameAwardMySqlTests {
                         .isEqualTo("EVENT_CONFIG_LOCKED"));
         var afterClose = weekly(weeklyRepository, "2026-11-15T15:05:00Z");
         assertThat(afterClose.ranking(nextWeek, "BUNGEOPPANG", gm).status()).isEqualTo("READY");
+        assertThatThrownBy(() -> afterClose.finalizeRound(nextWeek, "BUNGEOPPANG", null, gm))
+                .isInstanceOf(MinigameAwardException.class)
+                .satisfies(error -> assertThat(((MinigameAwardException) error).code())
+                        .isEqualTo("EVENT_INVALID_PREVIEW"));
+        assertThatThrownBy(() -> afterClose.finalizeRound(nextWeek, "BUNGEOPPANG",
+                new WeeklyMinigameAwardService.FinalizeRequest(null, null, null), gm))
+                .isInstanceOf(MinigameAwardException.class)
+                .satisfies(error -> assertThat(((MinigameAwardException) error).code())
+                        .isEqualTo("EVENT_INVALID_PREVIEW"));
         assertThatThrownBy(() -> afterClose.finalizeRound(nextWeek, "BUNGEOPPANG",
                 new WeeklyMinigameAwardService.FinalizeRequest(3, 1, "stale"), gm))
                 .isInstanceOf(MinigameAwardException.class)

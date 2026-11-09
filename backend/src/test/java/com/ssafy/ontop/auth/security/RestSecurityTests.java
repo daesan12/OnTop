@@ -265,6 +265,9 @@ class RestSecurityTests {
         mvc.perform(auth(post(weeklyPath + "/BUNGEOPPANG/finalize")
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}")))
                 .andExpect(status().isForbidden());
+        mvc.perform(authAs(43, post(weeklyPath + "/BUNGEOPPANG/finalize")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)))
+                .andExpect(status().isBadRequest());
         mvc.perform(get("/api/v1/events/minigames/rounds/2026-11-09/games/BUNGEOPPANG/result"))
                 .andExpect(status().isUnauthorized());
     }

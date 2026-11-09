@@ -6,6 +6,7 @@ import com.ssafy.ontop.event.minigame.MinigameAwardResponse.Winner;
 import com.ssafy.ontop.event.minigame.WeeklyMinigameRepository.ConfiguredGame;
 import com.ssafy.ontop.minigame.service.BungeoppangV5Spec;
 import com.ssafy.ontop.world.jumpmap.JumpCourse;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Duration;
@@ -300,19 +301,27 @@ public final class WeeklyMinigameAwardService {
         return new MinigameAwardException(status, code, message);
     }
 
+    @Schema(name = "WeeklyMinigameConfiguration")
     public record Configuration(Instant startsAt, Instant endsAt, Instant announcesAt,
             String displayName, String rankingRuleVersion, boolean enabled, String prizeName) {}
+    @Schema(name = "WeeklyMinigameFinalizeRequest")
     public record FinalizeRequest(Integer candidateCount, Integer excludedGmCount,
             String expectedSourceRecordId) {}
+    @Schema(name = "WeeklyMinigameGameConfig")
     public record Game(String gameCode, String displayName, String rankingRuleVersion,
             LocalDate weekStartDate, Instant startsAt, Instant endsAt, Instant announcesAt,
             String prizeName, boolean enabled, Instant finalizedAt) {}
+    @Schema(name = "WeeklyMinigameSupportedGame")
     public record SupportedGame(String gameCode, String displayName, String rankingRuleVersion) {}
+    @Schema(name = "WeeklyMinigameRank")
     public record Rank(int place, long userId, String sourceRecordId, long sourceValue,
             long secondaryValue, Instant achievedAt) {}
+    @Schema(name = "WeeklyMinigameRanking")
     public record Ranking(Game game, String status, int candidateCount, int excludedGmCount,
             List<Rank> ranks, Winner winner) {}
+    @Schema(name = "WeeklyMinigameMemberResult")
     public record MemberResult(String gameCode, LocalDate weekStartDate, Instant announcesAt,
             String status, Prize prize) {}
+    @Schema(name = "WeeklyMinigamePrize")
     public record Prize(String prizeName, long sourceValue, Instant sourceAchievedAt) {}
 }
