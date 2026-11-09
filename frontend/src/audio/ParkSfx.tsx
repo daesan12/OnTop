@@ -57,6 +57,8 @@ export function ParkSfx() {
     ]
     const click = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target.closest('button, [role="menuitem"], [role="tab"]') : null
+      // 두더지 잡기 구멍은 타격음만 낸다. 스피드 두더지 구멍은 클래스가 달라 그대로 둔다.
+      if (target?.closest('.mole-hole')) return
       // 가위바위보 룰렛·더하기 빼기 게임기의 버튼은 오락기 버튼 소리로 바꾼다.
       if (target) playSfx(target.closest('.rps-roulette, .plus-minus') ? 'arcade-button' : 'ui-click')
     }
