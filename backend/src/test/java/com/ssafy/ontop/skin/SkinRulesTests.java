@@ -23,12 +23,12 @@ class SkinRulesTests {
         assertThatThrownBy(()->SkinRules.validate(new Definition("ABC","옷",1,"MALE","PARTS",List.of("TOP")))).isInstanceOf(SkinException.class);
         assertThatThrownBy(()->SkinRules.validate(new Definition("ABC","옷",1,"MALE","PARTS",List.of("HAIR","HAIR")))).isInstanceOf(SkinException.class);
     }
-    @Test void separate_female_file_is_only_for_paired_whole_skins() {
+    @Test void separate_female_file_is_allowed_for_paired_parts_and_whole() {
         var paired=new Definition("ABC","한복",1,"ANY","WHOLE",SkinRules.SLOTS);
         var female=new FileSpec("female.glb",20,"a".repeat(64));
         SkinRules.femaleModel(paired,female);
         assertThatThrownBy(()->SkinRules.femaleModel(whole(),female)).isInstanceOf(SkinException.class);
-        assertThatThrownBy(()->SkinRules.femaleModel(new Definition("ABC","모자",1,"ANY","PARTS",List.of("HAIR")),female)).isInstanceOf(SkinException.class);
+        SkinRules.femaleModel(new Definition("ABC","모자",1,"ANY","PARTS",List.of("HAIR")),female);
     }
     @Test void paths_limits_hashes_and_ids_are_not_client_controlled() {
         SkinRules.file(new FileSpec("skin.glb",20,"a".repeat(64)),".glb",20);

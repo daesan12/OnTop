@@ -36,6 +36,7 @@ class SkinMySqlTests {
     @Autowired AuthExchangePersistenceService issuer;
     @Autowired FakeStorage storage;
     @Autowired SkinService service;
+    @Autowired SkinSetService sets;
     @Autowired com.ssafy.ontop.gacha.GachaService gacha;
     @Autowired com.ssafy.ontop.shop.service.ShopService shop;
     @LocalServerPort int port;
@@ -52,15 +53,17 @@ class SkinMySqlTests {
     }
     @BeforeEach void setup() throws Exception {
         jdbc.update("DELETE ui FROM user_items ui JOIN items i ON i.id=ui.item_id WHERE i.item_code LIKE 'SK_REGTEST_%'");
-        jdbc.update("DELETE FROM gacha_receipts WHERE user_id=9402");
-        jdbc.update("DELETE FROM wallet_transactions WHERE idempotency_key LIKE 'gacha:9402:%'");
-        jdbc.update("DELETE FROM gacha_inventory WHERE user_id=9402");
+        jdbc.update("DELETE FROM gacha_receipts WHERE user_id IN (9401,9402)");
+        jdbc.update("DELETE FROM wallet_transactions WHERE idempotency_key LIKE 'gacha:9401:%' OR idempotency_key LIKE 'gacha:9402:%'");
+        jdbc.update("DELETE FROM gacha_inventory WHERE user_id IN (9401,9402)");
         jdbc.update("DELETE FROM gacha_product_items WHERE product_code LIKE 'REGTEST_%'");
         jdbc.update("DELETE FROM gacha_products WHERE product_code LIKE 'REGTEST_%'");
+        jdbc.update("DELETE FROM skin_set_members");jdbc.update("DELETE FROM skin_sets");
+        jdbc.update("DELETE FROM skin_item_parts");jdbc.update("DELETE FROM skin_item_registrations");
         jdbc.update("DELETE FROM items WHERE item_code LIKE 'SK_REGTEST_%'");
         jdbc.update("DELETE FROM skin_uploads");jdbc.update("DELETE FROM skin_catalog");
         for(long id:new long[]{9401,9402}) jdbc.update("INSERT INTO users(id,login_provider,provider_user_id,nickname,character_gender,created_at,updated_at)"
-                +" VALUES(?,'NAVER',?,?,'MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3)) ON DUPLICATE KEY UPDATE deleted_at=NULL",id,"skin-test-"+id,"공방"+id);
+                +" VALUES(?,'NAVER',?,?,'MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3)) ON DUPLICATE KEY UPDATE deleted_at=NULL,character_gender='MALE'",id,"skin-test-"+id,"공방"+id);
         admin=token(9401);other=token(9402);storage.data.clear();storage.available=true;
         model=Files.readAllBytes(Path.of("../frontend/public/art/characters/skins/ssafy-black-male-v3.glb"));
         image=Files.readAllBytes(Path.of("../frontend/src/assets/entry/yeopjeon-icon.webp"));
@@ -154,6 +157,7 @@ class SkinMySqlTests {
         Long holding=jdbc.queryForObject("SELECT ui.id FROM user_items ui JOIN items i ON i.id=ui.item_id WHERE ui.user_id=9402 AND i.item_code='SK_REGTEST_WEAR_TOP'",Long.class);
         shop.equip(9402,holding);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_items WHERE user_id=9402 AND is_equipped=TRUE",Integer.class)).isEqualTo(5);
+        jdbc.update("UPDATE gacha_receipts SET result_json=JSON_REMOVE(result_json,'$.product.components') WHERE user_id=9402 AND operation_id='skin-registry-open'");
         assertThat(gacha.open(9402,"skin-registry-open",2)).isEqualTo(result);
         assertThat(jdbc.queryForObject("SELECT second_boxes FROM gacha_inventory WHERE user_id=9402",Long.class)).isEqualTo(1);
     }
@@ -215,6 +219,120 @@ class SkinMySqlTests {
         assertThatThrownBy(()->service.verify(9401,e.id(),first)).isInstanceOf(SkinException.class).hasMessageContaining("모델 연결");
         assertThat(jdbc.queryForObject("SELECT verified_at IS NULL FROM skin_uploads WHERE id=?",Boolean.class,first)).isTrue();
         assertThatThrownBy(()->service.publish(9401,e.id(),new Publish(0,first,true))).isInstanceOf(SkinException.class);
+    }
+    // Set tests use already-verified upload fixtures; file validation itself is covered above.
+    SkinDtos.Entry componentFixture(String code,List<String> slots) throws Exception {
+        return componentFixture(code,slots,"MALE");
+    }
+    SkinDtos.Entry componentFixture(String code,List<String> slots,String character) throws Exception {
+        var d=new Definition(code,code.equals("REGTEST_HEAD")?"선비 머리":"도포",2,character,"PARTS",slots);
+        var e=service.createComponent(9401,d);String upload=uploaded(e.id());
+        jdbc.update("UPDATE skin_uploads SET verified_at=CURRENT_TIMESTAMP(3) WHERE id=?",upload);
+        return service.publish(9401,e.id(),new Publish(0,upload,true));
+    }
+    SkinSetDtos.Definition setDefinition(String code,SkinDtos.Entry head,SkinDtos.Entry clothes) {
+        return new SkinSetDtos.Definition(code,"선비 세트",2,"MALE",head.id(),List.of(head.id(),clothes.id()));
+    }
+    @Test void catalog_query_count_and_component_insert_id_lookup_are_measured() throws Exception {
+        var head=componentFixture("REGTEST_HEAD",List.of("HAIR","FACE"));
+        var clothes=componentFixture("REGTEST_CLOTHES",List.of("TOP","BOTTOM","SHOES"));
+        var one=sets.create(9401,setDefinition("REGTEST_QUERY_ONE",head,clothes));sets.publish(9401,one.id(),0);
+        var probe=new SqlProbe(jdbc.getDataSource());
+        var products=new com.ssafy.ontop.gacha.GachaRepository(probe.jdbc);
+        assertThat(products.products(true,false)).filteredOn(p->p.code().equals("REGTEST_QUERY_ONE"))
+                .singleElement().satisfies(p->assertThat(p.components()).hasSize(2));
+        int single=probe.statements.size();probe.statements.clear();
+        var two=sets.create(9401,setDefinition("REGTEST_QUERY_TWO",head,clothes));sets.publish(9401,two.id(),0);
+        assertThat(products.products(true,false)).filteredOn(p->p.code().startsWith("REGTEST_QUERY_"))
+                .hasSize(2).allSatisfy(p->assertThat(p.components()).hasSize(2));
+        int shared=probe.statements.size();
+        var e=service.createComponent(9401,new Definition("REGTEST_QUERY_INSERT","조회 검수",2,"MALE","PARTS",List.of("HAIR","FACE")));
+        String upload=uploaded(e.id());var repository=new SkinRepository(jdbc);
+        var inserts=new SqlProbe(jdbc.getDataSource());
+        new SkinRepository(inserts.jdbc).publish(e,repository.upload(e.id(),upload),9401);
+        long idLookups=inserts.statements.stream().filter(s->s.startsWith("SELECT id FROM items WHERE item_code=")).count();
+        assertThat(repository.componentParts(e.id())).hasSize(2);
+        System.out.printf("SKIN_SQL_COUNT products_one_set=%d products_two_sets=%d component_two_slot_id_selects=%d%n",single,shared,idLookups);
+        assertThat(single).isEqualTo(3);assertThat(shared).isEqualTo(3);assertThat(idLookups).isZero();
+    }
+    @Test void set_open_grants_all_components_but_head_and_clothes_equip_independently() throws Exception {
+        var head=componentFixture("REGTEST_HEAD",List.of("HAIR","FACE"));
+        var clothes=componentFixture("REGTEST_CLOTHES",List.of("TOP","BOTTOM","SHOES"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM gacha_products WHERE product_code LIKE 'REGTEST_%'",Integer.class)).isZero();
+        var draft=sets.create(9401,setDefinition("REGTEST_SET",head,clothes));
+        var published=sets.publish(9401,draft.id(),0);
+        assertThat(sets.publish(9401,draft.id(),0)).isEqualTo(published);
+        jdbc.update("INSERT INTO wallets(user_id,balance,reserved_balance) VALUES(9402,100,0) ON DUPLICATE KEY UPDATE balance=100,reserved_balance=0");
+        jdbc.update("INSERT INTO gacha_inventory(user_id,second_boxes) VALUES(9402,2)");
+        var result=gacha.open(9402,"set-open-once",2);
+        assertThat(result.product().itemIds()).hasSize(5);assertThat(result.product().components()).hasSize(2);assertThat(gacha.open(9402,"set-open-once",2)).isEqualTo(result);
+        var headId=jdbc.queryForObject("SELECT ui.id FROM user_items ui JOIN items i ON i.id=ui.item_id WHERE ui.user_id=9402 AND i.item_code='SK_REGTEST_HEAD_HAIR'",Long.class);
+        var clothesId=jdbc.queryForObject("SELECT ui.id FROM user_items ui JOIN items i ON i.id=ui.item_id WHERE ui.user_id=9402 AND i.item_code='SK_REGTEST_CLOTHES_TOP'",Long.class);
+        shop.equip(9402,headId);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_items WHERE user_id=9402 AND is_equipped=TRUE",Long.class)).isEqualTo(2);
+        shop.equip(9402,clothesId);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_items WHERE user_id=9402 AND is_equipped=TRUE",Integer.class)).isEqualTo(5);
+        shop.unequip(9402,headId);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_items WHERE user_id=9402 AND is_equipped=TRUE",Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_items WHERE user_id=9402",Integer.class)).isEqualTo(5);
+        assertThat(jdbc.queryForObject("SELECT second_boxes FROM gacha_inventory WHERE user_id=9402",Integer.class)).isEqualTo(1);
+        assertThatThrownBy(()->sets.save(9401,draft.id(),new SkinSetDtos.Save(published.version(),setDefinition("REGTEST_SET",head,clothes))))
+                .isInstanceOf(SkinException.class).hasMessageContaining("새 세트");
+        sets.disable(9401,draft.id(),published.version());
+        assertThat(gacha.open(9402,"set-open-once",2)).isEqualTo(result);
+        assertThat(service.assets()).hasSize(2);
+    }
+    @Test void overlapping_components_and_stale_versions_are_rejected_without_partial_set_changes() throws Exception {
+        var head=componentFixture("REGTEST_HEAD",List.of("HAIR","FACE"));
+        var hair=componentFixture("REGTEST_HAIR",List.of("HAIR"));
+        var conflict=new SkinSetDtos.Definition("REGTEST_CONFLICT","겹침",2,"MALE",head.id(),List.of(head.id(),hair.id()));
+        assertThatThrownBy(()->sets.create(9401,conflict)).isInstanceOf(SkinException.class).hasMessageContaining("겹쳐요");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM skin_sets",Integer.class)).isZero();
+        var d=new SkinSetDtos.Definition("REGTEST_ONE","단품 세트",2,"MALE",head.id(),List.of(head.id()));
+        var e=sets.create(9401,d);
+        var saved=sets.save(9401,e.id(),new SkinSetDtos.Save(0,d));
+        assertThatThrownBy(()->sets.publish(9401,e.id(),0)).isInstanceOf(SkinException.class).hasMessageContaining("다른 창");
+        assertThat(saved.version()).isEqualTo(1);
+        assertThatThrownBy(()->sets.list(9402)).isInstanceOf(SkinException.class);
+    }
+    @Test void set_publication_does_not_rewrite_legacy_ownership_or_equipment() throws Exception {
+        var legacy=service.create(9401,definition("REGTEST_LEGACY"));var u=uploaded(legacy.id());service.verify(9401,legacy.id(),u);service.publish(9401,legacy.id(),new Publish(0,u,true));
+        jdbc.update("INSERT INTO user_items(user_id,item_id,quantity,is_equipped) SELECT 9402,item_id,1,TRUE FROM gacha_product_items WHERE product_code='REGTEST_LEGACY'");
+        var before=jdbc.queryForList("SELECT id,item_id,quantity,is_equipped FROM user_items WHERE user_id=9402 ORDER BY id");
+        var head=componentFixture("REGTEST_HEAD",List.of("HAIR","FACE"));var clothes=componentFixture("REGTEST_CLOTHES",List.of("TOP","BOTTOM","SHOES"));
+        var d=sets.create(9401,setDefinition("REGTEST_PRESERVE",head,clothes));sets.publish(9401,d.id(),0);
+        assertThat(jdbc.queryForList("SELECT id,item_id,quantity,is_equipped FROM user_items WHERE user_id=9402 ORDER BY id")).isEqualTo(before);
+    }
+    @Test void shared_components_publish_for_both_genders_and_keep_legacy_links_and_value() throws Exception {
+        var head=componentFixture("REGTEST_COMMON_HEAD",List.of("HAIR","FACE"),"ANY");
+        var clothes=componentFixture("REGTEST_COMMON_CLOTHES",List.of("TOP","BOTTOM","SHOES"),"ANY");
+        var male=sets.create(9401,new SkinSetDtos.Definition("REGTEST_COMMON_MALE","남자 공용 세트",3,"MALE",head.id(),List.of(head.id(),clothes.id())));
+        var female=sets.create(9401,new SkinSetDtos.Definition("REGTEST_COMMON_FEMALE","여자 공용 세트",3,"FEMALE",head.id(),List.of(head.id(),clothes.id())));
+        sets.publish(9401,male.id(),0);sets.publish(9401,female.id(),0);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM gacha_product_items WHERE product_code LIKE 'REGTEST_COMMON_%'",Integer.class)).isZero();
+        // A previously published set may still have its old unique item links. UNION must not double them.
+        for(long part:mrParts(head,clothes)) jdbc.update("INSERT INTO gacha_product_items VALUES(?,?)",male.definition().productCode(),part);
+        jdbc.update("UPDATE users SET character_gender='FEMALE' WHERE id=9402");
+        for(long user:new long[]{9401,9402}) {
+            jdbc.update("INSERT INTO wallets(user_id,balance,reserved_balance) VALUES(?,100,0) ON DUPLICATE KEY UPDATE balance=100,reserved_balance=0",user);
+            jdbc.update("INSERT INTO gacha_inventory(user_id,third_boxes) VALUES(?,2) ON DUPLICATE KEY UPDATE third_boxes=2",user);
+        }
+        var mr=gacha.open(9401,"shared-male-open",3);var fr=gacha.open(9402,"shared-female-open",3);
+        assertThat(mr.product().compatibility()).isEqualTo("MALE");assertThat(fr.product().compatibility()).isEqualTo("FEMALE");
+        assertThat(mr.product().itemIds()).hasSize(5).containsExactlyElementsOf(fr.product().itemIds());
+        assertThat(mr.product().components()).hasSize(2);assertThat(fr.product().components()).hasSize(2);
+        assertThat(gacha.open(9401,"shared-male-open",3)).isEqualTo(mr);
+        for(long user:new long[]{9401,9402}) {
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_items WHERE user_id=?",Integer.class,user)).isEqualTo(5);
+            Long owned=jdbc.queryForObject("SELECT ui.id FROM user_items ui JOIN skin_item_parts p ON p.item_id=ui.item_id WHERE ui.user_id=? AND p.skin_id=? ORDER BY ui.id LIMIT 1",Long.class,user,head.id());
+            shop.equip(user,owned);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_items WHERE user_id=? AND is_equipped=TRUE",Integer.class,user)).isEqualTo(2);
+            // Existing valuation policy counts completed products, including both reusable compositions.
+            assertThat(jdbc.queryForObject("SELECT ga.equipment_value FROM wallets w "+com.ssafy.ontop.gacha.GachaAssetSql.JOIN+" WHERE w.user_id=?",Long.class,user)).isEqualTo(500L);
+        }
+    }
+    List<Long> mrParts(SkinDtos.Entry head,SkinDtos.Entry clothes) {
+        return jdbc.queryForList("SELECT item_id FROM skin_item_parts WHERE skin_id IN (?,?) ORDER BY item_id",Long.class,head.id(),clothes.id());
     }
     String uploaded(String id) throws Exception { return uploaded(id,0); }
     String uploaded(String id,long version) throws Exception {

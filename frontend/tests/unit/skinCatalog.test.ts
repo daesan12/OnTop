@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { replaceSkinCatalog, catalogAsset, catalogSetImage, catalogSource, useSkinCatalog } from '../../src/world/art/skinCatalog'
+import { replaceSkinCatalog, catalogAsset, catalogSetImage, catalogSource, catalogSourceUrl, useSkinCatalog } from '../../src/world/art/skinCatalog'
 import { resolveWholeSkin, wholeSkinCompatible } from '../../src/world/art/wholeSkin'
 import { wornPiece } from '../../src/world/art/characterLook'
 import { outfitUrl } from '../../src/world/art/outfitSources'
@@ -13,6 +13,15 @@ const asset: SkinAsset = { imageKey: 'catalog/11111111-1111-4111-8111-1111111111
   compatibility: 'FEMALE', wearMode: 'WHOLE', slots: [...equipSlots], modelUrl: 'https://cdn.example.test/published/model.glb', imageUrl: 'https://cdn.example.test/published/image.webp' }
 afterEach(() => { replaceSkinCatalog([]); vi.unstubAllGlobals() })
 describe('registered skin catalog', () => {
+  it('common partial items resolve the female GLB independently from the male GLB', () => {
+    const parts: SkinAsset = { ...asset, wearMode: 'PARTS', compatibility: 'ANY', slots: ['HAIR', 'FACE'], femaleModelUrl: 'https://cdn.example.test/parts-female.glb' }
+    replaceSkinCatalog([parts])
+    const male = wornPiece(parts.imageKey, 'man')!, female = wornPiece(parts.imageKey, 'girl')!
+    expect(male.source).not.toBe(female.source)
+    expect(catalogSourceUrl(male.source)).toBe(parts.modelUrl)
+    expect(catalogSourceUrl(female.source)).toBe(parts.femaleModelUrl)
+  })
+
   it('one product chooses a distinct model by character and common skins reuse one file', () => {
     const paired = { ...asset, compatibility: 'ANY' as const, femaleModelUrl: 'https://cdn.example.test/published/female.glb' }
     replaceSkinCatalog([paired])

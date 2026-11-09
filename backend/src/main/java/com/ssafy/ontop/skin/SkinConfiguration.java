@@ -32,6 +32,10 @@ public class SkinConfiguration {
     }
     @Bean SkinRepository skinRepository(JdbcTemplate jdbc) { return new SkinRepository(jdbc); }
     @Bean(destroyMethod="close") S3SkinStorage skinStorage(SkinSettings settings) { return new S3SkinStorage(settings); }
+    @Bean SkinSetService skinSetService(JdbcTemplate jdbc,SkinRepository repository,SkinSettings settings,
+            PlatformTransactionManager manager,AdminAccessPolicy admins) {
+        return new SkinSetService(jdbc,repository,settings,manager,admins::canOperate);
+    }
     @Bean SkinService skinService(SkinRepository repository,SkinSettings settings,SkinStorage storage,ObjectMapper json,
             PlatformTransactionManager manager,AdminAccessPolicy admins,
             @Value("${ontop.shop.enabled:false}") boolean shop) {

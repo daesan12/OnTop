@@ -156,6 +156,39 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/admin/operations/skins/sets/{id}:
+    put:
+      tags:
+      - SKIN
+      summary: 미공개 세트 수정
+      description: "부위 중복409, 공개 이후 구성 변경409"
+      operationId: updateSkinSet
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Save"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/admin/operations/announcements/{id}:
     put:
       tags:
@@ -4373,6 +4406,161 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/Version"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/sets:
+    get:
+      tags:
+      - SKIN
+      summary: 스킨 세트 목록
+      operationId: listSkinSets
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - SKIN
+      summary: 등록 아이템으로 세트 구성
+      operationId: createSkinSet
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Definition"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/sets/{id}/publish:
+    post:
+      tags:
+      - SKIN
+      summary: 세트 신규 획득 공개
+      operationId: publishSkinSet
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Version"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/sets/{id}/disable:
+    post:
+      tags:
+      - SKIN
+      summary: 세트 신규 획득 중단
+      description: 기존 보유 아이템·영수증 유지
+      operationId: disableSkinSet
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Version"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/components:
+    get:
+      tags:
+      - SKIN
+      summary: 착용 아이템 등록 목록
+      operationId: listSkinComponents
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - SKIN
+      summary: 착용 아이템 선등록
+      operationId: createSkinComponent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Definition"
         required: true
       responses:
         "200":
@@ -9251,6 +9439,24 @@ components:
         quantity:
           type: integer
           format: int64
+    GachaComponent:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        imageKey:
+          type: string
+        itemIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        slots:
+          type: array
+          items:
+            type: string
     GachaInventory:
       type: object
       properties:
@@ -9286,6 +9492,10 @@ components:
           items:
             type: integer
             format: int64
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/GachaComponent"
     GachaResult:
       type: object
       properties:

@@ -25,8 +25,8 @@ public final class SkinRules {
         return new Definition(d.productCode(),d.name(),d.grade(),compatibility,d.wearMode(),d.slots());
     }
     public static void femaleModel(Definition d,FileSpec file) {
-        if(file!=null&&(!d.wearMode().equals("WHOLE")||!d.compatibility().equals("ANY")))
-            throw SkinException.invalid("별도 여성용 모델은 남녀 공용 통합 스킨에서만 등록할 수 있어요.");
+        if(file!=null&&!d.compatibility().equals("ANY"))
+            throw SkinException.invalid("별도 여성용 모델은 남녀 공용 아이템에서 등록할 수 있어요.");
     }
     public static void file(FileSpec file,String extension,long max) {
         if(file==null||file.name()==null||!file.name().toLowerCase(java.util.Locale.ROOT).endsWith(extension)

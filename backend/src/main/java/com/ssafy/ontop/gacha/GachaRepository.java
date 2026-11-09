@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -79,16 +80,31 @@ public class GachaRepository {
     }
     public List<Product> products(boolean activeOnly, boolean lock) {
         Map<String,List<Long>> parts = new HashMap<>();
-        jdbc.query("SELECT product_code,item_id FROM gacha_product_items ORDER BY product_code,item_id",
+        jdbc.query("SELECT product_code,item_id FROM ("+GachaAssetSql.PRODUCT_ITEMS+") links ORDER BY product_code,item_id",
                 rs -> { parts.computeIfAbsent(rs.getString(1), ignored -> new ArrayList<>()).add(rs.getLong(2)); });
+        Map<String,Map<String,Component>> grouped=new HashMap<>();
+        jdbc.query("SELECT s.product_code,c.id,c.name,c.published_upload_id,c.slots,p.item_id FROM skin_sets s "
+                +"JOIN skin_set_members m ON m.set_id=s.id JOIN skin_catalog c ON c.id=m.skin_id "
+                +"LEFT JOIN skin_item_parts p ON p.skin_id=c.id ORDER BY s.product_code,c.id,p.item_id",rs->{
+            var byId=grouped.computeIfAbsent(rs.getString(1),k->new LinkedHashMap<>());
+            String id=rs.getString(2);var component=byId.get(id);
+            if(component==null) {
+                component=new Component(id,rs.getString(3),"catalog/"+rs.getString(4),new ArrayList<>(),List.of(rs.getString(5).split(",")));
+                byId.put(id,component);
+            }
+            long part=rs.getLong(6);if(!rs.wasNull())component.itemIds().add(part);
+        });
+        Map<String,List<Component>> components=new HashMap<>();
+        grouped.forEach((code,byId)->components.put(code,byId.values().stream()
+                .map(c->new Component(c.id(),c.name(),c.imageKey(),List.copyOf(c.itemIds()),c.slots())).toList()));
         return jdbc.query("SELECT product_code,name,grade,compatibility,image_key FROM gacha_products"
                 +(activeOnly?" WHERE active=TRUE":"")+" ORDER BY product_code"+(lock?" FOR SHARE":""),
                 (rs,n)->new Product(rs.getString(1),rs.getString(2),rs.getInt(3),rs.getString(4),rs.getString(5),
-                        List.copyOf(parts.getOrDefault(rs.getString(1),List.of()))));
+                        List.copyOf(parts.getOrDefault(rs.getString(1),List.of())),List.copyOf(components.getOrDefault(rs.getString(1),List.of()))));
     }
     public Map<Long,String> bundles() {
         Map<Long,String> values = new HashMap<>();
-        jdbc.query("SELECT item_id,product_code FROM gacha_product_items", rs -> { values.put(rs.getLong(1),rs.getString(2)); });
+        jdbc.query("SELECT p.item_id,p.product_code FROM gacha_product_items p LEFT JOIN skin_sets s ON s.product_code=p.product_code WHERE s.id IS NULL ORDER BY p.product_code,p.item_id", rs -> { values.put(rs.getLong(1),rs.getString(2)); });
         return Map.copyOf(values);
     }
     public List<Long> owned(long userId) {
