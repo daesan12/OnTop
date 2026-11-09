@@ -245,6 +245,28 @@ class RestSecurityTests {
                 .andExpect(status().isServiceUnavailable());
         mvc.perform(get("/api/v1/events/minigames/JUMPMAP/rounds/2026-11-02/result"))
                 .andExpect(status().isUnauthorized());
+
+        String weeklyPath = "/api/v1/admin/events/minigames/rounds/2026-11-09/games";
+        mvc.perform(get(weeklyPath)).andExpect(status().isUnauthorized());
+        mvc.perform(authAs(44, get(weeklyPath))).andExpect(status().isForbidden());
+        mvc.perform(auth(get(weeklyPath))).andExpect(status().isServiceUnavailable());
+        mvc.perform(authAs(44, get("/api/v1/admin/events/minigames/supported-games")))
+                .andExpect(status().isForbidden());
+        mvc.perform(auth(get("/api/v1/admin/events/minigames/supported-games")))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(auth(get(weeklyPath + "/BUNGEOPPANG/ranking")))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(auth(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                weeklyPath + "/BUNGEOPPANG").contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{}"))).andExpect(status().isForbidden());
+        mvc.perform(authAs(43, org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                weeklyPath + "/BUNGEOPPANG").contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{}"))).andExpect(status().isServiceUnavailable());
+        mvc.perform(auth(post(weeklyPath + "/BUNGEOPPANG/finalize")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}")))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/events/minigames/rounds/2026-11-09/games/BUNGEOPPANG/result"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -408,6 +430,12 @@ class RestSecurityTests {
                 "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
                 "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
                 "POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize",
+                "GET /api/v1/admin/events/minigames/rounds/{weekStart}/games",
+                "GET /api/v1/admin/events/minigames/supported-games",
+                "PUT /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}",
+                "GET /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}/ranking",
+                "POST /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}/finalize",
+                "GET /api/v1/events/minigames/rounds/{weekStart}/games/{gameCode}/result",
                 "GET /api/v1/events/assets/rounds/{weekStart}/result",
                 "GET /api/v1/admin/events/assets/rounds/{weekStart}",
                 "POST /api/v1/admin/events/assets/rounds/{weekStart}/finalize",
