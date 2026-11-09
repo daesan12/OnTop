@@ -302,8 +302,8 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
             role="group" aria-label="경품 지급 완료 확인">
             <p><strong>{item.nickname || `회원 #${item.userId}`}</strong> · {item.prizeName} · 당첨 #{item.winnerId}</p>
             <p>경품을 실제 전달한 뒤에만 지급 완료를 기록하세요. 기록 후에는 이 건의 입력 요청이 종료될 수 있습니다.</p>
-            <button type="button" onClick={() => void deliver(item)}>전달 완료 확인</button>
-            <button type="button" onClick={() => setConfirmingDelivery(null)}>취소</button>
+            <button type="button" disabled={deliveringId !== null} onClick={() => void deliver(item)}>전달 완료 확인</button>
+            <button type="button" disabled={deliveringId !== null} onClick={() => setConfirmingDelivery(null)}>취소</button>
           </div>}
         </article>)}</div>
         <div className="admin-events-pages"><button type="button" disabled={offset === 0 || winnersLoading || deliveringId !== null}

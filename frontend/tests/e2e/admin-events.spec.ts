@@ -50,6 +50,8 @@ test('read-only admin sees the draw and masked contact without mutation or raw-p
 test('operator confirms one award after delivery and sees partial then complete status', async ({ page }) => {
   await fixture(page)
   let firstDelivered = false, puts = 0
+  let releaseDelivery!: () => void
+  const deliveryGate = new Promise<void>(resolve => { releaseDelivery = resolve })
   const second = { ...winner, winnerId: 42, place: 2, prizeName: '2등 상품',
     deliveryStatus: 'DELIVERED', deliveredByUserId: 9, deliveredAt: '2026-11-16T00:00:00Z' }
   await page.route('**/api/v1/admin/me', route => route.fulfill({ json: {
@@ -61,9 +63,10 @@ test('operator confirms one award after delivery and sees partial then complete 
       deliveredByUserId: 9, deliveredAt: '2026-11-16T01:00:00Z' } : winner, second],
     limit: 20, offset: 0, hasMore: false,
   } }))
-  await page.route('**/api/v1/admin/events/winners/41/delivery', route => {
+  await page.route('**/api/v1/admin/events/winners/41/delivery', async route => {
     expect(route.request().method()).toBe('PUT')
     expect(route.request().postDataJSON()).toEqual({ expectedUserId: 101 })
+    await deliveryGate
     puts++; firstDelivered = true
     return route.fulfill({ json: { winnerId: 41, userId: 101, deliveryStatus: 'DELIVERED',
       deliveredByUserId: 9, deliveredAt: '2026-11-16T01:00:00Z', alreadyDelivered: false } })
@@ -76,6 +79,11 @@ test('operator confirms one award after delivery and sees partial then complete 
   expect(puts).toBe(0)
   await expect(page.getByText('경품을 실제 전달한 뒤에만', { exact: false })).toBeVisible()
   await page.getByRole('button', { name: '전달 완료 확인' }).click()
+  await expect(page.getByLabel('회차 시작일')).toBeDisabled()
+  await expect(page.getByRole('button', { name: '미니게임 1위' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '엽전 보유량 순위' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '취소' })).toHaveCount(0)
+  releaseDelivery()
   await expect(page.getByText('모두 지급 완료')).toBeVisible()
   await expect(page.getByRole('button', { name: '지급 완료 기록' })).toHaveCount(0)
   expect(puts).toBe(1)
