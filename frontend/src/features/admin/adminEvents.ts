@@ -5,6 +5,7 @@ export type EventKind = 'raffle' | 'bungeoppang' | 'jumpmap' | 'asset'
 export type EventSection = 'raffle' | 'minigames' | 'asset'
 export type WinnerType = 'RAFFLE' | 'BUNGEOPPANG' | 'JUMPMAP' | 'ASSET_VALUE'
 export type ContactStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'EXPIRED'
+export type DeliveryStatus = 'PENDING' | 'DELIVERED'
 
 export const firstMinigameWeek = '2026-11-02'
 export const assetWeek = '2026-11-09'
@@ -53,6 +54,7 @@ export interface EventRound {
 export interface AdminEventWinner {
   winnerId: number
   userId: number
+  nickname: string | null
   weekStart: string
   eventType: WinnerType
   place: number
@@ -60,6 +62,9 @@ export interface AdminEventWinner {
   contactStatus: ContactStatus
   maskedPhone: string | null
   contactExpiresAt: string | null
+  deliveryStatus: DeliveryStatus
+  deliveredByUserId: number | null
+  deliveredAt: string | null
 }
 export interface AdminWinnersPage {
   winners: AdminEventWinner[]
@@ -68,6 +73,13 @@ export interface AdminWinnersPage {
   hasMore: boolean
 }
 export interface RevealedContact { winnerId: number; phone: string; expiresAt: string }
+export interface DeliveryReceipt {
+  winnerId: number
+  userId: number
+  deliveredByUserId: number
+  deliveredAt: string
+  alreadyDelivered: boolean
+}
 
 type ErrorKind = 'unauthenticated' | 'forbidden' | 'not-found' | 'not-ready' | 'unavailable' | 'uncertain' | 'invalid'
 export class AdminEventsError extends Error {
@@ -195,11 +207,21 @@ export function parseAdminWinners(value: unknown): AdminWinnersPage {
       || !positive(item.place) || typeof item.prizeName !== 'string' || !item.prizeName
       || !['NOT_SUBMITTED', 'SUBMITTED', 'EXPIRED'].includes(String(item.contactStatus))
       || !(item.maskedPhone === null || typeof item.maskedPhone === 'string')
-      || !(item.contactExpiresAt === null || instant(item.contactExpiresAt))) return invalid()
+      || !(item.contactExpiresAt === null || instant(item.contactExpiresAt))
+      || !(item.nickname == null || typeof item.nickname === 'string')
+      || !['PENDING', 'DELIVERED'].includes(String(item.deliveryStatus))
+      || !(item.deliveredByUserId == null || positive(item.deliveredByUserId))
+      || !(item.deliveredAt == null || instant(item.deliveredAt))
+      || (item.deliveryStatus === 'DELIVERED') !== (item.deliveredAt != null)
+      || (item.deliveryStatus === 'DELIVERED') !== (item.deliveredByUserId != null)) return invalid()
     return { winnerId: item.winnerId, userId: item.userId, weekStart: item.weekStart,
+      nickname: typeof item.nickname === 'string' && item.nickname.trim() ? item.nickname.trim() : null,
       eventType: item.eventType as WinnerType, place: item.place, prizeName: item.prizeName,
       contactStatus: item.contactStatus as ContactStatus, maskedPhone: item.maskedPhone,
-      contactExpiresAt: item.contactExpiresAt }
+      contactExpiresAt: item.contactExpiresAt,
+      deliveryStatus: item.deliveryStatus as DeliveryStatus,
+      deliveredByUserId: item.deliveredByUserId ?? null,
+      deliveredAt: item.deliveredAt ?? null }
   })
   if (winners.length > value.limit) return invalid()
   return { winners, limit: value.limit, offset: value.offset, hasMore: value.hasMore }
@@ -211,13 +233,21 @@ export function parseRevealedContact(value: unknown): RevealedContact {
   return { winnerId: value.winnerId, phone: value.phone, expiresAt: value.expiresAt }
 }
 
-export async function request<T>(path: string, method: 'GET' | 'POST', signal: AbortSignal,
+export function parseDeliveryReceipt(value: unknown, winnerId: number, userId: number): DeliveryReceipt {
+  if (!record(value) || value.winnerId !== winnerId || value.userId !== userId
+    || value.deliveryStatus !== 'DELIVERED' || !positive(value.deliveredByUserId)
+    || !instant(value.deliveredAt) || typeof value.alreadyDelivered !== 'boolean') return invalid()
+  return { winnerId, userId, deliveredByUserId: value.deliveredByUserId,
+    deliveredAt: value.deliveredAt, alreadyDelivered: value.alreadyDelivered }
+}
+
+export async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT', signal: AbortSignal,
   parse: (value: unknown) => T, payload?: Record<string, unknown>): Promise<T> {
   let owner = getAuthSession()
   if (owner?.status !== 'AUTHENTICATED') throw new AdminEventsError('다시 로그인해주세요.', 'UNAUTHENTICATED', 'unauthenticated')
   const current = () => !signal.aborted && getAuthSession() === owner
   const fetchOnce = () => fetch(path, { method, credentials: 'omit', cache: 'no-store',
-    signal: AbortSignal.any([signal, AbortSignal.timeout(method === 'POST' ? 120_000 : 20_000)]),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(method === 'GET' ? 20_000 : 120_000)]),
     headers: { Authorization: `Bearer ${owner!.status === 'AUTHENTICATED' ? owner!.accessToken : ''}`,
       ...(payload ? { 'Content-Type': 'application/json' } : {}) },
     ...(payload ? { body: JSON.stringify(payload) } : {}),
@@ -225,10 +255,11 @@ export async function request<T>(path: string, method: 'GET' | 'POST', signal: A
   const send = async () => {
     try { return await fetchOnce() } catch (cause) {
       if (signal.aborted) throw cause
-      throw new AdminEventsError(method === 'POST'
-        ? '서버의 확정 결과를 확인하지 못했습니다. 결과를 다시 조회해주세요.'
-        : '서버에 연결하지 못했습니다. 다시 조회해주세요.', 'NETWORK_ERROR',
-      method === 'POST' ? 'uncertain' : 'unavailable')
+      throw new AdminEventsError(method === 'PUT'
+        ? '서버의 지급 결과를 확인하지 못했습니다. 목록을 다시 조회해주세요.'
+        : method === 'POST' ? '서버의 확정 결과를 확인하지 못했습니다. 결과를 다시 조회해주세요.'
+          : '서버에 연결하지 못했습니다. 다시 조회해주세요.', 'NETWORK_ERROR',
+      method !== 'GET' ? 'uncertain' : 'unavailable')
     }
   }
   let response = await send()
@@ -308,4 +339,10 @@ export function loadEventWinners(week: string, type: WinnerType | '', contactSta
 
 export function revealEventContact(winnerId: number, signal: AbortSignal): Promise<RevealedContact> {
   return request(`/api/v1/admin/events/winners/${winnerId}/contact`, 'GET', signal, parseRevealedContact)
+}
+
+export function confirmEventDelivery(winnerId: number, userId: number,
+  signal: AbortSignal): Promise<DeliveryReceipt> {
+  return request(`/api/v1/admin/events/winners/${winnerId}/delivery`, 'PUT', signal,
+    value => parseDeliveryReceipt(value, winnerId, userId), { expectedUserId: userId })
 }

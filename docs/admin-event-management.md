@@ -22,4 +22,4 @@
 
 경품을 실제 전달한 뒤 운영 권한(`ADMIN_OPERATION_IDS`)이 있는 관리자는 `PUT /api/v1/admin/events/winners/{winnerId}/delivery`에 `{ "expectedUserId": 31 }`을 보냅니다. 서버는 당첨 건의 회원 ID와 확정 여부를 확인하고 `event_prize_deliveries`에 실행자와 시각을 기록합니다. 같은 당첨 건의 재요청은 기존 기록을 반환하며 `alreadyDelivered: true`로 구분됩니다. 한 회원에게 여러 상품이 있으면 각 `winnerId`를 별도로 지급 처리합니다. 이미 확정된 2026-11-02 회차도 동일한 API를 사용합니다.
 
-관리자 당첨자 목록에는 `deliveryStatus`, `deliveredByUserId`, `deliveredAt`이, 회원의 당첨 내역에는 `deliveryStatus`, `deliveredAt`이 포함됩니다. `PENDING`은 아직 수동 지급 완료 기록이 없다는 뜻입니다. 관리자 화면의 지급 버튼 연결과 당첨 알림 표시 제어는 후속 화면 작업에서 진행합니다.
+관리자 당첨자 목록에는 `deliveryStatus`, `deliveredByUserId`, `deliveredAt`이, 회원의 당첨 내역에는 `deliveryStatus`, `deliveredAt`이 포함됩니다. `PENDING`은 아직 수동 지급 완료 기록이 없다는 뜻입니다. 관리자 화면은 닉네임과 마스킹 연락처, 당첨 건별 지급 상태를 표시합니다. `ADMIN_OPERATION_IDS` 권한을 가진 관리자는 경품을 실제 전달한 뒤 각 당첨 건의 지급 완료 확인 단계를 거쳐 기록합니다. 여러 상품을 받은 회원도 각 건을 별도로 처리하며, 화면에는 현재 페이지의 일부·전부 지급 현황을 표시합니다. 지급 요청 응답이 유실되면 서버 목록을 재조회해 저장된 상태를 확인합니다. 회원 당첨 알림 표시 제어는 후속 화면 작업에서 진행합니다.
