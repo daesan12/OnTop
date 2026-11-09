@@ -6,7 +6,7 @@ import moleArt from '../mole/assets/mole.webp'
 import malletArt from '../mole/assets/mallet.webp'
 import { SevenSegment } from '../mole/SevenSegment'
 import { inputState } from '../../world/inputOwnership'
-import { speedMoleHole, speedMoleRandom, SpeedMoleRound, SPEED_MOLE_CODES, SPEED_MOLE_COUNTDOWN_MS, SPEED_MOLE_DURATION_MS, SPEED_MOLE_KEYS } from './game'
+import { speedMoleHole, speedMoleRandom, SpeedMoleRound, SPEED_MOLE_CODES, SPEED_MOLE_COUNTDOWN_MS, SPEED_MOLE_DURATION_MS, SPEED_MOLE_KEYS, SPEED_MOLE_POINTS_PER_COIN } from './game'
 import { speedMoleService, SpeedMoleError, type SpeedMoleResult, type SpeedMoleSession, type SpeedMoleTap } from './service'
 import { SpeedMoleRankings } from './SpeedMoleRankings'
 import { SpeedMoleTrophy } from './SpeedMoleRankingBoard'
@@ -14,7 +14,6 @@ import './speed-mole.css'
 import './speed-mole-menus.css'
 import { MoleStartGuide } from '../arcade/MoleStartGuide'
 import { useMole } from '../mole/store'
-import { POINTS_PER_COIN } from '../mole/protocol'
 import { useSession } from '../../network/worldClient'
 import { RewardCoinSource } from '../wallet/RewardCoinFlight'
 import { settleSpeedMole } from './settlement'
@@ -176,7 +175,7 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
     {phase === 'ready' && <MoleStartGuide name="스피드 두더지 잡기" headline="더 빠르게, 톡! 톡!"
       description={<>기존 두더지 잡기보다 더 스피드하게 즐겨요.<br />60초 동안 나만의 최고 기록에 도전해요.</>}
       seconds={60} keyGroups={[SPEED_MOLE_KEYS.slice(0,4),SPEED_MOLE_KEYS.slice(4)]} twoRows
-      details={<><p><span>성공 <b>+1점</b></span><span>실수 <b>−3점</b></span><span>최저 <b>0점</b></span></p>{!localPreview && <p>{POINTS_PER_COIN}점당 1냥 · 오늘 미니게임 {commonRewards ? `${commonRewards.todayEarned}/${commonRewards.dailyCap}냥` : '확인 중'}</p>}</>}
+      details={<><p><span>성공 <b>+1점</b></span><span>실수 <b>−3점</b></span><span>최저 <b>0점</b></span></p>{!localPreview && <p>{SPEED_MOLE_POINTS_PER_COIN}점당 1냥 · 오늘 미니게임 {commonRewards ? `${commonRewards.todayEarned}/${commonRewards.dailyCap}냥` : '확인 중'}</p>}</>}
       error={error} onStart={() => void start()} onClose={onClose}
       extra={!localPreview && <button type="button" onClick={() => setRankingsOpen(true)}><SpeedMoleTrophy />내 최고 기록 · 전체 랭킹</button>} />}
     {phase === 'starting' && <div className="speed-mole__veil"><section className="speed-mole__card" role="status"><h2>두더지들이 준비 중이에요</h2><p>잠시만요. 곧 3초 카운트다운이 시작돼요.</p></section></div>}
@@ -199,6 +198,6 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
       <small>Enter / Space로 다시 도전</small>
     </section></div>}
     {rankingsOpen && <SpeedMoleRankings onClose={() => { setRankingsOpen(false); root.current?.focus() }} />}
-    <footer className="speed-mole__local">{localPreview ? '로컬 조작 시안 · 기록·랭킹 저장 없음' : `무료 도전 · ${POINTS_PER_COIN}점당 1냥`}</footer>
+    <footer className="speed-mole__local">{localPreview ? '로컬 조작 시안 · 기록·랭킹 저장 없음' : `무료 도전 · ${SPEED_MOLE_POINTS_PER_COIN}점당 1냥`}</footer>
   </div>
 }

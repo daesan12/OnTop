@@ -8,7 +8,6 @@ import java.util.List;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
-import com.ssafy.ontop.game.mole.domain.MoleRules;
 import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
 import com.ssafy.ontop.wallet.domain.Wallet;
 
@@ -57,7 +56,7 @@ public class SpeedMoleService {
             int granted = rewards.grant(wallet, id, score.score(), completed);
             repository.settle(id, score, completed);
             return new SpeedMoleDtos.Result(Long.toString(id), row.version(), score.score(), score.hits(), score.misses(), completed,
-                    score.score() / MoleRules.POINTS_PER_COIN, granted, rewards.earned(user, completed), MinigameRewardBudget.DAILY_CAP);
+                    score.score() / SpeedMoleRules.POINTS_PER_COIN, granted, rewards.earned(user, completed), MinigameRewardBudget.DAILY_CAP);
         });
     }
     public SpeedMoleDtos.Rankings rankings(long user, int limit, int offset) {
@@ -71,7 +70,7 @@ public class SpeedMoleService {
     }
     private SpeedMoleDtos.Result result(SpeedMoleRepository.Row r, Wallet wallet) {
         return new SpeedMoleDtos.Result(Long.toString(r.id()), r.version(), r.score(), r.hits(), r.misses(), r.completedAt(),
-                r.score() / MoleRules.POINTS_PER_COIN, rewards.previous(wallet, r.id()), rewards.earned(wallet.userId(), clock.instant()), MinigameRewardBudget.DAILY_CAP);
+                r.score() / SpeedMoleRules.POINTS_PER_COIN, rewards.previous(wallet, r.id()), rewards.earned(wallet.userId(), clock.instant()), MinigameRewardBudget.DAILY_CAP);
     }
     private void requireLatest(long user, long id) {
         if (repository.latestId(user) != id) throw new SpeedMoleException(409, "SPEED_MOLE_ROUND_SUPERSEDED", "다른 창에서 새 판이 시작됐어요. 새 판으로 다시 도전해 주세요.");

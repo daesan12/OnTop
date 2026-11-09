@@ -20,6 +20,13 @@ describe('speed mole server/client contract', () => {
     expect(request.mock.calls[0]).toEqual(request.mock.calls[1])
     expect(JSON.parse(request.mock.calls[0]![1].body)).toEqual({taps:[{hole:1,at:0}]})
   })
+  it('accepts the 5-points-per-coin reward and rejects the old 40-point one', async () => {
+    const result={id:'7',rulesVersion:1,score:24,hits:24,misses:0,completedAt:'2030-01-01T00:01:03Z',calculatedReward:4,reward:4,todayEarned:4,dailyCap:500}
+    const request=vi.fn().mockResolvedValue(result), service=new SpeedMoleService(request)
+    await expect(service.complete('7',[])).resolves.toEqual(result)
+    request.mockResolvedValue({...result,calculatedReward:0,reward:0,todayEarned:0})
+    await expect(service.complete('7',[])).rejects.toThrow('저장 응답')
+  })
   it('does not replace a failed server start with an unranked local game', async () => {
     const request=vi.fn().mockRejectedValue({code:'SPEED_MOLE_UNAVAILABLE'}), service=new SpeedMoleService(request)
     await expect(service.start('same_key')).rejects.toThrow('준비되지')
