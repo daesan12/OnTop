@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { playSfx } from '../../audio/sfx'
 import { openManual } from '../manual/manualState'
 import { RewardCoinSource } from '../wallet/RewardCoinFlight'
 import { DAILY_PLAYS, FEE, FIRST_REEL, JACKPOT, OPERATOR_REEL, operatorLabel, reelLabel, SECOND_REEL, type PlusMinusRound } from './protocol'
@@ -104,10 +105,11 @@ function PlusMinusDialog() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing || event.repeat || document.querySelectorAll('dialog[open]').length > 1) return
       const index = ['1', '2', '3'].indexOf(event.key)
-      if (index >= 0 && index === keys.current.activeStop) { event.preventDefault(); keys.current.stopReel(index) }
+      // 키로 누른 버튼도 클릭과 같은 오락기 버튼 소리를 낸다.
+      if (index >= 0 && index === keys.current.activeStop) { event.preventDefault(); playSfx('arcade-button'); keys.current.stopReel(index) }
       else if (event.key === 'Enter' && keys.current.canStart
         && !(event.target instanceof HTMLElement && event.target.closest('button,input,select,textarea'))) {
-        event.preventDefault(); startPlusMinus()
+        event.preventDefault(); playSfx('arcade-button'); startPlusMinus()
       }
     }
     document.addEventListener('keydown', onKeyDown)

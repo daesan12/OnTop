@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { playSfx } from '../../audio/sfx'
 import { openManual } from '../manual/manualState'
 import { RewardCoinSource } from '../wallet/RewardCoinFlight'
 import { PREVIEW_RULES } from './preview'
@@ -85,6 +86,7 @@ function MoleScreen() {
       beginMolePlay()
     } else if (phase === 'playing' && now - clock.current.playAt >= rules.durationMs) {
       setConfirmQuit(false)
+      playSfx('mole-finish')
       void finishMole(hits.current)
     }
   }, [phase, now, rules.durationMs])
@@ -98,6 +100,9 @@ function MoleScreen() {
     // 기절했거나 같은 구멍을 너무 빨리 다시 누르면 망치가 나오지 않는다.
     if (event.type === 'ignored' && (event.reason === 'stunned' || event.reason === 'repeat')) return
     setSwings(list => [...list.filter(s => wall - s.at < SWING_MS), { id: ++fxSeq.current, hole, at: wall }])
+    const cue = event.type === 'catch' || event.type === 'tap' ? 'mole-hit' : event.type === 'decoy' ? 'mole-hedgehog-hit'
+      : event.type === 'empty' ? 'mole-empty-stun' : null
+    if (cue) playSfx(cue)
     if (event.type === 'empty' && event.stunned) setDizzyHole(hole)
     if (event.type === 'catch' || event.type === 'decoy') bonks.current.set(event.mole.id, at)
     const shown: Pick<Fx, 'text' | 'tone'> | null = event.type === 'catch'
@@ -141,6 +146,13 @@ function MoleScreen() {
   const elapsed = playing ? now - clock.current.playAt : -1
   const live = scorer.current && (playing || phase === 'submitting') ? scorer.current : null
   const phaseIndex = playing ? Math.min(2, Math.floor(elapsed / rules.phaseMs)) : -1
+  // 2구간·피버로 넘어갈 때 알림음을 내고, 피버 구간 동안만 배경음악을 피버 곡으로 바꾼다.
+  const shownPhase = useRef(-1)
+  useEffect(() => {
+    if (phaseIndex > shownPhase.current && phaseIndex > 0) playSfx('mole-phase-change')
+    shownPhase.current = phaseIndex
+    useMole.setState({ fever: phaseIndex === 2 })
+  }, [phaseIndex])
   const score = live ? live.total() : phase === 'result' && settlement ? settlement.result.score : 0
   const combo = live?.combo ?? 0
   const tenths = comboTenths(rules, combo)

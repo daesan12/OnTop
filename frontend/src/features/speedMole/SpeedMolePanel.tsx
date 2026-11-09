@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { playSfx } from '../../audio/sfx'
 import cabinet from './assets/cabinet.png'
 import holeArt from '../mole/assets/hole.webp'
 import moleArt from '../mole/assets/mole.webp'
@@ -27,7 +28,10 @@ const keySummary = `${SPEED_MOLE_KEYS.slice(0, 4).join('')} / ${SPEED_MOLE_KEYS.
 export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () => void; localPreview?: boolean }) {
   const [phase, setPhaseState] = useState<Phase>('ready')
   const phaseRef = useRef<Phase>('ready')
-  const setPhase = (next: Phase) => { phaseRef.current = next; setPhaseState(next) }
+  const setPhase = (next: Phase) => {
+    if (next === 'result' && phaseRef.current === 'playing') playSfx('mole-finish')
+    phaseRef.current = next; setPhaseState(next)
+  }
   const [now, setNow] = useState(() => performance.now())
   const [confirmQuit, setConfirmQuit] = useState(false)
   const [rankingsOpen, setRankingsOpen] = useState(false)
