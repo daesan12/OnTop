@@ -218,8 +218,18 @@ class RestSecurityTests {
         mvc.perform(authAs(44, get(adminPath))).andExpect(status().isForbidden());
         mvc.perform(auth(get(adminPath))).andExpect(status().isServiceUnavailable());
         mvc.perform(auth(post(adminPath + "/finalize"))).andExpect(status().isForbidden());
-        mvc.perform(authAs(43, post(adminPath + "/finalize")))
+        mvc.perform(authAs(43, post(adminPath + "/finalize")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"drawId\":1}")))
                 .andExpect(status().isServiceUnavailable());
+        mvc.perform(auth(get(adminPath + "/draws/current")))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(auth(post(adminPath + "/draws")))
+                .andExpect(status().isForbidden());
+        mvc.perform(authAs(43, post(adminPath + "/draws")))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(auth(post(adminPath + "/draws/reroll")))
+                .andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/raffles/rounds/2026-11-02/result"))
                 .andExpect(status().isUnauthorized());
     }
@@ -391,6 +401,9 @@ class RestSecurityTests {
                 "GET /api/v1/raffles/current", "POST /api/v1/raffles/current/tickets",
                 "GET /api/v1/raffles/rounds/{weekStart}/result",
                 "GET /api/v1/admin/raffles/rounds/{weekStart}",
+                "GET /api/v1/admin/raffles/rounds/{weekStart}/draws/current",
+                "POST /api/v1/admin/raffles/rounds/{weekStart}/draws",
+                "POST /api/v1/admin/raffles/rounds/{weekStart}/draws/reroll",
                 "POST /api/v1/admin/raffles/rounds/{weekStart}/finalize",
                 "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
                 "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",

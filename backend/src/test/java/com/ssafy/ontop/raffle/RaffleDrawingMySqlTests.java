@@ -41,7 +41,7 @@ class RaffleDrawingMySqlTests {
     private AdminAccessPolicy administrators;
 
     @Test
-    void 마감_추첨_GM제외_발표시각_재실행_동시실행과_자동복구를_검증한다() throws Exception {
+    void 사전추첨_재추첨_확정_권한_동시성_복구를_검증한다() throws Exception {
         String url = System.getenv("TEST_RAFFLE_DRAW_DB_URL");
         String username = System.getenv("TEST_RAFFLE_DRAW_DB_USERNAME");
         String password = System.getenv("TEST_RAFFLE_DRAW_DB_PASSWORD");
@@ -57,10 +57,12 @@ class RaffleDrawingMySqlTests {
         transactions = new DataSourceTransactionManager(datasource);
 
         long gm = member("gm");
+        long viewer = member("viewer");
         long first = member("first");
         long second = member("second");
         long late = member("late");
-        administrators = new AdminAccessPolicy(new AdminAccessProperties(Set.of(gm), Set.of(), Set.of(gm)));
+        administrators = new AdminAccessPolicy(new AdminAccessProperties(
+                Set.of(gm, viewer), Set.of(), Set.of(gm)));
 
         LocalDate week = LocalDate.of(2026, 11, 2);
         long raffleRound = round(week);
@@ -71,28 +73,60 @@ class RaffleDrawingMySqlTests {
         ticket(raffleRound, late, 5, "2026-11-08T15:00:00Z");
 
         RaffleDrawingService draw = service("2026-11-08T15:00:00Z");
-        var result = draw.finalizeRound(week, gm);
-        assertThat(result.finalized()).isTrue();
-        assertThat(result.winners()).extracting(winner -> winner.userId())
-                .containsExactly(first, second);
-        assertThat(result.expectedPrizeCount()).isEqualTo(8);
-        assertThat(result.candidateCount()).isEqualTo(4);
-        assertThat(result.excludedGmCount()).isOne();
-        assertThat(result.vacantPrizeCount()).isEqualTo(6);
+        assertThatThrownBy(() -> service("2026-11-08T14:59:59Z").createReview(week, gm))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_SALES_OPEN"));
+        assertThatThrownBy(() -> draw.createReview(week, viewer))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_ADMIN_FORBIDDEN"));
         assertThat(draw.memberResult(week, first).status()).isEqualTo("NOT_ANNOUNCED");
-        assertThat(draw.memberResult(week, first).prizes()).isEmpty();
-        assertThat(draw.adminResult(week, gm).candidateCount()).isEqualTo(4);
-        assertThat(draw.adminResult(week, gm).winners()).hasSize(2);
-        assertThat(draw.finalizeRound(week, gm).winners()).isEqualTo(result.winners());
-        assertThat(jdbc.queryForObject("""
-                SELECT COUNT(*) FROM event_finalization_attempts WHERE outcome = 'ALREADY_FINALIZED'
-                """, Integer.class)).isOne();
-        assertThat(jdbc.queryForObject("""
-                SELECT candidate_count FROM event_finalization_attempts WHERE outcome = 'SUCCEEDED'
-                """, Integer.class)).isEqualTo(4);
-        assertThat(jdbc.queryForObject("""
-                SELECT excluded_gm_count FROM event_finalization_attempts WHERE outcome = 'SUCCEEDED'
-                """, Integer.class)).isOne();
+        assertThatThrownBy(() -> draw.currentReview(week, gm))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code())
+                        .isEqualTo("RAFFLE_ROUND_NOT_FOUND"));
+        var review = draw.createReview(week, gm);
+        assertThat(review.picks()).extracting(winner -> winner.userId())
+                .containsExactly(first, second);
+        assertThat(review.candidateCount()).isEqualTo(4);
+        assertThat(review.excludedGmCount()).isOne();
+        assertThat(review.vacantPrizeCount()).isEqualTo(6);
+        assertThat(draw.createReview(week, gm).drawId()).isEqualTo(review.drawId());
+        assertThat(draw.currentReview(week, viewer).drawId()).isEqualTo(review.drawId());
+        assertThat(draw.adminResult(week, gm).finalized()).isFalse();
+        assertThat(drawings.winners(drawings.round(week, false).orElseThrow().id())).isEmpty();
+        assertThatThrownBy(() -> draw.reroll(week, gm, review.drawId(), " "))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code())
+                        .isEqualTo("RAFFLE_REROLL_REASON_REQUIRED"));
+        assertThatThrownBy(() -> draw.reroll(week, gm, review.drawId(), "가".repeat(501)))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code())
+                        .isEqualTo("RAFFLE_REROLL_REASON_REQUIRED"));
+        assertThatThrownBy(() -> draw.confirmReview(week, gm, 0))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code())
+                        .isEqualTo("RAFFLE_INVALID_DRAW_ID"));
+        var rerolled = draw.reroll(week, gm, review.drawId(), "운영 검토 후 재추첨");
+        assertThat(rerolled.drawId()).isNotEqualTo(review.drawId());
+        assertThat(rerolled.attemptNumber()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT status FROM event_raffle_draws WHERE id = ?",
+                String.class, review.drawId())).isEqualTo("SUPERSEDED");
+        assertThatThrownBy(() -> draw.confirmReview(week, gm, review.drawId()))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_REVIEW_STALE"));
+        assertThatThrownBy(() -> draw.reroll(week, gm, review.drawId(), "이전 결과"))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_REVIEW_STALE"));
+        var result = draw.confirmReview(week, gm, rerolled.drawId());
+        assertThat(result.finalized()).isTrue();
+        assertThat(result.winners()).isEqualTo(rerolled.picks());
+        assertThat(draw.confirmReview(week, gm, rerolled.drawId()).alreadyFinalized()).isTrue();
+        assertThatThrownBy(() -> draw.createReview(week, gm))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_ALREADY_FINALIZED"));
+        assertThatThrownBy(() -> draw.currentReview(week, gm))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_ALREADY_FINALIZED"));
 
         var announced = service("2026-11-09T00:00:00Z");
         assertThat(announced.memberResult(week, first).status()).isEqualTo("SELECTED");
@@ -104,7 +138,7 @@ class RaffleDrawingMySqlTests {
         long nextRound = round(nextWeek);
         ticket(nextRound, first, 1, "2026-11-15T14:59:59.999Z");
         ticket(nextRound, second, 2, "2026-11-15T14:59:59.999Z");
-        assertThatThrownBy(() -> service("2026-11-15T14:59:59.999Z").finalizeRound(nextWeek, gm))
+        assertThatThrownBy(() -> service("2026-11-15T14:59:59.999Z").createReview(nextWeek, gm))
                 .isInstanceOf(RaffleException.class)
                 .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_SALES_OPEN"));
 
@@ -112,12 +146,23 @@ class RaffleDrawingMySqlTests {
         var start = new CountDownLatch(1);
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var calls = List.of(
-                    executor.submit(() -> { start.await(); return concurrent.finalizeRound(nextWeek, gm); }),
-                    executor.submit(() -> { start.await(); return concurrent.finalizeRound(nextWeek, gm); }));
+                    executor.submit(() -> { start.await(); return concurrent.createReview(nextWeek, gm); }),
+                    executor.submit(() -> { start.await(); return concurrent.createReview(nextWeek, gm); }));
             start.countDown();
             var left = calls.get(0).get(20, TimeUnit.SECONDS);
             var right = calls.get(1).get(20, TimeUnit.SECONDS);
-            assertThat(left.winners()).isEqualTo(right.winners());
+            assertThat(left.drawId()).isEqualTo(right.drawId());
+            assertThat(left.picks()).isEqualTo(right.picks());
+        }
+        var nextReview = concurrent.currentReview(nextWeek, gm);
+        var confirmStart = new CountDownLatch(1);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var calls = List.of(
+                    executor.submit(() -> { confirmStart.await(); return concurrent.confirmReview(nextWeek, gm, nextReview.drawId()); }),
+                    executor.submit(() -> { confirmStart.await(); return concurrent.confirmReview(nextWeek, gm, nextReview.drawId()); }));
+            confirmStart.countDown();
+            assertThat(calls.get(0).get(20, TimeUnit.SECONDS).winners())
+                    .isEqualTo(calls.get(1).get(20, TimeUnit.SECONDS).winners());
         }
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM event_winners w JOIN event_rounds e ON e.id = w.event_round_id
@@ -131,7 +176,9 @@ class RaffleDrawingMySqlTests {
 
         LocalDate emptyWeek = nextWeek.plusWeeks(1);
         round(emptyWeek);
-        service("2026-11-22T15:00:00Z").finalizeDueRounds();
+        var emptyReview = service("2026-11-22T15:00:00Z").createReview(emptyWeek, gm);
+        assertThat(emptyReview.picks()).isEmpty();
+        service("2026-11-22T15:00:00Z").confirmReview(emptyWeek, gm, emptyReview.drawId());
         assertThat(drawings.round(emptyWeek, false)).isPresent()
                 .get().extracting(RaffleDrawingRepository.EventRound::finalizedAt).isNotNull();
         assertThat(drawings.winners(drawings.round(emptyWeek, false).orElseThrow().id())).isEmpty();
@@ -140,7 +187,7 @@ class RaffleDrawingMySqlTests {
         long failedRound = round(failedWeek);
         ticket(failedRound, first, 1, "2026-11-29T14:00:00Z");
         assertThatThrownBy(() -> service("2026-11-29T15:00:00Z",
-                new RaffleDrawSelector(bound -> bound)).finalizeRound(failedWeek, gm))
+                new RaffleDrawSelector(bound -> bound)).createReview(failedWeek, gm))
                 .isInstanceOf(IllegalStateException.class);
         var failedEvent = drawings.round(failedWeek, false).orElseThrow();
         assertThat(failedEvent.finalizedAt()).isNull();
@@ -149,7 +196,9 @@ class RaffleDrawingMySqlTests {
                 SELECT COUNT(*) FROM event_finalization_attempts
                 WHERE event_round_id = ? AND outcome = 'FAILED'
                 """, Integer.class, failedEvent.id())).isOne();
-        assertThat(service("2026-11-29T15:00:01Z").finalizeRound(failedWeek, gm).winners()).hasSize(1);
+        var recovered = service("2026-11-29T15:00:01Z").createReview(failedWeek, gm);
+        assertThat(service("2026-11-29T15:00:01Z")
+                .confirmReview(failedWeek, gm, recovered.drawId()).winners()).hasSize(1);
     }
 
     private RaffleDrawingService service(String now) {

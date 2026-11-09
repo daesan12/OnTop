@@ -1003,13 +1003,13 @@ paths:
                 category:
                   type: string
                   description: 생략 시 free. 명시적 null은 허용하지 않는다.
-                  default: free
                   enum:
                   - daily
                   - cheer
                   - worry
                   - recommend
                   - free
+                  default: free
               additionalProperties: false
         required: true
       responses:
@@ -4051,8 +4051,41 @@ paths:
     post:
       tags:
       - Raffle
-      summary: 관리자 응모권 추첨 확정·재시도
+      summary: 관리자가 검토한 응모권 추첨 시도 최종 확정
       operationId: finalizeRound
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RaffleDrawResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/raffles/rounds/{weekStart}/draws:
+    post:
+      tags:
+      - Raffle
+      summary: 응모권 추첨 결과를 검토용으로 저장
+      operationId: createReview
       parameters:
       - name: weekStart
         in: path
@@ -4071,7 +4104,40 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/RaffleDrawResponse"
+                $ref: "#/components/schemas/RaffleReviewResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/raffles/rounds/{weekStart}/draws/reroll:
+    post:
+      tags:
+      - Raffle
+      summary: 현재 검토 시도를 대체하고 사유를 남겨 재추첨
+      operationId: reroll
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RerollRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RaffleReviewResponse"
       security:
       - AccessJwt: []
   /api/v1/admin/operations/skins:
@@ -6320,18 +6386,18 @@ paths:
         required: false
         schema:
           type: string
-          default: ALL_TIME
           enum:
           - ALL_TIME
+          default: ALL_TIME
       - name: rulesVersion
         in: query
         required: false
         schema:
           type: string
-          default: v5
           enum:
           - v4
           - v5
+          default: v5
       - name: limit
         in: query
         required: false
@@ -6965,6 +7031,55 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RaffleDrawResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/raffles/rounds/{weekStart}/draws/current:
+    get:
+      tags:
+      - Raffle
+      summary: 현재 검토 중인 응모권 추첨 결과 조회
+      operationId: currentReview
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: 현재 검토 중인 추첨 결과
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RaffleReviewResponse"
+        "404":
+          description: RAFFLE_ROUND_NOT_FOUND / RAFFLE_REVIEW_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RaffleErrorResponse"
+        "409":
+          description: RAFFLE_ALREADY_FINALIZED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RaffleErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/admin/operations/skins/settings:
@@ -9136,6 +9251,12 @@ components:
           format: int64
         executable:
           type: boolean
+    ConfirmRequest:
+      type: object
+      properties:
+        drawId:
+          type: integer
+          format: int64
     RaffleDrawResponse:
       type: object
       properties:
@@ -9187,6 +9308,58 @@ components:
           type: integer
           format: int32
         prizeName:
+          type: string
+    RaffleReviewResponse:
+      type: object
+      properties:
+        drawId:
+          type: integer
+          format: int64
+        weekStartDate:
+          type: string
+          format: date
+        announcesAt:
+          type: string
+          format: date-time
+        attemptNumber:
+          type: integer
+          format: int32
+        status:
+          type: string
+        requestedByUserId:
+          type: integer
+          format: int64
+        rerollReason:
+          type: string
+        drawnAt:
+          type: string
+          format: date-time
+        candidateCount:
+          type: integer
+          format: int32
+        excludedGmCount:
+          type: integer
+          format: int32
+        expectedPrizeCount:
+          type: integer
+          format: int32
+        awardedPrizeCount:
+          type: integer
+          format: int32
+        vacantPrizeCount:
+          type: integer
+          format: int32
+        picks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Winner"
+    RerollRequest:
+      type: object
+      properties:
+        expectedDrawId:
+          type: integer
+          format: int64
+        reason:
           type: string
     FileSpec:
       type: object
@@ -10557,6 +10730,13 @@ components:
         userId:
           type: string
         nickname:
+          type: string
+    RaffleErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
           type: string
     AdminAccessResponse:
       type: object

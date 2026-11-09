@@ -21,19 +21,6 @@ public class RaffleDrawingRepository {
         this.jdbc = jdbc;
     }
 
-    public List<LocalDate> dueWeeks(Instant now, LocalDate firstWeek) {
-        return jdbc.query("""
-                SELECT r.week_start_date
-                FROM raffle_rounds r
-                LEFT JOIN event_rounds e ON e.raffle_round_id = r.id AND e.event_type = 'RAFFLE'
-                WHERE r.sales_ends_at <= ? AND r.week_start_date >= ?
-                  AND (e.id IS NULL OR e.finalized_at IS NULL)
-                ORDER BY r.week_start_date
-                LIMIT 24
-                """, (rows, index) -> rows.getDate(1).toLocalDate(),
-                Timestamp.from(now), java.sql.Date.valueOf(firstWeek));
-    }
-
     public void closeSales(long raffleRoundId, Instant now) {
         jdbc.update("""
                 UPDATE raffle_rounds SET sales_status = 'CLOSED'
@@ -88,6 +75,96 @@ public class RaffleDrawingRepository {
                 """, (rows, index) -> new Ticket(rows.getLong("id"), rows.getLong("user_id"),
                 rows.getInt("ticket_number")), raffleRoundId, Timestamp.from(startsAt),
                 Timestamp.from(endsAt));
+    }
+
+    public Optional<ReviewDraw> currentReview(long eventRoundId) {
+        return jdbc.query("""
+                SELECT id, event_round_id, raffle_round_id, attempt_number, status,
+                       requested_by_user_id, reroll_reason, candidate_count,
+                       excluded_gm_count, picked_count, created_at
+                FROM event_raffle_draws
+                WHERE event_round_id = ? AND status = 'REVIEW'
+                """, (rows, index) -> reviewDraw(rows), eventRoundId).stream().findFirst();
+    }
+
+    public Optional<ReviewDraw> confirmedReview(long eventRoundId) {
+        return jdbc.query("""
+                SELECT id, event_round_id, raffle_round_id, attempt_number, status,
+                       requested_by_user_id, reroll_reason, candidate_count,
+                       excluded_gm_count, picked_count, created_at
+                FROM event_raffle_draws
+                WHERE event_round_id = ? AND status = 'CONFIRMED'
+                """, (rows, index) -> reviewDraw(rows), eventRoundId).stream().findFirst();
+    }
+
+    public int lastReviewNumber(long eventRoundId) {
+        Integer number = jdbc.queryForObject("""
+                SELECT COALESCE(MAX(attempt_number), 0) FROM event_raffle_draws
+                WHERE event_round_id = ?
+                """, Integer.class, eventRoundId);
+        return number == null ? 0 : number;
+    }
+
+    public long insertReview(long eventRoundId, long raffleRoundId, int attemptNumber,
+            long administratorUserId, String rerollReason, int candidateCount,
+            int excludedGmCount, int pickedCount, Instant now) {
+        var key = new GeneratedKeyHolder();
+        jdbc.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement("""
+                    INSERT INTO event_raffle_draws(event_round_id, raffle_round_id,
+                        attempt_number, status, requested_by_user_id, reroll_reason,
+                        candidate_count, excluded_gm_count, picked_count, created_at)
+                    VALUES (?, ?, ?, 'REVIEW', ?, ?, ?, ?, ?, ?)
+                    """, Statement.RETURN_GENERATED_KEYS);
+            statement.setLong(1, eventRoundId);
+            statement.setLong(2, raffleRoundId);
+            statement.setInt(3, attemptNumber);
+            statement.setLong(4, administratorUserId);
+            statement.setString(5, rerollReason);
+            statement.setInt(6, candidateCount);
+            statement.setInt(7, excludedGmCount);
+            statement.setInt(8, pickedCount);
+            statement.setTimestamp(9, Timestamp.from(now));
+            return statement;
+        }, key);
+        return key.getKey().longValue();
+    }
+
+    public void insertReviewPick(long drawId, long eventRoundId, long raffleRoundId,
+            long slotId, Ticket ticket) {
+        jdbc.update("""
+                INSERT INTO event_raffle_draw_picks(draw_id, event_round_id, raffle_round_id,
+                    prize_slot_id, raffle_ticket_id, user_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, drawId, eventRoundId, raffleRoundId, slotId, ticket.id(), ticket.userId());
+    }
+
+    public List<ReviewPick> reviewPicks(long drawId) {
+        return jdbc.query("""
+                SELECT p.prize_slot_id, p.raffle_ticket_id, p.user_id, t.ticket_number,
+                       s.place, s.slot_number, s.prize_name
+                FROM event_raffle_draw_picks p
+                JOIN raffle_tickets t ON t.id = p.raffle_ticket_id
+                JOIN event_prize_slots s ON s.id = p.prize_slot_id
+                WHERE p.draw_id = ? ORDER BY s.place, s.slot_number
+                """, (rows, index) -> new ReviewPick(rows.getLong("prize_slot_id"),
+                new Ticket(rows.getLong("raffle_ticket_id"), rows.getLong("user_id"),
+                        rows.getInt("ticket_number")), rows.getInt("place"),
+                rows.getInt("slot_number"), rows.getString("prize_name")), drawId);
+    }
+
+    public int supersedeReview(long drawId, Instant now) {
+        return jdbc.update("""
+                UPDATE event_raffle_draws SET status = 'SUPERSEDED', superseded_at = ?
+                WHERE id = ? AND status = 'REVIEW'
+                """, Timestamp.from(now), drawId);
+    }
+
+    public int confirmReview(long drawId, Instant now) {
+        return jdbc.update("""
+                UPDATE event_raffle_draws SET status = 'CONFIRMED', confirmed_at = ?
+                WHERE id = ? AND status = 'REVIEW'
+                """, Timestamp.from(now), drawId);
     }
 
     public void insertWinner(long eventRoundId, long slotId, Ticket ticket, Instant selectedAt) {
@@ -182,6 +259,27 @@ public class RaffleDrawingRepository {
     }
 
     public record OutcomeCounts(int candidateCount, int excludedGmCount) {}
+
+    public record ReviewDraw(long id, long eventRoundId, long raffleRoundId,
+            int attemptNumber, String status, long requestedByUserId, String rerollReason,
+            int candidateCount, int excludedGmCount, int pickedCount, Instant createdAt) {}
+
+    public record ReviewPick(long slotId, Ticket ticket, int place, int slotNumber,
+            String prizeName) {
+        public Winner winner() {
+            return new Winner(ticket.userId(), ticket.id(), ticket.number(), place,
+                    slotNumber, prizeName);
+        }
+    }
+
+    private ReviewDraw reviewDraw(ResultSet rows) throws SQLException {
+        return new ReviewDraw(rows.getLong("id"), rows.getLong("event_round_id"),
+                rows.getLong("raffle_round_id"), rows.getInt("attempt_number"),
+                rows.getString("status"), rows.getLong("requested_by_user_id"),
+                rows.getString("reroll_reason"), rows.getInt("candidate_count"),
+                rows.getInt("excluded_gm_count"), rows.getInt("picked_count"),
+                rows.getTimestamp("created_at").toInstant());
+    }
 
     private EventRound eventRound(ResultSet rows) throws SQLException {
         Timestamp finalizedAt = rows.getTimestamp("finalized_at");
