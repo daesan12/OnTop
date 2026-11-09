@@ -101,7 +101,8 @@ function MoleScreen() {
     if (event.type === 'ignored' && (event.reason === 'stunned' || event.reason === 'repeat')) return
     setSwings(list => [...list.filter(s => wall - s.at < SWING_MS), { id: ++fxSeq.current, hole, at: wall }])
     const cue = event.type === 'catch' || event.type === 'tap' ? 'mole-hit' : event.type === 'decoy' ? 'mole-hedgehog-hit'
-      : event.type === 'empty' ? 'mole-empty-stun' : null
+      // 막 들어간 두더지를 늦게 친 헛손질은 콤보만 끊고 기절하지 않으므로 기절음을 내지 않는다.
+      : event.type === 'empty' && event.stunned ? 'mole-empty-stun' : null
     if (cue) playSfx(cue)
     if (event.type === 'empty' && event.stunned) setDizzyHole(hole)
     if (event.type === 'catch' || event.type === 'decoy') bonks.current.set(event.mole.id, at)
