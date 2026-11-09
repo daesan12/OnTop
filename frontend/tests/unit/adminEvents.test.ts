@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import {
-  isMondayWeek, parseAdminWinners, parseEventRound, parseRaffleReview, parseRevealedContact,
+  isMondayWeek, parseAdminWinners, parseDeliveryReceipt, parseEventRound, parseRaffleReview, parseRevealedContact,
   schedule, supportsWeek,
 } from '../../src/features/admin/adminEvents'
 
@@ -53,12 +53,31 @@ it('rejects inconsistent draw totals and malformed contact list responses', () =
 
 it('maps only masked contact data into the listing and validates explicitly revealed data', () => {
   const page = parseAdminWinners({ winners: [{ winnerId: 1, userId: 5, weekStart: week,
-    eventType: 'JUMPMAP', place: 1, prizeName: '상품', contactStatus: 'SUBMITTED',
+    nickname: '점프왕', eventType: 'JUMPMAP', place: 1, prizeName: '상품', contactStatus: 'SUBMITTED',
     maskedPhone: '010-****-5678', contactExpiresAt: '2026-11-23T00:00:00Z',
+    deliveryStatus: 'PENDING', deliveredByUserId: null, deliveredAt: null,
     unexpectedPrivateField: 'should-not-pass',
   }], limit: 20, offset: 0, hasMore: false })
   expect(page.winners[0]).not.toHaveProperty('unexpectedPrivateField')
+  expect(page.winners[0]?.nickname).toBe('점프왕')
+  expect(page.winners[0]?.deliveryStatus).toBe('PENDING')
   expect(parseRevealedContact({ winnerId: 1, phone: '01012345678', expiresAt: '2026-11-23T00:00:00Z' }).phone)
     .toBe('01012345678')
   expect(() => parseRevealedContact({ winnerId: 1, phone: 'bad', expiresAt: '2026-11-23T00:00:00Z' })).toThrow()
+})
+
+it('validates per-award delivery state and the protected PUT receipt', () => {
+  const pending = { winnerId: 1, userId: 5, nickname: '점프왕', weekStart: week,
+    eventType: 'JUMPMAP', place: 1, prizeName: '상품', contactStatus: 'NOT_SUBMITTED',
+    maskedPhone: null, contactExpiresAt: null, deliveryStatus: 'PENDING',
+    deliveredByUserId: null, deliveredAt: null }
+  const delivered = { ...pending, deliveryStatus: 'DELIVERED', deliveredByUserId: 9,
+    deliveredAt: '2026-11-16T00:00:00Z' }
+  const page = { winners: [pending, delivered], limit: 20, offset: 0, hasMore: false }
+  expect(parseAdminWinners(page).winners[1]?.deliveredByUserId).toBe(9)
+  expect(() => parseAdminWinners({ ...page, winners: [{ ...delivered, deliveredAt: null }] })).toThrow()
+  const receipt = { winnerId: 1, userId: 5, deliveryStatus: 'DELIVERED',
+    deliveredByUserId: 9, deliveredAt: '2026-11-16T00:00:00Z', alreadyDelivered: false }
+  expect(parseDeliveryReceipt(receipt, 1, 5).alreadyDelivered).toBe(false)
+  expect(() => parseDeliveryReceipt(receipt, 1, 6)).toThrow()
 })

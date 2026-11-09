@@ -3,8 +3,9 @@ import { fixture } from './contractFixture'
 
 const week = '2026-11-02'
 const winner = { winnerId: 41, userId: 101, weekStart: week, eventType: 'RAFFLE', place: 1,
-  prizeName: '1등 상품', contactStatus: 'SUBMITTED', maskedPhone: '010-****-5678',
-  contactExpiresAt: '2026-11-23T00:00:00Z' }
+  nickname: '돼지병아리', prizeName: '1등 상품', contactStatus: 'SUBMITTED', maskedPhone: '010-****-5678',
+  contactExpiresAt: '2026-11-23T00:00:00Z', deliveryStatus: 'PENDING',
+  deliveredByUserId: null, deliveredAt: null }
 const pick = { userId: 101, nickname: '돼지병아리', raffleTicketId: 77, ticketNumber: 12,
   place: 1, slotNumber: 1, prizeName: '1등 상품' }
 const review = (drawId: number, attemptNumber = 1, rerollReason: string | null = null) => ({
@@ -42,7 +43,75 @@ test('read-only admin sees the draw and masked contact without mutation or raw-p
   await expect(page.getByText('010-****-5678')).toBeVisible()
   await expect(page.getByRole('button', { name: '결과 확정 준비' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '연락처 원문 열람' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '지급 완료 기록' })).toHaveCount(0)
   expect(mutations).toBe(0); expect(reveals).toBe(0)
+})
+
+test('operator confirms one award after delivery and sees partial then complete status', async ({ page }) => {
+  await fixture(page)
+  let firstDelivered = false, puts = 0
+  let releaseDelivery!: () => void
+  const deliveryGate = new Promise<void>(resolve => { releaseDelivery = resolve })
+  const second = { ...winner, winnerId: 42, place: 2, prizeName: '2등 상품',
+    deliveryStatus: 'DELIVERED', deliveredByUserId: 9, deliveredAt: '2026-11-16T00:00:00Z' }
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: {
+    canRead: true, canGrant: false, canOperate: true, canViewContacts: false,
+  } }))
+  await page.route(`**/api/v1/admin/raffles/rounds/${week}**`, route => route.fulfill({ json: draw(true) }))
+  await page.route('**/api/v1/admin/events/winners?*', route => route.fulfill({ json: {
+    winners: [firstDelivered ? { ...winner, deliveryStatus: 'DELIVERED',
+      deliveredByUserId: 9, deliveredAt: '2026-11-16T01:00:00Z' } : winner, second],
+    limit: 20, offset: 0, hasMore: false,
+  } }))
+  await page.route('**/api/v1/admin/events/winners/41/delivery', async route => {
+    expect(route.request().method()).toBe('PUT')
+    expect(route.request().postDataJSON()).toEqual({ expectedUserId: 101 })
+    await deliveryGate
+    puts++; firstDelivered = true
+    return route.fulfill({ json: { winnerId: 41, userId: 101, deliveryStatus: 'DELIVERED',
+      deliveredByUserId: 9, deliveredAt: '2026-11-16T01:00:00Z', alreadyDelivered: false } })
+  })
+  await page.goto('/admin/events')
+  await page.getByLabel('회차 시작일').fill(week)
+  await expect(page.getByText('일부 지급 완료')).toBeVisible()
+  await expect(page.getByText('돼지병아리 · 당첨 #41')).toBeVisible()
+  await page.getByRole('button', { name: '지급 완료 기록' }).click()
+  expect(puts).toBe(0)
+  await expect(page.getByText('경품을 실제 전달한 뒤에만', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: '전달 완료 확인' }).click()
+  await expect(page.getByLabel('회차 시작일')).toBeDisabled()
+  await expect(page.getByRole('button', { name: '미니게임 1위' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '엽전 보유량 순위' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '취소' })).toHaveCount(0)
+  releaseDelivery()
+  await expect(page.getByText('모두 지급 완료')).toBeVisible()
+  await expect(page.getByRole('button', { name: '지급 완료 기록' })).toHaveCount(0)
+  expect(puts).toBe(1)
+})
+
+test('lost delivery response checks the saved status before suggesting another attempt', async ({ page }) => {
+  await fixture(page)
+  let delivered = false, puts = 0
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: {
+    canRead: true, canGrant: false, canOperate: true, canViewContacts: false,
+  } }))
+  await page.route(`**/api/v1/admin/raffles/rounds/${week}**`, route => route.fulfill({ json: draw(true) }))
+  await page.route('**/api/v1/admin/events/winners?*', route => route.fulfill({ json: {
+    winners: [delivered ? { ...winner, deliveryStatus: 'DELIVERED',
+      deliveredByUserId: 9, deliveredAt: '2026-11-16T01:00:00Z' } : winner],
+    limit: 20, offset: 0, hasMore: false,
+  } }))
+  await page.route('**/api/v1/admin/events/winners/41/delivery', route => {
+    puts++; delivered = true
+    return route.abort('failed')
+  })
+  await page.goto('/admin/events')
+  await page.getByLabel('회차 시작일').fill(week)
+  await page.getByRole('button', { name: '지급 완료 기록' }).click()
+  await page.getByRole('button', { name: '전달 완료 확인' }).click()
+  await expect(page.getByText('서버에 저장된 지급 완료 기록을 확인했습니다.')).toBeVisible()
+  await expect(page.getByRole('button', { name: '지급 완료 기록' })).toHaveCount(0)
+  expect(puts).toBe(1)
 })
 
 test('operator reviews a draw before confirming its saved ID and explicitly reveals contact', async ({ page }) => {
