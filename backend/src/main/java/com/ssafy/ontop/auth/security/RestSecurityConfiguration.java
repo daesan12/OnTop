@@ -75,6 +75,9 @@ public class RestSecurityConfiguration {
                                 "/api/v1/admin/analytics/**", "/api/v1/admin/raffles/rounds/*",
                                 "/api/v1/admin/raffles/rounds/*/draws/current",
                                 "/api/v1/admin/events/minigames/*/rounds/*",
+                                "/api/v1/admin/events/minigames/rounds/*/games",
+                                "/api/v1/admin/events/minigames/rounds/*/games/*/ranking",
+                                "/api/v1/admin/events/minigames/supported-games",
                                 "/api/v1/admin/events/assets/rounds/*",
                                 "/api/v1/admin/events/winners")
                                 .hasRole("ADMIN_READ")
@@ -82,7 +85,10 @@ public class RestSecurityConfiguration {
                                 "/api/v1/admin/raffles/rounds/*/draws",
                                 "/api/v1/admin/raffles/rounds/*/draws/reroll",
                                 "/api/v1/admin/events/minigames/*/rounds/*/finalize",
+                                "/api/v1/admin/events/minigames/rounds/*/games/*/finalize",
                                 "/api/v1/admin/events/assets/rounds/*/finalize")
+                                .hasRole("ADMIN_OPERATION")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/admin/events/minigames/rounds/*/games/*")
                                 .hasRole("ADMIN_OPERATION")
                         .requestMatchers("/api/v1/admin/wallet-grants", "/api/v1/admin/wallet-grants/**")
                                 .hasRole("ADMIN_GRANT")

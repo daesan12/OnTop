@@ -24,4 +24,4 @@
 
 `type`은 `bungeoppang` 또는 `jumpmap`, `weekStart`는 `2026-11-02`다. 모든 응답은 `Cache-Control: no-store`를 사용한다. 회원 API는 다른 회원의 결과를 공개하지 않는다. 연락처 수집은 후속 작업이다.
 
-DEV·운영에서 `MINIGAME_AWARD_ENABLED=true`를 설정하고 앱을 재시작해야 서비스와 자동 실행이 켜진다. 기본값은 `false`다. `MINIGAME_AWARD_AUTO_ENABLED=false`면 자동 확정만 끄고 관리자 수동 API는 유지한다. `MINIGAME_AWARD_WEEK`의 기본값은 `2026-11-02`이며 KST 월요일 날짜여야 한다. 배포 전 관리자 조회·운영 ID와 V153 마이그레이션 적용 여부를 확인한다. 실패한 확정 시도는 이력에 기록하며 다음 자동 실행이나 관리자 API로 재시도할 수 있다.
+DEV·운영에서 `MINIGAME_AWARD_ENABLED=true`를 설정하고 앱을 재시작해야 서비스와 자동 실행이 켜진다. 기본값은 `false`다. `MINIGAME_AWARD_AUTO_ENABLED=false`면 첫 주차 자동 확정만 끄고 관리자 수동 API는 유지한다. 기존 API와 스케줄러는 `2026-11-02` 회차로 고정되어 있다. 신규 주차는 [주차별 미니게임상 운영 API](weekly-minigame-awards.md)를 사용한다. 배포 전 관리자 조회·운영 ID와 V153·V163 마이그레이션 적용 여부를 확인한다. 실패한 확정 시도는 이력에 기록하며 다음 자동 실행이나 관리자 API로 재시도할 수 있다.

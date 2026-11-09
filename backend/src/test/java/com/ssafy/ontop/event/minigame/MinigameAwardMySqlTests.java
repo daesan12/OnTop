@@ -138,11 +138,152 @@ class MinigameAwardMySqlTests {
                 .isEqualTo("NOT_SELECTED");
         assertThat(announced.memberResult(MinigameAwardType.BUNGEOPPANG, WEEK, later).prize())
                 .isNull();
+
+        // A later week is configured explicitly; the original 2026-11-02 winner stays untouched.
+        LocalDate nextWeek = WEEK.plusWeeks(1);
+        Instant nextStart = Instant.parse("2026-11-09T00:00:00Z");
+        Instant nextEnd = Instant.parse("2026-11-15T15:00:00Z");
+        Instant nextAnnouncement = Instant.parse("2026-11-16T00:00:00Z");
+        var weeklyRepository = new WeeklyMinigameRepository(jdbc);
+        var beforeStart = weekly(weeklyRepository, "2026-11-08T23:00:00Z");
+        assertThat(beforeStart.games(nextWeek, gm)).isEmpty();
+        assertThat(beforeStart.supportedGames(gm)).extracting(
+                WeeklyMinigameAwardService.SupportedGame::gameCode)
+                .containsExactly("BUNGEOPPANG", "JUMPMAP");
+        var configuration = new WeeklyMinigameAwardService.Configuration(nextStart, nextEnd,
+                nextAnnouncement, "붕어빵", "v5-120000ms", true, "수동 지급 기프티콘");
+        assertThatThrownBy(() -> beforeStart.configure(nextWeek, "MG_UNKNOWN", configuration, gm))
+                .isInstanceOf(MinigameAwardException.class)
+                .satisfies(error -> assertThat(((MinigameAwardException) error).code())
+                        .isEqualTo("EVENT_RANKING_UNSUPPORTED"));
+        assertThat(beforeStart.configure(nextWeek, "BUNGEOPPANG", configuration, gm).prizeName())
+                .isEqualTo("수동 지급 기프티콘");
+        assertThat(beforeStart.games(nextWeek, gm)).hasSize(1);
+        assertThatThrownBy(() -> beforeStart.configure(WEEK, "BUNGEOPPANG", configuration, gm))
+                .isInstanceOf(MinigameAwardException.class);
+
+        String firstWeeklyRecord = bungeo(early, 500, 12, "2026-11-09T01:00:00Z",
+                "COMPLETED", "VERIFIED", "v5", true);
+        bungeo(later, 500, 12, "2026-11-09T01:01:00Z", "COMPLETED", "VERIFIED", "v5", true);
+        bungeo(gm, 9999, 99, "2026-11-09T01:02:00Z", "COMPLETED", "VERIFIED", "v5", true);
+        bungeo(invalid, 9999, 99, nextStart.minusMillis(1).toString(),
+                "COMPLETED", "VERIFIED", "v5", true);
+        bungeo(invalid, 9999, 99, nextEnd.toString(), "COMPLETED", "VERIFIED", "v5", true);
+        bungeo(invalid, 9999, 99, "2026-11-09T01:03:00Z", "COMPLETED", "REJECTED", "v5", true);
+        var beforeClose = weekly(weeklyRepository, "2026-11-15T15:04:59.999Z");
+        assertThat(beforeClose.memberResult(nextWeek, "BUNGEOPPANG", early).status())
+                .isEqualTo("NOT_ANNOUNCED");
+        var preview = beforeClose.ranking(nextWeek, "BUNGEOPPANG", gm);
+        assertThat(preview.status()).isEqualTo("PROVISIONAL");
+        assertThat(preview.candidateCount()).isEqualTo(3);
+        assertThat(preview.excludedGmCount()).isOne();
+        assertThat(preview.ranks()).hasSize(2);
+        assertThat(preview.ranks().getFirst().userId()).isEqualTo(early);
+        assertThat(preview.ranks().getFirst().sourceRecordId()).isEqualTo(firstWeeklyRecord);
+        assertThatThrownBy(() -> beforeClose.finalizeRound(nextWeek, "BUNGEOPPANG",
+                new WeeklyMinigameAwardService.FinalizeRequest(3, 1, firstWeeklyRecord), gm))
+                .isInstanceOf(MinigameAwardException.class)
+                .satisfies(error -> assertThat(((MinigameAwardException) error).code())
+                        .isEqualTo("EVENT_RECORDS_OPEN"));
+        assertThatThrownBy(() -> beforeClose.configure(nextWeek, "BUNGEOPPANG",
+                new WeeklyMinigameAwardService.Configuration(nextStart, nextEnd,
+                        nextAnnouncement, "붕어빵", "v5-120000ms", false, "수동 지급 기프티콘"), gm))
+                .isInstanceOf(MinigameAwardException.class)
+                .satisfies(error -> assertThat(((MinigameAwardException) error).code())
+                        .isEqualTo("EVENT_CONFIG_LOCKED"));
+        var afterClose = weekly(weeklyRepository, "2026-11-15T15:05:00Z");
+        assertThat(afterClose.ranking(nextWeek, "BUNGEOPPANG", gm).status()).isEqualTo("READY");
+        assertThatThrownBy(() -> afterClose.finalizeRound(nextWeek, "BUNGEOPPANG", null, gm))
+                .isInstanceOf(MinigameAwardException.class)
+                .satisfies(error -> assertThat(((MinigameAwardException) error).code())
+                        .isEqualTo("EVENT_INVALID_PREVIEW"));
+        assertThatThrownBy(() -> afterClose.finalizeRound(nextWeek, "BUNGEOPPANG",
+                new WeeklyMinigameAwardService.FinalizeRequest(null, null, null), gm))
+                .isInstanceOf(MinigameAwardException.class)
+                .satisfies(error -> assertThat(((MinigameAwardException) error).code())
+                        .isEqualTo("EVENT_INVALID_PREVIEW"));
+        assertThatThrownBy(() -> afterClose.finalizeRound(nextWeek, "BUNGEOPPANG",
+                new WeeklyMinigameAwardService.FinalizeRequest(3, 1, "stale"), gm))
+                .isInstanceOf(MinigameAwardException.class)
+                .satisfies(error -> assertThat(((MinigameAwardException) error).code())
+                        .isEqualTo("EVENT_RANKING_CHANGED"));
+
+        var weeklyStart = new CountDownLatch(1);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var calls = List.of(
+                    executor.submit(() -> { weeklyStart.await(); return afterClose.finalizeRound(nextWeek,
+                            "BUNGEOPPANG", new WeeklyMinigameAwardService.FinalizeRequest(3, 1,
+                                    firstWeeklyRecord), gm); }),
+                    executor.submit(() -> { weeklyStart.await(); return afterClose.finalizeRound(nextWeek,
+                            "BUNGEOPPANG", new WeeklyMinigameAwardService.FinalizeRequest(3, 1,
+                                    firstWeeklyRecord), gm); }));
+            weeklyStart.countDown();
+            assertThat(calls.get(0).get(20, TimeUnit.SECONDS).winner().userId()).isEqualTo(early);
+            assertThat(calls.get(1).get(20, TimeUnit.SECONDS).winner().userId()).isEqualTo(early);
+        }
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM event_winners w JOIN event_rounds r ON r.id = w.event_round_id
+                WHERE r.week_start_date = ? AND r.event_type = 'BUNGEOPPANG'
+                """, Integer.class, java.sql.Date.valueOf(nextWeek))).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM event_winners w JOIN event_rounds r ON r.id = w.event_round_id
+                WHERE r.week_start_date = ? AND r.event_type = 'BUNGEOPPANG'
+                """, Integer.class, java.sql.Date.valueOf(WEEK))).isOne();
+        bungeo(invalid, 99_999, 99, "2026-11-11T01:00:00Z",
+                "COMPLETED", "VERIFIED", "v5", true);
+        assertThat(afterClose.ranking(nextWeek, "BUNGEOPPANG", gm).winner().userId()).isEqualTo(early);
+        assertThat(afterClose.finalizeRound(nextWeek, "BUNGEOPPANG",
+                new WeeklyMinigameAwardService.FinalizeRequest(3, 1, firstWeeklyRecord), gm)
+                .winner().userId()).isEqualTo(early);
+        assertThat(weekly(weeklyRepository, "2026-11-16T00:00:00Z")
+                .memberResult(nextWeek, "BUNGEOPPANG", early).status()).isEqualTo("SELECTED");
+        assertThat(weekly(weeklyRepository, "2026-11-16T00:00:00Z")
+                .memberResult(nextWeek, "BUNGEOPPANG", later).status()).isEqualTo("NOT_SELECTED");
+
+        var jumpConfiguration = new WeeklyMinigameAwardService.Configuration(nextStart, nextEnd,
+                nextAnnouncement, "점프맵", "v3-park180-jump-v1", true, "외부 기프티콘");
+        weekly(weeklyRepository, "2026-11-10T00:00:00Z")
+                .configure(nextWeek, "JUMPMAP", jumpConfiguration, gm);
+        String firstWeeklyJump = jump(early, 70_000, "2026-11-10T01:00:00Z", "FINISH", "v3", false);
+        jump(later, 70_000, "2026-11-10T01:01:00Z", "FINISH", "v3", false);
+        jump(gm, 10_000, "2026-11-10T01:02:00Z", "FINISH", "v3", false);
+        var jumpPreview = afterClose.ranking(nextWeek, "JUMPMAP", gm);
+        assertThat(jumpPreview.ranks().getFirst().sourceRecordId()).isEqualTo(firstWeeklyJump);
+        assertThat(jumpPreview.excludedGmCount()).isOne();
+        assertThat(afterClose.finalizeRound(nextWeek, "JUMPMAP",
+                new WeeklyMinigameAwardService.FinalizeRequest(3, 1, firstWeeklyJump), gm)
+                .winner().userId()).isEqualTo(early);
+
+        LocalDate emptyWeek = nextWeek.plusWeeks(1);
+        var emptyConfiguration = new WeeklyMinigameAwardService.Configuration(
+                Instant.parse("2026-11-16T00:00:00Z"), Instant.parse("2026-11-22T15:00:00Z"),
+                Instant.parse("2026-11-23T00:00:00Z"), "점프맵", "v3-park180-jump-v1",
+                true, "외부 기프티콘");
+        beforeStart.configure(emptyWeek, "JUMPMAP", emptyConfiguration, gm);
+        assertThatThrownBy(() -> weekly(weeklyRepository, "2026-11-22T15:05:00Z")
+                .configure(emptyWeek, "BUNGEOPPANG",
+                        new WeeklyMinigameAwardService.Configuration(emptyConfiguration.startsAt(),
+                                emptyConfiguration.endsAt(), emptyConfiguration.announcesAt(),
+                                "붕어빵", "v5-120000ms", true, "외부 기프티콘"), gm))
+                .isInstanceOf(MinigameAwardException.class)
+                .satisfies(error -> assertThat(((MinigameAwardException) error).code())
+                        .isEqualTo("EVENT_CONFIG_CLOSED"));
+        assertThat(weekly(weeklyRepository, "2026-11-22T15:05:00Z")
+                .finalizeRound(emptyWeek, "JUMPMAP",
+                        new WeeklyMinigameAwardService.FinalizeRequest(0, 0, null), gm)
+                .winner()).isNull();
+        assertThat(weekly(weeklyRepository, "2026-11-23T00:00:00Z")
+                .memberResult(emptyWeek, "JUMPMAP", early).status()).isEqualTo("NOT_SELECTED");
     }
 
     private MinigameAwardService service(String now) {
         return new MinigameAwardService(repository, admins, transactions,
                 Clock.fixed(Instant.parse(now), ZoneOffset.UTC), WEEK);
+    }
+
+    private WeeklyMinigameAwardService weekly(WeeklyMinigameRepository configurations, String now) {
+        return new WeeklyMinigameAwardService(configurations, repository, admins, transactions,
+                Clock.fixed(Instant.parse(now), ZoneOffset.UTC));
     }
 
     private long member(String name) {

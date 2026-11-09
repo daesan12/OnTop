@@ -497,6 +497,44 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}:
+    put:
+      tags:
+      - Event Awards
+      summary: 주차별 검증 미니게임 기간·상품 설정
+      operationId: configure
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      - name: gameCode
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyMinigameConfiguration"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WeeklyMinigameGameConfig"
+      security:
+      - AccessJwt: []
   /api/v1/users/onboarding:
     post:
       tags:
@@ -1003,13 +1041,13 @@ paths:
                 category:
                   type: string
                   description: 생략 시 free. 명시적 null은 허용하지 않는다.
+                  default: free
                   enum:
                   - daily
                   - cheer
                   - worry
                   - recommend
                   - free
-                  default: free
               additionalProperties: false
         required: true
       responses:
@@ -4384,12 +4422,50 @@ paths:
                 $ref: "#/components/schemas/MinigameAwardResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}/finalize:
+    post:
+      tags:
+      - Event Awards
+      summary: 미니게임 1위 검토 후 수동 확정
+      operationId: finalizeRound_2
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      - name: gameCode
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyMinigameFinalizeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WeeklyMinigameRanking"
+      security:
+      - AccessJwt: []
   /api/v1/admin/events/assets/rounds/{weekStart}/finalize:
     post:
       tags:
       - Event Awards
       summary: 관리자 엽전 보유량 행사 결과 확정·재시도
-      operationId: finalizeRound_2
+      operationId: finalizeRound_3
       parameters:
       - name: weekStart
         in: path
@@ -6386,18 +6462,18 @@ paths:
         required: false
         schema:
           type: string
+          default: ALL_TIME
           enum:
           - ALL_TIME
-          default: ALL_TIME
       - name: rulesVersion
         in: query
         required: false
         schema:
           type: string
+          default: v5
           enum:
           - v4
           - v5
-          default: v5
       - name: limit
         in: query
         required: false
@@ -6613,12 +6689,44 @@ paths:
                 $ref: "#/components/schemas/MinigameMemberAwardResponse"
       security:
       - AccessJwt: []
+  /api/v1/events/minigames/rounds/{weekStart}/games/{gameCode}/result:
+    get:
+      tags:
+      - Event Awards
+      summary: 주차별 본인 미니게임상 결과
+      operationId: memberResult_2
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      - name: gameCode
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WeeklyMinigameMemberResult"
+      security:
+      - AccessJwt: []
   /api/v1/events/assets/rounds/{weekStart}/result:
     get:
       tags:
       - Event Awards
       summary: 본인의 엽전 보유량 행사 결과
-      operationId: memberResult_2
+      operationId: memberResult_3
       parameters:
       - name: weekStart
         in: path
@@ -7412,6 +7520,89 @@ paths:
                 $ref: "#/components/schemas/MinigameAwardResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/events/minigames/supported-games:
+    get:
+      tags:
+      - Event Awards
+      summary: 서버 검증 랭킹이 준비된 미니게임 목록
+      operationId: supportedGames
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WeeklyMinigameSupportedGame"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/minigames/rounds/{weekStart}/games:
+    get:
+      tags:
+      - Event Awards
+      summary: 주차별 활성 미니게임 목록
+      operationId: games_1
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WeeklyMinigameGameConfig"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}/ranking:
+    get:
+      tags:
+      - Event Awards
+      summary: 서버 검증 기록 기반 게임상 순위와 근거
+      operationId: ranking
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      - name: gameCode
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WeeklyMinigameRanking"
+      security:
+      - AccessJwt: []
   /api/v1/admin/events/assets/rounds/{weekStart}:
     get:
       tags:
@@ -7656,6 +7847,54 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AnnouncementOrderItem"
+    WeeklyMinigameConfiguration:
+      type: object
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        announcesAt:
+          type: string
+          format: date-time
+        displayName:
+          type: string
+        rankingRuleVersion:
+          type: string
+        enabled:
+          type: boolean
+        prizeName:
+          type: string
+    WeeklyMinigameGameConfig:
+      type: object
+      properties:
+        gameCode:
+          type: string
+        displayName:
+          type: string
+        rankingRuleVersion:
+          type: string
+        weekStartDate:
+          type: string
+          format: date
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        announcesAt:
+          type: string
+          format: date-time
+        prizeName:
+          type: string
+        enabled:
+          type: boolean
+        finalizedAt:
+          type: string
+          format: date-time
     UserOnboardingRequest:
       required:
       - characterGender
@@ -9472,6 +9711,56 @@ components:
           type: boolean
         winner:
           $ref: "#/components/schemas/Winner"
+    WeeklyMinigameFinalizeRequest:
+      type: object
+      properties:
+        candidateCount:
+          type: integer
+          format: int32
+        excludedGmCount:
+          type: integer
+          format: int32
+        expectedSourceRecordId:
+          type: string
+    WeeklyMinigameRank:
+      type: object
+      properties:
+        place:
+          type: integer
+          format: int32
+        userId:
+          type: integer
+          format: int64
+        sourceRecordId:
+          type: string
+        sourceValue:
+          type: integer
+          format: int64
+        secondaryValue:
+          type: integer
+          format: int64
+        achievedAt:
+          type: string
+          format: date-time
+    WeeklyMinigameRanking:
+      type: object
+      properties:
+        game:
+          $ref: "#/components/schemas/WeeklyMinigameGameConfig"
+        status:
+          type: string
+        candidateCount:
+          type: integer
+          format: int32
+        excludedGmCount:
+          type: integer
+          format: int32
+        ranks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyMinigameRank"
+        winner:
+          $ref: "#/components/schemas/Winner"
     AssetAwardResponse:
       type: object
       properties:
@@ -10588,6 +10877,32 @@ components:
           type: string
         prize:
           $ref: "#/components/schemas/Prize"
+    WeeklyMinigameMemberResult:
+      type: object
+      properties:
+        gameCode:
+          type: string
+        weekStartDate:
+          type: string
+          format: date
+        announcesAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        prize:
+          $ref: "#/components/schemas/WeeklyMinigamePrize"
+    WeeklyMinigamePrize:
+      type: object
+      properties:
+        prizeName:
+          type: string
+        sourceValue:
+          type: integer
+          format: int64
+        sourceAchievedAt:
+          type: string
+          format: date-time
     AssetMemberAwardResponse:
       type: object
       properties:
@@ -10861,6 +11176,15 @@ components:
         expiresAt:
           type: string
           format: date-time
+    WeeklyMinigameSupportedGame:
+      type: object
+      properties:
+        gameCode:
+          type: string
+        displayName:
+          type: string
+        rankingRuleVersion:
+          type: string
     AnalyticsSnapshot:
       type: object
       properties:

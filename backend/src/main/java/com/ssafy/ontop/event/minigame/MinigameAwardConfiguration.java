@@ -5,7 +5,6 @@ import com.ssafy.ontop.config.RuntimeProfiles;
 import java.time.Clock;
 import java.time.LocalDate;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,12 +22,23 @@ public class MinigameAwardConfiguration {
     }
 
     @Bean
+    WeeklyMinigameRepository weeklyMinigameRepository(JdbcTemplate jdbc) {
+        return new WeeklyMinigameRepository(jdbc);
+    }
+
+    @Bean
+    WeeklyMinigameAwardService weeklyMinigameAwardService(WeeklyMinigameRepository configurations,
+            MinigameAwardRepository records, AdminAccessPolicy administrators,
+            PlatformTransactionManager transactions, @Qualifier("oauthClock") Clock clock) {
+        return new WeeklyMinigameAwardService(configurations, records, administrators, transactions, clock);
+    }
+
+    @Bean
     MinigameAwardService minigameAwardService(MinigameAwardRepository repository,
             AdminAccessPolicy administrators, PlatformTransactionManager transactions,
-            @Qualifier("oauthClock") Clock clock,
-            @Value("${MINIGAME_AWARD_WEEK:2026-11-02}") String eventWeek) {
+            @Qualifier("oauthClock") Clock clock) {
         return new MinigameAwardService(repository, administrators, transactions,
-                clock, LocalDate.parse(eventWeek));
+                clock, LocalDate.of(2026, 11, 2));
     }
 
     @Bean
