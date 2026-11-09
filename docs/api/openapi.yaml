@@ -10193,6 +10193,45 @@ components:
           format: int32
         equipped:
           type: boolean
+    EventWinnerNotificationAward:
+      type: object
+      properties:
+        winnerId:
+          type: integer
+          format: int64
+        eventType:
+          type: string
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        deliveryStatus:
+          type: string
+    EventWinnerNotificationDetails:
+      type: object
+      properties:
+        weekStartDate:
+          type: string
+          format: date
+        awards:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventWinnerNotificationAward"
+        contactStatus:
+          type: string
+        contactEdited:
+          type: boolean
+        submissionDeadline:
+          type: string
+          format: date-time
+        allPrizesDelivered:
+          type: boolean
+        contactActionRequired:
+          type: boolean
+        contactEditable:
+          type: boolean
+      nullable: true
     NotificationDetailResponse:
       type: object
       properties:
@@ -10222,6 +10261,8 @@ components:
           nullable: true
         reward:
           $ref: "#/components/schemas/NotificationRewardResponse"
+        event:
+          $ref: "#/components/schemas/EventWinnerNotificationDetails"
     NotificationRewardResponse:
       type: object
       properties:
@@ -10841,6 +10882,10 @@ components:
           nullable: true
         reward:
           $ref: "#/components/schemas/NotificationRewardResponse"
+        eventWeekStartDate:
+          type: string
+          format: date
+          nullable: true
     NoteListResponse:
       required:
       - notes
@@ -11140,6 +11185,12 @@ components:
         deliveredAt:
           type: string
           format: date-time
+        allPrizesDelivered:
+          type: boolean
+        contactActionRequired:
+          type: boolean
+        contactEditable:
+          type: boolean
     MinigameMemberAwardResponse:
       type: object
       properties:

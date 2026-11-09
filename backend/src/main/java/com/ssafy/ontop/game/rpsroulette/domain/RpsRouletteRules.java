@@ -18,11 +18,11 @@ public final class RpsRouletteRules {
     /** 표시 마감 뒤 네트워크 지연을 받아 주는 시간. 이후에는 서버가 대신 처리한다. */
     public static final Duration GRACE = Duration.ofMillis(1500);
     public static final int MAX_CHALLENGES = 2;
-    /** 배수는 10분의 1 단위: ×1.0, ×1.5, ×2.0. 참가비가 10의 배수라 지급액은 항상 정수다. */
-    public static final List<Integer> MULTIPLIER_TENTHS = List.of(10, 15, 20);
-    /** 12시 방향부터 시계방향. 1×19, 2×5, 3×2, 4·5·7·10 각 1칸. */
-    public static final List<Integer> ROULETTE = List.of(10, 1, 2, 1, 3, 1, 1, 1, 5, 1, 1, 2, 1, 1, 1,
-            7, 1, 2, 1, 3, 1, 2, 1, 4, 1, 1, 1, 2, 1, 1);
+    /** 배수는 10분의 1 단위: ×1.0, ×2.0, ×4.0. 참가비가 10의 배수라 지급액은 항상 정수다. */
+    public static final List<Integer> MULTIPLIER_TENTHS = List.of(10, 20, 40);
+    /** 12시 방향부터 시계방향. 1×15, 2×7, 3×3, 4×2, 5·7·10 각 1칸(평균 68/30). */
+    public static final List<Integer> ROULETTE = List.of(10, 1, 2, 1, 3, 1, 2, 1, 5, 1, 1, 2, 1, 4, 1,
+            7, 1, 2, 1, 3, 1, 2, 1, 4, 1, 3, 1, 2, 1, 2);
 
     public enum Hand { ROCK, SCISSORS, PAPER }
 

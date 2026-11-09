@@ -3,12 +3,12 @@ import { parkPeriodTrack, parkTrack, resultSting, type ParkMoment } from '../../
 import type { Game, Result } from '../../src/game/protocol'
 
 const park = (patch: Partial<ParkMoment> = {}): ParkMoment => ({
-  game: null, bungeoppang: false, shopping: false, telescope: false, seated: false, hour: 12, ...patch,
+  game: null, bungeoppang: false, arcade: null, shopping: false, telescope: false, seated: false, hour: 12, ...patch,
 })
-const game = (key: 'omok' | 'dice' | 'onecard' | 'bridge', status: 'PLAYING' | 'FINISHED' = 'PLAYING') =>
+const game = (key: 'omok' | 'dice' | 'onecard' | 'bridge' | 'alkkagi', status: 'PLAYING' | 'FINISHED' = 'PLAYING') =>
   ({ [key]: { status } }) as unknown as Game
-const result = (mine: string | null, status: Result['status'] = 'FINISHED'): Result => ({
-  version: 1, gameSessionId: 'g1', gameCode: 'OMOK', status, endReason: 'FIVE_IN_ROW', settlementStatus: 'SETTLED',
+const result = (mine: string | null, status: Result['status'] = 'FINISHED', gameCode = 'OMOK'): Result => ({
+  version: 1, gameSessionId: 'g1', gameCode, status, endReason: 'FIVE_IN_ROW', settlementStatus: 'SETTLED',
   betAmountPerPlayer: 10, myCoinDelta: 0, endedAt: '2026-10-28T00:00:00Z',
   participants: [{ userId: 'me', result: mine }, { userId: 'other', result: 'WIN' }],
 })
@@ -38,6 +38,20 @@ it('chooses a sting only from the player own finished result', () => {
   expect(resultSting(result('DRAW'), 'me')).toBeNull()
   expect(resultSting(result(null, 'INVALID'), 'me')).toBeNull()
   expect(resultSting(result('WIN'), 'stranger')).toBeNull()
+})
+
+it('알까기는 경기 곡과 승리·패배·무승부 전용 결과 음악을 쓴다', () => {
+  expect(parkTrack(park({ game: game('alkkagi'), arcade: 'arcade-room-bgm' }))).toBe('alkkagi-bgm')
+  expect(resultSting(result('WIN', 'FINISHED', 'ALKKAGI'), 'me')).toBe('alkkagi-win')
+  for (const lost of ['LOSE', 'FORFEIT']) expect(resultSting(result(lost, 'FINISHED', 'ALKKAGI'), 'me')).toBe('alkkagi-lose')
+  expect(resultSting(result('DRAW', 'FINISHED', 'ALKKAGI'), 'me')).toBe('alkkagi-draw')
+  expect(resultSting(result('WIN', 'INVALID', 'ALKKAGI'), 'me')).toBeNull()
+  expect(resultSting(result('WIN', 'FINISHED', 'ALKKAGI'), 'stranger')).toBeNull()
+})
+
+it('열린 오락기 게임의 곡은 붕어빵 다음, 상점보다 먼저 고른다', () => {
+  expect(parkTrack(park({ arcade: 'mole-bgm-fever', shopping: true, seated: true }))).toBe('mole-bgm-fever')
+  expect(parkTrack(park({ arcade: 'arcade-room-bgm', bungeoppang: true }))).toBe('bungeoppang')
 })
 
 function storage(initial: Record<string, string> = {}) {

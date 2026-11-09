@@ -17,6 +17,12 @@ it('shows only validated award fields and groups multiple wins into one weekly c
   expect(() => parseWinnings([{ ...base, eventType: 'UNKNOWN' }])).toThrow()
   expect(() => parseWinnings([{ ...base, contactStatus: 'SUBMITTED', maskedPhone: 1012345678 }])).toThrow()
 })
+it('does not request or reopen the contact form after every prize is delivered', () => {
+  const awards = parseWinnings([{ ...base, submissionDeadline: '2030-11-16T00:00:00Z',
+    allPrizesDelivered: true, contactActionRequired: false, contactEditable: false }])
+  expect(groupWinnings(awards)[0]).toMatchObject({ allDelivered: true, editable: false, actionRequired: false })
+  expect(() => parseWinnings([{ ...base, allPrizesDelivered: 'yes' }])).toThrow()
+})
 
 it('accepts the server phone formats and enforces the announced submission deadline', () => {
   expect(normalizePhone('010-1234-5678')).toBe('01012345678')

@@ -14,6 +14,9 @@ export interface Winning {
   contactStatus: ContactStatus
   maskedPhone: string | null
   contactExpiresAt: string | null
+  allPrizesDelivered?: boolean
+  contactActionRequired?: boolean
+  contactEditable?: boolean
 }
 
 export interface ContactReceipt {
@@ -49,13 +52,19 @@ export function parseWinnings(value: unknown): Winning[] {
       || !['NOT_SUBMITTED', 'SUBMITTED', 'EXPIRED'].includes(String(row.contactStatus))
       || !(row.maskedPhone === null || validMask(row.maskedPhone))
       || (row.contactStatus === 'SUBMITTED' && !validMask(row.maskedPhone))
-      || !(row.contactExpiresAt === null || validInstant(row.contactExpiresAt))) return invalid()
+      || !(row.contactExpiresAt === null || validInstant(row.contactExpiresAt))
+      || (row.allPrizesDelivered !== undefined && typeof row.allPrizesDelivered !== 'boolean')
+      || (row.contactActionRequired !== undefined && typeof row.contactActionRequired !== 'boolean')
+      || (row.contactEditable !== undefined && typeof row.contactEditable !== 'boolean')) return invalid()
     return {
       winnerId: row.winnerId as number, weekStart: row.weekStart as string,
       eventType: row.eventType as AwardType, place: row.place as number,
       prizeName: row.prizeName as string, announcedAt: row.announcedAt as string,
       submissionDeadline: row.submissionDeadline as string, contactStatus: row.contactStatus as ContactStatus,
       maskedPhone: row.maskedPhone as string | null, contactExpiresAt: row.contactExpiresAt as string | null,
+      allPrizesDelivered: row.allPrizesDelivered as boolean | undefined,
+      contactActionRequired: row.contactActionRequired as boolean | undefined,
+      contactEditable: row.contactEditable as boolean | undefined,
     }
   })
 }
@@ -73,13 +82,18 @@ export function normalizePhone(value: string): string | null {
   return /^010\d{8}$|^01[16789]\d{7,8}$/.test(digits) ? digits : null
 }
 
-export function groupWinnings(items: Winning[]): { weekStart: string; awards: Winning[]; deadline: string; status: ContactStatus; maskedPhone: string | null; expiresAt: string | null }[] {
+export function groupWinnings(items: Winning[]): { weekStart: string; awards: Winning[]; deadline: string; status: ContactStatus; maskedPhone: string | null; expiresAt: string | null; allDelivered: boolean; actionRequired: boolean; editable: boolean }[] {
   const weeks = new Map<string, Winning[]>()
   for (const item of items) weeks.set(item.weekStart, [...(weeks.get(item.weekStart) ?? []), item])
-  return [...weeks].sort(([a], [b]) => b.localeCompare(a)).map(([weekStart, awards]) => ({
-    weekStart, awards, deadline: awards.reduce((latest, item) => item.submissionDeadline > latest ? item.submissionDeadline : latest, awards[0]!.submissionDeadline),
-    status: awards[0]!.contactStatus, maskedPhone: awards[0]!.maskedPhone, expiresAt: awards[0]!.contactExpiresAt,
-  }))
+  return [...weeks].sort(([a], [b]) => b.localeCompare(a)).map(([weekStart, awards]) => {
+    const deadline = awards.reduce((latest, item) => item.submissionDeadline > latest ? item.submissionDeadline : latest, awards[0]!.submissionDeadline)
+    const status = awards[0]!.contactStatus
+    const allDelivered = awards.every(item => item.allPrizesDelivered === true)
+    const editable = !allDelivered && canSubmit(status, deadline) && awards.every(item => item.contactEditable !== false)
+    return { weekStart, awards, deadline, status, maskedPhone: awards[0]!.maskedPhone,
+      expiresAt: awards[0]!.contactExpiresAt, allDelivered, editable,
+      actionRequired: editable && status === 'NOT_SUBMITTED' && awards.some(item => item.contactActionRequired !== false) }
+  })
 }
 
 export function canSubmit(status: ContactStatus, deadline: string, now = Date.now()): boolean {
