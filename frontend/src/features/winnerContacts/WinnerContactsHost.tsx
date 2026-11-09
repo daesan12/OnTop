@@ -19,6 +19,7 @@ const kstDate = (value: string) => new Intl.DateTimeFormat('ko-KR', {
 
 export function WinnerContactsHost({ open, refreshKey, selectedWeek, onAutoOpen, onClose }: Props) {
   const [items, setItems] = useState<Winning[] | null>(null)
+  const [loadedRefreshKey, setLoadedRefreshKey] = useState<number | null>(null)
   const [reload, setReload] = useState(0)
   const [loadError, setLoadError] = useState('')
   const [phoneByWeek, setPhoneByWeek] = useState<Record<string, string>>({})
@@ -37,9 +38,11 @@ export function WinnerContactsHost({ open, refreshKey, selectedWeek, onAutoOpen,
     const controller = request.current = new AbortController()
     setLoadError('')
     setItems(null)
+    setLoadedRefreshKey(null)
     void loadMyWinnings(controller.signal).then(result => {
       if (controller.signal.aborted) return
       setItems(result)
+      setLoadedRefreshKey(refreshKey)
       if (!autoShown.current && groupWinnings(result).some(group =>
         group.actionRequired)) {
         autoShown.current = true
@@ -60,7 +63,7 @@ export function WinnerContactsHost({ open, refreshKey, selectedWeek, onAutoOpen,
     return () => window.clearInterval(timer)
   }, [open])
   useEffect(() => {
-    if (!open || items === null || !selectedWeek || focusedRequest.current === refreshKey) return
+    if (!open || items === null || loadedRefreshKey !== refreshKey || !selectedWeek || focusedRequest.current === refreshKey) return
     const heading = [...document.querySelectorAll<HTMLElement>('.winner-contacts-week h3')]
       .find(element => element.textContent === `${selectedWeek} 주차`)
     if (heading) {
@@ -68,7 +71,7 @@ export function WinnerContactsHost({ open, refreshKey, selectedWeek, onAutoOpen,
       heading.focus({ preventScroll: true })
       heading.scrollIntoView({ block: 'nearest' })
     }
-  }, [open, items, refreshKey, selectedWeek])
+  }, [open, items, loadedRefreshKey, refreshKey, selectedWeek])
 
   async function save(week: string, event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

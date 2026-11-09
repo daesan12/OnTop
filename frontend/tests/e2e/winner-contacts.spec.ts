@@ -85,14 +85,19 @@ test('a read winner notice reopens contact entry after closing and stops offerin
   await page.clock.install({ time: new Date('2026-11-10T00:00:00Z') })
   await fixture(page)
   let submitted = false, delivered = false, read = false
+  let winningsReads = 0
   const awards = [award, { ...award, winnerId: 42, eventType: 'JUMPMAP', prizeName: '점프맵 상품' }]
-  await page.route('**/api/v1/events/winnings/me?*', route => route.fulfill({ json: awards.map(item => ({
-    ...item, contactStatus: submitted ? 'SUBMITTED' : 'NOT_SUBMITTED',
-    maskedPhone: submitted ? '***-****-5678' : null,
-    contactExpiresAt: submitted ? '2026-11-24T00:00:00Z' : null,
-    allPrizesDelivered: delivered, contactActionRequired: !submitted && !delivered,
-    contactEditable: !delivered,
-  })) }))
+  await page.route('**/api/v1/events/winnings/me?*', async route => {
+    // On notification reentry the previous result still exists until this request settles.
+    if (++winningsReads === 2) await new Promise(resolve => setTimeout(resolve, 400))
+    return route.fulfill({ json: awards.map(item => ({
+      ...item, contactStatus: submitted ? 'SUBMITTED' : 'NOT_SUBMITTED',
+      maskedPhone: submitted ? '***-****-5678' : null,
+      contactExpiresAt: submitted ? '2026-11-24T00:00:00Z' : null,
+      allPrizesDelivered: delivered, contactActionRequired: !submitted && !delivered,
+      contactEditable: !delivered,
+    })) })
+  })
   await page.route(`**/api/v1/events/winnings/weeks/${week}/contact`, route => {
     expect(delivered).toBe(false)
     submitted = true
@@ -125,6 +130,7 @@ test('a read winner notice reopens contact entry after closing and stops offerin
   await page.getByRole('button', { name: /이벤트 당첨 안내/ }).click()
   await expect(page.getByRole('button', { name: '연락처 입력하기' })).toBeVisible()
   await page.getByRole('button', { name: '연락처 입력하기' }).click()
+  await expect(winnings.getByRole('heading', { name: `${week} 주차` })).toBeFocused()
   await expect(winnings.getByLabel('경품 전달용 휴대전화 번호')).toBeVisible()
   await winnings.getByLabel('경품 전달용 휴대전화 번호').fill('010-1234-5678')
   await winnings.getByLabel('연락처 수집·보관 안내를 확인했습니다.').check()
