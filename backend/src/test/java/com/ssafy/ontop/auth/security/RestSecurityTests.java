@@ -59,6 +59,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -287,6 +288,25 @@ class RestSecurityTests {
     }
 
     @Test
+    void 스킨_구성품과_세트_관리는_운영_관리자만_통과한다() throws Exception {
+        String root = "/api/v1/admin/operations/skins";
+        var endpoints = List.of(List.of("GET", root + "/components"), List.of("POST", root + "/components"),
+                List.of("GET", root + "/sets"), List.of("POST", root + "/sets"), List.of("PUT", root + "/sets/1"),
+                List.of("POST", root + "/sets/1/publish"), List.of("POST", root + "/sets/1/disable"));
+        for (var endpoint : endpoints) {
+            var method = org.springframework.http.HttpMethod.valueOf(endpoint.get(0));
+            String path = endpoint.get(1);
+            mvc.perform(request(method, path)).andExpect(status().isUnauthorized());
+            mvc.perform(authAs(44, request(method, path))).andExpect(status().isForbidden());
+            mvc.perform(auth(request(method, path))).andExpect(status().isForbidden());
+            mvc.perform(authAs(43, request(method, path)
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}")))
+                    .andExpect(result -> assertThat(result.getResponse().getStatus())
+                            .as(method + " " + path).isNotIn(401, 403));
+        }
+    }
+
+    @Test
     void 당첨자_연락처_목록과_원문_조회는_서로_다른_관리자_권한을_요구한다() throws Exception {
         String list = "/api/v1/admin/events/winners";
         String reveal = "/api/v1/admin/events/winners/1/contact";
@@ -407,6 +427,11 @@ class RestSecurityTests {
                 "POST /api/v1/admin/operations/skins/{id}/uploads",
                 "POST /api/v1/admin/operations/skins/{id}/uploads/{uploadId}/verify",
                 "POST /api/v1/admin/operations/skins/{id}/publish", "POST /api/v1/admin/operations/skins/{id}/disable",
+                "GET /api/v1/admin/operations/skins/components", "POST /api/v1/admin/operations/skins/components",
+                "GET /api/v1/admin/operations/skins/sets", "POST /api/v1/admin/operations/skins/sets",
+                "PUT /api/v1/admin/operations/skins/sets/{id}",
+                "POST /api/v1/admin/operations/skins/sets/{id}/publish",
+                "POST /api/v1/admin/operations/skins/sets/{id}/disable",
                 "GET /api/v1/notifications", "GET /api/v1/notifications/{notificationId}",
                 "PATCH /api/v1/notifications/{notificationId}/read",
                 "POST /api/v1/notifications/{notificationId}/claim", "POST /api/v1/admin/wallet-grants/rewards",
