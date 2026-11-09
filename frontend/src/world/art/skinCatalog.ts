@@ -7,7 +7,7 @@ export const catalogSource = (asset: SkinAsset) => 'registered-' + asset.imageKe
 export const catalogSourceUrl = (source: string) => {
   for (const asset of useSkinCatalog.getState().assets) {
     if (catalogSource(asset) === source) return asset.modelUrl
-    if (asset.compatibility === 'ANY' && asset.wearMode === 'WHOLE' && catalogSource(asset) + '-girl' === source)
+    if (asset.compatibility === 'ANY' && catalogSource(asset) + '-girl' === source)
       return asset.femaleModelUrl ?? asset.modelUrl
   }
   return undefined

@@ -117,3 +117,35 @@ DEV/PROD의 Vercel 설정에서 `/admin/skins`를 `/index.html`로 연결한다.
 - 인프라 환경변수 설정 완료는 사용자 전달 사항이다. 실제 AWS 서명 PUT·IAM·CORS·OAC·CDN 조회와 배포 후 모델/착용 인수는 아직 검증하지 않았다. 이번 검증은 공용 DB·AWS 리소스를 변경하지 않았다.
 
 2026-11-08 MR 통합 검증: 최신 dev `facc87a7` 위에 이번 스킨 서버·화면 커밋만 적용했다. 충돌 없이 관련 FE22개·TypeScript·Java/실제 OpenAPI·격리 MySQL14개·PC 브라우저9개·park-integration 빌드·Postman 파일 일치를 재검증했다. 다른 대화의 로컬 뽑기 오류 수정은 MR에 포함하지 않는다.
+
+## 아이템 선등록·세트 구성 확장 (2026-11-09)
+
+V164 후보: skin_item_registrations / skin_item_parts / skin_sets / skin_set_members를 추가한다. 로컬 작성·격리 검증만 진행하며 팀 번호·순서 확인 전 푸시·병합·공용 적용을 보류한다. 기존 SQL·items/user_items/영수증은 변경하지 않는다.
+
+- 관리자 기본 탭은 아이템 관리다. 파일 등록·검증·아이템 공개 후 세트 관리에서 고른다. 기존 등록 상품은 별도 탭에서 유지한다.
+- 화면 슬롯은 머리(HAIR), 얼굴(FACE), 옷(TOP+BOTTOM+SHOES) 세 칸이다. 머리+얼굴 아이템 하나는 두 칸을 함께 점유하며 삭제/빼기 시 함께 풀린다. 옷은 세 물리 부위를 항상 포함한다. 프론트 잠금과 별도로 서버도 부위 중복을409로 거절한다.
+- 새 아이템 공개는 착용품만 등록하며 그 자체를 뽑기 상품으로 추가하지 않는다. 구성 아이템의 등급은 기존 등록 필드이며 획득 등급·중복 보상·자산 평가는 세트 상품의 등급을 사용한다.
+- 새 아이템의 남녀 공용 PARTS도 서로 다른 남녀 파일 또는 동일 공용 파일을 지원한다. 부위 조각 계약은 기존 item__<SLOT>__a를 유지한다. 통짜 WHOLE은 세 슬롯 전체를 점유하고 부분 아이템과 혼합할 수 없다.
+- 세트는 검증·공개된 아이템1~3개를 선택한다. MALE/FEMALE 세트에는 해당 성별 또는 ANY, ANY세트에는 ANY아이템만 포함할 수 있다. 대표 이미지는 선택한 구성품 썸네일을 사용한다(별도 세트 썸네일 업로드는 이번 범위에 없음).
+- 공개 후 구성·등급·성별·이미지를 고정한다. 기존 영수증과 획득 권리를 보존하려면 변경은 새 코드로 등록한다. 중단은 신규 획득만 차단하며 기존 소유·모델 조회를 유지한다.
+- 구성품별 기존 set_code 묶음은 '함께 입고 벗는 아이템', 새 skin_sets는 '함께 획득하는 세트'다. 새 세트는 과거 gacha 상품의 강제 통합 착용 매핑에서 제외한다. 예전 상품과 보유 의상의 묶음은 그대로 유지한다.
+- 뽑기 OPEN은 기존 단일 트랜잭션에서 전체 구성품을 지급한다. 모든 물리 아이템을 이미 보유한 경우 기존 세트등급의50% 중복보상, 일부만 보유하면 누락 구성품만 추가하며 기존 보유량을 늘리지 않는다. 개봉 영수증 product.components는 id/name/imageKey/itemIds/slots를 담아 구성품별 카드를 표시한다. 과거 영수증의 components 누락은 빈 목록으로 읽으며 기존 itemIds를 유지한다.
+- 같은 아이템을 여러 세트에서 재사용할 수 있다. 자산 평가는 기존 '완성 보유 상품마다 등급가치1회' 정책을 유지하므로 같은 구성품으로 완성되는 세트가 여러 개면 각 세트 가치가 합산된다. 중복 가치 배제 정책 변경은 별도 협의 대상이며 임의로 기존 랭킹을 바꾸지 않는다.
+
+### 추가 API (기존 /api/v1/admin/operations/skins 하위)
+
+| 메서드·경로 | 목적 |
+| --- | --- |
+| GET /components | 착용 아이템 등록 목록 |
+| POST /components | 아이템 초안 생성 (기존 Definition) |
+| GET /sets | 세트 목록 |
+| POST /sets | 세트 초안 생성 |
+| PUT /sets/{id} | version+definition으로 미공개 구성 수정 |
+| POST /sets/{id}/publish | version으로 세트 공개 |
+| POST /sets/{id}/disable | version으로 신규 획득 중단 |
+
+```json
+{"productCode":"SCHOLAR_SET","name":"선비 세트","grade":2,"compatibility":"ANY","imageSkinId":"11111111-1111-4111-8111-111111111111","itemIds":["11111111-1111-4111-8111-111111111111","22222222-2222-4222-8222-222222222222"]}
+```
+
+충돌: SKIN_SET_SLOT_CONFLICT(부위 중복), SKIN_SET_CHARACTER_MISMATCH(성별), SKIN_ITEM_NOT_READY(미공개 구성품), SKIN_SET_IMMUTABLE(공개 후 수정), SKIN_VERSION_CHANGED(다중창 버전), SKIN_PRODUCT_CODE_CONFLICT(코드 충돌). 기존 관리자 접근권한/업로드 권한을 재사용하며 JWT·S3 정책 변경은 없다.

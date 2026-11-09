@@ -3,13 +3,20 @@ import { InboxError } from '../notifications/api'
 import { fileSpec, skinRequest, slotOrder, uploadFile, type SkinDefinition, type SkinEntry, type SkinSettings, type SkinTicket, type SkinVerified } from './api'
 import { SkinPreview } from './SkinPreview'
 import './skins.css'
+import { AdminSkinSets } from './AdminSkinSets'
+import { places, placeLabels, physicalSlots } from './sets'
 
 const initial: SkinDefinition = { productCode: '', name: '', grade: 4, compatibility: 'MALE', wearMode: 'WHOLE', slots: [...slotOrder] }
 const stateNames = { DRAFT: '임시저장', PUBLISHED: '공개 중', DISABLED: '신규 획득 중단' }
-const labels = { HAIR: '머리', FACE: '얼굴', TOP: '상의', BOTTOM: '하의', SHOES: '신발' }
 const gradeNames = ['S', 'A', 'B', 'C']
 
 export function AdminSkinsPage({ onAuthEnded }: { onAuthEnded: () => void }) {
+  const [tab, setTab] = useState<'items' | 'sets' | 'legacy'>('items')
+  return <><nav className="skin-tabs" aria-label="스킨 공방 메뉴">{([['items', '아이템 관리'], ['sets', '세트 관리'], ['legacy', '기존 등록 상품']] as const).map(([value, label]) =>
+    <button key={value} aria-pressed={tab === value} onClick={() => setTab(value)}>{label}</button>)}</nav>
+    {tab === 'sets' ? <AdminSkinSets onAuthEnded={onAuthEnded}/> : <SkinItemEditor key={tab} onAuthEnded={onAuthEnded} component={tab === 'items'}/>}</>
+}
+function SkinItemEditor({ onAuthEnded, component }: { onAuthEnded: () => void; component: boolean }) {
   const [settings, setSettings] = useState<SkinSettings | null>(null), [entries, setEntries] = useState<SkinEntry[]>([])
   const [selected, setSelected] = useState<SkinEntry | null>(null), [form, setForm] = useState<SkinDefinition>(initial)
   const [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [query, setQuery] = useState('')
@@ -27,7 +34,7 @@ export function AdminSkinsPage({ onAuthEnded }: { onAuthEnded: () => void }) {
   }
   useEffect(() => {
     const control = loading.current = new AbortController()
-    Promise.all([skinRequest<SkinSettings>('/settings', control.signal), skinRequest<SkinEntry[]>('', control.signal)])
+    Promise.all([skinRequest<SkinSettings>('/settings', control.signal), skinRequest<SkinEntry[]>(component ? '/components' : '', control.signal)])
       .then(([s, list]) => { if (!control.signal.aborted) { setSettings(s); setEntries(list) } })
       .catch(cause => { if (!control.signal.aborted) fail(cause) })
     return () => control.abort()
@@ -46,13 +53,13 @@ export function AdminSkinsPage({ onAuthEnded }: { onAuthEnded: () => void }) {
     finally { if (flight.current === control) { flight.current = null; if (!control.signal.aborted) setBusy(false) } }
   }
   const save = () => run(async signal => {
-    const entry = await skinRequest<SkinEntry>(selected ? `/${selected.id}` : '', signal, selected ? 'PUT' : 'POST',
+    const entry = await skinRequest<SkinEntry>(selected ? `/${selected.id}` : component ? '/components' : '', signal, selected ? 'PUT' : 'POST',
       selected ? { version: selected.version, definition: form } : form)
     if (signal.aborted) return
     adopt(entry); resetFiles(); setMessage('상품 정보를 임시저장했어요. 다음으로 모델과 대표 이미지를 업로드해주세요.')
   })
   const dirty = !!selected && JSON.stringify(form) !== JSON.stringify(selected.definition)
-  const paired = form.wearMode === 'WHOLE' && form.compatibility === 'ANY'
+  const paired = form.compatibility === 'ANY'
   const needsFemale = paired && !sharedModel
   const sendFiles = () => run(async signal => {
     if (!selected || !settings?.storageReady || !model || !image || dirty || (needsFemale && !femaleModel)) return
@@ -79,11 +86,11 @@ export function AdminSkinsPage({ onAuthEnded }: { onAuthEnded: () => void }) {
   const publish = () => run(async signal => {
     if (!selected || !verified || !reviewed || !loaded || !imageLoaded || dirty) return
     const result = await skinRequest<SkinEntry>(`/${selected.id}/publish`, signal, 'POST', { version: selected.version, uploadId: verified.uploadId, reviewed: true })
-    if (!signal.aborted) { adopt(result); setMessage('스킨을 공개했어요. 뽑기 상품에 연결됐으며 기존 확률·등급 가치는 유지돼요.') }
+    if (!signal.aborted) { adopt(result); setMessage(component ? '아이템을 공개했어요. 세트 관리에서 구성품으로 선택할 수 있어요.' : '스킨을 공개했어요. 뽑기 상품에 연결됐으며 기존 확률·등급 가치는 유지돼요.') }
   })
   return <section className="skin-admin" aria-label="스킨 등록 관리">
     <div className="skin-admin-intro"><div><small>온탑 의상 공방</small><h2>새로운 모습을 준비해요</h2>
-      <p>상품 정보 → 파일 업로드·검증 → 미리보기 → 공개</p></div><button disabled={busy} onClick={() => { setMessage(''); setReload(v => v + 1) }}>목록 다시 조회</button></div>
+      <p>{component ? '아이템 정보 → 파일 업로드·검증 → 공개 → 세트에서 선택' : '기존 등록 상품의 파일·공개 상태를 관리해요'}</p></div><button disabled={busy} onClick={() => { setMessage(''); setReload(v => v + 1) }}>목록 다시 조회</button></div>
     {message && <p className="skin-message" role="status">{message}</p>}
     {settings && !settings.storageReady && <aside className="skin-storage-note"><strong>파일 저장소 연결 준비 중</strong><p>상품 정보는 임시저장할 수 있어요. 실제 업로드·공개는 S3·CDN 연결 후 사용할 수 있어요.</p></aside>}
     {!settings ? <p>등록 권한과 저장소 설정을 확인해주세요.</p> : <div className="skin-workbench">
@@ -106,8 +113,8 @@ export function AdminSkinsPage({ onAuthEnded }: { onAuthEnded: () => void }) {
             <label>착용 방식<select aria-label="착용 방식" value={form.wearMode} disabled={!!selected?.publishedUploadId} onChange={e => setForm({ ...form, wearMode: e.target.value as SkinDefinition['wearMode'],
               ...(e.target.value === 'WHOLE' ? { slots: [...slotOrder] } : {}) })}>
               <option value="WHOLE">통합 스킨 · 전체 외형</option><option value="PARTS">분리 의상 · 선택 부위</option></select></label>
-          </div><div className="skin-slots" role="group" aria-label="포함 부위">{slotOrder.map(slot => <label key={slot}><input type="checkbox" checked={form.slots.includes(slot)} disabled={form.wearMode === 'WHOLE' || !!selected?.publishedUploadId}
-            onChange={e => setForm({ ...form, slots: slotOrder.filter(s => s === slot ? e.target.checked : form.slots.includes(s)) })}/>{labels[slot]}</label>)}</div>
+          </div><div className="skin-slots" role="group" aria-label="포함 부위">{places.map(place => <label key={place}><input type="checkbox" checked={physicalSlots[place].every(slot => form.slots.includes(slot))} disabled={form.wearMode === 'WHOLE' || !!selected?.publishedUploadId}
+            onChange={e => setForm({ ...form, slots: slotOrder.filter(s => physicalSlots[place].includes(s) ? e.target.checked : form.slots.includes(s)) })}/>{placeLabels[place]}</label>)}</div>
           <p className="skin-help">옷은 상의·하의·신발을 함께 등록해요. 통합 스킨은 머리·얼굴·옷을 함께 입고 벗어요.</p>
           <button className="skin-primary" type="submit">{busy ? '처리 중…' : '상품 정보 저장'}</button>
         </fieldset></form>

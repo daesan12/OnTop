@@ -81,14 +81,18 @@ public class GachaRepository {
         Map<String,List<Long>> parts = new HashMap<>();
         jdbc.query("SELECT product_code,item_id FROM gacha_product_items ORDER BY product_code,item_id",
                 rs -> { parts.computeIfAbsent(rs.getString(1), ignored -> new ArrayList<>()).add(rs.getLong(2)); });
+        Map<String,List<Component>> components=new HashMap<>();
+        jdbc.query("SELECT s.product_code,c.id,c.name,c.published_upload_id,c.slots FROM skin_sets s JOIN skin_set_members m ON m.set_id=s.id JOIN skin_catalog c ON c.id=m.skin_id ORDER BY s.product_code,c.id",
+                rs->{String id=rs.getString(2);var ids=jdbc.queryForList("SELECT item_id FROM skin_item_parts WHERE skin_id=? ORDER BY item_id",Long.class,id);
+                    components.computeIfAbsent(rs.getString(1),k->new ArrayList<>()).add(new Component(id,rs.getString(3),"catalog/"+rs.getString(4),ids,List.of(rs.getString(5).split(","))));});
         return jdbc.query("SELECT product_code,name,grade,compatibility,image_key FROM gacha_products"
                 +(activeOnly?" WHERE active=TRUE":"")+" ORDER BY product_code"+(lock?" FOR SHARE":""),
                 (rs,n)->new Product(rs.getString(1),rs.getString(2),rs.getInt(3),rs.getString(4),rs.getString(5),
-                        List.copyOf(parts.getOrDefault(rs.getString(1),List.of()))));
+                        List.copyOf(parts.getOrDefault(rs.getString(1),List.of())),List.copyOf(components.getOrDefault(rs.getString(1),List.of()))));
     }
     public Map<Long,String> bundles() {
         Map<Long,String> values = new HashMap<>();
-        jdbc.query("SELECT item_id,product_code FROM gacha_product_items", rs -> { values.put(rs.getLong(1),rs.getString(2)); });
+        jdbc.query("SELECT p.item_id,p.product_code FROM gacha_product_items p LEFT JOIN skin_sets s ON s.product_code=p.product_code WHERE s.id IS NULL ORDER BY p.product_code,p.item_id", rs -> { values.put(rs.getLong(1),rs.getString(2)); });
         return Map.copyOf(values);
     }
     public List<Long> owned(long userId) {

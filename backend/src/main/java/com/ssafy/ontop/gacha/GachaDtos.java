@@ -11,8 +11,14 @@ public final class GachaDtos {
                          Instant refillEndsAt) { }
     @Schema(name="GachaBox") public record Box(int grade, long quantity) { }
     @Schema(name="GachaInventory") public record Inventory(long tickets, List<Box> boxes, long balance, long availableBalance) { }
+    @Schema(name="GachaComponent") public record Component(String id,String name,String imageKey,List<Long> itemIds,List<String> slots) { }
     @Schema(name="GachaProduct") public record Product(String code, String name, int grade, String compatibility, String imageKey,
-                          List<Long> itemIds) { }
+                          List<Long> itemIds,List<Component> components) {
+        public Product { components=components==null?List.of():List.copyOf(components); }
+        public Product(String code,String name,int grade,String compatibility,String imageKey,List<Long> itemIds) {
+            this(code,name,grade,compatibility,imageKey,itemIds,List.of());
+        }
+    }
     @Schema(name="GachaState") public record State(boolean enabled, long ticketPrice, Machine machine, Inventory inventory,
                         List<Product> products, Instant serverNow) { }
     @Schema(name="GachaResult") public record Result(String operationId, String kind, String roundId, int grade, Product product,

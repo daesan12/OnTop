@@ -23,7 +23,7 @@ public class SkinRepository {
                 r.getString("compatibility"),r.getString("wear_mode"),Arrays.asList(r.getString("slots").split(","))),
                 r.getString("state"),r.getLong("state_version"),r.getString("published_upload_id"),r.getTimestamp("updated_at").toInstant());
     }
-    public List<Entry> list() { return jdbc.query("SELECT * FROM skin_catalog ORDER BY updated_at DESC,id LIMIT 200",this::entry); }
+    public List<Entry> list() { return jdbc.query("SELECT c.* FROM skin_catalog c WHERE NOT EXISTS (SELECT 1 FROM skin_item_registrations r WHERE r.skin_id=c.id) ORDER BY c.updated_at DESC,c.id LIMIT 200",this::entry); }
     public Entry get(String id,boolean lock) {
         return jdbc.query("SELECT * FROM skin_catalog WHERE id=?"+(lock?" FOR UPDATE":""),this::entry,id).stream().findFirst()
                 .orElseThrow(()->new SkinException(404,"SKIN_NOT_FOUND","등록한 스킨을 찾지 못했습니다."));
@@ -58,7 +58,30 @@ public class SkinRepository {
                 .stream().findFirst().orElseThrow(()->new SkinException(404,"SKIN_UPLOAD_NOT_FOUND","파일 버전을 찾지 못했습니다."));
     }
     public void verified(String id) { jdbc.update("UPDATE skin_uploads SET verified_at=CURRENT_TIMESTAMP(3) WHERE id=? AND verified_at IS NULL",id); }
+    public List<Entry> components() {
+        return jdbc.query("SELECT c.* FROM skin_catalog c JOIN skin_item_registrations r ON r.skin_id=c.id ORDER BY c.updated_at DESC,c.id LIMIT 200",this::entry);
+    }
+    public boolean isComponent(String id) { return jdbc.queryForObject("SELECT COUNT(*) FROM skin_item_registrations WHERE skin_id=?",Integer.class,id)>0; }
+    public void markComponent(String id) { jdbc.update("INSERT INTO skin_item_registrations VALUES(?)",id); }
+    public List<Long> componentParts(String id) { return jdbc.queryForList("SELECT item_id FROM skin_item_parts WHERE skin_id=? ORDER BY item_id",Long.class,id); }
+    private void publishComponent(Entry e,Upload u,long user) {
+        var d=e.definition();String key="catalog/"+u.id();
+        if(e.publishedUploadId()==null) for(String slot:d.slots()) {
+            String code="SK_"+d.productCode()+"_"+slot;
+            jdbc.update("INSERT INTO items(item_code,name,item_type,equip_slot,price,image_key,is_for_sale,set_code) VALUES(?,?,'EQUIPMENT',?,0,?,FALSE,?)",
+                    code,d.name(),slot,key,d.slots().size()>1?"SK_"+d.productCode():null);
+            Long part=jdbc.queryForObject("SELECT id FROM items WHERE item_code=?",Long.class,code);
+            jdbc.update("INSERT INTO skin_item_parts VALUES(?,?)",e.id(),part);
+        }
+        jdbc.update("UPDATE items i JOIN skin_item_parts p ON p.item_id=i.id SET i.image_key=?,i.name=? WHERE p.skin_id=?",key,d.name(),e.id());
+        finishPublish(e,u,user);
+    }
+    private void finishPublish(Entry e,Upload u,long user) {
+        jdbc.update("UPDATE skin_catalog SET state='PUBLISHED',published_upload_id=?,state_version=state_version+1,updated_by=?,updated_at=CURRENT_TIMESTAMP(3) WHERE id=?",u.id(),user,e.id());
+        jdbc.update("UPDATE skin_uploads SET published_at=COALESCE(published_at,CURRENT_TIMESTAMP(3)) WHERE id=?",u.id());
+    }
     public void publish(Entry e,Upload u,long user) {
+        if(isComponent(e.id())) { publishComponent(e,u,user);return; }
         // 기존 소비 흐름의 상품→구성 아이템 잠금 순서를 따른다. 지갑/보유품은 수정하지 않는다.
         var d=e.definition(); String key="catalog/"+u.id();
         var existing=jdbc.queryForList("SELECT product_code FROM gacha_products WHERE product_code=? FOR UPDATE",String.class,d.productCode());
@@ -78,7 +101,7 @@ public class SkinRepository {
         jdbc.update("UPDATE skin_uploads SET published_at=COALESCE(published_at,CURRENT_TIMESTAMP(3)) WHERE id=?",u.id());
     }
     public void disable(Entry e,long user) {
-        if(e.publishedUploadId()!=null) jdbc.update("UPDATE gacha_products SET active=FALSE WHERE product_code=?",e.definition().productCode());
+        if(e.publishedUploadId()!=null&&!isComponent(e.id())) jdbc.update("UPDATE gacha_products SET active=FALSE WHERE product_code=?",e.definition().productCode());
         jdbc.update("UPDATE skin_catalog SET state='DISABLED',state_version=state_version+1,updated_by=?,updated_at=CURRENT_TIMESTAMP(3) WHERE id=?",user,e.id());
     }
     /** 이전 확정 상품/영수증 및 비활성 스킨의 보유자도 모델을 계속 읽을 수 있다. 임시 파일은 제외한다. */

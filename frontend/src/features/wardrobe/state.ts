@@ -48,7 +48,7 @@ export const setPieces = (items: OwnedItem[], owned: OwnedItem) =>
   owned.item.setCode ? items.filter(other => other.item.setCode === owned.item.setCode) : [owned]
 /** A set's name from its pieces' shared prefix ("장군 투구", "장군 갑옷" → "장군 세트"); a single item's own name. */
 export function itemLabel(items: OwnedItem[], owned: OwnedItem) {
-  if (!owned.item.setCode) return owned.item.name
+  if (!owned.item.setCode || owned.item.setCode.startsWith('SK_')) return owned.item.name
   const names = setPieces(items, owned).map(other => other.item.name)
   let prefix = names[0] ?? ''
   for (const name of names) while (!name.startsWith(prefix)) prefix = prefix.slice(0, -1)

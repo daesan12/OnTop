@@ -16,6 +16,10 @@ export async function skinRequest<T>(path: string, signal: AbortSignal, method =
   catch (cause) {
     if (!(cause instanceof InboxError)) throw cause
     const messages: Record<string, string> = {
+      SKIN_SET_SLOT_CONFLICT: '이미 사용 중인 부위예요. 기존 아이템을 먼저 빼주세요.',
+      SKIN_SET_IMMUTABLE: '공개한 세트 구성은 바꿀 수 없어요. 새 세트로 등록해주세요.',
+      SKIN_ITEM_NOT_READY: '구성 아이템을 먼저 검증·공개해주세요.',
+      SKIN_SET_CHARACTER_MISMATCH: '세트와 아이템의 착용 캐릭터가 다릅니다.',
       SKIN_VERSION_CHANGED: '다른 창에서 변경됐어요. 목록을 다시 불러온 뒤 확인해주세요.',
       SKIN_ACCESS_DENIED: '스킨 등록 담당자로 지정된 운영 관리자만 사용할 수 있어요.',
       SKIN_STORAGE_UNAVAILABLE: 'S3·CDN 연결을 확인하지 못했어요. 입력은 유지했어요.',

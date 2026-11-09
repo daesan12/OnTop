@@ -23,12 +23,28 @@ import org.springframework.web.bind.annotation.*;
 @SecurityRequirement(name="AccessJwt")
 public class SkinController {
     private final ObjectProvider<SkinService> services;
+    @org.springframework.beans.factory.annotation.Autowired private ObjectProvider<SkinSetService> sets;
     public SkinController(ObjectProvider<SkinService> services) { this.services=services; }
     private static final String ROOT="/admin/operations/skins";
     @GetMapping(ROOT+"/settings") @Operation(operationId="skinSettings",summary="스킨 등록 권한·업로드 설정 조회")
     public ResponseEntity<?> settings(Principal p) { return ok(service().settings(account(p))); }
     @GetMapping(ROOT) @Operation(operationId="listSkinRegistrations",summary="스킨 등록 목록 조회",description="최신 200건, 지정 스킨 관리자만 조회")
     public ResponseEntity<?> list(Principal p) { return ok(service().list(account(p))); }
+    @GetMapping(ROOT+"/components") @Operation(operationId="listSkinComponents",summary="착용 아이템 등록 목록")
+    public ResponseEntity<?> components(Principal p) { return ok(service().components(account(p))); }
+    @PostMapping(ROOT+"/components") @Operation(operationId="createSkinComponent",summary="착용 아이템 선등록")
+    public ResponseEntity<?> component(Principal p,@RequestBody Definition input) { return ok(service().createComponent(account(p),input)); }
+    @GetMapping(ROOT+"/sets") @Operation(operationId="listSkinSets",summary="스킨 세트 목록")
+    public ResponseEntity<?> sets(Principal p) { return ok(sets().list(account(p))); }
+    @PostMapping(ROOT+"/sets") @Operation(operationId="createSkinSet",summary="등록 아이템으로 세트 구성")
+    public ResponseEntity<?> createSet(Principal p,@RequestBody SkinSetDtos.Definition input) { return ok(sets().create(account(p),input)); }
+    @PutMapping(ROOT+"/sets/{id}") @Operation(operationId="updateSkinSet",summary="미공개 세트 수정",description="부위 중복409, 공개 이후 구성 변경409")
+    public ResponseEntity<?> saveSet(Principal p,@PathVariable String id,@RequestBody SkinSetDtos.Save input) { return ok(sets().save(account(p),id,input)); }
+    @PostMapping(ROOT+"/sets/{id}/publish") @Operation(operationId="publishSkinSet",summary="세트 신규 획득 공개")
+    public ResponseEntity<?> publishSet(Principal p,@PathVariable String id,@RequestBody Version input) { if(input==null) throw SkinException.invalid("버전이 필요합니다.");return ok(sets().publish(account(p),id,input.version())); }
+    @PostMapping(ROOT+"/sets/{id}/disable") @Operation(operationId="disableSkinSet",summary="세트 신규 획득 중단",description="기존 보유 아이템·영수증 유지")
+    public ResponseEntity<?> disableSet(Principal p,@PathVariable String id,@RequestBody Version input) { if(input==null) throw SkinException.invalid("버전이 필요합니다.");return ok(sets().disable(account(p),id,input.version())); }
+    private SkinSetService sets() { var s=sets.getIfAvailable();if(s==null) throw new SkinException(503,"SKIN_REGISTRATION_UNAVAILABLE","세트 DB 설정이 필요합니다.");return s; }
     @GetMapping(ROOT+"/{id}") @Operation(operationId="getSkinRegistration",summary="스킨 등록 상세 복구")
     public ResponseEntity<?> get(Principal p,@PathVariable String id) { return ok(service().get(account(p),id)); }
     @PostMapping(ROOT) @Operation(operationId="createSkinRegistration",summary="스킨 상품 임시저장")
