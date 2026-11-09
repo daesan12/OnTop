@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { playSfx } from '../../audio/sfx'
 import cabinet from './assets/cabinet.png'
 import holeArt from '../mole/assets/hole.webp'
 import moleArt from '../mole/assets/mole.webp'
@@ -99,6 +100,8 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
     const event = round.current.strike(index, at)
     if (event.kind === 'ignored') { if (round.current.remaining(at) === 0) setPhase('result'); return }
     taps.current.push({ hole: index, at: Math.floor(at - round.current.startedAt) })
+    // 두더지 잡기와 같은 타격음. 빈 구멍(실수)은 소리 없이 −3 표시만 한다.
+    if (event.kind === 'hit') playSfx('mole-hit')
     const fx: Feedback = { id: ++seq.current, hole: index, kind: event.kind, at }
     setFeedback(previous => [...previous.filter(item => at - item.at < 320).slice(-15), fx]); setSwing(fx)
   }
