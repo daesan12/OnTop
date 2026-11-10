@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if (( EUID != 0 )) || (( $# != 3 )) || [[ ! $1 =~ ^--(check|apply)$ || ! $2 =~ ^[0-9a-f]{40}$ || ! $3 =~ ^[0-9a-f]{64}$ ]]; then
-  echo 'Usage: sudo ontop-deploy-park-renewal --check|--apply SOURCE_SHA RELEASE_ID' >&2
+if (( EUID != 0 )) || (( $# != 3 )) || [[ ! $1 =~ ^--(check|apply|update)$ || ! $2 =~ ^[0-9a-f]{40}$ || ! $3 =~ ^[0-9a-f]{64}$ ]]; then
+  echo 'Usage: sudo ontop-deploy-park-renewal --check|--apply|--update SOURCE_SHA RELEASE_ID' >&2
   exit 2
 fi
 action=$1
@@ -25,21 +25,31 @@ observe_compose=$root/infra/app/compose.park-renewal-observe.yaml
   echo 'Prepare the root-owned 0600 renewal deploy.env from the existing deployment settings.' >&2; exit 1;
 }
 value() { sed -n "s/^$1=//p" "$env_file" | head -n 1; }
-[[ $(value PARK_RENEWAL_SOURCE_SHA) == "$sha" && $(value PARK_RENEWAL_RELEASE_ID) == "$release_id" \
-   && $(value PARK_RENEWAL_HOST_DIR) == "$release" && $(value BACKEND_IMAGE) == "$image" ]] || {
-  echo 'Approved environment does not match this source/release/image.' >&2; exit 1;
-}
+if [[ $action == --update ]]; then
+  [[ -f $marker && $(<"$marker") == "$release_id" && $(value PARK_RENEWAL_RELEASE_ID) == "$release_id" \
+     && $(value PARK_RENEWAL_HOST_DIR) == "$release" ]] || {
+    echo 'Active renewal marker/environment does not match this release.' >&2; exit 1;
+  }
+else
+  [[ $(value PARK_RENEWAL_SOURCE_SHA) == "$sha" && $(value PARK_RENEWAL_RELEASE_ID) == "$release_id" \
+     && $(value PARK_RENEWAL_HOST_DIR) == "$release" && $(value BACKEND_IMAGE) == "$image" ]] || {
+    echo 'Approved environment does not match this source/release/image.' >&2; exit 1;
+  }
+fi
 [[ -d $release && ! -L $release && -f $compose_file && -f $renewal_compose && -f $coop_compose ]] || {
   echo 'Stage the immutable release and install the reviewed Compose files first.' >&2; exit 1;
 }
-python3 - "$root" "$release" "$sha" "$release_id" <<'PY'
+release_source=$(python3 - "$root" "$release" "$sha" "$release_id" "$action" <<'PY'
 import sys
 from pathlib import Path
-root, directory, sha, identity = sys.argv[1:]
+root, directory, sha, identity, action = sys.argv[1:]
 sys.path.insert(0, str(Path(root) / 'infra/ci'))
 from renewal_release import read_json, validate_bundle
-validate_bundle(directory, read_json(Path(root) / 'frontend/park-renewal-baseline.json'), sha, identity)
+release = validate_bundle(directory, read_json(Path(root) / 'frontend/park-renewal-baseline.json'),
+                          None if action == '--update' else sha, identity)
+print(release['sourceCommit'])
 PY
+)
 journal=$(value SKEWER_COOP_JOURNAL_HOST_DIR)
 [[ $journal == /* && -d $journal && ! -L $journal && $(stat -c '%u:%g:%a' "$journal") == 10001:10001:700 ]] || {
   echo 'Preserve the existing persistent coop journal, owned by 10001:10001 with mode 0700.' >&2; exit 1;
@@ -66,6 +76,20 @@ flock -n 9 || { echo 'Another dev deployment is active.' >&2; exit 1; }
 docker image inspect "$image" >/dev/null
 install -d -o root -g root -m 0700 "$record_dir/$release_id"
 old_image=$(docker inspect --format '{{.Config.Image}}' ontop-dev-app-app-1)
+old_source=$(value PARK_RENEWAL_SOURCE_SHA)
+old_configured_image=$(value BACKEND_IMAGE)
+if [[ $action == --update ]]; then
+  # Establish a trustworthy rollback point before changing either the env file
+  # or the running container. Configuration drift must be repaired explicitly.
+  python3 "$root/infra/ci/check_live_renewal.py" --release-dir "$release" \
+    --source-sha "$release_source" --runtime-source-sha "$old_source" --image "$old_configured_image"
+fi
+if [[ $action == --update && $old_configured_image == "$image" ]]; then
+  python3 "$root/infra/ci/check_live_renewal.py" --release-dir "$release" \
+    --source-sha "$release_source" --runtime-source-sha "$sha" --image "$image"
+  echo "Renewal DEV already uses $image and preserved release $release_id."
+  exit 0
+fi
 record="$record_dir/$release_id/attempt-$(date -u +%Y%m%dT%H%M%SZ).txt"
 printf 'source=%s\nrelease=%s\nprevious_image=%s\ntarget_image=%s\n' "$sha" "$release_id" "$old_image" "$image" > "$record"
 chmod 0600 "$record"
@@ -77,11 +101,28 @@ fi
 if [[ -f $marker && ! -e $record_dir/$release_id/previous.marker ]]; then
   install -o root -g root -m 0600 "$marker" "$record_dir/$release_id/previous.marker"
 fi
-marker_temp=$(mktemp "${marker}.XXXXXX")
-printf '%s\n' "$release_id" > "$marker_temp"
-chmod 0600 "$marker_temp"
-chown root:root "$marker_temp"
-mv -f -- "$marker_temp" "$marker"
+set_runtime() {
+  local target_source=$1 target_image=$2 temp
+  temp=$(mktemp "${env_file}.XXXXXX")
+  awk -v source="$target_source" -v image="$target_image" '
+    /^PARK_RENEWAL_SOURCE_SHA=/ { print "PARK_RENEWAL_SOURCE_SHA=" source; source_found=1; next }
+    /^BACKEND_IMAGE=/ { print "BACKEND_IMAGE=" image; image_found=1; next }
+    { print }
+    END { if (!source_found || !image_found) exit 1 }
+  ' "$env_file" > "$temp" || { rm -f -- "$temp"; return 1; }
+  chown root:root "$temp"
+  chmod 0600 "$temp"
+  mv -f -- "$temp" "$env_file"
+}
+if [[ $action == --apply ]]; then
+  marker_temp=$(mktemp "${marker}.XXXXXX")
+  printf '%s\n' "$release_id" > "$marker_temp"
+  chmod 0600 "$marker_temp"
+  chown root:root "$marker_temp"
+  mv -f -- "$marker_temp" "$marker"
+else
+  set_runtime "$sha" "$image"
+fi
 healthy() {
   local status
   for _ in $(seq 1 36); do
@@ -99,12 +140,24 @@ healthy() {
   done
   return 1
 }
-if ! compose up -d --no-deps app || ! healthy || ! python3 "$root/infra/ci/check_live_renewal.py" \
-    --release-dir "$release" --source-sha "$sha"; then
+runtime_args=(--release-dir "$release" --source-sha "$release_source" --runtime-source-sha "$sha" --image "$image")
+if ! compose up -d --no-deps app || ! healthy || ! python3 "$root/infra/ci/check_live_renewal.py" "${runtime_args[@]}"; then
   printf 'status=FAILED\n' >> "$record"
-  echo 'BE transition failed. FE must not be promoted; keep admission closed.' >&2
-  echo 'No automatic image rollback: V167 may already be applied. Use the reviewed FE/BE/map/DB compatibility plan.' >&2
+  if [[ $action == --update ]]; then
+    echo 'Renewal image update failed; restoring the previous runtime image.' >&2
+    set_runtime "$old_source" "$old_configured_image"
+    compose up -d --no-deps app
+    healthy || echo 'Rollback health check failed; investigate immediately.' >&2
+  else
+    echo 'BE transition failed. FE must not be promoted; keep admission closed.' >&2
+    echo 'No automatic image rollback: V167 may already be applied. Use the reviewed FE/BE/map/DB compatibility plan.' >&2
+  fi
   exit 1
 fi
-printf 'status=BE_VERIFIED\n' >> "$record"
-echo "Renewal BE healthy and verified: $sha $release_id. FE and dev smoke checks still required."
+if [[ $action == --update ]]; then
+  printf 'status=IMAGE_UPDATED\n' >> "$record"
+  echo "Renewal DEV image updated: $sha; map release preserved: $release_id."
+else
+  printf 'status=BE_VERIFIED\n' >> "$record"
+  echo "Renewal BE healthy and verified: $sha $release_id. FE and dev smoke checks still required."
+fi

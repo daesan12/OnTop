@@ -57,6 +57,7 @@
     "assets:renewal:check": "node scripts/check-renewal-assets.mjs",
     "prepare:park-renewal:release": "node scripts/check-renewal-assets.mjs && node scripts/generate-park-map.mjs && node scripts/export-renewal-mapping.mjs && node scripts/export-jumpmap-course.mjs && node scripts/export-renewal-backend.mjs && node scripts/package-renewal-release.mjs",
     "build:park-renewal:release": "pnpm run prepare:park-renewal:release && tsc --noEmit && vite build --config vite.renewal-release.config.ts --mode park-renewal-release",
+    "build:park-renewal:active": "tsc --noEmit && vite build --config vite.renewal-release.config.ts --mode park-renewal-release",
     "prepare:frontend-data": "node scripts/generate-park-map.mjs && node scripts/export-renewal-mapping.mjs && node scripts/export-jumpmap-course.mjs"
   },
   "dependencies": {

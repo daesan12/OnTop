@@ -11,14 +11,16 @@ from renewal_release import FILES, digest, read_json, require, validate_bundle
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def check_container(directory, baseline, source_sha, container, image=None, run=subprocess.check_output):
+def check_container(directory, baseline, source_sha, container, image=None,
+                    runtime_source_sha=None, run=subprocess.check_output):
     release = validate_bundle(directory, baseline, source_sha)
-    expected_image = image or 'wooaw/ontop-backend:sha-' + source_sha
+    runtime_source_sha = runtime_source_sha or source_sha
+    expected_image = image or 'wooaw/ontop-backend:sha-' + runtime_source_sha
     inspect = json.loads(run(['docker', 'inspect', container], text=True))[0]
     require(inspect['Config']['Image'] == expected_image, 'Running BE image differs')
     labels = inspect['Config'].get('Labels') or {}
     require(labels.get('ontop.park.release-id') == release['releaseId'], 'Running BE release label differs')
-    require(labels.get('ontop.source-sha') == source_sha, 'Running BE source label differs')
+    require(labels.get('ontop.source-sha') == runtime_source_sha, 'Running BE source label differs')
     environment = dict(value.split('=', 1) for value in inspect['Config']['Env'] if '=' in value)
     profiles = set(environment.get('SPRING_PROFILES_ACTIVE', '').split(','))
     require({'dev', 'db', 'park-renewal'} <= profiles, 'Running BE profile differs')
@@ -52,9 +54,11 @@ def main():
     parser.add_argument('--baseline', type=Path, default=ROOT / 'frontend/park-renewal-baseline.json')
     parser.add_argument('--container', default='ontop-dev-app-app-1')
     parser.add_argument('--image')
+    parser.add_argument('--runtime-source-sha')
     parser.add_argument('--public-url')
     args = parser.parse_args()
-    release = check_container(args.release_dir, read_json(args.baseline), args.source_sha, args.container, args.image)
+    release = check_container(args.release_dir, read_json(args.baseline), args.source_sha,
+                              args.container, args.image, args.runtime_source_sha)
     if args.public_url:
         check_public(release, args.public_url)
     print('Running renewal release verified:', release['releaseId'])

@@ -39,6 +39,28 @@ class ChangeClassificationTests(unittest.TestCase):
                 self.assertEqual((flags["PARK_MAP_CHANGED"], flags["FRONTEND_CHANGED"]), (1, 1))
                 self.assertEqual(flags["BACKEND_CHANGED"], 0)
 
+    def test_renewal_contract_changes_require_coordinated_release(self):
+        for path in (
+            "frontend/src/park-renewal/mapping/catalog.ts",
+            "frontend/public/art/park-renewal/pigeon-shop.glb",
+            "frontend/park-renewal-assets.lock.json",
+            "frontend/vite.renewal-release.config.ts",
+        ):
+            with self.subTest(path=path):
+                flags = classify([path])
+                self.assertEqual(flags["PARK_RENEWAL_CHANGED"], 1)
+                self.assertEqual((flags["PARK_MAP_CHANGED"], flags["FRONTEND_CHANGED"]), (1, 1))
+
+    def test_ordinary_frontend_change_does_not_require_coordinated_release(self):
+        flags = classify(["frontend/src/features/raffle/RafflePanel.tsx"])
+        self.assertEqual(flags["PARK_RENEWAL_CHANGED"], 0)
+
+    def test_active_renewal_deploy_config_is_ci_only(self):
+        flags = classify(["frontend/vercel.renewal-active.json"])
+        self.assertEqual(flags["CI_CONFIG_CHANGED"], 1)
+        self.assertEqual(flags["PARK_RENEWAL_CHANGED"], 0)
+        self.assertEqual((flags["BACKEND_CHANGED"], flags["FRONTEND_CHANGED"]), (0, 0))
+
     def test_gitignore_only(self):
         self.assertFalse(any(classify([".gitignore"]).values()))
 

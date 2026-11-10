@@ -10,8 +10,8 @@ pipeline {
         IMAGE_REPOSITORY = 'wooaw/ontop-backend'
     }
     parameters {
-        choice(name: 'PARK_RELEASE_MODE', choices: ['renewal-candidate', 'renewal-deploy', 'legacy'],
-            description: 'Default: build only. renewal-deploy requires coordinated release approval; legacy is an explicit compatibility fallback.')
+        choice(name: 'PARK_RELEASE_MODE', choices: ['legacy', 'renewal-candidate', 'renewal-deploy'],
+            description: 'Default: changed-service tests and automatic deployment. Use renewal modes only for a coordinated map transition.')
     }
     stages {
         stage('Checkout') {
@@ -42,12 +42,21 @@ pipeline {
                         error('ontop-dev requires the dev branch and a full commit SHA.')
                     }
                     echo "Checked out ${env.SOURCE_BRANCH}@${env.SOURCE_SHA}"
-                    def mode = (params.PARK_RELEASE_MODE ?: 'renewal-candidate').toString()
+                    def mode = (params.PARK_RELEASE_MODE ?: 'legacy').toString()
                     if (!(mode in ['legacy', 'renewal-candidate', 'renewal-deploy'])) {
                         error('Unknown park release mode.')
                     }
                     env.PARK_RENEWAL = mode == 'legacy' ? '0' : '1'
                     env.PARK_RENEWAL_APPROVED = '0'
+                    env.PARK_RENEWAL_ACTIVE = sh(script: '''#!/usr/bin/env bash
+set -euo pipefail
+profiles=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' ontop-dev-app-app-1 2>/dev/null | sed -n 's/^SPRING_PROFILES_ACTIVE=//p' || true)
+release=$(docker inspect --format '{{index .Config.Labels "ontop.park.release-id"}}' ontop-dev-app-app-1 2>/dev/null || true)
+if [[ ",$profiles," == *,park-renewal,* && $release =~ ^[0-9a-f]{64}$ ]]; then printf 1; else printf 0; fi
+''', returnStdout: true).trim()
+                    if (env.PARK_RENEWAL_ACTIVE == '1') {
+                        env.ACTIVE_PARK_RELEASE_ID = sh(script: 'docker inspect --format \'{{index .Config.Labels "ontop.park.release-id"}}\' ontop-dev-app-app-1', returnStdout: true).trim()
+                    }
                     if (env.PARK_RENEWAL == '1') {
                         // Every renewal release pairs FE/BE from this same source commit.
                         env.TEST_BACKEND = '1'
@@ -94,6 +103,7 @@ python3 infra/ci/plan_changes.py --head "$SOURCE_SHA" --tested-base "$tested_bas
                     env.BACKEND_SEED_SHA = flags['BACKEND_SEED_SHA'] ?: ''
                     env.DEPLOY_BLOCKED = flags['DEPLOY_BLOCKED'] ?: ''
                     env.FULL_CHECK = flags['FULL_CHECK'] ?: ''
+                    env.RENEWAL_DEPLOY_REQUIRED = flags['RENEWAL_DEPLOY_REQUIRED'] ?: ''
                     if (!(env.TEST_BACKEND ==~ /[01]/) ||
                         !(env.TEST_FRONTEND ==~ /[01]/) ||
                         !(env.TEST_PARK_MAP ==~ /[01]/) ||
@@ -103,6 +113,7 @@ python3 infra/ci/plan_changes.py --head "$SOURCE_SHA" --tested-base "$tested_bas
                         !(env.ALLOW_FRONTEND_DEPLOY ==~ /[01]/) ||
                         !(env.DEPLOY_BLOCKED ==~ /[01]/) ||
                         !(env.FULL_CHECK ==~ /[01]/) ||
+                        !(env.RENEWAL_DEPLOY_REQUIRED ==~ /[01]/) ||
                         (env.BACKEND_SEED_SHA && !(env.BACKEND_SEED_SHA ==~ /[0-9a-f]{40}/))) {
                         error('Change classification returned missing or invalid flags.')
                     }
@@ -157,7 +168,7 @@ APP_ENV_FILE="$scratch_env" PARK_RENEWAL_HOST_DIR="$PWD/frontend/generated/park-
         }
 
         stage('Generated park handoff and candidate build') {
-            when { expression { env.TEST_PARK_MAP == '1' } }
+            when { expression { env.TEST_PARK_MAP == '1' && env.PARK_RENEWAL_ACTIVE != '1' } }
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
@@ -189,6 +200,17 @@ if [[ "${PARK_RENEWAL:-0}" == 1 ]]; then
   cd ..
   jar=$(find backend/build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' | head -n 1)
   python3 infra/ci/check_park_renewal.py --source-sha "$SOURCE_SHA" --dist frontend/dist-park-renewal --jar "$jar"
+elif [[ "${PARK_RENEWAL_ACTIVE:-0}" == 1 ]]; then
+  pnpm run test
+  pnpm run prepare:park-renewal:release
+  if [[ "${RENEWAL_DEPLOY_REQUIRED:-0}" == 1 ]]; then
+    pnpm run build:park-renewal:release
+  else
+    cd ..
+    python3 infra/ci/prepare_active_renewal_frontend.py --source-sha "$SOURCE_SHA" --stage
+    cd frontend
+    pnpm run build:park-renewal:active
+  fi
 else
 pnpm map:check
 pnpm run test
@@ -277,6 +299,8 @@ docker push "$image"
                 script {
                     if (env.PARK_RENEWAL == '1') {
                         sh 'sudo -n /usr/local/sbin/ontop-deploy-park-renewal --apply "$SOURCE_SHA" "$PARK_RELEASE_ID"'
+                    } else if (env.PARK_RENEWAL_ACTIVE == '1') {
+                        sh 'sudo -n /usr/local/sbin/ontop-deploy-park-renewal --update "$SOURCE_SHA" "$ACTIVE_PARK_RELEASE_ID"'
                     } else {
                         sh 'sudo -n /usr/local/sbin/ontop-deploy-dev "$SOURCE_SHA"'
                     }
@@ -307,6 +331,8 @@ export VERCEL_ORG_ID VERCEL_PROJECT_ID
 }
 if [[ "${PARK_RENEWAL:-0}" == 1 ]]; then
   bash infra/ci/renewal-vercel.sh deploy
+elif [[ "${PARK_RENEWAL_ACTIVE:-0}" == 1 ]]; then
+  bash infra/ci/renewal-vercel.sh update
 else
 cd frontend
 # This is the production target of the separate ontop-frontend-dev project.
@@ -323,7 +349,11 @@ fi
             when { expression { env.DEPLOY_BLOCKED == '1' } }
             steps {
                 script {
-                    echo 'Deployment needs a valid baseline or a matching live backend image. Check change flags for each target.'
+                    if (env.RENEWAL_DEPLOY_REQUIRED == '1') {
+                        echo 'The active renewal map contract changed. Run renewal-candidate, then use the approved renewal-deploy transition.'
+                    } else {
+                        echo 'Deployment needs a valid baseline or a matching live backend image. Check change flags for each target.'
+                    }
                     currentBuild.result = 'UNSTABLE'
                 }
             }

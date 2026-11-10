@@ -6,8 +6,9 @@
 
 새 공원 맵과 10단계 점프맵을 dev에 올리기 위한 FE·BE·배포 설정을 MR로 준비했습니다.
 기존 dev Vercel 프로젝트와 dev API를 사용합니다. 새 서버나 새 Vercel 프로젝트 생성은 필요하지 않습니다.
-MR 병합만으로 새 공원이 배포되지는 않으며, Jenkins 기본값은 검사·산출물 보관만 하는
-`PARK_RELEASE_MODE=renewal-candidate`입니다.
+최초 공동 전환 전에는 `renewal-candidate`로 검사하고 `renewal-deploy`로 승인 배포합니다.
+전환 완료 후 Jenkins 기본값은 변경 서비스만 검사·자동 배포하는 `legacy`이며,
+새 맵 계약 파일 변경은 자동으로 차단되어 다시 공동 전환을 요구합니다.
 
 아래 항목을 확인하고 공동 전환을 준비 부탁드립니다.
 
@@ -23,7 +24,7 @@ MR 병합만으로 새 공원이 배포되지는 않으며, Jenkins 기본값은
 3. **서버 helper 설치:** 검토 완료된 같은 커밋의 `infra/ci`, `infra/app` 파일과
    `frontend/park-renewal-baseline.json`을 `/opt/ontop` 대응 경로에 설치해 주세요.
    `deploy-park-renewal.sh`는 `/usr/local/sbin/ontop-deploy-park-renewal`에 설치하고,
-   기존 정책에 맞춰 Jenkins가 `--check/--apply SHA RELEASE_ID`를 실행할 수 있도록 준비해 주세요.
+   기존 정책에 맞춰 Jenkins가 `--check/--apply/--update SHA RELEASE_ID`를 실행할 수 있도록 준비해 주세요.
    상세 의존 파일·검사는 [공동 릴리스 가이드](park-renewal-release.md)를 따라 주세요.
 4. **별도 전환 환경 설정:** 기존 `deploy.env`를 바탕으로
    `/etc/ontop/dev-app/park-renewal.deploy.env`를 root:root, 0600으로 준비해 주세요.
