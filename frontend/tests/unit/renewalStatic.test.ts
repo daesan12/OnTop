@@ -66,7 +66,7 @@ it('건물 사전 데이터가 없는 이전 파일에서도 두더지 상점의
     const fallback=getMoleShopArt()
     expect(fallback).not.toBe(buildingArt!.mole)
     // Includes every visible body/roof/wall attribute, index, normal and bound.
-    const actual=encodeStaticPark({...older,buildingArt:{mole:fallback}})
+    const actual=encodeStaticPark({...snapshot,buildingArt:{mole:fallback}})
     expect(Buffer.from(actual).equals(Buffer.from(expected))).toBe(true)
     expect(performance.getEntriesByName('park-procedural-mole-ready').length).toBeGreaterThan(0)
   }finally{store.installStaticPark(snapshot)}

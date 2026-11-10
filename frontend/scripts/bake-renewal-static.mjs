@@ -9,6 +9,9 @@ const server=await createServer({root,configFile:false,mode,
   plugins:[parkBindingsPlugin()],server:{middlewareMode:true},
   optimizeDeps:{noDiscovery:true,entries:[]},appType:'custom',logLevel:'error'})
 try {
+  // CI verifies the captured texture without requiring a browser or GPU.
+  const {validateOutdoorReflection}=await server.ssrLoadModule('/scripts/validateOutdoorReflection.ts')
+  await validateOutdoorReflection(root)
   const {snapshot}=await server.ssrLoadModule('/src/park-renewal/static/snapshot.ts')
   const {encodeStaticPark,decodeStaticPark}=await server.ssrLoadModule('/src/park-renewal/static/codec.ts')
   const encoded=encodeStaticPark(snapshot)
