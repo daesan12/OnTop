@@ -39,19 +39,20 @@ function Plume({ position, scale, color, rotation }: {
   )
 }
 
-function Eye({ side, lid, gaze, face, lidRef }: {
+function Eye({ side, lid, gaze, face, lidRef, pupilRef }: {
   side: Side
   lid: number
   gaze: [number, number]
   face: string
   lidRef: Ref<Mesh>
+  pupilRef: Ref<Group>
 }) {
   const lidAngle = 0.72 + 1.05 * Math.min(1, Math.max(0, lid))
   return (
     <group position={[side * 0.142, 0.158, 0.218]} rotation={[0, side * 0.44, side * -0.08]}>
       <Plume position={[0, 0, 0]} scale={[0.092, 0.088, 0.042]} color="#43505b" />
       <Plume position={[0, 0, 0.018]} scale={[0.079, 0.074, 0.035]} color="#fff2dc" />
-      <group position={[gaze[0] * 0.025, gaze[1] * 0.017, 0.043]}>
+      <group ref={pupilRef} position={[gaze[0] * 0.025, gaze[1] * 0.017, 0.043]}>
         <Plume position={[0, 0, 0]} scale={[0.044, 0.05, 0.019]} color="#c99655" />
         <Plume position={[0, 0, 0.012]} scale={[0.035, 0.043, 0.014]} color="#26323a" />
         <Plume position={[-0.012, 0.016, 0.023]} scale={[0.011, 0.013, 0.007]} color="#fff7e5" />
@@ -73,6 +74,7 @@ export type PigeonRig = {
   jaw: Group
   legs: { shin: Mesh; foot: Group }[]
   setLidLift: (lift: number) => void
+  setGaze: (x: number, y: number) => void
 }
 
 export function PigeonActor({ look, pose = {}, gripRef, rigRef }: {
@@ -84,6 +86,7 @@ export function PigeonActor({ look, pose = {}, gripRef, rigRef }: {
   const head = useRef<Group>(null), leftWing = useRef<Group>(null), rightWing = useRef<Group>(null), jaw = useRef<Group>(null)
   const body = useRef<Group>(null)
   const lids = useRef<(Mesh | null)[]>([])
+  const pupils = useRef<(Group | null)[]>([])
   const shins = useRef<(Mesh | null)[]>([])
   const feet = useRef<(Group | null)[]>([])
   useImperativeHandle(rigRef, () => ({
@@ -91,6 +94,11 @@ export function PigeonActor({ look, pose = {}, gripRef, rigRef }: {
     legs: sides.map((_, index) => ({ shin: shins.current[index]!, foot: feet.current[index]! })),
     setLidLift(lift) {
       for (const lid of lids.current) if (lid) lid.position.y = lidRestY + lift
+    },
+    setGaze(x, y) {
+      for (const pupil of pupils.current) {
+        pupil?.position.set(Math.max(-1, Math.min(1, x)) * 0.025, Math.max(-1, Math.min(1, y)) * 0.017, 0.043)
+      }
     },
   }), [])
   const color = plumage[look]
@@ -144,7 +152,8 @@ export function PigeonActor({ look, pose = {}, gripRef, rigRef }: {
         <group ref={head} name="head" position={pigeonHeadPivot} rotation={pose.head}>
           <Plume position={[0, 0.125, 0.028]} scale={[0.23, 0.224, 0.224]} color={color.face} />
           {sides.map((side, index) => (
-            <Eye key={side} side={side} lid={eyelids[index]!} gaze={gaze} face={color.face} lidRef={lid => { lids.current[index] = lid }} />
+            <Eye key={side} side={side} lid={eyelids[index]!} gaze={gaze} face={color.face}
+              lidRef={lid => { lids.current[index] = lid }} pupilRef={pupil => { pupils.current[index] = pupil }} />
           ))}
           <Plume position={[0, 0.093, 0.238]} scale={[0.067, 0.043, 0.037]} color="#d8c6b9" />
           <mesh position={[0, 0.054, 0.301]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 1, 0.68]}>

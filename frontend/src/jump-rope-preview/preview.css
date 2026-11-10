@@ -250,6 +250,19 @@ button, input { font: inherit; }
   line-height: 1.1;
 }
 .rope-result--finale .rope-result__subtitle { margin: 6px 0; color: #645342; font-weight: 650; }
+.rope-result--completion { animation: finale-result-in 260ms ease-out both; }
+.rope-result--completion h2 {
+  color: #263d34;
+  font-size: clamp(1.55rem, 3.2vw, 2.15rem);
+  font-weight: 900;
+  line-height: 1.15;
+  word-break: keep-all;
+  text-wrap: balance;
+}
+.rope-result--completion .rope-result__subtitle { margin: 6px 0; font-weight: 750; }
+@media (prefers-reduced-motion: reduce) {
+  .rope-result--completion { animation: none; }
+}
 .rope-result dl { margin: 0 0 10px; }
 .rope-result dl div { display: flex; justify-content: space-between; gap: 6px; padding: 3px 0; font-size: 0.78rem; }
 .rope-result dd { margin: 0; font-weight: 750; }

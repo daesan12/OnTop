@@ -4,6 +4,7 @@ import { advancePreviewMotion, createPreviewMotion, requestJump } from './previe
 import { createSuccessCue, successKind, type PigeonSuccessCue } from './pigeonSuccess'
 import { ropeTempo, type RopeAcceleration } from './ropeAcceleration'
 import { finaleStage } from './gameOverFinale'
+import { completionResultMs } from './completionFinale'
 
 const countdownMs = 3000
 const goMs = 550
@@ -15,6 +16,7 @@ type Phase =
   | { kind: 'reaction'; stoppedAt: number; startedAt: number; durationMs: number }
   | { kind: 'resumePending'; stoppedAt: number }
   | { kind: 'gameOver'; stoppedAt: number; startedAt: number }
+  | { kind: 'completion'; startedAt: number; restWeight: number }
   | { kind: 'ended'; restWeight: number }
 
 type PlayingPhase = { kind: 'playing'; goAt?: number; resumedAfterPass?: number }
@@ -28,7 +30,7 @@ export type PreviewRound = {
   successCue: PigeonSuccessCue | null
   shockStartedAt: number | null
 }
-export type RoundCue = 'playing' | 'landing' | 'reaction' | 'resumePending' | 'gameOver' | 'gameOverSplash' | 'ended' | '3' | '2' | '1' | 'GO!'
+export type RoundCue = Phase['kind'] | 'gameOverSplash' | '3' | '2' | '1' | 'GO!'
 
 export function createPreviewRound(): PreviewRound {
   return {
@@ -112,12 +114,14 @@ export function advancePreviewRound(
   } else if (expires) {
     round.shockStartedAt = null
     round.endReason = 'time'
-    round.phase = { kind: 'ended', restWeight: ropeRestWeight(round, now) }
+    round.phase = { kind: 'completion', startedAt: now, restWeight: ropeRestWeight(round, now) }
   } else if (phase.kind === 'landing' && motion.frame.phase === 'ready') {
     round.phase = { kind: 'reaction', stoppedAt: phase.stoppedAt, startedAt: now, durationMs: phase.reactionMs }
   } else if (phase.kind === 'gameOver' && finaleStage(now - phase.startedAt) === 'result') {
     round.shockStartedAt = null
     round.phase = { kind: 'ended', restWeight: 1 }
+  } else if (phase.kind === 'completion' && now - phase.startedAt >= completionResultMs) {
+    round.phase = { kind: 'ended', restWeight: phase.restWeight }
   } else if (phase.kind === 'resumePending' || (phase.kind === 'reaction' && now - phase.startedAt >= phase.durationMs)) {
     if (ropeSpeed > 0) {
       beginPlaying(round, { kind: 'playing', resumedAfterPass: motion.passCount }, now, ropeSpeed, settings)
@@ -157,7 +161,7 @@ function ease01(value: number) {
 export function ropeRestWeight(round: PreviewRound, now: number) {
   const phase = round.phase
   if (phase.kind === 'initialCountdown') return 0
-  if (phase.kind === 'ended') return phase.restWeight
+  if (phase.kind === 'ended' || phase.kind === 'completion') return phase.restWeight
   if (phase.kind !== 'playing') return ease01((now - phase.stoppedAt) / 140)
   return phase.resumedAfterPass === round.motion.passCount ? 1 - ease01(round.motion.angle / (Math.PI / 2)) : 0
 }

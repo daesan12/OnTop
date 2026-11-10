@@ -10,6 +10,7 @@ import { defaultRopeAcceleration, ropePeriodMs } from './ropeAcceleration'
 import { distractionDefaults, distractionDurationMs, sampleDistraction, type DistractionCue, type DistractionKind, type DistractionSettings } from './pigeonDistractionMotion'
 import { advanceDistractionSchedule, createDistractionSchedule, type DistractionFrequency } from './pigeonDistractionSchedule'
 import { finalePreviewEndMs, finaleStage } from './gameOverFinale'
+import { completionPreviewEndMs, completionResultMs } from './completionFinale'
 import { GameOverSplash } from './GameOverSplash'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue } from './previewRound'
 import './preview.css'
@@ -98,6 +99,11 @@ const distractionSliders: [keyof DistractionSettings, string, number, number, nu
 
 type DemoAction = keyof typeof demoActions
 export type Demo = { action: DemoAction | 'laugh' | 'shock'; startedAt: number; durationMs: number }
+export type FinalePreview = {
+  reason: RoundEndReason
+  startedAt: number
+  stage: ReturnType<typeof finaleStage> | 'acknowledgement'
+}
 export type RopeSimulation = { angle: number; startedAt: number; lastAt: number; sampleSeconds: number }
 
 const successDemoActions = {
@@ -148,8 +154,8 @@ export function JumpRopePreview() {
   const [cue, setCue] = useState<RoundCue>('3')
   const [lastPass, setLastPass] = useState<PreviewPass | null>(null)
   const [visiblePass, setVisiblePass] = useState<PreviewPass | null>(null)
-  const [finalePreview, setFinalePreview] = useState<ReturnType<typeof finaleStage> | null>(null)
-  const finalePreviewRef = useRef<{ startedAt: number; stage: ReturnType<typeof finaleStage> } | null>(null)
+  const [finalePreview, setFinalePreview] = useState<FinalePreview | null>(null)
+  const finalePreviewRef = useRef<FinalePreview | null>(null)
   const clockOffset = useRef(0)
   const demoRef = useRef<Demo | null>(null)
   const successDemoRef = useRef<PigeonSuccessCue | null>(null)
@@ -160,8 +166,8 @@ export function JumpRopePreview() {
   const stageRef = useRef<HTMLElement>(null)
   const controlsRef = useRef({ settings, paused: false, cue: '3' as RoundCue })
   const { jumpHeight, jumpDuration } = settings
-  const finalePreviewAt = useCallback(() => finalePreviewRef.current?.startedAt, [])
-  const sceneTime = useCallback((now: number) => (finalePreviewAt() ?? now) - clockOffset.current, [finalePreviewAt])
+  const getFinalePreview = useCallback(() => finalePreviewRef.current, [])
+  const sceneTime = useCallback((now: number) => (finalePreviewRef.current?.startedAt ?? now) - clockOffset.current, [])
 
   const closeFinalePreview = useCallback((now: number) => {
     const preview = finalePreviewRef.current
@@ -175,12 +181,16 @@ export function JumpRopePreview() {
     const finale = finalePreviewRef.current
     if (finale) {
       const age = wallNow - finale.startedAt
-      if (age >= finalePreviewEndMs) closeFinalePreview(wallNow)
+      const endsAt = finale.reason === 'time' ? completionPreviewEndMs : finalePreviewEndMs
+      if (age >= endsAt) closeFinalePreview(wallNow)
       else {
-        const stage = finaleStage(age)
+        const stage: FinalePreview['stage'] = finale.reason === 'time'
+          ? age >= completionResultMs ? 'result' : 'acknowledgement'
+          : finaleStage(age)
         if (stage !== finale.stage) {
-          finale.stage = stage
-          setFinalePreview(stage)
+          const next: FinalePreview = { ...finale, stage }
+          finalePreviewRef.current = next
+          setFinalePreview(next)
         }
       }
       return
@@ -289,13 +299,14 @@ export function JumpRopePreview() {
     demoRef.current = { action: 'shock', startedAt: sceneTime(performance.now()), durationMs: 0 }
   }
 
-  function startFinalePreview() {
+  function startFinalePreview(reason: RoundEndReason) {
     if (finalePreviewRef.current) return
     const now = performance.now()
     step(now)
     if (round.phase.kind !== 'playing' && round.phase.kind !== 'initialCountdown') return
-    finalePreviewRef.current = { startedAt: now, stage: 'flight' }
-    setFinalePreview('flight')
+    const preview: FinalePreview = { reason, startedAt: now, stage: reason === 'time' ? 'acknowledgement' : 'flight' }
+    finalePreviewRef.current = preview
+    setFinalePreview(preview)
     stageRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
   }
 
@@ -385,13 +396,14 @@ export function JumpRopePreview() {
     return `${label} ${ms ? `${Math.round(ms)}ms` : '생략'}`
   }).join(' · ')
   const paused = ropePaused || settings.ropeSpeed === 0
-  const status = finalePreview ? '게임 오버 연출 미리보기' : simulating ? '가속 시뮬레이션' : cue === 'ended' ? '게임 종료'
+  const status = finalePreview ? finalePreview.reason === 'time' ? '완주 엔딩 미리보기' : '게임 오버 연출 미리보기'
+    : simulating ? '가속 시뮬레이션' : cue === 'ended' ? '게임 종료' : cue === 'completion' ? '완주 엔딩'
     : cue === 'gameOver' || cue === 'gameOverSplash' ? '게임 오버 연출' : cue === 'landing' ? '착지 중' : cue === 'reaction' ? '비둘기 비웃음'
     : cue === 'GO!' ? '시작' : countdown ? paused ? '시작 대기 · 회전 일시 정지' : '시작 카운트다운'
       : paused ? '회전 일시 정지' : '플레이 중'
-  const previewResult = finalePreview === 'result'
-  const resultReason = previewResult ? 'missLimit' : cue === 'ended' ? hud.endReason : null
-  const showSplash = finalePreview === 'splash' || previewResult || cue === 'gameOverSplash' || resultReason === 'missLimit'
+  const previewResult = finalePreview?.stage === 'result'
+  const resultReason = previewResult ? finalePreview.reason : cue === 'ended' ? hud.endReason : null
+  const showSplash = finalePreview?.stage === 'splash' || cue === 'gameOverSplash' || resultReason === 'missLimit'
 
   return (
     <main className="preview">
@@ -410,7 +422,7 @@ export function JumpRopePreview() {
             fallback={<p className="canvas-fallback">이 브라우저에서 3D 화면을 열 수 없습니다.</p>}
           >
             <PreviewScene settings={settings} demoRef={demoRef} successDemoRef={successDemoRef} simulationRef={simulationRef}
-              sampleDistraction={sampleDistractionFrame} round={round} step={step} sceneTime={sceneTime} finalePreviewAt={finalePreviewAt} />
+              sampleDistraction={sampleDistractionFrame} round={round} step={step} sceneTime={sceneTime} getFinalePreview={getFinalePreview} />
           </Canvas>
           <JumpRopeHud
             seconds={hud.seconds}
@@ -425,9 +437,10 @@ export function JumpRopePreview() {
           {showSplash && <GameOverSplash />}
           {finalePreview && !previewResult && <button className="finale-preview-close" type="button" onClick={() => closeFinalePreview(performance.now())}>미리보기 닫기</button>}
           {resultReason && (
-            <section className={resultReason === 'missLimit' ? 'rope-result rope-result--finale' : 'rope-result'} aria-labelledby="rope-result-title">
-              <h2 id="rope-result-title">{resultReason === 'missLimit' ? '게임 오버' : '게임 결과'}</h2>
+            <section className={resultReason === 'missLimit' ? 'rope-result rope-result--finale' : 'rope-result rope-result--completion'} aria-labelledby="rope-result-title">
+              <h2 id="rope-result-title">{resultReason === 'missLimit' ? '게임 오버' : '비둘기들이 인정한 인간'}</h2>
               {resultReason === 'missLimit' && <p className="rope-result__subtitle">비둘기한테 당했다...</p>}
+              {resultReason === 'time' && <p className="rope-result__subtitle">60초 완주 성공!</p>}
               <p>{endLabels[resultReason]}</p>
               <dl>
                 <div><dt>최종 점수</dt><dd>{hud.stats.score}점</dd></div>
@@ -458,7 +471,8 @@ export function JumpRopePreview() {
               ))}
               <button type="button" onClick={startLaughDemo}>비둘기 웃음 테스트</button>
               <button type="button" disabled={!canPreviewSuccess} onClick={startShockDemo}>MISS 감전 효과 미리보기</button>
-              <button type="button" disabled={!canPreviewSuccess} onClick={startFinalePreview}>3번째 MISS 게임 오버 연출 미리보기</button>
+              <button type="button" disabled={!canPreviewSuccess} onClick={() => startFinalePreview('missLimit')}>3번째 MISS 게임 오버 연출 미리보기</button>
+              <button type="button" disabled={!canPreviewSuccess} onClick={() => startFinalePreview('time')}>60초 완주 엔딩 미리보기</button>
             </div>
           </fieldset>
           <fieldset>

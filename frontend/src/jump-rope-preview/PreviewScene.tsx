@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { CatmullRomCurve3, PerspectiveCamera, QuadraticBezierCurve3, Vector3, type Group } from 'three'
-import type { Demo, PreviewSettings, RopeSimulation } from './JumpRopePreview'
+import type { Demo, FinalePreview, PreviewSettings, RopeSimulation } from './JumpRopePreview'
 import { PigeonActor, pigeonHeadPivot, type PigeonLook, type PigeonPose, type PigeonRig } from './PigeonActor'
 import { PreviewAvatar } from './PreviewAvatar'
 import { MissShockEffect } from './MissShockEffect'
@@ -9,11 +9,12 @@ import { createGameRopeGeometry, ropeCenter } from './gameRopeGeometry'
 import { samplePigeonLaugh } from './pigeonLaugh'
 import { blendSuccessPose, isSuccessActive, neutralSuccessPose, samplePigeonSuccess, type PigeonSuccessCue, type SuccessPose } from './pigeonSuccess'
 import { ropeRestWeight, type PreviewRound } from './previewRound'
-import { advanceRope } from './jumpRopeJudgement'
+import { advanceRope, ropeGroundGap } from './jumpRopeJudgement'
 import { ropePeriodMs } from './ropeAcceleration'
 import { PigeonDistraction } from './PigeonDistraction'
 import type { DistractionPose } from './pigeonDistractionMotion'
 import { finaleImpactMs, sampleFinaleFlight } from './gameOverFinale'
+import { completionEase, completionResultMs, sampleExhaustedHolder, sampleResignedAudience } from './completionFinale'
 
 const sky = '#e6efeb'
 const successBlendMs = 140
@@ -221,6 +222,8 @@ function applyPigeonReaction(rig: PigeonRig, base: PigeonPose, pose: SuccessPose
   rig.head.rotation.y = rig.head.rotation.y * (1 - 0.55 * laugh.lean) + pose.yaw
   rig.head.rotation.z = rig.head.rotation.z * (1 - 0.8 * laugh.lean) + pose.roll
   rig.head.position.set(pigeonHeadPivot[0], pigeonHeadPivot[1] + laugh.headLift, pigeonHeadPivot[2] + laugh.headForward)
+  rig.leftWing.rotation.x = base.leftWing?.[0] ?? 0
+  rig.rightWing.rotation.x = base.rightWing?.[0] ?? 0
   rig.leftWing.rotation.y = (base.leftWing?.[1] ?? 0) + pose.leftWing
   rig.rightWing.rotation.y = (base.rightWing?.[1] ?? 0) - pose.rightWing
   rig.leftWing.rotation.z = (base.leftWing?.[2] ?? 0) - pose.leftWing * 0.46
@@ -228,11 +231,13 @@ function applyPigeonReaction(rig: PigeonRig, base: PigeonPose, pose: SuccessPose
   rig.jaw.rotation.x = (base.jaw ?? 0) + laugh.jaw
   // The feet are siblings of the body, so they stay planted during the laugh.
   rig.body.position.y = laugh.lift
+  rig.body.rotation.x = 0
   rig.body.rotation.z = pose.bodyRoll
   rig.setLidLift(pose.lidLift + laugh.lidLift)
+  rig.setGaze(base.gaze?.[0] ?? 0, base.gaze?.[1] ?? 0)
 }
 
-export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef, sampleDistraction, round, step, sceneTime, finalePreviewAt }: {
+export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef, sampleDistraction, round, step, sceneTime, getFinalePreview }: {
   settings: PreviewSettings
   demoRef: RefObject<Demo | null>
   successDemoRef: RefObject<PigeonSuccessCue | null>
@@ -241,7 +246,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
   round: PreviewRound
   step: (now: number) => void
   sceneTime: (now: number) => number
-  finalePreviewAt: () => number | undefined
+  getFinalePreview: () => FinalePreview | null
 }) {
   const leftGrip = useRef<Group>(null)
   const rightGrip = useRef<Group>(null)
@@ -256,6 +261,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
   const drop = useRef<Group>(null)
   const dropTarget = useMemo(() => new Vector3(), [])
   const successFrame = useRef<{ cue: PigeonSuccessCue | null; from: SuccessPose[]; poses: SuccessPose[] }>({ cue: null, from: [], poses: [] })
+  const completionFrom = useRef<SuccessPose[] | null>(null)
   const { geometry, update, left, right, center } = useMemo(() => ({
     ...createGameRopeGeometry(),
     left: new Vector3(), right: new Vector3(), center: new Vector3(),
@@ -267,10 +273,14 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
     step(wallNow)
     const now = sceneTime(wallNow)
     const { motion, phase } = round
-    const previewAt = finalePreviewAt()
-    const finaleAge = previewAt !== undefined ? wallNow - previewAt
+    const finalePreview = getFinalePreview()
+    const finaleAge = finalePreview?.reason === 'missLimit' ? wallNow - finalePreview.startedAt
       : phase.kind === 'gameOver' ? now - phase.startedAt
         : round.endReason === 'missLimit' ? Infinity : null
+    const completionAge = finalePreview?.reason === 'time' ? wallNow - finalePreview.startedAt
+      : phase.kind === 'completion' ? now - phase.startedAt
+        : round.endReason === 'time' ? completionResultMs : null
+    const isFinale = finaleAge !== null || completionAge !== null
     const simulation = simulationRef.current
     if (simulation) {
       const clock = settings.autoAcceleration ? { profile: settings, playedMs: simulation.sampleSeconds * 1000 } : undefined
@@ -282,17 +292,19 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
     const demo = demoRef.current
     const elapsedMs = demo ? now - demo.startedAt : Infinity
     const laughDemo = demo?.action === 'laugh' || demo?.action === 'miss' ? demo : null
-    const laughElapsed = finaleAge !== null ? Infinity : phase.kind === 'reaction' ? now - phase.startedAt
+    const laughElapsed = isFinale ? Infinity : phase.kind === 'reaction' ? now - phase.startedAt
       : laughDemo ? elapsedMs : Infinity
     const laughDuration = phase.kind === 'reaction' ? phase.durationMs : laughDemo?.durationMs ?? 0
 
     const live = round.successCue
     const preview = successDemoRef.current
     const candidate = preview && (!live || preview.startedAt >= live.startedAt) ? preview : live
-    const canReact = finaleAge === null && (phase.kind === 'playing' || phase.kind === 'initialCountdown') && laughElapsed >= laughDuration
+    const canReact = !isFinale && (phase.kind === 'playing' || phase.kind === 'initialCountdown') && laughElapsed >= laughDuration
     const success = canReact && candidate && (!laughDemo || candidate.startedAt > laughDemo.startedAt)
       && isSuccessActive(candidate, now) ? candidate : null
     const frame = successFrame.current
+    if (completionAge === null) completionFrom.current = null
+    else completionFrom.current ??= frame.poses.slice()
     if (frame.cue !== success) {
       frame.from = frame.cue && success ? frame.poses.slice() : []
       frame.cue = success
@@ -300,6 +312,12 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
 
     function successPose(role: 'holder' | 'audience', index: number) {
       const slot = role === 'holder' ? index : index + 2
+      if (completionAge !== null) {
+        const before = completionFrom.current?.[slot] ?? neutralSuccessPose
+        const pose = blendSuccessPose(before, neutralSuccessPose, completionAge / 220)
+        frame.poses[slot] = pose
+        return pose
+      }
       const target = success ? samplePigeonSuccess(success, role, index, now) : neutralSuccessPose
       const from = frame.from[slot]
       const transition = success ? (now - success.startedAt) / successBlendMs : 1
@@ -315,14 +333,33 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       if (!rig || !bird) return
       const attacking = index === finalePigeon && finaleAge !== null
       const flight = attacking ? sampleFinaleFlight(finaleAge) : null
-      bird.visible = attacking ? flight !== null : settings.audience
+      bird.visible = attacking ? flight !== null : settings.audience || completionAge !== null
       bird.position.copy(perches[index]!)
       bird.rotation.set(0, yaw, 0)
       rig.leftWing.rotation.set(0, 0, 0)
       rig.rightWing.rotation.set(0, 0, 0)
       for (const { foot } of rig.legs) foot.rotation.x = 0
       rig.head.rotation.set(...(pose.head ?? [0, 0, 0]))
-      applyPigeonReaction(rig, pose, successPose('audience', index), samplePigeonLaugh('audience', index, laughElapsed, laughDuration, settings.laughTilt))
+      const reaction = successPose('audience', index)
+      applyPigeonReaction(rig, pose, reaction, samplePigeonLaugh('audience', index, laughElapsed, laughDuration, settings.laughTilt))
+      if (completionAge !== null) {
+        const poseEnd = sampleResignedAudience(completionAge, index)
+        const facing = Math.atan2(settings.avatarX - bird.position.x, settings.avatarZ - bird.position.z) - yaw
+        rig.head.rotation.y += poseEnd.yaw + (facing - (pose.head?.[1] ?? 0)) * poseEnd.slump
+        rig.head.rotation.x += poseEnd.pitch
+        rig.head.rotation.z += poseEnd.roll
+        rig.head.position.y -= poseEnd.headDrop
+        rig.head.position.z += poseEnd.headForward
+        rig.body.position.y += poseEnd.sink
+        rig.body.rotation.x = 0.1 * poseEnd.slump
+        rig.leftWing.rotation.x += poseEnd.wingDrop
+        rig.rightWing.rotation.x += poseEnd.wingDrop
+        rig.setLidLift(reaction.lidLift + poseEnd.lidLift)
+        rig.setGaze(
+          (pose.gaze?.[0] ?? 0) * (1 - poseEnd.slump) + poseEnd.gazeX,
+          (pose.gaze?.[1] ?? 0) * (1 - poseEnd.slump) + poseEnd.gazeY,
+        )
+      }
       if (!flight) return
       const lean = flight.lean * flight.lean * (3 - 2 * flight.lean)
       rig.head.rotation.x += 0.47 * lean - 0.53 * flight.wing
@@ -359,18 +396,34 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
     if (gripL && gripR) {
       nodAtGrip(gripL, leftPose.head, ropeAngle, settings.pigeonNod)
       nodAtGrip(gripR, rightPose.head, ropeAngle + 0.57, settings.pigeonNod * 0.83)
-      if (holderLeft.current) {
-        applyPigeonReaction(holderLeft.current, leftPose, successPose('holder', 0), samplePigeonLaugh('holder', 0, laughElapsed, laughDuration, settings.laughTilt))
+      function poseHolder(rig: PigeonRig | null, base: PigeonPose, index: number) {
+        if (!rig) return
+        const reaction = successPose('holder', index)
+        applyPigeonReaction(rig, base, reaction, samplePigeonLaugh('holder', index, laughElapsed, laughDuration, settings.laughTilt))
+        if (completionAge === null) return
+        const slump = sampleExhaustedHolder(completionAge, index)
+        rig.body.position.y += slump.sink
+        rig.body.rotation.z += slump.roll
+        rig.head.rotation.x += slump.pitch
+        rig.leftWing.rotation.x += slump.wingDrop
+        rig.rightWing.rotation.x += slump.wingDrop
+        rig.setLidLift(reaction.lidLift + slump.lidLift)
       }
-      if (holderRight.current) {
-        applyPigeonReaction(holderRight.current, rightPose, successPose('holder', 1), samplePigeonLaugh('holder', 1, laughElapsed, laughDuration, settings.laughTilt))
-      }
+      poseHolder(holderLeft.current, leftPose, 0)
+      poseHolder(holderRight.current, rightPose, 1)
       gripL.getWorldPosition(left)
       gripR.getWorldPosition(right)
       const radius = settings.ropeWidth / 2
       ropeCenter(center, ropeAngle, settings.avatarX, settings.avatarZ, settings.avatarScale,
         settings.ropeHeight, settings.ropeSag, radius)
       if (!simulation) center.z -= (0.5 * settings.avatarScale + radius) * ropeRestWeight(round, now)
+      if (completionAge !== null) {
+        // Move to the same side as the stopped arc before lowering it, away from the avatar.
+        const side = center.z > settings.avatarZ + 0.001 ? 1 : -1
+        const offset = Math.max(Math.abs(center.z - settings.avatarZ), 0.76 * settings.avatarScale)
+        center.z += (settings.avatarZ + side * offset - center.z) * completionEase(completionAge, 0, 330)
+        center.y += (radius + ropeGroundGap - center.y) * completionEase(completionAge, 210, 820)
+      }
       update(left, right, center, radius)
     }
   }, -1)
@@ -398,7 +451,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
 
       <GroundShadow x={settings.avatarX} z={settings.avatarZ} width={0.95 * settings.avatarScale} depth={0.62 * settings.avatarScale} />
       <group position={[settings.avatarX, 0, settings.avatarZ]}>
-        <MissShockEffect round={round} demoRef={demoRef} scale={settings.avatarScale} sceneTime={sceneTime} finalePreviewAt={finalePreviewAt}>
+        <MissShockEffect round={round} demoRef={demoRef} scale={settings.avatarScale} sceneTime={sceneTime} getFinalePreview={getFinalePreview}>
           {shock => <Suspense fallback={null}><PreviewAvatar motion={round.motion} scale={settings.avatarScale} shock={shock} /></Suspense>}
         </MissShockEffect>
       </group>

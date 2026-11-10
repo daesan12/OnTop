@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { applyPass, createRoundStats } from '../../src/jump-rope-preview/jumpRopeRules'
 import { finaleImpactMs, finaleResultMs } from '../../src/jump-rope-preview/gameOverFinale'
+import { completionResultMs, sampleExhaustedHolder, sampleResignedAudience } from '../../src/jump-rope-preview/completionFinale'
 import {
   advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, ropeRestWeight,
 } from '../../src/jump-rope-preview/previewRound'
@@ -113,14 +114,23 @@ describe('jump rope game', () => {
     expect(jump(62250)).toBe(true)
     expect(step(65000, 2)).toMatchObject({ number: 60, at: 62500, kind: 'perfect' })
     expect(round.endReason).toBe('time')
-    expect(roundCue(round, 65000)).toBe('ended')
+    expect(roundCue(round, 65000)).toBe('completion')
     expect(round.playedMs).toBe(60000)
     expect(roundSecondsLeft(round)).toBe(0)
     expect(round.motion.passCount).toBe(60)
     expect(round.stats).toMatchObject({ score: 9000, chances: 3, combo: 60, maxCombo: 60, counts: { perfect: 60, good: 0, miss: 0 } })
     expect(jump(65000)).toBe(false)
-    expect(step(66000)).toBeUndefined()
-    expect(round.stats.score).toBe(9000)
+    const finalStats = round.stats
+    const stoppedAngle = round.motion.angle
+    expect(step(65000 + completionResultMs - 1)).toBeUndefined()
+    expect(roundCue(round, 65000 + completionResultMs - 1)).toBe('completion')
+    expect(step(65000 + completionResultMs + 500)).toBeUndefined()
+    expect(roundCue(round, 65000 + completionResultMs + 500)).toBe('ended')
+    expect(round.motion.angle).toBe(stoppedAngle)
+    expect(round.stats).toBe(finalStats)
+    expect(round.playedMs).toBe(60000)
+    resetPreviewRound(round)
+    expect(round).toEqual(createPreviewRound())
   })
 
   it('honors a third MISS before the time boundary even when observed after it', () => {
@@ -156,6 +166,7 @@ describe('jump rope game', () => {
     expect(ropeRestWeight(round, 64700)).toBe(1)
     expect(step(65700)).toBeUndefined()
     expect(round.endReason).toBe('time')
+    expect(round.phase.kind).toBe('completion')
     expect(round.stats.chances).toBe(1)
     expect(round.motion.passCount).toBe(2)
     expect(ropeRestWeight(round, 65700)).toBe(0)
@@ -168,5 +179,38 @@ describe('jump rope game', () => {
     expect(round.playedMs).toBe(60000)
     expect(round.endReason).toBe('time')
     expect(round.stats).toEqual(createRoundStats())
+  })
+})
+
+describe('completion poses', () => {
+  it('shows sideways glances before four staggered head drops that stay down through the result', () => {
+    const audience = [0, 1, 2, 3]
+    const glances = audience.map(index => sampleResignedAudience(610, index))
+    expect(glances.map(pose => Math.sign(pose.gazeX))).toEqual([1, -1, 1, -1])
+    expect(glances.every(pose => pose.slump === 0)).toBe(true)
+    const startedCounts = [1120, 1400, 1650, 2050].map(age =>
+      audience.filter(index => sampleResignedAudience(age, index).slump > 0).length)
+    expect(startedCounts).toEqual([1, 2, 3, 4])
+    for (const index of audience) {
+      let previousPitch = sampleResignedAudience(930, index).pitch
+      for (let age = 950; age < completionResultMs; age += 20) {
+        const { pitch } = sampleResignedAudience(age, index)
+        expect(pitch).toBeGreaterThanOrEqual(previousPitch)
+        previousPitch = pitch
+      }
+      const final = sampleResignedAudience(completionResultMs, index)
+      expect(final.slump).toBe(1)
+      expect(final.pitch).toBeGreaterThanOrEqual(0.9)
+      expect(sampleResignedAudience(completionResultMs - 260, index)).toEqual(final)
+      expect(sampleResignedAudience(completionResultMs + 1000, index)).toEqual(final)
+    }
+  })
+
+  it('lets the holders slump at different times and hold their exhausted pose through the result', () => {
+    expect(sampleExhaustedHolder(100, 0).pitch).toBeGreaterThan(0)
+    expect(sampleExhaustedHolder(100, 1).pitch).toBe(0)
+    for (const index of [0, 1]) {
+      expect(sampleExhaustedHolder(completionResultMs, index)).toMatchObject({ sink: -0.104, wingDrop: -0.26 })
+    }
   })
 })

@@ -1,7 +1,7 @@
 import { useRef, type ReactNode, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Shape, type Group, type MeshBasicMaterial } from 'three'
-import type { Demo } from './JumpRopePreview'
+import type { Demo, FinalePreview } from './JumpRopePreview'
 import { sampleMissShock, type MissShockPose } from './missShock'
 import type { PreviewRound } from './previewRound'
 
@@ -21,13 +21,13 @@ const arcs = [
   [-0.32, 1.42, 0.27, 0.23], [0.36, 1.49, 0.29, 0.55],
 ] as const
 
-export function MissShockEffect({ round, demoRef, scale, children, sceneTime, finalePreviewAt }: {
+export function MissShockEffect({ round, demoRef, scale, children, sceneTime, getFinalePreview }: {
   round: PreviewRound
   demoRef: RefObject<Demo | null>
   scale: number
   children: (shock: RefObject<MissShockPose>) => ReactNode
   sceneTime: (now: number) => number
-  finalePreviewAt: () => number | undefined
+  getFinalePreview: () => FinalePreview | null
 }) {
   const shock = useRef(sampleMissShock(Infinity))
   const figure = useRef<Group>(null)
@@ -41,8 +41,9 @@ export function MissShockEffect({ round, demoRef, scale, children, sceneTime, fi
     const previewAt = demo?.action === 'shock' || demo?.action === 'miss' ? demo.startedAt : null
     const startedAt = round.shockStartedAt ?? previewAt
     const now = performance.now()
-    const finaleAt = finalePreviewAt()
-    const age = finaleAt !== undefined ? now - finaleAt : startedAt === null ? Infinity : sceneTime(now) - startedAt
+    const finale = getFinalePreview()
+    const age = finale?.reason === 'time' || round.endReason === 'time' ? Infinity
+      : finale ? now - finale.startedAt : startedAt === null ? Infinity : sceneTime(now) - startedAt
     shock.current = sampleMissShock(age)
     const { intensity, sway, pitch, roll } = shock.current
 
