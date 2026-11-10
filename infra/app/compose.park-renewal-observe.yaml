@@ -1,0 +1,5 @@
+# Load last when the existing monitoring override is enabled.
+services:
+  app:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev,db,park-renewal,observe-dev

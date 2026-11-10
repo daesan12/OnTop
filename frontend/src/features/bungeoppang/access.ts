@@ -6,8 +6,11 @@ import { inputState } from '../../world/inputOwnership'
 import { benchBusy } from '../interactions/benchState'
 import { fitnessBusy } from '../fitness/state'
 import { telescopeBusy } from '../telescopes/state'
+import {RENEWAL_PARK_ENABLED} from '../../park/mapSelection'
+import {renewalInReach} from '../../park-renewal/runtime/placements'
 
 export function canReachBungeoppang(p: { x: number; y: number; z: number }) {
+  if(RENEWAL_PARK_ENABLED)return renewalInReach('game-entry','fish-bread',p)
   const cart = MINI_PROPS[0]
   if(![p.x,p.y,p.z].every(Number.isFinite))return false
   if(GENERATED_PARK_ENABLED){

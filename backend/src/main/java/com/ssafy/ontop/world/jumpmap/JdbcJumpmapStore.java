@@ -36,6 +36,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @ConditionalOnProperty(name = "ontop.world.jumpmap.enabled", havingValue = "true")
 public class JdbcJumpmapStore implements JumpmapStore {
     private static final String REWARD_TYPE = "JUMP_GATE_REWARD";
+    private final JumpCourse course;
     private final JdbcTemplate jdbc;
     private final EntityManager entities;
     private final TransactionTemplate transactions;
@@ -43,11 +44,26 @@ public class JdbcJumpmapStore implements JumpmapStore {
     private final JumpmapRankingSnapshot rankings;
 
     public JdbcJumpmapStore(JdbcTemplate jdbc, EntityManager entities, PlatformTransactionManager transactions) {
+        this(jdbc, entities, transactions, new com.ssafy.ontop.world.config.JumpmapProperties(false));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JdbcJumpmapStore(JdbcTemplate jdbc, EntityManager entities, PlatformTransactionManager transactions,
+            com.ssafy.ontop.world.config.JumpmapProperties properties) {
+        this.course = configuredCourse(properties);
         this.jdbc = jdbc;
         this.entities = entities;
         this.transactions = new TransactionTemplate(transactions);
         this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         this.rankings = new JumpmapRankingSnapshot(this::loadRanking, Clock.systemUTC());
+    }
+
+    private static JumpCourse configuredCourse(com.ssafy.ontop.world.config.JumpmapProperties properties) {
+        try {
+            return properties.loadCourse();
+        } catch (java.io.IOException | IllegalArgumentException exception) {
+            throw new IllegalStateException("설정한 점프맵 코스를 읽을 수 없어 저장소를 시작하지 않습니다.", exception);
+        }
     }
 
     /** 원장 멱등 키. (판, 문)마다 하나다. */
@@ -63,7 +79,10 @@ public class JdbcJumpmapStore implements JumpmapStore {
                     SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()
                       AND TABLE_NAME IN ('jump_runs', 'jump_gate_rewards', 'jump_daily_earnings', 'jump_profiles')
                     """, Integer.class);
-            return tables != null && tables == 4;
+            if (tables == null || tables != 4) return false;
+            if (!course.renewal()) return true;
+            Integer checks = jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND CONSTRAINT_NAME IN ('ck_jump_runs_gates','ck_jump_gate_rewards_gate') AND CHECK_CLAUSE REGEXP '10'", Integer.class);
+            return checks != null && checks == 2;
         } catch (org.springframework.dao.DataAccessException exception) {
             return false;
         }
@@ -77,10 +96,23 @@ public class JdbcJumpmapStore implements JumpmapStore {
                     INSERT INTO jump_runs(id, user_id, channel_id, status, rules_version, course_version, is_first_run,
                         started_at, gate_times_ms)
                     VALUES (?, ?, ?, 'STARTED', ?, ?, ?, ?, JSON_ARRAY())
-                    """, runId, userId, channelId, JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION, first, time(at));
+                    ON DUPLICATE KEY UPDATE id=id
+                    """, runId, userId, channelId, course.rulesVersion(), course.courseVersion(), first, time(at));
             LocalDate today = JumpmapStore.kstDate(at);
-            return new Started(first, earned(userId, today, false), today);
+            var stored = jdbc.queryForMap("SELECT user_id, channel_id, rules_version, course_version, is_first_run FROM jump_runs WHERE id=? FOR UPDATE",runId);
+            if (((Number)stored.get("user_id")).longValue()!=userId || !channelId.equals(stored.get("channel_id")) || !course.rulesVersion().equals(stored.get("rules_version")) || !course.courseVersion().equals(stored.get("course_version"))) throw new IllegalStateException("다른 판의 시작 키입니다.");
+            return new Started(firstRun(stored.get("is_first_run")), earned(userId, today, false), today);
         });
+    }
+
+    private static boolean firstRun(Object value) {
+        if (value instanceof Boolean flag) {
+            return flag;
+        }
+        if (value instanceof Number flag && (flag.doubleValue() == 0 || flag.doubleValue() == 1)) {
+            return flag.doubleValue() == 1;
+        }
+        throw new IllegalStateException("저장된 첫 도전 플래그가 Boolean 또는 숫자 0/1이 아닙니다.");
     }
 
     @Override
@@ -97,12 +129,12 @@ public class JdbcJumpmapStore implements JumpmapStore {
                             ORDER BY r.finish_ms, r.ended_at, r.id) AS choice
                         FROM jump_runs r JOIN users u ON u.id = r.user_id
                         WHERE r.status = 'ENDED' AND r.end_reason = 'FINISH' AND %s
-                          AND r.finish_ms > 0 AND r.final_reached = TRUE AND r.gates_passed = 7
+                          AND r.finish_ms > 0 AND r.final_reached = TRUE AND r.gates_passed = ?
                           AND r.rules_version = ? AND r.course_version = ? AND u.deleted_at IS NULL
                     )
                     SELECT RANK() OVER (ORDER BY finish_ms) AS place, user_id, nickname, finish_ms, ended_at
                     FROM choices WHERE choice = 1 ORDER BY finish_ms, ended_at, user_id
-                    """.formatted(JumpmapRankingEligibility.SQL), JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION);
+                    """.formatted(rankingEligibility()), course.stageCount(), course.rulesVersion(), course.courseVersion());
             var items = new ArrayList<RankingEntry>();
             for (var row : rows) {
                 items.add(new RankingEntry(((Number) row.get("place")).intValue(),
@@ -116,10 +148,14 @@ public class JdbcJumpmapStore implements JumpmapStore {
 
     @Override
     public boolean passGate(String runId, long userId, int gate, int coinsCalculated, long elapsedMs, Instant at) {
+        if (course.renewal() && (gate < 1 || gate > course.stageCount()
+                || coinsCalculated != course.stages().get(gate - 1).reward() || elapsedMs < 0)) return false;
         return transaction(() -> {
-            var runs = jdbc.queryForList("SELECT status, gates_passed FROM jump_runs WHERE id = ? AND user_id = ? FOR UPDATE",
+            var runs = jdbc.queryForList("SELECT status, gates_passed, course_version, rules_version FROM jump_runs WHERE id = ? AND user_id = ? FOR UPDATE",
                     runId, userId);
             if (runs.isEmpty()) return false;
+            if (course.renewal() && (!course.courseVersion().equals(runs.getFirst().get("course_version"))
+                    || !course.rulesVersion().equals(runs.getFirst().get("rules_version")))) return false;
             Integer existing = jdbc.query("SELECT gate FROM jump_gate_rewards WHERE run_id = ? AND gate = ?",
                     rs -> rs.next() ? rs.getInt(1) : null, runId, gate);
             if (existing != null) return true;
@@ -175,12 +211,17 @@ public class JdbcJumpmapStore implements JumpmapStore {
     @Override
     public Ended end(String runId, RunEnd end) {
         Ended result = transaction(() -> {
-            var rows = jdbc.queryForList("SELECT user_id, status, coins_granted FROM jump_runs WHERE id = ? FOR UPDATE", runId);
+            var rows = jdbc.queryForList("SELECT user_id, status, coins_granted, gates_passed FROM jump_runs WHERE id = ? FOR UPDATE", runId);
             if (rows.isEmpty()) throw new IllegalStateException("점프맵 판이 없습니다.");
             var row = rows.getFirst();
             long userId = ((Number) row.get("user_id")).longValue();
             boolean newBest = false;
             if ("STARTED".equals(row.get("status"))) {
+                if(course.renewal() && end.reason()==JumpRun.EndReason.FINISH
+                        && (!end.finalReached() || end.gatesPassed()!=course.stageCount()
+                        || ((Number)row.get("gates_passed")).intValue()!=course.stageCount())) {
+                    throw new IllegalStateException("열 단계 통과 저장 전에는 완주할 수 없습니다.");
+                }
                 jdbc.update("""
                         UPDATE jump_runs SET status = 'ENDED', end_reason = ?, ended_at = ?, elapsed_ms = ?, finish_ms = ?,
                             gates_passed = GREATEST(gates_passed, ?), final_reached = ?, max_height = ?, landings = ?,
@@ -272,14 +313,16 @@ public class JdbcJumpmapStore implements JumpmapStore {
         return true;
     }
 
+    private String rankingEligibility() { return course.renewal() ? "r.suspicious = FALSE" : JumpmapRankingEligibility.SQL; }
+
     private Long best(long userId, String excludedRun) {
         return jdbc.queryForObject("""
                 SELECT MIN(finish_ms) FROM jump_runs r
                 WHERE user_id = ? AND id <> ? AND status = 'ENDED' AND end_reason = 'FINISH'
-                  AND %s AND gates_passed = 7 AND final_reached = TRUE
+                  AND %s AND gates_passed = ? AND final_reached = TRUE
                   AND rules_version = ? AND course_version = ? AND finish_ms > 0
-                """.formatted(JumpmapRankingEligibility.SQL), Long.class, userId, excludedRun,
-                JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION);
+                """.formatted(rankingEligibility()), Long.class, userId, excludedRun, course.stageCount(),
+                course.rulesVersion(), course.courseVersion());
     }
 
     private int earned(long userId, LocalDate date, boolean lock) {

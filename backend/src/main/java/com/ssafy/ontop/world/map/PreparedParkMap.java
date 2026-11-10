@@ -40,13 +40,18 @@ public final class PreparedParkMap {
         require(!channels.isEmpty() && channels.stream().noneMatch(String::isBlank), "채널 목록이 필요합니다.");
         Map<String, JsonNode> anchors = indexed(data.path("tables"));
         require(!anchors.isEmpty(), "게임 테이블 앵커가 필요합니다.");
+        if (!"park-renewal-local".equals(map.metadata().mapId())) for(int n=1;n<=anchors.size();n++) require(anchors.containsKey("table-"+n), "테이블 앵커가 누락되었습니다.");
         for (String channel : channels.stream().sorted().toList()) {
-            for (int number = 1; number <= anchors.size(); number++) {
-                String anchorId = "table-" + number;
+            for (String anchorId : anchors.keySet().stream().sorted(Comparator.comparingInt(id->Integer.parseInt(id.substring(6)))).toList()) {
+                require(anchorId.matches("table-[1-9][0-9]*"), "테이블 앵커 ID 형식이 다릅니다.");
+                int number = Integer.parseInt(anchorId.substring(6));
                 JsonNode anchor = anchors.get(anchorId);
                 require(anchor != null, "테이블 앵커가 누락되었습니다: " + anchorId);
                 Pose position = position(anchor.path("position"), 0);
                 String tableId = serverTableId(channel, number);
+                if ("park-renewal-local".equals(map.metadata().mapId())) {
+                    for (JsonNode binding : data.path("bindings")) if(channel.equals(binding.path("channelId").asText()) && anchorId.equals(binding.path("anchorId").asText())) tableId=binding.path("tableId").asText();
+                }
                 entries.add(new Binding(channel, tableId, anchorId));
                 tablePoints.put(tableId, new WorldProximityProperties.Point(position.x(), position.z()));
             }
@@ -64,10 +69,15 @@ public final class PreparedParkMap {
         JsonNode mailbox = data.path("interactions").path("mailbox");
         // 소리함 position은 모델 바닥이다. 기존 아바타 원점 보정은 한 번만 적용한다.
         Pose base = position(mailbox.path("position"), 0);
-        feedback = new Reach(new Pose(base.x(), base.y() + 0.8, base.z(), 0),
+        Pose mailReach = "park-renewal-local".equals(map.metadata().mapId()) ? position(mailbox.path("reachPosition"), 0) : new Pose(base.x(), base.y()+.8, base.z(), 0);
+        feedback = new Reach(mailReach,
                 positive(mailbox.path("radius")), 0.7, false);
         vrEntrance = java.util.stream.StreamSupport.stream(data.path("facilities").spliterator(), false)
                 .filter(node -> "vr-experience-hall".equals(node.path("id").asText())).findFirst().map(vr -> {
+                    if ("park-renewal-local".equals(map.metadata().mapId())) {
+                        return new Reach(position(vr.path("reachPosition"), vr.path("yaw").asDouble()),
+                                positive(vr.path("radius")), positive(vr.path("heightTolerance")), false);
+                    }
                     Pose site = position(vr.path("position"), vr.path("yaw").asDouble());
                     return new Reach(new Pose(site.x() + Math.sin(site.yaw()) * 7.7, 0.8,
                             site.z() + Math.cos(site.yaw()) * 7.7, site.yaw()), 2.8, 0.9, false);
@@ -78,6 +88,9 @@ public final class PreparedParkMap {
 
     public static PreparedParkMap load(Path mapFile, Path manifestFile, Set<String> channelIds) throws IOException {
         return new PreparedParkMap(new GeneratedParkMapLoader().load(mapFile, manifestFile), Set.copyOf(channelIds));
+    }
+    public static PreparedParkMap loadRenewal(Path mapFile, Path manifestFile, Set<String> channelIds) throws IOException {
+        return new PreparedParkMap(GeneratedParkMapLoader.renewal().load(mapFile,manifestFile), Set.copyOf(channelIds));
     }
 
     public JsonNode collisionData() { return collisionData.deepCopy(); }
@@ -140,6 +153,10 @@ public final class PreparedParkMap {
     private static ObjectNode physicsData(GeneratedParkMapLoader.ValidatedMap map) throws IOException {
         JsonNode data = map.document().path("data");
         JsonNode physics = data.path("physics");
+        if ("park-renewal-local".equals(map.metadata().mapId())) {
+            require(physics.path("sceneData").isObject() && map.metadata().mapVersion().equals(physics.path("sceneData").path("sourceSha256").asText()), "새 공원 충돌 장면 버전이 다릅니다.");
+            return ((ObjectNode)physics.path("sceneData")).deepCopy();
+        }
         ObjectNode root;
         try (var input = PreparedParkMap.class.getResourceAsStream("/world/park.json")) {
             if (input == null) {

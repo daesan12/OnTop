@@ -1,0 +1,1374 @@
+{
+  "checkedAt": "2026-11-10T08:18:07.525Z",
+  "base": "0c337594eaa22b7a3d10a801f0faef5e9889e80c",
+  "measurements": [
+    {
+      "route": "mole",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 27.947186803426185,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0018018103289964285,
+      "steepest": [
+        -51.35882167866022,
+        21.368138743964437
+      ],
+      "roll": 0.002876750753596132,
+      "rollPoint": [
+        -49.44162734073218,
+        20.11492858941648
+      ]
+    },
+    {
+      "route": "mole",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 0,
+      "distance": 26.503037164457233,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0013544823699029422,
+      "steepest": [
+        -50.600487563078154,
+        22.36128686295556
+      ],
+      "roll": 0.0019330504681648443,
+      "rollPoint": [
+        -43.91402356338755,
+        19.274624447456752
+      ]
+    },
+    {
+      "route": "mole",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 25.058887528015635,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0014747973350740069,
+      "steepest": [
+        -37.56922510482936,
+        18.12001472744367
+      ],
+      "roll": 0.0013942835295793147,
+      "rollPoint": [
+        -43.86204733495048,
+        20.5403309306084
+      ]
+    },
+    {
+      "route": "mole",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 27.94718680342622,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0017951173847228683,
+      "steepest": [
+        -51.387566427918905,
+        21.40524280027359
+      ],
+      "roll": 0.002876784400906255,
+      "rollPoint": [
+        -49.45980878545907,
+        20.121921452886184
+      ]
+    },
+    {
+      "route": "mole",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 0,
+      "distance": 26.503037164457243,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0013549271634871794,
+      "steepest": [
+        -50.62430782606135,
+        22.400622949894654
+      ],
+      "roll": 0.0019330656502939783,
+      "rollPoint": [
+        -43.89563307918259,
+        19.267551184300995
+      ]
+    },
+    {
+      "route": "mole",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 25.05888752801563,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0014635138110818957,
+      "steepest": [
+        -37.70922694605194,
+        18.173861588580476
+      ],
+      "roll": 0.001394303625042386,
+      "rollPoint": [
+        -43.931531000388915,
+        20.56705541688289
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 48.2588282354864,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.004664527206301728,
+      "steepest": [
+        85.67062186750147,
+        -54.520793846318334
+      ],
+      "roll": 0.019578891437001842,
+      "rollPoint": [
+        85.07813446448314,
+        -55.23177872040262
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 0,
+      "distance": 49.00979875158322,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.006389936865822676,
+      "steepest": [
+        86.97721934739116,
+        -54.82733678313064
+      ],
+      "roll": 0.020875684664570175,
+      "rollPoint": [
+        86,
+        -56
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 49.760769272613665,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.008045068847272557,
+      "steepest": [
+        88.2731470844383,
+        -55.146683399140606
+      ],
+      "roll": 0.019126288032354683,
+      "rollPoint": [
+        86.92186553551686,
+        -56.76822127959738
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 48.258828235486426,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.004664179443724474,
+      "steepest": [
+        85.707649129137,
+        -54.47636113295173
+      ],
+      "roll": 0.019417816120483877,
+      "rollPoint": [
+        85.17416212519305,
+        -55.116545529096555
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 0,
+      "distance": 49.00979875158318,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.006389869227394485,
+      "steepest": [
+        87.0563042594464,
+        -54.732434888664294
+      ],
+      "roll": 0.020724419359374992,
+      "rollPoint": [
+        86.09602765994967,
+        -55.88476680806039
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 49.760769272613615,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.008045385650223837,
+      "steepest": [
+        88.30893172380947,
+        -55.10374183131936
+      ],
+      "roll": 0.01902674122359708,
+      "rollPoint": [
+        87.01789319470635,
+        -56.65298808702428
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 155.96409137710202,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.1699880778362702,
+      "steepest": [
+        -80.26137107437671,
+        -9.955739968494305
+      ],
+      "roll": 0.14546040478209893,
+      "rollPoint": [
+        -89.96557875551771,
+        -16.471093665995582
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 0,
+      "distance": 152.54630690709712,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.1706969922670491,
+      "steepest": [
+        -76.59210189895235,
+        -76.00718009186122
+      ],
+      "roll": 0.1362757602257108,
+      "rollPoint": [
+        -90.07761718129936,
+        -19.514440089698596
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 149.1285225423333,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.1795927914451312,
+      "steepest": [
+        -75.00897355496222,
+        -75.82463480358926
+      ],
+      "roll": 0.1350074744148719,
+      "rollPoint": [
+        -89.80577787894565,
+        -21.926455933237648
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 155.96409137710182,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.16999037188491312,
+      "steepest": [
+        -80.11900838392431,
+        -9.864221095482636
+      ],
+      "roll": 0.14507473773305474,
+      "rollPoint": [
+        -89.92421948740913,
+        -16.41915075825411
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 0,
+      "distance": 152.54630690709712,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.17070120299209182,
+      "steepest": [
+        -76.6688285737281,
+        -75.93742856933844
+      ],
+      "roll": 0.13628182806833816,
+      "rollPoint": [
+        -90.09585836566124,
+        -19.55700285320948
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 149.1285225423333,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.17958968362307817,
+      "steepest": [
+        -75.03719792106739,
+        -75.7989762888352
+      ],
+      "roll": 0.13443530849581128,
+      "rollPoint": [
+        -89.76585637794184,
+        -21.833305765015286
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 17.317051134082003,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.24513737596300958,
+      "steepest": [
+        32.85669826727057,
+        50.840303333035536
+      ],
+      "roll": 0.017443462469881352,
+      "rollPoint": [
+        32.85669826727057,
+        50.840303333035536
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 0,
+      "distance": 16.700589486229475,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.24441436324483767,
+      "steepest": [
+        32.4,
+        51.95
+      ],
+      "roll": 0.006041722878188752,
+      "rollPoint": [
+        32.4,
+        51.95
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 16.08412786606593,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.23155590688979477,
+      "steepest": [
+        31.94330173272942,
+        53.05969666696447
+      ],
+      "roll": 0.020029132880458416,
+      "rollPoint": [
+        31.94330173272942,
+        53.05969666696447
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 17.317051134082018,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.23918838419156135,
+      "steepest": [
+        32.71798614447789,
+        50.78321614541565
+      ],
+      "roll": 0.016595893413680802,
+      "rollPoint": [
+        32.71798614447789,
+        50.78321614541565
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 0,
+      "distance": 16.700589486229475,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.24000374511349065,
+      "steepest": [
+        32.26128791662944,
+        51.892912716591184
+      ],
+      "roll": 0.005087020288893937,
+      "rollPoint": [
+        32.26128791662944,
+        51.892912716591184
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 16.084127866065945,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.22903033637275824,
+      "steepest": [
+        31.804589688847507,
+        53.00260928760526
+      ],
+      "roll": 0.018686753877047064,
+      "rollPoint": [
+        31.804589688847507,
+        53.00260928760526
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 50.368933283358736,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.00012327754406626926,
+      "steepest": [
+        83.23020353072174,
+        21.368117914346612
+      ],
+      "roll": 0.00007483790163576032,
+      "rollPoint": [
+        83.70505746744969,
+        18.574859688447685
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 0,
+      "distance": 50.17961998821495,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.00009004809639279189,
+      "steepest": [
+        84.44709371459268,
+        21.37003697298389
+      ],
+      "roll": 0.00006327179134500859,
+      "rollPoint": [
+        97.5,
+        -10
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 49.99030671066588,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.00006918273484346008,
+      "steepest": [
+        98.68509636760214,
+        -9.811461941517841
+      ],
+      "roll": 0.00013557999232145017,
+      "rollPoint": [
+        98.68509636760214,
+        -9.811461941517841
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 50.368933283358764,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.00012302767663285866,
+      "steepest": [
+        83.23616992239842,
+        21.333021495552103
+      ],
+      "roll": 0.00007484770320469952,
+      "rollPoint": [
+        83.71381711757772,
+        18.523332338912592
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 0,
+      "distance": 50.17961998821496,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.00009037613233786602,
+      "steepest": [
+        84.44926463291581,
+        21.35726686520142
+      ],
+      "roll": 0.00006134325497934394,
+      "rollPoint": [
+        97.47643274268972,
+        -9.851862954049732
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 49.990306710665934,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.00006839403458395547,
+      "steepest": [
+        98.66152911010464,
+        -9.663324895597361
+      ],
+      "roll": 0.00013277130174355672,
+      "rollPoint": [
+        98.66152911010464,
+        -9.663324895597361
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 18.024557864166464,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.03724878104896708,
+      "steepest": [
+        22.445961270352253,
+        -4.52049852602818
+      ],
+      "roll": 0.04343522225261489,
+      "rollPoint": [
+        23.385364967479788,
+        -3.973953969849772
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 0,
+      "distance": 17.26727680647309,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.06314626972687995,
+      "steepest": [
+        22.695663888370436,
+        -5.763539513057715
+      ],
+      "roll": 0.05935382995875828,
+      "rollPoint": [
+        23.54561334618496,
+        -5.269039398188951
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "bicycle",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 16.50999577979421,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.09198678156145947,
+      "steepest": [
+        22.930960578258,
+        -7.014961849135093
+      ],
+      "roll": 0.0731127490296964,
+      "rollPoint": [
+        23.521603426023116,
+        -6.671326183308103
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 18.024557864166482,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.037302729552575194,
+      "steepest": [
+        22.554387854671823,
+        -4.457415998690791
+      ],
+      "roll": 0.04359945535938239,
+      "rollPoint": [
+        23.385364967479788,
+        -3.973953969849772
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 0,
+      "distance": 17.267276806473085,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.06318782139679514,
+      "steepest": [
+        22.73835427978714,
+        -5.7387022674247135
+      ],
+      "roll": 0.05930294354987807,
+      "rollPoint": [
+        23.45865043047742,
+        -5.319634373468142
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "bicycle",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 16.509995779794206,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.09196311824796412,
+      "steepest": [
+        22.92232067214593,
+        -7.019988541493673
+      ],
+      "roll": 0.0730863465213252,
+      "rollPoint": [
+        23.498557596794825,
+        -6.684734233369777
+      ]
+    },
+    {
+      "route": "mole",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 27.94718680342633,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0017987283021646669,
+      "steepest": [
+        -51.35882167866022,
+        21.368138743964437
+      ],
+      "roll": 0.0028735117180411773,
+      "rollPoint": [
+        -49.441627340732126,
+        20.114928589416454
+      ]
+    },
+    {
+      "route": "mole",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 0,
+      "distance": 26.503037164457083,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0013485955109923148,
+      "steepest": [
+        -50.74176823918826,
+        22.610437687700077
+      ],
+      "roll": 0.001931947861953942,
+      "rollPoint": [
+        -43.88291204318064,
+        19.2626584781464
+      ]
+    },
+    {
+      "route": "mole",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 25.058887528015564,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0014747973350779737,
+      "steepest": [
+        -37.56922510482936,
+        18.12001472744367
+      ],
+      "roll": 0.0013934006370608376,
+      "rollPoint": [
+        -43.830935814678696,
+        20.528364961466902
+      ]
+    },
+    {
+      "route": "mole",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 27.94718680342635,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0017889170758434972,
+      "steepest": [
+        -51.40798064930554,
+        21.431593714418664
+      ],
+      "roll": 0.0028735184784678403,
+      "rollPoint": [
+        -49.44425302538805,
+        20.115938468146613
+      ]
+    },
+    {
+      "route": "mole",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 0,
+      "distance": 26.503037164457087,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0013598089964009816,
+      "steepest": [
+        -50.607041594522826,
+        22.372109999160696
+      ],
+      "roll": 0.0019319120000182988,
+      "rollPoint": [
+        -43.926744599389444,
+        19.279517153611327
+      ]
+    },
+    {
+      "route": "mole",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 25.05888752801557,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0014635138110818957,
+      "steepest": [
+        -37.70922694605194,
+        18.173861588580476
+      ],
+      "roll": 0.0013935192719771727,
+      "rollPoint": [
+        -43.91597524025312,
+        20.561072432312105
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 48.2588282354862,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.004664203405653209,
+      "steepest": [
+        85.62794290718577,
+        -54.57200859801013
+      ],
+      "roll": 0.01959060183209682,
+      "rollPoint": [
+        85.07813446448314,
+        -55.23177872040262
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 0,
+      "distance": 49.009798751583425,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0063899548079326945,
+      "steepest": [
+        87.03056804736326,
+        -54.763318343164116
+      ],
+      "roll": 0.02089107510218069,
+      "rollPoint": [
+        86,
+        -56
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 49.76076927261362,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.008045373647007633,
+      "steepest": [
+        88.30515630416808,
+        -55.10827233494963
+      ],
+      "roll": 0.019144960740505867,
+      "rollPoint": [
+        86.92186553551686,
+        -56.76822127959738
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 48.25882823548617,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.004664130743954329,
+      "steepest": [
+        85.71831886921586,
+        -54.463557445028826
+      ],
+      "roll": 0.019429294937689523,
+      "rollPoint": [
+        85.17416212519305,
+        -55.116545529096555
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 0,
+      "distance": 49.00979875158338,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.006390165167449167,
+      "steepest": [
+        87.02429503946314,
+        -54.77084595264415
+      ],
+      "roll": 0.020739475238247262,
+      "rollPoint": [
+        86.09602765994967,
+        -55.88476680806039
+      ]
+    },
+    {
+      "route": "fishing",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 49.76076927261359,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.008045397938225559,
+      "steepest": [
+        88.33027120362935,
+        -55.07813445519201
+      ],
+      "roll": 0.019045213638763103,
+      "rollPoint": [
+        87.01789319470635,
+        -56.65298808702428
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 155.96409137710071,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.1700003784966952,
+      "steepest": [
+        -80.19127286822474,
+        -9.910676835683581
+      ],
+      "roll": 0.14576213266029203,
+      "rollPoint": [
+        -89.96557875551771,
+        -16.471093665995582
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 0,
+      "distance": 152.54630690709632,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.17070156307610768,
+      "steepest": [
+        -76.62909890262233,
+        -75.97354645216151
+      ],
+      "roll": 0.13656479788967557,
+      "rollPoint": [
+        -90.08418250294235,
+        -19.529759173532234
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 149.1285225423324,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.17957759519174962,
+      "steepest": [
+        -74.97197655136613,
+        -75.85826844336998
+      ],
+      "roll": 0.13532789586919725,
+      "rollPoint": [
+        -89.80577787894565,
+        -21.926455933237648
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 155.96409137710054,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.170001912003439,
+      "steepest": [
+        -80.16106730761547,
+        -9.891258975169055
+      ],
+      "roll": 0.14559493424261216,
+      "rollPoint": [
+        -89.94498289104526,
+        -16.445227417943507
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 0,
+      "distance": 152.5463069070963,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.17070157522731216,
+      "steepest": [
+        -76.66882857372784,
+        -75.93742856933832
+      ],
+      "roll": 0.13656480896387047,
+      "rollPoint": [
+        -90.08272772237542,
+        -19.52636468554255
+      ]
+    },
+    {
+      "route": "balloon",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 149.12852254233232,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.1795698187322851,
+      "steepest": [
+        -75.09885959372737,
+        -75.74292022253415
+      ],
+      "roll": 0.13532108809471755,
+      "rollPoint": [
+        -89.80524830808086,
+        -21.925220267896915
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 17.317051134081918,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.24054455701314933,
+      "steepest": [
+        32.85669826727057,
+        50.840303333035536
+      ],
+      "roll": 0.017447223888645835,
+      "rollPoint": [
+        32.85669826727057,
+        50.840303333035536
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 0,
+      "distance": 16.700589486229443,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.24192049883765093,
+      "steepest": [
+        32.4,
+        51.95
+      ],
+      "roll": 0.00605063417105256,
+      "rollPoint": [
+        32.4,
+        51.95
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 16.084127866065963,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.23155590688978905,
+      "steepest": [
+        31.94330173272942,
+        53.05969666696447
+      ],
+      "roll": 0.02013146073400418,
+      "rollPoint": [
+        31.94330173272942,
+        53.05969666696447
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 17.31705113408193,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.23918838419156135,
+      "steepest": [
+        32.71798614447789,
+        50.78321614541565
+      ],
+      "roll": 0.016601026094305027,
+      "rollPoint": [
+        32.71798614447789,
+        50.78321614541565
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 0,
+      "distance": 16.700589486229465,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.24000374511349065,
+      "steepest": [
+        32.26128791662944,
+        51.892912716591184
+      ],
+      "roll": 0.00509524875799805,
+      "rollPoint": [
+        32.26128791662944,
+        51.892912716591184
+      ]
+    },
+    {
+      "route": "fountain",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 16.084127866065966,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.22903033637275824,
+      "steepest": [
+        31.804589688847507,
+        53.00260928760526
+      ],
+      "roll": 0.018784184792908776,
+      "rollPoint": [
+        31.804589688847507,
+        53.00260928760526
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 50.36893328335868,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.00012295706247537436,
+      "steepest": [
+        83.24416982297846,
+        21.285963260643648
+      ],
+      "roll": 0.00007473479273878425,
+      "rollPoint": [
+        83.71343724280372,
+        18.525566896225904
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 0,
+      "distance": 50.179619988214874,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.00009000169929033557,
+      "steepest": [
+        84.46106000575385,
+        21.287882319094642
+      ],
+      "roll": 0.00006312670693287004,
+      "rollPoint": [
+        97.5,
+        -10
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 49.990306710665905,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.00006899889434430287,
+      "steepest": [
+        98.68509636760214,
+        -9.811461941517841
+      ],
+      "roll": 0.000135375169005858,
+      "rollPoint": [
+        98.68509636760214,
+        -9.811461941517841
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 50.3689332833587,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.0001228614307062041,
+      "steepest": [
+        83.22220363014172,
+        21.415176149255007
+      ],
+      "roll": 0.00007473505505006806,
+      "rollPoint": [
+        83.71661037602905,
+        18.506901408172027
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 0,
+      "distance": 50.17961998821483,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.00009018110883237304,
+      "steepest": [
+        84.44088485821912,
+        21.406559657534924
+      ],
+      "roll": 0.0000612009824951798,
+      "rollPoint": [
+        97.47643274268972,
+        -9.851862954049732
+      ]
+    },
+    {
+      "route": "tower",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 49.99030671066589,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.00006839403458395547,
+      "steepest": [
+        98.66152911010464,
+        -9.663324895597361
+      ],
+      "roll": 0.00013257131144528422,
+      "rollPoint": [
+        98.66152911010464,
+        -9.663324895597361
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": -1.2,
+      "distance": 18.024557864166493,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.037283569031369965,
+      "steepest": [
+        22.489179039086462,
+        -4.495354451862737
+      ],
+      "roll": 0.043523330801609195,
+      "rollPoint": [
+        23.353534413770554,
+        -3.9924729685540785
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 0,
+      "distance": 17.267276806473003,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.06310306943920094,
+      "steepest": [
+        22.6812579653566,
+        -5.771920870936863
+      ],
+      "roll": 0.059429762772071903,
+      "rollPoint": [
+        23.545613346184933,
+        -5.2690393981889665
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "scooter",
+      "reverse": false,
+      "lane": 1.2,
+      "distance": 16.509995779794213,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.09188786969646753,
+      "steepest": [
+        22.8733368857931,
+        -7.048487279947475
+      ],
+      "roll": 0.0731904540939654,
+      "rollPoint": [
+        23.564821195371785,
+        -6.646182110198803
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": -1.2,
+      "distance": 18.024557864166493,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.03726736513788964,
+      "steepest": [
+        22.597605623406032,
+        -4.432271924525357
+      ],
+      "roll": 0.043639516361940744,
+      "rollPoint": [
+        23.385364967479788,
+        -3.973953969849772
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 0,
+      "distance": 17.267276806473017,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.06317838284063623,
+      "steepest": [
+        22.795977971842394,
+        -5.705176835908173
+      ],
+      "roll": 0.05942238820692669,
+      "rollPoint": [
+        23.48746227650506,
+        -5.302871657709865
+      ]
+    },
+    {
+      "route": "cafe",
+      "travel": "scooter",
+      "reverse": true,
+      "lane": 1.2,
+      "distance": 16.5099957797942,
+      "complete": true,
+      "blocked": false,
+      "grade": 0.09197717048245121,
+      "steepest": [
+        22.951132518378394,
+        -7.003225826087473
+      ],
+      "roll": 0.07311007890410393,
+      "rollPoint": [
+        23.599399058608395,
+        -6.626064729448089
+      ]
+    }
+  ]
+}

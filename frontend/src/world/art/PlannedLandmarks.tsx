@@ -266,7 +266,7 @@ export function PlannedLandmarks({ quality }: { quality: QualityPreset }) {
 }
 
 /** Shared tower art; callers may translate the entire existing model for layout review. */
-export function ObservationTower() {
+export function ObservationTower({furniture=true}:{furniture?:boolean}={}) {
   return (
       <group name="spiral-observation-tower">
         <mesh
@@ -302,8 +302,7 @@ export function ObservationTower() {
         >
           <SurfaceMaterial kind="wood" color="#aa8955" side={2} />
         </mesh>
-        <ObservationTelescopes />
-        <TraditionalNotesBoard />
+        {furniture&&<><ObservationTelescopes /><TraditionalNotesBoard /></>}
       </group>
   )
 }

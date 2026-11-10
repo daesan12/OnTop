@@ -6,16 +6,20 @@ import { inputState, panelOwnsKeys } from '../../world/inputOwnership'
 import { benchBusy } from '../interactions/benchState'
 import { fitnessBusy } from '../fitness/state'
 import { telescopeBusy } from '../telescopes/state'
+import {RENEWAL_PARK_ENABLED} from '../../park/mapSelection'
+import {renewalAnchor,renewalInReach} from '../../park-renewal/runtime/placements'
 
 /**
  * 붕어빵 가게 오른쪽 앞 잔디의 화면용 게임기. 공원 맵(server-map·mapVersion)은 바꾸지 않으므로 충돌과 시설 점유가 없다.
  * 위치는 담당자가 맵 변경과 함께 확정할 때까지 이 값만 옮기면 된다.
  */
 const placement = rpsCabinetPlacement(MINI_PROPS[0])
-export const RPS_CABINET = placement.cabinet
-export const RPS_CABINET_FRONT = placement.front
+const mapped=renewalAnchor('game-entry','rps-roulette-cabinet')
+export const RPS_CABINET = mapped?{x:mapped.position![0],z:mapped.position![2],yaw:mapped.yaw}:placement.cabinet
+export const RPS_CABINET_FRONT = mapped?{x:mapped.reach!.x,z:mapped.reach!.z}:placement.front
 
 export function canReachRpsRoulette(p: { x: number; y: number; z: number }) {
+  if(RENEWAL_PARK_ENABLED)return renewalInReach('game-entry','rps-roulette-cabinet',p)
   return [p.x, p.y, p.z].every(Number.isFinite)
     && Math.hypot(p.x - RPS_CABINET_FRONT.x, p.z - RPS_CABINET_FRONT.z) <= 1.7 && Math.abs(p.y - .8) <= .9
 }

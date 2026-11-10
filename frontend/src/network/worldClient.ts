@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 import { acceptGacha } from '../features/gacha/events'
 import { acceptTyping, resetTyping } from '../features/chat/typingState'
-import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
+import { NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
+import {serverEventClock as eventClock, estimatedServerTime} from './serverEventClock'
+export {estimatedServerTime} from './serverEventClock'
 import { CHAT } from '../features/chat/settings'
 import { filterChat } from '../features/chat/filterChat'
 import { chatAuthorName } from '../features/chat/author'
@@ -188,7 +190,6 @@ let channelVersion = -1,
   worldVersion = -1
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
-const eventClock = new EnvironmentClock()
 let movementNoticeTimer: ReturnType<typeof setTimeout> | undefined
 export function clearMovementNotice(ackSequence = Infinity) {
   const notice = useSession.getState().movementNotice
@@ -326,7 +327,6 @@ function predictionAllowed() {
     && (!s.activities[s.sessionId] || s.activities[s.sessionId] === 'WATCHING')
 }
 // UTC event time advances on a monotonic clock after CONNECTED; world day rendering is separate.
-export const estimatedServerTime = () => eventClock.ready ? eventClock.now(performance.now()) : Date.now()
 export function cancelAvatarEmote(userId: string, reason: 'movement' | 'activity' = 'activity') {
   const state = useEmoteState.getState(), avatar = avatars.get(userId)
   const pendingOwn = userId === useSession.getState().sessionId && state.pending
@@ -422,7 +422,7 @@ export function refreshActivityPresentation() {
       a.seatIndex = seat.seatNumber - 1
       a.moving = a.running = false
       a.swimming = false
-      a.current = {
+      a.current = anchor.seatUse?.[seat.seatNumber-1] ? {...anchor.seatUse[seat.seatNumber-1]!} : {
         x: anchor.position[0] + position.x,
         y: anchor.position[1] + 0.8,
         z: anchor.position[2] + position.z,

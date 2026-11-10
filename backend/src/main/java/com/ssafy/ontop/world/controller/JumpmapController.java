@@ -59,8 +59,8 @@ public class JumpmapController {
         body.put("mapVersion", channels.mapMetadata().mapVersion());
         body.put("revision", view.revision());
         body.put("enabled", view.enabled());
-        body.put("courseVersion", JumpCourse.COURSE_VERSION);
-        body.put("rulesVersion", JumpCourse.RULES_VERSION);
+        body.put("courseVersion", service.courseVersion());
+        body.put("rulesVersion", service.rulesVersion());
         body.put("isFirstRun", view.firstRun());
         body.put("seenTips", view.seenTips());
         body.put("activeRunId", view.activeRunId());

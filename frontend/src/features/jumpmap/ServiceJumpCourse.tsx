@@ -1,10 +1,11 @@
+import {applyJumpFadeShader} from './visibility'
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Color, InstancedBufferAttribute, MeshBasicMaterial, MeshStandardMaterial, Object3D, Vector3, type InstancedMesh, type BufferGeometry } from 'three'
 import { jumpArt, jumpStartArt, jumpFinishArt, jumpParticleGeometry } from '../../layout-preview/jumpGeometry'
 import type { JumpTheme } from '../../layout-preview/jumpCourse'
 import { avatars, sampleAvatar } from '../../network/worldClient'
-import { COURSE, START, targetFade, type CourseBlock } from './course'
+import { LEGACY_COURSE as COURSE, START, targetFade, type LegacyCourseBlock as CourseBlock } from './course'
 import { hits, onStep, standing, useJumpmap } from './state'
 import { applyLandingMotion, landingGeometry } from './landingMotion'
 import { cameraWorldPosition, parkXRView } from '../../world/xrView'
@@ -14,17 +15,7 @@ const clock = { value: 0 }
 function materialFor(theme: JumpTheme, finish: string) {
   const material = new MeshStandardMaterial({ vertexColors: true, roughness: theme === 'gomoku' ? .26 : theme === 'lily' ? .45 : .85, metalness: finish === 'gold' ? .75 : 0 })
   material.onBeforeCompile = shader => {
-    shader.vertexShader = `attribute float aFade; varying float vFade;\n${shader.vertexShader}`
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-      vFade=aFade;
-    `)
-    shader.fragmentShader = `varying float vFade;\n${shader.fragmentShader}`
-    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-      vec2 px=mod(floor(gl_FragCoord.xy),4.);
-      float b2=mod(2.*mod(px.x,2.)+3.*mod(px.y,2.),4.);
-      float b4=mod(2.*floor(px.x/2.)+3.*floor(px.y/2.),4.);
-      if(vFade<.995 && vFade<=(4.*b2+b4+.5)/16.)discard;
-    `)
+    applyJumpFadeShader(shader)
     if (finish === 'glow') shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight+=diffuseColor.rgb*.45;\n#include <opaque_fragment>')
   }
   applyLandingMotion(material, theme, clock)

@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-09",
+  "base": "0c337594eaa22b7a3d10a801f0faef5e9889e80c",
+  "localOnly": true,
+  "preview": "http://127.0.0.1:5389/park-renewal.html",
+  "visualReview": [
+    "North rental pair: three bicycles and three scooters, diagonal placement on grass, signs facing the road",
+    "Fishing shop supported by the enlarged timber platform; land entrance aligned with the rail opening",
+    "Public road separated from the exterior wall by grass",
+    "Duck dock access bordered by grass with no parallel stone sliver",
+    "Cafe moved backward; wider western road joins the bridge with a short stone abutment",
+    "Fishing navigation starts successfully and follows the new access points in route data"
+  ],
+  "verification": {
+    "finalRelatedVitest": {"passed": 21, "failed": 0, "log": ".vite-cache/waterfront-supported-final.log"},
+    "nodeLayoutJumpMotion": {"passed": 22, "failed": 0, "log": ".vite-cache/waterfront-node-sealed.log"},
+    "finalBoatMotionWithNewSweep": {"passed": 6, "failed": 0, "log": ".vite-cache/waterfront-boats-sealed.log"},
+    "distinctNodeTests": 23,
+    "boatSamples": "1440 orientations, 9 hull points, no deck or island overlap",
+    "vehicleSweeps": "bicycle and scooter, three routes, both directions and three lane positions: 36 complete",
+    "typecheck": "passed",
+    "build": "passed",
+    "whitespace": "passed"
+  },
+  "limits": "Standalone local preview. No game-server rental flow or headset verification. No commit, push, MR, merge, deploy, Jenkins execution, or branch deletion."
+}

@@ -1,8 +1,10 @@
 import { create } from 'zustand'
 import { PARK_DATA } from '../../map/park'
 import { clearRoamingInput } from '../../world/inputOwnership'
+import {renewalAnchor} from '../../park-renewal/runtime/placements'
 
-export const rankingBoardTarget = PARK_DATA.interactions.rankingBoard
+const mapped=renewalAnchor('interaction','layout-photo')
+export const rankingBoardTarget = mapped ? {...PARK_DATA.interactions.rankingBoard,position:mapped.position!,reachPosition:[mapped.reach!.x,mapped.reach!.y,mapped.reach!.z]as const} : PARK_DATA.interactions.rankingBoard
 
 export function canReachRankingBoard(position: { x: number; y: number; z: number }) {
   const target = rankingBoardTarget

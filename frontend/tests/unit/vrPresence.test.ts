@@ -5,6 +5,8 @@ import { worldState } from '../../src/network/protocol'
 import { ParkRuntime } from '../../src/park/runtime/SpringParkRuntime'
 import { acquireVRProtection, vrCarryProtection } from '../../src/features/vrSession/protection'
 import { inputState } from '../../src/world/inputOwnership'
+import { resetGame, useGame } from '../../src/game/store'
+import { ServerError } from '../../src/network/socketClient'
 
 const position = { x: 0, y: .84, z: 78, yaw: 0, lastInputSeq: 0, moving: false, running: false, swimming: false }
 const snapshot = (version: number, avatars: { userId: string; vrActive?: unknown; interactionBusy?: boolean }[]) => ({
@@ -15,6 +17,7 @@ const world = (version: number, avatars: Parameters<typeof snapshot>[1]) =>
 
 beforeEach(() => {
   resetWorld()
+  resetGame()
   receive({ type: 'CONNECTED', requestId: null, payload: { userId: '101' } })
   receive({ type: 'CHANNEL_STATE', requestId: null, payload: { channelId: 'a', name: '공원', version: 1, currentUsers: 2, capacity: 4, userIds: ['101', '102'] } })
 })
@@ -57,10 +60,10 @@ it('팝업 busy가 유지되어도 VR 종료를 별도로 전송한다', async (
   Reflect.set(runtime, 'socket', { connected: true, request })
   const release = await acquireVRProtection(runtime)
   try {
-    expect(request).toHaveBeenLastCalledWith('WORLD_INTERACTION_SET', { busy: true, vrActive: true }, ['WORLD_INTERACTION_STATE'])
+    expect(request).toHaveBeenLastCalledWith('WORLD_INTERACTION_SET', { busy: true, vrActive: true }, ['WORLD_INTERACTION_STATE'], expect.any(Function))
     inputState.mapOpen = true
     release()
-    await vi.waitFor(() => expect(request).toHaveBeenLastCalledWith('WORLD_INTERACTION_SET', { busy: true, vrActive: false }, ['WORLD_INTERACTION_STATE']))
+    await vi.waitFor(() => expect(request).toHaveBeenLastCalledWith('WORLD_INTERACTION_SET', { busy: true, vrActive: false }, ['WORLD_INTERACTION_STATE'], expect.any(Function)))
   } finally { release() }
 })
 
@@ -73,4 +76,37 @@ it('VR 표시 미지원 서버의 일반 busy 응답만으로 VR 진입을 승�
   Reflect.set(runtime, 'socket', { connected: true, request: async () => ({ payload: { channelId: 'a', busy: true } }) })
   await expect(acquireVRProtection(runtime)).rejects.toThrow('VR 플레이 보호')
   expect(vrCarryProtection.active).toBe(false)
+})
+
+it('착석 중에는 로비 점유 요청을 반복하지 않고 VR 보호 확인도 승인하지 않는다', async () => {
+  world(1, [{ userId: '101' }])
+  const runtime = new ParkRuntime(), request = vi.fn()
+  Reflect.set(runtime, 'active', true)
+  Reflect.set(runtime, 'socket', { connected: true, request })
+  useSession.setState({ tableId: 'server-table', seatIndex: 0 })
+  await expect(runtime.setInteractionBusy(true)).resolves.toBe(true)
+  await expect(runtime.setInteractionBusy(true, true)).resolves.toBe(false)
+  expect(request).not.toHaveBeenCalled()
+})
+
+it('착석 직전 보낸 점유 요청의 늦은 거절이 경기 복구와 착수 권한을 취소하지 않는다', async () => {
+  world(1, [{ userId: '101' }])
+  const runtime = new ParkRuntime(), report = vi.fn()
+  let reject!: (error: Error) => void
+  Reflect.set(runtime, 'active', true)
+  Reflect.set(runtime, 'report', report)
+  Reflect.set(runtime, 'socket', { connected: true, request: (_type: string, _payload: unknown,
+    _expected: string[], onId: (id: string) => void) => {
+    onId('presence-before-seat')
+    return new Promise((_resolve, no) => { reject = no })
+  } })
+  const pending = runtime.setInteractionBusy(true)
+  useSession.setState({ tableId: 'server-table', seatIndex: 0 })
+  useGame.setState({ recovery: 'RESTORED', permittedGameId: '7', uncertain: false })
+  Reflect.get(runtime, 'message').call(runtime, { type: 'ERROR', requestId: 'presence-before-seat',
+    payload: { code: 'GAME_RECOVERY_REQUIRED', message: '경기 중 로비 요청 거절' } })
+  reject(new ServerError('GAME_RECOVERY_REQUIRED', '경기 중 로비 요청 거절'))
+  await expect(pending).resolves.toBe(false)
+  expect(useGame.getState()).toMatchObject({ recovery: 'RESTORED', permittedGameId: '7', uncertain: false })
+  expect(report).not.toHaveBeenCalled()
 })

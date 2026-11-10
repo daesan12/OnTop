@@ -22,3 +22,5 @@ it('keeps the exported collision contract and source fingerprints current with t
     expect(createHash('sha256').update(text).digest('hex'), source.path).toBe(source.sha256)
   }
 })
+
+it('keeps the packaged legacy BE course byte-identical to the FE handoff',()=>{expect(readFileSync(new URL('../../../backend/src/main/resources/world/jumpmap/course.generated.json',import.meta.url))).toEqual(bytes);expect(readFileSync(new URL('../../../backend/src/main/resources/world/jumpmap/course.generated.sha256',import.meta.url),'utf8').trim()).toBe(createHash('sha256').update(bytes).digest('hex'))})
