@@ -4,7 +4,8 @@ import { JumpRopeHud } from './JumpRopeHud'
 import { PreviewScene } from './PreviewScene'
 import type { PreviewPass } from './previewMotion'
 import { clearanceWindowMs } from './jumpRopeJudgement'
-import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, type RoundCue } from './previewRound'
+import type { RoundEndReason } from './jumpRopeRules'
+import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue } from './previewRound'
 import './preview.css'
 
 const defaults = {
@@ -76,20 +77,26 @@ const demoActions = {
 export type DemoAction = keyof typeof demoActions
 export type Demo = { action: DemoAction; startedAt: number; durationMs: number }
 
-const readyHud = { seconds: 60, score: 0, combo: 0, chances: 3 }
-const hudSamples = {
-  jump: { ...readyHud, note: '점프 테스트' },
-  perfect: { seconds: 42, score: 120, combo: 4, chances: 3, judgement: 'perfect' },
-  good: { seconds: 36, score: 140, combo: 5, chances: 3, judgement: 'good' },
-  miss: { seconds: 28, score: 140, combo: 0, chances: 2, judgement: 'miss' },
-  laugh: { ...readyHud, note: '구구구!' },
-  end: { seconds: 18, score: 140, combo: 0, chances: 0, note: '비둘기한테 졌습니다.' },
-} as const
+const hudSamples: Record<DemoAction, { note?: string; judgement?: PreviewPass['kind'] }> = {
+  jump: { note: '점프 테스트' },
+  perfect: { judgement: 'perfect' },
+  good: { judgement: 'good' },
+  miss: { judgement: 'miss' },
+  laugh: { note: '구구구!' },
+  end: { note: '비둘기한테 졌습니다.' },
+}
+
+function readRoundHud(round: ReturnType<typeof createPreviewRound>) {
+  return { seconds: roundSecondsLeft(round), stats: round.stats, endReason: round.endReason }
+}
+
+const endLabels: Record<RoundEndReason, string> = { time: '시간 종료', missLimit: '3회 실패' }
 
 export function JumpRopePreview() {
   const [settings, setSettings] = useState(defaults)
   const [demo, setDemo] = useState<Demo | null>(null)
   const [round] = useState(createPreviewRound)
+  const [hud, setHud] = useState(() => readRoundHud(round))
   const [ropePaused, setRopePaused] = useState(false)
   const [cue, setCue] = useState<RoundCue>('3')
   const [lastPass, setLastPass] = useState<PreviewPass | null>(null)
@@ -102,7 +109,12 @@ export function JumpRopePreview() {
     const controls = controlsRef.current
     const { settings } = controls
     const effectiveSpeed = speed ?? (controls.paused ? 0 : settings.ropeSpeed)
+    const previous = readRoundHud(round)
     const latest = advancePreviewRound(round, now, effectiveSpeed, settings, settings.reactionMs)
+    const next = readRoundHud(round)
+    if (next.seconds !== previous.seconds || next.stats !== previous.stats || next.endReason !== previous.endReason) {
+      setHud(next)
+    }
     const nextCue = roundCue(round, now)
     if (nextCue !== controls.cue) {
       controls.cue = nextCue
@@ -153,9 +165,16 @@ export function JumpRopePreview() {
     demoRef.current = null
     controlsRef.current.cue = '3'
     setCue('3')
+    setHud(readRoundHud(round))
     setDemo(null)
     setLastPass(null)
     setVisiblePass(null)
+  }
+
+  function restartGame() {
+    controlsRef.current.paused = false
+    setRopePaused(false)
+    resetScene()
   }
 
   function toggleRope() {
@@ -175,10 +194,10 @@ export function JumpRopePreview() {
   }
 
   const windowMs = clearanceWindowMs(jumpHeight, jumpDuration * 1000, settings)
-  const demoHud = demo && (!lastPass || demo.startedAt >= lastPass.at) ? hudSamples[demo.action] : readyHud
+  const demoHud = demo && (!lastPass || demo.startedAt >= lastPass.at) ? hudSamples[demo.action] : undefined
   const countdown = cue === '3' || cue === '2' || cue === '1' || cue === 'GO!' ? cue : null
   const paused = ropePaused || settings.ropeSpeed === 0
-  const status = cue === 'landing' ? '착지 중' : cue === 'reaction' ? '비둘기 비웃음'
+  const status = cue === 'ended' ? '게임 종료' : cue === 'landing' ? '착지 중' : cue === 'reaction' ? '비둘기 비웃음'
     : cue === 'GO!' ? '시작' : countdown ? paused ? '시작 대기 · 회전 일시 정지' : '시작 카운트다운'
       : paused ? '회전 일시 정지' : '플레이 중'
 
@@ -189,7 +208,7 @@ export function JumpRopePreview() {
           <p className="eyebrow">ONTOP / 개발 프리뷰</p>
           <h1>구구구 줄넘기</h1>
         </div>
-        <p className="preview-tag">04 · MISS 연출과 재시작</p>
+        <p className="preview-tag">05 · 60초 줄넘기</p>
       </header>
       <div className="preview-layout">
         <section className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={0}>
@@ -201,15 +220,35 @@ export function JumpRopePreview() {
             <PreviewScene settings={settings} demoRef={demoRef} round={round} step={step} />
           </Canvas>
           <JumpRopeHud
-            {...(visiblePass ? { ...readyHud, judgement: visiblePass.kind } : demoHud)}
+            seconds={hud.seconds}
+            score={hud.stats.score}
+            combo={hud.stats.combo}
+            chances={hud.stats.chances}
+            judgement={visiblePass?.kind ?? demoHud?.judgement}
+            note={visiblePass ? undefined : demoHud?.note}
             livePass={visiblePass?.number}
           />
           {countdown && <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
+          {cue === 'ended' && hud.endReason && (
+            <section className="rope-result" aria-labelledby="rope-result-title">
+              <h2 id="rope-result-title">게임 결과</h2>
+              <p>{endLabels[hud.endReason]}</p>
+              <dl>
+                <div><dt>최종 점수</dt><dd>{hud.stats.score}점</dd></div>
+                <div><dt>PERFECT</dt><dd>{hud.stats.counts.perfect}회</dd></div>
+                <div><dt>GOOD</dt><dd>{hud.stats.counts.good}회</dd></div>
+                <div><dt>MISS</dt><dd>{hud.stats.counts.miss}회</dd></div>
+                <div><dt>최종 PERFECT 콤보</dt><dd>×{hud.stats.combo}</dd></div>
+                <div><dt>최대 PERFECT 콤보</dt><dd>×{hud.stats.maxCombo}</dd></div>
+              </dl>
+              <button type="button" onClick={restartGame}>다시 시작</button>
+            </section>
+          )}
         </section>
         <aside className="preview-panel" aria-label="실시간 조정 패널">
           <h2>실시간 조정</h2>
           <p className="panel-note" aria-label="현재 게임 상태">현재 상태 · {status}</p>
-          <p className="panel-note">Space로 점프합니다. 높이와 체공 시간은 다음 점프부터 적용됩니다. HUD는 샘플 값입니다.</p>
+          <p className="panel-note">Space로 점프합니다. 높이와 체공 시간은 다음 점프부터 적용됩니다.</p>
           {controls.map(group => (
             <fieldset key={group.title}>
               <legend>{group.title}</legend>

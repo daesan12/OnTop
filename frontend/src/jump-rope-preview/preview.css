@@ -183,6 +183,37 @@ button, input { font: inherit; }
 }
 .rope-hud__feedback[data-live="true"] { animation: rope-feedback-fade 750ms linear both; }
 
+.rope-result {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(340px, calc(100% - 20px));
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  padding: 14px 18px;
+  background: #fff7e8;
+  border: 1px solid #b6c6b6;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px #253a3426;
+}
+
+.rope-result h2 { margin: 0; font-size: 1.18rem; }
+.rope-result p { margin: 4px 0 10px; color: #4a5f54; font-size: 0.83rem; }
+.rope-result dl { margin: 0 0 10px; }
+.rope-result dl div { display: flex; justify-content: space-between; gap: 6px; padding: 3px 0; font-size: 0.78rem; }
+.rope-result dd { margin: 0; font-weight: 750; }
+.rope-result button {
+  width: 100%;
+  min-height: 36px;
+  color: #223b34;
+  background: #e7eee2;
+  border: 1px solid #c9d7c6;
+  border-radius: 7px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 @keyframes rope-feedback-fade {
   0%, 78% { opacity: 1; }
   100% { opacity: 0; }

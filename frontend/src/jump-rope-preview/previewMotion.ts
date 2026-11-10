@@ -38,12 +38,18 @@ export function requestJump(motion: PreviewMotion, now: number, peak: number, fl
 
 export function advancePreviewMotion(
   motion: PreviewMotion, now: number, ropeSpeed: number, settings: JudgementSettings, stopOnMiss = false,
+  deadline = Infinity,
 ) {
   const results: PreviewPass[] = []
   if (motion.lastAt !== null) {
-    const step = advanceRope(motion.angle, motion.lastAt, now, motion.ropeSpeed)
+    const step = advanceRope(motion.angle, motion.lastAt, Math.min(now, deadline), motion.ropeSpeed)
     motion.angle = step.angle
     for (const at of step.passages) {
+      // The timer wins ties. Keep the rope at the end of the turn without recording a pass.
+      if (at >= deadline - 1e-7) {
+        motion.angle = 2 * Math.PI
+        break
+      }
       const pass = { ...judgePass(at, motion.jump, settings), number: ++motion.passCount }
       results.push(pass)
       if (stopOnMiss && pass.kind === 'miss') {
