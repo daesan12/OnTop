@@ -1,13 +1,13 @@
 import {it,expect} from 'vitest'
 import fs from 'node:fs'
-import path from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {Group,Mesh,BufferGeometry,Float32BufferAttribute,MeshBasicMaterial,DoubleSide,Matrix4,Quaternion,Vector3,Raycaster} from 'three'
 import {factory} from '../../src/park-renewal/assetFactories'
 import {openDockSideEntry,widenDockRearPassage} from '../../src/park-renewal/assetSizing'
 
 // Read actual local GLB triangle data without textures, a browser, or network I/O.
 function dockTriangles(){
- const bytes=fs.readFileSync(path.resolve('../../local-approved-assets/오리배_선착장_3/model/duck-dock-3.glb'))
+ const bytes=fs.readFileSync(fileURLToPath(new URL('../../public/art/park-renewal/duck-dock-3.glb',import.meta.url)))
  const length=bytes.readUInt32LE(12),bin=28+length
  const doc=JSON.parse(bytes.subarray(20,20+length).toString()) as {
   nodes:{matrix?:number[];translation?:number[];rotation?:number[];scale?:number[];mesh?:number;children?:number[]}[];
