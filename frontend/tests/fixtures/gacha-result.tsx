@@ -7,6 +7,7 @@ import {parkRuntime} from '../../src/park/runtime/runtime'
 import type {OwnedItem} from '../../src/features/shop/contracts'
 import '../../src/features/gacha/gachaPanel.css'
 import '../../src/features/wardrobe/wardrobe.css'
+import '../../src/styles.css'
 const slots=['HAIR','FACE','TOP','BOTTOM','SHOES'] as const
 const items:OwnedItem[]=slots.map((equipSlot,index)=>({userItemId:index+1,quantity:1,equipped:false,item:{itemId:index+1,itemCode:'TEST_'+index,name:equipSlot==='HAIR'?'갓':equipSlot==='FACE'?'얼굴':'검수 의상',itemType:'EQUIPMENT',equipSlot,price:10,imageKey:'skin/ssafy-black-male/v3',setCode:'TEST_SET'}}))
 useSession.setState({sessionId:'101',status:'connected',roomId:'fixture-channel'})

@@ -16,7 +16,9 @@ import { playSfx } from '../../audio/sfx'
 import { CAPSULES, Capsule, Coin, RevealEffects } from './capsuleMotion'
 import { capsuleName, capsuleTier, displayGachaMessage } from './labels'
 import { useGachaOverlay } from './view'
+import { OpenShell } from './OpeningOrnaments'
 import './capsuleOpening.css'
+import './capsuleMotion.css'
 
 type OpenPhase='idle'|'pause'|'sway'|'waiting'|'seam'|'opening'|'reveal'|'duplicate'|'coins'|'complete'
 const empty={phase:'idle' as OpenPhase,startedAt:0,busy:false,result:null as GachaResult|null,grade:4,instant:false,value:0}
@@ -182,11 +184,15 @@ export function GachaBoxes(){
   {!s.state&&<p role="status">캡슐을 불러오고 있어요…</p>}
   <dialog ref={dialog} className="capsule-opening-dialog" aria-label="의상 캡슐 개봉" onKeyDown={e=>e.stopPropagation()} onCancel={e=>{e.preventDefault();opening.busy?opening.skip():next()}}>
    <div className="capsule-opening-stage" data-phase={opening.phase} data-grade={opening.grade} data-reduced={reduced||opening.instant} style={{'--rarity-color':CAPSULES[opening.grade]!.color} as React.CSSProperties}>
+    {opening.phase==='complete'&&<button className="open-result-x" aria-label="개봉 결과 닫기" onClick={next}>×</button>}
     <div className="open-wallet">보유 엽전 <b>{money(s.state?.inventory.balance??0)}</b></div>
-    <div className="open-title"><h2>{capsuleTier(opening.grade)}</h2></div>
+    <div className="open-title"><h2 aria-label={`${capsuleTier(opening.grade)} 캡슐 오픈!`}>{capsuleTier(opening.grade)} 캡슐 오픈!</h2></div>
     {shown&&<RevealEffects grade={opening.grade}/>}
+    <div className="open-prize-display">
+    {shown&&<><OpenShell grade={opening.grade}/><span className="open-grade-seal" aria-label={`획득 등급 ${capsuleTier(opening.grade)}`}><span>♛</span>{capsuleTier(opening.grade)}</span></>}
     <div key={shown?'product':'capsule'} className="open-center-art" role="img" aria-label={shown?result?.product?.name:`${capsuleName(opening.grade)} 개봉 중`}>
      {shown&&result?.product?<ProductDisplay key={result.operationId} product={result.product}/>:<Canvas resize={{offsetSize:true}} camera={{position:[0,.15,4.8],fov:40}} dpr={1} frameloop={reduced?'demand':'always'} gl={{alpha:true,antialias:true}}><Lighting/><OpeningShell grade={opening.grade} phase={opening.phase} startedAt={opening.startedAt} reduced={reduced||opening.instant}/></Canvas>}
+    </div>
     </div>
     {shown&&result?.product?<div className="open-result-card" data-operation-id={result.operationId} aria-live="polite">
      <small>{result.duplicate?'의상 공개':'새 의상 획득!'}</small><h3>{result.product.name}</h3><p className="open-parts">{parts.length?parts.join(' · '):'구성은 옷장에서 확인할 수 있어요'}</p>{!result.duplicate&&!!result.product.components?.length&&<ul className="open-component-rewards" aria-label="획득한 구성 아이템">{result.product.components.map(item=><li key={item.id}>
