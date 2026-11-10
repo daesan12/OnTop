@@ -15,7 +15,7 @@
   - 그래서 새 옷은 **자기 한 벌을 입었을 때만** 맞으면 된다. 다른 상의·하의·신발과 섞어 입는 경우는 생기지 않는다.
   - 부위별로 섞어 입게 했을 때는 바지가 다른 상의를 뚫거나, 바지 없이 신발만 신으면 발목이 비는 문제가 옷마다 생겼다.
 - **캐릭터별 조각.** `item__HAIR__h__for_girl`처럼 `__for_man`/`__for_girl`이 붙은 조각은 그 캐릭터에게만 보인다(④-2).
-- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`j`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`, 갓·도포 `h`, 투구 아래 여자 앞머리 쪽머리 `i`, 갓 아래 여자 기본 머리 모양의 낮은 쪽머리 `j`, 사또 `k`, 근육 운동복 `l`, 비둘기 옷 `m`, 허수아비 옷 `n`, 병아리 `o`, 사이버펑크 테크웨어 `p`, 제빵사 `q`, 힙한 스트릿웨어 `r`)이고, 새 옷은 `s`부터 쓴다.
+- **의상 문자.** 기준 빌드 안의 의상은 문자로 구분한다. 이미 쓴 문자는 `a`~`j`(남자 기본 `b`·`d`, 여자 머리 `e`, 장군 `g`, 갓·도포 `h`, 투구 아래 여자 앞머리 쪽머리 `i`, 갓 아래 여자 기본 머리 모양의 낮은 쪽머리 `j`, 사또 `k`, 근육 운동복 `l`, 비둘기 옷 `m`, 허수아비 옷 `n`, 병아리 `o`, 사이버펑크 테크웨어 `p`, 제빵사 `q`, 힙한 스트릿웨어 `r`, 각시탈·보라 도포 `s`)이고, 새 옷은 `t`부터 쓴다.
   - 숨김 규칙은 부위와 문자(`TOPl`, `HAIRm`)만 보고 파일은 보지 않는다. 그래서 문자는 모든 옷을 통틀어 하나씩만 쓴다.
 - **몸 조각.** 의상에 가려지는 몸은 `body__TOPd_BOTTOMg`처럼 가리는 의상 이름이 붙은 조각으로 잘려 있다. 이 조각은 그 의상 중 하나라도 입으면 숨는다. 의상 조각 `item__BOTTOM__d__under_TOPb`는 `TOP b`를 함께 입으면 숨는다.
 - **게임 파일**(`frontend/public/art/characters/`):
@@ -304,7 +304,32 @@
 - 테크웨어 카드는 고글 부위가 얼굴(`outfit-cyber-p-face.webp`)이다.
 - 붐박스를 어깨에 얹은 바시티 재킷(S15P31B105-372)은 만들어 봤다가 뺐다. 공용 몸은 팔이 짧고(어깨에서 손목까지 17 cm) 머리가 커서, 손으로 머리 옆 소품을 받치게 하면 손이 꼬여 보이고 큰 소품은 머리를 파고든다.
 
-### ④-6 스킨 공방용 통합 스킨 파일
+### ④-6 예시: 각시탈과 보라 도포 (세트 `s`, S15P31B105-390)
+
+갓·도포를 두 벌로 나눴다. 흰 도포(`h`)는 각시탈 머리와, 갓은 새 보라 도포와 입는다. 유저가 입는 새 스킨 파일은 git에 넣지 않고 관리자 스킨 공방에 올린다(④-7). 그래서 이 옷은 저장소에 도구와 이 문서만 있고, 게임 파일은 아래 명령으로 만든다.
+
+- **각시탈.** Tripo 부위 생성 결과를 `dopo2_prep.py`로 정리했다(탈 위 피부 띠 제거, 귀·얼굴 맞춤). 탈의 눈구멍은 `fit_outfit.py`의 `keep_holes=`로 메우지 않는다.
+- **보라 도포 몸통.** Tripo 도포는 조각이 겹쳐 옷깃이 톱니처럼 보이고 소매 끝이 찢어져 나왔다(user: Tripo 그림처럼 깔끔하게). 그래서 모양은 흰 도포 것을 쓰고 색만 칠한다(`top_from.py`).
+  - 흰 도포 상의를 복사해 보라·흰 소매·피부로 다시 칠한다. 허리 끈은 새로 둘러 만든다(`cord_loop`).
+  - 옷깃 흰 띠는 매끈한 선을 따라 옷 표면을 잘라 칠한다(`collar_white`). 그림 안에서 번지게 칠하면 게임 파일에서 면이 합쳐질 때 번졌다.
+  - 띠 폭은 옷깃이 눕혀진 정도만큼 넓힌다(`collar_view`). 같은 폭이면 서 있는 뒷목은 두껍고 눕힌 어깨는 가늘어 보였다.
+  - 바지와 신발은 흰 도포 것을 빌려 온다(`borrow=BOTTOM,SHOES`). 바지는 도포 안쪽으로 밀어 넣는다(`bottom_in`). 흰 도포 아래에서는 안 보이던 바지가 보라 도포를 뚫고 흰 얼룩으로 보였다.
+  - 신발은 한 표면으로 다시 감싸고 다듬은 뒤(`shoe_remesh`, `shoe_rsmooth`) 검정 몸체와 밑창 두 색으로 칠한다(`shoe_flat`). 그림의 얼룩과 겹친 조각의 구김이 거칠게 보였다.
+
+```bash
+W=작업폴더   # dopo2_parts.glb: Tripo 부위 생성 결과
+"$B" -b --python tools/character/dopo2_prep.py -- $W/dopo2_parts.glb $W/dopo2_prep2.glb ear_body=0,0.038,0.7115 ear_w=0.378 s=1.065 head_parts=0,93,17,94
+"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_r.glb $W/dopo2_prep2.glb $W/shared_s.glb set=s s=1.065 "map=HAIR:0,93,17,94;TOP:8,1,4,10,5,92;BOTTOM:3;SHOES:2,9" keep_holes=93,94 skirt=TOP pants=1 sleeve_drape=0.4 sleeves=4,10 under_tops=1 cull=1 "seam=8>4,10" lining=1 v_cut=-0.0088,0.498,-0.040,0.602,0.034,0.602 v_cut_margin=0.012 lining_down=0.09 neck_poke=1 push_neck=back rim_neck=20 rim_neck_down=0.07 neck_tone=1 lining_tone=skin v_cut_up=0 lining_up=0.006 lining_front=-0.015 dark_lining=SHOES shoe_cap=1 shoe_cap_depth=0.01 under_layer=1 under_layer_sink=0.012 under_skirt=0.15 skirt_leg=0.9
+"$B" -b --python tools/character/top_from.py -- $W/shared_s.glb $W/tf_N.glb set=s from=h cuff=0.012 waist_back=0.27,0.47 cord_loop=0.445 cord_old=0 loop_layer=inner collar_white=0.014 collar_view=18 collar_wmax=2.6 borrow=BOTTOM,SHOES shoe_remesh=0.0035 shoe_thick=0.007 shoe_smooth=6 shoe_rsmooth=40 shoe_flat=0.016 bottom_in=0.006
+"$B" -b --python tools/character/item_art.py -- $W/tf_N.glb $W/art mask-dopo s together=TOP,BOTTOM,SHOES cut_above=0.035
+```
+
+- **공방에 올릴 파일.** 통합 스킨(WHOLE)은 머리부터 신발까지 한 벌로 고정이라 섞어 입을 수 없다. 그래서 두 벌을 따로 만든다: 흰 도포 + 각시탈(`HAIR=s TOP=h BOTTOM=h SHOES=h`), 갓 + 보라 도포(`HAIR=h TOP=s BOTTOM=s SHOES=s`). 남녀 파일은 ④-7의 명령에 이 문자를 넣어 만든다. 갓이 들어가는 쪽은 ④-7대로 `hat_hair.py`를 먼저 거친다.
+- 상품 그림은 `item_art.py`의 세트 그림을 쓴다. 세트 그림은 이제 세트 자기 옷 아래 숨는 조각(`__under_..._TOPs`)을 빼고 그린다. 보라 도포 그림에 바지가 회색 얼룩으로 비쳤다.
+- 로컬에서는 부위별 옷 파일(`to_game.py ... mask-dopo HAIR=s TOP=s BOTTOM=s SHOES=s pieces=1 body=0 near=60000 atlas=2048 fill=1 keep_head=0 repack=1`)로 확인했다. 이 파일과 그에 맞춰 다시 만든 남녀 파일은 git에 넣지 않았다.
+- `s`를 넣은 기준 빌드는 `docs/character-outfits/`에 올리지 않았다(약 130 MiB). `shared_layers_r.glb`에 위 명령을 다시 돌려 만든다.
+
+### ④-7 스킨 공방용 통합 스킨 파일
 
 dev의 관리자 스킨 공방(`docs/skin-registration-api.md`, S15P31B105-371)에 올릴 통합 스킨(WHOLE)은 몸·얼굴·머리·옷이 한 표면인 파일이다. `to_game.py`를 `pieces=1` 없이 variant `man`/`girl`로 돌리면 그 옷을 입은 모습 그대로 나온다(가려진 몸 조각은 빠진다).
 
