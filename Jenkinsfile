@@ -9,6 +9,10 @@ pipeline {
     environment {
         IMAGE_REPOSITORY = 'wooaw/ontop-backend'
     }
+    parameters {
+        choice(name: 'PARK_RELEASE_MODE', choices: ['renewal-candidate', 'renewal-deploy', 'legacy'],
+            description: 'Default: build only. renewal-deploy requires coordinated release approval; legacy is an explicit compatibility fallback.')
+    }
     stages {
         stage('Checkout') {
             steps {
@@ -38,11 +42,28 @@ pipeline {
                         error('ontop-dev requires the dev branch and a full commit SHA.')
                     }
                     echo "Checked out ${env.SOURCE_BRANCH}@${env.SOURCE_SHA}"
+                    def mode = (params.PARK_RELEASE_MODE ?: 'renewal-candidate').toString()
+                    if (!(mode in ['legacy', 'renewal-candidate', 'renewal-deploy'])) {
+                        error('Unknown park release mode.')
+                    }
+                    env.PARK_RENEWAL = mode == 'legacy' ? '0' : '1'
+                    env.PARK_RENEWAL_APPROVED = '0'
+                    if (env.PARK_RENEWAL == '1') {
+                        // Every renewal release pairs FE/BE from this same source commit.
+                        env.TEST_BACKEND = '1'
+                        env.TEST_FRONTEND = '1'
+                        env.TEST_PARK_MAP = '0'
+                        env.ALLOW_BACKEND_DEPLOY = '0'
+                        env.ALLOW_FRONTEND_DEPLOY = '0'
+                        env.DEPLOY_BLOCKED = '0'
+                        env.FULL_CHECK = '0'
+                    }
                 }
             }
         }
 
         stage('Classify changes') {
+            when { expression { env.PARK_RENEWAL != '1' } }
             steps {
                 script {
                     def result = sh(script: '''#!/usr/bin/env bash
@@ -93,13 +114,24 @@ python3 infra/ci/plan_changes.py --head "$SOURCE_SHA" --tested-base "$tested_bas
             }
         }
 
+        stage('Prepare shared renewal release') {
+            when { expression { env.PARK_RENEWAL == '1' } }
+            steps {
+                dir('frontend') { sh 'pnpm install --frozen-lockfile && pnpm run prepare:park-renewal:release' }
+                script {
+                    env.PARK_RELEASE_ID = sh(script: "python3 -c 'import json; print(json.load(open(\"frontend/generated/park-renewal/release.json\"))[\"releaseId\"])'", returnStdout: true).trim()
+                    if (!(env.PARK_RELEASE_ID ==~ /[0-9a-f]{64}/)) { error('Invalid renewal release ID.') }
+                }
+            }
+        }
+
         stage('Pipeline and Compose checks') {
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s infra/ci -p 'test_*.py'
 python3 infra/ci/check_park_handoff.py
-bash -n infra/ci/deploy-dev.sh infra/ci/install-node.sh infra/ci/configure-dev-ci.sh infra/ci/certbot-deploy-hook.sh infra/ci/run-generated-map-tests.sh infra/app/stage-generated-map.sh infra/app/verify-skewer-coop-db.sh
+bash -n infra/ci/deploy-dev.sh infra/ci/deploy-park-renewal.sh infra/ci/renewal-vercel.sh infra/ci/install-node.sh infra/ci/configure-dev-ci.sh infra/ci/certbot-deploy-hook.sh infra/ci/run-generated-map-tests.sh infra/app/stage-generated-map.sh infra/app/stage-park-renewal.sh infra/app/verify-skewer-coop-db.sh
 scratch_env=$(mktemp)
 trap 'rm -f -- "$scratch_env"' EXIT
 # The example points at a root-only real app.env; syntax checking needs no secrets.
@@ -107,6 +139,7 @@ APP_ENV_FILE="$scratch_env" docker compose --env-file infra/app/dev.deploy.env.e
 APP_ENV_FILE="$scratch_env" PARK_MAP_HOST_DIR="$PWD/frontend/generated/park" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.generated-map.yaml config --quiet
 APP_ENV_FILE="$scratch_env" SKEWER_COOP_JOURNAL_HOST_DIR="$PWD" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.skewer-coop.yaml config --quiet
 APP_ENV_FILE="$scratch_env" PARK_MAP_HOST_DIR="$PWD/frontend/generated/park" SKEWER_COOP_JOURNAL_HOST_DIR="$PWD" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.generated-map.yaml -f infra/app/compose.skewer-coop.yaml config --quiet
+APP_ENV_FILE="$scratch_env" PARK_RENEWAL_HOST_DIR="$PWD/frontend/generated/park-renewal" PARK_RENEWAL_RELEASE_ID="$(printf 'a%.0s' {1..64})" PARK_RENEWAL_SOURCE_SHA="$SOURCE_SHA" SKEWER_COOP_JOURNAL_HOST_DIR="$PWD" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.park-renewal.yaml -f infra/app/compose.skewer-coop.yaml config --quiet
 '''
             }
         }
@@ -115,6 +148,11 @@ APP_ENV_FILE="$scratch_env" PARK_MAP_HOST_DIR="$PWD/frontend/generated/park" SKE
             when { expression { env.TEST_BACKEND == '1' } }
             steps {
                 sh 'bash infra/ci/run-generated-map-tests.sh full'
+                script {
+                    if (env.PARK_RENEWAL == '1') {
+                        dir('backend') { sh 'bash ./gradlew --no-daemon bootJar' }
+                    }
+                }
             }
         }
 
@@ -145,11 +183,19 @@ VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_BINDINGS_URL=/par
                     sh '''#!/usr/bin/env bash
 set -euo pipefail
 pnpm install --frozen-lockfile
+if [[ "${PARK_RENEWAL:-0}" == 1 ]]; then
+  pnpm run test
+  pnpm run build:park-renewal:release
+  cd ..
+  jar=$(find backend/build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' | head -n 1)
+  python3 infra/ci/check_park_renewal.py --source-sha "$SOURCE_SHA" --dist frontend/dist-park-renewal --jar "$jar"
+else
 pnpm map:check
 pnpm run test
 pnpm run build
 if [[ "$TEST_PARK_MAP" != 1 ]]; then
   VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
+fi
 fi
 '''
                 }
@@ -157,8 +203,40 @@ fi
         }
 
         stage('Record tested SHA') {
+            when { expression { env.PARK_RENEWAL != '1' } }
             steps {
                 sh 'python3 infra/ci/write_state.py --kind tested --sha "$SOURCE_SHA" --state-dir /var/lib/jenkins/ontop-state'
+            }
+        }
+
+        stage('Approve coordinated renewal deployment') {
+            when { expression { params.PARK_RELEASE_MODE == 'renewal-deploy' } }
+            steps {
+                sh 'python3 infra/ci/check_park_renewal.py --source-sha "$SOURCE_SHA" --dist frontend/dist-park-renewal --require-clean'
+                sh 'sudo -n /usr/local/sbin/ontop-deploy-park-renewal --check "$SOURCE_SHA" "$PARK_RELEASE_ID"'
+                script {
+                    def confirmed = input(message: "Deploy dev FE+BE ${env.SOURCE_SHA}, park release ${env.PARK_RELEASE_ID}? Confirm actual V167 history/reservation, DB backup and rollback compatibility, admission closed and existing games settled.",
+                        ok: 'Approve coordinated dev transition', parameters: [booleanParam(name: 'TRANSITION_READY', defaultValue: false, description: 'Infrastructure preflight and coordinated transition window are ready.')])
+                    if (confirmed != true) { error('Coordinated transition was not approved.') }
+                    env.PARK_RENEWAL_APPROVED = '1'
+                    env.ALLOW_BACKEND_DEPLOY = '1'
+                    env.ALLOW_FRONTEND_DEPLOY = '1'
+                }
+            }
+        }
+
+        stage('Prepare verified Vercel prebuilt frontend') {
+            when { expression { env.PARK_RENEWAL_APPROVED == '1' } }
+            steps {
+                withCredentials([string(credentialsId: 'vercel-ontop-token', variable: 'VERCEL_TOKEN')]) {
+                    sh '''#!/usr/bin/env bash
+set -euo pipefail
+set +x
+source /var/lib/jenkins/ontop-config/vercel-dev.env
+export VERCEL_ORG_ID VERCEL_PROJECT_ID
+bash infra/ci/renewal-vercel.sh prepare
+'''
+                }
             }
         }
 
@@ -196,7 +274,13 @@ docker push "$image"
                 }
             }
             steps {
-                sh 'sudo -n /usr/local/sbin/ontop-deploy-dev "$SOURCE_SHA"'
+                script {
+                    if (env.PARK_RENEWAL == '1') {
+                        sh 'sudo -n /usr/local/sbin/ontop-deploy-park-renewal --apply "$SOURCE_SHA" "$PARK_RELEASE_ID"'
+                    } else {
+                        sh 'sudo -n /usr/local/sbin/ontop-deploy-dev "$SOURCE_SHA"'
+                    }
+                }
                 sh 'python3 infra/ci/write_state.py --kind backend --sha "$SOURCE_SHA" --state-dir /var/lib/jenkins/ontop-state'
             }
         }
@@ -208,7 +292,9 @@ docker push "$image"
                 }
             }
             steps {
-                sh 'python3 infra/ci/check_live_park.py'
+                script {
+                    if (env.PARK_RENEWAL != '1') { sh 'python3 infra/ci/check_live_park.py' }
+                }
                 withCredentials([string(credentialsId: 'vercel-ontop-token', variable: 'VERCEL_TOKEN')]) {
                     sh '''#!/usr/bin/env bash
 set -euo pipefail
@@ -219,10 +305,14 @@ export VERCEL_ORG_ID VERCEL_PROJECT_ID
   echo 'The configured Vercel project is not ontop-frontend-dev.' >&2
   exit 1
 }
+if [[ "${PARK_RENEWAL:-0}" == 1 ]]; then
+  bash infra/ci/renewal-vercel.sh deploy
+else
 cd frontend
 # This is the production target of the separate ontop-frontend-dev project.
 vercel deploy --prod --yes --local-config vercel.dev.json --project "$VERCEL_PROJECT_ID" --build-env VITE_WARDROBE_OUTFITS=true --build-env VITE_SKEWER_COOP_ENABLED=true --build-env VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json --token "$VERCEL_TOKEN" > vercel-deployment-url.txt
 cat vercel-deployment-url.txt
+fi
 '''
                 }
                 sh 'python3 infra/ci/write_state.py --kind frontend --sha "$SOURCE_SHA" --state-dir /var/lib/jenkins/ontop-state'
@@ -249,6 +339,13 @@ cat vercel-deployment-url.txt
     post {
         always {
             archiveArtifacts artifacts: 'frontend/vercel-deployment-url.txt,frontend/generated/park/manifest.json,docs/integration/park-180/park-bindings.dev.json', allowEmptyArchive: true
+        }
+        success {
+            script {
+                if (env.PARK_RENEWAL == '1') {
+                    archiveArtifacts artifacts: "frontend/dist-park-renewal/**,frontend/generated/park-renewal/releases/${env.PARK_RELEASE_ID}/**,backend/build/libs/*.jar,frontend/park-renewal-assets.lock.json", fingerprint: true
+                }
+            }
         }
     }
 }

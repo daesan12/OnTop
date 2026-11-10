@@ -1,0 +1,16 @@
+# Explicit coordinated release only; do not combine with compose.generated-map.yaml.
+services:
+  app:
+    labels:
+      ontop.park.release-id: ${PARK_RENEWAL_RELEASE_ID:?Set the verified immutable release ID}
+      ontop.source-sha: ${PARK_RENEWAL_SOURCE_SHA:?Set the matching source commit}
+    environment:
+      SPRING_PROFILES_ACTIVE: dev,db,park-renewal
+      PARK_RENEWAL_MAP_DIR: /run/ontop/park-renewal
+    volumes:
+      - type: bind
+        source: ${PARK_RENEWAL_HOST_DIR:?Set PARK_RENEWAL_HOST_DIR to the verified immutable release directory}
+        target: /run/ontop/park-renewal
+        read_only: true
+        bind:
+          create_host_path: false
