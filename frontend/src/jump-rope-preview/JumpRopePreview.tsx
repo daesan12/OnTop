@@ -4,8 +4,9 @@ import { JumpRopeHud } from './JumpRopeHud'
 import { PreviewScene } from './PreviewScene'
 import type { PreviewPass } from './previewMotion'
 import { clearanceWindowMs } from './jumpRopeJudgement'
-import type { RoundEndReason } from './jumpRopeRules'
-import type { PigeonSuccessCue, PigeonSuccessKind } from './pigeonSuccess'
+import { roundDurationMs, type RoundEndReason } from './jumpRopeRules'
+import { createSuccessCue, successDurationMs, type PigeonSuccessCue, type PigeonSuccessKind } from './pigeonSuccess'
+import { defaultRopeAcceleration, ropePeriodMs } from './ropeAcceleration'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue } from './previewRound'
 import './preview.css'
 
@@ -21,6 +22,8 @@ const defaults = {
   jumpDuration: 0.4,
   ropeWidth: 0.035,
   ropeSpeed: 1,
+  autoAcceleration: true,
+  ...defaultRopeAcceleration,
   ropeHeight: 0.7,
   ropeSag: 0.12,
   pigeonNod: 0.65,
@@ -34,10 +37,14 @@ const defaults = {
 }
 
 export type PreviewSettings = typeof defaults
-type NumberSetting = Exclude<keyof PreviewSettings, 'audience'>
+type NumberSetting = Exclude<keyof PreviewSettings, 'audience' | 'autoAcceleration'>
 type Slider = [key: NumberSetting, label: string, min: number, max: number, step: number, unit: string]
 
 const controls: { title: string; sliders: Slider[] }[] = [
+  { title: '줄 가속', sliders: [
+    ['startPeriodMs', '시작 회전 주기', 550, 1800, 10, ' ms'],
+    ['endPeriodMs', '최종 회전 주기', 550, 1800, 10, ' ms'],
+  ] },
   { title: '카메라', sliders: [
     ['cameraAngle', '각도', -55, 55, 1, '°'],
     ['cameraDistance', '거리', 4, 12, 0.1, ' m'],
@@ -76,6 +83,7 @@ const demoActions = {
 
 type DemoAction = keyof typeof demoActions
 export type Demo = { action: DemoAction | 'laugh' | 'shock'; startedAt: number; durationMs: number }
+export type RopeSimulation = { angle: number; startedAt: number; lastAt: number; sampleSeconds: number }
 
 const successDemoActions = {
   good: 'GOOD 반응 미리보기',
@@ -91,7 +99,7 @@ const hudSamples: Record<DemoAction, { note?: string; judgement?: PreviewPass['k
 }
 
 function readRoundHud(round: ReturnType<typeof createPreviewRound>) {
-  return { seconds: roundSecondsLeft(round), stats: round.stats, endReason: round.endReason }
+  return { seconds: roundSecondsLeft(round), playedMs: Math.floor(round.playedMs / 100) * 100, stats: round.stats, endReason: round.endReason }
 }
 
 const endLabels: Record<RoundEndReason, string> = { time: '시간 종료', missLimit: '3회 실패' }
@@ -102,25 +110,30 @@ export function JumpRopePreview() {
   const [round] = useState(createPreviewRound)
   const [hud, setHud] = useState(() => readRoundHud(round))
   const [ropePaused, setRopePaused] = useState(false)
+  const [simulating, setSimulating] = useState(false)
+  const [sampleSeconds, setSampleSeconds] = useState(45)
   const [cue, setCue] = useState<RoundCue>('3')
   const [lastPass, setLastPass] = useState<PreviewPass | null>(null)
   const [visiblePass, setVisiblePass] = useState<PreviewPass | null>(null)
   const demoRef = useRef<Demo | null>(null)
   const successDemoRef = useRef<PigeonSuccessCue | null>(null)
   const successDemoVariant = useRef(0)
+  const simulationRef = useRef<RopeSimulation | null>(null)
   const controlsRef = useRef({ settings, paused: false, cue: '3' as RoundCue })
   const { jumpHeight, jumpDuration } = settings
 
   const step = useCallback((now: number, speed?: number) => {
+    if (simulationRef.current && round.phase.kind === 'initialCountdown') return
     const controls = controlsRef.current
     const { settings } = controls
-    const effectiveSpeed = speed ?? (controls.paused ? 0 : settings.ropeSpeed)
+    const effectiveSpeed = simulationRef.current ? 0 : (speed ?? (controls.paused ? 0 : settings.ropeSpeed))
     const previous = readRoundHud(round)
-    const latest = advancePreviewRound(round, now, effectiveSpeed, settings, settings.reactionMs)
+    const latest = advancePreviewRound(round, now, effectiveSpeed, settings, settings.reactionMs,
+      settings.autoAcceleration ? settings : undefined)
     if (latest?.kind === 'miss' || round.endReason) successDemoRef.current = null
     if (latest?.kind === 'miss') demoRef.current = null
     const next = readRoundHud(round)
-    if (next.seconds !== previous.seconds || next.stats !== previous.stats || next.endReason !== previous.endReason) {
+    if (next.seconds !== previous.seconds || next.playedMs !== previous.playedMs || next.stats !== previous.stats || next.endReason !== previous.endReason) {
       setHud(next)
     }
     const nextCue = roundCue(round, now)
@@ -171,7 +184,11 @@ export function JumpRopePreview() {
   function startSuccessDemo(kind: PigeonSuccessKind) {
     if (round.phase.kind !== 'playing' && round.phase.kind !== 'initialCountdown') return
     if (demoRef.current?.action === 'laugh' || demoRef.current?.action === 'miss' || demoRef.current?.action === 'shock') demoRef.current = null
-    successDemoRef.current = { kind, startedAt: performance.now(), variant: successDemoVariant.current++ }
+    const { settings } = controlsRef.current
+    const simulation = simulationRef.current
+    const playedMs = simulation ? simulation.sampleSeconds * 1000 : round.playedMs
+    const period = ropePeriodMs(settings.ropeSpeed, settings.autoAcceleration ? { profile: settings, playedMs } : undefined)
+    successDemoRef.current = createSuccessCue(kind, performance.now(), successDemoVariant.current++, period)
   }
 
   function startLaughDemo() {
@@ -188,6 +205,8 @@ export function JumpRopePreview() {
 
   function resetScene() {
     resetPreviewRound(round)
+    simulationRef.current = null
+    setSimulating(false)
     demoRef.current = null
     successDemoRef.current = null
     successDemoVariant.current = 0
@@ -213,6 +232,25 @@ export function JumpRopePreview() {
     setRopePaused(paused)
   }
 
+  function toggleSimulation() {
+    const now = performance.now()
+    const simulation = simulationRef.current
+    if (simulation) {
+      if (round.phase.kind === 'initialCountdown' && round.phase.endsAt !== undefined) {
+        round.phase.endsAt += now - simulation.startedAt
+      }
+      simulationRef.current = null
+      step(now)
+      setSimulating(false)
+      return
+    }
+    if (round.phase.kind !== 'playing' && round.phase.kind !== 'initialCountdown') return
+    step(now, 0)
+    if (round.phase.kind !== 'playing' && round.phase.kind !== 'initialCountdown') return
+    simulationRef.current = { angle: round.motion.angle, startedAt: now, lastAt: now, sampleSeconds }
+    setSimulating(true)
+  }
+
   function updateSettings(change: Partial<PreviewSettings>) {
     const controls = controlsRef.current
     const next = { ...controls.settings, ...change }
@@ -225,8 +263,17 @@ export function JumpRopePreview() {
   const demoHud = demo && (!lastPass || demo.startedAt >= lastPass.at) ? hudSamples[demo.action] : undefined
   const countdown = cue === '3' || cue === '2' || cue === '1' || cue === 'GO!' ? cue : null
   const canPreviewSuccess = cue === 'playing' || countdown !== null
+  const livePeriod = ropePeriodMs(settings.ropeSpeed, settings.autoAcceleration ? { profile: settings, playedMs: hud.playedMs } : undefined)
+  const samplePeriod = ropePeriodMs(settings.ropeSpeed, settings.autoAcceleration ? { profile: settings, playedMs: sampleSeconds * 1000 } : undefined)
+  const periodLabel = (period: number) => Number.isFinite(period) ? `${Math.round(period)} ms/회` : '정지'
+  const reactionPeriod = simulating ? samplePeriod : livePeriod
+  const reactionTimings = (['good', 'perfect', 'combo5', 'combo10'] as const).map((kind, index) => {
+    const ms = successDurationMs(kind, reactionPeriod)
+    const label = ['GOOD', 'PERFECT', '5~9', '10+'][index]
+    return `${label} ${ms ? `${Math.round(ms)}ms` : '생략'}`
+  }).join(' · ')
   const paused = ropePaused || settings.ropeSpeed === 0
-  const status = cue === 'ended' ? '게임 종료' : cue === 'landing' ? '착지 중' : cue === 'reaction' ? '비둘기 비웃음'
+  const status = simulating ? '가속 시뮬레이션' : cue === 'ended' ? '게임 종료' : cue === 'landing' ? '착지 중' : cue === 'reaction' ? '비둘기 비웃음'
     : cue === 'GO!' ? '시작' : countdown ? paused ? '시작 대기 · 회전 일시 정지' : '시작 카운트다운'
       : paused ? '회전 일시 정지' : '플레이 중'
 
@@ -246,7 +293,7 @@ export function JumpRopePreview() {
             dpr={[1, 1.5]}
             fallback={<p className="canvas-fallback">이 브라우저에서 3D 화면을 열 수 없습니다.</p>}
           >
-            <PreviewScene settings={settings} demoRef={demoRef} successDemoRef={successDemoRef} round={round} step={step} />
+            <PreviewScene settings={settings} demoRef={demoRef} successDemoRef={successDemoRef} simulationRef={simulationRef} round={round} step={step} />
           </Canvas>
           <JumpRopeHud
             seconds={hud.seconds}
@@ -257,7 +304,7 @@ export function JumpRopePreview() {
             note={visiblePass ? undefined : demoHud?.note}
             livePass={visiblePass?.number}
           />
-          {countdown && <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
+          {countdown && !simulating && <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
           {cue === 'ended' && hud.endReason && (
             <section className="rope-result" aria-labelledby="rope-result-title">
               <h2 id="rope-result-title">게임 결과</h2>
@@ -280,6 +327,7 @@ export function JumpRopePreview() {
           <p className="panel-note">Space로 점프합니다. 높이와 체공 시간은 다음 점프부터 적용됩니다.</p>
           <fieldset>
             <legend>비둘기 반응 미리보기</legend>
+            <p className="panel-note" aria-label="성공 반응 재생 시간">{periodLabel(reactionPeriod)} 기준 · {reactionTimings}</p>
             <div className="demo-actions">
               {(Object.keys(successDemoActions) as PigeonSuccessKind[]).map(kind => (
                 <button key={kind} type="button" disabled={!canPreviewSuccess} onClick={() => startSuccessDemo(kind)}>
@@ -295,11 +343,11 @@ export function JumpRopePreview() {
               <legend>{group.title}</legend>
               {group.sliders.map(([key, label, min, max, increment, unit]) => (
                 <label className="slider" key={key}>
-                  <span>{label}</span>
+                  <span>{key === 'ropeSpeed' && settings.autoAcceleration ? '줄 회전 배율' : label}</span>
                   <input
                     type="range"
-                    min={min}
-                    max={max}
+                    min={key === 'startPeriodMs' ? settings.endPeriodMs : min}
+                    max={key === 'endPeriodMs' ? settings.startPeriodMs : max}
                     step={increment}
                     value={settings[key]}
                     onChange={event => {
@@ -307,9 +355,33 @@ export function JumpRopePreview() {
                       updateSettings({ [key]: value })
                     }}
                   />
-                  <output>{settings[key]}{unit}</output>
+                  <output>{settings[key]}{key === 'ropeSpeed' && settings.autoAcceleration ? '×' : unit}</output>
                 </label>
               ))}
+              {group.title === '줄 가속' && (
+                <>
+                  <label className="audience-toggle">
+                    <input type="checkbox" checked={settings.autoAcceleration} onChange={event => updateSettings({ autoAcceleration: event.currentTarget.checked })} />
+                    자동 가속
+                  </label>
+                  <p className="panel-note" aria-label="현재 가속 상태">실제 {(hud.playedMs / 1000).toFixed(1)}초 · {periodLabel(livePeriod)}</p>
+                  <label className="slider">
+                    <span>시뮬레이션 시간</span>
+                    <input type="range" min={0} max={roundDurationMs / 1000} value={sampleSeconds} onChange={event => {
+                      const seconds = event.currentTarget.valueAsNumber
+                      if (simulationRef.current) simulationRef.current.sampleSeconds = seconds
+                      setSampleSeconds(seconds)
+                    }} />
+                    <output>{sampleSeconds}초</output>
+                  </label>
+                  <p className="panel-note" aria-label="시뮬레이션 회전 주기">미리보기 · {periodLabel(samplePeriod)}</p>
+                  <div className="demo-actions">
+                    <button type="button" disabled={!simulating && !canPreviewSuccess} aria-pressed={simulating} onClick={toggleSimulation}>
+                      {simulating ? '가속 시뮬레이션 종료' : '가속 시뮬레이션 시작'}
+                    </button>
+                  </div>
+                </>
+              )}
               {group.title === '전깃줄과 비둘기' && (
                 <label className="audience-toggle">
                   <input

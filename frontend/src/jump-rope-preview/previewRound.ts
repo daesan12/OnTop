@@ -1,7 +1,8 @@
 import type { JudgementSettings } from './jumpRopeJudgement'
 import { applyPass, createRoundStats, roundDurationMs, type RoundEndReason, type RoundStats } from './jumpRopeRules'
 import { advancePreviewMotion, createPreviewMotion, requestJump } from './previewMotion'
-import { successKind, type PigeonSuccessCue } from './pigeonSuccess'
+import { createSuccessCue, successKind, type PigeonSuccessCue } from './pigeonSuccess'
+import { ropeTempo, type RopeAcceleration } from './ropeAcceleration'
 
 const countdownMs = 3000
 const goMs = 550
@@ -57,14 +58,18 @@ function beginPlaying(
 
 export function advancePreviewRound(
   round: PreviewRound, now: number, ropeSpeed: number, settings: JudgementSettings, reactionMs: number,
+  acceleration?: RopeAcceleration,
 ) {
   const { motion, phase } = round
   const playing = phase.kind === 'playing'
   // The previous speed describes the elapsed interval, even when this call pauses or resumes it.
-  const activeFrom = playing && motion.ropeSpeed > 0 ? motion.lastAt : null
+  const intervalSpeed = motion.ropeSpeed
+  const playedBefore = round.playedMs
+  const activeFrom = playing && intervalSpeed > 0 ? motion.lastAt : null
   const deadline = activeFrom === null ? Infinity : activeFrom + (roundDurationMs - round.playedMs)
   const expires = now >= deadline
-  const passes = advancePreviewMotion(motion, now, playing && !expires ? ropeSpeed : 0, settings, playing, deadline)
+  const clock = acceleration ? { profile: acceleration, playedMs: round.playedMs } : undefined
+  const passes = advancePreviewMotion(motion, now, playing && !expires ? ropeSpeed : 0, settings, playing, deadline, clock)
   const last = passes.at(-1)
   const miss = last?.kind === 'miss' ? last : undefined
   if (activeFrom !== null) {
@@ -78,7 +83,11 @@ export function advancePreviewRound(
     round.stats = stats
     const kind = successKind(pass.kind, stats.combo)
     // Show the latest success if a late frame processes several passes together.
-    if (kind) successCue = { kind, startedAt: now, variant: pass.number - 1 }
+    if (kind && activeFrom !== null) {
+      const passClock = acceleration ? { profile: acceleration, playedMs: playedBefore + (pass.at - activeFrom) } : undefined
+      const nextTurnMs = ropeTempo(intervalSpeed, passClock).timeForTurns(1)
+      successCue = createSuccessCue(kind, now, pass.number - 1, nextTurnMs, now - pass.at)
+    }
   }
   if (miss || expires) round.successCue = null
   else if (successCue) round.successCue = successCue

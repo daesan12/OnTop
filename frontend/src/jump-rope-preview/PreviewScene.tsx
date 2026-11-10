@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { PerspectiveCamera, QuadraticBezierCurve3, Vector3, type Group } from 'three'
-import type { Demo, PreviewSettings } from './JumpRopePreview'
+import type { Demo, PreviewSettings, RopeSimulation } from './JumpRopePreview'
 import { PigeonActor, pigeonHeadPivot, type PigeonLook, type PigeonPose, type PigeonRig } from './PigeonActor'
 import { PreviewAvatar } from './PreviewAvatar'
 import { MissShockEffect } from './MissShockEffect'
@@ -9,6 +9,8 @@ import { createGameRopeGeometry, ropeCenter } from './gameRopeGeometry'
 import { samplePigeonLaugh } from './pigeonLaugh'
 import { blendSuccessPose, isSuccessActive, neutralSuccessPose, samplePigeonSuccess, type PigeonSuccessCue, type SuccessPose } from './pigeonSuccess'
 import { ropeRestWeight, type PreviewRound } from './previewRound'
+import { advanceRope } from './jumpRopeJudgement'
+import { ropePeriodMs } from './ropeAcceleration'
 
 const sky = '#e6efeb'
 const successBlendMs = 140
@@ -222,10 +224,11 @@ function applyPigeonReaction(rig: PigeonRig, base: PigeonPose, pose: SuccessPose
   rig.setLidLift(pose.lidLift + laugh.lidLift)
 }
 
-export function PreviewScene({ settings, demoRef, successDemoRef, round, step }: {
+export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef, round, step }: {
   settings: PreviewSettings
   demoRef: RefObject<Demo | null>
   successDemoRef: RefObject<PigeonSuccessCue | null>
+  simulationRef: RefObject<RopeSimulation | null>
   round: PreviewRound
   step: (now: number) => void
 }) {
@@ -245,6 +248,14 @@ export function PreviewScene({ settings, demoRef, successDemoRef, round, step }:
     const now = performance.now()
     step(now)
     const { motion, phase } = round
+    const simulation = simulationRef.current
+    if (simulation) {
+      const clock = settings.autoAcceleration ? { profile: settings, playedMs: simulation.sampleSeconds * 1000 } : undefined
+      const sampleSpeed = 1000 / ropePeriodMs(settings.ropeSpeed, clock)
+      simulation.angle = advanceRope(simulation.angle, simulation.lastAt, now, sampleSpeed).angle
+      simulation.lastAt = now
+    }
+    const ropeAngle = simulation?.angle ?? motion.angle
     const demo = demoRef.current
     const elapsedMs = demo ? now - demo.startedAt : Infinity
     const laughDemo = demo?.action === 'laugh' || demo?.action === 'miss' ? demo : null
@@ -283,8 +294,8 @@ export function PreviewScene({ settings, demoRef, successDemoRef, round, step }:
 
     const gripL = leftGrip.current, gripR = rightGrip.current
     if (gripL && gripR) {
-      nodAtGrip(gripL, leftPose.head, motion.angle, settings.pigeonNod)
-      nodAtGrip(gripR, rightPose.head, motion.angle + 0.57, settings.pigeonNod * 0.83)
+      nodAtGrip(gripL, leftPose.head, ropeAngle, settings.pigeonNod)
+      nodAtGrip(gripR, rightPose.head, ropeAngle + 0.57, settings.pigeonNod * 0.83)
       if (holderLeft.current) {
         applyPigeonReaction(holderLeft.current, leftPose, successPose('holder', 0), samplePigeonLaugh('holder', 0, laughElapsed, laughDuration, settings.laughTilt))
       }
@@ -294,9 +305,9 @@ export function PreviewScene({ settings, demoRef, successDemoRef, round, step }:
       gripL.getWorldPosition(left)
       gripR.getWorldPosition(right)
       const radius = settings.ropeWidth / 2
-      ropeCenter(center, motion.angle, settings.avatarX, settings.avatarZ, settings.avatarScale,
+      ropeCenter(center, ropeAngle, settings.avatarX, settings.avatarZ, settings.avatarScale,
         settings.ropeHeight, settings.ropeSag, radius)
-      center.z -= (0.5 * settings.avatarScale + radius) * ropeRestWeight(round, now)
+      if (!simulation) center.z -= (0.5 * settings.avatarScale + radius) * ropeRestWeight(round, now)
       update(left, right, center, radius)
     }
   }, -1)

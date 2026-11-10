@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSuccessActive, neutralSuccessPose, samplePigeonSuccess, type PigeonSuccessCue } from '../../src/jump-rope-preview/pigeonSuccess'
+import { createSuccessCue, isSuccessActive, neutralSuccessPose, samplePigeonSuccess, successDurationMs, type PigeonSuccessKind } from '../../src/jump-rope-preview/pigeonSuccess'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound } from '../../src/jump-rope-preview/previewRound'
 
 const settings = { ropeWidth: 0.035, clearanceMargin: 0.03, perfectWindowMs: 50 }
@@ -26,7 +26,7 @@ describe('pigeon success cues', () => {
       const at = 4000 + index * 1000
       expect(jumpBefore(at)?.kind).toBe('perfect')
       const cue = round.successCue
-      expect(cue).toEqual({ kind, startedAt: at, variant: index })
+      expect(cue).toMatchObject({ kind, startedAt: at, variant: index })
       expect(step(at)).toBeUndefined()
       expect(round.successCue).toBe(cue)
     }
@@ -58,7 +58,7 @@ describe('pigeon success cues', () => {
     expect(requestRoundJump(round, 6000, 0.6, 0.9)).toBe(true)
     expect(step(6800, 2.4, wide)).toMatchObject({ number: 4, kind: 'good' })
     expect(round.stats).toMatchObject({ combo: 0, maxCombo: 3, score: 550 })
-    expect(round.successCue).toEqual({ kind: 'good', startedAt: 6800, variant: 3 })
+    expect(round.successCue).toMatchObject({ kind: 'good', startedAt: 6800, variant: 3 })
   })
 
   it('suppresses a valid success cue in the frame that ends the game', () => {
@@ -75,7 +75,7 @@ describe('pigeon success cues', () => {
 
 describe('pigeon success poses', () => {
   const actors = [0, 1, 2, 3]
-  const cue = (kind: PigeonSuccessCue['kind'], variant = 0) => ({ kind, variant, startedAt: 1000 })
+  const cue = (kind: PigeonSuccessKind, variant = 0) => createSuccessCue(kind, 1000, variant, Infinity)
 
   it('rotates the audience members for GOOD and keeps holders still', () => {
     expect(samplePigeonSuccess(cue('good'), 'holder', 0, 1250)).toEqual(neutralSuccessPose)
@@ -97,5 +97,31 @@ describe('pigeon success poses', () => {
     expect(samplePigeonSuccess(panic, 'holder', 1, 1470)).toMatchObject({ leftWing: 0, rightWing: 0, bodyRoll: 0 })
     expect(isSuccessActive(panic, 2180)).toBe(false)
     for (const index of actors) expect(samplePigeonSuccess(panic, 'audience', index, 2180)).toEqual(neutralSuccessPose)
+  })
+
+  it('shortens only the combo reactions at normal rope speeds and makes room for late frames', () => {
+    const kinds = ['good', 'perfect', 'combo5', 'combo10'] as const
+    expect(kinds.map(kind => successDurationMs(kind, 1000))).toEqual([550, 680, 960, 920])
+    expect(kinds.map(kind => successDurationMs(kind, 800))).toEqual([550, 680, 700, 720])
+    expect(successDurationMs('combo10', 800, 160)).toBe(560)
+    expect(successDurationMs('combo10', 800, 510)).toBe(0)
+  })
+
+  it('keeps the wing beat at the same local age and settles every pigeon before the next fast turn', () => {
+    const original = cue('combo10')
+    const fast = createSuccessCue('combo10', 1000, 0, 800)
+    const sameLocalAge = 310
+    const from = samplePigeonSuccess(original, 'audience', 0, 1000 + 35 + sameLocalAge)
+    const to = samplePigeonSuccess(fast, 'audience', 0, 1000 + 35 * fast.durationMs / original.durationMs + sameLocalAge)
+    expect(to.leftWing).toBeCloseTo(from.leftWing, 10)
+    expect(to.bodyRoll).toBeCloseTo(from.bodyRoll, 10)
+    for (const kind of ['combo5', 'combo10'] as const) {
+      const reaction = createSuccessCue(kind, 1000, 0, 800)
+      for (const index of actors) {
+        expect(samplePigeonSuccess(reaction, 'audience', index, 1400)).not.toEqual(neutralSuccessPose)
+        expect(samplePigeonSuccess(reaction, 'audience', index, 1000 + reaction.durationMs)).toEqual(neutralSuccessPose)
+      }
+      expect(isSuccessActive(reaction, 1799)).toBe(false)
+    }
   })
 })

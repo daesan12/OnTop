@@ -1,3 +1,5 @@
+import { ropeTempo, type RopeAccelerationClock } from './ropeAcceleration'
+
 export const jumpPrepareMs = 70
 export const ropeGroundGap = 0.017
 const revolution = Math.PI * 2
@@ -17,17 +19,17 @@ export function sampleFlightHeight(progress: number, peak: number) {
 }
 
 /** The bottom of each full turn is the same phase as the rendered rope's lowest center. */
-export function advanceRope(angle: number, from: number, to: number, speed: number) {
+export function advanceRope(angle: number, from: number, to: number, speed: number, clock?: RopeAccelerationClock) {
   const passages: number[] = []
   if (speed <= 0 || to <= from) return { angle, passages }
 
-  const periodMs = 1000 / speed
+  const tempo = ropeTempo(speed, clock)
   const start = angle / revolution
-  const end = start + (to - from) / periodMs
+  const end = start + tempo.turnsDuring(to - from)
   // Round off integration noise at the full-turn boundary, where angle resets to zero.
   const completed = Math.floor(end + 1e-10)
   for (let turn = 1; turn <= completed; turn++) {
-    passages.push(Math.min(to, from + (turn - start) * periodMs))
+    passages.push(Math.min(to, from + tempo.timeForTurns(turn - start)))
   }
   return { angle: Math.max(0, end - completed) * revolution, passages }
 }

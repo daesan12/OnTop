@@ -2,7 +2,21 @@ import type { PassJudgement } from './jumpRopeJudgement'
 
 const durations = { good: 550, perfect: 680, combo5: 960, combo10: 1180 } as const
 export type PigeonSuccessKind = keyof typeof durations
-export type PigeonSuccessCue = { kind: PigeonSuccessKind; startedAt: number; variant: number }
+export type PigeonSuccessCue = { kind: PigeonSuccessKind; startedAt: number; variant: number; durationMs: number }
+
+export function successDurationMs(kind: PigeonSuccessKind, turnMs: number, observedDelayMs = 0) {
+  const reserveMs = kind === 'combo10' ? 80
+    : kind === 'combo5' ? 40 + Math.min(60, Math.max(0, 1000 - turnMs) * 0.3) : 40
+  const durationMs = Math.min(durations[kind], turnMs - reserveMs - observedDelayMs)
+  // A very late frame or an extreme preview speed may leave too little time for a readable pose.
+  return durationMs >= 220 ? durationMs : 0
+}
+
+export function createSuccessCue(
+  kind: PigeonSuccessKind, startedAt: number, variant: number, turnMs: number, observedDelayMs = 0,
+): PigeonSuccessCue {
+  return { kind, startedAt, variant, durationMs: successDurationMs(kind, turnMs, observedDelayMs) }
+}
 
 export function successKind(kind: PassJudgement['kind'], combo: number): PigeonSuccessKind | null {
   if (kind === 'miss') return null
@@ -20,7 +34,8 @@ const panicDelays = [35, 135, 80, 200]
 const wingStrengths = [0.74, 0.52, 0.9, 0.62]
 
 export function isSuccessActive(cue: PigeonSuccessCue, now: number) {
-  return now - cue.startedAt < durations[cue.kind]
+  const elapsed = now - cue.startedAt
+  return elapsed >= 0 && elapsed < cue.durationMs
 }
 
 function smoothStep(t: number) {
@@ -29,7 +44,7 @@ function smoothStep(t: number) {
 }
 
 export function samplePigeonSuccess(cue: PigeonSuccessCue, role: 'holder' | 'audience', index: number, now: number): SuccessPose {
-  const { kind, startedAt, variant } = cue
+  const { kind, startedAt, variant, durationMs } = cue
   const first = variant % 4
   const neighborSide = index % 2 === 0 ? 1 : -1
   const holding = role === 'holder'
@@ -37,12 +52,14 @@ export function samplePigeonSuccess(cue: PigeonSuccessCue, role: 'holder' | 'aud
   if (!holding && kind === 'good' && index !== first && (variant % 2 === 0 || index !== (first + 1) % 4)) return neutralSuccessPose
   if (!holding && kind === 'perfect' && index !== first && index !== (first + 2) % 4) return neutralSuccessPose
 
-  const delay = holding ? index * 55 : kind === 'combo5' ? (murmurDelays[index] ?? 0)
+  const authoredDelay = holding ? index * 55 : kind === 'combo5' ? (murmurDelays[index] ?? 0)
     : kind === 'combo10' ? (panicDelays[index] ?? 0) : index === first ? 25 : 130
+  const delay = authoredDelay * (durationMs / durations[kind])
   const age = now - startedAt - delay
-  const duration = durations[kind] - delay
+  const duration = durationMs - delay
   if (age <= 0 || age >= duration) return neutralSuccessPose
-  const weight = smoothStep(age / 95) * smoothStep((duration - age) / 175)
+  const release = Math.min(175, duration * 0.37)
+  const weight = smoothStep(age / Math.min(95, duration * 0.26)) * smoothStep((duration - age) / release)
 
   if (holding) {
     const intensity = kind === 'combo10' ? 1.32 : kind === 'combo5' ? 1.15 : 1
@@ -62,7 +79,8 @@ export function samplePigeonSuccess(cue: PigeonSuccessCue, role: 'holder' | 'aud
       return { ...neutralSuccessPose, pitch: -0.37 * weight, roll: neighborSide * 0.09 * weight,
         leftWing: 0.21 * weight, rightWing: 0.17 * weight, lidLift: 0.042 * weight }
     case 'combo5': {
-      const glance = 1 - smoothStep((age - 300) / 175)
+      const glanceStart = Math.min(300, Math.max(0, duration - release - 175))
+      const glance = 1 - smoothStep((age - glanceStart) / 175)
       return { ...neutralSuccessPose, yaw: neighborSide * (0.59 * glance - 0.16 * (1 - glance)) * weight,
         pitch: (0.15 - 0.31 * glance) * weight, roll: neighborSide * 0.14 * weight, lidLift: 0.029 * weight }
     }

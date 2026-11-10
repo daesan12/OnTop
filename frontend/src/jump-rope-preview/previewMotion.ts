@@ -1,5 +1,6 @@
 import { advanceRope, judgePass, jumpPrepareMs, sampleFlightHeight } from './jumpRopeJudgement'
 import type { JudgementSettings, JumpTiming, PassJudgement } from './jumpRopeJudgement'
+import type { RopeAccelerationClock } from './ropeAcceleration'
 
 const landMs = 45
 const recoveryMs = 65
@@ -38,11 +39,11 @@ export function requestJump(motion: PreviewMotion, now: number, peak: number, fl
 
 export function advancePreviewMotion(
   motion: PreviewMotion, now: number, ropeSpeed: number, settings: JudgementSettings, stopOnMiss = false,
-  deadline = Infinity,
+  deadline = Infinity, clock?: RopeAccelerationClock,
 ) {
   const results: PreviewPass[] = []
   if (motion.lastAt !== null) {
-    const step = advanceRope(motion.angle, motion.lastAt, Math.min(now, deadline), motion.ropeSpeed)
+    const step = advanceRope(motion.angle, motion.lastAt, Math.min(now, deadline), motion.ropeSpeed, clock)
     motion.angle = step.angle
     for (const at of step.passages) {
       // The timer wins ties. Keep the rope at the end of the turn without recording a pass.
