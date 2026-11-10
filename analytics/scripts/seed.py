@@ -40,16 +40,20 @@
 - 102 상점 구매 −20(아이템 7, 2개), 붕어빵 완료 판의 보상을 판 종료 시각에 지급
 - 2일차 오목(판돈 1, 경기 3): 103 +1, 104 −1
 - 1일차 101 점프맵 7구간 보상(2+4+7+11+16+24+36=100)과 꼬치 보상 300: 붕어빵 100과 합쳐 공동 한도 500 도달
-- 가위바위보 룰렛: 1일차 101 참가비 10(패)·20(1.5배 30 지급), 102 참가비 30(2배 60 지급), 2일차 105 참가비 10(진행 중)
+- 가위바위보 룰렛: 1일차 101 참가비 10(첫 대결 패)·20(1회 도전 성공 뒤 1.5배 30 지급), 102 참가비 30(바로 받아 2칸 60 지급),
+  2일차 105 참가비 10(진행 중), 102 참가비 10(도전 실패)
 - 주간 추첨(10/26 주): 101 2장·102 1장, 장당 100
 - 2일차 103 점프맵 3구간 보상(2+4+7=13)
 - 두더지: 1일차 102 30냥, 101은 이미 공동 한도 500에 닿아 계산 20냥이 0냥으로 깎임(둘 다 규칙 1)
   2일차는 규칙 2(45점당 1냥)·규칙 3(40점당 1냥) 판. 정산된 판은 점수가 낮아 계산 보상이 0냥이라 원장에 없다
+- 스피드 두더지(V151, 5점당 1냥, 원장은 같은 MOLE_REWARD에 키 mole:reward:speed:<판>):
+  1일차 101 0점 판과 260점 판(이미 한도 500이라 52냥이 0냥으로 깎임, 원장 없음),
+  2일차 103 60점 판 12냥 지급, 104 미정산 판
 - 플러스마이너스(참가비 30): 1일차 102 꽝, 2일차 103 지급 40, 101 잭팟 500
 - 꼬치 협동: 1일차 101·102 팀이 VR로 끝까지(4분) 300점 → 각 300냥(101의 꼬치 보상이 이 판)
   2일차 103·105 팀은 PC로 하다 중도 종료(V156 play_mode)
 - 104는 탈퇴 회원(지갑은 남지만 잔액 분포에서 제외)
-- 최종 잔액: 101=866, 102=339, 103=139, 104=99, 105=145
+- 최종 잔액: 101=866, 102=329, 103=151, 104=99, 105=145
 
 점프맵(jump_runs, 기능 테이블. 코스 course-1, 8일차만 구간 수가 다른 course-2)
 - 1일차: 101 7구간 완주(175초, 100냥), 102 출발 직후 낙하
@@ -297,7 +301,7 @@ def feature_sql() -> str:
 def wallet_sql() -> list[str]:
     """지갑 잔액은 원장 합계와 같게 둔다. 붕어빵 판 번호는 위 minigame_sessions의 입력 순서(1부터)다."""
     lines = []
-    # (회원, 유형, 경기, 붕어빵 판, 아이템, 잔액 변화, 예약 변화, 시각)
+    # (회원, 유형, 경기, 붕어빵 판, 아이템, 잔액 변화, 예약 변화, 시각[, 원장 키]). 키가 없으면 seed-<순번>.
     entries = [
         (105, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-26 01:00:00"),
         (101, "SIGNUP_BONUS", None, None, None, 100, 0, "2026-10-27 00:59:00"),
@@ -336,26 +340,28 @@ def wallet_sql() -> list[str]:
         (105, "MINIGAME_ENTRY_FEE", None, None, None, -10, 0, "2026-10-28 01:16:00"),
         *[(103, "JUMP_GATE_REWARD", None, None, None, coins, 0, f"2026-10-28 05:04:{gate * 10:02d}")
           for gate, coins in enumerate([2, 4, 7], start=1)],
-        (102, "MOLE_REWARD", None, None, None, 30, 0, "2026-10-27 01:06:00"),
+        (102, "MOLE_REWARD", None, None, None, 30, 0, "2026-10-27 01:06:00", "mole:reward:1"),
         (102, "MINIGAME_ENTRY_FEE", None, None, None, -30, 0, "2026-10-27 01:07:00"),
         (102, "SKEWER_REWARD", None, None, None, 300, 0, "2026-10-27 01:50:00"),
         (103, "MINIGAME_ENTRY_FEE", None, None, None, -30, 0, "2026-10-28 05:07:00"),
         (103, "PLUS_MINUS_PAYOUT", None, None, None, 40, 0, "2026-10-28 05:07:30"),
         (101, "MINIGAME_ENTRY_FEE", None, None, None, -30, 0, "2026-10-28 01:08:00"),
         (101, "PLUS_MINUS_PAYOUT", None, None, None, 500, 0, "2026-10-28 01:08:30"),
+        (103, "MOLE_REWARD", None, None, None, 12, 0, "2026-10-28 05:06:03", "mole:reward:speed:1"),
+        (102, "MINIGAME_ENTRY_FEE", None, None, None, -10, 0, "2026-10-28 02:00:00"),
     ]
     balances: dict[int, int] = {}
-    for user_id, _, _, _, _, balance_delta, _, _ in entries:
+    for user_id, _, _, _, _, balance_delta, _, _, *_ in entries:
         balances[user_id] = balances.get(user_id, 0) + balance_delta
     for user_id in sorted(balances):
         lines.append(f"INSERT INTO wallets (id, user_id, balance, reserved_balance) VALUES "
                      f"({user_id - 100}, {user_id}, {balances[user_id]}, 0);")
-    for number, (user_id, kind, game, session, item, balance_delta, reserved_delta, at) in enumerate(entries):
+    for number, (user_id, kind, game, session, item, balance_delta, reserved_delta, at, *key) in enumerate(entries):
         lines.append(
             "INSERT INTO wallet_transactions (wallet_id, game_session_id, minigame_session_id, item_id, "
             "transaction_type, balance_delta, reserved_delta, idempotency_key, created_at) VALUES "
             f"({user_id - 100}, {sql_value(game)}, {sql_value(session)}, {sql_value(item)}, '{kind}', "
-            f"{balance_delta}, {reserved_delta}, 'seed-{number}', '{timestamp(at)}');"
+            f"{balance_delta}, {reserved_delta}, '{key[0] if key else f'seed-{number}'}', '{timestamp(at)}');"
         )
     # 추첨 티켓은 원장 번호를 참조한다. 원장 id는 위 입력 순서(1부터)이고, 잔액은 입력 순서대로 누적한다.
     lines.append("INSERT INTO raffle_rounds (id, week_start_date, sales_starts_at, sales_ends_at, ticket_price, "
@@ -367,7 +373,7 @@ def wallet_sql() -> list[str]:
                  "'2026-11-08 15:00:00.000', 100, 10, 'OPEN');")
     running: dict[int, int] = {}
     ticket = 0
-    for number, (user_id, kind, _, _, _, balance_delta, _, at) in enumerate(entries, start=1):
+    for number, (user_id, kind, _, _, _, balance_delta, _, at, *_) in enumerate(entries, start=1):
         running[user_id] = running.get(user_id, 0) + balance_delta
         if kind == "RAFFLE_PURCHASE":
             ticket += 1
@@ -402,20 +408,23 @@ def minigame_extra_sql() -> list[str]:
             f"'v1', '{course}', 1, '{timestamp(started)}', {sql_value(ended and timestamp(ended))}, {gates}, '[]', "
             f"{int(gates == 7)}, {coins}, {sql_value(finish)}, {sql_value(finish)}, {int(suspicious)});"
         )
-    # (회원, 요청 키, 참가비, KST 날짜, 단계, 결과, 지급, 시작, 정산)
-    for user_id, key, fee, day, phase, outcome, payout, started, settled in [
-        (101, "r-1", 10, "2026-10-27", "SETTLED", "LOST", 0, "2026-10-27 01:45:00", "2026-10-27 01:45:40"),
-        (101, "r-2", 20, "2026-10-27", "SETTLED", "PAID", 30, "2026-10-27 01:46:00", "2026-10-27 01:47:00"),
-        (102, "r-3", 30, "2026-10-27", "SETTLED", "PAID", 60, "2026-10-27 01:10:00", "2026-10-27 01:11:00"),
-        (105, "r-4", 10, "2026-10-28", "DUEL", None, 0, "2026-10-28 01:16:00", None),
+    # (회원, 요청 키, 참가비, KST 날짜, 단계, 결과, 지급, 시작, 정산, 도전 단계, 도전 중)
+    # 도전 중인 채로 지면 도전 실패, 아니면 첫 대결 패배다. 지급 = 참가비 × 칸 × 배수(이전 규칙 ×1.0/×1.5/×2.0).
+    for user_id, key, fee, day, phase, outcome, payout, started, settled, stake, challenging in [
+        (101, "r-1", 10, "2026-10-27", "SETTLED", "LOST", 0, "2026-10-27 01:45:00", "2026-10-27 01:45:40", 0, False),
+        (101, "r-2", 20, "2026-10-27", "SETTLED", "PAID", 30, "2026-10-27 01:46:00", "2026-10-27 01:47:00", 1, False),
+        (102, "r-3", 30, "2026-10-27", "SETTLED", "PAID", 60, "2026-10-27 01:10:00", "2026-10-27 01:11:00", 0, False),
+        (105, "r-4", 10, "2026-10-28", "DUEL", None, 0, "2026-10-28 01:16:00", None, 0, False),
+        (102, "r-5", 10, "2026-10-28", "SETTLED", "LOST", 0, "2026-10-28 02:00:00", "2026-10-28 02:00:30", 0, True),
     ]:
         active = "NULL" if phase == "SETTLED" else str(user_id)
         deadline = "NULL" if phase == "SETTLED" else f"'{timestamp(started)}'"
         lines.append(
             "INSERT INTO rps_roulette_rounds (user_id, request_key, active_user_id, fee, play_date, phase, outcome, "
-            f"payout, deadline_at, started_at, settled_at) VALUES ({user_id}, '{key}', {active}, {fee}, '{day}', "
+            "payout, deadline_at, started_at, settled_at, stake_level, challenging) VALUES "
+            f"({user_id}, '{key}', {active}, {fee}, '{day}', "
             f"'{phase}', {sql_value(outcome)}, {payout}, {deadline}, '{timestamp(started)}', "
-            f"{sql_value(settled and timestamp(settled))});"
+            f"{sql_value(settled and timestamp(settled))}, {stake}, {int(challenging)});"
         )
     # 두더지 (회원, 요청 키, 규칙, 상태, 시작, 정산, 점수, 최대 콤보, 잡은 수, 지급).
     # 계산 보상은 규칙 1은 30점, 2는 45점, 3은 40점당 1냥(V149·V150 CHECK와 같다).
@@ -434,6 +443,20 @@ def minigame_extra_sql() -> list[str]:
             f"'{status}', "
             f"'{timestamp(started)}', {sql_value(settled and timestamp(settled))}, {sql_value(score)}, "
             f"{sql_value(combo)}, {sql_value(caught)}, {sql_value(calculated)}, {sql_value(reward)});"
+        )
+    # 스피드 두더지 (회원, 요청 키, 상태, 시작, 완료, 점수, 적중, 실수). 입력 순서대로 판 번호 1부터.
+    # 지급은 원장(키 mole:reward:speed:<판>)에만 있다. 1번 판 12냥, 101의 260점 판은 한도에 막혀 원장이 없다.
+    for user_id, key, status, started, completed, score, hits, misses in [
+        (103, "s-1", "SETTLED", "2026-10-28 05:05:00", "2026-10-28 05:06:03", 60, 66, 2),
+        (101, "s-2", "SETTLED", "2026-10-27 01:56:00", "2026-10-27 01:57:03", 0, 3, 5),
+        (101, "s-3", "SETTLED", "2026-10-27 01:58:00", "2026-10-27 01:59:03", 260, 272, 4),
+        (104, "s-4", "ACTIVE", "2026-10-28 03:22:00", None, None, None, None),
+    ]:
+        lines.append(
+            "INSERT INTO speed_mole_rounds (user_id, request_key, seed, rules_version, status, started_at, "
+            f"completed_at, score, hits, misses) VALUES ({user_id}, '{key}', 1, 1, '{status}', '{timestamp(started)}', "
+            f"{sql_value(completed and timestamp(completed))}, {sql_value(score)}, {sql_value(hits)}, "
+            f"{sql_value(misses)});"
         )
     # 플러스마이너스 (회원, 요청 키, KST 날짜, 결과, 결과값, 지급, 시각). 참가비 30 고정, 지급 = 결과값 × 10.
     for user_id, key, day, outcome, value, payout, at in [
