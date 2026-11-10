@@ -135,7 +135,7 @@ const useItemChoice=create(()=>({grade:null as number|null}))
 const OPEN_CHOSEN_ITEM='ontop-gacha-open-chosen-item'
 export function GachaItemFooter(){
  const grade=useItemChoice(v=>v.grade),s=useGacha(),quantity=s.state?.inventory.boxes.find(b=>b.grade===grade)?.quantity??0
- if(!grade)return <p className="wardrobe-detail__empty">열어 볼 아이템을 골라 주세요. 두 번 누르면 바로 열어요.</p>
+ if(!grade||quantity<1)return <p className="wardrobe-detail__empty">열어 볼 아이템을 골라 주세요. 두 번 누르면 바로 열어요.</p>
  return <><span className="wardrobe-art" data-slot="TOP"><Capsule grade={grade}/></span>
   <div className="wardrobe-detail__text"><b>{capsuleName(grade)}</b><small>{quantity}개 보유 · 열면 해당 등급의 의상 하나를 받아요</small></div>
   <div className="wardrobe-detail__actions"><button type="button" className="wardrobe-wear" disabled={s.busy||!!s.pending||quantity<1} onClick={()=>window.dispatchEvent(new Event(OPEN_CHOSEN_ITEM))}>열기</button></div>
@@ -156,6 +156,8 @@ export function GachaBoxes(){
  const parts=result?.product?.itemIds.map(id=>items.find(i=>i.item.itemId===id)?.item.equipSlot).filter((p,i,a)=>p&&a.indexOf(p)===i)
  const labels:Record<string,string>={HAIR:'머리',FACE:'얼굴',TOP:'상의',BOTTOM:'하의',SHOES:'신발'}
  const takeLook=()=>{const owned=items.find(i=>result?.product?.itemIds.includes(i.item.itemId));opening.dismiss();window.dispatchEvent(new Event('ontop-gacha-show-outfits'));if(owned)previewWardrobeItem(owned.userItemId)}
+ const ownedBoxes=s.state?.inventory.boxes.filter(b=>b.quantity>0)??[]
+ const matchingBoxes=ownedBoxes.filter(b=>!query||capsuleName(b.grade).toLocaleLowerCase().includes(query.toLocaleLowerCase()))
  const next=()=>opening.dismiss()
  const retry=async()=>{
   const pending=useGacha.getState().pending
@@ -166,12 +168,13 @@ export function GachaBoxes(){
   if(useSession.getState().sessionId===owner&&receipt?.operationId===pending.operationId)setRecovered(receipt)
  }
  return <section className="gacha-item-storage" aria-label="아이템 보관함">
-  <ul className="wardrobe-grid gacha-item-grid">{s.state?.inventory.boxes.filter(b=>!query||capsuleName(b.grade).toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(b=><li key={b.grade}>
+  <ul className="wardrobe-grid gacha-item-grid">{matchingBoxes.map(b=><li key={b.grade}>
    <button type="button" className="wardrobe-card" aria-label={`${capsuleName(b.grade)} ${b.quantity}개 보유`} aria-pressed={chosen===b.grade} disabled={s.busy||opening.busy} onClick={()=>useItemChoice.setState({grade:b.grade})} onDoubleClick={()=>{if(!s.pending&&b.quantity>0)void opening.open(b.grade)}}>
     <span className="wardrobe-art" data-slot="TOP"><Capsule grade={b.grade}/></span><span className="wardrobe-card__text"><b>{capsuleName(b.grade)}</b><small>보유 {b.quantity}개</small></span>
    </button>
   </li>)}</ul>
-  {s.state&&query&&!s.state.inventory.boxes.some(b=>capsuleName(b.grade).toLocaleLowerCase().includes(query.toLocaleLowerCase()))&&<div className="wardrobe-empty" role="status"><b>찾는 아이템이 없어요</b><p>검색어를 바꿔 보세요.</p></div>}
+  {s.state&&query&&matchingBoxes.length===0&&<div className="wardrobe-empty" role="status"><b>찾는 아이템이 없어요</b><p>검색어를 바꿔 보세요.</p></div>}
+  {s.state&&!query&&ownedBoxes.length===0&&<div className="wardrobe-empty" role="status"><b>보유한 캡슐이 없어요</b><p>뽑기에서 얻은 캡슐이 여기에 표시돼요.</p></div>}
   {s.error&&<p role="alert" className="gacha-item-error">{displayGachaMessage(s.error)}</p>}
   {s.pending&&!s.busy&&<button className="gacha-item-retry" onClick={()=>void retry()}>같은 요청으로 결과 다시 확인</button>}
   {recovered&&<div className="gacha-item-recovery" role="status" data-operation-id={recovered.operationId}><b>{recovered.kind==='BUY'?'뽑기권 1장 구매를 확인했어요':recovered.grade===5?`${money(recovered.awardedCoins)} 당첨을 확인했어요`:`${capsuleName(recovered.grade)} 당첨을 확인했어요`}</b><p>확정된 결과를 복구했어요. 추가로 소비하지 않았어요.</p><button onClick={()=>setRecovered(null)}>확인</button></div>}
