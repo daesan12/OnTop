@@ -1,3 +1,4 @@
+import {staticPark} from './static/store'
 import {BufferGeometry,Float32BufferAttribute} from 'three'
 import {forestHeightAt,type Point} from './plan.ts'
 import {groundPieces,clipGroundPolygon,FLOOR_Y_OFFSET} from './groundPlan.ts'
@@ -37,4 +38,4 @@ export function createParkGround(){
  const retaining=new BufferGeometry();retaining.setAttribute('position',new Float32BufferAttribute(wallPositions,3));retaining.setAttribute('color',new Float32BufferAttribute(Array.from({length:wallPositions.length},()=>1),3));retaining.setIndex(wallIndices);retaining.computeVertexNormals();retaining.computeBoundingBox();retaining.computeBoundingSphere()
  return{grass:mesh(grassIndices,grassColors),paving:mesh(pavingIndices,pavingColors),retaining,pavingBoundary:{positions,indices:pavingIndices}}
 }
-export const parkGround=createParkGround()
+export const parkGround=staticPark?.ground??createParkGround()

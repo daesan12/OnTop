@@ -1,3 +1,4 @@
+import {staticPark} from './static/store'
 import {PARK,SITES,LAKE,onLakeFenceBelt,insidePark,inLake,onRoad,parkRadius,footprintDistance,BRIDGE,BRIDGE_LANDINGS,DOCK_ACCESS,FISHING_ACCESS,onFishingDeck,onSquareEndedPath,site,EDGES,NODES,distanceToSegment,MONUMENT_STAIRS,STATION_STEPS,STATION_APPROACH,underStation,onTowerAccess,onEntrancePath,type Point} from './plan.ts'
 import {inSummit,onSummitEdge} from './hybridTerrainPlan.ts'
 import {REMOVED_POCKET,HUB_TREE_ISLAND,SOUTH_CLUSTER_GROVE,FOLK_FRONT_GROVE,CAFE_CURVE,inEllipse} from './landscapeRefinementPlan.ts'
@@ -49,7 +50,7 @@ function rawPlantingGround(x:number,z:number){
 }
 // A cached circular coverage field rounds planting-bank corners without reducing the road core.
 const ROUND_GRID={x0:-124,z0:-128,w:249,h:257}
-let roundedField:Float32Array|undefined
+let roundedField:Float32Array|undefined=staticPark?.plantingField
 function roundedCoverage(x:number,z:number){
  const {x0,z0,w,h}=ROUND_GRID
  if(!roundedField){const raw=new Float32Array(w*h),horizontal=new Float32Array(w*h),out=new Float32Array(w*h);for(let i=0;i<w;i++)for(let j=0;j<h;j++)raw[i*h+j]=rawPlantingGround(x0+i,z0+j)?1:0;const weights=[1,8,28,56,70,56,28,8,1];for(let i=0;i<w;i++)for(let j=0;j<h;j++){let v=0;for(let k=-4;k<=4;k++)v+=weights[k+4]!*raw[Math.max(0,Math.min(w-1,i+k))*h+j]!;horizontal[i*h+j]=v/256}for(let i=0;i<w;i++)for(let j=0;j<h;j++){let v=0;for(let k=-4;k<=4;k++)v+=weights[k+4]!*horizontal[i*h+Math.max(0,Math.min(h-1,j+k))]!;out[i*h+j]=v/256}roundedField=out}
@@ -107,3 +108,5 @@ export function groundPieces(triangle:readonly Point[]){
  return {grass:clipGroundPolygon(land,isPlantingGround),paving:clipGroundPolygon(land,(x,z)=>!isPlantingGround(x,z))}
 }
 export function polygonArea(points:readonly Point[]){return Math.abs(points.reduce((sum,a,i)=>{const b=points[(i+1)%points.length]!;return sum+a[0]*b[1]-b[0]*a[1]},0))/2}
+
+export function getPlantingField(){roundedCoverage(0,0);return roundedField!}
