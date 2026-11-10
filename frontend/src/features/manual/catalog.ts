@@ -126,6 +126,12 @@ export function filterManuals(category:'all'|ManualCategory,query:string) {
   const words=searchWords(query);
   return gameManuals.filter(game => (category==='all'||game.category===category) && matches(words,[game.title,game.subtitle,game.keywords,game.summary,...game.sections.flatMap(sectionText)]));
 }
+/** 설명서 목록은 보드게임을 먼저, 미니게임을 그다음에 묶어 보여 준다. 빈 묶음은 뺀다. */
+export function groupManuals(games:GameManual[]) {
+  return ([['game','보드게임'],['minigame','미니게임'],['vr','VR']] as const)
+    .map(([category,label]) => ({category,label,games:games.filter(game => game.category===category)}))
+    .filter(group => group.games.length > 0);
+}
 /** Park guide pages whose text holds every search word, so a search finds more than games. */
 export function filterGuides(query:string) {
   const words=searchWords(query);

@@ -350,6 +350,24 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 13px;
 }
+.manual-group + .manual-group {
+  margin-top: 24px;
+}
+.manual-group-title {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 11px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #ded7c6;
+  font-size: 15px;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.manual-group-title small {
+  font-size: 10px;
+  opacity: 0.65;
+}
 .game-manual .manual-card {
   display: flex;
   flex-direction: column;
