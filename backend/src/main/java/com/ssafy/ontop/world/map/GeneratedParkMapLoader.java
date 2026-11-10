@@ -18,6 +18,11 @@ public final class GeneratedParkMapLoader {
     private static final int MAX_MAP_BYTES = 16 * 1024 * 1024;
     private static final int MAX_MANIFEST_BYTES = 1024 * 1024;
     private static final String MAP_ARTIFACT_PATH = "generated/park/server-map.json";
+    private final String expectedMapId;
+    private final String artifactPath;
+    public GeneratedParkMapLoader() { this("park", MAP_ARTIFACT_PATH); }
+    private GeneratedParkMapLoader(String mapId, String artifactPath) { this.expectedMapId=mapId; this.artifactPath=artifactPath; }
+    public static GeneratedParkMapLoader renewal() { return new GeneratedParkMapLoader("park-renewal-local", "generated/park-renewal/server-map.local.json"); }
 
     private final ObjectMapper mapper = new ObjectMapper()
             .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
@@ -64,22 +69,22 @@ public final class GeneratedParkMapLoader {
         }
     }
 
-    private static WorldMapMetadata metadata(JsonNode node) {
-        requireText(node, "mapId", "park");
+    private WorldMapMetadata metadata(JsonNode node) {
+        requireText(node, "mapId", expectedMapId);
         JsonNode schema = node.path("schemaVersion");
         require(schema.isIntegralNumber() && schema.canConvertToInt() && schema.intValue() == 2,
                 "지원하는 생성 맵 schemaVersion은 2입니다.");
         JsonNode version = node.path("mapVersion");
         require(version.isTextual(), "mapVersion은 문자열이어야 합니다.");
-        return new WorldMapMetadata("park", 2, version.textValue());
+        return new WorldMapMetadata(expectedMapId, 2, version.textValue());
     }
 
-    private static JsonNode mapArtifact(JsonNode manifest) {
+    private JsonNode mapArtifact(JsonNode manifest) {
         JsonNode artifacts = manifest.path("artifacts");
         require(artifacts.isArray(), "manifest.artifacts는 배열이어야 합니다.");
         JsonNode found = null;
         for (JsonNode artifact : artifacts) {
-            if (MAP_ARTIFACT_PATH.equals(artifact.path("path").textValue())) {
+            if (artifactPath.equals(artifact.path("path").textValue())) {
                 require(found == null, "manifest의 맵 항목이 중복되었습니다.");
                 found = artifact;
             }

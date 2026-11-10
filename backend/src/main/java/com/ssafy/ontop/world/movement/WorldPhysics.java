@@ -49,6 +49,16 @@ public final class WorldPhysics implements AutoCloseable {
     private final com.ssafy.ontop.world.jumpmap.JumpCourse course;
     private final java.util.function.LongSupplier clock;
     private PositionCollision positionCollision;
+    private RenewalCourseMotion renewalMotion;
+    private final double utcSeconds = System.currentTimeMillis()/1000d;
+    private long motionOrigin;
+
+    private double courseTime() { return utcSeconds+(clock.getAsLong()-motionOrigin)/1e9; }
+    private void prepareCourse(String id) { if(renewalMotion!=null)renewalMotion.prepare(id,courseTime()); }
+
+    public void jumpmapRun(String id, String runId) {
+        call(()->{if(renewalMotion!=null)renewalMotion.run(id,runId);return null;});
+    }
 
     private Thread owner;
     private final java.util.concurrent.ExecutorService executor =
@@ -127,6 +137,7 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private void initialize() {
+        motionOrigin = clock.getAsLong();
         scene = sceneSource.get();
         movement = scene.data.path("movement");
         space = new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
@@ -156,7 +167,8 @@ public final class WorldPhysics implements AutoCloseable {
             if (!course.mapVersion().equals(scene.version())) {
                 throw new IllegalArgumentException("점프맵 코스와 공원 충돌 맵의 버전이 다릅니다.");
             }
-            JumpCourseColliders.addTo(space, course);
+            var bodies=JumpCourseColliders.addTo(space, course);
+            if(course.renewal()) renewalMotion=new RenewalCourseMotion(course,bodies,space);
         }
         positionCollision = new PositionCollision(scene, space, this::activeShape);
     }
@@ -262,6 +274,7 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private void removeNow(String id) {
+        if(renewalMotion!=null)renewalMotion.remove(id);
         releaseCarryNow(id);
         Actor actor = actors.remove(id);
         if (actor != null && !actor.seated && !actor.clientControlled) {
@@ -358,6 +371,7 @@ public final class WorldPhysics implements AutoCloseable {
         physicsTick++;
         for (var entry : actors.entrySet()) {
             Actor a = entry.getValue();
+            prepareCourse(entry.getKey());
             a.beforeStepY = a.body.getPhysicsLocation(null).y;
             if (a.carriedBy != null) { continue; }
             if (seated.contains(entry.getKey())) {
@@ -506,7 +520,17 @@ public final class WorldPhysics implements AutoCloseable {
             a.moving = active && (dx != 0 || dz != 0);
             a.running = active && input.run();
         }
-        space.update(DT, 0);
+        if(renewalMotion==null) space.update(DT, 0);
+        else {
+            // 개인별 발판은 다른 사용자의 시작·낙하 상태를 공유하지 않는다.
+            var nativeActors=actors.entrySet().stream().filter(e->!e.getValue().seated && !e.getValue().clientControlled && e.getValue().carriedBy==null).toList();
+            for(var entry:nativeActors)space.removeCollisionObject(entry.getValue().body);
+            for(var entry:nativeActors) {
+                prepareCourse(entry.getKey());space.addCollisionObject(entry.getValue().body);
+                space.update(DT,0);space.removeCollisionObject(entry.getValue().body);
+            }
+            for(var entry:nativeActors)space.addCollisionObject(entry.getValue().body);
+        }
         for (var entry : actors.entrySet()) {
             Actor carried = entry.getValue();
             if (carried.carriedBy == null) { continue; }
@@ -767,6 +791,7 @@ public final class WorldPhysics implements AutoCloseable {
     /** Client-position profile. Validation, body and official snapshot change on one owner thread. */
     public Snapshot report(String id, ClientPositionValidator.Candidate candidate, long now) {
         return call(() -> {
+            prepareCourse(id);
             if (!clientPositions) throw new IllegalStateException("위치 보고 모드가 비활성화돼 있습니다.");
             Actor a = actors.get(id);
             if (!a.clientControlled || a.seated) return snapshotNow(id);
@@ -903,6 +928,7 @@ public final class WorldPhysics implements AutoCloseable {
      */
     public Support support(String id) {
         return call(() -> {
+            prepareCourse(id);
             Actor actor = actors.get(id);
             if (actor == null || actor.seated) return Support.NONE;
             var object = positionCollision.supportObject(pose(actor));
@@ -926,7 +952,9 @@ public final class WorldPhysics implements AutoCloseable {
             Actor actor = actors.get(id);
             Vector3f p = actor.body.getPhysicsLocation(null);
             double feet = p.y - number("halfHeight") - number("radius") - number("offset");
-            return new Observation(support(id), actor.swimming, actor.seated, feet,
+            var support=support(id);
+            if(renewalMotion!=null)renewalMotion.contact(id,support.course(),courseTime());
+            return new Observation(support, actor.swimming, actor.seated, feet,
                     feet - scene.groundHeight(p.x, p.z), actor.relocations, p.x, p.z);
         });
     }

@@ -1,0 +1,29 @@
+# Explicit loopback-only profile. Use with local,db; no deployment defaults are changed.
+server:
+  address: 127.0.0.1
+  port: 19186
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/minigame,classpath:db/shop
+ontop:
+  game-start:
+    enabled: true
+  auth:
+    allowed-origins: http://localhost:8080,http://127.0.0.1:8080,http://localhost:5390,http://127.0.0.1:5390,http://127.0.0.1:5391,http://127.0.0.1:5392
+  world:
+    channels:
+      - channel-id: channel-1
+        name: 새 공원
+        capacity: 40
+    map:
+      source: renewal
+      require-match: true
+      json-path: ../frontend/generated/park-renewal/server-map.local.json
+      manifest-path: ../frontend/generated/park-renewal/server-manifest.local.json
+    movement:
+      client-position: true
+      tuned-profile: true
+    jumpmap:
+      enabled: true
+      course-json-path: ../frontend/generated/park-renewal/course.local.json
+      course-checksum-path: ../frontend/generated/park-renewal/course.local.sha256
