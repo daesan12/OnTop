@@ -49,10 +49,13 @@ export function parseNotificationPage(v: unknown, cursor = ''): NotificationPage
   return { items, nextCursor: v.nextCursor as string | null, unreadCount: Number(v.unreadCount) }
 }
 export function parseNotificationDetail(v: unknown): NotificationDetail {
-  const base = item(v)
+  // The list DTO carries the week at the top level; the detail DTO carries it inside event.
+  const base = item(record(v) && v.type === 'EVENT_WINNER' && record(v.event)
+    ? { ...v, eventWeekStartDate: v.event.weekStartDate } : v)
   if (base.type === 'EVENT_WINNER') {
     if (!record(v) || typeof v.body !== 'string' || !v.body.trim() || !record(v.event)
       || v.event.weekStartDate !== base.eventWeekStartDate || !Array.isArray(v.event.awards)
+      || (v.eventWeekStartDate !== undefined && v.eventWeekStartDate !== base.eventWeekStartDate)
       || v.event.awards.length === 0 || v.event.awards.length > 100
       || !['NOT_SUBMITTED', 'SUBMITTED', 'EXPIRED'].includes(String(v.event.contactStatus))
       || typeof v.event.contactEdited !== 'boolean' || !date(v.event.submissionDeadline) || typeof v.event.allPrizesDelivered !== 'boolean'
