@@ -31,8 +31,8 @@ public class ParkRankingController {
     }
 
     @Operation(summary = "공원 랭킹판 스냅샷", security = @SecurityRequirement(name = "AccessJwt"),
-            description = "보유량 TOP 10과 붕어빵·점프맵 우승자의 마지막 정상 1분 스냅샷을 반환합니다. "
-                    + "기록이 없는 게임의 우승자는 null입니다. updatedAt은 전체 집계 완료 시각이며, "
+            description = "총자산 TOP 10과 두더지 잡기·스피드 두더지 잡기 개인 최고 TOP 10의 마지막 정상 1분 스냅샷을 "
+                    + "반환합니다. 기록이 없는 게임은 빈 목록입니다. updatedAt은 전체 집계 완료 시각이며, "
                     + "최초 성공 전에는 503을 반환합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "마지막 정상 스냅샷 (Cache-Control: no-store)",

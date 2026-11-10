@@ -24,6 +24,14 @@ export interface MoleState {
 }
 export interface MoleSettlement { result: MoleResult; todayEarned: number; dailyCap: number; bestScore: number }
 export interface Hit { hole: number; at: number }
+export const RANKING_PAGE_SIZE = 20
+export interface MoleRankingItem {
+  rank: number; userId: string; nickname: string; score: number; maxCombo: number; caught: number; completedAt: string
+}
+export interface MoleRankings {
+  rulesVersion: number; period: 'ALL_TIME'; updatedAt: string; totalParticipants: number; offset: number; limit: number
+  items: MoleRankingItem[]; me: MoleRankingItem | null; hasMore: boolean
+}
 
 function invalid(): never { throw new Error('두더지 잡기 응답 형식을 확인할 수 없어요.') }
 const int = (v: unknown, min = 0) => Number.isSafeInteger(v) && (v as number) >= min ? v as number : invalid()
@@ -64,6 +72,21 @@ export function parseMoleRound(value: unknown): MoleRound {
   const parsed = rules(value.rules)
   return { id: id(value.id), startedAt: time(value.startedAt), rules: parsed,
     moles: value.moles.map(item => mole(item, parsed.durationMs)) }
+}
+
+function rankingItem(v: unknown): MoleRankingItem {
+  if (!record(v) || typeof v.nickname !== 'string' || !v.nickname.trim()) return invalid()
+  return { rank: int(v.rank, 1), userId: id(v.userId), nickname: v.nickname, score: int(v.score), maxCombo: int(v.maxCombo),
+    caught: int(v.caught), completedAt: time(v.completedAt) }
+}
+
+/** 순위·참가자 수는 서버 값 그대로 쓴다. 요청한 페이지와 다른 응답은 받지 않는다. */
+export function parseMoleRankings(value: unknown, offset: number): MoleRankings {
+  if (!record(value) || value.period !== 'ALL_TIME' || !Array.isArray(value.items) || typeof value.hasMore !== 'boolean'
+    || value.offset !== offset || value.limit !== RANKING_PAGE_SIZE) return invalid()
+  return { rulesVersion: int(value.rulesVersion, 1), period: 'ALL_TIME', updatedAt: time(value.updatedAt),
+    totalParticipants: int(value.totalParticipants), offset, limit: RANKING_PAGE_SIZE, items: value.items.map(rankingItem),
+    me: value.me == null ? null : rankingItem(value.me), hasMore: value.hasMore }
 }
 
 export function parseMoleSettlement(value: unknown): MoleSettlement {

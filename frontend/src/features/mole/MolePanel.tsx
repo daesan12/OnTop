@@ -10,6 +10,8 @@ import { ART, BASE, HOLES, LED_LABELS, LEDS, PHASES, SPRITES, STUN } from './sta
 import { beginMolePlay, closeMole, finishMole, startMole, useMole } from './store'
 import './mole.css'
 import { MoleStartGuide } from '../arcade/MoleStartGuide'
+import { SpeedMoleTrophy } from '../speedMole/SpeedMoleRankingBoard'
+import { MoleRankingDialog, MoleRankSummary } from './MoleRankings'
 
 const COUNTDOWN_MS = 3000
 const FX_MS = 520
@@ -53,6 +55,7 @@ function MoleScreen() {
   const shakeAt = useRef(-Infinity)
   const tapAt = useRef(new Map<number, number>())
   const [confirmQuit, setConfirmQuit] = useState(false)
+  const [rankingsOpen, setRankingsOpen] = useState(false)
   const clock = useRef({ countdownAt: 0, playAt: 0 })
   const scorer = useRef<MoleScorer | null>(null)
   const hits = useRef<Hit[]>([])
@@ -260,7 +263,8 @@ function MoleScreen() {
       description={<>다양한 두더지를 잡고 콤보를 이어가요.<br />헬멧 두더지는 연타, 고슴도치는 피해 주세요.</>}
       seconds={rules.durationMs / 1000} keyGroups={[KEYS.slice(0,3),KEYS.slice(3)]}
       details={<><p>{rules.pointsPerCoin}점당 1냥 · 오늘 미니게임 {todayEarned}/{dailyCap}냥</p><p>빈 구멍을 치면 2초 기절해요.</p></>}
-      error={error} onStart={() => void startMole()} onClose={closeMole} onManual={() => openManual('whack-a-mole')} />}
+      error={error} onStart={() => void startMole()} onClose={closeMole} onManual={() => openManual('whack-a-mole')}
+      extra={<button type="button" onClick={() => setRankingsOpen(true)}><SpeedMoleTrophy />내 최고 기록 · 전체 랭킹</button>} />}
     {phase !== 'idle' && <div className="mole-corner">
       <button type="button" className="mole-ghost" onClick={() => openManual('whack-a-mole')}>설명서</button>
       <button type="button" className="mole-close" aria-label="게임기 닫기" onClick={() => playing ? setConfirmQuit(true) : closeMole()}
@@ -281,6 +285,7 @@ function MoleScreen() {
             <div><dt>잡은 두더지</dt><dd>{settlement.result.caught}</dd></div>
             <div><dt>최고 점수</dt><dd>{settlement.bestScore.toLocaleString('ko-KR')}</dd></div>
           </dl>
+          <MoleRankSummary refreshKey={settlement.result.id} onOpen={() => setRankingsOpen(true)} />
           <p className="mole-reward">
             {settlement.result.reward > 0
               ? <RewardCoinSource receipt={`mole:reward:${settlement.result.id}`} amount={settlement.result.reward} soundOnReveal>
@@ -297,5 +302,6 @@ function MoleScreen() {
         </div>
       </div>
     </div>}
+    {rankingsOpen && <MoleRankingDialog onClose={() => setRankingsOpen(false)} />}
   </div>
 }

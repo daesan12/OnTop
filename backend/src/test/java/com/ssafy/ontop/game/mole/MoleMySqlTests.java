@@ -88,6 +88,37 @@ class MoleMySqlTests {
         assertThat(원장수(user, "MOLE_REWARD")).isZero();
     }
 
+    @Test
+    void 랭킹과_최고_점수는_현재_규칙의_회원별_최고_기록만_센다() {
+        jdbc.update("DELETE FROM mole_rounds");
+        long first = 회원();
+        long second = 회원();
+        정산(first, 3, 800, 20);
+        정산(first, 3, 1_200, 25);
+        정산(first, 2, 9_000, 99);
+        정산(second, 3, 1_200, 30);
+
+        var page = service.rankings(first, 20, 0);
+
+        assertThat(page.totalParticipants()).isEqualTo(2);
+        assertThat(page.items()).extracting(MoleDtos.RankingItem::userId)
+                .containsExactly(Long.toString(second), Long.toString(first));
+        assertThat(page.items()).extracting(MoleDtos.RankingItem::rank).containsExactly(1L, 2L);
+        assertThat(page.me()).isNotNull();
+        assertThat(page.me().score()).isEqualTo(1_200);
+        assertThat(service.status(first).bestScore()).isEqualTo(1_200);
+        assertThat(jdbc.queryForObject("EXPLAIN FORMAT=TREE SELECT COUNT(*) FROM mole_rounds "
+                + "WHERE rules_version = 3 AND status = 'SETTLED'", String.class)).contains("ix_mole_bests");
+    }
+
+    private void 정산(long user, int rulesVersion, int score, int maxCombo) {
+        int perCoin = rulesVersion == 2 ? 45 : 40;
+        jdbc.update("INSERT INTO mole_rounds (user_id, request_key, seed, rules_version, status, started_at, settled_at, "
+                + "score, max_combo, caught, calculated_reward, reward) VALUES (?, ?, 1, ?, 'SETTLED', "
+                + "CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), ?, ?, 10, ?, 0)",
+                user, UUID.randomUUID().toString(), rulesVersion, score, maxCombo, score / perCoin);
+    }
+
     private void 판을_끝낸다(long round) {
         jdbc.update("UPDATE mole_rounds SET started_at = TIMESTAMPADD(SECOND, -95, CURRENT_TIMESTAMP(3)) WHERE id = ?",
                 round);

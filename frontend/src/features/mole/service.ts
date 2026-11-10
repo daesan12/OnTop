@@ -1,4 +1,5 @@
-import { parseMoleRound, parseMoleSettlement, parseMoleState, type Hit, type MoleRound, type MoleSettlement, type MoleState } from './protocol'
+import { parseMoleRankings, parseMoleRound, parseMoleSettlement, parseMoleState, RANKING_PAGE_SIZE, type Hit, type MoleRankings,
+  type MoleRound, type MoleSettlement, type MoleState } from './protocol'
 
 type RequestJSON = (path: string, init?: RequestInit) => Promise<unknown>
 type PendingStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
@@ -29,6 +30,7 @@ export interface MolePort {
   status(): Promise<MoleState>
   start(): Promise<MoleRound>
   complete(roundId: string, hits: readonly Hit[]): Promise<MoleSettlement>
+  rankings(offset: number): Promise<MoleRankings>
 }
 
 /** 서버 판. 시작 요청 키를 저장해 응답을 잃어도 같은 판을 다시 받고, 완료는 서버가 같은 결과를 돌려줘 두 번 지급되지 않는다. */
@@ -77,5 +79,9 @@ export class MoleService implements MolePort {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ hits: hits.map(({ hole, at }) => ({ hole, at })) }),
     })
+  }
+
+  rankings(offset: number) {
+    return this.call(value => parseMoleRankings(value, offset), `/rankings?limit=${RANKING_PAGE_SIZE}&offset=${offset}`)
   }
 }

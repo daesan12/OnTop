@@ -512,6 +512,7 @@ class RestSecurityTests {
                 "GET /api/v1/minigames/plus-minus/status", "POST /api/v1/minigames/plus-minus/rounds",
                 "GET /api/v1/minigames/whack-a-mole/status", "POST /api/v1/minigames/whack-a-mole/rounds",
                 "POST /api/v1/minigames/whack-a-mole/rounds/{roundId}/complete",
+                "GET /api/v1/minigames/whack-a-mole/rankings",
                 "POST /api/v1/minigames/speed-mole/rounds", "POST /api/v1/minigames/speed-mole/rounds/{roundId}/complete",
                 "GET /api/v1/minigames/speed-mole/rankings",
                 "GET /api/v1/minigames/sessions/{sessionId}",

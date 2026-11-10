@@ -35,7 +35,7 @@ it('재고가 없는 새 접속 스냅샷은 과거 당첨 공지를 만들지 �
 })
 it('실제 엽전을 유지하면서 총자산을 표시하고 잘못된 합계는 거절한다', () => {
   const snapshot = { balance: [{ rank: 1, userId: '42', nickname: '테스트', coinBalance: 100, equipmentValue: 1000, totalAssets: 1100 }],
-    bungeoppang: [], jumpmap: [], updatedAt: '2026-11-06T00:00:00Z' }
+    mole: [], speedMole: [], updatedAt: '2026-11-06T00:00:00Z' }
   const parsed = parseParkRanking(snapshot)
   expect(parsed.balance[0]?.coinBalance).toBe(100)
   expect(rankingColumns(parsed)[0]?.rows[0]?.value).toBe('1,100냥')
