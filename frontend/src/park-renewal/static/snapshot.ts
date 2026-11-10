@@ -8,6 +8,7 @@ import {guardRuns,guardPosts,guardPostRailBases} from '../guardLayout'
 import {jumpFenceRuns,jumpFenceSections} from '../jumpFencePlan'
 import {createHillGuardArt,createJumpFenceArt} from '../guardArt'
 import {staticPark} from './store'
+import {createMoleShopArt} from '../moleShopArt'
 import type {StaticPark} from './store'
 
 /** Build-time entry. Uses the same builders as authoring and backend exports. */
@@ -16,4 +17,5 @@ export const snapshot:StaticPark={
   curbs:{paths:curbPaths,geometry:curbGeometry},hillEdges:hillEdgeSections,
   guards:{guardRuns,guardPosts,guardPostRailBases},jumpFence:{runs:jumpFenceRuns,sections:jumpFenceSections},
   guardArt:staticPark?.guardArt??{hill:createHillGuardArt(),jump:createJumpFenceArt()},
+  buildingArt:{mole:staticPark?.buildingArt?.mole??createMoleShopArt()},
 }

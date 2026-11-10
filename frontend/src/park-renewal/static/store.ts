@@ -2,6 +2,8 @@ import type {BufferGeometry} from 'three'
 import type {PropFinish} from '../../world/art/propGeometry'
 
 export type V3 = readonly [number,number,number]
+export type StaticPropArt = Partial<Record<PropFinish,BufferGeometry>>
+export interface MoleShopArt {body:StaticPropArt;roof:StaticPropArt;walls:StaticPropArt}
 export interface StaticPark {
   forestField: Float64Array
   plantingField: Float32Array
@@ -15,6 +17,8 @@ export interface StaticPark {
   guards: {guardRuns:V3[][];guardPosts:number[][];guardPostRailBases:number[]}
   jumpFence: {runs:V3[][];sections:{a:readonly[number,number];z:readonly[number,number]}[]}
   guardArt: {hill:Partial<Record<PropFinish,BufferGeometry>>;jump:Partial<Record<PropFinish,BufferGeometry>>}
+  // Optional so an older valid archive can still use the original building path.
+  buildingArt?: {mole:MoleShopArt}
 }
 
 // Installed before importing the app. Node exporters and dev/HMR keep using the

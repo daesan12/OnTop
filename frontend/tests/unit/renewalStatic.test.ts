@@ -45,11 +45,32 @@ it('사전 생성 지형·높이·난간은 원본 비트와 이동·충돌 판�
   // Import order is the production bootstrap contract: hydrate before app/plan.
   const actualSnapshot=(await import('../../src/park-renewal/static/snapshot')).snapshot
   equalBytes(encoded,encodeStaticPark(actualSnapshot))
+  const {getMoleShopArt}=await import('../../src/park-renewal/moleShopArt')
+  expect(getMoleShopArt()).toBe(decoded.buildingArt!.mole)
   const actual=probe(await import('../../src/park-renewal/plan'),await import('../../src/park-renewal/groundSurface'),await import('../../src/park-renewal/surfaceHeight'),await import('../../src/park-renewal/travelMotion'),await import('../../src/park-renewal/motionPlan'))
   expect(actual).toEqual(expected)
   expect(samples.length).toBeGreaterThan(3000)
   console.log('static-equivalence',{samples:samples.length,raw:encoded.byteLength,gzip:compressed.byteLength})
 },180000)
+
+it('건물 사전 데이터가 없는 이전 파일에서도 두더지 상점의 원본 형상을 복구한다',async()=>{
+  const {snapshot}=await import('../../src/park-renewal/static/snapshot')
+  const {encodeStaticPark}=await import('../../src/park-renewal/static/codec')
+  const {getMoleShopArt}=await import('../../src/park-renewal/moleShopArt')
+  const store=await import('../../src/park-renewal/static/store')
+  const {buildingArt,...older}=snapshot
+  expect(buildingArt).toBeDefined()
+  const expected=encodeStaticPark(snapshot)
+  try {
+    store.installStaticPark(older)
+    const fallback=getMoleShopArt()
+    expect(fallback).not.toBe(buildingArt!.mole)
+    // Includes every visible body/roof/wall attribute, index, normal and bound.
+    const actual=encodeStaticPark({...older,buildingArt:{mole:fallback}})
+    expect(Buffer.from(actual).equals(Buffer.from(expected))).toBe(true)
+    expect(performance.getEntriesByName('park-procedural-mole-ready').length).toBeGreaterThan(0)
+  }finally{store.installStaticPark(snapshot)}
+},30000)
 
 it('형식이 다르거나 잘린 사전 생성 파일은 사용하지 않는다',async()=>{
   const {decodeStaticPark}=await import('../../src/park-renewal/static/codec')

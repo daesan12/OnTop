@@ -26,8 +26,8 @@ import {PreservedFountain,PreservedPagodaGarden,FitnessFence} from './PreservedD
 import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatPose,openDockSideEntry,groundObject,widenDockRearPassage} from './assetSizing'
 import {VerticalMoleAttract} from './VerticalMoleAttract'
 import {ArcadeNeon} from './approved/arcade-building-20261107-v1/core/frontend/src/layout-preview/ArcadeNeon'
-import {type RecreationFacility} from '../map/park/recreation'
-import {buildMoleShop} from './approved/mole-shop-20261107-v1/core/frontend/src/world/art/moleShopGeometry'
+import {drawMoleShopSign} from './approved/mole-shop-20261107-v1/core/frontend/src/world/art/moleShopGeometry'
+import {getMoleShopArt,MOLE_SHOP_FACILITY} from './moleShopArt'
 import {addArcadeExterior,drawArcadeMarquee,drawArcadeSide,ARCADE_MARQUEE} from './approved/arcade-building-20261107-v1/core/frontend/src/world/art/arcadeExterior'
 import {addArcadeInterior,addArcadeWallLining,drawArcadeInteriorBanner,drawArcadeInteriorMural,drawArcadeFloorBadge} from './approved/arcade-building-20261107-v1/core/frontend/src/world/art/arcadeInterior'
 import {VrSkewerHall as ApprovedVrHall} from './approved/vr-skewer-hall-20261107-v1/core/frontend/src/features/skewer/parkAsset/VrSkewerHall'
@@ -51,9 +51,8 @@ function LocalFactory({kind,options={}}:{kind:string;options?:Record<string,unkn
 }
 function title(text:string){return(c:CanvasRenderingContext2D,w:number,h:number)=>{c.fillStyle='#eee3c8';c.fillRect(0,0,w,h);c.strokeStyle='#9e7b42';c.lineWidth=8;c.strokeRect(5,5,w-10,h-10);c.fillStyle='#284b3c';c.textAlign='center';c.textBaseline='middle';c.font=`700 ${h*.48}px "Malgun Gothic",sans-serif`;c.fillText(text,w/2,h/2,w*.91)}}
 function Mole(){
- const f:RecreationFacility={id:'renewal-mole',kind:'mole',label:'두더지 잡기',x:0,z:0,width:10,depth:7,height:6.4,yaw:0,doorWidth:4}
- const art=useMemo(()=>buildMoleShop({...f}),[])
- return <><PropModel art={art.body} name="approved-mole-body"/><PropModel art={art.roof} name="approved-mole-roof"/><PropModel art={art.walls} name="approved-mole-walls"/><PropSign draw={art.draw} position={[0,4.4,3.7]} width={3.1} height={.55}/><VerticalMoleAttract facility={f}/></>
+ const art=useMemo(getMoleShopArt,[])
+ return <><PropModel art={art.body} name="approved-mole-body"/><PropModel art={art.roof} name="approved-mole-roof"/><PropModel art={art.walls} name="approved-mole-walls"/><PropSign draw={drawMoleShopSign} position={[0,4.4,3.7]} width={3.1} height={.55}/><VerticalMoleAttract facility={MOLE_SHOP_FACILITY}/></>
 }
 function Arcade(){
  const art=useMemo(()=>{const b=new PropBuilder(),r=new PropBuilder(),w=new PropBuilder(),f={width:18,depth:12,height:6.4,doorWidth:4.6};b.box('stone','#c9bea1',[0,.04,0],[19.6,.08,13.6]);b.box('stone','#d8cfb8',[0,.1,0],[18,.08,12]);w.box('paint','#e0ddc9',[0,3.2,-6],[18,6.4,.32]);for(const side of[-1,1]){w.box('paint','#e0ddc9',[side*9,3.2,0],[.32,6.4,12]);w.box('paint','#e0ddc9',[side*5.65,3.2,6],[6.7,6.4,.32]);for(const z of[-6,6])b.box('wood','#755135',[side*9,3.2,z],[.3,6.4,.3])}addArcadeExterior(b,r,w,f);addArcadeWallLining(w,f);addArcadeInterior(b,f);return {body:b.finish(),roof:r.finish(),walls:w.finish()}},[])

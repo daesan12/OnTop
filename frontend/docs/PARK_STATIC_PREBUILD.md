@@ -4,6 +4,10 @@
 
 `vite.renewal.config.ts`를 상속하는 배포 빌드는 `renewalStaticPlugin`으로 원본 생성기를 Node에서 실행한다. 높이 필드(Float64), 식생 분류 필드(Float32), 잔디·포장·옹벽 메시, 지면 공간 인덱스, 경계석, 난간 경로·충돌 구간·기둥 및 최종 렌더 메시를 압축 바이너리로 묶는다. 좌표, 경사·경계 계산식, 재질, 충돌·이동 규칙과 서버 판정은 변경하지 않는다.
 
+2차 최적화는 두더지 상점의 정적 몸체·지붕·벽을 같은 파일에 포함한다. 1차 적용 후 Chrome 프로필에서 `buildMoleShop`의 곡면 교차 검사·형상 생성이 첫 화면 전에 약 4.7초를 차지했다. `moleShopArt.ts`가 기존 승인 생성기에 동일한 10×7×6.4m 인자를 전달해 생성하고, `Buildings.tsx`는 설치된 형상을 재사용한다. 승인 패키지 원문, 위치·스케일·재질, 간판 그리기, `VerticalMoleAttract`의 망치·두더지 연출은 유지한다. 새 형상은 기존 무손실 코덱·독립 버퍼·참조 캐시·별도 빌드 프로세스를 그대로 이용한다.
+
+건물 데이터가 없는 이전 형식도 사용할 수 있도록 `buildingArt`는 선택 필드다. 파일 다운로드/복원 실패 또는 건물 데이터 누락 시 원본 생성기를 사용한다. `park-static-mole-ready`, `park-procedural-mole-start/ready` mark로 경로를 구분한다. 2차 전후 로딩 측정과 최종 배포 빌드·브라우저 검증은 MR !495에 기록한다. 개발 진입점은 `pnpm dev:park-renewal:play`의 `http://127.0.0.1:5390/park`이며, 배포 빌드 성능 검증에는 정적 서버와 동일한 모의 HTTP/WS 상태를 사용한다.
+
 바이너리는 매 빌드의 별도 Node 프로세스 안에서 새 SSR 모듈 그래프로 생성하고 콘텐츠 해시가 붙은 `/assets/renewal-static.bin-*.gz`로 내보낸다. 부모는 자식 프로세스의 종료까지 기다린 뒤 압축 결과만 읽는다. SSR 모듈 그래프와 형상 CPU 버퍼는 프로세스 종료 시 회수된다. 생성 실패는 빌드를 실패시키며 성공·실패 모두 전용 임시 파일과 디렉터리를 정리한다. 저장소에 생성 파일을 커밋하거나 이전 작업 위치의 파일을 재사용하지 않는다. 높이의 Float64 정밀도 및 메시의 원래 속성·인덱스·bounds·공유 참조를 보존한다. 기존 `/assets`의 immutable 캐시 정책을 그대로 사용한다.
 
 빌드 플러그인은 서비스/미리보기 entry만 얇은 로더로 감싼다. 압축 해제·복원·설치가 끝난 뒤 원래 entry를 import하므로 로그인 페이지의 정적 의존성이 먼저 생성기를 실행할 수 없다. HTTP·압축·형식 오류나 15초 다운로드 제한에 도달하면 기존 생성기로 돌아간다. 이 경우 맵은 유지되지만 첫 로딩이 다시 느려질 수 있다. `park-static-ready`와 `park-static-fallback` performance mark로 구분한다.
@@ -14,6 +18,7 @@
 
 ```sh
 pnpm exec vitest run tests/unit/renewalStatic.test.ts --maxWorkers=1 --mode park-renewal-release
+pnpm exec vitest run tests/unit/renewalStatic.test.ts tests/unit/jumpGimmicks.test.ts --maxWorkers=1 --mode park-renewal-release --no-isolate
 pnpm exec vitest run tests/unit/wholeRoadGrade.test.ts tests/unit/sixBoundaryFixes.test.ts tests/unit/guardJoinDiagnostic.test.ts tests/unit/parkFinishingRideRevision.test.ts --maxWorkers=1 --no-isolate
 pnpm run build:park-renewal:release
 ```
@@ -41,3 +46,4 @@ pnpm run build:park-renewal:release
 - `BufferGeometry.dispose()`는 GPU 자원 해제 이벤트이며, WebGLRenderer가 없는 Node 생성기의 CPU 배열이나 모듈 캐시 참조를 끊지 않는다. `bake-renewal-static.mjs`를 별도 프로세스로 실행해 빌드 부모 힙과 수명을 분리했다. 단일 생성기의 최대 메모리 자체를 없애는 최적화는 아니다.
 - Windows / Node 24.18.0에서 실제 생성 성공과 잘못된 작업 경로 실패를 확인했다. 생성 프로세스 최대 RSS는 573,198,336바이트(약 547MiB), 부모의 GC 후 JS 힙은 8,846,928 → 9,069,416바이트였다. 부모 RSS는 74,035,200 → 83,611,648바이트이며 압축 결과 약 10MB만 전달됐다. 양쪽 종료 경로에서 신규 임시 디렉터리 잔여 0개였다. 컨테이너별 메모리 제한은 별도 확인이 필요하다.
 - 복원 관련 4개 테스트가 통과했다. 전체 원본 비트·높이·이동·충돌 비교 외에 Float32/Float64/Uint16/Uint32의 독립 버퍼와 공유 참조, 잘못된 정렬·음수 오프셋·소수/과대 길이·미지원 타입, 1/7/31바이트 경계로 분할한 gzip 스트림을 검증한다.
+- 2차 변경에서는 복원 5개와 기믹 회귀 10개, 총 15개 테스트가 통과했다. 상점의 모든 몸체·지붕·벽 속성·노멀·인덱스·bounds를 포함한 전체 비트 비교, 설치된 형상 재사용, 건물 데이터가 없는 이전 파일의 원본 복구, 망치 수직 타격 및 기존 점프 기믹을 검증한다.
