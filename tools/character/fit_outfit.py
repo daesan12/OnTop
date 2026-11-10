@@ -1,7 +1,7 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
        [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0|back|all rim_neck=20] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0] [hair_trim=z,y]
-       [lining_hidden=1] [skin_any=1] [wing_parts=N,M wing_blend=0.025] [cover_hands=1] [hair_hides_front=0.03 | hair_hides_above=z] [face_scale=1.15] [gloves=1]
+       [lining_hidden=1] [skin_any=1] [keep_holes=N,M] [wing_parts=N,M wing_blend=0.025] [cover_hands=1] [hair_hides_front=0.03 | hair_hides_above=z] [face_scale=1.15] [gloves=1]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -169,7 +169,10 @@ def fill_small_holes(o, max_edges=30):
                 for l in f.loops: l[uv].uv = best
     bm.to_mesh(o.data); bm.free()
     return len(newf)
+# keep_holes=N,M: those parts keep their holes (a mask's eye holes were filled white, S15P31B105-390)
+KEEP_HOLES = {f'tripo_part_{n}' for n in opt.get('keep_holes', '').split(',') if n}
 for n, o in parts.items():
+    if n in KEEP_HOLES: continue
     k = fill_small_holes(o)
     if k: print('FILL', n, k, 'faces')
 # predecimate=N:faces,...: simple parts made dense by Tripo (the gat's hat, 26k faces) are cut down first, so the
