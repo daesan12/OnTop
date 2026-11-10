@@ -3,7 +3,7 @@ import type { GameManual } from '../manual/types'
 export const jumpManual: GameManual = {
   id: 'jump', status: 'available', category: 'minigame', title: '돌탑 점프맵', subtitle: '일곱 구간의 하늘길',
   keywords: '돌탑 점프맵 석탑 오목돌 붕어빵 구름 청사초롱 방패연 연잎 ASMR',
-  players: '혼자 도전 · 함께 구경', goal: '7구간을 지나 마지막 연잎까지 가장 빠르게 완주',
+  players: '1명', goal: '7구간을 지나 마지막 연잎까지 가장 빠르게 완주',
   timing: '첫 발판에서 바로 도전 · 떨어져도 다시 도전',
   summary: '첫 번째 돌을 밟으면 바로 시작해요. 출발 표식의 E 안내는 선택 사항이며, 원하는 만큼 반복해서 도전하세요.',
   flow: [
