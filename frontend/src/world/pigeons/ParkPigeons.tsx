@@ -4,7 +4,8 @@ import { useMemo, useRef, useLayoutEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Color, Matrix4, Object3D, type InstancedMesh } from 'three'
 import { MOVEMENT, groundHeight, type QualityPreset } from '../../config'
-import { avatars } from '../../network/worldClient'
+import { avatars,sampleAvatar } from '../../network/worldClient'
+import {createPigeonVisitorSampler} from './visitorMotion'
 import { playSfx } from '../../audio/sfx'
 import {
   createBirds,
@@ -35,7 +36,7 @@ export interface PigeonHabitat {
   sites:readonly (readonly Point[])[]
   spawn:(flock:number)=>Bird[]
   environment:BirdEnvironment
-  visitors:()=>readonly Visitor[]
+  visitors?:()=>readonly Visitor[]
 }
 export function ParkPigeons({ quality,habitat }: { quality: QualityPreset;habitat?:PigeonHabitat }) {
   const meshes = useRef<(InstancedMesh | null)[]>([])
@@ -44,10 +45,12 @@ export function ParkPigeons({ quality,habitat }: { quality: QualityPreset;habita
     () => ({
       birds: (habitat?.sites??PIGEON_SITES).flatMap((_, i) => habitat?habitat.spawn(i):createBirds(i)),
       visitors: Array.from(
-        { length: 16 },
+        { length: 40 },
         () => ({ x: 0, y: 0, z: 0, vx: 0, vz: 0 }) as Visitor,
       ),
       active: [] as Visitor[],
+      sampleVisitor:createPigeonVisitorSampler(),
+      visitorIds:new Set<string>(),
       root: new Object3D(),
       part: new Object3D(),
       matrix: new Matrix4(),
@@ -70,17 +73,13 @@ export function ParkPigeons({ quality,habitat }: { quality: QualityPreset;habita
     state.active.length = 0
     const now = performance.now()
     let n = 0
-    if(habitat)state.active.push(...habitat.visitors())
-    else for (const a of avatars.values()) {
+    state.visitorIds.clear()
+    if(habitat?.visitors)state.active.push(...habitat.visitors())
+    else for (const [id,a] of avatars) {
       if (n >= state.visitors.length) break
       if (!a.connected) continue
-      const dx = a.current.x - a.previous.x,
-        dz = a.current.z - a.previous.z,
-        distance = Math.hypot(dx, dz)
       const p = state.visitors[n++]
-      p.x = a.current.x
-      p.y = a.current.y
-      p.z = a.current.z
+      const pose=sampleAvatar(a,now,{...a.current})
       const running =
         a.running &&
         a.moving &&
@@ -89,13 +88,12 @@ export function ParkPigeons({ quality,habitat }: { quality: QualityPreset;habita
         !a.tableId &&
         !a.fitnessId &&
         !a.telescopeId &&
-        now - a.at < 400 &&
-        distance >= 0.015 &&
-        distance < 3
-      p.vx = running ? (dx / distance) * MOVEMENT.runSpeed : 0
-      p.vz = running ? (dz / distance) * MOVEMENT.runSpeed : 0
+        now - a.at < 400
+      Object.assign(p,state.sampleVisitor(id,pose,now,running,MOVEMENT.runSpeed))
+      state.visitorIds.add(id)
       state.active.push(p)
     }
+    state.sampleVisitor.retain(state.visitorIds)
     for (const batch of batches.current) batch.begin()
     state.birds.forEach((b, i) => {
       const wasFlying = b.mode === 'fly'

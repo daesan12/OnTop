@@ -34,7 +34,7 @@ const generatedBenchSites = generated ? buildInteractionData({ definition: p.SET
 // Compensate the avatar's -.8 offset once, using the measured seat surface.
 export const BENCH_SEAT_HEIGHTS: ReadonlyMap<string, number> = renewal ? new Map(renewalAnchors.filter(r=>r.kind==='bench'&&r.status==='mapped').map(r=>[r.id,r.seats![0]!.contactY-r.seats![0]!.use.y+.8])) : generated ? new Map(generatedBenchSites.map(b => [b.id, b.seatHeight]))
   : new Map(base.BENCHES.map((_, i) => [`bench-${i}`, base.BENCH_PAVILIONS[i] ? 0.56 : 0.58]))
-export const FITNESS_STATIONS = renewal ? base.FITNESS_STATIONS.map(f=>{const r=renewalAnchor('fitness',f.id);return r?{...f,position:r.position!,yaw:r.yaw}:f}) : generated ? p.DRAFT_FITNESS_STATIONS : base.FITNESS_STATIONS
+export const FITNESS_STATIONS = renewal ? p.DRAFT_FITNESS_STATIONS.map(f=>{const r=renewalAnchor('fitness',f.id);return r?{...f,position:r.position!,yaw:r.yaw}:f}) : generated ? p.DRAFT_FITNESS_STATIONS : base.FITNESS_STATIONS
 // Diagonal stations need enough clearance to step outside their effective footprint.
 export const FITNESS = generated ? {...base.FITNESS,exitOffset:p.SETTINGS.fitness.exitOffset} : base.FITNESS
 export const FITNESS_AREA = generated ? p.DRAFT_FITNESS_AREA : base.FITNESS_AREA
