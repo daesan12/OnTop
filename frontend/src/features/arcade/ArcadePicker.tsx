@@ -11,7 +11,6 @@ import { usePlusMinus } from '../plusMinus/store'
 import { rpsRouletteManual } from '../rpsRoulette/manual'
 import { useRpsRoulette } from '../rpsRoulette/store'
 import { speedMoleManual } from '../speedMole/manual'
-import { speedMoleTrialEnabled } from '../speedMole/trial'
 import { SPEED_MOLE_POINTS_PER_COIN } from '../speedMole/game'
 import { closeArcade, playArcadeGame, selectArcadeGame, useArcade, type ArcadeGame } from './store'
 import '../tableLobby/paperPopup.css'
@@ -57,12 +56,10 @@ function ArcadeDialog() {
       fee: '무료', prize: `${mole?.rules.pointsPerCoin ?? MOLE_POINTS_PER_COIN}점당 1냥 · 하루 상한 안에서`,
       limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null,
       inProgress: false },
+    { id: 'speed-mole', name: speedMoleManual.title, tagline: speedMoleManual.subtitle, summary: speedMoleManual.summary,
+      fee: '무료', prize: `${SPEED_MOLE_POINTS_PER_COIN}점당 1냥 · 하루 상한 안에서`,
+      limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null, inProgress: false },
   ]
-  if (speedMoleTrialEnabled()) choices.push({
-    id: 'speed-mole', name: speedMoleManual.title, tagline: speedMoleManual.subtitle, summary: speedMoleManual.summary,
-    fee: '무료', prize: `${SPEED_MOLE_POINTS_PER_COIN}점당 1냥 · 하루 상한 안에서`,
-    limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null, inProgress: false,
-  })
   const choice = choices.find(c => c.id === selected)!
   const balance = rps?.availableBalance ?? plus?.availableBalance
 

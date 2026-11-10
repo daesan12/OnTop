@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { speedMoleRandom, SpeedMoleRound } from '../../src/features/speedMole/game'
 import { SpeedMoleService } from '../../src/features/speedMole/service'
 import { openSpeedMole, closeSpeedMole, useSpeedMole } from '../../src/features/speedMole/store'
-import { speedMoleTrialEnabled } from '../../src/features/speedMole/trial'
+import { playArcadeGame, useArcade } from '../../src/features/arcade/store'
 import { inputState } from '../../src/world/inputOwnership'
 
 describe('speed mole server/client contract', () => {
@@ -49,7 +49,7 @@ describe('speed mole server/client contract', () => {
 
 describe('speed mole park ownership', () => {
   beforeEach(()=>{vi.stubGlobal('window',Object.assign(new EventTarget(),{location:{hostname:'localhost'}}));vi.stubGlobal('document',{pointerLockElement:null});inputState.minigameOpen=false;useSpeedMole.setState({open:false})})
-  afterEach(()=>{closeSpeedMole();vi.unstubAllGlobals()})
+  afterEach(()=>{closeSpeedMole();useArcade.setState({open:false});vi.unstubAllGlobals();vi.unstubAllEnvs()})
   it('holds movement while open, avoids duplicate starts and releases only its own flag',()=>{
     inputState.chatOpen=true
     openSpeedMole();openSpeedMole()
@@ -58,12 +58,15 @@ describe('speed mole park ownership', () => {
     expect(useSpeedMole.getState().open).toBe(false);expect(inputState.minigameOpen).toBe(false);expect(inputState.chatOpen).toBe(true)
     inputState.chatOpen=false
   })
-  it('enables deployed dev while keeping deployed production out of the entry',()=>{
-    expect(speedMoleTrialEnabled('dev.on-top.world',false)).toBe(true)
-    expect(speedMoleTrialEnabled('on-top.world',false)).toBe(false)
-    expect(speedMoleTrialEnabled('localhost',false)).toBe(false)
-    expect(speedMoleTrialEnabled('localhost',true)).toBe(true)
-    vi.stubGlobal('window',Object.assign(new EventTarget(),{location:{hostname:'on-top.world'}}))
-    openSpeedMole();expect(useSpeedMole.getState().open).toBe(false)
+  it.each(['on-top.world','www.on-top.world','dev.on-top.world'])('opens the real arcade flow on %s in a production build',hostname=>{
+    vi.stubEnv('DEV',false)
+    vi.stubGlobal('window',Object.assign(new EventTarget(),{location:{hostname}}))
+    useArcade.setState({open:true,selected:'speed-mole'})
+    playArcadeGame()
+    expect(useArcade.getState().open).toBe(false)
+    expect(useSpeedMole.getState().open).toBe(true)
+    expect(inputState.minigameOpen).toBe(true)
+    closeSpeedMole()
+    expect(inputState.minigameOpen).toBe(false)
   })
 })

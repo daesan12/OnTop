@@ -1,12 +1,11 @@
 import { create } from 'zustand'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
-import { speedMoleTrialEnabled } from './trial'
 
 export const useSpeedMole = create<{ open: boolean }>(() => ({ open: false }))
 
-/** Trial scores stay in the mounted panel; no wallet, result or ranking API is called. */
+/** Opening owns park input; the panel still waits for the server to approve a round. */
 export function openSpeedMole() {
-  if (!speedMoleTrialEnabled() || useSpeedMole.getState().open) return
+  if (useSpeedMole.getState().open) return
   clearRoamingInput()
   inputState.minigameOpen = true
   if (document.pointerLockElement) document.exitPointerLock()
