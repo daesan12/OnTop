@@ -5,7 +5,7 @@ import { plusMinusManual } from '../plusMinus/manual';
 import { moleManual } from '../mole/manual';
 import { speedMoleManual } from '../speedMole/manual';
 import { alkkagiManual } from '../../game/alkkagi/manual';
-import { GENERATED_PARK_ENABLED } from '../../park/mapSelection';
+import { JUMPMAP_ENABLED } from '../../park/mapSelection';
 import { bungeoppangV4Preview, bungeoppangV5Enabled, bungeoppangV5Preview } from '../bungeoppang/config';
 import type { GameManual, GuideId, ManualCategory, ManualSection } from './types';
 
@@ -33,7 +33,7 @@ const allGameManuals: GameManual[] = [
   moleManual,
   speedMoleManual,
 ];
-export const gameManuals =allGameManuals.filter(game => GENERATED_PARK_ENABLED || game.id !== 'jump');
+export const gameManuals =allGameManuals.filter(game => JUMPMAP_ENABLED || game.id !== 'jump');
 
 if (bungeoppangV5Enabled) {
   const bread = gameManuals.find(game => game.id === 'fish-bread')!;

@@ -1,0 +1,7 @@
+import {parkGround} from './groundGeometry.ts'
+import {heightAt} from './plan.ts'
+/** Spatial lookup of the rendered terrain triangles, including clipped verge corners. */
+const p=parkGround.grass.getAttribute('position'),triangles:number[]=[],bins=new Map<number,number[]>(),key=(x:number,z:number)=>(x+256)*1024+z+256
+for(const g of[parkGround.grass,parkGround.paving]){const ix=g.getIndex()!;for(let i=0;i<ix.count;i+=3){const a=ix.getX(i),b=ix.getX(i+1),c=ix.getX(i+2),x0=Math.floor(Math.min(p.getX(a),p.getX(b),p.getX(c))),x1=Math.floor(Math.max(p.getX(a),p.getX(b),p.getX(c))),z0=Math.floor(Math.min(p.getZ(a),p.getZ(b),p.getZ(c))),z1=Math.floor(Math.max(p.getZ(a),p.getZ(b),p.getZ(c))),id=triangles.length;triangles.push(a,b,c);for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++){const k=key(x,z),list=bins.get(k)??[];list.push(id);bins.set(k,list)}}}
+export function groundSurfaceHeight(x:number,z:number){let y=-Infinity;for(const id of bins.get(key(Math.floor(x),Math.floor(z)))??[]){const a=triangles[id]!,b=triangles[id+1]!,c=triangles[id+2]!,ax=p.getX(a),az=p.getZ(a),bx=p.getX(b),bz=p.getZ(b),cx=p.getX(c),cz=p.getZ(c),d=(bz-cz)*(ax-cx)+(cx-bx)*(az-cz);if(Math.abs(d)<1e-12)continue;const u=((bz-cz)*(x-cx)+(cx-bx)*(z-cz))/d,v=((cz-az)*(x-cx)+(ax-cx)*(z-cz))/d,w=1-u-v;if(u>=-1e-5&&v>=-1e-5&&w>=-1e-5)y=Math.max(y,u*p.getY(a)+v*p.getY(b)+w*p.getY(c))}return Number.isFinite(y)?y:heightAt(x,z)+.085}
+export const guardFloorY=(x:number,z:number)=>groundSurfaceHeight(x,z)+.035

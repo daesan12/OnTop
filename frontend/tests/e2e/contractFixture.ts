@@ -35,6 +35,8 @@ export async function screenshot(page: Page, name: string, animations: 'allow' |
 export async function fixture(
   page: Page,
   options: {
+    anchors?: readonly import('../../src/config').TableAnchor[]
+    facilityCatalog?: Parameters<typeof facilityFixture>[0]['catalog']
     generatedPark?: boolean
     connectedMap?: { mapId: string; schemaVersion: number; mapVersion: string }
     channelName?: string
@@ -74,7 +76,7 @@ export async function fixture(
   } = {},
 ) {
   options = { ...options, generatedPark: options.generatedPark ?? test.info().project.metadata.generatedPark === true }
-  const anchors = options.generatedPark ? PARK_LAYOUT.DRAFT_TABLES : TABLES
+  const anchors = options.anchors ?? (options.generatedPark ? PARK_LAYOUT.DRAFT_TABLES : TABLES)
   const anchor = anchors.find(t => t.id === options.anchorId) ?? anchors[0]!
   const expectedMapVersion = options.mapVersion ?? (options.generatedPark ? PARK_MAP_VERSION : EXPECTED_MAP_VERSION)
   const startingSeat = tableSeats(anchor)[0]!
@@ -449,6 +451,7 @@ export async function fixture(
   }
   const approveTableLeave = (ws: WebSocketRoute, requestId: string) => {
     seated = false
+    if(anchor.seatExits?.[0])Object.assign(position,anchor.seatExits[0])
     emit(ws, 'TABLE_LEFT', { tableId }, requestId)
     world(ws)
   }
@@ -456,7 +459,7 @@ export async function fixture(
     emit: (type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id),
     world: () => world(sockets.at(-1)!), position, userId: ownId,
     remotePosition: pose => { remotePosition = pose },
-    ...(options.generatedPark ? { catalog: generatedFacilityCatalog } : {}),
+    ...(options.facilityCatalog ? {catalog:options.facilityCatalog} : options.generatedPark ? { catalog: generatedFacilityCatalog } : {}),
   })
   // Explicit public/private test snapshots for the BE contract, not a local game engine.
   const scriptedForfeitState = () => {
@@ -1122,6 +1125,7 @@ export async function fixture(
     close: (code: number) =>
       sockets.at(-1)!.close({ code, reason: 'Fixture close' }),
     notesChanged: (revision: unknown) => emit(sockets.at(-1)!, 'NOTES_CHANGED', { revision }),
+    jumpmapEvent: (type:string,payload:object) => {if(!type.startsWith('JUMPMAP_'))throw new Error('Expected a jumpmap event');emit(sockets.at(-1)!,type,payload)},
     endSession: () => {
       loggedIn = false
       sockets.at(-1)!.close({ code: 4401, reason: 'Login session ended' })

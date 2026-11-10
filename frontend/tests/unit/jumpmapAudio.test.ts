@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { COURSE } from '../../src/features/jumpmap/course'
+import { COURSE, LEGACY_COURSE } from '../../src/features/jumpmap/course'
 import type { JumpHit } from '../../src/layout-preview/jumpSimulation'
 import type { JumpTheme } from '../../src/layout-preview/jumpCourse'
 
 const hit = (theme: JumpTheme, ordinal = 0, kind: JumpHit['kind'] = 'land'): JumpHit =>
-  ({ id: 1, pad: { ...COURSE.find(p => p.theme === theme)!, ordinal }, time: 0, kind })
+  ({ id: 1, pad: { ...LEGACY_COURSE.find(p => p.theme === theme)!, ordinal }, time: 0, kind })
 const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve() }
 const response = () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(4) })
 const param = () => ({ value: 0, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() })

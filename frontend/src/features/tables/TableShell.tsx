@@ -2,13 +2,14 @@ import { ParkAlkkagiBoard } from '../../game/alkkagi/ParkAlkkagiBoard'
 import { SIMPLE_MAP } from '../../world/art/mapRenderProfile'
 import { Suspense, useMemo } from 'react'
 
-import { GOMOKU, TABLE_SEATS, tableScale, tableSeats, type TableAnchor } from '../../config'
+import { TABLE_SEATS, tableScale, tableSeats, type TableAnchor } from '../../config'
 import { interactWithTable } from '../tableLobby/tableInteraction'
 import { Instances, yawPart, type Part } from '../../world/art/Instances'
 
 import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
 import { BeveledBox } from '../../world/art/BeveledBox'
 import { PavilionWoodTable } from './PavilionWoodTable'
+import { outdoorStoneTableParts } from './outdoorStoneTableParts'
 import { StonePicnicTable } from './StonePicnicTable'
 import { MainPavilionTable } from './MainPavilionTable'
 import { OmokBoard } from '../../game/OmokBoard'
@@ -21,8 +22,8 @@ import { usePresentedChairCount } from '../tableLobby/useTablePresentation'
 import {DebrisGameSurface} from '../parkDebris/presentation'
 
 /** Stable game/seat anchors survive replacement of the visual table subtree. */
-export function TableShell({ anchor, onInspect = interactWithTable }: {
-  anchor: TableAnchor; onInspect?: (id: string) => void
+export function TableShell({ anchor, onInspect = interactWithTable, visual = true }: {
+  anchor: TableAnchor; onInspect?: (id: string) => void; visual?:boolean
 }) {
   const fourSeats = true
   const mainPavilion = anchor.pavilionId === 'P0'
@@ -50,23 +51,7 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
       }
       return {stone,supports}
     }
-    const stone: Part[] = [
-      { p: [0, 0.99, 0], s: [2.1, 0.14, 1.6], c: '#c7c6b9' },
-    ]
-    const supports: Part[] = []
-    for (const x of [-0.7, 0.7])
-      supports.push({ p: [x, 0.46, 0], s: [0.28, 0.92, 1.15], c: '#545e57' })
-    for (const z of GOMOKU.seatZ) {
-      stone.push({ p: [0, 0.48, z], s: [2.1, 0.16, 0.52], c: '#c3c3b7' })
-      for (const x of [-0.7, 0.7])
-        supports.push({ p: [x, 0.2, z], s: [0.28, 0.4, 0.43], c: '#545e57' })
-    }
-    if (fourSeats)
-      for (const { x, z } of TABLE_SEATS.slice(2, seatCount)) {
-        stone.push({ p: [x, 0.48, z], s: [0.52, 0.16, 0.85], c: '#c3c3b7' })
-        supports.push({ p: [x, 0.2, z], s: [0.32, 0.4, 0.6], c: '#545e57' })
-      }
-    return { stone, supports }
+    return outdoorStoneTableParts(seatCount)
   }, [fourSeats, seatCount, anchor])
   return (
     <group
@@ -79,7 +64,7 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
         onInspect(anchor.id)
       }}
     >
-      {anchor.picnicId ? (
+      {!visual ? <mesh position={[0,1.06,0]} visible={false}><cylinderGeometry args={[1.5,1.5,.3,16]}/><meshBasicMaterial/></mesh> : anchor.picnicId ? (
         <StonePicnicTable seatCount={seatCount} />
       ) : !SIMPLE_MAP&&mainPavilion ? (
         <MainPavilionTable seatCount={seatCount} />

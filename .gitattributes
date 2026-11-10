@@ -1,5 +1,7 @@
 # These checksummed artifacts must retain the same bytes on Windows and Linux.
 frontend/src/park-renewal/approved/** text eol=lf
+# Preserve checksummed upstream asset source bytes, including intentional EOF spacing.
+frontend/src/park-renewal/approved/** whitespace=-blank-at-eof
 frontend/park-renewal-assets.lock.json text eol=lf
 frontend/park-renewal-baseline.json text eol=lf
 frontend/generated/park-renewal/*.json text eol=lf

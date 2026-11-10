@@ -1,0 +1,44 @@
+{
+  "date": "2026-11-09",
+  "base": "0c337594eaa22b7a3d10a801f0faef5e9889e80c",
+  "localOnly": true,
+  "manualWalk": {
+    "method": "Selected the fishing site once in walk mode, then used native WASD keys with camera direction shortcuts only. No intermediate position changes or automatic route movement.",
+    "observations": [
+      {"place": "public road start", "x": 95.5, "z": -39, "y": 4.085},
+      {"place": "lower deck after timber access", "x": 86.1175, "z": -40.9683, "y": 4.28},
+      {"place": "lower deck beside stair toe", "x": 86.1175, "z": -36.8737, "y": 4.28},
+      {"place": "upper shop landing after climbing", "x": 84.7495, "z": -42.4686, "y": 7.5},
+      {"place": "lower deck after descending", "x": 84.7495, "z": -36.8481, "y": 4.28},
+      {"place": "public road after return through gate", "x": 95.0302, "z": -40.9471, "y": 4.1048}
+    ],
+    "outcome": "Entered, climbed, descended and returned without blockage or missing floor. Upper and lower walking surfaces remained separate."
+  },
+  "geometry": {
+    "previousLowerArea": 180,
+    "currentLowerArea": 111.56624048195681,
+    "upperArea": 63.915289952027706,
+    "stairs": {"width": 2.1, "steps": 19, "bottom": 4.28, "top": 7.5},
+    "roadClearance": "Both deck outlines are clipped at least 0.35m from the full 8m diagonal public road.",
+    "bridge": "Road centre x=26.5, half width=3; wood bridge starts x=29.7, with a 0.2m abutment.",
+    "boats": {"moored": 2, "circulating": 1},
+    "centralTables": 6,
+    "chairsPerTable": 2,
+    "stele": {"x": -58, "z": 26, "yawDegrees": 30}
+  },
+  "verification": {
+    "broadRun": "80 tests across 14 Vitest files; initial table-count expectation and deck/road overlap failures corrected and rechecked in focused suites.",
+    "finalWholeParkAndTwoLevel": {"passed": 11, "failed": 0, "log": ".vite-cache/twolevel-final-clearance.log"},
+    "roundedRoadAndTreeIsland": "Passed after reducing the small island tree to fit its canopy clearance.",
+    "node": {"passed": 23, "failed": 0, "log": ".vite-cache/twolevel-node.log"},
+    "vehicleScenarios": "36 bicycle/scooter sweeps on three routes, both directions and three lane positions passed.",
+    "finalVehicleAudit": {"passed": 7, "failed": 0, "log": ".vite-cache/twolevel-final-rides.log"},
+    "finalRoundedLandscape": {"passed": 4, "failed": 0, "log": ".vite-cache/twolevel-final-lawn-test.log"},
+    "weldedCurbsRegression": {"passed": 20, "failed": 0, "log": ".vite-cache/twolevel-curb-welded.log"},
+    "visualReview": "Final Chrome views confirmed rounded entrance, tiled wall caps covered by roof, continuous cafe verge, bridge ending at the public road edge, and two-storey timber fishing deck/stairs/rails.",
+    "typecheck": "passed",
+    "build": "passed"
+  },
+  "remoteWrites": "No commit, push, MR, merge, deploy, Jenkins execution or branch deletion.",
+  "limits": "Local standalone preview only; actual server rental/network flows and a VR headset were not tested."
+}

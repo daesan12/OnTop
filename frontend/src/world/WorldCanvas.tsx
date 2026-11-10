@@ -4,9 +4,10 @@ import { seatScope, useTableLobby } from '../features/tableLobby/state'
 import { MAP_RENDER_BUDGET } from './art/mapRenderProfile'
 import { ParkSoundscape } from '../audio/ParkSoundscape'
 import { lazy } from 'react'
-import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
+import { GENERATED_PARK_ENABLED, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
 const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
+const RenewalParkWorld=lazy(()=>import('../park-renewal/runtime/RenewalWorld').then(m=>({default:m.RenewalWorld})))
 const ServiceJumpCourse=lazy(()=>import('../features/jumpmap/ServiceJumpCourse').then(m=>({default:m.ServiceJumpCourse})))
 import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
@@ -186,9 +187,9 @@ export const WorldCanvas = memo(function WorldCanvas({
           <ParkSun quality={quality} />
           <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />
           <Suspense fallback={null}>
-            {GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>:<PlaceholderWorld quality={quality} />}
+            {RENEWAL_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><RenewalParkWorld/></group>:GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>:<PlaceholderWorld quality={quality} />}
             {GENERATED_PARK_ENABLED && <ServiceJumpCourse />}
-            <RpsRouletteCabinet />
+            {!RENEWAL_PARK_ENABLED&&<RpsRouletteCabinet />}
             {/* Same Suspense boundary as SceneReady: both use positive frame priorities around its render. */}
             <OmokFocusLighting />
             <SceneReady onReady={onReady} />
@@ -199,7 +200,7 @@ export const WorldCanvas = memo(function WorldCanvas({
           <BungeoppangGrill />
           <ParkDebrisScene />
 
-          {!GENERATED_PARK_ENABLED&&<ParkPigeons quality={quality} />}
+          {!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&<ParkPigeons quality={quality} />}
           <CameraRig />
           {TABLET_ENABLED && <TableTablet3D />}
           <PerformanceProbe />

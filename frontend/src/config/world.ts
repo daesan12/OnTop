@@ -54,6 +54,10 @@ export interface TableAnchor {
   spectatorRadius: number
   pavilionId?: string
   picnicId?: string
+  /** Explicit world-space poses for authored maps with rotated/raised furniture. */
+  seatUse?: readonly {x:number;y:number;z:number;yaw:number}[]
+  seatExits?: readonly {x:number;y:number;z:number;yaw:number}[]
+  floorY?: number
 }
 export const WORLD = {
   halfSize: PARK_SIZE / 2,

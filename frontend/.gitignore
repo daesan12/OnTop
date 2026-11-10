@@ -3,10 +3,16 @@ node_modules/
 .vite-cache/
 dist/
 dist-park/
+dist-park-renewal/
+dist-renewal/
+dist-renewal-integration/
+# Rebuilt from the final source commit; committing these would create a SHA/version cycle.
+generated/park-renewal/
 dist-skewer-coop/
 .pnpm-store/
 *.tsbuildinfo
 .vercel
+vercel-deployment-url.txt
 .env*
 
 # Local map generator coordination (outputs are committed separately)

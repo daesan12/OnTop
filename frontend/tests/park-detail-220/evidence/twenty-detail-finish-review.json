@@ -1,0 +1,107 @@
+{
+  "date": "2026-11-09",
+  "base": "63bf1b4746e8a6842192dba37d371b0ab7244856",
+  "worktree": "C:/Users/SSAFY/Desktop/OnTop/park-detail-220-local-20261108",
+  "backup": "C:/Users/SSAFY/Desktop/OnTop/local-park-revisions/20261109-before-twenty-detail-finish",
+  "localOnly": true,
+  "git": {
+    "fetch": "Initial sandbox DNS failure; explicit elevated git fetch origin dev succeeded.",
+    "integration": "Fast-forward from 0c337594 to 63bf1b47; no conflict; previous tracked and untracked edits preserved.",
+    "remoteWrites": false,
+    "commit": false,
+    "push": false,
+    "mr": false,
+    "mergeToSharedBranch": false,
+    "deploy": false,
+    "jenkins": false,
+    "branchDeletion": false
+  },
+  "changes": {
+    "mainStair": "Removed coplanar upper landing slab; single terrain landing, continuous linear top rail, supported masonry cheeks and matching walking height.",
+    "lamps": "Moved park hillside lamps toward the path side of the guards, removed wall-foot lamps.",
+    "tables": {
+      "central": 6,
+      "chairsEach": 2,
+      "minimumCentreGap": 11.66,
+      "jump": 1
+    },
+    "rankingMailbox": "Different yaws aimed at plaza entrance (0,58); reduced mailbox scale 2.7; tree-free front visibility corridors.",
+    "fountainRental": "Relocated paired bays to flat grass at (60,38), separate from fountain descent.",
+    "groves": "Enlarged the two planting pockets; two trees on each, plus mole side/rear belt; entrances and road clearance retained.",
+    "fishing": "Shop yaw 90 degrees. Timber access is normal to the 8m road and ends at its edge. Curved railing opening follows the full access width; column caps stop below floors.",
+    "shoreBridge": "Removed duplicate island terrain cap; smooth single raised elliptical island side; shore planting band; one bridge railing system, piers inset beneath timber width.",
+    "tower": "Rounded stone approach reaches first timber ramp.",
+    "balloon": "Removed terrain beneath station and redundant stone approach; continuous surrounding grass and wall finish.",
+    "curbsGuards": "Subcell seams joined; curved curb corners, shared guard paths, exact summit-to-ascent joins. Guard posts spaced approximately 2m and anchored to the actual ground at every station.",
+    "hiddenExit": "Unmarked graded grass ascent with concealed opening joins the woodland path; public navigation unchanged."
+  },
+  "manualHiddenExitWalk": {
+    "method": "Initial private inspection shortcut placed the actor outside the exit once. Then native WASD keys only; no intermediate relocation or automatic route.",
+    "positions": [
+      [
+        -60.2,
+        11.856,
+        -88
+      ],
+      [
+        -61.7642,
+        11.8215,
+        -88
+      ],
+      [
+        -66.1257,
+        13.1548,
+        -85.0169
+      ],
+      [
+        -72.2,
+        15.658,
+        -78.9902
+      ],
+      [
+        -78.74,
+        16.5266,
+        -71.1164
+      ],
+      [
+        -78.74,
+        16.3915,
+        -68.3084
+      ]
+    ],
+    "outcome": "Reached the public woodland path without blockage. This walk exposed some floating slope-guard bases; their height sampling was corrected afterward and received a mesh-ground contact regression.",
+    "finalRepeat": {
+      "method": "Repeated the same native keyboard route after all guard ground-height fixes.",
+      "end": {
+        "x": -78.7284,
+        "z": -68.3723,
+        "y": 16.395
+      },
+      "outcome": "Reached the public woodland road again; inspected the corrected grounded guard posts."
+    }
+  },
+  "verification": {
+    "roadAndFishingGate": ".vite-cache/twenty-junction-tests.log (23 passed)",
+    "node": ".vite-cache/twenty-node-complete.log (23 passed)",
+    "remainingRegression": ".vite-cache/twenty-final-remaining.log (57 passed; one low wall-foot guard failure corrected in final guard run)",
+    "finalGuardRun": {
+      "passed": 30,
+      "failed": 0,
+      "log": ".vite-cache/twenty-guard-final.log"
+    },
+    "typecheck": {
+      "result": "passed",
+      "log": ".vite-cache/twenty-guard-final-types.log"
+    },
+    "build": {
+      "result": "passed",
+      "log": ".vite-cache/twenty-guard-final-build.log"
+    },
+    "finalVisualReview": "Chrome: reviewed stair/landing, two-storey fishing shop and access, cafe/bridge, enlarged grass island, separated central tables, balloon approach, pavilion entrance and grounded slope guards. Left the latest full park overview open."
+  },
+  "limits": [
+    "Local standalone preview only.",
+    "No live server rental/network interaction or headset test.",
+    "Existing large build chunk and Three CJS warnings remain."
+  ]
+}
