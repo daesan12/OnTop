@@ -9,8 +9,9 @@ import {createPigeonVisitorSampler} from '../../src/world/pigeons/visitorMotion'
 import {accessWalkPatches,localPoint} from '../../src/park-renewal/accessSurfaces'
 import {renewalWalkSupports} from '../../src/park-renewal/walkSupportExport'
 import {parkWalkSurface} from '../../src/park-renewal/surfaceHeight'
-import {canTravel} from '../../src/park-renewal/travelMotion'
+import {canTravel,clearSolidMotion} from '../../src/park-renewal/travelMotion'
 import {BRIDGE,site,heightAt,REST_PAVILIONS,SUB_PAVILION_SCALE} from '../../src/park-renewal/plan'
+import {renewalSolidBoxes,blocksSolidPoint} from '../../src/park-renewal/solidCollision'
 
 describe('latest park interaction and traversal contracts',()=>{
  it('uses the visible inversion station kind/name/base height while keeping its persistent ID',()=>{
@@ -82,5 +83,15 @@ describe('latest park interaction and traversal contracts',()=>{
   const [x,z]=REST_PAVILIONS[0]!,yaw=site('rest-1').yaw!,unit=1.1*SUB_PAVILION_SCALE
   const a=localPoint(0,3.76*unit,x,z,yaw),b=localPoint(0,3.71*unit,x,z,yaw)
   expect(canTravel(a,b,parkWalkSurface(...a),'walk',yaw)).toBe(true)
+ })
+ it('activates outdoor side-stool collision only with the approved presented chair count',()=>{
+  const rows=renewalAnchors,table=rows.find(r=>r.kind==='table'&&r.status==='mapped'&&!r.pavilionId)!,seat=table.seats![2]!.use,boxes=renewalSolidBoxes(rows)
+  expect(blocksSolidPoint(boxes,seat.x,seat.z,table.floorY!,new Map([[table.id,2]]))).toBe(false)
+  expect(blocksSolidPoint(boxes,seat.x,seat.z,table.floorY!,new Map([[table.id,4]]))).toBe(true)
+ })
+ it('keeps solid table sweeps while airborne and permits passing above their finite height',()=>{
+  const table=renewalAnchors.find(r=>r.kind==='table'&&r.status==='mapped'&&!r.pavilionId)!,[x,,z]=table.position!,floor=table.floorY!
+  expect(clearSolidMotion([x-3,z],[x+3,z],floor+1)).toBe(false)
+  expect(clearSolidMotion([x-3,z],[x+3,z],floor+4)).toBe(true)
  })
 })

@@ -3,7 +3,7 @@ import type {PredictionSimulation} from '../../network/localMovementPrediction'
 import type {MovementIntent} from '../../network/movementInput'
 import type {Pose} from '../../network/worldClient'
 import {parkWalkSurface} from '../surfaceHeight'
-import {canTravel} from '../travelMotion'
+import {canTravel,clearSolidMotion} from '../travelMotion'
 import {JUMP_SEQUENCE,containsPad} from '../jump10Plan'
 import {jumpPadPose} from '../jumpGimmicks'
 import {renewalJumpMotion,syncJumpMotion,visibleJumpPad,renewalPadAt} from './jumpMotion'
@@ -13,7 +13,8 @@ import {useJumpmap} from '../../features/jumpmap/state'
 export class RenewalPrediction implements PredictionSimulation{
  private p:Pose={x:0,y:4.8,z:108,yaw:Math.PI};private motion=new ParkMotion();private grounded=true;private jumped=false;private moving=false;private running=false;private support=''
  reset(p:Pose,vy:number,grounded:boolean){this.p={...p};this.grounded=grounded;this.motion.reset(vy);syncJumpMotion();this.support=renewalPadAt({x:p.x,y:p.y-.8,z:p.z})?.id??''}
- setChairs(){} dispose(){} stopHorizontal(){this.motion.stopHorizontal();this.moving=this.running=false}
+ private chairs:ReadonlyMap<string,number>=new Map()
+ setChairs(counts:ReadonlyMap<string,number>){this.chairs=counts} dispose(){} stopHorizontal(){this.motion.stopHorizontal();this.moving=this.running=false}
  pose(){return{...this.p}} movementFlags(){return{moving:this.moving,running:this.running}} groundedForLocomotion(){return this.grounded} stepSupported(){return this.grounded} stepJumped(){return this.jumped}
  step(input:MovementIntent,seconds:number){
   syncJumpMotion()
@@ -23,7 +24,7 @@ export class RenewalPrediction implements PredictionSimulation{
   const wanted=this.motion.advance(input,dt,this.grounded),x=from.x+wanted.x,z=from.z+wanted.z
   this.jumped=!!input.jump&&this.grounded
   const airborneCourse=enabled&&!!useJumpmap.getState().run&&(!!prior||foot>parkWalkSurface(from.x,from.z)+2)
-  const allowed=airborneCourse?clearMotionSegment([from.x,from.z],[x,z],foot,{water:true,air:true}):canTravel([from.x,from.z],[x,z],foot,'walk',Math.atan2(wanted.x,wanted.z)),nx=allowed?x:from.x,nz=allowed?z:from.z
+  const allowed=airborneCourse?clearMotionSegment([from.x,from.z],[x,z],foot,{water:true,air:true})&&clearSolidMotion([from.x,from.z],[x,z],foot,this.chairs):canTravel([from.x,from.z],[x,z],foot,'walk',Math.atan2(wanted.x,wanted.z),this.chairs),nx=allowed?x:from.x,nz=allowed?z:from.z
   let floor=parkWalkSurface(nx,nz,foot),support=''
   if(enabled)for(const p of JUMP_SEQUENCE){
    if(!visibleJumpPad(p)||!containsPad(p,nx,nz))continue

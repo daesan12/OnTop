@@ -21,7 +21,7 @@ const near=(id:string):V3=>{const s=site(id),p=ENTRANCE_PATHS.find(p=>p.id===id)
 for(const f of DEV.facilities){const id=FACILITY_TARGETS[f.id]!,s=site(id),y=['pagoda','fountain','fitness','tower','jump'].includes(id)?heightAt(s.x,s.z):facilityBase(id)
  put('facility',f.id,s.name,f.position,id,[s.x,y+(id==='pagoda'?1.8:0),s.z],id==='tower'?Math.PI:['pagoda','fountain','fitness','jump'].includes(id)?0:facilityYaw(s),{reach:pose(near(id)),radius:3,heightTolerance:.7})}
 /** Explicit persistent identities; removed pavilions are reserved, never silently reused. */
-function pavilionPlacement(id:string){const target=PAVILION_TARGETS[id];if(!target)return null;const s=site(target),main=id==='P0',yaw=main?Math.PI:target==='island-pavilion'?-Math.PI/2:s.yaw!,scale=main?1:1.1*SUB_PAVILION_SCALE,ground=main?facilityBase(target):heightAt(s.x,s.z),floor=ground+(main?2.615:.572*scale);return{target,s,main,yaw,scale,ground,floor}}
+function pavilionPlacement(id:string){const target=PAVILION_TARGETS[id];if(!target)return null;const s=site(target),main=id==='P0',yaw=main?Math.PI:target==='island-pavilion'?-Math.PI/2:s.yaw!,scale=main?1:1.1*SUB_PAVILION_SCALE,ground=main?facilityBase(target):heightAt(s.x,s.z),floor=ground+(main?2.6:.57*scale);return{target,s,main,yaw,scale,ground,floor}}
 for(const p of DEV.pavilions){const q=pavilionPlacement(p.id);put('pavilion',p.id,q?.s.name??p.id,[p.x,p.floor,p.z],q?.target??null,q?[q.s.x,q.ground,q.s.z]:null,q?.yaw??0,{floorY:q?.floor,reason:q?undefined:'현재 공원에 대응 팔각정 없음 · ID 보존',scale:q?[q.scale,q.scale,q.scale]:[1,1,1]})}
 for(const t of DEV.tables){
  const pav=t.pavilionId?pavilionPlacement(t.pavilionId):null,stone=STONE_TABLE_TARGETS[t.id]

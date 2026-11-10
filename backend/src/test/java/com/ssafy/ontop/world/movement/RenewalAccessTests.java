@@ -1,5 +1,6 @@
 package com.ssafy.ontop.world.movement;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jme3.bullet.PhysicsSpace;
 import com.jme3.bullet.objects.PhysicsRigidBody;
 import com.ssafy.ontop.world.map.PreparedParkMap;
@@ -99,6 +100,23 @@ class RenewalAccessTests {
             승인한다(id + " 내림", path);
             Collections.reverse(path);
             승인한다(id + " 오름", path);
+        }
+    }
+
+    @Test
+    void 검수된_모든_탁자_퇴장_좌표가_막히지_않는다() throws Exception {
+        var mapping = new ObjectMapper().readTree(Path.of("../frontend/generated/park-renewal/mapping.json").toFile());
+        for (var row : mapping.path("coordinates")) {
+            if (!"table".equals(row.path("kind").asText()) || !"mapped".equals(row.path("status").asText())) {
+                continue;
+            }
+            for (var seat : row.path("seats")) {
+                var exit = seat.path("exit");
+                var pose = new ClientPositionValidator.Pose(exit.path("x").asDouble(),
+                        exit.path("y").asDouble(), exit.path("z").asDouble());
+                assertThat(geometry.supported(pose)).as("%s 퇴장 지지면: %s", row.path("id"), pose).isTrue();
+                assertThat(geometry.clear(pose, pose, false)).as("%s 퇴장 충돌: %s", row.path("id"), pose).isTrue();
+            }
         }
     }
 

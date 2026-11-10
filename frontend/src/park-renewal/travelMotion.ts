@@ -22,12 +22,21 @@ const rentals=SITES.filter(s=>s.asset==='pair').map(s=>({x:s.x,z:s.z,...facility
 /** The paired canopy is wide and shallow; a circular proxy blocked its empty approach. */
 export function rentalBlocksTravel(x:number,z:number){return rentals.some(s=>{const dx=x-s.x,dz=z-s.z,c=Math.cos(s.yaw),v=Math.sin(s.yaw);return Math.abs(c*dx-v*dz)<s.half[0]+.15&&Math.abs(v*dx+c*dz)<s.half[1]+.15})}
 export function facilityBlocksTravel(x:number,z:number,y:number){if(cafeBlocksTravel(x,z)||rentalBlocksTravel(x,z))return true;const a=SITES.find(s=>s.id==='arcade')!,yaw=facilityYaw(a),dx=x-a.x,dz=z-a.z,lx=Math.cos(yaw)*dx-Math.sin(yaw)*dz,lz=Math.sin(yaw)*dx+Math.cos(yaw)*dz,hx=9*ARCADE_SCALE[0],hz=6*ARCADE_SCALE[2];if(Math.abs(lx)<hx+.25&&Math.abs(lz)<hz+.25)return Math.abs(lx)>hx-.25||lz< -hz+.25||lz>hz-.25&&Math.abs(lx)>1.1;return !(horrorState.open&&y<HORROR.floor+HORROR.height&&inHorror(x,z))&&SITES.some(s=>s.radius&&!s.kind&&s.asset!=='pair'&&!['cafe','arcade','plaza','fitness','fishing','dock','tower','jump','balloon','island-pavilion','pavilion'].includes(s.id)&&!s.id.startsWith('rest-')&&Math.hypot(x-s.x,z-s.z)<(s.id==='fountain'?6.7:Math.min(s.radius*.55,7)))}
+/** Solid furniture/pillars also apply to airborne jump-course prediction. */
+export function clearSolidMotion(from:Point,to:Point,y:number,chairs?:ReadonlyMap<string,number>){
+ const samples=Math.max(1,Math.ceil(Math.hypot(to[0]-from[0],to[1]-from[1])/.1))
+ for(let i=1;i<=samples;i++){
+  const x=from[0]+(to[0]-from[0])*i/samples,z=from[1]+(to[1]-from[1])*i/samples
+  if(blocksSolidPoint(solids,x,z,y,chairs)||roundTables.some(t=>y<t.top&&y+1.6>t.bottom&&Math.hypot(x-t.x,z-t.z)<t.radius+MOVEMENT.radius))return false
+ }
+ return true
+}
 /** Swept centre and vehicle envelope, shared by keyboard movement and the local ride audit. */
-export function canTravel(from:Point,to:Point,y:number,travel:Travel,yaw:number){
+export function canTravel(from:Point,to:Point,y:number,travel:Travel,yaw:number,chairs?:ReadonlyMap<string,number>){
+ if(!clearSolidMotion(from,to,y,chairs))return false
  const length=Math.hypot(to[0]-from[0],to[1]-from[1]),samples=Math.max(1,Math.ceil(length/.1))
  for(let i=1;i<=samples;i++){
   const x=from[0]+(to[0]-from[0])*i/samples,z=from[1]+(to[1]-from[1])*i/samples
-  if(blocksSolidPoint(solids,x,z,y)||roundTables.some(t=>y<t.top&&y+1.6>t.bottom&&Math.hypot(x-t.x,z-t.z)<t.radius+MOVEMENT.radius))return false
   // A tall platform side is not a step. Do not teleport the predictor through
   // its face, then fight the authoritative correction on the next packet.
   if(parkWalkSurface(x,z,y)-y>.35)return false

@@ -39,8 +39,11 @@ export function renewalSolidBoxes(rows:readonly MappedAnchor[]):PhysicalBox[]{
    const floor=r.floorY??r.position![1]
    if(native&&!b.id.endsWith('-top')&&!r.seats!.find(s=>b.id.endsWith('-chair-'+s.seatIndex))?.presented)continue
    if(native&&r.pavilionId!=='P0'&&b.id.endsWith('-top'))continue
-   const half:PhysicalBox['half']=native&&b.id.endsWith('-top')?[2.05,b.half[1],2.05]:native&&r.pavilionId!=='P0'?[.28*unit,b.half[1],.28*unit]:b.half
-   boxes.push({...b,center:[b.center[0],floor+b.half[1],b.center[2]],half,yaw:native&&b.id.endsWith('-top')?r.yaw:b.yaw})
+   const seat=r.seats!.find(s=>b.id.endsWith('-chair-'+s.seatIndex))
+   // Outdoor seats are the original long stone benches (2.1 x .52 m),
+   // with .52 x .85 m side stools when a four-player table presents them.
+   const half:PhysicalBox['half']=!native&&seat?(seat.seatIndex<2?[1.05,b.half[1],.26]:[.26,b.half[1],.425]):native&&b.id.endsWith('-top')?[2.05,b.half[1],2.05]:native&&r.pavilionId!=='P0'?[.28*unit,b.half[1],.28*unit]:b.half
+   boxes.push({...b,center:[b.center[0],floor+b.half[1],b.center[2]],half,yaw:!native&&seat?0:native&&b.id.endsWith('-top')?r.yaw:b.yaw})
   }
  }
  return boxes
@@ -53,11 +56,13 @@ export function renewalRoundTables(rows:readonly MappedAnchor[]){
  }))
 }
 
-export function blocksSolidPoint(boxes:readonly PhysicalBox[],x:number,z:number,foot:number,radius=MOVEMENT.radius){
+export function blocksSolidPoint(boxes:readonly PhysicalBox[],x:number,z:number,foot:number,chairs?:ReadonlyMap<string,number>,radius=MOVEMENT.radius){
  return boxes.some(b=>{
   if(foot>=b.center[1]+b.half[1]-.02||foot+1.6<=b.center[1]-b.half[1]+.02)return false
   const dx=x-b.center[0],dz=z-b.center[2],c=Math.cos(b.yaw),s=Math.sin(b.yaw)
   const ox=Math.max(0,Math.abs(dx*c-dz*s)-b.half[0]),oz=Math.max(0,Math.abs(dx*s+dz*c)-b.half[2])
-  return ox*ox+oz*oz<radius*radius
+  if(ox*ox+oz*oz>=radius*radius)return false
+  const chair=/^(.+)-chair-([0-3])$/.exec(b.id)
+  return !chair||Number(chair[2])<(chairs?.get(chair[1]!)??2)
  })
 }
