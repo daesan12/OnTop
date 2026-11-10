@@ -15,7 +15,7 @@ import { useSession } from '../network/worldClient'
 import { canPlace, useGame } from './store'
 import { parkRuntime } from '../park/runtime/runtime'
 import { omokCamera } from './cameraState'
-import { omokCell, stonePoint, OMOK_SIZE, OMOK_BOARD_Y, OMOK_SPACING as spacing, OMOK_HALF as half } from './omokPresentation'
+import { canShowForbiddenMarks, omokCell, stonePoint, OMOK_SIZE, OMOK_BOARD_Y, OMOK_SPACING as spacing, OMOK_HALF as half } from './omokPresentation'
 import { GomokuAssets, stoneGeometry, blackStoneMaterial as blackMaterial, whiteStoneMaterial as whiteMaterial } from './omok/GomokuAssets'
 import { FocusWood } from './omok/BoardWood'
 import { OMOK_FOCUS_LAYER } from '../world/omokCamera'
@@ -83,6 +83,7 @@ function OmokSurface({
   const connected = useSession(s => s.status === 'connected'), pending = useSession(s => s.pending)
   const scope = useSession(seatScope)
   const seatIndex = useSession(s => s.seatIndex)
+  const ownId = useSession(s => s.sessionId)
   const blackAtSouth = useSession(s => {
     const table = s.tableStates[s.tableId || s.watchedTableId]
     const seat = table?.seats.find(seat => seat.userId === game?.omok.blackUserId)?.seatNumber
@@ -218,8 +219,8 @@ function OmokSurface({
     >
       <GomokuAssets blackAtSouth={blackAtSouth} reverseSupplies={reversed} />
       <BoardCoordinates />
-      {focused && game?.omok.status === 'PLAYING' && game.omok.turnUserId === game.omok.blackUserId
-        && !!game.omok.forbiddenMoves?.length && <ForbiddenMarks points={game.omok.forbiddenMoves}/>}
+      {focused && canShowForbiddenMarks(game, ownId)
+        && !!game?.omok.forbiddenMoves?.length && <ForbiddenMarks points={game.omok.forbiddenMoves}/>}
       {game && <OmokPings gameId={game.gameId} focused={focused} />}
       {/* Decorations never pick cells; keep the approved grid's original local coordinates. */}
       <mesh name="omok-pick-surface" position={[0, 0.0005, 0]} rotation={[-Math.PI / 2, 0, 0]}>

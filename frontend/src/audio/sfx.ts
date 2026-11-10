@@ -2,11 +2,14 @@ import { effectsOutput, loadSound } from './bgm'
 
 /** File names under public/audio/bgm (shared with the music), without .ogg or the variant suffix. */
 export type SfxName = 'ui-click' | 'ui-manual' | 'ui-equip' | 'coin-gain'
-  | 'game-ready' | 'game-start' | 'game-turn' | 'omok-place' | 'dice-roll' | 'card-draw' | 'card-one'
+  | 'game-ready' | 'game-start' | 'game-turn' | 'omok-place' | 'dice-roll' | 'card-draw' | 'card-one' | 'halli-bell'
   | 'bungeo-pour' | 'bungeo-flip' | 'bungeo-burn'
   | 'emote-clap' | 'emote-tsk' | 'emote-fart' | 'emote-wave-male' | 'emote-wave-female'
   | 'move-jump' | 'move-land' | 'move-splash' | 'move-step-stone' | 'move-step-grass' | 'amb-pigeon-takeoff'
-export type SfxLoop = 'dice-shake' | 'amb-fountain' | 'amb-pond'
+  | 'alkkagi-select' | 'alkkagi-shot' | 'alkkagi-collision' | 'alkkagi-fall' | 'alkkagi-item' | 'alkkagi-turn-change'
+  | 'arcade-button' | 'arcade-roulette-slow-stop'
+  | 'mole-hit' | 'mole-hedgehog-hit' | 'mole-empty-stun' | 'mole-phase-change'
+export type SfxLoop = 'dice-shake' | 'amb-fountain' | 'amb-pond' | 'arcade-roulette-spin'
 export interface SoundPoint { x: number; y: number; z: number }
 
 // Files are peak-normalised, so these levels set how loud each cue sits against the others.
@@ -14,10 +17,16 @@ const LEVEL: Record<SfxName | SfxLoop, number> = {
   'ui-click': 0.25, 'ui-manual': 0.5, 'ui-equip': 0.45, 'coin-gain': 0.5,
   'omok-place': .6,
   'game-ready': 0.5, 'game-start': 0.55, 'game-turn': 0.5, 'dice-roll': 0.6, 'card-draw': 0.5, 'card-one': 0.55,
+  'halli-bell': 0.55,
   'bungeo-pour': 0.5, 'bungeo-flip': 0.5, 'bungeo-burn': 0.45,
   'emote-clap': 0.55, 'emote-tsk': 0.6, 'emote-fart': 0.6, 'emote-wave-male': 0.45, 'emote-wave-female': 0.4,
   'move-jump': 0.18, 'move-land': 0.35, 'move-splash': 0.55, 'move-step-stone': 0.22, 'move-step-grass': 0.18,
   'amb-pigeon-takeoff': 0.5, 'dice-shake': 0.45, 'amb-fountain': 0.5, 'amb-pond': 0.6,
+  'alkkagi-select': 0.4, 'alkkagi-shot': 0.55, 'alkkagi-collision': 0.5, 'alkkagi-fall': 0.5, 'alkkagi-item': 0.5,
+  'alkkagi-turn-change': 0.45,
+  'arcade-button': 0.35, 'arcade-roulette-spin': 0.45, 'arcade-roulette-slow-stop': 0.5,
+  // 기절음은 평균 음량이 다른 효과음보다 10dB 가까이 커서 낮춘다.
+  'mole-hit': 0.45, 'mole-hedgehog-hit': 0.55, 'mole-empty-stun': 0.3, 'mole-phase-change': 0.5,
 }
 const VARIANTS: Partial<Record<SfxName, number>> = { 'move-step-stone': 4, 'move-step-grass': 4 }
 // Placed sounds play at full level within `near` metres of the camera and fade to silence at `far`.
@@ -51,6 +60,12 @@ function panner(context: AudioContext, at: SoundPoint, [near, far]: readonly [nu
   return node
 }
 
+/** Decodes a cue ahead of its first play into the shared cache; does nothing until audio is unlocked. */
+export function preloadSfx(name: SfxName) {
+  const out = effectsOutput()
+  if (out && !VARIANTS[name]) void loadSound(out.context, name)
+}
+
 /** Plays once; `at` places it in the park so it pans and fades with distance from the camera. */
 export function playSfx(name: SfxName, at?: SoundPoint, level = 1) {
   const out = effectsOutput()
@@ -77,6 +92,8 @@ export function playSfx(name: SfxName, at?: SoundPoint, level = 1) {
 
 type Loop = { source: AudioBufferSourceNode; gain: GainNode; space?: PannerNode }
 const loops = new Map<SfxLoop, Loop | 'loading' | 'missing'>()
+// The latest request wins once a loop finishes loading, so a short spin that already ended does not start late.
+const requested = new Map<SfxLoop, [level: number, at?: SoundPoint]>()
 
 function stopLoop(name: SfxLoop, loop: Loop, context: AudioContext) {
   loops.delete(name)
@@ -90,6 +107,7 @@ function stopLoop(name: SfxLoop, loop: Loop, context: AudioContext) {
  * camera comes within range and stops once the camera leaves it or `level` drops to 0.
  */
 export function setSfxLoop(name: SfxLoop, level: number, at?: SoundPoint) {
+  requested.set(name, [level, at])
   const out = effectsOutput(), loop = loops.get(name)
   if (!out || loop === 'loading' || loop === 'missing') return
   const wanted = level > 0 && (!at || loopAudible(distanceTo(at), rangeOf(name)[1], !!loop))
@@ -110,7 +128,7 @@ export function setSfxLoop(name: SfxLoop, level: number, at?: SoundPoint) {
       else gain.connect(bus)
       source.start(0, Math.random() * buffer.duration)
       loops.set(name, { source, gain, space })
-      setSfxLoop(name, level, at)
+      setSfxLoop(name, ...requested.get(name)!)
     })
     return
   }

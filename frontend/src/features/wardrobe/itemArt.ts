@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { EquipSlot } from '../../network/equipment'
+import { catalogAsset, catalogSetImage } from '../../world/art/skinCatalog'
 
 export type CharacterVariant = 'man' | 'girl'
 // Each character's own default outfit, rendered slot by slot from its GLB (man/girl × five slots).
@@ -7,12 +8,17 @@ const partImages = import.meta.glob<string>('./parts/*.webp', { eager: true, imp
 export const partImage = (variant: CharacterVariant, slot: EquipSlot) => partImages[`./parts/${variant}-${slot.toLowerCase()}.webp`]
 // A whole set's picture (parts/set-<set code>.webp): the character wearing it, since a set is only worn whole.
 const setImages = import.meta.glob<string>('./parts/set-*.webp', { eager: true, import: 'default' })
-export const setImage = (setCode?: string | null) => setCode ? setImages[`./parts/set-${setCode.toLowerCase()}.webp`] : undefined
+export const setImage = (setCode?: string | null) => catalogSetImage(setCode) ?? (setCode ? setImages[`./parts/set-${setCode.toLowerCase()}.webp`] : undefined)
 // An outfit item's own picture (parts/outfit-<file>-<item>-<slot>.webp, tools/character/item_art.py), by its 3D piece.
 const outfitImages = import.meta.glob<string>('./parts/outfit-*.webp', { eager: true, import: 'default' })
-export function outfitImage(imageKey: string | null, slot: EquipSlot) {
+export function outfitImage(imageKey: string | null, slot: EquipSlot, variant: CharacterVariant = 'man') {
+  const asset = catalogAsset(imageKey)
+  if (asset) return asset.imageUrl
   const match = imageKey?.match(/^outfit\/([a-z0-9-]+)\/([a-z0-9]+)$/)
-  return match ? outfitImages[`./parts/outfit-${match[1]}-${match[2]}-${slot.toLowerCase()}.webp`] : undefined
+  if (!match) return undefined
+  const name = `./parts/outfit-${match[1]}-${match[2]}-${slot.toLowerCase()}`
+  // (a hat with each character's own hair under it has a -girl picture for the girl)
+  return (variant === 'girl' ? outfitImages[`${name}-girl.webp`] : undefined) ?? outfitImages[`${name}.webp`]
 }
 
 /** Colour words in item names (shop items ship without artwork yet; imageKey has no files behind it). */

@@ -26,9 +26,9 @@ public class RankingService {
             var standings = repository.findStandings(userId, limit);
             var items = standings.stream().filter(row -> row.position() <= limit)
                     .map(row -> new RankingResponse.Item(row.rank(), Long.toString(row.userId()),
-                            row.nickname(), row.coinBalance())).toList();
+                            row.nickname(), row.coinBalance(), row.equipmentValue(), row.totalAssets())).toList();
             var mine = standings.stream().filter(row -> row.userId() == userId).findFirst()
-                    .map(row -> new RankingResponse.MyRank(row.rank(), row.coinBalance())).orElse(null);
+                    .map(row -> new RankingResponse.MyRank(row.rank(), row.coinBalance(), row.equipmentValue(), row.totalAssets())).orElse(null);
             return new RankingResponse(items, mine, Instant.now());
         } catch (DataAccessException | TransactionException exception) {
             throw new RankingException(RankingException.Error.STORAGE);

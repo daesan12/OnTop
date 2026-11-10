@@ -1,11 +1,12 @@
 import { ingredientName } from '../game'
 import type { IngredientId } from '../game'
+import type { ChefRuntimeNotice } from './vrNotice'
 import { cooperativeRecipe, canThreadCooperative, validCooperativeRecipe, INITIAL_PANTRY, shuffledPantry } from '../cooperativeMenu'
 
 export type ChefJob = { id: string; table: number; recipe: IngredientId[] }
-export type HallSight = { position: { x: number; z: number }; carrying: boolean; cleaning: boolean; tables: { id: number; people: number; eating: boolean; dirty: boolean }[] }
-export type ChefView = { hallSight?: HallSight; pantry?: IngredientId[]; completed?: number; visible: ChefJob[]; waiting: number; selectedJob: string | null; ingredient: IngredientId; skewer: IngredientId[]; pass: ChefJob[]; message: string; revision: number; seconds: number; started: boolean; cooperative?: { phase: string; greeting: boolean; answered: boolean; speech: boolean; countdown: number; paused: boolean; score?: number; rankingEligible?: boolean; result?: { score: number; reward: string; ranking: string } } }
-export type ChefAction = { type: 'select'; ingredient: IngredientId } | { type: 'thread'; ingredient?: IngredientId } | { type: 'choose'; id: string } | { type: 'unthread' | 'submit' | 'pickup' | 'ready' | 'greet' | 'exit' }
+export type HallSight = { position: { x: number; z: number }; carrying: boolean; cleaning: boolean; tables: { id: number; people: number; eating: boolean; dirty: boolean; arrivalRemaining?: number }[] }
+export type ChefView = { hallSight?: HallSight; pantry?: IngredientId[]; completed?: number; visible: ChefJob[]; waiting: number; selectedJob: string | null; ingredient: IngredientId; skewer: IngredientId[]; pass: ChefJob[]; message: string; revision: number; seconds: number; started: boolean; cooperative?: { round?: number; restart?: { id: string; own: boolean } | null; phase: string; endReason?: string | null; greetingOutcome?: '' | 'success' | 'missed'; greetingBonus?: number; greetingIndex?: number; greetingRemaining?: number; greetingDelivery?: 'idle' | 'pending' | 'retry'; runtimeNotice?: ChefRuntimeNotice; greeting: boolean; answered: boolean; speech: boolean; countdown: number; paused: boolean; score?: number; served?: number; rankingEligible?: boolean; result?: { score: number; reward: string; ranking: string } } }
+export type ChefAction = { type: 'select'; ingredient: IngredientId } | { type: 'thread'; ingredient?: IngredientId } | { type: 'choose'; id: string } | { type: 'unthread' | 'submit' | 'pickup' | 'ready' | 'greet' | 'exit' | 'pause' | 'resume' | 'leave' | 'pauseRetry' | 'restartRequest' | 'restartAccept' | 'restartDecline' }
 const samples = (): ChefJob[] => [
   ...[1, 4, 3, 6].map(table => ({ id: `sample-${String(table).padStart(2, '0')}`, table, recipe: cooperativeRecipe(table) })),
 ]
@@ -29,7 +30,7 @@ export class ChefPreview {
   receiveSamples() { if (this.jobs.length) return this.say('먼저 받은 주문을 완성해 주세요.'); this.jobs = samples(); this.selectedJob = this.jobs[0].id; this.say('샘플 주문표를 받았어요. 앞의 두 장만 확인할 수 있어요.') }
   step(dt: number) { if (this.started && this.elapsed < this.duration) { this.elapsed = Math.min(this.duration, this.elapsed + Math.max(0, Math.min(.1, dt))); if (this.elapsed === this.duration) this.say('로컬 연습 시간이 끝났어요. 초기화해서 다시 확인할 수 있어요.') } }
   action(action: ChefAction) {
-    if (action.type === 'ready' || action.type === 'greet' || action.type === 'exit') return
+    if (action.type === 'ready' || action.type === 'greet' || action.type === 'exit' || action.type.startsWith('restart')) return
     if (action.type === 'pickup') { const dish = this.pass.shift(); return this.say(dish ? `${dish.table}번 접시를 샘플 서빙 담당이 수령했어요.` : '전달대가 비어 있어요.') }
     if (this.elapsed >= this.duration) return
     if (action.type === 'select') { this.ingredient = action.ingredient; this.revision++; return }

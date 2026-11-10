@@ -3,12 +3,12 @@ package com.ssafy.ontop.ranking.service;
 import com.ssafy.ontop.admin.security.AdminAccessPolicy;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BalanceItem;
-import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BungeoppangItem;
-import com.ssafy.ontop.ranking.dto.ParkRankingResponse.JumpmapItem;
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse.MoleItem;
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse.SpeedMoleItem;
 import com.ssafy.ontop.ranking.exception.RankingException;
 import com.ssafy.ontop.ranking.repository.ParkBalanceRankingRepository;
-import com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository;
-import com.ssafy.ontop.ranking.repository.ParkJumpmapRankingRepository;
+import com.ssafy.ontop.ranking.repository.ParkMoleRankingRepository;
+import com.ssafy.ontop.ranking.repository.ParkSpeedMoleRankingRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
@@ -31,8 +31,8 @@ public class ParkRankingSnapshotService {
     private static final Logger LOG = LoggerFactory.getLogger(ParkRankingSnapshotService.class);
 
     private final ParkBalanceRankingRepository balances;
-    private final ParkBungeoppangRankingRepository bungeoppang;
-    private final ParkJumpmapRankingRepository jumpmap;
+    private final ParkMoleRankingRepository mole;
+    private final ParkSpeedMoleRankingRepository speedMole;
     private final MeterRegistry meters;
     private final Clock clock;
     private final LongPredicate gameMasters;
@@ -42,24 +42,24 @@ public class ParkRankingSnapshotService {
 
     @Autowired
     public ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
-            ParkBungeoppangRankingRepository bungeoppang, ParkJumpmapRankingRepository jumpmap,
+            ParkMoleRankingRepository mole, ParkSpeedMoleRankingRepository speedMole,
             MeterRegistry meters, AdminAccessPolicy administrators,
             @Value("${ontop.rankings.park.started-at:}") String startedAt) {
-        this(balances, bungeoppang, jumpmap, meters, startedAt, Clock.systemUTC(), administrators::canRead);
+        this(balances, mole, speedMole, meters, startedAt, Clock.systemUTC(), administrators::canRead);
     }
 
     ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
-            ParkBungeoppangRankingRepository bungeoppang, ParkJumpmapRankingRepository jumpmap,
+            ParkMoleRankingRepository mole, ParkSpeedMoleRankingRepository speedMole,
             MeterRegistry meters, String startedAt, Clock clock) {
-        this(balances, bungeoppang, jumpmap, meters, startedAt, clock, ignored -> false);
+        this(balances, mole, speedMole, meters, startedAt, clock, ignored -> false);
     }
 
     ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
-            ParkBungeoppangRankingRepository bungeoppang, ParkJumpmapRankingRepository jumpmap,
+            ParkMoleRankingRepository mole, ParkSpeedMoleRankingRepository speedMole,
             MeterRegistry meters, String startedAt, Clock clock, LongPredicate gameMasters) {
         this.balances = balances;
-        this.bungeoppang = bungeoppang;
-        this.jumpmap = jumpmap;
+        this.mole = mole;
+        this.speedMole = speedMole;
         this.meters = meters;
         this.clock = clock;
         this.gameMasters = gameMasters;
@@ -85,14 +85,14 @@ public class ParkRankingSnapshotService {
             // 세 조회가 모두 성공한 뒤 한 번에 교체한다. 실패한 회차는 직전 정상 응답을 유지한다.
             List<BalanceItem> balanceItems = balances.findTopTen().stream()
                     .map(row -> new BalanceItem(row.rank(), Long.toString(row.userId()),
-                            row.nickname(), row.coinBalance(), gameMasters.test(row.userId()))).toList();
-            List<BungeoppangItem> bungeoppangItems = bungeoppang.findTopTen(startedAt).stream()
-                    .map(row -> new BungeoppangItem(row.rank(), Long.toString(row.userId()), row.nickname(),
+                            row.nickname(), row.coinBalance(), gameMasters.test(row.userId()), row.equipmentValue(), row.totalAssets())).toList();
+            List<MoleItem> moleItems = mole.findTopTen(startedAt).stream()
+                    .map(row -> new MoleItem(row.rank(), Long.toString(row.userId()), row.nickname(),
                             row.score(), row.maxCombo(), row.completedAt(), gameMasters.test(row.userId()))).toList();
-            List<JumpmapItem> jumpmapItems = jumpmap.findTopTen(startedAt).stream()
-                    .map(row -> new JumpmapItem(row.rank(), Long.toString(row.userId()), row.nickname(),
-                            row.finishMs(), row.completedAt(), gameMasters.test(row.userId()))).toList();
-            snapshot.set(new ParkRankingResponse(balanceItems, bungeoppangItems, jumpmapItems,
+            List<SpeedMoleItem> speedMoleItems = speedMole.findTopTen(startedAt).stream()
+                    .map(row -> new SpeedMoleItem(row.rank(), Long.toString(row.userId()), row.nickname(),
+                            row.score(), row.misses(), row.completedAt(), gameMasters.test(row.userId()))).toList();
+            snapshot.set(new ParkRankingResponse(balanceItems, moleItems, speedMoleItems,
                     clock.instant()));
             meters.counter("ontop.ranking.park.refresh", "result", "success").increment();
         } catch (RuntimeException failure) {

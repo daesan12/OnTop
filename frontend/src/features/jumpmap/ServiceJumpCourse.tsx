@@ -7,6 +7,7 @@ import { avatars, sampleAvatar } from '../../network/worldClient'
 import { COURSE, START, targetFade, type CourseBlock } from './course'
 import { hits, onStep, standing, useJumpmap } from './state'
 import { applyLandingMotion, landingGeometry } from './landingMotion'
+import { cameraWorldPosition, parkXRView } from '../../world/xrView'
 
 const groups = [...new Set(COURSE.map(b => b.theme))].map(theme => ({ theme, pads: COURSE.filter(b => b.theme === theme) }))
 const clock = { value: 0 }
@@ -67,17 +68,20 @@ function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: r
     const s = useJumpmap.getState(), own = avatars.get(s.owner)
     if (own) sampleAvatar(own, now, pose)
     const occupied = new Set(standing.values())
-    const dx = camera.position.x - pose.x, dy = camera.position.y - (pose.y + .4), dz = camera.position.z - pose.z, lengthSq = dx * dx + dy * dy + dz * dz
+    const eye = cameraWorldPosition(camera)
+    const dx = eye.x - pose.x, dy = eye.y - (pose.y + .4), dz = eye.z - pose.z, lengthSq = dx * dx + dy * dy + dz * dz
     for (const batch of batches) {
       const fade = batch.geometry.getAttribute('aFade') as InstancedBufferAttribute, hit = batch.geometry.getAttribute('aHit') as InstancedBufferAttribute, power = batch.geometry.getAttribute('aPower') as InstancedBufferAttribute
       pads.forEach((p, i) => {
         const along = lengthSq ? ((p.x - pose.x) * dx + (p.top - pose.y - .4) * dy + (p.z - pose.z) * dz) / lengthSq : 0
         const occluded = along > .03 && along < .97 && Math.hypot(p.x - pose.x - dx * along, p.top - pose.y - .4 - dy * along, p.z - pose.z - dz * along) < Math.max(p.halfX, p.halfZ) + .5
-        const target = art === jumpStartArt ? 1 : art ? s.run ? .8 : .4 : targetFade(p.top, pose.y - .8, !!s.run, occupied.has(p.block), occluded)
-        fade.setX(i, target + (fade.getX(i) - target) * Math.exp(-Math.min(dt, .1) * 6))
+        // Traversable pads stay solid in stereo. The desktop fade was designed
+        // for a third-person camera and can hide a VR player's landing surface.
+        const target = parkXRView.active || art === jumpStartArt ? 1 : art ? s.run ? .8 : .4 : targetFade(p.top, pose.y - .8, !!s.run, occupied.has(p.block), occluded)
+        fade.setX(i, parkXRView.active ? 1 : target + (fade.getX(i) - target) * Math.exp(-Math.min(dt, .1) * 6))
         const h = hits.get(p.block)
         if (!art && h && (h.power === 1 || Math.hypot(p.x - pose.x, p.top - pose.y + .8, p.z - pose.z) <= 25)) {
-          hit.setX(i, h.at / 1000); power.setX(i, reduced.matches ? 0 : h.power)
+          hit.setX(i, h.at / 1000); power.setX(i, reduced.matches || parkXRView.active ? 0 : h.power)
         }
       })
       fade.needsUpdate = hit.needsUpdate = power.needsUpdate = true

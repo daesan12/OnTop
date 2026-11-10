@@ -1,12 +1,14 @@
 import { BufferAttribute, BufferGeometry } from 'three'
 import { equipSlots, type EquipSlot, type PublicEquipment } from '../../network/equipment'
+import { catalogAsset, catalogSource } from './skinCatalog'
 
 /**
  * What an avatar wears, slot by slot. Character files hold the shared body, split into pieces by the items
  * that cover them, plus that character's default items; outfit files hold only their items. Every mesh lists
  * its pieces (extras.pieces: [name, first index, index count]) and the game draws only the worn ones:
  * - `body` always, `body__TOPd_BOTTOMg` unless one of those items is worn;
- * - `item__TOP__d` while TOP d from that file is worn, `item__TOP__d__under_TOPb` unless TOP b is worn too.
+ * - `item__TOP__d` while TOP d from that file is worn, `item__TOP__d__under_TOPb` unless TOP b is worn too;
+ * - `item__HAIR__h__for_girl` like `item__HAIR__h`, on the girl only (`__for_man`: the man only).
  */
 export type CharacterVariant = 'man' | 'girl'
 export interface Worn { source: string; id: string }
@@ -24,7 +26,9 @@ export const defaultLook = (variant: CharacterVariant): Look => ({ ...defaults[v
 /** A wearable item's imageKey names its 3D piece: `outfit/<file>/<item>`, the file being a character
  * (man, girl: their default items) or an outfit file under /art/characters/outfits. Anything else stays default. */
 const outfitKey = /^outfit\/([a-z0-9-]{1,40})\/([a-z0-9]{1,8})$/
-export function wornPiece(imageKey: string | null): Worn | null {
+export function wornPiece(imageKey: string | null, variant: CharacterVariant = 'man'): Worn | null {
+  const asset = catalogAsset(imageKey)
+  if (asset?.wearMode === 'PARTS') return { source: catalogSource(asset) + (asset.compatibility === 'ANY' && variant === 'girl' ? '-girl' : ''), id: 'a' }
   const match = imageKey?.match(outfitKey)
   return match ? { source: match[1]!, id: match[2]! } : null
 }
@@ -32,7 +36,7 @@ export function wornPiece(imageKey: string | null): Worn | null {
 export function resolveLook(variant: CharacterVariant, equipment: readonly PublicEquipment[]): Look {
   const look = defaultLook(variant)
   for (const item of equipment) {
-    const worn = wornPiece(item.imageKey)
+    const worn = wornPiece(item.imageKey, variant)
     if (worn) look[item.equipSlot] = worn
   }
   return look
@@ -57,10 +61,11 @@ export function pieceShown(name: string, source: string, variant: CharacterVaria
   const worn = new Set(Object.entries(look).map(([slot, piece]) => slot + piece.id))
   const body = name.match(/^body(?:__(\w+))?$/)
   if (body) return source === variant && !tokens(body[1]).some(token => worn.has(token))
-  const item = name.match(/^item__([A-Z]+)__([a-z0-9]+)(?:__under_(\w+))?$/)
-  if (!item) return false
+  // `__for_girl` / `__for_man`: a piece for that character only (a hat's hair: the girl's under it, or the man's)
+  const item = name.match(/^item__([A-Z]+)__([a-z0-9]+)(?:__for_(man|girl))?(?:__under_(\w+))?$/)
+  if (!item || (item[3] && item[3] !== variant)) return false
   const piece = look[item[1] as EquipSlot]
-  return !!piece && piece.source === source && piece.id === item[2] && !tokens(item[3]).some(token => worn.has(token))
+  return !!piece && piece.source === source && piece.id === item[2] && !tokens(item[4]).some(token => worn.has(token))
 }
 
 export type PieceRange = [name: string, start: number, count: number]

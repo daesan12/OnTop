@@ -1,0 +1,17 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+scrape_configs:
+  - job_name: ontop
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [app:8082]
+        labels: {deployment: dev}
+  - job_name: mysql
+    static_configs:
+      - targets: [mysql-exporter:9104]
+        labels: {deployment: dev}
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+        labels: {deployment: dev}

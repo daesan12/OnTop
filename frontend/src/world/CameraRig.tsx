@@ -12,7 +12,7 @@ import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 import { CAMERA, CHARACTER, GOMOKU, PARK_SIZE, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale, tableSeats } from '../park/mapConfig'
 import { WELCOME_FLIGHT_MS, welcomeFlight, welcomeFlightPose } from '../features/welcomeTour/flight'
 import { telescopeView } from '../features/telescopeView'
-import { interactionAim } from '../features/interactions/interactionAim'
+import { interactionAim, setInteractionCamera } from '../features/interactions/interactionAim'
 import { useGame } from '../game/store'
 import { omokCamera, omokSpectatorViewport } from '../game/cameraState'
 import { OMOK_BOARD_Y } from '../game/omokPresentation'
@@ -38,6 +38,7 @@ import { benchBoardLook, benchLook, benchTable, benchViewScope, spectatorClearHe
 import { advanceOmokCamera, OMOK_FOCUS_LAYER, omokTopDownHeight, omokSpectatorFrame } from './omokCamera'
 import { omokFocusLighting } from './boardFocusLighting'
 import { wardrobeView } from '../features/wardrobe/view'
+import { parkXRView } from './xrView'
 
 /** Whole-figure framing used by the wardrobe zoom (the avatar plus a little headroom). */
 const WARDROBE_FRAME = { height: CHARACTER.height * 1.08, minDistance: 1.4, maxDistance: 5 }
@@ -92,12 +93,17 @@ export function CameraRig() {
     [],
   )
   const occlusion = useMemo(() => new CameraOcclusionFader(), []),
-    scan = useRef(1)
+    scan = useRef(1),
+    // The angles the wardrobe's easing last wrote, how long it has eased toward the current aim, and that aim: kept per
+    // mounted rig (module variables would carry a remounted rig the last one's values, review).
+    aimTrack = useRef<{ written: { yaw: number; pitch: number } | null; age: number; seen: { yaw: number; pitch: number } | null }>(
+      { written: null, age: 0, seen: null })
   useEffect(() => installRoamingInput(gl.domElement), [gl])
   useEffect(
     () => () => {
       occlusion.dispose()
       interactionAim.ready = false
+      setInteractionCamera(null)
       if (state.bench) Object.assign(viewControls, state.savedView)
       if (state.telescope) {
         Object.assign(viewControls, state.savedTelescopeView)
@@ -124,6 +130,12 @@ export function CameraRig() {
     omokFocusLighting.requested = false
     camera.layers.set(0)
     raycaster.layers.set(0)
+    if (parkXRView.ownsInput) {
+      interactionAim.ready = false
+      cameraOcclusion.strength.value = 0
+      occlusion.reset()
+      return
+    }
     scan.current += delta
     wardrobeView.blend += (Number(wardrobeView.active) - wardrobeView.blend) * (1 - Math.exp(-5 * Math.min(delta, 0.1)))
     if (Math.abs(Number(wardrobeView.active) - wardrobeView.blend) < 0.001) wardrobeView.blend = Number(wardrobeView.active)
@@ -474,12 +486,23 @@ export function CameraRig() {
           feet.z - Math.sin(yaw) * side + Math.cos(yaw) * Math.cos(pitch) * close))
       }
       const aim = wardrobeView.aim
-      if (aim) {
+      // The view eases to the wardrobe's front on open and back to where it was on close, but gives way at once to
+      // the player turning it (the angles differ from what this wrote last frame) and after 1.5 s at most: held
+      // until it converged, the camera pulled back against every drag, even one started right after opening.
+      const track = aimTrack.current, written = track.written
+      const turned = !!written
+        && (Math.abs(viewControls.yaw - written.yaw) > 1e-5 || Math.abs(viewControls.pitch - written.pitch) > 1e-5)
+      if (aim !== track.seen) { track.seen = aim; track.age = 0; if (aim) track.written = null }
+      track.age = aim ? track.age + delta : 0
+      if (aim && (turned || track.age > 1.5)) wardrobeView.aim = null
+      if (wardrobeView.aim) {
         const t = 1 - Math.exp(-6 * Math.min(delta, 0.1))
-        viewControls.yaw = turnToward(viewControls.yaw, aim.yaw, t)
-        viewControls.pitch += (aim.pitch - viewControls.pitch) * t
-        if (Math.abs(Math.sin(aim.yaw - viewControls.yaw)) < 0.002 && Math.abs(aim.pitch - viewControls.pitch) < 0.002) wardrobeView.aim = null
+        viewControls.yaw = turnToward(viewControls.yaw, wardrobeView.aim.yaw, t)
+        viewControls.pitch += (wardrobeView.aim.pitch - viewControls.pitch) * t
+        track.written = { yaw: viewControls.yaw, pitch: viewControls.pitch }
+        if (Math.abs(Math.sin(wardrobeView.aim.yaw - viewControls.yaw)) < 0.002 && Math.abs(wardrobeView.aim.pitch - viewControls.pitch) < 0.002) wardrobeView.aim = null
       }
+      if (!wardrobeView.aim) track.written = null
       const center = state.center.copy(state.focus)
       let distance = viewControls.distance
       const w = wardrobeView.blend
@@ -535,6 +558,7 @@ export function CameraRig() {
     }
     diceCamera.ready = diceFocus || diceSpectator ? omokSettled : !!(spectatorBoard && game?.dice) && camera.position.distanceTo(state.desired) < .005
     camera.getWorldDirection(state.direction)
+    setInteractionCamera(camera)
     interactionAim.ready = true
     interactionAim.x = camera.position.x
     interactionAim.y = camera.position.y

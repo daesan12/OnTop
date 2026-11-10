@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { playSfx, setSfxLoop } from '../../audio/sfx'
 import { openManual } from '../manual/manualState'
 import { RewardCoinSource } from '../wallet/RewardCoinFlight'
 import { HANDS, HAND_LABEL, type Hand, type LedShape } from './ledHands'
@@ -13,11 +14,12 @@ import './rpsRoulette.css'
 
 const REVEAL_MS = 1100
 const SHUFFLE_MS = 90
+const SLOW_STEPS = 12
 /** 최소 두 바퀴 돈 뒤 마지막 12칸에서 느려진다. */
 function chaseTimeline(cell: number, cells: number) {
   const steps = cells * 2 + cell, times: number[] = []
   let at = 0
-  for (let i = 0; i <= steps; i++) { times.push(at); at += 28 + Math.max(0, i - (steps - 12)) * 24 }
+  for (let i = 0; i <= steps; i++) { times.push(at); at += 28 + Math.max(0, i - (steps - SLOW_STEPS)) * 24 }
   return { steps, times, duration: at }
 }
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -39,6 +41,9 @@ function RpsRouletteDialog() {
   const [reveal, setReveal] = useState<{ key: string; until: number } | null>(null)
   const [spin, setSpin] = useState<{ id: string; cell: number; startedAt: number } | null>(null)
   const firstData = useRef(true)
+  // 창을 열 때 이미 정산돼 있던 판은 지난 결과라 다시 보여도 정산음을 내지 않는다.
+  const [openedWith, setOpenedWith] = useState<string | null>()
+  if (openedWith === undefined && round) setOpenedWith(round.phase === 'SETTLED' ? round.id : null)
 
   useEffect(() => {
     const el = dialog.current
@@ -114,6 +119,13 @@ function RpsRouletteDialog() {
   const settledVisible = round?.phase === 'SETTLED' && !revealing && !spinning
   const chaseStep = spin && timeline && spinElapsed >= 0
     ? timeline.times.reduce((found, t, i) => t <= spinElapsed ? i : found, -1) : -1
+  // 일정한 속도로 도는 동안은 회전음을 반복하고, 감속이 시작되면 멈춤음을 한 번 낸다.
+  const spinSound = !spinning || chaseStep < 0 ? null : chaseStep < timeline!.steps - SLOW_STEPS ? 'fast' : 'slow'
+  useEffect(() => {
+    setSfxLoop('arcade-roulette-spin', spinSound === 'fast' ? 1 : 0)
+    if (spinSound === 'slow') playSfx('arcade-roulette-slow-stop')
+  }, [spinSound])
+  useEffect(() => () => setSfxLoop('arcade-roulette-spin', 0), [])
   const litCell = spinning ? (chaseStep < 0 ? null : chaseStep % roulette.length)
     : round?.outcome === 'PAID' && settledVisible ? round.rouletteCell : null
   const lamps = {
@@ -136,10 +148,11 @@ function RpsRouletteDialog() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing || event.repeat || document.querySelectorAll('dialog[open]').length > 1) return
       const index = ['1', '2', '3'].indexOf(event.key)
-      if (index >= 0 && keys.current.canHand) { event.preventDefault(); playRpsHand(HANDS[index]) }
+      // 키로 누른 버튼도 클릭과 같은 오락기 버튼 소리를 낸다.
+      if (index >= 0 && keys.current.canHand) { event.preventDefault(); playSfx('arcade-button'); playRpsHand(HANDS[index]) }
       else if (event.key === 'Enter' && keys.current.canStart
         && !(event.target instanceof HTMLElement && event.target.closest('button,input,select,textarea'))) {
-        event.preventDefault(); void startRpsRound()
+        event.preventDefault(); playSfx('arcade-button'); void startRpsRound()
       }
     }
     document.addEventListener('keydown', onKeyDown)
@@ -162,7 +175,7 @@ function RpsRouletteDialog() {
           <span className="rps-roulette-led-label">배수</span>
           <strong className="rps-roulette-mult">{multiplierText}</strong>
           <ol className="rps-roulette-steps" aria-label="도전 단계">
-            {['기본 1.0', '1차 1.5', '2차 2.0'].map((label, i) =>
+            {['기본 1.0', '1차 2.0', '2차 4.0'].map((label, i) =>
               <li key={label} data-on={level >= i || undefined} data-next={round?.challenging && live && i === level + 1 || undefined}>
                 <i aria-hidden="true" />{label}
               </li>)}
@@ -181,7 +194,7 @@ function RpsRouletteDialog() {
         <p className="rps-roulette-lcd" role="status" aria-live="polite">{message}</p>
         {settledVisible && round.outcome === 'PAID' && round.payout > 0 &&
           <p className="rps-roulette-payout">
-            <RewardCoinSource receipt={`rps-roulette:payout:${round.id}`} amount={round.payout} soundOnReveal>
+            <RewardCoinSource receipt={`rps-roulette:payout:${round.id}`} amount={round.payout} soundOnReveal={openedWith !== round.id}>
               +{round.payout.toLocaleString('ko-KR')}냥
             </RewardCoinSource>
             <small>보유 {data!.availableBalance.toLocaleString('ko-KR')}냥</small>
@@ -222,7 +235,7 @@ function RpsRouletteDialog() {
             </span>
             <span className="rps-roulette-label">
               {[1, 2].map(step => <span key={step} data-done={(round?.stakeLevel ?? 0) >= step && live || undefined}
-                data-next={canDecide && round!.stakeLevel + 1 === step || undefined}>{step}차 ×{step === 1 ? '1.5' : '2.0'}</span>)}
+                data-next={canDecide && round!.stakeLevel + 1 === step || undefined}>{step}차 ×{step === 1 ? '2.0' : '4.0'}</span>)}
             </span>
           </div>
           <div className="rps-roulette-control">

@@ -27,6 +27,9 @@ public final class SkewerCoopMatch {
             List.of("bacon", "beef", "bacon", "shrimp", "bacon", "cheese", "pepper", "cheese", "tomato"));
     public static final int CLEAN_POINTS = 2, COLLECTION_POINTS = 2, WASHER_LOAD_POINTS = 3;
     public static final int WRONG_DELIVERY_PENALTY = 10;
+    private static final long RESTART_RESPONSE_MILLIS = 15_000;
+    private static final int MAX_MOVEMENT_ITERATIONS = 16;
+    private static final double SERVER_SPEED = 5.8;
     private static final int[] POINTS = {100, 100, 240, 160, 160, 240};
     private static final double[] TABLE_X = {-7.5, 0, 7.5, -7.5, 0, 7.5};
     private static final Map<String, Point> STATIONS = Map.of(
@@ -51,16 +54,22 @@ public final class SkewerCoopMatch {
     private int completed;
     private final List<Integer> queue = new ArrayList<>();
     private final Map<Long, Double> greetingAnswers = new HashMap<>();
+    private String greetingOutcome = "";
+    private int greetingBonus;
+    private double greetingResultUntil;
     private final Map<Long, Double> speechUntil = new HashMap<>();
     private final double duration;
     private final double[] greetingAt;
     private String phase = "WAITING", selectedJob, endReason;
     private boolean chefVR, rankingEligible = true, registered;
+    private String rankingMode = "PC";
     private double elapsed, serviceElapsed, countdown, greetingElapsed, washRemaining;
     private double nextArrival = 0, nextQueue = 12, cleanProgress, velocityX, velocityZ;
     private Point position = new Point(-2.8, 1.15);
     private final List<Point> path = new ArrayList<>();
     private long lastTick, movementAt, dishSequence, dirtySequence;
+    private long restartSequence, restartRequester, restartExpiresAt;
+    private int round;
     private int sake, score, served, washerCompleted, cleanTable, greetingIndex;
     private String message = "두 사람이 모이면 역할을 고르고 준비해주세요.";
     public final String id;
@@ -89,6 +98,7 @@ public final class SkewerCoopMatch {
     public List<Long> players() { return List.copyOf(players); }
     public boolean contains(long user) { return players.contains(user); }
     public boolean finished() { return phase.equals("FINISHED"); }
+    public boolean waiting() { return phase.equals("WAITING"); }
     public boolean registered() { return registered; }
     public void registered(boolean value) { registered = value; }
     public boolean canJoin(long user) {
@@ -126,6 +136,18 @@ public final class SkewerCoopMatch {
             finish("SKEWER_DISCONNECT_TIMEOUT");
             return;
         }
+        if (restartRequester != 0 && (!missing.isEmpty() || now >= restartExpiresAt)) {
+            clearRestart();
+            message = missing.isEmpty() ? "다시 시작 응답 시간이 지나 기존 경기를 이어가요."
+                    : "연결이 끊겨 다시 시작 요청을 취소했어요.";
+            actionVersion++;
+            version++;
+            return;
+        }
+        if (restartRequester != 0) {
+            // 응답 제한은 벽시계를 사용한다. 영업·인사·세척 시간은 동의 대기 중 멈춘다.
+            return;
+        }
         if (!missing.isEmpty() || !pausedBy.isEmpty() || phase.equals("WAITING")) {
             return;
         }
@@ -150,10 +172,13 @@ public final class SkewerCoopMatch {
                 int bonus = greetingAnswers.size() == 2
                         ? (int) Math.round(50 * Math.max(0, 1 - Collections.max(greetingAnswers.values()) / 5)) : 0;
                 score += bonus;
+                greetingOutcome = greetingAnswers.size() == 2 ? "success" : "missed";
+                greetingBonus = bonus;
+                greetingResultUntil = elapsed + 2;
                 greetingIndex++;
                 greetingAnswers.clear();
                 greetingElapsed = 0;
-                message = "인사 완료! +" + bonus + "점";
+                message = greetingOutcome.equals("success") ? "인사 완료! +" + bonus + "점" : "인사 시간이 지났어요. 다음 손님에게 인사해요.";
                 actionVersion++;
             }
             version++;
@@ -191,6 +216,11 @@ public final class SkewerCoopMatch {
             }
         }
         for (Table table : tables) {
+            if (table.state.equals("arriving") && serviceElapsed >= table.arrivalAt) {
+                table.state = "unreceived";
+                table.seatedAt = serviceElapsed;
+                actionVersion++;
+            }
             if (table.state.equals("eating") && serviceElapsed >= table.eatUntil) {
                 table.state = "dirty";
                 table.people = 0;
@@ -216,6 +246,7 @@ public final class SkewerCoopMatch {
             case "CHEF_MODE" -> Set.of("type", "vr");
             case "READY" -> Set.of("type", "ready");
             case "PAUSE" -> Set.of("type", "paused");
+            case "RESTART_REPLY" -> Set.of("type", "requestId", "accept");
             case "MOVE" -> Set.of("type", "dx", "dz");
             case "NAVIGATE" -> Set.of("type", "x", "z");
             case "TAKE_STORED", "CHOOSE" -> Set.of("type", "id");
@@ -226,7 +257,29 @@ public final class SkewerCoopMatch {
         if (finished()) {
             throw new Rejected(Rejection.GAME_FINISHED);
         }
-        if (type.equals("ROLE")) {
+        if (type.equals("RESTART_REQUEST")) {
+            require((phase.equals("PLAYING") || phase.equals("COUNTDOWN")) && players.size() == 2
+                    && missing.isEmpty() && pausedBy.isEmpty() && restartRequester == 0);
+            restartSequence++;
+            restartRequester = user;
+            restartExpiresAt = now + RESTART_RESPONSE_MILLIS;
+            velocityX = 0;
+            velocityZ = 0;
+            path.clear();
+            lastTick = now;
+        } else if (type.equals("RESTART_REPLY")) {
+            require(restartRequester != 0 && user != restartRequester && now < restartExpiresAt
+                    && missing.isEmpty() && input.path("requestId").isTextual()
+                    && input.path("requestId").asText().equals(Long.toString(restartSequence))
+                    && input.path("accept").isBoolean());
+            if (input.path("accept").asBoolean()) {
+                restart(now);
+            } else {
+                clearRestart();
+                lastTick = now;
+                message = "친구가 다시 시작을 거절했어요. 기존 경기를 이어가요.";
+            }
+        } else if (type.equals("ROLE")) {
             require(phase.equals("WAITING") && players.size() == 2);
             String role = input.path("role").asText();
             require(List.of("chef", "server").contains(role));
@@ -240,7 +293,7 @@ public final class SkewerCoopMatch {
         } else if (type.equals("CHEF_MODE")) {
             require("chef".equals(roles.get(user)) && input.path("vr").isBoolean());
             chefVR = input.path("vr").asBoolean();
-            if (!phase.equals("WAITING") && !chefVR) {
+            if (!phase.equals("WAITING") && chefVR != rankingMode.equals("VR")) {
                 rankingEligible = false;
             }
         } else if (type.equals("READY")) {
@@ -249,10 +302,12 @@ public final class SkewerCoopMatch {
             if (players.stream().allMatch(player -> Boolean.TRUE.equals(ready.get(player)))) {
                 phase = "COUNTDOWN";
                 countdown = 3;
-                rankingEligible = chefVR;
+                rankingEligible = true;
+                rankingMode = chefVR ? "VR" : "PC";
             }
         } else if (type.equals("PAUSE")) {
-            require((phase.equals("COUNTDOWN") || phase.equals("PLAYING")) && input.path("paused").isBoolean());
+            require((phase.equals("COUNTDOWN") || phase.equals("PLAYING")) && input.path("paused").isBoolean()
+                    && restartRequester == 0);
             // 각 참가자는 자신의 확인창만 해제할 수 있다. 다른 참가자의 일시정지는 유지한다.
             if (input.path("paused").asBoolean()) {
                 pausedBy.add(user);
@@ -266,11 +321,13 @@ public final class SkewerCoopMatch {
             }
             lastTick = now;
         } else if (type.equals("GREET")) {
-            require(greetingActive() && missing.isEmpty() && pausedBy.isEmpty() && !greetingAnswers.containsKey(user));
+            require(greetingActive() && missing.isEmpty() && pausedBy.isEmpty() && restartRequester == 0
+                    && !greetingAnswers.containsKey(user));
             greetingAnswers.put(user, greetingElapsed);
             speechUntil.put(user, elapsed + 2.5);
         } else {
-            require(phase.equals("PLAYING") && missing.isEmpty() && pausedBy.isEmpty() && !greetingActive());
+            require(phase.equals("PLAYING") && missing.isEmpty() && pausedBy.isEmpty() && restartRequester == 0
+                    && !greetingActive());
             if ("server".equals(roles.get(user))) {
                 serverAction(type, input, now);
             } else if ("chef".equals(roles.get(user))) {
@@ -340,11 +397,12 @@ public final class SkewerCoopMatch {
         }
         require(type.equals("INTERACT"));
         if (at.equals("washer")) {
-            require(!dirty.isEmpty() && washing.isEmpty());
-            score += dirty.size() * WASHER_LOAD_POINTS;
-            message = "세척기 투입 +" + dirty.size() * WASHER_LOAD_POINTS + "점! 자동 세척을 시작해요.";
-            washing.addAll(dirty);
-            dirty.clear();
+            require(!dirty.isEmpty() && washing.size() < 2);
+            int loaded = Math.min(dirty.size(), 2 - washing.size());
+            score += loaded * WASHER_LOAD_POINTS;
+            message = "세척기 투입 +" + loaded * WASHER_LOAD_POINTS + "점! 마지막 투입부터 8초간 세척해요.";
+            washing.addAll(dirty.subList(0, loaded));
+            dirty.subList(0, loaded).clear();
             washRemaining = 8;
             return;
         }
@@ -379,6 +437,7 @@ public final class SkewerCoopMatch {
             return;
         }
         Table table = tables.get(Integer.parseInt(at.substring(6)) - 1);
+        require(!table.state.equals("arriving"));
         if (table.state.equals("dirty")) {
             require(carry.isEmpty() && sake == 0 && dirty.size() < 2);
             if (cleanTable != table.id) {
@@ -515,7 +574,8 @@ public final class SkewerCoopMatch {
             if (target == null) {
                 continue;
             }
-            target.state = "unreceived";
+            target.state = "arriving";
+            target.arrivalAt = serviceElapsed + 6;
             target.people = size;
             target.settings = size;
             target.seatedAt = serviceElapsed;
@@ -534,10 +594,70 @@ public final class SkewerCoopMatch {
         }
     }
 
+    private void clearRestart() {
+        restartRequester = 0;
+        restartExpiresAt = 0;
+    }
+
+    private void restart(long now) {
+        clearRestart();
+        round++;
+        phase = "COUNTDOWN";
+        countdown = 3;
+        elapsed = 0;
+        serviceElapsed = 0;
+        greetingElapsed = 0;
+        greetingIndex = 0;
+        greetingAnswers.clear();
+        greetingOutcome = "";
+        greetingBonus = 0;
+        greetingResultUntil = 0;
+        speechUntil.clear();
+        greetingAt[0] = duration * (.22 + random.nextDouble() * .12);
+        greetingAt[1] = duration * (.60 + random.nextDouble() * .14);
+        tables.clear();
+        for (int table = 1; table <= 6; table++) {
+            tables.add(new Table(table));
+        }
+        held.clear();
+        jobs.clear();
+        pass.clear();
+        carry.clear();
+        stored.clear();
+        dirty.clear();
+        washing.clear();
+        skewer.clear();
+        menuBag.clear();
+        queue.clear();
+        queue.addAll(List.of(1, 2, 1));
+        pantry.clear();
+        pantry.addAll(List.of("tomato", "pepper", "shrimp", "beef", "cheese", "bacon"));
+        selectedJob = null;
+        sake = 0;
+        score = 0;
+        served = 0;
+        completed = 0;
+        washerCompleted = 0;
+        washRemaining = 0;
+        cleanTable = 0;
+        cleanProgress = 0;
+        nextArrival = 0;
+        nextQueue = 12;
+        velocityX = 0;
+        velocityZ = 0;
+        path.clear();
+        position = new Point(-2.8, 1.15);
+        movementAt = now;
+        lastTick = now;
+        // 경기 ID·행동 버전·접시 ID와 랭킹 제외 이력은 유지한다. 중도 재시작은 정산하지 않는다.
+        message = "두 사람이 동의했어요. 다시 영업을 준비해요!";
+    }
+
     public void finish(String reason) {
         if (!finished()) {
             phase = "FINISHED";
             pausedBy.clear();
+            clearRestart();
             endReason = reason;
             if (!"SKEWER_TIME_UP".equals(reason)) {
                 rankingEligible = false;
@@ -559,12 +679,18 @@ public final class SkewerCoopMatch {
         ObjectNode view = mapper.createObjectNode();
         view.put("gameCode", CODE).put("phase", phase).put("channelId", channelId);
         view.put("actionVersion", actionVersion);
+        view.put("round", round);
+        view.set("restart", restartRequester == 0 ? mapper.nullNode() : mapper.valueToTree(Map.of(
+                "id", Long.toString(restartSequence), "requestedBy", Long.toString(restartRequester),
+                "expiresAt", restartExpiresAt)));
         view.put("remaining", Math.max(0, duration - elapsed)).put("countdown", countdown);
         view.put("elapsed", elapsed).put("score", score).put("served", served);
-        view.put("rankingEligible", rankingEligible && chefVR).put("chefVR", chefVR);
+        view.put("rankingEligible", rankingEligible).put("chefVR", chefVR).put("rankingMode", rankingMode);
         view.put("rewardStatus", "SERVER_SETTLEMENT").put("entryFee", 0);
-        view.put("message", message).put("paused", !finished() && (!missing.isEmpty() || !pausedBy.isEmpty()));
-        view.put("pauseReason", finished() ? "" : !missing.isEmpty() ? "DISCONNECTED" : !pausedBy.isEmpty() ? "EXIT_CONFIRM" : "");
+        view.put("message", message).put("paused", !finished()
+                && (!missing.isEmpty() || !pausedBy.isEmpty() || restartRequester != 0));
+        view.put("pauseReason", finished() ? "" : !missing.isEmpty() ? "DISCONNECTED"
+                : restartRequester != 0 ? "RESTART_CONFIRM" : !pausedBy.isEmpty() ? "EXIT_CONFIRM" : "");
         view.set("pausedBy", mapper.valueToTree(pausedBy.stream().map(String::valueOf).toList()));
         view.put("endReason", endReason);
         view.set("players", mapper.valueToTree(players.stream().map(player -> Map.of(
@@ -572,7 +698,8 @@ public final class SkewerCoopMatch {
                 "ready", Boolean.TRUE.equals(ready.get(player)), "connected", !missing.containsKey(player))).toList()));
         view.set("greeting", mapper.valueToTree(Map.of("active", greetingActive(), "index", greetingIndex,
                 "remaining", Math.max(0, 5 - greetingElapsed), "answered", greetingAnswers.containsKey(user),
-                "responded", greetingAnswers.size(), "speech", speechUntil.getOrDefault(user, 0.0) > elapsed)));
+                "responded", greetingAnswers.size(), "speech", speechUntil.getOrDefault(user, 0.0) > elapsed,
+                "outcome", elapsed < greetingResultUntil ? greetingOutcome : "", "bonus", greetingBonus)));
         return view;
     }
 
@@ -612,7 +739,8 @@ public final class SkewerCoopMatch {
             sight.put("cleaning", cleanTable != 0);
             sight.set("tables", mapper.valueToTree(tables.stream().map(table -> Map.of(
                     "id", table.id, "people", table.people,
-                    "eating", table.state.equals("eating"), "dirty", table.state.equals("dirty"))).toList()));
+                    "eating", table.state.equals("eating"), "dirty", table.state.equals("dirty"),
+                    "arrivalRemaining", table.state.equals("arriving") ? Math.max(0, table.arrivalAt - serviceElapsed) : 0)).toList()));
             chef.set("hallSight", sight);
             chef.set("pass", mapper.valueToTree(pass.stream().map(Dish::view).toList()));
             result.set("chef", chef);
@@ -621,25 +749,38 @@ public final class SkewerCoopMatch {
     }
 
     private void move(double seconds) {
-        double step = Math.min(.1, seconds) * 3.75;
-        while (!path.isEmpty() && position.distance(path.getFirst()) < .14) {
-            path.removeFirst();
-        }
-        double dx = velocityX, dz = velocityZ;
-        if (!path.isEmpty()) {
-            Point goal = path.getFirst();
-            double length = position.distance(goal);
-            dx = (goal.x - position.x) / length;
-            dz = (goal.z - position.z) / length;
-            step = Math.min(step, length);
-        }
-        Point next = new Point(position.x + dx * step, position.z);
-        if (walkable(next)) {
-            position = next;
-        }
-        next = new Point(position.x, position.z + dz * step);
-        if (walkable(next)) {
-            position = next;
+        double remaining = Math.min(.1, Math.max(0, seconds)) * SERVER_SPEED;
+        // 짧은 경유점에 도착해도 이번 틱의 남은 이동량을 다음 구간에 사용한다.
+        // 작은 단위로 기존 축별 충돌 검사를 유지해 가구 모서리를 건너뛰지 않는다.
+        // 정상 경로는 0.25 간격이고 틱당 최대 0.58을 0.1씩 이동하므로 경유점 정리까지 여유를 둔다.
+        // 중복·극소 간격 경유점도 같은 상한에 포함하며, 미처리 경로는 다음 틱에 이어간다.
+        for (int iteration = 0; iteration < MAX_MOVEMENT_ITERATIONS && remaining > .000001; iteration++) {
+            if (!path.isEmpty() && position.distance(path.getFirst()) < .000001) {
+                path.removeFirst();
+                continue;
+            }
+            double dx = velocityX, dz = velocityZ;
+            double step = Math.min(.1, remaining);
+            if (!path.isEmpty()) {
+                Point goal = path.getFirst();
+                double length = position.distance(goal);
+                dx = (goal.x - position.x) / length;
+                dz = (goal.z - position.z) / length;
+                step = Math.min(step, length);
+            }
+            Point before = position;
+            Point next = new Point(position.x + dx * step, position.z);
+            if (walkable(next)) {
+                position = next;
+            }
+            next = new Point(position.x, position.z + dz * step);
+            if (walkable(next)) {
+                position = next;
+            }
+            if (position.distance(before) < .000001) {
+                break;
+            }
+            remaining -= step;
         }
     }
 
@@ -702,7 +843,7 @@ public final class SkewerCoopMatch {
     }
 
     private String nearest() {
-        double best = .92;
+        double best = 1.4;
         String target = null;
         for (var station : STATIONS.entrySet()) {
             double distance = position.distance(station.getValue());
@@ -761,11 +902,11 @@ public final class SkewerCoopMatch {
         }
     }
 
-    private static final class Table {
+    private final class Table {
         final int id;
         String state = "clean";
         int people, sake, sakeDelivered, settings = 1;
-        double seatedAt, eatUntil;
+        double seatedAt, eatUntil, arrivalAt;
         final List<Dish> dishes = new ArrayList<>();
 
         Table(int id) { this.id = id; }
@@ -775,8 +916,9 @@ public final class SkewerCoopMatch {
             view.put("id", id);
             view.put("status", state);
             view.put("people", people);
+            view.put("arrivalRemaining", state.equals("arriving") ? Math.max(0, arrivalAt - serviceElapsed) : 0);
             view.put("eatUntil", state.equals("eating") ? eatUntil : null);
-            view.put("bill", dishes.isEmpty() ? null : Map.of("dishes", dishes.stream().map(Dish::view).toList(),
+            view.put("bill", dishes.isEmpty() || state.equals("arriving") ? null : Map.of("dishes", dishes.stream().map(Dish::view).toList(),
                     "sake", sake, "sakeDelivered", sakeDelivered));
             return view;
         }

@@ -1,23 +1,25 @@
 import * as THREE from 'three'
 import { RestaurantSet } from './RestaurantSet'
 import { characterLook, dressCharacter } from './CharacterAppearance'
-import { BlenderGuests, type GuestParts } from './BlenderGuests'
+import { DiningGuests, type DiningGuest } from './DiningGuests'
+import { GuestSpeech, GuestSpeechArt, type GuestGreeting } from './GuestSpeech'
 
-export type ToyPose = { moving?: boolean; carrying?: boolean; cleaning?: boolean; eating?: boolean; reduced?: boolean }
+export type ToyPose = { moving?: boolean; carrying?: boolean; cleaning?: boolean; eating?: boolean; seated?: boolean; reduced?: boolean }
 /** Game-owned rounded figures. Shared geometry, simple silhouettes and explicit seat contact. */
 export class ToyPeople {
+  readonly speech = new GuestSpeechArt()
   private geometry = new Map<string, THREE.BufferGeometry>()
   private guests: { actor: ToyActor; variant: number }[] = []
-  private library?: BlenderGuests
+  private library?: DiningGuests
   private disposed = false
   readonly guestsReady: Promise<boolean>
-  constructor(private art: RestaurantSet) {
-    this.guestsReady = BlenderGuests.load().then(library => {
+  constructor(private art: RestaurantSet, readonly guestSpeech = true) {
+    this.guestsReady = DiningGuests.load().then(library => {
       if (this.disposed) { library.dispose(); return false }
       this.library = library
-      this.guests.forEach(({ actor, variant }) => actor.applyGuestParts(library.clone(variant)))
+      this.guests.forEach(({ actor, variant }) => actor.applyDiningGuest(library.create(variant)))
       return true
-    }).catch(() => false) // Keep existing guests usable if the optional asset fails to load.
+    }).catch(() => false) // Missing models remain hidden; never show prototype bodies.
   }
   mesh(shape: 'ball' | 'body' | 'limb' | 'hair' | 'smile' | 'ring', color: string) {
     let g = this.geometry.get(shape)
@@ -34,16 +36,18 @@ export class ToyPeople {
   }
   create(index: number, role: 'guest' | 'server' | 'chef' = 'guest', seated = false): ToyActor {
     const actor = new ToyActor(this, this.art, index, role, seated)
+    actor.setBodyVisible(false)
     if (role === 'guest') {
       const variant = characterLook(index, role).variant
       this.guests.push({ actor, variant })
-      if (this.library) actor.applyGuestParts(this.library.clone(variant))
+      if (this.library) actor.applyDiningGuest(this.library.create(variant))
     }
     return actor
   }
   dispose() {
-    this.disposed = true; this.library?.dispose(); this.guests.length = 0
+    this.disposed = true; this.guests.forEach(({ actor }) => actor.disposeGuest()); this.library?.dispose(); this.guests.length = 0
     this.geometry.forEach(g => g.dispose()); this.geometry.clear()
+    this.speech.dispose()
   }
 }
 
@@ -58,10 +62,13 @@ export class ToyActor {
   private elbows: THREE.Group[] = []
   private broom = new THREE.Group()
   private phase = 0
+  private dining?: DiningGuest
+  private speech?: GuestSpeech
   constructor(factory: ToyPeople, art: RestaurantSet, index: number, readonly role: 'guest' | 'server' | 'chef', readonly seated: boolean) {
     const look = characterLook(index, role)
     const { skin, shirt, pants, shoes } = look
     this.root.name = role === 'guest' ? 'guest-reference-' + look.variant : role + '-reference'
+    if (role === 'guest' && factory.guestSpeech) { this.speech = new GuestSpeech(factory.speech, look.variant % 6); this.root.add(this.speech.root) }
     const ball = (parent: THREE.Object3D, color: string, x: number, y: number, z: number, sx: number, sy = sx, sz = sx) => {
       const m = factory.mesh('ball', color); m.scale.set(sx, sy, sz); art.place(parent, m, x, y, z); return m
     }
@@ -97,34 +104,35 @@ export class ToyActor {
       this.pose(0, {})
     }
   }
-  /** Replace only the visual parts; table, queue, pathing and animation joints stay intact. */
-  applyGuestParts(parts: GuestParts) {
+  applyDiningGuest(guest: DiningGuest) {
     if (this.role !== 'guest') return
-    for (const child of [...this.torso.children]) {
-      if (child !== this.head && !this.arms.includes(child as THREE.Group)) this.torso.remove(child)
-    }
-    this.head.clear(); this.head.add(parts.head)
-    this.body = parts.body; this.torso.add(this.body)
-    for (const [i, suffix] of (['L', 'R'] as const).entries()) {
-      for (const child of [...this.legs[i].children]) if (child !== this.knees[i]) this.legs[i].remove(child)
-      for (const child of [...this.arms[i].children]) if (child !== this.elbows[i]) this.arms[i].remove(child)
-      this.knees[i].clear(); this.elbows[i].clear()
-      this.legs[i].add(parts[`leg${suffix}`]); this.knees[i].add(parts[`shoe${suffix}`])
-      this.arms[i].add(parts[`arm${suffix}`]); this.elbows[i].add(parts[`hand${suffix}`])
-    }
-    if (this.seated) {
-      this.root.updateMatrixWorld(true)
-      this.root.position.y += .5425 - new THREE.Box3().setFromObject(this.body).min.y
-    }
-    this.root.userData.guestModel = 'blender'
+    this.dining?.dispose(); this.dining = guest
+    this.setBodyVisible(false); this.root.add(guest.root)
+    // 스켈레톤 보정 행렬 밖에서 그려 회전할 때 말풍선이 찌그러지지 않게 한다.
+    if (this.speech) this.root.add(this.speech.root)
+    if (this.seated) this.root.position.y = 0
+    this.root.userData.guestModel = 'bungeoppang'
+    this.pose(0, {})
   }
-  seatGap() { this.root.updateMatrixWorld(true); return new THREE.Box3().setFromObject(this.body).min.y - .5425 }
+  disposeGuest() { this.speech?.dispose(); this.dining?.dispose() }
+  greet(kind: GuestGreeting) { this.speech?.show(kind) }
+  get greetingVisible() { return !!this.speech?.visible }
+  get guestFloorY() { return this.dining ? 0 : this.root.position.y }
+  orderBubbleHeight() { return this.dining?.labelHeight ?? 2.1 }
+  seatGap() { this.root.updateMatrixWorld(true); return this.dining ? this.dining.root.userData.seatGap ?? 0 : new THREE.Box3().setFromObject(this.body).min.y - .5425 }
   /** Keep gameplay attachments (tray, selection ring and broom) when replacing the body. */
   setBodyVisible(visible: boolean) {
     this.torso.visible = visible
     this.legs.forEach(leg => { leg.visible = visible })
   }
   pose(dt: number, state: ToyPose) {
+    const seated = state.seated ?? this.seated
+    if (this.dining) {
+      this.dining.update(dt, seated, !!state.moving, !!state.eating, !!state.reduced, this.root.rotation.y)
+      this.speech?.update(dt, seated ? this.dining.labelHeight - .25 : this.dining.standingHeight, !!state.reduced)
+      return
+    }
+    this.speech?.update(dt, seated ? 1.8 : 2.2, !!state.reduced)
     this.phase += dt; const motion = !state.reduced, wave = motion ? Math.sin(this.phase * 11) : 0
     this.torso.position.y = .72 + (!this.seated && state.moving && motion ? Math.abs(wave) * .045 : 0)
     this.torso.rotation.x = state.cleaning ? .28 : 0

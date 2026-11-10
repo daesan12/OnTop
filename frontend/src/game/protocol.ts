@@ -36,7 +36,7 @@ export interface Omok {
   status: 'PLAYING' | 'FINISHED'
   boardSize: 15
   board: number[][]
-  /** Server Renju preview for black; absent on older servers. */
+  /** Own black player's server Renju preview; never retained for white or spectators. */
   forbiddenMoves?: { x: number; y: number; kind?: '33' | '44' | '6' }[]
   blackUserId: string
   whiteUserId: string
@@ -130,7 +130,7 @@ export function parseStart(p: Record<string, unknown>): StartState {
     simulation: p.simulation,
   }
 }
-export function parseOmok(p: unknown): Omok {
+export function parseOmok(p: unknown, ownId = '', privateState?: unknown): Omok {
   if (
     !record(p) ||
     p.gameCode !== 'OMOK' ||
@@ -156,9 +156,16 @@ export function parseOmok(p: unknown): Omok {
     throw new Error('오목 상태 형식이 올바르지 않습니다.')
   const players = [p.blackUserId, p.whiteUserId]
   const board = p.board as number[][]
-  if (p.forbiddenMoves !== undefined && (!Array.isArray(p.forbiddenMoves) || p.forbiddenMoves.length > 225
-    || !p.forbiddenMoves.every(m => record(m) && integer(m.x) && integer(m.y) && m.x < 15 && m.y < 15 && board[m.y]![m.x] === 0 && (m.kind === undefined || typeof m.kind === 'string' && ['33','44','6'].includes(m.kind)))
-    || new Set(p.forbiddenMoves.map(m => `${m.x},${m.y}`)).size !== p.forbiddenMoves.length))
+  if (privateState !== undefined && (!record(privateState) || Object.keys(privateState).length > 0
+    && (ownId !== p.blackUserId || privateState.userId !== ownId)))
+    throw new Error('오목 금수 정보의 수신자를 확인해주세요.')
+  // Older servers sent public previews. Keep them only for the authenticated black player.
+  const forbiddenMoves = ownId === p.blackUserId
+    ? record(privateState) && privateState.forbiddenMoves !== undefined ? privateState.forbiddenMoves : p.forbiddenMoves
+    : undefined
+  if (forbiddenMoves !== undefined && (!Array.isArray(forbiddenMoves) || forbiddenMoves.length > 225
+    || !forbiddenMoves.every(m => record(m) && integer(m.x) && integer(m.y) && m.x < 15 && m.y < 15 && board[m.y]![m.x] === 0 && (m.kind === undefined || typeof m.kind === 'string' && ['33','44','6'].includes(m.kind)))
+    || new Set(forbiddenMoves.map(m => `${m.x},${m.y}`)).size !== forbiddenMoves.length))
     throw new Error('오목 금수 위치를 확인해주세요.')
   if (p.drawRequestsUsed !== undefined && (!Array.isArray(p.drawRequestsUsed) || p.drawRequestsUsed.length > 2
     || new Set(p.drawRequestsUsed).size !== p.drawRequestsUsed.length || !p.drawRequestsUsed.every(u => players.includes(u))))
@@ -208,13 +215,13 @@ export function parseOmok(p: unknown): Omok {
     )
       throw new Error('오목 마지막 수를 확인해주세요.')
   } else if (p.moveCount !== 0) throw new Error('오목 마지막 수가 없습니다.')
-  // Copy only known public fields; private payloads and extra server data never enter this store.
+  // Copy known fields and only the recipient-checked black preview.
   return {
     gameCode: 'OMOK',
     status: p.status as Omok['status'],
     boardSize: 15,
     board: p.board.map((row) => [...row]),
-    ...(p.forbiddenMoves === undefined ? {} : { forbiddenMoves: (p.forbiddenMoves as NonNullable<Omok['forbiddenMoves']>).map(m => ({x: m.x, y: m.y, ...(m.kind === undefined ? {} : {kind:m.kind})})) }),
+    ...(forbiddenMoves === undefined ? {} : { forbiddenMoves: (forbiddenMoves as NonNullable<Omok['forbiddenMoves']>).map(m => ({x: m.x, y: m.y, ...(m.kind === undefined ? {} : {kind:m.kind})})) }),
     blackUserId: p.blackUserId,
     whiteUserId: p.whiteUserId,
     turnUserId: p.turnUserId as string | null,
@@ -251,7 +258,7 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
     !integer(p.version) ||
     !['PLAYER', 'SPECTATOR'].includes(String(p.role)) ||
     !record(p.privateState) ||
-    (!(record(p.publicState) && ['ONE_CARD', 'LIAR_BRIDGE', 'ALKKAGI'].includes(String(p.publicState.gameCode)) && p.role === 'PLAYER') && Object.keys(p.privateState).length !== 0)
+    (!(record(p.publicState) && ['OMOK', 'ONE_CARD', 'LIAR_BRIDGE', 'ALKKAGI'].includes(String(p.publicState.gameCode)) && p.role === 'PLAYER') && Object.keys(p.privateState).length !== 0)
   )
     throw new Error('경기 공개 상태 또는 관전 권한을 확인해주세요.')
   const common = {
@@ -274,7 +281,7 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
     return { ...common, onecard, hand: p.role === 'PLAYER' ? parseHand(p.privateState, ownId, onecard) : null }
   }
   return record(p.publicState) && p.publicState.gameCode === 'DICE'
-    ? { ...common, dice: parseFarkle(p.publicState) } : { ...common, omok: parseOmok(p.publicState) }
+    ? { ...common, dice: parseFarkle(p.publicState) } : { ...common, omok: parseOmok(p.publicState, common.role === 'PLAYER' ? ownId : '', p.privateState) }
 }
 export function parseResult(p: Record<string, unknown>, ownId: string): Result {
   if (

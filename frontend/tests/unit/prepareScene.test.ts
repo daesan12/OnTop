@@ -1,8 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { BoxGeometry, Group, Mesh, MeshBasicMaterial, PerspectiveCamera, PointLight, Scene, Texture, Vector4, type WebGLRenderer } from 'three'
-import { prepareScene, warmSceneGeometry } from '../../src/world/prepareScene'
+import { prepareScene, warmSceneGeometry, waitForScenePrograms } from '../../src/world/prepareScene'
 
-afterEach(() => vi.useRealTimers())
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 it('waits for every shared-material program variant while uploads overlap async compilation', async () => {
   vi.useFakeTimers()
@@ -16,7 +16,7 @@ it('waits for every shared-material program variant while uploads overlap async 
     compileAsync: () => new Promise<void>(resolve => { releaseCompile = resolve }),
     initTexture,
     info: {programs:[{program:first},{program:second}]},
-    getContext: () => ({getExtension:()=>({COMPLETION_STATUS_KHR:0x91b1}),
+    getContext: () => ({isContextLost:()=>false,getExtension:()=>({COMPLETION_STATUS_KHR:0x91b1}),
       getProgramParameter:(program:unknown) => program === first || secondReady}),
   } as unknown as WebGLRenderer
   const pending = prepareScene(renderer, scene, new PerspectiveCamera(), () => true).then(()=>{done=true})
@@ -34,7 +34,7 @@ it('waits for every shared-material program variant while uploads overlap async 
 it('supports renderers without parallel compilation and propagates compilation failures', async () => {
   const make = (failure?: Error) => ({
     compileAsync: () => failure ? Promise.reject(failure) : Promise.resolve(), initTexture:vi.fn(),
-    getContext:()=>({getExtension:()=>null}),
+    getContext:()=>({getExtension:()=>null,isContextLost:()=>false}),
   }) as unknown as WebGLRenderer
   await expect(prepareScene(make(), new Scene(), new PerspectiveCamera(),()=>true)).resolves.toBeUndefined()
   await expect(prepareScene(make(new Error('compile failed')), new Scene(), new PerspectiveCamera(),()=>true)).rejects.toThrow('compile failed')
@@ -45,7 +45,7 @@ it('uploads maps on hidden LODs before a camera turn reveals them', async () => 
   const scene = new Scene(), hidden = new Group(); hidden.visible = false
   hidden.add(new Mesh(geometry, material)); scene.add(hidden)
   const initTexture = vi.fn(), renderer = {
-    compileAsync: () => Promise.resolve(), initTexture, getContext:()=>({getExtension:()=>null}),
+    compileAsync: () => Promise.resolve(), initTexture, getContext:()=>({getExtension:()=>null,isContextLost:()=>false}),
   } as unknown as WebGLRenderer
   await prepareScene(renderer, scene, new PerspectiveCamera(), () => true, {warmLighting:true})
   expect(initTexture.mock.calls).toEqual([[texture]])
@@ -82,7 +82,7 @@ it.each([false, true])('prepares both light-count variants and restores the live
     expect(other.visible).toBe(true)
     return failure && pooled.visible ? Promise.reject(new Error('night compile failed')) : Promise.resolve()
   })
-  const renderer = {compileAsync,initTexture:vi.fn(),getContext:()=>({getExtension:()=>null})} as unknown as WebGLRenderer
+  const renderer = {compileAsync,initTexture:vi.fn(),getContext:()=>({getExtension:()=>null,isContextLost:()=>false})} as unknown as WebGLRenderer
   const pending = prepareScene(renderer, scene, new PerspectiveCamera(), () => true, {warmLighting:true})
   expect(pooled.visible).toBe(false); expect(other.visible).toBe(true)
   expect(compileAsync).toHaveBeenCalledTimes(3)
@@ -112,10 +112,48 @@ it('prepares the shader features initialized by the first upload before presenti
   let uploaded = false
   const renderer = {
     compileAsync:()=>{stages.push(uploaded);return Promise.resolve()}, initTexture:vi.fn(),
-    getContext:()=>({getExtension:()=>null}), getScissor:(out:Vector4)=>out.set(0,0,800,600),
+    getContext:()=>({getExtension:()=>null,isContextLost:()=>false}), getScissor:(out:Vector4)=>out.set(0,0,800,600),
     getScissorTest:()=>false,setScissor:vi.fn(),setScissorTest:vi.fn(),render:()=>{uploaded=true},
   } as unknown as WebGLRenderer
   await prepareScene(renderer,scene,new PerspectiveCamera(),()=>true,{warmGeometry:true,warmLighting:true})
   expect(stages).toEqual([false,false,false,true,true,true])
   expect(light.visible).toBe(false)
+})
+
+it('stops on context loss even while compileAsync itself remains pending', async () => {
+  vi.useFakeTimers()
+  let lost = false
+  const getProgramParameter = vi.fn(() => null)
+  const renderer = { getContext: () => ({ isContextLost: () => lost,
+    getExtension: () => ({ COMPLETION_STATUS_KHR: 0x91b1 }), getProgramParameter }),
+    info: { programs: [{ program: {} }] } } as unknown as WebGLRenderer
+  const pending = waitForScenePrograms(renderer, () => true, new Promise(() => {}))
+  const assertion = expect(pending).rejects.toThrow('컨텍스트가 유실')
+  lost = true
+  await vi.advanceTimersByTimeAsync(10); await assertion
+  expect(getProgramParameter).not.toHaveBeenCalled()
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('bounds unfinished program polling even when the driver never completes a shader', async () => {
+  vi.useFakeTimers()
+  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+  const renderer = { getContext: () => ({ isContextLost: () => false,
+    getExtension: () => ({ COMPLETION_STATUS_KHR: 0x91b1 }), getProgramParameter: () => null }),
+    info: { programs: [{ program: {} }] } } as unknown as WebGLRenderer
+  const assertion = expect(waitForScenePrograms(renderer, () => true)).rejects.toThrow('대기 시간을 초과')
+  now.mockReturnValue(30_001)
+  await vi.advanceTimersByTimeAsync(10); await assertion
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('cancels a pending compilation wait when its owner is disposed', async () => {
+  vi.useFakeTimers()
+  let live = true
+  const renderer = { getContext: () => ({ isContextLost: () => false, getExtension: () => null }) } as unknown as WebGLRenderer
+  const pending = waitForScenePrograms(renderer, () => live, new Promise(() => {}))
+  live = false
+  await vi.advanceTimersByTimeAsync(10)
+  await expect(pending).resolves.toBeUndefined()
+  expect(vi.getTimerCount()).toBe(0)
 })

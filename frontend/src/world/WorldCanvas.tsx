@@ -26,6 +26,7 @@ import { ParkPigeons } from './pigeons/ParkPigeons'
 import { NightLighting } from './NightLighting'
 import { OmokFocusLighting } from './boardFocusLighting'
 import { CameraRig } from './CameraRig'
+import { ParkXRBridge } from '../features/parkXR/ParkXRBridge'
 
 import { Avatars } from './Avatars'
 import { AvatarPoseFrame } from './AvatarPoseFrame'
@@ -42,6 +43,7 @@ import { prepareScene } from './prepareScene'
 import { warmParkGeometry } from '../park/loadParkGeometry'
 import { jumpmapPreparationViews } from '../features/jumpmap/preparation'
 import { RpsRouletteCabinet } from '../features/rpsRoulette/RpsRouletteCabinet'
+import { useGachaOverlay } from '../features/gacha/view'
 
 preloadWorldAssets()
 
@@ -119,6 +121,7 @@ export const WorldCanvas = memo(function WorldCanvas({
   const preset = QUALITY[quality]
   const overlayTargets = useMemo<OverlayTargets>(() => new Map(), [])
   const [visible, setVisible] = useState(() => !document.hidden)
+  const gachaOverlay = useGachaOverlay(s => s.open)
   const [viewport, setViewport] = useState(() => ({
     width: innerWidth,
     height: Math.max(620, innerHeight),
@@ -153,7 +156,7 @@ export const WorldCanvas = memo(function WorldCanvas({
     <>
       <Canvas
         // Keep sockets alive in hidden tabs; authoritative match state still arrives.
-        frameloop={!visible || !active ? 'never' : 'always'}
+        frameloop={!visible || !active || gachaOverlay ? 'never' : 'always'}
         shadows={!GENERATED_PARK_ENABLED&&preset.shadows ? 'percentage' : false}
         dpr={renderDpr}
         camera={{
@@ -177,6 +180,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         }
       >
         <AvatarPoseFrame>
+          <ParkXRBridge />
           <EnvironmentScene />
           <ParkSoundscape />
           <ParkSun quality={quality} />

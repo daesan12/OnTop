@@ -3,19 +3,52 @@ import { AdminFeedbackPage } from '../feedback/AdminFeedbackPage'
 import { AdminAccessError, loadAdminAccess, type AdminAccess } from './adminAccess'
 import { AdminAnalyticsPage } from './AdminAnalyticsPage'
 import { AdminWalletGrantPage } from './AdminWalletGrantPage'
+import { AdminRewardManager } from '../notifications/AdminRewardManager'
 import { AdminAnnouncementsPage } from '../announcements/AdminAnnouncementsPage'
 import { AdminServiceOperationPage } from './AdminServiceOperationPage'
+import { AdminEventsPage } from './AdminEventsPage'
+import { AdminSkinsPage } from '../skins/AdminSkinsPage'
+import { adminRoutes, type AdminSection } from './adminRoutes'
 import logo from '../../assets/entry/ontop-logo.webp'
 import '../feedback/adminFeedback.css'
 import './adminShell.css'
 
-type Section = 'home' | 'feedback' | 'analytics' | 'wallet-grants' | 'announcements' | 'operations'
+type MenuSection = Exclude<AdminSection, 'home'>
+type MenuItem = {
+  section: MenuSection
+  label: string
+  title: string
+  description: string
+  permission: 'read' | 'operate' | 'grant'
+}
+
+const menuItems: readonly MenuItem[] = [
+  { section: 'skins', label: '스킨 공방', title: '스킨 등록·공개 관리',
+    description: '의상 파일과 상품 정보를 등록하고 검수 후 공개합니다.', permission: 'operate' },
+  { section: 'operations', label: '운영 제어', title: '서비스 운영 제어',
+    description: '신규 활동 차단·점검·정상 운영 상태를 안전하게 전환합니다.', permission: 'operate' },
+  { section: 'announcements', label: '공지 관리', title: '공원 공지',
+    description: '공지 문구·게시 순서·예약 기간을 관리합니다.', permission: 'operate' },
+  { section: 'events', label: '이벤트 관리', title: '이벤트 관리',
+    description: '응모권·게임·엽전 행사 결과를 확정하고 당첨자 제출 현황을 조회합니다.', permission: 'read' },
+  { section: 'feedback', label: '소리함', title: '소리함 의견',
+    description: '이용자가 남긴 비공개 의견을 확인합니다.', permission: 'read' },
+  { section: 'analytics', label: '이용 분석', title: '이용 분석',
+    description: '일별 이용 흐름과 게임별 집계를 확인합니다.', permission: 'read' },
+  { section: 'wallet-grants', label: '보상 관리', title: '보상 관리',
+    description: '회원별 엽전·뽑기권 선물과 수령 내역, 전 회원 엽전 지급을 관리합니다.', permission: 'grant' },
+]
+
+function canShow(item: MenuItem, access: AdminAccess): boolean {
+  return item.permission === 'operate' ? access.canOperate
+    : item.permission === 'grant' ? access.canGrant : access.canRead
+}
 type AccessState = { status: 'loading' } | { status: 'ready'; access: AdminAccess }
   | { status: 'forbidden' } | { status: 'unavailable'; message: string }
 
 export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
-  section: Section
-  onNavigate: (section: Section) => void
+  section: AdminSection
+  onNavigate: (section: AdminSection) => void
   onReturn: () => void
   onAuthEnded: () => void
 }) {
@@ -44,6 +77,7 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
     return () => { active = false; request.current?.abort() }
   }, [check])
   useEffect(() => { heading.current?.focus() }, [section, state.status])
+  const visibleItems = state.status === 'ready' ? menuItems.filter(item => canShow(item, state.access)) : []
 
   return <main className="admin-feedback-page admin-shell">
     <header className="admin-feedback-header">
@@ -52,14 +86,17 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
       <small>온탑 · 관리자 전용</small>
       <h1 ref={heading} tabIndex={-1}>{section === 'home' ? '관리자 페이지'
         : section === 'operations' ? '서비스 운영 제어' : section === 'announcements' ? '공원 공지 관리'
-          : section === 'feedback' ? '소리함 의견 조회' : section === 'analytics' ? '일별·게임별 분석' : '전 회원 엽전 지급'}</h1>
+          : section === 'skins' ? '스킨 공방' : section === 'events' ? '이벤트 관리' : section === 'feedback' ? '소리함 의견 조회'
+            : section === 'analytics' ? '일별·게임별 분석' : '보상 관리'}</h1>
       {state.status === 'ready' && <p>{section === 'home'
         ? '관리자 기능을 선택해주세요.' : section === 'feedback'
           ? '이용자가 비공개로 남긴 의견입니다. 서버에서 조회 권한을 확인합니다.'
           : section === 'operations' ? '신규 활동 차단부터 점검 종료까지 운영 상태를 안전하게 전환합니다.'
           : section === 'announcements' ? '소식을 적고 올리면 공원 맨 위 공지에 표시돼요.'
+          : section === 'skins' ? '새 의상 상품과 파일 버전을 안전하게 등록하고 검수합니다.'
+          : section === 'events' ? '회차별 행사 결과와 당첨자 제출 현황을 확인합니다.'
           : section === 'analytics' ? '행동 로그를 백업 기준으로 집계한 결과입니다. 서버에서 조회 권한을 확인합니다.'
-            : '대상 인원과 총액을 미리 확인한 뒤 모든 활성 회원에게 엽전을 지급합니다.'}</p>}
+            : '회원별 엽전·뽑기권 선물과 수령 상태를 확인하고, 전체 지급은 아래 별도 구역에서 진행합니다.'}</p>}
     </header>
     {state.status === 'loading' && <p role="status">관리자 권한을 확인하고 있어요…</p>}
     {state.status === 'forbidden' && <section className="admin-feedback-content" role="alert">
@@ -71,41 +108,28 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
     </section>}
     {state.status === 'ready' && <>
       <nav className="admin-shell-nav" aria-label="관리자 메뉴">
-        {state.access.canOperate && <a href="/admin/operations" aria-current={section === 'operations' ? 'page' : undefined}
-          onClick={event => { event.preventDefault(); onNavigate('operations') }}>운영 제어</a>}
-        {state.access.canOperate && <a href="/admin/announcements" aria-current={section === 'announcements' ? 'page' : undefined}
-          onClick={event => { event.preventDefault(); onNavigate('announcements') }}>공지 관리</a>}
-        <a href="/admin" aria-current={section === 'home' ? 'page' : undefined}
+        <a href={adminRoutes.home.path} aria-current={section === 'home' ? 'page' : undefined}
           onClick={event => { event.preventDefault(); onNavigate('home') }}>관리자 홈</a>
-        <a href="/admin/feedback" aria-current={section === 'feedback' ? 'page' : undefined}
-          onClick={event => { event.preventDefault(); onNavigate('feedback') }}>소리함</a>
-        <a href="/admin/analytics" aria-current={section === 'analytics' ? 'page' : undefined}
-          onClick={event => { event.preventDefault(); onNavigate('analytics') }}>이용 분석</a>
-        {state.access.canGrant && <a href="/admin/wallet-grants" aria-current={section === 'wallet-grants' ? 'page' : undefined}
-          onClick={event => { event.preventDefault(); onNavigate('wallet-grants') }}>엽전 지급</a>}
+        {visibleItems.map(item => <a key={item.section} href={adminRoutes[item.section].path}
+          aria-current={section === item.section ? 'page' : undefined}
+          onClick={event => { event.preventDefault(); onNavigate(item.section) }}>{item.label}</a>)}
       </nav>
       {section === 'home' ? <section className="admin-feedback-content admin-shell-home" aria-label="관리자 기능">
         <h2>관리자 기능</h2>
-        {state.access.canOperate && <a href="/admin/operations" onClick={event => { event.preventDefault(); onNavigate('operations') }}>
-          <strong>서비스 운영 제어</strong><span>신규 활동 차단·점검·정상 운영 상태를 안전하게 전환합니다.</span></a>}
-        {state.access.canOperate && <a href="/admin/announcements" onClick={event => { event.preventDefault(); onNavigate('announcements') }}>
-          <strong>공원 공지</strong><span>공지 문구·게시 순서·예약 기간을 관리합니다.</span></a>}
-        <a href="/admin/feedback" onClick={event => { event.preventDefault(); onNavigate('feedback') }}>
-          <strong>소리함 의견</strong><span>이용자가 남긴 비공개 의견을 확인합니다.</span>
-        </a>
-        <a href="/admin/analytics" onClick={event => { event.preventDefault(); onNavigate('analytics') }}>
-          <strong>이용 분석</strong><span>일별 이용 흐름과 게임별 집계를 확인합니다.</span>
-        </a>
-        {state.access.canGrant && <a href="/admin/wallet-grants" onClick={event => { event.preventDefault(); onNavigate('wallet-grants') }}>
-          <strong>전 회원 엽전 지급</strong><span>대상과 총액을 미리 확인하고 활성 회원 전체에 엽전을 지급합니다.</span>
-        </a>}
+        {visibleItems.map(item => <a key={item.section} href={adminRoutes[item.section].path}
+          onClick={event => { event.preventDefault(); onNavigate(item.section) }}>
+          <strong>{item.title}</strong><span>{item.description}</span>
+        </a>)}
       </section> : section === 'operations' ? state.access.canOperate ? <AdminServiceOperationPage onAuthEnded={onAuthEnded} />
         : <section role="alert">운영 관리자 권한이 필요합니다.</section>
         : section === 'announcements' ? state.access.canOperate ? <AdminAnnouncementsPage onAuthEnded={onAuthEnded} />
         : <section role="alert">운영 관리자 권한이 필요합니다.</section>
+        : section === 'skins' ? state.access.canOperate ? <AdminSkinsPage onAuthEnded={onAuthEnded} />
+          : <section role="alert">스킨 등록 운영 권한이 필요합니다.</section>
+        : section === 'events' ? <AdminEventsPage access={state.access} onAuthEnded={onAuthEnded} />
         : section === 'feedback' ? <AdminFeedbackPage onAuthEnded={onAuthEnded} />
         : section === 'analytics' ? <AdminAnalyticsPage onAuthEnded={onAuthEnded} />
-          : state.access.canGrant ? <AdminWalletGrantPage onAuthEnded={onAuthEnded} />
+          : state.access.canGrant ? <><AdminRewardManager onAuthEnded={onAuthEnded} /><AdminWalletGrantPage onAuthEnded={onAuthEnded} /></>
             : <section className="admin-feedback-content" role="alert"><h2>지급 권한이 없습니다</h2>
               <p>엽전 지급 권한이 등록된 관리자 계정으로 다시 확인해주세요.</p></section>}
     </>}

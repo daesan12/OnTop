@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 
 /** Shared, game-owned art direction. All props remain real geometry in both views. */
@@ -15,6 +16,33 @@ export class RestaurantSet {
   private disposed = false
 
   constructor() { this.root.name = 'restaurant-3d-decor' }
+  /** 고정 장식만 재질별로 합친다. 움직이는 오브젝트와 공유 원본은 보존한다. */
+  batchStatic(excluded = new Set<THREE.Object3D>()) {
+    this.root.updateWorldMatrix(true, true)
+    const inverse = this.root.matrixWorld.clone().invert()
+    const groups = new Map<string, THREE.Mesh[]>()
+    this.root.traverse(object => {
+      if (!(object instanceof THREE.Mesh) || object instanceof THREE.InstancedMesh || Array.isArray(object.material) || object.material.transparent) return
+      for (let parent: THREE.Object3D | null = object; parent; parent = parent.parent) if (excluded.has(parent)) return
+      const key = `${object.material.uuid}:${object.castShadow}:${object.receiveShadow}:${Object.keys(object.geometry.attributes).sort().join(',')}`
+      const group = groups.get(key) ?? []; group.push(object); groups.set(key, group)
+    })
+    for (const objects of groups.values()) {
+      if (objects.length < 2) continue
+      const sources = objects.map(object => {
+        const geometry = object.geometry.index ? object.geometry.toNonIndexed() : object.geometry.clone()
+        return geometry.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, object.matrixWorld))
+      })
+      const geometry = mergeGeometries(sources)
+      sources.forEach(source => source.dispose())
+      if (!geometry) continue
+      this.geometries.set(`batch:${geometry.uuid}`, geometry)
+      const batch = new THREE.Mesh(geometry, objects[0].material)
+      batch.castShadow = objects[0].castShadow; batch.receiveShadow = objects[0].receiveShadow
+      batch.name = 'static-restaurant-batch'; this.root.add(batch)
+      objects.forEach(object => object.removeFromParent())
+    }
+  }
   material(color: string, metalness = 0, roughness = .53) {
     const key = `${color}:${metalness}:${roughness}`
     let material = this.materials.get(key)

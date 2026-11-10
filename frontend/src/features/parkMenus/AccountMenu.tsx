@@ -4,6 +4,7 @@ import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { WalletBalance } from '../wallet/WalletBalance'
+import { spendableBalance } from '../wallet/balance'
 import { useOwnPortrait } from './characterPortrait'
 import { MenuDialog } from './MenuDialog'
 import { NicknameDoneDialog, ProfileDialog } from './ProfileDialog'
@@ -23,14 +24,15 @@ const GameRecordsDialog = lazy(() => import('../gameHistory/GameRecordsDialog'))
 type Dialog = null | 'profile' | 'records' | 'logout' | 'withdraw' | { from: string; to: string }
 
 /** Account menu with profile, server records and session actions; 설정 lives in the 빠른 메뉴 dock. */
-export function AccountMenu({ exitError, onExit, onWithdrawn }: {
+export function AccountMenu({ exitError, onExit, onWithdrawn, onOpenWinnings }: {
   exitError: string
   onExit: () => void | Promise<void>
   onWithdrawn: () => void
+  onOpenWinnings?: () => void
 }) {
   const account = useSession(useShallow(s => ({
     nickname: displayNickname(s.profiles[s.sessionId], s.account?.nickname ?? '정보 미연동'),
-    balance: s.account?.balance ?? null,
+    balance: spendableBalance(s.account),
   })))
   const portrait = useOwnPortrait()
   const [open, setOpen] = useState(false)
@@ -80,6 +82,10 @@ export function AccountMenu({ exitError, onExit, onWithdrawn }: {
       <button type="button" role="menuitem" className="park-menu-item" onClick={() => choose('records')}>
         <img src={profileIcon} alt="" /><span><b>내 전적</b><small>경기 내역 · 게임별 전적</small></span>
       </button>
+      {onOpenWinnings && <button type="button" role="menuitem" className="park-menu-item"
+        onClick={() => { setOpen(false); onOpenWinnings() }}>
+        <img src={profileIcon} alt="" /><span><b>내 당첨 내역</b><small>경품 · 연락처 제출 상태</small></span>
+      </button>}
       <button type="button" role="menuitem" className="park-menu-item" disabled={!!tourBlocked}
         title={tourBlocked || undefined} onClick={() => { setOpen(false); replayWelcomeTour() }}>
         <img src={placeIcon} alt="" /><span><b>공원 투어 다시 보기</b><small>{tourBlocked || '걸으면서 공원 기능 익히기'}</small></span>

@@ -89,6 +89,15 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 | Feedback | GET /api/v1/admin/feedback | Access JWT·서버 관리자 ID 목록 | 200 |
 | Notes | POST /api/v1/notes | Access JWT·위치/활동 검사 | 201 |
 | Notes | GET /api/v1/notes | Access JWT·위치/활동 검사 | 200 |
+| Raffle | GET /api/v1/raffles/rounds/{weekStart}/result | Access JWT·본인 결과만 | 200 |
+| Raffle | GET /api/v1/admin/raffles/rounds/{weekStart} | Access JWT·관리자 조회 | 200 |
+| Raffle | POST /api/v1/admin/raffles/rounds/{weekStart}/finalize | Access JWT·관리자 운영·판매 마감 후 | 200 |
+| Event Awards | GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result | Access JWT·본인 결과만 | 200 |
+| Event Awards | GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart} | Access JWT·관리자 조회 | 200 |
+| Event Awards | POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize | Access JWT·관리자 운영·기록 마감 후 | 200 |
+| Event Awards | GET /api/v1/events/assets/rounds/{weekStart}/result | Access JWT·본인 결과만 | 200 |
+| Event Awards | GET /api/v1/admin/events/assets/rounds/{weekStart} | Access JWT·관리자 조회 | 200 |
+| Event Awards | POST /api/v1/admin/events/assets/rounds/{weekStart}/finalize | Access JWT·관리자 운영·엽전 집계 마감 후 | 200 |
 
 정적 export는 OpenApiLocalTests가 Feedback/Notes를 켠 실제 local 문서에서 생성한다.
 local/dev의 endpoint 목록은 해당 기능 플래그 조건에 따라 OpenAPI·보안 회귀 테스트에서 정확히 비교한다.
@@ -180,6 +189,7 @@ DELETE는 Soft Delete + 모든 Refresh 계열 폐기를 한 트랜잭션에서 �
 
 Auth/User/Security 오류는 `{code,message}`다. 닉네임 중복은 `USER_NICKNAME_ALREADY_EXISTS`(409),
 잘못된 닉네임은 `USER_INVALID_NICKNAME`(400), GM 접두어는 `USER_RESERVED_NICKNAME`(400),
+욕설·비속어 금칙어는 `USER_INAPPROPRIATE_NICKNAME`(400, 조회·온보딩·닉네임 수정 공통),
 탈퇴 DB 실패는 `USER_WITHDRAWAL_UNAVAILABLE`(503)이다.
 기존 Channel/Table/Shop 오류에는 `details:null`이 추가되며, Minigame·Feedback·Notes의 추가 오류 필드도 각각 구분한다.
 각 operation에 실제 DTO·허용 요청 필드·성공/오류 상태·주요 code·Cache-Control/Set-Cookie/Location을 기술한다.

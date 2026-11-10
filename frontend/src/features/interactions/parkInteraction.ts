@@ -37,9 +37,10 @@ import { canReachParkVr, openParkVrZone, parkVrEntrance } from '../vrZone/parkBr
 import { canReachJumpmapGuide, jumpmapGuideScope, openJumpmapGuide } from '../jumpmap/guideState'
 import { START as JUMPMAP_START } from '../jumpmap/course'
 import { useJumpmap } from '../jumpmap/state'
+import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'ranking-board' | 'vr' | 'jumpmap-guide'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw'
   id: string
   label: string
   seat?: 0 | 1
@@ -58,6 +59,10 @@ export function getParkInteraction(): ParkInteraction | null {
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
+  if (p.carry && p.carry.role !== 'CARRIER') return null
+  const carry = carryInteraction()
+  if (p.carry?.role === 'CARRIER') return carry
+  if (carry) choices.push(carry)
   if (GENERATED_PARK_ENABLED && !useJumpmap.getState().run && canReachJumpmapGuide(p.current)) {
     const distance=Math.hypot(p.current.x-JUMPMAP_START.x,p.current.z-JUMPMAP_START.z)
     choices.push({kind:'jumpmap-guide',id:'jumpmap-guide',label:'돌탑 점프맵 안내',occupied:false,available:true,distance,
@@ -74,7 +79,7 @@ export function getParkInteraction(): ParkInteraction | null {
   }
   if (canReachParkVr(p.current)) {
     const distance = Math.hypot(p.current.x - parkVrEntrance.x, p.current.z - parkVrEntrance.z)
-    choices.push({ kind: 'vr', id: 'vr-experience-hall', label: 'VR 게임 선택 · 한 판 10냥', occupied: false, available: true, distance,
+    choices.push({ kind: 'vr', id: 'vr-experience-hall', label: '온탑 꼬치왕', occupied: false, available: true, distance,
       score: interactionScore(distance, { x: parkVrEntrance.x, y: 1.5, z: parkVrEntrance.z }) })
   }
   if (canReachBungeoppang(p.current)) {
@@ -142,7 +147,8 @@ export function getParkInteraction(): ParkInteraction | null {
 export function interactWithPark(): boolean {
   const target = getParkInteraction()
   if (!target) return false
-  if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
+  if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
+  else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
   else if (target.kind === 'ranking-board') openRankingBoard()
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'construction') openConstructionNotice(target.id)

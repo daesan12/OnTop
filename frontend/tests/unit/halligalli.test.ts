@@ -30,6 +30,8 @@ import { FRUITS } from '../../src/game/halligalli/protocol'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { halliFinished, halliPlayer, halliState } from '../fixtures/halligalli'
+import { canLeaveEliminatedHalli } from '../../src/game/halligalli/actions'
+import { resetForfeit, useForfeit } from '../../src/game/forfeit'
 
 const restore = (state: object = halliState(), version = 4) => receiveGame({ type: 'GAME_CONNECTION_STATE', requestId: null,
   payload: { status: 'RESTORED', gameId: 'halli', version, state: { publicState: state, privateState: {} } } }, '101', 't')
@@ -533,6 +535,71 @@ describe('table stage rendering', () => {
     expect(own).toContain('data-kind="turn">마지막 종 기회')
     expect(own).toMatch(/<button[^>]*class="hg-stage-draw"[^>]*disabled/)
     expect(html('505', {}, state)).toContain('나 · 마지막 종 기회')
+  })
+})
+
+describe('naturally eliminated player leaves the table', () => {
+  type Deferred = { resolve: (v: unknown) => void; reject: (e: unknown) => void }
+  const out = { active: false, eliminated: true }
+  const playing = (own: Record<string, unknown> = out) => {
+    restore(halliState(3, { turnUserId: '102', players: [halliPlayer(0, own), halliPlayer(1), halliPlayer(2)] }))
+    useGame.setState({ start: { tableId: 't', revision: 1, phase: 'PLAYING', startAttemptId: 'a', gameCode: 'HALLI_GALLI',
+      gameSessionId: 'halli', code: null, simulation: false } as never })
+  }
+  beforeEach(() => {
+    resetForfeit()
+    useSession.setState({ status: 'connected', sessionId: '101', pending: false })
+  })
+  afterEach(() => { vi.unstubAllGlobals(); resetWorld(); resetForfeit() })
+
+  it('allows leaving only a naturally eliminated player, also after a reconnect restored ELIMINATED', () => {
+    playing({})
+    expect(canLeaveEliminatedHalli('101')).toBe(false)
+    playing()
+    expect(canLeaveEliminatedHalli('101')).toBe(true)
+    useGame.setState({ recovery: 'ELIMINATED' })
+    expect(canLeaveEliminatedHalli('101')).toBe(true)
+    useGame.setState({ pending: true })
+    expect(canLeaveEliminatedHalli('101')).toBe(false)
+  })
+  it('never offers leaving to a forfeited player, a spectator, a finished game or outside PLAYING', () => {
+    playing({ active: false, eliminated: true, forfeited: true })
+    expect(canLeaveEliminatedHalli('101')).toBe(false)
+    playing()
+    useGame.setState(s => ({ game: { ...s.game!, role: 'SPECTATOR' } as typeof s.game }))
+    expect(canLeaveEliminatedHalli('101')).toBe(false)
+    playing()
+    useGame.setState(s => ({ start: { ...s.start!, phase: 'SETTLING' } }))
+    expect(canLeaveEliminatedHalli('101')).toBe(false)
+    restore(halliFinished(3, ['102']))
+    expect(canLeaveEliminatedHalli('101')).toBe(false)
+  })
+  it('keeps the pending or uncertain forfeit re-check ahead of leaving', () => {
+    for (const status of ['pending', 'uncertain'] as const) {
+      playing()
+      useForfeit.setState({ attempt: { userId: '101', gameId: 'halli', actionId: 'f1', status, error: '' } })
+      expect(canLeaveEliminatedHalli('101')).toBe(false)
+    }
+  })
+  it('sends the plain TABLE_LEAVE mid-game only for that player; others keep the local busy guard', async () => {
+    vi.stubGlobal('window', { location: { href: 'http://localhost:5197/park' } })
+    const runtime = new ParkRuntime(), sent: { type: string; payload: unknown; done: Deferred }[] = []
+    Object.assign(runtime as unknown as Record<string, unknown>, { active: true, mapAdmission: { allowed: true },
+      socket: { connected: true, request: (type: string, payload: unknown) =>
+        new Promise((resolve, reject) => { sent.push({ type, payload, done: { resolve, reject } }) }) } })
+    useSession.setState({ status: 'connected', sessionId: '101' })
+
+    playing({})
+    expect(await runtime.leaveTable()).toBe(false)
+    expect(sent).toHaveLength(0)
+    expect(useSession.getState().error).toContain('경기 진행')
+
+    playing()
+    const leaving = runtime.leaveTable()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(sent.map(r => [r.type, r.payload])).toEqual([['TABLE_LEAVE', {}]])
+    sent[0]!.done.resolve({ type: 'TABLE_LEFT', requestId: 'r', payload: { tableId: 't' } })
+    expect(await leaving).toBe(true)
   })
 })
 

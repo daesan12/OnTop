@@ -9,6 +9,7 @@ import { createShopService, ShopError } from '../shop/service'
 import { wardrobeView } from './view'
 import { gameplayMenusLocked } from '../parkMenus/gameplayLock'
 import { WARDROBE_OUTFITS_ENABLED } from './feature'
+import { wholeSkinCompatible } from '../../world/art/wholeSkin'
 
 /** Slightly above eye level, so the zoomed figure is seen almost straight on. */
 const WARDROBE_PITCH = 0.16
@@ -47,7 +48,7 @@ export const setPieces = (items: OwnedItem[], owned: OwnedItem) =>
   owned.item.setCode ? items.filter(other => other.item.setCode === owned.item.setCode) : [owned]
 /** A set's name from its pieces' shared prefix ("장군 투구", "장군 갑옷" → "장군 세트"); a single item's own name. */
 export function itemLabel(items: OwnedItem[], owned: OwnedItem) {
-  if (!owned.item.setCode) return owned.item.name
+  if (!owned.item.setCode || owned.item.setCode.startsWith('SK_')) return owned.item.name
   const names = setPieces(items, owned).map(other => other.item.name)
   let prefix = names[0] ?? ''
   for (const name of names) while (!name.startsWith(prefix)) prefix = prefix.slice(0, -1)
@@ -129,7 +130,7 @@ export async function refreshWardrobe() {
   if (wallet.status === 'fulfilled') {
     useWardrobe.setState({ balance: wallet.value.balance })
     const account = useSession.getState().account
-    if (account) useSession.setState({ account: { ...account, balance: wallet.value.balance } })
+    if (account) useSession.setState({ account: { ...account, balance: wallet.value.balance, reservedBalance: wallet.value.reservedBalance } })
   }
 }
 export function setWardrobeFilter(filter: WardrobeFilter) { useWardrobe.setState({ filter }) }
@@ -161,6 +162,11 @@ export async function wearPreviewedItem() {
   const s = useWardrobe.getState(), owner = s.owner, generation = epoch
   const target = s.items.find(owned => owned.userItemId === s.previewId)
   if (!current(owner, generation) || !target || target.equipped || s.equipping || s.loading) return
+  const variant = useSession.getState().profiles[owner]?.character === 'girl' ? 'girl' : 'man'
+  if (!wholeSkinCompatible(variant, target.item.imageKey)) {
+    useWardrobe.setState({ equipError: `이 스킨은 ${variant === 'girl' ? '남자' : '여자'} 캐릭터 전용이에요.` })
+    return
+  }
   const abort = writeAbort = new AbortController()
   useWardrobe.setState({ equipping: target.userItemId, equipError: '', notice: '' })
   try {

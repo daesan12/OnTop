@@ -1,0 +1,80 @@
+# SSAFY 검정 남자 통짜 스킨 개발서버 적용
+
+## 변경과 장착 계약
+
+- 최종 기준: `origin/dev@5ac9c38374f9440818a9e7c2ca735b8bbc414c91`(최초 작업 기준 86ab0c00).
+- 최신 dev 통합 중 `WardrobeScreen.tsx`의 남녀별 썸네일 인자와 `outfitSources.ts`의 rig=23 캐시 키 충돌을 해결했다. 최신 남녀 헤어/카메라/옷장 변경과 통짜 스킨 경로를 함께 보존했다.
+- 작업 브랜치: `feat/S15P31B105-319-ssafy-whole-skin`. 기존 옷장/5슬롯 세트 계약(S15P31B105-319)을 재사용한다.
+- `frontend/public/art/characters/skins/ssafy-black-male-v3.glb`: 몸·얼굴·머리·옷이 포함된 파일 하나, 1,627,276 bytes, 공통 49관절, near 32,000 / far 6,000 triangles, 2048 WebP atlas.
+- SHA-256: `f09bfd93afbebdb4953cae6e0dccb29e6429566af2d8dbf17f7ca7c2d83297cc`.
+- 사용자 제공 몸체와 2번 레퍼런스로 제작했다. Tripo 원본 ID `992e3d30-e205-444b-9e54-39f64e8f1a68`, 기존 승인 생성 비용 80 credits. 이번 통합에서 추가 생성 비용은 없다.
+- 공개 장착 5슬롯 모두 `imageKey=skin/ssafy-black-male/v3`, `setCode=SSAFY_BLACK_MALE_V3`. DB 부위 행은 장착 정보이며 모델을 5개로 나누지 않는다.
+- 남자 캐릭터에만 표시한다. 일부 슬롯 누락, 혼합·미등록 키, 로드 실패 시 기본 몸체를 유지한다. 다른 머리·얼굴·옷을 입으면 기존 서버 세트 해제 규칙으로 스킨 전체가 벗겨진다.
+- 개인 미리보기는 본인에게만 적용한다. 확정 착용은 기존 REST 장착/해제와 WORLD_STATE 공개 장착 정보로 다른 방문자에게 전달한다. 통신·인증·이동 계약은 변경하지 않는다.
+- 헤어 포함 완성 표면을 기본 몸체 대신 생성하며, 추가 부위 메시를 덧붙이지 않는다. 기존 man/girl GLB는 수정하지 않는다.
+- 기본 캐릭터·새 스킨 모두 실제 맵 벤치 높이를 이용한다. 맵 소스/맵 해시 변경은 없다.
+
+## 배포 전 확인
+
+1. 2026-11-05 사용자 최종 정정으로 **V152**를 사용한다. 팀원의 `db/minigame/V151__create_speed_mole_rounds.sql`이 dev에 반영됐으며 그대로 보존한다. 우리 스킨의 V151은 작업 브랜치에만 있었고 이 작업에서 공유 DB에 적용하지 않았다. 해당 파일을 새 커밋에서 V152로 변경하며 이미 푸시한 이력은 재작성하지 않는다. 변경 전 원격 참조 50개와 로컬 worktree 107곳에서 V152 파일이 없음을 확인했다. 팀의 미공유 예약은 확인 범위 밖이므로 사용자 지정 번호를 기준으로 하되 병합 직전 다시 확인한다.
+2. 새 파일은 `backend/src/main/resources/db/shop/V152__register_ssafy_black_male_whole_skin.sql` 한 개다. 비판매·0원 카탈로그만 등록하고 누구에게도 자동 지급하지 않는다. 스킨용 V151 파일은 최종 소스와 MR 차이에서 제거한다.
+3. 실제 개발 DB에서 `items`, `user_items`, `set_code`와 V100/V102의 적용 이력, 전체 locations의 V152 중복을 먼저 확인한다. 미적용 V100/V102를 최신 DB에 임의로 소급 적용하거나 `outOfOrder`/repair/초기화로 우회하지 않는다. 이 작업은 실제 dev DB의 적용 이력을 직접 조회한 결과가 아니며 이미 적용된 팀원 migration을 변경하지 않는다.
+4. 배포 서버는 `SHOP_ENABLED=true`, Flyway locations에 기존 활성 경로와 `classpath:db/shop`이 필요하다. `application-db.yml`의 dev 프로필에는 기본적으로 migration/minigame만 있으므로 **실제 유효 설정**을 확인해야 한다. 이 MR은 서버 환경변수를 변경하지 않는다.
+5. 프런트엔드는 Jenkins의 로컬 빌드와 Vercel 원격 빌드에 `VITE_WARDROBE_OUTFITS=true`를 명시한다. 정확히 `dev.on-top.world`인 경우에도 기본 활성화하되 명시적 `false`는 존중한다. 그 외 배포 호스트의 기본 비활성 정책은 유지한다.
+6. dev 병합은 사용자 별도 승인 후 진행한다. Jenkins `ontop-dev`가 해당 병합 SHA로 성공했고 정적 파일과 V152가 반영됐는지 확인한다. 이번 스킨용 파일이 dev에서 내려받아지기 전에는 착용 완료라고 보고하지 않는다.
+
+## 검수 계정 지급
+
+V152 적용 뒤 지정된 **개발 DB와 계정 ID**를 확인하고 기존 장착을 건드리지 않도록 아래를 트랜잭션으로 실행한다. 예시 ID는 넣지 않는다. 실제 계정 ID를 운영자가 주입해야 한다.
+
+```sql
+-- SET @skin_user_id = 확인한_검수_계정_ID;
+START TRANSACTION;
+INSERT INTO user_items (user_id, item_id, quantity, is_equipped)
+SELECT u.id, i.id, 1, FALSE
+FROM users u CROSS JOIN items i
+WHERE u.id = @skin_user_id
+  AND i.set_code = 'SSAFY_BLACK_MALE_V3'
+ON DUPLICATE KEY UPDATE quantity = GREATEST(quantity, 1);
+SELECT ui.user_id, i.item_code, ui.quantity, ui.is_equipped
+FROM user_items ui JOIN items i ON i.id = ui.item_id
+WHERE ui.user_id = @skin_user_id AND i.set_code = 'SSAFY_BLACK_MALE_V3';
+-- 반환된 5행의 계정/코드를 확인한 후 COMMIT; 다르면 ROLLBACK;
+```
+
+지급 후 공원 재접속 → 옷장 → `SSAFY 검정 후드 세트` → 미리보기 → 세트 입기. 세트 벗기는 기본 캐릭터로 복귀한다. 다른 계정 화면과 재접속에서도 외형이 유지되는지 확인한다. 판매 등록과 전체 계정 지급은 이번 범위가 아니다.
+
+## 검증과 남은 범위
+
+- 관련 FE 단위 테스트 통과: 부분/혼합 키 방어, 5슬롯 미리보기, 다른 부위 선택 시 전체 해제, 기존 man/girl 및 실제 새 GLB의 모션·LOD·개인별 자원 소유권, 맵 벤치 높이.
+- 최신 dev 통합 후 전체 FE **2,340개 통과, 6개 skip**, 260개 테스트 파일 통과. 초기 실행의 맵 임시 파일 권한 실패는 권한을 갖춘 재실행에서 해소됐으며, 최종 전체 실행에는 실패가 없다.
+- 기존 BE `ShopEquipmentSetTests` 9개 통과: 5부위 일괄 착용/해제 및 다른 옷으로 교체.
+- MySQL 8.4 임시 컨테이너에서 V100 → V102 → 스킨 등록 SQL 성공(초기 V151 검증, 최종 파일은 V152로 재검증). 신규 상점과 기존 보유 의상이 있는 상점 각각 5슬롯/단일 키·세트/비판매·0원/기존 장착 보존 확인. 전체 애플리케이션 신규 DB 구축이나 실제 dev Flyway 이력 검수와는 구분한다.
+- 타입 검사, 개발 배포 설정의 park 빌드, map check 통과. 맵 `c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07`, 18 tables/536 obstacles 유지.
+- 앞선 자산 검수: 43 모션 × 두 LOD, 21,870 frames에서 비정상 수치 없음. 모든 삼각형 간 관통이나 얼굴 morph 감정표현 통과를 의미하지 않는다. 원본 게임 모션만 재사용한다.
+- PC 브라우저에서 실제 Avatars 렌더러와 공개 장착 fixture로 기본/새 스킨 교체를 확인한다. fixture는 서버 소유권·다중 실제 계정 검수 결과가 아니다.
+- **실제 dev 지급·착용·재접속/다중 계정과 헤드셋 착용 검수는 별도**다. VR 검수는 사용자가 나중에 진행하기로 했다.
+- 실제 dev 브라우저에서는 의상 기능이 닫혀 있다는 안내와 WebGL2 불가 화면을 확인했다. 옷장은 새로고침 후 열렸으나 새 스킨은 아직 배포되지 않았다. 위의 유효 빌드 플래그·DB 경로 확인 및 계정 지급이 끝나야 실제 착용 검수를 진행할 수 있다. 로컬 새 스킨 장면은 같은 브라우저에서 렌더링됐다.
+
+## 마이룸 리뷰 보완과 판매 없는 착용 테스트
+
+- 더블클릭 카드와 하단 착용 버튼은 같은 `wholeSkinCompatible` 판정을 사용한다. 공통 착용 액션도 현재 프로필로 재검사해 다른 경로에서도 잘못된 성별의 장착 PATCH가 나가지 않게 한다. 이미 장착한 스킨을 벗는 동작은 허용한다.
+- 실제 dev를 새로고침해도 `의상은 곧 열려요`가 재현됐다. Jenkins #325의 로컬 dev 산출물과 실제 Vercel 공개 옷장 모듈이 달랐고, 공개 화면은 비활성 상태였다. Vercel 프로젝트 원본 설정은 로그인 권한이 없어 직접 확인하지 못했다. 원격 빌드에도 dev 활성값과 dev bindings를 `--build-env`로 전달해 로컬 셸 환경에만 의존하지 않게 보완했다([Vercel CLI 문서](https://vercel.com/docs/cli/deploy#build-env)).
+- 이 수정은 마이룸 프런트엔드의 활성 정책에 대한 것이다. 실제 서버 `SHOP_ENABLED`와 DB V100/V102/V152의 성공 이력은 별도 확인해야 한다. 현재 사용 가능한 SSH 키는 Jenkins 터널용으로 세션 명령이 거부되어 DB 설정 읽기·지급 SQL을 실행하지 못했다. 실제 서버 반영 완료로 보고하지 않는다.
+- 로컬 검수 fixture의 실제 `WardrobeScreen`과 서비스 어댑터에서 여자 캐릭터 더블클릭은 PATCH 0건, 남자 캐릭터 더블클릭 입기는 PATCH 1건/32,000 triangles, 두 번째 더블클릭 벗기는 PATCH 2건 누적/기본 25,639 triangles로 확인했다. 이 fixture의 API 응답은 로컬 mock이며 실제 dev 소유권 검수와 구분한다.
+- 리뷰 보완 후 전체 FE 테스트 2,404개 통과/6개 skip, 배포 설정 Python 테스트 5개 통과, 타입 검사와 dev park 빌드·map check·diff check 통과. 기존 전체 테스트 2,340개 기록은 앞선 기준의 결과다.
+- 뽑기나 기본 스킨 선택 기능은 이번에 구현하지 않는다. 테스트는 위의 지정 계정 지급 SQL로 비판매 스킨 5행을 지급하고 기존 옷장에서 착용·해제하는 방식이다. 지급 전에 실제 계정 ID, dev DB, 적용 이력을 확인한다. 전 계정 지급·자동 장착·판매 등록은 하지 않는다.
+
+DB 접속 권한이 있는 담당자가 먼저 확인할 읽기 쿼리(오직 dev DB에서 실행):
+
+```sql
+SELECT version, description, script, success
+FROM flyway_schema_history
+WHERE version IN ('100', '102', '151', '152') ORDER BY installed_rank;
+SELECT table_name, column_name
+FROM information_schema.columns
+WHERE table_schema = DATABASE()
+  AND table_name IN ('items', 'user_items') ORDER BY table_name, ordinal_position;
+```
+
+V100/V102가 미적용이면 V152 적용이나 기능 활성화부터 진행하지 않는다. 기존 DB의 선택 스키마 반영 경로를 먼저 검토해야 한다. 이미 적용된 이력과 미적용 SQL의 번호를 임의로 바꾸거나, 일괄 지급/구매로 테스트를 대체하지 않는다.

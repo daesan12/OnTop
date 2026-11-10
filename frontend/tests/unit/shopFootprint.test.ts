@@ -14,12 +14,18 @@ it.each(['drink','photo'] as const)('keeps the complete %s roof, apron and steps
   expect((bounds.max.z-bounds.min.z)*k.scale).toBeGreaterThan(k.depth)
   const world=(x:number,z:number)=>new Vector3(k.x+(x*Math.cos(k.yaw)+z*Math.sin(k.yaw))*k.scale,0,k.z+(-x*Math.sin(k.yaw)+z*Math.cos(k.yaw))*k.scale)
   const paths=PARK_LAYOUT.PATHS.filter(p=>!(kind==='drink'?['raffle-approach']:['photo-front','photo-north']).includes(p.id))
+  let minPlazaDistance=Infinity,minRouteGap=Infinity,worstRoute=''
   // Sample the conservative full rectangular envelope, including its interior.
   for(let x=bounds.min.x;x<=bounds.max.x+.001;x+=.2)for(let z=bounds.min.z;z<=bounds.max.z+.001;z+=.2){
     const p=world(x,z)
-    expect(Math.hypot(p.x-plaza.x,p.z-plaza.z)).toBeGreaterThan(plaza.pavingRadius+.25)
+    minPlazaDistance=Math.min(minPlazaDistance,Math.hypot(p.x-plaza.x,p.z-plaza.z))
     for(const route of paths)for(let n=1;n<route.points.length;n++){
-      expect(PARK_LAYOUT.nearSegment(p.x,p.z,route.points[n-1]!,route.points[n]!),route.id).toBeGreaterThan(route.width/2+.25)
+      const gap=PARK_LAYOUT.nearSegment(p.x,p.z,route.points[n-1]!,route.points[n]!)-(route.width/2+.25)
+      if(gap<minRouteGap)worstRoute=`${route.id} at ${p.x},${p.z}`
+      minRouteGap=Math.min(minRouteGap,gap)
     }
   }
+  // 같은 모든 표본의 최솟값을 검증해 수백만 번의 assertion 객체 생성을 피한다.
+  expect(minPlazaDistance).toBeGreaterThan(plaza.pavingRadius+.25)
+  expect(minRouteGap,worstRoute).toBeGreaterThan(0)
 })

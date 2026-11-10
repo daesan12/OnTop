@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { acceptGacha } from '../features/gacha/events'
 import { acceptTyping, resetTyping } from '../features/chat/typingState'
 import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
 import { CHAT } from '../features/chat/settings'
@@ -77,6 +78,8 @@ export interface AvatarSnapshot {
   telescopeYaw: number
   telescopePitch: number
   followTargetId: string
+  carry?: import('./protocol').CarryState | null
+  interactionBusy?: boolean
 }
 export interface ChatMessage {
   id: string
@@ -116,6 +119,7 @@ export interface Session {
   pending: boolean
   bindings: TableBinding[]
   mapCompatible: boolean
+  carrySupported: boolean
   mapVersion: string
   mapContractStatus: 'pending' | 'confirming' | 'legacy' | 'verified' | 'mismatch'
   serverMap: MapIdentity | null
@@ -126,8 +130,9 @@ export interface Session {
   profiles: Record<string, DisplayProfile>
   equipment: Record<string, readonly PublicEquipment[]>
   activities: Record<string, AvatarActivity>
+  vrPlayers: Record<string, true>
   gameWatches: Record<string, { gameId: string; tableId: string }>
-  account: { nickname: string; balance: number | null } | null
+  account: { nickname: string; balance: number | null; reservedBalance?: number } | null
 }
 const initial = (): Session => ({
   status: 'idle',
@@ -152,6 +157,7 @@ const initial = (): Session => ({
   pending: false,
   bindings: [],
   mapCompatible: false,
+  carrySupported: false,
   mapVersion: '',
   mapContractStatus: 'pending',
   serverMap: null,
@@ -161,6 +167,7 @@ const initial = (): Session => ({
   profiles: {},
   equipment: {},
   activities: {},
+  vrPlayers: {},
   gameWatches: {},
   account: null,
 })
@@ -273,12 +280,14 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
     focusedAnchorId: '',
     mapVersion: '',
     mapCompatible: false,
+    carrySupported: false,
     benchId: '',
     fitnessId: '',
     telescopeId: '',
     profiles: profiles[sessionId] ? { [sessionId]: profiles[sessionId] } : {},
     equipment: {},
     activities: {},
+    vrPlayers: {},
     gameWatches: {},
   })
 }
@@ -287,11 +296,23 @@ export function sampleAvatar(
   now: number,
   target: Pose,
 ): Pose {
+  const carry = avatar.carry
+  if (carry?.role === 'CARRIED') {
+    const carrier = avatars.get(carry.partnerId), partner = carrier?.carry
+    if (carrier && partner?.role === 'CARRIER' && partner.carryId === carry.carryId
+      && partner.partnerId === avatar.userId) {
+      // Share the carrier's display clock, including local prediction. Independent
+      // remote interpolation otherwise leaves the held model behind while running.
+      sampleAvatar(carrier, now, target)
+      target.y += 1.7
+      return target
+    }
+  }
   if (avatar === avatars.get(useSession.getState().sessionId)) {
     if (!predictionAllowed()) localMovement.suspend()
     else if (localMovement.sample(now, target)) return target
   } else if (avatar.userId && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId
-    && remoteMovement.sample(avatar.userId, now, target)) {
+    && remoteMovement.sample(avatar.userId, now, target, avatar.carry?.role === 'THROWN' ? 14 : undefined)) {
     return target
   }
   return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
@@ -300,6 +321,7 @@ export function sampleAvatar(
 function predictionAllowed() {
   const s = useSession.getState(), own = avatars.get(s.sessionId)
   return !!own && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
+    && (!own.carry || own.carry.role === 'CARRIER')
     && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1')
     && (!s.activities[s.sessionId] || s.activities[s.sessionId] === 'WATCHING')
 }
@@ -466,6 +488,13 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
     return
   }
   switch (message.type) {
+    case 'GACHA_STATE':
+      if (state.status === 'connected' && state.mapCompatible) acceptGacha(p)
+      return
+    case 'PERSONAL_NOTIFICATION_CHANGED':
+      if (typeof p.notificationId === 'string' && /^[1-9]\d{0,18}$/.test(p.notificationId))
+        window.dispatchEvent(new Event('ontop:notifications-changed'))
+      return
     case 'WORLD_CHAT_TYPING_STATE':
       acceptTyping(p,state.roomId)
       return
@@ -518,6 +547,10 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       const activities = Object.keys(state.activities).length === Object.keys(nextActivities).length
         && Object.keys(nextActivities).every(id => state.activities[id] === nextActivities[id])
         ? state.activities : nextActivities
+      const nextVR: Session['vrPlayers'] = {}
+      for (const avatar of next.avatars) if (mapCompatible && avatar.vrActive === true) nextVR[avatar.userId] = true
+      const vrPlayers = Object.keys(state.vrPlayers).length === Object.keys(nextVR).length
+        && Object.keys(nextVR).every(id => state.vrPlayers[id]) ? state.vrPlayers : nextVR
       const publicTables = !mapCompatible || next.tables === undefined ? null
         : state.publicTables && Object.keys(state.publicTables).length === next.tables.length
           && next.tables.every(table => state.publicTables?.[table.tableId]?.anchorId === (table.anchorId ?? null)
@@ -583,7 +616,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
           emoteTimeline.forget(id)
           defeatTimeline.forget(id)
         }
-      for (const { userId, position, tableSeat, motion } of next.avatars) {
+      for (const { userId, position, tableSeat, motion, carry, interactionBusy } of next.avatars) {
         if (tableSeat === undefined) worldTableSeats.delete(userId)
         else worldTableSeats.set(userId, tableSeat)
         worldPoses.set(userId, {
@@ -629,6 +662,8 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
           telescopeYaw: 0,
           telescopePitch: 0,
           followTargetId: '',
+          carry: mapCompatible ? carry ?? null : null,
+          interactionBusy: interactionBusy === true,
         })
         if (mapCompatible && userId !== state.sessionId)
           remoteMovement.push(userId, position, motion, now)
@@ -646,12 +681,14 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
             : { ...message, displayName: chatAuthorName(profiles[message.userId]) }) } : {}),
         equipment,
         activities,
+        vrPlayers,
         gameWatches: mapCompatible ? next.gameWatches ?? {} : {},
         publicTables,
         ...(state.account && profiles[state.sessionId]
           && state.account.nickname !== profiles[state.sessionId]!.nickname
           ? { account: { ...state.account, nickname: profiles[state.sessionId]!.nickname } } : {}),
         mapCompatible,
+        carrySupported: mapCompatible && next.avatars.some(avatar => avatar.userId === state.sessionId && avatar.carry !== undefined),
         mapVersion: next.mapVersion,
         ...(!mapCompatible
           ? {

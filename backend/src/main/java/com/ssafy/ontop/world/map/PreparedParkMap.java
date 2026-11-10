@@ -52,7 +52,7 @@ public final class PreparedParkMap {
             }
         }
         bindings = List.copyOf(entries);
-        proximity = new WorldProximityProperties(20.0, 20.0, tablePoints);
+        proximity = new WorldProximityProperties(null, null, tablePoints);
         facilities = facilities(data.path("interactions"), map);
         JsonNode notesNode = data.path("interactions").path("notes");
         require("legacy-avatar-origin".equals(notesNode.path("heightReference").asText())

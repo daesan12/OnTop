@@ -9,10 +9,11 @@ import { preloadWorldAssets } from './world/worldAssets'
 import { preloadWorldCanvas } from './park/loadWorldCanvas'
 import { MaintenancePage } from './features/operation/MaintenancePage'
 import { loadServiceOperation, unavailableServiceOperation, type ServiceOperationStatus } from './features/operation/serviceOperation'
+import { adminRoutes, adminSectionForPage, adminSectionForPath, type AdminPage, type AdminSection } from './features/admin/adminRoutes'
 
 const AdminShell = lazy(() => import('./features/admin/AdminShell').then(m => ({ default: m.AdminShell })))
 type Page = 'checking' | 'login' | 'callback' | 'onboarding' | 'park' | 'maintenance'
-  | 'admin' | 'admin-feedback' | 'admin-analytics' | 'admin-wallet-grants' | 'admin-announcements' | 'admin-operations'
+  | AdminPage
 
 export default function App() {
   const [page, setPage] = useState<Page>(() =>
@@ -71,18 +72,9 @@ export default function App() {
       const authenticated = await restoreInitialAuthSession()
       if (!active) return
       if (authenticated) {
-        const path = window.location.pathname
-        const next = path === '/admin/feedback' ? 'admin-feedback'
-          : path === '/admin/announcements' ? 'admin-announcements'
-          : path === '/admin/operations' ? 'admin-operations'
-          : path === '/admin/analytics' ? 'admin-analytics' : path === '/admin/wallet-grants' ? 'admin-wallet-grants'
-            : path === '/admin' ? 'admin' : 'park'
-        window.history.replaceState(null, '', next === 'admin-feedback' ? '/admin/feedback'
-          : next === 'admin-announcements' ? '/admin/announcements'
-          : next === 'admin-operations' ? '/admin/operations'
-          : next === 'admin-analytics' ? '/admin/analytics' : next === 'admin-wallet-grants' ? '/admin/wallet-grants'
-            : next === 'admin' ? '/admin' : '/park')
-        setPage(next)
+        const adminSection = adminSectionForPath(window.location.pathname)
+        window.history.replaceState(null, '', adminSection ? adminRoutes[adminSection].path : '/park')
+        setPage(adminSection ? adminRoutes[adminSection].page : 'park')
       } else {
         if (window.location.pathname !== '/') window.history.replaceState(null, '', '/')
         setPage('login')
@@ -97,14 +89,9 @@ export default function App() {
     setPage('checking')
   }, [])
 
-  const onAdminNavigate = useCallback((section: 'home' | 'feedback' | 'analytics' | 'wallet-grants' | 'announcements' | 'operations') => {
-    const path = section === 'home' ? '/admin' : section === 'feedback' ? '/admin/feedback'
-      : section === 'announcements' ? '/admin/announcements' : section === 'operations' ? '/admin/operations'
-        : section === 'analytics' ? '/admin/analytics' : '/admin/wallet-grants'
-    window.history.pushState(null, '', path)
-    setPage(section === 'home' ? 'admin' : section === 'feedback' ? 'admin-feedback'
-      : section === 'announcements' ? 'admin-announcements' : section === 'operations' ? 'admin-operations'
-        : section === 'analytics' ? 'admin-analytics' : 'admin-wallet-grants')
+  const onAdminNavigate = useCallback((section: AdminSection) => {
+    window.history.pushState(null, '', adminRoutes[section].path)
+    setPage(adminRoutes[section].page)
   }, [])
 
   const onOnboardingRequired = useCallback(() => {
@@ -148,13 +135,10 @@ export default function App() {
   if (page === 'maintenance' && operation) {
     return <MaintenancePage status={operation} onRetry={() => setPage('checking')} />
   }
-  if ((page === 'admin' || page === 'admin-feedback' || page === 'admin-analytics' || page === 'admin-wallet-grants'
-    || page === 'admin-announcements' || page === 'admin-operations')
-    && getAuthSession()?.status === 'AUTHENTICATED') {
+  const adminSection = adminSectionForPage(page)
+  if (adminSection && getAuthSession()?.status === 'AUTHENTICATED') {
     return <Suspense fallback={<main className="auth-loading" role="status">관리자 화면 준비 중…</main>}>
-      <AdminShell section={page === 'admin' ? 'home' : page === 'admin-feedback' ? 'feedback'
-        : page === 'admin-announcements' ? 'announcements' : page === 'admin-operations' ? 'operations'
-          : page === 'admin-analytics' ? 'analytics' : 'wallet-grants'} onNavigate={onAdminNavigate}
+      <AdminShell section={adminSection} onNavigate={onAdminNavigate}
         onReturn={onAuthenticated} onAuthEnded={onReturnToLogin} />
     </Suspense>
   }

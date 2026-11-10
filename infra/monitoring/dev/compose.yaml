@@ -1,0 +1,39 @@
+name: ontop-monitor-dev
+services:
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=12h", "--storage.tsdb.retention.size=256MB"]
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports: ["127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"]
+    networks: [monitoring, dev-app]
+    mem_limit: 384m
+    cpus: 0.4
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    logging: &logging
+      driver: local
+      options: {max-size: "10m", max-file: "2"}
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.17.2
+    command: ["--config.my-cnf=/run/secrets/mysql-exporter-config"]
+    secrets:
+      - source: mysql-exporter-config
+        target: mysql-exporter-config
+    networks: [monitoring, dev-app]
+    mem_limit: 96m
+    cpus: 0.1
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    logging: *logging
+networks:
+  monitoring:
+  dev-app:
+    external: true
+    name: ${DEV_APP_NETWORK:?Confirm the actual DEV application Docker network}
+volumes:
+  prometheus-data:
+secrets:
+  mysql-exporter-config:
+    file: ${MYSQL_EXPORTER_CONFIG_FILE:?Prepare the DEV-only read-only DB account file}

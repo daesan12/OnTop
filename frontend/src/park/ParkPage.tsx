@@ -1,5 +1,7 @@
-import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { installBrowserShortcutGuard } from './browserShortcuts'
+import { NotificationCenter } from '../features/notifications/NotificationCenter'
+import { SkinCatalogLifecycle } from '../features/skins/SkinCatalogLifecycle'
 import { ParkScene } from './ParkScene'
 import { ParkBgm } from '../audio/ParkBgm'
 import { ParkSfx } from '../audio/ParkSfx'
@@ -29,6 +31,7 @@ import { ShopHost } from '../features/shop/ShopHost'
 import { WardrobeLauncher, WardrobeHost } from '../features/wardrobe/WardrobeHost'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
 import { CameraControls } from '../features/camera/CameraControls'
+import { ParkXRControls } from '../features/parkXR/ParkXRControls'
 import { FollowMenu } from '../features/follow/FollowMenu'
 import { ParkChat } from '../features/chat/ParkChat'
 import { useGame } from '../game/store'
@@ -37,6 +40,7 @@ import { ChannelMenu } from '../features/parkMenus/ChannelMenu'
 import { ChannelEntryGate } from '../features/parkMenus/ChannelEntryGate'
 import { AccountMenu } from '../features/parkMenus/AccountMenu'
 import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
+import { useWalletSync } from '../features/wallet/useWalletSync'
 import { LocationChip } from '../features/parkMenus/LocationChip'
 import { JumpmapHud } from '../features/jumpmap/JumpmapHud'
 import { useJumpmapController } from '../features/jumpmap/useJumpmapController'
@@ -48,9 +52,17 @@ import { RpsRoulettePanel } from '../features/rpsRoulette/RpsRoulettePanel'
 import { PlusMinusPanel } from '../features/plusMinus/PlusMinusPanel'
 import { MolePanel } from '../features/mole/MolePanel'
 import { ArcadePicker } from '../features/arcade/ArcadePicker'
+import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
+import { WinnerContactsHost } from '../features/winnerContacts/WinnerContactsHost'
+import { useArcade } from '../features/arcade/store'
+import { useMole } from '../features/mole/store'
+import { usePlusMinus } from '../features/plusMinus/store'
+import { useRpsRoulette } from '../features/rpsRoulette/store'
+import { useSpeedMole } from '../features/speedMole/store'
+import { GachaLifecycle } from '../features/gacha/GachaPanel'
 import { useParkGameplayActive } from '../features/operation/parkGameplay'
 import { useParkOperationGate } from '../features/operation/useParkOperationGate'
 import type { ServiceOperationStatus } from '../features/operation/serviceOperation'
@@ -86,17 +98,29 @@ export function ParkPage(props: ParkProps) {
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
 function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: ParkProps) {
+  useWalletSync()
   useJumpmapController()
   const gameplayActive = useParkGameplayActive()
   useParkOperationGate(gameplayActive, onOperationBlocked)
   const vrPhase = useStore(parkVrZone.store, state => state.phase)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
+  const arcadeOpen = useArcade(s => s.open)
+  const moleOpen = useMole(s => s.open)
+  const plusMinusOpen = usePlusMinus(s => s.open)
+  const rpsOpen = useRpsRoulette(s => s.open)
+  const speedMoleOpen = useSpeedMole(s => s.open)
+  const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
+    || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
   // Everyone plays on the Low preset; the graphics choice is not offered.
   const quality: QualityPreset = 'low'
   const [hudScale, setHudScale] = useState(getHudScale)
+  const [winningsOpen, setWinningsOpen] = useState(false)
+  const [winningsRefresh, setWinningsRefresh] = useState(0)
+  const [winningsWeek, setWinningsWeek] = useState<string | null>(null)
+  const autoOpenWinnings = useCallback(() => setWinningsOpen(true), [])
 
   useEffect(() => {
     const updateScale = () => setHudScale(getHudScale())
@@ -123,7 +147,11 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <ParkSfx />
       <RewardCoinFlight />
       <ChannelEntryGate />
-      <AnnouncementBanner />
+      <AnnouncementBanner hidden={hideAnnouncements} />
+      <GachaLifecycle />
+      <SkinCatalogLifecycle />
+      <NotificationCenter key={session.sessionId} hidden={gameplayActive}
+        onOpenWinnings={week => { setWinningsWeek(week); setWinningsRefresh(value => value + 1); setWinningsOpen(true) }} />
       {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">
         {!omokFocus && <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
@@ -134,7 +162,8 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
           <div className="park-dock-wardrobe"><WardrobeLauncher /></div>
         </div>}
         {!omokFocus && <div inert={bungeoppang}>
-          <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded} />
+          <AccountMenu exitError={exitError} onExit={onExit} onWithdrawn={onAuthEnded}
+            onOpenWinnings={() => { setWinningsWeek(null); setWinningsOpen(true); setWinningsRefresh(value => value + 1) }} />
         </div>}
 
         <div className="park-chat-layer" hidden={bungeoppang} inert={bungeoppang}>
@@ -158,6 +187,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <ArcadePicker />
         <PlusMinusPanel />
         <MolePanel />
+        <SpeedMoleHost />
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />
@@ -167,6 +197,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <WardrobeHost />
         <AdvertisementLink />
         <CameraControls />
+        <ParkXRControls />
         <FollowMenu />
         <ParkMap />
         <ParkNavigation />
@@ -178,6 +209,8 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <OmokFeedback />
       <RankingBoardHost />
       <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions />} />
+      <WinnerContactsHost open={winningsOpen} refreshKey={winningsRefresh} selectedWeek={winningsWeek}
+        onAutoOpen={autoOpenWinnings} onClose={() => setWinningsOpen(false)} />
     </main>
   )
 }

@@ -23,21 +23,23 @@ class WorldProximityTests {
             new WorldProximityProperties(null, null, Map.of("table", new Point(0.0, 0.0))));
 
     @Test
-    void 기본20m_경계를_포함하고_높이는_제외한다() {
+    void 기본_채팅50m_관전20m_경계를_포함하고_높이는_제외한다() {
         place("a", "one", 0, 0);
         place("b", "one", 12, 16);
         assertThat(proximity.canHear("a", "b")).isTrue();
         assertThat(proximity.canWatch("b", "table", "one")).isTrue();
+        place("edge", "one", 30, 40);
+        assertThat(proximity.canHear("a", "edge")).isTrue();
+        assertThat(proximity.canWatch("edge", "table", "one")).isFalse();
         channels.move("a", new Position(0, 0, 0, 0, 0)); // 낡은 순번은 위치를 바꾸지 않는다.
         assertThat(proximity.canHear("a", "b")).isTrue();
     }
 
     @Test
-    void 반경초과_다른채널_위치미보고_좌표미설정은_차단한다() {
+    void 반경초과_다른채널_미입장_좌표미설정은_차단한다() {
         place("a", "one", 0, 0);
-        place("far", "one", 20.0001, 0);
+        place("far", "one", 50.0001, 0);
         place("other", "two", 0, 0);
-        channels.join("unknown", "one");
         for (String target : List.of("far", "other", "unknown", "outside")) {
             assertThat(proximity.canHear("a", target)).isFalse();
         }

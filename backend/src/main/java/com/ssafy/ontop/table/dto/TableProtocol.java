@@ -73,6 +73,22 @@ public final class TableProtocol {
                     && payload.path("epoch").isIntegralNumber() && payload.path("epoch").canConvertToLong()
                     && payload.path("epoch").asLong() >= 0 && payload.path("epoch").asLong() <= 9_007_199_254_740_991L;
             case "WORLD_FOLLOW_CHECK" -> fields(payload, Set.of());
+            case "WORLD_CARRY_PICKUP" -> fields(payload, Set.of("targetId"))
+                    && payload.path("targetId").isTextual()
+                    && payload.path("targetId").asText().matches("[A-Za-z0-9_-]{1,80}");
+            case "WORLD_CARRY_THROW" -> fields(payload, Set.of("carryId", "dx", "dy", "dz"))
+                    && payload.path("carryId").isTextual()
+                    && payload.path("carryId").asText().matches("[0-9a-f-]{36}")
+                    && java.util.stream.Stream.of("dx", "dy", "dz").allMatch(key ->
+                            payload.path(key).isNumber() && Double.isFinite(payload.path(key).asDouble())
+                                    && Math.abs(payload.path(key).asDouble()) <= 1);
+            case "WORLD_CARRY_RELEASE" -> fields(payload, Set.of("carryId"))
+                    && payload.path("carryId").isTextual()
+                    && payload.path("carryId").asText().matches("[0-9a-f-]{36}");
+            case "WORLD_INTERACTION_SET" -> (fields(payload, Set.of("busy"))
+                    || fields(payload, Set.of("busy", "vrActive"))) && payload.path("busy").isBoolean()
+                    && (!payload.has("vrActive") || payload.path("vrActive").isBoolean())
+                    && (!payload.path("vrActive").asBoolean() || payload.path("busy").asBoolean());
             case "WORLD_FOLLOW_START" -> fields(payload, Set.of("targetId"))
                     && payload.path("targetId").isTextual()
                     && payload.path("targetId").asText().matches("[A-Za-z0-9_-]{1,80}");

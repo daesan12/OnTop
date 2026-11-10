@@ -33,11 +33,11 @@ export function statusLine({ round, busy, error, revealing, spinning, timeUp, pl
   if (round.phase === 'DUEL') {
     if (busy === 'hand') return '손을 내고 있어요…'
     if (timeUp) return '시간이 끝났어요. 서버 판정을 확인하고 있어요.'
-    if (round.challenging) return `도전 ${round.stakeLevel + 1}차! 가위바위보! · 이기면 ${times(round.stakeLevel === 0 ? 1.5 : 2)}`
+    if (round.challenging) return `도전 ${round.stakeLevel + 1}차! 가위바위보! · 이기면 ${times(round.stakeLevel === 0 ? 2 : 4)}`
     return '가위바위보! 5초 안에 손 버튼을 눌러요'
   }
   if (busy === 'stop') return '룰렛을 돌리고 있어요…'
   if (busy === 'challenge') return '도전을 준비하고 있어요…'
   if (timeUp) return '시간이 끝났어요. 자동으로 멈추고 있어요.'
-  return round.stakeLevel === 0 ? '이겼다! 멈출까요? 도전 1차 ×1.5 → 2차 ×2.0' : '1차 성공 ×1.5 · 마지막 2차 ×2.0에 도전할까요?'
+  return round.stakeLevel === 0 ? '이겼다! 멈출까요? 도전 1차 ×2.0 → 2차 ×4.0' : '1차 성공 ×2.0 · 마지막 2차 ×4.0에 도전할까요?'
 }

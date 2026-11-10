@@ -4,9 +4,12 @@ import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Matrix4, Vector3 } from 'three'
+import { cameraWorldPosition, parkXRView } from './xrView'
 import { ParkAssetLoader } from './art/assetLoader'
-import { characterUrls, createCharacterRig } from './worldAssets'
+import { characterUrls } from './worldAssets'
+import { createSafeCharacterRig } from './art/safeCharacterRig'
 import { avatarPoseActive, avatarPoseAmbient, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
+import { createCarryMotion } from './avatarCarryMotion'
 import { AvatarPresentation } from './avatarPresentation'
 import { SwimmingRipples } from './SwimmingRipples'
 
@@ -21,6 +24,8 @@ import type { AvatarSampler } from '../network/avatarFrame'
 import { emptyEquipment } from '../network/equipment'
 import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from './art/characterLook'
 import { useOutfitSources } from './art/outfitSources'
+import { resolveWholeSkin } from './art/wholeSkin'
+import { useSkinCatalog } from './art/skinCatalog'
 import { previewEquipment, useWardrobe } from '../features/wardrobe/state'
 import type { OwnedItem } from '../features/shop/contracts'
 import { WARDROBE_OUTFITS_ENABLED } from '../features/wardrobe/feature'
@@ -50,11 +55,13 @@ function Avatar({
   rigs,
   menuRaycast,
   samplePose,
+  carryMotion,
 }: {
   id: string
   rigs: Map<string, AvatarAnchors>
   menuRaycast: Group['raycast']
   samplePose: AvatarSampler
+  carryMotion: ReturnType<typeof createCarryMotion>
 }) {
   const sources = useLoader(ParkAssetLoader, characterUrls)
   const variant = useSession(state => state.profiles[id]?.character === 'girl' ? 'girl' : 'man')
@@ -65,16 +72,19 @@ function Avatar({
   // (only the own avatar previews; others keep one empty list, so a wardrobe refresh does not re-render them)
   const owned = useWardrobe(state => own ? state.items : noItems)
   const worn = useMemo(() => previewId && previewEquipment(owned, previewId) || equipment, [previewId, owned, equipment])
+  const catalogRevision = useSkinCatalog(s => s.revision)
   // Outfits closed (production build): every avatar keeps its default clothes, whatever is equipped.
-  const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn])
-  const outfits = useOutfitSources(lookSources(look).filter(source => !isCharacterSource(source)))
+  const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn, catalogRevision])
+  const wholeSkin = WARDROBE_OUTFITS_ENABLED ? resolveWholeSkin(variant, worn) : undefined
+  const outfits = useOutfitSources(wholeSkin ? [wholeSkin.source] : lookSources(look).filter(source => !isCharacterSource(source)))
+  const wholeSource = wholeSkin && outfits.get(wholeSkin.source)
   const files = useMemo(() => new Map([['man', sources[0]!], ['girl', sources[1]!], ...outfits]), [sources, outfits])
   const shown = availableLook(variant, look, source => files.has(source))
   const shownKey = lookKey(shown)
   const model = useMemo(
-    () => createCharacterRig(sources[variant === 'girl' ? 1 : 0]!, shown, files),
+    () => createSafeCharacterRig(sources[variant === 'girl' ? 1 : 0]!, shown, files, wholeSource || undefined),
     // (`shown` is fully described by its key)
-    [sources, variant, shownKey, files],
+    [sources, variant, shownKey, files, wholeSource],
   )
   const root = useRef<Group>(null)
   const figure = useRef<Group>(null)
@@ -85,24 +95,47 @@ function Avatar({
   const inverseRoot = useMemo(() => new Matrix4(), [])
   const presentation = useMemo(() => new AvatarPresentation(), [])
   const motion = useMemo(() => createAvatarMotion(model), [model])
+  const carriedPartner = useRef({ id: '', carryId: '' })
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
-  const appearance = useMemo(() => createAvatarOpacity(model.root), [model])
+  const appearance = useRef<ReturnType<typeof createAvatarOpacity> | null>(null)
+  const rendererState = useThree(state => state.get)
   const overlapOpacity = useRef(1)
   const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   useLayoutEffect(() => {
-    rigs.set(id, {
-      root: root.current!,
-      head: marker.current!,
-    })
+    // Create in setup: StrictMode may replay cleanup/setup while retaining the model.
+    const current = createAvatarOpacity(model.root)
+    appearance.current = current
+    rigs.set(id, { root: root.current!, head: marker.current! })
+    const { gl } = rendererState()
+    let active = true
+    const prepare = () => {
+      const { camera, scene } = rendererState()
+      void current.prepare(gl, camera, scene).catch(error => {
+        if (active && !gl.getContext().isContextLost()) console.error('아바타 반투명 셰이더를 준비하지 못했습니다.', error)
+      })
+    }
+    const lost = () => current.invalidate()
+    const restored = () => { current.invalidate(); prepare() }
+    gl.domElement.addEventListener('webglcontextlost', lost)
+    gl.domElement.addEventListener('webglcontextrestored', restored)
+    prepare()
     return () => {
+      active = false
+      gl.domElement.removeEventListener('webglcontextlost', lost)
+      gl.domElement.removeEventListener('webglcontextrestored', restored)
       rigs.delete(id)
-      appearance.dispose()
+      if (appearance.current === current) appearance.current = null
+      current.dispose()
       model.dispose()
     }
-  }, [id, rigs, model, appearance])
+  }, [id, rigs, model, rendererState])
   useFrame(({ camera }, delta) => {
     const avatar = avatars.get(id)
     if (!avatar || !root.current || !figure.current) return
+    if (avatar.carry?.role === 'CARRIER') {
+      carriedPartner.current.id = avatar.carry.partnerId
+      carriedPartner.current.carryId = avatar.carry.carryId
+    }
     const frameAt = performance.now()
     samplePose(avatar, frameAt, pose)
     const seated = avatar.seatIndex >= 0
@@ -116,9 +149,9 @@ function Avatar({
     if (Math.abs(overlapOpacity.current - targetOpacity) < .001) overlapOpacity.current = targetOpacity
     const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : overlapOpacity.current
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
-    root.current.visible = opacity > 0 && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
+    root.current.visible = opacity > 0 && !(own && parkXRView.active) && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
-    appearance.set(root.current.visible ? opacity : 1)
+    appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     root.current.position.set(
       pose.x,
@@ -126,18 +159,19 @@ function Avatar({
       pose.z,
     )
     root.current.rotation.y = pose.yaw
-    if (!root.current.visible) return
+    const carryAnimation = carryMotion.get(id)
+    if (!root.current.visible && !carryAnimation) return
     // The visitors parent has an identity transform; this position is already
     // in world space. Avoid walking/updating the ancestor matrices per avatar.
-    const distance = camera.position.distanceTo(root.current.position)
+    const distance = cameraWorldPosition(camera).distanceTo(root.current.position)
     model.lod(distance)
     const now = estimatedServerTime()
     const reaction = gameReaction(id, avatar, now)
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
-    const displayAvatar = presentation.sample(avatar, displayFlags)
-    const active = !!reaction || avatarPoseActive(displayAvatar, now)
+    const displayAvatar = presentation.sample(avatar, displayFlags, own ? undefined : pose, frameAt)
+    const active = !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -149,7 +183,12 @@ function Avatar({
       !reaction && avatarPoseAmbient(displayAvatar),
     )
     if (!poseDelta) return
-    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction, holdingCards ? oneCardHoldingPose : undefined)
+    const partner = avatars.get(carriedPartner.current.id)
+    const throwFlight = partner?.carry?.role === 'THROWN' && partner.carry.partnerId === id
+      && partner.carry.carryId === carriedPartner.current.carryId ? partner : null
+    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
+      holdingCards ? oneCardHoldingPose : undefined, throwFlight,
+      carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
@@ -173,7 +212,7 @@ function Avatar({
       }}
       // Approved public appearance reaches the renderer. No guessed asset or material
       // substitution: product-specific models/textures have not been supplied yet.
-      userData={{ character: variant, equipment, look: shownKey }}
+      userData={{ character: variant, equipment, look: shownKey, wholeSkin: wholeSource ? wholeSkin?.imageKey : undefined }}
     >
       <FartCloud id={id} />
       <group ref={figure} name={`figure-${id}`}>
@@ -192,6 +231,12 @@ export function Avatars({
   const ids = useSession((state) => state.ids)
   const samplePose = useAvatarFrameSampler()
   const rigs = useMemo(() => new Map<string, AvatarAnchors>(), [])
+  const carryMotion = useMemo(createCarryMotion, [])
+  // r3f v9 sorts numeric priorities, including fractions, from low to high.
+  // Sample (-2) -> carry state (-1.5) -> avatar poses (-1) -> carry placement (-.5) -> overlays (0).
+  // Keep these stages distinct so placement always uses this frame's posed shoulders.
+  useFrame(() => carryMotion.update(avatars, performance.now()), -1.5)
+  useFrame(() => carryMotion.place(rigs), -.5)
   const lastEvent = useThree(state => state.internal.lastEvent)
   const inputRaycaster = useThree(state => state.raycaster)
   const menuRaycast = useMemo(() => avatarMenuRaycast(() => lastEvent.current, inputRaycaster), [lastEvent, inputRaycaster])
@@ -199,7 +244,7 @@ export function Avatars({
   return (
     <group name="visitors">
       {ids.map((id) => (
-        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} />
+        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} carryMotion={carryMotion} />
       ))}
       <SwimmingRipples />
 

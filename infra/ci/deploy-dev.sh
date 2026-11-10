@@ -12,6 +12,10 @@ env_file=/etc/ontop/dev-app/deploy.env
 compose_file=/opt/ontop/infra/app/compose.dev.yaml
 generated_compose=/opt/ontop/infra/app/compose.generated-map.yaml
 generated_marker=/etc/ontop/dev-app/park-map.enabled
+skewer_compose=/opt/ontop/infra/app/compose.skewer-coop.yaml
+skewer_marker=/etc/ontop/dev-app/skewer-coop.enabled
+monitoring_compose=/opt/ontop/infra/monitoring/dev/compose.app.yaml
+monitoring_marker=/etc/ontop/dev-app/monitoring.enabled
 record_dir=/var/lib/ontop/ci
 record_file=$record_dir/dev-deployments.tsv
 
@@ -32,6 +36,26 @@ if [[ -f $generated_marker ]]; then
     exit 1
   }
   compose_args+=(-f "$generated_compose")
+fi
+if [[ -f $skewer_marker ]]; then
+  skewer_journal_dir=$(sed -n 's/^SKEWER_COOP_JOURNAL_HOST_DIR=//p' "$env_file" | head -n 1)
+  [[ -f $skewer_compose && $skewer_journal_dir == /* \
+    && -d $skewer_journal_dir && ! -L $skewer_journal_dir \
+    && $(stat -c '%u:%g' "$skewer_journal_dir") == 10001:10001 \
+    && $(stat -c '%a' "$skewer_journal_dir") == 700 ]] || {
+    echo 'Skewer coop marker, journal directory, ownership, permissions, or Compose override are inconsistent.' >&2
+    exit 1
+  }
+  compose_args+=(-f "$skewer_compose")
+fi
+monitoring_enabled=0
+if [[ -f $monitoring_marker ]]; then
+  [[ -f $monitoring_compose ]] || {
+    echo 'Monitoring marker exists but the Compose override is missing.' >&2
+    exit 1
+  }
+  compose_args+=(-f "$monitoring_compose")
+  monitoring_enabled=1
 fi
 
 old_image=$(sed -n 's/^BACKEND_IMAGE=//p' "$env_file" | head -n 1)
@@ -63,9 +87,16 @@ healthy() {
   local status
   for _ in $(seq 1 36); do
     status=$(docker inspect --format '{{.State.Health.Status}}' ontop-dev-app-app-1 2>/dev/null || true)
-    if [[ $status == healthy ]] && curl --fail --silent --show-error --max-time 5 \
-      https://dev-api.on-top.world/actuator/health >/dev/null; then
-      return 0
+    if [[ $status == healthy ]]; then
+      if (( monitoring_enabled )); then
+        if docker exec ontop-dev-app-app-1 curl --fail --silent --show-error --max-time 5 \
+          http://127.0.0.1:8082/actuator/health >/dev/null; then
+          return 0
+        fi
+      elif curl --fail --silent --show-error --max-time 5 \
+        https://dev-api.on-top.world/actuator/health >/dev/null; then
+        return 0
+      fi
     fi
     sleep 5
   done

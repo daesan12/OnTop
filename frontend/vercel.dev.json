@@ -49,7 +49,19 @@
       "destination": "/index.html"
     },
     {
+      "source": "/admin/operations",
+      "destination": "/index.html"
+    },
+    {
       "source": "/admin/announcements",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin/events",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin/skins",
       "destination": "/index.html"
     },
     {
@@ -59,8 +71,12 @@
     {
       "source": "/admin/analytics",
       "destination": "/index.html"
+    },
+    {
+      "source": "/admin/wallet-grants",
+      "destination": "/index.html"
     }
   ],
-  "buildCommand": "VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park",
+  "buildCommand": "VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_SKEWER_COOP_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park",
   "outputDirectory": "dist-park"
 }

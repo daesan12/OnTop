@@ -24,7 +24,8 @@ Wardrobe options (docs/character-outfits.md):
   boundaries are held while decimating. body=0 leaves the body out (an outfit file: its items only).
 - keep_edges=1 (default) also holds flat-colour boundaries, UV seams and the head above head_frac (keep_head=0
   turns that off); keep_edges=pieces holds piece boundaries only (man, girl: holding everything crushed the face);
-  keep_edges=0 holds nothing. keep_factor is the decimation cost factor of held vertices (1000).
+  keep_edges=0 holds nothing. keep_factor is the decimation cost factor of held vertices (1000). hold_flat=1 also holds
+  every vertex whose faces all lie on one texel (made pieces in one flat colour: the techwear's gloves).
 - fill=1: atlas texels the bake left empty (sub-texel islands, gaps) take their face's source colour, then their
   neighbours' (otherwise black flecks). atlas=2048 is the atlas size. unwrap=split (default) cuts the items' own
   UV seams before the fresh unwrap, so a thin piece never shares an island with what is behind it.
@@ -52,9 +53,11 @@ keep = []
 for o in list(bpy.data.objects):
     if o.type != 'MESH': continue
     n = re.sub(r'\.\d+$', '', o.name)
-    m = re.match(r'item__([A-Z]+)__([a-z0-9]+)(?:__under_(\w+?))?(?:_\d+)?$', n)
+    m = re.match(r'item__([A-Z]+)__([a-z0-9]+)(?:__for_(?:man|girl))?(?:__under_(\w+?))?(?:_\d+)?$', n)
     b = re.match(r'body(?:__(\w+))?$', re.sub(r'_\d+$', '', n))
-    show = (m and worn(m.group(1), m.group(2)) and not any(worn(s, i) for s, i in parse(m.group(3)))) or \
+    fv = re.search(r'__for_(man|girl)', n)
+    show = (m and worn(m.group(1), m.group(2)) and not any(worn(s, i) for s, i in parse(m.group(3)))
+            and not (fv and variant in ('man', 'girl') and fv.group(1) != variant)) or \
            (b and not any(worn(s, i) for s, i in parse(b.group(1))))
     if PIECES:
         # pieces=1 (마이룸 slots): every body piece (body=0 drops them: an outfit file) and every piece of the picked
@@ -161,6 +164,16 @@ def decimate(o, faces, keep_edges=False):
             rim = {vi for ek, n in ec.items() if n == 1 for vi in ek}
             print('DECIMATE open-edge vertices', len(rim))
             hold |= rim
+        # hold_flat=1 (the techwear's gloves, made from the body on one texel): every vertex whose faces all lie on one
+        # texel is held. Nothing in a flat colour marks its shape: the gloves collapsed to a box and the hand showed
+        # through them (S15P31B105-365)
+        if opt.get('hold_flat') == '1':
+            flat = {}
+            for p in o.data.polygons:
+                one = len({(round(uvl[li].uv[0], 5), round(uvl[li].uv[1], 5)) for li in p.loop_indices}) == 1
+                for vi in p.vertices: flat[vi] = flat.get(vi, True) and one
+            print('DECIMATE flat-colour vertices', sum(flat.values()))
+            hold |= {vi for vi, f in flat.items() if f}
         if PIECES:
             # piece boundaries: the game hides pieces one by one; collapsed across a boundary, a shown piece's
             # edge would move and open a crack against its hidden neighbour's replacement

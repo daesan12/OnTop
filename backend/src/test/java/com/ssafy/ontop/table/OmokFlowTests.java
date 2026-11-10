@@ -42,6 +42,49 @@ class OmokFlowTests {
     @Autowired
     private TestClock clock;
 
+    @Test
+    void 금수_안내는_소켓_조회와_변경방송과_재접속에서_흑에게만_전송한다() throws Exception {
+        engine.create("omok", TABLE, 101, 202);
+        int[][] blacks = {{6, 7}, {8, 7}, {7, 6}, {7, 8}};
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        for (int i = 0; i < blacks.length; i++) {
+            engine.apply(new com.ssafy.ontop.game.action.GameActionCommand(101, "omok", "black-" + i, i * 2,
+                    mapper.createObjectNode().put("x", blacks[i][0]).put("y", blacks[i][1])));
+            engine.apply(new com.ssafy.ontop.game.action.GameActionCommand(202, "omok", "white-" + i, i * 2 + 1,
+                    mapper.createObjectNode().put("x", i * 2).put("y", 0)));
+        }
+
+        try (var black = new ScenarioClient(port, "naver"); var white = new ScenarioClient(port, "ssafy");
+                var viewer = connect("spectator", "LOBBY")) {
+            var recoveredBlack = black.state("RESTORED");
+            var recoveredWhite = white.state("RESTORED");
+            assertThat(recoveredBlack.at("/state/privateState/forbiddenMoves").toString())
+                    .isEqualTo("[{\"x\":7,\"y\":7,\"kind\":\"33\"}]");
+            assertThat(recoveredWhite.findValues("forbiddenMoves")).isEmpty();
+            joinWatch(viewer);
+            var watched = viewer.request("GAME_WATCH", Map.of("gameId", "omok"));
+            assertThat(watched.findValues("forbiddenMoves")).isEmpty();
+            var blackState = black.request("GAME_STATE_CHECK", Map.of("gameId", "omok"));
+            var whiteState = white.request("GAME_STATE_CHECK", Map.of("gameId", "omok"));
+            assertThat(blackState.at("/payload/publicState").has("forbiddenMoves")).isFalse();
+            assertThat(blackState.at("/payload/privateState/forbiddenMoves").size()).isEqualTo(1);
+            assertThat(whiteState.findValues("forbiddenMoves")).isEmpty();
+
+            // ACK보다 상태 방송이 먼저 도착할 수도 있다. request()는 ID가 다른 메시지를
+            // 소비하므로 두 응답 중 먼저 온 것을 보관한 뒤 나머지를 기다린다.
+            String requestId = black.sendRequest("GAME_ACTION_SEND", action("legal-after-preview", 8, 0, 1));
+            JsonNode first = black.await(m -> stateVersion(m, 9) || requestId.equals(m.path("requestId").asText()));
+            JsonNode changed = stateVersion(first, 9) ? first : black.await(m -> stateVersion(m, 9));
+            JsonNode result = stateVersion(first, 9)
+                    ? black.await(m -> requestId.equals(m.path("requestId").asText())) : first;
+            assertThat(result.path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
+            assertThat(result.at("/payload/version").asLong()).isEqualTo(9);
+            assertThat(changed.at("/payload/privateState/forbiddenMoves").isArray()).isTrue();
+            assertThat(white.await(m -> stateVersion(m, 9)).findValues("forbiddenMoves")).isEmpty();
+            assertThat(viewer.await(m -> stateVersion(m, 9)).findValues("forbiddenMoves")).isEmpty();
+        }
+    }
+
     @DynamicPropertySource
     static void locations(DynamicPropertyRegistry properties) {
         properties.add("ontop.world.proximity.tables[" + TABLE + "].x", () -> com.ssafy.ontop.world.movement.ParkScene.load().spawn(0).x);
@@ -295,7 +338,11 @@ class OmokFlowTests {
         JsonNode payload = message.path("payload");
         assertThat(payload.path("publicState").path("status").asText()).isEqualTo(status);
         assertThat(payload.path("publicState").path("board").size()).isEqualTo(15);
-        assertThat(payload.path("privateState").isEmpty()).isTrue();
+        assertThat(payload.path("publicState").has("forbiddenMoves")).isFalse();
+        if (!payload.path("privateState").isEmpty()) {
+            assertThat(payload.at("/privateState/userId")).isEqualTo(payload.at("/publicState/blackUserId"));
+            assertThat(payload.at("/privateState/forbiddenMoves").isArray()).isTrue();
+        }
         assertThat(payload.has("tableId")).isFalse();
     }
 

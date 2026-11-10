@@ -3,6 +3,9 @@ package com.ssafy.ontop.demo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.OntopApplication;
 import com.ssafy.ontop.auth.security.AccessAuthenticationService;
+import com.ssafy.ontop.user.domain.CharacterGender;
+import com.ssafy.ontop.user.dto.UserProfileResponse;
+import com.ssafy.ontop.user.service.UserProfileService;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import com.ssafy.ontop.world.service.WorldFacilityService.Pose;
@@ -17,7 +20,11 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Profile;
+import org.springframework.context.annotation.Primary;
 import org.springframework.web.filter.OncePerRequestFilter;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /** 운영 JAR에 포함되지 않는 loopback 전용 검수 앱. 계정 인증만 대역이며 협동 엔진·맵·소켓은 실제다. */
 public final class SkewerCoopDemoApplication {
@@ -36,6 +43,18 @@ public final class SkewerCoopDemoApplication {
     @TestConfiguration(proxyBeanMethods = false)
     @Profile("local & skewer-network & !db & !dev & !prod & !production")
     public static class Fixture {
+        @Bean
+        @Primary
+        UserProfileService skewerLocalProfiles() {
+            var profiles = mock(UserProfileService.class);
+            for (long id : new long[] {101, 202, 505}) {
+                when(profiles.findProfile(id)).thenReturn(new UserProfileResponse(
+                        id, id == 101 ? "홍팀 로컬" : id == 202 ? "청팀 로컬" : "관전 로컬",
+                        CharacterGender.MALE));
+            }
+            return profiles;
+        }
+
         @Bean
         FilterRegistrationBean<OncePerRequestFilter> skewerEntranceFixture(AccessAuthenticationService auth,
                 WorldChannelRegistry channels, WorldMapRuntime map, ObjectMapper mapper) {

@@ -15,6 +15,7 @@ import com.ssafy.ontop.game.action.GameForfeitResult;
 import com.ssafy.ontop.game.omok.service.OmokForfeitDirection;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardPranks;
+import com.ssafy.ontop.game.reconnect.ActiveGameLookup;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
 import com.ssafy.ontop.game.result.GameDefeatConfirmed;
 import com.ssafy.ontop.game.result.GameResultCommitted;
@@ -128,6 +129,19 @@ public class TableHub {
             this.room = room;
             this.requestId = requestId;
         }
+    }
+
+    // 시작 단계의 MEMBER_ALREADY_IN_GAME과 같은 active_user_id 기준으로 착석 전에 미정산 참가를 확인한다.
+    private Optional<ActiveGameLookup> activeGames = Optional.empty();
+    private final Map<String, JoinCheck> joinChecks = new HashMap<>();
+    // 할리갈리 자연 탈락자의 퇴장 확인 중인 연결. 기권(GAME_FORFEIT)의 actionRequests와 분리한다.
+    private final Set<String> eliminatedLeaves = new HashSet<>();
+
+    @Autowired
+    public void configureActiveGames(Optional<ActiveGameLookup> lookup) { activeGames = lookup; }
+
+    private static final class JoinCheck {
+        private java.util.concurrent.ScheduledFuture<?> timeout;
     }
     private final Map<Member, ProfileTarget> profileMemberships = new HashMap<>();
     private boolean profilesLoading;
@@ -850,6 +864,10 @@ public class TableHub {
                 sendGameForfeit(sessionId, member, request);
                 return;
             }
+            // 자연 탈락 직후 복구 슬롯은 RESTORED로 남으므로 로비 게이트 앞에서 엔진 상태로 먼저 판정한다.
+            if (request.type().equals("TABLE_LEAVE") && leaveAsEliminated(sessionId, member, request)) {
+                return;
+            }
             if (request.type().equals("GAME_STATE_CHECK")) {
                 checkGameState(sessionId, member, request);
                 return;
@@ -885,6 +903,10 @@ public class TableHub {
                     && !restoredChannelAccess(member, request)) {
                 fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
             }
+            if (channels.carryState(member.userId()) != null && Set.of("TABLE_JOIN", "TABLE_WATCH", "GAME_WATCH",
+                    "WORLD_FACILITY_USE", "WORLD_FOLLOW_START", "WORLD_EMOTE_SEND").contains(request.type())) {
+                fail(request, "CARRY_ACTIVITY_CONFLICT", "들기·던지기가 끝난 뒤 다른 행동을 시작해주세요.");
+            }
             switch (request.type()) {
                 case "GAME_WATCH" -> watchGame(sessionId, member, request);
                 case "CHANNEL_JOIN" -> joinChannel(member, request);
@@ -895,6 +917,8 @@ public class TableHub {
                         channels.disablePosition(member.userId(), request.payload().path("epoch").asLong()).state()));
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
+                case "WORLD_CARRY_PICKUP", "WORLD_CARRY_THROW", "WORLD_CARRY_RELEASE" -> carry(member, request);
+                case "WORLD_INTERACTION_SET" -> interactionBusy(member, request);
                 case "WORLD_FOLLOW_START", "WORLD_FOLLOW_STOP", "WORLD_FOLLOW_CHECK" -> follow(member, request);
                 case "WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FACILITY_USE",
                         "WORLD_FACILITY_RELEASE", "WORLD_FACILITY_AIM" -> facility(member, request);
@@ -955,6 +979,9 @@ public class TableHub {
         actionRequests.remove(sessionId);
         ReadyBalanceCheck balanceCheck = readyBalanceChecks.remove(sessionId);
         if (balanceCheck != null) balanceCheck.timeout.cancel(false);
+        JoinCheck joinCheck = joinChecks.remove(sessionId);
+        if (joinCheck != null && joinCheck.timeout != null) joinCheck.timeout.cancel(false);
+        eliminatedLeaves.remove(sessionId);
         tickOneCardPranks();
         watching.remove(member.userId());
         endFollows(member.userId());
@@ -1096,6 +1123,68 @@ public class TableHub {
     }
 
     private void join(Member member, Request request) {
+        TableRoom room = joinableRoom(member, request);
+        if (room == null) {
+            return;
+        }
+        // 확정 시작을 쓰는 보드게임은 모두 DB 예약(0냥 포함)을 거친다. 이전 경기 예약이 남은 회원은 시작 단계에서
+        // MEMBER_ALREADY_IN_GAME으로 거절되므로 착석 전에 같은 기준으로 본인에게만 알린다. 관전 요청은 이 경로를 쓰지 않는다.
+        if (activeGames.isPresent() && committedStarts.isPresent() && member.accountId() != null) {
+            if (joinChecks.containsKey(member.sessionId())) {
+                fail(request, "TABLE_JOIN_CHECK_PENDING", "착석 가능 여부를 확인하고 있어요.");
+            }
+            JoinCheck check = new JoinCheck();
+            joinChecks.put(member.sessionId(), check);
+            check.timeout = heartbeatTimer.schedule(() -> completeJoin(member, request, check, null),
+                    5, TimeUnit.SECONDS);
+            ActiveGameLookup lookup = activeGames.get();
+            long accountId = member.accountId();
+            // DB 조회는 Hub 잠금 밖에서 실행하고, 완료 후 좌석·채널·대기 상태를 다시 확인한다.
+            startWorkers.execute(() -> {
+                Boolean active = null;
+                try { active = lookup.findByUserId(accountId).isPresent(); }
+                catch (RuntimeException ignored) {
+                    // 조회 장애는 기존 착석 규칙을 따른다. 시작 단계의 중복 참가 검사가 그대로 남아 있다.
+                }
+                completeJoin(member, request, check, active);
+            });
+            return;
+        }
+        seat(member, request, room);
+    }
+
+    // 미정산 참가 확인 결과를 반영한다. 시간 초과(null)나 조회 실패는 기존 착석 규칙으로 처리한다.
+    private synchronized void completeJoin(Member member, Request request, JoinCheck check, Boolean active) {
+        if (stopped || members.get(member.sessionId()) != member || !joinChecks.remove(member.sessionId(), check)) {
+            return;
+        }
+        if (check.timeout != null) { check.timeout.cancel(false); }
+        try {
+            // 조회 중에 바뀐 경기 복구·운반 상태도 디스패처와 같은 조건으로 다시 본다.
+            if (member.accountId() != null && reconnect.isPresent()
+                    && !reconnect.get().canUseLobby(member.accountId(), member.sessionId())
+                    && !restoredChannelAccess(member, request)) {
+                fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
+            }
+            if (channels.carryState(member.userId()) != null) {
+                fail(request, "CARRY_ACTIVITY_CONFLICT", "들기·던지기가 끝난 뒤 다른 행동을 시작해주세요.");
+            }
+            TableRoom room = joinableRoom(member, request);
+            if (room == null) {
+                return;
+            }
+            if (Boolean.TRUE.equals(active)) {
+                fail(request, "MEMBER_ALREADY_IN_GAME",
+                        "이전 경기가 아직 진행 중이에요. 해당 경기가 종료되면 새로운 게임을 시작할 수 있어요.");
+            }
+            seat(member, request, room);
+        } catch (RequestException exception) {
+            member.peer().offer(protocol.error(exception.requestId(), exception.code(), exception.getMessage()));
+        }
+    }
+
+    // 기존 착석 조건. 이미 같은 테이블에 앉아 있으면 현재 상태만 다시 보내고 null을 돌려준다(재접속 좌석 복구 포함).
+    private TableRoom joinableRoom(Member member, Request request) {
         if (facilities.current(member.userId()) != null) {
             fail(request, "FACILITY_BUSY", "먼저 시설 이용을 종료해주세요.");
         }
@@ -1120,9 +1209,14 @@ public class TableHub {
             }
             replyState(member, request, room);
             replyStartState(member, tableId, null);
-            return;
+            return null;
         }
         ensureWaiting(tableId, request);
+        return room;
+    }
+
+    private void seat(Member member, Request request, TableRoom room) {
+        String tableId = room.snapshot().tableId();
         if (!room.join(member.userId())) {
             fail(request, "TABLE_FULL", "빈 좌석이 없습니다.");
         }
@@ -1138,13 +1232,14 @@ public class TableHub {
                 builder -> builder.tableId(tableId).channelId(tableChannels.get(tableId)));
     }
 
-    /** Recovery permits the original channel and its read-only boot snapshots, never lobby actions. */
+    /** 복구된 원래 채널의 조회와 무료 경기 참가자 본인의 조작 점유만 허용한다. 로비 권한은 주지 않는다. */
     private boolean restoredChannelAccess(Member member, Request request) {
         if (member.accountId() == null || reconnect.isEmpty()) return false;
         String freeChannel = request.type().equals("CHANNEL_JOIN")
                 ? request.payload().path("channelId").asText() : channels.channelOf(member.userId());
         if ((request.type().equals("CHANNEL_JOIN")
-                || Set.of("WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FOLLOW_CHECK").contains(request.type()))
+                || Set.of("WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FOLLOW_CHECK",
+                        "WORLD_INTERACTION_SET").contains(request.type()))
                 && reconnect.get().canResumeUnreservedChannel(member.accountId(), member.sessionId(), freeChannel)) {
             return true;
         }
@@ -1692,6 +1787,7 @@ public class TableHub {
     private boolean canFollow(String userId) {
         var position = channels.positionOf(userId);
         return position != null && !position.swimming() && !seating.containsKey(userId)
+                && channels.carryState(userId) == null
                 && facilities.current(userId) == null;
     }
 
@@ -1738,7 +1834,8 @@ public class TableHub {
         if (position == null) {
             fail(request, "WORLD_POSITION_REQUIRED", "광장 위치를 확인해주세요.");
         }
-        if (seating.containsKey(member.userId()) || facilities.current(member.userId()) != null
+        if (channels.carryState(member.userId()) != null || seating.containsKey(member.userId())
+                || facilities.current(member.userId()) != null
                 || position.moving() || position.running() || position.swimming()
                 || channels.hasMovementActivity(member.userId())) {
             fail(request, "EMOTE_ACTIVITY_CONFLICT", "이동·수영·테이블·시설 이용을 마친 뒤 사용해주세요.");
@@ -1769,6 +1866,61 @@ public class TableHub {
         }
     }
 
+    private void carry(Member member, Request request) {
+        String userId = member.userId();
+        if (request.type().equals("WORLD_CARRY_RELEASE")) {
+            publishWorld(channels.releaseCarry(userId, request.payload().path("carryId").asText()),
+                    member, request.requestId());
+            return;
+        }
+        String targetId = request.payload().path("targetId").asText();
+        if (request.type().equals("WORLD_CARRY_THROW")) {
+            var current = channels.carryState(userId);
+            if (current != null) { targetId = current.partnerId(); }
+        }
+        String channel = channels.channelOf(userId);
+        String partnerId = targetId;
+        if (channel == null || !channels.isInChannel(targetId, channel) || !members.values().stream()
+                .anyMatch(target -> target.userId().equals(partnerId))) {
+            fail(request, "CARRY_TARGET_UNAVAILABLE", "같은 채널의 연결된 사용자를 선택해주세요.");
+        }
+        if (carryBusy(userId) || carryBusy(targetId)) {
+            fail(request, "CARRY_ACTIVITY_CONFLICT", "상대방과 본인의 게임·시설·다른 행동을 마친 뒤 사용해주세요.");
+        }
+        WorldChannelRegistry.WorldState state;
+        if (request.type().equals("WORLD_CARRY_PICKUP")) {
+            state = channels.pickup(userId, targetId);
+        } else {
+            var payload = request.payload();
+            state = channels.throwCarried(userId, payload.path("carryId").asText(), payload.path("dx").asDouble(),
+                    payload.path("dy").asDouble(), payload.path("dz").asDouble());
+        }
+        publishWorld(state, member, request.requestId());
+    }
+
+    private void interactionBusy(Member member, Request request) {
+        var change = channels.interactionBusy(member.userId(), request.payload().path("busy").asBoolean(),
+                request.payload().has("vrActive") ? request.payload().path("vrActive").asBoolean() : null);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("channelId", change.channelId());
+        payload.put("busy", change.busy());
+        if (request.payload().has("vrActive")) {
+            payload.put("vrActive", change.vrActive());
+        }
+        member.peer().offer(protocol.encode(request.requestId(), "WORLD_INTERACTION_STATE",
+                payload));
+        if (change.released() != null) {
+            publishWorld(change.released(), null, null);
+        }
+    }
+
+    private boolean carryBusy(String userId) {
+        return seating.containsKey(userId) || facilities.current(userId) != null || emotes.isActive(userId)
+                || !channels.carryAvailable(userId)
+                || follows.activeStates().stream().flatMap(state -> state.links().stream())
+                        .anyMatch(link -> link.followerId().equals(userId) || link.targetId().equals(userId));
+    }
+
     private void publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {
         Set<String> recipients = state.avatars().stream().map(WorldChannelRegistry.Avatar::userId)
                 .collect(Collectors.toSet());
@@ -1794,6 +1946,18 @@ public class TableHub {
         String message = protocol.encode(null, "NOTES_CHANGED", Map.of("revision", Long.toString(revision)));
         for (Member member : members.values()) {
             if (isMapReady(member) && channels.channelOf(member.userId()) != null) { member.peer().offer(message); }
+        }
+    }
+
+    @org.springframework.transaction.event.TransactionalEventListener(
+            phase = org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT)
+    public synchronized void personalNotificationChanged(
+            com.ssafy.ontop.notification.service.PersonalNotificationChanged event) {
+        if (stopped) { return; }
+        String message = protocol.encode(null, "PERSONAL_NOTIFICATION_CHANGED",
+                Map.of("notificationId", event.notificationId()));
+        for (Member member : members.values()) {
+            if (member.userId().equals(Long.toString(event.userId()))) { member.peer().offer(message); }
         }
     }
 
@@ -1928,6 +2092,104 @@ public class TableHub {
                     .prop("startMode", "AUTO"));
         } else {
             replyState(member, request, room);
+        }
+    }
+
+    /**
+     * 할리갈리 자연 탈락자(eliminated=true, forfeited=false)는 경기 중에도 좌석만 놓는다. 엔진 판정은 Hub 잠금 밖에서
+     * 최신 공개 상태로 확인한다. 기권이 아니므로 이탈 이벤트·이탈 기록을 만들지 않고 경기 참가·예약은 그대로 둔다.
+     * 대상이 아니면 false를 돌려 기존 TABLE_LEAVE 규칙을 그대로 따른다.
+     */
+    private boolean leaveAsEliminated(String sessionId, Member member, Request request) {
+        String gameId = eliminatedLeaveGame(member);
+        if (gameId == null) {
+            return false;
+        }
+        if (!eliminatedLeaves.add(sessionId)) {
+            fail(request, "TABLE_LEAVE_PENDING", "테이블 퇴장을 확인하고 있어요.");
+        }
+        String tableId = seating.get(member.userId());
+        long accountId = member.accountId();
+        GameStateGateway states = gameStates.orElseThrow();
+        startWorkers.execute(() -> {
+            boolean eliminated = false;
+            try {
+                eliminated = naturallyEliminated(states.load(accountId, gameId).orElse(null), accountId, gameId);
+            } catch (RuntimeException exception) {
+                // 엔진 예외 내용은 전송·기록하지 않는다. 확인하지 못하면 기존 퇴장 규칙으로 판정한다.
+            }
+            finishEliminatedLeave(sessionId, member, request, tableId, gameId, eliminated);
+        });
+        return true;
+    }
+
+    // Hub 잠금 안에서만 호출한다. 진행 중인 할리갈리 경기의 아직 좌석을 가진 참가자일 때 그 경기 ID를 돌려준다.
+    private String eliminatedLeaveGame(Member member) {
+        if (member.accountId() == null || gameStates.isEmpty() || committedStarts.isEmpty()) {
+            return null;
+        }
+        String tableId = seating.get(member.userId());
+        TableStartAttempt attempt = tableId == null ? null : starts.get(tableId);
+        if (attempt == null || !attempt.phase().equals("PLAYING")
+                || !TableGame.HALLI_GALLI.name().equals(attempt.command().gameCode())) {
+            return null;
+        }
+        String gameId = publicGameId(tableId);
+        if (gameId == null || !gameId.equals(seatedGames.get(member.userId()))
+                || inactiveGameParticipants.getOrDefault(gameId, Set.of()).contains(member.userId())) {
+            return null;
+        }
+        return gameId;
+    }
+
+    // 엔진 공개 상태(HalliGalliEngine.publicState)에서 본인의 자연 탈락만 인정한다. 기권자는 기존 이탈 경로가 좌석을 정리한다.
+    private static boolean naturallyEliminated(GameStateView view, long accountId, String gameId) {
+        if (view == null || view.userId() != accountId || !gameId.equals(view.gameId())
+                || view.role() != GameStateView.Role.PLAYER) {
+            return false;
+        }
+        var state = view.publicState();
+        if (!TableGame.HALLI_GALLI.name().equals(state.path("gameCode").asText())
+                || !"PLAYING".equals(state.path("status").asText())) {
+            return false;
+        }
+        String own = Long.toString(accountId);
+        for (var player : state.path("players")) {
+            if (own.equals(player.path("userId").asText())) {
+                var eliminated = player.path("eliminated");
+                var forfeited = player.path("forfeited");
+                return eliminated.isBoolean() && eliminated.booleanValue()
+                        && forfeited.isBoolean() && !forfeited.booleanValue();
+            }
+        }
+        return false;
+    }
+
+    private synchronized void finishEliminatedLeave(String sessionId, Member member, Request request, String tableId,
+            String gameId, boolean eliminated) {
+        if (stopped || members.get(sessionId) != member) {
+            return;
+        }
+        eliminatedLeaves.remove(sessionId);
+        try {
+            // 조회 중 좌석·경기가 바뀌었거나 아직 활성 참가자면 기존 퇴장 규칙(복구 확인·대기 상태 확인)으로 판정한다.
+            if (!eliminated || !tableId.equals(seating.get(member.userId())) || !gameId.equals(eliminatedLeaveGame(member))) {
+                if (member.accountId() != null && reconnect.isPresent()
+                        && !reconnect.get().canUseLobby(member.accountId(), sessionId)
+                        && !restoredChannelAccess(member, request)) {
+                    fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
+                }
+                leave(member, request);
+                return;
+            }
+            // 재접속 때도 이 경기를 되살리지 않도록 참가 종료 목록에 먼저 넣는다(connect의 rememberDeparture).
+            inactiveGameParticipants.computeIfAbsent(gameId, ignored -> new HashSet<>()).add(member.userId());
+            releaseDepartedSeat(tableId, gameId, member.userId(), sessionId, request.requestId(), "ELIMINATED_LEAVE");
+            // 복구 슬롯을 다시 읽어 RESTORED를 LOBBY로 바꾼다. 이후 공원 이동·관전·미니게임을 기존 규칙대로 허용한다.
+            reconnect.ifPresent(service -> service.tableLeft(member.accountId(), sessionId));
+            syncGameActivities();
+        } catch (RequestException exception) {
+            member.peer().offer(protocol.error(exception.requestId(), exception.code(), exception.getMessage()));
         }
     }
 
@@ -2235,6 +2497,12 @@ public class TableHub {
     }
 
     private void releaseDepartedSeat(String tableId, String gameId, String userId) {
+        releaseDepartedSeat(tableId, gameId, userId, null, null, "GAME_DEPARTURE");
+    }
+
+    // requestSessionId 연결에만 TABLE_LEFT에 requestId를 붙인다. 캐릭터 월드 좌표는 바꾸지 않고 좌석만 놓는다.
+    private void releaseDepartedSeat(String tableId, String gameId, String userId, String requestSessionId,
+            String requestId, String reason) {
         // 참가 종료가 확정된 좌석만 해제한다. 최초 참가자와 판돈 예약은 기존 정산 경로에 남긴다.
         if (!gameId.equals(seatedGames.get(userId)) || !tableId.equals(seating.get(userId))) { return; }
         cancelReadyBalance(userId);
@@ -2247,11 +2515,11 @@ public class TableHub {
             if (!target.userId().equals(userId)) { continue; }
             statePushes.remove(target.sessionId());
             target.delivery().rememberDeparture(gameId);
-            target.delivery().left(null, tableId);
+            target.delivery().left(target.sessionId().equals(requestSessionId) ? requestId : null, tableId);
             replyStartState(target, null, null);
         }
         publish(room, null, null);
-        recordTableLeft(accountIdOf(userId), tableId, "GAME_DEPARTURE");
+        recordTableLeft(accountIdOf(userId), tableId, reason);
     }
 
     private TableRoom.Snapshot publicSnapshot(TableRoom room) {
@@ -2690,6 +2958,14 @@ public class TableHub {
     private void sendParkDebris(Member member, String channelId) {
         if (isMapReady(member)) {
             member.peer().offer(protocol.encode(null, "WORLD_PARK_DEBRIS_STATE", parkDebrisState(channelId)));
+        }
+    }
+
+    /** 모든 채널의 접속자에게 동일한 DB 확정 기계 상태를 보낸다. 본인 재고는 방송하지 않는다. */
+    public synchronized void publishGacha(com.ssafy.ontop.gacha.GachaDtos.Event event) {
+        String message = protocol.encode(null, "GACHA_STATE", event);
+        for (Member target : members.values()) {
+            if (isMapReady(target)) target.peer().offer(message);
         }
     }
 

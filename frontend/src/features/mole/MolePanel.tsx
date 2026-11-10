@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { playSfx } from '../../audio/sfx'
 import { openManual } from '../manual/manualState'
 import { RewardCoinSource } from '../wallet/RewardCoinFlight'
 import { PREVIEW_RULES } from './preview'
@@ -8,6 +9,9 @@ import { SevenSegment } from './SevenSegment'
 import { ART, BASE, HOLES, LED_LABELS, LEDS, PHASES, SPRITES, STUN } from './stage'
 import { beginMolePlay, closeMole, finishMole, startMole, useMole } from './store'
 import './mole.css'
+import { MoleStartGuide } from '../arcade/MoleStartGuide'
+import { SpeedMoleTrophy } from '../speedMole/SpeedMoleRankingBoard'
+import { MoleRankingDialog, MoleRankSummary } from './MoleRankings'
 
 const COUNTDOWN_MS = 3000
 const FX_MS = 520
@@ -51,6 +55,7 @@ function MoleScreen() {
   const shakeAt = useRef(-Infinity)
   const tapAt = useRef(new Map<number, number>())
   const [confirmQuit, setConfirmQuit] = useState(false)
+  const [rankingsOpen, setRankingsOpen] = useState(false)
   const clock = useRef({ countdownAt: 0, playAt: 0 })
   const scorer = useRef<MoleScorer | null>(null)
   const hits = useRef<Hit[]>([])
@@ -97,6 +102,10 @@ function MoleScreen() {
     // 기절했거나 같은 구멍을 너무 빨리 다시 누르면 망치가 나오지 않는다.
     if (event.type === 'ignored' && (event.reason === 'stunned' || event.reason === 'repeat')) return
     setSwings(list => [...list.filter(s => wall - s.at < SWING_MS), { id: ++fxSeq.current, hole, at: wall }])
+    const cue = event.type === 'catch' || event.type === 'tap' ? 'mole-hit' : event.type === 'decoy' ? 'mole-hedgehog-hit'
+      // 막 들어간 두더지를 늦게 친 헛손질은 콤보만 끊고 기절하지 않으므로 기절음을 내지 않는다.
+      : event.type === 'empty' && event.stunned ? 'mole-empty-stun' : null
+    if (cue) playSfx(cue)
     if (event.type === 'empty' && event.stunned) setDizzyHole(hole)
     if (event.type === 'catch' || event.type === 'decoy') bonks.current.set(event.mole.id, at)
     const shown: Pick<Fx, 'text' | 'tone'> | null = event.type === 'catch'
@@ -140,6 +149,13 @@ function MoleScreen() {
   const elapsed = playing ? now - clock.current.playAt : -1
   const live = scorer.current && (playing || phase === 'submitting') ? scorer.current : null
   const phaseIndex = playing ? Math.min(2, Math.floor(elapsed / rules.phaseMs)) : -1
+  // 2구간·피버로 넘어갈 때 알림음을 내고, 피버 구간 동안만 배경음악을 피버 곡으로 바꾼다.
+  const shownPhase = useRef(-1)
+  useEffect(() => {
+    if (phaseIndex > shownPhase.current && phaseIndex > 0) playSfx('mole-phase-change')
+    shownPhase.current = phaseIndex
+    useMole.setState({ fever: phaseIndex === 2 })
+  }, [phaseIndex])
   const score = live ? live.total() : phase === 'result' && settlement ? settlement.result.score : 0
   const combo = live?.combo ?? 0
   const tenths = comboTenths(rules, combo)
@@ -161,7 +177,7 @@ function MoleScreen() {
   return <div ref={root} className="mole-root" role="dialog" aria-modal="true" aria-labelledby="mole-title" tabIndex={-1}
     data-phase={phase} data-fever={phaseIndex === 2 || undefined} style={{ '--mole-cabinet': `url(${ART.cabinet})` } as CSSProperties}>
     <div className="mole-backdrop" aria-hidden="true" />
-    <div className="mole-stage" data-shake={now - shakeAt.current < SHAKE_MS || undefined} data-stunned={stunLeft > 0 || undefined}>
+    <div className="mole-stage" inert={phase === 'idle'} data-shake={now - shakeAt.current < SHAKE_MS || undefined} data-stunned={stunLeft > 0 || undefined}>
       <img className="mole-cabinet-art" src={ART.cabinet} alt="" draggable={false} />
       <h2 id="mole-title" className="mole-sr">두더지 잡기</h2>
       <div className="mole-scoreboard" role="group" aria-label={`점수 ${score} · 남은 시간 ${clockLabel(remaining)} · 콤보 ${combo}`}>
@@ -243,11 +259,17 @@ function MoleScreen() {
       {phase === 'countdown' && <div className="mole-countdown" aria-live="assertive"><b key={countdown}>{countdown}</b></div>}
     </div>
 
-    <div className="mole-corner">
+    {phase === 'idle' && <MoleStartGuide name="두더지 잡기" headline="튀어나오면, 망치로 쾅!"
+      description={<>다양한 두더지를 잡고 콤보를 이어가요.<br />헬멧 두더지는 연타, 고슴도치는 피해 주세요.</>}
+      seconds={rules.durationMs / 1000} keyGroups={[KEYS.slice(0,3),KEYS.slice(3)]}
+      details={<><p>{rules.pointsPerCoin}점당 1냥 · 오늘 미니게임 {todayEarned}/{dailyCap}냥</p><p>빈 구멍을 치면 2초 기절해요.</p></>}
+      error={error} onStart={() => void startMole()} onClose={closeMole} onManual={() => openManual('whack-a-mole')}
+      extra={<button type="button" onClick={() => setRankingsOpen(true)}><SpeedMoleTrophy />내 최고 기록 · 전체 랭킹</button>} />}
+    {phase !== 'idle' && <div className="mole-corner">
       <button type="button" className="mole-ghost" onClick={() => openManual('whack-a-mole')}>설명서</button>
       <button type="button" className="mole-close" aria-label="게임기 닫기" onClick={() => playing ? setConfirmQuit(true) : closeMole()}
         disabled={phase === 'submitting'}>×</button>
-    </div>
+    </div>}
     {phase === 'submitting' && <div className="mole-overlay" role="status"><p>점수를 확인하고 있어요…</p></div>}
     {confirmQuit && playing && <div className="mole-overlay" role="alertdialog" aria-label="그만하기 확인">
       <div className="mole-card"><h3>그만할까요?</h3><p>이번 판은 보상 없이 끝나요.</p>
@@ -263,6 +285,7 @@ function MoleScreen() {
             <div><dt>잡은 두더지</dt><dd>{settlement.result.caught}</dd></div>
             <div><dt>최고 점수</dt><dd>{settlement.bestScore.toLocaleString('ko-KR')}</dd></div>
           </dl>
+          <MoleRankSummary refreshKey={settlement.result.id} onOpen={() => setRankingsOpen(true)} />
           <p className="mole-reward">
             {settlement.result.reward > 0
               ? <RewardCoinSource receipt={`mole:reward:${settlement.result.id}`} amount={settlement.result.reward} soundOnReveal>
@@ -279,5 +302,6 @@ function MoleScreen() {
         </div>
       </div>
     </div>}
+    {rankingsOpen && <MoleRankingDialog onClose={() => setRankingsOpen(false)} />}
   </div>
 }

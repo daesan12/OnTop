@@ -15,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -90,6 +91,12 @@ abstract class OpenApiHttpTestSupport {
                 "POST /api/v1/admin/wallet-grants/preview", "POST /api/v1/admin/wallet-grants",
                 "GET /api/v1/operations/status", "GET /api/v1/admin/operations/status",
                 "PUT /api/v1/admin/operations/status",
+                "GET /api/v1/notifications", "GET /api/v1/notifications/{notificationId}",
+                "PATCH /api/v1/notifications/{notificationId}/read",
+                "POST /api/v1/notifications/{notificationId}/claim", "POST /api/v1/admin/wallet-grants/rewards",
+                "GET /api/v1/admin/wallet-grants/rewards", "GET /api/v1/admin/wallet-grants/rewards/recipients",
+                "POST /api/v1/admin/operations/feedback/{receiptId}/replies",
+                "PATCH /api/v1/admin/operations/feedback/{receiptId}/status",
                 "GET /api/v1/announcements", "GET /api/v1/admin/operations/announcements",
                 "POST /api/v1/admin/operations/announcements/{id}", "PUT /api/v1/admin/operations/announcements/{id}",
                 "DELETE /api/v1/admin/operations/announcements/{id}", "PUT /api/v1/admin/operations/announcements/order",
@@ -97,6 +104,29 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/wallets/me/transactions", "GET /api/v1/rankings",
                 "GET /api/v1/rankings/park",
                 "GET /api/v1/raffles/current", "POST /api/v1/raffles/current/tickets",
+                "GET /api/v1/raffles/rounds/{weekStart}/result",
+                "GET /api/v1/admin/raffles/rounds/{weekStart}",
+                "GET /api/v1/admin/raffles/rounds/{weekStart}/draws/current",
+                "POST /api/v1/admin/raffles/rounds/{weekStart}/draws",
+                "POST /api/v1/admin/raffles/rounds/{weekStart}/draws/reroll",
+                "POST /api/v1/admin/raffles/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
+                "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
+                "POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize",
+                "GET /api/v1/admin/events/minigames/rounds/{weekStart}/games",
+                "GET /api/v1/admin/events/minigames/supported-games",
+                "PUT /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}",
+                "GET /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}/ranking",
+                "POST /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}/finalize",
+                "GET /api/v1/events/minigames/rounds/{weekStart}/games/{gameCode}/result",
+                "GET /api/v1/events/assets/rounds/{weekStart}/result",
+                "GET /api/v1/admin/events/assets/rounds/{weekStart}",
+                "POST /api/v1/admin/events/assets/rounds/{weekStart}/finalize",
+                "GET /api/v1/events/winnings/me",
+                "PUT /api/v1/events/winnings/weeks/{weekStart}/contact",
+                "GET /api/v1/admin/events/winners",
+                "GET /api/v1/admin/events/winners/{winnerId}/contact",
+                "PUT /api/v1/admin/events/winners/{winnerId}/delivery",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
                 "POST /api/v1/behavior-events"));
@@ -119,6 +149,9 @@ abstract class OpenApiHttpTestSupport {
                     "GET /api/v1/minigames/plus-minus/status", "POST /api/v1/minigames/plus-minus/rounds",
                     "GET /api/v1/minigames/whack-a-mole/status", "POST /api/v1/minigames/whack-a-mole/rounds",
                     "POST /api/v1/minigames/whack-a-mole/rounds/{roundId}/complete",
+                    "GET /api/v1/minigames/whack-a-mole/rankings",
+                    "POST /api/v1/minigames/speed-mole/rounds", "POST /api/v1/minigames/speed-mole/rounds/{roundId}/complete",
+                    "GET /api/v1/minigames/speed-mole/rankings",
                     "GET /api/v1/minigames/sessions/{sessionId}",
                     "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                     "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
@@ -133,6 +166,20 @@ abstract class OpenApiHttpTestSupport {
             }
         }
         Set<String> actual = new HashSet<>();
+        if (environment.acceptsProfiles(Profiles.of(com.ssafy.ontop.config.RuntimeProfiles.PRODUCT_FEATURE))) {
+            expected.addAll(Set.of("GET /api/v1/skins/assets", "GET /api/v1/admin/operations/skins/settings",
+                    "GET /api/v1/admin/operations/skins", "POST /api/v1/admin/operations/skins",
+                    "GET /api/v1/admin/operations/skins/{id}", "PUT /api/v1/admin/operations/skins/{id}",
+                    "POST /api/v1/admin/operations/skins/{id}/uploads",
+                    "POST /api/v1/admin/operations/skins/{id}/uploads/{uploadId}/verify",
+                    "POST /api/v1/admin/operations/skins/{id}/publish", "POST /api/v1/admin/operations/skins/{id}/disable"));
+            expected.addAll(Set.of("GET /api/v1/admin/operations/skins/components", "POST /api/v1/admin/operations/skins/components",
+                    "GET /api/v1/admin/operations/skins/sets", "POST /api/v1/admin/operations/skins/sets",
+                    "PUT /api/v1/admin/operations/skins/sets/{id}", "POST /api/v1/admin/operations/skins/sets/{id}/publish",
+                    "POST /api/v1/admin/operations/skins/sets/{id}/disable"));
+            expected.addAll(Set.of("GET /api/v1/gacha", "GET /api/v1/gacha/operations/{operationId}",
+                    "POST /api/v1/gacha/tickets", "POST /api/v1/gacha/draws", "POST /api/v1/gacha/boxes/open"));
+        }
         api.path("paths").fields().forEachRemaining(path -> path.getValue().fieldNames().forEachRemaining(method ->
                 actual.add(method.toUpperCase() + " " + path.getKey())));
         assertThat(actual).isEqualTo(expected);
@@ -338,6 +385,46 @@ abstract class OpenApiHttpTestSupport {
                 assertThat(schema.path("required").size()).isEqualTo(schema.path("properties").size());
             }
         }
+    }
+
+    @Test
+    void 미니게임_행사_type은_문자열_열거형이고_세션_ID는_숫자_패턴이다() throws Exception {
+        var paths = json().path("paths");
+        for (String path : List.of(
+                "/api/v1/events/minigames/{type}/rounds/{weekStart}/result",
+                "/api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
+                "/api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize")) {
+            var operation = paths.path(path).path(path.endsWith("/finalize") ? "post" : "get");
+            assertThat(operation.isMissingNode()).isFalse();
+            var schema = pathParameter(operation, "type").path("schema");
+            assertThat(schema.path("type").asText()).isEqualTo("string");
+            assertThat(schema.path("enum").toString()).isEqualTo("[\"bungeoppang\",\"jumpmap\"]");
+            assertThat(schema.has("pattern")).isFalse();
+        }
+        var complete = paths.path("/api/v1/minigames/sessions/{sessionId}/complete").path("post");
+        assertThat(pathParameter(complete, "sessionId").path("schema").path("pattern").asText())
+                .isEqualTo("^[1-9][0-9]{0,18}$");
+    }
+
+    @Test
+    void 엽전_행사_당첨자_문서는_미니게임_상품_스키마와_구분한다() throws Exception {
+        var schemas = json().at("/components/schemas");
+        assertThat(schemas.at("/AssetAwardResponse/properties/winners/items/$ref").asText())
+                .isEqualTo("#/components/schemas/AssetWinner");
+        assertThat(schemas.at("/AssetMemberAwardResponse/properties/prize/$ref").asText())
+                .isEqualTo("#/components/schemas/AssetPrize");
+        assertThat(schemas.at("/AssetWinner/properties/place/type").asText()).isEqualTo("integer");
+        assertThat(schemas.at("/AssetPrize/properties/coinBalance/type").asText())
+                .isEqualTo("integer");
+    }
+
+    private JsonNode pathParameter(JsonNode operation, String name) {
+        for (JsonNode parameter : operation.path("parameters")) {
+            if (parameter.path("name").asText().equals(name)) {
+                return parameter;
+            }
+        }
+        throw new AssertionError("OpenAPI path parameter is missing: " + name);
     }
 
     @Test

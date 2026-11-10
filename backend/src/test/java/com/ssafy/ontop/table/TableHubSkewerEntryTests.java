@@ -3,6 +3,7 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.security.AuthenticatedUser;
+import com.ssafy.ontop.auth.security.RestAuthenticationException;
 import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
@@ -11,6 +12,8 @@ import com.ssafy.ontop.game.skewer.coop.controller.SkewerCoopController;
 import com.ssafy.ontop.game.skewer.coop.service.SkewerCoopEngine;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.user.domain.LoginProvider;
+import com.ssafy.ontop.user.service.UserProfileService;
+import com.ssafy.ontop.user.dto.UserProfileResponse;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
@@ -22,6 +25,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
@@ -32,9 +37,14 @@ import org.springframework.web.socket.WebSocketSession;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class TableHubSkewerEntryTests {
@@ -45,11 +55,94 @@ class TableHubSkewerEntryTests {
             Duration.ofSeconds(30), Duration.ofSeconds(30), channels);
     private final SkewerCoopEngine engine = new SkewerCoopEngine(mapper, Clock.systemUTC(), new GameEngineRouter(),
             event -> { }, user -> { }, (user, channel) -> true, new Random(18), 240);
-    private final SkewerCoopController controller = new SkewerCoopController(engine, hub, null);
+    private final UserProfileService profiles = mock(UserProfileService.class);
+    private final SkewerCoopController controller = new SkewerCoopController(engine, hub, null, profiles);
+
+    @org.junit.jupiter.api.BeforeEach
+    void 방장_프로필을_준비한다() {
+        when(profiles.findProfile(org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(call -> new UserProfileResponse(call.getArgument(0), "공원친구", null));
+    }
 
     @AfterEach
     void 종료한다() {
         hub.shutdown();
+    }
+
+    @Test
+    void 방장_프로필_실패와_탈퇴는_방을_남기지_않고_같은_키로_재시도할수있다() throws Exception {
+        peer(101);
+        entranceAt(101);
+        for (var error : new RestAuthenticationException.Error[] {
+                RestAuthenticationException.Error.STORAGE, RestAuthenticationException.Error.MEMBER_CHANGED}) {
+            when(profiles.findProfile(101)).thenThrow(new RestAuthenticationException(error));
+
+            assertThatThrownBy(() -> enter(101, "requestKey", "retry"))
+                    .isInstanceOfSatisfying(RestAuthenticationException.class,
+                            exception -> assertThat(exception.error()).isEqualTo(error));
+
+            assertThat(engine.rooms(101, "park").path("rooms")).isEmpty();
+            assertThat(engine.owns(101, "park")).isFalse();
+            doReturn(new UserProfileResponse(101, "서버의 방장", null))
+                    .when(profiles).findProfile(101);
+        }
+
+        assertThat(enter(101, "requestKey", "retry").at("/publicState/hostNickname").asText())
+                .isEqualTo("서버의 방장");
+        assertThat(engine.rooms(101, "park").path("rooms").size()).isEqualTo(1);
+    }
+
+    @Test
+    void 프로필_지연중에도_엔진은_응답하고_연결이_끊기면_방을_만들지_않는다() throws Exception {
+        Peer host = peer(101);
+        entranceAt(101);
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(profiles.findProfile(101)).thenAnswer(call -> {
+            entered.countDown();
+            assertThat(release.await(5, TimeUnit.SECONDS)).isTrue();
+            return new UserProfileResponse(101, "공원친구", null);
+        });
+
+        try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+            var pending = workers.submit(() -> enter(101, "requestKey", "slow"));
+            try {
+                assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+                assertThat(workers.submit(() -> engine.rooms(202, "park")).get(2, TimeUnit.SECONDS)
+                        .path("rooms")).isEmpty();
+                hub.disconnect(host.id);
+            } finally {
+                release.countDown();
+            }
+            assertThatThrownBy(() -> pending.get(5, TimeUnit.SECONDS)).hasCauseInstanceOf(IllegalStateException.class);
+        }
+        assertThat(engine.rooms(101, "park").path("rooms")).isEmpty();
+    }
+
+    @Test
+    void 프로필은_방_생성시_한번만_조회하고_참가자는_다시_조회하지_않는다() throws Exception {
+        peer(101);
+        entranceAt(101);
+        String id = enter(101, "requestKey", "once").path("gameId").asText();
+        peer(202);
+
+        assertThat(enter(202, "gameId", id).path("registered").asBoolean()).isTrue();
+
+        verify(profiles, times(1)).findProfile(101);
+        verify(profiles, never()).findProfile(202);
+    }
+
+    @Test
+    void 방장닉네임은_계정프로필을_사용하고_요청의_닉네임은_거절한다() throws Exception {
+        peer(101);
+        entranceAt(101);
+        var user = new AuthenticatedUser(101, LoginProvider.NAVER, TestLoginSessions.ID);
+        var body = mapper.createObjectNode().put("channelId", "park").put("requestKey", "named")
+                .put("roomName", "달빛 꼬치집").put("password", "abcd");
+        assertThat(controller.enter(user, body).getBody().at("/publicState/hostNickname").asText())
+                .isEqualTo("공원친구");
+        body.put("hostNickname", "다른사람");
+        assertThatThrownBy(() -> controller.enter(user, body)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -123,6 +216,70 @@ class TableHubSkewerEntryTests {
                 .isEqualTo("TABLE_STATE");
         assertThatThrownBy(() -> hub.requireSkewerWaitingPlayer(101, "park"))
                 .hasMessageContaining("진행 중인 게임");
+    }
+
+    @Test
+    void 꼬치왕_복구참가자의_VR_보호는_로비권한과_분리하고_종료후_창보호도_유지한다() throws Exception {
+        Peer chef = peer(101);
+        entranceAt(101);
+        String game = enter(101, "requestKey", "vr-protection").path("gameId").asText();
+        Peer server = peer(202);
+        enter(202, "gameId", game);
+        Peer visitor = peer(303);
+        var recovery = new GameReconnectService(Optional.of(engine), Optional.empty());
+        try {
+            recovery.connected(101, chef.id, (id, view) -> { });
+            recovery.connected(202, server.id, (id, view) -> { });
+            recovery.connected(303, visitor.id, (id, view) -> { });
+            await().atMost(Duration.ofSeconds(3)).until(() ->
+                    recovery.canResumeUnreservedChannel(101, chef.id, "park")
+                            && recovery.canResumeUnreservedChannel(202, server.id, "park")
+                            && recovery.canUseLobby(303, visitor.id));
+            ReflectionTestUtils.setField(hub, "reconnect", Optional.of(recovery));
+            assertThat(recovery.canUseLobby(101, chef.id)).isFalse();
+
+            JsonNode approved = chef.request("WORLD_INTERACTION_SET", Map.of("busy", true, "vrActive", true));
+
+            assertThat(approved.path("type").asText()).isEqualTo("WORLD_INTERACTION_STATE");
+            assertThat(approved.at("/payload/vrActive").asBoolean()).isTrue();
+            assertThat(channels.carryAvailable("101")).isFalse();
+            assertThat(channels.worldState("park").avatars().stream().filter(a -> a.userId().equals("202")))
+                    .allMatch(a -> a.vrActive() == null);
+            assertThat(visitor.request("WORLD_CARRY_PICKUP", Map.of("targetId", "101"))
+                    .at("/payload/code").asText()).isEqualTo("CARRY_ACTIVITY_CONFLICT");
+            assertThat(chef.request("WORLD_INTERACTION_SET", Map.of("busy", false))
+                    .at("/payload/busy").asBoolean()).isTrue();
+            assertThat(channels.carryAvailable("101")).isFalse();
+            String table = hub.listTables("park").tables().getFirst().tableId();
+            assertThat(chef.request("TABLE_JOIN", Map.of("tableId", table)).at("/payload/code").asText())
+                    .isEqualTo("GAME_RECOVERY_REQUIRED");
+            assertThat(chef.request("WORLD_INTERACTION_SET",
+                    Map.of("busy", true, "vrActive", true, "userId", "202")).path("type").asText())
+                    .isEqualTo("ERROR");
+
+            JsonNode ended = chef.request("WORLD_INTERACTION_SET", Map.of("busy", true, "vrActive", false));
+            assertThat(ended.path("type").asText()).isEqualTo("WORLD_INTERACTION_STATE");
+            assertThat(ended.at("/payload/vrActive").asBoolean()).isFalse();
+            assertThat(ended.at("/payload/busy").asBoolean()).isTrue();
+            assertThat(channels.carryAvailable("101")).isFalse();
+        } finally {
+            recovery.shutdown();
+        }
+    }
+
+    @Test
+    void 복구가_완료된_현재연결의_원래채널이_아니면_VR_보호요청을_허용하지_않는다() throws Exception {
+        Peer chef = peer(101);
+        for (var scope : List.of(new String[] { "old-session", "park" }, new String[] { chef.id, "other" })) {
+            var recovery = mock(GameReconnectService.class);
+            when(recovery.canResumeUnreservedChannel(101, scope[0], scope[1])).thenReturn(true);
+            ReflectionTestUtils.setField(hub, "reconnect", Optional.of(recovery));
+
+            JsonNode denied = chef.request("WORLD_INTERACTION_SET", Map.of("busy", true, "vrActive", true));
+
+            assertThat(denied.at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
+            assertThat(channels.worldState("park").avatars()).allMatch(a -> a.vrActive() == null);
+        }
     }
 
     private JsonNode enter(long user, String key, String value) {

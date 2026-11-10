@@ -9,8 +9,9 @@
 | `ADMIN_READ_IDS` | 소리함·집계 조회가 가능한 내부 회원 ID의 쉼표 구분 목록 |
 | `ADMIN_GRANT_IDS` | 일괄 엽전 지급이 가능한 내부 회원 ID의 쉼표 구분 목록 |
 | `ADMIN_OPERATION_IDS` | 운영 상태 전환·일반 공지 관리가 가능한 내부 회원 ID의 쉼표 구분 목록 |
+| `ADMIN_CONTACT_IDS` | 당첨자 전화번호 원문 조회가 가능한 내부 회원 ID 목록 |
 
-`ADMIN_GRANT_IDS`와 `ADMIN_OPERATION_IDS`의 모든 ID는 `ADMIN_READ_IDS`에도 있어야 한다. 운영 전환 ID를
+`ADMIN_GRANT_IDS`와 `ADMIN_OPERATION_IDS`, `ADMIN_CONTACT_IDS`의 모든 ID는 `ADMIN_READ_IDS`에도 있어야 한다. 운영 전환 ID를
 생략하면 기존 지급 관리자에게 운영 전환 권한을 부여한다. 누락되거나 양수가 아닌 ID가 있으면 앱 시작 시
 설정 오류로 중단한다. 실제 값은 서버 환경 파일에만 보관한다. 기존 `FEEDBACK_ADMINISTRATOR_IDS`는
 `ADMIN_READ_IDS`가 없을 때만 쓰는 전환용 대체값이다. 새 배포에는 `ADMIN_READ_IDS`를 사용한다.
@@ -19,7 +20,10 @@
 
 | 요청 | 필요 권한 |
 | --- | --- |
+| `/api/v1/admin/operations/skins/**` 및 목록 자체 | 운영 + 별도 `SKIN_ADMIN_USER_IDS`. [스킨 등록 계약](skin-registration-api.md) |
 | `GET /api/v1/admin/me` | 조회 |
+| `GET /api/v1/admin/events/winners` | 조회. 번호 끝 네 자리만 표시 |
+| `GET /api/v1/admin/events/winners/{winnerId}/contact` | 별도 연락처 권한. 원문 조회를 감사 기록에 저장 |
 | `GET /api/v1/admin/feedback` | 조회 및 기존 소리함 서비스의 활성 회원 확인 |
 | `GET /api/v1/admin/analytics/**` | 조회 (후속 구현 예정) |
 | `POST /api/v1/admin/wallet-grants/preview` | 지급 미리보기 |
@@ -30,7 +34,7 @@
 | `POST/PUT/DELETE /api/v1/admin/operations/announcements/{id}` | 공지 관리(운영) |
 | 그 밖의 `/api/v1/admin/**` | 거절 |
 
-`GET /api/v1/admin/me`는 `{ "canRead": true, "canGrant": false, "canOperate": true }` 형식으로 현재
+`GET /api/v1/admin/me`는 `{ "canRead": true, "canGrant": false, "canOperate": true, "canViewContacts": false }` 형식으로 현재
 권한을 반환하며 캐시하지 않는다. 미로그인은 401, 권한이 없는 회원은 403이다. 프론트엔드의 화면 접근
 처리는 서버 권한 검사를 대신하지 않는다.
 

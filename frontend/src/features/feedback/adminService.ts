@@ -1,7 +1,9 @@
 import { getAuthSession, restoreAuthSession } from '../../auth/authFlow'
 import { record } from '../../network/protocol'
+import { isFeedbackStatus, type FeedbackStatus } from '../notifications/api'
 
-export interface AdminFeedbackEntry { receiptId: string; authorUserId: number | null; channelId: string; text: string; acceptedAt: string }
+export interface AdminFeedbackEntry { receiptId: string; authorUserId: number | null; channelId: string; text: string; acceptedAt: string
+  authorNickname?: string | null; status?: FeedbackStatus; version?: number; latestReply?: { id: string; text: string; createdAt: string } | null }
 export interface AdminFeedbackPage { items: AdminFeedbackEntry[]; nextCursor: string | null }
 export class AdminFeedbackError extends Error {
   constructor(message: string, readonly code: string, readonly authEnded = false) { super(message) }
@@ -19,8 +21,22 @@ export function parseAdminFeedbackPage(value: unknown, cursor = ''): AdminFeedba
       || typeof item.text !== 'string' || !item.text.length || item.text.length > 600
       || typeof item.acceptedAt !== 'string' || !Number.isFinite(Date.parse(item.acceptedAt))) return invalid()
     previous = BigInt(item.receiptId)
-    return { receiptId: item.receiptId, authorUserId: item.authorUserId as number | null,
+    const result: AdminFeedbackEntry = { receiptId: item.receiptId, authorUserId: item.authorUserId as number | null,
       channelId: item.channelId, text: item.text, acceptedAt: item.acceptedAt }
+    if (item.authorNickname !== undefined) {
+      if (item.authorNickname !== null && (typeof item.authorNickname !== 'string' || !item.authorNickname || item.authorNickname.length > 40)) return invalid()
+      result.authorNickname = item.authorNickname as string | null
+    }
+    if (item.status !== undefined || item.version !== undefined || item.latestReply !== undefined) {
+      if (!isFeedbackStatus(item.status) || !Number.isSafeInteger(item.version) || Number(item.version) < 0
+        || !(item.latestReply === null || record(item.latestReply) && typeof item.latestReply.id === 'string'
+          && /^[0-9a-f-]{36}$/.test(item.latestReply.id) && typeof item.latestReply.text === 'string'
+          && item.latestReply.text.length > 0 && item.latestReply.text.length <= 2000
+          && typeof item.latestReply.createdAt === 'string' && Number.isFinite(Date.parse(item.latestReply.createdAt)))) return invalid()
+      result.status = item.status; result.version = Number(item.version)
+      result.latestReply = item.latestReply as AdminFeedbackEntry['latestReply']
+    }
+    return result
   })
   if (value.nextCursor !== null && (!id(value.nextCursor) || value.nextCursor !== items.at(-1)?.receiptId)) return invalid()
   return { items, nextCursor: value.nextCursor as string | null }

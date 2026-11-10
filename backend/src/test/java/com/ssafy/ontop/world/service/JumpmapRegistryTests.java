@@ -118,7 +118,9 @@ class JumpmapRegistryTests {
         registry.join("7", "channel-1");
         assertThat(registry.suspendJumpmap("7")).isFalse();
         dropOnto(registry, "7", course.colliders().getFirst());
+        registry.interactionBusy("7", true, true);
         assertThat(registry.suspendJumpmap("7")).isTrue();
+        assertThat(registry.worldState("channel-1").avatars()).allMatch(a -> a.vrActive() == null);
         assertThat(registry.suspendJumpmap("7")).isFalse();
         delivered.clear();
         int ticks = (int) (WorldChannelRegistry.JUMPMAP_GRACE.toNanos() / WorldPhysics.STEP_NANOS);

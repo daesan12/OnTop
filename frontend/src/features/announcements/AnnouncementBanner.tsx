@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { loadNotices, noticeRefreshDelay, visibleNotices, type NoticeFeed } from './api'
 import './announcements.css'
+import { useGachaEvents } from '../gacha/events'
 
-export function AnnouncementBanner() {
+export function AnnouncementBanner({ hidden = false }: { hidden?: boolean }) {
+  const systemNotices = useGachaEvents(s => s.notices)
   const [feed, setFeed] = useState<NoticeFeed | null>(null), [age, setAge] = useState(0)
   const received = useRef(0), [index, setIndex] = useState(0)
   const [duration, setDuration] = useState(16), [width, setWidth] = useState(600), viewport = useRef<HTMLSpanElement>(null), text = useRef<HTMLSpanElement>(null)
@@ -25,7 +27,8 @@ export function AnnouncementBanner() {
     const clock = setInterval(() => setAge(performance.now() - received.current), 1000)
     return () => { stopped = true; request?.abort(); clearTimeout(timer); clearInterval(clock); document.removeEventListener('visibilitychange', foreground) }
   }, [])
-  const values = feed && age < 30000 ? visibleNotices(feed, age) : []
+  const values = [...systemNotices.filter(n => n.expiresAt > performance.now()),
+    ...(feed && age < 30000 ? visibleNotices(feed, age) : [])]
   const active = values[index % (values.length || 1)]
   const signature = values.map(value => `${value.id}:${value.version}`).join('/')
   useEffect(() => { setIndex(0) }, [signature])
@@ -35,13 +38,13 @@ export function AnnouncementBanner() {
     measure(); const observer = new ResizeObserver(measure)
     if (viewport.current) observer.observe(viewport.current)
     return () => observer.disconnect()
-  }, [active?.id, active?.version])
+  }, [active?.id, active?.version, hidden])
   useEffect(() => {
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const timer = setInterval(() => setIndex(i => i + 1), 8000)
     return () => clearInterval(timer)
   }, [signature])
-  if (!active) return null
+  if (hidden || !active) return null
   return <aside className="announcement-banner" aria-label="공원 공지" style={{ '--notice-duration': `${duration}s`, '--notice-width': `${width}px` } as CSSProperties}>
     <div className="announcement-content">
       <strong>공지</strong><span className="announcement-window" ref={viewport}>

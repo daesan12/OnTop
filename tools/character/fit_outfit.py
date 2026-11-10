@@ -1,6 +1,7 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
        [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0|back|all rim_neck=20] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0] [hair_trim=z,y]
+       [lining_hidden=1] [skin_any=1] [keep_holes=N,M] [wing_parts=N,M wing_blend=0.025] [cover_hands=1] [hair_hides_front=0.03 | hair_hides_above=z] [face_scale=1.15] [gloves=1]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -109,6 +110,17 @@ if HEAD_FIT:
     print('HEAD fit: scale', round(float(np.cbrt(np.linalg.det(R_))), 3), 'shift', (100 * t_).round(1).tolist(), 'cm, median gap',
           round(1000 * float(np.median(d_)), 1), 'mm')
     bpy.data.objects.remove(face)
+# face_scale=1.15: the FACE parts grown about the head joint by that. The body's head is bigger than the generated
+# one: the goggles' rim sat up to 1.9 cm inside it at the temples, and grown only sideways their lens covered the
+# nose and half the eyes. head_fit did not help: the generated face under the goggles is only a chin and ears, and
+# fitting it moved the goggles 6 cm in (S15P31B105-365)
+if opt.get('face_scale'):
+    k_, h_ = float(opt['face_scale']), J['Head']
+    for n in SLOT_PARTS.get('FACE', []):
+        o = parts[n]
+        for v in o.data.vertices: v.co = h_ + (v.co - h_) * k_
+        o.data.update()
+    print('FACE scale', k_)
 print('PARTS', {slot: names for slot, names in SLOT_PARTS.items()})
 
 def fill_small_holes(o, max_edges=30):
@@ -157,7 +169,10 @@ def fill_small_holes(o, max_edges=30):
                 for l in f.loops: l[uv].uv = best
     bm.to_mesh(o.data); bm.free()
     return len(newf)
+# keep_holes=N,M: those parts keep their holes (a mask's eye holes were filled white, S15P31B105-390)
+KEEP_HOLES = {f'tripo_part_{n}' for n in opt.get('keep_holes', '').split(',') if n}
 for n, o in parts.items():
+    if n in KEEP_HOLES: continue
     k = fill_small_holes(o)
     if k: print('FILL', n, k, 'faces')
 # predecimate=N:faces,...: simple parts made dense by Tripo (the gat's hat, 26k faces) are cut down first, so the
@@ -250,9 +265,9 @@ def lit_texel(it, pct=80):
     light = cs[cs.mean(1) >= np.percentile(cs.mean(1), pct)]; med = np.median(light, 0)
     return tuple(uvd[int(np.argmin(((cs - med) ** 2).sum(1))) * 7].uv), med
 
-def on_texel(o, like, uv0):
-    """o's faces on one texel of item `like`'s own material and UV layer."""
-    o.data.materials.clear(); o.data.materials.append(like.data.materials[0])
+def on_texel(o, like, uv0, mi=0):
+    """o's faces on one texel of item `like`'s own material (index mi) and UV layer."""
+    o.data.materials.clear(); o.data.materials.append(like.data.materials[mi])
     name = like.data.uv_layers.active.name
     for u in list(o.data.uv_layers): o.data.uv_layers.remove(u)
     lay = o.data.uv_layers.new(name=name)
@@ -463,16 +478,25 @@ def skin_texel(it):
             u_ = np.mean([tuple(uvb[l].uv) for l in p.loop_indices], 0)
             cols.append(PB[min(h2 - 1, max(0, int(u_[1] * h2))), min(w2 - 1, max(0, int(u_[0] * w2)))])
     target = np.median(np.array(cols), 0) if cols else np.array([0.73, 0.52, 0.43])
-    img = next(n.image for m in it.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
-    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
-    st = 4; Ps = P[::st, ::st]; loc_var = np.zeros(Ps.shape[:2], np.float32)
-    for dy in (-2, -1, 1, 2):
-        for dx in (-2, -1, 1, 2):
-            loc_var = np.maximum(loc_var, np.abs(np.roll(np.roll(Ps, dy, 0), dx, 1) - Ps).sum(2))
-    dist = ((Ps - target) ** 2).sum(2) + (loc_var > 0.03) * 10
-    yy, xx = np.unravel_index(int(np.argmin(dist)), dist.shape)
-    _skin_cache['uv'] = ((xx * st + 0.5) / w_, (yy * st + 0.5) / h_)
-    print('SKIN neck', target.round(3).tolist(), '-> texel', Ps[yy, xx].round(3).tolist(), 'from', len(cols), 'faces')
+    # skin_any=1 (the muscle outfit): every material's image is searched, not the first only: an item joined from
+    # parts with their own textures had no even skin patch in its first, and the lining came out grey. (Only the
+    # lining takes the material with it; neck_tone and v_paint keep the first)
+    best = None
+    mats = list(enumerate(it.data.materials)) if opt.get('skin_any', '0') == '1' else list(enumerate(it.data.materials))[:1]
+    for mi, m in mats:
+        img = next((n.image for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image), None) if m and m.node_tree else None
+        if not img: continue
+        w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
+        st = 4; Ps = P[::st, ::st]; loc_var = np.zeros(Ps.shape[:2], np.float32)
+        for dy in (-2, -1, 1, 2):
+            for dx in (-2, -1, 1, 2):
+                loc_var = np.maximum(loc_var, np.abs(np.roll(np.roll(Ps, dy, 0), dx, 1) - Ps).sum(2))
+        dist = ((Ps - target) ** 2).sum(2) + (loc_var > 0.03) * 10
+        yy, xx = np.unravel_index(int(np.argmin(dist)), dist.shape)
+        if best is None or dist[yy, xx] < best[0]:
+            best = (dist[yy, xx], mi, ((xx * st + 0.5) / w_, (yy * st + 0.5) / h_), Ps[yy, xx])
+    _, _skin_cache['mi'], _skin_cache['uv'], col = best
+    print('SKIN neck', target.round(3).tolist(), '-> texel', col.round(3).tolist(), 'material', best[1], 'from', len(cols), 'faces')
     return _skin_cache['uv']
 
 if opt.get('lining', '0') == '1' and 'TOP' in G:
@@ -482,6 +506,15 @@ if opt.get('lining', '0') == '1' and 'TOP' in G:
     pick = [p.index for p in src_obj.data.polygons
             if nz - down_ < p.center.z < nz + up_ + 0.02 and math.hypot(p.center.x - nx, p.center.y - ny) < r_
             and p.center.y < ny - float(opt.get('lining_front', 0.01))]
+    # lining_hidden=1: only the body faces the top hides (led by a TOP bone, as in the cover rule), so the lining
+    # meets the neck's own faces along their edge instead of a level cut across them
+    if opt.get('lining_hidden', '0') == '1':
+        _lead = leading_bones(src_obj)
+        def _bone(p):
+            votes = {}
+            for vi in p.vertices: votes[_lead[vi]] = votes.get(_lead[vi], 0) + 1
+            return max(votes, key=votes.get)
+        pick = [i for i in pick if _bone(src_obj.data.polygons[i]) in TOP_BONES]
     ln = src_obj.copy(); ln.data = src_obj.data.copy(); bpy.context.scene.collection.objects.link(ln)
     lb = bmesh.new(); lb.from_mesh(ln.data); lb.faces.ensure_lookup_table(); keep_ = set(pick)
     bmesh.ops.delete(lb, geom=[f for f in lb.faces if f.index not in keep_], context='FACES')
@@ -554,7 +587,7 @@ if opt.get('lining', '0') == '1' and 'TOP' in G:
     # (the top's middle tone: on its lit white the lapels' shaded inner edges stood out as teeth)
     # lining_tone=skin (the gat's dopo, like Tripo's own: the V shows the chest's skin running on from the neck;
     # the white "shirt" in it read as a separate band, user)
-    if opt.get('lining_tone') == 'skin': on_texel(ln, G['TOP'], skin_texel(G['TOP']))
+    if opt.get('lining_tone') == 'skin': on_texel(ln, G['TOP'], skin_texel(G['TOP']), _skin_cache['mi'])
     else:
         uv0, med = lit_texel(G['TOP'], float(opt.get('lining_tone', 40))); on_texel(ln, G['TOP'], uv0)
     ln.vertex_groups.new(name='part:lining').add(list(range(len(ln.data.vertices))), 1.0, 'REPLACE')
@@ -780,12 +813,48 @@ if opt.get('socks', '0') == '1' and 'SHOES' in G:
     bpy.context.view_layer.objects.active = G['SHOES']; bpy.ops.object.join()
     print('SOCKS', len(pick), 'foot faces as white socks')
 
+# gloves=1 (the techwear's fingerless gloves): the body's arm from glove_cuff (5 cm) short of the wrist out to
+# glove_end (4 mm) past the middle finger's root, cut level across the arm at both ends, becomes gloves 2.5 mm out,
+# on the top's darkest cloth texel, part of the top; the fingers stay bare. Tripo's gloves were made round its
+# thinner hands and lay inside the body's; worn with its own fingers instead (cover_hands), the fingers went to spikes
+# once the outfit was reduced for the game; taken by the hand bone's lead, the palm's front (led by the fingers)
+# stayed bare and the edge was toothed (S15P31B105-365).
+if opt.get('gloves', '0') == '1' and 'TOP' in G:
+    x0_, x1_ = J['LeftHand'].x - float(opt.get('glove_cuff', 0.05)), J['LeftHandMiddle1'].x + float(opt.get('glove_end', 0.004))
+    pick = [p.index for p in src_obj.data.polygons if x0_ - 0.01 < abs(p.center.x) < x1_ + 0.01]
+    gl = src_obj.copy(); gl.data = src_obj.data.copy(); bpy.context.scene.collection.objects.link(gl)
+    gb = bmesh.new(); gb.from_mesh(gl.data); gb.faces.ensure_lookup_table(); keep_ = set(pick)
+    bmesh.ops.delete(gb, geom=[f for f in gb.faces if f.index not in keep_], context='FACES')
+    for sx_ in (1, -1):
+        for x_, keep_out in ((x0_, True), (x1_, False)):
+            # (that hand's own geometry only: the cuff cut on the left clears everything under its x, the right hand too)
+            side = lambda e: all(v.co.x * sx_ > 0 for v in (e.verts if hasattr(e, 'verts') else [e]))
+            bmesh.ops.bisect_plane(gb, geom=[g for g in gb.verts[:] + gb.edges[:] + gb.faces[:] if side(g)], plane_co=(sx_ * x_, 0, 0),
+                                   plane_no=(sx_, 0, 0), clear_inner=keep_out, clear_outer=not keep_out)
+    # (welded first: split along the body's UV seams, the pieces moved apart along their own normals in skin-coloured cracks)
+    bmesh.ops.remove_doubles(gb, verts=gb.verts, dist=1e-5)
+    gb.normal_update()
+    for v in gb.verts: v.co += v.normal * float(opt.get('glove_gap', 0.0025))
+    gb.to_mesh(gl.data); gb.free()
+    for g in list(gl.vertex_groups): gl.vertex_groups.remove(g)
+    top_ = G['TOP']; img = next(n.image for n in top_.data.materials[0].node_tree.nodes if n.type == 'TEX_IMAGE' and n.image)
+    w_, h_ = img.size; P = np.array(img.pixels[:], np.float32).reshape(h_, w_, -1)[..., :3]
+    uvd = top_.data.uv_layers.active.data
+    lis = [li for p in top_.data.polygons if p.material_index == 0 for li in p.loop_indices][::7]
+    cs = np.array([P[min(h_ - 1, int(uvd[li].uv[1] * h_)), min(w_ - 1, int(uvd[li].uv[0] * w_))] for li in lis])
+    dark = np.median(cs[cs.mean(1) <= np.percentile(cs.mean(1), 15)], 0)
+    on_texel(gl, top_, tuple(uvd[lis[int(np.argmin(((cs - dark) ** 2).sum(1)))]].uv))
+    gl.vertex_groups.new(name='part:gloves').add(list(range(len(gl.data.vertices))), 1.0, 'REPLACE')
+    for x in bpy.data.objects: x.select_set(x in (top_, gl))
+    bpy.context.view_layer.objects.active = top_; bpy.ops.object.join()
+    print('GLOVES', len(pick), 'hand faces, colour', dark.round(2).tolist())
+
 # 1. outside the body by 2 mm, where the item touches it (deeper, the body is hidden instead)
 for slot, it in G.items():
     lo, to = (-0.03, 0.004) if slot == 'HAIR' else (-0.004, 0.002)
     moved = 0
     # (made pants are laid out from the body already; pushed, their hem drawn in under the shoes' rim scattered)
-    made = {it.vertex_groups[g].index for g in ('part:pants', 'part:lining', 'part:socks', 'part:shoes') if g in it.vertex_groups}
+    made = {it.vertex_groups[g].index for g in ('part:pants', 'part:lining', 'part:socks', 'part:shoes', 'part:gloves') if g in it.vertex_groups}
     # (push_neck=0, the gat's dopo: pushed vertex by vertex, the top's collar went saw-toothed where it met the neck
     # and looked broken off, user; round the neck it is lifted smoothly instead, below)
     nk_skip = slot == 'TOP' and opt.get('push_neck', '1') in ('0', 'all', 'back')
@@ -886,7 +955,28 @@ for slot, it in G.items():
             for e in v.groups:
                 if e.group in idx: Wm[v.index, bi[idx[e.group]]] = e.weight
                 elif e.group in pidx: part_of[v.index] = pidx[e.group]
-        Pp = np.array([tuple(v.co) for v in it.data.vertices]); Wn = Wm.copy()
+        Pp = np.array([tuple(v.co) for v in it.data.vertices])
+        # wing_parts=N,M (the pigeon's wings): a wing made on the T-pose hangs under the arm, so its lower feathers lay
+        # nearest the ribs and took the chest's weights; with the arm lowered the wing tore. Its vertices follow the
+        # arm chain only, by their distance out from the body: shoulder, upper arm, forearm, hand (blended over
+        # wing_blend, 2.5 cm, at each joint)
+        wb = float(opt.get('wing_blend', 0.025))
+        for wn in [x for x in opt.get('wing_parts', '').split(',') if x]:
+            ids = np.where(part_of == 'tripo_part_' + wn)[0]
+            for i in ids:
+                side = 'Left' if Pp[i][0] > 0 else 'Right'; ax = abs(Pp[i][0])
+                chain = [side + n for n in ('Shoulder', 'Arm', 'ForeArm', 'Hand')]
+                cuts = [abs(J[n].x) for n in chain[1:]]
+                w_ = np.zeros(len(chain))
+                k = sum(ax >= c for c in cuts); w_[k] = 1.0
+                for j, c in enumerate(cuts):        # blend across joint j+1 (between chain[j] and chain[j+1])
+                    if abs(ax - c) < wb:
+                        t = 0.5 + (ax - c) / (2 * wb); w_[:] = 0; w_[j] = 1 - t; w_[j + 1] = t
+                Wm[i] = 0
+                for n, x in zip(chain, w_):
+                    if x > 0 and n in bi: Wm[i, bi[n]] = x
+            print('WING weights part', wn, len(ids), 'vertices on the arm chain')
+        Wn = Wm.copy()
         for n in names_:
             ids = np.where(part_of == n)[0]
             kd = KDTree(len(ids))
@@ -982,6 +1072,8 @@ for o in body:
         bone_ = max(votes, key=votes.get)
         cv = set()
         if 'TOP' in G and bone_ in TOP_BONES and not (bone_.endswith('ForeArm') and abs(c.x) > sleeve_x - 0.01): cv.add('TOP')
+        # cover_hands=1 (the pigeon's wings reach past the hands): the hands too, else the thumbs came out over them
+        if 'TOP' in G and opt.get('cover_hands', '0') == '1' and 'Hand' in bone_: cv.add('TOP')
         if c.z > neck_z - 0.005 and math.hypot(c.x - neck_xy[0], c.y - neck_xy[1]) < 0.065:
             cv.discard('TOP')
             if top_bvh_ and c.z < neck_z + 0.04:
@@ -1002,7 +1094,13 @@ for o in body:
             if bone_ == 'Neck' or c.y < neck_xy[1]: tone_faces.append(p.index)
         if 'BOTTOM' in G and bone_ in BOTTOM_BONES and c.z > boot_top: cv.add('BOTTOM')
         if 'SHOES' in G and (bone_ in FOOT_BONES or (bone_ in BOTTOM_BONES and c.z <= boot_top)): cv.add('SHOES')
-        if hair_bvh and bone_ in ('Head', 'HeadTop_End'):
+        # (hair_hides_front, metres: with a hood only the faces behind the head joint less this are hidden; the
+        # pigeon's hood hid the cheeks along its opening too, and they showed as holes)
+        # (hair_hides_above, metres: or, for a hat, only the faces over this height, wherever they face; the
+        # scarecrow's floppy hat covers the crown in front too, and the scalp came through it there)
+        front_ok = 'hair_hides_front' not in opt or c.y > J['Head'].y - float(opt['hair_hides_front'])
+        above_ok = 'hair_hides_above' not in opt or c.z > float(opt['hair_hides_above'])
+        if hair_bvh and bone_ in ('Head', 'HeadTop_End') and front_ok and above_ok:
             n = (mw.to_3x3() @ p.normal).normalized()
             if hair_bvh.ray_cast(c + n * 0.001, n, 0.02)[0] is not None: cv.add('HAIR')
         cover.append(cv)

@@ -1,0 +1,16 @@
+:is(.service-hall,.chef-app) .skewer-business-status{position:absolute;z-index:5;top:12px;left:50%;transform:translateX(-50%);display:flex;gap:0;padding:12px 16px;border:1px solid #c9b88f;border-bottom:3px solid #2e1b12;border-radius:16px;background:#513426f5;color:#fff7e5;box-shadow:0 5px 18px #21170e33;pointer-events:none;width:max-content;max-width:calc(100% - 32px);box-sizing:border-box}
+:is(.service-hall,.chef-app) .skewer-business-stat{display:flex;align-items:center;gap:12px;padding:0 22px;min-width:128px;box-sizing:content-box}
+:is(.service-hall,.chef-app) .skewer-business-stat+.skewer-business-stat{border-left:1px solid #ffffff26}
+:is(.service-hall,.chef-app) .skewer-business-stat>.service-icon{width:26px;height:26px;flex:none;color:#edce8f}
+:is(.service-hall,.chef-app) .skewer-business-stat>span{font-size:11px;color:#dccfb3;line-height:1.4;white-space:nowrap}
+:is(.service-hall,.chef-app) .skewer-business-stat strong{display:block;font-weight:700;font-size:28px;line-height:1.2;color:#fffaf0;margin-top:4px;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+:is(.service-hall,.chef-app) .skewer-business-stat small{font-size:12px;margin-left:5px;color:#e2d4b7}
+:is(.service-hall,.chef-app) .skewer-business-status:not([data-clock-phase=normal]):not([data-paused=true]){animation:skewer-business-pulse 1.4s ease-in-out infinite}
+:is(.service-hall,.chef-app) .skewer-business-status[data-clock-phase=critical]{animation-duration:.85s!important}
+@keyframes skewer-business-pulse{0%,100%{background:#513426f5;box-shadow:0 4px 18px #21170e33}50%{background:#80603df5;box-shadow:0 0 25px #ffdc98b3,inset 0 0 14px #ffe5af55}}
+:is(.service-hall,.chef-app) .skewer-business-alert{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(max-width:1000px){:is(.service-hall,.chef-app) .skewer-business-stat{min-width:92px;padding:0 15px;gap:8px}:is(.service-hall,.chef-app) .skewer-business-stat strong{font-size:25px}}
+@media(max-width:650px),(max-height:570px){:is(.service-hall,.chef-app) .skewer-business-status{top:8px;padding:8px;max-width:calc(100% - 16px)}:is(.service-hall,.chef-app) .skewer-business-stat{padding:0 9px;min-width:0;gap:5px}:is(.service-hall,.chef-app) .skewer-business-stat>.service-icon{width:18px;height:18px}:is(.service-hall,.chef-app) .skewer-business-stat>span{font-size:9px}:is(.service-hall,.chef-app) .skewer-business-stat strong{font-size:21px}:is(.service-hall,.chef-app) .skewer-business-stat small{font-size:9px;margin-left:3px}}
+@media(prefers-reduced-motion:reduce){:is(.service-hall,.chef-app) .skewer-business-status{animation:none!important}:is(.service-hall,.chef-app) .skewer-business-status:not([data-clock-phase=normal]){box-shadow:0 0 0 3px #e4c185}}
+@media(min-width:850px) and (max-height:600px){.service-hall .skewer-business-status{left:12px;transform:none}}
+@media(max-width:849px) and (max-height:600px){.service-hall .service-stage{top:78px}}

@@ -18,8 +18,8 @@ function rpsServer(machineHands: Hand[], cell: number) {
   const nextDuel = () => { duelNo++; machine = machineHands.shift()!; phase = 'DUEL'; arm(5000) }
   const state = () => ({
     serverNow: new Date().toISOString(), availableBalance: balance, playedToday: played,
-    rules: { fees: [10, 20, 30], dailyPlays: 15, multipliers: [1, 1.5, 2], roulette: [...ROULETTE], duelLimitMs: 5000, decideLimitMs: 10000, graceMs: 1500 },
-    round: seq === 0 ? null : { id: '41', fee, phase, seq, stakeLevel: level, multiplier: [1, 1.5, 2][level], challenging, duelNo,
+    rules: { fees: [10, 20, 30], dailyPlays: 15, multipliers: [1, 2, 4], roulette: [...ROULETTE], duelLimitMs: 5000, decideLimitMs: 10000, graceMs: 1500 },
+    round: seq === 0 ? null : { id: '41', fee, phase, seq, stakeLevel: level, multiplier: [1, 2, 4][level], challenging, duelNo,
       commitment: phase === 'DUEL' ? 'c'.repeat(64) : null, inputEndsAt, deadlineAt, lastDuel: last, outcome,
       rouletteCell: outcome === 'PAID' ? cell : null, rouletteValue: outcome === 'PAID' ? ROULETTE[cell] : null, payout,
       startedAt: new Date().toISOString(), settledAt: phase === 'SETTLED' ? new Date().toISOString() : null },
@@ -47,7 +47,7 @@ function rpsServer(machineHands: Hand[], cell: number) {
     } else if (path.endsWith('/challenge') && body.seq === seq && phase === 'DECIDE') {
       seq++; challenging = true; nextDuel()
     } else if (path.endsWith('/stop') && body.seq === seq && phase === 'DECIDE') {
-      seq++; phase = 'SETTLED'; outcome = 'PAID'; payout = fee * ROULETTE[cell]! * [1, 1.5, 2][level]!; balance += payout
+      seq++; phase = 'SETTLED'; outcome = 'PAID'; payout = fee * ROULETTE[cell]! * [1, 2, 4][level]!; balance += payout
       inputEndsAt = deadlineAt = null
     }
     return route.fulfill({ json: state() })
@@ -99,13 +99,13 @@ test('붕어빵 가게 옆 게임기에서 비김·승리·도전 1차·룰렛 �
   await expect(machine.getByRole('button', { name: '보 내기' })).toBeEnabled({ timeout: 5000 })
   await machine.getByRole('button', { name: '보 내기' }).click()
   await expect(machine.getByRole('button', { name: '멈춤' })).toBeEnabled({ timeout: 5000 })
-  await expect(machine.locator('.rps-roulette-lcd')).toContainText('도전 1차 ×1.5')
+  await expect(machine.locator('.rps-roulette-lcd')).toContainText('도전 1차 ×2.0')
   await screenshot(page, 'rps-05-win-decide', 'disabled')
 
   await machine.getByRole('button', { name: '도전' }).click()
   await expect(machine.locator('.rps-roulette-lcd')).toContainText('도전 1차!')
   await machine.getByRole('button', { name: '바위 내기' }).click()
-  await expect(machine.locator('.rps-roulette-mult')).toHaveText('×1.5', { timeout: 5000 })
+  await expect(machine.locator('.rps-roulette-mult')).toHaveText('×2.0', { timeout: 5000 })
   await expect(machine.getByRole('button', { name: '멈춤' })).toBeEnabled({ timeout: 5000 })
   await screenshot(page, 'rps-06-challenge-win', 'disabled')
 
@@ -113,8 +113,8 @@ test('붕어빵 가게 옆 게임기에서 비김·승리·도전 1차·룰렛 �
   await expect(machine.locator('.rps-roulette-lcd')).toContainText('룰렛이 돌아가요')
   await page.waitForTimeout(1500)
   await screenshot(page, 'rps-07-roulette-spin')
-  await expect(machine.locator('.rps-roulette-payout')).toContainText('+315냥', { timeout: 10000 })
-  await expect(machine.locator('.rps-roulette-lcd')).toContainText('30냥 × 7칸 × 1.5 = 315냥')
+  await expect(machine.locator('.rps-roulette-payout')).toContainText('+420냥', { timeout: 10000 })
+  await expect(machine.locator('.rps-roulette-lcd')).toContainText('30냥 × 7칸 × 2.0 = 420냥')
   await expect(machine.locator('.rps-roulette-plays')).toContainText('판 14/15')
   // 900px 높이에서도 조작판 마지막 줄까지 창 안에 보인다.
   const deck = await machine.locator('.rps-roulette-lower').boundingBox()

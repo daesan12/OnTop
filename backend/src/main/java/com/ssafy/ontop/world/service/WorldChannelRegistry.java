@@ -117,6 +117,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (jumpmap == null || channelId == null || jumpmapRun(userId).isEmpty() || suspended.containsKey(userId)) return false;
         Room room = rooms.get(channelId);
         // 위치 보고 중이었어도 유예 동안은 서버 물리로 진행한다(PARK_V1 자동 위치 보고 복귀는 재결합 때까지 막는다).
+        room.vrUsers.remove(userId);
         var snapshot = room.physics.suspendClient(userId);
         var previous = room.positions.get(userId);
         room.positions.put(userId, new Movement(position(snapshot), previous.acceptedAtNanos()));
@@ -365,6 +366,8 @@ public class WorldChannelRegistry implements ChannelPresence {
         room.profiles.remove(userId);
         room.tableSeats.remove(userId);
         room.held.remove(userId);
+        room.interactionBusy.remove(userId);
+        room.vrUsers.remove(userId);
         room.physics.remove(userId);
         if (room.users.isEmpty()) {
             room.physics.close();
@@ -418,6 +421,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             return null;
         }
         Room room = rooms.get(channelId);
+        if (active && room.physics != null) { room.physics.releaseCarry(userId); }
         room.worldVersion++;
         return room.worldState();
     }
@@ -502,6 +506,107 @@ public class WorldChannelRegistry implements ChannelPresence {
     public synchronized boolean hasMovementActivity(String userId) {
         String channelId = membership.get(userId);
         return channelId != null && rooms.get(channelId).physics.hasMovementActivity(userId, nanoTime.getAsLong());
+    }
+
+    public synchronized WorldPhysics.Carry carryState(String userId) {
+        Room room = rooms.get(membership.get(userId));
+        return room == null || room.physics == null ? null : room.physics.carryState(userId);
+    }
+
+    public synchronized boolean carryAvailable(String userId) {
+        Room room = rooms.get(membership.get(userId));
+        Position position = positionOf(userId);
+        return room != null && position != null && !position.swimming() && !room.held.contains(userId)
+                && !room.interactionBusy.contains(userId)
+                && !room.tableSeats.containsKey(userId) && publicActivity(userId) == null
+                && jumpmapRun(userId).isEmpty();
+    }
+
+    /** 창의 종류나 내용을 노출하지 않고 본인 UI의 조작 점유만 공유한다. 게임 권한 검사는 별도로 유지한다. */
+    public record InteractionChange(String channelId, boolean busy, WorldState released, boolean vrActive) { }
+
+    public synchronized InteractionChange interactionBusy(String userId, boolean busy) {
+        return interactionBusy(userId, busy, null);
+    }
+
+    /** VR 표시는 일반 창 점유와 구분하며 인증된 본인의 현재 채널에만 공유한다. */
+    public synchronized InteractionChange interactionBusy(String userId, boolean busy, Boolean vrActive) {
+        Room room = rooms.get(membership.get(userId));
+        if (room == null) { throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요."); }
+        boolean vr = vrActive == null ? room.vrUsers.contains(userId) : vrActive;
+        boolean vrChanged = vr ? room.vrUsers.add(userId) : room.vrUsers.remove(userId);
+        // 일반 창을 닫아도 실행 중인 VR의 운반 보호는 유지한다.
+        boolean occupied = busy || vr;
+        boolean changed = occupied ? room.interactionBusy.add(userId) : room.interactionBusy.remove(userId);
+        if (changed || vrChanged) {
+            if (occupied && room.physics != null && room.physics.carryState(userId) != null) {
+                room.physics.releaseCarry(userId);
+                return new InteractionChange(room.definition.channelId(), occupied, refreshCarry(room), vr);
+            }
+            // 일반 창 점유는 위치를 다시 읽지 않고 기존 10Hz 월드 방송에 합친다.
+            room.worldVersion++;
+            room.dirty = true;
+        }
+        return new InteractionChange(room.definition.channelId(), occupied, null, vr);
+    }
+
+    public synchronized WorldState pickup(String userId, String targetId) {
+        Room room = rooms.get(membership.get(userId));
+        if (room == null || !room.users.contains(targetId) || userId.equals(targetId)) {
+            throw new ChannelException("CARRY_TARGET_UNAVAILABLE", "같은 채널의 다른 사용자를 선택해주세요.");
+        }
+        if (!carryAvailable(userId) || !carryAvailable(targetId)
+                || carryState(userId) != null || carryState(targetId) != null) {
+            throw new ChannelException("CARRY_ACTIVITY_CONFLICT", "상대방과 본인의 다른 행동을 마친 뒤 사용해주세요.");
+        }
+        Position carrier = positionOf(userId), target = positionOf(targetId);
+        if (Math.hypot(carrier.x() - target.x(), carrier.z() - target.z()) > 2.6
+                || Math.abs(carrier.y() - target.y()) > 2) {
+            throw new ChannelException("CARRY_OUT_OF_RANGE", "가까운 사용자를 선택해주세요.");
+        }
+        if (!room.physics.pickup(userId, targetId)) {
+            throw new ChannelException("CARRY_UNAVAILABLE", "잠시 기다리거나 넓은 곳에서 다시 시도해주세요.");
+        }
+        return refreshCarry(room);
+    }
+
+    public synchronized WorldState throwCarried(String userId, String carryId, double dx, double dy, double dz) {
+        Room room = rooms.get(membership.get(userId));
+        WorldPhysics.Carry carry = carryState(userId);
+        if (room == null || carry == null || !carry.role().equals("CARRIER") || !carry.carryId().equals(carryId)) {
+            throw new ChannelException("CARRY_LINK_MISMATCH", "현재 들고 있는 상대를 확인해주세요.");
+        }
+        if (!carryAvailable(userId) || !carryAvailable(carry.partnerId())) {
+            room.physics.releaseCarry(userId);
+            refreshCarry(room);
+            throw new ChannelException("CARRY_ACTIVITY_CONFLICT", "다른 행동 중에는 던질 수 없습니다.");
+        }
+        double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (!Double.isFinite(length) || length < .9 || length > 1.1) {
+            throw new ChannelException("INVALID_PAYLOAD", "시선 방향을 확인해주세요.");
+        }
+        room.physics.throwCarried(userId, carryId, dx / length, dy / length, dz / length);
+        return refreshCarry(room);
+    }
+
+    public synchronized WorldState releaseCarry(String userId, String carryId) {
+        WorldPhysics.Carry carry = carryState(userId);
+        if (carry == null || carry.role().equals("THROWN") || !carry.carryId().equals(carryId)) {
+            throw new ChannelException("CARRY_LINK_MISMATCH", "현재 들기 상태를 확인해주세요.");
+        }
+        Room room = rooms.get(membership.get(userId));
+        room.physics.releaseCarry(userId);
+        return refreshCarry(room);
+    }
+
+    private WorldState refreshCarry(Room room) {
+        for (String user : room.users) {
+            Movement previous = room.positions.get(user);
+            room.positions.put(user, new Movement(snapshotPosition(room, user), previous.acceptedAtNanos()));
+        }
+        room.worldVersion++;
+        room.dirty = true;
+        return room.worldState();
     }
 
     public synchronized WorldState equipment(String userId, List<WorldAppearanceGateway.Equipment> equipment) {
@@ -606,6 +711,8 @@ public class WorldChannelRegistry implements ChannelPresence {
         String channel = membership.get(userId);
         if (channel == null) throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
         Room room = rooms.get(channel);
+        var carry = room.physics.carryState(userId);
+        if (carry != null && !carry.role().equals("CARRIER")) { return new WorldChange(room.worldState(), false); }
         if (room.held.contains(userId) || room.tableSeats.containsKey(userId) || activity(userId) != null)
             throw new ChannelException("ACTIVITY_BUSY", "활동을 종료한 뒤 이동해주세요.");
         long now = nanoTime.getAsLong();
@@ -697,13 +804,16 @@ public class WorldChannelRegistry implements ChannelPresence {
             long tick = now - (steps - i - 1) * WorldPhysics.STEP_NANOS;
             for (Room room : rooms.values()) {
                 if (room.physics != null) {
+                    room.physics.pruneCarries(room.users.stream().filter(user -> seated.contains(user)
+                            || !carryAvailable(user)).collect(java.util.stream.Collectors.toSet()));
                     var frozen = new java.util.HashSet<>(seated);
                     frozen.addAll(room.held);
                     if (clientPositions) room.users.stream().filter(user -> activity(user) != null).forEach(frozen::add);
                     var links = targets.getOrDefault(room.definition.channelId(), Map.of());
                     room.physics.step(tick, frozen, links);
+                    var carryStates = room.physics.carryStates();
                     for (String user : room.users) {
-                        observeJumpmap(room, user, links.containsKey(user), tick);
+                        observeJumpmap(room, user, links.containsKey(user) || carryStates.containsKey(user), tick);
                     }
                 }
             }
@@ -841,7 +951,29 @@ public class WorldChannelRegistry implements ChannelPresence {
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
             String activity,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-            WorldPhysics.Motion motion) {
+            WorldPhysics.Motion motion,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
+            WorldPhysics.Carry carry,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            Boolean interactionBusy,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            Boolean vrActive) {
+        public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
+                String nickname, String characterGender, boolean gameMaster, TableSeat tableSeat, String activity,
+                WorldPhysics.Motion motion, WorldPhysics.Carry carry, Boolean interactionBusy) {
+            this(userId, position, equipment, nickname, characterGender, gameMaster, tableSeat, activity,
+                    motion, carry, interactionBusy, null);
+        }
+        public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
+                String nickname, String characterGender, boolean gameMaster, TableSeat tableSeat, String activity,
+                WorldPhysics.Motion motion, WorldPhysics.Carry carry) {
+            this(userId, position, equipment, nickname, characterGender, gameMaster, tableSeat, activity, motion, carry, null);
+        }
+        public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
+                String nickname, String characterGender, boolean gameMaster, TableSeat tableSeat, String activity,
+                WorldPhysics.Motion motion) {
+            this(userId, position, equipment, nickname, characterGender, gameMaster, tableSeat, activity, motion, null);
+        }
         public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
                 String nickname, String characterGender, TableSeat tableSeat, String activity) {
             this(userId, position, equipment, nickname, characterGender, false, tableSeat, activity, null);
@@ -953,6 +1085,8 @@ public class WorldChannelRegistry implements ChannelPresence {
         private final Map<String, TableSeat> tableSeats = new HashMap<>();
         private List<PublicTable> tables = List.of();
         private final java.util.Set<String> held = new java.util.HashSet<>();
+        private final java.util.Set<String> interactionBusy = new java.util.HashSet<>();
+        private final java.util.Set<String> vrUsers = new java.util.HashSet<>();
         private long version;
         private long worldVersion;
         private WorldPhysics physics;
@@ -971,12 +1105,15 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
 
         private WorldState worldState() {
+            var carries = physics == null ? Map.<String, WorldPhysics.Carry>of() : physics.carryStates();
             return new WorldState(definition.channelId(), worldVersion, users.stream()
                     .map(user -> new Avatar(user, positions.containsKey(user) ? positions.get(user).position() : null,
                             equipment.get(user), profiles.containsKey(user) ? profiles.get(user).nickname() : null,
                             profiles.containsKey(user) ? profiles.get(user).characterGender() : null,
                             profiles.containsKey(user) && profiles.get(user).gameMaster(),
-                            tableSeats.get(user), activity.apply(user), motions.get(user)))
+                            tableSeats.get(user), activity.apply(user), motions.get(user),
+                            carries.get(user), interactionBusy.contains(user) ? Boolean.TRUE : null,
+                            vrUsers.contains(user) ? Boolean.TRUE : null))
                     .toList(), scene.get().version(), tables, users.stream().filter(watches::containsKey)
                             .collect(java.util.stream.Collectors.toMap(user -> user, watches::get)));
         }

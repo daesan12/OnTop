@@ -121,7 +121,8 @@ public class MinigameOpenApiCustomizer implements OperationCustomizer, OpenApiCu
         }
         if (operation.getParameters() != null) {
             operation.getParameters().stream().filter(p -> p.getName().equals("sessionId")).forEach(p -> {
-                p.getSchema().setPattern("^[1-9][0-9]{0,18}$");
+                // Springdoc may share a StringSchema between path parameters of unrelated operations.
+                p.setSchema(new StringSchema().pattern("^[1-9][0-9]{0,18}$"));
                 p.setDescription("본인 세션의 양의 BIGINT ID (최대 9223372036854775807)");
             });
         }

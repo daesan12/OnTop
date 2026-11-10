@@ -1,3 +1,4 @@
+import { cameraWorldPosition } from '../xrView'
 import { SIMPLE_MAP } from './mapRenderProfile'
 import { PavilionRailings } from './PavilionRailings'
 import { TraditionalNotesBoard } from './TraditionalNotesBoard'
@@ -56,9 +57,9 @@ export function PavilionSlot({ p }: { p: { id: string; x: number; z: number; flo
   useFrame(({ camera }) => {
     const close = !SIMPLE_MAP &&
       Math.hypot(
-        camera.position.x - p.x,
-        camera.position.z - p.z,
-        camera.position.y - p.floor,
+        cameraWorldPosition(camera).x - p.x,
+        cameraWorldPosition(camera).z - p.z,
+        cameraWorldPosition(camera).y - p.floor,
       ) < 75
     if (near.current) near.current.visible = close
     if (far.current) far.current.visible = !close

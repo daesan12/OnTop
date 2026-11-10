@@ -1,0 +1,11 @@
+# Optional overlay for infra/app/compose.dev.yaml, applied by the infrastructure owner.
+# Existing deployment may have map/journal overlays; retain them when applying this one.
+services:
+  app:
+    environment:
+      # Replaces the whole value: preserve confirmed DEV profiles and append observe-dev before applying.
+      SPRING_PROFILES_ACTIVE: dev,db,observe-dev
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "3", "http://127.0.0.1:8082/actuator/health"]
+# No published port for management8082. Prometheus joins the existing DEV network.

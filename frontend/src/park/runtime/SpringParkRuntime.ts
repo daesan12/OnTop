@@ -1,4 +1,5 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
+import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
 import {
   clearAuthSession,
   getAuthSession,
@@ -48,7 +49,7 @@ import type { BridgeInput } from '../../game/bridge/protocol'
 import { canActLedger } from '../../game/ledger/actions'
 import type { LedgerInput, LedgerPingTarget } from '../../game/ledger/protocol'
 import { LedgerPingEvents } from '../../game/ledger/pings'
-import { canFlipHalli, canRingHalli, classifyHalliError, halliNotice, markHalliRing } from '../../game/halligalli/actions'
+import { canFlipHalli, canLeaveEliminatedHalli, canRingHalli, classifyHalliError, halliNotice, markHalliRing } from '../../game/halligalli/actions'
 import type { HalliInput } from '../../game/halligalli/protocol'
 import { loadParkBindings } from './deployment'
 import type { ParkRuntimePort } from './contracts'
@@ -284,6 +285,7 @@ export class ParkRuntime implements ParkRuntimePort {
       scope: JSON.stringify([this.generation, intent.userId, intent.channelId, intent.tableId, intent.benchScope]) } : null)
   }
   cooperativeGame = {
+    protectVR: () => acquireVRProtection(this),
     scope: () => { const s = useSession.getState(); return { userId: s.sessionId, channelId: s.roomId, connected: this.active && this.socket.connected && s.status === 'connected' && s.mapCompatible } },
     request: (type: string, payload: Record<string, unknown>, expected: readonly string[], onId?: (id: string) => void) => this.socket.request(type, payload, expected, onId),
     subscribe: subscribeCoop,
@@ -439,19 +441,25 @@ export class ParkRuntime implements ParkRuntimePort {
     const skewerAdmission = method === 'POST' && path === '/api/v1/minigames/skewer/admissions'
     const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
-      || method === 'GET' && path === '/api/v1/minigames/skewer/coop/rankings'
+      || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR))?$/.test(path)
       || method === 'POST' && ['/api/v1/minigames/skewer/coop/rooms', '/api/v1/minigames/skewer/coop/leave'].includes(path)
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
     const plusMinusRequest = (method === 'GET' && path === '/api/v1/minigames/plus-minus/status')
       || (method === 'POST' && path === '/api/v1/minigames/plus-minus/rounds')
     const moleRequest = (method === 'GET' && path === '/api/v1/minigames/whack-a-mole/status')
+      || (method === 'GET' && /^\/api\/v1\/minigames\/whack-a-mole\/rankings\?limit=20&offset=\d{1,5}$/.test(path))
       || (method === 'POST' && /^\/api\/v1\/minigames\/whack-a-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
+    const speedMoleRequest = (method === 'GET' && /^\/api\/v1\/minigames\/speed-mole\/rankings\?limit=20&offset=\d{1,5}$/.test(path))
+      || (method === 'POST' && /^\/api\/v1\/minigames\/speed-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
+    const gachaRequest = (method === 'GET' && (path === '/api/v1/gacha'
+      || /^\/api\/v1\/gacha\/operations\/[A-Za-z0-9_-]{1,64}$/.test(path)))
+      || (method === 'POST' && ['/api/v1/gacha/tickets', '/api/v1/gacha/draws', '/api/v1/gacha/boxes/open'].includes(path))
     if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
-      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !raffleRequest && !fitnessRewardRequest
+      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
@@ -799,10 +807,10 @@ export class ParkRuntime implements ParkRuntimePort {
     // No automatic retry loop with the same stale bundle. The user chooses refresh/reconnect.
     void this.socket.disconnect()
   }
-  private async action(job: () => Promise<unknown>) {
+  private async action(job: () => Promise<unknown>, { blockControls = true } = {}) {
     if (!this.active || this.actionBusy || !this.mapAdmission.allowed) return false
     this.actionBusy = true
-    useSession.setState({ pending: true, error: '' })
+    useSession.setState(blockControls ? { pending: true, error: '' } : { error: '' })
     const generation = this.generation
     try {
       await job()
@@ -815,7 +823,7 @@ export class ParkRuntime implements ParkRuntimePort {
     } finally {
       if (generation === this.generation) {
         this.actionBusy = false
-        useSession.setState({ pending: false })
+        if (blockControls) useSession.setState({ pending: false })
       }
     }
   }
@@ -945,7 +953,7 @@ export class ParkRuntime implements ParkRuntimePort {
         'WORLD_CHAT_MESSAGE',
       ])
       // Only server echoes enter the message list. No optimistic duplicate or automatic replay.
-    })
+    }, { blockControls: !avatars.get(useSession.getState().sessionId)?.carry })
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return
@@ -996,10 +1004,56 @@ export class ParkRuntime implements ParkRuntimePort {
     const s = useSession.getState()
     return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
+  private interactionStatus = { scope: '', busy: false, vrActive: false, desired: false, pending: null as Promise<boolean> | null, retryAt: 0 }
+  setInteractionBusy = (busy: boolean, confirm = false) => {
+    const session = useSession.getState(), scope = JSON.stringify([this.generation, session.sessionId, session.roomId])
+    if (!this.active || session.status !== 'connected' || !session.roomId || !session.mapCompatible
+      || !this.socket.connected) return Promise.resolve(false)
+    if (!session.carrySupported) return Promise.resolve(!confirm)
+    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, vrActive: false, desired: false, pending: null, retryAt: 0 }
+    const status = this.interactionStatus
+    status.desired = busy
+    let confirmNeeded = confirm
+    const generation = this.generation
+    const current = () => this.active && this.generation === generation && this.interactionStatus === status
+      && useSession.getState().roomId === session.roomId && useSession.getState().sessionId === session.sessionId
+    const sync = (): Promise<boolean> => {
+      if (!current()) return Promise.resolve(false)
+      if (status.pending) return status.pending.then(ok => ok ? sync() : false)
+      const vrActive = vrCarryProtection.active, desired = status.desired || vrActive
+      if (status.busy === desired && status.vrActive === vrActive && !confirmNeeded) return Promise.resolve(true)
+      if (performance.now() < status.retryAt) return Promise.resolve(false)
+      confirmNeeded = false
+      const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}) }
+      status.pending = this.socket.request('WORLD_INTERACTION_SET', payload, ['WORLD_INTERACTION_STATE']).then(response => {
+        if (response.payload.channelId !== session.roomId || response.payload.busy !== desired
+          || (response.payload.vrActive === true) !== vrActive)
+          throw new Error('창 점유 응답을 확인해주세요.')
+        if (!current()) return false
+        status.busy = desired; status.vrActive = vrActive; return true
+      }).catch(error => {
+        if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
+        return false
+      }).finally(() => { status.pending = null })
+      return status.pending.then(ok => ok ? sync() : false)
+    }
+    return sync()
+  }
+  // Carry commands stay in the park: retain mouse look while actionBusy still serializes requests.
+  pickupAvatar = (targetId: string) => this.action(async () => {
+    await this.socket.request('WORLD_CARRY_PICKUP', { targetId }, ['WORLD_STATE'])
+  }, { blockControls: false })
+  throwAvatar = (carryId: string, direction: { dx: number; dy: number; dz: number }) => this.action(async () => {
+    await this.socket.request('WORLD_CARRY_THROW', { carryId, ...direction }, ['WORLD_STATE'])
+  }, { blockControls: false })
+  releaseAvatar = (carryId: string) => this.action(async () => {
+    await this.socket.request('WORLD_CARRY_RELEASE', { carryId }, ['WORLD_STATE'])
+  }, { blockControls: false })
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
       && !facilityMovementBlocked(s.sessionId)
+      && (!avatars.get(s.sessionId)?.carry || avatars.get(s.sessionId)?.carry?.role === 'CARRIER')
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
       && (!inputState.minigameOpen || stoppedIntent(intent))
       && (!useTableLobby.getState().joiningAnchorId || stoppedIntent(intent))
@@ -1169,7 +1223,8 @@ export class ParkRuntime implements ParkRuntimePort {
     })
   leaveTable = () =>
     this.action(async () => {
-      if (tableBusy())
+      // Only a naturally eliminated HALLI_GALLI player sends the same TABLE_LEAVE mid-game; the server re-checks the engine.
+      if (tableBusy() && !canLeaveEliminatedHalli(useSession.getState().sessionId))
         throw new Error('경기 진행·복구·정산 중에는 일어날 수 없습니다.')
       await this.socket.request('TABLE_LEAVE', {}, ['TABLE_LEFT'])
     })

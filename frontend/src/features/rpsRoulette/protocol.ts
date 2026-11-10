@@ -2,9 +2,9 @@ import { record } from '../../network/protocol'
 import { HANDS, type Hand } from './ledHands'
 
 /** 서버 계약: docs/rps-roulette-api.md. 화면은 이 값을 연출만 하고 결과를 계산하지 않는다. */
-export const ROULETTE = [10, 1, 2, 1, 3, 1, 1, 1, 5, 1, 1, 2, 1, 1, 1, 7, 1, 2, 1, 3, 1, 2, 1, 4, 1, 1, 1, 2, 1, 1] as const
+export const ROULETTE = [10, 1, 2, 1, 3, 1, 2, 1, 5, 1, 1, 2, 1, 4, 1, 7, 1, 2, 1, 3, 1, 2, 1, 4, 1, 3, 1, 2, 1, 2] as const
 export const FEES = [10, 20, 30] as const
-export const MULTIPLIERS = [1, 1.5, 2] as const
+export const MULTIPLIERS = [1, 2, 4] as const
 export const DAILY_PLAYS = 15
 
 export type Phase = 'DUEL' | 'DECIDE' | 'SETTLED'

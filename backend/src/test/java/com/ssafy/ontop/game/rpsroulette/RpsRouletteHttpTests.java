@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 class RpsRouletteHttpTests {
     private static final RpsRouletteStateResponse STATE = new RpsRouletteStateResponse(
             Instant.parse("2026-11-01T03:00:00Z"), 90, 1,
-            new RpsRouletteStateResponse.Rules(List.of(10, 20, 30), 15, List.of(1.0, 1.5, 2.0), List.of(10, 1),
+            new RpsRouletteStateResponse.Rules(List.of(10, 20, 30), 15, List.of(1.0, 2.0, 4.0), List.of(10, 1),
                     5000, 10000, 1500),
             null);
 
