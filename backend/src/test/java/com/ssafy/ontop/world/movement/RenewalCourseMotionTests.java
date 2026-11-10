@@ -65,6 +65,53 @@ class RenewalCourseMotionTests {
     private int block(String theme) {return course.colliders().stream().filter(p->course.theme(p.block()).equals(theme)).findFirst().orElseThrow().block();}
 
     @Test
+    void 마흔명의_코스_미진입자와_같은_발판_상태는_각각_한_스텝만_계산한다() {
+        long[] now = {0};
+        try (var physics = new WorldPhysics(scene, false, () -> now[0], true, course)) {
+            for (int player = 0; player < 40; player++) {
+                physics.add("load-" + player);
+            }
+            for (int tick = 0; tick < 30; tick++) {
+                physics.step(now[0] += WorldPhysics.STEP_NANOS, Set.of());
+                assertThat(physics.lastSimulationSteps()).isEqualTo(1);
+            }
+            for (int player = 0; player < 40; player++) {
+                physics.jumpmapRun("load-" + player, "run-" + player);
+            }
+            for (int tick = 0; tick < 30; tick++) {
+                physics.step(now[0] += WorldPhysics.STEP_NANOS, Set.of());
+                assertThat(physics.lastSimulationSteps()).isEqualTo(1);
+            }
+            physics.jumpmapRun("load-0", null);
+            physics.step(now[0] += WorldPhysics.STEP_NANOS, Set.of());
+            assertThat(physics.lastSimulationSteps()).isEqualTo(2);
+        }
+    }
+
+    @Test
+    void 두더지_개인_높이가_다를_때만_충돌_스텝을_분리하고_시간을_중복_진행하지_않는다() {
+        long[] now = {0};
+        var pad = course.colliders().get(block("mole"));
+        try (var physics = new WorldPhysics(scene, false, () -> now[0], true, course)) {
+            for (String id : new String[] {"101", "202", "303"}) {
+                physics.add(id);
+                physics.jumpmapRun(id, "run-" + id);
+                physics.place(id, pad.x(), pad.top() + .8, pad.z());
+            }
+            physics.observe("101");
+            now[0] += 400_000_000L;
+            for (int tick = 0; tick < 8; tick++) {
+                physics.step(now[0] += WorldPhysics.STEP_NANOS, Set.of());
+            }
+
+            assertThat(physics.lastSimulationSteps()).isEqualTo(2);
+            assertThat(physics.snapshot("202").y()).isCloseTo(physics.snapshot("303").y(), offset(.0001));
+            assertThat(physics.snapshot("202").y()).isGreaterThan(pad.top() + .7);
+            assertThat(physics.snapshot("101").y()).isLessThan(physics.snapshot("202").y());
+        }
+    }
+
+    @Test
     void 비둘기가_기준높이_위아래로_움직여도_실제_충돌쿼리가_지지면을_찾는다() {
         var space=new PhysicsSpace(PhysicsSpace.BroadphaseType.DBVT);
         try {

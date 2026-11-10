@@ -52,8 +52,12 @@ public final class WorldPhysics implements AutoCloseable {
     private RenewalCourseMotion renewalMotion;
     private final double utcSeconds = System.currentTimeMillis()/1000d;
     private long motionOrigin;
+    private double stepCourseTime = Double.NaN;
+    private int lastSimulationSteps;
 
-    private double courseTime() { return utcSeconds+(clock.getAsLong()-motionOrigin)/1e9; }
+    private double courseTime() {
+        return Double.isNaN(stepCourseTime) ? utcSeconds + (clock.getAsLong() - motionOrigin) / 1e9 : stepCourseTime;
+    }
     private void prepareCourse(String id) { if(renewalMotion!=null)renewalMotion.prepare(id,courseTime()); }
 
     public void jumpmapRun(String id, String runId) {
@@ -251,7 +255,7 @@ public final class WorldPhysics implements AutoCloseable {
         body.setCollideWithGroups(2); // Reference excludes other kinematic avatars.
         body.setPhysicsLocation(scene.spawn(slot));
         space.addCollisionObject(body);
-        actors.put(id, new Actor(body, slot, scene.spawn(slot)));
+        actors.put(id, new Actor(id, body, slot, scene.spawn(slot)));
         actors.get(id).yaw = scene.spawnYaw();
         Actor actor = actors.get(id);
         if (clientPositions && (tunedMovement || !specialMovement(actor.body.getPhysicsLocation(null)))) {
@@ -362,16 +366,24 @@ public final class WorldPhysics implements AutoCloseable {
     public void step(long now, java.util.Set<String> seated, java.util.Map<String, String> following) {
         call(
                 () -> {
-                    stepNow(now, seated, following);
+                    stepCourseTime = courseTime();
+                    try {
+                        stepNow(now, seated, following);
+                    } finally {
+                        stepCourseTime = Double.NaN;
+                    }
                     return null;
                 });
     }
 
     private void stepNow(long now, java.util.Set<String> seated, java.util.Map<String, String> following) {
         physicsTick++;
+        lastSimulationSteps = 0;
         for (var entry : actors.entrySet()) {
             Actor a = entry.getValue();
-            prepareCourse(entry.getKey());
+            if (clientPositions) {
+                prepareCourse(entry.getKey());
+            }
             a.beforeStepY = a.body.getPhysicsLocation(null).y;
             if (a.carriedBy != null) { continue; }
             if (seated.contains(entry.getKey())) {
@@ -520,16 +532,43 @@ public final class WorldPhysics implements AutoCloseable {
             a.moving = active && (dx != 0 || dz != 0);
             a.running = active && input.run();
         }
-        if(renewalMotion==null) space.update(DT, 0);
+        if(renewalMotion==null) advanceSpace();
         else {
-            // 개인별 발판은 다른 사용자의 시작·낙하 상태를 공유하지 않는다.
+            // 코스 미진입자는 모두 한 스텝을 공유한다. 진입자도 실제 발판 상태가 같으면 함께 계산한다.
+            // 개인별 연잎 소멸·두더지 높이가 다른 경우에만 공간을 분리해서 진행한다.
             var nativeActors=actors.entrySet().stream().filter(e->!e.getValue().seated && !e.getValue().clientControlled && e.getValue().carriedBy==null).toList();
-            for(var entry:nativeActors)space.removeCollisionObject(entry.getValue().body);
-            for(var entry:nativeActors) {
-                prepareCourse(entry.getKey());space.addCollisionObject(entry.getValue().body);
-                space.update(DT,0);space.removeCollisionObject(entry.getValue().body);
+            var groups = new java.util.LinkedHashMap<RenewalCourseMotion.State, java.util.List<Actor>>();
+            for (var entry : nativeActors) {
+                var state = renewalMotion.state(entry.getKey(), courseTime());
+                groups.computeIfAbsent(state, ignored -> new java.util.ArrayList<>()).add(entry.getValue());
             }
-            for(var entry:nativeActors)space.addCollisionObject(entry.getValue().body);
+            if (groups.size() == 1) {
+                renewalMotion.prepare(groups.keySet().iterator().next(), courseTime());
+                advanceSpace();
+            } else if (!groups.isEmpty()) {
+                for (var entry : nativeActors) {
+                    space.removeCollisionObject(entry.getValue().body);
+                }
+                try {
+                    for (var group : groups.entrySet()) {
+                        renewalMotion.prepare(group.getKey(), courseTime());
+                        for (Actor actor : group.getValue()) {
+                            space.addCollisionObject(actor.body);
+                        }
+                        try {
+                            advanceSpace();
+                        } finally {
+                            for (Actor actor : group.getValue()) {
+                                space.removeCollisionObject(actor.body);
+                            }
+                        }
+                    }
+                } finally {
+                    for (var entry : nativeActors) {
+                        space.addCollisionObject(entry.getValue().body);
+                    }
+                }
+            }
         }
         for (var entry : actors.entrySet()) {
             Actor carried = entry.getValue();
@@ -575,6 +614,7 @@ public final class WorldPhysics implements AutoCloseable {
                 recover(a, position, validatedFallback(a, limit), "INVALID_POSITION", now);
             } else if (position.y < scene.groundHeight(position.x, position.z)
                     + number("halfHeight") + number("radius") - .35) {
+                prepareCourse(entry.getKey());
                 float x = Math.max(-limit, Math.min(limit, position.x));
                 float z = Math.max(-limit, Math.min(limit, position.z));
                 Vector3f support = localGroundSupport(x, z);
@@ -614,6 +654,16 @@ public final class WorldPhysics implements AutoCloseable {
                 resetMotion(a);
             }
         }
+    }
+
+    private void advanceSpace() {
+        space.update(DT, 0);
+        lastSimulationSteps++;
+    }
+
+    /** 채널 틱의 실제 Bullet 스텝 수. 게임 입력이나 WS 계약에는 노출하지 않는다. */
+    int lastSimulationSteps() {
+        return call(() -> lastSimulationSteps);
     }
 
     /** 서버 30Hz 코요테 3틱·점프 버퍼 4틱(BE 명세 12장). 점프맵 활성(코스 적용) 채널의 공원 전체에만 쓴다. */
@@ -674,6 +724,7 @@ public final class WorldPhysics implements AutoCloseable {
 
     private void correctExclusion(Actor actor, Vector3f from, Vector3f target) {
         if (actor.seated || from.distanceSquared(target) < 1e-10f) return;
+        prepareCourse(actor.id);
         float boundary = (float) scene.data.path("world").path("halfSize").asDouble()
                 - (float) scene.data.path("world").path("boundaryHalfDepth").asDouble() - number("radius") - number("offset");
         if (Math.abs(target.x) > boundary || Math.abs(target.z) > boundary
@@ -893,6 +944,7 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private Vector3f validatedFallback(Actor actor, float limit) {
+        prepareCourse(actor.id);
         Vector3f safe = actor.lastSafe;
         if (Vector3f.isValidVector(safe) && Math.abs(safe.x) <= limit && Math.abs(safe.z) <= limit
                 && canStand(safe.x, safe.y, safe.z)) { return safe.clone(); }
@@ -1340,6 +1392,7 @@ public final class WorldPhysics implements AutoCloseable {
     public record Steering(double dx, double dz, boolean run, double targetX, double targetZ) {}
 
     private static final class Actor {
+        final String id;
         String carriedBy, carryingId, carryId, throwerId;
         Vector3f carrySafe;
         int throwTicks;
@@ -1370,7 +1423,8 @@ public final class WorldPhysics implements AutoCloseable {
         Steering followSteering;
         String correctionReason;
 
-        Actor(PhysicsCharacter body, int slot, Vector3f spawn) {
+        Actor(String id, PhysicsCharacter body, int slot, Vector3f spawn) {
+            this.id = id;
             this.body = body;
             this.slot = slot;
             lastSafe = spawn;
