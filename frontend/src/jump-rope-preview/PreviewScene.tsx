@@ -11,6 +11,8 @@ import { blendSuccessPose, isSuccessActive, neutralSuccessPose, samplePigeonSucc
 import { ropeRestWeight, type PreviewRound } from './previewRound'
 import { advanceRope } from './jumpRopeJudgement'
 import { ropePeriodMs } from './ropeAcceleration'
+import { PigeonDistraction } from './PigeonDistraction'
+import type { DistractionCue } from './pigeonDistractionMotion'
 
 const sky = '#e6efeb'
 const successBlendMs = 140
@@ -224,11 +226,12 @@ function applyPigeonReaction(rig: PigeonRig, base: PigeonPose, pose: SuccessPose
   rig.setLidLift(pose.lidLift + laugh.lidLift)
 }
 
-export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef, round, step }: {
+export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef, distractionRef, round, step }: {
   settings: PreviewSettings
   demoRef: RefObject<Demo | null>
   successDemoRef: RefObject<PigeonSuccessCue | null>
   simulationRef: RefObject<RopeSimulation | null>
+  distractionRef: RefObject<DistractionCue | null>
   round: PreviewRound
   step: (now: number) => void
 }) {
@@ -341,6 +344,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       <mesh geometry={geometry} frustumCulled={false} name="park-jump-rope">
         <meshStandardMaterial color="#374a47" roughness={0.88} />
       </mesh>
+      <PigeonDistraction cueRef={distractionRef} shadow={<GroundShadow x={0} z={0} width={1.02} depth={0.75} />} />
     </>
   )
 }

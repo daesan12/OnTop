@@ -7,6 +7,7 @@ import { clearanceWindowMs } from './jumpRopeJudgement'
 import { roundDurationMs, type RoundEndReason } from './jumpRopeRules'
 import { createSuccessCue, successDurationMs, type PigeonSuccessCue, type PigeonSuccessKind } from './pigeonSuccess'
 import { defaultRopeAcceleration, ropePeriodMs } from './ropeAcceleration'
+import { distractionDefaults, type DistractionCue, type DistractionKind, type DistractionSettings } from './pigeonDistractionMotion'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue } from './previewRound'
 import './preview.css'
 
@@ -81,6 +82,17 @@ const demoActions = {
   end: '종료 시안',
 } as const
 
+const distractionSliders: [keyof DistractionSettings, string, number, number, number, string][] = [
+  ['flightScale', '비행 크기', 0.4, 0.95, 0.01, '×'],
+  ['flightDurationMs', '비행 시간', 600, 900, 10, ' ms'],
+  ['flightHeight', '비행 높이', -0.1, 0.65, 0.01, ' m'],
+  ['flightDistance', '비행 카메라 거리', 1.7, 3.5, 0.05, ' m'],
+  ['walkScale', '보행 크기', 0.45, 0.8, 0.01, '×'],
+  ['walkDurationMs', '보행 시간', 1800, 3600, 50, ' ms'],
+  ['walkSpan', '보행 경로 폭', 3, 4.7, 0.05, ' m'],
+  ['walkDepth', '보행 경로 앞쪽 거리', 0.65, 1.2, 0.05, ' m'],
+]
+
 type DemoAction = keyof typeof demoActions
 export type Demo = { action: DemoAction | 'laugh' | 'shock'; startedAt: number; durationMs: number }
 export type RopeSimulation = { angle: number; startedAt: number; lastAt: number; sampleSeconds: number }
@@ -106,6 +118,8 @@ const endLabels: Record<RoundEndReason, string> = { time: '시간 종료', missL
 
 export function JumpRopePreview() {
   const [settings, setSettings] = useState(defaults)
+  const [distractionSettings, setDistractionSettings] = useState(distractionDefaults)
+  const [distractionDirection, setDistractionDirection] = useState<-1 | 1>(1)
   const [demo, setDemo] = useState<{ action: DemoAction; startedAt: number } | null>(null)
   const [round] = useState(createPreviewRound)
   const [hud, setHud] = useState(() => readRoundHud(round))
@@ -119,6 +133,8 @@ export function JumpRopePreview() {
   const successDemoRef = useRef<PigeonSuccessCue | null>(null)
   const successDemoVariant = useRef(0)
   const simulationRef = useRef<RopeSimulation | null>(null)
+  const distractionRef = useRef<DistractionCue | null>(null)
+  const stageRef = useRef<HTMLElement>(null)
   const controlsRef = useRef({ settings, paused: false, cue: '3' as RoundCue })
   const { jumpHeight, jumpDuration } = settings
 
@@ -131,6 +147,7 @@ export function JumpRopePreview() {
     const latest = advancePreviewRound(round, now, effectiveSpeed, settings, settings.reactionMs,
       settings.autoAcceleration ? settings : undefined)
     if (latest?.kind === 'miss' || round.endReason) successDemoRef.current = null
+    if (latest?.kind === 'miss' || round.endReason) distractionRef.current = null
     if (latest?.kind === 'miss') demoRef.current = null
     const next = readRoundHud(round)
     if (next.seconds !== previous.seconds || next.playedMs !== previous.playedMs || next.stats !== previous.stats || next.endReason !== previous.endReason) {
@@ -205,6 +222,7 @@ export function JumpRopePreview() {
 
   function resetScene() {
     resetPreviewRound(round)
+    distractionRef.current = null
     simulationRef.current = null
     setSimulating(false)
     demoRef.current = null
@@ -216,6 +234,12 @@ export function JumpRopePreview() {
     setDemo(null)
     setLastPass(null)
     setVisiblePass(null)
+  }
+
+  function startDistraction(kind: DistractionKind) {
+    if (round.phase.kind !== 'playing' && round.phase.kind !== 'initialCountdown') return
+    stageRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+    distractionRef.current = { kind, startedAt: performance.now(), direction: distractionDirection, settings: distractionSettings }
   }
 
   function restartGame() {
@@ -287,13 +311,14 @@ export function JumpRopePreview() {
         <p className="preview-tag">06 · 비둘기 반응</p>
       </header>
       <div className="preview-layout">
-        <section className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={0}>
+        <section ref={stageRef} className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={0}>
           <Canvas
             camera={{ fov: defaults.fov, near: 0.1, far: 40 }}
             dpr={[1, 1.5]}
             fallback={<p className="canvas-fallback">이 브라우저에서 3D 화면을 열 수 없습니다.</p>}
           >
-            <PreviewScene settings={settings} demoRef={demoRef} successDemoRef={successDemoRef} simulationRef={simulationRef} round={round} step={step} />
+            <PreviewScene settings={settings} demoRef={demoRef} successDemoRef={successDemoRef} simulationRef={simulationRef}
+              distractionRef={distractionRef} round={round} step={step} />
           </Canvas>
           <JumpRopeHud
             seconds={hud.seconds}
@@ -337,6 +362,30 @@ export function JumpRopePreview() {
               <button type="button" onClick={startLaughDemo}>비둘기 웃음 테스트</button>
               <button type="button" disabled={!canPreviewSuccess} onClick={startShockDemo}>MISS 감전 효과 미리보기</button>
             </div>
+          </fieldset>
+          <fieldset>
+            <legend>비둘기 시야 방해</legend>
+            <div className="demo-actions">
+              <button type="button" disabled={!canPreviewSuccess} onClick={() => startDistraction('flight')}>비둘기 비행 방해 테스트</button>
+              <button type="button" disabled={!canPreviewSuccess} onClick={() => startDistraction('walk')}>비둘기 걷기 방해 테스트</button>
+            </div>
+            <label className="audience-toggle">
+              이동 방향
+              <select value={distractionDirection} onChange={event => setDistractionDirection(event.currentTarget.value === '-1' ? -1 : 1)}>
+                <option value={1}>좌 → 우</option>
+                <option value={-1}>우 → 좌</option>
+              </select>
+            </label>
+            {distractionSliders.map(([key, label, min, max, increment, unit]) => (
+              <label className="slider" key={key}>
+                <span>{label}</span>
+                <input type="range" min={min} max={max} step={increment} value={distractionSettings[key]} onChange={event => {
+                  const value = event.currentTarget.valueAsNumber
+                  setDistractionSettings(current => ({ ...current, [key]: value }))
+                }} />
+                <output>{distractionSettings[key]}{unit}</output>
+              </label>
+            ))}
           </fieldset>
           {controls.map(group => (
             <fieldset key={group.title}>

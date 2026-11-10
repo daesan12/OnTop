@@ -65,7 +65,15 @@ function Eye({ side, lid, gaze, face, lidRef }: {
 }
 
 /** Feet at the origin, +Z forward. Pose and grip are independent of any game. */
-export type PigeonRig = { body: Group; head: Group; leftWing: Group; rightWing: Group; jaw: Group; setLidLift: (lift: number) => void }
+export type PigeonRig = {
+  body: Group
+  head: Group
+  leftWing: Group
+  rightWing: Group
+  jaw: Group
+  legs: { shin: Mesh; foot: Group }[]
+  setLidLift: (lift: number) => void
+}
 
 export function PigeonActor({ look, pose = {}, gripRef, rigRef }: {
   look: PigeonLook
@@ -76,8 +84,11 @@ export function PigeonActor({ look, pose = {}, gripRef, rigRef }: {
   const head = useRef<Group>(null), leftWing = useRef<Group>(null), rightWing = useRef<Group>(null), jaw = useRef<Group>(null)
   const body = useRef<Group>(null)
   const lids = useRef<(Mesh | null)[]>([])
+  const shins = useRef<(Mesh | null)[]>([])
+  const feet = useRef<(Group | null)[]>([])
   useImperativeHandle(rigRef, () => ({
     body: body.current!, head: head.current!, leftWing: leftWing.current!, rightWing: rightWing.current!, jaw: jaw.current!,
+    legs: sides.map((_, index) => ({ shin: shins.current[index]!, foot: feet.current[index]! })),
     setLidLift(lift) {
       for (const lid of lids.current) if (lid) lid.position.y = lidRestY + lift
     },
@@ -88,21 +99,18 @@ export function PigeonActor({ look, pose = {}, gripRef, rigRef }: {
 
   return (
     <group name="pigeon">
-      {sides.map(side => (
+      {sides.map((side, index) => (
         <group key={side}>
-          <mesh position={[side * 0.145, 0.11, 0.015]}>
+          <mesh ref={shin => { shins.current[index] = shin }} position={[side * 0.145, 0.11, 0.015]}>
             <cylinderGeometry args={[0.034, 0.041, 0.174, 7]} />
             <meshStandardMaterial color="#aa776c" roughness={0.95} />
           </mesh>
-          {[-1, 0, 1].map(toe => (
-            <Plume
-              key={toe}
-              position={[side * 0.145 + toe * 0.038, 0.033, 0.065]}
-              rotation={[0, toe * 0.3, 0]}
-              scale={[0.022, 0.026, 0.077]}
-              color="#b97e70"
-            />
-          ))}
+          <group ref={foot => { feet.current[index] = foot }} position-x={side * 0.145}>
+            {[-1, 0, 1].map(toe => (
+              <Plume key={toe} position={[toe * 0.038, 0.033, 0.065]} rotation={[0, toe * 0.3, 0]}
+                scale={[0.022, 0.026, 0.077]} color="#b97e70" />
+            ))}
+          </group>
         </group>
       ))}
       <group ref={body} name="body">
