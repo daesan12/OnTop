@@ -898,6 +898,13 @@ public class TableHub {
                 sendSpectatorEvent(sessionId, member, request);
                 return;
             }
+            // 일반 게임 화면의 조작 점유 표시는 복구 확인 중에도 갱신해야 한다. 이 응답이 막히면
+            // 클라이언트가 게임 입력을 열지 못한다. VR 시작 보호는 기존 복구 게이트를 그대로 따른다.
+            if (request.type().equals("WORLD_INTERACTION_SET")
+                    && !request.payload().path("vrActive").asBoolean(false)) {
+                interactionBusy(member, request);
+                return;
+            }
             if (member.accountId() != null && reconnect.isPresent()
                     && !reconnect.get().canUseLobby(member.accountId(), sessionId)
                     && !restoredChannelAccess(member, request)) {

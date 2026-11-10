@@ -268,6 +268,26 @@ class TableHubSkewerEntryTests {
     }
 
     @Test
+    void 일반게임_화면점유는_복구확인중에도_갱신하지만_VR시작은_기존게이트를_따른다() throws Exception {
+        Peer player = peer(101);
+        var recovery = mock(GameReconnectService.class);
+        when(recovery.canUseLobby(101, player.id)).thenReturn(false);
+        ReflectionTestUtils.setField(hub, "reconnect", Optional.of(recovery));
+
+        JsonNode occupied = player.request("WORLD_INTERACTION_SET", Map.of("busy", true));
+
+        assertThat(occupied.path("type").asText()).isEqualTo("WORLD_INTERACTION_STATE");
+        assertThat(occupied.at("/payload/busy").asBoolean()).isTrue();
+        assertThat(channels.carryAvailable("101")).isFalse();
+        verify(recovery, never()).canUseLobby(101, player.id);
+
+        JsonNode vrStart = player.request("WORLD_INTERACTION_SET", Map.of("busy", true, "vrActive", true));
+
+        assertThat(vrStart.at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
+        verify(recovery).canUseLobby(101, player.id);
+    }
+
+    @Test
     void 복구가_완료된_현재연결의_원래채널이_아니면_VR_보호요청을_허용하지_않는다() throws Exception {
         Peer chef = peer(101);
         for (var scope : List.of(new String[] { "old-session", "park" }, new String[] { chef.id, "other" })) {
