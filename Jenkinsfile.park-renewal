@@ -1,7 +1,7 @@
 // Explicit candidate pipeline: builds and archives only. It never publishes or deploys.
 pipeline {
     agent any
-    options { skipDefaultCheckout(true); disableConcurrentBuilds(); timestamps(); timeout(time: 60, unit: 'MINUTES') }
+    options { skipDefaultCheckout(true); disableConcurrentBuilds(); timestamps(); timeout(time: 120, unit: 'MINUTES') }
     stages {
         stage('Checkout') {
             steps {
