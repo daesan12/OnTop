@@ -60,6 +60,7 @@
 - 2일차: 103 3구간 뒤 호수 착수(13냥), 104 1구간 뒤 연결 끊김(의심 판), 105 진행 중
 - 1일차 102 낙하 판에는 finish_ms가 0으로 남은 오염 데이터를 넣는다(24번 최고 기록 방어 확인)
 - 8일차: 101 course-2에서 2구간 뒤 낙하(25번 구간 번호가 코스별 최대 구간까지만 나오는지 확인)
+- 1일차 KST 12:00: 101 새 공원 10단계 코스(park220-jump10-v1, V167) 완주 410초. 이미 하루 한도라 지급 0냥
 
 클라이언트 로그(source=CLIENT, 접속해 있던 시간 안에만 넣는다)
 - 성능 보고: 1일차 101 desktop·nvidia 2건(fps 60·50), 102 desktop·intel 1건(fps 25),
@@ -86,6 +87,7 @@ NAMESPACE = uuid.UUID("6f2f4d4e-6c0b-4b6e-9a51-3c1f0a0c1400")
 # 11_zone_traffic.sql의 layouts 대응표에 있는 실제 해시(기존 맵·생성 맵)를 쓴다.
 MAP_VERSION = "ae833248d2dd356c6603af72b2b865f9051a866e9cfa7d2b9c9abe890579944d"
 GENERATED_MAP_VERSION = "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07"
+RENEWAL_MAP_VERSION = "b1a69e7d26d34bbb56cc88e110d7b4495b5d833669dfd708cf3c416d71a42404"
 
 
 def build_seed() -> str:
@@ -235,6 +237,15 @@ def build_seed() -> str:
     position("2026-10-28 05:00:11", 103, 62, 56, False, map_version=GENERATED_MAP_VERSION)
     position("2026-10-28 05:00:20", 103, -20, -30, True, map_version=GENERATED_MAP_VERSION, y=20)
     position("2026-10-28 01:00:00", 105, 0, 6, False, map_version="unknown-map")
+    # 새 공원: 101은 03:00~03:07 점프맵 도전 중(호수 위 공중·결승 발판은 jump-course), 끝난 뒤 호수 결승 근처에 멈춤,
+    # 광장·소리함·빈 길. 103은 같은 시각 도전 없이 점프맵 입구에 있다(다른 회원의 도전 시간은 섞이지 않는다).
+    position("2026-10-27 03:01:00", 101, -20, 42, True, map_version=RENEWAL_MAP_VERSION, y=48)
+    position("2026-10-27 03:05:00", 101, 62, -5, False, map_version=RENEWAL_MAP_VERSION, y=4.3)
+    position("2026-10-27 03:08:00", 101, 62, -5, False, map_version=RENEWAL_MAP_VERSION, y=4.3)
+    position("2026-10-27 03:10:00", 101, 0, 38, True, map_version=RENEWAL_MAP_VERSION, y=4.8)
+    position("2026-10-27 03:10:01", 101, -22, 24, False, map_version=RENEWAL_MAP_VERSION, y=4.8)
+    position("2026-10-27 03:12:00", 101, 40, 80, True, map_version=RENEWAL_MAP_VERSION, y=4.8)
+    position("2026-10-27 03:02:00", 103, -66, 13, True, map_version=RENEWAL_MAP_VERSION, y=4.8)
 
     return to_sql(events, positions) + feature_sql()
 
@@ -400,13 +411,15 @@ def minigame_extra_sql() -> list[str]:
         ("jr-5", 105, "STARTED", None, "2026-10-28 01:15:00", None, 0, None, 0, False, "course-1"),
         ("jr-6", 101, "ENDED", "FALL", "2026-11-03 01:05:00", "2026-11-03 01:05:40", 2, None, 0, False,
          "course-2"),
+        ("jr-7", 101, "ENDED", "FINISH", "2026-10-27 03:00:00", "2026-10-27 03:07:00", 10, 410000, 0, False,
+         "park220-jump10-v1"),
     ]:
         lines.append(
             "INSERT INTO jump_runs (id, user_id, channel_id, status, end_reason, rules_version, course_version, "
             "is_first_run, started_at, ended_at, gates_passed, gate_times_ms, final_reached, coins_granted, "
             f"elapsed_ms, finish_ms, suspicious) VALUES ('{run}', {user_id}, 'one', '{status}', {sql_value(reason)}, "
             f"'v1', '{course}', 1, '{timestamp(started)}', {sql_value(ended and timestamp(ended))}, {gates}, '[]', "
-            f"{int(gates == 7)}, {coins}, {sql_value(finish)}, {sql_value(finish)}, {int(suspicious)});"
+            f"{int(reason == 'FINISH')}, {coins}, {sql_value(finish)}, {sql_value(finish)}, {int(suspicious)});"
         )
     # (회원, 요청 키, 참가비, KST 날짜, 단계, 결과, 지급, 시작, 정산, 도전 단계, 도전 중)
     # 도전 중인 채로 지면 도전 실패, 아니면 첫 대결 패배다. 지급 = 참가비 × 칸 × 배수(이전 규칙 ×1.0/×1.5/×2.0).
