@@ -1,8 +1,9 @@
 {
   "source": {
-    "file": "police_rigged2.glb (Tripo 생성 후 귀마개 직장인 뼈대·동작으로 맞춘 원본, 저장소 밖)",
+    "file": "police_rigged2.glb",
     "bytes": 4511232,
-    "sha256": "97503742c7869634891af353200d75793c95e894a618abd651e2cf5d91a345f7"
+    "sha256": "97503742c7869634891af353200d75793c95e894a618abd651e2cf5d91a345f7",
+    "note": "저장소 밖 원본: Tripo 생성 후 귀마개 직장인(worker-earmuffs)의 뼈대·동작 이름으로 맞춘 파일"
   },
   "runtime": {
     "file": "public/art/bungeoppang/customers/runtime/police-officer.glb",
