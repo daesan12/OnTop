@@ -14,10 +14,34 @@ def classify(paths: list[str]) -> dict[str, int]:
         "PROD_CONFIG_CHANGED": 0,
         "CI_CONFIG_CHANGED": 0,
         "PARK_MAP_CHANGED": 0,
+        "PARK_RENEWAL_CHANGED": 0,
     }
     for path in paths:
         normalized = PurePosixPath(path).as_posix()
-        if (
+        if normalized == "frontend/vercel.renewal-active.json":
+            # This file controls ordinary deployments while an already approved
+            # renewal map stays mounted. It does not alter that immutable map
+            # contract and must not force another coordinated transition.
+            result["CI_CONFIG_CHANGED"] = 1
+        elif (
+            normalized.startswith("frontend/src/park-renewal/")
+            or normalized.startswith("frontend/public/art/park-renewal/")
+            or normalized in (
+                "frontend/park-renewal-assets.lock.json",
+                "frontend/park-renewal-baseline.json",
+                "frontend/scripts/check-renewal-assets.mjs",
+                "frontend/scripts/export-renewal-backend.mjs",
+                "frontend/scripts/export-renewal-mapping.mjs",
+                "frontend/scripts/package-renewal-release.mjs",
+                "frontend/vite.renewal.config.ts",
+                "frontend/vite.renewal-release.config.ts",
+                "frontend/vercel.renewal.json",
+            )
+        ):
+            result["PARK_RENEWAL_CHANGED"] = 1
+            result["PARK_MAP_CHANGED"] = 1
+            result["FRONTEND_CHANGED"] = 1
+        elif (
             normalized.startswith("frontend/generated/park/")
             or normalized.startswith("frontend/src/config/")
             or normalized.startswith("frontend/src/map/park/")

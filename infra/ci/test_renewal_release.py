@@ -8,6 +8,7 @@ import zipfile
 
 from renewal_release import FILES, REWARDS, digest, validate_bundle, validate_jar
 from check_live_renewal import check_container, check_public
+from prepare_active_renewal_frontend import verify_output
 
 ROOT = Path(__file__).resolve().parents[2]
 SHA = 'a' * 40
@@ -129,6 +130,17 @@ class RenewalReleaseTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 check_container(self.directory, self.baseline, SHA, 'container', run=self.run_docker(changed))
 
+    def test_live_be_can_update_code_image_without_changing_map_release(self):
+        runtime_sha = 'e' * 40
+        inspect = self.inspect()
+        inspect['Config']['Image'] = 'wooaw/ontop-backend:sha-' + runtime_sha
+        inspect['Config']['Labels']['ontop.source-sha'] = runtime_sha
+        self.assertEqual(
+            check_container(self.directory, self.baseline, SHA, 'container',
+                            runtime_source_sha=runtime_sha, run=self.run_docker(inspect)),
+            self.release,
+        )
+
     def test_running_file_tamper_blocks_fe_promotion(self):
         run = self.run_docker(self.inspect())
         def altered(command, text=False):
@@ -141,12 +153,22 @@ class RenewalReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'dev frontend'):
             check_public(self.release, 'https://www.on-top.world')
 
+    def test_active_frontend_output_must_reuse_live_release_and_bindings(self):
+        output = self.directory / 'dist/generated/park-renewal'
+        output.mkdir(parents=True)
+        for name in ('release.json', 'park-bindings.local.json'):
+            (output / name).write_bytes((self.directory / name).read_bytes())
+        verify_output(self.directory / 'dist', self.directory)
+        (output / 'park-bindings.local.json').write_text('{}\n')
+        with self.assertRaisesRegex(ValueError, 'active renewal contract'):
+            verify_output(self.directory / 'dist', self.directory)
+
 
 class RenewalPipelineTests(unittest.TestCase):
-    def test_default_is_candidate_and_approval_precedes_publish_and_be_precedes_fe(self):
+    def test_default_is_legacy_and_manual_renewal_preserves_approval_order(self):
         pipeline = (ROOT / 'Jenkinsfile').read_text(encoding='utf-8')
-        self.assertIn("choices: ['renewal-candidate', 'renewal-deploy', 'legacy']", pipeline)
-        self.assertIn("params.PARK_RELEASE_MODE ?: 'renewal-candidate'", pipeline)
+        self.assertIn("choices: ['legacy', 'renewal-candidate', 'renewal-deploy']", pipeline)
+        self.assertIn("params.PARK_RELEASE_MODE ?: 'legacy'", pipeline)
         self.assertIn("env.ALLOW_BACKEND_DEPLOY = '0'", pipeline)
         stages = ['Prepare shared renewal release', 'Frontend tests and build',
                   'Approve coordinated renewal deployment', 'Prepare verified Vercel prebuilt frontend',
@@ -168,16 +190,23 @@ class RenewalPipelineTests(unittest.TestCase):
         self.assertEqual(renewal['headers'][:len(legacy['headers'])], legacy['headers'])
         self.assertIn('build:park-renewal:release', renewal['buildCommand'])
         self.assertEqual(renewal['outputDirectory'], 'dist-park-renewal')
+        active = json.loads((ROOT / 'frontend/vercel.renewal-active.json').read_text())
+        self.assertEqual(active['rewrites'], renewal['rewrites'])
+        self.assertEqual(active['headers'], renewal['headers'])
+        self.assertIn('build:park-renewal:active', active['buildCommand'])
         self.assertIn('/park-bindings.generated.prod.json', prod['buildCommand'])
         self.assertEqual(prod['outputDirectory'], 'dist-park')
 
     def test_prebuilt_helper_checks_be_before_publish_and_public_fe_after(self):
         helper = (ROOT / 'infra/ci/renewal-vercel.sh').read_text()
-        command = helper.index('vercel deploy --prebuilt --prod')
-        self.assertLess(helper.index('check_live_renewal.py'), command)
-        self.assertGreater(helper.index('--public-url https://dev.on-top.world'), command)
+        special = helper[helper.index('if [[ $1 == deploy ]]'):]
+        command = special.index('vercel deploy --prebuilt --prod')
+        self.assertLess(special.index('check_live_renewal.py'), command)
+        self.assertGreater(special.index('--public-url https://dev.on-top.world'), command)
         self.assertIn('--dist "$root/frontend/.vercel/output/static"', helper)
         self.assertNotIn('vercel deploy --prod --yes', helper)
+        self.assertIn('vercel.renewal-active.json', helper)
+        self.assertIn('prepare_active_renewal_frontend.py', helper)
 
 
 if __name__ == '__main__':

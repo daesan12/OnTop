@@ -66,7 +66,10 @@ VERCEL_PROJECT_ID=prj_...
 - 최초 Jenkins 빌드에서 변경 분류, Gradle 테스트, pnpm 테스트·빌드, Compose 구문 검사, 기준 SHA 기록을 확인한다. `FULL_CHECK=1`이면 배포는 건너뛴다.
 - Compose 구문 검사는 임시 빈 `app.env`를 사용한다. 실제 `/etc/ontop/dev-app/app.env`는 root 전용이라 Jenkins가 읽지 않으며 검사 로그에도 비밀 값이 나오지 않는다.
 - 이후 `backend/`만 바뀐 `dev` 커밋은 프론트 배포 없이, `frontend/`만 바뀐 커밋은 백엔드 이미지 빌드 없이 진행되는지 Jenkins Stage View와 배포 기록으로 확인한다. 실제 배포 검증 전에는 위 자격 증명과 실행 권한 설정이 필요하다.
-- 백엔드 배포 도중 앱 헬스체크가 실패하면 `/usr/local/sbin/ontop-deploy-dev`가 이전 이미지로 복구한다. 기본 구성은 `https://dev-api.on-top.world/actuator/health`를 확인한다. `/etc/ontop/dev-app/monitoring.enabled`가 있으면 모니터링 overlay를 포함하고 컨테이너 내부 `127.0.0.1:8082/actuator/health`를 확인한다. 이 스크립트는 `/etc/ontop/dev-app/deploy.env`의 이미지 태그를 바꾸고 `/var/lib/ontop/ci/dev-deployments.tsv`에 성공 기록을 추가한다.
+- 백엔드 배포 도중 앱 헬스체크가 실패하면 기존 공원은 `/usr/local/sbin/ontop-deploy-dev`, 활성화된 새 공원은
+  `/usr/local/sbin/ontop-deploy-park-renewal --update`가 이전 이미지로 복구한다. 새 공원 update는 releaseId·맵 mount를 바꾸지 않는다.
+  기본 구성은 `https://dev-api.on-top.world/actuator/health`를 확인한다. `/etc/ontop/dev-app/monitoring.enabled`가 있으면
+  모니터링 overlay를 포함하고 컨테이너 내부 `127.0.0.1:8082/actuator/health`를 확인한다.
 - Vercel 배포 URL은 Jenkins artifact `frontend/vercel-deployment-url.txt`에 저장한다. 문제가 생기면 Vercel 대시보드에서 `ontop-frontend-dev`의 이전 정상 배포를 Promote하거나 해당 배포 URL로 재배포한다.
 - 운영 서비스·운영 DB·운영 Vercel 프로젝트는 자동 배포 대상이 아니다. DEV에서는 CI·인프라 파일이 바뀌어도 필수 검사와 영향받은 서비스 테스트를 통과하면 앱 배포를 보류하지 않는다. `.gitignore`만 바뀌면 앱 테스트·배포를 다시 실행하지 않는다. 서버에 별도 보관하는 실제 `app.env`나 Compose 파일의 반영은 이 파이프라인이 자동으로 수행하지 않으므로 해당 설정 변경은 별도 운영 절차가 필요하다.
 

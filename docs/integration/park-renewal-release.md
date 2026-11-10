@@ -6,12 +6,16 @@
 
 ## 준비한 전환 설정
 
-- `Jenkinsfile`의 `PARK_RELEASE_MODE` 기본값은 `renewal-candidate`다. FE·BE 검사와 산출물 보관만 수행하며 이미지 push·서비스 전환·FE 배포를 실행하지 않는다.
+- 최초 공동 전환이 끝난 뒤 `Jenkinsfile`의 `PARK_RELEASE_MODE` 기본값은 `legacy`다. 이름은 호환을 위해 유지하지만,
+  새 공원이 활성화된 DEV에서는 변경된 서비스만 검사하고 **현재 immutable 새 맵을 보존한 채** 자동 배포한다.
+- `renewal-candidate`는 맵·좌표·승인 에셋 변경의 FE·BE 검사와 산출물 보관만 수행하며 이미지 push·서비스 전환·FE 배포를 실행하지 않는다.
 - `renewal-deploy`는 같은 소스 전체를 다시 검사하고, clean checkout·서버 사전 검사·Jenkins 명시 승인을 통과해야 배포한다.
-- `legacy`는 기존 흐름을 남긴 명시적 호환 옵션이다. 새 공원 활성 marker가 생긴 뒤 기존 `deploy-dev.sh`는 전환을 거절한다.
-  새 공원 배포 이후의 일반 개발도 renewal 흐름을 사용한다. 구 공원 복귀는 검증한 이전 이미지/FE/맵 묶음으로 별도 조율한다.
+- 기본 모드는 새 공원 활성 marker를 감지하면 `deploy-park-renewal.sh --update`와
+  `vercel.renewal-active.json`을 사용한다. 실행 이미지·UI만 교체하고 releaseId·읽기 전용 map mount·프로필을 유지한다.
+  맵 계약 경로가 바뀌면 자동 배포를 차단하고 `renewal-candidate → renewal-deploy`를 요구한다.
 - `Jenkinsfile.park-renewal`은 dev 이외의 후보 작업에서도 사용할 수 있는 빌드·검사 전용 파이프라인이다. publish 단계가 없다.
 - `frontend/vercel.renewal.json`은 **기존 dev Vercel 프로젝트**의 새 공원 설정이다. API·인증·관리자 경로를 보존한다.
+  `frontend/vercel.renewal-active.json`은 이미 전환된 새 공원에서 일반 UI 변경을 배포할 때 현재 공개 맵 계약을 재사용한다.
   운영 프로젝트의 `vercel.json`, 기존 `vercel.dev.json`은 변경하지 않는다. CLI의 명시적 `--local-config`로 선택한다.
 - Vercel은 `pull → build --prod → 산출물 검사 → BE 일치 검사 → deploy --prebuilt --prod → dev 공개 manifest 검사` 순서다.
   `.vercel` 안의 환경 파일·프로젝트 설정과 토큰은 보관 산출물에 포함하지 않는다.
@@ -60,7 +64,7 @@ V167 SHA-256: `33680d3ed62f762862a31c9a19d388604f26e758f2868ae06a31f0df30dbe15a`
 아래는 **승인 후** 실행할 절차이며 이번 로컬 준비에서는 실행하지 않는다.
 
 1. 최신 dev와 충돌·중복 변경을 확인하고 최종 소스 커밋을 확정한다.
-   기본 `renewal-candidate`로 검사·아카이브를 완료하고 공동 releaseId를 기록한다.
+   맵 계약 변경 건은 수동으로 `renewal-candidate`를 선택해 검사·아카이브를 완료하고 공동 releaseId를 기록한다.
 2. 실제 dev DB Flyway 이력·열린 MR·팀 예약에서 **V167 충돌/checksum**을 확인한다.
    파일은 `backend/src/main/resources/db/minigame/V167__extend_jumpmap_to_ten_stages.sql` 하나다.
    CHECK를 10단계까지 확장하며 기존 rows·지급 원장·유일성을 보존한다. 이미 적용된 파일은 수정/삭제/번호 변경하지 않는다.
@@ -91,9 +95,10 @@ V167 SHA-256: `33680d3ed62f762862a31c9a19d388604f26e758f2868ae06a31f0df30dbe15a`
 
 ## 실패와 롤백
 
-BE 검증에 실패하면 FE는 배포하지 않는다. FE 배포/공개 manifest 검사에 실패해도 신규 입장을 재개하지 않는다.
+최초 공동 전환의 BE 검증에 실패하면 FE는 배포하지 않는다. FE 배포/공개 manifest 검사에 실패해도 신규 입장을 재개하지 않는다.
 helper는 root 전용 상태 기록과 기존 이미지/배포 설정/marker를 보관한다. 비밀 환경 파일은 Jenkins 아카이브에 넣지 않는다.
-V167이 적용되었을 수 있으므로 자동으로 구 이미지로 되돌리지 않는다. 검증한 이전 FE·BE·맵 산출물과
+최초 공동 전환은 V167이 적용되었을 수 있으므로 자동으로 구 이미지로 되돌리지 않는다. 반면 전환 후의 일반 코드 이미지 update는
+맵 계약을 유지한 채 실패 시 직전 이미지로 자동 복구한다. 공동 전환 실패는 검증한 이전 FE·BE·맵 산출물과
 DB 호환성 계획을 바탕으로 함께 복귀하고, 적용된 V167은 그대로 보존한다.
 새 공원 marker를 임의로 지워 기존 자동 배포를 재개하지 않는다.
 

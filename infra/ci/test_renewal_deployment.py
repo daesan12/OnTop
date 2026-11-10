@@ -148,6 +148,13 @@ if args[0]=='exec' and 'cat' in args:
         self.assertIn('legacy deployment is blocked', result.stderr)
         self.assertFalse(self.log.exists())
 
+    def test_update_mode_accepts_the_existing_release_without_reapplying_transition(self):
+        (self.env_dir / 'park-renewal.enabled').write_text(self.release_id)
+        result = self.run_helper('--update')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('up -d --no-deps app', self.log.read_text())
+        self.assertEqual((self.env_dir / 'park-renewal.enabled').read_text().strip(), self.release_id)
+
 
 if __name__ == '__main__':
     unittest.main()
