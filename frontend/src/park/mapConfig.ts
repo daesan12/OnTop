@@ -9,7 +9,7 @@ import { GENERATED_PARK_ENABLED as generated } from './mapSelection'
 import { RENEWAL_PARK_ENABLED as renewal } from './mapSelection'
 import {renewalTables,renewalBenches,renewalMapping,renewalAnchor,renewalAnchors} from '../park-renewal/runtime/placements'
 import type { BoxCollider, Vec3 } from '../config/world'
-import {heightAt as renewalGround,onRoad as renewalRoad} from '../park-renewal/plan'
+import {heightAt as renewalGround,onRoad as renewalRoad,onBridge as renewalBridge,deckHeightAt as renewalDeck} from '../park-renewal/plan'
 import {parkWalkSurface} from '../park-renewal/surfaceHeight'
 
 // Display policy belongs to the runtime, not the hashed shared-map source.
@@ -56,7 +56,7 @@ export const PARK_ROUTES = generated ? p.PATHS : base.PARK_ROUTES
 export const LAMPS = generated ? p.DRAFT_LAMPS : base.LAMPS
 export const BRIDGE = generated ? {...base.BRIDGE,...p.lake.CROSSINGS.find(c => c.kind === 'wood')!} : base.BRIDGE
 export const isOnParkWalkway = renewal ? renewalRoad : generated ? p.onPath : base.isOnParkWalkway
-export const isOnLakeCrossing = (x:number,z:number) => generated ? p.lake.crossingHeight(x,z) !== undefined : Math.abs(z - base.BRIDGE.z) < base.BRIDGE.halfWidth && x >= base.BRIDGE.startX && x <= base.BRIDGE.endX
+export const isOnLakeCrossing = (x:number,z:number) => renewal ? renewalBridge(x,z)||renewalDeck(x,z)!==null : generated ? p.lake.crossingHeight(x,z) !== undefined : Math.abs(z - base.BRIDGE.z) < base.BRIDGE.halfWidth && x >= base.BRIDGE.startX && x <= base.BRIDGE.endX
 export const lakeRadiusAt = generated ? p.lake.lakeRadius : base.lakeRadiusAt
 export const groundHeight = renewal ? renewalGround : generated ? p.walkHeight : base.groundHeight
 export const PARK_ZONES = generated ? base.PARK_ZONES.map(zone => {
