@@ -3,6 +3,7 @@ import { speedMoleRandom, SpeedMoleRound } from '../../src/features/speedMole/ga
 import { SpeedMoleService } from '../../src/features/speedMole/service'
 import { openSpeedMole, closeSpeedMole, useSpeedMole } from '../../src/features/speedMole/store'
 import { playArcadeGame, useArcade } from '../../src/features/arcade/store'
+import { RestError } from '../../src/network/restError'
 import { inputState } from '../../src/world/inputOwnership'
 
 describe('speed mole server/client contract', () => {
@@ -57,6 +58,25 @@ describe('speed mole park ownership', () => {
     closeSpeedMole();closeSpeedMole()
     expect(useSpeedMole.getState().open).toBe(false);expect(inputState.minigameOpen).toBe(false);expect(inputState.chatOpen).toBe(true)
     inputState.chatOpen=false
+  })
+  it.each([
+    ['disabled', new RestError(503, 'SPEED_MOLE_UNAVAILABLE', 'unavailable'), '기록 서버가 아직 준비되지 않았어요.'],
+    ['missing route', new RestError(404, 'HTTP_ERROR', 'not found'), '서버 응답을 확인하지 못했어요.'],
+    ['database/server failure', new RestError(500, 'HTTP_ERROR', 'internal error'), '서버 응답을 확인하지 못했어요.'],
+    ['network failure', new TypeError('Failed to fetch'), '서버 응답을 확인하지 못했어요.'],
+  ])('allows leaving after a %s start failure without a local round', async (_name, failure, message) => {
+    const request = vi.fn().mockRejectedValue(failure)
+    openSpeedMole()
+    await expect(new SpeedMoleService(request).start('same_key')).rejects.toThrow(message)
+    expect(useSpeedMole.getState().open).toBe(true)
+    // The failed start stays in the guide; closing must preserve unrelated input ownership.
+    inputState.chatOpen = true
+    closeSpeedMole()
+    expect(useSpeedMole.getState().open).toBe(false)
+    expect(inputState.minigameOpen).toBe(false)
+    expect(inputState.chatOpen).toBe(true)
+    expect(request).toHaveBeenCalledTimes(1)
+    inputState.chatOpen = false
   })
   it.each(['on-top.world','www.on-top.world','dev.on-top.world'])('opens the real arcade flow on %s in a production build',hostname=>{
     vi.stubEnv('DEV',false)
