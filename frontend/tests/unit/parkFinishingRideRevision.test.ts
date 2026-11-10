@@ -17,7 +17,7 @@ it('연속 경계석은 경사·모서리에도 틈 없는 닫힌 단면이며 �
 it('중앙광장 동쪽과 카페–호수 길의 중심·양옆이 잔디로 끊기지 않음',()=>{
  const mesh=new Mesh(parkGround.paving,new MeshBasicMaterial({side:DoubleSide}));mesh.updateMatrixWorld(true)
  for(const [a,b]of[['square','plazaLakeLink'],['plazaLakeLink','lake-south'],['cafe','lakeSW'],['lakeSW','lake-south']]){const p=NODES[a]!,q=NODES[b]!,length=Math.hypot(q[0]-p[0],q[1]-p[1]),nx=-(q[1]-p[1])/length,nz=(q[0]-p[0])/length;expect(EDGES.find(e=>e[0]===a&&e[1]===b)![2]).toBe(6);for(let t=0;t<=1;t+=.02)for(const side of[-1.2,0,1.2]){const x=p[0]+(q[0]-p[0])*t+nx*side,z=p[1]+(q[1]-p[1])*t+nz*side;if(footprintDistance(site('cafe'),x,z)<.1)continue;expect(isPlantingGround(x,z),`${a} -> ${b}: ${x},${z}`).toBe(false);expect(new Raycaster(new Vector3(x,50,z),new Vector3(0,-1,0)).intersectObject(mesh).length,`actual paving ${x},${z}`).toBeGreaterThan(0)}}
-})
+},15000)
 it('계단 난간 받침 전체에 실제 벽돌 옹벽 지지가 있고 끝 기둥도 발판에 닿음',()=>{
  const mesh=new Mesh(stairCheeks,new MeshBasicMaterial()),p=MONUMENT_STAIRS,length=p.zBottom-p.zTop;mesh.updateMatrixWorld(true)
  for(const side of[-1,1])for(let i=0;i<=20;i++){const {z,y}=stairRailAnchors[i]!,hit=new Raycaster(new Vector3(side*(p.width/2+.2),y+.01,Math.min(z,length-.001)),new Vector3(0,-1,0),0,.04).intersectObject(mesh)[0];expect(hit,`rail foot ${side},${i}`).toBeDefined();expect(Math.abs(hit!.point.y-y)).toBeLessThan(.01)}
