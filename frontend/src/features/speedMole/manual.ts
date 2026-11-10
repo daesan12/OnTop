@@ -3,7 +3,7 @@ import type { GameManual } from '../manual/types'
 export const speedMoleManual: GameManual = {
   id: 'speed-mole', status: 'available', category: 'minigame', title: '스피드 두더지 잡기',
   subtitle: '기존 두더지보다 더 스피드하게!', keywords: '스피드 두더지 잡기 속도 정확도 체험',
-  players: '혼자', goal: '60초 동안 정확하게 많이 잡기', timing: '준비 3초 · 플레이 60초',
+  players: '1명', goal: '60초 동안 정확하게 많이 잡기', timing: '준비 3초 · 플레이 60초',
   summary: '기존 두더지 잡기보다 더 스피드하게 즐겨요. 8개 구멍 중 4마리가 기다려요. 잡으면 다른 빈 구멍에 바로 나타나요. 성공 +1점, 실수 −3점이며 0점 아래로 내려가지 않아요. 서버가 확인한 기록으로 최고 기록과 전체 랭킹을 보여줘요. 5점당 1냥을 미니게임 공통 하루 500냥 상한 안에서 받아요.',
   flow: [
     { title: '준비', body: '시작 버튼·Enter·Space를 누르면 3초 준비 후 시작해요.' },
