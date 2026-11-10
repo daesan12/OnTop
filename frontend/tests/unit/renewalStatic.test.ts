@@ -1,17 +1,25 @@
 import {expect,it,vi} from 'vitest'
 import {gzipSync,gunzipSync} from 'node:zlib'
 import {Buffer} from 'node:buffer'
+import {BufferAttribute,BufferGeometry} from 'three'
+import type {StaticPark} from '../../src/park-renewal/static/store'
 
 it('사전 생성 지형·높이·난간은 원본 비트와 이동·충돌 판정을 보존한다',async()=>{
   const {snapshot}=await import('../../src/park-renewal/static/snapshot')
   const {encodeStaticPark,decodeStaticPark}=await import('../../src/park-renewal/static/codec')
   const encoded=encodeStaticPark(snapshot),compressed=gzipSync(encoded)
-  const bytes=gunzipSync(compressed),decoded=decodeStaticPark(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength))
+  const bytes=gunzipSync(compressed),archive=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),decoded=decodeStaticPark(archive)
   const equalBytes=(a:Uint8Array,b:Uint8Array)=>expect(Buffer.from(a).equals(Buffer.from(b))).toBe(true)
   // Covers Float64 fields, every geometry attribute/index/bound, spatial bins,
   // curb/guard paths and exact post heights, including sharing between meshes.
   equalBytes(encoded,encodeStaticPark(decoded))
   expect(decoded.ground.grass.getAttribute('position').array).toBe(decoded.ground.paving.getAttribute('position').array)
+  expect(decoded.forestField.buffer).not.toBe(archive)
+  expect(decoded.forestField.byteOffset).toBe(0)
+  expect(decoded.forestField.buffer.byteLength).toBe(decoded.forestField.byteLength)
+  const positions=decoded.ground.grass.getAttribute('position').array
+  expect(positions.buffer).not.toBe(archive)
+  expect(positions.buffer.byteLength).toBe(positions.byteLength)
 
   const originalPlan=await import('../../src/park-renewal/plan')
   const originalSurface=await import('../../src/park-renewal/groundSurface')
@@ -49,6 +57,42 @@ it('형식이 다르거나 잘린 사전 생성 파일은 사용하지 않는다
   expect(()=>decodeStaticPark(new ArrayBuffer(16))).toThrow('header')
 })
 
+it('배열별 정렬·길이·타입을 검증하고 독립 버퍼에서도 공유 참조를 유지한다',async()=>{
+  const {encodeStaticPark,decodeStaticPark}=await import('../../src/park-renewal/static/codec')
+  const geometry=new BufferGeometry()
+  geometry.setAttribute('position',new BufferAttribute(new Float32Array([1,2,3]),3))
+  geometry.setIndex(new BufferAttribute(new Uint16Array([0]),1))
+  const retaining=new BufferGeometry().setIndex(new BufferAttribute(new Uint32Array([0]),1))
+  const snapshot:StaticPark={forestField:new Float64Array([Math.PI,-0,1/3]),plantingField:new Float32Array([.25]),
+    ground:{grass:geometry,paving:geometry,retaining,pavingBoundary:{positions:[],indices:[]}},
+    groundIndex:{triangles:[],bins:new Map()},curbs:{paths:[],geometry},hillEdges:[],
+    guards:{guardRuns:[],guardPosts:[],guardPostRailBases:[]},jumpFence:{runs:[],sections:[]},guardArt:{hill:{},jump:{}}}
+  const encoded=encodeStaticPark(snapshot),archive=encoded.buffer as ArrayBuffer,restored=decodeStaticPark(archive)
+  expect(restored.ground.grass).toBe(restored.ground.paving)
+  expect(restored.curbs.geometry).toBe(restored.ground.grass)
+  for(const array of[restored.forestField,restored.plantingField,restored.ground.grass.getAttribute('position').array,restored.ground.grass.index!.array,restored.ground.retaining.index!.array]){
+    expect(array.buffer).not.toBe(archive)
+    expect(array.byteOffset).toBe(0)
+    expect(array.buffer.byteLength).toBe(array.byteLength)
+  }
+  expect(Buffer.from(encodeStaticPark(restored)).equals(Buffer.from(encoded))).toBe(true)
+  const mutate=(change:(node:{type:string;offset:number;length:number})=>void)=>{
+    const header=new DataView(archive),oldBase=header.getUint32(8,true)
+    const metadata=JSON.parse(new TextDecoder().decode(encoded.subarray(12,12+header.getUint32(4,true))))
+    change(metadata.nodes.find((node:{kind:string;type:string})=>node.kind==='typed'&&node.type==='Float64Array'))
+    const json=new TextEncoder().encode(JSON.stringify(metadata)),base=Math.ceil((12+json.byteLength)/8)*8
+    const damaged=new Uint8Array(base+encoded.byteLength-oldBase),view=new DataView(damaged.buffer)
+    view.setUint32(0,header.getUint32(0,true),true);view.setUint32(4,json.byteLength,true);view.setUint32(8,base,true)
+    damaged.set(json,12);damaged.set(encoded.subarray(oldBase),base)
+    return damaged.buffer
+  }
+  expect(()=>decodeStaticPark(mutate(node=>node.offset++))).toThrow('array alignment')
+  expect(()=>decodeStaticPark(mutate(node=>node.offset=-8))).toThrow('buffer')
+  expect(()=>decodeStaticPark(mutate(node=>node.length=Number.MAX_SAFE_INTEGER))).toThrow('buffer')
+  expect(()=>decodeStaticPark(mutate(node=>node.length=.5))).toThrow('buffer')
+  expect(()=>decodeStaticPark(mutate(node=>node.type='toString'))).toThrow('array type')
+})
+
 it('압축 파일을 설치하며 HTTP·손상 오류는 원본 생성 경로로 복구한다',async()=>{
   const {snapshot}=await import('../../src/park-renewal/static/snapshot')
   const {encodeStaticPark}=await import('../../src/park-renewal/static/codec')
@@ -56,7 +100,13 @@ it('압축 파일을 설치하며 HTTP·손상 오류는 원본 생성 경로로
   const store=await import('../../src/park-renewal/static/store')
   const warn=vi.spyOn(console,'warn').mockImplementation(()=>{})
   const compressed=gzipSync(encodeStaticPark(snapshot))
-  const fetcher=vi.fn().mockResolvedValue(new Response(compressed))
+  // Network chunk boundaries are independent of typed-array alignment.
+  const body=new ReadableStream({start(controller){
+    let offset=0
+    for(const end of[1,7,31,compressed.byteLength]){controller.enqueue(compressed.subarray(offset,end));offset=end}
+    controller.close()
+  }})
+  const fetcher=vi.fn().mockResolvedValue(new Response(body))
   vi.stubGlobal('fetch',fetcher)
   try {
     await loadStaticPark('/assets/park.bin.gz')

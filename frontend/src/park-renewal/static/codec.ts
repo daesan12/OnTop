@@ -74,9 +74,15 @@ export function decodeStaticPark(buffer:ArrayBuffer):StaticPark {
     let result:unknown
     switch(node.kind){
       case 'typed':{
+        if(!Object.hasOwn(constructors,node.type))throw Error('Invalid static park array type')
         const Constructor=constructors[node.type as keyof typeof constructors]
-        if(!Constructor||!Number.isInteger(node.offset)||!Number.isInteger(node.length)||node.offset<0||node.length<0||base+node.offset+node.length*Constructor.BYTES_PER_ELEMENT>buffer.byteLength)throw Error('Invalid static park buffer')
-        result=new Constructor(buffer,base+node.offset,node.length);break
+        const start=base+node.offset,end=start+node.length*Constructor.BYTES_PER_ELEMENT
+        if(!Number.isSafeInteger(node.offset)||!Number.isSafeInteger(node.length)||node.offset<0||node.length<0||!Number.isSafeInteger(end)||end>buffer.byteLength)throw Error('Invalid static park buffer')
+        if(start%Constructor.BYTES_PER_ELEMENT)throw Error('Invalid static park array alignment')
+        // Each live array owns only its bytes. It must not pin the complete
+        // decompressed archive (metadata and temporary numeric lists included).
+        // The reference cache still shares one array between geometry users.
+        result=new Constructor(buffer.slice(start,end));break
       }
       case 'numbers':result=Array.from(read(node.data) as Float64Array);break
       case 'array':result=node.values.map(read);break
