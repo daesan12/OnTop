@@ -21,6 +21,7 @@ export interface StaticPark {
   // Optional so an older valid archive can still use the original building path.
   buildingArt?: {mole:MoleShopArt}
   outdoorReflection?:OutdoorReflectionData
+  gachaReflection?:OutdoorReflectionData
 }
 
 // Installed before importing the app. Node exporters and dev/HMR keep using the

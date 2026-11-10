@@ -1,10 +1,11 @@
 import {PMREMGenerator,REVISION,WebGLRenderer,WebGLRenderTarget,HalfFloatType,LinearSRGBColorSpace,PlaneGeometry,RawShaderMaterial,GLSL3,Mesh,Scene,OrthographicCamera} from 'three'
 import {outdoorReflection,restoreOutdoorReflection} from '../src/world/art/ornamentTextures'
+import {createGachaReflection} from '../src/features/gacha/parkAsset/gachaReflection'
 
 /** Authoring-only GPU capture. Never imported by the application or CI build. */
-export function bakeOutdoorReflection(){
+export function bakeOutdoorReflection(textureName:'outdoor'|'gacha'='outdoor'){
   const renderer=new WebGLRenderer({antialias:false,alpha:false})
-  const generator=new PMREMGenerator(renderer),source=outdoorReflection()
+  const generator=new PMREMGenerator(renderer),source=textureName==='outdoor'?outdoorReflection():createGachaReflection()
   let target:ReturnType<PMREMGenerator['fromEquirectangular']>|undefined
   try {
     const sourcePixels=source.image.data
@@ -23,7 +24,8 @@ export function bakeOutdoorReflection(){
       renderer.readRenderTargetPixels(copy,0,0,width,height,uploaded)
       if(uploaded.some((value,i)=>value!==data[i]))throw Error('Outdoor reflection upload changed HalfFloat pixels')
     }finally {restored.dispose();copy.dispose();geometry.dispose();material.dispose();renderer.setRenderTarget(null)}
-    return {format:'ontop.outdoor-pmrem.v1',threeRevision:REVISION,width,height,
+    return {format:'ontop.park-pmrem.v1',textureName,sourceColorSpace:source.colorSpace,sourceWidth:source.image.width,sourceHeight:source.image.height,
+      sourceType:source.type,sourceFormat:source.format,sourceMapping:source.mapping,sourceMinFilter:source.minFilter,sourceMagFilter:source.magFilter,sourceFlipY:source.flipY,threeRevision:REVISION,width,height,
       type:texture.type,formatId:texture.format,mapping:texture.mapping,
       minFilter:texture.minFilter,magFilter:texture.magFilter,colorSpace:texture.colorSpace,
       flipY:texture.flipY,data:Array.from(data),source:Array.from(sourcePixels)}

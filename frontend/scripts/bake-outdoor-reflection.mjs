@@ -18,10 +18,11 @@ try {
   const page=await browser.newPage(),errors=[]
   page.on('pageerror',error=>errors.push(error.message))
   await page.goto('http://127.0.0.1:5499/bake.html')
-  const result=await page.evaluate(async()=>{
+  for(const textureName of ['outdoor','gacha']){
+  const result=await page.evaluate(async textureName=>{
     const {bakeOutdoorReflection}=await import('/scripts/bakeOutdoorReflection.ts')
-    return bakeOutdoorReflection()
-  })
+    return bakeOutdoorReflection(textureName)
+  },textureName)
   if(errors.length)throw Error(errors.join('\n'))
   const {source,data,...metadata}=result
   const generator=(await readFile(path.join(root,'node_modules/three/src/extras/PMREMGenerator.js'),'utf8')).replace(/\r\n?/g,'\n')
@@ -31,11 +32,12 @@ try {
     dataSha256:hash(dataBytes),dataBase64:dataBytes.toString('base64')}
   const directory=path.join(root,'src/park-renewal/static/baked')
   await mkdir(directory,{recursive:true})
-  const destination=path.join(directory,'outdoor-reflection.json')
+  const destination=path.join(directory,textureName+'-reflection.json')
   if(process.argv.includes('--check')){
     const current=JSON.parse(await readFile(destination,'utf8'))
-    if(current.threeVersion!==output.threeVersion||current.sourceSha256!==output.sourceSha256||current.generatorSha256!==output.generatorSha256||current.dataSha256!==output.dataSha256)
+    if(JSON.stringify(current)!==JSON.stringify(output))
       throw Error('Outdoor reflection GPU capture differs from the checked-in data')
   }else await writeFile(destination,JSON.stringify(output)+'\n')
   console.log(JSON.stringify({...metadata,dataBytes:data.length*2,sourceSha256:output.sourceSha256,dataSha256:output.dataSha256}))
+  }
 }finally {await browser?.close();await server.close()}

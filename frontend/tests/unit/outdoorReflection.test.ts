@@ -41,3 +41,19 @@ it('사전 데이터가 없는 개발·이전 파일 경로는 기존 반사광 
   expect(outdoorReflectionMap.image.data).toEqual(source.image.data)
   source.dispose();outdoorReflectionMap.dispose()
 })
+
+it('뽑기 반사광을 독립적으로 복원하며 두 반사광 중 하나가 손상되면 설치하지 않는다',async()=>{
+  vi.resetModules()
+  const {installReflectionData,getOutdoorReflectionData,getGachaReflectionData}=await import('../../src/world/art/outdoorReflectionData')
+  const {createOutdoorReflectionSnapshot,createGachaReflectionSnapshot}=await import('../../src/park-renewal/static/outdoorReflectionSnapshot')
+  const outdoor=createOutdoorReflectionSnapshot(),gacha=createGachaReflectionSnapshot()
+  installReflectionData({outdoor,gacha})
+  const {gachaMaterials}=await import('../../src/features/gacha/parkAsset/gachaMaterials')
+  expect(gachaMaterials.gold.envMap!.mapping).toBe(CubeUVReflectionMapping)
+  const image=gachaMaterials.gold.envMap!.image as {data:Uint16Array}
+  expect(image.data).toBe(gacha.data)
+  expect(image.data).not.toBe(outdoor.data)
+  expect(()=>installReflectionData({outdoor:{...outdoor},gacha:{...gacha,data:new Uint16Array(1)}})).toThrow('reflection data')
+  expect(getOutdoorReflectionData()).toBe(outdoor);expect(getGachaReflectionData()).toBe(gacha)
+  installReflectionData({})
+})

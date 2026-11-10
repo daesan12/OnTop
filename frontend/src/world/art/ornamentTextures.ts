@@ -71,7 +71,7 @@ export function outdoorReflection() {
 
 /** Exact HalfFloat pixels captured from the original PMREM generator. CubeUV
  * mapping tells Three that filtering is complete; material settings stay intact. */
-export function restoreOutdoorReflection(value:OutdoorReflectionData){
+export function restorePrefilteredReflection(value:OutdoorReflectionData){
   const texture=new DataTexture(value.data,value.width,value.height,RGBAFormat,HalfFloatType)
   texture.mapping=CubeUVReflectionMapping
   texture.minFilter=texture.magFilter=LinearFilter
@@ -79,6 +79,7 @@ export function restoreOutdoorReflection(value:OutdoorReflectionData){
   texture.flipY=false;texture.generateMipmaps=false;texture.needsUpdate=true
   return texture
 }
+export const restoreOutdoorReflection=restorePrefilteredReflection
 const bakedReflection=getOutdoorReflectionData()
 export const outdoorReflectionMap=bakedReflection?restoreOutdoorReflection(bakedReflection):outdoorReflection()
 if(bakedReflection)performance.mark('park-static-reflection-ready')
