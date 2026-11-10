@@ -18,6 +18,10 @@ export type DistractionCue = {
   settings: DistractionSettings
 }
 
+export function distractionDurationMs({ kind, settings }: DistractionCue) {
+  return kind === 'flight' ? settings.flightDurationMs : settings.walkDurationMs
+}
+
 function smooth(value: number) {
   const t = Math.max(0, Math.min(1, value))
   return t * t * (3 - 2 * t)
@@ -39,7 +43,7 @@ export function sampleWalkFoot(cycle: number) {
 export function sampleDistraction(cue: DistractionCue, now: number) {
   const { kind, direction, startedAt, settings } = cue
   const elapsed = now - startedAt
-  const duration = kind === 'flight' ? settings.flightDurationMs : settings.walkDurationMs
+  const duration = distractionDurationMs(cue)
   if (elapsed < 0 || elapsed >= duration) return null
   const progress = elapsed / duration
   const cross = 2 * progress - 1
@@ -67,3 +71,5 @@ export function sampleDistraction(cue: DistractionCue, now: number) {
     bob: 0.033 * step, sway: 0.09 * sway, head: 0.075 * step,
   }
 }
+
+export type DistractionPose = NonNullable<ReturnType<typeof sampleDistraction>>

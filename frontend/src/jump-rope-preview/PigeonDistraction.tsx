@@ -1,13 +1,13 @@
-import { useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
+import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Mesh, PerspectiveCamera, Vector3, type Group, type Material } from 'three'
 import { PigeonActor, pigeonHeadPivot, type PigeonRig } from './PigeonActor'
-import { sampleDistraction, type DistractionCue } from './pigeonDistractionMotion'
+import type { DistractionPose } from './pigeonDistractionMotion'
 
 const up = new Vector3(0, 1, 0)
 const intruderPose = { eyelids: [0.32, 0.56] as [number, number], gaze: [0.28, -0.12] as [number, number] }
 
-export function PigeonDistraction({ cueRef, shadow }: { cueRef: RefObject<DistractionCue | null>; shadow?: ReactNode }) {
+export function PigeonDistraction({ sample, shadow }: { sample: (now: number) => DistractionPose | null; shadow?: ReactNode }) {
   const actor = useRef<Group>(null)
   const shadowGroup = useRef<Group>(null)
   const rigRef = useRef<PigeonRig>(null)
@@ -24,15 +24,11 @@ export function PigeonDistraction({ cueRef, shadow }: { cueRef: RefObject<Distra
   useFrame(({ camera }) => {
     const group = actor.current
     const rig = rigRef.current
-    const cue = cueRef.current
-    const pose = cue && sampleDistraction(cue, performance.now())
+    const pose = sample(performance.now())
     if (!group || !rig) return
     group.visible = Boolean(pose)
     if (shadowGroup.current) shadowGroup.current.visible = pose?.kind === 'walk' && pose.opacity > 0.45
-    if (!pose) {
-      if (cue) cueRef.current = null
-      return
-    }
+    if (!pose) return
 
     camera.updateWorldMatrix(true, false)
     const { right, near, hip, ankle, shin } = vectors

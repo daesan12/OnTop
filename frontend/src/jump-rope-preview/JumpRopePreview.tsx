@@ -7,7 +7,8 @@ import { clearanceWindowMs } from './jumpRopeJudgement'
 import { roundDurationMs, type RoundEndReason } from './jumpRopeRules'
 import { createSuccessCue, successDurationMs, type PigeonSuccessCue, type PigeonSuccessKind } from './pigeonSuccess'
 import { defaultRopeAcceleration, ropePeriodMs } from './ropeAcceleration'
-import { distractionDefaults, type DistractionCue, type DistractionKind, type DistractionSettings } from './pigeonDistractionMotion'
+import { distractionDefaults, distractionDurationMs, sampleDistraction, type DistractionCue, type DistractionKind, type DistractionSettings } from './pigeonDistractionMotion'
+import { advanceDistractionSchedule, createDistractionSchedule, type DistractionFrequency } from './pigeonDistractionSchedule'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue } from './previewRound'
 import './preview.css'
 
@@ -115,11 +116,27 @@ function readRoundHud(round: ReturnType<typeof createPreviewRound>) {
 }
 
 const endLabels: Record<RoundEndReason, string> = { time: '시간 종료', missLimit: '3회 실패' }
+const distractionLabels = { flight: '비행', walk: '걷기' }
+const eventLabels = { pending: '예정', running: '진행 중', finished: '완료', skipped: '건너뜀', cancelled: '중단' }
+
+function newDistractionSeed(previous?: number) {
+  const seed = crypto.getRandomValues(new Uint32Array(1))[0]!
+  return seed === previous ? (seed + 1) >>> 0 : seed
+}
+
+function parseDistractionSeed(input: string) {
+  const seed = Number(input)
+  return /^\d{1,10}$/.test(input) && seed <= 0xffffffff ? seed : null
+}
 
 export function JumpRopePreview() {
   const [settings, setSettings] = useState(defaults)
   const [distractionSettings, setDistractionSettings] = useState(distractionDefaults)
   const [distractionDirection, setDistractionDirection] = useState<-1 | 1>(1)
+  const [automaticDistraction, setAutomaticDistraction] = useState(true)
+  const [distractionFrequency, setDistractionFrequency] = useState<DistractionFrequency>('increasing')
+  const [fixedSeed, setFixedSeed] = useState('')
+  const [distractionSchedule, setDistractionSchedule] = useState(() => createDistractionSchedule(newDistractionSeed()))
   const [demo, setDemo] = useState<{ action: DemoAction; startedAt: number } | null>(null)
   const [round] = useState(createPreviewRound)
   const [hud, setHud] = useState(() => readRoundHud(round))
@@ -134,6 +151,7 @@ export function JumpRopePreview() {
   const successDemoVariant = useRef(0)
   const simulationRef = useRef<RopeSimulation | null>(null)
   const distractionRef = useRef<DistractionCue | null>(null)
+  const scheduleRef = useRef(distractionSchedule)
   const stageRef = useRef<HTMLElement>(null)
   const controlsRef = useRef({ settings, paused: false, cue: '3' as RoundCue })
   const { jumpHeight, jumpDuration } = settings
@@ -149,6 +167,19 @@ export function JumpRopePreview() {
     if (latest?.kind === 'miss' || round.endReason) successDemoRef.current = null
     if (latest?.kind === 'miss' || round.endReason) distractionRef.current = null
     if (latest?.kind === 'miss') demoRef.current = null
+    const preview = distractionRef.current
+    if (preview && now >= preview.startedAt + distractionDurationMs(preview)) distractionRef.current = null
+    const phase = round.phase.kind
+    const mode = round.endReason ? 'ended' : phase === 'initialCountdown' ? 'inactive'
+      : phase !== 'playing' ? 'miss' : round.motion.ropeSpeed > 0 ? 'playing' : 'paused'
+    const schedule = advanceDistractionSchedule(scheduleRef.current, {
+      playedMs: round.playedMs, mode, enabled: automaticDistraction,
+      previewBusy: distractionRef.current !== null, settings: distractionSettings,
+    })
+    if (schedule !== scheduleRef.current) {
+      scheduleRef.current = schedule
+      setDistractionSchedule(schedule)
+    }
     const next = readRoundHud(round)
     if (next.seconds !== previous.seconds || next.playedMs !== previous.playedMs || next.stats !== previous.stats || next.endReason !== previous.endReason) {
       setHud(next)
@@ -161,6 +192,13 @@ export function JumpRopePreview() {
     if (!latest) return
     setLastPass(latest)
     setVisiblePass(latest)
+  }, [round, automaticDistraction, distractionSettings])
+
+  const sampleDistractionFrame = useCallback((now: number) => {
+    const preview = distractionRef.current
+    if (preview) return sampleDistraction(preview, now)
+    const active = scheduleRef.current.active
+    return active ? sampleDistraction(active.cue, round.playedMs) : null
   }, [round])
 
   useEffect(() => {
@@ -223,6 +261,10 @@ export function JumpRopePreview() {
   function resetScene() {
     resetPreviewRound(round)
     distractionRef.current = null
+    const seed = parseDistractionSeed(fixedSeed) ?? newDistractionSeed(scheduleRef.current.seed)
+    const schedule = createDistractionSchedule(seed, distractionSettings, distractionFrequency)
+    scheduleRef.current = schedule
+    setDistractionSchedule(schedule)
     simulationRef.current = null
     setSimulating(false)
     demoRef.current = null
@@ -238,6 +280,7 @@ export function JumpRopePreview() {
 
   function startDistraction(kind: DistractionKind) {
     if (round.phase.kind !== 'playing' && round.phase.kind !== 'initialCountdown') return
+    if (scheduleRef.current.active) return
     stageRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
     distractionRef.current = { kind, startedAt: performance.now(), direction: distractionDirection, settings: distractionSettings }
   }
@@ -318,7 +361,7 @@ export function JumpRopePreview() {
             fallback={<p className="canvas-fallback">이 브라우저에서 3D 화면을 열 수 없습니다.</p>}
           >
             <PreviewScene settings={settings} demoRef={demoRef} successDemoRef={successDemoRef} simulationRef={simulationRef}
-              distractionRef={distractionRef} round={round} step={step} />
+              sampleDistraction={sampleDistractionFrame} round={round} step={step} />
           </Canvas>
           <JumpRopeHud
             seconds={hud.seconds}
@@ -365,9 +408,31 @@ export function JumpRopePreview() {
           </fieldset>
           <fieldset>
             <legend>비둘기 시야 방해</legend>
+            <label className="audience-toggle">
+              <input type="checkbox" checked={automaticDistraction} onChange={event => setAutomaticDistraction(event.currentTarget.checked)} />
+              자동 방해 이벤트
+            </label>
+            <label className="audience-toggle">
+              방해 빈도 (다음 판)
+              <select value={distractionFrequency} onChange={event => setDistractionFrequency(event.currentTarget.value === 'light' ? 'light' : 'increasing')}>
+                <option value="increasing">후반 증가 (최대 6회)</option>
+                <option value="light">가볍게 (최대 3회)</option>
+              </select>
+            </label>
+            <label className="audience-toggle">
+              고정 시드 (다음 판)
+              <input type="text" inputMode="numeric" maxLength={10} value={fixedSeed} placeholder="비워 두면 무작위"
+                aria-invalid={fixedSeed !== '' && parseDistractionSeed(fixedSeed) === null} onChange={event => setFixedSeed(event.currentTarget.value)} />
+            </label>
+            <div className="panel-note" aria-label="자동 방해 일정">
+              <div>현재 시드 {distractionSchedule.seed} · 발생 {distractionSchedule.startedCount}/{distractionSchedule.events.length}</div>
+              {distractionSchedule.events.map(event => (
+                <div key={event.atMs}>{(event.atMs / 1000).toFixed(2)}초 · {distractionLabels[event.kind]} · {eventLabels[event.status]}</div>
+              ))}
+            </div>
             <div className="demo-actions">
-              <button type="button" disabled={!canPreviewSuccess} onClick={() => startDistraction('flight')}>비둘기 비행 방해 테스트</button>
-              <button type="button" disabled={!canPreviewSuccess} onClick={() => startDistraction('walk')}>비둘기 걷기 방해 테스트</button>
+              <button type="button" disabled={!canPreviewSuccess || distractionSchedule.active !== null} onClick={() => startDistraction('flight')}>비둘기 비행 방해 테스트</button>
+              <button type="button" disabled={!canPreviewSuccess || distractionSchedule.active !== null} onClick={() => startDistraction('walk')}>비둘기 걷기 방해 테스트</button>
             </div>
             <label className="audience-toggle">
               이동 방향
