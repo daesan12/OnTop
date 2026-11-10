@@ -1,0 +1,61 @@
+{
+  "source": {
+    "file": "police_rigged2.glb (Tripo 생성 후 귀마개 직장인 뼈대·동작으로 맞춘 원본, 저장소 밖)",
+    "bytes": 4511232,
+    "sha256": "97503742c7869634891af353200d75793c95e894a618abd651e2cf5d91a345f7"
+  },
+  "runtime": {
+    "file": "public/art/bungeoppang/customers/runtime/police-officer.glb",
+    "bytes": 1304432,
+    "sha256": "62e5b68aa077ec4806decd5972b7bf4153da1933b2b0a02c749127ae30827c3b"
+  },
+  "meshes": [
+    {
+      "sourceTriangles": 57375,
+      "triangles": 19999,
+      "vertices": 12746,
+      "relativeError": 0.0038333896081894636
+    }
+  ],
+  "textures": [
+    {
+      "roles": [
+        "color"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        2048,
+        2048
+      ],
+      "bytes": 359440
+    }
+  ],
+  "skins": 1,
+  "animations": [
+    {
+      "name": "idle",
+      "channels": 195
+    },
+    {
+      "name": "run",
+      "channels": 195
+    },
+    {
+      "name": "walk",
+      "channels": 195
+    }
+  ],
+  "policy": {
+    "targetTriangles": 20000,
+    "errorLimit": 0.004,
+    "color": 2048,
+    "normal": 1024,
+    "data": 512,
+    "meshoptRoundTrip": "attributes exact; triangle winding/topology equivalent",
+    "retainedVertexAttributes": "byte-identical",
+    "sourcePreserved": true
+  }
+}
