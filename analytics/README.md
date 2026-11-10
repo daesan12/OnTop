@@ -24,7 +24,7 @@ docker run -d --name ontop-analytics-mysql --network none -e MYSQL_ROOT_PASSWORD
 
 ## 쿼리 검증 (가짜 데이터)
 
-`scripts/seed.py`의 작은 시나리오(사용자 5명, 경기 4개(로그 없는 경기·시작 거절 포함), 기권·시작 전 이탈·구매·막힘, 붕어빵 8판, 소리함 5건과 답변 4건, 지갑 원장 52건, 점프맵 6회·룰렛 5판·추첨 3장·두더지 4판·스피드 두더지 4판·플러스마이너스 3판·꼬치 협동 2판(VR·PC)·뽑기 영수증 10건 포함)를 넣고, 손으로 계산한 정답과 쿼리 결과를 비교한다. 백엔드의 실제 마이그레이션(회원 V1, 지갑 V4, 행동 로그 V5·V6, 붕어빵 V110, 소리함 V127, 경기 V112·V122·V123, 붕어빵 V111·V124·V132, 점프맵 V131·V141, 룰렛 V136·V164, 추첨 V140, 플러스마이너스 V143, 꼬치 협동 V145·V156, 두더지 V147·V149·V150, 스피드 두더지 V151, 뽑기 V157·V159, 소리함 답변 V158)으로 테이블을 만들기 때문에 테이블 구조가 바뀌면 여기서 먼저 깨진다. **쿼리를 고치면 반드시 다시 실행한다.**
+`scripts/seed.py`의 작은 시나리오(사용자 5명, 경기 4개(로그 없는 경기·시작 거절 포함), 기권·시작 전 이탈·구매·막힘, 붕어빵 8판, 소리함 5건과 답변 4건, 지갑 원장 52건, 점프맵 7회(새 공원 10단계 코스 포함)·룰렛 5판·추첨 3장·두더지 4판·스피드 두더지 4판·플러스마이너스 3판·꼬치 협동 2판(VR·PC)·뽑기 영수증 10건 포함)를 넣고, 손으로 계산한 정답과 쿼리 결과를 비교한다. 백엔드의 실제 마이그레이션(회원 V1, 지갑 V4, 행동 로그 V5·V6, 붕어빵 V110, 소리함 V127, 경기 V112·V122·V123, 붕어빵 V111·V124·V132, 점프맵 V131·V141·V167, 룰렛 V136·V164, 추첨 V140, 플러스마이너스 V143, 꼬치 협동 V145·V156, 두더지 V147·V149·V150, 스피드 두더지 V151, 뽑기 V157·V159, 소리함 답변 V158)으로 테이블을 만들기 때문에 테이블 구조가 바뀌면 여기서 먼저 깨진다. **쿼리를 고치면 반드시 다시 실행한다.**
 
 ```powershell
 python analytics/scripts/verify.py --container ontop-analytics-mysql
@@ -154,9 +154,10 @@ if (Test-Path analytics/out) { Remove-Item -Recurse -Force analytics/out }
 - 13번의 공동 일일 한도는 2026-11부터 붕어빵 단독 100냥에서 미니게임 공동 500냥(`MinigameRewardBudget.DAILY_CAP`)으로 바뀌었다. 서버처럼 지갑 원장의 `MINIGAME_REWARD`(붕어빵)·`JUMP_GATE_REWARD`(점프맵)·`SKEWER_REWARD`(꼬치)·`MOLE_REWARD`(두더지, 2026-11-05 추가) 양수 금액을 KST 하루로 합산한다. 스피드 두더지(V151)도 같은 `MOLE_REWARD`로 지급하므로 한도 계산에는 그대로 들어가고, 출처 열은 원장 키로 `mole_rewards`(`mole:reward:<판>`)와 `speed_mole_rewards`(`mole:reward:speed:<판>`)로 나눈다. 이 변경 전 날짜의 도달 비율은 당시 한도(100)와 다르게 보인다.
 - 19번에 새로 보이는 원장 유형: `MINIGAME_ENTRY_FEE`(가위바위보 룰렛·꼬치 입장료, 출처는 `idempotency_key` 접두어 `rps-roulette:`·`skewer:`), `RPS_ROULETTE_PAYOUT`(룰렛 지급), `RAFFLE_PURCHASE`(주간 추첨 구매), `FITNESS_REWARD`(운동기구 보상 1냥), `JUMP_GATE_REWARD`(점프맵 구간 보상), `MOLE_REWARD`(두더지·스피드 두더지 보상. 출처는 `idempotency_key` 접두어 `mole:reward:speed:`로 가른다), `PLUS_MINUS_PAYOUT`(플러스마이너스 지급, 참가비는 `MINIGAME_ENTRY_FEE`), `ADMIN_BULK_GRANT`(관리자 일괄 지급, V142). 관리자 지급은 이벤트·보상 지급이라 엽전 흐름(ALL 순증감)을 해석할 때 따로 빼고 본다.
 - 22~23번은 경기 테이블(`game_sessions`·`game_participants`, 공통 마이그레이션 V112·V122·V123)을 읽는다. 행동 로그의 `game_id`는 `game_sessions.id`와 같은 값이다. 경기 수·결과의 원본은 이 테이블이다.
-- 24~27번은 점프맵(`jump_runs`, `db/minigame` V131)·가위바위보 룰렛(`rps_roulette_rounds`, `db/minigame` V136)·주간 추첨(`raffle_rounds`·`raffle_tickets`, 공통 V140) 기능 테이블을 읽는다. 행동 로그는 따로 남기지 않는다. 운영 DB에는 2026-11-02에 적용됐으므로 그 이전 백업에서는 24~27번이 실패한다.
+- 24~27번은 점프맵(`jump_runs`, `db/minigame` V131)·가위바위보 룰렛(`rps_roulette_rounds`, `db/minigame` V136)·주간 추첨(`raffle_rounds`·`raffle_tickets`, 공통 V140) 기능 테이블을 읽는다. 행동 로그는 따로 남기지 않는다. 운영 DB에는 2026-11-02에 적용됐으므로 그 이전 백업에서는 24~27번과, 새 공원 점프 도전 시간을 함께 보는 11번이 실패한다.
 - 점프맵 구간 보상(`JUMP_GATE_REWARD`)은 도전 1회 최대 250냥(V141)이고, 하루 한도는 미니게임 공동 한도(13번, `JumpmapStore.DAILY_CAP = MinigameRewardBudget.DAILY_CAP`)를 쓴다. `jump_daily_earnings`는 한도 판단에 쓰지 않는다. 25번은 끝난 도전 중 의심 판을 뺀 것만 센다.
 - 28~30번은 두더지(`mole_rounds`, V147)·플러스마이너스(`plus_minus_rounds`, V143)·꼬치 협동(`skewer_coop_results`·`skewer_coop_rewards`, V145) 기능 테이블을 읽는다(모두 `db/minigame`). 운영 DB에는 2026-11-05 기준으로 적용 여부를 `flyway_schema_history`에서 확인한 뒤 백업을 분석한다.
+- 25번은 코스(`course_version`)별로 나누므로 새 공원 10단계 코스(`park220-jump10-v1`, V167)는 기존 7단계 코스와 따로 나온다. 새 코스 보상은 단계별 5~40냥, 완주 합계 250냥이라 한 판 최대 지급(V141)과 13번 하루 한도 계산은 그대로다.
 - 30번의 `play_mode`는 V156(`db/minigame`)에서 생겼고, 14번 답변 지표는 V158(`feedback_replies`·`feedback_messages.status`), 33번은 V157·V159(`gacha_receipts`), 34번은 V151(`speed_mole_rounds`, `db/minigame`) 뒤의 백업에서만 동작한다.
 - 26번 룰렛은 V164(`db/minigame`)에서 도전 배수가 ×1.0/×1.5/×2.0 → ×1.0/×2.0/×4.0으로, 룰렛판 평균 칸 값이 61/30 → 68/30으로 바뀌었다. 판 기록에 규칙 버전이 없으므로 운영 `flyway_schema_history`의 V164 `installed_on` 전후로 날짜를 나눠 본다. 비기면 다시 겨루므로 한 번 이길 확률은 1/2이다. 이전 규칙의 기대 지급률은 바로 받기 102%·한 번 도전 76%·두 번 도전 51%였고, V164 뒤에는 어느 쪽을 골라도 113%다. 즉 V164 뒤의 룰렛은 평균적으로 엽전을 거둬들이지 않고 푼다(흡수량이 음수로 나오는 것이 정상).
 - 분석용 백업에는 이벤트 당첨자 연락처(`event_winner_contacts`, V153)와 연락처 열람 기록(`event_contact_access_audit`, V155)이 필요 없다. 백업을 요청할 때 이 테이블을 빼 달라고 하고, 들어 있으면 복원 직후 지운다.
@@ -165,16 +166,16 @@ if (Test-Path analytics/out) { Remove-Item -Recurse -Force analytics/out }
 
 `11_zone_traffic.sql`은 두 목록으로 구역을 정한다.
 
-- `layouts`: 좌표 표본의 `map_version`(서버 맵 해시)을 맵 배치에 연결한다. 기존 맵(`legacy`)은 `544bc6fa…`·`ae833248…`, 새 생성 맵(`generated`)은 `cac3cb04…`·`04350122…`·`c05d8ada…`(2026-11-03 운영 전환 후보)다. 이전 두 후보는 배포되지 않아 최신 좌표를 그대로 쓴다. 여기에 없는 버전은 다른 맵 구역에 섞지 않고 `unmapped`로 센다.
-- `zones`: 배치별 구역 정의다. `legacy`는 `frontend/src/config`의 `PARK_ZONES`, `PARK_PAVILIONS`, `PICNIC_TABLES`(2026-10-23 기준, 2026-10-30 재확인), `generated`는 `frontend/src/map/park/definition.ts`(2026-10-30 기준) 좌표를 옮겼다. 반경·크기는 분석용으로 정한 값이다. 생성 맵의 돌탑 점프맵은 공중을 지나가므로 높이 5m 이상(`min_y`)은 `jump-course`로 센다.
+- `layouts`: 좌표 표본의 `map_version`(서버 맵 해시)을 맵 배치에 연결한다. 기존 맵(`legacy`)은 `544bc6fa…`·`ae833248…`, 새 생성 맵(`generated`)은 `cac3cb04…`·`04350122…`·`c05d8ada…`(2026-11-03 운영 전환 후보), 220m 새 공원(`renewal`, !492)은 `b1a69e7d…`(2026-11-10 DEV 전환)다. 이전 두 후보는 배포되지 않아 최신 좌표를 그대로 쓴다. 여기에 없는 버전은 다른 맵 구역에 섞지 않고 `unmapped`로 센다.
+- `zones`: 배치별 구역 정의다. `legacy`는 `frontend/src/config`의 `PARK_ZONES`, `PARK_PAVILIONS`, `PICNIC_TABLES`(2026-10-23 기준, 2026-10-30 재확인), `generated`는 `frontend/src/map/park/definition.ts`(2026-10-30 기준) 좌표를 옮겼다. 반경·크기는 분석용으로 정한 값이다. 생성 맵의 돌탑 점프맵은 공중을 지나가므로 높이 5m 이상(`min_y`)은 `jump-course`로 센다. `renewal`은 `frontend/src/park-renewal/plan.ts`의 `SITES` 중심·반경(2026-11-10 기준)을 그대로 쓰고, 공사 중 시설도 구역으로 둔다. 새 공원의 10단계 코스는 언덕과 호수 위를 가로질러 높이로 가를 수 없으므로, 그 회원의 점프맵 도전 시간(`jump_runs` 시작~종료, 진행 중이면 시작 후 30분) 안의 표본을 `jump-course`로 센다.
 
 맵이 바뀌면 이렇게 고친다.
 
 1. 결과에 `unmapped`가 보이면 `SELECT map_version, MIN(sampled_at), MAX(sampled_at), COUNT(*) FROM world_position_samples GROUP BY map_version;`으로 새 버전과 쓰인 기간을 찾는다.
-2. 배포된 맵이 무엇인지 확인한다. 기존 맵의 버전은 `backend/src/main/resources/world/park.json`의 `sourceSha256`, 생성 맵은 배포 담당(S15P31B105-273)이 알려 준 맵 파일의 `mapVersion`이다. 충돌만 고친 기존 맵이면 `legacy`, 새 생성 맵이면 `generated`로 `layouts`에 한 줄 추가한다. 생성 맵은 다시 만들 때마다 해시가 바뀐다.
+2. 배포된 맵이 무엇인지 확인한다. 기존 맵의 버전은 `backend/src/main/resources/world/park.json`의 `sourceSha256`, 생성 맵은 배포 담당(S15P31B105-273)이 알려 준 맵 파일의 `mapVersion`이다. 충돌만 고친 기존 맵이면 `legacy`, 새 생성 맵이면 `generated`로 `layouts`에 한 줄 추가한다. 생성 맵은 다시 만들 때마다 해시가 바뀐다. 새 공원은 소스 커밋이 맵 버전에 들어가서 새 릴리스마다 해시가 바뀐다. DEV는 `https://dev.on-top.world/generated/park-renewal/release.json`의 `mapVersion`, 운영은 전환 담당이 알려 준 releaseId의 `release.json`에서 확인해 `renewal`로 추가한다. 좌표 계약이 그대로면 `zones`는 고치지 않는다.
 3. 장소 배치가 바뀌었으면 그 배치의 `zones`를 고친다. 목록만 고치면 과거 좌표도 다시 집계된다.
 4. `verify.py`의 `11_zone_traffic.sql` 기대값을 확인한다.
 
 ## 성능
 
-로컬 MySQL 8.4에서 위치 50만 행 기준 히트맵 0.7초, 구역 4.0초, 막힘 지점 4.9초였다. 한 달 최대치(약 1,000만 행)는 1~2분 걸릴 것으로 예상한다. 그래서 운영 DB가 아닌 복원본에서 실행한다.
+로컬 MySQL 8.4에서 위치 50만 행 기준 히트맵 0.7초, 구역 4.0초, 막힘 지점 4.9초였다. 새 공원 점프 구간 판정을 넣은 뒤 구역(11번)은 새 공원 표본 50만 행·도전 1,500판에서 5.3초였다. 표본마다 도전 판을 찾던 첫 방식(상관 서브쿼리)은 같은 데이터에서 96초가 걸려, 회원별 시간순 누적 합으로 바꿨다. 한 달 최대치(약 1,000만 행)는 1~2분 걸릴 것으로 예상한다. 그래서 운영 DB가 아닌 복원본에서 실행한다.
