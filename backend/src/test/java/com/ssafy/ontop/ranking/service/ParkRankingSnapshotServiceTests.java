@@ -4,10 +4,10 @@ import com.ssafy.ontop.ranking.dto.ParkRankingResponse;
 import com.ssafy.ontop.ranking.exception.RankingException;
 import com.ssafy.ontop.ranking.repository.ParkBalanceRankingRepository;
 import com.ssafy.ontop.ranking.repository.ParkBalanceRankingRepository.BalanceStanding;
-import com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository;
-import com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository.BungeoppangRankingStanding;
-import com.ssafy.ontop.ranking.repository.ParkJumpmapRankingRepository;
-import com.ssafy.ontop.ranking.repository.ParkJumpmapRankingRepository.JumpmapRankingStanding;
+import com.ssafy.ontop.ranking.repository.ParkMoleRankingRepository;
+import com.ssafy.ontop.ranking.repository.ParkMoleRankingRepository.MoleRankingStanding;
+import com.ssafy.ontop.ranking.repository.ParkSpeedMoleRankingRepository;
+import com.ssafy.ontop.ranking.repository.ParkSpeedMoleRankingRepository.SpeedMoleRankingStanding;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
@@ -32,8 +32,8 @@ class ParkRankingSnapshotServiceTests {
     private static final Instant UPDATED_AT = Instant.parse("2026-11-02T01:00:00Z");
 
     private final ParkBalanceRankingRepository balances = mock(ParkBalanceRankingRepository.class);
-    private final ParkBungeoppangRankingRepository bungeoppang = mock(ParkBungeoppangRankingRepository.class);
-    private final ParkJumpmapRankingRepository jumpmap = mock(ParkJumpmapRankingRepository.class);
+    private final ParkMoleRankingRepository mole = mock(ParkMoleRankingRepository.class);
+    private final ParkSpeedMoleRankingRepository speedMole = mock(ParkSpeedMoleRankingRepository.class);
     private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
     private final Clock clock = Clock.fixed(UPDATED_AT, ZoneOffset.UTC);
 
@@ -41,10 +41,10 @@ class ParkRankingSnapshotServiceTests {
     void 최초_집계_전에는_503이고_성공_후에는_세_랭킹을_같은_시각에_공개한다() {
         ParkRankingSnapshotService service = service(STARTED_AT.toString());
         when(balances.findTopTen()).thenReturn(List.of(new BalanceStanding(1, 11, "보유자", 50)));
-        when(bungeoppang.findTopTen(STARTED_AT)).thenReturn(List.of(
-                new BungeoppangRankingStanding(1, 12, "붕어빵왕", 9_000, 12, UPDATED_AT)));
-        when(jumpmap.findTopTen(STARTED_AT)).thenReturn(List.of(
-                new JumpmapRankingStanding(1, 13, "점프왕", 8_500, UPDATED_AT)));
+        when(mole.findTopTen(STARTED_AT)).thenReturn(List.of(
+                new MoleRankingStanding(1, 12, "두더지왕", 9_000, 12, UPDATED_AT)));
+        when(speedMole.findTopTen(STARTED_AT)).thenReturn(List.of(
+                new SpeedMoleRankingStanding(1, 13, "스피드왕", 85, 2, UPDATED_AT)));
 
         assertThatThrownBy(service::current).isInstanceOfSatisfying(RankingException.class,
                 error -> assertThat(error.error().code()).isEqualTo("RANKING_UNAVAILABLE"));
@@ -55,44 +55,45 @@ class ParkRankingSnapshotServiceTests {
         assertThat(first).isSameAs(again);
         assertThat(first.updatedAt()).isEqualTo(UPDATED_AT);
         assertThat(first.balance()).extracting(ParkRankingResponse.BalanceItem::userId).containsExactly("11");
-        assertThat(first.bungeoppang()).singleElement().satisfies(item -> {
+        assertThat(first.mole()).singleElement().satisfies(item -> {
             assertThat(item.rank()).isEqualTo(1);
             assertThat(item.score()).isEqualTo(9_000);
             assertThat(item.maxCombo()).isEqualTo(12);
         });
-        assertThat(first.jumpmap()).singleElement().satisfies(item -> {
+        assertThat(first.speedMole()).singleElement().satisfies(item -> {
             assertThat(item.rank()).isEqualTo(1);
-            assertThat(item.finishMs()).isEqualTo(8_500);
+            assertThat(item.score()).isEqualTo(85);
+            assertThat(item.misses()).isEqualTo(2);
         });
         assertThat(meters.counter("ontop.ranking.park.refresh", "result", "success").count()).isEqualTo(1);
         verify(balances, times(1)).findTopTen();
-        verify(bungeoppang, times(1)).findTopTen(STARTED_AT);
-        verify(jumpmap, times(1)).findTopTen(STARTED_AT);
+        verify(mole, times(1)).findTopTen(STARTED_AT);
+        verify(speedMole, times(1)).findTopTen(STARTED_AT);
     }
 
     @Test
     void 미니게임_기록이_없어도_빈_목록으로_정상_스냅샷을_공개한다() {
         ParkRankingSnapshotService service = service(STARTED_AT.toString());
         when(balances.findTopTen()).thenReturn(List.of());
-        when(bungeoppang.findTopTen(STARTED_AT)).thenReturn(List.of());
-        when(jumpmap.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(mole.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(speedMole.findTopTen(STARTED_AT)).thenReturn(List.of());
 
         service.refresh();
 
-        assertThat(service.current().bungeoppang()).isEmpty();
-        assertThat(service.current().jumpmap()).isEmpty();
+        assertThat(service.current().mole()).isEmpty();
+        assertThat(service.current().speedMole()).isEmpty();
         assertThat(meters.counter("ontop.ranking.park.refresh", "result", "success").count()).isEqualTo(1);
     }
 
     @Test
     void 관리자_회원은_공개_랭킹에_GM으로_표시한다() {
         ParkRankingSnapshotService service = new ParkRankingSnapshotService(
-                balances, bungeoppang, jumpmap, meters, STARTED_AT.toString(), clock, id -> id == 11);
+                balances, mole, speedMole, meters, STARTED_AT.toString(), clock, id -> id == 11);
         when(balances.findTopTen()).thenReturn(List.of(
                 new BalanceStanding(1, 11, "관리자", 100),
                 new BalanceStanding(2, 12, "일반회원", 90)));
-        when(bungeoppang.findTopTen(STARTED_AT)).thenReturn(List.of());
-        when(jumpmap.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(mole.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(speedMole.findTopTen(STARTED_AT)).thenReturn(List.of());
 
         service.refresh();
 
@@ -104,8 +105,8 @@ class ParkRankingSnapshotServiceTests {
     void 일부_집계가_실패하면_마지막_정상_스냅샷을_유지한다() {
         ParkRankingSnapshotService service = service(STARTED_AT.toString());
         when(balances.findTopTen()).thenReturn(List.of(new BalanceStanding(1, 11, "보유자", 50)));
-        when(bungeoppang.findTopTen(STARTED_AT)).thenReturn(List.of());
-        when(jumpmap.findTopTen(STARTED_AT)).thenReturn(List.of())
+        when(mole.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(speedMole.findTopTen(STARTED_AT)).thenReturn(List.of())
                 .thenThrow(new DataAccessResourceFailureException("test-db-down"));
 
         service.refresh();
@@ -121,9 +122,9 @@ class ParkRankingSnapshotServiceTests {
     void 예상하지_못한_매핑오류도_실패로_기록하고_다음_집계를_계속한다() {
         ParkRankingSnapshotService service = service(STARTED_AT.toString());
         when(balances.findTopTen()).thenReturn(List.of());
-        when(bungeoppang.findTopTen(STARTED_AT)).thenReturn(List.of())
+        when(mole.findTopTen(STARTED_AT)).thenReturn(List.of())
                 .thenThrow(new IllegalStateException("mapping-failed")).thenReturn(List.of());
-        when(jumpmap.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(speedMole.findTopTen(STARTED_AT)).thenReturn(List.of());
 
         service.refresh();
         ParkRankingResponse previous = service.current();
@@ -143,7 +144,7 @@ class ParkRankingSnapshotServiceTests {
         service.refresh();
 
         assertThatThrownBy(service::current).isInstanceOf(RankingException.class);
-        verifyNoInteractions(balances, bungeoppang, jumpmap);
+        verifyNoInteractions(balances, mole, speedMole);
     }
 
     @Test
@@ -156,8 +157,8 @@ class ParkRankingSnapshotServiceTests {
             release.await(3, TimeUnit.SECONDS);
             return List.of();
         });
-        when(bungeoppang.findTopTen(STARTED_AT)).thenReturn(List.of());
-        when(jumpmap.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(mole.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(speedMole.findTopTen(STARTED_AT)).thenReturn(List.of());
         Thread first = new Thread(service::refresh);
 
         first.start();
@@ -183,6 +184,6 @@ class ParkRankingSnapshotServiceTests {
     }
 
     private ParkRankingSnapshotService service(String startedAt) {
-        return new ParkRankingSnapshotService(balances, bungeoppang, jumpmap, meters, startedAt, clock);
+        return new ParkRankingSnapshotService(balances, mole, speedMole, meters, startedAt, clock);
     }
 }

@@ -39,6 +39,7 @@
 | GET | `/api/v1/minigames/whack-a-mole/status` | 없음 | 200 상태 |
 | POST | `/api/v1/minigames/whack-a-mole/rounds` | 없음, `Idempotency-Key` 필수 | 201 출현표 |
 | POST | `/api/v1/minigames/whack-a-mole/rounds/{roundId}/complete` | `{"hits":[{"hole":0,"at":812}]}` | 200 정산 |
+| GET | `/api/v1/minigames/whack-a-mole/rankings?limit=20&offset=0` | 없음 | 200 랭킹 페이지 |
 
 - 시작: 같은 키를 다시 보내면 같은 판을 돌려준다. 새 판을 열면 끝내지 않은 이전 판은 `EXPIRED`로 보상 없이 닫는다.
   출현표 `moles[]`는 `id · hole · kind(NORMAL|GOLD|RAPID|DECOY) · hits · appearAt · leaveAt`(판 시작 기준 ms)다.
@@ -46,10 +47,21 @@
   타격은 최대 1,200개. 이미 정산한 판은 같은 결과를 돌려주고 다시 지급하지 않는다.
 - 정산 응답: `result(id · score · maxCombo · caught · calculatedReward · reward · settledAt) · todayEarned · dailyCap · bestScore`.
   `calculatedReward`는 40점당 1냥 값, `reward`는 하루 상한을 적용해 실제 지급한 값이다.
+- 상태·정산의 `bestScore`는 랭킹과 같은 기준으로 현재 규칙(3)으로 정산한 판의 최고 점수다.
+- 랭킹: 현재 규칙으로 정산한 판 중 회원별 최고 기록 하나를 고른다. 점수 내림차순 → 최대 콤보 내림차순. 두 값이 같으면
+  공동 순위(`1, 1, 3`)이고 먼저 정산한 기록·판 ID 순으로 보인다. 탈퇴 회원과 이전 규칙 기록은 제외한다. `limit`는 1~100(기본 20),
+  `offset`은 0~10,000(기본 0). 참가자 수·목록·`me`는 하나의 읽기 전용 스냅샷에서 읽는다.
+
+```json
+{"rulesVersion":3,"period":"ALL_TIME","updatedAt":"2026-11-10T03:02:00Z","totalParticipants":1,"offset":0,"limit":20,
+ "items":[{"rank":1,"userId":"101","nickname":"테스트 회원","score":1380,"maxCombo":24,"caught":96,"completedAt":"2026-11-10T03:01:33Z"}],
+ "me":{"rank":1,"userId":"101","nickname":"테스트 회원","score":1380,"maxCombo":24,"caught":96,"completedAt":"2026-11-10T03:01:33Z"},
+ "hasMore":false}
+```
 
 | 상태 | 코드 |
 | --- | --- |
-| 400 | `MOLE_INVALID_REQUEST` (키·판 번호·타격 기록 형식) |
+| 400 | `MOLE_INVALID_REQUEST` (키·판 번호·타격 기록 형식·랭킹 페이지 범위) |
 | 401 | `UNAUTHENTICATED` |
 | 404 | `MOLE_ROUND_NOT_FOUND` |
 | 409 | `WALLET_NOT_READY`, `MOLE_ROUND_NOT_FINISHED`, `MOLE_ROUND_EXPIRED` |
@@ -60,8 +72,10 @@
 `db/minigame/V147__create_mole_rounds.sql`이 `mole_rounds`를 만든다. 시드와 `rules_version`으로 출현표를 다시 만들 수 있어
 출현표 자체는 저장하지 않는다. `V149__mole_rules_v2_reward_rate.sql`과 `V150__mole_rules_v3_reward_rate.sql`이 정산 CHECK를 규칙 버전별 비율(1: 30, 2: 45, 3 이후: 40)로 맞춘다.
 같은 회원의 시작·완료는 지갑 비관적 잠금으로 줄을 서고, 지급 원장 키는 `mole:reward:{roundId}`다.
+`V166__add_mole_ranking_index.sql`은 랭킹과 공원 랭킹판 조회를 위한 `ix_mole_bests(rules_version, status, user_id, score, max_combo, settled_at)`를
+추가한다(스피드 두더지 `ix_speed_mole_bests`와 같은 모양). 데이터는 바꾸지 않는다.
 
 ## 범위 밖
 
-별도 게임기 위치(지금은 오락기 고르기 창의 세 번째 게임), 관전, 효과음, 랭킹은 후속 작업이다.
+별도 게임기 위치(지금은 오락기 고르기 창의 세 번째 게임), 관전, 효과음은 후속 작업이다.
 자동 입력 프로그램은 반응 하한·연타 간격 검사로 대부분 거르고, 남는 위험은 하루 500냥 상한이 막는다.

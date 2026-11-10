@@ -2,18 +2,18 @@ import { record } from '../../network/protocol'
 import { RestError } from '../../network/restError'
 
 export interface BalanceRankingEntry { rank: number; userId: string; nickname: string; coinBalance: number; gameMaster: boolean; equipmentValue?: number; totalAssets?: number }
-export interface BungeoppangRankingEntry { rank: number; userId: string; nickname: string; score: number; maxCombo: number; completedAt: string; gameMaster: boolean }
-export interface JumpmapRankingEntry { rank: number; userId: string; nickname: string; finishMs: number; completedAt: string; gameMaster: boolean }
+export interface MoleRankingEntry { rank: number; userId: string; nickname: string; score: number; maxCombo: number; completedAt: string; gameMaster: boolean }
+export interface SpeedMoleRankingEntry { rank: number; userId: string; nickname: string; score: number; misses: number; completedAt: string; gameMaster: boolean }
 export interface ParkRankingSnapshot {
   balance: BalanceRankingEntry[]
-  bungeoppang: BungeoppangRankingEntry[]
-  jumpmap: JumpmapRankingEntry[]
+  mole: MoleRankingEntry[]
+  speedMole: SpeedMoleRankingEntry[]
   updatedAt: string
 }
 
 export interface RankingDisplayRow { rank: number; userId: string; nickname: string; value: string; gameMaster: boolean }
 export interface RankingDisplayColumn {
-  key: 'balance' | 'bungeoppang' | 'jumpmap'
+  key: 'balance' | 'mole' | 'speedMole'
   title: string
   description: string
   rows: RankingDisplayRow[]
@@ -64,19 +64,19 @@ export function parseParkRanking(value: unknown): ParkRankingSnapshot {
     }
     return { ...base, coinBalance: item.coinBalance }
   })
-  const bungeoppang = list(value.bungeoppang, item => {
+  const mole = list(value.mole, item => {
     if (!record(item)) return invalid()
     const base = gameIdentity(item)
     if (!safeWhole(item.score) || !safeWhole(item.maxCombo)) return invalid()
     return { ...base, score: item.score, maxCombo: item.maxCombo }
   })
-  const jumpmap = list(value.jumpmap, item => {
+  const speedMole = list(value.speedMole, item => {
     if (!record(item)) return invalid()
     const base = gameIdentity(item)
-    if (!safeWhole(item.finishMs) || item.finishMs === 0) return invalid()
-    return { ...base, finishMs: item.finishMs }
+    if (!safeWhole(item.score) || !safeWhole(item.misses)) return invalid()
+    return { ...base, score: item.score, misses: item.misses }
   })
-  return { balance, bungeoppang, jumpmap, updatedAt: value.updatedAt }
+  return { balance, mole, speedMole, updatedAt: value.updatedAt }
 }
 
 export async function fetchParkRanking(
@@ -96,20 +96,13 @@ export function rankingColumns(snapshot: ParkRankingSnapshot): RankingDisplayCol
     { key: 'balance', title: '총자산', description: '보유 엽전 + 의상 가치', rows: snapshot.balance.map(item => ({
       rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: `${number.format(item.totalAssets ?? item.coinBalance)}냥`,
     })) },
-    { key: 'bungeoppang', title: '붕어빵 굽기', description: '점수 · 최대 콤보 · 먼저 완료', rows: snapshot.bungeoppang.map(item => ({
+    { key: 'mole', title: '두더지 잡기', description: '점수 · 최대 콤보 · 먼저 달성', rows: snapshot.mole.map(item => ({
       rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: `${number.format(item.score)}점`,
     })) },
-    { key: 'jumpmap', title: '점프맵', description: '최단 기록 · 먼저 완료', rows: snapshot.jumpmap.map(item => ({
-      rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: formatJumpmapFinish(item.finishMs),
+    { key: 'speedMole', title: '스피드 두더지 잡기', description: '점수 · 적은 실수 · 먼저 달성', rows: snapshot.speedMole.map(item => ({
+      rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: `${number.format(item.score)}점`,
     })) },
   ]
-}
-
-export function formatJumpmapFinish(value: number) {
-  const minutes = Math.floor(value / 60_000)
-  const seconds = Math.floor((value % 60_000) / 1_000)
-  const milliseconds = value % 1_000
-  return `${minutes}분 ${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}초`
 }
 
 export function formatRankingUpdatedAt(value: string) {

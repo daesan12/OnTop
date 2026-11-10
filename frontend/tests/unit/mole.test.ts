@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { PREVIEW_RULES, previewSchedule } from '../../src/features/mole/preview'
-import { KEY_CODES, KEYS, parseMoleRound, parseMoleSettlement, parseMoleState, type Hit, type Mole } from '../../src/features/mole/protocol'
+import { KEY_CODES, KEYS, parseMoleRankings, parseMoleRound, parseMoleSettlement, parseMoleState, type Hit, type Mole } from '../../src/features/mole/protocol'
 import { MoleScorer, scoreHits } from '../../src/features/mole/scoring'
 import { MoleService } from '../../src/features/mole/service'
 import { RestError } from '../../src/network/restError'
@@ -117,5 +117,23 @@ describe('whack-a-mole contract', () => {
     const service = new MoleService(vi.fn().mockRejectedValue(new RestError(409, 'MOLE_ROUND_EXPIRED', 'x')),
       { owner: () => 'member-1', storage: () => sessionStorage, newKey: () => 'k' })
     await expect(service.complete('7', [])).rejects.toMatchObject({ retryable: false, message: '시간이 지나 끝난 판이에요. 새로 시작해 주세요.' })
+  })
+
+  it('reads one ranking page and rejects a page it did not ask for', async () => {
+    const item = { rank: 1, userId: '101', nickname: '나', score: 1380, maxCombo: 24, caught: 96, completedAt: '2026-11-04T03:01:33Z' }
+    const page = { rulesVersion: 3, period: 'ALL_TIME', updatedAt: '2026-11-04T03:02:00Z', totalParticipants: 21, offset: 20, limit: 20,
+      items: [{ ...item, rank: 21 }], me: item, hasMore: false }
+    const request = vi.fn().mockResolvedValue(page)
+    const service = new MoleService(request, { owner: () => 'member-1', storage: () => sessionStorage, newKey: () => 'k' })
+
+    const parsed = await service.rankings(20)
+
+    expect(request).toHaveBeenCalledWith('/api/v1/minigames/whack-a-mole/rankings?limit=20&offset=20', undefined)
+    expect(parsed).toMatchObject({ totalParticipants: 21, me: { rank: 1, maxCombo: 24 }, hasMore: false })
+    expect(parsed.items.map(row => row.rank)).toEqual([21])
+    expect(parseMoleRankings({ ...page, me: null }, 20).me).toBeNull()
+    expect(() => parseMoleRankings(page, 0)).toThrow()
+    expect(() => parseMoleRankings({ ...page, items: [{ ...item, nickname: '' }] }, 20)).toThrow()
+    expect(() => parseMoleRankings({ ...page, period: 'WEEK' }, 20)).toThrow()
   })
 })

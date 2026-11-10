@@ -16,7 +16,8 @@ export function RankingBoardDialog({ refresh }: { refresh(): void }) {
   const columns = snapshot ? rankingColumns(snapshot) : []
   return <MenuDialog label="온탑 랭킹" className="ranking-board-dialog" backdropClassName="ranking-board-backdrop" onClose={closeRankingBoard}>
     <header className="ranking-board-dialog__header">
-      <div><h2>온탑 랭킹</h2><p>서버가 열린 순간부터 쌓인 기록을 1분 단위로 집계해요.</p></div>
+      <div><h2>온탑 랭킹</h2><p>서버가 열린 순간부터 쌓인 기록을 1분 단위로 집계해요.</p>
+        <p className="ranking-board-notice">GM은 이벤트 랭킹에 포함되지 않습니다.</p></div>
       <button type="button" data-autofocus className="park-menu-icon-button" aria-label="랭킹 닫기" onClick={closeRankingBoard}>
         <img src={closeIcon} alt="" />
       </button>

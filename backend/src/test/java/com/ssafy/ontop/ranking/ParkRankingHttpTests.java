@@ -7,8 +7,8 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BalanceItem;
-import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BungeoppangItem;
-import com.ssafy.ontop.ranking.dto.ParkRankingResponse.JumpmapItem;
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse.MoleItem;
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse.SpeedMoleItem;
 import com.ssafy.ontop.ranking.exception.RankingException;
 import com.ssafy.ontop.ranking.service.ParkRankingSnapshotService;
 import com.ssafy.ontop.user.domain.LoginProvider;
@@ -63,9 +63,9 @@ class ParkRankingHttpTests {
         Instant updatedAt = Instant.parse("2026-11-02T01:00:00Z");
         when(snapshots.current()).thenReturn(new ParkRankingResponse(
                 List.of(new BalanceItem(1, "11", "보유자", 100)),
-                List.of(new BungeoppangItem(1, "12", "붕어빵왕", 20_000, 14,
+                List.of(new MoleItem(1, "12", "두더지왕", 2_000, 14,
                         updatedAt.minusSeconds(2))),
-                List.of(new JumpmapItem(1, "13", "점프왕", 8_500,
+                List.of(new SpeedMoleItem(1, "13", "스피드왕", 85, 2,
                         updatedAt.minusSeconds(1))), updatedAt));
 
         HttpResponse<String> response = get(jwt.issue(42, TestLoginSessions.ID));
@@ -73,11 +73,14 @@ class ParkRankingHttpTests {
         assertThat(response.statusCode()).isEqualTo(200);
         var body = mapper.readTree(response.body());
         assertThat(body.at("/balance/0/userId").asText()).isEqualTo("11");
-        assertThat(body.at("/bungeoppang/0/rank").asLong()).isEqualTo(1);
-        assertThat(body.at("/bungeoppang/0/score").asLong()).isEqualTo(20_000);
-        assertThat(body.at("/bungeoppang/0/maxCombo").asLong()).isEqualTo(14);
-        assertThat(body.at("/jumpmap/0/rank").asLong()).isEqualTo(1);
-        assertThat(body.at("/jumpmap/0/finishMs").asLong()).isEqualTo(8_500);
+        assertThat(body.at("/mole/0/rank").asLong()).isEqualTo(1);
+        assertThat(body.at("/mole/0/score").asLong()).isEqualTo(2_000);
+        assertThat(body.at("/mole/0/maxCombo").asLong()).isEqualTo(14);
+        assertThat(body.at("/speedMole/0/rank").asLong()).isEqualTo(1);
+        assertThat(body.at("/speedMole/0/score").asLong()).isEqualTo(85);
+        assertThat(body.at("/speedMole/0/misses").asLong()).isEqualTo(2);
+        assertThat(body.has("bungeoppang")).isFalse();
+        assertThat(body.has("jumpmap")).isFalse();
         assertThat(body.has("singleGameProfit")).isFalse();
         assertThat(body.has("wins")).isFalse();
         assertThat(body.path("updatedAt").asText()).isEqualTo(updatedAt.toString());
@@ -96,10 +99,10 @@ class ParkRankingHttpTests {
         assertThat(response.statusCode()).isEqualTo(200);
         var body = mapper.readTree(response.body());
         assertThat(body.path("balance").isArray()).isTrue();
-        assertThat(body.path("bungeoppang").isArray()).isTrue();
-        assertThat(body.path("bungeoppang")).isEmpty();
-        assertThat(body.path("jumpmap").isArray()).isTrue();
-        assertThat(body.path("jumpmap")).isEmpty();
+        assertThat(body.path("mole").isArray()).isTrue();
+        assertThat(body.path("mole")).isEmpty();
+        assertThat(body.path("speedMole").isArray()).isTrue();
+        assertThat(body.path("speedMole")).isEmpty();
     }
 
     @Test

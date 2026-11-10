@@ -49,6 +49,11 @@ export function closeMole() {
   useMole.setState({ open: false, phase: 'idle', round: null, fever: false })
 }
 
+/** 전체 랭킹 한 페이지. 실패 문구는 게임기 오류와 같은 규칙으로 만든다. */
+export async function loadMoleRankings(offset: number) {
+  try { return await port.rankings(offset) } catch (error) { throw new Error(message(error)) }
+}
+
 export async function refreshMole() {
   try { useMole.setState({ state: await port.status() }) } catch (error) { useMole.setState({ error: message(error) }) }
 }

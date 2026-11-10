@@ -128,6 +128,26 @@ class MoleHttpTests {
     }
 
     @Test
+    void 랭킹은_페이지_값을_검사하고_서비스_결과를_저장하지_않는_응답으로_돌려준다() throws Exception {
+        var mine = new MoleDtos.RankingItem(1, "101", "나", 1380, 24, 96, Instant.parse("2026-11-04T03:01:33Z"));
+        when(service.rankings(101, 20, 0)).thenReturn(new MoleDtos.Rankings(3, "ALL_TIME",
+                Instant.parse("2026-11-04T03:02:00Z"), 1, 0, 20, List.of(mine), mine, false));
+
+        var response = http.send(요청("/rankings", 토큰()).GET().build(), HttpResponse.BodyHandlers.ofString());
+        var invalid = http.send(요청("/rankings?limit=abc", 토큰()).GET().build(), HttpResponse.BodyHandlers.ofString());
+        var anonymous = http.send(요청("/rankings", null).GET().build(), HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("\"rulesVersion\":3", "\"totalParticipants\":1", "\"maxCombo\":24",
+                "\"me\":{\"rank\":1");
+        assertThat(response.headers().firstValue("Cache-Control")).hasValue("no-store");
+        assertThat(invalid.statusCode()).isEqualTo(400);
+        assertThat(invalid.body()).contains("MOLE_INVALID_REQUEST");
+        assertThat(anonymous.statusCode()).isEqualTo(401);
+        verify(service).rankings(101, 20, 0);
+    }
+
+    @Test
     void 허용_출처의_완료_사전요청을_지원한다() throws Exception {
         var request = 요청("/rounds/7/complete", null)
                 .header("Access-Control-Request-Method", "POST")

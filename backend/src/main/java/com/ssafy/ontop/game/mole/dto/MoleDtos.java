@@ -1,5 +1,6 @@
 package com.ssafy.ontop.game.mole.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
 
@@ -36,5 +37,16 @@ public final class MoleDtos {
     }
 
     public record Settlement(Result result, long todayEarned, int dailyCap, int bestScore) {
+    }
+
+    /** 현재 규칙으로 정산한 판 중 회원별 최고 기록 하나. */
+    @Schema(name = "MoleRankingItem")
+    public record RankingItem(long rank, String userId, String nickname, int score, int maxCombo, int caught,
+            Instant completedAt) {
+    }
+
+    @Schema(name = "MoleRankings")
+    public record Rankings(int rulesVersion, String period, Instant updatedAt, long totalParticipants, int offset,
+            int limit, List<RankingItem> items, @Schema(nullable = true) RankingItem me, boolean hasMore) {
     }
 }

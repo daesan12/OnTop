@@ -31,6 +31,8 @@ public class MoleService {
 
     private final MoleRepository repository;
     private final TransactionTemplate transactions;
+    /** 참가자 수·목록·내 순위를 한 스냅샷에서 읽는다. */
+    private final TransactionTemplate reads;
     private final Clock clock;
     private final RandomGenerator random;
 
@@ -39,8 +41,25 @@ public class MoleService {
         this.repository = repository;
         this.transactions = new TransactionTemplate(manager);
         this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+        this.reads = new TransactionTemplate(manager);
+        this.reads.setReadOnly(true);
+        this.reads.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
         this.clock = clock;
         this.random = random;
+    }
+
+    /** 현재 규칙의 회원별 최고 기록 전체 랭킹. 스피드 두더지 랭킹과 같은 페이지 방식이다. */
+    public MoleDtos.Rankings rankings(long userId, int limit, int offset) {
+        requireUser(userId);
+        if (limit < 1 || limit > 100 || offset < 0 || offset > 10_000) {
+            throw new MoleException(400, "MOLE_INVALID_REQUEST", "페이지 범위를 확인해 주세요.");
+        }
+        return reads.execute(status -> {
+            long total = repository.participants();
+            return new MoleDtos.Rankings(MoleRules.RULES_VERSION, "ALL_TIME", clock.instant(), total, offset, limit,
+                    repository.ranked(limit, offset), repository.myRanking(userId).orElse(null),
+                    offset + (long) limit < total);
+        });
     }
 
     public MoleDtos.State status(long userId) {
