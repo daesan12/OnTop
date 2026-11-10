@@ -1,5 +1,4 @@
 export const completionResultMs = 2700
-export const completionPreviewEndMs = completionResultMs + 2200
 
 export function completionEase(age: number, from: number, to: number) {
   const t = Math.min(1, Math.max(0, (age - from) / (to - from)))

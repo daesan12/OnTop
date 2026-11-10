@@ -2,7 +2,6 @@ export const finaleTakeoffMs = 480
 export const finaleImpactMs = 1440
 export const finaleFlyOutMs = 1790
 export const finaleResultMs = 2420
-export const finalePreviewEndMs = finaleResultMs + 2200
 
 export function finaleStage(age: number) {
   if (age >= finaleResultMs) return 'result'

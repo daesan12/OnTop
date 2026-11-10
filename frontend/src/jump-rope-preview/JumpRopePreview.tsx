@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { JumpRopeHud } from './JumpRopeHud'
+import { JumpRopeHud, hudFeedbackMs, type HudJudgement } from './JumpRopeHud'
+import { JumpRopeResult } from './JumpRopeResult'
 import { PreviewScene } from './PreviewScene'
 import type { PreviewPass } from './previewMotion'
 import { clearanceWindowMs } from './jumpRopeJudgement'
@@ -9,8 +10,8 @@ import { createSuccessCue, successDurationMs, type PigeonSuccessCue, type Pigeon
 import { defaultRopeAcceleration, ropePeriodMs } from './ropeAcceleration'
 import { distractionDefaults, distractionDurationMs, sampleDistraction, type DistractionCue, type DistractionKind, type DistractionSettings } from './pigeonDistractionMotion'
 import { advanceDistractionSchedule, createDistractionSchedule, type DistractionFrequency } from './pigeonDistractionSchedule'
-import { finalePreviewEndMs, finaleStage } from './gameOverFinale'
-import { completionPreviewEndMs, completionResultMs } from './completionFinale'
+import { finaleStage } from './gameOverFinale'
+import { completionResultMs } from './completionFinale'
 import { GameOverSplash } from './GameOverSplash'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue } from './previewRound'
 import './preview.css'
@@ -119,11 +120,18 @@ const hudSamples: Record<DemoAction, { note?: string; judgement?: PreviewPass['k
   end: { note: '비둘기한테 졌습니다.' },
 }
 
+const hudPresets = {
+  opening: { label: '시작 · 60초', seconds: 60, score: 0, combo: 0, chances: 3 },
+  early: { label: '초반 · 3콤보', seconds: 46, score: 650, combo: 3, chances: 3 },
+  streak: { label: '중반 · 7콤보', seconds: 27, score: 2850, combo: 7, chances: 2 },
+  final: { label: '마감 · 12콤보', seconds: 8, score: 10250, combo: 12, chances: 1 },
+} as const
+type HudPreset = keyof typeof hudPresets | 'live'
+
 function readRoundHud(round: ReturnType<typeof createPreviewRound>) {
   return { seconds: roundSecondsLeft(round), playedMs: Math.floor(round.playedMs / 100) * 100, stats: round.stats, endReason: round.endReason }
 }
 
-const endLabels: Record<RoundEndReason, string> = { time: '시간 종료', missLimit: '3회 실패' }
 const distractionLabels = { flight: '비행', walk: '걷기' }
 const eventLabels = { pending: '예정', running: '진행 중', finished: '완료', skipped: '건너뜀', cancelled: '중단' }
 
@@ -148,6 +156,8 @@ export function JumpRopePreview() {
   const [demo, setDemo] = useState<{ action: DemoAction; startedAt: number } | null>(null)
   const [round] = useState(createPreviewRound)
   const [hud, setHud] = useState(() => readRoundHud(round))
+  const [hudPreset, setHudPreset] = useState<HudPreset>('live')
+  const [hudJudgement, setHudJudgement] = useState<{ kind: HudJudgement; at: number } | null>(null)
   const [ropePaused, setRopePaused] = useState(false)
   const [simulating, setSimulating] = useState(false)
   const [sampleSeconds, setSampleSeconds] = useState(45)
@@ -180,26 +190,24 @@ export function JumpRopePreview() {
   const step = useCallback((wallNow: number, speed?: number) => {
     const finale = finalePreviewRef.current
     if (finale) {
+      if (finale.stage === 'result') return
       const age = wallNow - finale.startedAt
-      const endsAt = finale.reason === 'time' ? completionPreviewEndMs : finalePreviewEndMs
-      if (age >= endsAt) closeFinalePreview(wallNow)
-      else {
-        const stage: FinalePreview['stage'] = finale.reason === 'time'
-          ? age >= completionResultMs ? 'result' : 'acknowledgement'
-          : finaleStage(age)
-        if (stage !== finale.stage) {
-          const next: FinalePreview = { ...finale, stage }
-          finalePreviewRef.current = next
-          setFinalePreview(next)
-        }
+      const stage: FinalePreview['stage'] = finale.reason === 'time'
+        ? age >= completionResultMs ? 'result' : 'acknowledgement'
+        : finaleStage(age)
+      if (stage !== finale.stage) {
+        const next: FinalePreview = { ...finale, stage }
+        finalePreviewRef.current = next
+        setFinalePreview(next)
       }
       return
     }
-    if (simulationRef.current && round.phase.kind === 'initialCountdown') return
     const now = sceneTime(wallNow)
     const controls = controlsRef.current
     const { settings } = controls
     const effectiveSpeed = simulationRef.current ? 0 : (speed ?? (controls.paused ? 0 : settings.ropeSpeed))
+    if (round.phase.kind === 'initialCountdown' &&
+      (simulationRef.current || (controls.paused && effectiveSpeed === 0 && round.phase.endsAt === undefined))) return
     const previous = readRoundHud(round)
     const latest = advancePreviewRound(round, now, effectiveSpeed, settings, settings.reactionMs,
       settings.autoAcceleration ? settings : undefined)
@@ -231,7 +239,7 @@ export function JumpRopePreview() {
     if (!latest) return
     setLastPass(latest)
     setVisiblePass(latest)
-  }, [round, automaticDistraction, distractionSettings, sceneTime, closeFinalePreview])
+  }, [round, automaticDistraction, distractionSettings, sceneTime])
 
   const sampleDistractionFrame = useCallback((now: number) => {
     if (finalePreviewRef.current || round.endReason) return null
@@ -243,12 +251,30 @@ export function JumpRopePreview() {
 
   useEffect(() => {
     if (!visiblePass) return
-    const timeout = window.setTimeout(() => setVisiblePass(null), 750)
+    const timeout = window.setTimeout(() => setVisiblePass(null), hudFeedbackMs)
     return () => window.clearTimeout(timeout)
   }, [visiblePass])
 
   useEffect(() => {
+    if (!hudJudgement) return
+    const timeout = window.setTimeout(() => setHudJudgement(null), hudFeedbackMs)
+    return () => window.clearTimeout(timeout)
+  }, [hudJudgement])
+
+  useEffect(() => {
+    if (demo?.action !== 'miss') return
+    const timeout = window.setTimeout(() => setDemo(null), hudFeedbackMs)
+    return () => window.clearTimeout(timeout)
+  }, [demo])
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.code === 'Escape' && finalePreviewRef.current && !event.defaultPrevented) {
+        event.preventDefault()
+        closeFinalePreview(performance.now())
+        stageRef.current?.focus({ preventScroll: true })
+        return
+      }
       if (event.code !== 'Space' || event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return
       if (event.target instanceof HTMLElement && event.target.closest(
         'button, input:not([type="range"]), textarea, select, a[href], [contenteditable="true"]',
@@ -263,7 +289,7 @@ export function JumpRopePreview() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [round, jumpHeight, jumpDuration, step, sceneTime])
+  }, [round, jumpHeight, jumpDuration, step, sceneTime, closeFinalePreview])
 
   function startDemo(action: DemoAction) {
     const wallNow = performance.now()
@@ -331,6 +357,8 @@ export function JumpRopePreview() {
     setDemo(null)
     setLastPass(null)
     setVisiblePass(null)
+    setHudPreset('live')
+    setHudJudgement(null)
   }
 
   function startDistraction(kind: DistractionKind) {
@@ -344,6 +372,14 @@ export function JumpRopePreview() {
     controlsRef.current.paused = false
     setRopePaused(false)
     resetScene()
+    stageRef.current?.focus({ preventScroll: true })
+  }
+
+  function quitGame() {
+    controlsRef.current.paused = true
+    setRopePaused(true)
+    resetScene()
+    stageRef.current?.focus({ preventScroll: true })
   }
 
   function toggleRope() {
@@ -404,6 +440,11 @@ export function JumpRopePreview() {
   const previewResult = finalePreview?.stage === 'result'
   const resultReason = previewResult ? finalePreview.reason : cue === 'ended' ? hud.endReason : null
   const showSplash = finalePreview?.stage === 'splash' || cue === 'gameOverSplash' || resultReason === 'missLimit'
+  const canSampleHud = !hud.endReason && !finalePreview
+  const sampleHud = canSampleHud && hudPreset !== 'live' ? hudPresets[hudPreset] : null
+  const sampleJudgement = canSampleHud ? hudJudgement : null
+  const liveFeedback = sampleHud ? null : visiblePass
+  const legacyHud = sampleHud ? undefined : demoHud
 
   return (
     <main className="preview">
@@ -425,41 +466,49 @@ export function JumpRopePreview() {
               sampleDistraction={sampleDistractionFrame} round={round} step={step} sceneTime={sceneTime} getFinalePreview={getFinalePreview} />
           </Canvas>
           <JumpRopeHud
-            seconds={hud.seconds}
-            score={hud.stats.score}
-            combo={hud.stats.combo}
-            chances={hud.stats.chances}
-            judgement={visiblePass?.kind ?? demoHud?.judgement}
-            note={visiblePass ? undefined : demoHud?.note}
-            livePass={visiblePass?.number}
+            seconds={sampleHud?.seconds ?? hud.seconds}
+            score={sampleHud?.score ?? hud.stats.score}
+            combo={sampleHud?.combo ?? hud.stats.combo}
+            chances={sampleHud?.chances ?? hud.stats.chances}
+            judgement={sampleJudgement?.kind ?? liveFeedback?.kind ?? legacyHud?.judgement}
+            note={liveFeedback || sampleJudgement ? undefined : legacyHud?.note}
+            feedbackKey={sampleJudgement ? `sample-${sampleJudgement.at}`
+              : liveFeedback ? `live-${liveFeedback.number}` : demo ? `demo-${demo.startedAt}` : undefined}
+            sample={sampleHud !== null || sampleJudgement !== null}
           />
-          {countdown && !simulating && !finalePreview && <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
+          {countdown && !paused && !simulating && !finalePreview && !sampleHud && !sampleJudgement &&
+            <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
           {showSplash && <GameOverSplash />}
           {finalePreview && !previewResult && <button className="finale-preview-close" type="button" onClick={() => closeFinalePreview(performance.now())}>미리보기 닫기</button>}
-          {resultReason && (
-            <section className={resultReason === 'missLimit' ? 'rope-result rope-result--finale' : 'rope-result rope-result--completion'} aria-labelledby="rope-result-title">
-              <h2 id="rope-result-title">{resultReason === 'missLimit' ? '게임 오버' : '비둘기들이 인정한 인간'}</h2>
-              {resultReason === 'missLimit' && <p className="rope-result__subtitle">비둘기한테 당했다...</p>}
-              {resultReason === 'time' && <p className="rope-result__subtitle">60초 완주 성공!</p>}
-              <p>{endLabels[resultReason]}</p>
-              <dl>
-                <div><dt>최종 점수</dt><dd>{hud.stats.score}점</dd></div>
-                <div><dt>PERFECT</dt><dd>{hud.stats.counts.perfect}회</dd></div>
-                <div><dt>GOOD</dt><dd>{hud.stats.counts.good}회</dd></div>
-                <div><dt>MISS</dt><dd>{hud.stats.counts.miss}회</dd></div>
-                <div><dt>최종 PERFECT 콤보</dt><dd>×{hud.stats.combo}</dd></div>
-                <div><dt>최대 PERFECT 콤보</dt><dd>×{hud.stats.maxCombo}</dd></div>
-              </dl>
-              <button type="button" onClick={previewResult ? () => closeFinalePreview(performance.now()) : restartGame}>
-                {previewResult ? '미리보기 닫기' : '다시 시작'}
-              </button>
-            </section>
-          )}
+          {resultReason && <JumpRopeResult reason={resultReason} stats={hud.stats} onQuit={quitGame} onRestart={restartGame} />}
         </section>
         <aside className="preview-panel" aria-label="실시간 조정 패널" inert={finalePreview !== null}>
           <h2>실시간 조정</h2>
           <p className="panel-note" aria-label="현재 게임 상태">현재 상태 · {status}</p>
+          {previewResult && <p className="panel-note">Esc로 결과 시안을 닫을 수 있습니다.</p>}
           <p className="panel-note">Space로 점프합니다. 높이와 체공 시간은 다음 점프부터 적용됩니다.</p>
+          <fieldset disabled={!canSampleHud}>
+            <legend>플레이 HUD 미리보기</legend>
+            <label className="audience-toggle">
+              HUD 표시 데이터
+              <select value={hudPreset} onChange={event => {
+                setHudPreset(event.currentTarget.value as HudPreset)
+                setHudJudgement(null)
+              }}>
+                <option value="live">실제 플레이</option>
+                {Object.entries(hudPresets).map(([key, preset]) => <option key={key} value={key}>{preset.label}</option>)}
+              </select>
+            </label>
+            <p className="panel-note">샘플 값과 판정은 HUD에만 표시됩니다.</p>
+            <div className="demo-actions">
+              {(['perfect', 'good', 'miss'] as const).map(kind => (
+                <button key={kind} type="button" onClick={() => {
+                  setHudJudgement({ kind, at: performance.now() })
+                  stageRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+                }}>{kind.toUpperCase()} 표시</button>
+              ))}
+            </div>
+          </fieldset>
           <fieldset>
             <legend>비둘기 반응 미리보기</legend>
             <p className="panel-note" aria-label="성공 반응 재생 시간">{periodLabel(reactionPeriod)} 기준 · {reactionTimings}</p>
