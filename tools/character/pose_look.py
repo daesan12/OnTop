@@ -28,10 +28,12 @@ ad = arm.animation_data
 sc = bpy.context.scene; sc.render.engine = 'BLENDER_WORKBENCH'; sh = sc.display.shading; sh.light = 'STUDIO'; sh.color_type = 'TEXTURE'
 sh.show_backface_culling = True
 sc.world = bpy.data.worlds.new('w'); sc.world.color = (1, 0, 1)
-sc.render.resolution_x = sc.render.resolution_y = 500
+sc.render.resolution_x = sc.render.resolution_y = int(opt.get('size', 500))   # size=, ortho=, cz=: close-ups (the neck: ortho=0.35 cz=0.6)
 cam = bpy.data.objects.new('c', bpy.data.cameras.new('c')); sc.collection.objects.link(cam); sc.camera = cam
-cam.data.type = 'ORTHO'; cam.data.ortho_scale = 1.15
+cam.data.type = 'ORTHO'; cam.data.ortho_scale = float(opt.get('ortho', 1.15))
 views = {'f': (0.3, -1, 0.1), 'b': (-0.3, 1, 0.1), 's': (1, 0, 0.05)}
+# (views=name:dx,dy,dz;...: other directions, as a game screenshot's)
+if opt.get('views'): views = {k: tuple(map(float, v.split(','))) for k, v in (x.split(':') for x in opt['views'].split(';'))}
 for spec in opt.get('frames', 'walk:4,walk:12,run:4,run:10').split(','):
     act, fr = spec.split(':')
     for t in ad.nla_tracks: t.mute = True
@@ -40,7 +42,7 @@ for spec in opt.get('frames', 'walk:4,walk:12,run:4,run:10').split(','):
     sc.frame_set(int(fr))
     for vn, d in views.items():
         hips = arm.matrix_world @ next(b for b in arm.pose.bones if b.name.endswith('Hips')).head
-        d = Vector(d).normalized(); c = Vector((hips.x, hips.y, 0.5)); cam.location = c + d * 4
+        d = Vector(d).normalized(); c = Vector((hips.x + float(opt.get('cx', 0)), hips.y, float(opt.get('cz', 0.5)))); cam.location = c + d * 4   # (cx=: a sleeve)
         cam.rotation_euler = (-d).to_track_quat('-Z', 'Y').to_euler()
         sc.render.filepath = f'{tag}_{act}{fr}_{vn}.png'; bpy.ops.render.render(write_still=True)
 print('RESULT', tag)

@@ -39,7 +39,11 @@ d = Vector([float(x) for x in opt['view'].split(',')] if opt.get('view') else (-
 dg = bpy.context.evaluated_depsgraph_get()
 jobs = list(items.items())
 if opt.get('together'):
-    jobs.append(('SET', [o for sl in opt['together'].split(',') for o in items.get(sl, [])]))
+    # as the game shows a set: pieces under one of its own items (item__BOTTOM__s__under_..._TOPs) stay hidden; the
+    # purple dopo's trousers showed through its robe as a grey patch (S15P31B105-390)
+    worn = {f'{sl}{SET}' for sl in opt['together'].split(',')}
+    hidden = lambda o: any(t in worn for t in re.findall(r'[A-Z]+[a-z0-9]+', (re.search(r'__under_(\w+?)(?:_\d+)?$', re.sub(r'\.\d+$', '', o.name)) or [None, ''])[1]))
+    jobs.append(('SET', [o for sl in opt['together'].split(',') for o in items.get(sl, []) if not hidden(o)]))
 # (cut_above=dz: in the top's and the set's pictures, what lies over dz above the neck joint is left out: the dopo's
 # top carries the neck's skin, which floated over the collar in its card)
 neck_z = (arm.matrix_world @ next(b for b in arm.pose.bones if b.name.endswith('Neck')).head).z
