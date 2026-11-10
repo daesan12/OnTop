@@ -1,0 +1,2 @@
+import {defineConfig} from '@playwright/test'
+export default defineConfig({testDir:'./tests/e2e',testMatch:'gacha-result.spec.ts',workers:1,timeout:90000,outputDir:'../output/gacha-result-browser',use:{baseURL:'http://127.0.0.1:5284',channel:'msedge',headless:true,viewport:{width:1366,height:650}},webServer:{command:'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5284 --strictPort',url:'http://127.0.0.1:5284',reuseExistingServer:true}})
