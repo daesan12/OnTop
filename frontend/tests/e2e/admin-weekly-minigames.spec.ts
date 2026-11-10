@@ -153,6 +153,45 @@ test('the old week still shows existing game results in the shared menu', async 
   await expect(page.getByText('기존 회차')).toBeVisible()
 })
 
+test('operator can finalize an old game even when its round has not been created', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-16T01:00:00Z') })
+  await fixture(page)
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: {
+    canRead: true, canGrant: false, canOperate: true, canViewContacts: false,
+  } }))
+  await page.route('**/api/v1/admin/events/winners?*', route => route.fulfill({ json: {
+    winners: [], limit: 20, offset: 0, hasMore: false,
+  } }))
+  let finalized = false, confirms = 0
+  await page.route('**/api/v1/admin/events/minigames/jumpmap/rounds/2026-11-02**', route => {
+    if (route.request().method() === 'POST') {
+      confirms++
+      finalized = true
+    } else if (!finalized) {
+      return route.fulfill({ status: 404, json: {
+        code: 'EVENT_ROUND_NOT_FOUND', message: '해당 주차 게임상 회차가 없습니다.',
+      } })
+    }
+    return route.fulfill({ json: { weekStartDate: '2026-11-02',
+      endsAt: '2026-11-09T03:00:00Z', announcesAt: '2026-11-09T00:00:00Z',
+      finalized, candidateCount: 1, excludedGmCount: 0,
+      winner: { userId: 31, nickname: '점프왕', sourceRecordId: '123',
+        sourceValue: 10000, prizeName: '기프티콘' } } })
+  })
+  await page.goto('/admin/events')
+  await page.getByLabel('회차 시작일').fill('2026-11-02')
+  await page.getByRole('button', { name: '미니게임 1위' }).click()
+  await page.getByLabel('미니게임 선택').selectOption('jumpmap')
+  await expect(page.getByText('이 게임의 회차 기록이 없습니다.', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: '결과 확정 준비' })).toBeEnabled()
+  expect(confirms).toBe(0)
+  await page.getByRole('button', { name: '결과 확정 준비' }).click()
+  await expect(page.getByText('검증된 기록이 없으면 공석으로 확정됩니다.', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: '확정 실행' }).click()
+  await expect(page.getByText('점프왕')).toBeVisible()
+  expect(confirms).toBe(1)
+})
+
 test('legacy confirmation recovers a committed result and refreshes winners after a lost response', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-16T01:00:00Z') })
   await fixture(page)

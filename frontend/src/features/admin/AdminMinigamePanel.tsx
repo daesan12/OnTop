@@ -243,16 +243,16 @@ function LegacyMinigame({ week, kind, access, onAuthEnded, onFinalized }: {
         {round.winners.length ? round.winners.map(item => <p key={item.userId}>
           <strong>{item.nickname || `회원 #${item.userId}`}</strong> · {item.prizeName} · {item.evidence}</p>)
           : <p>검증된 기록이 없어 공석입니다.</p>}</div>}
-      {!round.finalized && access.canOperate && <div className="admin-events-action">
-        {!confirming ? <button type="button" disabled={!eligible || busy} onClick={() => setConfirming(true)}>결과 확정 준비</button>
-          : <div role="group" aria-label="기존 회차 확정 확인">
-            <p>기존 {legacyMinigameLabels[kind]} 회차를 확정합니다. 서버에서 후보와 GM 제외를 검증합니다.</p>
-            <button type="button" disabled={busy} onClick={() => void confirm()}>{busy ? '확정 중…' : '확정 실행'}</button>
-            <button type="button" disabled={busy} onClick={() => setConfirming(false)}>취소</button>
-          </div>}
-      </div>}
-      {!round.finalized && !access.canOperate && <p>확정은 운영 권한이 있는 관리자만 할 수 있습니다.</p>}
     </>}
-    {!loading && !round && !error && <p>이 게임의 회차 기록이 없습니다.</p>}
+    {!loading && !round && !error && <p>이 게임의 회차 기록이 없습니다. 결과를 확정하면 서버가 기록을 검증하고 회차를 생성합니다.</p>}
+    {!loading && !error && !round?.finalized && access.canOperate && <div className="admin-events-action">
+      {!confirming ? <button type="button" disabled={!eligible || busy} onClick={() => setConfirming(true)}>결과 확정 준비</button>
+        : <div role="group" aria-label="기존 회차 확정 확인">
+          <p>기존 {legacyMinigameLabels[kind]} 회차를 확정합니다. 서버에서 후보와 GM 제외를 검증하며, 검증된 기록이 없으면 공석으로 확정됩니다.</p>
+          <button type="button" disabled={busy} onClick={() => void confirm()}>{busy ? '확정 중…' : '확정 실행'}</button>
+          <button type="button" disabled={busy} onClick={() => setConfirming(false)}>취소</button>
+        </div>}
+    </div>}
+    {!loading && !error && !round?.finalized && !access.canOperate && <p>확정은 운영 권한이 있는 관리자만 할 수 있습니다.</p>}
   </div>
 }
