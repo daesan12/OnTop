@@ -302,6 +302,31 @@ class TableHubSkewerEntryTests {
         }
     }
 
+    @Test
+    void 종료한_참가자는_복구중에도_결과방을_조회하지만_새입장은_제한한다() throws Exception {
+        peer(101);
+        entranceAt(101);
+        String game = enter(101, "requestKey", "terminal-read").path("gameId").asText();
+        Peer guest = peer(202);
+        enter(202, "gameId", game);
+        engine.leaveWaiting(101, game);
+        var recovery = mock(GameReconnectService.class);
+        when(recovery.canUseLobby(202, guest.id)).thenReturn(false);
+        ReflectionTestUtils.setField(hub, "reconnect", Optional.of(recovery));
+
+        JsonNode result = controller.rooms(
+                new AuthenticatedUser(202, LoginProvider.NAVER, TestLoginSessions.ID), "park").getBody();
+
+        assertThat(result.at("/mine/gameId").asText()).isEqualTo(game);
+        assertThat(result.at("/mine/publicState/phase").asText()).isEqualTo("FINISHED");
+        assertThatThrownBy(() -> enter(202, "requestKey", "new-room"))
+                .hasMessageContaining("진행 중인 게임");
+        engine.leaveWaiting(202, game);
+        assertThatThrownBy(() -> controller.rooms(
+                new AuthenticatedUser(202, LoginProvider.NAVER, TestLoginSessions.ID), "park"))
+                .hasMessageContaining("진행 중인 게임");
+    }
+
     private JsonNode enter(long user, String key, String value) {
         return controller.enter(new AuthenticatedUser(user, LoginProvider.NAVER, TestLoginSessions.ID),
                 mapper.valueToTree(Map.of("channelId", "park", key, value))).getBody();

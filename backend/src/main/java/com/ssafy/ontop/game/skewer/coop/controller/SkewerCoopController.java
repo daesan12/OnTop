@@ -70,7 +70,7 @@ public class SkewerCoopController {
     public ResponseEntity<JsonNode> rooms(@AuthenticationPrincipal AuthenticatedUser user,
             @RequestParam String channelId) {
         long account = account(user);
-        hub.requireSkewerEntry(account, channelId, engine.owns(account, channelId));
+        hub.requireSkewerEntry(account, channelId, engine.canViewRoom(account, channelId));
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(engine.rooms(account, channelId));
     }
 
