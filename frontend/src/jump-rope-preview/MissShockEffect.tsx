@@ -21,11 +21,13 @@ const arcs = [
   [-0.32, 1.42, 0.27, 0.23], [0.36, 1.49, 0.29, 0.55],
 ] as const
 
-export function MissShockEffect({ round, demoRef, scale, children }: {
+export function MissShockEffect({ round, demoRef, scale, children, sceneTime, finalePreviewAt }: {
   round: PreviewRound
   demoRef: RefObject<Demo | null>
   scale: number
   children: (shock: RefObject<MissShockPose>) => ReactNode
+  sceneTime: (now: number) => number
+  finalePreviewAt: () => number | undefined
 }) {
   const shock = useRef(sampleMissShock(Infinity))
   const figure = useRef<Group>(null)
@@ -38,7 +40,9 @@ export function MissShockEffect({ round, demoRef, scale, children }: {
     const demo = demoRef.current
     const previewAt = demo?.action === 'shock' || demo?.action === 'miss' ? demo.startedAt : null
     const startedAt = round.shockStartedAt ?? previewAt
-    const age = startedAt === null ? Infinity : performance.now() - startedAt
+    const now = performance.now()
+    const finaleAt = finalePreviewAt()
+    const age = finaleAt !== undefined ? now - finaleAt : startedAt === null ? Infinity : sceneTime(now) - startedAt
     shock.current = sampleMissShock(age)
     const { intensity, sway, pitch, roll } = shock.current
 

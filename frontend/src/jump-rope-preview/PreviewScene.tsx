@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { PerspectiveCamera, QuadraticBezierCurve3, Vector3, type Group } from 'three'
+import { CatmullRomCurve3, PerspectiveCamera, QuadraticBezierCurve3, Vector3, type Group } from 'three'
 import type { Demo, PreviewSettings, RopeSimulation } from './JumpRopePreview'
 import { PigeonActor, pigeonHeadPivot, type PigeonLook, type PigeonPose, type PigeonRig } from './PigeonActor'
 import { PreviewAvatar } from './PreviewAvatar'
@@ -13,6 +13,7 @@ import { advanceRope } from './jumpRopeJudgement'
 import { ropePeriodMs } from './ropeAcceleration'
 import { PigeonDistraction } from './PigeonDistraction'
 import type { DistractionPose } from './pigeonDistractionMotion'
+import { finaleImpactMs, sampleFinaleFlight } from './gameOverFinale'
 
 const sky = '#e6efeb'
 const successBlendMs = 140
@@ -30,6 +31,13 @@ const audience: { at: number; yaw: number; scale: number; look: PigeonLook; pose
   { at: 0.575, yaw: 0.08, scale: 0.67, look: 'lilac', pose: { head: [0.27, -0.16, 0.13], eyelids: [0.55, 0.43], gaze: [-0.23, -0.55] } },
   { at: 0.79, yaw: -0.13, scale: 0.74, look: 'sage', pose: { head: [0.06, -0.39, -0.16], eyelids: [0.48, 0.7], gaze: [-0.65, 0.02] } },
 ]
+const finalePigeon = 2
+const dropFlightMs = 200
+const dropReleasePath = sampleFinaleFlight(finaleImpactMs - dropFlightMs)!.path
+const perches = audience.map(({ at, scale }) => {
+  const point = utilityWire.getPoint(at)
+  return point.set(point.x, point.y + wireRadius, point.z - 0.025 * scale)
+})
 
 function PreviewCamera({ angle, distance, height, fov }: {
   angle: number
@@ -115,7 +123,9 @@ function UtilityPole({ attachment }: { attachment: Vector3 }) {
   )
 }
 
-function ParkUtilityLine({ showAudience, rigs }: { showAudience: boolean; rigs: (PigeonRig | null)[] }) {
+function ParkUtilityLine({ showAudience, rigs, birds }: {
+  showAudience: boolean; rigs: (PigeonRig | null)[]; birds: (Group | null)[]
+}) {
   return (
     <group name="park-utility-line">
       <UtilityPole attachment={utilityWire.v0} />
@@ -124,16 +134,12 @@ function ParkUtilityLine({ showAudience, rigs }: { showAudience: boolean; rigs: 
         <tubeGeometry args={[utilityWire, 40, wireRadius, 6, false]} />
         <meshBasicMaterial color="#555954" />
       </mesh>
-      <group visible={showAudience}>
-        {audience.map(({ at, yaw, scale, look, pose }, index) => {
-          const perch = utilityWire.getPoint(at)
-          return (
-            <group key={at} position={[perch.x, perch.y + wireRadius, perch.z - 0.025 * scale]} rotation-y={yaw} scale={scale}>
-              <PigeonActor look={look} pose={pose} rigRef={rig => { rigs[index] = rig }} />
-            </group>
-          )
-        })}
-      </group>
+      {audience.map(({ at, yaw, scale, look, pose }, index) => (
+        <group key={at} ref={bird => { birds[index] = bird }} visible={showAudience}
+          position={perches[index]!} rotation-y={yaw} scale={scale}>
+          <PigeonActor look={look} pose={pose} rigRef={rig => { rigs[index] = rig }} />
+        </group>
+      ))}
     </group>
   )
 }
@@ -226,7 +232,7 @@ function applyPigeonReaction(rig: PigeonRig, base: PigeonPose, pose: SuccessPose
   rig.setLidLift(pose.lidLift + laugh.lidLift)
 }
 
-export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef, sampleDistraction, round, step }: {
+export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef, sampleDistraction, round, step, sceneTime, finalePreviewAt }: {
   settings: PreviewSettings
   demoRef: RefObject<Demo | null>
   successDemoRef: RefObject<PigeonSuccessCue | null>
@@ -234,12 +240,21 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
   sampleDistraction: (now: number) => DistractionPose | null
   round: PreviewRound
   step: (now: number) => void
+  sceneTime: (now: number) => number
+  finalePreviewAt: () => number | undefined
 }) {
   const leftGrip = useRef<Group>(null)
   const rightGrip = useRef<Group>(null)
   const holderLeft = useRef<PigeonRig>(null)
   const holderRight = useRef<PigeonRig>(null)
   const audienceRigs = useRef<(PigeonRig | null)[]>([])
+  const audienceGroups = useRef<(Group | null)[]>([])
+  const flightPath = useMemo(() => new CatmullRomCurve3([
+    perches[finalePigeon]!, new Vector3(), new Vector3(), new Vector3(),
+  ]), [])
+  const heading = useMemo(() => new Vector3(), [])
+  const drop = useRef<Group>(null)
+  const dropTarget = useMemo(() => new Vector3(), [])
   const successFrame = useRef<{ cue: PigeonSuccessCue | null; from: SuccessPose[]; poses: SuccessPose[] }>({ cue: null, from: [], poses: [] })
   const { geometry, update, left, right, center } = useMemo(() => ({
     ...createGameRopeGeometry(),
@@ -247,10 +262,15 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
   }), [])
   useEffect(() => () => geometry.dispose(), [geometry])
 
-  useFrame(() => {
-    const now = performance.now()
-    step(now)
+  useFrame(({ camera }) => {
+    const wallNow = performance.now()
+    step(wallNow)
+    const now = sceneTime(wallNow)
     const { motion, phase } = round
+    const previewAt = finalePreviewAt()
+    const finaleAge = previewAt !== undefined ? wallNow - previewAt
+      : phase.kind === 'gameOver' ? now - phase.startedAt
+        : round.endReason === 'missLimit' ? Infinity : null
     const simulation = simulationRef.current
     if (simulation) {
       const clock = settings.autoAcceleration ? { profile: settings, playedMs: simulation.sampleSeconds * 1000 } : undefined
@@ -262,14 +282,14 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
     const demo = demoRef.current
     const elapsedMs = demo ? now - demo.startedAt : Infinity
     const laughDemo = demo?.action === 'laugh' || demo?.action === 'miss' ? demo : null
-    const laughElapsed = phase.kind === 'reaction' ? now - phase.startedAt
+    const laughElapsed = finaleAge !== null ? Infinity : phase.kind === 'reaction' ? now - phase.startedAt
       : laughDemo ? elapsedMs : Infinity
     const laughDuration = phase.kind === 'reaction' ? phase.durationMs : laughDemo?.durationMs ?? 0
 
     const live = round.successCue
     const preview = successDemoRef.current
     const candidate = preview && (!live || preview.startedAt >= live.startedAt) ? preview : live
-    const canReact = (phase.kind === 'playing' || phase.kind === 'initialCountdown') && laughElapsed >= laughDuration
+    const canReact = finaleAge === null && (phase.kind === 'playing' || phase.kind === 'initialCountdown') && laughElapsed >= laughDuration
     const success = canReact && candidate && (!laughDemo || candidate.startedAt > laughDemo.startedAt)
       && isSuccessActive(candidate, now) ? candidate : null
     const frame = successFrame.current
@@ -288,11 +308,51 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       return pose
     }
 
-    audience.forEach(({ pose }, index) => {
+    if (drop.current) drop.current.visible = false
+    audience.forEach(({ pose, yaw }, index) => {
       const rig = audienceRigs.current[index]
-      if (!rig) return
+      const bird = audienceGroups.current[index]
+      if (!rig || !bird) return
+      const attacking = index === finalePigeon && finaleAge !== null
+      const flight = attacking ? sampleFinaleFlight(finaleAge) : null
+      bird.visible = attacking ? flight !== null : settings.audience
+      bird.position.copy(perches[index]!)
+      bird.rotation.set(0, yaw, 0)
+      rig.leftWing.rotation.set(0, 0, 0)
+      rig.rightWing.rotation.set(0, 0, 0)
+      for (const { foot } of rig.legs) foot.rotation.x = 0
       rig.head.rotation.set(...(pose.head ?? [0, 0, 0]))
       applyPigeonReaction(rig, pose, successPose('audience', index), samplePigeonLaugh('audience', index, laughElapsed, laughDuration, settings.laughTilt))
+      if (!flight) return
+      const lean = flight.lean * flight.lean * (3 - 2 * flight.lean)
+      rig.head.rotation.x += 0.47 * lean - 0.53 * flight.wing
+      rig.head.rotation.y -= 0.22 * lean
+      if (flight.path === 0) return
+
+      flightPath.points[1]!.set(settings.avatarX + 0.18, Math.max(2.5, 2.85 * settings.avatarScale), settings.avatarZ + 0.12)
+      flightPath.points[2]!.set(0.12, -0.09, -2.04).applyMatrix4(camera.matrixWorld)
+      flightPath.points[3]!.set(3.6, 0.72, -1.4).applyMatrix4(camera.matrixWorld)
+      flightPath.getPoint(flight.path, bird.position)
+      flightPath.getTangent(flight.path, heading)
+      const turn = Math.atan2(heading.x, heading.z) - yaw
+      bird.rotation.set(-0.2 * heading.y * flight.wing, yaw + Math.atan2(Math.sin(turn), Math.cos(turn)) * flight.wing,
+        (0.07 * flight.beat - 0.36 * Math.max(0, (flight.path - 0.48) / 0.52)) * flight.wing)
+      const spread = (1.42 + 0.14 * flight.beat) * flight.wing
+      const flap = (0.12 + 0.93 * flight.beat) * flight.wing
+      rig.leftWing.rotation.set(-0.12 * flight.wing, spread, flap, 'ZXY')
+      rig.rightWing.rotation.set(-0.12 * flight.wing, -spread, -flap, 'ZXY')
+      rig.head.rotation.x -= 0.08 * flight.beat * flight.wing
+      for (const { foot } of rig.legs) foot.rotation.x = 0.43 * flight.wing
+
+      if (drop.current && finaleAge !== null && finaleAge >= finaleImpactMs - dropFlightMs && finaleAge < finaleImpactMs) {
+        const progress = 1 - (finaleImpactMs - finaleAge) / dropFlightMs
+        flightPath.getPoint(dropReleasePath, drop.current.position)
+        drop.current.position.y += 0.13
+        dropTarget.set(0, -0.05, -0.35).applyMatrix4(camera.matrixWorld)
+        drop.current.position.lerp(dropTarget, progress * progress)
+        drop.current.rotation.set(progress * 4, progress * 3, progress * 6)
+        drop.current.visible = true
+      }
     })
 
     const gripL = leftGrip.current, gripR = rightGrip.current
@@ -324,11 +384,21 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       <hemisphereLight args={['#fff5e4', '#788f87', 1.95]} />
       <directionalLight position={[2.5, 6, 4]} intensity={2.25} />
       <ParkCourt />
-      <ParkUtilityLine showAudience={settings.audience} rigs={audienceRigs.current} />
+      <ParkUtilityLine showAudience={settings.audience} rigs={audienceRigs.current} birds={audienceGroups.current} />
+      <group ref={drop} visible={false}>
+        <mesh scale={[0.075, 0.055, 0.09]}>
+          <icosahedronGeometry args={[1, 0]} />
+          <meshStandardMaterial color="#795338" flatShading />
+        </mesh>
+        <mesh position={[0.025, 0.025, -0.023]} scale={[0.038, 0.037, 0.045]}>
+          <icosahedronGeometry args={[1, 0]} />
+          <meshStandardMaterial color="#a17a53" flatShading />
+        </mesh>
+      </group>
 
       <GroundShadow x={settings.avatarX} z={settings.avatarZ} width={0.95 * settings.avatarScale} depth={0.62 * settings.avatarScale} />
       <group position={[settings.avatarX, 0, settings.avatarZ]}>
-        <MissShockEffect round={round} demoRef={demoRef} scale={settings.avatarScale}>
+        <MissShockEffect round={round} demoRef={demoRef} scale={settings.avatarScale} sceneTime={sceneTime} finalePreviewAt={finalePreviewAt}>
           {shock => <Suspense fallback={null}><PreviewAvatar motion={round.motion} scale={settings.avatarScale} shock={shock} /></Suspense>}
         </MissShockEffect>
       </group>

@@ -3,6 +3,7 @@ import { applyPass, createRoundStats, roundDurationMs, type RoundEndReason, type
 import { advancePreviewMotion, createPreviewMotion, requestJump } from './previewMotion'
 import { createSuccessCue, successKind, type PigeonSuccessCue } from './pigeonSuccess'
 import { ropeTempo, type RopeAcceleration } from './ropeAcceleration'
+import { finaleStage } from './gameOverFinale'
 
 const countdownMs = 3000
 const goMs = 550
@@ -13,6 +14,7 @@ type Phase =
   | { kind: 'landing'; stoppedAt: number; reactionMs: number }
   | { kind: 'reaction'; stoppedAt: number; startedAt: number; durationMs: number }
   | { kind: 'resumePending'; stoppedAt: number }
+  | { kind: 'gameOver'; stoppedAt: number; startedAt: number }
   | { kind: 'ended'; restWeight: number }
 
 type PlayingPhase = { kind: 'playing'; goAt?: number; resumedAfterPass?: number }
@@ -26,7 +28,7 @@ export type PreviewRound = {
   successCue: PigeonSuccessCue | null
   shockStartedAt: number | null
 }
-export type RoundCue = 'playing' | 'landing' | 'reaction' | 'resumePending' | 'ended' | '3' | '2' | '1' | 'GO!'
+export type RoundCue = 'playing' | 'landing' | 'reaction' | 'resumePending' | 'gameOver' | 'gameOverSplash' | 'ended' | '3' | '2' | '1' | 'GO!'
 
 export function createPreviewRound(): PreviewRound {
   return {
@@ -99,21 +101,25 @@ export function advancePreviewRound(
     }
   } else if (playing && miss) {
     round.shockStartedAt = now
-    if (round.stats.chances === 0) round.endReason = 'missLimit'
-    round.phase = motion.frame.phase === 'ready'
-      ? { kind: 'reaction', stoppedAt: miss.at, startedAt: now, durationMs: reactionMs }
-      : { kind: 'landing', stoppedAt: miss.at, reactionMs }
+    if (round.stats.chances === 0) {
+      round.endReason = 'missLimit'
+      round.phase = { kind: 'gameOver', stoppedAt: miss.at, startedAt: now }
+    } else {
+      round.phase = motion.frame.phase === 'ready'
+        ? { kind: 'reaction', stoppedAt: miss.at, startedAt: now, durationMs: reactionMs }
+        : { kind: 'landing', stoppedAt: miss.at, reactionMs }
+    }
   } else if (expires) {
     round.shockStartedAt = null
     round.endReason = 'time'
     round.phase = { kind: 'ended', restWeight: ropeRestWeight(round, now) }
   } else if (phase.kind === 'landing' && motion.frame.phase === 'ready') {
     round.phase = { kind: 'reaction', stoppedAt: phase.stoppedAt, startedAt: now, durationMs: phase.reactionMs }
+  } else if (phase.kind === 'gameOver' && finaleStage(now - phase.startedAt) === 'result') {
+    round.shockStartedAt = null
+    round.phase = { kind: 'ended', restWeight: 1 }
   } else if (phase.kind === 'resumePending' || (phase.kind === 'reaction' && now - phase.startedAt >= phase.durationMs)) {
-    if (round.endReason === 'missLimit') {
-      round.shockStartedAt = null
-      round.phase = { kind: 'ended', restWeight: 1 }
-    } else if (ropeSpeed > 0) {
+    if (ropeSpeed > 0) {
       beginPlaying(round, { kind: 'playing', resumedAfterPass: motion.passCount }, now, ropeSpeed, settings)
     } else if (phase.kind === 'reaction') {
       round.phase = { kind: 'resumePending', stoppedAt: phase.stoppedAt }
@@ -138,6 +144,7 @@ export function roundCue(round: PreviewRound, now: number): RoundCue {
     return left > 2000 ? '3' : left > 1000 ? '2' : '1'
   }
   if (phase.kind === 'playing' && phase.goAt !== undefined && now - phase.goAt < goMs) return 'GO!'
+  if (phase.kind === 'gameOver' && finaleStage(now - phase.startedAt) === 'splash') return 'gameOverSplash'
   return phase.kind
 }
 

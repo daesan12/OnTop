@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyPass, createRoundStats } from '../../src/jump-rope-preview/jumpRopeRules'
+import { finaleImpactMs, finaleResultMs } from '../../src/jump-rope-preview/gameOverFinale'
 import {
   advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, ropeRestWeight,
 } from '../../src/jump-rope-preview/previewRound'
@@ -59,7 +60,7 @@ describe('jump rope game', () => {
     expect(round.playedMs).toBe(1050)
   })
 
-  it('resumes twice, locks the third MISS immediately, shows the result after the reaction, and resets', () => {
+  it('resumes twice, locks the third MISS immediately, shows the result after the finale, and resets', () => {
     const { round, step, jump } = createGame()
     step(3000)
     step(3730)
@@ -70,12 +71,18 @@ describe('jump rope game', () => {
     for (const [at, chances] of [[5000, 2], [7350, 1], [9700, 0]] as const) {
       expect(step(at)).toMatchObject({ kind: 'miss' })
       expect(round.stats).toMatchObject({ chances, combo: 0, maxCombo: 1 })
-      expect(round.phase.kind).toBe('reaction')
+      expect(round.phase.kind).toBe(chances > 0 ? 'reaction' : 'gameOver')
       expect(jump(at + 100)).toBe(false)
       expect(round.endReason).toBe(chances > 0 ? null : 'missLimit')
-      expect(step(at + reactionMs - 1)).toBeUndefined()
-      expect(round.phase.kind).toBe('reaction')
-      step(at + reactionMs)
+      const duration = chances > 0 ? reactionMs : finaleResultMs
+      if (chances === 0) {
+        expect(round.shockStartedAt).toBe(at)
+        expect(step(at + finaleImpactMs)).toBeUndefined()
+        expect(roundCue(round, at + finaleImpactMs)).toBe('gameOverSplash')
+      }
+      expect(step(at + duration - 1)).toBeUndefined()
+      expect(round.phase.kind).toBe(chances > 0 ? 'reaction' : 'gameOver')
+      step(at + duration)
       expect(round.phase.kind).toBe(chances > 0 ? 'playing' : 'ended')
     }
 
@@ -133,8 +140,8 @@ describe('jump rope game', () => {
     expect(step(69700, 0.2)).toMatchObject({ at: 62700, kind: 'miss' })
     expect(round.endReason).toBe('missLimit')
     expect(round.playedMs).toBe(57000)
-    expect(round.phase.kind).toBe('reaction')
-    step(71050, 0.2)
+    expect(round.phase.kind).toBe('gameOver')
+    step(69700 + finaleResultMs + 500, 0.2)
     expect(round.phase.kind).toBe('ended')
   })
 
