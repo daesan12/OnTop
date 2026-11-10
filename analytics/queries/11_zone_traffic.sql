@@ -15,6 +15,10 @@
 --         공사 중 시설(카페·사격장·비둘기·민속놀이·운세·낚시·선착장·열기구·킥보드)도 사람들이 들르는지 보려고 구역으로 둔다.
 --         10단계 점프 코스는 언덕(+22m)과 호수 위를 가로질러 높이로 가를 수 없다. 그래서 그 회원의 점프맵 도전
 --         (jump_runs 시작~종료, 진행 중이면 시작 후 30분) 동안의 표본은 위치와 상관없이 jump-course로 센다.
+--         서버는 연결이 끊기면 15초 유예 뒤, 아무 일 없이 30분이 지나면(JumpRun.TIMEOUT_MS) 판을 끝내고,
+--         재시작할 때 열린 판을 모두 닫는다. 그래서 백업에 남은 진행 중(STARTED) 판은 백업 시각에 실제로 하던 판이다.
+--         표본마다 도전 판을 훑으면 표본 수 × 판 수만큼 느려지므로, 표본과 도전 시작(+1)·끝(-1)을 회원별 시간순으로
+--         한 번 정렬해 누적 합이 0보다 큰 표본을 도전 중으로 본다. 같은 시각이면 시작 → 표본 → 끝 순서라 경계 표본도 포함한다.
 -- 반경·크기는 분석용으로 정한 값이다. 구역 목록만 고치면 과거 좌표도 다시 집계된다.
 -- 겹치는 곳은 priority가 작은 구역을 먼저 쓴다. ELLIPSE는 반지름 a(x)·b(z), RECT는 반폭 a(x)·반깊이 b(z)다.
 -- min_y가 있으면 그 높이 이상인 표본만 해당한다.
@@ -129,18 +133,27 @@ zones (layout, zone_id, shape, cx, cz, a, b, min_y, priority) AS (
         ROW('renewal', 'reserve-west', 'ELLIPSE', -93.0, -4.0, 11.0, 11.0, NULL, 5),
         ROW('renewal', 'lake', 'ELLIPSE', 62.0, -18.0, 29.0, 36.0, NULL, 6)
 ),
+timeline AS (
+    SELECT p.id, p.user_id, p.sampled_at AS at, 1 AS ord, 0 AS delta, p.x, p.y, p.z, p.moving, p.map_version
+    FROM world_position_samples p
+    UNION ALL
+    SELECT NULL, r.user_id, r.started_at, 0, 1, NULL, NULL, NULL, NULL, NULL
+    FROM jump_runs r
+    UNION ALL
+    SELECT NULL, r.user_id, COALESCE(r.ended_at, r.started_at + INTERVAL 30 MINUTE), 2, -1, NULL, NULL, NULL, NULL, NULL
+    FROM jump_runs r
+),
+flagged AS (
+    SELECT id, user_id, x, y, z, moving, map_version,
+           SUM(delta) OVER (PARTITION BY user_id ORDER BY at, ord ROWS UNBOUNDED PRECEDING) > 0 AS jumping
+    FROM timeline
+),
 assigned AS (
     SELECT COALESCE(l.layout, 'unmapped') AS layout,
            p.user_id,
            p.moving,
            CASE WHEN l.layout IS NULL THEN 'unmapped'
-                WHEN l.layout = 'renewal' AND EXISTS (
-                    SELECT 1
-                    FROM jump_runs r
-                    WHERE r.user_id = p.user_id
-                      AND p.sampled_at >= r.started_at
-                      AND p.sampled_at <= COALESCE(r.ended_at, r.started_at + INTERVAL 30 MINUTE)
-                ) THEN 'jump-course'
+                WHEN l.layout = 'renewal' AND p.jumping THEN 'jump-course'
                 ELSE COALESCE((
                SELECT zn.zone_id
                FROM zones zn
@@ -151,8 +164,9 @@ assigned AS (
                ORDER BY zn.priority, zn.zone_id
                LIMIT 1
            ), 'path') END AS zone_id
-    FROM world_position_samples p
+    FROM flagged p
     LEFT JOIN layouts l ON l.map_version = p.map_version
+    WHERE p.id IS NOT NULL
 )
 SELECT layout,
        zone_id,
