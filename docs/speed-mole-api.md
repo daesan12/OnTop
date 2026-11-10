@@ -15,7 +15,7 @@
 
 ## 공통
 
-Bearer 인증과 기존 허용 Origin 정책을 따른다. 응답은 `Cache-Control: no-store`다. 기존 회원 지갑이 필요하며 관리자 권한은 필요 없다. `ontop.minigames.enabled=true`와 DB 프로필, 신규 테이블이 필요하다. 프론트 게임 목록은 개발 호스트 `dev.on-top.world`와 로컬 Vite에서만 노출한다. 운영 목록은 그대로다.
+Bearer 인증과 기존 허용 Origin 정책을 따른다. 응답은 `Cache-Control: no-store`다. 기존 회원 지갑이 필요하며 관리자 권한은 필요 없다. `ontop.minigames.enabled=true`와 DB 프로필, V151 테이블이 필요하다. 프론트는 다른 오락기 게임처럼 개발·운영 공원의 게임 목록에서 노출하며 호스트명·Vite 개발 모드로 진입을 제한하지 않는다. 백엔드는 기존 `prod,db` 또는 `production,db` 프로필과 `MINIGAMES_ENABLED=true`를 사용한다. 목록 노출만으로 서버 미활성·DB 미적용을 우회하지 않으며 시작·완료·보상·랭킹은 기존 인증된 서버 API로 처리한다.
 
 ## 시작
 
