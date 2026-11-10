@@ -59,11 +59,10 @@ public class JdbcJumpmapStore implements JumpmapStore {
     }
 
     private static JumpCourse configuredCourse(com.ssafy.ontop.world.config.JumpmapProperties properties) {
-        try { return properties.loadCourse(); }
-        catch (java.io.IOException | IllegalArgumentException exception) {
-            org.slf4j.LoggerFactory.getLogger(JdbcJumpmapStore.class).warn("코스 설정 오류: 활성화 검증에서 점프맵을 차단합니다", exception);
-            try { return JumpCourse.loadDefault(); }
-            catch (java.io.IOException fallback) { throw new IllegalStateException("기본 코스 리소스 오류", fallback); }
+        try {
+            return properties.loadCourse();
+        } catch (java.io.IOException | IllegalArgumentException exception) {
+            throw new IllegalStateException("설정한 점프맵 코스를 읽을 수 없어 저장소를 시작하지 않습니다.", exception);
         }
     }
 
@@ -102,8 +101,18 @@ public class JdbcJumpmapStore implements JumpmapStore {
             LocalDate today = JumpmapStore.kstDate(at);
             var stored = jdbc.queryForMap("SELECT user_id, channel_id, rules_version, course_version, is_first_run FROM jump_runs WHERE id=? FOR UPDATE",runId);
             if (((Number)stored.get("user_id")).longValue()!=userId || !channelId.equals(stored.get("channel_id")) || !course.rulesVersion().equals(stored.get("rules_version")) || !course.courseVersion().equals(stored.get("course_version"))) throw new IllegalStateException("다른 판의 시작 키입니다.");
-            return new Started(Boolean.TRUE.equals(stored.get("is_first_run")), earned(userId, today, false), today);
+            return new Started(firstRun(stored.get("is_first_run")), earned(userId, today, false), today);
         });
+    }
+
+    private static boolean firstRun(Object value) {
+        if (value instanceof Boolean flag) {
+            return flag;
+        }
+        if (value instanceof Number flag && (flag.doubleValue() == 0 || flag.doubleValue() == 1)) {
+            return flag.doubleValue() == 1;
+        }
+        throw new IllegalStateException("저장된 첫 도전 플래그가 Boolean 또는 숫자 0/1이 아닙니다.");
     }
 
     @Override

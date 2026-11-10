@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.*;
 })
 class RenewalJumpmapMySqlTests {
     @Autowired JdbcTemplate jdbc;
+    @Autowired jakarta.persistence.EntityManager entities;
     @Autowired JumpmapStore store;
     @Autowired JumpmapService service;
     @Autowired JumpmapActivation activation;
@@ -71,6 +72,34 @@ class RenewalJumpmapMySqlTests {
                 .header("Authorization","Bearer "+access);
         if(post) request.POST(HttpRequest.BodyPublishers.noBody());
         return http.send(request.build(),HttpResponse.BodyHandlers.ofString());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void MySQL_드라이버의_불리언_매핑과_무관하게_첫_판과_재시도를_보존한다(boolean tinyInt1isBit) {
+        String original = System.getenv("TEST_JUMPMAP_DB_URL");
+        String url = original + (original.contains("?") ? "&" : "?") + "tinyInt1isBit=" + tinyInt1isBit;
+        var source = new org.springframework.jdbc.datasource.DriverManagerDataSource(url,
+                System.getenv("TEST_JUMPMAP_DB_USERNAME"), System.getenv("TEST_JUMPMAP_DB_PASSWORD"));
+        var mappedJdbc = new JdbcTemplate(source);
+        var generated = java.nio.file.Path.of("../frontend/generated/park-renewal");
+        var mappedStore = new JdbcJumpmapStore(mappedJdbc, entities,
+                new org.springframework.jdbc.datasource.DataSourceTransactionManager(source),
+                new com.ssafy.ontop.world.config.JumpmapProperties(true,
+                        generated.resolve("course.local.json").toString(),
+                        generated.resolve("course.local.sha256").toString()));
+
+        Instant startedAt = Instant.parse("2026-11-10T03:00:00Z");
+        var first = mappedStore.start("driver-first", 101, "channel-1", startedAt);
+        var stored = mappedJdbc.queryForMap("SELECT is_first_run FROM jump_runs WHERE id='driver-first'")
+                .get("is_first_run");
+        var retry = mappedStore.start("driver-first", 101, "channel-1", startedAt.plusSeconds(1));
+        var second = mappedStore.start("driver-second", 101, "channel-1", startedAt.plusSeconds(2));
+
+        assertThat(stored).isInstanceOf(tinyInt1isBit ? Boolean.class : Number.class);
+        assertThat(first.firstRun()).isTrue();
+        assertThat(retry.firstRun()).isTrue();
+        assertThat(second.firstRun()).isFalse();
     }
 
     @Test
