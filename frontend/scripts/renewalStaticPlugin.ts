@@ -1,6 +1,5 @@
-import {createServer,normalizePath,type Plugin,type ResolvedConfig} from 'vite'
-import {gzipSync} from 'node:zlib'
-import {parkBindingsPlugin} from './parkBindingsPlugin.ts'
+import {normalizePath,type Plugin,type ResolvedConfig} from 'vite'
+import {bakeRenewalStatic} from './renewalStaticBuild.ts'
 
 /** Fresh SSR module graph = current source, never a checked-in/cross-build cache.
  * The original builders remain the single source for preview and BE exporters. */
@@ -12,19 +11,9 @@ export function renewalStaticPlugin():Plugin {
     async buildStart(){
       reference=undefined
       if(config.command!=='build'||config.build.ssr||process.env.PARK_STATIC_PREBUILD==='0')return
-      const server=await createServer({root:config.root,configFile:false,mode:config.mode,
-        plugins:[parkBindingsPlugin()],server:{middlewareMode:true},
-        optimizeDeps:{noDiscovery:true,entries:[]},appType:'custom',logLevel:'error'})
-      try {
-        const {snapshot}=await server.ssrLoadModule('/src/park-renewal/static/snapshot.ts')
-        const {encodeStaticPark,decodeStaticPark}=await server.ssrLoadModule('/src/park-renewal/static/codec.ts')
-        const encoded:Uint8Array=encodeStaticPark(snapshot)
-        // Catch incompatible codec/schema changes during the build, before ship.
-        decodeStaticPark(encoded.buffer.slice(encoded.byteOffset,encoded.byteOffset+encoded.byteLength))
-        const compressed=gzipSync(encoded,{level:9})
-        reference=this.emitFile({type:'asset',name:'renewal-static.bin.gz',source:compressed})
-        this.info(`Prebuilt terrain/height/guards: ${encoded.byteLength} -> ${compressed.byteLength} bytes`)
-      }finally{await server.close()}
+      const {compressed,rawBytes,peakRssBytes}=await bakeRenewalStatic(config.root,config.mode)
+      reference=this.emitFile({type:'asset',name:'renewal-static.bin.gz',source:compressed})
+      this.info(`Prebuilt terrain/height/guards: ${rawBytes} -> ${compressed.byteLength} bytes; worker peak RSS ${Math.round(peakRssBytes/1024/1024)} MiB (exited)`)
     },
     transform(_code,id){
       if(!reference||id.includes('?'))return
