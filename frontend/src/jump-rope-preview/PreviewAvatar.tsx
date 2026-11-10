@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import { Euler, Matrix4, Quaternion, Vector3, type Group } from 'three'
 import { ParkAssetLoader } from '../world/art/assetLoader'
@@ -7,6 +7,8 @@ import { createClipPose } from '../world/art/characterClips'
 import { defaultLook, type CharacterVariant } from '../world/art/characterLook'
 import { createSafeCharacterRig } from '../world/art/safeCharacterRig'
 import { sampleJumpPose, type PreviewMotion } from './previewMotion'
+import { AvatarShockXray } from './AvatarShockXray'
+import type { MissShockPose } from './missShock'
 
 type Rig = ReturnType<typeof createSafeCharacterRig>
 const sides = ['L', 'R'] as const
@@ -24,14 +26,15 @@ function feetInRig(rig: Rig, inverse: Matrix4, left: Vector3, right: Vector3) {
   rig.bones.foot_R.getWorldPosition(right).applyMatrix4(inverse)
 }
 
-export function PreviewAvatar({ motion, scale, variant = 'man' }: {
+export function PreviewAvatar({ motion, scale, shock, variant = 'man' }: {
   motion: PreviewMotion
   scale: number
+  shock: RefObject<MissShockPose>
   variant?: CharacterVariant
 }) {
   const source = useLoader(ParkAssetLoader, characterUrls[variant === 'girl' ? 1 : 0]!)
   const figure = useRef<Group>(null)
-  const wasJumping = useRef(false)
+  const wasPosing = useRef(false)
   const { rig, floorOffset, rest, feetZ, inverse, left, right, euler, delta } = useMemo(() => {
     const rig = createSafeCharacterRig(source, defaultLook(variant), new Map([[variant, source]]))
     rig.reset()
@@ -52,9 +55,10 @@ export function PreviewAvatar({ motion, scale, variant = 'man' }: {
   useFrame(() => {
     const root = figure.current
     if (!root) return
-    const jumping = motion.frame.phase !== 'ready'
-    if (!jumping && !wasJumping.current) return
-    wasJumping.current = jumping
+    const stiffness = shock.current.stiffness
+    const posing = motion.frame.phase !== 'ready' || stiffness > 0
+    if (!posing && !wasPosing.current) return
+    wasPosing.current = posing
     const pose = sampleJumpPose(motion.frame)
 
     function turn(name: JumpJoint, pitch: number, roll = 0) {
@@ -65,25 +69,27 @@ export function PreviewAvatar({ motion, scale, variant = 'man' }: {
     turn('spine', pose.lean * 0.65)
     turn('chest', pose.lean * 0.55)
     turn('head', -pose.lean * 0.48)
+    const legExtension = 1 - stiffness * 0.72
     for (const side of sides) {
       const sign = side === 'L' ? 1 : -1
-      turn(`upperLeg_${side}`, pose.thigh)
-      turn(`lowerLeg_${side}`, pose.knee)
-      turn(`foot_${side}`, pose.toe - pose.thigh - pose.knee)
+      turn(`upperLeg_${side}`, pose.thigh * legExtension)
+      turn(`lowerLeg_${side}`, pose.knee * legExtension)
+      turn(`foot_${side}`, (pose.toe - pose.thigh - pose.knee) * legExtension)
       turn(`clavicle_${side}`, pose.shoulder * 0.2, sign * pose.spread * 0.28)
-      turn(`upperArm_${side}`, pose.shoulder, sign * pose.spread)
-      turn(`lowerArm_${side}`, pose.elbow)
+      turn(`upperArm_${side}`, pose.shoulder * (1 - stiffness) - 0.1 * stiffness, sign * (pose.spread + 0.24 * stiffness))
+      turn(`lowerArm_${side}`, pose.elbow * (1 - stiffness * 0.88))
     }
 
     feetInRig(rig, inverse, left, right)
     // Keep the lowest point of the shoes at the requested height as the ankles turn.
     root.position.y = rig.groundShift() + motion.frame.height / scale
     root.position.z = feetZ - (left.z + right.z) / 2
-  })
+  }, -0.25)
 
   return (
     <group ref={figure} position-y={floorOffset}>
       <primitive object={rig.root} dispose={null} />
+      <AvatarShockXray model={rig.root} bones={rig.bones} shock={shock} />
     </group>
   )
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { samplePigeonLaugh } from '../../src/jump-rope-preview/pigeonLaugh'
+import { missShockMs, sampleMissShock } from '../../src/jump-rope-preview/missShock'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, ropeRestWeight } from '../../src/jump-rope-preview/previewRound'
 
 const rules = { ropeWidth: 0.035, clearanceMargin: 0.03, perfectWindowMs: 50 }
@@ -122,20 +123,68 @@ describe('jump rope restart', () => {
 it('gives all six pigeons staggered reactions that return to the resting pose', () => {
   const actors = [
     ['holder', 0, 0], ['holder', 1, 65],
-    ['audience', 0, 120], ['audience', 1, 180], ['audience', 2, 250], ['audience', 3, 300],
+    ['audience', 0, 95], ['audience', 1, 170], ['audience', 2, 230], ['audience', 3, 285],
   ] as const
   const resting = samplePigeonLaugh('holder', 0, 0, reactionMs)
   const active = actors.map(([role, index, delay]) => {
     expect(samplePigeonLaugh(role, index, delay, reactionMs)).toEqual(resting)
     expect(samplePigeonLaugh(role, index, reactionMs, reactionMs)).toEqual(resting)
     const pose = samplePigeonLaugh(role, index, 570, reactionMs)
-    expect(pose.wing).toBeGreaterThan(0)
+    expect(pose.pitch).toBeLessThan(-Math.PI / 2)
+    expect(pose.pitch).toBeGreaterThanOrEqual(-1.78)
+    expect(pose.headLift).toBeGreaterThan(0.1)
+    expect(pose.lift).toBeGreaterThan(0)
+    expect(pose.lift).toBeLessThan(0.085)
     if (role === 'holder') expect(pose.jaw).toBe(0)
-    else {
-      expect(pose.bob).toBe(0)
-      expect(pose.jaw).toBeGreaterThan(0)
-    }
+    else expect(pose.jaw).toBeGreaterThan(0)
     return JSON.stringify(pose)
   })
   expect(new Set(active).size).toBe(6)
+})
+
+it('adjusts the laugh angle without changing the stagger or body bounce', () => {
+  const weak = samplePigeonLaugh('audience', 2, 570, reactionMs, 0.65)
+  const strong = samplePigeonLaugh('audience', 2, 570, reactionMs, 1.1)
+  expect(strong.pitch).toBeLessThan(weak.pitch)
+  expect(strong.headLift).toBeGreaterThan(weak.headLift)
+  expect(strong.lift).toBe(weak.lift)
+  expect(strong.lean).toBe(weak.lean)
+})
+
+it('uses one continuous X-ray exposure and releases the stance within the shock window', () => {
+  const exposure = Array.from({ length: 51 }, (_, index) => sampleMissShock(index * 10).xray)
+  expect(exposure.slice(0, 5)).toEqual([...exposure.slice(0, 5)].sort((a, b) => a - b))
+  expect(exposure.slice(4)).toEqual([...exposure.slice(4)].sort((a, b) => b - a))
+  expect(sampleMissShock(100)).toMatchObject({ xray: 1, stiffness: 1 })
+  expect(sampleMissShock(430)).toMatchObject({ xray: 0 })
+  expect(sampleMissShock(430).stiffness).toBeGreaterThan(0)
+  expect(sampleMissShock(missShockMs)).toMatchObject({ intensity: 0, xray: 0, stiffness: 0 })
+})
+
+it('starts shock immediately on a late-jump MISS and clears it without extending the restart', () => {
+  const { round, step, jump } = start()
+  step(3730)
+  expect(jump(3730)).toBe(true)
+  expect(step(4000)?.kind).toBe('perfect')
+  expect(round.shockStartedAt).toBeNull()
+
+  step(4950)
+  expect(jump(4950)).toBe(true)
+  expect(step(5000)?.kind).toBe('miss')
+  expect(round.shockStartedAt).toBe(5000)
+  expect(round.phase.kind).toBe('landing')
+  const rest = sampleMissShock(Infinity)
+  expect(sampleMissShock(95).intensity).toBeGreaterThan(0)
+  expect(sampleMissShock(missShockMs)).toEqual(rest)
+  step(5530)
+  expect(round.phase.kind).toBe('reaction')
+  step(5530 + reactionMs)
+  expect(round.phase.kind).toBe('playing')
+  expect(round.shockStartedAt).toBeNull()
+  expect(round.stats).toMatchObject({ score: 150, chances: 2, combo: 0 })
+
+  step(5530 + reactionMs + 1000)
+  expect(round.shockStartedAt).not.toBeNull()
+  resetPreviewRound(round)
+  expect(round.shockStartedAt).toBeNull()
 })

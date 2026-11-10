@@ -1,24 +1,36 @@
-const audienceDelays = [120, 180, 250, 300]
-const resting = { pitch: 0, yaw: 0, roll: 0, wing: 0, jaw: 0, bob: 0 }
+const audienceDelays = [95, 170, 230, 285]
+const audiencePitch = [1.65, 1.72, 1.62, 1.69]
+const audienceLift = [0.079, 0.069, 0.083, 0.074]
+const resting = { pitch: 0, lean: 0, headLift: 0, headForward: 0, jaw: 0, lift: 0, lidLift: 0 }
 
-export function samplePigeonLaugh(role: 'holder' | 'audience', index: number, elapsedMs: number, durationMs: number) {
+function ease(t: number) {
+  const x = Math.min(1, Math.max(0, t))
+  return x * x * (3 - 2 * x)
+}
+
+export function samplePigeonLaugh(role: 'holder' | 'audience', index: number, elapsedMs: number, durationMs: number, strength = 1) {
   const holding = role === 'holder'
-  const delay = holding ? index * 65 : (audienceDelays[index] ?? 300)
+  const delay = holding ? index * 65 : (audienceDelays[index] ?? 285)
   const age = elapsedMs - delay
   if (age <= 0 || elapsedMs >= durationMs) return resting
 
-  const progress = age / (durationMs - delay)
-  const ramp = Math.min(1, progress / 0.16, (1 - progress) / 0.3)
-  const envelope = ramp * ramp * (3 - 2 * ramp)
-  const beat = age * (holding ? 0.026 - index * 0.004 : 0.022 + index * 0.003)
-  const shake = Math.sin(beat)
-  const side = index % 2 === 0 ? 1 : -1
+  const releaseMs = 245
+  const lean = ease(age / 105) * ease((durationMs - elapsedMs) / releaseMs)
+  const beatLength = Math.max(1, durationMs - delay - 105 - releaseMs)
+  const beatProgress = Math.min(1, Math.max(0, (age - 105) / beatLength))
+  const beats = holding ? 2 + index : 2 + index % 2
+  const bounce = Math.sin(Math.PI * beats * beatProgress) ** 2 * (1 - beatProgress * 0.35)
+  const pitch = holding ? 1.64 + index * 0.065 : (audiencePitch[index] ?? 1.65)
+  const raisedPitch = Math.min(1.78, pitch * strength) * (0.97 + bounce * 0.03)
+  const lift = holding ? 0.072 - index * 0.01 : (audienceLift[index] ?? 0.074)
   return {
-    pitch: envelope * (holding ? -0.16 + shake * 0.12 : -0.28 + shake * (0.1 + index * 0.025)),
-    yaw: envelope * side * (holding ? 0.11 : 0.18) * Math.sin(beat * 0.64),
-    roll: envelope * side * (holding ? 0.12 : 0.18) * Math.cos(beat),
-    wing: envelope * (0.45 + 0.55 * Math.abs(shake)) * (holding ? 0.24 : 0.34 + index * 0.045),
-    jaw: holding ? 0 : envelope * (0.06 + Math.abs(shake) * 0.31),
-    bob: holding ? envelope * Math.abs(Math.sin(beat * 0.65)) * 0.055 : 0,
+    pitch: -lean * raisedPitch,
+    lean,
+    // Keep the head above the neck when the face rolls past vertical.
+    headLift: lean * (1 - Math.cos(raisedPitch)) * 0.116,
+    headForward: lean * Math.sin(raisedPitch) * 0.075,
+    jaw: holding ? 0 : lean * (0.21 + bounce * 0.16),
+    lift: lift * bounce,
+    lidLift: -0.017 * lean,
   }
 }

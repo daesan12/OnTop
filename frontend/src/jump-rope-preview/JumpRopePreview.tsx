@@ -5,6 +5,7 @@ import { PreviewScene } from './PreviewScene'
 import type { PreviewPass } from './previewMotion'
 import { clearanceWindowMs } from './jumpRopeJudgement'
 import type { RoundEndReason } from './jumpRopeRules'
+import type { PigeonSuccessCue, PigeonSuccessKind } from './pigeonSuccess'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue } from './previewRound'
 import './preview.css'
 
@@ -29,6 +30,7 @@ const defaults = {
   perfectWindowMs: 50,
   clearanceMargin: 0.03,
   reactionMs: 1350,
+  laughTilt: 1,
 }
 
 export type PreviewSettings = typeof defaults
@@ -62,27 +64,29 @@ const controls: { title: string; sliders: Slider[] }[] = [
     ['perfectWindowMs', 'PERFECT 오차', 0, 150, 5, ' ms'],
     ['clearanceMargin', '줄 위 여유 높이', 0, 0.2, 0.01, ' m'],
     ['reactionMs', 'MISS 연출 시간', 1100, 1800, 50, ' ms'],
+    ['laughTilt', 'MISS 고개 젖힘', 0.65, 1.1, 0.05, '×'],
   ] },
 ]
 
 const demoActions = {
   jump: '점프 테스트',
-  perfect: 'PERFECT 시안',
-  good: 'GOOD 시안',
   miss: 'MISS 시안',
-  laugh: '비둘기 웃음 테스트',
   end: '종료 시안',
 } as const
 
-export type DemoAction = keyof typeof demoActions
-export type Demo = { action: DemoAction; startedAt: number; durationMs: number }
+type DemoAction = keyof typeof demoActions
+export type Demo = { action: DemoAction | 'laugh' | 'shock'; startedAt: number; durationMs: number }
+
+const successDemoActions = {
+  good: 'GOOD 반응 미리보기',
+  perfect: 'PERFECT 반응 미리보기',
+  combo5: '5 PERFECT 콤보 미리보기',
+  combo10: '10 PERFECT 콤보 미리보기',
+} satisfies Record<PigeonSuccessKind, string>
 
 const hudSamples: Record<DemoAction, { note?: string; judgement?: PreviewPass['kind'] }> = {
   jump: { note: '점프 테스트' },
-  perfect: { judgement: 'perfect' },
-  good: { judgement: 'good' },
   miss: { judgement: 'miss' },
-  laugh: { note: '구구구!' },
   end: { note: '비둘기한테 졌습니다.' },
 }
 
@@ -94,7 +98,7 @@ const endLabels: Record<RoundEndReason, string> = { time: '시간 종료', missL
 
 export function JumpRopePreview() {
   const [settings, setSettings] = useState(defaults)
-  const [demo, setDemo] = useState<Demo | null>(null)
+  const [demo, setDemo] = useState<{ action: DemoAction; startedAt: number } | null>(null)
   const [round] = useState(createPreviewRound)
   const [hud, setHud] = useState(() => readRoundHud(round))
   const [ropePaused, setRopePaused] = useState(false)
@@ -102,6 +106,8 @@ export function JumpRopePreview() {
   const [lastPass, setLastPass] = useState<PreviewPass | null>(null)
   const [visiblePass, setVisiblePass] = useState<PreviewPass | null>(null)
   const demoRef = useRef<Demo | null>(null)
+  const successDemoRef = useRef<PigeonSuccessCue | null>(null)
+  const successDemoVariant = useRef(0)
   const controlsRef = useRef({ settings, paused: false, cue: '3' as RoundCue })
   const { jumpHeight, jumpDuration } = settings
 
@@ -111,6 +117,8 @@ export function JumpRopePreview() {
     const effectiveSpeed = speed ?? (controls.paused ? 0 : settings.ropeSpeed)
     const previous = readRoundHud(round)
     const latest = advancePreviewRound(round, now, effectiveSpeed, settings, settings.reactionMs)
+    if (latest?.kind === 'miss' || round.endReason) successDemoRef.current = null
+    if (latest?.kind === 'miss') demoRef.current = null
     const next = readRoundHud(round)
     if (next.seconds !== previous.seconds || next.stats !== previous.stats || next.endReason !== previous.endReason) {
       setHud(next)
@@ -153,16 +161,36 @@ export function JumpRopePreview() {
     const now = performance.now()
     const playing = round.phase.kind === 'playing'
     step(now)
-    if ((action === 'jump' || action === 'perfect') && (!playing || !requestRoundJump(round, now, jumpHeight, jumpDuration))) return
+    if (action === 'jump' && (!playing || !requestRoundJump(round, now, jumpHeight, jumpDuration))) return
     const nextDemo = { action, startedAt: now, durationMs: settings.reactionMs }
     demoRef.current = nextDemo
     setVisiblePass(null)
     setDemo(nextDemo)
   }
 
+  function startSuccessDemo(kind: PigeonSuccessKind) {
+    if (round.phase.kind !== 'playing' && round.phase.kind !== 'initialCountdown') return
+    if (demoRef.current?.action === 'laugh' || demoRef.current?.action === 'miss' || demoRef.current?.action === 'shock') demoRef.current = null
+    successDemoRef.current = { kind, startedAt: performance.now(), variant: successDemoVariant.current++ }
+  }
+
+  function startLaughDemo() {
+    if (round.phase.kind === 'landing' || round.phase.kind === 'reaction') return
+    successDemoRef.current = null
+    demoRef.current = { action: 'laugh', startedAt: performance.now(), durationMs: settings.reactionMs }
+  }
+
+  function startShockDemo() {
+    if (round.phase.kind !== 'playing' && round.phase.kind !== 'initialCountdown') return
+    successDemoRef.current = null
+    demoRef.current = { action: 'shock', startedAt: performance.now(), durationMs: 0 }
+  }
+
   function resetScene() {
     resetPreviewRound(round)
     demoRef.current = null
+    successDemoRef.current = null
+    successDemoVariant.current = 0
     controlsRef.current.cue = '3'
     setCue('3')
     setHud(readRoundHud(round))
@@ -196,6 +224,7 @@ export function JumpRopePreview() {
   const windowMs = clearanceWindowMs(jumpHeight, jumpDuration * 1000, settings)
   const demoHud = demo && (!lastPass || demo.startedAt >= lastPass.at) ? hudSamples[demo.action] : undefined
   const countdown = cue === '3' || cue === '2' || cue === '1' || cue === 'GO!' ? cue : null
+  const canPreviewSuccess = cue === 'playing' || countdown !== null
   const paused = ropePaused || settings.ropeSpeed === 0
   const status = cue === 'ended' ? '게임 종료' : cue === 'landing' ? '착지 중' : cue === 'reaction' ? '비둘기 비웃음'
     : cue === 'GO!' ? '시작' : countdown ? paused ? '시작 대기 · 회전 일시 정지' : '시작 카운트다운'
@@ -208,7 +237,7 @@ export function JumpRopePreview() {
           <p className="eyebrow">ONTOP / 개발 프리뷰</p>
           <h1>구구구 줄넘기</h1>
         </div>
-        <p className="preview-tag">05 · 60초 줄넘기</p>
+        <p className="preview-tag">06 · 비둘기 반응</p>
       </header>
       <div className="preview-layout">
         <section className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={0}>
@@ -217,7 +246,7 @@ export function JumpRopePreview() {
             dpr={[1, 1.5]}
             fallback={<p className="canvas-fallback">이 브라우저에서 3D 화면을 열 수 없습니다.</p>}
           >
-            <PreviewScene settings={settings} demoRef={demoRef} round={round} step={step} />
+            <PreviewScene settings={settings} demoRef={demoRef} successDemoRef={successDemoRef} round={round} step={step} />
           </Canvas>
           <JumpRopeHud
             seconds={hud.seconds}
@@ -249,6 +278,18 @@ export function JumpRopePreview() {
           <h2>실시간 조정</h2>
           <p className="panel-note" aria-label="현재 게임 상태">현재 상태 · {status}</p>
           <p className="panel-note">Space로 점프합니다. 높이와 체공 시간은 다음 점프부터 적용됩니다.</p>
+          <fieldset>
+            <legend>비둘기 반응 미리보기</legend>
+            <div className="demo-actions">
+              {(Object.keys(successDemoActions) as PigeonSuccessKind[]).map(kind => (
+                <button key={kind} type="button" disabled={!canPreviewSuccess} onClick={() => startSuccessDemo(kind)}>
+                  {successDemoActions[kind]}
+                </button>
+              ))}
+              <button type="button" onClick={startLaughDemo}>비둘기 웃음 테스트</button>
+              <button type="button" disabled={!canPreviewSuccess} onClick={startShockDemo}>MISS 감전 효과 미리보기</button>
+            </div>
+          </fieldset>
           {controls.map(group => (
             <fieldset key={group.title}>
               <legend>{group.title}</legend>

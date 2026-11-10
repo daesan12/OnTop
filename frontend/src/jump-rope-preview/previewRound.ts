@@ -1,6 +1,7 @@
 import type { JudgementSettings } from './jumpRopeJudgement'
 import { applyPass, createRoundStats, roundDurationMs, type RoundEndReason, type RoundStats } from './jumpRopeRules'
 import { advancePreviewMotion, createPreviewMotion, requestJump } from './previewMotion'
+import { successKind, type PigeonSuccessCue } from './pigeonSuccess'
 
 const countdownMs = 3000
 const goMs = 550
@@ -21,6 +22,8 @@ export type PreviewRound = {
   stats: RoundStats
   playedMs: number
   endReason: RoundEndReason | null
+  successCue: PigeonSuccessCue | null
+  shockStartedAt: number | null
 }
 export type RoundCue = 'playing' | 'landing' | 'reaction' | 'resumePending' | 'ended' | '3' | '2' | '1' | 'GO!'
 
@@ -31,6 +34,8 @@ export function createPreviewRound(): PreviewRound {
     stats: createRoundStats(),
     playedMs: 0,
     endReason: null,
+    successCue: null,
+    shockStartedAt: null,
   }
 }
 
@@ -45,6 +50,7 @@ function beginPlaying(
 ) {
   round.phase = phase
   round.motion.jump = null
+  round.shockStartedAt = null
   // Start the first turn at the observed transition even if the frame arrived late.
   advancePreviewMotion(round.motion, now, ropeSpeed, settings)
 }
@@ -65,7 +71,17 @@ export function advancePreviewRound(
     const playedUntil = miss?.at ?? Math.min(now, deadline)
     round.playedMs = expires && !miss ? roundDurationMs : round.playedMs + (playedUntil - activeFrom)
   }
-  for (const pass of passes) round.stats = applyPass(round.stats, pass)
+  let successCue: PigeonSuccessCue | null = null
+  for (const pass of passes) {
+    const stats = applyPass(round.stats, pass)
+    if (stats === round.stats) continue
+    round.stats = stats
+    const kind = successKind(pass.kind, stats.combo)
+    // Show the latest success if a late frame processes several passes together.
+    if (kind) successCue = { kind, startedAt: now, variant: pass.number - 1 }
+  }
+  if (miss || expires) round.successCue = null
+  else if (successCue) round.successCue = successCue
 
   if (phase.kind === 'initialCountdown') {
     phase.endsAt ??= now + countdownMs
@@ -73,17 +89,20 @@ export function advancePreviewRound(
       beginPlaying(round, { kind: 'playing', goAt: now }, now, ropeSpeed, settings)
     }
   } else if (playing && miss) {
+    round.shockStartedAt = now
     if (round.stats.chances === 0) round.endReason = 'missLimit'
     round.phase = motion.frame.phase === 'ready'
       ? { kind: 'reaction', stoppedAt: miss.at, startedAt: now, durationMs: reactionMs }
       : { kind: 'landing', stoppedAt: miss.at, reactionMs }
   } else if (expires) {
+    round.shockStartedAt = null
     round.endReason = 'time'
     round.phase = { kind: 'ended', restWeight: ropeRestWeight(round, now) }
   } else if (phase.kind === 'landing' && motion.frame.phase === 'ready') {
     round.phase = { kind: 'reaction', stoppedAt: phase.stoppedAt, startedAt: now, durationMs: phase.reactionMs }
   } else if (phase.kind === 'resumePending' || (phase.kind === 'reaction' && now - phase.startedAt >= phase.durationMs)) {
     if (round.endReason === 'missLimit') {
+      round.shockStartedAt = null
       round.phase = { kind: 'ended', restWeight: 1 }
     } else if (ropeSpeed > 0) {
       beginPlaying(round, { kind: 'playing', resumedAfterPass: motion.passCount }, now, ropeSpeed, settings)
