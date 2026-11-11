@@ -181,7 +181,7 @@ it('starts shock immediately on a late-jump MISS and clears it without extending
   step(5530 + reactionMs)
   expect(round.phase.kind).toBe('playing')
   expect(round.shockStartedAt).toBeNull()
-  expect(round.stats).toMatchObject({ score: 150, chances: 2, combo: 0 })
+  expect(round.stats).toMatchObject({ score: 15, chances: 2, combo: 0 })
 
   step(5530 + reactionMs + 1000)
   expect(round.shockStartedAt).not.toBeNull()

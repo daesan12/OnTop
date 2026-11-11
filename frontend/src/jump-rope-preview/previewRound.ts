@@ -1,6 +1,6 @@
 import type { JudgementSettings } from './jumpRopeJudgement'
 import { applyPass, createRoundStats, roundDurationMs, type RoundEndReason, type RoundStats } from './jumpRopeRules'
-import { advancePreviewMotion, createPreviewMotion, requestJump } from './previewMotion'
+import { advancePreviewMotion, createPreviewMotion, requestJump, type PreviewPass } from './previewMotion'
 import { createSuccessCue, successKind, type PigeonSuccessCue } from './pigeonSuccess'
 import { ropeTempo, type RopeAcceleration } from './ropeAcceleration'
 import { finaleStage } from './gameOverFinale'
@@ -31,6 +31,7 @@ export type PreviewRound = {
   shockStartedAt: number | null
 }
 export type RoundCue = Phase['kind'] | 'gameOverSplash' | '3' | '2' | '1' | 'GO!'
+export type ScoredPreviewPass = PreviewPass & { earnedPoints: number }
 
 export function createPreviewRound(): PreviewRound {
   return {
@@ -81,9 +82,11 @@ export function advancePreviewRound(
     round.playedMs = expires && !miss ? roundDurationMs : round.playedMs + (playedUntil - activeFrom)
   }
   let successCue: PigeonSuccessCue | null = null
+  let latest: ScoredPreviewPass | undefined
   for (const pass of passes) {
     const stats = applyPass(round.stats, pass)
     if (stats === round.stats) continue
+    latest = { ...pass, earnedPoints: stats.score - round.stats.score }
     round.stats = stats
     const kind = successKind(pass.kind, stats.combo)
     // Show the latest success if a late frame processes several passes together.
@@ -129,7 +132,7 @@ export function advancePreviewRound(
       round.phase = { kind: 'resumePending', stoppedAt: phase.stoppedAt }
     }
   }
-  return last
+  return latest
 }
 
 export function requestRoundJump(round: PreviewRound, now: number, peak: number, flightSeconds: number) {

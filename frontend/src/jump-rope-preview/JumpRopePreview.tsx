@@ -5,7 +5,7 @@ import { JumpRopeResult } from './JumpRopeResult'
 import { PreviewScene } from './PreviewScene'
 import type { PreviewPass } from './previewMotion'
 import { clearanceWindowMs } from './jumpRopeJudgement'
-import { roundDurationMs, type RoundEndReason } from './jumpRopeRules'
+import { pointsForPass, roundDurationMs, type RoundEndReason } from './jumpRopeRules'
 import { createSuccessCue, successDurationMs, type PigeonSuccessCue, type PigeonSuccessKind } from './pigeonSuccess'
 import { defaultRopeAcceleration, ropePeriodMs } from './ropeAcceleration'
 import { distractionDefaults, distractionDurationLimits, distractionDurationMs, sampleDistraction, type DistractionCue, type DistractionKind, type DistractionSettings } from './pigeonDistractionMotion'
@@ -13,7 +13,7 @@ import { advanceDistractionSchedule, createDistractionSchedule } from './pigeonD
 import { finaleStage } from './gameOverFinale'
 import { completionResultMs } from './completionFinale'
 import { GameOverSplash } from './GameOverSplash'
-import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue } from './previewRound'
+import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue, type ScoredPreviewPass } from './previewRound'
 import './preview.css'
 
 const defaults = {
@@ -114,17 +114,25 @@ const successDemoActions = {
   combo10: '10 PERFECT 콤보 미리보기',
 } satisfies Record<PigeonSuccessKind, string>
 
-const hudSamples: Record<DemoAction, { note?: string; judgement?: PreviewPass['kind'] }> = {
+const hudSamples: Record<DemoAction, { note?: string; judgement?: PreviewPass['kind']; earnedPoints?: number }> = {
   jump: { note: '점프 테스트' },
-  miss: { judgement: 'miss' },
+  miss: { judgement: 'miss', earnedPoints: pointsForPass('miss', 0) },
   end: { note: '비둘기한테 졌습니다.' },
+}
+
+function sampleScore(goodCount: number, ...perfectStreaks: number[]) {
+  let score = goodCount * pointsForPass('good', 0)
+  for (const streak of perfectStreaks) {
+    for (let combo = 1; combo <= streak; combo++) score += pointsForPass('perfect', combo)
+  }
+  return score
 }
 
 const hudPresets = {
   opening: { label: '시작 · 60초', seconds: 60, score: 0, combo: 0, chances: 3 },
-  early: { label: '초반 · 3콤보', seconds: 46, score: 650, combo: 3, chances: 3 },
-  streak: { label: '중반 · 7콤보', seconds: 27, score: 2850, combo: 7, chances: 2 },
-  final: { label: '마감 · 12콤보', seconds: 8, score: 10250, combo: 12, chances: 1 },
+  early: { label: '초반 · 3콤보', seconds: 46, score: sampleScore(7, 3), combo: 3, chances: 3 },
+  streak: { label: '중반 · 7콤보', seconds: 27, score: sampleScore(17, 7), combo: 7, chances: 2 },
+  final: { label: '마감 · 12콤보', seconds: 10, score: sampleScore(9, 12, 9, 12), combo: 12, chances: 1 },
 } as const
 type HudPreset = keyof typeof hudPresets | 'live'
 
@@ -163,13 +171,13 @@ export function JumpRopePreview() {
   const [round] = useState(createPreviewRound)
   const [hud, setHud] = useState(() => readRoundHud(round))
   const [hudPreset, setHudPreset] = useState<HudPreset>('live')
-  const [hudJudgement, setHudJudgement] = useState<{ kind: HudJudgement; at: number } | null>(null)
+  const [hudJudgement, setHudJudgement] = useState<{ kind: HudJudgement; earnedPoints: number; at: number } | null>(null)
   const [ropePaused, setRopePaused] = useState(false)
   const [simulating, setSimulating] = useState(false)
   const [sampleSeconds, setSampleSeconds] = useState(45)
   const [cue, setCue] = useState<RoundCue>('3')
-  const [lastPass, setLastPass] = useState<PreviewPass | null>(null)
-  const [visiblePass, setVisiblePass] = useState<PreviewPass | null>(null)
+  const [lastPass, setLastPass] = useState<ScoredPreviewPass | null>(null)
+  const [visiblePass, setVisiblePass] = useState<ScoredPreviewPass | null>(null)
   const [finalePreview, setFinalePreview] = useState<FinalePreview | null>(null)
   const finalePreviewRef = useRef<FinalePreview | null>(null)
   const clockOffset = useRef(0)
@@ -517,6 +525,7 @@ export function JumpRopePreview() {
             combo={sampleHud?.combo ?? hud.stats.combo}
             chances={sampleHud?.chances ?? hud.stats.chances}
             judgement={sampleJudgement?.kind ?? liveFeedback?.kind ?? legacyHud?.judgement}
+            earnedPoints={sampleJudgement?.earnedPoints ?? liveFeedback?.earnedPoints ?? legacyHud?.earnedPoints}
             note={liveFeedback || sampleJudgement ? undefined : legacyHud?.note}
             feedbackKey={sampleJudgement ? `sample-${sampleJudgement.at}`
               : liveFeedback ? `live-${liveFeedback.number}` : demo ? `demo-${demo.startedAt}` : undefined}
@@ -549,7 +558,8 @@ export function JumpRopePreview() {
             <div className="demo-actions">
               {(['perfect', 'good', 'miss'] as const).map(kind => (
                 <button key={kind} type="button" onClick={() => {
-                  setHudJudgement({ kind, at: performance.now() })
+                  const combo = Math.max(1, sampleHud?.combo ?? round.stats.combo + 1)
+                  setHudJudgement({ kind, earnedPoints: pointsForPass(kind, combo), at: performance.now() })
                   stageRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
                 }}>{kind.toUpperCase()} 표시</button>
               ))}

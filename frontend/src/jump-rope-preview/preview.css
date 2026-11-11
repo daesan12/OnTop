@@ -128,10 +128,26 @@ button, input { font: inherit; }
   flex: none;
   fill: currentColor;
 }
-.rope-hud__score { justify-self: start; }
-.rope-hud__score dd[data-scored="true"] { animation: hud-score-gain 240ms ease-out; }
-
 .rope-hud__timer {
+  justify-self: start;
+  min-width: 0;
+}
+.rope-hud__timer small {
+  margin-left: 0.16em;
+  font-size: 0.56em;
+}
+.rope-hud__timer[data-urgent="true"] {
+  --frame: #e5a196;
+  --rim: #61403a;
+  color: #ff837f;
+  background: radial-gradient(ellipse at 48% 0%, #4a3831, #312824 78%);
+  border-bottom-color: #ed7f77;
+}
+.rope-hud__timer[data-urgent="true"] dt,
+.rope-hud__timer[data-urgent="true"] small { color: #ffd0c9; }
+
+.rope-hud__score {
+  --score-size: clamp(1.65rem, calc(7.15 * var(--hud-unit)), 6.45rem);
   width: clamp(78px, calc(26.3 * var(--hud-unit)), 382px);
   border-width: clamp(2px, calc(0.36 * var(--hud-unit)), 5px);
   border-radius: 999px;
@@ -140,51 +156,41 @@ button, input { font: inherit; }
   transform: translateY(-4px) scale(0.83);
   transform-origin: top center;
 }
-.rope-hud__timer dt {
+.rope-hud__score dt {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: clamp(3px, calc(2.15 * var(--hud-unit)), 30px);
   font-size: clamp(0.65rem, calc(1.88 * var(--hud-unit)), 1.68rem);
 }
-.rope-hud__timer dt::before, .rope-hud__timer dt::after {
+.rope-hud__score dt::before, .rope-hud__score dt::after {
   content: "";
   width: calc(2.65 * var(--hud-unit));
   height: clamp(1px, calc(0.19 * var(--hud-unit)), 3px);
   border-radius: 2px;
   background: currentColor;
 }
-.rope-hud__timer dd {
+.rope-hud__score dd {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: clamp(3px, calc(2.15 * var(--hud-unit)), 30px);
-  font-size: clamp(1.65rem, calc(7.15 * var(--hud-unit)), 6.45rem);
+  gap: clamp(3px, calc(1.25 * var(--hud-unit)), 18px);
+  font-size: var(--score-size);
+  min-height: calc(0.94 * var(--score-size));
   line-height: 0.94;
   letter-spacing: -0.04em;
 }
-.rope-hud__timer small {
-  margin-left: 0.09em;
-  font-size: 0.42em;
-  vertical-align: 0.18em;
-}
-.rope-hud__timer-rays {
+.rope-hud__score dd[data-scored="true"] { animation: hud-score-gain 240ms ease-out; }
+.rope-hud__score[data-digits="3"] .rope-hud__score-value { font-size: 0.94em; }
+.rope-hud__score[data-digits="4"] .rope-hud__score-value { font-size: 0.74em; }
+.rope-hud__score[data-digits="5"] .rope-hud__score-value { font-size: 0.63em; }
+.rope-hud__score-rays {
   width: clamp(9px, calc(2.4 * var(--hud-unit)), 34px);
   flex: none;
   fill: #9ba67c;
   opacity: 0.84;
 }
-.rope-hud__timer-rays[data-mirrored="true"] { transform: scaleX(-1); }
-.rope-hud__timer[data-urgent="true"] {
-  --frame: #e5a196;
-  --rim: #61403a;
-  background: radial-gradient(ellipse at 48% 0%, #4a3831, #312824 78%);
-  border-bottom-color: #ed7f77;
-}
-.rope-hud__timer[data-urgent="true"] dt,
-.rope-hud__timer[data-urgent="true"] small { color: #ffd0c9; }
-.rope-hud__timer[data-urgent="true"] dd { color: #ff837f; }
-.rope-hud__timer[data-urgent="true"] .rope-hud__timer-rays { fill: #dd9e8b; }
+.rope-hud__score-rays[data-mirrored="true"] { transform: scaleX(-1); }
 
 .rope-hud__chances {
   display: grid;
@@ -330,6 +336,11 @@ button, input { font: inherit; }
   border-color: #f5d68d;
   font-size: clamp(0.95rem, 2.8cqi, 1.55rem);
 }
+.rope-hud__earned {
+  border-left: 1px solid #e3c48c80;
+  padding-left: clamp(5px, 1.2cqi, 10px);
+  font-size: 0.85em;
+}
 .rope-hud__verdict[data-judgement="miss"] {
   --verdict-accent: #eca28a;
   --verdict-start: 0.96;
@@ -349,8 +360,16 @@ button, input { font: inherit; }
   }
   .rope-hud__side { gap: 4px; }
   .rope-hud__side dl { padding-left: 4px; }
-  .rope-hud__timer { padding-block: 3px; }
-  .rope-hud__timer dd { margin-top: 1px; font-size: 1.65rem; }
+  .rope-hud__timer {
+    width: clamp(64px, 21cqi, 86px);
+    justify-content: center;
+    text-align: center;
+  }
+  .rope-hud__timer .rope-hud__icon { display: none; }
+  .rope-hud__timer dl { border: 0; padding-left: 0; }
+  .rope-hud__score { --score-size: 1.65rem; padding-block: 3px; }
+  .rope-hud__score dd { margin-top: 1px; }
+  .rope-hud__score-rays { display: none; }
   .rope-hud__combo { top: 42%; left: 73.5%; }
   .rope-hud__place { display: none; }
 }
