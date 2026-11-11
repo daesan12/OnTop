@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { BufferAttribute, BufferGeometry } from 'three'
-import { availableLook, drawnVertices, lookKey, pieceGeometry, pieceShown, resolveLook, wornPiece } from '../../src/world/art/characterLook'
+import { BufferAttribute, BufferGeometry, Group, Mesh, SkinnedMesh } from 'three'
+import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
+import { availableLook, coveredTokens, drawnVertices, lookKey, pieceGeometry, pieceShown, resolveLook, wornPiece } from '../../src/world/art/characterLook'
 import type { PublicEquipment } from '../../src/network/equipment'
+
+const file = (covers: unknown, skinned = true) => {
+  const scene = new Group(), mesh = skinned ? new SkinnedMesh(new BufferGeometry()) : new Mesh(new BufferGeometry())
+  mesh.userData.covers = covers; scene.add(mesh)
+  return { scene } as unknown as GLTF
+}
 
 const general = (['HAIR', 'FACE', 'TOP', 'BOTTOM', 'SHOES'] as const).map((equipSlot, i): PublicEquipment =>
   ({ itemId: i + 1, itemCode: `GENERAL_${equipSlot}`, equipSlot, imageKey: 'outfit/general/g' }))
@@ -55,5 +62,18 @@ describe('character look (wardrobe pieces)', () => {
     expect(shown.getAttribute('position')).toBe(geometry.getAttribute('position'))
     expect(pieceGeometry(geometry, ranges, name => name === 'item__TOP__d')).toBe(shown)
     expect(Array.from(drawnVertices(shown)).sort()).toEqual([3, 4, 5])
+  })
+  it('lets a worn workshop file hide the body like the wardrobe item it says it covers', () => {
+    const boots = file(['SHOESg', 'BOTTOMg', 'HAIRg', 'not a token', 7]), hat = file(['HAIRh'])
+    const look = { ...resolveLook('man', []), SHOES: { source: 'boots', id: 'a' }, BOTTOM: { source: 'boots', id: 'a' }, HAIR: { source: 'hat', id: 'a' } }
+    const covered = coveredTokens(look, new Map([['boots', boots], ['hat', hat]]))
+    expect([...covered].sort()).toEqual(['BOTTOMg', 'HAIRh', 'SHOESg'])               // HAIRg: the boots file is not worn as hair
+    expect(pieceShown('body__SHOESg', 'man', 'man', look, covered)).toBe(false)
+    expect(pieceShown('body__SHOESg', 'man', 'man', look)).toBe(true)                  // without covers the feet stay
+    expect(pieceShown('body__HAIRg', 'man', 'man', look, covered)).toBe(true)
+    expect(pieceShown('item__HAIR__g__for_girl__under_TOPh', 'general', 'girl', { HAIR: { source: 'general', id: 'g' } }, new Set(['TOPh']))).toBe(false)
+    expect(pieceShown('item__SHOES__a', 'boots', 'man', look, covered)).toBe(true)
+    expect(coveredTokens(look, undefined).size).toBe(0)
+    expect(coveredTokens({ SHOES: { source: 'plain', id: 'a' } }, new Map([['plain', file(['SHOESg'], false)]])).size).toBe(0)
   })
 })

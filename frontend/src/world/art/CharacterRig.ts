@@ -11,7 +11,7 @@ import {
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { clone } from 'three/addons/utils/SkeletonUtils.js'
 import { CHARACTER, CLAP_EMOTE } from '../../config'
-import { defaultLook, drawnVertices, pieceGeometry, pieceShown, type CharacterVariant, type Look, type PieceRange } from './characterLook'
+import { coveredTokens, defaultLook, drawnVertices, pieceGeometry, pieceShown, type CharacterVariant, type Look, type PieceRange } from './characterLook'
 
 export { characterUrls } from './characterAssets'
 const bodyBones = [
@@ -64,9 +64,10 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
   root.name = 'character-model'
   const variant = (root.getObjectByName('CharacterRig')?.userData.variant === 'girl' ? 'girl' : 'man') as CharacterVariant
   const worn = look ?? defaultLook(variant)
+  const covered = coveredTokens(worn, sources)
   const pieces = (mesh: SkinnedMesh, from: string) => {
     const ranges = mesh.userData.pieces as PieceRange[] | undefined
-    return ranges ? pieceGeometry(mesh.geometry, ranges, name => pieceShown(name, from, variant, worn)) : mesh.geometry
+    return ranges ? pieceGeometry(mesh.geometry, ranges, name => pieceShown(name, from, variant, worn, covered)) : mesh.geometry
   }
   const bones = Object.fromEntries(
     characterBones.map((name) => {
