@@ -118,6 +118,7 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 따라가기 | WORLD_FOLLOW_CHECK / WORLD_FOLLOW_START / WORLD_FOLLOW_STOP | WORLD_FOLLOW_STATE ([상세](../world-follow-api.md)) |
 | 캐릭터 운반 | WORLD_CARRY_PICKUP / WORLD_CARRY_THROW / WORLD_CARRY_RELEASE | WORLD_STATE |
 | 창 입력 점유 | WORLD_INTERACTION_SET | WORLD_INTERACTION_STATE (운반 해제 시 WORLD_STATE도 방송) |
+| 마이룸 이용 표시 | WORLD_MYROOM_SET | WORLD_STATE; 본인 `{open:boolean}`, 아바타의 선택적 `myRoomOpen:true`로 공유 ([상세](../world-websocket-api.md)) |
 | 시설 | WORLD_FACILITY_CHECK / WORLD_FACILITY_CATALOG / WORLD_FACILITY_USE / WORLD_FACILITY_RELEASE / WORLD_FACILITY_AIM | [시설 계약](../world-facility-api.md)의 상태·목록·이용 응답 |
 | 착석·준비 | TABLE_JOIN / TABLE_LEAVE / READY_SET / GAME_SELECT | TABLE_STATE / TABLE_LEFT |
 | 대기 테이블 보기 | TABLE_WATCH / TABLE_UNWATCH | TABLE_WATCH_STATE / TABLE_WATCH_LEFT |
@@ -157,7 +158,7 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 
 세부 필드와 선택적4종 엔진 계약은 기존 [경기 통신](../websocket-api/09-game-communication.md),
 [경기 입력](../game-action-api.md), [결과](../game-result-api.md), [광장](../world-websocket-api.md)를 따른다.
-현재 TableProtocol의 클라이언트 요청은 47종이다. ERROR와 CONNECTED는 요청 타입이 아니다.
+현재 TableProtocol의 클라이언트 요청은 48종이다. ERROR와 CONNECTED는 요청 타입이 아니다.
 게스트 인증, 다중 인스턴스 접속권/연결 추적 및 다른 boot의 미완료 경기 자동 반환은 미지원이다.
 
 ## 캐릭터 들기·던지기와 창 입력 점유
