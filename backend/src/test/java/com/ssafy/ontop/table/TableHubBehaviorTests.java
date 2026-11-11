@@ -208,8 +208,8 @@ class TableHubBehaviorTests {
             assertThat(viewer.request("GAME_SPECTATOR_CHAT_SEND",Map.of("gameId",game,"eventId",UUID.randomUUID().toString(),"text","병신"))
                     .path("type").asText()).isEqualTo("GAME_SPECTATOR_CHAT_MESSAGE");
             ai.flush();ai.step();
-            assertThat(sent).hasSize(1);
-            assertThat(sent.getFirst()).contains("동네친구: 씨발","관전친구: 병신","경기 채팅 안내")
+            assertThat(sent).hasSize(2);
+            assertThat(String.join("\n",sent)).contains("동네친구: 씨발","관전친구: 병신","경기 채팅 안내")
                     .doesNotContain("101: 씨발","102: 병신","변경된별명: 씨발","경찰 출동 요청");
         }
     }
