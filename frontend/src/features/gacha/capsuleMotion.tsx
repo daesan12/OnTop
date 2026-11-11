@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
-import type { GachaResult } from './contracts'
+import type { GachaResult, GachaState } from './contracts'
 import { gachaAction, useGacha } from './state'
 import { useSession } from '../../network/worldClient'
 import { capsuleName } from './labels'
+import { useGachaEvents, type GachaNotice } from './events'
 
 // Asset grade is an art rarity, not a server prize number. No visual RNG selects rewards.
 export const CAPSULES: Record<number, { assetGrade: number; src: string; color: string }> = {
@@ -24,7 +25,9 @@ export function useCapsuleAssets() {
  return {status,retry:()=>setAttempt(v=>v+1)}
 }
 type Kind = 'BUY' | 'DRAW'
-const empty = { phase: 'idle' as Phase, phaseStartedAt: 0, result: null as GachaResult | null, busy: false, instant: false }
+interface DrawPresentation { machine: GachaState['machine']; inventory: GachaState['inventory']; notice: GachaNotice | null }
+const empty = { phase: 'idle' as Phase, phaseStartedAt: 0, result: null as GachaResult | null, busy: false, instant: false,
+  presentation: null as DrawPresentation | null }
 export function useCapsuleDraw(active: boolean, owner: string, reduced: boolean) {
   const [visual, setVisual] = useState(empty)
   const flight = useRef<AbortController | null>(null), skipped = useRef(false), reduce = useRef(reduced)
@@ -41,6 +44,12 @@ export function useCapsuleDraw(active: boolean, owner: string, reduced: boolean)
     const controller = new AbortController(), { signal } = controller
     flight.current = controller; skipped.current = false
     const effectiveKind = s.pending?.kind ?? kind
+    const events = useGachaEvents.getState()
+    // Keep authoritative updates live; only this draw's visible stock waits for the reveal.
+    const presentation = effectiveKind === 'DRAW' ? {
+      machine: events.machine && events.machine.version > s.state.machine.version ? events.machine : s.state.machine,
+      inventory: s.state.inventory, notice: events.notices.filter(n => n.expiresAt > performance.now()).at(-1) ?? null,
+    } : null
     let settled=false
     const current = () => !signal.aborted && flight.current === controller
       && useSession.getState().sessionId === owner && useSession.getState().status === 'connected'
@@ -51,7 +60,7 @@ export function useCapsuleDraw(active: boolean, owner: string, reduced: boolean)
     }
     const phase = (p: Phase) => { if (current()) setVisual(v => ({ ...v, phase: p, phaseStartedAt: performance.now() })) }
     try {
-      setVisual({ busy: true, phase: effectiveKind === 'DRAW' ? 'turning' : 'idle', phaseStartedAt: performance.now(), result: null, instant: false })
+      setVisual({ busy: true, phase: effectiveKind === 'DRAW' ? 'turning' : 'idle', phaseStartedAt: performance.now(), result: null, instant: false, presentation })
       // gachaAction owns persisted operation IDs, idempotency and receipt recovery.
       const request = gachaAction(kind).finally(()=>{settled=true})
       const operationId = useGacha.getState().pending?.operationId
@@ -69,7 +78,7 @@ export function useCapsuleDraw(active: boolean, owner: string, reduced: boolean)
         phase('landed'); await wait(380)
         if (receipt.grade === 1) { phase('anticipation'); await wait(650) }
       }
-      if (current()) setVisual({ busy: false, phase: 'reveal', phaseStartedAt: performance.now(), result: receipt, instant: skipped.current || reduce.current })
+      if (current()) setVisual({ busy: false, phase: 'reveal', phaseStartedAt: performance.now(), result: receipt, instant: skipped.current || reduce.current, presentation: null })
     } finally {
       if (flight.current === controller) {
         const stillCurrent = current()
