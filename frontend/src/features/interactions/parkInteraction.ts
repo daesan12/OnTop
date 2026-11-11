@@ -33,6 +33,7 @@ import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice,openParkGacha } from '../construction/model'
 import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlacement'
+import { gachaInteractionEnabled } from '../gacha/state'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
 import { canReachParkVr, openParkVrZone, parkVrEntrance } from '../vrZone/parkBridge'
 import { canReachJumpmapGuide, jumpmapGuideScope, openJumpmapGuide } from '../jumpmap/guideState'
@@ -74,11 +75,14 @@ export function getParkInteraction(): ParkInteraction | null {
     choices.push({kind:'ranking-board',id:rankingBoardTarget.id,label:'랭킹 자세히 보기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
   if(GENERATED_PARK_ENABLED)for(const site of constructionSites){
+    // layout-shop is the visible gacha machine. Its E prompt is controlled by the
+    // backend runtime capability below, not by the legacy construction marker.
+    if(site.id===PARK_GACHA_MACHINE.id)continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     choices.push({kind:'construction',id:site.id,label:site.label+' · 행운의 뽑기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
-  if (GENERATED_PARK_ENABLED && canReachParkGacha(p.current)) {
+  if (GENERATED_PARK_ENABLED && gachaInteractionEnabled(session.sessionId) && canReachParkGacha(p.current)) {
     const { id, x, y, z } = PARK_GACHA_MACHINE
     const distance = Math.hypot(p.current.x - x, p.current.z - z)
     choices.push({ kind: 'gacha', id, label: '의상 뽑기', occupied: false, available: true, distance,

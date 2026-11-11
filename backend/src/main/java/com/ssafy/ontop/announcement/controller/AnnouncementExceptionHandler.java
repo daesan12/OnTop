@@ -10,7 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(assignableTypes = AnnouncementController.class)
+@RestControllerAdvice(assignableTypes = {AnnouncementController.class, EntryNewsController.class})
 public class AnnouncementExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<AuthErrorResponse> invalid(IllegalArgumentException error) {

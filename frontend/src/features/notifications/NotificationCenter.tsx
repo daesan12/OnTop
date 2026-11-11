@@ -9,7 +9,7 @@ import { useSession } from '../../network/worldClient'
 import coinArt from '../../assets/entry/yeopjeon-icon.webp'
 import './notifications.css'
 
-export function NotificationCenter({ hidden = false, onOpenWinnings }: { hidden?: boolean; onOpenWinnings?: (week: string) => void }) {
+export function NotificationCenter({ hidden = false, onOpenWinnings, newsHostRef }: { hidden?: boolean; onOpenWinnings?: (week: string) => void; newsHostRef?: (node: HTMLDivElement | null) => void }) {
   const [open, setOpen] = useState(false), [page, setPage] = useState<NotificationPage | null>(null)
   const [detail, setDetail] = useState<NotificationDetail | null>(null), [error, setError] = useState('')
   const [busy, setBusy] = useState(false), [filter, setFilter] = useState<'all' | 'unread' | 'reward'>('all')
@@ -130,6 +130,7 @@ export function NotificationCenter({ hidden = false, onOpenWinnings }: { hidden?
       onClick={() => { clearRoamingInput(); document.exitPointerLock?.(); setToast(''); setOpen(true); setDetail(null); setTrail(['']); void load('', true) }}>
       <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg><span>알림</span>{!!page?.unreadCount && <b>{Math.min(99, page.unreadCount)}</b>}
     </button>
+    <div className="entry-news-hud-slot" ref={newsHostRef} />
     {toast && !open && <div className="inbox-toast" role="status"><span className="inbox-toast-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg></span><span className="inbox-toast-copy"><strong>{toast}</strong><small>알림함에서 확인해 주세요</small></span></div>}
   </div>
   return <>
