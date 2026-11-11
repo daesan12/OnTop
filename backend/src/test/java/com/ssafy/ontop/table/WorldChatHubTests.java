@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.AfterEach;
@@ -41,6 +41,19 @@ class WorldChatHubTests {
     @AfterEach
     void shutdown() {
         hub.shutdown();
+    }
+
+    @Test
+    void 응답대기중_AI알림은_버리지않고_원래순서로_보존한다() throws Exception {
+        Peer receiver = new Peer();
+        JsonNode notice = mapper.valueToTree(Map.of("type", "WORLD_AI_PRIVATE_NOTICE"));
+        JsonNode reply = mapper.valueToTree(Map.of("type", "WORLD_CHAT_MESSAGE", "requestId", "chat-request"));
+        JsonNode later = mapper.valueToTree(Map.of("type", "WORLD_CHAT_MODERATED"));
+        receiver.messages.addAll(List.of(notice, reply, later));
+
+        assertThat(receiver.matching(message -> message.path("requestId").asText().equals("chat-request")))
+                .isEqualTo(reply);
+        assertThat(receiver.messages).containsExactly(notice, later);
     }
 
     @Test
@@ -159,7 +172,7 @@ class WorldChatHubTests {
     private class Peer {
 
         private final String id = UUID.randomUUID().toString();
-        private final BlockingQueue<JsonNode> messages = new LinkedBlockingQueue<>();
+        private final BlockingDeque<JsonNode> messages = new LinkedBlockingDeque<>();
         private String userId;
 
         private void join(String channel) throws Exception {
@@ -173,14 +186,32 @@ class WorldChatHubTests {
         private JsonNode request(String type, Object payload) throws Exception {
             String requestId = UUID.randomUUID().toString();
             hub.receive(id, mapper.writeValueAsString(Map.of("requestId", requestId, "type", type, "payload", payload)));
-            JsonNode response = messages.poll(5, TimeUnit.SECONDS);
+            JsonNode response = matching(message -> message.path("requestId").asText().equals(requestId));
             assertThat(response).isNotNull();
             assertThat(response.path("requestId").asText()).isEqualTo(requestId);
             return response;
         }
 
+        // Unsolicited AI notices may precede an ACK or chat. Keep them for the assertions below.
+        private JsonNode matching(java.util.function.Predicate<JsonNode> predicate) throws InterruptedException {
+            var deferred = new java.util.ArrayList<JsonNode>();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            try {
+                while (true) {
+                    long remaining = deadline - System.nanoTime();
+                    if (remaining <= 0) return null;
+                    JsonNode message = messages.pollFirst(remaining, TimeUnit.NANOSECONDS);
+                    if (message == null) return null;
+                    if (predicate.test(message)) return message;
+                    deferred.add(message);
+                }
+            } finally {
+                for (int i = deferred.size() - 1; i >= 0; i--) messages.addFirst(deferred.get(i));
+            }
+        }
+
         private JsonNode next(String type) throws Exception {
-            JsonNode response = messages.poll(5, TimeUnit.SECONDS);
+            JsonNode response = matching(message -> message.path("type").asText().equals(type));
             assertThat(response).isNotNull();
             assertThat(response.path("type").asText()).isEqualTo(type);
             return response;
