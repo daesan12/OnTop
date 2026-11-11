@@ -1,11 +1,12 @@
 import {useEffect, useRef} from 'react'
 import {useFrame, useThree} from '@react-three/fiber'
 import {DoubleSide, Group, MathUtils} from 'three'
+import {CapsuleFiligree} from './CapsuleFiligree'
 
 /** The same hollow shell stays mounted from anticipation to the final receipt. */
 export function OpeningCapsule({grade,phase,startedAt,reduced,revealed}:{grade:number;phase:string;startedAt:number;reduced:boolean;revealed:boolean}){
  const root=useRef<Group>(null),hinge=useRef<Group>(null)
- const color=['','#ba4243','#86609d','#4f87a6','#739166'][grade]??'#739166'
+ const color=['','#b52823','#76509c','#326d9d','#54864c'][grade]??'#739166'
  const opened=phase==='opening'||revealed
  const invalidate=useThree(s=>s.invalidate)
  useEffect(()=>invalidate(),[phase,revealed,reduced,invalidate])
@@ -14,7 +15,7 @@ export function OpeningCapsule({grade,phase,startedAt,reduced,revealed}:{grade:n
   const blend=reduced?1:1-Math.exp(-Math.min(delta,.05)*9)
   const t=Math.max(0,(performance.now()-startedAt)/1000)
   const rock=!reduced&&phase==='sway'&&t<.95?Math.sin(t*Math.PI*4)*Math.sin(t/.95*Math.PI)*.075:0
-  const y=revealed?-.95:-.1,scale=revealed?.9:1,lidX=opened?-1.05:0,lidY=opened?1.6:0,lidTilt=opened?-1.05:0,lidRoll=opened?.48:0
+  const y=revealed?-.95:-.1,scale=revealed?1.05:1,lidX=opened?-1.28:0,lidY=opened?1.35:0,lidTilt=opened?-.58:0,lidRoll=opened?.55:0
   root.current.rotation.z=MathUtils.lerp(root.current.rotation.z,rock,blend)
   root.current.position.y=MathUtils.lerp(root.current.position.y,y,blend)
   root.current.scale.setScalar(MathUtils.lerp(root.current.scale.x,scale,blend))
@@ -33,6 +34,7 @@ export function OpeningCapsule({grade,phase,startedAt,reduced,revealed}:{grade:n
   <mesh position={[0,-.86,0]} scale={[.52,.08,.52]}><sphereGeometry args={[1,32,16]}/>{gold}</mesh>
   <group ref={hinge}>
    <group>
+    <CapsuleFiligree upper/>
     <mesh><sphereGeometry args={[1,48,24,0,Math.PI*2,0,Math.PI/2]}/><meshPhysicalMaterial color={color} side={DoubleSide} clearcoat={.6} roughness={.34}/></mesh>
     <mesh><sphereGeometry args={[.965,48,24,0,Math.PI*2,0,Math.PI/2]}/><meshStandardMaterial color="#efd088" side={DoubleSide} metalness={.45} roughness={.3}/></mesh>
     <mesh rotation={[Math.PI/2,0,0]}><torusGeometry args={[.99,.035,12,64]}/>{gold}</mesh>
@@ -40,6 +42,7 @@ export function OpeningCapsule({grade,phase,startedAt,reduced,revealed}:{grade:n
     {grade===1&&<mesh position={[0,1.25,0]}><coneGeometry args={[.12,.28,6]}/>{gold}</mesh>}
    </group>
   </group>
+  <CapsuleFiligree/>
   {/* Raised gold bands and flower clasps follow the shell surface. */}
   {[-.5,-.72].map(y=><mesh key={y} position={[0,y,0]} rotation={[Math.PI/2,0,0]}><torusGeometry args={[Math.sqrt(1-y*y),.018,8,64]}/>{gold}</mesh>)}
   {[-1,0,1].map(side=><group key={side} position={[side*.63,-.36,side===0?.94:.69]} rotation={[0,side*.65,0]}>

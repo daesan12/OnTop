@@ -7,20 +7,21 @@ import { ParkAssetLoader } from '../../world/art/assetLoader'
 import { knownWholeSkin } from '../../world/art/wholeSkin'
 import { catalogAsset, useSkinCatalog } from '../../world/art/skinCatalog'
 import { setImage, outfitImage } from '../wardrobe/itemArt'
-import { previewWardrobeItem, useWardrobe } from '../wardrobe/state'
+import { useWardrobe } from '../wardrobe/state'
 import { useSession } from '../../network/worldClient'
 import { gachaAction, refreshGacha, useGacha } from './state'
 import { money, type GachaProduct, type GachaResult } from './contracts'
 import { armUnlock } from '../../audio/bgm'
 import { playSfx } from '../../audio/sfx'
 import { CAPSULES, Capsule, Coin } from './capsuleMotion'
-import { capsuleName, capsuleTier, displayGachaMessage } from './labels'
+import { capsuleName, displayGachaMessage } from './labels'
 import { useGachaOverlay } from './view'
 import { WearParts } from './OpeningOrnaments'
 import { OpeningRadiance } from './OpeningRadiance'
 import { OpeningCapsule } from './OpeningCapsule'
 import './capsuleOpening.css'
 import './capsuleMotion.css'
+import './openingReference.css'
 
 type OpenPhase='idle'|'pause'|'sway'|'waiting'|'seam'|'opening'|'reveal'|'duplicate'|'coins'|'complete'
 const empty={phase:'idle' as OpenPhase,startedAt:0,busy:false,result:null as GachaResult|null,grade:4,instant:false,value:0}
@@ -130,7 +131,6 @@ export function GachaBoxes(){
  const componentSlots=result?.product?.components?.flatMap(c=>c.slots)??[]
  const slots=componentSlots.length?componentSlots:result?.product?.itemIds.flatMap(id=>{const slot=items.find(i=>i.item.itemId===id)?.item.equipSlot;return slot?[slot]:[]})??[]
  const parts=[...new Set(slots.map(slot=>slot==='HAIR'?'머리':slot==='FACE'?'얼굴':'옷'))]
- const takeLook=()=>{const owned=items.find(i=>result?.product?.itemIds.includes(i.item.itemId));opening.dismiss();window.dispatchEvent(new Event('ontop-gacha-show-outfits'));if(owned)previewWardrobeItem(owned.userItemId)}
  const ownedBoxes=s.state?.inventory.boxes.filter(b=>b.quantity>0)??[]
  const matchingBoxes=ownedBoxes.filter(b=>!query||capsuleName(b.grade).toLocaleLowerCase().includes(query.toLocaleLowerCase()))
  const next=()=>opening.dismiss()
@@ -157,7 +157,7 @@ export function GachaBoxes(){
   <dialog ref={dialog} className="capsule-opening-dialog" aria-label="의상 캡슐 개봉" onKeyDown={e=>e.stopPropagation()} onCancel={e=>{e.preventDefault();opening.busy?opening.skip():next()}}>
    <div className="capsule-opening-stage" data-phase={opening.phase} data-grade={opening.grade} data-reduced={reduced||opening.instant} style={{'--rarity-color':CAPSULES[opening.grade]!.color} as React.CSSProperties}>
     {opening.phase==='complete'&&<button className="open-result-x" aria-label="개봉 결과 닫기" onClick={next}>×</button>}
-    <div className="open-title"><h2 aria-label={`${capsuleTier(opening.grade)} 캡슐 오픈!`}>{capsuleTier(opening.grade)} 캡슐 오픈!</h2></div>
+    <div className="open-title"><h2 aria-label={shown?'캡슐 개봉 결과':'캡슐 개봉 중'}>{shown?'캡슐 개봉 결과':'캡슐 개봉 중'}</h2><p>{shown?'캡슐을 개봉하여 아래 아이템을 획득했어요!':'캡슐 속 행운을 깨우고 있어요'}</p></div>
 
     <div className="open-prize-display">
     {shown&&<OpeningRadiance grade={opening.grade}/> }
@@ -166,10 +166,10 @@ export function GachaBoxes(){
 
     </div>
     {shown&&result?.product?<div className="open-result-card" data-operation-id={result.operationId} aria-live="polite">
-     <small>{result.duplicate?'의상 공개':'새 의상 획득!'}</small><h3>{result.product.name}</h3><WearParts parts={parts}/>
-     {result.duplicate&&['duplicate','coins','complete'].includes(opening.phase)?<div className="open-duplicate"><b>이미 보유 중</b><p>이미 보유한 의상이에요.<br/>상품 가치{opening.value?` ${money(opening.value)}`:''}의 50%인 <strong>{money(result.awardedCoins)}</strong>을 중복 보상으로 지급했어요.</p></div>:<p>{result.duplicate?'이 의상을 확인해 보세요.':'옷장에 보관했어요. 원하는 때 직접 입어 보세요.'}</p>}
+     <h3>{result.product.name}</h3><div className="open-item-tags"><span>의상 세트</span><WearParts parts={parts}/></div>
+     {result.duplicate&&['duplicate','coins','complete'].includes(opening.phase)?<div className="open-duplicate"><b>이미 보유 중</b><p>이미 보유한 의상이에요.<br/>상품 가치{opening.value?` ${money(opening.value)}`:''}의 50%인 <strong>{money(result.awardedCoins)}</strong>을 중복 보상으로 지급했어요.</p></div>:null}
     </div>:<p className="open-suspense" role="status">{opening.phase==='waiting'?'캡슐 안의 행운을 확인하고 있어요…':opening.phase==='seam'||opening.phase==='opening'?'빛 속의 의상을 만나 보세요':'잠시만요, 행운이 깨어나요'}</p>}
-    {opening.phase==='complete'&&<div className="open-result-actions"><button onClick={takeLook}>옷장에서 입어 보기</button><button onClick={next}>확인</button></div>}
+    {opening.phase==='complete'&&<div className="open-result-actions"><button onClick={()=>{next();useItemChoice.setState({grade:null})}}><span className="open-next-icon" aria-hidden="true"><Capsule grade={opening.grade}/></span>다른 캡슐 열기</button><button onClick={next}><span aria-hidden="true">✓</span> 확인</button></div>}
     {opening.busy&&<button className="open-skip" onClick={opening.skip}>연출 건너뛰기</button>}
    </div>
   </dialog>

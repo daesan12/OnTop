@@ -13,7 +13,7 @@ async function setup(page:Page,duplicate=false,grade=2,animated=false,name='로�
 }
 for(const size of [{width:1920,height:1080},{width:1366,height:650},{width:1280,height:600},{width:800,height:600},{width:390,height:720}])test('100% 화면에서 결과·등급·하단 버튼이 보인다 '+size.width+'x'+size.height,async({page})=>{
  await page.setViewportSize(size);const dialog=await setup(page)
- await expect(dialog.getByRole('heading',{name:'A급 캡슐 오픈!',exact:true})).toBeVisible();await expect(dialog).not.toContainText('나를 찾아온 작은 행운');await expect(dialog).not.toContainText('나의 옷장');await expect(dialog).not.toContainText('보유 엽전');await expect(dialog.locator('.open-parts')).toHaveText('착용 부위: 머리 · 얼굴 · 옷')
+ await expect(dialog.getByRole('heading',{name:'캡슐 개봉 결과',exact:true})).toBeVisible();await expect(dialog).not.toContainText('나를 찾아온 작은 행운');await expect(dialog).not.toContainText('나의 옷장');await expect(dialog).not.toContainText('보유 엽전');await expect(dialog.locator('.open-parts')).toHaveText('착용 부위: 머리 · 얼굴 · 옷')
  const box=(await dialog.boundingBox())!;expect(box.width).toBeLessThan(size.width*.95);expect(box.height).toBeLessThanOrEqual(size.height*.89)
  for(const button of await dialog.locator('.open-result-actions button').all()){const b=(await button.boundingBox())!;expect(b.y).toBeGreaterThan(box.y);expect(b.y+b.height).toBeLessThanOrEqual(box.y+box.height);await expect(button).toBeInViewport()}
  await expect(dialog.locator('.open-grade-seal')).toHaveCount(0);await expect(dialog.locator('.open-component-rewards')).toHaveCount(0)
@@ -21,7 +21,7 @@ for(const size of [{width:1920,height:1080},{width:1366,height:650},{width:1280,
  await dialog.getByRole('button',{name:'확인',exact:true}).click();await expect(dialog).toBeHidden()
 })
 for(const [grade,tier] of [[1,'S'],[2,'A'],[3,'B'],[4,'C']] as const)test(tier+'급은 입체 캡슐을 유지하고 모션 축소를 지킨다',async({page})=>{
- const dialog=await setup(page,false,grade);await expect(dialog.getByRole('heading',{name:`${tier}급 캡슐 오픈!`,exact:true})).toBeVisible()
+ const dialog=await setup(page,false,grade);await expect(dialog.getByRole('heading',{name:'캡슐 개봉 결과',exact:true})).toBeVisible()
  await expect(dialog.locator('.open-capsule-scene canvas')).toBeVisible();await expect(dialog.locator('.open-display-shell,.capsule-effects,.open-wallet')).toHaveCount(0)
  expect(await dialog.locator('.open-aureole').evaluate(el=>getComputedStyle(el).animationName)).toBe('none')
  if(grade===1)await page.screenshot({path:'../output/gacha-result-S.png'})
@@ -33,9 +33,9 @@ test('기본 모션은 캡슐에서 광선과 별빛을 펼치고 유한 횟수�
  await expect(dialog.getByRole('button',{name:'확인',exact:true})).toBeInViewport()
 })
 
-test('중복 환급과 입어 보기에서도 버튼이 보이고 결과창을 닫는다',async({page})=>{
+test('중복 환급을 읽고 다른 캡슐 선택으로 돌아간다',async({page})=>{
  const dialog=await setup(page,true);await expect(dialog).toContainText('250냥');await expect(dialog).toContainText('이미 보유 중');await expect(dialog).not.toContainText('보유 엽전');await expect(dialog.locator('.open-parts')).toHaveText('착용 부위: 머리 · 얼굴 · 옷')
- await dialog.getByRole('button',{name:'옷장에서 입어 보기',exact:true}).click();await expect(dialog).toBeHidden()
+ await dialog.getByRole('button',{name:'다른 캡슐 열기',exact:true}).click();await expect(dialog).toBeHidden()
 })
 
  test('긴 상품명도 결과의 처음부터 읽고 닫을 수 있다',async({page})=>{
