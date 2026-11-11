@@ -23,6 +23,8 @@ springdoc:
   paths-to-match: /api/v1/**
 
 ontop:
+  ai:
+    enabled: ${AI_ENABLED:false}
   gacha:
     enabled: ${GACHA_ENABLED:false}
     node-id: ${GACHA_NODE_ID:server-1}

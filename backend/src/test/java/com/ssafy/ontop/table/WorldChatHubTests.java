@@ -44,6 +44,57 @@ class WorldChatHubTests {
     }
 
     @Test
+    void 동시_욕설은_작성자별_가림과_개인경고를_주고_정상작성자는_경고하지않는다(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        try(var ai=new com.ssafy.ontop.ai.LocalWorldAi(mapper,directory,new com.ssafy.ontop.ai.OfflineDecisions(),
+                com.ssafy.ontop.ai.AiNotifier.local(),hub)) {
+            Peer a=peer(),b=peer(),normal=peer(); a.join("one"); b.join("one"); normal.join("one");
+            a.messages.clear(); b.messages.clear(); normal.messages.clear();
+            var aSent=a.request("WORLD_CHAT_SEND",Map.of("text","씨발")); b.next("WORLD_CHAT_MESSAGE"); normal.next("WORLD_CHAT_MESSAGE");
+            var bSent=b.request("WORLD_CHAT_SEND",Map.of("text","병신")); a.next("WORLD_CHAT_MESSAGE"); normal.next("WORLD_CHAT_MESSAGE");
+            var normalSent=normal.request("WORLD_CHAT_SEND",Map.of("text","안녕하세요")); a.next("WORLD_CHAT_MESSAGE"); b.next("WORLD_CHAT_MESSAGE");
+            ai.flush(); ai.step();
+            var aEvents=new java.util.ArrayList<JsonNode>(); var bEvents=new java.util.ArrayList<JsonNode>();
+            var normalEvents=new java.util.ArrayList<JsonNode>();
+            for(int i=0;i<5;i++) { aEvents.add(a.messages.poll(5,TimeUnit.SECONDS)); bEvents.add(b.messages.poll(5,TimeUnit.SECONDS)); }
+            for(int i=0;i<4;i++) normalEvents.add(normal.messages.poll(5,TimeUnit.SECONDS));
+            assertThat(aEvents).doesNotContainNull(); assertThat(bEvents).doesNotContainNull(); assertThat(normalEvents).doesNotContainNull();
+            assertThat(aEvents.stream().filter(e -> e.path("type").asText().equals("WORLD_AI_PRIVATE_NOTICE"))).hasSize(1);
+            assertThat(bEvents.stream().filter(e -> e.path("type").asText().equals("WORLD_AI_PRIVATE_NOTICE"))).hasSize(1);
+            assertThat(normalEvents).noneMatch(e -> e.path("type").asText().equals("WORLD_AI_PRIVATE_NOTICE"));
+            assertThat(normalEvents.stream().filter(e -> e.path("type").asText().equals("WORLD_CHAT_MODERATED"))
+                    .map(e -> e.at("/payload/messageId").asText())).containsExactlyInAnyOrder(
+                            aSent.at("/payload/messageId").asText(),bSent.at("/payload/messageId").asText())
+                    .doesNotContain(normalSent.at("/payload/messageId").asText());
+            assertThat(ai.status()).containsEntry("hidden",2L);
+        }
+    }
+
+    @Test
+    void 실제_채팅_ID와_원래_수신자로_가림과_경찰안내를_보낸다(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        try(var ai=new com.ssafy.ontop.ai.LocalWorldAi(mapper,directory,new com.ssafy.ontop.ai.OfflineDecisions(),
+                com.ssafy.ontop.ai.AiNotifier.local(),hub)) {
+            Peer first=peer(), second=peer(), other=peer();
+            first.join("one"); second.join("one");
+            first.next("CHANNEL_STATE"); first.next("WORLD_STATE");
+            other.join("two");
+            var sent=first.request("WORLD_CHAT_SEND",Map.of("text","씨발"));
+            second.next("WORLD_CHAT_MESSAGE");
+            ai.flush(); ai.step();
+            assertThat(first.next("WORLD_AI_POLICE").path("payload").path("speech").asText()).isNotBlank();
+            first.next("WORLD_AI_PRIVATE_NOTICE");
+            var hidden=first.next("WORLD_CHAT_MODERATED");
+            assertThat(hidden.path("payload").path("messageId").asText()).isEqualTo(sent.path("payload").path("messageId").asText());
+            second.next("WORLD_AI_POLICE");
+            assertThat(second.next("WORLD_CHAT_MODERATED").path("payload")).isEqualTo(hidden.path("payload"));
+            assertThat(other.messages.stream().noneMatch(m -> m.path("type").asText().startsWith("WORLD_AI")
+                    || m.path("type").asText().equals("WORLD_CHAT_MODERATED"))).isTrue();
+            hub.publishAi("one",List.of(first.userId),"WORLD_AI_PRIVATE_NOTICE",Map.of("text","입구 개인 안내"));
+            assertThat(first.next("WORLD_AI_PRIVATE_NOTICE").at("/payload/text").asText()).isEqualTo("입구 개인 안내");
+            assertThat(second.messages.poll(200,TimeUnit.MILLISECONDS)).isNull();
+        }
+    }
+
+    @Test
     void 채팅은_본인과_같은_채널에만_한_메시지_ID로_전송한다() throws Exception {
         Peer first = peer();
         Peer second = peer();

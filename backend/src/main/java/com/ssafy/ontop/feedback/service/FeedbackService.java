@@ -22,6 +22,9 @@ public class FeedbackService {
     private final FeedbackProperties properties;
     private final Clock clock;
     private com.ssafy.ontop.notification.repository.NotificationRepository notifications;
+    private java.util.function.Consumer<com.ssafy.ontop.ai.WorldAiBridge.Feedback> ai = ignored -> { };
+
+    public void ai(java.util.function.Consumer<com.ssafy.ontop.ai.WorldAiBridge.Feedback> sink) { ai = sink; }
 
     public FeedbackService(FeedbackRepository repository, PlatformTransactionManager manager,
             TableHub hub, FeedbackProperties properties, Clock clock) {
@@ -60,6 +63,12 @@ public class FeedbackService {
             });
             var message = new FeedbackMessage(userId, key, channelId, text, now);
             repository.save(message);
+            var event = new com.ssafy.ontop.ai.WorldAiBridge.Feedback(message.id().toString(),
+                    Long.toString(userId), channelId, message.body());
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override public void afterCommit() { ai.accept(event); }
+                    });
             return receipt(message);
         }));
     }

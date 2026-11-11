@@ -12,7 +12,7 @@ import { useShop } from '../features/shop/controller'
 import { AVATAR_ACTIVITY_LABELS } from '../network/avatarActivity'
 import { ownGameActivity } from './avatarActivity'
 import { useOmokEvents } from '../game/omok/spectatorEvents'
-import { gameChatScope } from '../features/chat/gameChat'
+import { useChatScope } from '../features/chat/gameChat'
 import { displayNickname } from '../features/gameMaster/displayName'
 import { TypingIndicator } from '../features/chat/TypingIndicator'
 import '../features/vrSession/presence.css'
@@ -37,7 +37,7 @@ const AvatarOverlay = memo(function AvatarOverlay({
   id: string
   targets: OverlayTargets
 }) {
-  const worldBubble = useSession((state) => state.bubbles[id]), gameId = useGame(gameChatScope)
+  const worldBubble = useSession((state) => state.bubbles[id]), gameId = useChatScope()
   const chat = useOmokEvents(state => gameId ? state.chats.filter(message => message.gameId === gameId && message.senderUserId === id).at(-1) : undefined)
   const bubble = useMemo(() => gameId ? chat && { id: chat.eventId, text: chat.text, expiresAt: chat.until }
     : worldBubble, [gameId, chat, worldBubble])

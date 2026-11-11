@@ -10,7 +10,7 @@ import sendIcon from '../parkMenus/icons/chat-send.svg'
 import expandIcon from '../parkMenus/icons/chevron-channel.svg'
 import { useGame } from '../../game/store'
 import { useOmokEvents } from '../../game/omok/spectatorEvents'
-import { gameChatScope } from './gameChat'
+import { useChatScope } from './gameChat'
 import { noteTourAction } from '../welcomeTour/state'
 import { displayNickname } from '../gameMaster/displayName'
 import { useChatTyping } from './useChatTyping'
@@ -21,7 +21,7 @@ const anotherPanel = () => Object.entries(inputState).some(([key, value]) => val
   || !!document.querySelector('dialog[open],[role="dialog"]:not(.table-tablet[data-active="true"])')
 
 export function ParkChat() {
-  const gameId = useGame(gameChatScope), channel = useSession(s => s.roomId)
+  const gameId = useChatScope(), channel = useSession(s => s.roomId)
   return <ChatPanel key={`${channel}/${gameId}`} gameId={gameId} />
 }
 function ChatPanel({ gameId }: { gameId: string }) {

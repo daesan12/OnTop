@@ -18,6 +18,7 @@ import { ConstructionNotice } from '../features/construction/ConstructionNotice'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
+import { PolicePrivateNotice } from '../features/ai/PolicePrivateNotice'
 import { AnonymousNotes } from '../features/notes/AnonymousNotes'
 import { ManualHost } from '../features/manual/ManualHost'
 import { FacilityStatus } from '../features/facilities/FacilityStatus'
@@ -183,6 +184,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
         <ParkTools />
         <ParkInteractionHint />
+        <PolicePrivateNotice />
         <div hidden={omokFocus} inert={omokFocus}>
         <WelcomeTour />
         <ConstructionNotice />

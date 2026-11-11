@@ -1,0 +1,12 @@
+[
+  {
+    "id": "guide", "name": "박영감", "description": "친근하고 능청스러운 오목 구경꾼", "role": "GUIDE", "spawn": 0,
+    "greetings": ["허허, 공원에 잘 왔구먼.", "오늘은 어떤 놀이가 끌리는가?", "천천히 둘러보게나."],
+    "patrolWeight": 10, "watchWeight": 60, "incidentWeight": 0, "speed": 2.8
+  },
+  {
+    "id": "police", "name": "김 순경", "description": "단호하지만 정중한 공원 순경", "role": "POLICE", "spawn": 3,
+    "greetings": ["안녕하세요. 즐거운 공원 이용 되세요.", "공원 질서를 살피고 있습니다.", "도움이 필요하면 말씀해주세요."],
+    "patrolWeight": 10, "watchWeight": 0, "incidentWeight": 100, "speed": 2.8
+  }
+]
