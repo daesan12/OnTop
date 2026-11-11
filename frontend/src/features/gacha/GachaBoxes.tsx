@@ -1,5 +1,5 @@
 import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Canvas, useFrame, useLoader } from '@react-three/fiber'
+import { Canvas, useLoader } from '@react-three/fiber'
 import { create } from 'zustand'
 import { Box3, Group, Vector3 } from 'three'
 import { clone } from 'three/addons/utils/SkeletonUtils.js'
@@ -13,10 +13,11 @@ import { gachaAction, refreshGacha, useGacha } from './state'
 import { money, type GachaProduct, type GachaResult } from './contracts'
 import { armUnlock } from '../../audio/bgm'
 import { playSfx } from '../../audio/sfx'
-import { CAPSULES, Capsule, Coin, RevealEffects } from './capsuleMotion'
+import { CAPSULES, Capsule, Coin } from './capsuleMotion'
 import { capsuleName, capsuleTier, displayGachaMessage } from './labels'
 import { useGachaOverlay } from './view'
-import { OpenShell, WearParts } from './OpeningOrnaments'
+import { WearParts } from './OpeningOrnaments'
+import { OpeningCapsule } from './OpeningCapsule'
 import './capsuleOpening.css'
 import './capsuleMotion.css'
 
@@ -56,35 +57,6 @@ function useOpening(active:boolean,owner:string,reduced:boolean){
  return {...s,open,skip:()=>{skip.current=true},dismiss:()=>set(empty)}
 }
 
-const colors:Record<number,string>={1:'#d83239',2:'#9858cf',3:'#378ed2',4:'#70a75a'}
-function OpeningShell({grade,phase,startedAt,reduced}:{grade:number;phase:OpenPhase;startedAt:number;reduced:boolean}){
- const root=useRef<Group>(null),lid=useRef<Group>(null),color=colors[grade]
- useFrame(()=>{
-  if(!root.current||!lid.current)return
-  const t=Math.max(0,(performance.now()-startedAt)/1000)
-  // Two separated, weighty gestures, never an accelerating vibration loop.
-  const pulse=(start:number)=>{const p=(t-start)/.28;return p>0&&p<1?Math.sin(p*Math.PI*2)*Math.sin(p*Math.PI):0}
-  root.current.rotation.z=!reduced&&phase==='sway'?.14*pulse(.04)-.18*pulse(.58):0
-  const p=phase==='opening'?Math.min(1,t/.65):0,ease=1-(1-p)**3
-  lid.current.position.set(0,ease*.85,-ease*.28);lid.current.rotation.x=-ease*1.08
- })
- return <group ref={root} rotation={[.06,0,0]}>
-  <mesh><sphereGeometry args={[1,32,24,0,Math.PI*2,Math.PI/2,Math.PI/2]}/><meshPhysicalMaterial color={color} clearcoat={1} roughness={.25}/></mesh>
-  <mesh rotation={[Math.PI/2,0,0]}><torusGeometry args={[1,.045,8,48]}/><meshStandardMaterial color={['seam','opening'].includes(phase)?'#fff3c0':'#efc56d'} emissive={['seam','opening'].includes(phase)?CAPSULES[grade]!.color:'#000'} emissiveIntensity={2} metalness={.5}/></mesh>
-  <group ref={lid}>
-   <mesh><sphereGeometry args={[1,32,24,0,Math.PI*2,0,Math.PI/2]}/><meshPhysicalMaterial color={color} clearcoat={1} roughness={.22}/></mesh>
-   <mesh position={[0,.98,0]}><sphereGeometry args={[.25,16,12]}/><meshStandardMaterial color="#f4d07a" metalness={.6} roughness={.25}/></mesh>
-   {grade===1&&[-1,0,1].map(x=><mesh key={x} position={[x*.23,1.18,0]} rotation={[0,0,-x*.4]}><coneGeometry args={[.09,.4,8]}/><meshStandardMaterial color="#f4d07a" metalness={.6} roughness={.25}/></mesh>)}
-  </group>
-  {[0,1,2,3,4].map(i=><mesh key={i} position={[Math.sin(i*Math.PI*2/5)*.13,Math.cos(i*Math.PI*2/5)*.13-.04,1]} scale={[.09,.14,.045]} rotation={[0,0,-i*Math.PI*2/5]}><sphereGeometry args={[1,12,8]}/><meshStandardMaterial color="#f4d07a" metalness={.5} roughness={.25}/></mesh>)}
-  <mesh position={[0,-.04,1.04]}><sphereGeometry args={[.09,12,8]}/><meshStandardMaterial color="#fff0b0"/></mesh>
-  <mesh position={[0,-.39,1]}><coneGeometry args={[.08,.3,10]}/><meshStandardMaterial color={color}/></mesh>
-  {[-1,1].map(side=><group key={side} position={[side*.48,.43,.77]} rotation={[0,side*.45,side*.3]}>
-   <mesh><torusGeometry args={[.17,.025,6,16,Math.PI*1.6]}/><meshStandardMaterial color={grade===3?'#e9f5ff':grade===4?'#d3e39a':'#efc56d'}/></mesh>
-  </group>)}
-  {['seam','opening'].includes(phase)&&<pointLight position={[0,.15,1.4]} color={CAPSULES[grade]!.color} intensity={4}/>}
- </group>
-}
 function Lighting(){return <><ambientLight intensity={1.5}/><directionalLight position={[3,5,5]} intensity={3} color="#fff0d0"/><directionalLight position={[-3,2,2]} intensity={1.5} color="#c9e8ff"/></>}
 class ArtBoundary extends Component<{children:ReactNode;fallback:ReactNode},{failed:boolean}>{
  state={failed:false};static getDerivedStateFromError(){return {failed:true}}
@@ -184,19 +156,16 @@ export function GachaBoxes(){
   <dialog ref={dialog} className="capsule-opening-dialog" aria-label="의상 캡슐 개봉" onKeyDown={e=>e.stopPropagation()} onCancel={e=>{e.preventDefault();opening.busy?opening.skip():next()}}>
    <div className="capsule-opening-stage" data-phase={opening.phase} data-grade={opening.grade} data-reduced={reduced||opening.instant} style={{'--rarity-color':CAPSULES[opening.grade]!.color} as React.CSSProperties}>
     {opening.phase==='complete'&&<button className="open-result-x" aria-label="개봉 결과 닫기" onClick={next}>×</button>}
-    <div className="open-wallet">보유 엽전 <b>{money(s.state?.inventory.balance??0)}</b></div>
     <div className="open-title"><h2 aria-label={`${capsuleTier(opening.grade)} 캡슐 오픈!`}>{capsuleTier(opening.grade)} 캡슐 오픈!</h2></div>
-    {shown&&<RevealEffects grade={opening.grade}/>}
+
     <div className="open-prize-display">
-    {shown&&<OpenShell grade={opening.grade}/>}
-    <div key={shown?'product':'capsule'} className="open-center-art" role="img" aria-label={shown?result?.product?.name:`${capsuleName(opening.grade)} 개봉 중`}>
-     {shown&&result?.product?<ProductDisplay key={result.operationId} product={result.product}/>:<Canvas resize={{offsetSize:true}} camera={{position:[0,.15,4.8],fov:40}} dpr={1} frameloop={reduced?'demand':'always'} gl={{alpha:true,antialias:true}}><Lighting/><OpeningShell grade={opening.grade} phase={opening.phase} startedAt={opening.startedAt} reduced={reduced||opening.instant}/></Canvas>}
-    </div>
+    <div className="open-capsule-scene" aria-hidden="true"><Canvas resize={{offsetSize:true}} camera={{position:[0,1.4,5.4],fov:40}} frameloop="demand" dpr={1} gl={{alpha:true,antialias:true}}><Lighting/><OpeningCapsule grade={opening.grade} phase={opening.phase} startedAt={opening.startedAt} reduced={reduced||opening.instant} revealed={shown}/></Canvas></div>
+    {shown&&result?.product&&<div className="open-center-art" role="img" aria-label={result.product.name}><ProductDisplay key={result.operationId} product={result.product}/></div>}
+    {shown&&<div className="open-reveal-glow" aria-hidden="true"/>}
     </div>
     {shown&&result?.product?<div className="open-result-card" data-operation-id={result.operationId} aria-live="polite">
      <small>{result.duplicate?'의상 공개':'새 의상 획득!'}</small><h3>{result.product.name}</h3><WearParts parts={parts}/>
      {result.duplicate&&['duplicate','coins','complete'].includes(opening.phase)?<div className="open-duplicate"><b>이미 보유 중</b><p>이미 보유한 의상이에요.<br/>상품 가치{opening.value?` ${money(opening.value)}`:''}의 50%인 <strong>{money(result.awardedCoins)}</strong>을 중복 보상으로 지급했어요.</p></div>:<p>{result.duplicate?'이 의상을 확인해 보세요.':'옷장에 보관했어요. 원하는 때 직접 입어 보세요.'}</p>}
-     {result.duplicate&&['coins','complete'].includes(opening.phase)&&<CoinToWallet receipt={result.operationId} amount={result.awardedCoins} reduced={reduced||opening.instant}/>}
     </div>:<p className="open-suspense" role="status">{opening.phase==='waiting'?'캡슐 안의 행운을 확인하고 있어요…':opening.phase==='seam'||opening.phase==='opening'?'빛 속의 의상을 만나 보세요':'잠시만요, 행운이 깨어나요'}</p>}
     {opening.phase==='complete'&&<div className="open-result-actions"><button onClick={takeLook}>옷장에서 입어 보기</button><button onClick={next}>확인</button></div>}
     {opening.busy&&<button className="open-skip" onClick={opening.skip}>연출 건너뛰기</button>}
