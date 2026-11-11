@@ -29,6 +29,7 @@ import { CameraRig } from './CameraRig'
 import { ParkXRBridge } from '../features/parkXR/ParkXRBridge'
 
 import { Avatars } from './Avatars'
+import {JokeJudgeActor} from '../features/ai/JokeJudgeActor'
 import { CompanionActors } from '../features/ai/CompanionActors'
 import { PoliceNpcs } from '../features/ai/PoliceNpcs'
 import { AvatarPoseFrame } from './AvatarPoseFrame'
@@ -197,7 +198,8 @@ export const WorldCanvas = memo(function WorldCanvas({
           </Suspense>
           <Avatars overlayTargets={overlayTargets} />
         <PoliceNpcs />
-        <CompanionActors />          <FollowRopes />
+        <CompanionActors />
+        <JokeJudgeActor />          <FollowRopes />
           <RouteArrows />
           <BungeoppangGrill />
           <ParkDebrisScene />

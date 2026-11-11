@@ -18,6 +18,7 @@ import {MapAdmission,MAP_UPDATE_MESSAGE,type MapIdentity} from '../../network/ma
 import { FacilityClient } from '../../network/facilityClient'
 import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
+import { jokeBusinessMessage, jokeSubmissionPath } from '../../features/ai/jokeSubmissionError'
 import { clearRoamingInput, inputState, focusParkCanvas } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
 import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
@@ -404,7 +405,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
     const distanceCode = url === '/api/v1/feedback' ? 'FEEDBACK_OUT_OF_RANGE'
       : /^\/api\/v1\/notes(?:\?channelId=[^&#?]+)?$/.test(url) ? 'NOTES_OUT_OF_RANGE'
-      : ''
+      : url === jokeSubmissionPath ? 'JOKE_OUT_OF_RANGE' : ''
     const distanceForbidden = response.status === 403 && !!distanceCode
     if (response.status === 401 || (response.status === 403 && !distanceForbidden)) this.authEnded()
     if (!response.ok) {
@@ -415,7 +416,7 @@ export class ParkRuntime implements ParkRuntimePort {
       throw new RestError(response.status, code,
         response.status === 401
           ? '로그인을 다시 확인해주세요.'
-          : `서버 요청에 실패했습니다. (${response.status})`,
+          : jokeBusinessMessage(url, response.status, body) ?? `서버 요청에 실패했습니다. (${response.status})`,
         record(body) && typeof body.nextAllowedAt === 'string' ? body.nextAllowedAt : undefined,
       )
     }
@@ -465,6 +466,8 @@ export class ParkRuntime implements ParkRuntimePort {
       && ['127.0.0.1','localhost'].includes(location.hostname)
       && ((method === 'POST' && /^\/local\/ai\/(?:feedback-position|table-position|jumpmap-position|roof-position|flush|digest)$/.test(path))
         || (method === 'GET' && path === '/local/ai/status')
+        || (method === 'GET' && /^\/local\/ai\/joke-contest\/(?:me|rankings(?:\?date=\d{4}-\d{2}-\d{2})?|yesterday|hall|reveal\/[a-zA-Z0-9-]+|submissions\/[a-zA-Z0-9-]+)$/.test(path))
+        || (method === 'POST' && /^\/local\/ai\/joke-contest\/(?:submissions|position)$/.test(path))
         || (method === 'GET' && path === '/local/ai/companions/status')
         || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
     if (!this.active || (!localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
