@@ -8,6 +8,7 @@
     "node": ">=24.0.0 <25"
   },
   "scripts": {
+    "dev:entry-news": "vite --config vite.entry-news.config.ts --open /entry-news-preview.html",
     "dev": "vite",
     "dev:alkkagi-park": "vite --config vite.alkkagi-park.config.ts --mode frontend-test --open /alkkagi-park.html?role=red",
     "dev:park": "vite --mode park-integration --host localhost --port 5202 --strictPort",

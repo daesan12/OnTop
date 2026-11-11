@@ -97,6 +97,11 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/admin/wallet-grants/rewards", "GET /api/v1/admin/wallet-grants/rewards/recipients",
                 "POST /api/v1/admin/operations/feedback/{receiptId}/replies",
                 "PATCH /api/v1/admin/operations/feedback/{receiptId}/status",
+                "GET /api/v1/entry-news", "GET /api/v1/entry-news/{id}/image",
+                "GET /api/v1/admin/operations/entry-news", "GET /api/v1/admin/operations/entry-news/{id}/image",
+                "POST /api/v1/admin/operations/entry-news/{id}/uploads",
+                "POST /api/v1/admin/operations/entry-news/{id}", "PUT /api/v1/admin/operations/entry-news/{id}",
+                "DELETE /api/v1/admin/operations/entry-news/{id}", "PUT /api/v1/admin/operations/entry-news/order",
                 "GET /api/v1/announcements", "GET /api/v1/admin/operations/announcements",
                 "POST /api/v1/admin/operations/announcements/{id}", "PUT /api/v1/admin/operations/announcements/{id}",
                 "DELETE /api/v1/admin/operations/announcements/{id}", "PUT /api/v1/admin/operations/announcements/order",
@@ -494,5 +499,16 @@ abstract class OpenApiHttpTestSupport {
                 .isEqualTo("#/components/schemas/AnnouncementOrderItem");
         assertThat(api.at("/components/schemas/PublicAnnouncementsResponse/properties/announcements/items/$ref").asText())
                 .isEqualTo("#/components/schemas/PublicAnnouncement");
+    }
+    @Test
+    void 접속_안내는_PNG_binary와_204_응답을_구분한다() throws Exception {
+        var api=json();
+        for(String path:List.of("/api/v1/entry-news/{id}/image","/api/v1/admin/operations/entry-news/{id}/image")) {
+            var schema=api.path("paths").path(path).path("get").path("responses").path("200").path("content").path("image/png").path("schema");
+            assertThat(schema.path("type").asText()).isEqualTo("string");
+            assertThat(schema.path("format").asText()).isEqualTo("binary");
+        }
+        assertThat(api.path("paths").path("/api/v1/admin/operations/entry-news/order").path("put").path("responses").has("204")).isTrue();
+        assertThat(api.path("paths").path("/api/v1/admin/operations/entry-news/{id}").path("delete").path("responses").has("204")).isTrue();
     }
 }
