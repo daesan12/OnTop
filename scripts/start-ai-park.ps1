@@ -1,4 +1,4 @@
-﻿param([switch]$Stop, [switch]$Restart, [switch]$AutoLive, [switch]$Offline, [switch]$LiveJev, [switch]$LiveMattermost, [switch]$NoBuild)
+﻿param([switch]$Stop, [switch]$Restart, [switch]$AutoLive, [switch]$Offline, [switch]$LiveJev, [switch]$LiveMattermost, [switch]$NoBuild, [switch]$JokeDb)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $backend = Join-Path $repo 'backend'
@@ -24,6 +24,7 @@ if ($AutoLive) { $LiveJev=[bool]$env:JEV_API_KEY; $LiveMattermost=[bool]$env:AI_
 if (!(Test-Path -LiteralPath (Join-Path $frontend 'node_modules/vite/bin/vite.js'))) { throw '기존 frontend 의존성 설치가 필요합니다.' }
 if ($LiveJev -and !$env:JEV_API_KEY) { throw 'LiveJev에는 JEV_API_KEY 환경변수가 필요합니다. LLM 키는 필요하지 않습니다.' }
 if ($LiveMattermost -and !$env:AI_LAB_MM_WEBHOOK) { throw '실제 MM 전송에는 AI_LAB_MM_WEBHOOK 환경변수가 필요합니다.' }
+if ($JokeDb) { & (Join-Path $PSScriptRoot 'start-ai-joke-db.ps1') }
 if ($Restart) { Stop-OwnedAiPark }
 
 foreach ($port in @(19191, 5211)) {

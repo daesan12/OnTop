@@ -40,9 +40,10 @@ import { canReachJumpmapGuide, jumpmapGuideScope, openJumpmapGuide } from '../ju
 import { START as JUMPMAP_START } from '../jumpmap/course'
 import { useJumpmap } from '../jumpmap/state'
 import { carryInteraction, interactWithAvatar } from '../carry/interaction'
+import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge'
   id: string
   label: string
   seat?: 0 | 1
@@ -61,6 +62,7 @@ export function getParkInteraction(): ParkInteraction | null {
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
+  if(canReachJokeJudge(p.current)){const distance=Math.hypot(p.current.x-jokeJudgePosition.x,p.current.z-jokeJudgePosition.z);choices.push({kind:'joke-judge',id:'joke-judge',label:'김부장과 대화',occupied:false,available:true,distance,score:interactionScore(distance,{...jokeJudgePosition,y:jokeJudgePosition.y+1.5})})}
   if (p.carry && p.carry.role !== 'CARRIER') return null
   const carry = carryInteraction()
   if (p.carry?.role === 'CARRIER') return carry
@@ -161,6 +163,7 @@ export function interactWithPark(expectedId?: string): boolean {
   if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
   else if (target.kind === 'ranking-board') openRankingBoard()
+  else if (target.kind === 'joke-judge') openJokeContest()
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'gacha') openParkGacha()
   else if (target.kind === 'construction') openConstructionNotice(target.id)

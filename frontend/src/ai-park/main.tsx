@@ -8,6 +8,7 @@ import { openFeedback } from '../features/feedback/controller'
 import { useFeedbackState } from '../features/feedback/state'
 import { useWorldAi } from '../features/ai/worldAi'
 import { CompanionPanel } from './CompanionPanel'
+import {JokeContestPanel} from './JokeContestPanel'
 import {useDisplayGame} from '../game/displayGame'
 import '../styles.css'
 
@@ -70,6 +71,8 @@ async function boot() {
     <ParkPage onExit={async () => { await parkRuntime.stop(); location.reload() }} exitError=""
       onAuthEnded={() => location.reload()} onOperationBlocked={() => location.reload()} />
     <Controls />
-    <CompanionPanel />  </>)
+    <CompanionPanel />
+    <JokeContestPanel />
+  </>)
 }
 void boot().catch(() => { document.getElementById('root')!.textContent='AI 공원 서버를 실행한 뒤 다시 열어주세요.' })

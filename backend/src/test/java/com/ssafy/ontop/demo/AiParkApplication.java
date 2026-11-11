@@ -68,6 +68,20 @@ public final class AiParkApplication {
             return key.isBlank()?com.ssafy.ontop.ai.AiText.fixed():new com.ssafy.ontop.ailab.SpringAiText(key,
                     env.getOrDefault("AI_LAB_LLM_MODEL","gpt-4.1-mini"),Integer.parseInt(env.getOrDefault("AI_LAB_LLM_DAILY_CALLS","100")));
         }
+        @Bean(destroyMethod="close") com.ssafy.ontop.ai.LocalJokeContest localJokeContest(ObjectMapper mapper,com.ssafy.ontop.ai.AiText text,
+                @org.springframework.beans.factory.annotation.Value("${ontop.ai.directory:.gradle/ai-park}") String directory,
+                @org.springframework.beans.factory.annotation.Value("${ontop.ai.live-jev:false}") boolean live,
+                @org.springframework.beans.factory.annotation.Value("${JEV_API_KEY:}") String key,
+                @org.springframework.beans.factory.annotation.Value("${ontop.ai.jev-model:jev-1.14.0}") String model)throws IOException {
+            com.ssafy.ontop.ai.JokeJudge judge=live?new com.ssafy.ontop.ai.JevJokeJudge(mapper,key,model):com.ssafy.ontop.ai.JokeJudge.fixture();
+            var env=System.getenv();
+            String llmKey=env.getOrDefault("OPENAI_API_KEY","");
+            boolean allowLlm=!env.containsKey("AI_PARK_BENCHMARK")||"true".equals(env.get("AI_PARK_BENCHMARK_LIVE_LLM"));
+            if(allowLlm&&!llmKey.isBlank()&&!"jev".equalsIgnoreCase(env.getOrDefault("AI_LAB_JOKE_JUDGE","llm")))
+                judge=new com.ssafy.ontop.ai.LlmJokeJudge(mapper,llmKey,env.getOrDefault("AI_LAB_LLM_MODEL","gpt-4.1-mini"),judge);
+            if(!System.getenv().getOrDefault("AI_LAB_JOKE_DB_URL","").isBlank())return new com.ssafy.ontop.ai.LocalJokeContest(mapper,JokeLocalDatabase.fixtureStore(mapper),judge,text,Clock.systemUTC());
+            return new com.ssafy.ontop.ai.LocalJokeContest(mapper,java.nio.file.Path.of(directory).resolve("joke-contest"),judge,text,Clock.systemUTC(),true);
+        }
         @Bean @org.springframework.context.annotation.Primary
         AiParkLedger aiParkLedger(AlkkagiParkApplication.LocalLedger original,org.springframework.context.ApplicationEventPublisher events) {
             return new AiParkLedger(original,events);
@@ -103,7 +117,10 @@ public final class AiParkApplication {
         }
         @Bean FilterRegistrationBean<OncePerRequestFilter> aiParkControls(AccessAuthenticationService auth,
                 LocalWorldAi ai, WorldChannelRegistry channels, WorldMapRuntime map, ObjectMapper mapper,TableHub hub,
-                com.ssafy.ontop.ai.LocalCompanions companions) throws IOException {
+                com.ssafy.ontop.ai.LocalCompanions companions,com.ssafy.ontop.ai.LocalJokeContest contest) throws IOException {
+            // The judge stands beside the existing ranking board; no new map collision or server actor.
+            var board=mapper.readTree(java.nio.file.Path.of("../frontend/generated/park/server-map.json").toFile()).path("data").path("interactions").path("rankingBoard").path("reachPosition");
+            double judgeX=board.get(0).asDouble()-4,judgeY=board.get(1).asDouble(),judgeZ=board.get(2).asDouble();
             var registration=new FilterRegistrationBean<OncePerRequestFilter>();
             registration.setOrder(-190);
             registration.setFilter(new OncePerRequestFilter() {
@@ -116,7 +133,29 @@ public final class AiParkApplication {
                         long user=auth.authenticate(header!=null && header.startsWith("Bearer ")?header.substring(7):"").userId();
                         Object result;
                         String path=request.getRequestURI();
-                        if(path.startsWith("/local/ai/companions/")) {
+                        if(path.startsWith("/local/ai/joke-contest/")) {
+                            String owner=Long.toString(user),route=path.substring("/local/ai/joke-contest/".length()),method=request.getMethod();
+                            if(method.equals("POST")&&route.equals("position")) {
+                                if(channels.channelOf(owner)==null){response.setStatus(409);return;}
+                                channels.releaseFacility(owner,new Pose(judgeX,judgeY,judgeZ+1.8,Math.PI));result=Map.of("placed",true);
+                            }else if(method.equals("GET")) {
+                                if(route.equals("me"))result=contest.mine(owner);
+                                else if(route.equals("rankings"))result=contest.rankings(Optional.ofNullable(request.getParameter("date")).orElse(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).toString()));
+                                else if(route.startsWith("reveal/"))result=contest.reveal(route.substring(7));
+                                else if(route.startsWith("submissions/"))result=contest.own(owner,route.substring(12));
+                                else if(route.equals("yesterday"))result=contest.yesterday();
+                                else if(route.equals("hall"))result=contest.hall();
+                                else {response.setStatus(404);return;}
+                            }else if(method.equals("POST")&&route.equals("submissions")) {
+                                var p=channels.positionOf(owner);String ch=channels.channelOf(owner);
+                                if(ch==null||p==null||!hub.aiActors().getOrDefault(ch,Map.of()).containsKey(owner)||Math.hypot(p.x()-judgeX,p.z()-judgeZ)>3||Math.abs(p.y()-judgeY)>1.6){response.setStatus(403);result=Map.of("code","JOKE_OUT_OF_RANGE","message","김부장 가까이에서 제출해주세요.");}
+                                else {
+                                    byte[] bytes=request.getInputStream().readNBytes(4097);if(bytes.length>4096){response.setStatus(413);return;}
+                                    var b=mapper.readTree(bytes);String nick=channels.worldState(ch).avatars().stream().filter(a->a.userId().equals(owner)).map(a->a.nickname()==null?owner:a.nickname()).findFirst().orElse(owner);
+                                    result=contest.submit(owner,nick,b.path("question").asText(),b.path("answer").asText(),b.path("idempotencyKey").asText(),b.path("consent").asBoolean());
+                                }
+                            }else {response.setStatus(405);return;}
+                        } else if(path.startsWith("/local/ai/companions/")) {
                             String owner=Long.toString(user),channel=channels.channelOf(owner);
                             if(channel==null) { response.setStatus(409);return; }
                             if(path.endsWith("/status") && request.getMethod().equals("GET")) result=companions.status(owner,channel);

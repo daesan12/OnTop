@@ -27,3 +27,12 @@ it('clears old practice chat authority on disconnect, channel change and feature
   expect(useCompanions.getState()).toMatchObject({practice:null,observedPractice:null,practiceChat:null,practicePending:false,reply:''})
  }
 })
+
+
+it('enables the service joke entry only after initialized capability',async()=>{
+ const {jokeContestEnabled,jokeContestPath,openJokeContest,useJokeContest,closeJokeContest}=await import('../../src/features/ai/jokeContest')
+ closeJokeContest();expect(jokeContestEnabled()).toBe(false);openJokeContest();expect(useJokeContest.getState().open).toBe(false)
+ acceptAiFeatures({companions:false,jokeContest:true});expect(jokeContestEnabled()).toBe(true)
+ expect(jokeContestPath('submissions')).toBe('/api/v1/ai/joke-contest/submissions')
+ openJokeContest();expect(useJokeContest.getState().open).toBe(true);closeJokeContest()
+})
