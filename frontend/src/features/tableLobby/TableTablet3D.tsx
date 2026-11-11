@@ -43,7 +43,7 @@ function TabletAsset({ anchor, seatIndex }: { anchor: typeof TABLES[number]; sea
     const amount = power.current
     tabletProjection.amount = amount
     root.current.visible = amount > .005
-    root.current.position.y = anchor.position[1] + 1.06 + (TABLET.y - 1.06) * scale - (1 - amount) * .58
+    root.current.position.y = anchor.position[1] + (anchor.boardOffsetY ?? 0) + 1.06 + (TABLET.y - 1.06) * scale - (1 - amount) * .58
     root.current.scale.setScalar(scale * Math.max(.02, amount))
     root.current.updateWorldMatrix(true, true)
     camera.updateMatrixWorld()

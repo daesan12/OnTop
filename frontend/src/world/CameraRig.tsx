@@ -339,7 +339,7 @@ export function CameraRig() {
         const yaw = Math.atan2(seat.x, seat.z), scale = tableScale(anchor)
         const aspect = camera instanceof PerspectiveCamera ? camera.aspect : 1.6
         const distance = 1.65 * scale * Math.max(1, 1.6 / aspect)
-        const centerY = anchor.position[1] + 1.06 + (TABLET.y - 1.06) * scale
+        const centerY = anchor.position[1] + (anchor.boardOffsetY ?? 0) + 1.06 + (TABLET.y - 1.06) * scale
         state.look.set(anchor.position[0], centerY, anchor.position[2])
         state.desired.set(anchor.position[0] + Math.sin(yaw) * distance,
           centerY + .19 * scale, anchor.position[2] + Math.cos(yaw) * distance)
@@ -391,7 +391,7 @@ export function CameraRig() {
       state.desired.set(...pose.position); state.look.set(...pose.target)
     } else if (focusedOmok && camera instanceof PerspectiveCamera) {
       const anchor = spectatorOmok ? (closeAnchor ?? watchedAnchor)! : TABLES.find(t => t.id === avatar.tableId)!
-      state.look.set(anchor.position[0], anchor.position[1] + OMOK_BOARD_Y + .017, anchor.position[2])
+      state.look.set(anchor.position[0], anchor.position[1] + (anchor.boardOffsetY ?? 0) + OMOK_BOARD_Y + .017, anchor.position[2])
       if (omokSpectatorViewport.gameId === game?.gameId) {
         const frame = omokSpectatorFrame(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(anchor), omokSpectatorViewport.insets)
         const orientation = !spectatorOmok && avatar.seatIndex === 1 ? -1 : 1

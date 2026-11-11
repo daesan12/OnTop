@@ -1,7 +1,9 @@
 import type { ParkMapData } from '../map/park'
 import { RENEWAL_PARK_ENABLED } from './mapSelection'
+import type { TableAnchor } from './tablePlacement'
 
-type RenewalMap = { mapId: 'park'; mapVersion: string; schemaVersion: 2; data: ParkMapData }
+type RenewalData = Omit<ParkMapData, 'tables'> & { tables: readonly Omit<TableAnchor, 'spectatorRadius'>[] }
+type RenewalMap = { mapId: 'park'; mapVersion: string; schemaVersion: 2; data: RenewalData }
 
 async function loadRenewalMap(): Promise<RenewalMap> {
   const response = await fetch('/generated/park-renewal/server-map.json', { cache: 'no-store' })

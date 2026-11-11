@@ -14,7 +14,7 @@ import { AvatarPresentation } from './avatarPresentation'
 import { SwimmingRipples } from './SwimmingRipples'
 
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
-import { CHARACTER } from '../park/mapConfig'
+import { CHARACTER, TABLES } from '../park/mapConfig'
 import { FartCloud } from './art/FartCloud'
 import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
 import { createAvatarOpacity } from './avatarOpacity'
@@ -155,7 +155,8 @@ function Avatar({
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     root.current.position.set(
       pose.x,
-      pose.y - 0.8 + (seated ? avatarSeatSurface(avatar.benchId) + model.seatedHipLift - model.hipHeight : 0),
+      pose.y - 0.8 + (seated ? (TABLES.find(table => table.id === avatar.tableId)?.seatSurfaceY
+        ?? avatarSeatSurface(avatar.benchId)) + model.seatedHipLift - model.hipHeight : 0),
       pose.z,
     )
     root.current.rotation.y = pose.yaw

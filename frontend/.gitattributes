@@ -1,2 +1,3 @@
 /generated/park/*.json text eol=lf linguist-generated=true
+/generated/park-renewal/*.json text eol=lf linguist-generated=true
 /src/map/park/generated/*.ts text eol=lf linguist-generated=true

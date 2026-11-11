@@ -1,12 +1,12 @@
-import { TABLE_SEATS } from '../../src/config'
 import { SITES as originalSites } from '../../src/layout-preview/layout'
 import { PARK_DATA } from '../../src/map/park'
 import type { MapPose, Point3 } from '../../src/map/park/interactionData'
 import { facilityYaw } from '../facilityPlacement'
-import { FACILITY_TARGETS, STONE_TABLE_TARGETS } from '../mapping/identities'
+import { FACILITY_TARGETS } from '../mapping/identities'
 import { LAKE, heightAt, facilityGroundY, site } from '../plan'
 import { TOWER_TOP, telescopeYaw } from '../towerFurniturePlan'
 import { buildRenewalPhysics, RENEWAL_HALF_SIZE, RENEWAL_SPAWN } from './physics'
+import { buildRenewalTables } from './tableLayout'
 
 function offset(position: Point3, x: number, y: number, z: number): Point3 {
   return [position[0] + x, position[1] + y, position[2] + z]
@@ -17,13 +17,8 @@ function shift(pose: MapPose, x: number, y: number, z: number): MapPose {
 }
 
 export function buildRenewalMapData() {
-  const { physics, pavilions } = buildRenewalPhysics()
-  const tables = Object.entries(STONE_TABLE_TARGETS).map(([id, [x, z]]) => ({
-    id,
-    position: [x, heightAt(x, z) + .12, z] as Point3,
-    assetId: 'procedural/stone-game-table',
-    seatAnchors: TABLE_SEATS.map(seat => [seat.x, .56, seat.z] as Point3),
-  }))
+  const tables = buildRenewalTables()
+  const { physics, pavilions } = buildRenewalPhysics(tables)
   const facilities = PARK_DATA.facilities.flatMap(facility => {
     const id = FACILITY_TARGETS[facility.id]
     if (!id) return []

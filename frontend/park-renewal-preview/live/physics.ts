@@ -1,5 +1,6 @@
 import { ShapeUtils, Vector2, type BufferGeometry } from 'three'
 import { createTowerDeck, createTowerRamp, MOVEMENT, OBSERVATION_TOWER, TOWER_DECK_RAIL_SEGMENTS, towerPoint } from '../../src/config'
+import { tableSeats, type TableAnchor } from '../../src/park/tablePlacement'
 import { PARK_DATA } from '../../src/map/park'
 import type { PhysicalBox, PhysicalHull, PhysicalMesh } from '../../src/map/park/physics'
 import type { Point3 } from '../../src/map/park/interactionData'
@@ -13,7 +14,7 @@ import { lakeFenceSegments } from '../lakePlan'
 import { fitnessFenceSegments } from '../motionPlan'
 import {
   BRIDGE, BRIDGE_LANDINGS, DOCK_ACCESS, FISHING_ACCESS, FISHING_OUTLINE, FISHING_DECK, FISHING_UPPER, FISHING_STAIRS,
-  JUMP_TABLES, LAKE, MONUMENT_STAIRS, REST_PAVILIONS, STATION_APPROACH, STATION_STAIRS, SUB_PAVILION_SCALE, TABLES,
+  LAKE, MONUMENT_STAIRS, REST_PAVILIONS, STATION_APPROACH, STATION_STAIRS, SUB_PAVILION_SCALE,
   accessTopAt, bridgeDeckHeight, bridgeLandingHeight, facilityGroundY, fishingRailSections, heightAt, inLake, site, type Point,
 } from '../plan'
 import { parkPropBlockers } from '../propCollision'
@@ -59,7 +60,7 @@ function heightfield(): PhysicalMesh {
   return { id: 'terrain', role: 'terrain', vertices, indices }
 }
 
-export function buildRenewalPhysics() {
+export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   const terrain = heightfield(), meshes: RenewalMesh[] = [terrain], boxes: PhysicalBox[] = [], hulls: PhysicalHull[] = []
   const putBox = (id: string, center: Point3, half: Point3, yaw = 0) => boxes.push({ id, center, half, yaw, role: 'solid' })
   const rail = (id: string, a: Point3, b: Point3, thickness: number, height: number) => {
@@ -118,11 +119,14 @@ export function buildRenewalPhysics() {
   })
   // The authored proxies above retain the visible bench/seat profiles. Service table
   // columns keep the existing no-climb policy and two visible stone seats.
-  for (const [i, [x, z]] of [...TABLES, ...JUMP_TABLES].entries()) {
-    const id = 'table-' + [1, 2, 3, 4, 14, 15, 16][i]
-    const h = basePhysics.furniturePolicy.movementHeight / 2, y = heightAt(x, z) + .12 + h
-    putBox(id + '-top', [x, y, z], [1.05, h, .8])
-    for (const [n, offset] of [1.25, -1.25].entries()) putBox(id + '-chair-' + n, [x, y, z + offset], [1.05, h, .26])
+  for (const table of tables) {
+    const [x, floor, z] = table.position, h = basePhysics.furniturePolicy.movementHeight / 2
+    if (!table.pavilionId) putBox(table.id + '-top', [x, floor + h, z], [1.05, h, .8])
+    tableSeats(table).forEach((seat, n) => {
+      if (table.pavilionId && n < 2) return // Native stools already have a physical proxy.
+      const halfX = n < 2 ? 1.05 : .425
+      putBox(table.id + '-chair-' + n, [x + seat.x, floor + h, z + seat.z], [halfX, h, .26], seat.yaw)
+    })
   }
   const main = site('pavilion'), mainBase = facilityGroundY(main) + .115
   deck('main-pavilion-floor', main.x, main.z, 9.4, mainBase + 2.6)

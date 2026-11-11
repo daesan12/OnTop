@@ -2,7 +2,8 @@ import { ParkAlkkagiBoard } from '../../game/alkkagi/ParkAlkkagiBoard'
 import { SIMPLE_MAP } from '../../world/art/mapRenderProfile'
 import { Suspense, useMemo } from 'react'
 
-import { GOMOKU, TABLE_SEATS, tableScale, tableSeats, type TableAnchor } from '../../config'
+import { GOMOKU, TABLE_SEATS } from '../../config'
+import { tableScale, tableSeats, type TableAnchor } from '../../park/tablePlacement'
 import { interactWithTable } from '../tableLobby/tableInteraction'
 import { Instances, yawPart, type Part } from '../../world/art/Instances'
 
@@ -21,8 +22,8 @@ import { usePresentedChairCount } from '../tableLobby/useTablePresentation'
 import {DebrisGameSurface} from '../parkDebris/presentation'
 
 /** Stable game/seat anchors survive replacement of the visual table subtree. */
-export function TableShell({ anchor, onInspect = interactWithTable }: {
-  anchor: TableAnchor; onInspect?: (id: string) => void
+export function TableShell({ anchor, onInspect = interactWithTable, nativeFurniture = false }: {
+  anchor: TableAnchor; onInspect?: (id: string) => void; nativeFurniture?: boolean
 }) {
   const fourSeats = true
   const mainPavilion = anchor.pavilionId === 'P0'
@@ -70,7 +71,7 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
   }, [fourSeats, seatCount, anchor])
   return (
     <group
-      scale={[tableScale(anchor), 1, tableScale(anchor)]}
+      scale={nativeFurniture ? 1 : [tableScale(anchor), 1, tableScale(anchor)]}
       name={anchor.id}
       position={[...anchor.position]}
       userData={{ assetId: anchor.assetId, simpleVisual: SIMPLE_MAP, presentedSeatCount: seatCount }}
@@ -79,7 +80,27 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
         onInspect(anchor.id)
       }}
     >
-      {anchor.picnicId ? (
+      {nativeFurniture ? (
+        <>
+          <mesh position={[0, 1.06 + (anchor.boardOffsetY ?? 0), 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[anchor.pavilionId === 'P0' ? 2.1 : 1.55, 24]} />
+            <meshBasicMaterial visible={false} />
+          </mesh>
+          {tableSeats(anchor).slice(2, seatCount).map((seat, i) => {
+            const height = anchor.seatSurfaceY ?? .56
+            return <group key={i} position={[seat.x, 0, seat.z]} rotation={[0, seat.yaw, 0]}>
+              <mesh position={[0, height - .07, 0]}>
+                <boxGeometry args={[.85, .14, .52]} />
+                <SurfaceMaterial kind="wood" color="#b9824c" />
+              </mesh>
+              <mesh position={[0, (height - .14) / 2, 0]}>
+                <boxGeometry args={[.32, height - .14, .32]} />
+                <SurfaceMaterial kind="wood" color="#865739" />
+              </mesh>
+            </group>
+          })}
+        </>
+      ) : anchor.picnicId ? (
         <StonePicnicTable seatCount={seatCount} />
       ) : !SIMPLE_MAP&&mainPavilion ? (
         <MainPavilionTable seatCount={seatCount} />
@@ -110,6 +131,7 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
           </Instances>
         </>
       )}
+      <group position={[0, anchor.boardOffsetY ?? 0, 0]} scale={nativeFurniture ? [tableScale(anchor), 1, tableScale(anchor)] : 1}>
       <DebrisGameSurface anchorId={anchor.id}>
         <Suspense fallback={null}>
         <ParkAlkkagiBoard anchor={anchor} />
@@ -121,6 +143,7 @@ export function TableShell({ anchor, onInspect = interactWithTable }: {
         <HalliBoard anchor={anchor} />
         </Suspense>
       </DebrisGameSurface>
+      </group>
     </group>
   )
 }

@@ -7,6 +7,8 @@ import { buildInteractionData } from '../map/park/interactionData'
 import { PARK_MAP_VERSION } from '../map/park/generated/mapVersion'
 import { GENERATED_PARK_ENABLED as generated } from './mapSelection'
 import { renewalGroundHeight, renewalMap } from './renewalMap'
+import type { TableAnchor } from './tablePlacement'
+export { tableScale, tableSeats, type TableAnchor } from './tablePlacement'
 import type { BoxCollider, Vec3 } from '../config/world'
 
 // Display policy belongs to the runtime, not the hashed shared-map source.
@@ -20,7 +22,7 @@ export const OVERHEAD = {
 
 const renewal = renewalMap?.data
 export const EXPECTED_MAP_VERSION: string = renewalMap?.mapVersion ?? (generated ? PARK_MAP_VERSION : LEGACY_MAP_VERSION)
-export const TABLES: readonly base.TableAnchor[] = renewal?.tables.map(t => ({ ...t, spectatorRadius: 3.5 }))
+export const TABLES: readonly TableAnchor[] = renewal?.tables.map(t => ({ ...t, spectatorRadius: 3.5 }))
   ?? (generated ? p.DRAFT_TABLES : base.TABLES)
 const sharedBenches = renewal?.interactions.benches ?? (generated ? p.data.interactions.benches : null)
 export const BENCHES = sharedBenches?.map(b => b.position) ?? base.BENCHES
