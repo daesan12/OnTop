@@ -7,9 +7,10 @@ import { resetGachaEvents, useGachaEvents } from './events'
 import { gachaClock, refillRemaining } from './timing'
 
 type Kind = 'BUY' | 'DRAW' | 'OPEN'
+export type GachaAvailability = 'unknown' | 'enabled' | 'disabled'
 interface Pending { kind: Kind; operationId: string; roundId?: string; grade?: number }
 const initial = () => ({ owner: '', state: null as GachaState | null, loading: false, busy: false, error: '',
-  unavailable: false, transition: null as 'ROUND_ENDED' | 'REFILLING' | null,
+  unavailable: false, availability: 'unknown' as GachaAvailability, transition: null as 'ROUND_ENDED' | 'REFILLING' | null,
   result: null as GachaResult | null, pending: null as Pending | null })
 export const useGacha = create(initial)
 let generation = 0, reads = 0
@@ -29,6 +30,10 @@ function restored(owner: string): Pending | null {
 const present = (owner: string, epoch: number) => generation === epoch && useSession.getState().sessionId === owner
   && useSession.getState().status === 'connected'
 export function resetGacha() { generation++; reads++; useGacha.setState(initial(), true); resetGachaEvents(); gachaClock.reset() }
+export function gachaInteractionEnabled(owner: string): boolean {
+  const current = useGacha.getState()
+  return !!owner && current.owner === owner && current.availability === 'enabled' && current.state?.enabled === true
+}
 export async function refreshGacha() {
   const owner = useSession.getState().sessionId
   if (!owner || useSession.getState().status !== 'connected') return
@@ -40,12 +45,14 @@ export async function refreshGacha() {
     if (present(owner, epoch) && reading === reads) {
       const receivedAt=performance.now()
       if(state.serverNow)gachaClock.sync(Date.parse(state.serverNow),receivedAt,receivedAt-sentAt)
-      useGacha.setState({ state, loading: false, unavailable: false })
+      useGacha.setState({ state: state.enabled ? state : null, loading: false, unavailable: !state.enabled,
+        availability: state.enabled ? 'enabled' : 'disabled' })
     }
   } catch (cause) {
     if (!present(owner, epoch) || reading !== reads) return
+    const unavailable = cause instanceof RestError && cause.code === 'GACHA_NOT_CONFIGURED'
     useGacha.setState({ loading: false, error: cause instanceof Error ? cause.message : '뽑기를 불러오지 못했어요.',
-      unavailable: cause instanceof RestError && cause.code === 'GACHA_NOT_CONFIGURED' })
+      unavailable, ...(unavailable ? { state: null, availability: 'disabled' as const } : {}) })
   }
 }
 export async function gachaAction(kind: Kind, grade?: number) {

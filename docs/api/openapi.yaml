@@ -189,12 +189,124 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/admin/operations/entry-news/{id}:
+    put:
+      tags:
+      - ENTRY_NEWS
+      summary: 관리자 접속 안내 수정
+      operationId: update_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EntryNewsSaveRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EntryNewsItem"
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - ENTRY_NEWS
+      summary: 관리자 접속 안내 이미지 등록
+      operationId: create
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EntryNewsSaveRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EntryNewsItem"
+      security:
+      - AccessJwt: []
+    delete:
+      tags:
+      - ENTRY_NEWS
+      summary: 관리자 접속 안내 삭제
+      operationId: remove
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: version
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: 삭제 완료
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/entry-news/order:
+    put:
+      tags:
+      - ENTRY_NEWS
+      summary: 관리자 접속 안내 순서 저장
+      operationId: reorder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementOrderRequest"
+        required: true
+      responses:
+        "204":
+          description: 순서 저장 완료
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+      security:
+      - AccessJwt: []
   /api/v1/admin/operations/announcements/{id}:
     put:
       tags:
       - ANNOUNCEMENT
       summary: 관리자 공지 수정
-      operationId: update_1
+      operationId: update_2
       parameters:
       - name: id
         in: path
@@ -283,7 +395,7 @@ paths:
       tags:
       - ANNOUNCEMENT
       summary: 관리자 공지 생성·같은 ID 재시도
-      operationId: create
+      operationId: create_1
       parameters:
       - name: id
         in: path
@@ -372,7 +484,7 @@ paths:
       tags:
       - ANNOUNCEMENT
       summary: 관리자 공지 삭제
-      operationId: remove
+      operationId: remove_1
       parameters:
       - name: id
         in: path
@@ -458,7 +570,7 @@ paths:
       tags:
       - ANNOUNCEMENT
       summary: 관리자 공지 카드 순서 일괄 저장
-      operationId: reorder
+      operationId: reorder_1
       requestBody:
         content:
           application/json:
@@ -4608,6 +4720,38 @@ paths:
                 $ref: "#/components/schemas/ReplyResult"
       security:
       - AccessJwt: []
+  /api/v1/admin/operations/entry-news/{id}/uploads:
+    post:
+      tags:
+      - ENTRY_NEWS
+      summary: 관리자 접속 안내 S3 직접 업로드 주소 발급
+      operationId: upload
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EntryNewsUploadRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UploadTarget"
+      security:
+      - AccessJwt: []
   /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize:
     post:
       tags:
@@ -4847,7 +4991,7 @@ paths:
         \ 욕설·비속어가 포함되면 USER_INAPPROPRIATE_NICKNAME입니다. 대소문자 무시 UNIQUE(탈퇴 회원 포함), 본\
         인 닉네임은 허용합니다. 동일 이름 요청은 성공하며 대소문자만 변경하면 요청 표기를 저장합니다. 사전 조회와 별도로 트랜잭션에서 최종\
         \ 중복 검증합니다."
-      operationId: update_2
+      operationId: update_3
       requestBody:
         content:
           application/json:
@@ -7075,6 +7219,57 @@ paths:
                 $ref: "#/components/schemas/AssetMemberAwardResponse"
       security:
       - AccessJwt: []
+  /api/v1/entry-news:
+    get:
+      tags:
+      - ENTRY_NEWS
+      summary: 회원 접속 안내 목록 조회
+      operationId: feed
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Feed"
+      security:
+      - AccessJwt: []
+  /api/v1/entry-news/{id}/image:
+    get:
+      tags:
+      - ENTRY_NEWS
+      summary: 게시된 접속 안내 이미지 조회
+      operationId: image
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+      security:
+      - AccessJwt: []
   /api/v1/channels:
     get:
       tags:
@@ -7537,13 +7732,66 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/admin/operations/entry-news:
+    get:
+      tags:
+      - ENTRY_NEWS
+      summary: 관리자 접속 안내 목록 조회
+      operationId: list_1
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EntryNewsItem"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/entry-news/{id}/image:
+    get:
+      tags:
+      - ENTRY_NEWS
+      summary: 관리자 접속 안내 이미지 미리보기
+      operationId: adminImage
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+      security:
+      - AccessJwt: []
   /api/v1/admin/operations/announcements:
     get:
       tags:
       - ANNOUNCEMENT
       summary: 관리자 전체 공지 조회
       description: "운영 관리자 전용. 숨김·기간 종료 포함, 삭제 제외."
-      operationId: list_1
+      operationId: list_2
       responses:
         "401":
           description: 로그인 필요
@@ -7641,7 +7889,7 @@ paths:
       - FEEDBACK
       summary: 관리자 소리함 조회
       description: 서버 관리자 회원 ID 목록에 등록된 활성 회원만 조회합니다.
-      operationId: list_2
+      operationId: list_3
       parameters:
       - name: cursor
         in: query
@@ -8098,6 +8346,93 @@ components:
           format: int64
         definition:
           $ref: "#/components/schemas/Definition"
+    EntryNewsDraft:
+      type: object
+      properties:
+        title:
+          type: string
+        published:
+          type: boolean
+        displayOrder:
+          type: integer
+          format: int32
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        expectedVersion:
+          type: integer
+          format: int64
+    EntryNewsSaveRequest:
+      type: object
+      properties:
+        draft:
+          $ref: "#/components/schemas/EntryNewsDraft"
+        upload:
+          $ref: "#/components/schemas/EntryNewsUploadEvidence"
+    EntryNewsUploadEvidence:
+      type: object
+      properties:
+        uploadId:
+          type: string
+        bytes:
+          type: integer
+          format: int64
+        sha256:
+          type: string
+        contentType:
+          type: string
+      nullable: true
+    EntryNewsItem:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        published:
+          type: boolean
+        displayOrder:
+          type: integer
+          format: int32
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
+        imageHash:
+          type: string
+        imageUrl:
+          type: string
+          nullable: true
+    AnnouncementOrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+        expectedVersion:
+          type: integer
+          format: int64
+    AnnouncementOrderRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementOrderItem"
     AnnouncementRequest:
       type: object
       properties:
@@ -8159,21 +8494,6 @@ components:
         updatedAt:
           type: string
           format: date-time
-    AnnouncementOrderItem:
-      type: object
-      properties:
-        id:
-          type: string
-        expectedVersion:
-          type: integer
-          format: int64
-    AnnouncementOrderRequest:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/AnnouncementOrderItem"
     DeliveryRequest:
       required:
       - expectedUserId
@@ -10055,6 +10375,30 @@ components:
         createdAt:
           type: string
           format: date-time
+    EntryNewsUploadRequest:
+      type: object
+      properties:
+        bytes:
+          type: integer
+          format: int64
+        sha256:
+          type: string
+        contentType:
+          type: string
+    UploadTarget:
+      type: object
+      properties:
+        uploadId:
+          type: string
+        url:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expiresIn:
+          type: integer
+          format: int32
     MinigameAwardResponse:
       type: object
       properties:
@@ -11426,6 +11770,16 @@ components:
         firstReachedAt:
           type: string
           format: date-time
+    Feed:
+      type: object
+      properties:
+        serverTime:
+          type: string
+          format: date-time
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntryNewsItem"
     ChannelListResponse:
       required:
       - items
