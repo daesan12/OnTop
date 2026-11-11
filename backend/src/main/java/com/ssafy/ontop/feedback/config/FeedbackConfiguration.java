@@ -39,9 +39,10 @@ public class FeedbackConfiguration {
     @Bean
     FeedbackService feedbackService(FeedbackRepository repository, PlatformTransactionManager manager,
             TableHub hub, FeedbackProperties properties,
-            NotificationRepository notifications) {
+            NotificationRepository notifications, ApplicationEventPublisher events) {
         var service = new FeedbackService(repository, manager, hub, properties, Clock.systemUTC());
         service.configureReplies(notifications);
+        service.ai(events::publishEvent);
         return service;
     }
 

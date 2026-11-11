@@ -29,6 +29,7 @@ import { CameraRig } from './CameraRig'
 import { ParkXRBridge } from '../features/parkXR/ParkXRBridge'
 
 import { Avatars } from './Avatars'
+import { PoliceNpcs } from '../features/ai/PoliceNpcs'
 import { AvatarPoseFrame } from './AvatarPoseFrame'
 import { FollowRopes } from '../features/follow/FollowRopes'
 import { RouteArrows } from '../features/navigation/RouteArrows'
@@ -194,7 +195,7 @@ export const WorldCanvas = memo(function WorldCanvas({
             <SceneReady onReady={onReady} />
           </Suspense>
           <Avatars overlayTargets={overlayTargets} />
-          <FollowRopes />
+        <PoliceNpcs />          <FollowRopes />
           <RouteArrows />
           <BungeoppangGrill />
           <ParkDebrisScene />

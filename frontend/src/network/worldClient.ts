@@ -1,9 +1,11 @@
+import { filterChat } from '../features/chat/filterChat'
 import { create } from 'zustand'
 import { acceptGacha } from '../features/gacha/events'
+import { acceptPolice, acceptPatrol, acceptPrivateNotice, resetWorldAi } from '../features/ai/worldAi'
+import { acceptCompanionActors } from '../features/ai/companions'
 import { acceptTyping, resetTyping } from '../features/chat/typingState'
 import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
 import { CHAT } from '../features/chat/settings'
-import { filterChat } from '../features/chat/filterChat'
 import { chatAuthorName } from '../features/chat/author'
 import {
   channelState,
@@ -234,6 +236,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   worldTableSeats.clear()
   channelVersion = worldVersion = -1
   chatIds.clear()
+  resetWorldAi()
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
@@ -263,6 +266,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
   worldTableSeats.clear()
   channelVersion = worldVersion = -1
   chatIds.clear()
+  resetWorldAi()
   useSession.setState({
     roomId: '',
     channelName: '',
@@ -714,6 +718,35 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
         for (const id of avatars.keys()) cancelAvatarEmote(id)
         clearRoamingInput()
       }
+      break
+    }
+    case 'WORLD_AI_PRIVATE_NOTICE': {
+      if(p.channelId!==state.roomId || state.status!=='connected') return
+      acceptPrivateNotice(p)
+      break
+    }
+    case 'WORLD_AI_NPCS': {
+      if(p.channelId!==state.roomId || state.status!=='connected') return
+      acceptPatrol(p)
+      break
+    }
+    case 'WORLD_CHAT_MODERATED': break // Legacy AI hide events no longer alter chat or bubbles.
+    case 'WORLD_AI_COMPANIONS': {
+      if(p.channelId===state.roomId&&state.status==='connected')acceptCompanionActors(p)
+      break
+    }
+    case 'WORLD_AI_COMPANION_SPEECH':
+    case 'WORLD_AI_POLICE': {
+      if (p.channelId !== state.roomId || state.status !== 'connected') return
+      const companion=message.type==='WORLD_AI_COMPANION_SPEECH'
+      const actor=companion&&typeof p.actorId==='string'&&p.actorId.length<=100?p.actorId:companion?'omok':'police'
+      if (!acceptPolice(p,actor)) return
+      if(typeof p.gameId==='string'&&p.gameId)return // Private game history is owned by the game chat feed.
+      if (typeof p.incidentId !== 'string' || typeof p.speech !== 'string') return
+      const id=(companion?'companion:':'police:')+p.incidentId
+      if(state.messages.some(m => m.id === id)) return
+      useSession.setState({messages:[...state.messages,{id,userId:'npc:'+actor,displayName:companion?String(p.name):'한순경',
+        text:filterChat(p.speech),sentAt:new Date().toISOString()}].slice(-CHAT.historyLimit)})
       break
     }
     case 'WORLD_CHAT_MESSAGE': {

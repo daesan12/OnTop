@@ -1,0 +1,9 @@
+# Explicit overlay for the opt-in AI runtime. Prepare an app-owned directory first.
+services:
+  app:
+    volumes:
+      - type: bind
+        source: ${AI_DATA_HOST_DIR:?Set AI_DATA_HOST_DIR to the persistent AI directory}
+        target: /var/lib/ontop/ai
+        bind:
+          create_host_path: false

@@ -1,33 +1,8 @@
+import rulesData from './filterRules.json'
 /** Initial, reviewable dictionary. This is a word filter, not contextual moderation. */
-const KOREAN_WORDS = [
-  "씨발",
-  "씨팔",
-  "씨바",
-  "씨벌",
-  "시발",
-  "시벌",
-  "씹새끼",
-  "개새끼",
-  "개새",
-  "병신",
-  "븅신",
-  "지랄",
-  "존나",
-  "좆",
-  "좃",
-] as const;
-const INITIALS = ["ㅅㅂ", "ㅆㅂ", "ㅂㅅ", "ㅈㄹ", "ㅈㄴ"] as const;
-const ENGLISH_WORDS = [
-  "fuck",
-  "fucking",
-  "fucker",
-  "fucked",
-  "motherfucker",
-  "shit",
-  "bullshit",
-  "bitch",
-  "asshole",
-] as const;
+const KOREAN_WORDS = rulesData.KOREAN_WORDS;
+const INITIALS = rulesData.INITIALS;
+const ENGLISH_WORDS = rulesData.ENGLISH_WORDS;
 
 // Bound gaps so ordinary, distant words cannot be joined into a prohibited term.
 const GAP = "[\\p{White_Space}\\p{P}\\p{S}\\p{Cf}0-9]{0,3}";
