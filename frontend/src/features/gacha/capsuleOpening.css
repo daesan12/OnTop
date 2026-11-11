@@ -110,3 +110,7 @@
 @media(min-width:601px){.open-result-actions{justify-content:center;gap:14px}.open-result-actions button:first-child,.open-result-actions button+button{flex:0 1 220px;max-width:240px}}
 
 .open-parts .open-parts-empty{font-size:12px;color:#51422e;line-height:1.6}
+
+/* Only the actual wear locations; no badges or per-part cards. */
+.open-result-card .open-parts{display:block;margin:0;padding:0;border:0;background:none;font-size:14px;font-weight:500;color:#51422e!important;line-height:1.7}
+.open-result-card .open-parts:before{content:none}

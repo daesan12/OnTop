@@ -13,16 +13,16 @@ async function setup(page:Page,duplicate=false,grade=2,animated=false,name='로�
 }
 for(const size of [{width:1920,height:1080},{width:1366,height:650},{width:1280,height:600},{width:800,height:600},{width:390,height:720}])test('100% 화면에서 결과·등급·하단 버튼이 보인다 '+size.width+'x'+size.height,async({page})=>{
  await page.setViewportSize(size);const dialog=await setup(page)
- await expect(dialog.getByRole('heading',{name:'A급 캡슐 오픈!',exact:true})).toBeVisible();await expect(dialog).not.toContainText('나를 찾아온 작은 행운');await expect(dialog).not.toContainText('나의 옷장');await expect(dialog.locator('.open-parts')).toHaveText('머리 · 얼굴 · 옷')
+ await expect(dialog.getByRole('heading',{name:'A급 캡슐 오픈!',exact:true})).toBeVisible();await expect(dialog).not.toContainText('나를 찾아온 작은 행운');await expect(dialog).not.toContainText('나의 옷장');await expect(dialog.locator('.open-parts')).toHaveText('착용 부위: 머리 · 얼굴 · 옷')
  const box=(await dialog.boundingBox())!;expect(box.width).toBeLessThan(size.width*.95);expect(box.height).toBeLessThanOrEqual(size.height*.89)
  for(const button of await dialog.locator('.open-result-actions button').all()){const b=(await button.boundingBox())!;expect(b.y).toBeGreaterThan(box.y);expect(b.y+b.height).toBeLessThanOrEqual(box.y+box.height);await expect(button).toBeInViewport()}
- const color=await dialog.locator('.open-component-rewards strong').first().evaluate(el=>getComputedStyle(el).color);expect(color).toBe('rgb(67, 55, 43)')
+ await expect(dialog.locator('.open-grade-seal')).toHaveCount(0);await expect(dialog.locator('.open-component-rewards')).toHaveCount(0)
  if(size.width===1366){await expect(dialog.locator('.open-asset-message')).toBeHidden({timeout:20000});const canvas=(await dialog.locator('.open-center-art canvas').boundingBox())!;expect(canvas.width).toBeGreaterThan(100);expect(canvas.height).toBeGreaterThan(80);await page.screenshot({path:'../output/gacha-result-1366.png'})}
  await dialog.getByRole('button',{name:'확인',exact:true}).click();await expect(dialog).toBeHidden()
 })
 for(const [grade,tier,count] of [[1,'S',48],[2,'A',30],[3,'B',18],[4,'C',8]] as const)test(tier+'급 장식·등급·입자 수를 구분하고 모션 축소를 지킨다',async({page})=>{
- const dialog=await setup(page,false,grade);await expect(dialog.getByLabel(`획득 등급 ${tier}급`,{exact:true})).toBeVisible();await expect(dialog.locator('.capsule-effects>i')).toHaveCount(count)
- await expect(dialog.locator('.capsule-effects>i').first()).toBeHidden();await expect(dialog.locator('.open-shell-bowl')).toBeVisible();await expect(dialog.locator('.open-parts')).toHaveText('머리 · 얼굴 · 옷')
+ const dialog=await setup(page,false,grade);await expect(dialog.getByRole('heading',{name:`${tier}급 캡슐 오픈!`,exact:true})).toBeVisible();await expect(dialog.locator('.capsule-effects>i')).toHaveCount(count)
+ await expect(dialog.locator('.capsule-effects>i').first()).toBeHidden();await expect(dialog.locator('.open-shell-bowl')).toBeVisible();await expect(dialog.locator('.open-parts')).toHaveText('착용 부위: 머리 · 얼굴 · 옷')
  if(grade===1){await expect(dialog.locator('.open-asset-message')).toBeHidden({timeout:20000});await page.screenshot({path:'../output/gacha-result-S.png'})}
  if(grade===4){await dialog.getByRole('button',{name:'개봉 결과 닫기',exact:true}).click();await expect(dialog).toBeHidden()}
 })
@@ -32,7 +32,7 @@ test('S급 기본 모션은 빛 고리와 입자 효과를 재생한다',async({
  await expect(dialog.getByRole('button',{name:'확인',exact:true})).toBeInViewport()
 })
 test('중복 환급과 입어 보기에서도 버튼이 보이고 결과창을 닫는다',async({page})=>{
- const dialog=await setup(page,true);await expect(dialog).toContainText('250냥');await expect(dialog).toContainText('이미 보유 중');await expect(dialog.locator('.open-parts')).toHaveText('머리 · 얼굴 · 옷')
+ const dialog=await setup(page,true);await expect(dialog).toContainText('250냥');await expect(dialog).toContainText('이미 보유 중');await expect(dialog.locator('.open-parts')).toHaveText('착용 부위: 머리 · 얼굴 · 옷')
  await dialog.getByRole('button',{name:'옷장에서 입어 보기',exact:true}).click();await expect(dialog).toBeHidden()
 })
 
