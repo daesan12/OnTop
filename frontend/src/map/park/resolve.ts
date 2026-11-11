@@ -97,7 +97,7 @@ const MARKERS: readonly SiteMarker[] = [
   { no:'10', id:'layout-fishing-deck',label:'낚시 데크',...SITES.fishing,note:'데크 위치 시안 · 기능 추가 없음' },
   { no:'11', id:'layout-fishing-east',label:'맞은편 낚시터',...SITES.fishingEast,note:'동쪽 수변 접근 공간' },
   { no:'12', id:'layout-background',label:'외곽 건물',x:0,z:-133,note:'도로·보도·건물은 이동 불가 배경' },
-  { no:'13', id:'layout-shop',label:'의상 뽑기방',...SITES.shop,note:'붕어빵 가게 맞은편 · 의상 캡슐 뽑기' },
+  { no:'13', id:'layout-shop',label:'뽑기방',...SITES.shop,note:'돌림판 · 무료 2D 목업 체험' },
   { no:'14', id:'layout-drink',label:'복권방',...SITES.drink,note:'한옥 복권방 · 무료 체험권 목업' },
   { no:'15', id:'layout-photo',label:'랭킹 보드',...SITES.photo,note:'보유량·승부사·승수 표시용 보드 · 전통 소리함 옆' },
   { no:'16', id:'layout-hall-room',label:'민속놀이 존',...SITES.folk,note:'VR 체험관과 구분한 두 번째 한옥' },
@@ -287,7 +287,7 @@ const data={
   facilities,pavilions:DRAFT_PAVILIONS,tables:DRAFT_TABLES.map(({spectatorRadius:_unused,...t})=>t),
   interactions:{...facilityInteractions,construction:KIOSKS.filter(k=>k.kind!=='photo').map(k=>{
     const distance=k.depth/2+1.8
-    return {id:'layout-'+k.kind,kind:'CONSTRUCTION' as const,status:'construction' as const,label:k.kind==='drink'?'복권방':'의상 뽑기',
+    return {id:'layout-'+k.kind,kind:'CONSTRUCTION' as const,status:'construction' as const,label:k.kind==='drink'?'복권방':'뽑기방',
       position:[k.x,0,k.z] as const,reachPosition:[k.x+Math.sin(k.yaw)*distance,.8,k.z+Math.cos(k.yaw)*distance] as const,
       yaw:k.yaw+Math.PI,radius:3,heightTolerance:.7,message:'현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.'}
   }),rankingBoard:{id:'layout-photo',kind:'RANKING_BOARD' as const,status:'active' as const,label:'랭킹 보드',

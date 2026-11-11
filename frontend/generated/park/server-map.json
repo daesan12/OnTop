@@ -622,6 +622,24 @@
         {
           "halfX": 0.55,
           "halfZ": 0.55,
+          "id": "plaza-belt-tree-45",
+          "kind": "box",
+          "x": -25.50041729048399,
+          "yaw": 0,
+          "z": 51.072348372419334
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
+          "id": "plaza-belt-tree-46",
+          "kind": "box",
+          "x": -28.65275649370312,
+          "yaw": 0,
+          "z": 49.772206955159504
+        },
+        {
+          "halfX": 0.55,
+          "halfZ": 0.55,
           "id": "plaza-belt-tree-57",
           "kind": "box",
           "x": -21.61820991986618,
@@ -1553,15 +1571,6 @@
           "radius": 6.888,
           "x": -63,
           "z": -56
-        },
-        {
-          "halfX": 2.1,
-          "halfZ": 1.6500000000000001,
-          "id": "layout-shop",
-          "kind": "box",
-          "x": -27.1,
-          "yaw": 3.141592653589793,
-          "z": 51
         },
         {
           "halfX": 3.6999999999999997,
@@ -6083,16 +6092,6 @@
           30.4
         ],
         "yaw": -0.9982067608042247
-      },
-      {
-        "id": "layout-shop",
-        "kind": "shop",
-        "position": [
-          -27.1,
-          0,
-          51
-        ],
-        "yaw": 3.141592653589793
       },
       {
         "id": "layout-drink",
@@ -11454,26 +11453,6 @@
         }
       ],
       "construction": [
-        {
-          "heightTolerance": 0.7,
-          "id": "layout-shop",
-          "kind": "CONSTRUCTION",
-          "label": "의상 뽑기",
-          "message": "현재 공사 중입니다. 준비가 끝나면 이용할 수 있어요.",
-          "position": [
-            -27.1,
-            0,
-            51
-          ],
-          "radius": 3,
-          "reachPosition": [
-            -27.1,
-            0.8,
-            47.85
-          ],
-          "status": "construction",
-          "yaw": 6.283185307179586
-        },
         {
           "heightTolerance": 0.7,
           "id": "layout-drink",
@@ -19750,21 +19729,6 @@
         },
         {
           "center": [
-            -27.1,
-            1.725,
-            51
-          ],
-          "half": [
-            1.8,
-            1.725,
-            1.35
-          ],
-          "id": "layout-shop",
-          "role": "solid",
-          "yaw": 3.141592653589793
-        },
-        {
-          "center": [
             30.06,
             2.5925,
             54.13
@@ -20630,6 +20594,36 @@
             0.25
           ],
           "id": "plaza-belt-tree-44",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -25.50041729048399,
+            1.8,
+            51.072348372419334
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-45",
+          "role": "solid",
+          "yaw": 0
+        },
+        {
+          "center": [
+            -28.65275649370312,
+            1.8,
+            49.772206955159504
+          ],
+          "half": [
+            0.25,
+            1.8,
+            0.25
+          ],
+          "id": "plaza-belt-tree-46",
           "role": "solid",
           "yaw": 0
         },
@@ -130701,11 +130695,11 @@
   "format": "ontop.park-map",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "f89e877f2a91b5fed89e60a3776538e3d2f9583de4067fac3ee1f41dcfbc5333",
-    "sourceHash": "61938b55a7490228653b9bca63c0404b733484cb1959e433311758124b1b92e0"
+    "dataHash": "f1390f7571782e1e8ebf22d9b0f17da1a394d41658a12542519deb45ae5da7b3",
+    "sourceHash": "4c5d86eb9ad41ed04040bf6dc699fef81ba63d66585a536921dcf8300bc8ed93"
   },
   "mapId": "park",
-  "mapVersion": "d15a8cbed2581237531dd1d707177015c66bfa43382251b0892bcb7eaf7ba242",
+  "mapVersion": "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07",
   "schemaVersion": 2,
   "semantics": {
     "additionalPlayerInflation": "server-capsule-only",

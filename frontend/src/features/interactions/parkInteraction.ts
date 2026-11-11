@@ -31,7 +31,8 @@ import { tableEntry } from '../tableLobby/tableEntry'
 import { useTableLobby } from '../tableLobby/state'
 import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
-import { constructionSites,canReachConstruction,openConstructionNotice } from '../construction/model'
+import { constructionSites,canReachConstruction,openConstructionNotice,openParkGacha } from '../construction/model'
+import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlacement'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
 import { canReachParkVr, openParkVrZone, parkVrEntrance } from '../vrZone/parkBridge'
 import { canReachJumpmapGuide, jumpmapGuideScope, openJumpmapGuide } from '../jumpmap/guideState'
@@ -40,7 +41,7 @@ import { useJumpmap } from '../jumpmap/state'
 import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw'
   id: string
   label: string
   seat?: 0 | 1
@@ -75,8 +76,13 @@ export function getParkInteraction(): ParkInteraction | null {
   if(GENERATED_PARK_ENABLED)for(const site of constructionSites){
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
-    const label=site.id==='layout-shop'?site.label:site.label+' · 행운의 뽑기'
-    choices.push({kind:'construction',id:site.id,label,occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
+    choices.push({kind:'construction',id:site.id,label:site.label+' · 행운의 뽑기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
+  }
+  if (GENERATED_PARK_ENABLED && canReachParkGacha(p.current)) {
+    const { id, x, z } = PARK_GACHA_MACHINE
+    const distance = Math.hypot(p.current.x - x, p.current.z - z)
+    choices.push({ kind: 'gacha', id, label: '의상 뽑기', occupied: false, available: true, distance,
+      score: interactionScore(distance, { x, y: 1.35, z }) })
   }
   if (canReachParkVr(p.current)) {
     const distance = Math.hypot(p.current.x - parkVrEntrance.x, p.current.z - parkVrEntrance.z)
@@ -145,13 +151,14 @@ export function getParkInteraction(): ParkInteraction | null {
   return choices.filter(c => Number.isFinite(c.score)).sort((a, b) => a.score - b.score || a.distance - b.distance
     || a.id.localeCompare(b.id) || (a.seat ?? 2) - (b.seat ?? 2))[0] ?? null
 }
-export function interactWithPark(): boolean {
+export function interactWithPark(expectedId?: string): boolean {
   const target = getParkInteraction()
-  if (!target) return false
+  if (!target || (expectedId !== undefined && target.id !== expectedId)) return false
   if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
   else if (target.kind === 'ranking-board') openRankingBoard()
   else if (target.kind === 'vr') openParkVrZone()
+  else if (target.kind === 'gacha') openParkGacha()
   else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()
   else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openArcade() }

@@ -1,7 +1,7 @@
 import { describe,it,expect,vi } from 'vitest'
 vi.mock('../../src/park/mapSelection',()=>({GENERATED_PARK_ENABLED:true}))
 import { WHEEL_VALUES,WHEEL_STEP,wheelLanding } from '../../src/features/luckyFacilities/wheel'
-import { PARK_LAYOUT,PARK_DATA,PARK_DEFINITION } from '../../src/map/park'
+import { PARK_LAYOUT,PARK_DATA,PARK_DEFINITION,resolveParkLayout } from '../../src/map/park'
 import { MINI_PROPS,MAILBOX } from '../../src/park/mapConfig'
 import { canReachBungeoppang } from '../../src/features/bungeoppang/access'
 import { PARK_DESTINATIONS } from '../../src/features/navigation/parkNavigation'
@@ -25,22 +25,21 @@ describe('lucky facility mock and enlarged fish shop',()=>{
     expect(PARK_LAYOUT.KIOSK_FENCE_RUNS.some(f=>f.id.startsWith('kiosk-shop-'))).toBe(false)
     expect(box.center).toEqual([cart.x,2.928,cart.z])
     expect(PARK_LAYOUT.KIOSKS.filter(k=>k.kind!=='photo').map(k=>[k.kind,k.x,k.z,k.yaw])).toEqual([
-      ['shop',-27.1,51,Math.PI],
       ['drink',30.06,54.13,Math.atan2(-30.06,46-54.13)],
     ])
   })
-  it('reuses the shop ID across the path without removing trees beside the fish shop',()=>{
-    const shop=PARK_DATA.facilities.find(f=>f.id==='layout-shop')!
-    const reach=PARK_DATA.interactions.construction.find(s=>s.id===shop.id)!.reachPosition
-    expect(PARK_DATA.physics.boxes.find(f=>f.id===shop.id)?.half).toEqual([1.8,1.725,1.35])
-    expect(PARK_LAYOUT.MARKERS.find(m=>m.id===shop.id)?.label).toBe('의상 뽑기방')
-    expect(PARK_LAYOUT.canWalk(shop.position[0],shop.position[2])).toBe(false)
-    expect(PARK_LAYOUT.canWalk(reach[0],reach[2])).toBe(true)
-    expect(PARK_LAYOUT.onPath(reach[0],reach[2])).toBe(true)
+  it('temporarily removes the wheel from rendering data, movement, physics, notices and markers',()=>{
+    for(const list of [PARK_DATA.facilities,PARK_DATA.collision.obstacles,PARK_DATA.physics.boxes,PARK_DATA.interactions.construction,PARK_LAYOUT.MARKERS]){
+      expect(list.some(item=>item.id==='layout-shop')).toBe(false)
+    }
+    expect(PARK_LAYOUT.KIOSKS.some(k=>k.kind==='shop')).toBe(false)
+    expect(PARK_LAYOUT.PATHS.some(p=>p.id==='shop-approach')).toBe(false)
     expect(PARK_LAYOUT.canWalk(27,50.8)).toBe(true)
-    expect(PARK_LAYOUT.PLAZA_TREE_SITES.filter(t=>t.id.startsWith('fish-shop-tree-')).map(t=>t.id))
-      .toEqual(Array.from({length:7},(_,i)=>'fish-shop-tree-'+i))
-    expect(PARK_DATA.physics.boxes.some(b=>b.id==='plaza-belt-tree-45'||b.id==='plaza-belt-tree-46')).toBe(false)
+    // Restoring the flag reuses the persistent ID, not a replacement facility.
+    const restored=structuredClone(PARK_DEFINITION);restored.kiosks.shop.enabled=true
+    const map=resolveParkLayout(restored)
+    expect(map.data.facilities.some(f=>f.id==='layout-shop')).toBe(true)
+    expect(map.data.physics.boxes.find(f=>f.id==='layout-shop')!.half).toEqual([2,2.15,1])
   })
   it('permits the front serving apron and rejects the back, interior and non-finite coordinates',()=>{
     const cart=MINI_PROPS[0],yaw='yaw' in cart?cart.yaw:0
