@@ -14,8 +14,7 @@ export function jumpmapProbe() {
     if (!group) continue
     if (!group.children.some(child => child.visible)) continue
     padsDrawn += (group.children[0] as InstancedMesh)?.count ?? 0
-    if (!(theme in jumpArt)) continue
-    const expected = Object.values(jumpArt[theme as keyof typeof jumpArt]).map(g => g.uuid)
+    const expected = Object.values(jumpArt[theme]).map(g => g.uuid)
     group.children.forEach(node => { const m = node as InstancedMesh; if (m.isInstancedMesh) { instances += m.count; if (expected.includes(m.geometry.userData.jumpSource)) geometryMatches++ } })
   }
   return { state: useJumpmap.getState(), wallet: useWalletSettlement.getState(), session: useSession.getState(), instances, geometryMatches, padsDrawn,

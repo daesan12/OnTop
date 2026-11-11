@@ -104,10 +104,4 @@ describe('map identity on the actual Spring socket path',()=>{
     expect(useSession.getState().mapContractStatus).toBe('mismatch')
     expect(socket.requests.filter(r=>r.type==='CHANNEL_JOIN')).toHaveLength(0)
   })
-  it('waits for real DB recovery after an early channel rejection, then retries entry once',async()=>{
-    const original=ContractSocket.prototype.send;let pending=true
-    ContractSocket.prototype.send=function(raw:string){const r=JSON.parse(raw);if(r.type==='CHANNEL_JOIN'&&pending){this.requests.push(r);queueMicrotask(()=>this.emit('ERROR',{code:'GAME_RECOVERY_REQUIRED',message:'복구 확인 중'},r.requestId));return}original.call(this,raw)}
-    try{await start();const socket=sockets[0]!;await vi.waitFor(()=>expect(socket.requests.filter(r=>r.type==='CHANNEL_JOIN')).toHaveLength(1));socket.emit('GAME_CONNECTION_STATE',{status:'PENDING'});await Promise.resolve();expect(useSession.getState().roomId).toBe('');pending=false;socket.emit('GAME_CONNECTION_STATE',{status:'LOBBY'});await vi.waitFor(()=>expect(useSession.getState().roomId).toBe('c'));expect(socket.requests.filter(r=>r.type==='CHANNEL_JOIN')).toHaveLength(2)}finally{ContractSocket.prototype.send=original}
-  })
-
 })

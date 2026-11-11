@@ -1,5 +1,5 @@
 import { describe,it,expect,vi } from 'vitest'
-vi.mock('../../src/park/mapSelection',()=>({GENERATED_PARK_ENABLED:true,RENEWAL_PARK_ENABLED:false}))
+vi.mock('../../src/park/mapSelection',()=>({GENERATED_PARK_ENABLED:true}))
 import { WHEEL_VALUES,WHEEL_STEP,wheelLanding } from '../../src/features/luckyFacilities/wheel'
 import { PARK_LAYOUT,PARK_DATA,PARK_DEFINITION,resolveParkLayout } from '../../src/map/park'
 import { MINI_PROPS,MAILBOX } from '../../src/park/mapConfig'

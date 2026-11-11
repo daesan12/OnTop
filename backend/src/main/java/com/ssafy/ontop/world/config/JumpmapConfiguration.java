@@ -25,7 +25,7 @@ public class JumpmapConfiguration {
             ObjectProvider<JumpmapStore> stores) {
         // 플래그가 꺼져 있으면 DB도 조회하지 않는다. 테이블이 없는 DB(운영 기본 migration 위치)는 저장소 없음으로 본다.
         var store = properties.enabled() ? stores.getIfAvailable() : null;
-        return JumpmapActivation.decide(properties.enabled(), runtime.scene().version(), properties::loadCourse,
+        return JumpmapActivation.decide(properties.enabled(), runtime.scene().version(), JumpCourse::loadDefault,
                 store != null && store.ready());
     }
 

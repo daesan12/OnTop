@@ -1,5 +1,4 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
-import { RecoveryAdmission } from './RecoveryAdmission'
 import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
 import {
   clearAuthSession,
@@ -123,9 +122,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private notesChanges = new NotesChangeEvents()
   subscribeNotesChanged = (changed: () => void) => this.notesChanges.subscribe(changed)
   private actionBusy = false
-  private recoveryAdmission = new RecoveryAdmission()
   private movementRequests = new Map<string, number>()
-  private interactionRequests = new Set<string>()
   private inspection = 0
   private tableWatchRequestId = ''
   private obsoleteWatchRequests = new Set<string>()
@@ -535,7 +532,6 @@ export class ParkRuntime implements ParkRuntimePort {
     }
   }
   async stop() {
-    this.recoveryAdmission.reset()
     this.notesChanges.reset()
     this.untrackTabGame?.()
     this.untrackTabGame = undefined
@@ -561,7 +557,6 @@ export class ParkRuntime implements ParkRuntimePort {
     await closing
   }
   private closed(code: number) {
-    this.recoveryAdmission.reset()
     this.notesChanges.reset()
     if(this.mapAdmission.status==='mismatch')return
     if (TABLET_ENABLED) this.tablet.reset(true)
@@ -624,8 +619,6 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
-    if(message.type==='CONNECTED')this.recoveryAdmission.reset()
-    if(message.type==='GAME_CONNECTION_STATE')this.recoveryAdmission.accept(message.payload.status)
     const moveSeq = message.requestId ? this.movementRequests.get(message.requestId) : undefined
     if (message.type === 'WORLD_STATE' && moveSeq !== undefined) localMovement.receivedInput(moveSeq)
     if (message.type === 'ERROR' && message.requestId
@@ -698,7 +691,6 @@ export class ParkRuntime implements ParkRuntimePort {
     if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
       && this.forfeitRequests.get(message.requestId) !== JSON.stringify([useSession.getState().sessionId, useGame.getState().permittedGameId])) return
     if (this.follow.ownsError(message)) return
-    if (message.type === 'ERROR' && message.requestId && this.interactionRequests.has(message.requestId)) return
     if (message.type === 'WORLD_FOLLOW_STATE') { if (followService.mode === 'server') this.follow.accept(message); return }
     if (message.type === 'ERROR' && message.requestId && this.obsoleteGameWatchRequests.has(message.requestId)) return
     // An automatic result recovery is not a user action; its rejection stays silent.
@@ -862,14 +854,7 @@ export class ParkRuntime implements ParkRuntimePort {
       this.inputSequence = 0
       const generation = this.generation
       try {
-        try {
-          await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
-        } catch(error) {
-          if(!(error instanceof ServerError)||error.code!=='GAME_RECOVERY_REQUIRED')throw error
-          await this.recoveryAdmission.wait()
-          if(!this.active||generation!==this.generation||!this.mapAdmission.allowed)return
-          await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
-        }
+        await this.socket.request('CHANNEL_JOIN', { channelId }, ['CHANNEL_STATE'])
         useSession.setState({ error: '' })
         this.preferredChannel = channelId
         rememberChannel(state.sessionId, channelId)
@@ -1025,8 +1010,6 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!this.active || session.status !== 'connected' || !session.roomId || !session.mapCompatible
       || !this.socket.connected) return Promise.resolve(false)
     if (!session.carrySupported) return Promise.resolve(!confirm)
-    // A confirmed seat already blocks carry. Lobby presence requests are rejected during a real game.
-    if (session.tableId || tableBusy()) return Promise.resolve(!confirm)
     if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, vrActive: false, desired: false, pending: null, retryAt: 0 }
     const status = this.interactionStatus
     status.desired = busy
@@ -1036,29 +1019,22 @@ export class ParkRuntime implements ParkRuntimePort {
       && useSession.getState().roomId === session.roomId && useSession.getState().sessionId === session.sessionId
     const sync = (): Promise<boolean> => {
       if (!current()) return Promise.resolve(false)
-      if (useSession.getState().tableId || tableBusy()) return Promise.resolve(!confirm)
       if (status.pending) return status.pending.then(ok => ok ? sync() : false)
       const vrActive = vrCarryProtection.active, desired = status.desired || vrActive
       if (status.busy === desired && status.vrActive === vrActive && !confirmNeeded) return Promise.resolve(true)
       if (performance.now() < status.retryAt) return Promise.resolve(false)
       confirmNeeded = false
       const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}) }
-      let requestId = ''
-      status.pending = this.socket.request('WORLD_INTERACTION_SET', payload, ['WORLD_INTERACTION_STATE'], id => {
-        requestId = id
-        this.interactionRequests.add(id)
-      }).then(response => {
+      status.pending = this.socket.request('WORLD_INTERACTION_SET', payload, ['WORLD_INTERACTION_STATE']).then(response => {
         if (response.payload.channelId !== session.roomId || response.payload.busy !== desired
           || (response.payload.vrActive === true) !== vrActive)
           throw new Error('창 점유 응답을 확인해주세요.')
         if (!current()) return false
         status.busy = desired; status.vrActive = vrActive; return true
       }).catch(error => {
-        // A presence request sent before seating cannot revoke an already restored game's input.
-        if (useSession.getState().tableId && error instanceof ServerError && error.code === 'GAME_RECOVERY_REQUIRED') return false
         if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
         return false
-      }).finally(() => { this.interactionRequests.delete(requestId); status.pending = null })
+      }).finally(() => { status.pending = null })
       return status.pending.then(ok => ok ? sync() : false)
     }
     return sync()

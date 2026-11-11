@@ -110,7 +110,7 @@ it.each(Object.entries(PARK_DESTINATIONS))('finds a collision-clear approach fro
   const path=findParkRoute({x:PARK_DATA.world.spawn[0],z:PARK_DATA.world.spawn[1]},destination)
   expect(path).not.toBeNull()
   for(let n=1;n<path!.length;n++)expect(navigationSegmentClear(path![n-1]!,path![n]!)).toBe(true)
-},20000)
+})
 it('allows navigation across both generated lake crossings',()=>{
   for(const c of PARK_LAYOUT.lake.CROSSINGS) {
     const path=findParkRoute({x:c.startX-1,z:c.z},{x:c.endX+1,z:c.z})

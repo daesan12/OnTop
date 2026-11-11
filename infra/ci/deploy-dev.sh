@@ -7,10 +7,6 @@ if (( EUID != 0 )) || (( $# != 1 )) || [[ ! $1 =~ ^[0-9a-f]{40}$ ]]; then
 fi
 
 sha=$1
-if [[ -f /etc/ontop/dev-app/park-renewal.enabled ]]; then
-  echo 'Renewal park is active. Use the coordinated renewal pipeline; legacy deployment is blocked.' >&2
-  exit 1
-fi
 image="wooaw/ontop-backend:sha-$sha"
 env_file=/etc/ontop/dev-app/deploy.env
 compose_file=/opt/ontop/infra/app/compose.dev.yaml

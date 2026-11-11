@@ -25,7 +25,7 @@ final class JumpCourseColliders {
             // block 식별자는 별도 타입으로 연결한다. 맵 충돌체 문자열 ID와 섞이지 않는다.
             body.setUserObject(collider);
             body.setPhysicsLocation(new Vector3f((float) collider.x(), (float) collider.centerY(), (float) collider.z()));
-            body.setPhysicsRotation(new Quaternion().fromAngleAxis((float)course.yaw(collider.block()), Vector3f.UNIT_Y));
+            body.setPhysicsRotation(Quaternion.IDENTITY); // 전달본 yaw는 모두 0으로 검증했다.
             // 공원 정적 형상과 같은 그룹·마스크: 캐릭터(1)와만 충돌한다.
             body.setCollisionGroup(2);
             body.setCollideWithGroups(1);

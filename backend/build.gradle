@@ -19,12 +19,6 @@ java {
     }
 }
 
-// Keep local/test launchers usable from the test classpath, outside the deploy JAR.
-tasks.named('bootJar') {
-    exclude '**/application-local.yml', '**/application-park-renewal-local.yml',
-            '**/application-frontend-test.yml', '**/application-visual-test.yml'
-}
-
 repositories {
     mavenCentral()
 }
@@ -208,15 +202,6 @@ tasks.register('exportOpenApi', Test) {
     filter { includeTestsMatching 'com.ssafy.ontop.api.OpenApiLocalTests' }
     systemProperty 'ontop.openapi.export', 'true'
     outputs.upToDateWhen { false }
-}
-
-tasks.register('renewalIntegration', JavaExec) {
-    description = '전용 로컬 MySQL과 실제 인증·HTTP·WS로 새 공원 통합 검수 (운영 JAR 제외)'
-    group = 'verification'
-    dependsOn testClasses
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.ssafy.ontop.demo.RenewalIntegrationApplication'
-    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
 }
 
 tasks.register('shopDemo', JavaExec) {

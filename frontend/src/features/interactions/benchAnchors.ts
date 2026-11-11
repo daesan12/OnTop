@@ -3,8 +3,6 @@ import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { PARK_DATA } from '../../map/park'
 import type { Pose } from '../../network/worldClient'
 import { facilityInRange } from '../facilities/state'
-import {RENEWAL_PARK_ENABLED} from '../../park/mapSelection'
-import {renewalBenches} from '../../park-renewal/runtime/placements'
 
 export type BenchSeat = 0 | 1
 /** Existing map IDs/units. An internal placement manifest, not server IDs or DTOs. */
@@ -23,7 +21,7 @@ const legacyBenchAnchors = BENCHES.map((position, index) => {
       z: position[2] + Math.cos(yaw) * exitDistance, yaw } satisfies Pose,
   }
 })
-export const benchAnchors = RENEWAL_PARK_ENABLED ? renewalBenches : GENERATED_PARK_ENABLED ? PARK_DATA.interactions.benches.map(b=>({...b,seats:b.seats.map(s=>s.use),exit:b.seats[0]!.exit})) : legacyBenchAnchors
+export const benchAnchors = GENERATED_PARK_ENABLED ? PARK_DATA.interactions.benches.map(b=>({...b,seats:b.seats.map(s=>s.use),exit:b.seats[0]!.exit})) : legacyBenchAnchors
 export const findBench = (id: string) => benchAnchors.find(bench => bench.id === id)
 export function canReachBench(position: Pose, benchId: string) {
   const approved = facilityInRange(position, benchId)

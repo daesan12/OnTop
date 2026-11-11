@@ -165,14 +165,7 @@ public final class ParkScene {
         slot = Math.floorMod(slot, 16);
         Vector3f first = vector(data.path("spawn").path("first"));
         float spacing = (float) data.path("spawn").path("spacing").asDouble();
-        Vector3f position = first.add((slot % 4) * spacing, 0, (slot / 4) * spacing);
-        if (data.path("spawn").path("groundAligned").asBoolean(false)) {
-            JsonNode movement = data.path("movement");
-            position.y = (float) (groundHeight(position.x, position.z)
-                    + movement.path("halfHeight").asDouble() + movement.path("radius").asDouble()
-                    + movement.path("offset").asDouble());
-        }
-        return position;
+        return first.add((slot % 4) * spacing, 0, (slot / 4) * spacing);
     }
 
     double groundHeight(double x, double z) {

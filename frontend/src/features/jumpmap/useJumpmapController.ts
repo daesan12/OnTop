@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
-import { JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
+import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { avatars, sampleAvatar, useSession } from '../../network/worldClient'
 import { effectsOutput, setJumpmapAudioFocus } from '../../audio/bgm'
 import { playSfx } from '../../audio/sfx'
@@ -9,7 +9,6 @@ import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh'
 import { STATUS_PATH, TIPS_PATH, COURSE, blockAtFeet, kstDate, START } from './course'
 import { parseJumpStatus, type TipKey } from './protocol'
 import { anticipateGate, applyJumpStatus, bindJumpmap, onStep, presentStep, showTip, standing, useJumpmap } from './state'
-import {renewalPadAt} from '../../park-renewal/runtime/jumpMotion'
 import { jumpmapXRFeedback } from './xrFeedback'
 
 /** One read model per admitted player/channel. No client start, gate, finish or reward command. */
@@ -18,7 +17,7 @@ export function useJumpmapController() {
   const owner = useSession(s => s.sessionId), channel = useSession(s => s.roomId)
   const map = useSession(s => s.mapVersion), verified = useSession(s => s.mapContractStatus === 'verified' && s.mapCompatible && s.status === 'connected')
   useEffect(() => {
-    if (!JUMPMAP_ENABLED || !owner || !channel || !verified) return
+    if (!GENERATED_PARK_ENABLED || !owner || !channel || !verified) return
     bindJumpmap(owner, channel, map)
     let disposed = false, loading = false, reloadAt = 0, previousFeet = NaN, previousBlock = -1
     let soundContext: AudioContext | undefined
@@ -75,8 +74,7 @@ export function useJumpmapController() {
       if (!own) return
       const pose = sampleAvatar(own, now, { ...own.current }), feet = pose.y - .8
       if (!s.run && !(s.tip?.key === 'FIRST_FALL' && now < s.tip.until) && Math.hypot(pose.x - START.x, pose.z - START.z) < 3 && Math.abs(feet - START.y) < 2) tip('START_SPOT')
-      const contact=RENEWAL_PARK_ENABLED?renewalPadAt({...pose,y:feet}):undefined
-      const pad = !own.tableId && !own.benchId && !own.fitnessId && !own.telescopeId ? RENEWAL_PARK_ENABLED?COURSE.find(p=>p.id===contact?.id):blockAtFeet({ ...pose, y: feet }) : undefined
+      const pad = !own.tableId && !own.benchId && !own.fitnessId && !own.telescopeId ? blockAtFeet({ ...pose, y: feet }) : undefined
       if (pad && pad.block !== previousBlock && Number.isFinite(previousFeet) && previousFeet >= feet - .02) {
         presentStep(pad.block, owner, 1, now)
         if (pad.gate) anticipateGate(pad.gate, now)

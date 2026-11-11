@@ -10,15 +10,6 @@
 --         가위바위보 룰렛 게임기는 붕어빵 카트 바로 옆이라 fish-bread-cart 구역에 함께 센다.
 --         이전 후보(cac3cb04…·04350122…)는 DEV·운영에 배포되지 않았으므로 같은 최신 좌표로 본다.
 --         돌탑 점프맵은 공원 위 공중을 지나가므로 높이(y) 5m 이상은 jump-course로 센다(전망대 제외).
--- renewal: 220m 새 공원(!492, 2026-11-10 DEV 전환). 중심·반경은 frontend/src/park-renewal/plan.ts의 SITES다.
---         맵 버전은 DEV 공개 release.json의 mapVersion이며, 운영 전환 때 새 버전이 생기면 한 줄 추가한다.
---         공사 중 시설(카페·사격장·비둘기·민속놀이·운세·낚시·선착장·열기구·킥보드)도 사람들이 들르는지 보려고 구역으로 둔다.
---         10단계 점프 코스는 언덕(+22m)과 호수 위를 가로질러 높이로 가를 수 없다. 그래서 그 회원의 점프맵 도전
---         (jump_runs 시작~종료, 진행 중이면 시작 후 30분) 동안의 표본은 위치와 상관없이 jump-course로 센다.
---         서버는 연결이 끊기면 15초 유예 뒤, 아무 일 없이 30분이 지나면(JumpRun.TIMEOUT_MS) 판을 끝내고,
---         재시작할 때 열린 판을 모두 닫는다. 그래서 백업에 남은 진행 중(STARTED) 판은 백업 시각에 실제로 하던 판이다.
---         표본마다 도전 판을 훑으면 표본 수 × 판 수만큼 느려지므로, 표본과 도전 시작(+1)·끝(-1)을 회원별 시간순으로
---         한 번 정렬해 누적 합이 0보다 큰 표본을 도전 중으로 본다. 같은 시각이면 시작 → 표본 → 끝 순서라 경계 표본도 포함한다.
 -- 반경·크기는 분석용으로 정한 값이다. 구역 목록만 고치면 과거 좌표도 다시 집계된다.
 -- 겹치는 곳은 priority가 작은 구역을 먼저 쓴다. ELLIPSE는 반지름 a(x)·b(z), RECT는 반폭 a(x)·반깊이 b(z)다.
 -- min_y가 있으면 그 높이 이상인 표본만 해당한다.
@@ -31,8 +22,7 @@ WITH layouts (map_version, layout) AS (
         ROW('ae833248d2dd356c6603af72b2b865f9051a866e9cfa7d2b9c9abe890579944d', 'legacy'),
         ROW('cac3cb040a43630b0b40201ab089a4b328146c03211867b2a155d2b3614acc81', 'generated'),
         ROW('04350122fdeee2b89212345ee4f776990d78832bb25435418b5ea6f2b2fbc769', 'generated'),
-        ROW('c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07', 'generated'),
-        ROW('b1a69e7d26d34bbb56cc88e110d7b4495b5d833669dfd708cf3c416d71a42404', 'renewal')
+        ROW('c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07', 'generated')
 ),
 zones (layout, zone_id, shape, cx, cz, a, b, min_y, priority) AS (
     VALUES
@@ -90,71 +80,13 @@ zones (layout, zone_id, shape, cx, cz, a, b, min_y, priority) AS (
         ROW('generated', 'event-plaza', 'RECT', -64.0, 21.0, 16.0, 13.0, NULL, 8),
         ROW('generated', 'fitness', 'RECT', -63.0, 64.0, 16.0, 12.0, NULL, 8),
         ROW('generated', 'south-plaza', 'ELLIPSE', 0.0, 46.0, 24.0, 24.0, NULL, 8),
-        ROW('generated', 'lake', 'ELLIPSE', 62.0, -14.0, 21.0, 46.0, NULL, 9),
-
-        ROW('renewal', 'mailbox', 'ELLIPSE', -21.97, 24.01, 3.0, 3.0, NULL, 1),
-        ROW('renewal', 'stele', 'ELLIPSE', -58.0, 26.0, 3.0, 3.0, NULL, 1),
-        ROW('renewal', 'gacha', 'ELLIPSE', 22.0, 29.0, 4.0, 4.0, NULL, 2),
-        ROW('renewal', 'lottery', 'ELLIPSE', 23.0, 35.0, 6.0, 6.0, NULL, 2),
-        ROW('renewal', 'ranking-board', 'ELLIPSE', -24.0, 26.0, 6.0, 6.0, NULL, 2),
-        ROW('renewal', 'cafe', 'ELLIPSE', 16.0, -18.0, 9.0, 9.0, NULL, 3),
-        ROW('renewal', 'dock', 'ELLIPSE', 59.0, 18.5, 8.0, 8.0, NULL, 3),
-        ROW('renewal', 'fish-bread-shop', 'ELLIPSE', -19.0, -22.0, 9.0, 9.0, NULL, 3),
-        ROW('renewal', 'fishing', 'ELLIPSE', 83.0, -43.0, 7.0, 7.0, NULL, 3),
-        ROW('renewal', 'island-pavilion', 'ELLIPSE', 62.0, -18.0, 7.0, 7.0, NULL, 3),
-        ROW('renewal', 'jump-start', 'ELLIPSE', -66.0, 13.0, 10.0, 10.0, NULL, 3),
-        ROW('renewal', 'mobility-entry', 'ELLIPSE', -10.0, 86.5, 7.0, 7.0, NULL, 3),
-        ROW('renewal', 'mobility-fitness', 'ELLIPSE', -52.59, 85.87, 7.0, 7.0, NULL, 3),
-        ROW('renewal', 'mobility-hill', 'ELLIPSE', -13.3, -59.0, 7.0, 7.0, NULL, 3),
-        ROW('renewal', 'mobility-lake', 'ELLIPSE', 95.5, 38.5, 7.0, 7.0, NULL, 3),
-        ROW('renewal', 'mobility-north', 'ELLIPSE', 79.8, -64.66, 7.0, 7.0, NULL, 3),
-        ROW('renewal', 'mobility-plaza', 'ELLIPSE', 60.0, 38.0, 7.0, 7.0, NULL, 3),
-        ROW('renewal', 'mobility-rest', 'ELLIPSE', -27.5, 49.5, 7.0, 7.0, NULL, 3),
-        ROW('renewal', 'mobility-west', 'ELLIPSE', -76.0, 40.0, 7.0, 7.0, NULL, 3),
-        ROW('renewal', 'mole', 'ELLIPSE', -36.0, 31.0, 10.0, 10.0, NULL, 3),
-        ROW('renewal', 'pigeon', 'ELLIPSE', -38.0, 4.0, 9.0, 9.0, NULL, 3),
-        ROW('renewal', 'rest-1', 'ELLIPSE', -71.0, 66.0, 8.0, 8.0, NULL, 3),
-        ROW('renewal', 'rest-2', 'ELLIPSE', -89.0, -43.0, 8.0, 8.0, NULL, 3),
-        ROW('renewal', 'rest-3', 'ELLIPSE', 64.0, -71.0, 8.0, 8.0, NULL, 3),
-        ROW('renewal', 'rest-4', 'ELLIPSE', 73.0, 48.0, 8.0, 8.0, NULL, 3),
-        ROW('renewal', 'shooting', 'ELLIPSE', -34.0, -22.0, 9.0, 9.0, NULL, 3),
-        ROW('renewal', 'arcade', 'ELLIPSE', -65.0, 47.0, 11.0, 11.0, NULL, 4),
-        ROW('renewal', 'folk', 'ELLIPSE', -61.0, 78.0, 10.0, 10.0, NULL, 4),
-        ROW('renewal', 'fortune', 'ELLIPSE', 9.0, 90.0, 6.0, 6.0, NULL, 4),
-        ROW('renewal', 'tower', 'ELLIPSE', 96.0, 24.0, 13.0, 13.0, NULL, 4),
-        ROW('renewal', 'vr-zone', 'ELLIPSE', -57.0, -19.0, 12.0, 12.0, NULL, 4),
-        ROW('renewal', 'balloon', 'ELLIPSE', -40.0, -76.0, 21.0, 21.0, NULL, 5),
-        ROW('renewal', 'central-pavilion', 'ELLIPSE', 0.0, 4.0, 16.0, 16.0, NULL, 5),
-        ROW('renewal', 'fitness', 'ELLIPSE', -24.0, 72.0, 23.0, 23.0, NULL, 5),
-        ROW('renewal', 'fountain-plaza', 'ELLIPSE', 47.0, 58.0, 18.0, 18.0, NULL, 5),
-        ROW('renewal', 'pagoda', 'ELLIPSE', 0.0, -80.0, 19.0, 19.0, NULL, 5),
-        ROW('renewal', 'plaza', 'ELLIPSE', 0.0, 38.0, 20.0, 20.0, NULL, 5),
-        ROW('renewal', 'reserve-north', 'ELLIPSE', 39.0, -86.0, 12.0, 12.0, NULL, 5),
-        ROW('renewal', 'reserve-west', 'ELLIPSE', -93.0, -4.0, 11.0, 11.0, NULL, 5),
-        ROW('renewal', 'lake', 'ELLIPSE', 62.0, -18.0, 29.0, 36.0, NULL, 6)
-),
-timeline AS (
-    SELECT p.id, p.user_id, p.sampled_at AS at, 1 AS ord, 0 AS delta, p.x, p.y, p.z, p.moving, p.map_version
-    FROM world_position_samples p
-    UNION ALL
-    SELECT NULL, r.user_id, r.started_at, 0, 1, NULL, NULL, NULL, NULL, NULL
-    FROM jump_runs r
-    UNION ALL
-    SELECT NULL, r.user_id, COALESCE(r.ended_at, r.started_at + INTERVAL 30 MINUTE), 2, -1, NULL, NULL, NULL, NULL, NULL
-    FROM jump_runs r
-),
-flagged AS (
-    SELECT id, user_id, x, y, z, moving, map_version,
-           SUM(delta) OVER (PARTITION BY user_id ORDER BY at, ord ROWS UNBOUNDED PRECEDING) > 0 AS jumping
-    FROM timeline
+        ROW('generated', 'lake', 'ELLIPSE', 62.0, -14.0, 21.0, 46.0, NULL, 9)
 ),
 assigned AS (
     SELECT COALESCE(l.layout, 'unmapped') AS layout,
            p.user_id,
            p.moving,
-           CASE WHEN l.layout IS NULL THEN 'unmapped'
-                WHEN l.layout = 'renewal' AND p.jumping THEN 'jump-course'
-                ELSE COALESCE((
+           CASE WHEN l.layout IS NULL THEN 'unmapped' ELSE COALESCE((
                SELECT zn.zone_id
                FROM zones zn
                WHERE zn.layout = l.layout
@@ -164,9 +96,8 @@ assigned AS (
                ORDER BY zn.priority, zn.zone_id
                LIMIT 1
            ), 'path') END AS zone_id
-    FROM flagged p
+    FROM world_position_samples p
     LEFT JOIN layouts l ON l.map_version = p.map_version
-    WHERE p.id IS NOT NULL
 )
 SELECT layout,
        zone_id,

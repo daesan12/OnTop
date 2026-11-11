@@ -4,11 +4,7 @@ import {
   RGBAFormat,
   EquirectangularReflectionMapping,
   LinearFilter,
-  HalfFloatType,
-  CubeUVReflectionMapping,
-  LinearSRGBColorSpace,
 } from 'three'
-import {getOutdoorReflectionData,type OutdoorReflectionData} from './outdoorReflectionData'
 
 /** Small, deterministic material detail shared by all instruments/lanterns. */
 function grain(paper: boolean) {
@@ -69,17 +65,4 @@ export function outdoorReflection() {
   return texture
 }
 
-/** Exact HalfFloat pixels captured from the original PMREM generator. CubeUV
- * mapping tells Three that filtering is complete; material settings stay intact. */
-export function restorePrefilteredReflection(value:OutdoorReflectionData){
-  const texture=new DataTexture(value.data,value.width,value.height,RGBAFormat,HalfFloatType)
-  texture.mapping=CubeUVReflectionMapping
-  texture.minFilter=texture.magFilter=LinearFilter
-  texture.colorSpace=LinearSRGBColorSpace
-  texture.flipY=false;texture.generateMipmaps=false;texture.needsUpdate=true
-  return texture
-}
-export const restoreOutdoorReflection=restorePrefilteredReflection
-const bakedReflection=getOutdoorReflectionData()
-export const outdoorReflectionMap=bakedReflection?restoreOutdoorReflection(bakedReflection):outdoorReflection()
-if(bakedReflection)performance.mark('park-static-reflection-ready')
+export const outdoorReflectionMap = outdoorReflection()

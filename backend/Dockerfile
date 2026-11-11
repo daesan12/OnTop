@@ -27,7 +27,7 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=build --chown=ontop:ontop /workspace/build/libs/*.jar ./app.jar
 COPY --chown=ontop:ontop docker-entrypoint.sh ./docker-entrypoint.sh
-RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod 0500 ./docker-entrypoint.sh
+RUN chmod 0500 ./docker-entrypoint.sh
 
 USER ontop
 EXPOSE 8080

@@ -37,9 +37,7 @@ const tower: Part[] = [
   { p: [0, 85, 0], s: [9, 5, 9], c: '#91a09e' },
   { p: [0, 104, 0], s: [0.55, 34, 0.55], c: '#8b9797' },
 ]
-export function DistantLandscape({anchorTowerToRidge=false}:{anchorTowerToRidge?:boolean}={}) {
-  const towerAngle=Math.atan2(368,-368)
-  const towerBaseY=anchorTowerToRidge?46+18*Math.sin(towerAngle*3+2.1)+10*Math.cos(towerAngle*7-2.1)+4*Math.sin(towerAngle*13)-.5:62
+export function DistantLandscape() {
   const farMaterial = useRef<MeshBasicMaterial>(null), nearMaterial = useRef<MeshBasicMaterial>(null)
   const colors = useMemo(() => ({
     dayFar: new Color('#b6dfdf'), dayNear: new Color('#a9d4b9'),
@@ -58,7 +56,7 @@ export function DistantLandscape({anchorTowerToRidge=false}:{anchorTowerToRidge?
       <mesh name="distant-mountain-near" geometry={near} dispose={null}>
         <meshBasicMaterial ref={nearMaterial} color="#a9d4b9" side={2} />
       </mesh>
-      <group name="namsan-tower-silhouette" position={[-368, towerBaseY, 368]}>
+      <group name="namsan-tower-silhouette" position={[-368, 62, 368]}>
         <Instances parts={tower} shadow={false}>
           <cylinderGeometry args={[1, 1, 1, 12]} />
         </Instances>
