@@ -46,6 +46,7 @@ const sharedInteractions = renewal?.interactions ?? (generated ? p.data.interact
 export const TELESCOPES = sharedInteractions ? sharedInteractions.telescopes.map(t => ({...base.TELESCOPES.find(old => old.id === t.id)!, position:t.position, yaw:t.yaw})) : base.TELESCOPES
 export const MAILBOX = renewal ? { ...base.MAILBOX, x: renewal.interactions.mailbox.position[0], z: renewal.interactions.mailbox.position[2] }
   : generated ? {...base.MAILBOX,...p.SITES.mailbox,yaw:p.SETTINGS.mailbox.yaw,height:base.MAILBOX.height*p.SETTINGS.mailbox.scale,bodyHalfWidth:base.MAILBOX.bodyHalfWidth*p.SETTINGS.mailbox.scale,bodyHalfDepth:base.MAILBOX.bodyHalfDepth*p.SETTINGS.mailbox.scale} : base.MAILBOX
+export const MAILBOX_BASE_Y = sharedInteractions?.mailbox.position[1] ?? 0
 export const NOTES_BOX = sharedInteractions ? {...base.NOTES_BOX,x:sharedInteractions.notes.position[0],y:sharedInteractions.notes.position[1],z:sharedInteractions.notes.position[2]} : base.NOTES_BOX
 export const MINI_PROPS = generated ? [{...base.MINI_PROPS[0],...p.SITES.cart,...p.SETTINGS.fishBreadShop},{...base.MINI_PROPS[1],...p.SITES.vr}] as const : base.MINI_PROPS
 export const VR_ZONE = generated ? p.VR_COURT : base.VR_ZONE

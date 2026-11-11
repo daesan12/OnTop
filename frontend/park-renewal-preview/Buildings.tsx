@@ -32,7 +32,7 @@ import {addArcadeExterior,drawArcadeMarquee,drawArcadeSide,ARCADE_MARQUEE} from 
 import {addArcadeInterior,addArcadeWallLining,drawArcadeInteriorBanner,drawArcadeInteriorMural,drawArcadeFloorBadge} from './approved/arcade-building-20261107-v1/core/frontend/src/world/art/arcadeInterior'
 import {VrSkewerHall as ApprovedVrHall} from './approved/vr-skewer-hall-20261107-v1/core/frontend/src/features/skewer/parkAsset/VrSkewerHall'
 import {GachaMachine} from './original/features/gacha/parkAsset/GachaMachine.tsx'
-import {buildRankingBoard} from '../src/layout-preview/RankingBoardModel'
+import {buildRankingBoard,RankingBoardPanels} from '../src/layout-preview/RankingBoardModel'
 import {RpsRouletteCabinetModel} from './original/features/rpsRoulette/RpsRouletteCabinetModel.tsx'
 import {PlusMinusCabinetModel} from './original/features/plusMinus/PlusMinusCabinetModel.tsx'
 import {createSharedBuildingModels} from './sharedBuildingModels'
@@ -135,14 +135,28 @@ function Arcade(){
  return <><PropModel art={art.body} name="approved-arcade-body"/><PropModel art={art.roof} name="approved-arcade-roof"/><PropModel art={art.walls} name="approved-arcade-walls"/><ArcadeNeon width={18} depth={12}/><PropSign width={12.1} height={1.12} position={[0,4.7,-5.64]} draw={drawArcadeInteriorBanner}/><PropSign width={7.9} height={2.16} position={[8.65,3.65,.1]} rotation={[0,-Math.PI/2,0]} draw={drawArcadeInteriorMural}/><PropSign width={3.4} height={3.4} position={[0,.167,1.7]} rotation={[-Math.PI/2,0,0]} draw={drawArcadeFloorBadge}/><PropSign width={ARCADE_MARQUEE.width} height={ARCADE_MARQUEE.height} position={[0,6.4+ARCADE_MARQUEE.heightOffset,6+ARCADE_MARQUEE.frontOffset]} draw={drawArcadeMarquee}/>{[-1,1].map(side=><PropSign key={side} width={3.6} height={.7} position={[side*9.425,5.25,0]} rotation={[0,side*Math.PI/2,0]} draw={drawArcadeSide}/>)}<group position={[-6,.14,-3.6]} scale={1.5}><RpsRouletteCabinetModel/></group><group position={[-2,.14,-3.6]} scale={1.5}><PlusMinusCabinetModel/></group></>
 }
 function VrHall(){return <ApprovedVrHall/>}
-function Gacha(){return <GachaMachine/>}
-function Ranking(){const art=useMemo(()=>buildRankingBoard(),[]);return <><PropModel art={art} name="ranking-board"/><PropSign draw={title('온탑 랭킹')} position={[0,4.23,.4]} width={7.2} height={.6}/></>}
+function interactWithKiosk(id:string){
+ void import('../src/features/interactions/parkInteraction').then(({interactWithPark})=>interactWithPark(id))
+}
+function Gacha({live}:{live:boolean}){return <GachaMachine onInteract={live?()=>interactWithKiosk('layout-shop'):undefined}/>}
+function Ranking({live}:{live:boolean}){
+ const art=useMemo(()=>buildRankingBoard(),[])
+ return <group onClick={live?event=>{
+  if(event.delta>=5)return
+  event.stopPropagation()
+  interactWithKiosk('layout-photo')
+ }:undefined}>
+  <PropModel art={art} name="ranking-board"/>
+  <PropSign draw={title('온탑 랭킹')} position={[0,4.23,.4]} width={7.2} height={.6}/>
+  {live&&<RankingBoardPanels/>}
+ </group>
+}
 export function Buildings({live=false}:{live?:boolean}){const shared=useMemo(()=>createSharedBuildingModels(rentalTextures),[]);const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
  {SITES.filter(s=>s.asset&&models[s.asset]).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);return <group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit}/></Suspense></group>})}
  {SITES.filter(s=>s.asset==='pair').map(s=><group key={s.id} name={'paired-rental-'+s.id} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,rentalYaw(s),0]}>{[-1,1].map((side,i)=><group key={side} position={[side*RENTAL_PAIR_SPACING/2,0,0]}><SharedModel source={shared[i===0?'bike':'scooter']}/></group>)}</group>)}
 
  {['mole','arcade','vr','folk','gacha','ranking','shooting'].map(id=>{const s=site(id);return <group key={id} name={'facility-'+id} userData={{siteId:id,legacyFacilityIds:legacyIdsForSite(id)}} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,facilityYaw(s),0]} scale={id==='arcade'?[...ARCADE_SCALE]:1}>
-  {id==='shooting'||id==='folk'?<LocalFactory kind={id}/>:id==='mole'?<Mole/>:id==='arcade'?<Arcade/>:id==='vr'?<VrHall/>:id==='gacha'?<Gacha/>:<Ranking/>}
+  {id==='shooting'||id==='folk'?<LocalFactory kind={id}/>:id==='mole'?<Mole/>:id==='arcade'?<Arcade/>:id==='vr'?<VrHall/>:id==='gacha'?<Gacha live={live}/>:<Ranking live={live}/>}
   {!originalFacilityGeometry&&hasFacilityGeometry(id)&&<Suspense fallback={null}><FacilityGeometry id={id}/></Suspense>}
  </group>})}
  <TraditionalMailbox position={[mailbox.x,heightAt(mailbox.x,mailbox.z)+.1,mailbox.z]} scale={MAILBOX_SCALE} yaw={mailbox.yaw}/>

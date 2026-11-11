@@ -1,4 +1,4 @@
-import { FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX } from '../../park/mapConfig'
+import { FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
 import { avatars, useSession } from '../../network/worldClient'
 import { tableBusy, useGame } from '../../game/store'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
@@ -30,7 +30,7 @@ import { interactWithTable } from '../tableLobby/tableInteraction'
 import { tableEntry } from '../tableLobby/tableEntry'
 import { useTableLobby } from '../tableLobby/state'
 import { canReachTable } from '../tableLobby/tableReach'
-import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { GENERATED_PARK_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice,openParkGacha } from '../construction/model'
 import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlacement'
 import { gachaInteractionEnabled } from '../gacha/state'
@@ -41,6 +41,8 @@ import { START as JUMPMAP_START } from '../jumpmap/course'
 import { useJumpmap } from '../jumpmap/state'
 import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
+
+const plazaKiosksEnabled = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED
 
 export interface ParkInteraction {
   kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge'
@@ -72,11 +74,11 @@ export function getParkInteraction(): ParkInteraction | null {
     choices.push({kind:'jumpmap-guide',id:'jumpmap-guide',label:'돌탑 점프맵 안내',occupied:false,available:true,distance,
       score:interactionScore(distance,{x:JUMPMAP_START.x,y:JUMPMAP_START.y+.12,z:JUMPMAP_START.z})})
   }
-  if(GENERATED_PARK_ENABLED&&canReachRankingBoard(p.current)){
+  if(plazaKiosksEnabled&&canReachRankingBoard(p.current)){
     const [x,y,z]=rankingBoardTarget.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     choices.push({kind:'ranking-board',id:rankingBoardTarget.id,label:'랭킹 자세히 보기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
-  if(GENERATED_PARK_ENABLED)for(const site of constructionSites){
+  if(plazaKiosksEnabled)for(const site of constructionSites){
     // layout-shop is the visible gacha machine. Its E prompt is controlled by the
     // backend runtime capability below, not by the legacy construction marker.
     if(site.id===PARK_GACHA_MACHINE.id)continue
@@ -84,7 +86,7 @@ export function getParkInteraction(): ParkInteraction | null {
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     choices.push({kind:'construction',id:site.id,label:site.label+' · 행운의 뽑기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
-  if (GENERATED_PARK_ENABLED && gachaInteractionEnabled(session.sessionId) && canReachParkGacha(p.current)) {
+  if (plazaKiosksEnabled && gachaInteractionEnabled(session.sessionId) && canReachParkGacha(p.current)) {
     const { id, x, y, z } = PARK_GACHA_MACHINE
     const distance = Math.hypot(p.current.x - x, p.current.z - z)
     choices.push({ kind: 'gacha', id, label: '의상 뽑기', occupied: false, available: true, distance,
@@ -113,7 +115,7 @@ export function getParkInteraction(): ParkInteraction | null {
   if (canReachFeedback(p.current)) {
     const distance = Math.hypot(p.current.x - MAILBOX.x, p.current.z - MAILBOX.z)
     choices.push({ kind: 'feedback', id: 'feedback-mailbox', label: '소리함에 의견 쓰기', occupied: false,
-      available: true, distance, score: interactionScore(distance, { x: MAILBOX.x, y: MAILBOX.height * 0.7, z: MAILBOX.z }) })
+      available: true, distance, score: interactionScore(distance, { x: MAILBOX.x, y: MAILBOX_BASE_Y + MAILBOX.height * 0.7, z: MAILBOX.z }) })
   }
   for (const t of TELESCOPES) {
     if (!canReachTelescope(p.current, t.id)) continue

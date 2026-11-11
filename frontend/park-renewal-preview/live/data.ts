@@ -1,7 +1,7 @@
 import { SITES as originalSites } from '../../src/layout-preview/layout'
 import { PARK_DATA } from '../../src/map/park'
 import type { MapPose, Point3 } from '../../src/map/park/interactionData'
-import { facilityYaw } from '../facilityPlacement'
+import { facilityBase, facilityYaw } from '../facilityPlacement'
 import { FACILITY_TARGETS } from '../mapping/identities'
 import { LAKE, heightAt, facilityGroundY, site } from '../plan'
 import { TOWER_TOP, telescopeYaw } from '../towerFurniturePlan'
@@ -16,6 +16,18 @@ function shift(pose: MapPose, x: number, y: number, z: number): MapPose {
   return { x: pose.x + x, y: pose.y + y, z: pose.z + z, yaw: pose.yaw }
 }
 
+function kioskPlacement(id: 'lottery' | 'ranking', distance: number) {
+  const s = site(id), yaw = facilityYaw(s)
+  // The lottery GLB's front is -Z. The procedural ranking board faces +Z.
+  const direction = id === 'lottery' ? -distance : distance
+  const x = s.x + Math.sin(yaw) * direction, z = s.z + Math.cos(yaw) * direction
+  return {
+    position: [s.x, facilityBase(id), s.z] as Point3,
+    reachPosition: [x, heightAt(x, z) + .8, z] as Point3,
+    yaw,
+  }
+}
+
 export function buildRenewalMapData() {
   const tables = buildRenewalTables()
   const { physics, pavilions } = buildRenewalPhysics(tables)
@@ -25,6 +37,9 @@ export function buildRenewalMapData() {
     const s = site(id)
     return [{ ...facility, position: [s.x, heightAt(s.x, s.z), s.z] as Point3, yaw: facilityYaw(s) }]
   })
+  const gacha = site('gacha')
+  facilities.push({ id: 'layout-shop', kind: 'shop',
+    position: [gacha.x, facilityBase('gacha'), gacha.z], yaw: facilityYaw(gacha) })
   const fountain = site('fountain'), gym = site('fitness'), tower = site('tower'), mailbox = site('mailbox')
   const fx = fountain.x - originalSites.fountain.x, fy = heightAt(fountain.x, fountain.z), fz = fountain.z - originalSites.fountain.z
   const gx = gym.x - originalSites.fitness.x, gy = heightAt(gym.x, gym.z), gz = gym.z - originalSites.fitness.z
@@ -55,7 +70,9 @@ export function buildRenewalMapData() {
     tableAnchorIds: tables.map(t => t.id),
     tables, facilities, pavilions, physics,
     interactions: {
-      ...old, benches, fitness, telescopes, construction: [],
+      ...old, benches, fitness, telescopes,
+      construction: old.construction.filter(s => s.id === 'layout-drink').map(s => ({ ...s, ...kioskPlacement('lottery', 3.25) })),
+      rankingBoard: { ...old.rankingBoard, ...kioskPlacement('ranking', 3.25) },
       notes: { ...old.notes, position: notesPosition, reachPosition: offset(notesPosition, 0, .8, 0) },
       mailbox: { ...old.mailbox, position: [mailbox.x, heightAt(mailbox.x, mailbox.z) + .1, mailbox.z] as Point3 },
       tableSeats: tables.map(t => ({ tableId: t.id, position: t.position, localSeats: t.seatAnchors })),
