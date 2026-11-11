@@ -1,3 +1,4 @@
+import {staticPark} from './static/store'
 import {hillGradedHeight} from './hillGrading.ts'
 import {CAFE_APPROACH_OFFSETS} from './cafeApproach.ts'
 import {HILL_COORDINATES,HILL_NODE_IDS,HILL_ROAD_WIDTH} from './hillRoute.ts'
@@ -164,8 +165,8 @@ function evaluateForestHeight(x:number,z:number,mark?:{fixed:boolean;road:boolea
  const hidden=hiddenExitGrade(x,z);h=h*(1-hidden.weight)+(hidden.height-.085)*hidden.weight;return pad??ascentSurface(x,z,h)
 }
 const FIELD={x0:-122,z0:-126,width:245,depth:253}
-let forestField:Float64Array|undefined
-function getForestField(){
+let forestField:Float64Array|undefined=staticPark?.forestField
+export function getForestField(){
  if(forestField)return forestField
  const {x0,z0,width,depth}=FIELD,n=width*depth,values=new Float64Array(n),fixed=new Uint8Array(n),summit=new Uint8Array(n),roads=new Uint8Array(n),mark={fixed:false,road:false}
  for(let i=0;i<width;i++)for(let j=0;j<depth;j++){const k=i*depth+j,x=x0+i,z=z0+j,top=inSummit(x,z);summit[k]=top?1:0;const water=inLake(x,z);mark.fixed=false;mark.road=false;values[k]=water?LAKE.y+.08:top?forestBaseHeight(x,z):evaluateForestHeight(x,z,mark);const support=fixedMappedRoadSupport(x,z);if(!top&&!water&&support!==undefined){values[k]=support;mark.fixed=true}if(!top&&x>=-59&&x< -58&&Math.abs(z+58)<4.8){values[k]=22;mark.fixed=true}roads[k]=mark.road?1:0;fixed[k]=water||top||mark.fixed||i===0||j===0||i===width-1||j===depth-1?1:0}

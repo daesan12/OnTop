@@ -1,3 +1,4 @@
+import {staticPark} from './static/store'
 import {jumpFenceOpening} from './jumpAccessPlan.ts'
 import {hillDistance} from './hillRoute.ts'
 import {guardFloorY} from './groundSurface.ts'
@@ -9,7 +10,8 @@ import {hiddenExitGrade} from './horrorPlan.ts'
 import {isPlantingGround} from './groundPlan.ts'
 import {HILL_VERGE_INSET} from './guardDimensions.ts'
 type V=readonly[number,number,number]
-export const hillEdgeSections:{a:number[];z:number[]}[]=[]
+function createHillEdges(){
+const hillEdgeSections:{a:number[];z:number[]}[]=[]
 /** Remove tiny curb fillet segments before offsetting: their opposing mitres made spikes. */
 function simplify(p:readonly V[]):V[]{
  if(p.length<3)return [...p]
@@ -50,3 +52,7 @@ const lowerEnds=ends(hillEdgeSections),upperEnds=ends(summitFenceSections)
 for(const p of upperEnds){let best:number[]|undefined,distance=2;for(const q of lowerEnds){const d=Math.hypot(p[0]!-q[0]!,p[2]!-q[2]!);if(d>.04&&d<distance&&Math.abs(p[1]!-q[1]!)<1.2&&isPlantingGround((p[0]!+q[0]!)/2,(p[2]!+q[2]!)/2)){best=q;distance=d}}if(best){hillEdgeSections.push({a:p,z:best});lowerEnds.splice(lowerEnds.indexOf(best),1)}}
 hillEdgeSections.push(...summitFenceSections)
 for(const s of hillEdgeSections)for(const p of[s.a,s.z])p[1]=guardFloorY(p[0]!,p[2]!)
+
+return hillEdgeSections
+}
+export const hillEdgeSections=staticPark?.hillEdges??createHillEdges()

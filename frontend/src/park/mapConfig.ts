@@ -9,7 +9,7 @@ import { GENERATED_PARK_ENABLED as generated } from './mapSelection'
 import { RENEWAL_PARK_ENABLED as renewal } from './mapSelection'
 import {renewalTables,renewalBenches,renewalMapping,renewalAnchor,renewalAnchors} from '../park-renewal/runtime/placements'
 import type { BoxCollider, Vec3 } from '../config/world'
-import {heightAt as renewalGround,onRoad as renewalRoad} from '../park-renewal/plan'
+import {heightAt as renewalGround,onRoad as renewalRoad,onBridge as renewalBridge,deckHeightAt as renewalDeck} from '../park-renewal/plan'
 import {parkWalkSurface} from '../park-renewal/surfaceHeight'
 
 // Display policy belongs to the runtime, not the hashed shared-map source.
@@ -34,7 +34,7 @@ const generatedBenchSites = generated ? buildInteractionData({ definition: p.SET
 // Compensate the avatar's -.8 offset once, using the measured seat surface.
 export const BENCH_SEAT_HEIGHTS: ReadonlyMap<string, number> = renewal ? new Map(renewalAnchors.filter(r=>r.kind==='bench'&&r.status==='mapped').map(r=>[r.id,r.seats![0]!.contactY-r.seats![0]!.use.y+.8])) : generated ? new Map(generatedBenchSites.map(b => [b.id, b.seatHeight]))
   : new Map(base.BENCHES.map((_, i) => [`bench-${i}`, base.BENCH_PAVILIONS[i] ? 0.56 : 0.58]))
-export const FITNESS_STATIONS = renewal ? base.FITNESS_STATIONS.map(f=>{const r=renewalAnchor('fitness',f.id);return r?{...f,position:r.position!,yaw:r.yaw}:f}) : generated ? p.DRAFT_FITNESS_STATIONS : base.FITNESS_STATIONS
+export const FITNESS_STATIONS = renewal ? p.DRAFT_FITNESS_STATIONS.map(f=>{const r=renewalAnchor('fitness',f.id);return r?{...f,position:r.position!,yaw:r.yaw}:f}) : generated ? p.DRAFT_FITNESS_STATIONS : base.FITNESS_STATIONS
 // Diagonal stations need enough clearance to step outside their effective footprint.
 export const FITNESS = generated ? {...base.FITNESS,exitOffset:p.SETTINGS.fitness.exitOffset} : base.FITNESS
 export const FITNESS_AREA = generated ? p.DRAFT_FITNESS_AREA : base.FITNESS_AREA
@@ -56,7 +56,7 @@ export const PARK_ROUTES = generated ? p.PATHS : base.PARK_ROUTES
 export const LAMPS = generated ? p.DRAFT_LAMPS : base.LAMPS
 export const BRIDGE = generated ? {...base.BRIDGE,...p.lake.CROSSINGS.find(c => c.kind === 'wood')!} : base.BRIDGE
 export const isOnParkWalkway = renewal ? renewalRoad : generated ? p.onPath : base.isOnParkWalkway
-export const isOnLakeCrossing = (x:number,z:number) => generated ? p.lake.crossingHeight(x,z) !== undefined : Math.abs(z - base.BRIDGE.z) < base.BRIDGE.halfWidth && x >= base.BRIDGE.startX && x <= base.BRIDGE.endX
+export const isOnLakeCrossing = (x:number,z:number) => renewal ? renewalBridge(x,z)||renewalDeck(x,z)!==null : generated ? p.lake.crossingHeight(x,z) !== undefined : Math.abs(z - base.BRIDGE.z) < base.BRIDGE.halfWidth && x >= base.BRIDGE.startX && x <= base.BRIDGE.endX
 export const lakeRadiusAt = generated ? p.lake.lakeRadius : base.lakeRadiusAt
 export const groundHeight = renewal ? renewalGround : generated ? p.walkHeight : base.groundHeight
 export const PARK_ZONES = generated ? base.PARK_ZONES.map(zone => {

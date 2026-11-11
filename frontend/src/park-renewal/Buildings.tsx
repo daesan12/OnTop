@@ -18,7 +18,7 @@ import {TelescopeModel} from '../world/art/TelescopeModel'
 import {TraditionalNotesBoard} from '../world/art/TraditionalNotesBoard'
 import {ReferenceBench} from '../world/art/ReferenceBenchFrames'
 import {factory,rentalLabel} from './assetFactories'
-import {SITES,site,heightAt,LAKE,TABLES,JUMP_TABLES,MAILBOX_SCALE,REST_PAVILIONS,BOAT_ROUTE,SUB_PAVILION_SCALE,DOCK_SCALE,STATION_SCALE,BALLOON_SCALE,RENTAL_PAIR_SPACING,rentalYaw,FISHING_DECK,FISHING_SHOP,FISHING_NOTICE,FISHING_BENCHES,facilityGroundY} from './plan'
+import {SITES,site,heightAt,LAKE,TABLES,JUMP_TABLES,MAILBOX_SCALE,REST_PAVILIONS,BOAT_ROUTE,DOCK_SCALE,STATION_SCALE,BALLOON_SCALE,RENTAL_PAIR_SPACING,rentalYaw,FISHING_DECK,FISHING_SHOP,FISHING_NOTICE,FISHING_BENCHES,facilityGroundY} from './plan'
 import {willowPositions} from './landscape'
 import {reverseSteleArrow} from './steleRefinement'
 import {PreservedFitness} from './PreservedFitness'
@@ -26,8 +26,8 @@ import {PreservedFountain,PreservedPagodaGarden,FitnessFence} from './PreservedD
 import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatPose,openDockSideEntry,groundObject,widenDockRearPassage} from './assetSizing'
 import {VerticalMoleAttract} from './VerticalMoleAttract'
 import {ArcadeNeon} from './approved/arcade-building-20261107-v1/core/frontend/src/layout-preview/ArcadeNeon'
-import {type RecreationFacility} from '../map/park/recreation'
-import {buildMoleShop} from './approved/mole-shop-20261107-v1/core/frontend/src/world/art/moleShopGeometry'
+import {drawMoleShopSign} from './approved/mole-shop-20261107-v1/core/frontend/src/world/art/moleShopGeometry'
+import {getMoleShopArt,MOLE_SHOP_FACILITY} from './moleShopArt'
 import {addArcadeExterior,drawArcadeMarquee,drawArcadeSide,ARCADE_MARQUEE} from './approved/arcade-building-20261107-v1/core/frontend/src/world/art/arcadeExterior'
 import {addArcadeInterior,addArcadeWallLining,drawArcadeInteriorBanner,drawArcadeInteriorMural,drawArcadeFloorBadge} from './approved/arcade-building-20261107-v1/core/frontend/src/world/art/arcadeInterior'
 import {VrSkewerHall as ApprovedVrHall} from './approved/vr-skewer-hall-20261107-v1/core/frontend/src/features/skewer/parkAsset/VrSkewerHall'
@@ -35,6 +35,7 @@ import {GachaMachine} from '../features/gacha/parkAsset/GachaMachine'
 import {buildRankingBoard} from '../layout-preview/RankingBoardModel'
 import {RpsRouletteCabinetModel} from '../features/rpsRoulette/RpsRouletteCabinetModel'
 import {PlusMinusCabinetModel} from '../features/plusMinus/PlusMinusCabinetModel'
+import {createSharedBuildingModels} from './sharedBuildingModels'
 
 const models:Record<string,string>={main:'main-octagonal-pavilion-5.glb',fortune:'ontop-fortune-room-4.glb',lottery:'ontop-lottery-shop-2.glb',bread:'bungeoppang-shop.glb',pigeon:'pigeon-shop.glb',dock:'duck-dock-3.glb',cafe:'hanjeongseon-cafe-2.glb',stele:'jumpmap-stele-a.glb',boat:'duck-boat-1.glb'}
 const rentalTextures={bike:rentalLabel('bicycle'),scooter:rentalLabel('scooter')}
@@ -49,11 +50,14 @@ function LocalFactory({kind,options={}}:{kind:string;options?:Record<string,unkn
  const object=useMemo(()=>{const g=factory(kind,options);return kind==='folk'?fitApprovedObject(g,SHOOTING_SIZE):['bike','scooter','ebike','kickboard','shooting','fishing-shop','lake-notice','rod-rack','fishing-bench','sub'].includes(kind)?groundObject(g):g},[kind,options.kind,options.seed,options.height,options.spread,options.label,options.direction,options.signTexture])
  return <primitive object={object} dispose={null}/>
 }
+function SharedModel({source}:{source:Group}){
+ const object=useMemo(()=>source.clone(true),[source])
+ return <primitive object={object} dispose={null}/>
+}
 function title(text:string){return(c:CanvasRenderingContext2D,w:number,h:number)=>{c.fillStyle='#eee3c8';c.fillRect(0,0,w,h);c.strokeStyle='#9e7b42';c.lineWidth=8;c.strokeRect(5,5,w-10,h-10);c.fillStyle='#284b3c';c.textAlign='center';c.textBaseline='middle';c.font=`700 ${h*.48}px "Malgun Gothic",sans-serif`;c.fillText(text,w/2,h/2,w*.91)}}
 function Mole(){
- const f:RecreationFacility={id:'renewal-mole',kind:'mole',label:'두더지 잡기',x:0,z:0,width:10,depth:7,height:6.4,yaw:0,doorWidth:4}
- const art=useMemo(()=>buildMoleShop({...f}),[])
- return <><PropModel art={art.body} name="approved-mole-body"/><PropModel art={art.roof} name="approved-mole-roof"/><PropModel art={art.walls} name="approved-mole-walls"/><PropSign draw={art.draw} position={[0,4.4,3.7]} width={3.1} height={.55}/><VerticalMoleAttract facility={f}/></>
+ const art=useMemo(getMoleShopArt,[])
+ return <><PropModel art={art.body} name="approved-mole-body"/><PropModel art={art.roof} name="approved-mole-roof"/><PropModel art={art.walls} name="approved-mole-walls"/><PropSign draw={drawMoleShopSign} position={[0,4.4,3.7]} width={3.1} height={.55}/><VerticalMoleAttract facility={MOLE_SHOP_FACILITY}/></>
 }
 function Arcade(){
  const art=useMemo(()=>{const b=new PropBuilder(),r=new PropBuilder(),w=new PropBuilder(),f={width:18,depth:12,height:6.4,doorWidth:4.6};b.box('stone','#c9bea1',[0,.04,0],[19.6,.08,13.6]);b.box('stone','#d8cfb8',[0,.1,0],[18,.08,12]);w.box('paint','#e0ddc9',[0,3.2,-6],[18,6.4,.32]);for(const side of[-1,1]){w.box('paint','#e0ddc9',[side*9,3.2,0],[.32,6.4,12]);w.box('paint','#e0ddc9',[side*5.65,3.2,6],[6.7,6.4,.32]);for(const z of[-6,6])b.box('wood','#755135',[side*9,3.2,z],[.3,6.4,.3])}addArcadeExterior(b,r,w,f);addArcadeWallLining(w,f);addArcadeInterior(b,f);return {body:b.finish(),roof:r.finish(),walls:w.finish()}},[])
@@ -62,9 +66,9 @@ function Arcade(){
 function VrHall(){return <ApprovedVrHall/>}
 function Gacha(){return <GachaMachine/>}
 function Ranking(){const art=useMemo(()=>buildRankingBoard(),[]);return <><PropModel art={art} name="ranking-board"/><PropSign draw={title('온탑 랭킹')} position={[0,4.23,.4]} width={7.2} height={.6}/></>}
-export function Buildings({live=false}:{live?:boolean}){const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
+export function Buildings({live=false}:{live?:boolean}){const shared=useMemo(()=>createSharedBuildingModels(rentalTextures),[]);const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
  {SITES.filter(s=>s.asset&&models[s.asset]).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);return <group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit}/></Suspense></group>})}
- {SITES.filter(s=>s.asset==='pair').map(s=><group key={s.id} name={'paired-rental-'+s.id} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,rentalYaw(s),0]}>{[-1,1].map((side,i)=><group key={side} position={[side*RENTAL_PAIR_SPACING/2,0,0]}><LocalFactory kind="rental-bay" options={{kind:i===0?'bicycle':'scooter',signTexture:rentalTextures[i===0?'bike':'scooter']}}/></group>)}</group>)}
+ {SITES.filter(s=>s.asset==='pair').map(s=><group key={s.id} name={'paired-rental-'+s.id} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,rentalYaw(s),0]}>{[-1,1].map((side,i)=><group key={side} position={[side*RENTAL_PAIR_SPACING/2,0,0]}><SharedModel source={shared[i===0?'bike':'scooter']}/></group>)}</group>)}
 
  {['mole','arcade','vr','folk','gacha','ranking','shooting'].map(id=>{const s=site(id);return <group key={id} name={'facility-'+id} userData={{siteId:id,legacyFacilityIds:legacyIdsForSite(id)}} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,facilityYaw(s),0]} scale={id==='arcade'?[...ARCADE_SCALE]:1}>{id==='shooting'||id==='folk'?<LocalFactory kind={id}/>:id==='mole'?<Mole/>:id==='arcade'?<Arcade/>:id==='vr'?<VrHall/>:id==='gacha'?<Gacha/>:<Ranking/>}</group>})}
  <TraditionalMailbox position={[mailbox.x,heightAt(mailbox.x,mailbox.z)+.1,mailbox.z]} scale={MAILBOX_SCALE} yaw={mailbox.yaw}/>
@@ -74,9 +78,9 @@ export function Buildings({live=false}:{live?:boolean}){const mailbox=site('mail
  <group name="forty-metre-tower" position={[tower.x,heightAt(tower.x,tower.z),tower.z]} rotation={[0,Math.PI,0]}><group scale={[1,40/OBSERVATION_TOWER.height,1]}><group position={[-OBSERVATION_TOWER.x,0,-OBSERVATION_TOWER.z]}><ObservationTower furniture={false}/></group></group></group>
  <TowerFurniture/><PreservedFitness/><FitnessFence/>
  <group name="enlarged-balloon-boarding-platform" position={[balloon.x,heightAt(balloon.x,balloon.z),balloon.z]}><LocalFactory kind="station" options={{scale:STATION_SCALE}}/><group position={[2.35*1.6*STATION_SCALE,.65*STATION_SCALE-.37*BALLOON_SCALE+.12,0]}><group scale={BALLOON_SCALE}><LocalFactory kind="balloon"/></group></group></group>
- {REST_PAVILIONS.map(([x,z],i)=><group key={i} userData={{pavilionId:pavilionIdForSite('rest-'+(i+1))}} position={[x,heightAt(x,z),z]} rotation={[0,site('rest-'+(i+1)).yaw!,0]}><LocalFactory kind="sub" options={{scale:SUB_PAVILION_SCALE}}/></group>)}
+ {REST_PAVILIONS.map(([x,z],i)=><group key={i} userData={{pavilionId:pavilionIdForSite('rest-'+(i+1))}} position={[x,heightAt(x,z),z]} rotation={[0,site('rest-'+(i+1)).yaw!,0]}><SharedModel source={shared.pavilion}/></group>)}
  {willowPositions.map(([x,z],i)=><group key={i} position={[x,heightAt(x,z),z]}><LocalFactory kind="willow" options={{seed:42+i,height:8.2+(i%3),spread:4.8}}/></group>)}
- <group name="enlarged-island-pavilion" userData={{pavilionId:'P5'}} position={[LAKE.island.x,4.2,LAKE.island.z]} rotation={[0,-Math.PI/2,0]}><LocalFactory kind="sub" options={{scale:SUB_PAVILION_SCALE}}/></group>
+ <group name="enlarged-island-pavilion" userData={{pavilionId:'P5'}} position={[LAKE.island.x,4.2,LAKE.island.z]} rotation={[0,-Math.PI/2,0]}><SharedModel source={shared.pavilion}/></group>
  {[-2.1,2.1].map(dx=><group key={dx} name="moored-duck-boat" position={[site('dock').x+dx,LAKE.y+.08,site('dock').z-3.7]}><Suspense fallback={null}><Model kind="boat"/></Suspense></group>)}
  <FishingPier/><Boats/>
  <group position={[FISHING_SHOP.x,FISHING_SHOP.y+.1,FISHING_SHOP.z]} rotation={[0,FISHING_SHOP.yaw,0]}><LocalFactory kind="fishing-shop"/></group>

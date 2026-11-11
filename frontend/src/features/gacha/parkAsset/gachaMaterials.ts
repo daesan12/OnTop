@@ -1,14 +1,13 @@
-import {Color,DataTexture,EquirectangularReflectionMapping,LinearFilter,MeshPhysicalMaterial,MeshStandardMaterial,RGBAFormat,SRGBColorSpace} from 'three'
+import {Color,MeshPhysicalMaterial,MeshStandardMaterial} from 'three'
 import type {PropFinish} from '../../../world/art/propGeometry'
+import {getGachaReflectionData} from '../../../world/art/outdoorReflectionData'
+import {restorePrefilteredReflection} from '../../../world/art/ornamentTextures'
+import {createGachaReflection} from './gachaReflection'
 
 // Asset-local reflection, generated in memory. No global scene/environment changes or requests.
-const width=128,height=64,data=new Uint8Array(width*height*4)
-for(let y=0;y<height;y++)for(let x=0;x<width;x++){
- const t=y/(height-1),soft=Math.sin(t*Math.PI),pane=(x>18&&x<30||x>83&&x<92)&&y>22&&y<48
- const rgb=pane?[255,249,228]:t>.55?[165+soft*65,185+soft*55,209+soft*38]:[100+soft*72,77+soft*65,54+soft*55]
- const k=(y*width+x)*4;data[k]=rgb[0]!;data[k+1]=rgb[1]!;data[k+2]=rgb[2]!;data[k+3]=255
-}
-const reflection=new DataTexture(data,width,height,RGBAFormat);reflection.mapping=EquirectangularReflectionMapping;reflection.colorSpace=SRGBColorSpace;reflection.magFilter=LinearFilter;reflection.minFilter=LinearFilter;reflection.needsUpdate=true
+const bakedReflection=getGachaReflectionData()
+const reflection=bakedReflection?restorePrefilteredReflection(bakedReflection):createGachaReflection()
+if(bakedReflection)performance.mark('park-static-gacha-reflection-ready')
 const wood=new MeshPhysicalMaterial({vertexColors:true,roughness:.5,metalness:.02,clearcoat:.28,clearcoatRoughness:.44,envMap:reflection,envMapIntensity:.4})
 wood.onBeforeCompile=shader=>{
  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 gachaWoodPosition;').replace('#include <begin_vertex>','#include <begin_vertex>\ngachaWoodPosition=position;')

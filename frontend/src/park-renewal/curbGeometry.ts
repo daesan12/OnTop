@@ -1,3 +1,4 @@
+import {staticPark} from './static/store'
 import {BufferGeometry,Float32BufferAttribute} from 'three'
 import {parkGround} from './groundGeometry.ts'
 import {groundSurfaceHeight} from './groundSurface.ts'
@@ -6,6 +7,7 @@ import {onLand,isPlantingGround,FLOOR_Y_OFFSET} from './groundPlan.ts'
 import {inSummit} from './hybridTerrainPlan.ts'
 type V=readonly[number,number,number]
 const boundary=(indices:number[])=>{const m=new Map<string,{a:number;b:number;n:number}>();for(let i=0;i<indices.length;i+=3)for(let j=0;j<3;j++){const a=indices[i+j]!,b=indices[i+(j+1)%3]!;if(a===b)continue;const k=Math.min(a,b)+':'+Math.max(a,b),e=m.get(k);if(e)e.n++;else m.set(k,{a,b,n:1})}return m}
+function createCurbPaths(){
 const g=parkGround,paving=boundary(Array.from(g.paving.getIndex()!.array)),position=g.paving.getAttribute('position')
 const adjacency=new Map<number,number[]>(),unused=new Set<string>(),key=(a:number,b:number)=>Math.min(a,b)+':'+Math.max(a,b)
 const welded=new Map<string,number>(),weld=(i:number)=>{const k=[position.getX(i),position.getY(i),position.getZ(i)].map(v=>v.toFixed(3)).join(','),old=welded.get(k);if(old!==undefined)return old;welded.set(k,i);return i},selected:{a:number;b:number}[]=[]
@@ -55,7 +57,9 @@ function followGround(path:V[]):V[][]{
  // Cutting at masonry must not leave a loose sub-metre stone chip on the road.
  return runs.filter(p=>p.length>1&&p.slice(1).reduce((sum,v,i)=>sum+Math.hypot(v[0]-p[i]![0],v[2]-p[i]![2]),0)>=.9)
 }
-export const curbPaths=joined.filter(p=>p.slice(1).reduce((sum,v,i)=>sum+Math.hypot(v[0]-p[i]![0],v[2]-p[i]![2]),0)>=.9).map(roundCurb).flatMap(followGround)
+return joined.filter(p=>p.slice(1).reduce((sum,v,i)=>sum+Math.hypot(v[0]-p[i]![0],v[2]-p[i]![2]),0)>=.9).map(roundCurb).flatMap(followGround)
+}
+export const curbPaths=staticPark?.curbs.paths??createCurbPaths()
 /** One joined indexed prism per boundary: no Euler-rotated boxes, exposed ends or overlapping corner blocks. */
 export function createCurbGeometry(paths:readonly V[][]=curbPaths){
  const p:number[]=[],ix:number[]=[];const quad=(a:number,b:number,c:number,d:number)=>ix.push(a,b,c,a,c,d)
@@ -65,4 +69,4 @@ export function createCurbGeometry(paths:readonly V[][]=curbPaths){
  }
  const geometry=new BufferGeometry();geometry.setAttribute('position',new Float32BufferAttribute(p,3));geometry.setIndex(ix);geometry.computeVertexNormals();geometry.computeBoundingBox();return geometry
 }
-export const curbGeometry=createCurbGeometry()
+export const curbGeometry=staticPark?.curbs.geometry??createCurbGeometry()
