@@ -97,6 +97,12 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/admin/wallet-grants/rewards", "GET /api/v1/admin/wallet-grants/rewards/recipients",
                 "POST /api/v1/admin/operations/feedback/{receiptId}/replies",
                 "PATCH /api/v1/admin/operations/feedback/{receiptId}/status",
+                "GET /api/v1/ai/features", "GET /api/v1/ai/companions/status",
+                "POST /api/v1/ai/companions/invite", "POST /api/v1/ai/companions/action", "POST /api/v1/ai/companions/talk",
+                "GET /api/v1/ai/joke-contest/me", "GET /api/v1/ai/joke-contest/submissions/{id}",
+                "GET /api/v1/ai/joke-contest/rankings", "GET /api/v1/ai/joke-contest/hall",
+                "GET /api/v1/ai/joke-contest/yesterday", "GET /api/v1/ai/joke-contest/reveal/{id}",
+                "POST /api/v1/ai/joke-contest/submissions",
                 "GET /api/v1/entry-news", "GET /api/v1/entry-news/{id}/image",
                 "GET /api/v1/admin/operations/entry-news", "GET /api/v1/admin/operations/entry-news/{id}/image",
                 "POST /api/v1/admin/operations/entry-news/{id}/uploads",
@@ -500,6 +506,20 @@ abstract class OpenApiHttpTestSupport {
         assertThat(api.at("/components/schemas/PublicAnnouncementsResponse/properties/announcements/items/$ref").asText())
                 .isEqualTo("#/components/schemas/PublicAnnouncement");
     }
+    @Test
+    void AI_서비스_API는_인증과_설명을_문서화하고_로컬_제어는_노출하지_않는다() throws Exception {
+        var api=json();var operations=new java.util.ArrayList<JsonNode>();
+        api.path("paths").fields().forEachRemaining(entry->{
+            assertThat(entry.getKey()).doesNotStartWith("/local/");
+            if(entry.getKey().startsWith("/api/v1/ai/"))entry.getValue().elements().forEachRemaining(operations::add);
+        });
+        assertThat(operations).hasSize(12);
+        for(var operation:operations){
+            assertThat(operation.path("summary").asText()).isNotBlank();
+            assertThat(operation.at("/security/0").has("AccessJwt")).isTrue();
+        }
+    }
+
     @Test
     void 접속_안내는_PNG_binary와_204_응답을_구분한다() throws Exception {
         var api=json();
