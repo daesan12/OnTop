@@ -29,7 +29,8 @@ public final class PolicePatrol {
     private long tickAt;
     private final Navigation navigation;
     private final ArrayDeque<Incident> pending=new ArrayDeque<>();
-    private final Set<String> accepted=new HashSet<>();
+    private static final int ACCEPTED_HISTORY_LIMIT=64;
+    private final LinkedHashSet<String> accepted=new LinkedHashSet<>();
     private final NpcWander wander;
     private Point position;
     private List<Step> recovery=List.of();
@@ -52,9 +53,15 @@ public final class PolicePatrol {
         },random,1.6);
     }
     public void incident(Incident incident) {
-        if(accepted.contains(incident.id())) {metrics.increment("duplicate_requests");return;}
+        if(accepted.contains(incident.id())
+                || active!=null && active.id().equals(incident.id())
+                || pending.stream().anyMatch(queued -> queued.id().equals(incident.id()))) {
+            metrics.increment("duplicate_requests");return;
+        }
         if(pending.size()>=16) throw new IllegalStateException("경찰 출동 대기열 초과");
-        accepted.add(incident.id()); pending.add(incident);
+        accepted.add(incident.id());
+        while(accepted.size()>ACCEPTED_HISTORY_LIMIT) accepted.removeFirst();
+        pending.add(incident);
     }
     public View tick(long now,double dt,Map<String,Point> actors) {
         tickAt=now;

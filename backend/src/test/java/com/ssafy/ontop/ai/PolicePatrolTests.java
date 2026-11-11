@@ -7,6 +7,24 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PolicePatrolTests {
+    @Test void recentHistoryIsBoundedAndOldIdsExpireWithoutLosingRecentDeduplication() {
+        var police=new PolicePatrol(navigation);var warned=new ArrayList<String>();
+        var actors=Map.of("A",new Point(0,.8,0));
+        for(int i=0;i<65;i++) {
+            String id="history-"+i;
+            police.incident(new PolicePatrol.Incident(id,"A","안내",p->warned.add(id)));
+            police.tick(i*6001L,.25,actors);
+        }
+        assertThat(warned).hasSize(65);
+        police.incident(new PolicePatrol.Incident("history-64","A","중복",p->warned.add("duplicate")));
+        police.incident(new PolicePatrol.Incident("history-1","A","중복",p->warned.add("duplicate")));
+        police.incident(new PolicePatrol.Incident("history-0","A","만료",p->warned.add("expired")));
+        police.incident(new PolicePatrol.Incident("history-0","A","대기 중복",p->warned.add("duplicate")));
+        police.tick(65*6001L,.25,actors);
+        assertThat(warned).hasSize(66).last().isEqualTo("expired");
+        assertThat(police.metrics()).containsEntry("duplicate_requests",3L);
+    }
+
     private final PolicePatrol.Navigation navigation=new PolicePatrol.Navigation() {
         public Point spawn() { return new Point(0,.8,0); }
         public List<Point> path(Point a,Point b) { return List.of(a,b); }
