@@ -29,4 +29,3 @@ class WorldAiConfigurationTests {
  @Test void productionIsBlockedEvenWhenFlagIsSet(){runtime().withPropertyValues("spring.profiles.active=prod,db","ontop.ai.enabled=true")
   .run(c->assertThat(c).doesNotHaveBean(LocalWorldAi.class).doesNotHaveBean(AiText.class));}
 }
-
