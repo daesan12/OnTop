@@ -126,7 +126,9 @@ python3 infra/ci/plan_changes.py --head "$SOURCE_SHA" --tested-base "$tested_bas
         }
 
         stage('Prepare shared renewal release') {
-            when { expression { env.PARK_RENEWAL == '1' } }
+            // Backend tests also read these ignored fixtures in legacy mode.
+            // Regenerate before Gradle so a reused workspace cannot supply an old map.
+            when { expression { env.PARK_RENEWAL == '1' || env.TEST_BACKEND == '1' } }
             steps {
                 dir('frontend') { sh 'pnpm install --frozen-lockfile && pnpm run prepare:park-renewal:release' }
                 script {
