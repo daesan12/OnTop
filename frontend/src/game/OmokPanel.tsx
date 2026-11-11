@@ -4,6 +4,8 @@ import { OmokTurnClock } from './omok/OmokTurnClock'
 import { openManual } from '../features/manual/manualState'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useGame, tableBusy, recoveryBlocked } from './store'
+import {useDisplayGame} from './displayGame'
+import {practiceAction,refreshPractice} from '../ai-park/practiceActions'
 import { useSession, estimatedServerTime } from '../network/worldClient'
 import { OmokUndoControls } from './omok/OmokUndoControls'
 import { OmokDrawControls } from './omok/OmokDrawControls'
@@ -108,7 +110,7 @@ function OmokPingStatus() {
 /** HUD presentation never grants a seat or authority to place a stone. */
 export function OmokPanel() {
   const runtime = useParkRuntime(),
-    s = useGame(),
+    s = useDisplayGame(),
     own = useSession((s) => s.sessionId)
   const connected = useSession((s) => s.status === 'connected'),
     pending = useSession((s) => s.pending)
@@ -188,7 +190,9 @@ export function OmokPanel() {
   if (!g || !o) return <section className="park-runtime-panel omok-panel" aria-label="오목 경기"><p role="status">경기 복구 확인 중 · 입력을 잠시 멈췄습니다.</p>{s.error && <p role="alert">{s.error}</p>}<button disabled={pending || !connected} onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button></section>
   const player = g.role === 'PLAYER', ownBlack = own === o.blackUserId
   const opponent = ownBlack ? o.whiteUserId : o.blackUserId
+  const local=s.localPractice
   const alerts = (<div className="focus-error">
+      {local&&o?.status==='FINISHED'&&<p role="status">{omokOutcome(o,own,false)} · 엽전 변동 없음</p>}
       {remaining === 0 && <p role="status">착수 시간이 끝났습니다. 서버의 종료 판정을 기다리고 있습니다.</p>}
       {s.uncertain && <p>착수 반영 여부를 확인해야 합니다. 같은 수를 자동 재전송하지 않습니다.</p>}
       {g.version < s.awaitingVersion && <p>착수 확인 수신 · 최신 판을 기다리고 있습니다.</p>}
@@ -200,9 +204,9 @@ export function OmokPanel() {
     {player ? <header ref={header} className="omok-match-header omok-player-header" aria-label="오목 경기 정보">
       <div className="omok-match-player omok-own-stone" aria-label="내 돌"><i className={`stone-chip ${ownBlack ? 'black' : 'white'}`} /><div>
         <small>내 돌 · {profiles[own]?.nickname ?? '나'}</small><b>{ownBlack ? '흑돌' : '백돌'}</b></div></div>
-      <OmokTurnClock remainingMs={remainingMs} label={myTurn?'내 차례':'상대 차례'} myTurn={myTurn && o.status==='PLAYING'}
-        hint={remaining===0?'종료 판정 대기':myTurn?'지금 착수하세요':'상대가 생각 중이에요'}/>
-      <div className="omok-match-player"><div><b>{profiles[opponent]?.nickname ?? '상대'}</b>
+      <OmokTurnClock remainingMs={remainingMs} label={o.status==='FINISHED'?omokOutcome(o,own,false):myTurn?'내 차례':'상대 차례'} myTurn={myTurn && o.status==='PLAYING'}
+        hint={o.status==='FINISHED'?'대결이 끝났어요':remaining===0?'종료 판정 대기':myTurn?'지금 착수하세요':'상대가 생각 중이에요'}/>
+      <div className="omok-match-player"><div><b>{local?.name ?? profiles[opponent]?.nickname ?? '상대'}</b>
         <small>상대 · {ownBlack ? '백돌' : '흑돌'}</small></div><i className={`stone-chip ${ownBlack ? 'white' : 'black'}`} /></div>
     </header> : <header ref={header} className="omok-match-header" aria-label="오목 관전 경기 정보">
       <div className="omok-match-player" data-turn={o.turnUserId === o.blackUserId}><i className="stone-chip black" /><div><b>{profiles[o.blackUserId]?.nickname ?? '흑 플레이어'}</b><small>흑돌</small></div></div>
@@ -211,13 +215,19 @@ export function OmokPanel() {
     </header>}
     {player ? <div ref={toolbar} className="omok-player-bottom">
       <div className="omok-play-notes"><div className="focus-record"><span>{o.moveCount}수</span><span className="omok-last-move-text">{lastMoveText(o.lastMove)}</span></div>
-        <p className="focus-hint">{s.pending ? '요청 전송 중 · 서버 확인을 기다리고 있습니다.' : o.draw ? '무승부 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : o.undo ? '무르기 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : myTurn ? ownBlack ? '빈 교차점을 클릭하세요 · 빨간 33·44·6은 금수입니다' : '빈 교차점을 클릭해 돌을 놓으세요' : '상대의 착수를 기다리고 있어요'}</p>
+        <p className="focus-hint">{o.status==='FINISHED'?'게임 메뉴에서 대결을 마칠 수 있어요.':s.pending ? '요청 전송 중 · 서버 확인을 기다리고 있습니다.' : o.draw ? '무승부 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : o.undo ? '무르기 응답 대기 중 · 착수 시계는 계속 흐릅니다.' : myTurn ? ownBlack ? '빈 교차점을 클릭하세요 · 빨간 33·44·6은 금수입니다' : '빈 교차점을 클릭해 돌을 놓으세요' : '상대의 착수를 기다리고 있어요'}</p>
       </div>
-      <div className="omok-play-tools"><div className="omok-negotiations"><OmokUndoControls now={now}/><OmokDrawControls now={now}/></div>
+      <div className="omok-play-tools"><div className="omok-negotiations">{local?<>
+        <button disabled={s.pending||o.status!=='PLAYING'} onClick={()=>void practiceAction('undoRequest')}>무르기 제안</button>
+        <button disabled={s.pending||o.status!=='PLAYING'} onClick={()=>void practiceAction('drawRequest')}>무승부 제안</button>
+      </>:<><OmokUndoControls now={now}/><OmokDrawControls now={now}/></>}</div>
         <GameHudMenu embedded>
           <button onClick={()=>openManual('gomoku')}>게임 설명 · F1</button>
-          {(recoveryBlocked()||s.uncertain)&&<button disabled={pending||!connected} onClick={()=>void runtime.checkRecovery()}>경기 복구 다시 확인</button>}
-          <OmokSurrender key={own+':'+g.gameId} context={{userId:own,gameId:g.gameId,version:g.version}} disabled={pending||!connected||recoveryBlocked()||s.uncertain}/>
+          {(recoveryBlocked()||s.uncertain)&&<button disabled={pending||!connected} onClick={()=>void (local?refreshPractice():runtime.checkRecovery())}>경기 복구 다시 확인</button>}
+          {local?<>
+            <button disabled={s.pending||!connected||o.status!=='PLAYING'} onClick={()=>{if(window.confirm('기권하고 대결을 마칠까요?'))void practiceAction('forfeit')}}>기권</button>
+            <button disabled={s.pending||!connected} onClick={()=>void practiceAction('stop')}>대결 마치고 주민 보내기</button>
+          </>:<OmokSurrender key={own+':'+g.gameId} context={{userId:own,gameId:g.gameId,version:g.version}} disabled={pending||!connected||recoveryBlocked()||s.uncertain}/>}
         </GameHudMenu>
       </div>{alerts}
     </div> : <div ref={toolbar} className="omok-spectator-toolbar">

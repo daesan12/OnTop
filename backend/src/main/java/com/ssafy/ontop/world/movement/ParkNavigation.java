@@ -14,10 +14,22 @@ public final class ParkNavigation implements AutoCloseable {
         public boolean contains(Point p){return p.x()>=minX&&p.x()<=maxX&&p.z()>=minZ&&p.z()<=maxZ;}
     }
     public Area wholePark(){return new Area(-half+4,half-4,-half+4,half-4);}
-    public Area plazaTables(){return new Area(Math.max(-32,-half+4),Math.min(32,half-4),Math.max(-24,-half+4),Math.min(64,half-4));}
+    public Area plazaTables(){
+        var tables=scene.tableAnchors();
+        if(tables.isEmpty())return wholePark();
+        return new Area(Math.max(-half+4,tables.stream().mapToDouble(ParkScene.TableAnchor::x).min().orElseThrow()-8),
+                Math.min(half-4,tables.stream().mapToDouble(ParkScene.TableAnchor::x).max().orElseThrow()+8),
+                Math.max(-half+4,tables.stream().mapToDouble(ParkScene.TableAnchor::z).min().orElseThrow()-8),
+                Math.min(half-4,tables.stream().mapToDouble(ParkScene.TableAnchor::z).max().orElseThrow()+8));
+    }
     public Point spawn(Area area) {
         var center=groundPoint((area.minX+area.maxX)/2,(area.minZ+area.maxZ)/2);
-        return nearest(center,6).filter(area::contains).orElseThrow(()->new IllegalStateException("중앙 NPC 시작 위치 없음"));
+        var start=nearest(center,6).filter(area::contains);
+        if(start.isPresent())return start.get();
+        // A map's geometric centre can be a fountain/lake. Try the actual tables before failing.
+        return scene.tableAnchors().stream().map(t->groundPoint(t.x()+3,t.z()))
+                .sorted(Comparator.comparingDouble(center::distance)).map(p->nearest(p,6).filter(area::contains))
+                .flatMap(Optional::stream).findFirst().orElseThrow(()->new IllegalStateException("중앙 NPC 시작 위치 없음"));
     }
     public Point randomDestination(Point from,Area area,java.util.random.RandomGenerator random) {
         for(int i=0;i<16;i++) {
