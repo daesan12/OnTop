@@ -13,7 +13,7 @@ import org.springframework.context.event.EventListener;
 
 /** Opt-in runtime wiring. Local fixture profiles and controls are never enabled here. */
 @Configuration(proxyBeanMethods=false)
-@Profile("dev & db & !local & !prod & !production & !ai-park")
+@Profile("("+RuntimeProfiles.PRODUCT_FEATURE_WITH_DB+") & !local & !ai-park")
 @ConditionalOnProperty(name="ontop.ai.enabled",havingValue="true")
 public class WorldAiConfiguration {
  @Bean AiText aiText(@Value("${OPENAI_API_KEY:}") String key,

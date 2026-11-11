@@ -5,6 +5,8 @@ import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.jumpmap.JumpmapActivation;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import java.nio.file.Path;
@@ -26,6 +28,19 @@ class WorldAiConfigurationTests {
   assertThat(c).hasSingleBean(LocalWorldAi.class).hasSingleBean(AiText.class);
   assertThat(c.getBean(AiText.class).mode()).isEqualTo(AiText.fixed().mode());
  });}
- @Test void productionIsBlockedEvenWhenFlagIsSet(){runtime().withPropertyValues("spring.profiles.active=prod,db","ontop.ai.enabled=true")
-  .run(c->assertThat(c).doesNotHaveBean(LocalWorldAi.class).doesNotHaveBean(AiText.class));}
+ @ParameterizedTest @ValueSource(strings={"dev,db","prod,db","production,db"})
+ void runtimeActivationUsesSameFlagAcrossServiceEnvironments(String profiles){
+  runtime().withPropertyValues("spring.profiles.active="+profiles,"ontop.ai.enabled=true")
+   .run(c->assertThat(c).hasSingleBean(LocalWorldAi.class).hasSingleBean(AiText.class));
+ }
+ @ParameterizedTest @ValueSource(strings={"dev,db","prod,db","production,db"})
+ void disabledFlagDoesNotCreateWorkersInAnyServiceEnvironment(String profiles){
+  runtime().withPropertyValues("spring.profiles.active="+profiles,"ontop.ai.enabled=false")
+   .run(c->assertThat(c).doesNotHaveBean(LocalWorldAi.class).doesNotHaveBean(AiText.class));
+ }
+ @ParameterizedTest @ValueSource(strings={"local,db","dev,db,ai-park"})
+ void localFixturesKeepTheirSeparateBootstrap(String profiles){
+  runtime().withPropertyValues("spring.profiles.active="+profiles,"ontop.ai.enabled=true")
+   .run(c->assertThat(c).doesNotHaveBean(LocalWorldAi.class));
+ }
 }
