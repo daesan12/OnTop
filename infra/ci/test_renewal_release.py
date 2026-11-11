@@ -170,7 +170,7 @@ class RenewalPipelineTests(unittest.TestCase):
         self.assertIn("choices: ['legacy', 'renewal-candidate', 'renewal-deploy']", pipeline)
         self.assertIn("params.PARK_RELEASE_MODE ?: 'legacy'", pipeline)
         self.assertIn("env.ALLOW_BACKEND_DEPLOY = '0'", pipeline)
-        stages = ['Prepare shared renewal release', 'Frontend tests and build',
+        stages = ['Prepare shared renewal release', 'Backend tests', 'Frontend tests and build',
                   'Approve coordinated renewal deployment', 'Prepare verified Vercel prebuilt frontend',
                   'Build and publish backend image', 'Deploy backend to dev', 'Deploy frontend to dev Vercel project']
         positions = [pipeline.index("stage('" + name + "')") for name in stages]
@@ -181,6 +181,14 @@ class RenewalPipelineTests(unittest.TestCase):
         post = pipeline[pipeline.rindex('    post {'):]
         self.assertLess(post.index('success {'), post.index('frontend/dist-park-renewal/**'))
         self.assertIn('releases/${env.PARK_RELEASE_ID}/**', post)
+
+    def test_legacy_backend_tests_prepare_renewal_inputs_before_gradle(self):
+        pipeline = (ROOT / 'Jenkinsfile').read_text(encoding='utf-8')
+        preparation = pipeline.split("stage('Prepare shared renewal release')", 1)[1]
+        preparation = preparation.split("stage('Pipeline and Compose checks')", 1)[0]
+        self.assertIn("env.PARK_RENEWAL == '1' || env.TEST_BACKEND == '1'", preparation)
+        self.assertIn('pnpm install --frozen-lockfile && pnpm run prepare:park-renewal:release', preparation)
+        self.assertNotIn('prepare_active_renewal_frontend.py', preparation)
 
     def test_vercel_renewal_preserves_dev_routes_and_prod_config(self):
         legacy = json.loads((ROOT / 'frontend/vercel.dev.json').read_text())
