@@ -15,6 +15,7 @@ const [input, outDir, name, ...rest] = process.argv.slice(2)
 const coverArgs = Object.fromEntries(rest.filter((a) => a.startsWith('covers:')).map((a) => a.slice(7).split('=')))
 const groupArgs = rest.filter((a) => !a.startsWith('covers:'))
 if (!input || !outDir || !name) throw new Error('Usage: split-outfit-parts.mjs <outfit.glb> <outDir> <name> [group=SLOT,SLOT]')
+const defaultGroups = !groupArgs.length
 const groups = groupArgs.length
   ? groupArgs.map((g) => { const [k, v] = g.split('='); return [k, v.split(',')] })
   : [['hair', ['HAIR']], ['face', ['FACE']], ['outfit', ['TOP', 'BOTTOM', 'SHOES']]]
@@ -56,7 +57,14 @@ const rename = (n) => {
 }
 
 await fs.mkdir(outDir, { recursive: true })
+const slotOf = (name) => name.match(/^item__([A-Z]+)__/)?.[1]
 for (const [group, slots] of groups) {
+  // Default groups the outfit has no pieces for (a hat-less outfit's face, say) are skipped; named ones must exist.
+  if (!doc.meshes.some((mesh) => (mesh.extras?.pieces ?? []).some(([n]) => slots.includes(slotOf(n))))) {
+    if (!defaultGroups) throw new Error(`No pieces for ${group}=${slots} in ${input}`)
+    console.log(`skip ${group}: no ${slots.join(',')} pieces in this outfit`)
+    continue
+  }
   const out = structuredClone(doc)
   out.accessors = []; out.bufferViews = []
   const blobs = [] // [{data, target?, stride?, count?}]
@@ -71,7 +79,7 @@ for (const [group, slots] of groups) {
   const summary = []
   out.meshes = doc.meshes.map((mesh) => {
     const prim = mesh.primitives[0], idx = readIndex(doc.accessors[prim.indices])
-    const kept = mesh.extras.pieces.filter(([n]) => slots.includes(n.match(/^item__([A-Z]+)__/)?.[1]))
+    const kept = mesh.extras.pieces.filter(([n]) => slots.includes(slotOf(n)))
     if (!kept.length) throw new Error(`${mesh.name}: no pieces for ${slots}`)
     const total = kept.reduce((s, [, , c]) => s + c, 0)
     const remap = new Map(), order = []

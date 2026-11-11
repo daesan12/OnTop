@@ -74,6 +74,9 @@ describe('character look (wardrobe pieces)', () => {
     expect(pieceShown('item__HAIR__g__for_girl__under_TOPh', 'general', 'girl', { HAIR: { source: 'general', id: 'g' } }, new Set(['TOPh']))).toBe(false)
     expect(pieceShown('item__SHOES__a', 'boots', 'man', look, covered)).toBe(true)
     expect(coveredTokens(look, undefined).size).toBe(0)
+    const cleared = { ...look, HAIR: undefined } as unknown as typeof look                // a slot cleared to undefined
+    expect([...coveredTokens(cleared, new Map([['boots', boots], ['hat', hat]]))].sort()).toEqual(['BOTTOMg', 'SHOESg'])
+    expect(pieceShown('body__HAIRh', 'man', 'man', cleared)).toBe(true)
     expect(coveredTokens({ SHOES: { source: 'plain', id: 'a' } }, new Map([['plain', file(['SHOESg'], false)]])).size).toBe(0)
   })
 })

@@ -66,7 +66,8 @@ export function coveredTokens(look: Look, sources: ReadonlyMap<string, GLTF> | u
   const covered = new Set<string>()
   if (!sources) return covered
   for (const [slot, piece] of Object.entries(look)) {
-    const file = sources.get(piece.source)
+    // (a slot left as undefined by a caller is simply not worn)
+    const file = piece?.source ? sources.get(piece.source) : undefined
     if (!file) continue
     let listed = fileCovers.get(file)
     if (!listed) {
@@ -85,7 +86,7 @@ export function coveredTokens(look: Look, sources: ReadonlyMap<string, GLTF> | u
 /** Whether a piece of `source` shows on a `variant` avatar wearing `look`. The body comes from the avatar's own file.
  * `covered`: wardrobe items counted as worn for hiding (coveredTokens). */
 export function pieceShown(name: string, source: string, variant: CharacterVariant, look: Look, covered: ReadonlySet<string> = new Set()) {
-  const worn = new Set([...Object.entries(look).map(([slot, piece]) => slot + piece.id), ...covered])
+  const worn = new Set([...Object.entries(look).flatMap(([slot, piece]) => piece ? [slot + piece.id] : []), ...covered])
   const body = name.match(/^body(?:__(\w+))?$/)
   if (body) return source === variant && !tokens(body[1]).some(token => worn.has(token))
   // `__for_girl` / `__for_man`: a piece for that character only (a hat's hair: the girl's under it, or the man's)
