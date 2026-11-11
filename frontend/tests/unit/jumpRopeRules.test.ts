@@ -105,6 +105,10 @@ describe('jump rope game', () => {
     expect(jump(100000)).toBe(false)
     expect(round.stats).toBe(final)
     expect(round.playedMs).toBe(4000)
+    resetPreviewRound(round, 'menu')
+    expect(round).toEqual(createPreviewRound('menu'))
+    expect(step(110000)).toBeUndefined()
+    expect(roundCue(round, 110000)).toBe('menu')
     resetPreviewRound(round)
     expect(round).toEqual(createPreviewRound())
     expect(roundCue(round, 100000)).toBe('3')
@@ -141,8 +145,8 @@ describe('jump rope game', () => {
     expect(round.motion.angle).toBe(stoppedAngle)
     expect(round.stats).toBe(finalStats)
     expect(round.playedMs).toBe(60000)
-    resetPreviewRound(round)
-    expect(round).toEqual(createPreviewRound())
+    resetPreviewRound(round, 'menu')
+    expect(round).toEqual(createPreviewRound('menu'))
   })
 
   it('honors a third MISS before the time boundary even when observed after it', () => {

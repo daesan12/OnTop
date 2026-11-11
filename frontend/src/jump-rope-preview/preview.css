@@ -1,3 +1,10 @@
+@font-face {
+  font-family: BusanDandiMyeongjo;
+  src: url('../assets/BusanDandiMyeongjo-700.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   font-family: system-ui, "Malgun Gothic", sans-serif;
   color: #253a34;
@@ -391,6 +398,154 @@ button, input { font: inherit; }
   .rope-hud__hearts [data-spent="true"],
   .rope-hud__verdict { animation: none; }
 }
+.rope-menu-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  pointer-events: none;
+}
+
+.rope-menu {
+  width: min(100%, 326px);
+  min-height: clamp(332px, calc(100dvh - 140px), 356px);
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+  padding: 22px clamp(13px, 3vw, 22px);
+  border: 4px solid #244134;
+  border-radius: 19px;
+  background: radial-gradient(ellipse at 45% 16%, #fffaed 15%, #fbecd0 100%);
+  box-shadow: inset 0 0 0 2px #f7e6bf, inset 0 0 0 4px #dfc797, 0 3px 0 #162c24, 0 8px 16px #18291f55;
+  color: #1c362c;
+  text-align: center;
+  pointer-events: auto;
+}
+
+.rope-menu__eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 0 0 5px;
+  color: #5a705e;
+  font-size: 0.62rem;
+  font-weight: 850;
+  line-height: 1.2;
+  letter-spacing: 0.16em;
+}
+
+.rope-menu__eyebrow::before, .rope-menu__eyebrow::after {
+  content: '';
+  width: 15px;
+  border-top: 1px solid #b49c68;
+}
+
+.rope-menu__title {
+  display: grid;
+  justify-items: center;
+  align-items: baseline;
+  gap: 3px;
+  margin: 0;
+  line-height: 1;
+}
+
+.rope-menu__title-call {
+  color: #f6cc69;
+  font-family: BusanDandiMyeongjo, "Malgun Gothic", sans-serif;
+  font-size: clamp(3rem, 5.5vw, 3.65rem);
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  -webkit-text-stroke: 2px #234435;
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 #234435, 0 5px 0 #d6b875;
+  transform: rotate(-3deg);
+}
+
+.rope-menu__title-game {
+  color: #1c362c;
+  font-size: 1.9rem;
+  font-weight: 950;
+  letter-spacing: -0.045em;
+  text-shadow: 0 1px 0 #d6b875;
+}
+
+.rope-menu__intro { margin: 11px 0 0; color: #4c5e4f; font-size: 0.82rem; line-height: 1.35; word-break: keep-all; }
+
+.rope-menu__rules {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: clamp(0.66rem, 1.7vw, 0.73rem);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.rope-menu__rules li {
+  display: block;
+  padding: 5px 2px;
+  border: 1px solid #dbcca6;
+  border-radius: 5px;
+  background: #f4e8cb;
+  word-break: keep-all;
+}
+
+.rope-menu kbd { font: inherit; }
+
+.rope-menu__actions { display: grid; justify-items: center; gap: 9px; }
+
+.rope-menu__start, .rope-menu__ranking {
+  width: 100%;
+  min-height: 47px;
+  padding: 5px 8px;
+  border: 2px solid;
+  border-radius: 9px;
+}
+
+.rope-menu__start {
+  border-color: #d5b977;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #fff3d8;
+  background: linear-gradient(#41624b, #234632);
+  box-shadow: inset 0 1px 0 #ffffff24, 0 0 0 1px #243a2f, 0 3px 0 #1a3329;
+  cursor: pointer;
+}
+
+.rope-menu__start:hover { filter: brightness(1.08); }
+.rope-menu__start:active { transform: translateY(2px); box-shadow: 0 0 0 1px #243a2f, 0 1px 0 #1a3329; }
+.rope-menu__start:focus-visible { outline: 2px solid #805a2c; outline-offset: 3px; }
+
+.rope-menu__ranking {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-color: #b5b29b;
+  background: #f1e8d3;
+  color: #536153;
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: not-allowed;
+}
+
+.rope-menu__ranking svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rope-menu__ranking small { color: #62634f; font-size: 0.65rem; font-weight: 600; }
+
 .rope-countdown {
   position: absolute;
   left: 50%;
@@ -722,4 +877,15 @@ button, input { font: inherit; }
 @media (max-width: 720px) {
   .preview-layout { grid-template-columns: 1fr; }
   .preview-stage { position: relative; top: 0; height: clamp(300px, 76vw, 560px); }
+  .rope-menu { width: min(100%, 306px); min-height: 270px; gap: 12px; padding: 16px 12px; }
+  .rope-menu__title { display: flex; justify-content: center; gap: 7px; }
+  .rope-menu__title-call { font-size: clamp(2.25rem, 11vw, 2.8rem); }
+  .rope-menu__title-game { font-size: 1.55rem; }
+  .rope-menu__intro { margin-top: 6px; }
+  .rope-menu__actions { gap: 9px; }
+  .rope-menu__start, .rope-menu__ranking { min-height: 44px; }
+}
+
+@media (max-width: 344px) {
+  .rope-menu__rules { grid-template-columns: 1fr 1fr 1.2fr; }
 }
