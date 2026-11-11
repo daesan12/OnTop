@@ -40,11 +40,29 @@ public final class PreparedParkMap {
         require(!channels.isEmpty() && channels.stream().noneMatch(String::isBlank), "채널 목록이 필요합니다.");
         Map<String, JsonNode> anchors = indexed(data.path("tables"));
         require(!anchors.isEmpty(), "게임 테이블 앵커가 필요합니다.");
+        if (data.has("tableAnchorIds")) {
+            var declared = new HashSet<String>();
+            JsonNode ids = data.path("tableAnchorIds");
+            require(ids.isArray(), "테이블 앵커 목록은 배열이어야 합니다.");
+            for (JsonNode id : ids) {
+                require(id.isTextual() && declared.add(id.asText()), "테이블 앵커 목록을 확인해주세요.");
+            }
+            require(declared.equals(anchors.keySet()), "테이블 앵커 목록과 좌표가 다릅니다.");
+        } else {
+            for (int i = 1; i <= anchors.size(); i++) {
+                require(anchors.containsKey("table-" + i), "테이블 앵커가 누락되었습니다: table-" + i);
+            }
+        }
+        var anchorNumbers = new ArrayList<Integer>();
+        for (String id : anchors.keySet()) {
+            require(id.matches("table-[1-9][0-9]{0,8}"), "테이블 앵커 형식이 올바르지 않습니다: " + id);
+            anchorNumbers.add(Integer.parseInt(id.substring("table-".length())));
+        }
+        anchorNumbers.sort(Integer::compareTo);
         for (String channel : channels.stream().sorted().toList()) {
-            for (int number = 1; number <= anchors.size(); number++) {
+            for (int number : anchorNumbers) {
                 String anchorId = "table-" + number;
                 JsonNode anchor = anchors.get(anchorId);
-                require(anchor != null, "테이블 앵커가 누락되었습니다: " + anchorId);
                 Pose position = position(anchor.path("position"), 0);
                 String tableId = serverTableId(channel, number);
                 entries.add(new Binding(channel, tableId, anchorId));

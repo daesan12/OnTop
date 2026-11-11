@@ -4,9 +4,17 @@ import { seatScope, useTableLobby } from '../features/tableLobby/state'
 import { MAP_RENDER_BUDGET } from './art/mapRenderProfile'
 import { ParkSoundscape } from '../audio/ParkSoundscape'
 import { lazy } from 'react'
-import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
+import { GENERATED_PARK_ENABLED, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
 const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
+const RenewalParkWorld=RENEWAL_PARK_ENABLED ? lazy(async()=>{
+  const [{ loadStaticPark }, { default: archive }] = await Promise.all([
+    import('../../park-renewal-preview/static/load'),
+    import('../../park-renewal-preview/original-park.bin.gz?url'),
+  ])
+  await loadStaticPark(archive)
+  return import('../../park-renewal-preview/live/RenewalWorld')
+}) : null
 const ServiceJumpCourse=lazy(()=>import('../features/jumpmap/ServiceJumpCourse').then(m=>({default:m.ServiceJumpCourse})))
 import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
@@ -80,7 +88,7 @@ function SceneReady({ onReady }: { onReady: () => void }) {
       // geometry file can warm the next visit without competing with those loads.
       warmParkGeometry()
       void prepareScene(gl, scene, camera, () => !startup.disposed, {
-        warmGeometry: GENERATED_PARK_ENABLED, warmLighting: GENERATED_PARK_ENABLED,
+        warmGeometry: GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED, warmLighting: GENERATED_PARK_ENABLED,
         views: GENERATED_PARK_ENABLED ? jumpmapPreparationViews : undefined,
       }).then(
         () => {
@@ -154,13 +162,13 @@ export const WorldCanvas = memo(function WorldCanvas({
   // 판만 표시하는 시점에서는 공원용720p 예산 대신 최대FullHD/기기DPR1을 사용한다.
   // 주변 보기/종료 시 기존 사용자 화질 예산으로 돌아간다.
   const renderDpr = boardDetail ? effectiveDpr('high', viewport.width, viewport.height, viewport.dpr)
-    : GENERATED_PARK_ENABLED ? Math.min(dpr, MAP_RENDER_BUDGET.maxDpr, Math.sqrt(MAP_RENDER_BUDGET.maxPixels / Math.max(1, viewport.width * viewport.height))) : dpr
+    : (GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED) ? Math.min(dpr, MAP_RENDER_BUDGET.maxDpr, Math.sqrt(MAP_RENDER_BUDGET.maxPixels / Math.max(1, viewport.width * viewport.height))) : dpr
   return (
     <>
       <Canvas
         // Keep sockets alive in hidden tabs; authoritative match state still arrives.
         frameloop={!visible || !active || gachaOverlay ? 'never' : 'always'}
-        shadows={!GENERATED_PARK_ENABLED&&preset.shadows ? 'percentage' : false}
+        shadows={!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&preset.shadows ? 'percentage' : false}
         dpr={renderDpr}
         camera={{
           position: [110, 115, 138],
@@ -187,11 +195,13 @@ export const WorldCanvas = memo(function WorldCanvas({
           <EnvironmentScene />
           <ParkSoundscape />
           <ParkSun quality={quality} />
-          <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />
+          {!RENEWAL_PARK_ENABLED && <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />}
           <Suspense fallback={null}>
-            {GENERATED_PARK_ENABLED?<group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>:<PlaceholderWorld quality={quality} />}
+            {RenewalParkWorld ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><RenewalParkWorld /></group>
+              : GENERATED_PARK_ENABLED ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>
+                : <PlaceholderWorld quality={quality} />}
             {GENERATED_PARK_ENABLED && <ServiceJumpCourse />}
-            <RpsRouletteCabinet />
+            {!RENEWAL_PARK_ENABLED && <RpsRouletteCabinet />}
             {/* Same Suspense boundary as SceneReady: both use positive frame priorities around its render. */}
             <OmokFocusLighting />
             <SceneReady onReady={onReady} />
@@ -201,10 +211,10 @@ export const WorldCanvas = memo(function WorldCanvas({
         <CompanionActors />
         <JokeJudgeActor />          <FollowRopes />
           <RouteArrows />
-          <BungeoppangGrill />
+        {!RENEWAL_PARK_ENABLED && <BungeoppangGrill />}
           <ParkDebrisScene />
 
-          {!GENERATED_PARK_ENABLED&&<ParkPigeons quality={quality} />}
+          {!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&<ParkPigeons quality={quality} />}
           <CameraRig />
           {TABLET_ENABLED && <TableTablet3D />}
           <PerformanceProbe />

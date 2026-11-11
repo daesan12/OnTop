@@ -6,6 +6,7 @@ import { WORLD, WORLD_COLLIDERS, MOVEMENT, SWIMMING, LAKE, PARK_PAVILIONS, PAVIL
   mergeCollisionMeshes, boxesToCollisionMesh, pavilionFenceBounds, staticStructureBatch,
 } from '../park/mapConfig'
 import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
+import { renewalMap } from '../park/renewalMap'
 import { PARK_DATA } from '../map/park'
 import { addGeneratedPredictionColliders } from './predictionMap'
 import { furnitureLandingPosition,furnitureAllowsSupport } from './furnitureLanding'
@@ -20,6 +21,7 @@ import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace
 let initialization: Promise<void> | undefined
 /** How long Rapier may keep a grounded state the server does not support before falling. */
 const EDGE_GLIDE_SECONDS = .15
+const sharedPhysics = renewalMap?.data.physics ?? (GENERATED_PARK_ENABLED ? PARK_DATA.physics : null)
 export async function createPredictionPhysics(profile?: 'PARK_V1'): Promise<PredictionSimulation> {
   await (initialization ??= RAPIER.init())
   return new PredictionPhysics(profile === 'PARK_V1')
@@ -28,7 +30,7 @@ export async function createPredictionPhysics(profile?: 'PARK_V1'): Promise<Pred
 /** Display simulation only. The Java server owns every gameplay position and collision decision. */
 class PredictionPhysics implements PredictionSimulation {
   private chairCounts:ReadonlyMap<string,number>=new Map()
-  private readonly furniture=PARK_DATA.physics.boxes.filter(b=>/^table-\d+-(top|chair-[0-3])$/.test(b.id))
+  private readonly furniture=sharedPhysics?.boxes.filter(b=>/^table-\d+-(top|chair-[0-3])$/.test(b.id)) ?? []
   private readonly world = new RAPIER.World({ x: 0, y: 0, z: 0 })
   private readonly body
   private readonly collider
@@ -71,8 +73,8 @@ class PredictionPhysics implements PredictionSimulation {
     for (const collider of this.jumpColliders) collider.setEnabled(enabled)
   }
   constructor(private tuned: boolean) {
-    if (GENERATED_PARK_ENABLED) {
-      this.chairs.push(...addGeneratedPredictionColliders(this.world))
+    if (sharedPhysics) {
+      this.chairs.push(...addGeneratedPredictionColliders(this.world, sharedPhysics))
     } else {
       for (const box of WORLD_COLLIDERS.filter(b => !staticStructureBatch(b.id))) {
         const half = box.movementHalf ?? box.half
@@ -145,7 +147,7 @@ class PredictionPhysics implements PredictionSimulation {
       && LAKE.surfaceY - groundHeight(p.x, p.z) > SWIMMING.depthThreshold && p.y < LAKE.surfaceY + 0.4
     // The generated lake bank rises slightly above Rapier's default 45 degrees.
     // Limit this allowance to the actual lake bank; ordinary stairs/walls keep their limit.
-    const lakeBank = this.tuned && GENERATED_PARK_ENABLED && lakeRadiusAt(p.x,p.z)<1 && groundHeight(p.x,p.z)<LAKE.surfaceY
+    const lakeBank = this.tuned && sharedPhysics && lakeRadiusAt(p.x,p.z)<1 && groundHeight(p.x,p.z)<LAKE.surfaceY
     this.controller.setMaxSlopeClimbAngle(lakeBank ? Math.atan(LAKE.depth/(Math.min(LAKE.radiusX,LAKE.radiusZ)*.14))+.03 : Math.PI/4)
     const speed = swimming ? input.run ? SWIMMING.fastSpeed : SWIMMING.speed
       : input.run ? MOVEMENT.runSpeed : MOVEMENT.walkSpeed
@@ -160,7 +162,7 @@ class PredictionPhysics implements PredictionSimulation {
     }
     this.tunedActive = false; this.serverSupport = undefined
     if (input.jump && swimming && (input.dx || input.dz)) {
-      const stone = (GENERATED_PARK_ENABLED ? PARK_DATA.physics.steppingStones : legacySteppingStones).find(s => Math.hypot(Math.max(0, Math.abs(p.x - s.x) - s.width / 2),
+      const stone = (sharedPhysics?.steppingStones ?? legacySteppingStones).find(s => Math.hypot(Math.max(0, Math.abs(p.x - s.x) - s.width / 2),
         Math.max(0, Math.abs(p.z - s.z) - s.depth / 2)) <= .8
         && (s.x - p.x) * input.dx + (s.z - p.z) * input.dz > .02)
       if (stone) this.climbY = stone.top + MOVEMENT.halfHeight + MOVEMENT.radius + .16
@@ -253,10 +255,10 @@ class PredictionPhysics implements PredictionSimulation {
     this.world.timestep=dt;this.world.step()
   }
   private preventClimbing(pose:{x:number;y:number;z:number}) {
-    if(!GENERATED_PARK_ENABLED)return pose
+    if(!sharedPhysics)return pose
     const footOffset=MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset
     const landing=furnitureLandingPosition(pose,this.furniture,footOffset,MOVEMENT.radius,this.chairCounts)
-    return fountainExclusionPosition(landing,PARK_DATA.physics.fountainPolicy,footOffset,MOVEMENT.radius)
+    return fountainExclusionPosition(landing,sharedPhysics.fountainPolicy,footOffset,MOVEMENT.radius)
   }
   /** Mirrors the server's PositionCollision.supported(): the capsule swept 0.17m down onto a walkable face. */
   private jumpSupported(pose:{x:number;y:number;z:number}) {
@@ -264,11 +266,11 @@ class PredictionPhysics implements PredictionSimulation {
     return !!hit&&hit.normal1.y>.6
   }
   private supportAllowed(pose:{x:number;y:number;z:number}) {
-    return !GENERATED_PARK_ENABLED||furnitureAllowsSupport(pose,this.furniture,MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset,MOVEMENT.radius,this.chairCounts)
+    return !sharedPhysics||furnitureAllowsSupport(pose,this.furniture,MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset,MOVEMENT.radius,this.chairCounts)
   }
   private onPavilion(pose:{x:number;y:number;z:number}) {
     const foot=pose.y-MOVEMENT.halfHeight-MOVEMENT.radius-MOVEMENT.offset
-    return GENERATED_PARK_ENABLED&&PARK_PAVILIONS.some(site=>Math.abs(foot-site.floor)<.15&&Math.hypot(pose.x-site.x,pose.z-site.z)<4.5*site.scale+.3)
+    return !!sharedPhysics&&PARK_PAVILIONS.some(site=>Math.abs(foot-site.floor)<.15&&Math.hypot(pose.x-site.x,pose.z-site.z)<4.5*site.scale+.3)
   }
   movementFlags() { return this.tunedActive ? this.parkMotion.flags() : this.surfaceFlags }
   /** Airborne, swimming and water-exit climbing retain their physical animation flags. */
@@ -281,8 +283,8 @@ class PredictionPhysics implements PredictionSimulation {
 
 /** The legacy helper closes over legacy coordinates; generated towers use the exported surface contract. */
 function predictionTowerSurface(x: number, footY: number, z: number) {
-  if (!GENERATED_PARK_ENABLED) return legacyIsTowerSurface(x, footY, z)
-  const t = PARK_DATA.physics.tower, radius = Math.hypot(x - t.x, z - t.z)
+  if (!sharedPhysics) return legacyIsTowerSurface(x, footY, z)
+  const t = sharedPhysics.tower, radius = Math.hypot(x - t.x, z - t.z)
   if (radius > t.outer + .08) return false
   if (Math.abs(footY - t.topY) < .25) return true
   if (radius < t.inner - .08) return false

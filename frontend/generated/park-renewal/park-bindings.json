@@ -1,0 +1,74 @@
+{
+  "bindings": [
+    {
+      "channelId": "channel-1",
+      "anchorId": "table-1",
+      "tableId": "table-6fcc18fe-a301-3142-a69f-f3f67d026d62"
+    },
+    {
+      "channelId": "channel-1",
+      "anchorId": "table-2",
+      "tableId": "table-69d1811f-c44e-32d4-bf72-1f4ebe5fb0dd"
+    },
+    {
+      "channelId": "channel-1",
+      "anchorId": "table-3",
+      "tableId": "table-4bd07782-81d2-3167-8a89-d3c5f098c85f"
+    },
+    {
+      "channelId": "channel-1",
+      "anchorId": "table-4",
+      "tableId": "table-02f59768-b9db-33ac-9e81-279a6415dbf5"
+    },
+    {
+      "channelId": "channel-1",
+      "anchorId": "table-14",
+      "tableId": "table-1de6ff51-63a8-3c12-8696-b400eb40ba22"
+    },
+    {
+      "channelId": "channel-1",
+      "anchorId": "table-15",
+      "tableId": "table-500f917b-ae10-335b-9874-2a232af9011e"
+    },
+    {
+      "channelId": "channel-1",
+      "anchorId": "table-16",
+      "tableId": "table-ec222417-d623-3346-9b49-5ace809af808"
+    },
+    {
+      "channelId": "channel-2",
+      "anchorId": "table-1",
+      "tableId": "table-c07ae818-2248-3150-8970-820b5529dfb7"
+    },
+    {
+      "channelId": "channel-2",
+      "anchorId": "table-2",
+      "tableId": "table-ce87bea5-89c6-3892-b08e-489bcbef8533"
+    },
+    {
+      "channelId": "channel-2",
+      "anchorId": "table-3",
+      "tableId": "table-2a0c0205-0728-3765-a600-c63b996238f4"
+    },
+    {
+      "channelId": "channel-2",
+      "anchorId": "table-4",
+      "tableId": "table-ddbb683d-dd0c-3f41-b516-a53d4e32153c"
+    },
+    {
+      "channelId": "channel-2",
+      "anchorId": "table-14",
+      "tableId": "table-5d530e59-139d-3d0a-bbed-d8919b876b48"
+    },
+    {
+      "channelId": "channel-2",
+      "anchorId": "table-15",
+      "tableId": "table-cffec990-e694-3a98-bf7d-354f38a61af4"
+    },
+    {
+      "channelId": "channel-2",
+      "anchorId": "table-16",
+      "tableId": "table-1cad2fd9-6eee-3423-8e53-828ca67891df"
+    }
+  ]
+}
