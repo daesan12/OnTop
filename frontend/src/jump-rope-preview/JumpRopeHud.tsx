@@ -51,22 +51,19 @@ export function JumpRopeHud({ seconds, score, combo, chances, judgement, note, f
             <TimerRays mirrored />
           </dd>
         </dl>
-        <div className="rope-hud__card rope-hud__side rope-hud__chances">
-          <svg className="rope-hud__icon" viewBox="0 0 32 32" aria-hidden="true">
-            <path d="M16 28C12 24 2 17 2 11.6 2 3.8 11.3 1 16 7.6 20.7 1 30 3.8 30 11.6 30 17 20 24 16 28Z" />
-          </svg>
-          <dl>
-            <dt>남은 기회</dt>
-            <dd>
-              <span>{chances}<small>/3</small></span>
-              <span key={chances} className="rope-hud__slots" aria-hidden="true">
-                {[0, 1, 2].map(index =>
-                  <span key={index} data-filled={index < chances} data-spent={index === chances} />,
-                )}
-              </span>
-            </dd>
-          </dl>
-        </div>
+        <dl className="rope-hud__card rope-hud__chances">
+          <dt>남은 기회</dt>
+          <dd>
+            <span key={chances} className="rope-hud__hearts" role="img" aria-label={`3회 중 ${chances}회 남음`}>
+              {[0, 1, 2].map(index => (
+                <svg key={index} viewBox="0 0 32 32" aria-hidden="true"
+                  data-filled={index < chances} data-spent={index === chances}>
+                  <path d="M16 28C12 24 2 17 2 11.6 2 3.8 11.3 1 16 7.6 20.7 1 30 3.8 30 11.6 30 17 20 24 16 28Z" />
+                </svg>
+              ))}
+            </span>
+          </dd>
+        </dl>
       </div>
       <dl className="rope-hud__combo" data-tier={comboTier}>
         <dt>PERFECT 콤보</dt>

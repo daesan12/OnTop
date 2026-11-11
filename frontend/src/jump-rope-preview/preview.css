@@ -82,7 +82,7 @@ button, input { font: inherit; }
 .rope-hud__card {
   --frame: #f7edcb;
   --rim: #405247;
-  margin: 0;
+  margin: clamp(2px, calc(1.15 * var(--hud-unit)), 16px) 0 0;
   min-width: 0;
   background: radial-gradient(ellipse at 48% 0%, #38493d, #26362e 78%);
   border: clamp(1px, calc(0.24 * var(--hud-unit)), 3.5px) solid var(--frame);
@@ -107,15 +107,16 @@ button, input { font: inherit; }
   white-space: nowrap;
 }
 
+.rope-hud__side, .rope-hud__chances {
+  width: clamp(66px, calc(21.1 * var(--hud-unit)), 303px);
+  min-width: max-content;
+  min-height: clamp(41px, calc(7.05 * var(--hud-unit)), 101px);
+  padding: clamp(3px, calc(0.65 * var(--hud-unit)), 9px) clamp(5px, calc(1.65 * var(--hud-unit)), 23px);
+}
 .rope-hud__side {
   display: flex;
   align-items: center;
   gap: clamp(6px, calc(1.7 * var(--hud-unit)), 24px);
-  width: clamp(66px, calc(21.1 * var(--hud-unit)), 303px);
-  min-width: max-content;
-  min-height: clamp(41px, calc(7.05 * var(--hud-unit)), 101px);
-  margin-top: clamp(2px, calc(1.15 * var(--hud-unit)), 16px);
-  padding: clamp(3px, calc(0.65 * var(--hud-unit)), 9px) clamp(5px, calc(1.65 * var(--hud-unit)), 23px);
 }
 .rope-hud__side dl {
   margin: 0;
@@ -136,6 +137,8 @@ button, input { font: inherit; }
   border-radius: 999px;
   padding: clamp(3px, calc(0.72 * var(--hud-unit)), 10px) 0 clamp(5px, calc(0.95 * var(--hud-unit)), 14px);
   text-align: center;
+  transform: translateY(-4px) scale(0.83);
+  transform-origin: top center;
 }
 .rope-hud__timer dt {
   display: flex;
@@ -183,18 +186,28 @@ button, input { font: inherit; }
 .rope-hud__timer[data-urgent="true"] dd { color: #ff837f; }
 .rope-hud__timer[data-urgent="true"] .rope-hud__timer-rays { fill: #dd9e8b; }
 
-.rope-hud__chances { justify-self: end; }
-.rope-hud__chances dd { display: flex; align-items: center; gap: clamp(4px, calc(1.2 * var(--hud-unit)), 17px); }
-.rope-hud__chances small { margin-left: 0.16em; color: #bac3a9; font-size: 0.67em; }
-.rope-hud__slots { display: inline-flex; gap: clamp(2px, calc(0.48 * var(--hud-unit)), 7px); }
-.rope-hud__slots > span {
-  width: clamp(7px, calc(1.45 * var(--hud-unit)), 21px);
-  aspect-ratio: 1;
-  border: 1px solid #e1dfc0;
-  border-radius: 2px;
+.rope-hud__chances {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  justify-self: end;
 }
-.rope-hud__slots > [data-filled="true"] { border-color: #c8dbb3; background: #c8dbb3; }
-.rope-hud__slots > [data-spent="true"] { animation: hud-chance-spent 220ms ease-out; }
+.rope-hud__hearts {
+  display: flex;
+  gap: clamp(3px, calc(0.85 * var(--hud-unit)), 12px);
+}
+.rope-hud__hearts svg {
+  width: clamp(13px, calc(2.4 * var(--hud-unit)), 34px);
+  fill: transparent;
+  stroke: #b5c4aa;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.rope-hud__hearts [data-filled="true"] {
+  fill: #c8dbb3;
+  stroke: #c8dbb3;
+}
+.rope-hud__hearts [data-spent="true"] { animation: hud-chance-spent 220ms ease-out; }
 
 .rope-hud__footer {
   position: absolute;
@@ -327,17 +340,14 @@ button, input { font: inherit; }
 }
 .rope-hud__note { padding-inline: 9px; }
 
-@container (max-width: 610px) {
-  .rope-hud__slots { display: none; }
-}
 @container (max-width: 440px) {
   .rope-hud__stats { padding-block: 6px; }
-  .rope-hud__side {
+  .rope-hud__side, .rope-hud__chances {
     width: auto;
     min-width: clamp(64px, 21cqi, 86px);
-    gap: 4px;
     padding: 4px 6px;
   }
+  .rope-hud__side { gap: 4px; }
   .rope-hud__side dl { padding-left: 4px; }
   .rope-hud__timer { padding-block: 3px; }
   .rope-hud__timer dd { margin-top: 1px; font-size: 1.65rem; }
@@ -350,7 +360,7 @@ button, input { font: inherit; }
 }
 
 @keyframes hud-score-gain { from { color: #f6c16e; } }
-@keyframes hud-chance-spent { from { border-color: #eda48a; background: #b67869; } }
+@keyframes hud-chance-spent { from { stroke: #eda48a; fill: #b67869; } }
 @keyframes hud-verdict {
   0% { opacity: 0; transform: translateY(var(--verdict-rise)) scale(var(--verdict-start)); }
   15% { opacity: 1; transform: translateY(0) scale(var(--verdict-peak)); }
@@ -359,7 +369,7 @@ button, input { font: inherit; }
 }
 @media (prefers-reduced-motion: reduce) {
   .rope-hud__score dd[data-scored="true"],
-  .rope-hud__slots > [data-spent="true"],
+  .rope-hud__hearts [data-spent="true"],
   .rope-hud__verdict { animation: none; }
 }
 .rope-countdown {

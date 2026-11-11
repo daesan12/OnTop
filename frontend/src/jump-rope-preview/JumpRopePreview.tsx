@@ -35,7 +35,7 @@ const defaults = {
   pigeonNod: 0.65,
   pigeonGap: 4.6,
   pigeonScale: 1,
-  audience: false,
+  audience: true,
   perfectWindowMs: 50,
   clearanceMargin: 0.03,
   reactionMs: 1350,

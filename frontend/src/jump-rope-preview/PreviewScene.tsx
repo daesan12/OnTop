@@ -4,6 +4,8 @@ import { CatmullRomCurve3, PerspectiveCamera, QuadraticBezierCurve3, Vector3, ty
 import type { Demo, FinalePreview, PreviewSettings, RopeSimulation } from './JumpRopePreview'
 import { PigeonActor, pigeonHeadPivot, type PigeonLook, type PigeonPose, type PigeonRig } from './PigeonActor'
 import { PreviewAvatar } from './PreviewAvatar'
+import { AlleyBackdrop } from './AlleyBackdrop'
+import { ConcreteCourt } from './ConcreteCourt'
 import { MissShockEffect } from './MissShockEffect'
 import { createGameRopeGeometry, ropeCenter } from './gameRopeGeometry'
 import { samplePigeonLaugh } from './pigeonLaugh'
@@ -16,7 +18,7 @@ import type { DistractionPose } from './pigeonDistractionMotion'
 import { finaleImpactMs, sampleFinaleFlight } from './gameOverFinale'
 import { completionEase, completionResultMs, sampleExhaustedHolder, sampleResignedAudience } from './completionFinale'
 
-const sky = '#e6efeb'
+const sky = '#a0caea'
 const successBlendMs = 140
 const leftPose = { head: [0.01, -0.07, -0.15], eyelids: [0.7, 0.85], gaze: [0.7, 0] } satisfies PigeonPose
 const rightPose = { head: [0.08, 0.16, 0.22], eyelids: [0.53, 0.05], gaze: [-0.7, 0.4] } satisfies PigeonPose
@@ -142,69 +144,6 @@ function ParkUtilityLine({ showAudience, rigs, birds }: {
         </group>
       ))}
     </group>
-  )
-}
-
-function ParkCourt() {
-  return (
-    <>
-      <mesh position={[0, -0.17, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[75, 75]} />
-        <meshStandardMaterial color="#b9cba9" roughness={1} />
-      </mesh>
-      <mesh position={[0, -0.079, -0.18]} scale={[1, 1, 0.81]}>
-        <cylinderGeometry args={[3.68, 3.74, 0.156, 48]} />
-        <meshStandardMaterial color="#bfaa91" roughness={1} />
-      </mesh>
-      <mesh position={[0, 0.001, -0.18]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.81, 1]}>
-        <circleGeometry args={[3.6, 48]} />
-        <meshStandardMaterial color="#dfc19e" roughness={0.98} />
-      </mesh>
-      <mesh position={[0, 0.003, -0.18]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.81, 1]}>
-        <ringGeometry args={[3.37, 3.39, 48]} />
-        <meshBasicMaterial color="#b9a78e" />
-      </mesh>
-      <mesh position={[0, 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 0.83, 1]}>
-        <ringGeometry args={[0.68, 0.707, 36]} />
-        <meshBasicMaterial color="#f5e7cc" />
-      </mesh>
-      <group position={[0, 0.004, -0.18]} scale={[1, 1, 0.81]}>
-        {Array.from({ length: 16 }, (_, index) => {
-          const angle = index * Math.PI / 8
-          return (
-            <group key={index} rotation-y={angle}>
-              <mesh position-z={3.525} rotation-x={-Math.PI / 2}>
-                <planeGeometry args={[0.019, 0.27]} />
-                <meshBasicMaterial color="#b9a78e" />
-              </mesh>
-            </group>
-          )
-        })}
-      </group>
-
-      {[-1, 1].map(side => (
-        <group key={side}>
-          <group position={[side * 3.15, -0.17, -2.9]} rotation={[0, side * 0.38, 0]}>
-            {[-0.45, 0.45].map(x => (
-              <mesh key={x} position={[x, 0.15, 0]}>
-                <boxGeometry args={[0.17, 0.3, 0.32]} />
-                <meshStandardMaterial color="#a3a59b" roughness={0.94} />
-              </mesh>
-            ))}
-            <mesh position={[0, 0.315, 0]}>
-              <boxGeometry args={[1.25, 0.12, 0.42]} />
-              <meshStandardMaterial color="#baa58c" roughness={0.91} />
-            </mesh>
-          </group>
-          {[0, 1, 2].map(index => (
-            <mesh key={index} position={[side * (3.65 + index * 0.48), 0.05 + (index % 2) * 0.17, -3.32 - index * 0.15]} scale={[0.66, 0.39 + index * 0.045, 0.48]}>
-              <icosahedronGeometry args={[1, 1]} />
-              <meshStandardMaterial color={index === 1 ? '#a9bf9f' : '#b6c8a9'} roughness={1} flatShading />
-            </mesh>
-          ))}
-        </group>
-      ))}
-    </>
   )
 }
 
@@ -433,10 +372,11 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
     <>
       <PreviewCamera angle={settings.cameraAngle} distance={settings.cameraDistance} height={settings.cameraHeight} fov={settings.fov} />
       <color attach="background" args={[sky]} />
-      <fog attach="fog" args={[sky, 10, 21]} />
+      <fog attach="fog" args={[sky, 13.5, 29]} />
       <hemisphereLight args={['#fff5e4', '#788f87', 1.95]} />
       <directionalLight position={[2.5, 6, 4]} intensity={2.25} />
-      <ParkCourt />
+      <ConcreteCourt />
+      <AlleyBackdrop />
       <ParkUtilityLine showAudience={settings.audience} rigs={audienceRigs.current} birds={audienceGroups.current} />
       <group ref={drop} visible={false}>
         <mesh scale={[0.075, 0.055, 0.09]}>
