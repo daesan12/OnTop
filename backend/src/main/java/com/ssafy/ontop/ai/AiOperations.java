@@ -250,7 +250,8 @@ public final class AiOperations {
     private static boolean audible(AiDecisions.Chat left,AiDecisions.Chat right) {
         if(!left.audience().isEmpty() && !right.audience().isEmpty())
             return left.audience().contains(right.author()) && right.audience().contains(left.author());
-        return !left.scope().startsWith("world:") || Math.hypot(left.x()-right.x(),left.z()-right.z())<=20;
+        return !left.scope().startsWith("world:") || !left.positionMissing() && !right.positionMissing()
+                && Math.hypot(left.x()-right.x(),left.z()-right.z())<=20;
     }
     private void incident(Data data,String scope,String kind,List<AiDecisions.Chat> involved,long now,String provider,int hiddenCount,List<AiDecisions.Chat> violations) {
         incident(data,scope,kind,involved,now,provider,hiddenCount,violations,null);

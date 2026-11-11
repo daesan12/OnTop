@@ -38,7 +38,7 @@ class WorldAiChatIngressTests {
 
     @AfterEach void close(){hub.shutdown();}
 
-    @Test void missingPositionSkipsAiButKeepsChatAndFollowingRequestsWorking() throws Exception {
+    @Test void missingPositionStillReachesAiAndFollowingRequestsKeepWorking() throws Exception {
         String user=join();
         var bridge=mock(WorldAiBridge.class);hub.aiBridge(bridge);
         // Position exists at the send precondition, then disappears before AI ingress.
@@ -46,7 +46,11 @@ class WorldAiChatIngressTests {
         doReturn(originalPosition,(Object)null).when(channels).positionOf(user);
         assertThat(send("WORLD_CHAT_SEND",Map.of("text","안녕하세요")).path("type").asText())
                 .isEqualTo("WORLD_CHAT_MESSAGE");
-        verifyNoInteractions(bridge);
+        var missing=org.mockito.ArgumentCaptor.forClass(WorldAiBridge.Chat.class);
+        verify(bridge).chat(missing.capture());
+        assertThat(missing.getValue().positionMissing()).isTrue();
+        assertThat(missing.getValue().text()).isEqualTo("안녕하세요");
+        clearInvocations(bridge);
         doCallRealMethod().when(channels).positionOf(user);
         nanos.set(1_000_000_000L);
         assertThat(send("WORLD_CHAT_SEND",Map.of("text","다시 인사해요")).path("type").asText())
@@ -55,6 +59,7 @@ class WorldAiChatIngressTests {
         verify(bridge).chat(captured.capture());
         assertThat(captured.getValue().userId()).isEqualTo(user);
         assertThat(captured.getValue().text()).isEqualTo("다시 인사해요");
+        assertThat(captured.getValue().positionMissing()).isFalse();
     }
 
     @Test void detachedBridgeDoesNotReceiveFollowingChats() throws Exception {

@@ -22,7 +22,7 @@ export function acceptPatrol(p:Record<string,unknown>) {
     if(!value || typeof value!=='object') return false
     const n=value as PatrolNpc
     if(typeof n.id!=='string' || typeof n.name!=='string' || n.name.length>40 || typeof n.moving!=='boolean'
-      || !['PATROL','REST','RESPOND','TALK','WAITING_PATH','WAITING_TELEPORT','TELEPORT_WARNING','RETURN','RETURN_JUMP','RETURN_WAIT'].includes(n.action)
+      || !['PATROL','REST','RESPOND','TALK','WAITING_POSITION','WAITING_PATH','WAITING_TELEPORT','TELEPORT_WARNING','RETURN','RETURN_JUMP','RETURN_WAIT'].includes(n.action)
       || (n.warp!==undefined && (!Number.isSafeInteger(n.warp) || n.warp<0)) || !validAmbient(n.ambient)
       || ![n.x,n.y,n.z,n.yaw].every(v => typeof v==='number' && Number.isFinite(v) && Math.abs(v)<1000)) return false
     if(npcs.some(p => p.id===n.id)) return false

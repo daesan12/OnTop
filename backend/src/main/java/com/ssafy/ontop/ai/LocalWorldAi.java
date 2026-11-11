@@ -76,7 +76,7 @@ public final class LocalWorldAi implements WorldAiBridge, AutoCloseable {
     }
     @Override public void chat(Chat chat) {
         String scope=chat.gameId().isEmpty()?"world:"+chat.channelId():"game:"+chat.channelId()+"#"+chat.gameId();
-        var input=new AiDecisions.Chat(chat.id(),scope,chat.userId(),chat.text(),chat.sentAt(),chat.x(),chat.z(),chat.audience(),chat.nickname(),chat.y());
+        var input=new AiDecisions.Chat(chat.id(),scope,chat.userId(),chat.text(),chat.sentAt(),chat.x(),chat.z(),chat.audience(),chat.nickname(),chat.y(),chat.positionMissing());
         if(advisoryChat){if(closed||!chatIngress.offer(input))rejected.incrementAndGet();}
         else enqueue(() -> operations.acceptChat(input));
     }
@@ -166,7 +166,10 @@ public final class LocalWorldAi implements WorldAiBridge, AutoCloseable {
                     channel(last.scope()),audience,"WORLD_AI_POLICE",Map.of("channelId",channel(last.scope()),
                             "gameId",game(last.scope()),"incidentId",warningId,"name","한순경","x",point.x(),"y",point.y(),"z",point.z(),
                             "speech",last.nickname()+"님, "+dispatch.speech(),"expiresAt",System.currentTimeMillis()+30_000),game(last.scope()));
-            if(navigationFactory==null) arrival.accept(new com.ssafy.ontop.world.movement.ParkNavigation.Point(last.x(),last.y(),last.z()));
+            if(navigationFactory==null) {
+                var current=hub.aiActors().getOrDefault(channel(last.scope()),Map.of()).get(author);
+                if(current!=null)arrival.accept(current);
+            }
             else if(!npcRequests.offer(() -> patrol(channel(last.scope())).incident(new PolicePatrol.Incident(warningId,author,
                     dispatch.speech(),arrival,personal)))) throw new IllegalStateException("경찰 대기열 초과");
             if(!mediation && announcedWarnings.add(warningId))
@@ -211,11 +214,13 @@ public final class LocalWorldAi implements WorldAiBridge, AutoCloseable {
             long now=System.currentTimeMillis(); npcVersion++;
             double dt=lastNpcAt==0?.1:Math.max(0,Math.min(.2,(now-lastNpcAt)/1000.0));lastNpcAt=now;
             var views=new java.util.LinkedHashMap<String,PolicePatrol.View>();
-            patrols.keySet().removeIf(channel -> !actors.containsKey(channel));
-            for(var world:actors.entrySet()) {
-                var view=patrol(world.getKey()).tick(now,dt,world.getValue());
-                views.put(world.getKey(),view);
-                hub.publishAiNpcs(world.getKey(),Map.of("channelId",world.getKey(),"version",npcVersion,"serverNow",now,"npcs",List.of(view)));
+            var worlds=new java.util.LinkedHashSet<>(actors.keySet());worlds.addAll(patrols.keySet());
+            for(var world:worlds) {
+                var patrol=patrol(world);
+                var view=patrol.tick(now,dt,actors.getOrDefault(world,Map.of()));
+                if(!actors.containsKey(world) && !patrol.hasIncidents()){patrols.remove(world);continue;}
+                views.put(world,view);
+                hub.publishAiNpcs(world,Map.of("channelId",world,"version",npcVersion,"serverNow",now,"npcs",List.of(view)));
             }
             npcViews=Map.copyOf(views);
             var observed=new java.util.LinkedHashMap<String,Map<String,Long>>();patrols.forEach((channel,patrol)->observed.put(channel,patrol.metrics()));policeMetrics=Map.copyOf(observed);

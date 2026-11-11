@@ -5,8 +5,11 @@ import java.util.Map;
 
 /** Provider boundary. Implementations must not change world/game state. */
 public interface AiDecisions {
-    record Chat(String id, String scope, String author, String text, long sentAt, double x, double z,List<String> audience, String nickname, double y) {
+    record Chat(String id, String scope, String author, String text, long sentAt, double x, double z,List<String> audience, String nickname, double y, boolean positionMissing) {
         public Chat { audience=audience==null?List.of():List.copyOf(audience); nickname=nickname==null?author:nickname; }
+        public Chat(String id,String scope,String author,String text,long sentAt,double x,double z,List<String> audience,String nickname,double y) {
+            this(id,scope,author,text,sentAt,x,z,audience,nickname,y,false);
+        }
         public Chat(String id,String scope,String author,String text,long sentAt,double x,double z,List<String> audience,String nickname) {
             this(id,scope,author,text,sentAt,x,z,audience,nickname,0);
         }

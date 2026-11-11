@@ -7,6 +7,29 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PolicePatrolTests {
+    @Test void waitsForPositionThenUsesLatestTargetWithoutTeleportingToFallbackCoordinates() {
+        var police=new PolicePatrol(navigation);var warned=new AtomicInteger();
+        police.incident(new PolicePatrol.Incident("missing","A","안내",p->warned.incrementAndGet()));
+        var waiting=police.tick(0,.25,Map.of());
+        assertThat(waiting.action()).isEqualTo("WAITING_POSITION");
+        assertThat(waiting.moving()).isFalse();assertThat(waiting.warp()).isZero();
+        var running=police.tick(4000,.25,Map.of("A",new Point(10,.8,0)));
+        assertThat(running.action()).isEqualTo("RESPOND");assertThat(running.x()).isEqualTo(2);
+        // The player moves to the other side before arrival: follow the latest position.
+        var following=police.tick(5000,.25,Map.of("A",new Point(-10,.8,0)));
+        assertThat(following.x()).isEqualTo(0);assertThat(following.warp()).isZero();
+        assertThat(warned).hasValue(0);
+    }
+    @Test void missingPositionTimesOutWithPrivateNoticeAndDoesNotBlockNextVisit() {
+        var police=new PolicePatrol(navigation);var notices=new ArrayList<String>();var warned=new AtomicInteger();
+        police.incident(new PolicePatrol.Incident("missing","A","안내",p->{throw new AssertionError("no position");},notices::add));
+        police.incident(new PolicePatrol.Incident("next","B","안내",p->warned.incrementAndGet()));
+        police.tick(0,.25,Map.of("B",new Point(1,.8,0)));
+        assertThat(police.tick(5000,.25,Map.of("B",new Point(1,.8,0))).warp()).isZero();
+        assertThat(notices).hasSize(1);
+        police.tick(5100,.25,Map.of("B",new Point(1,.8,0)));
+        assertThat(warned).hasValue(1);
+    }
     @Test void recentHistoryIsBoundedAndOldIdsExpireWithoutLosingRecentDeduplication() {
         var police=new PolicePatrol(navigation);var warned=new ArrayList<String>();
         var actors=Map.of("A",new Point(0,.8,0));
@@ -155,7 +178,8 @@ class PolicePatrolTests {
         assertThat(arrived.get()).isEqualTo(1);
         var cancelled=new PolicePatrol(navigation);
         cancelled.incident(new PolicePatrol.Incident("i","101","안내",p -> { throw new AssertionError("disconnected"); }));
-        assertThat(cancelled.tick(0,.25,Map.of()).action()).isEqualTo("PATROL");
+        assertThat(cancelled.tick(0,.25,Map.of()).action()).isEqualTo("WAITING_POSITION");
+        assertThat(cancelled.tick(5000,.25,Map.of()).action()).isEqualTo("PATROL");
     }
     @Test void freshWarningsAreQueuedEvenForSameActorAndRetryIsDeduplicated() {
         var police=new PolicePatrol(navigation); var warned=new ArrayList<String>();
