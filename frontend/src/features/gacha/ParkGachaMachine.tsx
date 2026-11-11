@@ -53,8 +53,8 @@ function gachaSign(context: CanvasRenderingContext2D, width: number, height: num
 }
 
 export function ParkGachaMachine({ live }: { live: boolean }) {
-  const { id, x, z, yaw } = PARK_GACHA_MACHINE
-  return <group name="park-gacha-machine" position={[x, 0, z]}
+  const { id, x, y, z, yaw } = PARK_GACHA_MACHINE
+  return <group name="park-gacha-machine" position={[x, y, z]}
     rotation={[0, yaw, 0]} onClick={live ? event => {
       if (event.delta >= 5) return
       event.stopPropagation()

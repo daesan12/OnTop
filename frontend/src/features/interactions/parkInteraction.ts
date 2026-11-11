@@ -79,10 +79,10 @@ export function getParkInteraction(): ParkInteraction | null {
     choices.push({kind:'construction',id:site.id,label:site.label+' · 행운의 뽑기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
   if (GENERATED_PARK_ENABLED && canReachParkGacha(p.current)) {
-    const { id, x, z } = PARK_GACHA_MACHINE
+    const { id, x, y, z } = PARK_GACHA_MACHINE
     const distance = Math.hypot(p.current.x - x, p.current.z - z)
     choices.push({ kind: 'gacha', id, label: '의상 뽑기', occupied: false, available: true, distance,
-      score: interactionScore(distance, { x, y: 1.35, z }) })
+      score: interactionScore(distance, { x, y: y + 1.35, z }) })
   }
   if (canReachParkVr(p.current)) {
     const distance = Math.hypot(p.current.x - parkVrEntrance.x, p.current.z - parkVrEntrance.z)
