@@ -14,33 +14,51 @@ function run(seed = 389) {
 }
 
 describe('seeded pigeon distraction schedule', () => {
-  it('replays the same seed and fits both kinds into increasingly busy windows', () => {
+  it('replays the seed and fits all three kinds into 0, 2, 3 and 5 slots', () => {
+    const boundaries = [10000, 30000, 45000, 60000]
     for (const settings of [distractionDefaults, { ...distractionDefaults, flightDurationMs: 900, walkDurationMs: 3600 }]) {
-      for (const seed of [0, 1, 3, 389, 0xffffffff]) {
+      for (const seed of [...Array.from({ length: 100 }, (_, i) => i), 389, 0xffffffff]) {
         const schedule = createDistractionSchedule(seed, settings)
         expect(schedule).toEqual(createDistractionSchedule(seed, settings))
-        expect(new Set(schedule.events.map(event => event.kind))).toEqual(new Set(['flight', 'walk']))
+        expect(new Set(schedule.events.map(event => event.kind))).toEqual(new Set(['flight', 'walk', 'manhole']))
+        expect(schedule.events.filter(event => event.kind === 'manhole')).toHaveLength(3)
         const counts = [0, 0, 0, 0]
         let previousEnd = 0
         for (const event of schedule.events) {
-          const window = Math.floor(event.atMs / 15000)
+          const window = boundaries.findIndex(end => event.atMs < end)
           counts[window]! += 1
-          expect(event.windowEndMs).toBe((window + 1) * 15000)
+          expect(event.windowEndMs).toBe(boundaries[window])
           expect(event.atMs - previousEnd).toBeGreaterThanOrEqual(1000)
           previousEnd = event.atMs + distractionDurationMs({ ...event, startedAt: event.atMs, settings })
           expect(previousEnd).toBeLessThan(event.windowEndMs)
         }
-        expect(counts).toEqual([0, 1, 2, 3])
+        expect(counts).toEqual([0, 2, 3, 5])
       }
     }
     expect(createDistractionSchedule(389).events).not.toEqual(createDistractionSchedule(390).events)
   })
 
-  it('keeps a lighter frequency available with the same seed guarantees', () => {
-    const light = createDistractionSchedule(389, distractionDefaults, 'light')
-    expect(light).toEqual(createDistractionSchedule(389, distractionDefaults, 'light'))
-    expect(light.events.map(event => event.windowEndMs)).toEqual([30000, 45000, 60000])
-    expect(new Set(light.events.map(event => event.kind))).toEqual(new Set(['flight', 'walk']))
+  it('finishes ten events at 30 FPS even if the duration sliders go to maximum mid-round', () => {
+    const { tick } = run(389)
+    const slow = { ...distractionDefaults, flightDurationMs: 900, walkDurationMs: 3600 }
+    const counts = [0, 0, 0]
+    let previousEnd = 0
+    let previousCount = 0
+    for (let frame = 0; frame < 1800; frame++) {
+      const playedMs = frame * (1000 / 30)
+      const schedule = tick(playedMs, { settings: playedMs < 30000 ? distractionDefaults : slow })
+      if (schedule.startedCount === previousCount) continue
+      const { cue, index } = schedule.active!
+      const event = schedule.events[index]!
+      expect(cue.startedAt - previousEnd).toBeGreaterThanOrEqual(1000)
+      expect(cue.startedAt).toBeGreaterThanOrEqual(10000)
+      previousEnd = cue.startedAt + distractionDurationMs(cue)
+      expect(previousEnd).toBeLessThanOrEqual(event.windowEndMs)
+      counts[(event.windowEndMs - 30000) / 15000]! += 1
+      previousCount = schedule.startedCount
+    }
+    expect(counts).toEqual([2, 3, 5])
+    expect(tick(60000, { mode: 'ended' }).events.every(event => event.status === 'finished')).toBe(true)
   })
 
   it('starts each event once, even when a frame crosses its start time', () => {
@@ -56,7 +74,7 @@ describe('seeded pigeon distraction schedule', () => {
       expect(tick(until).active).toBeNull()
       expect(tick(until + 1).events[index]?.status).toBe('finished')
     }
-    expect(tick(60000, { mode: 'ended' })).toMatchObject({ active: null, startedCount: 6 })
+    expect(tick(60000, { mode: 'ended' })).toMatchObject({ active: null, startedCount: 10 })
   })
 
   it('holds a paused pose, stops on MISS, and starts no event during a countdown or after ending', () => {
@@ -91,6 +109,27 @@ describe('seeded pigeon distraction schedule', () => {
     expect(tick(missAt + 1000).events.slice(1)).toEqual(plan.events.slice(1))
   })
 
+  it('freezes an open manhole while paused and drops the pose on MISS, ending or restart', () => {
+    for (const mode of ['miss', 'ended'] as const) {
+      const { plan, tick } = run()
+      const index = plan.events.findIndex(event => event.kind === 'manhole')
+      const at = plan.events[index]!.atMs
+      const started = tick(at)
+      expect(started.active?.index).toBe(index)
+      const pausedAt = at + 800
+      const paused = tick(pausedAt, { mode: 'paused' })
+      const pose = sampleDistraction(paused.active!.cue, pausedAt)
+      expect(pose).toMatchObject({ kind: 'manhole', lid: { y: expect.any(Number) }, bird: expect.any(Object) })
+      expect(tick(pausedAt, { mode: 'paused' })).toBe(paused)
+      expect(tick(pausedAt + 16).active?.cue).toBe(started.active!.cue)
+      const cancelled = tick(pausedAt + 30, { mode })
+      expect(cancelled).toMatchObject({ active: null })
+      expect(cancelled.events[index]?.status).toBe('cancelled')
+      expect(cancelled.blockedUntilMs).toBe(pausedAt + 1030)
+      expect(createDistractionSchedule(plan.seed)).toMatchObject({ active: null, startedCount: 0, blockedUntilMs: 0 })
+    }
+  })
+
   it('enforces the gap from actual completion after a delayed frame', () => {
     const { plan, tick } = run()
     const [first, second] = plan.events
@@ -107,11 +146,11 @@ describe('seeded pigeon distraction schedule', () => {
     const { plan, tick } = run()
     const last = plan.events.at(-1)!
     const held = tick(last.atMs + 10, { previewBusy: true })
-    expect(held.events.map(event => event.status)).toEqual([...Array(5).fill('skipped'), 'pending'])
+    expect(held.events.map(event => event.status)).toEqual([...Array(9).fill('skipped'), 'pending'])
     expect(held.active).toBeNull()
     const started = tick(last.atMs + 90)
-    expect(started).toMatchObject({ startedCount: 1, active: { index: 5 } })
-    expect(tick(last.atMs + 100, { enabled: false }).events[5]?.status).toBe('cancelled')
+    expect(started).toMatchObject({ startedCount: 1, active: { index: 9 } })
+    expect(tick(last.atMs + 100, { enabled: false }).events[9]?.status).toBe('cancelled')
     expect(tick(last.atMs + 110).active).toBeNull()
   })
 

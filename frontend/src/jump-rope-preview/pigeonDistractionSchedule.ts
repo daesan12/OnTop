@@ -1,12 +1,5 @@
-import { distractionDefaults, distractionDurationMs, type DistractionCue, type DistractionSettings } from './pigeonDistractionMotion'
+import { distractionDefaults, distractionDurationLimits, distractionDurationMs, type DistractionCue, type DistractionKind, type DistractionSettings } from './pigeonDistractionMotion'
 
-const eventsPerWindow = {
-  increasing: [1, 2, 3],
-  light: [1, 1, 1],
-} as const
-export type DistractionFrequency = keyof typeof eventsPerWindow
-
-const windowMs = 15000
 const eventGapMs = 1000
 const maxLateStartMs = 1000
 const startHeadroomMs = 250
@@ -29,7 +22,6 @@ export type DistractionSchedule = {
 export function createDistractionSchedule(
   seed: number,
   settings: DistractionSettings = distractionDefaults,
-  frequency: DistractionFrequency = 'increasing',
 ): DistractionSchedule {
   let state = seed >>> 0
   // Mulberry32 uses explicit 32-bit arithmetic, so a seed can be replayed elsewhere.
@@ -39,28 +31,38 @@ export function createDistractionSchedule(
     value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
     return ((value ^ (value >>> 14)) >>> 0) / 4294967296
   }
-  const counts = eventsPerWindow[frequency]
-  const total = counts.reduce<number>((sum, count) => sum + count, 0)
-  // Exclude all-flight and all-walk patterns.
-  const pattern = 1 + Math.floor(random() * ((1 << total) - 2))
-  let index = 0
-  const events = counts.flatMap((count, window): ScheduledEvent[] => {
-    let startMs = (window + 1) * windowMs
-    const endMs = startMs + windowMs
-    const cues = Array.from({ length: count }, (): DistractionCue => ({
-      kind: (pattern & (1 << index++)) !== 0 ? 'flight' : 'walk',
-      direction: random() < 0.5 ? -1 : 1,
-      startedAt: 0,
-      settings,
-    }))
-    const reservedMs = (cue: DistractionCue) => distractionDurationMs(cue) + eventGapMs + startHeadroomMs
-    const slackMs = windowMs - cues.reduce((sum, cue) => sum + reservedMs(cue), 0)
+  const windows: { from: number; to: number; kinds: DistractionKind[] }[] = [
+    { from: 10000, to: 30000, kinds: ['manhole', random() < 0.5 ? 'flight' : 'walk'] },
+    { from: 30000, to: 45000, kinds: ['flight', 'walk', 'manhole'] },
+    // Three short flights leave room for a walk, a manhole and all five gaps.
+    { from: 45000, to: 60000, kinds: ['flight', 'flight', 'flight', 'walk', 'manhole'] },
+  ]
+  const events = windows.flatMap(({ from, to, kinds }): ScheduledEvent[] => {
+    for (let i = kinds.length - 1; i > 0; i--) {
+      const other = Math.floor(random() * (i + 1))
+      const kind = kinds[i]!
+      kinds[i] = kinds[other]!
+      kinds[other] = kind
+    }
+    let startMs = from
+    let slackMs = to - from
+    const slots: { kind: DistractionKind; direction: -1 | 1; reservedMs: number }[] = []
+    for (const kind of kinds) {
+      const direction = random() < 0.5 ? -1 : 1
+      const duration = distractionDurationMs({ kind, direction, startedAt: 0, settings })
+      const maximum = kind === 'manhole' ? duration : distractionDurationLimits[kind].max
+      // A live slider change within the preview's bounds still fits the slot.
+      const reservedMs = Math.max(duration, maximum) + eventGapMs + startHeadroomMs
+      if (reservedMs > slackMs) continue
+      slackMs -= reservedMs
+      slots.push({ kind, direction, reservedMs })
+    }
     // Sorted offsets scatter the starts without consuming the reserved gaps.
-    const offsets = cues.map(() => Math.floor(random() * (slackMs + 1))).sort((a, b) => a - b)
-    return cues.map((cue, i) => {
+    const offsets = slots.map(() => Math.floor(random() * (slackMs + 1))).sort((a, b) => a - b)
+    return slots.map(({ kind, direction, reservedMs }, i) => {
       const atMs = startMs + offsets[i]!
-      startMs += reservedMs(cue)
-      return { atMs, windowEndMs: endMs, kind: cue.kind, direction: cue.direction, status: 'pending' }
+      startMs += reservedMs
+      return { atMs, windowEndMs: to, kind, direction, status: 'pending' }
     })
   })
   return { seed: seed >>> 0, events, active: null, startedCount: 0, blockedUntilMs: 0 }

@@ -1,18 +1,23 @@
-import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Mesh, PerspectiveCamera, Vector3, type Group, type Material } from 'three'
 import { PigeonActor, pigeonHeadPivot, type PigeonRig } from './PigeonActor'
+import { manholeFootprint } from './AlleyManhole'
+import { courtSurfaceHeight } from './ConcreteCourt'
 import type { DistractionPose } from './pigeonDistractionMotion'
 
 const up = new Vector3(0, 1, 0)
 const intruderPose = { eyelids: [0.32, 0.56] as [number, number], gaze: [0.28, -0.12] as [number, number] }
+const shaftSurface = courtSurfaceHeight(manholeFootprint.x, manholeFootprint.z)
 
-export function PigeonDistraction({ sample, shadow }: { sample: (now: number) => DistractionPose | null; shadow?: ReactNode }) {
+export function PigeonDistraction({ poseRef, shadow }: { poseRef: RefObject<DistractionPose | null>; shadow?: ReactNode }) {
   const actor = useRef<Group>(null)
   const shadowGroup = useRef<Group>(null)
   const rigRef = useRef<PigeonRig>(null)
   const materials = useRef<Material[]>([])
-  const vectors = useMemo(() => ({ right: new Vector3(), near: new Vector3(), hip: new Vector3(), ankle: new Vector3(), shin: new Vector3() }), [])
+  const vectors = useMemo(() => ({
+    right: new Vector3(), near: new Vector3(), hip: new Vector3(), ankle: new Vector3(), shin: new Vector3(), exit: new Vector3(),
+  }), [])
 
   useLayoutEffect(() => {
     actor.current?.traverse(object => {
@@ -24,18 +29,19 @@ export function PigeonDistraction({ sample, shadow }: { sample: (now: number) =>
   useFrame(({ camera }) => {
     const group = actor.current
     const rig = rigRef.current
-    const pose = sample(performance.now())
+    const pose = poseRef.current
     if (!group || !rig) return
-    group.visible = Boolean(pose)
+    group.visible = pose !== null && (pose.kind !== 'manhole' || pose.bird !== null)
     if (shadowGroup.current) shadowGroup.current.visible = pose?.kind === 'walk' && pose.opacity > 0.45
-    if (!pose) return
+    if (!group.visible || !pose) return
 
     camera.updateWorldMatrix(true, false)
-    const { right, near, hip, ankle, shin } = vectors
+    const { right, near, hip, ankle, shin, exit } = vectors
     const { body, legs } = rig
     right.setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize()
     near.setFromMatrixColumn(camera.matrixWorld, 2).setY(0).normalize()
     group.scale.setScalar(pose.scale)
+    rig.jaw.rotation.x = 0
 
     function setLeg(index: number, { y, z, pitch }: { y: number; z: number; pitch: number }) {
       const leg = legs[index]
@@ -84,6 +90,30 @@ export function PigeonDistraction({ sample, shadow }: { sample: (now: number) =>
       rig.rightWing.rotation.set(0, 0, 0)
       setLeg(0, pose.left)
       setLeg(1, pose.right)
+    } else if (pose.kind === 'manhole' && pose.bird && camera instanceof PerspectiveCamera) {
+      const { rise, approach, spread, flap, oppositeFlap, wobble } = pose.bird
+      const { direction, scale } = pose
+      const turn = rise ** 2
+      const riseHeight = rise + 0.22 * Math.sin(Math.PI * rise)
+      group.position.set(manholeFootprint.x + 0.25 * direction * turn, shaftSurface - 0.63 + 1.49 * riseHeight,
+        manholeFootprint.z + 0.18 * turn)
+      const depth = 2.25
+      const halfHeight = Math.tan(camera.getEffectiveFOV() * Math.PI / 360) * depth
+      exit.set(direction * (halfHeight * camera.aspect + scale * 1.22), halfHeight * 0.71, -depth)
+        .applyMatrix4(camera.matrixWorld)
+      group.position.lerp(exit, approach)
+      group.position.y += 0.45 * Math.sin(Math.PI * approach)
+      group.rotation.y = Math.atan2(near.x + right.x * direction * approach, near.z + right.z * direction * approach)
+
+      rig.body.position.set(0, 0.026 * flap * spread, 0)
+      rig.body.rotation.set(-0.17 * (1 - approach) + flap * spread * 0.09, 0, wobble * spread * 0.22)
+      rig.head.position.set(...pigeonHeadPivot)
+      rig.head.rotation.set(-0.22 + oppositeFlap * spread * 0.14, direction * 0.24 * approach, wobble * 0.16 * spread)
+      rig.jaw.rotation.x = 0.21 + 0.12 * spread * oppositeFlap
+      rig.leftWing.rotation.set(-0.14 * spread, 1.52 * spread, (0.12 + flap * 1.03) * spread, 'ZXY')
+      rig.rightWing.rotation.set(-0.14 * spread, -1.52 * spread, (-0.12 - oppositeFlap * 1.03) * spread, 'ZXY')
+      setLeg(0, { y: 0.13, z: -0.15, pitch: 0.43 })
+      setLeg(1, { y: 0.13, z: -0.15, pitch: 0.48 })
     }
 
     const opacity = pose.kind === 'walk' ? pose.opacity : 1

@@ -1,5 +1,7 @@
-import { useMemo } from 'react'
-import { BackSide, SRGBColorSpace } from 'three'
+import { useMemo, useRef, type RefObject } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { BackSide, SRGBColorSpace, type Group } from 'three'
+import type { DistractionPose } from './pigeonDistractionMotion'
 
 export const manholeFootprint = { x: -1.25, z: 1.83, openingRadius: 0.332 }
 
@@ -78,8 +80,24 @@ function paintIronLid() {
   return canvas
 }
 
-export function AlleyManhole({ surfaceY }: { surfaceY: number }) {
+export function AlleyManhole({ surfaceY, distractionPose }: {
+  surfaceY: number
+  distractionPose: RefObject<DistractionPose | null>
+}) {
   const ironLid = useMemo(paintIronLid, [])
+  const lidRef = useRef<Group>(null)
+  useFrame(() => {
+    const lid = lidRef.current
+    if (!lid) return
+    const pose = distractionPose.current
+    if (pose?.kind === 'manhole') {
+      lid.position.set(pose.lid.x, pose.lid.y, pose.lid.z)
+      lid.rotation.set(pose.lid.pitch, pose.lid.yaw, pose.lid.roll)
+    } else {
+      lid.position.set(0, 0, 0)
+      lid.rotation.set(0, 0, 0)
+    }
+  })
 
   return (
     <group name="alley-manhole" position={[manholeFootprint.x, surfaceY, manholeFootprint.z]} rotation-y={0.22}>
@@ -106,7 +124,7 @@ export function AlleyManhole({ surfaceY }: { surfaceY: number }) {
         </mesh>
       </group>
       {/* The lid's closed position and rotation are both zero in this group. */}
-      <group name="alley-manhole-lid">
+      <group ref={lidRef} name="alley-manhole-lid">
         <mesh position-y={-0.018}>
           <cylinderGeometry args={[lidRadius, lidRadius - 0.008, 0.044, segments]} />
           <meshStandardMaterial color="#4d4f45" roughness={0.94} metalness={0.14} />

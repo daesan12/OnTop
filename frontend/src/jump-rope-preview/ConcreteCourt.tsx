@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, type RefObject } from 'react'
 import { MathUtils, PlaneGeometry, SRGBColorSpace } from 'three'
 import { AlleyManhole, manholeFootprint } from './AlleyManhole'
+import type { DistractionPose } from './pigeonDistractionMotion'
 
 const streetHeight = -0.17
 const textureBounds = { left: -13, top: -9, width: 26, depth: 17 }
@@ -119,7 +120,7 @@ function paintConcrete() {
   return canvas
 }
 
-export function ConcreteCourt() {
+export function ConcreteCourt({ distractionPose }: { distractionPose: RefObject<DistractionPose | null> }) {
   const concrete = useMemo(paintConcrete, [])
   const geometry = useMemo(makeGroundGeometry, [])
   useEffect(() => () => geometry.dispose(), [geometry])
@@ -131,7 +132,7 @@ export function ConcreteCourt() {
           <canvasTexture attach="map" args={[concrete]} colorSpace={SRGBColorSpace} anisotropy={4} />
         </meshStandardMaterial>
       </mesh>
-      <AlleyManhole surfaceY={courtSurfaceHeight(manholeFootprint.x, manholeFootprint.z)} />
+      <AlleyManhole surfaceY={courtSurfaceHeight(manholeFootprint.x, manholeFootprint.z)} distractionPose={distractionPose} />
     </>
   )
 }

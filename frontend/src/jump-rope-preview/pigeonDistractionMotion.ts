@@ -1,3 +1,10 @@
+import { manholeDurationMs, sampleManholeDistraction } from './manholeDistractionMotion'
+
+export const distractionDurationLimits = {
+  flight: { min: 600, max: 900 },
+  walk: { min: 1800, max: 3600 },
+}
+
 export const distractionDefaults = {
   flightScale: 0.66,
   flightDurationMs: 780,
@@ -10,7 +17,7 @@ export const distractionDefaults = {
 }
 
 export type DistractionSettings = typeof distractionDefaults
-export type DistractionKind = 'flight' | 'walk'
+export type DistractionKind = 'flight' | 'walk' | 'manhole'
 export type DistractionCue = {
   kind: DistractionKind
   direction: -1 | 1
@@ -19,6 +26,7 @@ export type DistractionCue = {
 }
 
 export function distractionDurationMs({ kind, settings }: DistractionCue) {
+  if (kind === 'manhole') return manholeDurationMs
   return kind === 'flight' ? settings.flightDurationMs : settings.walkDurationMs
 }
 
@@ -45,6 +53,7 @@ export function sampleDistraction(cue: DistractionCue, now: number) {
   const elapsed = now - startedAt
   const duration = distractionDurationMs(cue)
   if (elapsed < 0 || elapsed >= duration) return null
+  if (kind === 'manhole') return { kind, direction, scale: 0.55, ...sampleManholeDistraction(elapsed, direction) }
   const progress = elapsed / duration
   const cross = 2 * progress - 1
   if (kind === 'flight') {

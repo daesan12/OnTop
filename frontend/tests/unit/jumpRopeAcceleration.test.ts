@@ -3,6 +3,7 @@ import { advanceRope } from '../../src/jump-rope-preview/jumpRopeJudgement'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound } from '../../src/jump-rope-preview/previewRound'
 import { defaultRopeAcceleration as profile, ropePeriodMs } from '../../src/jump-rope-preview/ropeAcceleration'
 import { isSuccessActive } from '../../src/jump-rope-preview/pigeonSuccess'
+import type { PreviewPass } from '../../src/jump-rope-preview/previewMotion'
 
 const settings = { ropeWidth: 0.035, clearanceMargin: 0.03, perfectWindowMs: 50 }
 const startAt = 3000
@@ -50,7 +51,7 @@ describe('accelerating jump rope', () => {
 
   it.each([1000 / 30, 1000 / 144, 1800])('keeps PERFECT, GOOD and MISS aligned through %f ms frames', frameMs => {
     const { round, step, jump } = startRound()
-    const passes = []
+    const passes: PreviewPass[] = []
     let frame = startAt + frameMs
     function tick(at: number) {
       const pass = step(at)

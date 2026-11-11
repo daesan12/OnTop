@@ -41,4 +41,23 @@ describe('pigeon distraction preview motion', () => {
     const replay = { ...walk, startedAt: 3800 }
     expect(sampleDistraction(replay, 3800)).toEqual(sampleDistraction(walk, 1000))
   })
+
+  it('opens the lid before emergence and restores the exact closed pose after the bounces', () => {
+    const manhole = cue('manhole')
+    const closed = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 }
+    const poseAt = (elapsed: number) => sampleDistraction(manhole, manhole.startedAt + elapsed)
+    expect(poseAt(0)).toMatchObject({ kind: 'manhole', lid: closed, bird: null })
+    expect(poseAt(120)).toMatchObject({ bird: null })
+    const opening = poseAt(450)
+    if (opening?.kind !== 'manhole') throw new Error('Expected a manhole pose')
+    expect(opening.lid.y).toBeGreaterThan(0.35)
+    expect(opening.bird).toBeNull()
+    expect(poseAt(490)).toMatchObject({ bird: { rise: 0, approach: 0, spread: 0 } })
+    expect(poseAt(960)).toMatchObject({ bird: { rise: 1, approach: 0, spread: 1 } })
+    expect(poseAt(1600)).toMatchObject({ bird: { rise: 1, approach: expect.any(Number) } })
+    expect(poseAt(1920)).toMatchObject({ bird: null })
+    expect(poseAt(2000)).not.toMatchObject({ lid: closed })
+    expect(poseAt(2180)).toMatchObject({ lid: closed, bird: null })
+    expect(poseAt(2300)).toBeNull()
+  })
 })

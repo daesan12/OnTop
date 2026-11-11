@@ -8,8 +8,8 @@ import { clearanceWindowMs } from './jumpRopeJudgement'
 import { roundDurationMs, type RoundEndReason } from './jumpRopeRules'
 import { createSuccessCue, successDurationMs, type PigeonSuccessCue, type PigeonSuccessKind } from './pigeonSuccess'
 import { defaultRopeAcceleration, ropePeriodMs } from './ropeAcceleration'
-import { distractionDefaults, distractionDurationMs, sampleDistraction, type DistractionCue, type DistractionKind, type DistractionSettings } from './pigeonDistractionMotion'
-import { advanceDistractionSchedule, createDistractionSchedule, type DistractionFrequency } from './pigeonDistractionSchedule'
+import { distractionDefaults, distractionDurationLimits, distractionDurationMs, sampleDistraction, type DistractionCue, type DistractionKind, type DistractionSettings } from './pigeonDistractionMotion'
+import { advanceDistractionSchedule, createDistractionSchedule } from './pigeonDistractionSchedule'
 import { finaleStage } from './gameOverFinale'
 import { completionResultMs } from './completionFinale'
 import { GameOverSplash } from './GameOverSplash'
@@ -89,11 +89,11 @@ const demoActions = {
 
 const distractionSliders: [keyof DistractionSettings, string, number, number, number, string][] = [
   ['flightScale', '비행 크기', 0.4, 0.95, 0.01, '×'],
-  ['flightDurationMs', '비행 시간', 600, 900, 10, ' ms'],
+  ['flightDurationMs', '비행 시간', distractionDurationLimits.flight.min, distractionDurationLimits.flight.max, 10, ' ms'],
   ['flightHeight', '비행 높이', -0.1, 0.65, 0.01, ' m'],
   ['flightDistance', '비행 카메라 거리', 1.7, 3.5, 0.05, ' m'],
   ['walkScale', '보행 크기', 0.45, 0.8, 0.01, '×'],
-  ['walkDurationMs', '보행 시간', 1800, 3600, 50, ' ms'],
+  ['walkDurationMs', '보행 시간', distractionDurationLimits.walk.min, distractionDurationLimits.walk.max, 50, ' ms'],
   ['walkSpan', '보행 경로 폭', 3, 4.7, 0.05, ' m'],
   ['walkDepth', '보행 경로 앞쪽 거리', 0.65, 1.2, 0.05, ' m'],
 ]
@@ -132,8 +132,14 @@ function readRoundHud(round: ReturnType<typeof createPreviewRound>) {
   return { seconds: roundSecondsLeft(round), playedMs: Math.floor(round.playedMs / 100) * 100, stats: round.stats, endReason: round.endReason }
 }
 
-const distractionLabels = { flight: '비행', walk: '걷기' }
+const distractionLabels = { flight: '비행', walk: '걷기', manhole: '하수구 탈출' }
 const eventLabels = { pending: '예정', running: '진행 중', finished: '완료', skipped: '건너뜀', cancelled: '중단' }
+
+type ManholePreview = { cue: DistractionCue; startedAt: number; pausedAt: number | null; pausedMs: number }
+
+function manholePreviewAge(preview: ManholePreview, now: number) {
+  return (preview.pausedAt ?? now) - preview.startedAt - preview.pausedMs
+}
 
 function newDistractionSeed(previous?: number) {
   const seed = crypto.getRandomValues(new Uint32Array(1))[0]!
@@ -150,9 +156,9 @@ export function JumpRopePreview() {
   const [distractionSettings, setDistractionSettings] = useState(distractionDefaults)
   const [distractionDirection, setDistractionDirection] = useState<-1 | 1>(1)
   const [automaticDistraction, setAutomaticDistraction] = useState(true)
-  const [distractionFrequency, setDistractionFrequency] = useState<DistractionFrequency>('increasing')
   const [fixedSeed, setFixedSeed] = useState('')
   const [distractionSchedule, setDistractionSchedule] = useState(() => createDistractionSchedule(newDistractionSeed()))
+  const [showManholePreview, setShowManholePreview] = useState(false)
   const [demo, setDemo] = useState<{ action: DemoAction; startedAt: number } | null>(null)
   const [round] = useState(createPreviewRound)
   const [hud, setHud] = useState(() => readRoundHud(round))
@@ -172,12 +178,22 @@ export function JumpRopePreview() {
   const successDemoVariant = useRef(0)
   const simulationRef = useRef<RopeSimulation | null>(null)
   const distractionRef = useRef<DistractionCue | null>(null)
+  const manholePreviewRef = useRef<ManholePreview | null>(null)
   const scheduleRef = useRef(distractionSchedule)
   const stageRef = useRef<HTMLElement>(null)
   const controlsRef = useRef({ settings, paused: false, cue: '3' as RoundCue })
   const { jumpHeight, jumpDuration } = settings
   const getFinalePreview = useCallback(() => finalePreviewRef.current, [])
-  const sceneTime = useCallback((now: number) => (finalePreviewRef.current?.startedAt ?? now) - clockOffset.current, [])
+  const sceneTime = useCallback((now: number) =>
+    (finalePreviewRef.current?.startedAt ?? manholePreviewRef.current?.startedAt ?? now) - clockOffset.current, [])
+
+  const closeManholePreview = useCallback((now: number) => {
+    const preview = manholePreviewRef.current
+    if (!preview) return
+    clockOffset.current += now - preview.startedAt
+    manholePreviewRef.current = null
+    setShowManholePreview(false)
+  }, [])
 
   const closeFinalePreview = useCallback((now: number) => {
     const preview = finalePreviewRef.current
@@ -201,6 +217,11 @@ export function JumpRopePreview() {
         setFinalePreview(next)
       }
       return
+    }
+    const manholePreview = manholePreviewRef.current
+    if (manholePreview) {
+      if (manholePreviewAge(manholePreview, wallNow) < distractionDurationMs(manholePreview.cue)) return
+      closeManholePreview(wallNow)
     }
     const now = sceneTime(wallNow)
     const controls = controlsRef.current
@@ -239,10 +260,12 @@ export function JumpRopePreview() {
     if (!latest) return
     setLastPass(latest)
     setVisiblePass(latest)
-  }, [round, automaticDistraction, distractionSettings, sceneTime])
+  }, [round, automaticDistraction, distractionSettings, sceneTime, closeManholePreview])
 
   const sampleDistractionFrame = useCallback((now: number) => {
     if (finalePreviewRef.current || round.endReason) return null
+    const manholePreview = manholePreviewRef.current
+    if (manholePreview) return sampleDistraction(manholePreview.cue, manholePreviewAge(manholePreview, now))
     const preview = distractionRef.current
     if (preview) return sampleDistraction(preview, sceneTime(now))
     const active = scheduleRef.current.active
@@ -280,7 +303,7 @@ export function JumpRopePreview() {
         'button, input:not([type="range"]), textarea, select, a[href], [contenteditable="true"]',
       )) return
       event.preventDefault()
-      if (!event.repeat && !finalePreviewRef.current) {
+      if (!event.repeat && !finalePreviewRef.current && !manholePreviewRef.current) {
         const now = performance.now()
         const playing = round.phase.kind === 'playing'
         step(now)
@@ -292,6 +315,7 @@ export function JumpRopePreview() {
   }, [round, jumpHeight, jumpDuration, step, sceneTime, closeFinalePreview])
 
   function startDemo(action: DemoAction) {
+    if (manholePreviewRef.current) return
     const wallNow = performance.now()
     const playing = round.phase.kind === 'playing'
     step(wallNow)
@@ -330,6 +354,7 @@ export function JumpRopePreview() {
     const now = performance.now()
     step(now)
     if (round.phase.kind !== 'playing' && round.phase.kind !== 'initialCountdown') return
+    closeManholePreview(now)
     const preview: FinalePreview = { reason, startedAt: now, stage: reason === 'time' ? 'acknowledgement' : 'flight' }
     finalePreviewRef.current = preview
     setFinalePreview(preview)
@@ -342,8 +367,10 @@ export function JumpRopePreview() {
     clockOffset.current = 0
     setFinalePreview(null)
     distractionRef.current = null
+    manholePreviewRef.current = null
+    setShowManholePreview(false)
     const seed = parseDistractionSeed(fixedSeed) ?? newDistractionSeed(scheduleRef.current.seed)
-    const schedule = createDistractionSchedule(seed, distractionSettings, distractionFrequency)
+    const schedule = createDistractionSchedule(seed, distractionSettings)
     scheduleRef.current = schedule
     setDistractionSchedule(schedule)
     simulationRef.current = null
@@ -362,10 +389,20 @@ export function JumpRopePreview() {
   }
 
   function startDistraction(kind: DistractionKind) {
+    if (finalePreviewRef.current) return
+    const now = performance.now()
+    step(now)
     if (round.phase.kind !== 'playing' && round.phase.kind !== 'initialCountdown') return
-    if (scheduleRef.current.active) return
+    if (scheduleRef.current.active || distractionRef.current || manholePreviewRef.current) return
+    if (kind === 'manhole' && simulationRef.current) return
     stageRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
-    distractionRef.current = { kind, startedAt: sceneTime(performance.now()), direction: distractionDirection, settings: distractionSettings }
+    const cue = { kind, startedAt: kind === 'manhole' ? 0 : sceneTime(now), direction: distractionDirection, settings: distractionSettings }
+    if (kind === 'manhole') {
+      manholePreviewRef.current = { cue, startedAt: now, pausedAt: null, pausedMs: 0 }
+      setShowManholePreview(true)
+    } else {
+      distractionRef.current = cue
+    }
   }
 
   function restartGame() {
@@ -385,12 +422,20 @@ export function JumpRopePreview() {
   function toggleRope() {
     const controls = controlsRef.current
     const paused = !controls.paused
-    step(performance.now(), paused ? 0 : controls.settings.ropeSpeed)
+    const now = performance.now()
+    step(now, paused ? 0 : controls.settings.ropeSpeed)
+    const preview = manholePreviewRef.current
+    if (preview && paused) preview.pausedAt = now
+    else if (preview?.pausedAt != null) {
+      preview.pausedMs += now - preview.pausedAt
+      preview.pausedAt = null
+    }
     controls.paused = paused
     setRopePaused(paused)
   }
 
   function toggleSimulation() {
+    if (manholePreviewRef.current) return
     const wallNow = performance.now()
     const now = sceneTime(wallNow)
     const simulation = simulationRef.current
@@ -432,7 +477,8 @@ export function JumpRopePreview() {
     return `${label} ${ms ? `${Math.round(ms)}ms` : '생략'}`
   }).join(' · ')
   const paused = ropePaused || settings.ropeSpeed === 0
-  const status = finalePreview ? finalePreview.reason === 'time' ? '완주 엔딩 미리보기' : '게임 오버 연출 미리보기'
+  const status = showManholePreview ? '하수구 탈출 미리보기'
+    : finalePreview ? finalePreview.reason === 'time' ? '완주 엔딩 미리보기' : '게임 오버 연출 미리보기'
     : simulating ? '가속 시뮬레이션' : cue === 'ended' ? '게임 종료' : cue === 'completion' ? '완주 엔딩'
     : cue === 'gameOver' || cue === 'gameOverSplash' ? '게임 오버 연출' : cue === 'landing' ? '착지 중' : cue === 'reaction' ? '비둘기 비웃음'
     : cue === 'GO!' ? '시작' : countdown ? paused ? '시작 대기 · 회전 일시 정지' : '시작 카운트다운'
@@ -476,7 +522,7 @@ export function JumpRopePreview() {
               : liveFeedback ? `live-${liveFeedback.number}` : demo ? `demo-${demo.startedAt}` : undefined}
             sample={sampleHud !== null || sampleJudgement !== null}
           />
-          {countdown && !paused && !simulating && !finalePreview && !sampleHud && !sampleJudgement &&
+          {countdown && !paused && !simulating && !finalePreview && !showManholePreview && !sampleHud && !sampleJudgement &&
             <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
           {showSplash && <GameOverSplash />}
           {finalePreview && !previewResult && <button className="finale-preview-close" type="button" onClick={() => closeFinalePreview(performance.now())}>미리보기 닫기</button>}
@@ -531,13 +577,6 @@ export function JumpRopePreview() {
               자동 방해 이벤트
             </label>
             <label className="audience-toggle">
-              방해 빈도 (다음 판)
-              <select value={distractionFrequency} onChange={event => setDistractionFrequency(event.currentTarget.value === 'light' ? 'light' : 'increasing')}>
-                <option value="increasing">후반 증가 (최대 6회)</option>
-                <option value="light">가볍게 (최대 3회)</option>
-              </select>
-            </label>
-            <label className="audience-toggle">
               고정 시드 (다음 판)
               <input type="text" inputMode="numeric" maxLength={10} value={fixedSeed} placeholder="비워 두면 무작위"
                 aria-invalid={fixedSeed !== '' && parseDistractionSeed(fixedSeed) === null} onChange={event => setFixedSeed(event.currentTarget.value)} />
@@ -549,8 +588,10 @@ export function JumpRopePreview() {
               ))}
             </div>
             <div className="demo-actions">
-              <button type="button" disabled={!canPreviewSuccess || distractionSchedule.active !== null} onClick={() => startDistraction('flight')}>비둘기 비행 방해 테스트</button>
-              <button type="button" disabled={!canPreviewSuccess || distractionSchedule.active !== null} onClick={() => startDistraction('walk')}>비둘기 걷기 방해 테스트</button>
+              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active !== null} onClick={() => startDistraction('flight')}>비둘기 비행 방해 테스트</button>
+              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active !== null} onClick={() => startDistraction('walk')}>비둘기 걷기 방해 테스트</button>
+              <button type="button" disabled={!canPreviewSuccess || showManholePreview || simulating || distractionSchedule.active !== null}
+                onClick={() => startDistraction('manhole')}>하수구 비둘기 탈출 미리보기</button>
             </div>
             <label className="audience-toggle">
               이동 방향

@@ -198,6 +198,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
   ]), [])
   const heading = useMemo(() => new Vector3(), [])
   const drop = useRef<Group>(null)
+  const distractionPose = useRef<DistractionPose | null>(null)
   const dropTarget = useMemo(() => new Vector3(), [])
   const successFrame = useRef<{ cue: PigeonSuccessCue | null; from: SuccessPose[]; poses: SuccessPose[] }>({ cue: null, from: [], poses: [] })
   const completionFrom = useRef<SuccessPose[] | null>(null)
@@ -210,6 +211,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
   useFrame(({ camera }) => {
     const wallNow = performance.now()
     step(wallNow)
+    distractionPose.current = sampleDistraction(wallNow)
     const now = sceneTime(wallNow)
     const { motion, phase } = round
     const finalePreview = getFinalePreview()
@@ -375,7 +377,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       <fog attach="fog" args={[sky, 13.5, 29]} />
       <hemisphereLight args={['#fff5e4', '#788f87', 1.95]} />
       <directionalLight position={[2.5, 6, 4]} intensity={2.25} />
-      <ConcreteCourt />
+      <ConcreteCourt distractionPose={distractionPose} />
       <AlleyBackdrop />
       <ParkUtilityLine showAudience={settings.audience} rigs={audienceRigs.current} birds={audienceGroups.current} />
       <group ref={drop} visible={false}>
@@ -407,7 +409,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       <mesh geometry={geometry} frustumCulled={false} name="park-jump-rope">
         <meshStandardMaterial color="#374a47" roughness={0.88} />
       </mesh>
-      <PigeonDistraction sample={sampleDistraction} shadow={<GroundShadow x={0} z={0} width={1.02} depth={0.75} />} />
+      <PigeonDistraction poseRef={distractionPose} shadow={<GroundShadow x={0} z={0} width={1.02} depth={0.75} />} />
     </>
   )
 }
