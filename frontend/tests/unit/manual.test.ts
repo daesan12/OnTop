@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { useManual, openManual, closeManual, finishManualOpening, finishManualClosing, resetManual } from '../../src/features/manual/manualState';
 import { inputState } from '../../src/world/inputOwnership';
-import { filterGuides, filterManuals, gameManuals, parkGuides } from '../../src/features/manual/catalog';
+import { filterGuides, filterManuals, gameManuals, groupManuals, parkGuides } from '../../src/features/manual/catalog';
 import { rulebooks } from '../../src/features/manual/rulebooks';
 import { Markdown } from '../../src/features/manual/Markdown';
 
@@ -31,12 +31,20 @@ describe('M15 input ownership and stale transitions',()=>{
   });
 });
 it('searches details across supported game/category boundaries without inventing later games',()=>{
-  expect(gameManuals.map(g=>g.id)).toEqual(['alkkagi','gomoku','farkle','onecard','bridge','ledger','halligalli','fish-bread','rps-roulette','plus-minus','whack-a-mole']);
+  expect(gameManuals.map(g=>g.id)).toEqual(['alkkagi','gomoku','farkle','onecard','bridge','ledger','halligalli','fish-bread','rps-roulette','plus-minus','whack-a-mole','speed-mole']);
   expect(filterManuals('minigame','도전 배수').map(g=>g.id)).toEqual(['rps-roulette']);
   expect(filterManuals('game','알까기').map(g=>g.id)).toEqual(['alkkagi']);
   expect(filterManuals('game','렌주 금수').map(g=>g.id)).toEqual(['gomoku']);
   expect(filterManuals('minigame','반죽').map(g=>g.id)).toEqual(['fish-bread']);
   expect(filterManuals('game','반죽')).toEqual([]);
+});
+it('lists board games before minigames, each under its own heading',()=>{
+  const groups=groupManuals(filterManuals('all',''));
+  expect(groups.map(g=>g.label)).toEqual(['보드게임','미니게임']);
+  expect(groups[0]!.games.map(g=>g.id)).toEqual(['alkkagi','gomoku','farkle','onecard','bridge','ledger','halligalli']);
+  expect(groups[1]!.games.map(g=>g.id)).toEqual(['fish-bread','rps-roulette','plus-minus','whack-a-mole','speed-mole']);
+  expect(groupManuals(filterManuals('minigame','')).map(g=>g.label)).toEqual(['미니게임']);
+  expect(groupManuals([])).toEqual([]);
 });
 it('publishes identical rulebook text and excludes the incompatible prototype timeout/free-rule policies',()=>{
   for (const [id,book] of Object.entries(rulebooks)) {

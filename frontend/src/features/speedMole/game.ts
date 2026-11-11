@@ -5,6 +5,8 @@ export const SPEED_MOLE_DURATION_MS = 60_000
 export const SPEED_MOLE_COUNTDOWN_MS = 3_000
 export const SPEED_MOLE_ACTIVE = 4
 export const SPEED_MOLE_POP_MS = 100
+/** 서버 SpeedMoleRules.POINTS_PER_COIN과 같아야 한다. */
+export const SPEED_MOLE_POINTS_PER_COIN = 5
 export interface SpeedTarget { id: number; hole: number; appearedAt: number }
 export type SpeedStrike = { kind: 'hit' | 'miss'; hole: number; score: number } | { kind: 'ignored' }
 export function speedMoleRandom(seed: number) {

@@ -141,15 +141,16 @@ public class RaffleDrawingRepository {
 
     public List<ReviewPick> reviewPicks(long drawId) {
         return jdbc.query("""
-                SELECT p.prize_slot_id, p.raffle_ticket_id, p.user_id, t.ticket_number,
+                SELECT p.prize_slot_id, p.raffle_ticket_id, p.user_id, u.nickname, t.ticket_number,
                        s.place, s.slot_number, s.prize_name
                 FROM event_raffle_draw_picks p
                 JOIN raffle_tickets t ON t.id = p.raffle_ticket_id
+                JOIN users u ON u.id = p.user_id
                 JOIN event_prize_slots s ON s.id = p.prize_slot_id
                 WHERE p.draw_id = ? ORDER BY s.place, s.slot_number
                 """, (rows, index) -> new ReviewPick(rows.getLong("prize_slot_id"),
                 new Ticket(rows.getLong("raffle_ticket_id"), rows.getLong("user_id"),
-                        rows.getInt("ticket_number")), rows.getInt("place"),
+                        rows.getInt("ticket_number")), rows.getString("nickname"), rows.getInt("place"),
                 rows.getInt("slot_number"), rows.getString("prize_name")), drawId);
     }
 
@@ -177,14 +178,15 @@ public class RaffleDrawingRepository {
 
     public List<Winner> winners(long eventRoundId) {
         return jdbc.query("""
-                SELECT w.user_id, w.raffle_ticket_id, t.ticket_number,
+                SELECT w.user_id, u.nickname, w.raffle_ticket_id, t.ticket_number,
                        s.place, s.slot_number, s.prize_name
                 FROM event_winners w
                 JOIN event_prize_slots s ON s.id = w.prize_slot_id
                 JOIN raffle_tickets t ON t.id = w.raffle_ticket_id
+                JOIN users u ON u.id = w.user_id
                 WHERE w.event_round_id = ?
                 ORDER BY s.place, s.slot_number
-                """, (rows, index) -> new Winner(rows.getLong("user_id"),
+                """, (rows, index) -> new Winner(rows.getLong("user_id"), rows.getString("nickname"),
                 rows.getLong("raffle_ticket_id"), rows.getInt("ticket_number"),
                 rows.getInt("place"), rows.getInt("slot_number"),
                 rows.getString("prize_name")), eventRoundId);
@@ -264,10 +266,10 @@ public class RaffleDrawingRepository {
             int attemptNumber, String status, long requestedByUserId, String rerollReason,
             int candidateCount, int excludedGmCount, int pickedCount, Instant createdAt) {}
 
-    public record ReviewPick(long slotId, Ticket ticket, int place, int slotNumber,
+    public record ReviewPick(long slotId, Ticket ticket, String nickname, int place, int slotNumber,
             String prizeName) {
         public Winner winner() {
-            return new Winner(ticket.userId(), ticket.id(), ticket.number(), place,
+            return new Winner(ticket.userId(), nickname, ticket.id(), ticket.number(), place,
                     slotNumber, prizeName);
         }
     }

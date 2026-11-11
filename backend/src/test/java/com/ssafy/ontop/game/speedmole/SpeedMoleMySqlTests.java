@@ -52,7 +52,7 @@ class SpeedMoleMySqlTests {
             for (var f:finishes) results.add(f.get(15,TimeUnit.SECONDS));
             assertThat(results.stream().distinct()).hasSize(1);
             assertThat(results.getFirst().score()).isEqualTo(120);
-            assertThat(results.getFirst().reward()).isEqualTo(3);
+            assertThat(results.getFirst().reward()).isEqualTo(24);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM speed_mole_rounds WHERE user_id=? AND status='SETTLED'",Long.class,user)).isEqualTo(1);
             assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(103);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions WHERE idempotency_key=?",Long.class,"mole:reward:speed:"+id)).isEqualTo(1);
@@ -120,7 +120,7 @@ class SpeedMoleMySqlTests {
         long id=Long.parseLong(service.start(user,"cap").id());
         jdbc.update("UPDATE speed_mole_rounds SET seed=1,started_at=? WHERE id=?",Timestamp.from(Instant.now().minusSeconds(61)),id);
         var result=service.complete(user,id,taps(1,200));
-        assertThat(result.calculatedReward()).isEqualTo(5); assertThat(result.reward()).isEqualTo(3); assertThat(result.todayEarned()).isEqualTo(500);
+        assertThat(result.calculatedReward()).isEqualTo(40); assertThat(result.reward()).isEqualTo(3); assertThat(result.todayEarned()).isEqualTo(500);
         assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(600);
         long next=Long.parseLong(service.start(user,"cap-next").id());
         jdbc.update("UPDATE speed_mole_rounds SET seed=1,started_at=? WHERE id=?",Timestamp.from(Instant.now().minusSeconds(61)),next);

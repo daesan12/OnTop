@@ -40,6 +40,13 @@ class OpenApiLocalTests extends OpenApiHttpTestSupport {
     }
 
     @Test
+    void 경품_지급_확인_요청은_회원_ID를_필수로_명시한다() throws Exception {
+        var required = json().at("/components/schemas/DeliveryRequest/required");
+        assertThat(required.isArray()).isTrue();
+        assertThat(required.toString()).contains("expectedUserId");
+    }
+
+    @Test
     void 실제_YAML을_내보내고_커밋된_정적_명세와_구조를_비교한다() throws Exception {
         var response = get("/v3/api-docs.yaml");
         assertThat(response.statusCode()).isEqualTo(200);

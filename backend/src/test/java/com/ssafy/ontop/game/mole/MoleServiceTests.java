@@ -158,6 +158,34 @@ class MoleServiceTests {
         assertThat(state.last()).isEqualTo(settled.result());
     }
 
+    @Test
+    void 랭킹은_현재_규칙과_참가자_수와_내_순위를_한_페이지로_돌려준다() {
+        var mine = new MoleDtos.RankingItem(2, Long.toString(USER), "나", 900, 20, 70, clock.instant());
+        repository.ranking = List.of(new MoleDtos.RankingItem(1, "7", "선두", 1_200, 30, 90, clock.instant()), mine);
+
+        var page = service.rankings(USER, 1, 0);
+
+        assertThat(page.rulesVersion()).isEqualTo(MoleRules.RULES_VERSION);
+        assertThat(page.period()).isEqualTo("ALL_TIME");
+        assertThat(page.totalParticipants()).isEqualTo(2);
+        assertThat(page.items()).extracting(MoleDtos.RankingItem::userId).containsExactly("7");
+        assertThat(page.me()).isEqualTo(mine);
+        assertThat(page.hasMore()).isTrue();
+        assertThat(service.rankings(USER, 20, 0).hasMore()).isFalse();
+        assertThat(service.rankings(999, 20, 0).me()).isNull();
+    }
+
+    @Test
+    void 랭킹_페이지_범위를_벗어나면_거절한다() {
+        for (int[] page : new int[][] {{0, 0}, {101, 0}, {20, -1}, {20, 10_001}}) {
+            assertThatThrownBy(() -> service.rankings(USER, page[0], page[1]))
+                    .isInstanceOfSatisfying(MoleException.class, error -> {
+                        assertThat(error.status()).isEqualTo(400);
+                        assertThat(error.code()).isEqualTo("MOLE_INVALID_REQUEST");
+                    });
+        }
+    }
+
     private static List<MoleDtos.Hit> catchAll() {
         List<MoleDtos.Hit> hits = new ArrayList<>();
         for (MoleRules.Mole mole : MoleRules.schedule(SEED)) {
@@ -175,9 +203,25 @@ class MoleServiceTests {
         private final List<MoleRound> rounds = new ArrayList<>();
         private final List<WalletTransaction> ledger = new ArrayList<>();
         private long earnedBefore;
+        private List<MoleDtos.RankingItem> ranking = List.of();
 
         private FakeRepository() {
             super(null);
+        }
+
+        @Override
+        public List<MoleDtos.RankingItem> ranked(int limit, int offset) {
+            return ranking.stream().skip(offset).limit(limit).toList();
+        }
+
+        @Override
+        public Optional<MoleDtos.RankingItem> myRanking(long userId) {
+            return ranking.stream().filter(item -> item.userId().equals(Long.toString(userId))).findFirst();
+        }
+
+        @Override
+        public long participants() {
+            return ranking.size();
         }
 
         @Override

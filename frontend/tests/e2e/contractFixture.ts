@@ -324,7 +324,7 @@ export async function fixture(
       })
     }
     if (url.pathname === '/api/v1/rankings/park') {
-      return route.fulfill({ json: { balance: [], bungeoppang: [], jumpmap: [], updatedAt: new Date().toISOString() } })
+      return route.fulfill({ json: { balance: [], mole: [], speedMole: [], updatedAt: new Date().toISOString() } })
     }
     if (url.pathname === '/api/v1/wallets/me') {
       walletReads++

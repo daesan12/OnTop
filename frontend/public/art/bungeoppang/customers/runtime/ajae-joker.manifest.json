@@ -1,0 +1,58 @@
+{
+  "source": {
+    "file": "ajae_rigged.glb",
+    "bytes": 4795040,
+    "sha256": "d0b26901dcce73f6536f2262b8aa80a5ece2f969bc13ba30f6ddbd759d70a549",
+    "note": "저장소 밖 원본: Tripo 생성 후 중년 손님(older-flat-cap)의 뼈대·동작 이름으로 맞춘 파일(어깨 6°, 팔 8° 편 자세)"
+  },
+  "runtime": {
+    "file": "public/art/bungeoppang/customers/runtime/ajae-joker.glb",
+    "bytes": 1356956,
+    "sha256": "1d0300b9e5924a9785cb85e19989ea2417719d456b0eec257f0298e59057e592"
+  },
+  "meshes": [
+    {
+      "sourceTriangles": 57588,
+      "triangles": 20370,
+      "vertices": 13147,
+      "relativeError": 0.003931490704417229
+    }
+  ],
+  "textures": [
+    {
+      "roles": [
+        "color"
+      ],
+      "source": [
+        4096,
+        4096
+      ],
+      "size": [
+        2048,
+        2048
+      ],
+      "bytes": 452428
+    }
+  ],
+  "skins": 1,
+  "animations": [
+    {
+      "name": "idle",
+      "channels": 195
+    },
+    {
+      "name": "walk",
+      "channels": 195
+    }
+  ],
+  "policy": {
+    "targetTriangles": 20000,
+    "errorLimit": 0.004,
+    "color": 2048,
+    "normal": 1024,
+    "data": 512,
+    "meshoptRoundTrip": "attributes exact; triangle winding/topology equivalent",
+    "retainedVertexAttributes": "byte-identical",
+    "sourcePreserved": true
+  }
+}

@@ -156,6 +156,39 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/admin/operations/skins/sets/{id}:
+    put:
+      tags:
+      - SKIN
+      summary: 미공개 세트 수정
+      description: "부위 중복409, 공개 이후 구성 변경409"
+      operationId: updateSkinSet
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Save"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/admin/operations/announcements/{id}:
     put:
       tags:
@@ -495,6 +528,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/events/winners/{winnerId}/delivery:
+    put:
+      tags:
+      - Event Winner Contacts
+      summary: 관리자가 실제 경품 전달 후 당첨 건별 지급 완료 기록
+      operationId: confirmDelivery
+      parameters:
+      - name: winnerId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeliveryRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DeliveryResponse"
       security:
       - AccessJwt: []
   /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}:
@@ -3039,7 +3105,7 @@ paths:
       tags:
       - MINIGAME
       summary: 도전하기
-      description: "이긴 뒤 한 번 더 대결합니다. 1차 성공 ×1.5, 2차 성공 ×2.0, 실패하면 꽝입니다."
+      description: "이긴 뒤 한 번 더 대결합니다. 1차 성공 ×2.0, 2차 성공 ×4.0, 실패하면 꽝입니다."
       operationId: challengeRpsRouletteRound
       parameters:
       - name: roundId
@@ -4340,6 +4406,161 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/Version"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/sets:
+    get:
+      tags:
+      - SKIN
+      summary: 스킨 세트 목록
+      operationId: listSkinSets
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - SKIN
+      summary: 등록 아이템으로 세트 구성
+      operationId: createSkinSet
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Definition"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/sets/{id}/publish:
+    post:
+      tags:
+      - SKIN
+      summary: 세트 신규 획득 공개
+      operationId: publishSkinSet
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Version"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/sets/{id}/disable:
+    post:
+      tags:
+      - SKIN
+      summary: 세트 신규 획득 중단
+      description: 기존 보유 아이템·영수증 유지
+      operationId: disableSkinSet
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Version"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+  /api/v1/admin/operations/skins/components:
+    get:
+      tags:
+      - SKIN
+      summary: 착용 아이템 등록 목록
+      operationId: listSkinComponents
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+    post:
+      tags:
+      - SKIN
+      summary: 착용 아이템 선등록
+      operationId: createSkinComponent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Definition"
         required: true
       responses:
         "200":
@@ -5782,8 +6003,8 @@ paths:
       tags:
       - Park Ranking
       summary: 공원 랭킹판 스냅샷
-      description: "보유량 TOP 10과 붕어빵·점프맵 우승자의 마지막 정상 1분 스냅샷을 반환합니다. 기록이 없는 게임의 우승자는\
-        \ null입니다. updatedAt은 전체 집계 완료 시각이며, 최초 성공 전에는 503을 반환합니다."
+      description: "총자산 TOP 10과 두더지 잡기·스피드 두더지 잡기 개인 최고 TOP 10의 마지막 정상 1분 스냅샷을 반환합\
+        니다. 기록이 없는 게임은 빈 목록입니다. updatedAt은 전체 집계 완료 시각이며, 최초 성공 전에는 503을 반환합니다."
       operationId: rankings_1
       responses:
         "200":
@@ -6067,6 +6288,112 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/State"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/whack-a-mole/rankings:
+    get:
+      tags:
+      - MINIGAME
+      summary: 두더지 잡기 전체 랭킹
+      description: "현재 규칙으로 정산한 판 중 회원별 최고 기록을 점수 → 최대 콤보 순으로 줄 세웁니다. 두 값이 같으면 같은\
+        \ 순위(1,1,3)이고 먼저 정산한 기록이 먼저 나옵니다. 탈퇴 회원과 이전 규칙 기록은 제외하며 me는 본인 기록이 없으면 null입\
+        니다."
+      operationId: getWhackAMoleRankings
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: offset
+        in: query
+        required: false
+        schema:
+          maximum: 10000
+          minimum: 0
+          type: integer
+          default: 0
+      responses:
+        "400":
+          description: MOLE_INVALID_REQUEST
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MoleRankings"
+        "401":
+          description: 인증된 활성 회원 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MoleRankings"
+        "403":
+          description: 허용되지 않은 출처 또는 권한
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MoleRankings"
+        "404":
+          description: MOLE_ROUND_NOT_FOUND
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MoleRankings"
+        "409":
+          description: WALLET_NOT_READY / MOLE_ROUND_NOT_FINISHED / MOLE_ROUND_EXPIRED
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MoleRankings"
+        "503":
+          description: MOLE_UNAVAILABLE
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MoleRankings"
+        "200":
+          description: 랭킹 페이지
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MoleRankings"
       security:
       - AccessJwt: []
   /api/v1/minigames/speed-mole/rankings:
@@ -7847,6 +8174,33 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AnnouncementOrderItem"
+    DeliveryRequest:
+      required:
+      - expectedUserId
+      type: object
+      properties:
+        expectedUserId:
+          type: integer
+          format: int64
+    DeliveryResponse:
+      type: object
+      properties:
+        winnerId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        deliveryStatus:
+          type: string
+        deliveredByUserId:
+          type: integer
+          format: int64
+        deliveredAt:
+          type: string
+          format: date-time
+        alreadyDelivered:
+          type: boolean
     WeeklyMinigameConfiguration:
       type: object
       properties:
@@ -9191,6 +9545,24 @@ components:
         quantity:
           type: integer
           format: int64
+    GachaComponent:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        imageKey:
+          type: string
+        itemIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        slots:
+          type: array
+          items:
+            type: string
     GachaInventory:
       type: object
       properties:
@@ -9226,6 +9598,10 @@ components:
           items:
             type: integer
             format: int64
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/GachaComponent"
     GachaResult:
       type: object
       properties:
@@ -9534,6 +9910,8 @@ components:
         userId:
           type: integer
           format: int64
+        nickname:
+          type: string
         raffleTicketId:
           type: integer
           format: int64
@@ -9731,6 +10109,8 @@ components:
         userId:
           type: integer
           format: int64
+        nickname:
+          type: string
         sourceRecordId:
           type: string
         sourceValue:
@@ -9805,6 +10185,8 @@ components:
         userId:
           type: integer
           format: int64
+        nickname:
+          type: string
         sourceRecordId:
           type: string
         sourceValue:
@@ -9917,6 +10299,45 @@ components:
           format: int32
         equipped:
           type: boolean
+    EventWinnerNotificationAward:
+      type: object
+      properties:
+        winnerId:
+          type: integer
+          format: int64
+        eventType:
+          type: string
+        place:
+          type: integer
+          format: int32
+        prizeName:
+          type: string
+        deliveryStatus:
+          type: string
+    EventWinnerNotificationDetails:
+      type: object
+      properties:
+        weekStartDate:
+          type: string
+          format: date
+        awards:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventWinnerNotificationAward"
+        contactStatus:
+          type: string
+        contactEdited:
+          type: boolean
+        submissionDeadline:
+          type: string
+          format: date-time
+        allPrizesDelivered:
+          type: boolean
+        contactActionRequired:
+          type: boolean
+        contactEditable:
+          type: boolean
+      nullable: true
     NotificationDetailResponse:
       type: object
       properties:
@@ -9946,6 +10367,8 @@ components:
           nullable: true
         reward:
           $ref: "#/components/schemas/NotificationRewardResponse"
+        event:
+          $ref: "#/components/schemas/EventWinnerNotificationDetails"
     NotificationRewardResponse:
       type: object
       properties:
@@ -10387,7 +10810,7 @@ components:
         totalAssets:
           type: integer
           format: int64
-    BungeoppangItem:
+    MoleItem:
       type: object
       properties:
         rank:
@@ -10408,24 +10831,6 @@ components:
           format: date-time
         gameMaster:
           type: boolean
-    JumpmapItem:
-      type: object
-      properties:
-        rank:
-          type: integer
-          format: int64
-        userId:
-          type: string
-        nickname:
-          type: string
-        finishMs:
-          type: integer
-          format: int64
-        completedAt:
-          type: string
-          format: date-time
-        gameMaster:
-          type: boolean
     ParkRankingResponse:
       type: object
       properties:
@@ -10435,21 +10840,42 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BalanceItem"
-        bungeoppang:
+        mole:
           maxItems: 10
           minItems: 0
           type: array
           items:
-            $ref: "#/components/schemas/BungeoppangItem"
-        jumpmap:
+            $ref: "#/components/schemas/MoleItem"
+        speedMole:
           maxItems: 10
           minItems: 0
           type: array
           items:
-            $ref: "#/components/schemas/JumpmapItem"
+            $ref: "#/components/schemas/SpeedMoleItem"
         updatedAt:
           type: string
           format: date-time
+    SpeedMoleItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        score:
+          type: integer
+          format: int64
+        misses:
+          type: integer
+          format: int64
+        completedAt:
+          type: string
+          format: date-time
+        gameMaster:
+          type: boolean
     Prize:
       type: object
       properties:
@@ -10565,6 +10991,10 @@ components:
           nullable: true
         reward:
           $ref: "#/components/schemas/NotificationRewardResponse"
+        eventWeekStartDate:
+          type: string
+          format: date
+          nullable: true
     NoteListResponse:
       required:
       - notes
@@ -10593,6 +11023,57 @@ components:
           $ref: "#/components/schemas/Rules"
         last:
           $ref: "#/components/schemas/Result"
+    MoleRankingItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        score:
+          type: integer
+          format: int32
+        maxCombo:
+          type: integer
+          format: int32
+        caught:
+          type: integer
+          format: int32
+        completedAt:
+          type: string
+          format: date-time
+      nullable: true
+    MoleRankings:
+      type: object
+      properties:
+        rulesVersion:
+          type: integer
+          format: int32
+        period:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        totalParticipants:
+          type: integer
+          format: int64
+        offset:
+          type: integer
+          format: int32
+        limit:
+          type: integer
+          format: int32
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleRankingItem"
+        me:
+          $ref: "#/components/schemas/MoleRankingItem"
+        hasMore:
+          type: boolean
     SpeedMoleRankingItem:
       type: object
       properties:
@@ -10859,6 +11340,17 @@ components:
         contactExpiresAt:
           type: string
           format: date-time
+        deliveryStatus:
+          type: string
+        deliveredAt:
+          type: string
+          format: date-time
+        allPrizesDelivered:
+          type: boolean
+        contactActionRequired:
+          type: boolean
+        contactEditable:
+          type: boolean
     MinigameMemberAwardResponse:
       type: object
       properties:
@@ -11148,6 +11640,8 @@ components:
         userId:
           type: integer
           format: int64
+        nickname:
+          type: string
         weekStart:
           type: string
           format: date
@@ -11163,6 +11657,14 @@ components:
         maskedPhone:
           type: string
         contactExpiresAt:
+          type: string
+          format: date-time
+        deliveryStatus:
+          type: string
+        deliveredByUserId:
+          type: integer
+          format: int64
+        deliveredAt:
           type: string
           format: date-time
     RevealedContact:

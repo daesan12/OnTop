@@ -9,7 +9,7 @@ import { useSession } from '../../network/worldClient'
 import coinArt from '../../assets/entry/yeopjeon-icon.webp'
 import './notifications.css'
 
-export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
+export function NotificationCenter({ hidden = false, onOpenWinnings }: { hidden?: boolean; onOpenWinnings?: (week: string) => void }) {
   const [open, setOpen] = useState(false), [page, setPage] = useState<NotificationPage | null>(null)
   const [detail, setDetail] = useState<NotificationDetail | null>(null), [error, setError] = useState('')
   const [busy, setBusy] = useState(false), [filter, setFilter] = useState<'all' | 'unread' | 'reward'>('all')
@@ -116,6 +116,13 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
       if (!request.signal.aborted) setError(cause instanceof Error ? cause.message : '같은 보상으로 다시 확인해주세요.')
     } finally { claimPending.current = false; if (!request.signal.aborted) setBusy(false) }
   }
+  const openWinnings = () => {
+    if (!detail?.event || !onOpenWinnings) return
+    const week = detail.event.weekStartDate
+    reading.current?.abort()
+    setDetail(null); setOpen(false); setClosing(false); setError('')
+    onOpenWinnings(week)
+  }
   const values = page?.items.filter(value => filter === 'all' || filter === 'reward' && value.type === 'REWARD'
     || filter === 'unread' && value.readAt === null) ?? []
   const launcher = <div className="inbox-hud">
@@ -127,18 +134,26 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
   </div>
   return <>
     {!hidden && (hudHost ? createPortal(launcher, hudHost) : launcher)}
-    {open && !hidden && <MenuDialog label={receipt ? '보상 수령 완료' : detail ? '운영진 메시지' : '알림함'} className={`inbox-dialog${closing ? ' is-closing' : ''}${receipt ? ' has-reward' : ''}`} backdropClassName={`inbox-backdrop${closing ? ' is-closing' : ''}`} onClose={receipt ? () => setReceipt(null) : fold}>
+    {open && !hidden && <MenuDialog label={receipt ? '보상 수령 완료' : detail?.type === 'EVENT_WINNER' ? '당첨 알림' : detail ? '운영진 메시지' : '알림함'} className={`inbox-dialog${closing ? ' is-closing' : ''}${receipt ? ' has-reward' : ''}`} backdropClassName={`inbox-backdrop${closing ? ' is-closing' : ''}`} onClose={receipt ? () => setReceipt(null) : fold}>
       <div className="inbox-scroll-content" inert={closing || !!receipt}>
       <button className="inbox-close" onClick={fold} aria-label="알림함 닫기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
-      <header><span className="inbox-eyebrow">온탑 우편함</span><h2>{detail ? '운영진 메시지' : '알림함'}</h2></header>
+      <header><span className="inbox-eyebrow">온탑 우편함</span><h2>{detail?.type === 'EVENT_WINNER' ? '당첨 알림' : detail ? '운영진 메시지' : '알림함'}</h2></header>
       {error && <div className="inbox-error" role="alert">{error} <button onClick={() => void load(cursor.current, true)}>다시 조회</button></div>}
       {busy && <p role="status">메시지를 열고 있어요…</p>}
       {detail ? <article className="inbox-letter">
-        <span className="inbox-stamp">온탑 운영진</span><h3>{detail.type === 'REWARD' ? detail.title : '보내주신 의견에 답변이 왔어요'}</h3>
+        <span className="inbox-stamp">온탑 운영진</span><h3>{detail.type === 'FEEDBACK_REPLY' ? '보내주신 의견에 답변이 왔어요' : detail.title}</h3>
         <time dateTime={detail.createdAt}>{new Date(detail.createdAt).toLocaleString('ko-KR')}</time>
         <p className="inbox-letter-body">{detail.body}</p>
         {detail.type === 'FEEDBACK_REPLY' && <aside><strong>내가 보낸 의견 · {statusLabels[detail.feedbackStatus!]}</strong><p>{detail.feedbackText}</p></aside>}
         {detail.reward && <p>{rewardLabel(detail.reward)} · {detail.reward.claimedAt ? '수령 완료' : '아직 받지 않은 보상'}</p>}
+        {detail.event && <aside><strong>{detail.event.weekStartDate} 주차 당첨 내역</strong>
+          <ul>{detail.event.awards.map(award => <li key={award.winnerId}>{award.eventType} · {award.place}등 · {award.prizeName} · {award.deliveryStatus === 'DELIVERED' ? '지급 완료' : '지급 대기'}</li>)}</ul>
+          <p>{detail.event.allPrizesDelivered ? '모든 경품의 지급이 완료됐어요.' : detail.event.contactStatus === 'SUBMITTED' ? detail.event.contactEdited ? '연락처 수정 완료' : '연락처 입력 완료' : detail.event.contactStatus === 'EXPIRED' ? '연락처 보관 기간 종료' : '연락처 입력 대기'}</p>
+          {onOpenWinnings && <button className="inbox-primary" onClick={openWinnings}>
+            {!detail.event.allPrizesDelivered && detail.event.contactEditable
+              ? detail.event.contactStatus === 'SUBMITTED' ? '연락처 확인·수정' : '연락처 입력하기'
+              : '내 당첨 내역 보기'}
+          </button>}</aside>}
         <button className="inbox-primary" onClick={() => { setDetail(null); setError('') }}>목록으로</button>
       </article> : <>
         <nav className="inbox-tabs" aria-label="알림 종류">{([['all','전체'],['unread','안 읽음'],['reward','보상']] as const).map(([key,label]) =>
@@ -156,7 +171,7 @@ export function NotificationCenter({ hidden = false }: { hidden?: boolean }) {
         </div> : <button key={value.id} className={`inbox-row ${value.readAt ? 'is-read' : 'is-new'}`}
             disabled={busy} onClick={() => void show(value.id)}>
             <span className="inbox-envelope" aria-hidden="true">✉</span><span><strong className="inbox-title"><ReadState read={!!value.readAt}/>{value.title}</strong>
-              <small>보내주신 소리함 의견에 답변을 남겼습니다.</small><time dateTime={value.createdAt}>{new Date(value.createdAt).toLocaleString('ko-KR')}</time></span>
+              <small>{value.type === 'EVENT_WINNER' ? `${value.eventWeekStartDate} 주차 당첨 내역을 확인해 주세요.` : '보내주신 소리함 의견에 답변을 남겼습니다.'}</small><time dateTime={value.createdAt}>{new Date(value.createdAt).toLocaleString('ko-KR')}</time></span>
             <span className="inbox-row-arrow" aria-hidden="true">›</span></button>)}</div>
         {values.length === 0 && <p className="inbox-empty">{!page ? '알림을 확인하고 있어요.' : filter === 'reward' ? '아직 도착한 보상이 없어요.'
           : filter === 'unread' ? '이 페이지에 안 읽은 알림이 없어요.' : '아직 도착한 소식이 없어요.'}</p>}

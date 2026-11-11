@@ -16,6 +16,7 @@
 .ranking-board-dialog__header { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
 .ranking-board-dialog__header h2 { color:#24483a; font-size:30px; }
 .ranking-board-dialog__header p { margin-top:7px; }
+.ranking-board-dialog__header .ranking-board-notice { margin-top:4px; color:#805c28; font-size:13px; font-weight:700; }
 .ranking-board-scroll { max-width:100%; overflow-x:auto; padding-bottom:3px; }
 .ranking-board-columns { display:grid; grid-template-columns:repeat(3,minmax(240px,1fr)); gap:14px; min-width:780px; }
 .ranking-board-column { display:flex; min-height:485px; flex-direction:column; border:1px solid #bfae89; border-radius:12px; overflow:hidden; background:#fffaf0; }

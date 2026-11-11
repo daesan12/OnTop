@@ -1,5 +1,5 @@
-import { DURATION_MS, KEYS, PHASE_MS, POINTS_PER_COIN, type Hit, type Mole, type MoleKind, type MoleRound, type MoleRules,
-  type MoleSettlement, type MoleState } from './protocol'
+import { DURATION_MS, KEYS, PHASE_MS, POINTS_PER_COIN, RANKING_PAGE_SIZE, type Hit, type Mole, type MoleKind, type MoleRankings,
+  type MoleRound, type MoleRules, type MoleSettlement, type MoleState } from './protocol'
 import { scoreHits } from './scoring'
 import type { MolePort } from './service'
 
@@ -59,5 +59,13 @@ export class PreviewMoleService implements MolePort {
     this.last = { id: roundId, score: score.score, maxCombo: score.maxCombo, caught: score.caught,
       calculatedReward: score.coins, reward, settledAt: new Date().toISOString() }
     return { result: this.last, todayEarned: this.earned, dailyCap: 500, bestScore: this.best }
+  }
+
+  /** 대역 안에서 친 최고 점수 하나만 보여 준다. */
+  async rankings(offset: number): Promise<MoleRankings> {
+    const me = this.last && this.best > 0 ? { rank: 1, userId: '1', nickname: '미리보기', score: this.best,
+      maxCombo: this.last.maxCombo, caught: this.last.caught, completedAt: this.last.settledAt } : null
+    return { rulesVersion: 3, period: 'ALL_TIME', updatedAt: new Date().toISOString(), totalParticipants: me ? 1 : 0, offset,
+      limit: RANKING_PAGE_SIZE, items: me && offset === 0 ? [me] : [], me, hasMore: false }
   }
 }

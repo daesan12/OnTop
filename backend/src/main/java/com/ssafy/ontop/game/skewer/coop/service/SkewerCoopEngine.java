@@ -208,6 +208,12 @@ public final class SkewerCoopEngine implements GameEngine {
         return current(user).filter(match -> match.channelId.equals(channel) && !match.finished()).isPresent();
     }
 
+    /** 종료 결과를 닫기 전까지 본인 방을 조회할 수 있다. 새 방 입장 권한과는 구분한다. */
+    public synchronized boolean canViewRoom(long user, String channel) {
+        return current(user).filter(match -> match.channelId.equals(channel)
+                && !dismissed.contains(user + ":" + match.id)).isPresent();
+    }
+
     public synchronized List<Long> waitingPlayers(String channel, String id) {
         SkewerCoopMatch match = games.get(id);
         if (match == null || !match.channelId.equals(channel)) {

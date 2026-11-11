@@ -268,6 +268,26 @@ class TableHubSkewerEntryTests {
     }
 
     @Test
+    void 일반게임_화면점유는_복구확인중에도_갱신하지만_VR시작은_기존게이트를_따른다() throws Exception {
+        Peer player = peer(101);
+        var recovery = mock(GameReconnectService.class);
+        when(recovery.canUseLobby(101, player.id)).thenReturn(false);
+        ReflectionTestUtils.setField(hub, "reconnect", Optional.of(recovery));
+
+        JsonNode occupied = player.request("WORLD_INTERACTION_SET", Map.of("busy", true));
+
+        assertThat(occupied.path("type").asText()).isEqualTo("WORLD_INTERACTION_STATE");
+        assertThat(occupied.at("/payload/busy").asBoolean()).isTrue();
+        assertThat(channels.carryAvailable("101")).isFalse();
+        verify(recovery, never()).canUseLobby(101, player.id);
+
+        JsonNode vrStart = player.request("WORLD_INTERACTION_SET", Map.of("busy", true, "vrActive", true));
+
+        assertThat(vrStart.at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
+        verify(recovery).canUseLobby(101, player.id);
+    }
+
+    @Test
     void 복구가_완료된_현재연결의_원래채널이_아니면_VR_보호요청을_허용하지_않는다() throws Exception {
         Peer chef = peer(101);
         for (var scope : List.of(new String[] { "old-session", "park" }, new String[] { chef.id, "other" })) {
@@ -280,6 +300,31 @@ class TableHubSkewerEntryTests {
             assertThat(denied.at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
             assertThat(channels.worldState("park").avatars()).allMatch(a -> a.vrActive() == null);
         }
+    }
+
+    @Test
+    void 종료한_참가자는_복구중에도_결과방을_조회하지만_새입장은_제한한다() throws Exception {
+        peer(101);
+        entranceAt(101);
+        String game = enter(101, "requestKey", "terminal-read").path("gameId").asText();
+        Peer guest = peer(202);
+        enter(202, "gameId", game);
+        engine.leaveWaiting(101, game);
+        var recovery = mock(GameReconnectService.class);
+        when(recovery.canUseLobby(202, guest.id)).thenReturn(false);
+        ReflectionTestUtils.setField(hub, "reconnect", Optional.of(recovery));
+
+        JsonNode result = controller.rooms(
+                new AuthenticatedUser(202, LoginProvider.NAVER, TestLoginSessions.ID), "park").getBody();
+
+        assertThat(result.at("/mine/gameId").asText()).isEqualTo(game);
+        assertThat(result.at("/mine/publicState/phase").asText()).isEqualTo("FINISHED");
+        assertThatThrownBy(() -> enter(202, "requestKey", "new-room"))
+                .hasMessageContaining("진행 중인 게임");
+        engine.leaveWaiting(202, game);
+        assertThatThrownBy(() -> controller.rooms(
+                new AuthenticatedUser(202, LoginProvider.NAVER, TestLoginSessions.ID), "park"))
+                .hasMessageContaining("진행 중인 게임");
     }
 
     private JsonNode enter(long user, String key, String value) {

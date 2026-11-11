@@ -7,7 +7,7 @@ import { ParkAssetLoader } from '../../world/art/assetLoader'
 import { knownWholeSkin } from '../../world/art/wholeSkin'
 import { catalogAsset, useSkinCatalog } from '../../world/art/skinCatalog'
 import { setImage, outfitImage } from '../wardrobe/itemArt'
-import { previewWardrobeItem, useWardrobe } from '../wardrobe/state'
+import { previewWardrobeItem, useWardrobe, setPieces, itemLabel } from '../wardrobe/state'
 import { useSession } from '../../network/worldClient'
 import { gachaAction, refreshGacha, useGacha } from './state'
 import { money, type GachaProduct, type GachaResult } from './contracts'
@@ -152,6 +152,7 @@ export function GachaBoxes(){
  useEffect(()=>{void refreshGacha()},[])
  useEffect(()=>{const media=matchMedia('(prefers-reduced-motion: reduce)'),update=()=>setReduced(media.matches);media.addEventListener('change',update);return()=>media.removeEventListener('change',update)},[])
  useEffect(()=>{const d=dialog.current;if(!d||!visible||!connected)return;d.showModal();useGachaOverlay.setState({open:true});return()=>{d.close();useGachaOverlay.setState({open:false})}},[visible,connected])
+ const components=items.filter(i=>result?.product?.itemIds.includes(i.item.itemId)).filter((i, n, all)=>all.findIndex(j=>(j.item.setCode??String(j.item.itemId))===(i.item.setCode??String(i.item.itemId)))===n)
  const parts=result?.product?.itemIds.map(id=>items.find(i=>i.item.itemId===id)?.item.equipSlot).filter((p,i,a)=>p&&a.indexOf(p)===i)
  const labels:Record<string,string>={HAIR:'머리',FACE:'얼굴',TOP:'상의',BOTTOM:'하의',SHOES:'신발'}
  const takeLook=()=>{const owned=items.find(i=>result?.product?.itemIds.includes(i.item.itemId));opening.dismiss();window.dispatchEvent(new Event('ontop-gacha-show-outfits'));if(owned)previewWardrobeItem(owned.userItemId)}
@@ -184,7 +185,12 @@ export function GachaBoxes(){
      {shown&&result?.product?<ProductDisplay key={result.operationId} product={result.product}/>:<Canvas resize={{offsetSize:true}} camera={{position:[0,.15,4.8],fov:40}} dpr={1} frameloop={reduced?'demand':'always'} gl={{alpha:true,antialias:true}}><Lighting/><OpeningShell grade={opening.grade} phase={opening.phase} startedAt={opening.startedAt} reduced={reduced||opening.instant}/></Canvas>}
     </div>
     {shown&&result?.product?<div className="open-result-card" data-operation-id={result.operationId} aria-live="polite">
-     <small>{result.duplicate?'의상 공개':'새 의상 획득!'}</small><h3>{result.product.name}</h3><p className="open-parts">{capsuleTier(result.grade)} · {parts?.length?parts.map(p=>labels[p!]).join(' · '):`${result.product.itemIds.length}개 포함 아이템`}<span>상품 하나로 함께 착용해요</span></p>
+     <small>{result.duplicate?'의상 공개':'새 의상 획득!'}</small><h3>{result.product.name}</h3><p className="open-parts">{capsuleTier(result.grade)} · {parts?.length?parts.map(p=>labels[p!]).join(' · '):`${result.product.itemIds.length}개 포함 아이템`}<span>구성 아이템은 옷장에서 확인할 수 있어요</span></p>{!result.duplicate&&!!result.product.components?.length&&<ul className="open-component-rewards" aria-label="획득한 구성 아이템">{result.product.components.map(item=><li key={item.id}>
+       {catalogAsset(item.imageKey)?.imageUrl&&<img src={catalogAsset(item.imageKey)!.imageUrl} alt=""/>}<strong>{item.name}</strong><small>{[...new Set(item.slots.map(s=>s==='HAIR'?'머리':s==='FACE'?'얼굴':'옷'))].join('·')}</small>
+      </li>)}</ul>}{!result.duplicate&&!result.product.components?.length&&components.length>0&&<ul className="open-component-rewards" aria-label="획득한 구성 아이템">{components.map(owned=><li key={owned.userItemId}>
+       {catalogAsset(owned.item.imageKey)?.imageUrl&&<img src={catalogAsset(owned.item.imageKey)!.imageUrl} alt=""/>}
+       <strong>{itemLabel(items,owned)}</strong><small>{[...new Set(setPieces(items,owned).map(p=>p.item.equipSlot==='HAIR'?'머리':p.item.equipSlot==='FACE'?'얼굴':'옷'))].join('·')}</small>
+      </li>)}</ul>}
      {result.duplicate&&['duplicate','coins','complete'].includes(opening.phase)?<div className="open-duplicate"><b>이미 보유 중</b><p>이미 보유한 의상이에요.<br/>상품 가치{opening.value?` ${money(opening.value)}`:''}의 50%인 <strong>{money(result.awardedCoins)}</strong>을 중복 보상으로 지급했어요.</p></div>:<p>{result.duplicate?'이 의상을 확인해 보세요.':'옷장에 보관했어요. 원하는 때 직접 입어 보세요.'}</p>}
      {result.duplicate&&['coins','complete'].includes(opening.phase)&&<CoinToWallet receipt={result.operationId} amount={result.awardedCoins} reduced={reduced||opening.instant}/>}
      {opening.phase==='complete'&&<div className="open-result-actions"><button onClick={takeLook}>옷장에서 입어 보기</button><button onClick={next}>확인</button></div>}

@@ -5,13 +5,13 @@ import java.time.Instant;
 import java.util.List;
 
 public record ParkRankingResponse(@Size(max = 10) List<BalanceItem> balance,
-                                  @Size(max = 10) List<BungeoppangItem> bungeoppang,
-                                  @Size(max = 10) List<JumpmapItem> jumpmap,
+                                  @Size(max = 10) List<MoleItem> mole,
+                                  @Size(max = 10) List<SpeedMoleItem> speedMole,
                                   Instant updatedAt) {
     public ParkRankingResponse {
         balance = List.copyOf(balance);
-        bungeoppang = List.copyOf(bungeoppang);
-        jumpmap = List.copyOf(jumpmap);
+        mole = List.copyOf(mole);
+        speedMole = List.copyOf(speedMole);
     }
 
     public record BalanceItem(long rank, String userId, String nickname, long coinBalance, boolean gameMaster,
@@ -24,18 +24,18 @@ public record ParkRankingResponse(@Size(max = 10) List<BalanceItem> balance,
         }
     }
 
-    public record BungeoppangItem(long rank, String userId, String nickname, long score, long maxCombo,
-                                  Instant completedAt, boolean gameMaster) {
-        public BungeoppangItem(long rank, String userId, String nickname, long score, long maxCombo,
-                Instant completedAt) {
+    public record MoleItem(long rank, String userId, String nickname, long score, long maxCombo,
+                           Instant completedAt, boolean gameMaster) {
+        public MoleItem(long rank, String userId, String nickname, long score, long maxCombo, Instant completedAt) {
             this(rank, userId, nickname, score, maxCombo, completedAt, false);
         }
     }
 
-    public record JumpmapItem(long rank, String userId, String nickname, long finishMs, Instant completedAt,
-                              boolean gameMaster) {
-        public JumpmapItem(long rank, String userId, String nickname, long finishMs, Instant completedAt) {
-            this(rank, userId, nickname, finishMs, completedAt, false);
+    public record SpeedMoleItem(long rank, String userId, String nickname, long score, long misses,
+                                Instant completedAt, boolean gameMaster) {
+        public SpeedMoleItem(long rank, String userId, String nickname, long score, long misses,
+                Instant completedAt) {
+            this(rank, userId, nickname, score, misses, completedAt, false);
         }
     }
 }

@@ -448,6 +448,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const plusMinusRequest = (method === 'GET' && path === '/api/v1/minigames/plus-minus/status')
       || (method === 'POST' && path === '/api/v1/minigames/plus-minus/rounds')
     const moleRequest = (method === 'GET' && path === '/api/v1/minigames/whack-a-mole/status')
+      || (method === 'GET' && /^\/api\/v1\/minigames\/whack-a-mole\/rankings\?limit=20&offset=\d{1,5}$/.test(path))
       || (method === 'POST' && /^\/api\/v1\/minigames\/whack-a-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const speedMoleRequest = (method === 'GET' && /^\/api\/v1\/minigames\/speed-mole\/rankings\?limit=20&offset=\d{1,5}$/.test(path))
       || (method === 'POST' && /^\/api\/v1\/minigames\/speed-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))

@@ -37,10 +37,12 @@ MIGRATIONS = [
     ROOT / "backend/src/main/resources/db/minigame/V147__create_mole_rounds.sql",
     ROOT / "backend/src/main/resources/db/minigame/V149__mole_rules_v2_reward_rate.sql",
     ROOT / "backend/src/main/resources/db/minigame/V150__mole_rules_v3_reward_rate.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V151__create_speed_mole_rounds.sql",
     ROOT / "backend/src/main/resources/db/minigame/V156__add_skewer_coop_play_mode.sql",
     ROOT / "backend/src/main/resources/db/migration/V157__create_shared_gacha.sql",
     ROOT / "backend/src/main/resources/db/migration/V158__create_feedback_replies_and_personal_notifications.sql",
     ROOT / "backend/src/main/resources/db/migration/V159__add_gacha_refill_deadline.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V164__raise_rps_roulette_payout_cap.sql",
 ]
 DATABASE = "analytics_verify"
 
@@ -122,10 +124,10 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
     "13_minigame_daily_cap.sql": [
         {"kst_date": "2026-10-27", "earners": "2", "cap_reached_users": "1", "cap_reached_pct": "50.0",
          "rewards": "860", "avg_reward_per_earner": "430.0", "bungeoppang_rewards": "130",
-         "jumpmap_rewards": "100", "skewer_rewards": "600", "mole_rewards": "30"},
+         "jumpmap_rewards": "100", "skewer_rewards": "600", "mole_rewards": "30", "speed_mole_rewards": "0"},
         {"kst_date": "2026-10-28", "earners": "2", "cap_reached_users": "0", "cap_reached_pct": "0.0",
-         "rewards": "78", "avg_reward_per_earner": "39.0", "bungeoppang_rewards": "65",
-         "jumpmap_rewards": "13", "skewer_rewards": "0", "mole_rewards": "0"},
+         "rewards": "90", "avg_reward_per_earner": "45.0", "bungeoppang_rewards": "65",
+         "jumpmap_rewards": "13", "skewer_rewards": "0", "mole_rewards": "0", "speed_mole_rewards": "12"},
     ],
     "14_feedback_daily.sql": [
         {"kst_date": "2026-10-27", "submissions": "4", "submitters": "2", "withdrawn_submissions": "1",
@@ -194,18 +196,20 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "coins_in": "6", "coins_out": "6", "net_coins": "0"},
         {"kst_date": "2026-10-28", "transaction_type": "JUMP_GATE_REWARD", "transactions": "3", "users": "1",
          "coins_in": "13", "coins_out": "0", "net_coins": "13"},
-        {"kst_date": "2026-10-28", "transaction_type": "MINIGAME_ENTRY_FEE", "transactions": "3", "users": "3",
-         "coins_in": "0", "coins_out": "70", "net_coins": "-70"},
+        {"kst_date": "2026-10-28", "transaction_type": "MINIGAME_ENTRY_FEE", "transactions": "4", "users": "4",
+         "coins_in": "0", "coins_out": "80", "net_coins": "-80"},
         {"kst_date": "2026-10-28", "transaction_type": "MINIGAME_REWARD", "transactions": "2", "users": "2",
          "coins_in": "65", "coins_out": "0", "net_coins": "65"},
+        {"kst_date": "2026-10-28", "transaction_type": "MOLE_REWARD", "transactions": "1", "users": "1",
+         "coins_in": "12", "coins_out": "0", "net_coins": "12"},
         {"kst_date": "2026-10-28", "transaction_type": "PLUS_MINUS_PAYOUT", "transactions": "2", "users": "2",
          "coins_in": "540", "coins_out": "0", "net_coins": "540"},
-        {"kst_date": "2026-10-28", "transaction_type": "ALL", "transactions": "18", "users": "4",
-         "coins_in": "624", "coins_out": "76", "net_coins": "548"},
+        {"kst_date": "2026-10-28", "transaction_type": "ALL", "transactions": "20", "users": "5",
+         "coins_in": "636", "coins_out": "86", "net_coins": "550"},
     ],
     "20_wallet_balances.sql": [
-        {"wallets": "4", "total_balance": "1489", "avg_balance": "372.3", "median_balance": "242.0",
-         "max_balance": "866", "top10_share_pct": "58.2", "reserved_balance": "0"},
+        {"wallets": "4", "total_balance": "1491", "avg_balance": "372.8", "median_balance": "240.0",
+         "max_balance": "866", "top10_share_pct": "58.1", "reserved_balance": "0"},
     ],
     "21_bet_amounts.sql": [
         {"game_code": "DICE", "games": "1", "min_bet": "5", "avg_bet": "5.0", "max_bet": "5", "avg_pot": "10.0"},
@@ -274,10 +278,12 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
     "26_rps_roulette_daily.sql": [
         {"kst_date": "2026-10-27", "rounds": "3", "players": "2", "settled": "3", "in_progress": "0",
          "fee_10_rounds": "1", "fee_20_rounds": "1", "fee_30_rounds": "1", "fees": "60", "paid_rounds": "2",
-         "payouts": "90", "payout_pct": "150.0", "absorbed_coins": "-30"},
-        {"kst_date": "2026-10-28", "rounds": "1", "players": "1", "settled": "0", "in_progress": "1",
-         "fee_10_rounds": "1", "fee_20_rounds": "0", "fee_30_rounds": "0", "fees": "10", "paid_rounds": "0",
-         "payouts": "0", "payout_pct": "0.0", "absorbed_coins": "10"},
+         "payouts": "90", "payout_pct": "150.0", "absorbed_coins": "-30", "first_duel_lost": "1",
+         "challenge_lost": "0", "paid_x1": "1", "paid_after_1_challenge": "1", "paid_after_2_challenges": "0"},
+        {"kst_date": "2026-10-28", "rounds": "2", "players": "2", "settled": "1", "in_progress": "1",
+         "fee_10_rounds": "2", "fee_20_rounds": "0", "fee_30_rounds": "0", "fees": "20", "paid_rounds": "0",
+         "payouts": "0", "payout_pct": "0.0", "absorbed_coins": "20", "first_duel_lost": "0",
+         "challenge_lost": "1", "paid_x1": "0", "paid_after_1_challenge": "0", "paid_after_2_challenges": "0"},
     ],
     "27_raffle_rounds.sql": [
         {"week_start_date": "2026-10-26", "sales_status": "CLOSED", "ticket_price": "100",
@@ -350,6 +356,14 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "rounds_drawn": "0", "grade1_boxes": "0", "grade2_boxes": "0", "grade3_boxes": "0", "grade4_boxes": "0",
          "coin_capsules": "0", "opens": "1", "duplicates": "0", "coins_spent": "0", "coins_returned": "0",
          "absorbed_coins": "0", "return_pct": "NULL"},
+    ],
+    "34_speed_mole_daily.sql": [
+        {"kst_date": "2026-10-27", "rules_version": "1", "rounds": "2", "players": "1", "settled": "2",
+         "unsettled": "0", "avg_score": "130.0", "max_score": "260", "avg_hits": "137.5", "avg_misses": "4.5",
+         "hit_pct": "96.8", "calculated_coins": "52", "rewarded_coins": "0", "capped_coins": "52"},
+        {"kst_date": "2026-10-28", "rules_version": "1", "rounds": "2", "players": "2", "settled": "1",
+         "unsettled": "1", "avg_score": "60.0", "max_score": "60", "avg_hits": "66.0", "avg_misses": "2.0",
+         "hit_pct": "97.1", "calculated_coins": "12", "rewarded_coins": "12", "capped_coins": "0"},
     ],
 }
 

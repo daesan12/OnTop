@@ -2,24 +2,41 @@ import { getAuthSession, restoreAuthSession } from '../../auth/authFlow'
 import { record } from '../../network/protocol'
 
 export type EventKind = 'raffle' | 'bungeoppang' | 'jumpmap' | 'asset'
+export type EventSection = 'raffle' | 'minigames' | 'asset'
 export type WinnerType = 'RAFFLE' | 'BUNGEOPPANG' | 'JUMPMAP' | 'ASSET_VALUE'
 export type ContactStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'EXPIRED'
+export type DeliveryStatus = 'PENDING' | 'DELIVERED'
 
 export const firstMinigameWeek = '2026-11-02'
 export const assetWeek = '2026-11-09'
-export const eventKinds: readonly EventKind[] = ['raffle', 'bungeoppang', 'jumpmap', 'asset']
-export const eventLabels: Record<EventKind, string> = {
-  raffle: '응모권 추첨', bungeoppang: '붕어빵 1위', jumpmap: '점프맵 1위', asset: '엽전 보유량 순위',
+export const eventKinds: readonly EventSection[] = ['raffle', 'minigames', 'asset']
+export const eventLabels: Record<EventSection, string> = {
+  raffle: '응모권 추첨', minigames: '미니게임 1위', asset: '엽전 보유량 순위',
 }
+export const legacyMinigameLabels = { bungeoppang: '붕어빵', jumpmap: '점프맵' } as const
 export const winnerLabels: Record<WinnerType, string> = {
   RAFFLE: '응모권', BUNGEOPPANG: '붕어빵', JUMPMAP: '점프맵', ASSET_VALUE: '엽전 보유량',
 }
 
 export interface EventWinner {
   userId: number
+  nickname: string | null
   place: number
   prizeName: string
   evidence: string
+}
+export interface RaffleReview {
+  drawId: number
+  week: string
+  attemptNumber: number
+  drawnAt: string
+  rerollReason: string | null
+  candidateCount: number
+  excludedGmCount: number
+  expectedPrizeCount: number
+  awardedPrizeCount: number
+  vacantPrizeCount: number
+  picks: EventWinner[]
 }
 export interface EventRound {
   kind: EventKind
@@ -37,6 +54,7 @@ export interface EventRound {
 export interface AdminEventWinner {
   winnerId: number
   userId: number
+  nickname: string | null
   weekStart: string
   eventType: WinnerType
   place: number
@@ -44,6 +62,9 @@ export interface AdminEventWinner {
   contactStatus: ContactStatus
   maskedPhone: string | null
   contactExpiresAt: string | null
+  deliveryStatus: DeliveryStatus
+  deliveredByUserId: number | null
+  deliveredAt: string | null
 }
 export interface AdminWinnersPage {
   winners: AdminEventWinner[]
@@ -52,6 +73,13 @@ export interface AdminWinnersPage {
   hasMore: boolean
 }
 export interface RevealedContact { winnerId: number; phone: string; expiresAt: string }
+export interface DeliveryReceipt {
+  winnerId: number
+  userId: number
+  deliveredByUserId: number
+  deliveredAt: string
+  alreadyDelivered: boolean
+}
 
 type ErrorKind = 'unauthenticated' | 'forbidden' | 'not-found' | 'not-ready' | 'unavailable' | 'uncertain' | 'invalid'
 export class AdminEventsError extends Error {
@@ -104,9 +132,10 @@ function roundPath(kind: EventKind, week: string) {
 
 function parseWinner(value: unknown, kind: EventKind): EventWinner {
   if (!record(value) || !positive(value.userId) || typeof value.prizeName !== 'string' || !value.prizeName) return invalid()
+  const nickname = typeof value.nickname === 'string' && value.nickname.trim() ? value.nickname.trim() : null
   if (kind === 'raffle') {
     if (!positive(value.place) || !positive(value.ticketNumber)) return invalid()
-    return { userId: value.userId, place: value.place, prizeName: value.prizeName,
+    return { userId: value.userId, nickname, place: value.place, prizeName: value.prizeName,
       evidence: `응모권 #${value.ticketNumber}` }
   }
   if (typeof value.sourceRecordId !== 'string' || !value.sourceRecordId || !integer(value.sourceValue)) return invalid()
@@ -114,8 +143,26 @@ function parseWinner(value: unknown, kind: EventKind): EventWinner {
   if (!positive(place)) return invalid()
   const detail = kind === 'asset' ? `${value.sourceValue.toLocaleString('ko-KR')}냥`
     : kind === 'jumpmap' ? `완주 기록 ${value.sourceValue}` : `점수 ${value.sourceValue.toLocaleString('ko-KR')}`
-  return { userId: value.userId, place, prizeName: value.prizeName,
+  return { userId: value.userId, nickname, place, prizeName: value.prizeName,
     evidence: `${detail} · 기록 ${value.sourceRecordId}` }
+}
+
+export function parseRaffleReview(value: unknown, week: string): RaffleReview {
+  if (!record(value) || value.weekStartDate !== week || value.status !== 'REVIEW'
+    || !positive(value.drawId) || !positive(value.attemptNumber) || !instant(value.drawnAt)
+    || !(value.rerollReason === null || typeof value.rerollReason === 'string')
+    || !integer(value.candidateCount) || !integer(value.excludedGmCount)
+    || value.excludedGmCount > value.candidateCount
+    || !integer(value.expectedPrizeCount) || !integer(value.awardedPrizeCount)
+    || !integer(value.vacantPrizeCount) || !Array.isArray(value.picks)) return invalid()
+  const picks = value.picks.map(item => parseWinner(item, 'raffle'))
+  if (picks.length !== value.awardedPrizeCount
+    || picks.length + value.vacantPrizeCount !== value.expectedPrizeCount) return invalid()
+  return { drawId: value.drawId, week, attemptNumber: value.attemptNumber,
+    drawnAt: value.drawnAt, rerollReason: value.rerollReason,
+    candidateCount: value.candidateCount, excludedGmCount: value.excludedGmCount,
+    expectedPrizeCount: value.expectedPrizeCount, awardedPrizeCount: value.awardedPrizeCount,
+    vacantPrizeCount: value.vacantPrizeCount, picks }
 }
 
 export function parseEventRound(value: unknown, kind: EventKind, week: string): EventRound {
@@ -160,11 +207,21 @@ export function parseAdminWinners(value: unknown): AdminWinnersPage {
       || !positive(item.place) || typeof item.prizeName !== 'string' || !item.prizeName
       || !['NOT_SUBMITTED', 'SUBMITTED', 'EXPIRED'].includes(String(item.contactStatus))
       || !(item.maskedPhone === null || typeof item.maskedPhone === 'string')
-      || !(item.contactExpiresAt === null || instant(item.contactExpiresAt))) return invalid()
+      || !(item.contactExpiresAt === null || instant(item.contactExpiresAt))
+      || !(item.nickname == null || typeof item.nickname === 'string')
+      || !['PENDING', 'DELIVERED'].includes(String(item.deliveryStatus))
+      || !(item.deliveredByUserId == null || positive(item.deliveredByUserId))
+      || !(item.deliveredAt == null || instant(item.deliveredAt))
+      || (item.deliveryStatus === 'DELIVERED') !== (item.deliveredAt != null)
+      || (item.deliveryStatus === 'DELIVERED') !== (item.deliveredByUserId != null)) return invalid()
     return { winnerId: item.winnerId, userId: item.userId, weekStart: item.weekStart,
+      nickname: typeof item.nickname === 'string' && item.nickname.trim() ? item.nickname.trim() : null,
       eventType: item.eventType as WinnerType, place: item.place, prizeName: item.prizeName,
       contactStatus: item.contactStatus as ContactStatus, maskedPhone: item.maskedPhone,
-      contactExpiresAt: item.contactExpiresAt }
+      contactExpiresAt: item.contactExpiresAt,
+      deliveryStatus: item.deliveryStatus as DeliveryStatus,
+      deliveredByUserId: item.deliveredByUserId ?? null,
+      deliveredAt: item.deliveredAt ?? null }
   })
   if (winners.length > value.limit) return invalid()
   return { winners, limit: value.limit, offset: value.offset, hasMore: value.hasMore }
@@ -176,22 +233,33 @@ export function parseRevealedContact(value: unknown): RevealedContact {
   return { winnerId: value.winnerId, phone: value.phone, expiresAt: value.expiresAt }
 }
 
-async function request<T>(path: string, method: 'GET' | 'POST', signal: AbortSignal,
-  parse: (value: unknown) => T): Promise<T> {
+export function parseDeliveryReceipt(value: unknown, winnerId: number, userId: number): DeliveryReceipt {
+  if (!record(value) || value.winnerId !== winnerId || value.userId !== userId
+    || value.deliveryStatus !== 'DELIVERED' || !positive(value.deliveredByUserId)
+    || !instant(value.deliveredAt) || typeof value.alreadyDelivered !== 'boolean') return invalid()
+  return { winnerId, userId, deliveredByUserId: value.deliveredByUserId,
+    deliveredAt: value.deliveredAt, alreadyDelivered: value.alreadyDelivered }
+}
+
+export async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT', signal: AbortSignal,
+  parse: (value: unknown) => T, payload?: Record<string, unknown>): Promise<T> {
   let owner = getAuthSession()
   if (owner?.status !== 'AUTHENTICATED') throw new AdminEventsError('다시 로그인해주세요.', 'UNAUTHENTICATED', 'unauthenticated')
   const current = () => !signal.aborted && getAuthSession() === owner
   const fetchOnce = () => fetch(path, { method, credentials: 'omit', cache: 'no-store',
-    signal: AbortSignal.any([signal, AbortSignal.timeout(method === 'POST' ? 120_000 : 20_000)]),
-    headers: { Authorization: `Bearer ${owner!.status === 'AUTHENTICATED' ? owner!.accessToken : ''}` },
+    signal: AbortSignal.any([signal, AbortSignal.timeout(method === 'GET' ? 20_000 : 120_000)]),
+    headers: { Authorization: `Bearer ${owner!.status === 'AUTHENTICATED' ? owner!.accessToken : ''}`,
+      ...(payload ? { 'Content-Type': 'application/json' } : {}) },
+    ...(payload ? { body: JSON.stringify(payload) } : {}),
   })
   const send = async () => {
     try { return await fetchOnce() } catch (cause) {
       if (signal.aborted) throw cause
-      throw new AdminEventsError(method === 'POST'
-        ? '서버의 확정 결과를 확인하지 못했습니다. 결과를 다시 조회해주세요.'
-        : '서버에 연결하지 못했습니다. 다시 조회해주세요.', 'NETWORK_ERROR',
-      method === 'POST' ? 'uncertain' : 'unavailable')
+      throw new AdminEventsError(method === 'PUT'
+        ? '서버의 지급 결과를 확인하지 못했습니다. 목록을 다시 조회해주세요.'
+        : method === 'POST' ? '서버의 확정 결과를 확인하지 못했습니다. 결과를 다시 조회해주세요.'
+          : '서버에 연결하지 못했습니다. 다시 조회해주세요.', 'NETWORK_ERROR',
+      method !== 'GET' ? 'uncertain' : 'unavailable')
     }
   }
   let response = await send()
@@ -233,6 +301,34 @@ export function finalizeEventRound(kind: EventKind, week: string, signal: AbortS
   return request(`${roundPath(kind, week)}/finalize`, 'POST', signal, value => parseEventRound(value, kind, week))
 }
 
+export async function loadCurrentRaffleReview(week: string, signal: AbortSignal): Promise<RaffleReview | null> {
+  try {
+    return await request(`${roundPath('raffle', week)}/draws/current`, 'GET', signal,
+      value => parseRaffleReview(value, week))
+  } catch (cause) {
+    if (cause instanceof AdminEventsError && cause.kind === 'not-found'
+      && ['RAFFLE_REVIEW_NOT_FOUND', 'RAFFLE_ROUND_NOT_FOUND'].includes(cause.code)) return null
+    throw cause
+  }
+}
+
+export function createRaffleReview(week: string, signal: AbortSignal): Promise<RaffleReview> {
+  return request(`${roundPath('raffle', week)}/draws`, 'POST', signal,
+    value => parseRaffleReview(value, week))
+}
+
+export function rerollRaffleReview(week: string, expectedDrawId: number, reason: string,
+  signal: AbortSignal): Promise<RaffleReview> {
+  return request(`${roundPath('raffle', week)}/draws/reroll`, 'POST', signal,
+    value => parseRaffleReview(value, week), { expectedDrawId, reason })
+}
+
+export function confirmRaffleReview(week: string, drawId: number,
+  signal: AbortSignal): Promise<EventRound> {
+  return request(`${roundPath('raffle', week)}/finalize`, 'POST', signal,
+    value => parseEventRound(value, 'raffle', week), { drawId })
+}
+
 export function loadEventWinners(week: string, type: WinnerType | '', contactStatus: ContactStatus | '',
   offset: number, signal: AbortSignal): Promise<AdminWinnersPage> {
   const query = new URLSearchParams({ weekStart: week, limit: '20', offset: String(offset) })
@@ -243,4 +339,10 @@ export function loadEventWinners(week: string, type: WinnerType | '', contactSta
 
 export function revealEventContact(winnerId: number, signal: AbortSignal): Promise<RevealedContact> {
   return request(`/api/v1/admin/events/winners/${winnerId}/contact`, 'GET', signal, parseRevealedContact)
+}
+
+export function confirmEventDelivery(winnerId: number, userId: number,
+  signal: AbortSignal): Promise<DeliveryReceipt> {
+  return request(`/api/v1/admin/events/winners/${winnerId}/delivery`, 'PUT', signal,
+    value => parseDeliveryReceipt(value, winnerId, userId), { expectedUserId: userId })
 }

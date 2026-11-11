@@ -137,7 +137,7 @@ class RpsRouletteServiceTests {
     }
 
     @Test
-    void 두_번_도전에_성공하면_2배로_바로_룰렛을_돌린다() {
+    void 두_번_도전에_성공하면_4배로_바로_룰렛을_돌린다() {
         random.queue(SCISSORS);
         var start = service.start(USER, "round-1", 30);
         random.queue(ROCK);
@@ -152,11 +152,11 @@ class RpsRouletteServiceTests {
 
         var state = service.hand(USER, id(start), last.round().seq(), "PAPER");
 
-        assertThat(second.round().multiplier()).isEqualTo(1.5);
+        assertThat(second.round().multiplier()).isEqualTo(2.0);
         assertThat(state.round().stakeLevel()).isEqualTo(2);
         assertThat(state.round().outcome()).isEqualTo("PAID");
-        assertThat(state.round().payout()).isEqualTo(600);
-        assertThat(wallet.balance()).isEqualTo(670);
+        assertThat(state.round().payout()).isEqualTo(1200);
+        assertThat(wallet.balance()).isEqualTo(1270);
     }
 
     @Test

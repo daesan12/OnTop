@@ -7,6 +7,7 @@ import rpsRouletteThumbnail from "../rpsRoulette/assets/thumbnail.webp";
 import plusMinusThumbnail from "../plusMinus/assets/thumbnail.webp";
 import moleThumbnail from "../mole/assets/thumbnail.webp";
 import speedMoleThumbnail from "../speedMole/assets/thumbnail.webp";
+import jumpThumbnail from "../jumpmap/assets/thumbnail.webp";
 
 /** 게임 고르기 화면(태블릿·오락기)과 같은 대표 그림. 태블릿 그림은 public/art/tablet에 있다. */
 const gameThumbnails: Partial<Record<ManualGameId, string>> = {
@@ -22,6 +23,7 @@ const gameThumbnails: Partial<Record<ManualGameId, string>> = {
   "plus-minus": plusMinusThumbnail,
   "whack-a-mole": moleThumbnail,
   "speed-mole": speedMoleThumbnail,
+  jump: jumpThumbnail,
 };
 
 /** Local game illustrations: no external asset requests. */
@@ -136,20 +138,7 @@ export function GameArt({ game }: { game: ManualGameId }) {
             <circle cx="91" cy="84" r="10" fill="#80ada9" />
             <circle cx="149" cy="84" r="10" fill="#80ada9" />
           </>
-        ) : (
-          <>
-            <path
-              d="m32 123 38-10 30 8-38 11Zm65-34 38-10 30 8-38 11Zm50-34 38-10 30 8-38 11Z"
-              fill="#c9c5ae"
-              stroke="#ece5cb"
-              strokeWidth="2"
-            />
-            <path
-              d="m32 123 30 9 38-11v10l-38 11-30-9Zm65-34 30 9 38-11v10l-38 11-30-9Zm50-34 30 9 38-11v10l-38 11-30-9Z"
-              fill="#8c9789"
-            />
-          </>
-        )}
+        ) : null}
       </svg>
     );
 }

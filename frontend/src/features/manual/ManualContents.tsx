@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Markdown } from "./Markdown";
-import { filterGuides, filterManuals, gameManuals, parkGuides } from "./catalog";
+import { filterGuides, filterManuals, gameManuals, groupManuals, parkGuides } from "./catalog";
 import { GameArt } from "./GameArt";
 import { useManual } from "./manualState";
 import { replayWelcomeTour, tourBlockReason } from "../welcomeTour/state";
@@ -336,13 +336,19 @@ export default function ManualContents() {
                   </span>
                 </div>
                 {results.length > 0 ? (
+                  groupManuals(results).map((group, groupIndex, groups) => (
+                  <section key={group.category} className="manual-group" aria-labelledby={`manual-group-${group.category}`}>
+                  <h4 id={`manual-group-${group.category}`} className="manual-group-title">
+                    {group.label}
+                    <small>{group.games.length}</small>
+                  </h4>
                   <div className="manual-grid">
-                    {results.map((item, index) => (
+                    {group.games.map((item, index) => (
                       <button
                         key={item.id}
                         className="manual-card"
                         data-status={item.status}
-                        style={{ "--card-order": index } as CSSProperties}
+                        style={{ "--card-order": groups.slice(0, groupIndex).reduce((sum, g) => sum + g.games.length, index) } as CSSProperties}
                         onClick={() => go(item.id)}
                         aria-label={`${item.title} 설명 읽기`}
                       >
@@ -371,6 +377,8 @@ export default function ManualContents() {
                       </button>
                     ))}
                   </div>
+                  </section>
+                  ))
                 ) : guideResults.length === 0 && (
                   <div className="manual-empty">
                     <span aria-hidden="true">⌕</span>

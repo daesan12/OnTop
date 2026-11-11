@@ -7,6 +7,7 @@ import './winnerContacts.css'
 type Props = {
   open: boolean
   refreshKey: number
+  selectedWeek?: string | null
   onAutoOpen: () => void
   onClose: () => void
 }
@@ -16,8 +17,9 @@ const kstDate = (value: string) => new Intl.DateTimeFormat('ko-KR', {
   hour: 'numeric', minute: '2-digit',
 }).format(new Date(value))
 
-export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Props) {
+export function WinnerContactsHost({ open, refreshKey, selectedWeek, onAutoOpen, onClose }: Props) {
   const [items, setItems] = useState<Winning[] | null>(null)
+  const [loadedRefreshKey, setLoadedRefreshKey] = useState<number | null>(null)
   const [reload, setReload] = useState(0)
   const [loadError, setLoadError] = useState('')
   const [phoneByWeek, setPhoneByWeek] = useState<Record<string, string>>({})
@@ -30,16 +32,19 @@ export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Pr
   const submitRequest = useRef<AbortController | null>(null)
   const submitting = useRef(false)
   const autoShown = useRef(false)
+  const focusedRequest = useRef<number | null>(null)
 
   useEffect(() => {
     const controller = request.current = new AbortController()
     setLoadError('')
     setItems(null)
+    setLoadedRefreshKey(null)
     void loadMyWinnings(controller.signal).then(result => {
       if (controller.signal.aborted) return
       setItems(result)
+      setLoadedRefreshKey(refreshKey)
       if (!autoShown.current && groupWinnings(result).some(group =>
-        group.status === 'NOT_SUBMITTED' && canSubmit(group.status, group.deadline))) {
+        group.actionRequired)) {
         autoShown.current = true
         onAutoOpen()
       }
@@ -57,6 +62,16 @@ export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Pr
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
     return () => window.clearInterval(timer)
   }, [open])
+  useEffect(() => {
+    if (!open || items === null || loadedRefreshKey !== refreshKey || !selectedWeek || focusedRequest.current === refreshKey) return
+    const heading = [...document.querySelectorAll<HTMLElement>('.winner-contacts-week h3')]
+      .find(element => element.textContent === `${selectedWeek} 주차`)
+    if (heading) {
+      focusedRequest.current = refreshKey
+      heading.focus({ preventScroll: true })
+      heading.scrollIntoView({ block: 'nearest' })
+    }
+  }, [open, items, loadedRefreshKey, refreshKey, selectedWeek])
 
   async function save(week: string, event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -116,18 +131,19 @@ export function WinnerContactsHost({ open, refreshKey, onAutoOpen, onClose }: Pr
       <button type="button" onClick={() => { request.current?.abort(); setReload(value => value + 1) }}>다시 조회</button></div>}
     {items && groups.length === 0 && <p className="winner-contacts-empty">아직 발표된 당첨 내역이 없어요.</p>}
     {groups.map(group => {
-      const editable = canSubmit(group.status, group.deadline, now)
+      const editable = group.editable && canSubmit(group.status, group.deadline, now)
       const showForm = editable && (group.status === 'NOT_SUBMITTED' || editingWeek === group.weekStart)
       return <section className="winner-contacts-week" key={group.weekStart} aria-label={`${group.weekStart} 주차 당첨`}>
-        <h3>{group.weekStart} 주차</h3>
+        <h3 tabIndex={-1}>{group.weekStart} 주차</h3>
         <ul>{group.awards.map(award => <li key={award.winnerId}>
           <strong>{awardLabels[award.eventType]} {award.place}등</strong>
           <span>{award.prizeName}</span>
         </li>)}</ul>
         <p className="winner-contacts-deadline">연락처 제출·수정 마감: {kstDate(group.deadline)}</p>
+        {group.allDelivered && <p className="winner-contacts-success">모든 경품의 지급이 완료되었습니다.</p>}
         {group.status === 'SUBMITTED' && <p className="winner-contacts-success" role="status">연락처 제출 완료 · {group.maskedPhone}</p>}
         {group.status === 'EXPIRED' && <p className="winner-contacts-deadline">연락처 보관 기간이 종료되었습니다.</p>}
-        {group.status === 'NOT_SUBMITTED' && !editable && <p className="winner-contacts-deadline">연락처 제출 기간이 종료되었습니다.</p>}
+        {group.status === 'NOT_SUBMITTED' && !editable && !group.allDelivered && <p className="winner-contacts-deadline">연락처 제출 기간이 종료되었습니다.</p>}
         {group.status === 'SUBMITTED' && editable && !showForm && <button type="button" className="winner-contacts-secondary"
           onClick={() => setEditingWeek(group.weekStart)}>연락처 수정</button>}
         {showForm && <form onSubmit={event => void save(group.weekStart, event)} noValidate>

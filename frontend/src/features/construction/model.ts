@@ -10,9 +10,12 @@ export function canReachConstruction(p:{x:number;y:number;z:number},id:string){
     &&Math.abs(p.y-site.reachPosition[1])<=site.heightTolerance
 }
 export const useConstructionNotice=create<{id:string|null}>(()=>({id:null}))
-export function openConstructionNotice(id:string){
-  if(!constructionSites.some(s=>s.id===id))return
+function showNotice(id:string){
   clearRoamingInput()
   useConstructionNotice.setState({id})
 }
+export function openConstructionNotice(id:string){
+  if(constructionSites.some(s=>s.id===id))showNotice(id)
+}
+export const openParkGacha=()=>showNotice('layout-shop')
 export const closeConstructionNotice=()=>useConstructionNotice.setState({id:null})

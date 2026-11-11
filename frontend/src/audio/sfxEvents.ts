@@ -1,6 +1,7 @@
 import type { CharacterId } from '../config/avatar'
 import { gameState, type Game } from '../game/protocol'
 import { eventKey, FLIGHT } from '../game/halligalli/flights'
+import type { AlkkagiFeedbackEvent } from '../game/alkkagi/feedback'
 import type { SfxName } from './sfx'
 
 /** Who must act now: the bridge responder answers a declaration, otherwise the turn holder. */
@@ -44,8 +45,12 @@ export function gameSfx(prev: Game | null, next: Game | null, ownId: string, ser
   if (gameState(next).status !== 'PLAYING') return out
   if (!before && next.role === 'PLAYER') out.push('game-start')
   // 승인 착수에는 '탁'만, 인정된 종에는 종소리만 재생한다. 차례 알림의 전자음이 동시에 겹치지 않게 한다.
-  if (!omokPlaced && !bell && next.role === 'PLAYER' && turnOwner(next) === ownId && (!before || turnOwner(before) !== ownId)) out.push('game-turn')
+  // 알까기는 누구 차례로 넘어가든 차례 전환음(alkkagiCues)을 내므로 내 차례 알림을 겹치지 않는다.
+  if (!omokPlaced && !bell && !next.alkkagi && next.role === 'PLAYER' && turnOwner(next) === ownId && (!before || turnOwner(before) !== ownId)) out.push('game-turn')
   if (!before) return out
+  // 비책 선택이 끝나 손에 새 카드가 들어온 순간. 처음 받은 손패·재접속 손패는 비교할 이전 손이 없어 제외된다.
+  const hand = before.alkkagiHand
+  if (hand && next.alkkagiHand?.cards.some(card => !hand.cards.some(old => old.id === card.id))) out.push('alkkagi-item')
   if (next.dice && before.dice && next.dice.rollId !== before.dice.rollId) out.push('dice-roll')
   if (next.onecard && before.onecard) {
     const cards = (g: Game) => g.onecard!.players.reduce((n, p) => n + p.cardCount, 0)
@@ -54,6 +59,25 @@ export function gameSfx(prev: Game | null, next: Game | null, ownId: string, ser
       && before.onecard!.players.find(q => q.userId === p.userId)?.oneCardStatus !== 'declared')) out.push('card-one')
   }
   return out
+}
+
+const IMPACT_LEVEL = { weak: 0.45, medium: 0.75, strong: 1 } as const
+
+/**
+ * 서버가 승인한 알까기 상태에서 나온 피드백 이벤트(AlkkagiFeedback)를 효과음으로 바꾼다. 경기 결과는 결과 음악(resultSting)이 맡는다.
+ * 한 갱신에 같은 소리가 여러 번 나와도(동시 충돌·연속 탈락) 가장 큰 세기로 한 번만 재생한다.
+ */
+export function alkkagiCues(events: readonly AlkkagiFeedbackEvent[]): [SfxName, number][] {
+  const out = new Map<SfxName, number>()
+  for (const event of events) {
+    const cue: SfxName | null = event.type === 'SHOT' ? 'alkkagi-shot'
+      : event.type === 'PIECE_HIT' || event.type === 'WALL_HIT' ? 'alkkagi-collision'
+      : event.type === 'PIECE_FALL' ? 'alkkagi-fall'
+      : event.type === 'TURN_CHANGED' ? 'alkkagi-turn-change'
+      : event.type.startsWith('ITEM_') ? 'alkkagi-item' : null
+    if (cue) out.set(cue, Math.max(out.get(cue) ?? 0, event.strength ? IMPACT_LEVEL[event.strength] : 1))
+  }
+  return [...out]
 }
 
 export function emoteSfx(emote: string, character: CharacterId | undefined): SfxName | null {

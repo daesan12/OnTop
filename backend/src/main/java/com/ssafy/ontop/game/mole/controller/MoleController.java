@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -98,6 +99,26 @@ public class MoleController {
         }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(service().complete(userId, Long.parseLong(roundId), body == null ? null : body.hits()));
+    }
+
+    @GetMapping("/rankings")
+    @Operation(operationId = "getWhackAMoleRankings", summary = "두더지 잡기 전체 랭킹",
+            description = "현재 규칙으로 정산한 판 중 회원별 최고 기록을 점수 → 최대 콤보 순으로 줄 세웁니다. "
+                    + "두 값이 같으면 같은 순위(1,1,3)이고 먼저 정산한 기록이 먼저 나옵니다. "
+                    + "탈퇴 회원과 이전 규칙 기록은 제외하며 me는 본인 기록이 없으면 null입니다.")
+    @ApiResponse(responseCode = "200", description = "랭킹 페이지",
+            content = @Content(schema = @Schema(implementation = MoleDtos.Rankings.class)))
+    public ResponseEntity<MoleDtos.Rankings> rankings(@AuthenticationPrincipal AuthenticatedUser user,
+            @Parameter(schema = @Schema(type = "integer", minimum = "1", maximum = "100", defaultValue = "20"))
+            @RequestParam(defaultValue = "20") String limit,
+            @Parameter(schema = @Schema(type = "integer", minimum = "0", maximum = "10000", defaultValue = "0"))
+            @RequestParam(defaultValue = "0") String offset) {
+        long userId = userId(user);
+        if (!limit.matches("[0-9]{1,3}") || !offset.matches("[0-9]{1,5}")) {
+            throw new MoleException(400, "MOLE_INVALID_REQUEST", "페이지 범위를 확인해 주세요.");
+        }
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(service().rankings(userId, Integer.parseInt(limit), Integer.parseInt(offset)));
     }
 
     @ExceptionHandler(MoleException.class)

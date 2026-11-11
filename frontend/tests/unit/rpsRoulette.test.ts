@@ -5,7 +5,7 @@ import { statusLine } from '../../src/features/rpsRoulette/presentation'
 import { LED_SHAPES, HANDS } from '../../src/features/rpsRoulette/ledHands'
 import { RestError } from '../../src/network/restError'
 
-const rules = { fees: [10, 20, 30], dailyPlays: 15, multipliers: [1, 1.5, 2], roulette: [...ROULETTE],
+const rules = { fees: [10, 20, 30], dailyPlays: 15, multipliers: [1, 2, 4], roulette: [...ROULETTE],
   duelLimitMs: 5000, decideLimitMs: 10000, graceMs: 1500 }
 const duelRound = { id: '17', fee: 20, phase: 'DUEL', seq: 1, stakeLevel: 0, multiplier: 1, challenging: false, duelNo: 1,
   commitment: 'a'.repeat(64), inputEndsAt: '2026-11-01T03:00:05Z', deadlineAt: '2026-11-01T03:00:06.500Z', lastDuel: null,
@@ -23,11 +23,11 @@ function fixture() {
 }
 
 describe('rps roulette contract', () => {
-  it('keeps the agreed 30-cell roulette and the 600냥 maximum', () => {
+  it('keeps the agreed 30-cell roulette and the 1200냥 maximum', () => {
     expect(ROULETTE).toHaveLength(30)
-    expect(ROULETTE.filter(cell => cell === 1)).toHaveLength(19)
-    expect(ROULETTE.reduce((sum, cell) => sum + cell, 0)).toBe(61)
-    expect(payoutRange(30, 2)).toEqual([60, 600])
+    expect(ROULETTE.filter(cell => cell === 1)).toHaveLength(15)
+    expect(ROULETTE.reduce((sum, cell) => sum + cell, 0)).toBe(68)
+    expect(payoutRange(30, 4)).toEqual([120, 1200])
   })
   it('parses the server state and rejects a settled round without an outcome', () => {
     expect(parseRpsState(state()).round?.phase).toBe('DUEL')
@@ -76,9 +76,9 @@ describe('rps roulette presentation', () => {
     expect(statusLine({ ...base, round, timeUp: true })).toContain('서버 판정')
   })
   it('shows the server payout formula after the roulette', () => {
-    const round = parseRpsState(state({ ...duelRound, phase: 'SETTLED', outcome: 'PAID', stakeLevel: 1, multiplier: 1.5,
-      rouletteCell: 15, rouletteValue: 7, payout: 210, inputEndsAt: null, deadlineAt: null, settledAt: '2026-11-01T03:00:09Z' })).round
-    expect(statusLine({ ...base, round })).toContain('20냥 × 7칸 × 1.5 = 210냥')
+    const round = parseRpsState(state({ ...duelRound, phase: 'SETTLED', outcome: 'PAID', stakeLevel: 1, multiplier: 2,
+      rouletteCell: 15, rouletteValue: 7, payout: 280, inputEndsAt: null, deadlineAt: null, settledAt: '2026-11-01T03:00:09Z' })).round
+    expect(statusLine({ ...base, round })).toContain('20냥 × 7칸 × 2.0 = 280냥')
   })
   it('separates a failed challenge from a first-duel loss', () => {
     const settled = { ...duelRound, phase: 'SETTLED', outcome: 'LOST', inputEndsAt: null, deadlineAt: null, settledAt: '2026-11-01T03:00:09Z' }

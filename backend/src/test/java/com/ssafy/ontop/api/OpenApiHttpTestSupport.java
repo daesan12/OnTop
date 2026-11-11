@@ -126,6 +126,7 @@ abstract class OpenApiHttpTestSupport {
                 "PUT /api/v1/events/winnings/weeks/{weekStart}/contact",
                 "GET /api/v1/admin/events/winners",
                 "GET /api/v1/admin/events/winners/{winnerId}/contact",
+                "PUT /api/v1/admin/events/winners/{winnerId}/delivery",
                 "GET /api/v1/minigames/bungeoppang/rankings",
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
                 "POST /api/v1/behavior-events"));
@@ -148,6 +149,7 @@ abstract class OpenApiHttpTestSupport {
                     "GET /api/v1/minigames/plus-minus/status", "POST /api/v1/minigames/plus-minus/rounds",
                     "GET /api/v1/minigames/whack-a-mole/status", "POST /api/v1/minigames/whack-a-mole/rounds",
                     "POST /api/v1/minigames/whack-a-mole/rounds/{roundId}/complete",
+                    "GET /api/v1/minigames/whack-a-mole/rankings",
                     "POST /api/v1/minigames/speed-mole/rounds", "POST /api/v1/minigames/speed-mole/rounds/{roundId}/complete",
                     "GET /api/v1/minigames/speed-mole/rankings",
                     "GET /api/v1/minigames/sessions/{sessionId}",
@@ -171,6 +173,10 @@ abstract class OpenApiHttpTestSupport {
                     "POST /api/v1/admin/operations/skins/{id}/uploads",
                     "POST /api/v1/admin/operations/skins/{id}/uploads/{uploadId}/verify",
                     "POST /api/v1/admin/operations/skins/{id}/publish", "POST /api/v1/admin/operations/skins/{id}/disable"));
+            expected.addAll(Set.of("GET /api/v1/admin/operations/skins/components", "POST /api/v1/admin/operations/skins/components",
+                    "GET /api/v1/admin/operations/skins/sets", "POST /api/v1/admin/operations/skins/sets",
+                    "PUT /api/v1/admin/operations/skins/sets/{id}", "POST /api/v1/admin/operations/skins/sets/{id}/publish",
+                    "POST /api/v1/admin/operations/skins/sets/{id}/disable"));
             expected.addAll(Set.of("GET /api/v1/gacha", "GET /api/v1/gacha/operations/{operationId}",
                     "POST /api/v1/gacha/tickets", "POST /api/v1/gacha/draws", "POST /api/v1/gacha/boxes/open"));
         }

@@ -7,6 +7,7 @@ import com.ssafy.ontop.feedback.service.FeedbackLifecycle;
 import com.ssafy.ontop.feedback.service.FeedbackService;
 import com.ssafy.ontop.notification.domain.PersonalNotification;
 import com.ssafy.ontop.notification.repository.NotificationRepository;
+import com.ssafy.ontop.notification.repository.EventWinnerNotificationRepository;
 import com.ssafy.ontop.notification.service.NotificationService;
 import com.ssafy.ontop.notification.repository.NotificationRewardRepository;
 import com.ssafy.ontop.notification.service.NotificationRewardService;
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @Configuration(proxyBeanMethods = false)
 @Profile("db")
@@ -49,6 +51,11 @@ public class FeedbackConfiguration {
     }
 
     @Bean
+    EventWinnerNotificationRepository eventWinnerNotificationRepository(JdbcTemplate jdbc) {
+        return new EventWinnerNotificationRepository(jdbc);
+    }
+
+    @Bean
     NotificationRewardRepository notificationRewardRepository(EntityManager entities) {
         return new NotificationRewardRepository(entities);
     }
@@ -62,9 +69,10 @@ public class FeedbackConfiguration {
     @Bean
     NotificationService notificationService(FeedbackRepository repository,
             NotificationRepository notifications,
+            EventWinnerNotificationRepository eventWinners,
             AdminAccessPolicy administrators, PlatformTransactionManager manager,
             ApplicationEventPublisher events) {
-        return new NotificationService(repository, notifications,
+        return new NotificationService(repository, notifications, eventWinners,
                 administrators, manager, events, Clock.systemUTC());
     }
 

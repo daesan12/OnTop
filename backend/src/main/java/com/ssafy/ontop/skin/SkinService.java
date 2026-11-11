@@ -23,6 +23,11 @@ public class SkinService {
     public Settings settings(long user) { access(user); return new Settings(storage.ready(),settings.modelMax(),settings.imageMax(),settings.ttlSeconds()); }
     public List<Entry> list(long user) { access(user); return transactions.execute(s->repository.list()); }
     public Entry get(long user,String id) { access(user); SkinRules.id(id); return transactions.execute(s->repository.get(id,false)); }
+    public List<Entry> components(long user) { access(user);return transactions.execute(s->repository.components()); }
+    public Entry createComponent(long user,Definition input) {
+        access(user);var d=SkinRules.validate(input);String id=UUID.randomUUID().toString();
+        return transactions.execute(s->{repository.create(id,d,user);repository.markComponent(id);return repository.get(id,false);});
+    }
     public Entry create(long user,Definition input) {
         access(user); var d=SkinRules.validate(input);String id=UUID.randomUUID().toString();
         return transactions.execute(s->{repository.create(id,d,user);return repository.get(id,false);});

@@ -16,6 +16,10 @@ export async function skinRequest<T>(path: string, signal: AbortSignal, method =
   catch (cause) {
     if (!(cause instanceof InboxError)) throw cause
     const messages: Record<string, string> = {
+      SKIN_SET_SLOT_CONFLICT: '이미 사용 중인 부위예요. 기존 아이템을 먼저 빼주세요.',
+      SKIN_SET_IMMUTABLE: '공개한 세트 구성은 바꿀 수 없어요. 새 세트로 등록해주세요.',
+      SKIN_ITEM_NOT_READY: '구성 아이템을 먼저 검증·공개해주세요.',
+      SKIN_SET_CHARACTER_MISMATCH: '세트와 아이템의 착용 캐릭터가 다릅니다.',
       SKIN_VERSION_CHANGED: '다른 창에서 변경됐어요. 목록을 다시 불러온 뒤 확인해주세요.',
       SKIN_ACCESS_DENIED: '스킨 등록 담당자로 지정된 운영 관리자만 사용할 수 있어요.',
       SKIN_STORAGE_UNAVAILABLE: 'S3·CDN 연결을 확인하지 못했어요. 입력은 유지했어요.',
@@ -46,4 +50,24 @@ export async function uploadFile(target: SkinTarget, file: File, signal: AbortSi
   const response = await fetch(target.url, { method: 'PUT', credentials: 'omit', headers: target.headers,
     body: file, signal: AbortSignal.any([signal, AbortSignal.timeout(120_000)]) })
   if (!response.ok) throw new Error('업로드하지 못했어요. 권한·URL 유효 시간을 확인하고 새 URL로 다시 시도해주세요.')
+}
+
+
+/** Infer file organization, not the occupied slots. Full-slot PARTS files remain independently wearable. */
+export async function skinModelMode(file: File): Promise<SkinDefinition['wearMode']> {
+  if (file.size < 20 || file.size > 20971520) throw new Error('GLB는 20MiB 이하의 파일을 선택해주세요.')
+  const bytes = await file.arrayBuffer(), view = new DataView(bytes)
+  if (view.getUint32(0, true) !== 0x46546c67 || view.getUint32(4, true) !== 2 || view.getUint32(16, true) !== 0x4e4f534a)
+    throw new Error('GLB 2.0 파일을 선택해주세요.')
+  const length = view.getUint32(12, true)
+  if (length > bytes.byteLength - 20) throw new Error('GLB 파일을 읽지 못했어요.')
+  const json = JSON.parse(new TextDecoder().decode(new Uint8Array(bytes, 20, length)))
+  const nodes: unknown[] = [...(Array.isArray(json.nodes) ? json.nodes : []), ...(Array.isArray(json.meshes) ? json.meshes : [])]
+  const names = nodes.flatMap(node => {
+    const value = node as { extras?: { pieces?: unknown[] } }
+    return Array.isArray(value.extras?.pieces) ? value.extras.pieces.filter((p): p is unknown[] => Array.isArray(p)).map(p => p[0]).filter((v): v is string => typeof v === 'string') : []
+  })
+  // Base/full-body GLBs can also contain item ranges. Body ranges distinguish them from outfit-only files.
+  const parts = !names.some(name => /^body(?:__|$)/.test(name)) && names.some(name => name.startsWith('item__'))
+  return parts ? 'PARTS' : 'WHOLE'
 }

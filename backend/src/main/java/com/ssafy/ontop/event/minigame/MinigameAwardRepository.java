@@ -95,11 +95,11 @@ public final class MinigameAwardRepository {
                                ORDER BY score DESC, max_combo DESC, settled_at ASC, record_id ASC) AS choice
                     FROM valid_scores
                 )
-                SELECT record_id, user_id, score, settled_at, max_combo
-                FROM choices WHERE choice = 1
+                SELECT choices.record_id, choices.user_id, u.nickname, score, settled_at, max_combo
+                FROM choices JOIN users u ON u.id = choices.user_id WHERE choice = 1
                 ORDER BY score DESC, max_combo DESC, settled_at ASC, record_id ASC, user_id ASC
                 """, (rows, index) -> new Candidate(rows.getString("record_id"),
-                rows.getLong("user_id"), rows.getLong("score"),
+                rows.getLong("user_id"), rows.getString("nickname"), rows.getLong("score"),
                 rows.getTimestamp("settled_at").toInstant(), rows.getLong("max_combo")),
                 Timestamp.from(startsAt), Timestamp.from(endsAt), BungeoppangV5Spec.RULES_VERSION,
                 BungeoppangV5Spec.DURATION_MS * 1_000L);
@@ -122,12 +122,12 @@ public final class MinigameAwardRepository {
                                ORDER BY finish_ms ASC, ended_at ASC, record_id ASC) AS choice
                     FROM eligible
                 )
-                SELECT record_id, user_id, finish_ms, ended_at
-                FROM choices WHERE choice = 1
+                SELECT choices.record_id, choices.user_id, u.nickname, finish_ms, ended_at
+                FROM choices JOIN users u ON u.id = choices.user_id WHERE choice = 1
                 ORDER BY finish_ms ASC, ended_at ASC, record_id ASC, user_id ASC
                 """.formatted(JumpmapRankingEligibility.SQL);
         return jdbc.query(sql, (rows, index) -> new Candidate(rows.getString("record_id"),
-                rows.getLong("user_id"), rows.getLong("finish_ms"),
+                rows.getLong("user_id"), rows.getString("nickname"), rows.getLong("finish_ms"),
                 rows.getTimestamp("ended_at").toInstant(), 0),
                 JumpCourse.STAGES, JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION,
                 Timestamp.from(startsAt), Timestamp.from(endsAt));
@@ -144,11 +144,12 @@ public final class MinigameAwardRepository {
 
     public Optional<Winner> winner(long roundId) {
         return jdbc.query("""
-                SELECT w.user_id, w.source_record_id, w.source_value,
+                SELECT w.user_id, u.nickname, w.source_record_id, w.source_value,
                        w.source_achieved_at, w.selected_at, s.prize_name
                 FROM event_winners w JOIN event_prize_slots s ON s.id = w.prize_slot_id
+                JOIN users u ON u.id = w.user_id
                 WHERE w.event_round_id = ?
-                """, (rows, index) -> new Winner(rows.getLong("user_id"),
+                """, (rows, index) -> new Winner(rows.getLong("user_id"), rows.getString("nickname"),
                 rows.getString("source_record_id"), rows.getLong("source_value"),
                 rows.getTimestamp("source_achieved_at").toInstant(),
                 rows.getTimestamp("selected_at").toInstant(), rows.getString("prize_name")),
@@ -197,7 +198,7 @@ public final class MinigameAwardRepository {
     public record Round(long id, LocalDate weekStartDate, Instant startsAt, Instant endsAt,
             Instant announcesAt, Instant finalizedAt) {}
     public record Slot(long id, int place, int slotNumber, String prizeName) {}
-    public record Candidate(String recordId, long userId, long sourceValue,
+    public record Candidate(String recordId, long userId, String nickname, long sourceValue,
             Instant achievedAt, long secondaryValue) {}
     public record OutcomeCounts(int candidateCount, int excludedGmCount) {}
 }

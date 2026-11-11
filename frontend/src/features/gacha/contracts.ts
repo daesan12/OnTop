@@ -3,7 +3,8 @@ import { capsuleName } from './labels'
 export interface GachaPrize { grade: number; initial: number; remaining: number; value: number }
 export interface GachaMachine { roundId: string; version: number; remaining: number; prizes: GachaPrize[]; refillEndsAt: string | null }
 export interface GachaInventory { tickets: number; boxes: { grade: number; quantity: number }[]; balance: number; availableBalance: number }
-export interface GachaProduct { code: string; name: string; grade: number; compatibility: string; imageKey: string; itemIds: number[] }
+export interface GachaComponent { id: string; name: string; imageKey: string; itemIds: number[]; slots: string[] }
+export interface GachaProduct { code: string; name: string; grade: number; compatibility: string; imageKey: string; itemIds: number[]; components?: GachaComponent[] }
 export interface GachaState { enabled: boolean; ticketPrice: number; machine: GachaMachine; inventory: GachaInventory; products: GachaProduct[]; serverNow: string | null }
 export interface GachaResult {
   operationId: string; kind: 'BUY' | 'DRAW' | 'OPEN'; roundId: string | null; grade: number
@@ -43,8 +44,11 @@ function product(value: unknown): GachaProduct {
   if (!object(value) || typeof value.code !== 'string' || typeof value.name !== 'string'
     || !whole(value.grade) || value.grade < 1 || value.grade > 4 || typeof value.compatibility !== 'string'
     || typeof value.imageKey !== 'string' || !Array.isArray(value.itemIds) || !value.itemIds.every(n => whole(n) && n > 0)) return invalid()
+  if (value.components != null && (!Array.isArray(value.components) || value.components.some(c => !object(c) || typeof c.id !== 'string'
+    || typeof c.name !== 'string' || typeof c.imageKey !== 'string' || !Array.isArray(c.itemIds) || !c.itemIds.every(n => whole(n) && n > 0)
+    || !Array.isArray(c.slots) || !c.slots.every(s => typeof s === 'string' && ['HAIR', 'FACE', 'TOP', 'BOTTOM', 'SHOES'].includes(s))))) return invalid()
   return { code: value.code, name: value.name, grade: value.grade, compatibility: value.compatibility,
-    imageKey: value.imageKey, itemIds: value.itemIds }
+    imageKey: value.imageKey, itemIds: value.itemIds, ...(value.components == null ? {} : { components: value.components as GachaComponent[] }) }
 }
 export function parseState(value: unknown): GachaState {
   if (!object(value) || typeof value.enabled !== 'boolean' || !whole(value.ticketPrice) || !Array.isArray(value.products)) return invalid()

@@ -100,7 +100,7 @@ public class RpsRouletteController {
 
     @PostMapping("/rounds/{roundId}/challenge")
     @Operation(operationId = "challengeRpsRouletteRound", summary = "도전하기",
-            description = "이긴 뒤 한 번 더 대결합니다. 1차 성공 ×1.5, 2차 성공 ×2.0, 실패하면 꽝입니다.")
+            description = "이긴 뒤 한 번 더 대결합니다. 1차 성공 ×2.0, 2차 성공 ×4.0, 실패하면 꽝입니다.")
     @ApiResponse(responseCode = "200", description = "다음 대결의 커밋과 현재 상태",
             content = @Content(schema = @Schema(implementation = RpsRouletteStateResponse.class)))
     public ResponseEntity<RpsRouletteStateResponse> challenge(@AuthenticationPrincipal AuthenticatedUser user,

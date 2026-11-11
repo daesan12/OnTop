@@ -26,9 +26,9 @@ export const defaultLook = (variant: CharacterVariant): Look => ({ ...defaults[v
 /** A wearable item's imageKey names its 3D piece: `outfit/<file>/<item>`, the file being a character
  * (man, girl: their default items) or an outfit file under /art/characters/outfits. Anything else stays default. */
 const outfitKey = /^outfit\/([a-z0-9-]{1,40})\/([a-z0-9]{1,8})$/
-export function wornPiece(imageKey: string | null): Worn | null {
+export function wornPiece(imageKey: string | null, variant: CharacterVariant = 'man'): Worn | null {
   const asset = catalogAsset(imageKey)
-  if (asset?.wearMode === 'PARTS') return { source: catalogSource(asset), id: 'a' }
+  if (asset?.wearMode === 'PARTS') return { source: catalogSource(asset) + (asset.compatibility === 'ANY' && variant === 'girl' ? '-girl' : ''), id: 'a' }
   const match = imageKey?.match(outfitKey)
   return match ? { source: match[1]!, id: match[2]! } : null
 }
@@ -36,7 +36,7 @@ export function wornPiece(imageKey: string | null): Worn | null {
 export function resolveLook(variant: CharacterVariant, equipment: readonly PublicEquipment[]): Look {
   const look = defaultLook(variant)
   for (const item of equipment) {
-    const worn = wornPiece(item.imageKey)
+    const worn = wornPiece(item.imageKey, variant)
     if (worn) look[item.equipSlot] = worn
   }
   return look
