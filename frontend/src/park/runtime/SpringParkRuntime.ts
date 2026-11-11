@@ -461,13 +461,15 @@ export class ParkRuntime implements ParkRuntimePort {
     const gachaRequest = (method === 'GET' && (path === '/api/v1/gacha'
       || /^\/api\/v1\/gacha\/operations\/[A-Za-z0-9_-]{1,64}$/.test(path)))
       || (method === 'POST' && ['/api/v1/gacha/tickets', '/api/v1/gacha/draws', '/api/v1/gacha/boxes/open'].includes(path))
+    const serviceAiRequest = (method === 'GET' && ['/api/v1/ai/features','/api/v1/ai/companions/status'].includes(path))
+      || (method === 'POST' && /^\/api\/v1\/ai\/companions\/(?:invite|action|talk)$/.test(path))
     const localAiRequest = import.meta.env.DEV && import.meta.env.VITE_AI_PARK === 'true'
       && ['127.0.0.1','localhost'].includes(location.hostname)
       && ((method === 'POST' && /^\/local\/ai\/(?:feedback-position|table-position|jumpmap-position|roof-position|flush|digest)$/.test(path))
         || (method === 'GET' && path === '/local/ai/status')
         || (method === 'GET' && path === '/local/ai/companions/status')
         || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
-    if (!this.active || (!localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
+    if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
       && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))

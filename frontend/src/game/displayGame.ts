@@ -1,3 +1,4 @@
+import {residentsEnabled,useAiFeatures} from '../features/ai/serviceFeatures'
 import {create} from 'zustand'
 import {useGame,canPlace} from './store'
 import {useCompanions,type Practice} from '../features/ai/companions'
@@ -21,7 +22,7 @@ export function displayedGame(base:ReturnType<typeof useGame.getState>,practice:
 let previous:DisplayState|undefined
 function current():DisplayState {
  const s=useCompanions.getState()
- const enabled=import.meta.env.DEV&&import.meta.env.VITE_AI_PARK==='true'
+ const enabled=residentsEnabled()
  const practice=s.practice??(s.practiceChat?.role==='SPECTATOR'&&s.observedPractice?.snapshot.gameId===s.practiceChat.gameId?s.observedPractice:null)
  const next=displayedGame(useGame.getState(),enabled?practice:null,s.receivedAt,s.practicePending,s.practiceError,s.practice?'PLAYER':'SPECTATOR')
  // Actor movement and identical HTTP polls must not cancel a board pointer press.
@@ -32,8 +33,8 @@ function current():DisplayState {
 }
 export const useDisplayGame=create<DisplayState>(current)
 const sync=()=>useDisplayGame.setState(current(),true)
-const stopGame=useGame.subscribe(sync),stopCompanions=useCompanions.subscribe(sync)
-if(import.meta.hot)import.meta.hot.dispose(()=>{stopGame();stopCompanions()})
+const stopGame=useGame.subscribe(sync),stopCompanions=useCompanions.subscribe(sync),stopFeatures=useAiFeatures.subscribe(sync)
+if(import.meta.hot)import.meta.hot.dispose(()=>{stopGame();stopCompanions();stopFeatures()})
 export function canPlaceDisplayed(own:string,x:number,y:number,now=Date.now()) {
  const s=useDisplayGame.getState(),p=s.localPractice,g=s.game
  if(!p)return canPlace(own,x,y,now)

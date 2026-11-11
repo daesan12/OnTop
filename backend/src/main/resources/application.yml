@@ -25,6 +25,7 @@ springdoc:
 ontop:
   ai:
     enabled: ${AI_ENABLED:false}
+    residents-enabled: ${AI_RESIDENTS_ENABLED:true}
   gacha:
     enabled: ${GACHA_ENABLED:false}
     node-id: ${GACHA_NODE_ID:server-1}

@@ -57,6 +57,7 @@ import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
 import { EntryNewsPopup } from '../features/announcements/EntryNewsPopup'
+import { AiResidentsHost } from '../features/ai/AiResidentsHost'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
 import { WinnerContactsHost } from '../features/winnerContacts/WinnerContactsHost'
 import { useArcade } from '../features/arcade/store'
@@ -150,6 +151,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <ParkSfx />
       <RewardCoinFlight />
       <ChannelEntryGate />
+      <AiResidentsHost />
       <AnnouncementBanner hidden={hideAnnouncements} />
       <EntryNewsPopup hidden={hideAnnouncements} launcherHost={entryNewsHost} />
       <GachaLifecycle />

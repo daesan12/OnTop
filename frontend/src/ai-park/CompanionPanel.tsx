@@ -1,3 +1,4 @@
+import {companionPath} from '../features/ai/serviceFeatures'
 import {useEffect,useRef,useState} from 'react'
 import {parkRuntime} from '../park/runtime/runtime'
 import {useSession} from '../network/worldClient'
@@ -11,12 +12,12 @@ export function CompanionPanel(){
  const previousGame=useRef('')
  useEffect(()=>{if(!connected||!channel){resetCompanionActors();useCompanions.setState({practice:null,observedPractice:null,practiceChat:null,practicePending:false,practiceError:'',reply:'',waitSeconds:-1});return}
   let active=true,timer:ReturnType<typeof setTimeout>
-  const poll=async()=>{try{const value=await parkRuntime.requestJSON('/local/ai/companions/status');if(active)acceptCompanions(value)}catch{if(active)useCompanions.setState({practice:null,observedPractice:null,practiceChat:null})}finally{if(active)timer=setTimeout(()=>void poll(),650)}}
+  const poll=async()=>{try{const value=await parkRuntime.requestJSON(companionPath('status'));if(active)acceptCompanions(value)}catch{if(active)useCompanions.setState({practice:null,observedPractice:null,practiceChat:null})}finally{if(active)timer=setTimeout(()=>void poll(),650)}}
   void poll();return()=>{active=false;clearTimeout(timer)}
  },[connected,channel])
  useEffect(()=>{const id=s.practice?.snapshot.gameId??'';if(id&&id!==previousGame.current){setOpen(false);setError('')}previousGame.current=id},[s.practice?.snapshot.gameId])
  const send=async(path:string,body:object)=>{if(busy)return;setBusy(true);setError('')
-  try{const result=await parkRuntime.requestJSON('/local/ai/companions/'+path,{method:'POST',body:JSON.stringify(body)});if(result&&typeof result==='object'&&'message'in result)setError(String(result.message));const value=await parkRuntime.requestJSON('/local/ai/companions/status');acceptCompanions(value);return true}catch{setError('처리하지 못했어요. 최신 판·차례·현재 좌석을 확인하고 다시 시도해주세요.');return false}finally{setBusy(false)}}
+  try{const result=await parkRuntime.requestJSON(companionPath(path),{method:'POST',body:JSON.stringify(body)});if(result&&typeof result==='object'&&'message'in result)setError(String(result.message));const value=await parkRuntime.requestJSON(companionPath('status'));acceptCompanions(value);return true}catch{setError('처리하지 못했어요. 최신 판·차례·현재 좌석을 확인하고 다시 시도해주세요.');return false}finally{setBusy(false)}}
  const arriving=s.practice?.phase==='ARRIVING',g=s.practice?.snapshot,mine=String(g?.turnUserId)===own,ended=!!g?.endedAt
  const canInvite=!!tableId&&table?.gameCode==='OMOK'&&table.seats.filter(p=>p.userId).length===1
  const residentBusy=s.actors.some(a=>a.difficulty===difficulty&&['PLAY_OMOK','APPROACH_OMOK'].includes(a.action??''))

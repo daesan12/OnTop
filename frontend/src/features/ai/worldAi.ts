@@ -1,13 +1,13 @@
 import { filterChat } from '../chat/filterChat'
 import { create } from 'zustand'
-import { resetCompanionActors } from './companions'
+import { resetCompanions } from './companions'
 import {validAmbient,type AmbientSpeech} from './ambientSpeech'
 
 export type PoliceNotice = { incidentId: string; name: string; x: number; y: number; z: number; speech: string; expiresAt: number; actor:string; bubbleUntil:number;gameId?:string }
 export type PatrolNpc = {id:string;name:string;action:string;x:number;y:number;z:number;yaw:number;moving:boolean;warp?:number;ambient?:AmbientSpeech|null}
 export const useWorldAi = create<{ police: PoliceNotice[]; npcs:PatrolNpc[]; npcReceivedAt:number; privateNotice:{text:string;expiresAt:number;gameId?:string}|null }>(() => ({ police: [],npcs:[],npcReceivedAt:0,privateNotice:null }))
 let npcVersion=-1
-export function resetWorldAi() { npcVersion=-1; resetCompanionActors(); useWorldAi.setState({ police: [],npcs:[],npcReceivedAt:0,privateNotice:null }) }
+export function resetWorldAi() { npcVersion=-1; resetCompanions(); useWorldAi.setState({ police: [],npcs:[],npcReceivedAt:0,privateNotice:null }) }
 export function acceptPrivateNotice(p:Record<string,unknown>) {
   if(typeof p.text!=='string' || p.text.length>400 || typeof p.expiresAt!=='number' || !Number.isFinite(p.expiresAt)
     || p.expiresAt<=Date.now() || p.expiresAt>Date.now()+60_000
