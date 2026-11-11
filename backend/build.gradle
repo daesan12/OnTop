@@ -25,9 +25,13 @@ repositories {
 
 // One dictionary for the browser mask and the local police trigger.
 tasks.named('processResources') {
-    from('../frontend/src/features/chat') {
-        include 'filterRules.json'
-        into 'ai'
+    def browserDictionary = file('../frontend/src/features/chat/filterRules.json')
+    if (browserDictionary.exists()) inputs.file(browserDictionary)
+    doFirst {
+        def browserRules = file('../frontend/src/features/chat/filterRules.json')
+        if (browserRules.exists() && browserRules.readLines('UTF-8') != file('src/main/resources/ai/filterRules.json').readLines('UTF-8')) {
+            throw new GradleException('Synchronize backend ai/filterRules.json with the browser dictionary')
+        }
     }
 }
 
