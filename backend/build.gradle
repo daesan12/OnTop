@@ -71,6 +71,16 @@ tasks.register('aiLab', JavaExec) {
 }
 
 
+tasks.register('aiPark', JavaExec) {
+    description = '실제 공원·채팅·소리함 AI 연결 검수 (loopback, fixture 계정/메모리 저장소)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.AiParkApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    jvmArgs '-Xmx768m'
+}
+
 tasks.register('aiLabClasspath') {
     description = '로컬 AI 실행 스크립트용 테스트 클래스패스 기록 (build 산출물)'
     dependsOn testClasses

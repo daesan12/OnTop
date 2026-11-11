@@ -22,10 +22,10 @@ import { clearRoamingInput, inputState, focusParkCanvas } from '../../world/inpu
 import { rememberRoamingView } from '../../world/cameraReturn'
 import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
 import { gameChatScope } from '../../features/chat/gameChat'
+import {useCompanions} from '../../features/ai/companions'
 import { gamePlayers, gameState } from '../../game/protocol'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
-import { filterChat } from '../../features/chat/filterChat'
 import { receiveWalletSettlement } from '../../features/wallet/settlementRefresh'
 import {
   channel,
@@ -198,6 +198,9 @@ export class ParkRuntime implements ParkRuntimePort {
   })
   private gameEventScope = () => {
     const s = useSession.getState(), g = useGame.getState()
+    const c=useCompanions.getState(),practice=c.practiceChat??(c.practice?{gameId:c.practice.snapshot.gameId,version:c.practice.snapshot.version,role:'PLAYER' as const}:null)
+    if(practice&&this.active&&this.socket.connected&&s.status==='connected'&&s.roomId&&s.mapCompatible)
+      return {key:JSON.stringify([this.generation,s.sessionId,s.roomId,practice.gameId,practice.role]),...practice,canSend:getAuthSession()?.status==='AUTHENTICATED'}
     if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
       || !g.game || gameState(g.game).status !== 'PLAYING' || g.lastResult) return null
     const game = g.game
@@ -400,7 +403,8 @@ export class ParkRuntime implements ParkRuntimePort {
       response = await fetchOnce()
     }
     const distanceCode = url === '/api/v1/feedback' ? 'FEEDBACK_OUT_OF_RANGE'
-      : /^\/api\/v1\/notes(?:\?channelId=[^&#?]+)?$/.test(url) ? 'NOTES_OUT_OF_RANGE' : ''
+      : /^\/api\/v1\/notes(?:\?channelId=[^&#?]+)?$/.test(url) ? 'NOTES_OUT_OF_RANGE'
+      : ''
     const distanceForbidden = response.status === 403 && !!distanceCode
     if (response.status === 401 || (response.status === 403 && !distanceForbidden)) this.authEnded()
     if (!response.ok) {
@@ -457,7 +461,13 @@ export class ParkRuntime implements ParkRuntimePort {
     const gachaRequest = (method === 'GET' && (path === '/api/v1/gacha'
       || /^\/api\/v1\/gacha\/operations\/[A-Za-z0-9_-]{1,64}$/.test(path)))
       || (method === 'POST' && ['/api/v1/gacha/tickets', '/api/v1/gacha/draws', '/api/v1/gacha/boxes/open'].includes(path))
-    if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
+    const localAiRequest = import.meta.env.DEV && import.meta.env.VITE_AI_PARK === 'true'
+      && ['127.0.0.1','localhost'].includes(location.hostname)
+      && ((method === 'POST' && /^\/local\/ai\/(?:feedback-position|table-position|jumpmap-position|roof-position|flush|digest)$/.test(path))
+        || (method === 'GET' && path === '/local/ai/status')
+        || (method === 'GET' && path === '/local/ai/companions/status')
+        || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
+    if (!this.active || (!localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
       && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
@@ -944,9 +954,9 @@ export class ParkRuntime implements ParkRuntimePort {
     } catch { return false }
   }
   sendChat = (value: string) =>
-    gameChatScope() ? this.sendSpectatorChat(filterChat(value)) :
+    gameChatScope() ? this.sendSpectatorChat(value) :
     this.action(async () => {
-      const text = filterChat(validateChat(value))
+      const text = validateChat(value)
       if (!useSession.getState().roomId)
         throw new Error('먼저 채널에 입장해주세요.')
       await this.socket.request('WORLD_CHAT_SEND', { text }, [

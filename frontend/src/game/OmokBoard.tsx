@@ -12,7 +12,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { useShallow } from 'zustand/react/shallow'
 import { type TableAnchor } from '../config'
 import { useSession } from '../network/worldClient'
-import { canPlace, useGame } from './store'
+import { canPlaceDisplayed as canPlace, useDisplayGame as useGame } from './displayGame'
+import {practiceAction} from '../ai-park/practiceActions'
 import { parkRuntime } from '../park/runtime/runtime'
 import { omokCamera } from './cameraState'
 import { canShowForbiddenMarks, omokCell, stonePoint, OMOK_SIZE, OMOK_BOARD_Y, OMOK_SPACING as spacing, OMOK_HALF as half } from './omokPresentation'
@@ -122,7 +123,7 @@ function OmokSurface({
     return !panelOwnsKeys() && relevant && session.status === 'connected' && !session.pending && omokCamera.ready
       && omokCamera.anchorId === anchor.id && canPlace(session.sessionId, x, y)
   }
-  const pingable = () => relevant && game?.role === 'SPECTATOR' && game.omok.status === 'PLAYING'
+  const pingable = () => !useGame.getState().localPractice && relevant && game?.role === 'SPECTATOR' && game.omok.status === 'PLAYING'
     && useSession.getState().status === 'connected' && useOmokEvents.getState().canSend && !panelOwnsKeys()
     && omokCamera.ready && omokCamera.anchorId === anchor.id
   const grid = useMemo(() => {
@@ -213,6 +214,7 @@ function OmokSurface({
         if (point && point.x === down.x && point.y === down.y && (playable(point.x, point.y) || pingable())) {
           clearHover()
           if (g.role === 'SPECTATOR') void parkRuntime.pingOmok(point.x, point.y)
+          else if(useGame.getState().localPractice) void practiceAction('place',point)
           else void parkRuntime.placeOmok(point.x, point.y)
         }
       }}

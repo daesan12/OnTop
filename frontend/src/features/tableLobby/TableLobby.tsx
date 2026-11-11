@@ -17,11 +17,13 @@ import { TABLET_ENABLED } from './tabletFeature'
 import { participantResultLabel, resultSettlement } from './gatheringModel'
 import { HostStartWaitNotice } from './HostStartWaitControls'
 import { BoardRewardCoinSource } from '../wallet/RewardCoinFlight'
+import { useCompanions } from '../ai/companions'
 
 export function TableLobby() {
   return <>{TABLET_ENABLED && <HostStartWaitNotice />}<TableLobbyContent /></>
 }
 function TableLobbyContent() {
+  const practice=useCompanions(s=>s.practice)
   const runtime = useParkRuntime()
   const gathering = useGathering(), details = useTableLobby(s => s.gatheringDetails)
   const s = useSession(useShallow(s => ({
@@ -47,6 +49,7 @@ function TableLobbyContent() {
   const ref = tableId ? publicMatchService.find({ channelId: s.channel, tableId }) : null
   const canWatch = !!ref && ref.tableId === tableId && ref.channelId === s.channel
     && !s.seated && !busy && s.connected
+  if (import.meta.env.DEV && import.meta.env.VITE_AI_PARK==='true' && practice?.snapshot.tableId===tableId && ownTable) return null
   if (TABLET_ENABLED && ownTable) return gathering?.finished ? <TableGatheringHud key={gathering.scope} model={gathering} /> : <TabletLobby tableId={tableId} />
   if (gathering && details !== gathering.scope && (gathering.gameCode || gathering.finished)) return <TableGatheringHud model={gathering} />
   if (!s.focused || !query.panelOpen || game || s.bench || !ownTable) return null
