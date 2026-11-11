@@ -14,7 +14,7 @@ import static com.ssafy.ontop.ai.LocalAiStore.*;
 /** Durable workflow coordinator. External calls happen outside storage transactions and world locks. */
 public final class AiOperations {
     public static final String HIDDEN = "부적절한 언행으로 가려졌습니다.";
-    private final LocalAiStore store;
+    private final AiStore store;
     private final AiDecisions decisions;
     private final AiText texts;
     private final AiNotifier notifier;
@@ -32,15 +32,15 @@ public final class AiOperations {
     private volatile boolean simulateNotifierFailure;
     private volatile boolean simulateDecisionFailure;
 
-    public AiOperations(LocalAiStore store, AiDecisions decisions, AiText texts, AiNotifier notifier,
+    public AiOperations(AiStore store, AiDecisions decisions, AiText texts, AiNotifier notifier,
                         Clock clock, Consumer<PoliceDispatch> police) {
         this(store,decisions,texts,notifier,clock,police,60_000);
     }
-    public AiOperations(LocalAiStore store,AiDecisions decisions,AiText texts,AiNotifier notifier,
+    public AiOperations(AiStore store,AiDecisions decisions,AiText texts,AiNotifier notifier,
                         Clock clock,Consumer<PoliceDispatch> police,long incidentCooldownMillis) {
         this(store,decisions,texts,notifier,clock,police,incidentCooldownMillis,false);
     }
-    public AiOperations(LocalAiStore store,AiDecisions decisions,AiText texts,AiNotifier notifier,
+    public AiOperations(AiStore store,AiDecisions decisions,AiText texts,AiNotifier notifier,
                         Clock clock,Consumer<PoliceDispatch> police,long incidentCooldownMillis,boolean advisoryChat) {
         if(incidentCooldownMillis<1_000 || incidentCooldownMillis>300_000) throw new IllegalArgumentException("사건 쿨다운 범위 오류");
         this.store=store; this.decisions=decisions; this.texts=texts; this.notifier=notifier; this.clock=clock; this.police=police;
@@ -70,7 +70,7 @@ public final class AiOperations {
         validate(author,1,32); validate(key,1,64); validate(text,5,600);
         if (!key.matches("[A-Za-z0-9_-]+")) throw new IllegalArgumentException("요청 키 형식 오류");
         var result=new java.util.concurrent.atomic.AtomicReference<Report>();
-        store.change(data -> {
+        store.changeReport(author,key,data -> {
             var existing=data.reports.stream().filter(r -> r.author().equals(author) && r.operationId().equals(key)).findFirst();
             if (existing.isPresent()) {
                 if (!existing.get().text().equals(text.strip())) throw new IllegalArgumentException("동일 요청 키의 내용이 다릅니다.");
@@ -85,14 +85,14 @@ public final class AiOperations {
     public void acceptChat(AiDecisions.Chat chat) {
         acceptChat(chat,false);
     }
-    /** Runs on the file-only chat lane, never on the socket sender or an external API worker. */
+    /** Runs on the storage-only chat lane, never on the socket sender or an external API worker. */
     public void acceptChatAndWarn(AiDecisions.Chat chat){acceptChat(chat,true);}
     private void acceptChat(AiDecisions.Chat chat,boolean immediate) {
         validate(chat.id(),1,128); validate(chat.author(),1,128); validate(chat.scope(),1,128); validate(chat.text(),1,400);
         if (!Double.isFinite(chat.x()) || !Double.isFinite(chat.z())) throw new IllegalArgumentException("좌표 오류");
         boolean rule=immediate&&advisoryChat&&chat.sentAt()>=clock.millis()-30_000&&ChatWarningRules.matches(chat.text());
         var created=new java.util.concurrent.atomic.AtomicBoolean();
-        store.change(data -> {
+        store.changeMessage(chat.id(),data -> {
             if (data.messages.stream().anyMatch(m -> m.chat().id().equals(chat.id()))) {metrics.increment("chat.duplicates");return;}
             if (data.messages.stream().filter(m -> !m.processed()).count() >= 512) throw new IllegalStateException("검수 대기열 초과");
             data.messages.add(new Message(chat,false,0,false));
@@ -353,9 +353,15 @@ public final class AiOperations {
         }
     }
     private void makeDigest(String slot) {
-        var reports=store.read().reports.stream().filter(r -> r.triage()!=null && r.triage().severity()>=2 && r.digestId().isEmpty()).toList();
+        var reports=new ArrayList<Report>();var factsBuffer=new StringBuilder();
+        for(var report:store.read().reports){
+            if(report.triage()==null||report.triage().severity()<2||!report.digestId().isEmpty())continue;
+            String line=(reports.isEmpty()?"":"\n")+"제보 "+(reports.size()+1)+": "+report.text();
+            if(reports.size()>=100||factsBuffer.length()+line.length()>AiText.MAX_FACTS_CHARACTERS)break;
+            reports.add(report);factsBuffer.append(line);
+        }
         String batch=id();
-        String facts=java.util.stream.IntStream.range(0,Math.min(100,reports.size())).mapToObj(i -> "제보 "+(i+1)+": "+reports.get(i).text()).collect(java.util.stream.Collectors.joining("\n"));
+        String facts=factsBuffer.toString();
         String summary="";
         if(!reports.isEmpty()){
             metrics.increment("feedback_summary.requests");long started=System.nanoTime();
@@ -406,7 +412,7 @@ public final class AiOperations {
         if (data.notices.stream().noneMatch(n -> n.key().equals(key))) data.notices.add(new Notice(id(),key,kind,text,"PENDING",0,now,0,modelScore));
     }
     public void restore(String messageId) {
-        store.change(data -> {
+        store.changeMessage(messageId,data -> {
             for(int i=0;i<data.messages.size();i++) {
                 var row=data.messages.get(i);
                 if(row.chat().id().equals(messageId)) { data.messages.set(i,new Message(row.chat(),false,row.version()+1,true)); return; }
@@ -414,14 +420,7 @@ public final class AiOperations {
             throw new IllegalArgumentException("메시지가 없습니다.");
         });
     }
-    public void retryNotices() {
-        store.change(data -> {
-            data.notices.replaceAll(n -> n.status().equals("SENT")?n:
-                    new Notice(n.id(),n.key(),n.kind(),n.text(),"PENDING",0,clock.millis(),0,n.modelScore()));
-            data.incidents.replaceAll(c -> !c.policeStatus().equals("FAILED")?c:
-                    new Incident(c.id(),c.scope(),c.kind(),c.messageIds(),c.createdAt(),c.provider(),c.actors(),c.x(),c.z(),"PENDING",0,clock.millis()));
-        });
-    }
+    public void retryNotices() { store.retryFailures(clock.millis()); }
     public Map<String,Object> status() {
         var pending=store.read().messages.stream().filter(m -> !m.processed()).toList();
         long oldest=pending.stream().mapToLong(m -> m.chat().sentAt()).min().orElse(clock.millis());

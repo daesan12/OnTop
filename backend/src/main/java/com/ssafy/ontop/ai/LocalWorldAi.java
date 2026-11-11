@@ -13,9 +13,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Single-process local integration. File storage must not be used on a shared deployment. */
+/** Single active world worker. Service profiles inject JDBC; local fixtures use a file store. */
 public final class LocalWorldAi implements WorldAiBridge, AutoCloseable {
-    private final LocalAiStore store;
+    private final AiStore store;
     private final AiOperations operations;
     private final TableHub hub;
     private final String mode;
@@ -61,13 +61,17 @@ public final class LocalWorldAi implements WorldAiBridge, AutoCloseable {
     }
     public LocalWorldAi(ObjectMapper mapper,Path directory,AiDecisions decisions,AiNotifier notifier,TableHub hub,
                         java.util.function.Supplier<com.ssafy.ontop.world.movement.ParkNavigation> navigationFactory,boolean advisoryChat,AiText texts) throws java.io.IOException {
+        this(new LocalAiStore(directory,mapper),decisions,notifier,hub,navigationFactory,advisoryChat,texts);
+    }
+    public LocalWorldAi(AiStore store,AiDecisions decisions,AiNotifier notifier,TableHub hub,
+                        java.util.function.Supplier<com.ssafy.ontop.world.movement.ParkNavigation> navigationFactory,boolean advisoryChat,AiText texts) {
         this.hub = hub;
         this.decisions=decisions;
         this.texts=java.util.Objects.requireNonNull(texts);
         this.advisoryChat=advisoryChat;
         this.navigationFactory=navigationFactory;
         mode=(advisoryChat?"CHAT_FILTER_NEGATIVE / FEEDBACK_":"")+(decisions instanceof JevDecisions?"JEV":"OFFLINE_RULE_FIXTURE")+" / "+(notifier instanceof MattermostNotifier?"MATTERMOST":"LOCAL");
-        store = new LocalAiStore(directory,mapper);
+        this.store=java.util.Objects.requireNonNull(store);
         operations = new AiOperations(store,decisions,texts,notifier,Clock.systemUTC(),this::police,60_000,advisoryChat);
         hub.aiBridge(this);
         worker.scheduleWithFixedDelay(this::step,1,1,TimeUnit.SECONDS);
@@ -132,11 +136,10 @@ public final class LocalWorldAi implements WorldAiBridge, AutoCloseable {
             }
         } catch (RuntimeException failure) { error=failure.getClass().getSimpleName(); }
     }
-    private final java.util.Set<String> announcedWarnings=new java.util.HashSet<>();
+    private final java.util.LinkedHashSet<String> announcedWarnings=new java.util.LinkedHashSet<>();
     private void police(AiOperations.PoliceDispatch dispatch) {
-        var data=store.read();
-        var incident=data.incidents.stream().filter(i -> i.id().equals(dispatch.incidentId())).findFirst().orElseThrow();
-        var messages=data.messages.stream().filter(m -> incident.messageIds().contains(m.chat().id())).toList();
+        var incident=store.incident(dispatch.incidentId());
+        var messages=store.messages(incident.messageIds());
         if(messages.isEmpty()) return;
         boolean mediation=dispatch.kind().equals("CONFLICT") || dispatch.kind().equals("CONFLICT_SUSPECTED");
         var targets=mediation?List.of(messages.getLast()):dispatch.kind().equals("PROFANITY_RULE")||dispatch.kind().equals("NEGATIVE_SPEECH")?messages:messages.stream().filter(LocalAiStore.Message::hidden).toList();
@@ -151,6 +154,7 @@ public final class LocalWorldAi implements WorldAiBridge, AutoCloseable {
                                 "expiresAt",System.currentTimeMillis()+8_000),game(last.scope()));
                     metrics.duration("private_notice.delay",Math.max(0,System.currentTimeMillis()-last.sentAt())*1_000_000);
                     announcedWarnings.add(warningId);
+                    trimWarnings();
                 }
                 continue; // Game warnings are private notices; never enqueue or move the police body.
             }
@@ -175,8 +179,10 @@ public final class LocalWorldAi implements WorldAiBridge, AutoCloseable {
             if(!mediation && announcedWarnings.add(warningId))
                 personal.accept(dispatch.kind().equals("PROFANITY_RULE")?"욕설 표현이 감지됐어요. 서로 존중하는 말을 사용해주세요.":
                         dispatch.kind().equals("NEGATIVE_SPEECH")?"거친 표현이 감지됐어요. 조금만 부드럽게 이야기해주세요.":"부적절한 표현이 감지되어 채팅이 가려졌어요. 서로 존중하는 말을 사용해주세요.");
+            trimWarnings();
         }
     }
+    private void trimWarnings(){while(announcedWarnings.size()>4096)announcedWarnings.removeFirst();}
     private PolicePatrol patrol(String channel) {
         if(navigation==null) navigation=navigationFactory.get();
         return patrols.computeIfAbsent(channel,ignored -> new PolicePatrol(new PolicePatrol.Navigation() {

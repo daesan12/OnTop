@@ -17,13 +17,19 @@ class WorldAiConfigurationTests {
  @TempDir Path directory;
  private WebApplicationContextRunner runtime(){return new WebApplicationContextRunner()
   .withUserConfiguration(WorldAiConfiguration.class)
-  .withPropertyValues("spring.profiles.active=dev,db","AI_DATA_DIRECTORY="+directory,
+  .withPropertyValues("spring.profiles.active=dev,db",
    "AI_JEV_ENABLED=false","AI_MM_ENABLED=false","AI_POLICE_ENABLED=false","OPENAI_API_KEY=")
   .withBean(ObjectMapper.class,ObjectMapper::new)
+  .withBean(AiStore.class,()->{try{return new LocalAiStore(directory,new ObjectMapper());}catch(java.io.IOException e){throw new IllegalStateException(e);}})
   .withInitializer(c->{c.getBeanFactory().registerSingleton("hub",mock(TableHub.class));
    c.getBeanFactory().registerSingleton("map",mock(WorldMapRuntime.class));
    c.getBeanFactory().registerSingleton("jumpmap",mock(JumpmapActivation.class));});}
  @Test void defaultsDoNotActivateProductionProviders(){runtime().run(c->assertThat(c).doesNotHaveBean(LocalWorldAi.class).doesNotHaveBean(AiText.class));}
+ @Test void disabledRuntimeDoesNotCreateStorageOrRequireDatabaseBean(){
+  new WebApplicationContextRunner().withUserConfiguration(WorldAiConfiguration.class)
+   .withPropertyValues("spring.profiles.active=prod,db","ontop.ai.enabled=false")
+   .run(c->{assertThat(c).hasNotFailed().doesNotHaveBean(AiStore.class).doesNotHaveBean(LocalWorldAi.class);});
+ }
  @Test void explicitRuntimeUsesSafeFixedTextWithoutKeys(){runtime().withPropertyValues("ontop.ai.enabled=true").run(c->{
   assertThat(c).hasSingleBean(LocalWorldAi.class).hasSingleBean(AiText.class);
   assertThat(c.getBean(AiText.class).mode()).isEqualTo(AiText.fixed().mode());
