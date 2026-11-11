@@ -75,3 +75,38 @@
  .open-result-card .open-parts{font-size:12px;padding:4px 8px}
  .open-grade-seal{width:24%;right:-3%;font-size:clamp(18px,3cqw,26px)}
 }
+/* Readable OnTop typography and quiet controls inside the ornamental artwork. */
+.capsule-opening-dialog{font-family:BusanDandiMyeongjo,serif;font-synthesis:none}
+.open-title h2{font-size:clamp(25px,4.4cqw,38px);font-weight:700;letter-spacing:-.025em;color:#533c29;text-shadow:0 1px 0 #fff9ec;line-height:1.35}
+.open-title h2:before,.open-title h2:after{content:none}
+.open-wallet{font-size:11px;letter-spacing:0;background:transparent;border:0;color:#705e4b;padding:0 0 3px}
+.open-result-card{display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:10px;padding:4px 8px;scroll-padding:10px}
+.open-result-card>small{font-size:12px;letter-spacing:.04em;font-weight:500;color:#795b3d}
+.open-result-card h3{margin:0;padding:0 0 13px;width:100%;max-width:100%;border:0;border-bottom:1px solid #a97e424d;border-radius:0;background:none;box-shadow:none;color:#433324;font-size:clamp(22px,3.7cqw,32px);font-weight:700;letter-spacing:-.035em;line-height:1.4}
+.open-wear{display:flex;flex-direction:column;align-items:center;gap:7px;width:100%}
+.open-wear-label{font-size:11px;color:#79644e;letter-spacing:.06em}
+.open-result-card .open-parts{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:0;padding:0;border:0;border-radius:0;background:none;font-size:0;color:#463b2c!important;line-height:1.4}
+.open-result-card .open-parts:before{content:none}
+.open-parts .open-part{display:inline-flex;align-items:center;gap:5px;font-size:0;padding:5px 8px;border:1px solid #bb985d66;background:#fff8edb3;border-radius:5px}
+.open-part>span{font-size:13px;font-weight:700}
+.open-part svg{width:20px;height:20px;color:#887043;flex:none}
+.capsule-opening-stage .open-component-rewards{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:3px 0 0;width:100%}
+.capsule-opening-stage .open-component-rewards li{width:auto;min-width:0;flex:1 1 65px;max-width:115px;background:#fffaf170;border:0;border-top:1px solid #c7ab7c66;border-radius:0;padding:8px 4px;gap:4px;box-shadow:none}
+.capsule-opening-stage .open-component-rewards strong{color:#43372b;font-size:13px;font-weight:700;line-height:1.5}
+.capsule-opening-stage .open-component-rewards small{color:#796955;font-size:11px}
+.open-result-card>p{font-size:11px;color:#77624d;line-height:1.65;margin:0}
+.open-result-actions{gap:12px;padding:8px 0 0;align-items:stretch}
+.capsule-opening-dialog .open-result-actions button{position:relative;min-height:44px;padding:11px 16px;border:1px solid #b09156;border-radius:8px;font-size:15px;font-weight:700;letter-spacing:0;line-height:1.3;background:#fff6e7;color:#685034;box-shadow:inset 0 0 0 3px #fffaf2,inset 0 0 0 4px #d9c49c,0 3px 0 #b6925955;transition:background .15s,box-shadow .15s}
+.capsule-opening-dialog .open-result-actions button+button{background:#294e40;color:#fff4d6;border-color:#b08d49;box-shadow:inset 0 0 0 3px #294e40,inset 0 0 0 4px #a6aa7a,0 3px 0 #173a30}
+.capsule-opening-dialog .open-result-actions button:hover{background:#f8e8ca}
+.capsule-opening-dialog .open-result-actions button+button:hover{background:#376150}
+.capsule-opening-dialog .open-result-actions button:active{box-shadow:inset 0 0 0 3px #fff8ec,inset 0 0 0 4px #c1a36e}
+.capsule-opening-dialog .open-result-actions button:focus-visible,.capsule-opening-dialog .open-result-x:focus-visible{outline:3px solid #2d6650;outline-offset:3px}
+.open-grade-seal{font-family:BusanDandiMyeongjo,serif;font-weight:700;border-width:1px;box-shadow:inset 0 0 0 3px #f7e2ad,inset 0 0 0 4px #b68e45,0 3px 6px #946e3430}
+@media(min-width:601px){.open-result-actions button:first-child{flex:1.15}.open-result-actions button+button{flex:1}.open-result-card{gap:9px}.open-result-card h3{font-size:clamp(22px,3.7cqw,32px)}}
+@media(max-width:600px){.open-result-card{justify-content:flex-start;gap:7px}.open-result-card h3{font-size:23px;padding-bottom:7px}.open-part>span{font-size:12px}.open-part svg{width:18px;height:18px}.open-result-actions{gap:8px}.capsule-opening-dialog .open-result-actions button{font-size:13px;padding:11px 8px}.open-title h2{font-size:25px}}
+.open-wallet{justify-self:end;margin:0 9% 0 0;padding-top:4px}
+.open-parts .open-part,.open-part>span{color:#51422e}
+@media(min-width:601px){.open-result-actions{justify-content:center;gap:14px}.open-result-actions button:first-child,.open-result-actions button+button{flex:0 1 220px;max-width:240px}}
+
+.open-parts .open-parts-empty{font-size:12px;color:#51422e;line-height:1.6}

@@ -16,7 +16,7 @@ import { playSfx } from '../../audio/sfx'
 import { CAPSULES, Capsule, Coin, RevealEffects } from './capsuleMotion'
 import { capsuleName, capsuleTier, displayGachaMessage } from './labels'
 import { useGachaOverlay } from './view'
-import { OpenShell } from './OpeningOrnaments'
+import { OpenShell, WearParts } from './OpeningOrnaments'
 import './capsuleOpening.css'
 import './capsuleMotion.css'
 
@@ -195,7 +195,7 @@ export function GachaBoxes(){
     </div>
     </div>
     {shown&&result?.product?<div className="open-result-card" data-operation-id={result.operationId} aria-live="polite">
-     <small>{result.duplicate?'의상 공개':'새 의상 획득!'}</small><h3>{result.product.name}</h3><p className="open-parts">{parts.length?parts.join(' · '):'구성은 옷장에서 확인할 수 있어요'}</p>{!result.duplicate&&!!result.product.components?.length&&<ul className="open-component-rewards" aria-label="획득한 구성 아이템">{result.product.components.map(item=><li key={item.id}>
+     <small>{result.duplicate?'의상 공개':'새 의상 획득!'}</small><h3>{result.product.name}</h3><WearParts parts={parts}/>{!result.duplicate&&!!result.product.components?.length&&<ul className="open-component-rewards" aria-label="획득한 구성 아이템">{result.product.components.map(item=><li key={item.id}>
        {catalogAsset(item.imageKey)?.imageUrl&&<img src={catalogAsset(item.imageKey)!.imageUrl} alt=""/>}<strong>{item.name}</strong><small>{[...new Set(item.slots.map(s=>s==='HAIR'?'머리':s==='FACE'?'얼굴':'옷'))].join('·')}</small>
       </li>)}</ul>}{!result.duplicate&&!result.product.components?.length&&components.length>0&&<ul className="open-component-rewards" aria-label="획득한 구성 아이템">{components.map(owned=><li key={owned.userItemId}>
        {catalogAsset(owned.item.imageKey)?.imageUrl&&<img src={catalogAsset(owned.item.imageKey)!.imageUrl} alt=""/>}
