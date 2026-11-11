@@ -4,7 +4,7 @@ import {acceptCompanionActors,acceptCompanions,resetCompanionActors,useCompanion
 beforeEach(resetCompanionActors)
 it('renders uniform motion between 10Hz snapshots at display frame rate',()=>{
  const m=new NpcMotion();for(let t=0;t<=1000;t+=100)m.push({x:t/1000*1.4,y:0,z:0,yaw:0},t)
- const points=[];for(let t=200;t<=1000;t+=1000/60)points.push(m.sample(t)!.x)
+ const points:number[]=[];for(let t=200;t<=1000;t+=1000/60)points.push(m.sample(t)!.x)
  const steps=points.slice(1).map((x,i)=>x-points[i]!)
  expect(Math.min(...steps)).toBeGreaterThan(.02);expect(Math.max(...steps)-Math.min(...steps)).toBeLessThan(.00001)
 })
