@@ -1,5 +1,0 @@
-type Point=readonly[number,number]
-/** Short straight doorway apron, a rounded turn, then the existing public road. */
-const controls:Point[]=[[12,15],[6,12],[-1.90181822,7.2],[-1.90181822,2.71107272]]
-export const CAFE_APPROACH_OFFSETS:Point[]=(()=>{const out:Point[]=[controls[0]!];for(let i=1;i<controls.length-1;i++){const a=controls[i-1]!,b=controls[i]!,c=controls[i+1]!,ab=Math.hypot(b[0]-a[0],b[1]-a[1]),bc=Math.hypot(c[0]-b[0],c[1]-b[1]),r=Math.min(2.3,ab*.35,bc*.35),u:Point=[b[0]+(a[0]-b[0])*r/ab,b[1]+(a[1]-b[1])*r/ab],v:Point=[b[0]+(c[0]-b[0])*r/bc,b[1]+(c[1]-b[1])*r/bc];out.push(u);for(let j=1;j<=10;j++){const t=j/10;out.push([(1-t)**2*u[0]+2*(1-t)*t*b[0]+t*t*v[0],(1-t)**2*u[1]+2*(1-t)*t*b[1]+t*t*v[1]])}}out.push(controls.at(-1)!);return out})()
-export function cafeApproachDistance(x:number,z:number){let result=Infinity;for(let i=1;i<CAFE_APPROACH_OFFSETS.length;i++){const a=CAFE_APPROACH_OFFSETS[i-1]!,b=CAFE_APPROACH_OFFSETS[i]!,dx=b[0]-a[0],dz=b[1]-a[1],t=Math.max(0,Math.min(1,((x-a[0])*dx+(z-a[1])*dz)/(dx*dx+dz*dz)));result=Math.min(result,Math.hypot(x-a[0]-t*dx,z-a[1]-t*dz))}return result}

@@ -1,8 +1,5 @@
-import type { JumpPad as LegacyPad } from '../../layout-preview/jumpCourse'
-import type {JumpTheme} from '../../park-renewal/jump10Plan'
-type JumpPad=Omit<LegacyPad,'theme'>&{theme:JumpTheme}
-import type { JumpHit as LegacyHit } from '../../layout-preview/jumpSimulation'
-type JumpHit=Omit<LegacyHit,'pad'>&{pad:JumpPad}
+import type { JumpPad } from '../../layout-preview/jumpCourse'
+import type { JumpHit } from '../../layout-preview/jumpSimulation'
 
 /** User-approved, unpitched landing clips. Gate feedback keeps its existing synthesis. */
 export const JUMP_LANDING_FILES = {
@@ -28,9 +25,6 @@ export function landingSoundForPad(pad: Pick<JumpPad, 'theme' | 'ordinal'>): Jum
   if (pad.theme === 'gate') return null
   // ServiceJumpCourse uses this same parity for its black/white material colours.
   if (pad.theme === 'gomoku') return pad.ordinal % 2 ? 'gomoku-black' : 'gomoku-white'
-  if(pad.theme==='mole')return 'stone'
-  if(pad.theme==='pigeon')return 'cloud'
-  if(pad.theme==='duck')return 'lily'
   return pad.theme
 }
 

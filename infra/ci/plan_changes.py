@@ -34,8 +34,7 @@ def plan(
     frontend_flags, invalid_frontend = difference(frontend_base, head)
     missing_baseline = invalid_backend or invalid_frontend
     full_check = invalid_test
-    renewal_deploy_required = bool(frontend_flags["PARK_RENEWAL_CHANGED"])
-    deploy_blocked = missing_baseline or backend_drift or full_check or renewal_deploy_required
+    deploy_blocked = missing_baseline or backend_drift or full_check
     deploy_backend = bool(invalid_backend or backend_flags["BACKEND_CHANGED"])
     deploy_frontend = bool(invalid_frontend or frontend_flags["FRONTEND_CHANGED"])
     return {
@@ -45,18 +44,13 @@ def plan(
                                  or test_flags["CI_CONFIG_CHANGED"])),
         "DEPLOY_BACKEND": str(int(deploy_backend)),
         "DEPLOY_FRONTEND": str(int(deploy_frontend)),
-        "ALLOW_BACKEND_DEPLOY": str(int(deploy_backend and not (
-            full_check or invalid_backend or backend_drift or renewal_deploy_required
-        ))),
-        "ALLOW_FRONTEND_DEPLOY": str(int(deploy_frontend and not (
-            full_check or invalid_frontend or renewal_deploy_required
-        ))),
+        "ALLOW_BACKEND_DEPLOY": str(int(deploy_backend and not (full_check or invalid_backend or backend_drift))),
+        "ALLOW_FRONTEND_DEPLOY": str(int(deploy_frontend and not (full_check or invalid_frontend))),
         "DEPLOY_BLOCKED": str(int(deploy_blocked)),
         "FULL_CHECK": str(int(full_check)),
         "BACKEND_BASELINE_REQUIRED": str(int(invalid_backend)),
         "FRONTEND_BASELINE_REQUIRED": str(int(invalid_frontend)),
         "BACKEND_DRIFT": str(int(backend_drift)),
-        "RENEWAL_DEPLOY_REQUIRED": str(int(renewal_deploy_required)),
         "BACKEND_SEED_SHA": backend_seed,
     }
 

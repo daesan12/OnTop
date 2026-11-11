@@ -190,10 +190,9 @@ public class WorldChannelRegistry implements ChannelPresence {
         var pad = support.course();
         var sample = new com.ssafy.ontop.world.jumpmap.JumpmapTracker.Sample(surface, support.colliderId(),
                 pad == null ? -1 : pad.block(), pad == null ? null : pad.gate(), observation.swimming(),
-                observation.feet(), observation.relocations(), following, observation.x(), observation.z());
+                observation.feet(), observation.relocations(), following);
         queueJumpmap(room, jumpmap.observe(userId, room.definition.channelId(), sample,
                 nowNanos / 1_000_000, newActivityAllowed));
-        room.physics.jumpmapRun(userId, jumpmap.active(userId, nowNanos / 1_000_000).map(com.ssafy.ontop.world.jumpmap.JumpmapTracker.RunView::runId).orElse(null));
     }
 
     /** 지형 메시와 지형보다 0.5m 낮은 바닥(광장·코트·길)은 지면(FALL), 그 위의 구조물은 판을 잇는다. */

@@ -23,9 +23,8 @@ const MAIN_SEATS = TABLE_SEATS.map((s) => ({
   z: s.z * 1.8,
 }))
 export function tableSeats(
-  anchor: Pick<TableAnchor, 'picnicId' | 'pavilionId'> & Partial<Pick<TableAnchor,'seatAnchors'|'seatUse'|'position'>>,
+  anchor: Pick<TableAnchor, 'picnicId' | 'pavilionId'> & Partial<Pick<TableAnchor,'seatAnchors'>>,
 ) {
-  if(anchor.seatUse&&anchor.position)return anchor.seatUse.map(s=>({x:s.x-anchor.position![0],z:s.z-anchor.position![2],yaw:s.yaw}))
   if(anchor.seatAnchors)return anchor.seatAnchors.map(([x,,z],n)=>({x,z,yaw:TABLE_SEATS[n]?.yaw??0}))
   return anchor.picnicId
     ? PICNIC_TABLE_SEATS

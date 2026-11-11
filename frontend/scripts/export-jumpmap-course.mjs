@@ -17,16 +17,11 @@ const data = { schemaVersion: 1, mapVersion: course.MAP_VERSION, courseVersion: 
   stages: course.STAGES, start: course.START, finish: course.FINISH, returnTo: course.RETURN_TO,
   pads: course.COURSE, colliders: course.COURSE_COLLIDERS, sources }
 const content = JSON.stringify(data, null, 2) + '\n', digest = createHash('sha256').update(content).digest('hex')
-// Keep legacy FE handoff and BE classpath data identical. Renewal deployment uses
-// its separate immutable 10-stage mount; the default course still serves legacy tests/builds.
-const dirs = [path.join(root, 'docs/jumpmap'), path.join(root, '../backend/src/main/resources/world/jumpmap')]
+const dir = path.join(root, 'docs/jumpmap'); await mkdir(dir, { recursive: true })
 if (process.argv.includes('--check')) {
-  for (const dir of dirs) if (await readFile(path.join(dir, 'course.generated.json'), 'utf8') !== content || await readFile(path.join(dir, 'course.generated.sha256'), 'utf8') !== digest + '\n') throw new Error('Jump course handoff is stale; run pnpm jumpmap:export')
+  if (await readFile(path.join(dir, 'course.generated.json'), 'utf8') !== content || await readFile(path.join(dir, 'course.generated.sha256'), 'utf8') !== digest + '\n') throw new Error('Jump course handoff is stale; run pnpm jumpmap:export')
   console.log(`Verified jump course: ${digest}`)
 } else {
-  for (const dir of dirs) {
-    await mkdir(dir, { recursive: true })
-    await writeFile(path.join(dir, 'course.generated.json'), content); await writeFile(path.join(dir, 'course.generated.sha256'), digest + '\n')
-  }
+  await writeFile(path.join(dir, 'course.generated.json'), content); await writeFile(path.join(dir, 'course.generated.sha256'), digest + '\n')
   console.log(`Exported ${data.pads.length} pads: ${digest}`)
 }

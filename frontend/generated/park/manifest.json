@@ -3,12 +3,12 @@
     {
       "bytes": 2551154,
       "path": "generated/park/server-map.json",
-      "sha256": "19c3c84f24b761c1b8fae25efdd18026d92def068bee7c8d0cb609c0196fb880"
+      "sha256": "81d9a70a1b28751f3dc8708bb0c21fc5cae17604263f1f6ae10f4e2c6d3aeafb"
     },
     {
       "bytes": 329,
       "path": "src/map/park/generated/mapVersion.ts",
-      "sha256": "dc53e87b260b8c78fd9dd58263c311ba09917d98317ad34175973c49a37665da"
+      "sha256": "283d27d770c82aa4a3d617f51f020134ffb8f5e1574752101713d5ba8543f9e2"
     }
   ],
   "counts": {
@@ -30,10 +30,10 @@
   "hashAlgorithm": "sha256",
   "hashes": {
     "dataHash": "f1390f7571782e1e8ebf22d9b0f17da1a394d41658a12542519deb45ae5da7b3",
-    "sourceHash": "0f9515dc4c4c05a9f669aa236ea34cb30dbfc0b0689c5c006fa32701ab4eecae"
+    "sourceHash": "4c5d86eb9ad41ed04040bf6dc699fef81ba63d66585a536921dcf8300bc8ed93"
   },
   "mapId": "park",
-  "mapVersion": "f61a6fd1ce15f4e15e54df68f25485f70db91fe9c4ec13e2e4a09e20913c4b1b",
+  "mapVersion": "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07",
   "schemaVersion": 2,
   "sources": [
     {
@@ -130,7 +130,7 @@
     },
     {
       "path": "src/config/table-seats.ts",
-      "sha256": "f0b8c2db4c3d3db1ee428e206df2ec753546c3ed67cf2353fea8e8f20438c66f"
+      "sha256": "7283c3c9a6fcd11aa855e2d0444d796e499b35705ac21c573cf04c64fa8e82fe"
     },
     {
       "path": "src/config/telescopes.ts",
@@ -138,7 +138,7 @@
     },
     {
       "path": "src/config/world.ts",
-      "sha256": "5687b357e576bed5ed0af54d5d6fbd1341fb407e311864b707550ea555de56d0"
+      "sha256": "514d1c22d5d95fa54abf3674ea84a0978fe22f938937aef4d33a82ed6b15877c"
     },
     {
       "path": "src/map/geometry.ts",

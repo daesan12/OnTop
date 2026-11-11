@@ -210,52 +210,13 @@ class PreparedParkMapTests {
         byte[] bytes = mapper.writeValueAsBytes(map);
         ObjectNode manifest = mapper.createObjectNode();
         manifest.put("format", "ontop.park-map-manifest").put("hashAlgorithm", "sha256");
-        boolean renewal = "park-renewal-local".equals(map.path("mapId").asText());
-        manifest.put("mapId", map.path("mapId").asText()).put("schemaVersion", 2).put("mapVersion", "a".repeat(64));
-        manifest.putArray("artifacts").addObject().put("path", renewal
-                        ? "generated/park-renewal/server-map.local.json" : "generated/park/server-map.json")
+        manifest.put("mapId", "park").put("schemaVersion", 2).put("mapVersion", "a".repeat(64));
+        manifest.putArray("artifacts").addObject().put("path", "generated/park/server-map.json")
                 .put("bytes", bytes.length).put("sha256",
                         HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)));
         Path file = Files.write(directory.resolve("server-map.json"), bytes);
         Path manifestFile = Files.write(directory.resolve("manifest.json"), mapper.writeValueAsBytes(manifest));
-        return renewal ? PreparedParkMap.loadRenewal(file, manifestFile, channels)
-                : PreparedParkMap.load(file, manifestFile, channels);
-    }
-
-    @Test
-    void 새_공원_VR_입장은_매핑된_접근좌표와_높이를_그대로_사용한다() throws Exception {
-        var park = load(renewalFixture(), Set.of("channel-1"));
-        var entrance = park.vrEntrance().orElseThrow();
-
-        assertThat(entrance.center().x()).isEqualTo(-57);
-        assertThat(entrance.center().y()).isEqualTo(6.5);
-        assertThat(entrance.center().z()).isEqualTo(-6);
-        assertThat(entrance.contains(-57, 6.585, -6)).isTrue();
-        assertThat(entrance.contains(-57, .8, -11.3)).isFalse();
-        assertThat(entrance.contains(-57, 6.5, -2.9)).isFalse();
-    }
-
-    @Test
-    void 새_공원_VR_접근좌표가_없으면_예전_입구로_대체하지_않는다() throws Exception {
-        ObjectNode map = renewalFixture();
-        ((ObjectNode) map.path("data").path("facilities").get(0)).remove("reachPosition");
-
-        assertThatThrownBy(() -> load(map, Set.of("channel-1")))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("XYZ");
-    }
-
-    private ObjectNode renewalFixture() throws Exception {
-        ObjectNode map = fixture();
-        map.put("mapId", "park-renewal-local");
-        ObjectNode data = (ObjectNode) map.path("data");
-        ((ObjectNode) data.path("physics")).putObject("sceneData").put("sourceSha256", "a".repeat(64));
-        ((ObjectNode) data.path("interactions").path("mailbox"))
-                .putArray("reachPosition").add(-18).add(.8).add(18);
-        ObjectNode vr = data.putArray("facilities").addObject();
-        vr.put("id", "vr-experience-hall").put("yaw", 0).put("radius", 2.8).put("heightTolerance", .9);
-        vr.putArray("position").add(-57).add(5.8).add(-19);
-        vr.putArray("reachPosition").add(-57).add(6.5).add(-6);
-        return map;
+        return PreparedParkMap.load(file, manifestFile, channels);
     }
 
     private ObjectNode fixture() throws Exception {

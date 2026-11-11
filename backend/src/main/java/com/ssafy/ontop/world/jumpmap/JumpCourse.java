@@ -31,12 +31,6 @@ public final class JumpCourse {
     private static final double EPSILON = 1e-9;
 
     private final String sha256;
-    private final String selectedCourseVersion, selectedRulesVersion;
-    private final boolean renewal;
-    private final int stageCount, gateCount, colliderCount;
-    private final java.util.Map<Integer,String> themes = new java.util.HashMap<>();
-    private final java.util.Map<Integer,Double> yaws = new java.util.HashMap<>();
-    private final double finishRadius;
     private final String mapVersion;
     private final int tickRate;
     private final int coyoteTicks;
@@ -54,17 +48,8 @@ public final class JumpCourse {
                 "지원하는 코스 schemaVersion은 1입니다.");
         mapVersion = text(root, "mapVersion");
         require(mapVersion.matches("[0-9a-f]{64}"), "코스 mapVersion 형식이 올바르지 않습니다.");
-        selectedCourseVersion = text(root, "courseVersion");
-        selectedRulesVersion = text(root, "rulesVersion");
-        renewal = "park220-jump10-v1".equals(selectedCourseVersion);
-        require(renewal ? "v4".equals(selectedRulesVersion)
-                : COURSE_VERSION.equals(selectedCourseVersion) && RULES_VERSION.equals(selectedRulesVersion),
-                "지원하지 않는 courseVersion/rulesVersion입니다.");
-        stageCount = renewal ? 10 : STAGES;
-        gateCount = stageCount - 1;
-        colliderCount = renewal ? 178 : COLLIDERS;
-        finishRadius = root.path("finish").path("radius").asDouble(2);
-        require(Double.isFinite(finishRadius) && finishRadius > 0 && finishRadius <= 3, "완주 반경이 올바르지 않습니다.");
+        require(COURSE_VERSION.equals(text(root, "courseVersion")), "courseVersion이 서버 기준과 다릅니다.");
+        require(RULES_VERSION.equals(text(root, "rulesVersion")), "rulesVersion이 서버 기준과 다릅니다.");
         JsonNode physics = root.path("physics");
         tickRate = integer(physics, "tickRate");
         require(tickRate == 30, "코스 물리 tickRate는 서버와 같은 30Hz여야 합니다.");
@@ -86,11 +71,6 @@ public final class JumpCourse {
         return load(resource(RESOURCE), new String(resource(CHECKSUM_RESOURCE), StandardCharsets.US_ASCII));
     }
 
-    public static JumpCourse load(java.nio.file.Path json, java.nio.file.Path checksum) throws IOException {
-        require(java.nio.file.Files.size(json) <= MAX_BYTES, "코스 파일이 너무 큽니다.");
-        return load(java.nio.file.Files.readAllBytes(json), java.nio.file.Files.readString(checksum));
-    }
-
     /** checksum은 줄바꿈을 포함한 JSON 원본 바이트로 계산한다. */
     public static JumpCourse load(byte[] json, String expectedSha256) throws IOException {
         require(json != null && json.length > 0 && json.length <= MAX_BYTES, "코스 파일은 1바이트 이상 1MiB 이하여야 합니다.");
@@ -106,13 +86,8 @@ public final class JumpCourse {
 
     public String sha256() { return sha256; }
     public String mapVersion() { return mapVersion; }
-    public String courseVersion() { return selectedCourseVersion; }
-    public String rulesVersion() { return selectedRulesVersion; }
-    public boolean renewal() { return renewal; }
-    public int stageCount() { return stageCount; }
-    public String theme(int block) { return themes.getOrDefault(block, "stone"); }
-    public double yaw(int block) { return yaws.getOrDefault(block, 0d); }
-    public boolean atFinish(double x, double z) { return Double.isFinite(x) && Double.isFinite(z) && Math.hypot(x-finish.x(),z-finish.z()) <= finishRadius; }
+    public String courseVersion() { return COURSE_VERSION; }
+    public String rulesVersion() { return RULES_VERSION; }
     public int tickRate() { return tickRate; }
     public int coyoteTicks() { return coyoteTicks; }
     public int jumpBufferTicks() { return jumpBufferTicks; }
@@ -135,8 +110,8 @@ public final class JumpCourse {
         public double centerY() { return top - thickness / 2; }
     }
 
-    private List<Stage> stages(JsonNode values) {
-        require(values.isArray() && values.size() == stageCount, "코스 stage 수가 계약과 다릅니다.");
+    private static List<Stage> stages(JsonNode values) {
+        require(values.isArray() && values.size() == STAGES, "코스 stage는 7개여야 합니다.");
         var result = new ArrayList<Stage>();
         for (int index = 0; index < values.size(); index++) {
             JsonNode stage = values.get(index);
@@ -145,16 +120,15 @@ public final class JumpCourse {
             require(count > 0 && reward > 0, "stage 발판 수와 보상은 양수여야 합니다.");
             result.add(new Stage(index + 1, text(stage, "name"), count, reward));
         }
-        if (renewal) require(result.stream().map(Stage::reward).toList().equals(List.of(5,10,15,20,25,30,32,35,38,40)), "10단계 보상 계약이 다릅니다.");
         return List.copyOf(result);
     }
 
-    private List<Collider> colliders(JsonNode values, JsonNode pads, List<Stage> stages) {
-        require(values.isArray() && values.size() == colliderCount, "코스 충돌체는 113개여야 합니다.");
-        require(pads.isArray() && pads.size() == colliderCount, "코스 pads와 충돌체 수가 다릅니다.");
+    private static List<Collider> colliders(JsonNode values, JsonNode pads, List<Stage> stages) {
+        require(values.isArray() && values.size() == COLLIDERS, "코스 충돌체는 113개여야 합니다.");
+        require(pads.isArray() && pads.size() == COLLIDERS, "코스 pads와 충돌체 수가 다릅니다.");
         var result = new ArrayList<Collider>();
         var ids = new HashSet<String>();
-        int[] normal = new int[stageCount + 1];
+        int[] normal = new int[STAGES + 1];
         int gates = 0, previousStage = 1;
         for (int block = 0; block < values.size(); block++) {
             JsonNode value = values.get(block);
@@ -162,7 +136,7 @@ public final class JumpCourse {
             String id = text(value, "id");
             require(ids.add(id), "충돌체 id가 중복되었습니다.");
             int stage = integer(value, "stage");
-            require(stage >= previousStage && stage <= stageCount, "충돌체 stage는 1~7 순서여야 합니다.");
+            require(stage >= previousStage && stage <= STAGES, "충돌체 stage는 1~7 순서여야 합니다.");
             previousStage = stage;
             JsonNode gateNode = value.path("gate");
             Integer gate = null;
@@ -175,7 +149,7 @@ public final class JumpCourse {
                 require(gate == gates && gate == stage && normal[stage] == stages.get(stage - 1).count(),
                         "중간 문 위치가 stage 순서와 다릅니다.");
             }
-            require(value.path("yaw").isNumber() && Double.isFinite(value.path("yaw").doubleValue()) && (renewal || value.path("yaw").doubleValue() == 0),
+            require(value.path("yaw").isNumber() && value.path("yaw").doubleValue() == 0,
                     "코스 충돌체 yaw는 모두 0이어야 합니다.");
             double top = finite(value.path("top")), thickness = positive(value.path("thickness"));
             JsonNode center = vector(value.path("center")), half = vector(value.path("half"));
@@ -200,15 +174,13 @@ public final class JumpCourse {
             var collider = new Collider(block, id, stage, gate, shape, center.get(0).doubleValue(),
                     center.get(2).doubleValue(), top, thickness, half.get(0).doubleValue(), half.get(2).doubleValue());
             matchesPad(collider, pads.get(block));
-            themes.put(block, pads.get(block).path("theme").asText("stone"));
-            yaws.put(block, value.path("yaw").asDouble());
             result.add(collider);
         }
-        require(gates == gateCount, "중간 문 충돌체는 6개여야 합니다.");
+        require(gates == GATES, "중간 문 충돌체는 6개여야 합니다.");
         for (Stage stage : stages) {
             require(normal[stage.stage()] == stage.count(), "stage별 일반 발판 수가 다릅니다.");
         }
-        require(result.size() - gates == colliderCount - gateCount, "일반 발판 충돌체는 107개여야 합니다.");
+        require(result.size() - gates == 107, "일반 발판 충돌체는 107개여야 합니다.");
         return List.copyOf(result);
     }
 

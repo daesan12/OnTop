@@ -40,9 +40,8 @@ public final class WorldMapRuntime {
             ParkScene scene = ParkScene.load();
             return new WorldMapRuntime(scene, null, LegacyParkTables.from(scene, channelIds));
         }
-        var prepared = properties.source() == WorldMapProperties.Source.RENEWAL
-                ? PreparedParkMap.loadRenewal(Path.of(properties.jsonPath()), Path.of(properties.manifestPath()), channelIds)
-                : PreparedParkMap.load(Path.of(properties.jsonPath()), Path.of(properties.manifestPath()), channelIds);
+        var prepared = PreparedParkMap.load(Path.of(properties.jsonPath()),
+                Path.of(properties.manifestPath()), channelIds);
         return new WorldMapRuntime(prepared.createScene(), prepared, null);
     }
 
@@ -65,8 +64,7 @@ public final class WorldMapRuntime {
         }
         return anchors.entrySet().stream().map(entry -> {
             int number = Integer.parseInt(entry.getKey().substring("table-".length()));
-            String tableId = prepared.bindings().stream().filter(b->b.channelId().equals(channelId)&&b.anchorId().equals(entry.getKey())).map(PreparedParkMap.Binding::tableId).findFirst().orElseGet(()->PreparedParkMap.serverTableId(channelId, number));
-            return new TableLayout(tableId, entry.getKey(),
+            return new TableLayout(PreparedParkMap.serverTableId(channelId, number), entry.getKey(),
                     entry.getValue());
         }).toList();
     }

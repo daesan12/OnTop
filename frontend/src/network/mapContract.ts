@@ -1,9 +1,9 @@
 import { EXPECTED_MAP_VERSION } from '../park/mapConfig'
-import { GENERATED_PARK_ENABLED, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
+import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
 import { PARK_MAP_SCHEMA_VERSION,PARK_MAP_ID } from '../map/park/generated/mapVersion'
 
 export interface MapIdentity {mapId:string;schemaVersion:number;mapVersion:string}
-export const LIVE_MAP_IDENTITY:Readonly<MapIdentity>=Object.freeze({mapId:RENEWAL_PARK_ENABLED?'park-renewal-local':PARK_MAP_ID,schemaVersion:GENERATED_PARK_ENABLED||RENEWAL_PARK_ENABLED?PARK_MAP_SCHEMA_VERSION:1,mapVersion:EXPECTED_MAP_VERSION})
+export const LIVE_MAP_IDENTITY:Readonly<MapIdentity>=Object.freeze({mapId:PARK_MAP_ID,schemaVersion:GENERATED_PARK_ENABLED?PARK_MAP_SCHEMA_VERSION:1,mapVersion:EXPECTED_MAP_VERSION})
 export const MAP_UPDATE_MESSAGE='공원 맵 버전이 변경되어 입장을 중단했습니다. 페이지를 새로고침한 뒤 다시 연결해주세요.'
 export function parseMapIdentity(value:unknown):MapIdentity {
   if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('서버 맵 정보를 확인할 수 없습니다.')

@@ -66,10 +66,7 @@ VERCEL_PROJECT_ID=prj_...
 - 최초 Jenkins 빌드에서 변경 분류, Gradle 테스트, pnpm 테스트·빌드, Compose 구문 검사, 기준 SHA 기록을 확인한다. `FULL_CHECK=1`이면 배포는 건너뛴다.
 - Compose 구문 검사는 임시 빈 `app.env`를 사용한다. 실제 `/etc/ontop/dev-app/app.env`는 root 전용이라 Jenkins가 읽지 않으며 검사 로그에도 비밀 값이 나오지 않는다.
 - 이후 `backend/`만 바뀐 `dev` 커밋은 프론트 배포 없이, `frontend/`만 바뀐 커밋은 백엔드 이미지 빌드 없이 진행되는지 Jenkins Stage View와 배포 기록으로 확인한다. 실제 배포 검증 전에는 위 자격 증명과 실행 권한 설정이 필요하다.
-- 백엔드 배포 도중 앱 헬스체크가 실패하면 기존 공원은 `/usr/local/sbin/ontop-deploy-dev`, 활성화된 새 공원은
-  `/usr/local/sbin/ontop-deploy-park-renewal --update`가 이전 이미지로 복구한다. 새 공원 update는 releaseId·맵 mount를 바꾸지 않는다.
-  기본 구성은 `https://dev-api.on-top.world/actuator/health`를 확인한다. `/etc/ontop/dev-app/monitoring.enabled`가 있으면
-  모니터링 overlay를 포함하고 컨테이너 내부 `127.0.0.1:8082/actuator/health`를 확인한다.
+- 백엔드 배포 도중 앱 헬스체크가 실패하면 `/usr/local/sbin/ontop-deploy-dev`가 이전 이미지로 복구한다. 기본 구성은 `https://dev-api.on-top.world/actuator/health`를 확인한다. `/etc/ontop/dev-app/monitoring.enabled`가 있으면 모니터링 overlay를 포함하고 컨테이너 내부 `127.0.0.1:8082/actuator/health`를 확인한다. 이 스크립트는 `/etc/ontop/dev-app/deploy.env`의 이미지 태그를 바꾸고 `/var/lib/ontop/ci/dev-deployments.tsv`에 성공 기록을 추가한다.
 - Vercel 배포 URL은 Jenkins artifact `frontend/vercel-deployment-url.txt`에 저장한다. 문제가 생기면 Vercel 대시보드에서 `ontop-frontend-dev`의 이전 정상 배포를 Promote하거나 해당 배포 URL로 재배포한다.
 - 운영 서비스·운영 DB·운영 Vercel 프로젝트는 자동 배포 대상이 아니다. DEV에서는 CI·인프라 파일이 바뀌어도 필수 검사와 영향받은 서비스 테스트를 통과하면 앱 배포를 보류하지 않는다. `.gitignore`만 바뀌면 앱 테스트·배포를 다시 실행하지 않는다. 서버에 별도 보관하는 실제 `app.env`나 Compose 파일의 반영은 이 파이프라인이 자동으로 수행하지 않으므로 해당 설정 변경은 별도 운영 절차가 필요하다.
 
@@ -150,31 +147,6 @@ VERCEL_PROJECT_ID=prj_...
 - `check_park_handoff.py --verify-results`로 생성 맵 관련 6개 클래스가 건너뜀·실패 없이 실행된 것을 확인했다. 실제 Jenkins의 전체 검사 재현 명령은 기존 `bash infra/ci/run-generated-map-tests.sh full`이다.
 - 커밋 전 최신 원격을 다시 확인했으며 dev 기준은 `afffc5f0`로 동일하다. 통합 충돌과 `git diff --check` 오류는 없다. 실제 게임 코드·프론트엔드·Docker/Gradle 빌드 설정은 기준 dev와 동일하다.
 - Jenkins API는 HTTP 403이어서 서버 재빌드·이미지 게시·개발 배포 성공은 확인하지 못했다. 이번 MR은 머지를 보류하고 Jenkins 성공 확인 전까지 작업 브랜치를 유지한다.
-
-## 일반 DEV 빌드의 새 공원 테스트 입력 준비 (2026-11-11)
-
-Jenkins #426(`b05f1020`)은 `legacy` 모드에서 백엔드 3,569개 중
-`RenewalAccessTests` 3개가 실패했다. 해당 테스트는 무시 경로인
-`frontend/generated/park-renewal/`의 맵을 읽지만, 기존 준비 단계는
-`PARK_RENEWAL=1`인 수동 공동 릴리스에서만 실행됐다. 따라서 일반 빌드는
-새 체크아웃에서 입력이 없거나, 재사용 작업 공간의 이전 보행면을 검사할 수 있었다.
-로컬에서 먼저 최신 맵을 생성한 뒤 테스트한 결과만으로 이 CI 순서 차이를 확인하지 못했다.
-
-`Prepare shared renewal release`를 백엔드 테스트 실행 시에도 수행해
-현재 체크아웃의 맵·매핑·매니페스트를 Gradle보다 먼저 생성한다. 기존
-`pnpm install --frozen-lockfile`과 전체 릴리스 준비 명령을 재사용한다.
-단계 조건과 백엔드 테스트보다 앞선 순서를 CI 회귀 검사에 추가했다.
-테스트를 건너뛰거나 물리 판정 허용치를 완화하지 않는다. 맵 자체·DB·Flyway와
-공동 배포 승인 및 기존 `renewal-candidate → renewal-deploy` 게이트는 유지한다.
-
-검증은 최신 `origin/dev@b05f1020` 기준이다. 기존 생성 폴더를 별도 보존한 뒤
-빈 경로에서 전체 릴리스 준비 명령의 생성 단계들을 다시 실행했고, 승인 좌표 230개와
-기존 좌표 해시를 유지했다. Windows·Java 21에서 실패했던 3개를 포함한
-`RenewalAccessTests` 5개와 기존 스폰/외곽 회귀 2개가 통과했다.
-CI Python 검사는 Windows에서 93개 중 74개 통과·환경 조건부 건너뜀 19개,
-Linux의 릴리스/파이프라인 회귀 15개는 모두 통과했다.
-Linux 네이티브 물리 테스트와 전체 백엔드 3,569개 및 실제 Jenkins 재실행 결과는
-이번 로컬 검증에 포함하지 않는다. 수정 MR은 머지·배포하지 않고 재빌드 결과 확인 전까지 브랜치를 유지한다.
 
 ## 실행 권한과 위험
 

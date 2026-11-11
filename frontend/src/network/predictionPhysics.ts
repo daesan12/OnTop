@@ -5,7 +5,7 @@ import { WORLD, WORLD_COLLIDERS, MOVEMENT, SWIMMING, LAKE, PARK_PAVILIONS, PAVIL
   createPavilionStairs, createTowerRamp, createTowerDeck, createTowerRailCollision,
   mergeCollisionMeshes, boxesToCollisionMesh, pavilionFenceBounds, staticStructureBatch,
 } from '../park/mapConfig'
-import { GENERATED_PARK_ENABLED, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
+import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
 import { PARK_DATA } from '../map/park'
 import { addGeneratedPredictionColliders } from './predictionMap'
 import { furnitureLandingPosition,furnitureAllowsSupport } from './furnitureLanding'
@@ -21,7 +21,6 @@ let initialization: Promise<void> | undefined
 /** How long Rapier may keep a grounded state the server does not support before falling. */
 const EDGE_GLIDE_SECONDS = .15
 export async function createPredictionPhysics(profile?: 'PARK_V1'): Promise<PredictionSimulation> {
-  if(RENEWAL_PARK_ENABLED)return new (await import('../park-renewal/runtime/RenewalPrediction')).RenewalPrediction()
   await (initialization ??= RAPIER.init())
   return new PredictionPhysics(profile === 'PARK_V1')
 }

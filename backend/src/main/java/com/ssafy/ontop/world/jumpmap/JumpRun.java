@@ -26,11 +26,7 @@ public final class JumpRun {
     private final String runId;
     private final long startedAtMs;
     private final List<Integer> rewards;
-    private final int[] landings;
-    private final List<Integer> requiredLandings;
-    private final JumpCourse course;
-    private final int finalBlock;
-    private final java.util.Set<Integer> visited = new java.util.HashSet<>();
+    private final int[] landings = new int[SECTION_LANDINGS.size()];
     private final List<String> reasons = new ArrayList<>();
     private int gatesPassed;
     private boolean finalReached, suspicious;
@@ -39,20 +35,7 @@ public final class JumpRun {
 
     /** 판이 없을 때 0번 발판 착지로만 만든다. 시작 착지는 1구간 착지 횟수에 넣지 않는다. */
     public JumpRun(String runId, long startedAtMs, List<Integer> rewards, double feetHeight) {
-        this(runId, startedAtMs, rewards, feetHeight, null);
-    }
-
-    public JumpRun(String runId, long startedAtMs, JumpCourse course, double feetHeight) {
-        this(runId, startedAtMs, course.stages().stream().map(JumpCourse.Stage::reward).toList(), feetHeight, course);
-    }
-
-    private JumpRun(String runId, long startedAtMs, List<Integer> rewards, double feetHeight, JumpCourse course) {
-        this.course = course;
-        boolean renewal = course != null && course.renewal();
-        requiredLandings = renewal ? course.stages().stream().map(stage -> stage.count() + (stage.stage() < course.stageCount() ? 1 : 0)).toList() : SECTION_LANDINGS;
-        if (rewards.size() != requiredLandings.size()) throw new IllegalArgumentException("구간 보상 수가 코스와 다릅니다.");
-        landings = new int[requiredLandings.size()];
-        finalBlock = renewal ? course.colliders().size()-1 : FINAL_BLOCK;
+        if (rewards.size() != SECTION_LANDINGS.size()) throw new IllegalArgumentException("구간 보상은 7개입니다.");
         this.runId = runId;
         this.startedAtMs = startedAtMs;
         this.rewards = List.copyOf(rewards);
@@ -63,10 +46,7 @@ public final class JumpRun {
     public List<Outcome> land(int block, Integer gate, long nowMs) {
         if (ended != null) return List.of();
         int section = gatesPassed; // 0-based: 다음 차례 문 = gatesPassed + 1
-        boolean renewal = course != null && course.renewal();
-        if (renewal && (block < 0 || block >= course.colliders().size() || course.colliders().get(block).stage() != section + 1)) return List.of();
-        if (renewal && !java.util.Objects.equals(gate, course.colliders().get(block).gate())) return List.of();
-        if (section < landings.length && (!renewal || visited.add(block))) landings[section]++;
+        if (section < landings.length) landings[section]++;
         var result = new ArrayList<Outcome>();
         if (gate != null) {
             if (gate == gatesPassed + 1) {
@@ -76,10 +56,7 @@ public final class JumpRun {
                 result.add(new GateRejected(gate, "GATE_SKIPPED", false));
             }
         }
-        if (renewal && block == finalBlock && !finalReached && gatesPassed == landings.length - 1) {
-            finalReached = true; result.add(new FinalPad()); return result;
-        }
-        if (!renewal && block == finalBlock && !finalReached) {
+        if (block == FINAL_BLOCK && !finalReached) {
             if (gatesPassed < 6) {
                 reasons.add("GATE_SKIPPED:7");
                 result.add(new GateRejected(7, "GATE_SKIPPED", false));
@@ -94,17 +71,6 @@ public final class JumpRun {
             result.add(new Ended(EndReason.FINISH, elapsed, elapsed));
         }
         return result;
-    }
-
-    /** 새 코스는 마지막 오리와 9개 관문을 거쳐 호수섬에 접지해야 완주한다. */
-    public List<Outcome> terrain(double x, double z, long nowMs) {
-        if (course == null || !course.renewal() || !finalReached || !course.atFinish(x,z)) return terrain(nowMs);
-        if (ended != null) return List.of();
-        Outcome finalGate = check(landings.length, nowMs);
-        if (!(finalGate instanceof GatePassed)) return List.of(finalGate);
-        ended = EndReason.FINISH;
-        long elapsed = Math.max(0,nowMs-startedAtMs);
-        return List.of(finalGate, new Ended(EndReason.FINISH,elapsed,elapsed));
     }
 
     /** 지형 접지는 진행 중 판을 FALL로 끝낸다. */
@@ -133,7 +99,7 @@ public final class JumpRun {
     }
 
     private Outcome check(int gate, long nowMs) {
-        int required = requiredLandings.get(gate - 1);
+        int required = SECTION_LANDINGS.get(gate - 1);
         int section = gate - 1;
         // 1/5 이상: 24 → 5, 14 → 3 (올림).
         if (landings[section] * 5 < required) {

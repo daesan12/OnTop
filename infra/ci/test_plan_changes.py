@@ -151,14 +151,6 @@ class ChangePlanTests(RepoFixture, unittest.TestCase):
         self.assertEqual((flags["TEST_BACKEND"], flags["TEST_FRONTEND"]), ("0", "1"))
         self.assertEqual((flags["ALLOW_BACKEND_DEPLOY"], flags["ALLOW_FRONTEND_DEPLOY"]), ("0", "1"))
 
-    def test_renewal_contract_change_requires_manual_coordinated_release(self):
-        head = self.commit({"frontend/src/park-renewal/mapping/catalog.ts": "changed"})
-        flags = self.plan(head, tested=self.base, backend=self.base, frontend=self.base,
-                          live=f"wooaw/ontop-backend:sha-{self.base}")
-        self.assertEqual(flags["RENEWAL_DEPLOY_REQUIRED"], "1")
-        self.assertEqual(flags["DEPLOY_BLOCKED"], "1")
-        self.assertEqual((flags["ALLOW_BACKEND_DEPLOY"], flags["ALLOW_FRONTEND_DEPLOY"]), ("0", "0"))
-
     def test_park_handoff_change_runs_park_checks_without_backend_deploy(self):
         head = self.commit({"docs/integration/park-180/park-bindings.dev.json": "new mapping"})
         flags = self.plan(head, tested=self.base, backend=self.base, frontend=self.base,
