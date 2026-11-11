@@ -30,19 +30,23 @@ export function AdminSkinSets({ onAuthEnded, initialItem = null, onRegister, onW
   const [loaded,setLoaded] = useState({MALE:false,FEMALE:false}),[reviewed,setReviewed] = useState({MALE:false,FEMALE:false})
   const [generation,setGeneration] = useState({MALE:0,FEMALE:0})
   const [picker,setPicker] = useState<{gender:Gender;place:typeof places[number]}|null>(null),[query,setQuery] = useState('')
-  const [itemGrade,setItemGrade] = useState(0)
+  const [itemGrade,setItemGrade] = useState(0),[assetError,setAssetError] = useState(false)
+  const assetIndex=useMemo(()=>new Map(assets.map(asset=>[asset.imageKey,asset])),[assets])
   const flight = useRef<AbortController|null>(null), dialog = useRef<HTMLDialogElement>(null)
   const fail = (e:unknown) => {if(e instanceof InboxError && e.status===401)onAuthEnded();else setMessage(e instanceof Error?e.message:'불러오지 못했어요. 다시 시도해주세요.')}
-  useEffect(()=>{const c=new AbortController();Promise.all([skinRequest<SkinEntry[]>('/components',c.signal),skinRequest<SkinSet[]>('/sets',c.signal),inboxRequest('/api/v1/skins/assets',c.signal)])
-    .then(([a,b,catalog])=>{if(!c.signal.aborted){setItems(a);setSets(b);setAssets(catalog as SkinAsset[])}}).catch(e=>{if(!c.signal.aborted)fail(e)})
+  useEffect(()=>{const c=new AbortController();setAssetError(false)
+    void inboxRequest('/api/v1/skins/assets',c.signal).then(catalog=>{if(!c.signal.aborted)setAssets(catalog as SkinAsset[])})
+      .catch(()=>{if(!c.signal.aborted){setAssets([]);setAssetError(true)}})
+    Promise.all([skinRequest<SkinEntry[]>('/components',c.signal),skinRequest<SkinSet[]>('/sets',c.signal)])
+      .then(([a,b])=>{if(!c.signal.aborted){setItems(a);setSets(b)}}).catch(e=>{if(!c.signal.aborted)fail(e)})
     return()=>c.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[revision])
   useEffect(()=>()=>flight.current?.abort(),[])
   useEffect(()=>{if(picker){dialog.current?.showModal();return()=>dialog.current?.close()}},[picker])
   const chosen = (gender:Gender) => drafts[gender].form.itemIds.map(id=>items.find(i=>i.id===id)).filter((i):i is SkinEntry=>!!i)
-  const findAsset = (item:SkinEntry) => assets.find(a=>a.imageKey==='catalog/'+item.publishedUploadId)
-  const previews = useMemo(()=>Object.fromEntries(genders.map(g=>[g,drafts[g].form.itemIds.map(id=>items.find(i=>i.id===id)).map(i=>i&&assets.find(a=>a.imageKey==='catalog/'+i.publishedUploadId)).filter((a):a is SkinAsset=>!!a)])) as Record<Gender,SkinAsset[]>,[drafts,items,assets])
+  const findAsset = (item:SkinEntry) => assetIndex.get('catalog/'+item.publishedUploadId)
+  const previews = useMemo(()=>Object.fromEntries(genders.map(g=>[g,drafts[g].form.itemIds.map(id=>items.find(i=>i.id===id)).map(i=>i&&assetIndex.get('catalog/'+i.publishedUploadId)).filter((a):a is SkinAsset=>!!a)])) as Record<Gender,SkinAsset[]>,[drafts,items,assetIndex])
   const dirty = (g:Gender) => JSON.stringify(drafts[g].form)!==baselines.current[g]
   const unsaved = genders.some(dirty)
   useEffect(()=>onWorkflowChange({busy,dirty:unsaved}),[busy,unsaved,onWorkflowChange])
@@ -101,6 +105,7 @@ export function AdminSkinSets({ onAuthEnded, initialItem = null, onRegister, onW
     <header className="skin-dressing-heading"><div><h2>아이템을 불러와 입혀보세요.</h2><p>남자는 왼쪽, 여자는 오른쪽 슬롯을 눌러주세요. 남녀 구성은 각각 저장돼요.</p></div>
       <div><button disabled={busy} onClick={onRegister}>＋ 새 아이템 파일 등록</button><button disabled={busy} onClick={()=>{genders.forEach(reset);setRevision(v=>v+1)}}>목록 새로고침</button></div></header>
     {message&&<p role="status" className="skin-message">{message}</p>}
+    {assetError&&<p role="status" className="skin-help">미리보기 파일 목록을 불러오지 못했어요. 세트 정보는 편집할 수 있어요. 목록을 새로고침해주세요.</p>}
     <SkinSetLibrary sets={sets} items={items} assets={assets} busy={busy} onChoose={changeSet}/>
     <div className="skin-twin-stage">{slots('MALE')}<div className="skin-twin-models">{genders.map(g=>{
       const d=drafts[g],key=g+'|'+generation[g]+'|'+revision+'|'+previews[g].map(a=>a.imageKey).join('|')

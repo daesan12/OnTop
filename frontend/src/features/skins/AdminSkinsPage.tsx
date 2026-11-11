@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { InboxError, inboxRequest } from '../notifications/api'
 import { fileSpec, skinModelMode, skinRequest, slotOrder, uploadFile, type SkinAsset, type SkinDefinition, type SkinEntry, type SkinSettings, type SkinTicket, type SkinVerified } from './api'
 import { SkinPreview } from './SkinPreview'
@@ -40,6 +40,7 @@ function SkinItemEditor({ onAuthEnded, component, onCompose, onWorkflowChange }:
   const [selected, setSelected] = useState<SkinEntry | null>(null), [form, setForm] = useState<SkinDefinition>(() => newItem(component))
   const [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [query, setQuery] = useState('')
   const [grade, setGrade] = useState(0), [assets, setAssets] = useState<SkinAsset[]>([]), [thumbnailError, setThumbnailError] = useState(false)
+  const assetIndex=useMemo(()=>new Map(assets.map(asset=>[asset.imageKey,asset])),[assets])
   const [model, setModel] = useState<File | null>(null), [image, setImage] = useState<File | null>(null)
   const [femaleModel, setFemaleModel] = useState<File | null>(null), [sharedModel, setSharedModel] = useState(false)
   const [ticket, setTicket] = useState<SkinTicket | null>(null), [verified, setVerified] = useState<SkinVerified | null>(null)
@@ -136,7 +137,7 @@ function SkinItemEditor({ onAuthEnded, component, onCompose, onWorkflowChange }:
         {thumbnailError && <p className="skin-help">썸네일을 불러오지 못했어요. 상품 정보는 계속 확인할 수 있어요.</p>}
         <ul>{entries.filter(e => (!grade || e.definition.grade === grade) && `${e.definition.name} ${e.definition.productCode}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).map(entry => <li key={entry.id}>
           <button disabled={busy} aria-pressed={entry.id === selected?.id} onClick={() => choose(entry)}>
-            <SkinThumbnail src={skinThumbnail(entry, assets)} name={entry.definition.name}/>
+            <SkinThumbnail src={skinThumbnail(entry, assetIndex)} name={entry.definition.name}/>
             {!component && <span className={'skin-grade grade-' + entry.definition.grade}>{gradeNames[entry.definition.grade - 1]}</span>}
             <span><strong>{entry.definition.name}</strong>{!component && <small>{entry.definition.productCode}</small>}<em>{component ? entry.state === 'PUBLISHED' ? '세트에 담을 수 있어요' : entry.state === 'DRAFT' ? '파일 준비 중' : '새 세트 등록 중단' : stateNames[entry.state]}</em></span>
           </button></li>)}</ul>{!entries.length ? <p>첫 스킨을 등록해보세요.</p> : !entries.some(e => (!grade || e.definition.grade === grade) && `${e.definition.name} ${e.definition.productCode}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) && <p>선택한 등급이나 이름에 맞는 의상이 없어요.</p>}

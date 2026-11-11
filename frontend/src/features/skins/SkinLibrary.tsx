@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { SkinAsset, SkinEntry } from './api'
 import type { SkinSet } from './sets'
 import './skinLibrary.css'
 
 export const skinGrades = ['S', 'A', 'B', 'C'] as const
 const states = { DRAFT: '임시저장', PUBLISHED: '공개 중', DISABLED: '획득 중단' }
-export function skinThumbnail(item: SkinEntry | undefined, assets: readonly SkinAsset[]) {
-  return item?.publishedUploadId ? assets.find(a => a.imageKey === 'catalog/' + item.publishedUploadId)?.imageUrl : undefined
+export function skinThumbnail(item: SkinEntry | undefined, assets: ReadonlyMap<string,SkinAsset>) {
+  return item?.publishedUploadId ? assets.get('catalog/' + item.publishedUploadId)?.imageUrl : undefined
 }
 export function SkinThumbnail({ src, name }: { src?: string; name: string }) {
   const [failed, setFailed] = useState<string | null>(null)
@@ -25,6 +25,8 @@ export function SkinSetLibrary({ sets, items, assets, busy, onChoose }: {
   onChoose: (gender: 'MALE' | 'FEMALE', id: string) => void
 }) {
   const [grade, setGrade] = useState(0), [query, setQuery] = useState('')
+  const assetIndex=useMemo(()=>new Map(assets.map(asset=>[asset.imageKey,asset])),[assets])
+  const itemIndex=useMemo(()=>new Map(items.map(item=>[item.id,item])),[items])
   const needle = query.trim().toLocaleLowerCase()
   const visible = sets.filter(s => (!grade || s.definition.grade === grade)
     && `${s.definition.name} ${s.definition.productCode}`.toLocaleLowerCase().includes(needle))
@@ -34,7 +36,7 @@ export function SkinSetLibrary({ sets, items, assets, busy, onChoose }: {
     <SkinGradeFilter value={grade} onChange={setGrade}/>
     <p className="skin-library-count" aria-live="polite">{visible.length}개 세트</p>
     <ul className="skin-set-cards">{visible.map(entry => <li key={entry.id}>
-      <SkinThumbnail src={skinThumbnail(items.find(item => item.id === entry.definition.imageSkinId), assets)} name={entry.definition.name}/>
+      <SkinThumbnail src={skinThumbnail(itemIndex.get(entry.definition.imageSkinId), assetIndex)} name={entry.definition.name}/>
       <div className="skin-card-heading"><strong>{entry.definition.name}</strong><span className={'skin-grade grade-' + entry.definition.grade}>{skinGrades[entry.definition.grade - 1]}급</span></div>
       <p>{entry.definition.compatibility === 'ANY' ? '남녀 공용' : entry.definition.compatibility === 'MALE' ? '남자' : '여자'} · {states[entry.state]}</p>
       <div className="skin-card-actions">{(['MALE', 'FEMALE'] as const).filter(g => entry.definition.compatibility === g || entry.definition.compatibility === 'ANY').map(g =>

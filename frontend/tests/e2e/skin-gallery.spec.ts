@@ -63,3 +63,29 @@ test('썸네일·등급·이름을 조회하고 기존 남녀 편집에 불러�
   await expect(page.locator('.skin-library li')).toHaveCount(1)
   await expect(page.getByAltText('구성 의상 3 썸네일')).toBeVisible()
 })
+
+test('미리보기 목록이 실패해도 세트 조회·편집을 유지하고 새로고침으로 복구한다', async ({page},info) => {
+  await fixture(page)
+  const item={id:'item-1',publishedUploadId:'upload-1',definition:{productCode:'ITEM_1',name:'등록된 의상',grade:1,compatibility:'MALE',wearMode:'WHOLE',slots:['HAIR','FACE','TOP','BOTTOM','SHOES']},state:'PUBLISHED',version:1,updatedAt:''}
+  const set={id:'set-1',definition:{productCode:'SET_1',name:'편집할 세트',grade:1,compatibility:'MALE',imageSkinId:item.id,itemIds:[item.id]},state:'DRAFT',version:1,publishedAt:null}
+  let healthy=false
+  await page.route('**/api/v1/admin/me', r=>r.fulfill({json:{canRead:true,canOperate:true,canGrant:false}}))
+  await page.route('**/api/v1/admin/operations/skins**', r=>r.fulfill({json:new URL(r.request().url()).pathname.endsWith('/sets')?[set]:[item]}))
+  await page.route('**/api/v1/skins/assets', r=>healthy?r.fulfill({json:[{...item.definition,imageKey:'catalog/upload-1',modelUrl:'/art/characters/skins/ssafy-black-male-v3.glb',imageUrl:'/skin-test.webp'}]}):r.fulfill({status:503,json:{message:'일시적인 파일 목록 오류'}}))
+  await page.route('**/skin-test.webp', r=>r.fulfill({path:path.resolve('src/features/wardrobe/parts/outfit-satto-k-top.webp'),contentType:'image/webp'}))
+  await page.goto('/admin/skins')
+  const warning=page.getByText('미리보기 파일 목록을 불러오지 못했어요. 세트 정보는 편집할 수 있어요. 목록을 새로고침해주세요.',{exact:true})
+  await expect(warning).toBeVisible()
+  await page.getByRole('button',{name:'편집할 세트 남자에 불러오기',exact:true}).click()
+  await page.getByLabel('남자 세트 이름',{exact:true}).fill('수정한 이름')
+  await expect(page.getByLabel('남자 세트 이름',{exact:true})).toHaveValue('수정한 이름')
+  await expect(page.getByRole('region',{name:'남자 세트 저장'}).getByRole('button',{name:'임시저장',exact:true})).toBeEnabled()
+  await expect(page.getByRole('button',{name:'남자 세트 공개',exact:true})).toBeDisabled()
+  await page.screenshot({path:info.outputPath('skin-assets-failure-editing.png'),fullPage:true})
+  healthy=true
+  await page.getByRole('button',{name:'목록 새로고침',exact:true}).click()
+  await expect(warning).toBeHidden()
+  await expect(page.getByAltText('편집할 세트 썸네일',{exact:true})).toBeVisible()
+  await page.screenshot({path:info.outputPath('skin-assets-recovered.png'),fullPage:true})
+  await expect(page.getByLabel('남자 세트 이름',{exact:true})).toHaveValue('수정한 이름')
+})
