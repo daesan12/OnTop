@@ -960,6 +960,14 @@ export class ParkRuntime implements ParkRuntimePort {
       return true
     } catch { return false }
   }
+  setMyRoomOpen = async (open: boolean) => {
+    const own = useSession.getState()
+    if (!this.active || own.status !== 'connected' || !own.roomId || !own.mapCompatible) return false
+    try {
+      await this.socket.request('WORLD_MYROOM_SET', { open }, ['WORLD_STATE'])
+      return true
+    } catch { return false }
+  }
   sendChat = (value: string) =>
     gameChatScope() ? this.sendSpectatorChat(value) :
     this.action(async () => {

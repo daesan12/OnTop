@@ -15,6 +15,7 @@ import { useOmokEvents } from '../game/omok/spectatorEvents'
 import { useChatScope } from '../features/chat/gameChat'
 import { displayNickname } from '../features/gameMaster/displayName'
 import { TypingIndicator } from '../features/chat/TypingIndicator'
+import { useWardrobe } from '../features/wardrobe/state'
 import '../features/vrSession/presence.css'
 
 export interface AvatarAnchors {
@@ -47,8 +48,10 @@ const AvatarOverlay = memo(function AvatarOverlay({
   const local = useSession(state => state.sessionId === id && state.status === 'connected' && state.mapCompatible)
   const playing = useGame(state => local && ownGameActivity(id, state))
   const shopping = useShop(state => local && state.open && state.owner === id)
+  const myRoom = useWardrobe(state => local && state.open && state.owner === id)
   const activityLabel = activity ? AVATAR_ACTIVITY_LABELS[activity]
-    : playing ? AVATAR_ACTIVITY_LABELS.GAME : shopping ? AVATAR_ACTIVITY_LABELS.SHOP : null
+    : playing ? AVATAR_ACTIVITY_LABELS.GAME : myRoom ? AVATAR_ACTIVITY_LABELS.MYROOM
+      : shopping ? AVATAR_ACTIVITY_LABELS.SHOP : null
   const nickname = useSession(state => displayNickname(state.profiles[id],
     state.sessionId === id ? '나' : '산책자 ' + id.slice(-6)))
   const gathering = useGathering(), participant = gathering?.rows.find(row => row.playerId === id)

@@ -22,6 +22,18 @@
       },
       "messages": [
         {
+          "name": "마이룸 열기 → WORLD_STATE (같은 채널 공개 표시)",
+          "$kind": "websocket-message",
+          "contentType": "json",
+          "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_MYROOM_SET\",\n  \"payload\": {\n    \"open\": true\n  }\n}"
+        },
+        {
+          "name": "마이룸 닫기 → WORLD_STATE (같은 채널 공개 표시)",
+          "$kind": "websocket-message",
+          "contentType": "json",
+          "content": "{\n  \"requestId\": \"{{$guid}}\",\n  \"type\": \"WORLD_MYROOM_SET\",\n  \"payload\": {\n    \"open\": false\n  }\n}"
+        },
+        {
           "name": "01 광장 A 입장 → CHANNEL_STATE + WORLD_STATE",
           "$kind": "websocket-message",
           "contentType": "json",

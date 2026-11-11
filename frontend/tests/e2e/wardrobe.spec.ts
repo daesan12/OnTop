@@ -92,7 +92,7 @@ test('dock 옷장 opens 마이룸: slots, tabs, search, preview and wear call th
   await expect(dialog.locator('.wardrobe-card')).toHaveCount(6)
   await expect(dialog.getByRole('navigation', { name: '착용 부위' })).toContainText('아이보리 맨투맨')
   await expect(dialog.getByRole('button', { name: '아이보리 맨투맨 옷 · 상의 착용 중' })).toBeVisible()
-  await expect(dialog.getByRole('group', { name: '부위 분류' }).getByRole('button')).toHaveText(['전체', '머리', '얼굴', '옷'])
+  await expect(dialog.getByRole('group', { name: '부위 분류' }).getByRole('button')).toHaveText(['아이템', '전체', '머리', '얼굴', '옷'])
   await dialog.getByRole('group', { name: '부위 분류' }).getByRole('button', { name: '옷' }).click()
   await expect(dialog.locator('.wardrobe-card')).toHaveCount(6)
   await dialog.getByRole('group', { name: '부위 분류' }).getByRole('button', { name: '머리' }).click()
