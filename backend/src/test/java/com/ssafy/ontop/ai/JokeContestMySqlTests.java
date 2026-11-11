@@ -16,7 +16,7 @@ class JokeContestMySqlTests {
     static HikariDataSource source;static JdbcTemplate jdbc;static final ObjectMapper mapper=new ObjectMapper();
     final LocalJokeContestTests.TestClock clock=new LocalJokeContestTests.TestClock();
     @BeforeAll static void connect(){
-        String url=System.getenv("AI_LAB_JOKE_DB_URL");if(url==null||!url.matches("jdbc:mysql://127\\.0\\.0\\.1:19306/ontop_joke_local_test_[a-z0-9_]+(?:\\?.*)?"))throw new IllegalStateException("별도 아재왕 테스트 DB가 필요합니다.");
+        String url=System.getenv("AI_LAB_JOKE_DB_URL");if(url==null||!url.matches("jdbc:mysql://127\\.0\\.0\\.1:(?:19306|13339)/ontop_joke_local_test_[a-z0-9_]+(?:\\?.*)?"))throw new IllegalStateException("별도 아재왕 테스트 DB가 필요합니다.");
         source=JokeLocalDatabase.open(System.getenv());jdbc=new JdbcTemplate(source);
         for(long id=101;id<=122;id++)jdbc.update("INSERT IGNORE INTO users(id,login_provider,provider_user_id,nickname,character_gender,created_at,updated_at) VALUES(?,'NAVER',?,?,'MALE',UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))",id,"joke-test-"+id,"아재"+id);
     }
@@ -93,6 +93,6 @@ class JokeContestMySqlTests {
         try(var c=contest()){assertThat(c.hall()).hasSize(1);assertThat(((Map<?,?>)c.yesterday().get("winner")).get("id")).isEqualTo(ids.getFirst());}
     }
     @Test void localFactoryRejectsSharedOrUnexpectedDatabasesBeforeConnecting(){
-        for(String url:List.of("jdbc:mysql://10.77.0.1:3306/ontop","jdbc:mysql://127.0.0.1:19306/ontop","jdbc:mysql://localhost:19306/ontop_joke_local_preview"))assertThatThrownBy(()->JokeLocalDatabase.open(Map.of("AI_LAB_JOKE_DB_URL",url))).isInstanceOf(IllegalArgumentException.class);
+        for(String url:List.of("jdbc:mysql://10.77.0.1:3306/ontop","jdbc:mysql://127.0.0.1:(?:19306|13339)/ontop","jdbc:mysql://localhost:(?:19306|13339)/ontop_joke_local_preview"))assertThatThrownBy(()->JokeLocalDatabase.open(Map.of("AI_LAB_JOKE_DB_URL",url))).isInstanceOf(IllegalArgumentException.class);
     }
 }

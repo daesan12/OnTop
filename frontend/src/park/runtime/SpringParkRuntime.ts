@@ -464,6 +464,8 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'POST' && ['/api/v1/gacha/tickets', '/api/v1/gacha/draws', '/api/v1/gacha/boxes/open'].includes(path))
     const serviceAiRequest = (method === 'GET' && ['/api/v1/ai/features','/api/v1/ai/companions/status'].includes(path))
       || (method === 'POST' && /^\/api\/v1\/ai\/companions\/(?:invite|action|talk)$/.test(path))
+      || (method === 'GET' && /^\/api\/v1\/ai\/joke-contest\/(?:me|rankings(?:\?date=\d{4}-\d{2}-\d{2})?|yesterday|hall|reveal\/[a-zA-Z0-9-]+|submissions\/[a-zA-Z0-9-]+)$/.test(path))
+      || (method === 'POST' && path === '/api/v1/ai/joke-contest/submissions')
     const localAiRequest = import.meta.env.DEV && import.meta.env.VITE_AI_PARK === 'true'
       && ['127.0.0.1','localhost'].includes(location.hostname)
       && ((method === 'POST' && /^\/local\/ai\/(?:feedback-position|table-position|jumpmap-position|roof-position|flush|digest)$/.test(path))

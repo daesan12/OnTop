@@ -3,7 +3,7 @@ import { RestError } from '../../network/restError'
 export const jokeSubmissionPath = '/local/ai/joke-contest/submissions'
 
 export function jokeBusinessMessage(path: string, status: number, body: unknown): string | undefined {
-  if (path !== jokeSubmissionPath || ![400, 403, 409].includes(status) || !body || typeof body !== 'object') return
+  if (![jokeSubmissionPath,'/api/v1/ai/joke-contest/submissions'].includes(path) || ![400, 403, 409].includes(status) || !body || typeof body !== 'object') return
   const message = (body as { message?: unknown }).message
   if (typeof message === 'string' && message.trim() && message.length <= 160 && !/[\u0000-\u001f]/.test(message)) return message
 }

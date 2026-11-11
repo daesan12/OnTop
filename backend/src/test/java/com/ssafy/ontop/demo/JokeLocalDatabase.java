@@ -13,7 +13,7 @@ public final class JokeLocalDatabase {
     private JokeLocalDatabase(){ }
     public static HikariDataSource open(Map<String,String> env){
         String url=env.getOrDefault("AI_LAB_JOKE_DB_URL","");
-        if(!url.matches("jdbc:mysql://127\\.0\\.0\\.1:19306/ontop_joke_local_[a-z0-9_]+(?:\\?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8)?"))throw new IllegalArgumentException("아재왕 전용 loopback DB만 허용합니다.");
+        if(!url.matches("jdbc:mysql://127\\.0\\.0\\.1:(?:19306|13339)/ontop_joke_local_[a-z0-9_]+(?:\\?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8)?"))throw new IllegalArgumentException("아재왕 전용 loopback DB만 허용합니다.");
         var config=new HikariConfig();config.setJdbcUrl(url);config.setUsername(env.get("AI_LAB_JOKE_DB_USERNAME"));config.setPassword(env.get("AI_LAB_JOKE_DB_PASSWORD"));config.setMaximumPoolSize(5);config.setMinimumIdle(1);config.setConnectionInitSql("SET time_zone = '+00:00'");config.setPoolName("joke-local");
         var source=new HikariDataSource(config);
         try{rejectHistoricalAiVersion(source);Flyway.configure().dataSource(source).locations("classpath:db/migration","classpath:db/minigame","classpath:db/shop").validateMigrationNaming(true).baselineOnMigrate(false).load().migrate();return source;}catch(RuntimeException e){source.close();throw e;}

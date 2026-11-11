@@ -7,7 +7,8 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /** Shared asynchronous contest flow; file and JDBC stores own atomic participation transitions. */
-public final class LocalJokeContest implements AutoCloseable {
+public final class LocalJokeContest implements AutoCloseable, AiFeature {
+    @Override public String featureKey(){return "jokeContest";}
     public record Submission(String id,String userId,String nickname,String date,String question,String answer,String hash,String key,
             String status,Integer scoreX10,int wordplayX10,int witX10,int originalityX10,String reason,String reaction,String reactionSource,
             long createdAt,long completedAt,String judgeVersion) { }

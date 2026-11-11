@@ -1,9 +1,10 @@
+import {LOCAL_AI_FIXTURE} from '../features/ai/serviceFeatures'
 import { useEffect, useRef, useState } from 'react'
 import { parkRuntime } from '../park/runtime/runtime'
 import { useSession } from '../network/worldClient'
 import { acceptPolice } from '../features/ai/worldAi'
 import { jokeSubmissionError } from '../features/ai/jokeSubmissionError'
-import { closeJokeContest, jokeJudgePosition, openJokeContest, useJokeContest } from '../features/ai/jokeContest'
+import { jokeContestPath, closeJokeContest, jokeJudgePosition, openJokeContest, useJokeContest } from '../features/ai/jokeContest'
 import './jokeContest.css'
 import './jokeRanking.css'
 
@@ -12,9 +13,9 @@ type Mine = { date: string; remaining: number; unlimitedAttempts?: boolean; subm
 type Ranked = { id: string; nickname: string; scoreX10: number; question?: string; rank?: number; date?: string }
 type Stage = 'greeting' | 'question' | 'answer' | 'confirm' | 'judging' | 'result'
 const labels: Record<string, string> = { PENDING: '심사 중', SCORED: '심사 완료', REJECTED: '공개 부적합', REVIEW: '공개 보류', INVALID_JOKE: '개그 미성립', FAILED: '처리 실패 · 기회 반환' }
-const endpoint = '/local/ai/joke-contest/'
+
 async function read<T>(path: string, body?: object): Promise<T> {
-  return await parkRuntime.requestJSON(endpoint + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined) as T
+  return await parkRuntime.requestJSON(jokeContestPath(path), body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined) as T
 }
 function Knot({ className }: { className: string }) {
   return <svg className={className} viewBox="0 0 64 24" fill="none" aria-hidden="true"><path d="M2 12h13L27 2l12 10-12 10-12-10L27 2M62 12H49L37 2 25 12l12 10 12-10L37 2M19 12l13-8 13 8-13 8z" stroke="currentColor" strokeWidth="1.6" /></svg>
@@ -159,7 +160,7 @@ export function JokeContestPanel() {
   const nextLabel = exhausted ? '랭킹 보기' : stage === 'result' ? '다시 도전' : '다음'
 
   return <>
-    <div className="joke-launch"><button onClick={() => openJokeContest('ranking')}>탑골 아재왕 · 랭킹</button><button onClick={() => { void read('position', {}).catch(() => setError('공원에 연결한 뒤 이동해주세요.')) }}>김부장 앞으로 · 로컬 검수</button></div>
+    <div className="joke-launch"><button onClick={() => openJokeContest('ranking')}>탑골 아재왕 · 랭킹</button>{LOCAL_AI_FIXTURE&&<button onClick={() => { void read('position', {}).catch(() => setError('공원에 연결한 뒤 이동해주세요.')) }}>김부장 앞으로 · 로컬 검수</button>}</div>
     {open && <div className={`joke-backdrop${tab === 'ranking' ? ' joke-backdrop-ranking' : ''}`}><section ref={dialog} className="joke-dialog" data-stage={tab === 'ranking' ? 'ranking' : stage} role="dialog" aria-modal="true" aria-label="탑골 아재왕 선발대회" tabIndex={-1}>
       {tab === 'ranking' && <div className="joke-ledger">
         <span className="joke-scroll-roller joke-scroll-roller-top" aria-hidden="true" /><span className="joke-scroll-roller joke-scroll-roller-bottom" aria-hidden="true" />

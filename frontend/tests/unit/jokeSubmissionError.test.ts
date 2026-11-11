@@ -5,6 +5,7 @@ import { jokeBusinessMessage, jokeSubmissionError, jokeSubmissionPath } from '..
 describe('joke submission errors', () => {
   it('shows the actual business reason instead of a quota/distance checklist', () => {
     for (const [status, message] of [[400, '잠시 후 다시 제출해주세요.'], [403, '아재 심사위원 가까이에서 제출해주세요.'], [409, '현재 요청을 다시 확인해주세요.']] as const) {
+      expect(jokeBusinessMessage('/api/v1/ai/joke-contest/submissions',status,{message})).toBe(message)
       const reason = jokeBusinessMessage(jokeSubmissionPath, status, { message })
       expect(reason).toBe(message)
       expect(jokeSubmissionError(new RestError(status, 'HTTP_ERROR', reason!))).toBe(message)
