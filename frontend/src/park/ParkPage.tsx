@@ -66,6 +66,7 @@ import { usePlusMinus } from '../features/plusMinus/store'
 import { useRpsRoulette } from '../features/rpsRoulette/store'
 import { useSpeedMole } from '../features/speedMole/store'
 import { GachaLifecycle } from '../features/gacha/GachaPanel'
+import { useGachaOverlay } from '../features/gacha/view'
 import { useParkGameplayActive } from '../features/operation/parkGameplay'
 import { useParkOperationGate } from '../features/operation/useParkOperationGate'
 import type { ServiceOperationStatus } from '../features/operation/serviceOperation'
@@ -113,8 +114,9 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const plusMinusOpen = usePlusMinus(s => s.open)
   const rpsOpen = useRpsRoulette(s => s.open)
   const speedMoleOpen = useSpeedMole(s => s.open)
+  const gachaOpen = useGachaOverlay(s => s.open)
   const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
-    || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen
+    || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
