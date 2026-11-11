@@ -27,7 +27,8 @@ export function rankingBoardDetailCapture(side:'front'|'back'){
 export function plazaPlacementProbe(){
  const scene=_roots.get(document.querySelector('canvas')!)!.store.getState().scene
  scene.updateMatrixWorld(true)
- if(scene.getObjectByName('layout-shop'))throw new Error('The temporary wheel removal did not reach the rendered scene')
+ if(scene.getObjectByName('layout-shop'))throw new Error('The retired wheel room must stay hidden')
+ if(!scene.getObjectByName('park-gacha-shop'))throw new Error('The clothes gacha shop must render')
  return ['fish-bread-shop-exterior','layout-drink','ranking-board-preview','feedback-mailbox'].map(name=>{
   const box=new Box3().setFromObject(scene.getObjectByName(name)!,true)
   return {name,min:box.min.toArray(),max:box.max.toArray()}

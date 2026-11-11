@@ -46,6 +46,7 @@ import { EnvironmentScene } from '../world/EnvironmentScene'
 import { fitnessRestArt,fountainTerrain } from './districtGeometry'
 import { vrEntrance } from '../features/vrZone/anchors'
 import { VrEntranceMarker } from '../features/vrZone/VrEntranceMarker'
+import { ParkGachaShop } from '../features/gacha/ParkGachaShop'
 
 const groveTreeModels=existingTreeModel(trunks,crowns)
 const shoreTreeModels=existingTreeModel(shoreTrunks,shoreCrowns)
@@ -136,7 +137,7 @@ export const PreviewWorld=memo(function PreviewWorld({live=false,onRankingBoardI
     </group>
     <group name="fish-bread" position={[SITES.cart.x,0,SITES.cart.z]} userData={{assetId:"user/repaired-fish-cart"}}><FishBreadShop/></group>
     <TraditionalMailbox position={[SITES.mailbox.x,0,SITES.mailbox.z]} scale={SETTINGS.mailbox.scale} yaw={SETTINGS.mailbox.yaw}/>
-    <PlazaBuilding kind="shop" live={live}/><PlazaBuilding kind="drink" live={live}/>
+    <ParkGachaShop live={live}/><PlazaBuilding kind="drink" live={live}/>
     <RankingBoardModel onInteract={onRankingBoardInteract}/>
     <PreviewPigeons live={live}/>
     <FacetedParkTreeInstances parts={groveTreeModels.parts} name="layout-grove-original-trees" treeCount={groveTreeModels.plantings.length}/>

@@ -10,10 +10,10 @@ const sites = {
   tower: { x: 62, z: 56 },
   vr: {x:-74,z:-23},folk:{x:-74,z:-3},vrPagoda:{x:-53,z:-23},
   cart: { x: -30.1, z: 35.8 }, mailbox: { x: 24.2, z: 30.4 },
-  shop: { x: 27, z: 50.8 }, drink: { x: 30.06, z: 54.13 }, photo: { x: 30, z: 35.6 },
+  shop: { x: -27.1, z: 51 }, drink: { x: 30.06, z: 54.13 }, photo: { x: 30, z: 35.6 },
 }
-// Keep the wheel's anchor/model for later use, but omit it from the active map.
-const kiosks={shop:{enabled:false,fenced:false,width:4,depth:2,height:4.3,yaw:-Math.PI/2},drink:{enabled:true,fenced:true,width:6.8,depth:4.59,height:5.185,scale:.85,roofWidth:7.65,roofDepth:5.27,yaw:Math.atan2(plaza.x-sites.drink.x,plaza.z-sites.drink.z)},photo:{enabled:true,fenced:false,width:9.6,depth:6.6,yaw:-Math.PI/3}}
+// The gacha shop faces the fish-bread shop from the tree belt across service-plaza.
+const kiosks={shop:{enabled:true,fenced:false,width:3.6,depth:2.7,height:3.45,yaw:Math.PI},drink:{enabled:true,fenced:true,width:6.8,depth:4.59,height:5.185,scale:.85,roofWidth:7.65,roofDepth:5.27,yaw:Math.atan2(plaza.x-sites.drink.x,plaza.z-sites.drink.z)},photo:{enabled:true,fenced:false,width:9.6,depth:6.6,yaw:-Math.PI/3}}
 const fishBreadShop={width:9.216,depth:6.912,height:5.856,scale:.96,yaw:Math.PI/3,roofWidth:10.176,roofDepth:8.064}
 const cartPoint=(across:number,forward:number):MapPoint=>[
   sites.cart.x+across*Math.cos(fishBreadShop.yaw)+forward*Math.sin(fishBreadShop.yaw),
@@ -167,7 +167,7 @@ export const PARK_DEFINITION = {
     id:'lottery-back-tree-'+i,
     x:sites.drink.x+across*Math.cos(kiosks.drink.yaw)-4.8*Math.sin(kiosks.drink.yaw),
     z:sites.drink.z-across*Math.sin(kiosks.drink.yaw)-4.8*Math.cos(kiosks.drink.yaw),
-  })),...(['shop','drink','photo'] as const).filter(kind=>kiosks[kind].enabled).flatMap(kind=>{
+  })),...(['drink','photo'] as const).filter(kind=>kiosks[kind].enabled).flatMap(kind=>{
     const p=sites[kind],k=kiosks[kind],points:{id:string;x:number;z:number}[]=[]
     // Two-dimensional side/back planting pockets; the front is intentionally empty.
     for(let row=0;row<10;row++)for(let col=0;col<17;col++){
@@ -179,7 +179,7 @@ export const PARK_DEFINITION = {
   }),...Array.from({length:96},(_,i)=>{
     const a=i*Math.PI/48,r=26+(i%3)*2.9
     return {id:'plaza-belt-tree-'+i,x:Math.cos(a)*r,z:46+Math.sin(a)*r}
-  })],
+  }).filter(tree=>tree.id!=='plaza-belt-tree-45'&&tree.id!=='plaza-belt-tree-46')],
   pagoda:{terraceHalf:13,stairHalfWidth:3,railOffset:2.75,stairEnd:17.4,steps:10,tread:.4,riser:.18},
   // Lake children use offsets so moving the lake moves crossings and decks together.
   lake:{x:62,z:-14,rx:18,rz:43,surfaceY:.045,depth:2.8,swimmingThreshold:.95,
