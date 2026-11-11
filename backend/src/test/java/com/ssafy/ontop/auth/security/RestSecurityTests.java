@@ -96,6 +96,30 @@ class RestSecurityTests {
                 new AuthenticatedUser(call.getArgument(0), LoginProvider.SSAFY, TestLoginSessions.ID)));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings={"/api/v1/ai/features","/api/v1/ai/companions/status","/api/v1/ai/joke-contest/me",
+            "/api/v1/ai/joke-contest/submissions/private-id","/api/v1/ai/joke-contest/rankings",
+            "/api/v1/ai/joke-contest/hall","/api/v1/ai/joke-contest/yesterday","/api/v1/ai/joke-contest/reveal/private-id"})
+    void AI_조회도_인증_없이_접근할_수_없다(String path)throws Exception{
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());verifyNoInteractions(members);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings={"/api/v1/ai/companions/invite","/api/v1/ai/companions/action",
+            "/api/v1/ai/companions/talk","/api/v1/ai/joke-contest/submissions"})
+    void AI_동작은_본문을_처리하기_전에_인증을_확인한다(String path)throws Exception{
+        mvc.perform(post(path).contentType("application/json").content("{}"))
+                .andExpect(status().isUnauthorized());verifyNoInteractions(members);
+    }
+
+    @Test
+    void AI_비활성은_인증을_우회하지_않고_회원에게_기능_상태를_알린다()throws Exception{
+        mvc.perform(auth(get("/api/v1/ai/features"))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.companions").value(false)).andExpect(jsonPath("$.jokeContest").value(false))
+                .andExpect(header().string("Cache-Control","no-store"));
+        mvc.perform(auth(get("/api/v1/ai/joke-contest/me"))).andExpect(status().isServiceUnavailable());
+    }
+
     @Test
     void 실제_광장과_테이블_REST는_유효한_Access와_활성회원으로_접근한다() throws Exception {
         mvc.perform(auth(get("/api/v1/channels"))).andExpect(status().isOk()).andExpect(jsonPath("$.items").isArray());
@@ -453,6 +477,12 @@ class RestSecurityTests {
                 "GET /api/v1/admin/wallet-grants/rewards", "GET /api/v1/admin/wallet-grants/rewards/recipients",
                 "POST /api/v1/admin/operations/feedback/{receiptId}/replies",
                 "PATCH /api/v1/admin/operations/feedback/{receiptId}/status",
+                "GET /api/v1/ai/features", "GET /api/v1/ai/companions/status",
+                "POST /api/v1/ai/companions/invite", "POST /api/v1/ai/companions/action", "POST /api/v1/ai/companions/talk",
+                "GET /api/v1/ai/joke-contest/me", "GET /api/v1/ai/joke-contest/submissions/{id}",
+                "GET /api/v1/ai/joke-contest/rankings", "GET /api/v1/ai/joke-contest/hall",
+                "GET /api/v1/ai/joke-contest/yesterday", "GET /api/v1/ai/joke-contest/reveal/{id}",
+                "POST /api/v1/ai/joke-contest/submissions",
                 "GET /api/v1/entry-news", "GET /api/v1/entry-news/{id}/image",
                 "GET /api/v1/admin/operations/entry-news", "GET /api/v1/admin/operations/entry-news/{id}/image",
                 "POST /api/v1/admin/operations/entry-news/{id}/uploads",
