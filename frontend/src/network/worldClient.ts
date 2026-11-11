@@ -547,7 +547,8 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       let equipment = state.equipment
       const nextActivities: Session['activities'] = {}
       for (const avatar of next.avatars)
-        if (mapCompatible && avatar.activity) nextActivities[avatar.userId] = avatar.activity
+        if (mapCompatible && (avatar.activity || avatar.myRoomOpen))
+          nextActivities[avatar.userId] = avatar.activity ?? 'MYROOM'
       const activities = Object.keys(state.activities).length === Object.keys(nextActivities).length
         && Object.keys(nextActivities).every(id => state.activities[id] === nextActivities[id])
         ? state.activities : nextActivities

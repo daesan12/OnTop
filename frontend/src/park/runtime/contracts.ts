@@ -19,6 +19,7 @@ export interface ParkRuntimePort {
   refreshChannels(): Promise<boolean>
   sendChat(text: string): Promise<boolean>
   sendTyping?(typing: boolean): Promise<boolean>
+  setMyRoomOpen?(open: boolean): Promise<boolean>
   sendSpectatorChat(text: string): Promise<boolean>
   pingOmok(x: number, y: number): Promise<boolean>
   pingLedger(target: import('../../game/ledger/protocol').LedgerPingTarget): Promise<boolean>

@@ -294,6 +294,9 @@ export async function fixture(
       serverTime: new Date().toISOString(), refreshAt: new Date(Date.now() + 60000).toISOString(), announcements: [],
     } })
     if (url.pathname === '/api/v1/behavior-events') return route.fulfill({ status: 204 })
+    if (url.pathname === '/api/v1/notifications') return route.fulfill({ json: { items: [], nextCursor: null, unreadCount: 0 } })
+    if (url.pathname === '/api/v1/skins/assets' || url.pathname === '/api/v1/events/winnings/me')
+      return route.fulfill({ json: [] })
     if (url.pathname === '/api/v1/minigames/jumpmap/status' && route.request().method() === 'GET')
       return route.fulfill({ json: disabledJumpmapStatus('fixture-channel', expectedMapVersion) })
     if (url.pathname.endsWith('/auth/refresh'))
@@ -395,7 +398,8 @@ export async function fixture(
             ...publicProfiles[userId],
             equipment: publicEquipment[userId] ?? null,
             ...(userId in publicSeats ? { tableSeat: publicSeats[userId] } : {}),
-            activity: activities[userId] ?? null,
+            activity: activities[userId] === 'MYROOM' ? null : activities[userId] ?? null,
+            ...(activities[userId] === 'MYROOM' ? { myRoomOpen: true } : {}),
             ...(options.carry ? { carry: carries[userId] ?? null } : {}),
             ...(userId === ownId && interactionBusy ? { interactionBusy: true } : {}),
             position:
@@ -606,6 +610,10 @@ export async function fixture(
         if (interactionBusy) for (const id of Object.keys(carries)) carries[id] = null
         emit(ws, 'WORLD_INTERACTION_STATE', { channelId: 'fixture-channel', busy: interactionBusy }, requestId)
         world(ws); return
+      }
+      if (type === 'WORLD_MYROOM_SET') {
+        activities[ownId] = payload.open === true ? 'MYROOM' : null
+        world(ws, requestId); return
       }
       if (options.carry && type === 'WORLD_CARRY_PICKUP') {
         const carryId = crypto.randomUUID(), targetId = String(payload.targetId)

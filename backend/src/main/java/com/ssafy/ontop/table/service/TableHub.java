@@ -924,6 +924,16 @@ public class TableHub {
                 case "WORLD_POSITION_FALLBACK" -> member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE",
                         channels.disablePosition(member.userId(), request.payload().path("epoch").asLong()).state()));
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
+                case "WORLD_MYROOM_SET" -> {
+                    String channel = channels.channelOf(member.userId());
+                    long before = channel == null ? -1 : channels.worldState(channel).version();
+                    var state = channels.myRoom(member.userId(), request.payload().path("open").asBoolean());
+                    if (state.version() == before) {
+                        member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", state));
+                    } else {
+                        publishWorld(state, member, request.requestId());
+                    }
+                }
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
                 case "WORLD_CARRY_PICKUP", "WORLD_CARRY_THROW", "WORLD_CARRY_RELEASE" -> carry(member, request);
                 case "WORLD_INTERACTION_SET" -> interactionBusy(member, request);

@@ -45,6 +45,8 @@ public class WorldChannelRegistry implements ChannelPresence {
     private final Map<String, MinigamePresence> minigames = new HashMap<>();
     private final Map<String, String> boardGames = new HashMap<>();
     private final Map<String, GameWatch> gameWatches = new HashMap<>();
+    // Ephemeral UI presence only; it never locks movement or grants a reward.
+    private final java.util.Set<String> myRooms = new java.util.HashSet<>();
     private final long minimumMoveNanos;
     private final LongSupplier nanoTime;
     private final java.util.function.Supplier<ParkScene> scene;
@@ -116,6 +118,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         String channelId = membership.get(userId);
         if (jumpmap == null || channelId == null || jumpmapRun(userId).isEmpty() || suspended.containsKey(userId)) return false;
         Room room = rooms.get(channelId);
+        myRooms.remove(userId);
         // 위치 보고 중이었어도 유예 동안은 서버 물리로 진행한다(PARK_V1 자동 위치 보고 복귀는 재결합 때까지 막는다).
         room.vrUsers.remove(userId);
         var snapshot = room.physics.suspendClient(userId);
@@ -350,6 +353,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     private State remove(String userId, com.ssafy.ontop.world.jumpmap.JumpRun.EndReason reason) {
+        myRooms.remove(userId);
         suspended.remove(userId);
         String channelId = membership.remove(userId);
         if (channelId == null) {
@@ -416,6 +420,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         long until = active ? now + Math.min(remaining.toNanos(), MAX_MINIGAME_ACTIVITY.toNanos()) : 0;
         boolean wasActive = previous != null && previous.active();
         minigames.put(userId, new MinigamePresence(sessionId, until, now));
+        if (active) myRooms.remove(userId);
         String channelId = membership.get(userId);
         if (channelId == null || wasActive == active) {
             return null;
@@ -438,10 +443,27 @@ public class WorldChannelRegistry implements ChannelPresence {
     /** Presentation only: watching must not become a movement-blocking game activity. */
     private String publicActivity(String userId) {
         String active = activity(userId);
-        return active != null ? active : gameWatches.containsKey(userId) ? "WATCHING" : null;
+        return active != null ? active : gameWatches.containsKey(userId) ? "WATCHING"
+                : myRooms.contains(userId) ? "MYROOM" : null;
+    }
+
+    /** Own UI presence, accepted only inside the current channel; duplicate toggles are idempotent. */
+    public synchronized WorldState myRoom(String userId, boolean open) {
+        String channelId = membership.get(userId);
+        if (channelId == null) throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        Room room = rooms.get(channelId);
+        if (open && (activity(userId) != null || gameWatches.containsKey(userId)
+                || room.tableSeats.containsKey(userId) || room.held.contains(userId)
+                || room.vrUsers.contains(userId) || room.physics.carryState(userId) != null)) {
+            throw new ChannelException("MYROOM_ACTIVITY_CONFLICT", "현재 활동을 마친 뒤 마이룸을 이용해주세요.");
+        }
+        boolean changed = open ? myRooms.add(userId) : myRooms.remove(userId);
+        if (changed) room.worldVersion++;
+        return room.worldState();
     }
 
     public synchronized List<WorldState> gameWatches(Map<String, GameWatch> current) {
+        myRooms.removeAll(current.keySet());
         var changed = new java.util.HashSet<String>();
         var users = new java.util.HashSet<>(gameWatches.keySet()); users.addAll(current.keySet());
         for (String user : users) {
@@ -456,6 +478,7 @@ public class WorldChannelRegistry implements ChannelPresence {
 
     /** Hub 현재 라운드의 확정 참가자 전체 투영. 오래된 사건으로 개별 값을 덮지 않는다. */
     public synchronized List<WorldState> boardGames(Map<String, String> current) {
+        myRooms.removeAll(current.keySet());
         var changed = new java.util.HashSet<String>();
         var users = new java.util.HashSet<>(boardGames.keySet()); users.addAll(current.keySet());
         for (String user : users) {
@@ -649,6 +672,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (present.equals(room.tableSeats)) { return; }
         room.tableSeats.clear();
         room.tableSeats.putAll(present);
+        myRooms.removeAll(present.keySet());
         room.worldVersion++;
         room.dirty = true;
     }
@@ -756,6 +780,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     public synchronized void holdFacility(String userId, WorldFacilityService.Pose pose) {
+        myRooms.remove(userId);
         Room room = rooms.get(membership.get(userId));
         room.physics.hold(userId, pose.x(), pose.y(), pose.z(), pose.yaw());
         room.held.add(userId);
@@ -899,6 +924,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     public synchronized void clear() {
+        myRooms.clear();
         membership.clear();
         suspended.clear();
         minigames.clear();
@@ -957,7 +983,15 @@ public class WorldChannelRegistry implements ChannelPresence {
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
             Boolean interactionBusy,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-            Boolean vrActive) {
+            Boolean vrActive,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            Boolean myRoomOpen) {
+        public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
+                String nickname, String characterGender, boolean gameMaster, TableSeat tableSeat, String activity,
+                WorldPhysics.Motion motion, WorldPhysics.Carry carry, Boolean interactionBusy, Boolean vrActive) {
+            this(userId, position, equipment, nickname, characterGender, gameMaster, tableSeat, activity,
+                    motion, carry, interactionBusy, vrActive, null);
+        }
         public Avatar(String userId, Position position, List<WorldAppearanceGateway.Equipment> equipment,
                 String nickname, String characterGender, boolean gameMaster, TableSeat tableSeat, String activity,
                 WorldPhysics.Motion motion, WorldPhysics.Carry carry, Boolean interactionBusy) {
@@ -1107,13 +1141,17 @@ public class WorldChannelRegistry implements ChannelPresence {
         private WorldState worldState() {
             var carries = physics == null ? Map.<String, WorldPhysics.Carry>of() : physics.carryStates();
             return new WorldState(definition.channelId(), worldVersion, users.stream()
-                    .map(user -> new Avatar(user, positions.containsKey(user) ? positions.get(user).position() : null,
+                    .map(user -> {
+                        String status = activity.apply(user);
+                        boolean myRoom = "MYROOM".equals(status);
+                        return new Avatar(user, positions.containsKey(user) ? positions.get(user).position() : null,
                             equipment.get(user), profiles.containsKey(user) ? profiles.get(user).nickname() : null,
                             profiles.containsKey(user) ? profiles.get(user).characterGender() : null,
                             profiles.containsKey(user) && profiles.get(user).gameMaster(),
-                            tableSeats.get(user), activity.apply(user), motions.get(user),
+                            tableSeats.get(user), myRoom ? null : status, motions.get(user),
                             carries.get(user), interactionBusy.contains(user) ? Boolean.TRUE : null,
-                            vrUsers.contains(user) ? Boolean.TRUE : null))
+                            vrUsers.contains(user) ? Boolean.TRUE : null, myRoom ? Boolean.TRUE : null);
+                    })
                     .toList(), scene.get().version(), tables, users.stream().filter(watches::containsKey)
                             .collect(java.util.stream.Collectors.toMap(user -> user, watches::get)));
         }
