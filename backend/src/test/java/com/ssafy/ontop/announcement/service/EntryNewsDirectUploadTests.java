@@ -30,6 +30,19 @@ class EntryNewsDirectUploadTests {
     }
     HeadObjectResponse head(long bytes,String type,String sha){return HeadObjectResponse.builder().contentLength(bytes).contentType(type).checksumSHA256(sha).build();}
     void headReturns(HeadObjectResponse response){when(client.headObject(org.mockito.ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any())).thenReturn(response);}
+    @Test void 미업로드404는_입력오류이고_권한이나S3장애는_서비스오류다(){
+        var store=storage(null);var evidence=new EntryNewsUploadEvidence(upload,20,hash,"image/png");
+        doThrow(S3Exception.builder().statusCode(404).message("missing").build())
+                .when(client).headObject(org.mockito.ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any());
+        assertThatThrownBy(()->store.uploaded(id,7,evidence)).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("다시 올려");
+        for(int status:new int[]{403,500}){
+            doThrow(S3Exception.builder().statusCode(status).message("not available").build())
+                    .when(client).headObject(org.mockito.ArgumentMatchers.<Consumer<HeadObjectRequest.Builder>>any());
+            assertThatThrownBy(()->store.uploaded(id,7,evidence))
+                    .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                    .satisfies(error->assertThat(((org.springframework.web.server.ResponseStatusException)error).getStatusCode().value()).isEqualTo(503));
+        }
+    }
     @Test void 본문_다운로드_없이_S3의_크기_타입_체크섬을_확인하고_현재_관리자_경로만_검증한다(){
         String checksum=Base64.getEncoder().encodeToString(HexFormat.of().parseHex(hash));
         headReturns(head(20,"image/png",checksum));

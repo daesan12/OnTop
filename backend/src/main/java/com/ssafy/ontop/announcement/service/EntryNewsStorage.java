@@ -42,7 +42,11 @@ public class EntryNewsStorage implements AutoCloseable {
             String checksum=Base64.getEncoder().encodeToString(HexFormat.of().parseHex(evidence.sha256()));
             if(!checksum.equals(head.checksumSHA256()))throw new IllegalArgumentException("업로드 파일 체크섬이 다릅니다.");
             return new VerifiedImage(key,evidence.sha256());
-        }catch(IllegalArgumentException e){throw e;}catch(Exception e){throw unavailable();}
+        }catch(IllegalArgumentException e){throw e;}
+        catch(software.amazon.awssdk.services.s3.model.S3Exception e){
+            if(e.statusCode()==404)throw new IllegalArgumentException("업로드된 안내 이미지를 찾지 못했어요. 파일을 다시 올려주세요.");
+            throw unavailable();
+        }catch(Exception e){throw unavailable();}
     }
     private String objectKey(String id,long actor,String uploadId,String hash,String contentType){return "entry-news/"+environment+"/published/"+actor+"/"+id+"/"+uploadId+"/"+hash+(contentType.equals("image/png")?".png":".jpg");}
     private void validateId(String id){if(id==null||!UUID.fromString(id).toString().equals(id))throw new IllegalArgumentException("안내 ID를 확인해주세요.");}

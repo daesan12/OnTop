@@ -36,9 +36,9 @@ export function EntryNewsPopup({hidden=false,launcherHost=null}:{hidden?:boolean
   void entryNewsImage(active.id,abort.signal).then(blob=>{if(abort.signal.aborted)return;objectUrl=URL.createObjectURL(blob);setUrl(objectUrl)}).catch(()=>{if(!abort.signal.aborted)setImageError(true)})
   return()=>{abort.abort();if(objectUrl)URL.revokeObjectURL(objectUrl)}
  },[active?.id,active?.imageHash,active?.imageUrl,closed,hidden,retry])
- useEffect(()=>{if(!visible)return;const d=dialog.current;if(!d)return;let shown=false
-  const show=()=>{if(shown||document.querySelector('dialog[open]'))return;oldFocus.current=document.activeElement instanceof HTMLElement?document.activeElement:null;clearRoamingInput();if(document.pointerLockElement)document.exitPointerLock();d.showModal();d.focus({preventScroll:true});shown=true}
-  show();const timer=setInterval(show,250)
+ useEffect(()=>{if(!visible)return;const d=dialog.current;if(!d)return;let shown=false,timer:ReturnType<typeof setInterval>|undefined
+  const show=()=>{if(shown||document.querySelector('dialog[open]'))return;oldFocus.current=document.activeElement instanceof HTMLElement?document.activeElement:null;clearRoamingInput();if(document.pointerLockElement)document.exitPointerLock();d.showModal();d.focus({preventScroll:true});shown=true;clearInterval(timer)}
+  show();if(!shown)timer=setInterval(show,250)
   return()=>{clearInterval(timer);d.close();clearRoamingInput();oldFocus.current?.focus()}
  },[visible])
  function close(){if(today&&owner&&active){try{localStorage.setItem(entryNewsSuppressionKey(owner),koreanDay(serverNow))}catch{/* Closing stays available when storage is disabled. */}}request.current?.abort();setLoading(false);setManual(false);setClosed(true)}

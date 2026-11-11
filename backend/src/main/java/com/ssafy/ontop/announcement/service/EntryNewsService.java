@@ -21,7 +21,7 @@ public class EntryNewsService {
     public EntryNewsItem save(String id,EntryNewsDraft d,EntryNewsStorage.VerifiedImage upload,boolean creating,long actor){
         if(!UUID.fromString(id).toString().equals(id)||d==null)throw new IllegalArgumentException("안내 ID와 내용을 확인해주세요.");d.validate();
         String hash=upload==null?null:upload.hash();
-        if(upload!=null){storage.url(upload.key());if(hash==null||!hash.matches("[0-9a-f]{64}")||!upload.key().contains("/"+id+"/")||!upload.key().endsWith("/"+hash+".png")&&!upload.key().endsWith("/"+hash+".jpg"))throw new IllegalArgumentException("안내 이미지 경로를 확인해주세요.");}
+        if(upload!=null){storage.url(upload.key());if(hash==null||!hash.matches("[0-9a-f]{64}")||!upload.key().contains("/"+id+"/")||(!upload.key().endsWith("/"+hash+".png")&&!upload.key().endsWith("/"+hash+".jpg")))throw new IllegalArgumentException("안내 이미지 경로를 확인해주세요.");}
         var n=repo.find(id);boolean creatingEntity=false;
         if(creating){
             // Serialize additions with existing rows; the count cap is an operational guard, not security authority.
