@@ -1,3 +1,4 @@
+import {companionPath} from '../features/ai/serviceFeatures'
 import {useId,useRef,useState} from 'react'
 import {parkRuntime} from '../park/runtime/runtime'
 import {useCompanions,acceptCompanions} from '../features/ai/companions'
@@ -8,7 +9,7 @@ export function ResidentSeatInvite({disabled}:{disabled:boolean}) {
  const id=useId(),popover=useRef<HTMLDivElement>(null),[busy,setBusy]=useState(false),[error,setError]=useState('')
  const actors=useCompanions(s=>s.actors)
  async function invite(difficulty:string){if(busy)return;setBusy(true);setError('')
-  try{await parkRuntime.requestJSON('/local/ai/companions/invite',{method:'POST',body:JSON.stringify({difficulty})});acceptCompanions(await parkRuntime.requestJSON('/local/ai/companions/status'));popover.current?.hidePopover()}
+  try{await parkRuntime.requestJSON(companionPath('invite'),{method:'POST',body:JSON.stringify({difficulty})});acceptCompanions(await parkRuntime.requestJSON(companionPath('status')));popover.current?.hidePopover()}
   catch{setError('주민을 부르지 못했어요. 현재 좌석과 주민의 대결 상태를 확인한 뒤 다시 선택해주세요.')}
   finally{setBusy(false)}
  }

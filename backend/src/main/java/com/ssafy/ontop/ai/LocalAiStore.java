@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /** Local-only single writer. Never used for shared databases or deployed profiles. */
-public final class LocalAiStore implements AutoCloseable {
+public final class LocalAiStore implements AiStore {
     public record Message(AiDecisions.Chat chat, boolean hidden, long version, boolean processed) { }
     public record Report(String id, String operationId, String author, String text, long createdAt,
                          AiDecisions.Triage triage, String digestId) { }
@@ -93,5 +93,5 @@ public final class LocalAiStore implements AutoCloseable {
             data = next;
         } catch (IOException exception) { throw new IllegalStateException("로컬 저장에 실패했습니다. 요청을 재시도해주세요.", exception); }
     }
-    @Override public void close() throws IOException { lock.release(); lockChannel.close(); }
+    @Override public void close() throws IOException { if(lock.isValid())lock.release(); lockChannel.close(); }
 }

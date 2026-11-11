@@ -1586,14 +1586,16 @@ public class TableHub {
                 aiAudience.add(target.userId());
             }
         }
-        if (aiBridge != null) {
-            var position = channels.positionOf(member.userId());
+        var bridge = aiBridge;
+        var position = bridge == null ? null : channels.positionOf(member.userId());
+        if (bridge != null) {
             String nickname = channels.worldState(channelId).avatars().stream()
                     .filter(a -> a.userId().equals(member.userId())).map(a -> a.nickname() == null ? member.userId() : a.nickname())
                     .findFirst().orElse(member.userId());
-            aiBridge.chat(new com.ssafy.ontop.ai.WorldAiBridge.Chat(message.messageId(), channelId,
+            bridge.chat(new com.ssafy.ontop.ai.WorldAiBridge.Chat(message.messageId(), channelId,
                     member.userId(), nickname, message.text(), java.time.Instant.parse(message.sentAt()).toEpochMilli(),
-                    position.x(), position.y(), position.z(), java.util.List.copyOf(aiAudience)));
+                    position==null?0:position.x(), position==null?0:position.y(), position==null?0:position.z(),
+                    java.util.List.copyOf(aiAudience), "", position==null));
         }
         // 채팅 본문은 남기지 않고 길이와 받은 사람 수만 남긴다.
         int heard = recipients;
@@ -1602,7 +1604,7 @@ public class TableHub {
                 .prop("recipients", heard));
     }
 
-    private com.ssafy.ontop.ai.WorldAiBridge aiBridge;
+    private volatile com.ssafy.ontop.ai.WorldAiBridge aiBridge;
 
     /** Enabled only by the explicit local AI profile. No provider call runs under the hub lock. */
     public synchronized void aiBridge(com.ssafy.ontop.ai.WorldAiBridge bridge) { this.aiBridge = bridge; }
@@ -3530,13 +3532,15 @@ public class TableHub {
         member.peer().offer(protocol.encode(request.requestId(),"GAME_SPECTATOR_CHAT_MESSAGE",message));
         var audience=new java.util.ArrayList<String>();audience.add(member.userId());
         for(var target:members.values())if(target!=member&&game.equals(isolatedChatGame(target))){target.peer().offer(protocol.encode(null,"GAME_SPECTATOR_CHAT_MESSAGE",message));audience.add(target.userId());}
-        if(aiBridge!=null) {
+        var bridge=aiBridge;
+        if(bridge!=null) {
             String channel=channels.channelOf(member.userId());var position=channels.positionOf(member.userId());
-            if(channel!=null && position!=null) {
+            if(channel!=null) {
                 String nickname=channels.worldState(channel).avatars().stream().filter(a -> a.userId().equals(member.userId()))
                         .map(a -> a.nickname()==null?member.userId():a.nickname()).findFirst().orElse(member.userId());
-                aiBridge.chat(new com.ssafy.ontop.ai.WorldAiBridge.Chat(game+":"+member.userId()+":"+event,
-                        channel,member.userId(),nickname,text,now,position.x(),position.y(),position.z(),List.copyOf(audience),game));
+                bridge.chat(new com.ssafy.ontop.ai.WorldAiBridge.Chat(game+":"+member.userId()+":"+event,
+                        channel,member.userId(),nickname,text,now,position==null?0:position.x(),position==null?0:position.y(),
+                        position==null?0:position.z(),List.copyOf(audience),game,position==null));
             }
         }
     }
@@ -3617,15 +3621,16 @@ public class TableHub {
                 aiAudience.add(target.userId());
             }
         }
-        if (!ping && aiBridge!=null) {
+        var bridge=aiBridge;
+        if (!ping && bridge!=null) {
             String channel=channels.channelOf(member.userId());
             var position=channels.positionOf(member.userId());
-            if(channel!=null && position!=null) {
+            if(channel!=null) {
                 String nickname=channels.worldState(channel).avatars().stream().filter(a -> a.userId().equals(member.userId()))
                         .map(a -> a.nickname()==null?member.userId():a.nickname()).findFirst().orElse(member.userId());
-                aiBridge.chat(new com.ssafy.ontop.ai.WorldAiBridge.Chat(gameId+":"+member.userId()+":"+eventId,
-                        channel,member.userId(),nickname,text,now,position.x(),position.y(),position.z(),
-                        java.util.List.copyOf(aiAudience),gameId));
+                bridge.chat(new com.ssafy.ontop.ai.WorldAiBridge.Chat(gameId+":"+member.userId()+":"+eventId,
+                        channel,member.userId(),nickname,text,now,position==null?0:position.x(),position==null?0:position.y(),
+                        position==null?0:position.z(),java.util.List.copyOf(aiAudience),gameId,position==null));
             }
         }
     }

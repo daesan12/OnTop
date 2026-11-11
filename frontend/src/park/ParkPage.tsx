@@ -56,6 +56,8 @@ import { ArcadePicker } from '../features/arcade/ArcadePicker'
 import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
+import { EntryNewsPopup } from '../features/announcements/EntryNewsPopup'
+import { AiResidentsHost } from '../features/ai/AiResidentsHost'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
 import { WinnerContactsHost } from '../features/winnerContacts/WinnerContactsHost'
 import { useArcade } from '../features/arcade/store'
@@ -101,6 +103,7 @@ export function ParkPage(props: ParkProps) {
 function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: ParkProps) {
   useWalletSync()
   useJumpmapController()
+  const [entryNewsHost,setEntryNewsHost]=useState<HTMLDivElement|null>(null)
   const gameplayActive = useParkGameplayActive()
   useParkOperationGate(gameplayActive, onOperationBlocked)
   const vrPhase = useStore(parkVrZone.store, state => state.phase)
@@ -148,10 +151,12 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <ParkSfx />
       <RewardCoinFlight />
       <ChannelEntryGate />
+      <AiResidentsHost />
       <AnnouncementBanner hidden={hideAnnouncements} />
+      <EntryNewsPopup hidden={hideAnnouncements} launcherHost={entryNewsHost} />
       <GachaLifecycle />
       <SkinCatalogLifecycle />
-      <NotificationCenter key={session.sessionId} hidden={gameplayActive}
+      <NotificationCenter key={session.sessionId} hidden={gameplayActive} newsHostRef={setEntryNewsHost}
         onOpenWinnings={week => { setWinningsWeek(week); setWinningsRefresh(value => value + 1); setWinningsOpen(true) }} />
       {!omokFocus && <div className="park-weather-placement"><LocationChip /></div>}
       <div className="park-hud">

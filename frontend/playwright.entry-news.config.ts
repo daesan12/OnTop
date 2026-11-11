@@ -1,0 +1,2 @@
+import {defineConfig} from '@playwright/test'
+export default defineConfig({testDir:'./tests/e2e',testMatch:'entry-news.spec.ts',workers:1,outputDir:'../output/entry-news-playwright',timeout:90000,use:{baseURL:'http://127.0.0.1:5272',channel:'msedge',viewport:{width:1920,height:1080},headless:true},webServer:{command:'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5272 --strictPort',url:'http://127.0.0.1:5272',reuseExistingServer:true}})

@@ -29,7 +29,8 @@ public final class PolicePatrol {
     private long tickAt;
     private final Navigation navigation;
     private final ArrayDeque<Incident> pending=new ArrayDeque<>();
-    private final Set<String> accepted=new HashSet<>();
+    private static final int ACCEPTED_HISTORY_LIMIT=64;
+    private final LinkedHashSet<String> accepted=new LinkedHashSet<>();
     private final NpcWander wander;
     private Point position;
     private List<Step> recovery=List.of();
@@ -40,6 +41,7 @@ public final class PolicePatrol {
     private int next;
     private Incident active;
     private long speechUntil,planAfter,deadline,failedSince=-1,teleportSince=-1,warp;
+    private long positionMissingSince=-1;
     private double yaw;
     private String action="PATROL";
     private boolean patrolling=true;
@@ -52,10 +54,17 @@ public final class PolicePatrol {
         },random,1.6);
     }
     public void incident(Incident incident) {
-        if(accepted.contains(incident.id())) {metrics.increment("duplicate_requests");return;}
+        if(accepted.contains(incident.id())
+                || active!=null && active.id().equals(incident.id())
+                || pending.stream().anyMatch(queued -> queued.id().equals(incident.id()))) {
+            metrics.increment("duplicate_requests");return;
+        }
         if(pending.size()>=16) throw new IllegalStateException("경찰 출동 대기열 초과");
-        accepted.add(incident.id()); pending.add(incident);
+        accepted.add(incident.id());
+        while(accepted.size()>ACCEPTED_HISTORY_LIMIT) accepted.removeFirst();
+        pending.add(incident);
     }
+    boolean hasIncidents(){return active!=null || !pending.isEmpty();}
     public View tick(long now,double dt,Map<String,Point> actors) {
         tickAt=now;
         if(now<speechUntil) return view(false);
@@ -70,10 +79,15 @@ public final class PolicePatrol {
         if(active==null && !pending.isEmpty()) {
             metrics.increment("visits.started");
             active=pending.remove(); route=List.of(); next=0; deadline=now+90_000; planAfter=0;
-            failedSince=-1; teleportSince=-1;
+            failedSince=-1; teleportSince=-1;positionMissingSince=-1;
         }
+        if(active!=null && !actors.containsKey(active.actor()) && now<=deadline) {
+            if(positionMissingSince<0)positionMissingSince=now;
+            route=List.of();next=0;failedSince=-1;teleportSince=-1;
+            if(now-positionMissingSince<5000){action="WAITING_POSITION";return view(false);}
+        }else positionMissingSince=-1;
         if(active!=null && (!actors.containsKey(active.actor()) || now>deadline)) {
-            if(actors.containsKey(active.actor())) active.privateNotice().accept("가까이에서 안내하기 어려워 메시지로 전해요. 서로 존중하는 말을 사용해주세요.");
+            active.privateNotice().accept("가까이에서 안내하기 어려워 메시지로 전해요. 서로 존중하는 말을 사용해주세요.");
             active=null; route=List.of();
         }
         if(NpcUtility.choose(active!=null,false,false,active==null&&wander.resting(now)).action().equals("RESPOND")) {
@@ -92,6 +106,9 @@ public final class PolicePatrol {
                 active.arrived().accept(position); return view(false);
             }
             action="RESPOND";
+            if(now>=planAfter && !route.isEmpty() && route.getLast().distance(approach)>2) {
+                route=List.of();next=0;
+            }
             if(close) { route=List.of();next=0;failedSince=-1;action="WAITING_TELEPORT"; }
             else if(next>=route.size() && now>=planAfter) {
                 route=navigation.path(position,approach); next=Math.min(1,route.size()); planAfter=now+1000;

@@ -1,3 +1,4 @@
+import {residentsEnabled} from '../ai/serviceFeatures'
 import type { TableState, TableSummary } from '../../network/protocol'
 import { isTableGamePlayable, type TableGameCode } from './model'
 import { useGame } from '../../game/store'
@@ -38,7 +39,7 @@ export function manualStartAllowed(table: TableState, ownId: string, count: numb
 }
 export function tabletLobbyActive() {
   const s = useSession.getState(), g = useGame.getState(), table = s.tableStates[s.tableId]
-  if(import.meta.env.DEV && import.meta.env.VITE_AI_PARK==='true' && useCompanions.getState().practice?.snapshot.tableId===s.tableId)return false
+  if(residentsEnabled() && useCompanions.getState().practice?.snapshot.tableId===s.tableId)return false
   return TABLET_ENABLED && s.status === 'connected' && !!table && table.seats.some(seat => seat.userId === s.sessionId)
     && !g.watchedGameId && !g.lastResult && !g.game && !['PLAYING', 'SETTLING'].includes(g.start?.phase ?? '')
 }

@@ -1,3 +1,4 @@
+import { AdminEntryNewsPage } from './AdminEntryNewsPage'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnnouncementError, deleteAnnouncement, listAnnouncements, reorderAnnouncements, saveAnnouncement, type Announcement, type AnnouncementDraft } from './api'
 import './announcements.css'
@@ -8,7 +9,7 @@ const empty = (): AnnouncementDraft => ({ title: '', text: '', published: true, 
 const editable = (value: Announcement): AnnouncementDraft => ({ title: value.title, text: value.text, published: value.published, displayOrder: value.displayOrder, startsAt: value.startsAt, endsAt: value.endsAt, expectedVersion: value.version })
 const stateLabel = (value: Announcement, now = Date.now()) => !value.published ? '숨김' : value.endsAt && Date.parse(value.endsAt) <= now ? '게시 종료' : value.startsAt && Date.parse(value.startsAt) > now ? '예약' : '게시 중'
 
-export function AdminAnnouncementsPage({ onAuthEnded }: { onAuthEnded: () => void }) {
+function TextAnnouncementsPage({ onAuthEnded }: { onAuthEnded: () => void }) {
   const [values, setValues] = useState<Announcement[]>([]), [draft, setDraft] = useState(empty)
   const [editing, setEditing] = useState<string | null>(null), [busy, setBusy] = useState(false), [ready, setReady] = useState(false)
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [removing, setRemoving] = useState<Announcement | null>(null)
@@ -145,4 +146,9 @@ export function AdminAnnouncementsPage({ onAuthEnded }: { onAuthEnded: () => voi
       </div>
     </div>
   </section>
+}
+
+export function AdminAnnouncementsPage({onAuthEnded}:{onAuthEnded:()=>void}) {
+ const [tab,setTab]=useState<'banner'|'entry'>('banner')
+ return <><nav aria-label="공지 종류" style={{display:'flex',gap:12,marginBottom:28}}><button type="button" aria-pressed={tab==='banner'} onClick={()=>setTab('banner')}>상단 흐르는 공지</button><button type="button" aria-pressed={tab==='entry'} onClick={()=>setTab('entry')}>접속 안내 팝업</button></nav>{tab==='entry'?<AdminEntryNewsPage onAuthEnded={onAuthEnded}/>:<TextAnnouncementsPage onAuthEnded={onAuthEnded}/>}</>
 }

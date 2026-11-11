@@ -1,3 +1,4 @@
+import {residentsEnabled,useAiFeatures} from '../ai/serviceFeatures'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { bindAnchor } from '../../network/tableBindings'
@@ -20,6 +21,7 @@ import { BoardRewardCoinSource } from '../wallet/RewardCoinFlight'
 import { useCompanions } from '../ai/companions'
 
 export function TableLobby() {
+  useAiFeatures(s=>s.companions)
   return <>{TABLET_ENABLED && <HostStartWaitNotice />}<TableLobbyContent /></>
 }
 function TableLobbyContent() {
@@ -49,7 +51,7 @@ function TableLobbyContent() {
   const ref = tableId ? publicMatchService.find({ channelId: s.channel, tableId }) : null
   const canWatch = !!ref && ref.tableId === tableId && ref.channelId === s.channel
     && !s.seated && !busy && s.connected
-  if (import.meta.env.DEV && import.meta.env.VITE_AI_PARK==='true' && practice?.snapshot.tableId===tableId && ownTable) return null
+  if (residentsEnabled() && practice?.snapshot.tableId===tableId && ownTable) return null
   if (TABLET_ENABLED && ownTable) return gathering?.finished ? <TableGatheringHud key={gathering.scope} model={gathering} /> : <TabletLobby tableId={tableId} />
   if (gathering && details !== gathering.scope && (gathering.gameCode || gathering.finished)) return <TableGatheringHud model={gathering} />
   if (!s.focused || !query.panelOpen || game || s.bench || !ownTable) return null

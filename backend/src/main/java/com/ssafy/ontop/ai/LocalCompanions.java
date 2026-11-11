@@ -11,7 +11,8 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /** Explicit local-profile practice. No wallet, results repository or fake authenticated NPC account. */
-public final class LocalCompanions implements AutoCloseable {
+public final class LocalCompanions implements AutoCloseable,AiFeature {
+    @Override public String featureKey(){return "companions";}
     public enum Difficulty { EASY, NORMAL, HARD }
     private record Waiting(TableHub.AiTable table,long since) { }
     private static final class Practice {
@@ -187,7 +188,7 @@ public final class LocalCompanions implements AutoCloseable {
     }
     public synchronized Map<String,Object> talk(String owner,String persona,String question) {
         checkOpen();
-        if(!List.of("guide","omok").contains(persona) || question==null || question.isBlank() || question.length()>300) throw new IllegalArgumentException("질문은 1~300자로 입력해주세요.");
+        if(persona==null || !List.of("guide","omok").contains(persona) || question==null || question.isBlank() || question.length()>300) throw new IllegalArgumentException("질문은 1~300자로 입력해주세요.");
         long now=clock.millis();if(now<talkAfter.getOrDefault(owner,0L)) throw new IllegalArgumentException("답변을 기다린 뒤 다시 이야기해주세요.");
         talkAfter.put(owner,now+10_000);conversations.put(owner,"답변을 생각하고 있어요.");conversationSources.put(owner,"PENDING");
         String fallback=persona.equals("omok")?"오목은 15×15 렌주일세. 흑의 삼삼·사사·장목은 금수이고, NPC전은 0엽전일세.":"어서 오게. 테이블에서 게임을 고르거나 소리함에 의견을 남겨 보게나.";
@@ -285,8 +286,10 @@ public final class LocalCompanions implements AutoCloseable {
     }
     private void updateActors(long now) {
         if(navigationFactory==null)return;
+        var worlds=hub.aiActors();
+        if(worlds.isEmpty()&&navigation==null)return;
         if(navigation==null)navigation=navigationFactory.get();
-        var worlds=hub.aiActors();var live=new HashSet<String>();for(String channel:worlds.keySet())for(var resident:OmokResident.values())live.add(resident.id(channel));
+        var live=new HashSet<String>();for(String channel:worlds.keySet())for(var resident:OmokResident.values())live.add(resident.id(channel));
         walkers.keySet().retainAll(live);
         ambient.retain(live);
         double dt=actorServerAt==0?.1:Math.max(0,Math.min(.2,(now-actorServerAt)/1000.0));
