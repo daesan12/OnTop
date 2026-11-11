@@ -23,12 +23,13 @@ for(const size of [{width:1920,height:1080},{width:1366,height:650},{width:1280,
 for(const [grade,tier] of [[1,'S'],[2,'A'],[3,'B'],[4,'C']] as const)test(tier+'급은 입체 캡슐을 유지하고 모션 축소를 지킨다',async({page})=>{
  const dialog=await setup(page,false,grade);await expect(dialog.getByRole('heading',{name:`${tier}급 캡슐 오픈!`,exact:true})).toBeVisible()
  await expect(dialog.locator('.open-capsule-scene canvas')).toBeVisible();await expect(dialog.locator('.open-display-shell,.capsule-effects,.open-wallet')).toHaveCount(0)
- expect(await dialog.locator('.open-reveal-glow').evaluate(el=>getComputedStyle(el).animationName)).toBe('none')
+ expect(await dialog.locator('.open-aureole').evaluate(el=>getComputedStyle(el).animationName)).toBe('none')
  if(grade===1)await page.screenshot({path:'../output/gacha-result-S.png'})
 })
-test('기본 모션은 반복 효과 없이 짧게 의상을 공개한다',async({page})=>{
+test('기본 모션은 캡슐에서 광선과 별빛을 펼치고 유한 횟수로 멈춘다',async({page})=>{
  const dialog=await setup(page,false,1,true);await expect(dialog.locator('.open-capsule-scene canvas')).toBeVisible()
- expect(await dialog.locator('.open-reveal-glow').evaluate(el=>getComputedStyle(el).animationIterationCount)).toBe('1')
+ expect(await dialog.locator('.open-aureole').evaluate(el=>getComputedStyle(el).animationIterationCount)).toBe('1')
+ await expect(dialog.locator('.open-sunbeams path')).toHaveCount(11);await expect(dialog.locator('.open-star')).toHaveCount(16);expect(await dialog.locator('.open-star').first().evaluate(el=>getComputedStyle(el).animationIterationCount)).toBe('4')
  await expect(dialog.getByRole('button',{name:'확인',exact:true})).toBeInViewport()
 })
 

@@ -17,6 +17,7 @@ import { CAPSULES, Capsule, Coin } from './capsuleMotion'
 import { capsuleName, capsuleTier, displayGachaMessage } from './labels'
 import { useGachaOverlay } from './view'
 import { WearParts } from './OpeningOrnaments'
+import { OpeningRadiance } from './OpeningRadiance'
 import { OpeningCapsule } from './OpeningCapsule'
 import './capsuleOpening.css'
 import './capsuleMotion.css'
@@ -159,9 +160,10 @@ export function GachaBoxes(){
     <div className="open-title"><h2 aria-label={`${capsuleTier(opening.grade)} 캡슐 오픈!`}>{capsuleTier(opening.grade)} 캡슐 오픈!</h2></div>
 
     <div className="open-prize-display">
+    {shown&&<OpeningRadiance grade={opening.grade}/> }
     <div className="open-capsule-scene" aria-hidden="true"><Canvas resize={{offsetSize:true}} camera={{position:[0,1.4,5.4],fov:40}} frameloop="demand" dpr={1} gl={{alpha:true,antialias:true}}><Lighting/><OpeningCapsule grade={opening.grade} phase={opening.phase} startedAt={opening.startedAt} reduced={reduced||opening.instant} revealed={shown}/></Canvas></div>
     {shown&&result?.product&&<div className="open-center-art" role="img" aria-label={result.product.name}><ProductDisplay key={result.operationId} product={result.product}/></div>}
-    {shown&&<div className="open-reveal-glow" aria-hidden="true"/>}
+
     </div>
     {shown&&result?.product?<div className="open-result-card" data-operation-id={result.operationId} aria-live="polite">
      <small>{result.duplicate?'의상 공개':'새 의상 획득!'}</small><h3>{result.product.name}</h3><WearParts parts={parts}/>
