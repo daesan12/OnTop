@@ -26,7 +26,7 @@ public final class GachaDtos {
                          Instant completedAt) { }
     @Schema(name="GachaEvent") public record Event(String eventId, Machine machine, Winner winner, Instant confirmedAt) { }
     @Schema(name="GachaWinner") public record Winner(String userId, String nickname, String winningRoundId) { }
-    @Schema(name="GachaBuyRequest") public record BuyRequest(String operationId) { }
+    @Schema(name="GachaBuyRequest") public record BuyRequest(String operationId,@Schema(description="뽑기권 수(1~10, 생략하면 1)",minimum="1",maximum="10",nullable=true) Integer quantity) { }
     @Schema(name="GachaDrawRequest") public record DrawRequest(String operationId,String roundId) { }
     @Schema(name="GachaOpenRequest") public record OpenRequest(String operationId,int grade) { }
 }

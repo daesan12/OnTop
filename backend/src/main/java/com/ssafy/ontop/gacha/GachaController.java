@@ -31,10 +31,15 @@ public class GachaController {
     public ResponseEntity<GachaDtos.State> state(Principal principal) { return ok(service().state(user(principal))); }
     @GetMapping("/operations/{operationId}") @Operation(summary="본인 뽑기 작업 결과 복구")
     public ResponseEntity<GachaDtos.Result> recover(Principal principal,@PathVariable String operationId) { return ok(service().recover(user(principal),operationId)); }
-    @PostMapping("/tickets") @Operation(summary="100냥으로 뽑기권 한 장 구매", description="보유 수량이 JavaScript 안전정수 한도를 초과하면 409 GACHA_CAPACITY_EXCEEDED로 거래 전체를 취소한다.")
+    @PostMapping("/tickets") @Operation(summary="뽑기권 구매(한 장 100냥, quantity로 1~10장)", description="quantity를 빼면 한 장. 여러 장은 한 거래로 차감·지급한다. 보유 수량이 JavaScript 안전정수 한도를 초과하면 409 GACHA_CAPACITY_EXCEEDED로 거래 전체를 취소한다.")
     public ResponseEntity<GachaDtos.Result> purchase(Principal principal,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(required=true,content=@Content(schema=@Schema(implementation=GachaDtos.BuyRequest.class)))
             @RequestBody JsonNode body) {
+        if(body!=null&&body.has("quantity")) {
+            fields(body,Set.of("operationId","quantity"));
+            if(!body.get("quantity").isIntegralNumber()||!body.get("quantity").canConvertToInt()) throw invalid();
+            return ok(service().purchase(user(principal),key(body),body.get("quantity").intValue()));
+        }
         fields(body,Set.of("operationId")); return ok(service().purchase(user(principal),key(body)));
     }
     @PostMapping("/draws") @Operation(summary="현재 회차에서 뽑기권 한 장 사용", description="이전 회차는 GACHA_ROUND_CHANGED, 서버 기준 보충 중에는 GACHA_REFILLING, 지급 후 보유 수량·잔액 한도 초과는 GACHA_CAPACITY_EXCEEDED(모두409). 거절 시 티켓을 소비하지 않으며 같은 확정 영수증은 먼저 복구한다.")

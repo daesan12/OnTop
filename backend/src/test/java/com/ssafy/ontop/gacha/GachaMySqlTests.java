@@ -127,6 +127,22 @@ class GachaMySqlTests {
         assertThat(scalar("SELECT COUNT(*) FROM wallet_transactions WHERE transaction_type='GACHA_PURCHASE' AND wallet_id=(SELECT id FROM wallets WHERE user_id=?)",user)).isEqualTo(1);
         assertThatThrownBy(()->service.draw(user,"one-buy","1")).isInstanceOf(GachaException.class);
     }
+    @Test void several_tickets_are_one_purchase_and_replay_or_conflict_by_quantity() {
+        long user=user(1000); var service=service(0);
+        var bought=service.purchase(user,"three-buy",3);
+        assertThat(bought.paidCoins()).isEqualTo(300);
+        assertThat(amount(user)).isEqualTo(700);assertThat(service.state(user).inventory().tickets()).isEqualTo(3);
+        assertThat(scalar("SELECT COUNT(*) FROM wallet_transactions WHERE transaction_type='GACHA_PURCHASE' AND wallet_id=(SELECT id FROM wallets WHERE user_id=?)",user)).isEqualTo(1);
+        assertThat(service.purchase(user,"three-buy",3)).isEqualTo(bought);
+        assertThatThrownBy(()->service.purchase(user,"three-buy",2)).isInstanceOfSatisfying(GachaException.class,e->assertThat(e.code()).isEqualTo("IDEMPOTENCY_CONFLICT"));
+        assertThatThrownBy(()->service.purchase(user,"too-many",11)).isInstanceOfSatisfying(GachaException.class,e->assertThat(e.code()).isEqualTo("INVALID_REQUEST"));
+        assertThatThrownBy(()->service.purchase(user,"too-few",0)).isInstanceOfSatisfying(GachaException.class,e->assertThat(e.code()).isEqualTo("INVALID_REQUEST"));
+        // 남은 700냥으로 8장(800냥)은 거래 전체가 거절되고 아무것도 바뀌지 않는다.
+        assertThatThrownBy(()->service.purchase(user,"short-buy",8)).isInstanceOfSatisfying(GachaException.class,e->assertThat(e.code()).isEqualTo("INSUFFICIENT_BALANCE"));
+        assertThat(amount(user)).isEqualTo(700);assertThat(service.state(user).inventory().tickets()).isEqualTo(3);
+        // 한 장은 예전 요청과 같은 영수증 대상이라 수량 없이 다시 보내도 같은 결과다.
+        var one=service.purchase(user,"one-more",1);assertThat(service.purchase(user,"one-more")).isEqualTo(one);
+    }
     @Test void same_draw_replays_first_prize_after_round_reset_without_another_announcement() throws Exception {
         long user=user(1000);var service=service(0);service.purchase(user,"buy");
         try(var workers=Executors.newFixedThreadPool(6)) {
