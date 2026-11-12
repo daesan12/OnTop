@@ -37,8 +37,11 @@ public class GachaController {
             @RequestBody JsonNode body) {
         if(body!=null&&body.has("quantity")) {
             fields(body,Set.of("operationId","quantity"));
-            if(!body.get("quantity").isIntegralNumber()||!body.get("quantity").canConvertToInt()) throw invalid();
-            return ok(service().purchase(user(principal),key(body),body.get("quantity").intValue()));
+            JsonNode quantity=body.get("quantity");
+            // "quantity": null is the spec's nullable field left out: one ticket, the same request as no quantity.
+            if(quantity.isNull()) return ok(service().purchase(user(principal),key(body)));
+            if(!quantity.isIntegralNumber()||!quantity.canConvertToInt()) throw invalid();
+            return ok(service().purchase(user(principal),key(body),quantity.intValue()));
         }
         fields(body,Set.of("operationId")); return ok(service().purchase(user(principal),key(body)));
     }
