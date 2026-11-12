@@ -1,0 +1,127 @@
+package com.ssafy.ontop.game.jumprope;
+
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.regex.Pattern;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
+
+public class JumpRopeService {
+    private static final Pattern REQUEST_KEY = Pattern.compile("[A-Za-z0-9_-]{1,64}");
+    static final int TOP_LIMIT = 10;
+    static final int MAX_OFFSET = 10_000;
+
+    private final JumpRopeRepository repository;
+    private final Clock clock;
+    private final SecureRandom random;
+    private final TransactionTemplate write;
+    private final TransactionTemplate read;
+
+    JumpRopeService(JumpRopeRepository repository, PlatformTransactionManager manager, Clock clock, SecureRandom random) {
+        this.repository = repository;
+        this.clock = clock;
+        this.random = random;
+        write = new TransactionTemplate(manager);
+        write.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+        read = new TransactionTemplate(manager);
+        read.setReadOnly(true);
+        read.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+    }
+
+    public JumpRopeDtos.Round start(long userId, String key) {
+        if (key == null || !REQUEST_KEY.matcher(key).matches()) throw invalidKey();
+        return write.execute(tx -> {
+            if (!repository.lockUser(userId)) throw unauthenticated();
+            Instant now = clock.instant();
+            Instant startedAt = now.truncatedTo(ChronoUnit.MILLIS).plusMillis(JumpRopeRules.COUNTDOWN_MS);
+            var row = repository.start(userId, key, Integer.toUnsignedLong(random.nextInt()), startedAt,
+                    startedAt.plusSeconds(JumpRopeRules.EXPIRY_SECONDS));
+            requireLatest(userId, row.id());
+            if (row.result() != null) throw new JumpRopeException(409, "JUMP_ROPE_ROUND_FINISHED", "이미 완료한 시작 요청이에요.");
+            requireActiveVersionAndWindow(row, now);
+            return new JumpRopeDtos.Round(Long.toString(row.id()), row.seed(), row.rulesVersion(),
+                    now.truncatedTo(ChronoUnit.MILLIS), row.startedAt(), row.expiresAt(), JumpRopeRules.DURATION_MS);
+        });
+    }
+
+    public JumpRopeDtos.Result complete(long userId, long id, List<Integer> offsets) {
+        JumpRopeRules.validateInputs(offsets);
+        var inputs = List.copyOf(offsets);
+        String inputHash = hash(inputs);
+        Instant receivedAt = clock.instant();
+        return write.execute(tx -> {
+            if (!repository.lockUser(userId)) throw notFound();
+            var row = repository.lockRound(userId, id).orElseThrow(JumpRopeService::notFound);
+            requireActiveVersionAndWindow(row, receivedAt);
+            if (row.result() != null) {
+                if (!inputHash.equals(row.inputHash())) {
+                    throw new JumpRopeException(409, "JUMP_ROPE_INPUT_CONFLICT", "이미 다른 점프 기록으로 결과가 확정됐어요.");
+                }
+                return row.result();
+            }
+            requireLatest(userId, id);
+            var replay = JumpRopeRules.replay(inputs);
+            if (receivedAt.isBefore(row.startedAt().plus(replay.minimumElapsedUs(), ChronoUnit.MICROS))) {
+                throw new JumpRopeException(409, "JUMP_ROPE_NOT_FINISHED", "아직 경기가 끝나지 않았어요.");
+            }
+            Instant completedAt = receivedAt.truncatedTo(ChronoUnit.MILLIS);
+            repository.settle(id, replay, completedAt, inputHash);
+            var counts = new JumpRopeDtos.Counts(replay.perfect(), replay.good(), replay.miss());
+            return new JumpRopeDtos.Result(Long.toString(id), row.rulesVersion(), replay.score(), counts,
+                    replay.reason().wireValue(), completedAt);
+        });
+    }
+
+    public JumpRopeDtos.Rankings rankings(long userId, int limit, int offset) {
+        if (limit < 1 || limit > TOP_LIMIT || offset < 0 || offset > MAX_OFFSET) {
+            throw new JumpRopeException(400, "JUMP_ROPE_INVALID_PAGE", "페이지 범위를 확인해 주세요.");
+        }
+        return read.execute(tx -> {
+            long total = repository.participants();
+            return new JumpRopeDtos.Rankings(JumpRopeRules.VERSION, "ALL_TIME", clock.instant(), total, offset, limit,
+                    repository.ranked(limit, offset), repository.me(userId), offset + (long) limit < total);
+        });
+    }
+
+    private void requireLatest(long userId, long id) {
+        if (repository.latestId(userId) != id) {
+            throw new JumpRopeException(409, "JUMP_ROPE_ROUND_SUPERSEDED", "새 판이 시작돼 이전 기록을 제출할 수 없어요.");
+        }
+    }
+
+    private static void requireActiveVersionAndWindow(JumpRopeRepository.Row row, Instant at) {
+        if (at.isAfter(row.expiresAt()) || (row.result() == null && row.rulesVersion() != JumpRopeRules.VERSION)) {
+            throw new JumpRopeException(409, "JUMP_ROPE_ROUND_EXPIRED", "기록 제출 시간이 지났거나 규칙 버전이 바뀌었어요.");
+        }
+    }
+
+    private static String hash(List<Integer> inputs) {
+        ByteBuffer bytes = ByteBuffer.allocate(Integer.BYTES * inputs.size());
+        inputs.forEach(bytes::putInt);
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes.array()));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+    }
+
+    private static JumpRopeException notFound() {
+        return new JumpRopeException(404, "JUMP_ROPE_ROUND_NOT_FOUND", "내 경기 기록을 찾을 수 없어요.");
+    }
+
+    static JumpRopeException invalidKey() {
+        return new JumpRopeException(400, "JUMP_ROPE_INVALID_KEY", "Idempotency-Key를 한 개 확인해 주세요.");
+    }
+
+    static JumpRopeException unauthenticated() {
+        return new JumpRopeException(401, "UNAUTHENTICATED", "로그인이 필요해요.");
+    }
+}
