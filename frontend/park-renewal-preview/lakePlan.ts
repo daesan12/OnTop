@@ -18,3 +18,24 @@ export function lakeFenceSegments(){
  }
  return segments
 }
+
+export function bridgeApproachGuards(shore = lakeFenceSegments()) {
+ const segments: ReturnType<typeof lakeFenceSegments> = []
+ for (const side of [-1, 1]) {
+  const railZ = BRIDGE.z + side * BRIDGE.width / 2
+  const openingZ = BRIDGE.z + side * (BRIDGE.width / 2 + .4)
+  const shoreEnd = shore.flatMap(({a,z}) => [a,z])
+   .find(([x,z]) => x < LAKE.x && Math.abs(z-openingZ) < .0001)
+  if (shoreEnd) segments.push({a:shoreEnd,z:[shoreEnd[0],railZ]})
+
+  // Follow the island shore to the bridge rail, closing the low route
+  // around the side of the arch while keeping the stone landing open.
+  const points = Array.from({length:9}, (_, i): Point => {
+   const offset = BRIDGE.width / 2 + i
+   const {x,rx,rz} = LAKE.island
+   return [x - rx * Math.sqrt(1 - (offset / rz) ** 2) + .65, BRIDGE.z + side * offset]
+  })
+  for (let i = 1; i < points.length; i++) segments.push({a:points[i-1]!,z:points[i]!})
+ }
+ return segments
+}

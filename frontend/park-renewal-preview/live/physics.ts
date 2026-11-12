@@ -10,7 +10,7 @@ import { parkGround } from '../groundGeometry'
 import { groundSurfaceHeight } from '../groundSurface'
 import { HILLSIDE_RAIL_HEIGHTS, MONUMENT_STAIR_RAIL } from '../guardDimensions'
 import { hillsideGuardRuns, ascentFenceRuns } from '../guardLayout'
-import { lakeFenceSegments } from '../lakePlan'
+import { bridgeApproachGuards, lakeFenceSegments } from '../lakePlan'
 import { fitnessFenceSegments } from '../motionPlan'
 import {
   BRIDGE, BRIDGE_LANDINGS, DOCK_ACCESS, FISHING_ACCESS, FISHING_OUTLINE, FISHING_DECK, FISHING_UPPER, FISHING_STAIRS,
@@ -142,7 +142,10 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   ] as const) for (const [i, run] of runs.entries()) {
     for (let n = 1; n < run.length; n++) rail(style + '-' + i + '-' + n, run[n - 1]!, run[n]!, .12, height)
   }
-  for (const [name, segments, h] of [['lake-fence', lakeFenceSegments(), 1.12], ['fitness-fence', fitnessFenceSegments(), 1.1]] as const) {
+  const lakeFence = lakeFenceSegments()
+  for (const [name, segments, h] of [['lake-fence', lakeFence, 1.12],
+    ['island-bridge-approach-guard', bridgeApproachGuards(lakeFence), 1.12],
+    ['fitness-fence', fitnessFenceSegments(), 1.1]] as const) {
     segments.forEach(({ a, z }, i) => rail(name + '-' + i,
       [a[0], groundSurfaceHeight(...a), a[1]], [z[0], groundSurfaceHeight(...z), z[1]], .14, h))
   }

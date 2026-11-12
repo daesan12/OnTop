@@ -19,7 +19,7 @@ import {post,rope} from './approved/대형_호수_낚시터/src/props.js'
 import {BRIDGE,BRIDGE_LANDINGS,bridgeDeckHeight,bridgeLandingHeight,LAKE,heightAt,DOCK_ACCESS,FISHING_ACCESS,FISHING_OUTLINE,FISHING_DECK,FISHING_UPPER,FISHING_STAIRS,FISHING_SUPPORTS,STATION_STAIRS,STATION_SCALE,fishingRailSections,accessTopAt} from './plan.ts'
 import {stripePolygon} from './roundedFootprint.ts'
 import {groundObject} from './assetSizing.ts'
-import {lakeFenceSegments} from './lakePlan.ts'
+import {bridgeApproachGuards,lakeFenceSegments} from './lakePlan.ts'
 import {cloneBakedFacility} from './static/facilities.ts'
 function electricBicycle(options){const result=createBicycle(options),battery=new Mesh(new BoxGeometry(.13,.32,.15),new MeshLambertMaterial({color:'#343e38'}));battery.position.set(0,.66,-.27);battery.rotation.x=-.24;result.group.add(battery);const hub=new Mesh(new CylinderGeometry(.105,.105,.15,12),new MeshLambertMaterial({color:'#687469'}));hub.rotation.z=Math.PI/2;hub.position.set(0,.35,-.64);result.group.add(hub);const display=new Mesh(new BoxGeometry(.1,.025,.065),new MeshLambertMaterial({color:'#476d5b'}));display.position.set(0,1.15,.45);result.group.add(display);return result}
 function islandBridge(){
@@ -49,7 +49,9 @@ function islandBridge(){
  group.add(abutments)
  return{group}
 }
-function lakeFence(){const b=new LakeBuilder('light');for(const{a,z}of lakeFenceSegments()){const ya=groundSurfaceHeight(...a)+.015,yz=groundSurfaceHeight(...z)+.015;post(b,...a,ya);post(b,...z,yz);for(const h of[.48,.92])rope(b,[a[0],ya+h,a[1]],[z[0],yz+h,z[1]])}return{group:b.finish('retained-lake-shore-rope-fence')}}
+function shoreFence(segments,name){const b=new LakeBuilder('light');for(const{a,z}of segments){const ya=groundSurfaceHeight(...a)+.015,yz=groundSurfaceHeight(...z)+.015;post(b,...a,ya);post(b,...z,yz);for(const h of[.48,.92])rope(b,[a[0],ya+h,a[1]],[z[0],yz+h,z[1]])}return{group:b.finish(name)}}
+function lakeFence(){return shoreFence(lakeFenceSegments(),'retained-lake-shore-rope-fence')}
+function bridgeGuards(){return shoreFence(bridgeApproachGuards(),'island-bridge-approach-guards')}
 function lakeAccess(){const groups=[];for(const a of[DOCK_ACCESS,FISHING_ACCESS]){const b=new LakeBuilder('light');boardwalk(b,{points:a.points,width:a.width,top:a.top,continuousDeck:a===DOCK_ACCESS});const g=b.finish('graded-single-wood-access');g.traverse(o=>{if(!o.isMesh)return;const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++)p.setY(i,p.getY(i)+accessTopAt(a,p.getX(i),p.getZ(i))-a.top);o.geometry.computeVertexNormals();o.geometry.computeBoundingBox();o.geometry.computeBoundingSphere()});groups.push(g)}const root=new LakeBuilder('light').finish('native-wood-access-bridges');root.add(...groups);return root}
 function fishingDeck(){
  const b=new LakeBuilder('light')
@@ -95,7 +97,7 @@ export function factory(kind,options={}){
  if(kind==='shooting')return createShootingRange({...options,quality:'light',signTexture:options.plain?undefined:createShootingRangeSignTexture()}).group
  if(kind==='folk')return createTraditionalPlayZone({...options,quality:'light',signTexture:options.plain?undefined:createTraditionalPlaySignTexture(),matTexture:options.plain?undefined:createYutMatTexture()}).group
  if(kind==='fishing-shop'||kind==='rod-rack'||kind==='lake-notice')return createFishingLakeProp(kind==='fishing-shop'?'tackle-shop':kind==='lake-notice'?'notice-board':'rod-rack',{quality:'light'}).group
- const factories={bridge:islandBridge,'lake-fence':lakeFence,ebike:electricBicycle,sub:createSubPavilion,willow:createPreviewWillow,balloon:createLowPolyBalloon,station:createLowPolyStation,bike:createBicycleRentalStation,scooter:createScooterRentalStation,sign:createWayfindingSign,bicycle:createBicycle,kickboard:createScooter}
+ const factories={bridge:islandBridge,'lake-fence':lakeFence,'bridge-guards':bridgeGuards,ebike:electricBicycle,sub:createSubPavilion,willow:createPreviewWillow,balloon:createLowPolyBalloon,station:createLowPolyStation,bike:createBicycleRentalStation,scooter:createScooterRentalStation,sign:createWayfindingSign,bicycle:createBicycle,kickboard:createScooter}
  const indigo='#304a65'
  const appearance=kind==='balloon'?{decoration:'simple',accent:indigo,cream:'#e6d6b7'}:
   kind==='station'?{deckAccent:indigo}:{}

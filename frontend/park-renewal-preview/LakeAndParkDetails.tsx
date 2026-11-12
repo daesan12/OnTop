@@ -16,7 +16,7 @@ const spawnSites=centers.map(c=>Array.from({length:16},(_,i)=>({x:c.x+(i%4-1.5)*
 // 5–12 m flight range; the compact 3.9 m spawn grid provided no route for most birds.
 export const renewalPigeonHabitat={visitors:()=>[],sites:centers.map(c=>Array.from({length:16},(_,i)=>({x:c.x+(i%4-1.5)*3,z:c.z+(Math.floor(i/4)-1.5)*3})).filter(safe)),spawn:(i:number)=>createBirds(i,spawnSites[i]!,centers[i]!,heightAt),environment:{groundHeight:heightAt,clearRoute:(a:{x:number;z:number},b:{x:number;z:number})=>Array.from({length:6},(_,i)=>({x:a.x+(b.x-a.x)*i/5,z:a.z+(b.z-a.z)*i/5})).every(p=>insidePark(p.x,p.z,2)&&!inLake(p.x,p.z,1))}}
 const structureTemplates = new Map<string, ReturnType<typeof factory>>()
-function LakeStructure({ kind }: { kind: 'bridge' | 'lake-fence' }) {
+function LakeStructure({ kind }: { kind: 'bridge' | 'bridge-guards' | 'lake-fence' }) {
   const object = useMemo(() => {
     let template = structureTemplates.get(kind)
     if (!template) {
@@ -34,7 +34,7 @@ export function LakeAndParkDetails({live=false}: {live?: boolean}){
  return <>
  <mesh name="continuous-mitered-stone-curbs" geometry={previewCurbs}><meshLambertMaterial color="#beb9a5" side={2}/></mesh>
  <group name="lake-shore-structures">
-  <LakePart at={LakeStage.Bridge}><LakeStructure kind="bridge"/></LakePart>
+  <LakePart at={LakeStage.Bridge}><LakeStructure kind="bridge"/><LakeStructure kind="bridge-guards"/></LakePart>
   <LakePart at={LakeStage.Fence}><LakeStructure kind="lake-fence"/></LakePart>
   <LakePart at={LakeStage.Fish}>
    <group name="preserved-lake-fish" position={[LAKE.x-ORIGINAL_LAKE.x*LAKE.rx/ORIGINAL_LAKE.radiusX,LAKE.y,LAKE.z-ORIGINAL_LAKE.z*LAKE.rz/ORIGINAL_LAKE.radiusZ]} scale={[LAKE.rx/ORIGINAL_LAKE.radiusX,1,LAKE.rz/ORIGINAL_LAKE.radiusZ]}><LakeFish quality="high"/></group>

@@ -4,7 +4,7 @@ import {site,insidePark,heightAt,inLake,onBridge,deckHeightAt,distanceToSegment,
 import {MOVEMENT} from '../src/config'
 import {HILL_VERGE_INSET,HILLSIDE_RAIL_HEIGHTS,MONUMENT_STAIR_RAIL} from './guardDimensions'
 import {ascentFenceRuns,hillsideGuardRuns} from './guardLayout.ts'
-import {lakeFenceSegments} from './lakePlan.ts'
+import {bridgeApproachGuards,lakeFenceSegments} from './lakePlan.ts'
 import {hitsParkProp} from './propCollision'
 export const FITNESS_FENCE={rx:16.2,rz:12.2,opening:5.6,height:JUMP_FENCE_HEIGHT} as const
 export function fitnessFenceSegments(){
@@ -28,7 +28,7 @@ function jumpGuards(runs:typeof ascentFenceRuns,hill:boolean):Guard[]{
 }
 const guards:Guard[]=[
  ...hillsideGuardRuns.flatMap(path=>path.slice(1).map((b,i)=>({a:[path[i]![0],path[i]![2]]as Point,b:[b[0],b[2]]as Point,top:Math.min(path[i]![1],b[1])+1.3,hill:true}))),
- ...lake.map(({a,z})=>({a,b:z,top:heightAt(...a)+1.45,hill:false})),
+ ...[...lake,...bridgeApproachGuards(lake)].map(({a,z})=>({a,b:z,top:heightAt(...a)+1.45,hill:false})),
  ...gym.map(({a,z})=>({a,b:z,top:heightAt(...a)+FITNESS_FENCE.height,hill:false,standable:true})),
  ...jumpGuards(jumpFenceRuns,false),
  ...jumpGuards(ascentFenceRuns,true),
