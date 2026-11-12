@@ -24,6 +24,7 @@ function reachPoint(position: Point3): Point3 {
 
 export function buildRenewalRecreation() {
   const recreation: RenewalRecreationAnchor[] = [
+    { id: 'fortune', position: worldPoint('fortune', 0, 0), reachPosition: reachPoint(worldPoint('fortune', 0, -3)), radius: 3, heightTolerance: .7 },
     { id: 'fish-bread', position: worldPoint('bread', 0, 5.4), reachPosition: reachPoint(worldPoint('bread', 0, 6.4)), radius: 2.5 },
     { id: 'pigeon-jump-rope', position: worldPoint('pigeon', 0, 4), reachPosition: reachPoint(worldPoint('pigeon', 0, 5.5)), radius: 2.2 },
     { id: 'mole-shop', position: worldPoint('mole', 0, 3.5), reachPosition: reachPoint(worldPoint('mole', 0, 4.8)), radius: 2.3 },

@@ -45,14 +45,16 @@ import { GUIDE as JUMPMAP_GUIDE } from '../jumpmap/activeCourse'
 import { useJumpmap } from '../jumpmap/state'
 import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
+import { openFortune } from '../fortune/controller'
 
 const plazaKiosksEnabled = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED
 const recreationLabels: Record<RenewalRecreationId, string> = {
+  fortune: '오늘의 운세 보기',
   'fish-bread': '붕어빵 굽기',
   'rps-roulette-cabinet': '가위바위보 룰렛 하기',
   'plus-minus-cabinet': '더하기빼기 하기',
   'mole-shop': '두더지 모드 고르기',
-  'pigeon-jump-rope': '비둘기 줄넘기',
+  'pigeon-jump-rope': '구구구 줄넘기 하기',
 }
 
 export interface ParkInteraction {
@@ -111,10 +113,10 @@ export function getParkInteraction(): ParkInteraction | null {
   }
   for (const anchor of renewalMap?.data.interactions.recreation ?? []) {
     if (!canReachRenewalRecreation(p.current, anchor)) continue
-    const [x, y, z] = anchor.position
+    const [x, y, z] = anchor.id === 'fortune' ? anchor.reachPosition : anchor.position
     const distance = Math.hypot(p.current.x - x, p.current.z - z)
     choices.push({ kind: 'renewal-game', id: anchor.id, label: recreationLabels[anchor.id],
-      occupied: false, available: true, distance, score: interactionScore(distance, { x, y: y + 1.3, z }) })
+      occupied: false, available: true, distance, score: interactionScore(distance, { x, y: anchor.id === 'fortune' ? y : y + 1.3, z }) })
   }
   if (!renewalMap && canReachBungeoppang(p.current)) {
     const cart = MINI_PROPS[0], distance = Math.hypot(p.current.x - cart.x, p.current.z - cart.z)
@@ -192,6 +194,7 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openArcade() }
   else if (target.kind === 'renewal-game') {
     switch (target.id) {
+      case 'fortune': return openFortune()
       case 'fish-bread': openBungeoppang(); break
       case 'rps-roulette-cabinet': if (canOpenRpsRoulette()) openRpsRoulette(); break
       case 'plus-minus-cabinet': openPlusMinus(); break

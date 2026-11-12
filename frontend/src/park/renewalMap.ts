@@ -5,12 +5,13 @@ import type { Point3 } from '../map/park/interactionData'
 import type { VrEntrance } from '../features/vrZone/anchors'
 import type { buildRenewalJumpCourse } from '../../park-renewal-preview/live/jumpCourseData'
 
-export type RenewalRecreationId = 'fish-bread' | 'rps-roulette-cabinet' | 'plus-minus-cabinet' | 'mole-shop' | 'pigeon-jump-rope'
+export type RenewalRecreationId = 'fortune' | 'fish-bread' | 'rps-roulette-cabinet' | 'plus-minus-cabinet' | 'mole-shop' | 'pigeon-jump-rope'
 export interface RenewalRecreationAnchor {
   id: RenewalRecreationId
   position: Point3
   reachPosition: Point3
   radius: number
+  heightTolerance?: number
 }
 type RenewalData = Omit<ParkMapData, 'tables' | 'interactions' | 'pavilions' | 'physics'> & {
   physics: ParkMapData['physics'] & { secretTerrainCuts?: readonly number[] }
@@ -43,7 +44,7 @@ export const renewalMap = RENEWAL_PARK_ENABLED ? await loadRenewalMap() : null
 export function canReachRenewalRecreation(position: { x: number; y: number; z: number }, anchor: RenewalRecreationAnchor) {
   const [x, y, z] = anchor.reachPosition
   return [position.x, position.y, position.z].every(Number.isFinite)
-    && Math.hypot(position.x - x, position.z - z) <= anchor.radius && Math.abs(position.y - y) <= .9
+    && Math.hypot(position.x - x, position.z - z) <= anchor.radius && Math.abs(position.y - y) <= (anchor.heightTolerance ?? .9)
 }
 
 export function renewalGroundHeight(x: number, z: number): number {

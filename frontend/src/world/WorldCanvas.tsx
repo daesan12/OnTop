@@ -46,6 +46,7 @@ import { prepareScene } from './prepareScene'
 import { warmParkGeometry } from '../park/loadParkGeometry'
 import { jumpmapPreparationViews } from '../features/jumpmap/preparation'
 import { useGachaOverlay } from '../features/gacha/view'
+import { useFortune } from '../features/fortune/state'
 
 import { useBungeoppang } from '../features/bungeoppang/store'
 
@@ -149,6 +150,7 @@ export const WorldCanvas = memo(function WorldCanvas({
   const overlayTargets = useMemo<OverlayTargets>(() => new Map(), [])
   const [visible, setVisible] = useState(() => !document.hidden)
   const gachaOverlay = useGachaOverlay(s => s.open)
+  const fortuneOpen = useFortune(s => s.open)
   const [viewport, setViewport] = useState(() => ({
     width: innerWidth,
     height: Math.max(620, innerHeight),
@@ -183,7 +185,7 @@ export const WorldCanvas = memo(function WorldCanvas({
     <>
       <Canvas
         // Keep sockets alive in hidden tabs; authoritative match state still arrives.
-        frameloop={!visible || !active || gachaOverlay ? 'never' : 'always'}
+        frameloop={!visible || !active || gachaOverlay || (fortuneOpen && firstFrameAt.current !== null) ? 'never' : 'always'}
         shadows={!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&preset.shadows ? 'percentage' : false}
         dpr={renderDpr}
         camera={{

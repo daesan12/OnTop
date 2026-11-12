@@ -37,6 +37,7 @@ function renewalMapPlaces({ interactions, jumpCourse }: NonNullable<typeof renew
     ...(jumpCourse ? [place('jumpmap', '돌탑 점프맵', jumpCourse.guide, jumpCourse.returnTo)] : []),
     place('ranking-board', '랭킹 보드', xz(interactions.rankingBoard.position), xz(interactions.rankingBoard.reachPosition)),
     place('mailbox', '온탑 소리함', xz(interactions.mailbox.position), node(site('mailbox').node)),
+    gamePlace('fortune', 'fortune', '오늘의 운세방'),
     gamePlace('bread', 'fish-bread', '붕어빵 가게'),
     gamePlace('pigeon', 'pigeon-jump-rope', '비둘기 줄넘기'),
     gamePlace('mole', 'mole-shop', '두더지 가게'),

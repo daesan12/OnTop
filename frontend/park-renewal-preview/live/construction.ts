@@ -24,13 +24,11 @@ function frontOfApproach(id: string): Point {
 }
 
 export function buildRenewalConstructionSites(): ConstructionSite[] {
-  const fortune = site('fortune'), fortuneYaw = facilityYaw(fortune)
   const balloon = site('balloon')
   return [
     notice('cafe', frontOfApproach('cafe')),
     notice('shooting', frontOfApproach('shooting')),
     notice('folk', frontOfApproach('folk'), '전통놀이존'),
-    notice('fortune', [fortune.x - Math.sin(fortuneYaw) * 3, fortune.z - Math.cos(fortuneYaw) * 3], '오늘의 운세방'),
     notice('balloon', [balloon.x, balloon.z + STATION_STAIRS.zTop - 2], '열기구 승강장',
       heightAt(balloon.x, balloon.z) + STATION_STAIRS.top),
     notice('dock', DOCK_ACCESS.points.at(-1)!, '오리배 선착장', DOCK_ACCESS.top),
