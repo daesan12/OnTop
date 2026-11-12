@@ -1,4 +1,5 @@
-import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { GENERATED_PARK_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
+import { RenewalParkMapBackground } from './RenewalParkMapBackground'
 import { GeneratedParkMapBackground } from './GeneratedParkMapBackground'
 import { memo } from 'react';
 import { WORLD, PARK_SIZE, PARK_ROUTES, PARK_ENTRANCE, LAKE, LAKE_WALK, BRIDGE, STEPPING_STONES,
@@ -134,4 +135,5 @@ const LegacyParkMapBackground = memo(function ParkMapBackground() {
   </g>;
 });
 
-export const ParkMapBackground=GENERATED_PARK_ENABLED?GeneratedParkMapBackground:LegacyParkMapBackground
+export const ParkMapBackground=RENEWAL_PARK_ENABLED?RenewalParkMapBackground
+  :GENERATED_PARK_ENABLED?GeneratedParkMapBackground:LegacyParkMapBackground

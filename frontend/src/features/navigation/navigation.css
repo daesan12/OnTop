@@ -109,6 +109,17 @@
   background: var(--map-tint);
 }
 .park-map-figure > svg { display: block; width: 100%; max-height: calc(100dvh - 250px); border-radius: 12px; }
+.park-map-panel[data-renewal-map] {
+  --map-route: #0b827e;
+  --map-ink: #2d473a;
+  --map-tint: #f3eddf;
+}
+.park-map-panel[data-renewal-map] .park-map-figure {
+  background: radial-gradient(ellipse at 40% 30%, #fbf7e9 0%, #f4edda 65%, #eae0c8 100%);
+}
+.park-map-panel[data-renewal-map] .park-map-zone circle {
+  filter: drop-shadow(0 .6px .5px #273f3370);
+}
 .park-map-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
 .park-map-legend { display: flex; flex-wrap: wrap; gap: 8px; color: var(--map-ink); font-size: 15px; font-weight: 500; }
 .park-map-legend span {

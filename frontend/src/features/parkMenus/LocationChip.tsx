@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { PARK_ZONES } from '../../park/mapConfig'
+import { RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
+import { PARK_MAP_PLACES } from '../navigation/mapPlaces'
 import { avatars, useSession } from '../../network/worldClient'
 import { environmentFrame } from '../../world/environmentState'
 import pinIcon from './icons/place-pin.svg'
@@ -8,10 +10,11 @@ import './parkMenus.css'
 
 // Beyond this distance from every zone centre the chip names the paths in between.
 const ZONE_RADIUS = 16
+const places = RENEWAL_PARK_ENABLED ? PARK_MAP_PLACES : PARK_ZONES
 
 function placeName(x: number, z: number) {
   let best: { name: string; distance: number } | null = null
-  for (const zone of PARK_ZONES) {
+  for (const zone of places) {
     const distance = Math.hypot(zone.x - x, zone.z - z)
     if (!best || distance < best.distance) best = { name: zone.name, distance }
   }

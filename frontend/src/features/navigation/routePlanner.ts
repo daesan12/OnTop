@@ -1,6 +1,7 @@
 import { EXPECTED_MAP_VERSION } from '../../park/mapConfig'
+import { RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import type { NavPoint } from './parkNavigation'
-import type { RouteResult, RouteWork } from './navigation.worker'
+import type { RouteWorkerMessage, RouteWork } from './navigation.worker'
 
 type Port = Pick<Worker,'onmessage'|'onerror'|'postMessage'|'terminate'>
 const makeWorker = ():Port => new Worker(new URL('./navigation.worker.ts',import.meta.url),{type:'module',name:'ontop-local-navigation'})
@@ -9,9 +10,11 @@ const makeWorker = ():Port => new Worker(new URL('./navigation.worker.ts',import
  */
 export function createRoutePlanner(factory:()=>Port=makeWorker) {
   let worker:Port|undefined, next=0, disposed=false
+  let ready = !RENEWAL_PARK_ENABLED, queued: RouteWork | undefined
   const pending=new Map<number,{resolve:(result:{path:NavPoint[]|null;durationMs:number})=>void;reject:(error:Error)=>void;timer:ReturnType<typeof setTimeout>}>()
   function fail(message:string) {
     disposed=true
+    queued=undefined
     if(worker){worker.onmessage=null;worker.onerror=null;worker.terminate();worker=undefined}
     for(const request of pending.values()){clearTimeout(request.timer);request.reject(new Error(message))}
     pending.clear()
@@ -24,7 +27,12 @@ export function createRoutePlanner(factory:()=>Port=makeWorker) {
         try {
           if(!worker){
             worker=factory()
-            worker.onmessage=({data}:MessageEvent<RouteResult>)=>{
+            worker.onmessage=({data}:MessageEvent<RouteWorkerMessage>)=>{
+              if ('ready' in data) {
+                ready=true
+                if (queued) { worker?.postMessage(queued); queued=undefined }
+                return
+              }
               const request=pending.get(data.id)
               if(!request)return
               clearTimeout(request.timer);pending.delete(data.id)
@@ -37,7 +45,9 @@ export function createRoutePlanner(factory:()=>Port=makeWorker) {
           // Include cold worker/module startup on the generated park, while keeping cancellation bounded.
           pending.set(id,{resolve,reject,timer:setTimeout(()=>fail('길 안내 계산 시간이 초과되었습니다.'),10000)})
           const request:RouteWork={id,start:{...start},end:{...end},mapVersion:EXPECTED_MAP_VERSION}
-          worker.postMessage(request)
+          // The 220m worker awaits the shared map artifact before installing its listener.
+          if (ready) worker.postMessage(request)
+          else queued=request
         } catch { fail('길 안내를 준비하지 못했습니다.');reject(new Error('길 안내를 준비하지 못했습니다.')) }
       })
     },
