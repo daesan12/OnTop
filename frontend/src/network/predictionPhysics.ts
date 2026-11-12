@@ -18,6 +18,7 @@ import { COURSE, COURSE_COLLIDERS, renewalCourse } from '../features/jumpmap/act
 import { renewalPadPose, renewalPadShown, syncRenewalMotion } from '../features/jumpmap/renewalMotion'
 import { useJumpmap } from '../features/jumpmap/state'
 import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
+import { horrorState } from '../../park-renewal-preview/horrorPlan'
 
 let initialization: Promise<void> | undefined
 /** How long Rapier may keep a grounded state the server does not support before falling. */
@@ -37,6 +38,12 @@ class PredictionPhysics implements PredictionSimulation {
   private readonly collider
   private readonly controller
   private readonly chairs: { anchor: string; number: number; collider: RAPIER.Collider }[] = []
+  private readonly secretDoors: RAPIER.Collider[] = []
+  private syncSecretDoors() {
+    for (const door of this.secretDoors) {
+      if (door.isEnabled() === horrorState.open) door.setEnabled(!horrorState.open)
+    }
+  }
   private readonly stairSurfaces = WORLD_COLLIDERS.filter(box => /^P\d+-step-/.test(box.id)).map(box => ({
     center:box.center, half:box.movementHalf ?? box.half,
     top:box.center[1]+box.half[1], c:Math.cos(box.movementYaw ?? 0), s:Math.sin(box.movementYaw ?? 0),
@@ -86,7 +93,8 @@ class PredictionPhysics implements PredictionSimulation {
   }
   constructor(private tuned: boolean) {
     if (sharedPhysics) {
-      this.chairs.push(...addGeneratedPredictionColliders(this.world, sharedPhysics))
+      this.chairs.push(...addGeneratedPredictionColliders(this.world, sharedPhysics, this.secretDoors))
+      this.syncSecretDoors()
     } else {
       for (const box of WORLD_COLLIDERS.filter(b => !staticStructureBatch(b.id))) {
         const half = box.movementHalf ?? box.half
@@ -138,6 +146,7 @@ class PredictionPhysics implements PredictionSimulation {
   }
   setMotionProfile(profile: 'PARK_V1' | undefined) { this.tuned = profile === 'PARK_V1' }
   reset(pose: Pose, velocityY: number, grounded: boolean, grace?: JumpGraceSnapshot) {
+    this.syncSecretDoors()
     this.syncJumpCourse()
     this.body.setTranslation(pose, true)
     this.body.setNextKinematicTranslation(pose)
@@ -152,6 +161,7 @@ class PredictionPhysics implements PredictionSimulation {
     for (const chair of this.chairs) chair.collider.setEnabled(chair.number <= (counts.get(chair.anchor) ?? 2))
   }
   step(input: MovementIntent, dt: number) {
+    this.syncSecretDoors()
     this.launchedJump = false
     this.syncJumpCourse()
     const p = this.body.translation()

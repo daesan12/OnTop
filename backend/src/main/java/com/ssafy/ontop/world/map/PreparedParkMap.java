@@ -178,7 +178,7 @@ public final class PreparedParkMap {
         root.put("sourceSha256", map.metadata().mapVersion());
         root.set("boxes", physics.path("boxes").deepCopy());
         root.set("hulls", physics.path("hulls").deepCopy());
-        for (String key : List.of("furniturePolicy", "fountainPolicy", "pavilionJumpSpeed", "pavilionTunedJumpSpeed")) {
+        for (String key : List.of("furniturePolicy", "fountainPolicy", "pavilionJumpSpeed", "pavilionTunedJumpSpeed", "secretCorridor")) {
             if (physics.has(key)) root.set(key, physics.path(key).deepCopy());
         }
         if (data.has("pavilions")) root.set("pavilions", data.path("pavilions").deepCopy());
@@ -216,7 +216,21 @@ public final class PreparedParkMap {
             }
         }
         var ordered = root.putArray("meshes");
-        ordered.add(ground.deepCopy());
+        ObjectNode collisionGround = ground.deepCopy();
+        if (physics.has("secretTerrainCuts")) {
+            JsonNode cuts = physics.path("secretTerrainCuts");
+            require(cuts.isArray(), "비밀통로 지형 절개 목록이 필요합니다.");
+            Set<Integer> skipped = new HashSet<>();
+            for (JsonNode cut : cuts) {
+                int face = integer(cut);
+                require(face >= 0 && face < indices.size() / 3 && skipped.add(face), "비밀통로 지형 절개가 올바르지 않습니다.");
+            }
+            var kept = collisionGround.putArray("indices");
+            for (int i = 0; i < indices.size(); i++) {
+                if (!skipped.contains(i / 3)) kept.add(indices.get(i));
+            }
+        }
+        ordered.add(collisionGround);
         meshes.values().stream().filter(mesh -> mesh != ground).forEach(mesh -> ordered.add(mesh.deepCopy()));
         ((ObjectNode) root.path("world")).put("halfSize", half);
         var spawn = root.putObject("spawn");

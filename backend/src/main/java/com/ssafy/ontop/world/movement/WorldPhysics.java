@@ -32,6 +32,8 @@ public final class WorldPhysics implements AutoCloseable {
     private com.jme3.bullet.objects.PhysicsGhostObject standProbe;
     private final Map<String, Actor> actors = new HashMap<>();
     private final Map<String, Chair> chairs = new HashMap<>();
+    private final Map<String, PhysicsRigidBody> secretDoors = new HashMap<>();
+    private boolean secretDoorsOpen;
     private static final java.util.regex.Pattern CHAIR = java.util.regex.Pattern.compile("(.+)-chair-([0-3])");
     private static final class Chair {
         final String anchor;
@@ -156,6 +158,7 @@ public final class WorldPhysics implements AutoCloseable {
             body.setPhysicsRotation(shape.rotation());
             body.setCollisionGroup(2);
             body.setCollideWithGroups(1);
+            if (shape.id().startsWith("secret-door-")) secretDoors.put(shape.id(), body);
             var match = CHAIR.matcher(shape.id());
             if (match.matches()) {
                 var chair = new Chair(match.group(1), Integer.parseInt(match.group(2)) + 1, body);
@@ -174,6 +177,44 @@ public final class WorldPhysics implements AutoCloseable {
             if(course.renewal()) renewalMotion=new RenewalCourseMotion(course,bodies,space);
         }
         positionCollision = new PositionCollision(scene, space, this::activeShape);
+    }
+
+    /** The two entrances share one channel state. Closing cannot trap someone inside or in a doorway. */
+    public boolean setSecretDoors(String userId, boolean open) {
+        return call(() -> {
+            Actor actor = actors.get(userId);
+            if (actor == null || actor.seated || actor.swimming || secretDoors.isEmpty()) return false;
+            Vector3f position = actor.body.getPhysicsLocation(null);
+            if (!nearSecretDoor(position, 3.5)) return false;
+            if (open == secretDoorsOpen) return true;
+            if (!open && actors.values().stream().anyMatch(other -> {
+                Vector3f at = other.body.getPhysicsLocation(null);
+                return inSecretCorridor(at) || nearSecretDoor(at, 1.65);
+            })) return false;
+            secretDoorsOpen = open;
+            for (var door : secretDoors.values()) {
+                if (open) space.removeCollisionObject(door);
+                else space.addCollisionObject(door);
+            }
+            return true;
+        });
+    }
+
+    private boolean nearSecretDoor(Vector3f position, double distance) {
+        for (var door : secretDoors.values()) {
+            Vector3f center = door.getPhysicsLocation(null);
+            if (Math.abs(position.y - center.y + .8) <= 1.2
+                    && Math.hypot(position.x - center.x, position.z - center.z) < distance) return true;
+        }
+        return false;
+    }
+
+    private boolean inSecretCorridor(Vector3f position) {
+        var bounds = scene.data.path("secretCorridor");
+        return bounds.isObject() && position.y > bounds.path("floor").asDouble() + .4
+                && position.y < bounds.path("ceiling").asDouble()
+                && position.x > bounds.path("x0").asDouble() - .35 && position.x < bounds.path("x1").asDouble() + .35
+                && position.z > bounds.path("z0").asDouble() && position.z < bounds.path("z1").asDouble();
     }
 
     /** 승인된 채널별 앵커 설정만 받는다. 정적 맵의 의자 몸체를 재사용한다. */
@@ -611,7 +652,8 @@ public final class WorldPhysics implements AutoCloseable {
             if (!Vector3f.isValidVector(position)) {
                 recover(a, position, validatedFallback(a, limit), "INVALID_POSITION", now);
             } else if (position.y < scene.groundHeight(position.x, position.z)
-                    + number("halfHeight") + number("radius") - .35) {
+                    + number("halfHeight") + number("radius") - .35
+                    && !inSecretCorridor(position) && !nearSecretDoor(position, 1.4)) {
                 prepareCourse(entry.getKey());
                 float x = Math.max(-limit, Math.min(limit, position.x));
                 float z = Math.max(-limit, Math.min(limit, position.z));
@@ -706,6 +748,7 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private boolean activeShape(String id) {
+        if (secretDoorsOpen && secretDoors.containsKey(id)) return false;
         Chair chair = chairs.get(id);
         return chair == null || chair.active;
     }

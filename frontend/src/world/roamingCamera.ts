@@ -7,6 +7,8 @@ import { facilityMovementBlocked, useFacilityState } from '../features/facilitie
 import { panelOwnsKeys, textInputOwnsKeys } from './inputOwnership'
 import { useCameraPerspective } from './cameraPerspective'
 import { wardrobeView } from '../features/wardrobe/view'
+import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
+import { secretCorridorContains } from '../../park-renewal-preview/horrorPlan'
 
 export function canControlRoamingCamera() {
   const s = useSession.getState(), avatar = avatars.get(s.sessionId)
@@ -43,7 +45,9 @@ export function lookOwner(): LookOwner | null {
 
 /** A modal pauses controls without changing the chosen view. Facilities own their cameras;
  * the wardrobe shows the own avatar, so it borrows the third-person view while open. */
-export function roamingFirstPerson(avatar: { tableId: string; benchId: string; fitnessId: string; telescopeId: string }, watching: boolean) {
+export function roamingFirstPerson(avatar: { tableId: string; benchId: string; fitnessId: string; telescopeId: string;
+  current?: { x: number; y: number; z: number } }, watching: boolean) {
   return !watching && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId
-    && !wardrobeView.active && useCameraPerspective.getState().perspective === 'first-person'
+    && !wardrobeView.active && ((RENEWAL_PARK_ENABLED && avatar.current && secretCorridorContains(avatar.current))
+      || useCameraPerspective.getState().perspective === 'first-person')
 }

@@ -25,6 +25,8 @@ import { canControlRoamingCamera, lookOwner } from './roamingCamera'
 import { toggleCameraPerspective, useCameraPerspective, viewControls } from './cameraPerspective'
 import { cancelMouseLookReturn, resetCameraReturn } from './cameraReturn'
 import { benchViewScope, turnBenchLook, useBenchSpectator } from '../features/interactions/benchSpectator'
+import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
+import { horrorPortalAt, horrorState, inHorror } from '../../park-renewal-preview/horrorPlan'
 export { inputState, setChatInputOpen, textInputOwnsKeys } from './inputOwnership'
 export { viewControls } from './cameraPerspective'
 export function nearestTable(): string | null {
@@ -264,6 +266,15 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       }
     }
     if (event.code === 'KeyE' && !event.repeat && !inputState.wardrobeOpen) {
+      if (RENEWAL_PARK_ENABLED && event.shiftKey && !session.benchId && !session.fitnessId && !session.telescopeId && !carry) {
+        const at = avatars.get(session.sessionId)?.current
+        const door = at && horrorPortalAt(at.x, at.z)
+        if (at && door && Math.abs(at.y - door.floor - .8) <= 1.2) {
+          event.preventDefault()
+          void parkRuntime.setSecretDoors?.(!horrorState.open || inHorror(at.x, at.z))
+          return
+        }
+      }
       if (interactWithPark()) {
         event.preventDefault()
         canvas.focus({ preventScroll: true })

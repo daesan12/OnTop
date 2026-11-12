@@ -1202,6 +1202,8 @@ export class ParkRuntime implements ParkRuntimePort {
     })
     return ok && current() && useTableLobby.getState().status === 'ready'
   }
+  setSecretDoors = (open: boolean) =>
+    this.action(() => this.socket.request('WORLD_SECRET_DOORS_SET', { open }, ['WORLD_STATE']), { blockControls: false })
   joinTable = (anchorId?: string) => {
     // The pending action releases pointer lock before the join checks run.
     const mouseLook = useMouseLook.getState().active

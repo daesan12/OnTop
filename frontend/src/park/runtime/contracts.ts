@@ -30,6 +30,7 @@ export interface ParkRuntimePort {
   setInteractionBusy?(busy: boolean, confirm?: boolean): Promise<boolean>
   move(dx: number, dz: number, run: boolean, jump?: boolean): void
   stopMovement(): void
+  setSecretDoors?(open: boolean): Promise<boolean>
   inspectTable(anchorId: string, watch?: boolean): void
   closeTable(): void
   joinTable(anchorId?: string): Promise<boolean>

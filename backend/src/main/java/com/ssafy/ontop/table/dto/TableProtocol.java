@@ -70,6 +70,7 @@ public final class TableProtocol {
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
             case "WORLD_POSITION" -> validPosition(payload);
+            case "WORLD_SECRET_DOORS_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
             case "WORLD_POSITION_FALLBACK" -> fields(payload, Set.of("epoch"))
                     && payload.path("epoch").isIntegralNumber() && payload.path("epoch").canConvertToLong()
                     && payload.path("epoch").asLong() >= 0 && payload.path("epoch").asLong() <= 9_007_199_254_740_991L;

@@ -71,6 +71,10 @@ export function horrorMotion(from:HorrorPoint,to:HorrorPoint,y:number){
 export function updateHorrorPresence(x:number,z:number,y:number){const inside=horrorState.open&&inHorror(x,z)&&Math.abs(y-horrorGround(x,z))<.65;if(inside!==horrorState.inside){horrorState.inside=inside;emit()}return inside}
 /** The actor's actual location, never door state, controls interior visibility. */
 export const horrorInteriorVisible=(x:number,y:number,z:number,walking:boolean)=>walking&&horrorState.open&&inHorror(x,z)&&Math.abs(y-horrorGround(x,z))<.65
+/** Live avatars report the capsule origin, .8m above the floor. */
+export function secretCorridorContains(p: { x: number; y: number; z: number }) {
+ return horrorState.open && inHorror(p.x,p.z) && p.y >= horrorGround(p.x,p.z)-.35 && p.y < HORROR.ceiling
+}
 export function safeHorrorCamera(eye:HorrorVec,desired:HorrorVec,inside:boolean):HorrorVec{
  const safe=(p:HorrorVec)=>inside?inHorror(p[0],p[2],.12)&&horrorWalkable(p[0],p[2],.23)&&p[1]>horrorGround(p[0],p[2])+.3&&p[1]<HORROR.ceiling-.35:!(inHorror(p[0],p[2],-.65)&&p[1]>HORROR.floor-.3&&p[1]<HORROR.ceiling+.3)
  const length=Math.hypot(...desired.map((v,i)=>v-eye[i]!)),n=Math.max(1,Math.ceil(length/.12));let last:HorrorVec=eye

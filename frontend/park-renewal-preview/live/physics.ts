@@ -20,6 +20,8 @@ import {
 import { parkPropBlockers } from '../propCollision'
 import { SPECTATOR_BENCH_HEIGHTS } from '../pavilionBenchLayout'
 import { createTowerEntrance, towerRampStartY } from '../towerEntrance'
+import { HORROR, HORROR_CRYPT, HORROR_PORTALS, HORROR_SOLIDS } from '../horrorPlan'
+import { horrorShell } from '../horrorGeometry'
 
 export const RENEWAL_HALF_SIZE = 110
 export const RENEWAL_SPAWN = [0, 96] as const
@@ -36,9 +38,10 @@ function transform([x, z]: Point, cx: number, cz: number, yaw: number): Point {
   return [cx + c * x + s * z, cz - s * x + c * z]
 }
 
-function heightfield(): PhysicalMesh {
+function heightfield() {
   const half = RENEWAL_HALF_SIZE, side = half * 2 + 1
   const vertices: number[] = [], indices: number[] = []
+  const secretTerrainCuts: number[] = []
   for (let row = 0; row < side; row++) for (let col = 0; col < side; col++) {
     const x = col - half, z = row - half
     const dx = x - fountain.x, dz = z - fountain.z
@@ -55,14 +58,21 @@ function heightfield(): PhysicalMesh {
     vertices.push(x, quantize(y), z)
     if (row && col) {
       const a = (row - 1) * side + col - 1
+      // Keep the height lookup grid intact. Only remove the cliff triangles that
+      // slope across the two portals; the masonry still defines their edges.
+      if (HORROR_PORTALS.some(p => x === p.x + (p.outward > 0 ? 1 : 0)
+        && z > p.z - p.width / 2 && z - 1 < p.z + p.width / 2)) {
+        secretTerrainCuts.push(indices.length / 3, indices.length / 3 + 1)
+      }
       indices.push(a, a + side, a + 1, a + 1, a + side, a + side + 1)
     }
   }
-  return { id: 'terrain', role: 'terrain', vertices, indices }
+  return { terrain: { id: 'terrain', role: 'terrain', vertices, indices } satisfies PhysicalMesh, secretTerrainCuts }
 }
 
 export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
-  const terrain = heightfield(), meshes: RenewalMesh[] = [terrain], boxes: PhysicalBox[] = [], hulls: PhysicalHull[] = []
+  const { terrain, secretTerrainCuts } = heightfield()
+  const meshes: RenewalMesh[] = [terrain], boxes: PhysicalBox[] = [], hulls: PhysicalHull[] = []
   const putBox = (id: string, center: Point3, half: Point3, yaw = 0) => boxes.push({ id, center, half, yaw, role: 'solid' })
   const rail = (id: string, a: Point3, b: Point3, thickness: number, height: number) => {
     const dx = b[0] - a[0], dz = b[2] - a[2], length = Math.hypot(dx, dz)
@@ -111,6 +121,22 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
       boundaryTop - boundaryBottom)
   })
   fromGeometry('summit-retaining-wall', parkGround.retaining, 'solid')
+  fromGeometry('secret-corridor-shell', horrorShell.stone!, 'solid')
+  const exit = HORROR_PORTALS[1]
+  ramp('secret-corridor-ramp', -52, 0, 5, -80, -55, exit.floor, HORROR.floor)
+  floor('secret-corridor-ramp-top', [[-54.5, -84.3], [-49.5, -84.3], [-49.5, -80], [-54.5, -80]], () => exit.floor)
+  floor('secret-corridor-landing', [[-58, -94], [-49, -94], [-49, -84.3], [-58, -84.3]], () => exit.floor)
+  for (const p of HORROR_PORTALS) {
+    const exterior = p.x + p.outward * 3.6
+    floor('secret-corridor-apron-' + p.id, [[p.x, p.z - p.width / 2], [exterior, p.z - p.width / 2],
+      [exterior, p.z + p.width / 2], [p.x, p.z + p.width / 2]], () => p.floor)
+    putBox('secret-door-' + p.id, [p.x, p.floor + p.height / 2, p.z], [.18, p.height / 2, p.width / 2])
+  }
+  for (const s of HORROR_SOLIDS) putBox('secret-corridor-' + s.id,
+    [(s.x0 + s.x1) / 2, HORROR.floor + s.height / 2, (s.z0 + s.z1) / 2],
+    [(s.x1 - s.x0) / 2, s.height / 2, (s.z1 - s.z0) / 2])
+  cylinder('secret-corridor-cistern', HORROR_CRYPT.x, HORROR_CRYPT.z, HORROR_CRYPT.rx, HORROR.floor,
+    HORROR.floor + HORROR_CRYPT.height)
   for (const [style, runs, height] of [
     ['hill-rail', hillsideGuardRuns, HILLSIDE_RAIL_HEIGHTS[1] + .05], ['ascent-rail', ascentFenceRuns, 1.1],
   ] as const) for (const [i, run] of runs.entries()) {
@@ -229,6 +255,8 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   const spawnY = groundSurfaceHeight(...RENEWAL_SPAWN) + MOVEMENT.halfHeight + MOVEMENT.radius + MOVEMENT.offset + groundClearance
   // The enlarged benches need more clearance under the tuned jump's stronger gravity.
   const physics = { ...basePhysics, boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
+    secretCorridor: { x0: HORROR.x0, x1: HORROR.x1, z0: HORROR.z0, z1: HORROR.z1, floor: HORROR.floor, ceiling: HORROR.ceiling },
+    secretTerrainCuts,
     tower: { ...basePhysics.tower, x: tower.x, z: tower.z, height: 40, topY: towerRampStartY + 40, surfaceOffset: towerRampStartY },
     terrain: { ...basePhysics.terrain, halfSize: RENEWAL_HALF_SIZE, step: 1, columns: 221, rows: 221 },
     spawn: { ...basePhysics.spawn, position: [RENEWAL_SPAWN[0], spawnY, RENEWAL_SPAWN[1]] as Point3, groundClearance } }

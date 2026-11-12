@@ -192,9 +192,11 @@ export const WorldCanvas = memo(function WorldCanvas({
       >
         <AvatarPoseFrame>
           <ParkXRBridge />
-          <EnvironmentScene />
+          <group name={RENEWAL_PARK_ENABLED ? 'renewal-exterior-lighting' : undefined}>
+            <EnvironmentScene />
+            <ParkSun quality={quality} />
+          </group>
           <ParkSoundscape />
-          <ParkSun quality={quality} />
           {!RENEWAL_PARK_ENABLED && <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />}
           <Suspense fallback={null}>
             {RenewalParkWorld ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><RenewalParkWorld /></group>

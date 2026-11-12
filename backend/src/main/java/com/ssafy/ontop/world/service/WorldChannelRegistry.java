@@ -732,6 +732,21 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
     }
 
+    public synchronized WorldState setSecretDoors(String userId, boolean open) {
+        String channel = membership.get(userId);
+        if (channel == null) throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        Room room = rooms.get(channel);
+        if (room.held.contains(userId) || room.tableSeats.containsKey(userId) || activity(userId) != null
+                || !room.physics.setSecretDoors(userId, open)) {
+            throw new ChannelException("SECRET_DOOR_UNAVAILABLE", "문 가까이에서 다시 시도해주세요. 안에 사람이 있으면 닫을 수 없어요.");
+        }
+        if (!java.util.Objects.equals(room.secretDoorsOpen, open)) {
+            room.secretDoorsOpen = open;
+            room.worldVersion++;
+        }
+        return room.worldState();
+    }
+
     public synchronized WorldChange reportPosition(String userId,
             com.ssafy.ontop.world.movement.ClientPositionValidator.Candidate report) {
         if (!clientPositions) throw new ChannelException("UNSUPPORTED_MESSAGE_TYPE", "위치 보고 모드는 비활성화 상태입니다.");
@@ -1041,7 +1056,14 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     public record WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion,
-            List<PublicTable> tables, Map<String, GameWatch> gameWatches) {
+            List<PublicTable> tables, Map<String, GameWatch> gameWatches,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            Boolean secretDoorsOpen) {
+
+        public WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion,
+                List<PublicTable> tables, Map<String, GameWatch> gameWatches) {
+            this(channelId, version, avatars, mapVersion, tables, gameWatches, null);
+        }
 
         public WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion, List<PublicTable> tables) {
             this(channelId, version, avatars, mapVersion, tables, Map.of());
@@ -1141,6 +1163,8 @@ public class WorldChannelRegistry implements ChannelPresence {
                     List.copyOf(users));
         }
 
+        private Boolean secretDoorsOpen;
+
         private WorldState worldState() {
             var carries = physics == null ? Map.<String, WorldPhysics.Carry>of() : physics.carryStates();
             return new WorldState(definition.channelId(), worldVersion, users.stream()
@@ -1156,7 +1180,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                             vrUsers.contains(user) ? Boolean.TRUE : null, myRoom ? Boolean.TRUE : null);
                     })
                     .toList(), scene.get().version(), tables, users.stream().filter(watches::containsKey)
-                            .collect(java.util.stream.Collectors.toMap(user -> user, watches::get)));
+                            .collect(java.util.stream.Collectors.toMap(user -> user, watches::get)), secretDoorsOpen);
         }
     }
 

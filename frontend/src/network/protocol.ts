@@ -47,6 +47,7 @@ export interface WorldState {
   channelId: string
   version: number
   mapVersion: string
+  secretDoorsOpen?: boolean
   tables?: PublicTable[]
   gameWatches?: Record<string, { gameId: string; tableId: string }>
   avatars: {
@@ -201,6 +202,7 @@ export function worldState(value: Record<string, unknown>): WorldState {
     !text(value.channelId) ||
     !integer(value.version) ||
     !text(value.mapVersion) ||
+    (value.secretDoorsOpen !== undefined && typeof value.secretDoorsOpen !== 'boolean') ||
     !Array.isArray(value.avatars) ||
     !value.avatars.every(
       (a) => record(a) && text(a.userId) && position(a.position)

@@ -1,4 +1,5 @@
 import { filterChat } from '../features/chat/filterChat'
+import { setHorrorOpen } from '../../park-renewal-preview/horrorPlan'
 import { create } from 'zustand'
 import { acceptGacha } from '../features/gacha/events'
 import { acceptPolice, acceptPatrol, acceptPrivateNotice, resetWorldAi } from '../features/ai/worldAi'
@@ -210,6 +211,7 @@ export function showMovementNotice(message: string, sequence: number) {
   }, 3000)
 }
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  setHorrorOpen(false)
   resetParkDebris()
   resetTyping()
   resetJumpmap()
@@ -241,6 +243,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  setHorrorOpen(false)
   resetParkDebris()
   resetJumpmap()
   localMovement.reset()
@@ -538,6 +541,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
         return
       worldVersion = next.version
       const mapCompatible = next.mapVersion === expectedMapVersion
+      setHorrorOpen(mapCompatible && next.secretDoorsOpen === true)
       if (!mapCompatible || state.mapVersion && state.mapVersion !== next.mapVersion) remoteMovement.reset()
       if (!mapCompatible) { defeatTimeline.clear(); resetParkDebris(); resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
