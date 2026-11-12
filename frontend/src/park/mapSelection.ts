@@ -6,3 +6,5 @@ export const RENEWAL_PARK_ENABLED = import.meta.env?.DEV
   && import.meta.env.MODE === 'park-renewal-integration'
   && typeof location !== 'undefined'
   && ['localhost', '127.0.0.1'].includes(location.hostname)
+
+export const JUMPMAP_ENABLED = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED

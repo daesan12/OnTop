@@ -1,5 +1,5 @@
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
-import { RETURN_TO } from '../jumpmap/course'
+import { RETURN_TO } from '../jumpmap/activeCourse'
 import { serviceWalkHeight,isOnLakeCrossing } from '../../park/mapConfig'
 import {
   WORLD_COLLIDERS,

@@ -1,4 +1,4 @@
-import { COURSE, START } from './course'
+import { COURSE, START } from './activeCourse'
 
 // Prepare normal prop LODs at the course entrance and above the park, before
 // the player reaches them. These cameras never control the player's view.

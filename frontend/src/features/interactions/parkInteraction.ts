@@ -33,14 +33,14 @@ import { interactWithTable } from '../tableLobby/tableInteraction'
 import { tableEntry } from '../tableLobby/tableEntry'
 import { useTableLobby } from '../tableLobby/state'
 import { canReachTable } from '../tableLobby/tableReach'
-import { GENERATED_PARK_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
+import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice,openParkGacha } from '../construction/model'
 import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlacement'
 import { gachaInteractionEnabled } from '../gacha/state'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
 import { canReachParkVr, openParkVrZone, parkVrEntrance } from '../vrZone/parkBridge'
 import { canReachJumpmapGuide, jumpmapGuideScope, openJumpmapGuide } from '../jumpmap/guideState'
-import { START as JUMPMAP_START } from '../jumpmap/course'
+import { GUIDE as JUMPMAP_GUIDE } from '../jumpmap/activeCourse'
 import { useJumpmap } from '../jumpmap/state'
 import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
@@ -78,10 +78,10 @@ export function getParkInteraction(): ParkInteraction | null {
   const carry = carryInteraction()
   if (p.carry?.role === 'CARRIER') return carry
   if (carry) choices.push(carry)
-  if (GENERATED_PARK_ENABLED && !useJumpmap.getState().run && canReachJumpmapGuide(p.current)) {
-    const distance=Math.hypot(p.current.x-JUMPMAP_START.x,p.current.z-JUMPMAP_START.z)
+  if (JUMPMAP_ENABLED && !useJumpmap.getState().run && canReachJumpmapGuide(p.current)) {
+    const distance=Math.hypot(p.current.x-JUMPMAP_GUIDE.x,p.current.z-JUMPMAP_GUIDE.z)
     choices.push({kind:'jumpmap-guide',id:'jumpmap-guide',label:'돌탑 점프맵 안내',occupied:false,available:true,distance,
-      score:interactionScore(distance,{x:JUMPMAP_START.x,y:JUMPMAP_START.y+.12,z:JUMPMAP_START.z})})
+      score:interactionScore(distance,{x:JUMPMAP_GUIDE.x,y:JUMPMAP_GUIDE.y+(RENEWAL_PARK_ENABLED?1.4:.12),z:JUMPMAP_GUIDE.z})})
   }
   if(plazaKiosksEnabled&&canReachRankingBoard(p.current)){
     const [x,y,z]=rankingBoardTarget.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)

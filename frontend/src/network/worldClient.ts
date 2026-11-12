@@ -4,7 +4,8 @@ import { acceptGacha } from '../features/gacha/events'
 import { acceptPolice, acceptPatrol, acceptPrivateNotice, resetWorldAi } from '../features/ai/worldAi'
 import { acceptCompanionActors } from '../features/ai/companions'
 import { acceptTyping, resetTyping } from '../features/chat/typingState'
-import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
+import { estimatedServerTime, serverEventClock } from './serverEventClock'
+import { NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
 import { CHAT } from '../features/chat/settings'
 import { chatAuthorName } from '../features/chat/author'
 import {
@@ -190,7 +191,7 @@ let channelVersion = -1,
   worldVersion = -1
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
-const eventClock = new EnvironmentClock()
+
 let movementNoticeTimer: ReturnType<typeof setTimeout> | undefined
 export function clearMovementNotice(ackSequence = Infinity) {
   const notice = useSession.getState().movementNotice
@@ -215,7 +216,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   localMovement.reset()
   remoteMovement.reset()
   clearMovementNotice()
-  eventClock.reset()
+  serverEventClock.reset()
   defeatTimeline.clear()
   resetFollow()
   resetBenchSpectator()
@@ -330,7 +331,7 @@ function predictionAllowed() {
     && (!s.activities[s.sessionId] || s.activities[s.sessionId] === 'WATCHING')
 }
 // UTC event time advances on a monotonic clock after CONNECTED; world day rendering is separate.
-export const estimatedServerTime = () => eventClock.ready ? eventClock.now(performance.now()) : Date.now()
+export { estimatedServerTime } from './serverEventClock'
 export function cancelAvatarEmote(userId: string, reason: 'movement' | 'activity' = 'activity') {
   const state = useEmoteState.getState(), avatar = avatars.get(userId)
   const pendingOwn = userId === useSession.getState().sessionId && state.pending
@@ -508,7 +509,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       if (useFeedbackState.getState().ownerId && useFeedbackState.getState().ownerId !== p.userId) resetFeedbackState()
       if (useNotesState.getState().ownerId && useNotesState.getState().ownerId !== p.userId) resetNotesState()
       if (record(p.time) && integer(p.time.serverNow) && p.time.serverNow > 0)
-        eventClock.sync(p.time.serverNow, performance.now())
+        serverEventClock.sync(p.time.serverNow, performance.now())
       useSession.setState({ status: 'connected', sessionId: p.userId })
       break
     case 'CHANNEL_STATE': {

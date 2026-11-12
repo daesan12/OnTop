@@ -26,12 +26,12 @@ for(let stage=6;stage<10;stage++){
  for(let i=0;i<spec.count;i++){const t=(i+1)/(stage===9?spec.count:spec.count+1),duck=duckPoint(t),zig=stage===9&&i===spec.count-1?0:(i%2?1:-1)*(stage===6?.35:stage===7?.7:stage===8?.8:.75);pads.push({id:`detail-jump-${stage+1}-${i}`,stage,theme:spec.theme,x:(stage===9||stage===7?duck.x:start.x+dx*t)+(stage===9||stage===7?duck.nx:-dz/len)*zig,z:(stage===9||stage===7?duck.z:start.z+dz*t)+(stage===9||stage===7?duck.nz:dx/len)*zig,height:start.height+(end[2]-start.height)*t,yaw:spec.theme==='duck'?duck.yaw:spec.theme==='pigeon'?yaw:0,...dimensions(spec.theme)})}
  if(stage<9)gates.push({id:`detail-jump-gate-${stage+1}`,stage,theme:'gate',x:end[0],z:end[1],height:end[2],yaw,gate:stage+1,halfX:1.3,halfZ:1.3,radius:1.3})
 }
-/** Stage rewards are a local simulation contract, never a wallet write. */
-export const JUMP_REWARDS=[5,10,15,20,25,30,32,35,38,40] as const
+/** Stage rewards exported to the server with the course. */
+export const JUMP_REWARDS=[10,20,30,40,50,60,64,70,76,80] as const
 export const JUMP_LAP_REWARD=JUMP_REWARDS.reduce((sum,n)=>sum+n,0)
 export const JUMP_PADS:readonly JumpPad[]=pads
 export const JUMP_GATES:readonly JumpPad[]=gates
 export const JUMP_SEQUENCE=JUMP_STAGES.flatMap((_,i)=>[...pads.filter(p=>p.stage===i),...gates.filter(p=>p.stage===i)])
-export function containsPad(p:JumpPad,x:number,z:number,margin=.12){if(p.sourceId)margin=.18;const dx=x-p.x,dz=z-p.z,c=Math.cos(p.collisionYaw??p.yaw),s=Math.sin(p.collisionYaw??p.yaw);return p.radius!==undefined?Math.hypot(dx,dz)<p.radius+margin:Math.abs(c*dx-s*dz)<p.halfX+margin&&Math.abs(s*dx+c*dz)<p.halfZ+margin}
+export { containsPad } from './jumpPadFootprint'
 export const isJumpPadVisible=(p:JumpPad,started:boolean)=>started||p.id===pads[0]!.id
 export const inFinish=(x:number,z:number)=>!inLake(x,z)&&Math.hypot(x-JUMP_FINISH.x,z-JUMP_FINISH.z)<JUMP_FINISH.radius+.6

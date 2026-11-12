@@ -68,7 +68,7 @@ export const SITES:Site[]=[
  {id:'cafe',name:'한정선 카페',x:16,z:-18,radius:9,district:'버들호수',node:'cafe',asset:'cafe',yaw:Math.PI,note:'사격장 정도의 건물 크기로 맞춘 로컬 카페입니다. 수변길과 내부 놀이 길이 만납니다.',label:true},
  {id:'fishing',name:'호숫가 낚시터',x:83,z:-43,radius:7,district:'버들호수',node:'fishing',note:'둥근 1층 낚시 데크와 2층 매점, 목재 계단을 육지 진입로와 연결합니다.',label:true},
  {id:'pagoda',name:'온탑 대석탑 정원',x:0,z:-80,radius:19,district:'언덕과 숲',node:'monument',note:'가장 높은 +22m 언덕 위. 원본 대석탑·26m 석단·돌울타리·사방 계단을 한 덩어리로 보존하고 긴 계단과 우회 산책길로 연결합니다.',label:true},
- {id:'jump',name:'10단계 돌탑 점프맵',x:-66,z:13,radius:10,district:'언덕과 숲',node:'jump',note:'전용 입구에서 시작하는 10단계 코스. 1~6단계는 기존 dev 배치를 보존합니다. 연잎·두더지·비둘기 기믹을 지나 고정 오리 발판으로 호수섬까지 내려옵니다. 첫 발판 착지 후 코스 공개 · 한 바퀴 예상 보상 250냥.',label:true},
+ {id:'jump',name:'10단계 돌탑 점프맵',x:-66,z:13,radius:10,district:'언덕과 숲',node:'jump',note:'전용 입구에서 시작하는 10단계 코스. 1~6단계는 기존 dev 배치를 보존합니다. 연잎·두더지·비둘기 기믹을 지나 고정 오리 발판으로 호수섬까지 내려옵니다. 첫 발판 착지 후 코스 공개 · 한 바퀴 예상 보상 500냥.',label:true},
  {id:'stele',name:'점프맵 안내 비석',x:-58,z:26,radius:3,district:'언덕과 숲',node:'jumpApproach',asset:'stele',yaw:Math.PI/6,note:'첫 발판 바로 옆에서 눌러볼 수 있는 큰 안내 비석입니다.'},
  {id:'balloon',name:'하늘언덕 열기구',x:-40,z:-76,radius:21,district:'언덕과 숲',node:'balloon',note:'북서 외곽 +22m의 높은 언덕. 승강장을 1.7배로 크게 늘리고 굽이진 오름길과 대기 공간을 연결했습니다.',label:true},
  {id:'rest-1',name:'남서 숲속 팔각정',x:-71,z:66,radius:8,district:'첫걸음',node:'rest-sw',note:'8명 이상이 머물도록 2.05배로 키운 쉼터. 입구와 계단은 길을 향하고 나머지 둘레는 나무로 감쌉니다.'},

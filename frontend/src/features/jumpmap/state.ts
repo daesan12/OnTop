@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { COURSE_VERSION, MAP_VERSION, RULES_VERSION, expectedCoins, kstDate, COURSE } from './course'
+import { COURSE_VERSION, MAP_VERSION, RULES_VERSION, STAGE_COUNT, expectedCoins, kstDate, COURSE } from './activeCourse'
 import { parseJumpEvent, type JumpEvent, type JumpStatus, type RunView, type TipKey, type EndReason } from './protocol'
 
 /** recovered: 끊긴 동안 끝나 status lastRun으로 늦게 받은 결과. 팁·효과음을 다시 내지 않는다. */
@@ -118,7 +118,7 @@ export function anticipateGate(gate: number, now = performance.now()) {
   if (!s.run || gate !== s.run.gatesPassed + 1 || s.popup?.gate === gate) return
   useJumpmap.setState({ popup: { gate, amount: s.todayEarned === null ? null : expectedCoins(gate, s.todayEarned), label: '확인 중…', at: now, anticipated: true } })
 }
-const tips: Record<TipKey, string> = { START_SPOT: '첫 발판을 밟으면 시작해요. 세이브 포인트는 없어요', RUN_STARTED: '구간 문을 지나면 엽전을 받아요', FIRST_GATE: '떨어져도 받은 엽전은 그대로예요', FIRST_FALL: '걸어서 돌탑으로 돌아가요. 돌탑 길 안내를 켜 보세요', FINAL_PAD: '앞의 엽전을 향해 호수로 뛰어드세요' }
+const tips: Record<TipKey, string> = { START_SPOT: '첫 발판을 밟으면 시작해요. 세이브 포인트는 없어요', RUN_STARTED: '구간 문을 지나면 엽전을 받아요', FIRST_GATE: '떨어져도 받은 엽전은 그대로예요', FIRST_FALL: '걸어서 돌탑으로 돌아가요. 돌탑 길 안내를 켜 보세요', FINAL_PAD: STAGE_COUNT===10?'오리를 따라 호수섬으로 내려오세요':'앞의 엽전을 향해 호수로 뛰어드세요' }
 export function showTip(key: TipKey, now = performance.now()) {
   const s = useJumpmap.getState(); if (s.seenTips.includes(key)) return false
   useJumpmap.setState({ seenTips: [...s.seenTips, key], tip: { key, text: tips[key], until: now + 1200 } }); return true

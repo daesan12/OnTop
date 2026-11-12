@@ -8,6 +8,7 @@ import { TOWER_TOP, telescopeYaw } from '../towerFurniturePlan'
 import { buildRenewalPhysics, RENEWAL_HALF_SIZE, RENEWAL_SPAWN } from './physics'
 import { buildRenewalTables } from './tableLayout'
 import { buildRenewalRecreation } from './recreation'
+import { buildRenewalJumpCourse } from './jumpCourseData'
 
 function offset(position: Point3, x: number, y: number, z: number): Point3 {
   return [position[0] + x, position[1] + y, position[2] + z]
@@ -69,7 +70,7 @@ export function buildRenewalMapData() {
     ...PARK_DATA,
     world: { ...PARK_DATA.world, size: RENEWAL_HALF_SIZE * 2, half: RENEWAL_HALF_SIZE, spawn: RENEWAL_SPAWN },
     tableAnchorIds: tables.map(t => t.id),
-    tables, facilities, pavilions, physics,
+    tables, facilities, pavilions, physics, jumpCourse: buildRenewalJumpCourse(),
     interactions: {
       ...old, benches, fitness, telescopes, ...buildRenewalRecreation(),
       construction: old.construction.filter(s => s.id === 'layout-drink').map(s => ({ ...s, ...kioskPlacement('lottery', 3.25) })),

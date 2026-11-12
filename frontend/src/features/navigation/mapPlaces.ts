@@ -2,7 +2,7 @@ import { PARK_ZONES } from '../../park/mapConfig'
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
 import { PARK_LAYOUT } from '../../map/park'
 import { PARK_DESTINATIONS, type Destination } from './parkNavigation'
-import { RETURN_TO, START } from '../jumpmap/course'
+import { RETURN_TO, START } from '../jumpmap/activeCourse'
 import { rpsCabinetPlacement } from '../rpsRoulette/placement'
 import { vrEntrance } from '../vrZone/anchors'
 

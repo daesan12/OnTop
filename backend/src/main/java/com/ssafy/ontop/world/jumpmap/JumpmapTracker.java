@@ -25,7 +25,10 @@ public final class JumpmapTracker {
      * @param following 서버가 입력을 대신 만드는 따라가기 중이면 판을 시작하지 않는다.
      */
     public record Sample(Surface surface, String collider, int block, Integer gate, boolean swimming,
-            double feet, long relocations, boolean following) {
+            double feet, long relocations, boolean following, double x, double z) {
+        public Sample(Surface surface, String collider, int block, Integer gate, boolean swimming, double feet, long relocations, boolean following) {
+            this(surface,collider,block,gate,swimming,feet,relocations,following,Double.NaN,Double.NaN);
+        }
         public static Sample of(Surface surface, String collider, boolean swimming, double feet, long relocations) {
             return new Sample(surface, collider, -1, null, swimming, feet, relocations, false);
         }
@@ -126,12 +129,12 @@ public final class JumpmapTracker {
                 } else if (sample.block() == JumpRun.START_BLOCK && !sample.following() && member(userId)
                         && newActivityAllowed.getAsBoolean()) {
                     state.run = new JumpRun(runIds.get(), nowMs,
-                            course.stages().stream().map(JumpCourse.Stage::reward).toList(), sample.feet());
+                            course, sample.feet());
                     signals.add(new Started(userId, channelId, state.run.runId(), nowMs));
                 }
             }
             case GROUND -> {
-                if (state.run != null) progress(userId, state, state.run.terrain(nowMs), nowMs, signals);
+                if (state.run != null) progress(userId, state, state.run.terrain(sample.x(), sample.z(), nowMs), nowMs, signals);
             }
             default -> { }
         }
@@ -158,6 +161,11 @@ public final class JumpmapTracker {
     public void rebase(String userId) {
         UserState state = users.get(userId);
         if (state != null) state.primed = false;
+    }
+
+    public String activeRunId(String userId) {
+        UserState state = users.get(userId);
+        return state == null || state.run == null ? null : state.run.runId();
     }
 
     public Optional<RunView> active(String userId, long nowMs) {

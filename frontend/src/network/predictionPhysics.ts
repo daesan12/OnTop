@@ -5,7 +5,7 @@ import { WORLD, WORLD_COLLIDERS, MOVEMENT, SWIMMING, LAKE, PARK_PAVILIONS, PAVIL
   createPavilionStairs, createTowerRamp, createTowerDeck, createTowerRailCollision,
   mergeCollisionMeshes, boxesToCollisionMesh, pavilionFenceBounds, staticStructureBatch,
 } from '../park/mapConfig'
-import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
+import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED } from '../park/mapSelection'
 import { renewalMap } from '../park/renewalMap'
 import { PARK_DATA } from '../map/park'
 import { addGeneratedPredictionColliders } from './predictionMap'
@@ -14,7 +14,8 @@ import { fountainExclusionPosition } from './fountainExclusion'
 import type { MovementIntent } from './movementInput'
 import type { Pose } from './worldClient'
 import type { PredictionSimulation } from './localMovementPrediction'
-import { COURSE_COLLIDERS } from '../features/jumpmap/course'
+import { COURSE, COURSE_COLLIDERS, renewalCourse } from '../features/jumpmap/activeCourse'
+import { renewalPadPose, renewalPadShown, syncRenewalMotion } from '../features/jumpmap/renewalMotion'
 import { useJumpmap } from '../features/jumpmap/state'
 import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
 
@@ -63,14 +64,25 @@ class PredictionPhysics implements PredictionSimulation {
   private edgeGlide = 0
   private readonly jumpColliders: RAPIER.Collider[] = []
   private syncJumpCourse() {
-    const enabled = GENERATED_PARK_ENABLED && useJumpmap.getState().available
-    if (enabled === this.jumpEnabled) return
+    const enabled = JUMPMAP_ENABLED && useJumpmap.getState().available
+    if (!renewalCourse && enabled === this.jumpEnabled) return
     this.jumpEnabled = enabled
     if (enabled && !this.jumpColliders.length) for (const b of COURSE_COLLIDERS) {
       const desc = b.shape === 'cylinder' ? RAPIER.ColliderDesc.cylinder(b.half[1]!, b.radius!) : RAPIER.ColliderDesc.cuboid(b.half[0]!, b.half[1]!, b.half[2]!)
-      this.jumpColliders.push(this.world.createCollider(desc.setTranslation(b.center[0]!, b.center[1]!, b.center[2]!)))
+      this.jumpColliders.push(this.world.createCollider(desc.setTranslation(b.center[0]!, b.center[1]!, b.center[2]!)
+        .setRotation({ x: 0, y: Math.sin(b.yaw / 2), z: 0, w: Math.cos(b.yaw / 2) })))
     }
-    for (const collider of this.jumpColliders) collider.setEnabled(enabled)
+    const now = renewalCourse ? syncRenewalMotion() : 0
+    for (const [block, collider] of this.jumpColliders.entries()) {
+      const pad = COURSE[block]!, b = COURSE_COLLIDERS[block]!
+      const pose = renewalCourse ? renewalPadPose(pad, now) : undefined
+      const solid = enabled && (!pose || renewalPadShown(block) && pose.solid)
+      if (collider.isEnabled() !== solid) collider.setEnabled(solid)
+      if (solid && pose) {
+        const y = b.center[1]! + pose.offset
+        if (Math.abs(collider.translation().y - y) > .00001) collider.setTranslation({ x: pad.x, y, z: pad.z })
+      }
+    }
   }
   constructor(private tuned: boolean) {
     if (sharedPhysics) {

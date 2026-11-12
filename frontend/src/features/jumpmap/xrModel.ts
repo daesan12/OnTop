@@ -1,4 +1,4 @@
-import { DAILY_CAP, REWARDS, STAGES } from './course'
+import { DAILY_CAP, REWARDS, STAGES, renewalCourse } from './activeCourse'
 import type { useJumpmap } from './state'
 
 export type JumpmapXRState = ReturnType<typeof useJumpmap.getState>
@@ -21,7 +21,7 @@ export function jumpmapXRView(s: JumpmapXRState, now: number, guide: boolean, in
     const capped = s.todayEarned !== null && s.todayEarned >= DAILY_CAP
     const confirming = s.todayEarned === null || result.runCoins < total && !capped
     return { key: `result:${result.runId}`, title: '돌탑 도전 완료', lines: [
-      '마지막 연잎까지 멋지게 완주했어요!',
+      renewalCourse ? '마지막 오리를 지나 호수섬까지 완주했어요!' : '마지막 연잎까지 멋지게 완주했어요!',
       result.finishMs === undefined ? '기록 확인 중…' : `완주 시간  ${xrTime(result.finishMs)}`,
       `이번 도전 받은 엽전  ${result.runCoins}냥`,
       `오늘 미니게임 합산  ${s.todayEarned ?? '—'} / ${DAILY_CAP}냥`,
@@ -34,15 +34,15 @@ export function jumpmapXRView(s: JumpmapXRState, now: number, guide: boolean, in
     '첫 번째 돌에 착지하면 도전이 시작돼요.',
     '왼쪽 스틱 이동 · 왼손 그립을 누른 채 달리기',
     '오른손 A 버튼 점프 · 오른쪽 스틱 회전 (방식·속도 선택 가능)',
-    '석탑부터 연잎까지 일곱 구간을 순서대로 통과해요.',
+    renewalCourse ? '석탑부터 오리까지 열 구간을 순서대로 통과해요.' : '석탑부터 연잎까지 일곱 구간을 순서대로 통과해요.',
     `구간 보상 합계 ${REWARDS.reduce((sum, reward) => sum + reward, 0)}냥 · 하루 합산 ${DAILY_CAP}냥 한도`,
-    '마지막 연잎에서 완주! 떨어져도 받은 엽전은 그대로예요.',
+    renewalCourse ? '호수섬에 착지하면 완주해요. 떨어져도 받은 엽전은 유지돼요.' : '마지막 연잎에서 완주! 떨어져도 받은 엽전은 그대로예요.',
     '왼손 X 안내 열기·닫기 · 오른손 B VR 종료 · 실제로 뛰지 않아요.',
   ], buttons: [{ id: 'park-guide', label: '공원 조작 안내' }, { id: 'comfort', label: '편안함 설정' }, { id: 'continue', label: '안내 닫기 · A' }] }
-  const run = s.run, stage = STAGES[Math.min(6, run?.gatesPassed ?? 0)]!
+  const run = s.run, stage = STAGES[Math.min(STAGES.length - 1, run?.gatesPassed ?? 0)]!
   const receipt = s.popup && now - s.popup.at < 1400
     ? s.popup.anticipated || s.popup.amount === null || /정산|확인/.test(s.popup.label) ? '구간 보상 확인 중…' : `구간 보상 +${s.popup.amount}냥` : ''
-  return { key: 'roaming', title: run ? `돌탑 · ${stage.name}  ${Math.min(7, run.gatesPassed + 1)} / 7구간` : inCourse ? '공원 VR · 돌탑 점프맵' : '공원 VR', lines: run ? [
+  return { key: 'roaming', title: run ? `돌탑 · ${stage.name}  ${Math.min(STAGES.length, run.gatesPassed + 1)} / ${STAGES.length}구간` : inCourse ? '공원 VR · 돌탑 점프맵' : '공원 VR', lines: run ? [
     `${xrTime(now - run.startedAt)}   ·   이번 ${run.runCoins}냥`,
     receipt || 'A 점프 · 왼손 그립 달리기 · X 놀이 방법',
   ] : [

@@ -1,4 +1,4 @@
-import { COURSE, START } from './course'
+import { COURSE, START } from './activeCourse'
 
 type Position = { x: number; y: number; z: number }
 export const nearJumpmapStart = (p: Position) => Math.hypot(p.x - START.x, p.z - START.z) < 4

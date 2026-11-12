@@ -3,6 +3,7 @@ import { RENEWAL_PARK_ENABLED } from './mapSelection'
 import type { TableAnchor } from './tablePlacement'
 import type { Point3 } from '../map/park/interactionData'
 import type { VrEntrance } from '../features/vrZone/anchors'
+import type { buildRenewalJumpCourse } from '../../park-renewal-preview/live/jumpCourseData'
 
 export type RenewalRecreationId = 'fish-bread' | 'rps-roulette-cabinet' | 'plus-minus-cabinet' | 'mole-shop'
 export interface RenewalRecreationAnchor {
@@ -12,6 +13,7 @@ export interface RenewalRecreationAnchor {
   radius: number
 }
 type RenewalData = Omit<ParkMapData, 'tables' | 'interactions'> & {
+  jumpCourse?: ReturnType<typeof buildRenewalJumpCourse>
   tables: readonly Omit<TableAnchor, 'spectatorRadius'>[]
   interactions: ParkMapData['interactions'] & { recreation?: readonly RenewalRecreationAnchor[]; vrEntrance?: VrEntrance }
 }

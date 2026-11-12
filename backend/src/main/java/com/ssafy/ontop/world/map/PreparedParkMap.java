@@ -25,6 +25,7 @@ import java.util.UUID;
 /** 새 맵의 테이블·좌표·물리 입력을 조립한다. 런타임 선택과 기본 맵 유지 여부는 WorldMapRuntime이 담당한다. */
 public final class PreparedParkMap {
     private final JsonNode collisionData;
+    private final JsonNode jumpCourse;
     private final WorldMapMetadata metadata;
     private final List<Binding> bindings;
     private final WorldProximityProperties proximity;
@@ -91,6 +92,7 @@ public final class PreparedParkMap {
                     return new Reach(new Pose(site.x() + Math.sin(site.yaw()) * 7.7, 0.8,
                             site.z() + Math.cos(site.yaw()) * 7.7, site.yaw()), 2.8, 0.9, false);
                 }).orElse(null) : new Reach(pose(entrance), positive(entrance.path("radius")), 0.9, false);
+        jumpCourse = data.path("jumpCourse");
         collisionData = physicsData(map);
         metadata = map.metadata();
     }
@@ -99,6 +101,7 @@ public final class PreparedParkMap {
         return new PreparedParkMap(new GeneratedParkMapLoader().load(mapFile, manifestFile), Set.copyOf(channelIds));
     }
 
+    public JsonNode jumpCourse() { return jumpCourse.deepCopy(); }
     public JsonNode collisionData() { return collisionData.deepCopy(); }
     public WorldMapMetadata metadata() { return metadata; }
     public List<Binding> bindings() { return bindings; }
