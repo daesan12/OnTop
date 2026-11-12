@@ -258,3 +258,14 @@ tasks.register('shopDemo', JavaExec) {
     mainClass = 'com.ssafy.ontop.demo.ShopDemoApplication'
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
 }
+
+// Explicit local-only live diagnostic tool; never part of test/build/deployment.
+tasks.register('compareJokeModels', JavaExec) {
+    group = 'verification'
+    description = '기존/비교 모델 4문구씩, OpenAI 예약 비용 USD 0.10 이내, DB/MM 미사용'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.ai.JokeModelComparison'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    jvmArgs '-Xmx256m'
+}

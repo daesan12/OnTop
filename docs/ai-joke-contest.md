@@ -137,3 +137,14 @@ LLM 설명은 기존 응답 길이를 검증한 뒤 저장용 reason을 유니�
 `/api/v1/ai/joke-contest/me|rankings|yesterday|hall|reveal/{id}|submissions/{id}`와 `POST /submissions`는 기존 Bearer 인증을 사용한다. 제출자 ID와 닉네임은 서버의 인증·실제 채널 아바타에서 가져오고, 제출 시 공원 접속·김부장 근접·착석/다른 활동 여부를 확인한다. 타인의 비공개 제출 기록은 조회할 수 없다. DB V170의 JDBC 저장소를 사용하여 하루 3회·중복 요청·실패 환불·순위와 역대 우승자를 보존한다. 이번 연결에 새 SQL은 없다.
 
 기본 맵의 김부장 위치는 백엔드 JAR 안의 `ai/joke-map.json`(브라우저 랭킹판 앵커 스냅샷)을 사용한다. 맵 좌표 변경 시 이 스냅샷도 갱신하며 테스트가 프론트 생성 맵과 대조한다. GENERATED 맵 배포에서는 서버가 선택한 JSON의 랭킹판 앵커를 직접 읽는다. 외부 프론트 소스가 없는 Docker 빌드도 리소스를 포함한다. 실제 운영 키·MM 전달 및 배포 성공은 로컬 단위/통합 검사와 별개다.
+
+
+## 심사 진단 및 비용 제한 비교
+
+기본은 원본 출력 기록을 끈다. 서버 실행 환경에 `AI_JOKE_DIAGNOSTICS_ENABLED=true`를 넣으면 `joke_diagnostic` JSON 로그를 제출 ID로 연결한다. `llm_response`는 모델 원본 content·토큰 사용량, `llm_scores`는 감점 전 세 항목, `similarity_adjustment`는 독창성 감점 전후, `jev_guard`는 원문/심사평 구분과 세 Noul 값·SAFE/REVIEW/REJECTED를 남긴다. `reaction_selection`은 원본 심사평과 NONE/PROVIDER_NOT_GENERATED/EMPTY_REACTION/REACTION_TOO_LONG/SCORE_TEXT_FORBIDDEN/REACTION_GUARD_BLOCKED/REACTION_EXCEPTION을 기록한다. Jev 차단의 자세한 단계는 같은 제출 ID의 reaction guard 이벤트에서 확인한다.
+
+기존 저장·채점·검수 기준과 API 응답은 유지한다. DB 컬럼이나 Flyway 변경은 없다. 원본 출력은 운영자 로그에만 남으며 일반 랭킹·제출 조회에는 포함하지 않는다. 헤더·API 키·예외 메시지를 기록하지 않고 원문 필드는 8192자 제한 및 키 형태 문자열 가림을 적용한다. 로그 접근/보존은 배포 환경의 기존 운영 로그 정책을 따른다. 장애 원인 확인이 끝나면 환경변수를 false로 되돌린다. 과거 원본 응답과 전환 이유는 소급 복원할 수 없다.
+
+키가 설정된 같은 PowerShell에서 `scripts/compare-joke-models.ps1`를 실행한다. OpenAI/Jev 외에는 연결하지 않고 별도 로컬 파일 저장소를 쓴다. 기존 서버 재시작·공용 DB·MM·실제 랭킹 변경은 없다. 같은 v5 프롬프트/스키마로 창문·창문 변형(중복 기준 포함)·킹콩·열바다를 gpt-4.1-mini와 gpt-5.4-mini 각각 1회 비교한다. 기본 서비스 모델은 바꾸지 않는다. 5.4-mini 비교 요청은 max_completion_tokens=500, reasoning_effort=none으로 보내고 temperature는 생략한다(기존 4.1-mini는 temperature=0). 단일 표본이며 모델별 파라미터 차이가 있으므로 품질 우열의 통계적 결론이 아니다.
+
+도구는 모델을 두 개로 고정하고 입력 요청 20KB/출력 500토큰, 최대 8회, 자동 재시도 없음, 보수적 예약 비용 합계 USD0.10 제한을 둔다. 전체 요청 UTF-8 바이트 수+1024를 입력 토큰 상계 추정으로 써 호출 전에 검사한다. 이는 계정 결제 한도가 아니며 Jev 요금은 포함하지 않는다. 2026-11-12 공식 단가(100만 토큰): 4.1-mini 입력0.40/출력1.60달러, 5.4-mini 입력0.75/출력4.50달러. 실제 응답 usage 기반 금액은 report.json, 원본/전환/검수 값은 events.jsonl에 보존한다. 기본 경로는 backend/.gradle/joke-comparison-<시각>이며 기존 파일이 있으면 덮어쓰지 않는다. 실패 시 중단하고 이미 완료한 결과만 보존한다.

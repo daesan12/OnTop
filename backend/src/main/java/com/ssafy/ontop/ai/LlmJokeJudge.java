@@ -61,6 +61,44 @@ public final class LlmJokeJudge implements JokeJudge {
         if(!screened.status().equals("SCORED"))return screened;
         long started=System.nanoTime();
         try {
+            var payload=requestPayload(question,answer,references);
+            var request=HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(10)).header("Authorization","Bearer "+key)
+                    .header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(payload))).build();
+            metrics.increment("llm.calls");
+            var response=client.send(request,HttpResponse.BodyHandlers.ofString());
+            if(response.statusCode()!=200){JokeDiagnostics.emit("llm_http_error",Map.of("model",model,"status",response.statusCode()));throw new IllegalStateException("LLM score HTTP "+response.statusCode());}
+            var body=mapper.readTree(response.body());
+            var usage=body.path("usage");
+            if(usage.path("prompt_tokens").canConvertToLong()&&usage.path("completion_tokens").canConvertToLong()){
+                metrics.add("llm.input_tokens",usage.path("prompt_tokens").longValue());metrics.add("llm.output_tokens",usage.path("completion_tokens").longValue());
+            }else metrics.increment("llm.usage_missing");
+            var choice=body.path("choices").path(0);
+            String json=choice.path("message").path("content").asText();
+            JokeDiagnostics.emit("llm_response",Map.of("model",model,"rawContent",JokeDiagnostics.text(json),"finishReason",choice.path("finish_reason").asText(),"inputTokens",usage.path("prompt_tokens").asLong(),"outputTokens",usage.path("completion_tokens").asLong()));
+            if(!choice.path("finish_reason").asText().equals("stop")||!choice.path("message").path("refusal").asText("").isEmpty())throw new IllegalArgumentException("LLM score incomplete/refused");
+            var result=parse(json);
+            var comparison=mapper.readTree(json);
+            String similarity=comparison.path("similarity").asText(),matched=comparison.path("matchedId").asText();
+            if(!comparison.path("similarity").isTextual()||!comparison.path("matchedId").isTextual()
+                ||!List.of("NONE","SIMILAR").contains(similarity)
+                ||(similarity.equals("NONE")&&!matched.isEmpty())
+                ||(similarity.equals("SIMILAR")&&(!result.status().equals("SCORED")||references.stream().noneMatch(r->r.id().equals(matched)))))
+                throw new IllegalArgumentException("LLM similarity reference invalid");
+            JokeDiagnostics.emit("llm_scores",Map.of("wordplayX10",result.wordplayX10(),"witX10",result.witX10(),"originalityX10",result.originalityX10(),"similarity",similarity,"matchedId",matched,"referenceCount",references.size()));
+            boolean exact=references.stream().anyMatch(r->LocalJokeContest.normalizedHash(question,answer).equals(LocalJokeContest.normalizedHash(r.question(),r.answer())));
+            if(result.status().equals("SCORED")&&(exact||similarity.equals("SIMILAR"))){
+                int adjusted=Math.min(20,result.originalityX10());
+                JokeDiagnostics.emit("similarity_adjustment",Map.of("exact",exact,"matchedId",matched,"beforeX10",result.originalityX10(),"afterX10",adjusted,"penaltyX10",result.originalityX10()-adjusted));
+                metrics.increment("similarity.matches");metrics.add("similarity.penalty_x10",result.originalityX10()-adjusted);
+                return new Evaluation(result.status(),result.wordplayX10(),result.witX10(),adjusted,
+                    JokeJudge.SIMILAR_REASON,result.reaction(),true);
+            }
+            return result;
+        } catch(InterruptedException interrupted) { Thread.currentThread().interrupt();throw new IllegalStateException("LLM score interrupted",interrupted); }
+        catch(java.io.IOException unavailable) {throw new IllegalStateException("LLM score unavailable",unavailable);}
+        finally{metrics.duration("llm.combined",System.nanoTime()-started);}
+    }
+    Map<String,Object> requestPayload(String question,String answer,List<Reference> references)throws java.io.IOException {
             var properties=new java.util.LinkedHashMap<String,Object>();
             properties.put("status",Map.of("type","string","enum",List.of("SCORED","INVALID_JOKE")));
             properties.put("wordplayX10",Map.of("type","integer","minimum",0,"maximum",400));
@@ -71,41 +109,13 @@ public final class LlmJokeJudge implements JokeJudge {
             properties.put("matchedId",Map.of("type","string"));
             var schema=Map.of("type","object","properties",properties,"additionalProperties",false,
                     "required",List.of("status","wordplayX10","witX10","originalityX10","explanation","reaction","similarity","matchedId"));
-            var payload=Map.of("model",model,"temperature",0,"max_tokens",500,
+            var payload=new java.util.LinkedHashMap<String,Object>(Map.of("model",model,"temperature",0,"max_tokens",500,
                     "messages",List.of(Map.of("role","system","content",PROMPT),Map.of("role","user","content",mapper.writeValueAsString(Map.of("question",question,"answer",answer,"references",references)))),
-                    "response_format",Map.of("type","json_schema","json_schema",Map.of("name","ontop_joke_score","strict",true,"schema",schema)));
-            var request=HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(10)).header("Authorization","Bearer "+key)
-                    .header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(payload))).build();
-            metrics.increment("llm.calls");
-            var response=client.send(request,HttpResponse.BodyHandlers.ofString());
-            if(response.statusCode()!=200)throw new IllegalStateException("LLM score HTTP "+response.statusCode());
-            var body=mapper.readTree(response.body());
-            var usage=body.path("usage");
-            if(usage.path("prompt_tokens").canConvertToLong()&&usage.path("completion_tokens").canConvertToLong()){
-                metrics.add("llm.input_tokens",usage.path("prompt_tokens").longValue());metrics.add("llm.output_tokens",usage.path("completion_tokens").longValue());
-            }else metrics.increment("llm.usage_missing");
-            var choice=body.path("choices").path(0);
-            if(!choice.path("finish_reason").asText().equals("stop")||!choice.path("message").path("refusal").asText("").isEmpty())throw new IllegalArgumentException("LLM score incomplete/refused");
-            String json=choice.path("message").path("content").asText();
-            var result=parse(json);
-            var comparison=mapper.readTree(json);
-            String similarity=comparison.path("similarity").asText(),matched=comparison.path("matchedId").asText();
-            if(!comparison.path("similarity").isTextual()||!comparison.path("matchedId").isTextual()
-                ||!List.of("NONE","SIMILAR").contains(similarity)
-                ||(similarity.equals("NONE")&&!matched.isEmpty())
-                ||(similarity.equals("SIMILAR")&&(!result.status().equals("SCORED")||references.stream().noneMatch(r->r.id().equals(matched)))))
-                throw new IllegalArgumentException("LLM similarity reference invalid");
-            boolean exact=references.stream().anyMatch(r->LocalJokeContest.normalizedHash(question,answer).equals(LocalJokeContest.normalizedHash(r.question(),r.answer())));
-            if(result.status().equals("SCORED")&&(exact||similarity.equals("SIMILAR"))){
-                int adjusted=Math.min(20,result.originalityX10());
-                metrics.increment("similarity.matches");metrics.add("similarity.penalty_x10",result.originalityX10()-adjusted);
-                return new Evaluation(result.status(),result.wordplayX10(),result.witX10(),adjusted,
-                    JokeJudge.SIMILAR_REASON,result.reaction(),true);
+                    "response_format",Map.of("type","json_schema","json_schema",Map.of("name","ontop_joke_score","strict",true,"schema",schema))));
+            if(model.equals("gpt-5.4-mini")||model.startsWith("gpt-5.4-mini-")){
+                payload.remove("max_tokens");payload.remove("temperature");payload.put("max_completion_tokens",500);payload.put("reasoning_effort","none");
             }
-            return result;
-        } catch(InterruptedException interrupted) { Thread.currentThread().interrupt();throw new IllegalStateException("LLM score interrupted",interrupted); }
-        catch(java.io.IOException unavailable) {throw new IllegalStateException("LLM score unavailable",unavailable);}
-        finally{metrics.duration("llm.combined",System.nanoTime()-started);}
+            return payload;
     }
     Evaluation parse(String json)throws java.io.IOException {
         JsonNode value=mapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(json);
