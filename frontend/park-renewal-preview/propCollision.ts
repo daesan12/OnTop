@@ -9,6 +9,7 @@ import {
   SUB_PAVILION_SCALE, TABLES, facilityGroundY, heightAt, site, type Point,
 } from './plan'
 import { TOWER_TOP } from './towerFurniturePlan'
+import { pavilionBenchSegments } from './pavilionBenchLayout'
 
 type Placement = { x: number; y: number; z: number; yaw: number; scale?: number }
 type Shape = { kind: 'circle'; radius: number } | { kind: 'box'; halfX: number; halfZ: number; cos: number; sin: number }
@@ -20,7 +21,6 @@ const cell = 4
 const bins = new Map<string, Blocker[]>()
 const { radius: playerRadius, halfHeight } = MOVEMENT
 const playerHeight = 2 * (halfHeight + playerRadius)
-export const SPECTATOR_BENCH_HEIGHTS = { main: .7, rest: .583 } as const
 const binKey = (x: number, z: number) => `${x},${z}`
 
 function register(blocker: Blocker) {
@@ -125,6 +125,7 @@ for (const [x, z] of [...TABLES, ...JUMP_TABLES]) {
   }
 }
 
+const restBenchSegments = pavilionBenchSegments('rest')
 function subPavilion(p: Placement) {
   octagonalRails(p, 2.827, .04, -.08, .57, [1.06, 0, 0, 0])
   octagonalRails(p, 2.38 * Math.cos(Math.PI / 8), .1, .57, 1.47, [Infinity, 0, 0, 0])
@@ -133,9 +134,8 @@ function subPavilion(p: Placement) {
     const column: Point = [2.38 * Math.sin(angle), 2.38 * Math.cos(angle)]
     box(p, column, .46, .46, .57, .83)
     circle(p, column, .165, .83, 3.51)
-    if (i === 0) continue // The front face has stairs and no built-in bench.
-    const a = i * Math.PI / 4, r = 2.12 * Math.cos(Math.PI / 8)
-    box(p, [r * Math.sin(a), r * Math.cos(a)], 1.67, .49, .57, .572 + SPECTATOR_BENCH_HEIGHTS.rest, a)
+    const b = restBenchSegments.find(segment => segment.side === i)
+    if (b) box(p, [b.x, b.z], b.width, b.depth, .57, b.floor + b.seatHeight, b.yaw)
   }
   for (const x of [-.92, .92]) {
     for (let i = 0; i < 3; i++) box(p, [x, 2.84 + i * .35], .26, .52, .01, .67 - i * .15)
@@ -157,14 +157,14 @@ octagonalRails(mainPlacement, 9.812, .06, -.08, 1.3, [2.2, 2.2, 2.2, 2.2])
 octagonalRails(mainPlacement, 8.684, .1, 1.3, 2.6, [2.2, 2.2, 2.2, 2.2])
 octagonalRails(mainPlacement, 8.684, .25, 2.6, 3.58, [1.62, 1.62, 1.62, 1.62])
 octagonalRails(mainPlacement, 5.865, .25, 2.6, 3.65, [1.35, 1.35, 1.35, 1.35])
+const mainBenchSegments = pavilionBenchSegments('main')
 for (let i = 0; i < 8; i++) {
   const angle = Math.PI / 8 + i * Math.PI / 4
   const column: Point = [6.25 * Math.sin(angle), 6.25 * Math.cos(angle)]
   box(mainPlacement, column, .96, .96, 2.6, 2.82)
   circle(mainPlacement, column, .4, 2.82, 8.72)
-  if (i === 4) continue
-  const a = i * Math.PI / 4
-  box(mainPlacement, [4.97 * Math.sin(a), 4.97 * Math.cos(a)], 4.1, .9, 2.6, 2.6 + SPECTATOR_BENCH_HEIGHTS.main, a)
+  const b = mainBenchSegments.find(segment => segment.side === i)
+  if (b) box(mainPlacement, [b.x, b.z], b.width, b.depth, b.floor, b.floor + b.seatHeight, b.yaw)
 }
 circle(mainPlacement, [0, 0], 2.1, 2.6, 3.77)
 for (const z of [-2.95, 2.95]) box(mainPlacement, [0, z], .61, .61, 2.6, 3.26)

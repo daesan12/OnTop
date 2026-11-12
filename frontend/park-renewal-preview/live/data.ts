@@ -11,6 +11,7 @@ import { buildRenewalTables } from './tableLayout'
 import { buildRenewalRecreation } from './recreation'
 import { buildRenewalJumpCourse } from './jumpCourseData'
 import { buildRenewalConstructionSites } from './construction'
+import { buildRenewalBenches } from './benches'
 
 function offset(position: Point3, x: number, y: number, z: number): Point3 {
   return [position[0] + x, position[1] + y, position[2] + z]
@@ -44,15 +45,10 @@ export function buildRenewalMapData() {
   const gacha = site('gacha')
   facilities.push({ id: 'layout-shop', kind: 'shop',
     position: [gacha.x, facilityBase('gacha'), gacha.z], yaw: facilityYaw(gacha) })
-  const fountain = site('fountain'), gym = site('fitness'), tower = site('tower'), mailbox = site('mailbox')
-  const fx = fountain.x - originalSites.fountain.x, fy = heightAt(fountain.x, fountain.z), fz = fountain.z - originalSites.fountain.z
+  const gym = site('fitness'), tower = site('tower'), mailbox = site('mailbox')
   const gx = gym.x - originalSites.fitness.x, gy = heightAt(gym.x, gym.z), gz = gym.z - originalSites.fitness.z
   const deckY = facilityGroundY(tower) + TOWER_TOP.floor + .015
   const old = PARK_DATA.interactions
-  const benches = old.benches.filter(b => b.siteId.startsWith('bench-fountain-')).map(b => ({
-    ...b, position: offset(b.position, fx, fy, fz),
-    seats: b.seats.map(seat => ({ ...seat, use: shift(seat.use, fx, fy, fz), exit: shift(seat.exit, fx, fy, fz) })),
-  }))
   const fitness = old.fitness.map(f => ({
     ...f, position: offset(f.position, gx, gy, gz),
     use: shift(f.use, gx, gy, gz), exit: shift(f.exit, gx, gy, gz),
@@ -78,7 +74,7 @@ export function buildRenewalMapData() {
     tableAnchorIds: tables.map(t => t.id),
     tables, facilities, pavilions, physics, jumpCourse: buildRenewalJumpCourse(),
     interactions: {
-      ...old, benches, fitness, telescopes, ...buildRenewalRecreation(),
+      ...old, benches: buildRenewalBenches(), fitness, telescopes, ...buildRenewalRecreation(),
       construction: [
         ...old.construction.filter(s => s.id === 'layout-drink').map(s => ({ ...s, ...kioskPlacement('lottery', 3.25) })),
         ...buildRenewalConstructionSites(),

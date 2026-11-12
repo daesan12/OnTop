@@ -32,7 +32,7 @@ export const BENCH_YAWS = sharedBenches?.map(b => b.yaw) ?? base.BENCH_YAWS
 const generatedBenchSites = generated ? buildInteractionData({ definition: p.SETTINGS,
   pavilions: p.DRAFT_PAVILIONS, towerBenches: p.DRAFT_TOWER_BENCHES, plazaBenches: p.PLAZA_BENCHES,
   restBenches: p.PLAZA_REST_BENCHES, fitness: p.DRAFT_FITNESS_STATIONS, decks: p.lake.FISHING_DECKS }).benchSites : []
-export const BENCH_SEAT_HEIGHTS: ReadonlyMap<string, number> = renewal ? new Map(renewal.interactions.benches.map(b => [b.id, .56]))
+export const BENCH_SEAT_HEIGHTS: ReadonlyMap<string, number> = renewal ? new Map(renewal.interactions.benches.map(b => [b.id, b.seatHeight ?? .56]))
   : generated ? new Map(generatedBenchSites.map(b => [b.id, b.seatHeight]))
   : new Map(base.BENCHES.map((_, i) => [`bench-${i}`, base.BENCH_PAVILIONS[i] ? 0.56 : 0.58]))
 export const FITNESS_STATIONS = renewal ? p.DRAFT_FITNESS_STATIONS.flatMap(s => {

@@ -17,7 +17,8 @@ import {
   LAKE, MONUMENT_STAIRS, REST_PAVILIONS, STATION_APPROACH, STATION_STAIRS, SUB_PAVILION_SCALE,
   accessTopAt, bridgeDeckHeight, bridgeLandingHeight, facilityGroundY, fishingRailSections, heightAt, inLake, site, type Point,
 } from '../plan'
-import { parkPropBlockers, SPECTATOR_BENCH_HEIGHTS } from '../propCollision'
+import { parkPropBlockers } from '../propCollision'
+import { SPECTATOR_BENCH_HEIGHTS } from '../pavilionBenchLayout'
 import { createTowerEntrance, towerRampStartY } from '../towerEntrance'
 
 export const RENEWAL_HALF_SIZE = 110
