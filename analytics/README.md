@@ -90,6 +90,30 @@ python analytics/scripts/run.py --container ontop-analytics-mysql --database ont
 python analytics/scripts/run.py --container ontop-analytics-mysql --database ontop_snapshot --all --csv
 ```
 
+### 두더지 내부 집계에서 확정 회원 제외
+
+같은 환경의 서버 로그에서 `mole_honeypot_hit` 기록을 확인한다. 로그의 `game`, `roundId`, `userId`를
+운영자만 접근할 수 있는 `analytics/data/mole-review.csv`에 옮기고, 검토를 마친 판을 `CONFIRMED`로 표시한다.
+검토 중인 판은 `PENDING`, 제외하지 않기로 한 판은 `REJECTED`로 표시한다.
+
+```csv
+game,round_id,user_id,status
+whack-a-mole,123,101,CONFIRMED
+speed-mole,456,102,PENDING
+```
+
+같은 환경에서 추출한 서버 로그를 `analytics/data/mole-honeypot.log`에 둔다. 원본 텍스트 로그나
+`mole_honeypot_hit` 메시지만 한 줄씩 추출한 파일을 쓸 수 있다. 아래 명령은 확정 행의 게임·판·회원이
+로그와 복원 DB의 정산 판에 모두 일치할 때만 해당 회원의 판을 두 집계에서 제외한다.
+
+```powershell
+python analytics/scripts/run.py --container ontop-analytics-mysql --database ontop_snapshot --mole-review analytics/data/mole-review.csv --mole-honeypot-log analytics/data/mole-honeypot.log --csv 28_mole_daily.sql 34_speed_mole_daily.sql
+```
+
+결과는 `analytics/out/*-reviewed.csv`에 저장된다. 판정 옵션 없이 실행하면 기존 집계가 나온다.
+두더지 일별 집계(28번·34번)에만 이 판정을 적용한다. 운영 DB, 공개 랭킹, 지갑 원장과 공통 엽전 집계에는
+기존 경로를 사용한다. 판정 CSV와 서버 로그는 운영자 권한으로 보관하고, 분석 결과에는 회원 ID를 포함하지 않는다.
+
 **4. 작업 후 삭제**
 팀에 공유할 집계값을 정리한 뒤 컨테이너(복원 DB 포함), 백업 파일, 결과 파일을 지운다.
 

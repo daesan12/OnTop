@@ -98,7 +98,8 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
     if (currentPhase !== 'playing') return
     const event = round.current.strike(index, at)
     if (event.kind === 'ignored') { if (round.current.remaining(at) === 0) setPhase('result'); return }
-    taps.current.push({ hole: index, at: Math.floor(at - round.current.startedAt) })
+    const targetId = event.kind === 'hit' ? session.current?.targetIds?.get(index) : undefined
+    taps.current.push({ hole: index, at: Math.floor(at - round.current.startedAt), targetId })
     // 두더지 잡기와 같은 타격음. 빈 구멍(실수)은 소리 없이 −3 표시만 한다.
     if (event.kind === 'hit') playSfx('mole-hit')
     const fx: Feedback = { id: ++seq.current, hole: index, kind: event.kind, at }

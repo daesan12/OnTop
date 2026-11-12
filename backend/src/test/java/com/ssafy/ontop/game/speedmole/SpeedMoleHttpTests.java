@@ -4,6 +4,7 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
+import com.ssafy.ontop.minigame.service.MoleTargets;
 import java.net.URI;
 import java.net.http.*;
 import java.time.Instant;
@@ -48,6 +49,37 @@ class SpeedMoleHttpTests {
     @Test void start_requires_one_idempotency_key() throws Exception {
         var r=http.send(request("/rounds",true).POST(HttpRequest.BodyPublishers.noBody()).build(),HttpResponse.BodyHandlers.ofString());
         assertThat(r.statusCode()).isEqualTo(400);verifyNoInteractions(service);
+    }
+    @Test
+    void 시작_응답에는_같은_형식의_표적_ID_두_개를_반환한다() throws Exception {
+        var now = Instant.parse("2030-01-01T00:00:00Z");
+        when(service.start(101, "round-1")).thenReturn(new SpeedMoleDtos.Round(
+                "7", 1, 1, now, now.plusSeconds(3), 60_000,
+                List.of(new MoleTargets.Target(1, List.of("first-id", "second-id")))));
+        var request = request("/rounds", true).header("Idempotency-Key", "round-1")
+                .POST(HttpRequest.BodyPublishers.noBody()).build();
+
+        var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(response.body()).contains("\"targets\":[{\"hole\":1,\"ids\":[\"first-id\",\"second-id\"]}]")
+                .doesNotContain("\"visible\"");
+    }
+
+    @Test
+    void 완료_요청은_표적_ID가_있는_입력과_없는_입력을_함께_받는다() throws Exception {
+        var taps = List.of(new SpeedMoleRules.Tap(1, 0), new SpeedMoleRules.Tap(3, 100, "target-id"));
+        when(service.complete(101, 7, taps)).thenReturn(new SpeedMoleDtos.Result(
+                "7", 1, 2, 2, 0, Instant.parse("2030-01-01T00:01:03Z"), 0, 0, 0, 1000));
+        var request = request("/rounds/7/complete", true).header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("""
+                        {"taps":[{"hole":1,"at":0},{"hole":3,"at":100,"targetId":"target-id"}]}
+                        """)).build();
+
+        var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        verify(service).complete(101, 7, taps);
     }
     @Test void only_approved_origins_can_preflight_the_idempotent_start() throws Exception {
         for(String origin:List.of("http://localhost:5173","https://untrusted.invalid")) {
