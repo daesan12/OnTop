@@ -8,6 +8,7 @@ import { AdminAnnouncementsPage } from '../announcements/AdminAnnouncementsPage'
 import { AdminServiceOperationPage } from './AdminServiceOperationPage'
 import { AdminEventsPage } from './AdminEventsPage'
 import { AdminSkinsPage } from '../skins/AdminSkinsPage'
+import { AdminMacroAnalysisPage } from './AdminMacroAnalysisPage'
 import { adminRoutes, type AdminSection } from './adminRoutes'
 import logo from '../../assets/entry/ontop-logo.webp'
 import '../feedback/adminFeedback.css'
@@ -53,6 +54,8 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
   onAuthEnded: () => void
 }) {
   const [state, setState] = useState<AccessState>({ status: 'loading' })
+  const [macroOpen, setMacroOpen] = useState(false)
+  const showMacro = section === 'home' && macroOpen
   const request = useRef<AbortController | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   const check = useCallback(async () => {
@@ -76,8 +79,10 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
     queueMicrotask(() => { if (active) void check() })
     return () => { active = false; request.current?.abort() }
   }, [check])
-  useEffect(() => { heading.current?.focus() }, [section, state.status])
+  useEffect(() => { heading.current?.focus() }, [section, showMacro, state.status])
   const visibleItems = state.status === 'ready' ? menuItems.filter(item => canShow(item, state.access)) : []
+  const navigate = (next: AdminSection) => { setMacroOpen(false); onNavigate(next) }
+  const openMacro = () => { setMacroOpen(true); if (section !== 'home') onNavigate('home') }
 
   return <main className="admin-feedback-page admin-shell">
     <header className="admin-feedback-header">
@@ -88,7 +93,7 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
         : section === 'operations' ? '서비스 운영 제어' : section === 'announcements' ? '공원 공지 관리'
           : section === 'skins' ? '스킨 공방' : section === 'events' ? '이벤트 관리' : section === 'feedback' ? '소리함 의견 조회'
             : section === 'analytics' ? '일별·게임별 분석' : '보상 관리'}</h1>
-      {state.status === 'ready' && <p>{section === 'home'
+      {state.status === 'ready' && !showMacro && <p>{section === 'home'
         ? '관리자 기능을 선택해주세요.' : section === 'feedback'
           ? '이용자가 비공개로 남긴 의견입니다. 서버에서 조회 권한을 확인합니다.'
           : section === 'operations' ? '신규 활동 차단부터 점검 종료까지 운영 상태를 안전하게 전환합니다.'
@@ -108,18 +113,23 @@ export function AdminShell({ section, onNavigate, onReturn, onAuthEnded }: {
     </section>}
     {state.status === 'ready' && <>
       <nav className="admin-shell-nav" aria-label="관리자 메뉴">
-        <a href={adminRoutes.home.path} aria-current={section === 'home' ? 'page' : undefined}
-          onClick={event => { event.preventDefault(); onNavigate('home') }}>관리자 홈</a>
+        <a href={adminRoutes.home.path} aria-current={section === 'home' && !showMacro ? 'page' : undefined}
+          onClick={event => { event.preventDefault(); navigate('home') }}>관리자 홈</a>
         {visibleItems.map(item => <a key={item.section} href={adminRoutes[item.section].path}
           aria-current={section === item.section ? 'page' : undefined}
-          onClick={event => { event.preventDefault(); onNavigate(item.section) }}>{item.label}</a>)}
+          onClick={event => { event.preventDefault(); navigate(item.section) }}>{item.label}</a>)}
+        <button type="button" aria-current={showMacro ? 'page' : undefined} onClick={openMacro}>게임 매크로 분석</button>
       </nav>
-      {section === 'home' ? <section className="admin-feedback-content admin-shell-home" aria-label="관리자 기능">
+      {showMacro ? <AdminMacroAnalysisPage onAuthEnded={onAuthEnded} />
+      : section === 'home' ? <section className="admin-feedback-content admin-shell-home" aria-label="관리자 기능">
         <h2>관리자 기능</h2>
         {visibleItems.map(item => <a key={item.section} href={adminRoutes[item.section].path}
-          onClick={event => { event.preventDefault(); onNavigate(item.section) }}>
+          onClick={event => { event.preventDefault(); navigate(item.section) }}>
           <strong>{item.title}</strong><span>{item.description}</span>
         </a>)}
+        <button type="button" onClick={openMacro}>
+          <strong>게임 매크로 분석</strong><span>게임별 플레이 기록을 조회하고 비교합니다.</span>
+        </button>
       </section> : section === 'operations' ? state.access.canOperate ? <AdminServiceOperationPage onAuthEnded={onAuthEnded} />
         : <section role="alert">운영 관리자 권한이 필요합니다.</section>
         : section === 'announcements' ? state.access.canOperate ? <AdminAnnouncementsPage onAuthEnded={onAuthEnded} />
