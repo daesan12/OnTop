@@ -1,10 +1,9 @@
-import {LOCAL_AI_FIXTURE} from '../features/ai/serviceFeatures'
 import { useEffect, useRef, useState } from 'react'
 import { parkRuntime } from '../park/runtime/runtime'
 import { useSession } from '../network/worldClient'
 import { acceptPolice } from '../features/ai/worldAi'
 import { jokeSubmissionError } from '../features/ai/jokeSubmissionError'
-import { jokeContestPath, closeJokeContest, jokeJudgePosition, openJokeContest, useJokeContest } from '../features/ai/jokeContest'
+import { jokeContestPath, closeJokeContest, jokeJudgePosition, useJokeContest } from '../features/ai/jokeContest'
 import './jokeContest.css'
 import './jokeRanking.css'
 
@@ -160,7 +159,6 @@ export function JokeContestPanel() {
   const nextLabel = exhausted ? '랭킹 보기' : stage === 'result' ? '다시 도전' : '다음'
 
   return <>
-    <div className="joke-launch"><button onClick={() => openJokeContest('ranking')}>탑골 아재왕 · 랭킹</button>{LOCAL_AI_FIXTURE&&<button onClick={() => { void read('position', {}).catch(() => setError('공원에 연결한 뒤 이동해주세요.')) }}>김부장 앞으로 · 로컬 검수</button>}</div>
     {open && <div className={`joke-backdrop${tab === 'ranking' ? ' joke-backdrop-ranking' : ''}`}><section ref={dialog} className="joke-dialog" data-stage={tab === 'ranking' ? 'ranking' : stage} role="dialog" aria-modal="true" aria-label="탑골 아재왕 선발대회" tabIndex={-1}>
       {tab === 'ranking' && <div className="joke-ledger">
         <span className="joke-scroll-roller joke-scroll-roller-top" aria-hidden="true" /><span className="joke-scroll-roller joke-scroll-roller-bottom" aria-hidden="true" />
