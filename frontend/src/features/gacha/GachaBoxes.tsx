@@ -168,14 +168,15 @@ export function GachaBoxes(){
     {paidOut&&<div className="open-coin-payout" role="status" aria-live="polite">
      <div className="open-coin-pile" aria-hidden="true">{Array.from({length:9},(_,i)=><span key={i} style={{'--i':i} as React.CSSProperties}><Coin/></span>)}</div>
      <strong>+{money(result!.awardedCoins)}</strong><small>엽전으로 자동 지급했어요</small>
+     <CoinToWallet receipt={result!.operationId} amount={result!.awardedCoins} reduced={reduced||opening.instant} target=".wardrobe-coin"/>
     </div>}
 
     </div>
     {shown&&result?.product?<div className="open-result-card" data-operation-id={result.operationId} aria-live="polite">
      <h3>{result.product.name}</h3><div className="open-item-tags"><span>의상 세트</span><WearParts parts={parts}/></div>
-     {result.duplicate&&['duplicate','coins','complete'].includes(opening.phase)?<div className="open-duplicate"><b>이미 보유 중 → 엽전으로 바꿔 드려요</b><p>이미 보유한 의상이라 상품 가치{opening.value?` ${money(opening.value)}`:''}의 절반인 <strong>{money(result.awardedCoins)}</strong>을 지갑에 자동으로 넣었어요.</p>{paidOut&&<CoinToWallet receipt={result.operationId} amount={result.awardedCoins} reduced={reduced||opening.instant} target=".wardrobe-coin"/>}</div>:null}
     </div>:<p className="open-suspense" role="status">{opening.phase==='waiting'?'캡슐 안의 행운을 확인하고 있어요…':opening.phase==='seam'||opening.phase==='opening'?'빛 속의 의상을 만나 보세요':'잠시만요, 행운이 깨어나요'}</p>}
-    {opening.phase==='complete'&&<div className="open-result-actions"><button disabled={sameLeft<1||s.busy||!!s.pending} onClick={()=>void opening.open(opening.grade)} aria-label={`${capsuleName(opening.grade)} 다시 열기 (${sameLeft}개 남음)`}><span className="open-next-icon" aria-hidden="true"><Capsule grade={opening.grade}/></span>다시 열기<small className="open-again-count">{sameLeft}개</small></button><button onClick={next}><span aria-hidden="true">✓</span> 확인</button></div>}
+    {/* Kept in the layout from the start (hidden until the end) so nothing above shifts when the buttons appear. */}
+    {visible&&<div className="open-result-actions" data-ready={opening.phase==='complete'||undefined}><button disabled={opening.phase!=='complete'||sameLeft<1||s.busy||!!s.pending} onClick={()=>void opening.open(opening.grade)} aria-label={`${capsuleName(opening.grade)} 다시 열기 (${sameLeft}개 남음)`}><span className="open-next-icon" aria-hidden="true"><Capsule grade={opening.grade}/></span>다시 열기<small className="open-again-count">{sameLeft}개</small></button><button disabled={opening.phase!=='complete'} onClick={next}><span aria-hidden="true">✓</span> 확인</button></div>}
     {opening.busy&&<button className="open-skip" onClick={opening.skip}>연출 건너뛰기</button>}
    </div>
   </dialog>

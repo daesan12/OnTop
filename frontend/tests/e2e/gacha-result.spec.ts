@@ -36,11 +36,17 @@ test('기본 모션은 캡슐에서 광선과 별빛을 펼치고 유한 횟수�
 
 test('중복이면 의상 대신 엽전 자동 지급을 크게 보여 주고 같은 등급을 다시 연다',async({page})=>{
  let opens=0;page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/api/v1/gacha/boxes/open'))opens++})
- const dialog=await setup(page,true);await expect(dialog).toContainText('250냥');await expect(dialog).toContainText('이미 보유 중');await expect(dialog).not.toContainText('보유 엽전');await expect(dialog.locator('.open-parts')).toHaveText('착용 부위: 머리 · 얼굴 · 옷')
+ const dialog=await setup(page,true);await expect(dialog).toContainText('250냥');await expect(dialog).not.toContainText('이미 보유 중');await expect(dialog).not.toContainText('지갑에 자동으로');await expect(dialog).not.toContainText('보유 엽전');await expect(dialog.locator('.open-parts')).toHaveText('착용 부위: 머리 · 얼굴 · 옷')
  const payout=dialog.locator('.open-coin-payout');await expect(payout).toBeVisible();await expect(payout).toContainText('+250냥');await expect(payout).toContainText('엽전으로 자동 지급했어요')
  await expect(dialog.locator('.open-coin-pile svg')).toHaveCount(9)
  const again=dialog.getByRole('button',{name:'A급 캡슐 다시 열기 (1개 남음)',exact:true});await expect(again).toBeEnabled();await again.click()
  await expect(dialog.getByRole('button',{name:'확인',exact:true})).toBeVisible({timeout:60000});expect(opens).toBe(2)
+})
+test('결과가 나온 뒤 버튼이 생겨도 상품 이름 칸은 움직이지 않는다',async({page})=>{
+ await page.addInitScript(()=>{const w=window as unknown as {tops:number[]};w.tops=[];const tick=()=>{const h=document.querySelector('.open-result-card h3');if(h)w.tops.push(Math.round(h.getBoundingClientRect().top));requestAnimationFrame(tick)};requestAnimationFrame(tick)})
+ const dialog=await setup(page,true,2,true);await page.waitForTimeout(500)
+ const tops=await page.evaluate(()=>(window as unknown as {tops:number[]}).tops);expect(tops.length).toBeGreaterThan(10)
+ expect(Math.max(...tops)-Math.min(...tops)).toBeLessThanOrEqual(1);await expect(dialog.getByRole('button',{name:'확인',exact:true})).toBeEnabled()
 })
 test('같은 등급 캡슐이 없으면 다시 열기를 막는다',async({page})=>{
  const empty={...inventory,boxes:[1,2,3,4].map(grade=>({grade,quantity:grade===2?0:1}))}
