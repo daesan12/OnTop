@@ -14,6 +14,7 @@ function Actor({npc}:{npc:CompanionActor}){
  const child=npc.persona==='CHILD',elder=npc.persona==='ELDER'||npc.role==='GUIDE'
  useEffect(()=>{motion.current.push({...npc,yaw:npc.yaw??0},received)},[npc,received])
  useFrame((_,dt)=>{if(!ref.current)return;ref.current.visible=performance.now()-useCompanions.getState().actorReceivedAt<5000
+  if(!ref.current.visible)return
   const p=motion.current.sample(performance.now());if(!p)return
   const last=previous.current,d=last?Math.hypot(p.x-last[0],p.y-last[1],p.z-last[2]):0
   speed.current+=((d<2?Math.min(10,d/Math.max(.001,dt)):0)-speed.current)*(1-Math.exp(-12*dt));previous.current=[p.x,p.y,p.z]
