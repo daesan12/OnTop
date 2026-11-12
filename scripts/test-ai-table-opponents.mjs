@@ -60,8 +60,10 @@ try{
  await http('/local/ai/companions/action',b.token,{kind:'forfeit',gameId:two.snapshot.gameId,version:second.practice.snapshot.version})
  await until(()=>status(b),s=>!s.actors.some(n=>n.id===two.actorId))
  check('finished opponent disappears',(await status(b)).practice.snapshot.endedAt!==null)
- await http('/local/ai/companions/action',b.token,{kind:'stop',gameId:two.snapshot.gameId})
- for(const [i,c] of clients.entries()){await c.request('TABLE_LEAVE');await place(c,i);await c.request('GAME_SELECT',{gameCode:'OMOK',betAmountPerPlayer:0})}
+ check('TABLE_LEAVE releases an NPC seat without cleanup HTTP',(await b.request('TABLE_LEAVE')).type==='TABLE_LEFT')
+ await until(()=>status(b),s=>s.practice===null)
+ check('table leave also removes the companion game',(await status(b)).practice===null)
+ for(const [i,c] of clients.entries()){if(c!==b)await c.request('TABLE_LEAVE');await place(c,i);await c.request('GAME_SELECT',{gameCode:'OMOK',betAmountPerPlayer:0})}
  const automatic=await until(async()=>Promise.all(clients.map(c=>status(c))),s=>s.every(v=>v.practice?.phase==='PLAYING'),42000)
  check('two tables automatically invite normal opponents after thirty seconds',automatic.every(s=>s.practice.difficulty==='NORMAL')&&automatic[0].practice.actorId!==automatic[1].practice.actorId)
  result.pass=true

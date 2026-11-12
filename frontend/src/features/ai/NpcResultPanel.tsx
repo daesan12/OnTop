@@ -7,7 +7,7 @@ import {gatheringModel} from '../tableLobby/gatheringModel'
 import {TabletResult} from '../tableLobby/TableGatheringHud'
 import {practiceAction} from '../../ai-park/practiceActions'
 import {useParkRuntime} from '../../park/runtime/ParkRuntime'
-import {useEffect} from 'react'
+import {useEffect,useState} from 'react'
 import {gameState} from '../../game/protocol'
 
 const productionActive=()=>{
@@ -66,12 +66,33 @@ export async function dismissNpcResult(gameId:string){
  return true
 }
 
+export async function leaveNpcResult(gameId:string,leaveTable:()=>Promise<boolean>){
+ const session=useSession.getState(),p=getNpcResult()
+ if(p?.snapshot.gameId!==gameId||useCompanions.getState().practicePending)return false
+ const sameSeat=()=>{
+  const current=useSession.getState()
+  return current.status==='connected'&&current.sessionId===session.sessionId&&current.roomId===session.roomId&&current.tableId===session.tableId
+ }
+ let left=false
+ try {left=await leaveTable()}catch { /* Preserve the result until the server confirms TABLE_LEFT. */ }
+ if(!left){
+  if(sameSeat())useCompanions.setState({practiceError:'자리에서 일어나지 못했어요. 연결 상태를 확인한 뒤 다시 눌러주세요.'})
+  return false
+ }
+ const current=useSession.getState(),state=useCompanions.getState()
+ if(current.sessionId!==session.sessionId||current.roomId!==session.roomId||current.tableId)return false
+ useCompanions.setState({
+  ...(state.practice?.snapshot.gameId===gameId?{practice:null}:{}),
+  ...(state.finishedPractice?.snapshot.gameId===gameId?{finishedPractice:null}:{}),practiceError:'',
+ })
+ return true
+}
+
 export function NpcResultPanel({practice}:{practice:Practice}){
  const runtime=useParkRuntime(),own=useSession(s=>s.sessionId),nickname=useSession(s=>s.profiles[s.sessionId]?.nickname??'나')
  const pending=useCompanions(s=>s.practicePending),error=useCompanions(s=>s.practiceError)
- const finish=async(leave=false)=>{if(await dismissNpcResult(practice.snapshot.gameId)){
-  if(leave)await runtime.leaveTable()
- }}
+ const [leaving,setLeaving]=useState(false)
+ const leave=async()=>{if(leaving)return;setLeaving(true);try{await leaveNpcResult(practice.snapshot.gameId,()=>runtime.leaveTable())}finally{setLeaving(false)}}
  return <TabletResult key={practice.snapshot.gameId} model={npcResultModel(practice,own,nickname)}
-  actions={{pending,error,onReturn:()=>void finish(),onLeave:()=>void finish(true)}}/>
+  actions={{pending:pending||leaving,error,onReturn:()=>void dismissNpcResult(practice.snapshot.gameId),onLeave:()=>void leave()}}/>
 }

@@ -185,6 +185,24 @@ class TableHubBehaviorTests {
     }
 
     @Test
+    void NPC정리_HTTP_없이도_자리이탈이_예약을_해제한다(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        try(var ai=new com.ssafy.ontop.ai.LocalWorldAi(mapper,directory,new com.ssafy.ontop.ai.OfflineDecisions(),
+                (id,kind,text)->"fixture",hub,null,true)) {
+            Peer owner=peer(101);owner.join("one");
+            String table=hub.listTables("one").tables().getFirst().tableId();
+            owner.request("TABLE_JOIN",Map.of("tableId",table));
+            owner.request("GAME_SELECT",Map.of("gameCode","OMOK","betAmountPerPlayer",1));
+            assertThat(hub.aiReserveOmok(hub.aiWaitingOmok().getFirst(),"npc:leave")).isTrue();
+            hub.aiBindPracticeGame(table,"npc:leave","practice-leave");
+            assertThat(owner.request("TABLE_LEAVE",Map.of()).path("type").asText()).isEqualTo("TABLE_LEFT");
+            assertThat(hub.aiPracticeChatGame(owner.userId)).isEmpty();
+            assertThat(owner.request("TABLE_JOIN",Map.of("tableId",table)).path("type").asText()).isEqualTo("TABLE_STATE");
+            owner.request("GAME_SELECT",Map.of("gameCode","OMOK","betAmountPerPlayer",1));
+            assertThat(hub.aiWaitingOmok()).anySatisfy(t->assertThat(t.tableId()).isEqualTo(table));
+        }
+    }
+
+    @Test
     void NPC오목_MM은_발언당시_참가자와_관전자_닉네임을_사용한다(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
         var sent=new CopyOnWriteArrayList<String>();
         try(var ai=new com.ssafy.ontop.ai.LocalWorldAi(mapper,directory,new com.ssafy.ontop.ai.OfflineDecisions(),

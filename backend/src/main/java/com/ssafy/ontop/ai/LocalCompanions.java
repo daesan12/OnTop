@@ -34,6 +34,7 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
     private final ScheduledExecutorService timer=Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().daemon(true).name("local-companions").factory());
     private final ThreadPoolExecutor engine=new ThreadPoolExecutor(1,1,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(64),Thread.ofPlatform().daemon(true).name("npc-omok-engine").factory());
     private final ThreadPoolExecutor dialogue=new ThreadPoolExecutor(1,1,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(8),Thread.ofPlatform().daemon(true).name("npc-dialogue").factory());
+    // Mutable maps and their entries share this monitor, including engine/dialogue callbacks.
     private final Map<String,Waiting> waiting=new HashMap<>(); private final Map<String,Practice> games=new HashMap<>();
     private final Map<String,Long> paused=new HashMap<>(),talkAfter=new HashMap<>();
     private final Map<String,String> conversations=new HashMap<>();
@@ -94,7 +95,11 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
             if(before==null || !before.table().owner().equals(table.owner()) || before.table().version()!=table.version())
                 waiting.put(table.tableId(),new Waiting(table,now));
             if(now-waiting.get(table.tableId()).since()>=30_000 && !paused.containsKey(table.tableId())) {
-                try { invite(table.owner(),Difficulty.NORMAL); } catch(IllegalArgumentException changed) { /* Seat changed; retry from a fresh snapshot. */ }
+                try { invite(table.owner(),Difficulty.NORMAL); }
+                catch(IllegalArgumentException changed) {
+                    // A fresh seat snapshot is still required; do not retry a failed reservation every 100ms.
+                    waiting.put(table.tableId(),new Waiting(table,now));
+                }
             }
         }
         observeGames(now);

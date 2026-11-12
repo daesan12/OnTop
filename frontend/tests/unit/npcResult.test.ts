@@ -1,6 +1,6 @@
 import {beforeEach,expect,it,vi} from 'vitest'
 vi.mock('../../src/park/runtime/ParkRuntime',()=>({useParkRuntime:()=>({})}))
-import {npcResultModel,dismissNpcResult,getNpcResult} from '../../src/features/ai/NpcResultPanel'
+import {npcResultModel,dismissNpcResult,getNpcResult,leaveNpcResult} from '../../src/features/ai/NpcResultPanel'
 import {acceptAiFeatures} from '../../src/features/ai/serviceFeatures'
 import {acceptCompanions,resetCompanions,useCompanions,type Practice} from '../../src/features/ai/companions'
 import {useSession} from '../../src/network/worldClient'
@@ -9,7 +9,7 @@ import {parkRuntime} from '../../src/park/runtime/runtime'
 
 const finished=(winner:number|null=101):Practice=>({name:'윤한수',npcUserId:'9001',difficulty:'NORMAL',phase:'PLAYING',bet:0,thinking:false,speech:'',speechSource:'FIXED',analysis:{source:'LOCAL',blackEstimate:null,advantage:'UNKNOWN'},analysisNote:'',snapshot:{gameId:'npc-result',tableId:'table1',version:27,blackUserId:101,whiteUserId:9001,turnUserId:null,winnerUserId:winner,turnDeadline:null,endedAt:new Date().toISOString(),endReason:'FIVE',board:{board:Array.from({length:15},()=>Array(15).fill(0)),moveCount:27,outcome:'BLACK_WIN',forbiddenMoves:[]}}})
 const status=(practice:Practice|null)=>({actors:[],practice,commentary:[],waitSeconds:-1})
-beforeEach(()=>{resetCompanions();resetGame();useSession.setState({sessionId:'101',tableId:'table1',seatIndex:0,status:'connected'});vi.restoreAllMocks()})
+beforeEach(()=>{resetCompanions();resetGame();acceptAiFeatures({companions:true,jokeContest:false});useSession.setState({sessionId:'101',tableId:'table1',seatIndex:0,status:'connected'});vi.restoreAllMocks()})
 it.each([[101,'승리'],[9001,'패배'],[null,'무승부']] as const)('presents both participants and the correct outcome for winner %s', (winner,label)=>{
  const base=useGame.getState(),model=npcResultModel(finished(winner),'101','홍팀 로컬')
  expect(model.rows.map(r=>r.nickname)).toEqual(['홍팀 로컬','윤한수'])
@@ -61,4 +61,27 @@ it.each(['table','account','room'] as const)('does not leave the new %s context 
  useSession.setState(kind==='table'?{tableId:'table2'}:kind==='account'?{sessionId:'102'}:{roomId:'other'})
  resetCompanions();resolve({stopped:true})
  expect(await dismiss).toBe(false)
+})
+it('leaves via TABLE_LEFT without the cleanup HTTP endpoint',async()=>{
+ acceptCompanions(status(finished()))
+ const request=vi.spyOn(parkRuntime,'requestJSON')
+ const leave=vi.fn(async()=>{useSession.setState({tableId:'',seatIndex:-1});return true})
+ expect(await leaveNpcResult('npc-result',leave)).toBe(true)
+ expect(request).not.toHaveBeenCalled();expect(leave).toHaveBeenCalledOnce()
+ expect(useCompanions.getState().practice).toBeNull();expect(useCompanions.getState().finishedPractice).toBeNull()
+})
+it.each([false,'throws'])('keeps the result when the authoritative leave fails (%s)',async failure=>{
+ acceptCompanions(status(finished()))
+ const leave=vi.fn(async()=>{if(failure==='throws')throw Error('offline');return false})
+ expect(await leaveNpcResult('npc-result',leave)).toBe(false)
+ expect(useCompanions.getState().finishedPractice).not.toBeNull();expect(useSession.getState().tableId).toBe('table1')
+ expect(useCompanions.getState().practiceError).toContain('자리에서 일어나지 못했어요')
+})
+it('does not erase the new game after a delayed table leave acknowledgment',async()=>{
+ acceptCompanions(status(finished()))
+ let resolve!:(value:boolean)=>void
+ const task=leaveNpcResult('npc-result',()=>new Promise(r=>{resolve=r}))
+ useSession.setState({tableId:'table2'});const next=finished();next.snapshot.gameId='new-game';next.snapshot.tableId='table2'
+ acceptCompanions(status(next));resolve(true)
+ expect(await task).toBe(false);expect(useCompanions.getState().practice?.snapshot.gameId).toBe('new-game')
 })

@@ -62,6 +62,7 @@ test('cleanup failure keeps the result for retry, including after automatic serv
  const ended={...practice,phase:'PLAYING',snapshot:{...practice.snapshot,endedAt:new Date().toISOString(),winnerUserId:101}}
  await page.route('**/api/v1/ai/companions/status',r=>r.fulfill({json:{actors:[],practice:active?ended:null,commentary:[]}}))
  await page.route('**/api/v1/ai/companions/action',r=>r.fulfill({status:503,json:{code:'UNAVAILABLE'}}))
+ await page.route('**/fixture/table-leave',r=>r.fulfill({json:{left:true}}))
  await page.goto('/tests/fixtures/npc-opponent.html')
  const result=page.getByRole('dialog',{name:'경기 결과',exact:true})
  await result.getByRole('button',{name:'다음 판 준비'}).click()
@@ -71,6 +72,23 @@ test('cleanup failure keeps the result for retry, including after automatic serv
  await expect(result).toBeVisible()
  await result.getByRole('button',{name:'자리에서 일어나기'}).click()
  await expect(result).toHaveCount(0)
+})
+
+test('table leave remains available when NPC cleanup fails, and a failed leave can be retried',async({page})=>{
+ const ended={...practice,phase:'PLAYING',snapshot:{...practice.snapshot,endedAt:new Date().toISOString(),winnerUserId:101}}
+ let allowLeave=false,stops=0
+ await page.route('**/api/v1/ai/companions/status',r=>r.fulfill({json:{actors:[],practice:ended,commentary:[]}}))
+ await page.route('**/api/v1/ai/companions/action',r=>{stops++;return r.fulfill({status:503,json:{code:'UNAVAILABLE'}})})
+ await page.route('**/fixture/table-leave',r=>r.fulfill({status:allowLeave?200:503,json:{left:allowLeave}}))
+ await page.goto('/tests/fixtures/npc-opponent.html')
+ const result=page.getByRole('dialog',{name:'경기 결과',exact:true})
+ await result.getByRole('button',{name:'다음 판 준비'}).click()
+ await expect(result.getByRole('alert')).toContainText('처리하지 못했어요')
+ await result.getByRole('button',{name:'자리에서 일어나기'}).click()
+ await expect(result.getByRole('alert')).toContainText('자리에서 일어나지 못했어요')
+ allowLeave=true
+ await result.getByRole('button',{name:'자리에서 일어나기'}).click()
+ await expect(result).toHaveCount(0);expect(stops).toBe(1)
 })
 
 test('a new human game clears the cached NPC result and it does not reappear',async({page})=>{

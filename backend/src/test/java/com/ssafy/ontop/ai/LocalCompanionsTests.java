@@ -111,6 +111,38 @@ class LocalCompanionsTests {
             assertThat(mapper.valueToTree(ai.status("101","one").get("actors")).findValuesAsText("id")).doesNotContain(ids.getFirst()).containsAll(ids.subList(1,ids.size()));
         }
     }
+    @Test void failedAutomaticReservationWaitsThirtySecondsBeforeRetryingAndManualInviteStillWorks() {
+        table("t1","one","101");
+        try(var ai=create((b,m)->OmokAnalyzer.unavailable())) {
+            when(hub.aiReserveOmok(any(),anyString())).thenReturn(false);
+            ai.tick();clock.advance(30);ai.tick();
+            verify(hub,times(1)).aiReserveOmok(any(),anyString());
+            for(int i=0;i<5;i++){clock.at=clock.at.plusMillis(100);ai.tick();}
+            verify(hub,times(1)).aiReserveOmok(any(),anyString());
+            assertThat(ai.status("101","one").get("waitSeconds")).isEqualTo(30L);
+            clock.at=clock.at.plusMillis(29_500);ai.tick();
+            verify(hub,times(2)).aiReserveOmok(any(),anyString());
+            when(hub.aiReserveOmok(any(),anyString())).thenAnswer(i->tables.remove(i.getArgument(0)));
+            assertThat(ai.invite("101",LocalCompanions.Difficulty.EASY)).containsEntry("difficulty",LocalCompanions.Difficulty.EASY);
+        }
+    }
+    @Test void ticksStatusAndInviteStopRequestsShareOneStateBoundary() throws Exception {
+        table("t1","one","101");
+        try(var ai=create((b,m)->OmokAnalyzer.unavailable());var workers=Executors.newFixedThreadPool(3)) {
+            doAnswer(i->{table("t1","one","101");return null;}).when(hub).aiReleaseOmok(eq("t1"),anyString());
+            var start=new CountDownLatch(1);
+            var requests=workers.submit(()->{start.await();for(int i=0;i<20;i++){
+                var p=mapper.valueToTree(ai.invite("101",LocalCompanions.Difficulty.EASY));
+                ai.action("101",mapper.createObjectNode().put("gameId",p.path("snapshot").path("gameId").asText()).put("kind","stop"));
+            }return true;});
+            var ticks=workers.submit(()->{start.await();for(int i=0;i<20;i++)ai.tick();return true;});
+            var reads=workers.submit(()->{start.await();for(int i=0;i<20;i++)ai.status("101","one");return true;});
+            start.countDown();assertThat(requests.get(5,TimeUnit.SECONDS)).isTrue();
+            assertThat(ticks.get(5,TimeUnit.SECONDS)).isTrue();assertThat(reads.get(5,TimeUnit.SECONDS)).isTrue();
+            assertThat(practice(ai,"101").isNull()).isTrue();
+            verify(hub,times(20)).aiReleaseOmok(eq("t1"),anyString());
+        }
+    }
     @Test void manualInviteMovesAndRefusesUndoAndDrawWithoutChangingBoard() throws Exception {
         table("t1","one","101");
         try(var ai=create((b,m)->new OmokAnalyzer.Analysis("TEST","UNKNOWN",null,0,0,"8,7","판세를 지켜보세."))) {

@@ -2337,7 +2337,10 @@ public class TableHub {
 
     private void leave(Member member, Request request) {
         TableRoom room = seatedRoom(member, request);
-        ensureWaiting(room.snapshot().tableId(), request);
+        ensureWaiting(room.snapshot().tableId(), request, true);
+        // TABLE_LEAVE itself releases a practice seat, even when the companion HTTP endpoint is unavailable.
+        String npc = aiPracticeSeats.get(room.snapshot().tableId());
+        if (npc != null) aiReleaseOmok(room.snapshot().tableId(), npc);
         cancelReadyBalance(member.userId());
         String tableId = seating.remove(member.userId());
         waitingReconnects.remove(member.userId());
@@ -2679,7 +2682,11 @@ public class TableHub {
     }
 
     private void ensureWaiting(String tableId, Request request) {
-        if(aiPracticeSeats.containsKey(tableId)) fail(request,"NPC_PRACTICE_ACTIVE","NPC 연습 창에서 대결을 끝낸 뒤 이용해주세요.");
+        ensureWaiting(tableId, request, false);
+    }
+
+    private void ensureWaiting(String tableId, Request request, boolean leaving) {
+        if(!leaving && aiPracticeSeats.containsKey(tableId)) fail(request,"NPC_PRACTICE_ACTIVE","NPC 연습 창에서 대결을 끝낸 뒤 이용해주세요.");
         TableStartAttempt attempt = starts.get(tableId);
         if (attempt != null && attempt.frozen()) {
             fail(request, "TABLE_BUSY", "시작 연동 확인 중이거나 검증이 완료된 테이블입니다.");
