@@ -69,4 +69,3 @@ export function createCurbGeometry(paths:readonly V[][]=curbPaths,top=.14){
  }
  const geometry=new BufferGeometry();geometry.setAttribute('position',new Float32BufferAttribute(p,3));geometry.setIndex(ix);geometry.computeVertexNormals();geometry.computeBoundingBox();return geometry
 }
-export const curbGeometry=staticPark?.curbs.geometry??createCurbGeometry()

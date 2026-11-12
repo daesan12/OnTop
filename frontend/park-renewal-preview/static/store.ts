@@ -12,14 +12,12 @@ export interface StaticPark {
   plantingField: Float32Array
   ground: {
     grass: BufferGeometry; paving: BufferGeometry; retaining: BufferGeometry
-    pavingBoundary: {positions:number[];indices:number[]}
   }
   groundIndex: {triangles:number[];bins:Map<number,number[]>}
-  curbs: {paths:V3[][];geometry:BufferGeometry}
+  curbs: {paths:V3[][]}
   hillEdges: {a:number[];z:number[]}[]
   guards: {guardRuns:V3[][];guardPosts:number[][];guardPostRailBases:number[]}
   jumpFence: {runs:V3[][];sections:{a:readonly[number,number];z:readonly[number,number]}[]}
-  guardArt: {hill:Partial<Record<PropFinish,BufferGeometry>>;jump:Partial<Record<PropFinish,BufferGeometry>>}
   // Optional so an older valid archive can still use the original building path.
   buildingArt?: {mole:MoleShopArt}
   outdoorReflection?:OutdoorReflectionData

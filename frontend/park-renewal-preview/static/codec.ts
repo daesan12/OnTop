@@ -102,6 +102,9 @@ export function decodeStaticPark(buffer:ArrayBuffer):StaticPark {
     values.set(value.ref,result);return result
   }
   const snapshot=read(root) as StaticPark
-  if(!(snapshot.forestField instanceof Float64Array)||!(snapshot.plantingField instanceof Float32Array)||!snapshot.ground?.grass?.isBufferGeometry||!snapshot.guards||!snapshot.jumpFence||!snapshot.guardArt)throw Error('Incomplete static park')
+  if(!(snapshot.forestField instanceof Float64Array)||!(snapshot.plantingField instanceof Float32Array)
+    ||!snapshot.ground?.grass?.isBufferGeometry||!snapshot.ground.paving?.isBufferGeometry
+    ||!snapshot.ground.retaining?.isBufferGeometry||!snapshot.groundIndex||!Array.isArray(snapshot.curbs?.paths)
+    ||!snapshot.hillEdges||!snapshot.guards||!snapshot.jumpFence)throw Error('Incomplete static park')
   return snapshot
 }
