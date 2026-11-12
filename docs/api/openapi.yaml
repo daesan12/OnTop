@@ -9319,6 +9319,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Mole"
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleRoundTarget"
+    MoleRoundTarget:
+      type: object
+      properties:
+        hole:
+          type: integer
+          format: int32
+        ids:
+          type: array
+          items:
+            type: string
     Rules:
       type: object
       properties:
@@ -9375,6 +9389,8 @@ components:
         at:
           type: integer
           format: int32
+        targetId:
+          type: string
     Result:
       type: object
       properties:
@@ -9432,6 +9448,10 @@ components:
         durationMs:
           type: integer
           format: int32
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleRoundTarget"
     SpeedMoleComplete:
       type: object
       properties:
@@ -9448,6 +9468,8 @@ components:
         at:
           type: integer
           format: int32
+        targetId:
+          type: string
     SpeedMoleResult:
       type: object
       properties:

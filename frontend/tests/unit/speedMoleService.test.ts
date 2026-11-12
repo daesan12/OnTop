@@ -33,6 +33,19 @@ describe('speed mole server/client contract', () => {
     await expect(service.start('same_key')).rejects.toThrow('준비되지')
     expect(request).toHaveBeenCalledTimes(1)
   })
+  it('selects target IDs using the exact round ID and accepts an older start response', async () => {
+    const round = { id: '9223372036854775807', seed: 1, rulesVersion: 1, durationMs: 60000,
+      serverNow: '2030-01-01T00:00:00Z', startedAt: '2030-01-01T00:00:03Z' }
+    const request = vi.fn().mockResolvedValue({ ...round, targets: [
+      { hole: 1, ids: ['one-a', 'one-b'] },
+      { hole: 2, ids: ['two-a', 'two-b'] },
+    ] })
+    const service = new SpeedMoleService(request)
+
+    expect(await service.start('current')).toEqual({ ...round, targetIds: new Map([[1, 'one-b'], [2, 'two-a']]) })
+    request.mockResolvedValue(round)
+    expect(await service.start('legacy')).toEqual(round)
+  })
   it('rejects a mismatched rules version and malformed saved score', async () => {
     const request=vi.fn().mockResolvedValue({id:'7',seed:1,rulesVersion:2,durationMs:60000,serverNow:'2030-01-01',startedAt:'2030-01-01'})
     const service=new SpeedMoleService(request)

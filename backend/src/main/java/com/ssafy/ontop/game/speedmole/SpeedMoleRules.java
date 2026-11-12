@@ -8,7 +8,11 @@ public final class SpeedMoleRules {
     public static final int VERSION = 1, DURATION_MS = 60_000, COUNTDOWN_MS = 3_000, MAX_TAPS = 6_000;
     /** 기존 두더지(MoleRules)와 별도인 스피드 두더지 지급 비율. */
     public static final int POINTS_PER_COIN = 5;
-    public record Tap(int hole, int at) { }
+    public record Tap(int hole, int at, String targetId) {
+        public Tap(int hole, int at) {
+            this(hole, at, null);
+        }
+    }
     public record Score(int score, int hits, int misses) { }
     private long state;
     private SpeedMoleRules(long seed) { state = seed & 0xffffffffL; }
@@ -17,7 +21,7 @@ public final class SpeedMoleRules {
         return (int) (state * length / 4294967296L);
     }
     public static Score replay(long seed, List<Tap> taps) {
-        if (taps == null || taps.size() > MAX_TAPS) throw invalid();
+        requireTapCount(taps);
         var random = new SpeedMoleRules(seed);
         var available = new ArrayList<>(List.of(0, 1, 2, 3, 4, 5, 6, 7));
         var targets = new ArrayList<Integer>();
@@ -36,5 +40,12 @@ public final class SpeedMoleRules {
         }
         return new Score(score, hits, misses);
     }
+
+    static void requireTapCount(List<Tap> taps) {
+        if (taps == null || taps.size() > MAX_TAPS) {
+            throw invalid();
+        }
+    }
+
     private static SpeedMoleException invalid() { return new SpeedMoleException(400, "SPEED_MOLE_INVALID_TAPS", "타격 기록을 확인해 주세요."); }
 }

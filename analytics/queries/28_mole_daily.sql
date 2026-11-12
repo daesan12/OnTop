@@ -22,6 +22,11 @@ SELECT DATE(started_at + INTERVAL 9 HOUR) AS kst_date,
        COALESCE(SUM(calculated_reward), 0) AS calculated_coins,
        COALESCE(SUM(reward), 0) AS rewarded_coins,
        COALESCE(SUM(calculated_reward - reward), 0) AS capped_coins
-FROM mole_rounds
+FROM mole_rounds r
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM JSON_TABLE(COALESCE(@mole_confirmed_user_ids, '[]'), '$[*]' COLUMNS (user_id BIGINT PATH '$')) AS confirmed
+    WHERE confirmed.user_id = r.user_id
+)
 GROUP BY kst_date, rules_version
 ORDER BY kst_date, rules_version;

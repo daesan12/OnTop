@@ -97,8 +97,9 @@ function MoleScreen() {
     if (useMole.getState().phase !== 'playing' || !scorer.current || hits.current.length >= MAX_HITS) return
     const wall = performance.now(), at = Math.round(wall - clock.current.playAt)
     if (at < 0 || at > rules.durationMs) return
-    hits.current.push({ hole, at })
     const event = scorer.current.hit(hole, at)
+    const hasTarget = event.type === 'catch' || event.type === 'tap' || event.type === 'decoy'
+    hits.current.push({ hole, at, targetId: hasTarget ? round?.targetIds?.get(hole) : undefined })
     // 기절했거나 같은 구멍을 너무 빨리 다시 누르면 망치가 나오지 않는다.
     if (event.type === 'ignored' && (event.reason === 'stunned' || event.reason === 'repeat')) return
     setSwings(list => [...list.filter(s => wall - s.at < SWING_MS), { id: ++fxSeq.current, hole, at: wall }])
