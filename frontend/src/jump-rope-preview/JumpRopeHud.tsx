@@ -9,20 +9,21 @@ const feedbackText = {
 
 const comboMarks = 'M20 39 7 32m17 0-8-10m3 26-9 4m129-19 14-10m-11 21 10 1M34 65q47-13 96-5'
 
-function TimerRays({ mirrored = false }: { mirrored?: boolean }) {
+function ScoreRays({ mirrored = false }: { mirrored?: boolean }) {
   return (
-    <svg className="rope-hud__timer-rays" data-mirrored={mirrored} viewBox="0 0 34 54" aria-hidden="true">
+    <svg className="rope-hud__score-rays" data-mirrored={mirrored} viewBox="0 0 34 54" aria-hidden="true">
       <path d="m11 3 20 14-5 6L5 12zM2 25l24 4-1 7H1zM7 49l20-9 4 6-19 8z" />
     </svg>
   )
 }
 
-export function JumpRopeHud({ seconds, score, combo, chances, judgement, note, feedbackKey, sample }: {
+export function JumpRopeHud({ seconds, score, combo, chances, judgement, earnedPoints, note, feedbackKey, sample }: {
   seconds: number
   score: number
   combo: number
   chances: number
   judgement?: HudJudgement
+  earnedPoints?: number
   note?: string
   feedbackKey?: string
   sample: boolean
@@ -33,22 +34,22 @@ export function JumpRopeHud({ seconds, score, combo, chances, judgement, note, f
   return (
     <div className="rope-hud" aria-label="줄넘기 HUD">
       <div className="rope-hud__stats">
-        <div className="rope-hud__card rope-hud__side rope-hud__score">
-          <svg className="rope-hud__icon" viewBox="1 3 30 29" aria-hidden="true">
-            <path d="M8 7h16v8a8 8 0 0 1-16 0zm6 14h4v5h4v3H10v-3h4z" />
-            <path d="M8 10H3c0 5 3 8 7 8m14-8h5c0 5-3 8-7 8" fill="none" stroke="currentColor" strokeWidth="2.7" strokeLinejoin="round" />
+        <div className="rope-hud__card rope-hud__side rope-hud__timer" data-urgent={seconds <= 10}>
+          <svg className="rope-hud__icon" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" strokeWidth="2.6" />
+            <path d="M16 9v7l4.5 3" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
           </svg>
           <dl>
-            <dt>점수</dt>
-            <dd key={score} data-scored={score > 0}>{score.toLocaleString('ko-KR')}</dd>
+            <dt>남은 시간</dt>
+            <dd>{seconds}<small>초</small></dd>
           </dl>
         </div>
-        <dl className="rope-hud__card rope-hud__timer" data-urgent={seconds <= 10}>
-          <dt>남은 시간</dt>
-          <dd>
-            <TimerRays />
-            <span>{seconds}<small>초</small></span>
-            <TimerRays mirrored />
+        <dl className="rope-hud__card rope-hud__score" data-digits={String(score).length}>
+          <dt>점수</dt>
+          <dd key={score} data-scored={score > 0}>
+            <ScoreRays />
+            <span className="rope-hud__score-value">{score.toLocaleString('ko-KR')}</span>
+            <ScoreRays mirrored />
           </dd>
         </dl>
         <dl className="rope-hud__card rope-hud__chances">
@@ -81,6 +82,8 @@ export function JumpRopeHud({ seconds, score, combo, chances, judgement, note, f
           {feedback && (
             <span key={feedbackKey ?? judgement} className="rope-hud__verdict" data-judgement={judgement}>
               <strong>{feedback.label}</strong><span>{feedback.message}</span>
+              {earnedPoints !== undefined &&
+                <span className="rope-hud__earned">+{earnedPoints}점</span>}
             </span>
           )}
           {!feedback && note && <span className="rope-hud__note">{note}</span>}

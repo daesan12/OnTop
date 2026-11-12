@@ -5,7 +5,11 @@ export const startingChances = 3
 
 export type RoundEndReason = 'time' | 'missLimit'
 
-const points = { perfect: 150, good: 100, miss: 0 } as const
+const points = { perfect: 15, good: 10, miss: 0 } as const
+
+export function pointsForPass(kind: PassJudgement['kind'], combo: number) {
+  return kind === 'perfect' && combo >= 2 ? points.perfect * 2 : points[kind]
+}
 
 export function createRoundStats() {
   return {
@@ -25,7 +29,7 @@ export function applyPass(stats: RoundStats, { kind, number }: Pick<PassJudgemen
 
   const combo = kind === 'perfect' ? stats.combo + 1 : 0
   return {
-    score: stats.score + points[kind],
+    score: stats.score + pointsForPass(kind, combo),
     chances: stats.chances - (kind === 'miss' ? 1 : 0),
     combo,
     maxCombo: Math.max(stats.maxCombo, combo),
