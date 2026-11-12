@@ -6,3 +6,9 @@ export function preloadEntranceModels() {
   useLoader.preload(ParkAssetLoader, models.fortune!)
   useLoader.preload(ParkAssetLoader, models.main!)
 }
+
+export function preloadGateSurroundings() {
+  for (const kind of ['lottery', 'bread', 'pigeon', 'cafe']) {
+    useLoader.preload(ParkAssetLoader, models[kind]!)
+  }
+}

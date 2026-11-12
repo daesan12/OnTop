@@ -1,5 +1,6 @@
 import type { ParkMapData } from '../map/park'
 import { RENEWAL_PARK_ENABLED } from './mapSelection'
+import { requestRenewalMap } from './renewalMapRequest'
 import type { TableAnchor } from './tablePlacement'
 import type { Point3 } from '../map/park/interactionData'
 import type { VrEntrance } from '../features/vrZone/anchors'
@@ -28,9 +29,7 @@ type RenewalData = Omit<ParkMapData, 'tables' | 'interactions' | 'pavilions' | '
 type RenewalMap = { mapId: 'park'; mapVersion: string; schemaVersion: 2; data: RenewalData }
 
 async function loadRenewalMap(): Promise<RenewalMap> {
-  const response = await fetch('/generated/park-renewal/server-map.json', { cache: 'no-store' })
-  if (!response.ok) throw new Error('220m 공원 맵을 읽을 수 없습니다. generate-renewal-park.mjs를 실행해주세요.')
-  const map = await response.json() as RenewalMap
+  const map = await requestRenewalMap() as RenewalMap
   if (map.mapId !== 'park' || map.schemaVersion !== 2 || !/^[a-f0-9]{64}$/.test(map.mapVersion)
     || map.data?.world.half !== 110 || map.data.physics.meshes[0]?.id !== map.data.physics.terrain.meshId) {
     throw new Error('220m 공원 생성물이 올바르지 않습니다.')
