@@ -69,7 +69,8 @@ function ArcadeDialog() {
       limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null, inProgress: false },
     { id: 'jump-rope', name: '구구구 줄넘기', tagline: '비둘기들이 당신을 시험합니다.',
       summary: 'Space로 줄을 넘고 60초 동안 버텨요. MISS가 세 번이면 경기가 끝나요.',
-      fee: '무료', prize: '없음', limitLabel: '제한 시간', limit: '60초', playsLeft: null, inProgress: false },
+      fee: '무료', prize: '50점당 1냥 · 하루 상한 안에서',
+      limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null, inProgress: false },
   ]
   const choice = choices.find(c => c.id === selected)!
   const manual = choice.id === 'jump-rope' ? undefined : choice.id
@@ -98,7 +99,7 @@ function ArcadeDialog() {
           <small>선택한 게임</small>
           <h3>{choice.name}</h3>
           <p className="arcade-tagline">{choice.tagline}</p>
-          <ArcadeArt game={choice.id} />
+          <GameArt game={choice.id} />
           <p className="arcade-summary">{choice.summary}</p>
           <dl className="arcade-terms">
             <div><dt>참가비</dt><dd>{choice.fee !== '무료' && <img className="arcade-coin" src={coinImage} alt="" />}{choice.fee}</dd></div>

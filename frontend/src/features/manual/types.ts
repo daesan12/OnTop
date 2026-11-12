@@ -17,6 +17,7 @@ export const manualGameIds = [
   "plus-minus",
   "whack-a-mole",
   "speed-mole",
+  "jump-rope",
 ] as const;
 export type ManualGameId = (typeof manualGameIds)[number];
 export type ManualCategory = "game" | "minigame" | "vr";
