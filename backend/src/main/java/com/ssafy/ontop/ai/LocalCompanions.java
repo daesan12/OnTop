@@ -14,6 +14,7 @@ import java.util.concurrent.*;
 public final class LocalCompanions implements AutoCloseable,AiFeature {
     @Override public String featureKey(){return "companions";}
     public enum Difficulty { EASY, NORMAL, HARD }
+    static final long TABLE_APPROACH_MILLIS=1800;
     private record Waiting(TableHub.AiTable table,long since) { }
     private static final class Practice {
         final TableHub.AiTable table; final long npc; OmokMatch match; final Difficulty difficulty;final OmokResident resident;
@@ -26,11 +27,12 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
             table=t;this.npc=npc;difficulty=d;resident=OmokResident.forDifficulty(d);invitedAt=now.toEpochMilli();arrived=immediate;speech=resident.opening(npc);
             match=new OmokMatch("npc-"+UUID.randomUUID(),t.tableId(),Long.parseLong(t.owner()),npc,now);
         }
+        String actorId(){return "opponent-"+npc;}
     }
     private final TableHub hub; private final ObjectMapper mapper; private final Clock clock;
     private final OmokAnalyzer analyzer; private final AiText texts;
     private final ScheduledExecutorService timer=Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().daemon(true).name("local-companions").factory());
-    private final ThreadPoolExecutor engine=new ThreadPoolExecutor(1,1,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(8),Thread.ofPlatform().daemon(true).name("npc-omok-engine").factory());
+    private final ThreadPoolExecutor engine=new ThreadPoolExecutor(1,1,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(64),Thread.ofPlatform().daemon(true).name("npc-omok-engine").factory());
     private final ThreadPoolExecutor dialogue=new ThreadPoolExecutor(1,1,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(8),Thread.ofPlatform().daemon(true).name("npc-dialogue").factory());
     private final Map<String,Waiting> waiting=new HashMap<>(); private final Map<String,Practice> games=new HashMap<>();
     private final Map<String,Long> paused=new HashMap<>(),talkAfter=new HashMap<>();
@@ -66,7 +68,12 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
         long now=clock.millis();
         for(var g:List.copyOf(games.values())) {
             if(!hub.aiPracticeValid(g.table.tableId(),g.table.owner(),Long.toString(g.npc))) { release(g); continue; }
-            if(!g.arrived){if(now-g.invitedAt>90_000){release(g);pauseAuto(g.table.tableId());conversations.put(g.table.owner(),g.resident.name+"이 길을 찾지 못해 호출을 취소했어요. 다시 부르거나 다른 테이블을 이용해주세요.");conversationSources.put(g.table.owner(),"FIXED_PATH_FAILURE");}continue;}
+            if(!g.arrived){
+                if(now-g.invitedAt<TABLE_APPROACH_MILLIS)continue;
+                g.arrived=true;
+                // The local entrance animation never consumes the player's turn time.
+                g.match=new OmokMatch(g.match.snapshot().gameId(),g.table.tableId(),Long.parseLong(g.table.owner()),g.npc,clock.instant());
+            }
             boolean wasPlaying=g.match.snapshot().endedAt()==null;
             g.match.expire(clock.instant());
             if(wasPlaying && g.match.snapshot().endedAt()!=null) {
@@ -86,8 +93,7 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
             var before=waiting.get(table.tableId());
             if(before==null || !before.table().owner().equals(table.owner()) || before.table().version()!=table.version())
                 waiting.put(table.tableId(),new Waiting(table,now));
-            if(now-waiting.get(table.tableId()).since()>=30_000 && !paused.containsKey(table.tableId())
-                    && games.values().stream().noneMatch(g -> g.table.channelId().equals(table.channelId())&&g.difficulty==Difficulty.NORMAL)) {
+            if(now-waiting.get(table.tableId()).since()>=30_000 && !paused.containsKey(table.tableId())) {
                 try { invite(table.owner(),Difficulty.NORMAL); } catch(IllegalArgumentException changed) { /* Seat changed; retry from a fresh snapshot. */ }
             }
         }
@@ -100,8 +106,6 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
         if(existing.isPresent()) return view(existing.get());
         var table=hub.aiWaitingOmok().stream().filter(t -> t.owner().equals(owner)).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("오목을 선택한 테이블에 혼자 앉아 있을 때 부를 수 있어요."));
-        if(games.values().stream().anyMatch(g -> g.table.channelId().equals(table.channelId())&&g.difficulty==difficulty))
-            throw new IllegalArgumentException(OmokResident.forDifficulty(difficulty).name+"은 다른 대결 중이에요. 다른 주민을 선택하거나 잠시 기다려주세요.");
         long npc=++serial;
         if(!hub.aiReserveOmok(table,Long.toString(npc))) throw new IllegalArgumentException("좌석이 바뀌었어요. 다시 확인해주세요.");
         var g=new Practice(table,npc,difficulty,clock.instant(),navigationFactory==null);hub.aiBindPracticeGame(table.tableId(),Long.toString(npc),g.match.snapshot().gameId());games.put(table.tableId(),g);waiting.remove(table.tableId());paused.remove(table.tableId());
@@ -225,7 +229,7 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
     private Practice own(String owner) { return games.values().stream().filter(g -> g.table.owner().equals(owner)).findFirst().orElseThrow(() -> new IllegalArgumentException("진행 중인 NPC 대결이 없어요.")); }
     private Map<String,Object> view(Practice g) {
         var r=new LinkedHashMap<String,Object>();r.put("snapshot",g.match.snapshot());r.put("npcUserId",Long.toString(g.npc));r.put("name",g.resident.name);r.put("difficulty",g.difficulty);
-        r.put("actorId",g.resident.id(g.table.channelId()));r.put("phase",g.arrived?"PLAYING":"ARRIVING");
+        r.put("actorId",g.actorId());r.put("phase",g.arrived?"PLAYING":"ARRIVING");
         r.put("lastMove",g.moves.isEmpty()?null:g.moves.get(g.moves.size()-1));
         r.put("bet",0);r.put("thinking",g.thinking);r.put("speechPending",g.rewriting);r.put("speech",g.speech);r.put("speechSource",g.speechSource);r.put("analysis",g.analysis);r.put("analysisNote","직전 NPC 착수 전 국면 · 엔진 평가 지표이며 실제 승률 아님");return r;
     }
@@ -298,43 +302,42 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
         var previous=Map.copyOf(observers);observers.clear();var speechKeys=new HashSet<String>();var result=new ArrayList<Map<String,Object>>();
         for(var entry:worlds.entrySet()) {
             String channel=entry.getKey();var targets=watchTargets(channel);
-            var available=Arrays.stream(OmokResident.values()).filter(r->games.values().stream().noneMatch(g->g.table.channelId().equals(channel)&&g.resident==r)).map(r->r.id(channel)).toList();
+            var available=Arrays.stream(OmokResident.values()).map(r->r.id(channel)).toList();
             observers.putAll(OmokCrowd.assign(previous,available,List.copyOf(targets.keySet())));
             for(var resident:OmokResident.values()) {
                 String id=resident.id(channel);var walker=walker(id,resident);
-                var game=games.values().stream().filter(g->g.table.channelId().equals(channel)&&g.resident==resident).findFirst();
                 var watch=targets.get(observers.get(id));
-                double x,y,z,yaw;boolean moving=false,seated=false;var decision=NpcUtility.choose(false,game.isPresent(),watch!=null,walker.resting(now));
-                String action=decision.action(),tableId="";
-                if(game.isPresent()) {
-                    var g=game.get();tableId=g.table.tableId();
-                    if(!g.arrived) {
-                        var focus=navigation.groundPoint(g.table.x()+2,g.table.z());var v=walker.tick(now,dt,focus);
-                        x=v.point().x();y=v.point().y()-.8;z=v.point().z();yaw=v.yaw();moving=v.moving();action="APPROACH_OMOK";
-                        if(!moving&&v.point().distance(focus)<=3){g.arrived=true;var old=g.match.snapshot();g.match=new OmokMatch(old.gameId(),g.table.tableId(),Long.parseLong(g.table.owner()),g.npc,clock.instant());}
-                    } else {x=g.table.x();y=g.table.y()-.8;z=g.table.z();yaw=0;}
-                    if(g.arrived){x=g.table.x();y=g.table.y()-.8;z=g.table.z()+(g.table.ownerSeat()==1?-1.25:1.25);yaw=g.table.ownerSeat()==1?0:Math.PI;seated=true;moving=false;action="PLAY_OMOK";walker.relocate(new com.ssafy.ontop.world.movement.ParkNavigation.Point(x,y+.8,z));}
-                } else {
-                    // Distinct sides keep two observers from occupying the same spot.
-                    var focus=watch==null?null:navigation.groundPoint(watch.table().x()+2,watch.table().z()+(resident.ordinal()-1)*2);
-                    var v=walker.tick(now,dt,focus);x=v.point().x();y=v.point().y()-.8;z=v.point().z();yaw=v.yaw();moving=v.moving();decision=v.decision();action=decision.action();
-                    if(watch!=null){tableId=watch.table().tableId();if(!moving)yaw=Math.atan2(watch.table().x()-x,watch.table().z()-z);}
-                }
+                // The three roaming residents only watch; table opponents have independent bodies below.
+                var focus=watch==null?null:navigation.groundPoint(watch.table().x()+2,watch.table().z()+(resident.ordinal()-1)*2);
+                var v=walker.tick(now,dt,focus);
+                double x=v.point().x(),y=v.point().y()-.8,z=v.point().z(),yaw=v.yaw();boolean moving=v.moving(),seated=false;
+                var decision=v.decision();String action=decision.action(),tableId="";
+                if(watch!=null){tableId=watch.table().tableId();if(!moving)yaw=Math.atan2(watch.table().x()-x,watch.table().z()-z);}
                 var actor=new LinkedHashMap<String,Object>();actor.put("id",id);actor.put("channelId",channel);actor.put("name",resident.name);actor.put("role",resident==OmokResident.ELDER?"GUIDE":"VISITOR");actor.put("persona",resident.name());actor.put("difficulty",resident.difficulty);
                 actor.put("x",x);actor.put("y",y);actor.put("z",z);actor.put("yaw",yaw);actor.put("moving",moving);actor.put("seated",seated);actor.put("action",action);actor.put("utilities",decision.scores());actor.put("tableId",tableId);actor.put("observingGameId",watch==null?"":watch.id());result.add(actor);
-                actor.put("ambient",ambient.tick(id,resident.name(),game.isEmpty()&&watch==null&&(action.equals("PATROL")||action.equals("REST")),now));
+                actor.put("ambient",ambient.tick(id,resident.name(),watch==null&&(action.equals("PATROL")||action.equals("REST")),now));
                 final double sx=x,sz=z;
                 var audience=entry.getValue().entrySet().stream().filter(p->Math.hypot(p.getValue().x()-sx,p.getValue().z()-sz)<=20).map(Map.Entry::getKey).toList();
-                if(game.isPresent()) {
-                    var g=game.get();var state=g.match.snapshot();if(g.arrived&&!g.thinking&&!g.rewriting&&g.spoken!=state.version()){
-                        speak(channel,state.gameId(),state.gameId(),state.version(),g.speech,x,y,z,audience,resident);g.spoken=state.version();
-                    }
-                } else if(watch!=null) {
+                if(watch!=null) {
                     String key=id+"|"+watch.id();speechKeys.add(key);
                     if(watch.ready()&&observerSpoken.getOrDefault(key,-1L)!=watch.version()&&Math.hypot(watch.table().x()-x,watch.table().z()-z)<5&&!moving){
                         String speech=watch.voice()==resident?watch.speech():resident.observation(watch.version(),watch.analysis());
                         speak(channel,watch.gameScope(),watch.id(),watch.version(),speech,x,y,z,audience,resident);observerSpoken.put(key,watch.version());
                     }
+                }
+            }
+            for(var g:games.values())if(g.table.channelId().equals(channel)&&g.match.snapshot().endedAt()==null){
+                // Cosmetic entrance along the table edge: no global navigation route or shared body lease.
+                double progress=g.arrived?1:Math.max(0,Math.min(1,(now-g.invitedAt)/(double)TABLE_APPROACH_MILLIS));
+                double x=g.table.x()+2.4*(1-progress),y=g.table.y()-.8,z=g.table.z()+(g.table.ownerSeat()==1?-1.25:1.25);
+                var actor=new LinkedHashMap<String,Object>();actor.put("id",g.actorId());actor.put("channelId",channel);actor.put("name",g.resident.name);
+                actor.put("role","OPPONENT");actor.put("persona",g.resident.name());actor.put("difficulty",g.difficulty.name());actor.put("tableId",g.table.tableId());
+                actor.put("x",x);actor.put("y",y);actor.put("z",z);actor.put("yaw",g.arrived?(g.table.ownerSeat()==1?0:Math.PI):-Math.PI/2);
+                actor.put("moving",!g.arrived);actor.put("seated",g.arrived);actor.put("action",g.arrived?"PLAY_OMOK":"APPROACH_OMOK");result.add(actor);
+                var state=g.match.snapshot();
+                if(g.arrived&&!g.thinking&&!g.rewriting&&g.spoken!=state.version()){
+                    var audience=entry.getValue().entrySet().stream().filter(p->Math.hypot(p.getValue().x()-x,p.getValue().z()-z)<=20).map(Map.Entry::getKey).toList();
+                    speak(channel,state.gameId(),state.gameId(),state.version(),g.speech,x,y,z,audience,g.resident,g.actorId());g.spoken=state.version();
                 }
             }
         }
@@ -346,10 +349,13 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
         catch(RuntimeException unavailable){return new AiText.Reply(fallback,"FIXED_PROVIDER_FAILURE");}
     }
     private void speak(String channel,String game,String event,long version,String text,double x,double y,double z,List<String> audience,OmokResident resident) {
+        speak(channel,game,event,version,text,x,y,z,audience,resident,resident.id(channel));
+    }
+    private void speak(String channel,String game,String event,long version,String text,double x,double y,double z,List<String> audience,OmokResident resident,String actor) {
         String speech=text.length()>400?text.substring(0,400):text;
         hub.publishAi(channel,audience,"WORLD_AI_COMPANION_SPEECH",Map.ofEntries(
-                Map.entry("channelId",channel),Map.entry("gameId",game),Map.entry("incidentId",resident.id(channel)+":"+event+":"+version),
-                Map.entry("name",resident.name),Map.entry("actorId",resident.id(channel)),Map.entry("speech",speech),Map.entry("x",x),Map.entry("y",y),Map.entry("z",z),Map.entry("expiresAt",clock.millis()+30_000),Map.entry("basedOnVersion",version)),game);
+                Map.entry("channelId",channel),Map.entry("gameId",game),Map.entry("incidentId",actor+":"+event+":"+version),
+                Map.entry("name",resident.name),Map.entry("actorId",actor),Map.entry("speech",speech),Map.entry("x",x),Map.entry("y",y),Map.entry("z",z),Map.entry("expiresAt",clock.millis()+30_000),Map.entry("basedOnVersion",version)),game);
     }
     @Override public synchronized void close() { closed=true;timer.shutdownNow();engine.shutdownNow();dialogue.shutdownNow();for(var g:List.copyOf(games.values()))release(g);if(navigation!=null)navigation.close(); }
 }

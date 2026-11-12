@@ -9,7 +9,8 @@ export function CompanionPanel(){
  const connected=useSession(s=>s.status==='connected'),channel=useSession(s=>s.roomId)
  useEffect(()=>{if(!connected||!channel){resetCompanionActors();useCompanions.setState({practice:null,observedPractice:null,practiceChat:null,practicePending:false,practiceError:'',reply:'',waitSeconds:-1});return}
   let active=true,timer:ReturnType<typeof setTimeout>
-  const poll=async()=>{try{const value=await parkRuntime.requestJSON(companionPath('status'));if(active)acceptCompanions(value)}catch{if(active)useCompanions.setState({practice:null,observedPractice:null,practiceChat:null})}finally{if(active)timer=setTimeout(()=>void poll(),650)}}
+  const failure='주민 상태를 확인하지 못했어요. 다시 연결하고 있어요.'
+  const poll=async()=>{try{const value=await parkRuntime.requestJSON(companionPath('status'));if(active&&acceptCompanions(value)&&useCompanions.getState().practiceError===failure)useCompanions.setState({practiceError:''})}catch{if(active)useCompanions.setState({practiceError:failure})}finally{if(active)timer=setTimeout(()=>void poll(),650)}}
   void poll();return()=>{active=false;clearTimeout(timer)}
  },[connected,channel])
  return null

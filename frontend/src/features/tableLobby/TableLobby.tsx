@@ -19,6 +19,7 @@ import { participantResultLabel, resultSettlement } from './gatheringModel'
 import { HostStartWaitNotice } from './HostStartWaitControls'
 import { BoardRewardCoinSource } from '../wallet/RewardCoinFlight'
 import { useCompanions } from '../ai/companions'
+import { NpcArrivalPanel } from '../ai/NpcArrivalPanel'
 
 export function TableLobby() {
   useAiFeatures(s=>s.companions)
@@ -51,7 +52,7 @@ function TableLobbyContent() {
   const ref = tableId ? publicMatchService.find({ channelId: s.channel, tableId }) : null
   const canWatch = !!ref && ref.tableId === tableId && ref.channelId === s.channel
     && !s.seated && !busy && s.connected
-  if (residentsEnabled() && practice?.snapshot.tableId===tableId && ownTable) return null
+  if (residentsEnabled() && practice?.snapshot.tableId===tableId && ownTable) return practice.phase==='ARRIVING'?<NpcArrivalPanel/>:null
   if (TABLET_ENABLED && ownTable) return gathering?.finished ? <TableGatheringHud key={gathering.scope} model={gathering} /> : <TabletLobby tableId={tableId} />
   if (gathering && details !== gathering.scope && (gathering.gameCode || gathering.finished)) return <TableGatheringHud model={gathering} />
   if (!s.focused || !query.panelOpen || game || s.bench || !ownTable) return null

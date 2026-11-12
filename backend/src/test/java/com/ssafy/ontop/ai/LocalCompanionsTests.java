@@ -39,14 +39,18 @@ class LocalCompanionsTests {
             assertThat(ai.status("202","one").get("observedPractice")).isNull();
         }
     }
-    @Test void threeDifficultiesReserveDifferentBodiesButDuplicateBodyIsRejected() {
+    @Test void eachTableHasItsOwnOpponentEvenAtTheSameDifficulty() {
         table("t1","one","101");table("t2","one","202");table("t3","one","303");table("t4","one","404");
         try(var ai=create((b,m)->OmokAnalyzer.unavailable())){
             var child=ai.invite("101",LocalCompanions.Difficulty.EASY);var neighbor=ai.invite("202",LocalCompanions.Difficulty.NORMAL);var elder=ai.invite("303",LocalCompanions.Difficulty.HARD);
             assertThat(child).containsEntry("name","강잼민");assertThat(neighbor).containsEntry("name","윤한수");assertThat(elder).containsEntry("name","박영감");
             assertThat(List.of(child.get("actorId"),neighbor.get("actorId"),elder.get("actorId"))).doesNotHaveDuplicates();
-            assertThatThrownBy(()->ai.invite("404",LocalCompanions.Difficulty.HARD)).hasMessageContaining("다른 대결");
-            verify(hub,times(3)).aiReserveOmok(any(),anyString());
+            var otherElder=ai.invite("404",LocalCompanions.Difficulty.HARD);
+            assertThat(otherElder.get("actorId")).isNotEqualTo(elder.get("actorId"));
+            assertThat(otherElder.get("npcUserId")).isNotEqualTo(elder.get("npcUserId"));
+            assertThat(practice(ai,"303").path("snapshot").path("gameId").asText()).isNotEqualTo(practice(ai,"404").path("snapshot").path("gameId").asText());
+            assertThat(ai.invite("404",LocalCompanions.Difficulty.HARD).get("actorId")).isEqualTo(otherElder.get("actorId"));
+            verify(hub,times(4)).aiReserveOmok(any(),anyString());
         }
     }
     @Test void approachingResidentCannotPlayOrTimeoutUntilThePhysicalArrival() {
@@ -57,14 +61,21 @@ class LocalCompanionsTests {
         when(hub.aiWaitingOmok()).thenAnswer(i->List.copyOf(tables));when(hub.aiReserveOmok(any(),anyString())).thenAnswer(i->tables.remove(i.getArgument(0)));when(hub.aiPracticeValid(anyString(),anyString(),anyString())).thenReturn(true);
         tables.add(new TableHub.AiTable("t1","one","101",1,10,.8,0));
         try(var ai=new LocalCompanions(hub,mapper,clock,(b,m)->OmokAnalyzer.unavailable(),AiText.fixed(),()->nav)){
-            String id=ai.invite("101",LocalCompanions.Difficulty.EASY).get("actorId").toString();ai.tick();clock.advance(31);ai.tick();
+            String id=ai.invite("101",LocalCompanions.Difficulty.EASY).get("actorId").toString();ai.tick();
             assertThat(practice(ai,"101").path("phase").asText()).isEqualTo("ARRIVING");assertThat(practice(ai,"101").path("snapshot").path("endedAt").isNull()).isTrue();
             assertThatThrownBy(()->ai.action("101",mapper.createObjectNode().put("gameId",practice(ai,"101").path("snapshot").path("gameId").asText()).put("kind","place"))).hasMessageContaining("걸어오고");
-            // The safe final grid point can be two metres from the requested table-side focus.
-            when(nav.path(any(),any(),eq(area))).thenAnswer(i->{com.ssafy.ontop.world.movement.ParkNavigation.Point target=i.getArgument(1);return List.of(i.getArgument(0),new com.ssafy.ontop.world.movement.ParkNavigation.Point(target.x()-2,target.y(),target.z()));});
-            for(int i=0;i<200&&practice(ai,"101").path("phase").asText().equals("ARRIVING");i++){clock.at=clock.at.plusMillis(100);ai.tick();}
+            var initial=mapper.valueToTree(ai.status("101","one").get("actors"));
+            var body=java.util.stream.StreamSupport.stream(initial.spliterator(),false).filter(a->a.path("id").asText().equals(id)).findFirst().orElseThrow();
+            assertThat(body.path("x").asDouble()).isEqualTo(12.4);assertThat(body.path("moving").asBoolean()).isTrue();
+            assertThat(initial.size()).isEqualTo(4); // Three roamers plus one short entrance actor.
+            clock.at=clock.at.plusMillis(900);ai.tick();
+            assertThat(practice(ai,"101").path("phase").asText()).isEqualTo("ARRIVING");
+            clock.at=clock.at.plusMillis(900);ai.tick();
             var p=practice(ai,"101");assertThat(p.path("phase").asText()).isEqualTo("PLAYING");assertThat(mapper.convertValue(p.path("snapshot").path("turnDeadline"),Instant.class)).isEqualTo(clock.instant().plusSeconds(30));
             assertThat(mapper.valueToTree(ai.status("101","one").get("actors")).findValuesAsText("id")).contains(id);
+            ai.action("101",mapper.createObjectNode().put("gameId",p.path("snapshot").path("gameId").asText()).put("version",p.path("snapshot").path("version").asLong()).put("kind","forfeit"));ai.tick();
+            assertThat(mapper.valueToTree(ai.status("101","one").get("actors")).findValuesAsText("id")).doesNotContain(id);
+            assertThat(mapper.valueToTree(ai.status("101","one").get("actors")).size()).isEqualTo(3);
         }
     }
     com.fasterxml.jackson.databind.JsonNode practice(LocalCompanions ai,String owner) {return mapper.valueToTree(ai.status(owner,"one").get("practice"));}
@@ -74,8 +85,30 @@ class LocalCompanionsTests {
             ai.tick();clock.advance(29);ai.tick();assertThat(practice(ai,"101").isNull()).isTrue();
             clock.advance(1);ai.tick();assertThat(practice(ai,"101").path("bet").asInt()).isZero();
             table("t2","one","202");table("t3","two","505");ai.tick();clock.advance(30);ai.tick();
-            assertThat(practice(ai,"202").isNull()).isTrue();assertThat(practice(ai,"505").path("npcUserId").asText()).isNotBlank();
-            assertThat(ai.status("202","one").get("waitSeconds")).isEqualTo(0L);
+            assertThat(practice(ai,"202").path("npcUserId").asText()).isNotBlank();assertThat(practice(ai,"505").path("npcUserId").asText()).isNotBlank();
+            assertThat(ai.status("202","one").get("waitSeconds")).isEqualTo(-1L);
+        }
+    }
+    @Test void manySameDifficultyTablesKeepIndependentBodiesAndReleaseOnlyTheChangedSeat() {
+        var nav=mock(com.ssafy.ontop.world.movement.ParkNavigation.class);
+        var area=new com.ssafy.ontop.world.movement.ParkNavigation.Area(-32,32,-24,64);
+        when(nav.plazaTables()).thenReturn(area);when(nav.spawn(area)).thenReturn(new com.ssafy.ontop.world.movement.ParkNavigation.Point(0,.8,0));
+        when(nav.groundPoint(anyDouble(),anyDouble())).thenAnswer(i->new com.ssafy.ontop.world.movement.ParkNavigation.Point(i.getArgument(0),.8,i.getArgument(1)));
+        when(hub.aiActors()).thenReturn(Map.of("one",Map.of("100",new com.ssafy.ontop.world.movement.ParkNavigation.Point(0,.8,0))));
+        when(hub.aiWaitingOmok()).thenAnswer(i->List.copyOf(tables));when(hub.aiReserveOmok(any(),anyString())).thenAnswer(i->tables.remove(i.getArgument(0)));
+        when(hub.aiPracticeValid(anyString(),anyString(),anyString())).thenReturn(true);
+        try(var ai=new LocalCompanions(hub,mapper,clock,(b,m)->OmokAnalyzer.unavailable(),AiText.fixed(),()->nav)){
+            var ids=new ArrayList<String>();
+            for(int i=0;i<9;i++){table("t"+i,"one",Integer.toString(100+i));ids.add(ai.invite(Integer.toString(100+i),LocalCompanions.Difficulty.HARD).get("actorId").toString());}
+            assertThat(ids).doesNotHaveDuplicates();clock.advance(2);ai.tick();
+            var actors=mapper.valueToTree(ai.status("100","one").get("actors"));
+            assertThat(actors.size()).isEqualTo(12);
+            assertThat(java.util.stream.StreamSupport.stream(actors.spliterator(),false).filter(a->a.path("role").asText().equals("OPPONENT")).count()).isEqualTo(9);
+            assertThat(java.util.stream.StreamSupport.stream(actors.spliterator(),false).filter(a->!a.path("role").asText().equals("OPPONENT")).map(a->a.path("action").asText()).toList()).doesNotContain("PLAY_OMOK","APPROACH_OMOK");
+            when(hub.aiPracticeValid(eq("t0"),anyString(),anyString())).thenReturn(false);ai.tick();
+            assertThat(practice(ai,"100").isNull()).isTrue();
+            assertThat(practice(ai,"101").path("phase").asText()).isEqualTo("PLAYING");
+            assertThat(mapper.valueToTree(ai.status("101","one").get("actors")).findValuesAsText("id")).doesNotContain(ids.getFirst()).containsAll(ids.subList(1,ids.size()));
         }
     }
     @Test void manualInviteMovesAndRefusesUndoAndDrawWithoutChangingBoard() throws Exception {
