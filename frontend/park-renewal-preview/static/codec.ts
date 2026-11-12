@@ -12,7 +12,29 @@ type Node =
   | {kind:'typed';type:string;offset:number;length:number}
   | {kind:'geometry';attributes:Record<string,{data:Ref;size:number;normalized:boolean}>;index:Ref|null;box:number[]|null;sphere:number[]|null;groups:BufferGeometry['groups'];drawRange:{start:number;count:number|null}}
 const constructors = {Float32Array,Float64Array,Uint16Array,Uint32Array}
-const MAGIC = 0x31535052 // RPS1; layout changes require a new version.
+const LEGACY_MAGIC = 0x31535052 // RPS1
+const MAGIC = 0x32535052 // RPS2
+const BYTE_PLANE_MIN_LENGTH = 32768
+
+// Group the same byte of consecutive samples so gzip can find more runs.
+// This is a byte permutation, including for floats. No values are rounded.
+function packBytes(bytes: Uint8Array, length: number, stride: number) {
+  if (length < BYTE_PLANE_MIN_LENGTH) return bytes
+  const packed = new Uint8Array(bytes.length)
+  for (let lane = 0; lane < stride; lane++) {
+    for (let i = 0; i < length; i++) packed[lane * length + i] = bytes[i * stride + lane]!
+  }
+  return packed
+}
+
+function unpackBytes(buffer: ArrayBuffer, start: number, length: number, stride: number, packed: boolean) {
+  if (!packed || length < BYTE_PLANE_MIN_LENGTH) return buffer.slice(start, start + length * stride)
+  const bytes = new Uint8Array(buffer, start, length * stride), restored = new Uint8Array(bytes.length)
+  for (let lane = 0; lane < stride; lane++) {
+    for (let i = 0; i < length; i++) restored[i * stride + lane] = bytes[lane * length + i]!
+  }
+  return restored.buffer
+}
 
 /** Lossless little-endian payload: Float64 height samples stay Float64, and
  * positions, normals, colours, indices and shared buffers keep their exact bits. */
@@ -31,7 +53,7 @@ export function encodeStaticPark(snapshot:StaticPark):Uint8Array {
       if(!(type in constructors))throw Error('Unsupported park array '+type)
       const padding=(8-offset%8)%8
       if(padding){chunks.push(new Uint8Array(padding));offset+=padding}
-      const bytes=new Uint8Array(array.buffer,array.byteOffset,array.byteLength)
+      const bytes=packBytes(new Uint8Array(array.buffer,array.byteOffset,array.byteLength),array.length,array.BYTES_PER_ELEMENT)
       node={kind:'typed',type,offset,length:array.length};chunks.push(bytes);offset+=bytes.byteLength
     }else if((value as BufferGeometry).isBufferGeometry){
       const geometry=value as BufferGeometry
@@ -62,7 +84,9 @@ export function encodeStaticPark(snapshot:StaticPark):Uint8Array {
 
 export function decodeStaticPark(buffer:ArrayBuffer):StaticPark {
   const header=new DataView(buffer)
-  if(buffer.byteLength<12||header.getUint32(0,true)!==MAGIC)throw Error('Invalid static park header')
+  if(buffer.byteLength<12)throw Error('Invalid static park header')
+  const magic=header.getUint32(0,true)
+  if(magic!==MAGIC&&magic!==LEGACY_MAGIC)throw Error('Invalid static park header')
   const size=header.getUint32(4,true),base=header.getUint32(8,true)
   if(base%8||12+size>base||base>buffer.byteLength)throw Error('Invalid static park metadata')
   const {root,nodes}=JSON.parse(new TextDecoder().decode(new Uint8Array(buffer,12,size))) as {root:Ref;nodes:Node[]}
@@ -82,7 +106,7 @@ export function decodeStaticPark(buffer:ArrayBuffer):StaticPark {
         // Each live array owns only its bytes. It must not pin the complete
         // decompressed archive (metadata and temporary numeric lists included).
         // The reference cache still shares one array between geometry users.
-        result=new Constructor(buffer.slice(start,end));break
+        result=new Constructor(unpackBytes(buffer,start,node.length,Constructor.BYTES_PER_ELEMENT,magic===MAGIC));break
       }
       case 'numbers':result=Array.from(read(node.data) as Float64Array);break
       case 'array':result=node.values.map(read);break
