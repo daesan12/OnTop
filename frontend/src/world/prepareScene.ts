@@ -1,8 +1,30 @@
-import { Texture, Vector4, VideoTexture, type Camera, type Material, type Scene, type WebGLRenderer } from 'three'
+import { Frustum, Matrix4, Object3D, Sprite, Texture, Vector4, VideoTexture, type Camera, type Material, type Scene, type WebGLRenderer } from 'three'
 
 const nextTurn = () => new Promise<void>(resolve => setTimeout(resolve, 0))
 const PROGRAM_TIMEOUT_MS = 30_000
 interface PreparationView { position: readonly [number, number, number]; target: readonly [number, number, number] }
+
+export async function prepareVisibleScenePrograms(renderer: WebGLRenderer, scene: Scene, camera: Camera, live: () => boolean) {
+  scene.updateMatrixWorld()
+  camera.updateWorldMatrix(true, false)
+  const view = new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+  const frustum = new Frustum().setFromProjectionMatrix(view, camera.coordinateSystem, camera.reversedDepth)
+  const visible: Object3D[] = []
+  scene.traverseVisible(object => {
+    if (!('material' in object) || !object.layers.test(camera.layers)) return
+    if (object.frustumCulled && !(object instanceof Sprite ? frustum.intersectsSprite(object) : frustum.intersectsObject(object))) return
+    visible.push(object)
+  })
+  // Three's compile traverses every child even if hidden or outside the camera.
+  // Give it the first camera's objects without reparenting any live meshes.
+  const selection = new Object3D()
+  selection.traverse = visit => visible.forEach(visit)
+  // compileAsync has its own poller. The shared wait below also checks all
+  // programs, including variants that share a material. Check them once.
+  renderer.compile(selection, camera, scene)
+  await waitForScenePrograms(renderer, live)
+  if (live()) performance.mark('park-gate-shaders-ready')
+}
 
 /** A shared material may compile more than its current LOD/skinning program. */
 export async function waitForScenePrograms(renderer: WebGLRenderer, live: () => boolean, compilation?: Promise<unknown>) {
@@ -89,8 +111,9 @@ export async function prepareScene(
   const collect = (material: Material) => {
     for (const value of Object.values(material)) if (value instanceof Texture && !(value instanceof VideoTexture)) textures.add(value)
     if ('uniforms' in material) {
-      for (const uniform of Object.values(material.uniforms as Record<string, { value: unknown }>))
+      for (const uniform of Object.values(material.uniforms as Record<string, { value: unknown }>)) {
         if (uniform.value instanceof Texture && !(uniform.value instanceof VideoTexture)) textures.add(uniform.value)
+      }
     }
   }
   const traverse = options.warmGeometry || options.warmLighting ? scene.traverse : scene.traverseVisible

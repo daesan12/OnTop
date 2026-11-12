@@ -21,6 +21,6 @@ export function VerticalMoleAttract({facility}:{facility:RecreationFacility}){
  return <group name="mole-shop-vertical-attract-mode" userData={{previewOnly:true}}>
   {targets.map((p,i)=><group key={i} ref={node=>{heads.current[i]=node}} position={[p.x,D.hiddenY,p.z]} visible={false}><PropModel art={headArt} name={'mole-demo-head-'+i}/></group>)}
   <group ref={hammer} name="mole-demo-vertical-hammer" rotation={[0,0,VERTICAL_MOLE.rotationZ]}><PropModel art={hammerArt} name="mole-demo-hammer-art"/></group>
-  <mesh ref={ring} rotation={[-Math.PI/2,0,0]} visible={false}><torusGeometry args={[.39,.025,8,32]}/><meshBasicMaterial color="#f3c66b" transparent opacity={0} depthWrite={false}/></mesh>
+  <mesh name="mole-demo-impact-ring" ref={ring} rotation={[-Math.PI/2,0,0]} visible={false}><torusGeometry args={[.39,.025,8,32]}/><meshBasicMaterial color="#f3c66b" transparent opacity={0} depthWrite={false}/></mesh>
  </group>
 }

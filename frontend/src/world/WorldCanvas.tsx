@@ -7,9 +7,13 @@ import { lazy } from 'react'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_GATE_STARTUP, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { loadRenewalParkWorld } from '../park/loadRenewalParkWorld'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
+import { FacilityOnApproach } from '../../park-renewal-preview/live/FacilityOnApproach'
+import { START } from '../features/jumpmap/activeCourse'
+import { useJumpmap } from '../features/jumpmap/state'
 const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
 const RenewalParkWorld=RENEWAL_PARK_ENABLED ? lazy(loadRenewalParkWorld) : null
 const ServiceJumpCourse=lazy(()=>import('../features/jumpmap/ServiceJumpCourse').then(m=>({default:m.ServiceJumpCourse})))
+const jumpCourseEntrance = { id: 'jump-course', x: START.x, z: START.z, radius: 18 }
 import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useFrame } from '@react-three/fiber'
@@ -42,7 +46,7 @@ import { AdaptiveResolution } from '../performance/AdaptiveResolution'
 import { Canvas, preloadWorldAssets } from './worldAssets'
 import {ParkDebrisScene} from '../features/parkDebris/ParkDebrisScene'
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
-import { prepareScene } from './prepareScene'
+import { prepareScene, prepareVisibleScenePrograms } from './prepareScene'
 import { warmParkGeometry } from '../park/loadParkGeometry'
 import { jumpmapPreparationViews } from '../features/jumpmap/preparation'
 import { useGachaOverlay } from '../features/gacha/view'
@@ -84,8 +88,15 @@ function SceneReady({ onReady }: { onReady: () => void }) {
   }, [startup])
   useFrame(({ gl, scene, camera }) => {
     if (startup.phase === 'cold' && RENEWAL_PARK_ENABLED) {
-      // Let the normal camera frustum select the resources needed for the first frame.
       performance.mark('park-scene-prepare-start')
+      if (RENEWAL_GATE_STARTUP && gl.extensions.has('KHR_parallel_shader_compile')) {
+        startup.phase = 'compiling'
+        const ready = () => { if (!startup.disposed) startup.phase = 'ready' }
+        // Keep the gate image up while the visible programs link together.
+        // A preparation failure falls back to the same first render.
+        void prepareVisibleScenePrograms(gl, scene, camera, () => !startup.disposed).then(ready, ready)
+        return
+      }
       startup.phase = 'ready'
     }
     if (startup.phase === 'cold') {
@@ -114,6 +125,7 @@ function SceneReady({ onReady }: { onReady: () => void }) {
     if (startup.phase === 'compiling') return
     // Owning this render pass prevents R3F from drawing the scene while shaders
     // are pending. Geometry, resolution, shadows and subsequent frames are unchanged.
+    if (startup.phase === 'ready' && RENEWAL_GATE_STARTUP) performance.mark('park-gate-first-draw-start')
     gl.render(scene, camera)
     if (startup.phase === 'ready') {
       performance.mark('park-scene-presented')
@@ -136,6 +148,7 @@ export const WorldCanvas = memo(function WorldCanvas({
   onReady: () => void
 }) {
   const [distantReady, setDistantReady] = useState(false)
+  const jumpRunActive = useJumpmap(state => !!state.run)
   const breadActive = useBungeoppang(state => state.phase !== 'idle')
   const firstFrameAt = useRef<number | null>(null)
   const reportFirstFrame = useCallback(() => {
@@ -227,7 +240,10 @@ export const WorldCanvas = memo(function WorldCanvas({
             <OmokFocusLighting />
             <SceneReady onReady={reportFirstFrame} />
           </Suspense>
-          {RENEWAL_PARK_ENABLED && distantReady && <Suspense fallback={null}><ServiceJumpCourse /></Suspense>}
+          {RENEWAL_PARK_ENABLED && (distantReady || jumpRunActive) &&
+            <FacilityOnApproach site={jumpCourseEntrance} active={jumpRunActive}>
+              <Suspense fallback={null}><ServiceJumpCourse /></Suspense>
+            </FacilityOnApproach>}
           <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
         <PoliceNpcs />
         <CompanionActors />

@@ -13,6 +13,8 @@ import { CAMERA, type QualityPreset } from '../../src/config'
 import { renewalMap } from '../../src/park/renewalMap'
 import { viewControls } from '../../src/world/cameraPerspective'
 import { welcomeFlight } from '../../src/features/welcomeTour/flight'
+import { createLakeProgress, LakeProgress } from '../lakeStages'
+import { LakeStreaming } from './LakeStreaming'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const TableBoards = lazy(() => import('../../src/features/tables/TableBoards'))
@@ -27,7 +29,9 @@ function atEntrance(pose = authoritativePose(useSession.getState().sessionId)) {
 export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: { quality: QualityPreset; firstFrameAt: RefObject<number | null>; onDistantReady: (ready: boolean) => void }) {
   const surface = useRef<Group>(null), interior = useRef<Group>(null)
   const loadInterior = useRef(false)
+  const queuedAmbientShaders = useRef(false)
   const [loaded, setLoaded] = useState(false)
+  const [lakeProgress] = useState(createLakeProgress)
   const [distantReady, setDistantReady] = useState(() => !atEntrance() || welcomeFlight.active)
   const entry = useRef<{ start?: { x: number; z: number }; unlockNextFrame: boolean; queued: boolean }>({
     unlockNextFrame:false, queued:false,
@@ -60,7 +64,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
       pending.unlockNextFrame = true
     }
   }, .6)
-  useFrame(({ camera, scene }) => {
+  useFrame(({ camera, scene, gl }) => {
     const own = avatars.get(useSession.getState().sessionId)
     const inside = !!own && secretCorridorContains(own.current)
     if (horrorState.open && !loadInterior.current) {
@@ -73,9 +77,21 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
     if (interior.current) interior.current.visible = visible
     const daylight = scene.getObjectByName('renewal-exterior-lighting')
     if (daylight) daylight.visible = !visible
+    if (firstFrameAt.current !== null && !queuedAmbientShaders.current) {
+      queuedAmbientShaders.current = true
+      // Let the driver link the ambient animations before their first draw.
+      if (gl.extensions.has('KHR_parallel_shader_compile')) {
+        for (const name of ['park-pigeons', 'mole-demo-impact-ring']) {
+          const object = surface.current?.getObjectByName(name)
+          if (object) gl.compile(object, camera, scene)
+        }
+      }
+    }
   }, .5)
   return <group name="renewal-220-world">
     <group ref={surface} name="renewal-park-surface">
+      <LakeProgress.Provider value={lakeProgress}>
+      <LakeStreaming progress={lakeProgress} />
       <CityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
       <ScenicDetails nightQuality={quality} distantReady={distantReady} />
       <Buildings live distantReady={distantReady} />
@@ -83,6 +99,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
         {distantReady && <Suspense fallback={null}><TableBoards anchor={anchor} nativeFurniture={!!anchor.pavilionId} /></Suspense>}
       </TableFurniture>)}
       {distantReady && <Suspense fallback={null}><ParkDetailGeometry jumpCourse={false} deferDistant /></Suspense>}
+      </LakeProgress.Provider>
     </group>
     <group ref={interior} name="renewal-secret-corridor" visible={false}>
       {loaded && <Suspense fallback={null}><HorrorZone /></Suspense>}

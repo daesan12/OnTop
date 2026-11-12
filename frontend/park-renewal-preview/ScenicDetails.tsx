@@ -33,7 +33,7 @@ export function ScenicDetails({nightQuality,distantReady=true}:{nightQuality?:Qu
   <mesh geometry={paving} receiveShadow><PreviewPathMaterial/></mesh>
   {forestTrailMeshes.map(t=><mesh key={t.id} name={t.id} geometry={t.geometry}><meshLambertMaterial color="#acaa84"/></mesh>)}
   <mesh geometry={lakeBed}><meshLambertMaterial color="#597c64"/></mesh>
-  <OriginalPlaza/><ParkBoundary/><LakeAndParkDetails distantReady={distantReady}/>
+  <OriginalPlaza/><ParkBoundary/><LakeAndParkDetails/>
   <mesh geometry={lakeShore}><meshLambertMaterial color="#b6b39b" side={2}/></mesh>
   <mesh name="large-lake-water" geometry={lakeWater}><meshPhongMaterial color="#719f99" shininess={55} specular="#c2e0d4" transparent opacity={.68} depthWrite={false}/></mesh>
   <mesh geometry={islandShore}><meshLambertMaterial color="#aeb18a"/></mesh><mesh geometry={island}><meshLambertMaterial color="#859a5d"/></mesh>
