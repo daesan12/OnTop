@@ -5,6 +5,7 @@ import { RestError } from '../../network/restError'
 import { parseResult, parseState, type GachaResult, type GachaState } from './contracts'
 import { resetGachaEvents, useGachaEvents } from './events'
 import { gachaClock, refillRemaining } from './timing'
+import { gachaFailureMessage } from './errors'
 
 type Kind = 'BUY' | 'DRAW' | 'OPEN'
 /** Most tickets one purchase may buy (the server's GachaRules.MAX_PURCHASE). */
@@ -54,7 +55,7 @@ export async function refreshGacha() {
   } catch (cause) {
     if (!present(owner, epoch) || reading !== reads) return
     const unavailable = cause instanceof RestError && cause.code === 'GACHA_NOT_CONFIGURED'
-    useGacha.setState({ loading: false, error: cause instanceof Error ? cause.message : '뽑기를 불러오지 못했어요.',
+    useGacha.setState({ loading: false, error: gachaFailureMessage(cause),
       unavailable, ...(unavailable ? { state: null, availability: 'disabled' as const } : {}) })
   }
 }
@@ -96,6 +97,6 @@ export async function gachaAction(kind: Kind, grade?: number) {
       await refreshGacha() // GET only. Never submit a second DRAW on the user's behalf.
       return
     }
-    useGacha.setState({ error: cause instanceof Error ? cause.message : '결과 확인에 실패했어요. 같은 요청으로 다시 확인해 주세요.' })
+    useGacha.setState({ error: gachaFailureMessage(cause, true) })
   } finally { if (present(owner, epoch)) useGacha.setState({ busy: false }) }
 }
