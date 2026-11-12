@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
+import jumpRopeThumbnail from '../jumpRope/assets/thumbnail.webp'
 import { GameArt } from '../manual/GameArt'
 import { openManual } from '../manual/manualState'
 import { moleManual } from '../mole/manual'
@@ -22,7 +23,10 @@ interface Choice {
 }
 
 function ArcadeArt({ game }: { game: ArcadeGame }) {
-  return game === 'jump-rope' ? <span className="manual-art jump-rope-arcade-art" aria-hidden="true">구구구</span> : <GameArt game={game} />
+  if (game === 'jump-rope') {
+    return <img className="manual-art" src={jumpRopeThumbnail} alt="" aria-hidden="true" style={{ objectFit: 'contain' }} />
+  }
+  return <GameArt game={game} />
 }
 
 export function ArcadePicker() {
