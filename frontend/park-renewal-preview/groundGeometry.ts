@@ -1,6 +1,6 @@
 import {staticPark} from './static/store'
 import {BufferGeometry,Float32BufferAttribute} from 'three'
-import {forestHeightAt,lakeWalkHeight,type Point} from './plan.ts'
+import {forestHeightAt,lakeWalkHeight,northwestPavilionApronHeight,type Point} from './plan.ts'
 import {groundPieces,clipGroundPolygon,FLOOR_Y_OFFSET} from './groundPlan.ts'
 import {inSummit,SUMMIT_HEIGHT} from './hybridTerrainPlan.ts'
 import {HORROR_PORTALS} from './horrorPlan.ts'
@@ -45,7 +45,8 @@ function gradeBakedGround(ground:NonNullable<typeof staticPark>['ground']){
   if(!updated.has(position.array)){
    for(let i=0;i<position.count;i++){
     const height=position.getY(i)-FLOOR_Y_OFFSET
-    const grade=lakeWalkHeight(position.getX(i),position.getZ(i),height)
+    const x=position.getX(i),z=position.getZ(i)
+    const grade=northwestPavilionApronHeight(x,z,lakeWalkHeight(x,z,height))
     if(grade!==height)position.setY(i,grade+FLOOR_Y_OFFSET)
    }
    updated.add(position.array)

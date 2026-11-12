@@ -240,10 +240,21 @@ function ungradedForestHeightAt(x:number,z:number){
  // A level upper landing is already enforced in the height field, including both verges.
  return h
 }
+/** Continue the northwest pavilion pad past the stair-side garden stones. */
+export function northwestPavilionApronHeight(x: number, z: number, height: number) {
+ const pavilion = site('rest-2')
+ const east = x - pavilion.x, north = pavilion.z - z
+ if (east < 3.7 || east > 11.6 || north < -.05 || north > 6.4) return height
+ const along = Math.max(0, Math.min(1, (east - 6.4) / 2.5))
+ const distance = Math.hypot(east - (6.4 + 2.5 * along), north - (2.65 + 1.05 * along))
+ const weight = 1 - smooth((distance - 1.05) / 1.65)
+ const apron = facilityGroundY(pavilion) + .18 * Math.max(0, east - 6.4)
+ return height + (apron - height) * weight
+}
 export function forestHeightAt(x:number,z:number){
  const cafe=site('cafe'),raw=hillGradedHeight(x,z,hiddenOutletApronHeight(x,z,ungradedForestHeightAt(x,z))),landing=1-smooth((Math.hypot(x,z+16)-4)/6)
  let h=cafeApronHeight(x,z,raw+(5-raw)*landing,{x:cafe.x,z:cafe.z,ground:facilityGroundY(cafe)})
- return lakeWalkHeight(x,z,preserveMappedGround(x,z,h))
+ return northwestPavilionApronHeight(x,z,lakeWalkHeight(x,z,preserveMappedGround(x,z,h)))
 }
 export function heightAt(x:number,z:number){return inSummit(x,z)?SUMMIT_HEIGHT:forestHeightAt(x,z)}
 export function parkRadius(angle:number){const nw=Math.atan2(Math.sin(angle+2.45),Math.cos(angle+2.45)),ne=Math.atan2(Math.sin(angle+.7),Math.cos(angle+.7));return .98+.025*Math.sin(angle*3+.4)+.015*Math.cos(angle*5)+.045*Math.exp(-((nw/.35)**2))+.035*Math.exp(-((ne/.35)**2))}
