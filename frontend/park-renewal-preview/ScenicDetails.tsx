@@ -6,6 +6,8 @@ import {PreviewPathMaterial} from './PreviewPathMaterial'
 import {PreviewTreeBatches} from './PreviewTreeBatches'
 import {ReferenceBench} from '../src/world/art/ReferenceBenchFrames'
 import {ParkLamps} from '../src/world/art/ParkFurniture'
+import {NightLighting} from '../src/world/NightLighting'
+import type {QualityPreset} from '../src/config'
 import {ParkStoneMaterial} from './ParkStoneMaterial'
 import {SUMMIT_OUTLINE,SUMMIT_HEIGHT} from './hybridTerrainPlan'
 import {RETAINING_FOOTING_Y} from './siteFinishingPlan'
@@ -20,7 +22,7 @@ import {SecretWallDoors} from './SecretWallDoors'
 const lampposts=lamps.map(([x,z])=>[x,heightAt(x,z),z]as const)
 const boundaryGeometry=(()=>{const points=perimeterPoints(),p:number[]=[],indices:number[]=[];points.forEach(v=>p.push(v.x,v.y,v.z,v.x,-4,v.z));for(let i=0;i<points.length-1;i++){const k=i*2;indices.push(k,k+2,k+1,k+1,k+2,k+3)}const g=new BufferGeometry();g.setAttribute('position',new Float32BufferAttribute(p,3));g.setIndex(indices);g.computeVertexNormals();return g})()
 function DirectionSigns(){const objects=useMemo(()=>SIGNPOSTS.map(s=>({s,group:orientWayfinding(factory('sign',s.boards.length===3?{variant:'crossroads',destinations:s.boards.map(b=>({label:b.label,direction:'right'}))}:{variant:'wood-arrow',label:s.boards[0]!.label,direction:'right'}),s)})),[]);return <>{objects.map(({s,group},i)=><group key={i} name={'advance-wayfinding-'+i} userData={{boards:s.boards}} position={[s.x,heightAt(s.x,s.z),s.z]}><primitive object={group} dispose={null}/></group>)}</>}
-export function ScenicDetails(){
+export function ScenicDetails({nightQuality}:{nightQuality?:QualityPreset}={}){
  return <>
   <mesh geometry={boundaryGeometry} receiveShadow><meshLambertMaterial color="#9caa83" side={2}/></mesh>
   <mesh position={[0,-4.1,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2000,2000]}/><meshLambertMaterial color="#e8e8da"/></mesh>
@@ -37,6 +39,7 @@ export function ScenicDetails(){
   <mesh geometry={islandShore}><meshLambertMaterial color="#aeb18a"/></mesh><mesh geometry={island}><meshLambertMaterial color="#859a5d"/></mesh>
   <PreviewTreeBatches/>
   <ParkLamps placements={lampposts}/>
+  {nightQuality&&<NightLighting quality={nightQuality} placements={lampposts}/>}
   {benches.map(({point:[x,z],yaw},i)=><ReferenceBench key={i} name={'renewal-bench-'+i} position={[x,heightAt(x,z)+.12,z]} yaw={yaw}/>)}
   <DirectionSigns/><HillsideFinishing/><JumpEnclosure/>
 

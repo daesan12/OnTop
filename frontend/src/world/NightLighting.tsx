@@ -59,7 +59,8 @@ const shopLights=GENERATED_PARK_ENABLED?FISH_SHOP_LANTERNS.map(([x,y,z])=>({
   z:shop.z+shopScale*(-x*Math.sin(shopYaw)+z*Math.cos(shopYaw)),
   floor:0,poolOffset:.012,radius:2.8,strength:18,color:'#FFD6A3',
 })):[]
-const candidates = [
+type NightCandidate = { x: number; y: number; z: number; floor: number; poolOffset: number; radius: number; strength: number; color: string }
+const defaultCandidates: readonly NightCandidate[] = [
   // Reuse the bounded light pool; the new lanterns add no permanent point lights.
   ...shopLights,
   ...LAMPS.map(([x, y, z]) => ({
@@ -83,26 +84,32 @@ const candidates = [
     color: ENVIRONMENT.palette.table,
   })),
 ]
-const pools: Part[] = candidates.map((p) => ({
+const pools: Part[] = defaultCandidates.map((p) => ({
   p: [p.x, p.floor + p.poolOffset, p.z],
   s: [p.radius, p.radius, 1],
   r: [-Math.PI / 2, 0, 0],
   c: p.color,
 }))
-export function NightLighting({ quality }: { quality: QualityPreset }) {
+export function NightLighting({ quality, placements }: {
+  quality: QualityPreset
+  placements?: readonly (readonly [number, number, number])[]
+}) {
+  const candidates = useMemo(() => placements?.map(([x, floor, z]) => ({
+    x, y: floor + 3.7, z, strength: 24, color: ENVIRONMENT.palette.path,
+  })) ?? defaultCandidates, [placements])
   const preset = ENVIRONMENT_QUALITY[quality]
   const lights = useRef<(PointLight | null)[]>([])
   const poolsGroup = useRef<Group>(null)
   const state = useMemo(
     () => ({
       ranked: candidates.map((p, i) => ({ ...p, i, distance: 0 })),
-      slots: Array.from({ length: preset.lights }, () => ({
+      slots: Array.from({ length: Math.min(preset.lights, candidates.length) }, () => ({
         index: -1,
         target: -1,
       })),
       elapsed: 1,
     }),
-    [preset.lights],
+    [preset.lights, candidates],
   )
   const poolMaterial = useMemo(
     () =>
@@ -169,8 +176,8 @@ export function NightLighting({ quality }: { quality: QualityPreset }) {
   })
   return (
     <group name="night-lighting">
-      <TraditionalPavilionLanterns />
-      <group ref={poolsGroup}>
+      {!placements && <TraditionalPavilionLanterns />}
+      {!placements && <group ref={poolsGroup}>
         <Instances
           parts={pools}
           shadow={false}
@@ -178,8 +185,8 @@ export function NightLighting({ quality }: { quality: QualityPreset }) {
         >
           <circleGeometry args={[1, 32]} />
         </Instances>
-      </group>
-      {Array.from({ length: preset.lights }, (_, i) => (
+      </group>}
+      {state.slots.map((_, i) => (
         <pointLight
           key={i}
           userData={{ warmNightLight: true }}

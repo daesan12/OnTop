@@ -199,7 +199,7 @@ export const WorldCanvas = memo(function WorldCanvas({
           <ParkSoundscape />
           {!RENEWAL_PARK_ENABLED && <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />}
           <Suspense fallback={null}>
-            {RenewalParkWorld ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><RenewalParkWorld /></group>
+            {RenewalParkWorld ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><RenewalParkWorld quality={quality} /></group>
               : GENERATED_PARK_ENABLED ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>
                 : <PlaceholderWorld quality={quality} />}
             {JUMPMAP_ENABLED && <ServiceJumpCourse />}

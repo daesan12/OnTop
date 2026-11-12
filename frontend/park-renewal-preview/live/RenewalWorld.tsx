@@ -9,10 +9,11 @@ import { useFrame } from '@react-three/fiber'
 import type { Group } from 'three'
 import { avatars, useSession } from '../../src/network/worldClient'
 import { horrorState, secretCorridorContains } from '../horrorPlan'
+import type { QualityPreset } from '../../src/config'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 
-export default function RenewalWorld() {
+export default function RenewalWorld({ quality }: { quality: QualityPreset }) {
   const surface = useRef<Group>(null), interior = useRef<Group>(null)
   const loadInterior = useRef(false)
   const [loaded, setLoaded] = useState(false)
@@ -33,7 +34,7 @@ export default function RenewalWorld() {
   return <group name="renewal-220-world">
     <group ref={surface} name="renewal-park-surface">
       <CityBackdrop />
-      <ScenicDetails />
+      <ScenicDetails nightQuality={quality} />
       <Buildings live />
       {TABLES.map(anchor => <TableShell key={anchor.id} anchor={anchor} nativeFurniture={!!anchor.pavilionId} />)}
       <ParkDetailGeometry jumpCourse={false} />
