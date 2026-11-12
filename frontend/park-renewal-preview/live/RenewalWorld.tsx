@@ -1,9 +1,8 @@
 import { RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
 import { Buildings } from '../Buildings'
 import { CityBackdrop } from '../CityBackdrop'
-import { ParkDetailGeometry } from '../ParkDetailGeometry'
 import { ScenicDetails } from '../ScenicDetails'
-import { TableShell } from '../../src/features/tables/TableShell'
+import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
 import { lazy, startTransition, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
@@ -16,6 +15,8 @@ import { viewControls } from '../../src/world/cameraPerspective'
 import { welcomeFlight } from '../../src/features/welcomeTour/flight'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
+const TableBoards = lazy(() => import('../../src/features/tables/TableBoards'))
+const ParkDetailGeometry = lazy(() => import('../ParkDetailGeometry').then(module => ({ default: module.ParkDetailGeometry })))
 
 const spawn = renewalMap?.data.physics.spawn.position
 
@@ -76,10 +77,12 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
   return <group name="renewal-220-world">
     <group ref={surface} name="renewal-park-surface">
       <CityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
-      <ScenicDetails nightQuality={quality} />
+      <ScenicDetails nightQuality={quality} distantReady={distantReady} />
       <Buildings live distantReady={distantReady} />
-      {TABLES.map(anchor => <TableShell key={anchor.id} anchor={anchor} nativeFurniture={!!anchor.pavilionId} />)}
-      <ParkDetailGeometry jumpCourse={false} deferDistant distantReady={distantReady} />
+      {TABLES.map(anchor => <TableFurniture key={anchor.id} anchor={anchor} nativeFurniture={!!anchor.pavilionId}>
+        {distantReady && <Suspense fallback={null}><TableBoards anchor={anchor} nativeFurniture={!!anchor.pavilionId} /></Suspense>}
+      </TableFurniture>)}
+      {distantReady && <Suspense fallback={null}><ParkDetailGeometry jumpCourse={false} deferDistant /></Suspense>}
     </group>
     <group ref={interior} name="renewal-secret-corridor" visible={false}>
       {loaded && <Suspense fallback={null}><HorrorZone /></Suspense>}

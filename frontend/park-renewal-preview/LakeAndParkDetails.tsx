@@ -19,9 +19,13 @@ function cloneLakeStructures() {
   // Each mounted scene owns its nodes. Only the static geometry and materials are shared.
   return { bridge: lakeStructures.bridge.clone(true), fence: lakeStructures.fence.clone(true) }
 }
-export function LakeAndParkDetails(){const {bridge,fence}=useMemo(cloneLakeStructures,[]);return <>
- <mesh name="continuous-mitered-stone-curbs" geometry={previewCurbs}><meshLambertMaterial color="#beb9a5" side={2}/></mesh>
+function LakeStructures(){const {bridge,fence}=useMemo(cloneLakeStructures,[]);return <>
  <primitive object={bridge} dispose={null}/><primitive object={fence} dispose={null}/>
  <group name="preserved-lake-fish" position={[LAKE.x-ORIGINAL_LAKE.x*LAKE.rx/ORIGINAL_LAKE.radiusX,LAKE.y,LAKE.z-ORIGINAL_LAKE.z*LAKE.rz/ORIGINAL_LAKE.radiusZ]} scale={[LAKE.rx/ORIGINAL_LAKE.radiusX,1,LAKE.rz/ORIGINAL_LAKE.radiusZ]}><LakeFish quality="high"/></group>
- <ParkPigeons quality="low" habitat={renewalPigeonHabitat}/>
  </>}
+
+export function LakeAndParkDetails({distantReady=true}:{distantReady?:boolean}={}){return <>
+ <mesh name="continuous-mitered-stone-curbs" geometry={previewCurbs}><meshLambertMaterial color="#beb9a5" side={2}/></mesh>
+ {distantReady&&<LakeStructures/>}
+ <ParkPigeons quality="low" habitat={renewalPigeonHabitat}/>
+</>}

@@ -6,6 +6,8 @@ export function loadRenewalParkWorld() {
   return pending ??= (async () => {
     void preloadRenewalTerrain().catch(() => {})
     void import('../../park-renewal-preview/static/store').catch(() => {})
+    // Let the two prominent models decode alongside scene code.
+    void import('../../park-renewal-preview/live/preloadEntranceModels').then(module => module.preloadEntranceModels()).catch(() => {})
     const facilities = fetch(new URL('../../park-renewal-preview/static/facilities.bin.gz', import.meta.url), {
       cache: 'force-cache', priority: 'low', signal: AbortSignal.timeout(10000),
     })

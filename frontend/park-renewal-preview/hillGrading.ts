@@ -14,7 +14,30 @@ function solve(){
  for(let i=0;i<grid.w;i++)for(let j=0;j<grid.h;j++){const k=i*grid.h+j,x=grid.x+i,z=grid.z+j;v[k]=target(x,z);active[k]=hillDistance(x,z)<5.5?1:0;station[k]=hillStation(x,z);if(z>=-8)fixed[k]=1;if(x>=-59){v[k]=22;fixed[k]=1}}
  // The component is only the road and its shoulder. The wooded space between
  // different ramp levels is deliberately excluded from the grade constraint.
- for(let pass=0;pass<4000;pass++){let worst=0;for(let i=1;i<grid.w-1;i++)for(let j=1;j<grid.h-1;j++){const a=i*grid.h+j;if(!active[a])continue;for(const b of[a+1,a+grid.h]){if(!active[b]||Math.abs(station[a]!-station[b]!)>14||fixed[a]&&fixed[b])continue;const d=v[b]!-v[a]!,excess=Math.abs(d)-.105;if(excess<=.00001)continue;worst=Math.max(worst,excess);const change=Math.sign(d)*excess;if(fixed[a])v[b]!-=change;else if(fixed[b])v[a]!+=change;else{v[a]!+=change/2;v[b]!-=change/2}}}if(worst<.0001)break}
+ // These constraints are constant across passes. Keep the original traversal
+ // order so each height update sees the same neighbors and yields the same field.
+ const edges:number[]=[]
+ for(let i=1;i<grid.w-1;i++)for(let j=1;j<grid.h-1;j++){
+  const a=i*grid.h+j
+  if(!active[a])continue
+  for(const b of[a+1,a+grid.h]){
+   if(!active[b]||Math.abs(station[a]!-station[b]!)>14||fixed[a]&&fixed[b])continue
+   edges.push(a,b)
+  }
+ }
+ for(let pass=0;pass<4000;pass++){
+  let worst=0
+  for(let edge=0;edge<edges.length;edge+=2){
+   const a=edges[edge]!,b=edges[edge+1]!,d=v[b]!-v[a]!,excess=Math.abs(d)-.105
+   if(excess<=.00001)continue
+   worst=Math.max(worst,excess)
+   const change=Math.sign(d)*excess
+   if(fixed[a])v[b]!-=change
+   else if(fixed[b])v[a]!+=change
+   else{v[a]!+=change/2;v[b]!-=change/2}
+  }
+  if(worst<.0001)break
+ }
  field=v;return v
 }
 export function hillGradedHeight(x:number,z:number,fallback:number){

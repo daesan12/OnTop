@@ -22,7 +22,7 @@ import {SecretWallDoors} from './SecretWallDoors'
 const lampposts=lamps.map(([x,z])=>[x,heightAt(x,z),z]as const)
 const boundaryGeometry=(()=>{const points=perimeterPoints(),p:number[]=[],indices:number[]=[];points.forEach(v=>p.push(v.x,v.y,v.z,v.x,-4,v.z));for(let i=0;i<points.length-1;i++){const k=i*2;indices.push(k,k+2,k+1,k+1,k+2,k+3)}const g=new BufferGeometry();g.setAttribute('position',new Float32BufferAttribute(p,3));g.setIndex(indices);g.computeVertexNormals();return g})()
 function DirectionSigns(){const objects=useMemo(()=>SIGNPOSTS.map(s=>({s,group:orientWayfinding(factory('sign',s.boards.length===3?{variant:'crossroads',destinations:s.boards.map(b=>({label:b.label,direction:'right'}))}:{variant:'wood-arrow',label:s.boards[0]!.label,direction:'right'}),s)})),[]);return <>{objects.map(({s,group},i)=><group key={i} name={'advance-wayfinding-'+i} userData={{boards:s.boards}} position={[s.x,heightAt(s.x,s.z),s.z]}><primitive object={group} dispose={null}/></group>)}</>}
-export function ScenicDetails({nightQuality}:{nightQuality?:QualityPreset}={}){
+export function ScenicDetails({nightQuality,distantReady=true}:{nightQuality?:QualityPreset;distantReady?:boolean}={}){
  return <>
   <mesh geometry={boundaryGeometry} receiveShadow><meshLambertMaterial color="#9caa83" side={2}/></mesh>
   <mesh position={[0,-4.1,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2000,2000]}/><meshLambertMaterial color="#e8e8da"/></mesh>
@@ -33,7 +33,7 @@ export function ScenicDetails({nightQuality}:{nightQuality?:QualityPreset}={}){
   <mesh geometry={paving} receiveShadow><PreviewPathMaterial/></mesh>
   {forestTrailMeshes.map(t=><mesh key={t.id} name={t.id} geometry={t.geometry}><meshLambertMaterial color="#acaa84"/></mesh>)}
   <mesh geometry={lakeBed}><meshLambertMaterial color="#597c64"/></mesh>
-  <OriginalPlaza/><ParkBoundary/><LakeAndParkDetails/>
+  <OriginalPlaza/><ParkBoundary/><LakeAndParkDetails distantReady={distantReady}/>
   <mesh geometry={lakeShore}><meshLambertMaterial color="#b6b39b" side={2}/></mesh>
   <mesh name="large-lake-water" geometry={lakeWater}><meshPhongMaterial color="#719f99" shininess={55} specular="#c2e0d4" transparent opacity={.68} depthWrite={false}/></mesh>
   <mesh geometry={islandShore}><meshLambertMaterial color="#aeb18a"/></mesh><mesh geometry={island}><meshLambertMaterial color="#859a5d"/></mesh>
@@ -41,7 +41,7 @@ export function ScenicDetails({nightQuality}:{nightQuality?:QualityPreset}={}){
   <ParkLamps placements={lampposts}/>
   {nightQuality&&<NightLighting quality={nightQuality} placements={lampposts}/>}
   {benches.map(({point:[x,z],yaw},i)=><ReferenceBench key={i} name={'renewal-bench-'+i} position={[x,heightAt(x,z)+.12,z]} yaw={yaw}/>)}
-  <DirectionSigns/><HillsideFinishing/><JumpEnclosure/>
+  <DirectionSigns/><HillsideFinishing/>{distantReady&&<JumpEnclosure/>}
 
  </>
 }
