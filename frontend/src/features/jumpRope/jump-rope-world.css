@@ -1,24 +1,23 @@
 .jump-rope-world {
   position: fixed;
   inset: 0;
-  width: min(1120px, calc(100vw - 24px));
-  height: min(850px, calc(100dvh - 24px));
+  width: 100%;
+  height: 100dvh;
   max-width: none;
   max-height: none;
-  margin: auto;
+  margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 16px;
   overflow: hidden;
 }
 
 .jump-rope-world::backdrop { background: #172a25a6; }
-.jump-rope-world .preview-stage { position: relative; inset: auto; height: 100%; }
+.jump-rope-world .preview-stage { position: relative; inset: auto; height: 100%; border: 0; border-radius: 0; }
 
 .jump-rope-world__exit {
   position: absolute;
-  right: 12px;
-  bottom: 12px;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
   border: 1px solid #beaa83;
   border-radius: 7px;
   padding: 6px 10px;
@@ -41,3 +40,33 @@
 }
 .jump-rope-world .rope-server-status { position: relative; text-align: center; }
 .jump-rope-world .rope-result__quit { position: relative; }
+
+.jump-rope-world .rope-exit-confirm {
+  width: min(390px, calc(100% - 24px));
+  max-width: none;
+  max-height: calc(100dvh - 24px);
+  padding: clamp(16px, 5vw, 24px);
+  border: 4px solid #244134;
+  border-radius: 18px;
+  background: radial-gradient(ellipse at 45% 16%, #fffaed 15%, #fbecd0 100%);
+  box-shadow: inset 0 0 0 2px #f7e6bf, inset 0 0 0 4px #dfc797, 0 3px 0 #162c24, 0 8px 16px #18291f55;
+  color: #1c362c;
+  text-align: center;
+}
+
+.rope-exit-confirm::backdrop { background: #172a2580; }
+.rope-exit-confirm h2 { margin: 0; font-size: clamp(1.25rem, 5.5vw, 1.5rem); }
+.rope-exit-confirm p { margin: 12px 0; font-size: .9rem; line-height: 1.5; word-break: keep-all; }
+.rope-exit-confirm__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+.rope-exit-confirm__actions button {
+  min-height: 44px;
+  border: 2px solid #324e40;
+  border-radius: 9px;
+  background: #fbf0d6;
+  color: #1c362c;
+  font: inherit;
+  font-weight: 800;
+}
+.rope-exit-confirm__actions button:last-child { background: #29483a; color: #fff5dc; }
+.rope-exit-confirm__actions button:disabled { opacity: .6; }
+.rope-exit-confirm__actions button:focus-visible { outline: 2px solid #805a2c; outline-offset: 2px; }

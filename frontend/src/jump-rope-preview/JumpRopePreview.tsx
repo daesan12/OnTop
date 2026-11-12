@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { JumpRopeHud, hudFeedbackMs, type HudJudgement } from './JumpRopeHud'
 import { JumpRopeMenu } from './JumpRopeMenu'
@@ -26,6 +26,7 @@ type RankedBindings = {
   owner: string; service: JumpRopeService; settlement: JumpRopeSettlement | null
   setActive: (active: boolean) => void; submit: typeof submitJumpRope; retry: () => void; onExit: () => void
   canJump: () => boolean
+  exitRequest: RefObject<(() => boolean) | null>
 }
 
 const defaults = {
@@ -181,6 +182,10 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const [liveRanking, setLiveRanking] = useState<JumpRopeRankingState>({ kind: 'loading' })
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState('')
+  const [confirmExit, setConfirmExit] = useState(false)
+  const exitOpenedAt = useRef<number | null>(null)
+  const exitDialog = useRef<HTMLDialogElement>(null)
+  const exitTitle = useRef<HTMLHeadingElement>(null)
   const startRequest = useRef<AbortController | null>(null)
   const startKey = useRef('')
   const sessionRef = useRef<{ id: string; expiresAt: number } | null>(null)
@@ -188,6 +193,8 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const rankedOwner = ranked?.owner
   const rankedService = ranked?.service
   const canJump = ranked?.canJump
+  const exitRequest = ranked?.exitRequest
+  const settlementStatus = ranked?.settlement?.status
   const [rankingMode, setRankingMode] = useState<keyof typeof rankingPreviewStates>('ready')
   const rankingTrigger = useRef<HTMLButtonElement | null>(null)
   const [hideMenuForPreview, setHideMenuForPreview] = useState(false)
@@ -215,7 +222,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const { jumpHeight, jumpDuration } = settings
   const getFinalePreview = useCallback(() => finalePreviewRef.current, [])
   const sceneTime = useCallback((now: number) =>
-    (finalePreviewRef.current?.startedAt ?? manholePreviewRef.current?.startedAt ?? now) - clockOffset.current, [])
+    (exitOpenedAt.current ?? finalePreviewRef.current?.startedAt ?? manholePreviewRef.current?.startedAt ?? now) - clockOffset.current, [])
 
   const closeManholePreview = useCallback((now: number) => {
     const preview = manholePreviewRef.current
@@ -234,6 +241,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   }, [])
 
   const step = useCallback((wallNow: number, speed?: number) => {
+    if (exitOpenedAt.current !== null) return
     const finale = finalePreviewRef.current
     if (finale) {
       if (finale.stage === 'result') return
@@ -322,6 +330,31 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
 
   useEffect(() => () => startRequest.current?.abort(), [])
 
+  useLayoutEffect(() => {
+    if (!exitRequest) return
+    exitRequest.current = () => {
+      if (exitOpenedAt.current !== null) return true
+      if (round.phase.kind === 'menu') return false
+      if (round.endReason) return round.phase.kind !== 'ended' || settlementStatus === 'saving'
+
+      // Leaving this round is irreversible. Freeze it before another frame can submit a result.
+      exitOpenedAt.current = performance.now()
+      startKey.current = ''
+      setStartError('')
+      setConfirmExit(true)
+      return true
+    }
+    return () => { exitRequest.current = null }
+  }, [exitRequest, round, settlementStatus])
+
+  useLayoutEffect(() => {
+    if (!confirmExit) return
+    const dialog = exitDialog.current
+    dialog?.showModal()
+    exitTitle.current?.focus({ preventScroll: true })
+    return () => dialog?.close()
+  }, [confirmExit])
+
   useEffect(() => {
     if (!visiblePass) return
     const timeout = window.setTimeout(() => setVisiblePass(null), hudFeedbackMs)
@@ -349,7 +382,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
         return
       }
       if (event.code !== 'Space' || event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return
-      if (canJump && (document.hidden || !canJump())) return
+      if (exitOpenedAt.current !== null || (canJump && (document.hidden || !canJump()))) return
       if (event.target instanceof HTMLElement && event.target.closest(
         'button, input:not([type="range"]), textarea, select, a[href], [contenteditable="true"]',
       )) return
@@ -480,6 +513,11 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     controlsRef.current.paused = false
     setRopePaused(false)
     resetScene('initialCountdown', server ? now + Date.parse(server.startedAt) - serverNow : undefined, server?.seed)
+    if (exitOpenedAt.current !== null) {
+      exitOpenedAt.current = null
+      exitDialog.current?.close()
+      setConfirmExit(false)
+    }
     step(now)
     stageRef.current?.focus({ preventScroll: true })
   }
@@ -520,7 +558,11 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   }
 
   function quitGame() {
-    if (ranked) { ranked.onExit(); return }
+    if (ranked) {
+      exitDialog.current?.close()
+      ranked.onExit()
+      return
+    }
     controlsRef.current.paused = false
     setRopePaused(false)
     resetScene('menu')
@@ -641,6 +683,18 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
           {resultReason && <JumpRopeResult reason={receipt?.endReason ?? resultReason} stats={ranked ? receipt : hud.stats} reward={receipt?.reward}
             status={starting ? '서버 라운드를 준비하는 중입니다.' : startError || saveStatus} onRetry={retry}
             restartDisabled={starting || submissionBlocksStart} onQuit={quitGame} onRestart={restartGame} />}
+           {confirmExit && <dialog ref={exitDialog} className="rope-exit-confirm" role="alertdialog"
+             aria-labelledby="rope-exit-title" aria-describedby="rope-exit-description"
+             onCancel={event => { event.preventDefault(); event.stopPropagation() }}>
+             <h2 id="rope-exit-title" ref={exitTitle} tabIndex={-1}>게임을 그만둘까요?</h2>
+             <p id="rope-exit-description">현재 플레이 기록은 저장되지 않으며, 엽전도 지급되지 않습니다.</p>
+             {starting && <p role="status">새 라운드를 준비하는 중입니다.</p>}
+             {startError && <p role="alert">{startError}</p>}
+             <div className="rope-exit-confirm__actions">
+               <button type="button" onClick={quitGame}>그만하기</button>
+               <button type="button" onClick={restartGame} disabled={starting}>다시하기</button>
+             </div>
+           </dialog>}
         </section>
   if (ranked) return stage
 
