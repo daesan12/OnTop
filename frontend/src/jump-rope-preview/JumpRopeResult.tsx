@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import type { RoundEndReason, RoundStats } from './jumpRopeRules'
 
 const verdicts = [['perfect', 'PERFECT'], ['good', 'GOOD'], ['miss', 'MISS']] as const
@@ -63,9 +63,10 @@ function ResultCardStains() {
   )
 }
 
-export function JumpRopeResult({ reason, stats, onQuit, onRestart, status, onRetry, restartDisabled }: {
+export function JumpRopeResult({ reason, stats, reward, onQuit, onRestart, status, onRetry, restartDisabled }: {
   reason: RoundEndReason
   stats?: Pick<RoundStats, 'score' | 'counts'>
+  reward?: number | null
   onQuit: () => void
   onRestart: () => void
   status?: string
@@ -73,6 +74,12 @@ export function JumpRopeResult({ reason, stats, onQuit, onRestart, status, onRet
   restartDisabled?: boolean
 }) {
   const completed = reason === 'time'
+  let rewardLine: ReactNode = null
+  if (reward !== undefined && !completed) {
+    rewardLine = '3회 MISS로 엽전이 지급되지 않았어요.'
+  } else if (typeof reward === 'number') {
+    rewardLine = <>획득 엽전 <strong>{reward > 0 ? '+' : ''}{reward.toLocaleString('ko-KR')}냥</strong></>
+  }
   const headingRef = useRef<HTMLHeadingElement>(null)
   useEffect(() => { headingRef.current?.focus({ preventScroll: true }) }, [])
 
@@ -93,11 +100,14 @@ export function JumpRopeResult({ reason, stats, onQuit, onRestart, status, onRet
           <dt>최종 점수</dt>
           <dd><span>{stats?.score.toLocaleString('ko-KR') ?? '—'}</span></dd>
         </dl>
-        <dl className="rope-result__verdicts">
-          {verdicts.map(([kind, label]) => (
-            <div key={kind}><dt>{label}</dt><dd>{stats ? `${stats.counts[kind]}회` : '—'}</dd></div>
-          ))}
-        </dl>
+        <div className="rope-result__details">
+          <dl className="rope-result__verdicts">
+            {verdicts.map(([kind, label]) => (
+              <div key={kind}><dt>{label}</dt><dd>{stats ? `${stats.counts[kind]}회` : '—'}</dd></div>
+            ))}
+          </dl>
+          {rewardLine && <p className="rope-result__reward">{rewardLine}</p>}
+        </div>
         {status && <p className="rope-server-status" role="status">{status}</p>}
         {onRetry && <button type="button" className="rope-result__quit" onClick={onRetry}>기록 저장 다시 시도</button>}
         <div className="rope-result__actions">
