@@ -257,7 +257,7 @@ Jev 원문10회·심사평9회 모두SAFE, 세 판단값 최댓값0.08이었다.
 
 LLM 호출은 여전히1회다. strict JSON schema에 `connectionType`(NONE/SOUND/MEANING/SHAPE), `connectionEvidence`(문제 단서와 답 사이의 구체적인 연결), `witBand`(WEAK/MODERATE/STRONG)를 추가했다. NONE이면 모델이 낮은 점수의 SCORED를 보내더라도 서버가 미성립/세항목0/생성심사평없음으로 처리한다. 다른 유형에는 빈 근거를 허용하지 않는다. 의미 없는 음절을 단순히 '소리 흉내'라고 부르는 것은 연결 근거가 아니라고 명시한다. 특정 문제/정답의 예외 목록은 없다.
 
-재미 점수(x10)의 구간은 WEAK 0~133, MODERATE 134~266, STRONG 267~400이다. 상한을 초과하면 선언한 평가 구간 상한까지만 낮추고 `wit_consistency_adjustment`로 원본/보정값을 남긴다. 구간 하한 미달은 점수를 임의로 올리지 않고 공급자 불일치 오류로 처리하여 기존 FAILED 환불 경로를 따른다. 말장난/독창성은 이 보정으로 바꾸지 않는다. 근거/평가를 `llm_assessment` 로그에 남기며 새 필드는 공개 응답이나 DB에 추가하지 않는다. 기존 유사성 감점과 Jev 검수는 유지한다.
+재미 점수(x10)의 구간은 WEAK 0~133, MODERATE 134~266, STRONG 267~400이다. 상한을 초과하면 선언한 평가 구간 상한까지만 낮추고 `wit_consistency_adjustment`로 원본/보정값을 남긴다. v9-low-score부터 구간 하한 미달은 모델의 낮은 점수를 그대로 채점·표시하며 FAILED나 환불로 처리하지 않는다. 진단이 켜져 있으면 `wit_band_adjustment`에 원래 등급과 실제 점수에 해당하는 낮은 등급을 남긴다. 점수를 등급에 맞춰 올리거나 추가 LLM 호출로 재채점하지 않는다. 말장난/독창성은 이 보정으로 바꾸지 않는다. 근거/평가를 `llm_assessment` 로그에 남기며 새 필드는 공개 응답이나 DB에 추가하지 않는다. 기존 유사성 감점과 Jev 검수는 유지한다.
 
 5.4-mini의 `reasoning_effort=low`, 추론 포함 출력 상한800토큰을 사용한다. 공식 지원 및 토큰 상한 의미는 [모델 문서](https://developers.openai.com/api/docs/models/gpt-5.4-mini), [Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)를 확인했다. 비용 제한 도구도 동일한800토큰 상한을 예약하며10회 전체 요청 예산 검사는USD0.10 이내임을 확인한다. 입력20KB/무재시도/실패중단/기존결과미덮어쓰기 정책은 유지한다.
 

@@ -68,13 +68,49 @@ class LlmJokeJudgeTests {
         assertThat(events.stream().filter(e->e.get("stage").equals("wit_consistency_adjustment")).findFirst().orElseThrow()).containsEntry("beforeX10",330).containsEntry("afterX10",133);
         value.put("connectionEvidence","");assertThatThrownBy(()->judge.parse(value.toString())).isInstanceOf(IllegalArgumentException.class);
     }
-    @Test void cannotInflateLowWitToMatchAStrongReaction()throws Exception {
+    @Test void belowBandScoresArePreservedAndOnlyTheDiagnosticBandIsLowered()throws Exception {
         var judge=new LlmJokeJudge(mapper,"fixture","gpt-5.4-mini",JokeJudge.fixture());
         var value=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree(SCORED);
         for(String band:java.util.List.of("MODERATE","STRONG")){
-            value.put("witBand",band).put("witX10",10);
-            assertThatThrownBy(()->judge.parse(value.toString())).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("below band");
+            int minimum=band.equals("MODERATE")?134:267;
+            for(int wit:new int[]{0,10,133,134,266,267}){
+                if(wit> (band.equals("MODERATE")?266:400))continue;
+                var events=new java.util.ArrayList<Map<String,Object>>();
+                try(var trace=JokeDiagnostics.open("low-score",events::add)){
+                    var result=judge.parse(value.put("witBand",band).put("witX10",wit).toString());
+                    assertThat(result.status()).isEqualTo("SCORED");
+                    assertThat(result.witX10()).isEqualTo(wit);
+                    assertThat(result.wordplayX10()).isEqualTo(320);assertThat(result.originalityX10()).isEqualTo(80);
+                }
+                var adjustments=events.stream().filter(e->e.get("stage").equals("wit_band_adjustment")).toList();
+                if(wit<minimum)assertThat(adjustments).singleElement().satisfies(e->assertThat(e)
+                    .containsEntry("beforeBand",band).containsEntry("afterBand",wit<=133?"WEAK":"MODERATE").containsEntry("witX10",wit));
+                else assertThat(adjustments).isEmpty();
+            }
         }
+    }
+    @Test void belowBandHttpResultCompletesWithItsScoreAndReactionInsteadOfRefunding(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory)throws Exception {
+        var calls=new AtomicInteger();
+        var value=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree(SCORED);
+        value.put("witBand","STRONG").put("witX10",10);
+        value.put("reaction","말장난의 연결은 보이지만 반전은 약하구먼.").put("similarity","NONE").put("matchedId","");
+        var server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/",exchange->{calls.incrementAndGet();exchange.getRequestBody().readAllBytes();
+            byte[] bytes=mapper.writeValueAsBytes(Map.of("choices",java.util.List.of(Map.of("finish_reason","stop","message",Map.of("content",value.toString())))));
+            exchange.sendResponseHeaders(200,bytes.length);exchange.getResponseBody().write(bytes);exchange.close();});server.start();
+        var clock=new LocalJokeContestTests.TestClock();
+        try(var contest=new LocalJokeContest(mapper,directory,new LlmJokeJudge(mapper,"fixture","gpt-5.4-mini",JokeJudge.fixture(),URI.create("http://127.0.0.1:"+server.getAddress().getPort()+"/")),AiText.fixed(),clock)){
+            var submitted=contest.submit("one","시험","질문 데이터","답 데이터","low-score-request",true);
+            for(int i=0;i<500&&contest.own("one",submitted.id()).status().equals("PENDING");i++)Thread.sleep(5);
+            var result=contest.own("one",submitted.id());
+            assertThat(result.status()).isEqualTo("SCORED");assertThat(result.witX10()).isEqualTo(10);
+            assertThat(result.scoreX10()).isEqualTo(410);
+            assertThat(result.reactionSource()).isEqualTo("SPRING_AI");
+            assertThat(result.reaction()).contains("반전은 약하구먼").endsWith("41.0점일세!");
+            assertThat(contest.mine("one").get("remaining")).isEqualTo(2L);
+            assertThat(contest.rankings(submitted.date())).singleElement().satisfies(row->assertThat(row).containsEntry("scoreX10",410));
+            assertThat(calls).hasValue(1);
+        }finally{server.stop(0);}
     }
     @Test void usesLlmStructuredScoreWithoutCallingGuardsJokeValidityAndDelegatesReactionSafety()throws Exception {
         var calls=new AtomicInteger();var guardStatus=new AtomicReference<>("SCORED");
