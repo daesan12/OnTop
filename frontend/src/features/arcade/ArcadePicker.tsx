@@ -73,7 +73,6 @@ function ArcadeDialog() {
       limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null, inProgress: false },
   ]
   const choice = choices.find(c => c.id === selected)!
-  const manual = choice.id === 'jump-rope' ? undefined : choice.id
   const balance = rps?.availableBalance ?? plus?.availableBalance
 
   return <dialog ref={dialog} className="table-paper-popup arcade-picker" aria-labelledby="arcade-picker-title"
@@ -108,7 +107,7 @@ function ArcadeDialog() {
           </dl>
           {choice.inProgress && <p className="arcade-note" role="status">끝나지 않은 판이 있어요. 이어서 해요.</p>}
           {choice.playsLeft === 0 && <p className="arcade-note" role="status">오늘 판을 모두 했어요. 지난 결과만 볼 수 있어요.</p>}
-          {manual && <button type="button" className="arcade-manual" onClick={() => openManual(manual)}>설명서</button>}
+          <button type="button" className="arcade-manual" onClick={() => openManual(choice.id)}>설명서</button>
           <button type="button" className="arcade-primary" onClick={() => playArcadeGame()}>
             {choice.inProgress ? '이어서 하기' : '이 게임 하기'}<span aria-hidden="true">›</span>
           </button>
