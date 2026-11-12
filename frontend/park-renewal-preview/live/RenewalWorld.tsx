@@ -93,7 +93,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
       <LakeProgress.Provider value={lakeProgress}>
       <LakeStreaming progress={lakeProgress} />
       <CityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
-      <ScenicDetails nightQuality={quality} distantReady={distantReady} />
+      <ScenicDetails nightQuality={quality} distantReady={distantReady} live />
       <Buildings live distantReady={distantReady} />
       {TABLES.map(anchor => <TableFurniture key={anchor.id} anchor={anchor} nativeFurniture={!!anchor.pavilionId}>
         {distantReady && <Suspense fallback={null}><TableBoards anchor={anchor} nativeFurniture={!!anchor.pavilionId} /></Suspense>}

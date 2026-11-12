@@ -1,6 +1,7 @@
 import {useMemo} from 'react'
 import {ParkPigeons} from '../src/world/pigeons/ParkPigeons'
 import {createBirds} from '../src/world/pigeons/pigeonSimulation'
+import {useLivePigeonVisitors} from '../src/world/pigeons/useLivePigeonVisitors'
 import {previewCurbs} from './previewCurbs'
 import {factory} from './assetFactories'
 import {heightAt,insidePark,inLake,LAKE} from './plan'
@@ -27,7 +28,10 @@ function LakeStructure({ kind }: { kind: 'bridge' | 'lake-fence' }) {
   return <primitive object={object} dispose={null}/>
 }
 
-export function LakeAndParkDetails(){return <>
+export function LakeAndParkDetails({live=false}: {live?: boolean}){
+ const visitors=useLivePigeonVisitors()
+ const habitat=useMemo(()=>live?{...renewalPigeonHabitat,visitors}:renewalPigeonHabitat,[live,visitors])
+ return <>
  <mesh name="continuous-mitered-stone-curbs" geometry={previewCurbs}><meshLambertMaterial color="#beb9a5" side={2}/></mesh>
  <group name="lake-shore-structures">
   <LakePart at={LakeStage.Bridge}><LakeStructure kind="bridge"/></LakePart>
@@ -36,5 +40,5 @@ export function LakeAndParkDetails(){return <>
    <group name="preserved-lake-fish" position={[LAKE.x-ORIGINAL_LAKE.x*LAKE.rx/ORIGINAL_LAKE.radiusX,LAKE.y,LAKE.z-ORIGINAL_LAKE.z*LAKE.rz/ORIGINAL_LAKE.radiusZ]} scale={[LAKE.rx/ORIGINAL_LAKE.radiusX,1,LAKE.rz/ORIGINAL_LAKE.radiusZ]}><LakeFish quality="high"/></group>
   </LakePart>
  </group>
- <ParkPigeons quality="low" habitat={renewalPigeonHabitat}/>
+ <ParkPigeons quality="low" habitat={habitat}/>
 </>}
