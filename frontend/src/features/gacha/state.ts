@@ -8,7 +8,7 @@ import { gachaClock, refillRemaining } from './timing'
 
 type Kind = 'BUY' | 'DRAW' | 'OPEN'
 /** Most tickets one purchase may buy (the server's GachaRules.MAX_PURCHASE). */
-export const MAX_TICKET_PURCHASE = 10
+export const MAX_TICKET_PURCHASE = 100
 export type GachaAvailability = 'unknown' | 'enabled' | 'disabled'
 interface Pending { kind: Kind; operationId: string; roundId?: string; grade?: number; quantity?: number }
 const initial = () => ({ owner: '', state: null as GachaState | null, loading: false, busy: false, error: '',

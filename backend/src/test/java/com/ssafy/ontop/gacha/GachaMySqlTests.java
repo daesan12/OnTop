@@ -135,7 +135,7 @@ class GachaMySqlTests {
         assertThat(scalar("SELECT COUNT(*) FROM wallet_transactions WHERE transaction_type='GACHA_PURCHASE' AND wallet_id=(SELECT id FROM wallets WHERE user_id=?)",user)).isEqualTo(1);
         assertThat(service.purchase(user,"three-buy",3)).isEqualTo(bought);
         assertThatThrownBy(()->service.purchase(user,"three-buy",2)).isInstanceOfSatisfying(GachaException.class,e->assertThat(e.code()).isEqualTo("IDEMPOTENCY_CONFLICT"));
-        assertThatThrownBy(()->service.purchase(user,"too-many",11)).isInstanceOfSatisfying(GachaException.class,e->assertThat(e.code()).isEqualTo("INVALID_REQUEST"));
+        assertThatThrownBy(()->service.purchase(user,"too-many",101)).isInstanceOfSatisfying(GachaException.class,e->assertThat(e.code()).isEqualTo("INVALID_REQUEST"));
         assertThatThrownBy(()->service.purchase(user,"too-few",0)).isInstanceOfSatisfying(GachaException.class,e->assertThat(e.code()).isEqualTo("INVALID_REQUEST"));
         // 남은 700냥으로 8장(800냥)은 거래 전체가 거절되고 아무것도 바뀌지 않는다.
         assertThatThrownBy(()->service.purchase(user,"short-buy",8)).isInstanceOfSatisfying(GachaException.class,e->assertThat(e.code()).isEqualTo("INSUFFICIENT_BALANCE"));

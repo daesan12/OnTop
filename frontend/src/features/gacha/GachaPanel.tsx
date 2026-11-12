@@ -54,7 +54,7 @@ export function GachaPanel() {
   const sounded=useRef('')
   useEffect(()=>{if(result?.kind==='DRAW'&&result.grade!==5&&sounded.current!==result.operationId){sounded.current=result.operationId;playSfx(result.grade===1?'game-start':'ui-equip')}},[result])
   const price=s.state?.ticketPrice??100,available=inventory?.availableBalance??0
-  const [buyCount,setBuyCount]=useState(1)
+  const [buyCount,setBuyCount]=useState(1),[countDraft,setCountDraft]=useState<string|null>(null)
   const affordable=Math.max(1,Math.min(MAX_TICKET_PURCHASE,Math.floor(available/price)))
   const count=Math.min(buyCount,affordable)
   const act=(kind:'BUY'|'DRAW')=>{if(!blocked&&(kind!=='DRAW'||!refilling&&art.status==='ready'&&sceneReady)){armUnlock();playSfx('ui-click');void motion.act(kind,kind==='BUY'?count:1)}}
@@ -116,7 +116,9 @@ export function GachaPanel() {
         onClick={()=>void act('BUY')}><GachaActionIcon kind="ticket"/><span className="art-action-copy"><b>뽑기권 구매</b><small>{count}장 · {money(price*count)}</small></span></button>
       <div className="art-buy-count" role="group" aria-label="구매할 뽑기권 수">
         <button type="button" aria-label="한 장 줄이기" disabled={blocked||count<=1} onClick={()=>setBuyCount(Math.max(1,count-1))}>−</button>
-        <output aria-live="polite">{count}</output>
+        <input type="text" inputMode="numeric" aria-label="구매할 뽑기권 수 입력" maxLength={3} disabled={blocked} value={countDraft??String(count)}
+          onFocus={e=>e.currentTarget.select()} onBlur={()=>setCountDraft(null)} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur()}}
+          onChange={e=>{const digits=e.currentTarget.value.replace(/\D/g,'').slice(0,3),n=Number(digits);setCountDraft(digits);if(n>=1)setBuyCount(Math.min(MAX_TICKET_PURCHASE,n))}}/>
         <button type="button" aria-label="한 장 늘리기" disabled={blocked||count>=affordable} onClick={()=>setBuyCount(Math.min(affordable,count+1))}>+</button>
       </div>
       <button className="art-draw art-button" aria-label="뽑기권 1장 사용" aria-keyshortcuts="Space" disabled={!canDraw} onClick={()=>void act('DRAW')}>

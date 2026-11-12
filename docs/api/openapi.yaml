@@ -3414,7 +3414,7 @@ paths:
     post:
       tags:
       - Gacha
-      summary: "뽑기권 구매(한 장 100냥, quantity로 1~10장)"
+      summary: "뽑기권 구매(한 장 100냥, quantity로 1~100장)"
       description: quantity를 빼면 한 장. 여러 장은 한 거래로 차감·지급한다. 보유 수량이 JavaScript 안전정수 한도를
         초과하면 409 GACHA_CAPACITY_EXCEEDED로 거래 전체를 취소한다.
       operationId: purchase_2
@@ -10153,10 +10153,10 @@ components:
         operationId:
           type: string
         quantity:
-          maximum: 10
+          maximum: 100
           minimum: 1
           type: integer
-          description: "뽑기권 수(1~10, 생략하면 1)"
+          description: "뽑기권 수(1~100, 생략하면 1)"
           format: int32
           nullable: true
     GachaBox:

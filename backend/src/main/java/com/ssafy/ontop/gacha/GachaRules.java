@@ -7,7 +7,7 @@ import java.util.function.IntUnaryOperator;
 public final class GachaRules {
     public static final long TICKET_PRICE = 100;
     /** 한 번에 살 수 있는 뽑기권 수(한 거래로 차감·지급). */
-    public static final int MAX_PURCHASE = 10;
+    public static final int MAX_PURCHASE = 100;
     public static final long COIN_REWARD = 20;
     public static final long REFILL_MILLIS = 3000;
     public static boolean refilling(java.time.Instant deadline, java.time.Instant now) {
