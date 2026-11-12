@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.*;
 class JokeDiagnosticsTests {
     @Test void llmDiagnosticsKeepOriginalScoresAndResponseBeforeDuplicatePenalty()throws Exception {
         var mapper=new ObjectMapper();var server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
-        String original=mapper.writeValueAsString(Map.of("status","SCORED","wordplayX10",300,"witX10",250,"originalityX10",100,"explanation","말장난 해석","reaction","단어를 나눈 연결이 자연스럽네.","similarity","SIMILAR","matchedId","prior"));
+        String original=mapper.valueToTree(Map.of("status","SCORED","wordplayX10",300,"witX10",250,"originalityX10",100,"explanation","말장난 해석","reaction","단어를 나눈 연결이 자연스럽네.","similarity","SIMILAR","matchedId","prior")).withObject("").put("connectionType","SOUND").put("connectionEvidence","단어를 나누면 같은 발음").put("witBand","MODERATE").toString();
         server.createContext("/",e->{e.getRequestBody().readAllBytes();byte[] bytes=mapper.writeValueAsBytes(Map.of("usage",Map.of("prompt_tokens",100,"completion_tokens",50),"choices",List.of(Map.of("finish_reason","stop","message",Map.of("content",original)))));e.sendResponseHeaders(200,bytes.length);e.getResponseBody().write(bytes);e.close();});server.start();
         var events=new ArrayList<Map<String,Object>>();
         try(var scope=JokeDiagnostics.open("llm-test",events::add)){
@@ -75,8 +75,8 @@ class JokeDiagnosticsTests {
         var mapper=new ObjectMapper();var old=new LlmJokeJudge(mapper,"fixture","gpt-4.1-mini",JokeJudge.fixture()).requestPayload("왕이 넘어지면?","킹콩",List.of());
         var next=new LlmJokeJudge(mapper,"fixture","gpt-5.4-mini",JokeJudge.fixture()).requestPayload("왕이 넘어지면?","킹콩",List.of());
         assertThat(next.get("messages")).isEqualTo(old.get("messages"));assertThat(next.get("response_format")).isEqualTo(old.get("response_format"));
-        assertThat(next).containsEntry("max_completion_tokens",500).containsEntry("reasoning_effort","none").doesNotContainKeys("max_tokens","temperature");
-        assertThat(old).containsEntry("max_tokens",500).containsEntry("temperature",0);
+        assertThat(next).containsEntry("max_completion_tokens",800).containsEntry("reasoning_effort","low").doesNotContainKeys("max_tokens","temperature");
+        assertThat(old).containsEntry("max_tokens",800).containsEntry("temperature",0);
     }
     @Test void comparisonReservationsRejectUnknownOrOversizedRequests(){
         assertThat(JokeModelComparison.reservation("gpt-4.1-mini",10000)).isLessThan(.01);

@@ -29,7 +29,7 @@ public final class JokeModelComparison {
         if(!MODELS.contains(model)||requestBytes>20000)throw new IllegalArgumentException("Comparison model/input limit");
         double input=model.equals("gpt-4.1-mini")?.4:.75,output=model.equals("gpt-4.1-mini")?1.6:4.5;
         // Entire UTF-8 request plus 1024 framing tokens: deliberately conservative, not a tokenizer.
-        return ((requestBytes+1024)*input+500*output)/1_000_000;
+        return ((requestBytes+1024)*input+LlmJokeJudge.MAX_OUTPUT_TOKENS*output)/1_000_000;
     }
     public static void main(String[] args)throws Exception {
         if(args.length>1||(args.length==1&&!args[0].equals("--mini54-suite")))throw new IllegalArgumentException("Unknown comparison option");

@@ -10,6 +10,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 class JokeServiceConfigurationTests {
+    @org.junit.jupiter.api.Test void jokeModelDefaultsToMini54AndHasAnIndependentOverride(){
+        runtime("dev,db").withPropertyValues("OPENAI_API_KEY=fixture","AI_LLM_MODEL=gpt-4.1-mini").run(c->
+            assertThat(((JokeJudge)org.springframework.test.util.ReflectionTestUtils.getField(c.getBean(LocalJokeContest.class),"judge")).mode()).startsWith("LLM:gpt-5.4-mini:"));
+        runtime("dev,db").withPropertyValues("OPENAI_API_KEY=fixture","AI_JOKE_LLM_MODEL=custom-model").run(c->
+            assertThat(((JokeJudge)org.springframework.test.util.ReflectionTestUtils.getField(c.getBean(LocalJokeContest.class),"judge")).mode()).startsWith("LLM:custom-model:"));
+    }
     WebApplicationContextRunner runtime(String profile){return new WebApplicationContextRunner().withUserConfiguration(JokeServiceConfiguration.class)
             .withPropertyValues("spring.profiles.active="+profile,"ontop.ai.enabled=true","ontop.ai.joke-enabled=true","OPENAI_API_KEY=")
             .withBean(ObjectMapper.class,ObjectMapper::new).withBean(DataSource.class,()->mock(DataSource.class))
