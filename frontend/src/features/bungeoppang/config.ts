@@ -24,7 +24,7 @@ export const BUNGEOPPANG = {
   okPoint: 2,
   goldenPoint: 5,
   pointsPerCoin: 5,
-  dailyCoinCap: 500,
+  dailyCoinCap: 1000,
   minGapMs: 50,
   sameSlotGapMs: 300,
   countdownMs: 3_500,

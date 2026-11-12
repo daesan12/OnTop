@@ -65,7 +65,7 @@ test('전체 VR 화면 검토: 공원 진입부터 점프맵 결과·종료와 �
   await input(true); await expect.poll(async () => (await snapshot()).view?.key).toBe('roaming')
   await input(); await button(false)
   const scope = { channelId: 'channel-1', mapVersion: identity.mapVersion }
-  const money = { earningsDate: kstDate(), todayEarned: 0, dailyCap: 500 }
+  const money = { earningsDate: kstDate(), todayEarned: 0, dailyCap: 1000 }
   const runId = 'flow-preview-run'
   server.place({ x: COURSE[0]!.x, y: COURSE[0]!.top + .8, z: COURSE[0]!.z })
   server.emit('JUMPMAP_STARTED', { ...scope, ...money, revision: 1, runId, courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })

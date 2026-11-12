@@ -96,7 +96,7 @@ class MoleServiceTests {
 
     @Test
     void 미니게임_공통_하루_상한에서_남은_만큼만_지급한다() {
-        repository.earnedBefore = 490;
+        repository.earnedBefore = 990;
         var round = service.start(USER, "round-1");
         clock.advance(Duration.ofSeconds(92));
 
@@ -153,7 +153,7 @@ class MoleServiceTests {
         var state = service.status(USER);
 
         assertThat(state.todayEarned()).isEqualTo(120 + settled.result().reward());
-        assertThat(state.dailyCap()).isEqualTo(500);
+        assertThat(state.dailyCap()).isEqualTo(1000);
         assertThat(state.bestScore()).isEqualTo(settled.result().score());
         assertThat(state.last()).isEqualTo(settled.result());
     }

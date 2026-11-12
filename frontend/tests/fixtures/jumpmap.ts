@@ -5,5 +5,5 @@ import type { JumpStatus } from '../../src/features/jumpmap/protocol'
 export function disabledJumpmapStatus(channelId: string, mapVersion: string = MAP_VERSION): JumpStatus {
   return { channelId, mapVersion, revision: 0, enabled: false, courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION,
     isFirstRun: false, seenTips: [], activeRunId: null, activeRun: null, bestFinishMs: null,
-    dailyCap: 500, todayEarned: 0, earningsDate: kstDate() }
+    dailyCap: 1000, todayEarned: 0, earningsDate: kstDate() }
 }

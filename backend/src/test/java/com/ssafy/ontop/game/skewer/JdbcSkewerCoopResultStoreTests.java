@@ -8,7 +8,6 @@ import com.ssafy.ontop.game.skewer.coop.service.SkewerCoopFinished;
 import com.ssafy.ontop.game.skewer.coop.service.SkewerCoopSettlementService;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -38,7 +37,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /** 실제 실행은 사용자 최종 검수 단계에서 loopback의 별도 MySQL 8.4 DB에 한정한다. */
 @Tag("mysql")
 @ActiveProfiles({"local", "db"})
-@DataJpaTest(properties = {"spring.flyway.locations=classpath:db/migration,classpath:db/minigame",
+// V165가 db/shop의 items를 참조한다.
+@DataJpaTest(properties = {"spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/shop",
         "ontop.games.skewer-coop.enabled=true"})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(JdbcSkewerCoopResultStore.class)
@@ -79,7 +79,7 @@ class JdbcSkewerCoopResultStoreTests {
     @Test
     void 다른_미니게임_수입과_합산하여_각자_상한을_적용하고_중복결과는_다시_지급하지_않는다() {
         long chef = member("요리사", true), server = member("서빙", true);
-        reward(chef, 490);
+        reward(chef, 990);
         reward(server, 30);
         var event = event(chef, server, 2400, true, "SKEWER_TIME_UP");
 
@@ -90,8 +90,8 @@ class JdbcSkewerCoopResultStoreTests {
         var second = store.find(server, event.result().gameId(), NOW).orElseThrow();
         assertThat(first.coinsCalculated()).isEqualTo(120);
         assertThat(first.coinsGranted()).isEqualTo(10);
-        assertThat(first.todayEarned()).isEqualTo(500);
-        assertThat(first.balance()).isEqualTo(600);
+        assertThat(first.todayEarned()).isEqualTo(1000);
+        assertThat(first.balance()).isEqualTo(1100);
         assertThat(second.coinsGranted()).isEqualTo(120);
         assertThat(second.todayEarned()).isEqualTo(150);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions WHERE transaction_type='SKEWER_REWARD'",
@@ -99,7 +99,7 @@ class JdbcSkewerCoopResultStoreTests {
         assertThat(store.find(999999, event.result().gameId(), NOW)).isEmpty();
         var tomorrow = store.find(chef, event.result().gameId(), NOW.plusSeconds(86_400)).orElseThrow();
         assertThat(tomorrow.coinsGranted()).isEqualTo(10);
-        assertThat(tomorrow.remainingToday()).isEqualTo(500);
+        assertThat(tomorrow.remainingToday()).isEqualTo(1000);
     }
 
     @Test
@@ -230,7 +230,7 @@ class JdbcSkewerCoopResultStoreTests {
         jdbc.update("""
                 INSERT INTO wallet_transactions(wallet_id, transaction_type, balance_delta, reserved_delta,
                     idempotency_key, created_at) VALUES (?, 'MINIGAME_REWARD', ?, 0, ?, ?)
-                """, wallet, amount, "skewer-test:" + UUID.randomUUID(), Timestamp.from(NOW.minusSeconds(1)));
+                """, wallet, amount, "skewer-test:" + UUID.randomUUID(), NOW.minusSeconds(1).atOffset(ZoneOffset.UTC).toLocalDateTime());
     }
 
     private SkewerCoopFinished event(long chef, long server, int score, boolean vr, String reason) {

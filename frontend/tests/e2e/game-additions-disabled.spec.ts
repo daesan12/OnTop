@@ -12,7 +12,7 @@ test('default result opens a preparation screen without calling an unconfirmed r
     const { createGrill } = await import('/src/features/bungeoppang/rules.ts' as string)
     const { BUNGEOPPANG } = await import('/src/features/bungeoppang/config.ts' as string)
     useBungeoppang.setState({ phase: 'result', grill: { ...createGrill(Array(64).fill(100), BUNGEOPPANG), made: 8, failed: 2, score: 120 },
-      result: { score: 120, made: 8, golden: 6, failed: 2, wasted: 0, maxCombo: 4, coinsCalculated: 8, coinsGranted: 8, todayEarned: 8, dailyCap: 500, capReached: false },
+      result: { score: 120, made: 8, golden: 6, failed: 2, wasted: 0, maxCombo: 4, coinsCalculated: 8, coinsGranted: 8, todayEarned: 8, dailyCap: 1000, capReached: false },
       submitting: false, starting: false, confirmExit: false, walletError: null, startError: null, submitError: null })
   })
   await expect(page.getByRole('region', { name: '전체 랭킹 요약', exact: true })).toContainText('전체 랭킹 준비 중')

@@ -211,7 +211,7 @@ test('공원 VR 조작 안내에서 이동을 잠그고 A로 닫은 뒤 중립 �
 test('돌탑 서버 진행·늦은 정산·완주·레이저 랭킹을 VR 세션 안에서 처리한다', async ({ page }, info) => {
   const server = await startSynthetic(page, true)
   const scope = { channelId: 'channel-1', mapVersion: identity.mapVersion }
-  const money = { earningsDate: kstDate(), todayEarned: 0, dailyCap: 500 }
+  const money = { earningsDate: kstDate(), todayEarned: 0, dailyCap: 1000 }
   const runId = 'xr-run-1'
   server.place({ x: COURSE[0]!.x, y: COURSE[0]!.top + .8, z: COURSE[0]!.z })
   server.emit('JUMPMAP_STARTED', { ...scope, ...money, revision: 1, runId, courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })

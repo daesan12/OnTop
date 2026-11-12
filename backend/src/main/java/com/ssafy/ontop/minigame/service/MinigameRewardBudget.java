@@ -6,7 +6,7 @@ import java.time.ZoneId;
 
 /** 미니게임 공통 KST 하루 상한. 지급자는 같은 트랜잭션에서 먼저 회원 지갑을 잠근다. */
 public final class MinigameRewardBudget {
-    public static final int DAILY_CAP = 500;
+    public static final int DAILY_CAP = 1000;
     public static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private MinigameRewardBudget() {

@@ -7,7 +7,7 @@ const items = (bean = 0, custard = 0, pizza = 0, chocolate = 0) => ({ bean, cust
 const rules = { slots: 6, durationMs: 60000, countdownMs: 3500, sideMs: 8000, rushSideMs: 6000,
   rushFromMs: 40000, heatMin: 85, heatMax: 115, heatListLength: 512, trayCapacity: 4, maxOrderItems: 4,
   specialOrderChancePercent: 20, specialBonusPercent: 50, firstOrder: items(2), okFrom: 50, goldenFrom: 70,
-  goldenTo: 90, burntFrom: 100, okPoint: 2, goldenPoint: 5, pointsPerCoin: 15, dailyCoinCap: 500,
+  goldenTo: 90, burntFrom: 100, okPoint: 2, goldenPoint: 5, pointsPerCoin: 15, dailyCoinCap: 1000,
   minGapMs: 50, sameSlotGapMs: 300, maxLogEntries: 1200 };
 const initialHash = '57b9fe339b296f349f03b006a396e0d29e865f7770ab36162eb5ee606c7fd2e7';
 const emptySlots = () => Array.from({ length: 6 }, (_, slot) => ({ slot, phase: 'empty', since: 0,
@@ -43,7 +43,7 @@ const delivery = { minigameSessionId: '901', deliveryKey: 'delivery-901-1', orde
 const completed = { minigameSessionId: '901', status: 'COMPLETED', rulesVersion: 'v4',
   configVersion: 'v4-20261027.1', verifiedCompletedCount: 0, rewardAmount: 0, score: 0, made: 0,
   golden: 0, failed: 0, wasted: 0, maxCombo: 0, coinsCalculated: 0, coinsGranted: 0,
-  todayEarned: 0, dailyCap: 500, capReached: false, successfulMade: 0, served: 0,
+  todayEarned: 0, dailyCap: 1000, capReached: false, successfulMade: 0, served: 0,
   customersServed: 0, specialServed: 0, bonusScore: 0, grillDiscarded: 0, trayDiscarded: 0,
   undeliveredCount: 0, unfinishedGrillCount: 0, rewardDate: '2026-10-27',
   settledAt: '2026-10-27T00:01:05Z', finalThroughSeq: 0, finalPrefixHash: initialHash };
@@ -164,7 +164,7 @@ describe('Bungeoppang v4 production REST adapter', () => {
   });
 
   it('retains the active session id and rejects malformed ids without treating them as no active round', async () => {
-    const lobby = { rulesVersion: 'v4', todayEarned: 0, dailyCap: 500, isFirstGame: false, seenTips: [], activeSessionId: '901' };
+    const lobby = { rulesVersion: 'v4', todayEarned: 0, dailyCap: 1000, isFirstGame: false, seenTips: [], activeSessionId: '901' };
     await expect(createBungeoppangV4Service(vi.fn().mockResolvedValue(lobby)).getStatus()).resolves.toMatchObject({ activeSessionId: '901' });
     await expect(createBungeoppangV4Service(vi.fn().mockResolvedValue({ ...lobby, activeSessionId: '../901' })).getStatus())
       .rejects.toMatchObject({ code: 'INVALID_RESPONSE' });

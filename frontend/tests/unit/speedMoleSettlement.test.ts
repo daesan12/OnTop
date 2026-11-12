@@ -5,7 +5,7 @@ import { speedMoleService } from '../../src/features/speedMole/service'
 import { settleSpeedMole } from '../../src/features/speedMole/settlement'
 import { useWalletSettlement } from '../../src/features/wallet/settlementRefresh'
 import { refreshMole } from '../../src/features/mole/store'
-const result={id:'99',rulesVersion:1,score:120,hits:120,misses:0,completedAt:'2030-01-01T00:01:03Z',calculatedReward:24,reward:24,todayEarned:24,dailyCap:500}
+const result={id:'99',rulesVersion:1,score:120,hits:120,misses:0,completedAt:'2030-01-01T00:01:03Z',calculatedReward:24,reward:24,todayEarned:24,dailyCap:1000}
 afterEach(()=>vi.restoreAllMocks())
 it('a delayed completion still refreshes the own wallet without needing a mounted result panel; retries do not double-refresh',async()=>{
   useSession.setState({sessionId:'speed-own-late'})

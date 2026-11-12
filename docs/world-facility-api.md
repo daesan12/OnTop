@@ -12,8 +12,8 @@
 | --- | --- |
 | enabled | 현재 서버의 운동 보상 활성 여부. DB 없는 실행에서는 false |
 | earningsDate | Asia/Seoul 기준 수입 날짜 (YYYY-MM-DD) |
-| todayEarned / dailyCap | 확정된 운동 원장 수입 / 300냥. 점프맵·붕어빵 공통 500냥과 별도 |
-| rewardIntervalSeconds | 실제 60초마다 1냥. 공원 가상 시계의 진행 속도와 무관 |
+| todayEarned / dailyCap | 확정된 운동 원장 수입 / 500냥. 점프맵·붕어빵 공통 1000냥과 별도 |
+| rewardIntervalSeconds | 실제 60초마다 5냥. 공원 가상 시계의 진행 속도와 무관 |
 | serverNow | 조회 기준 서버 epoch milliseconds |
 | nextRewardAt | 다음 지급 예정 경계의 epoch milliseconds. 미이용·한도 도달이면 null |
 | activeLeaseId | 본인의 현재 운동기구 이용 식별자. 미이용이면 null |

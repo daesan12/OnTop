@@ -27,11 +27,11 @@ beforeEach(() => {
     innerWidth: 1280, innerHeight: 720 });
   vi.stubGlobal('document', { hidden: false, activeElement: null, pointerLockElement: null, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1)); vi.stubGlobal('cancelAnimationFrame', vi.fn());
-  vi.mocked(service.getStatus).mockResolvedValue({ rulesVersion: 'v5', todayEarned: 0, dailyCap: 500, isFirstGame: true, seenTips: [] });
+  vi.mocked(service.getStatus).mockResolvedValue({ rulesVersion: 'v5', todayEarned: 0, dailyCap: 1000, isFirstGame: true, seenTips: [] });
   vi.mocked(service.startGame).mockResolvedValue({ gameId: 'preview-1', startedAt: new Date(0).toISOString(), rulesVersion: 'v5',
     heats, isFirstGame: true, v5: { rules: { ...R }, orders: fixture.orders } });
   vi.mocked(service.submitResult).mockResolvedValue({ score: 0, made: 0, golden: 0, failed: 0, wasted: 0,
-    maxCombo: 0, coinsCalculated: 0, coinsGranted: 0, todayEarned: 0, dailyCap: 500, capReached: false });
+    maxCombo: 0, coinsCalculated: 0, coinsGranted: 0, todayEarned: 0, dailyCap: 1000, capReached: false });
 });
 afterEach(() => { resetBungeoppang(); delete service.setManualPaused; vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 async function start() {

@@ -44,7 +44,8 @@ class WinnerContactMySqlTests {
         jdbc = new JdbcTemplate(source);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.tables "
                 + "WHERE table_schema = DATABASE()", Long.class)).isZero();
-        Flyway.configure().dataSource(source).locations("classpath:db/migration")
+        // V165가 db/shop의 items를 참조한다.
+        Flyway.configure().dataSource(source).locations("classpath:db/migration", "classpath:db/shop")
                 .baselineOnMigrate(false).outOfOrder(false).load().migrate();
         transactions = new DataSourceTransactionManager(source);
         repository = new WinnerContactRepository(jdbc);
