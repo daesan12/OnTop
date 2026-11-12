@@ -144,7 +144,7 @@ export function GachaBoxes(){
   const receipt=useGacha.getState().result
   if(useSession.getState().sessionId===owner&&receipt?.operationId===pending.operationId)setRecovered(receipt)
  }
- return <section className="gacha-item-storage" aria-label="아이템 보관함">
+ return <section className="gacha-item-storage" aria-label="아이템 보관함" aria-busy={s.loading}>
   <ul className="wardrobe-grid gacha-item-grid">{matchingBoxes.map(b=><li key={b.grade}>
    <button type="button" className="wardrobe-card" aria-label={`${capsuleName(b.grade)} ${b.quantity}개 보유`} aria-pressed={chosen===b.grade} disabled={s.busy||opening.busy} onClick={()=>useItemChoice.setState({grade:b.grade})} onDoubleClick={()=>{if(!s.pending&&b.quantity>0)void opening.open(b.grade)}}>
     <span className="wardrobe-art" data-slot="TOP"><Capsule grade={b.grade}/></span><span className="wardrobe-card__text"><b>{capsuleName(b.grade)}</b><small>보유 {b.quantity}개</small></span>
@@ -152,10 +152,12 @@ export function GachaBoxes(){
   </li>)}</ul>
   {s.state&&query&&matchingBoxes.length===0&&<div className="wardrobe-empty" role="status"><b>찾는 아이템이 없어요</b><p>검색어를 바꿔 보세요.</p></div>}
   {s.state&&!query&&ownedBoxes.length===0&&<div className="wardrobe-empty" role="status"><b>보유한 캡슐이 없어요</b><p>뽑기에서 얻은 캡슐이 여기에 표시돼요.</p></div>}
-  {s.error&&<p role="alert" className="gacha-item-error">{displayGachaMessage(s.error)}</p>}
-  {s.pending&&!s.busy&&<button className="gacha-item-retry" onClick={()=>void retry()}>같은 요청으로 결과 다시 확인</button>}
+  {s.error&&<div role="alert" className="gacha-item-error"><p>{displayGachaMessage(s.error)}</p>
+   <button type="button" className="gacha-item-retry" disabled={s.loading||s.busy||opening.busy} onClick={()=>void refreshGacha()}>다시 불러오기</button>
+  </div>}
+  {s.pending&&!s.busy&&<button className="gacha-item-retry" disabled={!s.state||s.loading||opening.busy} onClick={()=>void retry()}>이전 거래 결과 확인</button>}
   {recovered&&<div className="gacha-item-recovery" role="status" data-operation-id={recovered.operationId}><b>{recovered.kind==='BUY'?`뽑기권 ${Math.max(1,Math.round(recovered.paidCoins/(s.state?.ticketPrice??100)))}장 구매를 확인했어요`:recovered.grade===5?`${money(recovered.awardedCoins)} 당첨을 확인했어요`:`${capsuleName(recovered.grade)} 당첨을 확인했어요`}</b><p>확정된 결과를 복구했어요. 추가로 소비하지 않았어요.</p><button onClick={()=>setRecovered(null)}>확인</button></div>}
-  {!s.state&&<p role="status">캡슐을 불러오고 있어요…</p>}
+  {!s.state&&s.loading&&<p role="status">캡슐을 불러오고 있어요…</p>}
   <dialog ref={dialog} className="capsule-opening-dialog" aria-label="의상 캡슐 개봉" onKeyDown={e=>e.stopPropagation()} onCancel={e=>{e.preventDefault();opening.busy?opening.skip():next()}}>
    <div className="capsule-opening-stage" data-phase={opening.phase} data-grade={opening.grade} data-reduced={reduced||opening.instant} style={{'--rarity-color':CAPSULES[opening.grade]!.color} as React.CSSProperties}>
     {opening.phase==='complete'&&<button className="open-result-x" aria-label="개봉 결과 닫기" onClick={next}>×</button>}

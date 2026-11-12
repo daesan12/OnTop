@@ -142,7 +142,13 @@ export function GachaPanel() {
       {art.status==='error'&&<p className="art-error" role="alert">캡슐 그림을 불러오지 못했어요. 뽑기권은 사용하지 않았어요.<button onClick={art.retry}>그림 다시 불러오기</button></p>}
       {motion.phase==='anticipation'&&<div className="capsule-anticipation" aria-hidden="true"><span>특별한 행운이 다가와요…</span></div>}
       {s.loading&&!s.state&&<p className="art-notice" role="status">공유 기계의 재고를 불러오고 있어요…</p>}
-      {(s.error||s.pending&&!s.busy&&!drawing)&&<p className="art-error" role="alert">{displayGachaMessage(s.error)||'이전 요청의 결과를 다시 확인해 주세요.'}{s.pending&&!s.busy&&!drawing&&<button onClick={retry}>{s.pending.kind==='OPEN'?'옷장에서 개봉 결과 확인':'같은 요청으로 다시 확인'}</button>}{s.error&&!s.pending&&!s.busy&&!drawing&&<button disabled={s.loading} onClick={()=>void refreshGacha()}>다시 불러오기</button>}</p>}
+      {(s.error||s.pending&&!s.busy&&!drawing)&&<div className="art-error art-recovery" role="alert">
+        <span>{displayGachaMessage(s.error)||'아직 결과를 확인하지 못한 거래가 있어요. 이전 거래 결과를 확인해주세요.'}</span>
+        <span>
+          {s.pending&&!s.busy&&!drawing&&<button disabled={s.loading||(!s.state&&s.pending.kind!=='OPEN')} onClick={retry}>{s.pending.kind==='OPEN'?'옷장에서 개봉 결과 확인':'이전 거래 결과 확인'}</button>}
+          {s.error&&!s.busy&&!drawing&&<button disabled={s.loading} onClick={()=>void refreshGacha()}>다시 불러오기</button>}
+        </span>
+      </div>}
       {s.state&&inventory&&available<price*count&&<p className="art-shortage">구매하려면 {money(price*count-available)}이 더 필요해요.</p>}
       {result&&<div className={result.kind==='DRAW'?'capsule-reveal':'purchase-reveal'} data-grade={result.grade}
         style={{'--rarity-color':CAPSULES[result.grade]?.color??'#ffe49a'} as React.CSSProperties}>
