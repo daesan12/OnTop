@@ -327,8 +327,8 @@ class SkinMySqlTests {
             Long owned=jdbc.queryForObject("SELECT ui.id FROM user_items ui JOIN skin_item_parts p ON p.item_id=ui.item_id WHERE ui.user_id=? AND p.skin_id=? ORDER BY ui.id LIMIT 1",Long.class,user,head.id());
             shop.equip(user,owned);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_items WHERE user_id=? AND is_equipped=TRUE",Integer.class,user)).isEqualTo(2);
-            // Existing valuation policy counts completed products, including both reusable compositions.
-            assertThat(jdbc.queryForObject("SELECT ga.equipment_value FROM wallets w "+com.ssafy.ontop.gacha.GachaAssetSql.JOIN+" WHERE w.user_id=?",Long.class,user)).isEqualTo(500L);
+            // The male and female sets share the same items: one design, owned once, valued once (B 250, not 2 x 250).
+            assertThat(jdbc.queryForObject("SELECT ga.equipment_value FROM wallets w "+com.ssafy.ontop.gacha.GachaAssetSql.JOIN+" WHERE w.user_id=?",Long.class,user)).isEqualTo(250L);
         }
     }
     List<Long> mrParts(SkinDtos.Entry head,SkinDtos.Entry clothes) {

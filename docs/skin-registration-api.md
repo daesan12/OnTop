@@ -33,6 +33,8 @@ SKIN_UPLOAD_MAX_IMAGE_BYTES=2097152
 
 - GLB 2.0 최대20MiB, 정지 WebP 최대2MiB/가로·세로4096px. 이미지·버퍼는 GLB 안에 포함하고 외부 URI는 금지한다. 지원 필수 확장은 현재 로더의 `EXT_meshopt_compression`, `EXT_texture_webp`다. 압축 해제 후 선언 버퍼 합계는128MiB 이하로 제한한다.
 - 현재 캐릭터와 같은49개 관절 이름을 사용한다. WHOLE은 5부위를 함께 등록하며 MALE/FEMALE 전용 또는 ANY(남녀 모두)를 선택한다. CharacterRig의 variant와 near-/far- LOD, 실제 primitive 표면 수2/10이 맞아야 한다. 서로 다른 남녀 파일은 각각 man/girl 규격을 검사하고, 같은 공용 파일은 man/girl 중 해당 모델의 규격으로 검사한다. PARTS는 선택 부위별 `extras.pieces`의 `item__<SLOT>__a` 조각 계약을 사용한다. 옷은 TOP/BOTTOM/SHOES를 모두 포함한다.
+- PARTS 메시는 선택적으로 `extras.covers`(예: `["TOPg","BOTTOMg","SHOESg"]`)에 덮는 옷장 아이템을 적을 수 있다. 입으면 기본 몸의 그 구역(`body__SHOESg` 등)을 옷장 의상처럼 숨기고 `__under_` 규칙에도 같이 쓴다. 파일이 실제로 입혀진 부위의 표시만 인정하므로 모자 파일이 발을 숨기지 못한다. 표시가 없으면 지금처럼 맨몸 위에 그려져 신발 앞 등으로 맨발이 비칠 수 있다. 서버 검사는 바뀌지 않는다(2026-11-11, S15P31B105-402).
+- 옷장 의상을 PARTS로 나누는 도구: `node frontend/scripts/split-outfit-parts.mjs <outfits/x.glb> <출력폴더> <이름> hair=HAIR face=FACE outfit=TOP,BOTTOM,SHOES`. 자기 글자를 `a`로 바꾸고 `covers`를 넣는다. 다른 옷장 의상 모양에서 만든 옷은 `covers:outfit=h`처럼 그 글자를 빌린다(기본 몸에 숨김 구역이 있는 글자만 효과가 있다).
 - 등록 화면은 기존 공원과 같은 `createCharacterRig`로 미리보기를 만들며 모델/대표 이미지가 로드되기 전 공개 버튼을 열지 않는다. 서버의 구조 검사와 담당자의 외형·크기·착용 검수는 별개다. 일반 GLB를 자동으로 리깅하거나 모든 glTF 기능을 지원하는 기능이 아니다.
 - 공용 PARTS는 남녀 양쪽에서 선택 부위를 표시할 조각을 요구한다. 화면도 양쪽 기본 캐릭터와 실제 리그를 생성하고 빈 조각은 거절한다. WHOLE과 PARTS의 시각·애니메이션 적합성은 실제 모델별 인수로 확인한다.
 - 상품 코드는 대문자/숫자/밑줄3~28자, 첫 글자 대문자다. 서버 `grade`1/2/3/4는 화면 S/A/B/C에 대응한다. 의상 상품 가치1000/500/250/100과 중복50%·기계 확률·뽑기권 가격은 기존 규칙 그대로다.

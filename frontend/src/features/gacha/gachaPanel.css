@@ -8,3 +8,4 @@
 
 .art-refill-ready{position:absolute;left:27%;top:80%;width:46%;margin:0;padding:.55cqw .8cqw;box-sizing:border-box;z-index:3;border:1px solid #bba06b;border-radius:.6cqw;background:#284d3ef2;color:#fff0ce;text-align:center;font-size:.9cqw;line-height:1.5}
 .open-component-rewards{list-style:none;display:flex;justify-content:center;gap:1rem;padding:.5rem;margin:.5rem 0;flex-wrap:wrap}.open-component-rewards li{display:grid;justify-items:center;gap:.25rem;padding:.6rem 1rem;border:1px solid #c7aa6b;background:#fff4d9;border-radius:12px}.open-component-rewards img{width:64px;height:64px;object-fit:contain}.open-component-rewards small{font-size:.85em}
+.art-preview-detail .art-product{margin-left:auto;margin-right:auto;max-width:92%;word-break:keep-all}.art-preview-detail .art-product.many{font-size:.9cqw;line-height:1.4}

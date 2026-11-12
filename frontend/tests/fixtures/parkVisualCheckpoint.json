@@ -58,7 +58,7 @@
     "src/world/art/characterAssets.ts": "286bc5b9fdccdc504f6f137dda1b076c390d4f319b410d75cc283246ab700d27",
     "src/world/art/characterEmotes.ts": "fa6f71be2a2f40be9d32817e3fa8333c93e5f9b7cd07cdf72dc2a024882e8cb9",
     "src/world/art/characterMotion.ts": "32b692c0a9c674604e164d58876ac1b37bbbb6f7c28be39c3e2e2252de5a7084",
-    "src/world/art/CharacterRig.ts": "9fcacf84bdb21248043012587ac7407d6ba035dc6f776e1718cf23345dbf4c0c",
+    "src/world/art/CharacterRig.ts": "8acdd6605f0c07dabe9a609ee013129204dce146ab266a75b8ca454d3e1fb95f",
     "src/world/art/cityLayout.ts": "8ec73710c504246e80bad0f46383b9f3e301fd3461617ed08502d93ccd4c3c08",
     "src/world/art/CityStreets.tsx": "1f9e6935a927db0722be05ccf214af77c8cf515bfcdac17b10b5aa83b3cb0554",
     "src/world/art/CodeFishBreadCart.tsx": "6907101f6dc20983e15b87c7b0719f5e1362df560664ce66dc23c4773d68cf8f",

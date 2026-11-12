@@ -42,3 +42,16 @@ it('실제 엽전을 유지하면서 총자산을 표시하고 잘못된 합계�
   expect(rankingColumns(parsed)[0]?.title).toBe('총자산')
   expect(() => parseParkRanking({ ...snapshot, balance: [{ ...snapshot.balance[0], totalAssets: 9999 }] })).toThrow()
 })
+it('캡슐 미리보기는 그 등급에서 받을 수 있는 세트를 모두 보여 준다', async () => {
+  const { gradeProductNames } = await import('../../src/features/gacha/labels')
+  const p = (name: string, grade: number, compatibility: string) => ({ name, grade, compatibility })
+  const products = [p('양반 세트', 2, 'MALE'), p('양반 세트', 2, 'FEMALE'), p('사또 세트', 2, 'MALE'), p('상어 세트', 2, 'ANY'),
+    p('장군 세트', 1, 'MALE'), p('SSAFY 검정 세트', 4, 'FEMALE')]
+  expect(gradeProductNames(products, 2, 'MALE')).toEqual(['양반', '사또', '상어'])
+  expect(gradeProductNames(products, 2, 'FEMALE')).toEqual(['양반', '상어'])
+  expect(gradeProductNames(products, 4, 'MALE')).toEqual([])
+  // One product keeps its registered name; "세트" is never added to a name that has none.
+  expect(gradeProductNames(products, 1, 'MALE')).toEqual(['장군 세트'])
+  expect(gradeProductNames([p('도깨비 가면', 3, 'ANY')], 3, 'MALE')).toEqual(['도깨비 가면'])
+  expect(gradeProductNames([p('도깨비 가면', 3, 'ANY'), p('사또 세트', 3, 'ANY')], 3, 'MALE')).toEqual(['도깨비 가면', '사또'])
+})
