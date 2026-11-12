@@ -63,11 +63,14 @@ function ResultCardStains() {
   )
 }
 
-export function JumpRopeResult({ reason, stats, onQuit, onRestart }: {
+export function JumpRopeResult({ reason, stats, onQuit, onRestart, status, onRetry, restartDisabled }: {
   reason: RoundEndReason
-  stats: Pick<RoundStats, 'score' | 'counts'>
+  stats?: Pick<RoundStats, 'score' | 'counts'>
   onQuit: () => void
   onRestart: () => void
+  status?: string
+  onRetry?: () => void
+  restartDisabled?: boolean
 }) {
   const completed = reason === 'time'
   const headingRef = useRef<HTMLHeadingElement>(null)
@@ -88,19 +91,21 @@ export function JumpRopeResult({ reason, stats, onQuit, onRestart }: {
         </header>
         <dl className="rope-result__score">
           <dt>최종 점수</dt>
-          <dd><span>{stats.score.toLocaleString('ko-KR')}</span></dd>
+          <dd><span>{stats?.score.toLocaleString('ko-KR') ?? '—'}</span></dd>
         </dl>
         <dl className="rope-result__verdicts">
           {verdicts.map(([kind, label]) => (
-            <div key={kind}><dt>{label}</dt><dd>{stats.counts[kind]}회</dd></div>
+            <div key={kind}><dt>{label}</dt><dd>{stats ? `${stats.counts[kind]}회` : '—'}</dd></div>
           ))}
         </dl>
+        {status && <p className="rope-server-status" role="status">{status}</p>}
+        {onRetry && <button type="button" className="rope-result__quit" onClick={onRetry}>기록 저장 다시 시도</button>}
         <div className="rope-result__actions">
           <button type="button" className="rope-result__quit" onClick={onQuit}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4H5v16h7m-2-8h11m-4-4 4 4-4 4" /></svg>
             그만하기
           </button>
-          <button type="button" className="rope-result__restart" onClick={onRestart}>
+          <button type="button" className="rope-result__restart" onClick={onRestart} disabled={restartDisabled}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 9a8 8 0 1 0 .2 5M20 4v5h-5" /></svg>
             다시 시작
           </button>

@@ -17,7 +17,16 @@ import { finaleStage } from './gameOverFinale'
 import { completionResultMs } from './completionFinale'
 import { GameOverSplash } from './GameOverSplash'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue, type ScoredPreviewPass } from './previewRound'
+import type { JumpRopeService, JumpRopeSession } from '../features/jumpRope/service'
+import type { JumpRopeSettlement, submitJumpRope } from '../features/jumpRope/store'
+import type { JumpRopeRankingState } from './jumpRopeRankingData'
 import './preview.css'
+
+type RankedBindings = {
+  owner: string; service: JumpRopeService; settlement: JumpRopeSettlement | null
+  setActive: (active: boolean) => void; submit: typeof submitJumpRope; retry: () => void; onExit: () => void
+  canJump: () => boolean
+}
 
 const defaults = {
   cameraAngle: 18,
@@ -158,7 +167,7 @@ function parseDistractionSeed(input: string) {
   return /^\d{1,10}$/.test(input) && seed <= 0xffffffff ? seed : null
 }
 
-export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
+export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const [settings, setSettings] = useState(defaults)
   const [distractionSettings, setDistractionSettings] = useState(distractionDefaults)
   const [distractionDirection, setDistractionDirection] = useState<-1 | 1>(1)
@@ -169,6 +178,16 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
   const [demo, setDemo] = useState<{ action: DemoAction; startedAt: number } | null>(null)
   const [round] = useState(() => createPreviewRound('menu'))
   const [rankingOpen, setRankingOpen] = useState(false)
+  const [liveRanking, setLiveRanking] = useState<JumpRopeRankingState>({ kind: 'loading' })
+  const [starting, setStarting] = useState(false)
+  const [startError, setStartError] = useState('')
+  const startRequest = useRef<AbortController | null>(null)
+  const startKey = useRef('')
+  const sessionRef = useRef<{ id: string; expiresAt: number } | null>(null)
+  const submitRanked = ranked?.submit
+  const rankedOwner = ranked?.owner
+  const rankedService = ranked?.service
+  const canJump = ranked?.canJump
   const [rankingMode, setRankingMode] = useState<keyof typeof rankingPreviewStates>('ready')
   const rankingTrigger = useRef<HTMLButtonElement | null>(null)
   const [hideMenuForPreview, setHideMenuForPreview] = useState(false)
@@ -243,6 +262,9 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
     const previous = readRoundHud(round)
     const latest = advancePreviewRound(round, now, effectiveSpeed, settings, settings.reactionMs,
       settings.autoAcceleration ? settings : undefined)
+    if (!previous.endReason && round.endReason && sessionRef.current && round.ranked && rankedOwner) {
+      submitRanked?.({ ...sessionRef.current, owner: rankedOwner, reason: round.endReason, offsets: round.ranked.offsets })
+    }
     if (latest?.kind === 'miss' || round.endReason) successDemoRef.current = null
     if (latest?.kind === 'miss' || round.endReason) distractionRef.current = null
     if (latest?.kind === 'miss') demoRef.current = null
@@ -271,7 +293,7 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
     if (!latest) return
     setLastPass(latest)
     setVisiblePass(latest)
-  }, [round, automaticDistraction, distractionSettings, sceneTime, closeManholePreview])
+  }, [round, automaticDistraction, distractionSettings, sceneTime, closeManholePreview, submitRanked, rankedOwner])
 
   const sampleDistractionFrame = useCallback((now: number) => {
     if (finalePreviewRef.current || round.endReason) return null
@@ -288,6 +310,17 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
     rankingTrigger.current?.focus({ preventScroll: true })
     rankingTrigger.current = null
   }, [rankingOpen])
+
+  useEffect(() => {
+    if (!rankingOpen || !rankedService) return
+    const controller = new AbortController()
+    void rankedService.rankings(controller.signal).then(result => {
+      if (!controller.signal.aborted) setLiveRanking(result)
+    }, () => { if (!controller.signal.aborted) setLiveRanking({ kind: 'error' }) })
+    return () => controller.abort()
+  }, [rankedService, rankingOpen])
+
+  useEffect(() => () => startRequest.current?.abort(), [])
 
   useEffect(() => {
     if (!visiblePass) return
@@ -316,6 +349,7 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
         return
       }
       if (event.code !== 'Space' || event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return
+      if (canJump && (document.hidden || !canJump())) return
       if (event.target instanceof HTMLElement && event.target.closest(
         'button, input:not([type="range"]), textarea, select, a[href], [contenteditable="true"]',
       )) return
@@ -324,12 +358,12 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
         const now = performance.now()
         const playing = round.phase.kind === 'playing'
         step(now)
-        if (playing) requestRoundJump(round, sceneTime(now), jumpHeight, jumpDuration)
+        if (playing || (round.ranked && round.phase.kind === 'playing')) requestRoundJump(round, sceneTime(now), jumpHeight, jumpDuration)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [round, jumpHeight, jumpDuration, step, sceneTime, closeFinalePreview])
+  }, [round, jumpHeight, jumpDuration, step, sceneTime, closeFinalePreview, canJump])
 
   function showStageForPreview() {
     if (round.phase.kind === 'menu') setHideMenuForPreview(true)
@@ -391,8 +425,8 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
     stageRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
   }
 
-  function resetScene(entry: 'menu' | 'initialCountdown') {
-    resetPreviewRound(round, entry)
+  function resetScene(entry: 'menu' | 'initialCountdown', startsAt?: number, serverSeed?: number) {
+    resetPreviewRound(round, entry, startsAt)
     setRankingOpen(false)
     finalePreviewRef.current = null
     clockOffset.current = 0
@@ -400,7 +434,7 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
     distractionRef.current = null
     manholePreviewRef.current = null
     setShowManholePreview(false)
-    const seed = parseDistractionSeed(fixedSeed) ?? newDistractionSeed(scheduleRef.current.seed)
+    const seed = serverSeed ?? parseDistractionSeed(fixedSeed) ?? newDistractionSeed(scheduleRef.current.seed)
     const schedule = createDistractionSchedule(seed, distractionSettings)
     scheduleRef.current = schedule
     setDistractionSchedule(schedule)
@@ -439,12 +473,40 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
     }
   }
 
-  function restartGame() {
+  function beginGame(server?: JumpRopeSession) {
+    const now = performance.now()
+    const serverNow = server ? Date.parse(server.serverNow) : 0
+    sessionRef.current = server ? { id: server.id, expiresAt: now + Date.parse(server.expiresAt) - serverNow } : null
     controlsRef.current.paused = false
     setRopePaused(false)
-    resetScene('initialCountdown')
-    step(performance.now())
+    resetScene('initialCountdown', server ? now + Date.parse(server.startedAt) - serverNow : undefined, server?.seed)
+    step(now)
     stageRef.current?.focus({ preventScroll: true })
+  }
+
+  function restartGame() {
+    if (!ranked) { beginGame(); return }
+    if (startRequest.current || submissionBlocksStart) return
+    const controller = new AbortController()
+    startRequest.current = controller
+    startKey.current ||= crypto.randomUUID()
+    setStarting(true)
+    setStartError('')
+    ranked.setActive(true)
+    void ranked.service.start(startKey.current, controller.signal).then(server => {
+      if (controller.signal.aborted) return
+      startKey.current = ''
+      beginGame(server)
+    }, (error: unknown) => {
+      if (controller.signal.aborted) return
+      if (typeof error === 'object' && error !== null && 'retryable' in error && error.retryable === false) startKey.current = ''
+      setStartError(error instanceof Error ? error.message : '게임을 시작하지 못했어요.')
+      ranked.setActive(false)
+    }).finally(() => {
+      if (controller.signal.aborted) return
+      startRequest.current = null
+      setStarting(false)
+    })
   }
 
   function startGame() {
@@ -453,11 +515,12 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
 
   function openRanking(event: MouseEvent<HTMLButtonElement>) {
     rankingTrigger.current = event.currentTarget
+    if (ranked) setLiveRanking({ kind: 'loading' })
     setRankingOpen(true)
   }
 
   function quitGame() {
-    if (onExit) { onExit(); return }
+    if (ranked) { ranked.onExit(); return }
     controlsRef.current.paused = false
     setRopePaused(false)
     resetScene('menu')
@@ -539,19 +602,15 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
   const legacyHud = sampleHud ? undefined : demoHud
   const showMenu = inMenu && !hideMenuForPreview && !finalePreview && !showManholePreview && !simulating && !sampleHud && !sampleJudgement
   const showRanking = showMenu && rankingOpen
+  const settlement = ranked?.settlement
+  const submissionBlocksStart = settlement?.status === 'saving' || (settlement?.status === 'failed' && settlement.retryable)
+  const currentSettlement = settlement?.id === sessionRef.current?.id ? settlement : undefined
+  const receipt = currentSettlement?.status === 'saved' ? currentSettlement.receipt : undefined
+  const saveStatus = settlement?.status === 'saving' ? '서버에서 기록을 확정하는 중입니다.'
+    : settlement?.status === 'failed' ? settlement.message : undefined
+  const retry = settlement?.status === 'failed' && settlement.retryable ? ranked?.retry : undefined
 
-  return (
-    <main className={onExit ? "preview rope-park-game" : "preview"}>
-      <header className="preview-header" inert={showRanking}>
-        <div>
-          {!onExit && <p className="eyebrow">ONTOP / 개발 프리뷰</p>}
-          <h1>구구구 줄넘기</h1>
-        </div>
-        {onExit ? <button type="button" onClick={onExit}>공원으로 돌아가기</button>
-          : <p className="preview-tag">06 · 비둘기 반응</p>}
-      </header>
-      <div className="preview-layout">
-        <section ref={stageRef} className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={showRanking ? undefined : 0}>
+  const stage = <section ref={stageRef} className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={showRanking ? undefined : 0}>
           <Canvas
             camera={{ fov: defaults.fov, near: 0.1, far: 40 }}
             dpr={[1, 1.5]}
@@ -562,7 +621,7 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
           </Canvas>
           {!showMenu && <JumpRopeHud
             seconds={sampleHud?.seconds ?? hud.seconds}
-            score={sampleHud?.score ?? hud.stats.score}
+            score={receipt?.score ?? sampleHud?.score ?? hud.stats.score}
             combo={sampleHud?.combo ?? hud.stats.combo}
             chances={sampleHud?.chances ?? hud.stats.chances}
             judgement={sampleJudgement?.kind ?? liveFeedback?.kind ?? legacyHud?.judgement}
@@ -572,15 +631,31 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
               : liveFeedback ? `live-${liveFeedback.number}` : demo ? `demo-${demo.startedAt}` : undefined}
             sample={sampleHud !== null || sampleJudgement !== null}
           />}
-          {showMenu && <JumpRopeMenu onStart={startGame} onOpenRanking={onExit ? undefined : openRanking} rankingOpen={showRanking} />}
-          {showRanking && <JumpRopeRanking state={rankingPreviewStates[rankingMode]} onClose={() => setRankingOpen(false)} />}
+          {showMenu && <JumpRopeMenu onStart={startGame} onOpenRanking={openRanking} rankingOpen={showRanking}
+            startDisabled={starting || submissionBlocksStart} status={starting ? '서버 라운드를 준비하는 중입니다.' : startError || saveStatus} onRetry={retry} />}
+          {showRanking && <JumpRopeRanking state={ranked ? liveRanking : rankingPreviewStates[rankingMode]} onClose={() => setRankingOpen(false)} />}
           {countdown && !paused && !simulating && !finalePreview && !showManholePreview && !sampleHud && !sampleJudgement &&
             <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
           {showSplash && <GameOverSplash />}
           {finalePreview && !previewResult && <button className="finale-preview-close" type="button" onClick={() => closeFinalePreview(performance.now())}>미리보기 닫기</button>}
-          {resultReason && <JumpRopeResult reason={resultReason} stats={hud.stats} onQuit={quitGame} onRestart={restartGame} />}
+          {resultReason && <JumpRopeResult reason={receipt?.endReason ?? resultReason} stats={ranked ? receipt : hud.stats}
+            status={starting ? '서버 라운드를 준비하는 중입니다.' : startError || saveStatus} onRetry={retry}
+            restartDisabled={starting || submissionBlocksStart} onQuit={quitGame} onRestart={restartGame} />}
         </section>
-        {!onExit && <aside className="preview-panel" aria-label="실시간 조정 패널" inert={finalePreview !== null || showRanking}>
+  if (ranked) return stage
+
+  return (
+    <main className="preview">
+      <header className="preview-header" inert={showRanking}>
+        <div>
+          <p className="eyebrow">ONTOP / 개발 프리뷰</p>
+          <h1>구구구 줄넘기</h1>
+        </div>
+        <p className="preview-tag">06 · 비둘기 반응</p>
+      </header>
+      <div className="preview-layout">
+        {stage}
+        <aside className="preview-panel" aria-label="실시간 조정 패널" inert={finalePreview !== null || showRanking}>
           <h2>실시간 조정</h2>
           <p className="panel-note" aria-label="현재 게임 상태">현재 상태 · {status}</p>
           {previewResult && <p className="panel-note">Esc로 결과 시안을 닫을 수 있습니다.</p>}
@@ -767,7 +842,7 @@ export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
             </button>
             <button className="reset-button" type="button" onClick={() => resetScene(inMenu ? 'menu' : 'initialCountdown')}>게임 상태 초기화</button>
           </div>
-        </aside>}
+        </aside>
       </div>
     </main>
   )

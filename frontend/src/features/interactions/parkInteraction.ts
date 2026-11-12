@@ -39,7 +39,7 @@ import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlace
 import { gachaInteractionEnabled } from '../gacha/state'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
 import { canReachParkVr, openParkVrZone, parkVrEntrance } from '../vrZone/parkBridge'
-import { openParkJumpRope } from '../jumpRope/parkEntry'
+import { openJumpRope } from '../jumpRope/store'
 import { canReachJumpmapGuide, jumpmapGuideScope, openJumpmapGuide } from '../jumpmap/guideState'
 import { GUIDE as JUMPMAP_GUIDE } from '../jumpmap/activeCourse'
 import { useJumpmap } from '../jumpmap/state'
@@ -196,7 +196,7 @@ export function interactWithPark(expectedId?: string): boolean {
       case 'rps-roulette-cabinet': if (canOpenRpsRoulette()) openRpsRoulette(); break
       case 'plus-minus-cabinet': openPlusMinus(); break
       case 'mole-shop': openArcade('mole'); break
-      case 'pigeon-jump-rope': openParkJumpRope(); break
+      case 'pigeon-jump-rope': openJumpRope(); break
     }
   }
   else if (target.kind === 'table') interactWithTable(target.id)

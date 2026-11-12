@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
+import jumpRopeThumbnail from '../jumpRope/assets/thumbnail.webp'
 import { GameArt } from '../manual/GameArt'
 import { openManual } from '../manual/manualState'
 import { moleManual } from '../mole/manual'
@@ -19,6 +20,13 @@ import './arcade.css'
 interface Choice {
   id: ArcadeGame; name: string; tagline: string; summary: string
   fee: string; prize: string; limitLabel: string; limit: string; playsLeft: number | null; inProgress: boolean
+}
+
+function ArcadeArt({ game }: { game: ArcadeGame }) {
+  if (game === 'jump-rope') {
+    return <img className="manual-art" src={jumpRopeThumbnail} alt="" aria-hidden="true" style={{ objectFit: 'contain' }} />
+  }
+  return <GameArt game={game} />
 }
 
 export function ArcadePicker() {
@@ -60,8 +68,12 @@ function ArcadeDialog() {
     { id: 'speed-mole', name: speedMoleManual.title, tagline: speedMoleManual.subtitle, summary: speedMoleManual.summary,
       fee: '무료', prize: `${SPEED_MOLE_POINTS_PER_COIN}점당 1냥 · 하루 상한 안에서`,
       limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null, inProgress: false },
+    { id: 'jump-rope', name: '구구구 줄넘기', tagline: '비둘기들이 당신을 시험합니다.',
+      summary: 'Space로 줄을 넘고 60초 동안 버텨요. MISS가 세 번이면 경기가 끝나요.',
+      fee: '무료', prize: '없음', limitLabel: '제한 시간', limit: '60초', playsLeft: null, inProgress: false },
   ]
   const choice = choices.find(c => c.id === selected)!
+  const manual = choice.id === 'jump-rope' ? undefined : choice.id
   const balance = rps?.availableBalance ?? plus?.availableBalance
 
   return <dialog ref={dialog} className="table-paper-popup arcade-picker" aria-labelledby="arcade-picker-title"
@@ -77,7 +89,7 @@ function ArcadeDialog() {
         <div className="arcade-game-list" role="group" aria-label="게임 선택">
           {choices.filter(c => !moleShop || c.id === 'whack-a-mole' || c.id === 'speed-mole').map(c => <button key={c.id} type="button" className="arcade-game-card" data-selected={c.id === selected}
             aria-pressed={c.id === selected} onClick={() => selectArcadeGame(c.id)} onDoubleClick={() => playArcadeGame(c.id)}>
-            <GameArt game={c.id} />
+            <ArcadeArt game={c.id} />
             {c.inProgress && <b className="arcade-badge">진행 중</b>}
             <span><strong>{c.name}</strong><small>혼자 · {c.fee}</small></span>
             <em>{c.limitLabel} {c.limit}</em>
@@ -87,7 +99,7 @@ function ArcadeDialog() {
           <small>선택한 게임</small>
           <h3>{choice.name}</h3>
           <p className="arcade-tagline">{choice.tagline}</p>
-          <GameArt game={choice.id} />
+          <ArcadeArt game={choice.id} />
           <p className="arcade-summary">{choice.summary}</p>
           <dl className="arcade-terms">
             <div><dt>참가비</dt><dd>{choice.fee !== '무료' && <img className="arcade-coin" src={coinImage} alt="" />}{choice.fee}</dd></div>
@@ -96,7 +108,7 @@ function ArcadeDialog() {
           </dl>
           {choice.inProgress && <p className="arcade-note" role="status">끝나지 않은 판이 있어요. 이어서 해요.</p>}
           {choice.playsLeft === 0 && <p className="arcade-note" role="status">오늘 판을 모두 했어요. 지난 결과만 볼 수 있어요.</p>}
-          <button type="button" className="arcade-manual" onClick={() => openManual(choice.id)}>설명서</button>
+          {manual && <button type="button" className="arcade-manual" onClick={() => openManual(manual)}>설명서</button>}
           <button type="button" className="arcade-primary" onClick={() => playArcadeGame()}>
             {choice.inProgress ? '이어서 하기' : '이 게임 하기'}<span aria-hidden="true">›</span>
           </button>

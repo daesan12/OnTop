@@ -5,38 +5,16 @@
   font-display: swap;
 }
 
-.jump-rope-preview-page,
-.park-jump-rope {
+.preview, .jump-rope-world {
   font-family: system-ui, "Malgun Gothic", sans-serif;
   color: #253a34;
   background: #f4f0e6;
   accent-color: #39725d;
 }
 
-.jump-rope-preview-page { margin: 0; }
-.preview * { box-sizing: border-box; }
-.preview :is(button, input) { font: inherit; }
-
-.park-jump-rope {
-  width: min(1100px, calc(100vw - 24px));
-  max-height: calc(100dvh - 24px);
-  padding: 0;
-  border: 1px solid #aab8a6;
-  border-radius: 16px;
-  overflow: auto;
-  scrollbar-width: none;
-}
-.park-jump-rope::backdrop { background: #101a16bb; }
-.rope-park-game .preview-layout { grid-template-columns: minmax(0, 1fr); }
-.rope-park-game .preview-stage { position: relative; top: auto; height: min(70dvh, 720px); }
-.rope-park-game .preview-header button {
-  padding: 7px 12px;
-  border: 1px solid #aab8a6;
-  border-radius: 8px;
-  background: #e6efeb;
-  color: #253a34;
-  cursor: pointer;
-}
+.preview *, .jump-rope-world * { box-sizing: border-box; }
+body:has(> #root > .preview) { margin: 0; background: #f4f0e6; }
+.preview :is(button, input), .jump-rope-world :is(button, input) { font: inherit; }
 
 .preview {
   max-width: 1510px;
