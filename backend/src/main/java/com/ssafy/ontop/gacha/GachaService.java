@@ -50,7 +50,12 @@ public class GachaService {
             return read(repository.receipt(userId,key).orElseThrow(()->new GachaException(404,"GACHA_RESULT_NOT_FOUND","확정된 결과가 없습니다.")).json());
         }));
     }
-    public Result purchase(long userId,String key) { return execute(userId,key,"BUY","",0); }
+    public Result purchase(long userId,String key) { return purchase(userId,key,1); }
+    /** 뽑기권 여러 장을 한 거래로 산다. 1장은 예전 영수증과 같은 대상("")으로 기록해 기존 작업 ID 재시도와 맞춘다. */
+    public Result purchase(long userId,String key,int quantity) {
+        if(quantity<1||quantity>GachaRules.MAX_PURCHASE) throw new GachaException(400,"INVALID_REQUEST","뽑기권 수량을 확인해주세요.");
+        return execute(userId,key,"BUY",quantity==1?"":Integer.toString(quantity),quantity);
+    }
     public Result draw(long userId,String key,String roundId) {
         if(roundId==null || !roundId.matches("[1-9][0-9]{0,18}")) throw new GachaException(400,"INVALID_REQUEST","회차를 확인해주세요.");
         return execute(userId,key,"DRAW",roundId,0);
@@ -58,6 +63,7 @@ public class GachaService {
     public Result open(long userId,String key,int grade) {
         GachaRules.checkGrade(grade); return execute(userId,key,"OPEN",Integer.toString(grade),grade);
     }
+    /** requestedGrade: OPEN은 상자 등급, BUY는 뽑기권 수량. */
     private Result execute(long userId,String key,String kind,String target,int requestedGrade) {
         validateKey(key);
         return Objects.requireNonNull(transactions.execute(status->{
@@ -78,7 +84,8 @@ public class GachaService {
             int grade=0; long paid=0,awarded=0; boolean duplicate=false; Product product=null; String roundId=null;
             if(kind.equals("BUY")) {
                 if(wallet.reserved()<0 || wallet.balance()<wallet.reserved()) throw new GachaException(503,"GACHA_UNAVAILABLE","지갑 정보를 확인할 수 없습니다.");
-                if(wallet.balance()-wallet.reserved()<GachaRules.TICKET_PRICE)
+                long price=Math.multiplyExact(GachaRules.TICKET_PRICE,(long)requestedGrade);
+                if(wallet.balance()-wallet.reserved()<price)
                     throw new GachaException(409,"INSUFFICIENT_BALANCE","뽑기권 구매에 필요한 사용 가능 엽전이 부족합니다.");
                 // 실제 보상 대응표가 미등록된 상태에서 이용료를 받지 않는다.
                 var catalog=repository.products(true,true);
@@ -88,7 +95,7 @@ public class GachaService {
                     if(eligible.isEmpty()) throw new GachaException(503,"GACHA_CATALOG_NOT_READY","캐릭터용 등급별 의상 등록이 완료되지 않았습니다.");
                     eligible.forEach(repository::validateProduct);
                 }
-                paid=GachaRules.TICKET_PRICE; wallet.debit(paid,now); repository.ticket(userId,1);
+                paid=price; wallet.debit(paid,now); repository.ticket(userId,requestedGrade);
             } else if(kind.equals("DRAW")) {
                 Machine before=repository.machine(true);
                 if(!before.roundId().equals(target)) throw new GachaException(409,"GACHA_ROUND_CHANGED","이번 뽑기가 종료됐어요. 뽑기권은 사용하지 않았어요.");

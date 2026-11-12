@@ -38,7 +38,7 @@ export function useCapsuleDraw(active: boolean, owner: string, reduced: boolean)
   }, [active, owner])
   const skip = () => { skipped.current = true }
   const dismiss = () => setVisual(empty)
-  async function act(kind: Kind) {
+  async function act(kind: Kind, quantity = 1) {
     const s = useGacha.getState()
     if (!active || flight.current || s.busy || !s.state || s.owner !== owner || s.pending?.kind === 'OPEN') return
     const controller = new AbortController(), { signal } = controller
@@ -62,7 +62,7 @@ export function useCapsuleDraw(active: boolean, owner: string, reduced: boolean)
     try {
       setVisual({ busy: true, phase: effectiveKind === 'DRAW' ? 'turning' : 'idle', phaseStartedAt: performance.now(), result: null, instant: false, presentation })
       // gachaAction owns persisted operation IDs, idempotency and receipt recovery.
-      const request = gachaAction(kind).finally(()=>{settled=true})
+      const request = gachaAction(kind, kind === 'BUY' ? quantity : undefined).finally(()=>{settled=true})
       const operationId = useGacha.getState().pending?.operationId
       if (effectiveKind === 'DRAW') { await wait(700); phase('mixing'); await wait(2600) }
       await request

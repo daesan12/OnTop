@@ -32,6 +32,20 @@ class GachaHttpTests {
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
         verify(service).draw(42,"draw-1","7");
     }
+    @Test void ticket_quantity_null_or_missing_is_one_ticket_and_only_whole_numbers_pass() throws Exception {
+        for(String body:new String[]{"{\"operationId\":\"buy-1\"}","{\"operationId\":\"buy-1\",\"quantity\":null}"})
+            http.perform(post("/api/v1/gacha/tickets").principal(()->"42").contentType("application/json").content(body))
+                    .andExpect(status().isOk());
+        verify(service,times(2)).purchase(42,"buy-1");
+        http.perform(post("/api/v1/gacha/tickets").principal(()->"42").contentType("application/json")
+                .content("{\"operationId\":\"buy-3\",\"quantity\":3}")).andExpect(status().isOk());
+        verify(service).purchase(42,"buy-3",3);
+        for(String quantity:new String[]{"\"3\"","1.5","true","99999999999"})
+            http.perform(post("/api/v1/gacha/tickets").principal(()->"42").contentType("application/json")
+                    .content("{\"operationId\":\"bad\",\"quantity\":"+quantity+"}")).andExpect(status().isBadRequest());
+        verify(service,never()).purchase(eq(42L),eq("bad"));
+        verify(service,never()).purchase(eq(42L),eq("bad"),anyInt());
+    }
     @Test void disabled_service_returns_unavailable_instead_of_fake_success() throws Exception {
         var beans=new DefaultListableBeanFactory();
         var unavailable=MockMvcBuilders.standaloneSetup(new GachaController(beans.getBeanProvider(GachaService.class))).build();
