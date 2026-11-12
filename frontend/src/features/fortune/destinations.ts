@@ -24,6 +24,10 @@ export function fortuneGuideTarget(game: FortuneGame, pose: { x: number; z: numb
     }
   }
   if (game.destination === 'table') {
+    if (RENEWAL_PARK_ENABLED) {
+      const entrance = PARK_MAP_PLACES.find(place => place.id === 'central')?.destination
+      return entrance && { ...entrance, name: `${game.name} · 메인 팔각정 입구` }
+    }
     const table = [...TABLES].sort((a, b) => Math.hypot(a.position[0] - pose.x, a.position[2] - pose.z)
       - Math.hypot(b.position[0] - pose.x, b.position[2] - pose.z))[0]
     if (!table) return
