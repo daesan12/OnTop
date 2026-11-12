@@ -7,8 +7,10 @@ import { resetGachaEvents, useGachaEvents } from './events'
 import { gachaClock, refillRemaining } from './timing'
 
 type Kind = 'BUY' | 'DRAW' | 'OPEN'
+/** Most tickets one purchase may buy (the server's GachaRules.MAX_PURCHASE). */
+export const MAX_TICKET_PURCHASE = 10
 export type GachaAvailability = 'unknown' | 'enabled' | 'disabled'
-interface Pending { kind: Kind; operationId: string; roundId?: string; grade?: number }
+interface Pending { kind: Kind; operationId: string; roundId?: string; grade?: number; quantity?: number }
 const initial = () => ({ owner: '', state: null as GachaState | null, loading: false, busy: false, error: '',
   unavailable: false, availability: 'unknown' as GachaAvailability, transition: null as 'ROUND_ENDED' | 'REFILLING' | null,
   result: null as GachaResult | null, pending: null as Pending | null })
@@ -23,7 +25,8 @@ function restored(owner: string): Pending | null {
     const p = JSON.parse(sessionStorage.getItem(storageKey(owner)) ?? 'null') as Pending | null
     if (!p || !['BUY', 'DRAW', 'OPEN'].includes(p.kind) || !/^[A-Za-z0-9_-]{1,64}$/.test(p.operationId)
       || (p.kind === 'DRAW' && (typeof p.roundId !== 'string' || !/^[1-9]\d*$/.test(p.roundId)))
-      || (p.kind === 'OPEN' && ![1, 2, 3, 4].includes(p.grade!))) return null
+      || (p.kind === 'OPEN' && ![1, 2, 3, 4].includes(p.grade!))
+      || (p.quantity !== undefined && (!Number.isInteger(p.quantity) || p.quantity < 1 || p.quantity > MAX_TICKET_PURCHASE))) return null
     return p
   } catch { return null }
 }
@@ -55,6 +58,7 @@ export async function refreshGacha() {
       unavailable, ...(unavailable ? { state: null, availability: 'disabled' as const } : {}) })
   }
 }
+/** grade: the box grade for OPEN; for BUY, how many tickets (1-10, one server transaction). */
 export async function gachaAction(kind: Kind, grade?: number) {
   const s = useGacha.getState(), owner = useSession.getState().sessionId
   if (!owner || s.owner !== owner || s.busy || !s.state) return
@@ -65,12 +69,12 @@ export async function gachaAction(kind: Kind, grade?: number) {
     useGacha.setState({transition:'REFILLING',error:'',result:null});return
   }
   const pending = s.pending ?? { kind, operationId: crypto.randomUUID(), ...(kind === 'DRAW' ? { roundId: machine.roundId } : {}),
-    ...(kind === 'OPEN' ? { grade } : {}) }
+    ...(kind === 'OPEN' ? { grade } : {}), ...(kind === 'BUY' && grade && grade > 1 ? { quantity: grade } : {}) }
   useGacha.setState({ busy: true, error: '', transition:null, pending, result: null }); save(owner, pending)
   const epoch = generation
   const path = pending.kind === 'BUY' ? '/tickets' : pending.kind === 'DRAW' ? '/draws' : '/boxes/open'
   const body = { operationId: pending.operationId, ...(pending.kind === 'DRAW' ? { roundId: pending.roundId } : {}),
-    ...(pending.kind === 'OPEN' ? { grade: pending.grade } : {}) }
+    ...(pending.kind === 'OPEN' ? { grade: pending.grade } : {}), ...(pending.kind === 'BUY' && pending.quantity ? { quantity: pending.quantity } : {}) }
   try {
     const result = parseResult(await parkRuntime.requestJSON(`/api/v1/gacha${path}`, { method: 'POST',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(10000) }))
