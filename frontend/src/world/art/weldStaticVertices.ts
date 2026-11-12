@@ -20,9 +20,18 @@ export function weldStaticVertices(geometry: BufferGeometry, tolerance = 1e-6): 
   const scratch = new Float64Array(sources.reduce((sum, { attribute }) => sum + attribute.itemSize, 0))
   const representatives = new Uint32Array(count), next = new Int32Array(count)
   const indices = new Uint32Array(count), buckets = new Map<number, number>()
+  const source = geometry.index
+  // Indexed meshes often reference the same source vertex several times.
+  // Once welded, those references always resolve to the same output vertex.
+  const weldedSources = source ? new Uint32Array(geometry.getAttribute('position').count) : undefined
   let unique = 0
   for (let vertex = 0; vertex < count; vertex++) {
-    const sourceIndex = geometry.index ? geometry.index.getX(vertex) : vertex
+    const sourceIndex = source ? source.getX(vertex) : vertex
+    const welded = weldedSources?.[sourceIndex]
+    if (welded) {
+      indices[vertex] = welded - 1
+      continue
+    }
     let hash = 2166136261, component = 0
     for (const { attribute } of sources) {
       const offset = sourceIndex * attribute.itemSize
@@ -52,6 +61,7 @@ export function weldStaticVertices(geometry: BufferGeometry, tolerance = 1e-6): 
       buckets.set(hash, match)
     }
     indices[vertex] = match
+    if (weldedSources) weldedSources[sourceIndex] = match + 1
   }
   const result = geometry.clone()
   for (const { name, attribute } of sources) {
