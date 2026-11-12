@@ -1,4 +1,4 @@
-﻿param()
+﻿param([switch]$Mini54Suite)
 $ErrorActionPreference = 'Stop'
 if (!$env:OPENAI_API_KEY) {
     $env:OPENAI_API_KEY = [System.Net.NetworkCredential]::new('', (Read-Host 'OpenAI API key (hidden)' -AsSecureString)).Password.Trim()
@@ -12,6 +12,7 @@ $comparisonRoot = Split-Path -Parent $PSScriptRoot
 $previousLocation = Get-Location
 try {
     Set-Location -LiteralPath (Join-Path $comparisonRoot 'backend')
-    & .\gradlew.bat --no-daemon compareJokeModels
+    if ($Mini54Suite) { & .\gradlew.bat --no-daemon compareJokeModels -PjokeMini54Suite }
+    else { & .\gradlew.bat --no-daemon compareJokeModels }
     if ($LASTEXITCODE -ne 0) { throw 'Comparison stopped. Check report.json/events.jsonl. Do not automatically retry.' }
 } finally { Set-Location -LiteralPath $previousLocation }

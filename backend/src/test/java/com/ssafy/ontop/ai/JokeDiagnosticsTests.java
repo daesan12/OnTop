@@ -84,4 +84,17 @@ class JokeDiagnosticsTests {
         assertThatThrownBy(()->JokeModelComparison.reservation("expensive-unknown",1)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(()->JokeModelComparison.reservation("gpt-5.4-mini",20001)).isInstanceOf(IllegalArgumentException.class);
     }
+    @Test void mini54DiversePlanFitsBudgetWithoutSendingAnyRequests()throws Exception {
+        var mapper=new ObjectMapper();var samples=JokeModelComparison.mini54Samples();
+        var judge=new LlmJokeJudge(mapper,"fixture","gpt-5.4-mini",JokeJudge.fixture());
+        assertThat(samples).hasSize(10);assertThat(samples.stream().map(JokeModelComparison.Sample::id)).doesNotHaveDuplicates();
+        var first=samples.getFirst();var repeat=samples.getLast();
+        assertThat(repeat.question()).isEqualTo(first.question());assertThat(repeat.answer()).isEqualTo(first.answer());
+        double total=0;
+        for(var sample:samples){
+            var refs=sample.duplicate()?List.of(new JokeJudge.Reference("comparison-reference",first.question(),first.answer())):List.<JokeJudge.Reference>of();
+            total+=JokeModelComparison.reservation("gpt-5.4-mini",mapper.writeValueAsBytes(judge.requestPayload(sample.question(),sample.answer(),refs)).length);
+        }
+        assertThat(total).isLessThan(.10);
+    }
 }
