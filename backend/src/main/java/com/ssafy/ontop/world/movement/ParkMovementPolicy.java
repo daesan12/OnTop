@@ -57,6 +57,10 @@ final class ParkMovementPolicy {
             require(data.path("pavilions").isArray() && !data.path("pavilions").isEmpty(), "팔각정 위치가 없습니다.");
             for (JsonNode site : data.path("pavilions")) {
                 number(site, "x"); number(site, "z"); number(site, "floor"); positive(site, "scale", 5);
+                if (site.has("spectatorBenchTop")) {
+                    double rise = number(site, "spectatorBenchTop") - site.path("floor").asDouble();
+                    require(rise > 0 && rise < 2, "팔각정 관전자 벤치 높이가 올바르지 않습니다.");
+                }
             }
         }
     }
@@ -115,7 +119,10 @@ final class ParkMovementPolicy {
     double jumpSpeed(Vector3f p, boolean tuned) {
         String key = tuned ? "pavilionTunedJumpSpeed" : "pavilionJumpSpeed";
         if (data.has(key)) for (JsonNode site : data.path("pavilions")) {
-            if (Math.abs(p.y - foot - site.path("floor").asDouble()) < .15
+            double feet = p.y - foot;
+            boolean onBench = site.has("spectatorBenchTop")
+                    && Math.abs(feet - site.path("spectatorBenchTop").asDouble()) < .15;
+            if ((Math.abs(feet - site.path("floor").asDouble()) < .15 || onBench)
                     && Math.hypot(p.x - site.path("x").asDouble(), p.z - site.path("z").asDouble()) < 4.5 * site.path("scale").asDouble() + .3)
                 return data.path(key).asDouble();
         }

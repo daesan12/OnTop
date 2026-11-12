@@ -184,7 +184,7 @@ class PredictionPhysics implements PredictionSimulation {
       this.launchedJump = true
       const footY=p.y-MOVEMENT.halfHeight-MOVEMENT.radius-MOVEMENT.offset
       const onPavilion=this.onPavilion(p)
-      this.vy = onPavilion ? PARK_DATA.physics.pavilionJumpSpeed : predictionTowerSurface(p.x, footY, p.z)
+      this.vy = onPavilion && sharedPhysics ? sharedPhysics.pavilionJumpSpeed : predictionTowerSurface(p.x, footY, p.z)
         ? OBSERVATION_TOWER.jumpSpeed : MOVEMENT.jumpSpeed
       this.grounded = false
     }
@@ -210,7 +210,7 @@ class PredictionPhysics implements PredictionSimulation {
     this.world.step()
   }
   private stepTuned(input: MovementIntent, dt: number, launch: boolean) {
-    const p=this.body.translation(),jumpSpeed=this.onPavilion(p)?PARK_DATA.physics.pavilionTunedJumpSpeed:undefined
+    const p=this.body.translation(),jumpSpeed=this.onPavilion(p)?sharedPhysics?.pavilionTunedJumpSpeed:undefined
     const wanted=this.parkMotion.advance(input,dt,this.grounded||launch,jumpSpeed)
     this.limitFollow(wanted,p)
     // Finish a known stair rise before its centre crosses the tread. Rounded
@@ -282,7 +282,12 @@ class PredictionPhysics implements PredictionSimulation {
   }
   private onPavilion(pose:{x:number;y:number;z:number}) {
     const foot=pose.y-MOVEMENT.halfHeight-MOVEMENT.radius-MOVEMENT.offset
-    return !!sharedPhysics&&PARK_PAVILIONS.some(site=>Math.abs(foot-site.floor)<.15&&Math.hypot(pose.x-site.x,pose.z-site.z)<4.5*site.scale+.3)
+    return !!sharedPhysics && PARK_PAVILIONS.some(site => {
+      const onBench = 'spectatorBenchTop' in site && typeof site.spectatorBenchTop === 'number'
+        && Math.abs(foot - site.spectatorBenchTop) < .15
+      return (Math.abs(foot - site.floor) < .15 || onBench)
+        && Math.hypot(pose.x - site.x, pose.z - site.z) < 4.5 * site.scale + .3
+    })
   }
   movementFlags() { return this.tunedActive ? this.parkMotion.flags() : this.surfaceFlags }
   /** Airborne, swimming and water-exit climbing retain their physical animation flags. */

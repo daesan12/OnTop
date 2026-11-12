@@ -4,7 +4,7 @@ import { tableSeats, type TableAnchor } from '../../src/park/tablePlacement'
 import { PARK_DATA } from '../../src/map/park'
 import type { PhysicalBox, PhysicalHull, PhysicalMesh } from '../../src/map/park/physics'
 import type { Point3 } from '../../src/map/park/interactionData'
-import { boundaryAtDistance, WALL_RUNS } from '../boundaryPlan'
+import { BOUNDARY_LENGTH, GATE, boundaryAtDistance, WALL_RUNS } from '../boundaryPlan'
 import { fountainAccessHeight } from '../fountainAccessSurface'
 import { parkGround } from '../groundGeometry'
 import { groundSurfaceHeight } from '../groundSurface'
@@ -17,7 +17,7 @@ import {
   LAKE, MONUMENT_STAIRS, REST_PAVILIONS, STATION_APPROACH, STATION_STAIRS, SUB_PAVILION_SCALE,
   accessTopAt, bridgeDeckHeight, bridgeLandingHeight, facilityGroundY, fishingRailSections, heightAt, inLake, site, type Point,
 } from '../plan'
-import { parkPropBlockers } from '../propCollision'
+import { parkPropBlockers, SPECTATOR_BENCH_HEIGHTS } from '../propCollision'
 import { createTowerEntrance, towerRampStartY } from '../towerEntrance'
 
 export const RENEWAL_HALF_SIZE = 110
@@ -98,9 +98,16 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
     hulls.push({ id, role: 'solid', vertices: [bottom, top].flatMap(y =>
       Array.from({ length: 32 }, (_, i) => [x + radius * Math.cos(i * Math.PI / 16), y, z + radius * Math.sin(i * Math.PI / 16)]).flat()) })
 
-  WALL_RUNS.forEach(({ start, end }, i) => {
+  // Keep the visual wall and gate open to view. Collision follows the full
+  // perimeter, including the gate, above the highest possible throw.
+  const boundaryBottom = -16, boundaryTop = 256
+  const boundaryRuns = [...WALL_RUNS,
+    { start: 0, end: GATE.opening / 2 },
+    { start: BOUNDARY_LENGTH - GATE.opening / 2, end: BOUNDARY_LENGTH }]
+  boundaryRuns.forEach(({ start, end }, i) => {
     const a = boundaryAtDistance(start), b = boundaryAtDistance(end)
-    rail('park-wall-' + i, [a.x, a.y - .4, a.z], [b.x, b.y - .4, b.z], .62, 4.3)
+    rail('park-wall-' + i, [a.x, boundaryBottom, a.z], [b.x, boundaryBottom, b.z], .62,
+      boundaryTop - boundaryBottom)
   })
   fromGeometry('summit-retaining-wall', parkGround.retaining, 'solid')
   for (const [style, runs, height] of [
@@ -136,14 +143,17 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
     ramp('main-pavilion-landing-' + i, main.x, main.z, width, 8.65, 9.026, mainBase + 2.6, mainBase + 2.6, yaw)
     ramp('main-pavilion-stairs-' + i, main.x, main.z, width, 9.026, 13.606, mainBase + 2.6, mainBase, yaw)
   }
-  const pavilions = [{ id: 'P0', x: main.x, z: main.z, floor: mainBase + 2.6, scale: 2 }]
+  const mainFloor = mainBase + 2.6
+  const pavilions = [{ id: 'P0', x: main.x, z: main.z, floor: mainFloor, scale: 2,
+    spectatorBenchTop: mainFloor + SPECTATOR_BENCH_HEIGHTS.main }]
   for (const [i, [x, z]] of [...REST_PAVILIONS, [LAKE.island.x, LAKE.island.z] as Point].entries()) {
     const island = i === REST_PAVILIONS.length
     const yaw = island ? -Math.PI / 2 : site('rest-' + (i + 1)).yaw!
     const base = island ? 4.2 : heightAt(x, z), top = base + .572 * subScale
     deck('rest-pavilion-floor-' + i, x, z, 2.97 * subScale, top, yaw)
     ramp('rest-pavilion-stairs-' + i, x, z, 1.52 * subScale, 2.67 * subScale, 3.77 * subScale, top, base + .085, yaw)
-    pavilions.push({ id: ['P1', 'P3', 'P4', 'P2', 'P5'][i]!, x, z, floor: top, scale: subScale / 1.52 })
+    pavilions.push({ id: ['P1', 'P3', 'P4', 'P2', 'P5'][i]!, x, z, floor: top, scale: subScale / 1.52,
+      spectatorBenchTop: top + SPECTATOR_BENCH_HEIGHTS.rest * subScale })
   }
   const pagoda = site('pagoda'), pg = heightAt(pagoda.x, pagoda.z)
   ramp('pagoda-terrace', pagoda.x, pagoda.z, 26, -13, 13, pg + 1.8, pg + 1.8)
@@ -216,7 +226,8 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   cylinder('fountain-basin', fountain.x, fountain.z, fountainPolicy.radius, fountainPolicy.bottom, fountainPolicy.top)
   const groundClearance = .04
   const spawnY = groundSurfaceHeight(...RENEWAL_SPAWN) + MOVEMENT.halfHeight + MOVEMENT.radius + MOVEMENT.offset + groundClearance
-  const physics = { ...basePhysics, boxes, hulls, meshes, fountainPolicy, steppingStones: [],
+  // The enlarged benches need more clearance under the tuned jump's stronger gravity.
+  const physics = { ...basePhysics, boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
     tower: { ...basePhysics.tower, x: tower.x, z: tower.z, height: 40, topY: towerRampStartY + 40, surfaceOffset: towerRampStartY },
     terrain: { ...basePhysics.terrain, halfSize: RENEWAL_HALF_SIZE, step: 1, columns: 221, rows: 221 },
     spawn: { ...basePhysics.spawn, position: [RENEWAL_SPAWN[0], spawnY, RENEWAL_SPAWN[1]] as Point3, groundClearance } }

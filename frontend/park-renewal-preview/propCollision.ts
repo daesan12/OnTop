@@ -20,6 +20,7 @@ const cell = 4
 const bins = new Map<string, Blocker[]>()
 const { radius: playerRadius, halfHeight } = MOVEMENT
 const playerHeight = 2 * (halfHeight + playerRadius)
+export const SPECTATOR_BENCH_HEIGHTS = { main: .7, rest: .583 } as const
 const binKey = (x: number, z: number) => `${x},${z}`
 
 function register(blocker: Blocker) {
@@ -134,7 +135,7 @@ function subPavilion(p: Placement) {
     circle(p, column, .165, .83, 3.51)
     if (i === 0) continue // The front face has stairs and no built-in bench.
     const a = i * Math.PI / 4, r = 2.12 * Math.cos(Math.PI / 8)
-    box(p, [r * Math.sin(a), r * Math.cos(a)], 1.67, .49, .57, 1.155, a)
+    box(p, [r * Math.sin(a), r * Math.cos(a)], 1.67, .49, .57, .572 + SPECTATOR_BENCH_HEIGHTS.rest, a)
   }
   for (const x of [-.92, .92]) {
     for (let i = 0; i < 3; i++) box(p, [x, 2.84 + i * .35], .26, .52, .01, .67 - i * .15)
@@ -163,7 +164,7 @@ for (let i = 0; i < 8; i++) {
   circle(mainPlacement, column, .4, 2.82, 8.72)
   if (i === 4) continue
   const a = i * Math.PI / 4
-  box(mainPlacement, [4.97 * Math.sin(a), 4.97 * Math.cos(a)], 4.1, .9, 2.6, 3.3, a)
+  box(mainPlacement, [4.97 * Math.sin(a), 4.97 * Math.cos(a)], 4.1, .9, 2.6, 2.6 + SPECTATOR_BENCH_HEIGHTS.main, a)
 }
 circle(mainPlacement, [0, 0], 2.1, 2.6, 3.77)
 for (const z of [-2.95, 2.95]) box(mainPlacement, [0, z], .61, .61, 2.6, 3.26)

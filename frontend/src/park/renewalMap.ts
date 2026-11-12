@@ -12,9 +12,10 @@ export interface RenewalRecreationAnchor {
   reachPosition: Point3
   radius: number
 }
-type RenewalData = Omit<ParkMapData, 'tables' | 'interactions'> & {
+type RenewalData = Omit<ParkMapData, 'tables' | 'interactions' | 'pavilions'> & {
   jumpCourse?: ReturnType<typeof buildRenewalJumpCourse>
   tables: readonly Omit<TableAnchor, 'spectatorRadius'>[]
+  pavilions: readonly (ParkMapData['pavilions'][number] & { spectatorBenchTop?: number })[]
   interactions: ParkMapData['interactions'] & {
     recreation?: readonly RenewalRecreationAnchor[]
     vrEntrance?: VrEntrance

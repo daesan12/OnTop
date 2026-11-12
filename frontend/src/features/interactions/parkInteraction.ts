@@ -93,7 +93,8 @@ export function getParkInteraction(): ParkInteraction | null {
     if(site.id===PARK_GACHA_MACHINE.id)continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
-    choices.push({kind:'construction',id:site.id,label:site.label+' · 행운의 뽑기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
+    const label = site.id === 'layout-drink' ? site.label + ' · 행운의 뽑기' : site.label
+    choices.push({kind:'construction',id:site.id,label,occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
   if (plazaKiosksEnabled && gachaInteractionEnabled(session.sessionId) && canReachParkGacha(p.current)) {
     const { id, x, y, z } = PARK_GACHA_MACHINE
