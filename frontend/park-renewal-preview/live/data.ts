@@ -2,6 +2,7 @@ import { SITES as originalSites } from '../../src/layout-preview/layout'
 import { PARK_DATA } from '../../src/map/park'
 import type { MapPose, Point3 } from '../../src/map/park/interactionData'
 import { facilityBase, facilityYaw } from '../facilityPlacement'
+import { groundSurfaceHeight } from '../groundSurface'
 import { FACILITY_TARGETS } from '../mapping/identities'
 import { LAKE, heightAt, facilityGroundY, site } from '../plan'
 import { TOWER_TOP, telescopeYaw } from '../towerFurniturePlan'
@@ -66,6 +67,10 @@ export function buildRenewalMapData() {
   })
   const [nx, nz] = TOWER_TOP.notes
   const notesPosition: Point3 = [tower.x + nx, deckY, tower.z + nz]
+  const rankingBoard = { ...old.rankingBoard, ...kioskPlacement('ranking', 3.25) }
+  const [rankingX, , rankingZ] = rankingBoard.reachPosition
+  const judgeX = rankingX - 4
+  const jokeJudge: Point3 = [judgeX, groundSurfaceHeight(judgeX, rankingZ) + .8, rankingZ]
   return {
     ...PARK_DATA,
     world: { ...PARK_DATA.world, size: RENEWAL_HALF_SIZE * 2, half: RENEWAL_HALF_SIZE, spawn: RENEWAL_SPAWN },
@@ -74,7 +79,7 @@ export function buildRenewalMapData() {
     interactions: {
       ...old, benches, fitness, telescopes, ...buildRenewalRecreation(),
       construction: old.construction.filter(s => s.id === 'layout-drink').map(s => ({ ...s, ...kioskPlacement('lottery', 3.25) })),
-      rankingBoard: { ...old.rankingBoard, ...kioskPlacement('ranking', 3.25) },
+      rankingBoard, jokeJudge,
       notes: { ...old.notes, position: notesPosition, reachPosition: offset(notesPosition, 0, .8, 0) },
       mailbox: { ...old.mailbox, position: [mailbox.x, heightAt(mailbox.x, mailbox.z) + .1, mailbox.z] as Point3 },
       tableSeats: tables.map(t => ({ tableId: t.id, position: t.position, localSeats: t.seatAnchors })),

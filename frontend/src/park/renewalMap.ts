@@ -15,7 +15,11 @@ export interface RenewalRecreationAnchor {
 type RenewalData = Omit<ParkMapData, 'tables' | 'interactions'> & {
   jumpCourse?: ReturnType<typeof buildRenewalJumpCourse>
   tables: readonly Omit<TableAnchor, 'spectatorRadius'>[]
-  interactions: ParkMapData['interactions'] & { recreation?: readonly RenewalRecreationAnchor[]; vrEntrance?: VrEntrance }
+  interactions: ParkMapData['interactions'] & {
+    recreation?: readonly RenewalRecreationAnchor[]
+    vrEntrance?: VrEntrance
+    jokeJudge?: Point3
+  }
 }
 type RenewalMap = { mapId: 'park'; mapVersion: string; schemaVersion: 2; data: RenewalData }
 
