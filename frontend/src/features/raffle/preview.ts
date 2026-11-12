@@ -19,13 +19,13 @@ export class PreviewRaffleService {
     return { roundId: 1, weekStartDate: new Date(monday + 9 * HOUR).toISOString().slice(0, 10),
       salesStatus: Date.now() < starts ? 'SCHEDULED' : 'OPEN',
       salesStartsAt: new Date(starts).toISOString(), salesEndsAt: new Date(ends).toISOString(), ticketPrice: 100,
-      weeklyLimit: 10, purchasedCount: this.tickets.length, remainingCount: 10 - this.tickets.length,
+      weeklyLimit: 50, purchasedCount: this.tickets.length, remainingCount: 50 - this.tickets.length,
       balance: this.balance, reservedBalance: 0, availableBalance: this.balance, tickets: [...this.tickets] }
   }
 
   async purchase(): Promise<RafflePurchase> {
     await new Promise(resolve => setTimeout(resolve, 700))
-    if (this.tickets.length >= 10) throw new RaffleError('이번 주 뽑기권을 모두 뽑았어요. 다음 주에 다시 만나요.', false)
+    if (this.tickets.length >= 50) throw new RaffleError('이번 주 뽑기권을 모두 뽑았어요. 다음 주에 다시 만나요.', false)
     if (this.balance < 100) throw new RaffleError('사용 가능한 엽전이 부족해요. 경기 참가금으로 예약된 엽전은 쓸 수 없어요.', false)
     let ticketNumber = 0
     while (!ticketNumber || this.tickets.some(t => t.ticketNumber === ticketNumber))
@@ -34,6 +34,6 @@ export class PreviewRaffleService {
     this.balance -= 100
     this.tickets.push(ticket)
     return { ...ticket, roundId: 1, purchasePrice: 100, balanceAfter: this.balance,
-      purchasedCount: this.tickets.length, remainingCount: 10 - this.tickets.length }
+      purchasedCount: this.tickets.length, remainingCount: 50 - this.tickets.length }
   }
 }

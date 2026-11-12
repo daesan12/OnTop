@@ -82,20 +82,20 @@ class RaffleApiMySqlTests {
     }
 
     @Test
-    void 한_회원은_한_주에_서로_다른_번호를_열_장까지만_구매한다() {
-        long userId = member(2_000, 0);
+    void 한_회원은_한_주에_서로_다른_번호를_쉰_장까지만_구매한다() {
+        long userId = member(6_000, 0);
         var numbers = new ArrayList<Integer>();
-        for (int index = 0; index < 10; index++) {
+        for (int index = 0; index < 50; index++) {
             numbers.add(service.purchase(userId, "request-" + index).ticketNumber());
         }
 
         assertThat(numbers).doesNotHaveDuplicates().allMatch(number -> number >= 1 && number <= 10_000);
-        assertThatThrownBy(() -> service.purchase(userId, "request-10"))
+        assertThatThrownBy(() -> service.purchase(userId, "request-50"))
                 .isInstanceOf(RaffleException.class)
                 .satisfies(error -> assertThat(((RaffleException) error).code())
                         .isEqualTo("RAFFLE_WEEKLY_LIMIT_REACHED"));
         assertThat(balance(userId)).isEqualTo(1_000);
-        assertThat(count("raffle_tickets")).isEqualTo(10);
+        assertThat(count("raffle_tickets")).isEqualTo(50);
     }
 
     @Test

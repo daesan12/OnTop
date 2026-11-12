@@ -54,7 +54,7 @@ public class RaffleController {
     }
 
     @Operation(summary = "응모권 한 장 구매",
-            description = "주간 최대 10장까지 미사용 번호 한 개를 배정하고 100냥을 차감합니다. 같은 키는 기존 결과를 반환합니다.",
+            description = "주간 최대 50장까지 미사용 번호 한 개를 배정하고 100냥을 차감합니다. 같은 키는 기존 결과를 반환합니다.",
             security = @SecurityRequirement(name = "AccessJwt"))
     @Parameter(name = "Idempotency-Key", in = ParameterIn.HEADER, required = true,
             description = "영문·숫자·밑줄·하이픈 1~64자",
