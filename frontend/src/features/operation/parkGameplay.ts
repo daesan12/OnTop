@@ -2,6 +2,7 @@ import { useStore } from 'zustand'
 import { useGame } from '../../game/store'
 import { useBungeoppang } from '../bungeoppang/store'
 import { useJumpmap } from '../jumpmap/state'
+import { useJumpRope } from '../jumpRope/store'
 import { useMole } from '../mole/store'
 import { tableGameplayActive } from '../parkMenus/gameplayLock'
 import { usePlusMinus } from '../plusMinus/store'
@@ -30,7 +31,8 @@ export function useParkGameplayActive() {
   const plusMinus = usePlusMinus(plusMinusGameplayActive)
   const rps = useRpsRoulette(rpsGameplayActive)
   const jumpmap = useJumpmap(state => state.run !== null || state.recovering)
+  const jumpRope = useJumpRope(state => state.active)
   const skewer = useSkewerActivity(state => state.solo || state.cooperative)
   const vrPurchase = useStore(parkVrZone.store, state => state.purchasing)
-  return table || bungeoppang || mole || plusMinus || rps || jumpmap || skewer || vrPurchase
+  return table || bungeoppang || mole || plusMinus || rps || jumpmap || jumpRope || skewer || vrPurchase
 }

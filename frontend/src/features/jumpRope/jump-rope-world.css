@@ -1,0 +1,43 @@
+.jump-rope-world {
+  position: fixed;
+  inset: 0;
+  width: min(1120px, calc(100vw - 24px));
+  height: min(850px, calc(100dvh - 24px));
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.jump-rope-world::backdrop { background: #172a25a6; }
+.jump-rope-world .preview-stage { position: relative; inset: auto; height: 100%; }
+
+.jump-rope-world__exit {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  border: 1px solid #beaa83;
+  border-radius: 7px;
+  padding: 6px 10px;
+  background: #f7efdd;
+  color: #263d33;
+}
+
+.jump-rope-arcade-art {
+  display: grid;
+  place-items: center;
+  background: #365447;
+  color: #f7e6ab;
+  font: 700 1.7rem BusanDandiMyeongjo, serif;
+}
+
+.rope-server-status { margin: 8px 0; font-size: .83rem; }
+.jump-rope-world .rope-result:has(.rope-server-status) {
+  aspect-ratio: auto;
+  grid-template-rows: auto;
+}
+.jump-rope-world .rope-server-status { position: relative; text-align: center; }
+.jump-rope-world .rope-result__quit { position: relative; }

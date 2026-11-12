@@ -32,7 +32,7 @@ export function JumpRopeRanking({ state, onClose }: {
     }
   }
 
-  const entries = state.kind === 'ready' ? topJumpRopeEntries(state.entries) : []
+  const entries = state.kind === 'ready' ? (state.serverRanked ? state.entries : topJumpRopeEntries(state.entries)) : []
   const best = state.kind === 'ready' ? state.personalBest : undefined
 
   return (
@@ -48,9 +48,9 @@ export function JumpRopeRanking({ state, onClose }: {
               <colgroup><col className="rope-ranking__rank-col" /><col /><col className="rope-ranking__score-col" /></colgroup>
               <thead><tr><th scope="col">순위</th><th scope="col">닉네임</th><th scope="col">최고 점수</th></tr></thead>
               <tbody>
-                {entries.map(({ nickname, score }, index) => (
+                {entries.map(({ nickname, score, rank }, index) => (
                   <tr key={`${nickname}-${index}`}>
-                    <td><span className="rope-ranking__place" data-place={index + 1}>{index + 1}</span></td>
+                    <td><span className="rope-ranking__place" data-place={rank ?? index + 1}>{rank ?? index + 1}</span></td>
                     <td><span className="rope-ranking__name" title={nickname}>{nickname}</span></td>
                     <td>{scoreFormat.format(score)}</td>
                   </tr>

@@ -1,9 +1,20 @@
 import { advanceRope, judgePass, jumpPrepareMs, sampleFlightHeight } from './jumpRopeJudgement'
 import type { JudgementSettings, JumpTiming, PassJudgement } from './jumpRopeJudgement'
-import type { RopeAccelerationClock } from './ropeAcceleration'
+import { defaultRopeAcceleration, ropeTempo, type RopeAccelerationClock } from './ropeAcceleration'
+import { roundDurationMs } from './jumpRopeRules'
 
 const landMs = 45
 const recoveryMs = 65
+const nextJumpUs = (jumpPrepareMs + 400 + landMs) * 1000
+export const rankedDurationUs = roundDurationMs * 1000
+const rankedTempo = ropeTempo(1, { profile: defaultRopeAcceleration, playedMs: 0 })
+export const rankedPassageUs = (turn: number) => Math.round(rankedTempo.timeForTurns(turn) * 1000)
+
+export type RankedClock = { startsAt: number; segmentAt: number; segmentUs: number; offsets: number[] }
+
+function activeUs(clock: RankedClock, now: number) {
+  return clock.segmentUs + Math.round((now - clock.segmentAt) * 1000)
+}
 
 type Jump = JumpTiming & { from: Pose }
 export type PreviewPass = PassJudgement & { number: number }
@@ -35,6 +46,43 @@ export function requestJump(motion: PreviewMotion, now: number, peak: number, fl
   // Start a new preparation from the current recovery pose at the input timestamp.
   motion.jump = { startedAt: now, flightMs: flightSeconds * 1000, peak, from: sampleJumpPose(current) }
   return true
+}
+
+export function requestRankedJump(motion: PreviewMotion, clock: RankedClock, now: number) {
+  const offset = activeUs(clock, now)
+  const previous = clock.offsets.at(-1)
+  if (offset < clock.segmentUs || offset >= rankedDurationUs || (clock.segmentUs > 0 && offset === clock.segmentUs)
+    || (previous !== undefined && (offset <= previous || (motion.jump && offset - previous < nextJumpUs)))) return false
+  const quantizedAt = clock.segmentAt + (offset - clock.segmentUs) / 1000
+  const from = motion.jump ? sampleJumpFrame(motion.jump, quantizedAt) : ready
+  motion.jump = { startedAt: quantizedAt, flightMs: 400, peak: 0.6, from: sampleJumpPose(from) }
+  clock.offsets.push(offset)
+  return true
+}
+
+/** Story 409 compares integer active-time offsets and computes each passage from turn zero. */
+export function advanceRankedMotion(motion: PreviewMotion, clock: RankedClock, now: number, settings: JudgementSettings) {
+  let playedUs = Math.min(rankedDurationUs, activeUs(clock, now))
+  const passes: PreviewPass[] = []
+  for (let passage = rankedPassageUs(motion.passCount + 1); passage <= playedUs && passage < rankedDurationUs;
+    passage = rankedPassageUs(motion.passCount + 1)) {
+    const jumpUs = motion.jump ? clock.offsets.at(-1) : undefined
+    const leadMs = jumpUs === undefined ? null : (passage - jumpUs) / 1000
+    // Grade against a zero origin to avoid cancellation when subtracting wall-clock milliseconds.
+    const verdict = judgePass(0, leadMs === null ? null : { startedAt: -leadMs, flightMs: 400, peak: 0.6 }, settings)
+    const at = clock.segmentAt + (passage - clock.segmentUs) / 1000
+    passes.push({ ...verdict, at, number: ++motion.passCount })
+    if (verdict.kind === 'miss') {
+      playedUs = passage
+      break
+    }
+  }
+  const stopped = passes.at(-1)?.kind === 'miss'
+  motion.angle = stopped ? 0 : Math.max(0, rankedTempo.turnsDuring(playedUs / 1000) - motion.passCount) * 2 * Math.PI
+  motion.lastAt = now
+  motion.ropeSpeed = stopped ? 0 : 1
+  motion.frame = motion.jump ? sampleJumpFrame(motion.jump, now) : ready
+  return { passes, playedUs }
 }
 
 export function advancePreviewMotion(
