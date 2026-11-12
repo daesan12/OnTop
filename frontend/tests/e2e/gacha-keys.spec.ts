@@ -51,3 +51,21 @@ test('뽑기권 수를 직접 입력하면 살 수 있는 만큼으로 맞춰 �
   await expect(page.locator('.art-result')).toContainText('뽑기권 12장을 받았어요')
   expect(bought).toHaveLength(1); expect((bought[0] as { quantity: number }).quantity).toBe(12)
 })
+test('키보드로 옮겨 간 버튼은 스페이스로 그 버튼을 누르고 뽑지 않는다', async ({ page }) => {
+  const { draws, bought } = await setup(page, 1000)
+  const tabTo = async (name: string) => { for (let i = 0; i < 30; i++) { await page.keyboard.press('Tab'); if (await page.evaluate(n => document.activeElement?.getAttribute('aria-label') === n, name)) return } throw new Error('not reached ' + name) }
+  await tabTo('한 장 늘리기'); await page.keyboard.press('Space')
+  await expect(page.getByRole('textbox', { name: '구매할 뽑기권 수 입력' })).toHaveValue('2')
+  await tabTo('A급 캡슐 미리보기'); await page.keyboard.press('Space')
+  await expect(page.getByRole('button', { name: 'A급 캡슐 미리보기' })).toHaveAttribute('aria-pressed', 'true')
+  await tabTo('뽑기권 2장 구매 200냥'); await page.keyboard.press('Space')
+  await expect.poll(() => bought.length).toBe(1)
+  await page.waitForTimeout(300); expect(draws()).toBe(0)
+})
+test('마우스로 누른 버튼이 포커스에 남아 있어도 스페이스는 뽑는다', async ({ page }) => {
+  const { draws } = await setup(page, 1000)
+  await page.getByRole('button', { name: '한 장 늘리기' }).click()
+  await page.keyboard.press('Space')
+  await expect.poll(draws).toBe(1)
+  await expect(page.getByRole('textbox', { name: '구매할 뽑기권 수 입력' })).toHaveValue('2')
+})

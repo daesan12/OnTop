@@ -39,7 +39,8 @@ export function GachaPanel() {
   useEffect(()=>{if(connected)void refreshGacha();else closeConstructionNotice()},[connected])
   useEffect(()=>{
     const d=dialog.current;if(!d||!connected)return
-    d.showModal();return()=>d.close()
+    // The dialog itself takes the first focus (not its first button), so Space right after opening draws.
+    d.showModal();d.focus({preventScroll:true});return()=>d.close()
   },[connected])
   const latestMachine=s.state&&live&&live.version>s.state.machine.version?live:s.state?.machine
   const machine=drawing&&motion.presentation?motion.presentation.machine:latestMachine
@@ -61,15 +62,26 @@ export function GachaPanel() {
   const canDraw=!blocked&&!refilling&&art.status==='ready'&&sceneReady&&!!s.state?.inventory.tickets
   // Space: draw; while the draw plays, skip it; on the result, confirm it (the focused button must not also click).
   // Listened on the document while the dialog is open: focus falls to <body> when the skip button goes away.
+  // A keyboard user on another control (buy, −/+, storage, a capsule tab, close) gets that control's own Space,
+  // never a draw that spends a ticket; only the draw, skip and confirm buttons (data-space-key) are Space's own.
   const space=useRef<()=>void>(()=>{})
   space.current=()=>{if(result)motion.dismiss();else if(drawing)motion.skip();else if(canDraw)act('DRAW')}
   useEffect(()=>{
+    // Which element the keyboard moved focus to (Tab, arrows), as opposed to one a mouse click left focused: a button
+    // only clicked (buy, +) must not take Space again instead of the draw the player meant. (:focus-visible can't tell:
+    // the browser turns it on for the focused button at the very keydown being handled.)
+    let pointerAt=-Infinity,keyboardFocus:EventTarget|null=null
+    const onPointer=()=>{pointerAt=performance.now()}
+    const onFocus=(e:FocusEvent)=>{keyboardFocus=performance.now()-pointerAt>300?e.target:null}
     const onKey=(e:KeyboardEvent)=>{
       if(!dialog.current?.open||e.key!==' '&&e.code!=='Space')return
       if(e.target instanceof HTMLElement&&e.target.closest('input,textarea,select,[contenteditable=true]'))return
+      const control=e.target instanceof Element?e.target.closest('button,a[href],summary,[role=button],[role=tab],[role=checkbox],[role=radio],[role=switch]'):null
+      if(control&&!control.hasAttribute('data-space-key')&&control===keyboardFocus)return
       e.preventDefault();e.stopPropagation();if(!e.repeat)space.current()
     }
-    document.addEventListener('keydown',onKey,true);return()=>document.removeEventListener('keydown',onKey,true)
+    document.addEventListener('pointerdown',onPointer,true);document.addEventListener('focusin',onFocus,true);document.addEventListener('keydown',onKey,true)
+    return()=>{document.removeEventListener('pointerdown',onPointer,true);document.removeEventListener('focusin',onFocus,true);document.removeEventListener('keydown',onKey,true)}
   },[])
   const retry=()=>{
     const pending=useGacha.getState().pending
@@ -78,7 +90,7 @@ export function GachaPanel() {
     void motion.act(pending.kind)
   }
   if(!connected)return null
-  return <dialog ref={dialog} className="gacha-art-dialog" aria-label="의상 뽑기"
+  return <dialog ref={dialog} className="gacha-art-dialog" aria-label="의상 뽑기" tabIndex={-1}
     onCancel={e=>{e.preventDefault();if(drawing)motion.skip();else closeConstructionNotice()}}
     onClose={()=>{if(!dialog.current?.open)closeConstructionNotice()}} onKeyDown={e=>e.stopPropagation()}>
     <div className="gacha-art-stage" data-drawing={drawing} data-phase={motion.phase} data-refilling={refilling&&!drawing&&!result} data-reduced={reduced||motion.instant}>
@@ -123,10 +135,10 @@ export function GachaPanel() {
             if(n>affordable){setCountDraft(String(affordable));setBuyCount(affordable)}else{setCountDraft(digits);if(n>=1)setBuyCount(n)}}}/>
         <button type="button" aria-label="한 장 늘리기" disabled={blocked||count>=affordable} onClick={()=>setBuyCount(Math.min(affordable,count+1))}>+</button>
       </div>
-      <button className="art-draw art-button" aria-label="뽑기권 1장 사용" aria-keyshortcuts="Space" disabled={!canDraw} onClick={()=>void act('DRAW')}>
+      <button className="art-draw art-button" data-space-key aria-label="뽑기권 1장 사용" aria-keyshortcuts="Space" disabled={!canDraw} onClick={()=>void act('DRAW')}>
         <GachaActionIcon kind="capsule"/><span className="art-action-copy"><b>{drawing?(motion.phase==='turning'?'손잡이를 돌려요…':motion.phase==='mixing'?'행운을 섞고 있어요…':'행운이 다가와요…'):refilling?'캡슐 보충 중…':'캡슐 뽑기'}</b><small>뽑기권 1장 사용 · Space</small></span></button>
       {drawing&&<div className="art-draw-status" role="status"><span>{motion.phase==='mixing'?'공유 기계에서 결과를 확인하고 있어요':'행운의 캡슐을 꺼내고 있어요'}</span>
-        <button onClick={motion.skip}>연출 건너뛰기 <kbd>Space</kbd></button></div>}
+        <button data-space-key onClick={motion.skip}>연출 건너뛰기 <kbd>Space</kbd></button></div>}
       {art.status==='error'&&<p className="art-error" role="alert">캡슐 그림을 불러오지 못했어요. 뽑기권은 사용하지 않았어요.<button onClick={art.retry}>그림 다시 불러오기</button></p>}
       {motion.phase==='anticipation'&&<div className="capsule-anticipation" aria-hidden="true"><span>특별한 행운이 다가와요…</span></div>}
       {s.loading&&!s.state&&<p className="art-notice" role="status">공유 기계의 재고를 불러오고 있어요…</p>}
@@ -140,7 +152,7 @@ export function GachaPanel() {
           <strong>{result.kind==='BUY'?`뽑기권 ${Math.max(1,Math.round(result.paidCoins/price))}장을 받았어요`:result.grade===5?`${money(result.awardedCoins)} 당첨!`:`${capsuleName(result.grade)} 당첨!`}</strong>
           <span>{result.kind==='DRAW'&&result.grade!==5?'나의 옷장에 보관했어요.':'최신 지갑과 보유 수량에 반영했어요.'}</span>
           {result.kind==='DRAW'&&result.grade===5&&<CoinToWallet receipt={result.operationId} amount={result.awardedCoins} reduced={reduced||motion.instant} target=".art-wallet"/>}
-          <button onClick={motion.dismiss}>확인 <kbd>Space</kbd></button></div></div>}
+          <button data-space-key onClick={motion.dismiss}>확인 <kbd>Space</kbd></button></div></div>}
     </div>
   </dialog>
 }
