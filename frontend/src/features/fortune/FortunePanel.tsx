@@ -141,6 +141,7 @@ export function FortuneDialog({ onGuide }: { onGuide?: () => void } = {}) {
             <button ref={guideButton} type="button" className="fortune-primary" onClick={guide} disabled={phase !== 'revealed'}>
               {result.name} 길 안내 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M5 19 19 5M6 5h13v13"/></svg>
             </button>
+            {result.destination === 'vr' && <p className="fortune-small">VR 체험관 입구에서 E를 눌러 온탑 꼬치왕을 열어보세요.</p>}
             {result.destination === 'table' && <p className="fortune-small">테이블에 앉아 추천 게임을 선택해보세요.</p>}
             {result.destination === 'arcade' && <p className="fortune-small">{RENEWAL_PARK_ENABLED && (result.id === 'whack-a-mole' || result.id === 'speed-mole') ? '두더지 게임장' : '오락기'} 앞에서 E를 누르고 {result.name} 게임을 선택해보세요.</p>}
             {nextAllowedAt > 0 && remaining === 0 && <button type="button" className="fortune-again" onClick={startNewFortune}>새 운세 카드 뽑기</button>}

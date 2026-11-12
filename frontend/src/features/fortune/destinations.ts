@@ -17,6 +17,12 @@ const renewalEntries: Partial<Record<string, RenewalRecreationId>> = {
 
 /** Use reviewed real approaches, never the old plaza or the middle of a solid model. */
 export function fortuneGuideTarget(game: FortuneGame, pose: { x: number; z: number }): Destination | undefined {
+  if (game.destination === 'vr') {
+    const entrance = renewalMap?.data.interactions.vrEntrance
+    return entrance && {
+      x: entrance.x, z: entrance.z, arrivalRadius: entrance.radius, name: '온탑 꼬치왕 · VR 체험관 입구',
+    }
+  }
   if (game.destination === 'table') {
     const table = [...TABLES].sort((a, b) => Math.hypot(a.position[0] - pose.x, a.position[2] - pose.z)
       - Math.hypot(b.position[0] - pose.x, b.position[2] - pose.z))[0]

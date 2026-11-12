@@ -1,5 +1,6 @@
 import { TABLE_GAMES, type TableGameCode } from '../tableLobby/model'
 import { renewalMap } from '../../park/renewalMap'
+import { SKEWER_COOP_ENABLED } from '../skewer/coop/availability'
 
 import fruitArt from '../../game/halligalli/assets/thumbnail.webp'
 import ledgerArt from '../../game/ledger/assets/thumbnail.webp'
@@ -12,9 +13,10 @@ import rpsArt from './art/rps-roulette-fortune-v1.png'
 import plusMinusArt from './art/plus-minus-fortune-v1.png'
 import stoneRumbleArt from './art/stone-rumble-fortune-v2.png'
 import guguJumpRopeArt from './art/gugu-jump-rope-fortune-v1.png'
+import skewerArt from './art/skewer-fortune-v1.png'
 
 export type FortuneCardContent = { id: string; name: string; title: string; omen: string; advice: string; symbol: string; art: string }
-export type FortuneGame = FortuneCardContent & { destination: 'table' | 'mini' | 'jumpmap' | 'arcade' }
+export type FortuneGame = FortuneCardContent & { destination: 'table' | 'mini' | 'jumpmap' | 'arcade' | 'vr' }
 
 const jumpRopeCard: FortuneGame = {
   id: 'gugu-jump-rope',
@@ -27,6 +29,17 @@ const jumpRopeCard: FortuneGame = {
   destination: 'mini',
 }
 const jumpRopeAvailable = renewalMap?.data.interactions.recreation?.some(entry => entry.id === 'pigeon-jump-rope') === true
+const skewerAvailable = SKEWER_COOP_ENABLED && !!renewalMap?.data.interactions.vrEntrance
+const skewerCard: FortuneGame = {
+  id: 'skewer',
+  name: '온탑 꼬치왕',
+  title: '손발이 척척 맞는 날',
+  omen: '오늘은 친구와 호흡이 잘 맞을 것 같아요. 온탑 꼬치왕에서 주문에 맞는 꼬치를 함께 만들어보세요.',
+  advice: '주문표를 먼저 확인하고, 필요한 재료를 서로 알려주세요.',
+  symbol: '炙',
+  art: skewerArt,
+  destination: 'vr',
+}
 
 const tableOmens: Partial<Record<TableGameCode, Omit<FortuneGame, 'id' | 'name' | 'destination'>>> = {
   OMOK: { title: '다섯 수 앞의 직감', omen: '오늘은 숨은 한 수가 눈에 들어오는 날. 오목에서 승리의 흐름을 잡을 수 있겠어요.', advice: '서두르지 말고 상대가 놓친 자리를 찾아보세요.', symbol: '五', art: '/art/tablet/omok.webp' },
@@ -50,6 +63,7 @@ export const FORTUNE_GAMES: readonly FortuneGame[] = [
   { id: 'rps-roulette', name: '가위바위보 룰렛', title: '한 수에 찾아오는 좋은 예감', omen: '오늘은 선택의 순간에 좋은 예감이 함께해요. 가위바위보 룰렛에서 기분 좋은 한 판을 만나보세요.', advice: '참가비와 남은 횟수를 확인하고, 더 도전할지 멈출지 천천히 정하세요.', symbol: '運', art: rpsArt, destination: 'arcade' },
   { id: 'plus-minus', name: '더하기 빼기 아케이드', title: '좋은 수가 모이는 하루', omen: '숫자들이 기분 좋게 모일 것 같은 날이에요. 더하기 빼기 아케이드에서 오늘의 한 판을 즐겨보세요.', advice: '세 칸을 차례로 멈춰보세요. 멈추는 타이밍이 결과를 바꾸지는 않아요.', symbol: '數', art: plusMinusArt, destination: 'arcade' },
   ...(jumpRopeAvailable ? [jumpRopeCard] : []),
+  ...(skewerAvailable ? [skewerCard] : []),
 ]
 
 /** Art/copy are ready; these modules are not integrated into this dev checkout yet.

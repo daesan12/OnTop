@@ -17,7 +17,7 @@ import {
 } from '../../park/mapConfig';
 
 export type NavPoint = { x: number; z: number };
-export type Destination = NavPoint & { name: string };
+export type Destination = NavPoint & { name: string; arrivalRadius?: number };
 /** Arrival points are accessible approaches, rather than the centres of solid props. */
 const main = PARK_PAVILIONS[0];
 const cart=MINI_PROPS[0],cartYaw='yaw' in cart?cart.yaw:0;
