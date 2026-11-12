@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { JumpRopeHud, hudFeedbackMs, type HudJudgement } from './JumpRopeHud'
 import { JumpRopeMenu } from './JumpRopeMenu'
+import { JumpRopeRanking } from './JumpRopeRanking'
+import { rankingPreviewStates, sampleScore } from './jumpRopeRankingFixtures'
 import { JumpRopeResult } from './JumpRopeResult'
 import { PreviewScene } from './PreviewScene'
 import { requestJump, type PreviewPass } from './previewMotion'
@@ -121,14 +123,6 @@ const hudSamples: Record<DemoAction, { note?: string; judgement?: PreviewPass['k
   end: { note: '비둘기한테 졌습니다.' },
 }
 
-function sampleScore(goodCount: number, ...perfectStreaks: number[]) {
-  let score = goodCount * pointsForPass('good', 0)
-  for (const streak of perfectStreaks) {
-    for (let combo = 1; combo <= streak; combo++) score += pointsForPass('perfect', combo)
-  }
-  return score
-}
-
 const hudPresets = {
   opening: { label: '시작 · 60초', seconds: 60, score: 0, combo: 0, chances: 3 },
   early: { label: '초반 · 3콤보', seconds: 46, score: sampleScore(7, 3), combo: 3, chances: 3 },
@@ -174,6 +168,9 @@ export function JumpRopePreview() {
   const [showManholePreview, setShowManholePreview] = useState(false)
   const [demo, setDemo] = useState<{ action: DemoAction; startedAt: number } | null>(null)
   const [round] = useState(() => createPreviewRound('menu'))
+  const [rankingOpen, setRankingOpen] = useState(false)
+  const [rankingMode, setRankingMode] = useState<keyof typeof rankingPreviewStates>('ready')
+  const rankingTrigger = useRef<HTMLButtonElement | null>(null)
   const [hideMenuForPreview, setHideMenuForPreview] = useState(false)
   const [hud, setHud] = useState(() => readRoundHud(round))
   const [hudPreset, setHudPreset] = useState<HudPreset>('live')
@@ -287,6 +284,12 @@ export function JumpRopePreview() {
   }, [round, sceneTime])
 
   useEffect(() => {
+    if (rankingOpen) return
+    rankingTrigger.current?.focus({ preventScroll: true })
+    rankingTrigger.current = null
+  }, [rankingOpen])
+
+  useEffect(() => {
     if (!visiblePass) return
     const timeout = window.setTimeout(() => setVisiblePass(null), hudFeedbackMs)
     return () => window.clearTimeout(timeout)
@@ -390,6 +393,7 @@ export function JumpRopePreview() {
 
   function resetScene(entry: 'menu' | 'initialCountdown') {
     resetPreviewRound(round, entry)
+    setRankingOpen(false)
     finalePreviewRef.current = null
     clockOffset.current = 0
     setFinalePreview(null)
@@ -445,6 +449,11 @@ export function JumpRopePreview() {
 
   function startGame() {
     if (round.phase.kind === 'menu') restartGame()
+  }
+
+  function openRanking(event: MouseEvent<HTMLButtonElement>) {
+    rankingTrigger.current = event.currentTarget
+    setRankingOpen(true)
   }
 
   function quitGame() {
@@ -528,10 +537,11 @@ export function JumpRopePreview() {
   const liveFeedback = sampleHud ? null : visiblePass
   const legacyHud = sampleHud ? undefined : demoHud
   const showMenu = inMenu && !hideMenuForPreview && !finalePreview && !showManholePreview && !simulating && !sampleHud && !sampleJudgement
+  const showRanking = showMenu && rankingOpen
 
   return (
     <main className="preview">
-      <header className="preview-header">
+      <header className="preview-header" inert={showRanking}>
         <div>
           <p className="eyebrow">ONTOP / 개발 프리뷰</p>
           <h1>구구구 줄넘기</h1>
@@ -539,7 +549,7 @@ export function JumpRopePreview() {
         <p className="preview-tag">06 · 비둘기 반응</p>
       </header>
       <div className="preview-layout">
-        <section ref={stageRef} className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={0}>
+        <section ref={stageRef} className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={showRanking ? undefined : 0}>
           <Canvas
             camera={{ fov: defaults.fov, near: 0.1, far: 40 }}
             dpr={[1, 1.5]}
@@ -560,14 +570,15 @@ export function JumpRopePreview() {
               : liveFeedback ? `live-${liveFeedback.number}` : demo ? `demo-${demo.startedAt}` : undefined}
             sample={sampleHud !== null || sampleJudgement !== null}
           />}
-          {showMenu && <JumpRopeMenu onStart={startGame} />}
+          {showMenu && <JumpRopeMenu onStart={startGame} onOpenRanking={openRanking} rankingOpen={showRanking} />}
+          {showRanking && <JumpRopeRanking state={rankingPreviewStates[rankingMode]} onClose={() => setRankingOpen(false)} />}
           {countdown && !paused && !simulating && !finalePreview && !showManholePreview && !sampleHud && !sampleJudgement &&
             <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
           {showSplash && <GameOverSplash />}
           {finalePreview && !previewResult && <button className="finale-preview-close" type="button" onClick={() => closeFinalePreview(performance.now())}>미리보기 닫기</button>}
           {resultReason && <JumpRopeResult reason={resultReason} stats={hud.stats} onQuit={quitGame} onRestart={restartGame} />}
         </section>
-        <aside className="preview-panel" aria-label="실시간 조정 패널" inert={finalePreview !== null}>
+        <aside className="preview-panel" aria-label="실시간 조정 패널" inert={finalePreview !== null || showRanking}>
           <h2>실시간 조정</h2>
           <p className="panel-note" aria-label="현재 게임 상태">현재 상태 · {status}</p>
           {previewResult && <p className="panel-note">Esc로 결과 시안을 닫을 수 있습니다.</p>}
@@ -576,6 +587,18 @@ export function JumpRopePreview() {
             <input type="checkbox" checked={hideMenuForPreview} onChange={event => setHideMenuForPreview(event.currentTarget.checked)} />
             대기 중 메인 화면 숨기기 (개발용)
           </label>}
+          {inMenu && <fieldset>
+            <legend>랭킹 프리뷰</legend>
+            <label className="audience-toggle">
+              표시 상태
+              <select value={rankingMode} onChange={event => setRankingMode(event.currentTarget.value as typeof rankingMode)}>
+                <option value="ready">정상 · 샘플 데이터</option>
+                <option value="loading">로딩</option>
+                <option value="empty">빈 목록</option>
+                <option value="error">오류</option>
+              </select>
+            </label>
+          </fieldset>}
           <fieldset disabled={!canSampleHud}>
             <legend>플레이 HUD 미리보기</legend>
             <label className="audience-toggle">

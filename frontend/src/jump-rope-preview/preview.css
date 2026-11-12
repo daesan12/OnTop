@@ -408,6 +408,8 @@ button, input { font: inherit; }
   pointer-events: none;
 }
 
+.rope-menu-layer[inert] { visibility: hidden; }
+
 .rope-menu {
   width: min(100%, 326px);
   min-height: clamp(332px, calc(100dvh - 140px), 356px);
@@ -531,8 +533,11 @@ button, input { font: inherit; }
   color: #536153;
   font-size: 0.75rem;
   font-weight: 800;
-  cursor: not-allowed;
+  cursor: pointer;
 }
+
+.rope-menu__ranking:hover { filter: brightness(1.05); }
+.rope-menu__ranking:focus-visible { outline: 2px solid #805a2c; outline-offset: 3px; }
 
 .rope-menu__ranking svg {
   width: 14px;
@@ -543,8 +548,6 @@ button, input { font: inherit; }
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-
-.rope-menu__ranking small { color: #62634f; font-size: 0.65rem; font-weight: 600; }
 
 .rope-countdown {
   position: absolute;

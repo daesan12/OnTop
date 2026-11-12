@@ -1,6 +1,12 @@
-export function JumpRopeMenu({ onStart }: { onStart: () => void }) {
+import type { MouseEvent } from 'react'
+
+export function JumpRopeMenu({ onStart, onOpenRanking, rankingOpen }: {
+  onStart: () => void
+  onOpenRanking: (event: MouseEvent<HTMLButtonElement>) => void
+  rankingOpen: boolean
+}) {
   return (
-    <div className="rope-menu-layer">
+    <div className="rope-menu-layer" inert={rankingOpen}>
       <section className="rope-menu" aria-labelledby="rope-menu-title">
         <header>
           <p className="rope-menu__eyebrow" lang="en">ONTOP MINI GAME</p>
@@ -17,11 +23,11 @@ export function JumpRopeMenu({ onStart }: { onStart: () => void }) {
         </ul>
         <div className="rope-menu__actions">
           <button type="button" className="rope-menu__start" onClick={onStart}>게임 시작</button>
-          <button type="button" className="rope-menu__ranking" disabled>
+          <button type="button" className="rope-menu__ranking" aria-haspopup="dialog" onClick={onOpenRanking}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8 4h8v6a4 4 0 0 1-8 0zM8 6H4v2a4 4 0 0 0 4 4m8-6h4v2a4 4 0 0 1-4 4m-4 2v6m-4 0h8" />
             </svg>
-            <span>랭킹 보기</span> <small>준비 중</small>
+            <span>랭킹 보기</span>
           </button>
         </div>
       </section>
