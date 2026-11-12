@@ -23,6 +23,7 @@ for (const view of ['storage','machine']) {
     const alert=surface.getByRole('alert')
     await expect(alert).toContainText('뽑기 정보를 불러오지 못했어요')
     await expect(alert).not.toContainText('internal')
+    await expect(surface.getByText('먼저 ‘다시 불러오기’를 누르면 이전 개봉 결과를 확인할 수 있어요.',{exact:true})).toHaveCount(0)
     await expect(surface.getByText(/불러오고 있어요/)).toHaveCount(0)
     await expect(surface.getByRole('button',{name:'이전 거래 결과 확인',exact:true})).toBeDisabled()
     await page.screenshot({path:info.outputPath(`${view}-failed.png`)})
@@ -47,5 +48,32 @@ test('보관함 네트워크 실패는 한국어 안내 후 조회만 재시도�
   ready=true;await page.getByRole('button',{name:'다시 불러오기'}).click()
   await expect(page.getByRole('alert')).toHaveCount(0)
   expect(posts).toBe(0)
+})
+
+test('이전 개봉이 남은 첫 조회 실패는 재조회 안내 후 같은 개봉 결과를 복구한다',async({page},info)=>{
+  await page.emulateMedia({reducedMotion:'reduce'})
+  await page.addInitScript(()=>sessionStorage.setItem('ontop:gacha:pending:101',JSON.stringify({kind:'OPEN',operationId:'lost-open',grade:4})))
+  let ready=false
+  const bodies:unknown[]=[]
+  await page.route('**/api/v1/gacha',route=>ready?route.fulfill({json:state}):route.abort('failed'))
+  await page.route('**/api/v1/gacha/boxes/open',route=>{
+    bodies.push(route.request().postDataJSON())
+    return route.fulfill({json:{operationId:'lost-open',kind:'OPEN',roundId:null,grade:4,duplicate:false,paidCoins:0,awardedCoins:0,
+      product:{code:'fixture-outfit',name:'복구한 의상',grade:4,compatibility:'ANY',imageKey:'',itemIds:[]},inventory,completedAt:'2026-11-12T00:00:00Z'}})
+  })
+  await page.goto('/tests/fixtures/gacha-recovery.html')
+  const storage=page.getByRole('region',{name:'아이템 보관함'})
+  const hint=storage.getByText('먼저 ‘다시 불러오기’를 누르면 이전 개봉 결과를 확인할 수 있어요.',{exact:true})
+  await expect(hint).toBeVisible()
+  await expect(storage.getByRole('button',{name:'이전 거래 결과 확인',exact:true})).toBeDisabled()
+  await page.screenshot({path:info.outputPath('open-reload-guidance.png')})
+  ready=true
+  await storage.getByRole('button',{name:'다시 불러오기',exact:true}).click()
+  await expect(hint).toHaveCount(0)
+  expect(bodies).toHaveLength(0)
+  await storage.getByRole('button',{name:'이전 거래 결과 확인',exact:true}).click()
+  await expect(page.getByRole('dialog',{name:'의상 캡슐 개봉'}).getByRole('heading',{name:/복구한 의상/})).toBeVisible()
+  expect(bodies).toEqual([{operationId:'lost-open',grade:4}])
+  expect(await page.evaluate(()=>sessionStorage.getItem('ontop:gacha:pending:101'))).toBeNull()
 })
 

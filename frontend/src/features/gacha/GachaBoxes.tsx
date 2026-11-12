@@ -153,6 +153,7 @@ export function GachaBoxes(){
   {s.state&&query&&matchingBoxes.length===0&&<div className="wardrobe-empty" role="status"><b>찾는 아이템이 없어요</b><p>검색어를 바꿔 보세요.</p></div>}
   {s.state&&!query&&ownedBoxes.length===0&&<div className="wardrobe-empty" role="status"><b>보유한 캡슐이 없어요</b><p>뽑기에서 얻은 캡슐이 여기에 표시돼요.</p></div>}
   {s.error&&<div role="alert" className="gacha-item-error"><p>{displayGachaMessage(s.error)}</p>
+   {!s.state&&s.pending?.kind==='OPEN'&&<p>먼저 ‘다시 불러오기’를 누르면 이전 개봉 결과를 확인할 수 있어요.</p>}
    <button type="button" className="gacha-item-retry" disabled={s.loading||s.busy||opening.busy} onClick={()=>void refreshGacha()}>다시 불러오기</button>
   </div>}
   {s.pending&&!s.busy&&<button className="gacha-item-retry" disabled={!s.state||s.loading||opening.busy} onClick={()=>void retry()}>이전 거래 결과 확인</button>}
