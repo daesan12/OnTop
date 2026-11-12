@@ -13,13 +13,13 @@ class LlmJokeJudgeTests {
     @Test void explanationFitsTheJdbcColumnAtThe100CharacterBoundary() throws Exception {
         var mapper=new ObjectMapper();var judge=new LlmJokeJudge(mapper,"fixture-key","fixture-model",JokeJudge.fixture());
         for(int length:new int[]{100,101,180}){
-            var result=judge.parse(mapper.writeValueAsString(Map.of("status","SCORED","wordplayX10",300,"witX10",300,"originalityX10",100,"explanation","가".repeat(length))));
+            var result=judge.parse(((com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree(SCORED)).put("explanation","가".repeat(length)).toString());
             assertThat(result.reason()).isEqualTo("가".repeat(100));
         }
     }
     @Test void explanationTruncationDoesNotSplitASupplementaryUnicodeCharacter() throws Exception {
         var mapper=new ObjectMapper();var judge=new LlmJokeJudge(mapper,"fixture-key","fixture-model",JokeJudge.fixture());
-        var result=judge.parse(mapper.writeValueAsString(Map.of("status","INVALID_JOKE","wordplayX10",0,"witX10",0,"originalityX10",0,"explanation","가".repeat(99)+"🙂끝")));
+        var result=judge.parse(((com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree(SCORED)).put("explanation","가".repeat(99)+"🙂끝").toString());
         assertThat(result.reason()).isEqualTo("가".repeat(99)+"🙂");
     }
     @Test void identicalResubmissionIsScoredAgainstSelectedRankAndGetsQuieterLaughter(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory)throws Exception {
@@ -46,7 +46,36 @@ class LlmJokeJudgeTests {
         }finally{server.stop(0);}
     }
     private final ObjectMapper mapper=new ObjectMapper();
-    private static final String SCORED="{\"status\":\"SCORED\",\"wordplayX10\":320,\"witX10\":240,\"originalityX10\":80,\"explanation\":\"동음어를 이용한 말장난\"}";
+    private static final String SCORED="{\"status\":\"SCORED\",\"connectionType\":\"SOUND\",\"connectionEvidence\":\"문제 단서와 답의 동음 관계\",\"witBand\":\"MODERATE\",\"wordplayX10\":320,\"witX10\":240,\"originalityX10\":80,\"explanation\":\"동음어를 이용한 말장난\"}";
+    @Test void absentConnectionCannotBecomeALowScoredJoke()throws Exception {
+        var judge=new LlmJokeJudge(mapper,"fixture","gpt-5.4-mini",JokeJudge.fixture());
+        var value=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree(SCORED);
+        value.put("connectionType","NONE").put("connectionEvidence","");
+        var result=judge.parse(value.toString());
+        assertThat(result.status()).isEqualTo("INVALID_JOKE");
+        assertThat(result.wordplayX10()+result.witX10()+result.originalityX10()).isZero();
+        assertThat(result.reaction()).isEmpty();
+    }
+    @Test void weakWitAssessmentCapsOnlyWitAndIsRecorded()throws Exception {
+        var judge=new LlmJokeJudge(mapper,"fixture","gpt-5.4-mini",JokeJudge.fixture());
+        var value=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree(SCORED);value.put("witBand","WEAK").put("witX10",330);
+        var events=new java.util.ArrayList<Map<String,Object>>();
+        try(var trace=JokeDiagnostics.open("consistency",events::add)){
+            var result=judge.parse(value.toString());
+            assertThat(result.witX10()).isEqualTo(133);
+            assertThat(result.wordplayX10()).isEqualTo(320);assertThat(result.originalityX10()).isEqualTo(80);
+        }
+        assertThat(events.stream().filter(e->e.get("stage").equals("wit_consistency_adjustment")).findFirst().orElseThrow()).containsEntry("beforeX10",330).containsEntry("afterX10",133);
+        value.put("connectionEvidence","");assertThatThrownBy(()->judge.parse(value.toString())).isInstanceOf(IllegalArgumentException.class);
+    }
+    @Test void cannotInflateLowWitToMatchAStrongReaction()throws Exception {
+        var judge=new LlmJokeJudge(mapper,"fixture","gpt-5.4-mini",JokeJudge.fixture());
+        var value=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree(SCORED);
+        for(String band:java.util.List.of("MODERATE","STRONG")){
+            value.put("witBand",band).put("witX10",10);
+            assertThatThrownBy(()->judge.parse(value.toString())).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("below band");
+        }
+    }
     @Test void usesLlmStructuredScoreWithoutCallingGuardsJokeValidityAndDelegatesReactionSafety()throws Exception {
         var calls=new AtomicInteger();var guardStatus=new AtomicReference<>("SCORED");
         JokeJudge guard=new JokeJudge(){
@@ -68,7 +97,7 @@ class LlmJokeJudgeTests {
             assertThat(judge.usage()).containsEntry("llm.calls",1L).containsEntry("llm.input_tokens",123L).containsEntry("llm.output_tokens",67L);
             assertThat(captured.get().path("response_format").path("json_schema").path("strict").asBoolean()).isTrue();
             assertThat(captured.get().path("messages").path(1).path("content").asText()).contains("질문 데이터","답 데이터");
-            assertThat(captured.get().path("messages").path(0).path("content").asText()).contains(JokeJudge.PERSONA,"점수의 이유","잘된 점 또는 아쉬운 점");
+            assertThat(captured.get().path("messages").path(0).path("content").asText()).contains(JokeJudge.PERSONA,"점수의 이유","잘된 점 또는 아쉬운 점","세 항목을 독립적으로 평가","글자 모양과 표기 방식").doesNotContain("1+1","창문","킹콩","열바다","32점");
             guardStatus.set("REVIEW");assertThat(judge.evaluate("q","a").status()).isEqualTo("REVIEW");
             guardStatus.set("REJECTED");assertThat(judge.evaluate("q","a").status()).isEqualTo("REJECTED");assertThat(calls).hasValue(1);
             assertThat(judge.safeReaction("safe")).isTrue();assertThat(judge.safeReaction("unsafe")).isFalse();
