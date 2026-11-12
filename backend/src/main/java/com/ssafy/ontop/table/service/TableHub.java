@@ -2141,7 +2141,7 @@ public class TableHub {
         if (!ready) {
             cancelReadyBalance(member.userId());
         }
-        if (ready && readyBalances.isPresent()) {
+        if (ready && readyBalances.isPresent() && !"STONE_RUMBLE".equals(room.snapshot().gameCode())) {
             if (member.accountId() == null) { fail(request, "READY_AUTH_REQUIRED", "로그인 상태를 확인해주세요."); }
             if (readyBalanceChecks.containsKey(member.sessionId())) {
                 fail(request, "READY_CHECK_PENDING", "사용 가능 잔액을 확인하고 있습니다.");
@@ -2246,6 +2246,9 @@ public class TableHub {
             fail(request, "GAME_OPTIONS_REQUIRED", "주사위 목표 2000/4000/6000점 중 하나를 선택해주세요.");
         }
         long amount = request.payload().get("betAmountPerPlayer").longValue();
+        if (game == TableGame.STONE_RUMBLE && amount != 0) {
+            fail(request, "GAME_INVALID_BET", "돌탑 생존전은 무료로 참가해요.");
+        }
         try { com.ssafy.ontop.game.domain.GameAmounts.validate(amount, game.maximumPlayers()); }
         catch (IllegalArgumentException exception) {
             fail(request, "GAME_INVALID_BET", "참가비가 지원 범위를 벗어났습니다.");
@@ -2418,6 +2421,9 @@ public class TableHub {
         if (game == TableGame.DICE && target == null) { fail(request, "GAME_OPTIONS_REQUIRED", "목표 점수를 선택해주세요."); }
         try {
             long amount = request.payload().path("betAmountPerPlayer").asLong();
+            if (game == TableGame.STONE_RUMBLE && amount != 0) {
+                fail(request, "GAME_INVALID_BET", "돌탑 생존전은 무료로 참가해요.");
+            }
             int players = request.payload().path("selectedPlayers").asInt();
             if (room.configure(game, target, amount, players)) {
                 starts.remove(tableId);

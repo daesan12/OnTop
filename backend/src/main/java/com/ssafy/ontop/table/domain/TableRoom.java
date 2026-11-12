@@ -65,10 +65,13 @@ public final class TableRoom {
     }
 
     public boolean selectGame(TableGame selected, Integer target) {
-        return selectGame(selected, target, 1);
+        return selectGame(selected, target, selected == TableGame.STONE_RUMBLE ? 0 : 1);
     }
 
     public boolean selectGame(TableGame selected, Integer target, long amount) {
+        if (selected == TableGame.STONE_RUMBLE && amount != 0) {
+            throw new IllegalArgumentException("돌탑 생존전은 무료로 참가해요.");
+        }
         com.ssafy.ontop.game.domain.GameAmounts.validate(amount, selected.maximumPlayers());
         if (target != null && (selected != TableGame.DICE || !Set.of(2000, 4000, 6000).contains(target))) {
             throw new IllegalArgumentException("주사위 목표를 확인해주세요.");

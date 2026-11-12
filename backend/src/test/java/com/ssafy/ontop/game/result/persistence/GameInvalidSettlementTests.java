@@ -12,6 +12,7 @@ import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import com.ssafy.ontop.wallet.repository.WalletRepository;
 import com.ssafy.ontop.wallet.repository.WalletTransactionRepository;
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -43,7 +44,7 @@ class GameInvalidSettlementTests {
     private final Instant began = Instant.parse("2026-10-26T00:00:00Z");
     private final Instant ended = began.plusSeconds(10);
     private final GameSettlementPersistenceService service = new GameSettlementPersistenceService(
-            sessions, participants, wallets, ledger, Clock.fixed(ended, ZoneOffset.UTC), events);
+            sessions, participants, wallets, ledger, Clock.fixed(ended, ZoneOffset.UTC), events, mock(EntityManager.class));
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})

@@ -40,8 +40,12 @@ public record GameResultView(@JsonIgnore long userId, long version, String gameS
             }
             var rewards = com.ssafy.ontop.game.stonerumble.domain.StoneRumbleRewards.fromRanks(
                     participants.stream().map(Participant::rank).toList());
+            boolean capped = settlementStatus == SettlementStatus.SETTLED && betAmountPerPlayer == 0;
             for (int index = 0; index < rewards.size(); index++) {
-                if (!rewards.get(index).equals(participants.get(index).rewardCoins())) {
+                var participant = participants.get(index);
+                if (capped ? participant.rewardCoins() > rewards.get(index)
+                        || Long.toString(userId).equals(participant.userId()) && !participant.rewardCoins().equals(myCoinDelta)
+                        : !rewards.get(index).equals(participant.rewardCoins())) {
                     throw new IllegalArgumentException("공동 순위 보상이 일치하지 않습니다.");
                 }
             }
@@ -63,7 +67,7 @@ public record GameResultView(@JsonIgnore long userId, long version, String gameS
         public Participant {
             if (userId == null || !userId.matches("[1-9][0-9]{0,18}") || result != null && !token(result)
                     || (rank == null) != (rewardCoins == null) || rank != null && (rank < 1 || rank > 8
-                        || rewardCoins < 10 || rewardCoins > 80 || rewardCoins % 5 != 0)) {
+                        || rewardCoins < 0 || rewardCoins > 80)) {
                 throw new IllegalArgumentException("참가 결과 형식을 확인해주세요.");
             }
         }

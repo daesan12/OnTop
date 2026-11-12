@@ -67,6 +67,10 @@ public class GameStartPersistenceService {
             return matchingResult(previous.get(), request);
         }
         GameSession session = prepare(request);
+        boolean stone = "STONE_RUMBLE".equals(request.command().gameCode());
+        if (stone && request.command().betAmountPerPlayer() != 0) {
+            return reject(session, "GAME_INVALID_BET");
+        }
 
         for (long userId : request.lockOrder()) {
             var member = users.findForGameReservationById(userId);
@@ -90,8 +94,8 @@ public class GameStartPersistenceService {
                 return reject(session, "MEMBER_ALREADY_IN_GAME");
             }
             Wallet wallet = entry.getValue();
-            if (wallet.balance() < wallet.reserved()
-                    || wallet.balance() - wallet.reserved() < request.command().betAmountPerPlayer()) {
+            if (!stone && (wallet.balance() < wallet.reserved()
+                    || wallet.balance() - wallet.reserved() < request.command().betAmountPerPlayer())) {
                 return reject(session, "INSUFFICIENT_BALANCE");
             }
         }
@@ -104,10 +108,12 @@ public class GameStartPersistenceService {
             int seat = request.command().participants().get(index).seatNumber();
             participants.saveAndFlush(new GameParticipant(session.id(), userId, seat, index,
                     request.command().betAmountPerPlayer()));
-            Wallet wallet = locked.get(userId);
-            wallet.reserveGameEntry(request.command().betAmountPerPlayer(), now);
-            ledger.saveAndFlush(WalletTransaction.gameReserve(wallet.id(), session.id(), userId,
-                    request.command().betAmountPerPlayer(), now));
+            if (!stone) {
+                Wallet wallet = locked.get(userId);
+                wallet.reserveGameEntry(request.command().betAmountPerPlayer(), now);
+                ledger.saveAndFlush(WalletTransaction.gameReserve(wallet.id(), session.id(), userId,
+                        request.command().betAmountPerPlayer(), now));
+            }
         }
         return GameStartResult.reserved(request.command(), GameIdCodec.format(session.id()));
     }

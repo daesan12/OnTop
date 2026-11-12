@@ -6,6 +6,7 @@ import { useSession } from '../../network/worldClient'
 import { create } from 'zustand'
 import { TABLET_ENABLED } from './tabletFeature'
 import { useCompanions } from '../ai/companions'
+import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
 
 export interface PreparationContext { userId: string; channelId: string; tableId: string; expectedVersion: number }
 export interface PreparationSelection { gameCode: TableGameCode; playerCount: number; betAmountPerPlayer: number; targetScore?: number }
@@ -40,6 +41,8 @@ export function manualStartAllowed(table: TableState, ownId: string, count: numb
 export function tabletLobbyActive() {
   const s = useSession.getState(), g = useGame.getState(), table = s.tableStates[s.tableId]
   if(residentsEnabled() && useCompanions.getState().practice?.snapshot.tableId===s.tableId)return false
+  if (table?.gameCode === 'STONE_RUMBLE' || s.bindings.some(b => b.tableId === s.tableId
+    && b.channelId === s.roomId && b.anchorId === STONE_RUMBLE_ANCHOR_ID)) return false
   return TABLET_ENABLED && s.status === 'connected' && !!table && table.seats.some(seat => seat.userId === s.sessionId)
     && !g.watchedGameId && !g.lastResult && !g.game && !['PLAYING', 'SETTLING'].includes(g.start?.phase ?? '')
 }

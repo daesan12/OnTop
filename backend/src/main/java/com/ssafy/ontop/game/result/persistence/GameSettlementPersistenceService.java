@@ -4,10 +4,12 @@ import com.ssafy.ontop.game.domain.GameParticipant;
 import com.ssafy.ontop.game.domain.GameSession;
 import com.ssafy.ontop.game.repository.GameParticipantRepository;
 import com.ssafy.ontop.game.repository.GameSessionRepository;
+import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import com.ssafy.ontop.wallet.repository.WalletRepository;
 import com.ssafy.ontop.wallet.repository.WalletTransactionRepository;
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -31,12 +33,14 @@ public class GameSettlementPersistenceService {
     private final WalletTransactionRepository ledger;
     private final Clock clock;
     private final ApplicationEventPublisher events;
+    private final EntityManager entities;
 
     public GameSettlementPersistenceService(GameSessionRepository sessions, GameParticipantRepository participants,
             WalletRepository wallets, WalletTransactionRepository ledger, @Qualifier("oauthClock") Clock clock,
-            ApplicationEventPublisher events) {
+            ApplicationEventPublisher events, EntityManager entities) {
         this.sessions = sessions; this.participants = participants; this.wallets = wallets;
         this.ledger = ledger; this.clock = clock; this.events = events;
+        this.entities = entities;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
@@ -56,8 +60,10 @@ public class GameSettlementPersistenceService {
                     || p.reservationReleasedAt() != null || p.coinDelta() != null)) {
             throw new IllegalStateException("경기 예약 상태가 일치하지 않습니다.");
         }
+        boolean stone = "STONE_RUMBLE".equals(game.gameCode());
+        boolean freeStone = stone && game.betAmountPerPlayer() == 0;
         var calculation = invalid ? GameSettlementCalculation.refund(players.size())
-                : "STONE_RUMBLE".equals(game.gameCode()) ? GameSettlementCalculation.stoneRumble(game.betAmountPerPlayer(),
+                : stone ? GameSettlementCalculation.stoneRumble(game.betAmountPerPlayer(),
                     players.stream().map(GameParticipant::result).toList(), players.stream().map(GameParticipant::finishRank).toList())
                 : GameSettlementCalculation.calculate(game.betAmountPerPlayer(),
                     players.stream().map(GameParticipant::result).toList());
@@ -69,33 +75,43 @@ public class GameSettlementPersistenceService {
         }
         var now = VerifiedGameFinish.millis(clock.instant());
         long sum = 0;
+        long withheld = 0;
         for (int index = 0; index < players.size(); index++) {
             var player = players.get(index);
             var award = calculation.awards().get(index);
             Wallet wallet = locked.get(player.userId());
-            long rankReward = !invalid && "STONE_RUMBLE".equals(game.gameCode()) ? player.rankReward() : 0;
-            wallet.settleGame(game.betAmountPerPlayer(), Math.subtractExact(award.netDelta(), rankReward), now);
+            long nominalReward = !invalid && stone ? player.rankReward() : 0;
+            long rankReward = freeStone && nominalReward > 0
+                    ? MinigameRewardBudget.grantToday(entities, player.userId(), nominalReward, now)
+                    : nominalReward;
+            long otherDelta = Math.subtractExact(award.netDelta(), nominalReward);
+            long actualDelta = Math.addExact(otherDelta, rankReward);
+            withheld = Math.addExact(withheld, nominalReward - rankReward);
+            if (!freeStone) {
+                wallet.settleGame(game.betAmountPerPlayer(), otherDelta, now);
+                ledger.save(WalletTransaction.gameClose(wallet.id(), gameId, player.userId(),
+                        game.betAmountPerPlayer(), award.potDelta(), calculation.release(), now));
+            }
             if (rankReward > 0) { wallet.creditReward(rankReward, now); }
-            ledger.save(WalletTransaction.gameClose(wallet.id(), gameId, player.userId(),
-                    game.betAmountPerPlayer(), award.potDelta(), calculation.release(), now));
             if (rankReward > 0) {
                 ledger.save(WalletTransaction.gameRankReward(wallet.id(), gameId, player.userId(), rankReward, now));
             }
-            if (award.bonus() > rankReward) {
-                ledger.save(WalletTransaction.gameTieBonus(wallet.id(), gameId, player.userId(), award.bonus() - rankReward, now));
+            if (award.bonus() > nominalReward) {
+                ledger.save(WalletTransaction.gameTieBonus(wallet.id(), gameId, player.userId(), award.bonus() - nominalReward, now));
             }
             if (invalid) {
                 player.releaseInvalidReservation(now);
             } else {
-                player.closeReservation(award.netDelta(), now);
+                player.closeReservation(actualDelta, now);
             }
-            sum = Math.addExact(sum, award.netDelta());
+            sum = Math.addExact(sum, actualDelta);
         }
-        if (sum != calculation.bonus()) { throw new IllegalStateException("정산 합계가 일치하지 않습니다."); }
+        long paidBonus = Math.subtractExact(calculation.bonus(), withheld);
+        if (sum != paidBonus) { throw new IllegalStateException("정산 합계가 일치하지 않습니다."); }
         if (invalid) {
             game.completeInvalidation(now);
         } else {
-            game.settle(calculation.bonus(), calculation.payoutPerWinner(), now);
+            game.settle(paidBonus, calculation.payoutPerWinner(), now);
         }
         ledger.flush();
         sessions.flush();

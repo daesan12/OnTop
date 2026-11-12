@@ -8,13 +8,13 @@ public record GameStartCommand(UUID startAttemptId, String tableId, long tableVe
         List<Participant> participants, Integer targetScore, long betAmountPerPlayer) {
 
     public GameStartCommand(UUID attempt, String table, long version, String code, List<Participant> players) {
-        this(attempt, table, version, code, players, null, 1);
+        this(attempt, table, version, code, players, null, "STONE_RUMBLE".equals(code) ? 0 : 1);
     }
 
     // 기존 서버 내부 호출/로컬 픽스처 호환. 공개 GAME_SELECT에는 금액이 반드시 필요하다.
     public GameStartCommand(UUID attempt, String table, long version, String code, List<Participant> players,
             Integer targetScore) {
-        this(attempt, table, version, code, players, targetScore, 1);
+        this(attempt, table, version, code, players, targetScore, "STONE_RUMBLE".equals(code) ? 0 : 1);
     }
 
     public GameStartCommand {

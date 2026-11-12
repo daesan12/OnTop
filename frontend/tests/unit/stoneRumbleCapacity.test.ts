@@ -13,6 +13,12 @@ describe('돌탑 8인 서버 계약', () => {
       settlementStatus: 'SETTLED', betAmountPerPlayer: 0, myCoinDelta: 15, endedAt: '2026-11-07T00:00:00Z',
       participants: [{ userId: '101', result: 'DRAW', rank: 1, rewardCoins: 15 }, { userId: '202', result: 'DRAW', rank: 1, rewardCoins: 15 }] }
     expect(parseResult(result, '101').participants[0]).toEqual(result.participants[0])
+    const capped = { ...result, myCoinDelta: 7, participants: [
+      { ...result.participants[0], rewardCoins: 7 }, { ...result.participants[1], rewardCoins: 0 },
+    ] }
+    expect(parseResult(capped, '101').participants.map(player => player.rewardCoins)).toEqual([7, 0])
+    expect(() => parseResult({ ...capped, myCoinDelta: 15 }, '101')).toThrow()
+    expect(() => parseResult({ ...capped, settlementStatus: 'PENDING', myCoinDelta: null }, '101')).toThrow()
     expect(() => parseResult({ ...result, participants: result.participants.map(p => ({ ...p, rewardCoins: 10000 })) }, '101')).toThrow()
     expect(() => parseResult({ ...result, gameCode: 'OMOK' }, '101')).toThrow()
   })

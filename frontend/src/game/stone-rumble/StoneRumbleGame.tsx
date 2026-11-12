@@ -11,15 +11,18 @@ import { StoneTowerIcon } from './StoneTowerIcon'
 import { PigeonIcon } from './PigeonIcon'
 import { StoneLoadingTips } from './StoneLoadingTips'
 import { useStoneFeedback } from './useStoneFeedback'
+import type { Result } from '../protocol'
 import './stone-rumble.css'
 
 export function StoneRumbleGame({ state, ownId, connected, send, leave, children, localOnly = false, inputReady = true, name = stoneName, topActions,
-  preparing = false, onSceneStatus, preparationAttempt = 0, exit, chat }: {
+  preparing = false, onSceneStatus, preparationAttempt = 0, exit, chat, result, rewardStatus }: {
   state: StoneState; ownId: string; connected: boolean; send: (input: StoneControl, clearQueuedActions?: boolean) => void
   leave: () => void; children?: ReactNode; localOnly?: boolean; inputReady?: boolean; name?: (id: string) => string; topActions?: ReactNode
   preparing?: boolean; onSceneStatus?: StoneSceneStatus; preparationAttempt?: number
   exit?: () => void
   chat?: StoneChatPort
+  result?: Result | null
+  rewardStatus?: string
 }) {
   const [help, setHelp] = useState(false), [confirmLeave, setConfirmLeave] = useState(false)
   const [resultOpen, setResultOpen] = useState(true)
@@ -187,8 +190,13 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
       <h2>{eliminated ? '탈락했어요' : state.winnerUserIds.includes(ownId) ? '끝까지 살아남았어요!' : state.winnerUserIds.length ? `${state.winnerUserIds.map(name).join(' · ')} 승리` : '함께 떨어졌어요'}</h2>
       {eliminated && <p>{own?.forfeited ? '기권 처리됐어요.' : '1층 아래 추락으로 탈락 처리됐어요.'}{state.winnerUserIds.length > 0 && ` ${state.winnerUserIds.map(name).join(' · ')} 승리`}{state.endReason === 'ALL_FALLEN' && ' 모두 떨어져 무승부예요.'}</p>}
       <p>{state.endReason === 'SIMULATION_LIMIT' ? '서버 지연으로 경기를 중단했어요.' : `${elapsed}초 동안 돌탑에서 버텼어요.`}</p>
-      <ul className="paper-players">{[...state.players].sort((a, b) => (a.rank ?? 9) - (b.rank ?? 9)).map(player => <li key={player.userId}><b>{player.rank && `${state.players.filter(p => p.rank === player.rank).length > 1 ? '공동 ' : ''}${player.rank}위 · `}{name(player.userId)}{player.userId === ownId ? ' (나)' : ''}</b><span>{player.rank ? `${player.rewardCoins}냥` : player.forfeited ? '기권' : state.winnerUserIds.includes(player.userId) ? '생존' : '탈락'}</span></li>)}</ul>
-      <p>{localOnly ? '로컬 연습 경기 · 엽전 정산 없음' : '엽전 정산은 서버의 확정 결과를 확인해 주세요.'}</p>{children}{exit && <button onClick={exit}>게임에서 나가기</button>}
+      <ul className="paper-players">{[...state.players].sort((a, b) => (a.rank ?? 9) - (b.rank ?? 9)).map(player => {
+        const reward = localOnly ? player.rewardCoins : result?.settlementStatus === 'SETTLED'
+          ? result.participants.find(p => p.userId === player.userId)?.rewardCoins : null
+        return <li key={player.userId}><b>{player.rank && `${state.players.filter(p => p.rank === player.rank).length > 1 ? '공동 ' : ''}${player.rank}위 · `}{name(player.userId)}{player.userId === ownId ? ' (나)' : ''}</b>
+          <span>{reward != null && player.rank ? `${reward}냥` : player.forfeited ? '기권' : state.winnerUserIds.includes(player.userId) ? '생존' : '탈락'}</span></li>
+      })}</ul>
+      {(localOnly || rewardStatus) && <p role="status">{localOnly ? '로컬 연습 경기 · 엽전 정산 없음' : rewardStatus}</p>}{children}{exit && <button onClick={exit}>게임에서 나가기</button>}
     </PaperPopup>}
     {help && <PaperPopup title="돌탑 생존전" label="돌탑 조작 안내" onClose={() => setHelp(false)} closeLabel="조작 안내 닫기" className="stone-rumble-help">
       <h2>핵심 조작</h2>

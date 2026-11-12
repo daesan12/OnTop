@@ -9,6 +9,7 @@ import { screenTransform, TABLET, tabletProjection } from './tabletProjection'
 import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
 import { BeveledBox } from '../../world/art/BeveledBox'
 import { renderedTableAnchors } from './tabletAnchors'
+import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
 
 const caseGeometry = new RoundedBoxGeometry(TABLET.width + .14, TABLET.height + .14, .08, 2, .025)
 const inlayGeometry = new RoundedBoxGeometry(TABLET.width + .108, TABLET.height + .108, .012, 2, .006)
@@ -19,7 +20,7 @@ export function TableTablet3D() {
   const own = useSession(s => s.tableId), seatIndex = useSession(s => s.seatIndex)
   const binding = useSession(s => s.bindings.find(b => b.channelId === s.roomId && b.tableId === own))
   const anchor = binding && (renderedTableAnchors.get(binding.anchorId) ?? TABLES.find(t => t.id === binding.anchorId))
-  if (!anchor || seatIndex < 0) return null
+  if (!anchor || anchor.id === STONE_RUMBLE_ANCHOR_ID || seatIndex < 0) return null
   return <TabletAsset key={`${own}/${seatIndex}`} anchor={anchor} seatIndex={seatIndex} />
 }
 function TabletAsset({ anchor, seatIndex }: { anchor: typeof TABLES[number]; seatIndex: number }) {

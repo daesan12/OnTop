@@ -234,7 +234,7 @@ public class WalletTransaction {
     }
 
     public static WalletTransaction gameRankReward(long walletId, long gameId, long userId, long reward, Instant now) {
-        if (reward < 10 || reward > 80 || reward % 5 != 0) { throw new IllegalArgumentException("순위 보상을 확인하세요."); }
+        if (reward <= 0 || reward > 80) { throw new IllegalArgumentException("순위 보상을 확인하세요."); }
         return gameEntry(walletId, gameId, userId, "GAME_RANK_REWARD", reward, 0, "rank-reward", now);
     }
 

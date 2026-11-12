@@ -17,11 +17,14 @@ class StoneRumbleLobbyTests {
     void 돌탑_여덟좌석에서_정원을_줄일때_참가자를_잃거나_준비를_유지하지_않는다() {
         var room = new TableRoom("table");
         room.join("101");
-        room.configure(TableGame.STONE_RUMBLE, null, 5, 8);
+        room.configure(TableGame.STONE_RUMBLE, null, 0, 8);
         for (int index = 2; index <= 8; index++) { room.join(Integer.toString(index * 101)); }
         for (int index = 1; index <= 8; index++) { room.setReady(Integer.toString(index * 101), true); }
         var full = room.snapshot();
         assertThat(full.allReady()).isTrue();
+        assertThat(full.betAmountPerPlayer()).isZero();
+        assertThatThrownBy(() -> room.configure(TableGame.STONE_RUMBLE, null, 5, 8))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThat(room.join("999")).isFalse();
         assertThatThrownBy(() -> room.configure(TableGame.ONE_CARD, null, 5, 4))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -39,7 +42,7 @@ class StoneRumbleLobbyTests {
     void 여덟명_예약은_돌탑만_허용하고_좌석과_요청_중복을_거절한다() {
         List<GameStartCommand.Participant> players = IntStream.rangeClosed(1, 8)
                 .mapToObj(index -> new GameStartCommand.Participant(Integer.toString(index * 101), index)).toList();
-        var command = new GameStartCommand(UUID.randomUUID(), "table", 1, "STONE_RUMBLE", players, null, 5);
+        var command = new GameStartCommand(UUID.randomUUID(), "table", 1, "STONE_RUMBLE", players);
         assertThat(GameReservationRequest.from(command).userIds()).hasSize(8);
         assertThatThrownBy(() -> new GameStartCommand(UUID.randomUUID(), "table", 1, "ONE_CARD", players))
                 .isInstanceOf(IllegalArgumentException.class);

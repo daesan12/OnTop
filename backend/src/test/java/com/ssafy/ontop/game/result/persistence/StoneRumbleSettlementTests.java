@@ -11,6 +11,8 @@ import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import com.ssafy.ontop.wallet.repository.WalletRepository;
 import com.ssafy.ontop.wallet.repository.WalletTransactionRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -27,6 +29,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -38,11 +41,30 @@ class StoneRumbleSettlementTests {
     @ParameterizedTest
     @ValueSource(ints = {2, 8})
     void 영냥_참가비에서도_순위보상을_저장하고_중복정산은_한번만_지급한다(int count) {
+        verifyRewards(count, false);
+    }
+
+    @Test
+    void 다른_미니게임을_합산한_하루_상한까지_일부_지급하고_소진하면_지급하지_않는다() {
+        verifyRewards(8, true);
+    }
+
+    private void verifyRewards(int count, boolean capped) {
         var sessions = mock(GameSessionRepository.class);
         var participants = mock(GameParticipantRepository.class);
         var wallets = mock(WalletRepository.class);
         var ledger = mock(WalletTransactionRepository.class);
         var events = mock(ApplicationEventPublisher.class);
+        var entities = mock(EntityManager.class);
+        var earned = mock(Query.class, org.mockito.Answers.RETURNS_SELF);
+        when(entities.createNativeQuery(argThat(sql -> sql.contains("'MINIGAME_REWARD'")
+                && sql.contains("'GAME_RANK_REWARD'"))))
+                .thenReturn(earned);
+        if (capped) {
+            when(earned.getSingleResult()).thenReturn(993L, 1000L, 0L);
+        } else {
+            when(earned.getSingleResult()).thenReturn(0L);
+        }
         var users = IntStream.rangeClosed(1, count).mapToObj(i -> new GameStartCommand.Participant(Integer.toString(i * 101), i)).toList();
         var command = new GameStartCommand(UUID.randomUUID(), "arena", 1, "STONE_RUMBLE", users, null, 0);
         var game = GameSession.prepare(command, new byte[32], "test", UUID.randomUUID(), began);
@@ -65,18 +87,25 @@ class StoneRumbleSettlementTests {
         var receive = new GameFinishPersistenceService(sessions, participants, events);
         receive.accept(finish);
         receive.accept(finish);
-        var settle = new GameSettlementPersistenceService(sessions, participants, wallets, ledger, Clock.fixed(ended, ZoneOffset.UTC), events);
+        var settle = new GameSettlementPersistenceService(sessions, participants, wallets, ledger, Clock.fixed(ended, ZoneOffset.UTC), events, entities);
         settle.settle(7);
         settle.settle(7);
 
         for (int i = 0; i < count; i++) {
+            long grant = capped && i < 2 ? i == 0 ? 7L : 0L : (count - i) * 10L;
             assertThat(players.get(i).finishRank()).isEqualTo(i + 1);
             assertThat(players.get(i).rankReward()).isEqualTo((count - i) * 10L);
-            assertThat(players.get(i).coinDelta()).isEqualTo((count - i) * 10L);
-            assertThat(balances.get(i).balance()).isEqualTo(Wallet.SIGNUP_BALANCE + (count - i) * 10L);
+            assertThat(players.get(i).coinDelta()).isEqualTo(grant);
+            assertThat(balances.get(i).balance()).isEqualTo(Wallet.SIGNUP_BALANCE + grant);
         }
-        verify(ledger, times(count * 2)).save(any(WalletTransaction.class));
-        assertThat(StoredGameResult.forMember(game, players, players.getFirst()).participants().getFirst().rank()).isEqualTo(1);
+        verify(ledger, times(capped ? count - 1 : count)).save(any(WalletTransaction.class));
+        verify(earned, times(count)).setParameter("from", Instant.parse("2026-11-06T15:00:00Z"));
+        verify(earned, times(count)).setParameter("until", Instant.parse("2026-11-07T15:00:00Z"));
+        var settled = StoredGameResult.forMember(game, players, players.getFirst());
+        assertThat(settled.participants().getFirst().rank()).isEqualTo(1);
+        assertThat(settled.participants().getFirst().rewardCoins()).isEqualTo(capped ? 7L : count * 10L);
+        assertThat(settled.participants().get(1).rewardCoins()).isEqualTo(capped ? 0L : (count - 1) * 10L);
+        receive.accept(finish);
         if (count == 8) {
             var replaced = new java.util.ArrayList<>(outcomes);
             for (int index : new int[]{1, 2}) {
@@ -129,7 +158,8 @@ class StoneRumbleSettlementTests {
                 new GameFinished.Participant(101, GameFinished.Result.DRAW, null, null),
                 new GameFinished.Participant(202, GameFinished.Result.DRAW, null, null)), "LOADING_TIMEOUT", ended);
         new GameFinishPersistenceService(sessions, participants, events).accept(finish);
-        var service = new GameSettlementPersistenceService(sessions, participants, wallets, ledger, Clock.fixed(ended, ZoneOffset.UTC), events);
+        var service = new GameSettlementPersistenceService(sessions, participants, wallets, ledger, Clock.fixed(ended, ZoneOffset.UTC), events,
+                mock(EntityManager.class));
         service.settle(7); service.settle(7);
         assertThat(game.status()).isEqualTo(GameSession.Status.INVALID);
         assertThat(balances).allSatisfy(wallet -> { assertThat(wallet.balance()).isEqualTo(100); assertThat(wallet.reserved()).isZero(); });

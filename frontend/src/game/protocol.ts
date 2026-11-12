@@ -288,6 +288,7 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
 }
 export function parseResult(p: Record<string, unknown>, ownId: string): Result {
   const participantCount = Array.isArray(p.participants) ? p.participants.length : 0
+  const cappedStone = p.gameCode === 'STONE_RUMBLE' && p.settlementStatus === 'SETTLED' && p.betAmountPerPlayer === 0
   if (
     !id(p.gameSessionId) ||
     !integer(p.version) ||
@@ -305,7 +306,9 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
       && (id(v.result) || (p.status === 'INVALID' && v.result === null))
       && (v.rank == null && v.rewardCoins == null || p.gameCode === 'STONE_RUMBLE'
         && integer(v.rank) && Number(v.rank) >= 1 && Number(v.rank) <= participantCount
-        && integer(v.rewardCoins) && Number(v.rewardCoins) >= 10 && Number(v.rewardCoins) <= 80 && Number(v.rewardCoins) % 5 === 0)) ||
+        && integer(v.rewardCoins) && Number(v.rewardCoins) <= 80
+        && (cappedStone ? Number(v.rewardCoins) >= 0 && (v.userId !== ownId || v.rewardCoins === p.myCoinDelta)
+          : Number(v.rewardCoins) >= 10 && Number(v.rewardCoins) % 5 === 0))) ||
     new Set(p.participants.map((v) => v.userId)).size !==
       p.participants.length ||
     !p.participants.some((v) => v.userId === ownId) ||
