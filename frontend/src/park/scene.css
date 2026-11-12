@@ -28,7 +28,7 @@
   margin-top: 12px;
 }
 .park-page .park-scene--preparing-gate {
-  background: #202e25;
+  background: #202e25 url('./park-entrance.webp') center / cover no-repeat;
 }
 .park-page .park-scene--preparing-gate canvas {
   visibility: hidden;
@@ -37,7 +37,9 @@
   opacity: 0;
 }
 .park-page .park-scene--preparing-gate .park-scene-message[role='status'] {
-  top: 50%;
+  top: auto;
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
   padding: 10px 16px;
   border: 1px solid #bba579;
   border-radius: 999px;

@@ -2,7 +2,8 @@
 export const GENERATED_PARK_ENABLED = import.meta.env?.MODE === 'park-integration'
   && import.meta.env?.VITE_PARK_MAP === 'generated'
 
-export const RENEWAL_PARK_ENABLED = import.meta.env?.DEV
+// Allow the explicit localhost mode to benchmark the optimized bundle.
+export const RENEWAL_PARK_ENABLED = (import.meta.env?.DEV || import.meta.env?.VITE_RENEWAL_LOCAL_PREVIEW === '1')
   && import.meta.env.MODE === 'park-renewal-integration'
   && typeof location !== 'undefined'
   && ['localhost', '127.0.0.1'].includes(location.hostname)
