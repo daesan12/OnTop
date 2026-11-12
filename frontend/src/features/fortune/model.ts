@@ -15,8 +15,9 @@ import stoneRumbleArt from './art/stone-rumble-fortune-v2.png'
 import guguJumpRopeArt from './art/gugu-jump-rope-fortune-v1.png'
 import skewerArt from './art/skewer-fortune-v1.png'
 
-export type FortuneCardContent = { id: string; name: string; title: string; omen: string; advice: string; symbol: string; art: string }
-export type FortuneGame = FortuneCardContent & { destination: 'table' | 'mini' | 'jumpmap' | 'arcade' | 'vr' }
+type FortuneDestination = 'table' | 'mini' | 'jumpmap' | 'arcade' | 'vr' | 'pagoda'
+export type FortuneCardContent = { id: string; name: string; title: string; omen: string; advice: string; symbol: string; art: string; destination?: FortuneDestination }
+export type FortuneGame = FortuneCardContent & { destination: FortuneDestination }
 
 const jumpRopeCard: FortuneGame = {
   id: 'gugu-jump-rope',
@@ -66,10 +67,9 @@ export const FORTUNE_GAMES: readonly FortuneGame[] = [
   ...(skewerAvailable ? [skewerCard] : []),
 ]
 
-/** Art/copy are ready; these modules are not integrated into this dev checkout yet.
- * Deliberately omit destinations so preview-only cards cannot enter the live draw. */
+/** Preview cards stay out of the live draw until their games are integrated. */
 export const FORTUNE_PENDING_GAMES: readonly FortuneCardContent[] = [
-  { id: 'STONE_RUMBLE', name: '돌탑 생존전', title: '끝까지 남을 발걸음', omen: '다음 한 걸음이 또렷하게 보일 것 같은 날. 돌탑 생존전에서 마지막까지 남는 주인공에 도전해보세요.', advice: '밟은 발판에 머무르지 말고 다음 착지점을 먼저 살펴보세요.', symbol: '生', art: stoneRumbleArt },
+  { id: 'STONE_RUMBLE', name: '돌탑 생존전', title: '끝까지 남을 발걸음', omen: '다음 한 걸음이 또렷하게 보일 것 같은 날. 돌탑 생존전에서 마지막까지 남는 주인공에 도전해보세요.', advice: '밟은 발판에 머무르지 말고 다음 착지점을 먼저 살펴보세요.', symbol: '生', art: stoneRumbleArt, destination: 'pagoda' },
   ...(jumpRopeAvailable ? [] : [jumpRopeCard]),
 ]
 

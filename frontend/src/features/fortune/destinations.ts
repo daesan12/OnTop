@@ -4,7 +4,7 @@ import { renewalMap, type RenewalRecreationId } from '../../park/renewalMap'
 import { PARK_DESTINATIONS, type Destination } from '../navigation/parkNavigation'
 import { PARK_MAP_PLACES } from '../navigation/mapPlaces'
 import { RETURN_TO } from '../jumpmap/activeCourse'
-import type { FortuneGame } from './model'
+import type { FortuneCardContent } from './model'
 
 const renewalEntries: Partial<Record<string, RenewalRecreationId>> = {
   bungeoppang: 'fish-bread',
@@ -16,7 +16,12 @@ const renewalEntries: Partial<Record<string, RenewalRecreationId>> = {
 }
 
 /** Use reviewed real approaches, never the old plaza or the middle of a solid model. */
-export function fortuneGuideTarget(game: FortuneGame, pose: { x: number; z: number }): Destination | undefined {
+export function fortuneGuideTarget(game: FortuneCardContent, pose: { x: number; z: number }): Destination | undefined {
+  if (!game.destination) return
+  if (game.destination === 'pagoda') {
+    const approach = PARK_MAP_PLACES.find(place => place.id === 'pagoda')?.destination
+    return approach && { ...approach, name: `${game.name} · 대석탑 정원` }
+  }
   if (game.destination === 'vr') {
     const entrance = renewalMap?.data.interactions.vrEntrance
     return entrance && {
