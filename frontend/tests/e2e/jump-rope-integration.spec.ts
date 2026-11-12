@@ -178,12 +178,27 @@ async function readArcadeDetailArt(image: Locator) {
   })
 }
 
-test('줄넘기 상세 이미지의 프레임과 크롭이 다른 오락기 게임과 같다', async ({ page }) => {
+async function readArcadeManualButton(button: Locator) {
+  return button.evaluate(element => {
+    const style = getComputedStyle(element)
+    const box = element.getBoundingClientRect()
+    const detail = element.parentElement!.getBoundingClientRect()
+    const start = element.nextElementSibling!.getBoundingClientRect()
+    return {
+      width: box.width, height: box.height, inset: box.left - detail.left, startGap: start.top - box.bottom,
+      color: style.color, background: style.backgroundColor, border: style.border, radius: style.borderRadius,
+      fontSize: style.fontSize, margin: style.margin,
+    }
+  })
+}
+
+test('줄넘기 상세 이미지와 설명서 버튼이 다른 오락기 게임과 같고 설명서에서 돌아와 시작할 수 있다', async ({ page }) => {
   await setupPark(page)
   await page.route('**/api/v1/minigames/jump-rope/rounds', route =>
     route.fulfill({ status: 201, json: roundResponse('51') }))
   const arcade = await openArcade(page)
   const image = arcade.locator('.arcade-detail > img.manual-art')
+  const manualButton = arcade.getByRole('button', { name: '설명서', exact: true })
   const jumpRopeCard = arcade.getByRole('button', { name: /구구구 줄넘기/ })
   const cardImage = jumpRopeCard.locator('img')
   const source = await cardImage.getAttribute('src')
@@ -193,6 +208,7 @@ test('줄넘기 상세 이미지의 프레임과 크롭이 다른 오락기 게�
     await page.setViewportSize({ width, height: 800 })
     await arcade.getByRole('button', { name: /스피드 두더지 잡기/ }).click()
     const reference = await readArcadeDetailArt(image)
+    const referenceButton = await readArcadeManualButton(manualButton)
     expect(reference).toMatchObject({ aspectRatio: '2 / 1', fit: 'cover', position: '50% 50%', radius: '10px' })
     expect(reference.height).toBeGreaterThan(0)
     expect(reference.height).toBeLessThanOrEqual(120)
@@ -203,10 +219,32 @@ test('줄넘기 상세 이미지의 프레임과 크롭이 다른 오락기 게�
     await jumpRopeCard.click()
     await expect(image).toHaveAttribute('src', source!)
     expect(await readArcadeDetailArt(image)).toEqual(reference)
+    await expect(manualButton).toBeVisible()
+    expect(await readArcadeManualButton(manualButton)).toEqual(referenceButton)
     await expect(cardImage).toHaveCSS('object-fit', 'contain')
     await expect(cardImage).toHaveCSS('aspect-ratio', '16 / 9')
   }
 
+  await manualButton.click()
+  const manual = page.getByRole('dialog', { name: '게임 설명서', exact: true })
+  await expect(manual).toHaveAttribute('data-phase', 'open')
+  await expect(manual.getByRole('heading', { name: '구구구 줄넘기', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(manual).toBeHidden()
+  await expect(manualButton).toBeFocused()
+
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await manualButton.click()
+  await expect(manual).toHaveAttribute('data-phase', 'open')
+  await expect(manual.getByRole('heading', { name: '구구구 줄넘기', exact: true })).toBeVisible()
+  await manual.getByRole('button', { name: '게임 목록' }).click({ timeout: 5000 })
+  await expect(manual.getByRole('button', { name: '구구구 줄넘기 설명 읽기' })).toBeVisible()
+  await manual.getByRole('button', { name: '설명서 닫기', exact: true }).click()
+  await expect(manual).toBeHidden()
+  await expect(jumpRopeCard).toHaveAttribute('aria-pressed', 'true')
+  await expect(manualButton).toBeFocused()
+
+  await page.setViewportSize({ width: 320, height: 800 })
   await arcade.getByRole('button', { name: /이 게임 하기/ }).click()
   const game = page.getByRole('dialog', { name: '구구구 줄넘기' })
   await game.getByRole('button', { name: '게임 시작' }).click()
