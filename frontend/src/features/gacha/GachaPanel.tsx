@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from '../../network/worldClient'
-import { refreshGacha, resetGacha, useGacha } from './state'
+import { MAX_TICKET_PURCHASE, refreshGacha, resetGacha, useGacha } from './state'
 import { useGachaEvents } from './events'
 import { money } from './contracts'
 import { closeConstructionNotice } from '../construction/model'
@@ -39,7 +39,8 @@ export function GachaPanel() {
   useEffect(()=>{if(connected)void refreshGacha();else closeConstructionNotice()},[connected])
   useEffect(()=>{
     const d=dialog.current;if(!d||!connected)return
-    d.showModal();return()=>d.close()
+    // The dialog itself takes the first focus (not its first button), so Space right after opening draws.
+    d.showModal();d.focus({preventScroll:true});return()=>d.close()
   },[connected])
   const latestMachine=s.state&&live&&live.version>s.state.machine.version?live:s.state?.machine
   const machine=drawing&&motion.presentation?motion.presentation.machine:latestMachine
@@ -53,7 +54,35 @@ export function GachaPanel() {
   const result=motion.phase==='reveal'?motion.result:null
   const sounded=useRef('')
   useEffect(()=>{if(result?.kind==='DRAW'&&result.grade!==5&&sounded.current!==result.operationId){sounded.current=result.operationId;playSfx(result.grade===1?'game-start':'ui-equip')}},[result])
-  const act=(kind:'BUY'|'DRAW')=>{if(!blocked&&(kind!=='DRAW'||!refilling&&art.status==='ready'&&sceneReady)){armUnlock();playSfx('ui-click');void motion.act(kind)}}
+  const price=s.state?.ticketPrice??100,available=inventory?.availableBalance??0
+  const [buyCount,setBuyCount]=useState(1),[countDraft,setCountDraft]=useState<string|null>(null)
+  const affordable=Math.max(1,Math.min(MAX_TICKET_PURCHASE,Math.floor(available/price)))
+  const count=Math.min(buyCount,affordable)
+  const act=(kind:'BUY'|'DRAW')=>{if(!blocked&&(kind!=='DRAW'||!refilling&&art.status==='ready'&&sceneReady)){armUnlock();playSfx('ui-click');void motion.act(kind,kind==='BUY'?count:1)}}
+  const canDraw=!blocked&&!refilling&&art.status==='ready'&&sceneReady&&!!s.state?.inventory.tickets
+  // Space: draw; while the draw plays, skip it; on the result, confirm it (the focused button must not also click).
+  // Listened on the document while the dialog is open: focus falls to <body> when the skip button goes away.
+  // A keyboard user on another control (buy, −/+, storage, a capsule tab, close) gets that control's own Space,
+  // never a draw that spends a ticket; only the draw, skip and confirm buttons (data-space-key) are Space's own.
+  const space=useRef<()=>void>(()=>{})
+  space.current=()=>{if(result)motion.dismiss();else if(drawing)motion.skip();else if(canDraw)act('DRAW')}
+  useEffect(()=>{
+    // Which element the keyboard moved focus to (Tab, arrows), as opposed to one a mouse click left focused: a button
+    // only clicked (buy, +) must not take Space again instead of the draw the player meant. (:focus-visible can't tell:
+    // the browser turns it on for the focused button at the very keydown being handled.)
+    let pointerAt=-Infinity,keyboardFocus:EventTarget|null=null
+    const onPointer=()=>{pointerAt=performance.now()}
+    const onFocus=(e:FocusEvent)=>{keyboardFocus=performance.now()-pointerAt>300?e.target:null}
+    const onKey=(e:KeyboardEvent)=>{
+      if(!dialog.current?.open||e.key!==' '&&e.code!=='Space')return
+      if(e.target instanceof HTMLElement&&e.target.closest('input,textarea,select,[contenteditable=true]'))return
+      const control=e.target instanceof Element?e.target.closest('button,a[href],summary,[role=button],[role=tab],[role=checkbox],[role=radio],[role=switch]'):null
+      if(control&&!control.hasAttribute('data-space-key')&&control===keyboardFocus)return
+      e.preventDefault();e.stopPropagation();if(!e.repeat)space.current()
+    }
+    document.addEventListener('pointerdown',onPointer,true);document.addEventListener('focusin',onFocus,true);document.addEventListener('keydown',onKey,true)
+    return()=>{document.removeEventListener('pointerdown',onPointer,true);document.removeEventListener('focusin',onFocus,true);document.removeEventListener('keydown',onKey,true)}
+  },[])
   const retry=()=>{
     const pending=useGacha.getState().pending
     if(!pending)return
@@ -61,7 +90,7 @@ export function GachaPanel() {
     void motion.act(pending.kind)
   }
   if(!connected)return null
-  return <dialog ref={dialog} className="gacha-art-dialog" aria-label="의상 뽑기"
+  return <dialog ref={dialog} className="gacha-art-dialog" aria-label="의상 뽑기" tabIndex={-1}
     onCancel={e=>{e.preventDefault();if(drawing)motion.skip();else closeConstructionNotice()}}
     onClose={()=>{if(!dialog.current?.open)closeConstructionNotice()}} onKeyDown={e=>e.stopPropagation()}>
     <div className="gacha-art-stage" data-drawing={drawing} data-phase={motion.phase} data-refilling={refilling&&!drawing&&!result} data-reduced={reduced||motion.instant}>
@@ -95,26 +124,35 @@ export function GachaPanel() {
       <p className="art-reset">S급 당첨 시 보상이 새로 채워져요</p>
       <p className="art-storage-hint">의상 캡슐은 마이룸에서 열어 보세요</p>
       <button className="art-storage art-button" aria-label="나의 옷장 · 캡슐 보관함" disabled={s.busy||drawing} onClick={()=>{dialog.current?.close();closeConstructionNotice();openWardrobe()}}><GachaActionIcon kind="wardrobe"/><span className="art-action-copy"><b>나의 옷장</b><small>모아 둔 캡슐 확인하기</small></span></button>
-      <button className="art-buy art-button" aria-label={`뽑기권 구매 ${money(s.state?.ticketPrice??100)}`} disabled={blocked||!s.state||s.state.inventory.availableBalance<s.state.ticketPrice}
-        onClick={()=>void act('BUY')}><GachaActionIcon kind="ticket"/><span className="art-action-copy"><b>뽑기권 구매</b><small>1장 · {money(s.state?.ticketPrice??100)}</small></span></button>
-      <button className="art-draw art-button" aria-label="뽑기권 1장 사용" disabled={blocked||refilling||art.status!=='ready'||!sceneReady||!s.state?.inventory.tickets} onClick={()=>void act('DRAW')}>
-        <GachaActionIcon kind="capsule"/><span className="art-action-copy"><b>{drawing?(motion.phase==='turning'?'손잡이를 돌려요…':motion.phase==='mixing'?'행운을 섞고 있어요…':'행운이 다가와요…'):refilling?'캡슐 보충 중…':'캡슐 뽑기'}</b><small>뽑기권 1장 사용</small></span></button>
+      <button className="art-buy art-button" aria-label={`뽑기권 ${count}장 구매 ${money(price*count)}`} disabled={blocked||!s.state||available<price*count}
+        onClick={()=>void act('BUY')}><GachaActionIcon kind="ticket"/><span className="art-action-copy"><b>뽑기권 구매</b><small>{count}장 · {money(price*count)}</small></span></button>
+      <div className="art-buy-count" role="group" aria-label="구매할 뽑기권 수">
+        <button type="button" aria-label="한 장 줄이기" disabled={blocked||count<=1} onClick={()=>setBuyCount(Math.max(1,count-1))}>−</button>
+        <input type="text" inputMode="numeric" aria-label="구매할 뽑기권 수 입력" maxLength={3} disabled={blocked} value={countDraft??String(count)}
+          onFocus={e=>e.currentTarget.select()} onBlur={()=>setCountDraft(null)} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur()}}
+          onChange={e=>{const digits=e.currentTarget.value.replace(/\D/g,'').slice(0,3),n=Number(digits)
+            // More than the coins can pay for (or than one purchase allows) turns into the most that can be bought, right away.
+            if(n>affordable){setCountDraft(String(affordable));setBuyCount(affordable)}else{setCountDraft(digits);if(n>=1)setBuyCount(n)}}}/>
+        <button type="button" aria-label="한 장 늘리기" disabled={blocked||count>=affordable} onClick={()=>setBuyCount(Math.min(affordable,count+1))}>+</button>
+      </div>
+      <button className="art-draw art-button" data-space-key aria-label="뽑기권 1장 사용" aria-keyshortcuts="Space" disabled={!canDraw} onClick={()=>void act('DRAW')}>
+        <GachaActionIcon kind="capsule"/><span className="art-action-copy"><b>{drawing?(motion.phase==='turning'?'손잡이를 돌려요…':motion.phase==='mixing'?'행운을 섞고 있어요…':'행운이 다가와요…'):refilling?'캡슐 보충 중…':'캡슐 뽑기'}</b><small>뽑기권 1장 사용 · Space</small></span></button>
       {drawing&&<div className="art-draw-status" role="status"><span>{motion.phase==='mixing'?'공유 기계에서 결과를 확인하고 있어요':'행운의 캡슐을 꺼내고 있어요'}</span>
-        <button onClick={motion.skip}>연출 건너뛰기</button></div>}
+        <button data-space-key onClick={motion.skip}>연출 건너뛰기 <kbd>Space</kbd></button></div>}
       {art.status==='error'&&<p className="art-error" role="alert">캡슐 그림을 불러오지 못했어요. 뽑기권은 사용하지 않았어요.<button onClick={art.retry}>그림 다시 불러오기</button></p>}
       {motion.phase==='anticipation'&&<div className="capsule-anticipation" aria-hidden="true"><span>특별한 행운이 다가와요…</span></div>}
       {s.loading&&!s.state&&<p className="art-notice" role="status">공유 기계의 재고를 불러오고 있어요…</p>}
       {(s.error||s.pending&&!s.busy&&!drawing)&&<p className="art-error" role="alert">{displayGachaMessage(s.error)||'이전 요청의 결과를 다시 확인해 주세요.'}{s.pending&&!s.busy&&!drawing&&<button onClick={retry}>{s.pending.kind==='OPEN'?'옷장에서 개봉 결과 확인':'같은 요청으로 다시 확인'}</button>}{s.error&&!s.pending&&!s.busy&&!drawing&&<button disabled={s.loading} onClick={()=>void refreshGacha()}>다시 불러오기</button>}</p>}
-      {s.state&&inventory&&inventory.availableBalance<s.state.ticketPrice&&<p className="art-shortage">구매하려면 {money(s.state.ticketPrice-inventory.availableBalance)}이 더 필요해요.</p>}
+      {s.state&&inventory&&available<price*count&&<p className="art-shortage">구매하려면 {money(price*count-available)}이 더 필요해요.</p>}
       {result&&<div className={result.kind==='DRAW'?'capsule-reveal':'purchase-reveal'} data-grade={result.grade}
         style={{'--rarity-color':CAPSULES[result.grade]?.color??'#ffe49a'} as React.CSSProperties}>
         {result.kind==='DRAW'&&<><RevealEffects grade={result.grade}/><CapsuleHero3D grade={result.grade} reduced={reduced||motion.instant}/></>}
         <div className="art-result" role="status" aria-live="polite" data-operation-id={result.operationId}>
           <small>{result.kind==='BUY'?'구매 완료':result.grade===1?'가장 빛나는 행운!':'축하해요!'}</small>
-          <strong>{result.kind==='BUY'?'뽑기권 1장을 받았어요':result.grade===5?`${money(result.awardedCoins)} 당첨!`:`${capsuleName(result.grade)} 당첨!`}</strong>
+          <strong>{result.kind==='BUY'?`뽑기권 ${Math.max(1,Math.round(result.paidCoins/price))}장을 받았어요`:result.grade===5?`${money(result.awardedCoins)} 당첨!`:`${capsuleName(result.grade)} 당첨!`}</strong>
           <span>{result.kind==='DRAW'&&result.grade!==5?'나의 옷장에 보관했어요.':'최신 지갑과 보유 수량에 반영했어요.'}</span>
           {result.kind==='DRAW'&&result.grade===5&&<CoinToWallet receipt={result.operationId} amount={result.awardedCoins} reduced={reduced||motion.instant} target=".art-wallet"/>}
-          <button onClick={motion.dismiss}>확인</button></div></div>}
+          <button data-space-key onClick={motion.dismiss}>확인 <kbd>Space</kbd></button></div></div>}
     </div>
   </dialog>
 }

@@ -14,7 +14,7 @@
 
 ## 이용 흐름과 규칙
 
-뽑기방(`layout-shop`)에서 100냥으로 뽑기권 한 장 구매 → 뽑기권 사용 → 의상 상자 보관 → 마이룸 상자 보관함에서 개봉.
+뽑기방(`layout-shop`)에서 한 장 100냥으로 뽑기권 구매(한 번에 1~100장, 한 거래) → 뽑기권 사용 → 의상 상자 보관 → 마이룸 상자 보관함에서 개봉.
 주간 응모권(`/api/v1/raffles`)과 별개이며, 실제 엽전 차감·지급은 서버에서만 확정한다.
 
 | 결과 | 회차 초기 칸 수 | 상품 평가 가치 | 동일 상품 중복 지급 |
@@ -42,7 +42,7 @@ ANY/MALE/FEMALE 호환성과 상품 구성은 서버 데이터다. 한 등급의
 | 메서드 | 경로 | 요청 |
 | --- | --- | --- |
 | GET | `/api/v1/gacha` | 없음 |
-| POST | `/api/v1/gacha/tickets` | `{"operationId":"buy-1"}` |
+| POST | `/api/v1/gacha/tickets` | `{"operationId":"buy-1","quantity":3}` (`quantity` 1~100, 빼면 1장. 같은 작업 번호로 수량이 다르면 409 IDEMPOTENCY_CONFLICT) |
 | POST | `/api/v1/gacha/draws` | `{"operationId":"draw-1","roundId":"1"}` |
 | POST | `/api/v1/gacha/boxes/open` | `{"operationId":"open-1","grade":1}` |
 | GET | `/api/v1/gacha/operations/{operationId}` | 본인 확정 결과만 복구 |
