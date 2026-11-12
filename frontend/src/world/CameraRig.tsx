@@ -28,6 +28,7 @@ import { LEDGER_CAMERA, ledgerCameraPose, ledgerFocusActive } from '../game/ledg
 import { HALLI_CAMERA, halliCameraPose, halliPlayerViewActive, halliSpectatorCameraPose, halliSpectatorViewActive } from '../game/halligalli/camera'
 import { roamingFirstPerson } from './roamingCamera'
 import { rememberRoamingView, restoreRoamingView } from './cameraReturn'
+import { inputState } from './inputOwnership'
 import { useFacilityState } from '../features/facilities/state'
 import { useBenchState } from '../features/interactions/benchState'
 import { useFitnessState } from '../features/fitness/state'
@@ -151,7 +152,7 @@ export function CameraRig() {
       || session.tableId || session.focusedAnchorId || useTableLobby.getState().joiningAnchorId || useGame.getState().watchedGameId || bungeoppangView.active
       || useFeedbackState.getState().open || useNotesState.getState().open)
     if (temporaryView) rememberRoamingView(session.sessionId, session.roomId)
-    restoreRoamingView(session.sessionId, session.roomId, temporaryView || session.status !== 'connected'
+    restoreRoamingView(session.sessionId, session.roomId, temporaryView || inputState.minigameOpen || session.status !== 'connected'
       || facilities.pending || facilities.awaitingWorld || facilities.uncertain
       || useBenchState.getState().pending || useFitnessState.getState().pending || useTelescopeState.getState().pending)
     const telescope = session.status === 'connected' && session.mapCompatible

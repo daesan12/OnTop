@@ -39,6 +39,7 @@ import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlace
 import { gachaInteractionEnabled } from '../gacha/state'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
 import { canReachParkVr, openParkVrZone, parkVrEntrance } from '../vrZone/parkBridge'
+import { openParkJumpRope } from '../jumpRope/parkEntry'
 import { canReachJumpmapGuide, jumpmapGuideScope, openJumpmapGuide } from '../jumpmap/guideState'
 import { GUIDE as JUMPMAP_GUIDE } from '../jumpmap/activeCourse'
 import { useJumpmap } from '../jumpmap/state'
@@ -51,6 +52,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
   'rps-roulette-cabinet': '가위바위보 룰렛 하기',
   'plus-minus-cabinet': '더하기빼기 하기',
   'mole-shop': '두더지 모드 고르기',
+  'pigeon-jump-rope': '비둘기 줄넘기',
 }
 
 export interface ParkInteraction {
@@ -194,6 +196,7 @@ export function interactWithPark(expectedId?: string): boolean {
       case 'rps-roulette-cabinet': if (canOpenRpsRoulette()) openRpsRoulette(); break
       case 'plus-minus-cabinet': openPlusMinus(); break
       case 'mole-shop': openArcade('mole'); break
+      case 'pigeon-jump-rope': openParkJumpRope(); break
     }
   }
   else if (target.kind === 'table') interactWithTable(target.id)

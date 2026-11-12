@@ -4,6 +4,7 @@ import { ARCADE_SCALE } from '../assetSizing'
 import { facilityBase, facilityYaw } from '../facilityPlacement'
 import { groundSurfaceHeight } from '../groundSurface'
 import { site } from '../plan'
+import { VR_SKEWER_FLOOR_MARKER } from '../approved/vr-skewer-hall-20261107-v1/core/frontend/src/features/skewer/parkAsset/vrSkewerHallGeometry'
 
 export const ARCADE_CABINETS = {
   'rps-roulette-cabinet': [-6, .14, -3.6],
@@ -24,6 +25,7 @@ function reachPoint(position: Point3): Point3 {
 export function buildRenewalRecreation() {
   const recreation: RenewalRecreationAnchor[] = [
     { id: 'fish-bread', position: worldPoint('bread', 0, 5.4), reachPosition: reachPoint(worldPoint('bread', 0, 6.4)), radius: 2.5 },
+    { id: 'pigeon-jump-rope', position: worldPoint('pigeon', 0, 4), reachPosition: reachPoint(worldPoint('pigeon', 0, 5.5)), radius: 2.2 },
     { id: 'mole-shop', position: worldPoint('mole', 0, 3.5), reachPosition: reachPoint(worldPoint('mole', 0, 4.8)), radius: 2.3 },
   ]
   for (const id of ['rps-roulette-cabinet', 'plus-minus-cabinet'] as const) {
@@ -32,6 +34,6 @@ export function buildRenewalRecreation() {
     recreation.push({ id, position: at,
       reachPosition: reachPoint(worldPoint('arcade', x * ARCADE_SCALE[0], z * ARCADE_SCALE[2] + 1.25)), radius: 1.3 })
   }
-  const [x, y, z] = reachPoint(worldPoint('vr', 0, 7.7))
-  return { recreation, vrEntrance: { x, y, z, yaw: facilityYaw(site('vr')), radius: 2.8 } }
+  const [x, y, z] = reachPoint(worldPoint('vr', 0, VR_SKEWER_FLOOR_MARKER.z))
+  return { recreation, vrEntrance: { x, y, z, yaw: facilityYaw(site('vr')), radius: VR_SKEWER_FLOOR_MARKER.radius } }
 }

@@ -5,6 +5,8 @@ import { renewalMap } from '../../park/renewalMap'
 import { avatars, useSession } from '../../network/worldClient'
 import { tableBusy, useGame } from '../../game/store'
 import { clearRoamingInput, inputState, panelOwnsKeys } from '../../world/inputOwnership'
+import { rememberRoamingView } from '../../world/cameraReturn'
+import { useMouseLook } from '../../world/mouseLook'
 import { UnavailableVrAdmission } from './admission'
 import { VrZoneController } from './controller'
 import { canReachVrEntrance, vrEntrance } from './anchors'
@@ -21,9 +23,9 @@ export function openParkVrZone() {
   if (panelOwnsKeys() || session.status !== 'connected' || !session.mapCompatible || session.pending || session.tableId || !avatar
     || avatar.swimming || avatar.seatIndex >= 0 || avatar.benchId || avatar.fitnessId || avatar.telescopeId
     || useGame.getState().game || useGame.getState().watchedGameId || tableBusy() || !canReachParkVr(avatar.current)) return false
-  clearRoamingInput()
+  if (useMouseLook.getState().active) rememberRoamingView(session.sessionId, session.roomId)
   inputState.minigameOpen = true
-  if (document.pointerLockElement) document.exitPointerLock()
+  clearRoamingInput()
   parkVrZone.openFree()
   return true
 }

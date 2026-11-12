@@ -158,7 +158,7 @@ function parseDistractionSeed(input: string) {
   return /^\d{1,10}$/.test(input) && seed <= 0xffffffff ? seed : null
 }
 
-export function JumpRopePreview() {
+export function JumpRopePreview({ onExit }: { onExit?: () => void } = {}) {
   const [settings, setSettings] = useState(defaults)
   const [distractionSettings, setDistractionSettings] = useState(distractionDefaults)
   const [distractionDirection, setDistractionDirection] = useState<-1 | 1>(1)
@@ -457,6 +457,7 @@ export function JumpRopePreview() {
   }
 
   function quitGame() {
+    if (onExit) { onExit(); return }
     controlsRef.current.paused = false
     setRopePaused(false)
     resetScene('menu')
@@ -540,13 +541,14 @@ export function JumpRopePreview() {
   const showRanking = showMenu && rankingOpen
 
   return (
-    <main className="preview">
+    <main className={onExit ? "preview rope-park-game" : "preview"}>
       <header className="preview-header" inert={showRanking}>
         <div>
-          <p className="eyebrow">ONTOP / 개발 프리뷰</p>
+          {!onExit && <p className="eyebrow">ONTOP / 개발 프리뷰</p>}
           <h1>구구구 줄넘기</h1>
         </div>
-        <p className="preview-tag">06 · 비둘기 반응</p>
+        {onExit ? <button type="button" onClick={onExit}>공원으로 돌아가기</button>
+          : <p className="preview-tag">06 · 비둘기 반응</p>}
       </header>
       <div className="preview-layout">
         <section ref={stageRef} className="preview-stage" aria-label="3D 줄넘기 무대" tabIndex={showRanking ? undefined : 0}>
@@ -570,7 +572,7 @@ export function JumpRopePreview() {
               : liveFeedback ? `live-${liveFeedback.number}` : demo ? `demo-${demo.startedAt}` : undefined}
             sample={sampleHud !== null || sampleJudgement !== null}
           />}
-          {showMenu && <JumpRopeMenu onStart={startGame} onOpenRanking={openRanking} rankingOpen={showRanking} />}
+          {showMenu && <JumpRopeMenu onStart={startGame} onOpenRanking={onExit ? undefined : openRanking} rankingOpen={showRanking} />}
           {showRanking && <JumpRopeRanking state={rankingPreviewStates[rankingMode]} onClose={() => setRankingOpen(false)} />}
           {countdown && !paused && !simulating && !finalePreview && !showManholePreview && !sampleHud && !sampleJudgement &&
             <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
@@ -578,7 +580,7 @@ export function JumpRopePreview() {
           {finalePreview && !previewResult && <button className="finale-preview-close" type="button" onClick={() => closeFinalePreview(performance.now())}>미리보기 닫기</button>}
           {resultReason && <JumpRopeResult reason={resultReason} stats={hud.stats} onQuit={quitGame} onRestart={restartGame} />}
         </section>
-        <aside className="preview-panel" aria-label="실시간 조정 패널" inert={finalePreview !== null || showRanking}>
+        {!onExit && <aside className="preview-panel" aria-label="실시간 조정 패널" inert={finalePreview !== null || showRanking}>
           <h2>실시간 조정</h2>
           <p className="panel-note" aria-label="현재 게임 상태">현재 상태 · {status}</p>
           {previewResult && <p className="panel-note">Esc로 결과 시안을 닫을 수 있습니다.</p>}
@@ -765,7 +767,7 @@ export function JumpRopePreview() {
             </button>
             <button className="reset-button" type="button" onClick={() => resetScene(inMenu ? 'menu' : 'initialCountdown')}>게임 상태 초기화</button>
           </div>
-        </aside>
+        </aside>}
       </div>
     </main>
   )

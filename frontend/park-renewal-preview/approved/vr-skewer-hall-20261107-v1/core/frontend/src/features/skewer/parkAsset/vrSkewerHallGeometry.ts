@@ -5,6 +5,7 @@ import {addSkewerDisplay,softBox,tube} from './skewerDisplayGeometry'
 import {addSkewerAFrame,addSkewerFirepit,addVrGoggleEmblem} from './vrSkewerPropGeometry'
 
 export const VR_SKEWER_HALL={width:12.4,depth:8.6,height:4.6,doorWidth:4.2,stations:[-3.4,0,3.4]} as const
+export const VR_SKEWER_FLOOR_MARKER = { z: 1.3, radius: 1.55 } as const
 const wood='#98613b',dark='#6f4933',cream='#e9dcc0'
 export function addVrHeadset(body:PropBuilder,neon:PropBuilder,x:number,y:number,z:number,scale=1){
  softBox(body,'#28233d',[x,y,z],[1.17*scale,.65*scale,.48*scale],.17*scale)
@@ -79,7 +80,8 @@ export function buildVrSkewerHall(compact=false){
   addVrHeadset(body,neon,x,1.94,-2.55,.95)
   for(const side of [-1,1]){softBox(body,'#c2c9e6',[x+side*.73,1.4,-2.38],[.13,.26,.14],.04);body.ring('paint','#7e9bc9',[x+side*.73,1.58,-2.38],.12,.025,[Math.PI/2,0,0])}
  }
- const circle:XYZ[]=Array.from({length:65},(_,i)=>{const a=i*Math.PI*2/64;return [Math.cos(a)*1.55,.23,Math.sin(a)*1.55+1.3]})
+ const {z: markerZ, radius: markerRadius}=VR_SKEWER_FLOOR_MARKER
+ const circle:XYZ[]=Array.from({length:65},(_,i)=>{const a=i*Math.PI*2/64;return [Math.cos(a)*markerRadius,.23,Math.sin(a)*markerRadius+markerZ]})
  tube(neon,'#b684ff',circle,.035)
  addSkewerAFrame(body,compact);addSkewerFirepit(body)
  for(const side of [-1,1]){

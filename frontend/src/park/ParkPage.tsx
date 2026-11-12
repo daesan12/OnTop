@@ -47,6 +47,8 @@ import { JumpmapHud } from '../features/jumpmap/JumpmapHud'
 import { useJumpmapController } from '../features/jumpmap/useJumpmapController'
 import { useStore } from 'zustand'
 import { ParkVrZone } from '../features/vrZone/ParkVrZone'
+import { ParkJumpRope } from '../features/jumpRope/ParkJumpRope'
+import { useParkJumpRope } from '../features/jumpRope/parkEntry'
 import { parkVrZone } from '../features/vrZone/parkBridge'
 import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
 import { RpsRoulettePanel } from '../features/rpsRoulette/RpsRoulettePanel'
@@ -108,6 +110,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const gameplayActive = useParkGameplayActive()
   useParkOperationGate(gameplayActive, onOperationBlocked)
   const vrPhase = useStore(parkVrZone.store, state => state.phase)
+  const jumpRopeOpen = useParkJumpRope(s => !!s.owner)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
   const arcadeOpen = useArcade(s => s.open)
   const moleOpen = useMole(s => s.open)
@@ -115,7 +118,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const rpsOpen = useRpsRoulette(s => s.open)
   const speedMoleOpen = useSpeedMole(s => s.open)
   const gachaOpen = useGachaOverlay(s => s.open)
-  const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
+  const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed' || jumpRopeOpen
     || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
@@ -148,7 +151,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       '--park-ui-scale': hudScale,
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
-      <ParkScene quality={quality} active={vrPhase !== 'game'} />
+      <ParkScene quality={quality} active={vrPhase !== 'game' && !jumpRopeOpen} />
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
@@ -214,6 +217,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         </div>
       </div>
       <ParkVrZone />
+      <ParkJumpRope />
       <BungeoppangHud />
       <OmokFeedback />
       <RankingBoardHost />
