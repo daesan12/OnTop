@@ -84,12 +84,13 @@ public final class PreparedParkMap {
         Pose base = position(mailbox.path("position"), 0);
         feedback = new Reach(new Pose(base.x(), base.y() + 0.8, base.z(), 0),
                 positive(mailbox.path("radius")), 0.7, false);
-        vrEntrance = java.util.stream.StreamSupport.stream(data.path("facilities").spliterator(), false)
+        JsonNode entrance = data.path("interactions").path("vrEntrance");
+        vrEntrance = entrance.isMissingNode() ? java.util.stream.StreamSupport.stream(data.path("facilities").spliterator(), false)
                 .filter(node -> "vr-experience-hall".equals(node.path("id").asText())).findFirst().map(vr -> {
                     Pose site = position(vr.path("position"), vr.path("yaw").asDouble());
                     return new Reach(new Pose(site.x() + Math.sin(site.yaw()) * 7.7, 0.8,
                             site.z() + Math.cos(site.yaw()) * 7.7, site.yaw()), 2.8, 0.9, false);
-                }).orElse(null);
+                }).orElse(null) : new Reach(pose(entrance), positive(entrance.path("radius")), 0.9, false);
         collisionData = physicsData(map);
         metadata = map.metadata();
     }

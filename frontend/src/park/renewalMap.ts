@@ -1,8 +1,20 @@
 import type { ParkMapData } from '../map/park'
 import { RENEWAL_PARK_ENABLED } from './mapSelection'
 import type { TableAnchor } from './tablePlacement'
+import type { Point3 } from '../map/park/interactionData'
+import type { VrEntrance } from '../features/vrZone/anchors'
 
-type RenewalData = Omit<ParkMapData, 'tables'> & { tables: readonly Omit<TableAnchor, 'spectatorRadius'>[] }
+export type RenewalRecreationId = 'fish-bread' | 'rps-roulette-cabinet' | 'plus-minus-cabinet' | 'mole-shop'
+export interface RenewalRecreationAnchor {
+  id: RenewalRecreationId
+  position: Point3
+  reachPosition: Point3
+  radius: number
+}
+type RenewalData = Omit<ParkMapData, 'tables' | 'interactions'> & {
+  tables: readonly Omit<TableAnchor, 'spectatorRadius'>[]
+  interactions: ParkMapData['interactions'] & { recreation?: readonly RenewalRecreationAnchor[]; vrEntrance?: VrEntrance }
+}
 type RenewalMap = { mapId: 'park'; mapVersion: string; schemaVersion: 2; data: RenewalData }
 
 async function loadRenewalMap(): Promise<RenewalMap> {
@@ -18,6 +30,12 @@ async function loadRenewalMap(): Promise<RenewalMap> {
 
 // Read the same artifact as Java before the runtime constructs its map admission and prediction.
 export const renewalMap = RENEWAL_PARK_ENABLED ? await loadRenewalMap() : null
+
+export function canReachRenewalRecreation(position: { x: number; y: number; z: number }, anchor: RenewalRecreationAnchor) {
+  const [x, y, z] = anchor.reachPosition
+  return [position.x, position.y, position.z].every(Number.isFinite)
+    && Math.hypot(position.x - x, position.z - z) <= anchor.radius && Math.abs(position.y - y) <= .9
+}
 
 export function renewalGroundHeight(x: number, z: number): number {
   const { terrain, meshes } = renewalMap!.data.physics

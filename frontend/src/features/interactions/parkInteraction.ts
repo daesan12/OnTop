@@ -25,6 +25,9 @@ import { canReachBungeoppang } from '../bungeoppang/access'
 import { openBungeoppang } from '../bungeoppang/store'
 import { canOpenRpsRoulette, canReachRpsRoulette, RPS_CABINET } from '../rpsRoulette/access'
 import { openArcade } from '../arcade/store'
+import { openPlusMinus } from '../plusMinus/store'
+import { openRpsRoulette } from '../rpsRoulette/store'
+import { canReachRenewalRecreation, renewalMap, type RenewalRecreationId } from '../../park/renewalMap'
 import { MINI_PROPS } from '../../park/mapConfig'
 import { interactWithTable } from '../tableLobby/tableInteraction'
 import { tableEntry } from '../tableLobby/tableEntry'
@@ -43,9 +46,15 @@ import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
 
 const plazaKiosksEnabled = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED
+const recreationLabels: Record<RenewalRecreationId, string> = {
+  'fish-bread': '붕어빵 굽기',
+  'rps-roulette-cabinet': '가위바위보 룰렛 하기',
+  'plus-minus-cabinet': '더하기빼기 하기',
+  'mole-shop': '두더지 모드 고르기',
+}
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge'
   id: string
   label: string
   seat?: 0 | 1
@@ -95,14 +104,21 @@ export function getParkInteraction(): ParkInteraction | null {
   if (canReachParkVr(p.current)) {
     const distance = Math.hypot(p.current.x - parkVrEntrance.x, p.current.z - parkVrEntrance.z)
     choices.push({ kind: 'vr', id: 'vr-experience-hall', label: '온탑 꼬치왕', occupied: false, available: true, distance,
-      score: interactionScore(distance, { x: parkVrEntrance.x, y: 1.5, z: parkVrEntrance.z }) })
+      score: interactionScore(distance, { x: parkVrEntrance.x, y: parkVrEntrance.y + .7, z: parkVrEntrance.z }) })
   }
-  if (canReachBungeoppang(p.current)) {
+  for (const anchor of renewalMap?.data.interactions.recreation ?? []) {
+    if (!canReachRenewalRecreation(p.current, anchor)) continue
+    const [x, y, z] = anchor.position
+    const distance = Math.hypot(p.current.x - x, p.current.z - z)
+    choices.push({ kind: 'renewal-game', id: anchor.id, label: recreationLabels[anchor.id],
+      occupied: false, available: true, distance, score: interactionScore(distance, { x, y: y + 1.3, z }) })
+  }
+  if (!renewalMap && canReachBungeoppang(p.current)) {
     const cart = MINI_PROPS[0], distance = Math.hypot(p.current.x - cart.x, p.current.z - cart.z)
     choices.push({ kind: 'bungeoppang', id: cart.id, label: '붕어빵 굽기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: cart.x, y: 1.875, z: cart.z }) })
   }
-  if (canReachRpsRoulette(p.current)) {
+  if (!renewalMap && canReachRpsRoulette(p.current)) {
     const distance = Math.hypot(p.current.x - RPS_CABINET.x, p.current.z - RPS_CABINET.z)
     choices.push({ kind: 'rps-roulette', id: 'rps-roulette-cabinet', label: '오락기 하기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: RPS_CABINET.x, y: 1.3, z: RPS_CABINET.z }) })
@@ -171,6 +187,14 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()
   else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openArcade() }
+  else if (target.kind === 'renewal-game') {
+    switch (target.id) {
+      case 'fish-bread': openBungeoppang(); break
+      case 'rps-roulette-cabinet': if (canOpenRpsRoulette()) openRpsRoulette(); break
+      case 'plus-minus-cabinet': openPlusMinus(); break
+      case 'mole-shop': openArcade('mole'); break
+    }
+  }
   else if (target.kind === 'table') interactWithTable(target.id)
   else if (target.kind === 'notes') openNotes()
   else if (target.kind === 'feedback') openFeedback()

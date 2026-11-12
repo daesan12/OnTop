@@ -1,5 +1,6 @@
 import { MINI_PROPS } from '../../park/mapConfig'
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { canReachRenewalRecreation, renewalMap } from '../../park/renewalMap'
 import { avatars, useSession } from '../../network/worldClient'
 import { tableBusy, useGame } from '../../game/store'
 import { inputState } from '../../world/inputOwnership'
@@ -8,6 +9,10 @@ import { fitnessBusy } from '../fitness/state'
 import { telescopeBusy } from '../telescopes/state'
 
 export function canReachBungeoppang(p: { x: number; y: number; z: number }) {
+  if (renewalMap) {
+    const shop = renewalMap.data.interactions.recreation?.find(anchor => anchor.id === 'fish-bread')
+    return !!shop && canReachRenewalRecreation(p, shop)
+  }
   const cart = MINI_PROPS[0]
   if(![p.x,p.y,p.z].every(Number.isFinite))return false
   if(GENERATED_PARK_ENABLED){

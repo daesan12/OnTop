@@ -7,6 +7,7 @@ import { LAKE, heightAt, facilityGroundY, site } from '../plan'
 import { TOWER_TOP, telescopeYaw } from '../towerFurniturePlan'
 import { buildRenewalPhysics, RENEWAL_HALF_SIZE, RENEWAL_SPAWN } from './physics'
 import { buildRenewalTables } from './tableLayout'
+import { buildRenewalRecreation } from './recreation'
 
 function offset(position: Point3, x: number, y: number, z: number): Point3 {
   return [position[0] + x, position[1] + y, position[2] + z]
@@ -70,7 +71,7 @@ export function buildRenewalMapData() {
     tableAnchorIds: tables.map(t => t.id),
     tables, facilities, pavilions, physics,
     interactions: {
-      ...old, benches, fitness, telescopes,
+      ...old, benches, fitness, telescopes, ...buildRenewalRecreation(),
       construction: old.construction.filter(s => s.id === 'layout-drink').map(s => ({ ...s, ...kioskPlacement('lottery', 3.25) })),
       rankingBoard: { ...old.rankingBoard, ...kioskPlacement('ranking', 3.25) },
       notes: { ...old.notes, position: notesPosition, reachPosition: offset(notesPosition, 0, .8, 0) },

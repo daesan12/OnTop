@@ -29,6 +29,7 @@ export function ArcadePicker() {
 /** 테이블 태블릿의 게임 고르기와 같은 한지 화면. 혼자 하는 게임이라 인원·판돈·준비 대신 참가비와 오늘 남은 판(무료 게임은 오늘 받은 엽전)을 보여 준다. */
 function ArcadeDialog() {
   const selected = useArcade(s => s.selected)
+  const moleShop = useArcade(s => s.scope === 'mole')
   const rps = useRpsRoulette(s => s.data), plus = usePlusMinus(s => s.data), mole = useMole(s => s.state)
   const rpsBusy = useRpsRoulette(s => s.busy === 'status'), plusBusy = usePlusMinus(s => s.busy === 'status')
   const busy = rpsBusy || plusBusy
@@ -67,14 +68,14 @@ function ArcadeDialog() {
     onCancel={event => { event.preventDefault(); closeArcade() }}>
     <div className="arcade-paper">
       <header className="arcade-title">
-        <b className="arcade-brand">온탑 오락기</b>
-        <h2 id="arcade-picker-title">어떤 게임을 할까요?</h2>
-        <p>혼자 즐기는 게임이에요. 골라서 바로 시작해요.</p>
-        {balance !== undefined && <p className="arcade-balance"><img className="arcade-coin" src={coinImage} alt="" />보유 {balance.toLocaleString('ko-KR')}냥</p>}
+        <b className="arcade-brand">{moleShop ? '온탑 두더지 가게' : '온탑 오락기'}</b>
+        <h2 id="arcade-picker-title">{moleShop ? '두더지 모드 선택' : '어떤 게임을 할까요?'}</h2>
+        {!moleShop && <p>혼자 즐기는 게임이에요. 골라서 바로 시작해요.</p>}
+        {!moleShop && balance !== undefined && <p className="arcade-balance"><img className="arcade-coin" src={coinImage} alt="" />보유 {balance.toLocaleString('ko-KR')}냥</p>}
       </header>
       <div className="arcade-selection">
         <div className="arcade-game-list" role="group" aria-label="게임 선택">
-          {choices.map(c => <button key={c.id} type="button" className="arcade-game-card" data-selected={c.id === selected}
+          {choices.filter(c => !moleShop || c.id === 'whack-a-mole' || c.id === 'speed-mole').map(c => <button key={c.id} type="button" className="arcade-game-card" data-selected={c.id === selected}
             aria-pressed={c.id === selected} onClick={() => selectArcadeGame(c.id)} onDoubleClick={() => playArcadeGame(c.id)}>
             <GameArt game={c.id} />
             {c.inProgress && <b className="arcade-badge">진행 중</b>}

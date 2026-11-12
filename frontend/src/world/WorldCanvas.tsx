@@ -211,7 +211,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <CompanionActors />
         <JokeJudgeActor />          <FollowRopes />
           <RouteArrows />
-        {!RENEWAL_PARK_ENABLED && <BungeoppangGrill />}
+        <BungeoppangGrill />
           <ParkDebrisScene />
 
           {!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&<ParkPigeons quality={quality} />}
