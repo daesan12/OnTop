@@ -50,7 +50,7 @@ test('월드에서 줄넘기 시작, 서버 랭킹, 실패 기록 재시도, 월
     if (submissions.length === 1) return route.fulfill({ status: 503, json: { code: 'UNAVAILABLE' } })
     await retryResponse
     return route.fulfill({ json: { id: '42', rulesVersion: 1, score: 0, counts: { perfect: 0, good: 0, miss: 3 },
-      endReason: 'missLimit', completedAt: new Date().toISOString() } })
+      endReason: 'missLimit', completedAt: new Date().toISOString(), reward: 0 } })
   })
 
   const game = await openJumpRope(page)
@@ -79,9 +79,14 @@ test('월드에서 줄넘기 시작, 서버 랭킹, 실패 기록 재시도, 월
   expect(await cues.jsonValue()).toEqual(['3', '2', '1', 'GO!'])
   await expect(game.getByRole('heading', { name: '게임 오버' })).toBeVisible({ timeout: 7000 })
   await expect(game.locator('.rope-result__score dd')).toHaveText('—')
+  await expect(game.locator('.rope-result__reward')).toHaveCount(0)
   await game.getByRole('button', { name: '기록 저장 다시 시도' }).click()
   await expect.poll(() => submissions.length).toBe(2)
   expect(submissions).toEqual(Array(2).fill({ path: '/api/v1/minigames/jump-rope/rounds/42/complete', body: { jumpOffsetsUs: [] } }))
+  await expect(game.getByText('서버에서 기록을 확정하는 중입니다.')).toBeVisible()
+  await expect(game.locator('.rope-result__reward')).toHaveCount(0)
+  resolveRetry()
+  await expect(game.locator('.rope-result__reward')).toHaveText('3회 MISS로 엽전이 지급되지 않았어요.')
   await game.getByRole('button', { name: '그만하기' }).click()
   await expect(game).toBeHidden()
   const saved = async () => page.evaluate(async () => {
@@ -90,20 +95,29 @@ test('월드에서 줄넘기 시작, 서버 랭킹, 실패 기록 재시도, 월
     const settlement = useJumpRope.getState().settlement
     return { active: inputState.minigameOpen, status: settlement?.status, score: settlement?.status === 'saved' ? settlement.receipt.score : null }
   })
-  expect(await saved()).toEqual({ active: false, status: 'saving', score: null })
-  resolveRetry()
   await expect.poll(saved).toEqual({ active: false, status: 'saved', score: 0 })
 })
 
-test('60초 완주 시 수락된 Space 로그를 제출하고 서버 확정 점수를 표시한다', async ({ page }) => {
+for (const reward of [3, 0]) test(`60초 완주 시 서버 확정 점수와 지급액 ${reward}냥을 표시한다`, async ({ page }) => {
   await setupPark(page)
   let submitted: unknown
+  let started = 0
+  let rewardWalletReads = 0
+  let allowWalletRefresh = false
   const jumpOffsetsUs = rules.passagesUs.filter(passage => passage < 60_000_000).map(passage => passage - 270_000)
-  await page.route('**/api/v1/minigames/jump-rope/rounds', route => route.fulfill({ status: 201, json: roundResponse('43') }))
+  await page.route('**/api/v1/wallets/me', route => {
+    if (submitted && reward > 0) {
+      rewardWalletReads++
+      if (!allowWalletRefresh) return route.fulfill({ status: 503, json: { code: 'WALLET_UNAVAILABLE' } })
+    }
+    const balance = allowWalletRefresh ? 100 + reward : 100
+    return route.fulfill({ json: { balance, reservedBalance: 0, availableBalance: balance } })
+  })
+  await page.route('**/api/v1/minigames/jump-rope/rounds', route => route.fulfill({ status: 201, json: roundResponse(String(43 + started++)) }))
   await page.route('**/api/v1/minigames/jump-rope/rounds/43/complete', route => {
     submitted = route.request().postDataJSON()
     return route.fulfill({ json: { id: '43', rulesVersion: 1, score: 1965, counts: { perfect: 66, good: 0, miss: 0 },
-      endReason: 'time', completedAt: new Date().toISOString() } })
+      endReason: 'time', completedAt: new Date().toISOString(), reward } })
   })
   const game = await openJumpRope(page)
   const start = game.getByRole('button', { name: '게임 시작' })
@@ -122,11 +136,37 @@ test('60초 완주 시 수락된 Space 로그를 제출하고 서버 확정 점�
       time.set(3000 + offset / 1000)
       stage.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }))
     }
-    time.set(63000)
+    time.set(63001)
   }, jumpOffsetsUs)
   await expect.poll(() => submitted).toEqual({ jumpOffsetsUs })
   await clock.evaluate(time => time.set(66000))
   await expect(game.getByRole('heading', { name: '비둘기들이 인정한 인간' })).toBeVisible()
   await expect(game.locator('.rope-result__score dd')).toHaveText('1,965')
   await expect(game.locator('.rope-result__verdicts dd')).toHaveText(['66회', '0회', '0회'])
+  const rewardLine = game.locator('.rope-result__reward')
+  await expect(rewardLine).toHaveText(`획득 엽전 ${reward > 0 ? '+' : ''}${reward}냥`)
+  if (reward > 0) {
+    await expect.poll(() => rewardWalletReads).toBeGreaterThan(0)
+    await expect(page.locator('.park-wallet__notice')).toContainText('잠시 후 자동으로 다시 확인해요')
+    await expect(game.locator('.rope-result__score dd')).toHaveText('1,965')
+    await expect(rewardLine).toHaveText('획득 엽전 +3냥')
+    allowWalletRefresh = true
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await expect(page.locator('.park-account__balance')).toHaveText('103냥')
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 800 })
+      const box = await rewardLine.boundingBox()
+      const buttons = await game.locator('.rope-result__actions').boundingBox()
+      expect(box).not.toBeNull()
+      expect(buttons).not.toBeNull()
+      expect(box!.y + box!.height).toBeLessThanOrEqual(buttons!.y)
+    }
+    await game.getByRole('button', { name: '다시 시작' }).click()
+    await expect(game.getByLabel('시작 카운트다운')).toHaveText('3')
+    await expect(rewardLine).toHaveCount(0)
+  } else {
+    await game.getByRole('button', { name: '그만하기' }).click()
+    await expect(game).toBeHidden()
+    await expect(page.locator('.park-account__balance')).toHaveText('100냥')
+  }
 })

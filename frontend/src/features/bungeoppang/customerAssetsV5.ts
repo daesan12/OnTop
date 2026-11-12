@@ -9,6 +9,8 @@ export const CUSTOMER_ASSETS_V5 = [
   { id: 'woman-glasses-bun', name: '안경 쓴 여성', height: 1.64, lift: .03 },
 ] as const;
 export type CustomerAssetV5 = typeof CUSTOMER_ASSETS_V5[number];
+/** Dedicated park actors do not join the cooking customer rotation. */
+export type CustomerModelIdV5 = CustomerAssetV5['id'] | 'police-officer' | 'ajae-joker';
 
 /** Server IDs can exceed Number.MAX_SAFE_INTEGER; appearance follows the order, never its reusable slot. */
 export function customerAssetV5(orderId: string): CustomerAssetV5 {
@@ -16,4 +18,4 @@ export function customerAssetV5(orderId: string): CustomerAssetV5 {
   for (const digit of orderId) remainder = (remainder * 10 + digit.charCodeAt(0) - 48) % CUSTOMER_ASSETS_V5.length;
   return CUSTOMER_ASSETS_V5[(remainder + CUSTOMER_ASSETS_V5.length - 1) % CUSTOMER_ASSETS_V5.length]!;
 }
-export const customerModelUrlV5 = (id: CustomerAssetV5['id']) => `/art/bungeoppang/customers/runtime/${id}.glb`;
+export const customerModelUrlV5 = (id: CustomerModelIdV5) => `/art/bungeoppang/customers/runtime/${id}.glb`;

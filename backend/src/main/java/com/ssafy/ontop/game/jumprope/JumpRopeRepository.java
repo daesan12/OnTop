@@ -30,7 +30,7 @@ final class JumpRopeRepository {
 
     JumpRopeRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
-    // Both writers acquire this lock first so a new start and an older finish cannot race.
+    // Both writers lock the user before touching the round so a new start cannot race an older finish.
     boolean lockUser(long userId) {
         return !jdbc.queryForList("SELECT id FROM users WHERE id = ? AND deleted_at IS NULL FOR UPDATE",
                 Long.class, userId).isEmpty();
@@ -96,7 +96,7 @@ final class JumpRopeRepository {
         if ("SETTLED".equals(row.getString("status"))) {
             var counts = new JumpRopeDtos.Counts(row.getInt("perfect_count"), row.getInt("good_count"), row.getInt("miss_count"));
             result = new JumpRopeDtos.Result(Long.toString(id), version, row.getInt("score"), counts,
-                    row.getString("end_reason"), row.getTimestamp("completed_at").toInstant());
+                    row.getString("end_reason"), row.getTimestamp("completed_at").toInstant(), 0);
         }
         return new Row(id, row.getLong("seed"), version, row.getTimestamp("started_at").toInstant(),
                 row.getTimestamp("expires_at").toInstant(), result, row.getString("input_hash"));

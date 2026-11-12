@@ -1,5 +1,6 @@
 package com.ssafy.ontop.game.jumprope;
 
+import com.ssafy.ontop.wallet.domain.Wallet;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
@@ -25,7 +26,8 @@ class JumpRopeServiceTests {
     private final Clock clock = mock(Clock.class);
     private final PlatformTransactionManager manager = mock(PlatformTransactionManager.class);
     private final SecureRandom random = mock(SecureRandom.class);
-    private final JumpRopeService service = new JumpRopeService(repository, manager, clock, random);
+    private final JumpRopeRewards rewards = mock(JumpRopeRewards.class);
+    private final JumpRopeService service = new JumpRopeService(repository, manager, clock, random, rewards);
 
     @BeforeEach void configure() {
         when(manager.getTransaction(any())).thenAnswer(invocation -> new SimpleTransactionStatus());
@@ -45,6 +47,7 @@ class JumpRopeServiceTests {
         assertThat(first).isEqualTo(new JumpRopeDtos.Round("1", 4294967295L, 1, issued, START, EXPIRY, 60_000));
         assertThat(again).isEqualTo(new JumpRopeDtos.Round("1", first.seed(), 1, issued.plusSeconds(1), START, EXPIRY, 60_000));
         verify(repository).start(101L, "same-key", 4294967295L, START, EXPIRY);
+        verifyNoInteractions(rewards);
     }
 
     @Test void rejects_bad_expired_finished_and_superseded_start_keys() {
@@ -67,6 +70,7 @@ class JumpRopeServiceTests {
         var settled = service.complete(101, 1, TWO_PERFECTS);
         assertThat(settled).isEqualTo(result(START.plusMillis(7658)));
         verify(repository).settle(eq(1L), eq(JumpRopeRules.replay(TWO_PERFECTS)), eq(settled.completedAt()), any());
+        verify(rewards, never()).grant(any(), anyLong(), anyInt(), any());
     }
 
     @Test void same_submission_is_idempotent_and_different_input_conflicts_until_expiry() {
@@ -94,6 +98,31 @@ class JumpRopeServiceTests {
         assertCode(() -> service.complete(101, 1, List.of()), 409, "JUMP_ROPE_ROUND_SUPERSEDED");
         assertCode(() -> service.complete(101, 1, JumpRopeRulesTests.perfectRound()), 409, "JUMP_ROPE_NOT_FINISHED");
         verify(repository, never()).settle(anyLong(), any(), any(), any());
+        verify(rewards, never()).grant(any(), anyLong(), anyInt(), any());
+    }
+
+    @Test void full_time_result_requires_a_wallet_for_a_payable_score_and_returns_the_granted_amount() {
+        var now = START.plusSeconds(60);
+        var inputs = JumpRopeRulesTests.perfectRound();
+        when(clock.instant()).thenReturn(now);
+        assertCode(() -> service.complete(101, 1, inputs), 503, "JUMP_ROPE_UNAVAILABLE");
+        verify(repository, never()).settle(anyLong(), any(), any(), any());
+
+        var wallet = mock(Wallet.class);
+        when(rewards.lockWallet(101)).thenReturn(Optional.of(wallet));
+        when(rewards.grant(wallet, 1, 39, now)).thenReturn(3);
+        var settled = service.complete(101, 1, inputs);
+        assertThat(settled).isEqualTo(new JumpRopeDtos.Result("1", 1, 1965, new JumpRopeDtos.Counts(66, 0, 0), "time", now, 3));
+        var hash = ArgumentCaptor.forClass(String.class);
+        verify(repository).settle(eq(1L), eq(JumpRopeRules.replay(inputs)), eq(now), hash.capture());
+        when(repository.lockRound(101, 1)).thenReturn(Optional.of(row(settled.withReward(0), hash.getValue())));
+        when(rewards.previous(wallet, 1)).thenReturn(3);
+        assertThat(service.complete(101, 1, inputs)).isEqualTo(settled);
+        verify(rewards).grant(wallet, 1, 39, now);
+
+        when(rewards.previous(wallet, 1)).thenReturn(0);
+        assertThat(service.complete(101, 1, inputs).reward()).isZero();
+        verify(rewards).grant(wallet, 1, 39, now);
     }
 
     @Test void pagination_is_bounded_and_personal_best_is_independent_of_the_page() {
@@ -115,7 +144,7 @@ class JumpRopeServiceTests {
     }
 
     private static JumpRopeDtos.Result result(Instant at) {
-        return new JumpRopeDtos.Result("1", 1, 45, new JumpRopeDtos.Counts(2, 0, 3), "missLimit", at);
+        return new JumpRopeDtos.Result("1", 1, 45, new JumpRopeDtos.Counts(2, 0, 3), "missLimit", at, 0);
     }
 
     private static void assertCode(Runnable call, int status, String code) {
