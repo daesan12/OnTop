@@ -34,7 +34,7 @@ public final class WorldPhysics implements AutoCloseable {
     private final Map<String, Chair> chairs = new HashMap<>();
     private final Map<String, PhysicsRigidBody> secretDoors = new HashMap<>();
     private boolean secretDoorsOpen;
-    private static final java.util.regex.Pattern CHAIR = java.util.regex.Pattern.compile("(.+)-chair-([0-3])");
+    private static final java.util.regex.Pattern CHAIR = java.util.regex.Pattern.compile("(.+)-chair-([0-7])");
     private static final class Chair {
         final String anchor;
         final int number;
@@ -220,8 +220,8 @@ public final class WorldPhysics implements AutoCloseable {
     /** 승인된 채널별 앵커 설정만 받는다. 정적 맵의 의자 몸체를 재사용한다. */
     public Map<String, Snapshot> chairCounts(Map<String, Integer> counts) {
         var copy = Map.copyOf(counts);
-        if (copy.values().stream().anyMatch(count -> count < 2 || count > 4)) {
-            throw new IllegalArgumentException("의자 수는 2~4개입니다.");
+        if (copy.values().stream().anyMatch(count -> count < 2 || count > 8)) {
+            throw new IllegalArgumentException("의자 수는 2~8개입니다.");
         }
         return call(() -> {
             Map<String, Snapshot> relocated = new java.util.HashMap<>();

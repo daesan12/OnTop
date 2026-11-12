@@ -32,6 +32,8 @@ import { MINI_PROPS } from '../../park/mapConfig'
 import { interactWithTable } from '../tableLobby/tableInteraction'
 import { tableEntry } from '../tableLobby/tableEntry'
 import { useTableLobby } from '../tableLobby/state'
+import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
+import { STONE_RUMBLE_ENABLED } from '../tableLobby/model'
 import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice,openParkGacha } from '../construction/model'
@@ -170,11 +172,13 @@ export function getParkInteraction(): ParkInteraction | null {
     }
   }
   for (const table of TABLES) {
+    const stoneRumble = table.id === STONE_RUMBLE_ANCHOR_ID
+    if (stoneRumble && !STONE_RUMBLE_ENABLED) continue
     const distance = Math.hypot(p.current.x - table.position[0], p.current.z - table.position[2])
     if (!canReachTable(p.current, table.id)) continue
     const lobby = useTableLobby.getState()
     const waiting = lobby.spectatorRequested && lobby.spectatorStatus === 'waiting' && session.focusedAnchorId === table.id
-    choices.push({ kind: 'table', id: table.id, label: waiting ? '관전 대기 취소' : tableEntry(table.id) === 'watch' ? '관전하기' : '테이블에 앉기', occupied: false, available: true,
+    choices.push({ kind: 'table', id: table.id, label: waiting ? '관전 대기 취소' : tableEntry(table.id) === 'watch' ? '관전하기' : stoneRumble ? '돌탑 생존전 입장' : '테이블에 앉기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: table.position[0], y: table.position[1] + 0.65, z: table.position[2] }) })
   }
   return choices.filter(c => Number.isFinite(c.score)).sort((a, b) => a.score - b.score || a.distance - b.distance

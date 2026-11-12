@@ -57,6 +57,8 @@ public class GameSettlementPersistenceService {
             throw new IllegalStateException("경기 예약 상태가 일치하지 않습니다.");
         }
         var calculation = invalid ? GameSettlementCalculation.refund(players.size())
+                : "STONE_RUMBLE".equals(game.gameCode()) ? GameSettlementCalculation.stoneRumble(game.betAmountPerPlayer(),
+                    players.stream().map(GameParticipant::result).toList(), players.stream().map(GameParticipant::finishRank).toList())
                 : GameSettlementCalculation.calculate(game.betAmountPerPlayer(),
                     players.stream().map(GameParticipant::result).toList());
         Map<Long, Wallet> locked = new HashMap<>();
@@ -71,11 +73,16 @@ public class GameSettlementPersistenceService {
             var player = players.get(index);
             var award = calculation.awards().get(index);
             Wallet wallet = locked.get(player.userId());
-            wallet.settleGame(game.betAmountPerPlayer(), award.netDelta(), now);
+            long rankReward = !invalid && "STONE_RUMBLE".equals(game.gameCode()) ? player.rankReward() : 0;
+            wallet.settleGame(game.betAmountPerPlayer(), Math.subtractExact(award.netDelta(), rankReward), now);
+            if (rankReward > 0) { wallet.creditReward(rankReward, now); }
             ledger.save(WalletTransaction.gameClose(wallet.id(), gameId, player.userId(),
                     game.betAmountPerPlayer(), award.potDelta(), calculation.release(), now));
-            if (award.bonus() > 0) {
-                ledger.save(WalletTransaction.gameTieBonus(wallet.id(), gameId, player.userId(), award.bonus(), now));
+            if (rankReward > 0) {
+                ledger.save(WalletTransaction.gameRankReward(wallet.id(), gameId, player.userId(), rankReward, now));
+            }
+            if (award.bonus() > rankReward) {
+                ledger.save(WalletTransaction.gameTieBonus(wallet.id(), gameId, player.userId(), award.bonus() - rankReward, now));
             }
             if (invalid) {
                 player.releaseInvalidReservation(now);

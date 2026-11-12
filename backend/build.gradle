@@ -270,3 +270,21 @@ tasks.register('compareJokeModels', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
     jvmArgs '-Xmx256m'
 }
+
+// DB 없는 loopback 멀티플레이 검증. fixture는 운영 JAR에서 제외된다.
+tasks.register('stoneRumbleDemo', JavaExec) {
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.StoneRumbleDemoApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+tasks.register('stoneRumblePark', JavaExec) {
+    description = '최신 공원 맵에서 2~8인 돌탑 로비·준비·시작 검증 (loopback, 실제 DB/재화 없음)'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.demo.StoneRumbleParkApplication'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}

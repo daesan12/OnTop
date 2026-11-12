@@ -26,7 +26,8 @@ final class VerifiedGameFinish {
             "ALKKAGI", Set.of("PIECES_OUT", "MATCH_TIME_LIMIT", "AFK_FORFEIT", "EXPLICIT_LEAVE",
                     "DISCONNECT_TIMEOUT", "LOGOUT", "MEMBER_DEACTIVATED", "SIMULATION_INVALID", "SIMULATION_LIMIT"),
             // CARD_COUNT·NO_CARDS_TO_FLIP은 카드 수 공동 1위를 모두 승자로 둔다. 기권 종료도 LAST_PLAYER_STANDING이다.
-            "HALLI_GALLI", Set.of("CARD_COUNT", "LAST_PLAYER_STANDING", "NO_CARDS_TO_FLIP"));
+            "HALLI_GALLI", Set.of("CARD_COUNT", "LAST_PLAYER_STANDING", "NO_CARDS_TO_FLIP"),
+            "STONE_RUMBLE", Set.of("LAST_PLAYER_STANDING", "ALL_FALLEN", "SIMULATION_LIMIT", "LOADING_TIMEOUT"));
 
     private VerifiedGameFinish() { }
 
@@ -37,7 +38,8 @@ final class VerifiedGameFinish {
                 || event.version() < 0 || event.version() > 9_007_199_254_740_991L || event.endedAt() == null
                 || event.gameCode() == null || event.endReason() == null
                 || !REASONS.getOrDefault(event.gameCode(), Set.of()).contains(event.endReason())
-                || event.participants().size() < 2 || event.participants().size() > 4
+                || event.participants().size() < 2
+                || event.participants().size() > ("STONE_RUMBLE".equals(event.gameCode()) ? 8 : 4)
                 || "ALKKAGI".equals(event.gameCode()) && event.participants().size() != 2
                 || event.participants().stream().map(GameFinished.Participant::userId).distinct().count() != event.participants().size()) {
             throw new IllegalArgumentException("경기 종료 이벤트를 확인하세요.");
@@ -51,7 +53,26 @@ final class VerifiedGameFinish {
             }
         }
         long winners = event.participants().stream().filter(p -> p.result() == GameFinished.Result.WIN).count();
-        if (invalid(event)) {
+        if ("STONE_RUMBLE".equals(event.gameCode()) && !invalid(event)) {
+            var rewards = com.ssafy.ontop.game.stonerumble.domain.StoneRumbleRewards.fromRanks(
+                    event.participants().stream().map(GameFinished.Participant::finishRank).toList());
+            for (int index = 0; index < rewards.size(); index++) {
+                var player = event.participants().get(index);
+                if (!rewards.get(index).equals(player.rankReward())
+                        || player.result() == GameFinished.Result.WIN && player.finishRank() != 1) {
+                    throw new IllegalArgumentException("돌탑 순위 보상을 확인하세요.");
+                }
+            }
+        } else if (event.participants().stream().anyMatch(p -> p.finishRank() != null || p.rankReward() != null)) {
+            throw new IllegalArgumentException("이 경기에는 순위 보상을 저장할 수 없습니다.");
+        }
+        if ("STONE_RUMBLE".equals(event.gameCode()) && winners == 0
+                && Set.of("ALL_FALLEN", "SIMULATION_LIMIT", "LOADING_TIMEOUT").contains(event.endReason())) {
+            if (event.participants().stream().anyMatch(p -> p.result() != GameFinished.Result.DRAW
+                    && p.result() != GameFinished.Result.FORFEIT)) {
+                throw new IllegalArgumentException("돌탑 공동 낙하 판정을 확인하세요.");
+            }
+        } else if (invalid(event)) {
             GameFinished.Result expected = "ALKKAGI".equals(event.gameCode())
                     ? GameFinished.Result.DRAW : GameFinished.Result.FORFEIT;
             if (event.participants().stream().anyMatch(p -> p.result() != expected)) {
@@ -73,7 +94,8 @@ final class VerifiedGameFinish {
     }
 
     static boolean invalid(GameFinished event) {
-        return "ABORTED_NO_PLAYERS".equals(event.endReason())
+        return "STONE_RUMBLE".equals(event.gameCode()) && Set.of("SIMULATION_LIMIT", "LOADING_TIMEOUT").contains(event.endReason())
+                || "ABORTED_NO_PLAYERS".equals(event.endReason())
                 || "ALKKAGI".equals(event.gameCode())
                     && Set.of("SIMULATION_INVALID", "SIMULATION_LIMIT").contains(event.endReason());
     }
@@ -93,6 +115,9 @@ final class VerifiedGameFinish {
                     out.writeLong(player.userId()); out.writeUTF(player.result().name());
                     out.writeBoolean(player.leaveReason() != null);
                     if (player.leaveReason() != null) { out.writeUTF(player.leaveReason().name()); out.writeLong(player.leftAt().toEpochMilli()); }
+                    if ("STONE_RUMBLE".equals(event.gameCode()) && player.finishRank() != null) {
+                        out.writeInt(player.finishRank()); out.writeLong(player.rankReward());
+                    }
                 }
             }
             return MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray());

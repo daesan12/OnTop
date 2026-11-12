@@ -336,7 +336,7 @@ export function CameraRig() {
     } else if (tablet) {
       const anchor = renderedTableAnchors.get(avatar.tableId) ?? TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
-        const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+        const seat = tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] ?? tableSeats(anchor)[0]!
         const yaw = Math.atan2(seat.x, seat.z), scale = tableScale(anchor)
         const aspect = camera instanceof PerspectiveCamera ? camera.aspect : 1.6
         const distance = 1.65 * scale * Math.max(1, 1.6 / aspect)
@@ -348,7 +348,7 @@ export function CameraRig() {
     } else if (gathering) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
-        const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+        const seat = tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] ?? tableSeats(anchor)[0]!
         const yaw = Math.atan2(seat.x, seat.z) + Math.PI / 4
         const radius = 2.7 + Math.hypot(seat.x, seat.z)
         state.look.set(anchor.position[0], anchor.position[1] + 1.35, anchor.position[2])
@@ -405,14 +405,14 @@ export function CameraRig() {
       state.targetUp.set(0, 0, spectatorOmok || avatar.seatIndex === 0 ? -1 : 1)
     } else if (diceFocus) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
-      const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+      const seat = tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] ?? tableSeats(anchor)[0]!
       const scale = tableScale(anchor)
       state.look.set(anchor.position[0], anchor.position[1] + GOMOKU.boardY + .017, anchor.position[2])
       state.desired.set(anchor.position[0], anchor.position[1] + DICE_CAMERA.tableHeight + DICE_CAMERA.height * scale,
         anchor.position[2] + Math.sign(seat.z) * DICE_CAMERA.seatOffset * scale)
     } else if (ledgerFocus) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
-      const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+      const seat = tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] ?? tableSeats(anchor)[0]!
       const scale = tableScale(anchor), pose = ledgerCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale)
       state.desired.set(...pose.position)
       state.look.set(...pose.target)
@@ -453,7 +453,7 @@ export function CameraRig() {
       )
     } else if (seated) {
       const anchor = TABLES.find((t) => t.id === avatar.tableId)
-      const seat = anchor ? tableSeats(anchor)[session.seatIndex] : undefined
+      const seat = anchor ? tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] : undefined
       state.desired.set(anchor && seat ? anchor.position[0] + seat.x : pose.x,
         anchor ? anchor.position[1] + SEATED_LOOK.eyeHeight : pose.y + 0.55,
         anchor && seat ? anchor.position[2] + seat.z : pose.z)

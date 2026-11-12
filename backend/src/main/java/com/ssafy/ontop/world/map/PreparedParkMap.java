@@ -24,6 +24,7 @@ import java.util.UUID;
 
 /** 새 맵의 테이블·좌표·물리 입력을 조립한다. 런타임 선택과 기본 맵 유지 여부는 WorldMapRuntime이 담당한다. */
 public final class PreparedParkMap {
+    public static final String STONE_RUMBLE_ANCHOR_ID = "table-17";
     private final JsonNode collisionData;
     private final JsonNode jumpCourse;
     private final WorldMapMetadata metadata;
@@ -33,6 +34,7 @@ public final class PreparedParkMap {
     private final Reach notes;
     private final Reach feedback;
     private final Reach vrEntrance;
+    private final List<Reach> stoneRumbleEntrances;
 
     private PreparedParkMap(GeneratedParkMapLoader.ValidatedMap map, Set<String> channels) throws IOException {
         JsonNode data = map.document().path("data");
@@ -59,6 +61,17 @@ public final class PreparedParkMap {
             require(id.matches("table-[1-9][0-9]{0,8}"), "테이블 앵커 형식이 올바르지 않습니다: " + id);
             anchorNumbers.add(Integer.parseInt(id.substring("table-".length())));
         }
+        var stoneRumble = anchors.get(STONE_RUMBLE_ANCHOR_ID);
+        var entrances = new ArrayList<Reach>();
+        if (stoneRumble != null) {
+            var points = stoneRumble.path("interactionPoints");
+            require(points.isArray() && !points.isEmpty(), "돌탑 생존전 입구가 필요합니다.");
+            for (JsonNode point : points) {
+                Pose floor = position(point, 0);
+                entrances.add(new Reach(new Pose(floor.x(), floor.y() + .8, floor.z(), 0), 1.35, .65, true));
+            }
+        }
+        stoneRumbleEntrances = List.copyOf(entrances);
         anchorNumbers.sort(Integer::compareTo);
         for (String channel : channels.stream().sorted().toList()) {
             for (int number : anchorNumbers) {
@@ -109,6 +122,9 @@ public final class PreparedParkMap {
     public Catalog facilities() { return facilities; }
     public Reach notes() { return notes; }
     public Reach feedback() { return feedback; }
+    public boolean canEnterStoneRumble(double x, double y, double z) {
+        return stoneRumbleEntrances.stream().anyMatch(entrance -> entrance.contains(x, y, z));
+    }
     public java.util.Optional<Reach> vrEntrance() { return java.util.Optional.ofNullable(vrEntrance); }
 
     /** 명시적으로 선택한 별도 장면을 생성하며 ParkScene.load()의 기본 장면을 교체하지 않는다. */

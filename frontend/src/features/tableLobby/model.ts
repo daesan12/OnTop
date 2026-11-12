@@ -3,7 +3,9 @@ import type { StartState } from '../../game/protocol'
 import { tableBusy, type useGame } from '../../game/store'
 
 export const ALKKAGI_ENABLED = import.meta.env.VITE_ALKKAGI_ENABLED === 'true'
+export const STONE_RUMBLE_ENABLED = import.meta.env.VITE_STONE_RUMBLE_ENABLED === 'true'
 const GAME_OPTIONS = [
+  ...(STONE_RUMBLE_ENABLED ? [{ code: 'STONE_RUMBLE', name: '돌탑 생존전', capacity: 8, playable: true }] as const : []),
   { code: 'ALKKAGI', name: '알까기', capacity: 2, playable: ALKKAGI_ENABLED },
   { code: 'OMOK', name: '오목', capacity: 2, playable: true },
   { code: 'DICE', name: '주사위 한 판', capacity: 4, playable: true },

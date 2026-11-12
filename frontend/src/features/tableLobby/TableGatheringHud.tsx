@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useSession } from '../../network/worldClient'
 import { useGame, tableBusy } from '../../game/store'
+import { StoneRecoveryNotice } from '../../game/stone-rumble/StoneRecoveryNotice'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import type { GatheringModel } from './gatheringModel'
 import { returnToWaiting } from './gathering'
@@ -30,7 +31,7 @@ export function TabletResult({ model, actions }: { model: GatheringModel; action
     {!model.invalid && <ResultTrophy />}<h2>{outcome}</h2><p className="paper-subtitle">{model.invalid ? '경기가 무효 처리되어 참가비 예약을 해제해요' : outcome === '승리' ? '멋진 한 판이었어요' : outcome === '무승부' ? '좋은 승부였어요' : '함께해서 즐거운 한 판이었어요'}</p>
     <ol className="paper-players" aria-label="참가자 결과">{model.rows.filter(row => row.playerId).map(row => <li key={row.playerId} data-winner={row.winner}>
       <span className="paper-person-icon" aria-hidden="true">{row.nickname.slice(0, 1)}</span>
-      <span className="paper-player-name">{row.playerId === own ? '나' : row.nickname}</span><span>{row.score}</span>
+      <span className="paper-player-name">{row.rank && `${model.rows.filter(r => r.rank === row.rank).length > 1 ? '공동 ' : ''}${row.rank}위 · `}{row.playerId === own ? '나' : row.nickname}</span><span>{row.rewardCoins != null ? `${row.rewardCoins}냥` : row.score}</span>
       <span className="paper-player-outcome">{row.label}</span>
     </li>)}</ol>
     <div className="paper-settlement" role="status"><strong>{actions?model.settlement:<BoardRewardCoinSource>{!model.settled && <i className="paper-pending" aria-hidden="true" />}{model.settled || model.invalid ? model.settlement : '보상 확인 중'}</BoardRewardCoinSource>}</strong>
@@ -40,6 +41,7 @@ export function TabletResult({ model, actions }: { model: GatheringModel; action
       {!model.canReturn && <small>{model.settled ? '서버가 다음 판 대기실을 여는 중이에요' : '정산을 확인한 뒤 다음 판을 준비할 수 있어요'}</small>}
       {!model.settled && <button className="paper-text-button" disabled={disabled || !checkable} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
     </div>
+    {model.gameCode === 'STONE_RUMBLE' && <StoneRecoveryNotice />}
     {!actions&&<div className="paper-forfeit"><FinishedForfeitStatus /></div>}
     {(actions?actions.error:error) && <p className="paper-error" role="alert">{actions?actions.error:error}</p>}
   </PaperPopup>

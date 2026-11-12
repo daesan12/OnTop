@@ -25,7 +25,7 @@ final class ParkMovementPolicy {
                     && !furniturePolicy.path("characterRadiusIncluded").asBoolean(), "가구 차단 정책이 다릅니다.");
             positive(furniturePolicy, "movementHeight", 5); positive(furniturePolicy, "exitGap", .2);
             positive(furniturePolicy, "landingHeightTolerance", .3);
-            for (JsonNode box : data.path("boxes")) if (box.path("id").asText().matches("table-\\d+-(top|chair-[0-3])")) {
+            for (JsonNode box : data.path("boxes")) if (box.path("id").asText().matches("table-\\d+-(top|chair-[0-7])")) {
                 require(Math.abs(box.path("half").get(1).asDouble() * 2 - furniturePolicy.path("movementHeight").asDouble()) < 1e-6,
                         "가구 차단 높이와 형상이 다릅니다.");
                 furniture.add(box);

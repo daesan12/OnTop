@@ -101,7 +101,7 @@ public class GameSession {
         session.betAmountPerPlayer = command.betAmountPerPlayer();
         session.totalPot = Math.multiplyExact(session.betAmountPerPlayer, session.participantCount);
         session.status = Status.PREPARING;
-        session.settlementPolicyVersion = 1;
+        session.settlementPolicyVersion = (short) ("STONE_RUMBLE".equals(command.gameCode()) ? 2 : 1);
         session.ownerInstanceId = instanceId;
         session.ownerBootId = bootId;
         session.createdAt = now;
@@ -178,7 +178,8 @@ public class GameSession {
     }
 
     public void recordInvalidFinish(String eventId, byte[] hash, long engineVersion, String reason, Instant endedAt) {
-        if (!"ABORTED_NO_PLAYERS".equals(reason)) {
+        if (!"ABORTED_NO_PLAYERS".equals(reason)
+                && !("STONE_RUMBLE".equals(gameCode) && java.util.Set.of("SIMULATION_LIMIT", "LOADING_TIMEOUT").contains(reason))) {
             throw new IllegalArgumentException("엔진의 무효 종료 사유를 확인하세요.");
         }
         recordTerminal(eventId, hash, engineVersion, reason, endedAt, Status.INVALID);

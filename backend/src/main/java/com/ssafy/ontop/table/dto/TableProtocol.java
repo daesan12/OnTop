@@ -291,7 +291,8 @@ public final class TableProtocol {
                 : Set.of("gameCode", "selectedPlayers", "betAmountPerPlayer", "expectedVersion");
         if (!fields(payload, keys) || !payload.path("selectedPlayers").isIntegralNumber()
                 || !payload.path("selectedPlayers").canConvertToInt()
-                || payload.path("selectedPlayers").asInt() < 2 || payload.path("selectedPlayers").asInt() > 4
+                || payload.path("selectedPlayers").asInt() < 2
+                || payload.path("selectedPlayers").asInt() > ("STONE_RUMBLE".equals(payload.path("gameCode").asText()) ? 8 : 4)
                 || !payload.path("expectedVersion").isIntegralNumber() || !payload.path("expectedVersion").canConvertToLong()
                 || payload.path("expectedVersion").asLong() < 0 || payload.path("expectedVersion").asLong() > 9_007_199_254_740_991L) {
             return false;

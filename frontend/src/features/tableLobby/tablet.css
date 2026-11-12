@@ -48,6 +48,7 @@
 .tablet-selection-detail fieldset { border: 0; margin: 10px 0; padding: 0; text-align: left; }
 .tablet-selection-detail legend { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
 .tablet-counts { display: flex; gap: 10px; }
+.tablet-counts[data-maximum='8'] { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .tablet-counts button { flex: 1; min-height: 38px; padding: 5px 12px; border-radius: 25px; }
 .tablet-counts button[aria-pressed='true'] { background: #19452d; color: #fff6e3; border-color: #19452d; }
 .tablet-counts button[aria-pressed='true']:disabled { background: #d7dfc7; color: #2d4c35; border-color: #58704d; }
@@ -185,6 +186,17 @@
   grid-column: 1; grid-row: 1 / 5; justify-self: center; align-self: center;
   width: min(100%, 480px); height: auto; min-height: 0; max-height: none; flex: none;
   aspect-ratio: 2 / 1; border-radius: 12px; box-shadow: 0 0 0 1px #b7a17b66;
+}
+.table-tablet[data-stage='ready'] .tablet-ready-content:is([data-players='5'], [data-players='6'], [data-players='7'], [data-players='8']) .tablet-bet-confirm > .tablet-game-art {
+  max-width: 360px;
+}
+@media (min-width: 800px) and (min-height: 550px) {
+  .table-tablet[data-stage='ready'] .tablet-ready-content:is([data-players='5'], [data-players='6'], [data-players='7'], [data-players='8']) .tablet-bet-confirm {
+    padding: 8px 20px; row-gap: 4px;
+  }
+  .table-tablet[data-stage='ready'] .tablet-ready-content:is([data-players='5'], [data-players='6'], [data-players='7'], [data-players='8']) .tablet-bet-confirm > strong {
+    font-size: 52px;
+  }
 }
 .table-tablet[data-stage='ready'] .tablet-game-art:not([data-game='OMOK']) {
   background-size: contain; background-repeat: no-repeat; background-color: #f8e9c8;

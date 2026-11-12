@@ -157,6 +157,8 @@ public class TableHub {
     private final Optional<GameStartGateway> gateway;
     private final boolean startRehearsal;
     private boolean startDiagnosticsEnabled;
+    @Value("${ontop.games.stone-rumble.enabled:false}")
+    private boolean stoneRumbleEnabled;
     private Optional<CommittedGameStartService> committedStarts = Optional.empty();
     private final Optional<GameStateGateway> gameStates;
     private final Set<String> stateQueries = new HashSet<>();
@@ -1231,8 +1233,28 @@ public class TableHub {
             replyStartState(member, tableId, null);
             return null;
         }
+        if (stoneRumbleTable(tableId)) {
+            if (!stoneRumbleEnabled) {
+                fail(request, "UNSUPPORTED_GAME", "돌탑 생존전은 현재 이용할 수 없습니다.");
+            }
+            var position = channels.positionOf(member.userId());
+            if (position == null || !preparedPark.canEnterStoneRumble(position.x(), position.y(), position.z())) {
+                fail(request, "TOO_FAR", "대석탑 정원의 돌탑 생존전 입구에서 입장해주세요.");
+            }
+        }
         ensureWaiting(tableId, request);
         return room;
+    }
+
+    private boolean stoneRumbleTable(String tableId) {
+        return preparedPark != null && PreparedParkMap.STONE_RUMBLE_ANCHOR_ID.equals(tableAnchors.get(tableId));
+    }
+
+    private void ensureGameAllowedAtTable(String tableId, TableGame game, Request request) {
+        if ((game == TableGame.STONE_RUMBLE && preparedPark != null && (!stoneRumbleEnabled || !stoneRumbleTable(tableId)))
+                || (stoneRumbleTable(tableId) && game != TableGame.STONE_RUMBLE)) {
+            fail(request, "UNSUPPORTED_GAME", "이 테이블에서 이용할 수 없는 게임입니다.");
+        }
     }
 
     private void seat(Member member, Request request, TableRoom room) {
@@ -2214,6 +2236,7 @@ public class TableHub {
         if (game == null) {
             fail(request, "UNSUPPORTED_GAME", "지원하지 않는 게임입니다.");
         }
+        ensureGameAllowedAtTable(tableId, game, request);
         long occupied = room.snapshot().seats().stream().filter(seat -> seat.userId() != null).count();
         if (occupied > game.maximumPlayers()) {
             fail(request, "GAME_PLAYER_LIMIT", "참가자가 선택한 게임의 최대 인원보다 많습니다.");
@@ -2390,6 +2413,7 @@ public class TableHub {
         }
         TableGame game = TableGame.find(request.payload().path("gameCode").asText());
         if (game == null) { fail(request, "UNSUPPORTED_GAME", "지원하지 않는 게임입니다."); }
+        ensureGameAllowedAtTable(tableId, game, request);
         Integer target = request.payload().has("targetScore") ? request.payload().path("targetScore").asInt() : null;
         if (game == TableGame.DICE && target == null) { fail(request, "GAME_OPTIONS_REQUIRED", "목표 점수를 선택해주세요."); }
         try {
@@ -3582,7 +3606,8 @@ public class TableHub {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
         if (ping && !(ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
-                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI", "HALLI_GALLI").contains(push.gameCode)) {
+                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI",
+                        "HALLI_GALLI", "STONE_RUMBLE").contains(push.gameCode)) {
             fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목·주사위 장부 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {

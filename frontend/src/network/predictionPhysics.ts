@@ -32,7 +32,7 @@ export async function createPredictionPhysics(profile?: 'PARK_V1'): Promise<Pred
 /** Display simulation only. The Java server owns every gameplay position and collision decision. */
 class PredictionPhysics implements PredictionSimulation {
   private chairCounts:ReadonlyMap<string,number>=new Map()
-  private readonly furniture=sharedPhysics?.boxes.filter(b=>/^table-\d+-(top|chair-[0-3])$/.test(b.id)) ?? []
+  private readonly furniture=sharedPhysics?.boxes.filter(b=>/^table-\d+-(top|chair-[0-7])$/.test(b.id)) ?? []
   private readonly world = new RAPIER.World({ x: 0, y: 0, z: 0 })
   private readonly body
   private readonly collider
@@ -103,7 +103,7 @@ class PredictionPhysics implements PredictionSimulation {
         const collider = this.world.createCollider(RAPIER.ColliderDesc.cuboid(half[0], halfY, half[2])
           .setTranslation(box.center[0], box.center[1] - box.half[1] + halfY, box.center[2])
           .setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }))
-        const chair = /(.+)-chair-([0-3])$/.exec(box.id)
+        const chair = /(.+)-chair-([0-7])$/.exec(box.id)
         if (chair) {
           const number = Number(chair[2]) + 1
           collider.setEnabled(number <= 2)

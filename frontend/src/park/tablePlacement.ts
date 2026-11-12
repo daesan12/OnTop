@@ -12,7 +12,7 @@ export function tableScale(anchor: Pick<TableAnchor, 'pavilionId' | 'boardScale'
   return anchor.boardScale ?? legacyScale(anchor)
 }
 
-export function tableSeats(anchor: Parameters<typeof legacySeats>[0] & Pick<TableAnchor, 'seatSurfaceY'>) {
-  const seats = legacySeats(anchor)
+export function tableSeats(anchor: Parameters<typeof legacySeats>[0] & Pick<TableAnchor, 'seatSurfaceY'>, count?: number) {
+  const seats = legacySeats(anchor, count)
   return anchor.seatSurfaceY === undefined ? seats : seats.map(({ x, z }) => ({ x, z, yaw: Math.atan2(-x, -z) }))
 }

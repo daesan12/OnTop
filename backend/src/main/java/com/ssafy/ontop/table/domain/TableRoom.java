@@ -10,8 +10,8 @@ import java.util.Set;
 public final class TableRoom {
 
     private final String tableId;
-    private final String[] users = new String[4];
-    private final boolean[] ready = new boolean[4];
+    private final String[] users = new String[8];
+    private final boolean[] ready = new boolean[8];
     private final LinkedHashSet<String> arrivalOrder = new LinkedHashSet<>();
     private TableGame game;
     private Integer targetScore;
@@ -195,7 +195,7 @@ public final class TableRoom {
     }
 
     private int capacity() {
-        return selectedPlayers != null ? selectedPlayers : game == null ? users.length : game.maximumPlayers();
+        return selectedPlayers != null ? selectedPlayers : game == null ? 4 : game.maximumPlayers();
     }
 
     public void returnToWaiting(Set<String> connectedUsers) {

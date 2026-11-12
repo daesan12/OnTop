@@ -31,7 +31,7 @@ function TabletAsset({ anchor, seatIndex }: { anchor: typeof TABLES[number]; sea
     change(); media.addEventListener('change', change)
     return () => media.removeEventListener('change', change)
   }, [])
-  const seat = tableSeats(anchor)[seatIndex] ?? tableSeats(anchor)[0]!
+  const seat = tableSeats(anchor, seatIndex + 1)[seatIndex] ?? tableSeats(anchor)[0]!
   const yaw = Math.atan2(seat.x, seat.z), scale = tableScale(anchor)
   const points = useMemo(() => [new Vector3(), new Vector3(), new Vector3(), new Vector3()], [])
   const projected = useMemo(() => Array.from({ length: 4 }, () => ({ x: 0, y: 0 })), [])

@@ -34,7 +34,7 @@ export interface PublicTableSeat {
   tableId: string
   seatNumber: number
 }
-export type ChairCount = 2 | 3 | 4
+export type ChairCount = 2 | 3 | 4 | 5 | 6 | 7 | 8
 /** Public, full-channel chair projection; never grants a seat or a game subscription. */
 export interface PublicTable {
   tableId: string
@@ -42,7 +42,7 @@ export interface PublicTable {
   chairCount: ChairCount
   gameCode?: string | null
 }
-export const validChairCount = (value: unknown): value is ChairCount => value === 2 || value === 3 || value === 4
+export const validChairCount = (value: unknown): value is ChairCount => typeof value === 'number' && Number.isInteger(value) && value >= 2 && value <= 8
 export interface WorldState {
   channelId: string
   version: number
@@ -125,9 +125,10 @@ const publicBet = (x: unknown) => x == null || integer(x) && Number(x) >= 0
 function validTableMode(value: Record<string, unknown>) {
   return (value.startMode === undefined || value.startMode === 'AUTO' || value.startMode === 'MANUAL')
     && (value.startMode === 'MANUAL'
-      ? integer(value.selectedPlayers) && value.selectedPlayers >= 2 && value.selectedPlayers <= 4 && value.selectedPlayers === value.capacity
+      ? integer(value.selectedPlayers) && value.selectedPlayers >= 2 && value.selectedPlayers <= tableMaximum(value.gameCode) && value.selectedPlayers === value.capacity
       : value.selectedPlayers == null)
 }
+const tableMaximum = (gameCode: unknown) => gameCode === 'STONE_RUMBLE' ? 8 : 4
 export function parseEnvelope(data: unknown): Envelope {
   // A full 174-seat facility snapshot exceeds 64 KiB; other message limits stay unchanged.
   if (typeof data !== 'string' || data.length > 262_144)
@@ -190,7 +191,7 @@ export function worldState(value: Record<string, unknown>): WorldState {
         && integer(m.jumpGrace.jumpBufferTicks) && m.jumpGrace.jumpBufferTicks <= 4)
   const tableSeat = (s: unknown) => s == null || record(s)
     && text(s.tableId) && s.tableId.length <= 120
-    && integer(s.seatNumber) && s.seatNumber >= 1 && s.seatNumber <= 4
+    && integer(s.seatNumber) && s.seatNumber >= 1 && s.seatNumber <= 8
   const position = (p: unknown) =>
     record(p) &&
     integer(p.lastInputSeq) &&
@@ -233,12 +234,17 @@ export function worldState(value: Record<string, unknown>): WorldState {
     const publicId = (id: unknown): id is string => text(id) && !!id.trim() && id.length <= 120
     if (!Array.isArray(value.tables) || !value.tables.every(table => record(table)
       && publicId(table.tableId) && (table.anchorId == null || publicId(table.anchorId)) && validChairCount(table.chairCount)
+      && table.chairCount <= tableMaximum(table.gameCode)
       && (table.gameCode == null || text(table.gameCode) && !!table.gameCode.trim() && table.gameCode.length <= 64)))
       throw new Error('공개 의자 상태 형식이 올바르지 않습니다.')
     const anchors = value.tables.flatMap(table => table.anchorId == null ? [] : [table.anchorId])
     if (new Set(value.tables.map(table => table.tableId)).size !== value.tables.length || new Set(anchors).size !== anchors.length)
       throw new Error('중복 공개 테이블 상태입니다.')
   }
+  const publicTables = value.tables as PublicTable[] | undefined
+  if (value.avatars.some(a => a.tableSeat && a.tableSeat.seatNumber > 4
+    && !publicTables?.some(table => table.tableId === a.tableSeat.tableId && table.gameCode === 'STONE_RUMBLE'
+      && table.chairCount >= a.tableSeat.seatNumber))) throw new Error('돌탑 좌석 공개 상태가 일치하지 않습니다.')
   return value as unknown as WorldState
 }
 export function tableSummary(value: unknown): TableSummary {
@@ -246,14 +252,14 @@ export function tableSummary(value: unknown): TableSummary {
     !record(value) ||
     !text(value.tableId) ||
     !integer(value.capacity) ||
-    value.capacity < 1 ||
+    value.capacity < 1 || value.capacity > tableMaximum(value.gameCode) ||
     !integer(value.occupiedSeats) ||
     !integer(value.availableSeats) ||
     value.occupiedSeats + value.availableSeats !== value.capacity ||
     typeof value.joinable !== 'boolean' ||
     !(value.gameCode === null || text(value.gameCode)) ||
     !text(value.status) || !publicGameId(value.gameId) || !publicBet(value.betAmountPerPlayer) || !validTableMode(value)
-    || (value.chairCount !== undefined && !validChairCount(value.chairCount))
+    || (value.chairCount !== undefined && (!validChairCount(value.chairCount) || value.chairCount > tableMaximum(value.gameCode)))
   )
     throw new Error('테이블 목록 형식이 올바르지 않습니다.')
   return { ...value, gameId: value.gameId ?? null, betAmountPerPlayer: value.betAmountPerPlayer ?? null } as unknown as TableSummary
@@ -264,7 +270,7 @@ export function tableState(value: Record<string, unknown>): TableState {
     !integer(value.version) ||
     !integer(value.capacity) ||
     value.capacity < 1 ||
-    value.capacity > 4 ||
+    value.capacity > tableMaximum(value.gameCode) ||
     !integer(value.minimumPlayers) ||
     !Array.isArray(value.seats) ||
     value.seats.length !== value.capacity ||

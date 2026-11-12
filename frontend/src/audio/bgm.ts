@@ -52,6 +52,7 @@ export function setJumpmapAudioFocus(focused: boolean) {
   applyVolume()
 }
 let current: Voice | undefined
+let duckUntil = 0
 let wanted: BgmTrack | null = null
 let armed = false
 const buffers = new Map<string, Promise<AudioBuffer | null>>()
@@ -149,8 +150,13 @@ function crossfade(context: AudioContext, bus: GainNode, track: BgmTrack, buffer
 }
 
 /** Loops the track seamlessly; asking for the track already playing changes nothing. */
-export function playBgm(track: BgmTrack) {
+export function playBgm(track: BgmTrack | null) {
   wanted = track
+  if (track === null) {
+    if (audio && current) release(current, audio.currentTime, FADE_S)
+    current = undefined
+    return
+  }
   if (!audio) return armUnlock()
   const context = audio, bus = music
   if (!context || !bus || current?.track === track) return
@@ -171,6 +177,7 @@ export function playSting(name: BgmSting) {
     source.connect(out)
     source.onended = () => source.disconnect()
     source.start(now)
+    duckUntil = now + buffer.duration
     bus.gain.cancelScheduledValues(now)
     bus.gain.setValueAtTime(bus.gain.value, now)
     bus.gain.linearRampToValueAtTime(DUCK, now + 0.3)
@@ -179,6 +186,19 @@ export function playSting(name: BgmSting) {
   })
 }
 
-export function useBgmTrack(track: BgmTrack) {
+/** 게임의 중요한 효과음 동안 음악만 잠깐 낮춘다. 저장된 볼륨/음소거와 효과음 bus는 유지한다. */
+export function duckBgm(seconds: number, level = .45) {
+  if (!audio || !music || audio.state !== 'running' || !Number.isFinite(seconds) || !Number.isFinite(level)) return
+  const now = audio.currentTime
+  duckUntil = Math.max(duckUntil, now + Math.min(2, Math.max(0, seconds)))
+  const target = Math.min(music.gain.value, Math.min(1, Math.max(.15, level)))
+  music.gain.cancelScheduledValues(now)
+  music.gain.setValueAtTime(music.gain.value, now)
+  music.gain.linearRampToValueAtTime(target, now + .025)
+  music.gain.setValueAtTime(target, duckUntil)
+  music.gain.linearRampToValueAtTime(1, duckUntil + .25)
+}
+
+export function useBgmTrack(track: BgmTrack | null) {
   useEffect(() => playBgm(track), [track])
 }

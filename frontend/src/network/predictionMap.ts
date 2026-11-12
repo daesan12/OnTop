@@ -11,7 +11,7 @@ export function addGeneratedPredictionColliders(world: RAPIER.World,
       .setRotation({ x: 0, y: Math.sin(box.yaw / 2), z: 0, w: Math.cos(box.yaw / 2) }));
     if (box.id.startsWith('secret-door-')) secretDoors?.push(collider);
     // Match the server's chair-ID contract; other physical pieces remain static.
-    const chair = /(.+)-chair-([0-3])$/.exec(box.id);
+    const chair = /(.+)-chair-([0-7])$/.exec(box.id);
     if (chair) {
       const number = Number(chair[2]) + 1;
       collider.setEnabled(number <= 2);

@@ -50,6 +50,10 @@ public class GameParticipant {
     private long reservedAmount;
     @Column(name = "coin_delta")
     private Long coinDelta;
+    @Column(name = "finish_rank")
+    private Short finishRank;
+    @Column(name = "rank_reward")
+    private Long rankReward;
     @Column(name = "reservation_released_at", columnDefinition = "TIMESTAMP(3)")
     private Instant reservationReleasedAt;
     @Column(name = "active_user_id", insertable = false, updatable = false)
@@ -77,6 +81,8 @@ public class GameParticipant {
     public GameFinished.Result result() { return result; }
     public long reservedAmount() { return reservedAmount; }
     public Long coinDelta() { return coinDelta; }
+    public Integer finishRank() { return finishRank == null ? null : finishRank.intValue(); }
+    public Long rankReward() { return rankReward; }
     public Instant reservationReleasedAt() { return reservationReleasedAt; }
     public GameDepartureReason leaveReason() { return leaveReason; }
     public Instant leftAt() { return leftAt; }
@@ -118,6 +124,8 @@ public class GameParticipant {
             throw new IllegalStateException("최종 판정과 저장된 이탈 정보가 다릅니다.");
         }
         result = outcome.result();
+        finishRank = outcome.finishRank() == null ? null : outcome.finishRank().shortValue();
+        rankReward = outcome.rankReward();
         leaveReason = outcome.leaveReason();
         leftAt = outcome.leftAt() == null ? null : outcome.leftAt().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
         participantStatus = Status.FINISHED;

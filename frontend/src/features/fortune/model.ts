@@ -1,4 +1,5 @@
-import { TABLE_GAMES, type TableGameCode } from '../tableLobby/model'
+import { STONE_RUMBLE_ENABLED, TABLE_GAMES, type TableGameCode } from '../tableLobby/model'
+import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
 import { renewalMap } from '../../park/renewalMap'
 import { SKEWER_COOP_ENABLED } from '../skewer/coop/availability'
 
@@ -51,6 +52,14 @@ const tableOmens: Partial<Record<TableGameCode, Omit<FortuneGame, 'id' | 'name' 
   ALKKAGI: { title: '한 번에 꿰뚫는 기세', omen: '섬세한 힘 조절이 빛날 기운이에요. 알까기에서 멋진 한 방으로 승리를 노려보세요.', advice: '각도와 힘을 함께 살피면 기회가 보여요.', symbol: '○', art: alkkagiArt },
 }
 
+const stoneRumbleAvailable = STONE_RUMBLE_ENABLED && renewalMap?.data.tables.some(table => table.id === STONE_RUMBLE_ANCHOR_ID)
+const stoneRumbleCard: FortuneGame = {
+  id: 'STONE_RUMBLE', name: '돌탑 생존전', title: '끝까지 남을 발걸음',
+  omen: '다음 한 걸음이 또렷하게 보일 것 같은 날. 돌탑 생존전에서 마지막까지 남는 주인공에 도전해보세요.',
+  advice: '밟은 발판에 머무르지 말고 다음 착지점을 먼저 살펴보세요.',
+  symbol: '生', art: stoneRumbleArt, destination: 'pagoda',
+}
+
 /** Follow the actual table selector's availability; unfinished games never enter the draw. */
 export const FORTUNE_GAMES: readonly FortuneGame[] = [
   ...TABLE_GAMES.flatMap(game => {
@@ -65,11 +74,12 @@ export const FORTUNE_GAMES: readonly FortuneGame[] = [
   { id: 'plus-minus', name: '더하기 빼기 아케이드', title: '좋은 수가 모이는 하루', omen: '숫자들이 기분 좋게 모일 것 같은 날이에요. 더하기 빼기 아케이드에서 오늘의 한 판을 즐겨보세요.', advice: '세 칸을 차례로 멈춰보세요. 멈추는 타이밍이 결과를 바꾸지는 않아요.', symbol: '數', art: plusMinusArt, destination: 'arcade' },
   ...(jumpRopeAvailable ? [jumpRopeCard] : []),
   ...(skewerAvailable ? [skewerCard] : []),
+  ...(stoneRumbleAvailable ? [stoneRumbleCard] : []),
 ]
 
 /** Preview cards stay out of the live draw until their games are integrated. */
 export const FORTUNE_PENDING_GAMES: readonly FortuneCardContent[] = [
-  { id: 'STONE_RUMBLE', name: '돌탑 생존전', title: '끝까지 남을 발걸음', omen: '다음 한 걸음이 또렷하게 보일 것 같은 날. 돌탑 생존전에서 마지막까지 남는 주인공에 도전해보세요.', advice: '밟은 발판에 머무르지 말고 다음 착지점을 먼저 살펴보세요.', symbol: '生', art: stoneRumbleArt, destination: 'pagoda' },
+  ...(stoneRumbleAvailable ? [] : [stoneRumbleCard]),
   ...(jumpRopeAvailable ? [] : [jumpRopeCard]),
 ]
 

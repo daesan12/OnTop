@@ -25,8 +25,10 @@ public record GameStartCommand(UUID startAttemptId, String tableId, long tableVe
         }
         participants = List.copyOf(participants);
         com.ssafy.ontop.game.domain.GameAmounts.validate(betAmountPerPlayer, participants.size());
+        int maximumPlayers = "STONE_RUMBLE".equals(gameCode) ? 8 : 4;
         if (tableId == null || tableId.isBlank() || tableVersion < 0 || gameCode == null || gameCode.isBlank()
-                || participants.size() < 2 || participants.size() > 4
+                || participants.size() < 2 || participants.size() > maximumPlayers
+                || participants.stream().anyMatch(player -> player.seatNumber() > maximumPlayers)
                 || participants.stream().map(Participant::userId).distinct().count() != participants.size()
                 || participants.stream().map(Participant::seatNumber).distinct().count() != participants.size()) {
             throw new IllegalArgumentException("게임 시작 요청을 확인해주세요.");
@@ -36,7 +38,7 @@ public record GameStartCommand(UUID startAttemptId, String tableId, long tableVe
     public record Participant(String userId, int seatNumber) {
 
         public Participant {
-            if (userId == null || userId.isBlank() || seatNumber < 1 || seatNumber > 4) {
+            if (userId == null || userId.isBlank() || seatNumber < 1 || seatNumber > 8) {
                 throw new IllegalArgumentException("참가자와 좌석을 확인해주세요.");
             }
         }

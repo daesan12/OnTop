@@ -6,7 +6,8 @@ import { useGame, tableBusy } from '../../game/store'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { openManual } from '../manual/manualState'
 import { GAME_MANUAL } from './gatheringModel'
-import { GAME_CONSTRUCTION_NOTICE, isTableGamePlayable, TABLE_GAMES, TARGET_SCORES, tableTermsLabel, type TableGameCode } from './model'
+import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
+import { GAME_CONSTRUCTION_NOTICE, STONE_RUMBLE_ENABLED, isTableGamePlayable, TABLE_GAMES, TARGET_SCORES, tableTermsLabel, type TableGameCode } from './model'
 import { manualStartAllowed, preparationContext, readyWouldAutoStart, usePreparationPort } from './tabletModel'
 import { tabletProjection } from './tabletProjection'
 import { HostStartButton, HostStartWaitStatus } from './HostStartWaitControls'
@@ -22,18 +23,19 @@ const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ d
 const ResidentSeatInvite=lazy(()=>import('../../ai-park/ResidentSeatInvite').then(module=>({default:module.ResidentSeatInvite})))
 
 const descriptions: Record<TableGameCode, string> = {
+  STONE_RUMBLE: '세 층의 돌탑에서 비둘기로 밀어내고 끝까지 버텨요',
   ALKKAGI: '알을 튕기고 비책으로 승부하는 2인 경기',
   OMOK: '다섯 돌을 이어 만드는 한 수', DICE: '주사위를 굴려 목표 점수에 도전해요',
   ONE_CARD: '손에 든 카드를 모두 내려놓으면 승리!', LIAR_BRIDGE: '믿거나 의심하거나, 다리를 건너요',
   DICE_LEDGER: '세 번 굴려 장부 열두 칸을 채워요',
   HALLI_GALLI: '같은 과일이 다섯 개면 누구보다 빨리 종!',
 }
-const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI']
+const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI', ...(STONE_RUMBLE_ENABLED ? ['STONE_RUMBLE' as const] : [])]
 const gameChoices = choiceOrder.map(code => TABLE_GAMES.find(game => game.code === code)).filter(game => game != null)
 const availableGameChoices = gameChoices.filter(game => game.playable)
 const constructionGameChoices = gameChoices.filter(game => !game.playable)
 export function GameArt({ code }: { code: TableGameCode }) {
-  const thumbnail = code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
+  const thumbnail = code === 'STONE_RUMBLE' ? '/art/stone-rumble/concept.png' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
   return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 export function TabletLobby({ tableId }: { tableId: string }) {
@@ -49,9 +51,13 @@ function TabletSession({ tableId }: { tableId: string }) {
   const g = useGame(useShallow(g => ({ start: g.start, pending: g.pending, busy: tableBusy(g), game: g.game,
     error: g.error, recovery: g.recovery, uncertain: g.uncertain })))
   const table = s.table
+  const stoneRumble = STONE_RUMBLE_ENABLED && s.anchor === STONE_RUMBLE_ANCHOR_ID
+  const offered = stoneRumble ? availableGameChoices.filter(game => game.code === 'STONE_RUMBLE')
+    : availableGameChoices.filter(game => game.code !== 'STONE_RUMBLE')
+  const underConstruction = stoneRumble ? [] : constructionGameChoices
   const startUncertain = useTabletStartStatus(state => state.uncertain && state.tableId === tableId)
   const [step, setStep] = useState<'select' | 'ready'>(table?.gameCode ? 'ready' : 'select')
-  const [code, setCode] = useState<TableGameCode>(TABLE_GAMES.find(game => game.code === table?.gameCode)?.code ?? 'OMOK')
+  const [code, setCode] = useState<TableGameCode>(TABLE_GAMES.find(game => game.code === table?.gameCode)?.code ?? (stoneRumble ? 'STONE_RUMBLE' : 'OMOK'))
   const [count, setCount] = useState(2), [target, setTarget] = useState(table?.targetScore ?? 2000)
   const [bet, setBet] = useState(String(table?.betAmountPerPlayer ?? ''))
   const [confirmedBet, setConfirmedBet] = useState(''), [working, setWorking] = useState(false), [error, setError] = useState('')
@@ -143,28 +149,28 @@ function TabletSession({ tableId }: { tableId: string }) {
     <div className="tablet-paper">
       <header className="tablet-title"><b className="tablet-brand">온탑</b>
         {step === 'ready' && <p className="tablet-room-summary" aria-label="현재 방 설정">{tableTermsLabel(table)} · {approvedCount ?? table.capacity}인 · {s.anchor?.replace('table-', '') ?? ''}번 탁자</p>}
-        <h2>{step === 'select' ? '어떤 게임을 할까요?' : game?.name ?? '게임 준비'}</h2>
+        <h2>{step === 'select' ? (stoneRumble ? '돌탑 생존전' : '어떤 게임을 할까요?') : game?.name ?? '게임 준비'}</h2>
         {step === 'select' && <p>{host ? '게임을 고르고 참가 인원을 선택해요' : '방장이 게임을 선택하고 있어요'}</p>}
         {step === 'ready' && game && !game.playable && <p role="status">{GAME_CONSTRUCTION_NOTICE}</p>}
       </header>
       {step === 'select' ? <div className="tablet-selection">
         <div className="tablet-game-list" role="group" aria-label="게임 선택">
-          {[...availableGameChoices, ...constructionGameChoices].map((item, index) => <Fragment key={item.code}>
-            {index === availableGameChoices.length && constructionGameChoices.length > 0
+          {[...offered, ...underConstruction].map((item, index) => <Fragment key={item.code}>
+            {index === offered.length && underConstruction.length > 0
               ? <h3 className="tablet-game-section-title">공사 중</h3>
               : null}
             <button className="tablet-game-card" data-selected={code === item.code} data-construction={!item.playable}
               aria-pressed={code === item.code} disabled={!item.playable || !host || busy}
               onClick={() => { setCode(item.code); setCount(2) }}>
-              <GameArt code={item.code} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : '2~4인'}</small></span>
+              <GameArt code={item.code} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : `2~${item.capacity}인`}</small></span>
             </button>
           </Fragment>)}
-          <div className="tablet-coming">장기 · 준비 중</div>
+          {!stoneRumble && <div className="tablet-coming">장기 · 준비 중</div>}
         </div>
         <div className="tablet-selection-detail">
           <small>선택한 게임</small><h3>{TABLE_GAMES.find(g => g.code === code)?.name}</h3><p>{descriptions[code]}</p>
           <GameArt code={code} />
-          <fieldset disabled={!host || busy || !isTableGamePlayable(code)}><legend>참가 인원</legend><div className="tablet-counts">{[2, 3, 4].filter(n => n <= max).map(n => <button key={n}
+          <fieldset disabled={!host || busy || !isTableGamePlayable(code)}><legend>참가 인원</legend><div className="tablet-counts" data-maximum={max}>{Array.from({ length: max - 1 }, (_, index) => index + 2).map(n => <button key={n}
             aria-pressed={count === n} onClick={() => setCount(n)}>{n}인</button>)}</div></fieldset>
           <div className="tablet-score-slot">{code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy || !isTableGamePlayable(code)} value={target} onChange={e => setTarget(Number(e.target.value))}>
             {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}</div>

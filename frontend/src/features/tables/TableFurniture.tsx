@@ -1,3 +1,4 @@
+import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
 import { SIMPLE_MAP } from '../../world/art/mapRenderProfile'
 import { useMemo, type ReactNode } from 'react'
 
@@ -59,6 +60,12 @@ export function TableFurniture({ anchor, onInspect = interactWithTable, nativeFu
         stone.push({ p: [x, 0.48, z], s: [0.52, 0.16, 0.85], c: '#c3c3b7' })
         supports.push({ p: [x, 0.2, z], s: [0.32, 0.4, 0.6], c: '#545e57' })
       }
+    if (anchor.id === STONE_RUMBLE_ANCHOR_ID) {
+      for (const { x, z } of tableSeats(anchor).slice(4, seatCount)) {
+        stone.push({ p: [x, .48, z], s: [.72, .16, .66], c: '#c3c3b7' })
+        supports.push({ p: [x, .2, z], s: [.48, .4, .43], c: '#545e57' })
+      }
+    }
     return { stone, supports }
   }, [fourSeats, seatCount, anchor])
   return (

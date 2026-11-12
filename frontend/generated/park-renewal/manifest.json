@@ -2,11 +2,11 @@
   "format": "ontop.park-map-manifest",
   "schemaVersion": 2,
   "mapId": "park",
-  "mapVersion": "b5b0f75d62a407dc23c47fe11d7967bd15a40da5a964f469750851b42a211fcf",
+  "mapVersion": "aec5555c5ec860e1316ef144cbc141162c2413c2f2cc350d3015eceec77fe7a6",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "d90862d9fdd75c5ba456a00e2adcf55ef8e933b8bbdee89c845a0d4e93dd8568",
-    "sourceHash": "4c5d86eb9ad41ed04040bf6dc699fef81ba63d66585a536921dcf8300bc8ed93"
+    "dataHash": "5dbf6e1c0f8fdb59cb7ef2cc26469bd21d336f4c33719202e0d68d0a02cc911a",
+    "sourceHash": "5a9827eccc7406d40244609a5dab222c604b08fbab32283b2380064195438ab9"
   },
   "sources": [
     {
@@ -103,7 +103,7 @@
     },
     {
       "path": "src/config/table-seats.ts",
-      "sha256": "7283c3c9a6fcd11aa855e2d0444d796e499b35705ac21c573cf04c64fa8e82fe"
+      "sha256": "e73d4c926ccb5cd56c41fdd92fd8eac5528e1f0a9acd3c784c2b35a5f99038b0"
     },
     {
       "path": "src/config/telescopes.ts",
@@ -165,11 +165,11 @@
   "counts": {
     "facilities": 12,
     "pavilions": 6,
-    "tables": 13,
-    "localSeats": 52,
+    "tables": 14,
+    "localSeats": 60,
     "obstacles": 536,
     "paths": 54,
-    "physicalBoxes": 6075,
+    "physicalBoxes": 6084,
     "physicalMeshes": 50,
     "physicalHulls": 66,
     "benches": 59,
@@ -180,8 +180,8 @@
   "artifacts": [
     {
       "path": "generated/park/server-map.json",
-      "sha256": "6d751bb51db34e3e6ec393c49f2c81ef4b21aaf2349e886381be7bd7cc1c06dc",
-      "bytes": 3906715
+      "sha256": "22432c6b172e29cbb5fb2b89cc4fb1f1ade3e1666c65f0ee5903fe6d47266b16",
+      "bytes": 3908432
     }
   ],
   "validation": {

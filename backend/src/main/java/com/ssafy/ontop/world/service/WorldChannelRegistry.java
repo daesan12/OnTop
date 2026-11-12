@@ -523,7 +523,8 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
 
         public PublicTable {
-            if (tableId == null || tableId.isBlank() || chairCount < 2 || chairCount > 4) {
+            if (tableId == null || tableId.isBlank() || chairCount < 2
+                    || chairCount > ("STONE_RUMBLE".equals(gameCode) ? 8 : 4)) {
                 throw new IllegalArgumentException("공개 테이블 의자 설정이 올바르지 않습니다.");
             }
         }
@@ -1049,8 +1050,8 @@ public class WorldChannelRegistry implements ChannelPresence {
 
     public record TableSeat(String tableId, int seatNumber) {
         public TableSeat {
-            if (tableId == null || tableId.isBlank() || seatNumber < 1 || seatNumber > 4) {
-                throw new IllegalArgumentException("공개 착석 정보는 실제 테이블과 1~4번 좌석이어야 합니다.");
+            if (tableId == null || tableId.isBlank() || seatNumber < 1 || seatNumber > 8) {
+                throw new IllegalArgumentException("공개 착석 정보는 실제 테이블과 1~8번 좌석이어야 합니다.");
             }
         }
     }

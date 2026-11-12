@@ -1,5 +1,7 @@
 import { TABLES as legacyTables, TABLE_SEATS, type Vec3 } from '../../src/config'
-import type { TableAnchor } from '../../src/park/tablePlacement'
+import { tableSeats, type TableAnchor } from '../../src/park/tablePlacement'
+import { STONE_RUMBLE_ANCHOR_ID } from '../../src/game/stone-rumble/entrance'
+import { groundSurfaceHeight } from '../groundSurface'
 import { facilityYaw } from '../facilityPlacement'
 import { PAVILION_TARGETS, STONE_TABLE_TARGETS } from '../mapping/identities'
 import { facilityGroundY, heightAt, site, SUB_PAVILION_SCALE, type Point } from '../plan'
@@ -38,5 +40,15 @@ export function buildRenewalTables(): TableAnchor[] {
       interactionPoints: reach.map(p => { const [x, z] = rotate(p); return [s.x + x, y, s.z + z] as Vec3 }),
     }]
   })
-  return [...stones, ...pavilions].sort((a, b) => Number(a.id.slice(6)) - Number(b.id.slice(6)))
+  const x = 5, z = -63, y = groundSurfaceHeight(x, z) + .12
+  const stoneRumble: TableAnchor = {
+    id: STONE_RUMBLE_ANCHOR_ID,
+    position: [x, y, z],
+    assetId: 'procedural/stone-game-table',
+    spectatorRadius: 3.5,
+    seatAnchors: tableSeats({}, 8).map(seat => [seat.x, .56, seat.z]),
+    seatSurfaceY: .56,
+    interactionPoints: [[0, groundSurfaceHeight(0, z), z], [x, y, z + 2]],
+  }
+  return [...stones, ...pavilions, stoneRumble].sort((a, b) => Number(a.id.slice(6)) - Number(b.id.slice(6)))
 }

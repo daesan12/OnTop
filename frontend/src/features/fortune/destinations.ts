@@ -1,3 +1,4 @@
+import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
 import { TABLES } from '../../park/mapConfig'
 import { RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { renewalMap, type RenewalRecreationId } from '../../park/renewalMap'
@@ -19,6 +20,8 @@ const renewalEntries: Partial<Record<string, RenewalRecreationId>> = {
 export function fortuneGuideTarget(game: FortuneCardContent, pose: { x: number; z: number }): Destination | undefined {
   if (!game.destination) return
   if (game.destination === 'pagoda') {
+    const entry = TABLES.find(table => table.id === STONE_RUMBLE_ANCHOR_ID)?.interactionPoints?.[0]
+    if (entry) return { x: entry[0], z: entry[2], arrivalRadius: 1.3, name: game.name + ' · 대석탑 정원' }
     const approach = PARK_MAP_PLACES.find(place => place.id === 'pagoda')?.destination
     return approach && { ...approach, name: `${game.name} · 대석탑 정원` }
   }

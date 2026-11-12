@@ -13,7 +13,7 @@ final class StoredGameResult {
                 GameResultView.Status.valueOf(game.status().name()), game.endReason(),
                 GameResultView.SettlementStatus.valueOf(game.settlementStatus().name()), game.betAmountPerPlayer(),
                 players.stream().map(p -> new GameResultView.Participant(Long.toString(p.userId()),
-                        p.result() == null ? null : p.result().name())).toList(),
+                        p.result() == null ? null : p.result().name(), p.finishRank(), p.rankReward())).toList(),
                 game.settlementStatus() == GameSession.SettlementStatus.SETTLED ? me.coinDelta() : null, game.endedAt());
     }
 }

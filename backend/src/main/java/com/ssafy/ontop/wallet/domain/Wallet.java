@@ -82,11 +82,15 @@ public class Wallet {
     }
 
     public void creditReward(long amount) {
+        creditReward(amount, Instant.now());
+    }
+
+    public void creditReward(long amount, Instant now) {
         if (amount < 0 || reserved < 0 || balance < reserved) {
             throw new IllegalArgumentException("보상 금액과 지갑 상태를 확인하세요.");
         }
         balance = Math.addExact(balance, amount);
-        updatedAt = Instant.now();
+        updatedAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
     }
 
     public void creditAdminGrant(long amount, Instant now) {

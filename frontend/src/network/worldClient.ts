@@ -424,7 +424,7 @@ export function refreshActivityPresentation() {
       )
       const anchor = TABLES.find((t) => t.id === binding?.anchorId)
       if (!seat || !anchor) continue
-      const position = tableSeats(anchor)[seat.seatNumber - 1]
+      const position = tableSeats(anchor, seat.seatNumber)[seat.seatNumber - 1]
       if (!position) continue
       a.tableId = anchor.id
       a.seatIndex = seat.seatNumber - 1
