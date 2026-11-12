@@ -28,7 +28,7 @@ class JokeDiagnosticsTests {
     @Test void fallbackReasonsPreserveTheScoreAndNeverExposeDiagnosticsInSubmissions(@TempDir Path directory)throws Exception {
         var mapper=new ObjectMapper();
         for(String scenario:List.of("NONE","EMPTY_REACTION","REACTION_TOO_LONG","SCORE_TEXT_FORBIDDEN","REACTION_GUARD_BLOCKED","REACTION_EXCEPTION","PROVIDER_NOT_GENERATED")){
-            String raw=switch(scenario){case "EMPTY_REACTION"->"";case "REACTION_TOO_LONG"->"가".repeat(181);case "SCORE_TEXT_FORBIDDEN"->"1+1 모양을 연결했네.";default->"모양을 연결한 반전이 자연스럽구먼.";};
+            String raw=switch(scenario){case "EMPTY_REACTION"->"";case "REACTION_TOO_LONG"->"가".repeat(181);case "SCORE_TEXT_FORBIDDEN"->"이번 개그는 32점일세.";default->"모양을 연결한 반전이 자연스럽구먼.";};
             JokeJudge judge=new JokeJudge(){
                 public Evaluation evaluate(String q,String a){return new Evaluation("SCORED",150,120,50,"해석",raw,!scenario.equals("PROVIDER_NOT_GENERATED"));}
                 public boolean safeReaction(String text){if(scenario.equals("REACTION_EXCEPTION"))throw new IllegalStateException("never log this secret");return !scenario.equals("REACTION_GUARD_BLOCKED");}

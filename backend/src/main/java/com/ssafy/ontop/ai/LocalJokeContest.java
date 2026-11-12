@@ -60,7 +60,7 @@ public final class LocalJokeContest implements AutoCloseable, AiFeature {
                     if(result.integratedReaction())generated=new AiText.Reply(result.reaction(),"SPRING_AI");
                     else {
                         long reactionStarted=System.nanoTime();metrics.increment("legacy_reaction.requests");
-                        try{generated=text.generate(JokeJudge.PERSONA+"개그의 구체적인 말장난과 잘된 점 또는 아쉬운 점을 한국어 두세 문장 120자 이내로 설명하라. 점수나 숫자·개인정보·욕설·실제 원작자 주장은 금지. 유사 감점은 서버가 안내하므로 중복 언급하지 마라.",
+                        try{generated=text.generate(JokeJudge.PERSONA+"개그의 구체적인 말장난과 잘된 점 또는 아쉬운 점을 한국어 두세 문장 120자 이내로 설명하라. 개그 설명의 숫자와 수식은 허용한다. 실제 점수 수치나 만점 선언·개인정보·욕설·실제 원작자 주장은 금지. 총점은 서버가 붙인다. 유사 감점은 서버가 안내하므로 중복 언급하지 마라.",
                             mapper.writeValueAsString(Map.of("question",row.question(),"answer",row.answer(),"evaluation",result.reason(),"wordplayX10",result.wordplayX10(),"witX10",result.witX10(),"originalityX10",result.originalityX10())),reaction);}
                         finally{metrics.duration("legacy_reaction",System.nanoTime()-reactionStarted);}
                     }
@@ -69,7 +69,7 @@ public final class LocalJokeContest implements AutoCloseable, AiFeature {
                     if(generated==null||!"SPRING_AI".equals(generated.source()))fallbackReason="PROVIDER_NOT_GENERATED";
                     else if(generated.text()==null||generated.text().isBlank())fallbackReason="EMPTY_REACTION";
                     else if(generated.text().length()>180)fallbackReason="REACTION_TOO_LONG";
-                    else if(generated.text().matches("(?s).*(?:[0-9０-９]|점수|등수|만점|백\\s*점).*"))fallbackReason="SCORE_TEXT_FORBIDDEN";
+                    else if(JokeReactionScoreText.containsScore(generated.text()))fallbackReason="SCORE_TEXT_FORBIDDEN";
                     else if(!judge.safeReaction(generated.text()))fallbackReason="REACTION_GUARD_BLOCKED";
                     else {reaction=generated.text().strip();source=generated.source();}
                 }catch(Exception unavailable){fallbackReason="REACTION_EXCEPTION";JokeDiagnostics.emit("reaction_error",Map.of("exceptionType",unavailable.getClass().getSimpleName()));}
