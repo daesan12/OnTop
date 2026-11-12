@@ -1,6 +1,6 @@
 import type { JudgementSettings } from './jumpRopeJudgement'
 import { applyPass, createRoundStats, roundDurationMs, type RoundEndReason, type RoundStats } from './jumpRopeRules'
-import { advancePreviewMotion, createPreviewMotion, requestJump } from './previewMotion'
+import { advancePreviewMotion, createPreviewMotion, requestJump, type PreviewPass } from './previewMotion'
 import { createSuccessCue, successKind, type PigeonSuccessCue } from './pigeonSuccess'
 import { ropeTempo, type RopeAcceleration } from './ropeAcceleration'
 import { finaleStage } from './gameOverFinale'
@@ -10,6 +10,7 @@ const countdownMs = 3000
 const goMs = 550
 
 type Phase =
+  | { kind: 'menu' }
   | { kind: 'initialCountdown'; endsAt?: number }
   | PlayingPhase
   | { kind: 'landing'; stoppedAt: number; reactionMs: number }
@@ -31,11 +32,13 @@ export type PreviewRound = {
   shockStartedAt: number | null
 }
 export type RoundCue = Phase['kind'] | 'gameOverSplash' | '3' | '2' | '1' | 'GO!'
+export type ScoredPreviewPass = PreviewPass & { earnedPoints: number }
+type EntryPhase = 'menu' | 'initialCountdown'
 
-export function createPreviewRound(): PreviewRound {
+export function createPreviewRound(entry: EntryPhase = 'initialCountdown'): PreviewRound {
   return {
     motion: createPreviewMotion(),
-    phase: { kind: 'initialCountdown' },
+    phase: { kind: entry },
     stats: createRoundStats(),
     playedMs: 0,
     endReason: null,
@@ -44,8 +47,8 @@ export function createPreviewRound(): PreviewRound {
   }
 }
 
-export function resetPreviewRound(round: PreviewRound) {
-  const { motion, ...freshRound } = createPreviewRound()
+export function resetPreviewRound(round: PreviewRound, entry?: EntryPhase) {
+  const { motion, ...freshRound } = createPreviewRound(entry)
   Object.assign(round.motion, motion)
   Object.assign(round, freshRound)
 }
@@ -65,6 +68,11 @@ export function advancePreviewRound(
   acceleration?: RopeAcceleration,
 ) {
   const { motion, phase } = round
+  if (phase.kind === 'menu') {
+    // A manual jump preview can animate here without starting the round clock.
+    if (motion.jump) advancePreviewMotion(motion, now, 0, settings)
+    return
+  }
   const playing = phase.kind === 'playing'
   // The previous speed describes the elapsed interval, even when this call pauses or resumes it.
   const intervalSpeed = motion.ropeSpeed
@@ -81,9 +89,11 @@ export function advancePreviewRound(
     round.playedMs = expires && !miss ? roundDurationMs : round.playedMs + (playedUntil - activeFrom)
   }
   let successCue: PigeonSuccessCue | null = null
+  let latest: ScoredPreviewPass | undefined
   for (const pass of passes) {
     const stats = applyPass(round.stats, pass)
     if (stats === round.stats) continue
+    latest = { ...pass, earnedPoints: stats.score - round.stats.score }
     round.stats = stats
     const kind = successKind(pass.kind, stats.combo)
     // Show the latest success if a late frame processes several passes together.
@@ -129,7 +139,7 @@ export function advancePreviewRound(
       round.phase = { kind: 'resumePending', stoppedAt: phase.stoppedAt }
     }
   }
-  return last
+  return latest
 }
 
 export function requestRoundJump(round: PreviewRound, now: number, peak: number, flightSeconds: number) {
@@ -160,7 +170,7 @@ function ease01(value: number) {
 /** Let a stopped rope settle behind the heels, then blend into its first upswing. */
 export function ropeRestWeight(round: PreviewRound, now: number) {
   const phase = round.phase
-  if (phase.kind === 'initialCountdown') return 0
+  if (phase.kind === 'menu' || phase.kind === 'initialCountdown') return 0
   if (phase.kind === 'ended' || phase.kind === 'completion') return phase.restWeight
   if (phase.kind !== 'playing') return ease01((now - phase.stoppedAt) / 140)
   return phase.resumedAfterPass === round.motion.passCount ? 1 - ease01(round.motion.angle / (Math.PI / 2)) : 0

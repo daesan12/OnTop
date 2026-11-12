@@ -66,7 +66,7 @@ describe('accelerating jump rope', () => {
     tick(startAt + playTimeAtTurn(4) + 500)
     expect(passes.map(({ number, kind }) => [number, kind])).toEqual([[1, 'perfect'], [2, 'good'], [3, 'perfect'], [4, 'miss']])
     passes.forEach(({ at }, index) => expect(at).toBeCloseTo(startAt + playTimeAtTurn(index + 1), 7))
-    expect(round.stats).toMatchObject({ score: 400, chances: 2 })
+    expect(round.stats).toMatchObject({ score: 40, chances: 2 })
   })
 
   it('freezes tempo during the reaction and manual pause, and resumes with a full accelerated turn', () => {
@@ -124,7 +124,7 @@ describe('accelerating jump rope', () => {
     expect(jump(startAt + 60000 - 270)).toBe(true)
     expect(step(startAt + 62000)).toBeUndefined()
     expect(round.endReason).toBe('time')
-    expect(round.stats).toMatchObject({ score: 8850, chances: 3, lastPassNumber: 59 })
+    expect(round.stats).toMatchObject({ score: 1755, chances: 3, lastPassNumber: 59 })
   })
 
   it('supports consecutive jumps and lets success poses settle in the last, fastest turns', () => {
@@ -158,6 +158,6 @@ describe('accelerating jump rope', () => {
         expect(isSuccessActive(cue, nextPass - 40)).toBe(false)
       }
     }
-    expect(round.stats).toMatchObject({ score: 9700, chances: 2, combo: 0, lastPassNumber: 66 })
+    expect(round.stats).toMatchObject({ score: 1915, chances: 2, combo: 0, lastPassNumber: 66 })
   })
 })

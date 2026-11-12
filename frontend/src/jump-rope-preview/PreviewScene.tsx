@@ -240,7 +240,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
     const live = round.successCue
     const preview = successDemoRef.current
     const candidate = preview && (!live || preview.startedAt >= live.startedAt) ? preview : live
-    const canReact = !isFinale && (phase.kind === 'playing' || phase.kind === 'initialCountdown') && laughElapsed >= laughDuration
+    const canReact = !isFinale && (phase.kind === 'playing' || phase.kind === 'initialCountdown' || phase.kind === 'menu') && laughElapsed >= laughDuration
     const success = canReact && candidate && (!laughDemo || candidate.startedAt > laughDemo.startedAt)
       && isSuccessActive(candidate, now) ? candidate : null
     const frame = successFrame.current
