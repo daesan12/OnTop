@@ -10,6 +10,8 @@ export default defineConfig(({mode})=>({
   optimizeDeps: { include: ['@dimforge/rapier3d-compat'] },
   // Preview and service review run together; keep their dependency URLs independent.
   cacheDir: fileURLToPath(new URL(`./.vite-cache/${mode}`, import.meta.url)),
+  // Navigation waits for the 220m map artifact before accepting route requests.
+  worker: { format: 'es' },
   define:mode==='park-integration'?{'import.meta.env.VITE_PARK_MAP':JSON.stringify('generated')}:undefined,
   plugins: [react(),parkMapGenerationPlugin(),parkGeometryPlugin(),parkBindingsPlugin()],
   server: {
