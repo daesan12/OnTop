@@ -9,7 +9,7 @@ import { openWardrobe } from '../wardrobe/state'
 import { CAPSULES, Capsule, RevealEffects, useCapsuleAssets, useCapsuleDraw } from './capsuleMotion'
 import { Machine3D, CapsuleHero3D } from './CapsuleScene'
 import { CoinToWallet } from './GachaBoxes'
-import { capsuleName, capsuleTier, displayGachaMessage } from './labels'
+import { capsuleName, capsuleTier, displayGachaMessage, gradeProductNames } from './labels'
 import { GachaActionIcon } from './GachaActionIcon'
 import { RefillNotice } from './RefillNotice'
 import { refillRemaining } from './timing'
@@ -49,7 +49,7 @@ export function GachaPanel() {
   const blocked=s.busy||drawing||!!s.pending||!s.state
   const prize=machine?.prizes.find(p=>p.grade===selected)
   const gender=useSession(v=>v.profiles[v.sessionId]?.character==='girl'?'FEMALE':'MALE')
-  const product=s.state?.products.find(p=>p.grade===selected&&(p.compatibility==='ANY'||p.compatibility===gender))
+  const productNames=gradeProductNames(s.state?.products??[],selected,gender)
   const notice=drawing&&motion.presentation?motion.presentation.notice:notices.filter(n=>n.expiresAt>now).at(-1)
   const result=motion.phase==='reveal'?motion.result:null
   const sounded=useRef('')
@@ -109,8 +109,8 @@ export function GachaPanel() {
       <section className="art-preview-detail" aria-label="선택한 보상">
         <small>보상 미리보기</small><h2>{capsuleName(selected)}</h2>
         <p className="art-value">상품 가치 <strong>{money(prize?.value??[1000,500,250,100][selected-1]!)}</strong></p>
-        <div className="art-divider"/><p>캡슐을 열면 의상 상품 하나가 나와요.</p>
-        <p className="art-product">{product?.name??'현재 캐릭터가 입을 수 있는 의상'}</p>
+        <div className="art-divider"/><p>{productNames.length>1?'캡슐을 열면 이 중 하나가 나와요.':'캡슐을 열면 의상 상품 하나가 나와요.'}</p>
+        <p className={'art-product'+(productNames.length>3?' many':'')}>{productNames.length?productNames.join(' · '):'현재 캐릭터가 입을 수 있는 의상'}</p>
         <p className="art-duplicate">같은 상품이 나오면<br/>가치의 절반을 엽전으로 받아요.</p>
       </section>
       <h2 className="art-stock-title">남은 보상</h2>
