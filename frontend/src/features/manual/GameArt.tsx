@@ -7,6 +7,7 @@ import rpsRouletteThumbnail from "../rpsRoulette/assets/thumbnail.webp";
 import plusMinusThumbnail from "../plusMinus/assets/thumbnail.webp";
 import moleThumbnail from "../mole/assets/thumbnail.webp";
 import speedMoleThumbnail from "../speedMole/assets/thumbnail.webp";
+import jumpRopeThumbnail from "../jumpRope/assets/thumbnail.webp";
 import jumpThumbnail from "../jumpmap/assets/thumbnail.webp";
 
 /** 게임 고르기 화면(태블릿·오락기)과 같은 대표 그림. 태블릿 그림은 public/art/tablet에 있다. */
@@ -23,6 +24,7 @@ const gameThumbnails: Partial<Record<ManualGameId, string>> = {
   "plus-minus": plusMinusThumbnail,
   "whack-a-mole": moleThumbnail,
   "speed-mole": speedMoleThumbnail,
+  "jump-rope": jumpRopeThumbnail,
   jump: jumpThumbnail,
 };
 
