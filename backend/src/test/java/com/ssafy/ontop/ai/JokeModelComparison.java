@@ -10,9 +10,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /** Explicit, bounded live comparison. No Spring context, shared DB, MM, ranking or game state. */
 public final class JokeModelComparison {
     record Sample(String id,String question,String answer,boolean duplicate){}
-    private static final List<Sample> SAMPLES=List.of(new Sample("window","1+1=?","창문~~",false),
-            new Sample("window-duplicate","1+1=?sd","창문~~s",true),new Sample("king","왕이넘어지면?","킹콩",false),
-            new Sample("sea","바다가 화나면?","열바다",false));
+    private static final List<Sample> SAMPLES=List.of(new Sample("car","자동차를 톡 치면?","카톡",false),
+            new Sample("sea","바다가 화나면?","열바다",false),new Sample("unrelated","소가 웃으면?","오늘 점심은 김치찌개",false),
+            new Sample("car-duplicate","자동차를 살짝 톡 건드리면?","카톡",true));
     private static final List<String> MODELS=List.of("gpt-4.1-mini","gpt-5.4-mini");
     static double reservation(String model,int requestBytes){
         if(!MODELS.contains(model)||requestBytes>20000)throw new IllegalArgumentException("Comparison model/input limit");
@@ -32,14 +32,15 @@ public final class JokeModelComparison {
             for(var sample:SAMPLES)for(String model:MODELS){
                 var guard=new JevJokeJudge(mapper,jev,System.getenv().getOrDefault("JEV_MODEL","jev-1.14.0"));
                 var judge=new LlmJokeJudge(mapper,llm,model,guard);
-                var refs=sample.duplicate()?List.of(new JokeJudge.Reference("comparison-window","1+1=?","창문~~")):List.<JokeJudge.Reference>of();
+                var referenceSample=SAMPLES.getFirst();
+                var refs=sample.duplicate()?List.of(new JokeJudge.Reference("comparison-reference",referenceSample.question(),referenceSample.answer())):List.<JokeJudge.Reference>of();
                 double next=reservation(model,mapper.writeValueAsBytes(judge.requestPayload(sample.question(),sample.answer(),refs)).length);
                 if(reserved+next>.10||calls>=8)throw new IllegalStateException("Comparison $0.10 reservation/call limit reached; no further requests sent.");
                 reserved+=next;calls++;
                 var events=new CopyOnWriteArrayList<Map<String,Object>>();Clock clock=Clock.systemUTC();
                 var store=new JsonJokeContestStore(mapper,output.resolve("cases").resolve(sample.id()+"-"+model),clock.millis(),true);
                 if(sample.duplicate()){
-                    long now=clock.millis();var reference=new LocalJokeContest.Submission("comparison-window","reference","비교 기준",LocalDate.now(ZoneId.of("Asia/Seoul")).toString(),"1+1=?","창문~~",LocalJokeContest.normalizedHash("1+1=?","창문~~"),"comparison-reference","PENDING",null,0,0,0,"","","PENDING",now,0,"comparison-fixture");
+                    long now=clock.millis();var reference=new LocalJokeContest.Submission("comparison-reference","reference","비교 기준",LocalDate.now(ZoneId.of("Asia/Seoul")).toString(),referenceSample.question(),referenceSample.answer(),LocalJokeContest.normalizedHash(referenceSample.question(),referenceSample.answer()),"comparison-reference","PENDING",null,0,0,0,"","","PENDING",now,0,"comparison-fixture");
                     store.reserve(reference);store.finish(LocalJokeContest.finished(reference,"SCORED",900,400,400,100,"비교 기준","비교 기준","FIXED",now),now);
                 }
                 try(var contest=new LocalJokeContest(mapper,store,judge,AiText.fixed(),clock,events::add)){

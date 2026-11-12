@@ -68,7 +68,7 @@ class LlmJokeJudgeTests {
             assertThat(judge.usage()).containsEntry("llm.calls",1L).containsEntry("llm.input_tokens",123L).containsEntry("llm.output_tokens",67L);
             assertThat(captured.get().path("response_format").path("json_schema").path("strict").asBoolean()).isTrue();
             assertThat(captured.get().path("messages").path(1).path("content").asText()).contains("질문 데이터","답 데이터");
-            assertThat(captured.get().path("messages").path(0).path("content").asText()).contains(JokeJudge.PERSONA,"점수의 이유","잘된 점 또는 아쉬운 점");
+            assertThat(captured.get().path("messages").path(0).path("content").asText()).contains(JokeJudge.PERSONA,"점수의 이유","잘된 점 또는 아쉬운 점","세 항목을 독립적으로 평가","글자 모양과 표기 방식").doesNotContain("1+1","창문","킹콩","열바다","32점");
             guardStatus.set("REVIEW");assertThat(judge.evaluate("q","a").status()).isEqualTo("REVIEW");
             guardStatus.set("REJECTED");assertThat(judge.evaluate("q","a").status()).isEqualTo("REJECTED");assertThat(calls).hasValue(1);
             assertThat(judge.safeReaction("safe")).isTrue();assertThat(judge.safeReaction("unsafe")).isFalse();
