@@ -161,7 +161,7 @@ function MoleScreen() {
   const tenths = comboTenths(rules, combo)
   const remaining = playing ? rules.durationMs - elapsed : phase === 'submitting' || phase === 'result' ? 0 : rules.durationMs
   const countdown = phase === 'countdown' ? Math.max(1, Math.ceil((COUNTDOWN_MS - (now - clock.current.countdownAt)) / 1000)) : 0
-  const todayEarned = state?.todayEarned ?? 0, dailyCap = state?.dailyCap ?? 500
+  const todayEarned = state?.todayEarned ?? 0, dailyCap = state?.dailyCap ?? 1000
   const stunLeft = live && playing ? Math.max(0, live.stunUntil - elapsed) : 0
 
   const taps = (mole: Mole) => live?.tapsOf(mole.id) ?? 0

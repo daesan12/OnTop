@@ -54,7 +54,7 @@ class SpeedMoleMySqlTests {
             assertThat(results.getFirst().score()).isEqualTo(120);
             assertThat(results.getFirst().reward()).isEqualTo(24);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM speed_mole_rounds WHERE user_id=? AND status='SETTLED'",Long.class,user)).isEqualTo(1);
-            assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(103);
+            assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(124);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions WHERE idempotency_key=?",Long.class,"mole:reward:speed:"+id)).isEqualTo(1);
         }
         assertThat(flyway.info().pending()).isEmpty();
@@ -114,14 +114,14 @@ class SpeedMoleMySqlTests {
     }
     @Test void common_budget_caps_rewards_and_an_old_ranking_is_not_retroactively_paid() {
         long user=user();
-        jdbc.update("UPDATE wallets SET balance=597 WHERE user_id=?",user);
+        jdbc.update("UPDATE wallets SET balance=1097 WHERE user_id=?",user);
         jdbc.update("INSERT INTO wallet_transactions(wallet_id,transaction_type,balance_delta,reserved_delta,idempotency_key,created_at) "
-                +"SELECT id,'MINIGAME_REWARD',497,0,?,CURRENT_TIMESTAMP(3) FROM wallets WHERE user_id=?",UUID.randomUUID().toString(),user);
+                +"SELECT id,'MINIGAME_REWARD',997,0,?,CURRENT_TIMESTAMP(3) FROM wallets WHERE user_id=?",UUID.randomUUID().toString(),user);
         long id=Long.parseLong(service.start(user,"cap").id());
         jdbc.update("UPDATE speed_mole_rounds SET seed=1,started_at=? WHERE id=?",Timestamp.from(Instant.now().minusSeconds(61)),id);
         var result=service.complete(user,id,taps(1,200));
-        assertThat(result.calculatedReward()).isEqualTo(40); assertThat(result.reward()).isEqualTo(3); assertThat(result.todayEarned()).isEqualTo(500);
-        assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(600);
+        assertThat(result.calculatedReward()).isEqualTo(40); assertThat(result.reward()).isEqualTo(3); assertThat(result.todayEarned()).isEqualTo(1000);
+        assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(1100);
         long next=Long.parseLong(service.start(user,"cap-next").id());
         jdbc.update("UPDATE speed_mole_rounds SET seed=1,started_at=? WHERE id=?",Timestamp.from(Instant.now().minusSeconds(61)),next);
         assertThat(service.complete(user,next,taps(1,80)).reward()).isZero();

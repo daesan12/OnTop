@@ -75,7 +75,7 @@ describe('v5 draft REST port, opt-in only', () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
   it('retains the v5 active session and refuses a corrupted recovery prefix', async () => {
-    const lobby = { rulesVersion: 'v5', todayEarned: 0, dailyCap: 500, isFirstGame: false, seenTips: [], activeSessionId: '901' };
+    const lobby = { rulesVersion: 'v5', todayEarned: 0, dailyCap: 1000, isFirstGame: false, seenTips: [], activeSessionId: '901' };
     await expect(createBungeoppangV5Service(vi.fn().mockResolvedValue(lobby)).getStatus()).resolves.toMatchObject({ activeSessionId: '901' });
     const p = await responses();
     const bad = { ...p.start, ...p.session, checkpoint: { ...p.start.checkpoint, prefixHash: '0'.repeat(64) } };

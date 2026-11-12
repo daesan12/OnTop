@@ -61,7 +61,7 @@ class BungeoppangV5MySqlTests {
     }
 
     @Test
-    void 붕어빵과_점프맵이_동시에_보상받아도_공통500냥만_지급하고_재시도는_중복지급하지않는다() throws Exception {
+    void 붕어빵과_점프맵이_동시에_보상받아도_공통1000냥만_지급하고_재시도는_중복지급하지않는다() throws Exception {
         long sessionId = readyV5("shared-budget");
         var request = delivery(sessionId, "1", "shared-one");
         minigames.deliverV5(101, sessionId, "shared-one", request);
@@ -69,9 +69,9 @@ class BungeoppangV5MySqlTests {
         JsonNode body = mapper.readTree(completion(sessionId, request.log()));
         jdbc.update("""
                 INSERT INTO wallet_transactions(wallet_id, transaction_type, balance_delta, reserved_delta, idempotency_key, created_at)
-                SELECT id, 'JUMP_GATE_REWARD', 498, 0, 'shared-budget-seed', CURRENT_TIMESTAMP(3) FROM wallets WHERE user_id = 101
+                SELECT id, 'JUMP_GATE_REWARD', 998, 0, 'shared-budget-seed', CURRENT_TIMESTAMP(3) FROM wallets WHERE user_id = 101
                 """);
-        jdbc.update("UPDATE wallets SET balance = balance + 498 WHERE user_id = 101");
+        jdbc.update("UPDATE wallets SET balance = balance + 998 WHERE user_id = 101");
         var jumps = new com.ssafy.ontop.world.jumpmap.JdbcJumpmapStore(jdbc, budgetEntities, budgetTransactions);
         var now = java.time.Instant.now();
         jumps.start("shared-budget-run", 101, "channel-1", now);
@@ -86,12 +86,12 @@ class BungeoppangV5MySqlTests {
             var paid = (com.ssafy.ontop.world.jumpmap.JumpmapStore.Settled) jump.get(10, TimeUnit.SECONDS);
             assertThat(result.coinsGranted() + paid.coinsGranted()).isEqualTo(2);
         }
-        assertThat(balance()).isEqualTo(600);
-        assertThat(jumps.status(101, now).todayEarned()).isEqualTo(500);
-        assertThat(result.dailyCap()).isEqualTo(500);
+        assertThat(balance()).isEqualTo(1100);
+        assertThat(jumps.status(101, now).todayEarned()).isEqualTo(1000);
+        assertThat(result.dailyCap()).isEqualTo(1000);
         assertThat(minigames.complete(101, sessionId, "shared-complete", body)).isEqualTo(result);
         jumps.settle("shared-budget-run", 1, now);
-        assertThat(balance()).isEqualTo(600);
+        assertThat(balance()).isEqualTo(1100);
     }
     private static final String START = "{\"minigameType\":\"BUNGEOPPANG\",\"rulesVersion\":\"v5\"}";
 
@@ -367,8 +367,8 @@ class BungeoppangV5MySqlTests {
         assertThat(again.body()).isEqualTo(settled.body());
         assertThat(mapper.readTree(settled.body()).path("rulesVersion").asText()).isEqualTo("v5");
         assertThat(mapper.readTree(settled.body()).path("score").asLong()).isEqualTo(10);
-        assertThat(balance()).isEqualTo(100);
-        assertThat(count("wallet_transactions")).isZero();
+        assertThat(balance()).isEqualTo(102);
+        assertThat(count("wallet_transactions")).isOne();
         assertThat(jdbc.queryForObject("SELECT status FROM minigame_sessions WHERE id=?", String.class, sessionId))
                 .isEqualTo("COMPLETED");
         var loaded = mapper.readTree(request("GET", "/" + sessionId, null, null).body());
@@ -460,8 +460,8 @@ class BungeoppangV5MySqlTests {
         }
 
         assertThat(results.get(0)).isInstanceOf(BungeoppangV4CompleteDtos.Response.class).isEqualTo(results.get(1));
-        assertThat(((BungeoppangV4CompleteDtos.Response) results.get(0)).coinsGranted()).isOne();
-        assertThat(balance()).isEqualTo(101);
+        assertThat(((BungeoppangV4CompleteDtos.Response) results.get(0)).coinsGranted()).isEqualTo(4);
+        assertThat(balance()).isEqualTo(104);
         assertThat(count("wallet_transactions")).isOne();
     }
 
@@ -504,8 +504,8 @@ class BungeoppangV5MySqlTests {
 
         assertThat(replayed).isEqualTo(settled);
         assertThat(settled.score()).isEqualTo(20);
-        assertThat(settled.coinsGranted()).isOne();
-        assertThat(balance()).isEqualTo(101);
+        assertThat(settled.coinsGranted()).isEqualTo(4);
+        assertThat(balance()).isEqualTo(104);
         assertThat(count("wallet_transactions")).isOne();
         assertThat(count("bungeoppang_v5_orders")).isEqualTo(4);
         assertThat(jdbc.queryForList("SELECT operation FROM bungeoppang_v4_receipts ORDER BY id", String.class))
@@ -529,7 +529,7 @@ class BungeoppangV5MySqlTests {
         JsonNode result = mapper.readTree(completed.body());
         assertThat(result.path("score").asLong()).isEqualTo(20);
         assertThat(result.path("customersServed").asInt()).isOne();
-        assertThat(result.path("coinsGranted").asLong()).isOne();
+        assertThat(result.path("coinsGranted").asLong()).isEqualTo(4);
         assertThat(result.path("finalThroughSeq").asInt()).isEqualTo(9);
 
         assertThat(jdbc.queryForMap("SELECT customer_slot, available_after_seq FROM bungeoppang_v5_orders"
@@ -541,7 +541,7 @@ class BungeoppangV5MySqlTests {
                 Integer.class)).isOne();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM bungeoppang_v4_receipts WHERE operation='COMPLETE'",
                 Integer.class)).isOne();
-        assertThat(balance()).isEqualTo(101);
+        assertThat(balance()).isEqualTo(104);
         assertThat(count("wallet_transactions")).isOne();
 
         var recovered = mapper.readTree(request("GET", "/" + sessionId + "?includeProgress=true", null, null).body());
@@ -652,18 +652,20 @@ class BungeoppangV5MySqlTests {
         JsonNode result = mapper.readTree(settled.body());
         JsonNode expected = flow.path("expected");
         for (String field : List.of("score", "made", "successfulMade", "golden", "failed", "wasted", "grillDiscarded",
-                "trayDiscarded", "maxCombo", "served", "customersServed", "specialServed", "bonusScore",
-                "coinsCalculated")) {
+                "trayDiscarded", "maxCombo", "served", "customersServed", "specialServed", "bonusScore")) {
             assertThat(result.path(field).asLong()).as(field).isEqualTo(expected.path(field).asLong());
         }
-        assertThat(result.path("coinsGranted").asLong()).isEqualTo(2);
+        // 공유 fixture의 coinsCalculated는 15점당 1냥 기준이다. 엽전은 이 판에 저장된 규칙의 환산 비율로 확인한다.
+        long coins = expected.path("score").asLong() / start.at("/rules/pointsPerCoin").asLong();
+        assertThat(result.path("coinsCalculated").asLong()).isEqualTo(coins);
+        assertThat(result.path("coinsGranted").asLong()).isEqualTo(coins);
         assertThat(result.path("configVersion").asText()).isEqualTo(configVersion);
         assertThat(result.path("finalThroughSeq").asInt()).isEqualTo(wire.size());
         // C: the completion response was lost; both retries return the stored result without paying again.
         assertThat(request("POST", "/" + sessionId + "/complete", complete, "flow-done").body()).isEqualTo(settled.body());
         assertThat(request("POST", "/" + sessionId + "/complete", complete, "flow-done-2").body())
                 .isEqualTo(settled.body());
-        assertThat(balance()).isEqualTo(102);
+        assertThat(balance()).isEqualTo(100 + coins);
         assertThat(count("wallet_transactions")).isOne();
         var finished = mapper.readTree(request("GET", "/" + sessionId + "?includeProgress=true", null, null).body());
         assertThat(finished.path("status").asText()).isEqualTo("COMPLETED");

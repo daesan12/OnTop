@@ -74,7 +74,7 @@ describe.each([
       if (path.endsWith('/complete')) return { minigameSessionId: '901', status: 'COMPLETED', rulesVersion: 'v5',
         configVersion: config, verifiedCompletedCount: state.made, rewardAmount: 2, score: state.score, made: state.made,
         golden: state.golden, failed: state.failed, wasted: state.wasted, maxCombo: state.maxCombo,
-        coinsCalculated: 2, coinsGranted: 2, todayEarned: 2, dailyCap: 500, capReached: false,
+        coinsCalculated: 2, coinsGranted: 2, todayEarned: 2, dailyCap: 1000, capReached: false,
         successfulMade: state.made, served: state.served, customersServed: state.customersServed,
         specialServed: state.specialServed, bonusScore: state.bonusScore, grillDiscarded: 1, trayDiscarded: 1,
         undeliveredCount: 0, unfinishedGrillCount: 0, rewardDate: '2026-10-28', settledAt: iso(R.durationMs + 500),

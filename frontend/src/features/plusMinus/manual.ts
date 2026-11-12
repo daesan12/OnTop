@@ -19,7 +19,7 @@ export const plusMinusManual: GameManual = {
     '버튼을 누르면 릴이 조금 미끄러지다 멈춰요. 5초 안에 누르지 않으면 저절로 멈춰요.',
     'JACKPOT은 숫자1이 7일 때만 500냥이에요. 다른 숫자와 함께 서면 꽝이에요.',
     '창을 닫거나 나가도 이미 정해진 결과는 그대로 지갑에 반영돼요.',
-    '배당은 보상이 아니라서 미니게임 하루 500냥 한도와 따로예요. 대신 하루 10판까지 할 수 있어요.',
+    '배당은 보상이 아니라서 미니게임 하루 1000냥 한도와 따로예요. 대신 하루 10판까지 할 수 있어요.',
   ],
   sections: [
     { id: 'plus-minus-machine', title: '게임기 살펴보기', figure: { caption: '불빛이 도는 칸에서 멈춘 값이 가운데 LED에 떠요.', render: PlusMinusMachineFigure },

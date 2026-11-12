@@ -282,7 +282,7 @@ test('결과 좌우 너비가 같고 보상 안내가 바뀌며 작은 화면에
   await expect(dialog.locator('[data-reward-coin-source]')).toContainText('123냥')
   await page.getByText('보상 기준 자세히', { exact: true }).click()
   await expect(dialog).not.toContainText('소수점은 버리고')
-  await expect(dialog).toContainText('각자 최대 500냥')
+  await expect(dialog).toContainText('각자 최대 1000냥')
   for (const [width, height] of [[1440, 900], [900, 500], [390, 844]]) {
     await page.setViewportSize({ width, height })
     const left = (await page.locator('.coop-team-record').boundingBox())!

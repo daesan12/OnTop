@@ -7,7 +7,7 @@ import { COURSE, COURSE_VERSION, RULES_VERSION, START, kstDate } from '../../src
 import { PARK_DATA } from '../../src/map/park'
 import selection from '../../public/audio/jumpmap/selection.json' with { type: 'json' }
 const scope = { channelId: 'channel-1', mapVersion: identity.mapVersion }
-const earnings = { earningsDate: kstDate(), dailyCap: 500, todayEarned: 0 }
+const earnings = { earningsDate: kstDate(), dailyCap: 1000, todayEarned: 0 }
 const status = { ...scope, ...earnings, revision: 0, enabled: true, courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, isFirstRun: true, seenTips: [], activeRunId: null, bestFinishMs: null }
 const probe = (page: Page) => page.evaluate(async () => (await import('/tests/park-integration/jumpmapProbe.ts' as string)).jumpmapProbe())
 

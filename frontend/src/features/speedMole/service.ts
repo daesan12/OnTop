@@ -51,7 +51,7 @@ export class SpeedMoleService {
     if (!value || value.id !== id || value.rulesVersion !== 1 || ![value.score, value.hits, value.misses].every(n => Number.isInteger(n) && n >= 0)
       || value.score > value.hits || !Number.isFinite(Date.parse(value.completedAt))
       || ![value.calculatedReward,value.reward,value.todayEarned,value.dailyCap].every(n=>Number.isSafeInteger(n)&&n>=0)
-      || value.calculatedReward !== Math.floor(value.score / SPEED_MOLE_POINTS_PER_COIN) || value.reward > value.calculatedReward || value.reward > value.dailyCap || value.dailyCap !== 500)
+      || value.calculatedReward !== Math.floor(value.score / SPEED_MOLE_POINTS_PER_COIN) || value.reward > value.calculatedReward || value.reward > value.dailyCap || value.dailyCap !== 1000)
       throw new SpeedMoleError('저장 응답을 확인하지 못했어요. 다시 확인해 주세요.')
     return value
   }

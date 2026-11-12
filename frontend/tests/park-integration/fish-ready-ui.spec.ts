@@ -63,7 +63,7 @@ test('minigame result is compact, uses plain score copy and opens a score/combo 
     const {BUNGEOPPANG_V5:R}=await import('/src/features/bungeoppang/config.ts' as string);
     const orders=[{orderId:'1',customerSlot:0,availableAfterSeq:0,items:{bean:2,custard:0,pizza:0,chocolate:0}}];
     useBungeoppang.setState({phase:'result',gameId:'result-ui',rules:{...R},grill:{...createGrill(Array(2048).fill(100),orders,R),made:15,score:1230,maxCombo:12},
-      result:{score:1230,made:15,failed:1,golden:10,wasted:0,maxCombo:12,coinsCalculated:246,coinsGranted:246,todayEarned:246,dailyCap:500,capReached:false},submitting:false});
+      result:{score:1230,made:15,failed:1,golden:10,wasted:0,maxCombo:12,coinsCalculated:246,coinsGranted:246,todayEarned:246,dailyCap:1000,capReached:false},submitting:false});
   });
   const result=page.getByRole('dialog',{name:'붕어빵 결과',exact:true});
   await expect(result).toContainText('3위');await expect(result).not.toContainText('서버 확정');

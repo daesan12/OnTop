@@ -4,7 +4,7 @@ import { parseJumpEvent, parseJumpStatus, type JumpStatus, type LastRunView } fr
 import { acceptJumpEvent, applyJumpStatus, bindJumpmap, resetJumpmap, useJumpmap } from '../../src/features/jumpmap/state'
 
 const scope = { channelId: 'channel-1', mapVersion: MAP_VERSION }
-const earnings = () => ({ earningsDate: kstDate(), todayEarned: 4, dailyCap: 500 })
+const earnings = () => ({ earningsDate: kstDate(), todayEarned: 4, dailyCap: 1000 })
 const status = (patch: Partial<JumpStatus> = {}): JumpStatus => ({ ...scope, ...earnings(), revision: 10, enabled: true, courseVersion: COURSE_VERSION,
   rulesVersion: RULES_VERSION, isFirstRun: false, seenTips: [], activeRunId: null, bestFinishMs: null, ...patch })
 const last = (patch: Partial<LastRunView> = {}): LastRunView => ({ runId: 'gone', elapsedMs: 41000, gatesPassed: 2, finalReached: false,

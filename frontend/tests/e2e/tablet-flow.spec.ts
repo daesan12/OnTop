@@ -669,7 +669,7 @@ test('minigame paper popup separates provisional score, pending reward and confi
   await page.evaluate(async () => {
     const { useBungeoppang } = await import('/src/features/bungeoppang/store.ts' as string)
     useBungeoppang.setState({ result: { score: 120, made: 12, golden: 8, failed: 2, wasted: 0, maxCombo: 5,
-      coinsCalculated: 12, coinsGranted: 12, todayEarned: 12, dailyCap: 500, capReached: false } })
+      coinsCalculated: 12, coinsGranted: 12, todayEarned: 12, dailyCap: 1000, capReached: false } })
   })
   await expect(result).toContainText('받은 엽전 12냥')
   await expect(result.getByRole('button', { name: '다시 도전', exact: true })).toBeEnabled()
