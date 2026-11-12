@@ -11,5 +11,9 @@ if (RENEWAL_PARK_ENABLED && (path === '/auth/callback' || path === '/park')) {
   // The map contract and the scene archive can load alongside the app.
   void import('./park/renewalMap').catch(() => {})
   void loadRenewalParkWorld().catch(() => {})
+  void import('./network/predictionEngine').then(({ preparePredictionEngine }) => preparePredictionEngine()).catch(() => {})
+  void import('./world/worldAssets').then(({ preloadWorldAssets }) => preloadWorldAssets()).catch(() => {})
+  // Fetch the canvas while the park scene reads the terrain.
+  void import('./park/loadWorldCanvas').then(({ preloadWorldCanvas }) => preloadWorldCanvas()).catch(() => {})
 }
 void import('./main')

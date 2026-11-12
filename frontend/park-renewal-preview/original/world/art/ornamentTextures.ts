@@ -1,3 +1,4 @@
+import '../../../static/store'
 import {
   DataTexture,
   RepeatWrapping,

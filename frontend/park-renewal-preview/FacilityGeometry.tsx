@@ -33,7 +33,7 @@ export function facilityGeometryMeshes(root: Object3D, id: GeometryFacility) {
   const meshes: Mesh[] = []
   for (const group of groups) {
     group.traverse(node => {
-      if (node instanceof Mesh && !Array.isArray(node.material) && triangleCount(node) >= 24) {
+      if (node instanceof Mesh && !node.userData.distanceProxy && !Array.isArray(node.material) && triangleCount(node) >= 24) {
         meshes.push(node)
       }
     })

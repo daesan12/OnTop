@@ -1,3 +1,4 @@
+import '../../../../static/store'
 import {Color,MeshPhysicalMaterial,MeshStandardMaterial} from 'three'
 import type {PropFinish} from '../../../../../src/world/art/propGeometry.ts'
 import {getGachaReflectionData} from '../../../world/art/outdoorReflectionData.ts'

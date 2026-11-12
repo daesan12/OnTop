@@ -1,6 +1,7 @@
-import {BoxGeometry,BufferGeometry,Float32BufferAttribute} from 'three'
-import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
-import {createWallRoof,WALL} from '../src/world/art/boundaryGeometry'
+import {useMemo} from 'react'
+import {bakedEntryMesh} from './static/facilities'
+import {BufferGeometry,Float32BufferAttribute} from 'three'
+import {createParkWall} from './parkWallGeometry'
 import {ParkStoneMaterial} from './ParkStoneMaterial'
 import {PropModel} from '../src/world/art/PropModel'
 import {mainGateArt} from '../src/layout-preview/reviewFurnitureGeometry'
@@ -10,24 +11,19 @@ import type {PropFinish} from '../src/world/art/propGeometry'
 import {WalkwayMaterial} from '../src/world/art/WalkwayMaterial'
 import {PropBuilder} from '../src/world/art/propGeometry'
 import {PropSign} from '../src/world/art/CraftedProp'
-import {GATE,WALL_RUNS,BOUNDARY_LENGTH,boundaryAtDistance} from './boundaryPlan'
+import {GATE,BOUNDARY_LENGTH,boundaryAtDistance} from './boundaryPlan'
 import {heightAt,site,PLAZA_RADIUS} from './plan'
 
-/** Bend the original four-metre prefab along the new outline, preserving its handedness. */
-function bend(source:BufferGeometry,start:number,end:number){
- const g=source.clone(),p=g.getAttribute('position')
- for(let i=0;i<p.count;i++){
-  const frame=boundaryAtDistance(start+(p.getX(i)+2)/4*(end-start)),depth=p.getZ(i)
-  p.setXYZ(i,frame.x-frame.nx*depth,frame.y+p.getY(i)*1.22,frame.z-frame.nz*depth)
+let proceduralWall: ReturnType<typeof createParkWall> | undefined
+function getParkWall() {
+ const body=bakedEntryMesh('wall-body'),foot=bakedEntryMesh('wall-foot')
+ const clay=bakedEntryMesh('wall-clay'),timber=bakedEntryMesh('wall-timber')
+ if(body&&foot&&clay&&timber) {
+  performance.mark('park-static-boundary-used')
+  return {body,foot,clay,timber}
  }
- g.computeVertexNormals();return g
-}
-function repeat(source:BufferGeometry){const pieces=WALL_RUNS.map(run=>bend(source,run.start,run.end)),g=mergeGeometries(pieces)!;pieces.forEach(p=>p.dispose());source.dispose();g.computeBoundingSphere();return g}
-const roof=createWallRoof(false)
-export const wall={
- body:repeat(new BoxGeometry(4,WALL.bodyTop-WALL.base,WALL.depth,4,1,1).translate(0,(WALL.base+WALL.bodyTop)/2,0)),
- foot:repeat(new BoxGeometry(4,WALL.base+.4,WALL.depth*1.1,4,1,1).translate(0,(WALL.base-.4)/2,0)),
- clay:repeat(roof.clay),timber:repeat(roof.timber),
+ performance.mark('park-procedural-boundary-used')
+ return proceduralWall ??= createParkWall()
 }
 const gate=Object.fromEntries(Object.entries(mainGateArt).map(([kind,g])=>[kind,g.clone().translate(0,0,-MAIN_GATE.z)])) as Partial<Record<PropFinish,BufferGeometry>>
 export const piers=(()=>{const b=new PropBuilder([5,3]);for(let d=GATE.opening/2+1;d<BOUNDARY_LENGTH-GATE.opening/2;d+=12){const f=boundaryAtDistance(d);b.box('stone','#aaa99b',[f.x,f.y+.85,f.z],[.64,2.1,.82],[0,f.yaw,0]);b.box('stone','#bfb8a7',[f.x,f.y+1.96,f.z],[.8,.16,.98],[0,f.yaw,0])}return b.finish()})()
@@ -59,7 +55,7 @@ export function OriginalPlaza() {
       paving pavingColor="#ffffff" pavingHole={[x,z,mosaicRadius+.15]}/>
   </>
 }
-export function ParkBoundary(){return <group name="retained-tiled-wall-and-main-gate">
+export function ParkBoundary(){const wall=useMemo(getParkWall,[]);return <group name="retained-tiled-wall-and-main-gate">
  <mesh geometry={wall.body} receiveShadow><ParkStoneMaterial/></mesh>
  <mesh geometry={wall.foot} receiveShadow><meshLambertMaterial color="#999b95"/></mesh>
  <mesh geometry={wall.clay}><meshLambertMaterial vertexColors flatShading/></mesh>

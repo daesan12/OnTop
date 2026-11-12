@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { installBrowserShortcutGuard } from './browserShortcuts'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import { SkinCatalogLifecycle } from '../features/skins/SkinCatalogLifecycle'
@@ -26,8 +26,7 @@ import { ManualWorldActions } from '../features/manual/ManualWorldActions'
 import { SettingsLauncher } from '../performance/GraphicsSettings'
 import { ParkMap } from '../features/navigation/ParkMap'
 import { ParkNavigation } from '../features/navigation/NavigationHud'
-import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
-import { useBungeoppang } from '../features/bungeoppang/store'
+import { useBungeoppang, watchBungeoppangRecovery } from '../features/bungeoppang/store'
 import { ShopHost } from '../features/shop/ShopHost'
 import { WardrobeLauncher, WardrobeHost } from '../features/wardrobe/WardrobeHost'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
@@ -49,10 +48,6 @@ import { useStore } from 'zustand'
 import { ParkVrZone } from '../features/vrZone/ParkVrZone'
 import { parkVrZone } from '../features/vrZone/parkBridge'
 import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
-import { RpsRoulettePanel } from '../features/rpsRoulette/RpsRoulettePanel'
-import { PlusMinusPanel } from '../features/plusMinus/PlusMinusPanel'
-import { MolePanel } from '../features/mole/MolePanel'
-import { ArcadePicker } from '../features/arcade/ArcadePicker'
 import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
 import { JumpRopeHost } from '../features/jumpRope/JumpRopeHost'
 import { jumpRopeSettlementActive, useJumpRope } from '../features/jumpRope/store'
@@ -67,11 +62,18 @@ import { useMole } from '../features/mole/store'
 import { usePlusMinus } from '../features/plusMinus/store'
 import { useRpsRoulette } from '../features/rpsRoulette/store'
 import { useSpeedMole } from '../features/speedMole/store'
-import { GachaLifecycle } from '../features/gacha/GachaPanel'
+import { GachaLifecycle } from '../features/gacha/GachaLifecycle'
 import { useGachaOverlay } from '../features/gacha/view'
 import { useParkGameplayActive } from '../features/operation/parkGameplay'
 import { useParkOperationGate } from '../features/operation/useParkOperationGate'
 import type { ServiceOperationStatus } from '../features/operation/serviceOperation'
+
+
+const ArcadePicker = lazy(() => import('../features/arcade/ArcadePicker').then(module => ({ default: module.ArcadePicker })))
+const BungeoppangHud = lazy(() => import('../features/bungeoppang/BungeoppangHud').then(module => ({ default: module.BungeoppangHud })))
+const MolePanel = lazy(() => import('../features/mole/MolePanel').then(module => ({ default: module.MolePanel })))
+const PlusMinusPanel = lazy(() => import('../features/plusMinus/PlusMinusPanel').then(module => ({ default: module.PlusMinusPanel })))
+const RpsRoulettePanel = lazy(() => import('../features/rpsRoulette/RpsRoulettePanel').then(module => ({ default: module.RpsRoulettePanel })))
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -106,12 +108,14 @@ export function ParkPage(props: ParkProps) {
 function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: ParkProps) {
   useWalletSync()
   useJumpmapController()
+  useEffect(watchBungeoppangRecovery, [])
   const [entryNewsHost,setEntryNewsHost]=useState<HTMLDivElement|null>(null)
   const gameplayActive = useParkGameplayActive()
   const jumpRopeSaving = useJumpRope(jumpRopeSettlementActive)
   useParkOperationGate(gameplayActive || jumpRopeSaving, onOperationBlocked)
   const vrPhase = useStore(parkVrZone.store, state => state.phase)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
+  const breadRecovery = useBungeoppang(s => s.recoveryDeferred)
   const arcadeOpen = useArcade(s => s.open)
   const moleOpen = useMole(s => s.open)
   const plusMinusOpen = usePlusMinus(s => s.open)
@@ -196,10 +200,12 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <div hidden={omokFocus} inert={omokFocus}>
         <WelcomeTour />
         <ConstructionNotice />
-        <RpsRoulettePanel />
-        <ArcadePicker />
-        <PlusMinusPanel />
-        <MolePanel />
+        {(rpsOpen || arcadeOpen || plusMinusOpen || moleOpen) && <Suspense fallback={<p role="status">게임을 불러오는 중입니다.</p>}>
+          {rpsOpen && <RpsRoulettePanel />}
+          {arcadeOpen && <ArcadePicker />}
+          {plusMinusOpen && <PlusMinusPanel />}
+          {moleOpen && <MolePanel />}
+        </Suspense>}
         <SpeedMoleHost />
         <JumpRopeHost />
         <FacilityStatus />
@@ -219,7 +225,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         </div>
       </div>
       <ParkVrZone />
-      <BungeoppangHud />
+      {(bungeoppang || breadRecovery) && <Suspense fallback={<p role="status">붕어빵 가게를 불러오는 중입니다.</p>}><BungeoppangHud /></Suspense>}
       <OmokFeedback />
       <RankingBoardHost />
       <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions />} />

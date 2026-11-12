@@ -4,7 +4,7 @@ import { seatScope, useTableLobby } from '../features/tableLobby/state'
 import { MAP_RENDER_BUDGET } from './art/mapRenderProfile'
 import { ParkSoundscape } from '../audio/ParkSoundscape'
 import { lazy } from 'react'
-import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
+import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_GATE_STARTUP, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { loadRenewalParkWorld } from '../park/loadRenewalParkWorld'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
 const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
@@ -13,7 +13,7 @@ const ServiceJumpCourse=lazy(()=>import('../features/jumpmap/ServiceJumpCourse')
 import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useFrame } from '@react-three/fiber'
-import { memo, Suspense, useEffect, useMemo, useState } from 'react'
+import { memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ACESFilmicToneMapping } from 'three'
 import {
   CAMERA,
@@ -21,7 +21,6 @@ import {
   effectiveDpr,
   type QualityPreset as QualityLevel,
 } from '../config'
-import { PlaceholderWorld } from './PlaceholderWorld'
 import { ParkSun } from './ParkSun'
 import { EnvironmentScene } from './EnvironmentScene'
 import { ParkPigeons } from './pigeons/ParkPigeons'
@@ -41,19 +40,30 @@ import { AvatarOverlays, type OverlayTargets } from './AvatarOverlays'
 import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
 import { Canvas, preloadWorldAssets } from './worldAssets'
-import { BungeoppangGrill } from '../features/bungeoppang/BungeoppangGrill'
 import {ParkDebrisScene} from '../features/parkDebris/ParkDebrisScene'
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { prepareScene } from './prepareScene'
 import { warmParkGeometry } from '../park/loadParkGeometry'
 import { jumpmapPreparationViews } from '../features/jumpmap/preparation'
-import { RpsRouletteCabinet } from '../features/rpsRoulette/RpsRouletteCabinet'
 import { useGachaOverlay } from '../features/gacha/view'
+
+import { useBungeoppang } from '../features/bungeoppang/store'
+
+const PlaceholderWorld = lazy(() => import('./PlaceholderWorld').then(module => ({ default: module.PlaceholderWorld })))
+const RpsRouletteCabinet = lazy(() => import('../features/rpsRoulette/RpsRouletteCabinet').then(module => ({ default: module.RpsRouletteCabinet })))
+const BungeoppangGrill = lazy(() => import('../features/bungeoppang/BungeoppangGrill').then(module => ({ default: module.BungeoppangGrill })))
 
 preloadWorldAssets()
 
 const interactWithRankingBoard = () => {
   if (getParkInteraction()?.id === 'layout-photo') interactWithPark()
+}
+
+function HoldAutomaticRender() {
+  // Claim R3F's default render pass even while the park subtree is suspended.
+  // SceneReady draws the gate once its camera, lighting and visible meshes agree.
+  useFrame(() => {}, 1)
+  return null
 }
 
 function SceneReady({ onReady }: { onReady: () => void }) {
@@ -72,6 +82,11 @@ function SceneReady({ onReady }: { onReady: () => void }) {
     }
   }, [startup])
   useFrame(({ gl, scene, camera }) => {
+    if (startup.phase === 'cold' && RENEWAL_PARK_ENABLED) {
+      // Let the normal camera frustum select the resources needed for the first frame.
+      performance.mark('park-scene-prepare-start')
+      startup.phase = 'ready'
+    }
     if (startup.phase === 'cold') {
       startup.phase = 'compiling'
       // Priority 1 runs after lighting, occlusion and camera updates. Compile all
@@ -82,7 +97,7 @@ function SceneReady({ onReady }: { onReady: () => void }) {
       // geometry file can warm the next visit without competing with those loads.
       warmParkGeometry()
       void prepareScene(gl, scene, camera, () => !startup.disposed, {
-        warmGeometry: GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED, warmLighting: GENERATED_PARK_ENABLED,
+        warmGeometry: GENERATED_PARK_ENABLED, warmLighting: GENERATED_PARK_ENABLED,
         views: GENERATED_PARK_ENABLED ? jumpmapPreparationViews : undefined,
       }).then(
         () => {
@@ -119,6 +134,13 @@ export const WorldCanvas = memo(function WorldCanvas({
   active: boolean
   onReady: () => void
 }) {
+  const [distantReady, setDistantReady] = useState(false)
+  const breadActive = useBungeoppang(state => state.phase !== 'idle')
+  const firstFrameAt = useRef<number | null>(null)
+  const reportFirstFrame = useCallback(() => {
+    firstFrameAt.current = performance.now()
+    onReady()
+  }, [onReady])
   const boardPlayer = useGame(s => s.game?.role === 'PLAYER' && (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING'))
   const boardSpectator = useGame(s => s.game?.role === 'SPECTATOR' && (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING'))
   const scope = useSession(seatScope), lookScope = useTableLobby(s=>s.lookScope), spectatorView = useTableLobby(s=>s.spectatorView)
@@ -185,6 +207,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         }
       >
         <AvatarPoseFrame>
+          {RENEWAL_GATE_STARTUP && <HoldAutomaticRender />}
           <ParkXRBridge />
           <group name={RENEWAL_PARK_ENABLED ? 'renewal-exterior-lighting' : undefined}>
             <EnvironmentScene />
@@ -193,21 +216,22 @@ export const WorldCanvas = memo(function WorldCanvas({
           <ParkSoundscape />
           {!RENEWAL_PARK_ENABLED && <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />}
           <Suspense fallback={null}>
-            {RenewalParkWorld ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><RenewalParkWorld quality={quality} /></group>
+            {RenewalParkWorld ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><RenewalParkWorld quality={quality} firstFrameAt={firstFrameAt} onDistantReady={setDistantReady} /></group>
               : GENERATED_PARK_ENABLED ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>
                 : <PlaceholderWorld quality={quality} />}
-            {JUMPMAP_ENABLED && <ServiceJumpCourse />}
+            {JUMPMAP_ENABLED && !RENEWAL_PARK_ENABLED && <ServiceJumpCourse />}
             {!RENEWAL_PARK_ENABLED && <RpsRouletteCabinet />}
             {/* Same Suspense boundary as SceneReady: both use positive frame priorities around its render. */}
             <OmokFocusLighting />
-            <SceneReady onReady={onReady} />
+            <SceneReady onReady={reportFirstFrame} />
           </Suspense>
-          <Avatars overlayTargets={overlayTargets} />
+          {RENEWAL_PARK_ENABLED && distantReady && <Suspense fallback={null}><ServiceJumpCourse /></Suspense>}
+          <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
         <PoliceNpcs />
         <CompanionActors />
         <JokeJudgeActor />          <FollowRopes />
           <RouteArrows />
-        <BungeoppangGrill />
+        {breadActive && <Suspense fallback={null}><BungeoppangGrill /></Suspense>}
           <ParkDebrisScene />
 
           {!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&<ParkPigeons quality={quality} />}

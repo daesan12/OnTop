@@ -1,3 +1,4 @@
+import { preparePredictionEngine } from './predictionEngine'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { ParkMotion } from './parkMotion'
 import { WORLD, WORLD_COLLIDERS, MOVEMENT, SWIMMING, LAKE, PARK_PAVILIONS, PAVILION,
@@ -20,12 +21,11 @@ import { useJumpmap } from '../features/jumpmap/state'
 import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
 import { horrorState } from '../../park-renewal-preview/horrorPlan'
 
-let initialization: Promise<void> | undefined
 /** How long Rapier may keep a grounded state the server does not support before falling. */
 const EDGE_GLIDE_SECONDS = .15
 const sharedPhysics = renewalMap?.data.physics ?? (GENERATED_PARK_ENABLED ? PARK_DATA.physics : null)
 export async function createPredictionPhysics(profile?: 'PARK_V1'): Promise<PredictionSimulation> {
-  await (initialization ??= RAPIER.init())
+  await preparePredictionEngine()
   return new PredictionPhysics(profile === 'PARK_V1')
 }
 

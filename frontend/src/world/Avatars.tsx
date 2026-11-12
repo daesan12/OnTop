@@ -1,7 +1,7 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
 import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Matrix4, Vector3 } from 'three'
 import { cameraWorldPosition, parkXRView } from './xrView'
@@ -56,12 +56,14 @@ function Avatar({
   menuRaycast,
   samplePose,
   carryMotion,
+  firstGateFrameAt,
 }: {
   id: string
   rigs: Map<string, AvatarAnchors>
   menuRaycast: Group['raycast']
   samplePose: AvatarSampler
   carryMotion: ReturnType<typeof createCarryMotion>
+  firstGateFrameAt?: RefObject<number | null>
 }) {
   const sources = useLoader(ParkAssetLoader, characterUrls)
   const variant = useSession(state => state.profiles[id]?.character === 'girl' ? 'girl' : 'man')
@@ -98,6 +100,7 @@ function Avatar({
   const carriedPartner = useRef({ id: '', carryId: '' })
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
   const appearance = useRef<ReturnType<typeof createAvatarOpacity> | null>(null)
+  const pendingFadeShaders = useRef<(() => void) | null>(null)
   const rendererState = useThree(state => state.get)
   const overlapOpacity = useRef(1)
   const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
@@ -109,18 +112,24 @@ function Avatar({
     const { gl } = rendererState()
     let active = true
     const prepare = () => {
+      pendingFadeShaders.current = null
       const { camera, scene } = rendererState()
       void current.prepare(gl, camera, scene).catch(error => {
         if (active && !gl.getContext().isContextLost()) console.error('아바타 반투명 셰이더를 준비하지 못했습니다.', error)
       })
     }
-    const lost = () => current.invalidate()
-    const restored = () => { current.invalidate(); prepare() }
+    const schedulePreparation = () => {
+      if (firstGateFrameAt?.current === null) pendingFadeShaders.current = prepare
+      else prepare()
+    }
+    const lost = () => { pendingFadeShaders.current = null; current.invalidate() }
+    const restored = () => { current.invalidate(); schedulePreparation() }
     gl.domElement.addEventListener('webglcontextlost', lost)
     gl.domElement.addEventListener('webglcontextrestored', restored)
-    prepare()
+    schedulePreparation()
     return () => {
       active = false
+      pendingFadeShaders.current = null
       gl.domElement.removeEventListener('webglcontextlost', lost)
       gl.domElement.removeEventListener('webglcontextrestored', restored)
       rigs.delete(id)
@@ -128,7 +137,7 @@ function Avatar({
       current.dispose()
       model.dispose()
     }
-  }, [id, rigs, model, rendererState])
+  }, [id, rigs, model, rendererState, firstGateFrameAt])
   useFrame(({ camera }, delta) => {
     const avatar = avatars.get(id)
     if (!avatar || !root.current || !figure.current) return
@@ -148,6 +157,11 @@ function Avatar({
     overlapOpacity.current = targetOpacity + (overlapOpacity.current - targetOpacity) * Math.exp(-Math.min(delta, .1) * 6)
     if (Math.abs(overlapOpacity.current - targetOpacity) < .001) overlapOpacity.current = targetOpacity
     const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : overlapOpacity.current
+    const gateFrameAt = firstGateFrameAt?.current
+    // Give the first render and walking input a turn before compiling fade-only variants.
+    if (gateFrameAt != null && (frameAt - gateFrameAt >= 1000 || (opacity > 0 && opacity < 1))) {
+      pendingFadeShaders.current?.()
+    }
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
     root.current.visible = opacity > 0 && !(own && parkXRView.active) && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
@@ -226,8 +240,10 @@ function Avatar({
 }
 export function Avatars({
   overlayTargets,
+  firstGateFrameAt,
 }: {
   overlayTargets: OverlayTargets
+  firstGateFrameAt?: RefObject<number | null>
 }) {
   const ids = useSession((state) => state.ids)
   const samplePose = useAvatarFrameSampler()
@@ -245,7 +261,7 @@ export function Avatars({
   return (
     <group name="visitors">
       {ids.map((id) => (
-        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} carryMotion={carryMotion} />
+        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} carryMotion={carryMotion} firstGateFrameAt={firstGateFrameAt} />
       ))}
       <SwimmingRipples />
 

@@ -1,9 +1,10 @@
+import {lazy,Suspense,useMemo,useState} from 'react'
+import {cameraWorldPosition} from '../src/world/xrView'
 import {useFrame} from '@react-three/fiber'
 import {BufferGeometry,Float32BufferAttribute,Shape,Path,ShapeGeometry} from 'three'
 import {Instances,type Part} from '../src/world/art/Instances'
 import {buildingParts} from '../src/world/art/buildingParts'
 import {MEDIA_BUILDINGS} from '../src/world/art/cityLayout'
-import {MediaBuilding} from '../src/world/art/MediaBuilding'
 import {DistantLandscape} from './original/world/art/DistantLandscape'
 import {createCityStreets} from '../src/world/art/CityStreets'
 import {UrbanMaterial} from '../src/world/art/UrbanMaterials'
@@ -37,15 +38,58 @@ for(const[offset,width,dashed,color]of[[15.87,.1,false,'#d5ac45'],[16.13,.1,fals
  }
 }
 const layout=layoutContextBuildings(MEDIA_BUILDINGS)
-function buildings(){const stone:Part[]=[],glass:Part[]=[],trim:Part[]=[]
- for(const b of layout.blocks){const parts=buildingParts(b);for(const[list,source]of[[stone,parts.stone],[glass,parts.glass],[trim,parts.metal]]as const)for(const p of source){const c=Math.cos(b.yaw),s=Math.sin(b.yaw);list.push({...p,p:[b.x+c*p.p[0]+s*p.p[2],CITY_BASE_Y+p.p[1],b.z-s*p.p[0]+c*p.p[2]],r:[p.r?.[0]??0,b.yaw+(p.r?.[1]??0),p.r?.[2]??0]})}}
- return {stone,glass,trim}
+export type CityLayout = typeof layout
+const CityBuildings=lazy(()=>import('./CityBuildings'))
+
+let lowCity: {stone:Part[];glass:Part[]} | undefined
+function getDistantCity(){
+ if(lowCity)return lowCity
+ const stone:Part[]=[],glass:Part[]=[]
+ for(const b of [...layout.blocks,...layout.media]){
+  const variant='variant' in b?b.variant:b.id==='east-media'?1:0
+  const parts=buildingParts({...b,variant})
+  const c=Math.cos(b.yaw),s=Math.sin(b.yaw)
+  const place=(p:Part):Part=>({...p,p:[b.x+c*p.p[0]+s*p.p[2],CITY_BASE_Y+p.p[1],b.z-s*p.p[0]+c*p.p[2]],r:[0,b.yaw+(p.r?.[1]??0),0]})
+  for(const p of parts.stone.filter((_,i)=>i!==1))stone.push(place(p))
+  for(const p of parts.glass){
+   const front=place(p),yaw=front.r![1]
+   // Keep the window bands; their opaque walls hide the other five faces.
+   glass.push({...front,p:[front.p[0]+Math.sin(yaw)*.04,front.p[1],front.p[2]+Math.cos(yaw)*.04],s:[p.s[0],p.s[1],1]})
+  }
+ }
+ return lowCity={stone,glass}
 }
-const city=buildings()
-const media=layout.media
+
+function DistantCity(){
+ const city=useMemo(getDistantCity,[])
+ return <group name="renewal-city-distant" userData={{keepOpaque:true,distanceProxy:true}}>
+  <Instances parts={city.stone} shadow={false}><boxGeometry/></Instances>
+  <Instances parts={city.glass} shadow={false} material={<UrbanMaterial kind="glass"/>}><planeGeometry/></Instances>
+ </group>
+}
+
+const skyline=[...layout.blocks,...layout.media].map(b=>({...b,c:Math.cos(b.yaw),s:Math.sin(b.yaw)}))
+function CitySkyline({distanceLod}:{distanceLod:boolean}){
+ const [detailed,setDetailed]=useState(!distanceLod)
+ useFrame(({camera})=>{
+  if(!distanceLod)return
+  const view=cameraWorldPosition(camera)
+  const radius=detailed?44:32
+  const near=skyline.some(b=>{
+   const dx=view.x-b.x,dz=view.z-b.z
+   const x=Math.max(0,Math.abs(dx*b.c-dz*b.s)-b.w/2),z=Math.max(0,Math.abs(dx*b.s+dz*b.c)-b.d/2)
+   return x*x+z*z<radius*radius
+  })
+  if(near!==detailed)setDetailed(near)
+ },.65)
+ if(!distanceLod)return <CityBuildings layout={layout}/>
+ return detailed
+  ? <Suspense fallback={<DistantCity/>}><CityBuildings layout={layout}/></Suspense>
+  : <DistantCity/>
+}
 function EnvironmentDistance(){useFrame(({scene})=>{if(scene.fog&&'near'in scene.fog){scene.fog.near=620;scene.fog.far=1800}},-99);return null}
 export function ParkEnvironment({night}:{night:boolean}){return <><EnvironmentScene fixedTime={ENVIRONMENT.epochMs+ENVIRONMENT.dayDurationMs*(night?.02:.6)}/><EnvironmentDistance/></>}
-export function CityBackdrop(){
+export function CityBackdrop({distanceLod=false}:{distanceLod?:boolean}={}){
  return <group name="renewal-city-context" userData={{walkable:false,source:'existing-city-assets',advertising:false}}>
   <mesh name="outside-park-ground" geometry={ground}><meshLambertMaterial color="#b4bbaa" side={2}/></mesh>
   <mesh name="curved-city-carriageway" geometry={asphalt}><UrbanMaterial kind="asphalt" color="#656c6c"/></mesh>
@@ -55,12 +99,7 @@ export function CityBackdrop(){
   <Instances parts={metal} shadow={false}><boxGeometry/></Instances>
   <Instances parts={round} shadow={false}><cylinderGeometry args={[1,1,1,12]}/></Instances>
   <Instances parts={lights} shadow={false} material={<meshBasicMaterial color="#eedfb4"/>}><boxGeometry/></Instances>
-  <group name="reused-city-buildings" userData={{keepOpaque:true}}>
-   <Instances parts={city.stone} shadow={false}><boxGeometry/></Instances>
-   <Instances parts={city.glass} shadow={false} material={<UrbanMaterial kind="glass"/>}><boxGeometry/></Instances>
-   <Instances parts={city.trim} shadow={false}><boxGeometry/></Instances>
-   <group position={[0,CITY_BASE_Y,0]}>{media.map(b=><MediaBuilding key={b.id} b={b} advertising={false}/>)}</group>
-  </group>
+  <CitySkyline distanceLod={distanceLod}/>
   <group name="retained-mountains-and-seoul-tower" rotation={[0,Math.PI,0]}><DistantLandscape anchorTowerToRidge/></group>
  </group>
 }

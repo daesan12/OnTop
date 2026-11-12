@@ -1,11 +1,10 @@
-import {Suspense,useMemo} from 'react'
+import {lazy,Suspense,useMemo} from 'react'
 import {useLoader,useFrame} from '@react-three/fiber'
 import {ParkAssetLoader} from '../src/world/art/assetLoader'
 import {Group,Mesh,MeshStandardMaterial} from 'three'
-import {PropBuilder} from '../src/world/art/propGeometry'
 import {PropModel} from '../src/world/art/PropModel'
 import {PropSign} from '../src/world/art/CraftedProp'
-import {ObservationTower} from './original/world/art/PlannedLandmarks'
+import {ObservationTower} from './original/world/art/ObservationTower'
 import {StonePagoda} from '../src/world/art/StonePagoda'
 import {TraditionalMailbox} from '../src/world/art/TraditionalMailbox'
 import {legacyIdsForSite,pavilionIdForSite,stoneTableIdAt} from './mapping/identities'
@@ -22,68 +21,34 @@ import {SITES,site,heightAt,LAKE,TABLES,JUMP_TABLES,MAILBOX_SCALE,REST_PAVILIONS
 import {willowPositions} from './landscape'
 import {reverseSteleArrow} from './steleRefinement'
 import {PreservedFitness} from './PreservedFitness'
-import {ARCADE_CABINETS} from './live/recreation'
 import {PreservedFountain,PreservedPagodaGarden,FitnessFence} from './PreservedDistricts'
 import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatPose,openDockSideEntry,groundObject,widenDockRearPassage} from './assetSizing'
 import {VerticalMoleAttract} from './VerticalMoleAttract'
-import {ArcadeNeon} from './approved/arcade-building-20261107-v1/core/frontend/src/layout-preview/ArcadeNeon'
 import {drawMoleShopSign} from './approved/mole-shop-20261107-v1/core/frontend/src/world/art/moleShopGeometry'
 import {getMoleShopArt,MOLE_SHOP_FACILITY} from './moleShopArt'
-import {addArcadeExterior,drawArcadeMarquee,drawArcadeSide,ARCADE_MARQUEE} from './approved/arcade-building-20261107-v1/core/frontend/src/world/art/arcadeExterior'
-import {addArcadeInterior,addArcadeWallLining,drawArcadeInteriorBanner,drawArcadeInteriorMural,drawArcadeFloorBadge} from './approved/arcade-building-20261107-v1/core/frontend/src/world/art/arcadeInterior'
 import {VrSkewerHall as ApprovedVrHall} from './approved/vr-skewer-hall-20261107-v1/core/frontend/src/features/skewer/parkAsset/VrSkewerHall'
 import {GachaMachine} from './original/features/gacha/parkAsset/GachaMachine.tsx'
 import {buildRankingBoard,RankingBoardPanels} from '../src/layout-preview/RankingBoardModel'
-import {RpsRouletteCabinetModel} from './original/features/rpsRoulette/RpsRouletteCabinetModel.tsx'
-import {PlusMinusCabinetModel} from './original/features/plusMinus/PlusMinusCabinetModel.tsx'
 import {createSharedBuildingModels} from './sharedBuildingModels'
 import {createTowerEntrance} from './towerEntrance'
 import {WalkwayMaterial} from '../src/world/art/WalkwayMaterial'
 import {PavilionIntermediateTreads} from './PavilionIntermediateTreads'
 import {FacilityGeometry,hasFacilityGeometry} from './FacilityGeometry'
 
-const profileQuery = new URLSearchParams(window.location.search)
+import { models, structureModels, originalRemainingGlbs, originalFacilityGeometry } from './modelUrls'
+import { bakedEntryMesh } from './static/facilities'
+
+import { RENEWAL_DISTANCE_LOD } from '../src/park/mapSelection'
+import { createTowerFrame } from './original/world/art/towerFrameGeometry'
+
+const Arcade = lazy(() => import('./ArcadeBuilding'))
+
 const towerEntrance = createTowerEntrance()
-const originalRemainingGlbs = profileQuery.get('glb-profile')==='before'
-const originalFacilityGeometry = profileQuery.get('facility-profile')==='before'
-const structureModels = {
- station: profileQuery.get('station-profile')==='before'
-  ? new URL('./models/balloon-boarding-station.glb', import.meta.url).href
-  : new URL('./models/balloon-boarding-station-optimized.glb', import.meta.url).href,
- pavilion: profileQuery.get('sub-pavilion-profile')==='before'
-  ? new URL('./models/sub-octagonal-pavilion.glb', import.meta.url).href
-  : new URL('./models/sub-octagonal-pavilion-optimized.glb', import.meta.url).href,
-}
-const models: Record<string, string> = {
-  main: profileQuery.get('pavilion-profile')==='before'
-    ? new URL('./models/main-octagonal-pavilion-5.glb', import.meta.url).href
-    : new URL('./models/main-octagonal-pavilion-5-optimized.glb', import.meta.url).href,
-  fortune: originalRemainingGlbs
-    ? new URL('./models/ontop-fortune-room-4.glb', import.meta.url).href
-    : new URL('./models/ontop-fortune-room-4-optimized.glb', import.meta.url).href,
-  lottery: originalRemainingGlbs
-    ? new URL('./models/ontop-lottery-shop-2.glb', import.meta.url).href
-    : new URL('./models/ontop-lottery-shop-2-optimized.glb', import.meta.url).href,
-  bread: originalRemainingGlbs
-    ? new URL('./models/bungeoppang-shop.glb', import.meta.url).href
-    : new URL('./models/bungeoppang-shop-optimized.glb', import.meta.url).href,
-  pigeon: profileQuery.get('pigeon-profile')==='before'
-    ? new URL('./models/pigeon-shop.glb', import.meta.url).href
-    : new URL('./models/pigeon-shop-optimized.glb', import.meta.url).href,
-  dock: originalRemainingGlbs
-    ? new URL('./models/duck-dock-3.glb', import.meta.url).href
-    : new URL('./models/duck-dock-3-optimized.glb', import.meta.url).href,
-  cafe: profileQuery.get('cafe-profile')==='before'
-    ? new URL('./models/hanjeongseon-cafe-2.glb', import.meta.url).href
-    : new URL('./models/hanjeongseon-cafe-2-optimized.glb', import.meta.url).href,
-  stele: originalRemainingGlbs
-    ? new URL('./models/jumpmap-stele-a.glb', import.meta.url).href
-    : new URL('./models/jumpmap-stele-a-optimized.glb', import.meta.url).href,
-  boat: originalRemainingGlbs
-    ? new URL('./models/duck-boat-1.glb', import.meta.url).href
-    : new URL('./models/duck-boat-1-optimized.glb', import.meta.url).href,
-}
 const rentalTextures={bike:rentalLabel('bicycle'),scooter:rentalLabel('scooter')}
+let sharedBuildingModels: ReturnType<typeof createSharedBuildingModels> | undefined
+function getSharedBuildingModels() {
+ return sharedBuildingModels ??= createSharedBuildingModels(rentalTextures)
+}
 function Model({kind,fit=false}:{kind:string;fit?:boolean}){
  const gltf=useLoader(ParkAssetLoader,models[kind]!)
  const object=useMemo(()=>{
@@ -102,9 +67,26 @@ function Model({kind,fit=false}:{kind:string;fit?:boolean}){
  },[gltf,fit,kind])
  return <primitive object={object} dispose={null}/>
 }
+const localModelTemplates = new Map<string, Group>()
+// Keep separate source geometry for repeated props so optimized GLB parts can
+// still be matched to each placed instance by its source geometry identity.
+const singlePlacementModels = new Set(['shooting', 'folk', 'fishing-deck', 'lake-access', 'fishing-shop', 'lake-notice', 'balloon'])
+function localModel(kind: string, options: Record<string, unknown>) {
+ const build = () => {
+  const group = factory(kind, options)
+  if (kind === 'folk') return fitApprovedObject(group, SHOOTING_SIZE)
+  return ['bike','scooter','ebike','kickboard','shooting','fishing-shop','lake-notice','rod-rack','fishing-bench','sub'].includes(kind) ? groundObject(group) : group
+ }
+ if (!singlePlacementModels.has(kind) || Object.keys(options).length) return build()
+ let source = localModelTemplates.get(kind)
+ if (!source) {
+  source = build()
+  localModelTemplates.set(kind, source)
+ }
+ return source.clone(true)
+}
 function LocalFactory({kind,options={}}:{kind:string;options?:Record<string,unknown>}){
- // Static scene assets are created once; shared clones never dispose their source.
- const object=useMemo(()=>{const g=factory(kind,options);return kind==='folk'?fitApprovedObject(g,SHOOTING_SIZE):['bike','scooter','ebike','kickboard','shooting','fishing-shop','lake-notice','rod-rack','fishing-bench','sub'].includes(kind)?groundObject(g):g},[kind,options.kind,options.seed,options.height,options.spread,options.label,options.direction,options.signTexture])
+ const object=useMemo(()=>localModel(kind,options),[kind,options.kind,options.seed,options.height,options.spread,options.label,options.direction,options.signTexture])
  return <primitive object={object} dispose={null}/>
 }
 function SharedModel({source}:{source:Group}){
@@ -131,10 +113,6 @@ function Mole(){
  const art=useMemo(getMoleShopArt,[])
  return <><PropModel art={art.body} name="approved-mole-body"/><PropModel art={art.roof} name="approved-mole-roof"/><PropModel art={art.walls} name="approved-mole-walls"/><PropSign draw={drawMoleShopSign} position={[0,4.4,3.7]} width={3.1} height={.55}/><VerticalMoleAttract facility={MOLE_SHOP_FACILITY}/></>
 }
-function Arcade(){
- const art=useMemo(()=>{const b=new PropBuilder(),r=new PropBuilder(),w=new PropBuilder(),f={width:18,depth:12,height:6.4,doorWidth:4.6};b.box('stone','#c9bea1',[0,.04,0],[19.6,.08,13.6]);b.box('stone','#d8cfb8',[0,.1,0],[18,.08,12]);w.box('paint','#e0ddc9',[0,3.2,-6],[18,6.4,.32]);for(const side of[-1,1]){w.box('paint','#e0ddc9',[side*9,3.2,0],[.32,6.4,12]);w.box('paint','#e0ddc9',[side*5.65,3.2,6],[6.7,6.4,.32]);for(const z of[-6,6])b.box('wood','#755135',[side*9,3.2,z],[.3,6.4,.3])}addArcadeExterior(b,r,w,f);addArcadeWallLining(w,f);addArcadeInterior(b,f);return {body:b.finish(),roof:r.finish(),walls:w.finish()}},[])
- return <><PropModel art={art.body} name="approved-arcade-body"/><PropModel art={art.roof} name="approved-arcade-roof"/><PropModel art={art.walls} name="approved-arcade-walls"/><ArcadeNeon width={18} depth={12}/><PropSign width={12.1} height={1.12} position={[0,4.7,-5.64]} draw={drawArcadeInteriorBanner}/><PropSign width={7.9} height={2.16} position={[8.65,3.65,.1]} rotation={[0,-Math.PI/2,0]} draw={drawArcadeInteriorMural}/><PropSign width={3.4} height={3.4} position={[0,.167,1.7]} rotation={[-Math.PI/2,0,0]} draw={drawArcadeFloorBadge}/><PropSign width={ARCADE_MARQUEE.width} height={ARCADE_MARQUEE.height} position={[0,6.4+ARCADE_MARQUEE.heightOffset,6+ARCADE_MARQUEE.frontOffset]} draw={drawArcadeMarquee}/>{[-1,1].map(side=><PropSign key={side} width={3.6} height={.7} position={[side*9.425,5.25,0]} rotation={[0,side*Math.PI/2,0]} draw={drawArcadeSide}/>)}<group position={[...ARCADE_CABINETS['rps-roulette-cabinet']]} scale={1.5}><RpsRouletteCabinetModel/></group><group position={[...ARCADE_CABINETS['plus-minus-cabinet']]} scale={1.5}><PlusMinusCabinetModel/></group></>
-}
 function VrHall(){return <ApprovedVrHall/>}
 function interactWithKiosk(id:string){
  void import('../src/features/interactions/parkInteraction').then(({interactWithPark})=>interactWithPark(id))
@@ -152,13 +130,23 @@ function Ranking({live}:{live:boolean}){
   {live&&<RankingBoardPanels bothSides/>}
  </group>
 }
-export function Buildings({live=false}:{live?:boolean}){const shared=useMemo(()=>createSharedBuildingModels(rentalTextures),[]);const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
+function RenewalTower({distanceLod}:{distanceLod:boolean}) {
+ const frame=useMemo(()=>{
+  const geometry=bakedEntryMesh('tower-frame')
+  performance.mark(geometry?'park-static-tower-frame-used':'park-procedural-tower-frame-used')
+  return geometry
+ },[])
+ const scale=40/OBSERVATION_TOWER.height
+ const distant = useMemo(() => distanceLod ? bakedEntryMesh('tower-frame-distant') ?? createTowerFrame(scale, 'distant') : undefined, [distanceLod,scale])
+ return <group scale={[1,scale,1]}><group position={[-OBSERVATION_TOWER.x,0,-OBSERVATION_TOWER.z]}><ObservationTower verticalScale={scale} frameGeometry={frame} distantFrame={distant} frameCenter={distanceLod?site('tower'):undefined}/></group></group>
+}
+export function Buildings({live=false,distantReady=true}:{live?:boolean;distantReady?:boolean}){const shared=getSharedBuildingModels();const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
  {SITES.filter(s=>s.asset&&models[s.asset]).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);return <group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit}/></Suspense></group>})}
  {SITES.filter(s=>s.asset==='pair').map(s=><group key={s.id} name={'paired-rental-'+s.id} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,rentalYaw(s),0]}>{[-1,1].map((side,i)=><group key={side} position={[side*RENTAL_PAIR_SPACING/2,0,0]}><SharedModel source={shared[i===0?'bike':'scooter']}/></group>)}</group>)}
 
- {['mole','arcade','vr','folk','gacha','ranking','shooting'].map(id=>{const s=site(id);return <group key={id} name={'facility-'+id} userData={{siteId:id,legacyFacilityIds:legacyIdsForSite(id)}} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,facilityYaw(s),0]} scale={id==='arcade'?[...ARCADE_SCALE]:1}>
-  {id==='shooting'||id==='folk'?<LocalFactory kind={id}/>:id==='mole'?<Mole/>:id==='arcade'?<Arcade/>:id==='vr'?<VrHall/>:id==='gacha'?<Gacha live={live}/>:<Ranking live={live}/>}
-  {!originalFacilityGeometry&&hasFacilityGeometry(id)&&<Suspense fallback={null}><FacilityGeometry id={id}/></Suspense>}
+ {['mole','arcade','vr','folk','gacha','ranking','shooting'].map(id=>{if(!distantReady&&(id==='folk'||id==='arcade'))return null;const s=site(id);return <group key={id} name={'facility-'+id} userData={{siteId:id,legacyFacilityIds:legacyIdsForSite(id)}} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,facilityYaw(s),0]} scale={id==='arcade'?[...ARCADE_SCALE]:1}>
+  {id==='shooting'||id==='folk'?<LocalFactory kind={id}/>:id==='mole'?<Mole/>:id==='arcade'?<Suspense fallback={null}><Arcade/></Suspense>:id==='vr'?<VrHall/>:id==='gacha'?<Gacha live={live}/>:<Ranking live={live}/>}
+  {id!=='arcade'&&!originalFacilityGeometry&&hasFacilityGeometry(id)&&<Suspense fallback={null}><FacilityGeometry id={id}/></Suspense>}
  </group>})}
  <TraditionalMailbox position={[mailbox.x,heightAt(mailbox.x,mailbox.z)+.1,mailbox.z]} scale={MAILBOX_SCALE} yaw={mailbox.yaw}/>
  {!live&&[...TABLES,...JUMP_TABLES].map(([x,z],i)=><group key={i} position={[x,heightAt(x,z)+.12,z]}><DevPlazaTable anchorId={stoneTableIdAt(x,z)}/></group>)}
@@ -166,10 +154,10 @@ export function Buildings({live=false}:{live?:boolean}){const shared=useMemo(()=
  <group name="jump-course-entrance-pagoda" position={[jump.x,heightAt(jump.x,jump.z),jump.z]}><StonePagoda anchor={{id:'detail-jump-base',x:0,z:0,scale:.8}} decorations={false}/></group>
  <mesh name="tower-entrance-landing" geometry={towerEntrance} receiveShadow><WalkwayMaterial color="#c4bfb1"/></mesh>
  <group name="forty-metre-tower" position={[tower.x,heightAt(tower.x,tower.z),tower.z]} rotation={[0,Math.PI,0]}>
-  <group scale={[1,40/OBSERVATION_TOWER.height,1]}><group position={[-OBSERVATION_TOWER.x,0,-OBSERVATION_TOWER.z]}><ObservationTower furniture={false} verticalScale={40/OBSERVATION_TOWER.height}/></group></group>
+  <RenewalTower distanceLod={live&&RENEWAL_DISTANCE_LOD}/>
   {!originalFacilityGeometry&&<Suspense fallback={null}><FacilityGeometry id="tower"/></Suspense>}
  </group>
- <TowerFurniture/><PreservedFitness/><FitnessFence/>
+ {distantReady&&<TowerFurniture/>}<PreservedFitness/><FitnessFence/>
  <group name="enlarged-balloon-boarding-platform" position={[balloon.x,heightAt(balloon.x,balloon.z),balloon.z]}>
   <group name="balloon-station-model">
    <Suspense fallback={null}><StructureModel kind="station"/></Suspense>
@@ -182,16 +170,16 @@ export function Buildings({live=false}:{live?:boolean}){const shared=useMemo(()=
  {willowPositions.map(([x,z],i)=><group key={i} position={[x,heightAt(x,z),z]}><LocalFactory kind="willow" options={{seed:42+i,height:8.2+(i%3),spread:4.8}}/></group>)}
  <group name="enlarged-island-pavilion" userData={{pavilionId:'P5'}} position={[LAKE.island.x,4.2,LAKE.island.z]} rotation={[0,-Math.PI/2,0]}><Suspense fallback={null}><StructureModel kind="pavilion"/></Suspense><PavilionIntermediateTreads/></group>
  {[-2.1,2.1].map(dx=><group key={dx} name="moored-duck-boat" position={[site('dock').x+dx,LAKE.y+.08,site('dock').z-3.7]}><Suspense fallback={null}><Model kind="boat"/></Suspense></group>)}
- <FishingPier/><Boats/>
+ <FishingPier distantReady={distantReady}/><Boats/>
  <group position={[FISHING_SHOP.x,FISHING_SHOP.y+.1,FISHING_SHOP.z]} rotation={[0,FISHING_SHOP.yaw,0]}><LocalFactory kind="fishing-shop"/></group>
 
  </group>}
-function FishingPier(){const d=FISHING_DECK;return <group name="native-fishing-district-no-stone-tables">
+function FishingPier({distantReady}:{distantReady:boolean}){const d=FISHING_DECK;return <group name="native-fishing-district-no-stone-tables">
  <LocalFactory kind="fishing-deck"/>
  <LocalFactory kind="lake-access"/>
- {[[79.2,-39.7],[79.2,-37.6]].map(([x,z],i)=><group key={i} position={[x!,d.top,z!]} rotation={[0,-Math.PI/2,0]}><LocalFactory kind="rod-rack"/></group>)}
+ {distantReady&&[[79.2,-39.7],[79.2,-37.6]].map(([x,z],i)=><group key={i} position={[x!,d.top,z!]} rotation={[0,-Math.PI/2,0]}><LocalFactory kind="rod-rack"/></group>)}
  <group position={[FISHING_NOTICE.x,heightAt(FISHING_NOTICE.x,FISHING_NOTICE.z)+.1,FISHING_NOTICE.z]} rotation={[0,FISHING_NOTICE.yaw,0]}><LocalFactory kind="lake-notice"/></group>
- {FISHING_BENCHES.map(([x,z,yaw],i)=><group key={i} name={'fishing-rest-bench-'+i} position={[x!,FISHING_DECK.top,z!]} rotation={[0,yaw!,0]}><LocalFactory kind="fishing-bench"/></group>)}
+ {distantReady&&FISHING_BENCHES.map(([x,z,yaw],i)=><group key={i} name={'fishing-rest-bench-'+i} position={[x!,FISHING_DECK.top,z!]} rotation={[0,yaw!,0]}><LocalFactory kind="fishing-bench"/></group>)}
  </group>}
 function Boats(){
  const boats=useMemo(()=>{const g=new Group();g.name='single-circulating-duck-boat';return[g]},[])

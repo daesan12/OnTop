@@ -5,18 +5,12 @@ import { TraditionalNotesBoard } from '../../../../src/world/art/TraditionalNote
 import { ParkFountain } from '../../../../src/world/art/ParkFountain'
 import { ParkActivities } from '../../../../src/world/art/ParkActivities'
 import { ObservationTelescopes } from '../../../../src/world/art/ObservationTelescopes'
-import { useMemo, useRef } from 'react'
+import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BufferGeometry, Float32BufferAttribute, type Group } from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
   PARK_PAVILIONS,
   PAVILION_BASE_RADIUS,
-  OBSERVATION_TOWER as TOWER,
-  createTowerRamp,
-  createTowerDeck,
-  TOWER_DECK_RAIL_SEGMENTS,
-  towerPoint,
   PARK_SIZE,
   type QualityPreset,
 } from '../../../../src/config'
@@ -24,7 +18,7 @@ import { MainPavilionRefinements } from '../../../../src/world/art/LandmarkRefin
 import { Pavilion, roofPoint } from '../../../../src/world/art/Pavilion'
 import { Instances, beam, type Part, type XYZ } from '../../../../src/world/art/Instances'
 import { SurfaceMaterial } from '../../../../src/world/art/SurfaceMaterial'
-import { mergeStaticBeams } from '../../../../src/world/art/staticBeams'
+import { ObservationTower } from './ObservationTower'
 
 // The distant mesh retains the same swept eaves as the nearby roof, with fewer
 // strips and just the eight corner ridges instead of thousands of tile ribs.
@@ -125,142 +119,6 @@ export function PavilionSlot({ p }: { p: { id: string; x: number; z: number; flo
     </group>
   )
 }
-const rampData = createTowerRamp(),
-  ramp = new BufferGeometry()
-ramp.setAttribute('position', new Float32BufferAttribute(rampData.vertices, 3))
-ramp.setIndex(Array.from(rampData.indices))
-ramp.setAttribute(
-  'uv',
-  new Float32BufferAttribute(
-    Array.from({ length: rampData.vertices.length / 3 }, (_, i) => [
-      i % 2,
-      i / 24,
-    ]).flat(),
-    2,
-  ),
-)
-ramp.computeVertexNormals()
-const deckData = createTowerDeck(),
-  deck = new BufferGeometry()
-deck.setAttribute('position', new Float32BufferAttribute(deckData.vertices, 3))
-deck.setIndex(Array.from(deckData.indices))
-deck.setAttribute(
-  'uv',
-  new Float32BufferAttribute(
-    Array.from({ length: deckData.vertices.length / 3 }, (_, i) => [
-      deckData.vertices[i * 3]! / 2,
-      deckData.vertices[i * 3 + 2]! / 2,
-    ]).flat(),
-    2,
-  ),
-)
-deck.computeVertexNormals()
-function createTowerRails(verticalScale: number) {
-  const rails: Part[] = []
-  const scaled = ([x, y, z]: readonly [number, number, number]): XYZ => [x, y * verticalScale, z]
-  for (const radius of [TOWER.inner, TOWER.outer])
-    for (let i = 0; i < 360; i++) {
-      if (radius === TOWER.inner && i >= 358) continue
-      const a = scaled(towerPoint(i / 360, radius)),
-        b = scaled(towerPoint((i + 1) / 360, radius))
-      for (const h of [0.5, 1.3])
-        rails.push(
-          beam([a[0], a[1] + h, a[2]], [b[0], b[1] + h, b[2]], 0.065, '#785c3a'),
-        )
-      if (i % 2 === 0)
-        rails.push(beam([...a], [a[0], a[1] + 1.35, a[2]], 0.075, '#65492f'))
-    }
-  // Follow the deck edge, leaving the final spiral approach open overhead.
-  for (const segment of TOWER_DECK_RAIL_SEGMENTS) {
-    const [p, q] = segment.map(scaled) as [XYZ, XYZ]
-    const y = p[1]
-    rails.push(
-      beam([p[0], y + 1.3, p[2]], [q[0], y + 1.3, q[2]], 0.07, '#6e5136'),
-    )
-    rails.push(beam([...p], [p[0], y + 1.3, p[2]], 0.045, '#886744'))
-  }
-  return mergeStaticBeams([{ parts: rails, sides: SIMPLE_MAP ? 3 : 6 }]).scale(1, 1 / verticalScale, 1)
-}
-
-const supports: Part[] = [], columns: Part[] = []
-for (let i = 0; i < 12; i++) {
-  const a = (i * Math.PI) / 6
-  columns.push(
-    beam(
-      [TOWER.x + Math.cos(a) * 4.8, 0, TOWER.z + Math.sin(a) * 4.8],
-      [
-        TOWER.x + Math.cos(a) * 4.8,
-        TOWER.height - 0.08,
-        TOWER.z + Math.sin(a) * 4.8,
-      ],
-      0.26,
-      '#756044',
-    ),
-  )
-}
-// Braces and ring beams share the twelve column bearings (30°, not 45°).
-for (let i = 0; i < 12; i++) {
-  const a = (i * Math.PI) / 6,
-    b = ((i + 1) * Math.PI) / 6
-  for (let level = 0; level < 3; level++)
-    supports.push(
-      beam(
-        [
-          TOWER.x + Math.cos(a) * 4.8,
-          level * 6 + 0.12,
-          TOWER.z + Math.sin(a) * 4.8,
-        ],
-        [
-          TOWER.x + Math.cos(b) * 4.8,
-          (level + 1) * 6 - 0.12,
-          TOWER.z + Math.sin(b) * 4.8,
-        ],
-        0.11,
-        '#816449',
-      ),
-    )
-  for (const y of [-0.12, 5.88, 11.88, 17.88])
-    supports.push(
-      beam(
-        [TOWER.x + Math.cos(a) * 4.8, y, TOWER.z + Math.sin(a) * 4.8],
-        [TOWER.x + Math.cos(b) * 4.8, y, TOWER.z + Math.sin(b) * 4.8],
-        0.16,
-        '#66513b',
-      ),
-    )
-}
-// Radial joists reach from the column line to the full width of each ramp turn.
-for (let i = 1; i <= 36; i++) {
-  const a = towerPoint(i / 36, 4.8),
-    b = towerPoint(i / 36, TOWER.outer)
-  supports.push(
-    beam([a[0], a[1] - 0.24, a[2]], [b[0], b[1] - 0.24, b[2]], 0.16, '#73583c'),
-  )
-}
-for (const radius of [TOWER.inner, TOWER.outer])
-  for (let i = 0; i < TOWER.segments; i++) {
-    const a = towerPoint(i / TOWER.segments, radius),
-      b = towerPoint((i + 1) / TOWER.segments, radius)
-    supports.push(
-      beam(
-        [a[0], a[1] - 0.18, a[2]],
-        [b[0], b[1] - 0.18, b[2]],
-        0.11,
-        '#846444',
-      ),
-    )
-  }
-// Thin rail/bracing members cannot meaningfully hide the avatar. Keep their
-// combined mesh opaque, so camera fading never hides the entire tower. The
-// twelve solid columns still fade individually when they obstruct the player.
-const towerSupports = mergeStaticBeams([{ parts: supports, sides: SIMPLE_MAP ? 4 : 8 }])
-function createTowerFrame(verticalScale: number) {
-  // Build handrails in world metres before applying the tower transform.
-  const rails = createTowerRails(verticalScale)
-  const frame = mergeGeometries([rails, towerSupports])!
-  rails.dispose()
-  return frame
-}
 export function PlannedLandmarks({ quality }: { quality: QualityPreset }) {
   return (
     <group name={`park-landmarks-${PARK_SIZE}`}>
@@ -268,52 +126,9 @@ export function PlannedLandmarks({ quality }: { quality: QualityPreset }) {
       {PARK_PAVILIONS.map((p) => (
         <PavilionSlot key={p.id} p={p} />
       ))}
-      <ObservationTower />
+      <ObservationTower><ObservationTelescopes /><TraditionalNotesBoard /></ObservationTower>
       <ParkFountain quality={quality} />
       <ParkActivities />
     </group>
-  )
-}
-
-/** Shared tower art; callers may translate the entire existing model for layout review. */
-export function ObservationTower({furniture=true,verticalScale=1}:{furniture?:boolean;verticalScale?:number}={}) {
-  const towerFrame = useMemo(() => createTowerFrame(verticalScale), [verticalScale])
-  return (
-      <group name="spiral-observation-tower">
-        <mesh
-          name="tower-walkway-floor"
-          userData={{ keepOpaque: true }}
-          geometry={ramp}
-          receiveShadow
-          dispose={null}
-        >
-          <SurfaceMaterial kind="wood" color="#bd9f6a" side={2} />
-        </mesh>
-        <mesh
-          name="tower-frame-merged"
-          userData={{ keepOpaque: true }}
-          geometry={towerFrame}
-          dispose={null}
-          receiveShadow
-        >
-          <SurfaceMaterial kind="wood" strength={0.2} vertexColors />
-        </mesh>
-        <Instances
-          parts={columns}
-          shadow={false}
-          material={<SurfaceMaterial kind="wood" />}
-        >
-          <cylinderGeometry args={[1, 1, 1, 8]} />
-        </Instances>
-        <mesh
-          name="tower-top-floor"
-          userData={{ keepOpaque: true }}
-          geometry={deck}
-          dispose={null}
-        >
-          <SurfaceMaterial kind="wood" color="#aa8955" side={2} />
-        </mesh>
-        {furniture&&<><ObservationTelescopes /><TraditionalNotesBoard /></>}
-      </group>
   )
 }

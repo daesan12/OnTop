@@ -1,4 +1,4 @@
-import { Suspense, useLayoutEffect } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import { useLoader, useThree } from '@react-three/fiber'
 import { Mesh } from 'three'
 import { gradeFountainCourses } from './fountainAccessGeometry'
@@ -70,10 +70,24 @@ function DetailGeometry({ id, url }: { id: ParkDetailId; url: string }) {
   return null
 }
 
-export function ParkDetailGeometry({ jumpCourse }: { jumpCourse: boolean }) {
+const distantDetails = new Set<ParkDetailId>(['jump', 'notes', 'telescope', 'bench'])
+
+export function ParkDetailGeometry({ jumpCourse, deferDistant = false, distantReady = true }: { jumpCourse: boolean; deferDistant?: boolean; distantReady?: boolean }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    if (!deferDistant || !distantReady) return
+    // The authored meshes already render and collide. Queue distant geometry
+    // replacements after the entrance frame gets a chance to present.
+    let second: number | undefined
+    const first = requestAnimationFrame(() => { second = requestAnimationFrame(() => setMounted(true)) })
+    return () => {
+      cancelAnimationFrame(first)
+      if (second !== undefined) cancelAnimationFrame(second)
+    }
+  }, [deferDistant, distantReady])
   if (profile.get('details-profile') === 'before') return null
   return <>{parkDetailIds.map(id => {
-    if (id === 'jump' && jumpCourse) return null
+    if (id === 'city' || id === 'jump' && jumpCourse || deferDistant && !mounted && distantDetails.has(id)) return null
     const url = urls['./models/detail-' + id + '-optimized.glb']
     return url && <Suspense key={id} fallback={null}><DetailGeometry id={id} url={url} /></Suspense>
   })}</>
@@ -83,5 +97,11 @@ export function JumpCourseGeometry() {
   const url = urls['./models/detail-jump-course-optimized.glb']
   return url && profile.get('details-profile') === 'after'
     ? <Suspense fallback={null}><DetailGeometry id="jump" url={url} /></Suspense>
+    : null
+}
+export function CityDetailGeometry() {
+  const url = urls['./models/detail-city-optimized.glb']
+  return url && profile.get('details-profile') !== 'before'
+    ? <Suspense fallback={null}><DetailGeometry id="city" url={url} /></Suspense>
     : null
 }

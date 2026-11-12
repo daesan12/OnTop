@@ -1,4 +1,5 @@
 import { SIMPLE_MAP } from './art/mapRenderProfile'
+import { RENEWAL_GATE_STARTUP } from '../park/mapSelection'
 import { useLoader } from '@react-three/fiber'
 import { TextureLoader } from 'three'
 import { ParkAssetLoader } from './art/assetLoader'
@@ -21,9 +22,12 @@ export const surfaceMapUrls = Object.fromEntries(
   ]),
 ) as Record<Surface, string[]>
 export function preloadWorldAssets() {
-  if(!SIMPLE_MAP)for (const kind of ['wood', 'stone', 'grass'] as const)
+  // Keep the gate's wood and stone maps in flight; other surfaces and props
+  // load their textures when the matching meshes mount.
+  const surfaces = RENEWAL_GATE_STARTUP ? ['wood', 'stone'] as const : ['wood', 'stone', 'grass'] as const
+  if(!SIMPLE_MAP)for (const kind of surfaces)
     useLoader.preload(TextureLoader, surfaceMapUrls[kind])
-  for (const url of SIMPLE_MAP ? [] : [leafMapUrl, parkAdvertisementUrl])
+  for (const url of SIMPLE_MAP || RENEWAL_GATE_STARTUP ? [] : [leafMapUrl, parkAdvertisementUrl])
     useLoader.preload(TextureLoader, url)
   useLoader.preload(ParkAssetLoader, characterUrls)
 }

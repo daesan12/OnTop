@@ -20,6 +20,7 @@ import {BRIDGE,BRIDGE_LANDINGS,bridgeDeckHeight,bridgeLandingHeight,LAKE,heightA
 import {stripePolygon} from './roundedFootprint.ts'
 import {groundObject} from './assetSizing.ts'
 import {lakeFenceSegments} from './lakePlan.ts'
+import {cloneBakedFacility} from './static/facilities.ts'
 function electricBicycle(options){const result=createBicycle(options),battery=new Mesh(new BoxGeometry(.13,.32,.15),new MeshLambertMaterial({color:'#343e38'}));battery.position.set(0,.66,-.27);battery.rotation.x=-.24;result.group.add(battery);const hub=new Mesh(new CylinderGeometry(.105,.105,.15,12),new MeshLambertMaterial({color:'#687469'}));hub.rotation.z=Math.PI/2;hub.position.set(0,.35,-.64);result.group.add(hub);const display=new Mesh(new BoxGeometry(.1,.025,.065),new MeshLambertMaterial({color:'#476d5b'}));display.position.set(0,1.15,.45);result.group.add(display);return result}
 function islandBridge(){
  const b=new LakeBuilder('light'),n=Math.ceil((BRIDGE.x1-BRIDGE.x0)/.26)
@@ -80,6 +81,10 @@ function rentalBay({kind='bicycle',...options}={}){
  station.userData.parkingContact='native-floor-and-front-wheel-anchors';return station
 }
 export function factory(kind,options={}){
+ if(!Object.keys(options).length){
+  const baked=cloneBakedFacility(kind)
+  if(baked)return baked
+ }
  if(kind==='rental-bay')return rentalBay(options)
 
  if(kind==='dock-rear-floor'){const g=new LakeBuilder('light');g.box('wood','#805b36',[0,.6441,1.7],[8.72,.08,1.45]);for(let i=0;i<36;i++)g.box('wood',i%3?'#b57f47':'#c18b50',[(i-17.5)*.242,.659,1.7],[.24,.055,1.45]);return g.finish('continuous-timber-rear-walkway')}
