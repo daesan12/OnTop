@@ -31,7 +31,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Tag("mysql")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.raffle.enabled=true",
-        "spring.flyway.locations=classpath:db/migration",
+        // 운영 DB_MIGRATION_LOCATIONS와 같이 적용한다. V165가 db/shop의 items를 참조한다.
+        "spring.flyway.locations=classpath:db/migration,classpath:db/shop,classpath:db/minigame",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
 class RaffleApiMySqlTests {
