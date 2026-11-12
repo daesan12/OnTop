@@ -7,7 +7,7 @@ export interface FitnessRewardStatus {
 }
 export function parseFitnessRewardStatus(value: unknown): FitnessRewardStatus {
   if (!record(value) || typeof value.enabled !== 'boolean' || typeof value.earningsDate !== 'string'
-    || !/^\d{4}-\d{2}-\d{2}$/.test(value.earningsDate) || !integer(value.todayEarned) || value.dailyCap !== 300
+    || !/^\d{4}-\d{2}-\d{2}$/.test(value.earningsDate) || !integer(value.todayEarned) || value.dailyCap !== 500
     || value.rewardIntervalSeconds !== 60 || !integer(value.serverNow)
     || !(value.nextRewardAt === null || integer(value.nextRewardAt))
     || !(value.activeLeaseId === null || typeof value.activeLeaseId === 'string' && value.activeLeaseId.length > 0 && value.activeLeaseId.length <= 128)

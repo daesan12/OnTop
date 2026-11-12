@@ -17,7 +17,7 @@ import { BUNGEOPPANG_V4 as V4 } from '../../src/features/bungeoppang/config'
 import { createGrill as createV4Grill } from '../../src/features/bungeoppang/rulesV4'
 
 const game = { gameId: '901', startedAt: '2026-10-24T01:00:00Z', heats: Array(64).fill(100), rulesVersion: 'v2', isFirstGame: true }
-const result = { score: 0, made: 0, golden: 0, failed: 0, wasted: 0, maxCombo: 0, coinsCalculated: 0, coinsGranted: 0, todayEarned: 0, dailyCap: 500, capReached: false }
+const result = { score: 0, made: 0, golden: 0, failed: 0, wasted: 0, maxCombo: 0, coinsCalculated: 0, coinsGranted: 0, todayEarned: 0, dailyCap: 1000, capReached: false }
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'] })
   const docEvents = new EventTarget(), windowEvents = new EventTarget();
@@ -29,7 +29,7 @@ beforeEach(() => {
     dispatchEvent: docEvents.dispatchEvent.bind(docEvents) })
   vi.stubGlobal('requestAnimationFrame', vi.fn().mockReturnValue(1)); vi.stubGlobal('cancelAnimationFrame', vi.fn())
   vi.mocked(canOpenBungeoppang).mockReturnValue(true)
-  vi.mocked(service.getStatus).mockResolvedValue({ todayEarned: 0, dailyCap: 500, isFirstGame: true, seenTips: [], rulesVersion: 'v2' })
+  vi.mocked(service.getStatus).mockResolvedValue({ todayEarned: 0, dailyCap: 1000, isFirstGame: true, seenTips: [], rulesVersion: 'v2' })
   vi.mocked(service.startGame).mockResolvedValue(game); vi.mocked(service.submitResult).mockResolvedValue(result)
   vi.mocked(service.abandon).mockResolvedValue(undefined); vi.mocked(service.balance).mockResolvedValue(100)
 })
@@ -239,7 +239,7 @@ it('confirmed completion refreshes the actual wallet and publishes an invalidati
 
 const firstOrder = { items: { bean: 2, custard: 0, pizza: 0, chocolate: 0 } };
 async function enterV4() {
-  vi.mocked(service.getStatus).mockResolvedValue({ todayEarned: 0, dailyCap: 500, isFirstGame: true, seenTips: [], rulesVersion: 'v4' });
+  vi.mocked(service.getStatus).mockResolvedValue({ todayEarned: 0, dailyCap: 1000, isFirstGame: true, seenTips: [], rulesVersion: 'v4' });
   vi.mocked(service.startGame).mockResolvedValue({ ...game, rulesVersion: 'v4', v4: { order: firstOrder, rules: V4 } });
   await enter(); await startBungeoppang(); await vi.advanceTimersByTimeAsync(3500);
   const grill = useBungeoppang.getState().grill!;

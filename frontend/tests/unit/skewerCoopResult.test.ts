@@ -3,7 +3,7 @@ import { parseCoopResult, parseCoopRanking } from '../../src/features/skewer/coo
 import { endReasonText, rankingReasonText } from '../../src/features/skewer/coop/CoopResultPanel'
 
 const gameId = 'skewer-coop-00000000-0000-4000-8000-000000000001'
-const receipt = () => ({ gameId, status: 'SETTLED', teamScore: 2400, served: 3, endReason: 'SKEWER_TIME_UP', rankingStatus: 'REGISTERED', rankingReason: 'ELIGIBLE', coinsCalculated: 120, coinsGranted: 10, todayEarned: 500, dailyCap: 500, remainingToday: 0, balance: 600, rewardDate: '2026-11-02', settledAt: '2026-11-02T12:00:00Z' })
+const receipt = () => ({ gameId, status: 'SETTLED', teamScore: 2400, served: 3, endReason: 'SKEWER_TIME_UP', rankingStatus: 'REGISTERED', rankingReason: 'ELIGIBLE', coinsCalculated: 120, coinsGranted: 10, todayEarned: 1000, dailyCap: 1000, remainingToday: 0, balance: 600, rewardDate: '2026-11-02', settledAt: '2026-11-02T12:00:00Z' })
 
 describe('꼬치왕 개인 정산 응답', () => {
   it('진행 오류 종료를 정상 완료나 참가자 기권으로 안내하지 않는다', () => {
@@ -20,7 +20,7 @@ describe('꼬치왕 개인 정산 응답', () => {
   })
   it('다른 경기 영수증과 한도 위반·음수 지급을 거절한다', () => {
     expect(() => parseCoopResult(receipt(), `${gameId}x`)).toThrow()
-    for (const changes of [{ coinsGranted: 121 }, { coinsGranted: -1 }, { remainingToday: 1 }, { dailyCap: 1000 }]) {
+    for (const changes of [{ coinsGranted: 121 }, { coinsGranted: -1 }, { remainingToday: 1 }, { dailyCap: 500 }]) {
       expect(() => parseCoopResult({ ...receipt(), ...changes }, gameId)).toThrow()
     }
   })
@@ -31,7 +31,7 @@ describe('꼬치왕 개인 정산 응답', () => {
     expect(() => parseCoopResult({ ...pending, balance: 100 }, gameId)).toThrow()
   })
   it('다음 날 결과를 다시 열어도 과거 지급액과 오늘 남은 한도를 구분한다', () => {
-    expect(parseCoopResult({ ...receipt(), todayEarned: 0, remainingToday: 500 }, gameId).coinsGranted).toBe(10)
+    expect(parseCoopResult({ ...receipt(), todayEarned: 0, remainingToday: 1000 }, gameId).coinsGranted).toBe(10)
   })
   it('팀 랭킹은 정해진 규칙·전체 기간·최고기록과 최대 20개 응답만 받는다', () => {
     const ranking = { rulesVersion: 'coop-v1', period: 'ALL_TIME', aggregation: 'TEAM_BEST', asOf: '2026-11-02T12:00:00Z', items: [], myBest: null }

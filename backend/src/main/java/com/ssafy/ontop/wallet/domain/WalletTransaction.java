@@ -174,13 +174,13 @@ public class WalletTransaction {
         return "signup:" + userId;
     }
 
-    public static WalletTransaction fitnessReward(long walletId, String key, Instant now) {
-        if (walletId <= 0 || key == null || !key.startsWith("fitness:") || key.length() > 120) {
+    public static WalletTransaction fitnessReward(long walletId, String key, long amount, Instant now) {
+        if (walletId <= 0 || amount <= 0 || key == null || !key.startsWith("fitness:") || key.length() > 120) {
             throw new IllegalArgumentException("운동 보상 기록을 확인하세요.");
         }
         WalletTransaction transaction = new WalletTransaction();
         transaction.walletId = walletId;
-        transaction.balanceDelta = 1;
+        transaction.balanceDelta = amount;
         transaction.transactionType = "FITNESS_REWARD";
         transaction.idempotencyKey = key;
         transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);

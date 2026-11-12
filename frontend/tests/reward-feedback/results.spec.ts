@@ -37,11 +37,11 @@ test('붕어빵 결과 상세는 기존 구성의 환산 문구만 표시하고 
     useBungeoppang.setState({ phase: 'result', rules,
       grill: { ...createGrill(Array(rules.heatListLength).fill(100), [order], rules), score: 120, made: 8, failed: 2, served: 6, customersServed: 3 }, submitting: false,
       result: { score: 120, made: 8, golden: 6, failed: 2, wasted: 0, maxCombo: 4, served: 6, customersServed: 3,
-        coinsCalculated: 24, coinsGranted: 24, todayEarned: 274, dailyCap: 500, capReached: false } })
+        coinsCalculated: 24, coinsGranted: 24, todayEarned: 274, dailyCap: 1000, capReached: false } })
   })
   const dialog = page.getByRole('dialog', { name: '붕어빵 결과', exact: true })
   await expect(dialog).toContainText('받은 엽전 24냥')
-  await expect(dialog).toContainText('미니게임 합산 수입 274 / 500냥')
+  await expect(dialog).toContainText('미니게임 합산 수입 274 / 1000냥')
   await dialog.getByText('장사 기록 자세히', { exact: true }).click()
   await expect(dialog.locator('details')).toContainText('엽전 환산 5점당 1냥')
   await expect(dialog.locator('details')).toContainText('양면 황금 6개 · 버린 개수 0개 · 최고 콤보 4')

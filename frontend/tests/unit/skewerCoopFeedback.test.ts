@@ -18,8 +18,8 @@ const finished = (): CoopSnapshot => ({ gameId: id, version: 20, registered: tru
     greeting: { active: false, index: 0, remaining: 0, answered: false, responded: 0, speech: false } } })
 const receipt = (settled: boolean) => ({ gameId: id, status: settled ? 'SETTLED' : 'PENDING', teamScore: 200,
   served: 1, endReason: 'SKEWER_TIME_UP', rankingStatus: settled ? 'REGISTERED' : 'PENDING', rankingReason: 'ELIGIBLE',
-  coinsCalculated: 10, coinsGranted: settled ? 10 : null, todayEarned: settled ? 10 : null, dailyCap: 500,
-  remainingToday: settled ? 490 : null, balance: settled ? 110 : null,
+  coinsCalculated: 10, coinsGranted: settled ? 10 : null, todayEarned: settled ? 10 : null, dailyCap: 1000,
+  remainingToday: settled ? 990 : null, balance: settled ? 110 : null,
   rewardDate: settled ? '2026-11-07' : null, settledAt: settled ? '2026-11-07T00:00:00Z' : null })
 
 function fixture() {

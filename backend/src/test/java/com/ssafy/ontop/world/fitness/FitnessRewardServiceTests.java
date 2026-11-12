@@ -168,7 +168,7 @@ class FitnessRewardServiceTests {
         assertThat(status.earningsDate()).isEqualTo("1970-01-01");
         assertThat(status.nextRewardAt()).isEqualTo(37_000);
         assertThat(status.activeLeaseId()).isEqualTo("visit");
-        assertThat(status.dailyCap()).isEqualTo(300);
+        assertThat(status.dailyCap()).isEqualTo(500);
         verify(store, times(0)).grant(anyLong(), anyString(), anyLong(), any());
     }
 
@@ -180,7 +180,7 @@ class FitnessRewardServiceTests {
 
         assertThat(service.status(101).nextRewardAt()).isZero();
         assertThat(service.status(102).activeLeaseId()).isNull();
-        when(store.earnedToday(101, Instant.EPOCH)).thenReturn(300L);
+        when(store.earnedToday(101, Instant.EPOCH)).thenReturn(500L);
         assertThat(service.status(101).nextRewardAt()).isNull();
         service.ended(lease);
         assertThat(service.status(101).activeLeaseId()).isNull();

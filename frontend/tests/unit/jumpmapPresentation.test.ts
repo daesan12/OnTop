@@ -3,7 +3,7 @@ import { acceptJumpEvent, applyJumpStatus, bindJumpmap, closeJumpCompletion, res
 import { COURSE_VERSION, MAP_VERSION, RULES_VERSION, kstDate } from '../../src/features/jumpmap/course'
 import { jumpTime } from '../../src/features/jumpmap/JumpmapRanking'
 const scope = { channelId: 'channel-1', mapVersion: MAP_VERSION }
-const money = { earningsDate: kstDate(), dailyCap: 500, todayEarned: 0 }
+const money = { earningsDate: kstDate(), dailyCap: 1000, todayEarned: 0 }
 const start = (runId = 'run-a', revision = 1) => acceptJumpEvent({ type: 'JUMPMAP_STARTED', ...scope, ...money,
   revision, runId, courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: 123456 }, 1000)
 beforeEach(() => {

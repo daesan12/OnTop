@@ -95,7 +95,7 @@ test('bungeoppang entry fits in the first viewport without scrolling',async({pag
 })
 
 test('jumpmap resets on fall and finishes with server time and tied rankings on the final pad',async({page})=>{
- const scope={channelId:'channel-1',mapVersion:identity.mapVersion}, money={earningsDate:kstDate(),dailyCap:500,todayEarned:0}
+ const scope={channelId:'channel-1',mapVersion:identity.mapVersion}, money={earningsDate:kstDate(),dailyCap:1000,todayEarned:0}
  const server=await parkFixture(page)
  await page.route('**/api/v1/rankings/park**',r=>r.fulfill({json:{items:[],me:null,nextCursor:null}}))
  await page.route('**/api/v1/minigames/jumpmap/status?*',r=>r.fulfill({json:{...scope,...money,revision:0,enabled:true,courseVersion:COURSE_VERSION,rulesVersion:RULES_VERSION,isFirstRun:true,seenTips:[],activeRunId:null,bestFinishMs:null}}))

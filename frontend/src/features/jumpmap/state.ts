@@ -90,7 +90,7 @@ export function acceptJumpEvent(e: JumpEvent, now = performance.now()) {
   if (e.type === 'JUMPMAP_GATE_SETTLED') {
     useJumpmap.setState({ revision: e.revision, ...moneyPatch(e), walletRevision: s.walletRevision + 1,
       ...(ownRun ? { run: { ...s.run!, runCoins: e.runCoins } } : {}), ...(ownResult ? { result: { ...s.result!, runCoins: e.runCoins } } : {}),
-      ...(ownRun && s.popup?.gate === e.gate ? { popup: { ...s.popup, amount: e.coinsGranted, label: e.coinsGranted === 0 ? '오늘 미니게임 공통 상한 500냥 도달' : '', anticipated: false } } : {}) }); return
+      ...(ownRun && s.popup?.gate === e.gate ? { popup: { ...s.popup, amount: e.coinsGranted, label: e.coinsGranted === 0 ? '오늘 미니게임 공통 상한 1000냥 도달' : '', anticipated: false } } : {}) }); return
   }
   if (!ownRun) { if (!closed.has(e.runId)) useJumpmap.setState({ refresh: s.refresh + 1 }); return }
   if (e.type === 'JUMPMAP_FINAL_PAD') {
@@ -101,7 +101,7 @@ export function acceptJumpEvent(e: JumpEvent, now = performance.now()) {
     useJumpmap.setState({ revision: e.revision, ...moneyPatch(e), walletRevision: s.walletRevision + (e.pending ? 0 : 1),
       run: { ...s.run!, gatesPassed: e.gate, runCoins: e.runCoins, elapsedMs: e.elapsedMs },
       popup: { gate: e.gate, amount: e.pending ? s.todayEarned === null ? null : expectedCoins(e.gate, s.todayEarned) : e.coinsGranted,
-        label: e.pending ? '정산 중…' : e.coinsGranted === 0 ? '오늘 미니게임 공통 상한 500냥 도달' : Number(e.coinsGranted) < e.coinsCalculated ? '오늘 상한까지' : '', at: now, anticipated: false },
+        label: e.pending ? '정산 중…' : e.coinsGranted === 0 ? '오늘 미니게임 공통 상한 1000냥 도달' : Number(e.coinsGranted) < e.coinsCalculated ? '오늘 상한까지' : '', at: now, anticipated: false },
       banner: null }); return
   }
   if (e.type === 'JUMPMAP_ENDED') {

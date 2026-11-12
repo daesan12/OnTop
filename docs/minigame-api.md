@@ -143,7 +143,7 @@ v4로 다시 계산하지 않는다. v2/v4를 합쳐 회원당 활성 판은 최
   "rulesVersion": "v4",
   "serverNow": "2026-10-27T00:00:00.200Z",
   "todayEarned": 5,
-  "dailyCap": 500,
+  "dailyCap": 1000,
   "isFirstGame": false,
   "seenTips": ["GOLD", "START"],
   "activeSessionId": "901",
@@ -299,7 +299,7 @@ Story 3 전용 MySQL 8.4 컨테이너의 새 DB에서만 실행했다. 공용 DE
 ```json
 {
   "todayEarned": 5,
-  "dailyCap": 500,
+  "dailyCap": 1000,
   "isFirstGame": false,
   "seenTips": ["GOLD", "START"],
   "rulesVersion": "v2"
@@ -375,12 +375,12 @@ Story 3 전용 MySQL 8.4 컨테이너의 새 DB에서만 실행했다. 공용 DE
   "coinsCalculated": 5,
   "coinsGranted": 5,
   "todayEarned": 5,
-  "dailyCap": 500,
+  "dailyCap": 1000,
   "capReached": false
 }
 ```
 
-15점당 1냥(나머지 버림), 한국 날짜 모든 미니게임 합산 하루 최대 500냥. 자정을 넘어 제출하면 제출 처리 날짜에 포함한다.
+15점당 1냥(나머지 버림), 한국 날짜 모든 미니게임 합산 하루 최대 1000냥. 자정을 넘어 제출하면 제출 처리 날짜에 포함한다.
 `verifiedCompletedCount`는 꺼낸 개수(made), `rewardAmount`는 실제 지급액(coinsGranted)과 같은 호환 필드다.
 상한으로 0냥이어도 COMPLETED로 저장한다. 첫 결과를 저장하므로 재요청은 날짜·상한이 달라도 처음 응답을 반환한다.
 세션 완료·보상·거래·결과·안내 저장은 한 트랜잭션이며 저장 실패 시 전부 롤백한다.

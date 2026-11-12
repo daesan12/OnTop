@@ -36,7 +36,7 @@ Bearer 인증과 기존 허용 Origin 정책을 따른다. 응답은 `Cache-Cont
 ```
 
 ```json
-{"id":"7","rulesVersion":1,"score":2,"hits":2,"misses":0,"completedAt":"2030-01-01T00:01:03Z","calculatedReward":0,"reward":0,"todayEarned":0,"dailyCap":500}
+{"id":"7","rulesVersion":1,"score":2,"hits":2,"misses":0,"completedAt":"2030-01-01T00:01:03Z","calculatedReward":0,"reward":0,"todayEarned":0,"dailyCap":1000}
 ```
 
 200. 회원 ID는 인증 주체에서만 읽는다. 완료 행을 잠그고 한 번만 확정한다. 동일 판의 재시도·동시 완료·서로 다른 재전송 본문에도 먼저 확정된 결과를 반환하며 다시 계산하거나 중복 저장하지 않는다. 원래 요청이 성공했는지 불확실하면 같은 판·같은 타격 기록으로 재확인한다. 프론트는 확인 전 성공/랭킹 반영을 표시하지 않는다. 5점당 1냥(서버 `SpeedMoleRules.POINTS_PER_COIN`, 기존 두더지와 별도)을 미니게임 공통 KST 하루 500냥 상한 안에서 지급한다. 지갑 잠금→경기 잠금→서버 재계산→공통 예산 확인→지갑·원장·경기 확정을 같은 트랜잭션으로 처리한다. 원장 분류는 기존 두더지 계열 MOLE_REWARD이고 멱등 키는 mole:reward:speed:<roundId>라 기존 두더지 키와 충돌하지 않는다. 중복 완료는 원래 지급액만 반환한다. 예전 랭킹 전용 확정 기록은 재요청해도 소급 지급하지 않는다.

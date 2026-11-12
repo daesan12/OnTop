@@ -125,7 +125,7 @@ class MinigameOpenApiTests {
                     "deliveryKey").contains(parameter.path("name").asText()))
                     .hasSize(3).allMatch(parameter -> parameter.path("description").asText().contains("v4·v5"));
             assertThat(complete.path("description").asText())
-                    .contains("local,db", "dev,db", "v2", "v4", "V124", "V125", "V126", "500냥")
+                    .contains("local,db", "dev,db", "v2", "v4", "V124", "V125", "V126", "1000냥")
                     .doesNotContain("local 전용");
             assertThat(paths.path("/api/v1/minigames/sessions").has("get")).isTrue();
         }

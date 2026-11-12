@@ -17,7 +17,7 @@ export function JumpmapOverlay({ state, now, nearStart, loadRankings }: { state:
       <ol className="jm-progress" aria-label={`${STAGES.length}구간 진행`}>{STAGES.map(s => <li key={s.stage}
         aria-label={s.name} aria-current={s.stage === run.gatesPassed + 1 ? 'step' : undefined}
         data-passed={s.stage <= run.gatesPassed} />)}</ol>
-      <span className="jm-compact-coins" aria-label="점프맵 엽전 현황">이번 <b>{run.runCoins}냥</b><small>미니게임 오늘 {state.todayEarned ?? '—'} / 500냥</small></span>
+      <span className="jm-compact-coins" aria-label="점프맵 엽전 현황">이번 <b>{run.runCoins}냥</b><small>미니게임 오늘 {state.todayEarned ?? '—'} / 1000냥</small></span>
     </div>}
     {completedRun && <JumpmapCompletion runCoins={completedRun.runCoins} todayEarned={state.todayEarned}
       finishMs={state.result?.finishMs ?? null} loadRankings={loadRankings} settled={!run && state.result?.reason === 'FINISH'} onClose={closeJumpCompletion} />}
