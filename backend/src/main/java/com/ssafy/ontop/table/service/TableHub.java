@@ -3693,8 +3693,10 @@ public class TableHub {
             fail(request, "GAME_ACTION_NOT_CONFIGURED", "경기 입력 연결이 준비되지 않았습니다.");
         }
         String gameId = request.payload().get("gameId").textValue();
-        if (!canSendGameAction(sessionId, member, gameId)) {
-            fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
+        String blocked = gameActionBlockReason(sessionId, member, gameId);
+        if (blocked != null) {
+            fail(request, blocked, blocked.equals("GAME_ACTION_GAME_FINISHED")
+                    ? "이미 끝난 경기입니다." : "현재 경기 복구 상태를 먼저 확인해주세요.");
         }
         if (!actionRequests.add(sessionId)) {
             fail(request, "GAME_ACTION_PENDING", "이전 경기 입력이 처리 중입니다.");
@@ -3706,9 +3708,8 @@ public class TableHub {
             GameActionResult result = null;
             String error = null;
             try {
-                if (!canSendGameAction(sessionId, member, gameId)) {
-                    error = "GAME_RECOVERY_REQUIRED";
-                } else {
+                error = gameActionBlockReason(sessionId, member, gameId);
+                if (error == null) {
                     result = gameActions.orElseThrow().apply(command);
                     if (result == null || result.userId() != command.userId()
                             || !result.gameId().equals(gameId) || !result.actionId().equals(command.actionId())
@@ -3790,6 +3791,18 @@ public class TableHub {
     private synchronized boolean canSendGameAction(String sessionId, Member member, String gameId) {
         return !stopped && members.get(sessionId) == member && reconnect.isPresent()
                 && reconnect.get().canControlGame(member.accountId(), sessionId, gameId);
+    }
+
+    private synchronized String gameActionBlockReason(String sessionId, Member member, String gameId) {
+        if (canSendGameAction(sessionId, member, gameId)) { return null; }
+        // 종료 방송과 교차한 돌탑 실시간 입력에는 이미 확정된 종료 상태를 돌려준다.
+        TableStartAttempt attempt = starts.get(seating.get(member.userId()));
+        if (!stopped && members.get(sessionId) == member && attempt != null && attempt.ended(gameId)
+                && "STONE_RUMBLE".equals(attempt.command().gameCode())
+                && attempt.command().participants().stream().anyMatch(p -> p.userId().equals(member.userId()))) {
+            return "GAME_ACTION_GAME_FINISHED";
+        }
+        return "GAME_RECOVERY_REQUIRED";
     }
 
     private synchronized void finishGameAction(String sessionId, Member member, String requestId,

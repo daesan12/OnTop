@@ -53,6 +53,10 @@ public final class TableStartAttempt {
         return true;
     }
 
+    public boolean ended(String gameId) {
+        return gameId.equals(gameSessionId) && (phase.equals("SETTLING") || phase.equals("WAITING"));
+    }
+
     public void rememberEnd(String gameId) { endedGames.add(gameId); }
     public boolean endedEarly() { return gameSessionId != null && endedGames.contains(gameSessionId); }
     public void markSettled(String gameId) { settledGames.add(gameId); }

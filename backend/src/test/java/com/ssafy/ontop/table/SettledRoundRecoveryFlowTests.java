@@ -3,6 +3,7 @@ package com.ssafy.ontop.table;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
+import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.domain.GameSession;
 import com.ssafy.ontop.game.reconnect.ActiveGameLookup;
 import com.ssafy.ontop.game.reconnect.ActiveGameRecord;
@@ -17,8 +18,14 @@ import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartResult;
 import com.ssafy.ontop.game.start.GameRuntimeIdentity;
 import com.ssafy.ontop.table.service.TableHub;
+import com.ssafy.ontop.world.config.WorldChannelProperties;
+import com.ssafy.ontop.world.config.WorldEmoteProperties;
+import com.ssafy.ontop.world.service.WorldChannelRegistry;
+import com.ssafy.ontop.world.service.WorldChatService;
 import com.ssafy.ontop.world.service.WorldClock;
+import com.ssafy.ontop.world.service.WorldEmoteService;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -47,6 +54,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 // 정산 완료 후 테이블 대기·복구 판정 정합성. 실제 Hub·복구 서비스·직렬화를 쓰고,
@@ -58,14 +66,20 @@ class SettledRoundRecoveryFlowTests {
     final Engine engine = new Engine();
     final Db db = new Db();
     final CommittedGameStartService starts = mock(CommittedGameStartService.class);
+    final GameActionGateway actions = mock(GameActionGateway.class);
     final AtomicInteger reservations = new AtomicInteger();
+    String gameCode = "OMOK";
     GameReconnectService reconnect;
     TableHub hub;
 
     @BeforeEach void setup() {
         reconnect = new GameReconnectService(Optional.of(engine), Optional.of(clock), Optional.of(db),
                 Optional.of(identity));
-        hub = new TableHub(mapper, Optional.empty(), false, Optional.of(reconnect));
+        hub = new TableHub(mapper, Optional.empty(), false, Optional.of(reconnect),
+                Duration.ofSeconds(60), Duration.ofSeconds(60),
+                new WorldChannelRegistry(new WorldChannelProperties(null)), new WorldChatService(Duration.ofSeconds(1)),
+                new WorldEmoteService(new WorldEmoteProperties(null), Duration.ofSeconds(1)), Optional.empty(),
+                Optional.of(actions));
         hub.configureWorldClock(new WorldClock(clock));
         hub.configureCommittedStarts(Optional.of(starts));
         when(starts.start(any())).thenAnswer(call -> {
@@ -81,6 +95,45 @@ class SettledRoundRecoveryFlowTests {
     }
 
     @AfterEach void close() { hub.shutdown(); reconnect.shutdown(); }
+
+    @Test void 돌탑_종료와_교차한_조작만_복구요구_대신_경기종료로_응답한다() throws Exception {
+        gameCode = "STONE_RUMBLE";
+        Peer a = peer(101), b = peer(202), outsider = peer(303);
+        a.recovery("LOBBY"); b.recovery("LOBBY"); outsider.recovery("LOBBY");
+        play(a, b);
+        var lateInput = Map.of("gameId", "71", "actionId", "last-move", "expectedVersion", 0,
+                "input", Map.of("kind", "control", "seq", 1));
+
+        var gate = new CountDownLatch(1);
+        var entered = new CountDownLatch(1);
+        engine.hook = user -> {
+            if (user == 101) { entered.countDown(); await(gate); }
+            return Optional.ofNullable(engine.snapshots.get(user));
+        };
+        try {
+            end("71");
+            assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+            a.start("SETTLING");
+            assertThat(reconnect.canControlGame(101, a.id, "71")).isFalse();
+            assertError(a.request("GAME_ACTION_SEND", lateInput, "late-settling"),
+                    "late-settling", "GAME_ACTION_GAME_FINISHED");
+            assertError(outsider.request("GAME_ACTION_SEND", lateInput, "outside"),
+                    "outside", "GAME_RECOVERY_REQUIRED");
+            settle("71", "101");
+            a.start("WAITING");
+            assertError(a.request("GAME_ACTION_SEND", lateInput, "late-waiting"),
+                    "late-waiting", "GAME_ACTION_GAME_FINISHED");
+            var otherInput = new java.util.HashMap<String, Object>(lateInput);
+            otherInput.put("gameId", "72");
+            assertError(a.request("GAME_ACTION_SEND", otherInput, "other-round"),
+                    "other-round", "GAME_RECOVERY_REQUIRED");
+            verifyNoInteractions(actions);
+        } finally {
+            engine.hook = null;
+            gate.countDown();
+        }
+        a.recovery("FINISHED");
+    }
 
     @Test void 정상정산후_WAITING에서_다음판설정과_퇴장을_승인하고_진행중과정산중은_차단한다() throws Exception {
         Peer a = peer(101), b = peer(202);
@@ -337,7 +390,7 @@ class SettledRoundRecoveryFlowTests {
     void play(Peer a, Peer b) throws Exception {
         a.request("TABLE_JOIN", Map.of("tableId", "table-1"), "join-a");
         b.request("TABLE_JOIN", Map.of("tableId", "table-1"), "join-b");
-        a.request("TABLE_CONFIGURE", configure(a, 1), "cfg-initial");
+        a.request("TABLE_CONFIGURE", configure(a, "STONE_RUMBLE".equals(gameCode) ? 0 : 1), "cfg-initial");
         a.request("READY_SET", Map.of("ready", true), "ready-a");
         b.request("READY_SET", Map.of("ready", true), "ready-b");
         long version = a.request("TABLE_JOIN", Map.of("tableId", "table-1"), "state").at("/payload/version").asLong();
@@ -364,19 +417,19 @@ class SettledRoundRecoveryFlowTests {
     Map<String, Object> configure(Peer peer, long bet) throws Exception {
         long version = peer.request("TABLE_JOIN", Map.of("tableId", "table-1"), "version-" + UUID.randomUUID())
                 .at("/payload/version").asLong();
-        return Map.of("gameCode", "OMOK", "selectedPlayers", 2, "betAmountPerPlayer", bet, "expectedVersion", version);
+        return Map.of("gameCode", gameCode, "selectedPlayers", 2, "betAmountPerPlayer", bet, "expectedVersion", version);
     }
 
     GameResultView result(String game, long user, GameResultView.SettlementStatus settlement, String winner) {
         String loser = winner.equals("101") ? "202" : "101";
-        return new GameResultView(user, settlement == GameResultView.SettlementStatus.PENDING ? 1 : 2, game, "OMOK",
-                GameResultView.Status.FINISHED, "NORMAL", settlement, 1,
+        return new GameResultView(user, settlement == GameResultView.SettlementStatus.PENDING ? 1 : 2, game, gameCode,
+                GameResultView.Status.FINISHED, "NORMAL", settlement, "STONE_RUMBLE".equals(gameCode) ? 0 : 1,
                 List.of(new GameResultView.Participant(winner, "WIN"), new GameResultView.Participant(loser, "LOSE")),
                 settlement == GameResultView.SettlementStatus.PENDING ? null : 1L, clock.instant());
     }
 
     ActiveGameRecord record(long id, GameSession.Status status, GameSession.SettlementStatus settlement) {
-        return new ActiveGameRecord(id, "OMOK", "table-1", status, settlement, identity.instanceId(),
+        return new ActiveGameRecord(id, gameCode, "table-1", status, settlement, identity.instanceId(),
                 identity.bootId(), clock.instant(), clock.instant(),
                 status == GameSession.Status.FINISHED ? clock.instant() : null);
     }
