@@ -18,14 +18,15 @@ import {MapAdmission,MAP_UPDATE_MESSAGE,type MapIdentity} from '../../network/ma
 import { FacilityClient } from '../../network/facilityClient'
 import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
+import { jokeBusinessMessage, jokeSubmissionPath } from '../../features/ai/jokeSubmissionError'
 import { clearRoamingInput, inputState, focusParkCanvas } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
 import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
 import { gameChatScope } from '../../features/chat/gameChat'
+import {useCompanions} from '../../features/ai/companions'
 import { gamePlayers, gameState } from '../../game/protocol'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
-import { filterChat } from '../../features/chat/filterChat'
 import { receiveWalletSettlement } from '../../features/wallet/settlementRefresh'
 import {
   channel,
@@ -198,6 +199,9 @@ export class ParkRuntime implements ParkRuntimePort {
   })
   private gameEventScope = () => {
     const s = useSession.getState(), g = useGame.getState()
+    const c=useCompanions.getState(),practice=c.practiceChat??(c.practice?{gameId:c.practice.snapshot.gameId,version:c.practice.snapshot.version,role:'PLAYER' as const}:null)
+    if(practice&&this.active&&this.socket.connected&&s.status==='connected'&&s.roomId&&s.mapCompatible)
+      return {key:JSON.stringify([this.generation,s.sessionId,s.roomId,practice.gameId,practice.role]),...practice,canSend:getAuthSession()?.status==='AUTHENTICATED'}
     if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
       || !g.game || gameState(g.game).status !== 'PLAYING' || g.lastResult) return null
     const game = g.game
@@ -400,7 +404,8 @@ export class ParkRuntime implements ParkRuntimePort {
       response = await fetchOnce()
     }
     const distanceCode = url === '/api/v1/feedback' ? 'FEEDBACK_OUT_OF_RANGE'
-      : /^\/api\/v1\/notes(?:\?channelId=[^&#?]+)?$/.test(url) ? 'NOTES_OUT_OF_RANGE' : ''
+      : /^\/api\/v1\/notes(?:\?channelId=[^&#?]+)?$/.test(url) ? 'NOTES_OUT_OF_RANGE'
+      : url === jokeSubmissionPath ? 'JOKE_OUT_OF_RANGE' : ''
     const distanceForbidden = response.status === 403 && !!distanceCode
     if (response.status === 401 || (response.status === 403 && !distanceForbidden)) this.authEnded()
     if (!response.ok) {
@@ -411,7 +416,7 @@ export class ParkRuntime implements ParkRuntimePort {
       throw new RestError(response.status, code,
         response.status === 401
           ? '로그인을 다시 확인해주세요.'
-          : `서버 요청에 실패했습니다. (${response.status})`,
+          : jokeBusinessMessage(url, response.status, body) ?? `서버 요청에 실패했습니다. (${response.status})`,
         record(body) && typeof body.nextAllowedAt === 'string' ? body.nextAllowedAt : undefined,
       )
     }
@@ -457,7 +462,19 @@ export class ParkRuntime implements ParkRuntimePort {
     const gachaRequest = (method === 'GET' && (path === '/api/v1/gacha'
       || /^\/api\/v1\/gacha\/operations\/[A-Za-z0-9_-]{1,64}$/.test(path)))
       || (method === 'POST' && ['/api/v1/gacha/tickets', '/api/v1/gacha/draws', '/api/v1/gacha/boxes/open'].includes(path))
-    if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
+    const serviceAiRequest = (method === 'GET' && ['/api/v1/ai/features','/api/v1/ai/companions/status'].includes(path))
+      || (method === 'POST' && /^\/api\/v1\/ai\/companions\/(?:invite|action|talk)$/.test(path))
+      || (method === 'GET' && /^\/api\/v1\/ai\/joke-contest\/(?:me|rankings(?:\?date=\d{4}-\d{2}-\d{2})?|yesterday|hall|reveal\/[a-zA-Z0-9-]+|submissions\/[a-zA-Z0-9-]+)$/.test(path))
+      || (method === 'POST' && path === '/api/v1/ai/joke-contest/submissions')
+    const localAiRequest = import.meta.env.DEV && import.meta.env.VITE_AI_PARK === 'true'
+      && ['127.0.0.1','localhost'].includes(location.hostname)
+      && ((method === 'POST' && /^\/local\/ai\/(?:feedback-position|table-position|jumpmap-position|roof-position|flush|digest)$/.test(path))
+        || (method === 'GET' && path === '/local/ai/status')
+        || (method === 'GET' && /^\/local\/ai\/joke-contest\/(?:me|rankings(?:\?date=\d{4}-\d{2}-\d{2})?|yesterday|hall|reveal\/[a-zA-Z0-9-]+|submissions\/[a-zA-Z0-9-]+)$/.test(path))
+        || (method === 'POST' && /^\/local\/ai\/joke-contest\/(?:submissions|position)$/.test(path))
+        || (method === 'GET' && path === '/local/ai/companions/status')
+        || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
+    if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
       && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
@@ -943,10 +960,18 @@ export class ParkRuntime implements ParkRuntimePort {
       return true
     } catch { return false }
   }
+  setMyRoomOpen = async (open: boolean) => {
+    const own = useSession.getState()
+    if (!this.active || own.status !== 'connected' || !own.roomId || !own.mapCompatible) return false
+    try {
+      await this.socket.request('WORLD_MYROOM_SET', { open }, ['WORLD_STATE'])
+      return true
+    } catch { return false }
+  }
   sendChat = (value: string) =>
-    gameChatScope() ? this.sendSpectatorChat(filterChat(value)) :
+    gameChatScope() ? this.sendSpectatorChat(value) :
     this.action(async () => {
-      const text = filterChat(validateChat(value))
+      const text = validateChat(value)
       if (!useSession.getState().roomId)
         throw new Error('먼저 채널에 입장해주세요.')
       await this.socket.request('WORLD_CHAT_SEND', { text }, [

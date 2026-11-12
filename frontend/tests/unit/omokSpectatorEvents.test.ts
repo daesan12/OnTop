@@ -5,6 +5,26 @@ import type { Envelope } from '../../src/network/protocol'
 const feeds: OmokSpectatorEvents[] = []
 afterEach(() => { feeds.splice(0).forEach(f => f.reset()); vi.useRealTimers() })
 const eventId = (n = 1) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+it('keeps commentator identity and scopes/deduplicates NPC speech to its game',()=>{
+  const feed=new OmokSpectatorEvents({scope:()=>({key:'game',gameId:'g',version:6,role:'PLAYER',canSend:true}),request:vi.fn()});feeds.push(feed)
+  const event:Envelope={requestId:null,type:'WORLD_AI_COMPANION_SPEECH',payload:{gameId:'g',basedOnVersion:6,incidentId:'comment-6',name:'박영감',speech:'흑이 조금 편해 보이는구먼.',expiresAt:Date.now()+30000}}
+  feed.accept({...event,payload:{...event.payload,basedOnVersion:5}});expect(useOmokEvents.getState().history).toHaveLength(0)
+  feed.accept({...event,payload:{...event.payload,gameId:'other'}});expect(useOmokEvents.getState().history).toHaveLength(0)
+  feed.accept(event);feed.accept(event)
+  expect(useOmokEvents.getState().history).toHaveLength(1);expect(useOmokEvents.getState().history[0]).toMatchObject({displayName:'박영감',senderUserId:'npc:omok'})
+})
+it('retired AI hiding cannot replace game history or delete its live bubble', () => {
+  const feed = new OmokSpectatorEvents({ scope: () => ({ key: 'game', gameId: 'g', version: 8, role: 'SPECTATOR', canSend: true }),
+    request: vi.fn(), now: () => 0 })
+  feeds.push(feed)
+  feed.accept(message('chat'))
+  feed.accept({requestId:null,type:'GAME_CHAT_MODERATED',payload:{gameId:'other',messageId:`g:505:${eventId()}`,version:1}})
+  expect(useOmokEvents.getState().history[0]?.text).toBe('여기요')
+  feed.accept({requestId:null,type:'GAME_CHAT_MODERATED',payload:{gameId:'g',messageId:`g:505:${eventId()}`,version:1}})
+  feed.sync()
+  expect(useOmokEvents.getState().history[0]?.text).toBe('여기요')
+  expect(useOmokEvents.getState().chats).toHaveLength(1)
+})
 it('fills initially unknown game chat names on profile arrival without rewriting confirmed history', () => {
   let name: string | undefined
   const feed = new OmokSpectatorEvents({ scope: () => ({ key: 'game', gameId: 'g', version: 8, role: 'SPECTATOR', canSend: true }),
@@ -34,6 +54,24 @@ const message = (kind: 'chat' | 'ping' = 'ping', patch: object = {}): Envelope =
   type: kind === 'chat' ? 'GAME_SPECTATOR_CHAT_MESSAGE' : 'OMOK_SPECTATOR_PING',
   payload: { gameId: 'g', eventId: eventId(), senderUserId: '505', sentAt: 100_000, serverNow: 100_000,
     expiresAt: 100_000 + (kind === 'chat' ? 3000 : 2000), ...(kind === 'chat' ? { text: '여기요' } : { x: 7, y: 7, basedOnVersion: 8 }), ...patch } })
+const npcSpeech = ():Envelope => ({requestId:null,type:'WORLD_AI_COMPANION_SPEECH',payload:{gameId:'g',basedOnVersion:9,incidentId:'npc-9',name:'박영감',speech:'가운데를 잘 지켰구먼.',expiresAt:Date.now()+30000}})
+it('holds NPC speech arriving before the polled snapshot and displays it once on synchronization',()=>{
+ const f=setup('PLAYER'),event=npcSpeech();f.feed.accept(event);f.feed.accept(event)
+ expect(useOmokEvents.getState().history).toHaveLength(0)
+ f.advance(650);f.version(9)
+ expect(useOmokEvents.getState().history.map(e=>e.text)).toEqual(['가운데를 잘 지켰구먼.'])
+ f.feed.accept(event);expect(useOmokEvents.getState().history).toHaveLength(1)
+})
+it('drops queued NPC speech when the match changes or the snapshot skips its version',()=>{
+ const f=setup('PLAYER');f.feed.accept(npcSpeech());f.version(10)
+ expect(useOmokEvents.getState().history).toHaveLength(0)
+ const other=setup('PLAYER');other.feed.accept(npcSpeech());other.context({key:'other',gameId:'other',version:9,role:'PLAYER',canSend:true})
+ expect(useOmokEvents.getState().history).toHaveLength(0)
+})
+it('does not resurrect NPC speech after a delayed snapshot exceeds the bounded waiting period',()=>{
+ const f=setup('PLAYER');f.feed.accept(npcSpeech());f.advance(5001);f.version(9)
+ expect(useOmokEvents.getState().history).toHaveLength(0)
+})
 function setup(role: 'PLAYER' | 'SPECTATOR' = 'SPECTATOR') {
   let context: EventScope | null = { key: 'owner/connection/g/'+role, gameId: 'g', version: 8, role, canSend: true }
   let now = 0
@@ -42,6 +80,12 @@ function setup(role: 'PLAYER' | 'SPECTATOR' = 'SPECTATOR') {
   return { feed, request, context: (value: EventScope | null) => { context = value; feed.sync() },
     version: (version: number) => { context = context && { ...context, version }; feed.sync() }, advance: (ms: number) => { now += ms } }
 }
+it('uses the existing word filter for game history and speech bubbles', () => {
+  const f=setup('PLAYER')
+  f.feed.accept(message('chat',{text:'씨발 테스트 5'}))
+  expect(useOmokEvents.getState().history[0]?.text).toBe('** 테스트 5')
+  expect(useOmokEvents.getState().chats[0]?.text).toBe('** 테스트 5')
+})
 it('keeps game-only history after bubbles expire, and erases it on a match change', () => {
   const f = setup('PLAYER')
   f.feed.accept(message('chat'))

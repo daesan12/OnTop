@@ -3,6 +3,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 vi.mock('../../src/park/runtime/ParkRuntime',()=>({useParkRuntime:()=>({})}))
 // SSR normally selects Zustand's initial snapshot; these tests deliberately render a received public game.
+// Render the current presentation snapshot instead of Zustand's initial SSR snapshot.
+vi.mock('../../src/game/displayGame',async original=>{
+  const m=await original<typeof import('../../src/game/displayGame')>()
+  return {...m,useDisplayGame:Object.assign(<T>(select:(s:ReturnType<typeof m.useDisplayGame.getState>)=>T=s=>s as T)=>select(m.useDisplayGame.getState()),m.useDisplayGame)}
+})
 vi.mock('../../src/game/store',async original=>{
   const m=await original<typeof import('../../src/game/store')>()
   return {...m,useGame:Object.assign(<T>(select:(s:ReturnType<typeof m.useGame.getState>)=>T=s=>s as T)=>select(m.useGame.getState()),m.useGame)}

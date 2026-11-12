@@ -41,13 +41,15 @@ export function GachaPanel() {
     const d=dialog.current;if(!d||!connected)return
     d.showModal();return()=>d.close()
   },[connected])
-  const machine=s.state&&live&&live.version>s.state.machine.version?live:s.state?.machine
+  const latestMachine=s.state&&live&&live.version>s.state.machine.version?live:s.state?.machine
+  const machine=drawing&&motion.presentation?motion.presentation.machine:latestMachine
+  const inventory=drawing&&motion.presentation?motion.presentation.inventory:s.state?.inventory
   const remaining=refillRemaining(machine,now), refilling=remaining>0
   const blocked=s.busy||drawing||!!s.pending||!s.state
   const prize=machine?.prizes.find(p=>p.grade===selected)
   const gender=useSession(v=>v.profiles[v.sessionId]?.character==='girl'?'FEMALE':'MALE')
   const product=s.state?.products.find(p=>p.grade===selected&&(p.compatibility==='ANY'||p.compatibility===gender))
-  const notice=notices.filter(n=>n.expiresAt>now).at(-1)
+  const notice=drawing&&motion.presentation?motion.presentation.notice:notices.filter(n=>n.expiresAt>now).at(-1)
   const result=motion.phase==='reveal'?motion.result:null
   const sounded=useRef('')
   useEffect(()=>{if(result?.kind==='DRAW'&&result.grade!==5&&sounded.current!==result.operationId){sounded.current=result.operationId;playSfx(result.grade===1?'game-start':'ui-equip')}},[result])
@@ -66,8 +68,8 @@ export function GachaPanel() {
       <Machine3D phase={motion.phase} phaseStartedAt={motion.phaseStartedAt} grade={motion.result?.grade} reduced={reduced} onReady={sceneLoaded} refillUntil={refilling&&!drawing&&!result?now+remaining:undefined}/>
       <div className="capsule-front-glass" aria-hidden="true"/>
       <h1 className="art-title">의상 뽑기</h1><p className="art-subtitle">모두가 함께하는 작은 행운</p>
-      <div className="art-header-actions"><div className="art-wallet"><span>보유 엽전 <b>{s.state?money(s.state.inventory.balance):'확인 중'}</b></span>
-        <span>뽑기권 <b>{s.state?.inventory.tickets??'—'}장</b></span></div>
+      <div className="art-header-actions"><div className="art-wallet"><span>보유 엽전 <b>{inventory?money(inventory.balance):'확인 중'}</b></span>
+        <span>뽑기권 <b>{inventory?.tickets??'—'}장</b></span></div>
         <button className="art-close" aria-label="뽑기 닫기" disabled={drawing||s.busy} onClick={()=>closeConstructionNotice()}><svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg></button>
       </div>
       <div className="art-announcement" aria-live="polite">{notice?.text??'S급 캡슐의 주인공은 누구일까요?'}</div>
@@ -103,7 +105,7 @@ export function GachaPanel() {
       {motion.phase==='anticipation'&&<div className="capsule-anticipation" aria-hidden="true"><span>특별한 행운이 다가와요…</span></div>}
       {s.loading&&!s.state&&<p className="art-notice" role="status">공유 기계의 재고를 불러오고 있어요…</p>}
       {(s.error||s.pending&&!s.busy&&!drawing)&&<p className="art-error" role="alert">{displayGachaMessage(s.error)||'이전 요청의 결과를 다시 확인해 주세요.'}{s.pending&&!s.busy&&!drawing&&<button onClick={retry}>{s.pending.kind==='OPEN'?'옷장에서 개봉 결과 확인':'같은 요청으로 다시 확인'}</button>}{s.error&&!s.pending&&!s.busy&&!drawing&&<button disabled={s.loading} onClick={()=>void refreshGacha()}>다시 불러오기</button>}</p>}
-      {s.state&&s.state.inventory.availableBalance<s.state.ticketPrice&&<p className="art-shortage">구매하려면 {money(s.state.ticketPrice-s.state.inventory.availableBalance)}이 더 필요해요.</p>}
+      {s.state&&inventory&&inventory.availableBalance<s.state.ticketPrice&&<p className="art-shortage">구매하려면 {money(s.state.ticketPrice-inventory.availableBalance)}이 더 필요해요.</p>}
       {result&&<div className={result.kind==='DRAW'?'capsule-reveal':'purchase-reveal'} data-grade={result.grade}
         style={{'--rarity-color':CAPSULES[result.grade]?.color??'#ffe49a'} as React.CSSProperties}>
         {result.kind==='DRAW'&&<><RevealEffects grade={result.grade}/><CapsuleHero3D grade={result.grade} reduced={reduced||motion.instant}/></>}
@@ -119,7 +121,10 @@ export function GachaPanel() {
 
 export function GachaLifecycle() {
   const owner=useSession(s=>s.sessionId),connected=useSession(s=>s.status==='connected')
-  useEffect(()=>{resetGacha()},[owner,connected])
+  useEffect(()=>{
+    resetGacha()
+    if(connected&&owner)void refreshGacha()
+  },[owner,connected])
   useEffect(()=>{
     const refresh=()=>{const state=useGacha.getState();if(connected&&state.owner===owner&&state.state)void refreshGacha()}
     window.addEventListener('ontop:gacha-inventory-changed',refresh)

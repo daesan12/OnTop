@@ -74,6 +74,9 @@ class TableGameIdFlowTests {
     @Autowired private ObjectMapper mapper;
     @Autowired private TableHub hub;
     @MockitoSpyBean private OmokEngine engine;
+    // Keep timer ticks from consuming the spy's in-progress Mockito stubbing.
+    // These lifecycle scenarios advance the test clock and call engine.tick() explicitly.
+    @MockitoBean(name = "omokTimer") private java.util.concurrent.ScheduledExecutorService omokTimer;
     @Autowired private OmokFlowTests.TestClock clock;
     @Autowired private WorldChannelRegistry positions;
     @Autowired private ApplicationEventPublisher events;

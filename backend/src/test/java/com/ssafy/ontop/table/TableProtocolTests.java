@@ -15,6 +15,22 @@ class TableProtocolTests {
 
     private final TableProtocol protocol = new TableProtocol(new ObjectMapper());
 
+    @Test void 마이룸은_불리언_열림만_받고_다른회원이나_채널_위조는_거절한다() throws Exception {
+        var mapper = new ObjectMapper();
+        for (boolean open : new boolean[] {true, false}) {
+            assertThat(protocol.parse(mapper.writeValueAsString(Map.of("requestId", "myroom",
+                    "type", "WORLD_MYROOM_SET", "payload", Map.of("open", open)))).type())
+                    .isEqualTo("WORLD_MYROOM_SET");
+        }
+        for (Object payload : java.util.List.of(Map.of(), Map.of("open", "true"), Map.of("open", 1),
+                Map.of("open", true, "userId", "other"), Map.of("open", true, "channelId", "other"))) {
+            String message = mapper.writeValueAsString(Map.of("requestId", "myroom", "type", "WORLD_MYROOM_SET",
+                    "payload", payload));
+            assertThat(catchThrowableOfType(RequestException.class, () -> protocol.parse(message)).code())
+                    .isEqualTo("INVALID_PAYLOAD");
+        }
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"{\"busy\":true}", "{\"busy\":true,\"vrActive\":true}",
             "{\"busy\":true,\"vrActive\":false}", "{\"busy\":false,\"vrActive\":false}"})

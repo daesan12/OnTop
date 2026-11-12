@@ -1,9 +1,11 @@
+import {residentsEnabled} from '../ai/serviceFeatures'
 import type { TableState, TableSummary } from '../../network/protocol'
 import { isTableGamePlayable, type TableGameCode } from './model'
 import { useGame } from '../../game/store'
 import { useSession } from '../../network/worldClient'
 import { create } from 'zustand'
 import { TABLET_ENABLED } from './tabletFeature'
+import { useCompanions } from '../ai/companions'
 
 export interface PreparationContext { userId: string; channelId: string; tableId: string; expectedVersion: number }
 export interface PreparationSelection { gameCode: TableGameCode; playerCount: number; betAmountPerPlayer: number; targetScore?: number }
@@ -37,6 +39,7 @@ export function manualStartAllowed(table: TableState, ownId: string, count: numb
 }
 export function tabletLobbyActive() {
   const s = useSession.getState(), g = useGame.getState(), table = s.tableStates[s.tableId]
+  if(residentsEnabled() && useCompanions.getState().practice?.snapshot.tableId===s.tableId)return false
   return TABLET_ENABLED && s.status === 'connected' && !!table && table.seats.some(seat => seat.userId === s.sessionId)
     && !g.watchedGameId && !g.lastResult && !g.game && !['PLAYING', 'SETTLING'].includes(g.start?.phase ?? '')
 }

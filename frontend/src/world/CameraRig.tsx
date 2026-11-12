@@ -13,7 +13,7 @@ import { CAMERA, CHARACTER, GOMOKU, PARK_SIZE, TABLES, TELESCOPE, TELESCOPES, te
 import { WELCOME_FLIGHT_MS, welcomeFlight, welcomeFlightPose } from '../features/welcomeTour/flight'
 import { telescopeView } from '../features/telescopeView'
 import { interactionAim, setInteractionCamera } from '../features/interactions/interactionAim'
-import { useGame } from '../game/store'
+import { useDisplayGame as useGame } from '../game/displayGame'
 import { omokCamera, omokSpectatorViewport } from '../game/cameraState'
 import { OMOK_BOARD_Y } from '../game/omokPresentation'
 import { avatars, sampleAvatar, useSession,estimatedServerTime } from '../network/worldClient'
@@ -293,7 +293,7 @@ export function CameraRig() {
       && game.omok?.status === 'PLAYING' && !gameSession.lastResult
     const ownOmok = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'OMOK'
       || game?.role === 'PLAYER' && !!game.omok)
-    const gathering = !TABLET_ENABLED && gatheringCameraActive()
+    const gathering = !gameSession.localPractice && !TABLET_ENABLED && gatheringCameraActive()
     const spectatorOmok = spectatorBoard && game?.role === 'SPECTATOR' && game.omok?.status === 'PLAYING'
     const focusedOmok = boardFocus && ownOmok && !gathering || spectatorOmok
     const alkkagiCamera = !!game && alkkagiCameraActive(game.alkkagi?.status, !!gameSession.lastResult)

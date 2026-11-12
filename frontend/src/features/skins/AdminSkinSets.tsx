@@ -3,6 +3,7 @@ import { inboxRequest, InboxError } from '../notifications/api'
 import { skinRequest, type SkinAsset, type SkinEntry } from './api'
 import { occupies, overlaps, placeLabels, placeNames, places, type SetDefinition, type SkinSet } from './sets'
 import { SkinSetPreview } from './SkinSetPreview'
+import { SkinSetLibrary, SkinGradeFilter } from './SkinLibrary'
 
 type Gender = 'MALE' | 'FEMALE'
 type Draft = { form: SetDefinition; saved: SkinSet | null }
@@ -29,18 +30,23 @@ export function AdminSkinSets({ onAuthEnded, initialItem = null, onRegister, onW
   const [loaded,setLoaded] = useState({MALE:false,FEMALE:false}),[reviewed,setReviewed] = useState({MALE:false,FEMALE:false})
   const [generation,setGeneration] = useState({MALE:0,FEMALE:0})
   const [picker,setPicker] = useState<{gender:Gender;place:typeof places[number]}|null>(null),[query,setQuery] = useState('')
+  const [itemGrade,setItemGrade] = useState(0),[assetError,setAssetError] = useState(false)
+  const assetIndex=useMemo(()=>new Map(assets.map(asset=>[asset.imageKey,asset])),[assets])
   const flight = useRef<AbortController|null>(null), dialog = useRef<HTMLDialogElement>(null)
   const fail = (e:unknown) => {if(e instanceof InboxError && e.status===401)onAuthEnded();else setMessage(e instanceof Error?e.message:'불러오지 못했어요. 다시 시도해주세요.')}
-  useEffect(()=>{const c=new AbortController();Promise.all([skinRequest<SkinEntry[]>('/components',c.signal),skinRequest<SkinSet[]>('/sets',c.signal),inboxRequest('/api/v1/skins/assets',c.signal)])
-    .then(([a,b,catalog])=>{if(!c.signal.aborted){setItems(a);setSets(b);setAssets(catalog as SkinAsset[])}}).catch(e=>{if(!c.signal.aborted)fail(e)})
+  useEffect(()=>{const c=new AbortController();setAssetError(false)
+    void inboxRequest('/api/v1/skins/assets',c.signal).then(catalog=>{if(!c.signal.aborted)setAssets(catalog as SkinAsset[])})
+      .catch(()=>{if(!c.signal.aborted){setAssets([]);setAssetError(true)}})
+    Promise.all([skinRequest<SkinEntry[]>('/components',c.signal),skinRequest<SkinSet[]>('/sets',c.signal)])
+      .then(([a,b])=>{if(!c.signal.aborted){setItems(a);setSets(b)}}).catch(e=>{if(!c.signal.aborted)fail(e)})
     return()=>c.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[revision])
   useEffect(()=>()=>flight.current?.abort(),[])
   useEffect(()=>{if(picker){dialog.current?.showModal();return()=>dialog.current?.close()}},[picker])
   const chosen = (gender:Gender) => drafts[gender].form.itemIds.map(id=>items.find(i=>i.id===id)).filter((i):i is SkinEntry=>!!i)
-  const findAsset = (item:SkinEntry) => assets.find(a=>a.imageKey==='catalog/'+item.publishedUploadId)
-  const previews = useMemo(()=>Object.fromEntries(genders.map(g=>[g,drafts[g].form.itemIds.map(id=>items.find(i=>i.id===id)).map(i=>i&&assets.find(a=>a.imageKey==='catalog/'+i.publishedUploadId)).filter((a):a is SkinAsset=>!!a)])) as Record<Gender,SkinAsset[]>,[drafts,items,assets])
+  const findAsset = (item:SkinEntry) => assetIndex.get('catalog/'+item.publishedUploadId)
+  const previews = useMemo(()=>Object.fromEntries(genders.map(g=>[g,drafts[g].form.itemIds.map(id=>items.find(i=>i.id===id)).map(i=>i&&assetIndex.get('catalog/'+i.publishedUploadId)).filter((a):a is SkinAsset=>!!a)])) as Record<Gender,SkinAsset[]>,[drafts,items,assetIndex])
   const dirty = (g:Gender) => JSON.stringify(drafts[g].form)!==baselines.current[g]
   const unsaved = genders.some(dirty)
   useEffect(()=>onWorkflowChange({busy,dirty:unsaved}),[busy,unsaved,onWorkflowChange])
@@ -89,7 +95,7 @@ export function AdminSkinSets({ onAuthEnded, initialItem = null, onRegister, onW
   const slots = (g:Gender) => <div className={'skin-body-slots '+g.toLowerCase()} aria-label={genderLabel[g]+' 부위'}>{places.map(place=>{
     const item=chosen(g).find(i=>occupies(i,place)),picture=item&&findAsset(item),locked=!!item
     return <div key={place} className={'skin-body-slot'+(locked?' occupied':'')}>
-      <button type="button" aria-label={genderLabel[g]+' '+placeLabels[place]+' 불러오기'} disabled={busy||!!drafts[g].saved?.publishedAt||locked} onClick={()=>{setQuery('');setPicker({gender:g,place})}}>
+      <button type="button" aria-label={genderLabel[g]+' '+placeLabels[place]+' 불러오기'} disabled={busy||!!drafts[g].saved?.publishedAt||locked} onClick={()=>{setQuery('');setItemGrade(0);setPicker({gender:g,place})}}>
         <strong>{placeLabels[place]}</strong>{picture?<img src={picture.imageUrl} alt=""/>:<span className="skin-slot-plus" aria-hidden="true">＋</span>}
         <span>{item?item.definition.name:'아이템 불러오기'}</span>{locked&&<small>🔒 {placeNames(item!)} 연결</small>}
       </button>{item&&!drafts[g].saved?.publishedAt&&<button type="button" className="skin-slot-remove" disabled={busy} onClick={()=>remove(g,item.id)} aria-label={genderLabel[g]+' '+placeLabels[place]+' 아이템 빼기'}>빼기</button>}
@@ -99,6 +105,8 @@ export function AdminSkinSets({ onAuthEnded, initialItem = null, onRegister, onW
     <header className="skin-dressing-heading"><div><h2>아이템을 불러와 입혀보세요.</h2><p>남자는 왼쪽, 여자는 오른쪽 슬롯을 눌러주세요. 남녀 구성은 각각 저장돼요.</p></div>
       <div><button disabled={busy} onClick={onRegister}>＋ 새 아이템 파일 등록</button><button disabled={busy} onClick={()=>{genders.forEach(reset);setRevision(v=>v+1)}}>목록 새로고침</button></div></header>
     {message&&<p role="status" className="skin-message">{message}</p>}
+    {assetError&&<p role="status" className="skin-help">미리보기 파일 목록을 불러오지 못했어요. 세트 정보는 편집할 수 있어요. 목록을 새로고침해주세요.</p>}
+    <SkinSetLibrary sets={sets} items={items} assets={assets} busy={busy} onChoose={changeSet}/>
     <div className="skin-twin-stage">{slots('MALE')}<div className="skin-twin-models">{genders.map(g=>{
       const d=drafts[g],key=g+'|'+generation[g]+'|'+revision+'|'+previews[g].map(a=>a.imageKey).join('|')
       return <figure key={g} className="skin-body-model" aria-label={genderLabel[g]+' 캐릭터 미리보기'}><figcaption>{genderLabel[g]} 캐릭터</figcaption><div className="skin-twin-canvas" key={key}>
@@ -117,12 +125,13 @@ export function AdminSkinSets({ onAuthEnded, initialItem = null, onRegister, onW
     })}</div>
     <dialog ref={dialog} className="skin-item-picker" onCancel={e=>{e.preventDefault();setPicker(null)}} aria-label="등록된 아이템 불러오기">
       {picker&&<><header><div><h3>{genderLabel[picker.gender]} {placeLabels[picker.place]}에 입힐 아이템</h3><p>사진을 누르면 바로 입혀져요.</p></div><button onClick={()=>setPicker(null)} aria-label="아이템 선택 닫기">닫기</button></header>
-        <label>아이템 찾기<input autoFocus value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="skin-component-grid">
-          {items.filter(i=>i.state==='PUBLISHED'&&fitsDraft(i,picker.gender)&&occupies(i,picker.place)&&i.definition.name.includes(query)).map(item=>{
+        <label>아이템 찾기<input autoFocus value={query} onChange={e=>setQuery(e.target.value)}/></label>
+        <SkinGradeFilter value={itemGrade} onChange={setItemGrade} label="아이템 등급 필터"/><div className="skin-component-grid">
+          {items.filter(i=>i.state==='PUBLISHED'&&(!itemGrade||i.definition.grade===itemGrade)&&fitsDraft(i,picker.gender)&&occupies(i,picker.place)&&i.definition.name.includes(query)).map(item=>{
             const conflict=overlaps(chosen(picker.gender),item),picture=findAsset(item)
             return <button key={item.id} disabled={busy||conflict||!picture} onClick={()=>selectItem(item)}>{picture&&<img src={picture.imageUrl} alt=""/>}<strong>{item.definition.name}</strong><span>{placeNames(item)}</span><small>{conflict?'다른 아이템이 사용 중인 부위예요':!picture?'파일을 다시 확인해주세요':'불러오기'}</small></button>
           })}
-        </div>{!items.some(i=>i.state==='PUBLISHED'&&fitsDraft(i,picker.gender)&&occupies(i,picker.place)&&i.definition.name.includes(query))&&<p>이 부위에 사용할 아이템이 없어요. 새 아이템 파일을 먼저 등록해주세요.</p>}
+        </div>{!items.some(i=>i.state==='PUBLISHED'&&(!itemGrade||i.definition.grade===itemGrade)&&fitsDraft(i,picker.gender)&&occupies(i,picker.place)&&i.definition.name.includes(query))&&<p>선택한 조건에서 이 부위에 사용할 아이템이 없어요.</p>}
       </>}
     </dialog>
   </section>

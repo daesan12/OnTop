@@ -31,7 +31,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Tag("mysql")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.raffle.enabled=true",
-        "spring.flyway.locations=classpath:db/migration",
+        // 운영 DB_MIGRATION_LOCATIONS와 같이 적용한다. V165가 db/shop의 items를 참조한다.
+        "spring.flyway.locations=classpath:db/migration,classpath:db/shop,classpath:db/minigame",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
 class RaffleApiMySqlTests {
@@ -82,20 +83,20 @@ class RaffleApiMySqlTests {
     }
 
     @Test
-    void 한_회원은_한_주에_서로_다른_번호를_열_장까지만_구매한다() {
-        long userId = member(2_000, 0);
+    void 한_회원은_한_주에_서로_다른_번호를_쉰_장까지만_구매한다() {
+        long userId = member(6_000, 0);
         var numbers = new ArrayList<Integer>();
-        for (int index = 0; index < 10; index++) {
+        for (int index = 0; index < 50; index++) {
             numbers.add(service.purchase(userId, "request-" + index).ticketNumber());
         }
 
         assertThat(numbers).doesNotHaveDuplicates().allMatch(number -> number >= 1 && number <= 10_000);
-        assertThatThrownBy(() -> service.purchase(userId, "request-10"))
+        assertThatThrownBy(() -> service.purchase(userId, "request-50"))
                 .isInstanceOf(RaffleException.class)
                 .satisfies(error -> assertThat(((RaffleException) error).code())
                         .isEqualTo("RAFFLE_WEEKLY_LIMIT_REACHED"));
         assertThat(balance(userId)).isEqualTo(1_000);
-        assertThat(count("raffle_tickets")).isEqualTo(10);
+        assertThat(count("raffle_tickets")).isEqualTo(50);
     }
 
     @Test

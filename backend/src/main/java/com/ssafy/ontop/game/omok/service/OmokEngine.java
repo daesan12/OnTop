@@ -42,6 +42,14 @@ public final class OmokEngine implements GameEngine {
     private final GameLifecycle lifecycle = new GameLifecycle();
     private final GameForfeitReceipts forfeits = new GameForfeitReceipts();
 
+    /** Immutable local commentator input; caller performs analysis outside the engine monitor. */
+    public record AnalysisPosition(Snapshot snapshot,List<com.ssafy.ontop.game.omok.domain.OmokBoard.Move> moves) { }
+    public synchronized List<AnalysisPosition> analysisPositions() {
+        var cutoff=clock.instant().minusSeconds(30);
+        return games.values().stream().filter(g -> g.snapshot().endedAt()==null || g.snapshot().endedAt().isAfter(cutoff))
+                .limit(16).map(g -> new AnalysisPosition(g.snapshot(),g.moves())).toList();
+    }
+
     public OmokEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events) {
         this(mapper, clock, events, new GameEngineRouter());
     }

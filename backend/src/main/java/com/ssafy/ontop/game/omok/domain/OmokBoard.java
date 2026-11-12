@@ -70,6 +70,8 @@ public final class OmokBoard {
         return new Snapshot(List.copyOf(board), moveCount, outcome, lastMove, forbiddenMoves());
     }
 
+    public List<Move> moves() { return List.copyOf(moves); }
+
     // Reuse the authoritative rule and calculate once per changed board, not per viewer/timer tick.
     private List<Point> forbiddenMoves() {
         if (outcome != Outcome.PLAYING) return List.of();

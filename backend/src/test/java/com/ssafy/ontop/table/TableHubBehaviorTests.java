@@ -184,6 +184,36 @@ class TableHubBehaviorTests {
         full.close();
     }
 
+    @Test
+    void NPC오목_MM은_발언당시_참가자와_관전자_닉네임을_사용한다(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        var sent=new CopyOnWriteArrayList<String>();
+        try(var ai=new com.ssafy.ontop.ai.LocalWorldAi(mapper,directory,new com.ssafy.ontop.ai.OfflineDecisions(),
+                (id,kind,text) -> {sent.add(text);return "fixture";},hub,null,true)) {
+            Peer owner=peer(101),viewer=peer(102);owner.join("one");viewer.join("one");
+            registry.profile(owner.userId,new com.ssafy.ontop.world.service.WorldProfileGateway.Profile("동네친구","MALE"));
+            registry.profile(viewer.userId,new com.ssafy.ontop.world.service.WorldProfileGateway.Profile("관전친구","FEMALE"));
+            String table=hub.listTables("one").tables().getFirst().tableId(),game="npc-nickname-regression";
+            assertThat(owner.request("TABLE_JOIN",Map.of("tableId",table)).path("type").asText()).isEqualTo("TABLE_STATE");
+            owner.request("GAME_SELECT",Map.of("gameCode","OMOK","betAmountPerPlayer",1));
+            assertThat(hub.aiReserveOmok(hub.aiWaitingOmok().getFirst(),"npc:test")).isTrue();
+            hub.aiBindPracticeGame(table,"npc:test",game);
+            var position=registry.positionOf(owner.userId);viewer.locate(position.x(),position.y(),position.z());
+            var proximity=(com.ssafy.ontop.world.service.WorldProximity)org.springframework.test.util.ReflectionTestUtils.getField(hub,"proximity");
+            proximity.registerTable(table,new com.ssafy.ontop.world.config.WorldProximityProperties.Point(position.x(),position.z()));
+            assertThat(viewer.request("TABLE_WATCH",Map.of("tableId",table)).path("type").asText()).isEqualTo("TABLE_WATCH_STATE");
+            var message=Map.of("gameId",game,"eventId",UUID.randomUUID().toString(),"text","씨발");
+            assertThat(owner.request("GAME_SPECTATOR_CHAT_SEND",message).path("type").asText()).isEqualTo("GAME_SPECTATOR_CHAT_MESSAGE");
+            registry.profile(owner.userId,new com.ssafy.ontop.world.service.WorldProfileGateway.Profile("변경된별명","MALE"));
+            owner.request("GAME_SPECTATOR_CHAT_SEND",message); // Same event must not overwrite its original display name.
+            assertThat(viewer.request("GAME_SPECTATOR_CHAT_SEND",Map.of("gameId",game,"eventId",UUID.randomUUID().toString(),"text","병신"))
+                    .path("type").asText()).isEqualTo("GAME_SPECTATOR_CHAT_MESSAGE");
+            ai.flush();ai.step();
+            assertThat(sent).hasSize(2);
+            assertThat(String.join("\n",sent)).contains("동네친구: 씨발","관전친구: 병신","경기 채팅 안내")
+                    .doesNotContain("101: 씨발","102: 병신","변경된별명: 씨발","경찰 출동 요청");
+        }
+    }
+
     private Peer peer(long accountId) throws Exception {
         Peer peer = new Peer();
         WebSocketSession session = mock(WebSocketSession.class);

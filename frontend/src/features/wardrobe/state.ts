@@ -84,17 +84,20 @@ export function openWardrobe() {
   wardrobeView.aim = { yaw: facing ?? viewControls.yaw, pitch: WARDROBE_PITCH }
   wardrobeView.chooseClearView = true
   useWardrobe.setState({ open: true, owner: s.sessionId, previewId: 0, equipError: '', notice: '' })
+  void parkRuntime.setMyRoomOpen?.(true)
   void refreshWardrobe()
 }
 export function closeWardrobe() {
   ++epoch
   readAbort?.abort(); writeAbort?.abort()
   const wasOpen = useWardrobe.getState().open
+  const owner = useWardrobe.getState().owner
   useWardrobe.setState({ open: false, loading: false, equipping: 0, previewId: 0 })
   inputState.wardrobeOpen = false
   wardrobeView.active = false
   wardrobeView.chooseClearView = false
   if (!wasOpen) return
+  if (ownerPresent(owner)) void parkRuntime.setMyRoomOpen?.(false)
   wardrobeView.aim = savedView
   savedView = null
   clearRoamingInput()

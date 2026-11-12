@@ -2,7 +2,7 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 const fixture = vi.hoisted(() => ({ session: { sessionId: '42', status: 'connected' }, request: vi.fn(), storage: new Map<string, string>() }))
 vi.mock('../../src/network/worldClient', () => ({ useSession: { getState: () => fixture.session } }))
 vi.mock('../../src/park/runtime/runtime', () => ({ parkRuntime: { requestJSON: fixture.request } }))
-import { gachaAction, refreshGacha, resetGacha, useGacha } from '../../src/features/gacha/state'
+import { gachaAction, gachaInteractionEnabled, refreshGacha, resetGacha, useGacha } from '../../src/features/gacha/state'
 import { acceptGacha } from '../../src/features/gacha/events'
 import { RestError } from '../../src/network/restError'
 import { gachaClock, refillRemaining } from '../../src/features/gacha/timing'
@@ -19,6 +19,33 @@ beforeEach(async () => {
   fixture.request.mockResolvedValue(state); await refreshGacha(); fixture.request.mockClear()
 })
 afterEach(() => vi.unstubAllGlobals())
+it('활성 상태를 확인한 현재 연결에만 공원 뽑기 상호작용을 연다', async () => {
+  expect(useGacha.getState().availability).toBe('enabled')
+  expect(gachaInteractionEnabled('42')).toBe(true)
+  expect(gachaInteractionEnabled('99')).toBe(false)
+
+  resetGacha()
+  expect(useGacha.getState().availability).toBe('unknown')
+  expect(gachaInteractionEnabled('42')).toBe(false)
+
+  fixture.request.mockResolvedValueOnce({ ...state, enabled: false })
+  await refreshGacha()
+  expect(useGacha.getState().availability).toBe('disabled')
+  expect(useGacha.getState().state).toBeNull()
+  expect(gachaInteractionEnabled('42')).toBe(false)
+})
+it('명시적 미설정만 비활성으로 확정하고 일시적 조회 오류는 기존 활성 상태를 유지한다', async () => {
+  fixture.request.mockRejectedValueOnce(new Error('일시적 네트워크 오류'))
+  await refreshGacha()
+  expect(useGacha.getState().availability).toBe('enabled')
+  expect(gachaInteractionEnabled('42')).toBe(true)
+
+  fixture.request.mockRejectedValueOnce(new RestError(503, 'GACHA_NOT_CONFIGURED', '뽑기 미설정'))
+  await refreshGacha()
+  expect(useGacha.getState().availability).toBe('disabled')
+  expect(useGacha.getState().state).toBeNull()
+  expect(gachaInteractionEnabled('42')).toBe(false)
+})
 it('보유 수량 초과가 확정되면 미소비 요청을 정리한다',async()=>{
   fixture.request.mockRejectedValueOnce(new RestError(409,'GACHA_CAPACITY_EXCEEDED','보유 한도 초과'))
   await gachaAction('BUY')

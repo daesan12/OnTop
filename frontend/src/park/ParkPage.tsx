@@ -18,6 +18,7 @@ import { ConstructionNotice } from '../features/construction/ConstructionNotice'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
+import { PolicePrivateNotice } from '../features/ai/PolicePrivateNotice'
 import { AnonymousNotes } from '../features/notes/AnonymousNotes'
 import { ManualHost } from '../features/manual/ManualHost'
 import { FacilityStatus } from '../features/facilities/FacilityStatus'
@@ -34,7 +35,7 @@ import { CameraControls } from '../features/camera/CameraControls'
 import { ParkXRControls } from '../features/parkXR/ParkXRControls'
 import { FollowMenu } from '../features/follow/FollowMenu'
 import { ParkChat } from '../features/chat/ParkChat'
-import { useGame } from '../game/store'
+import { useDisplayGame as useGame } from '../game/displayGame'
 import { OmokFeedback, SpectatorChat } from '../game/omok/OmokFeedback'
 import { ChannelMenu } from '../features/parkMenus/ChannelMenu'
 import { ChannelEntryGate } from '../features/parkMenus/ChannelEntryGate'
@@ -56,6 +57,7 @@ import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
 import { EntryNewsPopup } from '../features/announcements/EntryNewsPopup'
+import { AiResidentsHost } from '../features/ai/AiResidentsHost'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
 import { WinnerContactsHost } from '../features/winnerContacts/WinnerContactsHost'
 import { useArcade } from '../features/arcade/store'
@@ -64,6 +66,7 @@ import { usePlusMinus } from '../features/plusMinus/store'
 import { useRpsRoulette } from '../features/rpsRoulette/store'
 import { useSpeedMole } from '../features/speedMole/store'
 import { GachaLifecycle } from '../features/gacha/GachaPanel'
+import { useGachaOverlay } from '../features/gacha/view'
 import { useParkGameplayActive } from '../features/operation/parkGameplay'
 import { useParkOperationGate } from '../features/operation/useParkOperationGate'
 import type { ServiceOperationStatus } from '../features/operation/serviceOperation'
@@ -111,8 +114,9 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const plusMinusOpen = usePlusMinus(s => s.open)
   const rpsOpen = useRpsRoulette(s => s.open)
   const speedMoleOpen = useSpeedMole(s => s.open)
+  const gachaOpen = useGachaOverlay(s => s.open)
   const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
-    || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen
+    || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
@@ -149,6 +153,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <ParkSfx />
       <RewardCoinFlight />
       <ChannelEntryGate />
+      <AiResidentsHost />
       <AnnouncementBanner hidden={hideAnnouncements} />
       <EntryNewsPopup hidden={hideAnnouncements} launcherHost={entryNewsHost} />
       <GachaLifecycle />
@@ -183,6 +188,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
         <ParkTools />
         <ParkInteractionHint />
+        <PolicePrivateNotice />
         <div hidden={omokFocus} inert={omokFocus}>
         <WelcomeTour />
         <ConstructionNotice />

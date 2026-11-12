@@ -40,3 +40,6 @@ __pycache__/
 /backend/src/test/resources/omok-demo/
 /backend/src/test/resources/games-demo/
 /backend/src/test/resources/shop-demo/
+
+# Personal AI lab build output; runtime state already lives under ignored .gradle/.
+/frontend/dist-ai-lab/
