@@ -118,7 +118,9 @@ export function GachaPanel() {
         <button type="button" aria-label="한 장 줄이기" disabled={blocked||count<=1} onClick={()=>setBuyCount(Math.max(1,count-1))}>−</button>
         <input type="text" inputMode="numeric" aria-label="구매할 뽑기권 수 입력" maxLength={3} disabled={blocked} value={countDraft??String(count)}
           onFocus={e=>e.currentTarget.select()} onBlur={()=>setCountDraft(null)} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur()}}
-          onChange={e=>{const digits=e.currentTarget.value.replace(/\D/g,'').slice(0,3),n=Number(digits);setCountDraft(digits);if(n>=1)setBuyCount(Math.min(MAX_TICKET_PURCHASE,n))}}/>
+          onChange={e=>{const digits=e.currentTarget.value.replace(/\D/g,'').slice(0,3),n=Number(digits)
+            // More than the coins can pay for (or than one purchase allows) turns into the most that can be bought, right away.
+            if(n>affordable){setCountDraft(String(affordable));setBuyCount(affordable)}else{setCountDraft(digits);if(n>=1)setBuyCount(n)}}}/>
         <button type="button" aria-label="한 장 늘리기" disabled={blocked||count>=affordable} onClick={()=>setBuyCount(Math.min(affordable,count+1))}>+</button>
       </div>
       <button className="art-draw art-button" aria-label="뽑기권 1장 사용" aria-keyshortcuts="Space" disabled={!canDraw} onClick={()=>void act('DRAW')}>
