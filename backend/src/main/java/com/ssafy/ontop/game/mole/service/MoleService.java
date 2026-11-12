@@ -117,9 +117,9 @@ public class MoleService {
             if (elapsed < MoleRules.DURATION_MS) {
                 throw new MoleException(409, "MOLE_ROUND_NOT_FINISHED", "아직 끝나지 않은 판이에요.");
             }
-            String hiddenId = new MoleTargets(GAME, round.id(), round.seed()).hiddenId();
+            var hiddenIds = new MoleTargets(GAME, round.id(), round.seed()).hiddenIds(MoleRules.KEYS.size());
             List<MoleRules.Hit> taps = hits == null ? List.of() : hits.stream()
-                    .filter(hit -> !hiddenId.equals(hit.targetId()))
+                    .filter(hit -> !hiddenIds.contains(hit.targetId()))
                     .map(hit -> new MoleRules.Hit(hit.hole(), hit.at())).toList();
             int hiddenTaps = hits == null ? 0 : hits.size() - taps.size();
             MoleRules.Score score = MoleRules.score(MoleRules.schedule(round.seed()), taps);

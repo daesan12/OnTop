@@ -33,16 +33,16 @@ describe('speed mole server/client contract', () => {
     await expect(service.start('same_key')).rejects.toThrow('준비되지')
     expect(request).toHaveBeenCalledTimes(1)
   })
-  it('keeps only visible target IDs and still accepts an older start response', async () => {
-    const round = { id: '7', seed: 1, rulesVersion: 1, durationMs: 60000,
+  it('selects target IDs using the exact round ID and accepts an older start response', async () => {
+    const round = { id: '9223372036854775807', seed: 1, rulesVersion: 1, durationMs: 60000,
       serverNow: '2030-01-01T00:00:00Z', startedAt: '2030-01-01T00:00:03Z' }
     const request = vi.fn().mockResolvedValue({ ...round, targets: [
-      { id: 'real', hole: 1, visible: true },
-      { id: 'hidden', hole: 1, visible: false },
+      { hole: 1, ids: ['one-a', 'one-b'] },
+      { hole: 2, ids: ['two-a', 'two-b'] },
     ] })
     const service = new SpeedMoleService(request)
 
-    expect(await service.start('current')).toEqual({ ...round, targetIds: new Map([[1, 'real']]) })
+    expect(await service.start('current')).toEqual({ ...round, targetIds: new Map([[1, 'one-b'], [2, 'two-a']]) })
     request.mockResolvedValue(round)
     expect(await service.start('legacy')).toEqual(round)
   })

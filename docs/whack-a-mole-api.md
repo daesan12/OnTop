@@ -43,10 +43,10 @@
 
 - 시작: 같은 키를 다시 보내면 같은 판을 돌려준다. 새 판을 열면 끝내지 않은 이전 판은 `EXPIRED`로 보상 없이 닫는다.
   출현표 `moles[]`는 `id · hole · kind(NORMAL|GOLD|RAPID|DECOY) · hits · appearAt · leaveAt`(판 시작 기준 ms)다.
-  `targets[]`는 판별 구멍 ID 목록(`id · hole · visible`)이다. 화면과 점수 판정에는 기존 `moles[]`를 사용한다.
+  `targets[]`는 구멍 번호와 동일한 형식의 ID 두 개(`hole · ids[2]`)를 담는다. 화면과 점수 판정에는 기존 `moles[]`를 사용한다.
 - 완료: 서버 시작 시각부터 90초가 지나야 받고(`MOLE_ROUND_NOT_FINISHED`), 120초가 넘으면 `MOLE_ROUND_EXPIRED`다.
   타격은 최대 1,200개. 이미 정산한 판은 같은 결과를 돌려주고 다시 지급하지 않는다.
-  실제 표적 타격에는 `visible=true`인 구멍의 `targetId`를 선택적으로 첨부한다. 해당 판의 숨은 ID 타격은
+  실제 표적 타격에는 판 ID 문자열에서 선택한 해당 구멍의 `targetId`를 선택적으로 첨부한다. 해당 판의 숨은 ID 타격은
   점수 계산에서 제외하고 정산 성공 뒤 `mole_honeypot_hit` 로그를 한 줄 남긴다. 보상·랭킹 기준은 기존과 같다.
 - 정산 응답: `result(id · score · maxCombo · caught · calculatedReward · reward · settledAt) · todayEarned · dailyCap · bestScore`.
   `calculatedReward`는 40점당 1냥 값, `reward`는 하루 상한을 적용해 실제 지급한 값이다.

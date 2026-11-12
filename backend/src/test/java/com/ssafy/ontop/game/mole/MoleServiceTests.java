@@ -102,8 +102,8 @@ class MoleServiceTests {
     @ExtendWith(OutputCaptureExtension.class)
     void 숨은_표적_타격은_정산과_최고점에_영향_없이_한_번_기록한다(CapturedOutput output) {
         var round = service.start(USER, "round-1");
-        var hidden = round.targets().stream().filter(target -> !target.visible()).findFirst().orElseThrow();
-        assertThat(round.targets()).hasSize(7);
+        assertThat(round.id()).isEqualTo("1");
+        assertThat(round.targets()).hasSize(6).allSatisfy(target -> assertThat(target.ids()).hasSize(2));
         assertThat(round.targets()).isEqualTo(service.start(USER, "round-1").targets());
         var otherRound = new MoleTargets("whack-a-mole", Long.parseLong(round.id()) + 1, SEED);
         var genuine = catchAll();
@@ -111,10 +111,14 @@ class MoleServiceTests {
                 genuine.stream().map(hit -> new MoleRules.Hit(hit.hole(), hit.at())).toList());
         var hits = new ArrayList<>(genuine);
         var first = hits.getFirst();
+        var second = hits.get(1);
+        var slotsForRoundOne = List.of(0, 0, 1, 1, 1, 0);
+        var targetIds = round.targets().get(first.hole()).ids();
+        hits.set(0, new MoleDtos.Hit(first.hole(), first.at(), targetIds.get(slotsForRoundOne.get(first.hole()))));
         // 다른 판의 ID는 탐지하지 않으며 일반 입력 판정은 그대로 적용한다.
-        hits.set(0, new MoleDtos.Hit(first.hole(), first.at(), otherRound.hiddenId()));
-        hits.add(new MoleDtos.Hit(hidden.hole(), 0, hidden.id()));
-        hits.add(new MoleDtos.Hit(hidden.hole(), 1, hidden.id()));
+        hits.set(1, new MoleDtos.Hit(second.hole(), second.at(), otherRound.hiddenIds(6).iterator().next()));
+        hits.add(new MoleDtos.Hit(0, 0, round.targets().get(0).ids().get(1)));
+        hits.add(new MoleDtos.Hit(2, 1, round.targets().get(2).ids().get(0)));
         clock.advance(Duration.ofSeconds(93));
         long id = Long.parseLong(round.id());
 

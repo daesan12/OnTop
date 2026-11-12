@@ -9326,13 +9326,13 @@ components:
     MoleRoundTarget:
       type: object
       properties:
-        id:
-          type: string
         hole:
           type: integer
           format: int32
-        visible:
-          type: boolean
+        ids:
+          type: array
+          items:
+            type: string
     Rules:
       type: object
       properties:

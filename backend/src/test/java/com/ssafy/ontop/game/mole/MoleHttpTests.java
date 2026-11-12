@@ -54,7 +54,7 @@ class MoleHttpTests {
                 1380, RULES, RESULT));
         when(service.start(101, "round-1")).thenReturn(new MoleDtos.Round("7", Instant.parse("2026-11-04T03:00:00Z"),
                 RULES, List.of(new MoleDtos.Mole(0, 2, "RAPID", 3, 700, 1800)),
-                List.of(new MoleTargets.Target("hidden-id", 2, false))));
+                List.of(new MoleTargets.Target(2, List.of("first-id", "second-id")))));
         when(service.complete(101, 7, List.of(new MoleDtos.Hit(2, 900), new MoleDtos.Hit(2, 1000, "hidden-id"))))
                 .thenReturn(new MoleDtos.Settlement(RESULT, 166, 500, 1380));
     }
@@ -85,7 +85,8 @@ class MoleHttpTests {
 
         assertThat(response.statusCode()).isEqualTo(201);
         assertThat(response.body()).contains("\"kind\":\"RAPID\"", "\"hits\":3", "\"leaveAt\":1800");
-        assertThat(response.body()).contains("\"targets\"", "\"id\":\"hidden-id\"", "\"visible\":false");
+        assertThat(response.body()).contains("\"targets\":[{\"hole\":2,\"ids\":[\"first-id\",\"second-id\"]}]")
+                .doesNotContain("\"visible\"");
         verify(service).start(101, "round-1");
     }
 

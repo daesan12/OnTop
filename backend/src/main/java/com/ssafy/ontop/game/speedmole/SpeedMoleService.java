@@ -15,6 +15,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** The wallet is locked before the round; score, shared-budget reward and ledger commit together. */
 public class SpeedMoleService {
     private static final String GAME = "speed-mole";
+    private static final int HOLES = 8;
     private final SpeedMoleRepository repository;
     private final Clock clock;
     private final SecureRandom random;
@@ -39,7 +40,7 @@ public class SpeedMoleService {
             if (!row.status().equals("ACTIVE")) throw new SpeedMoleException(409, "SPEED_MOLE_ROUND_FINISHED", "이미 완료한 시작 요청이에요. 새로 시작해 주세요.");
             if (now.isAfter(row.startedAt().plusMillis(SpeedMoleRules.DURATION_MS + 30_000)))
                 throw new SpeedMoleException(409, "SPEED_MOLE_ROUND_EXPIRED", "이 시작 요청은 시간이 지났어요. 새로 시작해 주세요.");
-            var targets = new MoleTargets(GAME, row.id(), row.seed()).forStart(8);
+            var targets = new MoleTargets(GAME, row.id(), row.seed()).forStart(HOLES);
             return new SpeedMoleDtos.Round(Long.toString(row.id()), row.seed(), row.version(), now, row.startedAt(),
                     SpeedMoleRules.DURATION_MS, targets);
         });
@@ -58,8 +59,8 @@ public class SpeedMoleService {
             if (elapsed < SpeedMoleRules.DURATION_MS)
                 throw new SpeedMoleException(409, "SPEED_MOLE_NOT_FINISHED", "아직 경기가 끝나지 않았어요.");
             SpeedMoleRules.requireTapCount(taps);
-            String hiddenId = new MoleTargets(GAME, id, row.seed()).hiddenId();
-            var playableTaps = taps.stream().filter(tap -> tap == null || !hiddenId.equals(tap.targetId())).toList();
+            var hiddenIds = new MoleTargets(GAME, id, row.seed()).hiddenIds(HOLES);
+            var playableTaps = taps.stream().filter(tap -> tap == null || !hiddenIds.contains(tap.targetId())).toList();
             var score = SpeedMoleRules.replay(row.seed(), playableTaps);
             Instant completed = clock.instant().truncatedTo(ChronoUnit.MILLIS);
             int granted = rewards.grant(wallet, id, score.score(), completed);

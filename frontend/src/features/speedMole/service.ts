@@ -1,6 +1,6 @@
 import { SPEED_MOLE_KEYS, SPEED_MOLE_POINTS_PER_COIN } from './game'
 import { parkRuntime } from '../../park/runtime/runtime'
-import { visibleMoleTargetIds } from '../arcade/moleTargets'
+import { playableMoleTargetIds } from '../arcade/moleTargets'
 
 const BASE = '/api/v1/minigames/speed-mole'
 export interface SpeedMoleSession {
@@ -48,7 +48,8 @@ export class SpeedMoleService {
       || value.rulesVersion !== 1 || value.durationMs !== 60000 || !Number.isFinite(Date.parse(value.serverNow))
       || !Number.isFinite(Date.parse(value.startedAt))) throw new SpeedMoleError('경기 규칙 응답을 확인하지 못했어요.')
     const { targets, ...round } = value
-    return targets === undefined ? round : { ...round, targetIds: visibleMoleTargetIds(targets, SPEED_MOLE_KEYS.length) }
+    return targets === undefined ? round : { ...round,
+      targetIds: playableMoleTargetIds(targets, SPEED_MOLE_KEYS.length, round.id) }
   }
   async complete(id: string, taps: readonly SpeedMoleTap[]): Promise<SpeedMoleResult> {
     const value = await this.call(`/rounds/${encodeURIComponent(id)}/complete`, {

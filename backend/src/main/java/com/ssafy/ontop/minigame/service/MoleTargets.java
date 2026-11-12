@@ -3,7 +3,9 @@ package com.ssafy.ontop.minigame.service;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,26 +15,40 @@ public record MoleTargets(String game, long roundId, long seed) {
     private static final Logger log = LoggerFactory.getLogger(MoleTargets.class);
 
     @Schema(name = "MoleRoundTarget")
-    public record Target(String id, int hole, boolean visible) {
+    public record Target(int hole, List<String> ids) {
     }
 
     public List<Target> forStart(int holes) {
-        int hiddenHole = Math.floorMod(seed, holes);
-        var targets = new ArrayList<Target>(holes + 1);
+        var targets = new ArrayList<Target>(holes);
         for (int hole = 0; hole < holes; hole++) {
-            targets.add(new Target(id(Integer.toString(hole)), hole, true));
+            targets.add(new Target(hole, List.of(id(hole, 0), id(hole, 1))));
         }
-        targets.add(hiddenHole, new Target(hiddenId(), hiddenHole, false));
         return List.copyOf(targets);
     }
 
-    public String hiddenId() {
-        return id("hidden");
+    public Set<String> hiddenIds(int holes) {
+        int selection = selectionBits();
+        var hidden = new HashSet<String>();
+        for (int hole = 0; hole < holes; hole++) {
+            int selected = (selection >>> hole) & 1;
+            hidden.add(id(hole, 1 - selected));
+        }
+        return hidden;
     }
 
-    private String id(String target) {
+    private int selectionBits() {
+        // 십진 판 ID 문자열의 FNV-1a 32비트 해시. 프런트 arcade/moleTargets.ts와 동일하다.
+        String decimal = Long.toString(roundId);
+        int hash = 0x811c9dc5;
+        for (int i = 0; i < decimal.length(); i++) {
+            hash = (hash ^ decimal.charAt(i)) * 0x01000193;
+        }
+        return hash;
+    }
+
+    private String id(int hole, int slot) {
         // 동일 시작 요청과 다른 서버 인스턴스에서도 같은 판의 ID를 재현한다.
-        String source = game + ":" + roundId + ":" + seed + ":" + target;
+        String source = game + ":" + roundId + ":" + seed + ":" + hole + ":" + slot;
         return UUID.nameUUIDFromBytes(source.getBytes(StandardCharsets.UTF_8)).toString();
     }
 

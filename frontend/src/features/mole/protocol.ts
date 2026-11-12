@@ -1,5 +1,5 @@
 import { record } from '../../network/protocol'
-import { visibleMoleTargetIds } from '../arcade/moleTargets'
+import { playableMoleTargetIds } from '../arcade/moleTargets'
 
 /** 서버 계약: docs/whack-a-mole-api.md. 화면은 서버 출현표를 그리고 진행 중 점수만 계산한다. 최종 점수·지급은 서버 값이다. */
 /** 한 줄 아치 구멍 6개. 왼손 S D F, 오른손 J K L(홈 줄). */
@@ -73,9 +73,10 @@ export function parseMoleState(value: unknown): MoleState {
 export function parseMoleRound(value: unknown): MoleRound {
   if (!record(value) || !Array.isArray(value.moles)) return invalid()
   const parsed = rules(value.rules)
-  return { id: id(value.id), startedAt: time(value.startedAt), rules: parsed,
+  const roundId = id(value.id)
+  return { id: roundId, startedAt: time(value.startedAt), rules: parsed,
     moles: value.moles.map(item => mole(item, parsed.durationMs)),
-    targetIds: visibleMoleTargetIds(value.targets, KEYS.length) }
+    targetIds: playableMoleTargetIds(value.targets, KEYS.length, roundId) }
 }
 
 function rankingItem(v: unknown): MoleRankingItem {

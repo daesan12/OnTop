@@ -5,6 +5,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,11 +48,13 @@ class SpeedMoleServiceTests {
         when(rewards.grant(any(), eq(7L), eq(5), eq(now))).thenReturn(1);
         when(rewards.previous(any(), eq(7L))).thenReturn(1);
         var round = service.start(42, "round-1");
-        var hidden = round.targets().stream().filter(target -> !target.visible()).findFirst().orElseThrow();
-        assertThat(round.targets()).hasSize(9).isEqualTo(service.start(42, "round-1").targets());
+        assertThat(round.targets()).hasSize(8).allSatisfy(target -> assertThat(target.ids()).hasSize(2));
+        assertThat(round.targets()).isEqualTo(service.start(42, "round-1").targets());
         var wrongRound = new MoleTargets("speed-mole", 8, 1);
-        var taps = List.of(new SpeedMoleRules.Tap(7, 0, hidden.id()),
-                new SpeedMoleRules.Tap(1, 0, wrongRound.hiddenId()), new SpeedMoleRules.Tap(3, 100),
+        // 판 ID 7에서 구멍 1과 7의 실제 슬롯은 1이다.
+        var taps = List.of(new SpeedMoleRules.Tap(7, 0, round.targets().get(7).ids().get(0)),
+                new SpeedMoleRules.Tap(1, 0, round.targets().get(1).ids().get(1)),
+                new SpeedMoleRules.Tap(3, 100, wrongRound.hiddenIds(8).iterator().next()),
                 new SpeedMoleRules.Tap(5, 200), new SpeedMoleRules.Tap(6, 300), new SpeedMoleRules.Tap(0, 400));
 
         var result = service.complete(42, 7, taps);
@@ -63,6 +66,18 @@ class SpeedMoleServiceTests {
         assertThat(retry).isEqualTo(result);
         verify(repository).settle(7, new SpeedMoleRules.Score(5, 5, 0), now);
         assertThat(output.getOut()).containsOnlyOnce("mole_honeypot_hit game=speed-mole userId=42 roundId=7 hits=1");
+    }
+
+    @Test
+    void 완료_타격에_null이_있으면_400을_반환한다() {
+        when(repository.lock(42, 7)).thenReturn(active(60_000));
+
+        assertThatThrownBy(() -> service.complete(42, 7, Collections.singletonList(null)))
+                .isInstanceOfSatisfying(SpeedMoleException.class, error -> {
+                    assertThat(error.status()).isEqualTo(400);
+                    assertThat(error.code()).isEqualTo("SPEED_MOLE_INVALID_TAPS");
+                });
+        verify(repository, never()).settle(anyLong(), any(), any());
     }
     @Test void early_late_and_old_version_rounds_are_not_saved() {
         for (long elapsed : new long[]{-1,0,59999,90001}) {
