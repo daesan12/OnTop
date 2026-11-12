@@ -32,8 +32,8 @@ test('latest-map fitness entry shows reward terms, refreshes confirmed money onc
   await page.route('**/api/v1/world/fitness/rewards/status', async route => {
     const leaseId = await page.evaluate(async () => (await import('/src/features/facilities/state.ts' as string)).useFacilityState.getState().occupancies['101']?.leaseId ?? null)
     await route.fulfill({ json: { enabled: true, earningsDate: new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10),
-      todayEarned: earned, dailyCap: 300, rewardIntervalSeconds: 60, serverNow: Date.now(),
-      nextRewardAt: earned >= 300 ? null : Date.now() + 37000, activeLeaseId: leaseId } })
+      todayEarned: earned, dailyCap: 500, rewardIntervalSeconds: 60, serverNow: Date.now(),
+      nextRewardAt: earned >= 500 ? null : Date.now() + 37000, activeLeaseId: leaseId } })
   })
   await page.goto('/park')
   await expect(page).toHaveTitle('OnTop')
@@ -45,9 +45,9 @@ test('latest-map fitness entry shows reward terms, refreshes confirmed money onc
   const hint = page.getByRole('complementary', { name: '가까운 상호작용' })
   await expect(hint).toHaveAttribute('data-target-id', station.id)
   await hint.getByRole('button').click()
-  await expect(hint).toContainText('실제 1분당 1냥')
-  await expect(hint.getByLabel('운동기구 수입')).toContainText('12 / 300냥')
-  await expect(hint.getByLabel('운동기구 수입')).toHaveText('실제 1분당 1냥12 / 300냥')
+  await expect(hint).toContainText('실제 1분당 5냥')
+  await expect(hint.getByLabel('운동기구 수입')).toContainText('12 / 500냥')
+  await expect(hint.getByLabel('운동기구 수입')).toHaveText('실제 1분당 5냥12 / 500냥')
   const revision = () => page.evaluate(async () => (await import('/src/features/wallet/settlementRefresh.ts' as string)).useWalletSettlement.getState().revision)
   const before = await revision()
   const receipt = { userId: '101', receipt: 'fitness:01234567-89ab-cdef-0123-456789abcdef:1' }
@@ -58,8 +58,8 @@ test('latest-map fitness entry shows reward terms, refreshes confirmed money onc
   balance = 101
   server.emit('FITNESS_REWARD', receipt)
   await expect.poll(revision).toBe(before + 1)
-  await expect(hint.getByLabel('운동기구 수입')).toContainText('13 / 300냥')
-  await expect(hint.getByLabel('운동기구 수입')).toHaveText('실제 1분당 1냥13 / 300냥')
+  await expect(hint.getByLabel('운동기구 수입')).toContainText('13 / 500냥')
+  await expect(hint.getByLabel('운동기구 수입')).toHaveText('실제 1분당 5냥13 / 500냥')
   await expect.poll(quietCount).toBe(quietBefore + 1)
   server.emit('FITNESS_REWARD', receipt)
   await expect.poll(revision).toBe(before + 1)
@@ -75,7 +75,7 @@ test('latest-map fitness entry shows reward terms, refreshes confirmed money onc
   await expect(hint).toBeInViewport()
   expect(await hint.evaluate(element => element.getBoundingClientRect().width)).toBeLessThanOrEqual(290)
   expect(await hint.evaluate(element => element.getBoundingClientRect().height)).toBeLessThan(130)
-  const rewardText = hint.getByText('실제 1분당 1냥', { exact: true })
+  const rewardText = hint.getByText('실제 1분당 5냥', { exact: true })
   expect(await rewardText.evaluate(element => {
     const box = element.getBoundingClientRect()
     return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))
@@ -99,10 +99,10 @@ test('latest-map fitness entry shows reward terms, refreshes confirmed money onc
     await page.screenshot({ animations: 'disabled', path: path.join(process.env.QA_ARTIFACT_DIR ?? os.tmpdir(), `fitness-reward-${viewport.width}.png`) })
   }
   await page.setViewportSize({ width: 740, height: 900 })
-  earned = 300
+  earned = 500
   server.emit('FITNESS_REWARD', { ...receipt, receipt: 'fitness:01234567-89ab-cdef-0123-456789abcdef:2' })
-  await expect(hint.getByLabel('운동기구 수입')).toHaveText('실제 1분당 1냥300 / 300냥')
-  await expect(hint).not.toContainText('다음 1냥까지')
+  await expect(hint.getByLabel('운동기구 수입')).toHaveText('실제 1분당 5냥500 / 500냥')
+  await expect(hint).not.toContainText('다음 5냥까지')
   await hint.getByLabel('운동기구 수입').blur()
   await page.keyboard.press('KeyW')
   await expect.poll(() => page.evaluate(async () => (await import('/src/network/worldClient.ts' as string)).useSession.getState().fitnessId)).toBe('')
@@ -130,7 +130,7 @@ test('운동 수입은 조회 중 알림을 모아 재조회하고 30초 백업�
         .useFacilityState.getState().occupancies['101']?.leaseId ?? null)
       await route.fulfill(fail ? { status: 503, json: { code: 'FITNESS_UNAVAILABLE' } } : { json: {
         enabled: true, earningsDate: new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10),
-        todayEarned: captured, dailyCap: 300, rewardIntervalSeconds: 60, serverNow: Date.now(),
+        todayEarned: captured, dailyCap: 500, rewardIntervalSeconds: 60, serverNow: Date.now(),
         nextRewardAt: Date.now() + 60000, activeLeaseId: leaseId,
       } })
     } finally { active-- }
@@ -145,7 +145,7 @@ test('운동 수입은 조회 중 알림을 모아 재조회하고 30초 백업�
   await expect(hint).toHaveAttribute('data-target-id', station.id)
   await hint.getByRole('button').click()
   const total = hint.getByLabel('운동기구 수입')
-  await expect(total).toContainText('12 / 300냥')
+  await expect(total).toContainText('12 / 500냥')
   // 개발 모드 StrictMode의 초기 마운트·취소 요청은 갱신 경쟁 측정에서 제외한다.
   await expect.poll(() => active).toBe(0)
   const initialRequests = requests.length
@@ -164,7 +164,7 @@ test('운동 수입은 조회 중 알림을 모아 재조회하고 30초 백업�
   await expect.poll(revision).toBe(before + 3)
   expect(requests).toHaveLength(initialRequests + 1)
   release!(); release = undefined
-  await expect(total).toContainText('15 / 300냥')
+  await expect(total).toContainText('15 / 500냥')
   expect(requests).toHaveLength(initialRequests + 2)
   expect(maxActive).toBe(1)
 
@@ -172,7 +172,7 @@ test('운동 수입은 조회 중 알림을 모아 재조회하고 30초 백업�
   earned = 16
   await expect.poll(() => requests.length, { timeout: 35000 }).toBe(initialRequests + 3)
   expect(requests[initialRequests + 2]! - requests[initialRequests - 1]!).toBeGreaterThanOrEqual(29000)
-  await expect(total).toContainText('16 / 300냥')
+  await expect(total).toContainText('16 / 500냥')
 
   // 실패하는 요청 중 받은 알림도 버리지 않고 요청 종료 후 다시 확인한다.
   holdNext = true; failNext = true
@@ -182,7 +182,7 @@ test('운동 수입은 조회 중 알림을 모아 재조회하고 30초 백업�
   notify(5)
   await expect.poll(revision).toBe(before + 5)
   release!(); release = undefined
-  await expect(total).toContainText('17 / 300냥')
+  await expect(total).toContainText('17 / 500냥')
   expect(requests).toHaveLength(initialRequests + 5)
   expect(maxActive).toBe(1)
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)

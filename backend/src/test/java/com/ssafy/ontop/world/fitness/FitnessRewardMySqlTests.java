@@ -73,7 +73,7 @@ class FitnessRewardMySqlTests {
         }
         store.grant(userId, lease, 2, Instant.now());
 
-        assertThat(balance()).isEqualTo(102);
+        assertThat(balance()).isEqualTo(110);
         assertThat(jdbc.queryForObject("SELECT reserved_balance FROM wallets WHERE user_id = ?", Long.class, userId))
                 .isEqualTo(10);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions WHERE idempotency_key LIKE ?",
@@ -92,16 +92,16 @@ class FitnessRewardMySqlTests {
     }
 
     @Test
-    void 서로_다른_기구의_동시지급도_299냥에서_300냥까지만_지급한다() throws Exception {
+    void 서로_다른_기구의_동시지급도_497냥에서_남은_3냥만_지급해_500냥까지만_채운다() throws Exception {
         Instant now = Instant.parse("2026-11-03T14:59:59.999Z");
-        seed(299, now);
-        // 미니게임 500냥을 이미 받아도 운동 예산은 별도다.
+        seed(497, now);
+        // 미니게임 1000냥을 이미 받아도 운동 예산은 별도다.
         jdbc.update("""
                 INSERT INTO wallet_transactions(wallet_id, transaction_type, balance_delta, reserved_delta,
                     idempotency_key, created_at)
-                SELECT id, 'MINIGAME_REWARD', 500, 0, ?, ? FROM wallets WHERE user_id = ?
+                SELECT id, 'MINIGAME_REWARD', 1000, 0, ?, ? FROM wallets WHERE user_id = ?
                 """, UUID.randomUUID().toString(), now.atOffset(java.time.ZoneOffset.UTC).toLocalDateTime(), userId);
-        jdbc.update("UPDATE wallets SET balance = 899 WHERE user_id = ?", userId);
+        jdbc.update("UPDATE wallets SET balance = 1597 WHERE user_id = ?", userId);
 
         try (var executor = Executors.newFixedThreadPool(8)) {
             var calls = new java.util.ArrayList<java.util.concurrent.Future<?>>();
@@ -114,28 +114,29 @@ class FitnessRewardMySqlTests {
             }
         }
 
-        assertThat(balance()).isEqualTo(900);
-        assertThat(fitnessCount()).isEqualTo(300);
+        assertThat(balance()).isEqualTo(1600);
+        assertThat(fitnessEarned()).isEqualTo(500);
         store.grant(userId, UUID.randomUUID().toString(), 1, now);
-        assertThat(balance()).isEqualTo(900);
-        assertThat(fitnessCount()).isEqualTo(300);
+        assertThat(balance()).isEqualTo(1600);
+        assertThat(fitnessEarned()).isEqualTo(500);
     }
 
     @Test
     void 한국_자정에_새_예산을_사용하고_새날의_중복구간은_한번만_지급한다() {
         Instant midnight = Instant.parse("2026-11-03T15:00:00Z");
-        seed(300, midnight.minusMillis(1));
+        seed(500, midnight.minusMillis(1));
         String lease = UUID.randomUUID().toString();
 
         store.grant(userId, lease, 1, midnight.minusMillis(1));
-        assertThat(balance()).isEqualTo(400);
+        assertThat(balance()).isEqualTo(600);
         store.grant(userId, lease, 2, midnight);
         store.grant(userId, lease, 2, midnight);
 
-        assertThat(balance()).isEqualTo(401);
-        assertThat(fitnessCount()).isEqualTo(301);
+        assertThat(balance()).isEqualTo(605);
+        assertThat(fitnessEarned()).isEqualTo(505);
     }
 
+    // 변경 전 1냥 원장을 쌓아 두고, 변경 후 5냥 지급과 섞여도 합계로 세는지 확인한다.
     private void seed(int count, Instant at) {
         for (int i = 0; i < count; i++) {
             jdbc.update("""
@@ -147,9 +148,9 @@ class FitnessRewardMySqlTests {
         jdbc.update("UPDATE wallets SET balance = balance + ? WHERE user_id = ?", count, userId);
     }
 
-    private long fitnessCount() {
+    private long fitnessEarned() {
         return jdbc.queryForObject("""
-                SELECT COUNT(*) FROM wallet_transactions t JOIN wallets w ON w.id = t.wallet_id
+                SELECT COALESCE(SUM(t.balance_delta), 0) FROM wallet_transactions t JOIN wallets w ON w.id = t.wallet_id
                 WHERE w.user_id = ? AND t.transaction_type = 'FITNESS_REWARD'
                 """, Long.class, userId);
     }

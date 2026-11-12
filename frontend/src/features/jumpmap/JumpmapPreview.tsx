@@ -8,7 +8,7 @@ import './jumpmapPreview.css'
 
 const scope = { channelId: 'preview', mapVersion: MAP_VERSION }
 let revision = 0, serial = 0
-const money = () => ({ todayEarned: useJumpmap.getState().todayEarned ?? 0, dailyCap: 500, earningsDate: kstDate() })
+const money = () => ({ todayEarned: useJumpmap.getState().todayEarned ?? 0, dailyCap: 1000, earningsDate: kstDate() })
 function fresh() {
   revision = 0; serial = 0; resetJumpmap(); bindJumpmap('101', 'preview', MAP_VERSION)
   applyJumpStatus({ ...scope, ...money(), revision: 0, enabled: true, rulesVersion: RULES_VERSION, courseVersion: COURSE_VERSION,
@@ -23,7 +23,7 @@ function firstPad() {
 function gate() {
   const s = useJumpmap.getState(), run = s.run
   if (!run || run.gatesPassed >= 6) return
-  const rewards = REWARDS, n = run.gatesPassed + 1, grant = Math.min(rewards[n - 1]!, 500 - (s.todayEarned ?? 0))
+  const rewards = REWARDS, n = run.gatesPassed + 1, grant = Math.min(rewards[n - 1]!, 1000 - (s.todayEarned ?? 0))
   acceptJumpEvent({ type: 'JUMPMAP_GATE', ...scope, ...money(), revision: ++revision, runId: run.runId, gate: n, elapsedMs: n * 15000,
     coinsCalculated: rewards[n - 1]!, coinsGranted: grant, pending: false, runCoins: run.runCoins + grant, todayEarned: (s.todayEarned ?? 0) + grant })
 }
@@ -35,7 +35,7 @@ function lastPad() {
 function end(reason: 'FINISH' | 'FALL') {
   const s = useJumpmap.getState(), run = s.run
   if (!run || reason === 'FINISH' && !run.finalReached) return
-  const grant = reason === 'FINISH' ? Math.min(REWARDS[6]!,  500 - (s.todayEarned ?? 0)) : 0
+  const grant = reason === 'FINISH' ? Math.min(REWARDS[6]!,  1000 - (s.todayEarned ?? 0)) : 0
   acceptJumpEvent({ type: 'JUMPMAP_ENDED', ...scope, ...money(), revision: ++revision, runId: run.runId, reason,
     gatesPassed: reason === 'FINISH' ? 7 : run.gatesPassed, elapsedMs: 272180, runCoins: run.runCoins + grant,
     todayEarned: (s.todayEarned ?? 0) + grant, maxHeight: 46.5,

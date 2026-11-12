@@ -53,7 +53,7 @@ for (const [scenario, entry] of [['outside', 'park'], ['water', 'jumpmap'], ['de
     expect((await state()).active).toBe(true)
     expect(server.requests.slice(protectedAt).some(request => request.type === 'WORLD_INTERACTION_SET' && request.payload.busy === false)).toBe(false)
     const scope = { channelId: 'channel-1', mapVersion: identity.mapVersion }
-    const money = { earningsDate: kstDate(), todayEarned: 0, dailyCap: 500 }
+    const money = { earningsDate: kstDate(), todayEarned: 0, dailyCap: 1000 }
     const first = COURSE[0]!
     server.place({ x: first.x, y: first.top + .8, z: first.z })
     server.emit('JUMPMAP_STARTED', { ...scope, ...money, revision: 1, runId: 'fall-run', courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })

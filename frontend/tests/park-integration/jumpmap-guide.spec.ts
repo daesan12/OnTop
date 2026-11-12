@@ -4,7 +4,7 @@ import { screenshot } from '../e2e/contractFixture'
 import { START, COURSE, COURSE_VERSION, RULES_VERSION, kstDate } from '../../src/features/jumpmap/course'
 
 const scope={channelId:'channel-1',mapVersion:identity.mapVersion}
-const money={todayEarned:0,dailyCap:500,earningsDate:kstDate()}
+const money={todayEarned:0,dailyCap:1000,earningsDate:kstDate()}
 const status={...scope,...money,revision:0,enabled:true,courseVersion:COURSE_VERSION,rulesVersion:RULES_VERSION,isFirstRun:false,seenTips:[],activeRunId:null,bestFinishMs:null}
 const failures=new WeakMap<Page,string[]>()
 test.beforeEach(({page})=>{

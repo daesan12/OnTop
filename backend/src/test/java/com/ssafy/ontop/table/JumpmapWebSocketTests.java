@@ -73,7 +73,7 @@ class JumpmapWebSocketTests {
             assertThat(started.path("mapVersion").asText()).isEqualTo(runtime.scene().version()).matches("[0-9a-f]{64}");
             assertThat(started.path("courseVersion").asText()).isEqualTo(JumpCourse.COURSE_VERSION);
             assertThat(started.path("rulesVersion").asText()).isEqualTo(JumpCourse.RULES_VERSION);
-            assertThat(started.path("dailyCap").asInt()).isEqualTo(500);
+            assertThat(started.path("dailyCap").asInt()).isEqualTo(1000);
             assertThat(started.path("earningsDate").asText()).matches("\\d{4}-\\d{2}-\\d{2}");
             assertThat(started.path("serverTime").isIntegralNumber()).isTrue();
             var step = second.await(m -> type(m, "JUMPMAP_STEP") && m.at("/payload/playerId").asText().equals("101"));

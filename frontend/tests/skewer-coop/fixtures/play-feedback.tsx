@@ -58,7 +58,7 @@ const transport: CoopTransport = {
       joined = true; state.publicState.roomName = JSON.parse(String(init.body)).roomName
       return structuredClone(state)
     }
-    return path.includes('/result?') ? { gameId, status: 'UNAVAILABLE', teamScore: 432, served: 2, endReason: 'SKEWER_TIME_UP', rankingStatus: 'EXCLUDED', rankingReason: 'QA', coinsCalculated: 21, coinsGranted: null, todayEarned: null, dailyCap: 500, remainingToday: null, balance: null, rewardDate: null, settledAt: null } : { mine: joined ? structuredClone(state) : null, rooms: [] }
+    return path.includes('/result?') ? { gameId, status: 'UNAVAILABLE', teamScore: 432, served: 2, endReason: 'SKEWER_TIME_UP', rankingStatus: 'EXCLUDED', rankingReason: 'QA', coinsCalculated: 21, coinsGranted: null, todayEarned: null, dailyCap: 1000, remainingToday: null, balance: null, rewardDate: null, settledAt: null } : { mine: joined ? structuredClone(state) : null, rooms: [] }
   },
   request: async (type, payload) => {
     const input = payload.input as { type?: string; paused?: boolean; dx?: number; dz?: number; role?: 'chef' | 'server' } | undefined

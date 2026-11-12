@@ -21,7 +21,7 @@ const client = new CoopClient({ scope: () => ({ userId: '101', channelId: 'park'
     await new Promise(resolve => setTimeout(resolve, 250))
     return { gameId, status: 'SETTLED', teamScore: 2460, served: 12, endReason: 'SKEWER_TIME_UP',
       rankingStatus: 'REGISTERED', rankingReason: 'ELIGIBLE', coinsCalculated: 123, coinsGranted: 123,
-      todayEarned: 210, dailyCap: 500, remainingToday: 290, balance: 1123,
+      todayEarned: 210, dailyCap: 1000, remainingToday: 790, balance: 1123,
       rewardDate: '2026-11-07', settledAt: '2026-11-07T00:00:00Z' }
   } })
 client.store.setState({ snapshot })

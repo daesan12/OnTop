@@ -107,7 +107,7 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
     mock: false,
     async getStatus() {
       const p = await request(`${path}?rulesVersion=v5`);
-      if (!record(p) || p.rulesVersion !== 'v5' || !whole(p.todayEarned) || p.dailyCap !== 500
+      if (!record(p) || p.rulesVersion !== 'v5' || !whole(p.todayEarned) || p.dailyCap !== 1000
         || !(p.activeSessionId == null || id(p.activeSessionId))
         || p.todayEarned > p.dailyCap || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.seenTips)
         || !p.seenTips.every(t => typeof t === 'string')) return fail();
