@@ -52,7 +52,9 @@ void main(){
  #include <colorspace_fragment>
 }`
 
-function DetailedEnvironmentScene({fixedTime}:{fixedTime?:number}={}) {
+type EnvironmentProps = { fixedTime?: number; matchServiceBrightness?: boolean }
+
+function DetailedEnvironmentScene({ fixedTime, matchServiceBrightness }: EnvironmentProps = {}) {
   const scene = useThree((state) => state.scene)
   useEffect(() => {
     const previous = scene.environment
@@ -98,7 +100,7 @@ function DetailedEnvironmentScene({fixedTime}:{fixedTime?:number}={}) {
     [],
   )
   useEffect(() => () => material.dispose(), [material])
-  useFrame(({ camera, scene }) => {
+  useFrame(({ camera, scene, gl }) => {
     if(fixedTime===undefined)updateEnvironmentFrame(performance.now())
     else Object.assign(frame,sampleDay(fixedTime),{serverTime:fixedTime,seconds:performance.now()/1000})
     const u = material.uniforms
@@ -124,6 +126,10 @@ function DetailedEnvironmentScene({fixedTime}:{fixedTime?:number}={}) {
       ambient.current.intensity = 1.45 + frame.daylight * 0.12
     }
     scene.environmentIntensity = 0.08 + frame.daylight * 0.42
+    if (matchServiceBrightness) {
+      // Keep the detailed sky and materials while matching the service map's paving exposure.
+      gl.toneMappingExposure = 0.72 + 0.095 * frame.night
+    }
     // Keep diagnostics on scene metadata, without subscriptions or React reconciliation.
     scene.userData.environment = frame
   }, -100)
@@ -143,6 +149,6 @@ function DetailedEnvironmentScene({fixedTime}:{fixedTime?:number}={}) {
   )
 }
 
-export function EnvironmentScene(props: {fixedTime?:number} = {}) {
+export function EnvironmentScene(props: EnvironmentProps = {}) {
   return SIMPLE_MAP ? <SimpleParkEnvironment {...props}/> : <DetailedEnvironmentScene {...props}/>
 }

@@ -122,7 +122,7 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
   })
   // The pelvis joint is inside the body, not on the seat-contact surface.
   // Calibrate once against the shipped skin + seated clothing morph, per rig.
-  const seatedHipLift = (() => {
+  const { seatedHipLift, seatedContactLift } = (() => {
     for (const side of ['L', 'R'] as const) {
       bones[`upperLeg_${side}`].rotation.x = -Math.PI / 2
       bones[`lowerLeg_${side}`].rotation.x = Math.PI / 2
@@ -131,21 +131,28 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
     root.updateMatrixWorld(true)
     updateSkeletons()
     const point = new Vector3(), hip = bones.hips.position.y
-    let bottom = Infinity
+    let bottom = Infinity, thighBottom = Infinity
     for (const mesh of meshes) {
       if (!mesh.name.startsWith('near-')) continue
       const p = mesh.geometry.getAttribute('position')
       const weights = mesh.geometry.getAttribute('skinWeight'), indices = mesh.geometry.getAttribute('skinIndex')
       for (const i of drawnVertices(mesh.geometry)) {
-        if (p.getY(i) < hip - 0.2 || p.getY(i) > hip + 0.1) continue
-        let support = 0
+        const height = p.getY(i)
+        if (height < hip - 0.4 || height > hip + 0.1) continue
+        let pelvisWeight = 0, thighWeight = 0
         for (let j = 0; j < 4; j++) {
           const name = mesh.skeleton.bones[indices.getComponent(i, j)]!.name
-          if (name === 'hips' || name === 'spine') support += weights.getComponent(i, j)
+          const weight = weights.getComponent(i, j)
+          if (name === 'hips' || name === 'spine') pelvisWeight += weight
+          else if (name === 'upperLeg_L' || name === 'upperLeg_R') thighWeight += weight
         }
-        if (support < 0.65) continue
+        const pelvis = height >= hip - 0.2 && pelvisWeight >= 0.65
+        // Broad, solid seats also support the underside of the upper legs.
+        const thigh = thighWeight >= 0.65
+        if (!pelvis && !thigh) continue
         mesh.getVertexPosition(i, point)
-        bottom = Math.min(bottom, point.y)
+        if (pelvis) bottom = Math.min(bottom, point.y)
+        if (thigh) thighBottom = Math.min(thighBottom, point.y)
       }
     }
     for (const side of ['L', 'R'] as const) {
@@ -155,7 +162,9 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
     for (const { mesh, index } of seatedCloth) mesh.morphTargetInfluences![index] = 0
     root.updateMatrixWorld(true)
     updateSkeletons()
-    return Number.isFinite(bottom) ? Math.max(0, Math.min(0.25, hip - bottom)) + 0.008 : 0
+    const lift = (contact: number) => Number.isFinite(contact)
+      ? Math.max(0, Math.min(0.25, hip - contact)) + 0.008 : 0
+    return { seatedHipLift: lift(bottom), seatedContactLift: lift(Math.min(bottom, thighBottom)) }
   })()
   const shoes = meshes.find((mesh) => mesh.name === 'near-shoes-socks')
   // Lowest rest vertex in each sole cell, over the worn near surfaces. A few dozen
@@ -326,6 +335,7 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
     bones,
     hipHeight: bones.hips.position.y,
     seatedHipLift,
+    seatedContactLift,
     socialArmScale: fittedGestures ? 0.85 : 1,
     reset() {
       rotations.fill(0)

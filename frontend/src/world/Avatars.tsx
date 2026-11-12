@@ -9,6 +9,7 @@ import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls } from './worldAssets'
 import { createSafeCharacterRig } from './art/safeCharacterRig'
 import { avatarPoseActive, avatarPoseAmbient, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
+import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { createCarryMotion } from './avatarCarryMotion'
 import { AvatarPresentation } from './avatarPresentation'
 import { SwimmingRipples } from './SwimmingRipples'
@@ -96,7 +97,7 @@ function Avatar({
   const worldPosition = useMemo(() => new Vector3(), [])
   const inverseRoot = useMemo(() => new Matrix4(), [])
   const presentation = useMemo(() => new AvatarPresentation(), [])
-  const motion = useMemo(() => createAvatarMotion(model), [model])
+  const motion = useMemo(() => createAvatarMotion(model, RENEWAL_PARK_ENABLED), [model])
   const carriedPartner = useRef({ id: '', carryId: '' })
   const cadence = useMemo(() => new AvatarPoseCadence(), [model])
   const appearance = useRef<ReturnType<typeof createAvatarOpacity> | null>(null)
@@ -148,6 +149,7 @@ function Avatar({
     const frameAt = performance.now()
     samplePose(avatar, frameAt, pose)
     const seated = avatar.seatIndex >= 0
+    const seatTable = seated && avatar.tableId ? TABLES.find(table => table.id === avatar.tableId) : undefined
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
@@ -169,8 +171,9 @@ function Avatar({
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     root.current.position.set(
       pose.x,
-      pose.y - 0.8 + (seated ? (TABLES.find(table => table.id === avatar.tableId)?.seatSurfaceY
-        ?? avatarSeatSurface(avatar.benchId)) + model.seatedHipLift - model.hipHeight : 0),
+      pose.y - 0.8 + (seated ? (seatTable?.seatSurfaceY
+        ?? avatarSeatSurface(avatar.benchId))
+          + (RENEWAL_PARK_ENABLED ? model.seatedContactLift : model.seatedHipLift) - model.hipHeight : 0),
       pose.z,
     )
     root.current.rotation.y = pose.yaw
@@ -201,9 +204,17 @@ function Avatar({
     const partner = avatars.get(carriedPartner.current.id)
     const throwFlight = partner?.carry?.role === 'THROWN' && partner.carry.partnerId === id
       && partner.carry.carryId === carriedPartner.current.carryId ? partner : null
+    // Place the knees beyond the front edge of the deeper pavilion seats.
+    let seatForward: number | undefined
+    if (RENEWAL_PARK_ENABLED && seated) {
+      if (avatar.benchId) seatForward = .34
+      else if (seatTable?.pavilionId === 'P0') seatForward = .27
+      else if (seatTable?.pavilionId) seatForward = .43
+      else seatForward = .13
+    }
     motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
       holdingCards ? oneCardHoldingPose : undefined, throwFlight,
-      carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined)
+      carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)

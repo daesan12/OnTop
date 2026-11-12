@@ -210,8 +210,8 @@ export const WorldCanvas = memo(function WorldCanvas({
           {RENEWAL_GATE_STARTUP && <HoldAutomaticRender />}
           <ParkXRBridge />
           <group name={RENEWAL_PARK_ENABLED ? 'renewal-exterior-lighting' : undefined}>
-            <EnvironmentScene />
-            <ParkSun quality={quality} />
+            <EnvironmentScene matchServiceBrightness={RENEWAL_PARK_ENABLED} />
+            <ParkSun quality={quality} serviceNightLight={RENEWAL_PARK_ENABLED || undefined} />
           </group>
           <ParkSoundscape />
           {!RENEWAL_PARK_ENABLED && <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />}
