@@ -1,6 +1,9 @@
 package com.ssafy.ontop.game.jumprope;
 
 import com.ssafy.ontop.config.RuntimeProfiles;
+import com.ssafy.ontop.wallet.repository.WalletRepository;
+import com.ssafy.ontop.wallet.repository.WalletTransactionRepository;
+import jakarta.persistence.EntityManager;
 import java.security.SecureRandom;
 import java.time.Clock;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,7 +18,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 @ConditionalOnProperty(name = "ontop.minigames.enabled", havingValue = "true")
 public class JumpRopeConfiguration {
     @Bean
-    JumpRopeService jumpRopeService(JdbcTemplate jdbc, PlatformTransactionManager manager) {
-        return new JumpRopeService(new JumpRopeRepository(jdbc), manager, Clock.systemUTC(), new SecureRandom());
+    JumpRopeService jumpRopeService(JdbcTemplate jdbc, PlatformTransactionManager manager,
+            EntityManager entities, WalletRepository wallets, WalletTransactionRepository ledger) {
+        return new JumpRopeService(new JumpRopeRepository(jdbc), manager, Clock.systemUTC(), new SecureRandom(),
+                new JumpRopeRewards(entities, wallets, ledger));
     }
 }

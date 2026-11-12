@@ -68,20 +68,30 @@ class JumpRopeHttpTests {
 
     @Test void completes_using_only_integer_offsets_and_returns_the_verified_result() throws Exception {
         when(service.complete(101, 1, List.of(728335, 1723348))).thenReturn(new JumpRopeDtos.Result("1", 1, 45,
-                new JumpRopeDtos.Counts(2, 0, 3), "missLimit", NOW.plusSeconds(11)));
+                new JumpRopeDtos.Counts(2, 0, 3), "missLimit", NOW.plusSeconds(11), 0));
         var response = send(jsonRequest(BASE + "/rounds/1/complete", true, "{\"jumpOffsetsUs\":[728335,1723348]}"));
         assertStatus(response, 200);
         var body = mapper.readTree(response.body());
         assertThat(body.path("score").asInt()).isEqualTo(45);
         assertThat(body.at("/counts/perfect").asInt()).isEqualTo(2);
         assertThat(body.path("endReason").asText()).isEqualTo("missLimit");
+        assertThat(body.path("reward").isIntegralNumber()).isTrue();
+        assertThat(body.path("reward").asInt()).isZero();
 
         for (String invalid : List.of("null", "{}", "{\"jumpOffsetsUs\":[1.0]}", "{\"jumpOffsetsUs\":[\"1\"]}",
                 "{\"jumpOffsetsUs\":[null]}", "{\"jumpOffsetsUs\":[2147483648]}", "{\"jumpOffsetsUs\":[],\"score\":45}",
-                "{\"jumpOffsetsUs\":[],\"jumpOffsetsUs\":[]}")) {
+                "{\"jumpOffsetsUs\":[],\"reward\":39}", "{\"jumpOffsetsUs\":[],\"jumpOffsetsUs\":[]}")) {
             assertStatus(send(jsonRequest(BASE + "/rounds/1/complete", true, invalid)), 400);
         }
         verify(service, times(1)).complete(anyLong(), anyLong(), anyList());
+    }
+
+    @Test void serializes_the_actual_granted_reward_for_a_full_time_result() throws Exception {
+        when(service.complete(101, 1, List.of(728335))).thenReturn(new JumpRopeDtos.Result("1", 1, 1965,
+                new JumpRopeDtos.Counts(66, 0, 0), "time", NOW.plusSeconds(63), 3));
+        var response = send(jsonRequest(BASE + "/rounds/1/complete", true, "{\"jumpOffsetsUs\":[728335]}"));
+        assertStatus(response, 200);
+        assertThat(mapper.readTree(response.body()).path("reward").asInt()).isEqualTo(3);
     }
 
     @Test void keeps_rankings_page_defaults_and_serializes_no_personal_record_as_null() throws Exception {
@@ -123,6 +133,10 @@ class JumpRopeHttpTests {
         assertThat(complete.at("/responses/404").isObject()).isTrue();
         assertThat(rankings.at("/responses/200/content/application~1json/schema/$ref").asText()).endsWith("/JumpRopeRankings");
         assertThat(api.at("/components/schemas/JumpRopeComplete/properties/jumpOffsetsUs/items/type").asText()).isEqualTo("integer");
+        var reward = api.at("/components/schemas/JumpRopeResult/properties/reward");
+        assertThat(reward.path("type").asText()).isEqualTo("integer");
+        assertThat(reward.path("minimum").asInt(-1)).isZero();
+        assertThat(api.at("/components/schemas/JumpRopeResult/required").toString()).contains("\"reward\"");
         assertThat(api.at("/components/schemas/JumpRopeRankings/properties/me/$ref").asText()).endsWith("/JumpRopePersonalBest");
         assertThat(api.at("/components/schemas/JumpRopePersonalBest/nullable").asBoolean()).isTrue();
         assertThat(api.at("/components/schemas/JumpRopeRankingItem/nullable").asBoolean()).isFalse();
