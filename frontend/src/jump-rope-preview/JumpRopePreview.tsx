@@ -638,7 +638,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
             <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
           {showSplash && <GameOverSplash />}
           {finalePreview && !previewResult && <button className="finale-preview-close" type="button" onClick={() => closeFinalePreview(performance.now())}>미리보기 닫기</button>}
-          {resultReason && <JumpRopeResult reason={receipt?.endReason ?? resultReason} stats={ranked ? receipt : hud.stats}
+          {resultReason && <JumpRopeResult reason={receipt?.endReason ?? resultReason} stats={ranked ? receipt : hud.stats} reward={receipt?.reward}
             status={starting ? '서버 라운드를 준비하는 중입니다.' : startError || saveStatus} onRetry={retry}
             restartDisabled={starting || submissionBlocksStart} onQuit={quitGame} onRestart={restartGame} />}
         </section>

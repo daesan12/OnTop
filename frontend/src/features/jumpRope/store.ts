@@ -4,6 +4,7 @@ import { rememberRoamingView } from '../../world/cameraReturn'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { useMouseLook } from '../../world/mouseLook'
 import type { RoundEndReason } from '../../jump-rope-preview/jumpRopeRules'
+import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh'
 import { JumpRopeApiError, jumpRopeService, type JumpRopeReceipt } from './service'
 
 type Submission = { owner: string; id: string; expiresAt: number; reason: RoundEndReason; offsets: readonly number[] }
@@ -42,13 +43,20 @@ async function settle(submission: Submission) {
   }
   const pending: JumpRopeSettlement = { ...submission, status: 'saving' }
   useJumpRope.setState({ settlement: pending, active: false })
+  let receipt: JumpRopeReceipt
   try {
-    const receipt = await jumpRopeService.complete(pending.id, pending.offsets)
-    if (useJumpRope.getState().settlement === pending) useJumpRope.setState({ settlement: { ...submission, status: 'saved', receipt } })
+    receipt = await jumpRopeService.complete(pending.id, pending.offsets)
   } catch (error) {
     if (useJumpRope.getState().settlement !== pending) return
     const failure = error instanceof JumpRopeApiError ? error : new JumpRopeApiError('', true)
     useJumpRope.setState({ settlement: { ...submission, status: 'failed', message: failure.message, retryable: failure.retryable } })
+    return
+  }
+  if (useJumpRope.getState().settlement === pending) {
+    useJumpRope.setState({ settlement: { ...submission, status: 'saved', receipt } })
+  }
+  if (receipt.reward !== null && receipt.reward > 0 && useSession.getState().sessionId === submission.owner) {
+    refreshWalletAfterSettlement(submission.owner, `jump-rope:reward:${receipt.id}`)
   }
 }
 

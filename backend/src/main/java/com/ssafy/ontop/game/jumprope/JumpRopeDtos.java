@@ -34,7 +34,14 @@ public final class JumpRopeDtos {
 
     @Schema(name = "JumpRopeResult")
     public record Result(String id, int rulesVersion, int score, Counts counts,
-                         @Schema(allowableValues = {"time", "missLimit"}) String endReason, Instant completedAt) { }
+                         @Schema(allowableValues = {"time", "missLimit"}) String endReason, Instant completedAt,
+                         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0",
+                                 description = "실제 지급한 엽전. 60초 완주 점수 50점당 1냥(버림)에 공통 일일 한도를 적용합니다. 조기 종료, 50점 미만, 한도 소진 또는 보상 도입 전 확정 기록은 0입니다.")
+                         int reward) {
+        Result withReward(int granted) {
+            return new Result(id, rulesVersion, score, counts, endReason, completedAt, granted);
+        }
+    }
 
     @Schema(name = "JumpRopeRankingItem")
     public record Item(long rank, String nickname, int score) { }

@@ -4,7 +4,7 @@ import type { RoundEndReason, RoundStats } from '../../jump-rope-preview/jumpRop
 
 const base = '/api/v1/minigames/jump-rope'
 export type JumpRopeSession = { id: string; seed: number; rulesVersion: 1; serverNow: string; startedAt: string; expiresAt: string; durationMs: 60000 }
-export type JumpRopeReceipt = Pick<RoundStats, 'score' | 'counts'> & { id: string; rulesVersion: 1; endReason: RoundEndReason; completedAt: string }
+export type JumpRopeReceipt = Pick<RoundStats, 'score' | 'counts'> & { id: string; rulesVersion: 1; endReason: RoundEndReason; completedAt: string; reward: number | null }
 type Ranking = { rank: number; nickname: string; score: number }
 type Request = typeof parkRuntime.requestJSON
 
@@ -64,7 +64,13 @@ export class JumpRopeService {
     const { perfect, good, miss } = value.counts
     if (!integer(perfect) || !integer(good) || !integer(miss, 0, 3)
       || (miss === 3) !== (value.endReason === 'missLimit')) throw new JumpRopeApiError('', true)
-    return { id, rulesVersion: 1, score: value.score, counts: { perfect, good, miss }, endReason: value.endReason, completedAt: value.completedAt }
+    // Older servers omit the amount. Keep the confirmed record without inventing a reward.
+    const reward = value.reward
+    if (reward !== undefined && (!integer(reward) || (value.endReason === 'missLimit' && reward !== 0))) {
+      throw new JumpRopeApiError('', true)
+    }
+    return { id, rulesVersion: 1, score: value.score, counts: { perfect, good, miss }, endReason: value.endReason,
+      completedAt: value.completedAt, reward: reward ?? null }
   }
 
   async rankings(signal: AbortSignal): Promise<JumpRopeRankingState> {
