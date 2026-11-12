@@ -3410,6 +3410,169 @@ paths:
                 type: string
       security:
       - AccessJwt: []
+  /api/v1/minigames/jump-rope/rounds:
+    post:
+      tags:
+      - MINIGAME
+      summary: 줄넘기 서버 판 시작
+      description: "플레이 시작은 서버 기준 3초 뒤이며, 만료는 플레이 시작 95초 뒤입니다. 같은 키로 재시도하면 기존 시각을\
+        \ 반환합니다."
+      operationId: startJumpRopeRound
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          type: string
+      responses:
+        "201":
+          description: 새 판 또는 동일 키로 조회한 활성 판
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeRound"
+        "400":
+          description: 시작 요청 키 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+        "409":
+          description: 이미 완료·만료·대체된 시작 요청
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+        "503":
+          description: 기록 서버 또는 신규 활동 일시 중단
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+      security:
+      - AccessJwt: []
+  /api/v1/minigames/jump-rope/rounds/{roundId}/complete:
+    post:
+      tags:
+      - MINIGAME
+      summary: 점프 입력 재생 및 줄넘기 기록 확정
+      description: 카운트다운·MISS 정지를 제외한 실제 플레이 오프셋만 제출합니다. 만료 전 동일 입력 재시도에는 확정 결과를 반환합니다.
+      operationId: completeJumpRopeRound
+      parameters:
+      - name: roundId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JumpRopeComplete"
+        required: true
+      responses:
+        "200":
+          description: 서버가 확정한 점수와 종료 결과
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeResult"
+        "400":
+          description: 라운드 ID 또는 점프 입력 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+        "404":
+          description: 본인 라운드를 찾을 수 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+        "409":
+          description: 종료 전·만료·대체된 판 또는 확정 입력과 불일치
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+        "503":
+          description: 기록 서버 또는 신규 활동 일시 중단
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+      security:
+      - AccessJwt: []
   /api/v1/gacha/tickets:
     post:
       tags:
@@ -7029,6 +7192,75 @@ paths:
                 $ref: "#/components/schemas/Ranking"
       security:
       - AccessJwt: []
+  /api/v1/minigames/jump-rope/rankings:
+    get:
+      tags:
+      - MINIGAME
+      summary: 전체 기간 줄넘기 랭킹 및 내 최고 기록
+      description: 사용자별 최고 확정 기록을 점수 내림차순·MISS 오름차순으로 정렬합니다. 두 값이 같으면 공동 순위입니다.
+      operationId: getJumpRopeRankings
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          maximum: 10
+          minimum: 1
+          type: string
+      - name: offset
+        in: query
+        required: false
+        schema:
+          maximum: 10000
+          minimum: 0
+          type: string
+      responses:
+        "200":
+          description: 랭킹 페이지와 전체 순위 기준 내 최고 기록
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeRankings"
+        "400":
+          description: 페이지 범위 오류
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+        "503":
+          description: 기록 서버 또는 신규 활동 일시 중단
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JumpRopeError"
+      security:
+      - AccessJwt: []
   /api/v1/minigames/bungeoppang/rankings:
     get:
       tags:
@@ -10147,6 +10379,88 @@ components:
           $ref: "#/components/schemas/PlusMinusRules"
         round:
           $ref: "#/components/schemas/PlusMinusRound"
+    JumpRopeRound:
+      type: object
+      properties:
+        id:
+          type: string
+        seed:
+          type: integer
+          format: int64
+        rulesVersion:
+          type: integer
+          format: int32
+        serverNow:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        durationMs:
+          type: integer
+          format: int32
+    JumpRopeError:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    JumpRopeComplete:
+      required:
+      - jumpOffsetsUs
+      type: object
+      properties:
+        jumpOffsetsUs:
+          maxItems: 128
+          uniqueItems: true
+          type: array
+          description: 실제 플레이 경과 시간을 Math.round(elapsedMs * 1000)으로 정규화한 오름차순 점프 로그
+          example:
+          - 728335
+          - 1723348
+          items:
+            maximum: 59999999
+            minimum: 0
+            type: integer
+            format: int32
+      additionalProperties: false
+    JumpRopeCounts:
+      type: object
+      properties:
+        perfect:
+          type: integer
+          format: int32
+        good:
+          type: integer
+          format: int32
+        miss:
+          type: integer
+          format: int32
+    JumpRopeResult:
+      type: object
+      properties:
+        id:
+          type: string
+        rulesVersion:
+          type: integer
+          format: int32
+        score:
+          type: integer
+          format: int32
+        counts:
+          $ref: "#/components/schemas/JumpRopeCounts"
+        endReason:
+          type: string
+          enum:
+          - time
+          - missLimit
+        completedAt:
+          type: string
+          format: date-time
     GachaBuyRequest:
       type: object
       properties:
@@ -11869,6 +12183,61 @@ components:
           format: int64
         finishedAt:
           type: string
+    JumpRopePersonalBest:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        score:
+          type: integer
+          format: int32
+      nullable: true
+    JumpRopeRankingItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        score:
+          type: integer
+          format: int32
+    JumpRopeRankings:
+      required:
+      - me
+      type: object
+      properties:
+        rulesVersion:
+          type: integer
+          format: int32
+        period:
+          type: string
+          enum:
+          - ALL_TIME
+        updatedAt:
+          type: string
+          format: date-time
+        totalParticipants:
+          type: integer
+          format: int64
+        offset:
+          type: integer
+          format: int32
+        limit:
+          type: integer
+          format: int32
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/JumpRopeRankingItem"
+        me:
+          $ref: "#/components/schemas/JumpRopePersonalBest"
+        hasMore:
+          type: boolean
     BungeoppangRankingItem:
       type: object
       properties:

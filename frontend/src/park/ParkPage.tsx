@@ -54,6 +54,8 @@ import { PlusMinusPanel } from '../features/plusMinus/PlusMinusPanel'
 import { MolePanel } from '../features/mole/MolePanel'
 import { ArcadePicker } from '../features/arcade/ArcadePicker'
 import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
+import { JumpRopeHost } from '../features/jumpRope/JumpRopeHost'
+import { jumpRopeSettlementActive, useJumpRope } from '../features/jumpRope/store'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
 import { EntryNewsPopup } from '../features/announcements/EntryNewsPopup'
@@ -106,7 +108,8 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   useJumpmapController()
   const [entryNewsHost,setEntryNewsHost]=useState<HTMLDivElement|null>(null)
   const gameplayActive = useParkGameplayActive()
-  useParkOperationGate(gameplayActive, onOperationBlocked)
+  const jumpRopeSaving = useJumpRope(jumpRopeSettlementActive)
+  useParkOperationGate(gameplayActive || jumpRopeSaving, onOperationBlocked)
   const vrPhase = useStore(parkVrZone.store, state => state.phase)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
   const arcadeOpen = useArcade(s => s.open)
@@ -114,9 +117,10 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const plusMinusOpen = usePlusMinus(s => s.open)
   const rpsOpen = useRpsRoulette(s => s.open)
   const speedMoleOpen = useSpeedMole(s => s.open)
+  const jumpRopeOpen = useJumpRope(s => s.open)
   const gachaOpen = useGachaOverlay(s => s.open)
   const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
-    || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || gachaOpen
+    || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
@@ -197,6 +201,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <PlusMinusPanel />
         <MolePanel />
         <SpeedMoleHost />
+        <JumpRopeHost />
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />

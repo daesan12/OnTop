@@ -390,3 +390,27 @@ it('passes speed mole start, completion and ranking through the real park reques
   await expect(runtime.requestJSON('/api/v1/minigames/speed-mole/rankings?limit=20&offset=0',{method:'POST'})).rejects.toThrow('현재 공원')
   await expect(runtime.requestJSON('/api/v1/minigames/speed-mole/rounds/7/complete',{method:'DELETE'})).rejects.toThrow('현재 공원')
 })
+
+it('allows exactly the jump rope API used in the park and sends the member token and replay body', async () => {
+  const requests: { path: string; init?: RequestInit }[] = []
+  const fetcher = vi.mocked(fetch), fallback = fetcher.getMockImplementation()!
+  fetcher.mockImplementation(async (url, init) => {
+    const path = String(url)
+    if (!path.startsWith('/api/v1/minigames/jump-rope/')) return fallback(url, init)
+    requests.push({ path, init })
+    return json({})
+  })
+  const base = '/api/v1/minigames/jump-rope'
+  await runtime.requestJSON(`${base}/rounds`, { method: 'POST', headers: { 'Idempotency-Key': 'replay_key' } })
+  const body = JSON.stringify({ jumpOffsetsUs: [728335, 1723348] })
+  await runtime.requestJSON(`${base}/rounds/7/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
+  await runtime.requestJSON(`${base}/rankings`)
+  await expect(runtime.requestJSON(`${base}/rounds`)).rejects.toThrow('현재 공원')
+  await expect(runtime.requestJSON(`${base}/rankings`, { method: 'POST' })).rejects.toThrow('현재 공원')
+  await expect(runtime.requestJSON(`${base}/rounds/7/complete`, { method: 'DELETE' })).rejects.toThrow('현재 공원')
+  await expect(runtime.requestJSON(`${base}/rounds/0/complete`, { method: 'POST' })).rejects.toThrow('현재 공원')
+  expect(requests.map(request => request.path)).toEqual([`${base}/rounds`, `${base}/rounds/7/complete`, `${base}/rankings`])
+  for (const request of requests) expect(new Headers(request.init?.headers).get('Authorization')).toMatch(/^Bearer /)
+  expect(new Headers(requests[0]?.init?.headers).get('Idempotency-Key')).toBe('replay_key')
+  expect(requests[1]?.init?.body).toBe(body)
+})

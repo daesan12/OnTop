@@ -5,16 +5,16 @@
   font-display: swap;
 }
 
-:root {
+.preview, .jump-rope-world {
   font-family: system-ui, "Malgun Gothic", sans-serif;
   color: #253a34;
   background: #f4f0e6;
   accent-color: #39725d;
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; }
-button, input { font: inherit; }
+.preview *, .jump-rope-world * { box-sizing: border-box; }
+body:has(> #root > .preview) { margin: 0; background: #f4f0e6; }
+.preview :is(button, input), .jump-rope-world :is(button, input) { font: inherit; }
 
 .preview {
   max-width: 1510px;

@@ -1,6 +1,6 @@
 import type { JudgementSettings } from './jumpRopeJudgement'
 import { applyPass, createRoundStats, roundDurationMs, type RoundEndReason, type RoundStats } from './jumpRopeRules'
-import { advancePreviewMotion, createPreviewMotion, requestJump, type PreviewPass } from './previewMotion'
+import { advancePreviewMotion, advanceRankedMotion, createPreviewMotion, requestJump, requestRankedJump, type PreviewPass, type RankedClock } from './previewMotion'
 import { createSuccessCue, successKind, type PigeonSuccessCue } from './pigeonSuccess'
 import { ropeTempo, type RopeAcceleration } from './ropeAcceleration'
 import { finaleStage } from './gameOverFinale'
@@ -30,6 +30,7 @@ export type PreviewRound = {
   endReason: RoundEndReason | null
   successCue: PigeonSuccessCue | null
   shockStartedAt: number | null
+  ranked?: RankedClock
 }
 export type RoundCue = Phase['kind'] | 'gameOverSplash' | '3' | '2' | '1' | 'GO!'
 export type ScoredPreviewPass = PreviewPass & { earnedPoints: number }
@@ -47,10 +48,12 @@ export function createPreviewRound(entry: EntryPhase = 'initialCountdown'): Prev
   }
 }
 
-export function resetPreviewRound(round: PreviewRound, entry?: EntryPhase) {
+export function resetPreviewRound(round: PreviewRound, entry?: EntryPhase, startsAt?: number) {
   const { motion, ...freshRound } = createPreviewRound(entry)
   Object.assign(round.motion, motion)
   Object.assign(round, freshRound)
+  round.ranked = startsAt === undefined ? undefined : { startsAt, segmentAt: startsAt, segmentUs: 0, offsets: [] }
+  if (round.phase.kind === 'initialCountdown') round.phase.endsAt = startsAt
 }
 
 function beginPlaying(
@@ -59,7 +62,10 @@ function beginPlaying(
   round.phase = phase
   round.motion.jump = null
   round.shockStartedAt = null
-  // Start the first turn at the observed transition even if the frame arrived late.
+  if (round.ranked) {
+    round.ranked.segmentAt = now
+    round.ranked.segmentUs = Math.round(round.playedMs * 1000)
+  }
   advancePreviewMotion(round.motion, now, ropeSpeed, settings)
 }
 
@@ -78,13 +84,18 @@ export function advancePreviewRound(
   const intervalSpeed = motion.ropeSpeed
   const playedBefore = round.playedMs
   const activeFrom = playing && intervalSpeed > 0 ? motion.lastAt : null
-  const deadline = activeFrom === null ? Infinity : activeFrom + (roundDurationMs - round.playedMs)
+  const deadline = activeFrom === null ? Infinity : round.ranked
+    ? round.ranked.segmentAt + roundDurationMs - round.ranked.segmentUs / 1000
+    : activeFrom + (roundDurationMs - round.playedMs)
   const expires = now >= deadline
   const clock = acceleration ? { profile: acceleration, playedMs: round.playedMs } : undefined
-  const passes = advancePreviewMotion(motion, now, playing && !expires ? ropeSpeed : 0, settings, playing, deadline, clock)
+  const rankedStep = playing && round.ranked ? advanceRankedMotion(motion, round.ranked, now, settings) : null
+  const passes = rankedStep?.passes ?? advancePreviewMotion(motion, now, playing && !expires ? ropeSpeed : 0, settings, playing, deadline, clock)
   const last = passes.at(-1)
   const miss = last?.kind === 'miss' ? last : undefined
-  if (activeFrom !== null) {
+  if (rankedStep) {
+    round.playedMs = rankedStep.playedUs / 1000
+  } else if (activeFrom !== null) {
     const playedUntil = miss?.at ?? Math.min(now, deadline)
     round.playedMs = expires && !miss ? roundDurationMs : round.playedMs + (playedUntil - activeFrom)
   }
@@ -109,7 +120,9 @@ export function advancePreviewRound(
   if (phase.kind === 'initialCountdown') {
     phase.endsAt ??= now + countdownMs
     if (now >= phase.endsAt && ropeSpeed > 0) {
-      beginPlaying(round, { kind: 'playing', goAt: now }, now, ropeSpeed, settings)
+      const begins = round.ranked?.startsAt ?? now
+      beginPlaying(round, { kind: 'playing', goAt: begins }, begins, ropeSpeed, settings)
+      if (round.ranked) return advancePreviewRound(round, now, ropeSpeed, settings, reactionMs, acceleration)
     }
   } else if (playing && miss) {
     round.shockStartedAt = now
@@ -122,6 +135,7 @@ export function advancePreviewRound(
         : { kind: 'landing', stoppedAt: miss.at, reactionMs }
     }
   } else if (expires) {
+    motion.ropeSpeed = 0
     round.shockStartedAt = null
     round.endReason = 'time'
     round.phase = { kind: 'completion', startedAt: now, restWeight: ropeRestWeight(round, now) }
@@ -144,7 +158,7 @@ export function advancePreviewRound(
 
 export function requestRoundJump(round: PreviewRound, now: number, peak: number, flightSeconds: number) {
   return round.phase.kind === 'playing' && round.motion.ropeSpeed > 0
-    && requestJump(round.motion, now, peak, flightSeconds)
+    && (round.ranked ? requestRankedJump(round.motion, round.ranked, now) : requestJump(round.motion, now, peak, flightSeconds))
 }
 
 export function roundSecondsLeft(round: PreviewRound) {
