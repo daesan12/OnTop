@@ -5,16 +5,10 @@ import { MAP_RENDER_BUDGET } from './art/mapRenderProfile'
 import { ParkSoundscape } from '../audio/ParkSoundscape'
 import { lazy } from 'react'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
+import { loadRenewalParkWorld } from '../park/loadRenewalParkWorld'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
 const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
-const RenewalParkWorld=RENEWAL_PARK_ENABLED ? lazy(async()=>{
-  const [{ loadStaticPark }, { default: archive }] = await Promise.all([
-    import('../../park-renewal-preview/static/load'),
-    import('../../park-renewal-preview/original-park.bin.gz?url'),
-  ])
-  await loadStaticPark(archive)
-  return import('../../park-renewal-preview/live/RenewalWorld')
-}) : null
+const RenewalParkWorld=RENEWAL_PARK_ENABLED ? lazy(loadRenewalParkWorld) : null
 const ServiceJumpCourse=lazy(()=>import('../features/jumpmap/ServiceJumpCourse').then(m=>({default:m.ServiceJumpCourse})))
 import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
