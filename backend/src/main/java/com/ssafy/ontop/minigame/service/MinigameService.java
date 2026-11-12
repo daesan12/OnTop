@@ -244,7 +244,7 @@ public class MinigameService {
             Instant current = now();
             repository.playing(userId).stream().filter(session -> expired(session, current))
                     .forEach(session -> invalidate(session, current, "EXPIRED"));
-            return new BungeoppangStatusResponse(earned(userId, current), BungeoppangRules.DAILY_CAP,
+            return new BungeoppangStatusResponse(earned(userId, current), MinigameRewardBudget.DAILY_CAP,
                     repository.firstGame(userId), tips(repository.profile(userId).seenTips()), V2);
         });
     }
@@ -262,7 +262,7 @@ public class MinigameService {
                 }
             }
             return new BungeoppangV4Responses.LobbyResponse(V4, current, earned(userId, current),
-                    BungeoppangRules.DAILY_CAP, repository.firstGame(userId),
+                    MinigameRewardBudget.DAILY_CAP, repository.firstGame(userId),
                     tips(repository.profile(userId).seenTips()), activeSessionId, List.of(V2, V4));
         });
     }
@@ -282,7 +282,7 @@ public class MinigameService {
                 }
             }
             return new BungeoppangV4Responses.LobbyResponse(V5, current, earned(userId, current),
-                    BungeoppangRules.DAILY_CAP, repository.firstGame(userId),
+                    MinigameRewardBudget.DAILY_CAP, repository.firstGame(userId),
                     tips(repository.profile(userId).seenTips()), activeSessionId, List.of(V2, V4, V5));
         });
     }
@@ -649,8 +649,8 @@ public class MinigameService {
         rememberTips(userId, submission.path("seenTips"));
         var response = new MinigameCompleteResponse(Long.toString(sessionId), "COMPLETED", score.made(), reward,
                 score.score(), score.made(), score.golden(), score.failed(), score.wasted(), score.maxCombo(),
-                calculated, reward, today + reward, BungeoppangRules.DAILY_CAP,
-                today + reward >= BungeoppangRules.DAILY_CAP);
+                calculated, reward, today + reward, MinigameRewardBudget.DAILY_CAP,
+                today + reward >= MinigameRewardBudget.DAILY_CAP);
         record.accept(write(submission), write(response));
         repository.flush();
         return response;
@@ -748,7 +748,7 @@ public class MinigameService {
         var response = new BungeoppangV4CompleteDtos.Response(Long.toString(sessionId), "COMPLETED", V4,
                 round.configVersion(), result.made(), reward, result.score(), result.made(), result.golden(),
                 result.failed(), result.wasted(), result.maxCombo(), calculated, reward, today + reward,
-                BungeoppangRules.DAILY_CAP, today + reward >= BungeoppangRules.DAILY_CAP,
+                MinigameRewardBudget.DAILY_CAP, today + reward >= MinigameRewardBudget.DAILY_CAP,
                 result.successfulMade(), result.served(), result.customersServed(), result.specialServed(),
                 result.bonusScore(), result.grillDiscarded(), result.trayDiscarded(), result.tray().size(),
                 unfinished, rewardDate, settledAt, request.throughSeq(), request.prefixHash());
@@ -852,7 +852,7 @@ public class MinigameService {
         var response = new BungeoppangV4CompleteDtos.Response(Long.toString(sessionId), "COMPLETED", V5,
                 round.configVersion(), result.made(), reward, result.score(), result.made(), result.golden(),
                 result.failed(), result.wasted(), result.maxCombo(), calculated, reward, today + reward,
-                BungeoppangRules.DAILY_CAP, today + reward >= BungeoppangRules.DAILY_CAP,
+                MinigameRewardBudget.DAILY_CAP, today + reward >= MinigameRewardBudget.DAILY_CAP,
                 result.successfulMade(), result.served(), result.customersServed(), result.specialServed(),
                 result.bonusScore(), result.grillDiscarded(), result.trayDiscarded(), result.tray().size(),
                 unfinished, rewardDate, settledAt, request.throughSeq(), request.prefixHash());
