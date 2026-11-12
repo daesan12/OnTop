@@ -177,3 +177,18 @@ FIXED 4건은 모두 SCORE_TEXT_FORBIDDEN이다. 두 모델의 창문 변형 심
 - `backend/src/main/java/com/ssafy/ontop/ai/JokeJudge.java`: 김부장 페르소나(자네·하게체·따뜻하지만 솔직한 평가).
 - `backend/src/main/java/com/ssafy/ontop/ai/LlmJokeJudge.java`: 성립 판정, 말장난40/재미반전40/독창성20, 유사성 비교, 구체적인 심사평. 문제·정답·참고 작품은 별도 user JSON 데이터이며 응답은 strict JSON schema다.
 - `backend/src/main/java/com/ssafy/ontop/ai/JevJokeJudge.java`: 대인 공격/비하·개인정보·심한 부적절성의 세 영어 Noul 질문. 입력 속 지시를 따르지 않도록 명시하고 각 0~1 값 중 최댓값으로 SAFE(<0.35), REVIEW(0.35 이상), REJECTED(0.8 이상)를 판정한다. 원문 검수 후 LLM 채점/심사평, 로컬 형식 검사 후 생성 심사평 검수 순서다. 채팅 경고의 0.5 기준과 별개다.
+
+### v6 실제 LLM·Jev 재검증
+
+2026-11-12 로컬 커밋 f2024bf3에서 위와 같은 네 문구를 두 모델에 각각 한 번 실행했다. 8건 모두 judgeVersion이 v6-reaction-score이며 SCORED/SPRING_AI, fallbackReason=NONE이었다. 원문 Jev 8회·생성 심사평 Jev 8회 모두 SAFE였다. 창문 및 창문 변형의 네 심사평 모두 `1+1`이 그대로 유지됐다. 이전 v5 실행의 FIXED 4/8과 달리 이번 실행은 0/8이다. 실제 점수 선언 차단은 관련 회귀 테스트로 확인했으며 이번 공급자 출력에는 별도 점수 선언이 없었다.
+
+| 문구 | gpt-4.1-mini | gpt-5.4-mini |
+| --- | --- | --- |
+| 1+1=? / 창문~~ | 35점, SPRING_AI | 24점, SPRING_AI |
+| 1+1=?sd / 창문~~s | 57점, SPRING_AI | 47점, SPRING_AI |
+| 왕이넘어지면? / 킹콩 | 77점, SPRING_AI | 53점, SPRING_AI |
+| 바다가 화나면? / 열바다 | 62점, SPRING_AI | 61점, SPRING_AI |
+
+유사 작품 독창성은 각각 감점 전15→2점, 4→2점이었다. 창문 개그를 발음·한자 연결로 억지 해석하는 출력은 여전히 관찰돼 개그 이해 정확도 개선으로 해석하지 않는다. 총점 변화 또한 프롬프트 변경/모델 출력 변동이 포함된 단일 표본이며 필터 변경으로 채점 품질이 향상됐다는 결론은 아니다.
+
+usage는 4.1-mini 입력4989/출력593토큰, 5.4-mini 입력4969/출력481토큰이며 추정 비용 USD0.00883565(캐시 할인 미반영·Jev 별도), 사전예약 USD0.0400608이었다. 원본은 로컬 검수 폴더 joke-comparison-1794464992049/report.json 및 events.jsonl이다. 운영 서버 재시작·배포·공용 DB·MM 전송은 하지 않았다.
