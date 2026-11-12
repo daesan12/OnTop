@@ -18,6 +18,7 @@ public final class LocalJokeContest implements AutoCloseable, AiFeature {
     private final JokeJudge judge;private final AiText text;private final Clock clock;
     private final AiMetrics metrics=new AiMetrics();
     private final ThreadPoolExecutor workers=new ThreadPoolExecutor(2,2,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(16),Thread.ofPlatform().daemon(true).name("joke-contest-",0).factory());
+    private final java.util.function.Consumer<Map<String,Object>> diagnostics;
     private boolean closed;
     public LocalJokeContest(ObjectMapper mapper,Path directory,JokeJudge judge,AiText text,Clock clock)throws java.io.IOException {
         this(mapper,new JsonJokeContestStore(mapper,directory,clock.millis()),judge,text,clock);
@@ -25,7 +26,8 @@ public final class LocalJokeContest implements AutoCloseable, AiFeature {
     public LocalJokeContest(ObjectMapper mapper,Path directory,JokeJudge judge,AiText text,Clock clock,boolean unlimited)throws java.io.IOException {
         this(mapper,new JsonJokeContestStore(mapper,directory,clock.millis(),unlimited),judge,text,clock);
     }
-    public LocalJokeContest(ObjectMapper mapper,JokeContestStore store,JokeJudge judge,AiText text,Clock clock){this.mapper=mapper;this.store=store;this.judge=judge;this.text=text;this.clock=clock;}
+    public LocalJokeContest(ObjectMapper mapper,JokeContestStore store,JokeJudge judge,AiText text,Clock clock){this(mapper,store,judge,text,clock,JokeDiagnostics.configuredLogging(mapper));}
+    public LocalJokeContest(ObjectMapper mapper,JokeContestStore store,JokeJudge judge,AiText text,Clock clock,java.util.function.Consumer<Map<String,Object>> diagnostics){this.mapper=mapper;this.store=store;this.judge=judge;this.text=text;this.clock=clock;this.diagnostics=java.util.Objects.requireNonNull(diagnostics);}
     private String today(){return LocalDate.now(clock.withZone(SEOUL)).toString();}
     static Submission finished(Submission s,String status,Integer score,int word,int wit,int original,String reason,String reaction,String source,long now){return new Submission(s.id(),s.userId(),s.nickname(),s.date(),s.question(),s.answer(),s.hash(),s.key(),status,score,word,wit,original,reason,reaction,source,s.createdAt(),now,s.judgeVersion());}
     private String input(String value,int min,int max){if(value==null)throw new IllegalArgumentException("문제와 정답을 입력해주세요.");String v=value.strip();int size=v.codePointCount(0,v.length());if(size<min||size>max||v.matches("(?s).*[\\p{Cntrl}&&[^\\r\\n\\t]].*"))throw new IllegalArgumentException("문제는 2~100자, 정답은 1~60자로 입력해주세요.");return v;}
@@ -41,7 +43,8 @@ public final class LocalJokeContest implements AutoCloseable, AiFeature {
         try{workers.execute(()->evaluate(row));}catch(RejectedExecutionException busy){complete(finished(row,"FAILED",null,0,0,0,"BUSY","심사가 밀려 있네. 도전 기회는 돌려주겠네.","FIXED",clock.millis()));}
         return row;
     }
-    private void evaluate(Submission row) {
+    private void evaluate(Submission row){try(var trace=JokeDiagnostics.open(row.id(),diagnostics)){evaluateTraced(row);}}
+    private void evaluateTraced(Submission row) {
         if(!pending(row.id()))return;
         long started=System.nanoTime();metrics.duration("queue_wait",Math.max(0,clock.millis()-row.createdAt())*1_000_000);
         Submission done;
@@ -51,18 +54,26 @@ public final class LocalJokeContest implements AutoCloseable, AiFeature {
                 if(!pending(row.id()))return;
                 score=result.wordplayX10()+result.witX10()+result.originalityX10();
                 reaction="자네의 말장난 한 수, 잘 들었네.";
+                String fallbackReason="NONE",rawReaction="";
                 try {
                     AiText.Reply generated;
                     if(result.integratedReaction())generated=new AiText.Reply(result.reaction(),"SPRING_AI");
                     else {
                         long reactionStarted=System.nanoTime();metrics.increment("legacy_reaction.requests");
-                        try{generated=text.generate(JokeJudge.PERSONA+"개그의 구체적인 말장난과 잘된 점 또는 아쉬운 점을 한국어 두세 문장 120자 이내로 설명하라. 점수나 숫자·개인정보·욕설·실제 원작자 주장은 금지. 유사 감점은 서버가 안내하므로 중복 언급하지 마라.",
+                        try{generated=text.generate(JokeJudge.PERSONA+"개그의 구체적인 말장난과 잘된 점 또는 아쉬운 점을 한국어 두세 문장 120자 이내로 설명하라. 개그 설명의 숫자와 수식은 허용한다. 실제 점수 수치나 만점 선언·개인정보·욕설·실제 원작자 주장은 금지. 총점은 서버가 붙인다. 유사 감점은 서버가 안내하므로 중복 언급하지 마라.",
                             mapper.writeValueAsString(Map.of("question",row.question(),"answer",row.answer(),"evaluation",result.reason(),"wordplayX10",result.wordplayX10(),"witX10",result.witX10(),"originalityX10",result.originalityX10())),reaction);}
                         finally{metrics.duration("legacy_reaction",System.nanoTime()-reactionStarted);}
                     }
                     if(!pending(row.id()))return;
-                    if(generated!=null&&generated.source().equals("SPRING_AI")&&generated.text()!=null&&!generated.text().isBlank()&&generated.text().length()<=180&&!generated.text().matches("(?s).*(?:[0-9０-９]|점수|등수|만점|백\\s*점).*")&&judge.safeReaction(generated.text())){reaction=generated.text().strip();source=generated.source();}
-                }catch(Exception unavailable){/* The score is already final; safe fixed reaction is a successful result. */}
+                    rawReaction=generated==null?"":JokeDiagnostics.text(generated.text());
+                    if(generated==null||!"SPRING_AI".equals(generated.source()))fallbackReason="PROVIDER_NOT_GENERATED";
+                    else if(generated.text()==null||generated.text().isBlank())fallbackReason="EMPTY_REACTION";
+                    else if(generated.text().length()>180)fallbackReason="REACTION_TOO_LONG";
+                    else if(JokeReactionScoreText.containsScore(generated.text()))fallbackReason="SCORE_TEXT_FORBIDDEN";
+                    else if(!judge.safeReaction(generated.text()))fallbackReason="REACTION_GUARD_BLOCKED";
+                    else {reaction=generated.text().strip();source=generated.source();}
+                }catch(Exception unavailable){fallbackReason="REACTION_EXCEPTION";JokeDiagnostics.emit("reaction_error",Map.of("exceptionType",unavailable.getClass().getSimpleName()));}
+                JokeDiagnostics.emit("reaction_selection",Map.of("rawReaction",rawReaction,"source",source,"fallbackReason",fallbackReason));
                 if(source.equals("FIXED"))metrics.increment("reaction.fallbacks");
                 if(result.reason().equals(JokeJudge.SIMILAR_REASON))reaction+=" "+JokeJudge.SIMILAR_REASON;
                 reaction=laughter(score)+" "+reaction.replaceFirst("^(?:허허+|하하+|푸하하핫)[!！,.。…~\\s]*", "");
@@ -70,6 +81,7 @@ public final class LocalJokeContest implements AutoCloseable, AiFeature {
             }else reaction=switch(status){case "REJECTED" -> "허허, 다 같이 보는 자리엔 어울리지 않는 표현이구먼. 다른 개그로 도전해 보게.";case "REVIEW" -> "공개하기에 적절한지 확신하기 어렵구먼. 이번 작품은 비공개로 두겠네.";default -> "문제와 정답의 말장난이 조금 약하구먼. 다음엔 한 방을 준비해 보게!";};
             done=finished(row,status,score,result.wordplayX10(),result.witX10(),result.originalityX10(),result.reason(),reaction,source,clock.millis());
         }catch(Exception unavailable){done=finished(row,"FAILED",null,0,0,0,"PROVIDER_FAILURE","잠시 심사에 문제가 생겼네. 이번 도전 기회는 돌려주겠네.","FIXED",clock.millis());}
+        JokeDiagnostics.emit("completed",Map.of("status",done.status(),"scoreX10",done.scoreX10()==null?-1:done.scoreX10(),"wordplayX10",done.wordplayX10(),"witX10",done.witX10(),"originalityX10",done.originalityX10(),"reason",JokeDiagnostics.text(done.reason()),"reactionSource",done.reactionSource(),"judge",done.judgeVersion()));
         complete(done);metrics.duration("processing",System.nanoTime()-started);metrics.duration("end_to_end",Math.max(0,clock.millis()-row.createdAt())*1_000_000);
     }
     private synchronized boolean pending(String id){return !closed&&store.pending(id,clock.millis());}

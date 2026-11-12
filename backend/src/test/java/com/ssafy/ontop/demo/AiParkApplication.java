@@ -78,7 +78,7 @@ public final class AiParkApplication {
             String llmKey=env.getOrDefault("OPENAI_API_KEY","");
             boolean allowLlm=!env.containsKey("AI_PARK_BENCHMARK")||"true".equals(env.get("AI_PARK_BENCHMARK_LIVE_LLM"));
             if(allowLlm&&!llmKey.isBlank()&&!"jev".equalsIgnoreCase(env.getOrDefault("AI_LAB_JOKE_JUDGE","llm")))
-                judge=new com.ssafy.ontop.ai.LlmJokeJudge(mapper,llmKey,env.getOrDefault("AI_LAB_LLM_MODEL","gpt-4.1-mini"),judge);
+                judge=new com.ssafy.ontop.ai.LlmJokeJudge(mapper,llmKey,env.getOrDefault("AI_JOKE_LLM_MODEL","gpt-5.4-mini"),judge);
             if(!System.getenv().getOrDefault("AI_LAB_JOKE_DB_URL","").isBlank())return new com.ssafy.ontop.ai.LocalJokeContest(mapper,JokeLocalDatabase.fixtureStore(mapper),judge,text,Clock.systemUTC());
             return new com.ssafy.ontop.ai.LocalJokeContest(mapper,java.nio.file.Path.of(directory).resolve("joke-contest"),judge,text,Clock.systemUTC(),true);
         }

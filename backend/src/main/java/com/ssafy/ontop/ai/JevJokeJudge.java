@@ -27,17 +27,22 @@ public final class JevJokeJudge implements JokeJudge {
         questions.put("wordplay",score("How coherent and complete is the wordplay?",List.of("No discernible connection", "Very forced but interpretable connection", "Recognizable wordplay with weaknesses", "Clear, well-connected wordplay", "Exceptionally precise and complete wordplay")));
         questions.put("wit",score("How amusing is the surprise or comic payoff?",List.of("No comic payoff", "Barely amusing", "Mildly amusing", "Funny and surprising", "Exceptionally amusing payoff")));
         questions.put("originality",score("How fresh or unexpected does the idea feel? This is perceived freshness, NOT verification of authorship or absence online.",List.of("Very obvious or stock idea", "Mostly familiar", "Some fresh twist", "Distinctive and unexpected", "Remarkably fresh twist")));
-        var result=call(Map.of("question",question,"answer",answer),questions);String safety=safety(result);
+        var result=call(Map.of("question",question,"answer",answer),questions);String safety=safety(result,"original");
         if(!safety.isEmpty())return new Evaluation(safety,0,0,0,safety.equals("REVIEW")?"UNCERTAIN":"UNSUITABLE");
         if(n(result,"valid_joke")<.65)return new Evaluation("INVALID_JOKE",0,0,0,"NOT_A_JOKE");
         return new Evaluation("SCORED",points(result,"wordplay",100),points(result,"wit",100),points(result,"originality",50),"SCORED");
     }
-    @Override public boolean safeReaction(String text){return safety(call(Map.of("reaction",text),guards())).isEmpty();}
+    @Override public boolean safeReaction(String text){return safety(call(Map.of("reaction",text),guards()),"reaction").isEmpty();}
     @Override public Evaluation screen(String question,String answer) {
-        String verdict=safety(call(Map.of("question",question,"answer",answer),guards()));
+        String verdict=safety(call(Map.of("question",question,"answer",answer),guards()),"original");
         return new Evaluation(verdict.isEmpty()?"SCORED":verdict,0,0,0,verdict.isEmpty()?"SAFE":verdict.equals("REVIEW")?"UNCERTAIN":"UNSUITABLE");
     }
-    private String safety(JsonNode result){double max=Math.max(n(result,"unsafe_targeted"),Math.max(n(result,"personal_info"),n(result,"severely_inappropriate")));return max>=.8?"REJECTED":max>=.35?"REVIEW":"";}
+    private String safety(JsonNode result,String phase){
+        double targeted=n(result,"unsafe_targeted"),personal=n(result,"personal_info"),severe=n(result,"severely_inappropriate");
+        double max=Math.max(targeted,Math.max(personal,severe));String verdict=max>=.8?"REJECTED":max>=.35?"REVIEW":"SAFE";
+        JokeDiagnostics.emit("jev_guard",Map.of("phase",phase,"model",model,"unsafe_targeted",targeted,"personal_info",personal,"severely_inappropriate",severe,"decision",verdict));
+        return verdict.equals("SAFE")?"":verdict;
+    }
     private double n(JsonNode result,String id){var a=result.path(id);double v=a.path("noul").asDouble(Double.NaN);if(!a.path("type").asText().equals("noul")||!Double.isFinite(v)||v<0||v>1)throw new IllegalArgumentException("Jev Noul 응답 오류");return v;}
     private int points(JsonNode result,String id,int weight){var a=result.path(id);double v=a.path("score").asDouble(Double.NaN);if(!a.path("type").asText().equals("score")||!Double.isFinite(v)||v<0||v>4)throw new IllegalArgumentException("Jev Score 응답 오류");return (int)Math.round(v*weight);}
     private JsonNode call(Object state,Map<String,Object> questions){long started=System.nanoTime();try {
@@ -45,7 +50,7 @@ public final class JevJokeJudge implements JokeJudge {
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(Map.of("model",model,"state",state,"questions",questions)))).build();
         metrics.increment("jev.calls");
         var response=client.send(request,HttpResponse.BodyHandlers.ofString());
-        if(response.statusCode()!=200||response.body().length()>256_000)throw new IllegalStateException("Jev 심사 연결 실패");
+        if(response.statusCode()!=200||response.body().length()>256_000){JokeDiagnostics.emit("jev_http_error",Map.of("model",model,"status",response.statusCode()));throw new IllegalStateException("Jev 심사 연결 실패");}
         var answers=mapper.readTree(response.body()).path("answers");if(!answers.isObject())throw new IllegalArgumentException("Jev 심사 형식 오류");return answers;
     }catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException("심사 중단");}catch(java.io.IOException e){throw new IllegalStateException("심사 연결 실패");}finally{metrics.duration("jev",System.nanoTime()-started);}}
     @Override public Map<String,Long> usage(){return metrics.snapshot();}
