@@ -36,6 +36,7 @@ function scope(id: ParkDetailId, root: Object3D) {
 
 function visitMeshes(root: Object3D, id: ParkDetailId, visit: (mesh: Mesh) => void) {
   if (id === 'fountain' && (root.name === 'fountain-jet-height' || root.name === 'water-surface')) return
+  if (id === 'notes' && (root.name === 'observatory-user-notes' || root.name === 'observatory-notes-status')) return
   const mesh = root as Mesh
   if (mesh.isMesh && !Array.isArray(mesh.material) && mesh.geometry.hasAttribute('position') && !mesh.geometry.userData.leverRange) visit(mesh)
   root.children.forEach(child => visitMeshes(child, id, visit))

@@ -149,7 +149,7 @@ function Ranking({live}:{live:boolean}){
  }:undefined}>
   <PropModel art={art} name="ranking-board"/>
   <PropSign draw={title('온탑 랭킹')} position={[0,4.23,.4]} width={7.2} height={.6}/>
-  {live&&<RankingBoardPanels/>}
+  {live&&<RankingBoardPanels bothSides/>}
  </group>
 }
 export function Buildings({live=false}:{live?:boolean}){const shared=useMemo(()=>createSharedBuildingModels(rentalTextures),[]);const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
@@ -202,6 +202,6 @@ function Boats(){
 /** Local furniture is kept at human scale even though the tower is stretched to 40 m. */
 function TowerFurniture(){const t=site('tower'),floor=facilityGroundY(t)+TOWER_TOP.floor;return <group name="ordered-tower-rim-furniture" position={[t.x,floor,t.z]}>
  {TOWER_TOP.telescopes.map(([x,z],i)=><group key={i} name="inward-looking-telescope" position={[x,.015,z]} rotation={[0,telescopeYaw(t.x+x,t.z+z),0]}><TelescopeModel part="base"/><TelescopeModel part="yoke"/><group position={[0,TELESCOPE.eyeHeight,0]} rotation={[-.35,0,0]}><TelescopeModel part="head"/></group></group>)}
- <group position={[TOWER_TOP.notes[0],.015,TOWER_TOP.notes[1]]} rotation={[0,Math.atan2(-TOWER_TOP.notes[0],-TOWER_TOP.notes[1]),0]}><group position={[-NOTES_BOX.x,-NOTES_BOX.y,-NOTES_BOX.z]}><TraditionalNotesBoard/></group></group>
+ <group position={[TOWER_TOP.notes[0],.015,TOWER_TOP.notes[1]]} rotation={[0,Math.atan2(-TOWER_TOP.notes[0],-TOWER_TOP.notes[1]),0]}><group position={[-NOTES_BOX.x,-NOTES_BOX.y,-NOTES_BOX.z]}><TraditionalNotesBoard showFeedStatus/></group></group>
  {TOWER_TOP.benches.map(([x,z],i)=><ReferenceBench key={i} name={'tower-rest-bench-'+i} position={[x,.015,z]} yaw={Math.atan2(-x,-z)} seatHeight={.56}/>)}
  </group>}

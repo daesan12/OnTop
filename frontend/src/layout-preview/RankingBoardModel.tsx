@@ -133,7 +133,7 @@ const drawTitle = (c: CanvasRenderingContext2D, w: number, h: number) => {
   for(const x of [w*.09,w*.91]){c.save();c.translate(x,h/2);c.rotate(Math.PI/4);c.fillRect(-h*.045,-h*.045,h*.09,h*.09);c.restore()}
 }
 
-export function RankingBoardPanels() {
+export function RankingBoardPanels({ bothSides = false }: { bothSides?: boolean } = {}) {
   const snapshot=useRankingBoardFeed(state=>state.snapshot)
   // Background polling must not recreate three canvas textures every 15 seconds.
   // Only the first-load/error presentation changes while no snapshot exists.
@@ -147,6 +147,7 @@ export function RankingBoardPanels() {
     return columns.map((definition,index)=>drawRankingBoardPanel({title:definition.title,column:data[index]??null,message,updatedAt:time,stale}))
   },[snapshot,loading,error,stale])
   return <>{columns.map((column, index) => <PropSign key={column.title} position={[column.x, 2.19, .241]}
+    backPosition={bothSides ? [-column.x, 2.19, -.25] : undefined}
     width={2.37} height={2.98} draw={panelDraws[index]!} font={signFont}/>)}</>
 }
 
