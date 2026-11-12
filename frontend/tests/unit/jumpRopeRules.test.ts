@@ -18,19 +18,31 @@ function createGame() {
 }
 
 describe('jump rope scoring', () => {
+  it('awards 15 for the first PERFECT and a fixed 30 through the tenth', () => {
+    let stats = createRoundStats()
+    for (let number = 1; number <= 10; number++) {
+      const next = applyPass(stats, { kind: 'perfect', number })
+      expect(next.score - stats.score).toBe(number === 1 ? 15 : 30)
+      expect(next.combo).toBe(number)
+      stats = next
+    }
+    expect(stats).toMatchObject({ score: 285, combo: 10, maxCombo: 10 })
+  })
+
   it('tracks points and PERFECT streaks while ignoring duplicate and older passes', () => {
     const first = applyPass(createRoundStats(), { kind: 'perfect', number: 1 })
     const streak = applyPass(first, { kind: 'perfect', number: 2 })
-    expect(streak).toMatchObject({ score: 300, combo: 2, maxCombo: 2, chances: 3 })
+    expect(streak).toMatchObject({ score: 45, combo: 2, maxCombo: 2, chances: 3 })
     expect(applyPass(streak, { kind: 'perfect', number: 2 })).toBe(streak)
     expect(applyPass(streak, { kind: 'miss', number: 1 })).toBe(streak)
 
     const good = applyPass(streak, { kind: 'good', number: 3 })
-    expect(good).toMatchObject({ score: 400, combo: 0, maxCombo: 2 })
+    expect(good).toMatchObject({ score: 55, combo: 0, maxCombo: 2 })
     const nextPerfect = applyPass(good, { kind: 'perfect', number: 4 })
-    expect(nextPerfect.combo).toBe(1)
+    expect(nextPerfect).toMatchObject({ score: 70, combo: 1 })
     const miss = applyPass(nextPerfect, { kind: 'miss', number: 5 })
-    expect(miss).toMatchObject({ score: 550, combo: 0, maxCombo: 2, chances: 2, counts: { perfect: 3, good: 1, miss: 1 } })
+    expect(miss).toMatchObject({ score: 70, combo: 0, maxCombo: 2, chances: 2, counts: { perfect: 3, good: 1, miss: 1 } })
+    expect(applyPass(miss, { kind: 'perfect', number: 6 })).toMatchObject({ score: 85, combo: 1 })
   })
 })
 
@@ -66,11 +78,11 @@ describe('jump rope game', () => {
     step(3000)
     step(3730)
     expect(jump(3730)).toBe(true)
-    expect(step(4000)).toMatchObject({ kind: 'perfect' })
-    expect(round.stats).toMatchObject({ score: 150, combo: 1, maxCombo: 1 })
+    expect(step(4000)).toMatchObject({ kind: 'perfect', earnedPoints: 15 })
+    expect(round.stats).toMatchObject({ score: 15, combo: 1, maxCombo: 1 })
 
     for (const [at, chances] of [[5000, 2], [7350, 1], [9700, 0]] as const) {
-      expect(step(at)).toMatchObject({ kind: 'miss' })
+      expect(step(at)).toMatchObject({ kind: 'miss', earnedPoints: 0 })
       expect(round.stats).toMatchObject({ chances, combo: 0, maxCombo: 1 })
       expect(round.phase.kind).toBe(chances > 0 ? 'reaction' : 'gameOver')
       expect(jump(at + 100)).toBe(false)
@@ -88,11 +100,15 @@ describe('jump rope game', () => {
     }
 
     const final = round.stats
-    expect(final).toMatchObject({ score: 150, chances: 0, combo: 0, maxCombo: 1, counts: { perfect: 1, good: 0, miss: 3 } })
+    expect(final).toMatchObject({ score: 15, chances: 0, combo: 0, maxCombo: 1, counts: { perfect: 1, good: 0, miss: 3 } })
     expect(step(100000)).toBeUndefined()
     expect(jump(100000)).toBe(false)
     expect(round.stats).toBe(final)
     expect(round.playedMs).toBe(4000)
+    resetPreviewRound(round, 'menu')
+    expect(round).toEqual(createPreviewRound('menu'))
+    expect(step(110000)).toBeUndefined()
+    expect(roundCue(round, 110000)).toBe('menu')
     resetPreviewRound(round)
     expect(round).toEqual(createPreviewRound())
     expect(roundCue(round, 100000)).toBe('3')
@@ -106,19 +122,19 @@ describe('jump rope game', () => {
       const at = 3000 + pass * 1000
       step(at - 270)
       expect(jump(at - 270)).toBe(true)
-      expect(step(at)).toMatchObject({ kind: 'perfect' })
+      expect(step(at)).toMatchObject({ kind: 'perfect', earnedPoints: pass === 1 ? 15 : 30 })
     }
 
     step(62000, 2)
     step(62250, 2)
     expect(jump(62250)).toBe(true)
-    expect(step(65000, 2)).toMatchObject({ number: 60, at: 62500, kind: 'perfect' })
+    expect(step(65000, 2)).toMatchObject({ number: 60, at: 62500, kind: 'perfect', earnedPoints: 30 })
     expect(round.endReason).toBe('time')
     expect(roundCue(round, 65000)).toBe('completion')
     expect(round.playedMs).toBe(60000)
     expect(roundSecondsLeft(round)).toBe(0)
     expect(round.motion.passCount).toBe(60)
-    expect(round.stats).toMatchObject({ score: 9000, chances: 3, combo: 60, maxCombo: 60, counts: { perfect: 60, good: 0, miss: 0 } })
+    expect(round.stats).toMatchObject({ score: 1785, chances: 3, combo: 60, maxCombo: 60, counts: { perfect: 60, good: 0, miss: 0 } })
     expect(jump(65000)).toBe(false)
     const finalStats = round.stats
     const stoppedAngle = round.motion.angle
@@ -129,8 +145,8 @@ describe('jump rope game', () => {
     expect(round.motion.angle).toBe(stoppedAngle)
     expect(round.stats).toBe(finalStats)
     expect(round.playedMs).toBe(60000)
-    resetPreviewRound(round)
-    expect(round).toEqual(createPreviewRound())
+    resetPreviewRound(round, 'menu')
+    expect(round).toEqual(createPreviewRound('menu'))
   })
 
   it('honors a third MISS before the time boundary even when observed after it', () => {

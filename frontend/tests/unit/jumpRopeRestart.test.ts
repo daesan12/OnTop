@@ -21,6 +21,27 @@ function start() {
 }
 
 describe('jump rope restart', () => {
+  it('keeps the menu idle until an explicit new round, even after the old countdown would have elapsed', () => {
+    const round = createPreviewRound('menu')
+    for (const now of [0, 3000, 70000]) {
+      expect(advancePreviewRound(round, now, 1, rules, reactionMs)).toBeUndefined()
+      expect(roundCue(round, now)).toBe('menu')
+      expect(requestRoundJump(round, now, 0.6, 0.4)).toBe(false)
+      expect(round).toEqual(createPreviewRound('menu'))
+    }
+
+    resetPreviewRound(round, 'initialCountdown')
+    advancePreviewRound(round, 71000, 1, rules, reactionMs)
+    expect(roundCue(round, 71000)).toBe('3')
+    advancePreviewRound(round, 73999, 1, rules, reactionMs)
+    expect(roundCue(round, 73999)).toBe('1')
+    expect(requestRoundJump(round, 73999, 0.6, 0.4)).toBe(false)
+    advancePreviewRound(round, 74000, 1, rules, reactionMs)
+    expect(roundCue(round, 74000)).toBe('GO!')
+    expect(round.playedMs).toBe(0)
+    expect(round.motion.ropeSpeed).toBe(1)
+  })
+
   it('counts down once before play and starts a new countdown on reset', () => {
     const { round, step, jump } = createRound()
     for (const [at, cue] of [[0, '3'], [1000, '2'], [2000, '1']] as const) {
@@ -181,7 +202,7 @@ it('starts shock immediately on a late-jump MISS and clears it without extending
   step(5530 + reactionMs)
   expect(round.phase.kind).toBe('playing')
   expect(round.shockStartedAt).toBeNull()
-  expect(round.stats).toMatchObject({ score: 150, chances: 2, combo: 0 })
+  expect(round.stats).toMatchObject({ score: 15, chances: 2, combo: 0 })
 
   step(5530 + reactionMs + 1000)
   expect(round.shockStartedAt).not.toBeNull()
