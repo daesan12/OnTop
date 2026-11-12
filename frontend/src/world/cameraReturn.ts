@@ -27,9 +27,9 @@ export class CameraReturn {
 
 const returns = new CameraReturn()
 export const cameraScope = (userId: string, channelId: string) => userId && channelId ? JSON.stringify([userId, channelId]) : ''
-export function rememberRoamingView(userId: string, channelId: string) {
+export function rememberRoamingView(userId: string, channelId: string, mouseLook = useMouseLook.getState().active) {
   returns.remember(cameraScope(userId, channelId), {
-    perspective: useCameraPerspective.getState().perspective, controls: viewControls, mouseLook: useMouseLook.getState().active,
+    perspective: useCameraPerspective.getState().perspective, controls: viewControls, mouseLook,
   })
 }
 export function restoreRoamingView(userId: string, channelId: string, busy: boolean) {

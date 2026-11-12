@@ -21,6 +21,7 @@ import { RestError } from '../../network/restError'
 import { jokeBusinessMessage, jokeSubmissionPath } from '../../features/ai/jokeSubmissionError'
 import { clearRoamingInput, inputState, focusParkCanvas } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
+import { useMouseLook } from '../../world/mouseLook'
 import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
 import { gameChatScope } from '../../features/chat/gameChat'
 import {useCompanions} from '../../features/ai/companions'
@@ -1201,8 +1202,10 @@ export class ParkRuntime implements ParkRuntimePort {
     })
     return ok && current() && useTableLobby.getState().status === 'ready'
   }
-  joinTable = (anchorId?: string) =>
-    this.action(async () => {
+  joinTable = (anchorId?: string) => {
+    // The pending action releases pointer lock before the join checks run.
+    const mouseLook = useMouseLook.getState().active
+    return this.action(async () => {
       const joinGeneration = this.generation
       if (facilityMovementBlocked(useSession.getState().sessionId)) throw new FacilityUseBlockedError()
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
@@ -1225,7 +1228,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (s.tableId) throw new Error('먼저 현재 테이블에서 일어나주세요.')
       if (anchorId !== undefined) {
         if (!canReachTable(avatars.get(s.sessionId)?.current, anchorId)) throw new Error('테이블 의자 가까이에서 앉기를 눌러주세요.')
-        rememberRoamingView(s.sessionId, s.roomId)
+        rememberRoamingView(s.sessionId, s.roomId, mouseLook)
         useTableLobby.setState({ panelOpen: false, joiningAnchorId: anchorId })
         useSession.setState({ focusedAnchorId: '' })
         clearRoamingInput()
@@ -1246,6 +1249,7 @@ export class ParkRuntime implements ParkRuntimePort {
         }
       }
     })
+  }
   leaveTable = () =>
     this.action(async () => {
       // Only a naturally eliminated HALLI_GALLI player sends the same TABLE_LEAVE mid-game; the server re-checks the engine.
