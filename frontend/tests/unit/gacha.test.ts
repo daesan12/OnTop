@@ -50,4 +50,8 @@ it('캡슐 미리보기는 그 등급에서 받을 수 있는 세트를 모두 �
   expect(gradeProductNames(products, 2, 'MALE')).toEqual(['양반', '사또', '상어'])
   expect(gradeProductNames(products, 2, 'FEMALE')).toEqual(['양반', '상어'])
   expect(gradeProductNames(products, 4, 'MALE')).toEqual([])
+  // One product keeps its registered name; "세트" is never added to a name that has none.
+  expect(gradeProductNames(products, 1, 'MALE')).toEqual(['장군 세트'])
+  expect(gradeProductNames([p('도깨비 가면', 3, 'ANY')], 3, 'MALE')).toEqual(['도깨비 가면'])
+  expect(gradeProductNames([p('도깨비 가면', 3, 'ANY'), p('사또 세트', 3, 'ANY')], 3, 'MALE')).toEqual(['도깨비 가면', '사또'])
 })
