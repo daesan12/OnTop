@@ -32,3 +32,64 @@ test('an arriving opponent can be cancelled without starting a board',async({pag
  expect(bodies).toHaveLength(1);expect(bodies[0]).toMatchObject({kind:'stop',gameId:'table-opponent'})
  await expect(page.getByLabel('오목판 연결 상태')).toHaveText('대결 입장 대기')
 })
+
+for(const [winner,label] of [[101,'승리'],[9001,'패배'],[null,'무승부']] as const){
+ test(`finished NPC game uses the shared ${label} result popup and returns to waiting`,async({page},info)=>{
+  let active=true
+  const ended={...practice,phase:'PLAYING',snapshot:{...practice.snapshot,version:27,endedAt:new Date().toISOString(),turnUserId:null,winnerUserId:winner}}
+  const requests:unknown[]=[]
+  await page.route('**/api/v1/ai/companions/status',r=>r.fulfill({json:{actors:[],practice:active?ended:null,commentary:[]}}))
+  await page.route('**/api/v1/ai/companions/action',r=>{requests.push(r.request().postDataJSON());active=false;return r.fulfill({json:{stopped:true}})})
+  await page.goto('/tests/fixtures/npc-opponent.html')
+  const result=page.getByRole('dialog',{name:'경기 결과',exact:true})
+  await expect(result.getByRole('heading',{name:label,exact:true})).toBeVisible()
+  await expect(result.getByLabel('참가자 결과')).toContainText('박영감')
+  await expect(result).toContainText('엽전 변동 없음')
+  await expect(page.getByText('대결이 끝났어요',{exact:true})).toHaveCount(0)
+  await expect(result.getByRole('button',{name:'정산 결과 확인'})).toHaveCount(0)
+  if(winner===101)await page.screenshot({path:info.outputPath('npc-victory-result.png'),animations:'disabled'})
+  await result.getByRole('button',{name:'결과 창 닫기'}).click()
+  await page.getByRole('button',{name:'경기 결과 다시 보기'}).click()
+  await result.getByRole('button',{name:'다음 판 준비'}).click()
+  await expect(result).toHaveCount(0)
+  await expect(page.getByLabel('오목판 연결 상태')).toHaveText('대결 입장 대기')
+  expect(requests).toHaveLength(1);expect(requests[0]).toMatchObject({kind:'stop',gameId:'table-opponent'})
+ })
+}
+
+test('cleanup failure keeps the result for retry, including after automatic server release',async({page})=>{
+ let active=true
+ const ended={...practice,phase:'PLAYING',snapshot:{...practice.snapshot,endedAt:new Date().toISOString(),winnerUserId:101}}
+ await page.route('**/api/v1/ai/companions/status',r=>r.fulfill({json:{actors:[],practice:active?ended:null,commentary:[]}}))
+ await page.route('**/api/v1/ai/companions/action',r=>r.fulfill({status:503,json:{code:'UNAVAILABLE'}}))
+ await page.goto('/tests/fixtures/npc-opponent.html')
+ const result=page.getByRole('dialog',{name:'경기 결과',exact:true})
+ await result.getByRole('button',{name:'다음 판 준비'}).click()
+ await expect(result.getByRole('alert')).toContainText('처리하지 못했어요')
+ active=false
+ await expect(page.getByLabel('오목판 연결 상태')).toHaveText('대결 입장 대기')
+ await expect(result).toBeVisible()
+ await result.getByRole('button',{name:'자리에서 일어나기'}).click()
+ await expect(result).toHaveCount(0)
+})
+
+test('a new human game clears the cached NPC result and it does not reappear',async({page})=>{
+ let active=true,polls=0
+ const ended={...practice,phase:'PLAYING',snapshot:{...practice.snapshot,endedAt:new Date().toISOString(),winnerUserId:101}}
+ await page.route('**/api/v1/ai/companions/status',r=>{polls++;return r.fulfill({json:{actors:[],practice:active?ended:null,commentary:[]}})})
+ await page.goto('/tests/fixtures/npc-opponent.html')
+ const result=page.getByRole('dialog',{name:'경기 결과',exact:true})
+ await expect(result).toBeVisible();active=false
+ await expect(page.getByLabel('오목판 연결 상태')).toHaveText('대결 입장 대기')
+ await result.getByRole('button',{name:'결과 창 닫기'}).click()
+ await page.getByRole('button',{name:'사람과 새 판 검수'}).click()
+ await expect(page.getByRole('button',{name:'경기 결과 다시 보기'})).toHaveCount(0)
+ // Emulate an old terminal status arriving again after the PvP start cleared the cache.
+ active=true;const before=polls
+ await expect.poll(()=>polls).toBeGreaterThan(before)
+ await expect(page.getByLabel('오목판 연결 상태')).toHaveText('대결 입장 대기')
+ active=false;const late=polls
+ await expect.poll(()=>polls).toBeGreaterThan(late)
+ await page.getByRole('button',{name:'새 판 상태 해제'}).click()
+ await expect(result).toHaveCount(0)
+})
