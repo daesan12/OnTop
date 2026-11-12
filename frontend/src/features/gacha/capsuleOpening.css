@@ -156,5 +156,8 @@
 @keyframes open-outfit-to-coin{to{opacity:0;transform:scale(.6) rotate(-8deg);filter:blur(.2cqw) brightness(1.6)}}@keyframes open-payout-in{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}@keyframes open-coin-drop{from{opacity:0;transform:translateY(-4cqw)}to{opacity:1;transform:none}}
 .capsule-opening-stage[data-reduced=true] .open-coin-payout,.capsule-opening-stage[data-reduced=true] .open-coin-pile>span{animation:none!important}.capsule-opening-stage[data-reduced=true] .open-center-art[data-fading]{opacity:0}
 @media(max-width:600px){.open-coin-payout{inset:4% 5% 6%;gap:0}.open-coin-pile{width:64px;height:44px}.open-coin-pile>span{width:30px;height:30px;left:calc(50% - 15px + (var(--i) - 4) * 3px);bottom:calc(var(--i) * 2px)}.open-coin-payout>strong{font-size:22px}.open-coin-payout>small{display:none}}
-.open-result-actions:not([data-ready]){visibility:hidden}.open-coin-payout .open-coin-source>b{display:none}
+.open-coin-payout .open-coin-source>b{display:none}
 .open-result-card{animation:open-card-fade .35s both}@keyframes open-card-fade{from{opacity:0}to{opacity:1}}
+.open-result-actions{justify-content:center}.capsule-opening-dialog .open-result-actions .open-skip-action{flex:0 1 220px;max-width:240px}.capsule-opening-dialog .open-result-actions .open-skip-action:disabled{opacity:1;filter:none;cursor:default}
+.capsule-opening-dialog .open-result-actions .open-skip-strut{visibility:hidden;width:0;flex-basis:0;min-width:0;margin:0 -1px 0 0;overflow:hidden}
+.capsule-opening-dialog .open-result-actions button>span{line-height:1}

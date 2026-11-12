@@ -51,8 +51,8 @@ function useOpening(active:boolean,owner:string,reduced:boolean){
    phase('seam');await wait(actualGrade===1?950:actualGrade===2?650:350)
    phase('opening');playSfx('card-draw');await wait(650)
    if(actualGrade===1)await wait(350)
-   phase('reveal');playSfx(actualGrade===1?'game-start':'ui-equip');await wait(receipt.duplicate?1500:500)
-   if(receipt.duplicate){phase('duplicate');await wait(1200);phase('coins');await wait(1200)}
+   phase('reveal');playSfx(actualGrade===1?'game-start':'ui-equip');await wait(receipt.duplicate?900:500)
+   if(receipt.duplicate){phase('coins');await wait(1000)}
    phase('complete')
   }finally{if(flight.current===control){const live=current();flight.current=null;if(live)set(v=>({...v,busy:false}))}}
  }
@@ -175,9 +175,9 @@ export function GachaBoxes(){
     {shown&&result?.product?<div className="open-result-card" data-operation-id={result.operationId} aria-live="polite">
      <h3>{result.product.name}</h3><div className="open-item-tags"><span>의상 세트</span><WearParts parts={parts}/></div>
     </div>:<p className="open-suspense" role="status">{opening.phase==='waiting'?'캡슐 안의 행운을 확인하고 있어요…':opening.phase==='seam'||opening.phase==='opening'?'빛 속의 의상을 만나 보세요':'잠시만요, 행운이 깨어나요'}</p>}
-    {/* Kept in the layout from the start (hidden until the end) so nothing above shifts when the buttons appear. */}
-    {visible&&<div className="open-result-actions" data-ready={opening.phase==='complete'||undefined}><button disabled={opening.phase!=='complete'||sameLeft<1||s.busy||!!s.pending} onClick={()=>void opening.open(opening.grade)} aria-label={`${capsuleName(opening.grade)} 다시 열기 (${sameLeft}개 남음)`}><span className="open-next-icon" aria-hidden="true"><Capsule grade={opening.grade}/></span>다시 열기<small className="open-again-count">{sameLeft}개</small></button><button disabled={opening.phase!=='complete'} onClick={next}><span aria-hidden="true">✓</span> 확인</button></div>}
-    {opening.busy&&<button className="open-skip" onClick={opening.skip}>연출 건너뛰기</button>}
+    {/* One button row from the start: the skip button while it plays, then 다시 열기·확인 in the same place and frame. */}
+    {visible&&<div className="open-result-actions">{opening.phase==='complete'?<><button disabled={sameLeft<1||s.busy||!!s.pending} onClick={()=>void opening.open(opening.grade)} aria-label={`${capsuleName(opening.grade)} 다시 열기 (${sameLeft}개 남음)`}><span className="open-next-icon" aria-hidden="true"><Capsule grade={opening.grade}/></span>다시 열기<small className="open-again-count">{sameLeft}개</small></button><button onClick={next}><span aria-hidden="true">✓</span> 확인</button></>
+     :<button className="open-skip-action" disabled={!opening.busy} onClick={opening.skip}><span className="open-next-icon open-skip-strut" aria-hidden="true"/>연출 건너뛰기</button>}</div>}
    </div>
   </dialog>
  </section>
