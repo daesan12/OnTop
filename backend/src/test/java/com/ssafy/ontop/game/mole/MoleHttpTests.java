@@ -7,6 +7,7 @@ import com.ssafy.ontop.auth.websocket.WebSocketAccountLookup;
 import com.ssafy.ontop.game.mole.dto.MoleDtos;
 import com.ssafy.ontop.game.mole.service.MoleException;
 import com.ssafy.ontop.game.mole.service.MoleService;
+import com.ssafy.ontop.minigame.service.MoleTargets;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -52,8 +53,9 @@ class MoleHttpTests {
         when(service.status(101)).thenReturn(new MoleDtos.State(Instant.parse("2026-11-04T03:00:00Z"), 120, 500,
                 1380, RULES, RESULT));
         when(service.start(101, "round-1")).thenReturn(new MoleDtos.Round("7", Instant.parse("2026-11-04T03:00:00Z"),
-                RULES, List.of(new MoleDtos.Mole(0, 2, "RAPID", 3, 700, 1800))));
-        when(service.complete(101, 7, List.of(new MoleDtos.Hit(2, 900), new MoleDtos.Hit(2, 1000))))
+                RULES, List.of(new MoleDtos.Mole(0, 2, "RAPID", 3, 700, 1800)),
+                List.of(new MoleTargets.Target("hidden-id", 2, false))));
+        when(service.complete(101, 7, List.of(new MoleDtos.Hit(2, 900), new MoleDtos.Hit(2, 1000, "hidden-id"))))
                 .thenReturn(new MoleDtos.Settlement(RESULT, 166, 500, 1380));
     }
 
@@ -83,6 +85,7 @@ class MoleHttpTests {
 
         assertThat(response.statusCode()).isEqualTo(201);
         assertThat(response.body()).contains("\"kind\":\"RAPID\"", "\"hits\":3", "\"leaveAt\":1800");
+        assertThat(response.body()).contains("\"targets\"", "\"id\":\"hidden-id\"", "\"visible\":false");
         verify(service).start(101, "round-1");
     }
 
@@ -100,7 +103,9 @@ class MoleHttpTests {
     @Test
     void 완료는_타격_기록을_서비스에_넘기고_정산_결과를_돌려준다() throws Exception {
         var request = 요청("/rounds/7/complete", 토큰()).header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString("{\"hits\":[{\"hole\":2,\"at\":900},{\"hole\":2,\"at\":1000}]}"))
+                .POST(HttpRequest.BodyPublishers.ofString("""
+                        {"hits":[{"hole":2,"at":900},{"hole":2,"at":1000,"targetId":"hidden-id"}]}
+                        """))
                 .build();
 
         var response = http.send(request, HttpResponse.BodyHandlers.ofString());

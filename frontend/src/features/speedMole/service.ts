@@ -1,9 +1,13 @@
-import { SPEED_MOLE_POINTS_PER_COIN } from './game'
+import { SPEED_MOLE_KEYS, SPEED_MOLE_POINTS_PER_COIN } from './game'
 import { parkRuntime } from '../../park/runtime/runtime'
+import { visibleMoleTargetIds } from '../arcade/moleTargets'
 
 const BASE = '/api/v1/minigames/speed-mole'
-export interface SpeedMoleSession { id: string; seed: number; rulesVersion: number; serverNow: string; startedAt: string; durationMs: number }
-export interface SpeedMoleTap { hole: number; at: number }
+export interface SpeedMoleSession {
+  id: string; seed: number; rulesVersion: number; serverNow: string; startedAt: string; durationMs: number
+  targetIds?: ReadonlyMap<number, string>
+}
+export interface SpeedMoleTap { hole: number; at: number; targetId?: string }
 export interface SpeedMoleResult { id: string; rulesVersion: number; score: number; hits: number; misses: number; completedAt: string; calculatedReward: number; reward: number; todayEarned: number; dailyCap: number }
 export interface SpeedMoleRankingItem { rank: number; userId: string; nickname: string; score: number; hits: number; misses: number; completedAt: string }
 export interface SpeedMoleRankings { rulesVersion: number; period: string; totalParticipants: number; offset: number; limit: number; items: SpeedMoleRankingItem[]; me: SpeedMoleRankingItem | null; hasMore: boolean }
@@ -38,11 +42,13 @@ export class SpeedMoleService {
     }
   }
   async start(key: string): Promise<SpeedMoleSession> {
-    const value = await this.call('/rounds', { method: 'POST', headers: { 'Idempotency-Key': key } }) as SpeedMoleSession
+    const value = await this.call('/rounds', { method: 'POST', headers: { 'Idempotency-Key': key } }) as
+      Omit<SpeedMoleSession, 'targetIds'> & { targets?: unknown }
     if (!value || typeof value.id !== 'string' || !/^[1-9][0-9]{0,18}$/.test(value.id) || !Number.isInteger(value.seed) || value.seed < 0 || value.seed > 0xffffffff
       || value.rulesVersion !== 1 || value.durationMs !== 60000 || !Number.isFinite(Date.parse(value.serverNow))
       || !Number.isFinite(Date.parse(value.startedAt))) throw new SpeedMoleError('경기 규칙 응답을 확인하지 못했어요.')
-    return value
+    const { targets, ...round } = value
+    return targets === undefined ? round : { ...round, targetIds: visibleMoleTargetIds(targets, SPEED_MOLE_KEYS.length) }
   }
   async complete(id: string, taps: readonly SpeedMoleTap[]): Promise<SpeedMoleResult> {
     const value = await this.call(`/rounds/${encodeURIComponent(id)}/complete`, {

@@ -49,6 +49,21 @@ class SpeedMoleHttpTests {
         var r=http.send(request("/rounds",true).POST(HttpRequest.BodyPublishers.noBody()).build(),HttpResponse.BodyHandlers.ofString());
         assertThat(r.statusCode()).isEqualTo(400);verifyNoInteractions(service);
     }
+    @Test
+    void 완료_요청은_표적_ID가_있는_입력과_없는_입력을_함께_받는다() throws Exception {
+        var taps = List.of(new SpeedMoleRules.Tap(1, 0), new SpeedMoleRules.Tap(3, 100, "target-id"));
+        when(service.complete(101, 7, taps)).thenReturn(new SpeedMoleDtos.Result(
+                "7", 1, 2, 2, 0, Instant.parse("2030-01-01T00:01:03Z"), 0, 0, 0, 1000));
+        var request = request("/rounds/7/complete", true).header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("""
+                        {"taps":[{"hole":1,"at":0},{"hole":3,"at":100,"targetId":"target-id"}]}
+                        """)).build();
+
+        var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        verify(service).complete(101, 7, taps);
+    }
     @Test void only_approved_origins_can_preflight_the_idempotent_start() throws Exception {
         for(String origin:List.of("http://localhost:5173","https://untrusted.invalid")) {
             var r=http.send(request("/rounds",false).header("Origin",origin).header("Access-Control-Request-Method","POST")

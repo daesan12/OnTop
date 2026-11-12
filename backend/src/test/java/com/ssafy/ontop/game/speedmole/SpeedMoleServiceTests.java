@@ -1,5 +1,6 @@
 package com.ssafy.ontop.game.speedmole;
 
+import com.ssafy.ontop.minigame.service.MoleTargets;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
@@ -7,6 +8,9 @@ import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 import static org.assertj.core.api.Assertions.*;
@@ -33,6 +37,32 @@ class SpeedMoleServiceTests {
         var result = service.complete(42,7,List.of(new SpeedMoleRules.Tap(1,0)));
         assertThat(result.score()).isEqualTo(1);
         verify(repository).settle(7,new SpeedMoleRules.Score(1,1,0),now);
+    }
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void 숨은_표적은_점수와_실수에_포함하지_않고_재시도에도_한_번만_기록한다(CapturedOutput output) {
+        when(repository.start(eq(42L), eq("round-1"), anyLong(), any())).thenReturn(active(60_000));
+        when(repository.lock(42, 7)).thenReturn(active(60_000),
+                new SpeedMoleRepository.Row(7, 42, 1, 1, "SETTLED", now.minusSeconds(60), now, 5, 5, 0));
+        when(rewards.grant(any(), eq(7L), eq(5), eq(now))).thenReturn(1);
+        when(rewards.previous(any(), eq(7L))).thenReturn(1);
+        var round = service.start(42, "round-1");
+        var hidden = round.targets().stream().filter(target -> !target.visible()).findFirst().orElseThrow();
+        assertThat(round.targets()).hasSize(9).isEqualTo(service.start(42, "round-1").targets());
+        var wrongRound = new MoleTargets("speed-mole", 8, 1);
+        var taps = List.of(new SpeedMoleRules.Tap(7, 0, hidden.id()),
+                new SpeedMoleRules.Tap(1, 0, wrongRound.hiddenId()), new SpeedMoleRules.Tap(3, 100),
+                new SpeedMoleRules.Tap(5, 200), new SpeedMoleRules.Tap(6, 300), new SpeedMoleRules.Tap(0, 400));
+
+        var result = service.complete(42, 7, taps);
+        var retry = service.complete(42, 7, taps);
+
+        assertThat(result.score()).isEqualTo(5);
+        assertThat(result.misses()).isZero();
+        assertThat(result.reward()).isEqualTo(1);
+        assertThat(retry).isEqualTo(result);
+        verify(repository).settle(7, new SpeedMoleRules.Score(5, 5, 0), now);
+        assertThat(output.getOut()).containsOnlyOnce("mole_honeypot_hit game=speed-mole userId=42 roundId=7 hits=1");
     }
     @Test void early_late_and_old_version_rounds_are_not_saved() {
         for (long elapsed : new long[]{-1,0,59999,90001}) {
