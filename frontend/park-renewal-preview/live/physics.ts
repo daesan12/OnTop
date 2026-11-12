@@ -251,7 +251,7 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   const fountainPolicy = { ...basePhysics.fountainPolicy, x: fountain.x, z: fountain.z,
     bottom: fountainY + basePhysics.fountainPolicy.bottom, top: fountainY + basePhysics.fountainPolicy.top }
   cylinder('fountain-basin', fountain.x, fountain.z, fountainPolicy.radius, fountainPolicy.bottom, fountainPolicy.top)
-  const groundClearance = .04
+  const groundClearance = 0
   const spawnY = groundSurfaceHeight(...RENEWAL_SPAWN) + MOVEMENT.halfHeight + MOVEMENT.radius + MOVEMENT.offset + groundClearance
   // The enlarged benches need more clearance under the tuned jump's stronger gravity.
   const physics = { ...basePhysics, boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,

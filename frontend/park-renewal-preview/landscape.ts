@@ -39,7 +39,19 @@ export const islandShore=(()=>{const g=new CylinderGeometry(1,1.035,.84,192,1,tr
 
 export const forestTrailMeshes=FOREST_TRAILS.map(t=>({id:t.id,geometry:ribbon(t.points,t.width,.095)}))
 export const benches:{point:Point;yaw:number}[]=[],forestLamps:Point[]=[]
-for(const trail of FOREST_TRAILS.filter(t=>t.id!=='northeast-woodland')){const a=trail.points[0]!,b=trail.points[1]!,dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),nx=-dz/length,nz=dx/length;for(const t of[.25,.75]){const x=a[0]+dx*t-nx*3.4,z=a[1]+dz*t-nz*3.4;forestTrailMeshes.push({id:trail.id+'-rest-bay-'+t,geometry:ribbon([[a[0]+dx*t,a[1]+dz*t],[x,z]],3.4,.095)});benches.push({point:[x,z],yaw:Math.atan2(nx,nz)});forestLamps.push([x+dx/length*1.9,z+dz/length*1.9])}}
+for (const trail of FOREST_TRAILS.filter(t => t.id !== 'northeast-woodland')) {
+ const a = trail.points[0]!, b = trail.points[1]!
+ const dx = b[0]-a[0], dz = b[1]-a[1], length = Math.hypot(dx,dz)
+ const nx = -dz/length, nz = dx/length
+ for (const t of [.25,.75]) {
+  const trailPoint: Point = [a[0]+dx*t,a[1]+dz*t]
+  // Leave room for the bench back between the southern rest bay and the stone wall.
+  const point: Point = [trailPoint[0]-nx*2.05,trailPoint[1]-nz*2.05]
+  forestTrailMeshes.push({id:trail.id+'-rest-bay-'+t,geometry:ribbon([trailPoint,point],3.4,.095)})
+  benches.push({point,yaw:Math.atan2(nx,nz)})
+  forestLamps.push([trailPoint[0]-nx*3.4+dx/length*1.9,trailPoint[1]-nz*3.4+dz/length*1.9])
+ }
+}
 benches.push({point:WEST_REST_ROW.bench,yaw:Math.PI});forestLamps.push(WEST_REST_ROW.lamp)
 function random(seed:number){return()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296}}
 export const willowPositions:Point[]=Array.from({length:22},(_,i)=>{const a=i/22*Math.PI*2;return[LAKE.x+Math.cos(a)*(LAKE.rx+2.4),LAKE.z+Math.sin(a)*(LAKE.rz+2.4)] as Point}).filter(([x,z])=>insidePark(x,z,5)&&Math.hypot(x-FISHING_SHOP.x,z-FISHING_SHOP.z)>FISHING_SHOP.clearance&&!onRoad(x,z,3.1)&&!SITES.some(s=>s.radius&&Math.hypot(x-s.x,z-s.z)<s.radius+1.5))
