@@ -22,6 +22,7 @@ public enum BehaviorEventType {
     GAME_WATCHED,
     GAME_STARTED,
     GAME_ENDED,
+    GAME_PLAY_STATS,
     GAME_SETTLED,
     GAME_RECONNECTED,
     SHOP_PURCHASED,

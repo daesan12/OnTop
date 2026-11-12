@@ -211,6 +211,11 @@ public final class HalliGalliEngine implements GameEngine {
             router.finished(this, after.gameId());
             notices.add(new HalliGalliGameFinished(after.gameId(), after.tableId(), after.version(), after.players(),
                     after.winnerUserIds(), after.endReason(), after.endedAt()));
+            HalliGalliMatch match = games.get(after.gameId());
+            if (match != null) {
+                notices.add(new HalliGalliBellStats(after.gameId(), after.tableId(), after.endedAt(),
+                        match.bellSummaries()));
+            }
             notices.add(lifecycle.finished(after.gameId(), after.tableId(), GAME_CODE, after.version(), after.players(),
                     after.winnerUserIds(), after.endReason(), after.endedAt(), notices));
         }

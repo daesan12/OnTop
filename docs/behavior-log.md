@@ -91,12 +91,14 @@
 | `GAME_STARTED` | `TableHub.applyStartResult` 확정 경기 성공. 참가자마다 한 행. 리허설 확인은 제외 | `gameCode`, `players`, `targetScore`, `betAmountPerPlayer`(1인 예약 판돈) | 1 | 구현 |
 | `GAME_ACTION` | `sendGameAction` 성공 후 | `gameCode`, `actionKind` | 보류 | |
 | `GAME_ENDED` | 네 엔진 공통 최종 판정 `GameFinished` 리스너. 참가자마다 한 행 | `gameCode`, `endReason`, `players`, `result`(WIN·LOSE·DRAW·FORFEIT), `leaveReason`(중도 이탈 시) | 1 | 구현 |
+| `GAME_PLAY_STATS` | 과일 땡 경기 종료 시 `HalliGalliBellStats` 리스너. 참가자마다 한 행 | `gameCode`(HALLI_GALLI), `players`, `successRings`·`penaltyRings`·`lateRings`(맞힌 종·틀린 종·이미 닫힌 창에 늦게 닿은 종), 성공한 종의 반응 시간 `reactionMinMs`·`reactionMedianMs`·`reactionAvgMs`(성공이 없으면 없음), `under150Ms`·`under300Ms`(150·300ms 미만 성공 횟수) | 1 | 구현 |
 | `GAME_SETTLED` | `TableHub.roundSettled` | `coinDelta`(본인) | 3 | 정산 작업 후 |
 | `GAME_RECONNECTED` | `GameReconnectService` 복구 성공 | | 1 | 미구현 |
 
 태블릿 테이블은 연결이 끊겨도 30초 동안 좌석을 유지한다. 이 동안은 `TABLE_LEFT`를 남기지 않고, 재접속하지 못해 좌석이 정리될 때 `reason=RECONNECT_EXPIRED`로 한 번 남긴다. `reason`은 2026-10-30(S15P31B105-275)부터 남으므로 그 전 행은 `byDisconnect`로만 구분한다.
 
 `GAME_ACTION`은 수가 많고 게임마다 `input` 구조가 달라서, 분석 질문이 생기기 전까지 수집하지 않는다.
+`GAME_PLAY_STATS`는 매크로 판별용이다(2026-11-12, S15P31B105-419). 과일 땡 반응 시간은 종 창을 연 카드 공개를 서버가 처리한 시각부터 종 요청이 서버에 닿은 시각까지라 통신 시간이 들어간다. 자동 공개는 타이머 주기(0.2초)만큼 늦게 처리될 수 있어 처리 시각부터 잰다. 사람은 공개를 보고 과일 수를 세야 해서 보통 0.4초 이상 걸리고, 화면 상태를 읽는 프로그램은 0.15초 안팎이다.
 엔진 종료 이벤트에는 시작 시각이 없으므로 경기 시간은 같은 `game_id`의 `GAME_STARTED`와 `GAME_ENDED` 시각 차이로 계산한다.
 
 ### 상점
