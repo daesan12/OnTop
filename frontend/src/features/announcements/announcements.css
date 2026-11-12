@@ -7,8 +7,8 @@
 .park-weather-placement{position:absolute;top:calc(var(--park-edge,20px) + 96px * var(--park-hint-scale,1));left:var(--park-edge,20px);z-index:4;pointer-events:none}
 .park-weather-placement>.park-location-chip{position:relative;top:auto;left:auto;transform:scale(var(--park-hint-scale,1));transform-origin:top left;padding:8px 14px}
 .park-weather-placement .park-location-chip__place{font-size:13px;gap:6px}.park-weather-placement .park-location-chip__time{font-size:12px}
-@media(max-width:1000px){.announcement-banner{top:8px;width:min(620px,calc(100% - 32px))}.park-page:has(.announcement-banner) .park-location,.park-page:has(.announcement-banner) .park-account{top:64px}.park-page:has(.announcement-banner) .park-weather-placement{top:calc(64px + 96px * var(--park-hint-scale,1))}}
-@media(max-width:600px){.park-page:has(.announcement-banner) .park-account{top:124px}.announcement-content{gap:8px;padding:9px 12px}.announcement-window{font-size:13px}}
+@media(max-width:1000px){.announcement-banner{top:8px;width:min(620px,calc(100% - 32px))}.park-page:has(.announcement-banner){--park-account-top:64px}.park-page:has(.announcement-banner) .park-location{top:64px}.park-page:has(.announcement-banner) .park-weather-placement{top:calc(64px + 96px * var(--park-hint-scale,1))}}
+@media(max-width:600px){.park-page:has(.announcement-banner){--park-account-top:124px}.announcement-content{gap:8px;padding:9px 12px}.announcement-window{font-size:13px}}
 @media(prefers-reduced-motion:reduce){.announcement-moving{animation:none;transform:none;width:auto;max-width:100%;white-space:normal;overflow-wrap:anywhere}}
 
 .announcement-admin{--notice-ink:#27372b;--notice-muted:#64705d;--notice-border:#d6c9a7;--notice-paper:#fffaf0;color:var(--notice-ink)}
