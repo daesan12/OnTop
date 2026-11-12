@@ -8,7 +8,6 @@ import java.util.Set;
 /** v2 입력 기록을 순서대로 재생한다. 클라이언트 점수와 서버 수신 지연은 판정에 쓰지 않는다. */
 public final class BungeoppangRules {
     public static final String VERSION = "v2";
-    public static final int DAILY_CAP = MinigameRewardBudget.DAILY_CAP;
     public static final Set<String> TIP_KEYS = Set.of("START", "POUR", "GOLD", "BURNT", "RUSH");
 
     public Result replay(JsonNode body, List<Integer> heats) {

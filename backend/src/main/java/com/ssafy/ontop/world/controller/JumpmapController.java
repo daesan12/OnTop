@@ -66,7 +66,7 @@ public class JumpmapController {
         body.put("activeRunId", view.activeRunId());
         body.put("activeRun", view.activeRun());
         body.put("todayEarned", view.todayEarned());
-        body.put("dailyCap", JumpmapStore.DAILY_CAP);
+        body.put("dailyCap", com.ssafy.ontop.minigame.service.MinigameRewardBudget.DAILY_CAP);
         body.put("earningsDate", view.today().toString());
         body.put("bestFinishMs", view.bestFinishMs());
         var last = view.lastRun();
