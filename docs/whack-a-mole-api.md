@@ -72,6 +72,8 @@
 
 ## 저장
 
+관리자 화면의 판 중 타격 관측과 비교는 [두더지 운영 관측](mole-audit.md)을 따른다.
+
 `db/minigame/V147__create_mole_rounds.sql`이 `mole_rounds`를 만든다. 시드와 `rules_version`으로 출현표를 다시 만들 수 있어
 출현표 자체는 저장하지 않는다. `V149__mole_rules_v2_reward_rate.sql`과 `V150__mole_rules_v3_reward_rate.sql`이 정산 CHECK를 규칙 버전별 비율(1: 30, 2: 45, 3 이후: 40)로 맞춘다.
 같은 회원의 시작·완료는 지갑 비관적 잠금으로 줄을 서고, 지급 원장 키는 `mole:reward:{roundId}`다.
