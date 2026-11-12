@@ -22,13 +22,16 @@ public class JumpRopeService {
     private final JumpRopeRepository repository;
     private final Clock clock;
     private final SecureRandom random;
+    private final JumpRopeRewards rewards;
     private final TransactionTemplate write;
     private final TransactionTemplate read;
 
-    JumpRopeService(JumpRopeRepository repository, PlatformTransactionManager manager, Clock clock, SecureRandom random) {
+    JumpRopeService(JumpRopeRepository repository, PlatformTransactionManager manager, Clock clock, SecureRandom random,
+            JumpRopeRewards rewards) {
         this.repository = repository;
         this.clock = clock;
         this.random = random;
+        this.rewards = rewards;
         write = new TransactionTemplate(manager);
         write.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         read = new TransactionTemplate(manager);
@@ -58,6 +61,8 @@ public class JumpRopeService {
         String inputHash = hash(inputs);
         Instant receivedAt = clock.instant();
         return write.execute(tx -> {
+            // Use the same wallet-first order as the other reward writers; keep the existing user/round lock order.
+            var wallet = rewards.lockWallet(userId);
             if (!repository.lockUser(userId)) throw notFound();
             var row = repository.lockRound(userId, id).orElseThrow(JumpRopeService::notFound);
             requireActiveVersionAndWindow(row, receivedAt);
@@ -65,7 +70,8 @@ public class JumpRopeService {
                 if (!inputHash.equals(row.inputHash())) {
                     throw new JumpRopeException(409, "JUMP_ROPE_INPUT_CONFLICT", "이미 다른 점프 기록으로 결과가 확정됐어요.");
                 }
-                return row.result();
+                int granted = wallet.map(locked -> rewards.previous(locked, id)).orElse(0);
+                return row.result().withReward(granted);
             }
             requireLatest(userId, id);
             var replay = JumpRopeRules.replay(inputs);
@@ -73,10 +79,14 @@ public class JumpRopeService {
                 throw new JumpRopeException(409, "JUMP_ROPE_NOT_FINISHED", "아직 경기가 끝나지 않았어요.");
             }
             Instant completedAt = receivedAt.truncatedTo(ChronoUnit.MILLIS);
+            int calculated = JumpRopeRewards.calculated(replay);
+            int granted = calculated == 0 ? 0 : rewards.grant(wallet.orElseThrow(() ->
+                    new JumpRopeException(503, "JUMP_ROPE_UNAVAILABLE", "지갑을 확인하지 못했어요. 같은 요청으로 다시 확인해 주세요.")),
+                    id, calculated, completedAt);
             repository.settle(id, replay, completedAt, inputHash);
             var counts = new JumpRopeDtos.Counts(replay.perfect(), replay.good(), replay.miss());
             return new JumpRopeDtos.Result(Long.toString(id), row.rulesVersion(), replay.score(), counts,
-                    replay.reason().wireValue(), completedAt);
+                    replay.reason().wireValue(), completedAt, granted);
         });
     }
 

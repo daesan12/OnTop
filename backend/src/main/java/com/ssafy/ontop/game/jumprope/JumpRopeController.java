@@ -63,8 +63,8 @@ public class JumpRopeController {
 
     @PostMapping(value = "/rounds/{roundId}/complete", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(operationId = "completeJumpRopeRound", summary = "점프 입력 재생 및 줄넘기 기록 확정",
-            description = "카운트다운·MISS 정지를 제외한 실제 플레이 오프셋만 제출합니다. 만료 전 동일 입력 재시도에는 확정 결과를 반환합니다.")
-    @ApiResponse(responseCode = "200", description = "서버가 확정한 점수와 종료 결과",
+            description = "카운트다운·MISS 정지를 제외한 실제 플레이 오프셋만 제출합니다. 60초 완주 시 실제 엽전 지급액을 확정하며, 만료 전 동일 입력 재시도에는 같은 결과와 지급액을 반환합니다.")
+    @ApiResponse(responseCode = "200", description = "서버가 확정한 점수, 종료 결과 및 실제 지급 엽전",
             content = @Content(schema = @Schema(implementation = JumpRopeDtos.Result.class)))
     @ApiResponse(responseCode = "400", description = "라운드 ID 또는 점프 입력 오류", content = @Content(schema = @Schema(implementation = JumpRopeDtos.Error.class)))
     @ApiResponse(responseCode = "404", description = "본인 라운드를 찾을 수 없음", content = @Content(schema = @Schema(implementation = JumpRopeDtos.Error.class)))
