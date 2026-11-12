@@ -323,7 +323,7 @@ public class JumpmapService implements AutoCloseable {
         var payload = scope(channelId);
         payload.put("runId", runId);
         payload.put("todayEarned", todayEarned);
-        payload.put("dailyCap", JumpmapStore.DAILY_CAP);
+        payload.put("dailyCap", com.ssafy.ontop.minigame.service.MinigameRewardBudget.DAILY_CAP);
         payload.put("earningsDate", date.toString());
         return payload;
     }

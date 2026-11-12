@@ -38,7 +38,7 @@ public class InMemoryJumpmapStore implements JumpmapStore {
         Integer calculated = rewards.get(runId + gate);
         if (run == null || calculated == null) return Optional.empty();
         String key = run.userId() + JumpmapStore.kstDate(now).toString();
-        int granted = Math.min(calculated, DAILY_CAP - daily.getOrDefault(key, 0));
+        int granted = Math.min(calculated, com.ssafy.ontop.minigame.service.MinigameRewardBudget.DAILY_CAP - daily.getOrDefault(key, 0));
         daily.merge(key, granted, Integer::sum);
         runs.put(runId, new Run(run.userId(), run.gates(), run.coins() + granted, run.ended()));
         return Optional.of(new Settled(runId, run.userId(), gate, calculated, granted, run.coins() + granted,

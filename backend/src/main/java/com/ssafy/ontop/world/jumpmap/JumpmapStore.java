@@ -13,7 +13,6 @@ import java.util.Set;
  */
 public interface JumpmapStore {
     ZoneId KST = ZoneId.of("Asia/Seoul");
-    int DAILY_CAP = com.ssafy.ontop.minigame.service.MinigameRewardBudget.DAILY_CAP;
     Set<String> TIPS = Set.of("START_SPOT", "RUN_STARTED", "FIRST_GATE", "FIRST_FALL", "FINAL_PAD");
 
     static LocalDate kstDate(Instant at) { return LocalDate.ofInstant(at, KST); }
