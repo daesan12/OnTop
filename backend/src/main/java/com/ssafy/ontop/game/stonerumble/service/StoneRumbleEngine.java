@@ -27,6 +27,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public final class StoneRumbleEngine implements GameEngine {
+    private static final long FIRST_VERSION = 1;
+    private static final long RECENT_VERSION_WINDOW_MS = 500;
+
     private final ObjectMapper mapper;
     private final Clock clock;
     private final Consumer<Object> events;
@@ -55,7 +58,7 @@ public final class StoneRumbleEngine implements GameEngine {
             games.put(gameId, entry);
             players.forEach(id -> latest.put(id, gameId));
         }
-        publish(List.of(new GameStateChanged(gameId, 1)));
+        publish(List.of(new GameStateChanged(gameId, FIRST_VERSION)));
     }
 
     @Override
@@ -74,9 +77,8 @@ public final class StoneRumbleEngine implements GameEngine {
             if (entry.match.finished()) {
                 throw new Rejected(Rejection.GAME_FINISHED);
             }
-            // 실시간 입력은 왕복 지연을 허용하되 서버가 실제 발급한 최근 500ms 버전만 받는다.
-            Long issuedAt = entry.versions.get(command.expectedVersion());
-            if (issuedAt == null || clock.millis() - issuedAt > 500) {
+            long expectedVersion = command.expectedVersion();
+            if (expectedVersion < FIRST_VERSION || expectedVersion > entry.version) {
                 throw new Rejected(Rejection.STALE_VERSION);
             }
             var input = command.input();
@@ -88,6 +90,17 @@ public final class StoneRumbleEngine implements GameEngine {
                     || !List.of("x", "z", "aimX", "aimZ").stream().allMatch(k -> input.path(k).isNumber()))) {
                 throw new Rejected(Rejection.INVALID_ACTION);
             }
+            boolean jump = input.path("jump").asBoolean();
+            boolean fire = input.path("fire").asBoolean();
+            boolean slide = input.path("slide").asBoolean();
+            // 이동/정지는 현재 방향을 덮어쓰는 입력이다. 발급 버전의 나이 대신 아래 순번 검사로
+            // 역순 입력을 막고, 엔진은 현재 위치에 짧은 입력 유효 시간으로 적용한다.
+            if (readiness || jump || fire || slide) {
+                Long issuedAt = entry.versions.get(expectedVersion);
+                if (issuedAt == null || clock.millis() - issuedAt > RECENT_VERSION_WINDOW_MS) {
+                    throw new Rejected(Rejection.STALE_VERSION);
+                }
+            }
             long sequence = input.path("seq").asLong();
             if (!readiness && (sequence <= entry.sequences.getOrDefault(command.userId(), -1L) || sequence > 9_007_199_254_740_991L)) {
                 throw new Rejected(Rejection.INVALID_ACTION);
@@ -98,7 +111,7 @@ public final class StoneRumbleEngine implements GameEngine {
                 } else {
                     entry.match.control(Long.toString(command.userId()), input.path("x").asDouble(),
                         input.path("z").asDouble(), input.path("aimX").asDouble(), input.path("aimZ").asDouble(),
-                        input.path("jump").asBoolean(), input.path("fire").asBoolean(), input.path("slide").asBoolean());
+                        jump, fire, slide);
                 }
             } catch (IllegalArgumentException rejected) {
                 throw new Rejected(switch (rejected.getMessage()) {
@@ -243,7 +256,7 @@ public final class StoneRumbleEngine implements GameEngine {
         entry.version++;
         long time = clock.millis();
         entry.versions.put(entry.version, time);
-        entry.versions.entrySet().removeIf(v -> time - v.getValue() > 500);
+        entry.versions.entrySet().removeIf(v -> time - v.getValue() > RECENT_VERSION_WINDOW_MS);
     }
 
     private Entry player(long userId, String gameId) {
@@ -276,7 +289,7 @@ public final class StoneRumbleEngine implements GameEngine {
         final Map<String, Receipt> receipts = new LinkedHashMap<>();
         final Map<Long, Long> versions = new HashMap<>();
         final Map<Long, Long> sequences = new HashMap<>();
-        long version = 1, publishedAt;
+        long version = FIRST_VERSION, publishedAt;
         ObjectNode publicState;
         boolean finished;
         Entry(String gameId, String tableId, List<Long> players, long now) {
@@ -284,7 +297,7 @@ public final class StoneRumbleEngine implements GameEngine {
             this.tableId = tableId;
             this.players = List.copyOf(players);
             this.match = new StoneRumbleMatch(players, now);
-            this.versions.put(1L, now);
+            this.versions.put(FIRST_VERSION, now);
         }
     }
 }

@@ -66,7 +66,7 @@ class StoneRumbleEngineTests {
     }
 
     @Test
-    void 중복_액션은_원래_결과를_돌려주고_변조와_낡은_입력을_막는다() {
+    void 중복_액션은_원래_결과를_돌려주고_변조와_낡은_기믹_입력을_막는다() {
         engine.create("game-1", "table-1", List.of(101L, 202L));
         readyPlayers("game-1", List.of(101L, 202L));
         clock.now = 3000;
@@ -82,7 +82,37 @@ class StoneRumbleEngineTests {
                 .hasMessage("STALE_VERSION");
         clock.now = 3600;
         engine.tick();
-        assertThatThrownBy(() -> engine.apply(control("action-3", version, 3, 0))).hasMessage("STALE_VERSION");
+        ObjectNode staleJump = control("action-3", version, 3, 0).input().deepCopy();
+        staleJump.put("jump", true);
+        assertThatThrownBy(() -> engine.apply(new GameActionCommand(101, "game-1", "action-3", version, staleJump)))
+                .hasMessage("STALE_VERSION");
+        long future = engine.load(101, "game-1").orElseThrow().version() + 1;
+        assertThatThrownBy(() -> engine.apply(control("future", future, 4, 1))).hasMessage("STALE_VERSION");
+        assertThatThrownBy(() -> engine.apply(control("old-sequence", version, 1, -1))).hasMessage("INVALID_ACTION");
+    }
+
+    @Test
+    void 팔인_경기에서_상태가_늦어도_일곱째와_여덟째의_첫_이동이_반영된다() {
+        var players = List.of(101L, 202L, 303L, 404L, 505L, 606L, 707L, 808L);
+        engine.create("game-1", "table-1", players);
+        readyPlayers("game-1", players);
+        clock.now = 4200;
+        engine.tick();
+        long delayedVersion = engine.load(707, "game-1").orElseThrow().version();
+
+        clock.now = 4900;
+        engine.tick();
+        var before = engine.load(101, "game-1").orElseThrow().publicState().path("players");
+        engine.apply(new GameActionCommand(707, "game-1", "first-707", delayedVersion,
+                control("first-707", delayedVersion, 1, 1).input()));
+        engine.apply(new GameActionCommand(808, "game-1", "first-808", delayedVersion,
+                control("first-808", delayedVersion, 1, -1).input()));
+        clock.now = 5020;
+        engine.tick();
+        var after = engine.load(101, "game-1").orElseThrow().publicState().path("players");
+
+        assertThat(after.get(6).path("x").asDouble()).isGreaterThan(before.get(6).path("x").asDouble());
+        assertThat(after.get(7).path("x").asDouble()).isLessThan(before.get(7).path("x").asDouble());
     }
 
     @Test
