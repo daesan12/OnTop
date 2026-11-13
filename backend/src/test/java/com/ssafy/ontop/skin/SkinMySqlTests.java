@@ -111,11 +111,14 @@ class SkinMySqlTests {
     }
     @Test void deleting_a_draft_requires_admin_and_current_version_and_hides_it_without_storage() throws Exception {
         var e=service.createComponent(9401,definition("REGTEST_DELETE_DRAFT"));storage.available=false;
-        assertThat(send("DELETE","/"+e.id(),new Version(0),null).statusCode()).isEqualTo(401);
-        assertThat(send("DELETE","/"+e.id(),new Version(0),other).statusCode()).isEqualTo(403);
-        assertThat(send("DELETE","/"+e.id(),new Version(1),admin).statusCode()).isEqualTo(409);
+        assertThat(send("DELETE","/"+e.id()+"?version=0",null,null).statusCode()).isEqualTo(401);
+        assertThat(send("DELETE","/"+e.id()+"?version=0",null,other).statusCode()).isEqualTo(403);
+        assertThat(send("DELETE","/"+e.id()+"?version=1",null,admin).statusCode()).isEqualTo(409);
+        assertThat(send("DELETE","/"+e.id(),null,admin).statusCode()).isEqualTo(400);
+        assertThat(send("DELETE","/"+e.id()+"?version=bad",null,admin).statusCode()).isEqualTo(400);
+        assertThat(send("DELETE","/"+e.id()+"?version=-1",null,admin).statusCode()).isEqualTo(400);
         assertThat(service.components(9401)).extracting(Entry::id).contains(e.id());
-        assertThat(send("DELETE","/"+e.id(),new Version(0),admin).statusCode()).isEqualTo(204);
+        assertThat(send("DELETE","/"+e.id()+"?version=0",null,admin).statusCode()).isEqualTo(204);
         assertThat(service.components(9401)).extracting(Entry::id).doesNotContain(e.id());
         assertThat(send("GET","/"+e.id(),null,admin).statusCode()).isEqualTo(404);
         assertThat(send("POST","/"+e.id()+"/disable",new Version(1),admin).statusCode()).isEqualTo(404);
@@ -124,16 +127,29 @@ class SkinMySqlTests {
     @Test void referenced_components_require_set_deletion_and_deleted_sets_cannot_be_republished() throws Exception {
         var head=componentFixture("REGTEST_DELETE_HEAD",List.of("HAIR","FACE"));
         var d=sets.create(9401,new SkinSetDtos.Definition("REGTEST_DELETE_SET","삭제 검수 세트",2,"MALE",head.id(),List.of(head.id())));
-        var rejected=send("DELETE","/"+head.id(),new Version(head.version()),admin);
+        var rejected=send("DELETE","/"+head.id()+"?version="+head.version(),null,admin);
         assertThat(rejected.statusCode()).isEqualTo(409);assertThat(read(rejected).path("code").asText()).isEqualTo("SKIN_IN_USE");
-        assertThat(send("DELETE","/sets/"+d.id(),new Version(0),other).statusCode()).isEqualTo(403);
-        assertThat(send("DELETE","/sets/"+d.id(),new Version(1),admin).statusCode()).isEqualTo(409);
-        assertThat(send("DELETE","/sets/"+d.id(),new Version(0),admin).statusCode()).isEqualTo(204);
+        assertThat(send("DELETE","/sets/"+d.id(),null,admin).statusCode()).isEqualTo(400);
+        assertThat(send("DELETE","/sets/"+d.id()+"?version=bad",null,admin).statusCode()).isEqualTo(400);
+        assertThat(send("DELETE","/sets/"+d.id()+"?version=-1",null,admin).statusCode()).isEqualTo(400);
+        assertThat(send("DELETE","/sets/"+d.id()+"?version=0",null,other).statusCode()).isEqualTo(403);
+        assertThat(send("DELETE","/sets/"+d.id()+"?version=1",null,admin).statusCode()).isEqualTo(409);
+        assertThat(send("DELETE","/sets/"+d.id()+"?version=0",null,admin).statusCode()).isEqualTo(204);
         assertThat(sets.list(9401)).isEmpty();
         assertThat(send("POST","/sets/"+d.id()+"/publish",new Version(1),admin).statusCode()).isEqualTo(404);
-        assertThat(send("DELETE","/"+head.id(),new Version(head.version()),admin).statusCode()).isEqualTo(204);
+        assertThat(send("DELETE","/"+head.id()+"?version="+head.version(),null,admin).statusCode()).isEqualTo(204);
         assertThat(service.assets()).hasSize(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM skin_set_members WHERE set_id=?",Integer.class,d.id())).isEqualTo(1);
+    }
+    @Test void image_only_reference_blocks_deletion_even_without_a_membership_row() throws Exception {
+        var head=componentFixture("REGTEST_IMAGE_ONLY",List.of("HAIR","FACE"));
+        var d=sets.create(9401,new SkinSetDtos.Definition("REGTEST_IMAGE_ONLY_SET","대표 이미지 참조",2,"MALE",head.id(),List.of(head.id())));
+        jdbc.update("DELETE FROM skin_set_members WHERE set_id=?",d.id());
+        var rejected=send("DELETE","/"+head.id()+"?version="+head.version(),null,admin);
+        assertThat(rejected.statusCode()).isEqualTo(409);
+        assertThat(read(rejected).path("code").asText()).isEqualTo("SKIN_IN_USE");
+        assertThat(send("DELETE","/sets/"+d.id()+"?version=0",null,admin).statusCode()).isEqualTo(204);
+        assertThat(send("DELETE","/"+head.id()+"?version="+head.version(),null,admin).statusCode()).isEqualTo(204);
     }
     @Test void deleting_a_published_legacy_skin_stops_acquisition_but_keeps_equipped_items_and_models() throws Exception {
         var draft=service.create(9401,definition("REGTEST_DELETE_LEGACY"));String upload=uploaded(draft.id());
@@ -141,7 +157,7 @@ class SkinMySqlTests {
         var published=service.publish(9401,draft.id(),new Publish(0,upload,true));
         jdbc.update("INSERT INTO user_items(user_id,item_id,quantity,is_equipped) SELECT 9402,item_id,1,TRUE FROM gacha_product_items WHERE product_code='REGTEST_DELETE_LEGACY'");
         var owned=jdbc.queryForList("SELECT id,item_id,quantity,is_equipped FROM user_items WHERE user_id=9402 ORDER BY id");
-        assertThat(send("DELETE","/"+draft.id(),new Version(published.version()),admin).statusCode()).isEqualTo(204);
+        assertThat(send("DELETE","/"+draft.id()+"?version="+published.version(),null,admin).statusCode()).isEqualTo(204);
         assertThat(service.list(9401)).isEmpty();assertThat(service.assets()).hasSize(1);
         assertThat(jdbc.queryForObject("SELECT active FROM gacha_products WHERE product_code='REGTEST_DELETE_LEGACY'",Boolean.class)).isFalse();
         assertThat(jdbc.queryForList("SELECT id,item_id,quantity,is_equipped FROM user_items WHERE user_id=9402 ORDER BY id")).isEqualTo(owned);

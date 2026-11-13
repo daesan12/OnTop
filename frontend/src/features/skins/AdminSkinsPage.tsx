@@ -81,7 +81,7 @@ function SkinItemEditor({ onAuthEnded, component, onCompose, onWorkflowChange }:
     if(flight.current||busy)return
     if(!window.confirm(`‘${entry.definition.name}’ 스킨을 삭제할까요?\n공방 목록과 신규 획득에서 제외돼요. 기존 보유·착용과 파일은 유지돼요.\n이 스킨을 편집 중이면 저장하지 않은 변경과 파일 선택도 초기화돼요.`))return
     void run(async signal=>{
-      await skinRequest<void>(`/${entry.id}`,signal,'DELETE',{version:entry.version})
+      await skinRequest<void>(`/${entry.id}?version=${entry.version}`,signal,'DELETE')
       if(signal.aborted)return
       loading.current?.abort()
       setEntries(v=>v.filter(e=>e.id!==entry.id))

@@ -98,7 +98,7 @@ export function AdminSkinSets({ onAuthEnded, initialItem = null, onRegister, onW
     if(!window.confirm(`‘${entry.definition.name}’ 세트를 삭제할까요?\n공방 목록과 신규 획득에서 제외돼요. 기존 보유·착용과 영수증은 유지돼요.${unsavedHere?'\n이 세트의 저장하지 않은 변경도 지워져요.':''}`))return
     const c=flight.current=new AbortController();setBusy(true);setMessage('')
     try{
-      await skinRequest<void>('/sets/'+entry.id,c.signal,'DELETE',{version:entry.version})
+      await skinRequest<void>('/sets/'+entry.id+'?version='+entry.version,c.signal,'DELETE')
       if(c.signal.aborted)return
       listing.current?.abort()
       setSets(v=>v.filter(s=>s.id!==entry.id))

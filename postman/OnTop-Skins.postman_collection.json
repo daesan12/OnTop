@@ -653,22 +653,9 @@
           {
             "key": "Authorization",
             "value": "Bearer {{accessToken}}"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/json"
           }
         ],
-        "url": "{{baseUrl}}/api/v1/admin/operations/skins/{{skinId}}",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"version\": \"{{skinVersion}}\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
-        }
+        "url": "{{baseUrl}}/api/v1/admin/operations/skins/{{skinId}}?version={{skinVersion}}"
       },
       "event": [
         {
@@ -692,22 +679,9 @@
           {
             "key": "Authorization",
             "value": "Bearer {{accessToken}}"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/json"
           }
         ],
-        "url": "{{baseUrl}}/api/v1/admin/operations/skins/sets/{{skinSetId}}",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"version\": \"{{skinSetVersion}}\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
-        }
+        "url": "{{baseUrl}}/api/v1/admin/operations/skins/sets/{{skinSetId}}?version={{skinSetVersion}}"
       },
       "event": [
         {
