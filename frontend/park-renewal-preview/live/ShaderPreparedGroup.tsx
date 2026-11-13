@@ -3,7 +3,7 @@ import { useRef, type ReactNode } from 'react'
 import type { Group } from 'three'
 import { waitForScenePrograms } from '../../src/world/prepareScene'
 
-export function ShaderPreparedGroup({ children }: { children: ReactNode }) {
+export function ShaderPreparedGroup({ children, priority = 0 }: { children: ReactNode; priority?: number }) {
   const group = useRef<Group>(null)
   const started = useRef<Group | null>(null)
 
@@ -26,7 +26,7 @@ export function ShaderPreparedGroup({ children }: { children: ReactNode }) {
     } catch {
       reveal()
     }
-  })
+  }, priority)
 
   return <group ref={group} visible={false}>{children}</group>
 }

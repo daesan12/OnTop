@@ -8,6 +8,7 @@ import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_GATE_STARTUP, RENEWAL_
 import { loadRenewalParkWorld } from '../park/loadRenewalParkWorld'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
 import { FacilityOnApproach } from '../../park-renewal-preview/live/FacilityOnApproach'
+import { ShaderPreparedGroup } from '../../park-renewal-preview/live/ShaderPreparedGroup'
 import { START } from '../features/jumpmap/activeCourse'
 import { useJumpmap } from '../features/jumpmap/state'
 const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
@@ -242,7 +243,8 @@ export const WorldCanvas = memo(function WorldCanvas({
           </Suspense>
           {RENEWAL_PARK_ENABLED && (distantReady || jumpRunActive) &&
             <FacilityOnApproach site={jumpCourseEntrance} active={jumpRunActive}>
-              <Suspense fallback={null}><ServiceJumpCourse /></Suspense>
+              {/* Compile against the final exterior light pool, after RenewalWorld updates it. */}
+              <Suspense fallback={null}><ShaderPreparedGroup priority={.75}><ServiceJumpCourse /></ShaderPreparedGroup></Suspense>
             </FacilityOnApproach>}
           <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
         <PoliceNpcs />

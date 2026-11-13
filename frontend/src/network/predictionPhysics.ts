@@ -70,6 +70,17 @@ class PredictionPhysics implements PredictionSimulation {
   private serverSupport?: boolean
   private edgeGlide = 0
   private readonly jumpColliders: RAPIER.Collider[] = []
+  private stepWorld() {
+    if (!renewalCourse) {
+      this.world.step()
+      return
+    }
+    // This world only owns static colliders and one kinematic capsule. Run
+    // the same physics pipeline without scanning wrappers for torn soft bodies.
+    const w = this.world
+    w.physicsPipeline.step(w.gravity, w.integrationParameters, w.islands, w.broadPhase,
+      w.narrowPhase, w.bodies, w.colliders, w.softBodies, w.impulseJoints, w.multibodyJoints, w.ccdSolver)
+  }
   private syncJumpCourse() {
     const enabled = JUMPMAP_ENABLED && useJumpmap.getState().available
     if (!renewalCourse && enabled === this.jumpEnabled) return
@@ -133,7 +144,7 @@ class PredictionPhysics implements PredictionSimulation {
     this.controller.enableSnapToGround(0.15)
     this.controller.enableAutostep(MOVEMENT.stepHeight, 0.15, false)
     this.world.timestep = 1 / 60
-    this.world.step()
+    this.stepWorld()
   }
   setFollowTarget(target: {x:number;z:number} | undefined) { this.followTarget = target }
   stopHorizontal() { this.parkMotion.stopHorizontal(); this.surfaceFlags={moving:false,running:false} }
@@ -154,7 +165,7 @@ class PredictionPhysics implements PredictionSimulation {
     this.jumpGrace.reset(grounded, grace)
     this.parkMotion.reset(velocityY); this.tunedActive = false
     this.serverSupport = undefined; this.edgeGlide = 0
-    this.world.step()
+    this.stepWorld()
   }
   setChairs(counts: ReadonlyMap<string, number>) {
     this.chairCounts=counts
@@ -217,7 +228,7 @@ class PredictionPhysics implements PredictionSimulation {
     if (this.grounded && this.vy < 0) this.vy = 0
     if (input.dx || input.dz) this.yaw = Math.atan2(input.dx, input.dz)
     this.world.timestep = dt
-    this.world.step()
+    this.stepWorld()
   }
   private stepTuned(input: MovementIntent, dt: number, launch: boolean) {
     const p=this.body.translation(),jumpSpeed=this.onPavilion(p)?sharedPhysics?.pavilionTunedJumpSpeed:undefined
@@ -274,7 +285,7 @@ class PredictionPhysics implements PredictionSimulation {
     this.parkMotion.contact(wanted,delta,this.grounded,walls);this.vy=this.parkMotion.velocityY()
     this.body.setNextKinematicTranslation(landing)
     if(input.dx||input.dz)this.yaw=Math.atan2(input.dx,input.dz)
-    this.world.timestep=dt;this.world.step()
+    this.world.timestep=dt;this.stepWorld()
   }
   private preventClimbing(pose:{x:number;y:number;z:number}) {
     if(!sharedPhysics)return pose
