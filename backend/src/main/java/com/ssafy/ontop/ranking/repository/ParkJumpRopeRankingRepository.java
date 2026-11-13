@@ -1,14 +1,18 @@
 package com.ssafy.ontop.ranking.repository;
 
-import com.ssafy.ontop.game.jumprope.JumpRopeRules;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 구구구 줄넘기 게임 안 랭킹(JumpRopeRepository)과 같은 기준에 랭킹판 집계 시작 시각만 더한다. */
+/**
+ * 구구구 줄넘기 게임 안 랭킹(JumpRopeRepository)과 같은 기준에 랭킹판 집계 시작 시각만 더한다.
+ * 규칙 버전은 게임 안 랭킹과 같은 설정({@code ontop.minigames.jump-rope-rules-version}, 기본 1)을 읽는다.
+ * 신규 판 규칙을 2로 바꾸면 랭킹판도 같은 버전의 기록만 보여 준다.
+ */
 @Repository
 @Profile("db")
 public class ParkJumpRopeRankingRepository {
@@ -36,15 +40,18 @@ public class ParkJumpRopeRankingRepository {
             """;
 
     private final EntityManager entities;
+    private final int rulesVersion;
 
-    public ParkJumpRopeRankingRepository(EntityManager entities) {
+    public ParkJumpRopeRankingRepository(EntityManager entities,
+            @Value("${ontop.minigames.jump-rope-rules-version:1}") int rulesVersion) {
         this.entities = entities;
+        this.rulesVersion = rulesVersion;
     }
 
     @Transactional(readOnly = true)
     public List<JumpRopeRankingStanding> findTopTen(Instant startedAt) {
         return entities.createNativeQuery(RANKING_SQL, Object[].class)
-                .setParameter("rulesVersion", JumpRopeRules.VERSION)
+                .setParameter("rulesVersion", rulesVersion)
                 .setParameter("startedAtMillis", startedAt.toEpochMilli())
                 .getResultStream()
                 .map(value -> {

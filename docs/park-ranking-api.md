@@ -41,6 +41,7 @@ Jira S15P31B105-287·S15P31B105-308·S15P31B105-309. 총자산 기준은 일반 
   게임 안 랭킹(`GET /api/v1/minigames/speed-mole/rankings`)과 같은 기준이다. 점수 내림차순, 같은 점수는 실수 오름차순,
   완료 시각과 판 ID 오름차순이며 순위 숫자는 점수와 실수만으로 계산한다.
 - 구구구 줄넘기 랭킹(2026-11-14 추가)은 10명 이하이며 `PARK_RANKING_STARTED_AT` 이후에 확정한 현재 규칙 판만 대상으로 한다.
+  현재 규칙은 게임 안 랭킹과 같은 설정 `ontop.minigames.jump-rope-rules-version`(기본 1)이다.
   게임 안 랭킹(`GET /api/v1/minigames/jump-rope/rankings`)과 같은 기준에 시작 시각만 더한다. 회원별 최고 기록을 먼저 선택하고
   점수 내림차순, 같은 점수는 실수 오름차순, 완료 시각과 판 ID 오름차순이며 순위 숫자는 점수와 실수만으로 계산한다.
   탈퇴 회원 제외·10명 제한·epoch millis 변환은 두더지 열과 같다. `jumpRope` 필드가 없는 이전 서버 응답을 받은
