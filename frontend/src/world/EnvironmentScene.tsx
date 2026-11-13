@@ -21,7 +21,7 @@ import {
 
 const skyVertex = `varying vec3 vDirection; void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`
 const skyFragment = `
-uniform vec3 topColor,horizonColor,sunDirection; uniform float daylight,twilight;
+uniform vec3 topColor,horizonColor,sunDirection; uniform float daylight,twilight,clearDay;
 varying vec3 vDirection;
 float cloudHash(vec2 p) {
   vec3 q=fract(vec3(p.xyx)*.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z);
@@ -45,8 +45,10 @@ void main(){
  c+=vec3(1.4,1.5,1.7)*star*exp(-dot(q,q)*22.)*(1.-daylight)*smoothstep(.05,.3,d.y);
  vec2 p=d.xz/max(.12,d.y)*2.;
  float cloud=cloudNoise(p)*.6+cloudNoise(p*2.1)*.28+cloudNoise(p*4.2)*.12;
- float cover=smoothstep(.53,.72,cloud)*smoothstep(.02,.2,d.y);
- c=mix(c,mix(vec3(.13,.17,.23),vec3(.93,.94,.91),daylight),cover*.78);
+ float cover=smoothstep(.53+.07*clearDay,.72+.05*clearDay,cloud)*smoothstep(.02,.2,d.y);
+ vec3 cloudColor=mix(vec3(.13,.17,.23),mix(vec3(.93,.94,.91),vec3(1.,1.02,1.07),clearDay),daylight);
+ c=mix(c,cloudColor,cover*mix(.78,.55,clearDay));
+ c*=1.+.18*clearDay;
  gl_FragColor=vec4(c,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
@@ -71,6 +73,8 @@ function DetailedEnvironmentScene({ fixedTime, matchServiceBrightness }: Environ
     () => ({
       dayTop: new Color('#669bc5'),
       dayHorizon: new Color('#c7d8e3'),
+      clearTop: new Color('#56adf0'),
+      clearHorizon: new Color('#c4edff'),
       nightTop: new Color(ENVIRONMENT.palette.nightSky),
       nightHorizon: new Color('#293849'),
       sunset: new Color('#d7a28a'),
@@ -91,6 +95,7 @@ function DetailedEnvironmentScene({ fixedTime, matchServiceBrightness }: Environ
           sunDirection: { value: new Vector3() },
           daylight: { value: 1 },
           twilight: { value: 0 },
+          clearDay: { value: 0 },
         },
         vertexShader: skyVertex,
         fragmentShader: skyFragment,
@@ -104,14 +109,18 @@ function DetailedEnvironmentScene({ fixedTime, matchServiceBrightness }: Environ
     if(fixedTime===undefined)updateEnvironmentFrame(performance.now())
     else Object.assign(frame,sampleDay(fixedTime),{serverTime:fixedTime,seconds:performance.now()/1000})
     const u = material.uniforms
+    const clearDay = matchServiceBrightness ? frame.daylight * (1 - frame.twilight) : 0
     u.topColor.value.copy(values.nightTop).lerp(values.dayTop, frame.daylight)
+      .lerp(values.clearTop, clearDay)
     u.horizonColor.value
       .copy(values.nightHorizon)
       .lerp(values.dayHorizon, frame.daylight)
       .lerp(values.sunset, frame.twilight * 0.65)
+      .lerp(values.clearHorizon, clearDay)
     u.sunDirection.value.set(frame.sunX, frame.sunY, frame.sunZ).normalize()
     u.daylight.value = frame.daylight
     u.twilight.value = frame.twilight
+    u.clearDay.value = clearDay
     values.fog.color.copy(u.horizonColor.value)
     scene.fog = values.fog
     if (sky.current) sky.current.position.copy(cameraWorldPosition(camera))
