@@ -8,32 +8,64 @@ import {OVERHEAD} from '../../park/mapConfig'
 import {npcSpeech,useWorldAi,type PoliceNotice} from './worldAi'
 import {useChatScope} from '../chat/gameChat'
 import type {AmbientSpeech} from './ambientSpeech'
+import type {ResidentKind} from './residentRig'
+import './npcSpeechBubble.css'
 
-/** Player-style nickname and speech, anchored to the moving NPC. */
-export function NpcSpeechBubble({actor,name,active=true,height=2.35,ambient}:{actor:PoliceNotice['actor'];name:string;active?:boolean;height?:number;ambient?:AmbientSpeech|null}) {
+/** NPC dialogue and idle nameplate, anchored to the moving NPC. */
+export function NpcSpeechBubble({actor,name,kind,active=true,height=2.35,ambient}:{actor:PoliceNotice['actor'];name:string;kind:ResidentKind;active?:boolean;height?:number;ambient?:AmbientSpeech|null}) {
  const notices=useWorldAi(s=>s.police),notice=npcSpeech(notices,actor)
  const chatScope=useChatScope()
- const anchor=useRef<Group>(null),element=useRef<HTMLDivElement>(null)
+ const anchor=useRef<Group>(null)
+ const overlay=useRef<{root:HTMLDivElement;bubble:HTMLDivElement;text:HTMLDivElement;label:HTMLSpanElement;nickname:HTMLDivElement}|null>(null)
  const [now,setNow]=useState(Date.now)
  const projection=useMemo(()=>new OverlayProjection(),[]),view=useMemo(()=>new OverlayView(),[]),point=useMemo(()=>new Vector3(),[])
  useEffect(()=>{
   const layer=document.querySelector('.avatar-overlays');if(!layer)return
-  const el=document.createElement('div'),speech=document.createElement('div'),nickname=document.createElement('div')
-  el.className='avatar-overhead';el.dataset.npcOverhead=actor;el.style.visibility='hidden';el.style.maxWidth='250px'
-  speech.className='avatar-speech';speech.dataset.npcSpeech=actor;speech.hidden=true
-  nickname.className='avatar-nickname npc-nickname';el.append(speech,nickname);layer.append(el);element.current=el
-  return()=>{el.remove();element.current=null}
+  const root=document.createElement('div')
+  const bubble=document.createElement('div')
+  const portrait=document.createElement('span')
+  const label=document.createElement('span')
+  const text=document.createElement('div')
+  const nickname=document.createElement('div')
+
+  root.className='avatar-overhead npc-overhead'
+  root.dataset.npcOverhead=actor
+  root.style.visibility='hidden'
+  bubble.className='npc-speech'
+  bubble.dataset.npcSpeech=actor
+  bubble.hidden=true
+  portrait.className='npc-speech__portrait'
+  portrait.setAttribute('aria-hidden','true')
+  label.className='npc-speech__name'
+  text.className='npc-speech__text'
+  nickname.className='avatar-nickname npc-nickname'
+  bubble.append(portrait,label,text)
+  root.append(bubble,nickname)
+  layer.append(root)
+  overlay.current={root,bubble,text,label,nickname}
+  return()=>{root.remove();overlay.current=null}
  },[actor])
- useEffect(()=>{const el=element.current;if(!el)return;const speech=el.firstElementChild as HTMLElement,current=Date.now()
+ useEffect(()=>{
+  const elements=overlay.current
+  if(!elements)return
+  elements.bubble.dataset.npcKind=kind
+  elements.label.textContent=name
+  elements.nickname.textContent=name
+ },[actor,kind,name])
+ useEffect(()=>{
+  const elements=overlay.current
+  if(!elements)return
+  const current=Date.now()
   const actual=active&&notice&&notice.bubbleUntil>current&&(notice.gameId??'')===chatScope?notice:null
   const idle=!chatScope&&ambient&&ambient.expiresAt>current?ambient:null
   const text=actual?.speech??idle?.text??'',until=actual?.bubbleUntil??idle?.expiresAt??0
-  speech.hidden=!text;speech.textContent=text
-  if(el.lastElementChild)el.lastElementChild.textContent=name
+  elements.bubble.hidden=!text
+  elements.nickname.hidden=!!text
+  elements.text.textContent=text
   if(!until)return;const timer=setTimeout(()=>setNow(Date.now()),Math.max(1,until-current));return()=>clearTimeout(timer)
- },[active,notice,now,name,chatScope,ambient?.text,ambient?.expiresAt])
+ },[actor,active,notice,now,chatScope,ambient?.text,ambient?.expiresAt])
  useFrame(({camera,size})=>{
-  const el=element.current,root=anchor.current;if(!el||!root)return
+  const el=overlay.current?.root,root=anchor.current;if(!el||!root)return
   root.updateWorldMatrix(true,false);root.getWorldPosition(point)
   const local=avatars.get(useSession.getState().sessionId)
   let visible=!!local&&root.parent?.visible!==false
