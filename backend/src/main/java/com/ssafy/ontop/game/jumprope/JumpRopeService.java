@@ -84,6 +84,10 @@ public class JumpRopeService {
                     new JumpRopeException(503, "JUMP_ROPE_UNAVAILABLE", "지갑을 확인하지 못했어요. 같은 요청으로 다시 확인해 주세요.")),
                     id, calculated, completedAt);
             repository.settle(id, replay, completedAt, inputHash);
+            if (audit != null) {
+                audit.settled(userId, id, row.rulesVersion(), row.startedAt(), replay.minimumElapsedUs(), inputs,
+                        inputHash, receivedAt);
+            }
             var counts = new JumpRopeDtos.Counts(replay.perfect(), replay.good(), replay.miss());
             return new JumpRopeDtos.Result(Long.toString(id), row.rulesVersion(), replay.score(), counts,
                     replay.reason().wireValue(), completedAt, granted);
@@ -133,5 +137,13 @@ public class JumpRopeService {
 
     static JumpRopeException unauthenticated() {
         return new JumpRopeException(401, "UNAUTHENTICATED", "로그인이 필요해요.");
+    }
+
+    /** 운영자 조회용 판 기록. 저장소가 없는 환경(테스트·기록 비활성)에서는 남기지 않는다. */
+    private JumpRopeAudit audit;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void audit(JumpRopeAudit audit) {
+        this.audit = audit;
     }
 }
