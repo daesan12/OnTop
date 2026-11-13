@@ -183,7 +183,8 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
   demoRef: RefObject<Demo | null>
   successDemoRef: RefObject<PigeonSuccessCue | null>
   simulationRef: RefObject<RopeSimulation | null>
-  sampleDistraction: (now: number) => DistractionPose | null
+  /** One pose per distraction track, so two scheduled distractions can play at once. */
+  sampleDistraction: (now: number) => (DistractionPose | null)[]
   round: PreviewRound
   step: (now: number) => void
   sceneTime: (now: number) => number
@@ -201,12 +202,15 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
   const holderRight = useRef<PigeonRig>(null)
   const audienceRigs = useRef<(PigeonRig | null)[]>([])
   const audienceGroups = useRef<(Group | null)[]>([])
+  // The start point is a copy: a poop raid sets it to the raider's own perch each frame.
   const flightPath = useMemo(() => new CatmullRomCurve3([
-    perches[finalePigeon]!, new Vector3(), new Vector3(), new Vector3(),
+    perches[finalePigeon]!.clone(), new Vector3(), new Vector3(), new Vector3(),
   ]), [])
   const heading = useMemo(() => new Vector3(), [])
   const drop = useRef<Group>(null)
-  const distractionPose = useRef<DistractionPose | null>(null)
+  const manholePose = useRef<DistractionPose | null>(null)
+  const firstIntruder = useRef<DistractionPose | null>(null)
+  const secondIntruder = useRef<DistractionPose | null>(null)
   const dropTarget = useMemo(() => new Vector3(), [])
   const successFrame = useRef<{ cue: PigeonSuccessCue | null; from: SuccessPose[]; poses: SuccessPose[] }>({ cue: null, from: [], poses: [] })
   const completionFrom = useRef<SuccessPose[] | null>(null)
@@ -219,7 +223,14 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
   useFrame(({ camera }) => {
     const wallNow = performance.now()
     step(wallNow)
-    distractionPose.current = sampleDistraction(wallNow)
+    const lanes = sampleDistraction(wallNow)
+    // Each track has its own intruder pigeon. The manhole and the poop raid occur at most once at a time.
+    manholePose.current = lanes.find(pose => pose?.kind === 'manhole') ?? null
+    ;[firstIntruder, secondIntruder].forEach((intruder, lane) => {
+      const pose = lanes[lane] ?? null
+      intruder.current = pose?.kind === 'poop' ? null : pose
+    })
+    const raidPose = lanes.find(pose => pose?.kind === 'poop') ?? null
     const now = sceneTime(wallNow)
     const { motion, phase } = round
     const finalePreview = getFinalePreview()
@@ -281,12 +292,16 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
     }
 
     if (drop.current) drop.current.visible = false
+    // A poop raid flies the game-over path from its raider's perch. The game-over finale always takes precedence.
+    const poopRaid = finaleAge === null && raidPose?.kind === 'poop' ? raidPose : null
+    const attacker = finaleAge !== null ? finalePigeon : poopRaid ? poopRaid.pigeon : -1
+    const attackAge = finaleAge ?? poopRaid?.elapsed ?? null
     audience.forEach(({ pose, yaw }, index) => {
       const rig = audienceRigs.current[index]
       const bird = audienceGroups.current[index]
       if (!rig || !bird) return
-      const attacking = index === finalePigeon && finaleAge !== null
-      const flight = attacking ? sampleFinaleFlight(finaleAge) : null
+      const attacking = index === attacker && attackAge !== null
+      const flight = attacking ? sampleFinaleFlight(attackAge) : null
       bird.visible = attacking ? flight !== null : settings.audience || completionAge !== null
       bird.position.copy(perches[index]!)
       bird.rotation.set(0, yaw, 0)
@@ -331,6 +346,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       rig.head.rotation.y -= 0.22 * lean
       if (flight.path === 0) return
 
+      flightPath.points[0]!.copy(perches[index]!)
       flightPath.points[1]!.set(settings.avatarX + 0.18, Math.max(2.5, 2.85 * settings.avatarScale), avatarZ + 0.12)
       flightPath.points[2]!.set(0.12, -0.09, -2.04).applyMatrix4(camera.matrixWorld)
       flightPath.points[3]!.set(3.6, 0.72, -1.4).applyMatrix4(camera.matrixWorld)
@@ -346,8 +362,8 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       rig.head.rotation.x -= 0.08 * flight.beat * flight.wing
       for (const { foot } of rig.legs) foot.rotation.x = 0.43 * flight.wing
 
-      if (drop.current && finaleAge !== null && finaleAge >= finaleImpactMs - dropFlightMs && finaleAge < finaleImpactMs) {
-        const progress = 1 - (finaleImpactMs - finaleAge) / dropFlightMs
+      if (drop.current && attackAge !== null && attackAge >= finaleImpactMs - dropFlightMs && attackAge < finaleImpactMs) {
+        const progress = 1 - (finaleImpactMs - attackAge) / dropFlightMs
         flightPath.getPoint(dropReleasePath, drop.current.position)
         drop.current.position.y += 0.13
         dropTarget.set(0, -0.05, -0.35).applyMatrix4(camera.matrixWorld)
@@ -401,7 +417,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       <fog attach="fog" args={[sky, 13.5, 29]} />
       <hemisphereLight args={['#fff5e4', '#788f87', 1.95]} />
       <directionalLight position={[2.5, 6, 4]} intensity={2.25} />
-      <ConcreteCourt distractionPose={distractionPose} />
+      <ConcreteCourt distractionPose={manholePose} />
       <AlleyBackdrop />
       <ParkUtilityLine showAudience={settings.audience} rigs={audienceRigs.current} birds={audienceGroups.current} />
       <group ref={drop} visible={false}>
@@ -438,7 +454,8 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       <mesh geometry={geometry} frustumCulled={false} name="park-jump-rope">
         <meshStandardMaterial color="#374a47" roughness={0.88} />
       </mesh>
-      <PigeonDistraction poseRef={distractionPose} shadow={<GroundShadow x={0} z={0} width={1.02} depth={0.75} />} />
+      <PigeonDistraction poseRef={firstIntruder} shadow={<GroundShadow x={0} z={0} width={1.02} depth={0.75} />} />
+      <PigeonDistraction poseRef={secondIntruder} look="pearl" lift={0.32} nearer={0.4} shadow={<GroundShadow x={0} z={0} width={1.02} depth={0.75} />} />
     </>
   )
 }

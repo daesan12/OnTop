@@ -1,4 +1,5 @@
 import { manholeDurationMs, sampleManholeDistraction } from './manholeDistractionMotion'
+import { poopDurationMs, poopPigeon, poopSplatOpacity } from './poopDistractionMotion'
 
 export const distractionDurationLimits = {
   flight: { min: 600, max: 900 },
@@ -17,7 +18,7 @@ export const distractionDefaults = {
 }
 
 export type DistractionSettings = typeof distractionDefaults
-export type DistractionKind = 'flight' | 'walk' | 'manhole'
+export type DistractionKind = 'flight' | 'walk' | 'manhole' | 'poop'
 export type DistractionCue = {
   kind: DistractionKind
   direction: -1 | 1
@@ -27,6 +28,7 @@ export type DistractionCue = {
 
 export function distractionDurationMs({ kind, settings }: DistractionCue) {
   if (kind === 'manhole') return manholeDurationMs
+  if (kind === 'poop') return poopDurationMs
   return kind === 'flight' ? settings.flightDurationMs : settings.walkDurationMs
 }
 
@@ -54,6 +56,8 @@ export function sampleDistraction(cue: DistractionCue, now: number) {
   const duration = distractionDurationMs(cue)
   if (elapsed < 0 || elapsed >= duration) return null
   if (kind === 'manhole') return { kind, direction, scale: 0.55, ...sampleManholeDistraction(elapsed, direction) }
+  // The audience pigeon flies the game-over path, so the scene animates it from the wire by elapsed time.
+  if (kind === 'poop') return { kind, direction, pigeon: poopPigeon(direction), elapsed, splat: poopSplatOpacity(elapsed) }
   const progress = elapsed / duration
   const cross = 2 * progress - 1
   if (kind === 'flight') {

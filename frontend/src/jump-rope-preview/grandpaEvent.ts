@@ -10,7 +10,8 @@ import { ropeTempo, type RopeAcceleration } from './ropeAcceleration'
  */
 export const duckTransitionMs = 60
 export const duckReadyMarginMs = 34
-export const afterDodgeInputMs = 100
+// Time from a dodged broom to the next PERFECT-center Space: enough to release the duck and jump calmly.
+export const afterDodgeInputMs = 180
 export const swingGapPasses = 2
 export const grandpaWindupMs = 1000
 export const grandpaEntryMs = 1200

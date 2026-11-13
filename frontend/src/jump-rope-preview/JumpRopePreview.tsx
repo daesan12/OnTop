@@ -11,8 +11,8 @@ import { clearanceWindowMs, jumpPrepareMs } from './jumpRopeJudgement'
 import { pointsForPass, roundDurationMs, type RoundEndReason } from './jumpRopeRules'
 import { createSuccessCue, successDurationMs, type PigeonSuccessCue, type PigeonSuccessKind } from './pigeonSuccess'
 import { defaultRopeAcceleration, ropePeriodMs, ropeTempo } from './ropeAcceleration'
-import { distractionDefaults, distractionDurationLimits, distractionDurationMs, sampleDistraction, type DistractionCue, type DistractionKind, type DistractionSettings } from './pigeonDistractionMotion'
-import { advanceDistractionSchedule, createDistractionSchedule } from './pigeonDistractionSchedule'
+import { distractionDefaults, distractionDurationLimits, distractionDurationMs, sampleDistraction, type DistractionCue, type DistractionKind, type DistractionPose, type DistractionSettings } from './pigeonDistractionMotion'
+import { advanceDistractionSchedule, createDistractionSchedule, distractionLanes } from './pigeonDistractionSchedule'
 import { finaleStage } from './gameOverFinale'
 import { completionResultMs } from './completionFinale'
 import { GameOverSplash } from './GameOverSplash'
@@ -156,7 +156,7 @@ function canRunRoundPreview(round: ReturnType<typeof createPreviewRound>) {
   return round.phase.kind === 'menu' || round.phase.kind === 'initialCountdown' || round.phase.kind === 'playing'
 }
 
-const distractionLabels = { flight: '비행', walk: '걷기', manhole: '하수구 탈출' }
+const distractionLabels = { flight: '비행', walk: '걷기', manhole: '하수구 탈출', poop: '똥 테러' }
 const eventLabels = { pending: '예정', running: '진행 중', finished: '완료', skipped: '건너뜀', cancelled: '중단' }
 
 type ManholePreview = { cue: DistractionCue; startedAt: number; pausedAt: number | null; pausedMs: number }
@@ -290,6 +290,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const simulationRef = useRef<RopeSimulation | null>(null)
   const distractionRef = useRef<DistractionCue | null>(null)
   const manholePreviewRef = useRef<ManholePreview | null>(null)
+  const poopSplatRef = useRef<HTMLDivElement>(null)
   const scheduleRef = useRef(distractionSchedule)
   const stageRef = useRef<HTMLElement>(null)
   const controlsRef = useRef({ settings, paused: false, cue })
@@ -386,13 +387,28 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   }, [round, automaticDistraction, distractionSettings, sceneTime, closeManholePreview, submitRanked, rankedOwner, rankedMode])
 
   const sampleDistractionFrame = useCallback((now: number) => {
-    if (finalePreviewRef.current || round.endReason) return null
-    const manholePreview = manholePreviewRef.current
-    if (manholePreview) return sampleDistraction(manholePreview.cue, manholePreviewAge(manholePreview, now))
-    const preview = distractionRef.current
-    if (preview) return sampleDistraction(preview, sceneTime(now))
-    const active = scheduleRef.current.active
-    return active ? sampleDistraction(active.cue, round.playedMs) : null
+    /** One pose per track: overlapping scheduled distractions, or a manual preview on the first track. */
+    function sample(): (DistractionPose | null)[] {
+      const lanes: (DistractionPose | null)[] = Array(distractionLanes).fill(null)
+      if (finalePreviewRef.current || round.endReason) return lanes
+      const manholePreview = manholePreviewRef.current
+      const preview = distractionRef.current
+      if (manholePreview) lanes[0] = sampleDistraction(manholePreview.cue, manholePreviewAge(manholePreview, now))
+      else if (preview) lanes[0] = sampleDistraction(preview, sceneTime(now))
+      else for (const { lane, cue } of scheduleRef.current.active) lanes[lane] = sampleDistraction(cue, round.playedMs)
+      return lanes
+    }
+    const poses = sample()
+    // The poop raid's lens splat follows the same clock as its pigeon. A MISS, the finale or a restart
+    // ends the raid, so the splat clears on that frame and never overlaps the game-over splash.
+    const splat = poopSplatRef.current
+    if (splat) {
+      const raid = poses.find(pose => pose?.kind === 'poop')
+      const opacity = raid?.kind === 'poop' ? raid.splat : 0
+      splat.hidden = opacity <= 0
+      if (opacity > 0) splat.style.opacity = String(opacity)
+    }
+    return poses
   }, [round, sceneTime])
 
   useEffect(() => {
@@ -595,6 +611,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     distractionRef.current = null
     manholePreviewRef.current = null
     setShowManholePreview(false)
+    if (poopSplatRef.current) poopSplatRef.current.hidden = true
     const seed = serverSeed ?? parseDistractionSeed(fixedSeed) ?? newDistractionSeed(scheduleRef.current.seed)
     const schedule = createDistractionSchedule(seed, distractionSettings)
     scheduleRef.current = schedule
@@ -630,7 +647,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     const now = performance.now()
     step(now)
     if (!canRunRoundPreview(round)) return
-    if (scheduleRef.current.active || distractionRef.current || manholePreviewRef.current) return
+    if (scheduleRef.current.active.length || distractionRef.current || manholePreviewRef.current) return
     if (kind === 'manhole' && simulationRef.current) return
     if (kind !== 'manhole') showStageForPreview()
     else stageRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
@@ -819,6 +836,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
             startDisabled={starting || submissionBlocksStart} status={starting ? '서버 라운드를 준비하는 중입니다.' : startError || saveStatus} onRetry={retry} />}
           {countdown && !paused && !simulating && !finalePreview && !showManholePreview && !sampleHud && !sampleJudgement &&
             <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
+          <div ref={poopSplatRef} className="distraction-splash" hidden><GameOverSplash /></div>
           {showSplash && <GameOverSplash />}
           {finalePreview && !previewResult && <button className="finale-preview-close" type="button" onClick={() => closeFinalePreview(performance.now())}>미리보기 닫기</button>}
           {resultReason && <JumpRopeResult reason={receipt?.endReason ?? resultReason} stats={ranked ? receipt : hud.stats} reward={receipt?.reward}
@@ -924,15 +942,18 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
             </label>
             <div className="panel-note" aria-label="자동 방해 일정">
               <div>현재 시드 {distractionSchedule.seed} · 발생 {distractionSchedule.startedCount}/{distractionSchedule.events.length}</div>
-              {distractionSchedule.events.map(event => (
-                <div key={event.atMs}>{(event.atMs / 1000).toFixed(2)}초 · {distractionLabels[event.kind]} · {eventLabels[event.status]}</div>
+              {distractionSchedule.events.map((event, index) => (
+                <div key={index}>{(event.atMs / 1000).toFixed(2)}초 · {distractionLabels[event.kind]} · {eventLabels[event.status]}
+                  {event.lane > 0 && ' · 동시 트랙'}</div>
               ))}
             </div>
             <div className="demo-actions">
-              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active !== null} onClick={() => startDistraction('flight')}>비둘기 비행 방해 테스트</button>
-              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active !== null} onClick={() => startDistraction('walk')}>비둘기 걷기 방해 테스트</button>
-              <button type="button" disabled={!canPreviewSuccess || showManholePreview || simulating || distractionSchedule.active !== null}
+              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active.length > 0} onClick={() => startDistraction('flight')}>비둘기 비행 방해 테스트</button>
+              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active.length > 0} onClick={() => startDistraction('walk')}>비둘기 걷기 방해 테스트</button>
+              <button type="button" disabled={!canPreviewSuccess || showManholePreview || simulating || distractionSchedule.active.length > 0}
                 onClick={() => startDistraction('manhole')}>하수구 비둘기 탈출 미리보기</button>
+              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active.length > 0}
+                onClick={() => startDistraction('poop')}>비둘기 똥 테러 테스트</button>
             </div>
             <label className="audience-toggle">
               이동 방향

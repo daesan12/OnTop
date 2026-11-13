@@ -85,7 +85,7 @@ describe('Story 420 grandpa timing', () => {
     expect(timing.latestGoodLandingMs).toBeCloseTo(385.83, 2)
     expect(timing.hitOffsetMs).toBe(480)
     expect(timing.perfectLeadMs).toBe(270)
-    expect(timing.minDangerPeriodMs).toBe(850)
+    expect(timing.minDangerPeriodMs).toBe(930)
     expect(timing.latestGoodLandingMs + duckTransitionMs).toBeLessThanOrEqual(timing.hitOffsetMs - 34)
 
     const floaty = grandpaTiming({ peak: 1, flightMs: 600 }, settings)!

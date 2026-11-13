@@ -1,22 +1,33 @@
 import { expect, test, type Page } from '@playwright/test'
 import { grandpaTiming, planGrandpaEvents } from '../../src/jump-rope-preview/grandpaEvent'
+import { poopDurationMs, poopImpactMs } from '../../src/jump-rope-preview/poopDistractionMotion'
+import { distractionDefaults, distractionDurationMs } from '../../src/jump-rope-preview/pigeonDistractionMotion'
+import { createDistractionSchedule } from '../../src/jump-rope-preview/pigeonDistractionSchedule'
 import { defaultRopeAcceleration, ropeTempo } from '../../src/jump-rope-preview/ropeAcceleration'
 
-const seed = 409
 const timing = grandpaTiming({ peak: 0.6, flightMs: 400 }, { ropeWidth: 0.035, clearanceMargin: 0.03, perfectWindowMs: 50 })!
-const plan = planGrandpaEvents(seed, { speed: 1, acceleration: defaultRopeAcceleration }, timing)
-const swings = plan.flatMap(event => event.swings)
 const v1 = ropeTempo(1, { profile: defaultRopeAcceleration, playedMs: 0 })
-/** v2 passage = v1 passage + every earlier dangerous stretch. */
-const passage = (turn: number) => v1.timeForTurns(turn)
-  + swings.filter(swing => swing.kind === 'danger' && swing.anchor < turn).reduce((sum, swing) => sum + swing.stretchMs, 0)
-const isDanger = (turn: number) => swings.some(swing => swing.kind === 'danger' && swing.anchor === turn)
+
+/** One seed's grandpa visits, its poop raid and the v2 passages that follow from them. */
+function course(seed: number) {
+  const plan = planGrandpaEvents(seed, { speed: 1, acceleration: defaultRopeAcceleration }, timing)
+  const swings = plan.flatMap(event => event.swings)
+  /** v2 passage = v1 passage + every earlier dangerous stretch. */
+  const passage = (turn: number) => v1.timeForTurns(turn)
+    + swings.filter(swing => swing.kind === 'danger' && swing.anchor < turn).reduce((sum, swing) => sum + swing.stretchMs, 0)
+  const isDanger = (turn: number) => swings.some(swing => swing.kind === 'danger' && swing.anchor === turn)
+  const poop = createDistractionSchedule(seed).events.find(event => event.kind === 'poop')!
+  return { seed, plan, swings, passage, isDanger, poop }
+}
+
+const seed = 409
+const { plan, swings, passage } = course(seed)
 
 /**
  * The page clock only moves when the test sets it. Every key handler first advances the round to the key's
  * time, so passages, broom contacts and the MISS freeze land at exact play times regardless of frame rate.
  */
-function driver(page: Page) {
+function driver(page: Page, { passage, isDanger } = course(seed)) {
   let sceneMs = 0
   let offset = 0
   let next = 1
@@ -44,8 +55,26 @@ function driver(page: Page) {
       await page.keyboard.up('ArrowDown')
     }
   }
+  /** A KeyS tap only advances the round to now: it presses and releases the duck at the same instant. */
+  const tick = () => page.keyboard.press('KeyS')
+  /** PERFECT jumps and broom ducks merged in time order with `extras`, until the jumps reach `untilMs`. */
+  async function playWith(untilMs: number, extras: { at: number; act: () => Promise<void> }[] = []) {
+    const actions = extras.filter(extra => extra.at <= untilMs)
+    for (; passage(next) - timing.perfectLeadMs < untilMs; next++) {
+      const turn = next
+      actions.push({ at: passage(turn) - timing.perfectLeadMs, act: () => page.keyboard.press('Space') })
+      if (!isDanger(turn)) continue
+      actions.push({ at: passage(turn) + 200, act: () => page.keyboard.down('ArrowDown') })
+      actions.push({ at: passage(turn) + timing.hitOffsetMs + 10, act: () => page.keyboard.up('ArrowDown') })
+    }
+    actions.sort((a, b) => a.at - b.at)
+    for (const { at: playMs, act } of actions) {
+      await play(playMs)
+      await act()
+    }
+  }
   return {
-    panel, live, judgement, at, play, jump, perfectThrough,
+    panel, live, judgement, at, play, jump, perfectThrough, tick, playWith,
     get scene() { return sceneMs },
     begin(ms: number) { offset = ms },
     skip(turn: number) { next = turn + 1 },
@@ -75,7 +104,8 @@ test('할아버지가 기존 방해와 함께 등장하고 숙이기 회피·피
   await expect(game.panel).toContainText('1차 15~30초 · 예정')
   for (const swing of swings) await expect(game.panel).toContainText(`${swing.anchor}번째 통과 뒤`)
   await game.at(4000)
-  await page.keyboard.press('Space')
+  // A KeyS tap starts play without a jump, even if a frame already crossed the countdown.
+  await page.keyboard.press('KeyS')
   game.begin(4000)
 
   // ArrowDown never scrolls the page, and either duck key keeps the posture until both are released.
@@ -147,6 +177,145 @@ test('할아버지가 기존 방해와 함께 등장하고 숙이기 회피·피
   await expect(game.panel).toContainText('1차 15~30초 · 완료')
   await expect(game.panel).toContainText('2차 40~60초 · 완료')
   await expect(game.panel).not.toContainText('예정')
-  const stretch = plan[1]!.swings.reduce((sum, swing) => sum + swing.stretchMs, 0)
+  const stretch = swings.reduce((sum, swing) => sum + swing.stretchMs, 0)
   await expect(game.live).toContainText(`줄 지연 누적 ${stretch.toFixed(3)}ms`)
+})
+
+/** A seed whose poop splat lands while the second grandpa visit is on stage. */
+function overlappingRaid() {
+  for (let candidate = 1; candidate < 50000; candidate++) {
+    const raid = course(candidate)
+    const visit = raid.plan[1]!
+    const impact = raid.poop.atMs + poopImpactMs
+    if (visit.status === 'pending' && impact >= visit.startMs + 300 && impact + 1200 <= visit.endMs) return raid
+  }
+  throw new Error('no seed overlaps the poop raid with a grandpa visit')
+}
+
+async function startRound(page: Page, raid: ReturnType<typeof course>) {
+  await page.goto('/__dev/jump-rope.html')
+  await page.getByLabel('고정 시드 (다음 판)').fill(String(raid.seed))
+  const game = driver(page, raid)
+  await game.at(1000)
+  await page.getByRole('button', { name: '게임 시작' }).click()
+  await game.at(4000)
+  await page.keyboard.press('KeyS')
+  game.begin(4000)
+  // Step exactly at every scheduled distraction so each one starts on time.
+  const starts = createDistractionSchedule(raid.seed).events.map(event => ({ at: event.atMs, act: game.tick }))
+  return { game, starts }
+}
+
+function splat(page: Page) {
+  const overlay = page.locator('.distraction-splash')
+  return { overlay, opacity: () => overlay.evaluate(element => Number((element as HTMLElement).style.opacity)) }
+}
+
+test('비둘기 똥 테러가 할아버지와 함께 나와도 점프·숙이기·판정을 막지 않고 정확히 2초 동안 사라진다', async ({ page }) => {
+  const raid = overlappingRaid()
+  const { game, starts } = await startRound(page, raid)
+  const { overlay, opacity } = splat(page)
+  const start = raid.poop.atMs
+  const impact = start + poopImpactMs
+  let duckTurn = 1
+  while (raid.passage(duckTurn) < impact + 250 || raid.isDanger(duckTurn)) duckTurn++
+  expect(raid.passage(duckTurn) + 350).toBeLessThan(start + poopDurationMs)
+
+  await game.playWith(start + poopDurationMs + 400, [...starts,
+    { at: start + 300, act: async () => {
+      await game.tick()
+      await expect(page.getByLabel('자동 방해 일정')).toContainText('똥 테러 · 진행 중')
+      await expect(overlay).toBeHidden()
+    } },
+    { at: impact, act: async () => {
+      await game.tick()
+      await expect(overlay).toBeVisible()
+      await expect.poll(opacity).toBeCloseTo(1, 3)
+      await expect(game.panel).toContainText('2차 40~60초 · 등장 중')
+    } },
+    // The splat never takes the keys: a duck works under it, and Space still jumps PERFECT.
+    { at: raid.passage(duckTurn) + 250, act: async () => {
+      await page.keyboard.down('ArrowDown')
+      await expect(game.live).not.toContainText('숙이기 서 있음')
+    } },
+    { at: raid.passage(duckTurn) + 350, act: async () => {
+      await page.keyboard.up('ArrowDown')
+      await expect(game.live).toContainText('숙이기 서 있음')
+    } },
+    { at: impact + 1000, act: async () => {
+      await game.tick()
+      await expect.poll(opacity).toBeCloseTo(0.5, 3)
+      await expect(game.judgement).toContainText('PERFECT')
+      await expect(page.getByLabel('3회 중 3회 남음')).toBeVisible()
+    } },
+    { at: impact + 1999, act: async () => {
+      await game.tick()
+      await expect.poll(opacity).toBeCloseTo(0.0005, 4)
+    } },
+    { at: start + poopDurationMs, act: async () => {
+      await game.tick()
+      await expect(overlay).toBeHidden()
+    } },
+  ])
+  await expect(page.getByLabel('자동 방해 일정')).toContainText('똥 테러 · 완료')
+  await expect(page.getByLabel('3회 중 3회 남음')).toBeVisible()
+  await expect(game.judgement).toContainText('PERFECT')
+})
+
+test('똥 테러는 MISS에 정리되고, 3번째 MISS에서는 게임 오버 똥만 남으며 재시작 후 사라진다', async ({ page }) => {
+  const raid = course(seed)
+  const { game, starts } = await startRound(page, raid)
+  const { overlay } = splat(page)
+  const impact = raid.poop.atMs + poopImpactMs
+  await game.playWith(impact + 300, [...starts, { at: impact + 300, act: game.tick }])
+  await expect(overlay).toBeVisible()
+
+  // No more jumps: the next passage is a MISS, which cancels the raid and its splat on the same frame.
+  let missTurn = 1
+  while (raid.passage(missTurn) <= impact + 300) missTurn++
+  await game.play(raid.passage(missTurn) + 1)
+  await game.tick()
+  await expect(game.judgement).toContainText(`${missTurn}번째 통과 · MISS`)
+  await expect(overlay).toBeHidden()
+  await expect(page.getByLabel('자동 방해 일정')).toContainText('똥 테러 · 중단')
+
+  const visibleSplats = page.locator('.finale-splash:visible')
+  for (let guard = 0; guard < 200 && await visibleSplats.count() === 0; guard++) {
+    await game.at(game.scene + 100)
+    await game.tick()
+  }
+  await expect(page.getByLabel('현재 게임 상태')).toContainText('게임 오버 연출')
+  await expect(visibleSplats).toHaveCount(1)
+  await expect(overlay).toBeHidden()
+
+  await game.at(game.scene + 1500)
+  await game.tick()
+  await page.getByRole('button', { name: '다시 시작' }).click()
+  await expect(page.locator('.rope-countdown')).toBeVisible()
+  await expect(visibleSplats).toHaveCount(0)
+  await expect(overlay).toBeHidden()
+})
+
+/** The first seed whose 45-60 s window shows two distractions together, and the moment they overlap. */
+function overlappingDistractions() {
+  for (let candidate = 1; candidate < 50000; candidate++) {
+    const events = createDistractionSchedule(candidate).events.filter(event => event.windowEndMs === 60000)
+    const second = events.find(event => events.some(first => first.lane !== event.lane && first.atMs < event.atMs
+      && event.atMs + 600 < first.atMs + distractionDurationMs({ ...first, startedAt: 0, settings: distractionDefaults })))
+    if (second) return { raid: course(candidate), overlapAt: second.atMs + 300 }
+  }
+  throw new Error('no seed overlaps two distractions')
+}
+
+test('45~60초 구간은 비둘기 방해 두 개가 동시에 진행돼도 점프 판정이 그대로다', async ({ page }) => {
+  const { raid, overlapAt } = overlappingDistractions()
+  const { game, starts } = await startRound(page, raid)
+  const running = () => page.getByLabel('자동 방해 일정').evaluate(element =>
+    (element as HTMLElement).innerText.split('\n').filter(line => line.includes('진행 중')).length)
+  await game.playWith(overlapAt + 1, [...starts, { at: overlapAt, act: async () => {
+    await game.tick()
+    await expect.poll(running).toBe(2)
+  } }])
+  await expect(page.getByLabel('3회 중 3회 남음')).toBeVisible()
+  await expect(game.judgement).toContainText('PERFECT')
 })
