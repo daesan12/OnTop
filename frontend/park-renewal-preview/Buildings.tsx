@@ -115,7 +115,9 @@ function StructureModel({kind,prepareShaders=false}:{kind:keyof typeof structure
   return group
  },[gltf])
  const model = <primitive object={object} dispose={null}/>
- return prepareShaders ? <ShaderPreparedGroup>{model}</ShaderPreparedGroup> : model
+ // The live world restores its exterior light pool at priority .5. Compile
+ // the station after that pass so its first draw uses the prepared programs.
+ return prepareShaders ? <ShaderPreparedGroup priority={.75}>{model}</ShaderPreparedGroup> : model
 }
 function title(text:string){return(c:CanvasRenderingContext2D,w:number,h:number)=>{c.fillStyle='#eee3c8';c.fillRect(0,0,w,h);c.strokeStyle='#9e7b42';c.lineWidth=8;c.strokeRect(5,5,w-10,h-10);c.fillStyle='#284b3c';c.textAlign='center';c.textBaseline='middle';c.font=`700 ${h*.48}px "Malgun Gothic",sans-serif`;c.fillText(text,w/2,h/2,w*.91)}}
 function Mole(){
