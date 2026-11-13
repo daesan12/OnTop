@@ -14,13 +14,15 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 확정된 줄넘기 판의 점프 시각 원본과 매크로 판별 신호를 운영자 조회용으로 남긴다.
  * 판정·점수·보상·랭킹과 이용자 응답에는 관여하지 않으며, 저장에 실패해도 판 확정은 그대로다.
  *
- * <p>저장은 전용 스레드 하나에서 한다. 판 확정 트랜잭션이 잡고 있는 판 행을 외래 키가 기다리므로
- * 확정이 커밋된 뒤에 들어간다. 서버가 그 사이에 내려가면 그 판의 기록만 빠진다.
+ * <p>판 확정 트랜잭션이 커밋된 뒤에만 전용 스레드 하나로 넘겨 저장한다. 롤백된 판은 기록하지 않는다.
+ * 커밋과 저장 사이에 서버가 내려가면 그 판의 기록만 빠진다.
  */
 public class JumpRopeAudit implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(JumpRopeAudit.class);
@@ -57,14 +59,36 @@ public class JumpRopeAudit implements AutoCloseable {
         this.inPark = inPark;
     }
 
-    /** 판 확정 직후 요청 스레드에서 부른다. 계산과 저장은 넘기고 바로 돌아온다. */
+    /**
+     * 판 확정 직후 요청 스레드에서, 확정 트랜잭션 안에서 부른다. 저장은 그 트랜잭션이 커밋된 뒤로 미룬다.
+     * 트랜잭션 밖에서 불리면(동기화가 없으면) 바로 넘긴다.
+     */
     void settled(long userId, long roundId, int rulesVersion, Instant startedAt, long minimumElapsedUs,
             List<Integer> offsets, String inputHash, Instant receivedAt) {
         try {
             Boolean connected = inPark == null ? null : inPark.test(userId);
             var jumps = List.copyOf(offsets);
-            writer.execute(() -> record(userId, roundId, rulesVersion, startedAt, minimumElapsedUs, jumps, inputHash,
-                    receivedAt, connected));
+            Runnable save = () -> submit(roundId, () -> record(userId, roundId, rulesVersion, startedAt,
+                    minimumElapsedUs, jumps, inputHash, receivedAt, connected));
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        save.run();
+                    }
+                });
+            } else {
+                save.run();
+            }
+        } catch (RuntimeException failure) {
+            log.warn("줄넘기 판 기록을 넘기지 못했습니다. roundId={}", roundId, failure);
+        }
+    }
+
+    /** 커밋 뒤 콜백에서도 불리므로 어떤 실패도 밖으로 내보내지 않는다. */
+    private void submit(long roundId, Runnable work) {
+        try {
+            writer.execute(work);
         } catch (RejectedExecutionException closing) {
             log.debug("줄넘기 기록 저장소가 닫혀 판 기록을 남기지 않습니다. roundId={}", roundId);
         } catch (RuntimeException failure) {
