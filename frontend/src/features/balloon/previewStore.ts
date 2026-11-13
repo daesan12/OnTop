@@ -1,0 +1,133 @@
+import { create } from 'zustand'
+import {
+  CAPACITY, PREVIEW_FARE, WAIT_SECONDS, createFlight, isAtStation, returnToDock, safeExit, stepFlight, takeOff,
+} from './flight'
+import type { Flight, Point } from './flight'
+
+const options = new URLSearchParams(window.location.search)
+function numberOption(key: string, fallback: number, maximum: number) {
+  const value = options.get(key)
+  if (value === null || !/^\d+$/.test(value)) return fallback
+  return Math.min(maximum, Number(value))
+}
+
+const guestCount = numberOption('guests', 2, CAPACITY)
+export const isPassenger = guestCount > 0 && options.get('role') === 'passenger'
+export const keys = new Set<string>()
+export const cameraDrag = { yaw: 0 }
+const neutral = { x: 0, z: 0, lift: 0 }
+const startPoint = { x: 0, y: 0, z: 14 }
+
+type Popup = 'board' | 'balance' | 'cancelled' | null
+type Preview = {
+  flight: Flight
+  walker: Point
+  popup: Popup
+  coins: number
+  boarded: boolean
+  wait: number
+  start: () => void
+  open: () => void
+  close: () => void
+  board: () => void
+  cancel: () => void
+  reset: () => void
+  losePilot: () => void
+  tick: (dt: number) => void
+}
+
+export function occupancy(boarded: boolean) {
+  return guestCount + Number(boarded)
+}
+
+function axis(positive: string, negative: string) {
+  return Number(keys.has(positive)) - Number(keys.has(negative))
+}
+
+export const usePreview = create<Preview>((set, get) => ({
+  flight: createFlight(), walker: startPoint, popup: null,
+  coins: numberOption('coins', 50, 999), boarded: false, wait: 0,
+
+  start() {
+    const { flight, boarded, coins } = get()
+    if (flight.phase !== 'boarding' || !boarded) return
+    keys.clear()
+    cameraDrag.yaw = 0
+    set({ flight: takeOff(flight), coins: coins - PREVIEW_FARE, wait: 0 })
+  },
+
+  open() {
+    const { flight, walker, boarded, popup } = get()
+    if (flight.phase !== 'boarding' || boarded || popup || !isAtStation(walker.x, walker.z)) return
+    keys.clear()
+    set({ popup: 'board' })
+  },
+
+  close() {
+    set({ popup: null })
+  },
+
+  board() {
+    const { popup, boarded, coins } = get()
+    if (popup !== 'board' || boarded || occupancy(false) === CAPACITY) return
+    if (coins < PREVIEW_FARE) {
+      set({ popup: 'balance' })
+      return
+    }
+    set({ boarded: true, wait: WAIT_SECONDS, popup: null })
+  },
+
+  cancel() {
+    const { flight, boarded } = get()
+    if (flight.phase !== 'boarding' || !boarded) return
+    keys.clear()
+    set({ boarded: false, wait: 0, popup: 'cancelled' })
+  },
+
+  reset() {
+    if (get().flight.phase !== 'removed') return
+    keys.clear()
+    cameraDrag.yaw = 0
+    set({ flight: createFlight(), walker: startPoint, boarded: false })
+  },
+
+  losePilot() {
+    set(({ flight }) => ({ flight: returnToDock(flight, 'pilot') }))
+  },
+
+  tick(dt) {
+    const { flight, walker, popup, boarded, wait, start } = get()
+    if (flight.phase === 'boarding' && boarded) {
+      const remaining = Math.max(0, wait - dt)
+      if (remaining === 0) start()
+      else set({ wait: remaining })
+      return
+    }
+    if (flight.phase === 'boarding' || flight.phase === 'landed' || flight.phase === 'removed') {
+      const dx = axis('KeyD', 'KeyA')
+      const dz = axis('KeyS', 'KeyW')
+      if (!popup && (dx || dz)) {
+        const distance = 6 * dt / Math.hypot(dx, dz)
+        const z = Math.max(flight.phase === 'boarding' ? 9.6 : -40, Math.min(40, walker.z + dz * distance))
+        set({ walker: { x: Math.max(-40, Math.min(40, walker.x + dx * distance)), y: 0, z } })
+      }
+    }
+    if (flight.phase === 'boarding' || flight.phase === 'removed') return
+
+    if (isPassenger && flight.phase === 'flying') {
+      cameraDrag.yaw += axis('ArrowLeft', 'ArrowRight') * dt * 1.6
+    }
+    const input = flight.phase === 'flying'
+      ? isPassenger
+        ? { x: -.5, z: -.4, lift: 0 }
+        : { x: axis('KeyD', 'KeyA'), z: axis('KeyS', 'KeyW'), lift: axis('Space', 'ShiftLeft') }
+      : neutral
+    const next = stepFlight(flight, input, dt)
+    if (next.phase === 'landed' && flight.phase !== 'landed') {
+      keys.clear()
+      set({ flight: next, walker: safeExit(next), boarded: false })
+    } else {
+      set({ flight: next })
+    }
+  },
+}))
