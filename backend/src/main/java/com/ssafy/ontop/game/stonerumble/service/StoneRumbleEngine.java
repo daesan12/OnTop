@@ -84,6 +84,11 @@ public final class StoneRumbleEngine implements GameEngine {
             var input = command.input();
             boolean readiness = input.path("kind").asText().equals("scene_ready");
             if (readiness && !input.path("ready").isBoolean()) { throw new Rejected(Rejection.INVALID_ACTION); }
+            // 로딩 보고는 본인의 상태만 바꾼다. 다른 참가자 때문에 버전이 지나도 받고,
+            // 본인이 이미 보낸 더 최신 버전의 보고를 덮어쓰는 경우만 거절한다.
+            if (readiness && expectedVersion < entry.readinessVersions.getOrDefault(command.userId(), FIRST_VERSION)) {
+                throw new Rejected(Rejection.STALE_VERSION);
+            }
             if (!readiness && (!input.path("kind").asText().equals("control") || !input.path("seq").isIntegralNumber() || !input.path("seq").canConvertToLong()
                     || !input.path("jump").isBoolean() || !input.path("fire").isBoolean()
                     || input.has("slide") && !input.path("slide").isBoolean()
@@ -95,7 +100,7 @@ public final class StoneRumbleEngine implements GameEngine {
             boolean slide = input.path("slide").asBoolean();
             // 이동/정지는 현재 방향을 덮어쓰는 입력이다. 발급 버전의 나이 대신 아래 순번 검사로
             // 역순 입력을 막고, 엔진은 현재 위치에 짧은 입력 유효 시간으로 적용한다.
-            if (readiness || jump || fire || slide) {
+            if (!readiness && (jump || fire || slide)) {
                 Long issuedAt = entry.versions.get(expectedVersion);
                 if (issuedAt == null || clock.millis() - issuedAt > RECENT_VERSION_WINDOW_MS) {
                     throw new Rejected(Rejection.STALE_VERSION);
@@ -108,6 +113,7 @@ public final class StoneRumbleEngine implements GameEngine {
             try {
                 if (readiness) {
                     entry.match.sceneReady(Long.toString(command.userId()), input.path("ready").asBoolean(), clock.millis());
+                    entry.readinessVersions.put(command.userId(), expectedVersion);
                 } else {
                     entry.match.control(Long.toString(command.userId()), input.path("x").asDouble(),
                         input.path("z").asDouble(), input.path("aimX").asDouble(), input.path("aimZ").asDouble(),
@@ -289,6 +295,7 @@ public final class StoneRumbleEngine implements GameEngine {
         final Map<String, Receipt> receipts = new LinkedHashMap<>();
         final Map<Long, Long> versions = new HashMap<>();
         final Map<Long, Long> sequences = new HashMap<>();
+        final Map<Long, Long> readinessVersions = new HashMap<>();
         long version = FIRST_VERSION, publishedAt;
         ObjectNode publicState;
         boolean finished;

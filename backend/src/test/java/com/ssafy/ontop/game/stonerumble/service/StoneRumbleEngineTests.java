@@ -217,6 +217,47 @@ class StoneRumbleEngineTests {
     }
 
     @Test
+    void 팔인_경기에서_오래된_공개_상태의_첫_로딩_보고를_모두_받아_시작한다() {
+        var players = List.of(101L, 202L, 303L, 404L, 505L, 606L, 707L, 808L);
+        engine.create("loading", "table", players);
+        long initialVersion = engine.load(101, "loading").orElseThrow().version();
+        var ready = mapper.createObjectNode().put("kind", "scene_ready").put("ready", true);
+        clock.now = 600;
+        engine.tick();
+
+        for (long user : players) {
+            engine.apply(new GameActionCommand(user, "loading", "first-" + user, initialVersion, ready));
+        }
+
+        var dropping = engine.load(101, "loading").orElseThrow().publicState();
+        assertThat(dropping.path("readyUserIds").size()).isEqualTo(8);
+        assertThat(dropping.path("phase").asText()).isEqualTo("DROPPING");
+        clock.now = dropping.path("startsAt").asLong();
+        engine.tick();
+        assertThat(engine.load(101, "loading").orElseThrow().publicState().path("phase").asText())
+                .isEqualTo("RUNNING");
+    }
+
+    @Test
+    void 같은_참가자의_오래된_로딩_보고가_최신_취소를_덮어쓰지_않는다() {
+        engine.create("loading", "table", List.of(101L, 202L));
+        long initialVersion = engine.load(101, "loading").orElseThrow().version();
+        var ready = mapper.createObjectNode().put("kind", "scene_ready").put("ready", true);
+        clock.now = 600;
+        engine.tick();
+        long currentVersion = engine.load(101, "loading").orElseThrow().version();
+        engine.apply(new GameActionCommand(101, "loading", "cancel", currentVersion,
+                ready.deepCopy().put("ready", false)));
+
+        assertThatThrownBy(() -> engine.apply(new GameActionCommand(101, "loading", "late", initialVersion, ready)))
+                .hasMessage("STALE_VERSION");
+        engine.apply(new GameActionCommand(202, "loading", "other-ready", initialVersion, ready));
+        var loading = engine.load(101, "loading").orElseThrow().publicState();
+        assertThat(loading.path("phase").asText()).isEqualTo("LOADING");
+        assertThat(loading.path("readyUserIds").size()).isEqualTo(1);
+    }
+
+    @Test
     void 본인_로딩보고만_허용하고_중복보고와_재접속은_낙하시각을_되돌리지_않는다() {
         engine.create("loading", "table", List.of(101L, 202L));
         clock.now = 20_000;
