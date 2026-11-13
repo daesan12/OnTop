@@ -643,7 +643,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const liveFeedback = sampleHud ? null : visiblePass
   const legacyHud = sampleHud ? undefined : demoHud
   const showMenu = inMenu && !hideMenuForPreview && !finalePreview && !showManholePreview && !simulating && !sampleHud && !sampleJudgement
-  const showRanking = showMenu && rankingOpen
+  const showRanking = rankingOpen && (showMenu || resultReason !== null)
   const settlement = ranked?.settlement
   const submissionBlocksStart = settlement?.status === 'saving' || (settlement?.status === 'failed' && settlement.retryable)
   const currentSettlement = settlement?.id === sessionRef.current?.id ? settlement : undefined
@@ -675,14 +675,15 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
           />}
           {showMenu && <JumpRopeMenu onStart={startGame} onOpenRanking={openRanking} rankingOpen={showRanking}
             startDisabled={starting || submissionBlocksStart} status={starting ? '서버 라운드를 준비하는 중입니다.' : startError || saveStatus} onRetry={retry} />}
-          {showRanking && <JumpRopeRanking state={ranked ? liveRanking : rankingPreviewStates[rankingMode]} onClose={() => setRankingOpen(false)} />}
           {countdown && !paused && !simulating && !finalePreview && !showManholePreview && !sampleHud && !sampleJudgement &&
             <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
           {showSplash && <GameOverSplash />}
           {finalePreview && !previewResult && <button className="finale-preview-close" type="button" onClick={() => closeFinalePreview(performance.now())}>미리보기 닫기</button>}
           {resultReason && <JumpRopeResult reason={receipt?.endReason ?? resultReason} stats={ranked ? receipt : hud.stats} reward={receipt?.reward}
             status={starting ? '서버 라운드를 준비하는 중입니다.' : startError || saveStatus} onRetry={retry}
-            restartDisabled={starting || submissionBlocksStart} onQuit={quitGame} onRestart={restartGame} />}
+            restartDisabled={starting || submissionBlocksStart} onQuit={quitGame} onRestart={restartGame}
+            onOpenRanking={openRanking} rankingOpen={showRanking} />}
+          {showRanking && <JumpRopeRanking state={ranked ? liveRanking : rankingPreviewStates[rankingMode]} onClose={() => setRankingOpen(false)} />}
            {confirmExit && <dialog ref={exitDialog} className="rope-exit-confirm" role="alertdialog"
              aria-labelledby="rope-exit-title" aria-describedby="rope-exit-description"
              onCancel={event => { event.preventDefault(); event.stopPropagation() }}>

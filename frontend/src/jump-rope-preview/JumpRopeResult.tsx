@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type MouseEventHandler, type ReactNode } from 'react'
 import type { RoundEndReason, RoundStats } from './jumpRopeRules'
 
 const verdicts = [['perfect', 'PERFECT'], ['good', 'GOOD'], ['miss', 'MISS']] as const
@@ -63,12 +63,14 @@ function ResultCardStains() {
   )
 }
 
-export function JumpRopeResult({ reason, stats, reward, onQuit, onRestart, status, onRetry, restartDisabled }: {
+export function JumpRopeResult({ reason, stats, reward, onQuit, onRestart, onOpenRanking, rankingOpen, status, onRetry, restartDisabled }: {
   reason: RoundEndReason
   stats?: Pick<RoundStats, 'score' | 'counts'>
   reward?: number | null
   onQuit: () => void
   onRestart: () => void
+  onOpenRanking: MouseEventHandler<HTMLButtonElement>
+  rankingOpen?: boolean
   status?: string
   onRetry?: () => void
   restartDisabled?: boolean
@@ -84,7 +86,7 @@ export function JumpRopeResult({ reason, stats, reward, onQuit, onRestart, statu
   useEffect(() => { headingRef.current?.focus({ preventScroll: true }) }, [])
 
   return (
-    <div className="rope-result-layer">
+    <div className="rope-result-layer" inert={rankingOpen}>
       <section className="rope-result" data-outcome={completed ? 'complete' : 'failed'} aria-labelledby="rope-result-title">
         {!completed && <ResultCardStains />}
         <div className="rope-result__ornaments" aria-hidden="true">
@@ -118,6 +120,9 @@ export function JumpRopeResult({ reason, stats, reward, onQuit, onRestart, statu
           <button type="button" className="rope-result__restart" onClick={onRestart} disabled={restartDisabled}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 9a8 8 0 1 0 .2 5M20 4v5h-5" /></svg>
             다시 시작
+          </button>
+          <button type="button" className="rope-result__ranking" aria-haspopup="dialog" onClick={onOpenRanking}>
+            랭킹 보기
           </button>
         </div>
       </section>
