@@ -48,6 +48,7 @@ import { useJumpmap } from '../jumpmap/state'
 import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
 import { openFortune } from '../fortune/controller'
+import { useDisplayGame } from '../../game/displayGame'
 
 const plazaKiosksEnabled = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED
 const recreationLabels: Record<RenewalRecreationId, string> = {
@@ -77,7 +78,7 @@ export function getParkInteraction(): ParkInteraction | null {
   if (facilityMovementBlocked(session.sessionId)) return null
   if (!roamingInput.ready || !p || session.status !== 'connected' || !session.mapCompatible || session.tableId || p.seatIndex >= 0
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
-    || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || panelOwnsKeys()) return null
+    || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || useDisplayGame.getState().localPractice || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
   if(canReachJokeJudge(p.current)){const distance=Math.hypot(p.current.x-jokeJudgePosition.x,p.current.z-jokeJudgePosition.z);choices.push({kind:'joke-judge',id:'joke-judge',label:'김부장과 대화',occupied:false,available:true,distance,score:interactionScore(distance,{...jokeJudgePosition,y:jokeJudgePosition.y+1.5})})}
   if (p.carry && p.carry.role !== 'CARRIER') return null

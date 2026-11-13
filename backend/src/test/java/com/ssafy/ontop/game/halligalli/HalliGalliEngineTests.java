@@ -10,8 +10,10 @@ import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.halligalli.domain.FruitCard;
 import com.ssafy.ontop.game.halligalli.domain.FruitType;
+import com.ssafy.ontop.game.halligalli.domain.HalliGalliBellLog;
 import com.ssafy.ontop.game.halligalli.domain.HalliGalliDeck;
 import com.ssafy.ontop.game.halligalli.domain.HalliGalliTiming;
+import com.ssafy.ontop.game.halligalli.service.HalliGalliBellStats;
 import com.ssafy.ontop.game.halligalli.service.HalliGalliEngine;
 import com.ssafy.ontop.game.halligalli.service.HalliGalliGameFinished;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway.Action;
@@ -478,6 +480,27 @@ class HalliGalliEngineTests {
         assertThat(finished.participants()).extracting(GameFinished.Participant::result).containsExactly(
                 GameFinished.Result.FORFEIT, GameFinished.Result.FORFEIT, GameFinished.Result.WIN);
         assertThat(totalCards()).isEqualTo(56);
+    }
+
+    @Test
+    void 경기가_끝나면_참가자별_종_기록_요약을_한_번_발행한다() {
+        fixed.putAll(Map.of(0, card(STRAWBERRY, 2), 1, card(STRAWBERRY, 3)));
+        engine.create(GAME, "table", List.of(A, B, C));
+        flip(A, "a1");
+        flip(B, "b1");
+        clock.set(START.plusMillis(450));
+        ring(C, "bell", 2);
+
+        engine.forfeit(new GameForfeitCommand(A, GAME, "leave-a"));
+        engine.forfeit(new GameForfeitCommand(B, GAME, "leave-b"));
+        engine.tick();
+
+        HalliGalliBellStats stats = only(HalliGalliBellStats.class);
+        assertThat(stats.gameId()).isEqualTo(GAME);
+        assertThat(stats.tableId()).isEqualTo("table");
+        assertThat(stats.endedAt()).isEqualTo(START.plusMillis(450));
+        assertThat(stats.players()).extracting(HalliGalliBellLog.Summary::userId).containsExactly(A, B, C);
+        assertThat(stats.players().get(2)).isEqualTo(new HalliGalliBellLog.Summary(C, 1, 0, 0, 450, 450, 450, 0, 0));
     }
 
     @Test

@@ -366,6 +366,15 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "unsettled": "1", "avg_score": "60.0", "max_score": "60", "avg_hits": "66.0", "avg_misses": "2.0",
          "hit_pct": "97.1", "calculated_coins": "12", "rewarded_coins": "12", "capped_coins": "0"},
     ],
+    # 105: 맞힌 종 6(모두 h1), 150ms 미만 5 → 83.3%. 101: 평균 (640×3 + 500×2) / 5 = 584ms.
+    "35_halli_bell_reaction.sql": [
+        {"user_id": "105", "games": "2", "success_rings": "6", "penalty_rings": "2", "late_rings": "4",
+         "first_ring_pct": "60.0", "min_reaction_ms": "60", "avg_reaction_ms": "95", "fast_pct": "83.3",
+         "quick_pct": "100.0"},
+        {"user_id": "101", "games": "2", "success_rings": "5", "penalty_rings": "1", "late_rings": "3",
+         "first_ring_pct": "62.5", "min_reaction_ms": "380", "avg_reaction_ms": "584", "fast_pct": "0.0",
+         "quick_pct": "0.0"},
+    ],
 }
 
 

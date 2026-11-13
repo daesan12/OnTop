@@ -7,16 +7,20 @@ import { rankingPreviewStates, sampleScore } from './jumpRopeRankingFixtures'
 import { JumpRopeResult } from './JumpRopeResult'
 import { PreviewScene } from './PreviewScene'
 import { requestJump, type PreviewPass } from './previewMotion'
-import { clearanceWindowMs } from './jumpRopeJudgement'
+import { clearanceWindowMs, jumpPrepareMs } from './jumpRopeJudgement'
 import { pointsForPass, roundDurationMs, type RoundEndReason } from './jumpRopeRules'
 import { createSuccessCue, successDurationMs, type PigeonSuccessCue, type PigeonSuccessKind } from './pigeonSuccess'
-import { defaultRopeAcceleration, ropePeriodMs } from './ropeAcceleration'
-import { distractionDefaults, distractionDurationLimits, distractionDurationMs, sampleDistraction, type DistractionCue, type DistractionKind, type DistractionSettings } from './pigeonDistractionMotion'
-import { advanceDistractionSchedule, createDistractionSchedule } from './pigeonDistractionSchedule'
+import { defaultRopeAcceleration, ropePeriodMs, ropeTempo } from './ropeAcceleration'
+import { distractionDefaults, distractionDurationLimits, distractionDurationMs, sampleDistraction, type DistractionCue, type DistractionKind, type DistractionPose, type DistractionSettings } from './pigeonDistractionMotion'
+import { advanceDistractionSchedule, createDistractionSchedule, distractionLanes } from './pigeonDistractionSchedule'
 import { finaleStage } from './gameOverFinale'
 import { completionResultMs } from './completionFinale'
 import { GameOverSplash } from './GameOverSplash'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue, type ScoredPreviewPass } from './previewRound'
+import {
+  afterDodgeInputMs, clearDuck, createGrandpaRuntime, duckReadyMarginMs, duckTransitionMs, grandpaTiming, isDuckCode, isDucked,
+  pressRoundDuck, releaseDuck, type GrandpaEventStatus, type SwingResult,
+} from './grandpaEvent'
 import type { JumpRopeService, JumpRopeSession } from '../features/jumpRope/service'
 import type { JumpRopeSettlement, submitJumpRope } from '../features/jumpRope/store'
 import type { JumpRopeRankingState } from './jumpRopeRankingData'
@@ -37,6 +41,8 @@ const defaults = {
   avatarX: 0,
   avatarZ: 0,
   avatarScale: 1,
+  /** Story 420 preview: brings the avatar, rope and holders forward to make room for the grandpa behind them. */
+  courtForward: 0.8,
   jumpHeight: 0.6,
   jumpDuration: 0.4,
   ropeWidth: 0.035,
@@ -74,6 +80,7 @@ const controls: { title: string; sliders: Slider[] }[] = [
     ['avatarX', '좌우 위치', -1.2, 1.2, 0.05, ' m'],
     ['avatarZ', '앞뒤 위치', -0.9, 0.9, 0.05, ' m'],
     ['avatarScale', '크기', 0.6, 1.5, 0.05, '×'],
+    ['courtForward', '줄 돌리기 무대 앞쪽 이동 (할아버지 프리뷰)', 0, 1.4, 0.05, ' m'],
     ['jumpHeight', '최고 높이', 0.2, 1.6, 0.05, ' m'],
     ['jumpDuration', '체공 시간', 0.25, 1.4, 0.05, '초'],
   ] },
@@ -149,13 +156,73 @@ function canRunRoundPreview(round: ReturnType<typeof createPreviewRound>) {
   return round.phase.kind === 'menu' || round.phase.kind === 'initialCountdown' || round.phase.kind === 'playing'
 }
 
-const distractionLabels = { flight: '비행', walk: '걷기', manhole: '하수구 탈출' }
+const distractionLabels = { flight: '비행', walk: '걷기', manhole: '하수구 탈출', poop: '똥 테러' }
 const eventLabels = { pending: '예정', running: '진행 중', finished: '완료', skipped: '건너뜀', cancelled: '중단' }
 
 type ManholePreview = { cue: DistractionCue; startedAt: number; pausedAt: number | null; pausedMs: number }
 
 function manholePreviewAge(preview: ManholePreview, now: number) {
   return (preview.pausedAt ?? now) - preview.startedAt - preview.pausedMs
+}
+
+const grandpaStatusLabels: Record<GrandpaEventStatus, string> = {
+  pending: '예정', active: '등장 중', finished: '완료', skipped: '건너뜀 · 맞는 시점 없음', cancelled: '중단',
+}
+const swingResultLabels: Record<SwingResult, string> = { pending: '예정', swung: '휘두름', dodged: '회피 성공', hit: '피격' }
+
+function grandpaTimingFor(settings: PreviewSettings) {
+  return grandpaTiming({ peak: settings.jumpHeight, flightMs: settings.jumpDuration * 1000 }, settings)
+}
+
+function grandpaRopeFor(settings: PreviewSettings) {
+  return { speed: settings.ropeSpeed > 0 ? settings.ropeSpeed : 1, acceleration: settings.autoAcceleration ? settings : undefined }
+}
+
+const seconds = (ms: number) => Number.isFinite(ms) ? `${(ms / 1000).toFixed(2)}초` : '-'
+
+type AutoPlay = { jump: boolean; duck: boolean; jumpedFor: number; ducking: boolean }
+
+/** Development helper: PERFECT jumps, and a duck right before each dangerous broom. Unranked preview only. */
+function runAutoPlay(round: ReturnType<typeof createPreviewRound>, auto: AutoPlay, sceneNow: number, settings: PreviewSettings) {
+  const grandpa = round.ranked ? undefined : round.grandpa
+  const motion = round.motion
+  if (!grandpa || round.phase.kind !== 'playing' || motion.ropeSpeed <= 0) return
+  const danger = grandpa.events.flatMap(event => event.status === 'active' ? event.swings : [])
+    .find(swing => swing.kind === 'danger' && swing.result === 'pending' && swing.hitMs !== null)
+  const wantDuck = auto.duck && danger !== undefined && round.playedMs >= danger.hitMs! - 220
+  if (wantDuck && !auto.ducking) auto.ducking = pressRoundDuck(round, 'KeyS', sceneNow)
+  if (!wantDuck && auto.ducking) {
+    releaseDuck(grandpa.duck, 'KeyS')
+    auto.ducking = false
+  }
+  if (!auto.jump || auto.jumpedFor > motion.passCount) return
+  const slowed = grandpa.slow?.turn === motion.passCount + 1 ? grandpa.slow.factor : 1
+  const acceleration = settings.autoAcceleration ? { profile: settings, playedMs: round.playedMs - grandpa.lagMs } : undefined
+  const untilPassage = ropeTempo(motion.ropeSpeed, acceleration).timeForTurns(1 - motion.angle / (2 * Math.PI)) / slowed
+  const lead = jumpPrepareMs + settings.jumpDuration * 500
+  if (untilPassage <= lead && requestRoundJump(round, sceneNow, settings.jumpHeight, settings.jumpDuration)) {
+    auto.jumpedFor = motion.passCount + 1
+  }
+}
+
+/** A display snapshot. Its key changes only when a shown value changes, so the panel re-renders rarely. */
+function readGrandpaDebug(round: ReturnType<typeof createPreviewRound>) {
+  const grandpa = round.ranked ? undefined : round.grandpa
+  if (!grandpa) return null
+  const { duck, stun, timing } = grandpa
+  const duckLabel = duck.keys.length === 0 ? '서 있음'
+    : round.phase.kind !== 'playing' ? 'MISS 재개 후 숙이기'
+      : duck.startMs! > round.playedMs ? '착지 후 숙이기'
+        : isDucked(duck, round.playedMs) ? '숙임' : '숙이는 중'
+  const events = grandpa.events.map((event, index) => ({
+    title: `${index + 1}차 ${event.windowFromMs / 1000}~${event.windowToMs / 1000}초 · ${grandpaStatusLabels[event.status]}`,
+    span: event.swings.length ? `등장 ${seconds(event.startMs)} → 퇴장 ${seconds(event.endMs)}` : '',
+    swings: event.swings.map((swing, order) => `${order + 1}타 ${swing.kind === 'safe' ? '안전' : '위험'} · ${swing.anchor}번째 통과 뒤 충돌 ${seconds(swing.hitMs ?? swing.plannedHitMs)}`
+      + `${swing.kind === 'danger' ? ` · 주기 +${swing.stretchMs.toFixed(3)}ms` : ''} · ${swingResultLabels[swing.result]}`),
+  }))
+  const live = `숙이기 ${duckLabel} · 스턴 ${stun ? '있음 (다음 통과 MISS)' : '없음'} · 줄 지연 누적 ${grandpa.lagMs.toFixed(3)}ms`
+  const debug = { seed: grandpa.seed, hitOffsetMs: timing?.hitOffsetMs ?? null, events, live }
+  return { ...debug, key: JSON.stringify(debug) }
 }
 
 function newDistractionSeed(previous?: number) {
@@ -178,6 +245,13 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const [showManholePreview, setShowManholePreview] = useState(false)
   const [demo, setDemo] = useState<{ action: DemoAction; startedAt: number } | null>(null)
   const [round] = useState(() => createPreviewRound('menu'))
+  // Story 420 stage 1 lives only in this unranked preview. The ranked park game never enables it.
+  const rankedMode = ranked !== undefined
+  const [grandpaEnabled, setGrandpaEnabled] = useState(true)
+  const [grandpaDebug, setGrandpaDebug] = useState<ReturnType<typeof readGrandpaDebug>>(null)
+  const grandpaDebugKey = useRef('')
+  const [autoPlay, setAutoPlay] = useState({ jump: false, duck: false })
+  const autoPlayRef = useRef<AutoPlay>({ jump: false, duck: false, jumpedFor: 0, ducking: false })
   const [rankingOpen, setRankingOpen] = useState(false)
   const [liveRanking, setLiveRanking] = useState<JumpRopeRankingState>({ kind: 'loading' })
   const [starting, setStarting] = useState(false)
@@ -216,6 +290,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const simulationRef = useRef<RopeSimulation | null>(null)
   const distractionRef = useRef<DistractionCue | null>(null)
   const manholePreviewRef = useRef<ManholePreview | null>(null)
+  const poopSplatRef = useRef<HTMLDivElement>(null)
   const scheduleRef = useRef(distractionSchedule)
   const stageRef = useRef<HTMLElement>(null)
   const controlsRef = useRef({ settings, paused: false, cue })
@@ -270,6 +345,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     const previous = readRoundHud(round)
     const latest = advancePreviewRound(round, now, effectiveSpeed, settings, settings.reactionMs,
       settings.autoAcceleration ? settings : undefined)
+    if (!rankedMode) runAutoPlay(round, autoPlayRef.current, now, settings)
     if (!previous.endReason && round.endReason && sessionRef.current && round.ranked && rankedOwner) {
       submitRanked?.({ ...sessionRef.current, owner: rankedOwner, reason: round.endReason, offsets: round.ranked.offsets })
     }
@@ -289,6 +365,13 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
       scheduleRef.current = schedule
       setDistractionSchedule(schedule)
     }
+    if (!rankedMode) {
+      const debug = readGrandpaDebug(round)
+      if ((debug?.key ?? '') !== grandpaDebugKey.current) {
+        grandpaDebugKey.current = debug?.key ?? ''
+        setGrandpaDebug(debug)
+      }
+    }
     const next = readRoundHud(round)
     if (next.seconds !== previous.seconds || next.playedMs !== previous.playedMs || next.stats !== previous.stats || next.endReason !== previous.endReason) {
       setHud(next)
@@ -301,16 +384,31 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     if (!latest) return
     setLastPass(latest)
     setVisiblePass(latest)
-  }, [round, automaticDistraction, distractionSettings, sceneTime, closeManholePreview, submitRanked, rankedOwner])
+  }, [round, automaticDistraction, distractionSettings, sceneTime, closeManholePreview, submitRanked, rankedOwner, rankedMode])
 
   const sampleDistractionFrame = useCallback((now: number) => {
-    if (finalePreviewRef.current || round.endReason) return null
-    const manholePreview = manholePreviewRef.current
-    if (manholePreview) return sampleDistraction(manholePreview.cue, manholePreviewAge(manholePreview, now))
-    const preview = distractionRef.current
-    if (preview) return sampleDistraction(preview, sceneTime(now))
-    const active = scheduleRef.current.active
-    return active ? sampleDistraction(active.cue, round.playedMs) : null
+    /** One pose per track: overlapping scheduled distractions, or a manual preview on the first track. */
+    function sample(): (DistractionPose | null)[] {
+      const lanes: (DistractionPose | null)[] = Array(distractionLanes).fill(null)
+      if (finalePreviewRef.current || round.endReason) return lanes
+      const manholePreview = manholePreviewRef.current
+      const preview = distractionRef.current
+      if (manholePreview) lanes[0] = sampleDistraction(manholePreview.cue, manholePreviewAge(manholePreview, now))
+      else if (preview) lanes[0] = sampleDistraction(preview, sceneTime(now))
+      else for (const { lane, cue } of scheduleRef.current.active) lanes[lane] = sampleDistraction(cue, round.playedMs)
+      return lanes
+    }
+    const poses = sample()
+    // The poop raid's lens splat follows the same clock as its pigeon. A MISS, the finale or a restart
+    // ends the raid, so the splat clears on that frame and never overlaps the game-over splash.
+    const splat = poopSplatRef.current
+    if (splat) {
+      const raid = poses.find(pose => pose?.kind === 'poop')
+      const opacity = raid?.kind === 'poop' ? raid.splat : 0
+      splat.hidden = opacity <= 0
+      if (opacity > 0) splat.style.opacity = String(opacity)
+    }
+    return poses
   }, [round, sceneTime])
 
   useEffect(() => {
@@ -372,6 +470,52 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     const timeout = window.setTimeout(() => setDemo(null), hudFeedbackMs)
     return () => window.clearTimeout(timeout)
   }, [demo])
+
+  useEffect(() => {
+    if (rankedMode) return
+    /** ↓/S duck for the unranked preview. Every change first advances the round to the key's time. */
+    function onDuckDown(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return
+      if (exitOpenedAt.current !== null) return
+      // Arrow keys still move a focused slider or select, so only the stage and page receive the duck.
+      if (event.target instanceof HTMLElement && event.target.closest(
+        'button, input, textarea, select, a[href], [contenteditable="true"]',
+      )) return
+      event.preventDefault()
+      if (event.repeat || finalePreviewRef.current || manholePreviewRef.current) return
+      const now = performance.now()
+      step(now)
+      pressRoundDuck(round, event.code, sceneTime(now))
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (isDuckCode(event.code)) onDuckDown(event)
+    }
+    function onKeyUp(event: KeyboardEvent) {
+      const grandpa = round.grandpa
+      if (!grandpa || !isDuckCode(event.code) || !grandpa.duck.keys.includes(event.code)) return
+      step(performance.now())
+      releaseDuck(grandpa.duck, event.code)
+    }
+    function onFocusLost() {
+      const grandpa = round.grandpa
+      if (!grandpa || grandpa.duck.keys.length === 0) return
+      step(performance.now())
+      clearDuck(grandpa.duck)
+    }
+    function onVisibility() {
+      if (document.hidden) onFocusLost()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onFocusLost)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onFocusLost)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [rankedMode, round, step, sceneTime])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -467,10 +611,20 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     distractionRef.current = null
     manholePreviewRef.current = null
     setShowManholePreview(false)
+    if (poopSplatRef.current) poopSplatRef.current.hidden = true
     const seed = serverSeed ?? parseDistractionSeed(fixedSeed) ?? newDistractionSeed(scheduleRef.current.seed)
     const schedule = createDistractionSchedule(seed, distractionSettings)
     scheduleRef.current = schedule
     setDistractionSchedule(schedule)
+    if (!ranked && grandpaEnabled) {
+      // The grandpa draws from his own sub-seed, so the pigeon distraction schedule is unchanged.
+      const current = controlsRef.current.settings
+      round.grandpa = createGrandpaRuntime(seed, grandpaRopeFor(current), grandpaTimingFor(current))
+    }
+    grandpaDebugKey.current = ''
+    setGrandpaDebug(rankedMode ? null : readGrandpaDebug(round))
+    autoPlayRef.current.jumpedFor = 0
+    autoPlayRef.current.ducking = false
     simulationRef.current = null
     setSimulating(false)
     demoRef.current = null
@@ -493,7 +647,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     const now = performance.now()
     step(now)
     if (!canRunRoundPreview(round)) return
-    if (scheduleRef.current.active || distractionRef.current || manholePreviewRef.current) return
+    if (scheduleRef.current.active.length || distractionRef.current || manholePreviewRef.current) return
     if (kind === 'manhole' && simulationRef.current) return
     if (kind !== 'manhole') showStageForPreview()
     else stageRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
@@ -611,9 +765,13 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     step(performance.now(), controls.paused ? 0 : next.ropeSpeed)
     controls.settings = next
     setSettings(next)
+    // Contacts and stretches fixed from here on follow the new jump and judgement settings.
+    const timing = round.grandpa && grandpaTimingFor(next)
+    if (round.grandpa && timing) round.grandpa.timing = timing
   }
 
   const windowMs = clearanceWindowMs(jumpHeight, jumpDuration * 1000, settings)
+  const liveTiming = grandpaTimingFor(settings)
   const demoHud = demo && (!lastPass || demo.startedAt >= lastPass.at) ? hudSamples[demo.action] : undefined
   const inMenu = cue === 'menu'
   const countdown = cue === '3' || cue === '2' || cue === '1' || cue === 'GO!' ? cue : null
@@ -643,7 +801,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const liveFeedback = sampleHud ? null : visiblePass
   const legacyHud = sampleHud ? undefined : demoHud
   const showMenu = inMenu && !hideMenuForPreview && !finalePreview && !showManholePreview && !simulating && !sampleHud && !sampleJudgement
-  const showRanking = showMenu && rankingOpen
+  const showRanking = rankingOpen && (showMenu || resultReason !== null)
   const settlement = ranked?.settlement
   const submissionBlocksStart = settlement?.status === 'saving' || (settlement?.status === 'failed' && settlement.retryable)
   const currentSettlement = settlement?.id === sessionRef.current?.id ? settlement : undefined
@@ -659,7 +817,8 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
             fallback={<p className="canvas-fallback">이 브라우저에서 3D 화면을 열 수 없습니다.</p>}
           >
             <PreviewScene settings={settings} demoRef={demoRef} successDemoRef={successDemoRef} simulationRef={simulationRef}
-              sampleDistraction={sampleDistractionFrame} round={round} step={step} sceneTime={sceneTime} getFinalePreview={getFinalePreview} />
+              sampleDistraction={sampleDistractionFrame} round={round} step={step} sceneTime={sceneTime} getFinalePreview={getFinalePreview}
+              grandpa={!rankedMode} />
           </Canvas>
           {!showMenu && <JumpRopeHud
             seconds={sampleHud?.seconds ?? hud.seconds}
@@ -675,14 +834,16 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
           />}
           {showMenu && <JumpRopeMenu onStart={startGame} onOpenRanking={openRanking} rankingOpen={showRanking}
             startDisabled={starting || submissionBlocksStart} status={starting ? '서버 라운드를 준비하는 중입니다.' : startError || saveStatus} onRetry={retry} />}
-          {showRanking && <JumpRopeRanking state={ranked ? liveRanking : rankingPreviewStates[rankingMode]} onClose={() => setRankingOpen(false)} />}
           {countdown && !paused && !simulating && !finalePreview && !showManholePreview && !sampleHud && !sampleJudgement &&
             <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
+          <div ref={poopSplatRef} className="distraction-splash" hidden><GameOverSplash /></div>
           {showSplash && <GameOverSplash />}
           {finalePreview && !previewResult && <button className="finale-preview-close" type="button" onClick={() => closeFinalePreview(performance.now())}>미리보기 닫기</button>}
           {resultReason && <JumpRopeResult reason={receipt?.endReason ?? resultReason} stats={ranked ? receipt : hud.stats} reward={receipt?.reward}
             status={starting ? '서버 라운드를 준비하는 중입니다.' : startError || saveStatus} onRetry={retry}
-            restartDisabled={starting || submissionBlocksStart} onQuit={quitGame} onRestart={restartGame} />}
+            restartDisabled={starting || submissionBlocksStart} onQuit={quitGame} onRestart={restartGame}
+            onOpenRanking={openRanking} rankingOpen={showRanking} />}
+          {showRanking && <JumpRopeRanking state={ranked ? liveRanking : rankingPreviewStates[rankingMode]} onClose={() => setRankingOpen(false)} />}
            {confirmExit && <dialog ref={exitDialog} className="rope-exit-confirm" role="alertdialog"
              aria-labelledby="rope-exit-title" aria-describedby="rope-exit-description"
              onCancel={event => { event.preventDefault(); event.stopPropagation() }}>
@@ -713,7 +874,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
           <h2>실시간 조정</h2>
           <p className="panel-note" aria-label="현재 게임 상태">현재 상태 · {status}</p>
           {previewResult && <p className="panel-note">Esc로 결과 시안을 닫을 수 있습니다.</p>}
-          <p className="panel-note">Space로 점프합니다. 높이와 체공 시간은 다음 점프부터 적용됩니다.</p>
+          <p className="panel-note">Space로 점프하고, ↓ 또는 S를 누르고 있는 동안 숙입니다. 높이와 체공 시간은 다음 점프부터 적용됩니다.</p>
           {inMenu && <label className="audience-toggle">
             <input type="checkbox" checked={hideMenuForPreview} onChange={event => setHideMenuForPreview(event.currentTarget.checked)} />
             대기 중 메인 화면 숨기기 (개발용)
@@ -781,15 +942,18 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
             </label>
             <div className="panel-note" aria-label="자동 방해 일정">
               <div>현재 시드 {distractionSchedule.seed} · 발생 {distractionSchedule.startedCount}/{distractionSchedule.events.length}</div>
-              {distractionSchedule.events.map(event => (
-                <div key={event.atMs}>{(event.atMs / 1000).toFixed(2)}초 · {distractionLabels[event.kind]} · {eventLabels[event.status]}</div>
+              {distractionSchedule.events.map((event, index) => (
+                <div key={index}>{(event.atMs / 1000).toFixed(2)}초 · {distractionLabels[event.kind]} · {eventLabels[event.status]}
+                  {event.lane > 0 && ' · 동시 트랙'}</div>
               ))}
             </div>
             <div className="demo-actions">
-              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active !== null} onClick={() => startDistraction('flight')}>비둘기 비행 방해 테스트</button>
-              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active !== null} onClick={() => startDistraction('walk')}>비둘기 걷기 방해 테스트</button>
-              <button type="button" disabled={!canPreviewSuccess || showManholePreview || simulating || distractionSchedule.active !== null}
+              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active.length > 0} onClick={() => startDistraction('flight')}>비둘기 비행 방해 테스트</button>
+              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active.length > 0} onClick={() => startDistraction('walk')}>비둘기 걷기 방해 테스트</button>
+              <button type="button" disabled={!canPreviewSuccess || showManholePreview || simulating || distractionSchedule.active.length > 0}
                 onClick={() => startDistraction('manhole')}>하수구 비둘기 탈출 미리보기</button>
+              <button type="button" disabled={!canPreviewSuccess || showManholePreview || distractionSchedule.active.length > 0}
+                onClick={() => startDistraction('poop')}>비둘기 똥 테러 테스트</button>
             </div>
             <label className="audience-toggle">
               이동 방향
@@ -808,6 +972,41 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
                 <output>{distractionSettings[key]}{unit}</output>
               </label>
             ))}
+          </fieldset>
+          <fieldset>
+            <legend>할아버지 난입 · 1단계 프리뷰</legend>
+            <label className="audience-toggle">
+              <input type="checkbox" checked={grandpaEnabled} onChange={event => setGrandpaEnabled(event.currentTarget.checked)} />
+              할아버지 이벤트 (다음 판부터)
+            </label>
+            <p className="panel-note">기존 비둘기 방해와 함께 나올 수 있습니다. 실제 공원 랭킹 게임에는 나오지 않습니다.</p>
+            {(['jump', 'duck'] as const).map(key => (
+              <label className="audience-toggle" key={key}>
+                <input type="checkbox" checked={autoPlay[key]} onChange={event => {
+                  const auto = autoPlayRef.current
+                  auto[key] = event.currentTarget.checked
+                  setAutoPlay({ jump: auto.jump, duck: auto.duck })
+                }} />
+                {key === 'jump' ? '자동 PERFECT 점프 (개발용)' : '위험 스윙 자동 숙이기 (개발용)'}
+              </label>
+            ))}
+            <div className="panel-note" aria-label="할아버지 회피 타이밍 검증">
+              {liveTiming ? <>
+                <div>충돌 = 줄 통과 + {liveTiming.hitOffsetMs}ms (가장 늦은 GOOD 착지 {liveTiming.latestGoodLandingMs.toFixed(1)} + 숙이기 {duckTransitionMs} + 여유 {duckReadyMarginMs})</div>
+                <div>위험 스윙 최소 주기 {liveTiming.minDangerPeriodMs}ms (충돌 + 다음 입력 여유 {afterDodgeInputMs} + PERFECT 중심 {Math.round(liveTiming.perfectLeadMs)})</div>
+                <div>회피 가능 · 숙이기 완료 {Math.round(liveTiming.latestGoodLandingMs + duckTransitionMs)}ms ≤ 충돌 {liveTiming.hitOffsetMs}ms</div>
+              </> : <div>현재 점프 설정으로는 줄을 넘을 수 없어 위험 스윙을 만들 수 없습니다.</div>}
+            </div>
+            {grandpaDebug ? <div className="panel-note" aria-label="할아버지 일정">
+              <div>할아버지 시드 {grandpaDebug.seed} · 현재 충돌 오프셋 {grandpaDebug.hitOffsetMs ?? '-'}ms</div>
+              <div aria-label="할아버지 실시간 상태">{grandpaDebug.live}</div>
+              {grandpaDebug.events.map(event => (
+                <div key={event.title}>
+                  <strong>{event.title}</strong>{event.span && <> · {event.span}</>}
+                  {event.swings.map(swing => <div key={swing}>{swing}</div>)}
+                </div>
+              ))}
+            </div> : <p className="panel-note">게임을 시작하면 할아버지 일정이 표시됩니다.</p>}
           </fieldset>
           {controls.map(group => (
             <fieldset key={group.title}>

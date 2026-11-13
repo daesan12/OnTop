@@ -27,6 +27,7 @@ class LocalCompanionsTests {
         try(var ai=create((b,m)->OmokAnalyzer.unavailable())) {
             var initial=mapper.valueToTree(ai.invite("101",LocalCompanions.Difficulty.EASY));
             String gameId=initial.path("snapshot").path("gameId").asText();
+            verify(hub,atLeastOnce()).aiUpdatePracticeState(eq("t1"),anyString(),eq(gameId),eq(initial.path("snapshot").path("version").asLong()),eq(true));
             assertThat(ai.status("202","one").get("observedPractice")).isNull();
             when(hub.aiPracticeChatGame("202")).thenReturn(gameId);
             var observed=mapper.valueToTree(ai.status("202","one"));
@@ -35,6 +36,7 @@ class LocalCompanionsTests {
             var placed=mapper.valueToTree(ai.action("101",mapper.createObjectNode().put("gameId",gameId).put("version",initial.path("snapshot").path("version").asLong()).put("kind","place").put("actionId","shared-board-1").put("x",7).put("y",7)));
             assertThat(placed.path("lastMove").path("x").asInt()).isEqualTo(7);
             assertThat(placed.path("lastMove").path("stone").asText()).isEqualTo("BLACK");
+            verify(hub,atLeastOnce()).aiUpdatePracticeState(eq("t1"),anyString(),eq(gameId),eq(placed.path("snapshot").path("version").asLong()),eq(true));
             when(hub.aiPracticeChatGame("202")).thenReturn("");
             assertThat(ai.status("202","one").get("observedPractice")).isNull();
         }

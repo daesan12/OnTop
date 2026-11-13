@@ -147,7 +147,9 @@ class WorldPublicSeatFlowTests {
             JsonNode before = observer.await(message -> world(message)
                     && avatar(message, first.userId).path("tableSeat").isObject());
             hub.configureWorldClock(new WorldClock(Clock.fixed(now.plusSeconds(120), ZoneOffset.UTC)));
-            observer.request("WORLD_FOLLOW_CHECK", Map.of());
+            // Timeout processing may publish WORLD_STATE before the correlated check reply.
+            // Do not consume that broadcast while waiting for the unrelated follow response.
+            observer.sendRequest("WORLD_FOLLOW_CHECK", Map.of());
             JsonNode after = observer.await(message -> world(message)
                     && message.at("/payload/version").asLong() > before.at("/payload/version").asLong()
                     && avatar(message, first.userId).path("tableSeat").isNull());

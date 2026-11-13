@@ -10,7 +10,7 @@ import { useSession } from '../../src/network/worldClient'
 const receipt: JumpRopeReceipt = { id: '415', rulesVersion: 1, score: 1965, counts: { perfect: 66, good: 0, miss: 0 },
   endReason: 'time', completedAt: '2026-11-12T00:01:03Z', reward: 39 }
 const result = (props: Partial<Parameters<typeof JumpRopeResult>[0]> = {}) => renderToStaticMarkup(createElement(JumpRopeResult,
-  { reason: 'time', onQuit: () => {}, onRestart: () => {}, ...props }))
+  { reason: 'time', onQuit: () => {}, onRestart: () => {}, onOpenRanking: () => {}, ...props }))
 const sessionId = useSession.getState().sessionId
 afterEach(() => {
   vi.restoreAllMocks()
