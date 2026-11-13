@@ -4,16 +4,18 @@ import { RestError } from '../../network/restError'
 export interface BalanceRankingEntry { rank: number; userId: string; nickname: string; coinBalance: number; gameMaster: boolean; equipmentValue?: number; totalAssets?: number }
 export interface MoleRankingEntry { rank: number; userId: string; nickname: string; score: number; maxCombo: number; completedAt: string; gameMaster: boolean }
 export interface SpeedMoleRankingEntry { rank: number; userId: string; nickname: string; score: number; misses: number; completedAt: string; gameMaster: boolean }
+export interface JumpRopeRankingEntry { rank: number; userId: string; nickname: string; score: number; misses: number; completedAt: string; gameMaster: boolean }
 export interface ParkRankingSnapshot {
   balance: BalanceRankingEntry[]
   mole: MoleRankingEntry[]
   speedMole: SpeedMoleRankingEntry[]
+  jumpRope: JumpRopeRankingEntry[]
   updatedAt: string
 }
 
 export interface RankingDisplayRow { rank: number; userId: string; nickname: string; value: string; gameMaster: boolean }
 export interface RankingDisplayColumn {
-  key: 'balance' | 'mole' | 'speedMole'
+  key: 'balance' | 'mole' | 'speedMole' | 'jumpRope'
   title: string
   description: string
   rows: RankingDisplayRow[]
@@ -76,7 +78,14 @@ export function parseParkRanking(value: unknown): ParkRankingSnapshot {
     if (!safeWhole(item.score) || !safeWhole(item.misses)) return invalid()
     return { ...base, score: item.score, misses: item.misses }
   })
-  return { balance, mole, speedMole, updatedAt: value.updatedAt }
+  // 줄넘기 열을 아직 보내지 않는 이전 서버의 응답은 빈 열로 받는다. 필드가 있으면 다른 열과 같게 검증한다.
+  const jumpRope = value.jumpRope === undefined ? [] : list(value.jumpRope, item => {
+    if (!record(item)) return invalid()
+    const base = gameIdentity(item)
+    if (!safeWhole(item.score) || !safeWhole(item.misses)) return invalid()
+    return { ...base, score: item.score, misses: item.misses }
+  })
+  return { balance, mole, speedMole, jumpRope, updatedAt: value.updatedAt }
 }
 
 export async function fetchParkRanking(
@@ -100,6 +109,9 @@ export function rankingColumns(snapshot: ParkRankingSnapshot): RankingDisplayCol
       rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: `${number.format(item.score)}점`,
     })) },
     { key: 'speedMole', title: '스피드 두더지 잡기', description: '점수 · 적은 실수 · 먼저 달성', rows: snapshot.speedMole.map(item => ({
+      rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: `${number.format(item.score)}점`,
+    })) },
+    { key: 'jumpRope', title: '구구구 줄넘기', description: '점수 · 적은 실수 · 먼저 달성', rows: snapshot.jumpRope.map(item => ({
       rank: item.rank, userId: item.userId, nickname: item.nickname, gameMaster: item.gameMaster, value: `${number.format(item.score)}점`,
     })) },
   ]

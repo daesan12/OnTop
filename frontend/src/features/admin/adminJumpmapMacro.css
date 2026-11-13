@@ -1,0 +1,6 @@
+/* 게임 매크로 분석(adminMacroAnalysis.css)의 표·카드·버튼 모양을 그대로 쓰고 점프맵 화면에만 필요한 것만 더한다. */
+.admin-jumpmacro-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-jumpmacro-notes { margin: 0; padding: 12px 14px 12px 30px; border: 1px solid #cec3a9; border-radius: 8px; background: #f7f3e6; color: #535f51; font-size: .86rem; line-height: 1.7; }
+.admin-jumpmacro-notes li + li { margin-top: 2px; }
+.admin-macro .admin-jumpmacro-table :is(td, th) { white-space: nowrap; }
+.admin-macro .admin-jumpmacro-table small { display: block; margin-top: 2px; color: #6b715e; font-size: .78rem; font-weight: 400; }

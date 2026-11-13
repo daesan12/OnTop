@@ -18,6 +18,11 @@ const response = {
     { rank: 1, userId: '15', nickname: '스피드 고수', score: 132, misses: 3, completedAt: '2026-11-02T05:31:00Z' },
     { rank: 1, userId: '17', nickname: '공동 고수', score: 132, misses: 3, completedAt: '2026-11-02T05:32:00Z' },
   ],
+  jumpRope: [
+    { rank: 1, userId: '18', nickname: '줄넘기 고수', score: 1_250, misses: 1, completedAt: '2026-11-02T05:31:30Z' },
+    { rank: 2, userId: '19', nickname: '줄넘기 도전자', score: 980, misses: 2, completedAt: '2026-11-02T05:31:40Z', gameMaster: true },
+    { rank: 2, userId: '20', nickname: '공동 도전자', score: 980, misses: 2, completedAt: '2026-11-02T05:31:50Z' },
+  ],
   updatedAt: '2026-11-02T05:32:00Z',
 }
 
@@ -28,14 +33,25 @@ describe('park ranking contract', () => {
     expect(parsed.balance.map(item => item.userId)).toEqual(['11', '12', '13'])
     expect(parsed.mole.map(item => item.rank)).toEqual([1, 2])
     expect(parsed.speedMole.map(item => item.rank)).toEqual([1, 1])
-    expect(rankingColumns(parsed).map(column => column.title)).toEqual(['총자산', '두더지 잡기', '스피드 두더지 잡기'])
-    expect(rankingColumns(parsed).map(column => column.rows[0]?.value)).toEqual(['300냥', '2,981점', '132점'])
-    expect(rankingColumns(parsed).map(column => column.rows.length)).toEqual([3, 2, 2])
+    expect(parsed.jumpRope.map(item => item.rank)).toEqual([1, 2, 2])
+    expect(parsed.jumpRope.map(item => item.gameMaster)).toEqual([false, true, false])
+    expect(rankingColumns(parsed).map(column => column.key)).toEqual(['balance', 'mole', 'speedMole', 'jumpRope'])
+    expect(rankingColumns(parsed).map(column => column.title)).toEqual(['총자산', '두더지 잡기', '스피드 두더지 잡기', '구구구 줄넘기'])
+    expect(rankingColumns(parsed).map(column => column.rows[0]?.value)).toEqual(['300냥', '2,981점', '132점', '1,250점'])
+    expect(rankingColumns(parsed).map(column => column.rows.length)).toEqual([3, 2, 2, 3])
+  })
+
+  it('shows an empty jump-rope column when an older server omits it', () => {
+    const { jumpRope: _omitted, ...older } = response
+    const parsed = parseParkRanking(older)
+    expect(parsed.jumpRope).toEqual([])
+    expect(rankingColumns(parsed)).toHaveLength(4)
+    expect(rankingColumns(parsed)[3]).toMatchObject({ title: '구구구 줄넘기', rows: [] })
   })
 
   it('accepts an empty board', () => {
-    const empty = parseParkRanking({ ...response, balance: [], mole: [], speedMole: [] })
-    expect(rankingColumns(empty).map(column => column.rows)).toEqual([[], [], []])
+    const empty = parseParkRanking({ ...response, balance: [], mole: [], speedMole: [], jumpRope: [] })
+    expect(rankingColumns(empty).map(column => column.rows)).toEqual([[], [], [], []])
   })
 
   it('shows the server-approved GM prefix without changing the stored nickname', () => {
@@ -67,6 +83,10 @@ describe('park ranking contract', () => {
     expect(() => parseParkRanking({ ...response, mole: [{ ...response.mole[0], nickname: '' }] })).toThrow('랭킹 응답')
     expect(() => parseParkRanking({ ...response, speedMole: [{ ...response.speedMole[0], misses: -1 }] })).toThrow('랭킹 응답')
     expect(() => parseParkRanking({ ...response, mole: undefined })).toThrow('랭킹 응답')
+    expect(() => parseParkRanking({ ...response, jumpRope: null })).toThrow('랭킹 응답')
+    expect(() => parseParkRanking({ ...response, jumpRope: [{ ...response.jumpRope[0], misses: -1 }] })).toThrow('랭킹 응답')
+    expect(() => parseParkRanking({ ...response, jumpRope: [response.jumpRope[0], response.jumpRope[0]] })).toThrow('랭킹 응답')
+    expect(() => parseParkRanking({ ...response, jumpRope: [{ ...response.jumpRope[0], completedAt: 'invalid' }] })).toThrow('랭킹 응답')
     expect(() => parseParkRanking({ ...response, balance: [response.balance[2], response.balance[0]] })).toThrow('랭킹 응답')
   })
 

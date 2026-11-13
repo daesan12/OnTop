@@ -7,6 +7,7 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse.BalanceItem;
+import com.ssafy.ontop.ranking.dto.ParkRankingResponse.JumpRopeItem;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse.MoleItem;
 import com.ssafy.ontop.ranking.dto.ParkRankingResponse.SpeedMoleItem;
 import com.ssafy.ontop.ranking.exception.RankingException;
@@ -59,14 +60,16 @@ class ParkRankingHttpTests {
     }
 
     @Test
-    void 인증된_회원에게_세_랭킹과_집계시각을_한번에_반환한다() throws Exception {
+    void 인증된_회원에게_네_랭킹과_집계시각을_한번에_반환한다() throws Exception {
         Instant updatedAt = Instant.parse("2026-11-02T01:00:00Z");
         when(snapshots.current()).thenReturn(new ParkRankingResponse(
                 List.of(new BalanceItem(1, "11", "보유자", 100)),
                 List.of(new MoleItem(1, "12", "두더지왕", 2_000, 14,
                         updatedAt.minusSeconds(2))),
                 List.of(new SpeedMoleItem(1, "13", "스피드왕", 85, 2,
-                        updatedAt.minusSeconds(1))), updatedAt));
+                        updatedAt.minusSeconds(1))),
+                List.of(new JumpRopeItem(1, "14", "줄넘기왕", 1_250, 1,
+                        updatedAt.minusSeconds(3), false)), updatedAt));
 
         HttpResponse<String> response = get(jwt.issue(42, TestLoginSessions.ID));
 
@@ -79,6 +82,11 @@ class ParkRankingHttpTests {
         assertThat(body.at("/speedMole/0/rank").asLong()).isEqualTo(1);
         assertThat(body.at("/speedMole/0/score").asLong()).isEqualTo(85);
         assertThat(body.at("/speedMole/0/misses").asLong()).isEqualTo(2);
+        assertThat(body.at("/jumpRope/0/userId").asText()).isEqualTo("14");
+        assertThat(body.at("/jumpRope/0/score").asLong()).isEqualTo(1_250);
+        assertThat(body.at("/jumpRope/0/misses").asLong()).isEqualTo(1);
+        assertThat(body.at("/jumpRope/0/completedAt").asText()).isEqualTo("2026-11-02T00:59:57Z");
+        assertThat(body.at("/jumpRope/0/gameMaster").asBoolean()).isFalse();
         assertThat(body.has("bungeoppang")).isFalse();
         assertThat(body.has("jumpmap")).isFalse();
         assertThat(body.has("singleGameProfit")).isFalse();
@@ -103,6 +111,8 @@ class ParkRankingHttpTests {
         assertThat(body.path("mole")).isEmpty();
         assertThat(body.path("speedMole").isArray()).isTrue();
         assertThat(body.path("speedMole")).isEmpty();
+        assertThat(body.path("jumpRope").isArray()).isTrue();
+        assertThat(body.path("jumpRope")).isEmpty();
     }
 
     @Test
