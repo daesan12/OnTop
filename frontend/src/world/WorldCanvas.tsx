@@ -7,14 +7,11 @@ import { lazy } from 'react'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_GATE_STARTUP, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { loadRenewalParkWorld } from '../park/loadRenewalParkWorld'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
-import { FacilityOnApproach } from '../../park-renewal-preview/live/FacilityOnApproach'
 import { ShaderPreparedGroup } from '../../park-renewal-preview/live/ShaderPreparedGroup'
-import { START } from '../features/jumpmap/activeCourse'
 import { useJumpmap } from '../features/jumpmap/state'
 const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
 const RenewalParkWorld=RENEWAL_PARK_ENABLED ? lazy(loadRenewalParkWorld) : null
 const ServiceJumpCourse=lazy(()=>import('../features/jumpmap/ServiceJumpCourse').then(m=>({default:m.ServiceJumpCourse})))
-const jumpCourseEntrance = { id: 'jump-course', x: START.x, z: START.z, radius: 18 }
 import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useFrame } from '@react-three/fiber'
@@ -149,11 +146,15 @@ export const WorldCanvas = memo(function WorldCanvas({
   onReady: () => void
 }) {
   const [distantReady, setDistantReady] = useState(false)
+  const [jumpPreviewReady, setJumpPreviewReady] = useState(false)
   const jumpRunActive = useJumpmap(state => !!state.run)
   const breadActive = useBungeoppang(state => state.phase !== 'idle')
   const firstFrameAt = useRef<number | null>(null)
+  const jumpPreviewTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(jumpPreviewTimer.current), [])
   const reportFirstFrame = useCallback(() => {
     firstFrameAt.current = performance.now()
+    if (RENEWAL_PARK_ENABLED) jumpPreviewTimer.current = window.setTimeout(() => setJumpPreviewReady(true), 1500)
     onReady()
   }, [onReady])
   const boardPlayer = useGame(s => s.game?.role === 'PLAYER' && (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING'))
@@ -241,11 +242,8 @@ export const WorldCanvas = memo(function WorldCanvas({
             <OmokFocusLighting />
             <SceneReady onReady={reportFirstFrame} />
           </Suspense>
-          {RENEWAL_PARK_ENABLED && (distantReady || jumpRunActive) &&
-            <FacilityOnApproach site={jumpCourseEntrance} active={jumpRunActive}>
-              {/* Compile against the final exterior light pool, after RenewalWorld updates it. */}
-              <Suspense fallback={null}><ShaderPreparedGroup priority={.75}><ServiceJumpCourse /></ShaderPreparedGroup></Suspense>
-            </FacilityOnApproach>}
+          {RENEWAL_PARK_ENABLED && (distantReady || jumpPreviewReady || jumpRunActive) &&
+            <Suspense fallback={null}><ShaderPreparedGroup priority={.75}><ServiceJumpCourse /></ShaderPreparedGroup></Suspense>}
           <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
         <PoliceNpcs />
         <CompanionActors />

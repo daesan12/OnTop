@@ -43,9 +43,10 @@ function materialFor(theme: JumpTheme, finish: string) {
   material.customProgramCacheKey = () => `service-jump-${theme}-${finish}-tactile-2`
   return material
 }
-function idlePadFade(block: number) {
-  if (!renewalCourse || block < renewalCourse.opaqueAtStart) return 1
-  return block < renewalCourse.visibleAtStart ? .15 : 0
+function idlePadFade(block: number, playable: boolean) {
+  if (!renewalCourse) return 1
+  if (block >= renewalCourse.visibleAtStart) return 0
+  return playable && block < renewalCourse.opaqueAtStart ? 1 : .32
 }
 
 function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: readonly CourseBlock[]; art?: Record<string, BufferGeometry>; enabled?: boolean }) {
@@ -55,7 +56,7 @@ function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: r
   const reduced = useMemo(() => matchMedia('(prefers-reduced-motion: reduce)'), [])
   const batches = useMemo(() => Object.entries(art ?? artByTheme[theme]).map(([finish, source]) => {
     const geometry = landingGeometry(source, theme)
-    geometry.setAttribute('aFade', new InstancedBufferAttribute(Float32Array.from(pads, pad => idlePadFade(pad.block)), 1))
+    geometry.setAttribute('aFade', new InstancedBufferAttribute(Float32Array.from(pads, pad => idlePadFade(pad.block, false)), 1))
     geometry.setAttribute('aHit', new InstancedBufferAttribute(new Float32Array(pads.length).fill(-1e6), 1))
     geometry.setAttribute('aPower', new InstancedBufferAttribute(new Float32Array(pads.length).fill(0), 1))
     return { finish, geometry, material: materialFor(theme, finish) }
@@ -79,7 +80,7 @@ function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: r
     if (enabled) return
     for (const batch of batches) for (const [name, value] of [['aFade', 1], ['aHit', -1e6], ['aPower', 0]] as const) {
       const attribute = batch.geometry.getAttribute(name) as InstancedBufferAttribute
-      if (name === 'aFade') pads.forEach((pad, index) => attribute.setX(index, idlePadFade(pad.block)))
+      if (name === 'aFade') pads.forEach((pad, index) => attribute.setX(index, idlePadFade(pad.block, false)))
       else attribute.array.fill(value)
       attribute.needsUpdate = true
     }
@@ -106,7 +107,7 @@ function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: r
           const motion = renewalPadPose(p, motionTime)
           const shown = renewalPadShown(p.block) && motion.visible
           const [sx, sz] = scaleFor(p)
-          fade.setX(i, shown ? (s.run ? 1 : idlePadFade(p.block)) : 0)
+          fade.setX(i, shown ? (s.run ? 1 : idlePadFade(p.block, true)) : 0)
           if (mesh && (p.theme === 'lily' || p.theme === 'pigeon' || p.theme === 'mole')) {
             transform.position.set(p.x, p.top + motion.offset, p.z)
             transform.rotation.set(0, p.yaw, 0)
@@ -126,7 +127,7 @@ function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: r
       fade.needsUpdate = hit.needsUpdate = power.needsUpdate = true
     }
   })
-  return <group name={art ? art === jumpStartArt ? 'service-jump-start' : 'service-jump-finish' : `service-jump-${theme}`} userData={{ keepOpaque: true }}>{batches.map((b, i) => <instancedMesh key={b.finish} visible={enabled} receiveShadow={art === jumpStartArt} userData={{ prepareWhenHidden: true }} ref={m => { if (m) meshes.current[i] = m }} args={[b.geometry, b.material, pads.length]} dispose={null} />)}</group>
+  return <group name={art ? art === jumpStartArt ? 'service-jump-start' : 'service-jump-finish' : `service-jump-${theme}`} userData={{ keepOpaque: true }}>{batches.map((b, i) => <instancedMesh key={b.finish} visible={enabled || !!renewalCourse} receiveShadow={art === jumpStartArt} userData={{ prepareWhenHidden: true }} ref={m => { if (m) meshes.current[i] = m }} args={[b.geometry, b.material, pads.length]} dispose={null} />)}</group>
 }
 function LandingEffects({ enabled }: { enabled: boolean }) {
   const mesh = useRef<InstancedMesh>(null)
