@@ -6,7 +6,8 @@
   padding-block: 13px 12px;
 }
 
-.park-page .npc-overhead > .npc-nickname[hidden] {
+.park-page .npc-overhead > .npc-nickname[hidden],
+.park-page .npc-overhead > .npc-speech[hidden] {
   display: none;
 }
 
