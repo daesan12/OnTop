@@ -6,7 +6,7 @@ import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
 import { lazy, memo, startTransition, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
-import type { Group } from 'three'
+import type { Group, Object3D } from 'three'
 import { authoritativePose, avatars, useSession } from '../../src/network/worldClient'
 import { horrorState, secretCorridorContains } from '../horrorPlan'
 import { CAMERA, type QualityPreset } from '../../src/config'
@@ -41,6 +41,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
   const surface = useRef<Group>(null), interior = useRef<Group>(null)
   const loadInterior = useRef(false)
   const queuedAmbientShaders = useRef(false)
+  const nightPool = useRef<{ group: Object3D; lights: Object3D[]; quality: QualityPreset } | undefined>(undefined)
   const [loaded, setLoaded] = useState(false)
   const [lakeProgress] = useState(createLakeProgress)
   const [stage, setStage] = useState(() => !atEntrance() || welcomeFlight.active ? finalStage : 0)
@@ -96,6 +97,14 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
     }
     const visible = inside && secretCorridorContains(camera.position)
       && !!interior.current?.getObjectByName('underground-horror-zone')
+    // NightLighting fades intensities to zero during the day. Keep its fixed
+    // pool in the exterior shader layout so dusk never relinks the whole park
+    // in one render pass. The exterior group's visibility still owns interiors.
+    if (nightPool.current?.quality !== quality || !nightPool.current.group.parent) {
+      const group = surface.current?.getObjectByName('night-lighting')
+      nightPool.current = group ? { group, quality, lights: group.children.filter(light => light.userData.warmNightLight) } : undefined
+    }
+    for (const light of nightPool.current?.lights ?? []) light.visible = true
     if (surface.current) surface.current.visible = !visible
     if (interior.current) interior.current.visible = visible
     const daylight = scene.getObjectByName('renewal-exterior-lighting')
@@ -104,7 +113,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
       queuedAmbientShaders.current = true
       // Let the driver link the ambient animations before their first draw.
       if (gl.extensions.has('KHR_parallel_shader_compile')) {
-        for (const name of ['park-pigeons', 'mole-demo-impact-ring']) {
+        for (const name of ['park-pigeons', 'mole-demo-impact-ring', 'reference-fountain', 'preserved-complete-fitness-district']) {
           const object = surface.current?.getObjectByName(name)
           if (object) gl.compile(object, camera, scene)
         }

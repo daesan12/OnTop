@@ -1,7 +1,7 @@
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
 import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
-import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
+import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Matrix4, Vector3 } from 'three'
 import { cameraWorldPosition, parkXRView } from './xrView'
@@ -58,8 +58,10 @@ function Avatar({
   samplePose,
   carryMotion,
   firstGateFrameAt,
+  crowded,
 }: {
   id: string
+  crowded: boolean
   rigs: Map<string, AvatarAnchors>
   menuRaycast: Group['raycast']
   samplePose: AvatarSampler
@@ -199,6 +201,7 @@ function Avatar({
       active,
       presentation.key(avatar, reaction?.key ?? '', holdingCards, active),
       !reaction && avatarPoseAmbient(displayAvatar),
+      crowded && !carryAnimation && !reaction && !seated && !displayAvatar.emote && !displayAvatar.fitnessId && !displayAvatar.telescopeId,
     )
     if (!poseDelta) return
     const partner = avatars.get(carriedPartner.current.id)
@@ -257,6 +260,29 @@ export function Avatars({
   firstGateFrameAt?: RefObject<number | null>
 }) {
   const ids = useSession((state) => state.ids)
+  const ownId = useSession(state => state.sessionId)
+  const [mountedPeers, setMountedPeers] = useState<readonly string[]>([])
+  const pendingPeers = useRef(false)
+  const mounted = useMemo(() => new Set(mountedPeers), [mountedPeers])
+  const wanted = useMemo(() => new Set(ids.filter(id => id !== ownId)), [ids, ownId])
+  const needsPeers = RENEWAL_PARK_ENABLED && (mounted.size !== wanted.size || mountedPeers.some(id => !wanted.has(id)))
+  useLayoutEffect(() => { pendingPeers.current = false }, [mountedPeers])
+  useFrame(() => {
+    if (!needsPeers || pendingPeers.current) return
+    const next = mountedPeers.filter(id => wanted.has(id))
+    // Cloning several skeletons at once can monopolize a render frame on join.
+    // Retain existing peers and admit at most four new rigs per rendered frame.
+    let admitted = 0
+    for (const id of wanted) {
+      if (mounted.has(id)) continue
+      next.push(id)
+      if (++admitted === 4) break
+    }
+    if (!admitted && next.length === mountedPeers.length) return
+    pendingPeers.current = true
+    startTransition(() => setMountedPeers(next))
+  }, -2.5)
+  const crowded = RENEWAL_PARK_ENABLED && ids.length >= 20
   const samplePose = useAvatarFrameSampler()
   const rigs = useMemo(() => new Map<string, AvatarAnchors>(), [])
   const carryMotion = useMemo(createCarryMotion, [])
@@ -271,8 +297,8 @@ export function Avatars({
   useEffect(installGameReactions, [])
   return (
     <group name="visitors">
-      {ids.map((id) => (
-        <Avatar key={id} id={id} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} carryMotion={carryMotion} firstGateFrameAt={firstGateFrameAt} />
+      {(RENEWAL_PARK_ENABLED ? ids.filter(id => id === ownId || mounted.has(id)) : ids).map((id) => (
+        <Avatar key={id} id={id} crowded={crowded} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} carryMotion={carryMotion} firstGateFrameAt={firstGateFrameAt} />
       ))}
       <SwimmingRipples />
 

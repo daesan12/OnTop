@@ -16,12 +16,13 @@ export class AvatarPoseCadence {
     active: boolean,
     key: string | number,
     ambient = false,
+    crowded = false,
   ) {
     if (distance > 16) this.distant = true
     else if (distance < 12) this.distant = false
     const lively = active || (ambient && (own || !this.distant))
     const interval =
-      own || (active && !this.distant) ? 0 : lively ? 1 / 15 : 1 / 12
+      own ? 0 : active && !this.distant ? (crowded ? 1 / 30 : 0) : lively ? 1 / 15 : 1 / 12
     const changed = this.previousKey !== key || this.previousActive !== active
     const dt = Math.min(Math.max(0, delta), 0.1)
     this.quiet = changed || lively ? 0 : this.quiet + dt
