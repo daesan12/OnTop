@@ -11,6 +11,8 @@ import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
+import com.ssafy.ontop.world.mobility.MobilityRentals;
+import com.ssafy.ontop.world.mobility.MobilityWallet;
 import com.ssafy.ontop.world.movement.WorldPhysics;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
@@ -34,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class TableHubPositionTests {
@@ -90,6 +93,34 @@ class TableHubPositionTests {
         tick(30);
 
         assertThat(positions).isEmpty();
+    }
+
+    @Test
+    void 같은_대여_요청은_한_번_결제하고_하차하면_공개_탈것을_제거한다() throws Exception {
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String avatar = registry.worldState("one").avatars().getFirst().userId();
+        var at = registry.positionOf(avatar);
+        var stations = mapper.valueToTree(List.of(Map.of("id", "mobility-entry", "yaw", 0,
+                "reachPosition", List.of(at.x(), at.y(), at.z()), "radius", 3, "heightTolerance", .7)));
+        var rentals = new MobilityRentals(wallet, stations);
+        String lease = UUID.randomUUID().toString();
+        when(wallet.charge(101, lease, 1, 2)).thenReturn(MobilityWallet.Payment.PAID);
+        var payload = Map.of("stationId", "mobility-entry", "vehicle", "SCOOTER", "leaseId", lease);
+
+        synchronized (hub) {
+            ReflectionTestUtils.setField(hub, "rentals", rentals);
+            assertThat(user.request("WORLD_MOBILITY_START", payload).at("/payload/status").asText()).isEqualTo("RIDING");
+            assertThat(user.request("WORLD_MOBILITY_START", payload).at("/payload/total").asLong()).isEqualTo(2);
+            assertThat(registry.worldState("one").vehicles()).containsEntry(avatar, "SCOOTER");
+            assertThat(user.request("WORLD_MOBILITY_END", Map.of("leaseId", lease))
+                    .at("/payload/total").asLong()).isEqualTo(2);
+        }
+
+        verify(wallet).charge(101, lease, 1, 2);
+        assertThat(registry.worldState("one").vehicles()).isEmpty();
+        assertThat(rentals.active()).isEmpty();
     }
 
     private void tick(int count) {

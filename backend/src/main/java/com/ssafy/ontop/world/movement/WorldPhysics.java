@@ -421,6 +421,18 @@ public final class WorldPhysics implements AutoCloseable {
         }
     }
 
+    public void setVehicleSpeed(String id, int speed) {
+        call(() -> {
+            Actor actor = actors.get(id);
+            stopNow(id);
+            if (speed > 0) {
+                serverControl(actor);
+            }
+            actor.vehicleSpeed = speed;
+            return null;
+        });
+    }
+
     public boolean input(String id, MoveInput input, long now) {
         return call(() -> inputNow(id, input, now));
     }
@@ -452,6 +464,9 @@ public final class WorldPhysics implements AutoCloseable {
         }
         if (input.seq() <= actor.seq) {
             return false;
+        }
+        if (actor.vehicleSpeed > 0) {
+            input = new MoveInput(input.seq(), input.dx(), input.dz(), false, false);
         }
         actor.seq = input.seq();
         actor.input = input;
@@ -551,7 +566,8 @@ public final class WorldPhysics implements AutoCloseable {
                 }
             }
             if (tunedMovement && clientPositions && !a.clientControlled && !a.positionDisabled
-                    && a.throwTicks == 0 && !following.containsKey(entry.getKey()) && !a.courseRide) {
+                    && a.throwTicks == 0 && a.vehicleSpeed == 0 && !a.courseRide
+                    && !following.containsKey(entry.getKey())) {
                 resumeClientControl(a);
             }
             if (!tunedMovement && a.clientControlled && (following.containsKey(entry.getKey()) || specialMovement(a.body.getPhysicsLocation(null)))) {
@@ -609,7 +625,7 @@ public final class WorldPhysics implements AutoCloseable {
                                             .path("swimming")
                                             .path(active && input.run() ? "fastSpeed" : "speed")
                                             .asDouble()
-                            : number(active && input.run() ? "runSpeed" : "walkSpeed");
+                            : a.vehicleSpeed > 0 ? a.vehicleSpeed : number(active && input.run() ? "runSpeed" : "walkSpeed");
             double dx = active ? input.dx() : 0, dz = active ? input.dz() : 0;
             if (a.throwTicks > 0) {
                 dx = a.throwX / speed;
@@ -1592,6 +1608,7 @@ public final class WorldPhysics implements AutoCloseable {
         long seq;
         long receivedAt;
         long motionEpoch;
+        int vehicleSpeed;
         double beforeStepY;
         Motion motion = new Motion(0, 0, 0, 250, 0, false, false);
         double yaw = Math.PI;
