@@ -1,0 +1,43 @@
+.mobility-hud {
+  position: fixed;
+  z-index: 16;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 7px 16px;
+  border: 3px double #867143;
+  border-radius: 24px;
+  background: #f5ebd3 url('/art/tablet/hanji.webp') center / cover;
+  box-shadow: 0 2px 9px #28211f33;
+  color: #163d29;
+  font: 700 0.9rem/1.4 'Malgun Gothic', system-ui, sans-serif;
+  pointer-events: none;
+}
+.mobility-hud b { color: #805715; font-variant-numeric: tabular-nums; }
+.mobility-hud kbd {
+  font: inherit;
+  padding: 2px 5px;
+  border: 1px solid #867143;
+  border-radius: 5px;
+  background: #fcf4e2;
+}
+.mobility-hold, .mobility-key { display: inline-flex; align-items: center; gap: 5px; }
+.mobility-key { position: relative; justify-content: center; width: 36px; height: 36px; }
+.mobility-key svg { position: absolute; inset: 0; width: 100%; transform: rotate(-90deg); }
+.mobility-key circle { fill: none; stroke: #bca876; stroke-width: 2; }
+.mobility-key .mobility-progress {
+  stroke: #ae781d;
+  stroke-width: 3;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: mobility-hold linear forwards;
+}
+@keyframes mobility-hold { to { stroke-dashoffset: 0; } }

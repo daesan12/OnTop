@@ -50,6 +50,7 @@ import { useJumpmap } from '../jumpmap/state'
 import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
 import { openFortune } from '../fortune/controller'
+import { rentalCapability, useMobility } from '../mobility/state'
 import { useDisplayGame } from '../../game/displayGame'
 import { diamond, interiorVisit, visitScope } from '../../../park-renewal-preview/interiorEvents'
 import { accessAt, interiorAccess } from '../../../park-renewal-preview/interiorAccess'
@@ -84,7 +85,8 @@ export interface ParkInteraction {
 export function getParkInteraction(): ParkInteraction | null {
   const session = useSession.getState(), benches = useBenchState.getState(), fitness = useFitnessState.getState()
   const p = avatars.get(session.sessionId)
-  if (facilityMovementBlocked(session.sessionId)) return null
+  const mobility = useMobility.getState()
+  if (mobility.target || mobility.phase !== 'idle' || p?.vehicle || facilityMovementBlocked(session.sessionId)) return null
   if (!roamingInput.ready || !p || session.status !== 'connected' || !session.mapCompatible || session.tableId || p.seatIndex >= 0
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || useDisplayGame.getState().localPractice || panelOwnsKeys()) return null
@@ -118,7 +120,7 @@ export function getParkInteraction(): ParkInteraction | null {
   if(plazaKiosksEnabled)for(const site of constructionSites){
     // layout-shop is the visible gacha machine. Its E prompt is controlled by the
     // backend runtime capability below, not by the legacy construction marker.
-    if(site.id===PARK_GACHA_MACHINE.id)continue
+    if(site.id===PARK_GACHA_MACHINE.id || RENEWAL_PARK_ENABLED && rentalCapability.available && site.id.startsWith('mobility-'))continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     const label = site.id === 'layout-drink' ? '복권방 열기' : site.label

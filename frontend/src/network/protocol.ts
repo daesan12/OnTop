@@ -51,6 +51,7 @@ export interface WorldState {
   secretDoorsOpen?: boolean
   tables?: PublicTable[]
   gameWatches?: Record<string, { gameId: string; tableId: string }>
+  vehicles?: Record<string, import('../features/mobility/state').Vehicle>
   avatars: {
     userId: string
     position: Position
@@ -230,6 +231,9 @@ export function worldState(value: Record<string, unknown>): WorldState {
   if (value.gameWatches !== undefined && (!record(value.gameWatches) || Object.entries(value.gameWatches).some(([id, watch]) =>
     !avatarIds.has(id) || !record(watch) || !text(watch.gameId) || !text(watch.tableId))))
     throw new Error('관전자 공개 상태가 올바르지 않습니다.')
+  if (value.vehicles !== undefined && (!record(value.vehicles) || Object.entries(value.vehicles).some(([id, kind]) =>
+    !avatarIds.has(id) || kind !== 'BICYCLE' && kind !== 'SCOOTER')))
+    throw new Error('공개 탈것 상태가 올바르지 않습니다.')
   const seats = value.avatars.flatMap(a => a.tableSeat ? [`${a.tableSeat.tableId}\0${a.tableSeat.seatNumber}`] : [])
   if (new Set(seats).size !== seats.length) throw new Error('중복 테이블 착석 상태입니다.')
   if (value.tables !== undefined) {

@@ -5,6 +5,7 @@ import {
   getAuthSession,
   restoreAuthSession,
 } from '../../auth/authFlow'
+import { acceptRental, rentalNotice, rentalCapability, useMobility, type RentalTarget } from '../../features/mobility/state'
 import { SharedSocket, ServerError } from '../../network/socketClient'
 import { StoneControlQueue } from '../../game/stone-rumble/controlQueue'
 import { routeCoopMessage, subscribeCoop } from '../../features/skewer/coop/contracts'
@@ -31,7 +32,7 @@ import {observedNpcPractice,syncPracticeSpectator} from '../../features/ai/pract
 import { gamePlayers, gameState } from '../../game/protocol'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
-import { receiveWalletSettlement } from '../../features/wallet/settlementRefresh'
+import { receiveWalletSettlement, refreshWalletAfterSettlement } from '../../features/wallet/settlementRefresh'
 import {
   channel,
   record,
@@ -710,6 +711,7 @@ export class ParkRuntime implements ParkRuntimePort {
       return
     }
     if(message.type==='CONNECTED') {
+      rentalCapability.available = message.payload.mobilityAvailable === true
       clearTimeout(this.timer)
       if(message.payload.map===undefined&&message.payload.mapVerificationRequired===true){this.rejectMap(undefined);return}
       if(!this.mapAdmission.connected(message.payload.map)){this.rejectMap(message.payload.map);return}
@@ -727,6 +729,13 @@ export class ParkRuntime implements ParkRuntimePort {
       if (this.mapReady && this.mapAdmission.allowed && session.status === 'connected'
         && session.mapCompatible && session.roomId && !session.pending)
         this.notesChanges.accept(message)
+      return
+    }
+    if (message.type === 'WORLD_MOBILITY_STATE') {
+      const { receipt } = message.payload
+      if (acceptRental(message.payload) && typeof receipt === 'string') {
+        refreshWalletAfterSettlement(useSession.getState().sessionId, 'mobility:' + receipt)
+      }
       return
     }
     if (routeCoopMessage(message)) {
@@ -1148,6 +1157,32 @@ export class ParkRuntime implements ParkRuntimePort {
   releaseAvatar = (carryId: string) => this.action(async () => {
     await this.socket.request('WORLD_CARRY_RELEASE', { carryId }, ['WORLD_STATE'])
   }, { blockControls: false })
+  async rentVehicle(target: RentalTarget, leaseId: string) {
+    const payload = { stationId: target.stationId, vehicle: target.vehicle, leaseId }
+    try {
+      await this.socket.request('WORLD_MOBILITY_START', payload, ['WORLD_MOBILITY_STATE'])
+    } catch (error) {
+      if (useMobility.getState().leaseId !== leaseId || useMobility.getState().phase !== 'starting') return
+      if (!(error instanceof ServerError)) {
+        // The server may have committed before the reply timed out. End the same lease.
+        await this.endVehicleRental(leaseId)
+        if (useMobility.getState().leaseId !== leaseId || this.socket.connected) return
+      }
+      useMobility.setState({ phase: 'idle', leaseId: '', vehicle: null })
+      rentalNotice(error instanceof ServerError ? error.message : '탑승 요청을 확인할 수 없어요.')
+    }
+  }
+  async endVehicleRental(leaseId: string) {
+    try {
+      await this.socket.request('WORLD_MOBILITY_END', { leaseId }, ['WORLD_MOBILITY_STATE'])
+    } catch {
+      const state = useMobility.getState()
+      if (state.leaseId !== leaseId) return
+      useMobility.setState({ phase: 'riding' })
+      rentalNotice('하차 요청을 확인할 수 없어요. 다시 시도해 주세요.')
+    }
+  }
+
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
@@ -1165,23 +1200,24 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
-    if (localMovement.positionUnavailable) {
+    const riding = !!avatars.get(useSession.getState().sessionId)?.vehicle
+    if (!riding && localMovement.positionUnavailable) {
       const message = '이동 엔진을 준비하지 못했습니다. 새로고침 후 다시 접속해주세요.'
       if (useSession.getState().error !== message) this.report(message)
       return
     }
-    const fallback = localMovement.positionFallback()
+    const fallback = riding ? null : localMovement.positionFallback()
     if (fallback) {
       try { await this.socket.request('WORLD_POSITION_FALLBACK', fallback, ['WORLD_STATE']) }
       catch (error) { if (scope === this.movementScope() && this.active) this.report(error) }
       return
     }
-    if (localMovement.positionPreparing) return
+    if (!riding && localMovement.positionPreparing) return
     const sequence = ++this.inputSequence
     localMovement.sentInput(sequence, performance.now(), intent)
     let requestId = ''
     try {
-      const report = localMovement.positionReport(sequence, intent)
+      const report = riding ? null : localMovement.positionReport(sequence, intent)
       const reportedSequence = report?.seq ?? sequence
       await this.socket.request(report ? 'WORLD_POSITION' : 'WORLD_MOVE', report ?? {
         seq: sequence,

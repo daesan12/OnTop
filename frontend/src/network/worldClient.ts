@@ -84,6 +84,7 @@ export interface AvatarSnapshot {
   followTargetId: string
   carry?: import('./protocol').CarryState | null
   interactionBusy?: boolean
+  vehicle?: import('../features/mobility/state').Vehicle
 }
 export interface ChatMessage {
   id: string
@@ -320,7 +321,7 @@ export function sampleAvatar(
     if (!predictionAllowed()) localMovement.suspend()
     else if (localMovement.sample(now, target)) return target
   } else if (avatar.userId && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId
-    && remoteMovement.sample(avatar.userId, now, target, avatar.carry?.role === 'THROWN' ? 14 : undefined)) {
+    && remoteMovement.sample(avatar.userId, now, target, avatar.vehicle === 'SCOOTER' || avatar.carry?.role === 'THROWN' ? 14 : avatar.vehicle === 'BICYCLE' ? 11 : undefined)) {
     return target
   }
   return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
@@ -328,7 +329,7 @@ export function sampleAvatar(
 
 function predictionAllowed() {
   const s = useSession.getState(), own = avatars.get(s.sessionId)
-  return !!own && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
+  return !!own && !own.vehicle && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
     && (!own.carry || own.carry.role === 'CARRIER')
     && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1')
     && (!s.activities[s.sessionId] || s.activities[s.sessionId] === 'WATCHING')
@@ -674,6 +675,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
           telescopePitch: 0,
           followTargetId: '',
           carry: mapCompatible ? carry ?? null : null,
+          vehicle: mapCompatible ? next.vehicles?.[userId] : undefined,
           interactionBusy: interactionBusy === true,
         })
         if (mapCompatible && userId !== state.sessionId)
