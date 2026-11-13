@@ -1,5 +1,32 @@
 import {expect,test} from '@playwright/test'
 const practice={name:'박영감',npcUserId:'9001',actorId:'opponent-9001',difficulty:'HARD',phase:'ARRIVING',bet:0,thinking:false,speech:'',speechSource:'FIXED',analysis:{source:'LOCAL',blackEstimate:null,advantage:'UNKNOWN'},analysisNote:'',snapshot:{gameId:'table-opponent',tableId:'table1',version:0,blackUserId:101,whiteUserId:9001,turnUserId:101,winnerUserId:null,turnDeadline:new Date(Date.now()+30000).toISOString(),endedAt:null,endReason:null,board:{board:Array.from({length:15},()=>Array(15).fill(0)),moveCount:0,outcome:'PLAYING',forbiddenMoves:[]}}}
+
+for(const entry of ['manual','automatic'] as const){
+ test(`${entry} opponent accepts a JSON invitation/first black move instead of HTTP 415`,async({page},info)=>{
+  let active=entry==='automatic',moves=0
+  const headers:Record<string,string>[]=[]
+  const p={...practice,phase:'PLAYING',snapshot:{...practice.snapshot,turnDeadline:new Date(Date.now()+30000).toISOString()}}
+  await page.route('**/api/v1/ai/companions/status',r=>r.fulfill({json:{actors:[],practice:active?{...p,snapshot:{...p.snapshot,version:moves,board:{...p.snapshot.board,moveCount:moves}}}:null,commentary:[]}}))
+  await page.route('**/api/v1/ai/companions/{invite,action}',r=>{
+   const h=r.request().headers();headers.push(h)
+   if(!h['content-type']?.startsWith('application/json'))return r.fulfill({status:415,json:{error:'Unsupported Media Type'}})
+   if(r.request().url().endsWith('/invite')){active=true;return r.fulfill({json:p})}
+   expect(r.request().postDataJSON()).toMatchObject({kind:'place',gameId:'table-opponent',version:0,x:7,y:7})
+   moves++;return r.fulfill({json:{accepted:true}})
+  })
+  await page.goto('/tests/fixtures/npc-opponent.html')
+  if(entry==='manual'){
+   await page.getByRole('button',{name:'오목 AI 상대 선택',exact:true}).click()
+   await page.getByRole('button',{name:'박영감(어려움)',exact:true}).click()
+  }
+  await expect(page.getByLabel('오목판 연결 상태')).toHaveText('table-opponent')
+  await page.getByRole('button',{name:'검수용 흑돌 착수'}).click()
+  await expect(page.getByLabel('검수용 착수 수')).toHaveText('1')
+  expect(headers).toHaveLength(entry==='manual'?2:1)
+  for(const h of headers)expect(h['content-type']).toContain('application/json')
+  await page.screenshot({path:info.outputPath(`${entry}-json-first-move.png`),animations:'disabled'})
+ })
+}
 test('a same-difficulty actor elsewhere does not block invitation; transient status loss preserves arrival until seated',async({page},info)=>{
  let phase='NONE',fail=false,invites=0
  const other={id:'opponent-other',name:'박영감',channelId:'fixture-channel',role:'OPPONENT',difficulty:'HARD',action:'PLAY_OMOK',x:10,y:0,z:0,seated:true,moving:false}

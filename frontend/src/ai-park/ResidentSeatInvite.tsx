@@ -12,7 +12,7 @@ export function ResidentSeatInvite({disabled}:{disabled:boolean}) {
   const {sessionId,roomId}=useSession.getState()
   const current=()=>useSession.getState().sessionId===sessionId&&useSession.getState().roomId===roomId&&useSession.getState().status==='connected'
   try{
-   const practice=await parkRuntime.requestJSON(companionPath('invite'),{method:'POST',body:JSON.stringify({difficulty})})
+   const practice=await parkRuntime.requestJSON(companionPath('invite'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({difficulty})})
    if(!current())return
    if(!acceptCompanions({...useCompanions.getState(),practice}))throw new Error('Invalid opponent response')
    popover.current?.hidePopover()

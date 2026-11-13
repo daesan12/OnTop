@@ -6,6 +6,10 @@ import { useEmoteState } from '../../src/features/emotes/state'
 import { ParkRuntime } from '../../src/park/runtime/runtime'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import developmentBindings from '../../public/park-bindings.dev.json' with { type: 'json' }
+import {practiceAction} from '../../src/ai-park/practiceActions'
+import {parkRuntime} from '../../src/park/runtime/runtime'
+import {acceptAiFeatures} from '../../src/features/ai/serviceFeatures'
+import {useCompanions,type Practice} from '../../src/features/ai/companions'
 
 const sockets: ContractSocket[] = []
 class ContractSocket implements SocketLike {
@@ -241,4 +245,31 @@ describe('가챠의 실제 Spring REST 전송 경계', () => {
     for (const [path, method] of [['/api/v1/gacha/tickets', 'GET'], ['/api/v1/gacha/admin', 'POST'], ['/api/v1/gacha/operations/../users', 'GET']])
       await expect(runtime.requestJSON(path!, { method })).rejects.toThrow('현재 공원에서 사용할 수 없는 요청')
   })
+})
+
+describe('NPC 오목의 실제 Spring REST 전송 경계',()=>{
+ it.each(['place','forfeit','undoRequest','drawRequest','stop'])('%s는 인증과 JSON Content-Type을 함께 전달한다',async kind=>{
+  const p:Practice={name:'박영감',npcUserId:'9001',difficulty:'HARD',phase:'PLAYING',bet:0,thinking:false,speech:'',speechSource:'FIXED',analysis:{source:'LOCAL',blackEstimate:null,advantage:'UNKNOWN'},analysisNote:'',snapshot:{gameId:'npc-json',tableId:'table1',version:0,blackUserId:101,whiteUserId:9001,turnUserId:101,winnerUserId:null,turnDeadline:new Date(Date.now()+30000).toISOString(),endedAt:null,endReason:null,board:{board:Array.from({length:15},()=>Array(15).fill(0)),moveCount:0,outcome:'PLAYING',forbiddenMoves:[]}}}
+  const sent:RequestInit[]=[]
+  server((path,init)=>{
+   if(path==='/api/v1/ai/companions/action'){
+    sent.push(init)
+    if(new Headers(init.headers).get('Content-Type')!=='application/json')return json({error:'Unsupported Media Type'},415)
+    return json({accepted:true})
+   }
+   if(path==='/api/v1/ai/companions/status')return json({actors:[],practice:kind==='stop'?null:p,commentary:[]})
+   return undefined
+  })
+  await start();await vi.waitFor(()=>expect(useSession.getState().roomId).toBe('channel-1'))
+  acceptAiFeatures({companions:true,jokeContest:false});useCompanions.setState({practice:p,receivedAt:performance.now(),practicePending:false,practiceError:''})
+  const forward=vi.spyOn(parkRuntime,'requestJSON').mockImplementation(runtime.requestJSON)
+  try{
+   await practiceAction(kind,kind==='place'?{x:7,y:7}:{})
+   expect(sent).toHaveLength(1)
+   expect(new Headers(sent[0].headers).get('Content-Type')).toBe('application/json')
+   expect(new Headers(sent[0].headers).get('Authorization')).toBe('Bearer fixture-access')
+   expect(JSON.parse(sent[0].body as string)).toMatchObject({kind,gameId:'npc-json',version:0})
+   expect(useCompanions.getState().practiceError).toBe('')
+  }finally{forward.mockRestore()}
+ })
 })
