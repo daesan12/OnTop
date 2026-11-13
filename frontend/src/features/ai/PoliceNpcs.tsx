@@ -30,6 +30,6 @@ function PoliceActor({npc}:{npc:PatrolNpc}) {
   })
   return <group ref={actor} name="patrolling-police" position={initialPosition.current} userData={{npc:true,action:npc.action}}>
     <ResidentModel kind="POLICE" speed={speed} airborne={npc.action==='RETURN_JUMP'} talking={npc.action==='TALK'||npc.action==='TELEPORT_WARNING'}/>
-    <NpcSpeechBubble actor="police" name={npc.name} ambient={npc.ambient} active={npc.action==='TALK'||npc.action==='TELEPORT_WARNING'}/>
+    <NpcSpeechBubble actor="police" name={npc.name} kind="POLICE" ambient={npc.ambient} active={npc.action==='TALK'||npc.action==='TELEPORT_WARNING'}/>
   </group>
 }
