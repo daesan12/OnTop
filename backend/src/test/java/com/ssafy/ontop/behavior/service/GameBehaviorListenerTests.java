@@ -3,6 +3,8 @@ package com.ssafy.ontop.behavior.service;
 import com.ssafy.ontop.behavior.domain.BehaviorEvent;
 import com.ssafy.ontop.behavior.domain.BehaviorEventType;
 import com.ssafy.ontop.behavior.domain.PositionSample;
+import com.ssafy.ontop.game.halligalli.domain.HalliGalliBellLog;
+import com.ssafy.ontop.game.halligalli.service.HalliGalliBellStats;
 import com.ssafy.ontop.game.result.GameDepartureReason;
 import com.ssafy.ontop.game.result.GameFinished;
 import com.ssafy.ontop.game.result.GameFinished.Participant;
@@ -64,6 +66,35 @@ class GameBehaviorListenerTests {
                 new Participant(202, Result.DRAW, null, null)), "ABANDONED", ENDED_AT));
 
         assertThat(log.events).extracting(event -> event.props().get("result")).containsExactly("DRAW", "DRAW");
+    }
+
+    @Test
+    void 과일_땡_종_기록은_참가자마다_GAME_PLAY_STATS로_남기고_반응_시간이_없으면_키를_뺀다() {
+        listener.bellStats(new HalliGalliBellStats("game-4", "table-4", ENDED_AT, List.of(
+                new HalliGalliBellLog.Summary(101, 3, 1, 2, 80, 120, 140, 2, 3),
+                new HalliGalliBellLog.Summary(202, 0, 2, 4, null, null, null, 0, 0))));
+
+        assertThat(log.events)
+                .extracting(BehaviorEvent::type, BehaviorEvent::userId, BehaviorEvent::occurredAt, BehaviorEvent::gameId)
+                .containsExactly(
+                        tuple(BehaviorEventType.GAME_PLAY_STATS, 101L, ENDED_AT, "game-4"),
+                        tuple(BehaviorEventType.GAME_PLAY_STATS, 202L, ENDED_AT, "game-4"));
+        assertThat(log.events.getFirst().props())
+                .containsEntry("gameCode", "HALLI_GALLI")
+                .containsEntry("players", 2)
+                .containsEntry("successRings", 3)
+                .containsEntry("penaltyRings", 1)
+                .containsEntry("lateRings", 2)
+                .containsEntry("reactionMinMs", 80)
+                .containsEntry("reactionMedianMs", 120)
+                .containsEntry("reactionAvgMs", 140)
+                .containsEntry("under150Ms", 2)
+                .containsEntry("under300Ms", 3);
+        assertThat(log.events.get(1).props())
+                .containsEntry("penaltyRings", 2)
+                .containsEntry("lateRings", 4)
+                .doesNotContainKeys("reactionMinMs", "reactionMedianMs", "reactionAvgMs");
+        assertThat(log.events.getFirst().tableId()).isEqualTo("table-4");
     }
 
     private static final class CapturingLog implements BehaviorLog {

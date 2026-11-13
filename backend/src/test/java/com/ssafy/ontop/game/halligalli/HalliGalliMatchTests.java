@@ -7,6 +7,7 @@ import com.ssafy.ontop.game.action.GameActionGateway.Rejection;
 import com.ssafy.ontop.game.action.GameActionResult;
 import com.ssafy.ontop.game.halligalli.domain.FruitCard;
 import com.ssafy.ontop.game.halligalli.domain.FruitType;
+import com.ssafy.ontop.game.halligalli.domain.HalliGalliBellLog;
 import com.ssafy.ontop.game.halligalli.domain.HalliGalliDeck;
 import com.ssafy.ontop.game.halligalli.domain.HalliGalliMatch;
 import com.ssafy.ontop.game.halligalli.domain.HalliGalliTiming;
@@ -868,6 +869,64 @@ class HalliGalliMatchTests {
 
         assertThat(match.snapshot().resultUntil()).isEqualTo(START.plusMillis(300));
         assertThat(match.snapshot().turnDeadline()).isEqualTo(START.plusMillis(5_300));
+    }
+
+    @Test
+    void 종_기록은_창을_연_공개부터_맞힌_종까지의_반응_시간과_늦은_종을_센다() {
+        HalliGalliMatch match = match(List.of(A, B, C), Map.of(0, card(STRAWBERRY, 2), 1, card(STRAWBERRY, 3)));
+        flip(match, A, "a1", START);
+        flip(match, B, "b1", START.plusMillis(100));
+
+        ring(match, C, "bell", 2, START.plusMillis(520));
+        reject(Rejection.STALE_VERSION, () -> ring(match, A, "late", 2, START.plusMillis(700)));
+
+        assertThat(match.bellSummaries()).containsExactly(
+                new HalliGalliBellLog.Summary(A, 0, 0, 1, null, null, null, 0, 0),
+                new HalliGalliBellLog.Summary(B, 0, 0, 0, null, null, null, 0, 0),
+                new HalliGalliBellLog.Summary(C, 1, 0, 0, 420, 420, 420, 0, 0));
+    }
+
+    @Test
+    void 늦은_종은_남이_가져간_창에_한_사람당_한_번만_세고_가져간_사람의_연타와_지난_창은_세지_않는다() {
+        HalliGalliMatch match = match(List.of(A, B, C), Map.of(0, card(STRAWBERRY, 2), 1, card(STRAWBERRY, 3)));
+        reject(Rejection.INVALID_ACTION, () -> ring(match, B, "before-any-card", 1, START));
+        flip(match, A, "a1", START);
+        flip(match, B, "b1", START);
+        ring(match, C, "bell", 2, START.plusMillis(500));
+
+        reject(Rejection.STALE_VERSION, () -> ring(match, A, "late-1", 2, START.plusMillis(600)));
+        reject(Rejection.STALE_VERSION, () -> ring(match, A, "late-2", 2, START.plusMillis(650)));
+        reject(Rejection.STALE_VERSION, () -> ring(match, A, "late-1", 2, START.plusMillis(700)));
+        reject(Rejection.STALE_VERSION, () -> ring(match, C, "double", 2, START.plusMillis(600)));
+        // 결과 연출 뒤 새 카드가 공개되면 창 2는 경쟁이 끝난 지난 창이다.
+        flip(match, C, "c1", START.plusMillis(1_500));
+        reject(Rejection.STALE_VERSION, () -> ring(match, B, "old-window", 2, START.plusMillis(1_600)));
+
+        assertThat(match.bellSummaries()).extracting(HalliGalliBellLog.Summary::lateRings).containsExactly(1, 0, 0);
+    }
+
+    @Test
+    void 틀린_종은_벌칙_횟수만_세고_반응_시간에는_넣지_않는다() {
+        HalliGalliMatch match = match(List.of(A, B), Map.of(0, card(STRAWBERRY, 1)));
+        flip(match, A, "a1", START);
+
+        ring(match, B, "wrong", 1, START.plusMillis(90));
+
+        assertThat(match.bellSummaries().get(1)).isEqualTo(new HalliGalliBellLog.Summary(B, 0, 1, 0, null, null, null, 0, 0));
+    }
+
+    @Test
+    void 자동_공개는_서버가_처리한_시각부터_반응_시간을_재고_여러_종의_중앙값과_평균을_낸다() {
+        HalliGalliMatch match = match(List.of(A, B), Map.of(0, card(STRAWBERRY, 5), 1, card(BANANA, 5)));
+        // 마감(5초)보다 0.15초 늦게 처리된 자동 공개를 0.25초에 맞힌다: 반응 100ms.
+        match.expire(START.plusMillis(5_150));
+        ring(match, B, "fast", 1, START.plusMillis(5_250));
+        // 결과 연출 1초 뒤 B가 직접 공개한 바나나 5를 0.6초 뒤에 맞힌다.
+        flip(match, B, "b1", START.plusMillis(6_250));
+        ring(match, B, "slow", 2, START.plusMillis(6_850));
+
+        assertThat(match.bellSummaries().get(1))
+                .isEqualTo(new HalliGalliBellLog.Summary(B, 2, 0, 0, 100, 350, 350, 1, 1));
     }
 
     private static HalliGalliMatch ringSucceededByC() {
