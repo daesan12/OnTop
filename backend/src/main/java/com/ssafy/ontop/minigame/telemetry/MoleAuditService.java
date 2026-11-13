@@ -32,6 +32,7 @@ class MoleAuditService {
     private final MoleAuditStore store;
     private final BehaviorLog log;
     private final BehaviorLogProperties properties;
+    // 접근 순서가 바뀌는 get을 포함해 모든 접근을 synchronized takeQuota에서 처리한다.
     private final LinkedHashMap<Long, BatchQuota> quotas = new LinkedHashMap<>(16, 0.75f, true);
 
     MoleAuditService(MoleAuditStore store, BehaviorLog log, BehaviorLogProperties properties) {

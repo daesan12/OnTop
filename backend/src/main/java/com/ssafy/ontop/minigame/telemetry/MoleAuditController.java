@@ -41,14 +41,19 @@ public class MoleAuditController {
     public ResponseEntity<Void> observe(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable String game,
             @PathVariable long id, @RequestBody MoleAuditDtos.Batch batch) {
         Instant receivedAt = Instant.now();
-        MoleAuditService audit = audits.getIfAvailable();
+        MoleAuditGame auditGame = game(game);
+        long userId = user.userId();
+        var taps = batch.taps();
         try {
+            MoleAuditService audit = audits.getIfAvailable();
             if (audit != null) {
-                audit.receive(game(game), id, user.userId(), batch.taps(), receivedAt);
+                audit.receive(auditGame, id, userId, taps, receivedAt);
             }
         } catch (DataAccessException error) {
-            // 관측 요청은 게임 종료·지급 경로에 관여하지 않는다.
             log.debug("두더지 타격 관측을 저장하지 못했습니다. game={} roundId={}", game, id, error);
+        } catch (RuntimeException error) {
+            // 관측 처리 실패는 응답에 드러내지 않고 서버에서 진단한다.
+            log.warn("두더지 타격 관측 처리에 실패했습니다. game={} roundId={}", game, id, error);
         }
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }

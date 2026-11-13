@@ -7,6 +7,18 @@ const round = { roundId: '456', userId: '101', startedAt, status: 'SETTLED', obs
 const recent = { ...round, roundId: '455', honeypotTaps: 0 }
 const distribution = { count: 12, median: 181, p10: 175, p90: 188 }
 
+test('조회 권한이 없으면 게임 매크로 분석 메뉴와 홈 버튼을 숨긴다', async ({ page }) => {
+  await fixture(page)
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: {
+    canRead: false, canGrant: false, canOperate: false,
+  } }))
+
+  await page.goto('/admin')
+
+  await expect(page.getByRole('heading', { name: '접근 권한이 없습니다' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /게임 매크로 분석/ })).toHaveCount(0)
+})
+
 test('관리자가 게임 매크로 분석에서 판을 검색하고 타임라인과 입력 간격을 비교한다', async ({ page }, testInfo) => {
   await fixture(page)
   await page.route('**/api/v1/admin/me', route => route.fulfill({ json: {
