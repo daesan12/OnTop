@@ -1,5 +1,7 @@
-import { Mesh, type Camera, type Material, type Object3D, type Scene, type WebGLRenderer } from 'three'
+import { Mesh, type Camera, type Material, type Object3D, type Scene, type WebGLProgram, type WebGLRenderer } from 'three'
 import { waitForScenePrograms } from './prepareScene'
+
+const pendingFadePrograms = new WeakSet<WebGLProgram>()
 
 /** Prepare private fade materials before overlap; shared asset materials stay immutable. */
 export function createAvatarOpacity(root: Object3D) {
@@ -39,6 +41,7 @@ export function createAvatarOpacity(root: Object3D) {
       // awaiting the GPU so no frame sees a preparation material or lighting state.
       const materials = surfaces.map(surface => surface.mesh.material)
       const compiling: Promise<unknown>[] = []
+      const existingPrograms = new Set(renderer.info?.programs)
       try {
         for (const surface of surfaces) surface.mesh.material = surface.faded
         compiling.push(renderer.compileAsync(root, camera, scene))
@@ -57,8 +60,23 @@ export function createAvatarOpacity(root: Object3D) {
         surfaces.forEach((surface, index) => { surface.mesh.material = materials[index]! })
         for (const light of lights) light.object.visible = light.visible
       }
-      preparation = waitForScenePrograms(renderer, live, Promise.all(compiling))
-        .then(() => { if (live()) ready = true })
+      const programs = renderer.info?.programs ?? []
+      for (const program of programs) {
+        if (!existingPrograms.has(program)) pendingFadePrograms.add(program)
+      }
+      const fadePrograms = programs.filter(program => pendingFadePrograms.has(program))
+      preparation = waitForScenePrograms(renderer, live, Promise.all(compiling)).then(async () => {
+        // Three reads the link log and reflects uniforms and attributes lazily.
+        // Do this before the first faded draw, yielding between new programs.
+        for (const program of fadePrograms) {
+          if (!live()) return
+          if (!pendingFadePrograms.has(program) || !program.program) continue
+          program.getUniforms()
+          pendingFadePrograms.delete(program)
+          await new Promise<void>(resolve => setTimeout(resolve, 0))
+        }
+        if (live()) ready = true
+      })
       return preparation
     },
     invalidate() {
