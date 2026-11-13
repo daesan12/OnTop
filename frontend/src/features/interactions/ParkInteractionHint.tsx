@@ -15,7 +15,7 @@ import { useFacilityState } from '../facilities/state'
 import { telescopeService } from '../telescopes/service'
 import { BenchSpectatorControls } from './BenchSpectatorControls'
 import { useTableLobby } from '../tableLobby/state'
-import { useGame } from '../../game/store'
+import { useDisplayGame as useGame } from '../../game/displayGame'
 import { FitnessRewardPanel } from '../fitness/FitnessRewardPanel'
 import { CARRY_ESCAPE_PRESSES } from '../carry/escape'
 

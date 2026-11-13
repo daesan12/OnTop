@@ -123,7 +123,7 @@ function OmokSurface({
     return !panelOwnsKeys() && relevant && session.status === 'connected' && !session.pending && omokCamera.ready
       && omokCamera.anchorId === anchor.id && canPlace(session.sessionId, x, y)
   }
-  const pingable = () => !useGame.getState().localPractice && relevant && game?.role === 'SPECTATOR' && game.omok.status === 'PLAYING'
+  const pingable = () => relevant && game?.role === 'SPECTATOR' && game.omok.status === 'PLAYING'
     && useSession.getState().status === 'connected' && useOmokEvents.getState().canSend && !panelOwnsKeys()
     && omokCamera.ready && omokCamera.anchorId === anchor.id
   const grid = useMemo(() => {

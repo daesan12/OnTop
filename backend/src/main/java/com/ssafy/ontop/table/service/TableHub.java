@@ -1622,6 +1622,8 @@ public class TableHub {
     // Local practice leases never register fake accounts, start reservations or wallet transactions.
     private final Map<String,String> aiPracticeSeats=new HashMap<>();
     private final Map<String,String> aiPracticeGames=new HashMap<>();
+    private record AiPracticeState(long version, boolean playing) { }
+    private final Map<String,AiPracticeState> aiPracticeStates=new HashMap<>();
     public record AiTable(String tableId,String channelId,String owner,long version,double x,double y,double z,int ownerSeat) {
         public AiTable(String tableId,String channelId,String owner,long version,double x,double y,double z){this(tableId,channelId,owner,version,x,y,z,1);}
     }
@@ -1650,6 +1652,10 @@ public class TableHub {
         if(!npc.equals(aiPracticeSeats.get(table)))throw new IllegalArgumentException("NPC 좌석 예약 없음");
         aiPracticeGames.put(table,game);
     }
+    public synchronized void aiUpdatePracticeState(String table,String npc,String game,long version,boolean playing) {
+        if(npc.equals(aiPracticeSeats.get(table))&&game.equals(aiPracticeGames.get(table)))
+            aiPracticeStates.put(game,new AiPracticeState(version,playing));
+    }
     public synchronized String aiPracticeChatGame(String user) {
         String table=seating.get(user);if(table==null){table=watching.get(user);if(table!=null&&!proximity.canWatch(user,table,tableChannels.get(table)))return "";}
         if(table==null||!aiPracticeSeats.containsKey(table))return "";
@@ -1673,7 +1679,7 @@ public class TableHub {
     }
     public synchronized void aiReleaseOmok(String table,String npc) {
         if(!npc.equals(aiPracticeSeats.get(table))) return;
-        aiPracticeSeats.remove(table);aiPracticeGames.remove(table); var room=rooms.get(table);
+        aiPracticeSeats.remove(table);aiPracticeStates.remove(aiPracticeGames.get(table));aiPracticeGames.remove(table); var room=rooms.get(table);
         if(room!=null) { if(room.snapshot().seats().stream().anyMatch(s -> npc.equals(s.userId()))) room.leave(npc); publish(room,null,null); }
     }
     public synchronized AiTable aiOmokLocation(String tableId) {
@@ -2057,7 +2063,7 @@ public class TableHub {
     }
 
     private boolean carryBusy(String userId) {
-        return seating.containsKey(userId) || facilities.current(userId) != null || emotes.isActive(userId)
+        return seating.containsKey(userId) || !aiPracticeChatGame(userId).isEmpty() || facilities.current(userId) != null || emotes.isActive(userId)
                 || !channels.carryAvailable(userId)
                 || follows.activeStates().stream().flatMap(state -> state.links().stream())
                         .anyMatch(link -> link.followerId().equals(userId) || link.targetId().equals(userId));
@@ -3561,8 +3567,29 @@ public class TableHub {
             }
         }
     }
+    private void sendPracticePing(Member member,Request request,String game) {
+        if(member.accountId()==null || seating.containsKey(member.userId()) || !game.equals(aiPracticeChatGame(member.userId())))
+            fail(request,"GAME_SPECTATOR_ACCESS_DENIED","관전이 승인된 연습판에서만 추천할 수 있습니다.");
+        var state=aiPracticeStates.get(game);
+        if(state==null || !state.playing())fail(request,"GAME_SPECTATOR_GAME_NOT_PLAYING","진행 중인 경기에서만 추천할 수 있습니다.");
+        var payload=request.payload();String event=payload.path("eventId").asText();
+        long version=payload.path("basedOnVersion").asLong(),now=worldClock.sample().serverNow();
+        int x=payload.path("x").asInt(),y=payload.path("y").asInt();
+        String content=version+":"+x+":"+y;SpectatorEventPolicy.Stamp stamp;
+        try {
+            stamp=spectatorEvents.previous(member.accountId(),event,SpectatorEventPolicy.Kind.PING,game,content,now);
+            if(stamp!=null){member.peer().offer(protocol.encode(request.requestId(),"OMOK_SPECTATOR_PING",new OmokSpectatorPing(game,event,member.userId(),version,x,y,stamp,now)));return;}
+            if(version!=state.version())fail(request,"OMOK_SPECTATOR_PING_STALE_VERSION","최신 판 상태에서 다시 추천해주세요.");
+            stamp=spectatorEvents.accept(member.accountId(),event,SpectatorEventPolicy.Kind.PING,game,content,now);
+        }catch(SpectatorEventPolicy.Rejected rejected){throw new RequestException(request.requestId(),rejected.code(),rejected.getMessage());}
+        var message=new OmokSpectatorPing(game,event,member.userId(),version,x,y,stamp,now);
+        member.peer().offer(protocol.encode(request.requestId(),"OMOK_SPECTATOR_PING",message));
+        String notice=protocol.encode(null,"OMOK_SPECTATOR_PING",message);Duration ttl=Duration.ofMillis(stamp.expiresAt()-now);
+        for(var target:members.values())if(target!=member && target.accountId()!=null && game.equals(isolatedChatGame(target)))target.peer().offerTransient(notice,ttl);
+    }
     private void sendSpectatorEvent(String sessionId, Member member, Request request) {
         if(request.type().equals("GAME_SPECTATOR_CHAT_SEND")&&aiPracticeGames.containsValue(request.payload().path("gameId").asText())){sendPracticeChat(member,request,request.payload().path("gameId").asText());return;}
+        if(request.type().equals("OMOK_SPECTATOR_PING_SEND")&&aiPracticeGames.containsValue(request.payload().path("gameId").asText())){sendPracticePing(member,request,request.payload().path("gameId").asText());return;}
 
         boolean ledgerPing = request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND");
         boolean ping = ledgerPing || request.type().equals("OMOK_SPECTATOR_PING_SEND");

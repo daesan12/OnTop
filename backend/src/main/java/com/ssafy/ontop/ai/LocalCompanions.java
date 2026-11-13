@@ -77,6 +77,7 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
             }
             boolean wasPlaying=g.match.snapshot().endedAt()==null;
             g.match.expire(clock.instant());
+            syncPracticeState(g);
             if(wasPlaying && g.match.snapshot().endedAt()!=null) {
                 g.rewriting=false;g.rewriteGeneration++;
                 g.speech=g.resident.timeout();g.speechSource="FIXED_TIMEOUT";
@@ -149,17 +150,19 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
             int[] move=OmokNpcMoves.choose(before.board(),history,g.difficulty==Difficulty.NORMAL&&history.size()%6==5?"":a.bestMove(),g.difficulty.name());
             synchronized(this) {
                 if(closed || games.get(g.table.tableId())!=g || !hub.aiPracticeValid(g.table.tableId(),g.table.owner(),Long.toString(g.npc))) { g.thinking=false;return; }
-                g.match.expire(clock.instant()); var current=g.match.snapshot();
+                g.match.expire(clock.instant());syncPracticeState(g); var current=g.match.snapshot();
                 if(current.endedAt()!=null || current.version()!=before.version()) { g.thinking=false;return; }
                 g.match.apply(new GameActionCommand(g.npc,current.gameId(),"npc-"+current.version(),current.version(),mapper.createObjectNode().put("x",move[0]).put("y",move[1])),clock.instant());
                 g.moves.add(new OmokBoard.Move(move[0],move[1],OmokBoard.Stone.WHITE));g.thinking=false;g.analysis=a;
                 g.speech=g.match.snapshot().endedAt()!=null?finishedSpeech(g):g.resident.response(g.moves.size()/2,a);g.speechSource=a.source();
+                syncPracticeState(g);
                 // Engine evaluation was BEFORE the NPC move; label it explicitly, never as the new board's score.
                 if(g.match.snapshot().endedAt()==null) rewrite(g,g.match.snapshot().version(),"직전 국면 평가: "+a.comment());
             }
         } catch(RuntimeException failure) { synchronized(this) { if(games.get(g.table.tableId())==g) {
             g.thinking=false;g.match.forfeit(g.npc,clock.instant(),"NPC_ENGINE_FAILURE");g.speech="엔진 응답을 마치지 못했네. 이번 연습은 끝내고 다시 불러 주게. 엽전 변동은 없네.";
-        } } } }); } catch(RejectedExecutionException full) { g.thinking=false;g.match.forfeit(g.npc,clock.instant(),"NPC_ENGINE_BUSY");g.speech="잠시 생각을 정리 중이네. 다시 대결을 불러 주게."; }
+            syncPracticeState(g);
+        } } } }); } catch(RejectedExecutionException full) { g.thinking=false;g.match.forfeit(g.npc,clock.instant(),"NPC_ENGINE_BUSY");syncPracticeState(g);g.speech="잠시 생각을 정리 중이네. 다시 대결을 불러 주게."; }
     }
     private void rewrite(Practice g,long version,String facts) {
         // Most lines remain fixed. At most one generated commentary every six stones.
@@ -233,12 +236,17 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
     }
     private Practice own(String owner) { return games.values().stream().filter(g -> g.table.owner().equals(owner)).findFirst().orElseThrow(() -> new IllegalArgumentException("진행 중인 NPC 대결이 없어요.")); }
     private Map<String,Object> view(Practice g) {
+        syncPracticeState(g);
         var r=new LinkedHashMap<String,Object>();r.put("snapshot",g.match.snapshot());r.put("npcUserId",Long.toString(g.npc));r.put("name",g.resident.name);r.put("difficulty",g.difficulty);
         r.put("actorId",g.actorId());r.put("phase",g.arrived?"PLAYING":"ARRIVING");
         r.put("lastMove",g.moves.isEmpty()?null:g.moves.get(g.moves.size()-1));
         r.put("bet",0);r.put("thinking",g.thinking);r.put("speechPending",g.rewriting);r.put("speech",g.speech);r.put("speechSource",g.speechSource);r.put("analysis",g.analysis);r.put("analysisNote","직전 NPC 착수 전 국면 · 엔진 평가 지표이며 실제 승률 아님");return r;
     }
     private void release(Practice g) { games.remove(g.table.tableId());hub.aiReleaseOmok(g.table.tableId(),Long.toString(g.npc)); }
+    private void syncPracticeState(Practice g) {
+        var state=g.match.snapshot();
+        hub.aiUpdatePracticeState(g.table.tableId(),Long.toString(g.npc),state.gameId(),state.version(),g.arrived&&state.endedAt()==null);
+    }
     private String finishedSpeech(Practice g){var s=g.match.snapshot();return g.resident.result(Objects.equals(s.winnerUserId(),s.blackUserId()),s.winnerUserId()==null);}
     private void pauseAuto(String table) { paused.put(table,hub.aiWaitingOmok().stream().filter(t -> t.tableId().equals(table)).map(TableHub.AiTable::version).findFirst().orElse(-1L)); }
     private void checkOpen() { if(closed) throw new IllegalStateException("종료된 로컬 검수입니다."); }
