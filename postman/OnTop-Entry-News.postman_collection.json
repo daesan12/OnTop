@@ -1,0 +1,231 @@
+{
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "newsId",
+      "value": "00000000-0000-4000-8000-000000000001"
+    },
+    {
+      "key": "version",
+      "value": "0"
+    },
+    {
+      "key": "newsImageFile",
+      "value": ""
+    },
+    {
+      "key": "uploadUrl",
+      "value": ""
+    },
+    {
+      "key": "uploadId",
+      "value": ""
+    },
+    {
+      "key": "imageBytes",
+      "value": ""
+    },
+    {
+      "key": "imageSha256",
+      "value": ""
+    },
+    {
+      "key": "imageContentType",
+      "value": "image/png"
+    },
+    {
+      "key": "uploadHeaders",
+      "value": "{}"
+    }
+  ],
+  "auth": {
+    "bearer": [
+      {
+        "type": "string",
+        "value": "{{accessToken}}",
+        "key": "token"
+      }
+    ],
+    "type": "bearer"
+  },
+  "item": [
+    {
+      "request": {
+        "header": [],
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/entry-news"
+      },
+      "name": "회원 게시 안내"
+    },
+    {
+      "request": {
+        "header": [],
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/entry-news/{{newsId}}/image"
+      },
+      "name": "회원 게시 이미지"
+    },
+    {
+      "request": {
+        "header": [],
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/admin/operations/entry-news"
+      },
+      "name": "관리자 전체 안내"
+    },
+    {
+      "request": {
+        "header": [],
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/admin/operations/entry-news/{{newsId}}/image"
+      },
+      "name": "관리자 이미지"
+    },
+    {
+      "request": {
+        "header": [],
+        "method": "DELETE",
+        "url": "{{baseUrl}}/api/v1/admin/operations/entry-news/{{newsId}}?version={{version}}"
+      },
+      "name": "안내 삭제"
+    },
+    {
+      "name": "S3 업로드 주소 발급",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/v1/admin/operations/entry-news/{{newsId}}/uploads",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"bytes\":{{imageBytes}},\"sha256\":\"{{imageSha256}}\",\"contentType\":\"{{imageContentType}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) { const v=pm.response.json(); pm.collectionVariables.set(\"uploadUrl\",v.url); pm.collectionVariables.set(\"uploadId\",v.uploadId); pm.collectionVariables.set(\"uploadHeaders\",JSON.stringify(v.headers)); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "S3 파일 직접 PUT (서명 헤더 확인)",
+      "request": {
+        "method": "PUT",
+        "url": "{{uploadUrl}}",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "body": {
+          "mode": "file",
+          "file": {
+            "src": "{{newsImageFile}}"
+          }
+        },
+        "description": "발급 응답 headers를 스크립트가 그대로 적용합니다. 서명된 Content-Type/Cache-Control/checksum을 유지하며 Access JWT·쿠키를 보내지 않습니다. 만료300초 이내 PUT 후 게시 확정을 실행합니다."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const headers=JSON.parse(pm.collectionVariables.get(\"uploadHeaders\")||\"{}\");",
+              "Object.entries(headers).forEach(([key,value])=>pm.request.headers.upsert({key,value}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "request": {
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"draft\":{\"title\":\"새 소식\",\"expectedVersion\":{{version}},\"published\":false,\"displayOrder\":0,\"startsAt\":null,\"endsAt\":null},\"upload\":{\"uploadId\":\"{{uploadId}}\",\"bytes\":{{imageBytes}},\"sha256\":\"{{imageSha256}}\",\"contentType\":\"{{imageContentType}}\"}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "method": "POST",
+        "description": "S3 직접 PUT 성공 후 JSON으로 게시 확정. PUT 메타데이터만 수정할 때 upload:null. 파일은 서버에 multipart로 전송하지 않습니다.",
+        "url": "{{baseUrl}}/api/v1/admin/operations/entry-news/{{newsId}}"
+      },
+      "name": "이미지 안내 등록"
+    },
+    {
+      "request": {
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"draft\":{\"title\":\"새 소식\",\"expectedVersion\":{{version}},\"published\":false,\"displayOrder\":0,\"startsAt\":null,\"endsAt\":null},\"upload\":{\"uploadId\":\"{{uploadId}}\",\"bytes\":{{imageBytes}},\"sha256\":\"{{imageSha256}}\",\"contentType\":\"{{imageContentType}}\"}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "method": "PUT",
+        "description": "S3 직접 PUT 성공 후 JSON으로 게시 확정. PUT 메타데이터만 수정할 때 upload:null. 파일은 서버에 multipart로 전송하지 않습니다.",
+        "url": "{{baseUrl}}/api/v1/admin/operations/entry-news/{{newsId}}"
+      },
+      "name": "이미지 안내 수정"
+    },
+    {
+      "request": {
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"items\":[{\"id\":\"{{newsId}}\",\"expectedVersion\":{{version}}}]}"
+        },
+        "method": "PUT",
+        "url": "{{baseUrl}}/api/v1/admin/operations/entry-news/order"
+      },
+      "name": "페이지 순서 저장"
+    }
+  ],
+  "info": {
+    "name": "OnTop Entry News",
+    "description": "접속 안내 Presigned S3 직접 업로드 → 서버 HEAD 크기/타입/SHA256 검증·JSON 게시 확정 → CloudFront 표시. V168·V169 로컬 검증본, V167 팀원 SQL 반영 후 전체 재검증, 현재 푸시/공용 DB 미적용. 실제 AWS 연동은 별도 검수.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  }
+}

@@ -33,6 +33,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SkewerCoopEngineTests {
     @Test
+    void 자연종료한_본인방은_결과를_닫기전까지_조회하되_새입장권한과_구분한다() {
+        Fixture fixture = new Fixture(1);
+        fixture.roles();
+        fixture.ready();
+        fixture.advance(2);
+
+        assertThat(fixture.view(101).publicState().path("phase").asText()).isEqualTo("FINISHED");
+        assertThat(fixture.engine.owns(101, "park")).isFalse();
+        assertThat(fixture.engine.canViewRoom(101, "park")).isTrue();
+        assertThat(fixture.engine.canViewRoom(202, "park")).isTrue();
+        assertThat(fixture.engine.canViewRoom(303, "park")).isFalse();
+        assertThat(fixture.engine.canViewRoom(101, "other")).isFalse();
+
+        fixture.engine.leaveWaiting(101, fixture.id);
+
+        assertThat(fixture.engine.canViewRoom(101, "park")).isFalse();
+        assertThat(fixture.engine.canViewRoom(202, "park")).isTrue();
+    }
+
+    @Test
     void 상대가_동의해야만_같은_경기를_초기화하고_중간_결과는_정산하지_않는다() {
         Fixture fixture = new Fixture(2400);
         fixture.prepare();

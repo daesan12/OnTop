@@ -189,6 +189,20 @@ def build_seed() -> str:
           endReason="TARGET_REACHED", players=2, result="LOSE")
     event("2026-10-28 01:07:30", "GAME_ENDED", 105, table="t1", game="2", gameCode="DICE",
           endReason="TARGET_REACHED", players=2, result="WIN")
+    # 과일 땡 종 기록(GAME_PLAY_STATS, 35번). 101은 사람처럼 0.4초 이상, 105는 기계처럼 0.1초 안팎에 친다.
+    # 경기 h2의 105는 맞힌 종 없이 틀리기만 해서 반응 시간 키가 없다(103은 다른 날 접속만 해서 넣지 않는다).
+    def bells(at: str, user_id: int, game: str, success: int, penalty: int, late: int,
+              reaction: tuple[int, int, int] | None, under150: int, under300: int) -> None:
+        props = dict(gameCode="HALLI_GALLI", players=2, successRings=success, penaltyRings=penalty, lateRings=late,
+                     under150Ms=under150, under300Ms=under300)
+        if reaction:
+            props.update(reactionMinMs=reaction[0], reactionMedianMs=reaction[1], reactionAvgMs=reaction[2])
+        event(at, "GAME_PLAY_STATS", user_id, table="t1", game=game, **props)
+
+    bells("2026-10-28 01:08:00", 101, "h1", 3, 1, 2, (420, 610, 640), 0, 0)
+    bells("2026-10-28 01:08:00", 105, "h1", 6, 0, 0, (60, 90, 95), 5, 6)
+    bells("2026-10-28 01:09:00", 101, "h2", 2, 0, 1, (380, 500, 500), 0, 0)
+    bells("2026-10-28 01:09:00", 105, "h2", 0, 2, 4, None, 0, 0)
     event("2026-10-28 01:10:00", "WS_DISCONNECTED", 101, reason="SOCKET_CLOSED")
     event("2026-10-28 01:20:00", "WS_DISCONNECTED", 105, reason="SOCKET_CLOSED")
     event("2026-10-28 05:00:00", "WS_CONNECTED", 103)

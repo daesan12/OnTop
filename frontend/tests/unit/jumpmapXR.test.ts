@@ -30,7 +30,7 @@ describe('돌탑 VR 화면의 서버 상태 계약', () => {
     expect(view.lines).toContain('완주 시간  2분 05.40초')
     expect(view.lines).toContain('이번 도전 받은 엽전  100냥')
     expect(view.lines.join()).toContain('확인하고')
-    useJumpmap.setState({ todayEarned: 500 })
+    useJumpmap.setState({ todayEarned: 1000 })
     const capped = jumpmapXRView(useJumpmap.getState(), 15000, false)
     expect(capped.lines.join()).toContain('한도')
     expect(capped.lines).toContain('이번 도전 받은 엽전  100냥')

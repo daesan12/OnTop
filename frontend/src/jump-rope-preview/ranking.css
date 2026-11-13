@@ -1,0 +1,211 @@
+.rope-ranking-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: #162c2440;
+  container: rope-ranking-stage / size;
+}
+
+.rope-ranking {
+  --ranking-title-height: 56px;
+  --ranking-header-height: 34px;
+  --ranking-frame-height: calc(var(--ranking-title-height) + 137px);
+  --ranking-row-height: clamp(26px, calc((100cqh - var(--ranking-frame-height)) / 5), 56px);
+  width: min(100%, 440px);
+  height: min(100cqh, calc(var(--ranking-frame-height) + 280px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 4px solid #244134;
+  border-radius: 19px;
+  background: radial-gradient(ellipse at 45% 16%, #fffaed, #fbecd0);
+  box-shadow: inset 0 0 0 2px #f7e6bf, inset 0 0 0 4px #dfc797, 0 3px 0 #162c24, 0 8px 16px #18291f66;
+  color: #1c362c;
+}
+
+.rope-ranking__titlebar, .rope-ranking__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rope-ranking__titlebar { min-height: var(--ranking-title-height); }
+
+.rope-ranking__titlebar h2 {
+  margin: 0;
+  font-family: BusanDandiMyeongjo, "Malgun Gothic", sans-serif;
+  font-size: clamp(1.45rem, 8cqi, 2rem);
+  font-weight: 700;
+  line-height: 1.15;
+  text-shadow: 0 1px 0 #d6b875;
+}
+
+.rope-ranking__close {
+  min-height: 36px;
+  border: 2px solid #c5a76e;
+  border-radius: 8px;
+  background: linear-gradient(#41624b, #234632);
+  color: #fff3d8;
+  padding: 4px 16px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.rope-ranking__close:hover { filter: brightness(1.1); }
+
+.rope-ranking :is(.rope-ranking__close, .rope-ranking__list):focus-visible {
+  outline: 2px solid #805a2c;
+  outline-offset: 2px;
+}
+
+.rope-ranking__list {
+  height: calc(var(--ranking-header-height) + 5 * var(--ranking-row-height) + 2px);
+  max-height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border: 1px solid #c9bb97;
+  border-radius: 8px;
+  background: #fff9e9;
+}
+
+.rope-ranking__list table { width: 100%; border-spacing: 0; table-layout: fixed; font-size: 1rem; }
+.rope-ranking__rank-col { width: 3.5rem; }
+.rope-ranking__score-col { width: 6rem; }
+
+.rope-ranking__list th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: var(--ranking-header-height);
+  padding: 0 8px;
+  background: #294638;
+  color: #fff3d8;
+  font-size: 0.85rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.rope-ranking__list td { height: var(--ranking-row-height); padding: 0 8px; border-bottom: 1px solid #eee2c6; }
+.rope-ranking__list tr:last-child td { border-bottom: 0; }
+.rope-ranking__list :is(th, td):first-child { text-align: center; }
+
+.rope-ranking__list :is(th, td):last-child {
+  padding-right: 9px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+}
+
+.rope-ranking__name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.rope-ranking__place {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  border-radius: 5px;
+  background: #ede4ce;
+  font-size: 0.88rem;
+  font-weight: 850;
+  vertical-align: middle;
+}
+
+.rope-ranking__place[data-place="1"] {
+  --medal-light: #fff3b0;
+  --medal-face: #e7b742;
+  --medal-edge: #a66d23;
+  color: #472c08;
+}
+
+.rope-ranking__place[data-place="2"] {
+  --medal-light: #f4f7f9;
+  --medal-face: #becdd5;
+  --medal-edge: #718390;
+  --medal-glint-delay: 0.5s;
+  color: #2c3d46;
+}
+
+.rope-ranking__place[data-place="3"] {
+  --medal-light: #ffe0b9;
+  --medal-face: #d99b66;
+  --medal-edge: #9d5c3a;
+  --medal-glint-delay: 1s;
+  color: #512f20;
+}
+
+.rope-ranking__place:is([data-place="1"], [data-place="2"], [data-place="3"]) {
+  position: relative;
+  width: min(31px, calc(var(--ranking-row-height) - 5px));
+  height: min(31px, calc(var(--ranking-row-height) - 5px));
+  border: 1px solid var(--medal-edge);
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--medal-light) 15%, var(--medal-face) 55%, var(--medal-edge));
+  box-shadow: inset 0 0 0 2px var(--medal-light), 0 2px 3px #49372540;
+  text-shadow: 0 1px 0 var(--medal-light);
+}
+
+.rope-ranking__place:is([data-place="1"], [data-place="2"], [data-place="3"])::after {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 12px;
+  height: 12px;
+  background: #fffdf5;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  content: '';
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rope-ranking__place:is([data-place="1"], [data-place="2"], [data-place="3"])::after {
+    animation: rope-medal-glint 3.8s ease-in-out var(--medal-glint-delay, 0s) infinite;
+  }
+}
+
+@keyframes rope-medal-glint {
+  0%, 100% { opacity: 0.75; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.rope-ranking__message {
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #c9bb97;
+  border-radius: 8px;
+  background: #fff9e9;
+  color: #526151;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.rope-ranking__footer { border-top: 1px solid #c9bb97; padding-top: 8px; }
+.rope-ranking__best { display: grid; gap: 2px; margin: 0; }
+.rope-ranking__best dt { font-size: 0.78rem; font-weight: 850; }
+.rope-ranking__best dd { margin: 0; color: #526151; font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+
+@container rope-ranking-stage (max-width: 330px) or (max-height: 310px) {
+  .rope-ranking {
+    --ranking-title-height: 43px;
+    --ranking-header-height: 25px;
+    --ranking-row-height: 25px;
+    height: min(100cqh, 274px);
+    gap: 5px;
+    padding: 8px 10px;
+    border-radius: 15px;
+  }
+  .rope-ranking__rank-col { width: 2.35rem; }
+  .rope-ranking__score-col { width: 4.5rem; }
+  .rope-ranking__list table { font-size: 0.875rem; }
+  .rope-ranking__list th { font-size: 0.75rem; }
+  .rope-ranking__list :is(th, td) { padding-inline: 4px; }
+  .rope-ranking__place { width: 23px; height: 20px; font-size: 0.77rem; }
+  .rope-ranking__footer { padding-top: 5px; }
+}

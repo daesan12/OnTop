@@ -22,10 +22,13 @@ public enum BehaviorEventType {
     GAME_WATCHED,
     GAME_STARTED,
     GAME_ENDED,
+    GAME_PLAY_STATS,
     GAME_SETTLED,
     GAME_RECONNECTED,
     SHOP_PURCHASED,
     ITEM_EQUIPPED,
+    MOLE_TAP_BATCH,
+    MOLE_ROUND_HONEYPOT,
     // 아래는 클라이언트가 보고한다(source=CLIENT). 허용 속성은 ClientBehaviorIntake.
     ONBOARDING_STEP,
     PERF_REPORT

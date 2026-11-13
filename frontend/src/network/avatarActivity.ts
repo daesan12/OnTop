@@ -1,9 +1,10 @@
-/** GAME/BUNGEOPPANG are approved public activities. SHOP remains a future-contract
+/** MYROOM is ephemeral UI presence. SHOP remains a future-contract
  * display extension until server shop entry/exit broadcasting is implemented. */
 export const AVATAR_ACTIVITY_LABELS = {
   BUNGEOPPANG: '붕어빵 뒤집는 중',
   GAME: '게임 중',
   WATCHING: '관전 중',
+  MYROOM: '마이룸 사용 중',
   SHOP: '상점 이용중',
 } as const
 

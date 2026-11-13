@@ -37,7 +37,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles({"local", "db", "skewer-coop"})
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"server.address=127.0.0.1",
-                "spring.flyway.locations=classpath:db/migration,classpath:db/minigame"})
+                // V165가 db/shop의 items를 참조한다.
+                "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/shop"})
 @DirtiesContext
 class SkewerCoopAccountMySqlTests {
     @LocalServerPort private int port;

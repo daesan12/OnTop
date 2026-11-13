@@ -10,6 +10,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from mole_review import Detection, apply_review, check_settled_rounds
 from mysql_cli import password_from_env, run_sql
 from seed import build_seed
 
@@ -365,6 +366,15 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "unsettled": "1", "avg_score": "60.0", "max_score": "60", "avg_hits": "66.0", "avg_misses": "2.0",
          "hit_pct": "97.1", "calculated_coins": "12", "rewarded_coins": "12", "capped_coins": "0"},
     ],
+    # 105: 맞힌 종 6(모두 h1), 150ms 미만 5 → 83.3%. 101: 평균 (640×3 + 500×2) / 5 = 584ms.
+    "35_halli_bell_reaction.sql": [
+        {"user_id": "105", "games": "2", "success_rings": "6", "penalty_rings": "2", "late_rings": "4",
+         "first_ring_pct": "60.0", "min_reaction_ms": "60", "avg_reaction_ms": "95", "fast_pct": "83.3",
+         "quick_pct": "100.0"},
+        {"user_id": "101", "games": "2", "success_rings": "5", "penalty_rings": "1", "late_rings": "3",
+         "first_ring_pct": "62.5", "min_reaction_ms": "380", "avg_reaction_ms": "584", "fast_pct": "0.0",
+         "quick_pct": "0.0"},
+    ],
 }
 
 
@@ -386,6 +396,7 @@ def main() -> int:
         problem = compare(expected, actual)
         print(f"{'PASS' if problem is None else 'FAIL'} {name}" + ("" if problem is None else f": {problem}"))
         failures += problem is not None
+    failures += check_reviewed_mole_reports(args.container, password)
     missing = sorted(path.name for path in QUERIES.glob("*.sql")
                      if path.name not in EXPECTED and path.name != "00_data_quality.sql")
     if missing:
@@ -393,6 +404,37 @@ def main() -> int:
         failures += 1
     print(f"{'모두 통과' if failures == 0 else f'{failures}개 실패'}")
     return 1 if failures else 0
+
+
+def check_reviewed_mole_reports(container: str, password: str) -> int:
+    confirmed = {Detection("whack-a-mole", 2, 101), Detection("speed-mole", 1, 103)}
+    check_settled_rounds(container, DATABASE, password, confirmed)
+    expectations = {
+        "28_mole_daily.sql": [
+            {"kst_date": "2026-10-27", "rounds": "1", "players": "1", "max_score": "900", "rewarded_coins": "30"},
+            {"kst_date": "2026-10-28", "rules_version": "3", "rounds": "2", "players": "1", "max_score": "39"},
+        ],
+        "34_speed_mole_daily.sql": [
+            {"kst_date": "2026-10-28", "rounds": "1", "players": "1", "settled": "0", "unsettled": "1",
+             "rewarded_coins": "0"},
+        ],
+    }
+    failures = 0
+    for name, expected in expectations.items():
+        sql = (QUERIES / name).read_text(encoding="utf-8")
+        problem = compare(expected, run_sql(container, DATABASE, apply_review(sql, confirmed), password))
+        print(f"{'PASS' if problem is None else 'FAIL'} reviewed {name}" + ("" if problem is None else f": {problem}"))
+        failures += problem is not None
+
+    # 판 번호가 같아도 소유자가 다르거나 미정산이면 승인 파일을 적용할 수 없다.
+    for case in (Detection("whack-a-mole", 1, 101), Detection("speed-mole", 4, 104)):
+        try:
+            check_settled_rounds(container, DATABASE, password, {case})
+        except ValueError:
+            continue
+        print("FAIL 확정 기록의 소유자 또는 정산 상태 검증")
+        failures += 1
+    return failures
 
 
 def check_data_quality(container: str, password: str) -> int:

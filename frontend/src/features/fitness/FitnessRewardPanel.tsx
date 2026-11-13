@@ -17,7 +17,7 @@ export function FitnessRewardView({ snapshot, now, error = '' }: {
   return <section className="fitness-reward" aria-label="운동기구 수입" tabIndex={0} onKeyDown={event => {
     if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) event.stopPropagation()
   }}>
-    <div className="fitness-reward-total"><span>실제 1분당 1냥</span><strong>{earned === null ? '—' : earned}<small> / 300냥</small></strong></div>
+    <div className="fitness-reward-total"><span>실제 1분당 5냥</span><strong>{earned === null ? '—' : earned}<small> / 500냥</small></strong></div>
   </section>
 }
 

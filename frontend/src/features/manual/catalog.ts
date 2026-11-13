@@ -4,6 +4,7 @@ import { rpsRouletteManual } from '../rpsRoulette/manual';
 import { plusMinusManual } from '../plusMinus/manual';
 import { moleManual } from '../mole/manual';
 import { speedMoleManual } from '../speedMole/manual';
+import { jumpRopeManual } from '../jumpRope/manual';
 import { alkkagiManual } from '../../game/alkkagi/manual';
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection';
 import { bungeoppangV4Preview, bungeoppangV5Enabled, bungeoppangV5Preview } from '../bungeoppang/config';
@@ -23,15 +24,16 @@ const allGameManuals: GameManual[] = [
     {id:'halligalli-bell',title:'종을 칠 때',paragraphs:['펼쳐진 맨 위 카드들에서 같은 과일 개수를 더해 정확히 5개일 때만 성공이에요. 4개나 6개는 실패예요.','종이 성공하면 잠깐 결과를 보여 준 뒤, 종을 친 사람부터 다시 카드를 공개해요.']},
     {id:'halligalli-end',title:'게임이 끝나는 때',paragraphs:['게임에서 한 사람만 남으면 그 사람이 승리해요.','두 사람만 남았을 때, 뒤집을 카드가 없는 사람에게 차례가 돌아오면 마지막으로 5초 동안 종을 칠 기회가 주어져요. 그동안 카드를 다시 얻지 못하면 상대방이 승리해요.','세 사람 이상이 남았는데 아무도 뒤집을 카드가 없다면, 마지막으로 종을 칠 기회를 가진 뒤 카드를 가장 많이 가진 사람이 승리해요. 가장 많은 카드 수가 같으면 함께 승리해요.']},
   ]},
-  {id:'fish-bread',status:'available',category:'minigame',title:'붕어빵 굽기',subtitle:'노릇노릇, 타이밍의 한 판',keywords:'붕어빵 카트 반죽 팥 슈크림 피자 초코 황금 콤보 요리 주문 쟁반',players:'1명',goal:'주문에 맞춰 구워 쟁반에서 전달하기',timing:'조리 60초 · 40초부터 센 불',summary:bungeoppangV4Preview ? '빵마다 다른 랜덤 불을 살피고 주문을 완성해요. 개발 미리보기이며 실제 엽전은 지급하지 않아요.' : '여섯 칸에서 빵마다 다른 불을 살피고 손님 주문을 완성해요. 서버가 납품과 조리 기록을 검증해 엽전을 정산해요.',flow:[{title:'반죽 붓기',body:'Space로 철판에 반죽을 부어요.'},{title:'소 넣기',body:'1~4로 팥·슈크림·피자·초코를 골라 넣어요.'},{title:'뒤집고 꺼내기',body:'색과 게이지를 보고 뒤집은 뒤, 다 익으면 쟁반으로 꺼내요.'},{title:'전달하기',body:'손님 주문에 맞춰 R로 전달해야 점수가 돼요.'}],points:['만들기만 해서는 점수가 없어요. 주문을 전달해야 득점해요.','탄 빵이나 버린 빵에는 점수가 없어요.','양면이 노릇한 황금 붕어빵을 이어서 만들면 콤보 보너스가 붙어요.','5점마다 1냥, 모든 미니게임 합쳐 하루 최대 500냥까지 받아요.'],sections:[
+  {id:'fish-bread',status:'available',category:'minigame',title:'붕어빵 굽기',subtitle:'노릇노릇, 타이밍의 한 판',keywords:'붕어빵 카트 반죽 팥 슈크림 피자 초코 황금 콤보 요리 주문 쟁반',players:'1명',goal:'주문에 맞춰 구워 쟁반에서 전달하기',timing:'조리 60초 · 40초부터 센 불',summary:bungeoppangV4Preview ? '빵마다 다른 랜덤 불을 살피고 주문을 완성해요. 개발 미리보기이며 실제 엽전은 지급하지 않아요.' : '여섯 칸에서 빵마다 다른 불을 살피고 손님 주문을 완성해요. 서버가 납품과 조리 기록을 검증해 엽전을 정산해요.',flow:[{title:'반죽 붓기',body:'Space로 철판에 반죽을 부어요.'},{title:'소 넣기',body:'1~4로 팥·슈크림·피자·초코를 골라 넣어요.'},{title:'뒤집고 꺼내기',body:'색과 게이지를 보고 뒤집은 뒤, 다 익으면 쟁반으로 꺼내요.'},{title:'전달하기',body:'손님 주문에 맞춰 R로 전달해야 점수가 돼요.'}],points:['만들기만 해서는 점수가 없어요. 주문을 전달해야 득점해요.','탄 빵이나 버린 빵에는 점수가 없어요.','양면이 노릇한 황금 붕어빵을 이어서 만들면 콤보 보너스가 붙어요.','5점마다 1냥, 모든 미니게임 합쳐 하루 최대 1000냥까지 받아요.'],sections:[
     {id:'bread-start',title:'랜덤 불과 손님 주문',steps:['카트 앞에서 E로 진입한 뒤 시작해요. 카운트다운 뒤 60초 동안 플레이해요.','소를 넣을 때 빵마다 불이 한 번 배정돼요. 같은 빵의 양면은 같은 불로 익어요. 색과 게이지를 살펴 노릇할 때 뒤집어요.','한 손님은 총 1~4개를 주문해요. 쟁반은 총 4자리이며 미리 구워도 돼요.']},
     {id:'bread-keys',title:'재료 선택 → 조리 → 쟁반 → 전달',table:{headers:['조작','하는 일'],rows:[['Space','반죽'],['1 / 2 / 3 / 4 · 숫자패드도 가능','팥 / 슈크림 / 피자 / 초코'],['휠 위·아래','이전·다음 재료, 양 끝에서 멈춤'],['Q W E / A S D · 철판 클릭','반죽 → 소 → 앞면 뒤집기 → 뒷면 꺼내기'],['R / 전달 버튼','주문 종류·수량 전체 납품'],['우클릭 / Shift+칸 키 · 쟁반 버리기','폐기, 콤보 초기화'],['F1 / Esc','설명서 / 그만두기 확인']]},paragraphs:['가득 찬 쟁반에서는 정상 빵을 꺼낼 수 없고 계속 익어요. 실패 빵은 치울 수 있어요.','설명서·확인창에서도 시간은 흘러요. 37초 몰림 예고, 40초부터 가속해요.']},
-    {id:'bread-result',title:'납품해야 득점',paragraphs:['보관 점수는 아직 총점이 아니에요. 주문 전체를 전달하면 주문분만 소비하고 여분은 남아요. 미납품 재고·철판은 종료 점수에 포함하지 않아요.','양면 황금 콤보 3~5는 ×1.2, 6 이상은 ×1.5예요. 피자·초코 납품분에는 초기 설정 50% 추가 점수를 각 빵마다 내림해요.',bungeoppangV4Preview ? '미리보기 엽전은 예상 환산이며 실제 지갑에 반영하지 않아요.' : '60초 후 서버가 기록을 검증해 결과를 확정해요. 5점당 1냥, 한국 날짜 기준 모든 미니게임 합계 하루 최대 500냥이며 최종 지급은 서버 결과를 따라요. 정산이 지연되면 결과 화면에서 다시 확인해요.']},
+    {id:'bread-result',title:'납품해야 득점',paragraphs:['보관 점수는 아직 총점이 아니에요. 주문 전체를 전달하면 주문분만 소비하고 여분은 남아요. 미납품 재고·철판은 종료 점수에 포함하지 않아요.','양면 황금 콤보 3~5는 ×1.2, 6 이상은 ×1.5예요. 피자·초코 납품분에는 초기 설정 50% 추가 점수를 각 빵마다 내림해요.',bungeoppangV4Preview ? '미리보기 엽전은 예상 환산이며 실제 지갑에 반영하지 않아요.' : '60초 후 서버가 기록을 검증해 결과를 확정해요. 5점당 1냥, 한국 날짜 기준 모든 미니게임 합계 하루 최대 1000냥이며 최종 지급은 서버 결과를 따라요. 정산이 지연되면 결과 화면에서 다시 확인해요.']},
   ]},
   rpsRouletteManual,
   plusMinusManual,
   moleManual,
   speedMoleManual,
+  jumpRopeManual,
 ];
 export const gameManuals =allGameManuals.filter(game => GENERATED_PARK_ENABLED || game.id !== 'jump');
 
@@ -56,7 +58,7 @@ if (bungeoppangV5Enabled) {
     ] }, paragraphs: ['가득 찬 쟁반에서는 정상 빵을 꺼내지 못하고 계속 익어요. 탄 빵은 쟁반이 꽉 차도 버릴 수 있어요.',
       '도움말·확인창·연결 대기 중에도 시간은 계속 흐르고 180초에 새 입력을 마쳐요.'] },
     { id: 'bread-result', title: '납품해야 득점', paragraphs: ['양면 품질·콤보·특수 재료 보너스는 기존 규칙을 유지해요. 폐기·미납품 빵에는 점수가 없어요.',
-      bungeoppangV5Preview ? 'v5 개발 미리보기는 실제 지갑을 변경하거나 엽전을 지급하지 않아요.' : '최종 점수와 엽전은 서버가 확정해요. 5점당 1냥, 한국 날짜 기준 모든 미니게임 합계 하루 최대 500냥이에요.'] },
+      bungeoppangV5Preview ? 'v5 개발 미리보기는 실제 지갑을 변경하거나 엽전을 지급하지 않아요.' : '최종 점수와 엽전은 서버가 확정해요. 5점당 1냥, 한국 날짜 기준 모든 미니게임 합계 하루 최대 1000냥이에요.'] },
   ];
 }
 
@@ -78,7 +80,7 @@ export const parkGuides: Record<GuideId,{title:string;subtitle:string;sections:M
   places:{title:'공원 둘러보기',subtitle:'어디서 무엇을 할 수 있을까요?',sections:[
     {id:'zones',title:'주요 장소',table:{headers:['장소','할 수 있는 일'],rows:[['중앙 게임마당 (서편·동편)','테이블에 앉아 2~4명이 보드게임을 해요'],['메인 팔각정','공원 한가운데 정자예요. 만나서 이야기 나누기 좋아요'],['붕어빵 카트','혼자 하는 미니게임으로 엽전을 벌어요'],['운동마당','허리돌리기·노젓기·거꾸로 매달리기 등 운동기구 10종'],['호숫가 전망대','망원경으로 공원을 내려다보고 익명 메모를 남겨요'],['버드나무 호수 · 돌다리','호수를 건너거나 헤엄쳐요'],['서쪽 분수광장 · 중앙 석탑','쉬어 가며 구경하기 좋은 곳이에요'],['소리함','온탑에 바라는 점을 적어 보내요']]},tip:'지도(M)에서 장소 이름을 누르면 그곳까지 바닥에 길을 그려 줘요.'},
     {id:'map',title:'지도와 길 안내',steps:['M 또는 오른쪽 아래 지도 버튼으로 지도를 열어요. 내 위치와 다른 사람의 위치가 함께 보여요.','장소 목록이나 지도 위 지점을 누른 뒤 M·Esc로 지도를 닫고 직접 걸어가요. 화면 위 화살표와 남은 거리를 따라가면 돼요.','길 안내 옆의 ×로 안내를 그만둘 수 있어요. 시설이나 게임을 이용하는 동안에는 안내를 숨겼다가 다시 이어 줘요.'],tip:'전망대는 지상 입구까지 안내해요. 호수 한가운데처럼 걸어서 갈 수 없는 곳은 근처까지만 안내해요.'},
-    {id:'bench',title:'벤치와 운동기구',steps:['벤치나 운동기구 가까이에서 E를 눌러 앉거나 운동을 시작해요.','이미 다른 사람이 쓰고 있으면 기다렸다가 이용해요.','WASD로 일어나거나 화면의 버튼으로 이용을 마쳐요.'],paragraphs:['운동기구는 실제 1분마다 1냥, 한국 시간 기준 하루 최대 300냥을 받아요. 미니게임 하루 500냥과 별도예요. 하차·접속 종료 시 1분 미만 시간은 초기화돼요.']},
+    {id:'bench',title:'벤치와 운동기구',steps:['벤치나 운동기구 가까이에서 E를 눌러 앉거나 운동을 시작해요.','이미 다른 사람이 쓰고 있으면 기다렸다가 이용해요.','WASD로 일어나거나 화면의 버튼으로 이용을 마쳐요.'],paragraphs:['운동기구는 실제 1분마다 5냥, 한국 시간 기준 하루 최대 500냥을 받아요. 미니게임 하루 1000냥과 별도예요. 하차·접속 종료 시 1분 미만 시간은 초기화돼요.']},
     {id:'telescope',title:'망원경 조작 설명',steps:['호숫가 전망대의 망원경 가까이에서 E를 눌러요.','마우스 드래그로 방향을 바꾸고, 휠로 2~8배까지 확대해요.','E·Esc 또는 나가기 버튼으로 망원경에서 나와요.'],tip:'확대한 화면은 나에게만 보여요.'},
     {id:'notes',title:'익명 메모와 소리함',paragraphs:['전망대의 익명 메모판에서 E를 누르면 다른 사람이 남긴 메모를 읽고, 이름 없이 내 메모를 남길 수 있어요.','소리함에서 E를 누르면 온탑에 바라는 점이나 불편한 점을 적어 보낼 수 있어요. 보내 준 의견은 운영진이 확인해요.']},
     {id:'bread',title:'붕어빵 카트',paragraphs:['붕어빵 카트 앞에서 E를 눌러 혼자 하는 미니게임을 시작해요. 손님 주문에 맞춰 붕어빵을 구워 전달하면 점수에 따라 엽전을 받아요.','자세한 조작은 게임 찾아보기의 붕어빵 굽기 설명을 읽어 보세요.']},
@@ -90,7 +92,7 @@ export const parkGuides: Record<GuideId,{title:string;subtitle:string;sections:M
     {id:'channel',title:'채널',paragraphs:['채널마다 공원이 따로 열려 있어요. 왼쪽 위 채널 이름을 눌러 다른 채널로 옮겨 갈 수 있어요.','테이블에 앉아 있을 때는 채널을 바꿀 수 없어요. 먼저 자리에서 일어나 주세요.'],tip:'모두가 즐거운 공원이 되도록 서로 존중하는 말을 써 주세요.'},
   ]},
   coins:{title:'엽전과 꾸미기',subtitle:'모으고, 걸고, 꾸며요.',sections:[
-    {id:'wallet',title:'엽전 모으기',table:{headers:['방법','받는 엽전'],rows:[['처음 가입','100냥'],['보드게임','참가비를 걸고, 경기 결과에 따라 엽전을 주고받아요'],['붕어빵 굽기','5점마다 1냥 · 미니게임 합계 하루 최대 500냥'],['돌탑 점프맵','완주 250냥 · 미니게임 합계 하루 최대 500냥'],['운동기구','실제 1분마다 1냥 · 별도 하루 최대 300냥']]},paragraphs:['잔액은 오른쪽 위에서 확인해요. —로 보이면 아직 불러오는 중이에요.','경기나 붕어빵이 끝나면 결과를 확인한 뒤 엽전에 반영해요. 조금 늦어지면 결과 화면에서 다시 확인해 주세요.']},
+    {id:'wallet',title:'엽전 모으기',table:{headers:['방법','받는 엽전'],rows:[['처음 가입','100냥'],['보드게임','참가비를 걸고, 경기 결과에 따라 엽전을 주고받아요'],['붕어빵 굽기','5점마다 1냥 · 미니게임 합계 하루 최대 1000냥'],['돌탑 점프맵','완주 250냥 · 미니게임 합계 하루 최대 1000냥'],['운동기구','실제 1분마다 5냥 · 별도 하루 최대 500냥']]},paragraphs:['잔액은 오른쪽 위에서 확인해요. —로 보이면 아직 불러오는 중이에요.','경기나 붕어빵이 끝나면 결과를 확인한 뒤 엽전에 반영해요. 조금 늦어지면 결과 화면에서 다시 확인해 주세요.']},
     {id:'wardrobe',title:'옷장에서 꾸미기',steps:['오른쪽 아래 빠른 메뉴의 옷장을 눌러요. 카메라가 내 캐릭터 앞으로 돌아가요.','머리·얼굴·상의·하의·신발 중 부위를 고르고, 가진 의상을 눌러 미리 봐요.','착용하기를 누르면 저장돼요. Esc 또는 ×로 옷장을 닫아요.'],tip:'옷장을 연 채로도 WASD로 걸을 수 있고, 드래그나 ‹ › 버튼으로 캐릭터를 돌려 볼 수 있어요. 의상을 사는 상점과 캐릭터에 입혀지는 3D 의상은 준비 중이에요.'},
   ]},
   join:{title:'테이블 참여',subtitle:'앉기 · 준비 · 한 판 · 다음 판',sections:[
@@ -110,7 +112,7 @@ export const parkGuides: Record<GuideId,{title:string;subtitle:string;sections:M
   faq:{title:'자주 묻는 질문',subtitle:'막힐 때 먼저 찾아보세요.',sections:[
     {id:'faq-pause',title:'설명서를 열면 게임이 멈추나요?',paragraphs:['아니요. 설명서를 읽는 동안에도 경기 시간은 계속 흘러요. 내 차례라면 설명서를 닫고 먼저 진행해 주세요.']},
     {id:'faq-forfeit',title:'이동키를 누르면 기권되나요?',paragraphs:['아니요. 경기 중에는 기권하기 버튼을 누르고 한 번 더 확인해야만 기권돼요.']},
-    {id:'faq-coins',title:'엽전이 바로 들어오지 않아요.',paragraphs:['결과를 확인한 뒤 반영되기 때문에 조금 걸릴 수 있어요. 결과 화면에서 다시 확인해 주세요. 미니게임 보상은 모두 합쳐 하루 최대 500냥까지 받을 수 있어요.']},
+    {id:'faq-coins',title:'엽전이 바로 들어오지 않아요.',paragraphs:['결과를 확인한 뒤 반영되기 때문에 조금 걸릴 수 있어요. 결과 화면에서 다시 확인해 주세요. 미니게임 보상은 모두 합쳐 하루 최대 1000냥까지 받을 수 있어요.']},
     {id:'faq-mouse',title:'마우스 커서가 사라졌어요.',paragraphs:['마우스 고정이 켜진 상태예요. Esc나 Ctrl을 누르면 풀려요.']},
     {id:'faq-channel',title:'채널을 바꿀 수 없어요.',paragraphs:['테이블에 앉아 있으면 채널을 바꿀 수 없어요. 자리에서 일어난 뒤 다시 시도해 주세요.']},
     {id:'faq-character',title:'캐릭터를 바꾸고 싶어요.',paragraphs:['처음 정한 캐릭터는 바꿀 수 없어요. 닉네임은 내 정보에서 바꿀 수 있고, 옷은 옷장에서 갈아입을 수 있어요.']},
@@ -125,6 +127,12 @@ const searchWords = (query: string) => query.trim().toLocaleLowerCase().split(/\
 export function filterManuals(category:'all'|ManualCategory,query:string) {
   const words=searchWords(query);
   return gameManuals.filter(game => (category==='all'||game.category===category) && matches(words,[game.title,game.subtitle,game.keywords,game.summary,...game.sections.flatMap(sectionText)]));
+}
+/** 설명서 목록은 보드게임을 먼저, 미니게임을 그다음에 묶어 보여 준다. 빈 묶음은 뺀다. */
+export function groupManuals(games:GameManual[]) {
+  return ([['game','보드게임'],['minigame','미니게임'],['vr','VR']] as const)
+    .map(([category,label]) => ({category,label,games:games.filter(game => game.category===category)}))
+    .filter(group => group.games.length > 0);
 }
 /** Park guide pages whose text holds every search word, so a search finds more than games. */
 export function filterGuides(query:string) {

@@ -31,7 +31,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Tag("mysql")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local,db", "ontop.world.jumpmap.enabled=true",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame",
+        // V165가 db/shop의 items를 참조한다.
+        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/shop",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
         "ontop.world.channels[0].channel-id=channel-1", "ontop.world.channels[0].name=공원",
         "ontop.world.channels[0].capacity=20",
@@ -167,7 +168,7 @@ class JumpmapMySqlTests {
         assertThat(first.path("courseVersion").asText()).isEqualTo("park180-jump-v1");
         assertThat(first.path("rulesVersion").asText()).isEqualTo("v3");
         assertThat(first.path("isFirstRun").asBoolean()).isTrue();
-        assertThat(first.path("dailyCap").asInt()).isEqualTo(500);
+        assertThat(first.path("dailyCap").asInt()).isEqualTo(1000);
         assertThat(first.path("todayEarned").asInt()).isZero();
         assertThat(first.path("earningsDate").asText()).matches("\\d{4}-\\d{2}-\\d{2}");
         assertThat(first.path("activeRunId").isNull()).isTrue();
@@ -307,20 +308,20 @@ class JumpmapMySqlTests {
                 .isInstanceOf(org.springframework.dao.DataAccessException.class)
                 .hasMessageContaining("ck_jump_runs_coins")
                 .hasRootCauseInstanceOf(java.sql.SQLException.class);
-        // 두 판까지 합계 500냥, 그 뒤에는 지급하지 않는다.
-        for (int i = 0; i < 1; i++) {
+        // 네 판까지 합계 1000냥, 그 뒤에는 지급하지 않는다.
+        for (int i = 0; i < 3; i++) {
             assertThat(passAll(startRun(101, NOON), 101, 1, 7, NOON)).containsExactly(5, 10, 20, 30, 40, 60, 85);
         }
         assertThat(passAll(startRun(101, NOON), 101, 1, 7, NOON)).containsOnly(0);
-        assertThat(balance(101)).isEqualTo(600);
-        assertThat(ledger(101)).isEqualTo(500);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions", Integer.class)).isEqualTo(14);
+        assertThat(balance(101)).isEqualTo(1100);
+        assertThat(ledger(101)).isEqualTo(1000);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions", Integer.class)).isEqualTo(28);
 
-        // 붕어빵 등 다른 미니게임 495냥 → 문1 5냥 → 문2 0냥 → 문3 0냥
-        earned(202, date, 495);
+        // 붕어빵 등 다른 미니게임 995냥 → 문1 5냥 → 문2 0냥 → 문3 0냥
+        earned(202, date, 995);
         String run = startRun(202, NOON);
         assertThat(passAll(run, 202, 1, 3, NOON)).containsExactly(5, 0, 0);
-        assertThat(today(202, date)).isEqualTo(500);
+        assertThat(today(202, date)).isEqualTo(1000);
         assertThat(jdbc.queryForObject("SELECT coins_granted FROM jump_runs WHERE id = ?", Integer.class, run)).isEqualTo(5);
         assertThat(balance(202) - 100).isEqualTo(ledger(202)).isEqualTo(5);
     }
@@ -328,16 +329,16 @@ class JumpmapMySqlTests {
     @Test
     void 잔여_177냥이면_6구간_165냥_뒤_완주는_12냥에서_멈춘다() {
         LocalDate date = LocalDate.of(2026, 10, 30);
-        earned(101, date, 323);
+        earned(101, date, 823);
         String run = startRun(101, NOON);
         assertThat(passAll(run, 101, 1, 6, NOON).stream().mapToInt(Integer::intValue).sum()).isEqualTo(165);
-        assertThat(today(101, date)).isEqualTo(488);
+        assertThat(today(101, date)).isEqualTo(988);
         assertThat(pass(run, 101, 7, NOON)).isEqualTo(12);
-        assertThat(today(101, date)).isEqualTo(500);
+        assertThat(today(101, date)).isEqualTo(1000);
         var ended = store.end(run, new JumpmapStore.RunEnd(JumpRun.EndReason.FINISH, NOON, 251_800, 251_800L, 7, true,
                 46.5, List.of(24, 10, 14, 13, 18, 19, 15), false, List.of()));
         assertThat(ended.runCoins()).isEqualTo(177);
-        assertThat(ended.todayEarned()).isEqualTo(500);
+        assertThat(ended.todayEarned()).isEqualTo(1000);
         assertThat(ended.bestFinishMs()).isEqualTo(251_800);
         assertThat(ended.newBest()).isTrue();
     }
@@ -373,7 +374,7 @@ class JumpmapMySqlTests {
 
     @Test
     void 두_판의_문을_동시에_정산해도_하루_상한을_넘지_않는다() throws Exception {
-        earned(101, LocalDate.of(2026, 10, 30), 400);
+        earned(101, LocalDate.of(2026, 10, 30), 900);
         String first = startRun(101, NOON), second = startRun(101, NOON);
         for (var run : List.of(first, second)) {
             for (int gate = 1; gate <= 7; gate++) assertThat(store.passGate(run, 101, gate, REWARDS[gate - 1], gate, NOON)).isTrue();
@@ -398,7 +399,7 @@ class JumpmapMySqlTests {
         pool.shutdown();
         assertThat(pool.awaitTermination(60, TimeUnit.SECONDS)).isTrue();
         assertThat(errors).isEmpty();
-        assertThat(today(101, LocalDate.of(2026, 10, 30))).isEqualTo(500);
+        assertThat(today(101, LocalDate.of(2026, 10, 30))).isEqualTo(1000);
         assertThat(balance(101)).isEqualTo(200);
         assertThat(ledger(101)).isEqualTo(100);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM jump_gate_rewards WHERE status = 'GRANTED'", Integer.class)).isEqualTo(14);
@@ -510,7 +511,7 @@ class JumpmapMySqlTests {
         var revisions = sent.stream().filter(p -> p.containsKey("revision")).map(p -> ((Number) p.get("revision")).longValue()).toList();
         assertThat(revisions).isSorted().doesNotHaveDuplicates().hasSize(3);
         assertThat(sent.get(2)).containsEntry("gate", 1).containsEntry("coinsGranted", 2).containsEntry("pending", false)
-                .containsEntry("runCoins", 2).containsEntry("dailyCap", 500);
+                .containsEntry("runCoins", 2).containsEntry("dailyCap", 1000);
         assertThat(sent.get(3)).containsEntry("reason", "FALL").containsEntry("runCoins", 2).containsEntry("maxHeight", 27.46)
                 .containsEntry("gatesPassed", 1).containsEntry("mapVersion", service.mapVersion());
         assertThat(jdbc.queryForObject("SELECT end_reason FROM jump_runs WHERE id = 'svc-run'", String.class)).isEqualTo("FALL");

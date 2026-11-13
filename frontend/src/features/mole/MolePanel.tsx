@@ -7,7 +7,8 @@ import { KEY_CODES, KEYS, POINTS_PER_COIN, type Hit, type Mole } from './protoco
 import { comboTenths, MoleScorer, STUN_MS } from './scoring'
 import { SevenSegment } from './SevenSegment'
 import { ART, BASE, HOLES, LED_LABELS, LEDS, PHASES, SPRITES, STUN } from './stage'
-import { beginMolePlay, closeMole, finishMole, startMole, useMole } from './store'
+import { beginMolePlay, closeMole, finishMole, MOLE_PREVIEW, startMole, useMole } from './store'
+import { MoleTapRecorder, type MoleInput } from '../arcade/moleObservations'
 import './mole.css'
 import { MoleStartGuide } from '../arcade/MoleStartGuide'
 import { SpeedMoleTrophy } from '../speedMole/SpeedMoleRankingBoard'
@@ -59,11 +60,19 @@ function MoleScreen() {
   const clock = useRef({ countdownAt: 0, playAt: 0 })
   const scorer = useRef<MoleScorer | null>(null)
   const hits = useRef<Hit[]>([])
+  const recorder = useRef<MoleTapRecorder | null>(null)
   const bonks = useRef(new Map<number, number>())
   const fxSeq = useRef(0)
   const root = useRef<HTMLDivElement>(null)
 
   useEffect(() => { root.current?.focus() }, [])
+  const roundId = round?.id
+  useEffect(() => {
+    if (MOLE_PREVIEW || !roundId) return
+    const current = new MoleTapRecorder('whack-a-mole', roundId)
+    recorder.current = current
+    return () => { current.flush(); recorder.current = null }
+  }, [roundId])
 
   const byHole = useMemo(() => KEYS.map((_, hole) => (round?.moles ?? []).filter(m => m.hole === hole)), [round])
 
@@ -89,16 +98,23 @@ function MoleScreen() {
       beginMolePlay()
     } else if (phase === 'playing' && now - clock.current.playAt >= rules.durationMs) {
       setConfirmQuit(false)
+      recorder.current?.flush()
       void finishMole(hits.current)
     }
   }, [phase, now, rules.durationMs])
 
-  const strike = (hole: number) => {
+  const strike = (hole: number, input: MoleInput) => {
     if (useMole.getState().phase !== 'playing' || !scorer.current || hits.current.length >= MAX_HITS) return
     const wall = performance.now(), at = Math.round(wall - clock.current.playAt)
     if (at < 0 || at > rules.durationMs) return
-    hits.current.push({ hole, at })
     const event = scorer.current.hit(hole, at)
+    const hasTarget = event.type === 'catch' || event.type === 'tap' || event.type === 'decoy'
+    const targetId = hasTarget ? round?.targetIds?.get(hole) : undefined
+    hits.current.push({ hole, at, targetId })
+    recorder.current?.push({ sequence: hits.current.length, clientAtMs: at, hole, input, targetId,
+      spawnId: hasTarget ? event.mole.id : undefined, appearedAtMs: hasTarget ? event.mole.appearAt : undefined,
+      outcome: event.type === 'catch' ? 'HIT' : event.type === 'tap' ? 'RAPID'
+        : event.type === 'decoy' ? 'DECOY' : event.type === 'empty' ? 'MISS' : 'IGNORED' })
     // 기절했거나 같은 구멍을 너무 빨리 다시 누르면 망치가 나오지 않는다.
     if (event.type === 'ignored' && (event.reason === 'stunned' || event.reason === 'repeat')) return
     setSwings(list => [...list.filter(s => wall - s.at < SWING_MS), { id: ++fxSeq.current, hole, at: wall }])
@@ -130,7 +146,7 @@ function MoleScreen() {
       const hole = (KEY_CODES as readonly string[]).indexOf(event.code)
       if (hole >= 0) {
         event.preventDefault()
-        if (!event.repeat) keys.current.strike(hole)
+        if (!event.repeat) keys.current.strike(hole, 'KEYBOARD')
       } else if (event.code === 'Escape') {
         event.preventDefault()
         if (phase === 'playing') setConfirmQuit(!confirmQuit)
@@ -161,7 +177,7 @@ function MoleScreen() {
   const tenths = comboTenths(rules, combo)
   const remaining = playing ? rules.durationMs - elapsed : phase === 'submitting' || phase === 'result' ? 0 : rules.durationMs
   const countdown = phase === 'countdown' ? Math.max(1, Math.ceil((COUNTDOWN_MS - (now - clock.current.countdownAt)) / 1000)) : 0
-  const todayEarned = state?.todayEarned ?? 0, dailyCap = state?.dailyCap ?? 500
+  const todayEarned = state?.todayEarned ?? 0, dailyCap = state?.dailyCap ?? 1000
   const stunLeft = live && playing ? Math.max(0, live.stunUntil - elapsed) : 0
 
   const taps = (mole: Mole) => live?.tapsOf(mole.id) ?? 0
@@ -199,7 +215,7 @@ function MoleScreen() {
       {HOLES.map((place, hole) => {
         const view = holeView(hole), mole = view.mole
         return <button key={hole} type="button" className="mole-hole" style={place} aria-label={`${KEYS[hole]} 구멍`} data-hole={hole}
-          onPointerDown={event => { event.preventDefault(); strike(hole) }} tabIndex={-1}>
+          onPointerDown={event => { event.preventDefault(); strike(hole, event.pointerType === 'touch' ? 'TOUCH' : 'POINTER') }} tabIndex={-1}>
           <img className="mole-hole-back" src={ART.hole} alt="" draggable={false} />
           <span className="mole-slot">
             {mole && <span className="mole-sprite" data-pose={view.pose} data-kind={mole.kind}>

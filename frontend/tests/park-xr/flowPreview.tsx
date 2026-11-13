@@ -33,7 +33,7 @@ function change(update: (value: CoopSnapshot) => void) {
 function result(): CoopResult {
   return { gameId, status: 'SETTLED', teamScore: 160, served: 20, endReason: 'SKEWER_TIME_UP',
     rankingStatus: 'REGISTERED', rankingReason: 'ELIGIBLE', coinsCalculated: 8, coinsGranted: 8,
-    todayEarned: 8, dailyCap: 500, remainingToday: 492, balance: 108,
+    todayEarned: 8, dailyCap: 1000, remainingToday: 992, balance: 108,
     rewardDate: '2026-11-05', settledAt: '2026-11-05T03:00:00Z' }
 }
 const transport: CoopTransport = {

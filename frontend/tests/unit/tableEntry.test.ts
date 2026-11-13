@@ -2,15 +2,32 @@ import { beforeEach, expect, it } from 'vitest'
 import { avatars, resetWorld, useSession, type AvatarSnapshot } from '../../src/network/worldClient'
 import { tableEntry } from '../../src/features/tableLobby/tableEntry'
 import { TABLES } from '../../src/config'
+import { useCompanions, type CompanionActor } from '../../src/features/ai/companions'
+import { useAiFeatures, resetAiFeatures } from '../../src/features/ai/serviceFeatures'
 
 const anchorId = TABLES[0]!.id, tableId = 'entry-table'
 beforeEach(() => {
+  resetAiFeatures()
   resetWorld()
   useSession.setState({ status: 'connected', roomId: 'room',
     bindings: [{ channelId: 'room', tableId, anchorId }],
     tables: [{ tableId, capacity: 4, occupiedSeats: 0, availableSeats: 4,
       joinable: true, gameCode: null, betAmountPerPlayer: null, status: 'WAITING' }],
     publicTables: { [tableId]: { tableId, anchorId, chairCount: 2 } } })
+})
+it('NPC 예약 테이블은 일반 유저 한 명이어도 관전하며 다른 채널·관전 NPC는 제외한다', () => {
+  useAiFeatures.setState({ companions: true })
+  seat('102', 0)
+  const actor = { channelId: 'room', tableId, action: 'APPROACH_OMOK' } as CompanionActor
+  useCompanions.setState({ actors: [actor] })
+  expect(tableEntry(anchorId)).toBe('watch')
+  useCompanions.setState({ actors: [{ ...actor, action: 'PLAY_OMOK' }] })
+  expect(tableEntry(anchorId)).toBe('watch')
+  useCompanions.setState({ actors: [{ ...actor, channelId: 'other' }] })
+  expect(tableEntry(anchorId)).toBe('sit')
+  useCompanions.setState({ actors: [{ ...actor, action: 'WATCH_OMOK' }] })
+  expect(tableEntry(anchorId)).toBe('sit')
+  resetAiFeatures()
 })
 const seat = (id: string, seatIndex: number) => avatars.set(id,
   { connected: true, tableId: anchorId, seatIndex } as AvatarSnapshot)

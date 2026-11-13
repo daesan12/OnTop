@@ -1,4 +1,5 @@
-import { BufferAttribute, BufferGeometry } from 'three'
+import { BufferAttribute, BufferGeometry, SkinnedMesh } from 'three'
+import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { equipSlots, type EquipSlot, type PublicEquipment } from '../../network/equipment'
 import { catalogAsset, catalogSource } from './skinCatalog'
 
@@ -9,6 +10,8 @@ import { catalogAsset, catalogSource } from './skinCatalog'
  * - `body` always, `body__TOPd_BOTTOMg` unless one of those items is worn;
  * - `item__TOP__d` while TOP d from that file is worn, `item__TOP__d__under_TOPb` unless TOP b is worn too;
  * - `item__HAIR__h__for_girl` like `item__HAIR__h`, on the girl only (`__for_man`: the man only).
+ * Workshop item files (catalog pieces are always `a`) can list what they cover in mesh extras.covers
+ * (`["SHOESg"]`): worn, they hide and cover like that wardrobe item would (see coveredTokens).
  */
 export type CharacterVariant = 'man' | 'girl'
 export interface Worn { source: string; id: string }
@@ -56,9 +59,34 @@ export const lookKey = (look: Look) => equipSlots.map(slot => look[slot] ? `${lo
 export const lookSources = (look: Look) => [...new Set(Object.values(look).map(worn => worn.source))]
 
 const tokens = (rule: string | undefined) => rule?.match(/[A-Z]+[a-z0-9]+/g) ?? []
-/** Whether a piece of `source` shows on a `variant` avatar wearing `look`. The body comes from the avatar's own file. */
-export function pieceShown(name: string, source: string, variant: CharacterVariant, look: Look) {
-  const worn = new Set(Object.entries(look).map(([slot, piece]) => slot + piece.id))
+const fileCovers = new WeakMap<GLTF, readonly string[]>()
+/** Wardrobe items the worn files say their items cover (mesh extras.covers, e.g. "SHOESg" from a general's
+ * boots split into a workshop item). A file only covers slots it is worn in, so a hat file cannot hide a body's feet. */
+export function coveredTokens(look: Look, sources: ReadonlyMap<string, GLTF> | undefined): ReadonlySet<string> {
+  const covered = new Set<string>()
+  if (!sources) return covered
+  for (const [slot, piece] of Object.entries(look)) {
+    // (a slot left as undefined by a caller is simply not worn)
+    const file = piece?.source ? sources.get(piece.source) : undefined
+    if (!file) continue
+    let listed = fileCovers.get(file)
+    if (!listed) {
+      const found = new Set<string>()
+      file.scene.traverse(object => {
+        const covers = (object as SkinnedMesh).isSkinnedMesh ? object.userData.covers : undefined
+        if (Array.isArray(covers)) for (const token of covers) if (typeof token === 'string' && /^[A-Z]+[a-z0-9]+$/.test(token)) found.add(token)
+      })
+      fileCovers.set(file, listed = [...found])
+    }
+    for (const token of listed) if (token.match(/^[A-Z]+/)![0] === slot) covered.add(token)
+  }
+  return covered
+}
+
+/** Whether a piece of `source` shows on a `variant` avatar wearing `look`. The body comes from the avatar's own file.
+ * `covered`: wardrobe items counted as worn for hiding (coveredTokens). */
+export function pieceShown(name: string, source: string, variant: CharacterVariant, look: Look, covered: ReadonlySet<string> = new Set()) {
+  const worn = new Set([...Object.entries(look).flatMap(([slot, piece]) => piece ? [slot + piece.id] : []), ...covered])
   const body = name.match(/^body(?:__(\w+))?$/)
   if (body) return source === variant && !tokens(body[1]).some(token => worn.has(token))
   // `__for_girl` / `__for_man`: a piece for that character only (a hat's hair: the girl's under it, or the man's)

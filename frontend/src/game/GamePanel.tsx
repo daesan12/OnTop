@@ -1,5 +1,6 @@
+import {NpcResultPanel,useNpcResult} from '../features/ai/NpcResultPanel'
 import { AlkkagiPanel } from './alkkagi/AlkkagiPanel'
-import { useGame } from './store'
+import { useDisplayGame as useGame } from './displayGame'
 import { OmokPanel } from './OmokPanel'
 import { FarklePanel } from './farkle/FarklePanel'
 import { OneCardPanel } from './onecard/OneCardPanel'
@@ -19,7 +20,9 @@ import { BoardRewardCoinSource } from '../features/wallet/RewardCoinFlight'
 
 export function GamePanel() {
   const runtime = useParkRuntime(), pending = useSession(s => s.pending), connected = useSession(s => s.status === 'connected')
-  const gathering = useGathering(), details = useTableLobby(s => s.gatheringDetails)
+  const npcResult=useNpcResult()
+  const productGathering = useGathering(), localPractice=useGame(s=>s.localPractice)
+  const gathering=localPractice?null:productGathering, details = useTableLobby(s => s.gatheringDetails)
   const spectatorResult = useGame(s => s.game?.role === 'SPECTATOR' && gameState(s.game).status === 'FINISHED' ? s.game : null)
   const alkkagi = useGame(s => !!s.game?.alkkagi)
   const profiles = useSession(s => s.profiles)
@@ -32,6 +35,7 @@ export function GamePanel() {
   const bridge = useGame(s => !!s.game?.bridge || (s.start?.gameCode === 'LIAR_BRIDGE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const ledger = useGame(s => !!s.game?.ledger || (s.start?.gameCode === 'DICE_LEDGER' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const halli = useGame(s => !!s.game?.halli || (s.start?.gameCode === 'HALLI_GALLI' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
+  if (npcResult) return <NpcResultPanel practice={npcResult}/>
   if (terminalPlayer && !seated) return null
   if (alkkagi) return <AlkkagiPanel />
   if (spectatorResult) {

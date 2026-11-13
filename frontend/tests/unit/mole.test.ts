@@ -80,16 +80,22 @@ describe('whack-a-mole schedule preview', () => {
 })
 
 describe('whack-a-mole contract', () => {
-  const state = { serverNow: '2026-11-04T03:00:00Z', todayEarned: 120, dailyCap: 500, bestScore: 1380, rules, last: null }
+  const state = { serverNow: '2026-11-04T03:00:00Z', todayEarned: 120, dailyCap: 1000, bestScore: 1380, rules, last: null }
   it('parses status, round and settlement and rejects broken data', () => {
     expect(parseMoleState(state).todayEarned).toBe(120)
     expect(() => parseMoleState({ ...state, rules: { ...rules, keys: ['A'] } })).toThrow()
     const round = { id: '7', startedAt: '2026-11-04T03:00:00Z', rules, moles: [mole(0, 2, 'RAPID', 3, 700, 1800)] }
     expect(parseMoleRound(round).moles[0]).toMatchObject({ kind: 'RAPID', hits: 3 })
+    const withTargets = parseMoleRound({ ...round, targets: [
+      { hole: 0, ids: ['zero-a', 'zero-b'] },
+      { hole: 2, ids: ['two-a', 'two-b'] },
+    ] })
+    expect(withTargets.moles).toEqual(parseMoleRound(round).moles)
+    expect(withTargets.targetIds).toEqual(new Map([[0, 'zero-a'], [2, 'two-b']]))
     expect(() => parseMoleRound({ ...round, moles: [{ ...round.moles[0], hole: 6 }] })).toThrow()
     expect(() => parseMoleRound({ ...round, moles: [{ ...round.moles[0], kind: 'BOSS' }] })).toThrow()
     const result = { id: '7', score: 1380, maxCombo: 24, caught: 96, calculatedReward: 46, reward: 46, settledAt: '2026-11-04T03:01:33Z' }
-    expect(parseMoleSettlement({ result, todayEarned: 166, dailyCap: 500, bestScore: 1380 }).result.reward).toBe(46)
+    expect(parseMoleSettlement({ result, todayEarned: 166, dailyCap: 1000, bestScore: 1380 }).result.reward).toBe(46)
   })
 
   it('starts with only an idempotency key, reuses it after a lost response and posts hits on complete', async () => {
@@ -107,7 +113,7 @@ describe('whack-a-mole contract', () => {
     expect(values.size).toBe(0)
 
     request.mockResolvedValueOnce({ result: { id: '7', score: 30, maxCombo: 1, caught: 1, calculatedReward: 1, reward: 1,
-      settledAt: '2026-11-04T03:01:33Z' }, todayEarned: 1, dailyCap: 500, bestScore: 30 })
+      settledAt: '2026-11-04T03:01:33Z' }, todayEarned: 1, dailyCap: 1000, bestScore: 30 })
     await service.complete('7', [{ hole: 1, at: 500 }])
     expect(request).toHaveBeenLastCalledWith('/api/v1/minigames/whack-a-mole/rounds/7/complete',
       expect.objectContaining({ method: 'POST', body: '{"hits":[{"hole":1,"at":500}]}' }))

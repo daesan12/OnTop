@@ -17,12 +17,12 @@ export class AnnouncementError extends Error {
   constructor(message: string, readonly status = 0) { super(message) }
 }
 
-async function request(path: string, signal: AbortSignal, method = 'GET', body?: unknown) {
+export async function announcementRequest(path: string, signal: AbortSignal, method = 'GET', body?: unknown, binary = false) {
   let owner = getAuthSession()
   if (owner?.status !== 'AUTHENTICATED') throw new AnnouncementError('다시 로그인해주세요.', 401)
   const send = () => fetch(path, { method, signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
     credentials: 'omit', cache: 'no-store', headers: { Authorization: `Bearer ${owner!.status === 'AUTHENTICATED' ? owner!.accessToken : ''}`,
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) })
+      ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }) }, body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body) })
   const current = () => !signal.aborted && getAuthSession() === owner
   let response = await send()
   if (!current()) throw new AnnouncementError('요청이 취소되었습니다.')
@@ -37,8 +37,9 @@ async function request(path: string, signal: AbortSignal, method = 'GET', body?:
   if (!response.ok) throw new AnnouncementError(response.status === 401 ? '다시 로그인해주세요.' : response.status === 403 ? '운영 관리자 권한이 필요합니다.'
     : response.status === 409 ? '다른 관리자가 변경했습니다. 목록을 새로 조회하고 다시 수정해주세요.'
       : response.status === 400 ? '제목·내용·게시 기간·표시 순서를 확인해주세요.' : '공지를 처리하지 못했어요. 입력을 보관했으니 다시 확인해주세요.', response.status)
-  return response.status === 204 ? null : response.json()
+  return response.status === 204 ? null : binary ? response.blob() : response.json()
 }
+const request = announcementRequest
 
 export function parseNoticeFeed(v: unknown): NoticeFeed {
   if (!record(v) || !date(v.serverTime) || !date(v.refreshAt) || !Array.isArray(v.announcements)

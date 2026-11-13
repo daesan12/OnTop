@@ -97,6 +97,17 @@ abstract class OpenApiHttpTestSupport {
                 "GET /api/v1/admin/wallet-grants/rewards", "GET /api/v1/admin/wallet-grants/rewards/recipients",
                 "POST /api/v1/admin/operations/feedback/{receiptId}/replies",
                 "PATCH /api/v1/admin/operations/feedback/{receiptId}/status",
+                "GET /api/v1/ai/features", "GET /api/v1/ai/companions/status",
+                "POST /api/v1/ai/companions/invite", "POST /api/v1/ai/companions/action", "POST /api/v1/ai/companions/talk",
+                "GET /api/v1/ai/joke-contest/me", "GET /api/v1/ai/joke-contest/submissions/{id}",
+                "GET /api/v1/ai/joke-contest/rankings", "GET /api/v1/ai/joke-contest/hall",
+                "GET /api/v1/ai/joke-contest/yesterday", "GET /api/v1/ai/joke-contest/reveal/{id}",
+                "POST /api/v1/ai/joke-contest/submissions",
+                "GET /api/v1/entry-news", "GET /api/v1/entry-news/{id}/image",
+                "GET /api/v1/admin/operations/entry-news", "GET /api/v1/admin/operations/entry-news/{id}/image",
+                "POST /api/v1/admin/operations/entry-news/{id}/uploads",
+                "POST /api/v1/admin/operations/entry-news/{id}", "PUT /api/v1/admin/operations/entry-news/{id}",
+                "DELETE /api/v1/admin/operations/entry-news/{id}", "PUT /api/v1/admin/operations/entry-news/order",
                 "GET /api/v1/announcements", "GET /api/v1/admin/operations/announcements",
                 "POST /api/v1/admin/operations/announcements/{id}", "PUT /api/v1/admin/operations/announcements/{id}",
                 "DELETE /api/v1/admin/operations/announcements/{id}", "PUT /api/v1/admin/operations/announcements/order",
@@ -152,6 +163,10 @@ abstract class OpenApiHttpTestSupport {
                     "GET /api/v1/minigames/whack-a-mole/rankings",
                     "POST /api/v1/minigames/speed-mole/rounds", "POST /api/v1/minigames/speed-mole/rounds/{roundId}/complete",
                     "GET /api/v1/minigames/speed-mole/rankings",
+                    "POST /api/v1/minigames/{game}/rounds/{id}/observations",
+                    "GET /api/v1/admin/macro-analysis/mole", "GET /api/v1/admin/macro-analysis/mole/{id}",
+                    "POST /api/v1/minigames/jump-rope/rounds", "POST /api/v1/minigames/jump-rope/rounds/{roundId}/complete",
+                    "GET /api/v1/minigames/jump-rope/rankings",
                     "GET /api/v1/minigames/sessions/{sessionId}",
                     "POST /api/v1/minigames/sessions/{sessionId}/manual-pause",
                     "POST /api/v1/minigames/sessions/{sessionId}/deliveries",
@@ -169,14 +184,16 @@ abstract class OpenApiHttpTestSupport {
         if (environment.acceptsProfiles(Profiles.of(com.ssafy.ontop.config.RuntimeProfiles.PRODUCT_FEATURE))) {
             expected.addAll(Set.of("GET /api/v1/skins/assets", "GET /api/v1/admin/operations/skins/settings",
                     "GET /api/v1/admin/operations/skins", "POST /api/v1/admin/operations/skins",
-                    "GET /api/v1/admin/operations/skins/{id}", "PUT /api/v1/admin/operations/skins/{id}",
+                    "GET /api/v1/admin/operations/skins/{id}", "PUT /api/v1/admin/operations/skins/{id}", "DELETE /api/v1/admin/operations/skins/{id}",
                     "POST /api/v1/admin/operations/skins/{id}/uploads",
                     "POST /api/v1/admin/operations/skins/{id}/uploads/{uploadId}/verify",
                     "POST /api/v1/admin/operations/skins/{id}/publish", "POST /api/v1/admin/operations/skins/{id}/disable"));
             expected.addAll(Set.of("GET /api/v1/admin/operations/skins/components", "POST /api/v1/admin/operations/skins/components",
                     "GET /api/v1/admin/operations/skins/sets", "POST /api/v1/admin/operations/skins/sets",
                     "PUT /api/v1/admin/operations/skins/sets/{id}", "POST /api/v1/admin/operations/skins/sets/{id}/publish",
-                    "POST /api/v1/admin/operations/skins/sets/{id}/disable"));
+                    "POST /api/v1/admin/operations/skins/sets/{id}/disable", "DELETE /api/v1/admin/operations/skins/sets/{id}"));
+            for(String path:List.of("/api/v1/admin/operations/skins/{id}","/api/v1/admin/operations/skins/sets/{id}"))
+                assertThat(api.path("paths").path(path).path("delete").path("responses").has("204")).isTrue();
             expected.addAll(Set.of("GET /api/v1/gacha", "GET /api/v1/gacha/operations/{operationId}",
                     "POST /api/v1/gacha/tickets", "POST /api/v1/gacha/draws", "POST /api/v1/gacha/boxes/open"));
         }
@@ -494,5 +511,30 @@ abstract class OpenApiHttpTestSupport {
                 .isEqualTo("#/components/schemas/AnnouncementOrderItem");
         assertThat(api.at("/components/schemas/PublicAnnouncementsResponse/properties/announcements/items/$ref").asText())
                 .isEqualTo("#/components/schemas/PublicAnnouncement");
+    }
+    @Test
+    void AI_서비스_API는_인증과_설명을_문서화하고_로컬_제어는_노출하지_않는다() throws Exception {
+        var api=json();var operations=new java.util.ArrayList<JsonNode>();
+        api.path("paths").fields().forEachRemaining(entry->{
+            assertThat(entry.getKey()).doesNotStartWith("/local/");
+            if(entry.getKey().startsWith("/api/v1/ai/"))entry.getValue().elements().forEachRemaining(operations::add);
+        });
+        assertThat(operations).hasSize(12);
+        for(var operation:operations){
+            assertThat(operation.path("summary").asText()).isNotBlank();
+            assertThat(operation.at("/security/0").has("AccessJwt")).isTrue();
+        }
+    }
+
+    @Test
+    void 접속_안내는_PNG_binary와_204_응답을_구분한다() throws Exception {
+        var api=json();
+        for(String path:List.of("/api/v1/entry-news/{id}/image","/api/v1/admin/operations/entry-news/{id}/image")) {
+            var schema=api.path("paths").path(path).path("get").path("responses").path("200").path("content").path("image/png").path("schema");
+            assertThat(schema.path("type").asText()).isEqualTo("string");
+            assertThat(schema.path("format").asText()).isEqualTo("binary");
+        }
+        assertThat(api.path("paths").path("/api/v1/admin/operations/entry-news/order").path("put").path("responses").has("204")).isTrue();
+        assertThat(api.path("paths").path("/api/v1/admin/operations/entry-news/{id}").path("delete").path("responses").has("204")).isTrue();
     }
 }

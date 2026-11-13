@@ -249,6 +249,10 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   font-size: 17px;
 }
+.park-page .avatar-nickname.npc-nickname {
+  color: #c6f4e7;
+  background: #284c46e6;
+}
 .park-page .avatar-speech::after {
   content: '';
   position: absolute;

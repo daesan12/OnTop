@@ -45,7 +45,8 @@ import static org.mockito.Mockito.doThrow;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=dev,db", "ontop.feedback.enabled=true",
         "ontop.admin.read-ids=101", "ontop.feedback.administrator-ids=101",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame",
+        // V165가 db/shop의 items를 참조한다.
+        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/shop",
         "ontop.auth.allowed-origins=https://dev.on-top.world",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })

@@ -4,9 +4,10 @@ import { openMole, refreshMole } from '../mole/store'
 import { openPlusMinus, refreshPlusMinus } from '../plusMinus/store'
 import { openRpsRoulette, refreshRpsRoulette } from '../rpsRoulette/store'
 import { openSpeedMole } from '../speedMole/store'
+import { openJumpRope } from '../jumpRope/store'
 
 /** 붕어빵 가게 옆 오락기 한 대에서 고르는 혼자 하는 게임. 공원 맵을 바꾸지 않으려고 게임기를 늘리지 않는다. */
-export type ArcadeGame = 'rps-roulette' | 'plus-minus' | 'whack-a-mole' | 'speed-mole'
+export type ArcadeGame = 'rps-roulette' | 'plus-minus' | 'whack-a-mole' | 'speed-mole' | 'jump-rope'
 
 export const useArcade = create<{ open: boolean; selected: ArcadeGame }>(() => ({ open: false, selected: 'rps-roulette' }))
 
@@ -35,5 +36,6 @@ export function playArcadeGame(game = useArcade.getState().selected) {
   if (game === 'rps-roulette') openRpsRoulette()
   else if (game === 'plus-minus') openPlusMinus()
   else if (game === 'speed-mole') openSpeedMole()
+  else if (game === 'jump-rope') openJumpRope()
   else openMole()
 }

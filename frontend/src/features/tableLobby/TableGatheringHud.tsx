@@ -16,11 +16,12 @@ export function TableGatheringHud({ model }: { model: GatheringModel }) {
   if(presentation&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches)return null
   return TABLET_ENABLED ? <TabletResult model={model} /> : <LegacyTableGatheringHud model={model} />
 }
-function TabletResult({ model }: { model: GatheringModel }) {
+export type ResultActions={pending:boolean;error:string;onReturn:()=>void;onLeave:()=>void}
+export function TabletResult({ model, actions }: { model: GatheringModel; actions?:ResultActions }) {
   const runtime = useParkRuntime(), pending = useSession(s => s.pending), connected = useSession(s => s.status === 'connected')
   const own = useSession(s => s.sessionId), error = useGame(s => s.error), busy = useGame(tableBusy), gamePending = useGame(s => s.pending)
   const [closed, setClosed] = useState('')
-  const disabled = pending || gamePending || !connected
+  const disabled = pending || (actions?actions.pending:gamePending) || !connected
   const checkable = useGame(s => !!(s.permittedGameId || s.completedGameId) && !s.watchedGameId && s.game?.role !== 'SPECTATOR')
   const outcome = model.invalid ? '무효 경기' : model.rows.find(row => row.playerId === own)?.label ?? '경기 종료'
   if (closed === model.scope) return <button className="paper-reopen" onClick={() => setClosed('')}>경기 결과 다시 보기</button>
@@ -32,14 +33,14 @@ function TabletResult({ model }: { model: GatheringModel }) {
       <span className="paper-player-name">{row.playerId === own ? '나' : row.nickname}</span><span>{row.score}</span>
       <span className="paper-player-outcome">{row.label}</span>
     </li>)}</ol>
-    <div className="paper-settlement" role="status"><strong><BoardRewardCoinSource>{!model.settled && <i className="paper-pending" aria-hidden="true" />}{model.settled || model.invalid ? model.settlement : '보상 확인 중'}</BoardRewardCoinSource></strong>
+    <div className="paper-settlement" role="status"><strong>{actions?model.settlement:<BoardRewardCoinSource>{!model.settled && <i className="paper-pending" aria-hidden="true" />}{model.settled || model.invalid ? model.settlement : '보상 확인 중'}</BoardRewardCoinSource>}</strong>
       {!model.settled && <small>{model.invalid ? '참가비 예약 해제를 기다리고 있어요' : '확인이 끝나면 엽전에 반영돼요'}</small>}</div>
-    <div className="paper-actions"><button className="paper-primary" disabled={disabled || !model.canReturn} onClick={returnToWaiting}>다음 판 준비</button>
-      <button disabled={disabled || busy} onClick={() => void runtime.leaveTable()}>자리에서 일어나기</button>
+    <div className="paper-actions"><button className="paper-primary" disabled={disabled || !model.canReturn} onClick={actions?.onReturn??returnToWaiting}>다음 판 준비</button>
+      <button disabled={disabled || (!actions&&busy)} onClick={actions?.onLeave??(()=>void runtime.leaveTable())}>자리에서 일어나기</button>
       {!model.canReturn && <small>{model.settled ? '서버가 다음 판 대기실을 여는 중이에요' : '정산을 확인한 뒤 다음 판을 준비할 수 있어요'}</small>}
       {!model.settled && <button className="paper-text-button" disabled={disabled || !checkable} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>}
     </div>
-    <div className="paper-forfeit"><FinishedForfeitStatus /></div>
-    {error && <p className="paper-error" role="alert">{error}</p>}
+    {!actions&&<div className="paper-forfeit"><FinishedForfeitStatus /></div>}
+    {(actions?actions.error:error) && <p className="paper-error" role="alert">{actions?actions.error:error}</p>}
   </PaperPopup>
 }

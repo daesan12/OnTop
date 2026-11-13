@@ -1,4 +1,5 @@
 import { record } from '../../network/protocol'
+import { playableMoleTargetIds } from '../arcade/moleTargets'
 
 /** 서버 계약: docs/whack-a-mole-api.md. 화면은 서버 출현표를 그리고 진행 중 점수만 계산한다. 최종 점수·지급은 서버 값이다. */
 /** 한 줄 아치 구멍 6개. 왼손 S D F, 오른손 J K L(홈 줄). */
@@ -15,7 +16,9 @@ export interface MoleRules {
   decoyPenalty: number; rapidPoints: number[]; comboSteps: number[]; comboTenths: number[]
 }
 export interface Mole { id: number; hole: number; kind: MoleKind; hits: number; appearAt: number; leaveAt: number }
-export interface MoleRound { id: string; startedAt: string; rules: MoleRules; moles: Mole[] }
+export interface MoleRound {
+  id: string; startedAt: string; rules: MoleRules; moles: Mole[]; targetIds?: ReadonlyMap<number, string>
+}
 export interface MoleResult {
   id: string; score: number; maxCombo: number; caught: number; calculatedReward: number; reward: number; settledAt: string
 }
@@ -23,7 +26,7 @@ export interface MoleState {
   serverNow: string; todayEarned: number; dailyCap: number; bestScore: number; rules: MoleRules; last: MoleResult | null
 }
 export interface MoleSettlement { result: MoleResult; todayEarned: number; dailyCap: number; bestScore: number }
-export interface Hit { hole: number; at: number }
+export interface Hit { hole: number; at: number; targetId?: string }
 export const RANKING_PAGE_SIZE = 20
 export interface MoleRankingItem {
   rank: number; userId: string; nickname: string; score: number; maxCombo: number; caught: number; completedAt: string
@@ -70,8 +73,10 @@ export function parseMoleState(value: unknown): MoleState {
 export function parseMoleRound(value: unknown): MoleRound {
   if (!record(value) || !Array.isArray(value.moles)) return invalid()
   const parsed = rules(value.rules)
-  return { id: id(value.id), startedAt: time(value.startedAt), rules: parsed,
-    moles: value.moles.map(item => mole(item, parsed.durationMs)) }
+  const roundId = id(value.id)
+  return { id: roundId, startedAt: time(value.startedAt), rules: parsed,
+    moles: value.moles.map(item => mole(item, parsed.durationMs)),
+    targetIds: playableMoleTargetIds(value.targets, KEYS.length, roundId) }
 }
 
 function rankingItem(v: unknown): MoleRankingItem {

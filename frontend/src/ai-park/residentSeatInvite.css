@@ -1,0 +1,8 @@
+.resident-seat-plus{width:100%;border:0;background:transparent;cursor:pointer;font-family:inherit}
+.resident-seat-plus:disabled{opacity:.5;cursor:default}
+.npc-arrival-panel{position:fixed;z-index:35;bottom:32px;left:50%;transform:translateX(-50%);width:min(480px,calc(100vw - 40px));padding:20px;border:2px solid #9c8655;border-radius:16px;background:#fff9e8;color:#293f32;box-shadow:0 8px 32px #0004;font-family:inherit;text-align:center}.npc-arrival-panel button{font:inherit;border:1px solid #9c8655;border-radius:8px;padding:8px 20px;background:#efe5c6;color:inherit}
+.resident-seat-picker{inset:0;margin:auto;padding:24px;width:min(340px,calc(100vw - 40px));border:2px solid #9c8655;border-radius:16px;background:#fff9e8;color:#293f32;font-family:inherit;box-shadow:0 12px 48px #0005}
+.resident-seat-picker::backdrop{background:#172a2540}
+.resident-seat-picker p{font-size:14px;line-height:1.5}
+.resident-seat-picker button{display:block;width:100%;padding:12px;margin-top:8px;border:1px solid #9ea97b;border-radius:9px;background:#e9eed8;color:inherit;font:inherit;cursor:pointer}
+.resident-seat-picker button:disabled{opacity:.5;cursor:default}

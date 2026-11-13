@@ -1,5 +1,5 @@
 import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Canvas, useFrame, useLoader } from '@react-three/fiber'
+import { Canvas, useLoader } from '@react-three/fiber'
 import { create } from 'zustand'
 import { Box3, Group, Vector3 } from 'three'
 import { clone } from 'three/addons/utils/SkeletonUtils.js'
@@ -7,16 +7,21 @@ import { ParkAssetLoader } from '../../world/art/assetLoader'
 import { knownWholeSkin } from '../../world/art/wholeSkin'
 import { catalogAsset, useSkinCatalog } from '../../world/art/skinCatalog'
 import { setImage, outfitImage } from '../wardrobe/itemArt'
-import { previewWardrobeItem, useWardrobe, setPieces, itemLabel } from '../wardrobe/state'
+import { useWardrobe } from '../wardrobe/state'
 import { useSession } from '../../network/worldClient'
 import { gachaAction, refreshGacha, useGacha } from './state'
 import { money, type GachaProduct, type GachaResult } from './contracts'
 import { armUnlock } from '../../audio/bgm'
 import { playSfx } from '../../audio/sfx'
-import { CAPSULES, Capsule, Coin, RevealEffects } from './capsuleMotion'
-import { capsuleName, capsuleTier, displayGachaMessage } from './labels'
+import { CAPSULES, Capsule, Coin } from './capsuleMotion'
+import { capsuleName, displayGachaMessage } from './labels'
 import { useGachaOverlay } from './view'
+import { WearParts } from './OpeningOrnaments'
+import { OpeningRadiance } from './OpeningRadiance'
+import { OpeningCapsule } from './OpeningCapsule'
 import './capsuleOpening.css'
+import './capsuleMotion.css'
+import './openingReference.css'
 
 type OpenPhase='idle'|'pause'|'sway'|'waiting'|'seam'|'opening'|'reveal'|'duplicate'|'coins'|'complete'
 const empty={phase:'idle' as OpenPhase,startedAt:0,busy:false,result:null as GachaResult|null,grade:4,instant:false,value:0}
@@ -46,43 +51,14 @@ function useOpening(active:boolean,owner:string,reduced:boolean){
    phase('seam');await wait(actualGrade===1?950:actualGrade===2?650:350)
    phase('opening');playSfx('card-draw');await wait(650)
    if(actualGrade===1)await wait(350)
-   phase('reveal');playSfx(actualGrade===1?'game-start':'ui-equip');await wait(receipt.duplicate?1500:500)
-   if(receipt.duplicate){phase('duplicate');await wait(1200);phase('coins');await wait(1200)}
+   phase('reveal');playSfx(actualGrade===1?'game-start':'ui-equip');await wait(receipt.duplicate?900:500)
+   if(receipt.duplicate){phase('coins');await wait(1000)}
    phase('complete')
   }finally{if(flight.current===control){const live=current();flight.current=null;if(live)set(v=>({...v,busy:false}))}}
  }
  return {...s,open,skip:()=>{skip.current=true},dismiss:()=>set(empty)}
 }
 
-const colors:Record<number,string>={1:'#d83239',2:'#9858cf',3:'#378ed2',4:'#70a75a'}
-function OpeningShell({grade,phase,startedAt,reduced}:{grade:number;phase:OpenPhase;startedAt:number;reduced:boolean}){
- const root=useRef<Group>(null),lid=useRef<Group>(null),color=colors[grade]
- useFrame(()=>{
-  if(!root.current||!lid.current)return
-  const t=Math.max(0,(performance.now()-startedAt)/1000)
-  // Two separated, weighty gestures, never an accelerating vibration loop.
-  const pulse=(start:number)=>{const p=(t-start)/.28;return p>0&&p<1?Math.sin(p*Math.PI*2)*Math.sin(p*Math.PI):0}
-  root.current.rotation.z=!reduced&&phase==='sway'?.14*pulse(.04)-.18*pulse(.58):0
-  const p=phase==='opening'?Math.min(1,t/.65):0,ease=1-(1-p)**3
-  lid.current.position.set(0,ease*.85,-ease*.28);lid.current.rotation.x=-ease*1.08
- })
- return <group ref={root} rotation={[.06,0,0]}>
-  <mesh><sphereGeometry args={[1,32,24,0,Math.PI*2,Math.PI/2,Math.PI/2]}/><meshPhysicalMaterial color={color} clearcoat={1} roughness={.25}/></mesh>
-  <mesh rotation={[Math.PI/2,0,0]}><torusGeometry args={[1,.045,8,48]}/><meshStandardMaterial color={['seam','opening'].includes(phase)?'#fff3c0':'#efc56d'} emissive={['seam','opening'].includes(phase)?CAPSULES[grade]!.color:'#000'} emissiveIntensity={2} metalness={.5}/></mesh>
-  <group ref={lid}>
-   <mesh><sphereGeometry args={[1,32,24,0,Math.PI*2,0,Math.PI/2]}/><meshPhysicalMaterial color={color} clearcoat={1} roughness={.22}/></mesh>
-   <mesh position={[0,.98,0]}><sphereGeometry args={[.25,16,12]}/><meshStandardMaterial color="#f4d07a" metalness={.6} roughness={.25}/></mesh>
-   {grade===1&&[-1,0,1].map(x=><mesh key={x} position={[x*.23,1.18,0]} rotation={[0,0,-x*.4]}><coneGeometry args={[.09,.4,8]}/><meshStandardMaterial color="#f4d07a" metalness={.6} roughness={.25}/></mesh>)}
-  </group>
-  {[0,1,2,3,4].map(i=><mesh key={i} position={[Math.sin(i*Math.PI*2/5)*.13,Math.cos(i*Math.PI*2/5)*.13-.04,1]} scale={[.09,.14,.045]} rotation={[0,0,-i*Math.PI*2/5]}><sphereGeometry args={[1,12,8]}/><meshStandardMaterial color="#f4d07a" metalness={.5} roughness={.25}/></mesh>)}
-  <mesh position={[0,-.04,1.04]}><sphereGeometry args={[.09,12,8]}/><meshStandardMaterial color="#fff0b0"/></mesh>
-  <mesh position={[0,-.39,1]}><coneGeometry args={[.08,.3,10]}/><meshStandardMaterial color={color}/></mesh>
-  {[-1,1].map(side=><group key={side} position={[side*.48,.43,.77]} rotation={[0,side*.45,side*.3]}>
-   <mesh><torusGeometry args={[.17,.025,6,16,Math.PI*1.6]}/><meshStandardMaterial color={grade===3?'#e9f5ff':grade===4?'#d3e39a':'#efc56d'}/></mesh>
-  </group>)}
-  {['seam','opening'].includes(phase)&&<pointLight position={[0,.15,1.4]} color={CAPSULES[grade]!.color} intensity={4}/>}
- </group>
-}
 function Lighting(){return <><ambientLight intensity={1.5}/><directionalLight position={[3,5,5]} intensity={3} color="#fff0d0"/><directionalLight position={[-3,2,2]} intensity={1.5} color="#c9e8ff"/></>}
 class ArtBoundary extends Component<{children:ReactNode;fallback:ReactNode},{failed:boolean}>{
  state={failed:false};static getDerivedStateFromError(){return {failed:true}}
@@ -135,7 +111,7 @@ const useItemChoice=create(()=>({grade:null as number|null}))
 const OPEN_CHOSEN_ITEM='ontop-gacha-open-chosen-item'
 export function GachaItemFooter(){
  const grade=useItemChoice(v=>v.grade),s=useGacha(),quantity=s.state?.inventory.boxes.find(b=>b.grade===grade)?.quantity??0
- if(!grade)return <p className="wardrobe-detail__empty">열어 볼 아이템을 골라 주세요. 두 번 누르면 바로 열어요.</p>
+ if(!grade||quantity<1)return <p className="wardrobe-detail__empty">열어 볼 아이템을 골라 주세요. 두 번 누르면 바로 열어요.</p>
  return <><span className="wardrobe-art" data-slot="TOP"><Capsule grade={grade}/></span>
   <div className="wardrobe-detail__text"><b>{capsuleName(grade)}</b><small>{quantity}개 보유 · 열면 해당 등급의 의상 하나를 받아요</small></div>
   <div className="wardrobe-detail__actions"><button type="button" className="wardrobe-wear" disabled={s.busy||!!s.pending||quantity<1} onClick={()=>window.dispatchEvent(new Event(OPEN_CHOSEN_ITEM))}>열기</button></div>
@@ -152,11 +128,14 @@ export function GachaBoxes(){
  useEffect(()=>{void refreshGacha()},[])
  useEffect(()=>{const media=matchMedia('(prefers-reduced-motion: reduce)'),update=()=>setReduced(media.matches);media.addEventListener('change',update);return()=>media.removeEventListener('change',update)},[])
  useEffect(()=>{const d=dialog.current;if(!d||!visible||!connected)return;d.showModal();useGachaOverlay.setState({open:true});return()=>{d.close();useGachaOverlay.setState({open:false})}},[visible,connected])
- const components=items.filter(i=>result?.product?.itemIds.includes(i.item.itemId)).filter((i, n, all)=>all.findIndex(j=>(j.item.setCode??String(j.item.itemId))===(i.item.setCode??String(i.item.itemId)))===n)
- const parts=result?.product?.itemIds.map(id=>items.find(i=>i.item.itemId===id)?.item.equipSlot).filter((p,i,a)=>p&&a.indexOf(p)===i)
- const labels:Record<string,string>={HAIR:'머리',FACE:'얼굴',TOP:'상의',BOTTOM:'하의',SHOES:'신발'}
- const takeLook=()=>{const owned=items.find(i=>result?.product?.itemIds.includes(i.item.itemId));opening.dismiss();window.dispatchEvent(new Event('ontop-gacha-show-outfits'));if(owned)previewWardrobeItem(owned.userItemId)}
+ const paidOut=!!result?.duplicate&&['coins','complete'].includes(opening.phase)
+ const componentSlots=result?.product?.components?.flatMap(c=>c.slots)??[]
+ const slots=componentSlots.length?componentSlots:result?.product?.itemIds.flatMap(id=>{const slot=items.find(i=>i.item.itemId===id)?.item.equipSlot;return slot?[slot]:[]})??[]
+ const parts=[...new Set(slots.map(slot=>slot==='HAIR'?'머리':slot==='FACE'?'얼굴':'옷'))]
+ const ownedBoxes=s.state?.inventory.boxes.filter(b=>b.quantity>0)??[]
+ const matchingBoxes=ownedBoxes.filter(b=>!query||capsuleName(b.grade).toLocaleLowerCase().includes(query.toLocaleLowerCase()))
  const next=()=>opening.dismiss()
+ const sameLeft=s.state?.inventory.boxes.find(b=>b.grade===opening.grade)?.quantity??0
  const retry=async()=>{
   const pending=useGacha.getState().pending
   if(!pending)return
@@ -165,37 +144,43 @@ export function GachaBoxes(){
   const receipt=useGacha.getState().result
   if(useSession.getState().sessionId===owner&&receipt?.operationId===pending.operationId)setRecovered(receipt)
  }
- return <section className="gacha-item-storage" aria-label="아이템 보관함">
-  <ul className="wardrobe-grid gacha-item-grid">{s.state?.inventory.boxes.filter(b=>!query||capsuleName(b.grade).toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(b=><li key={b.grade}>
+ return <section className="gacha-item-storage" aria-label="아이템 보관함" aria-busy={s.loading}>
+  <ul className="wardrobe-grid gacha-item-grid">{matchingBoxes.map(b=><li key={b.grade}>
    <button type="button" className="wardrobe-card" aria-label={`${capsuleName(b.grade)} ${b.quantity}개 보유`} aria-pressed={chosen===b.grade} disabled={s.busy||opening.busy} onClick={()=>useItemChoice.setState({grade:b.grade})} onDoubleClick={()=>{if(!s.pending&&b.quantity>0)void opening.open(b.grade)}}>
     <span className="wardrobe-art" data-slot="TOP"><Capsule grade={b.grade}/></span><span className="wardrobe-card__text"><b>{capsuleName(b.grade)}</b><small>보유 {b.quantity}개</small></span>
    </button>
   </li>)}</ul>
-  {s.state&&query&&!s.state.inventory.boxes.some(b=>capsuleName(b.grade).toLocaleLowerCase().includes(query.toLocaleLowerCase()))&&<div className="wardrobe-empty" role="status"><b>찾는 아이템이 없어요</b><p>검색어를 바꿔 보세요.</p></div>}
-  {s.error&&<p role="alert" className="gacha-item-error">{displayGachaMessage(s.error)}</p>}
-  {s.pending&&!s.busy&&<button className="gacha-item-retry" onClick={()=>void retry()}>같은 요청으로 결과 다시 확인</button>}
-  {recovered&&<div className="gacha-item-recovery" role="status" data-operation-id={recovered.operationId}><b>{recovered.kind==='BUY'?'뽑기권 1장 구매를 확인했어요':recovered.grade===5?`${money(recovered.awardedCoins)} 당첨을 확인했어요`:`${capsuleName(recovered.grade)} 당첨을 확인했어요`}</b><p>확정된 결과를 복구했어요. 추가로 소비하지 않았어요.</p><button onClick={()=>setRecovered(null)}>확인</button></div>}
-  {!s.state&&<p role="status">캡슐을 불러오고 있어요…</p>}
+  {s.state&&query&&matchingBoxes.length===0&&<div className="wardrobe-empty" role="status"><b>찾는 아이템이 없어요</b><p>검색어를 바꿔 보세요.</p></div>}
+  {s.state&&!query&&ownedBoxes.length===0&&<div className="wardrobe-empty" role="status"><b>보유한 캡슐이 없어요</b><p>뽑기에서 얻은 캡슐이 여기에 표시돼요.</p></div>}
+  {s.error&&<div role="alert" className="gacha-item-error"><p>{displayGachaMessage(s.error)}</p>
+   {!s.state&&s.pending?.kind==='OPEN'&&<p>먼저 ‘다시 불러오기’를 누르면 이전 개봉 결과를 확인할 수 있어요.</p>}
+   <button type="button" className="gacha-item-retry" disabled={s.loading||s.busy||opening.busy} onClick={()=>void refreshGacha()}>다시 불러오기</button>
+  </div>}
+  {s.pending&&!s.busy&&<button className="gacha-item-retry" disabled={!s.state||s.loading||opening.busy} onClick={()=>void retry()}>이전 거래 결과 확인</button>}
+  {recovered&&<div className="gacha-item-recovery" role="status" data-operation-id={recovered.operationId}><b>{recovered.kind==='BUY'?`뽑기권 ${Math.max(1,Math.round(recovered.paidCoins/(s.state?.ticketPrice??100)))}장 구매를 확인했어요`:recovered.grade===5?`${money(recovered.awardedCoins)} 당첨을 확인했어요`:`${capsuleName(recovered.grade)} 당첨을 확인했어요`}</b><p>확정된 결과를 복구했어요. 추가로 소비하지 않았어요.</p><button onClick={()=>setRecovered(null)}>확인</button></div>}
+  {!s.state&&s.loading&&<p role="status">캡슐을 불러오고 있어요…</p>}
   <dialog ref={dialog} className="capsule-opening-dialog" aria-label="의상 캡슐 개봉" onKeyDown={e=>e.stopPropagation()} onCancel={e=>{e.preventDefault();opening.busy?opening.skip():next()}}>
    <div className="capsule-opening-stage" data-phase={opening.phase} data-grade={opening.grade} data-reduced={reduced||opening.instant} style={{'--rarity-color':CAPSULES[opening.grade]!.color} as React.CSSProperties}>
-    <div className="open-wallet">보유 엽전 <b>{money(s.state?.inventory.balance??0)}</b></div>
-    <div className="open-title"><small>나의 옷장 · {capsuleName(opening.grade)}</small><h2>{shown?'나를 찾아온 작은 행운':'어떤 의상이 기다릴까요?'}</h2></div>
-    {shown&&<RevealEffects grade={opening.grade}/>}
-    <div key={shown?'product':'capsule'} className="open-center-art" role="img" aria-label={shown?result?.product?.name:`${capsuleName(opening.grade)} 개봉 중`}>
-     {shown&&result?.product?<ProductDisplay key={result.operationId} product={result.product}/>:<Canvas resize={{offsetSize:true}} camera={{position:[0,.15,4.8],fov:40}} dpr={1} frameloop={reduced?'demand':'always'} gl={{alpha:true,antialias:true}}><Lighting/><OpeningShell grade={opening.grade} phase={opening.phase} startedAt={opening.startedAt} reduced={reduced||opening.instant}/></Canvas>}
+    {opening.phase==='complete'&&<button className="open-result-x" aria-label="개봉 결과 닫기" onClick={next}>×</button>}
+    <div className="open-title"><h2 aria-label={shown?'캡슐 개봉 결과':'캡슐 개봉 중'}>{shown?'캡슐 개봉 결과':'캡슐 개봉 중'}</h2><p>{shown?'캡슐을 개봉하여 아래 아이템을 획득했어요!':'캡슐 속 행운을 깨우고 있어요'}</p></div>
+
+    <div className="open-prize-display">
+    {shown&&<OpeningRadiance grade={opening.grade}/> }
+    <div className="open-capsule-scene" aria-hidden="true"><Canvas resize={{offsetSize:true}} camera={{position:[0,1.4,5.4],fov:40}} frameloop="demand" dpr={1} gl={{alpha:true,antialias:true}}><Lighting/><OpeningCapsule grade={opening.grade} phase={opening.phase} startedAt={opening.startedAt} reduced={reduced||opening.instant} revealed={shown}/></Canvas></div>
+    {shown&&result?.product&&<div className="open-center-art" role="img" aria-label={result.product.name} data-fading={paidOut||undefined}><ProductDisplay key={result.operationId} product={result.product}/></div>}
+    {paidOut&&<div className="open-coin-payout" role="status" aria-live="polite">
+     <div className="open-coin-pile" aria-hidden="true">{Array.from({length:9},(_,i)=><span key={i} style={{'--i':i} as React.CSSProperties}><Coin/></span>)}</div>
+     <strong>+{money(result!.awardedCoins)}</strong><small>엽전으로 자동 지급했어요</small>
+     <CoinToWallet receipt={result!.operationId} amount={result!.awardedCoins} reduced={reduced||opening.instant} target=".wardrobe-coin"/>
+    </div>}
+
     </div>
     {shown&&result?.product?<div className="open-result-card" data-operation-id={result.operationId} aria-live="polite">
-     <small>{result.duplicate?'의상 공개':'새 의상 획득!'}</small><h3>{result.product.name}</h3><p className="open-parts">{capsuleTier(result.grade)} · {parts?.length?parts.map(p=>labels[p!]).join(' · '):`${result.product.itemIds.length}개 포함 아이템`}<span>구성 아이템은 옷장에서 확인할 수 있어요</span></p>{!result.duplicate&&!!result.product.components?.length&&<ul className="open-component-rewards" aria-label="획득한 구성 아이템">{result.product.components.map(item=><li key={item.id}>
-       {catalogAsset(item.imageKey)?.imageUrl&&<img src={catalogAsset(item.imageKey)!.imageUrl} alt=""/>}<strong>{item.name}</strong><small>{[...new Set(item.slots.map(s=>s==='HAIR'?'머리':s==='FACE'?'얼굴':'옷'))].join('·')}</small>
-      </li>)}</ul>}{!result.duplicate&&!result.product.components?.length&&components.length>0&&<ul className="open-component-rewards" aria-label="획득한 구성 아이템">{components.map(owned=><li key={owned.userItemId}>
-       {catalogAsset(owned.item.imageKey)?.imageUrl&&<img src={catalogAsset(owned.item.imageKey)!.imageUrl} alt=""/>}
-       <strong>{itemLabel(items,owned)}</strong><small>{[...new Set(setPieces(items,owned).map(p=>p.item.equipSlot==='HAIR'?'머리':p.item.equipSlot==='FACE'?'얼굴':'옷'))].join('·')}</small>
-      </li>)}</ul>}
-     {result.duplicate&&['duplicate','coins','complete'].includes(opening.phase)?<div className="open-duplicate"><b>이미 보유 중</b><p>이미 보유한 의상이에요.<br/>상품 가치{opening.value?` ${money(opening.value)}`:''}의 50%인 <strong>{money(result.awardedCoins)}</strong>을 중복 보상으로 지급했어요.</p></div>:<p>{result.duplicate?'이 의상을 확인해 보세요.':'옷장에 보관했어요. 원하는 때 직접 입어 보세요.'}</p>}
-     {result.duplicate&&['coins','complete'].includes(opening.phase)&&<CoinToWallet receipt={result.operationId} amount={result.awardedCoins} reduced={reduced||opening.instant}/>}
-     {opening.phase==='complete'&&<div className="open-result-actions"><button onClick={takeLook}>옷장에서 입어 보기</button><button onClick={next}>확인</button></div>}
+     <h3>{result.product.name}</h3><div className="open-item-tags"><span>의상 세트</span><WearParts parts={parts}/></div>
     </div>:<p className="open-suspense" role="status">{opening.phase==='waiting'?'캡슐 안의 행운을 확인하고 있어요…':opening.phase==='seam'||opening.phase==='opening'?'빛 속의 의상을 만나 보세요':'잠시만요, 행운이 깨어나요'}</p>}
-    {opening.busy&&<button className="open-skip" onClick={opening.skip}>연출 건너뛰기</button>}
+    {/* One button row from the start: the skip button while it plays, then 다시 열기·확인 in the same place and frame. */}
+    {visible&&<div className="open-result-actions">{opening.phase==='complete'?<><button disabled={sameLeft<1||s.busy||!!s.pending} onClick={()=>void opening.open(opening.grade)} aria-label={`${capsuleName(opening.grade)} 다시 열기 (${sameLeft}개 남음)`}><span className="open-next-icon" aria-hidden="true"><Capsule grade={opening.grade}/></span>다시 열기<small className="open-again-count">{sameLeft}개</small></button><button onClick={next}><span aria-hidden="true">✓</span> 확인</button></>
+     :<button className="open-skip-action" disabled={!opening.busy} onClick={opening.skip}><span className="open-next-icon open-skip-strut" aria-hidden="true"/>연출 건너뛰기</button>}</div>}
    </div>
   </dialog>
  </section>

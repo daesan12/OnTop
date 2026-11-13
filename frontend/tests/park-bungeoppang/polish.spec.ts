@@ -80,7 +80,7 @@ test('지급음은 결과 화면의 지급 문구가 보일 때 한 번만 재�
       availableAfterSeq: 0, items: { bean: 2, custard: 0, pizza: 0, chocolate: 0 } }], rules), made: 8, score: 120 }
     useBungeoppang.setState({ phase: 'ending', gameId: 'coin-polish-qa', rules, grill, submitting: false,
       result: { score: 120, maxCombo: 4, made: 8, golden: 6, failed: 0, wasted: 0,
-        coinsCalculated: 8, coinsGranted: 8, todayEarned: 8, dailyCap: 500, capReached: false } })
+        coinsCalculated: 8, coinsGranted: 8, todayEarned: 8, dailyCap: 1000, capReached: false } })
     const { useSession } = await import('/src/network/worldClient.ts' as string)
     const session = useSession.getState()
     useSession.setState({ account: { ...session.account!, balance: session.account!.balance + 8 } })

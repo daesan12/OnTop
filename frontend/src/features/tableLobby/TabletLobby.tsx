@@ -1,3 +1,4 @@
+import {residentsEnabled,useAiFeatures} from '../ai/serviceFeatures'
 import { Fragment, lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '../../network/worldClient'
@@ -18,6 +19,7 @@ import ledgerThumbnail from '../../game/ledger/assets/thumbnail.webp'
 import './tablet.css'
 import { useReadyBalance, canAffordBet, BetBalanceNotice, startFailureNotice } from './readyBalance'
 const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ default: module.TabletPortrait })))
+const ResidentSeatInvite=lazy(()=>import('../../ai-park/ResidentSeatInvite').then(module=>({default:module.ResidentSeatInvite})))
 
 const descriptions: Record<TableGameCode, string> = {
   ALKKAGI: '알을 튕기고 비책으로 승부하는 2인 경기',
@@ -35,6 +37,7 @@ export function GameArt({ code }: { code: TableGameCode }) {
   return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 export function TabletLobby({ tableId }: { tableId: string }) {
+  useAiFeatures(s=>s.companions)
   const own = useSession(s => s.sessionId)
   return <TabletSession key={`${own}/${tableId}`} tableId={tableId} />
 }
@@ -181,7 +184,7 @@ function TabletSession({ tableId }: { tableId: string }) {
         </div>
       </div> : <div className="tablet-ready-content" data-players={seats.length}>
         <div className="tablet-roster" aria-label="좌석과 준비 상태">{seats.map(seat => <div key={seat.seatNumber} className="tablet-person" data-empty={!seat.userId}>
-          <div className="tablet-portrait">{seat.userId ? <Suspense fallback={null}><TabletPortrait character={s.profiles[seat.userId]?.character} /></Suspense> : <span className="tablet-empty-seat">＋<small>함께할 사람을 기다려요</small></span>}</div>
+          <div className="tablet-portrait">{seat.userId ? <Suspense fallback={null}><TabletPortrait character={s.profiles[seat.userId]?.character} /></Suspense> : residentsEnabled()&&table.gameCode==='OMOK'&&!!mine&&occupied===1 ? <Suspense fallback={null}><ResidentSeatInvite disabled={!!busy}/></Suspense> : <span className="tablet-empty-seat">＋<small>함께할 사람을 기다려요</small></span>}</div>
           <b className="tablet-name">{seat.userId === s.own ? '나' : seat.userId ? s.profiles[seat.userId]?.nickname ?? '산책자' : `${seat.seatNumber}번 빈자리`}{seat.userId && seat.userId === table.selectorUserId ? ' · 방장' : ''}</b>
           <span className="tablet-ready-stamp" data-ready={seat.ready}>{seat.userId ? seat.ready ? '✓ 준비 완료' : '준비 대기' : '참가 대기'}</span>
         </div>)}</div>

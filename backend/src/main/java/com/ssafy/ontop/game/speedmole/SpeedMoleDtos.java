@@ -1,5 +1,6 @@
 package com.ssafy.ontop.game.speedmole;
 
+import com.ssafy.ontop.minigame.service.MoleTargets;
 import java.time.Instant;
 import java.util.List;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -7,7 +8,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public final class SpeedMoleDtos {
     private SpeedMoleDtos() { }
     @Schema(name = "SpeedMoleRound")
-    public record Round(String id, long seed, int rulesVersion, Instant serverNow, Instant startedAt, int durationMs) { }
+    public record Round(String id, long seed, int rulesVersion, Instant serverNow, Instant startedAt, int durationMs,
+                        List<MoleTargets.Target> targets) { }
     @Schema(name = "SpeedMoleComplete")
     public record Complete(List<SpeedMoleRules.Tap> taps) { }
     @Schema(name = "SpeedMoleResult")

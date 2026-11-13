@@ -70,6 +70,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -923,6 +924,16 @@ public class TableHub {
                 case "WORLD_POSITION_FALLBACK" -> member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE",
                         channels.disablePosition(member.userId(), request.payload().path("epoch").asLong()).state()));
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
+                case "WORLD_MYROOM_SET" -> {
+                    String channel = channels.channelOf(member.userId());
+                    long before = channel == null ? -1 : channels.worldState(channel).version();
+                    var state = channels.myRoom(member.userId(), request.payload().path("open").asBoolean());
+                    if (state.version() == before) {
+                        member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE", state));
+                    } else {
+                        publishWorld(state, member, request.requestId());
+                    }
+                }
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
                 case "WORLD_CARRY_PICKUP", "WORLD_CARRY_THROW", "WORLD_CARRY_RELEASE" -> carry(member, request);
                 case "WORLD_INTERACTION_SET" -> interactionBusy(member, request);
@@ -1561,7 +1572,7 @@ public class TableHub {
 
     private void sendChat(Member member, Request request) {
         StatePush scope = statePushes.get(member.sessionId());
-        if (scope != null && scope.member == member && "PLAYING".equals(scope.status)) {
+        if (!isolatedChatGame(member).isEmpty()) {
             fail(request, "GAME_CHAT_REQUIRED", "경기 중에는 경기 전용 채팅을 이용해주세요.");
         }
         String channelId = channels.channelOf(member.userId());
@@ -1576,17 +1587,147 @@ public class TableHub {
         member.peer().offer(protocol.encode(request.requestId(), "WORLD_CHAT_MESSAGE", message));
         String notice = protocol.encode(null, "WORLD_CHAT_MESSAGE", message);
         int recipients = 0;
+        var aiAudience = new java.util.ArrayList<String>();
+        aiAudience.add(member.userId());
         for (Member target : members.values()) {
-            if (target != member && proximity.canHear(member.userId(), target.userId())) {
+            if (target != member && isolatedChatGame(target).isEmpty() && proximity.canHear(member.userId(), target.userId())) {
                 target.peer().offer(notice);
                 recipients++;
+                aiAudience.add(target.userId());
             }
+        }
+        var bridge = aiBridge;
+        var position = bridge == null ? null : channels.positionOf(member.userId());
+        if (bridge != null) {
+            String nickname = channels.worldState(channelId).avatars().stream()
+                    .filter(a -> a.userId().equals(member.userId())).map(a -> a.nickname() == null ? member.userId() : a.nickname())
+                    .findFirst().orElse(member.userId());
+            bridge.chat(new com.ssafy.ontop.ai.WorldAiBridge.Chat(message.messageId(), channelId,
+                    member.userId(), nickname, message.text(), java.time.Instant.parse(message.sentAt()).toEpochMilli(),
+                    position==null?0:position.x(), position==null?0:position.y(), position==null?0:position.z(),
+                    java.util.List.copyOf(aiAudience), "", position==null));
         }
         // 채팅 본문은 남기지 않고 길이와 받은 사람 수만 남긴다.
         int heard = recipients;
         recordBehavior(BehaviorEventType.CHAT_SENT, member.accountId(), builder -> builder.channelId(channelId)
                 .prop("length", message.text().codePointCount(0, message.text().length()))
                 .prop("recipients", heard));
+    }
+
+    private volatile com.ssafy.ontop.ai.WorldAiBridge aiBridge;
+
+    /** Enabled only by the explicit local AI profile. No provider call runs under the hub lock. */
+    public synchronized void aiBridge(com.ssafy.ontop.ai.WorldAiBridge bridge) { this.aiBridge = bridge; }
+
+    // Local practice leases never register fake accounts, start reservations or wallet transactions.
+    private final Map<String,String> aiPracticeSeats=new HashMap<>();
+    private final Map<String,String> aiPracticeGames=new HashMap<>();
+    private record AiPracticeState(long version, boolean playing) { }
+    private final Map<String,AiPracticeState> aiPracticeStates=new HashMap<>();
+    public record AiTable(String tableId,String channelId,String owner,long version,double x,double y,double z,int ownerSeat) {
+        public AiTable(String tableId,String channelId,String owner,long version,double x,double y,double z){this(tableId,channelId,owner,version,x,y,z,1);}
+    }
+    public synchronized List<AiTable> aiWaitingOmok() {
+        if(aiBridge==null) return List.of();
+        var result=new ArrayList<AiTable>();
+        for(var room:rooms.values()) {
+            var s=room.snapshot(); var occupied=s.seats().stream().filter(p -> p.userId()!=null).toList();
+            var start=starts.get(s.tableId());
+            if(!"OMOK".equals(s.gameCode()) || occupied.size()!=1 || aiPracticeSeats.containsKey(s.tableId())
+                    || start!=null && start.frozen()) continue;
+            String owner=occupied.getFirst().userId(); var p=channels.positionOf(owner);
+            if(p!=null && members.values().stream().anyMatch(m -> m.userId().equals(owner) && isMapReady(m)))
+                result.add(aiTableLocation(s.tableId(),owner,s.version(),p.x(),p.y(),p.z()));
+        }
+        return List.copyOf(result);
+    }
+    public synchronized boolean aiReserveOmok(AiTable expected,String npc) {
+        if(!aiWaitingOmok().contains(expected)) return false;
+        var room=rooms.get(expected.tableId());
+        room.selectGame(com.ssafy.ontop.table.domain.TableGame.OMOK,null,0);
+        if(!room.join(npc)) return false;
+        aiPracticeSeats.put(expected.tableId(),npc); publish(room,null,null); return true;
+    }
+    public synchronized void aiBindPracticeGame(String table,String npc,String game) {
+        if(!npc.equals(aiPracticeSeats.get(table)))throw new IllegalArgumentException("NPC 좌석 예약 없음");
+        aiPracticeGames.put(table,game);
+    }
+    public synchronized void aiUpdatePracticeState(String table,String npc,String game,long version,boolean playing) {
+        if(npc.equals(aiPracticeSeats.get(table))&&game.equals(aiPracticeGames.get(table)))
+            aiPracticeStates.put(game,new AiPracticeState(version,playing));
+    }
+    public synchronized String aiPracticeChatGame(String user) {
+        String table=seating.get(user);if(table==null){table=watching.get(user);if(table!=null&&!proximity.canWatch(user,table,tableChannels.get(table)))return "";}
+        if(table==null||!aiPracticeSeats.containsKey(table))return "";
+        String channel=tableChannels.get(table);
+        return channels.isInChannel(user,channel)&&members.values().stream().anyMatch(m->m.userId().equals(user)&&isMapReady(m))?aiPracticeGames.getOrDefault(table,""):"";
+    }
+    private String isolatedChatGame(Member member) {
+        String practice=aiPracticeChatGame(member.userId());if(!practice.isEmpty())return practice;
+        String seated=seatedGames.get(member.userId());var attempt=starts.get(seating.get(member.userId()));
+        if(seated!=null&&attempt!=null&&(attempt.phase().equals("PLAYING")||attempt.phase().equals("SETTLING"))
+                &&seated.equals(attempt.view(0,false).gameSessionId()))return seated;
+        var scope=statePushes.get(member.sessionId());
+        if(scope!=null&&scope.member==member&&"PLAYING".equals(scope.status)
+                &&scope.role==GameStateView.Role.SPECTATOR&&approvedSpectator(member.sessionId(),member,scope.gameId)!=null)return scope.gameId;
+        return "";
+    }
+    public synchronized boolean aiPracticeValid(String table,String owner,String npc) {
+        return aiBridge!=null && npc.equals(aiPracticeSeats.get(table)) && table.equals(seating.get(owner))
+                && members.values().stream().anyMatch(m -> m.userId().equals(owner) && isMapReady(m))
+                && rooms.get(table).snapshot().seats().stream().anyMatch(s -> npc.equals(s.userId()));
+    }
+    public synchronized void aiReleaseOmok(String table,String npc) {
+        if(!npc.equals(aiPracticeSeats.get(table))) return;
+        aiPracticeSeats.remove(table);aiPracticeStates.remove(aiPracticeGames.get(table));aiPracticeGames.remove(table); var room=rooms.get(table);
+        if(room!=null) { if(room.snapshot().seats().stream().anyMatch(s -> npc.equals(s.userId()))) room.leave(npc); publish(room,null,null); }
+    }
+    public synchronized AiTable aiOmokLocation(String tableId) {
+        var room=rooms.get(tableId);if(room==null)return null;
+        for(var seat:room.snapshot().seats()) if(seat.userId()!=null) {
+            var p=channels.positionOf(seat.userId());
+            if(p!=null)return aiTableLocation(tableId,seat.userId(),room.snapshot().version(),p.x(),p.y(),p.z());
+        }
+        return null;
+    }
+    private AiTable aiTableLocation(String table,String owner,long version,double x,double y,double z) {
+        if(preparedPark!=null) {var p=preparedPark.proximity().tables().get(table);if(p!=null){x=p.x();z=p.z();}}
+        int seat=rooms.get(table).snapshot().seats().stream().filter(s -> owner.equals(s.userId())).mapToInt(TableRoom.Seat::seatNumber).findFirst().orElse(1);
+        return new AiTable(table,tableChannels.get(table),owner,version,x,y,z,seat);
+    }
+
+    public synchronized java.util.Map<String,java.util.Map<String,com.ssafy.ontop.world.movement.ParkNavigation.Point>> aiActors() {
+        var worlds=new java.util.LinkedHashMap<String,java.util.Map<String,com.ssafy.ontop.world.movement.ParkNavigation.Point>>();
+        for(Member member:members.values()) {
+            String channel=channels.channelOf(member.userId()); var p=channels.positionOf(member.userId());
+            if(channel!=null && p!=null) worlds.computeIfAbsent(channel,ignored -> new java.util.LinkedHashMap<>())
+                    .put(member.userId(),new com.ssafy.ontop.world.movement.ParkNavigation.Point(p.x(),p.y(),p.z()));
+        }
+        return worlds;
+    }
+    public synchronized void publishAiNpcs(String channelId,Object payload) {
+        String encoded=protocol.encode(null,"WORLD_AI_NPCS",payload);
+        for(Member member:members.values()) if(channels.isInChannel(member.userId(),channelId)) member.peer().offer(encoded);
+    }
+    public synchronized java.util.Set<String> aiJumpmapActors() {
+        return members.values().stream().map(Member::userId).filter(id -> channels.jumpmapRun(id).isPresent())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
+    public synchronized void publishAi(String channelId, java.util.List<String> audience, String type, Object payload) {
+        publishAi(channelId,audience,type,payload,"");
+    }
+    public synchronized void publishAi(String channelId, java.util.List<String> audience, String type, Object payload, String gameId) {
+        String encoded = protocol.encode(null, type, payload);
+        for (Member member : members.values()) {
+            if (!gameId.isEmpty()) {
+                StatePush scope=statePushes.get(member.sessionId());
+                if (!gameId.equals(isolatedChatGame(member))) continue;
+            }
+            if(gameId.isEmpty()&&(type.equals("WORLD_AI_POLICE")||type.equals("WORLD_AI_COMPANION_SPEECH"))&&!isolatedChatGame(member).isEmpty())continue;
+            if (audience.contains(member.userId()) && channels.isInChannel(member.userId(), channelId))
+                member.peer().offer(encoded);
+        }
     }
 
     /** REST 소리함 요청에도 클라이언트 좌표 대신 같은 시점의 서버 위치·활동을 사용한다. DB I/O는 하지 않는다. */
@@ -1922,7 +2063,7 @@ public class TableHub {
     }
 
     private boolean carryBusy(String userId) {
-        return seating.containsKey(userId) || facilities.current(userId) != null || emotes.isActive(userId)
+        return seating.containsKey(userId) || !aiPracticeChatGame(userId).isEmpty() || facilities.current(userId) != null || emotes.isActive(userId)
                 || !channels.carryAvailable(userId)
                 || follows.activeStates().stream().flatMap(state -> state.links().stream())
                         .anyMatch(link -> link.followerId().equals(userId) || link.targetId().equals(userId));
@@ -2202,7 +2343,10 @@ public class TableHub {
 
     private void leave(Member member, Request request) {
         TableRoom room = seatedRoom(member, request);
-        ensureWaiting(room.snapshot().tableId(), request);
+        ensureWaiting(room.snapshot().tableId(), request, true);
+        // TABLE_LEAVE itself releases a practice seat, even when the companion HTTP endpoint is unavailable.
+        String npc = aiPracticeSeats.get(room.snapshot().tableId());
+        if (npc != null) aiReleaseOmok(room.snapshot().tableId(), npc);
         cancelReadyBalance(member.userId());
         String tableId = seating.remove(member.userId());
         waitingReconnects.remove(member.userId());
@@ -2544,6 +2688,11 @@ public class TableHub {
     }
 
     private void ensureWaiting(String tableId, Request request) {
+        ensureWaiting(tableId, request, false);
+    }
+
+    private void ensureWaiting(String tableId, Request request, boolean leaving) {
+        if(!leaving && aiPracticeSeats.containsKey(tableId)) fail(request,"NPC_PRACTICE_ACTIVE","NPC 연습 창에서 대결을 끝낸 뒤 이용해주세요.");
         TableStartAttempt attempt = starts.get(tableId);
         if (attempt != null && attempt.frozen()) {
             fail(request, "TABLE_BUSY", "시작 연동 확인 중이거나 검증이 완료된 테이블입니다.");
@@ -3392,7 +3541,56 @@ public class TableHub {
         }
     }
 
+    private void sendPracticeChat(Member member,Request request,String game) {
+        if(member.accountId()==null||!game.equals(isolatedChatGame(member)))fail(request,"GAME_SPECTATOR_ACCESS_DENIED","이 연습판의 참가자·관전자만 채팅할 수 있습니다.");
+        String text=new ChatText(request.payload().path("text").asText()).value(),event=request.payload().path("eventId").asText();
+        long now=worldClock.sample().serverNow();SpectatorEventPolicy.Stamp stamp;
+        try {
+            stamp=spectatorEvents.previous(member.accountId(),event,SpectatorEventPolicy.Kind.CHAT,game,text,now);
+            if(stamp!=null){member.peer().offer(protocol.encode(request.requestId(),"GAME_SPECTATOR_CHAT_MESSAGE",new GameSpectatorChatMessage(game,event,member.userId(),text,stamp,now)));return;}
+            stamp=spectatorEvents.accept(member.accountId(),event,SpectatorEventPolicy.Kind.CHAT,game,text,now);
+        }catch(SpectatorEventPolicy.Rejected rejected){throw new RequestException(request.requestId(),rejected.code(),rejected.getMessage());}
+        catch(IllegalArgumentException invalid){fail(request,"INVALID_PAYLOAD","채팅 요청을 확인해주세요.");return;}
+        var message=new GameSpectatorChatMessage(game,event,member.userId(),text,stamp,now);
+        member.peer().offer(protocol.encode(request.requestId(),"GAME_SPECTATOR_CHAT_MESSAGE",message));
+        var audience=new java.util.ArrayList<String>();audience.add(member.userId());
+        for(var target:members.values())if(target!=member&&game.equals(isolatedChatGame(target))){target.peer().offer(protocol.encode(null,"GAME_SPECTATOR_CHAT_MESSAGE",message));audience.add(target.userId());}
+        var bridge=aiBridge;
+        if(bridge!=null) {
+            String channel=channels.channelOf(member.userId());var position=channels.positionOf(member.userId());
+            if(channel!=null) {
+                String nickname=channels.worldState(channel).avatars().stream().filter(a -> a.userId().equals(member.userId()))
+                        .map(a -> a.nickname()==null?member.userId():a.nickname()).findFirst().orElse(member.userId());
+                bridge.chat(new com.ssafy.ontop.ai.WorldAiBridge.Chat(game+":"+member.userId()+":"+event,
+                        channel,member.userId(),nickname,text,now,position==null?0:position.x(),position==null?0:position.y(),
+                        position==null?0:position.z(),List.copyOf(audience),game,position==null));
+            }
+        }
+    }
+    private void sendPracticePing(Member member,Request request,String game) {
+        if(member.accountId()==null || seating.containsKey(member.userId()) || !game.equals(aiPracticeChatGame(member.userId())))
+            fail(request,"GAME_SPECTATOR_ACCESS_DENIED","관전이 승인된 연습판에서만 추천할 수 있습니다.");
+        var state=aiPracticeStates.get(game);
+        if(state==null || !state.playing())fail(request,"GAME_SPECTATOR_GAME_NOT_PLAYING","진행 중인 경기에서만 추천할 수 있습니다.");
+        var payload=request.payload();String event=payload.path("eventId").asText();
+        long version=payload.path("basedOnVersion").asLong(),now=worldClock.sample().serverNow();
+        int x=payload.path("x").asInt(),y=payload.path("y").asInt();
+        String content=version+":"+x+":"+y;SpectatorEventPolicy.Stamp stamp;
+        try {
+            stamp=spectatorEvents.previous(member.accountId(),event,SpectatorEventPolicy.Kind.PING,game,content,now);
+            if(stamp!=null){member.peer().offer(protocol.encode(request.requestId(),"OMOK_SPECTATOR_PING",new OmokSpectatorPing(game,event,member.userId(),version,x,y,stamp,now)));return;}
+            if(version!=state.version())fail(request,"OMOK_SPECTATOR_PING_STALE_VERSION","최신 판 상태에서 다시 추천해주세요.");
+            stamp=spectatorEvents.accept(member.accountId(),event,SpectatorEventPolicy.Kind.PING,game,content,now);
+        }catch(SpectatorEventPolicy.Rejected rejected){throw new RequestException(request.requestId(),rejected.code(),rejected.getMessage());}
+        var message=new OmokSpectatorPing(game,event,member.userId(),version,x,y,stamp,now);
+        member.peer().offer(protocol.encode(request.requestId(),"OMOK_SPECTATOR_PING",message));
+        String notice=protocol.encode(null,"OMOK_SPECTATOR_PING",message);Duration ttl=Duration.ofMillis(stamp.expiresAt()-now);
+        for(var target:members.values())if(target!=member && target.accountId()!=null && game.equals(isolatedChatGame(target)))target.peer().offerTransient(notice,ttl);
+    }
     private void sendSpectatorEvent(String sessionId, Member member, Request request) {
+        if(request.type().equals("GAME_SPECTATOR_CHAT_SEND")&&aiPracticeGames.containsValue(request.payload().path("gameId").asText())){sendPracticeChat(member,request,request.payload().path("gameId").asText());return;}
+        if(request.type().equals("OMOK_SPECTATOR_PING_SEND")&&aiPracticeGames.containsValue(request.payload().path("gameId").asText())){sendPracticePing(member,request,request.payload().path("gameId").asText());return;}
+
         boolean ledgerPing = request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND");
         boolean ping = ledgerPing || request.type().equals("OMOK_SPECTATOR_PING_SEND");
         var payload = request.payload();
@@ -3449,6 +3647,8 @@ public class TableHub {
             throw new RequestException(request.requestId(), rejected.code(), rejected.getMessage());
         }
         Object event = eventOf.apply(stamp);
+        var aiAudience = new java.util.ArrayList<String>();
+        aiAudience.add(member.userId());
         // 요청자 확인은 일반 응답이다. 다른 수신자 전달은 큐가 붐비거나 만료되면 버려질 수 있다.
         member.peer().offer(protocol.encode(request.requestId(), type, event));
         String notice = protocol.encode(null, type, event);
@@ -3462,6 +3662,19 @@ public class TableHub {
                     && reconnect.get().canControlGame(target.accountId(), entry.getKey(), gameId);
             if (player || approvedSpectator(entry.getKey(), target, gameId) != null) {
                 target.peer().offerTransient(notice, ttl);
+                aiAudience.add(target.userId());
+            }
+        }
+        var bridge=aiBridge;
+        if (!ping && bridge!=null) {
+            String channel=channels.channelOf(member.userId());
+            var position=channels.positionOf(member.userId());
+            if(channel!=null) {
+                String nickname=channels.worldState(channel).avatars().stream().filter(a -> a.userId().equals(member.userId()))
+                        .map(a -> a.nickname()==null?member.userId():a.nickname()).findFirst().orElse(member.userId());
+                bridge.chat(new com.ssafy.ontop.ai.WorldAiBridge.Chat(gameId+":"+member.userId()+":"+eventId,
+                        channel,member.userId(),nickname,text,now,position==null?0:position.x(),position==null?0:position.y(),
+                        position==null?0:position.z(),java.util.List.copyOf(aiAudience),gameId,position==null));
             }
         }
     }

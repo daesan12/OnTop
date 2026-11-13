@@ -6,6 +6,7 @@ import com.ssafy.ontop.game.mole.dto.MoleDtos;
 import com.ssafy.ontop.game.mole.repository.MoleRepository;
 import com.ssafy.ontop.game.mole.service.MoleException;
 import com.ssafy.ontop.game.mole.service.MoleService;
+import com.ssafy.ontop.minigame.service.MoleTargets;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import java.time.Clock;
@@ -21,6 +22,9 @@ import java.util.Optional;
 import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
@@ -95,8 +99,44 @@ class MoleServiceTests {
     }
 
     @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void 숨은_표적_타격은_정산과_최고점에_영향_없이_한_번_기록한다(CapturedOutput output) {
+        var round = service.start(USER, "round-1");
+        assertThat(round.id()).isEqualTo("1");
+        assertThat(round.targets()).hasSize(6).allSatisfy(target -> assertThat(target.ids()).hasSize(2));
+        assertThat(round.targets()).isEqualTo(service.start(USER, "round-1").targets());
+        var otherRound = new MoleTargets("whack-a-mole", Long.parseLong(round.id()) + 1, SEED);
+        var genuine = catchAll();
+        var expected = MoleRules.score(MoleRules.schedule(SEED),
+                genuine.stream().map(hit -> new MoleRules.Hit(hit.hole(), hit.at())).toList());
+        var hits = new ArrayList<>(genuine);
+        var first = hits.getFirst();
+        var second = hits.get(1);
+        var slotsForRoundOne = List.of(0, 0, 1, 1, 1, 0);
+        var targetIds = round.targets().get(first.hole()).ids();
+        hits.set(0, new MoleDtos.Hit(first.hole(), first.at(), targetIds.get(slotsForRoundOne.get(first.hole()))));
+        // 다른 판의 ID는 탐지하지 않으며 일반 입력 판정은 그대로 적용한다.
+        hits.set(1, new MoleDtos.Hit(second.hole(), second.at(), otherRound.hiddenIds(6).iterator().next()));
+        hits.add(new MoleDtos.Hit(0, 0, round.targets().get(0).ids().get(1)));
+        hits.add(new MoleDtos.Hit(2, 1, round.targets().get(2).ids().get(0)));
+        clock.advance(Duration.ofSeconds(93));
+        long id = Long.parseLong(round.id());
+
+        var result = service.complete(USER, id, hits);
+        var retry = service.complete(USER, id, hits);
+
+        assertThat(result.result().score()).isEqualTo(expected.score());
+        assertThat(result.result().reward()).isEqualTo(expected.coins());
+        assertThat(result.bestScore()).isEqualTo(expected.score());
+        assertThat(retry.result()).isEqualTo(result.result());
+        assertThat(repository.ledger).hasSize(1);
+        assertThat(output.getOut()).containsOnlyOnce("mole_honeypot_hit game=whack-a-mole userId=101 roundId="
+                + id + " hits=2");
+    }
+
+    @Test
     void 미니게임_공통_하루_상한에서_남은_만큼만_지급한다() {
-        repository.earnedBefore = 490;
+        repository.earnedBefore = 990;
         var round = service.start(USER, "round-1");
         clock.advance(Duration.ofSeconds(92));
 
@@ -153,7 +193,7 @@ class MoleServiceTests {
         var state = service.status(USER);
 
         assertThat(state.todayEarned()).isEqualTo(120 + settled.result().reward());
-        assertThat(state.dailyCap()).isEqualTo(500);
+        assertThat(state.dailyCap()).isEqualTo(1000);
         assertThat(state.bestScore()).isEqualTo(settled.result().score());
         assertThat(state.last()).isEqualTo(settled.result());
     }

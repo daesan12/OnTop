@@ -16,7 +16,7 @@
 | 머무는 시간 | 일반·치면 안 되는 친구는 구간 값, 금색은 그 55%, 연타는 `횟수 × 220 + 600`ms |
 | 점수 | 일반 10, 금색 30, 연타 2회 20 · 3회 30 · 4회 45 · 5회 60, 치면 안 되는 친구 −20 |
 | 콤보 | 두더지를 칠 때마다 +1(연타는 다 잡았을 때 +1). 10콤보 ×1.2, 20 ×1.5, 30 ×2(내림). 빈 구멍·치면 안 되는 친구를 치면 0 |
-| 엽전 | 40점당 1냥(내림. 이미 정산한 판은 규칙 1 30점, 규칙 2 45점), 한 판 최대 없음, [미니게임 공통 하루 500냥 상한](minigame-shared-budget.md)에 `MOLE_REWARD`로 합산 |
+| 엽전 | 40점당 1냥(내림. 이미 정산한 판은 규칙 1 30점, 규칙 2 45점), 한 판 최대 없음, [미니게임 공통 하루 1000냥 상한](minigame-shared-budget.md)에 `MOLE_REWARD`로 합산 |
 | 참가비 · 판 수 | 없음 · 제한 없음 |
 
 판정 세부(서버 `MoleRules.score`, 화면 `features/mole/scoring.ts` 동일):
@@ -43,8 +43,11 @@
 
 - 시작: 같은 키를 다시 보내면 같은 판을 돌려준다. 새 판을 열면 끝내지 않은 이전 판은 `EXPIRED`로 보상 없이 닫는다.
   출현표 `moles[]`는 `id · hole · kind(NORMAL|GOLD|RAPID|DECOY) · hits · appearAt · leaveAt`(판 시작 기준 ms)다.
+  `targets[]`는 구멍 번호와 동일한 형식의 ID 두 개(`hole · ids[2]`)를 담는다. 화면과 점수 판정에는 기존 `moles[]`를 사용한다.
 - 완료: 서버 시작 시각부터 90초가 지나야 받고(`MOLE_ROUND_NOT_FINISHED`), 120초가 넘으면 `MOLE_ROUND_EXPIRED`다.
   타격은 최대 1,200개. 이미 정산한 판은 같은 결과를 돌려주고 다시 지급하지 않는다.
+  실제 표적 타격에는 판 ID 문자열에서 선택한 해당 구멍의 `targetId`를 선택적으로 첨부한다. 해당 판의 숨은 ID 타격은
+  점수 계산에서 제외하고 정산 성공 뒤 `mole_honeypot_hit` 로그를 한 줄 남긴다. 보상·랭킹 기준은 기존과 같다.
 - 정산 응답: `result(id · score · maxCombo · caught · calculatedReward · reward · settledAt) · todayEarned · dailyCap · bestScore`.
   `calculatedReward`는 40점당 1냥 값, `reward`는 하루 상한을 적용해 실제 지급한 값이다.
 - 상태·정산의 `bestScore`는 랭킹과 같은 기준으로 현재 규칙(3)으로 정산한 판의 최고 점수다.
@@ -69,6 +72,8 @@
 
 ## 저장
 
+관리자 화면의 판 중 타격 관측과 비교는 [두더지 운영 관측](mole-audit.md)을 따른다.
+
 `db/minigame/V147__create_mole_rounds.sql`이 `mole_rounds`를 만든다. 시드와 `rules_version`으로 출현표를 다시 만들 수 있어
 출현표 자체는 저장하지 않는다. `V149__mole_rules_v2_reward_rate.sql`과 `V150__mole_rules_v3_reward_rate.sql`이 정산 CHECK를 규칙 버전별 비율(1: 30, 2: 45, 3 이후: 40)로 맞춘다.
 같은 회원의 시작·완료는 지갑 비관적 잠금으로 줄을 서고, 지급 원장 키는 `mole:reward:{roundId}`다.
@@ -78,4 +83,4 @@
 ## 범위 밖
 
 별도 게임기 위치(지금은 오락기 고르기 창의 세 번째 게임), 관전, 효과음은 후속 작업이다.
-자동 입력 프로그램은 반응 하한·연타 간격 검사로 대부분 거르고, 남는 위험은 하루 500냥 상한이 막는다.
+자동 입력 프로그램은 반응 하한·연타 간격 검사로 대부분 거르고, 남는 위험은 하루 1000냥 상한이 막는다.

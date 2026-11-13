@@ -13,7 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 @Profile(RuntimeProfiles.PRODUCT_FEATURE_WITH_DB)
 public class JpaFitnessRewardStore implements FitnessRewardStore {
-    public static final int DAILY_CAP = 300;
+    public static final int DAILY_CAP = 500;
+    public static final int REWARD_PER_INTERVAL = 5;
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private final WalletRepository wallets;
     private final WalletTransactionRepository transactions;
@@ -29,7 +30,7 @@ public class JpaFitnessRewardStore implements FitnessRewardStore {
         var wallet = wallets.findByUserId(userId)
                 .orElseThrow(() -> new IllegalStateException("운동 보상을 받을 지갑이 없습니다."));
         var today = now.atZone(KST).toLocalDate();
-        return transactions.countByWalletIdAndTransactionTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+        return transactions.sumBalanceDelta(
                 wallet.id(), "FITNESS_REWARD", today.atStartOfDay(KST).toInstant(),
                 today.plusDays(1).atStartOfDay(KST).toInstant());
     }
@@ -47,13 +48,13 @@ public class JpaFitnessRewardStore implements FitnessRewardStore {
         var today = now.atZone(KST).toLocalDate();
         Instant from = today.atStartOfDay(KST).toInstant();
         Instant until = today.plusDays(1).atStartOfDay(KST).toInstant();
-        // 운동 보상은 매 구간 정확히 1냥이며 미니게임 공통 500냥과 별도로 집계한다.
-        long earned = transactions.countByWalletIdAndTransactionTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
-                wallet.id(), "FITNESS_REWARD", from, until);
+        // 운동 보상은 매 구간 5냥이며 미니게임 공통 상한과 별도로 집계한다. 지급액 합계로 세어 상한을 넘기지 않는다.
+        long earned = transactions.sumBalanceDelta(wallet.id(), "FITNESS_REWARD", from, until);
         if (earned >= DAILY_CAP) {
             return;
         }
-        wallet.creditReward(1);
-        transactions.save(WalletTransaction.fitnessReward(wallet.id(), key, now));
+        long amount = Math.min(REWARD_PER_INTERVAL, DAILY_CAP - earned);
+        wallet.creditReward(amount);
+        transactions.save(WalletTransaction.fitnessReward(wallet.id(), key, amount, now));
     }
 }

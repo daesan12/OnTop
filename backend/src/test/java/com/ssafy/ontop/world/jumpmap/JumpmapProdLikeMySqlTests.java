@@ -11,13 +11,14 @@ import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 운영과 같은 migration 위치(db/migration만, 점프맵 V131 없음)에서 플래그를 잘못 켜도 서버가 시작하고
+ * 점프맵 V131(db/minigame)이 없는 migration 위치(db/migration·db/shop)에서 플래그를 잘못 켜도 서버가 시작하고
  * 점프맵(충돌체·판정·status)만 비활성인지 실제 MySQL로 확인한다.
  */
 @Tag("mysql")
 @SpringBootTest(properties = {
         "spring.profiles.active=local,db", "ontop.world.jumpmap.enabled=true",
-        "spring.flyway.locations=classpath:db/migration",
+        // V165가 db/shop의 items를 참조한다. db/minigame은 V131이 없어야 하므로 넣지 않는다.
+        "spring.flyway.locations=classpath:db/migration,classpath:db/shop",
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
         "ontop.world.channels[0].channel-id=channel-1", "ontop.world.channels[0].name=공원",
         "ontop.world.channels[0].capacity=20",

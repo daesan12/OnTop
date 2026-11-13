@@ -26,6 +26,7 @@
 | `GET /api/v1/admin/events/winners/{winnerId}/contact` | 별도 연락처 권한. 원문 조회를 감사 기록에 저장 |
 | `GET /api/v1/admin/feedback` | 조회 및 기존 소리함 서비스의 활성 회원 확인 |
 | `GET /api/v1/admin/analytics/**` | 조회 (후속 구현 예정) |
+| `GET /api/v1/admin/macro-analysis/mole`, `GET /api/v1/admin/macro-analysis/mole/{id}` | 조회 (`ADMIN_READ`). [두더지 플레이 기록](mole-audit.md) |
 | `POST /api/v1/admin/wallet-grants/preview` | 지급 미리보기 |
 | `POST /api/v1/admin/wallet-grants` | 지급 실행 |
 | `GET /api/v1/admin/operations/status` | 운영 상태 조회 |

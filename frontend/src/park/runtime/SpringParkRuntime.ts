@@ -18,14 +18,17 @@ import {MapAdmission,MAP_UPDATE_MESSAGE,type MapIdentity} from '../../network/ma
 import { FacilityClient } from '../../network/facilityClient'
 import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
+import { jokeBusinessMessage, jokeSubmissionPath } from '../../features/ai/jokeSubmissionError'
 import { clearRoamingInput, inputState, focusParkCanvas } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
 import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
 import { gameChatScope } from '../../features/chat/gameChat'
+import {useCompanions,acceptCompanions} from '../../features/ai/companions'
+import {companionPath,residentsEnabled} from '../../features/ai/serviceFeatures'
+import {observedNpcPractice,syncPracticeSpectator} from '../../features/ai/practiceSpectator'
 import { gamePlayers, gameState } from '../../game/protocol'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
-import { filterChat } from '../../features/chat/filterChat'
 import { receiveWalletSettlement } from '../../features/wallet/settlementRefresh'
 import {
   channel,
@@ -133,8 +136,10 @@ export class ParkRuntime implements ParkRuntimePort {
   private initialStates: Envelope[] | null = null
   private quietResultChecks = new Set<string>()
   private untrackTabGame: (() => void) | undefined
+  private untrackPracticeEvents: (() => void) | undefined
   private facilityMapInvalid = false
-  private spectatorIntent: { userId: string; channelId: string; tableId: string; benchScope: string; awaitingStart?: boolean } | null = null
+  private spectatorIntent: { userId: string; channelId: string; tableId: string; benchScope: string; awaitingStart?: boolean; npcPractice?: boolean } | null = null
+  private npcWatchAttempt = 0
   private gameWatchRequestId = ''
   private spectatorChecks = new Map<string, string>()
   private obsoleteGameWatchRequests = new Set<string>()
@@ -198,6 +203,9 @@ export class ParkRuntime implements ParkRuntimePort {
   })
   private gameEventScope = () => {
     const s = useSession.getState(), g = useGame.getState()
+    const c=useCompanions.getState(),practice=c.practiceChat??(c.practice?{gameId:c.practice.snapshot.gameId,version:c.practice.snapshot.version,role:'PLAYER' as const}:null)
+    if(practice&&this.active&&this.socket.connected&&s.status==='connected'&&s.roomId&&s.mapCompatible)
+      return {key:JSON.stringify([this.generation,s.sessionId,s.roomId,practice.gameId,practice.role]),...practice,canSend:getAuthSession()?.status==='AUTHENTICATED'}
     if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
       || !g.game || gameState(g.game).status !== 'PLAYING' || g.lastResult) return null
     const game = g.game
@@ -271,6 +279,8 @@ export class ParkRuntime implements ParkRuntimePort {
       || s.tableId || intent.tableId !== s.watchedTableId || intent.benchScope && intent.benchScope !== benchViewScope(s))) {
       this.closeTable(); return
     }
+    // NPC matches are authorized by TABLE_WATCH/status, not the product GAME_WATCH directory.
+    if (intent?.npcPractice) return
     const reference = intent ? publicMatchService.find({ channelId: intent.channelId, tableId: intent.tableId }) : null
     if (intent?.awaitingStart) {
       if (!canReachTable(avatars.get(s.sessionId)?.current, s.focusedAnchorId)) { this.closeTable(); return }
@@ -400,7 +410,8 @@ export class ParkRuntime implements ParkRuntimePort {
       response = await fetchOnce()
     }
     const distanceCode = url === '/api/v1/feedback' ? 'FEEDBACK_OUT_OF_RANGE'
-      : /^\/api\/v1\/notes(?:\?channelId=[^&#?]+)?$/.test(url) ? 'NOTES_OUT_OF_RANGE' : ''
+      : /^\/api\/v1\/notes(?:\?channelId=[^&#?]+)?$/.test(url) ? 'NOTES_OUT_OF_RANGE'
+      : url === jokeSubmissionPath ? 'JOKE_OUT_OF_RANGE' : ''
     const distanceForbidden = response.status === 403 && !!distanceCode
     if (response.status === 401 || (response.status === 403 && !distanceForbidden)) this.authEnded()
     if (!response.ok) {
@@ -411,7 +422,7 @@ export class ParkRuntime implements ParkRuntimePort {
       throw new RestError(response.status, code,
         response.status === 401
           ? '로그인을 다시 확인해주세요.'
-          : `서버 요청에 실패했습니다. (${response.status})`,
+          : jokeBusinessMessage(url, response.status, body) ?? `서버 요청에 실패했습니다. (${response.status})`,
         record(body) && typeof body.nextAllowedAt === 'string' ? body.nextAllowedAt : undefined,
       )
     }
@@ -452,14 +463,28 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'POST' && /^\/api\/v1\/minigames\/whack-a-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const speedMoleRequest = (method === 'GET' && /^\/api\/v1\/minigames\/speed-mole\/rankings\?limit=20&offset=\d{1,5}$/.test(path))
       || (method === 'POST' && /^\/api\/v1\/minigames\/speed-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
+    const jumpRopeRequest = (method === 'GET' && path === '/api/v1/minigames/jump-rope/rankings')
+      || (method === 'POST' && /^\/api\/v1\/minigames\/jump-rope\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
     const gachaRequest = (method === 'GET' && (path === '/api/v1/gacha'
       || /^\/api\/v1\/gacha\/operations\/[A-Za-z0-9_-]{1,64}$/.test(path)))
       || (method === 'POST' && ['/api/v1/gacha/tickets', '/api/v1/gacha/draws', '/api/v1/gacha/boxes/open'].includes(path))
-    if (!this.active || (!notesRead && !notesWrite && !shopRequest && !profileRequest
+    const serviceAiRequest = (method === 'GET' && ['/api/v1/ai/features','/api/v1/ai/companions/status'].includes(path))
+      || (method === 'POST' && /^\/api\/v1\/ai\/companions\/(?:invite|action|talk)$/.test(path))
+      || (method === 'GET' && /^\/api\/v1\/ai\/joke-contest\/(?:me|rankings(?:\?date=\d{4}-\d{2}-\d{2})?|yesterday|hall|reveal\/[a-zA-Z0-9-]+|submissions\/[a-zA-Z0-9-]+)$/.test(path))
+      || (method === 'POST' && path === '/api/v1/ai/joke-contest/submissions')
+    const localAiRequest = import.meta.env.DEV && import.meta.env.VITE_AI_PARK === 'true'
+      && ['127.0.0.1','localhost'].includes(location.hostname)
+      && ((method === 'POST' && /^\/local\/ai\/(?:feedback-position|table-position|jumpmap-position|roof-position|flush|digest)$/.test(path))
+        || (method === 'GET' && path === '/local/ai/status')
+        || (method === 'GET' && /^\/local\/ai\/joke-contest\/(?:me|rankings(?:\?date=\d{4}-\d{2}-\d{2})?|yesterday|hall|reveal\/[a-zA-Z0-9-]+|submissions\/[a-zA-Z0-9-]+)$/.test(path))
+        || (method === 'POST' && /^\/local\/ai\/joke-contest\/(?:submissions|position)$/.test(path))
+        || (method === 'GET' && path === '/local/ai/companions/status')
+        || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
+    if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
-      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
+      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
@@ -472,6 +497,10 @@ export class ParkRuntime implements ParkRuntimePort {
     if (TABLET_ENABLED) this.tablet.begin()
     bindFollowService(this.follow)
     this.untrackTabGame?.()
+    this.untrackPracticeEvents?.()
+    this.untrackPracticeEvents=useCompanions.subscribe((next,previous)=>{
+      if(next.practiceChat!==previous.practiceChat || next.practice!==previous.practice)this.omokEvents.sync()
+    })
     this.untrackTabGame = useGame.subscribe((next, prev) => {
       const owner = useSession.getState().sessionId
       if (next.permittedGameId && next.permittedGameId !== prev.permittedGameId) keepTabGame(owner, next.permittedGameId)
@@ -534,6 +563,8 @@ export class ParkRuntime implements ParkRuntimePort {
   async stop() {
     this.notesChanges.reset()
     this.untrackTabGame?.()
+    this.untrackPracticeEvents?.()
+    this.untrackPracticeEvents=undefined
     this.untrackTabGame = undefined
     this.tablet.end()
     this.mapReady = false
@@ -943,10 +974,18 @@ export class ParkRuntime implements ParkRuntimePort {
       return true
     } catch { return false }
   }
+  setMyRoomOpen = async (open: boolean) => {
+    const own = useSession.getState()
+    if (!this.active || own.status !== 'connected' || !own.roomId || !own.mapCompatible) return false
+    try {
+      await this.socket.request('WORLD_MYROOM_SET', { open }, ['WORLD_STATE'])
+      return true
+    } catch { return false }
+  }
   sendChat = (value: string) =>
-    gameChatScope() ? this.sendSpectatorChat(filterChat(value)) :
+    gameChatScope() ? this.sendSpectatorChat(value) :
     this.action(async () => {
-      const text = filterChat(validateChat(value))
+      const text = validateChat(value)
       if (!useSession.getState().roomId)
         throw new Error('먼저 채널에 입장해주세요.')
       await this.socket.request('WORLD_CHAT_SEND', { text }, [
@@ -1636,6 +1675,7 @@ export class ParkRuntime implements ParkRuntimePort {
       return this.spectator.set({ gameId, scope: JSON.stringify([this.generation, session.sessionId, session.roomId, session.watchedTableId, benchViewScope(session)]) }, true)
   }
   watchBench = async (anchorId: string, observeOnly = false): Promise<boolean> => {
+    const attempt=++this.npcWatchAttempt
     const s = useSession.getState(), scope = benchViewScope(s)
     if (!scope || benchTable(s.benchId)?.id !== anchorId) return false
     if (!await this.watchTable(anchorId, false)) return false
@@ -1643,12 +1683,34 @@ export class ParkRuntime implements ParkRuntimePort {
     if (scope !== benchViewScope(current)) { this.closeTable(); return false }
     if (observeOnly) return true
     const ref = publicMatchService.find({ channelId: s.roomId, tableId: current.watchedTableId })
-    if (!ref) return false
+    if (!ref) {
+      if (!residentsEnabled()) return false
+      const generation=this.generation, inspection=this.inspection
+      try {
+        const value=await this.requestJSON(companionPath('status'))
+        const latest=useSession.getState()
+        if (!this.active || attempt!==this.npcWatchAttempt || generation!==this.generation || inspection!==this.inspection
+          || scope!==benchViewScope(latest) || latest.watchedTableId!==current.watchedTableId) return false
+        if (!acceptCompanions(value) || !observedNpcPractice()) return false
+        this.spectatorIntent={userId:s.sessionId,channelId:s.roomId,tableId:current.watchedTableId,benchScope:scope,npcPractice:true}
+        useTableLobby.setState({spectatorRequested:true,spectatorError:''})
+        syncPracticeSpectator()
+        return true
+      } catch (error) { this.report(error); return false }
+    }
     this.spectatorIntent = { userId: s.sessionId, channelId: s.roomId, tableId: current.watchedTableId, benchScope: scope }
     useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
     return this.spectator.set({ gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) }, true)
   }
   unwatchGame = async (preserveInspection = false): Promise<boolean> => {
+    ++this.npcWatchAttempt
+    if (this.spectatorIntent?.npcPractice) {
+      this.spectatorIntent=null
+      useTableLobby.setState({spectatorRequested:false,spectatorStatus:'idle',spectatorError:''})
+      resetBenchSpectator()
+      if (!preserveInspection) focusParkCanvas()
+      return true
+    }
     if (this.spectatorIntent?.awaitingStart) { this.closeTable(); return true }
     const ending = useSession.getState(), generation = this.generation, inspection = this.inspection
     this.spectatorIntent = null
@@ -1667,6 +1729,7 @@ export class ParkRuntime implements ParkRuntimePort {
     return approved
   }
   closeTable = () => {
+    ++this.npcWatchAttempt
     this.spectatorIntent = null
     resetBenchSpectator()
     useTableLobby.setState({ spectatorRequested: false, panelOpen: false, entryNotice: null })

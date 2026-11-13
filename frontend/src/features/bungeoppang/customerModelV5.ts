@@ -3,7 +3,7 @@ import { AnimationMixer, Box3, Group, Mesh, MeshStandardMaterial, Quaternion, Sk
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { ParkAssetLoader } from '../../world/art/assetLoader';
-import { customerModelUrlV5, type CustomerAssetV5 } from './customerAssetsV5';
+import { customerModelUrlV5, type CustomerModelIdV5 } from './customerAssetsV5';
 
 export type CustomerMotionV5 = 'idle' | 'walk';
 type Entry = { refs: number; pending: Promise<GLTF>; source?: GLTF; disposed: boolean };
@@ -33,7 +33,7 @@ export class CustomerModelPoolV5 {
   private loader = new ParkAssetLoader();
   private entries = new Map<string, Entry>();
   private closed = false;
-  acquire(asset: CustomerAssetV5) {
+  acquire(asset: { id: CustomerModelIdV5 }) {
     if (this.closed) throw new Error('Customer model pool is closed');
     let entry = this.entries.get(asset.id);
     if (!entry) {
@@ -63,7 +63,7 @@ export class CustomerModelPoolV5 {
 }
 
 /** Geometry/textures are shared; bones, mixer and fadeable materials belong to one customer. */
-export function instantiateCustomerV5(source: GLTF, asset: { id: CustomerAssetV5['id']; height: number }) {
+export function instantiateCustomerV5(source: GLTF, asset: { id: CustomerModelIdV5; height: number }) {
   const model = clone(source.scene), root = new Group(), centered = new Group();
   centered.add(model); root.add(centered);
   const materials = new Set<MeshStandardMaterial>();

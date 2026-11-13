@@ -44,13 +44,13 @@ const object = (value: unknown): value is Record<string, unknown> => !!value && 
 const nonnegative = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0
 export function parseCoopResult(value: unknown, gameId: string): CoopResult {
   if (!object(value) || value.gameId !== gameId || !['SETTLED', 'PENDING', 'UNAVAILABLE'].includes(String(value.status))
-    || ![value.teamScore, value.served, value.coinsCalculated].every(nonnegative) || value.dailyCap !== 500
+    || ![value.teamScore, value.served, value.coinsCalculated].every(nonnegative) || value.dailyCap !== 1000
     || value.coinsCalculated !== Math.floor((value.teamScore as number) / 20)
     || !['REGISTERED', 'EXCLUDED', 'PENDING'].includes(String(value.rankingStatus))
     || typeof value.rankingReason !== 'string' || typeof value.endReason !== 'string') throw new Error('경기 결과를 확인해주세요.')
   if (value.status === 'SETTLED' && (![value.coinsGranted, value.todayEarned, value.remainingToday, value.balance].every(nonnegative)
-    || (value.coinsGranted as number) > Math.min(500, value.coinsCalculated as number)
-    || value.remainingToday !== Math.max(0, 500 - (value.todayEarned as number))
+    || (value.coinsGranted as number) > Math.min(1000, value.coinsCalculated as number)
+    || value.remainingToday !== Math.max(0, 1000 - (value.todayEarned as number))
     || typeof value.rewardDate !== 'string' || typeof value.settledAt !== 'string')) throw new Error('정산 영수증을 확인해주세요.')
   if (value.status !== 'SETTLED' && [value.coinsGranted, value.todayEarned, value.remainingToday, value.balance, value.rewardDate, value.settledAt].some(v => v !== null)) throw new Error('미확정 보상을 지급 내역으로 표시할 수 없어요.')
   return value as unknown as CoopResult

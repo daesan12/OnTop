@@ -2,7 +2,7 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 const fixture = vi.hoisted(() => ({ session: { sessionId: '42', status: 'connected' }, request: vi.fn(), storage: new Map<string, string>() }))
 vi.mock('../../src/network/worldClient', () => ({ useSession: { getState: () => fixture.session } }))
 vi.mock('../../src/park/runtime/runtime', () => ({ parkRuntime: { requestJSON: fixture.request } }))
-import { gachaAction, refreshGacha, resetGacha, useGacha } from '../../src/features/gacha/state'
+import { gachaAction, gachaInteractionEnabled, refreshGacha, resetGacha, useGacha } from '../../src/features/gacha/state'
 import { acceptGacha } from '../../src/features/gacha/events'
 import { RestError } from '../../src/network/restError'
 import { gachaClock, refillRemaining } from '../../src/features/gacha/timing'
@@ -19,12 +19,66 @@ beforeEach(async () => {
   fixture.request.mockResolvedValue(state); await refreshGacha(); fixture.request.mockClear()
 })
 afterEach(() => vi.unstubAllGlobals())
+it('첫 조회 실패 후 GET만 재조회하고 같은 거래 ID·구매 수량으로 결과를 복구한다', async () => {
+  resetGacha()
+  const pending = { kind: 'BUY', operationId: 'lost-buy', quantity: 7 }
+  fixture.storage.set('ontop:gacha:pending:42', JSON.stringify(pending))
+  fixture.request.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+  await refreshGacha()
+  expect(useGacha.getState().loading).toBe(false)
+  expect(useGacha.getState().error).toContain('다시 불러오기')
+  expect(useGacha.getState().pending).toEqual(pending)
+  await gachaAction('BUY')
+  expect(fixture.request).toHaveBeenCalledTimes(1)
+  fixture.request.mockResolvedValueOnce(state)
+  await refreshGacha()
+  expect(fixture.request.mock.calls.every(c => c[0] === '/api/v1/gacha')).toBe(true)
+  expect(useGacha.getState().error).toBe('')
+  const result = { operationId: 'lost-buy', kind: 'BUY', roundId: null, grade: 0, product: null, duplicate: false,
+    paidCoins: 700, awardedCoins: 0, inventory: { ...inventory, tickets: 8 }, completedAt: '2026-11-06T00:00:00Z' }
+  fixture.request.mockResolvedValueOnce(result).mockResolvedValueOnce({ ...state, inventory: result.inventory })
+  await gachaAction('BUY')
+  const posts = fixture.request.mock.calls.filter(c => c[1]?.method === 'POST')
+  expect(posts).toHaveLength(1)
+  expect(JSON.parse(posts[0]![1].body)).toEqual({ operationId: 'lost-buy', quantity: 7 })
+  expect(useGacha.getState().pending).toBeNull()
+  expect(fixture.storage.size).toBe(0)
+  expect(useGacha.getState().result?.operationId).toBe('lost-buy')
+  expect(useGacha.getState().state?.inventory.tickets).toBe(8)
+})
+it('활성 상태를 확인한 현재 연결에만 공원 뽑기 상호작용을 연다', async () => {
+  expect(useGacha.getState().availability).toBe('enabled')
+  expect(gachaInteractionEnabled('42')).toBe(true)
+  expect(gachaInteractionEnabled('99')).toBe(false)
+
+  resetGacha()
+  expect(useGacha.getState().availability).toBe('unknown')
+  expect(gachaInteractionEnabled('42')).toBe(false)
+
+  fixture.request.mockResolvedValueOnce({ ...state, enabled: false })
+  await refreshGacha()
+  expect(useGacha.getState().availability).toBe('disabled')
+  expect(useGacha.getState().state).toBeNull()
+  expect(gachaInteractionEnabled('42')).toBe(false)
+})
+it('명시적 미설정만 비활성으로 확정하고 일시적 조회 오류는 기존 활성 상태를 유지한다', async () => {
+  fixture.request.mockRejectedValueOnce(new Error('일시적 네트워크 오류'))
+  await refreshGacha()
+  expect(useGacha.getState().availability).toBe('enabled')
+  expect(gachaInteractionEnabled('42')).toBe(true)
+
+  fixture.request.mockRejectedValueOnce(new RestError(503, 'GACHA_NOT_CONFIGURED', '뽑기 미설정'))
+  await refreshGacha()
+  expect(useGacha.getState().availability).toBe('disabled')
+  expect(useGacha.getState().state).toBeNull()
+  expect(gachaInteractionEnabled('42')).toBe(false)
+})
 it('보유 수량 초과가 확정되면 미소비 요청을 정리한다',async()=>{
   fixture.request.mockRejectedValueOnce(new RestError(409,'GACHA_CAPACITY_EXCEEDED','보유 한도 초과'))
   await gachaAction('BUY')
   expect(useGacha.getState().pending).toBeNull()
   expect(fixture.storage.size).toBe(0)
-  expect(useGacha.getState().error).toBe('보유 한도 초과')
+  expect(useGacha.getState().error).toBe('보유할 수 있는 수량을 초과했어요. 보유 수량을 확인해주세요.')
 })
 it('응답 유실과 인증·429 오류 후에도 동일 작업 ID를 유지한다', async () => {
   fixture.request.mockRejectedValueOnce(new Error('응답 유실'))

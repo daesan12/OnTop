@@ -20,7 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("mysql")
 @ActiveProfiles({"local", "db"})
-@DataJpaTest(properties = "spring.flyway.locations=classpath:db/migration,classpath:db/minigame")
+// V165가 db/shop의 items를 참조한다.
+@DataJpaTest(properties = "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/shop")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(ParkSpeedMoleRankingRepository.class)
 class ParkSpeedMoleRankingRepositoryTests {

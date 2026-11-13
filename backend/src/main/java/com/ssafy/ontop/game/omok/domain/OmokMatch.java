@@ -208,6 +208,8 @@ public final class OmokMatch {
         return userId == blackUserId || userId == whiteUserId;
     }
 
+    public List<OmokBoard.Move> moves() { return board.moves(); }
+
     private long opponent(long userId) {
         return userId == blackUserId ? whiteUserId : blackUserId;
     }

@@ -441,6 +441,23 @@ class OmokSpectatorEventFlowTests {
         assertThat(reservation.reservations.get()).isEqualTo(1);
     }
 
+    @Test
+    void 경기시작직후에는공원채팅을막고_정산후계속앉아있어도공원채팅으로돌아온다() throws Exception {
+        var first=connect(101,"one");var second=connect(202,"one");var viewer=connect(505,"one");near(viewer);
+        viewer.request("TABLE_WATCH",Map.of("tableId",TABLE));start(TABLE,first,second,viewer,GAME,true);
+        assertThat(first.request("WORLD_CHAT_SEND",Map.of("text","경기 중 공원 우회")).at("/payload/code").asText()).isIn("GAME_CHAT_REQUIRED","GAME_RECOVERY_REQUIRED");
+        assertThat(first.request("GAME_FORFEIT",Map.of("gameId",GAME,"actionId","chat-scope-forfeit")).path("type").asText()).isEqualTo("GAME_FORFEIT_RESULT");
+        // This fixture deliberately has no wallet/settlement repository. Advance its trusted committed-result boundary.
+        events.publishEvent(new com.ssafy.ontop.game.result.GameResultCommitted(new com.ssafy.ontop.game.result.GameResultView(202,2,GAME,"OMOK",
+                com.ssafy.ontop.game.result.GameResultView.Status.FINISHED,"EXPLICIT_LEAVE",com.ssafy.ontop.game.result.GameResultView.SettlementStatus.SETTLED,1,
+                List.of(new com.ssafy.ontop.game.result.GameResultView.Participant("101","FORFEIT"),new com.ssafy.ontop.game.result.GameResultView.Participant("202","WIN")),1L,clock.instant())));
+        JsonNode response=null;long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+        while(System.nanoTime()<deadline){response=second.request("WORLD_CHAT_SEND",Map.of("text","다음 판을 기다려요"));if(response.path("type").asText().equals("WORLD_CHAT_MESSAGE"))break;Thread.sleep(100);}
+        assertThat(response.path("type").asText()).as(response.toString()).isEqualTo("WORLD_CHAT_MESSAGE");
+        var seated=second.request("TABLE_JOIN",Map.of("tableId",TABLE));assertThat(seated.path("type").asText()).isEqualTo("TABLE_STATE");
+        assertThat(seated.at("/payload/seats").findValuesAsText("userId")).contains("202");
+    }
+
     private void start(String table, ScenarioClient first, ScenarioClient second, ScenarioClient tableViewer,
             String game, boolean release) throws Exception {
         assertThat(first.request("TABLE_JOIN", Map.of("tableId", table)).path("type").asText()).isEqualTo("TABLE_STATE");

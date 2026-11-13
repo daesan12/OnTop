@@ -50,7 +50,8 @@ class MinigameAwardMySqlTests {
                 SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()
                 """, Long.class)).isZero();
         Flyway.configure().dataSource(datasource)
-                .locations("classpath:db/migration", "classpath:db/minigame")
+                // V165가 db/shop의 items를 참조한다.
+                .locations("classpath:db/migration", "classpath:db/minigame", "classpath:db/shop")
                 .baselineOnMigrate(false).outOfOrder(false).load().migrate();
         repository = new MinigameAwardRepository(jdbc);
         transactions = new DataSourceTransactionManager(datasource);

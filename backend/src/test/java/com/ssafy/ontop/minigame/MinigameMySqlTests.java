@@ -237,7 +237,7 @@ class MinigameMySqlTests {
         assertThat(mapper.readTree(completed.body()).path("score").asInt()).isEqualTo(86);
         assertThat(request("POST", "/" + id + "/complete", 101, body.toString(), null).body())
                 .isEqualTo(completed.body());
-        assertThat(balance()).isEqualTo(105);
+        assertThat(balance()).isEqualTo(117);
         assertThat(count("wallet_transactions")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT reserved_balance FROM wallets WHERE user_id=101", Long.class)).isEqualTo(10);
         assertThat(request("GET", "", 101, null, null).body()).contains("\"isFirstGame\":false", "GOLD", "START");
@@ -273,9 +273,9 @@ class MinigameMySqlTests {
                 futures.add(executor.submit(() -> { gate.await(); return minigames.complete(101, id(start), body).rewardAmount(); }));
             }
             gate.countDown();
-            for (var future : futures) { assertThat(future.get(10, TimeUnit.SECONDS)).isEqualTo(5); }
+            for (var future : futures) { assertThat(future.get(10, TimeUnit.SECONDS)).isEqualTo(17); }
         }
-        assertThat(balance()).isEqualTo(105);
+        assertThat(balance()).isEqualTo(117);
         assertThat(count("wallet_transactions")).isEqualTo(1);
     }
 
@@ -308,7 +308,7 @@ class MinigameMySqlTests {
             assertThat(minigames.load(101, id(start)).status()).isEqualTo("PLAYING");
             assertThat(count("bungeoppang_profiles")).isZero();
         } finally { jdbc.execute("DROP TRIGGER minigame_test_fail_ledger"); }
-        assertThat(minigames.complete(101, id(start), body).rewardAmount()).isEqualTo(5);
+        assertThat(minigames.complete(101, id(start), body).rewardAmount()).isEqualTo(17);
     }
 
     @Test
@@ -327,11 +327,11 @@ class MinigameMySqlTests {
 
     @Test
     void 하루상한_남은2냥만_지급하고_다음판은_0냥으로_정상완료한다() {
-        historyReward(498);
+        historyReward(998);
         var first = ready("first");
         var result = minigames.complete(101, id(first), BungeoppangFixtures.sevenGolden(first.heats()));
         assertThat(result.coinsGranted()).isEqualTo(2);
-        assertThat(result.todayEarned()).isEqualTo(500);
+        assertThat(result.todayEarned()).isEqualTo(1000);
         var second = ready("second");
         assertThat(minigames.complete(101, id(second), BungeoppangFixtures.sevenGolden(second.heats())).coinsGranted()).isZero();
         assertThat(balance()).isEqualTo(102);
@@ -339,11 +339,11 @@ class MinigameMySqlTests {
 
     @Test
     void KST자정_전날보상은_오늘상한에_포함하지않는다() {
-        historyReward(500);
+        historyReward(1000);
         jdbc.update("UPDATE minigame_sessions SET ended_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 DAY)");
         jdbc.update("UPDATE wallet_transactions SET created_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 DAY)");
         var start = ready("one");
-        assertThat(minigames.complete(101, id(start), BungeoppangFixtures.sevenGolden(start.heats())).coinsGranted()).isEqualTo(5);
+        assertThat(minigames.complete(101, id(start), BungeoppangFixtures.sevenGolden(start.heats())).coinsGranted()).isEqualTo(17);
     }
 
     @Test
@@ -357,7 +357,7 @@ class MinigameMySqlTests {
             reward.get(10, TimeUnit.SECONDS);
             purchase.get(10, TimeUnit.SECONDS);
         }
-        assertThat(balance()).isEqualTo(100);
+        assertThat(balance()).isEqualTo(112);
         assertThat(count("wallet_transactions")).isEqualTo(2);
     }
 
@@ -486,12 +486,12 @@ class MinigameMySqlTests {
         assertThat(first).satisfies(result -> {
             assertThat(result.score()).isEqualTo(20);
             assertThat(result.served()).isEqualTo(2);
-            assertThat(result.coinsCalculated()).isOne();
-            assertThat(result.coinsGranted()).isOne();
-            assertThat(result.rewardAmount()).isOne();
+            assertThat(result.coinsCalculated()).isEqualTo(4);
+            assertThat(result.coinsGranted()).isEqualTo(4);
+            assertThat(result.rewardAmount()).isEqualTo(4);
             assertThat(result.finalThroughSeq()).isEqualTo(9);
         });
-        assertThat(balance()).isEqualTo(101);
+        assertThat(balance()).isEqualTo(104);
         assertThat(jdbc.queryForObject("SELECT reserved_balance FROM wallets WHERE user_id=101", Long.class))
                 .isEqualTo(10);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions"
@@ -524,7 +524,7 @@ class MinigameMySqlTests {
         assertThat(count("bungeoppang_v4_orders")).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM bungeoppang_v4_receipts"
                 + " WHERE operation='DELIVERY'", Integer.class)).isOne();
-        assertThat(balance()).isEqualTo(101);
+        assertThat(balance()).isEqualTo(104);
         assertThat(count("wallet_transactions")).isOne();
     }
 
@@ -569,8 +569,8 @@ class MinigameMySqlTests {
                     String.class, sessionId)).isEqualTo("PLAYING");
         } finally { jdbc.execute("DROP TRIGGER minigame_test_fail_ledger"); }
         assertThat(((BungeoppangV4CompleteDtos.Response) minigames.complete(
-                101, sessionId, "complete-one", body)).coinsGranted()).isOne();
-        assertThat(balance()).isEqualTo(101);
+                101, sessionId, "complete-one", body)).coinsGranted()).isEqualTo(4);
+        assertThat(balance()).isEqualTo(104);
     }
 
     @Test
@@ -587,7 +587,7 @@ class MinigameMySqlTests {
             completeGate.countDown();
             assertThat(two.get(10, TimeUnit.SECONDS)).isEqualTo(one.get(10, TimeUnit.SECONDS));
         }
-        assertThat(balance()).isEqualTo(101);
+        assertThat(balance()).isEqualTo(104);
         assertThat(count("wallet_transactions")).isOne();
 
         setup();

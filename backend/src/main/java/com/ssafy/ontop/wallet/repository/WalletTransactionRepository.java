@@ -23,6 +23,14 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     long countByWalletIdAndTransactionTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
             long walletId, String transactionType, Instant from, Instant until);
 
+    @Query("""
+            select coalesce(sum(t.balanceDelta), 0) from WalletTransaction t
+            where t.walletId = :walletId and t.transactionType = :type
+              and t.createdAt >= :from and t.createdAt < :until
+            """)
+    long sumBalanceDelta(@Param("walletId") long walletId, @Param("type") String transactionType,
+            @Param("from") Instant from, @Param("until") Instant until);
+
     @Transactional(readOnly = true)
     @Query("""
             select new com.ssafy.ontop.wallet.dto.WalletTransactionResponse(

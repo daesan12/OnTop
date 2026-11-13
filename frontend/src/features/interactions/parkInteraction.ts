@@ -31,16 +31,20 @@ import { tableEntry } from '../tableLobby/tableEntry'
 import { useTableLobby } from '../tableLobby/state'
 import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
-import { constructionSites,canReachConstruction,openConstructionNotice } from '../construction/model'
+import { constructionSites,canReachConstruction,openConstructionNotice,openParkGacha } from '../construction/model'
+import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlacement'
+import { gachaInteractionEnabled } from '../gacha/state'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
 import { canReachParkVr, openParkVrZone, parkVrEntrance } from '../vrZone/parkBridge'
 import { canReachJumpmapGuide, jumpmapGuideScope, openJumpmapGuide } from '../jumpmap/guideState'
 import { START as JUMPMAP_START } from '../jumpmap/course'
 import { useJumpmap } from '../jumpmap/state'
 import { carryInteraction, interactWithAvatar } from '../carry/interaction'
+import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
+import { useDisplayGame } from '../../game/displayGame'
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge'
   id: string
   label: string
   seat?: 0 | 1
@@ -57,8 +61,9 @@ export function getParkInteraction(): ParkInteraction | null {
   if (facilityMovementBlocked(session.sessionId)) return null
   if (!roamingInput.ready || !p || session.status !== 'connected' || !session.mapCompatible || session.tableId || p.seatIndex >= 0
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
-    || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || panelOwnsKeys()) return null
+    || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || useDisplayGame.getState().localPractice || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
+  if(canReachJokeJudge(p.current)){const distance=Math.hypot(p.current.x-jokeJudgePosition.x,p.current.z-jokeJudgePosition.z);choices.push({kind:'joke-judge',id:'joke-judge',label:'김부장과 대화',occupied:false,available:true,distance,score:interactionScore(distance,{...jokeJudgePosition,y:jokeJudgePosition.y+1.5})})}
   if (p.carry && p.carry.role !== 'CARRIER') return null
   const carry = carryInteraction()
   if (p.carry?.role === 'CARRIER') return carry
@@ -73,9 +78,18 @@ export function getParkInteraction(): ParkInteraction | null {
     choices.push({kind:'ranking-board',id:rankingBoardTarget.id,label:'랭킹 자세히 보기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
   if(GENERATED_PARK_ENABLED)for(const site of constructionSites){
+    // layout-shop is the visible gacha machine. Its E prompt is controlled by the
+    // backend runtime capability below, not by the legacy construction marker.
+    if(site.id===PARK_GACHA_MACHINE.id)continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     choices.push({kind:'construction',id:site.id,label:site.label+' · 행운의 뽑기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
+  }
+  if (GENERATED_PARK_ENABLED && gachaInteractionEnabled(session.sessionId) && canReachParkGacha(p.current)) {
+    const { id, x, y, z } = PARK_GACHA_MACHINE
+    const distance = Math.hypot(p.current.x - x, p.current.z - z)
+    choices.push({ kind: 'gacha', id, label: '의상 뽑기', occupied: false, available: true, distance,
+      score: interactionScore(distance, { x, y: y + 1.35, z }) })
   }
   if (canReachParkVr(p.current)) {
     const distance = Math.hypot(p.current.x - parkVrEntrance.x, p.current.z - parkVrEntrance.z)
@@ -144,13 +158,15 @@ export function getParkInteraction(): ParkInteraction | null {
   return choices.filter(c => Number.isFinite(c.score)).sort((a, b) => a.score - b.score || a.distance - b.distance
     || a.id.localeCompare(b.id) || (a.seat ?? 2) - (b.seat ?? 2))[0] ?? null
 }
-export function interactWithPark(): boolean {
+export function interactWithPark(expectedId?: string): boolean {
   const target = getParkInteraction()
-  if (!target) return false
+  if (!target || (expectedId !== undefined && target.id !== expectedId)) return false
   if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
   else if (target.kind === 'ranking-board') openRankingBoard()
+  else if (target.kind === 'joke-judge') openJokeContest()
   else if (target.kind === 'vr') openParkVrZone()
+  else if (target.kind === 'gacha') openParkGacha()
   else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()
   else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openArcade() }

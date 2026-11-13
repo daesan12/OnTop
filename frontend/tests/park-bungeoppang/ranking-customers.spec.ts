@@ -54,7 +54,7 @@ for (const durationMs of [120000, 180000]) test(`new park preserves score/combo 
     ], rules);
     useBungeoppang.setState({ phase: 'result', gameId: `generated-${duration}`, rules, grill,
       result: { score: 1200, maxCombo: 8, made: 20, golden: 12, failed: 0, wasted: 0,
-        coinsCalculated: 8, coinsGranted: 8, todayEarned: 8, dailyCap: 500, capReached: false },
+        coinsCalculated: 8, coinsGranted: 8, todayEarned: 8, dailyCap: 1000, capReached: false },
       submitting: false, starting: false, submitError: null, walletError: null });
   }, durationMs);
   const summary = page.getByRole('region', { name: '전체 랭킹 요약', exact: true });

@@ -24,7 +24,7 @@ docker run -d --name ontop-analytics-mysql --network none -e MYSQL_ROOT_PASSWORD
 
 ## 쿼리 검증 (가짜 데이터)
 
-`scripts/seed.py`의 작은 시나리오(사용자 5명, 경기 4개(로그 없는 경기·시작 거절 포함), 기권·시작 전 이탈·구매·막힘, 붕어빵 8판, 소리함 5건과 답변 4건, 지갑 원장 52건, 점프맵 6회·룰렛 5판·추첨 3장·두더지 4판·스피드 두더지 4판·플러스마이너스 3판·꼬치 협동 2판(VR·PC)·뽑기 영수증 10건 포함)를 넣고, 손으로 계산한 정답과 쿼리 결과를 비교한다. 백엔드의 실제 마이그레이션(회원 V1, 지갑 V4, 행동 로그 V5·V6, 붕어빵 V110, 소리함 V127, 경기 V112·V122·V123, 붕어빵 V111·V124·V132, 점프맵 V131·V141, 룰렛 V136·V164, 추첨 V140, 플러스마이너스 V143, 꼬치 협동 V145·V156, 두더지 V147·V149·V150, 스피드 두더지 V151, 뽑기 V157·V159, 소리함 답변 V158)으로 테이블을 만들기 때문에 테이블 구조가 바뀌면 여기서 먼저 깨진다. **쿼리를 고치면 반드시 다시 실행한다.**
+`scripts/seed.py`의 작은 시나리오(사용자 5명, 경기 4개(로그 없는 경기·시작 거절 포함), 기권·시작 전 이탈·구매·막힘, 붕어빵 8판, 소리함 5건과 답변 4건, 지갑 원장 52건, 점프맵 6회·룰렛 5판·추첨 3장·두더지 4판·스피드 두더지 4판·플러스마이너스 3판·꼬치 협동 2판(VR·PC)·뽑기 영수증 10건·과일 땡 종 기록 4건 포함)를 넣고, 손으로 계산한 정답과 쿼리 결과를 비교한다. 백엔드의 실제 마이그레이션(회원 V1, 지갑 V4, 행동 로그 V5·V6, 붕어빵 V110, 소리함 V127, 경기 V112·V122·V123, 붕어빵 V111·V124·V132, 점프맵 V131·V141, 룰렛 V136·V164, 추첨 V140, 플러스마이너스 V143, 꼬치 협동 V145·V156, 두더지 V147·V149·V150, 스피드 두더지 V151, 뽑기 V157·V159, 소리함 답변 V158)으로 테이블을 만들기 때문에 테이블 구조가 바뀌면 여기서 먼저 깨진다. **쿼리를 고치면 반드시 다시 실행한다.**
 
 ```powershell
 python analytics/scripts/verify.py --container ontop-analytics-mysql
@@ -90,6 +90,30 @@ python analytics/scripts/run.py --container ontop-analytics-mysql --database ont
 python analytics/scripts/run.py --container ontop-analytics-mysql --database ontop_snapshot --all --csv
 ```
 
+### 두더지 내부 집계에서 확정 회원 제외
+
+같은 환경의 서버 로그에서 `mole_honeypot_hit` 기록을 확인한다. 로그의 `game`, `roundId`, `userId`를
+운영자만 접근할 수 있는 `analytics/data/mole-review.csv`에 옮기고, 검토를 마친 판을 `CONFIRMED`로 표시한다.
+검토 중인 판은 `PENDING`, 제외하지 않기로 한 판은 `REJECTED`로 표시한다.
+
+```csv
+game,round_id,user_id,status
+whack-a-mole,123,101,CONFIRMED
+speed-mole,456,102,PENDING
+```
+
+같은 환경에서 추출한 서버 로그를 `analytics/data/mole-honeypot.log`에 둔다. 원본 텍스트 로그나
+`mole_honeypot_hit` 메시지만 한 줄씩 추출한 파일을 쓸 수 있다. 아래 명령은 확정 행의 게임·판·회원이
+로그와 복원 DB의 정산 판에 모두 일치할 때만 해당 회원의 판을 두 집계에서 제외한다.
+
+```powershell
+python analytics/scripts/run.py --container ontop-analytics-mysql --database ontop_snapshot --mole-review analytics/data/mole-review.csv --mole-honeypot-log analytics/data/mole-honeypot.log --csv 28_mole_daily.sql 34_speed_mole_daily.sql
+```
+
+결과는 `analytics/out/*-reviewed.csv`에 저장된다. 판정 옵션 없이 실행하면 기존 집계가 나온다.
+두더지 일별 집계(28번·34번)에만 이 판정을 적용한다. 운영 DB, 공개 랭킹, 지갑 원장과 공통 엽전 집계에는
+기존 경로를 사용한다. 판정 CSV와 서버 로그는 운영자 권한으로 보관하고, 분석 결과에는 회원 ID를 포함하지 않는다.
+
 **4. 작업 후 삭제**
 팀에 공유할 집계값을 정리한 뒤 컨테이너(복원 DB 포함), 백업 파일, 결과 파일을 지운다.
 
@@ -138,6 +162,7 @@ if (Test-Path analytics/out) { Remove-Item -Recurse -Force analytics/out }
 | `32_welcome_tour_funnel.sql` | 첫 입장 체험 투어 단계별 마친 회원·그 단계에서 그만둔 회원(다시 보기 제외) | 그만둔 회원이 몰린 단계의 안내 문구·목표를 점검한다. flight에서 많이 나가면 환영 비행이 길다는 신호다 |
 | `33_gacha_daily.sql` | 날짜별 의상 뽑기권 구매·캡슐 뽑기·등급별 결과·상자 열기·중복 환급, 쓴 엽전·돌려준 엽전·회수율 | 뽑기가 엽전을 얼마나 거둬들이는지(19번 엽전 과잉 대응) 본다. 중복 환급이 늘면 상품 수에 비해 뽑기가 많다는 뜻이다 |
 | `34_speed_mole_daily.sql` | 날짜·규칙 버전별 스피드 두더지 판·참가자·정산/미정산, 평균·최고 점수, 평균 적중·실수, 적중률, 계산·지급 보상, 한도에 깎인 엽전 | 기존 두더지(28번)와 다른 60초 게임이라 점수를 섞어 비교하지 않는다. 적중률이 낮으면 빈 구멍을 많이 친 것이다. 깎인 엽전이 크면 다른 미니게임으로 이미 한도를 채운 사람이 많다 |
+| `35_halli_bell_reaction.sql` | 회원별 과일 땡 경기 수, 맞힌·틀린·늦은 종, 먼저 친 비율, 맞힌 종의 최소·평균 반응 시간, 150·300ms 미만 비율 | 사람은 카드를 보고 과일 수를 세느라 보통 0.4초 이상 걸린다. 150ms 미만 비율이 높고 틀린 종이 거의 없으면 기계적으로 친 것으로 의심한다. 반응 시간에는 통신 시간이 들어간다. 2026-11-12 배포 전 경기는 기록이 없다 |
 
 해석할 때 주의할 점:
 - 회원 번호가 없는 이벤트(local 개발 사용자)는 사용자 지표에서 빠진다. 팀원 테스트 계정은 아직 걸러내지 않는다.

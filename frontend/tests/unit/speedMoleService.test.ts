@@ -15,14 +15,14 @@ describe('speed mole server/client contract', () => {
     expect(round.targets.map(t=>t.hole)).toEqual([6,7,0,5]); expect(round.score).toBe(12)
   })
   it('sends only tap evidence and the same round on a completion retry, never a client score', async () => {
-    const result={id:'7',rulesVersion:1,score:1,hits:1,misses:0,completedAt:'2030-01-01T00:01:03Z',calculatedReward:0,reward:0,todayEarned:0,dailyCap:500}
+    const result={id:'7',rulesVersion:1,score:1,hits:1,misses:0,completedAt:'2030-01-01T00:01:03Z',calculatedReward:0,reward:0,todayEarned:0,dailyCap:1000}
     const request=vi.fn().mockResolvedValue(result), service=new SpeedMoleService(request)
     await service.complete('7',[{hole:1,at:0}]); await service.complete('7',[{hole:1,at:0}])
     expect(request.mock.calls[0]).toEqual(request.mock.calls[1])
     expect(JSON.parse(request.mock.calls[0]![1].body)).toEqual({taps:[{hole:1,at:0}]})
   })
   it('accepts the 5-points-per-coin reward and rejects the old 40-point one', async () => {
-    const result={id:'7',rulesVersion:1,score:24,hits:24,misses:0,completedAt:'2030-01-01T00:01:03Z',calculatedReward:4,reward:4,todayEarned:4,dailyCap:500}
+    const result={id:'7',rulesVersion:1,score:24,hits:24,misses:0,completedAt:'2030-01-01T00:01:03Z',calculatedReward:4,reward:4,todayEarned:4,dailyCap:1000}
     const request=vi.fn().mockResolvedValue(result), service=new SpeedMoleService(request)
     await expect(service.complete('7',[])).resolves.toEqual(result)
     request.mockResolvedValue({...result,calculatedReward:0,reward:0,todayEarned:0})
@@ -32,6 +32,19 @@ describe('speed mole server/client contract', () => {
     const request=vi.fn().mockRejectedValue({code:'SPEED_MOLE_UNAVAILABLE'}), service=new SpeedMoleService(request)
     await expect(service.start('same_key')).rejects.toThrow('준비되지')
     expect(request).toHaveBeenCalledTimes(1)
+  })
+  it('selects target IDs using the exact round ID and accepts an older start response', async () => {
+    const round = { id: '9223372036854775807', seed: 1, rulesVersion: 1, durationMs: 60000,
+      serverNow: '2030-01-01T00:00:00Z', startedAt: '2030-01-01T00:00:03Z' }
+    const request = vi.fn().mockResolvedValue({ ...round, targets: [
+      { hole: 1, ids: ['one-a', 'one-b'] },
+      { hole: 2, ids: ['two-a', 'two-b'] },
+    ] })
+    const service = new SpeedMoleService(request)
+
+    expect(await service.start('current')).toEqual({ ...round, targetIds: new Map([[1, 'one-b'], [2, 'two-a']]) })
+    request.mockResolvedValue(round)
+    expect(await service.start('legacy')).toEqual(round)
   })
   it('rejects a mismatched rules version and malformed saved score', async () => {
     const request=vi.fn().mockResolvedValue({id:'7',seed:1,rulesVersion:2,durationMs:60000,serverNow:'2030-01-01',startedAt:'2030-01-01'})

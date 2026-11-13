@@ -15,7 +15,7 @@ import { createGrill, applyAction } from '../../src/features/bungeoppang/rulesV4
 const epoch = Date.parse('2026-11-05T00:00:00Z'), iso = (n: number) => new Date(epoch + n).toISOString()
 const timing = { countdownStartsAt: iso(1000), playStartsAt: iso(4500), playEndsAt: iso(64500),
   submitDeadline: iso(79500), expiresAt: iso(89500) }
-const status = { activeSessionId: '901', rulesVersion: 'v4', todayEarned: 0, dailyCap: 500, isFirstGame: false, seenTips: [] }
+const status = { activeSessionId: '901', rulesVersion: 'v4', todayEarned: 0, dailyCap: 1000, isFirstGame: false, seenTips: [] }
 function game(): BungeoppangGame {
   let grill = createGrill(Array(512).fill(100), { orderId: '1', orderIndex: 0, items: { bean: 2, custard: 0, pizza: 0, chocolate: 0 } }, rules)
   grill = applyAction(grill, { action: 'POUR', slot: 0, t: 0 }, rules).state

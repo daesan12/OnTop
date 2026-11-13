@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
+import jumpRopeThumbnail from '../jumpRope/assets/thumbnail.webp'
 import { GameArt } from '../manual/GameArt'
 import { openManual } from '../manual/manualState'
 import { moleManual } from '../mole/manual'
@@ -19,6 +20,13 @@ import './arcade.css'
 interface Choice {
   id: ArcadeGame; name: string; tagline: string; summary: string
   fee: string; prize: string; limitLabel: string; limit: string; playsLeft: number | null; inProgress: boolean
+}
+
+function ArcadeArt({ game }: { game: ArcadeGame }) {
+  if (game === 'jump-rope') {
+    return <img className="manual-art" src={jumpRopeThumbnail} alt="" aria-hidden="true" style={{ objectFit: 'contain' }} />
+  }
+  return <GameArt game={game} />
 }
 
 export function ArcadePicker() {
@@ -59,6 +67,10 @@ function ArcadeDialog() {
     { id: 'speed-mole', name: speedMoleManual.title, tagline: speedMoleManual.subtitle, summary: speedMoleManual.summary,
       fee: '무료', prize: `${SPEED_MOLE_POINTS_PER_COIN}점당 1냥 · 하루 상한 안에서`,
       limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null, inProgress: false },
+    { id: 'jump-rope', name: '구구구 줄넘기', tagline: '비둘기들이 당신을 시험합니다.',
+      summary: 'Space로 줄을 넘고 60초 동안 버텨요. MISS가 세 번이면 경기가 끝나요.',
+      fee: '무료', prize: '50점당 1냥 · 하루 상한 안에서',
+      limitLabel: '오늘 미니게임 엽전', limit: mole ? `${mole.todayEarned} / ${mole.dailyCap}냥` : '확인 중', playsLeft: null, inProgress: false },
   ]
   const choice = choices.find(c => c.id === selected)!
   const balance = rps?.availableBalance ?? plus?.availableBalance
@@ -76,7 +88,7 @@ function ArcadeDialog() {
         <div className="arcade-game-list" role="group" aria-label="게임 선택">
           {choices.map(c => <button key={c.id} type="button" className="arcade-game-card" data-selected={c.id === selected}
             aria-pressed={c.id === selected} onClick={() => selectArcadeGame(c.id)} onDoubleClick={() => playArcadeGame(c.id)}>
-            <GameArt game={c.id} />
+            <ArcadeArt game={c.id} />
             {c.inProgress && <b className="arcade-badge">진행 중</b>}
             <span><strong>{c.name}</strong><small>혼자 · {c.fee}</small></span>
             <em>{c.limitLabel} {c.limit}</em>

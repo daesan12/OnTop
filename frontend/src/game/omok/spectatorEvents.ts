@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { filterChat } from '../../features/chat/filterChat'
 import { integer, record, type Envelope } from '../../network/protocol'
 import { omokCoordinate } from '../omokPresentation'
 
@@ -56,6 +57,7 @@ export class OmokSpectatorEvents {
   private scope: EventScope | null = null
   private chats: DisplayEvent<ChatEvent>[] = []
   private history: ChatEvent[] = []
+  private queuedSpeech: {message:Envelope;until:number}[] = []
   private pings: DisplayEvent<PingEvent>[] = []
   private seen = new Map<string, number>()
   private timer: ReturnType<typeof setTimeout> | undefined
@@ -69,7 +71,7 @@ export class OmokSpectatorEvents {
   reset() {
     clearTimeout(this.timer); this.scope = null; this.chats = []; this.pings = []; this.history = []; this.seen.clear()
     this.last = { chat: -Infinity, ping: -Infinity }; this.pending = { chat: false, ping: false }; this.blocked = false
-    this.pingFeedback = null
+    this.pingFeedback = null; this.queuedSpeech = []
     useOmokEvents.setState(initial())
   }
   sync() {
@@ -78,6 +80,9 @@ export class OmokSpectatorEvents {
     else if (next && (next.version !== this.scope?.version || next.canSend !== this.scope?.canSend)) {
       this.scope = next; this.pings = this.pings.filter(p => p.basedOnVersion >= next.version); this.publish()
     }
+    const ready=this.queuedSpeech.filter(e=>e.until>this.now()&&e.message.payload.gameId===this.scope?.gameId&&e.message.payload.basedOnVersion===this.scope?.version)
+    this.queuedSpeech=this.queuedSpeech.filter(e=>e.until>this.now()&&e.message.payload.gameId===this.scope?.gameId&&Number(e.message.payload.basedOnVersion)>Number(this.scope?.version))
+    for(const event of ready)this.accept(event.message)
     let changed = false
     const resolve = <T extends BaseEvent>(event: T): T => {
       const name = event.displayName ?? this.deps.displayName?.(event.senderUserId)
@@ -108,6 +113,29 @@ export class OmokSpectatorEvents {
     if (Number.isFinite(expiry)) this.timer = setTimeout(() => this.publish(), Math.max(1, expiry - now))
   }
   accept(message: Envelope) {
+    if (['WORLD_AI_POLICE','WORLD_AI_COMPANION_SPEECH'].includes(message.type) && typeof message.payload.gameId === 'string' && message.payload.gameId) {
+      this.sync()
+      const p=message.payload, now=Date.now()
+      const companion=message.type==='WORLD_AI_COMPANION_SPEECH',prefix=companion?'companion:':'police:'
+      if(companion && (!integer(p.basedOnVersion)||p.basedOnVersion!==this.scope?.version)){
+        if(integer(p.basedOnVersion)&&this.scope&&p.gameId===this.scope.gameId&&Number(p.basedOnVersion)>this.scope.version
+          &&typeof p.incidentId==='string'&&typeof p.speech==='string'&&p.speech.length<=400
+          &&typeof p.expiresAt==='number'&&p.expiresAt>now&&p.expiresAt<=now+60_000
+          &&!this.queuedSpeech.some(e=>e.message.payload.incidentId===p.incidentId))
+          this.queuedSpeech=[...this.queuedSpeech,{message,until:this.now()+Math.min(5000,p.expiresAt-now)}].slice(-16)
+        return false
+      }
+      if (this.scope && this.scope.gameId===p.gameId && typeof p.incidentId==='string' && typeof p.speech==='string'
+        && p.speech.length<=400 && typeof p.expiresAt==='number' && p.expiresAt>now && p.expiresAt<=now+60_000
+        && !this.history.some(c => c.eventId===prefix+p.incidentId)) {
+        const event:ChatEvent={kind:'chat',gameId:this.scope.gameId,eventId:prefix+p.incidentId,senderUserId:companion?'npc:'+String(p.actorId??'omok'):'npc:police',
+          displayName:companion&&typeof p.name==='string'?p.name:'한순경',text:filterChat(p.speech),sentAt:now,serverNow:now,expiresAt:p.expiresAt}
+        this.history=[...this.history,event].slice(-100)
+        this.publish()
+      }
+      return false // The world handler also places the police model.
+    }
+    if (message.type === 'GAME_CHAT_MODERATED') return true // Ignore retired whole-message hiding.
     if (message.type === 'ERROR') {
       if (!message.requestId || !this.requests.has(message.requestId)) return false
       return true // The owning request handles the rejection, not the global game error path.
@@ -123,6 +151,7 @@ export class OmokSpectatorEvents {
     this.seen.set(event.eventId, now + 30_000)
     if (this.seen.size > 256) this.seen.delete(this.seen.keys().next().value!)
     if (event.kind === 'chat') {
+      event.text=filterChat(event.text)
       this.history = [...this.history, event].slice(-100)
       const slot = [0, 1, 2].find(n => !this.chats.some(c => c.until > now && c.slot === n)) ?? this.chats[0]?.slot ?? 0
       this.chats = [...this.chats.filter(c => c.slot !== slot), { ...event, until: now + remaining, slot }].slice(-3)

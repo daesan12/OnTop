@@ -41,6 +41,10 @@ public class WalletTransaction {
         return id;
     }
 
+    public long balanceDelta() {
+        return balanceDelta;
+    }
+
     public static WalletTransaction adminBulkGrant(long walletId, long batchId, long userId,
             long amount, Instant now) {
         if (walletId <= 0 || batchId <= 0 || userId <= 0 || amount <= 0) {
@@ -96,7 +100,19 @@ public class WalletTransaction {
     }
 
     public static WalletTransaction minigameReward(long walletId, long sessionId, long reward, String key, Instant now) {
-        if (walletId <= 0 || sessionId <= 0 || reward <= 0 || key == null || key.length() > 120) {
+        if (sessionId <= 0) {
+            throw new IllegalArgumentException("미니게임 보상 기록을 확인하세요.");
+        }
+        return minigameRewardEntry(walletId, sessionId, reward, key, now);
+    }
+
+    /** Reward for a game with its own round table. The key identifies the round in the ledger. */
+    public static WalletTransaction minigameReward(long walletId, long reward, String key, Instant now) {
+        return minigameRewardEntry(walletId, null, reward, key, now);
+    }
+
+    private static WalletTransaction minigameRewardEntry(long walletId, Long sessionId, long reward, String key, Instant now) {
+        if (walletId <= 0 || reward <= 0 || key == null || key.length() > 120) {
             throw new IllegalArgumentException("미니게임 보상 기록을 확인하세요.");
         }
         WalletTransaction transaction = new WalletTransaction();
@@ -174,13 +190,13 @@ public class WalletTransaction {
         return "signup:" + userId;
     }
 
-    public static WalletTransaction fitnessReward(long walletId, String key, Instant now) {
-        if (walletId <= 0 || key == null || !key.startsWith("fitness:") || key.length() > 120) {
+    public static WalletTransaction fitnessReward(long walletId, String key, long amount, Instant now) {
+        if (walletId <= 0 || amount <= 0 || key == null || !key.startsWith("fitness:") || key.length() > 120) {
             throw new IllegalArgumentException("운동 보상 기록을 확인하세요.");
         }
         WalletTransaction transaction = new WalletTransaction();
         transaction.walletId = walletId;
-        transaction.balanceDelta = 1;
+        transaction.balanceDelta = amount;
         transaction.transactionType = "FITNESS_REWARD";
         transaction.idempotencyKey = key;
         transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
