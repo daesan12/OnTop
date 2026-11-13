@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Mesh, PerspectiveCamera, Vector3, type Group, type Material } from 'three'
-import { PigeonActor, pigeonHeadPivot, type PigeonRig } from './PigeonActor'
+import { PigeonActor, pigeonHeadPivot, type PigeonLook, type PigeonRig } from './PigeonActor'
 import { manholeFootprint } from './AlleyManhole'
 import { courtSurfaceHeight } from './ConcreteCourt'
 import type { DistractionPose } from './pigeonDistractionMotion'
@@ -10,7 +10,15 @@ const up = new Vector3(0, 1, 0)
 const intruderPose = { eyelids: [0.32, 0.56] as [number, number], gaze: [0.28, -0.12] as [number, number] }
 const shaftSurface = courtSurfaceHeight(manholeFootprint.x, manholeFootprint.z)
 
-export function PigeonDistraction({ poseRef, shadow }: { poseRef: RefObject<DistractionPose | null>; shadow?: ReactNode }) {
+export function PigeonDistraction({ poseRef, shadow, look = 'ash', lift = 0, nearer = 0 }: {
+  poseRef: RefObject<DistractionPose | null>
+  shadow?: ReactNode
+  /** A second, overlapping distraction uses another plumage so the two pigeons read apart. */
+  look?: PigeonLook
+  /** Second-track offsets: a higher flight and a nearer walk keep two overlapping pigeons apart. */
+  lift?: number
+  nearer?: number
+}) {
   const actor = useRef<Group>(null)
   const shadowGroup = useRef<Group>(null)
   const rigRef = useRef<PigeonRig>(null)
@@ -31,9 +39,10 @@ export function PigeonDistraction({ poseRef, shadow }: { poseRef: RefObject<Dist
     const rig = rigRef.current
     const pose = poseRef.current
     if (!group || !rig) return
-    group.visible = pose !== null && (pose.kind !== 'manhole' || pose.bird !== null)
+    // The poop raid is flown by an audience pigeon in the scene, not by this intruder.
+    group.visible = pose !== null && pose.kind !== 'poop' && (pose.kind !== 'manhole' || pose.bird !== null)
     if (shadowGroup.current) shadowGroup.current.visible = pose?.kind === 'walk' && pose.opacity > 0.45
-    if (!group.visible || !pose) return
+    if (!group.visible || !pose || pose.kind === 'poop') return
 
     camera.updateWorldMatrix(true, false)
     const { right, near, hip, ankle, shin, exit } = vectors
@@ -61,7 +70,7 @@ export function PigeonDistraction({ poseRef, shadow }: { poseRef: RefObject<Dist
       const halfHeight = Math.tan(camera.getEffectiveFOV() * Math.PI / 360) * pose.depth
       const halfWidth = halfHeight * camera.aspect
       // Both ends lie outside the frustum even with fully spread wings.
-      group.position.set(pose.cross * (halfWidth + pose.scale * 1.15), pose.height - pose.scale * 0.48, -pose.depth)
+      group.position.set(pose.cross * (halfWidth + pose.scale * 1.15), pose.height + lift - pose.scale * 0.48, -pose.depth)
         .applyMatrix4(camera.matrixWorld)
       group.rotation.y = Math.atan2(right.x * pose.direction + near.x * 0.55, right.z * pose.direction + near.z * 0.55)
       rig.body.position.set(0, 0.025 * pose.flap, 0)
@@ -74,7 +83,7 @@ export function PigeonDistraction({ poseRef, shadow }: { poseRef: RefObject<Dist
       setLeg(0, { y: 0.14, z: -0.17, pitch: 0.45 })
       setLeg(1, { y: 0.14, z: -0.17, pitch: 0.45 })
     } else if (pose.kind === 'walk') {
-      group.position.copy(right).multiplyScalar(pose.across).addScaledVector(near, pose.depth)
+      group.position.copy(right).multiplyScalar(pose.across).addScaledVector(near, pose.depth + nearer)
       group.position.z -= 0.18
       group.position.y = 0.004
       group.rotation.y = Math.atan2(right.x * pose.direction, right.z * pose.direction)
@@ -130,7 +139,7 @@ export function PigeonDistraction({ poseRef, shadow }: { poseRef: RefObject<Dist
     <>
       <group ref={shadowGroup} visible={false}>{shadow}</group>
       <group ref={actor} name="pigeon-distraction" visible={false}>
-        <PigeonActor look="ash" pose={intruderPose} rigRef={rigRef} />
+        <PigeonActor look={look} pose={intruderPose} rigRef={rigRef} />
       </group>
     </>
   )

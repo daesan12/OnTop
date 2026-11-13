@@ -325,6 +325,14 @@ test('월드에서 줄넘기 시작, 서버 랭킹, 실패 기록 재시도, 월
   await expect(game.locator('.rope-result__reward')).toHaveCount(0)
   resolveRetry()
   await expect(game.locator('.rope-result__reward')).toHaveText('3회 MISS로 엽전이 지급되지 않았어요.')
+  const resultRanking = game.getByRole('button', { name: '랭킹 보기' })
+  await resultRanking.click()
+  await expect(ranking).toContainText('215점 · 3위')
+  await expect(game.locator('.rope-result-layer')).toHaveAttribute('inert', '')
+  await page.keyboard.press('Escape')
+  await expect(ranking).toBeHidden()
+  await expect(resultRanking).toBeFocused()
+  await expect(game.getByRole('heading', { name: '게임 오버' })).toBeVisible()
   await game.getByRole('button', { name: '그만하기' }).click()
   await expect(game).toBeHidden()
   const saved = async () => page.evaluate(async () => {
@@ -352,6 +360,10 @@ for (const reward of [3, 0]) test(`60초 완주 시 서버 확정 점수와 지�
     return route.fulfill({ json: { balance, reservedBalance: 0, availableBalance: balance } })
   })
   await page.route('**/api/v1/minigames/jump-rope/rounds', route => route.fulfill({ status: 201, json: roundResponse(String(43 + started++)) }))
+  await page.route('**/api/v1/minigames/jump-rope/rankings', route => route.fulfill({ json: {
+    rulesVersion: 1, period: 'ALL_TIME', offset: 0, limit: 10,
+    items: [{ rank: 1, nickname: '완주자', score: 1965 }], me: { rank: 1, nickname: '완주자', score: 1965 },
+  } }))
   await page.route('**/api/v1/minigames/jump-rope/rounds/43/complete', route => {
     submitted = route.request().postDataJSON()
     return route.fulfill({ json: { id: '43', rulesVersion: 1, score: 1965, counts: { perfect: 66, good: 0, miss: 0 },
@@ -398,7 +410,20 @@ for (const reward of [3, 0]) test(`60초 완주 시 서버 확정 점수와 지�
       expect(box).not.toBeNull()
       expect(buttons).not.toBeNull()
       expect(box!.y + box!.height).toBeLessThanOrEqual(buttons!.y)
+      const rankingButton = game.getByRole('button', { name: '랭킹 보기' })
+      await expect(rankingButton).toBeInViewport()
+      const rankingBox = await rankingButton.boundingBox()
+      const restartBox = await game.getByRole('button', { name: '다시 시작' }).boundingBox()
+      expect(restartBox!.y + restartBox!.height).toBeLessThan(rankingBox!.y)
     }
+    const rankingButton = game.getByRole('button', { name: '랭킹 보기' })
+    await rankingButton.click()
+    const ranking = game.getByRole('dialog', { name: '구구구 랭킹' })
+    await expect(ranking).toContainText('1,965점 · 1위')
+    await ranking.getByRole('button', { name: '닫기' }).click()
+    await expect(ranking).toBeHidden()
+    await expect(rankingButton).toBeFocused()
+    await expect(rewardLine).toHaveText('획득 엽전 +3냥')
     await game.getByRole('button', { name: '다시 시작' }).click()
     await expect(game.getByLabel('시작 카운트다운')).toHaveText('3')
     await expect(rewardLine).toHaveCount(0)
