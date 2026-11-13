@@ -1,5 +1,6 @@
 package com.ssafy.ontop.game.mole.service;
 
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.game.mole.domain.MoleRound;
 import com.ssafy.ontop.game.mole.domain.MoleRules;
 import com.ssafy.ontop.game.mole.dto.MoleDtos;
@@ -37,9 +38,15 @@ public class MoleService {
     private final TransactionTemplate reads;
     private final Clock clock;
     private final RandomGenerator random;
+    private final BehaviorLog behaviorLog;
 
     public MoleService(MoleRepository repository, PlatformTransactionManager manager, Clock clock,
             RandomGenerator random) {
+        this(repository, manager, clock, random, BehaviorLog.disabled());
+    }
+
+    public MoleService(MoleRepository repository, PlatformTransactionManager manager, Clock clock,
+            RandomGenerator random, BehaviorLog behaviorLog) {
         this.repository = repository;
         this.transactions = new TransactionTemplate(manager);
         this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
@@ -48,6 +55,7 @@ public class MoleService {
         this.reads.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
         this.clock = clock;
         this.random = random;
+        this.behaviorLog = behaviorLog;
     }
 
     /** 현재 규칙의 회원별 최고 기록 전체 랭킹. 스피드 두더지 랭킹과 같은 페이지 방식이다. */
@@ -133,7 +141,7 @@ public class MoleService {
             repository.flush();
             return new MoleTargets.Completion<>(settlement(userId, round, now), hiddenTaps);
         });
-        return completion.report(GAME, userId, roundId);
+        return completion.report(GAME, userId, roundId, behaviorLog, clock.instant());
     }
 
     private MoleDtos.Settlement settlement(long userId, MoleRound round, Instant now) {

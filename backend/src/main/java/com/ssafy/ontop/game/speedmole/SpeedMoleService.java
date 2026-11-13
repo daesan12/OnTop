@@ -1,5 +1,6 @@
 package com.ssafy.ontop.game.speedmole;
 
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
 import com.ssafy.ontop.minigame.service.MoleTargets;
 import com.ssafy.ontop.wallet.domain.Wallet;
@@ -21,9 +22,16 @@ public class SpeedMoleService {
     private final SecureRandom random;
     private final TransactionTemplate write, read;
     private final SpeedMoleRewards rewards;
+    private final BehaviorLog behaviorLog;
     public SpeedMoleService(SpeedMoleRepository repository, PlatformTransactionManager manager, Clock clock, SecureRandom random, SpeedMoleRewards rewards) {
+        this(repository, manager, clock, random, rewards, BehaviorLog.disabled());
+    }
+
+    public SpeedMoleService(SpeedMoleRepository repository, PlatformTransactionManager manager, Clock clock,
+            SecureRandom random, SpeedMoleRewards rewards, BehaviorLog behaviorLog) {
         this.repository = repository; this.clock = clock; this.random = random;
         this.rewards = rewards;
+        this.behaviorLog = behaviorLog;
         write = new TransactionTemplate(manager);
         write.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         read = new TransactionTemplate(manager);
@@ -69,7 +77,7 @@ public class SpeedMoleService {
                     score.score() / SpeedMoleRules.POINTS_PER_COIN, granted, rewards.earned(user, completed), MinigameRewardBudget.DAILY_CAP);
             return new MoleTargets.Completion<>(result, taps.size() - playableTaps.size());
         });
-        return completion.report(GAME, user, id);
+        return completion.report(GAME, user, id, behaviorLog, clock.instant());
     }
     public SpeedMoleDtos.Rankings rankings(long user, int limit, int offset) {
         if (limit < 1 || limit > 100 || offset < 0 || offset > 10_000)
