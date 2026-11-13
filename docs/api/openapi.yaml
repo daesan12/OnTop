@@ -156,6 +156,38 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+    delete:
+      tags:
+      - SKIN
+      summary: 공방에서 스킨 삭제
+      description: "version 확인, 참조 세트가 남아 있으면409. 기존 보유·착용·공개 파일 유지"
+      operationId: deleteSkinRegistration
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: version
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: 공방 목록에서 삭제 완료
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
   /api/v1/admin/operations/skins/sets/{id}:
     put:
       tags:
@@ -178,6 +210,38 @@ paths:
       responses:
         "200":
           description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - AccessJwt: []
+    delete:
+      tags:
+      - SKIN
+      summary: 공방에서 세트 삭제
+      description: version 확인 후 목록·신규 획득에서 제거. 기존 보유·영수증 유지
+      operationId: deleteSkinSet
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: version
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: 공방 목록에서 삭제 완료
           headers:
             Cache-Control:
               description: no-store

@@ -23,7 +23,9 @@ import { clearRoamingInput, inputState, focusParkCanvas } from '../../world/inpu
 import { rememberRoamingView } from '../../world/cameraReturn'
 import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
 import { gameChatScope } from '../../features/chat/gameChat'
-import {useCompanions} from '../../features/ai/companions'
+import {useCompanions,acceptCompanions} from '../../features/ai/companions'
+import {companionPath,residentsEnabled} from '../../features/ai/serviceFeatures'
+import {observedNpcPractice,syncPracticeSpectator} from '../../features/ai/practiceSpectator'
 import { gamePlayers, gameState } from '../../game/protocol'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
@@ -134,8 +136,10 @@ export class ParkRuntime implements ParkRuntimePort {
   private initialStates: Envelope[] | null = null
   private quietResultChecks = new Set<string>()
   private untrackTabGame: (() => void) | undefined
+  private untrackPracticeEvents: (() => void) | undefined
   private facilityMapInvalid = false
-  private spectatorIntent: { userId: string; channelId: string; tableId: string; benchScope: string; awaitingStart?: boolean } | null = null
+  private spectatorIntent: { userId: string; channelId: string; tableId: string; benchScope: string; awaitingStart?: boolean; npcPractice?: boolean } | null = null
+  private npcWatchAttempt = 0
   private gameWatchRequestId = ''
   private spectatorChecks = new Map<string, string>()
   private obsoleteGameWatchRequests = new Set<string>()
@@ -275,6 +279,8 @@ export class ParkRuntime implements ParkRuntimePort {
       || s.tableId || intent.tableId !== s.watchedTableId || intent.benchScope && intent.benchScope !== benchViewScope(s))) {
       this.closeTable(); return
     }
+    // NPC matches are authorized by TABLE_WATCH/status, not the product GAME_WATCH directory.
+    if (intent?.npcPractice) return
     const reference = intent ? publicMatchService.find({ channelId: intent.channelId, tableId: intent.tableId }) : null
     if (intent?.awaitingStart) {
       if (!canReachTable(avatars.get(s.sessionId)?.current, s.focusedAnchorId)) { this.closeTable(); return }
@@ -491,6 +497,10 @@ export class ParkRuntime implements ParkRuntimePort {
     if (TABLET_ENABLED) this.tablet.begin()
     bindFollowService(this.follow)
     this.untrackTabGame?.()
+    this.untrackPracticeEvents?.()
+    this.untrackPracticeEvents=useCompanions.subscribe((next,previous)=>{
+      if(next.practiceChat!==previous.practiceChat || next.practice!==previous.practice)this.omokEvents.sync()
+    })
     this.untrackTabGame = useGame.subscribe((next, prev) => {
       const owner = useSession.getState().sessionId
       if (next.permittedGameId && next.permittedGameId !== prev.permittedGameId) keepTabGame(owner, next.permittedGameId)
@@ -553,6 +563,8 @@ export class ParkRuntime implements ParkRuntimePort {
   async stop() {
     this.notesChanges.reset()
     this.untrackTabGame?.()
+    this.untrackPracticeEvents?.()
+    this.untrackPracticeEvents=undefined
     this.untrackTabGame = undefined
     this.tablet.end()
     this.mapReady = false
@@ -1663,6 +1675,7 @@ export class ParkRuntime implements ParkRuntimePort {
       return this.spectator.set({ gameId, scope: JSON.stringify([this.generation, session.sessionId, session.roomId, session.watchedTableId, benchViewScope(session)]) }, true)
   }
   watchBench = async (anchorId: string, observeOnly = false): Promise<boolean> => {
+    const attempt=++this.npcWatchAttempt
     const s = useSession.getState(), scope = benchViewScope(s)
     if (!scope || benchTable(s.benchId)?.id !== anchorId) return false
     if (!await this.watchTable(anchorId, false)) return false
@@ -1670,12 +1683,34 @@ export class ParkRuntime implements ParkRuntimePort {
     if (scope !== benchViewScope(current)) { this.closeTable(); return false }
     if (observeOnly) return true
     const ref = publicMatchService.find({ channelId: s.roomId, tableId: current.watchedTableId })
-    if (!ref) return false
+    if (!ref) {
+      if (!residentsEnabled()) return false
+      const generation=this.generation, inspection=this.inspection
+      try {
+        const value=await this.requestJSON(companionPath('status'))
+        const latest=useSession.getState()
+        if (!this.active || attempt!==this.npcWatchAttempt || generation!==this.generation || inspection!==this.inspection
+          || scope!==benchViewScope(latest) || latest.watchedTableId!==current.watchedTableId) return false
+        if (!acceptCompanions(value) || !observedNpcPractice()) return false
+        this.spectatorIntent={userId:s.sessionId,channelId:s.roomId,tableId:current.watchedTableId,benchScope:scope,npcPractice:true}
+        useTableLobby.setState({spectatorRequested:true,spectatorError:''})
+        syncPracticeSpectator()
+        return true
+      } catch (error) { this.report(error); return false }
+    }
     this.spectatorIntent = { userId: s.sessionId, channelId: s.roomId, tableId: current.watchedTableId, benchScope: scope }
     useTableLobby.setState({ spectatorRequested: true, spectatorError: '' })
     return this.spectator.set({ gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) }, true)
   }
   unwatchGame = async (preserveInspection = false): Promise<boolean> => {
+    ++this.npcWatchAttempt
+    if (this.spectatorIntent?.npcPractice) {
+      this.spectatorIntent=null
+      useTableLobby.setState({spectatorRequested:false,spectatorStatus:'idle',spectatorError:''})
+      resetBenchSpectator()
+      if (!preserveInspection) focusParkCanvas()
+      return true
+    }
     if (this.spectatorIntent?.awaitingStart) { this.closeTable(); return true }
     const ending = useSession.getState(), generation = this.generation, inspection = this.inspection
     this.spectatorIntent = null
@@ -1694,6 +1729,7 @@ export class ParkRuntime implements ParkRuntimePort {
     return approved
   }
   closeTable = () => {
+    ++this.npcWatchAttempt
     this.spectatorIntent = null
     resetBenchSpectator()
     useTableLobby.setState({ spectatorRequested: false, panelOpen: false, entryNotice: null })

@@ -5,6 +5,7 @@ import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway.Rejected;
 import com.ssafy.ontop.game.action.GameActionGateway.Rejection;
 import com.ssafy.ontop.game.action.GameActionResult;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,6 +44,12 @@ public final class HalliGalliMatch {
     private Instant resultUntil;
     private long flipSeq;
     private boolean windowOpen;
+    // 지금 열린 종 창의 카드 공개를 처리한 시각. 종 반응 시간 기록에만 쓴다.
+    private Instant windowOpenedAt;
+    // 마지막으로 종을 맞혀 가져간 창 번호와 그 사람. 늦은 종을 가리는 데만 쓴다.
+    private long collectedWindow;
+    private long collector;
+    private final HalliGalliBellLog bells;
     private int issuedPenaltyCards;
     private Event lastEvent;
     private Instant endedAt;
@@ -65,6 +72,7 @@ public final class HalliGalliMatch {
         this.players = List.copyOf(players);
         this.random = random;
         this.timing = timing;
+        this.bells = new HalliGalliBellLog(this.players);
         List<List<FruitCard>> hands = HalliGalliDeck.deal(deck, players.size());
         for (int seat = 0; seat < players.size(); seat++) {
             seats.put(players.get(seat), new HalliGalliPlayer(players.get(seat), hands.get(seat)));
@@ -129,7 +137,7 @@ public final class HalliGalliMatch {
                 version++;
                 finish(mostCards(), NO_CARDS_TO_FLIP, at);
             } else if (seat(turn).canFlip()) {
-                flipBy(turn, at, "AUTO_FLIP");
+                flipBy(turn, at, "AUTO_FLIP", now);
             } else {
                 version++;
                 long loser = players.get(turn);
@@ -153,15 +161,18 @@ public final class HalliGalliMatch {
         if (!actor.canFlip()) {
             throw new Rejected(Rejection.INVALID_ACTION);
         }
-        flipBy(turn, now, "FLIP");
+        flipBy(turn, now, "FLIP", now);
     }
 
-    private void flipBy(int seat, Instant at, String type) {
+    // at은 규칙상 공개 시각(자동 공개면 마감 시각), processedAt은 서버가 실제로 처리해 알림을 보낸 시각이다.
+    // 자동 공개는 타이머 주기만큼 늦게 처리될 수 있어 반응 시간은 processedAt부터 잰다.
+    private void flipBy(int seat, Instant at, String type, Instant processedAt) {
         HalliGalliPlayer flipper = seat(seat);
         version++;
         flipper.flip();
         flipSeq++;
         windowOpen = true;
+        windowOpenedAt = processedAt;
         resultUntil = null;
         lastEvent = new Event(type, flipper.userId(), at, 1, 0);
         startTurn(seat + 1, at);
@@ -175,13 +186,20 @@ public final class HalliGalliMatch {
         }
         // 닫힌 창의 늦은 종을 새 창의 카드로 판정하지 않는다. 벌칙 없이 거절한다.
         if (window.longValue() != flipSeq || !windowOpen) {
+            // 다른 사람이 막 가져간 창에 늦게 닿은 종만 경쟁에서 진 종으로 센다. 가져간 사람 자신의 연타와
+            // 이미 다음 카드가 공개된 더 오래된 창은 세지 않는다. 같은 창은 한 사람당 한 번만 센다.
+            if (window.longValue() == flipSeq && collectedWindow == flipSeq && actor.userId() != collector) {
+                bells.late(actor.userId(), flipSeq);
+            }
             throw new Rejected(Rejection.STALE_VERSION);
         }
         // 인원과 관계없이 같은 판정이다. 활성 2명이라는 이유만으로 종 판정 직후 끝내지 않는다.
         List<FruitCard> tops = seats.values().stream().map(HalliGalliPlayer::topCard).filter(Objects::nonNull).toList();
         if (bellMatches(tops)) {
+            bells.success(actor.userId(), Duration.between(windowOpenedAt, now).toMillis());
             collect(actor, now);
         } else {
+            bells.penalty(actor.userId());
             penalize(actor, now);
         }
     }
@@ -191,6 +209,8 @@ public final class HalliGalliMatch {
         version++;
         int cards = gatherFaceUp(ringer);
         windowOpen = false;
+        collectedWindow = flipSeq;
+        collector = ringer.userId();
         lastEvent = new Event("RING_SUCCESS", ringer.userId(), now, cards, 0);
         eliminateExhausted();
         if (activeCount() <= 1) {
@@ -339,6 +359,11 @@ public final class HalliGalliMatch {
 
     public boolean isActive(long user) {
         return seats.containsKey(user) && !seats.get(user).isEliminated();
+    }
+
+    // 참가자 순서대로 종 기록 요약. 경기가 끝난 뒤 행동 로그로 남긴다.
+    public List<HalliGalliBellLog.Summary> bellSummaries() {
+        return bells.summaries();
     }
 
     // 카드 보존 불변식: 기본 56장 + 추가 발행 장수.

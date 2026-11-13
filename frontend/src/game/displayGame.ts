@@ -3,6 +3,7 @@ import {create} from 'zustand'
 import {useGame,canPlace} from './store'
 import {useCompanions,type Practice} from '../features/ai/companions'
 import type {OmokGame} from './protocol'
+import {useTableLobby} from '../features/tableLobby/state'
 
 // Presentation only: local NPC snapshots never grant production game authority.
 type DisplayState=ReturnType<typeof useGame.getState>&{localPractice:Practice|null}
@@ -23,7 +24,7 @@ let previous:DisplayState|undefined
 function current():DisplayState {
  const s=useCompanions.getState()
  const enabled=residentsEnabled()
- const practice=s.practice??(s.practiceChat?.role==='SPECTATOR'&&s.observedPractice?.snapshot.gameId===s.practiceChat.gameId?s.observedPractice:null)
+ const practice=s.practice??(useTableLobby.getState().spectatorRequested&&s.practiceChat?.role==='SPECTATOR'&&s.observedPractice?.snapshot.gameId===s.practiceChat.gameId?s.observedPractice:null)
  const next=displayedGame(useGame.getState(),enabled?practice:null,s.receivedAt,s.practicePending,s.practiceError,s.practice?'PLAYER':'SPECTATOR')
  // Actor movement and identical HTTP polls must not cancel a board pointer press.
  if(next.localPractice&&previous?.localPractice&&next.game?.gameId===previous.game?.gameId
@@ -33,8 +34,8 @@ function current():DisplayState {
 }
 export const useDisplayGame=create<DisplayState>(current)
 const sync=()=>useDisplayGame.setState(current(),true)
-const stopGame=useGame.subscribe(sync),stopCompanions=useCompanions.subscribe(sync),stopFeatures=useAiFeatures.subscribe(sync)
-if(import.meta.hot)import.meta.hot.dispose(()=>{stopGame();stopCompanions();stopFeatures()})
+const stopGame=useGame.subscribe(sync),stopCompanions=useCompanions.subscribe(sync),stopFeatures=useAiFeatures.subscribe(sync),stopLobby=useTableLobby.subscribe(sync)
+if(import.meta.hot)import.meta.hot.dispose(()=>{stopGame();stopCompanions();stopFeatures();stopLobby()})
 export function canPlaceDisplayed(own:string,x:number,y:number,now=Date.now()) {
  const s=useDisplayGame.getState(),p=s.localPractice,g=s.game
  if(!p)return canPlace(own,x,y,now)

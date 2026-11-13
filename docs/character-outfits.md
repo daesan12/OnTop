@@ -342,6 +342,77 @@ dev의 관리자 스킨 공방(`docs/skin-registration-api.md`, S15P31B105-371)�
 - 갓·장군·사또는 이 빌드에 없는 `hat_hair.py`(④-2)와 `flat_collar.py`(④-3)를 먼저 다시 거친다. 그래야 여자 파일에 모자 아래 여자 머리가 들어간다.
 - 압축은 `prepare-characters.mjs`와 같은 방식(Meshopt, WebP)이어야 한다. 이 스크립트는 `public/`과 manifest에만 쓰니, 공방용 파일은 같은 압축을 다른 폴더로 내보내서 만든다. 서버가 GLB 20 MiB, WebP 2 MiB, 49개 관절, 근거리·원거리 표면, variant를 검사한다.
 - 공방의 부위별(PARTS) 등록은 조각 문자가 항상 `a`이고, 남자·여자 파일에 `a` 몸 조각이 없어 옷 밑의 몸이 숨지 않는다. 이 문서의 옷은 통합 스킨으로 올린다.
+- 대표 그림(WebP)은 보통 `item_art.py ... together=TOP,BOTTOM,SHOES`의 세트 그림을 `fit_cards.mjs`로 맞춘다. 후드처럼 머리 아이템이 얼굴을 둘러싸는 옷은 `skin_cover.py`로 통합 스킨 파일 자체를 그린다(④-8).
+
+### ④-8 예시: 검은 고양이 우주복 (세트 `t`, S15P31B105-416)
+
+공방 통합 스킨으로만 올리는 옷이다(④-6처럼 기준 빌드와 게임 파일은 git에 넣지 않는다). `shared_layers_r.glb`에 바로 넣는다.
+
+- **디자인.** 받은 그림은 팔이 35~40° 내려간 A자 자세에 겨드랑이가 몸통에 붙어 있었고, 두 옆모습이 같은 쪽을 봤다. 기존 캐릭터와 닮지 않게 눈(노란 아몬드 자수)과 목걸이(청록 니트 넥밴드)를 바꿔 공용 몸 T자 시트(`body_t.png`)에 다시 그렸다.
+  - Gemini에 받은 그림을 같이 올리면 그 A자 자세와 겨드랑이 막을 따라 그렸다. 공용 몸 시트만 올리고 옷은 글로 설명한다.
+  - 빨간 목걸이·금색 방울에 후드 눈까지 넣으면 "제3자 콘텐츠"로 거절됐다.
+  - 빠른 모델은 몸 비율이 어른처럼 바뀌었다. 3.1 Pro로 그렸다.
+  - 오른쪽 옆모습에 꼬리가 하나 더(배 앞에) 그려졌고 Gemini가 고치기를 거절해서, 그 꼬리만 흰색으로 지웠다.
+- **부위.** 후드·노란 눈·귀 안쪽(머리), 몸통·넥밴드·소매·벙어리장갑(상의), 다리·꼬리(하의), 부츠(신발). 생성된 얼굴(3)은 `head_fit`에만 쓴다. 머리카락은 후드가 대신한다.
+- **맞추기(`cat_prep.py`).**
+  - Tripo가 꼬리까지 넣은 크기로 가운데를 잡아 몸이 9 cm 앞에 있다. `dy=0.09`로 옮긴다.
+  - 후드가 커서 어깨·팔이 공용 몸보다 8 cm 낮고 팔이 양쪽 5 cm 길다. 가랑이(0.25) 위를 늘려 어깨선(0.47)을 공용 몸(0.555)에 맞추고, 어깨(0.1) 바깥의 소매·장갑을 줄여 장갑 끝을 손끝(0.391)에 맞춘다. 늘리면 소매 두께도 공용 몸 팔 두께와 같아진다.
+  - 넥밴드 지름이 10 cm로 목(4.5 cm)보다 훨씬 넓어, 달릴 때 위에서 보면 가슴 안이 구멍으로 보였다. 넥밴드 안쪽에서 목까지 검은 고리(부품 40, 상의)를 만들어 막는다. 넥밴드 모양은 그대로다.
+  - 몸통 다리 구멍과 다리가 맞닿기만 해서 엉덩이 V자 선에 배경이 실선처럼 비쳤다. 다리 구멍 테두리를 1.5 cm 아래, 허벅지 쪽으로 4 mm 안으로 늘린 검은 띠로 막는다. `fill=BOTTOM`은 1 cm 띄우면 배에 줄이 생기고, 안으로 넣으면 다리 바로 옆이라 그 틈을 채우지 못했다.
+  - 넥밴드 안쪽의 흰 얼룩(131면)은 넥밴드의 청록 텍셀로 바꾼다.
+- 장갑은 `cover_hands`, 후드 아래 귀는 `hair_hides_front`(비둘기·병아리와 같다).
+- **대표 그림.** 세트 그림에 후드를 넣으면 얼굴이 빠져 후드 안이 검은 구멍으로 보였다. `skin_cover.py`로 남자 통합 스킨 파일을 그린다.
+- Tripo: 여러 면, Generate in Parts, Balanced(60), 4K 텍스처(20). 부품 17개로 깔끔하게 나뉘었다.
+
+```bash
+W=작업폴더   # cat_outfit_parts.glb: Tripo 부위 생성 결과
+"$B" -b --python tools/character/cat_prep.py -- $W/cat_outfit_parts.glb $W/cat_prep.glb
+"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_r.glb $W/cat_prep.glb $W/hk_t.glb set=t s=1.0 dy=0.09 head_fit=3 "map=HAIR:0,12,13,14,16;TOP:1,2,40,5,9,8,15;BOTTOM:10,11,7;SHOES:4,6" cull=1 cover_hands=1 hair_hides_scalp=1 hair_hides_front=0.03 under_layer=1 under_layer_sink=0.012
+"$B" -b --python tools/character/shrink_items.py -- $W/hk_t.glb $W/shared_layers_t.glb sets=t faces=120000
+# 공방 파일 (④-7)
+"$B" -b --python tools/character/to_game.py -- $W/shared_layers_t.glb $W/cat-man_raw.glb man HAIR=t TOP=t BOTTOM=t SHOES=t near=60000 fill=1 keep_edges=pieces hold_flat=1
+"$B" -b --python tools/character/to_game.py -- $W/shared_layers_t.glb $W/cat-girl_raw.glb girl HAIR=t TOP=t BOTTOM=t SHOES=t near=60000 fill=1 keep_edges=pieces hold_flat=1
+"$B" -b --python tools/character/skin_cover.py -- $W/cat-man_raw.glb $W/cover.raw.png
+node tools/character/fit_cards.mjs $W/upload $W/cover.raw.png=cat
+```
+
+- 남녀 파일은 각 2.6 MiB(근거리 6만, 원거리 6천 삼각형, 관절 49개)이고, 같은 방식(Meshopt, WebP)으로 압축해 올린다.
+- 맞추기는 9분, 줄이기 1분쯤 걸린다.
+
+### ④-9 예시: 치킨 다리 (세트 `u`, S15P31B105-418)
+
+공방 통합 스킨으로만 올리는 옷이다(④-8과 같다). 받은 시트가 이미 공용 몸 T자 시트에 입힌 그림이라 Gemini 없이 그대로 잘라 썼다.
+
+- **부위.** 튀김옷 후드(머리), 튀김옷 몸판·엉덩이 뼈·맨팔(상의). 손·다리·맨발은 공용 몸 그대로 쓰고 하의·신발 아이템은 없다(통합 스킨은 `HAIR=u TOP=u`만 넣는다). 생성된 얼굴·손·다리(1, 5, 6, 2, 3)는 버린다.
+- **맨팔을 옷으로 넣는다.** 공용 몸 팔에는 흰 반팔이 칠해져 있어 민소매 밖으로 보인다(근육 운동복과 같은 이유). Tripo 맨팔(7, 8)을 상의에 넣고 `skin_match.py`로 몸 피부색에 맞춘다.
+- **Tripo가 후드와 몸판을 한 부품(0)으로 냈다(`chicken_prep.py`).**
+  - 목(z 0.6)에서 후드(41, 머리를 따라감)와 몸판(40, 가슴을 따라감)으로 나눈다. 딱 맞게 자르면 머리가 움직일 때 이음새가 벌어져 목이 보였다.
+  - 테두리 텍셀로 띠를 늘려 막았더니 늘어난 줄무늬로 보였다(user: 비슷한 질감으로 모델링되게 채우기). 그래서 후드가 몸판 표면을 자른 선 아래 4.5 cm까지 복사해 가지고, 몸판 안쪽 3 mm로 넣는다. 머리가 움직이면 같은 튀김옷 표면이 틈을 채운다.
+  - T자에서 몸판 속에 있던 팔 뿌리를 Tripo가 주황으로 칠해, 팔을 내리면 위팔에 주황 줄이 보였다. 팔의 주황 면을 팔의 피부 텍셀로 바꾼다.
+- **팔과 몸판 (민소매).**
+  - 몸판이 어깨 바깥에서 팔 가중치를 받아 팔을 내리면 옆이 날개처럼 끌려 내려갔다. `body_parts=40`: 그 부품은 팔·쇄골 가중치를 받지 않는다(가슴 `Spine2`로).
+  - 상의 규칙이 몸판 안의 팔 뿌리에서 팔 가중치를 빼서, 팔을 내리면 뿌리가 늘어나 팔 구멍 안에 보였다. `skin_parts=7,8`: 그 부품은 공용 몸 피부의 가중치를 손대지 않고 받는다. 어깨가 몸처럼 굽는다.
+  - 팔 구멍 안에 주황·살색이 섞인 큰 삼각형이 보였는데, 어깨 둘레에 항상 남는 속층(`under_layer`)이 가장 가까운 상의 색을 칠한 것이었다. `under_layer_skin=1 skin_any=1`: 그 부분을 피부색으로 칠한다. 속층을 빼면(`under_layer_arm_x=10`) 구멍으로 뒤가 비쳤다.
+  - 해 보고 버린 방법: 팔 뿌리 자르기(잘린 끝이 구멍 밖으로 보임), 팔에 `wing_parts`(뿌리가 여전히 늘어남), 구멍 테두리가 팔을 따라가게 하기(안쪽은 그대로 보임).
+- 남은 점: 위팔에 피부색이 두 톤으로 조금 얼룩진다(주황에서 바꾼 면). 후드 꼭대기에 몇 mm 크기 검은 점이 두세 개 있다.
+- Tripo: 여러 면, Generate in Parts, Balanced(60), 4K 텍스처(20). 부품 9개. 꼬리까지 넣은 크기로 가운데를 잡아 몸이 5 cm 앞에 있어 `dy=0.05`로 옮긴다.
+
+```bash
+W=작업폴더   # chicken_outfit_parts.glb: Tripo 부위 생성 결과
+"$B" -b --python tools/character/skin_match.py -- docs/character-outfits/shared_layers_r.glb $W/chicken_outfit_parts.glb $W/chicken_tone.glb parts=7,8
+"$B" -b --python tools/character/chicken_prep.py -- $W/chicken_tone.glb $W/chicken_prep.glb
+"$B" -b --python tools/character/fit_outfit.py -- docs/character-outfits/shared_layers_r.glb $W/chicken_prep.glb $W/hk_u.glb set=u s=1.0 dy=0.05 "map=HAIR:41;TOP:40,4,7,8" body_parts=40 skin_parts=7,8 cull=1 hair_hides_scalp=1 hair_hides_front=0.03 under_layer=1 under_layer_sink=0.012 under_layer_skin=1 skin_any=1
+"$B" -b --python tools/character/shrink_items.py -- $W/hk_u.glb $W/shared_layers_u.glb sets=u faces=120000
+# 공방 파일 (④-7)
+"$B" -b --python tools/character/to_game.py -- $W/shared_layers_u.glb $W/chicken-man_raw.glb man HAIR=u TOP=u near=60000 fill=1 keep_edges=pieces hold_flat=1
+"$B" -b --python tools/character/to_game.py -- $W/shared_layers_u.glb $W/chicken-girl_raw.glb girl HAIR=u TOP=u near=60000 fill=1 keep_edges=pieces hold_flat=1
+"$B" -b --python tools/character/skin_cover.py -- $W/chicken-man_raw.glb $W/cover.raw.png
+node tools/character/fit_cards.mjs $W/upload $W/cover.raw.png=chicken
+```
+
+- 남녀 파일은 각 3.0 MiB(근거리 6만, 원거리 6천 삼각형, 관절 49개).
+- 맞추기는 13분, 줄이기 1분쯤 걸린다. 밤새 돌린 맞추기가 컴퓨터가 잠들자 첫 단계에서 멈춰 있었다. 긴 작업 전에는 잠들지 않게 한다.
+- 공방에는 아이템으로만 공개하고 세트로 묶지 않았다. 세트를 공개해야 뽑기 상품(`gacha_products`)이 생기므로 뽑기에 들어가지 않는다. 특정 사용자에게만 줄 때는 `user_items`에 그 등록의 부위 아이템(`skin_item_parts`)을 모두 넣는다.
 
 ### ⑤ 빌드 확인
 

@@ -113,6 +113,15 @@ public class SkinService {
         return transactions.execute(s->{Entry e=repository.get(id,true);sameVersion(e,request.version());
             repository.disable(e,user);return repository.get(id,false);});
     }
+    public void delete(long user,String id,Version request) {
+        access(user);SkinRules.id(id);if(request==null)throw SkinException.invalid("상태 버전이 필요합니다.");SkinRules.version(request.version());
+        transactions.executeWithoutResult(s->{
+            Entry e=repository.get(id,true);sameVersion(e,request.version());
+            // Set creation holds the same component row lock before inserting its membership.
+            if(repository.referencedBySet(id))throw new SkinException(409,"SKIN_IN_USE","이 스킨을 사용하는 세트를 먼저 삭제해주세요. 기존 보유·착용은 유지됩니다.");
+            repository.delete(e,user);
+        });
+    }
     public List<Asset> assets() {
         if(!storage.ready()) return List.of();
         return transactions.execute(s->repository.publishedUploads().stream().map(u->{

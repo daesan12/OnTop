@@ -184,14 +184,16 @@ abstract class OpenApiHttpTestSupport {
         if (environment.acceptsProfiles(Profiles.of(com.ssafy.ontop.config.RuntimeProfiles.PRODUCT_FEATURE))) {
             expected.addAll(Set.of("GET /api/v1/skins/assets", "GET /api/v1/admin/operations/skins/settings",
                     "GET /api/v1/admin/operations/skins", "POST /api/v1/admin/operations/skins",
-                    "GET /api/v1/admin/operations/skins/{id}", "PUT /api/v1/admin/operations/skins/{id}",
+                    "GET /api/v1/admin/operations/skins/{id}", "PUT /api/v1/admin/operations/skins/{id}", "DELETE /api/v1/admin/operations/skins/{id}",
                     "POST /api/v1/admin/operations/skins/{id}/uploads",
                     "POST /api/v1/admin/operations/skins/{id}/uploads/{uploadId}/verify",
                     "POST /api/v1/admin/operations/skins/{id}/publish", "POST /api/v1/admin/operations/skins/{id}/disable"));
             expected.addAll(Set.of("GET /api/v1/admin/operations/skins/components", "POST /api/v1/admin/operations/skins/components",
                     "GET /api/v1/admin/operations/skins/sets", "POST /api/v1/admin/operations/skins/sets",
                     "PUT /api/v1/admin/operations/skins/sets/{id}", "POST /api/v1/admin/operations/skins/sets/{id}/publish",
-                    "POST /api/v1/admin/operations/skins/sets/{id}/disable"));
+                    "POST /api/v1/admin/operations/skins/sets/{id}/disable", "DELETE /api/v1/admin/operations/skins/sets/{id}"));
+            for(String path:List.of("/api/v1/admin/operations/skins/{id}","/api/v1/admin/operations/skins/sets/{id}"))
+                assertThat(api.path("paths").path(path).path("delete").path("responses").has("204")).isTrue();
             expected.addAll(Set.of("GET /api/v1/gacha", "GET /api/v1/gacha/operations/{operationId}",
                     "POST /api/v1/gacha/tickets", "POST /api/v1/gacha/draws", "POST /api/v1/gacha/boxes/open"));
         }

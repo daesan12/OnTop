@@ -32,10 +32,10 @@ public class SkinSetService {
                 published==null?null:published.toInstant());
     }
     private Entry get(String id,boolean lock) {
-        return jdbc.query("SELECT * FROM skin_sets WHERE id=?"+(lock?" FOR UPDATE":""),this::row,id).stream().findFirst()
+        return jdbc.query("SELECT * FROM skin_sets WHERE id=? AND deleted_at IS NULL"+(lock?" FOR UPDATE":""),this::row,id).stream().findFirst()
                 .orElseThrow(()->new SkinException(404,"SKIN_SET_NOT_FOUND","세트를 찾지 못했어요."));
     }
-    public List<Entry> list(long user) { access(user);return tx.execute(s->jdbc.query("SELECT * FROM skin_sets ORDER BY updated_at DESC,id LIMIT 200",this::row)); }
+    public List<Entry> list(long user) { access(user);return tx.execute(s->jdbc.query("SELECT * FROM skin_sets WHERE deleted_at IS NULL ORDER BY updated_at DESC,id LIMIT 200",this::row)); }
     public Entry create(long user,Definition input) {
         access(user);var d=validate(input);String id=UUID.randomUUID().toString();
         return tx.execute(s->{checkMembers(d);checkCode(d.productCode());
@@ -78,6 +78,13 @@ public class SkinSetService {
         return tx.execute(s->{Entry e=get(id,true);version(e,expected);
             if(e.publishedAt()!=null) jdbc.update("UPDATE gacha_products SET active=FALSE WHERE product_code=?",e.definition().productCode());
             jdbc.update("UPDATE skin_sets SET state='DISABLED',state_version=state_version+1,updated_at=CURRENT_TIMESTAMP(3) WHERE id=?",id);return get(id,false);});
+    }
+    public void delete(long user,String id,long expected) {
+        access(user);SkinRules.id(id);SkinRules.version(expected);
+        tx.executeWithoutResult(s->{Entry e=get(id,true);version(e,expected);
+            if(e.publishedAt()!=null)jdbc.update("UPDATE gacha_products SET active=FALSE WHERE product_code=?",e.definition().productCode());
+            jdbc.update("UPDATE skin_sets SET state='DISABLED',state_version=state_version+1,deleted_at=CURRENT_TIMESTAMP(3),deleted_by=?,updated_at=CURRENT_TIMESTAMP(3) WHERE id=?",user,id);
+        });
     }
     private static Definition validate(Definition d) {
         if(d==null) throw SkinException.invalid("세트 정보가 필요합니다.");

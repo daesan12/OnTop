@@ -20,9 +20,10 @@ export function SkinGradeFilter({ value, onChange, label = '스킨 등급 필터
       {grade ? skinGrades[grade - 1] + '급' : '전체'}</button>)}
   </div>
 }
-export function SkinSetLibrary({ sets, items, assets, busy, onChoose }: {
+export function SkinSetLibrary({ sets, items, assets, busy, onChoose, onDelete }: {
   sets: readonly SkinSet[]; items: readonly SkinEntry[]; assets: readonly SkinAsset[]; busy: boolean
   onChoose: (gender: 'MALE' | 'FEMALE', id: string) => void
+  onDelete?: (entry: SkinSet) => void
 }) {
   const [grade, setGrade] = useState(0), [query, setQuery] = useState('')
   const assetIndex=useMemo(()=>new Map(assets.map(asset=>[asset.imageKey,asset])),[assets])
@@ -41,7 +42,8 @@ export function SkinSetLibrary({ sets, items, assets, busy, onChoose }: {
       <p>{entry.definition.compatibility === 'ANY' ? '남녀 공용' : entry.definition.compatibility === 'MALE' ? '남자' : '여자'} · {states[entry.state]}</p>
       <div className="skin-card-actions">{(['MALE', 'FEMALE'] as const).filter(g => entry.definition.compatibility === g || entry.definition.compatibility === 'ANY').map(g =>
         <button key={g} type="button" disabled={busy} onClick={() => onChoose(g, entry.id)} aria-label={`${entry.definition.name} ${g === 'MALE' ? '남자' : '여자'}에 불러오기`}>
-          {g === 'MALE' ? '남자' : '여자'}에 불러오기</button>)}</div>
+          {g === 'MALE' ? '남자' : '여자'}에 불러오기</button>)}
+        {onDelete&&<button type="button" className="skin-delete" disabled={busy} onClick={()=>onDelete(entry)} aria-label={`${entry.definition.name} 세트 삭제`}>삭제</button>}</div>
     </li>)}</ul>
     {!visible.length && <p className="skin-library-empty">{sets.length ? '선택한 등급이나 이름에 맞는 세트가 없어요.' : '아직 등록한 세트가 없어요. 아이템을 골라 첫 세트를 만들어보세요.'}</p>}
   </section>

@@ -17,6 +17,8 @@ export async function skinRequest<T>(path: string, signal: AbortSignal, method =
     if (!(cause instanceof InboxError)) throw cause
     const messages: Record<string, string> = {
       SKIN_SET_SLOT_CONFLICT: '이미 사용 중인 부위예요. 기존 아이템을 먼저 빼주세요.',
+      SKIN_IN_USE: '이 스킨을 사용하는 세트를 먼저 삭제해주세요. 기존 보유·착용은 유지돼요.',
+      SKIN_SET_NOT_FOUND: '세트를 찾지 못했어요. 목록을 다시 조회해주세요.',
       SKIN_SET_IMMUTABLE: '공개한 세트 구성은 바꿀 수 없어요. 새 세트로 등록해주세요.',
       SKIN_ITEM_NOT_READY: '구성 아이템을 먼저 검증·공개해주세요.',
       SKIN_SET_CHARACTER_MISMATCH: '세트와 아이템의 착용 캐릭터가 다릅니다.',

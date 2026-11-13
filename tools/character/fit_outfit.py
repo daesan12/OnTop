@@ -1,7 +1,7 @@
 """Fit a Tripo outfit (made in parts on the shared body's T-pose sheet) onto the shared layered build as item set
 <set>, for any outfit: -- <shared_layers.glb> <outfit_parts.glb> <out.glb> set=h map=HAIR:0,1;TOP:2,3;BOTTOM:4;SHOES:5
-       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0|back|all rim_neck=20] [neck_tone=1] [under_layer=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0] [hair_trim=z,y]
-       [lining_hidden=1] [skin_any=1] [keep_holes=N,M] [wing_parts=N,M wing_blend=0.025] [cover_hands=1] [hair_hides_front=0.03 | hair_hides_above=z] [face_scale=1.15] [gloves=1]
+       [s=1.0] [dx=0 dy=0 dz=0] [head_fit=N] [pants=1] [fill=BOTTOM] [sleeve_drape=1.0 sleeves=N,M] [seam=12>3,5] [under_tops=1] [cull=1] [lining=1 lining_skin=1 v_cut=ax,az,lx,lz,rx,rz v_paint=1] [shoe_cut=1 | shoe_level=1] [dark_lining=SHOES] [shoe_cap=1] [clean_skin=TOP] [neck_poke=1 push_neck=0|back|all rim_neck=20] [neck_tone=1] [under_layer=1 under_layer_skin=1] [under_skirt=0.15] [brighten=TOP,BOTTOM despeck=1] [clean_dark=TOP clean_v=1] [predecimate=N:faces] [smooth_rims=SHOES] [make_shoes=1 shoe_top=0.03] [socks=1] [skirt=TOP skirt_leg=0.5] [stiff=0.03] [boot_top=auto] [hair_hides_scalp=0] [hair_trim=z,y]
+       [lining_hidden=1] [skin_any=1] [keep_holes=N,M] [wing_parts=N,M wing_blend=0.025] [body_parts=N,M] [skin_parts=N,M] [cover_hands=1] [hair_hides_front=0.03 | hair_hides_above=z] [face_scale=1.15] [gloves=1]
 
 The common steps of add_set.py (the general's script) without its general-only fixes (docs/character-outfits.md):
 - the outfit, scaled by s about the ground origin and moved by dx/dy/dz, lies on the shared body (check with
@@ -927,6 +927,8 @@ for slot, it in G.items():
     if slot in ('HAIR', 'FACE'):
         for v in it.data.vertices: set_w(v, {'Head': 1.0})
     else:
+        raw_w = {v.index: {idx[e.group]: e.weight for e in v.groups if e.group in idx and e.weight > 0}
+                 for v in it.data.vertices} if opt.get('skin_parts') else {}
         for v in it.data.vertices:
             w = {idx[e.group]: e.weight for e in v.groups if e.group in idx and e.weight > 0}
             moved = sum(x for n, x in w.items() if n in ('Head', 'HeadTop_End', 'Neck'))
@@ -976,6 +978,15 @@ for slot, it in G.items():
                 for n, x in zip(chain, w_):
                     if x > 0 and n in bi: Wm[i, bi[n]] = x
             print('WING weights part', wn, len(ids), 'vertices on the arm chain')
+        # body_parts=N,M (the drumstick's batter suit, S15P31B105-418): a wide costume the arms come out of took the
+        # arms' weights past the shoulder, so with the arms lowered its sides were dragged down into flaps. Those
+        # parts take no arm or collarbone weights (their share goes to Spine2): the arms come out of the costume
+        for bn in [x for x in opt.get('body_parts', '').split(',') if x]:
+            ids = np.where(part_of == 'tripo_part_' + bn)[0]
+            cols = [bi[n] for n in bones if n in ARMS or n in ('LeftShoulder', 'RightShoulder')]
+            if len(ids) and 'Spine2' in bi:
+                Wm[np.ix_(ids, [bi['Spine2']])] += Wm[np.ix_(ids, cols)].sum(1, keepdims=True); Wm[np.ix_(ids, cols)] = 0
+            print('BODY weights part', bn, len(ids), 'vertices off the arms')
         Wn = Wm.copy()
         for n in names_:
             ids = np.where(part_of == n)[0]
@@ -987,6 +998,16 @@ for slot, it in G.items():
                 js = np.array([ids[j] for _, j, _ in near]); d = np.array([dd for _, _, dd in near])
                 g_ = np.exp(-(d / (STIFF / 2)) ** 2)
                 Wn[i] = (Wm[js] * g_[:, None]).sum(0) / g_.sum()
+        # skin_parts=N,M (the drumstick's bare arms out of a sleeveless suit, S15P31B105-418): skin parts take the
+        # body's own weights as they are, without the top's rules or the part averaging. The top's rule took the
+        # arms' weights off the arm roots inside the suit, and the roots showed in the armholes as stretched slivers
+        for sn in [x for x in opt.get('skin_parts', '').split(',') if x]:
+            ids = np.where(part_of == 'tripo_part_' + sn)[0]
+            for i in ids:
+                Wn[i] = 0
+                for n, x in raw_w[i].items():
+                    if n in bi: Wn[i, bi[n]] = x
+            print('SKIN weights part', sn, len(ids), "vertices keep the body's weights")
         # (seam=A>B,C: where two parts meet their weights are blended, half and half at the meeting line fading out
         # over seam_w, 3 cm: the dopo's sleeves turned with the arms and the robe with the chest, and the slit
         # between them opened at the shoulders, user)
@@ -1220,6 +1241,18 @@ if under_layer and under_src:
             wts = poly_3d_calc([_me.vertices[vi].co for vi in tp.vertices], inv_ @ loc)
             uv_ = sum((Vector(tuv[l].uv) * w for l, w in zip(tp.loop_indices, wts)), Vector((0, 0)))
             for li in poly.loop_indices: uvd_[li].uv = uv_
+        # under_layer_skin=1 (the drumstick's sleeveless suit, S15P31B105-418): the layer kept round the shoulders
+        # took the nearest top's texels, the suit's orange and the bare arms' skin, and showed in the armholes as
+        # big two-coloured facets; there it is skin (skin_texel, with skin_any=1 to find it in the arms' texture)
+        if opt.get('under_layer_skin', '0') == '1':
+            suv = skin_texel(G['TOP']); smi = _skin_cache['mi']
+            u.data.materials.append(G['TOP'].data.materials[smi]); k_ = len(u.data.materials) - 1; n_s = 0
+            for poly in u.data.polygons:
+                c = mw_ @ poly.center
+                if abs(c.x) > abs(J['LeftArm'].x) * float(opt.get('under_layer_arm_x', 0.6)) and c.z > J['Spine1'].z:
+                    poly.material_index = k_; n_s += 1
+                    for li in poly.loop_indices: uvd_[li].uv = suv
+            print('UNDER skin', n_s, 'faces round the shoulders')
         made.append(u)
     for u in made:
         if 'tokens' in u.keys(): del u['tokens']

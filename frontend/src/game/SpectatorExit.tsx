@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useGame } from './store'
+import { useDisplayGame as useGame } from './displayGame'
 import { useTableLobby } from '../features/tableLobby/state'
 import { useParkRuntime } from '../park/runtime/ParkRuntime'
 import { inputState } from '../world/inputOwnership'
