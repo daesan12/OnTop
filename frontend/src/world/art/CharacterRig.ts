@@ -11,6 +11,7 @@ import {
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { clone } from 'three/addons/utils/SkeletonUtils.js'
 import { CHARACTER, CLAP_EMOTE } from '../../config'
+import { createSoleSupport } from './soleSupport'
 import { coveredTokens, defaultLook, drawnVertices, pieceGeometry, pieceShown, type CharacterVariant, type Look, type PieceRange } from './characterLook'
 
 export { characterUrls } from './characterAssets'
@@ -180,8 +181,13 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
       if (previous === undefined || y < previous.y) soleCells.set(key, { mesh, i, y })
     }
   }
-  const soleIndices = [...soleCells.values()]
-  const solePoint = new Vector3()
+  const soleIndices = new Map<SkinnedMesh, number[]>()
+  for (const { mesh, i } of soleCells.values()) {
+    const indices = soleIndices.get(mesh)
+    if (indices) indices.push(i)
+    else soleIndices.set(mesh, [i])
+  }
+  const soleSupports = Array.from(soleIndices, ([mesh, indices]) => createSoleSupport(mesh, indices))
   const target = new Quaternion()
   const euler = new Euler()
   const rotations = new Float32Array(characterBones.length * 3)
@@ -381,10 +387,7 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
       // CPU skinning reads bone.matrixWorld directly. The renderer uploads the
       // skeleton once for its render frame; no duplicate bone palette is needed here.
       let bottom = Infinity
-      for (const { mesh, i } of soleIndices) {
-        mesh.getVertexPosition(i, solePoint)
-        bottom = Math.min(bottom, solePoint.y)
-      }
+      for (const support of soleSupports) bottom = Math.min(bottom, support())
       return Number.isFinite(bottom)
         ? Math.max(-0.2, Math.min(0.2, -bottom))
         : 0
