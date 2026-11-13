@@ -8,6 +8,7 @@ export class AvatarPoseCadence {
   private previousActive = false
   private distant = false
   private quiet = 0
+  constructor(private readonly crowdGroup = 0) {}
 
   advance(
     delta: number,
@@ -17,6 +18,7 @@ export class AvatarPoseCadence {
     key: string | number,
     ambient = false,
     crowded = false,
+    crowdFrame?: number,
   ) {
     if (distance > 16) this.distant = true
     else if (distance < 12) this.distant = false
@@ -36,6 +38,10 @@ export class AvatarPoseCadence {
       return 0
     }
     if (!changed && this.elapsed + 1e-8 < interval) return 0
+    // A long frame advances everyone's timer. Give regular remote movement
+    // two alternating slots so that the next frame cannot refresh every rig.
+    if (!changed && crowded && lively && !own && crowdFrame !== undefined
+      && (crowdFrame & 1) !== this.crowdGroup) return 0
     const step = this.elapsed
     this.elapsed = 0
     return step

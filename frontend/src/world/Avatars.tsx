@@ -51,6 +51,12 @@ import {
 } from '../network/worldClient'
 
 const noItems: OwnedItem[] = []
+function avatarCrowdGroup(id: string) {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (Math.imul(hash, 31) + id.charCodeAt(i)) | 0
+  return (hash ^ (hash >>> 16)) & 1
+}
+
 function Avatar({
   id,
   rigs,
@@ -59,9 +65,11 @@ function Avatar({
   carryMotion,
   firstGateFrameAt,
   crowded,
+  crowdFrame,
 }: {
   id: string
   crowded: boolean
+  crowdFrame: RefObject<number>
   rigs: Map<string, AvatarAnchors>
   menuRaycast: Group['raycast']
   samplePose: AvatarSampler
@@ -117,7 +125,7 @@ function Avatar({
   const presentation = useMemo(() => new AvatarPresentation(), [])
   const motion = useMemo(() => createAvatarMotion(model, RENEWAL_PARK_ENABLED), [model])
   const carriedPartner = useRef({ id: '', carryId: '' })
-  const cadence = useMemo(() => new AvatarPoseCadence(), [model])
+  const cadence = useMemo(() => new AvatarPoseCadence(avatarCrowdGroup(id)), [id, model])
   const appearance = useRef<ReturnType<typeof createAvatarOpacity> | null>(null)
   const pendingFadeShaders = useRef<(() => void) | null>(null)
   const rendererState = useThree(state => state.get)
@@ -218,6 +226,7 @@ function Avatar({
       presentation.key(avatar, reaction?.key ?? '', holdingCards, active),
       !reaction && avatarPoseAmbient(displayAvatar),
       crowded && !carryAnimation && !reaction && !seated && !displayAvatar.emote && !displayAvatar.fitnessId && !displayAvatar.telescopeId,
+      crowdFrame.current,
     )
     if (!poseDelta) return
     const partner = avatars.get(carriedPartner.current.id)
@@ -300,6 +309,8 @@ export function Avatars({
     startTransition(() => setMountedPeers(next))
   }, -2.5)
   const crowded = RENEWAL_PARK_ENABLED && ids.length >= 20
+  const crowdFrame = useRef(0)
+  useFrame(() => { crowdFrame.current++ }, -1.25)
   const samplePose = useAvatarFrameSampler()
   const rigs = useMemo(() => new Map<string, AvatarAnchors>(), [])
   const carryMotion = useMemo(createCarryMotion, [])
@@ -315,7 +326,7 @@ export function Avatars({
   return (
     <group name="visitors">
       {(RENEWAL_PARK_ENABLED ? ids.filter(id => id === ownId || mounted.has(id)) : ids).map((id) => (
-        <Avatar key={id} id={id} crowded={crowded} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} carryMotion={carryMotion} firstGateFrameAt={firstGateFrameAt} />
+        <Avatar key={id} id={id} crowded={crowded} crowdFrame={crowdFrame} rigs={rigs} menuRaycast={menuRaycast} samplePose={samplePose} carryMotion={carryMotion} firstGateFrameAt={firstGateFrameAt} />
       ))}
       <SwimmingRipples />
 
