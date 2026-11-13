@@ -33,8 +33,9 @@ export function AdminSkinSets({ onAuthEnded, initialItem = null, onRegister, onW
   const [itemGrade,setItemGrade] = useState(0),[assetError,setAssetError] = useState(false)
   const assetIndex=useMemo(()=>new Map(assets.map(asset=>[asset.imageKey,asset])),[assets])
   const flight = useRef<AbortController|null>(null), dialog = useRef<HTMLDialogElement>(null)
+  const listing = useRef<AbortController|null>(null)
   const fail = (e:unknown) => {if(e instanceof InboxError && e.status===401)onAuthEnded();else setMessage(e instanceof Error?e.message:'불러오지 못했어요. 다시 시도해주세요.')}
-  useEffect(()=>{const c=new AbortController();setAssetError(false)
+  useEffect(()=>{const c=listing.current=new AbortController();setAssetError(false)
     void inboxRequest('/api/v1/skins/assets',c.signal).then(catalog=>{if(!c.signal.aborted)setAssets(catalog as SkinAsset[])})
       .catch(()=>{if(!c.signal.aborted){setAssets([]);setAssetError(true)}})
     Promise.all([skinRequest<SkinEntry[]>('/components',c.signal),skinRequest<SkinSet[]>('/sets',c.signal)])
@@ -91,6 +92,23 @@ export function AdminSkinSets({ onAuthEnded, initialItem = null, onRegister, onW
       if(!c.signal.aborted){setDrafts(v=>({...v,[g]:{...v[g],saved:result}}));setSets(v=>[result,...v.filter(s=>s.id!==result.id)]);setMessage(genderLabel[g]+' 세트를 뽑기에서 숨겼어요. 보유 의상은 유지돼요.')}
     }catch(e){if(!c.signal.aborted)fail(e)}finally{if(flight.current===c){flight.current=null;setBusy(false)}}
   }
+  const deleteSet = async (entry:SkinSet) => {
+    if(flight.current||busy)return
+    const unsavedHere=genders.some(g=>drafts[g].saved?.id===entry.id&&dirty(g))
+    if(!window.confirm(`‘${entry.definition.name}’ 세트를 삭제할까요?\n공방 목록과 신규 획득에서 제외돼요. 기존 보유·착용과 영수증은 유지돼요.${unsavedHere?'\n이 세트의 저장하지 않은 변경도 지워져요.':''}`))return
+    const c=flight.current=new AbortController();setBusy(true);setMessage('')
+    try{
+      await skinRequest<void>('/sets/'+entry.id+'?version='+entry.version,c.signal,'DELETE')
+      if(c.signal.aborted)return
+      listing.current?.abort()
+      setSets(v=>v.filter(s=>s.id!==entry.id))
+      for(const g of genders)if(drafts[g].saved?.id===entry.id){
+        const next=fresh(g);baselines.current[g]=JSON.stringify(next.form)
+        setDrafts(v=>({...v,[g]:next}));reset(g)
+      }
+      setMessage('세트를 삭제했어요. 기존 보유·착용은 그대로 유지돼요.')
+    }catch(e){if(!c.signal.aborted)fail(e)}finally{if(flight.current===c){flight.current=null;if(!c.signal.aborted)setBusy(false)}}
+  }
   const readyMale=useCallback(()=>setLoaded(v=>({...v,MALE:true})),[]),readyFemale=useCallback(()=>setLoaded(v=>({...v,FEMALE:true})),[])
   const slots = (g:Gender) => <div className={'skin-body-slots '+g.toLowerCase()} aria-label={genderLabel[g]+' 부위'}>{places.map(place=>{
     const item=chosen(g).find(i=>occupies(i,place)),picture=item&&findAsset(item),locked=!!item
@@ -106,7 +124,7 @@ export function AdminSkinSets({ onAuthEnded, initialItem = null, onRegister, onW
       <div><button disabled={busy} onClick={onRegister}>＋ 새 아이템 파일 등록</button><button disabled={busy} onClick={()=>{genders.forEach(reset);setRevision(v=>v+1)}}>목록 새로고침</button></div></header>
     {message&&<p role="status" className="skin-message">{message}</p>}
     {assetError&&<p role="status" className="skin-help">미리보기 파일 목록을 불러오지 못했어요. 세트 정보는 편집할 수 있어요. 목록을 새로고침해주세요.</p>}
-    <SkinSetLibrary sets={sets} items={items} assets={assets} busy={busy} onChoose={changeSet}/>
+    <SkinSetLibrary sets={sets} items={items} assets={assets} busy={busy} onChoose={changeSet} onDelete={entry=>void deleteSet(entry)}/>
     <div className="skin-twin-stage">{slots('MALE')}<div className="skin-twin-models">{genders.map(g=>{
       const d=drafts[g],key=g+'|'+generation[g]+'|'+revision+'|'+previews[g].map(a=>a.imageKey).join('|')
       return <figure key={g} className="skin-body-model" aria-label={genderLabel[g]+' 캐릭터 미리보기'}><figcaption>{genderLabel[g]} 캐릭터</figcaption><div className="skin-twin-canvas" key={key}>

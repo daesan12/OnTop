@@ -44,6 +44,11 @@ public class SkinController {
     public ResponseEntity<?> publishSet(Principal p,@PathVariable String id,@RequestBody Version input) { if(input==null) throw SkinException.invalid("버전이 필요합니다.");return ok(sets().publish(account(p),id,input.version())); }
     @PostMapping(ROOT+"/sets/{id}/disable") @Operation(operationId="disableSkinSet",summary="세트 신규 획득 중단",description="기존 보유 아이템·영수증 유지")
     public ResponseEntity<?> disableSet(Principal p,@PathVariable String id,@RequestBody Version input) { if(input==null) throw SkinException.invalid("버전이 필요합니다.");return ok(sets().disable(account(p),id,input.version())); }
+    @DeleteMapping(ROOT+"/sets/{id}") @Operation(operationId="deleteSkinSet",summary="공방에서 세트 삭제",description="version 확인 후 목록·신규 획득에서 제거. 기존 보유·영수증 유지")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="204",description="공방 목록에서 삭제 완료")
+    public ResponseEntity<?> deleteSet(Principal p,@PathVariable String id,@RequestParam long version) {
+        sets().delete(account(p),id,version);return deleted();
+    }
     private SkinSetService sets() { var s=sets.getIfAvailable();if(s==null) throw new SkinException(503,"SKIN_REGISTRATION_UNAVAILABLE","세트 DB 설정이 필요합니다.");return s; }
     @GetMapping(ROOT+"/{id}") @Operation(operationId="getSkinRegistration",summary="스킨 등록 상세 복구")
     public ResponseEntity<?> get(Principal p,@PathVariable String id) { return ok(service().get(account(p),id)); }
@@ -59,6 +64,9 @@ public class SkinController {
     public ResponseEntity<?> publish(Principal p,@PathVariable String id,@RequestBody Publish input) { return ok(service().publish(account(p),id,input)); }
     @PostMapping(ROOT+"/{id}/disable") @Operation(operationId="disableSkinRegistration",summary="스킨 신규 획득 중단",description="기존 보유·착용·과거 영수증은 보존")
     public ResponseEntity<?> disable(Principal p,@PathVariable String id,@RequestBody Version input) { return ok(service().disable(account(p),id,input)); }
+    @DeleteMapping(ROOT+"/{id}") @Operation(operationId="deleteSkinRegistration",summary="공방에서 스킨 삭제",description="version 확인, 참조 세트가 남아 있으면409. 기존 보유·착용·공개 파일 유지")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="204",description="공방 목록에서 삭제 완료")
+    public ResponseEntity<?> delete(Principal p,@PathVariable String id,@RequestParam long version) { service().delete(account(p),id,new Version(version));return deleted(); }
     @GetMapping("/skins/assets") @Operation(operationId="listSkinAssets",summary="공개 의상 파일 목록",description="인증 회원 전용. 임시 파일·서명 URL 제외, 비활성 상품의 기존 파일은 유지")
     public ResponseEntity<?> assets(Principal p) { account(p);var s=services.getIfAvailable();return ok(s==null?List.of():s.assets()); }
     private SkinService service() { var s=services.getIfAvailable();if(s==null) throw new SkinException(503,"SKIN_REGISTRATION_UNAVAILABLE","스킨 등록 DB 설정이 필요합니다.");return s; }
@@ -67,6 +75,7 @@ public class SkinController {
         catch(RuntimeException e) { throw new SkinException(401,"UNAUTHENTICATED","로그인이 필요합니다."); }
     }
     private ResponseEntity<?> ok(Object body) { return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body); }
+    private ResponseEntity<?> deleted() { return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build(); }
     @ExceptionHandler(SkinException.class) ResponseEntity<?> error(SkinException e) { return ResponseEntity.status(e.status()).cacheControl(CacheControl.noStore()).body(new Error(e.code(),e.getMessage())); }
     @ExceptionHandler(DuplicateKeyException.class) ResponseEntity<?> duplicate() { return error(new SkinException(409,"SKIN_CODE_EXISTS","이미 등록된 상품 코드입니다. 목록에서 확인해주세요.")); }
     @ExceptionHandler({DataAccessException.class,TransactionException.class}) ResponseEntity<?> unavailable() { return error(new SkinException(503,"SKIN_REGISTRATION_UNAVAILABLE","등록 결과를 확인하지 못했습니다. 목록을 다시 조회해주세요.")); }
