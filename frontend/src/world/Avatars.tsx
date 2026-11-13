@@ -70,7 +70,8 @@ function Avatar({
 }) {
   const sources = useLoader(ParkAssetLoader, characterUrls)
   const variant = useSession(state => state.profiles[id]?.character === 'girl' ? 'girl' : 'man')
-  const equipment = useSession(state => state.equipment[id] ?? emptyEquipment)
+  const receivedEquipment = useSession(state => state.equipment[id])
+  const equipment = receivedEquipment ?? emptyEquipment
   const own = useSession(state => state.sessionId === id)
   // The own avatar tries on the wardrobe's previewed item before it is worn.
   const previewId = useWardrobe(state => own && state.open ? state.previewId : 0)
@@ -78,10 +79,25 @@ function Avatar({
   const owned = useWardrobe(state => own ? state.items : noItems)
   const worn = useMemo(() => previewId && previewEquipment(owned, previewId) || equipment, [previewId, owned, equipment])
   const catalogRevision = useSkinCatalog(s => s.revision)
+  const waitingForCatalog = useSkinCatalog(s => !s.checked) &&
+    worn.some(item => item.imageKey?.startsWith('catalog/'))
   // Outfits closed (production build): every avatar keeps its default clothes, whatever is equipped.
   const look = useMemo(() => resolveLook(variant, WARDROBE_OUTFITS_ENABLED ? worn : emptyEquipment), [variant, worn, catalogRevision])
   const wholeSkin = WARDROBE_OUTFITS_ENABLED ? resolveWholeSkin(variant, worn) : undefined
-  const outfits = useOutfitSources(wholeSkin ? [wholeSkin.source] : lookSources(look).filter(source => !isCharacterSource(source)))
+  const { outfits, pending: waitingForOutfit } = useOutfitSources(wholeSkin
+    ? [wholeSkin.source] : lookSources(look).filter(source => !isCharacterSource(source)))
+  const [equipmentTimedOut, setEquipmentTimedOut] = useState(false)
+  useEffect(() => {
+    if (!WARDROBE_OUTFITS_ENABLED || receivedEquipment !== undefined) return
+    const timeout = window.setTimeout(() => setEquipmentTimedOut(true), 8000)
+    return () => window.clearTimeout(timeout)
+  }, [receivedEquipment])
+  const appearanceReady = !WARDROBE_OUTFITS_ENABLED ||
+    ((receivedEquipment !== undefined || equipmentTimedOut) && !waitingForCatalog && !waitingForOutfit)
+  const firstAppearanceReady = useRef(false)
+  useLayoutEffect(() => {
+    if (appearanceReady) firstAppearanceReady.current = true
+  }, [appearanceReady])
   const wholeSource = wholeSkin && outfits.get(wholeSkin.source)
   const files = useMemo(() => new Map([['man', sources[0]!], ['girl', sources[1]!], ...outfits]), [sources, outfits])
   const shown = availableLook(variant, look, source => files.has(source))
@@ -167,7 +183,7 @@ function Avatar({
       pendingFadeShaders.current?.()
     }
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
-    root.current.visible = opacity > 0 && !(own && parkXRView.active) && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
+    root.current.visible = firstAppearanceReady.current && opacity > 0 && !(own && parkXRView.active) && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
@@ -231,6 +247,7 @@ function Avatar({
   return (
     <group
       ref={root}
+      visible={false}
       name={`avatar-${id}`}
       dispose={null}
       raycast={menuRaycast}
