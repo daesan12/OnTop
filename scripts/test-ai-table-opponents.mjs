@@ -6,13 +6,14 @@ import path from 'node:path'
 import net from 'node:net'
 const repo=fileURLToPath(new URL('../',import.meta.url)),backend=path.join(repo,'backend')
 const output=path.resolve(process.argv[2]??path.join(backend,'.gradle/ai-park-benchmark','table-opponents-'+Date.now()))
+const serviceHttp=process.argv.includes('--service-http')
 await mkdir(path.dirname(output),{recursive:true})
 await mkdir(output,{recursive:false})
 await new Promise((resolve,reject)=>{const server=net.createServer();server.once('error',reject);server.listen(19192,'127.0.0.1',()=>server.close(resolve))})
 const base='http://127.0.0.1:19192',pause=ms=>new Promise(r=>setTimeout(r,ms)),checks=[]
 let currentGameId=''
 function check(name,value){checks.push({name,pass:!!value});if(!value)throw Error(name);console.log('PASS '+name)}
-async function http(url,token,body,expected=200){if(url==='/local/ai/companions/action')body={gameId:currentGameId,...body};const r=await fetch(base+url,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(7000)});if(r.status!==expected)throw Error(url+' status '+r.status);return r.json()}
+async function http(url,token,body,expected=200){if(url==='/local/ai/companions/action')body={gameId:currentGameId,...body};if(serviceHttp)url=url.replace('/local/ai/companions/','/api/v1/ai/companions/');const r=await fetch(base+url,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(7000)});if(r.status!==expected)throw Error(url+' status '+r.status);return r.json()}
 async function until(read,test,limit=16000){const start=performance.now();while(performance.now()-start<limit){const v=await read();if(test(v))return v;await pause(200)}throw Error('Condition timeout')}
 async function connect(role){
  const grant=await http('/dev/alkkagi-park/session',null,{role}),{accessToken:token}=await http('/api/v1/auth/exchange',null,grant),{ticket}=await http('/api/v1/auth/websocket-ticket',token,{})
@@ -32,13 +33,17 @@ const line='Class-Path: '+urls
 await writeFile(manifest,'Manifest-Version: 1.0\r\n'+line.match(/.{1,70}/g).join('\r\n ')+'\r\n\r\n')
 execFileSync('jar.exe',['--create','--file',classpathJar,'--manifest',manifest],{windowsHide:true})
 const server=spawn('java.exe',['-Xmx768m','-cp',classpathJar,'com.ssafy.ontop.demo.AiParkApplication'],{cwd:backend,windowsHide:true,stdio:['ignore',log.fd,log.fd],env})
-const clients=[];let heartbeat,result={at:new Date().toISOString(),externalProviders:false,checks}
+const clients=[];let heartbeat,result={at:new Date().toISOString(),externalProviders:false,serviceHttp,checks}
 const status=c=>http('/local/ai/companions/status',c.token)
 async function place(c,index=0){const p=await http('/local/ai/table-position?index='+index,c.token,{});await c.request('WORLD_TIME_CHECK');const joined=await c.request('TABLE_JOIN',{tableId:p.tableId});check('real TABLE_JOIN '+index,joined.type==='TABLE_STATE');return p.tableId}
 try{
  await until(async()=>{if(server.exitCode!==null)throw Error('server exited');try{return await http('/actuator/health')}catch{return null}},v=>v?.status==='UP',45000)
  const a=await connect('red'),b=await connect('green');clients.push(a,b)
  heartbeat=setInterval(()=>{for(const c of clients)c.request('WORLD_TIME_CHECK').catch(()=>{})},1000)
+ if(serviceHttp)for(const endpoint of ['invite','action']){
+  const response=await fetch(base+'/api/v1/ai/companions/'+endpoint,{method:'POST',headers:{Authorization:'Bearer '+a.token,'Content-Type':'text/plain;charset=UTF-8'},body:'{}'})
+  check(endpoint+' rejects the browser plain-text JSON body with HTTP 415',response.status===415)
+ }
  for(const [i,c] of clients.entries()){await place(c,i);const r=await c.request('GAME_SELECT',{gameCode:'OMOK',betAmountPerPlayer:0});check('select omok '+i,r.type==='TABLE_STATE')}
  const one=await http('/local/ai/companions/invite',a.token,{difficulty:'HARD'}),two=await http('/local/ai/companions/invite',b.token,{difficulty:'HARD'})
  check('same difficulty uses independent actors',one.actorId!==two.actorId&&one.npcUserId!==two.npcUserId&&one.snapshot.gameId!==two.snapshot.gameId)
