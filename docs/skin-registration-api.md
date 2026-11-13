@@ -162,7 +162,7 @@ V165 후보: skin_item_registrations / skin_item_parts / skin_sets / skin_set_me
 
 비삭제 세트(공개·획득 중단·초안 포함)가 스킨을 참조하면 `409 SKIN_IN_USE`로 거절한다. 해당 세트부터 삭제한 다음 스킨을 삭제한다. 세트와 구성품 삭제는 별개이며 세트를 삭제해도 공용 구성품은 다른 세트에서 재사용할 수 있다. 다른 창에서 상태를 바꿨다면 `409 SKIN_VERSION_CHANGED`, 이미 삭제된 ID는 404다.
 
-V176은 `skin_catalog`·`skin_sets`에 `deleted_at`·`deleted_by`만 추가한다. V175 이후 적용할 후보이며 팀 공유·순서 확인 전 SQL 푸시·병합·공용 DB 적용은 보류한다. 기존 SQL·보유품·착용·파일·영수증은 변경하지 않는다. 로컬 전용 DB 검증은 공용 DB 적용과 구분한다.
+V176은 `skin_catalog`·`skin_sets`에 `deleted_at`·`deleted_by`만 추가한다. 2026-11-13 사용자가 팀 공유와 V175 다음 적용 순서를 확인했다. 공용 DB 적용은 병합 후 배포 절차에서 수행한다. 기존 SQL·보유품·착용·파일·영수증은 변경하지 않는다. 로컬 전용 DB 검증은 공용 DB 적용과 구분한다.
 
 ```json
 {"productCode":"SCHOLAR_SET","name":"선비 세트","grade":2,"compatibility":"ANY","imageSkinId":"11111111-1111-4111-8111-111111111111","itemIds":["11111111-1111-4111-8111-111111111111","22222222-2222-4222-8222-222222222222"]}
