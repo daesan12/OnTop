@@ -62,40 +62,31 @@
   height: 36px;
   border: 1px solid var(--npc-trim);
   border-radius: 50%;
-  background-color: var(--npc-accent);
+  background-color: #f0dfbf;
   background-repeat: no-repeat;
+  background-size: 100%;
+  background-position: center;
   box-shadow: 0 1px 3px #211b1640;
 }
 
 [data-npc-kind='CHILD'] .npc-speech__portrait {
-  background-image: url('/art/bungeoppang/customers/boy-red-scarf-preview-v1.webp');
-  background-size: 106px;
-  background-position: center -4px;
+  background-image: url('/art/npc-portraits/kang-jaemmin.webp');
 }
 
 [data-npc-kind='NEIGHBOR'] .npc-speech__portrait {
-  background-image: url('/art/bungeoppang/customers/woman-glasses-bun-preview-v1.webp');
-  background-size: 130px;
-  background-position: center -4px;
+  background-image: url('/art/npc-portraits/yoon-hansu.webp');
 }
 
 [data-npc-kind='ELDER'] .npc-speech__portrait {
-  background-image: url('/art/bungeoppang/customers/older-flat-cap-preview-v1.webp');
-  background-size: 126px;
-  background-position: center -4px;
+  background-image: url('/art/npc-portraits/park-elder.webp');
 }
 
 [data-npc-kind='POLICE'] .npc-speech__portrait {
-  background-color: #d9e5e8;
-  background-image: url('/art/bungeoppang/customers/police-officer-portrait-v1.webp');
-  background-size: 100%;
-  background-position: center;
+  background-image: url('/art/npc-portraits/officer-han.webp');
 }
 
 [data-npc-kind='JUDGE'] .npc-speech__portrait {
-  background-image: url('/art/ai-joke/judge-portrait-v2.png');
-  background-size: 51px;
-  background-position: center 1px;
+  background-image: url('/art/npc-portraits/judge-kim.webp');
 }
 
 .npc-speech__name {
