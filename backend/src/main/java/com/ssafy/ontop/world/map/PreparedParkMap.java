@@ -63,7 +63,8 @@ public final class PreparedParkMap {
         }
         var stoneRumble = anchors.get(STONE_RUMBLE_ANCHOR_ID);
         var entrances = new ArrayList<Reach>();
-        if (stoneRumble != null) {
+        // Older generated maps use table-17 as an ordinary table.
+        if (stoneRumble != null && (data.has("tableAnchorIds") || stoneRumble.has("interactionPoints"))) {
             var points = stoneRumble.path("interactionPoints");
             require(points.isArray() && !points.isEmpty(), "돌탑 생존전 입구가 필요합니다.");
             for (JsonNode point : points) {
