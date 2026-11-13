@@ -91,7 +91,7 @@
 | `GAME_STARTED` | `TableHub.applyStartResult` 확정 경기 성공. 참가자마다 한 행. 리허설 확인은 제외 | `gameCode`, `players`, `targetScore`, `betAmountPerPlayer`(1인 예약 판돈) | 1 | 구현 |
 | `GAME_ACTION` | `sendGameAction` 성공 후 | `gameCode`, `actionKind` | 보류 | |
 | `GAME_ENDED` | 네 엔진 공통 최종 판정 `GameFinished` 리스너. 참가자마다 한 행 | `gameCode`, `endReason`, `players`, `result`(WIN·LOSE·DRAW·FORFEIT), `leaveReason`(중도 이탈 시) | 1 | 구현 |
-| `GAME_PLAY_STATS` | 과일 땡 경기 종료 시 `HalliGalliBellStats` 리스너. 참가자마다 한 행 | `gameCode`(HALLI_GALLI), `players`, `successRings`·`penaltyRings`·`lateRings`(맞힌 종·틀린 종·이미 닫힌 창에 늦게 닿은 종), 성공한 종의 반응 시간 `reactionMinMs`·`reactionMedianMs`·`reactionAvgMs`(성공이 없으면 없음), `under150Ms`·`under300Ms`(150·300ms 미만 성공 횟수) | 1 | 구현 |
+| `GAME_PLAY_STATS` | 과일 땡 경기 종료 시 `HalliGalliBellStats` 리스너. 참가자마다 한 행 | `gameCode`(HALLI_GALLI), `players`, `successRings`·`penaltyRings`·`lateRings`(맞힌 종·틀린 종·다른 사람이 먼저 맞혀 닫힌 창에 늦게 닿은 종. 늦은 종은 창마다 한 사람당 한 번, 가져간 사람의 연타와 이미 다음 카드가 나온 지난 창은 빼고 센다), 성공한 종의 반응 시간 `reactionMinMs`·`reactionMedianMs`·`reactionAvgMs`(성공이 없으면 없음), `under150Ms`·`under300Ms`(150·300ms 미만 성공 횟수) | 1 | 구현 |
 | `GAME_SETTLED` | `TableHub.roundSettled` | `coinDelta`(본인) | 3 | 정산 작업 후 |
 | `GAME_RECONNECTED` | `GameReconnectService` 복구 성공 | | 1 | 미구현 |
 

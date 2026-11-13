@@ -31,9 +31,13 @@ public final class HalliGalliBellLog {
         counts.get(user).penalty++;
     }
 
-    // 이미 닫힌 창(다른 사람이 먼저 쳤거나 새 카드가 공개됨)에 늦게 닿은 종. 같은 요청을 다시 보내면 두 번 셀 수 있다.
-    void late(long user) {
-        counts.get(user).late++;
+    // 다른 사람이 먼저 맞혀 닫힌 창에 늦게 닿은 종. 재전송·연타가 부풀리지 않게 창 하나에 한 사람당 한 번만 센다.
+    void late(long user, long window) {
+        Counts count = counts.get(user);
+        if (count.lastLateWindow != window) {
+            count.lastLateWindow = window;
+            count.late++;
+        }
     }
 
     public List<Summary> summaries() {
@@ -55,6 +59,7 @@ public final class HalliGalliBellLog {
         private int success;
         private int penalty;
         private int late;
+        private long lastLateWindow;
         private final List<Integer> reactions = new ArrayList<>();
 
         private Summary summary(long user) {

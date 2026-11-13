@@ -46,6 +46,9 @@ public final class HalliGalliMatch {
     private boolean windowOpen;
     // 지금 열린 종 창의 카드 공개를 처리한 시각. 종 반응 시간 기록에만 쓴다.
     private Instant windowOpenedAt;
+    // 마지막으로 종을 맞혀 가져간 창 번호와 그 사람. 늦은 종을 가리는 데만 쓴다.
+    private long collectedWindow;
+    private long collector;
     private final HalliGalliBellLog bells;
     private int issuedPenaltyCards;
     private Event lastEvent;
@@ -183,7 +186,11 @@ public final class HalliGalliMatch {
         }
         // 닫힌 창의 늦은 종을 새 창의 카드로 판정하지 않는다. 벌칙 없이 거절한다.
         if (window.longValue() != flipSeq || !windowOpen) {
-            bells.late(actor.userId());
+            // 다른 사람이 막 가져간 창에 늦게 닿은 종만 경쟁에서 진 종으로 센다. 가져간 사람 자신의 연타와
+            // 이미 다음 카드가 공개된 더 오래된 창은 세지 않는다. 같은 창은 한 사람당 한 번만 센다.
+            if (window.longValue() == flipSeq && collectedWindow == flipSeq && actor.userId() != collector) {
+                bells.late(actor.userId(), flipSeq);
+            }
             throw new Rejected(Rejection.STALE_VERSION);
         }
         // 인원과 관계없이 같은 판정이다. 활성 2명이라는 이유만으로 종 판정 직후 끝내지 않는다.
@@ -202,6 +209,8 @@ public final class HalliGalliMatch {
         version++;
         int cards = gatherFaceUp(ringer);
         windowOpen = false;
+        collectedWindow = flipSeq;
+        collector = ringer.userId();
         lastEvent = new Event("RING_SUCCESS", ringer.userId(), now, cards, 0);
         eliminateExhausted();
         if (activeCount() <= 1) {

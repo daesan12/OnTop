@@ -887,6 +887,25 @@ class HalliGalliMatchTests {
     }
 
     @Test
+    void 늦은_종은_남이_가져간_창에_한_사람당_한_번만_세고_가져간_사람의_연타와_지난_창은_세지_않는다() {
+        HalliGalliMatch match = match(List.of(A, B, C), Map.of(0, card(STRAWBERRY, 2), 1, card(STRAWBERRY, 3)));
+        reject(Rejection.INVALID_ACTION, () -> ring(match, B, "before-any-card", 1, START));
+        flip(match, A, "a1", START);
+        flip(match, B, "b1", START);
+        ring(match, C, "bell", 2, START.plusMillis(500));
+
+        reject(Rejection.STALE_VERSION, () -> ring(match, A, "late-1", 2, START.plusMillis(600)));
+        reject(Rejection.STALE_VERSION, () -> ring(match, A, "late-2", 2, START.plusMillis(650)));
+        reject(Rejection.STALE_VERSION, () -> ring(match, A, "late-1", 2, START.plusMillis(700)));
+        reject(Rejection.STALE_VERSION, () -> ring(match, C, "double", 2, START.plusMillis(600)));
+        // 결과 연출 뒤 새 카드가 공개되면 창 2는 경쟁이 끝난 지난 창이다.
+        flip(match, C, "c1", START.plusMillis(1_500));
+        reject(Rejection.STALE_VERSION, () -> ring(match, B, "old-window", 2, START.plusMillis(1_600)));
+
+        assertThat(match.bellSummaries()).extracting(HalliGalliBellLog.Summary::lateRings).containsExactly(1, 0, 0);
+    }
+
+    @Test
     void 틀린_종은_벌칙_횟수만_세고_반응_시간에는_넣지_않는다() {
         HalliGalliMatch match = match(List.of(A, B), Map.of(0, card(STRAWBERRY, 1)));
         flip(match, A, "a1", START);
