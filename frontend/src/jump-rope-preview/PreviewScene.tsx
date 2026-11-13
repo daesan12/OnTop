@@ -312,14 +312,20 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       const reaction = successPose('audience', index)
       applyPigeonReaction(rig, pose, reaction, samplePigeonLaugh('audience', index, laughElapsed, laughDuration, settings.laughTilt))
       if (raid && !isFinale) {
-        // Hop in place on the wire as the broom swings, and settle back onto it through a MISS freeze.
+        // Flinch as the broom nears, hop in place on the wire with flapping wings, land with a squash,
+        // and settle back onto the wire through a MISS freeze.
         const hop = sampleAudienceHop(raid, round.playedMs, index)
         const awake = 1 - freeze
+        const wings = Math.max(hop.flap, 0.35 * hop.alarm) * awake
         bird.position.y += hop.lift * awake
-        rig.leftWing.rotation.y += 1.2 * hop.flap * awake
-        rig.rightWing.rotation.y -= 1.2 * hop.flap * awake
-        rig.leftWing.rotation.z -= 0.5 * hop.flap * awake
-        rig.rightWing.rotation.z += 0.5 * hop.flap * awake
+        rig.body.position.y -= (0.07 * hop.crouch + 0.05 * hop.squash) * awake
+        rig.body.scale.set(1 + 0.07 * hop.squash * awake, 1 - 0.12 * hop.squash * awake, 1 + 0.07 * hop.squash * awake)
+        rig.head.rotation.x -= 0.32 * hop.alarm * awake
+        rig.head.position.y += (0.035 * hop.alarm - 0.04 * hop.crouch) * awake
+        rig.leftWing.rotation.y += 1.2 * wings
+        rig.rightWing.rotation.y -= 1.2 * wings
+        rig.leftWing.rotation.z -= 0.5 * wings
+        rig.rightWing.rotation.z += 0.5 * wings
         for (const { foot } of rig.legs) foot.rotation.x = 0.5 * Math.min(1, hop.lift * 6) * awake
       }
       if (completionAge !== null) {

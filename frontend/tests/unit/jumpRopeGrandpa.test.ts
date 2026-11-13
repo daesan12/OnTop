@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import fixture from '../../../backend/src/test/resources/jump-rope/rules-v1.json'
 import {
-  afterDodgeInputMs, createGrandpaRuntime, duckTransitionMs, grandpaBlocksJump, grandpaSeed, grandpaTiming, grandpaWindows, grandpaWindupMs,
+  afterDodgeInputMs, createGrandpaRuntime, duckTransitionMs, grandpaBlocksJump, grandpaSeed, grandpaTiming, grandpaExitMs, grandpaWindows, grandpaWindupMs,
   isDucked, planGrandpaEvents, pressDuck, pressRoundDuck, releaseDuck, swingGapPasses, type GrandpaEvent,
 } from '../../src/jump-rope-preview/grandpaEvent'
-import { grandpaShouts, grandpaSuppressesReactions, sampleAudienceHop, sampleGrandpa } from '../../src/jump-rope-preview/grandpaPose'
+import {
+  broomPointInWorld, grandpaGrumble, grandpaShouts, grandpaSpot, grandpaSuppressesReactions, sampleAudienceHop, sampleGrandpa,
+} from '../../src/jump-rope-preview/grandpaPose'
 import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, type ScoredPreviewPass } from '../../src/jump-rope-preview/previewRound'
 import { rankedPassageUs } from '../../src/jump-rope-preview/previewMotion'
 import { defaultRopeAcceleration as profile, ropeTempo } from '../../src/jump-rope-preview/ropeAcceleration'
@@ -294,7 +296,7 @@ describe('Story 420 grandpa visuals', () => {
     expect(sampleGrandpa(grandpa, danger!.plannedHitMs + 50, avatar)!.warning).toBe(0)
     expect(sampleGrandpa(grandpa, event.endMs - 100, avatar)).toMatchObject({ walking: true })
     expect(sampleAudienceHop(grandpa, safe!.plannedHitMs + 150, 0).lift).toBeGreaterThan(0.2)
-    expect(sampleAudienceHop(grandpa, safe!.plannedHitMs - 400, 0)).toEqual({ lift: 0, flap: 0 })
+    expect(sampleAudienceHop(grandpa, safe!.plannedHitMs - 500, 0)).toEqual({ lift: 0, flap: 0, crouch: 0, alarm: 0, squash: 0 })
 
     event.status = 'finished'
     expect(grandpaSuppressesReactions(grandpa)).toBe(false)
@@ -313,6 +315,86 @@ describe('Story 420 grandpa visuals', () => {
       expect(sampleGrandpa(grandpa, arrival + 1000, avatar)!.shoutWeight).toBe(0)
     }
     expect(grandpaShouts[0]).toBe('예끼 이놈들!')
+  })
+
+  // The preview court sits 0.8 m forward, so the avatar stands at z 0.8.
+  const court = { x: 0, z: 0.8 }
+  const visiting = (grandpa: ReturnType<typeof createGrandpaRuntime>, event: GrandpaEvent) => {
+    for (const other of grandpa.events) other.status = other === event ? 'active' : 'pending'
+  }
+
+  it('stomps in shaking a fist and grumbles on the way out', () => {
+    const grandpa = createGrandpaRuntime(409, rope, timing)
+    const event = grandpa.events[0]!
+    visiting(grandpa, event)
+    expect(sampleGrandpa(grandpa, event.startMs + 600, court)!.gesture).toMatchObject({ fist: 1, glare: expect.any(Number) })
+    const leave = event.endMs - grandpaExitMs
+    const exit = sampleGrandpa(grandpa, leave + 600, court)!
+    expect(exit).toMatchObject({ walking: true, shout: grandpaGrumble, shoutWeight: 1 })
+    expect(exit.gesture.stoop).toBeGreaterThan(0.2)
+    expect(sampleGrandpa(grandpa, leave + 300, court)!.gesture.headShake).not.toBe(0)
+  })
+
+  it('sweeps a dangerous broom through the avatar at the judged contact and keeps the safe swat over the wire', () => {
+    for (const seed of seeds.slice(0, 60)) {
+      const grandpa = createGrandpaRuntime(seed, rope, timing)
+      for (const event of grandpa.events) {
+        visiting(grandpa, event)
+        for (const swing of event.swings) {
+          // Contact is drawn at the same play time the hit is judged.
+          const frame = sampleGrandpa(grandpa, swing.plannedHitMs, court)!
+          const bristles = broomPointInWorld(frame)
+          const fromAvatar = Math.hypot(bristles.x - court.x, bristles.z - court.z)
+          if (swing.kind === 'danger') {
+            expect(fromAvatar).toBeLessThan(0.08)
+            expect(bristles.y).toBeGreaterThan(1.35)
+            expect(bristles.y).toBeLessThan(1.6)
+          } else {
+            expect(fromAvatar).toBeGreaterThan(2.5)
+            expect(bristles.z).toBeLessThan(grandpaSpot.z - 1.2)
+            expect(bristles.y).toBeGreaterThan(2.3)
+          }
+        }
+      }
+    }
+  })
+
+  it('moves the broom without jumps from arrival through the last recovery', () => {
+    for (const seed of seeds.slice(0, 12)) {
+      const grandpa = createGrandpaRuntime(seed, rope, timing)
+      for (const event of grandpa.events) {
+        visiting(grandpa, event)
+        let previous: ReturnType<typeof broomPointInWorld> | null = null
+        for (let playedMs = event.startMs + 1; playedMs < event.endMs; playedMs += 1) {
+          const tip = broomPointInWorld(sampleGrandpa(grandpa, playedMs, court)!, 2)
+          // The fastest sweep moves the 2 m tip about 9 cm per millisecond; a teleport would be far more.
+          if (previous) expect(Math.hypot(tip.x - previous.x, tip.y - previous.y, tip.z - previous.z)).toBeLessThan(0.12)
+          previous = tip
+        }
+      }
+    }
+  })
+
+  it('makes the audience flinch, hop, land with a squash and settle for every swing', () => {
+    const grandpa = createGrandpaRuntime(409, rope, timing)
+    const event = grandpa.events[1]!
+    visiting(grandpa, event)
+    for (const swing of event.swings) {
+      for (const index of [0, 3]) {
+        const takeoff = swing.plannedHitMs - 120 + index * 45
+        const flinch = sampleAudienceHop(grandpa, takeoff - 80, index)
+        expect(flinch.crouch).toBeGreaterThan(0.5)
+        expect(flinch.alarm).toBeGreaterThan(0.9)
+        expect(flinch.lift).toBe(0)
+        const air = sampleAudienceHop(grandpa, takeoff + 260, index)
+        expect(air.lift).toBeGreaterThan(0.2)
+        expect(air.flap).toBeGreaterThan(0.5)
+        const landing = sampleAudienceHop(grandpa, takeoff + 640, index)
+        expect(landing.lift).toBe(0)
+        expect(landing.squash).toBeGreaterThan(0.5)
+        expect(sampleAudienceHop(grandpa, takeoff + 900, index)).toEqual({ lift: 0, flap: 0, crouch: 0, alarm: 0, squash: 0 })
+      }
+    }
   })
 })
 

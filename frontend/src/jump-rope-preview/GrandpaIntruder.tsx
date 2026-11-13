@@ -19,35 +19,61 @@ import type { PreviewRound } from './previewRound'
 const look = RESIDENT_LOOKS.ELDER
 export const grandpaHeight = 2.15
 // A long yard broom: its sweep reaches past the avatar and up toward the audience on the wire.
+// The handle and the straw keep the earlier proportions: the bristles end 2 m from the grip.
 const handleBack = 0.3
 const handleFront = 1.5
 const bristleLength = 0.5
-const leftHandAlong = 0.4
-const spineBones = [['Spine', 0.34], ['Spine1', 0.33], ['Spine2', 0.33]] as const
+const leftHandAlong = 0.3
+/** His everyday stoop, bent across the three spine bones. */
+const stoop = 0.28
+const spineBones = [['Spine', 0.36], ['Spine1', 0.34], ['Spine2', 0.3]] as const
+const headBones = [['Neck', 0.45], ['Head', 0.55]] as const
 const armBones = ['RightArm', 'RightForeArm', 'RightHand', 'LeftArm', 'LeftForeArm', 'LeftHand'] as const
-const posedBones = [...spineBones.map(([name]) => name), ...armBones]
+const posedBones = [...spineBones.map(([name]) => name), ...headBones.map(([name]) => name), ...armBones]
 
+/** A low-poly bundled straw broom. Everything hangs off one group, so the handle and the straw move as one piece. */
 function createBroom() {
   const geometries: BufferGeometry[] = []
-  const materials: MeshStandardMaterial[] = []
+  const materials = new Map<string, MeshStandardMaterial>()
   const group = new Group()
   group.name = 'grandpa-broom'
-  function part(geometry: BufferGeometry, color: string, z: number, scale?: [number, number, number]) {
-    const material = new MeshStandardMaterial({ color, roughness: 0.9, flatShading: true })
+  function material(color: string) {
+    let found = materials.get(color)
+    if (!found) {
+      found = new MeshStandardMaterial({ color, roughness: 0.92, flatShading: true })
+      materials.set(color, found)
+    }
+    return found
+  }
+  /** A cylinder along +Z from `from` to `from + length`, optionally fanned about the handle's side axis. */
+  function part(geometry: BufferGeometry, color: string, from: number, length: number, fan = 0, flatten = 1) {
     geometries.push(geometry)
-    materials.push(material)
-    const mesh = new Mesh(geometry, material)
+    const pivot = new Group()
+    pivot.position.z = from
+    pivot.rotation.y = fan
+    const mesh = new Mesh(geometry, material(color))
     // Cylinders run along +Y; turn them so the broom points along +Z from the grip.
     mesh.rotation.x = Math.PI / 2
-    mesh.position.z = z
-    if (scale) mesh.scale.set(...scale)
-    group.add(mesh)
+    mesh.position.z = length / 2
+    mesh.scale.z = flatten
+    pivot.add(mesh)
+    group.add(pivot)
   }
-  part(new CylinderGeometry(0.024, 0.027, handleBack + handleFront, 10), '#8a5a35', (handleFront - handleBack) / 2)
-  part(new CylinderGeometry(0.045, 0.052, 0.08, 10), '#a2382c', handleFront - 0.01)
-  part(new CylinderGeometry(0.065, 0.23, bristleLength, 9), '#cfa95b', handleFront + bristleLength / 2, [1, 1, 0.34])
-  part(new CylinderGeometry(0.06, 0.068, 0.04, 9), '#8b6a33', handleFront + 0.08, [1, 1, 0.4])
-  return { group, geometries, materials }
+  const handle = handleBack + handleFront
+  part(new CylinderGeometry(0.027, 0.03, handle, 8), '#8a5a35', -handleBack, handle)
+  part(new CylinderGeometry(0.038, 0.034, 0.05, 8), '#5e3b22', -handleBack - 0.02, 0.05)
+  // Straw bundle: a tight neck tied with twine and a red band, opening into a fan of clumps.
+  const neck = handleFront - 0.1
+  part(new CylinderGeometry(0.1, 0.05, 0.24, 8), '#c9a159', neck, 0.24, 0, 0.55)
+  part(new CylinderGeometry(0.058, 0.058, 0.04, 8), '#6b3a26', neck + 0.02, 0.04, 0, 0.75)
+  part(new CylinderGeometry(0.066, 0.066, 0.05, 8), '#a2382c', neck + 0.09, 0.05, 0, 0.7)
+  part(new CylinderGeometry(0.072, 0.072, 0.04, 8), '#6b3a26', neck + 0.17, 0.04, 0, 0.65)
+  const straw = ['#d8b468', '#c39a4e', '#e3c27a', '#b98d43']
+  for (let clump = -3; clump <= 3; clump++) {
+    const length = bristleLength + 0.02 - Math.abs(clump) * 0.025
+    part(new CylinderGeometry(0.014, 0.034, length, 5), straw[(clump + 3) % straw.length]!, handleFront, length, clump * 0.13, 0.7)
+  }
+  return { group, geometries, materials: [...materials.values()] }
 }
 
 function createTell() {
@@ -72,7 +98,7 @@ const up = new Vector3(0, 1, 0)
 const scratch = {
   shoulder: new Vector3(), elbow: new Vector3(), hand: new Vector3(), target: new Vector3(), pole: new Vector3(), grip: new Vector3(),
   from: new Vector3(), to: new Vector3(), axis: new Vector3(), delta: new Quaternion(), parent: new Quaternion(),
-  world: new Quaternion(), frame: new Quaternion(), identity: new Quaternion(), euler: new Euler(0, 0, 0, 'YXZ'),
+  world: new Quaternion(), frame: new Quaternion(), identity: new Quaternion(), partial: new Quaternion(), euler: new Euler(0, 0, 0, 'YXZ'),
 }
 
 /** Rotate `bone` in world space so the direction to `child` points at `target`. */
@@ -83,7 +109,8 @@ function aimBone(bone: Bone, child: Bone, target: Vector3, weight: number) {
   to.sub(from).normalize()
   from.subVectors(target, from).normalize()
   delta.setFromUnitVectors(to, from)
-  if (weight < 1) delta.slerpQuaternions(identity, delta, weight)
+  // A partial weight blends from no turn toward the full turn. The target must not alias the result.
+  if (weight < 1) delta.copy(scratch.partial.copy(identity).slerp(delta, weight))
   bone.getWorldQuaternion(world).premultiply(delta)
   bone.parent!.getWorldQuaternion(parent)
   bone.quaternion.copy(parent.invert().multiply(world))
@@ -103,7 +130,13 @@ function reach(upper: Bone, lower: Bone, hand: Bone, target: Vector3, poleLocal:
   axis.normalize()
   frame.getWorldQuaternion(scratch.frame)
   pole.copy(poleLocal).applyQuaternion(scratch.frame)
-  pole.addScaledVector(axis, -pole.dot(axis)).normalize()
+  pole.addScaledVector(axis, -pole.dot(axis))
+  // When the reach lines up with the hint, the bend side is undefined; fall back to bending the elbow down.
+  if (pole.lengthSq() < 0.04) {
+    pole.set(0, -1, 0).applyQuaternion(scratch.frame)
+    pole.addScaledVector(axis, -pole.dot(axis))
+  }
+  pole.normalize()
   const along = (upperLength ** 2 - lowerLength ** 2 + distance ** 2) / (2 * distance)
   const height = Math.sqrt(Math.max(0, upperLength ** 2 - along ** 2))
   elbow.copy(shoulder).addScaledVector(axis, along).addScaledVector(pole, height)
@@ -113,6 +146,18 @@ function reach(upper: Bone, lower: Bone, hand: Bone, target: Vector3, poleLocal:
 
 const rightPole = new Vector3(-0.7, -1, -0.5)
 const leftPole = new Vector3(0.7, -1, -0.5)
+const fistPole = new Vector3(1, -0.5, -0.5)
+const side = new Vector3(1, 0, 0)
+const forward = new Vector3(0, 0, 1)
+
+/** Rotate `bone` about an axis given in the grandpa's frame, keeping its world pivot. */
+function bendInFrame(bone: Bone, axisInFrame: Vector3, angle: number) {
+  if (!bone.parent || angle === 0) return
+  bone.parent.getWorldQuaternion(scratch.parent)
+  scratch.axis.copy(axisInFrame).applyQuaternion(scratch.frame).applyQuaternion(scratch.parent.invert())
+  bone.quaternion.premultiply(scratch.delta.setFromAxisAngle(scratch.axis, angle))
+  bone.updateMatrixWorld(true)
+}
 
 export function GrandpaIntruder({ round, sceneTime, avatar, getFinalePreview }: {
   round: PreviewRound
@@ -190,20 +235,30 @@ export function GrandpaIntruder({ round, sceneTime, avatar, getFinalePreview }: 
     model.update(delta, 0, sample.opacity)
     frame.updateMatrixWorld(true)
 
-    // Torso turn about the grandpa's own vertical axis.
+    // A stooped back that bends further into each swing, a torso that winds with the broom,
+    // and a head that stays up to glare at the pigeons (or mutters on the way out).
     frame.getWorldQuaternion(scratch.frame)
+    const awake = 1 - freeze
+    const gesture = sample.gesture
+    const bend = stoop + pose.lean + gesture.stoop * awake
     for (const [name, share] of spineBones) {
       const bone = bones.get(name)
-      if (!bone?.parent) continue
-      bone.parent.getWorldQuaternion(scratch.parent)
-      scratch.axis.copy(up).applyQuaternion(scratch.frame).applyQuaternion(scratch.parent.invert())
-      bone.quaternion.premultiply(scratch.delta.setFromAxisAngle(scratch.axis, pose.twist * share))
-      bone.updateMatrixWorld(true)
+      if (!bone) continue
+      bendInFrame(bone, up, pose.twist * share)
+      bendInFrame(bone, side, bend * share)
+      bendInFrame(bone, forward, -(pose.tilt + gesture.sway * awake) * share)
+    }
+    for (const [name, share] of headBones) {
+      const bone = bones.get(name)
+      if (!bone) continue
+      // Keep looking ahead: undo most of the stoop and some of the coil, then add the mutter and the glare.
+      bendInFrame(bone, up, (-0.55 * pose.twist + gesture.headShake * awake) * share)
+      bendInFrame(bone, side, -(0.8 * bend + gesture.glare * awake) * share)
     }
 
     // The broom grip turns with the torso; its direction is set in the grandpa's frame.
     broom.group.position.copy(scratch.grip.set(pose.gripX, pose.gripY, pose.gripZ).applyAxisAngle(up, pose.twist))
-    broom.group.quaternion.setFromEuler(scratch.euler.set(-pose.pitch, pose.yaw, 0, 'YXZ'))
+    broom.group.quaternion.setFromEuler(scratch.euler.set(-pose.pitch, pose.yaw, pose.roll, 'YXZ'))
     broom.group.updateMatrixWorld(true)
     const rightArm = bones.get('RightArm'), rightFore = bones.get('RightForeArm'), rightHand = bones.get('RightHand')
     if (rightArm && rightFore && rightHand) {
@@ -214,6 +269,10 @@ export function GrandpaIntruder({ round, sceneTime, avatar, getFinalePreview }: 
     if (leftArm && leftFore && leftHand && pose.twoHands > 0.01) {
       broom.group.localToWorld(scratch.target.set(0, 0, leftHandAlong))
       reach(leftArm, leftFore, leftHand, scratch.target, leftPole, frame, Math.min(1, pose.twoHands))
+    } else if (leftArm && leftFore && leftHand && gesture.fist * awake > 0.01) {
+      // The free hand shakes a fist at the pigeons while he stomps in, and a little on the way out.
+      frame.localToWorld(scratch.target.set(0.42, 1.95 + 0.09 * gesture.fistShake, 0.28 + 0.05 * gesture.fistShake))
+      reach(leftArm, leftFore, leftHand, scratch.target, fistPole, frame, Math.min(1, gesture.fist * awake))
     }
 
     for (const material of broom.materials) {
