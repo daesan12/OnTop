@@ -6,6 +6,7 @@ import {useCompanions,type Practice} from '../../src/features/ai/companions'
 import {syncPracticeSpectator} from '../../src/features/ai/practiceSpectator'
 import {useSession,resetWorld} from '../../src/network/worldClient'
 import {useTableLobby} from '../../src/features/tableLobby/state'
+import {useBenchSpectator} from '../../src/features/interactions/benchSpectator'
 
 function practice():Practice{return {name:'김잼민',npcUserId:'9001',difficulty:'EASY',phase:'PLAYING',bet:0,thinking:false,speech:'좋아',speechSource:'FIXED',analysis:{source:'LOCAL',blackEstimate:null,advantage:'UNKNOWN'},analysisNote:'',lastMove:{x:7,y:7,stone:'BLACK'},snapshot:{gameId:'npc-test',tableId:'table1',version:1,blackUserId:101,whiteUserId:9001,turnUserId:101,winnerUserId:null,turnDeadline:new Date(Date.now()+30000).toISOString(),endedAt:null,endReason:null,board:{board:Array.from({length:15},()=>Array(15).fill(0)),moveCount:1,outcome:'PLAYING',forbiddenMoves:[{x:3,y:3,kind:'33'}]}}}}
 beforeEach(()=>{resetAiFeatures();useAiFeatures.setState({companions:true,jokeContest:false,loaded:true})})
@@ -42,6 +43,32 @@ it('projects the NPC snapshot into the existing board without modifying producti
  expect(canPlaceDisplayed('9001',7,7)).toBe(false)
  useCompanions.setState({practicePending:true});expect(canPlaceDisplayed('101',7,7)).toBe(false)
  useCompanions.setState({practicePending:false,receivedAt:performance.now()-5000});expect(canPlaceDisplayed('101',7,7)).toBe(false)
+})
+it.each(['missing','finished','replaced','revoked'] as const)('releases NPC spectator presentation after %s status',kind=>{
+ useSession.setState({status:'connected',tableId:'',watchedTableId:'table1'})
+ const p=practice()
+ useCompanions.setState({observedPractice:p,practiceChat:{gameId:p.snapshot.gameId,version:1,role:'SPECTATOR'},receivedAt:performance.now()})
+ useTableLobby.setState({spectatorRequested:true,spectatorStatus:'watching',spectatorView:'board'})
+ useBenchSpectator.setState({scope:'fixture',view:'board'})
+ if(kind==='missing')useCompanions.setState({observedPractice:null,practiceChat:null})
+ if(kind==='finished')useCompanions.setState({observedPractice:{...p,snapshot:{...p.snapshot,endedAt:new Date().toISOString()}}})
+ if(kind==='replaced')useCompanions.setState({observedPractice:{...p,snapshot:{...p.snapshot,gameId:'new-game'}},practiceChat:{gameId:'new-game',version:1,role:'SPECTATOR'}})
+ if(kind==='revoked')useCompanions.setState({practiceChat:null})
+ expect(syncPracticeSpectator(p.snapshot.gameId)).toBe('ended')
+ expect(useTableLobby.getState().spectatorRequested).toBe(false)
+ expect(useTableLobby.getState().spectatorStatus).toBe('idle')
+ expect(useBenchSpectator.getState().view).toBe('seated')
+ expect(useDisplayGame.getState().localPractice).toBeNull()
+ syncPracticeSpectator()
+ expect(useTableLobby.getState().spectatorRequested).toBe(false)
+})
+it('never releases a normal player match or a not-yet-started spectator request',()=>{
+ useTableLobby.setState({spectatorRequested:true,spectatorStatus:'waiting'})
+ expect(syncPracticeSpectator()).toBeUndefined()
+ expect(useTableLobby.getState().spectatorRequested).toBe(true)
+ useGame.setState({watchedGameId:'normal-game'})
+ expect(syncPracticeSpectator('previous-npc')).toBeUndefined()
+ expect(useTableLobby.getState().spectatorRequested).toBe(true)
 })
 it('keeps arrival out of the game camera and restores production display after release',()=>{
  const p=practice();p.phase='ARRIVING'

@@ -17,6 +17,7 @@ import { useDisplayGame } from '../../src/game/displayGame'
 import { benchAnchors } from '../../src/features/interactions/benchAnchors'
 import { benchTable } from '../../src/features/interactions/benchSpectator'
 import { useBenchState, resetBenchState } from '../../src/features/interactions/benchState'
+import {syncPracticeSpectator} from '../../src/features/ai/practiceSpectator'
 
 const table = { tableId: 'server-table', version: 1, capacity: 2, minimumPlayers: 2,
   seats: [{ seatNumber: 1, userId: null, ready: false }, { seatNumber: 2, userId: '102', ready: false }],
@@ -130,6 +131,22 @@ it.each(['cancel','leave'] as const)('%s rejects a delayed NPC bench observation
  expect(await watching).toBe(false)
  expect(useTableLobby.getState().spectatorRequested).toBe(false)
  expect(useCompanions.getState().observedPractice).toBeNull()
+})
+it('status removal ends the NPC intent while retaining the bench and does not resume on the next match',async()=>{
+ const {anchor,bench,status}=npcBench()
+ vi.spyOn(runtime,'requestJSON').mockResolvedValue(status)
+ expect(await runtime.watchBench(anchor)).toBe(true)
+ useCompanions.setState({observedPractice:null,practiceChat:null})
+ expect(syncPracticeSpectator(status.observedPractice.snapshot.gameId)).toBe('ended')
+ await runtime.unwatchGame(true)
+ expect(useSession.getState().benchId).toBe(bench.id)
+ expect(useTableLobby.getState().spectatorStatus).toBe('idle')
+ socket.emit('TABLE_WATCH_STATE',table)
+ expect(useTableLobby.getState().spectatorRequested).toBe(false)
+ useCompanions.setState({observedPractice:status.observedPractice,practiceChat:{gameId:status.observedPractice.snapshot.gameId,version:1,role:'SPECTATOR'}})
+ syncPracticeSpectator()
+ expect(useDisplayGame.getState().localPractice).toBeNull()
+ expect(await runtime.watchBench(anchor)).toBe(true)
 })
 it('standing spectator exit releases hidden table focus; a newer inspection survives late cleanup', async () => {
   const anchor = nearTable()
