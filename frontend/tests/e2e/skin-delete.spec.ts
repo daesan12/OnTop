@@ -6,14 +6,14 @@ const set={id:'33333333-3333-4333-8333-333333333333',definition:{productCode:'SE
 async function workshop(page:Page,{sets=true,reject='',any=false}={}){
  await fixture(page)
  let hasItem=true,hasSet=sets,failure=reject
- const sent:{path:string;body:unknown}[]=[]
+ const sent:{path:string;version:string|null}[]=[]
  await page.route('**/api/v1/admin/me',r=>r.fulfill({json:{canRead:true,canOperate:true,canGrant:false}}))
  await page.route('**/api/v1/skins/assets',r=>r.fulfill({json:[]}))
  await page.route('**/api/v1/admin/operations/skins**',async r=>{
   const path=new URL(r.request().url()).pathname
   if(r.request().method()==='DELETE'){
-   sent.push({path,body:r.request().postDataJSON()})
-   expect(r.request().headers()['content-type']).toContain('application/json')
+   sent.push({path,version:new URL(r.request().url()).searchParams.get('version')})
+   expect(r.request().postData()).toBeNull()
    if(failure)return r.fulfill({status:failure==='UNAVAILABLE'?503:409,json:{code:failure}})
    if(path.includes('/sets/'))hasSet=false;else hasItem=false
    return r.fulfill({status:204})
@@ -38,7 +38,7 @@ test('set deletion can be cancelled and resets the selected editor only after co
  await expect(library.locator('li')).toHaveCount(0)
  await expect(page.getByLabel('남자 세트 이름',{exact:true})).toHaveValue('')
  await expect(page.getByLabel('여자 세트 이름',{exact:true})).toHaveValue('다른 편집기의 저장 전 이름')
- expect(sent[0]).toEqual({path:'/api/v1/admin/operations/skins/sets/'+set.id,body:{version:4}})
+ expect(sent[0]).toEqual({path:'/api/v1/admin/operations/skins/sets/'+set.id,version:'4'})
  await page.screenshot({path:info.outputPath('set-deleted.png'),fullPage:true})
  await page.getByRole('button',{name:'목록 새로고침',exact:true}).click()
  await expect(library.locator('li')).toHaveCount(0)
@@ -83,7 +83,7 @@ test('referenced skin stays visible with guidance, then successful deletion clea
  await page.screenshot({path:info.outputPath('referenced-skin-retry.png'),fullPage:true})
  state.allow();page.once('dialog',d=>d.accept());await button.click()
  await expect(button).toHaveCount(0);await expect(name).toHaveValue('')
- expect(state.sent.at(-1)?.body).toEqual({version:2})
+ expect(state.sent.at(-1)?.version).toBe('2')
 })
 
 test('service failure leaves a skin in the list and enables retry',async({page})=>{

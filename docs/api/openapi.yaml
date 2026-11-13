@@ -168,12 +168,12 @@ paths:
         required: true
         schema:
           type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Version"
+      - name: version
+        in: query
         required: true
+        schema:
+          type: integer
+          format: int64
       responses:
         "204":
           description: 공방 목록에서 삭제 완료
@@ -233,12 +233,12 @@ paths:
         required: true
         schema:
           type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Version"
+      - name: version
+        in: query
         required: true
+        schema:
+          type: integer
+          format: int64
       responses:
         "204":
           description: 공방 목록에서 삭제 완료

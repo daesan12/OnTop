@@ -47,6 +47,20 @@ class OpenApiLocalTests extends OpenApiHttpTestSupport {
     }
 
     @Test
+    void 공방_삭제는_본문_없이_필수_버전_쿼리를_받는다() throws Exception {
+        var api=json();
+        for(String path:java.util.List.of("/api/v1/admin/operations/skins/{id}","/api/v1/admin/operations/skins/sets/{id}")) {
+            var operation=api.path("paths").path(path).path("delete");
+            assertThat(operation.has("requestBody")).isFalse();
+            var version=java.util.stream.StreamSupport.stream(operation.path("parameters").spliterator(),false)
+                    .filter(p->p.path("name").asText().equals("version")).findFirst().orElseThrow();
+            assertThat(version.path("in").asText()).isEqualTo("query");
+            assertThat(version.path("required").asBoolean()).isTrue();
+            assertThat(version.at("/schema/format").asText()).isEqualTo("int64");
+        }
+    }
+
+    @Test
     void 실제_YAML을_내보내고_커밋된_정적_명세와_구조를_비교한다() throws Exception {
         var response = get("/v3/api-docs.yaml");
         assertThat(response.statusCode()).isEqualTo(200);

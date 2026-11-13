@@ -46,8 +46,8 @@ public class SkinController {
     public ResponseEntity<?> disableSet(Principal p,@PathVariable String id,@RequestBody Version input) { if(input==null) throw SkinException.invalid("버전이 필요합니다.");return ok(sets().disable(account(p),id,input.version())); }
     @DeleteMapping(ROOT+"/sets/{id}") @Operation(operationId="deleteSkinSet",summary="공방에서 세트 삭제",description="version 확인 후 목록·신규 획득에서 제거. 기존 보유·영수증 유지")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="204",description="공방 목록에서 삭제 완료")
-    public ResponseEntity<?> deleteSet(Principal p,@PathVariable String id,@RequestBody Version input) {
-        if(input==null)throw SkinException.invalid("버전이 필요합니다.");sets().delete(account(p),id,input.version());return deleted();
+    public ResponseEntity<?> deleteSet(Principal p,@PathVariable String id,@RequestParam long version) {
+        sets().delete(account(p),id,version);return deleted();
     }
     private SkinSetService sets() { var s=sets.getIfAvailable();if(s==null) throw new SkinException(503,"SKIN_REGISTRATION_UNAVAILABLE","세트 DB 설정이 필요합니다.");return s; }
     @GetMapping(ROOT+"/{id}") @Operation(operationId="getSkinRegistration",summary="스킨 등록 상세 복구")
@@ -66,7 +66,7 @@ public class SkinController {
     public ResponseEntity<?> disable(Principal p,@PathVariable String id,@RequestBody Version input) { return ok(service().disable(account(p),id,input)); }
     @DeleteMapping(ROOT+"/{id}") @Operation(operationId="deleteSkinRegistration",summary="공방에서 스킨 삭제",description="version 확인, 참조 세트가 남아 있으면409. 기존 보유·착용·공개 파일 유지")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="204",description="공방 목록에서 삭제 완료")
-    public ResponseEntity<?> delete(Principal p,@PathVariable String id,@RequestBody Version input) { service().delete(account(p),id,input);return deleted(); }
+    public ResponseEntity<?> delete(Principal p,@PathVariable String id,@RequestParam long version) { service().delete(account(p),id,new Version(version));return deleted(); }
     @GetMapping("/skins/assets") @Operation(operationId="listSkinAssets",summary="공개 의상 파일 목록",description="인증 회원 전용. 임시 파일·서명 URL 제외, 비활성 상품의 기존 파일은 유지")
     public ResponseEntity<?> assets(Principal p) { account(p);var s=services.getIfAvailable();return ok(s==null?List.of():s.assets()); }
     private SkinService service() { var s=services.getIfAvailable();if(s==null) throw new SkinException(503,"SKIN_REGISTRATION_UNAVAILABLE","스킨 등록 DB 설정이 필요합니다.");return s; }

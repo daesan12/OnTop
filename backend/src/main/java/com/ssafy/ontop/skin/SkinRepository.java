@@ -113,7 +113,7 @@ public class SkinRepository {
         jdbc.update("UPDATE skin_catalog SET state='DISABLED',state_version=state_version+1,updated_by=?,updated_at=CURRENT_TIMESTAMP(3) WHERE id=?",user,e.id());
     }
     public boolean referencedBySet(String id) {
-        return jdbc.queryForObject("SELECT COUNT(*) FROM skin_set_members m JOIN skin_sets s ON s.id=m.set_id WHERE m.skin_id=? AND s.deleted_at IS NULL",Integer.class,id)>0;
+        return jdbc.queryForObject("SELECT COUNT(*) FROM skin_sets s WHERE s.deleted_at IS NULL AND (s.image_skin_id=? OR EXISTS (SELECT 1 FROM skin_set_members m WHERE m.set_id=s.id AND m.skin_id=?))",Integer.class,id,id)>0;
     }
     public void delete(Entry e,long user) {
         disable(e,user);
