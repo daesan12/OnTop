@@ -5,6 +5,7 @@ import {
 } from './adminMoleAudit'
 import { kstDate } from './adminAnalytics'
 import { JumpmapMacroPanel } from './JumpmapMacroPanel'
+import { JumpRopeMacroPanel } from './JumpRopeMacroPanel'
 import './adminMacroAnalysis.css'
 
 const gameOptions = { 'whack-a-mole': '두더지 잡기', 'speed-mole': '스피드 두더지 잡기' } as const
@@ -20,7 +21,7 @@ const receivedTime = new Intl.DateTimeFormat('ko-KR', {
 })
 
 export function AdminMacroAnalysisPage({ onAuthEnded }: { onAuthEnded: () => void }) {
-  const [view, setView] = useState<'games' | 'mole' | 'jumpmap'>('games')
+  const [view, setView] = useState<'games' | 'mole' | 'jumpmap' | 'jumpRope'>('games')
   return <section className="admin-feedback-content admin-macro">
     {view === 'games' ? <>
       <h2>게임 매크로 분석</h2>
@@ -30,9 +31,13 @@ export function AdminMacroAnalysisPage({ onAuthEnded }: { onAuthEnded: () => voi
       <button type="button" className="admin-macro-game" onClick={() => setView('jumpmap')}>
         <strong>점프맵 반복 패턴</strong><span>반복 재생으로 보이는 판이 기록된 회원과 적발 횟수를 조회합니다.</span>
       </button>
+      <button type="button" className="admin-macro-game" onClick={() => setView('jumpRope')}>
+        <strong>구구구 줄넘기 기록</strong><span>같은 점프 기록의 재제출과 흔들림 없는 박자가 기록된 회원을 조회합니다.</span>
+      </button>
     </> : <>
       <button type="button" className="admin-macro-back" onClick={() => setView('games')}>← 게임 선택</button>
-      {view === 'mole' ? <MoleAudit onAuthEnded={onAuthEnded} /> : <JumpmapMacroPanel onAuthEnded={onAuthEnded} />}
+      {view === 'mole' ? <MoleAudit onAuthEnded={onAuthEnded} />
+        : view === 'jumpmap' ? <JumpmapMacroPanel onAuthEnded={onAuthEnded} /> : <JumpRopeMacroPanel onAuthEnded={onAuthEnded} />}
     </>}
   </section>
 }

@@ -74,6 +74,7 @@ public class RestSecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/v1/admin/me", "/api/v1/admin/feedback",
                                 "/api/v1/admin/analytics/**", "/api/v1/admin/macro-analysis/mole",
                                 "/api/v1/admin/macro-analysis/mole/*", "/api/v1/admin/macro-analysis/jumpmap",
+                                "/api/v1/admin/macro-analysis/jump-rope",
                                 "/api/v1/admin/raffles/rounds/*",
                                 "/api/v1/admin/raffles/rounds/*/draws/current",
                                 "/api/v1/admin/events/minigames/*/rounds/*",
