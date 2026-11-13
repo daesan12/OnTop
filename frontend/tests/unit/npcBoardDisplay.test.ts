@@ -3,10 +3,32 @@ import {useAiFeatures,resetAiFeatures} from '../../src/features/ai/serviceFeatur
 import {resetGame,useGame} from '../../src/game/store'
 import {displayedGame,useDisplayGame,canPlaceDisplayed} from '../../src/game/displayGame'
 import {useCompanions,type Practice} from '../../src/features/ai/companions'
+import {syncPracticeSpectator} from '../../src/features/ai/practiceSpectator'
+import {useSession,resetWorld} from '../../src/network/worldClient'
+import {useTableLobby} from '../../src/features/tableLobby/state'
 
 function practice():Practice{return {name:'김잼민',npcUserId:'9001',difficulty:'EASY',phase:'PLAYING',bet:0,thinking:false,speech:'좋아',speechSource:'FIXED',analysis:{source:'LOCAL',blackEstimate:null,advantage:'UNKNOWN'},analysisNote:'',lastMove:{x:7,y:7,stone:'BLACK'},snapshot:{gameId:'npc-test',tableId:'table1',version:1,blackUserId:101,whiteUserId:9001,turnUserId:101,winnerUserId:null,turnDeadline:new Date(Date.now()+30000).toISOString(),endedAt:null,endReason:null,board:{board:Array.from({length:15},()=>Array(15).fill(0)),moveCount:1,outcome:'PLAYING',forbiddenMoves:[{x:3,y:3,kind:'33'}]}}}}
 beforeEach(()=>{resetAiFeatures();useAiFeatures.setState({companions:true,jokeContest:false,loaded:true})})
-afterEach(()=>{resetAiFeatures();useCompanions.setState({practice:null,observedPractice:null,practiceChat:null,practicePending:false,practiceError:''});resetGame()})
+afterEach(()=>{resetAiFeatures();useCompanions.setState({practice:null,observedPractice:null,practiceChat:null,practicePending:false,practiceError:''});resetGame();resetWorld();useTableLobby.setState({spectatorRequested:false,spectatorStatus:'idle',entryNotice:null})})
+it('completes authorized matching observation and never revives a cancelled request',()=>{
+ useSession.setState({status:'connected',tableId:'',watchedTableId:'table1'})
+ useTableLobby.setState({spectatorRequested:true,spectatorStatus:'waiting',panelOpen:true})
+ const p=practice()
+ useCompanions.setState({observedPractice:p,practiceChat:null})
+ syncPracticeSpectator();expect(useTableLobby.getState().spectatorStatus).toBe('waiting')
+ useCompanions.setState({practiceChat:{gameId:'other',version:1,role:'SPECTATOR'}})
+ syncPracticeSpectator();expect(useTableLobby.getState().spectatorStatus).toBe('waiting')
+ useCompanions.setState({practiceChat:{gameId:p.snapshot.gameId,version:1,role:'SPECTATOR'}})
+ useSession.setState({watchedTableId:'other'})
+ syncPracticeSpectator();expect(useTableLobby.getState().spectatorStatus).toBe('waiting')
+ useSession.setState({watchedTableId:'table1'})
+ syncPracticeSpectator();expect(useTableLobby.getState().spectatorStatus).toBe('watching')
+ expect(useTableLobby.getState().panelOpen).toBe(false)
+ expect(useTableLobby.getState().entryNotice).toBeNull()
+ useTableLobby.setState({spectatorRequested:false,spectatorStatus:'idle'})
+ syncPracticeSpectator();expect(useTableLobby.getState().spectatorRequested).toBe(false)
+ expect(useTableLobby.getState().spectatorStatus).toBe('idle')
+})
 it('projects the NPC snapshot into the existing board without modifying production authority',()=>{
  const p=practice(),original=useGame.getState()
  useCompanions.setState({practice:p,receivedAt:performance.now()})
