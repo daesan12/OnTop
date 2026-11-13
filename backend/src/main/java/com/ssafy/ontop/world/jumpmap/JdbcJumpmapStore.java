@@ -88,13 +88,15 @@ public class JdbcJumpmapStore implements JumpmapStore {
         return rankings.ranking(userId);
     }
 
+    // 적발 시각은 쓸 때와 읽을 때 모두 SQL에서 epoch millis로 바꾼다. JVM 기본 시간대나 DB 세션 시간대가
+    // 달라도 같은 순간을 가리킨다(공원 랭킹 저장소와 같은 방식).
     @Override
     public void recordDetection(MacroDetection detection) {
         transaction(() -> jdbc.update("""
                 INSERT IGNORE INTO jump_macro_detections(run_id, user_id, rule, matched_runs, evidence, detected_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, FROM_UNIXTIME(? / 1000))
                 """, detection.runId(), detection.userId(), detection.rule(), detection.matchedRuns(),
-                write(detection.evidence()), time(detection.detectedAt())));
+                write(detection.evidence()), detection.detectedAt().toEpochMilli()));
     }
 
     @Override
@@ -104,12 +106,13 @@ public class JdbcJumpmapStore implements JumpmapStore {
                     SELECT d.user_id, u.nickname, u.deleted_at IS NOT NULL AS withdrawn,
                            COUNT(DISTINCT d.run_id) AS flagged_runs,
                            SUM(d.rule = 'REPLAY') AS replay_runs, SUM(d.rule = 'FIXED_START') AS fixed_start_runs,
-                           MIN(d.detected_at) AS first_at, MAX(d.detected_at) AS last_at,
+                           CAST(UNIX_TIMESTAMP(MIN(d.detected_at)) * 1000 AS SIGNED) AS first_ms,
+                           CAST(UNIX_TIMESTAMP(MAX(d.detected_at)) * 1000 AS SIGNED) AS last_ms,
                            (SELECT COUNT(*) FROM jump_runs r WHERE r.user_id = d.user_id) AS total_runs,
                            (SELECT p.best_finish_ms FROM jump_profiles p WHERE p.user_id = d.user_id) AS best_finish_ms
                     FROM jump_macro_detections d JOIN users u ON u.id = d.user_id
                     GROUP BY d.user_id, u.nickname, u.deleted_at
-                    ORDER BY flagged_runs DESC, last_at DESC, d.user_id ASC
+                    ORDER BY flagged_runs DESC, last_ms DESC, d.user_id ASC
                     LIMIT ?
                     """, limit);
             var items = new ArrayList<MacroSuspect>();
@@ -119,14 +122,15 @@ public class JdbcJumpmapStore implements JumpmapStore {
                         row.get("withdrawn") instanceof Boolean flag ? flag : ((Number) row.get("withdrawn")).intValue() != 0,
                         ((Number) row.get("flagged_runs")).intValue(), ((Number) row.get("replay_runs")).intValue(),
                         ((Number) row.get("fixed_start_runs")).intValue(), ((Number) row.get("total_runs")).longValue(),
-                        best == null ? null : best.longValue(), utc(row.get("first_at")), utc(row.get("last_at"))));
+                        best == null ? null : best.longValue(), instant(row.get("first_ms")),
+                        instant(row.get("last_ms"))));
             }
             return List.copyOf(items);
         });
     }
 
-    private static String utc(Object timestamp) {
-        return ((Timestamp) timestamp).toLocalDateTime().toInstant(ZoneOffset.UTC).toString();
+    private static String instant(Object epochMillis) {
+        return Instant.ofEpochMilli(((Number) epochMillis).longValue()).toString();
     }
 
     private List<RankingEntry> loadRanking() {
