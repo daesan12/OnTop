@@ -156,7 +156,7 @@ function RentalPairs({ shared, entrance, batch }: { shared: ReturnType<typeof ge
   .map(s=><group key={s.id} name={'paired-rental-'+s.id} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,rentalYaw(s),0]}>{[-1,1].map((side,i)=><group key={side} position={[side*RENTAL_PAIR_SPACING/2,0,0]}><SharedModel source={shared[i===0?'bike':'scooter']}/></group>)}</group>)}</>
 }
 export const distantRentalBatches = Math.ceil(SITES.filter(s=>s.asset==='pair'&&!entranceRentalIds.has(s.id)).length / 3)
-export function Buildings({live=false,distantReady=true,upperFacilitiesReady=distantReady,loadedRentalBatches=distantRentalBatches}:{live?:boolean;distantReady?:boolean;upperFacilitiesReady?:boolean;loadedRentalBatches?:number}){const shared=getSharedBuildingModels();const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
+export function Buildings({live=false,distantReady=true,upperFacilitiesReady=distantReady,loadedRentalBatches=distantRentalBatches,ambientBoats=true}:{live?:boolean;distantReady?:boolean;upperFacilitiesReady?:boolean;loadedRentalBatches?:number;ambientBoats?:boolean}){const shared=getSharedBuildingModels();const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
  {SITES.filter(s=>s.asset&&models[s.asset]&&(distantReady||s.asset!=='stele')).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);const model=<group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit} prepareShaders={live&&s.asset==='stele'}/></Suspense></group>;return isDock?<LakePart key={s.id} at={LakeStage.Dock}>{model}</LakePart>:model})}
  <RentalPairs shared={shared} entrance/>
  {distantReady&&(live
@@ -196,11 +196,11 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
  {REST_PAVILIONS.map(([x,z],i)=><group key={i} name={'facility-rest-'+(i+1)} userData={{pavilionId:pavilionIdForSite('rest-'+(i+1))}} position={[x,heightAt(x,z),z]} rotation={[0,site('rest-'+(i+1)).yaw!,0]}><Suspense fallback={null}><StructureModel kind="pavilion"/></Suspense><PavilionIntermediateTreads/></group>)}
  <LakePart at={LakeStage.Willows}><LakeWillows/></LakePart>
  <LakePart at={LakeStage.IslandPavilion}><group name="enlarged-island-pavilion" userData={{pavilionId:'P5'}} position={[LAKE.island.x,4.2,LAKE.island.z]} rotation={[0,-Math.PI/2,0]}><Suspense fallback={null}><StructureModel kind="pavilion"/></Suspense><PavilionIntermediateTreads/></group></LakePart>
- <LakePart at={LakeStage.Boats}>
+ {ambientBoats && <LakePart at={LakeStage.Boats}>
   {[-2.1,2.1].map(dx=><group key={dx} name="moored-duck-boat" position={[site('dock').x+dx,LAKE.y+.08,site('dock').z-3.7]}><Suspense fallback={null}><Model kind="boat"/></Suspense></group>)}
- </LakePart>
+ </LakePart>}
  <FishingPier/>
- <LakePart at={LakeStage.Boats}><Boats/></LakePart>
+ {ambientBoats && <LakePart at={LakeStage.Boats}><Boats/></LakePart>}
  <LakePart at={LakeStage.FishingShop}>
   <group position={[FISHING_SHOP.x,FISHING_SHOP.y+.1,FISHING_SHOP.z]} rotation={[0,FISHING_SHOP.yaw,0]}><LocalFactory kind="fishing-shop"/></group>
  </LakePart>
