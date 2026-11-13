@@ -1,10 +1,12 @@
 package com.ssafy.ontop.game.mole.service;
 
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.game.mole.domain.MoleRound;
 import com.ssafy.ontop.game.mole.domain.MoleRules;
 import com.ssafy.ontop.game.mole.dto.MoleDtos;
 import com.ssafy.ontop.game.mole.repository.MoleRepository;
 import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
+import com.ssafy.ontop.minigame.service.MoleTargets;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import java.time.Clock;
@@ -22,6 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 40점당 1냥(규칙 3)을 미니게임 공통 하루 상한 안에서 지급한다. 판정 엔진과 분리해 공통 지갑·원장만 사용한다.
  */
 public class MoleService {
+    private static final String GAME = "whack-a-mole";
     private static final String REQUEST_KEY = "[A-Za-z0-9_-]{1,64}";
     /** 완료 요청은 90초 판에 시작 카운트다운과 네트워크 지연을 더한 시간 안에 와야 한다. */
     static final long LATE_GRACE_MS = 30_000;
@@ -35,9 +38,15 @@ public class MoleService {
     private final TransactionTemplate reads;
     private final Clock clock;
     private final RandomGenerator random;
+    private final BehaviorLog behaviorLog;
 
     public MoleService(MoleRepository repository, PlatformTransactionManager manager, Clock clock,
             RandomGenerator random) {
+        this(repository, manager, clock, random, BehaviorLog.disabled());
+    }
+
+    public MoleService(MoleRepository repository, PlatformTransactionManager manager, Clock clock,
+            RandomGenerator random, BehaviorLog behaviorLog) {
         this.repository = repository;
         this.transactions = new TransactionTemplate(manager);
         this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
@@ -46,6 +55,7 @@ public class MoleService {
         this.reads.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
         this.clock = clock;
         this.random = random;
+        this.behaviorLog = behaviorLog;
     }
 
     /** 현재 규칙의 회원별 최고 기록 전체 랭킹. 스피드 두더지 랭킹과 같은 페이지 방식이다. */
@@ -98,13 +108,13 @@ public class MoleService {
         if (roundId <= 0 || (hits != null && (hits.size() > MoleRules.MAX_HITS || hits.stream().anyMatch(Objects::isNull)))) {
             throw new MoleException(400, "MOLE_INVALID_REQUEST", "타격 기록을 확인해 주세요.");
         }
-        return transactions.execute(status -> {
+        var completion = transactions.execute(status -> {
             Wallet wallet = lockWallet(userId);
             Instant now = clock.instant();
             MoleRound round = repository.findRound(userId, roundId).orElseThrow(() ->
                     new MoleException(404, "MOLE_ROUND_NOT_FOUND", "판을 찾을 수 없어요."));
             if (round.status() == MoleRound.Status.SETTLED) {
-                return settlement(userId, round, now);
+                return new MoleTargets.Completion<>(settlement(userId, round, now), 0);
             }
             long elapsed = now.toEpochMilli() - round.startedAt().toEpochMilli();
             // 판정 규칙이 바뀌기 전에 시작한 판은 같은 출현표를 다시 만들 수 없어 보상 없이 끝낸다.
@@ -115,8 +125,11 @@ public class MoleService {
             if (elapsed < MoleRules.DURATION_MS) {
                 throw new MoleException(409, "MOLE_ROUND_NOT_FINISHED", "아직 끝나지 않은 판이에요.");
             }
-            List<MoleRules.Hit> taps = hits == null ? List.of()
-                    : hits.stream().map(hit -> new MoleRules.Hit(hit.hole(), hit.at())).toList();
+            var hiddenIds = new MoleTargets(GAME, round.id(), round.seed()).hiddenIds(MoleRules.KEYS.size());
+            List<MoleRules.Hit> taps = hits == null ? List.of() : hits.stream()
+                    .filter(hit -> !hiddenIds.contains(hit.targetId()))
+                    .map(hit -> new MoleRules.Hit(hit.hole(), hit.at())).toList();
+            int hiddenTaps = hits == null ? 0 : hits.size() - taps.size();
             MoleRules.Score score = MoleRules.score(MoleRules.schedule(round.seed()), taps);
             int granted = MinigameRewardBudget.grant(score.coins(), earnedToday(userId, now));
             if (granted > 0) {
@@ -126,8 +139,9 @@ public class MoleService {
             }
             round.settle(score, granted, now);
             repository.flush();
-            return settlement(userId, round, now);
+            return new MoleTargets.Completion<>(settlement(userId, round, now), hiddenTaps);
         });
+        return completion.report(GAME, userId, roundId, behaviorLog, clock.instant());
     }
 
     private MoleDtos.Settlement settlement(long userId, MoleRound round, Instant now) {
@@ -146,7 +160,8 @@ public class MoleService {
                 .map(mole -> new MoleDtos.Mole(mole.id(), mole.hole(), mole.kind().name(), mole.hits(),
                         mole.appearAt(), mole.leaveAt()))
                 .toList();
-        return new MoleDtos.Round(Long.toString(round.id()), round.startedAt(), RULES, moles);
+        var targets = new MoleTargets(GAME, round.id(), round.seed()).forStart(MoleRules.KEYS.size());
+        return new MoleDtos.Round(Long.toString(round.id()), round.startedAt(), RULES, moles, targets);
     }
 
     private static MoleDtos.Result result(MoleRound round) {

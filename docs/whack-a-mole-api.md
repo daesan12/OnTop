@@ -43,8 +43,11 @@
 
 - 시작: 같은 키를 다시 보내면 같은 판을 돌려준다. 새 판을 열면 끝내지 않은 이전 판은 `EXPIRED`로 보상 없이 닫는다.
   출현표 `moles[]`는 `id · hole · kind(NORMAL|GOLD|RAPID|DECOY) · hits · appearAt · leaveAt`(판 시작 기준 ms)다.
+  `targets[]`는 구멍 번호와 동일한 형식의 ID 두 개(`hole · ids[2]`)를 담는다. 화면과 점수 판정에는 기존 `moles[]`를 사용한다.
 - 완료: 서버 시작 시각부터 90초가 지나야 받고(`MOLE_ROUND_NOT_FINISHED`), 120초가 넘으면 `MOLE_ROUND_EXPIRED`다.
   타격은 최대 1,200개. 이미 정산한 판은 같은 결과를 돌려주고 다시 지급하지 않는다.
+  실제 표적 타격에는 판 ID 문자열에서 선택한 해당 구멍의 `targetId`를 선택적으로 첨부한다. 해당 판의 숨은 ID 타격은
+  점수 계산에서 제외하고 정산 성공 뒤 `mole_honeypot_hit` 로그를 한 줄 남긴다. 보상·랭킹 기준은 기존과 같다.
 - 정산 응답: `result(id · score · maxCombo · caught · calculatedReward · reward · settledAt) · todayEarned · dailyCap · bestScore`.
   `calculatedReward`는 40점당 1냥 값, `reward`는 하루 상한을 적용해 실제 지급한 값이다.
 - 상태·정산의 `bestScore`는 랭킹과 같은 기준으로 현재 규칙(3)으로 정산한 판의 최고 점수다.
@@ -68,6 +71,8 @@
 | 503 | `MOLE_UNAVAILABLE` (같은 요청으로 재시도) |
 
 ## 저장
+
+관리자 화면의 판 중 타격 관측과 비교는 [두더지 운영 관측](mole-audit.md)을 따른다.
 
 `db/minigame/V147__create_mole_rounds.sql`이 `mole_rounds`를 만든다. 시드와 `rules_version`으로 출현표를 다시 만들 수 있어
 출현표 자체는 저장하지 않는다. `V149__mole_rules_v2_reward_rate.sql`과 `V150__mole_rules_v3_reward_rate.sql`이 정산 CHECK를 규칙 버전별 비율(1: 30, 2: 45, 3 이후: 40)로 맞춘다.

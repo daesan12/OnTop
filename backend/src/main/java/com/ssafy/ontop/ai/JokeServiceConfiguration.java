@@ -18,7 +18,7 @@ public class JokeServiceConfiguration {
     LocalJokeContest jokeContest(ObjectMapper mapper,DataSource source,AiText text,
             @Value("${JEV_API_KEY:}") String jevKey,@Value("${JEV_MODEL:jev-1.14.0}") String jevModel,
             @Value("${OPENAI_API_KEY:}") String llmKey,
-            @Value("${AI_LLM_MODEL:${AI_LAB_LLM_MODEL:gpt-4.1-mini}}") String model){
+            @Value("${AI_JOKE_LLM_MODEL:gpt-5.4-mini}") String model){
         // Never publish fixture scores in the service. Missing providers refund the attempt.
         JokeJudge guard=new JevJokeJudge(mapper,jevKey,jevModel);
         JokeJudge judge=llmKey.isBlank()?new JokeJudge(){

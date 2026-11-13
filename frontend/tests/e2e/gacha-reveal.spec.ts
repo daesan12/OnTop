@@ -86,9 +86,9 @@ test('연결 종료 뒤 이전 연출은 버리고 같은 작업 ID로 결과만
   qa.release(); await finished
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('qa:connection', { detail: true })))
-  await expect(page.getByRole('button', { name: '같은 요청으로 다시 확인', exact: true })).toBeEnabled({ timeout: 20000 })
+  await expect(page.getByRole('button', { name: '이전 거래 결과 확인', exact: true })).toBeEnabled({ timeout: 20000 })
   await expect(page.locator('.art-result')).toHaveCount(0)
-  await page.getByRole('button', { name: '같은 요청으로 다시 확인', exact: true }).click()
+  await page.getByRole('button', { name: '이전 거래 결과 확인', exact: true }).click()
   await expect(page.locator('.art-result')).toContainText('A급 캡슐 당첨!', { timeout: 20000 })
   expect(qa.operationIds).toHaveLength(2)
   expect(qa.operationIds[0]).toBe(qa.operationIds[1])

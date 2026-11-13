@@ -258,3 +258,15 @@ tasks.register('shopDemo', JavaExec) {
     mainClass = 'com.ssafy.ontop.demo.ShopDemoApplication'
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
 }
+
+// Explicit local-only live diagnostic tool; never part of test/build/deployment.
+tasks.register('compareJokeModels', JavaExec) {
+    group = 'verification'
+    description = '두 모델 각4회 또는 -PjokeMini54Suite로 5.4-mini 10회, 예약 비용 USD 0.10 이내, DB/MM 미사용'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.ssafy.ontop.ai.JokeModelComparison'
+    if (providers.gradleProperty('jokeMini54Suite').isPresent()) { args '--mini54-suite' }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    jvmArgs '-Xmx256m'
+}

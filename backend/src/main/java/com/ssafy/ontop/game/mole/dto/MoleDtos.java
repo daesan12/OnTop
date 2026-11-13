@@ -1,5 +1,6 @@
 package com.ssafy.ontop.game.mole.dto;
 
+import com.ssafy.ontop.minigame.service.MoleTargets;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
@@ -26,11 +27,14 @@ public final class MoleDtos {
     public record Mole(int id, int hole, String kind, int hits, int appearAt, int leaveAt) {
     }
 
-    public record Round(String id, Instant startedAt, Rules rules, List<Mole> moles) {
+    public record Round(String id, Instant startedAt, Rules rules, List<Mole> moles, List<MoleTargets.Target> targets) {
     }
 
     /** hole은 0~5(S D F J K L), at은 판 시작 기준 ms이다. */
-    public record Hit(int hole, int at) {
+    public record Hit(int hole, int at, String targetId) {
+        public Hit(int hole, int at) {
+            this(hole, at, null);
+        }
     }
 
     public record CompleteRequest(List<Hit> hits) {

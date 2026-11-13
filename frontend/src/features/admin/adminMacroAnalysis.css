@@ -1,0 +1,25 @@
+.admin-shell .admin-macro { display: grid; gap: 16px; }
+.admin-macro :is(h2, h3, p) { margin: 0; }
+.admin-macro p { color: #535f51; line-height: 1.6; font-size: .88rem; }
+.admin-macro .admin-macro-game { display: grid; gap: 8px; text-align: left; padding: 18px; max-width: 400px; }
+.admin-macro .admin-macro-game strong { font-size: 1.12rem; }
+.admin-macro-back { justify-self: start; }
+.admin-macro-filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; align-items: end; gap: 12px; }
+.admin-macro-filters label { display: grid; gap: 7px; font-size: .87rem; font-weight: 700; }
+.admin-macro-filters :is(input, select) { min-width: 0; width: 100%; padding: 9px 8px; border: 1px solid #aeaa92; border-radius: 6px; font: inherit; background: #fff; color: inherit; }
+.admin-macro button { padding: 9px 12px; border: 1px solid #b9af90; border-radius: 6px; background: #fffaf0; color: #263e2d; cursor: pointer; }
+.admin-macro-filters button { color: #fff; background: #2b5035; border-color: #2b5035; }
+.admin-macro-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: start; }
+.admin-macro-card { display: grid; gap: 12px; padding: 14px; border: 1px solid #cec3a9; border-radius: 8px; background: #fffdf7; min-width: 0; }
+.admin-macro-detail { display: grid; gap: 16px; min-width: 0; }
+.admin-macro :is(.admin-macro-table, .admin-macro-scroll) { overflow: auto; scrollbar-width: none; }
+.admin-macro :is(.admin-macro-table, .admin-macro-scroll)::-webkit-scrollbar { display: none; }
+.admin-macro-scroll { max-height: 26rem; }
+.admin-macro table { width: 100%; border-collapse: collapse; font-size: .86rem; font-variant-numeric: tabular-nums; }
+.admin-macro :is(td, th) { padding: 8px; border-bottom: 1px solid #e5dcc8; text-align: left; }
+.admin-macro thead { background: #f0ebde; }
+.admin-macro-scroll thead { position: sticky; top: 0; }
+.admin-macro [data-selected] { background: #e5efe2; }
+.admin-macro [data-signal] { background: #ffedcb; color: #633d16; }
+@media (max-width: 860px) { .admin-macro-layout { grid-template-columns: minmax(0, 1fr); } .admin-macro-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .admin-macro-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

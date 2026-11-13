@@ -1,5 +1,9 @@
 package com.ssafy.ontop.game.speedmole;
 
+import com.ssafy.ontop.behavior.service.BehaviorLog;
+import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
+import com.ssafy.ontop.minigame.service.MoleTargets;
+import com.ssafy.ontop.wallet.domain.Wallet;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
@@ -8,19 +12,26 @@ import java.util.List;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
-import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
-import com.ssafy.ontop.wallet.domain.Wallet;
 
 /** The wallet is locked before the round; score, shared-budget reward and ledger commit together. */
 public class SpeedMoleService {
+    private static final String GAME = "speed-mole";
+    private static final int HOLES = 8;
     private final SpeedMoleRepository repository;
     private final Clock clock;
     private final SecureRandom random;
     private final TransactionTemplate write, read;
     private final SpeedMoleRewards rewards;
+    private final BehaviorLog behaviorLog;
     public SpeedMoleService(SpeedMoleRepository repository, PlatformTransactionManager manager, Clock clock, SecureRandom random, SpeedMoleRewards rewards) {
+        this(repository, manager, clock, random, rewards, BehaviorLog.disabled());
+    }
+
+    public SpeedMoleService(SpeedMoleRepository repository, PlatformTransactionManager manager, Clock clock,
+            SecureRandom random, SpeedMoleRewards rewards, BehaviorLog behaviorLog) {
         this.repository = repository; this.clock = clock; this.random = random;
         this.rewards = rewards;
+        this.behaviorLog = behaviorLog;
         write = new TransactionTemplate(manager);
         write.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         read = new TransactionTemplate(manager);
@@ -37,27 +48,36 @@ public class SpeedMoleService {
             if (!row.status().equals("ACTIVE")) throw new SpeedMoleException(409, "SPEED_MOLE_ROUND_FINISHED", "이미 완료한 시작 요청이에요. 새로 시작해 주세요.");
             if (now.isAfter(row.startedAt().plusMillis(SpeedMoleRules.DURATION_MS + 30_000)))
                 throw new SpeedMoleException(409, "SPEED_MOLE_ROUND_EXPIRED", "이 시작 요청은 시간이 지났어요. 새로 시작해 주세요.");
-            return new SpeedMoleDtos.Round(Long.toString(row.id()), row.seed(), row.version(), now, row.startedAt(), SpeedMoleRules.DURATION_MS);
+            var targets = new MoleTargets(GAME, row.id(), row.seed()).forStart(HOLES);
+            return new SpeedMoleDtos.Round(Long.toString(row.id()), row.seed(), row.version(), now, row.startedAt(),
+                    SpeedMoleRules.DURATION_MS, targets);
         });
     }
     public SpeedMoleDtos.Result complete(long user, long id, List<SpeedMoleRules.Tap> taps) {
-        return write.execute(tx -> {
+        var completion = write.execute(tx -> {
             Wallet wallet = rewards.lock(user);
             var row = repository.lock(user, id);
-            if (row.status().equals("SETTLED")) return result(row, wallet);
+            if (row.status().equals("SETTLED")) {
+                return new MoleTargets.Completion<>(result(row, wallet), 0);
+            }
             requireLatest(user, id);
             long elapsed = clock.millis() - row.startedAt().toEpochMilli();
             if (row.version() != SpeedMoleRules.VERSION || elapsed > SpeedMoleRules.DURATION_MS + 30_000)
                 throw new SpeedMoleException(409, "SPEED_MOLE_ROUND_EXPIRED", "기록 제출 시간이 지났어요. 새 판으로 시작해 주세요.");
             if (elapsed < SpeedMoleRules.DURATION_MS)
                 throw new SpeedMoleException(409, "SPEED_MOLE_NOT_FINISHED", "아직 경기가 끝나지 않았어요.");
-            var score = SpeedMoleRules.replay(row.seed(), taps);
+            SpeedMoleRules.requireTapCount(taps);
+            var hiddenIds = new MoleTargets(GAME, id, row.seed()).hiddenIds(HOLES);
+            var playableTaps = taps.stream().filter(tap -> tap == null || !hiddenIds.contains(tap.targetId())).toList();
+            var score = SpeedMoleRules.replay(row.seed(), playableTaps);
             Instant completed = clock.instant().truncatedTo(ChronoUnit.MILLIS);
             int granted = rewards.grant(wallet, id, score.score(), completed);
             repository.settle(id, score, completed);
-            return new SpeedMoleDtos.Result(Long.toString(id), row.version(), score.score(), score.hits(), score.misses(), completed,
+            var result = new SpeedMoleDtos.Result(Long.toString(id), row.version(), score.score(), score.hits(), score.misses(), completed,
                     score.score() / SpeedMoleRules.POINTS_PER_COIN, granted, rewards.earned(user, completed), MinigameRewardBudget.DAILY_CAP);
+            return new MoleTargets.Completion<>(result, taps.size() - playableTaps.size());
         });
+        return completion.report(GAME, user, id, behaviorLog, clock.instant());
     }
     public SpeedMoleDtos.Rankings rankings(long user, int limit, int offset) {
         if (limit < 1 || limit > 100 || offset < 0 || offset > 10_000)

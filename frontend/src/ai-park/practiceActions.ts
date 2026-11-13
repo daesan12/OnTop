@@ -14,12 +14,12 @@ export async function refreshPractice() {
 }
 
 export async function practiceAction(kind:string,extra:Record<string,number>={}) {
- const s=useCompanions.getState(),g=useDisplayGame.getState().localPractice?.snapshot
+ const s=useCompanions.getState(),g=s.practice?.snapshot??useDisplayGame.getState().localPractice?.snapshot
  if(!g||s.practicePending||useSession.getState().status!=='connected')return
  if(kind==='place'&&!canPlaceDisplayed(useSession.getState().sessionId,extra.x,extra.y))return
  useCompanions.setState({practicePending:true,practiceError:''})
  try {
-  const result=await parkRuntime.requestJSON(companionPath('action'),{method:'POST',body:JSON.stringify({kind,gameId:g.gameId,version:g.version,actionId:crypto.randomUUID(),...extra})})
+  const result=await parkRuntime.requestJSON(companionPath('action'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,gameId:g.gameId,version:g.version,actionId:crypto.randomUUID(),...extra})})
   if(useCompanions.getState().practice?.snapshot.gameId!==g.gameId)return
   const status=await parkRuntime.requestJSON(companionPath('status'))
   if(useCompanions.getState().practice?.snapshot.gameId!==g.gameId)return

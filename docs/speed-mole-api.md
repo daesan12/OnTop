@@ -15,6 +15,8 @@
 
 ## 공통
 
+관리자 화면의 판 중 타격 관측과 비교는 [두더지 운영 관측](mole-audit.md)을 따른다.
+
 Bearer 인증과 기존 허용 Origin 정책을 따른다. 응답은 `Cache-Control: no-store`다. 기존 회원 지갑이 필요하며 관리자 권한은 필요 없다. `ontop.minigames.enabled=true`와 DB 프로필, V151 테이블이 필요하다. 프론트는 다른 오락기 게임처럼 개발·운영 공원의 게임 목록에서 노출하며 호스트명·Vite 개발 모드로 진입을 제한하지 않는다. 백엔드는 기존 `prod,db` 또는 `production,db` 프로필과 `MINIGAMES_ENABLED=true`를 사용한다. 목록 노출만으로 서버 미활성·DB 미적용을 우회하지 않으며 시작·완료·보상·랭킹은 기존 인증된 서버 API로 처리한다.
 
 ## 시작
@@ -27,6 +29,8 @@ Bearer 인증과 기존 허용 Origin 정책을 따른다. 응답은 `Cache-Cont
 
 201. 같은 회원·키 재전송은 같은 판·seed·시각을 반환한다. 완료했거나 만료한 시작 키는 409이므로 다음 시작은 새 키를 사용한다. 다른 새 키로 판을 열면 이전 미완료 판은 더 이상 완료·보상할 수 없다. 같은 회원의 시작·완료는 지갑을 먼저 잠가 순서를 정한다. 클라이언트는 서버 응답이 확인되기 전에는 로컬 판을 시작하지 않는다.
 
+응답의 `targets[]`는 구멍 번호와 동일한 형식의 ID 두 개(`hole · ids[2]`)를 담는다. 화면과 목표 교체는 기존 seed와 규칙을 사용한다.
+
 ## 완료
 
 `POST /api/v1/minigames/speed-mole/rounds/7/complete`
@@ -34,6 +38,9 @@ Bearer 인증과 기존 허용 Origin 정책을 따른다. 응답은 `Cache-Cont
 ```json
 {"taps":[{"hole":1,"at":0},{"hole":3,"at":100}]}
 ```
+
+실제 표적 타격에는 판 ID 문자열에서 선택한 해당 구멍의 `targetId`를 선택적으로 첨부한다. 해당 판의 숨은 ID 타격은
+재생에서 제외하고 정산 성공 뒤 `mole_honeypot_hit` 로그를 한 줄 남긴다. 보상·랭킹 기준은 기존과 같다.
 
 ```json
 {"id":"7","rulesVersion":1,"score":2,"hits":2,"misses":0,"completedAt":"2030-01-01T00:01:03Z","calculatedReward":0,"reward":0,"todayEarned":0,"dailyCap":1000}

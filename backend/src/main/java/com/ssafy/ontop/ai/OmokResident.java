@@ -1,6 +1,6 @@
 package com.ssafy.ontop.ai;
 
-/** A fixed physical resident per difficulty; speech never invents engine facts. */
+/** Difficulty personas shared by roaming commentators and independent table opponents. */
 public enum OmokResident {
     CHILD("강잼민","EASY","omok-child-","강잼민. 활발한 동네 초딩. 반말이지만 예의 바르고 짧게 말한다."),
     NEIGHBOR("윤한수","NORMAL","omok-neighbor-","윤한수. 편안하고 친절한 동네 주민. 자연스러운 존댓말을 쓴다."),

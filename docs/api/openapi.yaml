@@ -1337,6 +1337,40 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/minigames/{game}/rounds/{id}/observations:
+    post:
+      tags:
+      - MINIGAME
+      summary: 두더지 판 중 타격 기록
+      operationId: observe
+      parameters:
+      - name: game
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoleAuditBatch"
+        required: true
+      responses:
+        "204":
+          description: 관측 요청 처리 완료
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+      security:
+      - AccessJwt: []
   /api/v1/minigames/whack-a-mole/rounds:
     post:
       tags:
@@ -8412,6 +8446,95 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/macro-analysis/mole:
+    get:
+      tags:
+      - ADMIN
+      summary: 두더지 플레이 기록 조회
+      operationId: search
+      parameters:
+      - name: game
+        in: query
+        required: true
+        schema:
+          type: string
+          x-utf16-max-length: 64
+      - name: userId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: roundId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: date
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MoleAuditRound"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/macro-analysis/mole/{id}:
+    get:
+      tags:
+      - ADMIN
+      summary: 두더지 판 타임라인과 비교
+      operationId: detail
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: game
+        in: query
+        required: true
+        schema:
+          type: string
+          x-utf16-max-length: 64
+      - name: input
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - KEYBOARD
+          - POINTER
+          - TOUCH
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MoleAuditDetail"
+      security:
+      - AccessJwt: []
   /api/v1/admin/feedback:
     get:
       tags:
@@ -9285,6 +9408,48 @@ components:
           type: string
           format: date-time
           nullable: true
+    MoleAuditBatch:
+      type: object
+      properties:
+        taps:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleAuditTap"
+    MoleAuditTap:
+      type: object
+      properties:
+        sequence:
+          type: integer
+          format: int32
+        clientAtMs:
+          type: integer
+          format: int32
+        hole:
+          type: integer
+          format: int32
+        input:
+          type: string
+          enum:
+          - KEYBOARD
+          - POINTER
+          - TOUCH
+        outcome:
+          type: string
+          enum:
+          - HIT
+          - RAPID
+          - MISS
+          - DECOY
+          - IGNORED
+          - HONEYPOT
+        spawnId:
+          type: integer
+          format: int32
+        appearedAtMs:
+          type: integer
+          format: int32
+        targetId:
+          type: string
     Mole:
       type: object
       properties:
@@ -9305,6 +9470,16 @@ components:
         leaveAt:
           type: integer
           format: int32
+    MoleRoundTarget:
+      type: object
+      properties:
+        hole:
+          type: integer
+          format: int32
+        ids:
+          type: array
+          items:
+            type: string
     Round:
       type: object
       properties:
@@ -9319,6 +9494,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Mole"
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleRoundTarget"
     Rules:
       type: object
       properties:
@@ -9375,6 +9554,8 @@ components:
         at:
           type: integer
           format: int32
+        targetId:
+          type: string
     Result:
       type: object
       properties:
@@ -9432,6 +9613,10 @@ components:
         durationMs:
           type: integer
           format: int32
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleRoundTarget"
     SpeedMoleComplete:
       type: object
       properties:
@@ -9448,6 +9633,8 @@ components:
         at:
           type: integer
           format: int32
+        targetId:
+          type: string
     SpeedMoleResult:
       type: object
       properties:
@@ -12614,6 +12801,111 @@ components:
           type: boolean
         canViewContacts:
           type: boolean
+    MoleAuditRound:
+      type: object
+      properties:
+        roundId:
+          type: string
+        userId:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        observedTaps:
+          type: integer
+          format: int32
+        honeypotTaps:
+          type: integer
+          format: int32
+        completionHoneypotTaps:
+          type: integer
+          format: int32
+    MoleAuditComparison:
+      type: object
+      properties:
+        rounds:
+          type: integer
+          format: int32
+        honeypotTaps:
+          type: integer
+          format: int32
+        completionHoneypotTaps:
+          type: integer
+          format: int32
+        first:
+          $ref: "#/components/schemas/MoleAuditDistribution"
+        rapid:
+          $ref: "#/components/schemas/MoleAuditDistribution"
+    MoleAuditDetail:
+      type: object
+      properties:
+        selected:
+          $ref: "#/components/schemas/MoleAuditRound"
+        timeline:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleAuditEntry"
+        recent:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleAuditRound"
+        member:
+          $ref: "#/components/schemas/MoleAuditComparison"
+        reference:
+          $ref: "#/components/schemas/MoleAuditComparison"
+    MoleAuditDistribution:
+      type: object
+      properties:
+        count:
+          type: integer
+          format: int32
+        median:
+          type: integer
+          format: int32
+        p10:
+          type: integer
+          format: int32
+        p90:
+          type: integer
+          format: int32
+    MoleAuditEntry:
+      type: object
+      properties:
+        sequence:
+          type: integer
+          format: int32
+        clientAtMs:
+          type: integer
+          format: int32
+        hole:
+          type: integer
+          format: int32
+        input:
+          type: string
+          enum:
+          - KEYBOARD
+          - POINTER
+          - TOUCH
+        outcome:
+          type: string
+          enum:
+          - HIT
+          - RAPID
+          - MISS
+          - DECOY
+          - IGNORED
+          - HONEYPOT
+        spawnId:
+          type: integer
+          format: int32
+        appearedAtMs:
+          type: integer
+          format: int32
+        receivedAt:
+          type: string
+          format: date-time
     Entry:
       required:
       - acceptedAt
