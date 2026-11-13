@@ -14,7 +14,7 @@ const trees = Array.from({ length: 41 }, (_, index) => {
   const angle = index * 2.39996
   const radius = 16 + (index * 17 % 52)
   return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius, size: 1.4 + (index % 5) * .32 }
-})
+}).filter(({ x, z }) => Math.abs(x) > 9 || z < 8 || z > 30)
 
 function Riders() {
   const models = useLoader(ParkAssetLoader, characterUrls)
