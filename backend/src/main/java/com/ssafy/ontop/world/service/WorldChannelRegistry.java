@@ -193,7 +193,8 @@ public class WorldChannelRegistry implements ChannelPresence {
         var pad = support.course();
         var sample = new com.ssafy.ontop.world.jumpmap.JumpmapTracker.Sample(surface, support.colliderId(),
                 pad == null ? -1 : pad.block(), pad == null ? null : pad.gate(), observation.swimming(),
-                observation.feet(), observation.relocations(), following);
+                observation.feet(), observation.relocations(), following, observation.x(), observation.z(),
+                observation.seated());
         queueJumpmap(room, jumpmap.observe(userId, room.definition.channelId(), sample,
                 nowNanos / 1_000_000, newActivityAllowed));
     }
@@ -222,6 +223,12 @@ public class WorldChannelRegistry implements ChannelPresence {
                 }).toList();
             }
             jumpmapSignals.add(new JumpmapDelivery(signal, recipients));
+        }
+        // 끝난 판의 판별 자료는 종료 신호 뒤에 붙인다. 운영자 기록용이며 누구에게도 전송하지 않는다.
+        if (jumpmap != null) {
+            for (var traced : jumpmap.drainTraces()) {
+                jumpmapSignals.add(new JumpmapDelivery(traced, List.of()));
+            }
         }
     }
 

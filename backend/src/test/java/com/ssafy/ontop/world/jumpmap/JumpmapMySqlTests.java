@@ -215,7 +215,7 @@ class JumpmapMySqlTests {
     @BeforeEach
     void setup() {
         jdbc.execute("DROP TRIGGER IF EXISTS jumpmap_test_fail_ledger");
-        for (String table : List.of("jump_gate_rewards", "jump_daily_earnings", "jump_profiles", "jump_runs",
+        for (String table : List.of("jump_macro_detections", "jump_gate_rewards", "jump_daily_earnings", "jump_profiles", "jump_runs",
                 "wallet_transactions", "wallets", "refresh_tokens", "users")) {
             jdbc.update("DELETE FROM " + table);
         }
@@ -523,5 +523,34 @@ class JumpmapMySqlTests {
         // 상태 조회는 새 이벤트를 만들지 않고 조회 시작 시점 revision을 유지한다.
         assertThat(status.revision()).isEqualTo(revisions.getLast());
         assertThat(status.todayEarned()).isEqualTo(2);
+    }
+
+    @Test
+    void 반복_패턴_기록은_판과_규칙마다_한번만_남고_회원별_적발_판_수로_조회한다() {
+        try {
+            String first = startRun(101, NOON), second = startRun(101, NOON.plusSeconds(10)), other = startRun(202, NOON);
+            Map<String, Object> evidence = Map.of("matched", 3, "deviationMs", 18);
+            store.recordDetection(new JumpmapStore.MacroDetection(first, 101, "REPLAY", 3, evidence, NOON.plusSeconds(60)));
+            // 같은 (판, 규칙)을 다시 남겨도 늘지 않는다.
+            store.recordDetection(new JumpmapStore.MacroDetection(first, 101, "REPLAY", 4, evidence, NOON.plusSeconds(61)));
+            store.recordDetection(new JumpmapStore.MacroDetection(first, 101, "FIXED_START", 3, evidence, NOON.plusSeconds(60)));
+            store.recordDetection(new JumpmapStore.MacroDetection(second, 101, "REPLAY", 5, evidence, NOON.plusSeconds(120)));
+            store.recordDetection(new JumpmapStore.MacroDetection(other, 202, "FIXED_START", 3, evidence, NOON.plusSeconds(90)));
+
+            var suspects = store.macroSuspects(10);
+
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM jump_macro_detections", Integer.class)).isEqualTo(4);
+            assertThat(suspects).extracting(JumpmapStore.MacroSuspect::userId).containsExactly("101", "202");
+            assertThat(suspects.getFirst()).isEqualTo(new JumpmapStore.MacroSuspect("101", "jump101", false, 2, 2, 1, 2,
+                    null, NOON.plusSeconds(60).toString(), NOON.plusSeconds(120).toString()));
+            assertThat(suspects.getLast().flaggedRuns()).isEqualTo(1);
+            assertThat(suspects.getLast().fixedStartRuns()).isEqualTo(1);
+            assertThat(store.macroSuspects(1)).extracting(JumpmapStore.MacroSuspect::userId).containsExactly("101");
+            // 운영자 기록은 판의 의심 표시와 랭킹 자격을 바꾸지 않는다.
+            assertThat(jdbc.queryForObject("SELECT suspicious FROM jump_runs WHERE id=?", Boolean.class, first)).isFalse();
+        } finally {
+            // 다른 MySQL 테스트가 jump_runs·users를 지울 때 외래 키에 걸리지 않게 비운다.
+            jdbc.update("DELETE FROM jump_macro_detections");
+        }
     }
 }

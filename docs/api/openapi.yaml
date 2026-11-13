@@ -8974,8 +8974,104 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/macro-analysis/jumpmap:
+    get:
+      tags:
+      - ADMIN
+      summary: 점프맵 반복 패턴 적발 회원 목록
+      description: 한 번 이상 기록된 회원을 적발 판이 많은 순으로 최대 200명 반환한다. 서버 재시작 전의 판끼리만 비교한다.
+      operationId: suspects
+      responses:
+        "200":
+          description: 적발 회원 목록. 점프맵이 꺼져 있으면 enabled=false와 빈 목록
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MacroSuspectsResponse"
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 관리자 조회 권한 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 기록 테이블을 읽을 수 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
 components:
   schemas:
+    MacroSuspect:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
+        withdrawn:
+          type: boolean
+        flaggedRuns:
+          type: integer
+          format: int32
+        replayRuns:
+          type: integer
+          format: int32
+        fixedStartRuns:
+          type: integer
+          format: int32
+        totalRuns:
+          type: integer
+          format: int64
+        bestFinishMs:
+          type: integer
+          format: int64
+        firstDetectedAt:
+          type: string
+        lastDetectedAt:
+          type: string
+    MacroSuspectsResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        limit:
+          type: integer
+          format: int32
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MacroSuspect"
+        generatedAt:
+          type: string
     ContactRequest:
       type: object
       properties:

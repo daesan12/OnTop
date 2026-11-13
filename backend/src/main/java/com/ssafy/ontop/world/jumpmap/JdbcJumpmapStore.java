@@ -88,6 +88,47 @@ public class JdbcJumpmapStore implements JumpmapStore {
         return rankings.ranking(userId);
     }
 
+    @Override
+    public void recordDetection(MacroDetection detection) {
+        transaction(() -> jdbc.update("""
+                INSERT IGNORE INTO jump_macro_detections(run_id, user_id, rule, matched_runs, evidence, detected_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, detection.runId(), detection.userId(), detection.rule(), detection.matchedRuns(),
+                write(detection.evidence()), time(detection.detectedAt())));
+    }
+
+    @Override
+    public List<MacroSuspect> macroSuspects(int limit) {
+        return transaction(() -> {
+            var rows = jdbc.queryForList("""
+                    SELECT d.user_id, u.nickname, u.deleted_at IS NOT NULL AS withdrawn,
+                           COUNT(DISTINCT d.run_id) AS flagged_runs,
+                           SUM(d.rule = 'REPLAY') AS replay_runs, SUM(d.rule = 'FIXED_START') AS fixed_start_runs,
+                           MIN(d.detected_at) AS first_at, MAX(d.detected_at) AS last_at,
+                           (SELECT COUNT(*) FROM jump_runs r WHERE r.user_id = d.user_id) AS total_runs,
+                           (SELECT p.best_finish_ms FROM jump_profiles p WHERE p.user_id = d.user_id) AS best_finish_ms
+                    FROM jump_macro_detections d JOIN users u ON u.id = d.user_id
+                    GROUP BY d.user_id, u.nickname, u.deleted_at
+                    ORDER BY flagged_runs DESC, last_at DESC, d.user_id ASC
+                    LIMIT ?
+                    """, limit);
+            var items = new ArrayList<MacroSuspect>();
+            for (var row : rows) {
+                Number best = (Number) row.get("best_finish_ms");
+                items.add(new MacroSuspect(row.get("user_id").toString(), String.valueOf(row.get("nickname")),
+                        row.get("withdrawn") instanceof Boolean flag ? flag : ((Number) row.get("withdrawn")).intValue() != 0,
+                        ((Number) row.get("flagged_runs")).intValue(), ((Number) row.get("replay_runs")).intValue(),
+                        ((Number) row.get("fixed_start_runs")).intValue(), ((Number) row.get("total_runs")).longValue(),
+                        best == null ? null : best.longValue(), utc(row.get("first_at")), utc(row.get("last_at"))));
+            }
+            return List.copyOf(items);
+        });
+    }
+
+    private static String utc(Object timestamp) {
+        return ((Timestamp) timestamp).toLocalDateTime().toInstant(ZoneOffset.UTC).toString();
+    }
+
     private List<RankingEntry> loadRanking() {
         return transaction(() -> {
             var rows = jdbc.queryForList("""
@@ -326,6 +367,14 @@ public class JdbcJumpmapStore implements JumpmapStore {
     private String write(List<?> values) {
         try {
             return json.writeValueAsString(values == null ? List.of() : values);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private String write(java.util.Map<String, Object> values) {
+        try {
+            return json.writeValueAsString(values);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException(exception);
         }
