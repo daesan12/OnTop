@@ -40,6 +40,12 @@ it('reports an actual buffered takeoff and its preceding landing even when the r
   expect(takeoff).toBeGreaterThan(0)
   expect(report.path![takeoff - 1]?.y).toBe(.84)
   expect(report.path?.every(point => !('supported' in point))).toBe(true)
+  expect(prediction.positionReport(2, stop, 120)).toEqual(report)
+  prediction.reconcile('path', origin, { ...tuned, tick: 4 }, true, 120)
+  expect(prediction.positionReport(3, stop, 180)).toEqual(report)
+  prediction.reconcile('path', report, { ...tuned, tick: 6, appliedInputSeq: 1 }, true, 180)
+  expect(prediction.positionReport(4, stop, 180)?.seq).toBe(4)
+  expect(prediction.positionReport(5, stop, 180)?.path?.some(point => point.jump)).toBe(false)
   prediction.reset()
 })
 
@@ -56,6 +62,7 @@ it('retains all 64 samples and holds before overflow, then resumes without catch
   expect(report.path).toHaveLength(64)
   expect(report.path![30]?.jump).toBe(true)
   expect(report.path!.at(-1)).toMatchObject({ x: report.x, y: report.y, z: report.z })
+  prediction.reconcile('path', report, { ...tuned, tick: 1, appliedInputSeq: 1 }, true, 1000)
   const held = report.x
   const resumed = prediction.positionReport(2, stop, 1060)!
   expect(resumed.path!.length).toBeLessThanOrEqual(4)

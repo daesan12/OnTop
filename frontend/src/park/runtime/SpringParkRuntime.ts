@@ -1169,10 +1169,11 @@ export class ParkRuntime implements ParkRuntimePort {
     let requestId = ''
     try {
       const report = localMovement.positionReport(sequence, intent)
+      const reportedSequence = report?.seq ?? sequence
       await this.socket.request(report ? 'WORLD_POSITION' : 'WORLD_MOVE', report ?? {
         seq: sequence,
         ...intent,
-      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.set(id, sequence) })
+      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.set(id, reportedSequence) })
       if (scope === this.movementScope() && this.active) clearMovementNotice(sequence)
     } catch (error) {
       if (scope !== this.movementScope() || !this.active) return

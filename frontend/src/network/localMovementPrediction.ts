@@ -35,6 +35,9 @@ type IntentFrame = { at: number; intent: MovementIntent }
 type SentFrame = { seq: number; at: number; jumpAt: number }
 type PositionSample = { x: number; y: number; z: number; jump: boolean }
 type PathPoint = PositionSample & { supported: boolean }
+type PositionReport = Pose & {
+  seq: number; epoch: number; run: boolean; jump: boolean; manual: boolean; path?: PositionSample[]
+}
 const MAX_PATH_SAMPLES = 64
 // One unsent batch must also fit the existing bounded server movement budget.
 const MAX_PENDING_PHYSICS_MS = 100
@@ -82,6 +85,7 @@ export class LocalMovementPrediction {
   private acknowledgedJumpAt = -Infinity
   private idleWindow = true
   private pendingPositionJump: {epoch:number;seq:number} | undefined
+  private unconfirmedTakeoff: PositionReport | undefined
   private highestSent = 0
   private unavailable = false
   private steering: MotionSnapshot['steering']
@@ -106,6 +110,7 @@ export class LocalMovementPrediction {
   positionReport(seq: number, intent: MovementIntent, at = this.now()) {
     if (!this.ready || this.baseline?.motion.authority !== 'CLIENT_VALIDATED') return undefined
     this.advance(at)
+    if (this.unconfirmedTakeoff) return this.unconfirmedTakeoff
     if (this.tuned && intent.jump && !this.pendingPositionJump) this.pendingPositionJump={epoch:this.baseline.motion.epoch,seq}
     const effective = this.effectiveIntent(intent)
     const pose = this.sim!.pose()
@@ -117,10 +122,15 @@ export class LocalMovementPrediction {
       this.reportedPhysics.set(seq, this.positionPhysicsMs)
       if (this.reportedPhysics.size > 128) this.reportedPhysics.delete(this.reportedPhysics.keys().next().value!)
     }
-    return { seq, epoch: this.baseline.motion.epoch, ...pose, run: effective.run,
+    const report = { seq, epoch: this.baseline.motion.epoch, ...pose, run: effective.run,
       jump: intent.jump || !!this.pendingPositionJump,
       manual: !!(intent.dx || intent.dz || intent.jump || this.pendingPositionJump || this.steeringSuppressed || path?.some(p => p.jump)),
       ...(path ? { path } : {}) }
+    // The server ignores a duplicate sequence, but can validate this exact
+    // takeoff if the original report was lost. Never send a later airborne
+    // endpoint ahead of the report that proves how the character took off.
+    if (path?.some(point => point.jump)) this.unconfirmedTakeoff = report
+    return report
   }
   async prepare() {
     if (this.unavailable || this.sim || this.preparing) return this.preparing
@@ -190,6 +200,9 @@ export class LocalMovementPrediction {
     const newEpoch = !old || old.motion.epoch !== motion.epoch || old.motion.profile !== motion.profile || !this.allowed
     if (!newEpoch && motion.tick < old.motion.tick) return
     this.syncSteering(motion.steering, at)
+    if (this.unconfirmedTakeoff && (newEpoch || motion.appliedInputSeq >= this.unconfirmedTakeoff.seq)) {
+      this.unconfirmedTakeoff = undefined
+    }
     if (newEpoch) this.clearPositionConfirmations()
     else if (motion.appliedInputSeq > old.motion.appliedInputSeq) {
       const confirmed = this.reportedPhysics.get(motion.appliedInputSeq)
@@ -453,6 +466,7 @@ export class LocalMovementPrediction {
   }
   private clearPositionConfirmations() {
     this.positionPhysicsMs = 0; this.confirmedPhysicsMs = 0; this.reportedPhysics.clear()
+    this.unconfirmedTakeoff = undefined
   }
 }
 export const localMovement = new LocalMovementPrediction()
