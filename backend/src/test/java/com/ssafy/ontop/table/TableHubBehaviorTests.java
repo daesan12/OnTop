@@ -232,6 +232,47 @@ class TableHubBehaviorTests {
         }
     }
 
+    @Test
+    void NPC관전자의_추천은_같은_판에만_전달되고_들기와_오래된_추천은_거절한다(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        try(var ai=new com.ssafy.ontop.ai.LocalWorldAi(mapper,directory,new com.ssafy.ontop.ai.OfflineDecisions(),(id,kind,text)->"fixture",hub,null,true)) {
+            Peer owner=peer(101),viewer=peer(102),outside=peer(103);
+            owner.join("one");viewer.join("one");outside.join("one");
+            String table=hub.listTables("one").tables().getFirst().tableId(),game="npc-ping";
+            owner.request("TABLE_JOIN",Map.of("tableId",table));
+            owner.request("GAME_SELECT",Map.of("gameCode","OMOK","betAmountPerPlayer",1));
+            assertThat(hub.aiReserveOmok(hub.aiWaitingOmok().getFirst(),"npc:ping")).isTrue();
+            hub.aiBindPracticeGame(table,"npc:ping",game);
+            hub.aiUpdatePracticeState(table,"npc:ping",game,3,true);
+            var position=registry.positionOf(owner.userId);
+            viewer.locate(position.x(),position.y(),position.z());outside.locate(position.x(),position.y(),position.z());
+            var proximity=(com.ssafy.ontop.world.service.WorldProximity)org.springframework.test.util.ReflectionTestUtils.getField(hub,"proximity");
+            proximity.registerTable(table,new com.ssafy.ontop.world.config.WorldProximityProperties.Point(position.x(),position.z()));
+            viewer.request("TABLE_WATCH",Map.of("tableId",table));
+            owner.drain();outside.drain();viewer.drain();
+            var ping=Map.of("gameId",game,"eventId",UUID.randomUUID().toString(),"basedOnVersion",3,"x",7,"y",6);
+            assertThat(owner.request("OMOK_SPECTATOR_PING_SEND",ping).at("/payload/code").asText()).isEqualTo("GAME_SPECTATOR_ACCESS_DENIED");
+            assertThat(outside.request("OMOK_SPECTATOR_PING_SEND",ping).at("/payload/code").asText()).isEqualTo("GAME_SPECTATOR_ACCESS_DENIED");
+            assertThat(viewer.request("WORLD_CARRY_PICKUP",Map.of("targetId",outside.userId)).at("/payload/code").asText()).isEqualTo("CARRY_ACTIVITY_CONFLICT");
+            assertThat(outside.request("WORLD_CARRY_PICKUP",Map.of("targetId",viewer.userId)).at("/payload/code").asText()).isEqualTo("CARRY_ACTIVITY_CONFLICT");
+            var accepted=viewer.request("OMOK_SPECTATOR_PING_SEND",ping);
+            assertThat(accepted.path("type").asText()).isEqualTo("OMOK_SPECTATOR_PING");
+            assertThat(owner.next("OMOK_SPECTATOR_PING").at("/payload/x").asInt()).isEqualTo(7);
+            assertThat(outside.messages).noneMatch(m->m.path("type").asText().equals("OMOK_SPECTATOR_PING"));
+            owner.drain();
+            var retry=viewer.request("OMOK_SPECTATOR_PING_SEND",ping);
+            assertThat(retry.at("/payload/sentAt")).isEqualTo(accepted.at("/payload/sentAt"));
+            assertThat(owner.messages).noneMatch(m->m.path("type").asText().equals("OMOK_SPECTATOR_PING"));
+            hub.aiUpdatePracticeState(table,"npc:ping",game,4,true);
+            assertThat(viewer.request("OMOK_SPECTATOR_PING_SEND",Map.of("gameId",game,"eventId",UUID.randomUUID().toString(),"basedOnVersion",3,"x",7,"y",6))
+                    .at("/payload/code").asText()).isEqualTo("OMOK_SPECTATOR_PING_STALE_VERSION");
+            assertThat(viewer.request("OMOK_SPECTATOR_PING_SEND",Map.of("gameId",game,"eventId",UUID.randomUUID().toString(),"basedOnVersion",4,"x",7,"y",6))
+                    .at("/payload/code").asText()).isEqualTo("OMOK_SPECTATOR_PING_TOO_FREQUENT");
+            hub.aiUpdatePracticeState(table,"npc:ping",game,4,false);
+            assertThat(viewer.request("OMOK_SPECTATOR_PING_SEND",Map.of("gameId",game,"eventId",UUID.randomUUID().toString(),"basedOnVersion",4,"x",7,"y",6))
+                    .at("/payload/code").asText()).isEqualTo("GAME_SPECTATOR_GAME_NOT_PLAYING");
+        }
+    }
+
     private Peer peer(long accountId) throws Exception {
         Peer peer = new Peer();
         WebSocketSession session = mock(WebSocketSession.class);

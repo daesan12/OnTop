@@ -18,6 +18,7 @@ import { benchAnchors } from '../../src/features/interactions/benchAnchors'
 import { benchTable } from '../../src/features/interactions/benchSpectator'
 import { useBenchState, resetBenchState } from '../../src/features/interactions/benchState'
 import {syncPracticeSpectator} from '../../src/features/ai/practiceSpectator'
+import {useOmokEvents} from '../../src/game/omok/spectatorEvents'
 
 const table = { tableId: 'server-table', version: 1, capacity: 2, minimumPlayers: 2,
   seats: [{ seatNumber: 1, userId: null, ready: false }, { seatNumber: 2, userId: '102', ready: false }],
@@ -110,6 +111,7 @@ it('bench NPC observation uses the authorized board without GAME_WATCH and exits
  expect(useTableLobby.getState().spectatorRequested).toBe(false)
  expect(await runtime.watchBench(anchor)).toBe(true)
  expect(useDisplayGame.getState().game?.role).toBe('SPECTATOR')
+ expect(useOmokEvents.getState().canSend).toBe(true)
  socket.emit('TABLE_WATCH_STATE',table)
  expect(useTableLobby.getState().spectatorRequested).toBe(true)
  expect(useDisplayGame.getState().game?.role).toBe('SPECTATOR')

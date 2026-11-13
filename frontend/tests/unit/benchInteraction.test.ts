@@ -7,6 +7,9 @@ import { sitBench, standBench } from '../../src/features/interactions/benchContr
 import { useBenchState } from '../../src/features/interactions/benchState'
 import { benchSignal } from '../../src/features/interactions/benchState'
 import { benchService } from '../../src/features/interactions/benchService'
+import {useAiFeatures,resetAiFeatures} from '../../src/features/ai/serviceFeatures'
+import {useCompanions,type Practice} from '../../src/features/ai/companions'
+import {useTableLobby} from '../../src/features/tableLobby/state'
 import { avatars, receive, resetWorld, useSession } from '../../src/network/worldClient'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
 import { inputState, roamingInput } from '../../src/world/inputOwnership'
@@ -32,9 +35,18 @@ beforeEach(() => {
   emit('CHANNEL_STATE', { channelId: 'test-channel', name: 'test', capacity: 4, currentUsers: 1, userIds: ['101'], version: 1 })
   world()
 })
-afterEach(() => { resetWorld(); roamingInput.ready = false; vi.useRealTimers() })
+afterEach(() => { resetAiFeatures();resetWorld(); roamingInput.ready = false; vi.useRealTimers() })
 
 describe('M01 target selection and bench lifecycle', () => {
+  it('NPC 관전판에서는 일반 E 대상과 관전하기 안내를 선택하지 않는다',()=>{
+    expect(getParkInteraction()).not.toBeNull()
+    const practice={phase:'PLAYING',snapshot:{gameId:'npc-e-guard',tableId:'table',version:1,blackUserId:202,whiteUserId:9001,turnUserId:202,winnerUserId:null,turnDeadline:null,endedAt:null,endReason:null,board:{board:Array.from({length:15},()=>Array(15).fill(0)),moveCount:0,forbiddenMoves:[],outcome:'PLAYING'}},thinking:false} as Practice
+    useAiFeatures.setState({companions:true})
+    useCompanions.setState({observedPractice:practice,practiceChat:{gameId:'npc-e-guard',version:1,role:'SPECTATOR'},receivedAt:performance.now()})
+    useTableLobby.setState({spectatorRequested:true})
+    expect(getParkInteraction()).toBeNull()
+    useTableLobby.setState({spectatorRequested:false})
+  })
   it('shows no E hint before the canvas input listeners are installed', () => {
     roamingInput.ready = false
     expect(getParkInteraction()).toBeNull()

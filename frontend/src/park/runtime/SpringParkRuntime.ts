@@ -136,6 +136,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private initialStates: Envelope[] | null = null
   private quietResultChecks = new Set<string>()
   private untrackTabGame: (() => void) | undefined
+  private untrackPracticeEvents: (() => void) | undefined
   private facilityMapInvalid = false
   private spectatorIntent: { userId: string; channelId: string; tableId: string; benchScope: string; awaitingStart?: boolean; npcPractice?: boolean } | null = null
   private npcWatchAttempt = 0
@@ -496,6 +497,10 @@ export class ParkRuntime implements ParkRuntimePort {
     if (TABLET_ENABLED) this.tablet.begin()
     bindFollowService(this.follow)
     this.untrackTabGame?.()
+    this.untrackPracticeEvents?.()
+    this.untrackPracticeEvents=useCompanions.subscribe((next,previous)=>{
+      if(next.practiceChat!==previous.practiceChat || next.practice!==previous.practice)this.omokEvents.sync()
+    })
     this.untrackTabGame = useGame.subscribe((next, prev) => {
       const owner = useSession.getState().sessionId
       if (next.permittedGameId && next.permittedGameId !== prev.permittedGameId) keepTabGame(owner, next.permittedGameId)
@@ -558,6 +563,8 @@ export class ParkRuntime implements ParkRuntimePort {
   async stop() {
     this.notesChanges.reset()
     this.untrackTabGame?.()
+    this.untrackPracticeEvents?.()
+    this.untrackPracticeEvents=undefined
     this.untrackTabGame = undefined
     this.tablet.end()
     this.mapReady = false
