@@ -70,7 +70,7 @@ export function ObservationTower({children,verticalScale=1,frameGeometry,distant
       <group name="spiral-observation-tower">
         <mesh
           name="tower-walkway-floor"
-          userData={{ keepOpaque: true }}
+          userData={{ keepOpaque: true, prepareEntranceProgram: !!distantFrame }}
           geometry={ramp}
           receiveShadow
           dispose={null}
@@ -89,7 +89,7 @@ export function ObservationTower({children,verticalScale=1,frameGeometry,distant
           <SurfaceMaterial kind="wood" strength={0.2} vertexColors />
         </mesh>
         {distantFrame && <mesh ref={proxy} name="tower-frame-distant" geometry={distantFrame}
-          userData={{ keepOpaque: true, distanceProxy: true }} raycast={() => {}} dispose={null} receiveShadow>
+          userData={{ keepOpaque: true, distanceProxy: true, prepareEntranceProgram: true }} raycast={() => {}} dispose={null} receiveShadow>
           <SurfaceMaterial kind="wood" strength={0.2} vertexColors />
         </mesh>}
         <Instances
@@ -101,7 +101,7 @@ export function ObservationTower({children,verticalScale=1,frameGeometry,distant
         </Instances>
         <mesh
           name="tower-top-floor"
-          userData={{ keepOpaque: true }}
+          userData={{ keepOpaque: true, prepareEntranceProgram: !!distantFrame }}
           geometry={deck}
           dispose={null}
         >

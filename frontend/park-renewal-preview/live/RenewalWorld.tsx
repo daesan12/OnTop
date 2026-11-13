@@ -1,10 +1,10 @@
 import { RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
-import { Buildings } from '../Buildings'
+import { Buildings, distantRentalBatches } from '../Buildings'
 import { CityBackdrop } from '../CityBackdrop'
 import { ScenicDetails } from '../ScenicDetails'
 import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
-import { lazy, startTransition, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { lazy, memo, startTransition, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { Group } from 'three'
 import { authoritativePose, avatars, useSession } from '../../src/network/worldClient'
@@ -23,6 +23,15 @@ const ParkDetailGeometry = lazy(() => import('../ParkDetailGeometry').then(modul
 const spawn = renewalMap?.data.physics.spawn.position
 const finalStage = 8
 const boardsPerStage = 4
+const StableCityBackdrop = memo(CityBackdrop)
+const StableScenicDetails = memo(ScenicDetails)
+const StableBuildings = memo(Buildings)
+const StableTable = memo(function StableTable({ index, boards }: { index: number; boards: boolean }) {
+  const anchor = TABLES[index]!
+  return <TableFurniture anchor={anchor} nativeFurniture={!!anchor.pavilionId}>
+    {boards && <Suspense fallback={null}><TableBoards anchor={anchor} nativeFurniture={!!anchor.pavilionId} /></Suspense>}
+  </TableFurniture>
+})
 
 function atEntrance(pose = authoritativePose(useSession.getState().sessionId)) {
   return !pose || !!spawn && Math.hypot(pose.x-spawn[0], pose.z-spawn[2]) < 10 && Math.abs(pose.y-spawn[1]) < 2
@@ -106,13 +115,12 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
     <group ref={surface} name="renewal-park-surface">
       <LakeProgress.Provider value={lakeProgress}>
       <LakeStreaming progress={lakeProgress} />
-      <CityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
-      <ScenicDetails nightQuality={quality} distantReady={stage >= 2} live />
-      <Buildings live distantReady={distantReady} upperFacilitiesReady={stage >= 4} loadedRentalBatches={stage} />
-      {TABLES.map((anchor, index) => <TableFurniture key={anchor.id} anchor={anchor} nativeFurniture={!!anchor.pavilionId}>
-        {(stage === finalStage || index < Math.max(0, stage - 3) * boardsPerStage) &&
-          <Suspense fallback={null}><TableBoards anchor={anchor} nativeFurniture={!!anchor.pavilionId} /></Suspense>}
-      </TableFurniture>)}
+      <StableCityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
+      <StableScenicDetails nightQuality={quality} distantReady={stage >= 2} live />
+      <StableBuildings live distantReady={distantReady} upperFacilitiesReady={stage >= 4}
+        loadedRentalBatches={Math.min(stage, distantRentalBatches)} />
+      {TABLES.map((anchor, index) => <StableTable key={anchor.id} index={index}
+        boards={stage === finalStage || index < Math.max(0, stage - 3) * boardsPerStage} />)}
       {stage === finalStage && <Suspense fallback={null}><ParkDetailGeometry jumpCourse={false} deferDistant /></Suspense>}
       </LakeProgress.Provider>
     </group>

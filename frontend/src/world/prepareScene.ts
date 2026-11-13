@@ -12,11 +12,13 @@ export async function prepareVisibleScenePrograms(renderer: WebGLRenderer, scene
   const visible: Object3D[] = []
   scene.traverseVisible(object => {
     if (!('material' in object) || !object.layers.test(camera.layers)) return
-    if (object.frustumCulled && !(object instanceof Sprite ? frustum.intersectsSprite(object) : frustum.intersectsObject(object))) return
+    if (!object.userData.prepareEntranceProgram && object.frustumCulled &&
+      !(object instanceof Sprite ? frustum.intersectsSprite(object) : frustum.intersectsObject(object))) return
     visible.push(object)
   })
   // Three's compile traverses every child even if hidden or outside the camera.
-  // Give it the first camera's objects without reparenting any live meshes.
+  // Include the first camera's objects and the few off-screen meshes that can
+  // enter that view on the first move. Keep their live hierarchy intact.
   const selection = new Object3D()
   selection.traverse = visit => visible.forEach(visit)
   // compileAsync has its own poller. The shared wait below also checks all
