@@ -12192,9 +12192,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SpeedMoleItem"
+        jumpRope:
+          maxItems: 10
+          minItems: 0
+          type: array
+          items:
+            $ref: "#/components/schemas/JumpRopeItem"
         updatedAt:
           type: string
           format: date-time
+    JumpRopeItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        score:
+          type: integer
+          format: int64
+        misses:
+          type: integer
+          format: int64
+        completedAt:
+          type: string
+          format: date-time
+        gameMaster:
+          type: boolean
     SpeedMoleItem:
       type: object
       properties:

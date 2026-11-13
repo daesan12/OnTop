@@ -16,7 +16,10 @@ const signFont = '700 32px "Malgun Gothic"'
 const titleSize = { width: 3.02, height: .44 }
 
 // Structure and lettering are separate. Later ranking data can redraw each of
-// the three planes without rebuilding any roof, post, or panel geometry.
+// the display planes without rebuilding any roof, post, or panel geometry.
+// The timber frame still has three bays; the four paper planes hang in front of
+// it (and of the two inner posts), so adding a column never changes the baked
+// structure or the server collision map.
 export function buildRankingBoard() {
   const b = new PropBuilder([8, 6], 'ranking-board-structure-v3')
 
@@ -70,13 +73,16 @@ export const rankingBoardModelMetrics = {
   triangleCount: entries.reduce((total, [, geometry]) =>
     total + (geometry.index?.count ?? geometry.getAttribute('position').count) / 3, 0),
   structureTextureCount: 0,
-  displayPlaneCount: 3,
+  displayPlaneCount: 4,
 } as const
 
+// Four planes across the 7.91m the three old planes spanned, 7cm apart.
+const panelSize = { width: 1.925, height: 2.98 }
 const columns = [
-  { title: '보유량', x: -2.77 },
-  { title: '두더지 잡기', x: 0 },
-  { title: '스피드 두더지 잡기', x: 2.77 },
+  { title: '보유량', x: -2.9925 },
+  { title: '두더지 잡기', x: -.9975 },
+  { title: '스피드 두더지 잡기', x: .9975 },
+  { title: '구구구 줄넘기', x: 2.9925 },
 ] as const
 
 type BoardPanelState = { title: string; column: RankingDisplayColumn | null; message: string; updatedAt: string; stale: boolean }
@@ -94,7 +100,7 @@ export const drawRankingBoardPanel = ({ title, column, message, updatedAt, stale
   c.font = `700 ${header * 0.42}px "Malgun Gothic", sans-serif`
   c.textAlign = 'center'
   c.textBaseline = 'middle'
-  c.fillText(column?.title ?? title, w / 2, (header+pad) / 2)
+  c.fillText(column?.title ?? title, w / 2, (header+pad) / 2, w - pad*3)
   c.fillStyle='#c5a266';c.fillRect(pad,header,w-pad*2,h*.004)
   if (!column || !column.rows.length) {
     c.fillStyle='#726957';c.font=`600 ${h*.038}px "Malgun Gothic", sans-serif`;c.textAlign='center'
@@ -136,7 +142,7 @@ const drawTitle = (c: CanvasRenderingContext2D, w: number, h: number) => {
 export function RankingBoardModel({onInteract}:{onInteract?:()=>void}={}) {
   const site = KIOSKS.find(kiosk => kiosk.kind === 'photo')!
   const snapshot=useRankingBoardFeed(state=>state.snapshot)
-  // Background polling must not recreate three canvas textures every 15 seconds.
+  // Background polling must not recreate the canvas textures every 15 seconds.
   // Only the first-load/error presentation changes while no snapshot exists.
   const loading=useRankingBoardFeed(state=>!state.snapshot&&state.loading)
   const error=useRankingBoardFeed(state=>state.snapshot?'':state.error)
@@ -157,6 +163,6 @@ export function RankingBoardModel({onInteract}:{onInteract?:()=>void}={}) {
     </mesh>)}
     <PropSign position={[0,4.06,.859]} width={titleSize.width} height={titleSize.height} draw={drawTitle} font={signFont}/>
     {columns.map((column, index) => <PropSign key={column.title} position={[column.x, 2.19, .241]}
-      width={2.37} height={2.98} draw={panelDraws[index]!} font={signFont}/>)}
+      width={panelSize.width} height={panelSize.height} draw={panelDraws[index]!} font={signFont}/>)}
   </group>
 }
