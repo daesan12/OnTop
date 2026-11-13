@@ -163,6 +163,8 @@ abstract class OpenApiHttpTestSupport {
                     "GET /api/v1/minigames/whack-a-mole/rankings",
                     "POST /api/v1/minigames/speed-mole/rounds", "POST /api/v1/minigames/speed-mole/rounds/{roundId}/complete",
                     "GET /api/v1/minigames/speed-mole/rankings",
+                    "POST /api/v1/minigames/{game}/rounds/{id}/observations",
+                    "GET /api/v1/admin/macro-analysis/mole", "GET /api/v1/admin/macro-analysis/mole/{id}",
                     "POST /api/v1/minigames/jump-rope/rounds", "POST /api/v1/minigames/jump-rope/rounds/{roundId}/complete",
                     "GET /api/v1/minigames/jump-rope/rankings",
                     "GET /api/v1/minigames/sessions/{sessionId}",

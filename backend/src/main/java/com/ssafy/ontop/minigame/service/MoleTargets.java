@@ -1,7 +1,11 @@
 package com.ssafy.ontop.minigame.service;
 
+import com.ssafy.ontop.behavior.domain.BehaviorEvent;
+import com.ssafy.ontop.behavior.domain.BehaviorEventType;
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -53,9 +57,11 @@ public record MoleTargets(String game, long roundId, long seed) {
     }
 
     public record Completion<T>(T result, int hiddenTaps) {
-        public T report(String game, long userId, long roundId) {
+        public T report(String game, long userId, long roundId, BehaviorLog behaviorLog, Instant occurredAt) {
             if (hiddenTaps > 0) {
                 log.info("mole_honeypot_hit game={} userId={} roundId={} hits={}", game, userId, roundId, hiddenTaps);
+                behaviorLog.record(() -> BehaviorEvent.builder(BehaviorEventType.MOLE_ROUND_HONEYPOT, occurredAt)
+                        .gameId(game + ":" + roundId).userId(userId).prop("hits", hiddenTaps).build());
             }
             return result;
         }

@@ -17,6 +17,7 @@ import { useMole } from '../mole/store'
 import { useSession } from '../../network/worldClient'
 import { RewardCoinSource } from '../wallet/RewardCoinFlight'
 import { settleSpeedMole } from './settlement'
+import { MoleTapRecorder, type MoleInput } from '../arcade/moleObservations'
 
 type Phase = 'ready' | 'starting' | 'countdown' | 'playing' | 'result'
 interface Feedback { id: number; hole: number; kind: 'hit' | 'miss'; at: number }
@@ -38,6 +39,7 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
   const sessionOwner = useRef('')
   const session = useRef<SpeedMoleSession | null>(null)
   const taps = useRef<SpeedMoleTap[]>([])
+  const recorder = useRef<MoleTapRecorder | null>(null)
   const startKey = useRef('')
   const requestGeneration = useRef(0)
   const saveBusy = useRef(false)
@@ -46,7 +48,7 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
   const round = useRef<SpeedMoleRound | null>(null)
   const seq = useRef(0)
   const root = useRef<HTMLDivElement>(null)
-  const handlers = useRef({ strike: (_hole: number) => {}, start: () => {}, escape: () => {} })
+  const handlers = useRef({ strike: (_hole: number, _input: MoleInput) => {}, start: () => {}, escape: () => {} })
   const active = phase === 'playing'
   const ticking = active || phase === 'countdown'
   const game = round.current
@@ -67,6 +69,8 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
       if (generation !== requestGeneration.current) return
       startKey.current = ''
       session.current = server; taps.current = []; setSaved(null)
+      recorder.current?.flush()
+      recorder.current = server ? new MoleTapRecorder('speed-mole', server.id) : null
       sessionOwner.current = useSession.getState().sessionId ?? ''
       const at = performance.now()
       const begins = server ? at + Date.parse(server.startedAt) - Date.parse(server.serverNow) : at + SPEED_MOLE_COUNTDOWN_MS
@@ -82,6 +86,7 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
   const save = async () => {
     const current = session.current
     if (localPreview || !current || saveBusy.current || saved?.id === current.id) return
+    recorder.current?.flush()
     saveBusy.current = true; setSaving(true); setError('')
     const generation = requestGeneration.current
     try { const value = await settleSpeedMole(current.id, taps.current, sessionOwner.current); if (generation === requestGeneration.current) setSaved(value) }
@@ -89,17 +94,22 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
     finally { if (generation === requestGeneration.current) { saveBusy.current = false; setSaving(false) } }
   }
   useEffect(() => { if (phase === 'result') void save() }, [phase])
-  useEffect(() => () => { ++requestGeneration.current }, [])
-  const strike = (index: number) => {
+  useEffect(() => () => { ++requestGeneration.current; recorder.current?.flush() }, [])
+  const strike = (index: number, input: MoleInput) => {
     if (!['countdown', 'playing'].includes(phaseRef.current) || confirmQuit || rankingsOpen || !round.current || document.hidden || taps.current.length >= 6000) return
     const at = performance.now(), currentPhase = round.current.phaseAt(at)
     setNow(at)
     if (currentPhase !== phaseRef.current) setPhase(currentPhase)
     if (currentPhase !== 'playing') return
+    const target = round.current.targets.find(candidate => candidate.hole === index)
     const event = round.current.strike(index, at)
     if (event.kind === 'ignored') { if (round.current.remaining(at) === 0) setPhase('result'); return }
     const targetId = event.kind === 'hit' ? session.current?.targetIds?.get(index) : undefined
-    taps.current.push({ hole: index, at: Math.floor(at - round.current.startedAt), targetId })
+    const clientAtMs = Math.floor(at - round.current.startedAt)
+    taps.current.push({ hole: index, at: clientAtMs, targetId })
+    recorder.current?.push({ sequence: taps.current.length, clientAtMs, hole: index, input, targetId,
+      spawnId: target?.id, appearedAtMs: target && Math.floor(target.appearedAt - round.current.startedAt),
+      outcome: event.kind === 'hit' ? 'HIT' : 'MISS' })
     // 두더지 잡기와 같은 타격음. 빈 구멍(실수)은 소리 없이 −3 표시만 한다.
     if (event.kind === 'hit') playSfx('mole-hit')
     const fx: Feedback = { id: ++seq.current, hole: index, kind: event.kind, at }
@@ -130,7 +140,7 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
       if (SPEED_MOLE_CODES.includes(event.code)) {
         event.preventDefault()
         const index = speedMoleHole(event.code, event.repeat)
-        if (index !== null) handlers.current.strike(index)
+        if (index !== null) handlers.current.strike(index, 'KEYBOARD')
       } else if (event.code === 'Escape' && !event.repeat) { event.preventDefault(); handlers.current.escape() }
       else if ((event.code === 'Enter' || event.code === 'Space') && !event.repeat
         && (phaseRef.current === 'ready' || phaseRef.current === 'result')
@@ -160,8 +170,8 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
           return <button key={key} type="button" className="speed-mole__hole" style={layout[index]}
             aria-label={`${key} ${target ? '두더지' : '빈 구멍'}`} aria-keyshortcuts={key}
             data-active={!!target} data-feedback={fx?.kind} disabled={!active || confirmQuit}
-            onPointerDown={event => { if (event.button !== 0) return; event.preventDefault(); strike(index) }}
-            onClick={event => { if (event.detail === 0) strike(index) }}>
+            onPointerDown={event => { if (event.button !== 0) return; event.preventDefault(); strike(index, event.pointerType === 'touch' ? 'TOUCH' : 'POINTER') }}
+            onClick={event => { if (event.detail === 0) strike(index, 'KEYBOARD') }}>
             <img className="speed-mole__rim speed-mole__rim--back" src={holeArt} alt="" draggable={false} />
             {target && <span key={target.id} className="speed-mole__target"><img src={moleArt} alt="" draggable={false} /></span>}
             <img className="speed-mole__rim speed-mole__rim--front" src={holeArt} alt="" draggable={false} />
