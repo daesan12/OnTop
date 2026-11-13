@@ -24,9 +24,9 @@ public class SkinRepository {
                 r.getString("compatibility"),r.getString("wear_mode"),Arrays.asList(r.getString("slots").split(","))),
                 r.getString("state"),r.getLong("state_version"),r.getString("published_upload_id"),r.getTimestamp("updated_at").toInstant());
     }
-    public List<Entry> list() { return jdbc.query("SELECT c.* FROM skin_catalog c WHERE NOT EXISTS (SELECT 1 FROM skin_item_registrations r WHERE r.skin_id=c.id) ORDER BY c.updated_at DESC,c.id LIMIT 200",this::entry); }
+    public List<Entry> list() { return jdbc.query("SELECT c.* FROM skin_catalog c WHERE c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM skin_item_registrations r WHERE r.skin_id=c.id) ORDER BY c.updated_at DESC,c.id LIMIT 200",this::entry); }
     public Entry get(String id,boolean lock) {
-        return jdbc.query("SELECT * FROM skin_catalog WHERE id=?"+(lock?" FOR UPDATE":""),this::entry,id).stream().findFirst()
+        return jdbc.query("SELECT * FROM skin_catalog WHERE id=? AND deleted_at IS NULL"+(lock?" FOR UPDATE":""),this::entry,id).stream().findFirst()
                 .orElseThrow(()->new SkinException(404,"SKIN_NOT_FOUND","등록한 스킨을 찾지 못했습니다."));
     }
     public void create(String id,Definition d,long user) {
@@ -60,7 +60,7 @@ public class SkinRepository {
     }
     public void verified(String id) { jdbc.update("UPDATE skin_uploads SET verified_at=CURRENT_TIMESTAMP(3) WHERE id=? AND verified_at IS NULL",id); }
     public List<Entry> components() {
-        return jdbc.query("SELECT c.* FROM skin_catalog c JOIN skin_item_registrations r ON r.skin_id=c.id ORDER BY c.updated_at DESC,c.id LIMIT 200",this::entry);
+        return jdbc.query("SELECT c.* FROM skin_catalog c JOIN skin_item_registrations r ON r.skin_id=c.id WHERE c.deleted_at IS NULL ORDER BY c.updated_at DESC,c.id LIMIT 200",this::entry);
     }
     public boolean isComponent(String id) { return jdbc.queryForObject("SELECT COUNT(*) FROM skin_item_registrations WHERE skin_id=?",Integer.class,id)>0; }
     public void markComponent(String id) { jdbc.update("INSERT INTO skin_item_registrations VALUES(?)",id); }
@@ -111,6 +111,13 @@ public class SkinRepository {
     public void disable(Entry e,long user) {
         if(e.publishedUploadId()!=null&&!isComponent(e.id())) jdbc.update("UPDATE gacha_products SET active=FALSE WHERE product_code=?",e.definition().productCode());
         jdbc.update("UPDATE skin_catalog SET state='DISABLED',state_version=state_version+1,updated_by=?,updated_at=CURRENT_TIMESTAMP(3) WHERE id=?",user,e.id());
+    }
+    public boolean referencedBySet(String id) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM skin_set_members m JOIN skin_sets s ON s.id=m.set_id WHERE m.skin_id=? AND s.deleted_at IS NULL",Integer.class,id)>0;
+    }
+    public void delete(Entry e,long user) {
+        disable(e,user);
+        jdbc.update("UPDATE skin_catalog SET deleted_at=CURRENT_TIMESTAMP(3),deleted_by=? WHERE id=?",user,e.id());
     }
     /** 이전 확정 상품/영수증 및 비활성 스킨의 보유자도 모델을 계속 읽을 수 있다. 임시 파일은 제외한다. */
     public record Published(Definition definition,String uploadId,String prefix,ModelFile maleModel,ModelFile femaleModel) { }

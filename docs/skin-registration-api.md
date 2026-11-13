@@ -57,6 +57,7 @@ DEV/PROD의 Vercel 설정에서 `/admin/skins`를 `/index.html`로 연결한다.
 | POST /{id}/uploads/{uploadId}/verify | 실제 파일 읽기·해시/구조/뼈대 검증·불변 경로 보관 |
 | POST /{id}/publish | version/uploadId/reviewed 확인 후 상품·아이템 원자 연결 |
 | POST /{id}/disable | 신규 획득 중단, 기존 보유·장착 유지 |
+| DELETE /{id} | version 확인 후 공방 목록·신규 획득에서 제거. 기존 보유·장착·공개 파일 유지 |
 | GET /api/v1/skins/assets | 실제 공개했던 파일 목록, 미공개 업로드 제외 |
 
 임시저장 예시:
@@ -151,6 +152,17 @@ V165 후보: skin_item_registrations / skin_item_parts / skin_sets / skin_set_me
 | PUT /sets/{id} | version+definition으로 미공개 구성 수정 |
 | POST /sets/{id}/publish | version으로 세트 공개 |
 | POST /sets/{id}/disable | version으로 신규 획득 중단 |
+| DELETE /sets/{id} | version으로 공방 세트 목록·신규 획득에서 제거 |
+
+### 공방 삭제 · 2026-11-13
+
+사용자 결정: 삭제해도 기존 보유·착용·영수증과 공개 파일은 유지한다. 삭제 버튼은 이름과 보존 범위를 확인한 뒤 요청하며 취소 시 아무것도 바꾸지 않는다. 삭제 성공 이후에만 목록과 해당 편집기를 초기화하고, 실패·버전 충돌이면 입력을 유지해 재조회·재시도할 수 있다. 삭제 전에 시작된 목록 조회가 늦게 와도 삭제 항목을 복원하지 않는다.
+
+두 DELETE는 JSON `{ "version": 현재버전 }`을 받고 `204 No Content`를 반환한다. 기존 스킨 등록자·운영 관리자 권한을 모두 적용한다. 등록 상태와 `deleted_at`을 같은 트랜잭션에서 변경하며, 삭제된 항목은 목록/상세/수정/재공개에서 제외한다. 과거 파일 목록·세트 구성·물리 아이템은 지우지 않아 이미 가진 의상과 개봉 영수증을 계속 사용할 수 있다. 상품 코드는 재사용하지 않는다.
+
+비삭제 세트(공개·획득 중단·초안 포함)가 스킨을 참조하면 `409 SKIN_IN_USE`로 거절한다. 해당 세트부터 삭제한 다음 스킨을 삭제한다. 세트와 구성품 삭제는 별개이며 세트를 삭제해도 공용 구성품은 다른 세트에서 재사용할 수 있다. 다른 창에서 상태를 바꿨다면 `409 SKIN_VERSION_CHANGED`, 이미 삭제된 ID는 404다.
+
+V176은 `skin_catalog`·`skin_sets`에 `deleted_at`·`deleted_by`만 추가한다. V175 이후 적용할 후보이며 팀 공유·순서 확인 전 SQL 푸시·병합·공용 DB 적용은 보류한다. 기존 SQL·보유품·착용·파일·영수증은 변경하지 않는다. 로컬 전용 DB 검증은 공용 DB 적용과 구분한다.
 
 ```json
 {"productCode":"SCHOLAR_SET","name":"선비 세트","grade":2,"compatibility":"ANY","imageSkinId":"11111111-1111-4111-8111-111111111111","itemIds":["11111111-1111-4111-8111-111111111111","22222222-2222-4222-8222-222222222222"]}

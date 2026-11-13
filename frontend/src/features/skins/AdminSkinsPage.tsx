@@ -77,6 +77,18 @@ function SkinItemEditor({ onAuthEnded, component, onCompose, onWorkflowChange }:
     try { await action(control.signal) } catch (cause) { if (!control.signal.aborted) fail(cause) }
     finally { if (flight.current === control) { flight.current = null; if (!control.signal.aborted) setBusy(false) } }
   }
+  const deleteEntry = (entry:SkinEntry) => {
+    if(flight.current||busy)return
+    if(!window.confirm(`‘${entry.definition.name}’ 스킨을 삭제할까요?\n공방 목록과 신규 획득에서 제외돼요. 기존 보유·착용과 파일은 유지돼요.\n이 스킨을 편집 중이면 저장하지 않은 변경과 파일 선택도 초기화돼요.`))return
+    void run(async signal=>{
+      await skinRequest<void>(`/${entry.id}`,signal,'DELETE',{version:entry.version})
+      if(signal.aborted)return
+      loading.current?.abort()
+      setEntries(v=>v.filter(e=>e.id!==entry.id))
+      if(selected?.id===entry.id){const next=newItem(component);draftBaseline.current=next;setSelected(null);setForm(next);resetFiles()}
+      setMessage('스킨을 삭제했어요. 기존 보유·착용은 그대로 유지돼요.')
+    })
+  }
   const save = () => run(async signal => {
     const entry = await skinRequest<SkinEntry>(selected ? `/${selected.id}` : component ? '/components' : '', signal, selected ? 'PUT' : 'POST',
       selected ? { version: selected.version, definition: form } : form)
@@ -140,7 +152,7 @@ function SkinItemEditor({ onAuthEnded, component, onCompose, onWorkflowChange }:
             <SkinThumbnail src={skinThumbnail(entry, assetIndex)} name={entry.definition.name}/>
             {!component && <span className={'skin-grade grade-' + entry.definition.grade}>{gradeNames[entry.definition.grade - 1]}</span>}
             <span><strong>{entry.definition.name}</strong>{!component && <small>{entry.definition.productCode}</small>}<em>{component ? entry.state === 'PUBLISHED' ? '세트에 담을 수 있어요' : entry.state === 'DRAFT' ? '파일 준비 중' : '새 세트 등록 중단' : stateNames[entry.state]}</em></span>
-          </button></li>)}</ul>{!entries.length ? <p>첫 스킨을 등록해보세요.</p> : !entries.some(e => (!grade || e.definition.grade === grade) && `${e.definition.name} ${e.definition.productCode}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) && <p>선택한 등급이나 이름에 맞는 의상이 없어요.</p>}
+          </button><button type="button" className="skin-delete" disabled={busy} aria-label={`${entry.definition.name} 스킨 삭제`} onClick={()=>deleteEntry(entry)}>삭제</button></li>)}</ul>{!entries.length ? <p>첫 스킨을 등록해보세요.</p> : !entries.some(e => (!grade || e.definition.grade === grade) && `${e.definition.name} ${e.definition.productCode}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) && <p>선택한 등급이나 이름에 맞는 의상이 없어요.</p>}
       </aside>
       <section className="skin-editor"><form onSubmit={e => { e.preventDefault(); void save() }}>
         <h3>{component ? '이름과 부위' : selected ? '상품 정보' : '새 스킨 등록'}</h3><fieldset disabled={busy}>
