@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
-import { useGame } from '../../game/store'
+import { useDisplayGame as useGame } from '../../game/displayGame'
+import { useCompanions } from '../ai/companions'
+import { observedNpcPractice } from '../ai/practiceSpectator'
 import { useTableLobby } from '../tableLobby/state'
 import { publicMatchService } from '../tableLobby/publicMatch'
 import { panelOwnsKeys } from '../../world/inputOwnership'
@@ -25,7 +27,9 @@ export function BenchSpectatorControls() {
   const bench = useBenchState(useShallow(s => ({ seat: s.placements[session.sessionId]?.seat ?? -1, pending: s.pending })))
   const scope = benchViewScope(session, bench.seat), anchor = benchTable(session.benchId)
   const anchorId = anchor?.id
-  const available = !!publicMatchService.find({ channelId: session.roomId, tableId: session.watchedTableId })
+  useCompanions(s => s.observedPractice)
+  useCompanions(s => s.practiceChat)
+  const available = !!observedNpcPractice() || !!publicMatchService.find({ channelId: session.roomId, tableId: session.watchedTableId })
   useEffect(() => {
     resetBenchSpectator()
     useBenchSpectator.setState({ scope })

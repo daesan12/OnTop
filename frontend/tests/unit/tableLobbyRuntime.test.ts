@@ -11,6 +11,12 @@ import { useFacilityState, useFacilityUseNotice } from '../../src/features/facil
 import { readFileSync } from 'node:fs'
 import { parseGame } from '../../src/game/protocol'
 import { useForfeit } from '../../src/game/forfeit'
+import { useAiFeatures, resetAiFeatures } from '../../src/features/ai/serviceFeatures'
+import { useCompanions, type Practice } from '../../src/features/ai/companions'
+import { useDisplayGame } from '../../src/game/displayGame'
+import { benchAnchors } from '../../src/features/interactions/benchAnchors'
+import { benchTable } from '../../src/features/interactions/benchSpectator'
+import { useBenchState, resetBenchState } from '../../src/features/interactions/benchState'
 
 const table = { tableId: 'server-table', version: 1, capacity: 2, minimumPlayers: 2,
   seats: [{ seatNumber: 1, userId: null, ready: false }, { seatNumber: 2, userId: '102', ready: false }],
@@ -56,6 +62,7 @@ class ContractSocket implements SocketLike {
   close(code = 1000) { this.readyState = 3; queueMicrotask(() => this.onclose?.({ code } as CloseEvent)) }
 }
 beforeEach(async () => {
+  resetAiFeatures(); resetBenchState()
   clearAuthSession(); resetWorld()
   vi.stubGlobal('window', { location: { href: 'http://localhost:5198/park' } })
   vi.stubGlobal('WebSocket', ContractSocket)
@@ -73,7 +80,7 @@ beforeEach(async () => {
   runtime = new ParkRuntime(); await restoreAuthSession(true); runtime.start()
   await vi.waitFor(() => expect(useSession.getState().tables).toHaveLength(1))
 })
-afterEach(async () => { await runtime.stop(); vi.useRealTimers(); clearAuthSession(); vi.unstubAllGlobals() })
+afterEach(async () => { await runtime.stop(); resetAiFeatures();resetBenchState();vi.restoreAllMocks();vi.useRealTimers(); clearAuthSession(); vi.unstubAllGlobals() })
 function nearTable() {
   useSession.setState({ mapCompatible: true })
   const [x, y, z] = TABLES[0]!.position, pose = { x, y: y + .8, z: z + 3, yaw: 0 }
@@ -82,6 +89,48 @@ function nearTable() {
     benchId: '', fitnessId: '', fitnessStartedAt: 0, telescopeId: '', telescopeYaw: 0, telescopePitch: 0, followTargetId: '' })
   return TABLES[0]!.id
 }
+function npcBench() {
+  nearTable()
+  const bench=benchAnchors.find(b=>benchTable(b.id))!,anchor=benchTable(bench.id)!.id
+  const pose=bench.seats[0]
+  useAiFeatures.setState({companions:true,loaded:true})
+  useSession.setState({benchId:bench.id,watchedTableId:table.tableId,focusedAnchorId:anchor,
+    bindings:[{channelId:'c',tableId:table.tableId,anchorId:anchor}]})
+  useBenchState.setState({placements:{'101':{channelId:'c',userId:'101',benchId:bench.id,seat:0,pose}}})
+  useTableLobby.setState({status:'ready',spectatorRequested:false})
+  const practice={name:'강잼민',npcUserId:'9001',difficulty:'EASY',phase:'PLAYING',bet:0,thinking:false,speech:'좋아',speechSource:'FIXED',analysis:{source:'LOCAL',blackEstimate:null,advantage:'UNKNOWN'},analysisNote:'',snapshot:{gameId:'npc-bench',tableId:table.tableId,version:1,blackUserId:102,whiteUserId:9001,turnUserId:102,winnerUserId:null,turnDeadline:null,endedAt:null,endReason:null,board:{board:Array.from({length:15},()=>Array(15).fill(0)),moveCount:0,outcome:'PLAYING',forbiddenMoves:[]}}} as Practice
+  const status={actors:[],practice:null,observedPractice:practice,practiceChat:{gameId:practice.snapshot.gameId,version:1,role:'SPECTATOR'},actorVersion:1}
+  return {anchor,bench,status}
+}
+it('bench NPC observation uses the authorized board without GAME_WATCH and exits while retaining the bench',async()=>{
+ const {anchor,bench,status}=npcBench()
+ vi.spyOn(runtime,'requestJSON').mockResolvedValue(status)
+ expect(await runtime.watchBench(anchor,true)).toBe(true)
+ expect(useTableLobby.getState().spectatorRequested).toBe(false)
+ expect(await runtime.watchBench(anchor)).toBe(true)
+ expect(useDisplayGame.getState().game?.role).toBe('SPECTATOR')
+ socket.emit('TABLE_WATCH_STATE',table)
+ expect(useTableLobby.getState().spectatorRequested).toBe(true)
+ expect(useDisplayGame.getState().game?.role).toBe('SPECTATOR')
+ expect(socket.requests.some(r=>r.type==='GAME_WATCH')).toBe(false)
+ expect(await runtime.unwatchGame()).toBe(true)
+ expect(useSession.getState().benchId).toBe(bench.id)
+ expect(useDisplayGame.getState().localPractice).toBeNull()
+ expect(await runtime.watchBench(anchor)).toBe(true)
+})
+it.each(['cancel','leave'] as const)('%s rejects a delayed NPC bench observation response',async action=>{
+ const {anchor,status}=npcBench()
+ let finish!:(value:unknown)=>void
+ vi.spyOn(runtime,'requestJSON').mockImplementation(()=>new Promise(resolve=>{finish=resolve}))
+ const watching=runtime.watchBench(anchor)
+ await vi.waitFor(()=>expect(finish).toBeTypeOf('function'))
+ if(action==='cancel')await runtime.unwatchGame()
+ else useSession.setState({benchId:''})
+ finish(status)
+ expect(await watching).toBe(false)
+ expect(useTableLobby.getState().spectatorRequested).toBe(false)
+ expect(useCompanions.getState().observedPractice).toBeNull()
+})
 it('standing spectator exit releases hidden table focus; a newer inspection survives late cleanup', async () => {
   const anchor = nearTable()
   useSession.setState({ focusedAnchorId: anchor })

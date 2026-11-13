@@ -52,7 +52,12 @@ it('keeps arrival out of the game camera and restores production display after r
 it('renders an approved observer but never permits placement or a stale observed snapshot',()=>{
  const p=practice()
  useCompanions.setState({observedPractice:p,practiceChat:{gameId:'npc-test',version:1,role:'SPECTATOR'},receivedAt:performance.now()})
+ expect(useDisplayGame.getState().game).toBeNull()
+ useTableLobby.setState({spectatorRequested:true})
  expect(useDisplayGame.getState().game?.role).toBe('SPECTATOR');expect(canPlaceDisplayed('101',7,7)).toBe(false)
+ useTableLobby.setState({spectatorRequested:false})
+ expect(useDisplayGame.getState().game).toBeNull()
+ useTableLobby.setState({spectatorRequested:true})
  useCompanions.setState({practiceChat:null});expect(useDisplayGame.getState().game).toBeNull()
 })
 it('shows terminal results with locked input, and clears NPC presentation when the service feature is disabled',()=>{
