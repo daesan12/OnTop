@@ -61,4 +61,16 @@ class ResidentControllerTests {
                 .andExpect(status().isBadRequest());
         verify(companions,never()).talk(anyString(),any(),any());
     }
+    @Test void companionPostsRequireJsonInsteadOfTheBrowsersDefaultPlainText()throws Exception{
+        var mvc=mvc(true);when(channels.channelOf("101")).thenReturn("one");
+        for(String endpoint:new String[]{"invite","action"}){
+            String body=endpoint.equals("invite")?"{\"difficulty\":\"HARD\"}":"{\"kind\":\"place\",\"gameId\":\"npc-media\",\"version\":0,\"x\":7,\"y\":7}";
+            mvc.perform(post("/api/v1/ai/companions/"+endpoint).principal(()->"101")
+                    .contentType("text/plain;charset=UTF-8").content(body)).andExpect(status().isUnsupportedMediaType());
+            mvc.perform(post("/api/v1/ai/companions/"+endpoint).principal(()->"101")
+                    .contentType("application/json").content(body)).andExpect(status().isOk());
+        }
+        verify(companions,times(1)).invite("101",LocalCompanions.Difficulty.HARD);
+        verify(companions,times(1)).action(eq("101"),argThat(body->body.path("kind").asText().equals("place")));
+    }
 }
