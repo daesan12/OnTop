@@ -42,6 +42,8 @@ ontop:
     enabled: true
     # FE가 v5 규칙으로 빌드된 DEV에서만 서버 계약도 함께 활성화한다.
     bungeoppang-v5-enabled: ${BUNGEOPPANG_V5_ENABLED:false}
+    # 숙이기 구간을 기록하는 FE 배포 후에만 2로 전환한다. 이미 시작한 판은 시작 시 버전으로 판정한다.
+    jump-rope-rules-version: ${JUMP_ROPE_RULES_VERSION:1}
   world:
     channels:
       - channel-id: channel-1

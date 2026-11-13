@@ -67,7 +67,7 @@ class JumpRopeHttpTests {
     }
 
     @Test void completes_using_only_integer_offsets_and_returns_the_verified_result() throws Exception {
-        when(service.complete(101, 1, List.of(728335, 1723348))).thenReturn(new JumpRopeDtos.Result("1", 1, 45,
+        when(service.complete(101, 1, List.of(728335, 1723348), null)).thenReturn(new JumpRopeDtos.Result("1", 1, 45,
                 new JumpRopeDtos.Counts(2, 0, 3), "missLimit", NOW.plusSeconds(11), 0));
         var response = send(jsonRequest(BASE + "/rounds/1/complete", true, "{\"jumpOffsetsUs\":[728335,1723348]}"));
         assertStatus(response, 200);
@@ -83,11 +83,37 @@ class JumpRopeHttpTests {
                 "{\"jumpOffsetsUs\":[],\"reward\":39}", "{\"jumpOffsetsUs\":[],\"jumpOffsetsUs\":[]}")) {
             assertStatus(send(jsonRequest(BASE + "/rounds/1/complete", true, invalid)), 400);
         }
-        verify(service, times(1)).complete(anyLong(), anyLong(), anyList());
+        verify(service, times(1)).complete(anyLong(), anyLong(), anyList(), any());
+    }
+
+    @Test void accepts_duck_span_pairs_in_any_field_order_and_rejects_every_other_shape() throws Exception {
+        var result = new JumpRopeDtos.Result("1", 2, 1965, new JumpRopeDtos.Counts(66, 0, 0), "time", NOW.plusSeconds(63), 39);
+        when(service.complete(101, 1, List.of(728335), List.of(List.of(21950000, 22650000), List.of(48100000, 60000000))))
+                .thenReturn(result);
+        when(service.complete(101, 1, List.of(), List.of())).thenReturn(result);
+        for (String valid : List.of("{\"duckSpansUs\":[[21950000,22650000],[48100000,60000000]],\"jumpOffsetsUs\":[728335]}",
+                "{\"jumpOffsetsUs\":[728335],\"duckSpansUs\":[[21950000,22650000],[48100000,60000000]]}",
+                "{\"jumpOffsetsUs\":[],\"duckSpansUs\":[]}")) {
+            var response = send(jsonRequest(BASE + "/rounds/1/complete", true, valid));
+            assertStatus(response, 200);
+            assertThat(mapper.readTree(response.body()).path("rulesVersion").asInt()).isEqualTo(2);
+        }
+        String sixtyFive = "[" + String.join(",", java.util.Collections.nCopies(65, "[1,2]")) + "]";
+        for (String spans : List.of("null", "{}", "[1,2]", "[[1]]", "[[1,2,3]]", "[[]]", "[[1.0,2]]", "[[\"1\",2]]", "[[null,2]]",
+                "[[1,2147483648]]", "[null]", sixtyFive)) {
+            assertStatus(send(jsonRequest(BASE + "/rounds/1/complete", true,
+                    "{\"jumpOffsetsUs\":[],\"duckSpansUs\":" + spans + "}")), 400);
+        }
+        for (String invalid : List.of("{\"duckSpansUs\":[]}", "{\"jumpOffsetsUs\":[],\"duckSpansUs\":[],\"duckSpansUs\":[]}",
+                "{\"duckSpansUs\":[],\"jumpOffsetsUs\":[],\"jumpOffsetsUs\":[]}", "{\"jumpOffsetsUs\":[],\"duckSpans\":[]}",
+                "{\"jumpOffsetsUs\":[],\"duckSpansUs\":[],\"dodged\":5}")) {
+            assertStatus(send(jsonRequest(BASE + "/rounds/1/complete", true, invalid)), 400);
+        }
+        verify(service, times(3)).complete(anyLong(), anyLong(), anyList(), any());
     }
 
     @Test void serializes_the_actual_granted_reward_for_a_full_time_result() throws Exception {
-        when(service.complete(101, 1, List.of(728335))).thenReturn(new JumpRopeDtos.Result("1", 1, 1965,
+        when(service.complete(101, 1, List.of(728335), null)).thenReturn(new JumpRopeDtos.Result("1", 1, 1965,
                 new JumpRopeDtos.Counts(66, 0, 0), "time", NOW.plusSeconds(63), 3));
         var response = send(jsonRequest(BASE + "/rounds/1/complete", true, "{\"jumpOffsetsUs\":[728335]}"));
         assertStatus(response, 200);
@@ -133,6 +159,12 @@ class JumpRopeHttpTests {
         assertThat(complete.at("/responses/404").isObject()).isTrue();
         assertThat(rankings.at("/responses/200/content/application~1json/schema/$ref").asText()).endsWith("/JumpRopeRankings");
         assertThat(api.at("/components/schemas/JumpRopeComplete/properties/jumpOffsetsUs/items/type").asText()).isEqualTo("integer");
+        var spans = api.at("/components/schemas/JumpRopeComplete/properties/duckSpansUs");
+        assertThat(spans.path("type").asText()).isEqualTo("array");
+        assertThat(spans.path("maxItems").asInt()).isEqualTo(64);
+        assertThat(spans.at("/items/type").asText()).isEqualTo("array");
+        assertThat(spans.at("/items/items/type").asText()).isEqualTo("integer");
+        assertThat(api.at("/components/schemas/JumpRopeComplete/required").toString()).isEqualTo("[\"jumpOffsetsUs\"]");
         var reward = api.at("/components/schemas/JumpRopeResult/properties/reward");
         assertThat(reward.path("type").asText()).isEqualTo("integer");
         assertThat(reward.path("minimum").asInt(-1)).isZero();

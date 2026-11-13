@@ -23,15 +23,21 @@ public class JumpRopeService {
     private final Clock clock;
     private final SecureRandom random;
     private final JumpRopeRewards rewards;
+    /** The rules version of new rounds and of the ranking board. Existing rounds keep the version they started with. */
+    private final int rulesVersion;
     private final TransactionTemplate write;
     private final TransactionTemplate read;
 
     JumpRopeService(JumpRopeRepository repository, PlatformTransactionManager manager, Clock clock, SecureRandom random,
-            JumpRopeRewards rewards) {
+            JumpRopeRewards rewards, int rulesVersion) {
+        if (!supports(rulesVersion)) {
+            throw new IllegalArgumentException("Unsupported jump rope rules version: " + rulesVersion);
+        }
         this.repository = repository;
         this.clock = clock;
         this.random = random;
         this.rewards = rewards;
+        this.rulesVersion = rulesVersion;
         write = new TransactionTemplate(manager);
         write.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         read = new TransactionTemplate(manager);
@@ -45,7 +51,7 @@ public class JumpRopeService {
             if (!repository.lockUser(userId)) throw unauthenticated();
             Instant now = clock.instant();
             Instant startedAt = now.truncatedTo(ChronoUnit.MILLIS).plusMillis(JumpRopeRules.COUNTDOWN_MS);
-            var row = repository.start(userId, key, Integer.toUnsignedLong(random.nextInt()), startedAt,
+            var row = repository.start(userId, key, Integer.toUnsignedLong(random.nextInt()), rulesVersion, startedAt,
                     startedAt.plusSeconds(JumpRopeRules.EXPIRY_SECONDS));
             requireLatest(userId, row.id());
             if (row.result() != null) throw new JumpRopeException(409, "JUMP_ROPE_ROUND_FINISHED", "이미 완료한 시작 요청이에요.");
@@ -55,10 +61,19 @@ public class JumpRopeService {
         });
     }
 
+    /** A log without duck spans, as rules v1 rounds submit it. */
     public JumpRopeDtos.Result complete(long userId, long id, List<Integer> offsets) {
+        return complete(userId, id, offsets, null);
+    }
+
+    /**
+     * Replays the submitted log under the rules version stored on the round, never the one the client implies.
+     * A v1 round accepts only jump offsets; a v2 round also requires duck spans (an empty list is valid).
+     */
+    public JumpRopeDtos.Result complete(long userId, long id, List<Integer> offsets, List<List<Integer>> duckSpans) {
         JumpRopeRules.validateInputs(offsets);
         var inputs = List.copyOf(offsets);
-        String inputHash = hash(inputs);
+        var spans = duckSpans == null ? null : JumpRopeRulesV2.spans(duckSpans);
         Instant receivedAt = clock.instant();
         return write.execute(tx -> {
             // Use the same wallet-first order as the other reward writers; keep the existing user/round lock order.
@@ -66,6 +81,9 @@ public class JumpRopeService {
             if (!repository.lockUser(userId)) throw notFound();
             var row = repository.lockRound(userId, id).orElseThrow(JumpRopeService::notFound);
             requireActiveVersionAndWindow(row, receivedAt);
+            boolean v2 = row.rulesVersion() == JumpRopeRulesV2.VERSION;
+            if (v2 ? spans == null : spans != null) throw JumpRopeRulesV2.invalidDucks();
+            String inputHash = v2 ? hashV2(inputs, spans) : hash(inputs);
             if (row.result() != null) {
                 if (!inputHash.equals(row.inputHash())) {
                     throw new JumpRopeException(409, "JUMP_ROPE_INPUT_CONFLICT", "이미 다른 점프 기록으로 결과가 확정됐어요.");
@@ -74,7 +92,7 @@ public class JumpRopeService {
                 return row.result().withReward(granted);
             }
             requireLatest(userId, id);
-            var replay = JumpRopeRules.replay(inputs);
+            var replay = v2 ? JumpRopeRulesV2.replay(row.seed(), inputs, spans) : JumpRopeRules.replay(inputs);
             if (receivedAt.isBefore(row.startedAt().plus(replay.minimumElapsedUs(), ChronoUnit.MICROS))) {
                 throw new JumpRopeException(409, "JUMP_ROPE_NOT_FINISHED", "아직 경기가 끝나지 않았어요.");
             }
@@ -95,10 +113,15 @@ public class JumpRopeService {
             throw new JumpRopeException(400, "JUMP_ROPE_INVALID_PAGE", "페이지 범위를 확인해 주세요.");
         }
         return read.execute(tx -> {
-            long total = repository.participants();
-            return new JumpRopeDtos.Rankings(JumpRopeRules.VERSION, "ALL_TIME", clock.instant(), total, offset, limit,
-                    repository.ranked(limit, offset), repository.me(userId), offset + (long) limit < total);
+            long total = repository.participants(rulesVersion);
+            return new JumpRopeDtos.Rankings(rulesVersion, "ALL_TIME", clock.instant(), total, offset, limit,
+                    repository.ranked(rulesVersion, limit, offset), repository.me(rulesVersion, userId),
+                    offset + (long) limit < total);
         });
+    }
+
+    static boolean supports(int version) {
+        return version == JumpRopeRules.VERSION || version == JumpRopeRulesV2.VERSION;
     }
 
     private void requireLatest(long userId, long id) {
@@ -107,17 +130,33 @@ public class JumpRopeService {
         }
     }
 
+    /** An active round of any supported version still completes after the version of new rounds changes. */
     private static void requireActiveVersionAndWindow(JumpRopeRepository.Row row, Instant at) {
-        if (at.isAfter(row.expiresAt()) || (row.result() == null && row.rulesVersion() != JumpRopeRules.VERSION)) {
+        if (at.isAfter(row.expiresAt()) || (row.result() == null && !supports(row.rulesVersion()))) {
             throw new JumpRopeException(409, "JUMP_ROPE_ROUND_EXPIRED", "기록 제출 시간이 지났거나 규칙 버전이 바뀌었어요.");
         }
     }
 
-    private static String hash(List<Integer> inputs) {
+    /** Rules v1: the jump offsets as big-endian int32 values. Unchanged so settled v1 rounds keep their hash. */
+    static String hash(List<Integer> inputs) {
         ByteBuffer bytes = ByteBuffer.allocate(Integer.BYTES * inputs.size());
         inputs.forEach(bytes::putInt);
+        return sha256(bytes.array());
+    }
+
+    /** Rules v2: version 2, jump count, jumps, span count, then each span's start and end, all big-endian int32. */
+    static String hashV2(List<Integer> inputs, List<JumpRopeRulesV2.DuckSpan> spans) {
+        ByteBuffer bytes = ByteBuffer.allocate(Integer.BYTES * (3 + inputs.size() + 2 * spans.size()));
+        bytes.putInt(JumpRopeRulesV2.VERSION).putInt(inputs.size());
+        inputs.forEach(bytes::putInt);
+        bytes.putInt(spans.size());
+        spans.forEach(span -> bytes.putInt(span.startUs()).putInt(span.endUs()));
+        return sha256(bytes.array());
+    }
+
+    private static String sha256(byte[] bytes) {
         try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes.array()));
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is unavailable", e);
         }
