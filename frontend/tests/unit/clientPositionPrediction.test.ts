@@ -81,6 +81,31 @@ it('bounds a delayed straight batch by physical duration even when it compresses
   expect(resumed.x - held.x).toBeCloseTo(.36)
   prediction.reset()
 })
+it('holds unconfirmed travel across multiple sent reports and resumes on a fresh approval', async () => {
+  let p = { ...origin }
+  const simulation: PredictionSimulation = {
+    reset(pose) { p = { ...pose } },
+    step(input, seconds) { p.x += input.dx * 6 * seconds },
+    pose: () => ({ ...p }),
+    stepJumped: () => false, stepSupported: () => true, setChairs() {}, dispose() {},
+  }
+  const prediction = new LocalMovementPrediction(async () => simulation, () => 0)
+  prediction.reconcile('path', origin, tuned, true, 0)
+  await prediction.prepare()
+  const walk = { ...stop, dx: 1 }
+  prediction.intend(walk, 0)
+  let held = origin.x
+  for (let seq = 1; seq <= 15; seq++) {
+    held = prediction.positionReport(seq, walk, seq * 60)!.x
+  }
+  expect(held).toBeCloseTo(1.68)
+  prediction.reconcile('path', origin, { ...tuned, tick: 28 }, true, 900)
+  expect(prediction.positionReport(16, walk, 960)?.x).toBeCloseTo(held)
+  prediction.reconcile('path', { ...origin, x: held }, { ...tuned, tick: 29, appliedInputSeq: 16 }, true, 960)
+  expect(prediction.positionReport(17, walk, 1020)?.x).toBeCloseTo(held + .36)
+  prediction.reset()
+})
+
 it('approved old position only renews the lease; it never resets/replays newer local physics', async () => {
   let resets = 0, p = { ...origin }
   const simulation: PredictionSimulation = {
