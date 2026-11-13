@@ -5,6 +5,7 @@ import { createSuccessCue, successKind, type PigeonSuccessCue } from './pigeonSu
 import { ropeTempo, type RopeAcceleration } from './ropeAcceleration'
 import { finaleStage } from './gameOverFinale'
 import { completionResultMs } from './completionFinale'
+import { advanceGrandpaMotion, grandpaBlocksJump, settleGrandpa, type GrandpaRuntime } from './grandpaEvent'
 
 const countdownMs = 3000
 const goMs = 550
@@ -31,6 +32,8 @@ export type PreviewRound = {
   successCue: PigeonSuccessCue | null
   shockStartedAt: number | null
   ranked?: RankedClock
+  /** Story 420 stage 1 grandpa raid. Only the unranked preview creates it; a ranked round ignores it. */
+  grandpa?: GrandpaRuntime
 }
 export type RoundCue = Phase['kind'] | 'gameOverSplash' | '3' | '2' | '1' | 'GO!'
 export type ScoredPreviewPass = PreviewPass & { earnedPoints: number }
@@ -52,6 +55,7 @@ export function resetPreviewRound(round: PreviewRound, entry?: EntryPhase, start
   const { motion, ...freshRound } = createPreviewRound(entry)
   Object.assign(round.motion, motion)
   Object.assign(round, freshRound)
+  round.grandpa = undefined
   round.ranked = startsAt === undefined ? undefined : { startsAt, segmentAt: startsAt, segmentUs: 0, offsets: [] }
   if (round.phase.kind === 'initialCountdown') round.phase.endsAt = startsAt
 }
@@ -66,6 +70,7 @@ function beginPlaying(
     round.ranked.segmentAt = now
     round.ranked.segmentUs = Math.round(round.playedMs * 1000)
   }
+  if (round.grandpa) round.grandpa.resumedAt = now
   advancePreviewMotion(round.motion, now, ropeSpeed, settings)
 }
 
@@ -90,7 +95,11 @@ export function advancePreviewRound(
   const expires = now >= deadline
   const clock = acceleration ? { profile: acceleration, playedMs: round.playedMs } : undefined
   const rankedStep = playing && round.ranked ? advanceRankedMotion(motion, round.ranked, now, settings) : null
-  const passes = rankedStep?.passes ?? advancePreviewMotion(motion, now, playing && !expires ? ropeSpeed : 0, settings, playing, deadline, clock)
+  const grandpa = round.ranked ? undefined : round.grandpa
+  const nextSpeed = playing && !expires ? ropeSpeed : 0
+  const passes = rankedStep?.passes ?? (grandpa
+    ? advanceGrandpaMotion(motion, grandpa, now, nextSpeed, settings, playing, deadline, acceleration, round.playedMs)
+    : advancePreviewMotion(motion, now, nextSpeed, settings, playing, deadline, clock))
   const last = passes.at(-1)
   const miss = last?.kind === 'miss' ? last : undefined
   if (rankedStep) {
@@ -109,7 +118,8 @@ export function advancePreviewRound(
     const kind = successKind(pass.kind, stats.combo)
     // Show the latest success if a late frame processes several passes together.
     if (kind && activeFrom !== null) {
-      const passClock = acceleration ? { profile: acceleration, playedMs: playedBefore + (pass.at - activeFrom) } : undefined
+      const ropeMs = playedBefore + (pass.at - activeFrom) - (grandpa?.lagMs ?? 0)
+      const passClock = acceleration ? { profile: acceleration, playedMs: ropeMs } : undefined
       const nextTurnMs = ropeTempo(intervalSpeed, passClock).timeForTurns(1)
       successCue = createSuccessCue(kind, now, pass.number - 1, nextTurnMs, now - pass.at)
     }
@@ -153,10 +163,13 @@ export function advancePreviewRound(
       round.phase = { kind: 'resumePending', stoppedAt: phase.stoppedAt }
     }
   }
+  if (grandpa) settleGrandpa(grandpa, round, { speed: ropeSpeed, acceleration })
   return latest
 }
 
 export function requestRoundJump(round: PreviewRound, now: number, peak: number, flightSeconds: number) {
+  // A held duck or a broom stun rejects Space before it can start a jump or reach the jump log.
+  if (!round.ranked && round.grandpa && grandpaBlocksJump(round.grandpa)) return false
   return round.phase.kind === 'playing' && round.motion.ropeSpeed > 0
     && (round.ranked ? requestRankedJump(round.motion, round.ranked, now) : requestJump(round.motion, now, peak, flightSeconds))
 }

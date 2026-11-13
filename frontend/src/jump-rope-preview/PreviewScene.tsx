@@ -17,6 +17,8 @@ import { PigeonDistraction } from './PigeonDistraction'
 import type { DistractionPose } from './pigeonDistractionMotion'
 import { finaleImpactMs, sampleFinaleFlight } from './gameOverFinale'
 import { completionEase, completionResultMs, sampleExhaustedHolder, sampleResignedAudience } from './completionFinale'
+import { GrandpaIntruder } from './GrandpaIntruder'
+import { grandpaFreeze, grandpaSuppressesReactions, sampleAudienceHop, sampleAvatarExtras, type AvatarExtras } from './grandpaPose'
 
 const sky = '#a0caea'
 const successBlendMs = 140
@@ -176,7 +178,7 @@ function applyPigeonReaction(rig: PigeonRig, base: PigeonPose, pose: SuccessPose
   rig.setGaze(base.gaze?.[0] ?? 0, base.gaze?.[1] ?? 0)
 }
 
-export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef, sampleDistraction, round, step, sceneTime, getFinalePreview }: {
+export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef, sampleDistraction, round, step, sceneTime, getFinalePreview, grandpa = false }: {
   settings: PreviewSettings
   demoRef: RefObject<Demo | null>
   successDemoRef: RefObject<PigeonSuccessCue | null>
@@ -186,7 +188,13 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
   step: (now: number) => void
   sceneTime: (now: number) => number
   getFinalePreview: () => FinalePreview | null
+  /** Story 420 stage 1: mounts the grandpa raid. The ranked game never passes it. */
+  grandpa?: boolean
 }) {
+  const avatarExtras = useRef<AvatarExtras>({ duck: 0, stun: 0, stunAgeMs: 0 })
+  // The grandpa preview stages the rope closer to the camera. The ranked game keeps the original court.
+  const forward = grandpa ? settings.courtForward : 0
+  const avatarZ = settings.avatarZ + forward
   const leftGrip = useRef<Group>(null)
   const rightGrip = useRef<Group>(null)
   const holderLeft = useRef<PigeonRig>(null)
@@ -230,17 +238,22 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       simulation.lastAt = now
     }
     const ropeAngle = simulation?.angle ?? motion.angle
+    const raid = grandpa && !round.ranked ? round.grandpa : undefined
+    // The pigeons hold their GOOD, PERFECT, combo and MISS reactions while the grandpa visits.
+    const quiet = grandpaSuppressesReactions(raid)
+    const freeze = raid ? grandpaFreeze(round, now) : 0
+    avatarExtras.current = sampleAvatarExtras(raid, round)
     const demo = demoRef.current
     const elapsedMs = demo ? now - demo.startedAt : Infinity
     const laughDemo = demo?.action === 'laugh' || demo?.action === 'miss' ? demo : null
-    const laughElapsed = isFinale ? Infinity : phase.kind === 'reaction' ? now - phase.startedAt
+    const laughElapsed = isFinale || quiet ? Infinity : phase.kind === 'reaction' ? now - phase.startedAt
       : laughDemo ? elapsedMs : Infinity
     const laughDuration = phase.kind === 'reaction' ? phase.durationMs : laughDemo?.durationMs ?? 0
 
     const live = round.successCue
     const preview = successDemoRef.current
     const candidate = preview && (!live || preview.startedAt >= live.startedAt) ? preview : live
-    const canReact = !isFinale && (phase.kind === 'playing' || phase.kind === 'initialCountdown' || phase.kind === 'menu') && laughElapsed >= laughDuration
+    const canReact = !isFinale && !quiet && (phase.kind === 'playing' || phase.kind === 'initialCountdown' || phase.kind === 'menu') && laughElapsed >= laughDuration
     const success = canReact && candidate && (!laughDemo || candidate.startedAt > laughDemo.startedAt)
       && isSuccessActive(candidate, now) ? candidate : null
     const frame = successFrame.current
@@ -283,9 +296,20 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       rig.head.rotation.set(...(pose.head ?? [0, 0, 0]))
       const reaction = successPose('audience', index)
       applyPigeonReaction(rig, pose, reaction, samplePigeonLaugh('audience', index, laughElapsed, laughDuration, settings.laughTilt))
+      if (raid && !isFinale) {
+        // Hop in place on the wire as the broom swings, and settle back onto it through a MISS freeze.
+        const hop = sampleAudienceHop(raid, round.playedMs, index)
+        const awake = 1 - freeze
+        bird.position.y += hop.lift * awake
+        rig.leftWing.rotation.y += 1.2 * hop.flap * awake
+        rig.rightWing.rotation.y -= 1.2 * hop.flap * awake
+        rig.leftWing.rotation.z -= 0.5 * hop.flap * awake
+        rig.rightWing.rotation.z += 0.5 * hop.flap * awake
+        for (const { foot } of rig.legs) foot.rotation.x = 0.5 * Math.min(1, hop.lift * 6) * awake
+      }
       if (completionAge !== null) {
         const poseEnd = sampleResignedAudience(completionAge, index)
-        const facing = Math.atan2(settings.avatarX - bird.position.x, settings.avatarZ - bird.position.z) - yaw
+        const facing = Math.atan2(settings.avatarX - bird.position.x, avatarZ - bird.position.z) - yaw
         rig.head.rotation.y += poseEnd.yaw + (facing - (pose.head?.[1] ?? 0)) * poseEnd.slump
         rig.head.rotation.x += poseEnd.pitch
         rig.head.rotation.z += poseEnd.roll
@@ -307,7 +331,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       rig.head.rotation.y -= 0.22 * lean
       if (flight.path === 0) return
 
-      flightPath.points[1]!.set(settings.avatarX + 0.18, Math.max(2.5, 2.85 * settings.avatarScale), settings.avatarZ + 0.12)
+      flightPath.points[1]!.set(settings.avatarX + 0.18, Math.max(2.5, 2.85 * settings.avatarScale), avatarZ + 0.12)
       flightPath.points[2]!.set(0.12, -0.09, -2.04).applyMatrix4(camera.matrixWorld)
       flightPath.points[3]!.set(3.6, 0.72, -1.4).applyMatrix4(camera.matrixWorld)
       flightPath.getPoint(flight.path, bird.position)
@@ -355,14 +379,14 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       gripL.getWorldPosition(left)
       gripR.getWorldPosition(right)
       const radius = settings.ropeWidth / 2
-      ropeCenter(center, ropeAngle, settings.avatarX, settings.avatarZ, settings.avatarScale,
+      ropeCenter(center, ropeAngle, settings.avatarX, avatarZ, settings.avatarScale,
         settings.ropeHeight, settings.ropeSag, radius)
       if (!simulation) center.z -= (0.5 * settings.avatarScale + radius) * ropeRestWeight(round, now)
       if (completionAge !== null) {
         // Move to the same side as the stopped arc before lowering it, away from the avatar.
-        const side = center.z > settings.avatarZ + 0.001 ? 1 : -1
-        const offset = Math.max(Math.abs(center.z - settings.avatarZ), 0.76 * settings.avatarScale)
-        center.z += (settings.avatarZ + side * offset - center.z) * completionEase(completionAge, 0, 330)
+        const side = center.z > avatarZ + 0.001 ? 1 : -1
+        const offset = Math.max(Math.abs(center.z - avatarZ), 0.76 * settings.avatarScale)
+        center.z += (avatarZ + side * offset - center.z) * completionEase(completionAge, 0, 330)
         center.y += (radius + ropeGroundGap - center.y) * completionEase(completionAge, 210, 820)
       }
       update(left, right, center, radius)
@@ -391,18 +415,23 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
         </mesh>
       </group>
 
-      <GroundShadow x={settings.avatarX} z={settings.avatarZ} width={0.95 * settings.avatarScale} depth={0.62 * settings.avatarScale} />
-      <group position={[settings.avatarX, 0, settings.avatarZ]}>
+      <GroundShadow x={settings.avatarX} z={avatarZ} width={0.95 * settings.avatarScale} depth={0.62 * settings.avatarScale} />
+      <group position={[settings.avatarX, 0, avatarZ]}>
         <MissShockEffect round={round} demoRef={demoRef} scale={settings.avatarScale} sceneTime={sceneTime} getFinalePreview={getFinalePreview}>
-          {shock => <Suspense fallback={null}><PreviewAvatar motion={round.motion} scale={settings.avatarScale} shock={shock} /></Suspense>}
+          {shock => <Suspense fallback={null}>
+            <PreviewAvatar motion={round.motion} scale={settings.avatarScale} shock={shock} extras={grandpa ? avatarExtras : undefined} />
+          </Suspense>}
         </MissShockEffect>
       </group>
-      <GroundShadow x={-halfGap} z={-0.08} width={1.13 * settings.pigeonScale} depth={0.95 * settings.pigeonScale} />
-      <group position={[-halfGap, 0, 0]} rotation={[0, 0.76, 0]} scale={settings.pigeonScale}>
+      {grandpa && <Suspense fallback={null}>
+        <GrandpaIntruder round={round} sceneTime={sceneTime} avatar={{ x: settings.avatarX, z: avatarZ }} getFinalePreview={getFinalePreview} />
+      </Suspense>}
+      <GroundShadow x={-halfGap} z={forward - 0.08} width={1.13 * settings.pigeonScale} depth={0.95 * settings.pigeonScale} />
+      <group position={[-halfGap, 0, forward]} rotation={[0, 0.76, 0]} scale={settings.pigeonScale}>
         <PigeonActor look="sage" pose={leftPose} gripRef={leftGrip} rigRef={holderLeft} />
       </group>
-      <GroundShadow x={halfGap} z={-0.08} width={1.13 * settings.pigeonScale} depth={0.95 * settings.pigeonScale} />
-      <group position={[halfGap, 0, 0]} rotation={[0, -0.67, 0]} scale={settings.pigeonScale}>
+      <GroundShadow x={halfGap} z={forward - 0.08} width={1.13 * settings.pigeonScale} depth={0.95 * settings.pigeonScale} />
+      <group position={[halfGap, 0, forward]} rotation={[0, -0.67, 0]} scale={settings.pigeonScale}>
         <PigeonActor look="lilac" pose={rightPose} gripRef={rightGrip} rigRef={holderRight} />
       </group>
 

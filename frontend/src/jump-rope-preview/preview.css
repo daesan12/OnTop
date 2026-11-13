@@ -834,6 +834,39 @@ body:has(> #root > .preview) { margin: 0; background: #f4f0e6; }
   color: #223b34;
   cursor: pointer;
 }
+/* Story 420 preview: the grandpa's shout, positioned over his head each frame. */
+.grandpa-speech {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  top: 0;
+  margin: -6px 0 0 -14px;
+  padding: 0.42em 0.85em 0.48em;
+  border: 2.5px solid #253a34;
+  border-radius: 1.1em;
+  background: #fff7e8;
+  box-shadow: 0 4px 0 #253a3433;
+  color: #253a34;
+  font-size: clamp(0.95rem, 2.2vw, 1.35rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  transform-origin: 100% 100%;
+  will-change: transform, opacity;
+}
+.grandpa-speech::after {
+  content: '';
+  position: absolute;
+  right: 0.9em;
+  bottom: -0.62em;
+  width: 0.9em;
+  height: 0.9em;
+  border-right: 2.5px solid #253a34;
+  border-bottom: 2.5px solid #253a34;
+  background: #fff7e8;
+  transform: skewX(28deg) rotate(45deg);
+}
 @keyframes finale-splat-in {
   0% { opacity: 0; transform: scale(0.48, 0.57); }
   45% { opacity: 1; }
