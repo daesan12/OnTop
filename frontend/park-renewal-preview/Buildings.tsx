@@ -148,9 +148,18 @@ function RenewalTower({distanceLod}:{distanceLod:boolean}) {
  const distant = useMemo(() => distanceLod ? bakedEntryMesh('tower-frame-distant') ?? createTowerFrame(scale, 'distant') : undefined, [distanceLod,scale])
  return <group scale={[1,scale,1]}><group position={[-OBSERVATION_TOWER.x,0,-OBSERVATION_TOWER.z]}><ObservationTower verticalScale={scale} frameGeometry={frame} distantFrame={distant} frameCenter={distanceLod?site('tower'):undefined}/></group></group>
 }
-export function Buildings({live=false,distantReady=true}:{live?:boolean;distantReady?:boolean}){const shared=getSharedBuildingModels();const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
+function RentalPairs({ shared, entrance, batch }: { shared: ReturnType<typeof getSharedBuildingModels>; entrance: boolean; batch?: number }) {
+ return <>{SITES.filter(s=>s.asset==='pair'&&entranceRentalIds.has(s.id)===entrance)
+  .filter((_, index)=>batch === undefined || Math.floor(index / 3) === batch)
+  .map(s=><group key={s.id} name={'paired-rental-'+s.id} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,rentalYaw(s),0]}>{[-1,1].map((side,i)=><group key={side} position={[side*RENTAL_PAIR_SPACING/2,0,0]}><SharedModel source={shared[i===0?'bike':'scooter']}/></group>)}</group>)}</>
+}
+const distantRentalBatches = Math.ceil(SITES.filter(s=>s.asset==='pair'&&!entranceRentalIds.has(s.id)).length / 3)
+export function Buildings({live=false,distantReady=true,upperFacilitiesReady=distantReady,loadedRentalBatches=distantRentalBatches}:{live?:boolean;distantReady?:boolean;upperFacilitiesReady?:boolean;loadedRentalBatches?:number}){const shared=getSharedBuildingModels();const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
  {SITES.filter(s=>s.asset&&models[s.asset]&&(distantReady||s.asset!=='stele')).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);const model=<group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit} prepareShaders={live&&s.asset==='stele'}/></Suspense></group>;return isDock?<LakePart key={s.id} at={LakeStage.Dock}>{model}</LakePart>:model})}
- {SITES.filter(s=>s.asset==='pair'&&(distantReady||entranceRentalIds.has(s.id))).map(s=><group key={s.id} name={'paired-rental-'+s.id} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,rentalYaw(s),0]}>{[-1,1].map((side,i)=><group key={side} position={[side*RENTAL_PAIR_SPACING/2,0,0]}><SharedModel source={shared[i===0?'bike':'scooter']}/></group>)}</group>)}
+ <RentalPairs shared={shared} entrance/>
+ {distantReady&&(live
+  ? Array.from({length:Math.min(loadedRentalBatches,distantRentalBatches)},(_, batch)=><ShaderPreparedGroup key={batch}><RentalPairs shared={shared} entrance={false} batch={batch}/></ShaderPreparedGroup>)
+  : <RentalPairs shared={shared} entrance={false}/>)}
 
  {['mole','arcade','vr','folk','gacha','ranking','shooting'].map(id => {
   const waitForApproach = distantBuildings.has(id)
@@ -169,10 +178,12 @@ export function Buildings({live=false,distantReady=true}:{live?:boolean;distantR
  <mesh name="tower-entrance-landing" geometry={towerEntrance} receiveShadow><WalkwayMaterial color="#c4bfb1"/></mesh>
  <group name="forty-metre-tower" position={[tower.x,heightAt(tower.x,tower.z),tower.z]} rotation={[0,Math.PI,0]}>
   <RenewalTower distanceLod={live&&RENEWAL_DISTANCE_LOD}/>
-  {distantReady&&!originalFacilityGeometry&&<Suspense fallback={null}><FacilityGeometry id="tower"/></Suspense>}
+  {distantReady&&!originalFacilityGeometry&&(live
+   ? <FacilityOnApproach site={tower}><Suspense fallback={null}><FacilityGeometry id="tower"/></Suspense></FacilityOnApproach>
+   : <Suspense fallback={null}><FacilityGeometry id="tower"/></Suspense>)}
  </group>
- {distantReady&&<TowerFurniture/>}<PreservedFitness/><FitnessFence/>
- {distantReady&&<group name="enlarged-balloon-boarding-platform" position={[balloon.x,heightAt(balloon.x,balloon.z),balloon.z]}>
+ {upperFacilitiesReady&&(live?<ShaderPreparedGroup><TowerFurniture/></ShaderPreparedGroup>:<TowerFurniture/>)}<PreservedFitness/><FitnessFence/>
+ {upperFacilitiesReady&&<group name="enlarged-balloon-boarding-platform" position={[balloon.x,heightAt(balloon.x,balloon.z),balloon.z]}>
   <group name="balloon-station-model">
    <Suspense fallback={null}><StructureModel kind="station" prepareShaders={live}/></Suspense>
   </group>
