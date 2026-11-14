@@ -4,7 +4,7 @@
   backdrop-filter: blur(4px);
 }
 .park-menu-dialog.ranking-board-dialog {
-  width: min(1120px, calc(100vw - 32px));
+  width: min(1280px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   box-sizing: border-box;
   padding: 28px;
@@ -18,7 +18,7 @@
 .ranking-board-dialog__header p { margin-top:7px; }
 .ranking-board-dialog__header .ranking-board-notice { margin-top:4px; color:#805c28; font-size:13px; font-weight:700; }
 .ranking-board-scroll { max-width:100%; overflow-x:auto; padding-bottom:3px; }
-.ranking-board-columns { display:grid; grid-template-columns:repeat(3,minmax(240px,1fr)); gap:14px; min-width:780px; }
+.ranking-board-columns { display:grid; grid-template-columns:repeat(4,minmax(240px,1fr)); gap:14px; min-width:1002px; }
 .ranking-board-column { display:flex; min-height:485px; flex-direction:column; border:1px solid #bfae89; border-radius:12px; overflow:hidden; background:#fffaf0; }
 .ranking-board-column > header { padding:15px 14px 13px; color:#fff8e7; background:#254d3c; text-align:center; }
 .ranking-board-column h3 { margin:0; font-size:21px; }
