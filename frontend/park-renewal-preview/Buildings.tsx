@@ -28,7 +28,7 @@ import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatAngleAt,boatPose,openDo
 import {VerticalMoleAttract} from './VerticalMoleAttract'
 import {drawMoleShopSign} from './approved/mole-shop-20261107-v1/core/frontend/src/world/art/moleShopGeometry'
 import {getMoleShopArt,MOLE_SHOP_FACILITY} from './moleShopArt'
-import {GachaMachine} from './original/features/gacha/parkAsset/GachaMachine.tsx'
+import {ParkGachaKiosk,interactWithKiosk} from './ParkGachaKiosk'
 import {buildRankingBoard,RankingBoardPanels} from '../src/layout-preview/RankingBoardModel'
 import {RentalPairs,distantRentalBatches} from './RentalPairs'
 import { REST_FURNITURE_VERTICAL_SCALE } from './pavilionBenchLayout'
@@ -123,10 +123,6 @@ function Mole(){
  const art=useMemo(getMoleShopArt,[])
  return <><PropModel art={art.body} name="approved-mole-body"/><PropModel art={art.roof} name="approved-mole-roof"/><PropModel art={art.walls} name="approved-mole-walls"/><PropSign draw={drawMoleShopSign} position={[0,4.4,3.7]} width={3.1} height={.55}/><VerticalMoleAttract facility={MOLE_SHOP_FACILITY}/></>
 }
-function interactWithKiosk(id:string){
- void import('../src/features/interactions/parkInteraction').then(({interactWithPark})=>interactWithPark(id))
-}
-function Gacha({live}:{live:boolean}){return <group userData={{keepOpaque:true}}><GachaMachine onInteract={live?()=>interactWithKiosk('layout-shop'):undefined}/></group>}
 function Ranking({live}:{live:boolean}){
  const art=useMemo(()=>buildRankingBoard(),[])
  return <group onClick={live?event=>{
@@ -150,18 +146,19 @@ function RenewalTower({distanceLod}:{distanceLod:boolean}) {
  return <group scale={[1,scale,1]}><group position={[-OBSERVATION_TOWER.x,0,-OBSERVATION_TOWER.z]}><ObservationTower verticalScale={scale} frameGeometry={frame} distantFrame={distant} frameCenter={distanceLod?site('tower'):undefined}/></group></group>
 }
 export function Buildings({live=false,distantReady=true,upperFacilitiesReady=distantReady,loadedRentalBatches=distantRentalBatches,entrancePavilion=true,entranceDistricts=true,entranceFacilities=true}:{live?:boolean;distantReady?:boolean;upperFacilitiesReady?:boolean;loadedRentalBatches?:number;entrancePavilion?:boolean;entranceDistricts?:boolean;entranceFacilities?:boolean}){const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
- {SITES.filter(s=>s.asset&&models[s.asset]&&(distantReady||s.asset!=='stele')&&(entrancePavilion||s.id!=='pavilion')&&(entranceFacilities||s.id!=='fortune')).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);const model=<group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit} prepareShaders={live&&s.asset==='stele'}/></Suspense></group>;return isDock?<LakePart key={s.id} at={LakeStage.Dock}>{model}</LakePart>:model})}
+ {SITES.filter(s=>s.asset&&models[s.asset]&&(distantReady||s.asset!=='stele')&&(entrancePavilion||s.id!=='pavilion')&&(entranceFacilities||s.id!=='fortune'&&s.id!=='lottery')).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);const model=<group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit} prepareShaders={live&&s.asset==='stele'}/></Suspense></group>;return isDock?<LakePart key={s.id} at={LakeStage.Dock}>{model}</LakePart>:model})}
  {entranceFacilities&&<RentalPairs entrance/>}
  {distantReady&&(live
   ? Array.from({length:Math.min(loadedRentalBatches,distantRentalBatches)},(_, batch)=><ShaderPreparedGroup key={batch}><RentalPairs entrance={false} batch={batch}/></ShaderPreparedGroup>)
   : <RentalPairs entrance={false}/>)}
 
- {['mole','arcade','vr','folk','gacha','ranking','shooting'].map(id => {
+ {entranceFacilities&&<ParkGachaKiosk live={live}/>}
+ {['mole','arcade','vr','folk','ranking','shooting'].map(id => {
   const waitForApproach = distantBuildings.has(id)
   if (waitForApproach && !distantReady) return null
   const s = site(id)
   const building = <group key={id} name={'facility-'+id} userData={{siteId:id,legacyFacilityIds:legacyIdsForSite(id)}} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,facilityYaw(s),0]} scale={id==='arcade'?[...ARCADE_SCALE]:1}>
-   {id==='shooting'||id==='folk'?<LocalFactory kind={id}/>:id==='mole'?<Mole/>:id==='arcade'?<Suspense fallback={null}><Arcade/></Suspense>:id==='vr'?<Suspense fallback={null}><VrHall/></Suspense>:id==='gacha'?<Gacha live={live}/>:<Ranking live={live}/>}
+   {id==='shooting'||id==='folk'?<LocalFactory kind={id}/>:id==='mole'?<Mole/>:id==='arcade'?<Suspense fallback={null}><Arcade/></Suspense>:id==='vr'?<Suspense fallback={null}><VrHall/></Suspense>:<Ranking live={live}/>}
    {distantReady&&id!=='arcade'&&!originalFacilityGeometry&&hasFacilityGeometry(id)&&<Suspense fallback={null}><FacilityGeometry id={id}/></Suspense>}
   </group>
   return live && waitForApproach ? <FacilityOnApproach key={id} site={s}>{building}</FacilityOnApproach> : building

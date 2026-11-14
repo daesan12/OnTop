@@ -1,5 +1,6 @@
 import {lakeShore,lakeBed,island,islandShore,lamps,retaining} from './landscape'
 import {heightAt,LAKE} from './plan'
+import {ParkCurbs} from './ParkCurbs'
 import {Water} from '../src/world/art/WaterGarden'
 import {ParkStoneMaterial} from './ParkStoneMaterial'
 import {PreservedFitness} from './PreservedFitness'
@@ -35,6 +36,7 @@ export function ParkPathLights({quality}: {quality?: QualityPreset}) {
 export function EntranceLandscape({quality, showFitnessStations}: {quality: QualityPreset; showFitnessStations: boolean}) {
  return <>
   <RetainingFace />
+  <ParkCurbs />
   <LakeSurface />
   <PreservedFitness showStations={showFitnessStations} />
   <PreservedFountain />

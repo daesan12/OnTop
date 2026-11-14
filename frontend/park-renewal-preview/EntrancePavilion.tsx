@@ -14,15 +14,15 @@ export function createGroundedEntranceModel(source: Group) {
  return groundObject(object)
 }
 
-function EntranceModel({kind}: {kind: 'main' | 'fortune'}) {
+function EntranceModel({kind}: {kind: 'main' | 'fortune' | 'lottery'}) {
   const gltf = useLoader(ParkAssetLoader, models[kind]!)
   const object = useMemo(() => createGroundedEntranceModel(gltf.scene), [gltf])
   return <primitive object={object} dispose={null}/>
 }
 
-export function EntranceBuilding({id}: {id: 'pavilion' | 'fortune'}) {
+export function EntranceBuilding({id}: {id: 'pavilion' | 'fortune' | 'lottery'}) {
  const building=site(id)
  return <group name={'facility-'+id} userData={{siteId:id,legacyFacilityIds:legacyIdsForSite(id),pavilionId:pavilionIdForSite(id)}} position={[building.x,facilityGroundY(building)+.1,building.z]} rotation={[0,facilityYaw(building),0]}>
-  <EntranceModel kind={id==='pavilion'?'main':'fortune'}/>
+  <EntranceModel kind={id==='pavilion'?'main':id}/>
  </group>
 }

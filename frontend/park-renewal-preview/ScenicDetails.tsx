@@ -24,7 +24,7 @@ export function ScenicDetails({nightQuality,distantReady=true,live=false,include
   {includeLandscape&&<RetainingFace/>}
   <SecretWallDoors/>
   <group name="masonry-retaining-corner-seals" userData={{keepOpaque:true}}>{SUMMIT_OUTLINE.map(([x,z],i)=>{const bottom=RETAINING_FOOTING_Y,top=SUMMIT_HEIGHT+.085;return <mesh key={i} position={[x,(top+bottom)/2,z]}><boxGeometry args={[.2,top-bottom,.2]}/><ParkStoneMaterial large/></mesh>})}</group>
-  {includeGround&&<><OriginalPlaza/><ParkBoundary/></>}<LakeAndParkDetails live={live}/>
+  {includeGround&&<><OriginalPlaza/><ParkBoundary/></>}<LakeAndParkDetails live={live} includeCurbs={includeLandscape}/>
   {includeLandscape&&<LakeSurface/>}
   {includeTrees&&<PreviewTreeBatches/>}
   {includeLandscape&&<ParkPathLights quality={nightQuality}/>}
