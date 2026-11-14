@@ -5,6 +5,7 @@ import {
   BoxGeometry,
   ExtrudeGeometry,
   IcosahedronGeometry,
+  PlaneGeometry,
   Shape,
 } from 'three'
 import { PAGODA_TIERS, GARDEN_PAGODA, PAGODA_ANCHORS } from '../../config'
@@ -47,6 +48,50 @@ for (const [index, [x, z]] of crossOutline.entries()) {
 crossBodyShape.closePath()
 const crossBodyGeometry = new ExtrudeGeometry(crossBodyShape, { depth: 1, bevelEnabled: false })
 crossBodyGeometry.rotateX(-Math.PI / 2).translate(0, -.5, 0)
+
+const plinthCourses = [
+  [0, .24, 7.4, '#989b8d'],
+  [.24, .60, 5.65, '#b2b09e'],
+  [.60, .76, 6.0, '#c5c2af'],
+  [.76, 1.34, 5.2, '#afac99'],
+  [1.34, 1.46, 5.55, '#d0cab5'],
+  [1.46, 1.80, 4.95, '#bcb7a2'],
+  [1.80, 1.92, 5.3, '#d0cab5'],
+  [1.92, 2.44, 4.45, '#b5b09c'],
+  [2.44, 2.60, 4.85, '#c9c2ad'],
+] as const
+
+const stoneFace = new PlaneGeometry()
+function plinthFaces(): Part[] {
+  const faces: Part[] = []
+  for (const [index, [bottom, top, width, color]] of plinthCourses.entries()) {
+    const span = width * 1.15
+    for (let side = 0; side < 4; side++) {
+      const yaw = side * Math.PI / 2
+      faces.push({
+        p: [Math.sin(yaw) * span / 2, (bottom + top) / 2, Math.cos(yaw) * span / 2],
+        s: [span, top - bottom, 1], r: [0, yaw, 0], c: color,
+      })
+    }
+    // Only emit the parts of each horizontal face not covered by the
+    // neighboring course. The terrace already owns the underside at y=0.
+    for (const [y, neighbor, normal] of [
+      [bottom, plinthCourses[index - 1]?.[2] ?? width, -1],
+      [top, plinthCourses[index + 1]?.[2] ?? PAGODA_TIERS[0]!.width * .69 * 1.05 / 1.15, 1],
+    ] as const) {
+      const inset = neighbor * 1.15, ledge = (span - inset) / 2
+      if (ledge <= 0) continue
+      const edge = (span + inset) / 4, pitch = -normal * Math.PI / 2
+      for (const sign of [-1, 1]) {
+        faces.push({ p: [0, y, sign * edge], s: [span, ledge, 1], r: [pitch, 0, 0], c: color })
+        if (inset > 0) faces.push({
+          p: [sign * edge, y, 0], s: [ledge, inset, 1], r: [pitch, 0, 0], c: color,
+        })
+      }
+    }
+  }
+  return faces
+}
 
 /** Closed stone roof with curved slopes, thick eaves and lifted corners. */
 function previewRoofGeometry(cross: boolean) {
@@ -121,20 +166,6 @@ function previewCreatePagoda() {
     upperRoofs: Part[] = []
   const block = (p: XYZ, s: XYZ, c = '#b9b5a3', r?: XYZ) =>
     masonry.push({ p, s, c, r })
-  // Broad moulded stone plinth; lower dark bands give depth even on Low.
-  for (const [y, height, width, color] of [
-    [0.12, 0.24, 7.4, '#989b8d'],
-    [0.42, 0.36, 5.65, '#b2b09e'],
-    [0.68, 0.16, 6.0, '#c5c2af'],
-    [1.05, 0.58, 5.2, '#afac99'],
-    [1.4, 0.12, 5.55, '#d0cab5'],
-    [1.63, 0.34, 4.95, '#bcb7a2'],
-    [1.86, 0.12, 5.3, '#d0cab5'],
-    [2.18, 0.52, 4.45, '#b5b09c'],
-    [2.51, 0.18, 4.85, '#c9c2ad'],
-  ] as const)
-    block([0, y, 0], [width * 1.15, height, width * 1.15], color)
-
   // Bas-relief panels, with a shallow inset and a small raised floral motif.
   const panel = (
     x: number,
@@ -311,6 +342,7 @@ function previewCreatePagoda() {
   return { masonry, crossBodies, details, relief, lowerRoofs, upperRoofs }
 }
 const art = createPagoda()
+const plinth = plinthFaces()
 const detailGeometry = new BoxGeometry()
 const reliefGeometry = new IcosahedronGeometry(1, 0)
 const masonryGeometry = new BoxGeometry()
@@ -320,6 +352,7 @@ function stoneAsset(scale: number) {
   if (!geometry) {
     geometry = mergeSurfaceParts(
       [
+        { geometry: stoneFace, parts: plinth, mapping: 'box', meters: 1.4, strength: 0.55 },
         {
           geometry: masonryGeometry,
           parts: art.masonry,
@@ -466,20 +499,6 @@ function defaultCreatePagoda() {
     upperRoofs: Part[] = []
   const block = (p: XYZ, s: XYZ, c = '#b9b5a3', r?: XYZ) =>
     masonry.push({ p, s, c, r })
-  // Broad moulded stone plinth; lower dark bands give depth even on Low.
-  for (const [y, height, width, color] of [
-    [0.12, 0.24, 7.4, '#989b8d'],
-    [0.42, 0.36, 5.65, '#b2b09e'],
-    [0.68, 0.16, 6.0, '#c5c2af'],
-    [1.05, 0.58, 5.2, '#afac99'],
-    [1.4, 0.12, 5.55, '#d0cab5'],
-    [1.63, 0.34, 4.95, '#bcb7a2'],
-    [1.86, 0.12, 5.3, '#d0cab5'],
-    [2.18, 0.52, 4.45, '#b5b09c'],
-    [2.51, 0.18, 4.85, '#c9c2ad'],
-  ] as const)
-    block([0, y, 0], [width * 1.15, height, width * 1.15], color)
-
   // A single coloured inset replaces each carved panel and its petal meshes.
   const panel = (x: number, y: number, z: number, width: number, height: number, yaw: number) => {
     details.push({ p: [x, y, z], s: [width, height, 0.035], r: [0, yaw, 0], c: '#989c89' })
