@@ -48,7 +48,8 @@ export const HORROR_SOLIDS:HorrorSolid[]=[
  box('lift-cage',-37,-85,6,5,7.8),
  box('ramp-east-wall',-49.1,-72,.7,26,10.4),
  box('ramp-west-wall',-54.9,-72,.7,26,10.4),
- box('upper-landing-east-wall',-49.1,-89.5,.7,9,10.4),
+ box('upper-landing-east-wall-north',-49.1,-92.675,.7,2.65,7.4),
+ box('upper-landing-east-wall-south',-49.1,-86.825,.7,3.65,10.4),
  box('upper-landing-south-return',-56.8,-84.7,2.4,.6,10.4),
  box('exit-light-baffle',-54.5,-88,.7,3,10.4),
 ]
@@ -73,7 +74,7 @@ export function updateHorrorPresence(x:number,z:number,y:number){const inside=ho
 export const horrorInteriorVisible=(x:number,y:number,z:number,walking:boolean)=>walking&&horrorState.open&&inHorror(x,z)&&Math.abs(y-horrorGround(x,z))<.65
 /** Live avatars report the capsule origin, .8m above the floor. */
 export function secretCorridorContains(p: { x: number; y: number; z: number }) {
- return horrorState.open && inHorror(p.x,p.z) && p.y >= horrorGround(p.x,p.z)-.35 && p.y < HORROR.ceiling
+ return inHorror(p.x,p.z) && p.y >= horrorGround(p.x,p.z)-.35 && p.y < HORROR.ceiling
 }
 export function safeHorrorCamera(eye:HorrorVec,desired:HorrorVec,inside:boolean):HorrorVec{
  const safe=(p:HorrorVec)=>inside?inHorror(p[0],p[2],.12)&&horrorWalkable(p[0],p[2],.23)&&p[1]>horrorGround(p[0],p[2])+.3&&p[1]<HORROR.ceiling-.35:!(inHorror(p[0],p[2],-.65)&&p[1]>HORROR.floor-.3&&p[1]<HORROR.ceiling+.3)

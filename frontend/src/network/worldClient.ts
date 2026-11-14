@@ -177,7 +177,7 @@ const initial = (): Session => ({
 })
 export const useSession = create<Session>(initial)
 export const avatars = new Map<string, AvatarSnapshot>()
-const worldPoses = new Map<string, Pose>()
+const worldPoses = new Map<string, Pose & { interiorExitReady?: boolean }>()
 // Public rendering only. Never grants table membership, readiness, or game access.
 const worldTableSeats = new Map<string, PublicTableSeat | null>()
 export const networkStats = {
@@ -370,7 +370,7 @@ export function presentEmote(event: EmoteEvent, motion: EmoteId, source: 'server
   }))
   return true
 }
-export const authoritativePose = (userId: string): Pose | undefined => {
+export const authoritativePose = (userId: string) => {
   const pose = worldPoses.get(userId)
   return pose ? { ...pose } : undefined
 }
@@ -634,6 +634,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
           y: position.y,
           z: position.z,
           yaw: position.yaw,
+          interiorExitReady: position.interiorExitReady,
         })
         const old = avatars.get(userId),
           previous = {

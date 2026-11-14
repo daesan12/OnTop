@@ -71,6 +71,9 @@ public final class TableProtocol {
             case "WORLD_MOVE" -> validMove(payload);
             case "WORLD_POSITION" -> validPosition(payload);
             case "WORLD_SECRET_DOORS_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
+            case "WORLD_INTERIOR_ACCESS" -> fields(payload, Set.of("access"))
+                    && payload.path("access").isTextual()
+                    && Set.of("vestibule", "surface", "passage", "entry", "exit").contains(payload.path("access").asText());
             case "WORLD_POSITION_FALLBACK" -> fields(payload, Set.of("epoch"))
                     && payload.path("epoch").isIntegralNumber() && payload.path("epoch").canConvertToLong()
                     && payload.path("epoch").asLong() >= 0 && payload.path("epoch").asLong() <= 9_007_199_254_740_991L;

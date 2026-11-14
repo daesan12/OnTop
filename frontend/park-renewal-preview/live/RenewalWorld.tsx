@@ -7,16 +7,19 @@ import { TABLES } from '../../src/park/mapConfig'
 import { lazy, memo, startTransition, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { Group, Object3D } from 'three'
-import { authoritativePose, avatars, useSession } from '../../src/network/worldClient'
-import { horrorState, secretCorridorContains } from '../horrorPlan'
+import { authoritativePose, avatars, sampleAvatar, useSession } from '../../src/network/worldClient'
+import { secretCorridorContains } from '../horrorPlan'
 import { CAMERA, type QualityPreset } from '../../src/config'
 import { renewalMap } from '../../src/park/renewalMap'
 import { viewControls } from '../../src/world/cameraPerspective'
 import { welcomeFlight } from '../../src/features/welcomeTour/flight'
 import { createLakeProgress, LakeProgress } from '../lakeStages'
 import { LakeStreaming } from './LakeStreaming'
+import { inAnnex } from '../interiorAccess'
+import { interiorVisit, visitScope } from '../interiorEvents'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
+const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
 const TableBoards = lazy(() => import('../../src/features/tables/TableBoards'))
 const ParkDetailGeometry = lazy(() => import('../ParkDetailGeometry').then(module => ({ default: module.ParkDetailGeometry })))
 
@@ -38,8 +41,9 @@ function atEntrance(pose = authoritativePose(useSession.getState().sessionId)) {
 }
 
 export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: { quality: QualityPreset; firstFrameAt: RefObject<number | null>; onDistantReady: (ready: boolean) => void }) {
-  const surface = useRef<Group>(null), interior = useRef<Group>(null)
+  const surface = useRef<Group>(null), interior = useRef<Group>(null), annex = useRef<Group>(null)
   const loadInterior = useRef(false)
+  const displayedPose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })
   const queuedAmbientShaders = useRef(false)
   const nightPool = useRef<{ group: Object3D; lights: Object3D[]; quality: QualityPreset } | undefined>(undefined)
   const [loaded, setLoaded] = useState(false)
@@ -54,6 +58,8 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
   useLayoutEffect(() => {
     if (distantReady) onDistantReady(true)
   }, [distantReady, onDistantReady])
+
+  useLayoutEffect(() => () => interiorVisit.reset(), [])
 
   useLayoutEffect(() => {
     entry.current.framesAfterCommit = 0
@@ -89,14 +95,33 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
     }
   }, .6)
   useFrame(({ camera, scene, gl }) => {
-    const own = avatars.get(useSession.getState().sessionId)
-    const inside = !!own && secretCorridorContains(own.current)
-    if (horrorState.open && !loadInterior.current) {
+    const session = useSession.getState()
+    const own = avatars.get(session.sessionId)
+    let inside = false, inRoom = false
+    const connected = session.status === 'connected' && session.mapCompatible && own?.connected
+    const confirmed = connected && (secretCorridorContains(own.current) || interiorVisit.selected.length)
+      ? authoritativePose(session.sessionId) : undefined
+    const contains = secretCorridorContains(camera.position) ? secretCorridorContains
+      : inAnnex(camera.position) ? inAnnex : undefined
+    if (connected && !welcomeFlight.active && contains) {
+      const serverPose = confirmed ?? authoritativePose(session.sessionId)
+      const agreed = !!serverPose && contains(serverPose)
+        && contains(sampleAvatar(own, performance.now(), displayedPose.current))
+      inside = agreed && contains === secretCorridorContains
+      inRoom = agreed && contains === inAnnex
+    }
+    if ((inside || inRoom) && !loadInterior.current) {
       loadInterior.current = true
       setLoaded(true)
     }
-    const visible = inside && secretCorridorContains(camera.position)
-      && !!interior.current?.getObjectByName('underground-horror-zone')
+    const visible = inside && !!interior.current?.getObjectByName('underground-horror-zone')
+    const ahead = visible && confirmed ? [
+      camera.position.x - Math.sin(viewControls.yaw) * 1.45,
+      confirmed.y,
+      camera.position.z - Math.cos(viewControls.yaw) * 1.45,
+    ] as const : undefined
+    interiorVisit.update(visitScope(session.sessionId, session.roomId), confirmed, performance.now(), visible, ahead)
+    const roomVisible = inRoom && !!annex.current?.getObjectByName('renewal-annex-interior')
     // NightLighting fades intensities to zero during the day. Keep its fixed
     // pool in the exterior shader layout so dusk never relinks the whole park
     // in one render pass. The exterior group's visibility still owns interiors.
@@ -105,10 +130,11 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
       nightPool.current = group ? { group, quality, lights: group.children.filter(light => light.userData.warmNightLight) } : undefined
     }
     for (const light of nightPool.current?.lights ?? []) light.visible = true
-    if (surface.current) surface.current.visible = !visible
+    if (surface.current) surface.current.visible = !visible && !roomVisible
     if (interior.current) interior.current.visible = visible
+    if (annex.current) annex.current.visible = roomVisible
     const daylight = scene.getObjectByName('renewal-exterior-lighting')
-    if (daylight) daylight.visible = !visible
+    if (daylight) daylight.visible = !visible && !roomVisible
     if (firstFrameAt.current !== null && !queuedAmbientShaders.current) {
       queuedAmbientShaders.current = true
       // Let the driver link the ambient animations before their first draw.
@@ -135,6 +161,9 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
     </group>
     <group ref={interior} name="renewal-secret-corridor" visible={false}>
       {loaded && <Suspense fallback={null}><HorrorZone /></Suspense>}
+    </group>
+    <group ref={annex} visible={false}>
+      {loaded && <Suspense fallback={null}><AnnexDetails /></Suspense>}
     </group>
   </group>
 }

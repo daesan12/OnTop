@@ -22,6 +22,7 @@ import { SPECTATOR_BENCH_HEIGHTS } from '../pavilionBenchLayout'
 import { createTowerEntrance, towerRampStartY } from '../towerEntrance'
 import { HORROR, HORROR_CRYPT, HORROR_PORTALS, HORROR_SOLIDS } from '../horrorPlan'
 import { horrorShell } from '../horrorGeometry'
+import { annex, annexVolumes, galleryVolumes, interiorAccess, passageVolumes, upperArrival, upperRamp, upperRoomVolumes } from '../interiorAccess'
 
 export const RENEWAL_HALF_SIZE = 110
 export const RENEWAL_SPAWN = [0, 96] as const
@@ -60,7 +61,8 @@ function heightfield() {
       const a = (row - 1) * side + col - 1
       // Keep the height lookup grid intact. Only remove the cliff triangles that
       // slope across the two portals; the masonry still defines their edges.
-      if (HORROR_PORTALS.some(p => x === p.x + (p.outward > 0 ? 1 : 0)
+      const underStair = x > -2 && x <= 2 && z > -48 && z <= -39
+      if (underStair || HORROR_PORTALS.some(p => x === p.x + (p.outward > 0 ? 1 : 0)
         && z > p.z - p.width / 2 && z - 1 < p.z + p.width / 2)) {
         secretTerrainCuts.push(indices.length / 3, indices.length / 3 + 1)
       }
@@ -122,6 +124,7 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   })
   fromGeometry('summit-retaining-wall', parkGround.retaining, 'solid')
   fromGeometry('secret-corridor-shell', horrorShell.stone!, 'solid')
+  floor('interior-main-floor', [[-58,-94],[-26,-94],[-26,-105],[26,-105],[26,-48],[-58,-48]], () => HORROR.floor)
   const exit = HORROR_PORTALS[1]
   ramp('secret-corridor-ramp', -52, 0, 5, -80, -55, exit.floor, HORROR.floor)
   floor('secret-corridor-ramp-top', [[-54.5, -84.3], [-49.5, -84.3], [-49.5, -80], [-54.5, -80]], () => exit.floor)
@@ -130,8 +133,13 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
     const exterior = p.x + p.outward * 3.6
     floor('secret-corridor-apron-' + p.id, [[p.x, p.z - p.width / 2], [exterior, p.z - p.width / 2],
       [exterior, p.z + p.width / 2], [p.x, p.z + p.width / 2]], () => p.floor)
-    putBox('secret-door-' + p.id, [p.x, p.floor + p.height / 2, p.z], [.18, p.height / 2, p.width / 2])
+    putBox('interior-portal-' + p.id, [p.x, p.floor + p.height / 2, p.z], [.18, p.height / 2, p.width / 2])
   }
+  for (const [index, volume] of [...annexVolumes, ...passageVolumes, ...galleryVolumes, ...upperRoomVolumes].entries()) {
+    const [w, h, d] = volume.size
+    putBox('interior-volume-' + index, volume.center, [w / 2, h / 2, d / 2])
+  }
+  ramp('interior-upper-access', upperRamp.x, 0, upperRamp.width, upperRamp.z0, upperRamp.z1, upperRamp.y0, upperRamp.y1)
   for (const s of HORROR_SOLIDS) putBox('secret-corridor-' + s.id,
     [(s.x0 + s.x1) / 2, HORROR.floor + s.height / 2, (s.z0 + s.z1) / 2],
     [(s.x1 - s.x0) / 2, s.height / 2, (s.z1 - s.z0) / 2])
@@ -260,6 +268,7 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   const physics = { ...basePhysics, boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
     secretCorridor: { x0: HORROR.x0, x1: HORROR.x1, z0: HORROR.z0, z1: HORROR.z1, floor: HORROR.floor, ceiling: HORROR.ceiling },
     secretTerrainCuts,
+    interiorAccess: { routes: interiorAccess, annex, upperArrival },
     tower: { ...basePhysics.tower, x: tower.x, z: tower.z, height: 40, topY: towerRampStartY + 40, surfaceOffset: towerRampStartY },
     terrain: { ...basePhysics.terrain, halfSize: RENEWAL_HALF_SIZE, step: 1, columns: 221, rows: 221 },
     spawn: { ...basePhysics.spawn, position: [RENEWAL_SPAWN[0], spawnY, RENEWAL_SPAWN[1]] as Point3, groundClearance } }

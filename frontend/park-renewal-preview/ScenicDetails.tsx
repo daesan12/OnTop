@@ -27,9 +27,9 @@ export function ScenicDetails({nightQuality,distantReady=true,live=false}:{night
   <mesh geometry={boundaryGeometry} receiveShadow><meshLambertMaterial color="#9caa83" side={2}/></mesh>
   <mesh position={[0,-4.1,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2000,2000]}/><meshLambertMaterial color="#e8e8da"/></mesh>
   <mesh geometry={terrain} receiveShadow><meshLambertMaterial vertexColors/></mesh>
-  <mesh name="steep-bank-stone-retaining-faces" geometry={retaining}><ParkStoneMaterial large/></mesh>
+  <mesh name="steep-bank-stone-retaining-faces" geometry={retaining} userData={{keepOpaque:true}}><ParkStoneMaterial large twoSided/></mesh>
   <SecretWallDoors/>
-  <group name="masonry-retaining-corner-seals">{SUMMIT_OUTLINE.map(([x,z],i)=>{const bottom=RETAINING_FOOTING_Y,top=SUMMIT_HEIGHT+.085;return <mesh key={i} position={[x,(top+bottom)/2,z]}><boxGeometry args={[.2,top-bottom,.2]}/><ParkStoneMaterial large/></mesh>})}</group>
+  <group name="masonry-retaining-corner-seals" userData={{keepOpaque:true}}>{SUMMIT_OUTLINE.map(([x,z],i)=>{const bottom=RETAINING_FOOTING_Y,top=SUMMIT_HEIGHT+.085;return <mesh key={i} position={[x,(top+bottom)/2,z]}><boxGeometry args={[.2,top-bottom,.2]}/><ParkStoneMaterial large/></mesh>})}</group>
   <mesh geometry={paving} receiveShadow><PreviewPathMaterial/></mesh>
   {forestTrailMeshes.map(t=><mesh key={t.id} name={t.id} geometry={t.geometry}><meshLambertMaterial color="#acaa84"/></mesh>)}
   <mesh geometry={lakeBed}><meshLambertMaterial color="#597c64"/></mesh>

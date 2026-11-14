@@ -28,6 +28,7 @@ export interface Position {
   moving: boolean
   running: boolean
   swimming: boolean
+  interiorExitReady?: boolean
 }
 /** Public WORLD_STATE seating contract; seatNumber is 1-based, like TABLE_STATE. */
 export interface PublicTableSeat {
@@ -198,7 +199,8 @@ export function worldState(value: Record<string, unknown>): WorldState {
     ['x', 'y', 'z', 'yaw'].every(
       (k) => typeof p[k] === 'number' && Number.isFinite(p[k]),
     ) &&
-    ['moving', 'running', 'swimming'].every((k) => typeof p[k] === 'boolean')
+    ['moving', 'running', 'swimming'].every((k) => typeof p[k] === 'boolean') &&
+    (p.interiorExitReady === undefined || typeof p.interiorExitReady === 'boolean')
   if (
     !text(value.channelId) ||
     !integer(value.version) ||

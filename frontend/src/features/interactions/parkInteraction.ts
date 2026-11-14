@@ -49,6 +49,7 @@ import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
 import { openFortune } from '../fortune/controller'
 import { useDisplayGame } from '../../game/displayGame'
+import { diamond, interiorVisit, visitScope } from '../../../park-renewal-preview/interiorEvents'
 
 const plazaKiosksEnabled = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED
 const recreationLabels: Record<RenewalRecreationId, string> = {
@@ -61,7 +62,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item'
   id: string
   label: string
   seat?: 0 | 1
@@ -84,6 +85,10 @@ export function getParkInteraction(): ParkInteraction | null {
   if (p.carry && p.carry.role !== 'CARRIER') return null
   const carry = carryInteraction()
   if (p.carry?.role === 'CARRIER') return carry
+  if (RENEWAL_PARK_ENABLED && !p.carry && interiorVisit.canAddDiamond(visitScope(session.sessionId, session.roomId), p.current)) {
+    const [x,,z] = diamond, distance = Math.hypot(p.current.x-x,p.current.z-z)
+    return { kind:'interior-item', id:'interior-item', label:'다이아 집기', occupied:false, available:true, distance, score:0 }
+  }
   if (carry) choices.push(carry)
   if (JUMPMAP_ENABLED && !useJumpmap.getState().run && canReachJumpmapGuide(p.current)) {
     const distance=Math.hypot(p.current.x-JUMPMAP_GUIDE.x,p.current.z-JUMPMAP_GUIDE.z)
@@ -188,6 +193,10 @@ export function getParkInteraction(): ParkInteraction | null {
 export function interactWithPark(expectedId?: string): boolean {
   const target = getParkInteraction()
   if (!target || (expectedId !== undefined && target.id !== expectedId)) return false
+  if (target.kind === 'interior-item') {
+    const { sessionId, roomId } = useSession.getState(), pose = avatars.get(sessionId)?.current
+    return !!pose && interiorVisit.addDiamond(visitScope(sessionId, roomId), pose)
+  }
   if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
   else if (target.kind === 'ranking-board') openRankingBoard()

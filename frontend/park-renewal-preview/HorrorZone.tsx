@@ -2,9 +2,13 @@ import {DoubleSide} from 'three'
 import {horrorGround} from './horrorPlan'
 import {horrorShell,horrorArt,horrorRamp,HORROR_LAMPS,HORROR_PENDANTS} from './horrorGeometry'
 import {HorrorStoneMaterial} from './HorrorStoneMaterial'
+import {HallDetails} from './InteriorDetails'
+import {InteriorEncounters} from './InteriorEncounters'
 
 export function HorrorZone(){
  return <group name="underground-horror-zone">
+   <HallDetails/>
+   <InteriorEncounters/>
    <ambientLight color="#b0b8a9" intensity={.25}/>
    {Object.entries(horrorShell).map(([k,g])=><mesh key={k} name={'opaque-underground-shell-'+k} geometry={g} userData={{keepOpaque:true}}><HorrorStoneMaterial/></mesh>)}
    <mesh geometry={horrorRamp} name="exit-return-ramp" userData={{keepOpaque:true}}><meshLambertMaterial color="#535a4c" side={DoubleSide}/></mesh>

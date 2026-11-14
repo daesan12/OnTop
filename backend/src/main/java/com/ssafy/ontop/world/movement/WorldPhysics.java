@@ -200,6 +200,47 @@ public final class WorldPhysics implements AutoCloseable {
         });
     }
 
+    /** The map defines the approach side and destination. The client only chooses a door. */
+    public Snapshot useInteriorAccess(String userId, String access) {
+        return call(() -> {
+            Actor actor = actors.get(userId);
+            if (actor == null || actor.seated || actor.swimming || actor.carriedBy != null || actor.carryingId != null
+                    || actor.throwTicks > 0) return null;
+            var layout = scene.data.path("interiorAccess");
+            var route = layout.path("routes").path(access);
+            if (!route.isObject()) return null;
+            Vector3f position = actor.body.getPhysicsLocation(null);
+            var from = route.path("from");
+            if (Math.abs(position.y - from.get(1).asDouble()) > .55
+                    || Math.hypot(position.x - from.get(0).asDouble(), position.z - from.get(2).asDouble())
+                        > route.path("radius").asDouble()) return null;
+            if ("exit".equals(access) && !actor.interiorExitReady) return null;
+            var to = route.path("to");
+            double x = to.get(0).asDouble(), y = to.get(1).asDouble(), z = to.get(2).asDouble();
+            if (!canStand(x, y, z)) return null;
+            placeNow(userId, x, y, z);
+            actor.yaw = route.path("yaw").asDouble();
+            if ("entry".equals(access) || "passage".equals(access) || "exit".equals(access)) {
+                actor.interiorExitReady = false;
+            }
+            return snapshotNow(userId);
+        });
+    }
+
+    private static boolean insideVolume(Vector3f position, com.fasterxml.jackson.databind.JsonNode bounds) {
+        return bounds.isObject()
+                && position.x > bounds.path("x0").asDouble() && position.x < bounds.path("x1").asDouble()
+                && position.z > bounds.path("z0").asDouble() && position.z < bounds.path("z1").asDouble()
+                && position.y > bounds.path("floor").asDouble() + .4 && position.y < bounds.path("ceiling").asDouble();
+    }
+
+    private void updateInteriorArrival(Actor actor) {
+        if (!actor.interiorExitReady && !actor.airborne
+                && insideVolume(actor.body.getPhysicsLocation(null), scene.data.path("interiorAccess").path("upperArrival"))) {
+            actor.interiorExitReady = true;
+        }
+    }
+
     private boolean nearSecretDoor(Vector3f position, double distance) {
         for (var door : secretDoors.values()) {
             Vector3f center = door.getPhysicsLocation(null);
@@ -653,7 +694,8 @@ public final class WorldPhysics implements AutoCloseable {
                 recover(a, position, validatedFallback(a, limit), "INVALID_POSITION", now);
             } else if (position.y < scene.groundHeight(position.x, position.z)
                     + number("halfHeight") + number("radius") - .35
-                    && !inSecretCorridor(position) && !nearSecretDoor(position, 1.4)) {
+                    && !inSecretCorridor(position) && !nearSecretDoor(position, 1.4)
+                    && !insideVolume(position, scene.data.path("interiorAccess").path("annex"))) {
                 prepareCourse(entry.getKey());
                 float x = Math.max(-limit, Math.min(limit, position.x));
                 float z = Math.max(-limit, Math.min(limit, position.z));
@@ -677,6 +719,7 @@ public final class WorldPhysics implements AutoCloseable {
                 }
             }
             a.airborne = !a.seated && !supported;
+            if (!a.seated) updateInteriorArrival(a);
             if (a.throwTicks > 0 && (--a.throwTicks == 0 || supported || a.swimming)) {
                 a.throwTicks = 0;
                 a.throwX = a.throwZ = 0;
@@ -929,6 +972,7 @@ public final class WorldPhysics implements AutoCloseable {
             a.moving = Math.hypot(p.x() - before.x(), p.z() - before.z()) > .0001;
             a.running = a.moving && candidate.run(); a.swimming = swimming(a.body.getPhysicsLocation(null));
             a.airborne = !positionCollision.supported(p);
+            updateInteriorArrival(a);
             if (!a.airborne) a.lastSafe.set((float)p.x(), (float)p.y(), (float)p.z());
             a.motion = new Motion(a.motionEpoch, physicsTick, a.seq, 0, vy, !a.airborne, true, "CLIENT_VALIDATED");
             if (!tunedMovement && specialMovement(a.body.getPhysicsLocation(null))) serverControl(a);
@@ -1129,7 +1173,8 @@ public final class WorldPhysics implements AutoCloseable {
         if (tunedMovement || grace != null) motion = new Motion(motion.epoch(), motion.tick(), motion.appliedInputSeq(),
                 motion.inputAgeMs(), motion.velocityY(), motion.grounded(), motion.inputActive(), motion.authority(),
                 tunedMovement ? "PARK_V1" : null, a.followSteering, a.correctionReason, grace);
-        return new Snapshot(a.seq, p.x, p.y, p.z, a.yaw, a.moving, a.running, a.swimming, motion);
+        return new Snapshot(a.seq, p.x, p.y, p.z, a.yaw, a.moving, a.running, a.swimming, motion,
+                a.interiorExitReady);
     }
 
     /** Trusted server relocation, never exposed as a client coordinate command. */
@@ -1382,7 +1427,11 @@ public final class WorldPhysics implements AutoCloseable {
             double yaw,
             boolean moving,
             boolean running,
-            boolean swimming, Motion motion) {
+            boolean swimming, Motion motion, boolean interiorExitReady) {
+        public Snapshot(long seq, double x, double y, double z, double yaw,
+                boolean moving, boolean running, boolean swimming, Motion motion) {
+            this(seq, x, y, z, yaw, moving, running, swimming, motion, false);
+        }
         public Snapshot(long seq, double x, double y, double z, double yaw,
                 boolean moving, boolean running, boolean swimming) {
             this(seq, x, y, z, yaw, moving, running, swimming, null);
@@ -1440,6 +1489,7 @@ public final class WorldPhysics implements AutoCloseable {
         Motion motion = new Motion(0, 0, 0, 250, 0, false, false);
         double yaw = Math.PI;
         boolean moving, running, swimming, jumpQueued, seated, airborne;
+        boolean interiorExitReady;
         double climbTargetY;
         Recovery recovery;
         double reportedJumpSpeed;

@@ -914,7 +914,8 @@ public class TableHub {
                 fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
             }
             if (channels.carryState(member.userId()) != null && Set.of("TABLE_JOIN", "TABLE_WATCH", "GAME_WATCH",
-                    "WORLD_FACILITY_USE", "WORLD_FOLLOW_START", "WORLD_EMOTE_SEND", "WORLD_SECRET_DOORS_SET").contains(request.type())) {
+                    "WORLD_FACILITY_USE", "WORLD_FOLLOW_START", "WORLD_EMOTE_SEND", "WORLD_SECRET_DOORS_SET",
+                    "WORLD_INTERIOR_ACCESS").contains(request.type())) {
                 fail(request, "CARRY_ACTIVITY_CONFLICT", "들기·던지기가 끝난 뒤 다른 행동을 시작해주세요.");
             }
             switch (request.type()) {
@@ -925,6 +926,8 @@ public class TableHub {
                 case "WORLD_POSITION" -> positionWorld(member, request);
                 case "WORLD_SECRET_DOORS_SET" -> publishWorld(channels.setSecretDoors(member.userId(),
                         request.payload().path("open").asBoolean()), member, request.requestId());
+                case "WORLD_INTERIOR_ACCESS" -> publishWorld(channels.useInteriorAccess(member.userId(),
+                        request.payload().path("access").asText()), member, request.requestId());
                 case "WORLD_POSITION_FALLBACK" -> member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE",
                         channels.disablePosition(member.userId(), request.payload().path("epoch").asLong()).state()));
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);

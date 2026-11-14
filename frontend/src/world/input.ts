@@ -1,6 +1,6 @@
 import { CAMERA, TELESCOPE } from '../config'
 import { parkXRView } from './xrView'
-import { avatars, useSession } from '../network/worldClient'
+import { authoritativePose, avatars, useSession } from '../network/worldClient'
 import { parkRuntime } from '../park/runtime/runtime'
 import { createCarryEscape } from '../features/carry/escape'
 
@@ -26,7 +26,8 @@ import { toggleCameraPerspective, useCameraPerspective, viewControls } from './c
 import { cancelMouseLookReturn, resetCameraReturn } from './cameraReturn'
 import { benchViewScope, turnBenchLook, useBenchSpectator } from '../features/interactions/benchSpectator'
 import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
-import { horrorPortalAt, horrorState, inHorror } from '../../park-renewal-preview/horrorPlan'
+import { accessAt, interiorAccess } from '../../park-renewal-preview/interiorAccess'
+import { interiorVisit, visitScope } from '../../park-renewal-preview/interiorEvents'
 export { inputState, setChatInputOpen, textInputOwnsKeys } from './inputOwnership'
 export { viewControls } from './cameraPerspective'
 export function nearestTable(): string | null {
@@ -266,12 +267,22 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       }
     }
     if (event.code === 'KeyE' && !event.repeat && !inputState.wardrobeOpen) {
-      if (RENEWAL_PARK_ENABLED && event.shiftKey && !session.benchId && !session.fitnessId && !session.telescopeId && !carry) {
-        const at = avatars.get(session.sessionId)?.current
-        const door = at && horrorPortalAt(at.x, at.z)
-        if (at && door && Math.abs(at.y - door.floor - .8) <= 1.2) {
+      if (RENEWAL_PARK_ENABLED && !session.benchId && !session.fitnessId && !session.telescopeId && !carry) {
+        const at = authoritativePose(session.sessionId)
+        const access = at && accessAt(at)
+        if (at && access) {
           event.preventDefault()
-          void parkRuntime.setSecretDoors?.(!horrorState.open || inHorror(at.x, at.z))
+          const submit = () => {
+            const move = parkRuntime.useInteriorAccess?.(access)
+            void move?.then(moved => {
+              if (moved && useSession.getState().sessionId === session.sessionId) {
+                viewControls.yaw = access === 'vestibule' ? Math.PI : interiorAccess[access].yaw
+                viewControls.pitch = .05
+              }
+            })
+          }
+          if (access !== 'exit'
+            || !interiorVisit.deferExit(visitScope(session.sessionId, session.roomId), at, performance.now(), submit)) submit()
           return
         }
       }

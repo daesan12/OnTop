@@ -719,7 +719,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (changed) {
             Position p = previous.position();
             room.positions.put(userId, new Movement(new Position(input.seq(), p.x(), p.y(), p.z(), p.yaw(),
-                    p.moving(), p.running(), p.swimming()), now));
+                    p.moving(), p.running(), p.swimming(), p.interiorExitReady()), now));
             room.worldVersion++;
             room.dirty = true;
         }
@@ -731,6 +731,23 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (channelId != null) {
             rooms.get(channelId).physics.stop(userId);
         }
+    }
+
+    public synchronized WorldState useInteriorAccess(String userId, String access) {
+        String channel = membership.get(userId);
+        if (channel == null) throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        Room room = rooms.get(channel);
+        if (room.held.contains(userId) || room.tableSeats.containsKey(userId) || activity(userId) != null) {
+            throw new ChannelException("INTERIOR_ACCESS_UNAVAILABLE", "이동할 수 있는 상태에서 다시 시도해주세요.");
+        }
+        var snapshot = room.physics.useInteriorAccess(userId, access);
+        if (snapshot == null) {
+            throw new ChannelException("INTERIOR_ACCESS_UNAVAILABLE", "지금은 이쪽으로 이동할 수 없어요.");
+        }
+        room.positions.put(userId, new Movement(position(snapshot), Long.MIN_VALUE));
+        room.motions.put(userId, snapshot.motion());
+        room.worldVersion++;
+        return room.worldState();
     }
 
     public synchronized WorldState setSecretDoors(String userId, boolean open) {
@@ -926,7 +943,7 @@ public class WorldChannelRegistry implements ChannelPresence {
 
     private static Position position(WorldPhysics.Snapshot state) {
         return new Position(state.lastInputSeq(), state.x(), state.y(), state.z(), state.yaw(),
-                state.moving(), state.running(), state.swimming());
+                state.moving(), state.running(), state.swimming(), state.interiorExitReady() ? Boolean.TRUE : null);
     }
 
     private static Position snapshotPosition(Room room, String id) {
@@ -974,7 +991,13 @@ public class WorldChannelRegistry implements ChannelPresence {
     }
 
     public record Position(long lastInputSeq, double x, double y, double z, double yaw,
-            boolean moving, boolean running, boolean swimming) {
+            boolean moving, boolean running, boolean swimming,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            Boolean interiorExitReady) {
+        public Position(long seq, double x, double y, double z, double yaw,
+                boolean moving, boolean running, boolean swimming) {
+            this(seq, x, y, z, yaw, moving, running, swimming, null);
+        }
         public Position(long seq, double x, double y, double z, double yaw) {
             this(seq, x, y, z, yaw, false, false, false);
         }
