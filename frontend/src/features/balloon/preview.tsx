@@ -6,7 +6,7 @@ import { PreviewScene } from './PreviewScene'
 import { isPassenger, keys, occupancy, usePreview } from './previewStore'
 import './preview.css'
 
-const movementKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ArrowLeft', 'ArrowRight'])
+const movementKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
 
 function usePreviewKeyboard() {
   useEffect(() => {
@@ -105,7 +105,7 @@ function RideHud() {
     <div className="balloon-preview-info">로컬 프리뷰 · 가상 엽전 {coins}냥</div>
     {phase === 'boarding' && !boarded && !popup ? <div className="balloon-bottom">
       {reachable ? <button className="balloon-prompt" type="button" onClick={open}><kbd>E</kbd> 열기구 탑승</button>
-        : <div className="balloon-hint"><kbd>W A S D</kbd> 승강장으로 이동</div>}
+        : <div className="balloon-hint"><kbd>WASD / 방향키</kbd> 승강장으로 이동</div>}
       <div className="balloon-touch"><HoldButton label="앞으로" code="KeyW" /><HoldButton label="뒤로" code="KeyS" /></div>
     </div> : null}
     {phase === 'boarding' && boarded ? <aside className="balloon-wait balloon-hanji" aria-label="출발 대기">
@@ -125,7 +125,7 @@ function RideHud() {
       <div className="balloon-bottom">
         {boundary ? <p className="balloon-hanji balloon-notice" role="status"><strong>비행 구역 경계</strong> 공원 안쪽으로 돌아가세요</p> : null}
         {isPassenger ? <p className="balloon-hint"><kbd>← →</kbd> 드래그로 시점 돌리기</p> : <>
-          <div className="balloon-hint"><kbd>W A S D</kbd> 방향 조절 <kbd>Space / 왼쪽 Shift</kbd> 고도 조절</div>
+          <div className="balloon-hint"><kbd>WASD / 방향키</kbd> 방향 조절 <kbd>Space</kbd> 상승 <kbd>Shift</kbd> 하강</div>
           <div className="balloon-touch">
             <HoldButton label="앞" code="KeyW" /><HoldButton label="왼쪽" code="KeyA" />
             <HoldButton label="뒤" code="KeyS" /><HoldButton label="오른쪽" code="KeyD" />

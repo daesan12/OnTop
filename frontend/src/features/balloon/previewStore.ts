@@ -11,8 +11,9 @@ function numberOption(key: string, fallback: number, maximum: number) {
   return Math.min(maximum, Number(value))
 }
 
-const guestCount = numberOption('guests', 2, CAPACITY)
-export const isPassenger = guestCount > 0 && options.get('role') === 'passenger'
+const passengerRequested = options.get('role') === 'passenger'
+const guestCount = numberOption('guests', passengerRequested ? 2 : 0, CAPACITY)
+export const isPassenger = passengerRequested && guestCount > 0
 export const keys = new Set<string>()
 export const cameraDrag = { yaw: 0 }
 const neutral = { x: 0, z: 0, lift: 0 }
@@ -42,6 +43,13 @@ export function occupancy(boarded: boolean) {
 
 function axis(positive: string, negative: string) {
   return Number(keys.has(positive)) - Number(keys.has(negative))
+}
+
+function horizontalInput() {
+  return {
+    x: Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft')),
+    z: Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp')),
+  }
 }
 
 export const usePreview = create<Preview>((set, get) => ({
@@ -104,8 +112,7 @@ export const usePreview = create<Preview>((set, get) => ({
       return
     }
     if (flight.phase === 'boarding' || flight.phase === 'landed' || flight.phase === 'removed') {
-      const dx = axis('KeyD', 'KeyA')
-      const dz = axis('KeyS', 'KeyW')
+      const { x: dx, z: dz } = horizontalInput()
       if (!popup && (dx || dz)) {
         const distance = 6 * dt / Math.hypot(dx, dz)
         const z = Math.max(flight.phase === 'boarding' ? 9.6 : -40, Math.min(40, walker.z + dz * distance))
@@ -120,7 +127,7 @@ export const usePreview = create<Preview>((set, get) => ({
     const input = flight.phase === 'flying'
       ? isPassenger
         ? { x: -.5, z: -.4, lift: 0 }
-        : { x: axis('KeyD', 'KeyA'), z: axis('KeyS', 'KeyW'), lift: axis('Space', 'ShiftLeft') }
+        : { ...horizontalInput(), lift: Number(keys.has('Space')) - Number(keys.has('ShiftLeft') || keys.has('ShiftRight')) }
       : neutral
     const next = stepFlight(flight, input, dt)
     if (next.phase === 'landed' && flight.phase !== 'landed') {

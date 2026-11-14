@@ -8,7 +8,7 @@
 pnpm exec vite --config vite.balloon-preview.config.ts
 ```
 
-[로컬 프리뷰](http://127.0.0.1:5226/balloon-preview.html)에서 W로 승강장에 접근한 다음 E를 누른다. 탑승 후 조종석에서 WASD로 이동하고 Space와 왼쪽 Shift로 상승·하강한다. 동승석은 드래그나 좌우 화살표로 시점을 돌린다.
+[로컬 프리뷰](http://127.0.0.1:5226/balloon-preview.html)에서 W 또는 위 방향키로 승강장에 접근한 다음 E를 누른다. 기본 프리뷰는 혼자 탑승하고 출발하기를 누르면 바로 이륙한다. 조종석에서 WASD 또는 방향키로 이동하고 Space와 Shift로 상승·하강한다. 동승석은 드래그나 좌우 화살표로 시점을 돌린다.
 
 - `?guests=3`은 네 번째 자리 탑승을, `?guests=4`는 만석을 보여준다.
 - `?coins=0`은 잔액 부족을, `?role=passenger`는 동승과 대기 시간 종료 후 출발을 보여준다.
