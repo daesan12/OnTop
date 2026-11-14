@@ -133,20 +133,24 @@ final class RenewalCourseMotion {
         return "mole".equals(theme) || "pigeon".equals(theme);
     }
 
-    double riderDelta(String user, Vector3f position, double now, double footOffset) {
+    Double riddenTop(String user, Vector3f position, double now, double footOffset, double radius) {
         Player player = players.get(user);
         if (player == null || player.support < 0) {
-            return 0;
+            return null;
         }
         var pad = course.colliders().get(player.support);
-        if (!movesWithRider(pad) || Math.hypot(position.x - pad.x(), position.z - pad.z()) > pad.halfX() + .1) {
-            return 0;
+        // Only an already verified rider can use the capsule's edge clearance.
+        if (!movesWithRider(pad)
+                || Math.hypot(position.x - pad.x(), position.z - pad.z()) > pad.halfX() + radius - .03) {
+            return null;
         }
-        double previous = pose(user, pad.block(), now - WorldPhysics.STEP_NANOS / 1e9).offset();
-        if (Math.abs(position.y - footOffset - pad.top() - previous) > .13) {
-            return 0;
+        double previousTop = pad.top() + pose(user, pad.block(), now - WorldPhysics.STEP_NANOS / 1e9).offset();
+        double top = pad.top() + pose(user, pad.block(), now).offset();
+        double feet = position.y - footOffset;
+        if (Math.min(Math.abs(feet - previousTop), Math.abs(feet - top)) > .13) {
+            return null;
         }
-        return pad.top() + pose(user, pad.block(), now).offset() + footOffset - position.y;
+        return top;
     }
 
     void prepare(State state) {
