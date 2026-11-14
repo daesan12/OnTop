@@ -3,9 +3,13 @@ import { useSession } from '../../network/worldClient'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import type { RoundEndReason } from '../../jump-rope-preview/jumpRopeRules'
 import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh'
-import { JumpRopeApiError, jumpRopeService, type JumpRopeReceipt } from './service'
+import { JumpRopeApiError, jumpRopeService, type JumpRopeDuckSpan, type JumpRopeReceipt } from './service'
 
-type Submission = { owner: string; id: string; expiresAt: number; reason: RoundEndReason; offsets: readonly number[] }
+/** duckSpans is present exactly for a rules v2 round, and a retry resends the same frozen logs. */
+type Submission = {
+  owner: string; id: string; expiresAt: number; reason: RoundEndReason; offsets: readonly number[]
+  duckSpans?: readonly JumpRopeDuckSpan[]
+}
 export type JumpRopeSettlement = Submission & (
   | { status: 'saving' }
   | { status: 'saved'; receipt: JumpRopeReceipt }
@@ -42,7 +46,10 @@ async function settle(submission: Submission) {
   useJumpRope.setState({ settlement: pending, active: false })
   let receipt: JumpRopeReceipt
   try {
-    receipt = await jumpRopeService.complete(pending.id, pending.offsets)
+    // A v1 round keeps the original call; only a v2 round passes its duck log.
+    receipt = await (pending.duckSpans
+      ? jumpRopeService.complete(pending.id, pending.offsets, pending.duckSpans)
+      : jumpRopeService.complete(pending.id, pending.offsets))
   } catch (error) {
     if (useJumpRope.getState().settlement !== pending) return
     const failure = error instanceof JumpRopeApiError ? error : new JumpRopeApiError('', true)
@@ -63,13 +70,17 @@ export const jumpRopeSettlementActive = (state: ReturnType<typeof useJumpRope.ge
 export function submitJumpRope(submission: Submission) {
   const previous = useJumpRope.getState().settlement
   if (previous?.owner === submission.owner && previous.id === submission.id) return
-  void settle({ ...submission, offsets: Object.freeze([...submission.offsets]) })
+  const { duckSpans, ...rest } = submission
+  void settle({
+    ...rest, offsets: Object.freeze([...submission.offsets]),
+    ...(duckSpans ? { duckSpans: Object.freeze(duckSpans.map(([start, end]) => Object.freeze([start, end] as const))) } : {}),
+  })
 }
 
 export function retryJumpRope() {
   const pending = useJumpRope.getState().settlement
   if (pending?.status === 'failed' && pending.retryable) {
-    const { owner, id, expiresAt, reason, offsets } = pending
-    void settle({ owner, id, expiresAt, reason, offsets })
+    const { owner, id, expiresAt, reason, offsets, duckSpans } = pending
+    void settle({ owner, id, expiresAt, reason, offsets, ...(duckSpans ? { duckSpans } : {}) })
   }
 }

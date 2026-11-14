@@ -10,13 +10,20 @@ import { instantiateCustomerV5 } from '../features/bungeoppang/customerModelV5'
 import { RESIDENT_LOOKS, residentBoneName } from '../features/ai/residentRig'
 import { blendTowardIdle, grandpaFreeze, sampleGrandpa, type BroomPose } from './grandpaPose'
 import type { FinalePreview } from './JumpRopePreview'
-import type { PreviewRound } from './previewRound'
+import { raidGrandpa, type PreviewRound } from './previewRound'
 
 /**
  * Story 420 stage 1 stand-in: the shared older-flat-cap resident with a jump-rope-only broom.
  * It never calls instantiateResident, so the shared cane and resident rig stay untouched.
  */
 const look = RESIDENT_LOOKS.ELDER
+type Built = {
+  model: ReturnType<typeof instantiateCustomerV5>
+  bones: Map<string, Bone>
+  rest: Map<string, Quaternion>
+  broom: ReturnType<typeof createBroom>
+  tell: ReturnType<typeof createTell>
+}
 export const grandpaHeight = 2.15
 // A long yard broom: its sweep reaches past the avatar and up toward the audience on the wire.
 // The handle and the straw keep the earlier proportions: the bristles end 2 m from the grip.
@@ -166,12 +173,17 @@ export function GrandpaIntruder({ round, sceneTime, avatar, getFinalePreview }: 
   getFinalePreview: () => FinalePreview | null
 }) {
   const source = useLoader(ParkAssetLoader, customerModelUrlV5(look.id))
-  const built = useMemo(() => {
+  const frame = useMemo(() => {
+    const group = new Group()
+    group.name = 'tapgol-grandpa'
+    group.visible = false
+    return group
+  }, [])
+  const builtRef = useRef<Built | null>(null)
+  // Build and dispose in one effect. The park runs React StrictMode in development, which replays effects:
+  // a memoized model would be disposed by the first cleanup and the visit would show only the broom.
+  useEffect(() => {
     const model = instantiateCustomerV5(source, { id: look.id, height: grandpaHeight })
-    const frame = new Group()
-    frame.name = 'tapgol-grandpa'
-    frame.visible = false
-    frame.add(model.root)
     const bones = new Map<string, Bone>()
     model.root.traverse(object => { if (object instanceof Bone) bones.set(residentBoneName(object.name), object) })
     const rest = new Map(posedBones.flatMap(name => {
@@ -181,9 +193,19 @@ export function GrandpaIntruder({ round, sceneTime, avatar, getFinalePreview }: 
     const broom = createBroom()
     const tell = createTell()
     tell.group.position.y = grandpaHeight + 0.36
-    frame.add(broom.group, tell.group)
-    return { model, frame, bones, rest, broom, tell }
-  }, [source])
+    frame.add(model.root, broom.group, tell.group)
+    builtRef.current = { model, bones, rest, broom, tell }
+    return () => {
+      builtRef.current = null
+      frame.visible = false
+      frame.remove(broom.group, tell.group)
+      model.dispose()
+      for (const part of [broom, tell]) {
+        part.geometries.forEach(geometry => geometry.dispose())
+        part.materials.forEach((material: Material) => material.dispose())
+      }
+    }
+  }, [source, frame])
 
   // The shout is a DOM bubble over the canvas, so the Korean text stays crisp at any size.
   const gl = useThree(state => state.gl)
@@ -203,25 +225,18 @@ export function GrandpaIntruder({ round, sceneTime, avatar, getFinalePreview }: 
     }
   }, [gl])
 
-  useEffect(() => () => {
-    built.model.dispose()
-    for (const part of [built.broom, built.tell]) {
-      part.geometries.forEach(geometry => geometry.dispose())
-      part.materials.forEach((material: Material) => material.dispose())
-    }
-  }, [built])
-
   useFrame(({ camera, size }, delta) => {
-    const { model, frame, bones, rest, broom, tell } = built
-    const grandpa = round.ranked ? undefined : round.grandpa
+    const built = builtRef.current
+    const grandpa = raidGrandpa(round)
     // The third MISS removes him at once, so the pigeons' game-over finale plays alone.
-    const sample = grandpa && !round.endReason && !getFinalePreview()
+    const sample = built && grandpa && !round.endReason && !getFinalePreview()
       ? sampleGrandpa(grandpa, round.playedMs, avatar)
       : null
     frame.visible = sample !== null
     const bubble = speech.current
     if (bubble) bubble.hidden = !sample || sample.shoutWeight < 0.01
-    if (!sample) return
+    if (!sample || !built) return
+    const { model, bones, rest, broom, tell } = built
     const now = sceneTime(performance.now())
     const freeze = grandpaFreeze(round, now)
     const pose: BroomPose = blendTowardIdle(sample.broom, freeze)
@@ -303,5 +318,5 @@ export function GrandpaIntruder({ round, sceneTime, avatar, getFinalePreview }: 
     }
   })
 
-  return <primitive object={built.frame} dispose={null} />
+  return <primitive object={frame} dispose={null} />
 }

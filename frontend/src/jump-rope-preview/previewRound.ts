@@ -2,10 +2,11 @@ import type { JudgementSettings } from './jumpRopeJudgement'
 import { applyPass, createRoundStats, roundDurationMs, type RoundEndReason, type RoundStats } from './jumpRopeRules'
 import { advancePreviewMotion, advanceRankedMotion, createPreviewMotion, requestJump, requestRankedJump, type PreviewPass, type RankedClock } from './previewMotion'
 import { createSuccessCue, successKind, type PigeonSuccessCue } from './pigeonSuccess'
-import { ropeTempo, type RopeAcceleration } from './ropeAcceleration'
+import { defaultRopeAcceleration, ropeTempo, type RopeAcceleration } from './ropeAcceleration'
 import { finaleStage } from './gameOverFinale'
 import { completionResultMs } from './completionFinale'
 import { advanceGrandpaMotion, grandpaBlocksJump, settleGrandpa, type GrandpaRuntime } from './grandpaEvent'
+import { advanceRankedV2Motion, finishRankedV2, noteRankedV2Jump, rankedV2BlocksJump, syncRankedGrandpa } from './rankedGrandpa'
 
 const countdownMs = 3000
 const goMs = 550
@@ -32,7 +33,10 @@ export type PreviewRound = {
   successCue: PigeonSuccessCue | null
   shockStartedAt: number | null
   ranked?: RankedClock
-  /** Story 420 stage 1 grandpa raid. Only the unranked preview creates it; a ranked round ignores it. */
+  /**
+   * The grandpa raid. The unranked preview advances it in float milliseconds; a ranked rules v2 round only
+   * mirrors its integer judgement onto it for the visuals; a ranked v1 round never has one.
+   */
   grandpa?: GrandpaRuntime
 }
 export type RoundCue = Phase['kind'] | 'gameOverSplash' | '3' | '2' | '1' | 'GO!'
@@ -94,7 +98,9 @@ export function advancePreviewRound(
     : activeFrom + (roundDurationMs - round.playedMs)
   const expires = now >= deadline
   const clock = acceleration ? { profile: acceleration, playedMs: round.playedMs } : undefined
-  const rankedStep = playing && round.ranked ? advanceRankedMotion(motion, round.ranked, now, settings) : null
+  const rankedStep = playing && round.ranked
+    ? round.ranked.v2 ? advanceRankedV2Motion(motion, round.ranked, now, settings) : advanceRankedMotion(motion, round.ranked, now, settings)
+    : null
   const grandpa = round.ranked ? undefined : round.grandpa
   const nextSpeed = playing && !expires ? ropeSpeed : 0
   const passes = rankedStep?.passes ?? (grandpa
@@ -118,7 +124,8 @@ export function advancePreviewRound(
     const kind = successKind(pass.kind, stats.combo)
     // Show the latest success if a late frame processes several passes together.
     if (kind && activeFrom !== null) {
-      const ropeMs = playedBefore + (pass.at - activeFrom) - (grandpa?.lagMs ?? 0)
+      const lagMs = grandpa?.lagMs ?? (round.ranked?.v2 ? round.ranked.v2.lagUs / 1000 : 0)
+      const ropeMs = playedBefore + (pass.at - activeFrom) - lagMs
       const passClock = acceleration ? { profile: acceleration, playedMs: ropeMs } : undefined
       const nextTurnMs = ropeTempo(intervalSpeed, passClock).timeForTurns(1)
       successCue = createSuccessCue(kind, now, pass.number - 1, nextTurnMs, now - pass.at)
@@ -164,14 +171,28 @@ export function advancePreviewRound(
     }
   }
   if (grandpa) settleGrandpa(grandpa, round, { speed: ropeSpeed, acceleration })
+  else if (round.ranked?.v2 && round.grandpa) {
+    // The duck log closes at the final play time before the round can be submitted.
+    if (round.endReason) finishRankedV2(round)
+    syncRankedGrandpa(round)
+    settleGrandpa(round.grandpa, round, { speed: 1, acceleration: defaultRopeAcceleration })
+  }
   return latest
 }
 
 export function requestRoundJump(round: PreviewRound, now: number, peak: number, flightSeconds: number) {
   // A held duck or a broom stun rejects Space before it can start a jump or reach the jump log.
   if (!round.ranked && round.grandpa && grandpaBlocksJump(round.grandpa)) return false
-  return round.phase.kind === 'playing' && round.motion.ropeSpeed > 0
+  if (round.ranked && rankedV2BlocksJump(round.ranked, now)) return false
+  const accepted = round.phase.kind === 'playing' && round.motion.ropeSpeed > 0
     && (round.ranked ? requestRankedJump(round.motion, round.ranked, now) : requestJump(round.motion, now, peak, flightSeconds))
+  if (accepted && round.ranked) noteRankedV2Jump(round.ranked)
+  return accepted
+}
+
+/** The raid shown on screen: the preview's, or a ranked v2 round's. A ranked v1 round shows none. */
+export function raidGrandpa(round: PreviewRound) {
+  return round.ranked && !round.ranked.v2 ? undefined : round.grandpa
 }
 
 export function roundSecondsLeft(round: PreviewRound) {

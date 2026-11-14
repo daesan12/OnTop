@@ -98,14 +98,17 @@ class ProductionRuntimeSettingsTests {
     }
 
     @Test
-    void 줄넘기_신규_판_규칙_버전은_기본_1이고_환경변수로만_2로_바꾼다() {
-        for (String profiles : new String[] {"dev,db", "prod,db"}) {
+    void 줄넘기_신규_판_규칙_버전은_개발DB만_기본_2이고_운영은_1이며_환경변수가_우선한다() {
+        // DEV(모니터링 overlay 포함)는 FE v2와 함께 기본 2, 운영은 기본 1을 유지한다.
+        for (String[] expected : new String[][] {{"dev,db", "2", "1"}, {"dev,db,observe-dev", "2", "1"}, {"prod,db", "1", "2"}}) {
+            String profiles = expected[0];
             var runner = new ApplicationContextRunner().withInitializer(new ConfigDataApplicationContextInitializer())
                     .withPropertyValues("spring.profiles.active=" + profiles);
             runner.run(context -> assertThat(context.getEnvironment()
-                    .getProperty("ontop.minigames.jump-rope-rules-version")).as(profiles).isEqualTo("1"));
-            runner.withPropertyValues("JUMP_ROPE_RULES_VERSION=2").run(context -> assertThat(context.getEnvironment()
-                    .getProperty("ontop.minigames.jump-rope-rules-version")).as(profiles).isEqualTo("2"));
+                    .getProperty("ontop.minigames.jump-rope-rules-version")).as(profiles).isEqualTo(expected[1]));
+            // 서버 app.env의 JUMP_ROPE_RULES_VERSION은 프로필 기본값보다 우선한다(DEV 되돌리기, 운영 전환).
+            runner.withPropertyValues("JUMP_ROPE_RULES_VERSION=" + expected[2]).run(context -> assertThat(context.getEnvironment()
+                    .getProperty("ontop.minigames.jump-rope-rules-version")).as(profiles).isEqualTo(expected[2]));
         }
     }
 
