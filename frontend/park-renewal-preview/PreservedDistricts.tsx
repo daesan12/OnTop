@@ -13,6 +13,7 @@ import {pagodaBalustradeArt} from '../src/layout-preview/pagodaBalustrade'
 import {createStairFlight} from '../src/layout-preview/stairFlightGeometry'
 import {WalkwayMaterial} from '../src/world/art/WalkwayMaterial'
 import {site,heightAt,MONUMENT_STAIRS} from './plan'
+import { MONUMENT_TREAD_OFFSET } from './monumentStairPlan'
 import {FITNESS_FENCE,fitnessFenceSegments} from './motionPlan'
 import {guardRailGeometry} from './guardLayout'
 import {stairCheeks,stairRailAnchors} from './stairFinishGeometry'
@@ -45,7 +46,7 @@ const garden=(()=>{const b=new PropBuilder([8,6]),p=SETTINGS.pagoda,top=ORIGINAL
 export const longStairs=(()=>{
  const p=MONUMENT_STAIRS,b=new PropBuilder(),length=p.zBottom-p.zTop,rise=p.top-p.bottom
  // The terrain supplies the upper landing: no coplanar slab over it.
- b.add('stone',createStairFlight(p.width,0,Array.from({length:p.steps},(_,i)=>({edge:(i+1)*length/p.steps,height:rise*(p.steps-i)/p.steps+.085}))),'#c8c0ae')
+ b.add('stone',createStairFlight(p.width,0,Array.from({length:p.steps},(_,i)=>({edge:(i+1)*length/p.steps,height:rise*(p.steps-i)/p.steps+MONUMENT_TREAD_OFFSET}))),'#c8c0ae')
  const {sideOffset,postWidth,handrailWidth,bottomOverhang,height}=MONUMENT_STAIR_RAIL
  for(const side of[-1,1]){
   const x=side*(p.width/2+sideOffset),jointZ=-HILL_VERGE_INSET
@@ -67,9 +68,9 @@ export function PreservedPagodaGarden(){const s=site('pagoda'),y=heightAt(s.x,s.
  <group name="preserved-pagoda-garden" position={[s.x,y,s.z]}>
   <PropModel art={garden} name="preserved-pagoda-terrace-and-four-stairs"/>
   <group position={[-ORIGINAL.pagoda.x,0,-ORIGINAL.pagoda.z]}><PropModel art={pagodaBalustradeArt} name="preserved-pagoda-stone-rails"/></group>
-  <group position={[0,ORIGINAL.pagoda.floor,0]}><StonePagoda anchor={{...GARDEN_PAGODA,x:0,z:0}} decorations={false}/></group>
+  <group position={[0,ORIGINAL.pagoda.floor,0]} userData={{keepOpaque:true}}><StonePagoda anchor={{...GARDEN_PAGODA,x:0,z:0}} decorations={false}/></group>
  </group>
- <group name="monument-direct-ascent" position={[MONUMENT_STAIRS.x,MONUMENT_STAIRS.bottom,MONUMENT_STAIRS.zTop]}><PropModel art={longStairs} name="ninety-five-stair-direct-ascent"/><mesh name="terrain-supported-masonry-stair-cheeks" geometry={stairCheeks}><ParkStoneMaterial large/></mesh></group>
+ <group name="monument-direct-ascent" position={[MONUMENT_STAIRS.x,MONUMENT_STAIRS.bottom,MONUMENT_STAIRS.zTop]}><PropModel art={longStairs} name="ninety-five-stair-direct-ascent"/><mesh name="terrain-supported-masonry-stair-cheeks" geometry={stairCheeks} userData={{keepOpaque:true}}><ParkStoneMaterial large/></mesh></group>
  </>}
 export function FitnessFence(){
  const art=useMemo(()=>{

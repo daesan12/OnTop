@@ -1,6 +1,6 @@
 import { CAMERA, TELESCOPE } from '../config'
 import { parkXRView } from './xrView'
-import { authoritativePose, avatars, useSession } from '../network/worldClient'
+import { avatars, useSession } from '../network/worldClient'
 import { parkRuntime } from '../park/runtime/runtime'
 import { createCarryEscape } from '../features/carry/escape'
 
@@ -25,9 +25,6 @@ import { canControlRoamingCamera, lookOwner } from './roamingCamera'
 import { toggleCameraPerspective, useCameraPerspective, viewControls } from './cameraPerspective'
 import { cancelMouseLookReturn, resetCameraReturn } from './cameraReturn'
 import { benchViewScope, turnBenchLook, useBenchSpectator } from '../features/interactions/benchSpectator'
-import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
-import { accessAt, interiorAccess } from '../../park-renewal-preview/interiorAccess'
-import { interiorVisit, visitScope } from '../../park-renewal-preview/interiorEvents'
 export { inputState, setChatInputOpen, textInputOwnsKeys } from './inputOwnership'
 export { viewControls } from './cameraPerspective'
 export function nearestTable(): string | null {
@@ -56,7 +53,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     benchDragging = '',
     benchExitKey = false,
     jump = false,
-    hadMovement = false
+    hadMovement = false,
+    rotatedIntentFrame = 0
   const intent: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
   const blocked = () =>
     parkXRView.ownsInput ||
@@ -70,9 +68,12 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     !!(avatars.get(useSession.getState().sessionId)?.carry && avatars.get(useSession.getState().sessionId)?.carry?.role !== 'CARRIER') ||
     !!useSession.getState().tableId
   const stop = () => {
+    if (rotatedIntentFrame) cancelAnimationFrame(rotatedIntentFrame)
+    rotatedIntentFrame = 0
     carryEscape.reset()
     keys.clear()
     drag = jump = hadMovement = false
+    roamingInput.draggingCamera = false
     seatDragging = ''
     benchDragging = ''
     benchExitKey = false
@@ -91,7 +92,12 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     const scale = lookScale()
     viewControls.yaw -= x * 0.004 * scale
     viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003 * scale))
-    if (hadMovement) sendIntent()
+    // A mouse can dispatch several updates before a frame is rendered. Keep
+    // the latest aim, and update prediction once with the final heading.
+    if (hadMovement && !rotatedIntentFrame) rotatedIntentFrame = requestAnimationFrame(() => {
+      rotatedIntentFrame = 0
+      if (hadMovement && !blocked()) sendIntent()
+    })
   }
   // Shared by drag and mouse look; zoom slows the aim and the server sync keeps its own interval.
   const turnTelescope = (x: number, y: number) => {
@@ -267,25 +273,6 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       }
     }
     if (event.code === 'KeyE' && !event.repeat && !inputState.wardrobeOpen) {
-      if (RENEWAL_PARK_ENABLED && !session.benchId && !session.fitnessId && !session.telescopeId && !carry) {
-        const at = authoritativePose(session.sessionId)
-        const access = at && accessAt(at)
-        if (at && access) {
-          event.preventDefault()
-          const submit = () => {
-            const move = parkRuntime.useInteriorAccess?.(access)
-            void move?.then(moved => {
-              if (moved && useSession.getState().sessionId === session.sessionId) {
-                viewControls.yaw = access === 'vestibule' ? Math.PI : interiorAccess[access].yaw
-                viewControls.pitch = .05
-              }
-            })
-          }
-          if (access !== 'exit'
-            || !interiorVisit.deferExit(visitScope(session.sessionId, session.roomId), at, performance.now(), submit)) submit()
-          return
-        }
-      }
       if (interactWithPark()) {
         event.preventDefault()
         canvas.focus({ preventScroll: true })
@@ -318,11 +305,14 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
     if (event.button === 0 && !panelOwnsMovement()) {
       drag = true
+      roamingInput.draggingCamera = !session.telescopeId && !session.tableId && !session.benchId
       canvas.focus({ preventScroll: true })
     }
   }
   const pointerMove = (event: PointerEvent) => {
-    if (scenePointerOwners.has(event.pointerId)) { benchDragging = ''; seatDragging = ''; drag = false; return }
+    if (scenePointerOwners.has(event.pointerId)) {
+      benchDragging = ''; seatDragging = ''; drag = false; roamingInput.draggingCamera = false; return
+    }
     if (mouseLook.locked()) return
     if (benchDragging) {
       const benchView = useBenchSpectator.getState()
@@ -349,6 +339,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const pointerUp = (event: PointerEvent) => {
     scenePointerOwners.delete(event.pointerId)
     drag = false
+    roamingInput.draggingCamera = false
     seatDragging = ''
     benchDragging = ''
   }

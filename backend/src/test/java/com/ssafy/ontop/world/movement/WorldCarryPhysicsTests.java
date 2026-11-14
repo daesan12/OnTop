@@ -17,6 +17,33 @@ class WorldCarryPhysicsTests {
     private final AtomicLong now = new AtomicLong();
 
     @Test
+    void 공원_외곽으로_높게_던져도_캐릭터가_울타리_안에_남는다() throws Exception {
+        Path directory = Path.of("../frontend/generated/park-renewal");
+        var scene = PreparedParkMap.load(directory.resolve("server-map.json"), directory.resolve("manifest.json"),
+                Set.of("channel-1")).createScene();
+        try (var physics = new WorldPhysics(scene, true, now::get, true)) {
+            physics.add("a");
+            physics.add("b");
+            var start = physics.snapshot("a");
+            physics.place("b", start.x() + 1, start.y(), start.z());
+            step(physics, 5);
+
+            assertThat(physics.pickup("a", "b")).isTrue();
+            assertThat(physics.throwCarried("a", physics.carryState("a").carryId(), 0, .5, Math.sqrt(.75))).isTrue();
+            double furthest = start.z();
+            for (int tick = 0; tick < 90 && physics.carryState("b") != null; tick++) {
+                step(physics, 1);
+                double z = physics.snapshot("b").z();
+                furthest = Math.max(furthest, z);
+                assertThat(z).isLessThan(108);
+            }
+
+            assertThat(furthest).isGreaterThan(start.z() + 2);
+            assertThat(physics.carryState("b")).isNull();
+        }
+    }
+
+    @Test
     void 달리는_중이어도_정적벽_너머의_상대는_들수없다() throws Exception {
         try (var physics = pair(false, true)) {
             physics.place("a", 18.9, .84, 78);

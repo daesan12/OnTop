@@ -4,7 +4,7 @@ import {tiledRoof as shopRoof} from './shop-roof.js';
 import {tiledRoof as pavilionRoof,closedRoll} from './pavilion-roof.js';
 import {rock} from './garden.js';
 const TAU=Math.PI*2;
-export function rope(b,a,z,height=.0){const pts=Array.from({length:9},(_,i)=>{const t=i/8;return new THREE.Vector3(a[0]*(1-t)+z[0]*t,a[1]*(1-t)+z[1]*t-Math.sin(t*Math.PI)*.10+height,a[2]*(1-t)+z[2]*t);});b.add('cloth',closedRoll(pts,.037,8,5),'#dcc39a');}
+export function rope(b,a,z,height=.0,color='#dcc39a'){const pts=Array.from({length:9},(_,i)=>{const t=i/8;return new THREE.Vector3(a[0]*(1-t)+z[0]*t,a[1]*(1-t)+z[1]*t-Math.sin(t*Math.PI)*.10+height,a[2]*(1-t)+z[2]*t);});b.add('cloth',closedRoll(pts,.037,8,5),color);}
 export function post(b,x,z,y=0){box(b,'wood','#8d5f35',[x,y+.54,z],[.14,1.08,.14],.02);box(b,'stone','#d7c6b1',[x,y+1.07,z],[.19,.12,.19],.02);box(b,'wood','#b88343',[x,y+.11,z],[.25,.16,.25],.025);}
 export function fence(b){for(const x of [-1.2,0,1.2])post(b,x,0);for(const [a,z]of [[-1.2,0],[0,1.2]])for(const y of [.48,.92])rope(b,[a,y,0],[z,y,0]);}
 export function lamp(b){

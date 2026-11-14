@@ -46,7 +46,10 @@ class InteriorAccessTests {
             physics.place("a", -57.1, 12.67, -88);
             assertThat(physics.useInteriorAccess("a", "exit")).isNull();
             physics.place("a", 27.35, 7.6, -82);
+            assertThat(physics.useInteriorAccess("a", "return")).isNull();
             assertThat(physics.useInteriorAccess("a", "entry")).isNotNull();
+            assertThat(physics.useInteriorAccess("a", "return")).isNotNull()
+                    .extracting(WorldPhysics.Snapshot::x).isEqualTo((double) (float) 28.7);
         }
     }
 

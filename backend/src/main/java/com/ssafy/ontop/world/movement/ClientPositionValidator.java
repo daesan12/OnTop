@@ -129,7 +129,7 @@ public final class ClientPositionValidator {
     synchronized Decision accept(Candidate candidate) {
         long now = clock.getAsLong();
         if (candidate == null || candidate.path == null) {
-            return acceptSample(candidate, now, true);
+            return acceptSample(candidate, now, true, 0);
         }
         var path = candidate.path;
         if (!tuned || !finite(candidate.pose) || path.isEmpty() || path.size() > MAX_PATH_SAMPLES
@@ -159,7 +159,7 @@ public final class ClientPositionValidator {
                 var from = approved;
                 var previousFlight = flight;
                 result = acceptSample(new Candidate(candidate.seq, candidate.epoch, sample.pose,
-                        candidate.run, sample.jump, candidate.yaw, candidate.manual), now, index == 0);
+                        candidate.run, sample.jump, candidate.yaw, candidate.manual), now, index == 0, seconds);
                 if (!result.accepted) {
                     return new Decision(false, result.reason, before.approved, before.sequence);
                 }
@@ -196,7 +196,7 @@ public final class ClientPositionValidator {
             Flight flight, long airWindowAt, double airWindowY, long pendingJumpUntil, double groundLaunchSpeed) {}
 
     /** 모든 중간점은 같은 서버 수신 시각을 사용한다. 클라이언트가 시간이나 이동 예산을 늘릴 수 없다. */
-    private Decision acceptSample(Candidate candidate, long now, boolean checkSequence) {
+    private Decision acceptSample(Candidate candidate, long now, boolean checkSequence, double batchSeconds) {
         if (blocked) return deny("ACTIVITY");
         if (candidate == null || !finite(candidate.pose) || !Double.isFinite(candidate.yaw)) return deny("INVALID");
         if (candidate.epoch != epoch) return deny("EPOCH");
@@ -217,11 +217,13 @@ public final class ClientPositionValidator {
         boolean supportedFrom = geometry.supported(approved), supportedTo = geometry.supported(target);
         double launchSpeed = geometry.jumpSpeed(approved, tuned);
         if (tuned) {
+            // Middle samples share the receipt time, not a zero-duration physics step.
+            // The overall report keeps its own vertical envelope and a single horizontal budget.
             double seconds = (now - approvedAt) / 1e9;
             // Bound large vertical changes, but do not demand Bullet/Rapier ballistic parity.
             double dy = target.y - approved.y;
             if ((dy > launchSpeed * seconds + .7 && !(candidate.jump && supportedFrom && dy <= tunedRise(launchSpeed)))
-                    || dy < -85 * seconds - .7) return deny("VERTICAL");
+                    || dy < -85 * Math.max(batchSeconds, seconds) - .7) return deny("VERTICAL");
             // The client integrator advances at most 100ms after a rendering stall.
             // Do not count an unobserved packet gap as continuous hovering.
             long nextAirAt = airWindowAt + Math.max(0, now - approvedAt - 100_000_000L);

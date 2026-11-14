@@ -7,6 +7,7 @@ import { tableGameplayActive } from '../parkMenus/gameplayLock'
 import { usePlusMinus } from '../plusMinus/store'
 import { useRpsRoulette } from '../rpsRoulette/store'
 import { useSkewerActivity } from '../skewer/activity'
+import { useSpeedMole } from '../speedMole/store'
 
 export const bungeoppangGameplayActive = (state: ReturnType<typeof useBungeoppang.getState>) =>
   ['countdown', 'play', 'ending', 'leaving'].includes(state.phase)
@@ -32,4 +33,10 @@ export function useParkGameplayActive() {
   const jumpRope = useJumpRope(state => state.active)
   const skewer = useSkewerActivity(state => state.solo || state.cooperative)
   return table || bungeoppang || mole || plusMinus || rps || jumpmap || jumpRope || skewer
+}
+
+export function parkMinigameInUse() {
+  return useMole.getState().open || usePlusMinus.getState().open || useRpsRoulette.getState().open
+    || useJumpRope.getState().open || useSkewerActivity.getState().solo || useSkewerActivity.getState().cooperative
+    || useSpeedMole.getState().open
 }

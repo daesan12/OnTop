@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Color, InstancedBufferAttribute, MeshBasicMaterial, MeshStandardMaterial, Object3D, Vector3, type InstancedMesh, type BufferGeometry } from 'three'
-import { jumpArt, jumpStartArt, jumpFinishArt, jumpParticleGeometry } from '../../layout-preview/jumpGeometry'
+import { buildServiceJumpPadArt, jumpArt, jumpStartArt, jumpFinishArt, jumpParticleGeometry } from '../../layout-preview/jumpGeometry'
 import type { JumpTheme } from '../../../park-renewal-preview/jump10Plan'
 import { creatureJumpArt } from '../../../park-renewal-preview/creatureJumpArt'
 import { renewalPadAt, renewalPadPose, renewalPadShown, syncRenewalMotion, updateRenewalContact } from './renewalMotion'
@@ -12,7 +12,7 @@ import { applyLandingMotion, landingGeometry } from './landingMotion'
 import { cameraWorldPosition, parkXRView } from '../../world/xrView'
 
 const groups = [...new Set(COURSE.map(b => b.theme))].map(theme => ({ theme, pads: COURSE.filter(b => b.theme === theme) }))
-const artByTheme = { ...jumpArt, ...creatureJumpArt }
+const artByTheme = { ...jumpArt, ...(renewalCourse ? buildServiceJumpPadArt() : {}), ...creatureJumpArt }
 const clock = { value: 0 }
 
 function scaleFor(pad: CourseBlock): [number, number] {
@@ -40,7 +40,7 @@ function materialFor(theme: JumpTheme, finish: string) {
     if (finish === 'glow') shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight+=diffuseColor.rgb*.45;\n#include <opaque_fragment>')
   }
   applyLandingMotion(material, theme, clock)
-  material.customProgramCacheKey = () => `service-jump-${theme}-${finish}-tactile-2`
+  material.customProgramCacheKey = () => `service-jump-${theme}-${finish}-tactile-3`
   return material
 }
 function idlePadFade(block: number, playable: boolean) {
@@ -50,9 +50,9 @@ function idlePadFade(block: number, playable: boolean) {
 }
 
 function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: readonly CourseBlock[]; art?: Record<string, BufferGeometry>; enabled?: boolean }) {
+  const movingPad = theme === 'lily' || theme === 'mole' || theme === 'pigeon'
   const meshes = useRef<InstancedMesh[]>([])
   const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
-  const transform = useMemo(() => new Object3D(), [])
   const reduced = useMemo(() => matchMedia('(prefers-reduced-motion: reduce)'), [])
   const batches = useMemo(() => Object.entries(art ?? artByTheme[theme]).map(([finish, source]) => {
     const geometry = landingGeometry(source, theme)
@@ -90,41 +90,50 @@ function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: r
     const now = performance.now(); clock.value = now / 1000
     const s = useJumpmap.getState(), own = avatars.get(s.owner)
     if (own) sampleAvatar(own, now, pose)
-    const occupied = new Set(standing.values())
-    const eye = cameraWorldPosition(camera)
+    const dynamic = !!renewalCourse && !art
+    const occupied = dynamic ? undefined : new Set(standing.values())
+    const eye = dynamic ? pose : cameraWorldPosition(camera)
     const dx = eye.x - pose.x, dy = eye.y - (pose.y + .4), dz = eye.z - pose.z, lengthSq = dx * dx + dy * dy + dz * dz
     const motionTime = renewalCourse ? syncRenewalMotion() : 0
     for (const [batchIndex, batch] of batches.entries()) {
       const mesh = meshes.current[batchIndex]
       const fade = batch.geometry.getAttribute('aFade') as InstancedBufferAttribute, hit = batch.geometry.getAttribute('aHit') as InstancedBufferAttribute, power = batch.geometry.getAttribute('aPower') as InstancedBufferAttribute
+      let fadeChanged = false, hitChanged = false, powerChanged = false, matrixChanged = false
       pads.forEach((p, i) => {
-        const along = lengthSq ? ((p.x - pose.x) * dx + (p.top - pose.y - .4) * dy + (p.z - pose.z) * dz) / lengthSq : 0
-        const occluded = along > .03 && along < .97 && Math.hypot(p.x - pose.x - dx * along, p.top - pose.y - .4 - dy * along, p.z - pose.z - dz * along) < Math.max(p.halfX, p.halfZ) + .5
-        // Traversable pads stay solid in stereo. The desktop fade was designed
-        // for a third-person camera and can hide a VR player's landing surface.
-        const target = parkXRView.active || art === jumpStartArt ? 1 : art ? s.run ? .8 : .4 : targetFade(p.top, pose.y - .8, !!s.run, occupied.has(p.block), occluded)
-        if (renewalCourse && !art) {
+        let alpha: number
+        if (dynamic) {
           const motion = renewalPadPose(p, motionTime)
           const shown = renewalPadShown(p.block) && motion.visible
-          const [sx, sz] = scaleFor(p)
-          fade.setX(i, shown ? (s.run ? 1 : idlePadFade(p.block, true)) : 0)
-          if (mesh && (p.theme === 'lily' || p.theme === 'pigeon' || p.theme === 'mole')) {
-            transform.position.set(p.x, p.top + motion.offset, p.z)
-            transform.rotation.set(0, p.yaw, 0)
-            transform.scale.set(sx, 1, sz)
-            transform.updateMatrix()
-            mesh.setMatrixAt(i, transform.matrix)
+          alpha = shown ? (s.run ? 1 : idlePadFade(p.block, true)) : 0
+          if (mesh && movingPad) {
+            const height = Math.fround(p.top + motion.offset)
+            const index = i * 16 + 13
+            if (mesh.instanceMatrix.array[index] !== height) {
+              mesh.instanceMatrix.array[index] = height
+              matrixChanged = true
+            }
           }
         } else {
-          fade.setX(i, parkXRView.active ? 1 : target + (fade.getX(i) - target) * Math.exp(-Math.min(dt, .1) * 6))
+          const along = lengthSq ? ((p.x - pose.x) * dx + (p.top - pose.y - .4) * dy + (p.z - pose.z) * dz) / lengthSq : 0
+          const occluded = along > .03 && along < .97 && Math.hypot(p.x - pose.x - dx * along, p.top - pose.y - .4 - dy * along, p.z - pose.z - dz * along) < Math.max(p.halfX, p.halfZ) + .5
+          const target = art === jumpStartArt ? 1 : art ? s.run ? .8 : .4 : targetFade(p.top, pose.y - .8, !!s.run, occupied!.has(p.block), occluded)
+          alpha = parkXRView.active ? 1 : target + (fade.getX(i) - target) * Math.exp(-Math.min(dt, .1) * 6)
+        }
+        if (fade.getX(i) !== Math.fround(alpha)) {
+          fade.setX(i, alpha)
+          fadeChanged = true
         }
         const h = hits.get(p.block)
         if (!art && h && (h.power === 1 || Math.hypot(p.x - pose.x, p.top - pose.y + .8, p.z - pose.z) <= 25)) {
-          hit.setX(i, h.at / 1000); power.setX(i, reduced.matches || parkXRView.active ? 0 : h.power)
+          const time = Math.fround(h.at / 1000), force = Math.fround(reduced.matches || parkXRView.active ? 0 : h.power)
+          if (hit.getX(i) !== time) { hit.setX(i, time); hitChanged = true }
+          if (power.getX(i) !== force) { power.setX(i, force); powerChanged = true }
         }
       })
-      if (mesh && renewalCourse && !art && (theme === 'lily' || theme === 'pigeon' || theme === 'mole')) mesh.instanceMatrix.needsUpdate = true
-      fade.needsUpdate = hit.needsUpdate = power.needsUpdate = true
+      if (mesh && matrixChanged) mesh.instanceMatrix.needsUpdate = true
+      if (fadeChanged) fade.needsUpdate = true
+      if (hitChanged) hit.needsUpdate = true
+      if (powerChanged) power.needsUpdate = true
     }
   })
   return <group name={art ? art === jumpStartArt ? 'service-jump-start' : 'service-jump-finish' : `service-jump-${theme}`} userData={{ keepOpaque: true }}>{batches.map((b, i) => <instancedMesh key={b.finish} visible={enabled || !!renewalCourse} receiveShadow={art === jumpStartArt} userData={{ prepareWhenHidden: true }} ref={m => { if (m) meshes.current[i] = m }} args={[b.geometry, b.material, pads.length]} dispose={null} />)}</group>
@@ -136,6 +145,7 @@ function LandingEffects({ enabled }: { enabled: boolean }) {
   const material = useMemo(() => new MeshBasicMaterial(), [])
   useLayoutEffect(() => {
     const current = mesh.current!
+    current.count = 0
     object.scale.setScalar(0); object.updateMatrix(); color.set('#fff')
     for (let i = 0; i < particles.length; i++) { current.setMatrixAt(i, object.matrix); current.setColorAt(i, color) }
     current.instanceMatrix.needsUpdate = true
@@ -153,15 +163,21 @@ function LandingEffects({ enabled }: { enabled: boolean }) {
     }
   }), [particles])
   useFrame((_, delta) => {
-    if (!enabled || !mesh.current) return
+    const current = mesh.current
+    if (!current) return
+    if (!enabled) { current.count = 0; return }
     const dt = Math.min(delta, .05)
-    particles.forEach((p, i) => {
+    let count = 0
+    for (const p of particles) {
+      if (p.life <= dt) { p.life = 0; continue }
       p.life -= dt; p.vy -= dt * 12; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt
-      object.position.set(p.x, p.y, p.z); object.scale.setScalar(p.life > 0 ? Math.min(1, p.life * 4) : 0); object.updateMatrix()
-      mesh.current!.setMatrixAt(i, object.matrix); mesh.current!.setColorAt(i, color.set(p.color))
-    })
-    mesh.current.instanceMatrix.needsUpdate = true
-    if (mesh.current.instanceColor) mesh.current.instanceColor.needsUpdate = true
+      object.position.set(p.x, p.y, p.z); object.scale.setScalar(Math.min(1, p.life * 4)); object.updateMatrix()
+      current.setMatrixAt(count, object.matrix); current.setColorAt(count++, color.set(p.color))
+    }
+    current.count = count
+    if (!count) return
+    current.instanceMatrix.needsUpdate = true
+    if (current.instanceColor) current.instanceColor.needsUpdate = true
   })
   return <instancedMesh name="service-jump-effects" visible={enabled} userData={{ prepareWhenHidden: true }} ref={mesh} args={[jumpParticleGeometry, material, particles.length]} dispose={null} frustumCulled={false} />
 }

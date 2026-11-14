@@ -27,7 +27,7 @@ export interface ParkRuntimePort {
   pickupAvatar?(targetId: string): Promise<boolean>
   throwAvatar?(carryId: string, direction: { dx: number; dy: number; dz: number }): Promise<boolean>
   releaseAvatar?(carryId: string): Promise<boolean>
-  setInteractionBusy?(busy: boolean, confirm?: boolean): Promise<boolean>
+  setInteractionBusy?(busy: boolean, confirm?: boolean, minigame?: boolean): Promise<boolean>
   move(dx: number, dz: number, run: boolean, jump?: boolean): void
   stopMovement(): void
   setSecretDoors?(open: boolean): Promise<boolean>

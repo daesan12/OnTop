@@ -1,7 +1,8 @@
 import { RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
 import { Buildings, distantRentalBatches } from '../Buildings'
 import { CityBackdrop } from '../CityBackdrop'
-import { ScenicDetails } from '../ScenicDetails'
+import { ScenicDetails, ScenicGround } from '../ScenicDetails'
+import { OriginalPlaza, ParkBoundary } from '../ParkBoundary'
 import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
 import { lazy, memo, startTransition, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
@@ -17,6 +18,7 @@ import { createLakeProgress, LakeProgress } from '../lakeStages'
 import { LakeStreaming } from './LakeStreaming'
 import { inAnnex } from '../interiorAccess'
 import { interiorVisit, visitScope } from '../interiorEvents'
+import { preloadBungeoppangView } from '../../src/features/bungeoppang/loadBungeoppangView'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
@@ -24,10 +26,13 @@ const TableBoards = lazy(() => import('../../src/features/tables/TableBoards'))
 const ParkDetailGeometry = lazy(() => import('../ParkDetailGeometry').then(module => ({ default: module.ParkDetailGeometry })))
 
 const spawn = renewalMap?.data.physics.spawn.position
+const bakery = renewalMap?.data.interactions.recreation?.find(anchor => anchor.id === 'fish-bread')
 const finalStage = 8
 const boardsPerStage = 4
 const StableCityBackdrop = memo(CityBackdrop)
 const StableScenicDetails = memo(ScenicDetails)
+const StableScenicGround = memo(ScenicGround)
+const StableParkBoundary = memo(ParkBoundary)
 const StableBuildings = memo(Buildings)
 const StableTable = memo(function StableTable({ index, boards }: { index: number; boards: boolean }) {
   const anchor = TABLES[index]!
@@ -40,11 +45,18 @@ function atEntrance(pose = authoritativePose(useSession.getState().sessionId)) {
   return !pose || !!spawn && Math.hypot(pose.x-spawn[0], pose.z-spawn[2]) < 10 && Math.abs(pose.y-spawn[1]) < 2
 }
 
-export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: { quality: QualityPreset; firstFrameAt: RefObject<number | null>; onDistantReady: (ready: boolean) => void }) {
+export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, groundMounted, entryPresented }: {
+  quality: QualityPreset
+  firstFrameAt: RefObject<number | null>
+  onDistantReady: (ready: boolean) => void
+  groundMounted: RefObject<boolean>
+  entryPresented: boolean
+}) {
   const surface = useRef<Group>(null), interior = useRef<Group>(null), annex = useRef<Group>(null)
   const loadInterior = useRef(false)
   const displayedPose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })
   const queuedAmbientShaders = useRef(false)
+  const queuedBakery = useRef(false)
   const nightPool = useRef<{ group: Object3D; lights: Object3D[]; quality: QualityPreset } | undefined>(undefined)
   const [loaded, setLoaded] = useState(false)
   const [lakeProgress] = useState(createLakeProgress)
@@ -52,7 +64,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
   const distantReady = stage > 0
   const entry = useRef({
     start: undefined as { x: number; z: number } | undefined,
-    unlockNextFrame: false, requestedStage: stage, framesAfterCommit: 0,
+    requestedStage: stage, stableFrames: 0, committedAt: 0, movedAt: 0,
   })
 
   useLayoutEffect(() => {
@@ -62,17 +74,20 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
   useLayoutEffect(() => () => interiorVisit.reset(), [])
 
   useLayoutEffect(() => {
-    entry.current.framesAfterCommit = 0
+    entry.current.stableFrames = 0
+    entry.current.committedAt = performance.now()
     if (stage > 0) performance.mark('park-distant-facilities-stage-' + stage)
     if (stage === finalStage) performance.mark('park-distant-facilities-mounted')
   }, [stage])
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const pending = entry.current
     if (stage === finalStage || pending.requestedStage !== stage) return
+    const now = performance.now()
     if (stage > 0) {
-      // Wait for each commit and leave rendered frames between construction batches.
-      if (++pending.framesAfterCommit < 3) return
+      // Give rendering time to recover before admitting another batch of facilities.
+      pending.stableFrames = delta <= 1 / 30 ? pending.stableFrames + 1 : 0
+      if (now - pending.committedAt < 85 || (pending.stableFrames < 2 && now - pending.committedAt < 240)) return
       pending.requestedStage = stage + 1
       startTransition(() => setStage(stage + 1))
       return
@@ -80,20 +95,28 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
     const pose = authoritativePose(useSession.getState().sessionId)
     if (pose) pending.start ??= { x:pose.x, z:pose.z }
     const shownAt = firstFrameAt.current
+    if (pose && pending.start && Math.hypot(pose.x - pending.start.x, pose.z - pending.start.z) > .08) {
+      pending.start = { x: pose.x, z: pose.z }
+      pending.movedAt = now
+    }
     const lookedAround = Math.abs(Math.atan2(Math.sin(viewControls.yaw), Math.cos(viewControls.yaw))) > .08
       || Math.abs(viewControls.pitch - CAMERA.pitch) > .08
       || Math.abs(viewControls.distance - CAMERA.distance) > .5
-    if (!atEntrance(pose) || welcomeFlight.active || lookedAround || pending.unlockNextFrame) {
+    const settled = shownAt !== null && now - Math.max(shownAt, pending.movedAt) >= 900
+    const needsDistantView = !!pose && !!spawn && Math.hypot(pose.x - spawn[0], pose.z - spawn[2]) >= 26
+    if (needsDistantView || welcomeFlight.active || lookedAround || settled) {
       pending.requestedStage = 1
       performance.mark('park-distant-facilities-start')
       startTransition(() => setStage(1))
-      return
-    }
-    // Present one frame with the accepted walking pose before building distant meshes.
-    if (shownAt !== null && pose && pending.start && Math.hypot(pose.x-pending.start.x, pose.z-pending.start.z) >= .08) {
-      pending.unlockNextFrame = true
     }
   }, .6)
+  useFrame(() => {
+    if (!bakery || queuedBakery.current) return
+    const pose = authoritativePose(useSession.getState().sessionId)
+    if (!pose || Math.hypot(pose.x-bakery.reachPosition[0],pose.z-bakery.reachPosition[2]) > 22) return
+    queuedBakery.current = true
+    preloadBungeoppangView()
+  })
   useFrame(({ camera, scene, gl }) => {
     const session = useSession.getState()
     const own = avatars.get(session.sessionId)
@@ -151,11 +174,16 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
       <LakeProgress.Provider value={lakeProgress}>
       <LakeStreaming progress={lakeProgress} />
       <StableCityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
-      <StableScenicDetails nightQuality={quality} distantReady={stage >= 2} live />
-      <StableBuildings live distantReady={distantReady} upperFacilitiesReady={stage >= 4}
-        loadedRentalBatches={Math.min(stage, distantRentalBatches)} />
-      {TABLES.map((anchor, index) => <StableTable key={anchor.id} index={index}
-        boards={stage === finalStage || index < Math.max(0, stage - 3) * boardsPerStage} />)}
+      <StableScenicGround />
+      <GroundMounted ready={groundMounted} />
+      <Suspense fallback={null}><StableParkBoundary /></Suspense>
+      {entryPresented && <Suspense fallback={null}><OriginalPlaza /></Suspense>}
+      {entryPresented && <Suspense fallback={null}><StableScenicDetails includeGround={false} nightQuality={quality} distantReady={stage >= 2} live /></Suspense>}
+      {entryPresented && <Suspense fallback={null}><StableBuildings live distantReady={distantReady} upperFacilitiesReady={stage >= 4}
+        loadedRentalBatches={Math.min(stage, distantRentalBatches)} /></Suspense>}
+      {entryPresented && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>
+        <StableTable index={index} boards={stage === finalStage || index < Math.max(0, stage - 3) * boardsPerStage} />
+      </Suspense>)}
       {stage === finalStage && <Suspense fallback={null}><ParkDetailGeometry jumpCourse={false} deferDistant /></Suspense>}
       </LakeProgress.Provider>
     </group>
@@ -166,4 +194,13 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady }: 
       {loaded && <Suspense fallback={null}><AnnexDetails /></Suspense>}
     </group>
   </group>
+}
+
+function GroundMounted({ ready }: { ready: RefObject<boolean> }) {
+  useLayoutEffect(() => {
+    ready.current = true
+    performance.mark('park-gate-ground-mounted')
+    return () => { ready.current = false }
+  }, [ready])
+  return null
 }

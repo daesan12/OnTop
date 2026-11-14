@@ -15,7 +15,9 @@ export interface RenewalRecreationAnchor {
   heightTolerance?: number
 }
 type RenewalData = Omit<ParkMapData, 'tables' | 'interactions' | 'pavilions' | 'physics'> & {
-  physics: ParkMapData['physics'] & { secretTerrainCuts?: readonly number[] }
+  physics: ParkMapData['physics'] & { secretTerrainCuts?: readonly number[]; duckBoat?: {
+    x: number; y: number; z: number; rx: number; rz: number; period: number; half: Point3
+  } }
   jumpCourse?: ReturnType<typeof buildRenewalJumpCourse>
   tables: readonly Omit<TableAnchor, 'spectatorRadius'>[]
   pavilions: readonly (ParkMapData['pavilions'][number] & { spectatorBenchTop?: number })[]

@@ -1,10 +1,9 @@
 import { containsPad } from '../../../park-renewal-preview/jumpPadFootprint'
 import { estimatedServerTime } from '../../network/serverEventClock'
 import { COURSE, renewalCourse, type CourseBlock } from './activeCourse'
-import { useJumpmap } from './state'
+import { moleLandings, useJumpmap } from './state'
 
 let runId = '', support: CourseBlock | undefined, supportedSince = 0
-const dips = new Map<number, number>()
 const falls = new Map<number, number>()
 
 export function syncRenewalMotion(now = estimatedServerTime() / 1000) {
@@ -12,7 +11,6 @@ export function syncRenewalMotion(now = estimatedServerTime() / 1000) {
   if (next !== runId) {
     runId = next
     support = undefined
-    dips.clear()
     falls.clear()
   }
   if (support?.theme === 'lily' && now - supportedSince >= 3 && !falls.has(support.block)) {
@@ -35,7 +33,7 @@ export function renewalPadPose(pad: CourseBlock, now: number) {
     if (age >= 0 && age < 4) return { offset: -9 * age * age, solid: false, visible: age < 1.8 }
   }
   if (pad.theme === 'mole') {
-    const t = (now - (dips.get(pad.block) ?? -Infinity)) / .95
+    const t = (now - (moleLandings.get(pad.block) ?? -Infinity)) / .95
     if (t >= 0 && t <= 1) return { offset: -.48 * Math.sin(Math.PI * t) ** 2, solid: true, visible: true }
   }
   const offset = pad.theme === 'pigeon' ? .42 * Math.sin(now * Math.PI * 2 / 3.8 + pad.ordinal * .53) : 0
@@ -55,5 +53,4 @@ export function updateRenewalContact(pad: CourseBlock | undefined, now: number) 
   if (pad === support) return
   support = pad
   supportedSince = now
-  if (runId && pad?.theme === 'mole') dips.set(pad.block, now)
 }

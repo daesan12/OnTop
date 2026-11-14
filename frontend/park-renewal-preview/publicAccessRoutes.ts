@@ -29,7 +29,7 @@ export function publicAccessRoute(id: string): { nodes: Node[]; meshes: string[]
     })
     const deck: Node = [tower.x - towerRampRadius + 1, tower.z - .6, towerRampStartY + 40]
     const nodes: Node[] = [...TOWER_ACCESS.points.slice(0, -1), ...spiral, deck]
-    return { nodes: nodes.reverse(), meshes: ['tower-entrance-landing', 'tower-walkway-floor', 'tower-top-floor'] }
+    return { nodes: nodes.reverse(), meshes: ['tower-walkway-floor', 'tower-top-floor'] }
   }
   if (id === 'fountain-west' || id === 'fountain-east') {
     const f = site('fountain'), base = heightAt(f.x, f.z)

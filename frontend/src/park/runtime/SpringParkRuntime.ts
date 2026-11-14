@@ -1097,17 +1097,18 @@ export class ParkRuntime implements ParkRuntimePort {
     const s = useSession.getState()
     return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
-  private interactionStatus = { scope: '', busy: false, vrActive: false, desired: false, pending: null as Promise<boolean> | null, retryAt: 0, requestId: '' }
-  setInteractionBusy = (busy: boolean, confirm = false) => {
+  private interactionStatus = { scope: '', busy: false, vrActive: false, minigame: false, desired: false, desiredMinigame: false, pending: null as Promise<boolean> | null, retryAt: 0, requestId: '' }
+  setInteractionBusy = (busy: boolean, confirm = false, minigame?: boolean) => {
     const session = useSession.getState(), scope = JSON.stringify([this.generation, session.sessionId, session.roomId])
     if (!this.active || session.status !== 'connected' || !session.roomId || !session.mapCompatible
       || !this.socket.connected) return Promise.resolve(false)
     if (!session.carrySupported) return Promise.resolve(!confirm)
     // A confirmed seat already blocks carry. Lobby presence requests are rejected during a real game.
     if (session.tableId || tableBusy()) return Promise.resolve(!confirm)
-    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, vrActive: false, desired: false, pending: null, retryAt: 0, requestId: '' }
+    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, vrActive: false, minigame: false, desired: false, desiredMinigame: false, pending: null, retryAt: 0, requestId: '' }
     const status = this.interactionStatus
     status.desired = busy
+    if (minigame !== undefined) status.desiredMinigame = minigame
     let confirmNeeded = confirm
     const generation = this.generation
     const current = () => this.active && this.generation === generation && this.interactionStatus === status
@@ -1115,17 +1116,18 @@ export class ParkRuntime implements ParkRuntimePort {
     const sync = (): Promise<boolean> => {
       if (!current()) return Promise.resolve(false)
       if (status.pending) return status.pending.then(ok => ok ? sync() : false)
-      const vrActive = vrCarryProtection.active, desired = status.desired || vrActive
-      if (status.busy === desired && status.vrActive === vrActive && !confirmNeeded) return Promise.resolve(true)
+      const vrActive = vrCarryProtection.active, desired = status.desired || vrActive, playing = status.desiredMinigame
+      if (status.busy === desired && status.vrActive === vrActive && status.minigame === playing && !confirmNeeded) return Promise.resolve(true)
       if (performance.now() < status.retryAt) return Promise.resolve(false)
       confirmNeeded = false
-      const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}) }
+      const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}),
+        ...(playing || status.minigame ? { minigame: playing } : {}) }
       status.pending = this.socket.request('WORLD_INTERACTION_SET', payload, ['WORLD_INTERACTION_STATE']).then(response => {
         if (response.payload.channelId !== session.roomId || response.payload.busy !== desired
           || (response.payload.vrActive === true) !== vrActive)
           throw new Error('창 점유 응답을 확인해주세요.')
         if (!current()) return false
-        status.busy = desired; status.vrActive = vrActive; return true
+        status.busy = desired; status.vrActive = vrActive; status.minigame = playing; return true
       }).catch(error => {
         // A presence request sent before seating cannot revoke an already restored game's input.
         if ((useSession.getState().tableId || tableBusy()) && error instanceof ServerError && error.code === 'GAME_RECOVERY_REQUIRED') return false

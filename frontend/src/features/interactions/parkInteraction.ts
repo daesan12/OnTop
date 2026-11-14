@@ -1,5 +1,7 @@
 import { FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
-import { avatars, useSession } from '../../network/worldClient'
+import { authoritativePose, avatars, useSession } from '../../network/worldClient'
+import { parkRuntime } from '../../park/runtime/runtime'
+import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
 import { benchAnchors, canReachBench } from './benchAnchors'
@@ -50,6 +52,12 @@ import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeCon
 import { openFortune } from '../fortune/controller'
 import { useDisplayGame } from '../../game/displayGame'
 import { diamond, interiorVisit, visitScope } from '../../../park-renewal-preview/interiorEvents'
+import { accessAt, interiorAccess } from '../../../park-renewal-preview/interiorAccess'
+
+const interiorLabels: Record<keyof typeof interiorAccess, string> = {
+  vestibule: '돌문 열기', surface: '공원으로 나가기', passage: '통로로 들어가기',
+  entry: '돌문 열기', return: '입구로 나가기', exit: '공원으로 나가기',
+}
 
 const plazaKiosksEnabled = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED
 const recreationLabels: Record<RenewalRecreationId, string> = {
@@ -62,7 +70,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access'
   id: string
   label: string
   seat?: 0 | 1
@@ -85,6 +93,14 @@ export function getParkInteraction(): ParkInteraction | null {
   if (p.carry && p.carry.role !== 'CARRIER') return null
   const carry = carryInteraction()
   if (p.carry?.role === 'CARRIER') return carry
+  const at = RENEWAL_PARK_ENABLED && !session.benchId ? authoritativePose(session.sessionId) : undefined
+  const access = at && accessAt(at)
+  if (at && access) {
+    const [x, , z] = interiorAccess[access].from
+    const locked = access === 'exit' && !at.interiorExitReady
+    return { kind: 'interior-access', id: access, label: locked ? '3층에 올라가면 열려요' : interiorLabels[access], occupied: false,
+      available: !locked, distance: Math.hypot(at.x - x, at.z - z), score: 0 }
+  }
   if (RENEWAL_PARK_ENABLED && !p.carry && interiorVisit.canAddDiamond(visitScope(session.sessionId, session.roomId), p.current)) {
     const [x,,z] = diamond, distance = Math.hypot(p.current.x-x,p.current.z-z)
     return { kind:'interior-item', id:'interior-item', label:'다이아 집기', occupied:false, available:true, distance, score:0 }
@@ -105,10 +121,10 @@ export function getParkInteraction(): ParkInteraction | null {
     if(site.id===PARK_GACHA_MACHINE.id)continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
-    const label = site.id === 'layout-drink' ? site.label + ' · 행운의 뽑기' : site.label
+    const label = site.id === 'layout-drink' ? '복권방 열기' : site.label
     choices.push({kind:'construction',id:site.id,label,occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
-  if (plazaKiosksEnabled && gachaInteractionEnabled(session.sessionId) && canReachParkGacha(p.current)) {
+  if (plazaKiosksEnabled && (RENEWAL_PARK_ENABLED || gachaInteractionEnabled(session.sessionId)) && canReachParkGacha(p.current)) {
     const { id, x, y, z } = PARK_GACHA_MACHINE
     const distance = Math.hypot(p.current.x - x, p.current.z - z)
     choices.push({ kind: 'gacha', id, label: '의상 뽑기', occupied: false, available: true, distance,
@@ -193,6 +209,24 @@ export function getParkInteraction(): ParkInteraction | null {
 export function interactWithPark(expectedId?: string): boolean {
   const target = getParkInteraction()
   if (!target || (expectedId !== undefined && target.id !== expectedId)) return false
+  if (target.kind === 'interior-access') {
+    if (!target.available) return false
+    const { sessionId, roomId } = useSession.getState()
+    const at = authoritativePose(sessionId)
+    const access = at && accessAt(at)
+    if (!at || access !== target.id) return false
+    const submit = () => {
+      void parkRuntime.useInteriorAccess?.(access).then(moved => {
+        const session = useSession.getState()
+        if (moved && session.sessionId === sessionId && session.roomId === roomId) {
+          viewControls.yaw = access === 'vestibule' ? Math.PI : interiorAccess[access].yaw
+          viewControls.pitch = .05
+        }
+      })
+    }
+    if (access !== 'exit' || !interiorVisit.deferExit(visitScope(sessionId, roomId), at, performance.now(), submit)) submit()
+    return true
+  }
   if (target.kind === 'interior-item') {
     const { sessionId, roomId } = useSession.getState(), pose = avatars.get(sessionId)?.current
     return !!pose && interiorVisit.addDiamond(visitScope(sessionId, roomId), pose)

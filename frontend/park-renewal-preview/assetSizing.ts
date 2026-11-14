@@ -1,7 +1,22 @@
 import {Box3,Vector3,Mesh,type Object3D} from 'three'
+import { DOCK_REAR_RAIL } from './dockRailPlan'
 /** The approved shooting range's complete visual bounds, metres X/Y/Z. */
 export const SHOOTING_SIZE=[10.46,6.29,7.02] as const
 export const ARCADE_SCALE=[10.1/18,4.1/6.4,7.0/12] as const
+export function removeDockRearRopes(root: Object3D) {
+ const mesh=root.getObjectByName('deck_and_rental_kiosk_dock_rope')
+ if(!(mesh instanceof Mesh)) return
+ const g=mesh.geometry.clone(),p=g.getAttribute('position'),index=g.getIndex(),kept:number[]=[]
+ const count=index?.count??p.count
+ for(let i=0;i<count;i+=3){
+  const a=index?.getX(i)??i,b=index?.getX(i+1)??i+1,c=index?.getX(i+2)??i+2
+  const x=(p.getX(a)+p.getX(b)+p.getX(c))/3,z=(p.getZ(a)+p.getZ(b)+p.getZ(c))/3
+  if(Math.abs(x)<4.24&&Math.abs(z-DOCK_REAR_RAIL.z)<.12)continue
+  kept.push(a,b,c)
+ }
+ g.setIndex(kept)
+ mesh.geometry=g
+}
 export const NATIVE_FORWARD:Record<string,1|-1>={main:-1,fortune:-1,lottery:-1,cafe:-1,dock:-1,boat:-1,bread:1,pigeon:1,folk:1,sub:1}
 export const aimedYaw=(kind:string,dx:number,dz:number)=>Math.atan2(dx,dz)+(NATIVE_FORWARD[kind]===-1?Math.PI:0)
 /** Widen the side opening, removing obstructing ropes, corner post and lamp on this instance only. */
@@ -20,6 +35,7 @@ export function fitApprovedObject<T extends Object3D>(object:T,target:readonly [
  object.scale.multiply(ratio);object.position.set(-center.x*ratio.x,-box.min.y*ratio.y,-center.z*ratio.z);object.updateMatrixWorld(true)
  return object
 }
+export const boatAngleAt = (seconds: number, period: number) => (seconds % period) / period * Math.PI * 2
 export function boatPose(angle:number,cx:number,cz:number,rx:number,rz:number){const dx=-Math.sin(angle)*rx,dz=Math.cos(angle)*rz;return{x:cx+Math.cos(angle)*rx,z:cz+Math.sin(angle)*rz,yaw:Math.atan2(dx,dz)+Math.PI,dx,dz}}
 
 export function groundObject<T extends Object3D>(object:T){object.updateMatrixWorld(true);const box=new Box3().setFromObject(object);if(Number.isFinite(box.min.y))object.position.y-=box.min.y;return object}

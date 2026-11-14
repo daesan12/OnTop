@@ -97,6 +97,17 @@ class PositionPathTests {
     }
 
     @Test
+    void 높은_곳에서_낙하하는_경로는_같은_수신시각의_중간점도_검증한다() {
+        var start = new Pose(-1, 38, 0);
+        var validator = new ClientPositionValidator(start, 1, 79, ground, now::get, true);
+        now.set(50_000_000);
+        var result = validator.accept(path(1, point(-1, 37, false),
+                point(-1, 35.9, false), point(-1, 34.7, false)));
+        assertThat(result.reason()).isEqualTo("ACCEPTED");
+        assertThat(result.approved().y()).isEqualTo(34.7);
+    }
+
+    @Test
     void 중간점으로_작게_나눈_낙하도_보고_전체의_수직_한도를_넘지못한다() {
         var validator = new ClientPositionValidator(origin, 1, 79, ground, now::get, true);
         now.set(60_000_000);

@@ -6,6 +6,8 @@ import { facilityYaw } from '../facilityPlacement'
 import { PAVILION_TARGETS, STONE_TABLE_TARGETS } from '../mapping/identities'
 import { facilityGroundY, heightAt, site, SUB_PAVILION_SCALE, type Point } from '../plan'
 
+import { REST_FURNITURE_VERTICAL_SCALE } from '../pavilionBenchLayout'
+
 const unit = 1.1 * SUB_PAVILION_SCALE
 
 export function buildRenewalTables(): TableAnchor[] {
@@ -25,7 +27,7 @@ export function buildRenewalTables(): TableAnchor[] {
       : (id === 'island-pavilion' ? 4.2 : heightAt(s.x, s.z)) + .572 * unit
     const yaw = facilityYaw(s), sin = Math.sin(yaw), cos = Math.cos(yaw)
     const rotate = ([x, z]: Point): Point => [cos * x + sin * z, -sin * x + cos * z]
-    const seatSurfaceY = main ? .66 : .51 * unit
+    const seatSurfaceY = main ? .66 : .51 * unit * REST_FURNITURE_VERTICAL_SCALE
     const seatDistance = main ? 2.95 : 1.05 * unit
     const seatSide = main ? 2.95 : 1.16 * unit
     const reachDistance = main ? 3.82 : 1.63 * unit
@@ -35,7 +37,7 @@ export function buildRenewalTables(): TableAnchor[] {
     return [{
       ...table, position: [s.x, y, s.z] as Vec3, seatSurfaceY,
       boardScale: main ? 1.8 : 1.35,
-      boardOffsetY: main ? .09 : .7925 * unit - 1.06,
+      boardOffsetY: main ? .09 : .7925 * unit * REST_FURNITURE_VERTICAL_SCALE - 1.06,
       seatAnchors: seats.map(p => { const [x, z] = rotate(p); return [x, seatSurfaceY, z] as Vec3 }),
       interactionPoints: reach.map(p => { const [x, z] = rotate(p); return [s.x + x, y, s.z + z] as Vec3 }),
     }]

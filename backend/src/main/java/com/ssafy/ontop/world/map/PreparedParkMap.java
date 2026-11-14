@@ -199,6 +199,20 @@ public final class PreparedParkMap {
             if (physics.has(key)) root.set(key, physics.path(key).deepCopy());
         }
         if (data.has("pavilions")) root.set("pavilions", data.path("pavilions").deepCopy());
+        JsonNode duck = physics.path("duckBoat");
+        if (duck.isObject()) {
+            for (String key : List.of("x", "y", "z")) {
+                number(duck.path(key));
+            }
+            for (String key : List.of("rx", "rz", "period")) {
+                positive(duck.path(key));
+            }
+            require(duck.path("half").isArray() && duck.path("half").size() == 3, "오리배 충돌 크기를 확인해주세요.");
+            for (JsonNode size : duck.path("half")) {
+                positive(size);
+            }
+            root.set("duckBoat", duck.deepCopy());
+        }
         JsonNode terrain = physics.path("terrain");
         Map<String, JsonNode> meshes = indexed(physics.path("meshes"));
         JsonNode ground = meshes.get(terrain.path("meshId").asText());

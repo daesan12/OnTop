@@ -18,6 +18,7 @@ import { FadeBatchedMesh } from './art/FadeBatchedMesh'
 export const cameraOcclusion = {
   focus: { value: new Vector3() },
   strength: { value: 0 },
+  scenery: null as CameraOcclusionFader | null,
 }
 export const OCCLUSION_FADE = {
   opacity: 0.18,
@@ -47,6 +48,7 @@ interface Entry {
   amount: number
   lastBlocked: number
   seen: number
+  sightQuery?: number
   original: Material | Material[]
   matrix?: Matrix4
   proxy?: InstancedMesh
@@ -86,6 +88,8 @@ function eligible(node: Object3D): node is Mesh {
         'advertising-balloon',
         'reference-fountain',
         'observation-telescopes',
+        'single-circulating-duck-boat',
+        'mole-shop-vertical-attract-mode',
       ].includes(p.name)
     )
       return false
@@ -120,10 +124,11 @@ export class CameraOcclusionFader {
   private intersections: Intersection[] = []
   private hit = new Vector3()
   private clock = 0
+  private nextFadeQuery = 0
   private frame = 0
+  private query = 0
 
   refresh(root: Object3D) {
-    root.updateWorldMatrix(true, true)
     const meshes: Mesh[] = []
     root.traverse((node) => {
       // React can replace a batch between the spatial refresh and the next camera frame.
@@ -144,11 +149,12 @@ export class CameraOcclusionFader {
         )
       })
     if (!changed) return
+    root.updateWorldMatrix(true, true)
     this.dispose()
     const local = new Matrix4(),
       world = new Matrix4()
     for (const source of meshes) {
-      source.geometry.computeBoundingBox()
+      if (!source.geometry.boundingBox) source.geometry.computeBoundingBox()
       if (!source.geometry.boundingBox || source.geometry.boundingBox.isEmpty())
         continue
       const count = source instanceof FadeBatchedMesh ? source.instanceCount : source instanceof InstancedMesh ? source.count : 1
@@ -205,7 +211,11 @@ export class CameraOcclusionFader {
     ray.direction.normalize()
     this.raycaster.near = 0.01
     this.raycaster.far = distance - OCCLUSION_FADE.focusClearance
-    if (enabled && this.raycaster.far > this.raycaster.near) {
+    if (!enabled) this.nextFadeQuery = this.clock
+    if (enabled && this.clock >= this.nextFadeQuery && this.raycaster.far > this.raycaster.near) {
+      // Fade easing still runs each frame; retest the actual mesh at most every
+      // 33ms so high-refresh orbiting does not repeat identical triangle work.
+      this.nextFadeQuery = this.clock + 1 / 30
       for (
         let x = Math.floor(Math.min(camera.x, focus.x) / cellSize);
         x <= Math.floor(Math.max(camera.x, focus.x) / cellSize);
@@ -269,6 +279,32 @@ export class CameraOcclusionFader {
           : entry.materials![0]!
       entry.opacity.value = 1 - (1 - OCCLUSION_FADE.opacity) * entry.amount
     }
+  }
+
+  sightBlocked(origin: Vector3, target: Vector3) {
+    const ray = this.raycaster.ray
+    ray.origin.copy(origin)
+    ray.direction.subVectors(target, origin)
+    const distance = ray.direction.length()
+    if (distance <= .15) return false
+    ray.direction.multiplyScalar(1 / distance)
+    this.raycaster.near = .02
+    this.raycaster.far = distance - .1
+    const steps = Math.ceil(distance / (cellSize / 2))
+    const stamp = ++this.query
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps
+      const x = Math.floor((origin.x + (target.x - origin.x) * t) / cellSize)
+      const z = Math.floor((origin.z + (target.z - origin.z) * t) / cellSize)
+      for (const entry of this.grid.get(`${x},${z}`) ?? []) {
+        if (entry.sightQuery === stamp) continue
+        entry.sightQuery = stamp
+        if (!visible(entry.source, entry.index) && !entry.hidden) continue
+        if ((entry.bounds.containsPoint(origin) || (ray.intersectBox(entry.bounds, this.hit)
+          && origin.distanceTo(this.hit) < this.raycaster.far)) && this.blocksSight(entry)) return true
+      }
+    }
+    return false
   }
 
   private blocksSight(entry: Entry) {
@@ -361,6 +397,7 @@ export class CameraOcclusionFader {
   }
 
   reset() {
+    this.nextFadeQuery = this.clock
     for (const entry of this.active) this.restore(entry)
     this.active.clear()
   }

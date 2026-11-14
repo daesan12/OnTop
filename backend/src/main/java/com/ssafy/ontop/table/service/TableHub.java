@@ -2075,7 +2075,8 @@ public class TableHub {
 
     private void interactionBusy(Member member, Request request) {
         var change = channels.interactionBusy(member.userId(), request.payload().path("busy").asBoolean(),
-                request.payload().has("vrActive") ? request.payload().path("vrActive").asBoolean() : null);
+                request.payload().has("vrActive") ? request.payload().path("vrActive").asBoolean() : null,
+                request.payload().has("minigame") ? request.payload().path("minigame").asBoolean() : null);
         Map<String, Object> payload = new HashMap<>();
         payload.put("channelId", change.channelId());
         payload.put("busy", change.busy());

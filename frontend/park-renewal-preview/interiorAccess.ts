@@ -14,6 +14,7 @@ export const interiorAccess = {
   surface: { from: [1.58, 9.15, -43.1], to: [4.24, 9.08, -43.1], radius: .95, yaw: -Math.PI / 2 },
   passage: { from: [1.25, 9.15, -46.9], to: [1.35, 7.62, -49.55], radius: .85, yaw: 0 },
   entry: { from: [27.35, 7.6, -82], to: [25.25, 7.6, -82], radius: 1.15, yaw: Math.PI / 2 },
+  return: { from: [25.25, 7.6, -82], to: [28.7, 7.6, -82], radius: 1.02, yaw: -Math.PI / 2 },
   exit: { from: [-57.1, west.floor + .8, -88], to: [-60.2, west.floor + .8, -88], radius: .82, yaw: Math.PI / 2 },
 } as const satisfies Record<string, Access>
 

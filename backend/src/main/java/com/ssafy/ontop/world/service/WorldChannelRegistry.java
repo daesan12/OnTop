@@ -121,6 +121,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         myRooms.remove(userId);
         // 위치 보고 중이었어도 유예 동안은 서버 물리로 진행한다(PARK_V1 자동 위치 보고 복귀는 재결합 때까지 막는다).
         room.vrUsers.remove(userId);
+        room.minigameUsers.remove(userId);
         var snapshot = room.physics.suspendClient(userId);
         var previous = room.positions.get(userId);
         room.positions.put(userId, new Movement(position(snapshot), previous.acceptedAtNanos()));
@@ -382,6 +383,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         room.held.remove(userId);
         room.interactionBusy.remove(userId);
         room.vrUsers.remove(userId);
+        room.minigameUsers.remove(userId);
         room.physics.remove(userId);
         if (room.users.isEmpty()) {
             room.physics.close();
@@ -565,14 +567,20 @@ public class WorldChannelRegistry implements ChannelPresence {
 
     /** VR 표시는 일반 창 점유와 구분하며 인증된 본인의 현재 채널에만 공유한다. */
     public synchronized InteractionChange interactionBusy(String userId, boolean busy, Boolean vrActive) {
+        return interactionBusy(userId, busy, vrActive, null);
+    }
+
+    public synchronized InteractionChange interactionBusy(String userId, boolean busy, Boolean vrActive, Boolean minigame) {
         Room room = rooms.get(membership.get(userId));
         if (room == null) { throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요."); }
         boolean vr = vrActive == null ? room.vrUsers.contains(userId) : vrActive;
         boolean vrChanged = vr ? room.vrUsers.add(userId) : room.vrUsers.remove(userId);
+        boolean minigameChanged = minigame != null
+                && (minigame ? room.minigameUsers.add(userId) : room.minigameUsers.remove(userId));
         // 일반 창을 닫아도 실행 중인 VR의 운반 보호는 유지한다.
         boolean occupied = busy || vr;
         boolean changed = occupied ? room.interactionBusy.add(userId) : room.interactionBusy.remove(userId);
-        if (changed || vrChanged) {
+        if (changed || vrChanged || minigameChanged) {
             if (occupied && room.physics != null && room.physics.carryState(userId) != null) {
                 room.physics.releaseCarry(userId);
                 return new InteractionChange(room.definition.channelId(), occupied, refreshCarry(room), vr);
@@ -1177,6 +1185,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         private final java.util.Set<String> held = new java.util.HashSet<>();
         private final java.util.Set<String> interactionBusy = new java.util.HashSet<>();
         private final java.util.Set<String> vrUsers = new java.util.HashSet<>();
+        private final java.util.Set<String> minigameUsers = new java.util.HashSet<>();
         private long version;
         private long worldVersion;
         private WorldPhysics physics;
@@ -1201,6 +1210,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             return new WorldState(definition.channelId(), worldVersion, users.stream()
                     .map(user -> {
                         String status = activity.apply(user);
+                        if (status == null && minigameUsers.contains(user)) status = "MINIGAME";
                         boolean myRoom = "MYROOM".equals(status);
                         return new Avatar(user, positions.containsKey(user) ? positions.get(user).position() : null,
                             equipment.get(user), profiles.containsKey(user) ? profiles.get(user).nickname() : null,

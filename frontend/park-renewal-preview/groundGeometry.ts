@@ -6,13 +6,14 @@ import {inSummit,SUMMIT_HEIGHT} from './hybridTerrainPlan.ts'
 import {HORROR_PORTALS} from './horrorPlan.ts'
 import {SUMMIT_WALL_FACE_OFFSET,summitWalls} from './summitWalls.ts'
 import {RETAINING_FOOTING_Y} from './siteFinishingPlan.ts'
+import {gradeTowerEntrance} from './towerEntrance'
 
 /** Split the height discontinuity exactly; never stretch terrain triangles across a wall. */
 export function createParkGround(){
  const positions:number[]=[],grassColors:number[]=[],pavingColors:number[]=[],grassIndices:number[]=[],pavingIndices:number[]=[],vertices=new Map<string,number>()
  const vertex=([x,z]:Point,top:boolean)=>{
   const key=x.toFixed(5)+':'+z.toFixed(5)+':'+(top?'top':'forest'),old=vertices.get(key);if(old!==undefined)return old
-  const y=(top?SUMMIT_HEIGHT:forestHeightAt(x,z))+FLOOR_Y_OFFSET
+  const y=gradeTowerEntrance(x,z,(top?SUMMIT_HEIGHT:forestHeightAt(x,z))+FLOOR_Y_OFFSET)
   const id=positions.length/3;vertices.set(key,id);positions.push(x,y,z)
   const tone=.68+.035*Math.sin(x*.37+z*.29);grassColors.push(tone*.69,tone*.87,tone*.48);pavingColors.push(1,1,1);return id
  }
@@ -47,7 +48,7 @@ function gradeBakedGround(ground:NonNullable<typeof staticPark>['ground']){
     const height=position.getY(i)-FLOOR_Y_OFFSET
     const x=position.getX(i),z=position.getZ(i)
     const grade=northwestPavilionApronHeight(x,z,lakeWalkHeight(x,z,height))
-    if(grade!==height)position.setY(i,grade+FLOOR_Y_OFFSET)
+    position.setY(i,gradeTowerEntrance(x,z,grade+FLOOR_Y_OFFSET))
    }
    updated.add(position.array)
   }

@@ -16,9 +16,11 @@ import type { MovementIntent } from './movementInput'
 import type { Pose } from './worldClient'
 import type { PredictionSimulation } from './localMovementPrediction'
 import { COURSE, COURSE_COLLIDERS, renewalCourse } from '../features/jumpmap/activeCourse'
-import { renewalPadPose, renewalPadShown, syncRenewalMotion } from '../features/jumpmap/renewalMotion'
+import { renewalPadPose, syncRenewalMotion } from '../features/jumpmap/renewalMotion'
 import { useJumpmap } from '../features/jumpmap/state'
 import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
+import { boatAngleAt, boatPose } from '../../park-renewal-preview/assetSizing'
+import { estimatedServerTime } from './serverEventClock'
 import { horrorState } from '../../park-renewal-preview/horrorPlan'
 
 /** How long Rapier may keep a grounded state the server does not support before falling. */
@@ -38,6 +40,15 @@ class PredictionPhysics implements PredictionSimulation {
   private readonly collider
   private readonly controller
   private readonly chairs: { anchor: string; number: number; collider: RAPIER.Collider }[] = []
+  private readonly duckBoat = renewalMap?.data.physics.duckBoat
+  private readonly duckBody = this.duckBoat && this.world.createCollider(RAPIER.ColliderDesc.cuboid(...this.duckBoat.half))
+  private syncDuckBoat() {
+    if (!this.duckBoat || !this.duckBody) return
+    const { x, z, rx, rz, period, y } = this.duckBoat
+    const pose = boatPose(boatAngleAt(estimatedServerTime() / 1000, period), x, z, rx, rz)
+    this.duckBody.setTranslation({ x: pose.x, y, z: pose.z })
+    this.duckBody.setRotation({ x: 0, y: Math.sin(pose.yaw / 2), z: 0, w: Math.cos(pose.yaw / 2) })
+  }
   private readonly secretDoors: RAPIER.Collider[] = []
   private syncSecretDoors() {
     for (const door of this.secretDoors) {
@@ -65,6 +76,10 @@ class PredictionPhysics implements PredictionSimulation {
   private readonly parkMotion = new ParkMotion()
   private tunedActive = false
   private jumpEnabled = false
+  private jumpRun = false
+  private readonly lilyBlocks = renewalCourse ? COURSE.filter(pad => pad.theme === 'lily').map(pad => pad.block) : []
+  private readonly creaturePads = renewalCourse ? COURSE.filter(pad => pad.theme === 'mole' || pad.theme === 'pigeon') : []
+  private readonly creatureOffsets = new Map<number, number>()
   private readonly jumpGrace = new JumpGrace()
   /** jumpSupported() at the last tuned landing, reused as the next step's jump support. */
   private serverSupport?: boolean
@@ -82,24 +97,42 @@ class PredictionPhysics implements PredictionSimulation {
       w.narrowPhase, w.bodies, w.colliders, w.softBodies, w.impulseJoints, w.multibodyJoints, w.ccdSolver)
   }
   private syncJumpCourse() {
-    const enabled = JUMPMAP_ENABLED && useJumpmap.getState().available
+    const jumpState = useJumpmap.getState()
+    const enabled = JUMPMAP_ENABLED && jumpState.available
+    const running = !!renewalCourse && !!jumpState.run
     if (!renewalCourse && enabled === this.jumpEnabled) return
+    const modeChanged = enabled !== this.jumpEnabled || running !== this.jumpRun
     this.jumpEnabled = enabled
+    this.jumpRun = running
     if (enabled && !this.jumpColliders.length) for (const b of COURSE_COLLIDERS) {
       const desc = b.shape === 'cylinder' ? RAPIER.ColliderDesc.cylinder(b.half[1]!, b.radius!) : RAPIER.ColliderDesc.cuboid(b.half[0]!, b.half[1]!, b.half[2]!)
       this.jumpColliders.push(this.world.createCollider(desc.setTranslation(b.center[0]!, b.center[1]!, b.center[2]!)
         .setRotation({ x: 0, y: Math.sin(b.yaw / 2), z: 0, w: Math.cos(b.yaw / 2) })))
     }
-    const now = renewalCourse ? syncRenewalMotion() : 0
-    for (const [block, collider] of this.jumpColliders.entries()) {
-      const pad = COURSE[block]!, b = COURSE_COLLIDERS[block]!
-      const pose = renewalCourse ? renewalPadPose(pad, now) : undefined
-      const solid = enabled && (!pose || renewalPadShown(block) && pose.solid)
+    if (modeChanged) for (const [block, collider] of this.jumpColliders.entries()) {
+      const solid = enabled && (!renewalCourse || running || block < renewalCourse.visibleAtStart)
       if (collider.isEnabled() !== solid) collider.setEnabled(solid)
-      if (solid && pose) {
-        const y = b.center[1]! + pose.offset
-        if (Math.abs(collider.translation().y - y) > .00001) collider.setTranslation({ x: pad.x, y, z: pad.z })
+    }
+    if (!renewalCourse) return
+    const now = syncRenewalMotion()
+    const rider = this.body?.translation()
+    for (const pad of this.creaturePads) {
+      const collider = this.jumpColliders[pad.block]
+      if (!collider) continue
+      const previous = this.creatureOffsets.get(pad.block) ?? 0
+      const nearby = rider && Math.abs(rider.x - pad.x) < 8 && Math.abs(rider.z - pad.z) < 8
+        && Math.abs(rider.y - pad.top) < 12
+      const offset = enabled && running && nearby ? renewalPadPose(pad, now).offset : 0
+      if (previous !== offset) {
+        this.creatureOffsets.set(pad.block, offset)
+        collider.setTranslation({ x: pad.x, y: COURSE_COLLIDERS[pad.block]!.center[1]! + offset, z: pad.z })
       }
+    }
+    // Only lily pads can change their collision during a run.
+    if (enabled && running) for (const block of this.lilyBlocks) {
+      const collider = this.jumpColliders[block]!
+      const solid = renewalPadPose(COURSE[block]!, now).solid
+      if (collider.isEnabled() !== solid) collider.setEnabled(solid)
     }
   }
   constructor(private tuned: boolean) {
@@ -158,6 +191,7 @@ class PredictionPhysics implements PredictionSimulation {
   setMotionProfile(profile: 'PARK_V1' | undefined) { this.tuned = profile === 'PARK_V1' }
   reset(pose: Pose, velocityY: number, grounded: boolean, grace?: JumpGraceSnapshot) {
     this.syncSecretDoors()
+    this.syncDuckBoat()
     this.syncJumpCourse()
     this.body.setTranslation(pose, true)
     this.body.setNextKinematicTranslation(pose)
@@ -174,6 +208,7 @@ class PredictionPhysics implements PredictionSimulation {
   step(input: MovementIntent, dt: number) {
     this.syncSecretDoors()
     this.launchedJump = false
+    this.syncDuckBoat()
     this.syncJumpCourse()
     const p = this.body.translation()
     const swimming = lakeRadiusAt(p.x, p.z) < 1

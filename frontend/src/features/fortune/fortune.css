@@ -115,3 +115,108 @@
 /* Match the painted card's original rounded contour at every responsive size. */
 .fortune-popup .fortune-choice img, .fortune-popup .fortune-entry__card,
 .fortune-popup .fortune-shuffle img, .fortune-popup .fortune-flip__back { border-radius: 6% / 4%; }
+
+/* Fit the name and reveal screens inside the game viewport. */
+@media (max-height: 820px) {
+  .table-paper-popup.fortune-popup { padding-block: clamp(45px, 9vh, 76px) 28px; gap: 8px; }
+  .fortune-popup--writing .fortune-content { padding-block: 6px; }
+  .fortune-popup .fortune-entry { padding-block: 4px; }
+  .fortune-popup .fortune-entry h3 { margin-bottom: 8px; }
+  .fortune-popup .fortune-description { margin-bottom: 14px; }
+  .fortune-shuffle { min-height: 0; }
+  .fortune-shuffle img { width: min(210px, 25dvh); height: auto; left: 50%; top: 50%; margin: -18dvh 0 0 max(-105px, -12.5dvh); }
+  .fortune-popup .fortune-entry__card { max-height: 32dvh; object-fit: contain; }
+  .fortune-popup .fortune-choices { padding-block: 4px; }
+  .fortune-popup .fortune-choice img { max-height: 40dvh; object-fit: contain; }
+  .fortune-result { grid-template-columns: minmax(0, min(23vw, 24dvh)) minmax(0, 490px); gap: clamp(12px, 3vw, 35px); }
+  .fortune-reading > h3 { margin-bottom: 8px; font-size: clamp(21px, 3.6vh, 32px); }
+  .fortune-reading__omen, .fortune-reading__advice p { font-size: clamp(14px, 2.3vh, 18px); line-height: 1.45; }
+  .fortune-reading__advice { margin: 8px 0 10px; padding-top: 6px; }
+  .fortune-footer { padding-bottom: 0; }
+}
+@media (max-width: 650px) {
+  .fortune-popup .fortune-entry { gap: 8px; }
+  .fortune-popup .fortune-entry__card { display: none; }
+  .table-paper-popup.fortune-popup { padding: 56px 16px 20px; gap: 6px; }
+  .fortune-popup .fortune-heading h2 { font-size: 30px; }
+  .fortune-heading > p, .fortune-popup--revealed .fortune-heading > p { margin-top: 3px; font-size: 15px; }
+  .fortune-result { grid-template-columns: minmax(0, 78px) minmax(0, 1fr); gap: 10px; align-items: center; }
+  .fortune-result .fortune-flip { width: 100%; margin: auto; }
+  .fortune-result .fortune-card { padding: 8% 8%; font-size: 11px; }
+  .fortune-card__top { padding-bottom: 3px; }
+  .fortune-card__body { width: 100%; padding-top: 3px; }
+  .fortune-card h3 { font-size: 13px; margin-bottom: 2px; }
+  .fortune-card__seal { width: 14px; height: 14px; }
+  .fortune-result .fortune-reading > h3 { font-size: 20px; margin-bottom: 4px; }
+  .fortune-result .fortune-reading__advice { margin: 6px 0 7px; padding-top: 5px; }
+  .fortune-result .fortune-reading__advice h4 { margin-bottom: 3px; font-size: 16px; }
+  .fortune-result .fortune-reading__omen, .fortune-result .fortune-reading__advice p { font-size: 15px; }
+  .fortune-result .fortune-result__actions .fortune-primary { font-size: 17px; min-height: 42px; padding: 6px 8px; }
+}
+
+.table-paper-popup.fortune-popup--account {
+  width: min(1040px, calc(100vw - 24px));
+  height: min(710px, calc(100dvh - 24px));
+  padding: clamp(104px, 22dvh, 157px) clamp(22px, 8vw, 125px) clamp(30px, 7dvh, 60px);
+  background-size: 100% 100%;
+}
+.fortune-popup--account .fortune-entry { display: grid; grid-template-columns: minmax(0, 360px); justify-content: center; }
+.fortune-popup--account .fortune-choices { gap: clamp(12px, 4vw, 40px); }
+.fortune-popup--account .fortune-choice { flex-basis: min(21vw, 21dvh); transform: none; }
+.fortune-popup--account .fortune-choice:is(:focus-visible,:hover) { transform: translateY(-5px); }
+.fortune-popup--account .fortune-choice img { max-height: 36dvh; }
+
+.fortune-popup--account.fortune-popup--choosing .fortune-heading > p { display: none; }
+.fortune-popup--account .paper-close { top: clamp(105px, 22dvh, 155px); right: 17%; }
+.fortune-popup--account .fortune-heading { padding-inline: 50px; }
+@media (max-width: 650px) {
+  .fortune-popup--account .fortune-heading { padding-inline: 16px; }
+  .fortune-popup--account .paper-close { top: clamp(96px, 20dvh, 139px); right: 14%; width: 28px; height: 28px; min-height: 28px; }
+  .fortune-popup--account .paper-close svg { width: 18px; height: 18px; }
+  .fortune-popup--account .fortune-heading h2 { font-size: 25px; }
+}
+
+.fortune-popup--account .fortune-heading h2 { font-size: clamp(24px, 4dvh, 32px); }
+.fortune-popup--account .fortune-heading > p { margin-top: 3px; font-size: 14px; }
+.fortune-popup--account .fortune-reading > h3 { font-size: clamp(20px, 3.4dvh, 29px); margin-bottom: 5px; }
+.fortune-popup--account .fortune-reading__omen,
+.fortune-popup--account .fortune-reading__advice p { font-size: clamp(14px, 2.2dvh, 17px); line-height: 1.42; }
+.fortune-popup--account .fortune-reading__advice { margin: 7px 0; padding-top: 6px; }
+.fortune-popup--account .fortune-reading__advice h4 { font-size: 16px; margin-bottom: 4px; }
+.fortune-popup--account .fortune-result__actions .fortune-primary { min-height: 42px; padding: 5px 8px; font-size: 17px; }
+.fortune-popup--account .fortune-footer { padding-block: 4px clamp(10px, 2dvh, 18px); }
+.fortune-popup--account .fortune-footer p { font-size: 13px; margin-bottom: 3px; }
+
+@media (max-width: 650px) {
+  .table-paper-popup.fortune-popup--account { padding-inline: 25px; }
+  .fortune-popup--account .fortune-result { grid-template-columns: minmax(0, 66px) minmax(0, 1fr); }
+  .fortune-popup--account .fortune-reading__omen,
+  .fortune-popup--account .fortune-reading__advice p { font-size: 14px; }
+  .fortune-popup--account .fortune-result__actions .fortune-small { margin-top: 5px; line-height: 1.35; }
+}
+
+.fortune-popup:is(.fortune-popup--revealed,.fortune-popup--revealing,.fortune-popup--gathering) {
+  padding-block: clamp(70px, 20dvh, 166px) clamp(24px, 6dvh, 58px);
+  gap: clamp(4px, 1.2dvh, 12px);
+}
+.fortune-content:is([data-phase='revealed'],[data-phase='revealing'],[data-phase='gathering']) {
+  container-type: size;
+  padding-block: 2px;
+}
+.fortune-content .fortune-result {
+  grid-template-columns: minmax(0, min(32%, 63cqh, 246px)) minmax(0, 490px);
+  align-items: safe center;
+  gap: clamp(10px, 4cqw, 38px);
+  padding-block: 0;
+}
+.fortune-result .fortune-flip { width: 100%; }
+.fortune-result .fortune-reading > h3 { margin-bottom: clamp(4px, 2cqh, 10px); line-height: 1.18; }
+.fortune-result :is(.fortune-reading__omen,.fortune-reading__advice p) { line-height: 1.32; }
+.fortune-result .fortune-reading__advice { margin-block: clamp(4px, 2cqh, 8px); padding-top: 5px; }
+.fortune-result .fortune-result__actions .fortune-small { margin-top: 5px; }
+@media (max-width: 650px) {
+  .fortune-popup:is(.fortune-popup--revealed,.fortune-popup--revealing,.fortune-popup--gathering) {
+    padding-block: clamp(64px, 17dvh, 123px) 20px;
+  }
+  .fortune-content .fortune-result { grid-template-columns: minmax(0, min(24%, 90px)) minmax(0, 1fr); gap: 8px; }
+}

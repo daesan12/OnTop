@@ -45,6 +45,21 @@ type Voice = { track: BgmTrack; source: AudioBufferSourceNode; gain: GainNode; s
 let audio: AudioContext | undefined, master: GainNode | undefined, music: GainNode | undefined, effects: GainNode | undefined
 let jumpEffects: GainNode | undefined
 let jumpmapFocused = false
+let fountainFocus = 0
+let firepitFocus = 0
+
+export function setFirepitAudioFocus(focus: number) {
+  if (firepitFocus === focus || (focus !== 0 && Math.abs(firepitFocus - focus) < .015)) return
+  firepitFocus = focus
+  applyVolume()
+}
+
+export function setFountainAudioFocus(focus: number) {
+  if (Math.abs(fountainFocus - focus) < .015 && focus !== 0) return
+  if (fountainFocus === focus) return
+  fountainFocus = focus
+  applyVolume()
+}
 
 /** Temporary mix only: never overwrite the player's saved volume or mute choices. */
 export function setJumpmapAudioFocus(focused: boolean) {
@@ -76,7 +91,8 @@ export function loadSound(context: AudioContext, name: string) {
 
 function applyVolume() {
   if (!audio || !master || !effects) return
-  for (const [node, { volume, muted }, focus] of [[master, useBgmSettings.getState(), jumpmapFocused ? .25 : 1], [effects, useSfxSettings.getState(), jumpmapFocused ? .2 : 1]] as const)
+  const ambience = Math.max(fountainFocus, firepitFocus)
+  for (const [node, { volume, muted }, focus] of [[master, useBgmSettings.getState(), jumpmapFocused ? .25 : 1 - .66 * ambience], [effects, useSfxSettings.getState(), jumpmapFocused ? .2 : 1]] as const)
     node.gain.setTargetAtTime(muted ? 0 : (volume / 100) ** 2 * focus, audio.currentTime, 0.05)
   const sfx = useSfxSettings.getState()
   jumpEffects?.gain.setTargetAtTime(sfx.muted ? 0 : (sfx.volume / 100) ** 2, audio.currentTime, .05)

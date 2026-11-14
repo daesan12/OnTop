@@ -16,43 +16,57 @@ import {createFishingLakeProp} from './approved/대형_호수_낚시터/asset.js
 import {Builder as LakeBuilder} from './approved/대형_호수_낚시터/src/primitives.js'
 import {boardwalk,footprint} from './approved/대형_호수_낚시터/src/connections.js'
 import {post,rope} from './approved/대형_호수_낚시터/src/props.js'
-import {BRIDGE,BRIDGE_LANDINGS,bridgeDeckHeight,bridgeLandingHeight,LAKE,heightAt,DOCK_ACCESS,FISHING_ACCESS,FISHING_OUTLINE,FISHING_DECK,FISHING_UPPER,FISHING_STAIRS,FISHING_SUPPORTS,STATION_STAIRS,STATION_SCALE,fishingRailSections,accessTopAt} from './plan.ts'
+import {BRIDGE,BRIDGE_LANDINGS,bridgeDeckHeight,LAKE,heightAt,DOCK_ACCESS,FISHING_ACCESS,FISHING_OUTLINE,FISHING_DECK,FISHING_UPPER,FISHING_STAIRS,FISHING_SUPPORTS,STATION_SHELTER,STATION_STAIRS,STATION_SCALE,fishingRailSections,accessTopAt} from './plan.ts'
 import {stripePolygon} from './roundedFootprint.ts'
 import {groundObject} from './assetSizing.ts'
 import {bridgeApproachGuards,lakeFenceSegments} from './lakePlan.ts'
 import {cloneBakedFacility} from './static/facilities.ts'
+import {DOCK_REAR_RAIL} from './dockRailPlan.ts'
 function electricBicycle(options){const result=createBicycle(options),battery=new Mesh(new BoxGeometry(.13,.32,.15),new MeshLambertMaterial({color:'#343e38'}));battery.position.set(0,.66,-.27);battery.rotation.x=-.24;result.group.add(battery);const hub=new Mesh(new CylinderGeometry(.105,.105,.15,12),new MeshLambertMaterial({color:'#687469'}));hub.rotation.z=Math.PI/2;hub.position.set(0,.35,-.64);result.group.add(hub);const display=new Mesh(new BoxGeometry(.1,.025,.065),new MeshLambertMaterial({color:'#476d5b'}));display.position.set(0,1.15,.45);result.group.add(display);return result}
 function islandBridge(){
  const b=new LakeBuilder('light'),n=Math.ceil((BRIDGE.x1-BRIDGE.x0)/.26)
- for(let i=0;i<n;i++){const x0=BRIDGE.x0+(BRIDGE.x1-BRIDGE.x0)*i/n,x1=BRIDGE.x0+(BRIDGE.x1-BRIDGE.x0)*(i+1)/n;footprint(b,[[x0,BRIDGE.z-BRIDGE.width/2],[x1,BRIDGE.z-BRIDGE.width/2],[x1,BRIDGE.z+BRIDGE.width/2],[x0,BRIDGE.z+BRIDGE.width/2]],.197,.16,'wood','#805b36');footprint(b,[[x0+.003,BRIDGE.z-BRIDGE.width/2],[x1-.003,BRIDGE.z-BRIDGE.width/2],[x1-.003,BRIDGE.z+BRIDGE.width/2],[x0+.003,BRIDGE.z+BRIDGE.width/2]],.2,.038,'wood',i%2?'#b77e44':'#c18a4e')}
+ for(let i=0;i<n;i++){
+  const x0=BRIDGE.x0+(BRIDGE.x1-BRIDGE.x0)*i/n,x1=BRIDGE.x0+(BRIDGE.x1-BRIDGE.x0)*(i+1)/n
+  const side=BRIDGE.width/2
+  footprint(b,[[x0+.004,BRIDGE.z-side],[x1-.004,BRIDGE.z-side],[x1-.004,BRIDGE.z+side],[x0+.004,BRIDGE.z+side]],.2,.18,'wood',i%2?'#b77e44':'#c18a4e')
+ }
  for(const side of[-1,1]){const n=Math.ceil((BRIDGE.x1-BRIDGE.x0)/1.55);for(let i=0;i<=n;i++){const x=BRIDGE.x0+(BRIDGE.x1-BRIDGE.x0)*i/n,z=BRIDGE.z+side*BRIDGE.width/2;post(b,x,z,.2);if(i)for(const h of[.48,.92])rope(b,[x-(BRIDGE.x1-BRIDGE.x0)/n,.2+h,z],[x,.2+h,z])}}
  const group=b.finish('retained-fishing-boardwalk-arched-bridge');group.traverse(o=>{if(!o.isMesh)return;const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++)p.setY(i,p.getY(i)+bridgeDeckHeight(p.getX(i))-.2);o.geometry.computeVertexNormals();o.geometry.computeBoundingBox();o.geometry.computeBoundingSphere()})
  for(const x of BRIDGE.pierX)for(const side of[-1,1]){const top=bridgeDeckHeight(x)-.19,bottom=LAKE.y-.3,pier=new Mesh(new BoxGeometry(.65,top-bottom,.65),new MeshLambertMaterial({color:'#aba994'}));pier.name='inset-bridge-support';pier.position.set(x,(top+bottom)/2,BRIDGE.z+side*1.08);group.add(pier)}
  const stone = new LakeBuilder('light')
- for(const landing of BRIDGE_LANDINGS){
-  const count=Math.ceil((landing.x1-landing.x0)/.08),side=(landing.width-.04)/2
-  for(let i=0;i<count;i++){
-   const a=landing.x0+(landing.x1-landing.x0)*i/count,b=landing.x0+(landing.x1-landing.x0)*(i+1)/count
-   footprint(stone,[[a,BRIDGE.z-side],[b,BRIDGE.z-side],[b,BRIDGE.z+side],[a,BRIDGE.z+side]],landing.top,.18,'stone','#bcb9a8')
-  }
- }
- const abutments=stone.finish('flush-bridge-stone-abutments')
- abutments.traverse(mesh=>{
-  if(!mesh.isMesh)return
-  const positions=mesh.geometry.attributes.position
-  for(let i=0;i<positions.count;i++){
-   const x=positions.getX(i),landing=BRIDGE_LANDINGS[x<(BRIDGE.x0+BRIDGE.x1)/2?0:1]
-   positions.setY(i,positions.getY(i)+bridgeLandingHeight(landing,x)-landing.top)
-  }
-  mesh.geometry.computeVertexNormals()
- })
- group.add(abutments)
+ // The island landing sits on the island itself. Draw its existing grass
+ // surface continuously under the approach while retaining the walkable grade.
+ const {x0,x1,top,width}=BRIDGE_LANDINGS[0],side=(width-.04)/2
+ footprint(stone,[[x0,BRIDGE.z-side],[x1,BRIDGE.z-side],[x1,BRIDGE.z+side],[x0,BRIDGE.z+side]],top,.55,'stone','#bcb9a8')
+ group.add(stone.finish('west-bridge-stone-abutment'))
  return{group}
 }
 function shoreFence(segments,name){const b=new LakeBuilder('light');for(const{a,z}of segments){const ya=groundSurfaceHeight(...a)+.015,yz=groundSurfaceHeight(...z)+.015;post(b,...a,ya);post(b,...z,yz);for(const h of[.48,.92])rope(b,[a[0],ya+h,a[1]],[z[0],yz+h,z[1]])}return{group:b.finish(name)}}
 function lakeFence(){return shoreFence(lakeFenceSegments(),'retained-lake-shore-rope-fence')}
 function bridgeGuards(){return shoreFence(bridgeApproachGuards(),'island-bridge-approach-guards')}
-function lakeAccess(){const groups=[];for(const a of[DOCK_ACCESS,FISHING_ACCESS]){const b=new LakeBuilder('light');boardwalk(b,{points:a.points,width:a.width,top:a.top,continuousDeck:a===DOCK_ACCESS});const g=b.finish('graded-single-wood-access');g.traverse(o=>{if(!o.isMesh)return;const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++)p.setY(i,p.getY(i)+accessTopAt(a,p.getX(i),p.getZ(i))-a.top);o.geometry.computeVertexNormals();o.geometry.computeBoundingBox();o.geometry.computeBoundingSphere()});groups.push(g)}const root=new LakeBuilder('light').finish('native-wood-access-bridges');root.add(...groups);return root}
+function lakeAccess(){
+ const groups=[]
+ for(const a of[DOCK_ACCESS,FISHING_ACCESS]){
+  const dock=a===DOCK_ACCESS,b=new LakeBuilder('light')
+  boardwalk(b,{points:a.points,width:a.width,top:a.top,continuousDeck:dock})
+  const g=b.finish('graded-single-wood-access')
+  if(dock)g.userData.keepOpaque=true
+  g.traverse(o=>{
+   if(!o.isMesh)return
+   const p=o.geometry.attributes.position
+   for(let i=0;i<p.count;i++){
+    const x=p.getX(i),z=p.getZ(i),y=p.getY(i)
+    // The access and GLB planks share the same finished height. Recess the
+    // timber joint under the GLB bevel without changing the walkable grade.
+    const joint=dock?Math.max(0,Math.min(1,(x-(a.points[2][0]-.35))/.25))*.018:0
+    p.setY(i,y+accessTopAt(a,x,z)-a.top-joint)
+   }
+   o.geometry.computeVertexNormals();o.geometry.computeBoundingBox();o.geometry.computeBoundingSphere()
+  })
+  groups.push(g)
+ }
+ const root=new LakeBuilder('light').finish('native-wood-access-bridges');root.add(...groups);return root
+}
 function fishingDeck(){
  const b=new LakeBuilder('light')
  for(const[outline,top]of[[FISHING_OUTLINE,FISHING_DECK.top],[FISHING_UPPER.outline,FISHING_UPPER.top]]){
@@ -89,8 +103,22 @@ export function factory(kind,options={}){
  }
  if(kind==='rental-bay')return rentalBay(options)
 
- if(kind==='dock-rear-floor'){const g=new LakeBuilder('light');g.box('wood','#805b36',[0,.6441,1.7],[8.72,.08,1.45]);for(let i=0;i<36;i++)g.box('wood',i%3?'#b57f47':'#c18b50',[(i-17.5)*.242,.659,1.7],[.24,.055,1.45]);return g.finish('continuous-timber-rear-walkway')}
  if(kind==='lake-access')return lakeAccess()
+ if(kind==='dock-rear-rail'){
+  const b=new LakeBuilder('light'),{z,posts,ropeHeights,supportHeight,westReturn}=DOCK_REAR_RAIL
+  const x=posts[0]
+  for(const [px,pz] of [[x,z],westReturn]){
+   b.box('wood','#b07a47',[px,.65+supportHeight/2,pz],[.22,supportHeight,.22])
+   b.box('wood','#ce9c62',[px,.65+supportHeight,pz],[.31,.11,.31])
+   b.box('wood','#704b30',[px,.69,pz],[.30,.12,.30])
+  }
+  const dockRope='#dfcd9f'
+  for(const y of ropeHeights)rope(b,[westReturn[0],y,westReturn[1]],[x,y,z],0,dockRope)
+  for(let i=1;i<posts.length;i++)for(const y of ropeHeights)rope(b,[posts[i-1],y,z],[posts[i],y,z],0,dockRope)
+  const rail=b.finish('duck-dock-rear-rail')
+  rail.traverse(mesh=>{if(mesh.isMesh)mesh.material.roughness=.73})
+  return rail
+ }
  if(kind==='fishing-deck')return fishingDeck()
  if(kind==='fishing-bench')return createFishingLakeProp('bench',{quality:'light'}).group
 
@@ -100,14 +128,17 @@ export function factory(kind,options={}){
  const factories={bridge:islandBridge,'lake-fence':lakeFence,'bridge-guards':bridgeGuards,ebike:electricBicycle,sub:createSubPavilion,willow:createPreviewWillow,balloon:createLowPolyBalloon,station:createLowPolyStation,bike:createBicycleRentalStation,scooter:createScooterRentalStation,sign:createWayfindingSign,bicycle:createBicycle,kickboard:createScooter}
  const indigo='#304a65'
  const appearance=kind==='balloon'?{decoration:'simple',accent:indigo,cream:'#e6d6b7'}:
-  kind==='station'?{deckAccent:indigo}:{}
+  kind==='station'?{deckAccent:indigo,includeBench:false,entranceTreads:false}:{}
  const group=factories[kind]({...options,...appearance,quality:'light'}).group
  if(kind==='station'){
-  // Replace only the three source entrance tread boxes on this private instance.
-  group.traverse(o=>{if(!o.isMesh)return;const g=o.geometry,p=g.getAttribute('position'),index=g.getIndex(),n=index?.count??p.count,keep=[];for(let i=0;i<n;i+=3){const ids=[0,1,2].map(k=>index?index.getX(i+k):i+k);if(ids.every(j=>Math.abs(p.getX(j))<1.4&&p.getZ(j)>5.3&&p.getY(j)<.64))continue;keep.push(...ids)}if(keep.length<n){o.geometry=g.clone();o.geometry.setIndex(keep);o.geometry.computeBoundingSphere()}})
   const b=new LakeBuilder('light'),s=STATION_STAIRS,top=s.top/STATION_SCALE,run=(s.zBottom-s.zTop)/STATION_SCALE/s.steps
   for(let i=0;i<s.steps;i++){const y=(i+1)/s.steps*top;b.box('stone',i%2?'#c0b6a0':'#b3ad9f',[0,y/2,s.zBottom/STATION_SCALE-(i+.5)*run],[s.width/STATION_SCALE,y,run+.002])}
-  group.add(b.finish('six-flush-boarding-treads'))
+  const shelter=STATION_SHELTER, start=shelter.z+shelter.depth/2, rise=shelter.floor-s.top
+  const pitch=Math.atan2(rise,shelter.entryRun),length=Math.hypot(rise,shelter.entryRun)
+  b.box('wood','#b28b59',[shelter.x/STATION_SCALE,(s.top+rise/2-.04*Math.cos(pitch))/STATION_SCALE,
+    (start+shelter.entryRun/2-.04*Math.sin(pitch))/STATION_SCALE],
+    [shelter.entryWidth/STATION_SCALE,.08/STATION_SCALE,length/STATION_SCALE],[pitch,0,0])
+  group.add(b.finish('boarding-treads-and-shelter-approach'))
  }
  // The approved envelope has inward-facing panels. Keep the package intact and
  // show both sides on this local instance so its exterior remains visible.

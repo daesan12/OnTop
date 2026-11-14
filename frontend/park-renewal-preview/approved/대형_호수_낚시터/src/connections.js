@@ -10,8 +10,10 @@ export function boardwalk(b,c){
   for(let k=1;k<fs.length;k++){
     const a=fs[k-1],z=fs[k],length=Math.hypot(c.points[k][0]-c.points[k-1][0],c.points[k][1]-c.points[k-1][1]),n=Math.ceil(length/.28);
     for(let i=0;i<n;i++){
-      if(c.continuousDeck)footprint(b,[lerp(a.left,z.left,i/n),lerp(a.left,z.left,(i+1)/n),lerp(a.right,z.right,(i+1)/n),lerp(a.right,z.right,i/n)],c.top-.003,.145,'wood','#805b36');
-      const t0=(i+.018)/n,t1=(i+1-.018)/n;footprint(b,[lerp(a.left,z.left,t0),lerp(a.left,z.left,t1),lerp(a.right,z.right,t1),lerp(a.right,z.right,t0)],c.top,.038,'wood',i%2?'#b77e44':'#c18a4e');}
+      if(c.continuousDeck)footprint(b,[lerp(a.left,z.left,i/n),lerp(a.left,z.left,(i+1)/n),lerp(a.right,z.right,(i+1)/n),lerp(a.right,z.right,i/n)],c.top-.042,.145,'wood','#805b36');
+      const t0=(i===0&&c.continuousDeck?0:i+.018)/n;
+      const t1=(i===n-1&&c.continuousDeck?n:i+1-.018)/n;
+      footprint(b,[lerp(a.left,z.left,t0),lerp(a.left,z.left,t1),lerp(a.right,z.right,t1),lerp(a.right,z.right,t0)],c.top,.038,'wood',i%2?'#b77e44':'#c18a4e');}
   }
   // Continuous side rails meet at mitred corners; both access ends remain open.
   for(const side of['left','right']){const rail=[];for(let k=1;k<fs.length;k++){const a=fs[k-1][side],z=fs[k][side].slice();if(k===fs.length-1&&c.railEndExtension){const aa=c.points[k-1],zz=c.points[k],len=Math.hypot(zz[0]-aa[0],zz[1]-aa[1]);z[0]+=(zz[0]-aa[0])/len*c.railEndExtension;z[1]+=(zz[1]-aa[1])/len*c.railEndExtension;}const n=Math.ceil(Math.hypot(z[0]-a[0],z[1]-a[1])/1.7);for(let i=k===1?0:1;i<=n;i++)rail.push(lerp(a,z,i/n));}for(const[i,[x,z]]of rail.entries()){if(c.endJoin&&i===rail.length-1)continue;post(b,x,z,c.top);b.cylinder('wood','#785432',[x,(c.top-.35)/2,z],.082,.10,c.top+.35,[0,0,0],8);}for(let i=1;i<rail.length;i++)for(const h of[.48,.92])rope(b,[rail[i-1][0],c.top+h,rail[i-1][1]],[rail[i][0],c.top+h,rail[i][1]]);}

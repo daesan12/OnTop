@@ -17,20 +17,19 @@ import {TelescopeModel} from '../src/world/art/TelescopeModel'
 import {TraditionalNotesBoard} from '../src/world/art/TraditionalNotesBoard'
 import {ReferenceBench} from '../src/world/art/ReferenceBenchFrames'
 import {factory,rentalLabel} from './assetFactories'
-import {SITES,site,heightAt,LAKE,TABLES,JUMP_TABLES,MAILBOX_SCALE,REST_PAVILIONS,BOAT_ROUTE,DOCK_SCALE,STATION_SCALE,BALLOON_SCALE,RENTAL_PAIR_SPACING,rentalYaw,FISHING_DECK,FISHING_SHOP,FISHING_NOTICE,FISHING_BENCHES,facilityGroundY} from './plan'
+import {SITES,site,heightAt,LAKE,TABLES,JUMP_TABLES,MAILBOX_SCALE,REST_PAVILIONS,BOAT_ROUTE,DOCK_SCALE,STATION_BENCH,STATION_SCALE,BALLOON_SCALE,RENTAL_PAIR_SPACING,rentalYaw,FISHING_DECK,FISHING_SHOP,FISHING_NOTICE,FISHING_BENCHES,FISHING_ROD_RACKS,facilityGroundY} from './plan'
 import {willowPositions} from './landscape'
 import {reverseSteleArrow} from './steleRefinement'
 import {PreservedFitness} from './PreservedFitness'
 import {PreservedFountain,PreservedPagodaGarden,FitnessFence} from './PreservedDistricts'
-import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatPose,openDockSideEntry,groundObject,widenDockRearPassage} from './assetSizing'
+import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatAngleAt,boatPose,openDockSideEntry,groundObject,widenDockRearPassage,removeDockRearRopes} from './assetSizing'
 import {VerticalMoleAttract} from './VerticalMoleAttract'
 import {drawMoleShopSign} from './approved/mole-shop-20261107-v1/core/frontend/src/world/art/moleShopGeometry'
 import {getMoleShopArt,MOLE_SHOP_FACILITY} from './moleShopArt'
 import {GachaMachine} from './original/features/gacha/parkAsset/GachaMachine.tsx'
 import {buildRankingBoard,RankingBoardPanels} from '../src/layout-preview/RankingBoardModel'
 import {createSharedBuildingModels} from './sharedBuildingModels'
-import {createTowerEntrance} from './towerEntrance'
-import {WalkwayMaterial} from '../src/world/art/WalkwayMaterial'
+import { REST_FURNITURE_VERTICAL_SCALE } from './pavilionBenchLayout'
 import {PavilionIntermediateTreads} from './PavilionIntermediateTreads'
 import {FacilityGeometry,hasFacilityGeometry} from './FacilityGeometry'
 
@@ -40,6 +39,7 @@ import { bakedEntryMesh } from './static/facilities'
 import { RENEWAL_DISTANCE_LOD } from '../src/park/mapSelection'
 import { createTowerFrame } from './original/world/art/towerFrameGeometry'
 import { LakePart, LakeStage } from './lakeStages'
+import { estimatedServerTime } from '../src/network/serverEventClock'
 import { FacilityOnApproach } from './live/FacilityOnApproach'
 import { ShaderPreparedGroup } from './live/ShaderPreparedGroup'
 
@@ -50,7 +50,6 @@ const distantBuildings = new Set(['arcade', 'folk', 'vr', 'shooting'])
 const entranceRentalIds = new Set(['mobility-entry', 'mobility-rest', 'mobility-fitness'])
 const willowBatchSize = Math.ceil(willowPositions.length / (LakeStage.Fish - LakeStage.Willows))
 
-const towerEntrance = createTowerEntrance()
 const rentalTextures={bike:rentalLabel('bicycle'),scooter:rentalLabel('scooter')}
 let sharedBuildingModels: ReturnType<typeof createSharedBuildingModels> | undefined
 function getSharedBuildingModels() {
@@ -63,16 +62,17 @@ function Model({kind,fit=false,prepareShaders=false}:{kind:string;fit?:boolean;p
   g.traverse(o=>{if(o instanceof Mesh){o.castShadow=true;o.receiveShadow=true}})
   if(kind==='stele')reverseSteleArrow(g)
   if(kind==='dock'){
+   g.userData.keepOpaque=true
    // The optimized GLB already includes the original preview's entry and passage cuts.
    if(originalRemainingGlbs){
     openDockSideEntry(g)
     widenDockRearPassage(g)
    }
-   g.add(factory('dock-rear-floor'))
+   removeDockRearRopes(g)
   }
   return fit?fitApprovedObject(g,SHOOTING_SIZE):['boat','dock'].includes(kind)?g:groundObject(g)
  },[gltf,fit,kind])
- const model = <primitive object={object} dispose={null}/>
+ const model = <><primitive object={object} dispose={null}/>{kind==='dock'&&<group userData={{keepOpaque:true}}><LocalFactory kind="dock-rear-rail"/></group>}</>
  return prepareShaders ? <ShaderPreparedGroup>{model}</ShaderPreparedGroup> : model
 }
 const localModelTemplates = new Map<string, Group>()
@@ -105,6 +105,12 @@ function StructureModel({kind,prepareShaders=false}:{kind:keyof typeof structure
  const gltf=useLoader(ParkAssetLoader,structureModels[kind])
  const object=useMemo(()=>{
   const group=gltf.scene.clone(true)
+  const furniture=kind==='pavilion' ? group.getObjectByName('pavilion-furniture') : undefined
+  if(furniture){
+   const floor=.572
+   furniture.scale.y*=REST_FURNITURE_VERTICAL_SCALE
+   furniture.position.y+=(floor-furniture.position.y)*(1-REST_FURNITURE_VERTICAL_SCALE)
+  }
   group.traverse(o=>{
    if(!(o instanceof Mesh)||!o.userData.previewSurface)return
    const {castShadow,receiveShadow,flatShading}=o.userData.previewSurface
@@ -127,7 +133,7 @@ function Mole(){
 function interactWithKiosk(id:string){
  void import('../src/features/interactions/parkInteraction').then(({interactWithPark})=>interactWithPark(id))
 }
-function Gacha({live}:{live:boolean}){return <GachaMachine onInteract={live?()=>interactWithKiosk('layout-shop'):undefined}/>}
+function Gacha({live}:{live:boolean}){return <group userData={{keepOpaque:true}}><GachaMachine onInteract={live?()=>interactWithKiosk('layout-shop'):undefined}/></group>}
 function Ranking({live}:{live:boolean}){
  const art=useMemo(()=>buildRankingBoard(),[])
  return <group onClick={live?event=>{
@@ -177,7 +183,6 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
  {!live&&[...TABLES,...JUMP_TABLES].map(([x,z],i)=><group key={i} position={[x,heightAt(x,z)+.12,z]}><DevPlazaTable anchorId={stoneTableIdAt(x,z)}/></group>)}
  <PreservedPagodaGarden/><PreservedFountain/>
  <group name="jump-course-entrance-pagoda" position={[jump.x,heightAt(jump.x,jump.z),jump.z]}><StonePagoda anchor={{id:'detail-jump-base',x:0,z:0,scale:.8}} decorations={false}/></group>
- <mesh name="tower-entrance-landing" geometry={towerEntrance} receiveShadow><WalkwayMaterial color="#c4bfb1"/></mesh>
  <group name="forty-metre-tower" position={[tower.x,heightAt(tower.x,tower.z),tower.z]} rotation={[0,Math.PI,0]}>
   <RenewalTower distanceLod={live&&RENEWAL_DISTANCE_LOD}/>
   {distantReady&&!originalFacilityGeometry&&(live
@@ -185,10 +190,14 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
    : <Suspense fallback={null}><FacilityGeometry id="tower"/></Suspense>)}
  </group>
  {upperFacilitiesReady&&(live?<ShaderPreparedGroup><TowerFurniture/></ShaderPreparedGroup>:<TowerFurniture/>)}<PreservedFitness/><FitnessFence/>
- {upperFacilitiesReady&&<group name="enlarged-balloon-boarding-platform" position={[balloon.x,heightAt(balloon.x,balloon.z),balloon.z]}>
+ {upperFacilitiesReady&&<group name="enlarged-balloon-boarding-platform" userData={{keepOpaque:true}} position={[balloon.x,heightAt(balloon.x,balloon.z),balloon.z]}>
   <group name="balloon-station-model">
-   <Suspense fallback={null}><StructureModel kind="station" prepareShaders={live}/></Suspense>
+   <group scale={STATION_SCALE}>{live
+    ? <ShaderPreparedGroup priority={.75}><LocalFactory kind="station"/></ShaderPreparedGroup>
+    : <LocalFactory kind="station"/>}</group>
   </group>
+  <ReferenceBench name="balloon-station-waiting-bench"
+    position={[STATION_BENCH.x,STATION_BENCH.floor,STATION_BENCH.z]} yaw={0} seatHeight={STATION_BENCH.seatHeight}/>
   <group position={[2.35*1.6*STATION_SCALE,.65*STATION_SCALE-.37*BALLOON_SCALE+.12,0]} scale={BALLOON_SCALE}>
    {live ? <ShaderPreparedGroup><LocalFactory kind="balloon"/></ShaderPreparedGroup> : <LocalFactory kind="balloon"/>}
   </group>
@@ -200,7 +209,7 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
   {[-2.1,2.1].map(dx=><group key={dx} name="moored-duck-boat" position={[site('dock').x+dx,LAKE.y+.08,site('dock').z-3.7]}><Suspense fallback={null}><Model kind="boat"/></Suspense></group>)}
  </LakePart>
  <FishingPier/>
- <LakePart at={LakeStage.Boats}><Boats/></LakePart>
+ <LakePart at={LakeStage.Boats}><Boats live={live}/></LakePart>
  <LakePart at={LakeStage.FishingShop}>
   <group position={[FISHING_SHOP.x,FISHING_SHOP.y+.1,FISHING_SHOP.z]} rotation={[0,FISHING_SHOP.yaw,0]}><LocalFactory kind="fishing-shop"/></group>
  </LakePart>
@@ -218,14 +227,14 @@ function FishingPier(){const d=FISHING_DECK;return <group name="native-fishing-d
  <LakePart at={LakeStage.FishingDeck}><LocalFactory kind="fishing-deck"/></LakePart>
  <LakePart at={LakeStage.FishingAccess}><LocalFactory kind="lake-access"/></LakePart>
  <LakePart at={LakeStage.FishingFurniture}>
-  {[[79.2,-39.7],[79.2,-37.6]].map(([x,z],i)=><group key={i} position={[x!,d.top,z!]} rotation={[0,-Math.PI/2,0]}><LocalFactory kind="rod-rack"/></group>)}
+  {FISHING_ROD_RACKS.map(([x,z],i)=><group key={i} position={[x!,d.top,z!]} rotation={[0,-Math.PI/2,0]}><LocalFactory kind="rod-rack"/></group>)}
   <group position={[FISHING_NOTICE.x,heightAt(FISHING_NOTICE.x,FISHING_NOTICE.z)+.1,FISHING_NOTICE.z]} rotation={[0,FISHING_NOTICE.yaw,0]}><LocalFactory kind="lake-notice"/></group>
   {FISHING_BENCHES.map(([x,z,yaw],i)=><group key={i} name={'fishing-rest-bench-'+i} position={[x!,FISHING_DECK.top,z!]} rotation={[0,yaw!,0]}><LocalFactory kind="fishing-bench"/></group>)}
  </LakePart>
  </group>}
-function Boats(){
+function Boats({live}:{live:boolean}){
  const boats=useMemo(()=>{const g=new Group();g.name='single-circulating-duck-boat';return[g]},[])
- useFrame(({clock})=>{const t=clock.getElapsedTime();boats.forEach((g,i)=>{const p=boatPose(t*.018+i*Math.PI*2/3,BOAT_ROUTE.x,BOAT_ROUTE.z,BOAT_ROUTE.rx,BOAT_ROUTE.rz);g.position.set(p.x,LAKE.y+.08,p.z);g.rotation.y=p.yaw})})
+ useFrame(({clock})=>{const t=live?estimatedServerTime()/1000:clock.getElapsedTime();boats.forEach(g=>{const p=boatPose(boatAngleAt(t,BOAT_ROUTE.period),BOAT_ROUTE.x,BOAT_ROUTE.z,BOAT_ROUTE.rx,BOAT_ROUTE.rz);g.position.set(p.x,LAKE.y+.08,p.z);g.rotation.y=p.yaw})})
  return <>{boats.map((g,i)=><primitive key={i} object={g}><Suspense fallback={null}><Model kind="boat"/></Suspense></primitive>)}</>
 }
 

@@ -13,6 +13,7 @@ const initial = () => ({ owner: '', channelId: '', mapVersion: '', available: fa
 export const useJumpmap = create(initial)
 export const hits = new Map<number, { at: number; power: number }>()
 export const standing = new Map<string, number>()
+export const moleLandings = new Map<number, number>()
 const lastSteps = new Map<string, number>(), closed = new Set<string>()
 // 재연결하면 closed가 비므로, 이미 보여 준 결과 runId는 탭 단위로 남겨 같은 결과를 두 번 띄우지 않는다.
 const SHOWN_KEY = 'ontop.jumpmap.shownResults'
@@ -34,7 +35,7 @@ export function presentStep(block: number, player: string, power: number, now = 
   if (!previous || now - previous.at >= 150) hits.set(block, { at: now, power })
   stepListeners.forEach(fn => fn(block, player, power))
 }
-export function resetJumpmap() { hits.clear(); standing.clear(); lastSteps.clear(); closed.clear(); useJumpmap.setState(initial(), true) }
+export function resetJumpmap() { hits.clear(); standing.clear(); moleLandings.clear(); lastSteps.clear(); closed.clear(); useJumpmap.setState(initial(), true) }
 export function closeJumpCompletion() { useJumpmap.setState({ completion: null }) }
 export function bindJumpmap(owner: string, channelId: string, mapVersion: string) {
   const s = useJumpmap.getState()
@@ -74,13 +75,22 @@ export function receiveJumpmap(type: string, payload: unknown, owner: string, ch
 export function acceptJumpEvent(e: JumpEvent, now = performance.now()) {
   const s = useJumpmap.getState()
   if (!s.owner || e.channelId !== s.channelId || e.mapVersion !== s.mapVersion) return
-  if (e.type === 'JUMPMAP_STEP') { if (s.available) presentStep(e.block, e.playerId, e.playerId === s.owner ? 1 : .65, now); return }
+  if (e.type === 'JUMPMAP_STEP') {
+    if (s.available) {
+      if (s.run && e.playerId === s.owner && COURSE[e.block]?.theme === 'mole' && e.serverTime !== undefined) {
+        moleLandings.set(e.block, e.serverTime / 1000)
+      }
+      presentStep(e.block, e.playerId, e.playerId === s.owner ? 1 : .65, now)
+    }
+    return
+  }
   if (e.revision <= s.revision) return
   if (e.type === 'JUMPMAP_STARTED') {
     if (closed.has(e.runId)) return
     const available = e.courseVersion === COURSE_VERSION && e.rulesVersion === RULES_VERSION && e.mapVersion === MAP_VERSION
     if (!available) { useJumpmap.setState({ available: false, checked: true, error: '점프맵 버전이 달라요. 새로고침해 주세요.' }); return }
     const same = s.run?.runId === e.runId
+    if (!same) moleLandings.clear()
     useJumpmap.setState({ available: true, checked: true, revision: e.revision, ...moneyPatch(e), result: null, recovering: false, completion: null,
       run: same ? s.run : { runId: e.runId, elapsedMs: 0, gatesPassed: 0, finalReached: false, maxHeight: 0, runCoins: 0, startedAt: now },
       ...(same ? {} : { popup: null, banner: null }) }); return

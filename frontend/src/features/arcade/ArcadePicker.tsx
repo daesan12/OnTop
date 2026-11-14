@@ -76,7 +76,7 @@ function ArcadeDialog() {
   const choice = choices.find(c => c.id === selected)!
   const balance = rps?.availableBalance ?? plus?.availableBalance
 
-  return <dialog ref={dialog} className="table-paper-popup arcade-picker" aria-labelledby="arcade-picker-title"
+  return <dialog ref={dialog} className={`table-paper-popup arcade-picker${moleShop ? " arcade-picker--mole" : ""}`} aria-labelledby="arcade-picker-title"
     onCancel={event => { event.preventDefault(); closeArcade() }}>
     <div className="arcade-paper">
       <header className="arcade-title">
@@ -88,14 +88,14 @@ function ArcadeDialog() {
       <div className="arcade-selection">
         <div className="arcade-game-list" role="group" aria-label="게임 선택">
           {choices.filter(c => !moleShop || c.id === 'whack-a-mole' || c.id === 'speed-mole').map(c => <button key={c.id} type="button" className="arcade-game-card" data-selected={c.id === selected}
-            aria-pressed={c.id === selected} onClick={() => selectArcadeGame(c.id)} onDoubleClick={() => playArcadeGame(c.id)}>
+            aria-pressed={moleShop ? undefined : c.id === selected} onClick={() => moleShop ? playArcadeGame(c.id) : selectArcadeGame(c.id)} onDoubleClick={moleShop ? undefined : () => playArcadeGame(c.id)}>
             <ArcadeArt game={c.id} />
             {c.inProgress && <b className="arcade-badge">진행 중</b>}
-            <span><strong>{c.name}</strong><small>혼자 · {c.fee}</small></span>
-            <em>{c.limitLabel} {c.limit}</em>
+            <span><strong>{c.name}</strong><small>{moleShop ? c.tagline : "혼자 · " + c.fee}</small></span>
+            {moleShop ? <p>{c.id === "whack-a-mole" ? "구멍에서 튀어나오는 두더지를 키보드나 클릭으로 잡아요." : "두더지를 잡자마자 다른 구멍에 나타나요. 빠르게 연속으로 잡아보세요."}</p> : <em>{c.limitLabel} {c.limit}</em>}
           </button>)}
         </div>
-        <div className="arcade-detail">
+        {!moleShop && <div className="arcade-detail">
           <small>선택한 게임</small>
           <h3>{choice.name}</h3>
           <p className="arcade-tagline">{choice.tagline}</p>
@@ -112,7 +112,7 @@ function ArcadeDialog() {
           <button type="button" className="arcade-primary" onClick={() => playArcadeGame()}>
             {choice.inProgress ? '이어서 하기' : '이 게임 하기'}<span aria-hidden="true">›</span>
           </button>
-        </div>
+        </div>}
       </div>
       <footer className="arcade-footer">
         <button type="button" aria-keyshortcuts="Escape" title="닫기 (Esc)" onClick={closeArcade}>닫기</button>

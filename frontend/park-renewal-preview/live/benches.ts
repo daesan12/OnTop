@@ -5,8 +5,8 @@ import { facilityYaw } from '../facilityPlacement'
 import { groundSurfaceHeight } from '../groundSurface'
 import { benches as pathBenches } from '../landscape'
 import { PAVILION_TARGETS } from '../mapping/identities'
-import { pavilionBenchSegments } from '../pavilionBenchLayout'
-import { FISHING_BENCHES, FISHING_DECK, LAKE, STATION_SCALE, STATION_STAIRS, SUB_PAVILION_SCALE, facilityGroundY, heightAt, site } from '../plan'
+import { REST_FURNITURE_VERTICAL_SCALE, pavilionBenchSegments } from '../pavilionBenchLayout'
+import { FISHING_BENCHES, FISHING_DECK, LAKE, STATION_BENCH, SUB_PAVILION_SCALE, facilityGroundY, heightAt, site } from '../plan'
 import { TOWER_TOP } from '../towerFurniturePlan'
 
 type BenchAnchor = (typeof PARK_DATA.interactions.benches)[number] & {
@@ -50,12 +50,12 @@ export function buildRenewalBenches(): BenchAnchor[] {
     const yaw = pavilionId === 'P5' ? -Math.PI / 2 : facilityYaw(s), sin = Math.sin(yaw), cos = Math.cos(yaw)
     return pavilionBenchSegments(main ? 'main' : 'rest').map(b => bench(`bench-${pavilionId}-bay-${b.side}`,
       [s.x + (b.x * cos + b.z * sin) * scale, base + b.floor * scale, s.z + (-b.x * sin + b.z * cos) * scale],
-      yaw + b.yaw - Math.PI, b.seatHeight * scale, 1.25, { pavilionId }))
+      // The rear bench in a small pavilion faces the table stool. Stand in the aisle before it.
+      yaw + b.yaw - Math.PI, b.seatHeight * scale * (main ? 1 : REST_FURNITURE_VERTICAL_SCALE),
+      !main && b.side === 4 ? .95 : 1.25, { pavilionId }))
   })
   const tower = site('tower'), towerFloor = facilityGroundY(tower) + TOWER_TOP.floor
-  const station = site('balloon'), stationFloor = heightAt(station.x, station.z) + STATION_STAIRS.top
-  // The station GLB scales the waiting shelter 1.6× horizontally before the overall station scale.
-  const stationScale = 1.6 * STATION_SCALE
+  const station = site('balloon'), stationFloor = heightAt(station.x, station.z) + STATION_BENCH.floor
   return [
     ...inherited, ...pavilions,
     ...pathBenches.map(({ point: [x, z], yaw }, i) => bench('renewal-bench-' + i, [x, heightAt(x, z) + .12, z], yaw, .58, 1.5,
@@ -64,7 +64,7 @@ export function buildRenewalBenches(): BenchAnchor[] {
       Math.atan2(-x, -z), .56, 1.5)),
     ...FISHING_BENCHES.map(([x, z, yaw], i) => bench('fishing-rest-bench-' + i, [x, FISHING_DECK.top, z], yaw, .55, 1.2,
       { seatOffset: .37 })),
-    bench('balloon-station-waiting-bench', [station.x - 2.15 * stationScale, stationFloor, station.z - 2.42 * stationScale],
-      0, .71 * STATION_SCALE, 1.8, { seatOffset: .45 * stationScale }),
+    bench('balloon-station-waiting-bench', [station.x + STATION_BENCH.x, stationFloor, station.z + STATION_BENCH.z],
+      0, STATION_BENCH.seatHeight, 1.5),
   ]
 }

@@ -105,6 +105,7 @@ public class JumpmapService implements AutoCloseable {
             payload.put("mapVersion", mapVersion());
             payload.put("playerId", step.userId());
             payload.put("block", step.block());
+            payload.put("serverTime", clock.millis());
             for (String user : recipients) {
                 sink.send(user, "JUMPMAP_STEP", payload);
             }
