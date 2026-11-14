@@ -47,7 +47,8 @@ public class JumpRopeController {
     @PostMapping("/rounds")
     @NewActivity
     @Operation(operationId = "startJumpRopeRound", summary = "줄넘기 서버 판 시작",
-            description = "플레이 시작은 서버 기준 3초 뒤이며, 만료는 플레이 시작 95초 뒤입니다. 같은 키로 재시도하면 기존 시각을 반환합니다.")
+            description = "플레이 시작은 서버 기준 3초 뒤이며, 만료는 플레이 시작 95초 뒤입니다. 같은 키로 재시도하면 기존 시각을 반환합니다. "
+                    + "rulesVersion은 서버 설정(기본 1)으로 정하며, 2이면 탑골 할아버지 난입과 숙이기 규칙을 적용합니다.")
     @Parameter(name = "Idempotency-Key", in = ParameterIn.HEADER, required = true,
             schema = @Schema(type = "string", minLength = 1, maxLength = 64, pattern = "^[A-Za-z0-9_-]{1,64}$"))
     @ApiResponse(responseCode = "201", description = "새 판 또는 동일 키로 조회한 활성 판",
@@ -63,10 +64,11 @@ public class JumpRopeController {
 
     @PostMapping(value = "/rounds/{roundId}/complete", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(operationId = "completeJumpRopeRound", summary = "점프 입력 재생 및 줄넘기 기록 확정",
-            description = "카운트다운·MISS 정지를 제외한 실제 플레이 오프셋만 제출합니다. 60초 완주 시 실제 엽전 지급액을 확정하며, 만료 전 동일 입력 재시도에는 같은 결과와 지급액을 반환합니다.")
+            description = "카운트다운·MISS 정지를 제외한 실제 플레이 오프셋만 제출합니다. 판정 규칙은 판 시작 시 저장된 rulesVersion으로 정하며, "
+                    + "rulesVersion 2 판은 duckSpansUs를 함께 보내야 합니다. 60초 완주 시 실제 엽전 지급액을 확정하며, 만료 전 동일 입력 재시도에는 같은 결과와 지급액을 반환합니다.")
     @ApiResponse(responseCode = "200", description = "서버가 확정한 점수, 종료 결과 및 실제 지급 엽전",
             content = @Content(schema = @Schema(implementation = JumpRopeDtos.Result.class)))
-    @ApiResponse(responseCode = "400", description = "라운드 ID 또는 점프 입력 오류", content = @Content(schema = @Schema(implementation = JumpRopeDtos.Error.class)))
+    @ApiResponse(responseCode = "400", description = "라운드 ID, 점프 또는 숙이기 입력 오류", content = @Content(schema = @Schema(implementation = JumpRopeDtos.Error.class)))
     @ApiResponse(responseCode = "404", description = "본인 라운드를 찾을 수 없음", content = @Content(schema = @Schema(implementation = JumpRopeDtos.Error.class)))
     @ApiResponse(responseCode = "409", description = "종료 전·만료·대체된 판 또는 확정 입력과 불일치", content = @Content(schema = @Schema(implementation = JumpRopeDtos.Error.class)))
     public ResponseEntity<JumpRopeDtos.Result> complete(@AuthenticationPrincipal AuthenticatedUser user,
@@ -79,12 +81,14 @@ public class JumpRopeController {
         } catch (NumberFormatException e) {
             throw invalidRequest();
         }
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service().complete(userId, id, body.jumpOffsetsUs()));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(service().complete(userId, id, body.jumpOffsetsUs(), body.duckSpansUs()));
     }
 
     @GetMapping("/rankings")
     @Operation(operationId = "getJumpRopeRankings", summary = "전체 기간 줄넘기 랭킹 및 내 최고 기록",
-            description = "사용자별 최고 확정 기록을 점수 내림차순·MISS 오름차순으로 정렬합니다. 두 값이 같으면 공동 순위입니다.")
+            description = "현재 신규 판 규칙 버전(rulesVersion)의 확정 기록만 사용합니다. 다른 버전 기록은 보존하되 이 순위에 넣지 않습니다. "
+                    + "사용자별 최고 확정 기록을 점수 내림차순·MISS 오름차순으로 정렬합니다. 두 값이 같으면 공동 순위입니다.")
     @ApiResponse(responseCode = "200", description = "랭킹 페이지와 전체 순위 기준 내 최고 기록",
             content = @Content(schema = @Schema(implementation = JumpRopeDtos.Rankings.class)))
     @ApiResponse(responseCode = "400", description = "페이지 범위 오류", content = @Content(schema = @Schema(implementation = JumpRopeDtos.Error.class)))

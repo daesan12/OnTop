@@ -306,6 +306,93 @@ class JumpRopeMySqlTests {
         assertThat(configuredService.rankings(noRecord, 10, 10).me()).isNull();
     }
 
+    @Test void an_active_v1_round_settles_with_v1_rules_after_new_rounds_switch_to_v2() {
+        long user = user();
+        long id = start(user, "before-switch");
+        assertThat(jdbc.queryForObject("SELECT rules_version FROM jump_rope_rounds WHERE id = ?", Integer.class, id)).isEqualTo(1);
+        var switched = v2At(NOW.plusSeconds(11));
+        assertCode(() -> switched.complete(user, id, TWO_PERFECTS, List.of()), 400, "JUMP_ROPE_INVALID_INPUTS");
+        var result = switched.complete(user, id, TWO_PERFECTS);
+        assertThat(result.rulesVersion()).isEqualTo(1);
+        assertThat(result.score()).isEqualTo(45);
+        assertThat(jdbc.queryForObject("SELECT input_hash FROM jump_rope_rounds WHERE id = ?", String.class, id))
+                .isEqualTo(JumpRopeService.hash(TWO_PERFECTS));
+        assertThat(switched.complete(user, id, TWO_PERFECTS)).isEqualTo(result);
+        assertCode(() -> switched.complete(user, id, List.of()), 409, "JUMP_ROPE_INPUT_CONFLICT");
+        // The v1 record stays on the v1 board; the switched board starts empty.
+        assertThat(at(NOW.plusSeconds(12)).rankings(user, 10, 0).me().score()).isEqualTo(45);
+        assertThat(switched.rankings(user, 10, 0).me()).isNull();
+    }
+
+    @Test void a_v2_round_settles_from_jumps_and_duck_spans_and_identical_concurrent_submissions_pay_once() throws Exception {
+        long user = user();
+        long id = startV2(user, "v2-full", 42);
+        assertThat(jdbc.queryForObject("SELECT rules_version FROM jump_rope_rounds WHERE id = ?", Integer.class, id)).isEqualTo(2);
+        var bot = JumpRopeRulesV2Tests.bot();
+        var finish = v2At(NOW.plusSeconds(70));
+        assertCode(() -> finish.complete(user, id, bot.jumpOffsetsUs()), 400, "JUMP_ROPE_INVALID_INPUTS");
+        var release = new CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(4)) {
+            var tasks = IntStream.range(0, 4).mapToObj(n -> pool.submit(() -> {
+                release.await();
+                return finish.complete(user, id, bot.jumpOffsetsUs(), bot.duckSpansUs());
+            })).toList();
+            release.countDown();
+            var result = tasks.getFirst().get(15, TimeUnit.SECONDS);
+            for (var task : tasks) assertThat(task.get(15, TimeUnit.SECONDS)).isEqualTo(result);
+            assertThat(result.rulesVersion()).isEqualTo(2);
+            assertThat(result.score()).isEqualTo(1965);
+            assertThat(result.endReason()).isEqualTo("time");
+            assertThat(result.reward()).isEqualTo(39);
+        }
+        assertThat(balance(user)).isEqualTo(139);
+        assertThat(rewardRows(id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT input_hash FROM jump_rope_rounds WHERE id = ?", String.class, id))
+                .isEqualTo(JumpRopeService.hashV2(bot.jumpOffsetsUs(), JumpRopeRulesV2.spans(bot.duckSpansUs())));
+        var moved = new ArrayList<>(bot.duckSpansUs());
+        moved.set(0, List.of(moved.getFirst().get(0) - 1, moved.getFirst().get(1)));
+        assertCode(() -> finish.complete(user, id, bot.jumpOffsetsUs(), moved), 409, "JUMP_ROPE_INPUT_CONFLICT");
+        assertThat(balance(user)).isEqualTo(139);
+    }
+
+    @Test void a_v2_stun_miss_ends_the_round_early_and_pays_nothing() {
+        long user = user();
+        long id = startV2(user, "v2-stunned", 42);
+        var stunned = JumpRopeRulesV2Tests.round("neverDucks", 42);
+        var result = v2At(NOW.plusSeconds(70)).complete(user, id, stunned.jumpOffsetsUs(), stunned.duckSpansUs());
+        assertThat(result.endReason()).isEqualTo("missLimit");
+        assertThat(result.counts().miss()).isEqualTo(3);
+        assertThat(result.score()).isEqualTo(stunned.score());
+        assertThat(result.reward()).isZero();
+        assertThat(rewardRows(id)).isZero();
+        assertThat(jdbc.queryForObject("SELECT end_reason FROM jump_rope_rounds WHERE id = ?", String.class, id)).isEqualTo("missLimit");
+    }
+
+    @Test void rules_versions_keep_separate_boards_and_share_the_daily_reward_cap() {
+        long v1Player = user(), v2Player = user(), both = user();
+        var finish = at(NOW.plusSeconds(70));
+        finish.complete(v1Player, start(v1Player, "v1"), JumpRopeRulesTests.perfectRound());
+        finish.complete(both, start(both, "v1"), TWO_PERFECTS);
+        var bot = JumpRopeRulesV2Tests.bot();
+        Instant now = NOW.plusSeconds(70);
+        seedBudget(v2Player, MinigameRewardBudget.DAILY_CAP - 4, now);
+        var v2Finish = v2At(now);
+        assertThat(v2Finish.complete(v2Player, startV2(v2Player, "v2", 42), bot.jumpOffsetsUs(), bot.duckSpansUs()).reward()).isEqualTo(4);
+        var lateDuck = JumpRopeRulesV2Tests.round("lateDuckIsHitAndStunMissesTheNextPassage", 42);
+        v2Finish.complete(both, startV2(both, "v2", 42), lateDuck.jumpOffsetsUs(), lateDuck.duckSpansUs());
+
+        var v1Board = at(now).rankings(v1Player, 10, 0);
+        assertThat(v1Board.rulesVersion()).isEqualTo(1);
+        assertThat(v1Board.totalParticipants()).isEqualTo(2);
+        assertThat(v1Board.items()).containsExactly(new JumpRopeDtos.Item(1, name(v1Player), 1965), new JumpRopeDtos.Item(2, name(both), 45));
+        var v2Board = v2Finish.rankings(v1Player, 10, 0);
+        assertThat(v2Board.rulesVersion()).isEqualTo(2);
+        assertThat(v2Board.totalParticipants()).isEqualTo(2);
+        assertThat(v2Board.items()).containsExactly(new JumpRopeDtos.Item(1, name(v2Player), 1965), new JumpRopeDtos.Item(2, name(both), 1920));
+        assertThat(v2Board.me()).isNull();
+        assertThat(balance(v2Player)).isEqualTo(100 + MinigameRewardBudget.DAILY_CAP);
+    }
+
     @Test void schema_rejects_an_incomplete_settled_row() {
         long id = start(user(), "bad-row");
         assertThatThrownBy(() -> jdbc.update("UPDATE jump_rope_rounds SET status = 'SETTLED' WHERE id = ?", id))
@@ -323,8 +410,23 @@ class JumpRopeMySqlTests {
     }
 
     private JumpRopeService at(Instant now, JumpRopeRepository repository) {
+        return at(now, repository, JumpRopeRules.VERSION);
+    }
+
+    private JumpRopeService at(Instant now, JumpRopeRepository repository, int rulesVersion) {
         return new JumpRopeService(repository, transactions, Clock.fixed(now, ZoneOffset.UTC), new SecureRandom(),
-                new JumpRopeRewards(entities, wallets, ledger));
+                new JumpRopeRewards(entities, wallets, ledger), rulesVersion);
+    }
+
+    private JumpRopeService v2At(Instant now) { return at(now, new JumpRopeRepository(jdbc), JumpRopeRulesV2.VERSION); }
+
+    /** Starts a v2 round and pins the seed of the shared FE fixture. */
+    private long startV2(long user, String key, long seed) {
+        var round = v2At(NOW).start(user, key);
+        assertThat(round.rulesVersion()).isEqualTo(2);
+        long id = Long.parseLong(round.id());
+        jdbc.update("UPDATE jump_rope_rounds SET seed = ? WHERE id = ?", seed, id);
+        return id;
     }
 
     private long start(long user, String key) { return Long.parseLong(at(NOW).start(user, key).id()); }
