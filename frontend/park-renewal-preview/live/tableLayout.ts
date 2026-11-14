@@ -42,7 +42,7 @@ export function buildRenewalTables(): TableAnchor[] {
       interactionPoints: reach.map(p => { const [x, z] = rotate(p); return [s.x + x, y, s.z + z] as Vec3 }),
     }]
   })
-  const x = 5, z = -63, y = groundSurfaceHeight(x, z) + .12
+  const x = 7.2, z = -63, y = groundSurfaceHeight(x, z) + .12
   const stoneRumble: TableAnchor = {
     id: STONE_RUMBLE_ANCHOR_ID,
     position: [x, y, z],
