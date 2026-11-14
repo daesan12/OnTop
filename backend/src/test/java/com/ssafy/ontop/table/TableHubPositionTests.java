@@ -100,7 +100,9 @@ class TableHubPositionTests {
         var wallet = mock(MobilityWallet.class);
         Peer user = peer(101);
         user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
-        String avatar = registry.worldState("one").avatars().getFirst().userId();
+        Peer observer = peer(102);
+        observer.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String avatar = "101";
         var at = registry.positionOf(avatar);
         var stations = mapper.valueToTree(List.of(Map.of("id", "mobility-entry", "yaw", 0,
                 "reachPosition", List.of(at.x(), at.y(), at.z()), "radius", 3, "heightTolerance", .7)));
@@ -114,8 +116,11 @@ class TableHubPositionTests {
             assertThat(user.request("WORLD_MOBILITY_START", payload).at("/payload/status").asText()).isEqualTo("RIDING");
             assertThat(user.request("WORLD_MOBILITY_START", payload).at("/payload/total").asLong()).isEqualTo(2);
             assertThat(registry.worldState("one").vehicles()).containsEntry(avatar, "SCOOTER");
+            long mountedVersion = registry.worldState("one").version();
+            observer.awaitPublicVehicle(avatar, "SCOOTER", mountedVersion);
             assertThat(user.request("WORLD_MOBILITY_END", Map.of("leaseId", lease))
                     .at("/payload/total").asLong()).isEqualTo(2);
+            observer.awaitPublicVehicle(avatar, "", mountedVersion + 1);
         }
 
         verify(wallet).charge(101, lease, 1, 2);
@@ -161,6 +166,19 @@ class TableHubPositionTests {
     private class Peer {
         private final String id = UUID.randomUUID().toString();
         private final BlockingQueue<JsonNode> messages = new LinkedBlockingQueue<>();
+
+        private void awaitPublicVehicle(String avatarId, String expected, long minimumVersion) throws Exception {
+            long endsAt = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+            while (System.nanoTime() < endsAt) {
+                JsonNode event = messages.poll(200, TimeUnit.MILLISECONDS);
+                if (event != null && event.path("type").asText().equals("WORLD_STATE")
+                        && event.path("payload").path("version").asLong() >= minimumVersion
+                        && event.path("payload").path("vehicles").path(avatarId).asText().equals(expected)) {
+                    return;
+                }
+            }
+            throw new AssertionError("상대 연결에서 탈것 상태를 받지 못했습니다: " + expected);
+        }
 
         private JsonNode request(String type, Object payload) throws Exception {
             String requestId = UUID.randomUUID().toString();
