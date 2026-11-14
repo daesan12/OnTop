@@ -1,6 +1,7 @@
 import { RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
 import { EntranceBuilding } from '../EntrancePavilion'
 import { ParkGachaKiosk } from '../ParkGachaKiosk'
+import { ParkMoleShop } from '../ParkMoleShop'
 import { RentalPairs } from '../RentalPairs'
 import { EntranceLandscape } from '../EntranceLandscape'
 import { CityBackdrop } from '../CityBackdrop'
@@ -41,6 +42,7 @@ const StableEntranceLandscape = memo(EntranceLandscape)
 const StableParkBoundary = memo(ParkBoundary)
 const StableEntranceBuilding = memo(EntranceBuilding)
 const StableGachaKiosk = memo(ParkGachaKiosk)
+const StableMoleShop = memo(ParkMoleShop)
 const StableRentalPairs = memo(RentalPairs)
 const StableEntranceTrees = memo(PreviewTreeBatches)
 const StableBuildings = lazy(() => import('../Buildings').then(module => ({ default: memo(module.Buildings) })))
@@ -194,6 +196,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
         <StableEntranceBuilding id="fortune" />
         <StableEntranceBuilding id="lottery" />
         <StableGachaKiosk live />
+        <StableMoleShop optimizedReady={entryPresented && stage >= 2} />
         <StableRentalPairs entrance />
         <StableEntranceLandscape quality={quality} showFitnessStations={entryPresented && stage >= 1} />
         <GroundMounted ready={groundMounted} />

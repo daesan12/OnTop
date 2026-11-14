@@ -25,9 +25,7 @@ import {PreservedFitness} from './PreservedFitness'
 import {PreservedPagodaGarden,FitnessFence} from './PreservedDistricts'
 import {PreservedFountain} from './PreservedFountain'
 import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatAngleAt,boatPose,openDockSideEntry,groundObject,widenDockRearPassage,removeDockRearRopes} from './assetSizing'
-import {VerticalMoleAttract} from './VerticalMoleAttract'
-import {drawMoleShopSign} from './approved/mole-shop-20261107-v1/core/frontend/src/world/art/moleShopGeometry'
-import {getMoleShopArt,MOLE_SHOP_FACILITY} from './moleShopArt'
+import {ParkMoleShop} from './ParkMoleShop'
 import {ParkGachaKiosk,interactWithKiosk} from './ParkGachaKiosk'
 import {buildRankingBoard,RankingBoardPanels} from '../src/layout-preview/RankingBoardModel'
 import {RentalPairs,distantRentalBatches} from './RentalPairs'
@@ -119,10 +117,6 @@ function StructureModel({kind,prepareShaders=false}:{kind:keyof typeof structure
  return prepareShaders ? <ShaderPreparedGroup priority={.75}>{model}</ShaderPreparedGroup> : model
 }
 function title(text:string){return(c:CanvasRenderingContext2D,w:number,h:number)=>{c.fillStyle='#eee3c8';c.fillRect(0,0,w,h);c.strokeStyle='#9e7b42';c.lineWidth=8;c.strokeRect(5,5,w-10,h-10);c.fillStyle='#284b3c';c.textAlign='center';c.textBaseline='middle';c.font=`700 ${h*.48}px "Malgun Gothic",sans-serif`;c.fillText(text,w/2,h/2,w*.91)}}
-function Mole(){
- const art=useMemo(getMoleShopArt,[])
- return <><PropModel art={art.body} name="approved-mole-body"/><PropModel art={art.roof} name="approved-mole-roof"/><PropModel art={art.walls} name="approved-mole-walls"/><PropSign draw={drawMoleShopSign} position={[0,4.4,3.7]} width={3.1} height={.55}/><VerticalMoleAttract facility={MOLE_SHOP_FACILITY}/></>
-}
 function Ranking({live}:{live:boolean}){
  const art=useMemo(()=>buildRankingBoard(),[])
  return <group onClick={live?event=>{
@@ -153,12 +147,13 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
   : <RentalPairs entrance={false}/>)}
 
  {entranceFacilities&&<ParkGachaKiosk live={live}/>}
- {['mole','arcade','vr','folk','ranking','shooting'].map(id => {
+ {entranceFacilities&&<ParkMoleShop optimizedReady={distantReady}/>}
+ {['arcade','vr','folk','ranking','shooting'].map(id => {
   const waitForApproach = distantBuildings.has(id)
   if (waitForApproach && !distantReady) return null
   const s = site(id)
   const building = <group key={id} name={'facility-'+id} userData={{siteId:id,legacyFacilityIds:legacyIdsForSite(id)}} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,facilityYaw(s),0]} scale={id==='arcade'?[...ARCADE_SCALE]:1}>
-   {id==='shooting'||id==='folk'?<LocalFactory kind={id}/>:id==='mole'?<Mole/>:id==='arcade'?<Suspense fallback={null}><Arcade/></Suspense>:id==='vr'?<Suspense fallback={null}><VrHall/></Suspense>:<Ranking live={live}/>}
+   {id==='shooting'||id==='folk'?<LocalFactory kind={id}/>:id==='arcade'?<Suspense fallback={null}><Arcade/></Suspense>:id==='vr'?<Suspense fallback={null}><VrHall/></Suspense>:<Ranking live={live}/>}
    {distantReady&&id!=='arcade'&&!originalFacilityGeometry&&hasFacilityGeometry(id)&&<Suspense fallback={null}><FacilityGeometry id={id}/></Suspense>}
   </group>
   return live && waitForApproach ? <FacilityOnApproach key={id} site={s}>{building}</FacilityOnApproach> : building
