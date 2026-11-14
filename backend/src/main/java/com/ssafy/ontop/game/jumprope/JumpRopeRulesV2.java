@@ -96,7 +96,7 @@ public final class JumpRopeRulesV2 {
         double lagMs = 0;
         var picked = new ArrayList<Planned>();
         for (Window window : WINDOWS) {
-            // One draw per window, even when no visit fits.
+            // One draw per window, taken before its candidates are listed, as the FE does.
             long draw = random.next();
             var candidates = new ArrayList<Layout>();
             for (int first = 1; first < MAX_FIRST_ANCHOR; first++) {
@@ -108,9 +108,7 @@ public final class JumpRopeRulesV2 {
                     candidates.add(layout);
                 }
             }
-            if (candidates.isEmpty()) continue;
-            // Math.floor(draw / 2^32 * count) without rounding.
-            Layout chosen = candidates.get((int) ((draw * candidates.size()) >>> 32));
+            Layout chosen = pick(candidates, draw, seed, window, lagMs);
             lagMs = chosen.lagMs();
             picked.addAll(chosen.swings());
         }
@@ -122,6 +120,20 @@ public final class JumpRopeRulesV2 {
             lagUs += swing.stretchUs();
         }
         return List.copyOf(swings);
+    }
+
+    /**
+     * Math.floor(draw / 2^32 * count) without rounding. The fixed v2 constants give every window candidates
+     * (8 in the first window, 15 or 16 in the second for every seed), so an empty list means the constants or
+     * the layout broke. Fail with the seed and window instead of skipping the visit or inventing one.
+     */
+    static <T> T pick(List<T> candidates, long draw, long seed, Window window, double lagMs) {
+        if (candidates.isEmpty()) {
+            throw new IllegalStateException(("Jump rope v2 grandpa window %d-%d ms has no visit candidate "
+                    + "(seed %d, lag %s ms); check the v2 visit constants against the FE preview")
+                    .formatted(window.fromMs(), window.toMs(), seed, lagMs));
+        }
+        return candidates.get((int) ((draw * candidates.size()) >>> 32));
     }
 
     /** Same expressions as the FE layoutEvent and grandpaEventSpan, in the same order. */

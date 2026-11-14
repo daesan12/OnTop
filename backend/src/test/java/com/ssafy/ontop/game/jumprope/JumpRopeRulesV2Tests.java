@@ -104,6 +104,21 @@ class JumpRopeRulesV2Tests {
         }
     }
 
+    @Test void a_window_without_a_visit_candidate_fails_with_its_cause_instead_of_skipping_or_inventing_one() {
+        var window = JumpRopeRulesV2.WINDOWS.get(1);
+        assertThatThrownBy(() -> JumpRopeRulesV2.pick(List.of(), 0xffff_ffffL, 4_294_967_295L, window, 5.344))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("window 40000-60000 ms has no visit candidate")
+                .hasMessageContaining("seed 4294967295")
+                .hasMessageContaining("lag 5.344 ms");
+        // Non-empty lists keep floor(draw / 2^32 * count) exactly, with no rounding at the edges.
+        var three = List.of("first", "second", "third");
+        assertThat(JumpRopeRulesV2.pick(three, 0, SEED, window, 0)).isEqualTo("first");
+        assertThat(JumpRopeRulesV2.pick(three, 1_431_655_765L, SEED, window, 0)).isEqualTo("first");
+        assertThat(JumpRopeRulesV2.pick(three, 1_431_655_766L, SEED, window, 0)).isEqualTo("second");
+        assertThat(JumpRopeRulesV2.pick(three, 0xffff_ffffL, SEED, window, 0)).isEqualTo("third");
+    }
+
     @Test void replays_the_rounds_played_by_the_fe_preview_engine() {
         assertThat(FIXTURES.rounds()).hasSizeGreaterThanOrEqualTo(30);
         for (var expected : FIXTURES.rounds()) {
