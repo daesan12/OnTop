@@ -98,6 +98,18 @@ class ProductionRuntimeSettingsTests {
     }
 
     @Test
+    void 줄넘기_신규_판_규칙_버전은_기본_1이고_환경변수로만_2로_바꾼다() {
+        for (String profiles : new String[] {"dev,db", "prod,db"}) {
+            var runner = new ApplicationContextRunner().withInitializer(new ConfigDataApplicationContextInitializer())
+                    .withPropertyValues("spring.profiles.active=" + profiles);
+            runner.run(context -> assertThat(context.getEnvironment()
+                    .getProperty("ontop.minigames.jump-rope-rules-version")).as(profiles).isEqualTo("1"));
+            runner.withPropertyValues("JUMP_ROPE_RULES_VERSION=2").run(context -> assertThat(context.getEnvironment()
+                    .getProperty("ontop.minigames.jump-rope-rules-version")).as(profiles).isEqualTo("2"));
+        }
+    }
+
+    @Test
     void 개발_붕어빵_v5는_환경변수로만_명시적으로_켠다() {
         var runner = new ApplicationContextRunner().withInitializer(new ConfigDataApplicationContextInitializer())
                 .withPropertyValues("spring.profiles.active=dev,db");
