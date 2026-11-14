@@ -83,12 +83,16 @@ export function createBicycle(options = {}) {
     addMovingWheel(anchors.frontWheel, .35, .115, true, quality, castShadow);
     addMovingWheel(anchors.rearWheel, .35, .115, true, quality, castShadow);
     const crank = anchor(group, 'bicycle-crank', [0,.39,-.12]);
-    const pedals = new Builder(quality);
+    const arms = new Builder(quality);
     for (const side of [-1, 1]) {
-      pedals.beam('metal','#8e8f81',[side*.16,0,0],[side*.21,-side*.12,side*.1],.018);
-      softBox(pedals,'rubber','#45463f',[side*.25,-side*.12,side*.1],[.17,.035,.1],.01);
+      const pedal = anchor(crank, side > 0 ? 'bicycle-pedal-positive' : 'bicycle-pedal-negative',
+        [side*.25,-side*.068,side*.075]);
+      const tread = new Builder(quality);
+      arms.beam('metal','#8e8f81',[side*.16,0,0],[side*.25,-side*.068,side*.075],.018);
+      softBox(tread,'rubber','#45463f',[0,0,0],[.17,.035,.135],.01);
+      pedal.add(tread.finish('pedal-tread', castShadow));
     }
-    crank.add(pedals.finish('pedals', castShadow));
+    crank.add(arms.finish('pedal-arms', castShadow));
   }
   group.userData={assetId:'park/korean-bicycle',version:'1.1.0',quality,visualOnly:true,physics:false};
   return assetHandle(group,anchors);
