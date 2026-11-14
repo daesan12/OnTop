@@ -10,7 +10,7 @@ import { MissShockEffect } from './MissShockEffect'
 import { createGameRopeGeometry, ropeCenter } from './gameRopeGeometry'
 import { samplePigeonLaugh } from './pigeonLaugh'
 import { blendSuccessPose, isSuccessActive, neutralSuccessPose, samplePigeonSuccess, type PigeonSuccessCue, type SuccessPose } from './pigeonSuccess'
-import { ropeRestWeight, type PreviewRound } from './previewRound'
+import { raidGrandpa, ropeRestWeight, type PreviewRound } from './previewRound'
 import { advanceRope, ropeGroundGap } from './jumpRopeJudgement'
 import { ropePeriodMs } from './ropeAcceleration'
 import { PigeonDistraction } from './PigeonDistraction'
@@ -189,11 +189,11 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
   step: (now: number) => void
   sceneTime: (now: number) => number
   getFinalePreview: () => FinalePreview | null
-  /** Story 420 stage 1: mounts the grandpa raid. The ranked game never passes it. */
+  /** Mounts the grandpa raid: the unranked preview, or a ranked rules v2 round. A ranked v1 round never passes it. */
   grandpa?: boolean
 }) {
   const avatarExtras = useRef<AvatarExtras>({ duck: 0, stun: 0, stunAgeMs: 0 })
-  // The grandpa preview stages the rope closer to the camera. The ranked game keeps the original court.
+  // The grandpa stages the rope closer to the camera. A ranked v1 round keeps the original court.
   const forward = grandpa ? settings.courtForward : 0
   const avatarZ = settings.avatarZ + forward
   const leftGrip = useRef<Group>(null)
@@ -249,7 +249,7 @@ export function PreviewScene({ settings, demoRef, successDemoRef, simulationRef,
       simulation.lastAt = now
     }
     const ropeAngle = simulation?.angle ?? motion.angle
-    const raid = grandpa && !round.ranked ? round.grandpa : undefined
+    const raid = grandpa ? raidGrandpa(round) : undefined
     // The pigeons hold their GOOD, PERFECT, combo and MISS reactions while the grandpa visits.
     const quiet = grandpaSuppressesReactions(raid)
     const freeze = raid ? grandpaFreeze(round, now) : 0

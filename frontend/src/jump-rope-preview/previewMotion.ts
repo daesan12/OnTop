@@ -2,6 +2,7 @@ import { advanceRope, judgePass, jumpPrepareMs, sampleFlightHeight } from './jum
 import type { JudgementSettings, JumpTiming, PassJudgement } from './jumpRopeJudgement'
 import { defaultRopeAcceleration, ropeTempo, type RopeAccelerationClock } from './ropeAcceleration'
 import { roundDurationMs } from './jumpRopeRules'
+import type { RankedV2State } from './rankedGrandpa'
 
 const landMs = 45
 const recoveryMs = 65
@@ -10,9 +11,13 @@ export const rankedDurationUs = roundDurationMs * 1000
 const rankedTempo = ropeTempo(1, { profile: defaultRopeAcceleration, playedMs: 0 })
 export const rankedPassageUs = (turn: number) => Math.round(rankedTempo.timeForTurns(turn) * 1000)
 
-export type RankedClock = { startsAt: number; segmentAt: number; segmentUs: number; offsets: number[] }
+export type RankedClock = {
+  startsAt: number; segmentAt: number; segmentUs: number; offsets: number[]
+  /** Story 430: present only on a server round with rulesVersion 2 (grandpa raid, duck and stun). */
+  v2?: RankedV2State
+}
 
-function activeUs(clock: RankedClock, now: number) {
+export function activeUs(clock: RankedClock, now: number) {
   return clock.segmentUs + Math.round((now - clock.segmentAt) * 1000)
 }
 
