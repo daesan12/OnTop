@@ -1,4 +1,3 @@
-import { useStore } from 'zustand'
 import { useGame } from '../../game/store'
 import { useBungeoppang } from '../bungeoppang/store'
 import { useJumpmap } from '../jumpmap/state'
@@ -8,7 +7,6 @@ import { tableGameplayActive } from '../parkMenus/gameplayLock'
 import { usePlusMinus } from '../plusMinus/store'
 import { useRpsRoulette } from '../rpsRoulette/store'
 import { useSkewerActivity } from '../skewer/activity'
-import { parkVrZone } from '../vrZone/parkBridge'
 
 export const bungeoppangGameplayActive = (state: ReturnType<typeof useBungeoppang.getState>) =>
   ['countdown', 'play', 'ending', 'leaving'].includes(state.phase)
@@ -33,6 +31,5 @@ export function useParkGameplayActive() {
   const jumpmap = useJumpmap(state => state.run !== null || state.recovering)
   const jumpRope = useJumpRope(state => state.active)
   const skewer = useSkewerActivity(state => state.solo || state.cooperative)
-  const vrPurchase = useStore(parkVrZone.store, state => state.purchasing)
-  return table || bungeoppang || mole || plusMinus || rps || jumpmap || jumpRope || skewer || vrPurchase
+  return table || bungeoppang || mole || plusMinus || rps || jumpmap || jumpRope || skewer
 }

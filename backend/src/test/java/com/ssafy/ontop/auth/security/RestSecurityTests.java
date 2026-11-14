@@ -570,7 +570,6 @@ class RestSecurityTests {
                 "POST /api/v1/gacha/tickets", "POST /api/v1/gacha/draws", "POST /api/v1/gacha/boxes/open",
                 "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
                 "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
-                "POST /api/v1/minigames/skewer/admissions",
                 "GET /api/v1/minigames/rps-roulette/status", "POST /api/v1/minigames/rps-roulette/rounds",
                 "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/hands",
                 "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/challenge",

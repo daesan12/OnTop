@@ -165,7 +165,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       '--park-ui-scale': hudScale,
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
-      <ParkScene quality={quality} active={vrPhase !== 'game' && !jumpRopeOpen && !stoneFocus} />
+      <ParkScene quality={quality} active={!jumpRopeOpen && !stoneFocus} />
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />

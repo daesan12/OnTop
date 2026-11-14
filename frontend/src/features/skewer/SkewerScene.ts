@@ -87,7 +87,6 @@ export class SkewerScene {
   private signature = ''
   private skewerSignature = ''
   private noticeMessage = ''
-  private entryFee: number | undefined
   private disposed = false
   private calibrate = false
   private session: XRSession | null = null
@@ -477,9 +476,9 @@ export class SkewerScene {
     const signature = [state.phase, transitionText(state), formatTime(state.remainingMs), state.score, card.id, state.message, state.skewer.length, this.noticeMessage].join('|')
     if (signature === this.signature) return
     this.signature = signature
-    paintWorldOrderBoard(this.board.getContext('2d')!, state, this.noticeMessage, this.entryFee)
+    paintWorldOrderBoard(this.board.getContext('2d')!, state, this.noticeMessage)
     this.boardTexture.needsUpdate = true
-    this.paintButton(this.toggleCanvas, { ready: this.entryFee ? '시작 · 10냥' : '영업 시작', countdown: '일시정지', ending: '마무리 중', playing: '일시정지', paused: '계속 만들기', result: nextRoundLabel(state), finished: this.entryFee ? '다시 도전 · 10냥' : '다시 도전' }[state.phase])
+    this.paintButton(this.toggleCanvas, { ready: '영업 시작', countdown: '일시정지', ending: '마무리 중', playing: '일시정지', paused: '계속 만들기', result: nextRoundLabel(state), finished: '다시 도전' }[state.phase])
     this.toggleTexture.needsUpdate = true
     this.paintButton(this.cancelCanvas, state.phase === 'finished' ? '처음 화면으로' : '선택 취소')
     this.cancelTexture.needsUpdate = true
@@ -487,11 +486,6 @@ export class SkewerScene {
 
   setNotice(message: string): void {
     this.noticeMessage = message
-    this.update(this.state)
-  }
-  setEntryFee(fee: number | undefined): void {
-    this.entryFee = fee
-    this.signature = ''
     this.update(this.state)
   }
 
