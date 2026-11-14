@@ -53,8 +53,9 @@ function getDistantCity(){
   for(const p of parts.stone.filter((_,i)=>i!==1))stone.push(place(p))
   for(const p of parts.glass){
    const front=place(p),yaw=front.r![1]
-   // Keep the window bands; their opaque walls hide the other five faces.
-   glass.push({...front,p:[front.p[0]+Math.sin(yaw)*.04,front.p[1],front.p[2]+Math.cos(yaw)*.04],s:[p.s[0],p.s[1],1]})
+   // A distant camera has less depth precision. Separate the window plane
+   // from the opaque facade so neither surface flickers against the other.
+   glass.push({...front,p:[front.p[0]+Math.sin(yaw)*.36,front.p[1],front.p[2]+Math.cos(yaw)*.36],s:[p.s[0],p.s[1],1]})
   }
  }
  return lowCity={stone,glass}

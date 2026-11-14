@@ -1,16 +1,17 @@
+import {electricBicycle,rentalBay} from './rentalAssets.js'
 import {groundSurfaceHeight} from './groundSurface.ts'
 // This bridge consumes independently authored JS assets without editing their sources.
 import {createSubPavilion} from './approved/서브팔각정_1/asset.js'
 import {createPreviewWillow} from './previewWillow.js'
 import {createLowPolyBalloon} from './approved/열기구_로우폴리_1/asset.js'
 import {createLowPolyStation} from './approved/탑승장_로우폴리_1/asset.js'
-import {createBicycleRentalStation,createRentalSignTexture} from './approved/자전거대여소_1/asset.js'
+import {createBicycleRentalStation} from './approved/자전거대여소_1/asset.js'
 import {createScooterRentalStation} from './approved/킥보드대여소_1/asset.js'
 import {createWayfindingSign} from './approved/이동_푯말/asset.js'
 import {createBicycle} from './approved/자전거_1/asset.js'
 import {createScooter} from './approved/킥보드_1/asset.js'
 import {createTraditionalPlayZone,createTraditionalPlaySignTexture,createYutMatTexture} from './approved/전통놀이존_1/asset.js'
-import {Mesh,BoxGeometry,CylinderGeometry,MeshLambertMaterial,Vector3} from 'three'
+import {Mesh,BoxGeometry,CylinderGeometry,MeshLambertMaterial} from 'three'
 import {createShootingRange,createShootingRangeSignTexture} from './approved/사격장_1/asset.js'
 import {createFishingLakeProp} from './approved/대형_호수_낚시터/asset.js'
 import {Builder as LakeBuilder} from './approved/대형_호수_낚시터/src/primitives.js'
@@ -22,7 +23,6 @@ import {groundObject} from './assetSizing.ts'
 import {bridgeApproachGuards,lakeFenceSegments} from './lakePlan.ts'
 import {cloneBakedFacility} from './static/facilities.ts'
 import {DOCK_REAR_RAIL} from './dockRailPlan.ts'
-function electricBicycle(options){const result=createBicycle(options),battery=new Mesh(new BoxGeometry(.13,.32,.15),new MeshLambertMaterial({color:'#343e38'}));battery.position.set(0,.66,-.27);battery.rotation.x=-.24;result.group.add(battery);const hub=new Mesh(new CylinderGeometry(.105,.105,.15,12),new MeshLambertMaterial({color:'#687469'}));hub.rotation.z=Math.PI/2;hub.position.set(0,.35,-.64);result.group.add(hub);const display=new Mesh(new BoxGeometry(.1,.025,.065),new MeshLambertMaterial({color:'#476d5b'}));display.position.set(0,1.15,.45);result.group.add(display);return result}
 function islandBridge(){
  const b=new LakeBuilder('light'),n=Math.ceil((BRIDGE.x1-BRIDGE.x0)/.26)
  for(let i=0;i<n;i++){
@@ -86,16 +86,6 @@ function fishingDeck(){
  }
  const g=b.finish('approved-fishing-deck');g.userData.levels=2;return g
 }
-function rentalBay({kind='bicycle',...options}={}){
- const station=groundObject((kind==='bicycle'?createBicycleRentalStation:createScooterRentalStation)(options).group)
- station.updateMatrixWorld(true)
- for(let i=1;i<=3;i++){
-  const dock=station.getObjectByName(kind+'-wheel-dock-'+i),bay=station.getObjectByName(kind+'-parking-bay-'+i),vehicle=groundObject((kind==='bicycle'?electricBicycle:createScooter)({quality:'light'}).group)
-  const dockPoint=dock.position,bayY=bay.position.y,front=vehicle.getObjectByName(kind==='bicycle'?'bicycle-front-wheel':'scooter-front-wheel')
-  vehicle.updateMatrixWorld(true);const wheel=front.getWorldPosition(new Vector3());vehicle.position.x+=dockPoint.x-wheel.x;vehicle.position.z+=dockPoint.z-wheel.z;vehicle.position.y+=bayY+.006;vehicle.name=kind+'-parked-vehicle-'+i;station.add(vehicle)
- }
- station.userData.parkingContact='native-floor-and-front-wheel-anchors';return station
-}
 export function factory(kind,options={}){
  if(!Object.keys(options).length){
   const baked=cloneBakedFacility(kind)
@@ -150,4 +140,4 @@ export function factory(kind,options={}){
  if(kind==='balloon')group.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.side=2})
  return group
 }
-export function rentalLabel(kind){return createRentalSignTexture(kind)}
+export {rentalLabel} from './rentalAssets.js'

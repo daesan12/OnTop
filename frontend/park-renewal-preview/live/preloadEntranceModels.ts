@@ -3,8 +3,7 @@ import { ParkAssetLoader } from '../../src/world/art/assetLoader'
 import { models } from '../modelUrls'
 
 export function preloadEntranceModels() {
-  useLoader.preload(ParkAssetLoader, models.fortune!)
-  useLoader.preload(ParkAssetLoader, models.main!)
+  for (const kind of ['main', 'fortune']) useLoader.preload(ParkAssetLoader, models[kind]!)
 }
 
 export function preloadGateSurroundings() {

@@ -1,7 +1,9 @@
 import { RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
-import { Buildings, distantRentalBatches } from '../Buildings'
+import { EntranceBuilding } from '../EntrancePavilion'
+import { RentalPairs } from '../RentalPairs'
+import { EntranceLandscape } from '../EntranceLandscape'
 import { CityBackdrop } from '../CityBackdrop'
-import { ScenicDetails, ScenicGround } from '../ScenicDetails'
+import { ScenicGround } from '../ScenicGround'
 import { OriginalPlaza, ParkBoundary } from '../ParkBoundary'
 import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
@@ -16,9 +18,11 @@ import { viewControls } from '../../src/world/cameraPerspective'
 import { welcomeFlight } from '../../src/features/welcomeTour/flight'
 import { createLakeProgress, LakeProgress } from '../lakeStages'
 import { LakeStreaming } from './LakeStreaming'
+import { PreviewTreeBatches } from '../PreviewTreeBatches'
 import { inAnnex } from '../interiorAccess'
 import { interiorVisit, visitScope } from '../interiorEvents'
 import { preloadBungeoppangView } from '../../src/features/bungeoppang/loadBungeoppangView'
+import { preloadGateSurroundings } from './preloadEntranceModels'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
@@ -30,10 +34,14 @@ const bakery = renewalMap?.data.interactions.recreation?.find(anchor => anchor.i
 const finalStage = 8
 const boardsPerStage = 4
 const StableCityBackdrop = memo(CityBackdrop)
-const StableScenicDetails = memo(ScenicDetails)
+const StableScenicDetails = lazy(() => import('../ScenicDetails').then(module => ({ default: memo(module.ScenicDetails) })))
 const StableScenicGround = memo(ScenicGround)
+const StableEntranceLandscape = memo(EntranceLandscape)
 const StableParkBoundary = memo(ParkBoundary)
-const StableBuildings = memo(Buildings)
+const StableEntranceBuilding = memo(EntranceBuilding)
+const StableRentalPairs = memo(RentalPairs)
+const StableEntranceTrees = memo(PreviewTreeBatches)
+const StableBuildings = lazy(() => import('../Buildings').then(module => ({ default: memo(module.Buildings) })))
 const StableTable = memo(function StableTable({ index, boards }: { index: number; boards: boolean }) {
   const anchor = TABLES[index]!
   return <TableFurniture anchor={anchor} nativeFurniture={!!anchor.pavilionId}>
@@ -87,7 +95,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
     if (stage > 0) {
       // Give rendering time to recover before admitting another batch of facilities.
       pending.stableFrames = delta <= 1 / 30 ? pending.stableFrames + 1 : 0
-      if (now - pending.committedAt < 85 || (pending.stableFrames < 2 && now - pending.committedAt < 240)) return
+      if (now - pending.committedAt < 120 || (pending.stableFrames < 3 && now - pending.committedAt < 500)) return
       pending.requestedStage = stage + 1
       startTransition(() => setStage(stage + 1))
       return
@@ -102,11 +110,12 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
     const lookedAround = Math.abs(Math.atan2(Math.sin(viewControls.yaw), Math.cos(viewControls.yaw))) > .08
       || Math.abs(viewControls.pitch - CAMERA.pitch) > .08
       || Math.abs(viewControls.distance - CAMERA.distance) > .5
-    const settled = shownAt !== null && now - Math.max(shownAt, pending.movedAt) >= 900
+    const settled = shownAt !== null && now - Math.max(shownAt, pending.movedAt) >= 2200
     const needsDistantView = !!pose && !!spawn && Math.hypot(pose.x - spawn[0], pose.z - spawn[2]) >= 26
-    if (needsDistantView || welcomeFlight.active || lookedAround || settled) {
+    if (shownAt !== null && (needsDistantView || welcomeFlight.active || lookedAround || settled)) {
       pending.requestedStage = 1
       performance.mark('park-distant-facilities-start')
+      preloadGateSurroundings()
       startTransition(() => setStage(1))
     }
   }, .6)
@@ -158,11 +167,11 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
     if (annex.current) annex.current.visible = roomVisible
     const daylight = scene.getObjectByName('renewal-exterior-lighting')
     if (daylight) daylight.visible = !visible && !roomVisible
-    if (firstFrameAt.current !== null && !queuedAmbientShaders.current) {
+    if (stage >= 1 && !queuedAmbientShaders.current) {
       queuedAmbientShaders.current = true
       // Let the driver link the ambient animations before their first draw.
       if (gl.extensions.has('KHR_parallel_shader_compile')) {
-        for (const name of ['park-pigeons', 'mole-demo-impact-ring', 'reference-fountain', 'preserved-complete-fitness-district']) {
+        for (const name of ['mole-demo-impact-ring']) {
           const object = surface.current?.getObjectByName(name)
           if (object) gl.compile(object, camera, scene)
         }
@@ -175,13 +184,20 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       <LakeStreaming progress={lakeProgress} />
       <StableCityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
       <StableScenicGround />
-      <GroundMounted ready={groundMounted} />
-      <Suspense fallback={null}><StableParkBoundary /></Suspense>
-      {entryPresented && <Suspense fallback={null}><OriginalPlaza /></Suspense>}
-      {entryPresented && <Suspense fallback={null}><StableScenicDetails includeGround={false} nightQuality={quality} distantReady={stage >= 2} live /></Suspense>}
-      {entryPresented && <Suspense fallback={null}><StableBuildings live distantReady={distantReady} upperFacilitiesReady={stage >= 4}
-        loadedRentalBatches={Math.min(stage, distantRentalBatches)} /></Suspense>}
-      {entryPresented && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>
+      <Suspense fallback={null}>
+        <StableParkBoundary />
+        <OriginalPlaza />
+        <StableEntranceTrees />
+        <StableEntranceBuilding id="pavilion" />
+        <StableEntranceBuilding id="fortune" />
+        <StableRentalPairs entrance />
+        <StableEntranceLandscape quality={quality} showFitnessStations={entryPresented && stage >= 1} />
+        <GroundMounted ready={groundMounted} />
+      </Suspense>
+      {entryPresented && stage >= 1 && <Suspense fallback={null}><StableScenicDetails includeGround={false} includeTrees={false} includeLandscape={false} distantReady={stage >= 2} live /></Suspense>}
+      {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
+        loadedRentalBatches={stage} /></Suspense>}
+      {entryPresented && stage >= 3 && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>
         <StableTable index={index} boards={stage === finalStage || index < Math.max(0, stage - 3) * boardsPerStage} />
       </Suspense>)}
       {stage === finalStage && <Suspense fallback={null}><ParkDetailGeometry jumpCourse={false} deferDistant /></Suspense>}

@@ -44,11 +44,11 @@ function gradeBakedGround(ground:NonNullable<typeof staticPark>['ground']){
  for(const geometry of [ground.grass,ground.paving]){
   const position=geometry.getAttribute('position')
   if(!updated.has(position.array)){
-   for(let i=0;i<position.count;i++){
-    const height=position.getY(i)-FLOOR_Y_OFFSET
-    const x=position.getX(i),z=position.getZ(i)
-    const grade=northwestPavilionApronHeight(x,z,lakeWalkHeight(x,z,height))
-    position.setY(i,gradeTowerEntrance(x,z,grade+FLOOR_Y_OFFSET))
+   const coordinates=position.array
+   for(let i=0;i<coordinates.length;i+=3){
+    const x=coordinates[i]!, y=coordinates[i+1]!, z=coordinates[i+2]!
+    const grade=northwestPavilionApronHeight(x,z,lakeWalkHeight(x,z,y-FLOOR_Y_OFFSET))
+    coordinates[i+1]=gradeTowerEntrance(x,z,grade+FLOOR_Y_OFFSET)
    }
    updated.add(position.array)
   }

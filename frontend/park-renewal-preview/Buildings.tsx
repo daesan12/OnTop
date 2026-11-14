@@ -9,6 +9,7 @@ import {StonePagoda} from '../src/world/art/StonePagoda'
 import {TraditionalMailbox} from '../src/world/art/TraditionalMailbox'
 import {legacyIdsForSite,pavilionIdForSite,stoneTableIdAt} from './mapping/identities'
 import {facilityYaw} from './facilityPlacement'
+import {createGroundedEntranceModel} from './EntrancePavilion'
 import {DevPlazaTable} from './DevPlazaTable'
 import {OBSERVATION_TOWER,TELESCOPE} from '../src/config'
 import {NOTES_BOX} from '../src/config/notes'
@@ -16,19 +17,20 @@ import {TOWER_TOP,telescopeYaw} from './towerFurniturePlan'
 import {TelescopeModel} from '../src/world/art/TelescopeModel'
 import {TraditionalNotesBoard} from '../src/world/art/TraditionalNotesBoard'
 import {ReferenceBench} from '../src/world/art/ReferenceBenchFrames'
-import {factory,rentalLabel} from './assetFactories'
-import {SITES,site,heightAt,LAKE,TABLES,JUMP_TABLES,MAILBOX_SCALE,REST_PAVILIONS,BOAT_ROUTE,DOCK_SCALE,STATION_BENCH,STATION_SCALE,BALLOON_SCALE,RENTAL_PAIR_SPACING,rentalYaw,FISHING_DECK,FISHING_SHOP,FISHING_NOTICE,FISHING_BENCHES,FISHING_ROD_RACKS,facilityGroundY} from './plan'
+import {factory} from './assetFactories'
+import {SITES,site,heightAt,LAKE,TABLES,JUMP_TABLES,MAILBOX_SCALE,REST_PAVILIONS,BOAT_ROUTE,DOCK_SCALE,STATION_BENCH,STATION_SCALE,BALLOON_SCALE,FISHING_DECK,FISHING_SHOP,FISHING_NOTICE,FISHING_BENCHES,FISHING_ROD_RACKS,facilityGroundY} from './plan'
 import {willowPositions} from './landscape'
 import {reverseSteleArrow} from './steleRefinement'
 import {PreservedFitness} from './PreservedFitness'
-import {PreservedFountain,PreservedPagodaGarden,FitnessFence} from './PreservedDistricts'
+import {PreservedPagodaGarden,FitnessFence} from './PreservedDistricts'
+import {PreservedFountain} from './PreservedFountain'
 import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatAngleAt,boatPose,openDockSideEntry,groundObject,widenDockRearPassage,removeDockRearRopes} from './assetSizing'
 import {VerticalMoleAttract} from './VerticalMoleAttract'
 import {drawMoleShopSign} from './approved/mole-shop-20261107-v1/core/frontend/src/world/art/moleShopGeometry'
 import {getMoleShopArt,MOLE_SHOP_FACILITY} from './moleShopArt'
 import {GachaMachine} from './original/features/gacha/parkAsset/GachaMachine.tsx'
 import {buildRankingBoard,RankingBoardPanels} from '../src/layout-preview/RankingBoardModel'
-import {createSharedBuildingModels} from './sharedBuildingModels'
+import {RentalPairs,distantRentalBatches} from './RentalPairs'
 import { REST_FURNITURE_VERTICAL_SCALE } from './pavilionBenchLayout'
 import {PavilionIntermediateTreads} from './PavilionIntermediateTreads'
 import {FacilityGeometry,hasFacilityGeometry} from './FacilityGeometry'
@@ -47,17 +49,12 @@ const Arcade = lazy(() => import('./ArcadeBuilding'))
 const VrHall = lazy(() => import('./approved/vr-skewer-hall-20261107-v1/core/frontend/src/features/skewer/parkAsset/VrSkewerHall')
   .then(module => ({ default: module.VrSkewerHall })))
 const distantBuildings = new Set(['arcade', 'folk', 'vr', 'shooting'])
-const entranceRentalIds = new Set(['mobility-entry', 'mobility-rest', 'mobility-fitness'])
 const willowBatchSize = Math.ceil(willowPositions.length / (LakeStage.Fish - LakeStage.Willows))
 
-const rentalTextures={bike:rentalLabel('bicycle'),scooter:rentalLabel('scooter')}
-let sharedBuildingModels: ReturnType<typeof createSharedBuildingModels> | undefined
-function getSharedBuildingModels() {
- return sharedBuildingModels ??= createSharedBuildingModels(rentalTextures)
-}
 function Model({kind,fit=false,prepareShaders=false}:{kind:string;fit?:boolean;prepareShaders?:boolean}){
  const gltf=useLoader(ParkAssetLoader,models[kind]!)
  const object=useMemo(()=>{
+  if(kind==='main')return createGroundedEntranceModel(gltf.scene)
   const g=gltf.scene.clone(true)
   g.traverse(o=>{if(o instanceof Mesh){o.castShadow=true;o.receiveShadow=true}})
   if(kind==='stele')reverseSteleArrow(g)
@@ -95,10 +92,6 @@ function localModel(kind: string, options: Record<string, unknown>) {
 }
 function LocalFactory({kind,options={}}:{kind:string;options?:Record<string,unknown>}){
  const object=useMemo(()=>localModel(kind,options),[kind,options.kind,options.seed,options.height,options.spread,options.label,options.direction,options.signTexture])
- return <primitive object={object} dispose={null}/>
-}
-function SharedModel({source}:{source:Group}){
- const object=useMemo(()=>source.clone(true),[source])
  return <primitive object={object} dispose={null}/>
 }
 function StructureModel({kind,prepareShaders=false}:{kind:keyof typeof structureModels;prepareShaders?:boolean}){
@@ -156,18 +149,12 @@ function RenewalTower({distanceLod}:{distanceLod:boolean}) {
  const distant = useMemo(() => distanceLod ? bakedEntryMesh('tower-frame-distant') ?? createTowerFrame(scale, 'distant') : undefined, [distanceLod,scale])
  return <group scale={[1,scale,1]}><group position={[-OBSERVATION_TOWER.x,0,-OBSERVATION_TOWER.z]}><ObservationTower verticalScale={scale} frameGeometry={frame} distantFrame={distant} frameCenter={distanceLod?site('tower'):undefined}/></group></group>
 }
-function RentalPairs({ shared, entrance, batch }: { shared: ReturnType<typeof getSharedBuildingModels>; entrance: boolean; batch?: number }) {
- return <>{SITES.filter(s=>s.asset==='pair'&&entranceRentalIds.has(s.id)===entrance)
-  .filter((_, index)=>batch === undefined || Math.floor(index / 3) === batch)
-  .map(s=><group key={s.id} name={'paired-rental-'+s.id} position={[s.x,facilityGroundY(s)+.1,s.z]} rotation={[0,rentalYaw(s),0]}>{[-1,1].map((side,i)=><group key={side} position={[side*RENTAL_PAIR_SPACING/2,0,0]}><SharedModel source={shared[i===0?'bike':'scooter']}/></group>)}</group>)}</>
-}
-export const distantRentalBatches = Math.ceil(SITES.filter(s=>s.asset==='pair'&&!entranceRentalIds.has(s.id)).length / 3)
-export function Buildings({live=false,distantReady=true,upperFacilitiesReady=distantReady,loadedRentalBatches=distantRentalBatches}:{live?:boolean;distantReady?:boolean;upperFacilitiesReady?:boolean;loadedRentalBatches?:number}){const shared=getSharedBuildingModels();const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
- {SITES.filter(s=>s.asset&&models[s.asset]&&(distantReady||s.asset!=='stele')).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);const model=<group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit} prepareShaders={live&&s.asset==='stele'}/></Suspense></group>;return isDock?<LakePart key={s.id} at={LakeStage.Dock}>{model}</LakePart>:model})}
- <RentalPairs shared={shared} entrance/>
+export function Buildings({live=false,distantReady=true,upperFacilitiesReady=distantReady,loadedRentalBatches=distantRentalBatches,entrancePavilion=true,entranceDistricts=true,entranceFacilities=true}:{live?:boolean;distantReady?:boolean;upperFacilitiesReady?:boolean;loadedRentalBatches?:number;entrancePavilion?:boolean;entranceDistricts?:boolean;entranceFacilities?:boolean}){const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
+ {SITES.filter(s=>s.asset&&models[s.asset]&&(distantReady||s.asset!=='stele')&&(entrancePavilion||s.id!=='pavilion')&&(entranceFacilities||s.id!=='fortune')).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);const model=<group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit} prepareShaders={live&&s.asset==='stele'}/></Suspense></group>;return isDock?<LakePart key={s.id} at={LakeStage.Dock}>{model}</LakePart>:model})}
+ {entranceFacilities&&<RentalPairs entrance/>}
  {distantReady&&(live
-  ? Array.from({length:Math.min(loadedRentalBatches,distantRentalBatches)},(_, batch)=><ShaderPreparedGroup key={batch}><RentalPairs shared={shared} entrance={false} batch={batch}/></ShaderPreparedGroup>)
-  : <RentalPairs shared={shared} entrance={false}/>)}
+  ? Array.from({length:Math.min(loadedRentalBatches,distantRentalBatches)},(_, batch)=><ShaderPreparedGroup key={batch}><RentalPairs entrance={false} batch={batch}/></ShaderPreparedGroup>)
+  : <RentalPairs entrance={false}/>)}
 
  {['mole','arcade','vr','folk','gacha','ranking','shooting'].map(id => {
   const waitForApproach = distantBuildings.has(id)
@@ -181,7 +168,7 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
  })}
  <TraditionalMailbox position={[mailbox.x,heightAt(mailbox.x,mailbox.z)+.1,mailbox.z]} scale={MAILBOX_SCALE} yaw={mailbox.yaw}/>
  {!live&&[...TABLES,...JUMP_TABLES].map(([x,z],i)=><group key={i} position={[x,heightAt(x,z)+.12,z]}><DevPlazaTable anchorId={stoneTableIdAt(x,z)}/></group>)}
- <PreservedPagodaGarden/><PreservedFountain/>
+ <PreservedPagodaGarden/>{entranceDistricts&&<PreservedFountain/>}
  <group name="jump-course-entrance-pagoda" position={[jump.x,heightAt(jump.x,jump.z),jump.z]}><StonePagoda anchor={{id:'detail-jump-base',x:0,z:0,scale:.8}} decorations={false}/></group>
  <group name="forty-metre-tower" position={[tower.x,heightAt(tower.x,tower.z),tower.z]} rotation={[0,Math.PI,0]}>
   <RenewalTower distanceLod={live&&RENEWAL_DISTANCE_LOD}/>
@@ -189,7 +176,7 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
    ? <FacilityOnApproach site={tower}><Suspense fallback={null}><FacilityGeometry id="tower"/></Suspense></FacilityOnApproach>
    : <Suspense fallback={null}><FacilityGeometry id="tower"/></Suspense>)}
  </group>
- {upperFacilitiesReady&&(live?<ShaderPreparedGroup><TowerFurniture/></ShaderPreparedGroup>:<TowerFurniture/>)}<PreservedFitness/><FitnessFence/>
+ {upperFacilitiesReady&&(live?<ShaderPreparedGroup><TowerFurniture/></ShaderPreparedGroup>:<TowerFurniture/>)}{entranceDistricts&&<PreservedFitness/>}<FitnessFence/>
  {upperFacilitiesReady&&<group name="enlarged-balloon-boarding-platform" userData={{keepOpaque:true}} position={[balloon.x,heightAt(balloon.x,balloon.z),balloon.z]}>
   <group name="balloon-station-model">
    <group scale={STATION_SCALE}>{live
