@@ -1,7 +1,8 @@
-import {BufferGeometry,Float32BufferAttribute} from 'three'
+import {BufferGeometry,Float32BufferAttribute,MeshLambertMaterial} from 'three'
 import {terrain,paving,forestTrailMeshes,perimeterPoints} from './landscape'
 import {BRIDGE,heightAt,LAKE,site,STATION_STEPS} from './plan'
-import {PreviewPathMaterial} from './PreviewPathMaterial'
+import {createPreviewPathMaterial} from './PreviewPathMaterial'
+import {terrainTiles} from './terrainTiles'
 
 function terrainUnderStructure(x0:number,x1At:(z:number)=>number,z0:number,z1:number){
  const positions:number[]=[],colors:number[]=[],indices:number[]=[]
@@ -32,13 +33,15 @@ const supportGround=[
   balloon.z+STATION_STEPS.z0-.1,balloon.z+STATION_STEPS.z1+.08),
 ]
 const boundaryGeometry=(()=>{const points=perimeterPoints(),p:number[]=[],indices:number[]=[];points.forEach(v=>p.push(v.x,v.y,v.z,v.x,-4,v.z));for(let i=0;i<points.length-1;i++){const k=i*2;indices.push(k,k+2,k+1,k+1,k+2,k+3)}const g=new BufferGeometry();g.setAttribute('position',new Float32BufferAttribute(p,3));g.setIndex(indices);g.computeVertexNormals();return g})()
+const grassTiles=terrainTiles(terrain),pavingTiles=terrainTiles(paving)
+const grassMaterial=new MeshLambertMaterial({vertexColors:true}),pavingMaterial=createPreviewPathMaterial()
 export function ScenicGround(){
  return <>
   <mesh geometry={boundaryGeometry} receiveShadow><meshLambertMaterial color="#9caa83" side={2}/></mesh>
   <mesh position={[0,-4.1,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2000,2000]}/><meshLambertMaterial color="#e8e8da"/></mesh>
-  <mesh geometry={terrain} receiveShadow><meshLambertMaterial vertexColors/></mesh>
+  {grassTiles.map(geometry=><mesh key={geometry.id} geometry={geometry} material={grassMaterial} receiveShadow dispose={null}/>)}
   {supportGround.map((geometry,index)=><mesh key={index} geometry={geometry} receiveShadow><meshLambertMaterial vertexColors/></mesh>)}
-  <mesh geometry={paving} receiveShadow><PreviewPathMaterial/></mesh>
+  {pavingTiles.map(geometry=><mesh key={geometry.id} geometry={geometry} material={pavingMaterial} receiveShadow dispose={null}/>)}
   {forestTrailMeshes.map(t=><mesh key={t.id} name={t.id} geometry={t.geometry}><meshLambertMaterial color="#acaa84"/></mesh>)}
  </>
 }

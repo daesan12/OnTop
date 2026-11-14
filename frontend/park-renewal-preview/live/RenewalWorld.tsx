@@ -11,7 +11,7 @@ import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
 import { lazy, memo, startTransition, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
-import type { Group, Object3D } from 'three'
+import { Object3D, type Group } from 'three'
 import { authoritativePose, avatars, sampleAvatar, useSession } from '../../src/network/worldClient'
 import { secretCorridorContains } from '../horrorPlan'
 import { CAMERA, type QualityPreset } from '../../src/config'
@@ -25,6 +25,7 @@ import { inAnnex } from '../interiorAccess'
 import { interiorVisit, visitScope } from '../interiorEvents'
 import { preloadBungeoppangView } from '../../src/features/bungeoppang/loadBungeoppangView'
 import { preloadGateSurroundings } from './preloadEntranceModels'
+import { collectJumpViewDrawables } from '../../src/features/jumpmap/preparation'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
@@ -32,6 +33,7 @@ const TableBoards = lazy(() => import('../../src/features/tables/TableBoards'))
 const ParkDetailGeometry = lazy(() => import('../ParkDetailGeometry').then(module => ({ default: module.ParkDetailGeometry })))
 
 const spawn = renewalMap?.data.physics.spawn.position
+const jumpEntrance = renewalMap?.data.jumpCourse?.start
 const bakery = renewalMap?.data.interactions.recreation?.find(anchor => anchor.id === 'fish-bread')
 const finalStage = 8
 const boardsPerStage = 4
@@ -68,6 +70,9 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   const loadInterior = useRef(false)
   const displayedPose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })
   const queuedAmbientShaders = useRef(false)
+  const jumpViewDrawables = useRef<Object3D[] | undefined>(undefined)
+  const jumpViewIndex = useRef(0)
+  const jumpViewSelection = useRef<Object3D | undefined>(undefined)
   const queuedBakery = useRef(false)
   const nightPool = useRef<{ group: Object3D; lights: Object3D[]; quality: QualityPreset } | undefined>(undefined)
   const [loaded, setLoaded] = useState(false)
@@ -130,6 +135,27 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
     queuedBakery.current = true
     preloadBungeoppangView()
   })
+  useFrame(({ camera, scene, gl }) => {
+    const root = surface.current
+    if (!jumpEntrance || stage < finalStage || !root?.visible || !gl.extensions.has('KHR_parallel_shader_compile')) return
+    const pose = avatars.get(useSession.getState().sessionId)?.current
+    if (!pose || pose.y > jumpEntrance.y + 4 || Math.hypot(pose.x - jumpEntrance.x, pose.z - jumpEntrance.z) > 32) return
+    const objects = jumpViewDrawables.current ??= collectJumpViewDrawables(root, camera)
+    const index = jumpViewIndex.current
+    if (index >= objects.length) return
+    const selection = jumpViewSelection.current ??= new Object3D()
+    const deadline = performance.now() + 2
+    let end = index
+    // Submit only a small amount of work each frame on the approach.
+    do {
+      const object = objects[end++]!
+      if (!object.parent) continue
+      selection.traverse = visit => visit(object)
+      gl.compile(selection, camera, scene)
+    } while (end < objects.length && performance.now() < deadline)
+    jumpViewIndex.current = end
+    if (end === objects.length) performance.mark('park-jump-view-shaders-submitted')
+  }, .8)
   useFrame(({ camera, scene, gl }) => {
     const session = useSession.getState()
     const own = avatars.get(session.sessionId)
