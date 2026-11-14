@@ -58,6 +58,8 @@ public class JumpmapService implements AutoCloseable {
     /** 마지막으로 확인한 오늘 수입. 지급 대기·저장 실패 이벤트에 쓴다(FE 계약상 정수가 필요하다). */
     private final Map<String, Earned> earned = new HashMap<>();
     private record Earned(int value, LocalDate date) {}
+    /** 저장 스레드에서만 쓴다. */
+    private final JumpmapMacroWatch macroWatch = new JumpmapMacroWatch();
 
     public JumpmapService(JumpmapActivation activation, JumpmapStore store, Clock clock) {
         this.activation = activation;
@@ -77,6 +79,11 @@ public class JumpmapService implements AutoCloseable {
     }
 
     public boolean active() { return store != null; }
+
+    /** 운영자 조회 전용. 비활성이면 빈 목록이다. */
+    public List<JumpmapStore.MacroSuspect> macroSuspects(int limit) {
+        return store == null ? List.of() : store.macroSuspects(limit);
+    }
 
     public JumpmapStore.Ranking ranking(long userId) {
         return store == null ? new JumpmapStore.Ranking(List.of(), null) : store.ranking(userId);
@@ -126,6 +133,10 @@ public class JumpmapService implements AutoCloseable {
             }
             return;
         }
+        if (signal instanceof JumpmapTracker.Traced traced) {
+            watch(traced, userId);
+            return;
+        }
         if (!(signal instanceof JumpmapTracker.Progress progress)) return;
         switch (progress.outcome()) {
             case JumpRun.GatePassed gate -> passGate(progress, userId, gate);
@@ -139,6 +150,21 @@ public class JumpmapService implements AutoCloseable {
             case JumpRun.Ended ended -> end(progress, ended);
             case JumpRun.GateRejected rejected ->
                     log.info("점프맵 문 불인정 run={} gate={} reason={}", progress.runId(), rejected.gate(), rejected.reason());
+        }
+    }
+
+    /** 운영자 전용 기록. 실패해도 판 저장·지급·이용자 이벤트에는 영향을 주지 않으며 다시 시도하지 않는다. */
+    private void watch(JumpmapTracker.Traced traced, long userId) {
+        try {
+            Instant at = clock.instant();
+            for (var detection : macroWatch.evaluate(traced.userId(), traced.trace(), at.toEpochMilli())) {
+                store.recordDetection(new JumpmapStore.MacroDetection(traced.runId(), userId, detection.rule(),
+                        detection.matchedRuns(), detection.evidence(), at));
+                log.info("점프맵 반복 패턴 기록 run={} user={} rule={} matched={}", traced.runId(), userId,
+                        detection.rule(), detection.matchedRuns());
+            }
+        } catch (RuntimeException exception) {
+            log.warn("점프맵 반복 패턴 기록 실패 run={} reason={}", traced.runId(), exception.getMessage());
         }
     }
 

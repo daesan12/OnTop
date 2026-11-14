@@ -4,6 +4,8 @@ import com.ssafy.ontop.ranking.dto.ParkRankingResponse;
 import com.ssafy.ontop.ranking.exception.RankingException;
 import com.ssafy.ontop.ranking.repository.ParkBalanceRankingRepository;
 import com.ssafy.ontop.ranking.repository.ParkBalanceRankingRepository.BalanceStanding;
+import com.ssafy.ontop.ranking.repository.ParkJumpRopeRankingRepository;
+import com.ssafy.ontop.ranking.repository.ParkJumpRopeRankingRepository.JumpRopeRankingStanding;
 import com.ssafy.ontop.ranking.repository.ParkMoleRankingRepository;
 import com.ssafy.ontop.ranking.repository.ParkMoleRankingRepository.MoleRankingStanding;
 import com.ssafy.ontop.ranking.repository.ParkSpeedMoleRankingRepository;
@@ -34,17 +36,20 @@ class ParkRankingSnapshotServiceTests {
     private final ParkBalanceRankingRepository balances = mock(ParkBalanceRankingRepository.class);
     private final ParkMoleRankingRepository mole = mock(ParkMoleRankingRepository.class);
     private final ParkSpeedMoleRankingRepository speedMole = mock(ParkSpeedMoleRankingRepository.class);
+    private final ParkJumpRopeRankingRepository jumpRope = mock(ParkJumpRopeRankingRepository.class);
     private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
     private final Clock clock = Clock.fixed(UPDATED_AT, ZoneOffset.UTC);
 
     @Test
-    void 최초_집계_전에는_503이고_성공_후에는_세_랭킹을_같은_시각에_공개한다() {
+    void 최초_집계_전에는_503이고_성공_후에는_네_랭킹을_같은_시각에_공개한다() {
         ParkRankingSnapshotService service = service(STARTED_AT.toString());
         when(balances.findTopTen()).thenReturn(List.of(new BalanceStanding(1, 11, "보유자", 50)));
         when(mole.findTopTen(STARTED_AT)).thenReturn(List.of(
                 new MoleRankingStanding(1, 12, "두더지왕", 9_000, 12, UPDATED_AT)));
         when(speedMole.findTopTen(STARTED_AT)).thenReturn(List.of(
                 new SpeedMoleRankingStanding(1, 13, "스피드왕", 85, 2, UPDATED_AT)));
+        when(jumpRope.findTopTen(STARTED_AT)).thenReturn(List.of(
+                new JumpRopeRankingStanding(1, 14, "줄넘기왕", 1_250, 1, UPDATED_AT)));
 
         assertThatThrownBy(service::current).isInstanceOfSatisfying(RankingException.class,
                 error -> assertThat(error.error().code()).isEqualTo("RANKING_UNAVAILABLE"));
@@ -65,10 +70,19 @@ class ParkRankingSnapshotServiceTests {
             assertThat(item.score()).isEqualTo(85);
             assertThat(item.misses()).isEqualTo(2);
         });
+        assertThat(first.jumpRope()).singleElement().satisfies(item -> {
+            assertThat(item.rank()).isEqualTo(1);
+            assertThat(item.userId()).isEqualTo("14");
+            assertThat(item.score()).isEqualTo(1_250);
+            assertThat(item.misses()).isEqualTo(1);
+            assertThat(item.completedAt()).isEqualTo(UPDATED_AT);
+            assertThat(item.gameMaster()).isFalse();
+        });
         assertThat(meters.counter("ontop.ranking.park.refresh", "result", "success").count()).isEqualTo(1);
         verify(balances, times(1)).findTopTen();
         verify(mole, times(1)).findTopTen(STARTED_AT);
         verify(speedMole, times(1)).findTopTen(STARTED_AT);
+        verify(jumpRope, times(1)).findTopTen(STARTED_AT);
     }
 
     @Test
@@ -82,22 +96,28 @@ class ParkRankingSnapshotServiceTests {
 
         assertThat(service.current().mole()).isEmpty();
         assertThat(service.current().speedMole()).isEmpty();
+        assertThat(service.current().jumpRope()).isEmpty();
         assertThat(meters.counter("ontop.ranking.park.refresh", "result", "success").count()).isEqualTo(1);
     }
 
     @Test
     void 관리자_회원은_공개_랭킹에_GM으로_표시한다() {
         ParkRankingSnapshotService service = new ParkRankingSnapshotService(
-                balances, mole, speedMole, meters, STARTED_AT.toString(), clock, id -> id == 11);
+                balances, mole, speedMole, jumpRope, meters, STARTED_AT.toString(), clock, id -> id == 11);
         when(balances.findTopTen()).thenReturn(List.of(
                 new BalanceStanding(1, 11, "관리자", 100),
                 new BalanceStanding(2, 12, "일반회원", 90)));
         when(mole.findTopTen(STARTED_AT)).thenReturn(List.of());
         when(speedMole.findTopTen(STARTED_AT)).thenReturn(List.of());
+        when(jumpRope.findTopTen(STARTED_AT)).thenReturn(List.of(
+                new JumpRopeRankingStanding(1, 11, "관리자", 900, 0, UPDATED_AT),
+                new JumpRopeRankingStanding(2, 12, "일반회원", 800, 0, UPDATED_AT)));
 
         service.refresh();
 
         assertThat(service.current().balance()).extracting(ParkRankingResponse.BalanceItem::gameMaster)
+                .containsExactly(true, false);
+        assertThat(service.current().jumpRope()).extracting(ParkRankingResponse.JumpRopeItem::gameMaster)
                 .containsExactly(true, false);
     }
 
@@ -144,7 +164,7 @@ class ParkRankingSnapshotServiceTests {
         service.refresh();
 
         assertThatThrownBy(service::current).isInstanceOf(RankingException.class);
-        verifyNoInteractions(balances, mole, speedMole);
+        verifyNoInteractions(balances, mole, speedMole, jumpRope);
     }
 
     @Test
@@ -184,6 +204,6 @@ class ParkRankingSnapshotServiceTests {
     }
 
     private ParkRankingSnapshotService service(String startedAt) {
-        return new ParkRankingSnapshotService(balances, mole, speedMole, meters, startedAt, clock);
+        return new ParkRankingSnapshotService(balances, mole, speedMole, jumpRope, meters, startedAt, clock);
     }
 }

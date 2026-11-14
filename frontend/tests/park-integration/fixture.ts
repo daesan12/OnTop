@@ -63,6 +63,10 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
           {rank:1,userId:'105',nickname:'스피드 고수',score:132,misses:3,completedAt:'2026-11-02T05:31:30Z'},
           {rank:1,userId:'107',nickname:'공동 고수',score:132,misses:3,completedAt:'2026-11-02T05:31:45Z'},
         ],
+        jumpRope:[
+          {rank:1,userId:'108',nickname:'줄넘기 고수',score:1250,misses:1,completedAt:'2026-11-02T05:31:50Z'},
+          {rank:2,userId:'109',nickname:'줄넘기 도전자',score:980,misses:2,completedAt:'2026-11-02T05:31:55Z'},
+        ],
         updatedAt:'2026-11-02T05:32:00Z',
       }});return
     }
