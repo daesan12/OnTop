@@ -35,6 +35,7 @@ public final class PreparedParkMap {
     private final Reach feedback;
     private final Reach vrEntrance;
     private final List<Reach> stoneRumbleEntrances;
+    private final List<Pose> stoneRumbleExits;
 
     private PreparedParkMap(GeneratedParkMapLoader.ValidatedMap map, Set<String> channels) throws IOException {
         JsonNode data = map.document().path("data");
@@ -73,6 +74,16 @@ public final class PreparedParkMap {
             }
         }
         stoneRumbleEntrances = List.copyOf(entrances);
+        var exits = new ArrayList<Pose>();
+        if (stoneRumble != null && stoneRumble.has("exitPoints")) {
+            var points = stoneRumble.path("exitPoints");
+            require(points.isArray() && points.size() == 8, "돌탑 생존전 복귀 위치 8곳이 필요합니다.");
+            for (JsonNode point : points) {
+                exits.add(position(point, 0));
+            }
+            require(Set.copyOf(exits).size() == exits.size(), "돌탑 생존전 복귀 위치가 중복됩니다.");
+        }
+        stoneRumbleExits = List.copyOf(exits);
         anchorNumbers.sort(Integer::compareTo);
         for (String channel : channels.stream().sorted().toList()) {
             for (int number : anchorNumbers) {
@@ -126,6 +137,7 @@ public final class PreparedParkMap {
     public boolean canEnterStoneRumble(double x, double y, double z) {
         return stoneRumbleEntrances.stream().anyMatch(entrance -> entrance.contains(x, y, z));
     }
+    public List<Pose> stoneRumbleExits() { return stoneRumbleExits; }
     public java.util.Optional<Reach> vrEntrance() { return java.util.Optional.ofNullable(vrEntrance); }
 
     /** 명시적으로 선택한 별도 장면을 생성하며 ParkScene.load()의 기본 장면을 교체하지 않는다. */

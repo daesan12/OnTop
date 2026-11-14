@@ -855,6 +855,28 @@ public class WorldChannelRegistry implements ChannelPresence {
         rooms.get(membership.get(userId)).held.remove(userId);
     }
 
+    /** Use the authored standing area when several players leave the same table. */
+    public synchronized void placeTableExit(String userId, int seatNumber, List<WorldFacilityService.Pose> exits) {
+        Room room = rooms.get(membership.get(userId));
+        if (room == null || room.physics == null || exits.isEmpty()) {
+            return;
+        }
+        for (int offset = 0; offset < exits.size(); offset++) {
+            var pose = exits.get(Math.floorMod(seatNumber - 1 + offset, exits.size()));
+            boolean occupied = room.positions.entrySet().stream().anyMatch(entry -> {
+                var other = entry.getValue().position();
+                return !entry.getKey().equals(userId) && Math.abs(other.y() - pose.y()) < 1.6
+                        && Math.hypot(other.x() - pose.x(), other.z() - pose.z()) < 1;
+            });
+            if (!occupied && room.physics.canStand(pose.x(), pose.y(), pose.z())) {
+                releaseFacility(userId, pose);
+                var snapshot = room.physics.snapshot(userId);
+                room.motions.put(userId, snapshot.motion());
+                return;
+            }
+        }
+    }
+
     /** Fixed simulation time, bounded catch-up. Client input frequency cannot add simulation steps. */
     public synchronized List<WorldState> advance(java.util.Set<String> seated) {
         return advance(seated, List.of());

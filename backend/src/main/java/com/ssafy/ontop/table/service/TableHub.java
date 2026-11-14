@@ -2376,6 +2376,11 @@ public class TableHub {
     private void leave(Member member, Request request) {
         TableRoom room = seatedRoom(member, request);
         ensureWaiting(room.snapshot().tableId(), request, true);
+        if (stoneRumbleTable(room.snapshot().tableId())) {
+            room.snapshot().seats().stream().filter(seat -> member.userId().equals(seat.userId())).findFirst()
+                    .ifPresent(seat -> channels.placeTableExit(
+                            member.userId(), seat.seatNumber(), preparedPark.stoneRumbleExits()));
+        }
         // TABLE_LEAVE itself releases a practice seat, even when the companion HTTP endpoint is unavailable.
         String npc = aiPracticeSeats.get(room.snapshot().tableId());
         if (npc != null) aiReleaseOmok(room.snapshot().tableId(), npc);

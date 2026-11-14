@@ -2,10 +2,10 @@
   "format": "ontop.park-map-manifest",
   "schemaVersion": 2,
   "mapId": "park",
-  "mapVersion": "53a3b85c5e29fd0e609c91f6185a655988ca3960158c626b6170516788c9fc1d",
+  "mapVersion": "90e16bab573c4b25b2dc07581b0560bb41581776cc3b217690683828d936a585",
   "hashAlgorithm": "sha256",
   "hashes": {
-    "dataHash": "7738fcb08c83dd4e040db7f021909cf970e41f6b2928bd48743470f225f30e1a",
+    "dataHash": "d950958b45249a59e01d6ab2645b243ecd4e511fc27eb835608a296b7a87b872",
     "sourceHash": "5a9827eccc7406d40244609a5dab222c604b08fbab32283b2380064195438ab9"
   },
   "sources": [
@@ -180,8 +180,8 @@
   "artifacts": [
     {
       "path": "generated/park/server-map.json",
-      "sha256": "2ada775bc7d4b31c722c0c9517bfee2498c931c6dce232fcaf524c0758dc1474",
-      "bytes": 4023092
+      "sha256": "d4a141c4fc154efec7402ce1f4e0ca798ca0b92a50925fa31aaf1f699721203d",
+      "bytes": 4023354
     }
   ],
   "validation": {

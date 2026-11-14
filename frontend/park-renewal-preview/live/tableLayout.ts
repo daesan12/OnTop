@@ -51,6 +51,11 @@ export function buildRenewalTables(): TableAnchor[] {
     seatAnchors: tableSeats({}, 8).map(seat => [seat.x, .56, seat.z]),
     seatSurfaceY: .56,
     interactionPoints: [[0, groundSurfaceHeight(0, z), z], [x, y, z + 2]],
+    // Two rows on the open side of the table, outside all eight stool colliders.
+    exitPoints: [3.4, 4.8].flatMap(dz => [-1.8, -.6, .6, 1.8].map(dx => {
+      const exitX = x + dx, exitZ = z + dz
+      return [exitX, groundSurfaceHeight(exitX, exitZ) + .8, exitZ] as Vec3
+    })),
   }
   return [...stones, ...pavilions, stoneRumble].sort((a, b) => Number(a.id.slice(6)) - Number(b.id.slice(6)))
 }
