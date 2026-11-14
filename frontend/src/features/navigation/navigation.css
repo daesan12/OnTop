@@ -146,6 +146,10 @@
 .park-map-zone:hover circle { fill: #4a6450; }
 .park-map-zone[data-selected='true'] circle { fill: #e8b451; stroke: var(--map-ink); stroke-width: 1.4; }
 .park-map-zone[data-selected='true'] text { fill: var(--map-ink); }
+.park-map-rental rect { fill: transparent; stroke: transparent; }
+.park-map-zone:hover .park-map-rental rect,
+.park-map-zone:focus-visible .park-map-rental rect { stroke: var(--map-ink); stroke-width: 1; }
+.park-map-zone[data-selected='true'] .park-map-rental rect { stroke: var(--map-route); stroke-width: 1.4; }
 .park-map-player { cursor: pointer; }
 .park-map-player[aria-pressed='true'] circle { stroke: var(--map-ink); stroke-width: 2; }
 .park-map-player-info { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-height: 38px; padding-top: 12px; color: var(--map-muted); font-size: 13px; overflow-wrap: anywhere; }
