@@ -9,25 +9,31 @@ import './spotDifference.css'
 
 const aim = { x: width / 2, y: height / 2 }
 const koreanNumber = new Intl.NumberFormat('ko-KR')
-const messages = { HIT: '명중!', MISS: '빗나갔어요.', WAIT: '잠시 후 다시 조준해 주세요.', ALREADY_FOUND: '이미 찾은 곳이에요.' }
+const messages = { HIT: '명중! · 표적 하나 완료', MISS: '빗나갔어요. 잠시 후 다시 조준하세요.',
+  WAIT: '잠시 후 다시 조준하세요.', ALREADY_FOUND: '이미 찾은 곳이에요.' }
 const initialBudget = 1000
 const totalTargets = rounds * targetsPerRound
 const targetSlots = Array.from({ length: targetsPerRound }, (_, index) => index)
+const urgentMs = 10_000
+type BoardSide = 'original' | 'comparison'
+type Shot = Position & { number: number; side: BoardSide; kind: 'hit' | 'miss' | 'pending' }
 
 function positionStyle({ x, y }: Position): CSSProperties {
   return { left: `${x / width * 100}%`, top: `${y / height * 100}%` }
 }
 
 function Board({ view, variant, fire, shot }: {
-  view: Round; variant: 'original' | 'normal' | 'hard'; fire: (point: Position) => void
-  shot: (Position & { number: number; kind: 'hit' | 'miss' | 'pending' }) | null
+  view: Round; variant: 'original' | 'normal' | 'hard'; fire: (point: Position, side: BoardSide) => void
+  shot: Shot | null
 }) {
   const [cursor, setCursor] = useState(aim)
   const [showCursor, setShowCursor] = useState(false)
-  const label = variant === 'original' ? '원본' : '비교 그림'
+  const side = variant === 'original' ? 'original' : 'comparison'
+  const label = side === 'original' ? '원본' : '비교 그림'
   const playing = view.phase === 'PLAYING'
   const review = view.phase === 'REVIEW'
   const markers = review ? view.answers : view.matched
+  const impact = shot && (shot.kind === 'hit' || shot.side === side) ? shot : null
 
   function move(event: KeyboardEvent<HTMLButtonElement>) {
     const step = event.shiftKey ? 48 : 16
@@ -51,20 +57,23 @@ function Board({ view, variant, fire, shot }: {
     <button className="spot-target" type="button" aria-label={`${label}. 방향키로 조준하고 Enter로 선택`}
       disabled={!playing} onKeyDown={move} onBlur={() => setShowCursor(false)}
       onClick={event => {
-        if (!event.detail) { fire(cursor); return }
+        if (!event.detail) { fire(cursor, side); return }
         const rect = event.currentTarget.getBoundingClientRect()
         fire({
           x: Math.max(0, Math.min(width - 1, Math.floor((event.clientX - rect.left) / rect.width * width))),
           y: Math.max(0, Math.min(height - 1, Math.floor((event.clientY - rect.top) / rect.height * height))),
-        })
+        }, side)
       }}>
       <img src={sceneImage(view.scene, variant)} alt="" draggable={false} />
-      {markers.map(({ label: answer, box: [x, y, right, bottom] }) => <span className="spot-marker"
+      {markers.map(({ label: answer, box: [x, y, right, bottom] }, index) => <span className="spot-marker"
         key={answer} data-hit={view.matched.some(match => match.box[0] === x && match.box[1] === y)}
         style={{ ...positionStyle({ x: (x + right) / 2, y: (y + bottom) / 2 }),
-          width: `${(right - x) / width * 100}%`, height: `${(bottom - y) / height * 100}%` }} aria-hidden />)}
+          width: `${(right - x) / width * 100}%`, height: `${(bottom - y) / height * 100}%` }} aria-hidden>
+        {review && <span className="spot-marker-number">{index + 1}</span>}
+      </span>)}
       {playing && showCursor && <span className="spot-reticle" style={positionStyle(cursor)} aria-hidden>+</span>}
-      {shot && <span key={shot.number} className="spot-shot" data-result={shot.kind} style={positionStyle(shot)} aria-hidden />}
+      {impact && <span key={`${impact.number}:${impact.kind}`} className="spot-shot" data-result={impact.kind}
+        style={positionStyle(impact)} aria-hidden />}
     </button>
   </div>
 }
@@ -73,7 +82,7 @@ function sceneImage(scene: string, variant: 'original' | 'normal' | 'hard') {
   return `/art/spot-difference/${scene}-${variant}.webp`
 }
 
-function RoundHud({ view, remaining }: { view: Round; remaining: number }) {
+function RoundHud({ view, remaining, urgent }: { view: Round; remaining: number; urgent: boolean }) {
   const seconds = view.phase === 'WAITING' ? roundSeconds : Math.ceil(remaining / 1000)
   const timeRatio = view.phase === 'WAITING' ? 1 : Math.min(1, remaining / (roundSeconds * 1000))
   const left = targetsPerRound - view.matched.length
@@ -84,7 +93,7 @@ function RoundHud({ view, remaining }: { view: Round; remaining: number }) {
       <span className="spot-difficulty" data-difficulty={view.difficulty}>{cards[view.difficulty].label}</span>
     </div>
     <div className="spot-hud-time">
-      <span>남은 시간 <strong className="spot-clock">{seconds}초</strong></span>
+      <span><span aria-live="polite">{urgent ? '시간 임박' : '남은 시간'}</span> <strong className="spot-clock">{seconds}초</strong></span>
       <div className="spot-timer" role="progressbar" aria-label="남은 시간" aria-valuemax={roundSeconds}
         aria-valuenow={seconds} aria-valuetext={`${seconds}초`}>
         <span style={{ width: `${timeRatio * 100}%` }} />
@@ -105,7 +114,7 @@ export function SpotDifferencePanel() {
   const [view, setView] = useState<Round>()
   const [busy, setBusy] = useState(false)
   const [remaining, setRemaining] = useState(0)
-  const [shot, setShot] = useState<(Position & { number: number; kind: 'hit' | 'miss' | 'pending' }) | null>(null)
+  const [shot, setShot] = useState<Shot | null>(null)
   const [error, setError] = useState('')
   const [assetsLoaded, setAssetsLoaded] = useState('')
   const [assetRetry, setAssetRetry] = useState(0)
@@ -173,24 +182,30 @@ export function SpotDifferencePanel() {
   }
 
   useEffect(() => {
-    if (!view || view.phase !== 'PLAYING' || busy || error) return
+    if (!view || view.phase !== 'PLAYING') return
     const tick = () => {
       const timeLeft = Math.max(0, deadline.current - performance.now())
       setRemaining(timeLeft)
-      if (timeLeft === 0) void submit(() => spotDifference.act(view, 'SYNC'))
+      if (timeLeft === 0 && !pending.current && !error) void submit(() => spotDifference.act(view, 'SYNC'))
     }
     const interval = window.setInterval(tick, 100)
     return () => window.clearInterval(interval)
-  }, [view, busy, error])
+  }, [view, error])
+
+  useEffect(() => {
+    if (!shot || shot.kind === 'pending') return
+    const timeout = window.setTimeout(() => setShot(null), 650)
+    return () => window.clearTimeout(timeout)
+  }, [shot])
 
   function begin(choice: Difficulty) {
     const requestId = crypto.randomUUID()
     void submit(() => spotDifference.start(choice, requestId))
   }
 
-  function fire(point: Position) {
+  function fire(point: Position, side: BoardSide) {
     if (!view || view.phase !== 'PLAYING' || pending.current || error) return
-    setShot({ ...point, number: ++shotNumber.current, kind: 'pending' })
+    setShot({ ...point, side, number: ++shotNumber.current, kind: 'pending' })
     void submit(() => spotDifference.act(view, 'TAP', point))
   }
 
@@ -201,11 +216,12 @@ export function SpotDifferencePanel() {
 
   const waiting = view?.phase === 'WAITING'
   const reviewing = view?.phase === 'REVIEW'
+  const urgent = view?.phase === 'PLAYING' && remaining <= urgentMs
   const feedback = reviewing ? '녹색은 찾은 곳, 금색은 놓친 곳이에요.'
     : view?.tap ? messages[view.tap] : `다른 곳을 눌러 ${targetsPerRound}개를 찾으세요.`
 
   return <PaperPopup title="사격정" label="스피드 틀린 그림 찾기" closeLabel={view ? '나가기' : '사격정 닫기'}
-    className={`spot-difference${view ? ' spot-playing' : ''}`} onClose={closeSpotDifference}>
+    className={`spot-difference${view ? ' spot-playing' : ''}${urgent ? ' spot-urgent' : ''}`} onClose={closeSpotDifference}>
     <header className="spot-heading">
       <h2><span className="spot-emblem" aria-hidden />스피드 틀린 그림 찾기</h2>
       {view && <span className="spot-venue">사격정</span>}
@@ -236,7 +252,7 @@ export function SpotDifferencePanel() {
       </div>
     </>}
     {view && <>
-      <RoundHud view={view} remaining={remaining} />
+      <RoundHud view={view} remaining={remaining} urgent={urgent} />
       {waiting ? <div className="spot-ready"><span className="spot-emblem" aria-hidden />
         <strong>{view.name}</strong>
       </div> : <div className="spot-boards" key={view.scene} aria-label={view.name}>
@@ -244,7 +260,9 @@ export function SpotDifferencePanel() {
         <Board view={view} variant={view.difficulty === 'NORMAL' ? 'normal' : 'hard'} shot={shot} fire={fire} />
       </div>}
       <div className="spot-footer">
-        <span className="spot-feedback" role="status">{waiting ? '' : feedback}</span>
+        <span className="spot-feedback" data-tap={reviewing ? undefined : view.tap ?? undefined} role="status">
+          {waiting ? '' : feedback}
+        </span>
         <span className="spot-total">누적 <strong>{view.total} / {totalTargets}</strong></span>
         <div className="spot-footer-action">
           {!receipt && (waiting

@@ -27,6 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 @ConditionalOnProperty(name = "ontop.minigames.enabled", havingValue = "true")
 class SpotDifferenceService {
     static final int ROUND_COUNT = 6;
+    private static final Duration ROUND_TIME = Duration.ofSeconds(45);
     private static final Duration RUN_LIFETIME = Duration.ofMinutes(15);
     private static final int WIDTH = 1448;
     private static final int HEIGHT = 1086;
@@ -103,7 +104,7 @@ class SpotDifferenceService {
                 switch (action.type()) {
                     case READY -> {
                         if (run.phase == Phase.WAITING) {
-                            run.deadline = now.plusSeconds(run.difficulty.seconds);
+                            run.deadline = now.plus(ROUND_TIME);
                             run.phase = Phase.PLAYING;
                         }
                     }
@@ -167,12 +168,10 @@ class SpotDifferenceService {
     }
 
     enum Difficulty {
-        NORMAL(30, 2), HARD(30, 3);
-        final int seconds;
+        NORMAL(2), HARD(3);
         final int coinPerHit;
 
-        Difficulty(int seconds, int coinPerHit) {
-            this.seconds = seconds;
+        Difficulty(int coinPerHit) {
             this.coinPerHit = coinPerHit;
         }
     }
