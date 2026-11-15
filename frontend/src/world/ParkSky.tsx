@@ -49,12 +49,14 @@ void main() {
     vec2 grid = vec2(atan(d.z, d.x) * .15915494 + .5, asin(d.y) * .31830989 + .5) * vec2(320., 135.);
     vec2 cell = floor(grid);
     float seed = hash(cell);
-    vec2 center = mix(vec2(.27), vec2(.73), vec2(hash(cell + 37.), hash(cell + 61.)));
-    float distanceToStar = length(fract(grid) - center);
-    float radius = mix(.055, .19, pow(seed, 6.));
-    float star = 1. - smoothstep(radius * .28, radius, distanceToStar);
-    vec3 tint = mix(vec3(.68, .83, 1.), vec3(1., .86, .65), hash(cell + 17.));
-    c += tint * star * step(.89, seed) * night * night * smoothstep(.02, .24, d.y);
+    if (seed >= .89 && hash(cell + 101.) < .35) {
+      vec2 center = mix(vec2(.27), vec2(.73), vec2(hash(cell + 37.), hash(cell + 61.)));
+      float distanceToStar = length(fract(grid) - center);
+      float radius = mix(.055, .19, pow(seed, 6.));
+      float star = 1. - smoothstep(radius * .28, radius, distanceToStar);
+      vec3 tint = mix(vec3(.68, .83, 1.), vec3(1., .86, .65), hash(cell + 17.));
+      c += tint * star * night * night * smoothstep(.02, .24, d.y);
+    }
   }
 
 #ifndef SIMPLE_SKY
