@@ -50,7 +50,6 @@
   grid-template-columns: 1.12fr 1fr;
   align-items: center;
   gap: clamp(12px, 2.5vw, 29px);
-  text-align: left;
 }
 .spot-difference .spot-entry-art {
   overflow: hidden;
@@ -69,7 +68,8 @@
 .spot-difference .spot-guide-steps {
   display: grid;
   gap: 7px;
-  padding-inline-start: 1.45em;
+  padding-inline-start: 0;
+  list-style-position: inside;
   margin: 10px 0;
   color: var(--spot-ink);
   font-size: .84rem;
@@ -111,7 +111,7 @@
   color: var(--card-ink);
   background: radial-gradient(ellipse at top right, var(--card-glow), transparent 68%), var(--card-fill);
   box-shadow: 0 2px 4px #3c25181a;
-  text-align: left;
+  text-align: center;
   word-break: keep-all;
 }
 .spot-difference .spot-card[data-difficulty="HARD"] {
@@ -144,7 +144,7 @@
 .spot-difference .spot-card-detail { color: var(--spot-ink); font-size: .86rem; line-height: 1.4; }
 .spot-difference .spot-card-rewards {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   flex-wrap: wrap;
   gap: 3px 9px;
@@ -161,7 +161,6 @@
   border: 1px solid #bb986b;
   border-radius: 8px;
   background: #fff0d4ef;
-  text-align: left;
   font-size: .83rem;
 }
 .spot-difference .spot-guide-back {
