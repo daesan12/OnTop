@@ -1,6 +1,6 @@
 /** Browser-only XR frame/session simulation. No production hooks or auth bypass. */
 import { _roots, advance } from '@react-three/fiber'
-import { Quaternion, Vector3 } from 'three'
+import { Matrix4, Quaternion, Vector3 } from 'three'
 import type { JumpmapXRAction, JumpmapXRView } from '../../src/features/jumpmap/xrModel'
 import { parkXRView } from '../../src/world/xrView'
 import { useParkXR } from '../../src/features/parkXR/state'
@@ -31,7 +31,7 @@ export function sceneFramePNG() {
   state.gl.render(state.scene, state.camera)
   return state.gl.domElement.toDataURL('image/png')
 }
-export function install(options: { haptics?: boolean } = {}) {
+export function install(options: { haptics?: boolean; frameStep?: number } = {}) {
   const state = root()
   feedbackPulses.length = 0; feedbackResets = 0
   const pad = (hand: string) => ({ mapping: 'xr-standard', axes: [0, 0, 0, 0],
@@ -83,7 +83,7 @@ export function install(options: { haptics?: boolean } = {}) {
       return { transform: { position, orientation: new Quaternion().setFromUnitVectors(new Vector3(0, 0, -1), direction) } }
     } } as unknown as XRFrame
     timer = setInterval(() => {
-      advance(root().clock.elapsedTime + .016, false, root(), frame)
+      advance(root().clock.elapsedTime + (options.frameStep ?? .016), false, root(), frame)
       turnSamples.push(root().scene.getObjectByName('park-xr-rig')!.rotation.y)
     }, 32)
     return session
@@ -127,6 +127,12 @@ export function faceSkewerEntry() {
   const direction = scene.getObjectByName('park-xr-skewer-entry')!.getWorldPosition(new Vector3())
     .sub(camera.getWorldPosition(new Vector3())).applyQuaternion(rig.getWorldQuaternion(new Quaternion()).invert()).normalize()
   viewerRotation.setFromUnitVectors(new Vector3(0, 0, -1), direction)
+}
+export function lookAt(x: number, y: number, z: number) {
+  const { scene, camera } = root()
+  const rig = scene.getObjectByName('park-xr-rig')!
+  const view = new Matrix4().lookAt(camera.getWorldPosition(new Vector3()), new Vector3(x, y, z), camera.up)
+  viewerRotation.setFromRotationMatrix(view).premultiply(rig.getWorldQuaternion(new Quaternion()).invert())
 }
 export function tracking(value: boolean) { tracked = value }
 export function menu(open: boolean) { inputState.mapOpen = open }

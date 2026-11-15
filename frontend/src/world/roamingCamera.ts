@@ -11,7 +11,7 @@ import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { secretCorridorContains } from '../../park-renewal-preview/horrorPlan'
 import { inAnnex } from '../../park-renewal-preview/interiorAccess'
 
-export function canControlRoamingCamera(immersiveTelescopeId = '') {
+export function canControlRoamingCamera(immersiveTelescopeId = '', immersiveBalloon = false) {
   const s = useSession.getState(), avatar = avatars.get(s.sessionId)
   const ownFacility = useFacilityState.getState().occupancies[s.sessionId]
   const usingXRTelescope = !!immersiveTelescopeId && (!ownFacility || ownFacility.facilityId === immersiveTelescopeId)
@@ -20,7 +20,7 @@ export function canControlRoamingCamera(immersiveTelescopeId = '') {
     && !useGame.getState().watchedGameId && !useBenchState.getState().pending && !useFitnessState.getState().pending
     && (usingXRTelescope || !useTelescopeState.getState().pending && !facilityMovementBlocked(s.sessionId))
     && !tableBusy() && !document.hidden
-    && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)
+    && !panelOwnsKeys(immersiveBalloon ? 'localBalloon' : undefined) && !textInputOwnsKeys(document.activeElement)
 }
 
 export type LookOwner = 'park' | 'bench' | 'telescope' | 'fitness' | 'hold'

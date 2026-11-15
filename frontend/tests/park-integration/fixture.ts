@@ -30,7 +30,7 @@ type FixtureMap = {
 }
 
 /** Browser-only wire simulation: production contains no mock login, physics or transport bypass. */
-export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean;fitnessRewardsEnabled?:boolean;environmentEpochMs?:number;clientPositions?:boolean;carrySupported?:boolean;denyInteraction?:boolean}={}, map?: FixtureMap) {
+export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean;fitnessRewardsEnabled?:boolean;environmentEpochMs?:number;clientPositions?:boolean;carrySupported?:boolean;denyInteraction?:boolean;balloonSupported?:boolean}={}, map?: FixtureMap) {
   const mapIdentity = map?.identity ?? identity
   const data = map?.data ?? PARK_DATA
   const mapFacilities = map ? buildFacilities(data) : facilities
@@ -54,6 +54,10 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     const url=new URL(route.request().url()),p=url.pathname
     const method=route.request().method(),requestBody=method==='POST'?(route.request().postDataJSON()??{}):{}
     restRequests.push({path:p,method,body:requestBody})
+    if (options.balloonSupported && p === '/api/v1/world/balloon/tickets' && method === 'POST') {
+      await route.fulfill({ json: { requestId: requestBody.requestId, fee: 100 } })
+      return
+    }
     if(p==='/api/v1/minigames/jumpmap/tips'&&method==='POST'){
       await route.fulfill({json:{seenTips:requestBody.tips??[]}});return
     }
@@ -96,6 +100,14 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     ws.onClose((code,reason)=>{clearInterval(tick);ws.close({code,reason})})
     ws.onMessage(raw=>{
       const r=JSON.parse(String(raw));requests.push(r)
+      if (options.balloonSupported && (r.type === 'WORLD_BALLOON_START' || r.type === 'WORLD_BALLOON_POSE')) {
+        const { x, y, z, cabin } = r.payload
+        emit('WORLD_BALLOON_STATE', { channelId: 'channel-1', pilotId: '101',
+          flight: { position: { x, y, z }, aboard: r.payload.aboard ?? true, cabin } }, r.requestId)
+      }
+      if (options.balloonSupported && r.type === 'WORLD_BALLOON_END') {
+        emit('WORLD_BALLOON_STATE', { channelId: 'channel-1', pilotId: '101', flight: null }, r.requestId)
+      }
       if(r.type==='WORLD_TIME_CHECK')emit('WORLD_TIME_STATE',{serverNow:Date.now(),cycleEpochMs:options.environmentEpochMs??0,cycleDurationMs:1200000,timeZone:'Asia/Seoul'},r.requestId)
       if(r.type==='WORLD_MAP_CONFIRM'){confirmationId=r.requestId;if(!options.holdConfirmation)emit('WORLD_MAP_STATE',{map:options.serverMap??mapIdentity,verified:true},r.requestId)}
       if(r.type==='CHANNEL_JOIN'){emit('CHANNEL_STATE',{channelId:'channel-1',name:'새 공원 검증',version:++channelVersion,capacity:16,currentUsers:1,userIds:['101']},r.requestId);world()}
