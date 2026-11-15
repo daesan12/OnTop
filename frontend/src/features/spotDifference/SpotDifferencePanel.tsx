@@ -257,11 +257,14 @@ export function SpotDifferencePanel() {
           const card = cards[choice]
           return <button type="button" key={choice} className="spot-card" data-difficulty={choice}
             disabled={busy} onClick={() => begin(choice)}>
-            <span className="spot-card-title">{card.label}</span>
-            <span className="spot-card-detail">{card.detail}</span>
-            <span className="spot-card-rewards">
-              <span>정답당 <strong>{card.reward}냥</strong></span>
-              <span>최대 {card.reward * totalTargets}냥</span>
+            <img className="spot-card-preview" src={sceneImage(card.previewScene, 'original')} alt="" />
+            <span className="spot-card-info">
+              <span className="spot-card-title">{card.label}</span>
+              <span className="spot-card-detail">{card.detail}</span>
+              <span className="spot-card-rewards">
+                <span>정답당 <strong>{card.reward}냥</strong></span>
+                <span>최대 {card.reward * totalTargets}냥</span>
+              </span>
             </span>
           </button>
         })}

@@ -26,9 +26,9 @@ export const rounds = 6
 export const targetsPerRound = 6
 export const roundSeconds = 60
 export const cards = {
-  NORMAL: { label: '보통', detail: '소품의 색과 모양 변화 위주', reward: 2 },
-  HARD: { label: '어려움', detail: '작은 장식과 섬세한 무늬 위주', reward: 3 },
-} satisfies Record<Difficulty, { label: string; detail: string; reward: number }>
+  NORMAL: { label: '보통', detail: '소품의 색과 모양 변화 위주', reward: 2, previewScene: 'fish-stall' },
+  HARD: { label: '어려움', detail: '작은 장식과 섬세한 무늬 위주', reward: 3, previewScene: 'wardrobe-cyber' },
+} satisfies Record<Difficulty, { label: string; detail: string; reward: number; previewScene: string }>
 
 function post(path: string, body: object): Promise<Round> {
   return parkRuntime.requestJSON(path, {
