@@ -6,6 +6,7 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[2]
+EXPECTED_MAP = ROOT / "frontend/generated/park-renewal/server-map.json"
 
 
 def validate_live(expected, source, actual, environment="DEV"):
@@ -22,7 +23,7 @@ def main():
     parser.add_argument("--container", default="ontop-dev-app-app-1")
     parser.add_argument("--environment", default="DEV")
     args = parser.parse_args()
-    expected = json.loads((ROOT / "frontend/generated/park/server-map.json").read_text(encoding="utf-8"))
+    expected = json.loads(EXPECTED_MAP.read_text(encoding="utf-8"))
     source = subprocess.check_output(
         ["docker", "exec", args.container, "printenv", "WORLD_MAP_SOURCE"], text=True)
     actual = json.loads(subprocess.check_output(
