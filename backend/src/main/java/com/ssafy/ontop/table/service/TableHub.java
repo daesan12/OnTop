@@ -656,9 +656,10 @@ public class TableHub {
         members.put(session.getId(), member);
         connectionStarted.put(session.getId(), System.nanoTime());
         acceptedConnections++;
+        boolean mobilityAvailable = rentals != null && accountId != null;
         peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId, "map", maps.metadata(),
                 "mapVerificationRequired", maps.requiresMatch(), "time", worldClock.sample(),
-                "mobilityAvailable", rentals != null && accountId != null)));
+                "mobilityAvailable", mobilityAvailable, "vrMobilityAvailable", mobilityAvailable)));
         if (startRehearsal || committedStarts.isPresent()) {
             peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null,
                     committedStarts.isEmpty())));
@@ -1686,7 +1687,7 @@ public class TableHub {
         }
         if (mobilityRides.containsKey(user)
                 || mobilityRides.values().stream().anyMatch(ride -> ride.owner.accountId().equals(member.accountId()))
-                || !channels.carryAvailable(user)
+                || !channels.mobilityAvailable(user)
                 || channels.carryState(user) != null || facilities.current(user) != null
                 || watching.containsKey(user) || statePushes.containsKey(member.sessionId()) || seating.containsKey(user)) {
             fail(request, "MOBILITY_BUSY", "진행 중인 이용을 먼저 종료해주세요.");

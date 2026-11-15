@@ -12,7 +12,7 @@ test('220m 공원에서 안내 비석으로 돌탑 VR에 진입하고 일반 공
   })
   await page.addInitScript(() => Object.defineProperty(navigator, 'xr', { configurable: true,
     value: Object.assign(new EventTarget(), { isSessionSupported: async () => true }) }))
-  const server = await parkFixture(page, { carrySupported: true })
+  const server = await parkFixture(page, { carrySupported: true, vrMobilityAvailable: true })
   const course = server.renewalCourse!
   const scope = { channelId: 'channel-1', mapVersion: server.mapIdentity.mapVersion }
   const versions = { courseVersion: course.courseVersion, rulesVersion: course.rulesVersion }
@@ -42,6 +42,7 @@ test('220m 공원에서 안내 비석으로 돌탑 VR에 진입하고 일반 공
   await start.click()
   const xr = () => page.evaluate(async helper => (await import(helper)).snapshot(), syntheticXR)
   await expect.poll(async () => (await xr()).active).toBe(true)
+  expect(server.requests.some(r => r.type === 'WORLD_INTERACTION_SET' && r.payload.vrActive === true && r.payload.busy === false)).toBe(true)
   await page.evaluate(async helper => (await import(helper)).buttons({ guide: true }), syntheticXR)
   await expect.poll(async () => (await xr()).view?.lines.join(' ')).toContain('열 구간')
   await page.evaluate(async helper => {
@@ -64,6 +65,15 @@ test('220m 공원에서 안내 비석으로 돌탑 VR에 진입하고 일반 공
   await expect.poll(async () => (await xr()).view?.lines.join(' ')).toContain('호수섬까지 완주')
   await page.evaluate(async helper => (await import(helper)).input(0, true), syntheticXR)
   await expect.poll(async () => (await xr()).view?.key).toBe('roaming')
+  const rentals = await page.evaluate(async () => (await import('/src/features/mobility/targets.ts' as string)).rentalTargets)
+  for (const vehicle of ['BICYCLE', 'SCOOTER'] as const) {
+    const rack = rentals.find((target: { vehicle: string }) => target.vehicle === vehicle)
+    server.place(rack.reach)
+    const card = `park-xr-rental-${vehicle.toLowerCase()}`
+    await expect.poll(() => page.evaluate(async ({ helper, card }) =>
+      (await import(helper)).visibleXRObject(card), { helper: syntheticXR, card })).toBe(true)
+  }
+  expect(server.requests.some(r => r.type === 'WORLD_MOBILITY_START')).toBe(false)
   await page.evaluate(async helper => (await import(helper)).input(0, false, 0, true), syntheticXR)
   await expect.poll(async () => (await xr()).ownsInput).toBe(false)
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)

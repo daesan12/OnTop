@@ -8,7 +8,7 @@ import { canStartJumpmapXR } from '../jumpmap/xrEntry'
 import { useJumpmap } from '../jumpmap/state'
 import { XRComfortFields } from './XRComfortFields'
 import { useGame } from '../../game/store'
-import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
+import { BALLOON_RIDE_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import './parkXR.css'
 
 export function ParkXRControls({ omokOnly = false }: { omokOnly?: boolean }) {
@@ -95,6 +95,7 @@ export function ParkXRControls({ omokOnly = false }: { omokOnly?: boolean }) {
       <p>실제로 뛰지 않고 버튼으로 점프해요. 안내판을 닫으면 공원 이동을 계속할 수 있어요.<br />VR 중에는 다른 유저가 잡거나 던질 수 없어요. 오른손 B로 VR을 종료하면 일반 공원 화면으로 돌아와요.</p>
       <p>전망대에서 ‘망원경 이용’을 검지 트리거로 선택해요. 오른쪽 스틱으로 방향을 조절하고, 망원경을 보는 중에는 B로 공원 시야에 돌아와요.</p>
       {BALLOON_RIDE_ENABLED && <p>하늘언덕 승강장에서 ‘자동 비행 탑승’을 검지 트리거로 선택해요. 기내에서 고개를 돌려 공원을 둘러보고, B를 누르면 승강장으로 돌아가요.</p>}
+      {RENEWAL_PARK_ENABLED && <p>대여소에서 전기자전거 또는 킥보드를 가리키고 검지 트리거를 길게 누르세요. 왼쪽 스틱으로 움직이고 B로 하차해요.</p>}
       <button className="paper-primary" type="button" onClick={() => setGuideOpen(false)}>안내 닫기</button>
     </PaperPopup> : null}
     {settingsOpen && phase !== 'active' ? <PaperPopup title="VR 편안함 설정" label="VR 편안함 설정" className="park-vr-guide-paper" closeLabel="VR 설정 닫기" onClose={() => setSettingsOpen(false)}>

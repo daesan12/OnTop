@@ -12,7 +12,7 @@ export async function acquireVRProtection(port: ProtectionPort): Promise<() => v
     void port.setInteractionBusy?.(panelBlocksCarry(false))
   }
   try {
-    if (!await port.setInteractionBusy?.(true, true)) throw new Error('VR 플레이 보호를 확인하지 못했어요. 공원 연결을 확인하고 다시 시작해 주세요.')
+    if (!await port.setInteractionBusy?.(panelBlocksCarry(false), true)) throw new Error('VR 플레이 보호를 확인하지 못했어요. 공원 연결을 확인하고 다시 시작해 주세요.')
     return release
   } catch (error) { release(); throw error }
 }

@@ -30,7 +30,7 @@ type FixtureMap = {
 }
 
 /** Browser-only wire simulation: production contains no mock login, physics or transport bypass. */
-export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean;fitnessRewardsEnabled?:boolean;environmentEpochMs?:number;clientPositions?:boolean;carrySupported?:boolean;denyInteraction?:boolean;balloonSupported?:boolean}={}, map?: FixtureMap) {
+export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean;fitnessRewardsEnabled?:boolean;environmentEpochMs?:number;clientPositions?:boolean;carrySupported?:boolean;denyInteraction?:boolean;balloonSupported?:boolean;vrMobilityAvailable?:boolean}={}, map?: FixtureMap) {
   const mapIdentity = map?.identity ?? identity
   const data = map?.data ?? PARK_DATA
   const mapFacilities = map ? buildFacilities(data) : facilities
@@ -140,7 +140,8 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
       }
       if(r.type==='WORLD_FACILITY_RELEASE'){Object.assign(position,lease!.exit);lease=undefined;occupancy(r.requestId);world()}
     })
-    emit('CONNECTED',{userId:'101',...(options.omitMap?{}:{map:options.serverMap??mapIdentity}),mapVerificationRequired:true})
+    emit('CONNECTED',{userId:'101',...(options.omitMap?{}:{map:options.serverMap??mapIdentity}),mapVerificationRequired:true,
+      ...(options.vrMobilityAvailable ? { mobilityAvailable: true, vrMobilityAvailable: true } : {})})
   })
   return {emit,requests,restRequests,
     addNote:(text:string,category:NoteTopic='free')=>{notes.push({id:String(notes.length+1),text,category,createdAt:new Date().toISOString()});emit('NOTES_CHANGED',{revision:String(++notesRevision)})},
