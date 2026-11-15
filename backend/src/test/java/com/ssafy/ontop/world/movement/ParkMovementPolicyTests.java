@@ -12,6 +12,29 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 class ParkMovementPolicyTests {
     private long now;
+    @Test
+    void 돌테이블_모서리의_밀어낼_자리가_막혀도_충돌_직전_위치를_유지한다() {
+        ObjectNode data = scene().data.deepCopy();
+        ((ObjectNode) data.path("furniturePolicy")).put("exitGap", .18);
+        box((com.fasterxml.jackson.databind.node.ArrayNode) data.path("boxes"),
+                "wall", -1.75, 1.25, -1, .1, 1.25, 1);
+        var blockedExit = ParkScene.fromPreparedData(data, new WorldMapMetadata("park", 2, "e".repeat(64)));
+        try (var world = new WorldPhysics(blockedExit, false, () -> now, false)) {
+            world.add("a");
+            world.place("a", -1.32, .8, -1.31);
+            var before = world.snapshot("a");
+            assertThat(world.canStand(before.x(), before.y(), before.z())).isTrue();
+
+            now += WorldPhysics.STEP_NANOS;
+            world.input("a", new MoveInput(1, .45, .89, false, false), now);
+            world.step(now, Set.of());
+
+            var after = world.snapshot("a");
+            assertThat(after.motion().epoch()).isGreaterThan(before.motion().epoch());
+            assertThat(after.x()).isCloseTo(before.x(), within(.001));
+            assertThat(after.z()).isCloseTo(before.z(), within(.001));
+        }
+    }
     @Test void 가구_내부와_분수_중심의_복구는_서버가_바깥으로_확정하고_착석은_유지한다() {
         try (var world = new WorldPhysics(scene(), true, () -> now, true)) {
             world.add("a"); world.place("a", 0, 1.5, 0);
