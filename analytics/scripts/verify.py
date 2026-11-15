@@ -46,6 +46,8 @@ MIGRATIONS = [
     ROOT / "backend/src/main/resources/db/minigame/V164__raise_rps_roulette_payout_cap.sql",
     ROOT / "backend/src/main/resources/db/minigame/V167__extend_jumpmap_to_ten_stages.sql",
     ROOT / "backend/src/main/resources/db/minigame/V179__raise_jumpmap_run_reward_cap.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V175__create_jump_rope_rounds.sql",
+    ROOT / "backend/src/main/resources/db/migration/V180__allow_stone_rumble_game_sessions.sql",
 ]
 DATABASE = "analytics_verify"
 
@@ -140,16 +142,22 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"kst_date": "2026-10-27", "daily_cap": "500", "earners": "2", "cap_reached_users": "1", "cap_reached_pct": "50.0",
          "rewards": "860", "avg_reward_per_earner": "430.0", "bungeoppang_rewards": "130",
          "jumpmap_rewards": "100", "skewer_rewards": "600", "mole_rewards": "30", "speed_mole_rewards": "0",
-         "rank_rewards": "0"},
+         "rank_rewards": "0", "jump_rope_rewards": "0", "spot_difference_rewards": "0"},
         {"kst_date": "2026-10-28", "daily_cap": "500", "earners": "2", "cap_reached_users": "0", "cap_reached_pct": "0.0",
          "rewards": "90", "avg_reward_per_earner": "45.0", "bungeoppang_rewards": "65",
          "jumpmap_rewards": "13", "skewer_rewards": "0", "mole_rewards": "0", "speed_mole_rewards": "12",
-         "rank_rewards": "0"},
-        # 105: 순위 보상 400 + 꼬치 300 = 700냥. 한도 1000냥이라 도달이 아니다.
+         "rank_rewards": "0", "jump_rope_rewards": "0", "spot_difference_rewards": "0"},
+        # 105: 순위 보상 80 + 꼬치 620 = 700냥. 한도 1000냥이라 도달이 아니다.
         {"kst_date": "2026-11-13", "daily_cap": "1000", "earners": "1", "cap_reached_users": "0", "cap_reached_pct": "0.0",
          "rewards": "700", "avg_reward_per_earner": "700.0", "bungeoppang_rewards": "0",
-         "jumpmap_rewards": "0", "skewer_rewards": "300", "mole_rewards": "0", "speed_mole_rewards": "0",
-         "rank_rewards": "400"},
+         "jumpmap_rewards": "0", "skewer_rewards": "620", "mole_rewards": "0", "speed_mole_rewards": "0",
+         "rank_rewards": "80", "jump_rope_rewards": "0", "spot_difference_rewards": "0"},
+        # 101: 틀린 그림 12 + 순위 80 = 92, 103: 줄넘기 3 + 순위 40 = 43, 105: 순위 10. 합계 145, 1인 평균 48.3.
+        # 줄넘기·틀린 그림 보상은 MINIGAME_REWARD지만 붕어빵 열에 섞이지 않는다.
+        {"kst_date": "2026-11-15", "daily_cap": "1000", "earners": "3", "cap_reached_users": "0", "cap_reached_pct": "0.0",
+         "rewards": "145", "avg_reward_per_earner": "48.3", "bungeoppang_rewards": "0",
+         "jumpmap_rewards": "0", "skewer_rewards": "0", "mole_rewards": "0", "speed_mole_rewards": "0",
+         "rank_rewards": "130", "jump_rope_rewards": "3", "spot_difference_rewards": "12"},
     ],
     "14_feedback_daily.sql": [
         {"kst_date": "2026-10-27", "submissions": "4", "submitters": "2", "withdrawn_submissions": "1",
@@ -232,15 +240,21 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"kst_date": "2026-10-28", "transaction_type": "ALL", "transactions": "20", "users": "5",
          "coins_in": "636", "coins_out": "86", "net_coins": "550"},
         {"kst_date": "2026-11-13", "transaction_type": "GAME_RANK_REWARD", "transactions": "1", "users": "1",
-         "coins_in": "400", "coins_out": "0", "net_coins": "400"},
+         "coins_in": "80", "coins_out": "0", "net_coins": "80"},
         {"kst_date": "2026-11-13", "transaction_type": "SKEWER_REWARD", "transactions": "1", "users": "1",
-         "coins_in": "300", "coins_out": "0", "net_coins": "300"},
+         "coins_in": "620", "coins_out": "0", "net_coins": "620"},
         {"kst_date": "2026-11-13", "transaction_type": "ALL", "transactions": "2", "users": "1",
          "coins_in": "700", "coins_out": "0", "net_coins": "700"},
+        {"kst_date": "2026-11-15", "transaction_type": "GAME_RANK_REWARD", "transactions": "3", "users": "3",
+         "coins_in": "130", "coins_out": "0", "net_coins": "130"},
+        {"kst_date": "2026-11-15", "transaction_type": "MINIGAME_REWARD", "transactions": "2", "users": "2",
+         "coins_in": "15", "coins_out": "0", "net_coins": "15"},
+        {"kst_date": "2026-11-15", "transaction_type": "ALL", "transactions": "5", "users": "3",
+         "coins_in": "145", "coins_out": "0", "net_coins": "145"},
     ],
     "20_wallet_balances.sql": [
-        {"wallets": "4", "total_balance": "2191", "avg_balance": "547.8", "median_balance": "587.0",
-         "max_balance": "866", "top10_share_pct": "39.5", "reserved_balance": "0"},
+        {"wallets": "4", "total_balance": "2336", "avg_balance": "584.0", "median_balance": "592.0",
+         "max_balance": "958", "top10_share_pct": "41.0", "reserved_balance": "0"},
     ],
     "21_bet_amounts.sql": [
         {"game_code": "DICE", "games": "1", "min_bet": "5", "avg_bet": "5.0", "max_bet": "5", "avg_pot": "10.0"},
@@ -256,6 +270,9 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"kst_date": "2026-10-28", "game_code": "OMOK", "start_attempts": "1", "rejected_starts": "0",
          "confirmed_games": "1", "with_start_log": "0", "finished_games": "1", "with_end_log": "0",
          "start_log_pct": "0.0", "end_log_pct": "0.0"},
+        {"kst_date": "2026-11-15", "game_code": "STONE_RUMBLE", "start_attempts": "1", "rejected_starts": "0",
+         "confirmed_games": "1", "with_start_log": "0", "finished_games": "1", "with_end_log": "0",
+         "start_log_pct": "0.0", "end_log_pct": "0.0"},
     ],
     "23_game_results.sql": [
         {"game_code": "DICE", "end_reason": "TARGET_REACHED", "games": "1", "avg_minutes": "5.0",
@@ -266,6 +283,9 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "settled_games": "1"},
         {"game_code": "OMOK", "end_reason": "FORFEIT", "games": "1", "avg_minutes": "10.0",
          "participants": "2", "forfeits": "1", "disconnect_leaves": "1", "explicit_leaves": "0",
+         "settled_games": "1"},
+        {"game_code": "STONE_RUMBLE", "end_reason": "LAST_PLAYER_STANDING", "games": "1", "avg_minutes": "6.0",
+         "participants": "3", "forfeits": "0", "disconnect_leaves": "0", "explicit_leaves": "0",
          "settled_games": "1"},
     ],
     "24_jumpmap_daily.sql": [
@@ -419,6 +439,19 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "hit_pct": "97.1", "calculated_coins": "12", "rewarded_coins": "12", "capped_coins": "0"},
     ],
     # 105: 맞힌 종 6(모두 h1), 150ms 미만 5 → 83.3%. 101: 평균 (640×3 + 500×2) / 5 = 584ms.
+    # 1번: 시간 종료 150점 → 3냥 지급, 2번: 세 번 실수로 끝나 0냥, 3번: 진행 중. 평균은 정산된 두 판만.
+    "36_jump_rope_daily.sql": [
+        {"kst_date": "2026-11-15", "rules_version": "2", "rounds": "3", "players": "3", "settled": "2",
+         "unsettled": "1", "time_ends": "1", "miss_limit_ends": "1", "avg_score": "120.0", "max_score": "150",
+         "avg_perfect": "14.0", "avg_good": "8.0", "avg_miss": "2.0", "calculated_coins": "3",
+         "rewarded_coins": "3", "capped_coins": "0"},
+    ],
+    # 5번 경기 3명, 순위 보상 80 + 40 + 10 = 130냥 모두 지급.
+    "37_stone_rumble_daily.sql": [
+        {"kst_date": "2026-11-15", "games": "1", "players": "3", "avg_participants": "3.0",
+         "max_participants": "3", "all_fallen_games": "0", "forfeits": "0", "nominal_rank_rewards": "130",
+         "paid_rank_rewards": "130"},
+    ],
     "35_halli_bell_reaction.sql": [
         {"user_id": "105", "games": "2", "success_rings": "6", "penalty_rings": "2", "late_rings": "4",
          "first_ring_pct": "60.0", "min_reaction_ms": "60", "avg_reaction_ms": "95", "fast_pct": "83.3",

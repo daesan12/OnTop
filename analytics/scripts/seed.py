@@ -383,9 +383,16 @@ def wallet_sql() -> list[str]:
         (101, "PLUS_MINUS_PAYOUT", None, None, None, 500, 0, "2026-10-28 01:08:30"),
         (103, "MOLE_REWARD", None, None, None, 12, 0, "2026-10-28 05:06:03", "mole:reward:speed:1"),
         (102, "MINIGAME_ENTRY_FEE", None, None, None, -10, 0, "2026-10-28 02:00:00"),
-        # 공동 한도 1000냥(11/13 운영 배포) 뒤: 105가 순위 보상 400 + 꼬치 300 = 700냥. 예전 한도(500)라면 도달이다.
-        (105, "GAME_RANK_REWARD", None, None, None, 400, 0, "2026-11-13 06:00:00"),
-        (105, "SKEWER_REWARD", None, None, None, 300, 0, "2026-11-13 06:05:00"),
+        # 공동 한도 1000냥(11/13 운영 배포) 뒤: 105가 순위 보상 80 + 꼬치 620 = 700냥. 예전 한도(500)라면 도달이다.
+        (105, "GAME_RANK_REWARD", None, None, None, 80, 0, "2026-11-13 06:00:00"),
+        (105, "SKEWER_REWARD", None, None, None, 620, 0, "2026-11-13 06:05:00"),
+        # 11/15 새 게임: 줄넘기·틀린 그림 찾기 보상은 붕어빵과 같은 MINIGAME_REWARD이고 키로 나눈다.
+        # 돌탑 생존전 5번 경기 순위 보상(1·2·3등 80·40·10냥).
+        (103, "MINIGAME_REWARD", None, None, None, 3, 0, "2026-11-15 06:01:03", "jump-rope:reward:1"),
+        (101, "MINIGAME_REWARD", None, None, None, 12, 0, "2026-11-15 06:20:00", "spot-difference:reward:run-1"),
+        (101, "GAME_RANK_REWARD", 5, None, None, 80, 0, "2026-11-15 05:06:00"),
+        (103, "GAME_RANK_REWARD", 5, None, None, 40, 0, "2026-11-15 05:06:00"),
+        (105, "GAME_RANK_REWARD", 5, None, None, 10, 0, "2026-11-15 05:06:00"),
     ]
     balances: dict[int, int] = {}
     for user_id, _, _, _, _, balance_delta, _, _, *_ in entries:
@@ -497,6 +504,21 @@ def minigame_extra_sql() -> list[str]:
             f"{sql_value(completed and timestamp(completed))}, {sql_value(score)}, {sql_value(hits)}, "
             f"{sql_value(misses)});"
         )
+    # 줄넘기 (회원, 요청 키, 상태, 시작, 끝, 점수, 퍼펙트, 굿, 실수, 종료 사유). 규칙 2, 판 번호는 입력 순서(1부터).
+    # 1번은 시간 종료라 150점 ÷ 50 = 3냥(원장 jump-rope:reward:1), 2번은 세 번 실수로 끝나 보상이 없고, 3번은 진행 중이다.
+    for user_id, key, status, started, completed, score, perfect, good, miss, reason in [
+        (103, "j-1", "SETTLED", "2026-11-15 06:00:00", "2026-11-15 06:01:03", 150, 20, 10, 1, "time"),
+        (101, "j-2", "SETTLED", "2026-11-15 06:05:00", "2026-11-15 06:05:40", 90, 8, 6, 3, "missLimit"),
+        (105, "j-3", "ACTIVE", "2026-11-15 06:10:00", None, None, None, None, None, None),
+    ]:
+        lines.append(
+            "INSERT INTO jump_rope_rounds (user_id, request_key, seed, rules_version, status, started_at, expires_at, "
+            "completed_at, score, perfect_count, good_count, miss_count, end_reason, input_hash) VALUES "
+            f"({user_id}, '{key}', 1, 2, '{status}', '{timestamp(started)}', "
+            f"'{timestamp(started)}' + INTERVAL 95 SECOND, {sql_value(completed and timestamp(completed))}, "
+            f"{sql_value(score)}, {sql_value(perfect)}, {sql_value(good)}, {sql_value(miss)}, {sql_value(reason)}, "
+            f"{sql_value(completed and '0' * 64)});"
+        )
     # 플러스마이너스 (회원, 요청 키, KST 날짜, 결과, 결과값, 지급, 시각). 참가비 30 고정, 지급 = 결과값 × 10.
     for user_id, key, day, outcome, value, payout, at in [
         (102, "p-1", "2026-10-27", "LOST", -2, 0, "2026-10-27 01:07:00"),
@@ -596,6 +618,26 @@ def game_sql() -> list[str]:
             "participant_status, result, leave_reason, left_at, reserved_amount, coin_delta, "
             f"reservation_released_at) VALUES ({game}, {user_id}, {seat}, {seat - 1}, '{status}', '{result}', "
             f"{sql_value(leave)}, {ended if leave else 'NULL'}, {bet}, {delta}, {ended});"
+        )
+    # 돌탑 생존전(V180): 3명, 판돈 5, 마지막까지 남은 101이 1등. 순위와 서버 발행 순위 보상을 참가자에 남긴다.
+    lines.append(
+        "INSERT INTO game_sessions (id, start_attempt_id, request_fingerprint, table_id, table_version, game_code, "
+        "target_score, participant_count, bet_amount_per_player, total_pot, status, settlement_status, "
+        "rejection_code, end_reason, owner_instance_id, owner_boot_id, created_at, reserved_at, started_at, "
+        "ended_at, settled_at) VALUES (5, UNHEX(LPAD('5', 32, '0')), UNHEX(REPEAT('0', 64)), 't4', 0, "
+        "'STONE_RUMBLE', NULL, 3, 5, 15, 'FINISHED', 'SETTLED', NULL, 'LAST_PLAYER_STANDING', 'seed', "
+        "UNHEX(REPEAT('0', 32)), '2026-11-15 05:00:00.000', '2026-11-15 05:00:00.000', '2026-11-15 05:00:00.000', "
+        "'2026-11-15 05:06:00.000', '2026-11-15 05:06:00.000');"
+    )
+    for user_id, seat, result, delta, rank, reward in [
+        (101, 1, "WIN", 10, 1, 80), (103, 2, "LOSE", -5, 2, 40), (105, 3, "LOSE", -5, 3, 10),
+    ]:
+        lines.append(
+            "INSERT INTO game_participants (game_session_id, user_id, seat_number, participant_order, "
+            "participant_status, result, leave_reason, left_at, reserved_amount, coin_delta, "
+            "reservation_released_at, finish_rank, rank_reward) VALUES "
+            f"(5, {user_id}, {seat}, {seat - 1}, 'FINISHED', '{result}', NULL, NULL, 5, {delta}, "
+            f"'2026-11-15 05:06:00.000', {rank}, {reward});"
         )
     return lines
 

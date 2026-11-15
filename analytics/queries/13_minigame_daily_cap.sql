@@ -4,6 +4,8 @@
 -- 2026-11-15부터 보드게임 순위 보상(GAME_RANK_REWARD, 돌탑 생존전)도 같은 한도에 들어간다.
 -- 스피드 두더지(V151)도 같은 MOLE_REWARD로 지급하므로 한도 계산에는 그대로 들어간다.
 -- 출처 열에서는 원장 키로 나눈다: 기존 두더지는 'mole:reward:<판>', 스피드 두더지는 'mole:reward:speed:<판>'.
+-- 줄넘기('jump-rope:reward:<판>')·틀린 그림 찾기('spot-difference:reward:<판>', 2026-11-15)도 붕어빵과 같은
+-- MINIGAME_REWARD로 지급하므로 키로 나누고, 남은 MINIGAME_REWARD를 붕어빵으로 센다.
 -- 한도는 MinigameRewardBudget.DAILY_CAP이다. 500냥이었다가 2026-11-12 dev, 2026-11-13 운영 배포로 1000냥이 됐다.
 -- 아래 caps 표에 바뀐 날짜(KST)부터의 한도를 적는다. 운영 배포 날(11/13)은 오후부터 1000냥이라 그날 도달 비율은
 -- 1000냥 기준으로 보이고, 오전에 500냥에 걸린 사람은 도달로 세지 않는다. DEV 백업은 11/12 행을 1000으로 고쳐 쓴다.
@@ -21,7 +23,15 @@ daily AS (
     SELECT DATE(t.created_at + INTERVAL 9 HOUR) AS kst_date,
            w.user_id,
            SUM(t.balance_delta) AS rewards,
-           SUM(CASE WHEN t.transaction_type = 'MINIGAME_REWARD' THEN t.balance_delta ELSE 0 END) AS bungeoppang,
+           SUM(CASE WHEN t.transaction_type = 'MINIGAME_REWARD'
+                         AND t.idempotency_key NOT LIKE 'jump-rope:reward:%'
+                         AND t.idempotency_key NOT LIKE 'spot-difference:reward:%' THEN t.balance_delta ELSE 0 END)
+               AS bungeoppang,
+           SUM(CASE WHEN t.transaction_type = 'MINIGAME_REWARD'
+                         AND t.idempotency_key LIKE 'jump-rope:reward:%' THEN t.balance_delta ELSE 0 END) AS jump_rope,
+           SUM(CASE WHEN t.transaction_type = 'MINIGAME_REWARD'
+                         AND t.idempotency_key LIKE 'spot-difference:reward:%' THEN t.balance_delta ELSE 0 END)
+               AS spot_difference,
            SUM(CASE WHEN t.transaction_type = 'JUMP_GATE_REWARD' THEN t.balance_delta ELSE 0 END) AS jumpmap,
            SUM(CASE WHEN t.transaction_type = 'SKEWER_REWARD' THEN t.balance_delta ELSE 0 END) AS skewer,
            SUM(CASE WHEN t.transaction_type = 'MOLE_REWARD'
@@ -53,7 +63,9 @@ SELECT kst_date,
        SUM(skewer) AS skewer_rewards,
        SUM(mole) AS mole_rewards,
        SUM(speed_mole) AS speed_mole_rewards,
-       SUM(rank_reward) AS rank_rewards
+       SUM(rank_reward) AS rank_rewards,
+       SUM(jump_rope) AS jump_rope_rewards,
+       SUM(spot_difference) AS spot_difference_rewards
 FROM capped
 GROUP BY kst_date
 ORDER BY kst_date;
