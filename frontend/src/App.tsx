@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { AuthCallbackPage } from './auth/AuthCallbackPage'
 import { clearAuthSession, getAuthSession, logout, restoreInitialAuthSession } from './auth/authFlow'
+import { clearWelcomeStoryRequest, readWelcomeStoryRequest, requestWelcomeStory } from './features/welcomeStory/pending'
 import { LoginPage } from './login/LoginPage'
 import { OnboardingPage } from './onboarding/OnboardingPage'
 import { ParkPage } from './park/ParkPage'
@@ -20,6 +21,7 @@ export default function App() {
     window.location.pathname === '/auth/callback' ? 'callback' : 'checking',
   )
   const [exitError, setExitError] = useState('')
+  const [welcomeStoryDeadline, setWelcomeStoryDeadline] = useState(readWelcomeStoryRequest)
   const [operation, setOperation] = useState<ServiceOperationStatus | null>(null)
 
   useEffect(() => {
@@ -76,6 +78,8 @@ export default function App() {
         window.history.replaceState(null, '', adminSection ? adminRoutes[adminSection].path : '/park')
         setPage(adminSection ? adminRoutes[adminSection].page : 'park')
       } else {
+        clearWelcomeStoryRequest()
+        setWelcomeStoryDeadline(null)
         if (window.location.pathname !== '/') window.history.replaceState(null, '', '/')
         setPage('login')
       }
@@ -89,6 +93,16 @@ export default function App() {
     setPage('checking')
   }, [])
 
+  const onParkLogin = useCallback(() => {
+    setWelcomeStoryDeadline(requestWelcomeStory())
+    onAuthenticated()
+  }, [onAuthenticated])
+
+  const finishWelcomeStory = useCallback(() => {
+    clearWelcomeStoryRequest()
+    setWelcomeStoryDeadline(null)
+  }, [])
+
   const onAdminNavigate = useCallback((section: AdminSection) => {
     window.history.pushState(null, '', adminRoutes[section].path)
     setPage(adminRoutes[section].page)
@@ -100,10 +114,11 @@ export default function App() {
   }, [])
 
   const onReturnToLogin = useCallback(() => {
+    finishWelcomeStory()
     clearAuthSession()
     window.history.replaceState(null, '', '/')
     setPage('login')
-  }, [])
+  }, [finishWelcomeStory])
 
   const onOperationBlocked = useCallback((status: ServiceOperationStatus) => {
     setOperation(status)
@@ -114,6 +129,7 @@ export default function App() {
     setExitError('')
     try {
       await logout()
+      finishWelcomeStory()
       forgetTabGames()
       window.history.replaceState(null, '', '/')
       setPage('login')
@@ -123,14 +139,15 @@ export default function App() {
   }
 
   if (page === 'callback') {
-    return <AuthCallbackPage onAuthenticated={onAuthenticated} onOnboardingRequired={onOnboardingRequired} />
+    return <AuthCallbackPage onAuthenticated={onParkLogin} onOnboardingRequired={onOnboardingRequired} />
   }
   if (page === 'onboarding' && getAuthSession()?.status === 'ONBOARDING_REQUIRED') {
-    return <OnboardingPage onComplete={onAuthenticated} onReturnToLogin={onReturnToLogin} />
+    return <OnboardingPage onComplete={onParkLogin} onReturnToLogin={onReturnToLogin} />
   }
   if (page === 'park' && getAuthSession()?.status === 'AUTHENTICATED') {
     return <ParkPage onExit={onExit} exitError={exitError} onAuthEnded={onReturnToLogin}
-      onOperationBlocked={onOperationBlocked} />
+      onOperationBlocked={onOperationBlocked}
+      welcomeStoryDeadline={welcomeStoryDeadline} onWelcomeStoryComplete={finishWelcomeStory} />
   }
   if (page === 'maintenance' && operation) {
     return <MaintenancePage status={operation} onRetry={() => setPage('checking')} />

@@ -8,16 +8,15 @@ type Rig = ReturnType<typeof createCharacterRig>
 const prototypes = new Map<Vehicle, Group>()
 const sides = ['L', 'R'] as const
 
-function cloneVehicle(kind: Vehicle) {
-  let source = prototypes.get(kind)
-  if (!source) {
-    // Fit the moving bike to the short-limbed avatar. Rack display models keep their original scale.
-    source = factory(kind === 'BICYCLE' ? 'ebike' : 'kickboard', {
-      ride: true, scale: kind === 'BICYCLE' ? .68 : 1, quality: 'light',
-    })
-    prototypes.set(kind, source)
-  }
-  return source.clone()
+export function prepareMountedVehicle(kind: Vehicle) {
+  const cached = prototypes.get(kind)
+  if (cached) return cached
+  // Fit the moving bike to the short-limbed avatar. Rack display models keep their original scale.
+  const source = factory(kind === 'BICYCLE' ? 'ebike' : 'kickboard', {
+    ride: true, scale: kind === 'BICYCLE' ? .68 : 1, quality: 'light',
+  })
+  prototypes.set(kind, source)
+  return source
 }
 
 function riderPose() {
@@ -106,7 +105,7 @@ export function createMountedVehicle() {
         if (kind) {
           let vehicle = models.get(kind)
           if (!vehicle) {
-            vehicle = cloneVehicle(kind)
+            vehicle = prepareMountedVehicle(kind).clone()
             models.set(kind, vehicle)
           }
           root.add(vehicle)

@@ -46,7 +46,7 @@ function renewalMapPlaces({ interactions, jumpCourse }: NonNullable<typeof renew
     gamePlace('arcade', 'rps-roulette-cabinet', '오락실'),
     ...interactions.construction.map(anchor => {
       const label = anchor.id.startsWith('mobility-') ? anchor.label + ' 대여소' : anchor.label
-      return place(anchor.id, label, xz(anchor.position), xz(anchor.reachPosition), true)
+      return place(anchor.id, label, xz(anchor.position), xz(anchor.reachPosition), anchor.id !== 'shooting')
     }),
   ]
 }

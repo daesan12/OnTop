@@ -41,6 +41,7 @@ import { STONE_RUMBLE_ENABLED } from '../tableLobby/model'
 import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice,openParkGacha } from '../construction/model'
+import { openSpotDifference } from '../spotDifference/store'
 import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlacement'
 import { gachaInteractionEnabled } from '../gacha/state'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
@@ -73,7 +74,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access'
   id: string
   label: string
   seat?: 0 | 1
@@ -125,6 +126,12 @@ export function getParkInteraction(): ParkInteraction | null {
     if(site.id===PARK_GACHA_MACHINE.id || RENEWAL_PARK_ENABLED && site.id.startsWith('mobility-'))continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
+    // The deployed 220m map still classifies this anchor as construction.
+    if (renewalMap && site.id === 'shooting') {
+      choices.push({ kind: 'spot-difference', id: site.id, label: '스피드 틀린 그림 찾기',
+        occupied: false, available: true, distance, score: interactionScore(distance, { x, y: y + .5, z }) })
+      continue
+    }
     const label = site.id === 'balloon' && BALLOON_RIDE_ENABLED ? '열기구 탑승' : site.id === 'layout-drink' ? '복권방 열기' : site.label
     choices.push({kind:'construction',id:site.id,label,occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
@@ -241,6 +248,7 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'joke-judge') openJokeContest()
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'gacha') openParkGacha()
+  else if (target.kind === 'spot-difference') openSpotDifference()
   else if (target.kind === 'construction') {
     if (target.id === 'balloon' && BALLOON_RIDE_ENABLED) return openLocalBalloon()
     openConstructionNotice(target.id)
