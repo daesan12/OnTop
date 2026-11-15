@@ -4,16 +4,23 @@ import type { Input, Point } from './flight'
 export const CABIN_FLOOR_HEIGHT = .425
 export const CABIN_SEAT_HEIGHT = .34
 export const CABIN_WALK_RADIUS = 1.38
-const CHAIR_RADIUS = 1.22
-const CHAIR_CLEARANCE = .52
+export const CABIN_BENCH_WIDTH = 1.76
+export const CABIN_BENCH_DEPTH = .4
+const BENCH_CLEARANCE = .14
 const SIT_REACH = .76
 
 // These coordinates are in the unscaled model's basket plane.
+export const cabinBenches = [
+  { z: -1.13, yaw: 0 },
+  { z: 1.13, yaw: Math.PI },
+] as const
+
+// Directions (0) and altitude (2) keep their existing seat IDs.
 export const cabinSeats = [
-  { x: 0, z: -CHAIR_RADIUS, yaw: 0 },
-  { x: CHAIR_RADIUS, z: 0, yaw: -Math.PI / 2 },
-  { x: 0, z: CHAIR_RADIUS, yaw: Math.PI },
-  { x: -CHAIR_RADIUS, z: 0, yaw: Math.PI / 2 },
+  { ...cabinBenches[0], x: -.43 },
+  { ...cabinBenches[0], x: .43 },
+  { ...cabinBenches[1], x: .43 },
+  { ...cabinBenches[1], x: -.43 },
 ] as const
 
 export type CabinPose = { x: number; z: number; yaw: number; seatIndex: number; moving: boolean }
@@ -29,7 +36,8 @@ export function walkCabin(pose: CabinPose, input: Input, elapsed: number): Cabin
   const dz = input.z / length * distance
   let { x, z } = pose
   const canStandAt = (px: number, pz: number) => Math.hypot(px, pz) <= CABIN_WALK_RADIUS
-    && cabinSeats.every(seat => Math.hypot(px - seat.x, pz - seat.z) >= CHAIR_CLEARANCE)
+    && cabinBenches.every(bench => Math.abs(px) >= CABIN_BENCH_WIDTH / 2 + BENCH_CLEARANCE
+      || Math.abs(pz - bench.z) >= CABIN_BENCH_DEPTH / 2 + BENCH_CLEARANCE)
   if (canStandAt(x + dx, z)) x += dx
   if (canStandAt(x, z + dz)) z += dz
   const moving = x !== pose.x || z !== pose.z
@@ -53,7 +61,8 @@ export function toggleCabinSeat(pose: CabinPose, occupied: readonly number[] = [
   const seat = cabinSeats[index]
   if (!seat) return pose
   if (pose.seatIndex >= 0) {
-    return { x: seat.x * .55, z: seat.z * .55, yaw: seat.yaw, seatIndex: -1, moving: false }
+    const z = seat.z - Math.sign(seat.z) * (CABIN_BENCH_DEPTH / 2 + BENCH_CLEARANCE + .16)
+    return { x: seat.x, z, yaw: seat.yaw, seatIndex: -1, moving: false }
   }
   return { ...seat, seatIndex: index, moving: false }
 }
