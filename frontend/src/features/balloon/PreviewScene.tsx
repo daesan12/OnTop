@@ -1,15 +1,15 @@
 import { Canvas, useFrame, useLoader } from '@react-three/fiber'
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Group, Mesh, Vector3 } from 'three'
+import { Suspense, useMemo, useRef } from 'react'
+import { Group, Vector3 } from 'three'
 import { ParkAssetLoader } from '../../world/art/assetLoader'
 import { clone } from 'three/addons/utils/SkeletonUtils.js'
-import { factory } from '../../../park-renewal-preview/assetFactories'
 import { Buildings } from '../../../park-renewal-preview/Buildings'
 import { CityBackdrop, ParkEnvironment } from '../../../park-renewal-preview/CityBackdrop'
 import { ScenicDetails } from '../../../park-renewal-preview/ScenicDetails'
 import { characterUrls } from '../../world/art/characterAssets'
 import { balloonScale, flightMap, startPoint } from './previewMap'
 import { cameraDrag, isPassenger, occupancy, usePreview } from './previewStore'
+import { useBalloonModel } from './useBalloonModel'
 
 const slots = [[-.65, .425, -.65], [.65, .425, -.65], [-.65, .425, .65], [.65, .425, .65]] as const
 function Riders() {
@@ -42,17 +42,10 @@ function Riders() {
 }
 
 function ParkScene() {
-  const [balloon] = useState(() => factory('balloon'))
   const balloonRef = useRef<Group>(null)
+  useBalloonModel(balloonRef)
   const cameraGoal = useRef(new Vector3())
   const target = useRef(new Vector3())
-  useEffect(() => () => {
-    balloon.traverse(object => {
-      if (!(object instanceof Mesh)) return
-      object.geometry.dispose()
-      for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose()
-    })
-  }, [balloon])
 
   useFrame(({ camera }, delta) => {
     const dt = Math.min(delta, .1)
@@ -93,9 +86,7 @@ function ParkScene() {
     <directionalLight position={[-100, 190, 90]} intensity={2.2} color="#fff0d6" />
     <ScenicDetails />
     <Buildings showDockedBalloon={false} />
-    <group ref={balloonRef} scale={balloonScale} position={[flightMap.dock.x, flightMap.dock.y, flightMap.dock.z]}>
-      <primitive object={balloon} />
-    </group>
+    <group ref={balloonRef} scale={balloonScale} position={[flightMap.dock.x, flightMap.dock.y, flightMap.dock.z]} />
     <Suspense fallback={null}><Riders /></Suspense>
   </>
 }

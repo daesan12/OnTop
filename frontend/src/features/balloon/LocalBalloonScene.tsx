@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Group, Mesh } from 'three'
-import { factory } from '../../../park-renewal-preview/assetFactories'
+import type { Group } from 'three'
 import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
 import { textInputOwnsKeys } from '../../world/inputOwnership'
 import { tickLocalBalloon, useLocalBalloon } from './localRide'
+import { useBalloonModel } from './useBalloonModel'
 
 const keys = new Set([
   'KeyA', 'KeyD', 'KeyW', 'KeyS', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
@@ -12,8 +12,8 @@ const keys = new Set([
 ])
 
 export default function LocalBalloonScene() {
-  const [balloon] = useState(() => factory('balloon'))
   const root = useRef<Group>(null)
+  useBalloonModel(root)
   const held = useRef(new Set<string>())
   useEffect(() => {
     const input = held.current
@@ -36,13 +36,9 @@ export default function LocalBalloonScene() {
       window.removeEventListener('blur', clear)
       window.removeEventListener('ontop-clear-input', clear)
       document.removeEventListener('visibilitychange', clear)
-      balloon.traverse(object => {
-        if (!(object instanceof Mesh)) return
-        object.geometry.dispose()
-        for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose()
-      })
+      clear()
     }
-  }, [balloon])
+  }, [])
 
   useFrame((_, delta) => {
     const input = held.current
@@ -57,7 +53,5 @@ export default function LocalBalloonScene() {
     if (flight) root.current.position.set(flight.position.x, flight.position.y, flight.position.z)
   }, -1.8)
 
-  return <group ref={root} name="local-balloon-ride" scale={BALLOON_SCALE} visible={false}>
-    <primitive object={balloon} />
-  </group>
+  return <group ref={root} name="local-balloon-ride" scale={BALLOON_SCALE} visible={false} />
 }
