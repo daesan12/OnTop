@@ -232,6 +232,7 @@ export function tickLocalBalloon(input: Input, elapsed: number, cabinInput = inp
   const roleChanged = !!controls && role !== ride.controlRole
   const walkingInside = controls ? !role : ride.walkingInside
   const localInput = walkingInside || roleChanged ? stoppedFlightInput : controls ? inputForRole(controls.mode, role, input) : input
+  const flightInput = controls ? combineFlightInput(controls, ride.owner, localInput) : localInput
   const now = performance.now()
   const emptySeconds = controls?.emptyMillis == null || !shared ? null
     : Math.max(0, Math.ceil((controls.emptyMillis - (now - shared.receivedAt)) / 1000))
@@ -256,7 +257,6 @@ export function tickLocalBalloon(input: Input, elapsed: number, cabinInput = inp
     if (flight.phase === 'flying' && emptySeconds !== null) {
       flight = stepUncrewedFlight(flight, emptySeconds > 0, dt, ride.map)
     } else {
-      const flightInput = controls ? combineFlightInput(controls, ride.owner, localInput) : localInput
       flight = stepFlight(flight.fallSpeed ? { ...flight, fallSpeed: undefined } : flight, flightInput, dt, ride.map, elapsed)
     }
   }
@@ -269,7 +269,8 @@ export function tickLocalBalloon(input: Input, elapsed: number, cabinInput = inp
   if (ride.ticketId && flight.phase !== 'removed' && (!guest || guestMoved || role) && now - lastPoseAt >= POSE_INTERVAL_MS) {
     lastPoseAt = now
     if (guest) lastGuestPose = cabin
-    parkRuntime.sendBalloonPose(ride.ticketId, flight.position, flight.phase !== 'landed', cabin, localInput)
+    parkRuntime.sendBalloonPose(ride.ticketId, flight.position, flight.phase !== 'landed', cabin,
+      flight.phase === 'flying' ? localInput : stoppedFlightInput)
   }
   if (flight.phase === 'removed' && flight.landing === 'field') {
     if (ride.ticketId) parkRuntime.endBalloon(ride.ticketId)
@@ -277,6 +278,7 @@ export function tickLocalBalloon(input: Input, elapsed: number, cabinInput = inp
   } else if (flight.phase === 'removed') cancelLocalBalloon()
   else useLocalBalloon.setState({ flight, cabin, walkingInside, controlRole: role, emptySeconds,
     cabinFirstPerson: roleChanged ? false : ride.cabinFirstPerson })
+  return flight.phase === 'flying' ? flightInput : stoppedFlightInput
 }
 
 export function localBalloonFade(ride: LocalRide) {

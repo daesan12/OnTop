@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useShallow } from 'zustand/react/shallow'
 import type { Group } from 'three'
@@ -11,13 +11,15 @@ import { BalloonCabinSeats } from './BalloonCabinSeats'
 import { cabinCamera, dragCabinCamera } from './cabinCamera'
 import { cameraRelativeMove } from '../../network/movementInput'
 import { useSession } from '../../network/worldClient'
+import { BalloonCabinControls, type LocalCabinInput } from './BalloonCabinControls'
+import { stoppedFlightInput } from './controls'
 
 const keys = new Set([
   'KeyA', 'KeyD', 'KeyW', 'KeyS', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
   'Space', 'ShiftLeft', 'ShiftRight',
 ])
 
-function RemoteBalloon({ pilot }: { pilot: string }) {
+function RemoteBalloon({ pilot, local }: { pilot: string; local: RefObject<LocalCabinInput> }) {
   const root = useRef<Group>(null)
   useBalloonModel(root)
   useFrame(() => {
@@ -25,7 +27,10 @@ function RemoteBalloon({ pilot }: { pilot: string }) {
     if (!root.current || !position) return
     root.current.position.set(position.x, position.y, position.z)
   }, -1.8)
-  return <group ref={root} name={`remote-balloon-${pilot}`} scale={BALLOON_SCALE}><BalloonCabinSeats /></group>
+  return <group ref={root} name={`remote-balloon-${pilot}`} scale={BALLOON_SCALE}>
+    <BalloonCabinSeats />
+    <BalloonCabinControls pilot={pilot} local={local} />
+  </group>
 }
 
 export default function LocalBalloonScene() {
@@ -33,6 +38,7 @@ export default function LocalBalloonScene() {
   useBalloonModel(root)
   const held = useRef(new Set<string>())
   const steering = useRef({ dx: 0, dz: 0, run: false, jump: false })
+  const cabinInput = useRef<LocalCabinInput>({ pilot: '', input: stoppedFlightInput })
   const canvas = useThree(state => state.gl.domElement)
   const ownId = useSession(state => state.sessionId)
   const remotePilots = useRemoteBalloons(useShallow(state => Object.keys(state.flights).filter(id => id !== ownId)))
@@ -100,19 +106,24 @@ export default function LocalBalloonScene() {
     const back = Number(input.has('KeyS') || input.has('ArrowDown')) - Number(input.has('KeyW') || input.has('ArrowUp'))
     const inside = useLocalBalloon.getState().walkingInside
     const aim = inside ? cameraRelativeMove(-back, side, cabinCamera.yaw, false, false, steering.current) : null
-    tickLocalBalloon({
+    const flightInput = tickLocalBalloon({
       x: side,
       z: back,
       lift: Number(input.has('Space')) - Number(input.has('ShiftLeft') || input.has('ShiftRight')),
     }, delta, aim ? { x: aim.dx, z: aim.dz, lift: 0 } : undefined)
-    if (!root.current) return
     const { owner, leader, flight } = useLocalBalloon.getState()
+    cabinInput.current.pilot = leader
+    cabinInput.current.input = flightInput ?? stoppedFlightInput
+    if (!root.current) return
     root.current.visible = !!flight && owner === leader
     if (flight) root.current.position.set(flight.position.x, flight.position.y, flight.position.z)
   }, -1.8)
 
   return <>
-    <group ref={root} name="local-balloon-ride" scale={BALLOON_SCALE} visible={false}><BalloonCabinSeats /></group>
-    {remotePilots.map(pilot => <RemoteBalloon key={pilot} pilot={pilot} />)}
+    <group ref={root} name="local-balloon-ride" scale={BALLOON_SCALE} visible={false}>
+      <BalloonCabinSeats />
+      <BalloonCabinControls local={cabinInput} />
+    </group>
+    {remotePilots.map(pilot => <RemoteBalloon key={pilot} pilot={pilot} local={cabinInput} />)}
   </>
 }
