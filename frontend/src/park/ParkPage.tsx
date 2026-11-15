@@ -55,6 +55,7 @@ import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
 import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
 import { JumpRopeHost } from '../features/jumpRope/JumpRopeHost'
 import { jumpRopeSettlementActive, useJumpRope } from '../features/jumpRope/store'
+import { ParkWelcomeStory } from '../features/welcomeStory/ParkWelcomeStory'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
 import { EntryNewsPopup } from '../features/announcements/EntryNewsPopup'
@@ -106,6 +107,8 @@ type ParkProps = {
   exitError: string
   onAuthEnded: () => void
   onOperationBlocked: (status: ServiceOperationStatus) => void
+  welcomeStoryPending?: boolean
+  onWelcomeStoryComplete?: () => void
 }
 export function ParkPage(props: ParkProps) {
   useLayoutEffect(() => {
@@ -115,7 +118,7 @@ export function ParkPage(props: ParkProps) {
   }, [])
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
-function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: ParkProps) {
+function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welcomeStoryPending, onWelcomeStoryComplete }: ParkProps) {
   const riding = useMobility(s => s.phase === 'riding' || s.phase === 'ending')
   useWalletSync()
   useJumpmapController()
@@ -183,7 +186,8 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <ChannelEntryGate />
       <AiResidentsHost />
       <AnnouncementBanner hidden={hideAnnouncements} />
-      <EntryNewsPopup hidden={hideAnnouncements} launcherHost={entryNewsHost} />
+      <EntryNewsPopup hidden={hideAnnouncements || welcomeStoryPending} launcherHost={entryNewsHost} />
+      {welcomeStoryPending && onWelcomeStoryComplete && <ParkWelcomeStory blocked={hideAnnouncements} onComplete={onWelcomeStoryComplete} />}
       <GachaLifecycle />
       <SkinCatalogLifecycle />
       <NotificationCenter key={session.sessionId} hidden={gameplayActive} newsHostRef={setEntryNewsHost}

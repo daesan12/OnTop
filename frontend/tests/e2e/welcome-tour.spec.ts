@@ -24,19 +24,30 @@ test('온보딩 직후 첫 입장에서 5초 환영 비행 뒤 체험 투어를 
   await page.route('**/api/v1/auth/exchange', route => route.fulfill({ json: { status: 'ONBOARDING_REQUIRED', onboardingToken: 'fixture-onboarding' } }))
   await page.route('**/api/v1/users/onboarding', route => route.fulfill({ json: { accessToken: 'fixture-access' } }))
 
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/auth/callback#exchange_code=' + 'A'.repeat(43))
   await expect(page.locator('.onboarding-page')).toBeVisible({ timeout: 20000 })
   await page.locator('#onboarding-nickname').fill('산책자')
   await page.getByText('안내를 확인했고, 이 캐릭터로 시작할게요').click()
+  // 배너는 React가 먼저 표시할 수 있으므로 브라우저에서 비행 도중 렌더링된 높이를 모은다.
+  const flightCamera = await page.evaluateHandle(async () => {
+    const { adCameraProbe } = await import('/tests/e2e/sceneProbe.ts' as string)
+    const { welcomeFlight } = await import('/src/features/welcomeTour/flight.ts' as string)
+    const sample = { highest: 0 }
+    function frame() {
+      if (welcomeFlight.active) sample.highest = Math.max(sample.highest, adCameraProbe().camera[1])
+      if (!welcomeFlight.startedAt || welcomeFlight.active) requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+    return sample
+  })
   await page.getByRole('button', { name: '공원 입장하기' }).click()
 
   // 공원이 준비되면 건너뛸 수 없는 환영 비행이 시작된다.
   const banner = page.locator('.welcome-tour-banner')
   await expect(banner).toBeVisible({ timeout: 120000 })
   await expect(banner).toContainText('온탑 공원에 오신 걸 환영해요')
-  // swiftshader 화면 캡처는 수 초가 걸리므로 시간에 민감한 확인을 캡처보다 먼저 한다.
-  const high = await camera(page)
-  expect(high.camera[1]).toBeGreaterThan(60)
+  await expect.poll(() => flightCamera.evaluate(sample => sample.highest), { timeout: 6000 }).toBeGreaterThan(60)
   expect(await page.evaluate(async () => (await import('/src/world/inputOwnership.ts' as string)).panelOwnsKeys())).toBe(true)
   await page.keyboard.press('Escape')
   await expect(banner).toBeVisible({ timeout: 200 })
@@ -45,6 +56,24 @@ test('온보딩 직후 첫 입장에서 5초 환영 비행 뒤 체험 투어를 
 
   // 비행이 끝나면 평소 3인칭 시점으로 돌아오고 투어 목록이 뜬다.
   await expect(banner).toBeHidden({ timeout: 6000 })
+  const story = page.getByRole('dialog', { name: '박영감' })
+  await expect(story).toBeVisible()
+  await expect(story).toContainText('1 / 2')
+  const portrait = story.locator('.joke-portrait')
+  const frame = story.locator('.joke-dialogue-frame')
+  const insideFrame = async () => {
+    const [imageBox, frameBox] = await Promise.all([portrait.boundingBox(), frame.boundingBox()])
+    return !!imageBox && !!frameBox && imageBox.x >= frameBox.x && imageBox.y >= frameBox.y
+      && imageBox.x + imageBox.width <= frameBox.x + frameBox.width
+      && imageBox.y + imageBox.height <= frameBox.y + frameBox.height
+  }
+  await expect.poll(insideFrame).toBe(true)
+  await story.getByRole('button', { name: '다음' }).click()
+  await expect(story).toContainText('2 / 2')
+  await expect(story).toContainText('패치노트')
+  await expect.poll(insideFrame).toBe(true)
+  await story.getByRole('button', { name: '공원 둘러보기' }).click()
+  await expect(story).toBeHidden()
   await expect(tour(page)).toContainText('0/5')
   await page.waitForTimeout(800)
   const settled = await camera(page)

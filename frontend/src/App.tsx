@@ -20,6 +20,7 @@ export default function App() {
     window.location.pathname === '/auth/callback' ? 'callback' : 'checking',
   )
   const [exitError, setExitError] = useState('')
+  const [welcomeStoryPending, setWelcomeStoryPending] = useState(false)
   const [operation, setOperation] = useState<ServiceOperationStatus | null>(null)
 
   useEffect(() => {
@@ -89,6 +90,13 @@ export default function App() {
     setPage('checking')
   }, [])
 
+  const onParkLogin = useCallback(() => {
+    setWelcomeStoryPending(true)
+    onAuthenticated()
+  }, [onAuthenticated])
+
+  const finishWelcomeStory = useCallback(() => setWelcomeStoryPending(false), [])
+
   const onAdminNavigate = useCallback((section: AdminSection) => {
     window.history.pushState(null, '', adminRoutes[section].path)
     setPage(adminRoutes[section].page)
@@ -100,6 +108,7 @@ export default function App() {
   }, [])
 
   const onReturnToLogin = useCallback(() => {
+    setWelcomeStoryPending(false)
     clearAuthSession()
     window.history.replaceState(null, '', '/')
     setPage('login')
@@ -114,6 +123,7 @@ export default function App() {
     setExitError('')
     try {
       await logout()
+      setWelcomeStoryPending(false)
       forgetTabGames()
       window.history.replaceState(null, '', '/')
       setPage('login')
@@ -123,14 +133,15 @@ export default function App() {
   }
 
   if (page === 'callback') {
-    return <AuthCallbackPage onAuthenticated={onAuthenticated} onOnboardingRequired={onOnboardingRequired} />
+    return <AuthCallbackPage onAuthenticated={onParkLogin} onOnboardingRequired={onOnboardingRequired} />
   }
   if (page === 'onboarding' && getAuthSession()?.status === 'ONBOARDING_REQUIRED') {
-    return <OnboardingPage onComplete={onAuthenticated} onReturnToLogin={onReturnToLogin} />
+    return <OnboardingPage onComplete={onParkLogin} onReturnToLogin={onReturnToLogin} />
   }
   if (page === 'park' && getAuthSession()?.status === 'AUTHENTICATED') {
     return <ParkPage onExit={onExit} exitError={exitError} onAuthEnded={onReturnToLogin}
-      onOperationBlocked={onOperationBlocked} />
+      onOperationBlocked={onOperationBlocked}
+      welcomeStoryPending={welcomeStoryPending} onWelcomeStoryComplete={finishWelcomeStory} />
   }
   if (page === 'maintenance' && operation) {
     return <MaintenancePage status={operation} onRetry={() => setPage('checking')} />
