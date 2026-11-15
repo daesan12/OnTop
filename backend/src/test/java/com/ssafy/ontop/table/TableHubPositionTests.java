@@ -107,18 +107,27 @@ class TableHubPositionTests {
         flights.authorize("102", guestTicket, now, now);
 
         pilot.request("WORLD_BALLOON_START", Map.of("ticketId", ticket.toString(),
-                "x", at.x(), "y", at.y(), "z", at.z(), "capacity", 4));
+                "x", at.x(), "y", at.y(), "z", at.z(), "capacity", 4, "mode", "split"));
         assertThat(observer.awaitBalloon().at("/party/capacity").asInt()).isEqualTo(4);
         assertThat(flights.holdSeat("one", "101", "102", guestTicket, now, System.nanoTime())).isTrue();
         var boarded = passenger.request("WORLD_BALLOON_START", Map.of("ticketId", guestTicket.toString(),
                 "x", at.x(), "y", at.y(), "z", at.z(), "leaderId", "101")).path("payload");
-        assertThat(boarded.at("/party/passengers/102/seatIndex").asInt(-1)).isZero();
+        assertThat(boarded.at("/party/passengers/102/seatIndex").asInt(-1)).isEqualTo(2);
         assertThat(observer.awaitBalloon()).isEqualTo(boarded);
 
-        pilot.request("WORLD_BALLOON_LAUNCH", Map.of("ticketId", ticket.toString()));
+        pilot.request("WORLD_BALLOON_LAUNCH", Map.of("ticketId", ticket.toString(), "solo", false));
         var launched = passenger.awaitBalloon();
         assertThat(launched.at("/party/boarding").asBoolean(true)).isFalse();
         assertThat(observer.awaitBalloon()).isEqualTo(launched);
+        pilot.request("WORLD_BALLOON_CONTROL", Map.of("ticketId", ticket.toString(),
+                "action", "offer", "role", "direction", "peer", "102"));
+        var offer = passenger.awaitBalloon().at("/party/controls/offer/id").asText();
+        passenger.request("WORLD_BALLOON_CONTROL", Map.of("ticketId", guestTicket.toString(),
+                "action", "accept", "role", "direction", "offerId", offer));
+        observer.awaitBalloon();
+        var swapped = observer.awaitBalloon().at("/party/controls");
+        assertThat(swapped.path("direction").asText()).isEqualTo("102");
+        assertThat(swapped.path("altitude").asText()).isEqualTo("101");
         pilot.request("WORLD_BALLOON_END", Map.of("ticketId", ticket.toString()));
         assertThat(passenger.awaitBalloon().path("flight").isNull()).isTrue();
     }

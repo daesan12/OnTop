@@ -30,6 +30,58 @@ class BalloonFlightsTests {
 
     private BalloonFlights flights;
 
+    @Test
+    void 분담_조종은_담당_입력만_반영하고_수락_시_두_좌석을_동시에_교대한다() {
+        String guest = "102";
+        UUID guestTicket = UUID.randomUUID();
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+        flights.authorize(guest, guestTicket, NOW, NOW);
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0, 2, null, "split")).isNotNull();
+        assertThat(flights.launch(CHANNEL, PILOT, SESSION, TICKET, NOW, 0)).isNull();
+        assertThat(flights.holdSeat(CHANNEL, PILOT, guest, guestTicket, NOW, 0)).isTrue();
+        flights.start(CHANNEL, guest, "guest", guestTicket, GROUND, DOCK, NOW, 0, 1, PILOT);
+        flights.launch(CHANNEL, PILOT, SESSION, TICKET, NOW, 0);
+        long tick = Duration.ofMillis(200).toNanos();
+        var pose = new Flight(DOCK, true);
+        flights.update(CHANNEL, PILOT, SESSION, TICKET, pose, new BalloonControls.Intent(1, -1, -1), tick);
+        var flying = flights.update(CHANNEL, guest, "guest", guestTicket, pose, new BalloonControls.Intent(-1, 1, 1), tick);
+        assertThat(flying.party().controls().input()).isEqualTo(new BalloonControls.Intent(1, -1, 1));
+
+        var offer = flights.control(CHANNEL, PILOT, SESSION, TICKET, "offer", "direction", guest, tick).party().controls().offer();
+        assertThat(flights.control(CHANNEL, guest, "guest", guestTicket, "accept", "direction", "old-offer", tick)).isNull();
+        var swapped = flights.control(CHANNEL, guest, "guest", guestTicket, "accept", "direction", offer.id(), tick);
+        assertThat(swapped.party().controls().direction()).isEqualTo(guest);
+        assertThat(swapped.party().controls().altitude()).isEqualTo(PILOT);
+        assertThat(swapped.party().controls().input()).isEqualTo(BalloonControls.Intent.STOPPED);
+        assertThat(swapped.party().controls().emptyMillis()).isNull();
+        assertThat(swapped.flight().cabin().seatIndex()).isEqualTo(2);
+
+        var oneLeft = flights.control(CHANNEL, PILOT, SESSION, TICKET, "leave", "altitude", null, tick);
+        assertThat(oneLeft.party().controls().emptyMillis()).isNull();
+        var bothLeft = flights.control(CHANNEL, guest, "guest", guestTicket, "leave", "direction", null, tick);
+        assertThat(bothLeft.party().controls().emptyMillis()).isEqualTo(3000);
+    }
+
+    @Test
+    void 혼자_조종하면_양쪽_입력이_가능하고_자리에서_일어난_뒤_삼초가_지나면_추락_대기가_끝난다() {
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+        flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0, 2, null, "split");
+        var solo = flights.launch(CHANNEL, PILOT, SESSION, TICKET, NOW, 0, true);
+        assertThat(solo.party().controls().mode()).isEqualTo("solo");
+        long tick = Duration.ofMillis(200).toNanos();
+        var intent = new BalloonControls.Intent(-1, 1, -1);
+        assertThat(flights.update(CHANNEL, PILOT, SESSION, TICKET, new Flight(DOCK, true), intent, tick)
+                .party().controls().input()).isEqualTo(intent);
+        var empty = flights.control(CHANNEL, PILOT, SESSION, TICKET, "leave", "direction", null, tick);
+        assertThat(empty.party().controls().emptyMillis()).isEqualTo(3000);
+        assertThat(flights.snapshot(CHANNEL, tick + Duration.ofMillis(2999).toNanos()).getFirst()
+                .party().controls().emptyMillis()).isEqualTo(1);
+        long falling = tick + Duration.ofSeconds(3).toNanos();
+        assertThat(flights.snapshot(CHANNEL, falling).getFirst().party().controls().emptyMillis()).isZero();
+        var rescued = flights.control(CHANNEL, PILOT, SESSION, TICKET, "claim", "direction", null, falling);
+        assertThat(rescued.party().controls().emptyMillis()).isNull();
+    }
+
     @BeforeEach
     void 준비() throws Exception {
         var map = mock(WorldMapRuntime.class);

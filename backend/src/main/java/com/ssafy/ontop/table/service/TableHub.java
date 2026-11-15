@@ -55,6 +55,7 @@ import com.ssafy.ontop.world.map.LegacyParkTables;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.balloon.BalloonFlights;
+import com.ssafy.ontop.world.balloon.BalloonControls;
 import com.ssafy.ontop.world.service.DynamicChannelDisplayNumbers;
 import com.ssafy.ontop.world.service.ParkDebrisStore;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
@@ -951,7 +952,8 @@ public class TableHub {
                 case "CHANNEL_JOIN" -> joinChannel(member, request);
                 case "CHANNEL_LEAVE" -> leaveChannel(member, request);
                 case "WORLD_MOBILITY_START", "WORLD_MOBILITY_END" -> mobility(member, request);
-                case "WORLD_BALLOON_START", "WORLD_BALLOON_POSE", "WORLD_BALLOON_END", "WORLD_BALLOON_LAUNCH" ->
+                case "WORLD_BALLOON_START", "WORLD_BALLOON_POSE", "WORLD_BALLOON_END", "WORLD_BALLOON_LAUNCH",
+                        "WORLD_BALLOON_CONTROL" ->
                         balloon(member, request);
                 case "WORLD_MOVE" -> moveWorld(member, request);
                 case "WORLD_POSITION" -> positionWorld(member, request);
@@ -1587,9 +1589,14 @@ public class TableHub {
                 payload.path("z").asDouble());
         long now = System.nanoTime();
         BalloonFlights.State state;
-        if (request.type().equals("WORLD_BALLOON_LAUNCH")) {
-            state = balloons.launch(channel, pilot, member.sessionId(), ticket, java.time.Instant.now(), now);
-            if (state == null) fail(request, "BALLOON_LAUNCH_REJECTED", "탑승 중인 손님이 있다면 잠시 후 출발해주세요.");
+        if (request.type().equals("WORLD_BALLOON_CONTROL")) {
+            state = balloons.control(channel, pilot, member.sessionId(), ticket, payload.path("action").asText(),
+                    payload.path("role").asText(), payload.path("offerId").asText(payload.path("peer").asText(null)), now);
+            if (state == null) fail(request, "BALLOON_CONTROL_REJECTED", "조종석 상태가 바뀌었어요. 다시 확인해주세요.");
+        } else if (request.type().equals("WORLD_BALLOON_LAUNCH")) {
+            state = balloons.launch(channel, pilot, member.sessionId(), ticket, java.time.Instant.now(), now,
+                    payload.path("solo").asBoolean());
+            if (state == null) fail(request, "BALLOON_LAUNCH_REJECTED", "탑승 인원과 조종석 상태를 확인해주세요.");
         } else if (request.type().equals("WORLD_BALLOON_START")) {
             if (seating.containsKey(pilot) || mobilityRides.containsKey(pilot) || facilities.current(pilot) != null
                     || channels.carryState(pilot) != null) {
@@ -1597,7 +1604,8 @@ public class TableHub {
             }
             var wallTime = java.time.Instant.now();
             state = balloons.start(channel, pilot, member.sessionId(), ticket, channels.positionOf(pilot),
-                    point, wallTime, now, payload.path("capacity").asInt(1), payload.path("leaderId").asText(null));
+                    point, wallTime, now, payload.path("capacity").asInt(1), payload.path("leaderId").asText(null),
+                    payload.path("mode").asText(null));
             if (state == null && !balloons.ticketAvailable(pilot, ticket, wallTime)) {
                 fail(request, "BALLOON_TICKET_EXPIRED", "이 탑승권의 유효 시간이 끝났어요.");
             }
@@ -1606,8 +1614,11 @@ public class TableHub {
             var rider = cabin.isMissingNode() ? BalloonFlights.CabinPose.IDLE
                     : new BalloonFlights.CabinPose(cabin.path("x").asDouble(), cabin.path("z").asDouble(),
                             cabin.path("yaw").asDouble(), cabin.path("seatIndex").asInt(), cabin.path("moving").asBoolean());
+            var input = payload.path("input");
+            var intent = new BalloonControls.Intent(input.path("x").asDouble(), input.path("z").asDouble(),
+                    input.path("lift").asDouble());
             state = balloons.update(channel, pilot, member.sessionId(), ticket,
-                    new BalloonFlights.Flight(point, payload.path("aboard").asBoolean(), rider), now);
+                    new BalloonFlights.Flight(point, payload.path("aboard").asBoolean(), rider), intent, now);
         }
         if (state == null) {
             fail(request, "BALLOON_STATE_REJECTED", "승강장 또는 비행 상태를 확인해주세요.");
