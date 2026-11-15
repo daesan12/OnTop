@@ -4403,7 +4403,7 @@
   "sources": [
     {
       "path": "src/features/jumpmap/course.ts",
-      "sha256": "f9a18ca684e77d0964abb76502309664d50203d9f33ed2130e273bf1baeaf948"
+      "sha256": "8e8784d66286aa028ff7343562f92c8081147c370a95bc92fa269a5b35663fb1"
     },
     {
       "path": "src/layout-preview/jumpCourse.ts",

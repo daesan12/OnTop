@@ -133,7 +133,7 @@ for (const [x, z] of [...TABLES, ...JUMP_TABLES]) {
 const restBenchSegments = pavilionBenchSegments('rest')
 function subPavilion(p: Placement) {
   octagonalRails(p, 2.827, .04, -.08, .57, [1.06, 0, 0, 0])
-  octagonalRails(p, 2.38 * Math.cos(Math.PI / 8), .22, .44, 1.58, [Infinity, 0, 0, 0])
+  octagonalRails(p, 2.38 * Math.cos(Math.PI / 8), .1, .57, 1.47, [Infinity, 0, 0, 0])
   for (let i = 0; i < 8; i++) {
     const angle = Math.PI / 8 + i * Math.PI / 4
     const column: Point = [2.38 * Math.sin(angle), 2.38 * Math.cos(angle)]
@@ -161,8 +161,7 @@ const main = site('pavilion')
 const mainPlacement = { x: main.x, y: facilityGroundY(main) + .115, z: main.z, yaw: facilityYaw(main) }
 octagonalRails(mainPlacement, 9.812, .06, -.08, 1.3, [2.2, 2.2, 2.2, 2.2])
 octagonalRails(mainPlacement, 8.684, .1, 1.3, 2.6, [2.2, 2.2, 2.2, 2.2])
-// The rail ends line up with the four stair cheeks, including the wider south flight.
-octagonalRails(mainPlacement, 8.684, .25, 2.48, 3.7, [1.49, 1.49, 2.18, 1.49])
+octagonalRails(mainPlacement, 8.684, .25, 2.6, 3.58, [1.62, 1.62, 1.62, 1.62])
 octagonalRails(mainPlacement, 5.865, .25, 2.6, 3.65, [1.35, 1.35, 1.35, 1.35])
 const mainBenchSegments = pavilionBenchSegments('main')
 for (let i = 0; i < 8; i++) {
@@ -275,16 +274,8 @@ for (let i = 0; i < 20; i++) {
 }
 const pagoda = atSite('pagoda')
 const pagodaBase = GARDEN_PAGODA.baseWidth
-// Fill the plinth below the terrace surface and seal the body above it.
-box(pagoda, [0, 0], pagodaBase, pagodaBase, 1.5, 1.8 + GARDEN_PAGODA.pedestalTop)
-for (const [i, tier] of PAGODA_TIERS.entries()) {
-  const width = tier.width * GARDEN_PAGODA.scale * GARDEN_PAGODA.widthScale * .72
-  const depth = tier.cross ? width * .55 : width
-  const bottom = 1.8 + tier.y * GARDEN_PAGODA.scale - .08
-  const top = 1.8 + (PAGODA_TIERS[i + 1]?.y ?? GARDEN_PAGODA.height / GARDEN_PAGODA.scale) * GARDEN_PAGODA.scale
-  box(pagoda, [0, 0], width, depth, bottom, top)
-  if (tier.cross) box(pagoda, [0, 0], depth, width, bottom, top)
-}
+box(pagoda, [0, 0], pagodaBase, pagodaBase, 1.8, 1.8 + GARDEN_PAGODA.pedestalTop)
+box(pagoda, [0, 0], pagodaBase * .49, pagodaBase * .49, 1.8, 1.8 + GARDEN_PAGODA.height)
 const jumpSite = site('jump')
 const jumpBase = { x: jumpSite.x, y: heightAt(jumpSite.x, jumpSite.z), z: jumpSite.z, yaw: 0, scale: .8 }
 const jumpWidth = GARDEN_PAGODA.widthScale

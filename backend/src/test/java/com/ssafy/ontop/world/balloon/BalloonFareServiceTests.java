@@ -55,7 +55,8 @@ class BalloonFareServiceTests {
 
         var receipt = service.buy(123, REQUEST);
 
-        assertThat(receipt).isEqualTo(new BalloonFareService.Receipt(REQUEST, 100));
+        assertThat(receipt.requestId()).isEqualTo(REQUEST);
+        assertThat(receipt.fee()).isEqualTo(100);
         assertThat(wallet.balance()).isZero();
         verify(transactions).save(entry.capture());
         assertThat(entry.getValue().balanceDelta()).isEqualTo(-100);

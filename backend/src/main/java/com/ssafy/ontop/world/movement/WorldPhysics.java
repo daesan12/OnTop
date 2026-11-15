@@ -258,9 +258,6 @@ public final class WorldPhysics implements AutoCloseable {
             if (actor == null || actor.seated || actor.swimming || actor.carriedBy != null || actor.carryingId != null
                     || actor.throwTicks > 0) return null;
             var layout = scene.data.path("interiorAccess");
-            if (!layout.path("entrancesOpen").asBoolean(true) && ("vestibule".equals(access) || "entry".equals(access))) {
-                return null;
-            }
             var route = layout.path("routes").path(access);
             if (!route.isObject()) return null;
             Vector3f position = actor.body.getPhysicsLocation(null);
