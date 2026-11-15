@@ -281,18 +281,10 @@
   background: radial-gradient(circle, var(--spot-red) 0 22%, transparent 25%);
 }
 .spot-difference .spot-targets [data-used="true"] { visibility: hidden; }
-.spot-difference .spot-ready {
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 10px;
-  min-height: 160px;
-  margin-top: 10px;
-  border: 1px solid #b7875c;
-  border-radius: 8px;
-  background: #efcfaa83;
+.spot-difference .spot-loading {
+  margin: 12px 0 0;
+  color: var(--spot-muted);
 }
-.spot-difference .spot-ready .spot-emblem { width: 34px; }
 .spot-difference .spot-boards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 9px; }
 .spot-difference .spot-board { position: relative; min-width: 0; padding-top: 16px; }
 .spot-difference .spot-board-label {

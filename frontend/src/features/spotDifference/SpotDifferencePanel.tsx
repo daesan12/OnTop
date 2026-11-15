@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { useSession } from '../../network/worldClient'
 import { PaperPopup } from '../tableLobby/PaperPopup'
 import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh'
@@ -84,8 +84,8 @@ function sceneImage(scene: string, variant: 'original' | 'normal' | 'hard') {
 }
 
 function RoundHud({ view, remaining, urgent }: { view: Round; remaining: number; urgent: boolean }) {
-  const seconds = view.phase === 'WAITING' ? roundSeconds : Math.ceil(remaining / 1000)
-  const timeRatio = view.phase === 'WAITING' ? 1 : Math.min(1, remaining / (roundSeconds * 1000))
+  const seconds = Math.ceil(remaining / 1000)
+  const timeRatio = Math.min(1, remaining / (roundSeconds * 1000))
   const left = targetsPerRound - view.matched.length
 
   return <div className="spot-hud">
@@ -128,6 +128,7 @@ export function SpotDifferencePanel() {
   const scene = view?.scene
   const difficulty = view?.difficulty
   const loadedKey = scene && difficulty ? `${scene}:${difficulty}:${assetRetry}` : ''
+  const loaded = loadedKey !== '' && loadedKey === assetsLoaded
 
   useEffect(() => {
     if (!view) entryHeading.current?.focus()
@@ -155,7 +156,7 @@ export function SpotDifferencePanel() {
     return () => { current = false }
   }, [scene, difficulty, loadedKey])
 
-  async function submit(request: () => Promise<Round>) {
+  const submit = useCallback(async (request: () => Promise<Round>) => {
     if (pending.current) return
     const owner = useSession.getState().sessionId
     pending.current = true
@@ -186,7 +187,12 @@ export function SpotDifferencePanel() {
       pending.current = false
       setBusy(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (view?.phase !== 'WAITING' || !loaded || busy || error) return
+    void submit(() => spotDifference.act(view, 'READY'))
+  }, [view, loaded, busy, error, submit])
 
   useEffect(() => {
     if (!view || view.phase !== 'PLAYING') return
@@ -197,7 +203,7 @@ export function SpotDifferencePanel() {
     }
     const interval = window.setInterval(tick, 100)
     return () => window.clearInterval(interval)
-  }, [view, error])
+  }, [view, error, submit])
 
   useEffect(() => {
     if (!shot || shot.kind === 'pending') return
@@ -216,7 +222,6 @@ export function SpotDifferencePanel() {
     void submit(() => spotDifference.act(view, 'TAP', point))
   }
 
-  const loaded = loadedKey && loadedKey === assetsLoaded
   const receipt = view?.receipt
   const todayEarned = budget?.todayEarned
   const dailyCap = budget?.dailyCap ?? initialBudget
@@ -280,29 +285,23 @@ export function SpotDifferencePanel() {
         setShowDifficulty(false)
       }}><span aria-hidden>←</span> 게임 방법 다시 보기</button>
     </div>}
-    {view && <>
+    {waiting && !error && <p className="spot-loading" role="status">그림을 불러오는 중이에요.</p>}
+    {view && !waiting && <>
       <RoundHud view={view} remaining={remaining} urgent={urgent} />
-      {waiting ? <div className="spot-ready"><span className="spot-emblem" aria-hidden />
-        <strong>{view.name}</strong>
-      </div> : <div className="spot-boards" key={view.scene} aria-label={view.name}>
+      <div className="spot-boards" key={view.scene} aria-label={view.name}>
         <Board view={view} variant="original" shot={shot} fire={fire} />
         <Board view={view} variant={view.difficulty === 'NORMAL' ? 'normal' : 'hard'} shot={shot} fire={fire} />
-      </div>}
+      </div>
       <div className="spot-footer">
         <span className="spot-feedback" data-tap={reviewing ? undefined : view.tap ?? undefined} role="status">
-          {waiting ? '' : feedback}
+          {feedback}
         </span>
         <span className="spot-total">누적 <strong>{view.total} / {totalTargets}</strong></span>
         <div className="spot-footer-action">
-          {!receipt && (waiting
-            ? <button type="button" className="spot-primary" disabled={!loaded || busy || !!error}
-              onClick={() => void submit(() => spotDifference.act(view, 'READY'))}>
-              {loaded ? '그림 열고 시작' : '그림 불러오는 중'}
-            </button>
-            : <button type="button" className="spot-primary" disabled={!reviewing || busy || !!error}
-              onClick={() => void submit(() => spotDifference.act(view, 'NEXT'))}>
-              {view.round === rounds ? '마지막 장면' : '다음 장면'}
-            </button>)}
+          {!receipt && <button type="button" className="spot-primary" disabled={!reviewing || busy || !!error}
+            onClick={() => void submit(() => spotDifference.act(view, 'NEXT'))}>
+            {view.round === rounds ? '마지막 장면' : '다음 장면'}
+          </button>}
         </div>
       </div>
       {receipt && <>
