@@ -4,9 +4,10 @@ import { useShallow } from 'zustand/react/shallow'
 import type { Group } from 'three'
 import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
 import { textInputOwnsKeys } from '../../world/inputOwnership'
-import { tickLocalBalloon, useLocalBalloon } from './localRide'
+import { tickLocalBalloon, toggleLocalCabinMode, toggleLocalCabinSeat, useLocalBalloon } from './localRide'
 import { sampleRemoteBalloon, useRemoteBalloons } from './remoteRide'
 import { useBalloonModel } from './useBalloonModel'
+import { BalloonCabinSeats } from './BalloonCabinSeats'
 
 const keys = new Set([
   'KeyA', 'KeyD', 'KeyW', 'KeyS', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
@@ -21,7 +22,7 @@ function RemoteBalloon({ pilot }: { pilot: string }) {
     if (!root.current || !position) return
     root.current.position.set(position.x, position.y, position.z)
   }, -1.8)
-  return <group ref={root} name={`remote-balloon-${pilot}`} scale={BALLOON_SCALE} />
+  return <group ref={root} name={`remote-balloon-${pilot}`} scale={BALLOON_SCALE}><BalloonCabinSeats /></group>
 }
 
 export default function LocalBalloonScene() {
@@ -33,8 +34,17 @@ export default function LocalBalloonScene() {
     const input = held.current
     const clear = () => input.clear()
     const down = (event: KeyboardEvent) => {
-      if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey || !keys.has(event.code)
+      if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey
         || textInputOwnsKeys(event.target) || useLocalBalloon.getState().flight?.phase !== 'flying') return
+      if (event.code === 'KeyF' || event.code === 'KeyE') {
+        event.preventDefault()
+        if (!event.repeat) {
+          if (event.code === 'KeyF') toggleLocalCabinMode()
+          else toggleLocalCabinSeat()
+        }
+        return
+      }
+      if (!keys.has(event.code)) return
       event.preventDefault()
       input.add(event.code)
     }
@@ -68,7 +78,7 @@ export default function LocalBalloonScene() {
   }, -1.8)
 
   return <>
-    <group ref={root} name="local-balloon-ride" scale={BALLOON_SCALE} visible={false} />
+    <group ref={root} name="local-balloon-ride" scale={BALLOON_SCALE} visible={false}><BalloonCabinSeats /></group>
     {remotePilots.map(pilot => <RemoteBalloon key={pilot} pilot={pilot} />)}
   </>
 }

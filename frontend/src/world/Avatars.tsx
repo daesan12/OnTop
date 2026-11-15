@@ -200,7 +200,10 @@ function Avatar({
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
-    if (balloonRider) root.current.position.set(balloonRider.x, balloonRider.y, balloonRider.z)
+    if (balloonRider) {
+      const seatLift = balloonRider.seatIndex >= 0 ? model.seatedContactLift - model.hipHeight : 0
+      root.current.position.set(balloonRider.x, balloonRider.y + seatLift, balloonRider.z)
+    }
     else root.current.position.set(
       pose.x,
       pose.y - 0.8 + (seated ? (seatTable?.seatSurfaceY
@@ -208,7 +211,7 @@ function Avatar({
           + (RENEWAL_PARK_ENABLED ? model.seatedContactLift : model.seatedHipLift) - model.hipHeight : 0),
       pose.z,
     )
-    root.current.rotation.y = balloonRider ? Math.PI : pose.yaw
+    root.current.rotation.y = balloonRider?.yaw ?? pose.yaw
     const carryAnimation = carryMotion.get(id)
     if (!root.current.visible && !carryAnimation) return
     // The visitors parent has an identity transform; this position is already
@@ -220,7 +223,10 @@ function Avatar({
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
-    const displayAvatar = presentation.sample(avatar, displayFlags, own ? undefined : pose, frameAt)
+    const motionAvatar = balloonRider ? { ...avatar, seatIndex: balloonRider.seatIndex,
+      moving: balloonRider.moving, running: false, swimming: false } : avatar
+    const displayAvatar = presentation.sample(motionAvatar, balloonRider ? undefined : displayFlags,
+      own || balloonRider ? undefined : pose, frameAt)
     const active = !!avatar.vehicle || mountedVehicle.root.children.length > 0 || !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
@@ -229,7 +235,7 @@ function Avatar({
       distance,
       own,
       active,
-      presentation.key(avatar, reaction?.key ?? '', holdingCards, active),
+      presentation.key(motionAvatar, reaction?.key ?? '', holdingCards, active),
       !reaction && avatarPoseAmbient(displayAvatar),
       crowded && !carryAnimation && !reaction && !seated && !displayAvatar.emote && !displayAvatar.fitnessId && !displayAvatar.telescopeId,
       crowdFrame.current,

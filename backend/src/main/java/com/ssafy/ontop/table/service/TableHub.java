@@ -1598,8 +1598,12 @@ public class TableHub {
                 fail(request, "BALLOON_TICKET_EXPIRED", "이 탑승권의 유효 시간이 끝났어요.");
             }
         } else {
+            var cabin = payload.path("cabin");
+            var rider = cabin.isMissingNode() ? BalloonFlights.CabinPose.IDLE
+                    : new BalloonFlights.CabinPose(cabin.path("x").asDouble(), cabin.path("z").asDouble(),
+                            cabin.path("yaw").asDouble(), cabin.path("seatIndex").asInt(), cabin.path("moving").asBoolean());
             state = balloons.update(channel, pilot, member.sessionId(), ticket,
-                    new BalloonFlights.Flight(point, payload.path("aboard").asBoolean()), now);
+                    new BalloonFlights.Flight(point, payload.path("aboard").asBoolean(), rider), now);
         }
         if (state == null) {
             fail(request, "BALLOON_STATE_REJECTED", "승강장 또는 비행 상태를 확인해주세요.");

@@ -1,6 +1,7 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
 import { notifyOwnBalloonEnd, receiveRemoteBalloon } from '../../features/balloon/remoteRide'
 import type { Point as BalloonPoint } from '../../features/balloon/flight'
+import type { CabinPose } from '../../features/balloon/cabin'
 import { BALLOON_RIDE_ENABLED } from '../mapSelection'
 import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
 import {
@@ -1086,9 +1087,9 @@ export class ParkRuntime implements ParkRuntimePort {
       throw new Error('열기구 탑승 상태를 확인해주세요.')
     }
   }
-  sendBalloonPose = (ticketId: string, position: BalloonPoint, aboard: boolean) => {
+  sendBalloonPose = (ticketId: string, position: BalloonPoint, aboard: boolean, cabin: CabinPose) => {
     if (!this.socket.connected) return
-    try { this.socket.send('WORLD_BALLOON_POSE', { ticketId, ...position, aboard }) }
+    try { this.socket.send('WORLD_BALLOON_POSE', { ticketId, ...position, aboard, cabin }) }
     catch { /* The next update or the flight expiry handles a transport interruption. */ }
   }
   endBalloon = (ticketId: string) => {

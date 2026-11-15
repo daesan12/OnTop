@@ -49,3 +49,9 @@
   background: #151c17;
   pointer-events: none;
 }
+.park-balloon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}

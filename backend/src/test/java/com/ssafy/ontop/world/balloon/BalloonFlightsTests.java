@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.world.balloon.BalloonFlights.Flight;
+import com.ssafy.ontop.world.balloon.BalloonFlights.CabinPose;
 import com.ssafy.ontop.world.balloon.BalloonFlights.Point;
 import com.ssafy.ontop.world.balloon.BalloonFlights.State;
 import com.ssafy.ontop.world.map.PreparedParkMap;
@@ -70,6 +71,22 @@ class BalloonFlightsTests {
         assertThat(flights.update(CHANNEL, PILOT, "other", TICKET, new Flight(DOCK, true), tick)).isNull();
         assertThat(flights.update(CHANNEL, PILOT, SESSION, TICKET,
                 new Flight(new Point(120, 30, 0), true), tick)).isNull();
+    }
+
+    @Test
+    void 기내_좌석_상태는_공개하고_바구니_밖의_좌표는_거절한다() {
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+        flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0);
+        long tick = Duration.ofMillis(200).toNanos();
+        var seat = new CabinPose(0, -1.22, 0, 0, false);
+
+        var seated = flights.update(CHANNEL, PILOT, SESSION, TICKET, new Flight(DOCK, true, seat), tick);
+        var outside = new CabinPose(1.5, .7, 0, -1, true);
+        var rejected = flights.update(CHANNEL, PILOT, SESSION, TICKET, new Flight(DOCK, true, outside), tick * 2);
+
+        assertThat(seated.flight().cabin()).isEqualTo(seat);
+        assertThat(rejected).isNull();
+        assertThat(flights.snapshot(CHANNEL, tick * 2)).containsExactly(seated);
     }
 
     @Test

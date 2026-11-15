@@ -76,10 +76,10 @@ public final class BalloonFlights {
         double seconds = elapsed / 1_000_000_000.0;
         Point from = ride.state.flight.position;
         Point to = next.position;
-        if (!inBounds(to) || (!ride.state.flight.aboard && !next.equals(ride.state.flight))
+        if (!inBounds(to) || !next.cabin.valid() || (!ride.state.flight.aboard && (next.aboard || !to.equals(from)))
                 || Math.hypot(to.x - from.x, to.z - from.z) > 20 * seconds + 1.25
                 || Math.abs(to.y - from.y) > 10 * seconds + .9) return null;
-        var state = new State(channel, pilot, next);
+        var state = new State(channel, pilot, next.aboard ? next : new Flight(to, false));
         var ticket = new Ticket(pilot, ticketId);
         var grant = grants.get(ticket);
         if (grant != null && !grant.used) grants.put(ticket, new Grant(grant.deadline, true));
@@ -136,7 +136,19 @@ public final class BalloonFlights {
     }
 
     public record Point(double x, double y, double z) { }
-    public record Flight(Point position, boolean aboard) { }
+    public record CabinPose(double x, double z, double yaw, int seatIndex, boolean moving) {
+        public static final CabinPose IDLE = new CabinPose(0, 0, Math.PI, -1, false);
+
+        boolean valid() {
+            return Math.hypot(x, z) <= 1.38 && Math.abs(yaw) <= Math.PI
+                    && seatIndex >= -1 && seatIndex <= 3 && (seatIndex == -1 || !moving);
+        }
+    }
+    public record Flight(Point position, boolean aboard, CabinPose cabin) {
+        public Flight(Point position, boolean aboard) {
+            this(position, aboard, CabinPose.IDLE);
+        }
+    }
     public record State(String channelId, String pilotId,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
             Flight flight) { }

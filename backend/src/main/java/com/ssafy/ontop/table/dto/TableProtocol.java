@@ -71,7 +71,9 @@ public final class TableProtocol {
             case "WORLD_MOVE" -> validMove(payload);
             case "WORLD_BALLOON_START" -> fields(payload, Set.of("ticketId", "x", "y", "z"))
                     && validBalloonPosition(payload);
-            case "WORLD_BALLOON_POSE" -> fields(payload, Set.of("ticketId", "x", "y", "z", "aboard"))
+            case "WORLD_BALLOON_POSE" -> (fields(payload, Set.of("ticketId", "x", "y", "z", "aboard"))
+                    || (fields(payload, Set.of("ticketId", "x", "y", "z", "aboard", "cabin"))
+                    && validBalloonCabin(payload.path("cabin"))))
                     && validBalloonPosition(payload) && payload.path("aboard").isBoolean();
             case "WORLD_BALLOON_END" -> fields(payload, Set.of("ticketId")) && prankUuid(payload.path("ticketId"));
             case "WORLD_MOBILITY_START" -> fields(payload, Set.of("stationId", "vehicle", "leaseId"))
@@ -224,6 +226,13 @@ public final class TableProtocol {
     private static boolean validBalloonPosition(JsonNode payload) {
         return prankUuid(payload.path("ticketId")) && finitePoint(payload.path("x"))
                 && finitePoint(payload.path("y")) && finitePoint(payload.path("z"));
+    }
+
+    private boolean validBalloonCabin(JsonNode cabin) {
+        return fields(cabin, Set.of("x", "z", "yaw", "seatIndex", "moving")) && finitePoint(cabin.path("x"))
+                && finitePoint(cabin.path("z")) && finitePoint(cabin.path("yaw"))
+                && cabin.path("seatIndex").isIntegralNumber() && cabin.path("seatIndex").canConvertToInt()
+                && cabin.path("moving").isBoolean();
     }
 
     private static boolean prankUuid(JsonNode value) {
