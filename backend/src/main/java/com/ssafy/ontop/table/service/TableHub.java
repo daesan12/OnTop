@@ -1250,7 +1250,8 @@ public class TableHub {
     }
 
     private boolean stoneRumbleTable(String tableId) {
-        return preparedPark != null && PreparedParkMap.STONE_RUMBLE_ANCHOR_ID.equals(tableAnchors.get(tableId));
+        return preparedPark != null && preparedPark.hasStoneRumbleEntrance()
+                && PreparedParkMap.STONE_RUMBLE_ANCHOR_ID.equals(tableAnchors.get(tableId));
     }
 
     private void ensureGameAllowedAtTable(String tableId, TableGame game, Request request) {

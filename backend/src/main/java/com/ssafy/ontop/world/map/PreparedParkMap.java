@@ -134,6 +134,8 @@ public final class PreparedParkMap {
     public Catalog facilities() { return facilities; }
     public Reach notes() { return notes; }
     public Reach feedback() { return feedback; }
+    public boolean hasStoneRumbleEntrance() { return !stoneRumbleEntrances.isEmpty(); }
+
     public boolean canEnterStoneRumble(double x, double y, double z) {
         return stoneRumbleEntrances.stream().anyMatch(entrance -> entrance.contains(x, y, z));
     }
