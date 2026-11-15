@@ -120,8 +120,11 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
       if(r.type==='WORLD_FACILITY_CHECK')occupancy(r.requestId)
       if(r.type==='WORLD_FACILITY_USE') {
         const f=mapFacilities.find(f=>f.facilityId===r.payload.facilityId)!,pose=f.seats[r.payload.seatIndex]!
-        lease={leaseId:'park-lease-'+facilityVersion,channelId:'channel-1',userId:'101',facilityId:f.facilityId,kind:f.kind,seatIndex:r.payload.seatIndex,startedAt:new Date().toISOString(),pose,exit:f.exit,yaw:pose.yaw,pitch:0,lastAimSeq:0}
+        lease={leaseId:'park-lease-'+facilityVersion,channelId:'channel-1',userId:'101',facilityId:f.facilityId,kind:f.kind,seatIndex:r.payload.seatIndex,startedAt:new Date().toISOString(),pose,exit:f.exit,yaw:pose.yaw,pitch:f.kind==='TELESCOPE'?originalCatalog.initialPitch:0,lastAimSeq:0}
         Object.assign(position,pose);occupancy(r.requestId);world()
+      }
+      if(r.type==='WORLD_FACILITY_AIM'&&lease?.kind==='TELESCOPE'&&r.payload.leaseId===lease.leaseId){
+        lease={...lease,yaw:r.payload.yaw,pitch:r.payload.pitch,lastAimSeq:r.payload.seq};occupancy(r.requestId)
       }
       if(r.type==='WORLD_FACILITY_RELEASE'){Object.assign(position,lease!.exit);lease=undefined;occupancy(r.requestId);world()}
     })

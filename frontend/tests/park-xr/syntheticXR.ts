@@ -95,6 +95,7 @@ export function input(forward: number, jump = false, turn = 0, exit = false) {
   Object.assign(right.buttons[4]!, { pressed: jump, value: Number(jump) })
   Object.assign(right.buttons[5]!, { pressed: exit, value: Number(exit) })
 }
+export function tiltRightStick(tilt: number) { (right.axes as number[])[3] = tilt }
 export function visibility(value: XRVisibilityState) {
   Object.defineProperty(session, 'visibilityState', { configurable: true, value })
   session.dispatchEvent(new Event('visibilitychange'))
