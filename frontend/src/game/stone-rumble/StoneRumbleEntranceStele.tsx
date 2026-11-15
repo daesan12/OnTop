@@ -2,10 +2,11 @@ import { useLoader } from '@react-three/fiber'
 import { useMemo } from 'react'
 import { groundObject } from '../../../park-renewal-preview/assetSizing'
 import { models } from '../../../park-renewal-preview/modelUrls'
-import { groundHeight } from '../../park/mapConfig'
+import { interactWithPark } from '../../features/interactions/parkInteraction'
 import type { TableAnchor } from '../../park/tablePlacement'
 import { ParkAssetLoader } from '../../world/art/assetLoader'
 import { PropSign } from '../../world/art/CraftedProp'
+import { STONE_RUMBLE_GUIDE_ID, stoneRumbleStelePosition } from './entranceStele'
 
 const FONT = '700 48px BusanDandiMyeongjo'
 
@@ -27,11 +28,11 @@ export default function StoneRumbleEntranceStele({ anchor }: { anchor: TableAnch
     return groundObject(copy)
   }, [gltf])
 
-  // Place the decoration beside the front approach and clear of the return rows.
-  const x = anchor.position[0] + 3.35
-  const z = anchor.position[2] + 1.55
-
-  return <group name="stone-rumble-entrance-stele" position={[x, groundHeight(x, z), z]} scale={.8}>
+  return <group name={STONE_RUMBLE_GUIDE_ID} position={stoneRumbleStelePosition(anchor)} scale={.8}
+    onClick={event => {
+      event.stopPropagation()
+      interactWithPark(STONE_RUMBLE_GUIDE_ID)
+    }}>
     <primitive object={model} dispose={null} />
     <PropSign width={1.23} height={.48} position={[-.015, model.position.y + 1.16, .244]}
       font={FONT} transparent draw={drawStoneRumbleTitle} />
