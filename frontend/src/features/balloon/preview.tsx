@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { PaperPopup } from '../tableLobby/PaperPopup'
-import { CAPACITY, PREVIEW_FARE, isAtStation } from './flight'
+import { CAPACITY, PREVIEW_FARE } from './flight'
 import { PreviewScene } from './PreviewScene'
+import { canBoard } from './previewMap'
 import { isPassenger, keys, occupancy, usePreview } from './previewStore'
 import './preview.css'
 
@@ -95,7 +96,7 @@ function RideHud() {
   const seconds = usePreview(s => Math.ceil(s.flight.seconds))
   const wait = usePreview(s => Math.ceil(s.wait))
   const boarded = usePreview(s => s.boarded)
-  const reachable = usePreview(s => isAtStation(s.walker.x, s.walker.z))
+  const reachable = usePreview(s => canBoard(s.walker))
   const popup = usePreview(s => s.popup)
   const coins = usePreview(s => s.coins)
   const { open, start, cancel, reset, losePilot } = usePreview.getState()
@@ -136,7 +137,8 @@ function RideHud() {
     </> : null}
     {phase === 'returning' ? <div className="balloon-bottom">
       <p className="balloon-hanji balloon-notice" role="status"><strong>자동 복귀 중</strong>
-        {reason === 'pilot' ? '조종자 연결이 끊겼어요. 승강장으로 돌아갑니다.' : '승강장으로 돌아갑니다.'}
+        {reason === 'pilot' ? '조종자 연결이 끊겼어요. 승강장으로 돌아갑니다.'
+          : reason === 'terrain' ? '이곳에는 내릴 수 없어 승강장으로 돌아갑니다.' : '승강장으로 돌아갑니다.'}
       </p>
     </div> : null}
     {phase === 'landed' ? <div className="balloon-clock balloon-hanji">

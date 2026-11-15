@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import {
-  CAPACITY, PREVIEW_FARE, WAIT_SECONDS, createFlight, isAtStation, returnToDock, safeExit, stepFlight, takeOff,
+  CAPACITY, PREVIEW_FARE, WAIT_SECONDS, createFlight, returnToDock, stepFlight, takeOff,
 } from './flight'
 import type { Flight, Point } from './flight'
+import { canBoard, flightMap, moveWalker, startPoint } from './previewMap'
 
 const options = new URLSearchParams(window.location.search)
 function numberOption(key: string, fallback: number, maximum: number) {
@@ -17,7 +18,6 @@ export const isPassenger = passengerRequested && guestCount > 0
 export const keys = new Set<string>()
 export const cameraDrag = { yaw: 0 }
 const neutral = { x: 0, z: 0, lift: 0 }
-const startPoint = { x: 0, y: 0, z: 14 }
 
 type Popup = 'board' | 'balance' | 'cancelled' | null
 type Preview = {
@@ -34,7 +34,7 @@ type Preview = {
   cancel: () => void
   reset: () => void
   losePilot: () => void
-  tick: (dt: number) => void
+  tick: (dt: number, elapsed: number) => void
 }
 
 export function occupancy(boarded: boolean) {
@@ -53,7 +53,7 @@ function horizontalInput() {
 }
 
 export const usePreview = create<Preview>((set, get) => ({
-  flight: createFlight(), walker: startPoint, popup: null,
+  flight: createFlight(flightMap), walker: startPoint, popup: null,
   coins: numberOption('coins', 50, 999), boarded: false, wait: 0,
 
   start() {
@@ -66,7 +66,7 @@ export const usePreview = create<Preview>((set, get) => ({
 
   open() {
     const { flight, walker, boarded, popup } = get()
-    if (flight.phase !== 'boarding' || boarded || popup || !isAtStation(walker.x, walker.z)) return
+    if (flight.phase !== 'boarding' || boarded || popup || !canBoard(walker)) return
     keys.clear()
     set({ popup: 'board' })
   },
@@ -96,17 +96,17 @@ export const usePreview = create<Preview>((set, get) => ({
     if (get().flight.phase !== 'removed') return
     keys.clear()
     cameraDrag.yaw = 0
-    set({ flight: createFlight(), walker: startPoint, boarded: false })
+    set({ flight: createFlight(flightMap), walker: startPoint, boarded: false })
   },
 
   losePilot() {
     set(({ flight }) => ({ flight: returnToDock(flight, 'pilot') }))
   },
 
-  tick(dt) {
+  tick(dt, elapsed) {
     const { flight, walker, popup, boarded, wait, start } = get()
     if (flight.phase === 'boarding' && boarded) {
-      const remaining = Math.max(0, wait - dt)
+      const remaining = Math.max(0, wait - elapsed)
       if (remaining === 0) start()
       else set({ wait: remaining })
       return
@@ -115,8 +115,7 @@ export const usePreview = create<Preview>((set, get) => ({
       const { x: dx, z: dz } = horizontalInput()
       if (!popup && (dx || dz)) {
         const distance = 6 * dt / Math.hypot(dx, dz)
-        const z = Math.max(flight.phase === 'boarding' ? 9.6 : -40, Math.min(40, walker.z + dz * distance))
-        set({ walker: { x: Math.max(-40, Math.min(40, walker.x + dx * distance)), y: 0, z } })
+        set({ walker: moveWalker(walker, dx * distance, dz * distance) })
       }
     }
     if (flight.phase === 'boarding' || flight.phase === 'removed') return
@@ -129,10 +128,10 @@ export const usePreview = create<Preview>((set, get) => ({
         ? { x: -.5, z: -.4, lift: 0 }
         : { ...horizontalInput(), lift: Number(keys.has('Space')) - Number(keys.has('ShiftLeft') || keys.has('ShiftRight')) }
       : neutral
-    const next = stepFlight(flight, input, dt)
-    if (next.phase === 'landed' && flight.phase !== 'landed') {
+    const next = stepFlight(flight, input, dt, flightMap, elapsed)
+    if (next.phase === 'landed' && next.exit && flight.phase !== 'landed') {
       keys.clear()
-      set({ flight: next, walker: safeExit(next), boarded: false })
+      set({ flight: next, walker: next.exit, boarded: false })
     } else {
       set({ flight: next })
     }
