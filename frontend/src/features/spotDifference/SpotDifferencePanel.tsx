@@ -252,13 +252,17 @@ export function SpotDifferencePanel() {
     }
     {!view && showDifficulty && <div className="spot-picker">
       <h3 ref={entryHeading} tabIndex={-1}>난이도 선택</h3>
-      <div className="spot-cards" aria-label="난이도 카드">
+      <div className="spot-cards" role="group" aria-label="난이도 카드">
         {(Object.keys(cards) as Difficulty[]).map(choice => {
           const card = cards[choice]
           return <button type="button" key={choice} className="spot-card" data-difficulty={choice}
             disabled={busy} onClick={() => begin(choice)}>
-            <span><strong>{card.label}</strong><small>{card.detail}</small></span>
-            <span className="spot-card-coin">최대 <b>{card.reward * totalTargets}냥</b></span>
+            <span className="spot-card-title">{card.label}</span>
+            <span className="spot-card-detail">{card.detail}</span>
+            <span className="spot-card-rewards">
+              <span>정답당 <strong>{card.reward}냥</strong></span>
+              <span>최대 {card.reward * totalTargets}냥</span>
+            </span>
           </button>
         })}
       </div>
@@ -272,7 +276,7 @@ export function SpotDifferencePanel() {
         retry.current = null
         setError('')
         setShowDifficulty(false)
-      }}>게임 방법 다시 보기</button>
+      }}><span aria-hidden>←</span> 게임 방법 다시 보기</button>
     </div>}
     {view && <>
       <RoundHud view={view} remaining={remaining} urgent={urgent} />
