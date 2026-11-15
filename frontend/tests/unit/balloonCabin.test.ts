@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest'
-import { CABIN_BENCH_DEPTH, CABIN_WALK_RADIUS, availableCabinSeat, cabinRider, cabinSeats, idleCabin, toggleCabinSeat, walkCabin } from '../../src/features/balloon/cabin'
+import { CABIN_BENCH_INNER, CABIN_WALK_RADIUS, availableCabinSeat, cabinRider, cabinSeats, idleCabin, toggleCabinSeat, walkCabin } from '../../src/features/balloon/cabin'
 import { clearRemoteBalloons, receiveRemoteBalloon, remoteBalloonRider, useRemoteBalloons } from '../../src/features/balloon/remoteRide'
 import { stepUncrewedFlight, type Flight, type FlightMap } from '../../src/features/balloon/flight'
 import { combineFlightInput, inputForRole, type BalloonControls } from '../../src/features/balloon/controls'
@@ -33,8 +33,17 @@ it('keeps the rider on the basket floor when holding a direction and the altitud
   for (let frame = 0; frame < 100; frame++) rider = walkCabin(rider, { x: 1, z: 1, lift: 1 }, .1)
   const position = { x: 0, y: 30, z: 0 }
   expect(Math.hypot(rider.x, rider.z)).toBeLessThanOrEqual(CABIN_WALK_RADIUS)
-  expect(Math.hypot(rider.x, rider.z)).toBeGreaterThan(CABIN_WALK_RADIUS - .15)
+  expect(Math.hypot(rider.x, rider.z)).toBeLessThan(CABIN_BENCH_INNER)
   expect(cabinRider(position, rider).y).toBe(cabinRider(position, idleCabin).y)
+})
+
+it('leaves both side gaps walkable up to the basket boundary', () => {
+  for (const x of [-1, 1]) {
+    let rider = idleCabin
+    for (let frame = 0; frame < 30; frame++) rider = walkCabin(rider, { x, z: 0, lift: 0 }, .1)
+    expect(x * rider.x).toBeGreaterThan(CABIN_BENCH_INNER)
+    expect(x * rider.x).toBeLessThanOrEqual(CABIN_WALK_RADIUS)
+  }
 })
 
 it('requires a nearby seat and releases the rider into the aisle when they stand', () => {
@@ -42,8 +51,8 @@ it('requires a nearby seat and releases the rider into the aisle when they stand
   let rider = { ...idleCabin, x: cabinSeats[0].x }
   for (let frame = 0; frame < 30; frame++) rider = walkCabin(rider, { x: 0, z: -1, lift: 0 }, .1)
   expect(availableCabinSeat(rider)).toBe(0)
-  expect(rider.z).toBeGreaterThan(cabinSeats[0].z + CABIN_BENCH_DEPTH / 2)
-  expect(availableCabinSeat({ ...rider, x: 0 }, [0])).toBe(1)
+  expect(rider.z).toBeGreaterThan(-CABIN_BENCH_INNER)
+  expect(availableCabinSeat(rider, [0])).toBe(-1)
   const seated = toggleCabinSeat(rider)
   expect(seated).toMatchObject({ ...cabinSeats[0], seatIndex: 0, moving: false })
   expect(walkCabin(seated, { x: 0, z: 1, lift: 1 }, .1)).toBe(seated)
