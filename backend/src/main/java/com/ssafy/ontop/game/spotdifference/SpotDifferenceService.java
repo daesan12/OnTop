@@ -27,7 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 @ConditionalOnProperty(name = "ontop.minigames.enabled", havingValue = "true")
 class SpotDifferenceService {
     static final int ROUND_COUNT = 6;
-    private static final Duration ROUND_TIME = Duration.ofSeconds(45);
+    private static final Duration ROUND_TIME = Duration.ofSeconds(60);
     private static final Duration RUN_LIFETIME = Duration.ofMinutes(15);
     private static final int WIDTH = 1448;
     private static final int HEIGHT = 1086;

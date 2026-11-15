@@ -65,7 +65,7 @@ class SpotDifferenceServiceTests {
             assertThat(view.phase()).isEqualTo(Phase.WAITING);
             assertThat(view.answers()).isEmpty();
             view = game.act(PLAYER, id, new Action(READY, round, null, null));
-            assertThat(view.remainingMs()).isEqualTo(45_000);
+            assertThat(view.remainingMs()).isEqualTo(60_000);
             for (int hit = 0; hit < 6; hit++) {
                 int x = 15 + hit * 30;
                 view = game.act(PLAYER, id, new Action(TAP, round, x, y + 1));
@@ -99,13 +99,13 @@ class SpotDifferenceServiceTests {
         game.act(PLAYER, id, new Action(READY, 1, null, null));
         var miss = game.act(PLAYER, id, new Action(TAP, 1, 0, 0));
         assertThat(miss.tap()).isEqualTo(TapResult.MISS);
-        assertThat(miss.remainingMs()).isEqualTo(45_000);
+        assertThat(miss.remainingMs()).isEqualTo(60_000);
         assertThat(miss.total()).isZero();
         clock.advance(649);
         assertThat(game.act(PLAYER, id, new Action(TAP, 1, 15, 51)).tap()).isEqualTo(TapResult.WAIT);
         clock.advance(1);
         assertThat(game.act(PLAYER, id, new Action(TAP, 1, 15, 51)).tap()).isEqualTo(TapResult.HIT);
-        clock.advance(44_349);
+        clock.advance(59_349);
         assertThat(game.act(PLAYER, id, new Action(SYNC, 1, null, null)).remainingMs()).isEqualTo(1);
         clock.advance(1);
         var review = game.act(PLAYER, id, new Action(TAP, 1, 15, 51));

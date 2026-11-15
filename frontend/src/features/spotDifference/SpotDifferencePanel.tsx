@@ -72,6 +72,7 @@ function Board({ view, variant, fire, shot }: {
         {review && <span className="spot-marker-number">{index + 1}</span>}
       </span>)}
       {playing && showCursor && <span className="spot-reticle" style={positionStyle(cursor)} aria-hidden>+</span>}
+      {impact?.kind === 'miss' && <span key={impact.number} className="spot-miss-frame" aria-hidden />}
       {impact && <span key={`${impact.number}:${impact.kind}`} className="spot-shot" data-result={impact.kind}
         style={positionStyle(impact)} aria-hidden />}
     </button>
