@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { BackSide, Color, ShaderMaterial, Vector3 } from 'three'
+import { BackSide, CanvasTexture, Color, ShaderMaterial, Vector3 } from 'three'
 import { ENVIRONMENT } from '../config'
 import { environmentFrame as frame } from './environmentState'
 import { simpleEnvironmentPalette } from './simpleEnvironmentPalette'
@@ -17,6 +17,7 @@ const fragment = `
 uniform vec3 topColor, horizonColor, sunDirection;
 uniform float daylight, twilight, night, clearDay;
 uniform bool showConstellationLines;
+uniform sampler2D constellationNames;
 varying vec3 vDirection;
 
 float hash(vec2 p) {
@@ -65,15 +66,24 @@ vec2 cassiopeia(vec2 point) {
   return vec2(line, dotDistance);
 }
 
+float constellationName(vec2 offset, float row) {
+  vec2 uv = offset / vec2(.15, .0375) + .5;
+  if (any(lessThanEqual(uv, vec2(0.))) || any(greaterThanEqual(uv, vec2(1.)))) return 0.;
+  return texture2D(constellationNames, vec2(uv.x, (uv.y + row) * .5)).a;
+}
+
 vec3 constellationLight(vec2 sky) {
   // Draw stylized patterns in fixed sky directions and shade only their immediate surroundings.
   vec2 dipper = (sky - vec2(-1.93, .42)) * vec2(.91, 1.);
   vec2 queen = (sky - vec2(-1.18, .58)) * vec2(.84, 1.);
   vec2 distances;
-  if (abs(dipper.x) < .18 && abs(dipper.y) < .11) {
+  float label = 0.;
+  if (abs(dipper.x) < .18 && dipper.y > -.14 && dipper.y < .11) {
     distances = bigDipper(dipper);
-  } else if (abs(queen.x) < .15 && abs(queen.y) < .09) {
+    if (showConstellationLines) label = constellationName(dipper - vec2(.015, -.116), 1.);
+  } else if (abs(queen.x) < .15 && queen.y > -.12 && queen.y < .09) {
     distances = cassiopeia(queen);
+    if (showConstellationLines) label = constellationName(queen - vec2(0., -.082), 0.);
   } else {
     return vec3(0.);
   }
@@ -81,8 +91,9 @@ vec3 constellationLight(vec2 sky) {
   float halo = 1. - smoothstep(.003, .009, distances.y);
   vec3 light = vec3(.72, .86, 1.) * (star * 1.18 + halo * .19);
   if (showConstellationLines) {
-    float line = 1. - smoothstep(.0006, .0024, distances.x);
-    light += vec3(.34, .54, .8) * line * .32;
+    float line = 1. - smoothstep(.00035, .0018, distances.x);
+    light += vec3(.34, .54, .8) * line * .12;
+    return light + vec3(.52, .65, .8) * label * .55;
   }
   return light;
 }
@@ -137,6 +148,21 @@ void main() {
   #include <colorspace_fragment>
 }`
 
+function createConstellationNames() {
+  // The top texture row is the Big Dipper, the bottom row is Cassiopeia.
+  const names = ['북두칠성', '카시오페이아자리']
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 256
+  const context = canvas.getContext('2d')!
+  context.font = '500 64px "Malgun Gothic", "Noto Sans KR", sans-serif'
+  context.textAlign = 'center'
+  context.textBaseline = 'middle'
+  context.fillStyle = '#fff'
+  names.forEach((name, index) => context.fillText(name, 256, index * 128 + 64, 472))
+  return new CanvasTexture(canvas)
+}
+
 export function ParkSky({ simple = false, matchServiceBrightness = false }: {
   simple?: boolean
   matchServiceBrightness?: boolean
@@ -149,6 +175,7 @@ export function ParkSky({ simple = false, matchServiceBrightness = false }: {
     clearTop: new Color('#56adf0'),
     clearHorizon: new Color('#c4edff'),
   }), [simple])
+  const names = useMemo(createConstellationNames, [])
   const material = useMemo(() => new ShaderMaterial({
     defines: simple ? { SIMPLE_SKY: 1 } : {},
     uniforms: {
@@ -160,14 +187,16 @@ export function ParkSky({ simple = false, matchServiceBrightness = false }: {
       night: { value: 0 },
       clearDay: { value: 0 },
       showConstellationLines: { value: false },
+      constellationNames: { value: names },
     },
     vertexShader: vertex,
     fragmentShader: fragment,
     side: BackSide,
     depthWrite: false,
     toneMapped: !simple,
-  }), [simple])
+  }), [names, simple])
   useEffect(() => () => material.dispose(), [material])
+  useEffect(() => () => names.dispose(), [names])
 
   useFrame(() => {
     const { uniforms } = material
