@@ -69,13 +69,20 @@ public final class TableProtocol {
             case "WORLD_MYROOM_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
-            case "WORLD_BALLOON_START" -> fields(payload, Set.of("ticketId", "x", "y", "z"))
-                    && validBalloonPosition(payload);
+            case "WORLD_BALLOON_START" -> validBalloonPosition(payload)
+                    && (fields(payload, Set.of("ticketId", "x", "y", "z"))
+                    || (fields(payload, Set.of("ticketId", "x", "y", "z", "capacity"))
+                    && payload.path("capacity").isIntegralNumber() && payload.path("capacity").canConvertToInt()
+                    && payload.path("capacity").asInt() >= 1
+                    && payload.path("capacity").asInt() <= com.ssafy.ontop.world.balloon.BalloonFlights.MAX_CAPACITY)
+                    || (fields(payload, Set.of("ticketId", "x", "y", "z", "leaderId"))
+                    && payload.path("leaderId").isTextual() && payload.path("leaderId").asText().matches("[1-9][0-9]{0,18}")));
             case "WORLD_BALLOON_POSE" -> (fields(payload, Set.of("ticketId", "x", "y", "z", "aboard"))
                     || (fields(payload, Set.of("ticketId", "x", "y", "z", "aboard", "cabin"))
                     && validBalloonCabin(payload.path("cabin"))))
                     && validBalloonPosition(payload) && payload.path("aboard").isBoolean();
-            case "WORLD_BALLOON_END" -> fields(payload, Set.of("ticketId")) && prankUuid(payload.path("ticketId"));
+            case "WORLD_BALLOON_END", "WORLD_BALLOON_LAUNCH" -> fields(payload, Set.of("ticketId"))
+                    && prankUuid(payload.path("ticketId"));
             case "WORLD_MOBILITY_START" -> fields(payload, Set.of("stationId", "vehicle", "leaseId"))
                     && payload.path("stationId").asText().matches("mobility-[a-z]+")
                     && Set.of("BICYCLE", "SCOOTER").contains(payload.path("vehicle").asText())

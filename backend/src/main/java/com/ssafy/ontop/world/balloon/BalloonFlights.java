@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -18,12 +19,16 @@ import org.springframework.stereotype.Component;
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public final class BalloonFlights {
     private static final Duration TICKET_LIFETIME = Duration.ofMinutes(5);
+    private static final Duration HOLD_LIFETIME = Duration.ofSeconds(30);
+    public static final int MAX_CAPACITY = 4;
     private static final long IDLE_NANOS = Duration.ofSeconds(8).toNanos();
     private static final long MAX_RIDE_NANOS = Duration.ofMinutes(3).toNanos();
     private static final long MIN_UPDATE_NANOS = Duration.ofMillis(80).toNanos();
 
     private final Map<Ticket, Grant> grants = new HashMap<>();
     private final Map<String, Ride> rides = new HashMap<>();
+    private final Map<String, Group> groups = new HashMap<>();
+    private final Map<String, Hold> holds = new HashMap<>();
     private final JsonNode station;
     private final double mapHalf;
 
@@ -54,69 +59,195 @@ public final class BalloonFlights {
 
     public synchronized State start(String channel, String pilot, String session, UUID ticketId,
             Position player, Point position, Instant now, long at) {
+        return start(channel, pilot, session, ticketId, player, position, now, at, 1, null);
+    }
+
+    public synchronized State start(String channel, String pilot, String session, UUID ticketId,
+            Position player, Point position, Instant now, long at, int capacity, String leader) {
+        if (leader != null) return join(channel, pilot, session, ticketId, player, now, at, leader);
         Ride current = rides.get(pilot);
         if (current != null) {
-            return current.matches(channel, session, ticketId) ? current.state : null;
+            return current.matches(channel, session, ticketId) ? withParty(current.state) : null;
         }
-        var ticket = new Ticket(pilot, ticketId);
-        var grant = grants.get(ticket);
-        if (grant == null || grant.used || !grant.deadline.isAfter(now)
-                || !atStation(player) || !inBounds(position) || !nearDock(position)) return null;
+        if (capacity < 1 || capacity > MAX_CAPACITY || groupOf(pilot) != null
+                || !ticketAvailable(pilot, ticketId, now) || !atStation(player)
+                || !inBounds(position) || !nearDock(position)) return null;
         var state = new State(channel, pilot, new Flight(position, true));
         rides.put(pilot, new Ride(session, ticketId, at, at, state));
-        return state;
+        if (capacity > 1) groups.put(pilot, new Group(pilot, capacity));
+        holds.remove(pilot);
+        return withParty(state);
+    }
+
+    public synchronized boolean holdSeat(String channel, String leader, String rider, UUID ticket, Instant now, long at) {
+        Ride ride = rides.get(leader);
+        Group group = groups.get(leader);
+        if (ride == null || group == null || !group.boarding || !ride.state.channelId.equals(channel)
+                || expired(ride, at) || rider.equals(leader) || rides.containsKey(rider)) return false;
+        Passenger passenger = group.passengers.get(rider);
+        if (passenger != null) return passenger.ticket.equals(ticket);
+        if (groupOf(rider) != null) return false;
+        holds.values().removeIf(hold -> !hold.deadline.isAfter(now));
+        long held = holds.entrySet().stream()
+                .filter(entry -> !entry.getKey().equals(rider) && entry.getValue().leader.equals(leader)).count();
+        if (1 + group.passengers.size() + held >= group.capacity) return false;
+        holds.put(rider, new Hold(leader, ticket, now.plus(HOLD_LIFETIME)));
+        return true;
+    }
+
+    public synchronized void releaseSeat(String leader, String rider, UUID ticket) {
+        Hold hold = holds.get(rider);
+        if (hold != null && hold.leader.equals(leader) && hold.ticket.equals(ticket)) holds.remove(rider);
+    }
+
+    private State join(String channel, String rider, String session, UUID ticket, Position player,
+            Instant now, long at, String leader) {
+        Ride ride = rides.get(leader);
+        Group group = groups.get(leader);
+        if (ride == null || group == null || !ride.state.channelId.equals(channel) || expired(ride, at)) return null;
+        Passenger current = group.passengers.get(rider);
+        if (current != null) return current.matches(session, ticket) ? withParty(ride.state) : null;
+        Hold hold = holds.get(rider);
+        if (!group.boarding || hold == null || !hold.leader.equals(leader) || !hold.ticket.equals(ticket)
+                || !hold.deadline.isAfter(now) || rides.containsKey(rider) || groupOf(rider) != null
+                || 1 + group.passengers.size() >= group.capacity
+                || !ticketAvailable(rider, ticket, now) || !atStation(player)) return null;
+        group.passengers.put(rider, new Passenger(session, ticket, initialSeat(group)));
+        holds.remove(rider);
+        return withParty(ride.state);
+    }
+
+    public synchronized State launch(String channel, String pilot, String session, UUID ticket, Instant now, long at) {
+        Ride ride = rides.get(pilot);
+        Group group = groups.get(pilot);
+        if (ride == null || group == null || !ride.matches(channel, session, ticket) || expired(ride, at)) return null;
+        if (!group.boarding) return withParty(ride.state);
+        if (holds.values().stream().anyMatch(hold -> hold.leader.equals(pilot) && hold.deadline.isAfter(now))) return null;
+        group.boarding = false;
+        rides.put(pilot, new Ride(session, ticket, at, at, ride.state));
+        consume(pilot, ticket);
+        group.passengers.forEach((rider, passenger) -> consume(rider, passenger.ticket));
+        return withParty(ride.state);
     }
 
     public synchronized State update(String channel, String pilot, String session, UUID ticketId,
             Flight next, long at) {
         Ride ride = rides.get(pilot);
-        if (ride == null || !ride.matches(channel, session, ticketId) || expired(ride, at)) return null;
+        if (ride == null) return updatePassenger(channel, pilot, session, ticketId, next.cabin, at);
+        if (!ride.matches(channel, session, ticketId) || expired(ride, at)) return null;
         long elapsed = at - ride.updatedAt;
-        if (elapsed < MIN_UPDATE_NANOS) return ride.state;
+        if (elapsed < MIN_UPDATE_NANOS) return withParty(ride.state);
+        Group group = groups.get(pilot);
+        if (group != null && group.boarding) {
+            rides.put(pilot, new Ride(session, ticketId, ride.startedAt, at, ride.state));
+            return withParty(ride.state);
+        }
         double seconds = elapsed / 1_000_000_000.0;
         Point from = ride.state.flight.position;
         Point to = next.position;
         if (!inBounds(to) || !next.cabin.valid() || (!ride.state.flight.aboard && (next.aboard || !to.equals(from)))
                 || Math.hypot(to.x - from.x, to.z - from.z) > 20 * seconds + 1.25
                 || Math.abs(to.y - from.y) > 10 * seconds + .9) return null;
-        var state = new State(channel, pilot, next.aboard ? next : new Flight(to, false));
-        var ticket = new Ticket(pilot, ticketId);
-        var grant = grants.get(ticket);
-        if (grant != null && !grant.used) grants.put(ticket, new Grant(grant.deadline, true));
+        CabinPose cabin = group != null && seatTaken(group, pilot, next.cabin.seatIndex)
+                ? ride.state.flight.cabin : next.cabin;
+        var state = new State(channel, pilot, next.aboard ? new Flight(to, true, cabin) : new Flight(to, false));
+        consume(pilot, ticketId);
         rides.put(pilot, new Ride(session, ticketId, ride.startedAt, at, state));
-        return state;
+        return withParty(state);
     }
 
     public synchronized State finish(String pilot, String session, UUID ticketId) {
         Ride ride = rides.get(pilot);
-        if (ride == null || !ride.session.equals(session)
+        if (ride == null) {
+            Group group = groupOf(pilot);
+            if (group == null) return null;
+            Passenger passenger = group.passengers.get(pilot);
+            if (!passenger.session.equals(session) || (ticketId != null && !passenger.ticket.equals(ticketId))) return null;
+            group.passengers.remove(pilot);
+            return withParty(rides.get(group.leader).state);
+        }
+        if (!ride.session.equals(session)
                 || (ticketId != null && !ride.ticket.equals(ticketId))) return null;
         rides.remove(pilot);
+        removeGroup(pilot);
         return ride.ended();
     }
 
     public synchronized List<State> snapshot(String channel, long at) {
         return rides.values().stream()
                 .filter(ride -> ride.state.channelId.equals(channel) && !expired(ride, at))
-                .map(ride -> ride.state).toList();
+                .map(ride -> withParty(ride.state)).toList();
     }
 
     public synchronized List<State> expire(Instant now, long at) {
         grants.entrySet().removeIf(entry -> !entry.getValue().deadline.isAfter(now));
+        holds.values().removeIf(hold -> !hold.deadline.isAfter(now));
         List<State> ended = new ArrayList<>();
         rides.values().removeIf(ride -> {
             if (!expired(ride, at)) return false;
             ended.add(ride.ended());
+            removeGroup(ride.state.pilotId);
             return true;
         });
         return ended;
+    }
+
+    private State updatePassenger(String channel, String rider, String session, UUID ticket, CabinPose next, long at) {
+        Group group = groupOf(rider);
+        if (group == null) return null;
+        Ride ride = rides.get(group.leader);
+        Passenger passenger = group.passengers.get(rider);
+        if (!ride.state.channelId.equals(channel) || !passenger.matches(session, ticket) || expired(ride, at)) return null;
+        if (!group.boarding && ride.state.flight.aboard && next.valid() && !seatTaken(group, rider, next.seatIndex)
+                && at - passenger.updatedAt >= MIN_UPDATE_NANOS) {
+            passenger.cabin = next;
+            passenger.updatedAt = at;
+        }
+        return withParty(ride.state);
+    }
+
+    private void consume(String rider, UUID ticketId) {
+        var ticket = new Ticket(rider, ticketId);
+        var grant = grants.get(ticket);
+        if (grant != null && !grant.used) grants.put(ticket, new Grant(grant.deadline, true));
+    }
+
+    private Group groupOf(String passenger) {
+        return groups.values().stream().filter(group -> group.passengers.containsKey(passenger)).findFirst().orElse(null);
+    }
+
+    private void removeGroup(String leader) {
+        groups.remove(leader);
+        holds.values().removeIf(hold -> hold.leader.equals(leader));
+    }
+
+    private State withParty(State state) {
+        Group group = groups.get(state.pilotId);
+        if (group == null) return state;
+        Map<String, CabinPose> passengers = new LinkedHashMap<>();
+        group.passengers.forEach((id, passenger) -> passengers.put(id, passenger.cabin));
+        return new State(state.channelId, state.pilotId, state.flight,
+                new Party(group.capacity, group.boarding, Map.copyOf(passengers)));
+    }
+
+    private boolean seatTaken(Group group, String rider, int seat) {
+        return seat >= 0 && ((!rider.equals(group.leader) && rides.get(group.leader).state.flight.cabin.seatIndex == seat)
+                || group.passengers.entrySet().stream().anyMatch(entry ->
+                        !entry.getKey().equals(rider) && entry.getValue().cabin.seatIndex == seat));
+    }
+
+    private CabinPose initialSeat(Group group) {
+        for (int seat = 0; seat < MAX_CAPACITY; seat++) {
+            if (!seatTaken(group, "", seat)) return new CabinPose(0, 0, Math.PI, seat, false);
+        }
+        return CabinPose.IDLE;
     }
 
     private static boolean expired(Ride ride, long at) {
         return at - ride.updatedAt >= IDLE_NANOS || at - ride.startedAt >= MAX_RIDE_NANOS;
     }
 
-    private boolean atStation(Position player) {
+    boolean atStation(Position player) {
         if (station == null || player == null || player.swimming()) return false;
         JsonNode reach = station.path("reachPosition");
         return Math.hypot(player.x() - reach.get(0).asDouble(), player.z() - reach.get(2).asDouble())
@@ -151,7 +282,40 @@ public final class BalloonFlights {
     }
     public record State(String channelId, String pilotId,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
-            Flight flight) { }
+            Flight flight, Party party) {
+        public State(String channelId, String pilotId, Flight flight) {
+            this(channelId, pilotId, flight, null);
+        }
+    }
+    public record Party(int capacity, boolean boarding, Map<String, CabinPose> passengers) { }
+    private static final class Group {
+        final String leader;
+        final int capacity;
+        final Map<String, Passenger> passengers = new LinkedHashMap<>();
+        boolean boarding = true;
+
+        Group(String leader, int capacity) {
+            this.leader = leader;
+            this.capacity = capacity;
+        }
+    }
+    private static final class Passenger {
+        final String session;
+        final UUID ticket;
+        CabinPose cabin;
+        long updatedAt = Long.MIN_VALUE / 2;
+
+        Passenger(String session, UUID ticket, CabinPose cabin) {
+            this.session = session;
+            this.ticket = ticket;
+            this.cabin = cabin;
+        }
+
+        boolean matches(String sessionId, UUID id) {
+            return session.equals(sessionId) && ticket.equals(id);
+        }
+    }
+    private record Hold(String leader, UUID ticket, Instant deadline) { }
     private record Ticket(String pilot, UUID id) { }
     private record Grant(Instant deadline, boolean used) { }
     private record Ride(String session, UUID ticket, long startedAt, long updatedAt, State state) {

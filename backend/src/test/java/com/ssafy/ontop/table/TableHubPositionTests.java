@@ -72,17 +72,7 @@ class TableHubPositionTests {
         pilot.request("CHANNEL_JOIN", Map.of("channelId", "one"));
         observer.request("CHANNEL_JOIN", Map.of("channelId", "one"));
         var at = registry.positionOf("101");
-        WorldMapRuntime map = mock(WorldMapRuntime.class);
-        PreparedParkMap prepared = mock(PreparedParkMap.class);
-        when(map.prepared()).thenReturn(Optional.of(prepared));
-        when(prepared.constructionSites()).thenReturn(mapper.valueToTree(List.of(Map.of("id", "balloon",
-                "position", List.of(at.x(), at.y(), at.z()),
-                "reachPosition", List.of(at.x(), at.y(), at.z()), "radius", 3, "heightTolerance", .7))));
-        when(prepared.collisionData()).thenReturn(mapper.readTree("""
-                {"world":{"halfSize":110}}
-                """));
-        var flights = new BalloonFlights(map);
-        hub.configureBalloonFlights(flights);
+        var flights = balloonFlightsAt(at);
         var ticket = UUID.randomUUID();
         var now = Instant.now();
         flights.authorize("101", ticket, now, now);
@@ -100,6 +90,52 @@ class TableHubPositionTests {
         assertThat(late).isEqualTo(first);
         assertThat(observer.awaitBalloon().path("flight").isNull()).isTrue();
         assertThat(lateObserver.awaitBalloon().path("flight").isNull()).isTrue();
+    }
+
+    @Test
+    void 다인_열기구의_합류와_출발을_참가자와_관찰자에게_전송한다() throws Exception {
+        var pilot = peer(101);
+        var passenger = peer(102);
+        var observer = peer(103);
+        for (var peer : List.of(pilot, passenger, observer)) peer.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        var at = registry.positionOf("101");
+        var flights = balloonFlightsAt(at);
+        var ticket = UUID.randomUUID();
+        var guestTicket = UUID.randomUUID();
+        var now = Instant.now();
+        flights.authorize("101", ticket, now, now);
+        flights.authorize("102", guestTicket, now, now);
+
+        pilot.request("WORLD_BALLOON_START", Map.of("ticketId", ticket.toString(),
+                "x", at.x(), "y", at.y(), "z", at.z(), "capacity", 4));
+        assertThat(observer.awaitBalloon().at("/party/capacity").asInt()).isEqualTo(4);
+        assertThat(flights.holdSeat("one", "101", "102", guestTicket, now, System.nanoTime())).isTrue();
+        var boarded = passenger.request("WORLD_BALLOON_START", Map.of("ticketId", guestTicket.toString(),
+                "x", at.x(), "y", at.y(), "z", at.z(), "leaderId", "101")).path("payload");
+        assertThat(boarded.at("/party/passengers/102/seatIndex").asInt(-1)).isZero();
+        assertThat(observer.awaitBalloon()).isEqualTo(boarded);
+
+        pilot.request("WORLD_BALLOON_LAUNCH", Map.of("ticketId", ticket.toString()));
+        var launched = passenger.awaitBalloon();
+        assertThat(launched.at("/party/boarding").asBoolean(true)).isFalse();
+        assertThat(observer.awaitBalloon()).isEqualTo(launched);
+        pilot.request("WORLD_BALLOON_END", Map.of("ticketId", ticket.toString()));
+        assertThat(passenger.awaitBalloon().path("flight").isNull()).isTrue();
+    }
+
+    private BalloonFlights balloonFlightsAt(WorldChannelRegistry.Position at) throws Exception {
+        WorldMapRuntime map = mock(WorldMapRuntime.class);
+        PreparedParkMap prepared = mock(PreparedParkMap.class);
+        when(map.prepared()).thenReturn(Optional.of(prepared));
+        when(prepared.constructionSites()).thenReturn(mapper.valueToTree(List.of(Map.of("id", "balloon",
+                "position", List.of(at.x(), at.y(), at.z()),
+                "reachPosition", List.of(at.x(), at.y(), at.z()), "radius", 3, "heightTolerance", .7))));
+        when(prepared.collisionData()).thenReturn(mapper.readTree("""
+                {"world":{"halfSize":110}}
+                """));
+        var flights = new BalloonFlights(map);
+        hub.configureBalloonFlights(flights);
+        return flights;
     }
 
     @Test

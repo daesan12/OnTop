@@ -951,7 +951,8 @@ public class TableHub {
                 case "CHANNEL_JOIN" -> joinChannel(member, request);
                 case "CHANNEL_LEAVE" -> leaveChannel(member, request);
                 case "WORLD_MOBILITY_START", "WORLD_MOBILITY_END" -> mobility(member, request);
-                case "WORLD_BALLOON_START", "WORLD_BALLOON_POSE", "WORLD_BALLOON_END" -> balloon(member, request);
+                case "WORLD_BALLOON_START", "WORLD_BALLOON_POSE", "WORLD_BALLOON_END", "WORLD_BALLOON_LAUNCH" ->
+                        balloon(member, request);
                 case "WORLD_MOVE" -> moveWorld(member, request);
                 case "WORLD_POSITION" -> positionWorld(member, request);
                 case "WORLD_SECRET_DOORS_SET" -> publishWorld(channels.setSecretDoors(member.userId(),
@@ -1586,14 +1587,17 @@ public class TableHub {
                 payload.path("z").asDouble());
         long now = System.nanoTime();
         BalloonFlights.State state;
-        if (request.type().equals("WORLD_BALLOON_START")) {
+        if (request.type().equals("WORLD_BALLOON_LAUNCH")) {
+            state = balloons.launch(channel, pilot, member.sessionId(), ticket, java.time.Instant.now(), now);
+            if (state == null) fail(request, "BALLOON_LAUNCH_REJECTED", "탑승 중인 손님이 있다면 잠시 후 출발해주세요.");
+        } else if (request.type().equals("WORLD_BALLOON_START")) {
             if (seating.containsKey(pilot) || mobilityRides.containsKey(pilot) || facilities.current(pilot) != null
                     || channels.carryState(pilot) != null) {
                 fail(request, "BALLOON_BUSY", "다른 공원 활동을 끝낸 뒤 탑승해주세요.");
             }
             var wallTime = java.time.Instant.now();
             state = balloons.start(channel, pilot, member.sessionId(), ticket, channels.positionOf(pilot),
-                    point, wallTime, now);
+                    point, wallTime, now, payload.path("capacity").asInt(1), payload.path("leaderId").asText(null));
             if (state == null && !balloons.ticketAvailable(pilot, ticket, wallTime)) {
                 fail(request, "BALLOON_TICKET_EXPIRED", "이 탑승권의 유효 시간이 끝났어요.");
             }
