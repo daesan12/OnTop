@@ -30,12 +30,12 @@ it('저장이 차단되어도 선택과 재설정 요청을 유지하고 측정�
 it('좌식 보정은 기준 눈높이로 맞추되 이후 고개 숙임과 점프 높이를 그대로 반영한다', () => {
   const calibration = new XRHeightCalibration(), settings = parseXRComfort(null)
   expect(calibration.calibrate(1.0, settings)).toBe(true)
-  expect(1.0 + calibration.offset).toBeCloseTo(1.8)
-  expect(.8 + calibration.offset).toBeCloseTo(1.6)
+  expect(1.0 + calibration.offset).toBeCloseTo(1.65)
+  expect(.8 + calibration.offset).toBeCloseTo(1.45)
   const platformTop = 7
-  expect(platformTop + 1 + calibration.offset).toBeCloseTo(8.8)
+  expect(platformTop + 1 + calibration.offset).toBeCloseTo(8.65)
   expect(calibration.calibrate(1.2, settings)).toBe(true)
-  expect(1.2 + calibration.offset).toBeCloseTo(1.8)
+  expect(1.2 + calibration.offset).toBeCloseTo(1.65)
   expect(calibration.calibrate(1.75, { ...settings, posture: 'standing' })).toBe(true)
   expect(calibration.offset).toBe(0)
 })
@@ -44,7 +44,7 @@ it('잘못된 추적 높이는 기존 보정을 유지하고 새 세션에는 �
   calibration.calibrate(1, DEFAULT_XR_COMFORT)
   for (const value of [NaN, Infinity, 0, -1, 5]) {
     expect(calibration.calibrate(value, DEFAULT_XR_COMFORT)).toBe(false)
-    expect(calibration.offset).toBeCloseTo(.8)
+    expect(calibration.offset).toBeCloseTo(.65)
   }
   calibration.reset(); expect(calibration.offset).toBe(0)
 })

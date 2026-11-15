@@ -1,14 +1,16 @@
 import { create } from 'zustand'
 
+export const XR_EYE_HEIGHTS = [1.4, 1.6, 1.65, 1.8] as const
+
 export interface XRComfortSettings {
   turnMode: 'smooth' | 'snap'
   turnSpeed: 60 | 90 | 120
   snapAngle: 30 | 45
   posture: 'standing' | 'seated'
-  seatedEyeHeight: 1.4 | 1.6 | 1.8
+  seatedEyeHeight: typeof XR_EYE_HEIGHTS[number]
 }
 export const DEFAULT_XR_COMFORT: XRComfortSettings = {
-  turnMode: 'smooth', turnSpeed: 90, snapAngle: 30, posture: 'seated', seatedEyeHeight: 1.8,
+  turnMode: 'smooth', turnSpeed: 90, snapAngle: 30, posture: 'seated', seatedEyeHeight: 1.65,
 }
 const STORAGE_KEY = 'ontop:park-xr-comfort:v1'
 export function parseXRComfort(value: unknown): XRComfortSettings {
@@ -18,8 +20,7 @@ export function parseXRComfort(value: unknown): XRComfortSettings {
     turnSpeed: v.turnSpeed === 60 || v.turnSpeed === 120 ? v.turnSpeed : 90,
     snapAngle: v.snapAngle === 45 ? 45 : 30,
     posture: v.posture === 'standing' || v.posture === 'seated' ? v.posture : DEFAULT_XR_COMFORT.posture,
-    seatedEyeHeight: v.seatedEyeHeight === 1.4 || v.seatedEyeHeight === 1.6 || v.seatedEyeHeight === 1.8
-      ? v.seatedEyeHeight : DEFAULT_XR_COMFORT.seatedEyeHeight,
+    seatedEyeHeight: XR_EYE_HEIGHTS.find(height => height === v.seatedEyeHeight) ?? DEFAULT_XR_COMFORT.seatedEyeHeight,
   }
 }
 function load(): XRComfortSettings {

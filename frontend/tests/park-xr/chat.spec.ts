@@ -27,7 +27,7 @@ test('220m 공원 VR에서 주변 닉네임을 보고 이동 입력을 막은 �
   await expect.poll(async () => {
     const state = await snapshot()
     return state.position[1] - (state.pose.y - .8)
-  }).toBeCloseTo(1.8, 2)
+  }).toBeCloseTo(1.65, 2)
   const own = { ...(await snapshot()).pose, moving: false, running: false, swimming: false, lastInputSeq: 0 }
   server.emit('WORLD_STATE', { channelId: 'channel-1', version: 100, mapVersion: server.mapIdentity.mapVersion,
     avatars: [ { userId: '101', position: own, vrActive: true },

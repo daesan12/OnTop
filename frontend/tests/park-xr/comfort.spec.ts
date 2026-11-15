@@ -34,7 +34,7 @@ test('준비 화면 설정은 한지 팝업에서 선택하고 작은 화면에�
   const dialog = page.getByRole('dialog', { name: 'VR 편안함 설정', exact: true })
   await expect(dialog.getByLabel('회전 속도')).toHaveValue('90')
   await expect(dialog.getByLabel('플레이 자세')).toHaveValue('seated')
-  await expect(dialog.getByLabel('앉기 모드 기준 눈높이')).toHaveValue('1.8')
+  await expect(dialog.getByLabel('앉기 모드 기준 눈높이')).toHaveValue('1.65')
   await dialog.getByLabel('회전 방식').selectOption('snap')
   await dialog.getByLabel('스냅 각도').selectOption('45')
   for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
@@ -46,7 +46,7 @@ test('준비 화면 설정은 한지 팝업에서 선택하고 작은 화면에�
     await page.screenshot({ path: info.outputPath(`comfort-${size.width}x${size.height}.png`) })
   }
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('ontop:park-xr-comfort:v1')!))
-  expect(saved).toMatchObject({ turnMode: 'snap', snapAngle: 45, posture: 'seated', seatedEyeHeight: 1.8 })
+  expect(saved).toMatchObject({ turnMode: 'snap', snapAngle: 45, posture: 'seated', seatedEyeHeight: 1.65 })
   await dialog.getByRole('button', { name: '설정 완료' }).click()
   await expect(dialog).toHaveCount(0)
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
@@ -75,6 +75,8 @@ test('VR 레이저 설정·좌식 보정·재설정·스냅 회전은 몸 위치
   await select(page, 'reset-height')
   await expect.poll(eyeHeight).toBeCloseTo(1.6, 2)
   await expect.poll(async () => (await snapshot(page)).heightNotice).toContain('맞췄어요')
+  await select(page, 'eye-height')
+  await expect.poll(eyeHeight).toBeCloseTo(1.65, 2)
   await select(page, 'posture')
   await expect.poll(eyeHeight).toBeCloseTo(1.2, 2)
   await select(page, 'turn-mode')

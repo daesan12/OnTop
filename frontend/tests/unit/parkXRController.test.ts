@@ -136,8 +136,8 @@ it('양손 레이저가 반복 프레임의 벡터를 재사용하고 올바른 
 
     expect(samples).toHaveLength(240)
     expect(samples.every(s => s.origin === samples[0]!.origin && s.direction === samples[0]!.direction)).toBe(true)
-    expect(samples[0]!.point).toEqual([9.8, 1.3, 19.7])
-    expect(samples[1]!.point).toEqual([10.2, 1.4, 19.6])
+    expect(samples[0]!.point).toEqual([9.8, expect.closeTo(1.15, 6), 19.7])
+    expect(samples[1]!.point).toEqual([10.2, expect.closeTo(1.25, 6), 19.6])
     expect(samples.every(s => s.aim[0] === 0 && s.aim[1] === 0 && s.aim[2] === -1)).toBe(true)
     expect(harness.activate).not.toHaveBeenCalled()
     right.gamepad.buttons[0]!.pressed = true
