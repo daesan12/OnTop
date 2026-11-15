@@ -39,6 +39,7 @@ import { STONE_RUMBLE_ENABLED } from '../tableLobby/model'
 import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice,openParkGacha } from '../construction/model'
+import { openSpotDifference } from '../spotDifference/store'
 import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlacement'
 import { gachaInteractionEnabled } from '../gacha/state'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
@@ -123,7 +124,8 @@ export function getParkInteraction(): ParkInteraction | null {
     if(site.id===PARK_GACHA_MACHINE.id || RENEWAL_PARK_ENABLED && site.id.startsWith('mobility-'))continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
-    const label = site.id === 'layout-drink' ? '복권방 열기' : site.label
+    const label = site.id === 'layout-drink' ? '복권방 열기'
+      : site.id === 'shooting' ? '스피드 틀린 그림 찾기' : site.label
     choices.push({kind:'construction',id:site.id,label,occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
   if (plazaKiosksEnabled && (RENEWAL_PARK_ENABLED || gachaInteractionEnabled(session.sessionId)) && canReachParkGacha(p.current)) {
@@ -239,7 +241,10 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'joke-judge') openJokeContest()
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'gacha') openParkGacha()
-  else if (target.kind === 'construction') openConstructionNotice(target.id)
+  else if (target.kind === 'construction') {
+    if (target.id === 'shooting') openSpotDifference()
+    else openConstructionNotice(target.id)
+  }
   else if (target.kind === 'bungeoppang') openBungeoppang()
   else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openArcade() }
   else if (target.kind === 'renewal-game') {

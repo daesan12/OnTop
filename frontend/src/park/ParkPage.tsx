@@ -63,6 +63,7 @@ import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner
 import { WinnerContactsHost } from '../features/winnerContacts/WinnerContactsHost'
 import { useArcade } from '../features/arcade/store'
 import { MoleModePicker } from '../features/arcade/MoleModePicker'
+import { closeSpotDifference, useSpotDifference } from '../features/spotDifference/store'
 import { useMole } from '../features/mole/store'
 import { usePlusMinus } from '../features/plusMinus/store'
 import { useRpsRoulette } from '../features/rpsRoulette/store'
@@ -75,6 +76,7 @@ import type { ServiceOperationStatus } from '../features/operation/serviceOperat
 
 
 const ArcadePicker = lazy(() => import('../features/arcade/ArcadePicker').then(module => ({ default: module.ArcadePicker })))
+const SpotDifferencePanel = lazy(() => import('../features/spotDifference/SpotDifferencePanel').then(module => ({ default: module.SpotDifferencePanel })))
 const LazyBungeoppangHud = lazy(loadBungeoppangHud)
 function BungeoppangHud() {
   // Reuse a HUD already loaded on approach without re-entering the lazy fallback.
@@ -129,6 +131,8 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const breadRecovery = useBungeoppang(s => s.recoveryDeferred)
   const arcadeScope = useArcade(s => s.open ? s.scope : null)
   const arcadeOpen = arcadeScope === 'all'
+  const spotDifferenceOpen = useSpotDifference(s => s.open)
+  useEffect(() => closeSpotDifference, [])
   const moleOpen = useMole(s => s.open)
   const plusMinusOpen = usePlusMinus(s => s.open)
   const rpsOpen = useRpsRoulette(s => s.open)
@@ -136,7 +140,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const jumpRopeOpen = useJumpRope(s => s.open)
   const gachaOpen = useGachaOverlay(s => s.surface !== null)
   const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
-    || !!arcadeScope || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || gachaOpen
+    || !!arcadeScope || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || spotDifferenceOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const stoneOverlay = useGame(s => {
@@ -231,6 +235,9 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         </Suspense>}
         <SpeedMoleHost />
         <JumpRopeHost />
+        {spotDifferenceOpen && <Suspense fallback={<p role="status">사격정을 불러오는 중입니다.</p>}>
+          <SpotDifferencePanel />
+        </Suspense>}
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />

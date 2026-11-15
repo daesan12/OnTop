@@ -481,6 +481,8 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'POST' && /^\/api\/v1\/minigames\/speed-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const jumpRopeRequest = (method === 'GET' && path === '/api/v1/minigames/jump-rope/rankings')
       || (method === 'POST' && /^\/api\/v1\/minigames\/jump-rope\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
+    const spotDifferenceRequest = (method === 'GET' && path === '/api/v1/minigames/spot-difference/status')
+      || (method === 'POST' && /^\/api\/v1\/minigames\/spot-difference\/runs(?:\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/actions)?$/.test(path))
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
     const gachaRequest = (method === 'GET' && (path === '/api/v1/gacha'
@@ -500,7 +502,8 @@ export class ParkRuntime implements ParkRuntimePort {
         || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
     if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerCoop
-      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
+      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest
+      && !spotDifferenceRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
