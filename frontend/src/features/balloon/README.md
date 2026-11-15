@@ -17,3 +17,26 @@ pnpm exec vite --config vite.balloon-preview.config.ts
 - 비행 구역은 실제 공원 외곽선에서 기체 여유 폭을 뺀 범위다. 호수·급경사·시설물처럼 안전한 하차 지점을 찾을 수 없는 곳에서 낮아지면 승강장으로 복귀한다.
 
 승강장 E 진입은 생성된 맵의 `balloon` 접근점을 사용한다. 기체 정박 위치는 실제 승강장 모델 배치와 공유한다. 비행 수평 경계와 착지는 로컬에서 검증하며 운영 공원의 E 진입, 서버 좌석 예약·위치 동기화 및 실제 지갑 차감은 통합 단계에 남아 있다.
+
+## 로그인한 캐릭터로 로컬 220m 공원에서 체험
+
+로컬 OAuth와 로컬 MySQL이 준비되어 있어야 한다. 저장소 루트의 기존 `.env.frontend-test` 설정 형식은 [프런트엔드 연동 가이드](../../../../docs/frontend-integration.md)의 두 계정 로컬 실행 절차를 따른다. 프런트 주소와 OAuth 반환 주소는 각각 `http://localhost:5173`, `http://localhost:5173/auth/callback`으로 맞춘다.
+
+저장소 루트의 PowerShell에서 같은 220m 맵으로 기존 로컬 백엔드를 실행한다.
+
+```powershell
+$env:WORLD_MAP_SOURCE = 'GENERATED'
+$env:WORLD_MAP_JSON_PATH = (Resolve-Path 'frontend/generated/park-renewal/server-map.json').Path
+$env:WORLD_MAP_MANIFEST_PATH = (Resolve-Path 'frontend/generated/park-renewal/manifest.json').Path
+$env:WORLD_MAP_REQUIRE_MATCH = 'true'
+.\scripts\start-frontend-test.ps1
+```
+
+별도 PowerShell의 `frontend`에서 로컬 공원을 실행한다.
+
+```powershell
+$env:VITE_LOCAL_BALLOON = '1'
+pnpm exec vite --mode park-renewal-integration --host localhost --port 5173 --strictPort
+```
+
+[로컬 공원](http://localhost:5173/park)에 로그인한 뒤 하늘언덕 열기구 승강장으로 가서 E를 누른다. 체험은 1인 출발, 무료이며 공원 세션의 캐릭터와 외형을 그대로 표시한다. 비행 좌표는 이 브라우저의 장면에서만 움직인다. 하차 연출이 끝나면 서버가 유지하던 승강장 위치에서 공원 조작이 돌아온다. 로컬 DB에 해당 제공자의 회원 프로필이 없으면 온보딩이 필요하다.

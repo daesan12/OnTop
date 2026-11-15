@@ -2,6 +2,7 @@ import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
 import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
 import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { LOCAL_BALLOON_ENABLED, localBalloonRider } from '../features/balloon/localRide'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Matrix4, Vector3 } from 'three'
 import { cameraWorldPosition, parkXRView } from './xrView'
@@ -177,6 +178,7 @@ function Avatar({
     const seated = avatar.seatIndex >= 0
     const seatTable = seated && avatar.tableId ? TABLES.find(table => table.id === avatar.tableId) : undefined
     const own = id === useSession.getState().sessionId
+    const balloonRider = own && LOCAL_BALLOON_ENABLED ? localBalloonRider(id) : null
     // Hide only this client's own model; other clients retain the full avatar.
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
     const ownPose = ownAvatar && samplePose(ownAvatar, frameAt, overlapPose)
@@ -191,18 +193,19 @@ function Avatar({
       pendingFadeShaders.current?.()
     }
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
-    root.current.visible = firstAppearanceReady.current && opacity > 0 && !(own && parkXRView.active) && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
+    root.current.visible = firstAppearanceReady.current && opacity > 0 && !(own && parkXRView.active) && (!!balloonRider || !!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
-    root.current.position.set(
+    if (balloonRider) root.current.position.set(balloonRider.x, balloonRider.y, balloonRider.z)
+    else root.current.position.set(
       pose.x,
       pose.y - 0.8 + (seated ? (seatTable?.seatSurfaceY
         ?? avatarSeatSurface(avatar.benchId))
           + (RENEWAL_PARK_ENABLED ? model.seatedContactLift : model.seatedHipLift) - model.hipHeight : 0),
       pose.z,
     )
-    root.current.rotation.y = pose.yaw
+    root.current.rotation.y = balloonRider ? Math.PI : pose.yaw
     const carryAnimation = carryMotion.get(id)
     if (!root.current.visible && !carryAnimation) return
     // The visitors parent has an identity transform; this position is already

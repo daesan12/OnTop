@@ -24,7 +24,7 @@ export type Flight = {
   position: Point
   seconds: number
   atBoundary: boolean
-  returnReason?: 'time' | 'pilot' | 'terrain'
+  returnReason?: 'time' | 'pilot' | 'terrain' | 'manual'
   landing?: 'dock' | 'field'
   exit?: Point
 }

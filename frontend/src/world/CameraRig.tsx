@@ -6,6 +6,7 @@ import { TABLET } from '../features/tableLobby/tabletProjection'
 import { renderedTableAnchors } from '../features/tableLobby/tabletAnchors'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useEffect, useMemo, useRef } from 'react'
+import { LOCAL_BALLOON_ENABLED, localBalloonRider } from '../features/balloon/localRide'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, PerspectiveCamera, Quaternion, Raycaster, SkinnedMesh, Vector3, type Object3D } from 'three'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
@@ -139,6 +140,15 @@ export function CameraRig() {
       interactionAim.ready = false
       cameraOcclusion.strength.value = 0
       occlusion.reset()
+      return
+    }
+    const balloonRider = LOCAL_BALLOON_ENABLED ? localBalloonRider(useSession.getState().sessionId) : null
+    if (balloonRider) {
+      interactionAim.ready = false
+      cameraOcclusion.strength.value = 0
+      occlusion.reset()
+      camera.position.set(balloonRider.x + 6, balloonRider.y + 5, balloonRider.z + 9)
+      camera.lookAt(balloonRider.x, balloonRider.y + .6, balloonRider.z - 4)
       return
     }
     scan.current += delta

@@ -1,6 +1,7 @@
 import { FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
 import { authoritativePose, avatars, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
+import { LOCAL_BALLOON_ENABLED, openLocalBalloon } from '../balloon/localRide'
 import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
@@ -121,7 +122,7 @@ export function getParkInteraction(): ParkInteraction | null {
     if(site.id===PARK_GACHA_MACHINE.id)continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
-    const label = site.id === 'layout-drink' ? '복권방 열기' : site.label
+    const label = site.id === 'balloon' && LOCAL_BALLOON_ENABLED ? '열기구 탑승' : site.id === 'layout-drink' ? '복권방 열기' : site.label
     choices.push({kind:'construction',id:site.id,label,occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
   if (plazaKiosksEnabled && (RENEWAL_PARK_ENABLED || gachaInteractionEnabled(session.sessionId)) && canReachParkGacha(p.current)) {
@@ -237,7 +238,10 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'joke-judge') openJokeContest()
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'gacha') openParkGacha()
-  else if (target.kind === 'construction') openConstructionNotice(target.id)
+  else if (target.kind === 'construction') {
+    if (target.id === 'balloon' && LOCAL_BALLOON_ENABLED) return openLocalBalloon()
+    openConstructionNotice(target.id)
+  }
   else if (target.kind === 'bungeoppang') openBungeoppang()
   else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openArcade() }
   else if (target.kind === 'renewal-game') {
