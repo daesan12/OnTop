@@ -119,6 +119,8 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 캐릭터 운반 | WORLD_CARRY_PICKUP / WORLD_CARRY_THROW / WORLD_CARRY_RELEASE | WORLD_STATE |
 | 창 입력 점유 | WORLD_INTERACTION_SET | WORLD_INTERACTION_STATE (운반 해제 시 WORLD_STATE도 방송) |
 | 마이룸 이용 표시 | WORLD_MYROOM_SET | WORLD_STATE; 본인 `{open:boolean}`, 아바타의 선택적 `myRoomOpen:true`로 공유 ([상세](../world-websocket-api.md)) |
+| 월드 문 상태 요청 | WORLD_SECRET_DOORS_SET | WORLD_STATE; `{open:boolean}`, 서버가 현재 위치와 요청 권한 확인 |
+| 실내 전환 | WORLD_INTERIOR_ACCESS | WORLD_STATE; `{access:string}`, 서버가 현재 위치와 이동 가능 여부 확인 |
 | 시설 | WORLD_FACILITY_CHECK / WORLD_FACILITY_CATALOG / WORLD_FACILITY_USE / WORLD_FACILITY_RELEASE / WORLD_FACILITY_AIM | [시설 계약](../world-facility-api.md)의 상태·목록·이용 응답 |
 | 착석·준비 | TABLE_JOIN / TABLE_LEAVE / READY_SET / GAME_SELECT | TABLE_STATE / TABLE_LEFT |
 | 대기 테이블 보기 | TABLE_WATCH / TABLE_UNWATCH | TABLE_WATCH_STATE / TABLE_WATCH_LEFT |
