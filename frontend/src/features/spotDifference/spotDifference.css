@@ -7,6 +7,7 @@
   width: min(770px, 100%);
   max-height: calc(100dvh - 36px);
   color: var(--spot-ink);
+  font-family: 'Malgun Gothic', system-ui, sans-serif;
   border: 5px double #9e764c;
   padding: clamp(14px, 2.2vw, 30px);
   scrollbar-width: none;
@@ -30,6 +31,7 @@
   gap: .28em;
   margin: 0 48px 3px;
   color: var(--spot-ink);
+  font-family: inherit;
   font-size: clamp(25px, 3.75vw, 45px);
   font-weight: 700;
   line-height: 1.12;
@@ -62,7 +64,9 @@
 .spot-difference .spot-entry-info { min-width: 0; }
 .spot-difference .spot-entry-info h3, .spot-difference .spot-picker h3 {
   margin: 0;
-  font: 700 clamp(20px, 3vw, 29px)/1.13 BusanDandiMyeongjo, serif;
+  font-size: clamp(20px, 3vw, 29px);
+  font-weight: 700;
+  line-height: 1.13;
 }
 .spot-difference h3:focus { outline: none; }
 .spot-difference .spot-guide-steps, .spot-difference .spot-guide-keys {
@@ -142,7 +146,11 @@
 .spot-difference .spot-card:not(:disabled):hover {
   box-shadow: inset 0 0 0 1px var(--card-line), 0 3px 8px #3c251828;
 }
-.spot-difference .spot-card-title { font: 700 clamp(24px, 4vw, 33px)/1.1 BusanDandiMyeongjo, serif; }
+.spot-difference .spot-card-title {
+  font-size: clamp(24px, 4vw, 33px);
+  font-weight: 700;
+  line-height: 1.1;
+}
 .spot-difference .spot-card-detail { color: var(--spot-ink); font-size: .86rem; line-height: 1.4; }
 .spot-difference .spot-card-rewards {
   display: flex;
