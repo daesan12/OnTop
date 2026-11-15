@@ -17,8 +17,9 @@ const scenes = [
   },
 ] as const
 
-export function ParkWelcomeStory({ blocked, onComplete }: {
+export function ParkWelcomeStory({ blocked, deadline, onComplete }: {
   blocked: boolean
+  deadline: number
   onComplete: () => void
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
@@ -34,28 +35,34 @@ export function ParkWelcomeStory({ blocked, onComplete }: {
   }, [])
 
   useEffect(() => {
-    if (blocked || !dialog.current) return
     const element = dialog.current
+    if (!element) return
+    let retry: number | undefined
+    const expiry = window.setTimeout(onComplete, Math.max(0, deadline - Date.now()))
+    const stopWaiting = () => {
+      window.clearInterval(retry)
+      window.clearTimeout(expiry)
+    }
     const showWhenReady = () => {
-      if (!welcomeReady() || hasPendingWelcomeTour() || panelOwnsKeys()) return false
+      if (Date.now() >= deadline || !element.isConnected ||
+        !welcomeReady() || hasPendingWelcomeTour() || panelOwnsKeys()) return false
       clearRoamingInput()
       if (document.pointerLockElement) document.exitPointerLock()
       element.showModal()
       element.focus({ preventScroll: true })
+      stopWaiting()
       return true
     }
-    const timer = showWhenReady() ? undefined : window.setInterval(() => {
-      if (showWhenReady()) window.clearInterval(timer)
-    }, 250)
+    if (!blocked && !showWhenReady()) retry = window.setInterval(showWhenReady, 250)
 
     return () => {
-      window.clearInterval(timer)
+      stopWaiting()
       if (!element.open) return
       element.close()
       clearRoamingInput()
       focusParkCanvas()
     }
-  }, [blocked])
+  }, [blocked, deadline, onComplete])
 
   function advance() {
     if (last) onComplete()

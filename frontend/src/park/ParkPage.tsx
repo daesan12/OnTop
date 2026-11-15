@@ -107,7 +107,7 @@ type ParkProps = {
   exitError: string
   onAuthEnded: () => void
   onOperationBlocked: (status: ServiceOperationStatus) => void
-  welcomeStoryPending?: boolean
+  welcomeStoryDeadline?: number | null
   onWelcomeStoryComplete?: () => void
 }
 export function ParkPage(props: ParkProps) {
@@ -118,7 +118,7 @@ export function ParkPage(props: ParkProps) {
   }, [])
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
-function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welcomeStoryPending, onWelcomeStoryComplete }: ParkProps) {
+function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welcomeStoryDeadline, onWelcomeStoryComplete }: ParkProps) {
   const riding = useMobility(s => s.phase === 'riding' || s.phase === 'ending')
   useWalletSync()
   useJumpmapController()
@@ -186,8 +186,9 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
       <ChannelEntryGate />
       <AiResidentsHost />
       <AnnouncementBanner hidden={hideAnnouncements} />
-      <EntryNewsPopup hidden={hideAnnouncements || welcomeStoryPending} launcherHost={entryNewsHost} />
-      {welcomeStoryPending && onWelcomeStoryComplete && <ParkWelcomeStory blocked={hideAnnouncements} onComplete={onWelcomeStoryComplete} />}
+      <EntryNewsPopup hidden={hideAnnouncements || welcomeStoryDeadline != null} launcherHost={entryNewsHost} />
+      {welcomeStoryDeadline != null && onWelcomeStoryComplete &&
+        <ParkWelcomeStory blocked={hideAnnouncements} deadline={welcomeStoryDeadline} onComplete={onWelcomeStoryComplete} />}
       <GachaLifecycle />
       <SkinCatalogLifecycle />
       <NotificationCenter key={session.sessionId} hidden={gameplayActive} newsHostRef={setEntryNewsHost}

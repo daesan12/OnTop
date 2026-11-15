@@ -188,3 +188,63 @@ test('다시 보기는 비행 없이 시작하고, 마치면 옷장 위치를 �
   await screenshot(page, 'tour-09-finished-wardrobe', 'disabled')
   expect(errors).toEqual([])
 })
+
+const welcomePendingKey = 'ontop:park-welcome-pending'
+
+test('대기 중 새로고침해도 로그인 환영 대화가 열리고 건너뛰면 대기를 지운다', async ({ page }) => {
+  await fixture(page, { generatedPark: true })
+  await page.addInitScript(() => {
+    if (location.pathname !== '/auth/callback') return
+    window.addEventListener('DOMContentLoaded', () => {
+      const dialog = document.createElement('dialog')
+      dialog.setAttribute('aria-label', '입장 중 열린 다른 창')
+      document.body.append(dialog)
+      dialog.showModal()
+    }, { once: true })
+  })
+  await page.route('**/api/v1/auth/exchange', route => route.fulfill({
+    json: { status: 'AUTHENTICATED', accessToken: 'fixture-access' },
+  }))
+  await page.goto('/auth/callback#exchange_code=' + 'A'.repeat(43))
+  const story = page.getByRole('dialog', { name: '박영감' })
+  await expect(page.getByRole('dialog', { name: '입장 중 열린 다른 창' })).toBeVisible()
+  await expect(page.locator('.park-welcome-story')).toHaveCount(1, { timeout: 45000 })
+  await expect(story).toBeHidden()
+  expect(await page.evaluate(key => Number(sessionStorage.getItem(key)) > Date.now(), welcomePendingKey)).toBe(true)
+
+  await page.reload()
+  await expect(story).toBeVisible({ timeout: 80000 })
+  await page.keyboard.press('Escape')
+  await expect(story).toHaveCount(0)
+  expect(await page.evaluate(key => sessionStorage.getItem(key), welcomePendingKey)).toBeNull()
+})
+
+test('다른 팝업을 기다리다 만료된 환영 대화는 접속 공지에 자리를 내준다', async ({ page }) => {
+  await page.clock.install()
+  await fixture(page, { generatedPark: true })
+  await page.addInitScript(key => {
+    sessionStorage.setItem(key, String(Date.now() + 90_000))
+    window.addEventListener('DOMContentLoaded', () => {
+      const dialog = document.createElement('dialog')
+      dialog.id = 'welcome-story-test-blocker'
+      document.body.append(dialog)
+      dialog.showModal()
+    }, { once: true })
+  }, welcomePendingKey)
+  const now = new Date().toISOString()
+  const noticeId = '11111111-1111-4111-8111-111111111111'
+  await page.route('**/api/v1/entry-news', route => route.fulfill({ json: { serverTime: now, pages: [{
+    id: noticeId, title: '검수용 공지', published: true, displayOrder: 0,
+    startsAt: null, endsAt: null, version: 1, updatedAt: now, imageHash: 'a'.repeat(64),
+  }] } }))
+  await page.route('**/api/v1/entry-news/' + noticeId + '/image', route => route.fulfill({
+    path: 'tests/fixtures/entry-news/alkkagi-update.png', contentType: 'image/png',
+  }))
+  await page.goto('/park')
+  await expect(page.locator('.park-welcome-story')).toHaveCount(1, { timeout: 45000 })
+  await page.clock.fastForward(90_001)
+  await expect(page.locator('.park-welcome-story')).toHaveCount(0)
+  expect(await page.evaluate(key => sessionStorage.getItem(key), welcomePendingKey)).toBeNull()
+  await page.locator('#welcome-story-test-blocker').evaluate(element => element.remove())
+  await expect(page.getByRole('dialog', { name: '온탑 새 소식' })).toBeVisible({ timeout: 45000 })
+})
