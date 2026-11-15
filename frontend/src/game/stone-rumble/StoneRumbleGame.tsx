@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { PaperPopup } from '../../features/tableLobby/PaperPopup'
 import { StoneRumbleScene } from './StoneRumbleScene'
-import { STONE_FLOOR_HEIGHTS } from './layout'
+import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, visibleStoneFloor } from './layout'
 import { nextSurvivor, survivorView } from './spectating'
 import { stoneName, type StoneControl, type StoneState } from './protocol'
 import type { StoneSceneStatus } from './StoneRumblePreparation'
@@ -33,7 +33,8 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     setSceneReady(ready); setSceneError(error ?? ''); onSceneStatus?.(ready, error)
   }, [onSceneStatus])
   const input = useRef({ x: 0, z: 0, aimX: 1, aimZ: 0, jump: false, fire: false, slide: false })
-  const keys = useRef(new Set<string>()), mouse = useRef(false), sequence = useRef(Date.now() * 1000)
+  const controls = useRef({ yaw: 0, renderedYaw: 0, pointerAiming: false })
+  const keys = useRef(new Set<string>()), sequence = useRef(Date.now() * 1000)
   const sender = useRef(send)
   sender.current = send
   const own = state.players.find(p => p.userId === ownId)
@@ -44,6 +45,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
   const spectating = !preparing && (!own || !own.alive)
   const viewingId = pendingElimination ? ownId : spectating ? survivorView(state.players, selected ?? ownId) : ownId
   const viewing = state.players.find(player => player.userId === viewingId)
+  const viewingFloor = viewing?.alive ? visibleStoneFloor(viewing.floor, viewing.y) : null
   const spectatorKeys = useRef({ enabled: false, players: state.players, viewingId, exit })
   spectatorKeys.current = { enabled: sceneReady && spectating && !finished && !pendingElimination && !help && !confirmLeave && !chatOpen, players: state.players, viewingId, exit }
   const cycle = (direction: number) => setSelected(nextSurvivor(state.players, viewingId, direction))
@@ -90,6 +92,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     return () => window.removeEventListener('keydown', key)
   }, [chat, preparing, sceneReady, finished, pendingElimination, help, confirmLeave, chatOpen, changeChat])
   useEffect(() => {
+    controls.current = { yaw: 0, renderedYaw: 0, pointerAiming: false }
     stop(); setHelp(false); setConfirmLeave(false); setResultOpen(true); setSelected(null); setChatOpen(false); setEliminationAcknowledged(false)
   }, [state.gameId, stop])
   useEffect(() => {
@@ -110,23 +113,28 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
       if (!event.repeat && !shiftHeld && ['ShiftLeft', 'ShiftRight'].includes(event.code)) input.current.slide = true
     }
     const up = (event: KeyboardEvent) => { keys.current.delete(event.code) }
-    const moved = () => { mouse.current = true }
     const hidden = () => { if (document.hidden) stop() }
     window.addEventListener('keydown', down); window.addEventListener('keyup', up); window.addEventListener('blur', stop)
-    window.addEventListener('pointermove', moved); window.addEventListener('ontop-clear-input', stop); document.addEventListener('visibilitychange', hidden)
+    window.addEventListener('ontop-clear-input', stop); document.addEventListener('visibilitychange', hidden)
     const timer = window.setInterval(() => {
       if (!activeRef.current) return
       const has = (...codes: string[]) => codes.some(code => keys.current.has(code))
       const x = Number(has('KeyD', 'ArrowRight')) - Number(has('KeyA', 'ArrowLeft'))
       const z = Number(has('KeyS', 'ArrowDown')) - Number(has('KeyW', 'ArrowUp'))
-      input.current.x = x; input.current.z = z
-      if (!mouse.current && (x || z)) { const length = Math.hypot(x, z); input.current.aimX = x / length; input.current.aimZ = z / length }
+      const { renderedYaw: yaw, pointerAiming } = controls.current
+      const sin = Math.sin(yaw), cos = Math.cos(yaw)
+      input.current.x = x * cos + z * sin
+      input.current.z = z * cos - x * sin
+      if (!pointerAiming && (x || z)) {
+        const length = Math.hypot(x, z)
+        input.current.aimX = input.current.x / length; input.current.aimZ = input.current.z / length
+      }
       sender.current({ kind: 'control', seq: ++sequence.current, ...input.current })
       input.current.jump = false; input.current.fire = false; input.current.slide = false
     }, 80)
     return () => {
       clearInterval(timer); window.removeEventListener('keydown', down); window.removeEventListener('keyup', up)
-      window.removeEventListener('blur', stop); window.removeEventListener('pointermove', moved); window.removeEventListener('ontop-clear-input', stop)
+      window.removeEventListener('blur', stop); window.removeEventListener('ontop-clear-input', stop)
       document.removeEventListener('visibilitychange', hidden); stop()
     }
   }, [stop])
@@ -144,17 +152,21 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
   const alive = state.players.filter(p => p.alive).length
   const nextRing = Math.min(...state.tiles.filter(t => !t.stepped && t.breakAt > state.serverTime).map(t => t.breakAt))
   const hold = (code: string) => ({
-    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); if (active) { mouse.current = false; keys.current.add(code) } },
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); if (active) { controls.current.pointerAiming = false; keys.current.add(code) } },
     onPointerUp: () => keys.current.delete(code), onPointerCancel: () => keys.current.delete(code), onLostPointerCapture: () => keys.current.delete(code),
   })
   return <section className="stone-rumble" data-phase={state.phase} data-loading={loading} data-preparing={preparing} data-scene-ready={sceneReady} data-spectating={spectating && !pendingElimination} data-eliminated={eliminated} data-awaiting-spectate={pendingElimination} aria-label="돌탑 생존전">
     <StoneRumbleScene state={state} localOnly={localOnly} ownId={ownId} viewId={viewingId ?? ''} input={input} fire={fire}
-      feedback={feedback}
+      feedback={feedback} controls={controls}
+      cameraEnabled={!preparing && !loading && !help && !confirmLeave && !chatOpen && !pendingElimination && !finished}
       onStatus={sceneStatus} preparationAttempt={preparationAttempt + retry} paused={(preparing || state.phase === 'LOADING') && sceneReady} />
     {loading && <StoneLoadingTips ready={state.readyUserIds?.length ?? 0} total={state.players.length} ownReady={sceneReady}
       error={sceneError} retry={() => sceneError.startsWith('공원 파일') ? location.reload() : setRetry(v => v + 1)} />}
     <header className="stone-rumble-top">
-      <div className="stone-rumble-heading"><p>STONE RUMBLE</p><h1><StoneTowerIcon />돌탑 생존전</h1><div className="stone-rumble-counter"><span>생존</span><strong>{alive} <small>/ {state.players.length}</small></strong></div></div>
+      <div className="stone-rumble-heading"><p>STONE RUMBLE</p><h1><StoneTowerIcon />돌탑 생존전</h1><div className="stone-rumble-counter"><span>생존</span><strong>{alive} <small>/ {state.players.length}</small></strong></div>
+      {viewingFloor !== null && <span className="stone-rumble-floor" data-floor={viewingFloor + 1}>
+        <i style={{ backgroundColor: STONE_FLOOR_COLORS[viewingFloor] }} aria-hidden="true" />{viewingFloor + 1}층
+      </span>}</div>
       <div className="stone-rumble-clock" aria-label="경기 경과 시간">{String(Math.floor(elapsed / 60)).padStart(2, '0')}:{String(elapsed % 60).padStart(2, '0')}</div>
       <nav aria-label="경기 메뉴">{topActions}<button onClick={() => { stop(); setHelp(true) }}>조작 안내</button>{own?.alive && !finished && <button onClick={() => { stop(); setConfirmLeave(true) }}>기권</button>}</nav>
     </header>
@@ -202,9 +214,10 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
       <h2>핵심 조작</h2>
       <dl className="stone-rumble-help-controls" aria-label="핵심 조작 키">
         <div><dt>이동</dt><dd><kbd>WASD</kbd><span>/</span><kbd>방향키</kbd></dd></div>
+        <div><dt>시점</dt><dd>우클릭 드래그 / 휠 확대·축소 <small>터치는 경기장 드래그</small></dd></div>
         <div><dt>점프</dt><dd><kbd>Space</kbd></dd></div>
         <div><dt>슬라이딩</dt><dd><kbd>Shift</kbd><small>공중에서도 한 칸 이동</small></dd></div>
-        <div><dt>비둘기 공격</dt><dd><kbd>클릭</kbd><span>/</span><kbd>E</kbd><small>마우스 조준 · 1.5초 충전</small></dd></div>
+        <div><dt>비둘기 공격</dt><dd><kbd>클릭</kbd><span>/</span><kbd>E</kbd><small>터치는 상대를 탭 · 1.5초 충전</small></dd></div>
       </dl>
       <div className="stone-rumble-help-shortcuts"><span>채팅 <kbd>Enter</kbd></span><span>관전 전환 <kbd>Tab</kbd> / <kbd>Shift + Tab</kbd></span></div>
       <p className="stone-rumble-help-live">안내를 보는 동안에도 경기는 계속돼요.</p>
@@ -220,7 +233,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
           <p>떨어져도 아래층에 착지하면 계속할 수 있어요. <strong>1층 아래로 더 떨어지면 탈락해요.</strong></p>
           <h3>3. 슬라이딩과 비둘기를 활용해요</h3>
           <p><strong>슬라이딩 — Shift</strong><br />몸을 앞으로 던져 한 칸 이동해요. 움직이던 방향으로, 멈춰 있다면 바라보는 방향으로 나아가요. 점프한 뒤에도 쓸 수 있고, 다시 쓰려면 1초 기다려요.</p>
-          <p><strong>비둘기 공격 — 클릭 / E</strong><br />마우스로 상대를 조준하고 쏘세요. 1.5초마다 충전되며 버튼의 원이 가득 차면 다시 쏠 수 있어요. 맞은 사람은 발판 한 칸만큼 밀려나고 잠깐 움직일 수 없어요.</p>
+          <p><strong>비둘기 공격 — 클릭 / E / 화면 탭</strong><br />마우스로 상대를 조준하거나 화면에서 상대를 탭하세요. 1.5초마다 충전되며 버튼의 원이 가득 차면 다시 쏠 수 있어요. 맞은 사람은 발판 한 칸만큼 밀려나고 잠깐 움직일 수 없어요.</p>
           <h3>4. 탈락하면 관전하거나 나가요</h3>
           <p>탈락하면 더 이상 움직이거나 공격할 수 없어요. <strong>‘생존자 관전하기’</strong>를 누르면 살아 있는 플레이어의 시점으로 볼 수 있어요.</p>
           <p><strong>Tab</strong>은 다음 생존자, <strong>Shift + Tab</strong>은 이전 생존자로 바꿔요. 보고 있던 사람이 탈락하면 다른 생존자로 자동 전환돼요. 관전 중 ‘나가기’ 버튼이나 Esc로 나갈 수 있어요.</p>

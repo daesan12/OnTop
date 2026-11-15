@@ -1,6 +1,6 @@
 import { TABLES as legacyTables, TABLE_SEATS, type Vec3 } from '../../src/config'
 import { tableSeats, type TableAnchor } from '../../src/park/tablePlacement'
-import { STONE_RUMBLE_ANCHOR_ID } from '../../src/game/stone-rumble/entrance'
+import { STONE_RUMBLE_ANCHOR_ID, STONE_RUMBLE_ENTRANCE_RADIUS } from '../../src/game/stone-rumble/entrance'
 import { groundSurfaceHeight } from '../groundSurface'
 import { facilityYaw } from '../facilityPlacement'
 import { PAVILION_TARGETS, STONE_TABLE_TARGETS } from '../mapping/identities'
@@ -50,7 +50,8 @@ export function buildRenewalTables(): TableAnchor[] {
     spectatorRadius: 3.5,
     seatAnchors: tableSeats({}, 8).map(seat => [seat.x, .56, seat.z]),
     seatSurfaceY: .56,
-    interactionPoints: [[0, groundSurfaceHeight(0, z), z], [x, y, z + 2]],
+    interactionRadius: STONE_RUMBLE_ENTRANCE_RADIUS,
+    interactionPoints: [[0, groundSurfaceHeight(0, z), z], [x, groundSurfaceHeight(x, z + 2), z + 2]],
     // Two rows on the open side of the table, outside all eight stool colliders.
     exitPoints: [3.4, 4.8].flatMap(dz => [-1.8, -.6, .6, 1.8].map(dx => {
       const exitX = x + dx, exitZ = z + dz

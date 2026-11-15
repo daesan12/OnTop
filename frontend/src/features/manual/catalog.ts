@@ -1,4 +1,5 @@
 import { stoneRumbleManual } from '../../game/stone-rumble/manual';
+import { STONE_RUMBLE_ENABLED } from '../tableLobby/model';
 import { rulebooks } from './rulebooks';
 import { jumpManual } from '../jumpmap/manual';
 import { rpsRouletteManual } from '../rpsRoulette/manual';
@@ -30,7 +31,7 @@ const renewalPlaceRows: [string, string][] = [
 // Current dev contracts: docs/{omok,farkle,onecard,bridge,dice-ledger,minigame-api}.md. HALLI_GALLI: HalliGalliEngine publicState.
 // This guide never calculates legality, deadlines, outcomes or rewards.
 const allGameManuals: GameManual[] = [
-  ...(import.meta.env.VITE_STONE_RUMBLE_ENABLED === 'true' ? [stoneRumbleManual] : []),
+  ...(STONE_RUMBLE_ENABLED ? [stoneRumbleManual] : []),
   jumpManual,
   alkkagiManual,
   {id:'gomoku',status:'available',category:'game',title:'오목',subtitle:'다섯 돌로 잇는 한 수 · 렌주',keywords:'흑돌 백돌 금수 삼삼 사사 장목 렌주',players:'2명',goal:'흑 정확히 5목 · 백 5목 이상',timing:'한 차례 30초 · 만료 시 시간패',summary:'흑의 삼삼·사사·장목은 금수예요. 정확한 5목 승리가 우선하며, 서버가 착수와 결과를 판정해요.',flow:[{title:'흑부터 시작',body:'시작할 때 동전을 던져 흑돌 선공을 정해요. 15×15 판에서 흑과 백이 번갈아 놓아요.'},{title:'빈 점에 놓기',body:'내 차례에 빈 교차점을 클릭해요. 놓은 돌은 옮기거나 무를 수 없어요.'},{title:'다섯 돌 잇기',body:'가로·세로·대각선으로 흑은 정확히 5개, 백은 5개 이상 이으면 이겨요.'}],keys:[['클릭','빈 교차점에 돌 놓기'],['F1','경기 중 설명서 보기']],points:['흑의 삼삼·사사·장목(6개 이상)은 금수예요. 단, 정확히 5목을 만드는 수는 승리가 먼저예요.','백에는 금수가 없어요.','한 차례는 30초예요. 시간이 끝나면 시간패예요.','판이 가득 차도 승자가 없으면 무승부예요.'],sections:rulebooks.gomoku.sections,rulebook:rulebooks.gomoku},
