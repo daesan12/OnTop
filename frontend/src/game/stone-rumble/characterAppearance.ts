@@ -60,7 +60,7 @@ export async function createStoneCharacterAppearance(source: GLTF): Promise<Appe
 }
 
 /** 같은 원본을 쓰는 8명과 다음 경기에서 한 번 만든 사본을 공유한다. */
-export function readStoneCharacterAppearance(source: GLTF): Appearance {
+function stoneCharacterAppearance(source: GLTF): Entry {
   let entry = appearances.get(source)
   if (!entry) {
     const created: Entry = { pending: Promise.resolve() }
@@ -68,6 +68,18 @@ export function readStoneCharacterAppearance(source: GLTF): Appearance {
     appearances.set(source, created)
     entry = created
   }
+  return entry
+}
+
+export function readStoneCharacterAppearance(source: GLTF): Appearance {
+  const entry = stoneCharacterAppearance(source)
   if (!entry.appearance) throw entry.pending
   return entry.appearance
+}
+
+export function readStoneCharacterAppearances(sources: readonly GLTF[]): readonly Appearance[] {
+  const entries = sources.map(stoneCharacterAppearance)
+  const pending = entries.filter(entry => !entry.appearance)
+  if (pending.length) throw Promise.all(pending.map(entry => entry.pending))
+  return entries.map(entry => entry.appearance!)
 }
