@@ -1,19 +1,53 @@
 import { useRef, type ReactNode } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Box3, Vector3, type Group } from 'three'
+import { Box3, Mesh, Vector3, type Group } from 'three'
 import { BALLOON_DOCK_OFFSET, BALLOON_SCALE } from '../../../park-renewal-preview/plan'
 import { useSession } from '../../network/worldClient'
 import type { Point } from './flight'
 import { useLocalBalloon } from './localRide'
 import { sampleRemoteBalloon, useRemoteBalloons } from './remoteRide'
 
-type DockBounds = { group: Group; origin: Vector3; size: Vector3 }
+type DockBounds = { group: Group; origin: Vector3; sections: Box3[] }
 
-function overlapsDock(position: Point, { origin, size }: DockBounds) {
-  // Both models use the same scale and orientation, so their bounds differ only by translation.
-  return Math.abs(position.x - origin.x) <= size.x
-    && Math.abs(position.y - origin.y) <= size.y
-    && Math.abs(position.z - origin.z) <= size.z
+const basketTop = 2 * BALLOON_SCALE
+const envelopeBottom = 5 * BALLOON_SCALE
+const offset = new Vector3()
+const movingBounds = new Box3()
+
+function measureDockBounds(group: Group): DockBounds {
+  group.updateWorldMatrix(true, true)
+  const origin = new Vector3().setFromMatrixPosition(group.matrixWorld)
+  const basket = new Box3(), suspension = new Box3(), envelope = new Box3()
+  const corners = [new Vector3(), new Vector3(), new Vector3()] as const
+
+  group.traverse(object => {
+    if (!(object instanceof Mesh)) return
+    const positions = object.geometry.getAttribute('position')
+    if (!positions) return
+    const indices = object.geometry.getIndex()
+    const count = indices?.count ?? positions.count
+    for (let i = 0; i + 2 < count; i += 3) {
+      corners.forEach((corner, j) => {
+        corner.fromBufferAttribute(positions, indices ? indices.getX(i + j) : i + j).applyMatrix4(object.matrixWorld)
+      })
+      const [a, b, c] = corners
+      // The asset batches these parts into one mesh. Keep each triangle intact when grouping by height.
+      const top = Math.max(a.y, b.y, c.y) - origin.y
+      const bottom = Math.min(a.y, b.y, c.y) - origin.y
+      const section = top <= basketTop ? basket : bottom >= envelopeBottom ? envelope : suspension
+      section.expandByPoint(a).expandByPoint(b).expandByPoint(c)
+    }
+  })
+
+  return { group, origin, sections: [basket, suspension, envelope].filter(section => !section.isEmpty()) }
+}
+
+function overlapsDock(position: Point, { origin, sections }: DockBounds) {
+  offset.set(position.x, position.y, position.z).sub(origin)
+  return sections.some(section => {
+    movingBounds.copy(section).translate(offset)
+    return sections.some(docked => docked.intersectsBox(movingBounds))
+  })
 }
 
 export function DockedBalloon({ children, trackFlights }: { children: ReactNode; trackFlights: boolean }) {
@@ -24,9 +58,9 @@ export function DockedBalloon({ children, trackFlights }: { children: ReactNode;
     const group = root.current
     if (!trackFlights || !group) return
     if (bounds.current?.group !== group) {
-      const box = new Box3().setFromObject(group)
-      if (box.isEmpty()) return
-      bounds.current = { group, origin: group.getWorldPosition(new Vector3()), size: box.getSize(new Vector3()) }
+      const measured = measureDockBounds(group)
+      if (!measured.sections.length) return
+      bounds.current = measured
     }
 
     const dock = bounds.current
