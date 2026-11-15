@@ -16,6 +16,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class StoneRumbleParkExitTests {
     @Test
+    void 전용_테이블_앞의_입장_반경만_넓히고_위아래층은_제외한다() throws Exception {
+        var path = Path.of("../frontend/generated/park-renewal");
+        var park = PreparedParkMap.load(path.resolve("server-map.json"), path.resolve("manifest.json"), Set.of("channel-1"));
+
+        assertThat(park.canEnterStoneRumble(7.2, 22.885, -58.2)).isTrue();
+        assertThat(park.canEnterStoneRumble(7.2, 22.885, -57.9)).isFalse();
+        assertThat(park.canEnterStoneRumble(7.2, 24.685, -58.2)).isFalse();
+    }
+
+    @Test
     void 여덟_참가자가_같은_입구에서_착석해도_다른_위치에_복귀하고_걸어서_나온다() throws Exception {
         var path = Path.of("../frontend/generated/park-renewal");
         var park = PreparedParkMap.load(path.resolve("server-map.json"), path.resolve("manifest.json"), Set.of("channel-1"));

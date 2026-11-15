@@ -80,6 +80,11 @@ export function TableFurniture({ anchor, onInspect = interactWithTable, nativeFu
         onInspect(anchor.id)
       }}
     >
+      {anchor.id === STONE_RUMBLE_ANCHOR_ID && <mesh name="stone-rumble-table-paving"
+        position={[0, -.065, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+        <ringGeometry args={[.05, 2.75, 8]} />
+        <meshLambertMaterial color="#477563" polygonOffset polygonOffsetFactor={-2} />
+      </mesh>}
       {nativeFurniture ? (
         <>
           <mesh position={[0, 1.06 + (anchor.boardOffsetY ?? 0), 0]} rotation={[-Math.PI / 2, 0, 0]}>

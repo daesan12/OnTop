@@ -18,9 +18,10 @@ class InteriorAccessTests {
             physics.add("a");
             physics.add("b");
             physics.place("a", 3.65, 9.22, -43.1);
-            assertThat(physics.useInteriorAccess("a", "vestibule")).isNotNull();
+            assertThat(physics.useInteriorAccess("a", "vestibule")).isNull();
+            physics.place("a", 1.06, 9.15, -43.1);
             assertThat(physics.useInteriorAccess("a", "surface")).isNotNull();
-            assertThat(physics.useInteriorAccess("a", "vestibule")).isNotNull();
+            assertThat(physics.useInteriorAccess("a", "vestibule")).isNull();
             physics.place("a", 1.25, 9.15, -46.9);
             assertThat(physics.useInteriorAccess("a", "passage")).isNotNull();
             assertThat(physics.useInteriorAccess("a", "passage")).isNull();
@@ -47,9 +48,28 @@ class InteriorAccessTests {
             assertThat(physics.useInteriorAccess("a", "exit")).isNull();
             physics.place("a", 27.35, 7.6, -82);
             assertThat(physics.useInteriorAccess("a", "return")).isNull();
-            assertThat(physics.useInteriorAccess("a", "entry")).isNotNull();
+            assertThat(physics.useInteriorAccess("a", "entry")).isNull();
+            physics.place("a", 25.25, 7.6, -82);
             assertThat(physics.useInteriorAccess("a", "return")).isNotNull()
                     .extracting(WorldPhysics.Snapshot::x).isEqualTo((double) (float) 28.7);
+        }
+    }
+
+    @Test
+    void 닫힌_문_앞에서_지면_아래로_빠지지_않는다() throws Exception {
+        var path = Path.of(System.getenv("TEST_RENEWAL_MAP_DIR"));
+        var map = PreparedParkMap.load(path.resolve("server-map.json"), path.resolve("manifest.json"), Set.of("channel-1"));
+        try (var physics = new WorldPhysics(map.createScene(), false, () -> now, true)) {
+            physics.add("walker");
+            physics.place("walker", 28.8, 7.65, -82);
+            for (int frame = 0; frame < 55; frame++) {
+                physics.input("walker", new MoveInput(++seq, -1, 0, false, false), now);
+                physics.step(now += WorldPhysics.STEP_NANOS, Set.of());
+                var pose = physics.snapshot("walker");
+                assertThat(pose.x()).isGreaterThan(26.0);
+                assertThat(pose.y()).isGreaterThan(7.45);
+            }
+            assertThat(physics.useInteriorAccess("walker", "entry")).isNull();
         }
     }
 
