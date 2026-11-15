@@ -31,9 +31,8 @@
 }
 
 .mole-mode-card {
-  --mole-card-line: #e6bc7a;
-  --mole-card-top: #583d32;
-  --mole-card-bottom: #241c22;
+  --mole-card-line: #a87c3f;
+  --mole-card-tint: #d6a64a25;
   position: relative;
   box-sizing: border-box;
   display: grid;
@@ -46,9 +45,10 @@
   padding: clamp(10px, 2.1vw, 22px);
   border: 4px double var(--mole-card-line);
   border-radius: 18px;
-  background: linear-gradient(155deg, var(--mole-card-top), var(--mole-card-bottom) 70%);
-  box-shadow: 0 12px 28px #12101799, inset 0 0 0 2px #17121c;
-  color: inherit;
+  background: linear-gradient(155deg, transparent 33%, var(--mole-card-tint)),
+    #f5ebd3 url('/art/tablet/hanji.webp') center / 100% 100% no-repeat;
+  box-shadow: 0 12px 28px #12101799, inset 0 0 0 2px #fff7e3;
+  color: #163d29;
   font: 400 clamp(13px, 2vw, 17px)/1.45 BusanDandiMyeongjo, serif;
   text-align: center;
   word-break: keep-all;
@@ -58,9 +58,8 @@
 }
 
 .mole-mode-card[data-mode='speed-mole'] {
-  --mole-card-line: #bad2f1;
-  --mole-card-top: #3f5376;
-  --mole-card-bottom: #1b2339;
+  --mole-card-line: #527869;
+  --mole-card-tint: #50765723;
 }
 
 .mole-mode-card::after {
@@ -79,7 +78,7 @@
   height: clamp(88px, 26dvh, 188px);
   object-fit: contain;
   border-radius: 10px;
-  background: #171520b8;
+  background: var(--mole-card-tint);
 }
 
 .mole-mode-card strong {
@@ -90,7 +89,7 @@
 .mole-mode-card span {
   align-self: start;
   max-width: 21ch;
-  color: #eee4d6;
+  color: #534737;
 }
 
 .mole-mode-card:focus-visible,
