@@ -132,7 +132,7 @@ fi
 set -euo pipefail
 pnpm install --frozen-lockfile
 pnpm map:check
-VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
+VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_SKEWER_COOP_ENABLED=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
 '''
                 }
             }
@@ -149,7 +149,7 @@ pnpm map:check
 pnpm run test
 pnpm run build
 if [[ "$TEST_PARK_MAP" != 1 ]]; then
-  VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
+  VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_SKEWER_COOP_ENABLED=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
 fi
 '''
                 }
@@ -248,7 +248,7 @@ cat vercel-deployment-url.txt
     }
     post {
         always {
-            archiveArtifacts artifacts: 'frontend/vercel-deployment-url.txt,frontend/generated/park-renewal/manifest.json,docs/integration/park-180/park-bindings.dev.json', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'frontend/vercel-deployment-url.txt,frontend/generated/park-renewal/manifest.json,frontend/generated/park-renewal/park-bindings.json', allowEmptyArchive: true
         }
     }
 }

@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 import unittest
 
 from check_live_park import EXPECTED_MAP, validate_live
@@ -15,10 +16,13 @@ class DevFrontendDeploymentTests(unittest.TestCase):
             ROOT / "frontend/generated/park-renewal/server-map.json",
         )
         expected = json.loads(EXPECTED_MAP.read_text(encoding="utf-8"))
-        self.assertEqual(
-            expected["mapVersion"],
-            "01e3e6d1b6aa628df09c6629313d849769d6c31c1ea271d63be6f42e0098ad88",
+        manifest = json.loads(
+            (EXPECTED_MAP.parent / "manifest.json").read_text(encoding="utf-8")
         )
+        self.assertRegex(expected["mapVersion"], re.compile(r"^[0-9a-f]{64}$"))
+        self.assertEqual(expected["mapId"], manifest["mapId"])
+        self.assertEqual(expected["schemaVersion"], manifest["schemaVersion"])
+        self.assertEqual(expected["mapVersion"], manifest["mapVersion"])
 
     def test_remote_dev_build_explicitly_receives_wardrobe_and_dev_bindings(self):
         pipeline = (ROOT / "Jenkinsfile").read_text(encoding="utf-8")
@@ -29,6 +33,22 @@ class DevFrontendDeploymentTests(unittest.TestCase):
         self.assertIn("--build-env VITE_PARK_RENEWAL_ENABLED=true", command)
         self.assertIn("--build-env VITE_STONE_RUMBLE_ENABLED=true", command)
         self.assertIn("--build-env VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json", command)
+
+    def test_ci_build_and_vercel_deploy_share_dev_feature_flags(self):
+        pipeline = (ROOT / "Jenkinsfile").read_text(encoding="utf-8")
+        for flag in (
+            "VITE_WARDROBE_OUTFITS=true",
+            "VITE_SKEWER_COOP_ENABLED=true",
+            "VITE_PARK_RENEWAL_ENABLED=true",
+            "VITE_STONE_RUMBLE_ENABLED=true",
+        ):
+            self.assertEqual(pipeline.count(flag), 3)
+
+    def test_archives_the_renewal_manifest_and_bindings(self):
+        pipeline = (ROOT / "Jenkinsfile").read_text(encoding="utf-8")
+        self.assertIn("frontend/generated/park-renewal/manifest.json", pipeline)
+        self.assertIn("frontend/generated/park-renewal/park-bindings.json", pipeline)
+        self.assertNotIn("docs/integration/park-180/park-bindings.dev.json', allowEmptyArchive", pipeline)
 
     def test_prod_and_dev_use_their_generated_bindings_without_changing_service_routes(self):
         prod = json.loads((ROOT / "frontend/vercel.json").read_text(encoding="utf-8"))
