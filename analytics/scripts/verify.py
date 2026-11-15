@@ -48,6 +48,8 @@ MIGRATIONS = [
     ROOT / "backend/src/main/resources/db/minigame/V179__raise_jumpmap_run_reward_cap.sql",
     ROOT / "backend/src/main/resources/db/minigame/V175__create_jump_rope_rounds.sql",
     ROOT / "backend/src/main/resources/db/migration/V180__allow_stone_rumble_game_sessions.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V177__create_jump_macro_detections.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V178__create_jump_rope_audits.sql",
 ]
 DATABASE = "analytics_verify"
 
@@ -137,6 +139,10 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"kst_date": "2026-10-28", "game_version": "v5-20261027.1", "play_seconds": "180", "sessions": "1",
          "players": "1", "completed": "0", "abandoned": "0", "expired": "0", "rejected": "0", "playing": "1",
          "completion_pct": "0.0", "avg_score": "NULL", "avg_minutes": "NULL", "rewards": "0"},
+        # 39번 반응 시간 시드 판 두 개: 2분 판, 140초 = 2.3분, 점수 300·200.
+        {"kst_date": "2026-11-15", "game_version": "v5-20261103.1", "play_seconds": "120", "sessions": "2",
+         "players": "2", "completed": "2", "abandoned": "0", "expired": "0", "rejected": "0", "playing": "0",
+         "completion_pct": "100.0", "avg_score": "250.0", "avg_minutes": "2.3", "rewards": "0"},
     ],
     "13_minigame_daily_cap.sql": [
         {"kst_date": "2026-10-27", "daily_cap": "500", "earners": "2", "cap_reached_users": "1", "cap_reached_pct": "50.0",
@@ -451,6 +457,30 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"kst_date": "2026-11-15", "games": "1", "players": "3", "avg_participants": "3.0",
          "max_participants": "3", "all_fallen_games": "0", "forfeits": "0", "nominal_rank_rewards": "130",
          "paid_rank_rewards": "130"},
+    ],
+    # 101: 점프맵 재생 감지, 102: 함정 표적 3번, 103: 줄넘기 일정 박자, 105: 과일 땡 맞힌 종 6번 중 5번이 150ms 미만.
+    "38_macro_signals.sql": [
+        {"user_id": "101", "honeypot_rounds": "0", "honeypot_hits": "0", "jumpmap_replay_runs": "1",
+         "jumpmap_fixed_start_runs": "0", "jump_rope_audited": "1", "jump_rope_steady": "0",
+         "jump_rope_duplicate": "0", "halli_success_rings": "5", "halli_fast_pct": "0.0", "signal_games": "1"},
+        {"user_id": "102", "honeypot_rounds": "1", "honeypot_hits": "3", "jumpmap_replay_runs": "0",
+         "jumpmap_fixed_start_runs": "0", "jump_rope_audited": "0", "jump_rope_steady": "0",
+         "jump_rope_duplicate": "0", "halli_success_rings": "0", "halli_fast_pct": "NULL", "signal_games": "1"},
+        {"user_id": "103", "honeypot_rounds": "0", "honeypot_hits": "0", "jumpmap_replay_runs": "0",
+         "jumpmap_fixed_start_runs": "0", "jump_rope_audited": "1", "jump_rope_steady": "1",
+         "jump_rope_duplicate": "0", "halli_success_rings": "0", "halli_fast_pct": "NULL", "signal_games": "1"},
+        {"user_id": "105", "honeypot_rounds": "0", "honeypot_hits": "0", "jumpmap_replay_runs": "0",
+         "jumpmap_fixed_start_runs": "0", "jump_rope_audited": "0", "jump_rope_steady": "0",
+         "jump_rope_duplicate": "0", "halli_success_rings": "6", "halli_fast_pct": "83.3", "signal_games": "1"},
+    ],
+    # 105(10번 판): 뒤집기 4번 모두 신호 뒤 50~70ms. 101(11번 판): 400ms 한 번, 신호 150ms 전 한 번.
+    "39_bungeoppang_reaction.sql": [
+        {"user_id": "105", "rounds": "1", "turns": "4", "early_pct": "0.0", "under100_pct": "100.0",
+         "under150_pct": "100.0", "r150_500_pct": "0.0", "over500_pct": "0.0",
+         "rounds_mostly_under150_pct": "100.0", "max_round_under150_pct": "100.0"},
+        {"user_id": "101", "rounds": "1", "turns": "2", "early_pct": "50.0", "under100_pct": "0.0",
+         "under150_pct": "0.0", "r150_500_pct": "50.0", "over500_pct": "0.0",
+         "rounds_mostly_under150_pct": "0.0", "max_round_under150_pct": "0.0"},
     ],
     "35_halli_bell_reaction.sql": [
         {"user_id": "105", "games": "2", "success_rings": "6", "penalty_rings": "2", "late_rings": "4",

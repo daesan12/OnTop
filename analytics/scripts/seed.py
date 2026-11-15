@@ -260,6 +260,9 @@ def build_seed() -> str:
     position("2026-10-28 05:00:11", 103, 62, 56, False, map_version=GENERATED_MAP_VERSION)
     position("2026-10-28 05:00:20", 103, -20, -30, True, map_version=GENERATED_MAP_VERSION, y=20)
     position("2026-10-28 01:00:00", 105, 0, 6, False, map_version="unknown-map")
+    # 두더지 함정 표적: 102가 보이지 않는 표적을 3번 쳤다(38번 신호).
+    event("2026-10-27 01:06:20", "MOLE_ROUND_HONEYPOT", 102, game="whack-a-mole:1", hits=3)
+
     # 새 공원: 101은 03:00~03:07 점프맵 도전 중(호수 위 공중·결승 발판은 jump-course), 끝난 뒤 호수 결승 근처에 멈춤,
     # 광장·소리함·빈 길. 103은 같은 시각 도전 없이 점프맵 입구에 있다(다른 회원의 도전 시간은 섞이지 않는다).
     position("2026-10-27 03:01:00", 101, -20, 42, True, map_version=RENEWAL_MAP_VERSION, y=48)
@@ -295,6 +298,9 @@ def feature_sql() -> str:
         (103, "COMPLETED", 10, 15, "2026-10-28 05:01:00", "2026-10-28 05:03:00"),
         (101, "PLAYING", None, 0, "2026-10-28 01:03:00", None),
         (104, "INVALID", None, 0, "2026-10-27 03:00:00", "2026-10-27 03:02:00"),
+        # 39번 반응 시간: 10번 판은 105, 11번 판은 101(둘 다 v5 2분 판, 140초 뒤 완료).
+        (105, "COMPLETED", 300, 0, "2026-11-15 05:00:00", "2026-11-15 05:02:20"),
+        (101, "COMPLETED", 200, 0, "2026-11-15 05:00:00", "2026-11-15 05:02:20"),
     ]:
         lines.append(
             "INSERT INTO minigame_sessions (user_id, minigame_type, status, score, reward_amount, started_at, "
@@ -519,6 +525,17 @@ def minigame_extra_sql() -> list[str]:
             f"{sql_value(score)}, {sql_value(perfect)}, {sql_value(good)}, {sql_value(miss)}, {sql_value(reason)}, "
             f"{sql_value(completed and '0' * 64)});"
         )
+    # 점프맵 매크로 감지(V177): 101의 jr-1이 다른 판 2개와 같은 입력이다(REPLAY).
+    lines.append("INSERT INTO jump_macro_detections (run_id, user_id, rule, matched_runs, evidence, detected_at) "
+                 "VALUES ('jr-1', 101, 'REPLAY', 2, '{}', '2026-10-27 01:41:05.000');")
+    # 줄넘기 감사(V178): 1번 판(103)은 박자가 일정하고, 2번 판(101)은 사람처럼 흔들린다.
+    for round_id, user_id, jitter, steady in [(1, 103, 300, 1), (2, 101, 41000, 0)]:
+        lines.append(
+            "INSERT INTO jump_rope_audits (round_id, user_id, rules_version, jump_offsets, jump_count, jitter_us, "
+            "lead_mean_us, lead_sd_us, whole_ms_jumps, submit_delay_ms, in_park, duplicate_rounds, duplicate_log, "
+            f"steady_rhythm, received_at) VALUES ({round_id}, {user_id}, 2, '[]', 30, {jitter}, 50000, {jitter}, 0, "
+            f"200, 1, 0, 0, {steady}, '2026-11-15 06:01:04.000');"
+        )
     # 플러스마이너스 (회원, 요청 키, KST 날짜, 결과, 결과값, 지급, 시각). 참가비 30 고정, 지급 = 결과값 × 10.
     for user_id, key, day, outcome, value, payout, at in [
         (102, "p-1", "2026-10-27", "LOST", -2, 0, "2026-10-27 01:07:00"),
@@ -685,6 +702,34 @@ def bungeoppang_version_sql() -> list[str]:
         lines.append(
             "INSERT INTO bungeoppang_records (minigame_session_id, rules_version, heats, is_first_game, "
             f"rejection_detail) VALUES ({session}, '{rules}', '[]', 0, {sql_value('seed' if rejected else None)});"
+        )
+    # 39번: 굽기 속도 100이면 익힘 70('치익')은 굽기 시작 5600ms 뒤다. 반응 시간 = 뒤집은 시각 - 그 시각.
+    # 10번(105): 두 빵의 앞·뒷면을 신호 뒤 50·50·60·70ms에 뒤집는다(모두 150ms 미만, 먼저 누른 적 없음).
+    # 11번(101): 앞면은 신호 뒤 400ms, 뒷면은 신호보다 150ms 먼저 뒤집는다(미리 짐작).
+    def step(seq, action, t, slot, filling=None):
+        return {"seq": seq, "action": action, "t": t, "slot": slot, "filling": filling,
+                "breadId": None, "orderId": None, "deliveryKey": None}
+    logs = {
+        10: [step(1, "POUR", 0, 0), step(2, "FILL", 500, 0, "bean"), step(3, "TURN", 6150, 0),
+             step(4, "TURN", 11800, 0), step(5, "POUR", 12000, 1), step(6, "FILL", 12500, 1, "bean"),
+             step(7, "TURN", 18160, 1), step(8, "TURN", 23830, 1)],
+        11: [step(1, "POUR", 0, 0), step(2, "FILL", 500, 0, "bean"), step(3, "TURN", 6500, 0),
+             step(4, "TURN", 11950, 0)],
+    }
+    for session, log in logs.items():
+        submission = json.dumps({"rulesVersion": "v5", "throughSeq": len(log), "prefixHash": "seed", "log": log})
+        lines.append(
+            "INSERT INTO bungeoppang_records (minigame_session_id, rules_version, heats, is_first_game, submission) "
+            f"VALUES ({session}, 'v5', '[100, 100]', 0, '{submission}');"
+        )
+        rules = json.dumps({"rules": {"sideMs": 8000, "rushSideMs": 6000, "rushFromMs": 90000}})
+        lines.append(
+            "INSERT INTO bungeoppang_v4_rounds (minigame_session_id, config_version, config_json, issued_at, "
+            "countdown_starts_at, play_starts_at, play_ends_at, submit_deadline, expires_at, approved_prefix_hash, "
+            f"checkpoint_json, manual_paused_ms) VALUES ({session}, 'v5-20261103.1', '{rules}', "
+            "'2026-11-15 05:00:00.000', '2026-11-15 05:00:01.000', '2026-11-15 05:00:04.500', "
+            "'2026-11-15 05:02:04.500', '2026-11-15 05:02:19.500', '2026-11-15 05:02:29.500', "
+            f"'{'0' * 64}', '{{}}', 0);"
         )
     # (판 번호, 설정 버전, 발급·카운트다운, 조리 시작, 조리 끝, 제출 기한, 만료, 수동 일시정지 ms)
     # 조리 60초(v4)·180초(v5 3분). 7번 판은 사용자가 30초 멈췄다.
