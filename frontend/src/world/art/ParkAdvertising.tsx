@@ -13,7 +13,7 @@ import { environmentFrame } from '../environmentState'
 
 import { parkAdvertisementUrl } from '../worldAssets'
 
-// Independent of the ten-second building playlist. One image/texture shared by all eight faces.
+// Independent of the ten-second building playlist.
 const PARK_ADVERTISEMENT = {
   imageUrl: parkAdvertisementUrl,
   width: 2160,
@@ -21,51 +21,61 @@ const PARK_ADVERTISEMENT = {
 } as const
 const imageAspect = PARK_ADVERTISEMENT.width / PARK_ADVERTISEMENT.height
 const posterGeometry = new PlaneGeometry(1, 1)
-const frameParts: Part[] = [],
-  feet: Part[] = [],
-  hinges: Part[] = []
-for (const site of A_FRAME_SIGNS) {
-  const add = (list: Part[], part: Part) => {
-    const [x, y, z] = part.p,
-      c = Math.cos(site.yaw),
-      s = Math.sin(site.yaw)
-    part.p = [site.x + c * x + s * z, y, site.z - s * x + c * z]
-    yawPart(part, site.yaw)
-    list.push(part)
-  }
-  const bar = (from: XYZ, to: XYZ, size = 0.055) =>
-    add(frameParts, beam(from, to, size, '#292e2d'))
-  for (const x of [-0.62, 0.62])
-    for (const side of [-1, 1]) {
-      bar([x, 0.04, side * 0.44], [x * 0.87, 1.94, side * 0.035])
-      add(feet, {
-        p: [x, 0.025, side * 0.44],
-        s: [0.09, 0.05, 0.09],
-        c: '#131917',
-      })
-    }
-  bar([-0.65, 1.94, 0], [0.65, 1.94, 0], 0.065)
-  for (const z of [-1, 1])
-    bar([-0.6, 0.3, z * 0.39], [0.6, 0.3, z * 0.39], 0.045)
-  for (const x of [-0.58, 0.58]) {
-    bar([x, 0.67, -0.29], [x, 0.67, 0.29], 0.028)
-    add(
-      hinges,
-      beam([x - 0.03, 1.92, 0], [x + 0.03, 1.92, 0], 0.052, '#777c76'),
-    )
-  }
-  for (const x of [-0.34, 0.34])
-    bar(
-      [x, 1.94, 0],
-      [x, A_FRAME.panelY + A_FRAME.panelWidth / imageAspect / 2, 0],
-      0.018,
-    )
-  for (const y of [
-    A_FRAME.panelY - A_FRAME.panelWidth / imageAspect / 2,
-    A_FRAME.panelY + A_FRAME.panelWidth / imageAspect / 2,
-  ])
-    bar([-0.51, y, 0], [0.51, y, 0], 0.024)
+export interface AFrameSite {
+  id: string
+  x: number
+  y?: number
+  z: number
+  yaw: number
 }
+
+function buildAFrameParts(sites: readonly AFrameSite[]) {
+  const frameParts: Part[] = [], feet: Part[] = [], hinges: Part[] = []
+  for (const site of sites) {
+    const add = (list: Part[], part: Part) => {
+      const [x, y, z] = part.p,
+        c = Math.cos(site.yaw),
+        s = Math.sin(site.yaw)
+      part.p = [site.x + c * x + s * z, (site.y ?? 0) + y, site.z - s * x + c * z]
+      yawPart(part, site.yaw)
+      list.push(part)
+    }
+    const bar = (from: XYZ, to: XYZ, size = 0.055) =>
+      add(frameParts, beam(from, to, size, '#292e2d'))
+    for (const x of [-0.62, 0.62])
+      for (const side of [-1, 1]) {
+        bar([x, 0.04, side * 0.44], [x * 0.87, 1.94, side * 0.035])
+        add(feet, {
+          p: [x, 0.025, side * 0.44],
+          s: [0.09, 0.05, 0.09],
+          c: '#131917',
+        })
+      }
+    bar([-0.65, 1.94, 0], [0.65, 1.94, 0], 0.065)
+    for (const z of [-1, 1])
+      bar([-0.6, 0.3, z * 0.39], [0.6, 0.3, z * 0.39], 0.045)
+    for (const x of [-0.58, 0.58]) {
+      bar([x, 0.67, -0.29], [x, 0.67, 0.29], 0.028)
+      add(
+        hinges,
+        beam([x - 0.03, 1.92, 0], [x + 0.03, 1.92, 0], 0.052, '#777c76'),
+      )
+    }
+    for (const x of [-0.34, 0.34])
+      bar(
+        [x, 1.94, 0],
+        [x, A_FRAME.panelY + A_FRAME.panelWidth / imageAspect / 2, 0],
+        0.018,
+      )
+    for (const y of [
+      A_FRAME.panelY - A_FRAME.panelWidth / imageAspect / 2,
+      A_FRAME.panelY + A_FRAME.panelWidth / imageAspect / 2,
+    ])
+      bar([-0.51, y, 0], [0.51, y, 0], 0.024)
+  }
+  return { frameParts, feet, hinges }
+}
+
 const bannerTop = AD_BALLOON.panelY + AD_BALLOON.panelWidth / imageAspect / 2
 const bannerBottom = AD_BALLOON.panelY - AD_BALLOON.panelWidth / imageAspect / 2
 const rig: Part[] = [
@@ -139,7 +149,7 @@ function Poster({
   )
 }
 
-export function ParkAdvertising() {
+function useParkAdvertisementMaterial() {
   const texture = useLoader(TextureLoader, PARK_ADVERTISEMENT.imageUrl)
   const material = useMemo(() => {
     texture.colorSpace = SRGBColorSpace
@@ -147,22 +157,18 @@ export function ParkAdvertising() {
     texture.needsUpdate = true
     return new MeshBasicMaterial({ map: texture, toneMapped: false })
   }, [texture])
-  const air = useRef<Group>(null)
   useEffect(() => () => material.dispose(), [material])
-  useFrame(({ clock }) => {
-    // Small grounded sway keeps the tether endpoints attached; no React state updates.
-    if (air.current)
-      air.current.rotation.z = Math.sin(clock.elapsedTime * 0.45) * 0.009
-    material.color.setScalar(1 - environmentFrame.night * 0.35)
-  })
+  useFrame(() => material.color.setScalar(1 - environmentFrame.night * 0.35))
+  return material
+}
+
+function AFrameSigns({ sites, material }: {
+  sites: readonly AFrameSite[]
+  material: MeshBasicMaterial
+}) {
+  const { frameParts, feet, hinges } = useMemo(() => buildAFrameParts(sites), [sites])
   return (
-    <group
-      name="park-advertising"
-      userData={{
-        assetId: 'original/park-a-frame',
-        reference: 'advertisement_2.jpg',
-      }}
-    >
+    <>
       <Instances
         parts={frameParts}
         shadow={false}
@@ -180,11 +186,11 @@ export function ParkAdvertising() {
       >
         <cylinderGeometry args={[1, 1, 1, 10]} />
       </Instances>
-      {A_FRAME_SIGNS.map((site) => (
+      {sites.map((site) => (
         <group
           key={site.id}
           name={`a-frame-${site.id}`}
-          position={[site.x, 0, site.z]}
+          position={[site.x, site.y ?? 0, site.z]}
           rotation={[0, site.yaw, 0]}
         >
           <Poster
@@ -195,6 +201,32 @@ export function ParkAdvertising() {
           />
         </group>
       ))}
+    </>
+  )
+}
+
+export function ParkAFrameAdvertisements({ sites }: { sites: readonly AFrameSite[] }) {
+  const material = useParkAdvertisementMaterial()
+  return <AFrameSigns sites={sites} material={material} />
+}
+
+export function ParkAdvertising() {
+  const material = useParkAdvertisementMaterial()
+  const air = useRef<Group>(null)
+  useFrame(({ clock }) => {
+    // Small grounded sway keeps the tether endpoints attached.
+    if (air.current)
+      air.current.rotation.z = Math.sin(clock.elapsedTime * 0.45) * 0.009
+  })
+  return (
+    <group
+      name="park-advertising"
+      userData={{
+        assetId: 'original/park-a-frame',
+        reference: 'advertisement_2.jpg',
+      }}
+    >
+      <AFrameSigns sites={A_FRAME_SIGNS} material={material} />
       <group
         name="advertising-balloon"
         position={[AD_BALLOON.x, 0, AD_BALLOON.z]}
