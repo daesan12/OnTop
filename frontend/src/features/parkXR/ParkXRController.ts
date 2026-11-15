@@ -363,6 +363,7 @@ export class ParkXRController {
     const { sessionId } = useSession.getState()
     const avatar = avatars.get(sessionId)
     if (!avatar) { void this.end('공원 캐릭터 연결을 다시 확인해 주세요.'); return }
+    for (const { model } of this.handles) model.visible = !avatar.vehicle
     sampleAvatar(avatar, now, this.pose)
     const driving = !!avatar.vehicle && !!this.mobility?.readyToMove
     const mobilityMotion = driving ? 'riding' : usingMobility || avatar.vehicle ? 'waiting' : 'walking'

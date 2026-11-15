@@ -3,6 +3,7 @@ import { factory } from '../../../park-renewal-preview/assetFactories'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import type { createCharacterRig, Side } from '../../world/art/CharacterRig'
 import { vehicles, type Vehicle } from './state'
+import { createRideHands } from './rideHands'
 
 type Rig = ReturnType<typeof createCharacterRig>
 const prototypes = new Map<Vehicle, Group>()
@@ -83,6 +84,7 @@ export function createMountedVehicle() {
   const contact = new Vector3()
   const axleMidpoint = new Vector3()
   const grips = [new Vector3(), new Vector3()]
+  let rideHands: ReturnType<typeof createRideHands> | undefined
   let current: Vehicle | undefined
   let wheels: Object3D[] = []
   let pedals: Object3D[] = []
@@ -94,7 +96,7 @@ export function createMountedVehicle() {
   return {
     root,
     apply(kind: Vehicle | undefined, pose: { x: number; z: number; yaw: number },
-      floorY: number, delta: number, figure: Group, model: Rig) {
+      floorY: number, delta: number, figure: Group, model: Rig, showRideHands = false) {
       if (current !== kind) {
         current = kind
         root.clear()
@@ -127,6 +129,15 @@ export function createMountedVehicle() {
         }
       }
       if (!kind) return false
+      if (showRideHands) {
+        rideHands ??= createRideHands()
+        if (!rideHands.root.parent) {
+          rideHands.place(grips[0]!, grips[1]!)
+          root.add(rideHands.root)
+        }
+      } else {
+        rideHands?.root.removeFromParent()
+      }
       const bicycle = kind === 'BICYCLE'
       const dt = Math.min(delta, .08)
       const distance = Math.min(vehicles[kind].speed * dt, Math.hypot(pose.x - lastX, pose.z - lastZ))

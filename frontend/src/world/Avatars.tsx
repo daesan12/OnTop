@@ -261,7 +261,7 @@ function Avatar({
       else if (seatTable?.pavilionId) seatForward = .43
       else seatForward = .13
     }
-    if (!mountedVehicle.apply(avatar.vehicle, pose, root.current.position.y, delta, figure.current, model))
+    if (!mountedVehicle.apply(avatar.vehicle, pose, root.current.position.y, delta, figure.current, model, ownXR))
       motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
       holdingCards ? oneCardHoldingPose : undefined, throwFlight,
       carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward)
