@@ -19,11 +19,6 @@
   pointer-events: none;
 }
 
-.mobility-hud[data-holding='true'] {
-  border-color: #ac782b;
-  box-shadow: 0 4px 16px #201b1640, 0 0 0 2px #edb85782;
-}
-
 .mobility-hud--riding {
   border-color: #b79a62;
   background: #26382c;
@@ -117,31 +112,38 @@
   color: #f0ddb8;
 }
 
-.mobility-hud__hold {
-  position: relative;
+.park-page .park-interaction[data-target-kind='rental'] {
+  pointer-events: none;
+}
+
+.mobility-rental-copy {
+  display: grid;
+  text-align: start;
+}
+
+.mobility-rental-copy small {
+  color: #e3dacc;
+  font-size: 12px;
+}
+
+.mobility-rental-key {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  position: relative;
   flex: none;
 }
 
-.mobility-hud__hold svg {
+.mobility-rental-key svg {
   position: absolute;
-  inset: 0;
-  width: 100%;
+  width: 36px;
+  height: 36px;
   transform: rotate(-90deg);
 }
 
-.mobility-hud__hold circle {
+.mobility-rental-key .mobility-progress {
   fill: none;
-  stroke: #a58d5d;
-  stroke-width: 2;
-}
-
-.mobility-hud__hold .mobility-progress {
-  stroke: #875b16;
-  stroke-width: 3.3;
+  stroke: #edc46c;
+  stroke-width: 3;
   stroke-linecap: round;
   stroke-dasharray: 100;
   stroke-dashoffset: 100;
@@ -150,6 +152,28 @@
 
 @keyframes mobility-hold {
   to { stroke-dashoffset: 0; }
+}
+
+@media (max-width: 900px) {
+  .park-page .park-interaction[data-target-kind='rental'] { bottom: 210px; }
+
+  .park-page:has(.park-chat[data-expanded='true']) .park-interaction[data-target-kind='rental'] {
+    top: 116px;
+    bottom: auto;
+    transform-origin: top center;
+  }
+}
+
+@media (max-width: 500px) {
+  .park-page:has(.park-chat[data-expanded='true']) .park-interaction[data-target-kind='rental'] {
+    top: 170px;
+  }
+}
+
+@media (max-height: 520px) and (min-width: 501px) {
+  .park-page:has(.park-chat[data-expanded='true']) .park-interaction[data-target-kind='rental'] {
+    top: 84px;
+  }
 }
 
 @media (max-width: 900px) {
@@ -184,7 +208,7 @@
 }
 
 @media (min-width: 501px) and (max-width: 700px) and (max-height: 520px) {
-  .park-page:has(.mobility-hud) .park-chat[data-expanded="true"] .park-chat__messages {
+  .park-page:has(.mobility-hud, .park-interaction[data-target-kind='rental']) .park-chat[data-expanded="true"] .park-chat__messages {
     height: clamp(64px, calc(100dvh - 260px), 270px);
   }
 }

@@ -4,10 +4,10 @@ import './mobility.css'
 
 const formatCoins = new Intl.NumberFormat('ko-KR')
 
-function RentalRate({ amount, perSecond = false }: { amount: number; perSecond?: boolean }) {
+function RentalRate({ amount }: { amount: number }) {
   return <span className="mobility-hud__rate">
     <img src={coinImage} alt="" />
-    <strong>{formatCoins.format(amount)}냥</strong>{perSecond && <span>/초</span>}
+    <strong>{formatCoins.format(amount)}냥</strong>
   </span>
 }
 
@@ -40,22 +40,20 @@ export function MobilityHud() {
   }
   if (!target) return null
   const choice = vehicles[target.vehicle]
-  return <aside className="mobility-hud" aria-label={choice.label + ' 대여'} aria-keyshortcuts="E"
-    data-holding={holdAt !== null ? 'true' : undefined}>
-    <div className="mobility-hud__summary">
-      <strong className="mobility-hud__title">{choice.label}</strong>
-      <RentalRate amount={choice.rate} perSecond />
-    </div>
-    <div className="mobility-hud__controls">
-      <span className="mobility-hud__hold">
-        <svg aria-hidden="true" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="17" />
-          {holdAt !== null && <circle key={holdAt} cx="20" cy="20" r="17" pathLength="100"
-            className="mobility-progress" style={{ animationDuration: HOLD_MS + 'ms' }} />}
-        </svg>
+  return <aside className="park-runtime-panel park-interaction" data-target-kind="rental"
+    aria-label={choice.label + ' 대여'} aria-keyshortcuts="E">
+    <div className="park-interaction__key-hint">
+      <span className="mobility-rental-key">
         <kbd>E</kbd>
+        {holdAt !== null && <svg aria-hidden="true" viewBox="0 0 40 40">
+          <circle key={holdAt} cx="20" cy="20" r="17" pathLength="100"
+            className="mobility-progress" style={{ animationDuration: HOLD_MS + 'ms' }} />
+        </svg>}
       </span>
-      <span>{holdAt === null ? '길게 눌러 탑승' : '계속 눌러주세요'}</span>
+      <span className="mobility-rental-copy">
+        <span>{choice.label} 대여 · {choice.rate}냥/초</span>
+        <small>{holdAt === null ? '길게 눌러 탑승' : '계속 눌러주세요'}</small>
+      </span>
     </div>
   </aside>
 }

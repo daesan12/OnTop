@@ -272,12 +272,12 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   backdrop-filter: var(--hud-blur);
 }
-.park-page .park-interaction:has(> button[aria-keyshortcuts='E']) {
+.park-page .park-interaction:has(> :is(button[aria-keyshortcuts='E'], .park-interaction__key-hint)) {
   padding: 4px 6px;
   gap: 4px;
   border-radius: 10px;
 }
-.park-page .park-interaction > button[aria-keyshortcuts='E'] {
+.park-page .park-interaction > :is(button[aria-keyshortcuts='E'], .park-interaction__key-hint) {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -299,7 +299,7 @@
   font: inherit;
   font-size: 12px;
 }
-.park-page .park-interaction > button[aria-keyshortcuts='E'] kbd {
+.park-page .park-interaction > :is(button[aria-keyshortcuts='E'], .park-interaction__key-hint) kbd {
   flex-shrink: 0;
   min-width: 22px;
   margin-right: 0;
