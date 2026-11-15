@@ -123,6 +123,7 @@ export function CameraRig() {
       omokCamera.anchorId = ''
       omokFocusLighting.requested = false
       mountedCamera.layers.set(0)
+      delete mountedCamera.userData.showConstellationLines
       raycaster.layers.set(0)
       resetSeatedLook()
       if (state.bungeoppangFov !== null && mountedCamera instanceof PerspectiveCamera) {
@@ -132,6 +133,7 @@ export function CameraRig() {
     [occlusion, state, mountedCamera, raycaster],
   )
   useFrame(({ camera, scene }, delta) => {
+    camera.userData.showConstellationLines = false
     diceCamera.ready = false
     omokCamera.ready = false
     omokFocusLighting.requested = false
@@ -283,6 +285,7 @@ export function CameraRig() {
     }
     sampleAvatar(avatar, performance.now(), state.pose)
     if (telescope) {
+      camera.userData.showConstellationLines = true
       state.omokTransition = false
       state.diceTransition = false
       state.alkkagiTransition = false
