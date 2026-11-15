@@ -1,5 +1,8 @@
 import { HORROR_PORTALS } from './horrorPlan'
 
+// Flip this and regenerate the renewal map to reopen the outdoor entrances.
+export const SECRET_ENTRANCES_OPEN = false
+
 const floor = 8.35
 export const annex = { x0: -2.12, x1: 2.12, z0: -47.8, z1: -39.8, floor, ceiling: floor + 3 }
 const west = HORROR_PORTALS[1]
@@ -25,6 +28,7 @@ export function inAnnex(p: { x: number; y: number; z: number }) {
 
 export function accessAt(p: { x: number; y: number; z: number }) {
   return (Object.keys(interiorAccess) as (keyof typeof interiorAccess)[]).find(key => {
+    if (!SECRET_ENTRANCES_OPEN && (key === 'vestibule' || key === 'entry')) return false
     const { from: [x, y, z], radius } = interiorAccess[key]
     return Math.abs(p.y - y) <= .55 && Math.hypot(p.x - x, p.z - z) <= radius
   })

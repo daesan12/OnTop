@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BoxGeometry, Color, DynamicDrawUsage, InstancedBufferAttribute, Object3D, type InstancedMesh, type MeshBasicMaterial } from 'three'
-import { STONE_FLOOR_HEIGHTS, STONE_TILE_SIZE } from './layout'
+import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, STONE_TILE_SIZE } from './layout'
 import type { StoneTile } from './protocol'
 import { stoneTileEpoch, updateStoneTileMarks } from './tileBuffers'
 
@@ -11,7 +11,7 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
   const surface = material.clone()
   surface.onBeforeCompile = shader => {
     shader.uniforms.stoneInk = { value: new Color('#393d35') }
-    shader.uniforms.stoneBase = { value: new Color('#7b8072') }
+    shader.uniforms.stoneBase = { value: new Color('#ffffff') }
     shader.uniforms.stoneRim = { value: new Color('#e4e1cc') }
     shader.uniforms.stoneWarningInk = { value: new Color('#6b2c19') }
     shader.uniforms.stoneWarning = { value: new Color('#d66b43') }
@@ -57,11 +57,11 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
         vec2 nearest = min(vStoneUv, 1.0 - vStoneUv);
         vec2 edgeNormal = mix(vec2(0.0, sign(vStoneUv.y - 0.5)), vec2(sign(vStoneUv.x - 0.5), 0.0), step(nearest.x, nearest.y));
         float bevelLight = 0.88 + dot(edgeNormal, vec2(-0.2, 0.25));
-        vec3 stone = mix(stoneBase, diffuseColor.rgb, 0.35 + marked * 0.3);
+        vec3 stone = mix(diffuseColor.rgb, stoneBase, 0.11);
         vec3 rimColor = mix(stone * bevelLight, mix(stoneInk, stoneWarningInk, marked), max(outerLip, innerBevel * 0.65));
         float outlineAlpha = min(1.0, opacity * 3.0);
         float fillAlpha = min(0.8, opacity * mix(0.5, 2.1, marked));
-        diffuseColor.rgb = mix(mix(diffuseColor.rgb, stoneBase, (1.0 - marked) * 0.35), rimColor, border);
+        diffuseColor.rgb = mix(diffuseColor.rgb, rimColor, border);
         diffuseColor.rgb = mix(diffuseColor.rgb, stoneRim, countdownLine);
         diffuseColor.a = max(fillAlpha, max(border, countdownLine) * outlineAlpha);
         if (vStoneSide > 0.5) {
@@ -96,7 +96,7 @@ function TileLayer({ tiles, material, time, hidden, current, floor }: {
       transform.position.set(STONE_TILE_SIZE * tile.q, STONE_FLOOR_HEIGHTS[tile.floor]! - .015 - STONE_DEPTH / 2, STONE_TILE_SIZE * tile.r)
       transform.rotation.set(-Math.PI / 2, 0, 0); transform.scale.setScalar(1)
       transform.updateMatrix(); stones.current!.setMatrixAt(index, transform.matrix)
-      color.set('#aaa999').multiplyScalar(.93 + Math.abs(tile.q * 17 + tile.r * 31 + floor * 7) % 7 * .023)
+      color.set(STONE_FLOOR_COLORS[floor]!).multiplyScalar(.93 + Math.abs(tile.q * 17 + tile.r * 31 + floor * 7) % 7 * .023)
       stones.current!.setColorAt(index, color)
     })
     stones.current.instanceMatrix.needsUpdate = true
@@ -104,7 +104,7 @@ function TileLayer({ tiles, material, time, hidden, current, floor }: {
   }, [panel, color, transform, floor])
   useLayoutEffect(() => { updateStoneTileMarks(marks, tiles, epoch) }, [marks, tiles, epoch])
   useFrame(() => {
-    surface.opacity = current ? .34 : .12
+    surface.opacity = current ? .46 : .11
     clock.value = (time - epoch) / 1000
   })
   return <group visible={!hidden} userData={{ prepareWhenHidden: true }}>

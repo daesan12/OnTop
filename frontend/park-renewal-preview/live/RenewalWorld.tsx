@@ -10,6 +10,8 @@ import { ScenicGround } from '../ScenicGround'
 import { OriginalPlaza, ParkBoundary } from '../ParkBoundary'
 import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
+import { STONE_RUMBLE_ANCHOR_ID } from '../../src/game/stone-rumble/entrance'
+import { STONE_RUMBLE_ENABLED } from '../../src/features/tableLobby/model'
 import { lazy, memo, startTransition, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Object3D, type Group } from 'three'
@@ -32,6 +34,7 @@ import { collectJumpViewDrawables } from '../../src/features/jumpmap/preparation
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
 const TableBoards = lazy(() => import('../../src/features/tables/TableBoards'))
+const StoneRumbleEntranceStele = lazy(() => import('../../src/game/stone-rumble/StoneRumbleEntranceStele'))
 const ParkDetailGeometry = lazy(() => import('../ParkDetailGeometry').then(module => ({ default: module.ParkDetailGeometry })))
 
 const spawn = renewalMap?.data.physics.spawn.position
@@ -53,9 +56,13 @@ const StableEntranceTrees = memo(PreviewTreeBatches)
 const StableBuildings = lazy(() => import('../Buildings').then(module => ({ default: memo(module.Buildings) })))
 const StableTable = memo(function StableTable({ index, boards }: { index: number; boards: boolean }) {
   const anchor = TABLES[index]!
-  return <TableFurniture anchor={anchor} nativeFurniture={!!anchor.pavilionId}>
-    {boards && <Suspense fallback={null}><TableBoards anchor={anchor} nativeFurniture={!!anchor.pavilionId} /></Suspense>}
-  </TableFurniture>
+  return <>
+    <TableFurniture anchor={anchor} nativeFurniture={!!anchor.pavilionId}>
+      {boards && <Suspense fallback={null}><TableBoards anchor={anchor} nativeFurniture={!!anchor.pavilionId} /></Suspense>}
+    </TableFurniture>
+    {STONE_RUMBLE_ENABLED && anchor.id === STONE_RUMBLE_ANCHOR_ID &&
+      <Suspense fallback={null}><StoneRumbleEntranceStele anchor={anchor} /></Suspense>}
+  </>
 })
 
 function atEntrance(pose = authoritativePose(useSession.getState().sessionId)) {
