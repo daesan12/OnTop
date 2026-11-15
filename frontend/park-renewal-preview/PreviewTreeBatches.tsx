@@ -1,3 +1,4 @@
+import {useMemo} from 'react'
 import {FacetedParkTreeInstances,parkTreeResources} from '../src/world/art/FacetedParkTreeInstances'
 import {SpatialInstances} from '../src/world/art/Instances'
 import {buildParkTreeParts} from '../src/world/art/parkTreeParts'
@@ -12,15 +13,12 @@ const treeBatches=(parts:typeof trees)=>[
  {parts:parts.crowns,geometry:parkTreeResources.round},
  {parts:parts.cones,geometry:parkTreeResources.cone},
 ]
-let liveTrees: { parts:typeof trees; count:number }|undefined
-function getLiveTrees(){
- if(liveTrees)return liveTrees
- const visible=plantings.filter(({position:[x,,z]})=>!isTreeBehindRenewalAdSign(x,z))
- return liveTrees={parts:buildParkTreeParts(visible),count:visible.length}
-}
-
 export function PreviewTreeBatches({ live = false }: { live?: boolean }){
- const {parts:visibleParts,count}=live?getLiveTrees():{parts:trees,count:treeCount}
+ const {parts:visibleParts,count}=useMemo(()=>{
+  if(!live)return {parts:trees,count:treeCount}
+  const visible=plantings.filter(({position:[x,,z]})=>!isTreeBehindRenewalAdSign(x,z))
+  return {parts:buildParkTreeParts(visible),count:visible.length}
+ },[live])
  if(useOriginalBatches)return <FacetedParkTreeInstances parts={visibleParts} name="renewal-groves" treeCount={count}/>
  return <group name="renewal-groves" userData={{assetId:'park/faceted-trees',treeCount:count}}>
   {treeBatches(visibleParts).map(({parts,geometry})=>
