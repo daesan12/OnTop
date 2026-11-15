@@ -31,7 +31,8 @@ import { resetBenchState, useBenchState } from '../features/interactions/benchSt
 import { clearRoamingInput } from '../world/inputOwnership'
 import { samePose, sampleMovement } from '../world/movementPresentation'
 import { localMovement } from './localMovementPrediction'
-import { remoteMovement } from './remoteMovement'
+import { RemoteMovement, remoteMovement } from './remoteMovement'
+import { vehicles, type Vehicle } from '../features/mobility/state'
 import { EmoteTimeline, parseEmoteEvent, parseEmoteCancellation, type EmoteEvent } from '../features/emotes/timeline'
 import { resetEmotes, retiredEmoteRequest, useEmoteState } from '../features/emotes/state'
 import type { EmoteId } from '../features/emotes/catalog'
@@ -84,6 +85,7 @@ export interface AvatarSnapshot {
   followTargetId: string
   carry?: import('./protocol').CarryState | null
   interactionBusy?: boolean
+  vehicle?: Vehicle
 }
 export interface ChatMessage {
   id: string
@@ -177,6 +179,9 @@ const initial = (): Session => ({
 })
 export const useSession = create<Session>(initial)
 export const avatars = new Map<string, AvatarSnapshot>()
+// A mounted local avatar is server-driven. Keep its render history on the same
+// tick clock as observers, with the shorter local display delay.
+const mountedLocalMovement = new RemoteMovement(NETWORK.interpolationMs)
 const worldPoses = new Map<string, Pose & { interiorExitReady?: boolean }>()
 // Public rendering only. Never grants table membership, readiness, or game access.
 const worldTableSeats = new Map<string, PublicTableSeat | null>()
@@ -217,6 +222,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   resetJumpmap()
   localMovement.reset()
   remoteMovement.reset()
+  mountedLocalMovement.reset()
   clearMovementNotice()
   serverEventClock.reset()
   defeatTimeline.clear()
@@ -248,6 +254,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
   resetJumpmap()
   localMovement.reset()
   remoteMovement.reset()
+  mountedLocalMovement.reset()
   clearMovementNotice()
   defeatTimeline.clear()
   resetFollow()
@@ -316,11 +323,14 @@ export function sampleAvatar(
       return target
     }
   }
-  if (avatar === avatars.get(useSession.getState().sessionId)) {
-    if (!predictionAllowed()) localMovement.suspend()
+  const sessionId = useSession.getState().sessionId
+  if (avatar === avatars.get(sessionId)) {
+    if (avatar.vehicle) {
+      if (mountedLocalMovement.sample(sessionId, now, target, vehicles[avatar.vehicle].speed)) return target
+    } else if (!predictionAllowed()) localMovement.suspend()
     else if (localMovement.sample(now, target)) return target
   } else if (avatar.userId && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId
-    && remoteMovement.sample(avatar.userId, now, target, avatar.carry?.role === 'THROWN' ? 14 : undefined)) {
+    && remoteMovement.sample(avatar.userId, now, target, avatar.vehicle === 'SCOOTER' || avatar.carry?.role === 'THROWN' ? 14 : avatar.vehicle === 'BICYCLE' ? 11 : undefined)) {
     return target
   }
   return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
@@ -328,7 +338,7 @@ export function sampleAvatar(
 
 function predictionAllowed() {
   const s = useSession.getState(), own = avatars.get(s.sessionId)
-  return !!own && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
+  return !!own && !own.vehicle && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
     && (!own.carry || own.carry.role === 'CARRIER')
     && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1')
     && (!s.activities[s.sessionId] || s.activities[s.sessionId] === 'WATCHING')
@@ -542,7 +552,10 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       worldVersion = next.version
       const mapCompatible = next.mapVersion === expectedMapVersion
       setHorrorOpen(mapCompatible && next.secretDoorsOpen === true)
-      if (!mapCompatible || state.mapVersion && state.mapVersion !== next.mapVersion) remoteMovement.reset()
+      if (!mapCompatible || state.mapVersion && state.mapVersion !== next.mapVersion) {
+        remoteMovement.reset()
+        mountedLocalMovement.reset()
+      }
       if (!mapCompatible) { defeatTimeline.clear(); resetParkDebris(); resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
@@ -623,6 +636,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
           worldPoses.delete(id)
           worldTableSeats.delete(id)
           remoteMovement.forget(id)
+          if (id === state.sessionId) mountedLocalMovement.reset()
           emoteTimeline.forget(id)
           defeatTimeline.forget(id)
         }
@@ -643,6 +657,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
             z: position.z,
             yaw: position.yaw,
           }
+        const vehicle = mapCompatible ? next.vehicles?.[userId] : undefined
         const unchanged = old && samePose(old.current, position)
         if (old) {
           if (unchanged) Object.assign(previous, old.previous)
@@ -674,10 +689,15 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
           telescopePitch: 0,
           followTargetId: '',
           carry: mapCompatible ? carry ?? null : null,
+          vehicle,
           interactionBusy: interactionBusy === true,
         })
-        if (mapCompatible && userId !== state.sessionId)
+        if (userId === state.sessionId) {
+          if (old?.vehicle !== vehicle) mountedLocalMovement.reset()
+          if (vehicle) mountedLocalMovement.push(userId, position, motion, now)
+        } else if (mapCompatible) {
           remoteMovement.push(userId, position, motion, now)
+        }
         if (position.swimming) cancelAvatarEmote(userId)
         else if (position.moving || (old && Math.abs(position.y - old.current.y) > 0.08)) cancelAvatarEmote(userId, 'movement')
       }

@@ -39,9 +39,14 @@ export const bungeoppangView = {
   standZ: renewalBreadShop?.reachPosition[2] ?? cart.z + Math.cos(shopYaw) * standDistance,
 };
 
+/** Both scene groups use the render clock's frame timestamp for the handoff. */
+export function bungeoppangCookingView(now: number) {
+  return bungeoppangView.active || now < bungeoppangView.returningUntil;
+}
+
 /** Reveal only after the camera has cleared the local avatar; controls are already live. */
 export function bungeoppangReturnOpacity(now: number, reducedMotion = false) {
-  if (bungeoppangView.active || now < bungeoppangView.returningUntil) return 0;
+  if (bungeoppangCookingView(now)) return 0;
   if (!bungeoppangView.returningUntil || reducedMotion) return 1;
   const t = Math.min(1, Math.max(0, (now - bungeoppangView.returningUntil) / 320));
   return t * t * (3 - 2 * t);

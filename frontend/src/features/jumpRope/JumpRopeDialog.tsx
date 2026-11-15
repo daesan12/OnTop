@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
+import { JumpRopePreview } from '../../jump-rope-preview/JumpRopePreview'
 import { useSession } from '../../network/worldClient'
 import { RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { restoreRoamingView } from '../../world/cameraReturn'
@@ -10,7 +11,6 @@ import { jumpRopeService } from './service'
 import { closeJumpRope, retryJumpRope, submitJumpRope, useJumpRope } from './store'
 import './jump-rope-world.css'
 
-const JumpRopePanel = lazy(() => import('../../jump-rope-preview/JumpRopePreview').then(module => ({ default: module.JumpRopePreview })))
 const setActive = (active: boolean) => useJumpRope.setState({ active })
 const canJump = () => !inputState.manualOpen
 
@@ -49,9 +49,7 @@ export default function JumpRopeDialog({ owner }: { owner: string }) {
       event.stopPropagation()
       if (!event.repeat) requestExit()
     }}>
-    <Suspense fallback={<p role="status">줄넘기를 불러오는 중입니다.</p>}>
-      <JumpRopePanel ranked={{ owner, service: jumpRopeService, settlement, setActive, submit: submitJumpRope, retry: retryJumpRope, onExit: () => close(), canJump, exitRequest }} />
-    </Suspense>
+    <JumpRopePreview ranked={{ owner, service: jumpRopeService, settlement, setActive, submit: submitJumpRope, retry: retryJumpRope, onExit: () => close(), canJump, exitRequest }} />
     <button type="button" className="jump-rope-world__exit" onClick={() => close(!RENEWAL_PARK_ENABLED)}>
       {RENEWAL_PARK_ENABLED ? '공원으로 돌아가기' : '게임 선택으로'}
     </button>

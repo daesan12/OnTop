@@ -32,6 +32,8 @@ export interface ParkRuntimePort {
   stopMovement(): void
   setSecretDoors?(open: boolean): Promise<boolean>
   useInteriorAccess?(access: string): Promise<boolean>
+  rentVehicle?(target: import('../../features/mobility/state').RentalTarget, leaseId: string): Promise<void>
+  endVehicleRental?(leaseId: string): Promise<void>
   inspectTable(anchorId: string, watch?: boolean): void
   closeTable(): void
   joinTable(anchorId?: string): Promise<boolean>

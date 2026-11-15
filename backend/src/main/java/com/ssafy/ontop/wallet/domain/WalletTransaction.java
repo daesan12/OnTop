@@ -73,6 +73,19 @@ public class WalletTransaction {
         return transaction;
     }
 
+    public static WalletTransaction mobilityFee(long walletId, int fee, String key, Instant now) {
+        if (walletId <= 0 || fee <= 0 || key == null || !key.startsWith("mobility:")) {
+            throw new IllegalArgumentException("대여 요금 원장을 확인하세요.");
+        }
+        var entry = new WalletTransaction();
+        entry.walletId = walletId;
+        entry.transactionType = "MOBILITY_RENTAL_FEE";
+        entry.balanceDelta = -fee;
+        entry.idempotencyKey = key;
+        entry.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return entry;
+    }
+
     public static WalletTransaction rafflePurchase(long walletId, long price, String key, Instant now) {
         if (walletId <= 0 || price <= 0 || key == null || !key.startsWith("raffle:") || key.length() > 120) {
             throw new IllegalArgumentException("응모권 구매 원장을 확인하세요.");

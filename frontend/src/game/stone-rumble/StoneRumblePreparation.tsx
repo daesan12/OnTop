@@ -31,6 +31,7 @@ export function StoneRumblePreparation({ onStatus, playScene }: { onStatus: Ston
   useFrame(() => {
     const context = gl.getContext() as WebGL2RenderingContext
     if (startup.phase === 'cold') {
+      if (playScene.getObjectByName('stone-appearance-pending')) return
       startup.phase = 'preparing'
       const generation = ++startup.generation
       const live = () => !startup.disposed && generation === startup.generation

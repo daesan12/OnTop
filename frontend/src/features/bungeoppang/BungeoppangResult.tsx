@@ -4,7 +4,7 @@ import { PaperPopup } from '../tableLobby/PaperPopup'
 import { BUNGEOPPANG as R, bungeoppangV4Preview, bungeoppangV5Preview } from './config'
 import { escapeBungeoppang, isV4Grill, refreshBungeoppangWallet, setBungeoppangHelp, startBungeoppang, submitBungeoppang, useBungeoppang } from './store'
 import './bungeoppangResult.css'
-import { RankingDetails, RankingSummary, useBungeoppangRanking } from './BungeoppangRanking'
+import { BungeoppangRankingDialog, RankingSummary, useBungeoppangRanking } from './BungeoppangRanking'
 import { rankingDurationMs } from './ranking'
 import { RewardCoinSource } from '../wallet/RewardCoinFlight'
 import { bungeoppangService } from './service'
@@ -37,10 +37,7 @@ export function BungeoppangResult() {
   const v4 = isV4Grill(grill), preview = v4 && (bungeoppangV4Preview || bungeoppangV5Preview)
   const served = result?.served ?? (v4 ? grill.served : undefined)
   const customersServed = result?.customersServed ?? (v4 ? grill.customersServed : undefined)
-  if (rankingOpen) return <PaperPopup key="ranking" title="붕어빵 전체 랭킹" label="붕어빵 전체 랭킹" closeLabel="랭킹 닫기"
-    onClose={() => setRankingOpen(false)} className="bungeoppang-paper-result bungeoppang-ranking-popup">
-    <RankingDetails feed={ranking} onBack={() => setRankingOpen(false)} />
-  </PaperPopup>
+  if (rankingOpen) return <BungeoppangRankingDialog feed={ranking} onClose={() => setRankingOpen(false)} backLabel="결과로 돌아가기" />
   return <PaperPopup key="result" title="붕어빵 도전 결과" label="붕어빵 결과" onClose={escapeBungeoppang} className="bungeoppang-paper-result">
     <section role="region" aria-label="결과">
     <h2>붕어빵 도전 결과</h2>

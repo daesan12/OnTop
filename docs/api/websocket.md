@@ -111,6 +111,7 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 맵 확인 | WORLD_MAP_CONFIRM | WORLD_MAP_STATE |
 | 광장 | CHANNEL_JOIN / CHANNEL_LEAVE | CHANNEL_STATE / CHANNEL_LEFT / WORLD_STATE |
 | 이동 | WORLD_MOVE | WORLD_STATE |
+| 탈것 대여·하차 | WORLD_MOBILITY_START / WORLD_MOBILITY_END | WORLD_MOBILITY_STATE, 탑승 상태가 바뀌면 WORLD_STATE도 방송 |
 | C 좌표 검증 이동 (dev 기본) | WORLD_POSITION | WORLD_STATE; local 명시 활성·dev 기본 활성·prod 제외. [계약](../world-movement-prediction.md#c-좌표-검증-이동-계약-dev-기본-적용-prod-제외) |
 | 클라이언트 물리 준비 실패 시 서버 이동 복귀 | WORLD_POSITION_FALLBACK | WORLD_STATE; C 모드에서 사용, payload는 현재 epoch |
 | 채팅·감정 | WORLD_CHAT_SEND / WORLD_EMOTE_SEND | WORLD_CHAT_MESSAGE / WORLD_EMOTE_EVENT / WORLD_EMOTE_CANCELLED |
@@ -160,8 +161,26 @@ participants/myCoinDelta/endedAt이며 PENDING의 myCoinDelta는 null이다. 응
 
 세부 필드와 선택적4종 엔진 계약은 기존 [경기 통신](../websocket-api/09-game-communication.md),
 [경기 입력](../game-action-api.md), [결과](../game-result-api.md), [광장](../world-websocket-api.md)를 따른다.
-현재 TableProtocol의 클라이언트 요청은 48종이다. ERROR와 CONNECTED는 요청 타입이 아니다.
+ERROR와 CONNECTED는 요청 타입이 아니다.
 게스트 인증, 다중 인스턴스 접속권/연결 추적 및 다른 boot의 미완료 경기 자동 반환은 미지원이다.
+
+## 전기자전거·킥보드 대여
+
+`CONNECTED.payload.mobilityAvailable`이 true인 인증 세션이 채널에 입장한 뒤 사용한다. 서버는 거치대와의 거리와 높이, 다른 활동으로 인한 이용 제한, 사용 가능 잔액을 확인한다.
+
+| 요청 | payload | 응답 |
+| --- | --- | --- |
+| WORLD_MOBILITY_START | `{stationId, vehicle, leaseId}`, 거치대 ID는 `mobility-...`, 탈것은 `BICYCLE` 또는 `SCOOTER`, 대여 ID는 UUID | WORLD_MOBILITY_STATE |
+| WORLD_MOBILITY_END | `{leaseId}`, 현재 대여 ID | WORLD_MOBILITY_STATE |
+
+`WORLD_MOBILITY_STATE.payload`에는 `leaseId`, `status`, 누적 차감액 `total`(냥)이 들어간다. 탈것을 알고 있으면 `vehicle`, 새로 확정한 차감을 지갑에 반영해야 하면 `receipt`도 보낸다. 갱신과 자동 하차 알림은 `requestId: null`로 전달한다.
+
+- `RIDING`은 탑승 확정 또는 초당 결제 확정을 뜻한다. 시작할 때 첫 1초분을 차감하고, 이후 탑승 중 1초마다 전기자전거는 1냥, 킥보드는 2냥을 차감한다. 클라이언트는 `receipt`를 받으면 해당 지갑 잔액을 다시 조회한다.
+- `ENDED`는 하차, 채널 이탈 등 이용 종료를 뜻한다. 같은 대여 ID의 요청을 재전송해도 같은 초의 요금을 다시 차감하지 않는다. 새 대여에는 새 UUID가 필요하다.
+- `INSUFFICIENT`는 다음 요금을 낼 사용 가능 잔액이 부족하다는 뜻이다. `FAILED`는 DB 오류나 결제 처리 지연 등으로 시작 또는 갱신을 확정하지 못했다는 뜻이다. 두 상태 모두 이용을 종료하며 이미 확정한 요금은 `total`에 포함한다.
+- 하차가 결제 확정보다 먼저 처리되면 그 회차를 취소한다. 이미 커밋을 시작한 회차는 결과가 나온 뒤 최종 누적액에 반영하고, 다음 회차는 시작하지 않는다.
+
+탑승 상태는 같은 채널의 `WORLD_STATE.payload.vehicles`에 사용자 ID별 탈것 값으로 공유한다. 거리·이용 조건에 맞지 않는 요청에는 `MOBILITY_OUT_OF_REACH`, `MOBILITY_BUSY` 등 `ERROR`를 반환한다.
 
 ## 캐릭터 들기·던지기와 창 입력 점유
 

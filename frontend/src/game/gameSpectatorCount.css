@@ -2,6 +2,15 @@
 .game-spectator-count>svg{color:#c6c0ae;flex:none}
 .game-spectator-number{display:flex;gap:5px;align-items:baseline;font-weight:650;font-variant-numeric:tabular-nums;animation:spectator-count-change .18s ease-out}
 .game-spectator-number small{font-size:10px;font-weight:400;color:#c6c0ae}
+.park-page .game-hud-menu .game-spectator-disclosure{border:0;border-radius:0;background:none;box-shadow:none;min-width:0;pointer-events:auto}
+.park-page .game-hud-menu .game-spectator-disclosure>summary{gap:6px;min-height:24px;padding:0;list-style:none}
+.park-page .game-hud-menu .game-spectator-disclosure>summary>.game-spectator-number{margin:0;transform:none;white-space:nowrap}
+.game-spectator-disclosure>summary>svg{color:#c6c0ae;flex:none}
+.game-spectator-preview{max-width:11ch;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.game-spectator-disclosure[open] .game-spectator-chevron{transform:rotate(180deg)}
+.game-spectator-roster{position:absolute;top:calc(100% + 10px);right:0;z-index:1;width:min(184px,calc(100vw - 32px));max-height:min(180px,36dvh);box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;padding:8px 12px;border:1px solid #c6b07766;border-radius:10px;background:#242e27;color:#ede4d0;text-align:left}
+.game-spectator-roster ul{margin:0;padding:0;list-style:none}
+.game-spectator-roster li{padding:3px 0;overflow-wrap:anywhere}
 @keyframes spectator-count-change{from{opacity:.5;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:700px){.game-spectator-count{font-size:11px;min-height:28px;padding:4px 8px}.game-spectator-number small{font-size:9px}}
 @media(prefers-reduced-motion:reduce){.game-spectator-number{animation:none}}

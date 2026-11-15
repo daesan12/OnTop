@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import { PaperPopup } from '../../tableLobby/PaperPopup'
 import cover from '../../vrZone/art/skewer-cover-lowpoly.png'
@@ -9,6 +9,7 @@ import serverRoleArt from './art/server-role-illustration.png'
 import serviceHallPreview from './art/service-hall-preview.png'
 import type { CoopClient } from './client'
 import { CoopRoomBrowser } from './CoopRoomBrowser'
+import { CoopRankingDialog } from './CoopRankingDialog'
 import { SKEWER_CHEF_VR_ENABLED } from './availability'
 import { CHEF_VR_STEPS } from '../chef/vrGuide'
 import { TouchControllerGuide } from '../../vrGuide/TouchControllerDiagram'
@@ -37,6 +38,9 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
   const player = pub?.players.find(p => p.userId === owner)
   const [acting, setActing] = useState(false)
   const [changingRole, setChangingRole] = useState(false)
+  const [rankingOpen, setRankingOpen] = useState(false)
+  const rankingButton = useRef<HTMLButtonElement>(null)
+  const returning = useRef(false)
   const act = async (input: Record<string, unknown>) => {
     if (acting) return
     setActing(true)
@@ -60,9 +64,13 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
   const subtitle = !pub ? '각자의 기기에서 만나, 하나의 가게를 운영해요.'
     : waiting ? '친구도 같은 공원의 VR 존에서 이 가게에 참가하면 돼요.'
       : role ? '내 역할을 확인하고, 함께 영업을 시작해요.' : '한 명은 주방에서, 한 명은 홀에서. 서로 다른 역할을 골라요.'
-  if (!pub) return <CoopRoomBrowser client={client} onClose={onClose} />
+  const openRanking = () => setRankingOpen(true)
+  if (rankingOpen) return <CoopRankingDialog client={client} initialMode={vr ? 'VR' : 'PC'}
+    onClose={() => { returning.current = true; setRankingOpen(false) }} backLabel="대기 화면으로 돌아가기" />
+  if (!pub) return <CoopRoomBrowser client={client} onClose={onClose} onRanking={openRanking} focusRanking={returning.current} />
   return <PaperPopup title="VR 체험관 · 2인 협동 미니게임" label={!pub ? '꼬치왕 협동 방' : '역할 선택과 준비'}
-    className={`coop-welcome-paper${pub ? ' is-preparing' : ''}${picking ? ' is-picking' : ''}`} onClose={onClose} closeLabel="방 나가기 · 다른 방 선택">
+    className={`coop-welcome-paper${pub ? ' is-preparing' : ''}${picking ? ' is-picking' : ''}`} onClose={onClose}
+    closeLabel="방 나가기 · 다른 방 선택" initialFocusRef={returning.current ? rankingButton : undefined}>
     <section aria-label={!pub ? '꼬치왕 협동 방' : '역할 선택과 준비'}>
       <header className="coop-welcome-heading">
         {!picking ? <p className="coop-section-label">{!pub ? '둘이 함께 여는 작은 가게' : waiting ? '친구와 만나기' : '영업 준비'}</p> : null}
@@ -117,6 +125,7 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
         </> : null}
       </>}
       {!pub || waiting ? <p className="coop-entry-reward">입장료 없이 즐겨요 <span>·</span> 팀 점수 20점당 각자 1냥 <span>·</span> 모든 미니게임 합산 하루 최대 1000냥</p> : null}
+      <div className="paper-actions"><button ref={rankingButton} type="button" aria-haspopup="dialog" onClick={openRanking}>팀 랭킹 보기</button></div>
     </section>
   </PaperPopup>
 }

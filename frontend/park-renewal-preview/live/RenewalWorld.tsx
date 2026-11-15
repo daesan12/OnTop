@@ -25,6 +25,7 @@ import { PreviewTreeBatches } from '../PreviewTreeBatches'
 import { inAnnex } from '../interiorAccess'
 import { interiorVisit, visitScope } from '../interiorEvents'
 import { preloadBungeoppangView } from '../../src/features/bungeoppang/loadBungeoppangView'
+import { preloadJumpRopeView } from '../../src/features/jumpRope/loadJumpRopeView'
 import { preloadGateSurroundings } from './preloadEntranceModels'
 import { collectJumpViewDrawables } from '../../src/features/jumpmap/preparation'
 
@@ -36,6 +37,7 @@ const ParkDetailGeometry = lazy(() => import('../ParkDetailGeometry').then(modul
 const spawn = renewalMap?.data.physics.spawn.position
 const jumpEntrance = renewalMap?.data.jumpCourse?.start
 const bakery = renewalMap?.data.interactions.recreation?.find(anchor => anchor.id === 'fish-bread')
+const jumpRopeShop = renewalMap?.data.interactions.recreation?.find(anchor => anchor.id === 'pigeon-jump-rope')
 const finalStage = 8
 const boardsPerStage = 4
 const StableCityBackdrop = memo(CityBackdrop)
@@ -76,6 +78,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   const jumpViewIndex = useRef(0)
   const jumpViewSelection = useRef<Object3D | undefined>(undefined)
   const queuedBakery = useRef(false)
+  const queuedJumpRope = useRef(false)
   const nightPool = useRef<{ group: Object3D; lights: Object3D[]; quality: QualityPreset } | undefined>(undefined)
   const [loaded, setLoaded] = useState(false)
   const [lakeProgress] = useState(createLakeProgress)
@@ -131,11 +134,19 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
     }
   }, .6)
   useFrame(() => {
-    if (!bakery || queuedBakery.current) return
+    const needsBakery = bakery && !queuedBakery.current
+    const needsJumpRope = jumpRopeShop && !queuedJumpRope.current
+    if (firstFrameAt.current === null || (!needsBakery && !needsJumpRope)) return
     const pose = authoritativePose(useSession.getState().sessionId)
-    if (!pose || Math.hypot(pose.x-bakery.reachPosition[0],pose.z-bakery.reachPosition[2]) > 22) return
-    queuedBakery.current = true
-    preloadBungeoppangView()
+    if (!pose) return
+    if (needsBakery && Math.hypot(pose.x-bakery.reachPosition[0],pose.z-bakery.reachPosition[2]) <= 32) {
+      queuedBakery.current = true
+      preloadBungeoppangView()
+    }
+    if (needsJumpRope && Math.hypot(pose.x-jumpRopeShop.reachPosition[0],pose.z-jumpRopeShop.reachPosition[2]) <= 28) {
+      queuedJumpRope.current = true
+      preloadJumpRopeView()
+    }
   })
   useFrame(({ camera, scene, gl }) => {
     const root = surface.current

@@ -12,6 +12,7 @@ import { createSafeCharacterRig } from './art/safeCharacterRig'
 import { avatarPoseActive, avatarPoseAmbient, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
 import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { createCarryMotion } from './avatarCarryMotion'
+import { createMountedVehicle } from '../features/mobility/mountedVehicle'
 import { AvatarPresentation } from './avatarPresentation'
 import { SwimmingRipples } from './SwimmingRipples'
 
@@ -124,6 +125,7 @@ function Avatar({
   const worldPosition = useMemo(() => new Vector3(), [])
   const inverseRoot = useMemo(() => new Matrix4(), [])
   const presentation = useMemo(() => new AvatarPresentation(), [])
+  const mountedVehicle = useMemo(createMountedVehicle, [])
   const motion = useMemo(() => createAvatarMotion(model, RENEWAL_PARK_ENABLED), [model])
   const carriedPartner = useRef({ id: '', carryId: '' })
   const cadence = useMemo(() => new AvatarPoseCadence(avatarCrowdGroup(id)), [id, model])
@@ -218,7 +220,7 @@ function Avatar({
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
     const displayAvatar = presentation.sample(avatar, displayFlags, own ? undefined : pose, frameAt)
-    const active = !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
+    const active = !!avatar.vehicle || mountedVehicle.root.children.length > 0 || !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -243,7 +245,8 @@ function Avatar({
       else if (seatTable?.pavilionId) seatForward = .43
       else seatForward = .13
     }
-    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
+    if (!mountedVehicle.apply(avatar.vehicle, pose, root.current.position.y, delta, figure.current, model))
+      motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
       holdingCards ? oneCardHoldingPose : undefined, throwFlight,
       carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward)
     // Follow the posed head when swimming; a tilted standing-height marker
@@ -273,6 +276,7 @@ function Avatar({
       userData={{ character: variant, equipment, look: shownKey, wholeSkin: wholeSource ? wholeSkin?.imageKey : undefined }}
     >
       <FartCloud id={id} />
+      <primitive object={mountedVehicle.root} dispose={null} />
       <group ref={figure} name={`figure-${id}`}>
         <primitive object={model.root} dispose={null} />
         <OneCardHeldHand userId={id} model={model} />
