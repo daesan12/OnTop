@@ -1,43 +1,190 @@
 .mobility-hud {
-  position: fixed;
+  --mobility-hud-top: max(88px, calc(var(--park-edge, 20px) + 72px));
+  position: absolute;
   z-index: 16;
-  bottom: calc(76px + env(safe-area-inset-bottom));
-  left: 50%;
+  inset-block-start: calc(var(--mobility-hud-top) + env(safe-area-inset-top, 0px));
+  inset-inline-start: 50%;
   transform: translateX(-50%);
-  width: max-content;
-  max-width: calc(100% - 24px);
   box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  padding: 7px 16px;
-  border: 3px double #867143;
-  border-radius: 24px;
+  width: min(328px, calc(100% - 32px));
+  display: grid;
+  gap: 7px;
+  padding: 10px 13px 8px;
+  border: 3px double #9e8050;
+  border-radius: 16px;
   background: #f5ebd3 url('/art/tablet/hanji.webp') center / cover;
-  box-shadow: 0 2px 9px #28211f33;
-  color: #163d29;
-  font: 700 0.9rem/1.4 'Malgun Gothic', system-ui, sans-serif;
+  box-shadow: 0 4px 16px #201b1640;
+  color: #2a3a2d;
+  font: 700 13px/1.35 'Malgun Gothic', system-ui, sans-serif;
   pointer-events: none;
 }
-.mobility-hud b { color: #805715; font-variant-numeric: tabular-nums; }
-.mobility-hud kbd {
-  font: inherit;
-  padding: 2px 5px;
-  border: 1px solid #867143;
-  border-radius: 5px;
-  background: #fcf4e2;
+
+.mobility-hud[data-holding='true'] {
+  border-color: #ac782b;
+  box-shadow: 0 4px 16px #201b1640, 0 0 0 2px #edb85782;
 }
-.mobility-hold, .mobility-key { display: inline-flex; align-items: center; gap: 5px; }
-.mobility-key { position: relative; justify-content: center; width: 36px; height: 36px; }
-.mobility-key svg { position: absolute; inset: 0; width: 100%; transform: rotate(-90deg); }
-.mobility-key circle { fill: none; stroke: #bca876; stroke-width: 2; }
-.mobility-key .mobility-progress {
-  stroke: #ae781d;
-  stroke-width: 3;
+
+.mobility-hud--riding {
+  border-color: #b79a62;
+  background: #26382c;
+  color: #fff3dc;
+}
+
+.mobility-hud--message {
+  width: max-content;
+  max-width: min(328px, calc(100% - 32px));
+  padding: 9px 14px;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.mobility-hud__summary,
+.mobility-hud__controls,
+.mobility-hud__total,
+.mobility-hud__rate {
+  display: flex;
+  align-items: center;
+}
+
+.mobility-hud__summary {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 5px 9px;
+}
+
+.mobility-hud__title {
+  font: 700 19px/1.2 'BusanDandiMyeongjo', 'Malgun Gothic', serif;
+  word-break: keep-all;
+}
+
+.mobility-hud__total {
+  flex-wrap: wrap;
+  gap: 5px 7px;
+  color: #ecd9b5;
+}
+
+.mobility-hud__rate {
+  gap: 3px;
+  padding: 3px 8px;
+  border: 1px solid #b5985f;
+  border-radius: 999px;
+  color: #65471d;
+  background: #fff4d8;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.mobility-hud__rate img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  margin-inline-end: 2px;
+}
+
+.mobility-hud__controls {
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  min-height: 34px;
+  padding-block-start: 4px;
+  border-top: 1px solid #9e80505c;
+}
+
+.mobility-hud--riding .mobility-hud__controls {
+  border-color: #c5a87369;
+}
+
+.mobility-hud kbd {
+  padding: 2px 6px;
+  border: 1px solid #53735c;
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #304f3b;
+  color: #fff6e0;
+  font: inherit;
+}
+
+.mobility-hud--riding kbd {
+  border-color: #c0a77a;
+  background: #f6ead2;
+  color: #2a3a2d;
+}
+
+.mobility-hud kbd.mobility-hud__secondary-key {
+  border-color: #ad966b;
+  background: transparent;
+  color: #f0ddb8;
+}
+
+.mobility-hud__hold {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+
+.mobility-hud__hold svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  transform: rotate(-90deg);
+}
+
+.mobility-hud__hold circle {
+  fill: none;
+  stroke: #a58d5d;
+  stroke-width: 2;
+}
+
+.mobility-hud__hold .mobility-progress {
+  stroke: #875b16;
+  stroke-width: 3.3;
+  stroke-linecap: round;
   stroke-dasharray: 100;
   stroke-dashoffset: 100;
   animation: mobility-hold linear forwards;
 }
-@keyframes mobility-hold { to { stroke-dashoffset: 0; } }
+
+@keyframes mobility-hold {
+  to { stroke-dashoffset: 0; }
+}
+
+@media (max-width: 900px) {
+  .mobility-hud { --mobility-hud-top: 116px; }
+}
+
+@media (max-width: 500px) {
+  .mobility-hud { --mobility-hud-top: 170px; }
+}
+
+@media (max-height: 520px) and (min-width: 501px) {
+  .mobility-hud {
+    --mobility-hud-top: 84px;
+    width: min(360px, calc(100% - 32px));
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding: 5px 10px;
+  }
+
+  .mobility-hud--message {
+    width: max-content;
+    grid-template-columns: 1fr;
+    padding: 7px 11px;
+  }
+
+  .mobility-hud__controls {
+    padding-block-start: 0;
+    padding-inline-start: 8px;
+    border-top: 0;
+    border-inline-start: 1px solid #9e80505c;
+  }
+}
+
+@media (min-width: 501px) and (max-width: 700px) and (max-height: 520px) {
+  .park-page:has(.mobility-hud) .park-chat[data-expanded="true"] .park-chat__messages {
+    height: clamp(64px, calc(100dvh - 260px), 270px);
+  }
+}
