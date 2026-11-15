@@ -16,6 +16,19 @@ class ParkMovementPolicyTests {
     private long now;
 
     @Test
+    void 활성_테이블에_완전히_포함된_장식만_복구_경로에서_중복으로_취급한다() {
+        ObjectNode data = scene().data.deepCopy();
+        var boxes = (com.fasterxml.jackson.databind.node.ArrayNode) data.path("boxes");
+        box(boxes, "park-prop-1", 0, 1, 0, .7, .25, .7);
+        box(boxes, "park-prop-2", .8, 1, 0, .25, .25, .25);
+        var policy = ParkScene.fromPreparedData(data, new WorldMapMetadata("park", 2, "d".repeat(64))).policy;
+
+        assertThat(policy.managesCorrectionShape("park-prop-1", id -> true)).isTrue();
+        assertThat(policy.managesCorrectionShape("park-prop-1", id -> !id.equals("table-1-top"))).isFalse();
+        assertThat(policy.managesCorrectionShape("park-prop-2", id -> true)).isFalse();
+    }
+
+    @Test
     void 중앙광장_가구_앞에서_정지하고_옆이나_뒤로_움직일_수_있다() throws Exception {
         Path dir = Path.of("../frontend/generated/park-renewal");
         var map = PreparedParkMap.load(dir.resolve("server-map.json"), dir.resolve("manifest.json"), Set.of("channel-1"));
