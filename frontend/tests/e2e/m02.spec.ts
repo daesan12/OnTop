@@ -97,23 +97,33 @@ test('M02 direction, Shift and key release reach local intent immediately instea
   const result = await page.evaluate(async () => {
     const { parkRuntime } = await import('/src/park/runtime/runtime.ts' as string)
     const { viewControls } = await import('/src/world/cameraPerspective.ts' as string)
+    const { clearRoamingInput } = await import('/src/world/inputOwnership.ts' as string)
     const original = parkRuntime.move, calls: { dx: number; dz: number; run: boolean; jump: boolean }[] = []
     viewControls.yaw = 0
     parkRuntime.move = (dx: number, dz: number, run: boolean, jump = false) => { calls.push({ dx, dz, run, jump }); original(dx, dz, run, jump) }
-    const key = (type: string, code: string) => window.dispatchEvent(new KeyboardEvent(type, { code, cancelable: true }))
+    const key = (type: string, code: string, repeat = false) =>
+      window.dispatchEvent(new KeyboardEvent(type, { code, repeat, cancelable: true }))
     try {
       key('keydown', 'KeyA'); const left = calls.at(-1)
       key('keydown', 'ShiftLeft'); const running = calls.at(-1)
       key('keyup', 'KeyA'); const stopped = calls.at(-1)
       key('keyup', 'ShiftLeft')
+      key('keydown', 'KeyD')
+      clearRoamingInput()
+      const callCount = calls.length
+      key('keydown', 'KeyD', true)
+      const replayed = calls.length !== callCount
+      key('keyup', 'KeyD')
       key('keydown', 'KeyD'); const right = calls.at(-1)
       key('keyup', 'KeyD')
-      return { left, running, stopped, right }
+      return { left, running, stopped, replayed, right }
     } finally { parkRuntime.move = original }
   })
   expect(result.left).toMatchObject({ dx: -1, run: false, jump: false })
   expect(result.running).toMatchObject({ dx: -1, run: true })
   expect(Math.hypot(result.stopped!.dx, result.stopped!.dz)).toBe(0)
+  expect(result.stopped!.run).toBe(false)
+  expect(result.replayed).toBe(false)
   expect(result.right).toMatchObject({ dx: 1, run: false })
 })
 

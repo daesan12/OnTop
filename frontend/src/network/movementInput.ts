@@ -10,7 +10,7 @@ export function cameraRelativeMove(
   const length = Math.max(1, Math.hypot(forward, side))
   target.dx = Math.max(-1, Math.min(1, (side * Math.cos(yaw) - forward * Math.sin(yaw)) / length))
   target.dz = Math.max(-1, Math.min(1, (-side * Math.sin(yaw) - forward * Math.cos(yaw)) / length))
-  target.run = run
+  target.run = run && !!(forward || side)
   target.jump = jump
   return target
 }
@@ -18,7 +18,7 @@ export function normalizedMove(dx: number, dz: number, run: boolean, jump: boole
   if (![dx, dz].every(Number.isFinite) || Math.abs(dx) > 1 || Math.abs(dz) > 1
     || typeof run !== 'boolean' || typeof jump !== 'boolean') return null
   const length = Math.max(1, Math.hypot(dx, dz))
-  return { dx: dx / length, dz: dz / length, run, jump }
+  return { dx: dx / length, dz: dz / length, run: run && !!(dx || dz), jump }
 }
 
 /** Coalesce quick changes without violating the existing input cadence.
