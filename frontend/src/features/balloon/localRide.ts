@@ -6,18 +6,22 @@ import { parkRuntime } from '../../park/runtime/runtime'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { BalloonFareError, buyBalloonTicket, completeBalloonTicket } from './fare'
 import { createFlight, REMOVE_SECONDS, returnToDock, stepFlight, takeOff } from './flight'
-import type { Flight, FlightMap, Input, Point } from './flight'
-import { clearRemoteBalloons, watchOwnBalloonEnd } from './remoteRide'
+import type { BalloonBoarding, Flight, FlightMap, Input, Point } from './flight'
+import { clearRemoteBalloons, sampleRemoteBalloon, useRemoteBalloons, watchOwnBalloonEnd } from './remoteRide'
 import { cabinRider, idleCabin, toggleCabinSeat, walkCabin, type BalloonRiderPose, type CabinPose } from './cabin'
+import { resetCabinCamera } from './cabinCamera'
 
 type LocalRide = {
   owner: string
   room: string
-  panel: 'closed' | 'loading' | 'board' | 'paying' | 'error'
+  panel: 'closed' | 'loading' | 'board' | 'manual' | 'paying' | 'error'
   map: FlightMap | null
   flight: Flight | null
   cabin: CabinPose
   walkingInside: boolean
+  cabinFirstPerson: boolean
+  leader: string
+  launching: boolean
   ticketId: string
   paymentError: string
   revealSeconds: number
@@ -27,9 +31,10 @@ const DOCK_STEP_SECONDS = .5
 const FIELD_RETURN_FADE_SECONDS = .25
 const POSE_INTERVAL_MS = 125
 let lastPoseAt = 0
+let lastGuestPose: CabinPose | null = null
 const idle: LocalRide = {
   owner: '', room: '', panel: 'closed', map: null, flight: null, ticketId: '', paymentError: '', revealSeconds: 0,
-  cabin: idleCabin, walkingInside: false,
+  cabin: idleCabin, walkingInside: false, cabinFirstPerson: false, leader: '', launching: false,
 }
 export const useLocalBalloon = create<LocalRide>(() => idle)
 
@@ -63,26 +68,39 @@ export function cancelLocalBalloon() {
   clearRoamingInput()
 }
 
-export async function boardLocalBalloon() {
+export function showLocalBalloonManual(open: boolean) {
+  if (useLocalBalloon.getState().panel === (open ? 'board' : 'manual')) {
+    useLocalBalloon.setState({ panel: open ? 'manual' : 'board' })
+  }
+}
+
+export async function boardLocalBalloon(boarding: BalloonBoarding) {
   const ride = useLocalBalloon.getState()
   if (ride.panel !== 'board' || !ride.map || !ownsRide(ride)) return
+  const guest = 'leaderId' in boarding
+  const leader = guest ? boarding.leaderId : ride.owner
   useLocalBalloon.setState({ panel: 'paying', paymentError: '' })
   const payment = useLocalBalloon.getState()
   const stillWaiting = () => useLocalBalloon.getState() === payment && ownsRide(payment)
   let ticket = ''
   try {
-    ticket = await buyBalloonTicket(ride.owner)
+    ticket = await buyBalloonTicket(ride.owner, guest ? leader : undefined)
     if (!stillWaiting()) return
     refreshWalletAfterSettlement(ride.owner, 'balloon:' + ticket)
-    await parkRuntime.startBalloon(ticket, ride.map.dock)
+    const sharedFlight = await parkRuntime.startBalloon(ticket, ride.map.dock, boarding)
     if (!stillWaiting()) {
       parkRuntime.endBalloon(ticket)
       return
     }
-    completeBalloonTicket(ride.owner, ticket)
+    if (!sharedFlight) completeBalloonTicket(ride.owner, ticket)
     clearRoamingInput()
+    resetCabinCamera()
+    lastGuestPose = null
     lastPoseAt = performance.now()
-    useLocalBalloon.setState({ panel: 'closed', ticketId: ticket, flight: takeOff(createFlight(ride.map)) })
+    const flight = createFlight(ride.map)
+    useLocalBalloon.setState({ panel: 'closed', ticketId: ticket, leader, walkingInside: guest,
+      cabin: useRemoteBalloons.getState().flights[leader]?.party?.passengers[ride.owner] ?? idleCabin,
+      flight: sharedFlight ? flight : takeOff(flight) })
   } catch (error) {
     if (!stillWaiting()) return
     const expired = ticket && typeof error === 'object' && error !== null && 'code' in error
@@ -93,24 +111,57 @@ export async function boardLocalBalloon() {
   }
 }
 
+export async function launchLocalBalloon() {
+  const { owner, leader, ticketId, flight, launching } = useLocalBalloon.getState()
+  if (!ticketId || owner !== leader || flight?.phase !== 'boarding' || launching) return
+  useLocalBalloon.setState({ launching: true, paymentError: '' })
+  try {
+    await parkRuntime.launchBalloon(ticketId)
+  } catch (error) {
+    if (useLocalBalloon.getState().ticketId === ticketId) {
+      const blocked = typeof error === 'object' && error !== null && 'code' in error && error.code === 'BALLOON_LAUNCH_REJECTED'
+      useLocalBalloon.setState({ paymentError: blocked ? '다른 손님이 결제 중이에요. 잠시 후 다시 출발해 주세요.'
+        : '출발을 확인하지 못했어요. 다시 시도해 주세요.' })
+    }
+  } finally {
+    if (useLocalBalloon.getState().ticketId === ticketId) useLocalBalloon.setState({ launching: false })
+  }
+}
+
 export function returnLocalBalloon() {
   const ride = useLocalBalloon.getState()
-  if (!ride.flight) return
+  if (!ride.flight || ride.owner !== ride.leader) return
   useLocalBalloon.setState({ flight: returnToDock(ride.flight, 'manual') })
 }
 
 export function toggleLocalCabinMode() {
   const ride = useLocalBalloon.getState()
-  if (ride.flight?.phase !== 'flying') return
+  if (ride.flight?.phase !== 'flying' || ride.owner !== ride.leader) return
   clearRoamingInput()
-  useLocalBalloon.setState({ walkingInside: !ride.walkingInside, cabin: ride.walkingInside ? idleCabin : ride.cabin })
+  useLocalBalloon.setState({ walkingInside: !ride.walkingInside, cabinFirstPerson: false,
+    cabin: ride.walkingInside ? idleCabin : ride.cabin })
+}
+
+export function occupiedBalloonSeats(ride: LocalRide) {
+  if (!ride.leader) return []
+  const group = useRemoteBalloons.getState().flights[ride.leader]
+  if (!group?.party) return []
+  const occupied = Object.entries(group.party.passengers).filter(([id]) => id !== ride.owner).map(([, pose]) => pose.seatIndex)
+  if (ride.leader !== ride.owner) occupied.push(group.cabinTo.seatIndex)
+  return occupied
 }
 
 export function toggleLocalCabinSeat() {
   const ride = useLocalBalloon.getState()
   if (ride.flight?.phase !== 'flying' || !ride.walkingInside) return
   clearRoamingInput()
-  useLocalBalloon.setState({ cabin: toggleCabinSeat(ride.cabin) })
+  useLocalBalloon.setState({ cabin: toggleCabinSeat(ride.cabin, occupiedBalloonSeats(ride)) })
+}
+
+export function toggleLocalCabinPerspective() {
+  const ride = useLocalBalloon.getState()
+  if (!ride.walkingInside || ride.flight?.phase !== 'flying') return
+  useLocalBalloon.setState({ cabinFirstPerson: !ride.cabinFirstPerson })
 }
 
 const neutralFlight: Input = { x: 0, z: 0, lift: 0 }
@@ -125,13 +176,35 @@ export function tickLocalBalloon(input: Input, elapsed: number) {
     return
   }
   if (!ride.flight || !ride.map) return
-  const walking = ride.flight.phase === 'flying' && ride.walkingInside
-  const cabin = walking ? walkCabin(ride.cabin, input, elapsed)
-    : ride.cabin.moving ? { ...ride.cabin, moving: false } : ride.cabin
-  const flight = stepFlight(ride.flight, ride.walkingInside ? neutralFlight : input, Math.min(.1, elapsed), ride.map, elapsed)
+  const guest = ride.leader !== ride.owner
+  const shared = useRemoteBalloons.getState().flights[ride.leader]
+  let flight = ride.flight
+  if (flight.phase === 'boarding' && shared?.party && !shared.party.boarding) {
+    completeBalloonTicket(ride.owner, ride.ticketId)
+    flight = takeOff(flight)
+    if (guest) flight = { ...flight, phase: 'flying' }
+  }
+  if (guest) {
+    const position = sampleRemoteBalloon(ride.leader)
+    if (!shared?.aboard || !shared.party?.passengers[ride.owner] || !position) {
+      if (!shared?.party?.passengers[ride.owner]) useLocalBalloon.setState({ ticketId: '' })
+      cancelLocalBalloon()
+      return
+    }
+    flight = { ...flight, position }
+  } else {
+    flight = stepFlight(flight, ride.walkingInside ? neutralFlight : input, Math.min(.1, elapsed), ride.map, elapsed)
+  }
+  const walking = flight.phase === 'flying' && ride.walkingInside
+  const pose = ride.cabin.seatIndex >= 0 && occupiedBalloonSeats(ride).includes(ride.cabin.seatIndex)
+    ? toggleCabinSeat(ride.cabin) : ride.cabin
+  const cabin = walking ? walkCabin(pose, input, elapsed) : pose.moving ? { ...pose, moving: false } : pose
   const now = performance.now()
-  if (ride.ticketId && flight.phase !== 'removed' && now - lastPoseAt >= POSE_INTERVAL_MS) {
+  const guestMoved = guest && walking && (!lastGuestPose || cabin.x !== lastGuestPose.x
+    || cabin.z !== lastGuestPose.z || cabin.seatIndex !== lastGuestPose.seatIndex || cabin.moving !== lastGuestPose.moving)
+  if (ride.ticketId && flight.phase !== 'removed' && (!guest || guestMoved) && now - lastPoseAt >= POSE_INTERVAL_MS) {
     lastPoseAt = now
+    if (guest) lastGuestPose = cabin
     parkRuntime.sendBalloonPose(ride.ticketId, flight.position, flight.phase !== 'landed', cabin)
   }
   if (flight.phase === 'removed' && flight.landing === 'field') {

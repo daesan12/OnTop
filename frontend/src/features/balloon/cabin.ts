@@ -36,20 +36,20 @@ export function walkCabin(pose: CabinPose, input: Input, elapsed: number): Cabin
   return { ...pose, x, z, moving, yaw: moving ? Math.atan2(x - pose.x, z - pose.z) : pose.yaw }
 }
 
-export function availableCabinSeat(pose: CabinPose) {
+export function availableCabinSeat(pose: CabinPose, occupied: readonly number[] = []) {
   let nearest = -1
   let distance = SIT_REACH
   for (const [index, seat] of cabinSeats.entries()) {
     const candidate = Math.hypot(pose.x - seat.x, pose.z - seat.z)
-    if (candidate > distance) continue
+    if (candidate > distance || occupied.includes(index)) continue
     distance = candidate
     nearest = index
   }
   return nearest
 }
 
-export function toggleCabinSeat(pose: CabinPose): CabinPose {
-  const index = pose.seatIndex >= 0 ? pose.seatIndex : availableCabinSeat(pose)
+export function toggleCabinSeat(pose: CabinPose, occupied: readonly number[] = []): CabinPose {
+  const index = pose.seatIndex >= 0 ? pose.seatIndex : availableCabinSeat(pose, occupied)
   const seat = cabinSeats[index]
   if (!seat) return pose
   if (pose.seatIndex >= 0) {

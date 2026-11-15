@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest'
 import { CABIN_WALK_RADIUS, availableCabinSeat, cabinRider, cabinSeats, idleCabin, toggleCabinSeat, walkCabin } from '../../src/features/balloon/cabin'
-import { clearRemoteBalloons, receiveRemoteBalloon, remoteBalloonRider } from '../../src/features/balloon/remoteRide'
+import { clearRemoteBalloons, receiveRemoteBalloon, remoteBalloonRider, useRemoteBalloons } from '../../src/features/balloon/remoteRide'
 
 afterEach(clearRemoteBalloons)
 
@@ -33,5 +33,23 @@ it('renders a remote rider at the chair anchor and releases the pose on landing'
   receiveRemoteBalloon(envelope, 'one', '101', 100)
   expect(remoteBalloonRider('102', 100)).toEqual(cabinRider(position, cabin))
   receiveRemoteBalloon({ ...envelope, flight: { position, aboard: false } }, 'one', '101', 200)
+  expect(remoteBalloonRider('102', 200)).toBeNull()
+})
+
+it('places three passengers on the same balloon for the pilot and releases them on landing', () => {
+  const position = { x: -35, y: 30, z: -76 }
+  const moved = { ...position, y: 32 }
+  const passengers = {
+    '102': { ...cabinSeats[0], seatIndex: 0, moving: false },
+    '103': { ...cabinSeats[1], seatIndex: 1, moving: false },
+    '104': { ...cabinSeats[2], seatIndex: 2, moving: false },
+  }
+  const envelope = { channelId: 'one', pilotId: '101', flight: { position, aboard: true },
+    party: { capacity: 4, boarding: false, passengers } }
+  receiveRemoteBalloon(envelope, 'one', '101', 100)
+  expect(Object.keys(useRemoteBalloons.getState().flights)).toEqual(['101'])
+  expect(remoteBalloonRider('102', 100, { id: '101', position: moved })).toEqual(cabinRider(moved, passengers['102']))
+  expect(remoteBalloonRider('104', 100)).toEqual(cabinRider(position, passengers['104']))
+  receiveRemoteBalloon({ ...envelope, flight: null }, 'one', '101', 200)
   expect(remoteBalloonRider('102', 200)).toBeNull()
 })

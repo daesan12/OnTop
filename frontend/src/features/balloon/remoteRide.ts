@@ -1,13 +1,17 @@
 import { create } from 'zustand'
 import { cabinRider, CABIN_WALK_RADIUS, idleCabin, type CabinPose } from './cabin'
-import type { Point } from './flight'
+import { CAPACITY, type Point } from './flight'
 
 const INTERPOLATION_MS = 150
 const ownEndListeners = new Set<() => void>()
 type RemoteFlight = {
   from: Point; to: Point; aboard: boolean; receivedAt: number
   cabinFrom: CabinPose; cabinTo: CabinPose
+  party: BalloonParty | null
+  passengersFrom: Record<string, CabinPose>
 }
+export type BalloonParty = { capacity: number; boarding: boolean; passengers: Record<string, CabinPose> }
+const userId = /^[1-9]\d{0,18}$/
 
 export const useRemoteBalloons = create<{ flights: Record<string, RemoteFlight> }>(() => ({ flights: {} }))
 
@@ -24,12 +28,33 @@ function sample(flight: RemoteFlight, at: number): Point {
   }
 }
 
-function sampleCabin(flight: RemoteFlight, at: number): CabinPose {
-  const { cabinFrom, cabinTo } = flight
+function interpolateCabin(cabinFrom: CabinPose, cabinTo: CabinPose, t: number): CabinPose {
   if (cabinTo.seatIndex >= 0 || cabinFrom.seatIndex >= 0) return cabinTo
-  const t = progress(flight, at)
   return { ...cabinTo, x: cabinFrom.x + (cabinTo.x - cabinFrom.x) * t,
     z: cabinFrom.z + (cabinTo.z - cabinFrom.z) * t }
+}
+
+function sampleCabin(flight: RemoteFlight, at: number): CabinPose {
+  return interpolateCabin(flight.cabinFrom, flight.cabinTo, progress(flight, at))
+}
+
+function samplePassenger(flight: RemoteFlight, id: string, cabin: CabinPose, at: number) {
+  return interpolateCabin(flight.passengersFrom[id] ?? cabin, cabin, progress(flight, at))
+}
+
+function parseParty(value: unknown): BalloonParty | null {
+  if (!value || typeof value !== 'object') return null
+  const { capacity, boarding, passengers } = value as Partial<BalloonParty>
+  if (typeof capacity !== 'number' || !Number.isInteger(capacity) || capacity < 2 || capacity > CAPACITY
+    || typeof boarding !== 'boolean' || !passengers || typeof passengers !== 'object') return null
+  const riders: Record<string, CabinPose> = {}
+  for (const [id, pose] of Object.entries(passengers)) {
+    const parsed = parseCabin(pose)
+    if (!userId.test(id) || !parsed) return null
+    riders[id] = parsed
+  }
+  if (Object.keys(riders).length >= capacity) return null
+  return { capacity, boarding, passengers: riders }
 }
 
 function parseCabin(value: unknown): CabinPose | null {
@@ -48,9 +73,17 @@ export function sampleRemoteBalloon(pilot: string, at = performance.now()) {
   return flight ? sample(flight, at) : null
 }
 
-export function remoteBalloonRider(pilot: string, at: number) {
-  const flight = useRemoteBalloons.getState().flights[pilot]
-  return flight?.aboard ? cabinRider(sample(flight, at), sampleCabin(flight, at)) : null
+export function remoteBalloonRider(id: string, at: number, localPilot?: { id: string; position: Point }) {
+  const { flights } = useRemoteBalloons.getState()
+  const flight = flights[id]
+  if (flight?.aboard) return cabinRider(sample(flight, at), sampleCabin(flight, at))
+  for (const leader in flights) {
+    const group = flights[leader]!
+    const cabin = group.party?.passengers[id]
+    if (cabin && group.aboard) return cabinRider(localPilot?.id === leader ? localPilot.position : sample(group, at),
+      samplePassenger(group, id, cabin, at))
+  }
+  return null
 }
 
 export function clearRemoteBalloons() {
@@ -67,9 +100,9 @@ export function notifyOwnBalloonEnd() {
 }
 
 export function receiveRemoteBalloon(payload: Record<string, unknown>, channel: string, user: string, at = performance.now()) {
-  const { channelId, pilotId, flight } = payload
+  const { channelId, pilotId, flight, party: partyPayload } = payload
   if (!channel || channelId !== channel || typeof pilotId !== 'string'
-    || !/^[1-9]\d{0,18}$/.test(pilotId) || pilotId === user) return
+    || !userId.test(pilotId)) return
   const flights = useRemoteBalloons.getState().flights
   if (flight === null) {
     if (!flights[pilotId]) return
@@ -86,9 +119,18 @@ export function receiveRemoteBalloon(payload: Record<string, unknown>, channel: 
   const to = { x, y, z }
   const cabinTo = parseCabin('cabin' in flight ? flight.cabin : undefined)
   if (!cabinTo) return
+  const party = parseParty(partyPayload)
+  if ((partyPayload != null && !party) || (pilotId === user && !party)) return
   const previous = flights[pilotId]
   const from = previous ? sample(previous, at) : to
   const cabinFrom = previous ? sampleCabin(previous, at) : cabinTo
+  const passengersFrom: Record<string, CabinPose> = {}
+  if (party && previous?.party) {
+    for (const id of Object.keys(party.passengers)) {
+      const old = previous.party.passengers[id]
+      if (old) passengersFrom[id] = samplePassenger(previous, id, old, at)
+    }
+  }
   useRemoteBalloons.setState({ flights: { ...flights, [pilotId]: { from, to, cabinFrom, cabinTo,
-    aboard: flight.aboard, receivedAt: at } } })
+    aboard: flight.aboard, receivedAt: at, party, passengersFrom } } })
 }

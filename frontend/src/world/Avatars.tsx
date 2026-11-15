@@ -2,7 +2,7 @@ import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
 import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
 import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { localBalloonRider } from '../features/balloon/localRide'
+import { localBalloonRider, useLocalBalloon } from '../features/balloon/localRide'
 import { remoteBalloonRider } from '../features/balloon/remoteRide'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Matrix4, Vector3 } from 'three'
@@ -181,7 +181,10 @@ function Avatar({
     const seated = avatar.seatIndex >= 0
     const seatTable = seated && avatar.tableId ? TABLES.find(table => table.id === avatar.tableId) : undefined
     const own = id === useSession.getState().sessionId
-    const balloonRider = own ? localBalloonRider(id) : remoteBalloonRider(id, frameAt)
+    const localBalloon = useLocalBalloon.getState()
+    const localPilot = localBalloon.flight && localBalloon.owner === localBalloon.leader
+      ? { id: localBalloon.owner, position: localBalloon.flight.position } : undefined
+    const balloonRider = own ? localBalloonRider(id) : remoteBalloonRider(id, frameAt, localPilot)
     // Hide only this client's own model; other clients retain the full avatar.
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
     const ownPose = ownAvatar && samplePose(ownAvatar, frameAt, overlapPose)
@@ -196,7 +199,9 @@ function Avatar({
       pendingFadeShaders.current?.()
     }
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
-    root.current.visible = firstAppearanceReady.current && opacity > 0 && !(own && parkXRView.active) && (!!balloonRider || !!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
+    const balloon = own && balloonRider ? useLocalBalloon.getState() : null
+    const hideBalloonRider = balloon?.walkingInside && balloon.cabinFirstPerson && balloon.flight?.phase === 'flying'
+    root.current.visible = firstAppearanceReady.current && opacity > 0 && !hideBalloonRider && !(own && parkXRView.active) && (!!balloonRider || !!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0

@@ -1,6 +1,6 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
 import { notifyOwnBalloonEnd, receiveRemoteBalloon } from '../../features/balloon/remoteRide'
-import type { Point as BalloonPoint } from '../../features/balloon/flight'
+import type { BalloonBoarding, Point as BalloonPoint } from '../../features/balloon/flight'
 import type { CabinPose } from '../../features/balloon/cabin'
 import { BALLOON_RIDE_ENABLED } from '../mapSelection'
 import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
@@ -1080,12 +1080,17 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId, 'movement')
     this.movement.enqueue(intent, this.movementScope())
   }
-  startBalloon = async (ticketId: string, position: BalloonPoint) => {
+  startBalloon = async (ticketId: string, position: BalloonPoint, boarding: BalloonBoarding) => {
     const { roomId, sessionId } = useSession.getState()
-    const { payload } = await this.socket.request('WORLD_BALLOON_START', { ticketId, ...position }, ['WORLD_BALLOON_STATE'])
-    if (payload.channelId !== roomId || payload.pilotId !== sessionId || !payload.flight) {
+    const { payload } = await this.socket.request('WORLD_BALLOON_START', { ticketId, ...position, ...boarding }, ['WORLD_BALLOON_STATE'])
+    const leader = 'leaderId' in boarding ? boarding.leaderId : sessionId
+    if (payload.channelId !== roomId || payload.pilotId !== leader || !payload.flight) {
       throw new Error('열기구 탑승 상태를 확인해주세요.')
     }
+    return payload.party != null
+  }
+  launchBalloon = async (ticketId: string) => {
+    await this.socket.request('WORLD_BALLOON_LAUNCH', { ticketId }, ['WORLD_BALLOON_STATE'])
   }
   sendBalloonPose = (ticketId: string, position: BalloonPoint, aboard: boolean, cabin: CabinPose) => {
     if (!this.socket.connected) return

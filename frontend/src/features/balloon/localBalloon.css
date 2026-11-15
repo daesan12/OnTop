@@ -7,6 +7,40 @@
   font: 700 clamp(23px, 4vw, 29px)/1.2 BusanDandiMyeongjo, serif;
   margin: 5px 16px 20px;
 }
+.park-balloon-capacity {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 12px 0;
+  padding: 6px 10px;
+  border: 1px solid #ad8b54;
+  border-radius: 6px;
+}
+.park-balloon-capacity label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+}
+.park-balloon-capacity input { accent-color: #294835; }
+.park-balloon-manual { text-align: left; padding-inline-start: 20px; }
+.park-balloon-manual li + li { margin-top: 8px; }
+.park-balloon-joining {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid #ad8b54;
+}
+.park-balloon-joining h3 { margin: 0; font-size: inherit; }
+.park-balloon-joining button {
+  padding: 8px;
+  color: #294835;
+  background: #fff6e2;
+  border: 1px solid #ad8b54;
+  border-radius: 6px;
+}
 .park-balloon-hud {
   position: fixed;
   z-index: 57;

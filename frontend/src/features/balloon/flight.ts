@@ -11,6 +11,7 @@ const CRUISE_HEIGHT = 54
 const TAKEOFF_RISE = 10
 
 export type Point = { x: number; y: number; z: number }
+export type BalloonBoarding = { capacity: number } | { leaderId: string }
 export type Input = { x: number; z: number; lift: number }
 export type FlightMap = {
   dock: Point
