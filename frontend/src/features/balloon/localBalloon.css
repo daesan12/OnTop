@@ -24,6 +24,35 @@
   min-height: 32px;
 }
 .park-balloon-capacity input { accent-color: #294835; }
+.park-balloon-mode {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 8px;
+  border: 1px solid #ad8b54;
+  border-radius: 6px;
+  text-align: left;
+}
+.park-balloon-mode label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: 8px;
+  padding: 6px;
+  border-radius: 4px;
+}
+.park-balloon-mode label:has(:checked) { background: #2948351a; }
+.park-balloon-mode input { accent-color: #294835; }
+.park-balloon-mode span { grid-column: 2; font-size: .9em; }
+.park-balloon-key-guide {
+  display: flex;
+  justify-content: center;
+  gap: 6px 12px;
+  flex-wrap: wrap;
+  margin-block: 10px;
+}
+.park-balloon-key-guide kbd { white-space: nowrap; }
+.park-balloon-warning { color: #882f25; }
 .park-balloon-manual { text-align: left; padding-inline-start: 20px; }
 .park-balloon-manual li + li { margin-top: 8px; }
 .park-balloon-joining {

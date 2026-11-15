@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { cabinRider, CABIN_WALK_RADIUS, idleCabin, type CabinPose } from './cabin'
 import { CAPACITY, type Point } from './flight'
+import type { BalloonControls } from './controls'
 
 const INTERPOLATION_MS = 150
 const ownEndListeners = new Set<() => void>()
@@ -10,7 +11,7 @@ type RemoteFlight = {
   party: BalloonParty | null
   passengersFrom: Record<string, CabinPose>
 }
-export type BalloonParty = { capacity: number; boarding: boolean; passengers: Record<string, CabinPose> }
+export type BalloonParty = { capacity: number; boarding: boolean; passengers: Record<string, CabinPose>; controls: BalloonControls | null }
 const userId = /^[1-9]\d{0,18}$/
 
 export const useRemoteBalloons = create<{ flights: Record<string, RemoteFlight> }>(() => ({ flights: {} }))
@@ -44,9 +45,11 @@ function samplePassenger(flight: RemoteFlight, id: string, cabin: CabinPose, at:
 
 function parseParty(value: unknown): BalloonParty | null {
   if (!value || typeof value !== 'object') return null
-  const { capacity, boarding, passengers } = value as Partial<BalloonParty>
-  if (typeof capacity !== 'number' || !Number.isInteger(capacity) || capacity < 2 || capacity > CAPACITY
+  const { capacity, boarding, passengers, controls } = value as Partial<BalloonParty>
+  if (typeof capacity !== 'number' || !Number.isInteger(capacity) || capacity < 1 || capacity > CAPACITY
     || typeof boarding !== 'boolean' || !passengers || typeof passengers !== 'object') return null
+  if (controls && (controls.mode !== 'solo' && controls.mode !== 'split'
+    || !controls.input || ![controls.input.x, controls.input.z, controls.input.lift].every(axis => Number.isFinite(axis) && Math.abs(axis) <= 1))) return null
   const riders: Record<string, CabinPose> = {}
   for (const [id, pose] of Object.entries(passengers)) {
     const parsed = parseCabin(pose)
@@ -54,7 +57,7 @@ function parseParty(value: unknown): BalloonParty | null {
     riders[id] = parsed
   }
   if (Object.keys(riders).length >= capacity) return null
-  return { capacity, boarding, passengers: riders }
+  return { capacity, boarding, passengers: riders, controls: controls ?? null }
 }
 
 function parseCabin(value: unknown): CabinPose | null {

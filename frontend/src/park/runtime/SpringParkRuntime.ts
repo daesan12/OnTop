@@ -1,6 +1,7 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
 import { notifyOwnBalloonEnd, receiveRemoteBalloon } from '../../features/balloon/remoteRide'
-import type { BalloonBoarding, Point as BalloonPoint } from '../../features/balloon/flight'
+import type { BalloonBoarding, Input as BalloonInput, Point as BalloonPoint } from '../../features/balloon/flight'
+import type { ControlAction } from '../../features/balloon/controls'
 import type { CabinPose } from '../../features/balloon/cabin'
 import { BALLOON_RIDE_ENABLED } from '../mapSelection'
 import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
@@ -1089,12 +1090,15 @@ export class ParkRuntime implements ParkRuntimePort {
     }
     return payload.party != null
   }
-  launchBalloon = async (ticketId: string) => {
-    await this.socket.request('WORLD_BALLOON_LAUNCH', { ticketId }, ['WORLD_BALLOON_STATE'])
+  launchBalloon = async (ticketId: string, solo: boolean) => {
+    await this.socket.request('WORLD_BALLOON_LAUNCH', { ticketId, solo }, ['WORLD_BALLOON_STATE'])
   }
-  sendBalloonPose = (ticketId: string, position: BalloonPoint, aboard: boolean, cabin: CabinPose) => {
+  controlBalloon = async (ticketId: string, action: ControlAction) => {
+    await this.socket.request('WORLD_BALLOON_CONTROL', { ticketId, ...action }, ['WORLD_BALLOON_STATE'])
+  }
+  sendBalloonPose = (ticketId: string, position: BalloonPoint, aboard: boolean, cabin: CabinPose, input: BalloonInput) => {
     if (!this.socket.connected) return
-    try { this.socket.send('WORLD_BALLOON_POSE', { ticketId, ...position, aboard, cabin }) }
+    try { this.socket.send('WORLD_BALLOON_POSE', { ticketId, ...position, aboard, cabin, input }) }
     catch { /* The next update or the flight expiry handles a transport interruption. */ }
   }
   endBalloon = (ticketId: string) => {

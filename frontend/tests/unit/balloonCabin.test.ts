@@ -1,8 +1,32 @@
 import { afterEach, expect, it } from 'vitest'
 import { CABIN_WALK_RADIUS, availableCabinSeat, cabinRider, cabinSeats, idleCabin, toggleCabinSeat, walkCabin } from '../../src/features/balloon/cabin'
 import { clearRemoteBalloons, receiveRemoteBalloon, remoteBalloonRider, useRemoteBalloons } from '../../src/features/balloon/remoteRide'
+import { stepUncrewedFlight, type Flight, type FlightMap } from '../../src/features/balloon/flight'
+import { combineFlightInput, inputForRole, type BalloonControls } from '../../src/features/balloon/controls'
 
 afterEach(clearRemoteBalloons)
+
+it('holds altitude during the warning, then falls until touching the ground', () => {
+  const dock = { x: 0, y: 0, z: 0 }
+  const map: FlightMap = { dock, dockExit: dock, inside: () => true, floor: () => 0, landing: () => null }
+  const flight: Flight = { position: { x: 10, y: 2, z: 20 }, phase: 'flying', seconds: 90, atBoundary: false }
+  expect(stepUncrewedFlight(flight, true, .1, map)).toBe(flight)
+  const falling = stepUncrewedFlight(flight, false, .1, map)
+  expect(falling.position).toEqual({ x: 10, y: 1.95, z: 20 })
+  let next = falling
+  for (let i = 0; i < 15 && next.phase === 'flying'; i++) next = stepUncrewedFlight(next, false, .1, map)
+  expect(next).toMatchObject({ phase: 'landed', landing: 'field', exit: dock })
+})
+
+it('combines the co-pilot input with the host input using the occupied seats', () => {
+  const controls: BalloonControls = { mode: 'split', direction: '101', altitude: '102',
+    emptyMillis: null, offer: null, input: { x: -1, z: 1, lift: 1 }, returning: false }
+  const input = { x: 1, z: -1, lift: -1 }
+  expect(inputForRole('split', 'altitude', input)).toEqual({ x: 0, z: 0, lift: -1 })
+  expect(combineFlightInput(controls, '101', input)).toEqual({ x: 1, z: -1, lift: 1 })
+  expect(combineFlightInput({ ...controls, altitude: null }, '101', input)).toEqual({ x: 1, z: -1, lift: 0 })
+  expect(combineFlightInput({ ...controls, mode: 'solo', altitude: null }, '101', input)).toEqual(input)
+})
 
 it('keeps the rider on the basket floor when holding a direction and the altitude key', () => {
   let rider = idleCabin

@@ -1,3 +1,5 @@
+import type { ControlMode } from './controls'
+
 export const CAPACITY = 4
 export const BALLOON_FARE = 100
 export const WAIT_SECONDS = 12
@@ -11,7 +13,7 @@ const CRUISE_HEIGHT = 54
 const TAKEOFF_RISE = 10
 
 export type Point = { x: number; y: number; z: number }
-export type BalloonBoarding = { capacity: number } | { leaderId: string }
+export type BalloonBoarding = { capacity: number; mode: ControlMode } | { leaderId: string }
 export type Input = { x: number; z: number; lift: number }
 export type FlightMap = {
   dock: Point
@@ -28,6 +30,7 @@ export type Flight = {
   returnReason?: 'time' | 'pilot' | 'terrain' | 'manual'
   landing?: 'dock' | 'field'
   exit?: Point
+  fallSpeed?: number
 }
 
 export function createFlight(map: FlightMap): Flight {
@@ -50,6 +53,17 @@ function approach(value: number, target: number, step: number) {
 
 function land(flight: Flight, position: Point, exit: Point, landing: 'dock' | 'field'): Flight {
   return { ...flight, phase: 'landed', position, exit, seconds: REMOVE_SECONDS, atBoundary: false, landing }
+}
+
+export function stepUncrewedFlight(flight: Flight, waiting: boolean, dt: number, map: FlightMap): Flight {
+  if (waiting) return flight
+  const { x, y, z } = flight.position
+  const speed = Math.min(8, (flight.fallSpeed ?? 0) + 5 * dt)
+  const altitude = y - speed * dt
+  const floor = map.floor(x, z)
+  if (altitude > floor + .12) return { ...flight, fallSpeed: speed, position: { x, y: altitude, z } }
+  const safe = map.landing(x, z)
+  return land(flight, safe?.position ?? { x, y, z }, safe?.exit ?? map.dockExit, 'field')
 }
 
 export function stepFlight(flight: Flight, input: Input, dt: number, map: FlightMap, elapsed = dt): Flight {

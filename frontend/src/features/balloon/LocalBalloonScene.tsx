@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { Group } from 'three'
 import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
 import { textInputOwnsKeys } from '../../world/inputOwnership'
-import { tickLocalBalloon, toggleLocalCabinMode, toggleLocalCabinPerspective, toggleLocalCabinSeat, useLocalBalloon } from './localRide'
+import { interactLocalBalloonCabin, tickLocalBalloon, toggleLocalCabinMode, toggleLocalCabinPerspective, useLocalBalloon } from './localRide'
 import { sampleRemoteBalloon, useRemoteBalloons } from './remoteRide'
 import { useBalloonModel } from './useBalloonModel'
 import { BalloonCabinSeats } from './BalloonCabinSeats'
@@ -63,12 +63,12 @@ export default function LocalBalloonScene() {
         event.preventDefault()
         if (!event.repeat) {
           if (event.code === 'KeyF') toggleLocalCabinMode()
-          else if (event.code === 'KeyE') toggleLocalCabinSeat()
+          else if (event.code === 'KeyE') interactLocalBalloonCabin()
           else toggleLocalCabinPerspective()
         }
         return
       }
-      if (!keys.has(event.code)) return
+      if (!keys.has(event.code) || event.repeat) return
       event.preventDefault()
       input.add(event.code)
     }
@@ -101,10 +101,10 @@ export default function LocalBalloonScene() {
     const inside = useLocalBalloon.getState().walkingInside
     const aim = inside ? cameraRelativeMove(-back, side, cabinCamera.yaw, false, false, steering.current) : null
     tickLocalBalloon({
-      x: aim?.dx ?? side,
-      z: aim?.dz ?? back,
+      x: side,
+      z: back,
       lift: Number(input.has('Space')) - Number(input.has('ShiftLeft') || input.has('ShiftRight')),
-    }, delta)
+    }, delta, aim ? { x: aim.dx, z: aim.dz, lift: 0 } : undefined)
     if (!root.current) return
     const { owner, leader, flight } = useLocalBalloon.getState()
     root.current.visible = !!flight && owner === leader
