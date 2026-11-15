@@ -1619,7 +1619,7 @@ public class TableHub {
         ride.payment = rentals.submit(ride.owner.accountId(), ride.id, ride.seconds + 1, ride.vehicle, deadline,
                 payment -> completeMobilityPayment(ride, payment));
         if (ride.payment == null) {
-            endRide(ride.owner.userId(), "FAILED");
+            endRide(ride.owner.userId(), "FAILED", "FAILED");
         }
     }
 
@@ -1642,17 +1642,18 @@ public class TableHub {
             return;
         }
         if (!paid) {
-            endRide(user, switch (payment) {
-                case INSUFFICIENT -> "INSUFFICIENT";
-                case ALREADY_PAID -> "ENDED";
-                default -> "FAILED";
-            });
+            // ALREADY_PAID는 첫 요금에서만 여기로 온다. 타기 전이라 행동 로그는 남지 않는다.
+            switch (payment) {
+                case INSUFFICIENT -> endRide(user, "INSUFFICIENT", "INSUFFICIENT");
+                case ALREADY_PAID -> endRide(user, "ENDED", "ENDED");
+                default -> endRide(user, "FAILED", "FAILED");
+            }
             return;
         }
         // An initial charge becomes visible only after commit and only for the same connection and channel.
         if (first) {
             if (!mobilityPositionValid(ride, true)) {
-                ride.endStatus = "ENDED";
+                markEnded(ride, "ENDED", "AUTO_ENDED");
                 finishRide(ride, receipt);
                 return;
             }
@@ -1663,7 +1664,7 @@ public class TableHub {
             notifyMobilityRide(ride, ride.startRequests, "RIDING", receipt);
             ride.startRequests.clear();
             ride.logged = true;
-            recordMobility(ride, null);
+            recordMobilityStart(ride);
         } else {
             ride.nextPaymentAt += MobilityRentals.SECOND;
             notifyMobilityRide(ride, Set.of(), "RIDING", receipt);
@@ -1672,17 +1673,19 @@ public class TableHub {
 
     // 첫 1초 요금이 커밋돼 실제로 탄 뒤에만 시작을, 그렇게 시작한 탈것만 종료를 남긴다. 시설 이용과 같은
     // FACILITY_USED·FACILITY_RELEASED를 쓰고 leaseId로 짝을 맞춘다. 이용 시간은 요금을 낸 초 수다.
-    private void recordMobility(MobilityRide ride, String endReason) {
-        recordBehavior(endReason == null ? BehaviorEventType.FACILITY_USED : BehaviorEventType.FACILITY_RELEASED,
-                ride.owner.accountId(), builder -> {
-                    builder.channelId(ride.channel).prop("leaseId", ride.id).prop("facilityId", ride.station)
-                            .prop("kind", ride.vehicle.name());
-                    if (endReason != null) {
-                        builder.prop("endReason", endReason).prop("durationMs", ride.seconds * 1000)
-                                .prop("fee", ride.total());
-                    }
-                    return builder;
-                });
+    private void recordMobilityStart(MobilityRide ride) {
+        recordBehavior(BehaviorEventType.FACILITY_USED, ride.owner.accountId(), builder -> mobilityProps(builder, ride));
+    }
+
+    private void recordMobilityEnd(MobilityRide ride) {
+        recordBehavior(BehaviorEventType.FACILITY_RELEASED, ride.owner.accountId(),
+                builder -> mobilityProps(builder, ride).prop("endReason", ride.logReason)
+                        .prop("durationMs", ride.seconds * 1000).prop("fee", ride.total()));
+    }
+
+    private static BehaviorEvent.Builder mobilityProps(BehaviorEvent.Builder builder, MobilityRide ride) {
+        return builder.channelId(ride.channel).prop("leaseId", ride.id).prop("facilityId", ride.station)
+                .prop("kind", ride.vehicle.name());
     }
 
     private void sendMobility(Member member, String request, String id, VehicleKind vehicle,
@@ -1700,21 +1703,16 @@ public class TableHub {
         member.peer().offer(protocol.encode(request, "WORLD_MOBILITY_STATE", result));
     }
 
-    private void endRide(String user, String status) {
-        endRide(user, status, null);
-    }
-
-    // logReason은 행동 로그에만 쓰는 종료 사유다. 없으면 클라이언트에 보내는 status를 그대로 쓴다.
+    // status는 클라이언트에 보내는 상태, logReason은 행동 로그에만 쓰는 종료 사유다. 호출부마다 둘 다 정한다.
     private void endRide(String user, String status, String logReason) {
         var ride = mobilityRides.get(user);
         if (ride == null || ride.endStatus != null) {
             return;
         }
-        ride.logReason = logReason;
         // Decide cancellation before broadcasting the dismount. A commit that already won
         // the decision is included in the final total when the worker reports its result.
         boolean resolved = ride.payment == null || ride.payment.cancel();
-        ride.endStatus = status;
+        markEnded(ride, status, logReason);
         if (ride.seconds > 0) {
             var world = channels.setVehicle(user, null);
             if (world != null) {
@@ -1726,10 +1724,16 @@ public class TableHub {
         }
     }
 
+    // 종료 상태와 로그용 종료 사유는 이 메서드로만 함께 정한다. 그래서 끝난 탈것에는 항상 종료 사유가 있다.
+    private static void markEnded(MobilityRide ride, String status, String logReason) {
+        ride.endStatus = java.util.Objects.requireNonNull(status);
+        ride.logReason = java.util.Objects.requireNonNull(logReason);
+    }
+
     private void finishRide(MobilityRide ride, String receipt) {
         mobilityRides.remove(ride.owner.userId());
         if (ride.logged) {
-            recordMobility(ride, ride.logReason == null ? ride.endStatus : ride.logReason);
+            recordMobilityEnd(ride);
         }
         ride.startRequests.addAll(ride.endRequests);
         notifyMobilityRide(ride, ride.startRequests, ride.endStatus, receipt);
@@ -1762,7 +1766,7 @@ public class TableHub {
                 endRide(user, "ENDED", "AUTO_ENDED");
             } else if (ride.payment != null) {
                 if (now - ride.paymentDeadline >= 0) {
-                    endRide(user, "FAILED");
+                    endRide(user, "FAILED", "FAILED");
                 }
             } else if (now - ride.nextPaymentAt >= 0) {
                 submitMobilityPayment(ride, ride.nextPaymentAt + MobilityRentals.SECOND);

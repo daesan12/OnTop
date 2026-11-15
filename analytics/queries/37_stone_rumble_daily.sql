@@ -16,15 +16,24 @@ paid AS (
     WHERE transaction_type = 'GAME_RANK_REWARD'
     GROUP BY game_session_id
 ),
+-- 참가자 행(명목 보상·기권)을 경기 하나로 먼저 접고, 그 뒤에 경기별 실제 지급(paid, 이미 경기당 한 행)을 붙인다.
+-- 지급 원장은 참가자마다 따로 생기지만 paid에서 경기별로 합쳐 두었으므로 여기서 다시 곱해지지 않는다.
+participants AS (
+    SELECT p.game_session_id,
+           SUM(p.result = 'FORFEIT') AS forfeits,
+           COALESCE(SUM(p.rank_reward), 0) AS nominal
+    FROM game_participants p
+    JOIN games g ON g.id = p.game_session_id
+    GROUP BY p.game_session_id
+),
 per_game AS (
     SELECT g.id, g.kst_date, g.participant_count, g.end_reason,
-           SUM(p.result = 'FORFEIT') AS forfeits,
-           COALESCE(SUM(p.rank_reward), 0) AS nominal,
-           COALESCE(MAX(pd.coins), 0) AS paid
+           COALESCE(pt.forfeits, 0) AS forfeits,
+           COALESCE(pt.nominal, 0) AS nominal,
+           COALESCE(pd.coins, 0) AS paid
     FROM games g
-    JOIN game_participants p ON p.game_session_id = g.id
+    LEFT JOIN participants pt ON pt.game_session_id = g.id
     LEFT JOIN paid pd ON pd.game_session_id = g.id
-    GROUP BY g.id, g.kst_date, g.participant_count, g.end_reason
 ),
 players AS (
     SELECT g.kst_date, COUNT(DISTINCT p.user_id) AS players
