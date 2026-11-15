@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useBungeoppang } from '../features/bungeoppang/store'
+import { useJumpRope } from '../features/jumpRope/store'
 import { useMole } from '../features/mole/store'
 import { usePlusMinus } from '../features/plusMinus/store'
 import { useRpsRoulette } from '../features/rpsRoulette/store'
@@ -24,6 +25,9 @@ function arcadeTrack(): BgmTrack | null {
 export function ParkBgm() {
   useEffect(() => {
     const update = () => {
+      // 구구구 줄넘기는 카운트다운 무음·GO 이후 반복 같은 자체 BGM을 직접 관리하므로, 창이 열려 있는 동안 공원 곡을 멈춘다.
+      // 창을 닫으면 공원 곡은 멈췄던 위치에서 다시 이어진다.
+      if (useJumpRope.getState().open) return playBgm(null)
       const session = useSession.getState()
       playBgm(parkTrack({
         game: useGame.getState().game,
@@ -37,7 +41,7 @@ export function ParkBgm() {
     }
     update()
     const timer = setInterval(update, 1000)
-    const stops = [useGame, useBungeoppang, useMole, useSpeedMole, useRpsRoulette, usePlusMinus, useShop, useWardrobe, useSession]
+    const stops = [useGame, useBungeoppang, useMole, useSpeedMole, useRpsRoulette, usePlusMinus, useShop, useWardrobe, useSession, useJumpRope]
       .map(store => store.subscribe(update))
     return () => { clearInterval(timer); stops.forEach(stop => stop()) }
   }, [])
