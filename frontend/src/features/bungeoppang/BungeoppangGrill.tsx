@@ -91,6 +91,16 @@ export function BungeoppangGrill() {
   const v5 = useBungeoppang(s => isV5Grill(s.grill && 'rulesVersion' in s.grill ? s.grill : null));
   const root = useRef<Group>(null), { gl, camera, scene } = useThree();
   const [error, setError] = useState<Error | null>(null);
+  const [startStageReady, setStartStageReady] = useState(false);
+  useEffect(() => {
+    if (!renewalBreadShop || phase !== 'start' || startStageReady) return;
+    // Leave a paint for the start panel before mounting meshes and changing the light setup.
+    let next = 0;
+    const first = requestAnimationFrame(() => {
+      next = requestAnimationFrame(() => setStartStageReady(true));
+    });
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(next); };
+  }, [phase, startStageReady]);
   useEffect(() => {
     if (!v5 || phase !== 'countdown' || !root.current) return;
     let mounted = true;
@@ -101,7 +111,7 @@ export function BungeoppangGrill() {
     return () => { mounted = false; };
   }, [v5, phase, gl, camera, scene]);
   if (error) throw error;
-  if (phase === "idle") return null;
+  if (phase === "idle" || renewalBreadShop && phase === "start" && !startStageReady) return null;
   return <group ref={root} name="bungeoppang-render-root">{(bungeoppangV5Enabled || renewalBreadShop) && <BungeoppangStageV5 />}<GrillMeshes />{v5 && <><BungeoppangFood25V5 /><BungeoppangSceneV5 /></>}</group>;
 }
 

@@ -28,7 +28,7 @@ import { SettingsLauncher } from '../performance/GraphicsSettings'
 import { ParkMap } from '../features/navigation/ParkMap'
 import { ParkNavigation } from '../features/navigation/NavigationHud'
 import { useBungeoppang, watchBungeoppangRecovery } from '../features/bungeoppang/store'
-import { loadBungeoppangHud } from '../features/bungeoppang/loadBungeoppangView'
+import { getPreloadedBungeoppangHud, loadBungeoppangHud } from '../features/bungeoppang/loadBungeoppangView'
 import { ShopHost } from '../features/shop/ShopHost'
 import { WardrobeLauncher, WardrobeHost } from '../features/wardrobe/WardrobeHost'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
@@ -72,7 +72,12 @@ import type { ServiceOperationStatus } from '../features/operation/serviceOperat
 
 
 const ArcadePicker = lazy(() => import('../features/arcade/ArcadePicker').then(module => ({ default: module.ArcadePicker })))
-const BungeoppangHud = lazy(loadBungeoppangHud)
+const LazyBungeoppangHud = lazy(loadBungeoppangHud)
+function BungeoppangHud() {
+  // Reuse a HUD already loaded on approach without re-entering the lazy fallback.
+  const [Hud] = useState(() => getPreloadedBungeoppangHud() ?? LazyBungeoppangHud)
+  return <Hud />
+}
 const MolePanel = lazy(() => import('../features/mole/MolePanel').then(module => ({ default: module.MolePanel })))
 const PlusMinusPanel = lazy(() => import('../features/plusMinus/PlusMinusPanel').then(module => ({ default: module.PlusMinusPanel })))
 const RpsRoulettePanel = lazy(() => import('../features/rpsRoulette/RpsRoulettePanel').then(module => ({ default: module.RpsRoulettePanel })))
