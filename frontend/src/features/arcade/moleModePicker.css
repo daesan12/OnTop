@@ -1,6 +1,6 @@
 .mole-mode-picker {
   box-sizing: border-box;
-  width: min(610px, calc(100% - 20px));
+  width: min(672px, calc(100% - 20px));
   max-width: none;
   max-height: calc(100dvh - 12px);
   padding: 10px 7px;
@@ -41,8 +41,8 @@
   align-items: center;
   gap: clamp(8px, 2dvh, 16px);
   min-width: 0;
-  min-height: clamp(352px, 54dvh, 480px);
-  padding: clamp(10px, 2.1vw, 22px);
+  min-height: clamp(306px, 41dvh, 374px);
+  padding: clamp(8px, 1.3vw, 15px);
   border: 4px double var(--mole-card-line);
   border-radius: 18px;
   background: linear-gradient(155deg, transparent 33%, var(--mole-card-tint)),
@@ -122,7 +122,7 @@
 
 @media (max-height: 560px) {
   .mole-mode-card {
-    min-height: min(312px, 63dvh);
+    min-height: min(254px, 61dvh);
   }
 }
 
