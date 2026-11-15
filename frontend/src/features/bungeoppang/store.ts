@@ -72,6 +72,7 @@ export interface BungPopup {
 }
 interface BungState {
   phase: BungPhase;
+  returningScene: boolean;
   tool: BreadTool;
   toolRevision: number;
   feedback: BungFeedback[];
@@ -113,6 +114,7 @@ interface BungState {
   submitError: { message: string; retryable: boolean } | null;
 }
 const initial = (): Omit<BungState, "phase" | "status" | "seenTips"> => ({
+  returningScene: false,
   tool: "batter",
   toolRevision: 0,
   feedback: [],
@@ -160,6 +162,9 @@ const get = useBungeoppang.getState,
 const R = BUNGEOPPANG;
 
 export const bungeoppangActive = () => get().phase !== "idle";
+export function finishBungeoppangReturnScene() {
+  if (get().returningScene) set({ returningScene: false });
+}
 const clearHeldInput = () =>
   window.dispatchEvent(new Event("ontop-clear-input"));
 
@@ -336,7 +341,7 @@ export function leaveBungeoppang() {
   // after the server has acknowledged abandon when a round is active.
   inputState.minigameOpen = false;
   clearHeldInput();
-  set({ phase: "idle", ...initial() });
+  set({ phase: "idle", ...initial(), returningScene: !!renewalBreadShop });
   v5DeliveryFeedback = null;
 }
 /** 연결이 끊기는 등 화면을 바로 정리해야 할 때. */

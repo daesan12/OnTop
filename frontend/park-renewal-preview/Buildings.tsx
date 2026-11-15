@@ -41,7 +41,7 @@ import { createTowerFrame } from './original/world/art/towerFrameGeometry'
 import { LakePart, LakeStage } from './lakeStages'
 import { estimatedServerTime } from '../src/network/serverEventClock'
 import { FacilityOnApproach } from './live/FacilityOnApproach'
-import { bungeoppangView } from '../src/features/bungeoppang/bungeoppangView'
+import { bungeoppangCookingView } from '../src/features/bungeoppang/bungeoppangView'
 import { ShaderPreparedGroup } from './live/ShaderPreparedGroup'
 
 const Arcade = lazy(() => import('./ArcadeBuilding'))
@@ -142,8 +142,8 @@ function RenewalTower({distanceLod}:{distanceLod:boolean}) {
 }
 function PublicBreadShop({ children }: { children: ReactNode }) {
  const shop = useRef<Group>(null)
- useFrame(() => {
-  if (shop.current) shop.current.visible = !bungeoppangView.active && performance.now() >= bungeoppangView.returningUntil
+ useFrame(({ clock }) => {
+  if (shop.current) shop.current.visible = !bungeoppangCookingView(clock.oldTime)
  })
  return <group ref={shop}>{children}</group>
 }

@@ -171,7 +171,7 @@ export const WorldCanvas = memo(function WorldCanvas({
 }) {
   const [distantReady, setDistantReady] = useState(false)
   const jumpRunActive = useJumpmap(state => !!state.run)
-  const breadActive = useBungeoppang(state => state.phase !== 'idle')
+  const breadSceneMounted = useBungeoppang(state => state.phase !== 'idle' || state.returningScene)
   const firstFrameAt = useRef<number | null>(null)
   const [entryPresented, setEntryPresented] = useState(false)
   const sceneMounted = useRef(false)
@@ -282,7 +282,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <CompanionActors />
         <JokeJudgeActor />          <FollowRopes />
           <RouteArrows />
-        {breadActive && <Suspense fallback={null}><BungeoppangGrill /></Suspense>}
+        {breadSceneMounted && <Suspense fallback={null}><BungeoppangGrill /></Suspense>}
           <ParkDebrisScene />
 
           {!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&<ParkPigeons quality={quality} />}
