@@ -56,6 +56,22 @@ export interface AuditFilters {
   date: string
 }
 
+export interface MoleDetections {
+  items: {
+    userId: string
+    nickname: string | null
+    withdrawn: boolean
+    flaggedRounds: number
+    liveRounds: number
+    completionRounds: number
+    latestRoundId: string
+    lastDetectedAt: string
+  }[]
+  from: string
+  until: string
+  limit: number
+}
+
 const BASE = '/api/v1/admin/macro-analysis/mole'
 
 async function request<T>(path: string, signal: AbortSignal): Promise<T> {
@@ -96,4 +112,8 @@ export function searchMoleAudit(filters: AuditFilters, signal: AbortSignal) {
 export function readMoleAudit(game: MoleGame, roundId: string, input: MoleInput, signal: AbortSignal) {
   const query = new URLSearchParams({ game, input })
   return request<AuditDetail>(`${BASE}/${encodeURIComponent(roundId)}?${query}`, signal)
+}
+
+export function readMoleDetections(game: MoleGame, signal: AbortSignal) {
+  return request<MoleDetections>(`${BASE}/detections?${new URLSearchParams({ game })}`, signal)
 }

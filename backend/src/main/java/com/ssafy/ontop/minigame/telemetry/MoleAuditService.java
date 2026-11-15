@@ -9,6 +9,7 @@ import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
 import com.ssafy.ontop.minigame.service.MoleTargets;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -28,6 +29,8 @@ class MoleAuditService {
     private static final int SEARCH_LIMIT = 40;
     private static final int MEMBER_LIMIT = 12;
     private static final int REFERENCE_LIMIT = 40;
+    private static final int DETECTION_DAYS = 30;
+    private static final int DETECTION_LIMIT = 100;
 
     private final MoleAuditStore store;
     private final BehaviorLog log;
@@ -64,6 +67,12 @@ class MoleAuditService {
         Instant until = day == null ? null : start(day.plusDays(1));
         var rounds = store.list(game, user, id, from, until, null, null, SEARCH_LIMIT);
         return captures(game, rounds).stream().map(Capture::summary).toList();
+    }
+
+    MoleAuditDtos.Detections detections(MoleAuditGame game, Instant until) {
+        Instant from = until.minus(DETECTION_DAYS, ChronoUnit.DAYS);
+        return new MoleAuditDtos.Detections(store.detections(game, from, until, DETECTION_LIMIT),
+                from, until, DETECTION_LIMIT);
     }
 
     MoleAuditDtos.Detail detail(MoleAuditGame game, long id, MoleAuditDtos.Input input) {

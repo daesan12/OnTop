@@ -35,6 +35,15 @@ public final class MoleAuditDtos {
                         int honeypotTaps, int completionHoneypotTaps) {
     }
 
+    @Schema(name = "MoleAuditDetectedMember")
+    public record DetectedMember(String userId, String nickname, boolean withdrawn, int flaggedRounds,
+                                 int liveRounds, int completionRounds, String latestRoundId, Instant lastDetectedAt) {
+    }
+
+    @Schema(name = "MoleAuditDetections")
+    public record Detections(List<DetectedMember> items, Instant from, Instant until, int limit) {
+    }
+
     @Schema(name = "MoleAuditDistribution")
     public record Distribution(int count, Integer median, Integer p10, Integer p90) {
     }

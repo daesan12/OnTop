@@ -8504,6 +8504,33 @@ paths:
                 $ref: "#/components/schemas/MoleAuditDetail"
       security:
       - AccessJwt: []
+  /api/v1/admin/macro-analysis/mole/detections:
+    get:
+      tags:
+      - ADMIN
+      summary: 두더지 더미 표적 적발 회원 조회
+      operationId: detections
+      parameters:
+      - name: game
+        in: query
+        required: true
+        schema:
+          type: string
+          x-utf16-max-length: 64
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MoleAuditDetections"
+      security:
+      - AccessJwt: []
   /api/v1/admin/feedback:
     get:
       tags:
@@ -13026,6 +13053,45 @@ components:
           type: boolean
         canViewContacts:
           type: boolean
+    MoleAuditDetections:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleAuditDetectedMember"
+        from:
+          type: string
+          format: date-time
+        until:
+          type: string
+          format: date-time
+        limit:
+          type: integer
+          format: int32
+    MoleAuditDetectedMember:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
+        withdrawn:
+          type: boolean
+        flaggedRounds:
+          type: integer
+          format: int32
+        liveRounds:
+          type: integer
+          format: int32
+        completionRounds:
+          type: integer
+          format: int32
+        latestRoundId:
+          type: string
+        lastDetectedAt:
+          type: string
+          format: date-time
     MoleAuditRound:
       type: object
       properties:
