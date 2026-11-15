@@ -1,5 +1,10 @@
 import { expect, it, vi } from 'vitest'
-vi.mock('../../src/park/mapSelection', () => ({ GENERATED_PARK_ENABLED: true }))
+vi.mock('../../src/park/mapSelection', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../src/park/mapSelection')>(),
+  GENERATED_PARK_ENABLED: true,
+  RENEWAL_PARK_ENABLED: false,
+  JUMPMAP_ENABLED: true,
+}))
 import { createPredictionPhysics } from '../../src/network/predictionPhysics'
 import { PARK_DATA } from '../../src/map/park'
 import { MOVEMENT } from '../../src/config'
