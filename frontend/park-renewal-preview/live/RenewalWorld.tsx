@@ -35,6 +35,7 @@ const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ d
 const TableBoards = lazy(() => import('../../src/features/tables/TableBoards'))
 const StoneRumbleEntranceStele = lazy(() => import('../../src/game/stone-rumble/StoneRumbleEntranceStele'))
 const ParkDetailGeometry = lazy(() => import('../ParkDetailGeometry').then(module => ({ default: module.ParkDetailGeometry })))
+const RenewalParkAdvertising = lazy(() => import('./RenewalParkAdvertising').then(module => ({ default: module.RenewalParkAdvertising })))
 
 const spawn = renewalMap?.data.physics.spawn.position
 const jumpEntrance = renewalMap?.data.jumpCourse?.start
@@ -231,7 +232,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       <Suspense fallback={null}>
         <StableParkBoundary />
         <OriginalPlaza />
-        <StableEntranceTrees />
+        <StableEntranceTrees live />
         <StableEntranceBuilding id="pavilion" />
         <StableEntranceBuilding id="fortune" />
         <StableEntranceBuilding id="lottery" />
@@ -241,7 +242,12 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
         <StableEntranceLandscape quality={quality} showFitnessStations={entryPresented && stage >= 1} />
         <GroundMounted ready={groundMounted} />
       </Suspense>
-      {entryPresented && stage >= 1 && <Suspense fallback={null}><StableScenicDetails includeGround={false} includeTrees={false} includeLandscape={false} distantReady={stage >= 2} live /></Suspense>}
+      {entryPresented && stage >= 1 && (
+        <>
+          <Suspense fallback={null}><RenewalParkAdvertising /></Suspense>
+          <Suspense fallback={null}><StableScenicDetails includeGround={false} includeTrees={false} includeLandscape={false} distantReady={stage >= 2} live /></Suspense>
+        </>
+      )}
       {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
         loadedRentalBatches={stage} /></Suspense>}
       {entryPresented && stage >= 3 && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>
