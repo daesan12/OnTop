@@ -227,12 +227,12 @@ export function SpotDifferencePanel() {
   const feedback = reviewing ? '녹색은 찾은 곳, 금색은 놓친 곳이에요.'
     : view?.tap ? messages[view.tap] : `다른 곳을 눌러 ${targetsPerRound}개를 찾으세요.`
 
-  return <PaperPopup title="사격정" label="스피드 틀린 그림 찾기" closeLabel={view ? '나가기' : '사격정 닫기'}
+  return <PaperPopup title="사격장" label="스피드 틀린 그림 찾기" closeLabel={view ? '나가기' : '사격장 닫기'}
     className={`spot-difference${view ? ' spot-playing' : ''}${urgent ? ' spot-urgent' : ''}`}
     initialFocusRef={entryHeading} onClose={closeSpotDifference}>
     <header className="spot-heading">
       <h2><span className="spot-emblem" aria-hidden />스피드 틀린 그림 찾기</h2>
-      {view && <span className="spot-venue">사격정</span>}
+      {view && <span className="spot-venue">사격장</span>}
     </header>
     {!view && !showDifficulty && <div className="spot-entry">
         <div className="spot-entry-art"><img src={sceneImage('range-counter', 'original')} alt="" /></div>
@@ -273,7 +273,6 @@ export function SpotDifferencePanel() {
         <strong>오늘 미니게임 보상 {todayEarned === undefined
           ? (budgetError ? '조회 실패' : '조회 중') : `${koreanNumber.format(todayEarned)}냥`}
           {' / '}{koreanNumber.format(dailyCap)}냥</strong>
-        <small>완주하면 남은 한도까지 지급됩니다.</small>
       </div>
       <button type="button" className="spot-guide-back" disabled={busy} onClick={() => {
         retry.current = null

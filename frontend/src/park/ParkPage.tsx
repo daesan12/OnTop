@@ -235,7 +235,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         </Suspense>}
         <SpeedMoleHost />
         <JumpRopeHost />
-        {spotDifferenceOpen && <Suspense fallback={<p role="status">사격정을 불러오는 중입니다.</p>}>
+        {spotDifferenceOpen && <Suspense fallback={<p role="status">사격장을 불러오는 중입니다.</p>}>
           <SpotDifferencePanel />
         </Suspense>}
         <FacilityStatus />
