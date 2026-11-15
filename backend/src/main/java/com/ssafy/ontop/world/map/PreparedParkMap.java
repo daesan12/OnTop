@@ -69,11 +69,9 @@ public final class PreparedParkMap {
         if (stoneRumble != null && (data.has("tableAnchorIds") || stoneRumble.has("interactionPoints"))) {
             var points = stoneRumble.path("interactionPoints");
             require(points.isArray() && !points.isEmpty(), "돌탑 생존전 입구가 필요합니다.");
-            double radius = stoneRumble.path("interactionRadius").asDouble(1.35);
-            require(Double.isFinite(radius) && radius > 0, "돌탑 생존전 입구 반경을 확인해주세요.");
             for (JsonNode point : points) {
                 Pose floor = position(point, 0);
-                entrances.add(new Reach(new Pose(floor.x(), floor.y() + .8, floor.z(), 0), radius, .65, true));
+                entrances.add(new Reach(new Pose(floor.x(), floor.y() + .8, floor.z(), 0), 1.35, .65, true));
             }
         }
         stoneRumbleEntrances = List.copyOf(entrances);
