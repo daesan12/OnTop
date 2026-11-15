@@ -3,7 +3,7 @@ import { parkXRView } from './xrView'
 import { avatars, useSession } from '../network/worldClient'
 import { parkRuntime } from '../park/runtime/runtime'
 import { aimAtRental, canReachRental } from '../features/mobility/targets'
-import { HOLD_MS, rentalCapability, resetMobility, sameTarget, useMobility } from '../features/mobility/state'
+import { HOLD_MS, rentalCapability, rentalNotice, resetMobility, sameTarget, useMobility } from '../features/mobility/state'
 import { createCarryEscape } from '../features/carry/escape'
 
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
@@ -78,7 +78,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const rentalAvatar = () => {
     const session = useSession.getState()
     const avatar = avatars.get(session.sessionId)
-    return rentalCapability.available && !blocked() && !panelOwnsKeys() && !session.pending && !session.benchId && !session.fitnessId
+    return !blocked() && !panelOwnsKeys() && !session.pending && !session.benchId && !session.fitnessId
       && !session.telescopeId && !avatar?.swimming && !avatar?.carry ? avatar : undefined
   }
   const updateRentalTarget = () => {
@@ -319,12 +319,16 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       const target = updateRentalTarget()
       if (target && !event.shiftKey && parkRuntime.rentVehicle) {
         event.preventDefault()
+        if (!rentalCapability.available) {
+          rentalNotice('현재 채널에서는 탈것을 대여할 수 없어요.')
+          return
+        }
         const holdAt = performance.now()
         useMobility.setState({ holdAt, notice: '' })
         rentalTimer = setTimeout(() => {
           rentalTimer = undefined
           const state = useMobility.getState(), avatar = rentalAvatar()
-          if (state.holdAt !== holdAt || !avatar || !canReachRental(avatar.current, target)) {
+          if (!rentalCapability.available || state.holdAt !== holdAt || !avatar || !canReachRental(avatar.current, target)) {
             cancelRentalHold()
             return
           }
