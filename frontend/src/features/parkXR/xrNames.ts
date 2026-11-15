@@ -4,6 +4,8 @@ import { displayNickname } from '../gameMaster/displayName'
 import { OVERHEAD } from '../../park/mapConfig'
 import { XRCanvas } from './XRCanvas'
 
+const NICKNAME_HEAD_CLEARANCE = .24
+
 export class XRNames {
   private readonly names = new Map<string, { panel: XRCanvas; text: string }>()
   private readonly pose = { x: 0, y: 0, z: 0, yaw: 0 }
@@ -16,8 +18,8 @@ export class XRNames {
     for (const [id, avatar] of avatars.entries()) {
       if (id === session.sessionId || !avatar.connected) continue
       const { x, y, z } = sampleAvatar(avatar, now, this.pose)
-      const height = y + 1.05
-      const distance = Math.hypot(eye.x - x, eye.y - height, eye.z - z)
+      const headHeight = y + 1.05
+      const distance = Math.hypot(eye.x - x, eye.y - headHeight, eye.z - z)
       const existing = this.names.get(id)
       if (distance > maxDistance || distance < .25) {
         if (existing) existing.panel.mesh.visible = false
@@ -36,8 +38,11 @@ export class XRNames {
         name.panel.texture.needsUpdate = true
       }
       const { mesh } = name.panel
-      mesh.position.set(x, height, z); mesh.lookAt(eye)
-      mesh.scale.setScalar(Math.max(.85, Math.min(3.2, distance / 5)))
+      const scale = Math.max(.85, Math.min(3.2, distance / 5))
+      const halfHeight = mesh.geometry.parameters.height * scale / 2
+      mesh.position.set(x, headHeight + NICKNAME_HEAD_CLEARANCE + halfHeight, z)
+      mesh.lookAt(eye)
+      mesh.scale.setScalar(scale)
       mesh.visible = true
     }
     for (const [id, name] of this.names) {
