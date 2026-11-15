@@ -42,6 +42,8 @@ interface Comparison {
 
 export interface AuditDetail {
   selected: AuditRound
+  nickname: string | null
+  withdrawn: boolean
   timeline: AuditEntry[]
   recent: AuditRound[]
   member: Comparison

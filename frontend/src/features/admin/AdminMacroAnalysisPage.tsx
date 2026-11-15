@@ -60,9 +60,8 @@ function MoleAudit({ onAuthEnded }: { onAuthEnded: () => void }) {
   const detailHeading = useRef<HTMLHeadingElement>(null)
   useEffect(() => () => request.current?.abort(), [])
 
-  const selectedMember = detail && selectedDetection?.userId === detail.selected.userId ? selectedDetection : null
-  const openedDetection = selectedMember && selectedMember.latestRoundId === detail?.selected.roundId
-    ? selectedMember : null
+  const openedDetection = detail && selectedDetection?.userId === detail.selected.userId
+    && selectedDetection.latestRoundId === detail.selected.roundId ? selectedDetection : null
   useEffect(() => {
     if (openedDetection) detailHeading.current?.focus()
   }, [openedDetection])
@@ -164,7 +163,7 @@ function MoleAudit({ onAuthEnded }: { onAuthEnded: () => void }) {
     {error && <p role="alert">{error}</p>}
     {detail && <section className="admin-macro-card" aria-labelledby="admin-mole-detail-title">
       <h3 id="admin-mole-detail-title" tabIndex={-1} ref={detailHeading}>{detail.selected.roundId}번 판 상세</h3>
-      <RoundIdentity detail={detail} member={selectedMember} detectedAt={openedDetection?.lastDetectedAt} />
+      <RoundIdentity detail={detail} detectedAt={openedDetection?.lastDetectedAt} />
     </section>}
     {rounds && <div className="admin-macro-layout">
       <div className="admin-macro-card">
@@ -196,9 +195,8 @@ function MoleAudit({ onAuthEnded }: { onAuthEnded: () => void }) {
   </>
 }
 
-function RoundIdentity({ detail, member, detectedAt }: {
+function RoundIdentity({ detail, detectedAt }: {
   detail: AuditDetail
-  member: MoleDetectedMember | null
   detectedAt?: string
 }) {
   // 목록은 종료 제출 신호도 포함하며, 상세의 타임라인에는 판 중 신호만 있다.
@@ -211,8 +209,8 @@ function RoundIdentity({ detail, member, detectedAt }: {
   const timestampLabel = detectedAt ? '최근 적발 시각' : '판 중 적발 시각'
 
   return <dl className="admin-mole-round-identity">
-    <div><dt>회원</dt><dd>{member?.nickname && <strong>{member.nickname} · </strong>}
-      회원 #{detail.selected.userId}{member?.withdrawn ? ' · 탈퇴' : ''}</dd></div>
+    <div><dt>회원</dt><dd>{detail.nickname && <strong>{detail.nickname} · </strong>}
+      회원 #{detail.selected.userId}{detail.withdrawn ? ' · 탈퇴' : ''}</dd></div>
     <div><dt>판 시작 시각 (한국 시간)</dt><dd>
       <time dateTime={detail.selected.startedAt}>{formatAuditDateTime(detail.selected.startedAt)}</time>
     </dd></div>

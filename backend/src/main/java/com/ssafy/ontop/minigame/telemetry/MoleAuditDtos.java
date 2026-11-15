@@ -54,7 +54,7 @@ public final class MoleAuditDtos {
     }
 
     @Schema(name = "MoleAuditDetail")
-    public record Detail(Round selected, List<Entry> timeline, List<Round> recent, Comparison member,
-                         Comparison reference) {
+    public record Detail(Round selected, String nickname, boolean withdrawn, List<Entry> timeline,
+                         List<Round> recent, Comparison member, Comparison reference) {
     }
 }

@@ -93,6 +93,9 @@ class MoleAuditMySqlTests {
             var detail = send("/api/v1/admin/macro-analysis/mole/456?game=" + game.path + "&input=KEYBOARD", 201, null);
             assertThat(detail.statusCode()).isEqualTo(200);
             var value = mapper.readTree(detail.body());
+            assertThat(value.path("selected").path("userId").asText()).isEqualTo("101");
+            assertThat(value.path("nickname").asText()).isEqualTo("audit101");
+            assertThat(value.path("withdrawn").booleanValue()).isFalse();
             assertThat(value.path("recent").size()).isEqualTo(2);
             assertThat(value.path("timeline").size()).isEqualTo(2);
             assertThat(value.path("timeline").get(0).path("outcome").asText()).isEqualTo("HONEYPOT");

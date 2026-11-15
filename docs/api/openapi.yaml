@@ -13134,6 +13134,10 @@ components:
       properties:
         selected:
           $ref: "#/components/schemas/MoleAuditRound"
+        nickname:
+          type: string
+        withdrawn:
+          type: boolean
         timeline:
           type: array
           items:

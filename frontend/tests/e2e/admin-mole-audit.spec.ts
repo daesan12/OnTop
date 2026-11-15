@@ -37,7 +37,7 @@ test('관리자가 게임 매크로 분석에서 판을 검색하고 타임라�
   await page.route('**/api/v1/admin/macro-analysis/mole/456?*', route => {
     expect(new URL(route.request().url()).searchParams.get('input')).toBe('KEYBOARD')
     return route.fulfill({ json: {
-      selected: round, recent: [round, recent],
+      selected: round, nickname: '검색 회원', withdrawn: false, recent: [round, recent],
       member: { rounds: 2, honeypotTaps: 1, completionHoneypotTaps: 0, first: distribution,
         rapid: { count: 7, median: 91, p10: 88, p90: 95 } },
       reference: { rounds: 20, honeypotTaps: 0, completionHoneypotTaps: 0,
@@ -52,6 +52,13 @@ test('관리자가 게임 매크로 분석에서 판을 검색하고 타임라�
       ],
     } })
   })
+  await page.route('**/api/v1/admin/macro-analysis/mole/455?*', route => {
+    const comparison = { rounds: 0, honeypotTaps: 0, completionHoneypotTaps: 0, first: distribution, rapid: distribution }
+    return route.fulfill({ json: {
+      selected: recent, nickname: '검색 회원', withdrawn: false,
+      recent: [round, recent], timeline: [], member: comparison, reference: comparison,
+    } })
+  })
   await page.goto('/admin')
   await page.getByRole('navigation', { name: '관리자 메뉴' }).getByRole('button', { name: '게임 매크로 분석' }).click()
   await page.getByRole('button', { name: /두더지 플레이 기록/ }).click()
@@ -62,7 +69,7 @@ test('관리자가 게임 매크로 분석에서 판을 검색하고 타임라�
 
   await expect(page.getByRole('heading', { name: '456번 판 타임라인' })).toBeVisible()
   const detail = page.getByRole('region', { name: '456번 판 상세' })
-  await expect(detail).toContainText('회원 #101')
+  await expect(detail).toContainText('검색 회원 · 회원 #101')
   await expect(detail).toContainText('판 중 적발 시각 (한국 시간)')
   await expect(detail).toContainText('2026-11-13 10:00:03.860')
   await expect(page.getByRole('button', { name: '455' })).toBeVisible()
@@ -72,6 +79,8 @@ test('관리자가 게임 매크로 분석에서 판을 검색하고 타임라�
   await page.setViewportSize({ width: 390, height: 740 })
   await expect(page.getByRole('heading', { name: '같은 게임·입력 방식 비교' })).toBeVisible()
   expect(await page.locator('body').evaluate(body => body.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.getByRole('button', { name: '455', exact: true }).click()
+  await expect(page.getByRole('region', { name: '455번 판 상세' })).toContainText('검색 회원 · 회원 #101')
 })
 
 test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이 연다', async ({ page }, testInfo) => {
@@ -105,7 +114,10 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
     })
     const selected = { ...round, observedTaps: 0, honeypotTaps: 0, completionHoneypotTaps: 1 }
     const comparison = { rounds: 1, honeypotTaps: 0, completionHoneypotTaps: 1, first: distribution, rapid: distribution }
-    return route.fulfill({ json: { selected, recent: [selected], timeline: [], member: comparison, reference: comparison } })
+    return route.fulfill({ json: {
+      selected, nickname: '테스트 회원', withdrawn: false, recent: [selected], timeline: [],
+      member: comparison, reference: comparison,
+    } })
   })
 
   await page.goto('/admin')

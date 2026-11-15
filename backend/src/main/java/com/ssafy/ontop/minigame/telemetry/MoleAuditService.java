@@ -52,7 +52,7 @@ class MoleAuditService {
                 || !takeQuota(userId, receivedAt.getEpochSecond()) || taps.stream().anyMatch(tap -> !valid(game, tap))) {
             return;
         }
-        var round = store.find(game, roundId, userId);
+        var round = store.findOwnedRound(game, roundId, userId);
         if (round == null || round.status().equals("EXPIRED") || receivedAt.isBefore(round.startedAt())
                 || receivedAt.isAfter(round.startedAt().plusMillis(game.durationMs + 30_000L))) {
             return;
@@ -85,10 +85,11 @@ class MoleAuditService {
     }
 
     MoleAuditDtos.Detail detail(MoleAuditGame game, long id, MoleAuditDtos.Input input) {
-        var selected = store.find(game, id, null);
-        if (selected == null) {
+        var roundWithMember = store.findRoundWithMember(game, id);
+        if (roundWithMember == null) {
             return null;
         }
+        var selected = roundWithMember.round();
         var day = selected.startedAt().atZone(MinigameRewardBudget.KST).toLocalDate();
         Instant from = start(day);
         Instant until = start(day.plusDays(1));
@@ -107,8 +108,9 @@ class MoleAuditService {
                 .findFirst().orElseThrow();
         var timeline = target.timeline().stream().sorted(Comparator.comparing(MoleAuditDtos.Entry::receivedAt)
                 .thenComparingInt(MoleAuditDtos.Entry::sequence)).toList();
-        return new MoleAuditDtos.Detail(target.summary(), timeline, member.stream().map(Capture::summary).toList(),
-                compare(member, input), compare(reference, input));
+        return new MoleAuditDtos.Detail(target.summary(), roundWithMember.nickname(), roundWithMember.withdrawn(),
+                timeline, member.stream().map(Capture::summary).toList(), compare(member, input),
+                compare(reference, input));
     }
 
     private List<Capture> captures(MoleAuditGame game, List<MoleAuditStore.RoundData> rounds) {

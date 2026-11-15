@@ -32,18 +32,29 @@ class MoleAuditStore {
     record RoundData(long id, long userId, long seed, int version, Instant startedAt, String status) {
     }
 
+    record RoundWithMember(RoundData round, String nickname, boolean withdrawn) {
+    }
+
     record Event(Instant receivedAt, JsonNode props, boolean settlement) {
     }
 
-    RoundData find(MoleAuditGame game, long id, Long owner) {
-        var args = new HashMap<String, Object>();
-        args.put("id", id);
-        String sql = select(game) + " WHERE id = :id";
-        if (owner != null) {
-            sql += " AND user_id = :owner";
-            args.put("owner", owner);
-        }
-        return jdbc.query(sql, args, (row, index) -> round(row)).stream().findFirst().orElse(null);
+    RoundData findOwnedRound(MoleAuditGame game, long id, long owner) {
+        String sql = select(game) + " WHERE id = :id AND user_id = :owner";
+        return jdbc.query(sql, Map.of("id", id, "owner", owner), (row, index) -> round(row))
+                .stream().findFirst().orElse(null);
+    }
+
+    RoundWithMember findRoundWithMember(MoleAuditGame game, long id) {
+        String sql = """
+                SELECT r.id, r.user_id, r.seed, r.rules_version, r.started_at, r.status,
+                       u.nickname, u.deleted_at IS NOT NULL AS withdrawn
+                FROM %s r
+                LEFT JOIN users u ON u.id = r.user_id
+                WHERE r.id = :id
+                """.formatted(game.table);
+        return jdbc.query(sql, Map.of("id", id), (row, index) -> new RoundWithMember(
+                round(row), row.getString("nickname"), row.getBoolean("withdrawn")))
+                .stream().findFirst().orElse(null);
     }
 
     List<RoundData> list(MoleAuditGame game, Long user, Long id, Instant from, Instant until, Integer version,
