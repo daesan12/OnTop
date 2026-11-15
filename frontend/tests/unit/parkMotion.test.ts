@@ -33,6 +33,15 @@ it('clears grounded sprint velocity on the first step without movement input', (
  expect(ground.flags()).toEqual({ moving: false, running: false })
  expect(air.advance(stop, 1 / 60, false).x).toBeGreaterThan(0)
 })
+it('uses the usual ground drag when releasing walking input', () => {
+ const motion = new ParkMotion()
+ motion.advance({ ...stop, dx: 1 }, 1 / 60, true)
+ const first = motion.advance(stop, 1 / 60, true).x
+ const second = motion.advance(stop, 1 / 60, true).x
+ expect(first).toBeGreaterThan(0)
+ expect(second / first).toBeCloseTo(MC.groundDrag ** (20 / 60))
+ expect(motion.flags()).toEqual({ moving: true, running: false })
+})
 it('actual Rapier jump lands at a stable floor and reaches the reference height',async()=>{
  const sim=await createPredictionPhysics('PARK_V1')
  try {sim.reset({x:-10,y:.84,z:42,yaw:0},0,true);const ys:number[]=[]

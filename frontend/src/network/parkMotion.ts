@@ -16,7 +16,8 @@ export class ParkMotion {
    if(input.run){this.vx+=input.dx*settings.sprintJumpBoost;this.vz+=input.dz*settings.sprintJumpBoost}
   }
   const supported=grounded&&!jump, drag=supported?PARK_MOTION.groundDrag:PARK_MOTION.airDrag
-  if (supported && !input.dx && !input.dz) this.stopHorizontal()
+  // Cut off a released sprint while retaining the normal walk's ground drag.
+  if (supported && this.running && !input.dx && !input.dz) this.stopHorizontal()
   // Continuous horizontal response preserves the 20Hz drag time scale at any render rate.
   const rate=-Math.log(drag)*20, decay=Math.exp(-rate*dt)
   const speed=supported?(input.run?settings.runSpeed:settings.walkSpeed)
