@@ -44,6 +44,7 @@ import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
 import { Canvas, preloadWorldAssets } from './worldAssets'
 import {ParkDebrisScene} from '../features/parkDebris/ParkDebrisScene'
+import { BALLOON_RIDE_ENABLED } from '../park/mapSelection'
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { prepareScene, prepareVisibleScenePrograms } from './prepareScene'
 import { warmParkGeometry } from '../park/loadParkGeometry'
@@ -54,6 +55,7 @@ import { useFortune } from '../features/fortune/state'
 import { useBungeoppang } from '../features/bungeoppang/store'
 import { loadBungeoppangGrill } from '../features/bungeoppang/loadBungeoppangView'
 
+const LocalBalloonScene = lazy(() => import('../features/balloon/LocalBalloonScene'))
 const PlaceholderWorld = lazy(() => import('./PlaceholderWorld').then(module => ({ default: module.PlaceholderWorld })))
 const RpsRouletteCabinet = lazy(() => import('../features/rpsRoulette/RpsRouletteCabinet').then(module => ({ default: module.RpsRouletteCabinet })))
 const BungeoppangGrill = lazy(loadBungeoppangGrill)
@@ -262,6 +264,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         }
       >
         <AvatarPoseFrame>
+          {BALLOON_RIDE_ENABLED && <Suspense fallback={null}><LocalBalloonScene /></Suspense>}
           <ParkXRBridge />
           <group name={RENEWAL_PARK_ENABLED ? 'renewal-exterior-lighting' : undefined}>
             <EnvironmentScene matchServiceBrightness={RENEWAL_PARK_ENABLED} />

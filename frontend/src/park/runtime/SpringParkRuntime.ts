@@ -466,6 +466,7 @@ export class ParkRuntime implements ParkRuntimePort {
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     const parkRankingRequest = method === 'GET' && path === '/api/v1/rankings/park'
     const fitnessRewardRequest = method === 'GET' && path === '/api/v1/world/fitness/rewards/status'
+    const balloonFareRequest = method === 'POST' && path === '/api/v1/world/balloon/tickets'
     const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR))?$/.test(path)
@@ -503,7 +504,7 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerCoop
       && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest
-      && !spotDifferenceRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
+      && !spotDifferenceRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest && !balloonFareRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
@@ -1193,7 +1194,7 @@ export class ParkRuntime implements ParkRuntimePort {
       && !facilityMovementBlocked(s.sessionId)
       && (!avatars.get(s.sessionId)?.carry || avatars.get(s.sessionId)?.carry?.role === 'CARRIER')
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
-      && (!inputState.minigameOpen || stoppedIntent(intent))
+      && (!(inputState.minigameOpen || inputState.localBalloon) || stoppedIntent(intent))
       && (!useTableLobby.getState().joiningAnchorId || stoppedIntent(intent))
       && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
   }
