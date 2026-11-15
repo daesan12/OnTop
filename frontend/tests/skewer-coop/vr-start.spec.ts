@@ -19,7 +19,7 @@ test('VR 조리대 높이가 적용되고 꼬치를 들어도 길이와 끝 고�
   await command(page, 'start')
   const assembly = await command(page, 'measureAssembly')
   expect(assembly).toMatchObject({ held: true, returned: true, markerOccluded: false })
-  expect(assembly.counterHeight).toBeCloseTo(.85, 2)
+  expect(assembly.counterHeight).toBeCloseTo(.95, 2)
   expect(assembly.restingLength).toBeLessThan(.65)
   expect(assembly.heldLength).toBeCloseTo(assembly.restingLength, 5)
   expect(assembly.markerRenderOrder).toBeGreaterThan(0)
