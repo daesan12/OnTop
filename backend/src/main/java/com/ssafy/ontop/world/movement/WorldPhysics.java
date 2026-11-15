@@ -647,7 +647,11 @@ public final class WorldPhysics implements AutoCloseable {
                 stepX = Math.clamp(position.x + stepX, -limit, limit) - position.x;
                 stepZ = Math.clamp(position.z + stepZ, -limit, limit) - position.z;
             }
-            a.body.setWalkDirection(new Vector3f(stepX, 0, stepZ));
+            var walkStep = new Vector3f(stepX, 0, stepZ);
+            if (a.vehicleSpeed > 0 && !a.swimming && a.throwTicks == 0 && walkStep.lengthSquared() > 0) {
+                walkStep = scene.policy.limitFurnitureTravel(position, walkStep, this::activeShape);
+            }
+            a.body.setWalkDirection(walkStep);
             if (active && a.jumpQueued && a.swimming && (dx != 0 || dz != 0)) {
                 for (JsonNode stone : scene.data.path("steppingStones")) {
                     double sx = stone.path("x").asDouble(), sz = stone.path("z").asDouble();
@@ -710,7 +714,7 @@ public final class WorldPhysics implements AutoCloseable {
             if (dx != 0 || dz != 0) {
                 a.yaw = Math.atan2(dx, dz);
             }
-            a.moving = active && (dx != 0 || dz != 0);
+            a.moving = active && walkStep.lengthSquared() > 0;
             a.running = active && input.run();
         }
         if(renewalMotion==null) space.update(DT, 0);
