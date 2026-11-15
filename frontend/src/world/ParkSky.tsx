@@ -16,6 +16,7 @@ void main() {
 const fragment = `
 uniform vec3 topColor, horizonColor, sunDirection;
 uniform float daylight, twilight, night, clearDay;
+uniform bool showConstellationLines;
 varying vec3 vDirection;
 
 float hash(vec2 p) {
@@ -76,9 +77,14 @@ vec3 constellationLight(vec2 sky) {
   } else {
     return vec3(0.);
   }
-  float line = 1. - smoothstep(.0005, .0022, distances.x);
-  float star = 1. - smoothstep(.0013, .0044, distances.y);
-  return vec3(.29, .47, .72) * line * .17 + vec3(.7, .85, 1.) * star * .92;
+  float star = 1. - smoothstep(.0014, .0043, distances.y);
+  float halo = 1. - smoothstep(.003, .009, distances.y);
+  vec3 light = vec3(.72, .86, 1.) * (star * 1.18 + halo * .19);
+  if (showConstellationLines) {
+    float line = 1. - smoothstep(.0006, .0024, distances.x);
+    light += vec3(.34, .54, .8) * line * .32;
+  }
+  return light;
 }
 
 #ifndef SIMPLE_SKY
@@ -153,6 +159,7 @@ export function ParkSky({ simple = false, matchServiceBrightness = false }: {
       twilight: { value: 0 },
       night: { value: 0 },
       clearDay: { value: 0 },
+      showConstellationLines: { value: false },
     },
     vertexShader: vertex,
     fragmentShader: fragment,
@@ -175,7 +182,13 @@ export function ParkSky({ simple = false, matchServiceBrightness = false }: {
   })
 
   // At far-plane depth, opaque park geometry can reject hidden sky pixels.
-  return <mesh name="dynamic-sky" renderOrder={100} frustumCulled={false}>
+  return <mesh name="dynamic-sky" renderOrder={100} frustumCulled={false}
+    onBeforeRender={(_renderer, _scene, camera) => {
+      const lines = camera.userData.showConstellationLines === true
+      if (material.uniforms.showConstellationLines.value === lines) return
+      material.uniforms.showConstellationLines.value = lines
+      material.uniformsNeedUpdate = true
+    }}>
     <sphereGeometry args={[600, 32, 16]} />
     <primitive object={material} attach="material" />
   </mesh>

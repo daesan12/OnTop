@@ -167,7 +167,7 @@
     "src/config/telescopes.ts": "f7a1cf883f2033895c9cea01f8873038c6b6e176cf1d71e0d9e5ef22ed1a278d",
     "src/config/world.ts": "514d1c22d5d95fa54abf3674ea84a0978fe22f938937aef4d33a82ed6b15877c",
     "src/world/worldAssets.ts": "1eb126fcd5c864fc06044db5bc9c4ecabdb195bc2a264951aeb3b898a7800e7d",
-    "src/world/ParkSky.tsx": "c537072740e0237408d59703f64520024cabe3df6b05aefe94b2b28f215b2517",
+    "src/world/ParkSky.tsx": "89fc8c6ecb8c050a996e4c17cc8dea13a185413815b47d9d308b869f0e8b7293",
     "src/world/EnvironmentScene.tsx": "5aa6d51ee10543cb44404be97647cac6943c425ba96d467eb5a6918b54b621aa",
     "src/world/SimpleParkEnvironment.tsx": "65cb3943df60007aca022c1051a2c0b7638fd8774bc4e1dde15267732a148c19",
     "src/features/tables/MainPavilionTable.tsx": "b575e34d9585fd57b102933d2c0008f1a304d6e4187f9824d2fe1ec18ba29673",
