@@ -58,11 +58,34 @@
 }
 .spot-difference .spot-entry-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .spot-difference .spot-entry-info { min-width: 0; }
-.spot-difference .spot-entry-info h3 {
+.spot-difference .spot-entry-info h3, .spot-difference .spot-picker h3 {
   margin: 0;
   font: 700 clamp(20px, 3vw, 29px)/1.13 BusanDandiMyeongjo, serif;
 }
-.spot-difference .spot-description { margin: 5px 0 12px; color: var(--spot-muted); font-size: .86rem; line-height: 1.55; }
+.spot-difference h3:focus { outline: none; }
+.spot-difference .spot-guide-steps {
+  display: grid;
+  gap: 7px;
+  padding-inline-start: 1.45em;
+  margin: 10px 0;
+  color: var(--spot-ink);
+  font-size: .84rem;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+.spot-difference .spot-guide-steps li::marker { color: var(--spot-red); font-weight: 700; }
+.spot-difference .spot-guide-keys { margin: 8px 0 12px; color: var(--spot-muted); font-size: .75rem; }
+.spot-difference .spot-guide-keys kbd {
+  padding: 1px 4px;
+  border: 1px solid #bd9d74;
+  border-radius: 4px;
+  background: #fff0d4;
+  font: inherit;
+  font-weight: 700;
+}
+.spot-difference .spot-guide-next { width: 100%; }
+.spot-difference .spot-picker { max-width: 600px; margin: 0 auto; }
+.spot-difference .spot-picker h3 { margin-bottom: 12px; }
 .spot-difference .spot-cards { display: grid; gap: 7px; }
 .spot-difference .spot-card {
   --card-line: #a26d3a;
@@ -103,6 +126,7 @@
   font-size: .83rem;
 }
 .spot-difference .spot-entry-budget small { color: var(--spot-muted); font-size: .78rem; }
+.spot-difference .spot-guide-back { margin-top: 12px; min-height: 38px; color: var(--spot-muted); font-size: .83rem; }
 
 .table-paper-backdrop:has(> .spot-playing) {
   padding: clamp(6px, 1.5vw, 18px);

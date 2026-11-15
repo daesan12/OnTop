@@ -110,6 +110,7 @@ function RoundHud({ view, remaining, urgent }: { view: Round; remaining: number;
 }
 
 export function SpotDifferencePanel() {
+  const [showDifficulty, setShowDifficulty] = useState(false)
   const [budget, setBudget] = useState<Budget>()
   const [budgetError, setBudgetError] = useState(false)
   const [view, setView] = useState<Round>()
@@ -123,9 +124,14 @@ export function SpotDifferencePanel() {
   const retry = useRef<(() => Promise<Round>) | null>(null)
   const shotNumber = useRef(0)
   const deadline = useRef(0)
+  const entryHeading = useRef<HTMLHeadingElement>(null)
   const scene = view?.scene
   const difficulty = view?.difficulty
   const loadedKey = scene && difficulty ? `${scene}:${difficulty}:${assetRetry}` : ''
+
+  useEffect(() => {
+    if (!view) entryHeading.current?.focus()
+  }, [showDifficulty, view])
 
   useEffect(() => {
     const abort = new AbortController()
@@ -222,28 +228,39 @@ export function SpotDifferencePanel() {
     : view?.tap ? messages[view.tap] : `다른 곳을 눌러 ${targetsPerRound}개를 찾으세요.`
 
   return <PaperPopup title="사격정" label="스피드 틀린 그림 찾기" closeLabel={view ? '나가기' : '사격정 닫기'}
-    className={`spot-difference${view ? ' spot-playing' : ''}${urgent ? ' spot-urgent' : ''}`} onClose={closeSpotDifference}>
+    className={`spot-difference${view ? ' spot-playing' : ''}${urgent ? ' spot-urgent' : ''}`}
+    initialFocusRef={entryHeading} onClose={closeSpotDifference}>
     <header className="spot-heading">
       <h2><span className="spot-emblem" aria-hidden />스피드 틀린 그림 찾기</h2>
       {view && <span className="spot-venue">사격정</span>}
     </header>
-    {!view && <>
-      <div className="spot-entry">
+    {!view && !showDifficulty && <div className="spot-entry">
         <div className="spot-entry-art"><img src={sceneImage('range-counter', 'original')} alt="" /></div>
         <div className="spot-entry-info">
-          <h3>난이도 선택</h3>
-          <p className="spot-description">무작위 {rounds}장 · 장면당 {roundSeconds}초<br />각 그림에서 다른 곳 {targetsPerRound}개를 찾으세요.</p>
-          <div className="spot-cards" aria-label="난이도 카드">
-            {(Object.keys(cards) as Difficulty[]).map(choice => {
-              const card = cards[choice]
-              return <button type="button" key={choice} className="spot-card" data-difficulty={choice}
-                disabled={busy} onClick={() => begin(choice)}>
-                <span><strong>{card.label}</strong><small>{card.detail}</small></span>
-                <span className="spot-card-coin">최대 <b>{card.reward * totalTargets}냥</b></span>
-              </button>
-            })}
-          </div>
+          <h3 ref={entryHeading} tabIndex={-1}>게임 방법</h3>
+          <ol className="spot-guide-steps">
+            <li>매 판 무작위로 나오는 <strong>{rounds}장</strong>에서 각각 다른 곳 <strong>{targetsPerRound}개</strong>를 찾으세요. 장면당 <strong>{roundSeconds}초</strong>예요.</li>
+            <li>원본이나 비교 그림에서 다른 부분을 누르세요. 맞히면 표적이 하나 줄고, 빗나가면 잠시 뒤 다시 조준할 수 있어요.</li>
+            <li>모두 찾거나 시간이 끝나면 정답을 확인하고 다음 장면으로 넘어가세요.</li>
+          </ol>
+          <p className="spot-guide-keys">키보드는 <kbd>방향키</kbd>로 조준하고 <kbd>Enter</kbd>로 선택해요.</p>
+          <button type="button" className="spot-primary spot-guide-next" onClick={() => setShowDifficulty(true)}>
+            난이도 고르기
+          </button>
         </div>
+      </div>
+    }
+    {!view && showDifficulty && <div className="spot-picker">
+      <h3 ref={entryHeading} tabIndex={-1}>난이도 선택</h3>
+      <div className="spot-cards" aria-label="난이도 카드">
+        {(Object.keys(cards) as Difficulty[]).map(choice => {
+          const card = cards[choice]
+          return <button type="button" key={choice} className="spot-card" data-difficulty={choice}
+            disabled={busy} onClick={() => begin(choice)}>
+            <span><strong>{card.label}</strong><small>{card.detail}</small></span>
+            <span className="spot-card-coin">최대 <b>{card.reward * totalTargets}냥</b></span>
+          </button>
+        })}
       </div>
       <div className="spot-entry-budget">
         <strong>오늘 미니게임 보상 {todayEarned === undefined
@@ -251,7 +268,12 @@ export function SpotDifferencePanel() {
           {' / '}{koreanNumber.format(dailyCap)}냥</strong>
         <small>완주하면 남은 한도까지 지급됩니다.</small>
       </div>
-    </>}
+      <button type="button" className="spot-guide-back" disabled={busy} onClick={() => {
+        retry.current = null
+        setError('')
+        setShowDifficulty(false)
+      }}>게임 방법 다시 보기</button>
+    </div>}
     {view && <>
       <RoundHud view={view} remaining={remaining} urgent={urgent} />
       {waiting ? <div className="spot-ready"><span className="spot-emblem" aria-hidden />
