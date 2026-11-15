@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '../../network/worldClient'
 import { PaperPopup } from '../tableLobby/PaperPopup'
@@ -14,6 +15,22 @@ import { useRemoteBalloons } from './remoteRide'
 import { roleOf, type ControlMode, type ControlRole } from './controls'
 import './localBalloon.css'
 
+function BalloonKeys({ direction, altitude, walking = false, seated = false }: {
+  direction: boolean; altitude: boolean; walking?: boolean; seated?: boolean
+}) {
+  return <div className="park-balloon-key-guide">
+    {direction && <span><kbd>WASD / 방향키</kbd> {walking ? '걷기' : '방향 조종'}</span>}
+    {altitude && <><span><kbd>Space</kbd> 상승</span><span><kbd>Shift</kbd> 하강</span></>}
+    {walking && <><span><kbd>E</kbd> {seated ? '일어나기' : '앉기'}</span><span>드래그로 둘러보기</span></>}
+  </div>
+}
+
+function BalloonWarning({ children }: { children: ReactNode }) {
+  return <span className="park-balloon-warning" role="status">
+    <i className="park-balloon-warning-icon" aria-hidden="true">!</i>{children}
+  </span>
+}
+
 function BalloonBoardingOptions({ paying, capacity, setCapacity, mode, setMode }: {
   paying: boolean; capacity: number; setCapacity: (capacity: number) => void
   mode: ControlMode; setMode: (mode: ControlMode) => void
@@ -23,19 +40,18 @@ function BalloonBoardingOptions({ paying, capacity, setCapacity, mode, setMode }
     return party?.boarding && 1 + Object.keys(party.passengers).length < party.capacity
   })))
   return <>
-    <p>비행 중 조종을 넘겨줄 수 있어요. 조종석이 모두 비면 3초 뒤 추락해요.</p>
     <fieldset className="park-balloon-capacity" disabled={paying}>
-      <legend>새 열기구의 최대 탑승 인원</legend>
+      <legend>탑승 정원</legend>
       {Array.from({ length: CAPACITY }, (_, index) => index + 1).map(limit => <label key={limit}>
         <input type="radio" name="balloon-capacity" checked={capacity === limit} onChange={() => {
           setCapacity(limit)
           if (limit === 1) setMode('solo')
         }} />
-        {limit}인
+        <span>{limit}명</span>
       </label>)}
     </fieldset>
     <fieldset className="park-balloon-mode" disabled={paying}>
-      <legend>조종 방식</legend>
+      <legend className="park-balloon-sr-only">조종 방식</legend>
       <label><input type="radio" name="balloon-mode" checked={mode === 'solo'} onChange={() => setMode('solo')} />
         <strong>혼자 조종</strong><span>방향과 고도를 한 사람이 맡아요.</span></label>
       <label><input type="radio" name="balloon-mode" checked={mode === 'split'} onChange={() => {
@@ -44,14 +60,15 @@ function BalloonBoardingOptions({ paying, capacity, setCapacity, mode, setMode }
       }} />
         <strong>2인 분담 조종</strong><span>두 사람이 방향과 고도를 나눠 맡아요.</span></label>
     </fieldset>
-    <div className="park-balloon-key-guide">
-      <span>방향 <kbd>WASD / 방향키</kbd></span>
-      <span>고도 <kbd>Space</kbd> 상승 · <kbd>Shift</kbd> 하강</span>
-    </div>
-    <div className="paper-actions">
+    <BalloonKeys direction altitude />
+    <BalloonWarning>
+      <span>조종석이 모두 비면 <strong>3초 뒤 추락</strong>해요.<br />
+        자리를 비울 때는 동승자에게 조종을 넘길 수 있어요.</span>
+    </BalloonWarning>
+    <div className="paper-actions park-balloon-ticket-actions">
       <button type="button" disabled={paying} onClick={() => showLocalBalloonManual(true)}>이용 안내</button>
       <button type="button" className="paper-primary" disabled={paying}
-        onClick={() => void boardLocalBalloon({ capacity, mode })}>{BALLOON_FARE}냥 내고 탑승하기</button>
+        onClick={() => void boardLocalBalloon({ capacity, mode })}>{paying ? '결제 확인 중…' : `${BALLOON_FARE}냥 내고 탑승하기`}</button>
     </div>
     {openRides.length > 0 && <section className="park-balloon-joining" aria-label="합류 가능한 열기구">
       <h3>탑승객을 기다리는 열기구</h3>
@@ -68,8 +85,10 @@ function JoinBalloonButton({ leader, paying }: { leader: string; paying: boolean
   const altitudeFilled = useRemoteBalloons(s => !!s.flights[leader]?.party?.controls?.altitude)
   if (!capacity) return null
   return <button type="button" disabled={paying} onClick={() => void boardLocalBalloon({ leaderId: leader })}>
-    {nickname || '조종자'}의 열기구 · {riderCount}/{capacity}명<br />
-    {split && (altitudeFilled ? '2인 분담 · 일반석' : '2인 분담 · 고도석 비어 있음')} {BALLOON_FARE}냥 내고 합류
+    <span><strong>{nickname || '조종자'}의 열기구</strong>
+      <small>{riderCount}/{capacity}명{split && (altitudeFilled ? ' · 2인 분담 · 일반석' : ' · 2인 분담 · 고도석 비어 있음')}</small>
+    </span>
+    <span className="park-balloon-joining-fare">{BALLOON_FARE}냥 내고 합류</span>
   </button>
 }
 
@@ -88,10 +107,10 @@ function BalloonCockpit({ leader, owner, role, pending }: {
   const roleName = (value: ControlRole) => value === 'altitude' ? '고도 조종석' : controls.mode === 'split' ? '방향 조종석' : '조종석'
   const focusRide = () => document.querySelector('canvas')?.focus({ preventScroll: true })
   return <>
-    {incoming && <span role="status">{profiles[incoming.from]?.nickname ?? '동승자'}님이 {roleName(incoming.role)}을 넘기려 해요.</span>}
-    {outgoing && <span role="status">{profiles[outgoing.to]?.nickname ?? '동승자'}님의 수락을 기다리고 있어요.</span>}
+    {incoming && <span className="park-balloon-hud-note" role="status">{profiles[incoming.from]?.nickname ?? '동승자'}님이 {roleName(incoming.role)}을 넘기려 해요.</span>}
+    {outgoing && <span className="park-balloon-hud-note" role="status">{profiles[outgoing.to]?.nickname ?? '동승자'}님의 수락을 기다리고 있어요.</span>}
     <div className="park-balloon-actions">
-      {incoming && <button type="button" disabled={pending} onClick={() => {
+      {incoming && <button type="button" className="park-balloon-action-primary" disabled={pending} onClick={() => {
         void changeLocalBalloonControl({ action: 'accept', role: incoming.role, offerId: incoming.id })
         focusRide()
       }}><kbd>E</kbd> 교대 수락</button>}
@@ -106,7 +125,7 @@ function BalloonCockpit({ leader, owner, role, pending }: {
             onClick={() => setChooseRider(picking => !picking)}>조종 교대 제안</button>}
         </>
         : (['direction', 'altitude'] as const).map(seat => !controls[seat] && (seat === 'direction' || controls.mode === 'split')
-          && <button type="button" key={seat} disabled={pending} onClick={() => {
+          && <button type="button" className="park-balloon-action-primary" key={seat} disabled={pending} onClick={() => {
             void changeLocalBalloonControl({ action: 'claim', role: seat })
             focusRide()
           }}>{roleName(seat)} 잡기</button>)}
@@ -152,8 +171,8 @@ export default function LocalBalloonHud() {
     return () => { unwatch(); cancelLocalBalloon() }
   }, [])
 
-  if (panel === 'manual') return <PaperPopup key="manual" title="열기구 이용 안내" label="열기구 이용 안내"
-    className="park-balloon-paper" closeLabel="탑승 화면으로 돌아가기" onClose={() => showLocalBalloonManual(false)}>
+  if (panel === 'manual') return <PaperPopup key="manual" title={<strong>열기구 이용 안내</strong>} label="열기구 이용 안내"
+    className="park-balloon-paper park-balloon-guide" closeLabel="탑승 화면으로 돌아가기" onClose={() => showLocalBalloonManual(false)}>
     <ul className="park-balloon-manual">
       <li>1인당 {BALLOON_FARE}냥이에요. 새 열기구의 정원을 1~{CAPACITY}명으로 정하거나, 같은 채널에서 기다리는 열기구에 합류할 수 있어요.</li>
       <li>방향은 <kbd>WASD / 방향키</kbd>, 고도는 <kbd>Space</kbd> 상승과 <kbd>Shift</kbd> 하강으로 조종해요. 2인 분담에서는 두 역할을 나눠 맡아요.</li>
@@ -164,14 +183,13 @@ export default function LocalBalloonHud() {
     <div className="paper-actions"><button type="button" className="paper-primary"
       onClick={() => showLocalBalloonManual(false)}>탑승 화면으로</button></div>
   </PaperPopup>
-  if (panel !== 'closed') return <PaperPopup key="boarding" title="하늘언덕 열기구 탑승 준비" label="하늘언덕 열기구 탑승 준비"
+  if (panel !== 'closed') return <PaperPopup key="boarding" title={<><strong>하늘언덕 열기구</strong><small>탑승 준비</small></>} label="하늘언덕 열기구 탑승 준비"
     className="park-balloon-paper" closeLabel="탑승 창 닫기" closeDisabled={panel === 'paying'} onClose={cancelLocalBalloon}>
     {panel === 'loading' ? <p role="status">열기구를 준비하고 있어요…</p>
       : panel === 'error' ? <p role="alert">열기구를 준비하지 못했어요. 다시 시도해 주세요.</p>
       : <>
-        <p>1인당 {BALLOON_FARE}냥</p>
-        {paymentError && <p role="alert">{paymentError}</p>}
-        {panel === 'paying' && <p role="status">결제를 확인하고 있어요…</p>}
+        {paymentError && <p className="park-balloon-dialog-error" role="alert">{paymentError}</p>}
+        {panel === 'paying' && <p className="park-balloon-sr-only" role="status">결제를 확인하고 있어요…</p>}
         <BalloonBoardingOptions paying={panel === 'paying'} capacity={selectedCapacity} setCapacity={setSelectedCapacity}
           mode={selectedMode} setMode={setSelectedMode} />
       </>}
@@ -179,51 +197,61 @@ export default function LocalBalloonHud() {
 
   const fadeOverlay = fade > 0 ? <div className="park-balloon-fade" aria-hidden="true" style={{ opacity: fade }} /> : null
   if (!phase) return fadeOverlay
+
+  const soloDeparture = controlsMode === 'split' && !splitReady
+  const roleTitle = walkingInside ? '기내' : controlRole === 'altitude' ? '고도 조종석'
+    : controlsMode === 'split' ? '방향 조종석' : '조종석'
+  const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+
   return <>
-    <aside className="park-balloon-hud" aria-label="열기구 운항">
-    {phase === 'boarding' ? <>
-        <strong>탑승 {passengerCount}/{capacity}명</strong>
-        {controlsMode === 'split' && <span>방향 담당 배정 완료 · {splitReady ? '고도 담당 배정 완료' : '고도 담당 대기 중'}</span>}
-        <span>{isPilot ? '준비되면 출발할 수 있어요.' : '조종자가 출발하기를 기다리고 있어요.'}</span>
-        {paymentError && <span role="alert">{paymentError}</span>}
-        <div className="park-balloon-actions">
-          {isPilot && (controlsMode === 'split' && !splitReady
-            ? <button type="button" disabled={launching} onClick={() => void launchLocalBalloon(true)}>혼자 조종으로 출발</button>
-            : <button type="button" disabled={launching} onClick={() => void launchLocalBalloon()}>출발</button>)}
-          <button type="button" disabled={launching} onClick={cancelLocalBalloon}>내리기</button>
-        </div>
-      </> : phase === 'takeoff' ? <span role="status">이륙 중</span>
-      : phase === 'flying' ? <>
-        <strong>{walkingInside ? '기내' : controlRole === 'altitude' ? '고도 조종석'
-          : controlsMode === 'split' ? '방향 조종석' : '조종석'}{isPilot && ` · 남은 시간 ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`}</strong>
-        {walkingInside
-          ? <span><kbd>WASD / 방향키</kbd> 걷기 · <kbd>E</kbd> {seated ? '일어나기' : '가까운 의자에 앉기'} · 드래그로 둘러보기</span>
-          : <span>{controlRole !== 'altitude' && <><kbd>WASD / 방향키</kbd> 방향</>}
-            {controlsMode !== 'split' || controlRole === 'altitude' ? <> <kbd>Space</kbd> 상승 · <kbd>Shift</kbd> 하강</> : null}</span>}
-        {emptySeconds !== null && <span className="park-balloon-warning" role="status">{emptySeconds
-          ? `조종석이 비었어요. ${emptySeconds}초 뒤 추락합니다.` : '추락 중이에요. 조종석을 잡아 주세요!'}</span>}
-        {paymentError && <span role="alert">{paymentError}</span>}
-        {boundary ? <span role="status">비행 구역 경계 · 공원 안쪽으로 돌아가세요</span> : null}
-        {controlsMode && <BalloonCockpit leader={leader} owner={owner} role={controlRole} pending={controlPending} />}
-        <div className="park-balloon-actions">
-          {isPilot && !controlsMode && <button type="button" onClick={() => {
-            toggleLocalCabinMode()
-            document.querySelector('canvas')?.focus({ preventScroll: true })
-          }}><kbd>F</kbd> {walkingInside ? '조종석으로' : '기내 이동'}</button>}
-          {walkingInside && <button type="button" onClick={() => {
-            toggleLocalCabinPerspective()
-            document.querySelector('canvas')?.focus({ preventScroll: true })
-          }}><kbd>V</kbd> {firstPerson ? '3인칭 보기' : '1인칭 보기'}</button>}
-          {walkingInside && (seated || seatNearby) && <button type="button" onClick={() => {
-            toggleLocalCabinSeat()
-            document.querySelector('canvas')?.focus({ preventScroll: true })
-          }}>{seated ? '일어나기' : '앉기'}</button>}
-          {(controlRole || isPilot && !controlsMode) && <button type="button" disabled={controlPending}
-            onClick={returnLocalBalloon}>승강장 복귀</button>}
-        </div>
-      </> : phase === 'returning' ? <span role="status">{reason === 'terrain'
-        ? '이곳에는 내릴 수 없어 승강장으로 돌아갑니다.' : '승강장으로 돌아갑니다.'}</span>
-      : <span role="status">{landing === 'field' ? '착지했어요. 체험 종료 후 승강장으로 돌아갑니다.' : '승강장에 도착했어요.'} · {seconds}초</span>}
+    <aside className="park-balloon-hud" data-phase={phase} aria-label="열기구 운항">
+      {phase === 'flying' && emptySeconds !== null && <BalloonWarning>{emptySeconds
+        ? <>조종석이 비었어요 · <strong>{emptySeconds}초 뒤 추락</strong></>
+        : <>추락 중이에요. 조종석을 잡아 주세요!</>}</BalloonWarning>}
+      <div className="park-balloon-hud-panel">
+        {phase === 'boarding' ? <>
+          <div className="park-balloon-hud-heading"><strong>탑승 대기</strong><span>탑승 <b>{passengerCount}/{capacity}명</b></span></div>
+          {controlsMode === 'split' && <span className="park-balloon-hud-note">방향 담당 배정 완료 · {splitReady ? '고도 담당 배정 완료' : '고도 담당 대기 중'}</span>}
+          {!isPilot && <span className="park-balloon-hud-note">조종자가 출발하기를 기다리고 있어요.</span>}
+          {paymentError && <span className="park-balloon-hud-note" role="alert">{paymentError}</span>}
+          <div className="park-balloon-actions">
+            {isPilot && <button type="button" className="park-balloon-action-primary" disabled={launching}
+              onClick={() => void launchLocalBalloon(soloDeparture)}>{soloDeparture ? '혼자 조종으로 출발' : '출발'}</button>}
+            <button type="button" disabled={launching} onClick={cancelLocalBalloon}>내리기</button>
+          </div>
+        </> : phase === 'flying' ? <>
+          <div className="park-balloon-hud-heading">
+            <strong><i className="park-balloon-compass" aria-hidden="true" />{roleTitle}</strong>
+            {isPilot && <span>남은 시간 <b>{time}</b></span>}
+          </div>
+          <BalloonKeys walking={walkingInside} seated={seated} direction={walkingInside || controlRole !== 'altitude'}
+            altitude={!walkingInside && (controlsMode !== 'split' || controlRole === 'altitude')} />
+          {paymentError && <span className="park-balloon-hud-note" role="alert">{paymentError}</span>}
+          {boundary && <span className="park-balloon-hud-note" role="status">비행 구역 경계 · 공원 안쪽으로 돌아가세요</span>}
+          <div className="park-balloon-hud-controls">
+            {controlsMode && <BalloonCockpit leader={leader} owner={owner} role={controlRole} pending={controlPending} />}
+            <div className="park-balloon-actions">
+              {isPilot && !controlsMode && <button type="button" onClick={() => {
+                toggleLocalCabinMode()
+                document.querySelector('canvas')?.focus({ preventScroll: true })
+              }}><kbd>F</kbd> {walkingInside ? '조종석으로' : '기내 이동'}</button>}
+              {walkingInside && <button type="button" onClick={() => {
+                toggleLocalCabinPerspective()
+                document.querySelector('canvas')?.focus({ preventScroll: true })
+              }}><kbd>V</kbd> {firstPerson ? '3인칭 보기' : '1인칭 보기'}</button>}
+              {walkingInside && (seated || seatNearby) && <button type="button" onClick={() => {
+                toggleLocalCabinSeat()
+                document.querySelector('canvas')?.focus({ preventScroll: true })
+              }}>{seated ? '일어나기' : '앉기'}</button>}
+              {(controlRole || isPilot && !controlsMode) && <button type="button" disabled={controlPending}
+                onClick={returnLocalBalloon}>승강장 복귀</button>}
+            </div>
+          </div>
+        </> : phase === 'takeoff' ? <span role="status">이륙 중</span>
+          : phase === 'returning' ? <span role="status">{reason === 'terrain'
+            ? '이곳에는 내릴 수 없어 승강장으로 돌아갑니다.' : '승강장으로 돌아갑니다.'}</span>
+          : <span role="status">{landing === 'field' ? '착지했어요. 체험 종료 후 승강장으로 돌아갑니다.' : '승강장에 도착했어요.'} · {seconds}초</span>}
+      </div>
     </aside>
     {fadeOverlay}
   </>
