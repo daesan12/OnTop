@@ -1,6 +1,7 @@
 /** Browser-only XR frame/session simulation. No production hooks or auth bypass. */
 import { _roots, advance } from '@react-three/fiber'
 import { Matrix4, Quaternion, Vector3 } from 'three'
+import type { Mesh, MeshBasicMaterial, ShaderMaterial } from 'three'
 import type { JumpmapXRAction, JumpmapXRView } from '../../src/features/jumpmap/xrModel'
 import { parkXRView } from '../../src/world/xrView'
 import { useParkXR } from '../../src/features/parkXR/state'
@@ -31,6 +32,27 @@ export function sceneFramePNG() {
   state.gl.render(state.scene, state.camera)
   return state.gl.domElement.toDataURL('image/png')
 }
+export function watchTelescopeSky() {
+  const { scene, camera } = root()
+  const sky = scene.getObjectByName('dynamic-sky') as Mesh<never, ShaderMaterial>
+  const lens = scene.getObjectByName('park-xr-telescope-lens') as Mesh<never, MeshBasicMaterial>
+  const focus = { lens: { index: -1, time: 0 }, park: { index: -1, time: 0 }, night: 0 }
+  const drawSky = sky.onBeforeRender
+  sky.onBeforeRender = function (...args) {
+    drawSky.apply(this, args)
+    const [renderer, , view] = args
+    const output = renderer.getRenderTarget()?.texture === lens.material.map ? focus.lens
+      : view === camera ? focus.park : undefined
+    if (!output) return
+    const { focusedConstellation, revealTime, night } = sky.material.uniforms
+    output.index = focusedConstellation!.value
+    output.time = revealTime!.value
+    focus.night = night!.value
+  }
+  skyFocus = focus
+}
+let skyFocus: { lens: { index: number; time: number }; park: { index: number; time: number }; night: number } | undefined
+export const readTelescopeSky = () => skyFocus
 export function install(options: { haptics?: boolean; frameStep?: number } = {}) {
   const state = root()
   feedbackPulses.length = 0; feedbackResets = 0

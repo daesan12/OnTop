@@ -4,7 +4,7 @@ import { loadRenewalFixtureMap, parkFixture } from './fixture'
 
 const helper = '/tests/park-xr/syntheticXR.ts'
 
-test('220m 공원에서 망원경을 열고 조준한 뒤 B로 VR 산책을 이어간다', async ({ page }, info) => {
+test('220m 공원 VR 망원경에서 밤에만 별자리를 표시하고 B로 산책을 이어간다', async ({ page }, info) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   await page.addInitScript(() => Object.defineProperty(navigator, 'xr', { configurable: true,
@@ -54,6 +54,30 @@ test('220m 공원에서 망원경을 열고 조준한 뒤 B로 VR 산책을 이�
   expect(server.requests.slice(requestsBeforeAim).some(r => r.type === 'WORLD_MOVE' && (r.payload.dx || r.payload.dz))).toBe(false)
   const frame = await page.evaluate(async p => (await import(p)).sceneFramePNG(), helper)
   await writeFile(info.outputPath('park-vr-telescope.png'), Buffer.from(frame.split(',')[1]!, 'base64'))
+
+  await page.evaluate(async p => {
+    const xr = await import(p)
+    const { telescopeView } = await import('/src/features/telescopeView.ts' as string)
+    xr.watchTelescopeSky()
+    // Center Cassiopeia in the lens, including the label under the stars.
+    Object.assign(telescopeView, { yaw: Math.PI / 2 + 1.18, pitch: .55 })
+  }, helper)
+  const sky = () => page.evaluate(async p => (await import(p)).readTelescopeSky(), helper)
+  await expect.poll(sky).toMatchObject({ night: 0, lens: { index: -1 }, park: { index: -1 } })
+  await page.evaluate(async () => {
+    const { environmentConfig, environmentFrame } = await import('/src/world/environmentState.ts' as string)
+    environmentConfig.epochMs = environmentFrame.serverTime - .875 * environmentConfig.dayDurationMs
+  })
+  await expect.poll(async () => (await sky())?.lens.index).toBe(1)
+  await expect.poll(async () => (await sky())?.lens.time ?? 0, { timeout: 10000 }).toBeGreaterThanOrEqual(2.35)
+  expect((await sky())?.park.index).toBe(-1)
+  const nightFrame = await page.evaluate(async p => (await import(p)).sceneFramePNG(), helper)
+  await writeFile(info.outputPath('park-vr-telescope-constellation.png'), Buffer.from(nightFrame.split(',')[1]!, 'base64'))
+  await page.evaluate(async () => {
+    const { telescopeView } = await import('/src/features/telescopeView.ts' as string)
+    telescopeView.pitch = 0
+  })
+  await expect.poll(sky).toMatchObject({ lens: { index: -1, time: 0 }, park: { index: -1 } })
 
   await page.evaluate(async p => (await import(p)).input(0, false, 0, true), helper)
   await expect.poll(() => visible('park-xr-telescope-view')).toBe(false)

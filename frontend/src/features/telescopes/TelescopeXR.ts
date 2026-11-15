@@ -35,6 +35,7 @@ export class TelescopeXR {
   id = ''
 
   constructor(private readonly scene: THREE.Scene, head: THREE.Object3D) {
+    this.camera.userData.showConstellationLines = true
     this.entry.mesh.name = 'park-xr-telescope-entry'
     scene.add(this.entry.mesh)
     this.view.name = 'park-xr-telescope-view'
