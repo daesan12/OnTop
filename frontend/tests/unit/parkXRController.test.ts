@@ -136,8 +136,8 @@ it('양손 레이저가 반복 프레임의 벡터를 재사용하고 올바른 
 
     expect(samples).toHaveLength(240)
     expect(samples.every(s => s.origin === samples[0]!.origin && s.direction === samples[0]!.direction)).toBe(true)
-    expect(samples[0]!.point).toEqual([9.8, 1.1, 19.7])
-    expect(samples[1]!.point).toEqual([10.2, 1.2, 19.6])
+    expect(samples[0]!.point).toEqual([9.8, 1.3, 19.7])
+    expect(samples[1]!.point).toEqual([10.2, 1.4, 19.6])
     expect(samples.every(s => s.aim[0] === 0 && s.aim[1] === 0 && s.aim[2] === -1)).toBe(true)
     expect(harness.activate).not.toHaveBeenCalled()
     right.gamepad.buttons[0]!.pressed = true
@@ -168,7 +168,7 @@ const outside = () => { harness.avatar.current = { x: -150, y: .8, z: -150 } }
 const inside = () => { harness.avatar.current = { x: START.x, y: START.y + .8, z: START.z } }
 
 it('좌식 눈높이는 처음 보정하고 실제 고개 움직임·플랫폼 높이를 그대로 유지한다', () => {
-  setXRComfort({ posture: 'seated' })
+  setXRComfort({ posture: 'seated', seatedEyeHeight: 1.6 })
   const s = jumpmapSession()
   try {
     s.height(1); s.update(0)
@@ -182,7 +182,7 @@ it('좌식 눈높이는 처음 보정하고 실제 고개 움직임·플랫폼 �
 })
 
 it('재설정과 자세 변경은 움직이는 몸체에서 적용하지 않고 정지 후 한 번만 반영한다', () => {
-  setXRComfort({ posture: 'seated' })
+  setXRComfort({ posture: 'seated', seatedEyeHeight: 1.6 })
   const s = jumpmapSession()
   try {
     s.height(1); s.update(0)
@@ -202,7 +202,7 @@ it('재설정과 자세 변경은 움직이는 몸체에서 적용하지 않고 
 })
 
 it('재설정은 고개 높이도 안정된 뒤 적용하고 추적 중단 후 다시 기다린다', () => {
-  setXRComfort({ posture: 'seated' })
+  setXRComfort({ posture: 'seated', seatedEyeHeight: 1.6 })
   const s = jumpmapSession()
   try {
     s.height(1); s.update(0)
@@ -219,7 +219,7 @@ it('재설정은 고개 높이도 안정된 뒤 적용하고 추적 중단 후 �
 })
 
 it.each([.001, DEAD_ZONE, DEAD_ZONE + .001])('원시 스틱 %s는 이동과 같은 데드존 기준으로 눈높이 정지를 판단한다', axis => {
-  setXRComfort({ posture: 'seated' })
+  setXRComfort({ posture: 'seated', seatedEyeHeight: 1.6 })
   const s = jumpmapSession()
   const sources = [{ handedness: 'left' as const, gamepad: {
     mapping: 'xr-standard', axes: [0, 0, axis, 0], buttons: [],
@@ -240,7 +240,7 @@ it.each([.001, DEAD_ZONE, DEAD_ZONE + .001])('원시 스틱 %s는 이동과 같�
 })
 
 it.each(['reset', 'posture', 'eye-height'] as const)('%s 요청은 이전 정지 시간을 쓰지 않고 새로 400ms 기다린다', action => {
-  setXRComfort({ posture: 'seated' })
+  setXRComfort({ posture: 'seated', seatedEyeHeight: 1.6 })
   const s = jumpmapSession()
   try {
     s.height(1); s.update(0)
@@ -261,7 +261,7 @@ it.each(['reset', 'posture', 'eye-height'] as const)('%s 요청은 이전 정지
 })
 
 it('대기 중 재설정을 다시 누르면 마지막 요청부터 안정 시간을 다시 센다', () => {
-  setXRComfort({ posture: 'seated' })
+  setXRComfort({ posture: 'seated', seatedEyeHeight: 1.6 })
   const s = jumpmapSession()
   try {
     s.height(1); s.update(0)

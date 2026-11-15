@@ -20,10 +20,14 @@ test('220m 공원 VR에서 주변 닉네임을 보고 이동 입력을 막은 �
   const start = page.getByRole('button', { name: '공원 VR 시작', exact: true })
   await expect(start).toBeEnabled({ timeout: 90000 })
   await expect(page.getByText('공원을 준비하고 있어요…', { exact: true })).toBeHidden({ timeout: 90000 })
-  await page.evaluate(async p => (await import(p)).install(), helper)
+  await page.evaluate(async p => { const xr = await import(p); xr.install(); xr.height(1.3) }, helper)
   await start.click()
   const snapshot = () => page.evaluate(async p => (await import(p)).snapshot(), helper)
   await expect.poll(async () => (await snapshot()).active).toBe(true)
+  await expect.poll(async () => {
+    const state = await snapshot()
+    return state.position[1] - (state.pose.y - .8)
+  }).toBeCloseTo(1.8, 2)
   const own = { ...(await snapshot()).pose, moving: false, running: false, swimming: false, lastInputSeq: 0 }
   server.emit('WORLD_STATE', { channelId: 'channel-1', version: 100, mapVersion: server.mapIdentity.mapVersion,
     avatars: [ { userId: '101', position: own, vrActive: true },
