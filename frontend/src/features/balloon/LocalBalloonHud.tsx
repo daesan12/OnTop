@@ -23,7 +23,7 @@ export default function LocalBalloonHud() {
     {panel === 'loading' ? <p role="status">열기구를 준비하고 있어요…</p>
       : panel === 'error' ? <p role="alert">열기구를 준비하지 못했어요. 다시 시도해 주세요.</p>
       : <>
-        <p>최대 4인 · 로컬 체험은 1인 탑승</p>
+        <p>개발 체험 · 1인 탑승</p>
         <p>체험 요금 0냥</p>
         <div className="paper-actions"><button type="button" className="paper-primary" onClick={boardLocalBalloon}>탑승하기</button></div>
       </>}
@@ -32,7 +32,7 @@ export default function LocalBalloonHud() {
   if (!phase) return null
   return <aside className="park-balloon-hud" aria-label="열기구 운항">
     {phase === 'boarding' ? <>
-      <strong>출발 대기 · 1/4</strong>
+      <strong>출발 대기 · 1인</strong>
       <span>출발까지 {departure}초</span>
       <div className="park-balloon-actions">
         <button type="button" onClick={startLocalBalloon}>출발하기</button>

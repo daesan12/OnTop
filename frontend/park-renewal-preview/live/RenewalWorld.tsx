@@ -1,5 +1,5 @@
-import { LOCAL_BALLOON_ENABLED, useLocalBalloon } from '../../src/features/balloon/localRide'
-import { RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
+import { useLocalBalloon } from '../../src/features/balloon/localRide'
+import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
 import { EntranceBuilding } from '../EntrancePavilion'
 import { ParkGachaKiosk } from '../ParkGachaKiosk'
 import { ParkMoleShop } from '../ParkMoleShop'
@@ -67,7 +67,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   groundMounted: RefObject<boolean>
   entryPresented: boolean
 }) {
-  const showDockedBalloon = useLocalBalloon(ride => !LOCAL_BALLOON_ENABLED || !ride.flight)
+  const showDockedBalloon = useLocalBalloon(ride => !BALLOON_RIDE_ENABLED || !ride.flight)
   const surface = useRef<Group>(null), interior = useRef<Group>(null), annex = useRef<Group>(null)
   const loadInterior = useRef(false)
   const displayedPose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })

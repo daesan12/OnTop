@@ -14,7 +14,7 @@ import { ParkRuntimeProvider } from './runtime/ParkRuntime'
 import { ParkTools } from './ParkTools'
 import type { QualityPreset } from '../config'
 import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
-import { LOCAL_BALLOON_ENABLED } from '../features/balloon/localRide'
+import { BALLOON_RIDE_ENABLED } from './mapSelection'
 import { ConstructionNotice } from '../features/construction/ConstructionNotice'
 import { FortunePanel } from '../features/fortune/FortunePanel'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
@@ -212,7 +212,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <div hidden={omokFocus} inert={omokFocus}>
         <WelcomeTour />
         <ConstructionNotice />
-        {LOCAL_BALLOON_ENABLED && <Suspense fallback={null}><LocalBalloonHud /></Suspense>}
+        {BALLOON_RIDE_ENABLED && <Suspense fallback={null}><LocalBalloonHud /></Suspense>}
         <FortunePanel />
         {(rpsOpen || arcadeOpen || plusMinusOpen || moleOpen) && <Suspense fallback={<p role="status">게임을 불러오는 중입니다.</p>}>
           {rpsOpen && <RpsRoulettePanel />}

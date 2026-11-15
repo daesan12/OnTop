@@ -6,7 +6,7 @@ import { TABLET } from '../features/tableLobby/tabletProjection'
 import { renderedTableAnchors } from '../features/tableLobby/tabletAnchors'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useEffect, useMemo, useRef } from 'react'
-import { LOCAL_BALLOON_ENABLED, localBalloonRider } from '../features/balloon/localRide'
+import { localBalloonRider } from '../features/balloon/localRide'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, PerspectiveCamera, Quaternion, Raycaster, SkinnedMesh, Vector3, type Object3D } from 'three'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
@@ -142,7 +142,7 @@ export function CameraRig() {
       occlusion.reset()
       return
     }
-    const balloonRider = LOCAL_BALLOON_ENABLED ? localBalloonRider(useSession.getState().sessionId) : null
+    const balloonRider = localBalloonRider(useSession.getState().sessionId)
     if (balloonRider) {
       interactionAim.ready = false
       cameraOcclusion.strength.value = 0

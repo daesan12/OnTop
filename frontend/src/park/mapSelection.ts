@@ -7,6 +7,8 @@ const deployedDevRenewal = import.meta.env?.MODE === 'park-integration'
   && hostname === 'dev.on-top.world'
 
 export const RENEWAL_PARK_ENABLED = localRenewal || deployedDevRenewal
+export const BALLOON_RIDE_ENABLED = deployedDevRenewal
+  || (localRenewal && import.meta.env.DEV && import.meta.env.VITE_LOCAL_BALLOON === '1')
 export const GENERATED_PARK_ENABLED = !RENEWAL_PARK_ENABLED && import.meta.env?.MODE === 'park-integration'
   && import.meta.env?.VITE_PARK_MAP === 'generated'
 export const JUMPMAP_ENABLED = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED

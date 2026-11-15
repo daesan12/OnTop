@@ -1,13 +1,10 @@
 import { create } from 'zustand'
 import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
 import { useSession } from '../../network/worldClient'
-import { RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
+import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { createFlight, returnToDock, stepFlight, takeOff, WAIT_SECONDS } from './flight'
 import type { Flight, FlightMap, Input, Point } from './flight'
-
-export const LOCAL_BALLOON_ENABLED = import.meta.env.DEV && RENEWAL_PARK_ENABLED
-  && import.meta.env.VITE_LOCAL_BALLOON === '1' && ['localhost', '127.0.0.1'].includes(location.hostname)
 
 type LocalRide = {
   owner: string
@@ -28,7 +25,7 @@ function ownsRide(ride: LocalRide) {
 }
 
 export function openLocalBalloon() {
-  if (!LOCAL_BALLOON_ENABLED || inputState.localBalloon) return false
+  if (!BALLOON_RIDE_ENABLED || inputState.localBalloon) return false
   const { sessionId, roomId, status, mapCompatible } = useSession.getState()
   if (!sessionId || !roomId || status !== 'connected' || !mapCompatible) return false
   inputState.localBalloon = true
@@ -83,7 +80,7 @@ export function tickLocalBalloon(input: Input, elapsed: number) {
 }
 
 export function localBalloonRider(id: string): Point | null {
-  if (!LOCAL_BALLOON_ENABLED) return null
+  if (!BALLOON_RIDE_ENABLED) return null
   const { owner, flight } = useLocalBalloon.getState()
   if (!flight || owner !== id) return null
   if (flight.phase === 'landed') return flight.exit ?? null

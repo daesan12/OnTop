@@ -44,7 +44,7 @@ import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
 import { Canvas, preloadWorldAssets } from './worldAssets'
 import {ParkDebrisScene} from '../features/parkDebris/ParkDebrisScene'
-import { LOCAL_BALLOON_ENABLED } from '../features/balloon/localRide'
+import { BALLOON_RIDE_ENABLED } from '../park/mapSelection'
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { prepareScene, prepareVisibleScenePrograms } from './prepareScene'
 import { warmParkGeometry } from '../park/loadParkGeometry'
@@ -256,7 +256,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         }
       >
         <AvatarPoseFrame>
-          {LOCAL_BALLOON_ENABLED && <Suspense fallback={null}><LocalBalloonScene /></Suspense>}
+          {BALLOON_RIDE_ENABLED && <Suspense fallback={null}><LocalBalloonScene /></Suspense>}
           <ParkXRBridge />
           <group name={RENEWAL_PARK_ENABLED ? 'renewal-exterior-lighting' : undefined}>
             <EnvironmentScene matchServiceBrightness={RENEWAL_PARK_ENABLED} />
