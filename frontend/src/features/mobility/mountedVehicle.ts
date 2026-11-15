@@ -1,5 +1,6 @@
 import { Euler, Group, MathUtils, Quaternion, Vector3, type Object3D } from 'three'
 import { factory } from '../../../park-renewal-preview/assetFactories'
+import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import type { createCharacterRig, Side } from '../../world/art/CharacterRig'
 import { vehicles, type Vehicle } from './state'
 
@@ -81,6 +82,7 @@ export function createMountedVehicle() {
   const origin = new Vector3()
   const figureOffset = new Vector3()
   const contact = new Vector3()
+  const axleMidpoint = new Vector3()
   const grips = [new Vector3(), new Vector3()]
   let current: Vehicle | undefined
   let wheels: Object3D[] = []
@@ -88,11 +90,12 @@ export function createMountedVehicle() {
   let crank: Object3D | undefined
   let phase = 0, lastYaw = 0, lean = 0, lastX = 0, lastZ = 0, wheelPhase = 0
   let vehicleScale = 1
+  let frontAxleZ = 0, rearAxleZ = 0, wheelRadius = 0, tireHalfWidth = 0
 
   return {
     root,
     apply(kind: Vehicle | undefined, pose: { x: number; z: number; yaw: number },
-      delta: number, figure: Group, model: Rig) {
+      floorY: number, delta: number, figure: Group, model: Rig) {
       if (current !== kind) {
         current = kind
         root.clear()
@@ -111,7 +114,12 @@ export function createMountedVehicle() {
           const name = bicycle ? 'bicycle' : 'scooter'
           const anchor = (part: string) => vehicle.getObjectByName(name + '-' + part)!
           vehicleScale = vehicle.scale.x
-          wheels = [anchor('front-wheel'), anchor('rear-wheel')]
+          const frontWheel = anchor('front-wheel'), rearWheel = anchor('rear-wheel')
+          wheels = [frontWheel, rearWheel]
+          frontAxleZ = frontWheel.position.z * vehicleScale
+          rearAxleZ = rearWheel.position.z * vehicleScale
+          wheelRadius = frontWheel.position.y * vehicleScale
+          tireHalfWidth = (bicycle ? .115 : .1) * vehicleScale / 2
           origin.copy(anchor(bicycle ? 'seat' : 'deck').position).multiplyScalar(vehicleScale)
           grips[0]!.copy(anchor('right-grip').position).multiplyScalar(vehicleScale)
           grips[1]!.copy(anchor('left-grip').position).multiplyScalar(vehicleScale)
@@ -128,17 +136,32 @@ export function createMountedVehicle() {
       lastZ = pose.z
       lastYaw = pose.yaw
       phase = (phase + distance * 1.8) % (2 * Math.PI)
-      wheelPhase = (wheelPhase + distance / ((bicycle ? .35 : .155) * vehicleScale)) % (2 * Math.PI)
+      wheelPhase = (wheelPhase + distance / wheelRadius) % (2 * Math.PI)
       lean = MathUtils.damp(lean, bicycle || distance < .002 ? 0 : MathUtils.clamp(turn * 2.2, -.18, .18), 12, dt)
-      root.rotation.z = lean
+      const forwardX = Math.sin(pose.yaw), forwardZ = Math.cos(pose.yaw)
+      const frontY = groundSurfaceHeight(pose.x + forwardX * frontAxleZ, pose.z + forwardZ * frontAxleZ)
+      const rearY = groundSurfaceHeight(pose.x + forwardX * rearAxleZ, pose.z + forwardZ * rearAxleZ)
+      // Only use terrain close to the avatar's floor; bridges, tunnels and ledges can have different support.
+      const followGround = Math.max(Math.abs(frontY - floorY), Math.abs(rearY - floorY)) <= .35
+      const slope = followGround ? (frontY - rearY) / (frontAxleZ - rearAxleZ) : 0
+      const pitch = -Math.atan(slope)
+      root.rotation.set(pitch, 0, lean)
+      const midZ = (frontAxleZ + rearAxleZ) / 2
+      axleMidpoint.set(0, wheelRadius, midZ).applyQuaternion(root.quaternion)
+      // The rounded tread reaches the road even when the scooter banks into a turn.
+      const bankCos = Math.cos(lean)
+      const treadDepth = wheelRadius * .85 * bankCos
+        + Math.hypot(wheelRadius * .15 * bankCos, tireHalfWidth * Math.sin(lean))
+      root.position.y = (followGround ? (frontY + rearY) / 2 - floorY : 0)
+        + slope * (axleMidpoint.z - midZ) + treadDepth / Math.cos(pitch) - axleMidpoint.y
       for (const wheel of wheels) wheel.rotation.x = wheelPhase
 
       model.reset()
       figureOffset.copy(origin)
       figureOffset.y += bicycle ? model.seatedHipLift - model.hipHeight : -.025
       figureOffset.z += bicycle ? .065 : .015
-      figure.rotation.set(0, 0, lean)
-      figure.position.copy(figureOffset).applyQuaternion(figure.quaternion)
+      figure.quaternion.copy(root.quaternion)
+      figure.position.copy(figureOffset).applyQuaternion(figure.quaternion).add(root.position)
       rigPose.hands(model, grips, figureOffset, bicycle ? .65 : .16)
       if (crank) crank.rotation.x = phase
       for (const [index, side] of sides.entries()) {
