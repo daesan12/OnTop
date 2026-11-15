@@ -42,6 +42,35 @@ class WorldFallRecoveryTests {
     }
 
     @Test
+    void 마지막_안전_좌표에_바로_갈_수_없으면_진입한_쪽의_가까운_지면을_선택한다() throws Exception {
+        Path dir = Path.of("../frontend/generated/park-renewal");
+        var map = PreparedParkMap.load(dir.resolve("server-map.json"), dir.resolve("manifest.json"), Set.of("channel-1"));
+        var scene = map.createScene();
+        try (var physics = new WorldPhysics(scene)) {
+            double tableX = 10;
+            double tableZ = 27;
+            for (int side : new int[] {-1, 1}) {
+                String actor = "a-" + side;
+                physics.add(actor);
+                double previousX = tableX + side * 3;
+                physics.place(actor, previousX, scene.groundHeight(previousX, tableZ) + .8, tableZ);
+                for (int i = 0; i < 5; i++) {
+                    physics.step(++tick * WorldPhysics.STEP_NANOS, Set.of());
+                }
+
+                physics.place(actor, tableX, scene.groundHeight(tableX, tableZ) - 1.3, tableZ);
+                physics.step(++tick * WorldPhysics.STEP_NANOS, Set.of());
+                var recovery = physics.lastRecovery(actor);
+
+                assertThat(recovery).isNotNull();
+                assertThat(recovery.previousSafeX()).isBetween(previousX - .02, previousX + .02);
+                assertThat(recovery.reason()).isEqualTo("TERRAIN_PENETRATION");
+                assertThat((recovery.toX() - tableX) * side).isBetween(1.0, 2.0);
+            }
+        }
+    }
+
+    @Test
     void 유효좌표의_지형관통은_이전_높은_발판으로_돌려보내지_않는다() {
         try (var physics = new WorldPhysics(platformScene())) {
             physics.add("a");

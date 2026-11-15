@@ -20,6 +20,8 @@ public final class WorldPhysics implements AutoCloseable {
     private static final float DT = 1f / 30;
     private static final float TERRAIN_RECOVERY_RADIUS = 2;
     private static final float TERRAIN_RECOVERY_MAX_HEIGHT_DIFF = .35f;
+    private static final int[] TERRAIN_RECOVERY_DIRECTIONS = {0, 1, -1, 2, -2, 3, -3, 4};
+    private static final float EXCLUSION_POSITION_TOLERANCE_SQUARED = 1e-8f;
     private static final float CARRY_HEIGHT = 1.7f;
     private static final int MAX_THROW_TICKS = 90;
     private static final int CARRY_COOLDOWN_TICKS = 30;
@@ -953,7 +955,8 @@ public final class WorldPhysics implements AutoCloseable {
 
     private boolean canCorrectExclusion(Vector3f from, Vector3f target, float boundary) {
         return Vector3f.isValidVector(target) && Math.abs(target.x) <= boundary && Math.abs(target.z) <= boundary
-                && scene.policy.slide(target, this::activeShape).distanceSquared(target) <= 1e-8
+                && scene.policy.slide(target, this::activeShape).distanceSquared(target)
+                        <= EXCLUSION_POSITION_TOLERANCE_SQUARED
                 && positionCollision.correctionClear(from, target);
     }
 
@@ -1180,7 +1183,8 @@ public final class WorldPhysics implements AutoCloseable {
     private Vector3f groundNearExclusion(Actor actor, float x, float z, float boundary) {
         float centerY = (float) scene.groundHeight(x, z) + number("halfHeight") + number("radius") + .04f;
         var origin = new Vector3f(x, centerY, z);
-        if (scene.policy.slide(origin, this::activeShape).equals(origin)) {
+        if (scene.policy.slide(origin, this::activeShape).distanceSquared(origin)
+                <= EXCLUSION_POSITION_TOLERANCE_SQUARED) {
             return null;
         }
         // 같은 지면에서 마지막으로 안전했던 쪽으로 먼저 돌아가야 테이블 반대편으로 넘어가지 않는다.
@@ -1191,11 +1195,19 @@ public final class WorldPhysics implements AutoCloseable {
                 return candidate;
             }
         }
-        for (float distance = .25f; distance <= TERRAIN_RECOVERY_RADIUS; distance += .25f) {
-            for (int direction = 0; direction < 8; direction++) {
-                double angle = direction * Math.PI / 4;
-                Vector3f candidate = groundExitCandidate(origin, x + distance * (float) Math.cos(angle),
-                        z + distance * (float) Math.sin(angle), boundary);
+        // 직전 틱의 수평 이동이 없으면 마지막 안전 위치를 진입 방향의 기준으로 삼는다.
+        Vector3f previous = actor.beforeStepPosition;
+        double previousDistance = Math.hypot(previous.x - x, previous.z - z);
+        if (!Vector3f.isValidVector(previous) || previousDistance < .001
+                || previousDistance > TERRAIN_RECOVERY_RADIUS) {
+            previous = safe;
+        }
+        double returnAngle = Math.atan2(previous.z - z, previous.x - x);
+        for (int direction : TERRAIN_RECOVERY_DIRECTIONS) {
+            double angle = returnAngle + direction * Math.PI / 4;
+            float dx = (float) Math.cos(angle), dz = (float) Math.sin(angle);
+            for (float distance = .25f; distance <= TERRAIN_RECOVERY_RADIUS; distance += .25f) {
+                Vector3f candidate = groundExitCandidate(origin, x + distance * dx, z + distance * dz, boundary);
                 if (candidate != null) {
                     return candidate;
                 }
