@@ -14,6 +14,12 @@ import { useParkXR } from './state'
 import { useJumpmap, closeJumpCompletion } from '../jumpmap/state'
 import { canStartJumpmapXR, inJumpmapXRRegion } from '../jumpmap/xrEntry'
 import { acquireVRProtection } from '../vrSession/protection'
+import { createTouchModel, disposeTouchModel } from '../vrSession/touchModel'
+import { OmokXR, ownOmokGame } from '../../game/omok/OmokXR'
+import { XRChat } from './xrChat'
+import { XRNames } from './xrNames'
+
+type XRMode = 'park' | 'jumpmap' | 'omok'
 import { jumpmapXRFeedback } from '../jumpmap/xrFeedback'
 import { SkewerXREntry } from './SkewerXREntry'
 import { canReachParkVr, openParkVrZone } from '../vrZone/parkBridge'
@@ -21,7 +27,8 @@ import { setXRHeightNotice, useXRComfort, XRHeightCalibration } from './comfort'
 
 /** XR follows the existing predicted/replicated avatar; it never integrates a second player. */
 export class ParkXRController {
-  private kind: 'park' | 'jumpmap' = 'park'
+  private kind: XRMode = 'park'
+  private omokGameId = ''
   private releaseVR?: () => void
   private session: XRSession | null = null
   private referenceSpace: XRReferenceSpace | null = null
@@ -35,6 +42,9 @@ export class ParkXRController {
   private readonly headAnchor = new THREE.Group()
   private readonly panel: JumpmapXRPanel
   private readonly skewerEntry: SkewerXREntry
+  private chat?: XRChat
+  private omok?: OmokXR
+  private readonly names: XRNames
   private enterSkewerAfterEnd = false
   private readonly rotation = new THREE.Quaternion()
   private readonly direction = new THREE.Vector3()
@@ -46,13 +56,14 @@ export class ParkXRController {
   private readonly rayRotation = new THREE.Quaternion()
   private readonly pose = { x: 0, y: 0, z: 0, yaw: 0 }
   private readonly saved: { parent: THREE.Object3D | null; position: THREE.Vector3; rotation: THREE.Quaternion; up: THREE.Vector3; projection: THREE.Matrix4; inverse: THREE.Matrix4; layers: number }
-  private readonly handles: { grip: THREE.Group; mesh: THREE.Mesh<THREE.BoxGeometry, THREE.MeshLambertMaterial> }[] = []
+  private readonly handles: { grip: THREE.Group; model: THREE.Group }[] = []
   private readonly rays: { target: THREE.Group; line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial> }[] = []
   private readonly movement = new ParkXRMovement(parkRuntime, () => {
     if (this.kind === 'jumpmap') jumpmapXRFeedback.requestJump()
   })
   private exitArmed = false
   private guideArmed = false
+  private chatArmed = false
   private primaryArmed = false
   private selectArmed = false
   private panelKey = ''
@@ -73,10 +84,11 @@ export class ParkXRController {
     this.rig.add(this.headAnchor); this.rig.visible = false; scene.add(this.rig)
     this.panel = new JumpmapXRPanel(scene, this.headAnchor)
     this.skewerEntry = new SkewerXREntry(scene)
+    this.names = new XRNames(scene)
     for (let index = 0; index < 2; index++) {
       const grip = gl.xr.getControllerGrip(index)
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(.045, .1, .06), new THREE.MeshLambertMaterial({ color: index ? '#5b9178' : '#b69b5c' }))
-      grip.add(mesh); this.rig.add(grip); this.handles.push({ grip, mesh })
+      const model = createTouchModel()
+      grip.add(model); this.rig.add(grip); this.handles.push({ grip, model })
       const target = gl.xr.getController(index)
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -2.5)]),
         new THREE.LineBasicMaterial({ color: '#e9c577', transparent: true, depthTest: false, depthWrite: false }))
@@ -94,7 +106,14 @@ export class ParkXRController {
 
   start = (): Promise<void> => this.begin('park')
   startJumpmap = (): Promise<void> => this.begin('jumpmap')
-  private async begin(kind: 'park' | 'jumpmap'): Promise<void> {
+  startOmok = (): Promise<void> => this.begin('omok')
+  private canKeepSession(kind: XRMode) {
+    if (kind !== 'omok') return canControlRoamingCamera()
+    const session = useSession.getState()
+    return !!this.omokGameId && ownOmokGame()?.gameId === this.omokGameId && !!session.tableId && session.seatIndex >= 0
+  }
+
+  private async begin(kind: XRMode): Promise<void> {
     if (this.disposed || useParkXR.getState().phase !== 'idle') return
     const own = avatars.get(useSession.getState().sessionId)
     if (!own?.connected || own.carry) {
@@ -104,8 +123,9 @@ export class ParkXRController {
       useParkXR.setState({ error: '다른 행동을 마친 뒤 돌탑 안내 비석이나 출발 지점에서 VR을 시작해 주세요.' }); return
     }
     this.kind = kind
+    this.omokGameId = kind === 'omok' ? ownOmokGame()?.gameId ?? '' : ''
     this.gl.domElement.focus({ preventScroll: true })
-    if (!canControlRoamingCamera()) {
+    if (!this.canKeepSession(kind)) {
       useParkXR.setState({ error: '공원에 연결된 산책 상태에서 시작해 주세요. 열린 메뉴나 게임을 먼저 닫아주세요.', notice: '' }); return
     }
     if (!window.isSecureContext || !navigator.xr) {
@@ -121,16 +141,18 @@ export class ParkXRController {
     try {
       // Preserve user activation: request the immersive session before any other await.
       granted = await navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'] })
-      const release = await acquireVRProtection(parkRuntime)
+      // A confirmed game seat already blocks carry; the server rejects world-presence changes during a match.
+      const release = kind === 'omok' ? undefined : await acquireVRProtection(parkRuntime)
       const current = avatars.get(useSession.getState().sessionId)
-      if (this.disposed || this.currentScope() !== this.scope || !canControlRoamingCamera()
+      if (this.disposed || this.currentScope() !== this.scope || !this.canKeepSession(kind)
         || !current?.connected || current.carry
         || kind === 'jumpmap' && (!canStartJumpmapXR(current.current) || current.swimming || !useJumpmap.getState().available)) {
-        release(); await granted.end(); return
+        release?.(); await granted.end(); return
       }
       this.releaseVR = release
+      if (kind === 'omok') this.omok ??= new OmokXR(this.headAnchor)
       this.session = granted; this.ending = false; this.started = false
-      this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
+      this.exitArmed = this.guideArmed = this.chatArmed = this.primaryArmed = this.selectArmed = false
       this.saved.parent = this.camera.parent; this.saved.layers = this.camera.layers.mask
       this.saved.position.copy(this.camera.position); this.saved.rotation.copy(this.camera.quaternion); this.saved.up.copy(this.camera.up)
       this.saved.projection.copy(this.camera.projectionMatrix); this.saved.inverse.copy(this.camera.projectionMatrixInverse)
@@ -180,12 +202,12 @@ export class ParkXRController {
     }
   }
   showGuide = () => {
-    if (this.session && useParkXR.getState().phase === 'active') {
+    if (this.session && useParkXR.getState().phase === 'active' && this.kind !== 'omok' && !this.chat?.open) {
       this.panel.toggleGuide(this.kind === 'park')
     }
   }
   showSettings = () => {
-    if (this.session && useParkXR.getState().phase === 'active') this.panel.showComfort()
+    if (this.session && useParkXR.getState().phase === 'active' && this.kind !== 'omok' && !this.chat?.open) this.panel.showComfort()
   }
 
   private currentScope(): string { const s = useSession.getState(); return `${s.sessionId}|${s.roomId}|${s.mapVersion}` }
@@ -197,11 +219,11 @@ export class ParkXRController {
     this.enterSkewerAfterEnd = false
     if (!this.session) return
     jumpmapXRFeedback.suspend()
-    this.movement.reset(); this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
-    this.panel.setVisible(false); this.skewerEntry.hide()
+    this.movement.reset(); this.exitArmed = this.guideArmed = this.chatArmed = this.primaryArmed = this.selectArmed = false
+    this.panel.setVisible(false); this.skewerEntry.hide(); this.chat?.hide(); this.omok?.hide(); this.names.hide()
     // Other games may suspend the render loop; don't wait for a frame to release XR.
     queueMicrotask(() => {
-      if (this.session && !document.hidden && this.session.visibilityState === 'visible' && !canControlRoamingCamera())
+      if (this.session && !document.hidden && this.session.visibilityState === 'visible' && !this.canKeepSession(this.kind))
         void this.end('공원 메뉴·활동이 열려 VR을 종료했어요. 화면에서 확인 후 다시 시작해 주세요.')
     })
   }
@@ -226,6 +248,7 @@ export class ParkXRController {
   private restore(): void {
     jumpmapXRFeedback.stop()
     this.enterSkewerAfterEnd = false; this.skewerEntry.hide()
+    this.omokGameId = ''; this.chat?.reset(); this.omok?.hide(); this.names.hide()
     this.releaseVR?.(); this.releaseVR = undefined
     closeJumpCompletion()
     this.session?.removeEventListener('end', this.finished)
@@ -261,10 +284,11 @@ export class ParkXRController {
       this.stationaryAt = null; this.calibrationFrame = -Infinity
       jumpmapXRFeedback.suspend()
       this.movement.update(emptyInput(), this.headYaw, performance.now(), false)
-      this.exitArmed = this.guideArmed = this.primaryArmed = this.selectArmed = false
-      this.headAnchor.visible = false; this.panel.setVisible(false); this.skewerEntry.hide(); this.rays.forEach(({ line }) => { line.visible = false }); return
+      this.exitArmed = this.guideArmed = this.chatArmed = this.primaryArmed = this.selectArmed = false
+      this.headAnchor.visible = false; this.panel.setVisible(false); this.skewerEntry.hide(); this.chat?.hide(); this.omok?.hide(); this.names.hide()
+      this.rays.forEach(({ line }) => { line.visible = false }); return
     }
-    if (!canControlRoamingCamera()) { void this.end('공원 메뉴·활동이 열려 VR을 종료했어요.'); return }
+    if (!this.canKeepSession(this.kind)) { void this.end('일반 화면으로 돌아왔어요.'); return }
     const now = performance.now(), transform = viewer.transform
     this.head.set(transform.position.x, transform.position.y, transform.position.z)
     this.rotation.set(transform.orientation.x, transform.orientation.y, transform.orientation.z, transform.orientation.w)
@@ -277,23 +301,32 @@ export class ParkXRController {
     this.direction.set(0, 0, -1).applyQuaternion(this.rotation).applyQuaternion(this.rig.quaternion)
     if (Math.hypot(this.direction.x, this.direction.z) > .01) this.headYaw = Math.atan2(-this.direction.x, -this.direction.z)
     const input = readXRInput(session.inputSources)
-    let exit = false, guide = false, trigger = false
+    let exit = false, guide = false, chat = false, trigger = false
     for (const source of session.inputSources) {
       if (source.gamepad?.mapping !== 'xr-standard') continue
       if (source.handedness === 'right') exit = !!source.gamepad.buttons[5]?.pressed
-      if (source.handedness === 'left') guide = !!source.gamepad.buttons[4]?.pressed
+      if (source.handedness === 'left') {
+        guide = !!source.gamepad.buttons[4]?.pressed
+        chat = !!source.gamepad.buttons[5]?.pressed
+      }
       trigger ||= !!source.gamepad.buttons[0]?.pressed
     }
     if (!exit) this.exitArmed = true
     if (exit && this.exitArmed) { this.exitArmed = false; void this.end(); return }
     if (!guide) this.guideArmed = true
-    if (guide && this.guideArmed) { this.guideArmed = false; this.panel.toggleGuide(this.kind === 'park') }
+    if (!chat) this.chatArmed = true
+    const playingOmok = this.kind === 'omok'
+    if (chat && this.chatArmed && !playingOmok && !this.panel.blocking) {
+      this.chat ??= new XRChat(this.headAnchor)
+      this.chatArmed = false; this.chat.toggle(); this.movement.reset(); this.selectArmed = false
+    }
+    if (guide && this.guideArmed && !playingOmok && !this.chat?.open) { this.guideArmed = false; this.panel.toggleGuide(this.kind === 'park') }
     const avatar = avatars.get(useSession.getState().sessionId)
     if (!avatar) { void this.end('공원 캐릭터 연결을 다시 확인해 주세요.'); return }
     sampleAvatar(avatar, now, this.pose)
     // Server position selects presentation only. Falling/leaving the course must
     // never release the immersive session or its server-confirmed carry protection.
-    const kind = !avatar.swimming && useJumpmap.getState().available && inJumpmapXRRegion(avatar.current) ? 'jumpmap' : 'park'
+    const kind = playingOmok ? 'omok' : !avatar.swimming && useJumpmap.getState().available && inJumpmapXRRegion(avatar.current) ? 'jumpmap' : 'park'
     if (this.kind !== kind) {
       this.kind = kind
       if (kind === 'jumpmap') jumpmapXRFeedback.start(session)
@@ -333,7 +366,11 @@ export class ParkXRController {
     this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8 + this.heightCalibration.offset, this.pose.z - this.offset.z)
     parkXRView.position.copy(this.head).applyQuaternion(this.rig.quaternion).add(this.rig.position)
     this.panel.update(now, parkXRView.position, this.headYaw, this.rig.position)
-    this.skewerEntry.update(avatar.current, parkXRView.position, !this.panel.blocking)
+    const immersivePanel = playingOmok || !!this.chat?.open
+    if (immersivePanel) this.panel.setVisible(false)
+    this.chat?.update(!playingOmok)
+    if (playingOmok) this.omok?.update()
+    this.skewerEntry.update(avatar.current, parkXRView.position, !this.panel.blocking && !immersivePanel)
     if (this.panelKey !== this.panel.key) {
       this.panelKey = this.panel.key; this.movement.reset(); this.primaryArmed = this.selectArmed = false
     }
@@ -341,12 +378,12 @@ export class ParkXRController {
     if (!trigger) this.selectArmed = true
     const selectNow = trigger && this.selectArmed
     if (trigger) this.selectArmed = false
-    if (this.panel.blocking && input.jump && this.primaryArmed) { this.primaryArmed = false; this.panel.primary() }
+    if (!immersivePanel && this.panel.blocking && input.jump && this.primaryArmed) { this.primaryArmed = false; this.panel.primary() }
     // Menus stop intent, not XR rendering or authoritative gravity. Idle position
     // heartbeats continue through the same runtime in CLIENT_VALIDATED mode.
-    const turn = this.movement.update(this.panel.blocking ? emptyInput() : input, this.headYaw, now, true,
+    const turn = this.movement.update(this.panel.blocking || immersivePanel ? emptyInput() : input, this.headYaw, now, true,
       localMovement.positionMode, this.comfortSettings)
-    if (this.kind === 'jumpmap') jumpmapXRFeedback.update(avatar, !this.panel.blocking && !this.ending)
+    if (this.kind === 'jumpmap') jumpmapXRFeedback.update(avatar, !this.panel.blocking && !immersivePanel && !this.ending)
     if (turn) {
       this.direction.copy(this.head).applyQuaternion(this.rig.quaternion)
       this.yaw += turn; this.rig.rotation.set(0, this.yaw, 0)
@@ -359,17 +396,38 @@ export class ParkXRController {
     this.camera.position.copy(this.head); this.camera.quaternion.copy(this.rotation)
     this.headAnchor.position.copy(this.head); this.headAnchor.quaternion.copy(this.rotation); this.headAnchor.visible = true
     this.rig.updateMatrixWorld(true)
+    if (playingOmok) this.names.hide()
+    else this.names.update(now, parkXRView.position)
     let hover: JumpmapXRAction | null = null
     let entryHovered = false
+    let chatHover: string | null = null
+    let omokHover: ReturnType<OmokXR['hit']> = null
     let selected = false
-    this.rays.forEach(({ line }) => { line.visible = this.panel.blocking || this.skewerEntry.visible })
-    if ((this.panel.blocking || this.skewerEntry.visible) && frame && space) for (const source of session.inputSources) {
+    const aiming = immersivePanel || this.panel.blocking || this.skewerEntry.visible
+    this.rays.forEach(({ line }) => { line.visible = aiming })
+    if (aiming && frame && space) for (const source of session.inputSources) {
       if (source.targetRayMode !== 'tracked-pointer') continue
       const ray = frame.getPose(source.targetRaySpace, space)
       if (!ray) continue
       this.rayOrigin.set(ray.transform.position.x, ray.transform.position.y, ray.transform.position.z).applyMatrix4(this.rig.matrixWorld)
       this.rayRotation.set(ray.transform.orientation.x, ray.transform.orientation.y, ray.transform.orientation.z, ray.transform.orientation.w)
       this.rayDirection.set(0, 0, -1).applyQuaternion(this.rayRotation).applyQuaternion(this.rig.quaternion)
+      const pressed = selectNow && !selected && source.gamepad?.buttons[0]?.pressed
+      if (playingOmok && this.omok) {
+        const cell = this.omok.hit(this.rayOrigin, this.rayDirection)
+        if (cell && (!omokHover || source.handedness === 'right')) omokHover = cell
+        if (cell && pressed) { selected = true; this.omok.select(cell) }
+        continue
+      }
+      if (this.chat?.open) {
+        const action = this.chat.hit(this.rayOrigin, this.rayDirection)
+        if (action && (!chatHover || source.handedness === 'right')) chatHover = action
+        if (action && pressed) {
+          selected = true; this.chat.select(action)
+          if (!this.chat.open) this.movement.reset()
+        }
+        continue
+      }
       const action = this.panel.blocking ? this.panel.hit(this.rayOrigin, this.rayDirection) : null
       const entry = !this.panel.blocking && this.skewerEntry.hit(this.rayOrigin, this.rayDirection)
       entryHovered ||= entry
@@ -378,6 +436,7 @@ export class ParkXRController {
       if (entry && selectNow && !selected && source.gamepad?.buttons[0]?.pressed) { selected = true; this.enterSkewer() }
     }
     this.panel.setHover(hover)
+    this.chat?.setHover(chatHover); this.omok?.setHover(omokHover)
     this.skewerEntry.setHover(entryHovered)
   }
 
@@ -388,8 +447,9 @@ export class ParkXRController {
     window.removeEventListener('ontop-clear-input', this.interrupted)
     window.removeEventListener('ontop-browser-interrupt', this.interrupted)
     document.removeEventListener('visibilitychange', this.interrupted); this.unsubscribe()
-    for (const { grip, mesh } of this.handles) { mesh.removeFromParent(); grip.removeFromParent(); mesh.geometry.dispose(); mesh.material.dispose() }
+    for (const { grip, model } of this.handles) { disposeTouchModel(model); grip.removeFromParent() }
     for (const { target, line } of this.rays) { target.removeFromParent(); line.removeFromParent(); line.geometry.dispose(); line.material.dispose() }
     this.rig.removeFromParent(); this.panel.dispose(); this.skewerEntry.dispose()
+    this.chat?.dispose(); this.omok?.dispose(); this.names.dispose()
   }
 }

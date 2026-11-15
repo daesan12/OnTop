@@ -43,6 +43,7 @@ import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, canPlayDice, receiveGame, tableBusy, useGame } from '../../game/store'
 import { canUndoAction, type OmokUndoInput } from '../../game/omok/undo'
+import { parkXRView } from '../../world/xrView'
 import { canDrawAction, type OmokDrawInput } from '../../game/omok/draw'
 import { forgetTabGames, keepTabGame, latestEndedGame, readTabGame } from '../../game/resultRecovery'
 import { canStartForfeit, canRetryForfeit, definiteForfeitRejection, forfeitError, interruptForfeit, parseForfeitResult, resetForfeit, useForfeit } from '../../game/forfeit'
@@ -1046,7 +1047,7 @@ export class ParkRuntime implements ParkRuntimePort {
         'WORLD_CHAT_MESSAGE',
       ])
       // Only server echoes enter the message list. No optimistic duplicate or automatic replay.
-    }, { blockControls: !avatars.get(useSession.getState().sessionId)?.carry })
+    }, { blockControls: !parkXRView.active && !avatars.get(useSession.getState().sessionId)?.carry })
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return

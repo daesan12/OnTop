@@ -6,7 +6,7 @@ export { identity } from '../park-integration/fixture'
 
 type FixtureMap = NonNullable<Parameters<typeof baseParkFixture>[2]>
 type RenewalArtifact = NonNullable<typeof import('../../src/park/renewalMap').renewalMap>
-function loadRenewalFixtureMap() {
+export function loadRenewalFixtureMap() {
   const directory = new URL('../../generated/park-renewal/', import.meta.url)
   const { mapId, schemaVersion, mapVersion, data } = JSON.parse(readFileSync(new URL('server-map.json', directory), 'utf8')) as RenewalArtifact
   const { bindings } = JSON.parse(readFileSync(new URL('park-bindings.json', directory), 'utf8')) as Pick<FixtureMap, 'bindings'>

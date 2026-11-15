@@ -228,13 +228,13 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <WardrobeHost />
         <AdvertisementLink />
         <CameraControls />
-        <ParkXRControls />
         <FollowMenu />
         <ParkMap />
         <ParkNavigation />
         <JumpmapHud />
         </div>
       </div>
+      <ParkXRControls omokOnly={omokFocus} />
       <ParkVrZone />
       {(bungeoppang || breadRecovery) && <Suspense fallback={<p role="status">붕어빵 가게를 불러오는 중입니다.</p>}><BungeoppangHud /></Suspense>}
       <OmokFeedback />

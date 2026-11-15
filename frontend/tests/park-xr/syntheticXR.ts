@@ -11,6 +11,7 @@ import { useXRComfort } from '../../src/features/parkXR/comfort'
 let left: Gamepad, right: Gamepad, session: XRSession
 let timer: ReturnType<typeof setInterval>
 let targetAction: JumpmapXRAction | 'skewer-entry' | 'skewer-entry-edge' | null = null
+let canvasTarget: { name: string; u: number; v: number } | null = null
 let endDeferred = false, finishEnd: (() => void) | undefined
 const viewerRotation = new Quaternion()
 let turnSamples: number[] = []
@@ -55,7 +56,7 @@ export function install(options: { haptics?: boolean } = {}) {
       state.setFrameloop('always')
     } }) as unknown as XRSession
     state.setFrameloop('never')
-    tracked = true; targetAction = null; viewerRotation.identity(); turnSamples = []; endDeferred = false; finishEnd = undefined
+    tracked = true; targetAction = null; canvasTarget = null; viewerRotation.identity(); turnSamples = []; endDeferred = false; finishEnd = undefined
     const frame = { getViewerPose: () => tracked ? ({ transform: {
       position: { x: .3, y: viewerHeight, z: -.2 }, orientation: viewerRotation,
     } }) : null, getPose: () => {
@@ -65,7 +66,11 @@ export function install(options: { haptics?: boolean } = {}) {
       const index = view?.buttons.findIndex(b => b.id === targetAction) ?? -1
       const position = { x: .55, y: 1.35, z: -.45 }
       let point: Vector3
-      if (targetAction === 'skewer-entry') point = scene.getObjectByName('park-xr-skewer-entry')!.localToWorld(new Vector3(0, (.5 - 233 / 384) * .3, 0))
+      if (canvasTarget) {
+        const mesh = scene.getObjectByName(canvasTarget.name) as import('three').Mesh<import('three').PlaneGeometry>
+        const { width, height } = mesh.geometry.parameters
+        point = mesh.localToWorld(new Vector3((canvasTarget.u - .5) * width, (.5 - canvasTarget.v) * height, 0))
+      } else if (targetAction === 'skewer-entry') point = scene.getObjectByName('park-xr-skewer-entry')!.localToWorld(new Vector3(0, (.5 - 233 / 384) * .3, 0))
       else if (targetAction === 'skewer-entry-edge') point = scene.getObjectByName('park-xr-skewer-entry')!.localToWorld(new Vector3(.58, .13, 0))
       else {
         if (index < 0 || !view) return { transform: { position, orientation: new Quaternion() } }
@@ -94,12 +99,25 @@ export function visibility(value: XRVisibilityState) {
   Object.defineProperty(session, 'visibilityState', { configurable: true, value })
   session.dispatchEvent(new Event('visibilitychange'))
 }
-export function buttons({ run = false, guide = false, trigger = false }: { run?: boolean; guide?: boolean; trigger?: boolean }) {
+export function buttons({ run = false, guide = false, chat = false, trigger = false }: { run?: boolean; guide?: boolean; chat?: boolean; trigger?: boolean }) {
   Object.assign(left.buttons[1]!, { pressed: run, value: Number(run) })
   Object.assign(left.buttons[4]!, { pressed: guide, value: Number(guide) })
+  Object.assign(left.buttons[5]!, { pressed: chat, value: Number(chat) })
   Object.assign(right.buttons[0]!, { pressed: trigger, value: Number(trigger) })
 }
 export function aim(action: JumpmapXRAction | 'skewer-entry' | 'skewer-entry-edge' | null) { targetAction = action }
+export function aimCanvas(name: string, u: number, v: number) { canvasTarget = { name, u, v } }
+export function visibleXRObject(name: string) { return !!root().scene.getObjectByName(name)?.visible }
+export function xrCanvasInView(name: string) {
+  const { scene, camera } = root()
+  const mesh = scene.getObjectByName(name) as import('three').Mesh<import('three').PlaneGeometry> | undefined
+  if (!mesh?.visible) return false
+  const { width, height } = mesh.geometry.parameters
+  return [-.5, .5].every(x => [-.5, .5].every(y => {
+    const point = mesh.localToWorld(new Vector3(x * width, y * height, 0)).project(camera)
+    return Math.abs(point.x) < 1 && Math.abs(point.y) < 1 && Math.abs(point.z) < 1
+  }))
+}
 export function holdEnd() { endDeferred = true }
 export function completeEnd() { endDeferred = false; finishEnd?.(); finishEnd = undefined }
 export function rotationSamples() { return [...turnSamples] }

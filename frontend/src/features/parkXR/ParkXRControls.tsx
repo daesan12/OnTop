@@ -7,9 +7,10 @@ import { clearRoamingInput } from '../../world/inputOwnership'
 import { canStartJumpmapXR } from '../jumpmap/xrEntry'
 import { useJumpmap } from '../jumpmap/state'
 import { XRComfortFields } from './XRComfortFields'
+import { useGame } from '../../game/store'
 import './parkXR.css'
 
-export function ParkXRControls() {
+export function ParkXRControls({ omokOnly = false }: { omokOnly?: boolean }) {
   const [supported, setSupported] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -19,6 +20,9 @@ export function ParkXRControls() {
   const phase = useParkXR(s => s.phase)
   const error = useParkXR(s => s.error)
   const notice = useParkXR(s => s.notice)
+  const omok = useGame(s => s.game?.omok?.status === 'PLAYING' && s.game.role === 'PLAYER'
+    && s.game.gameId === s.permittedGameId && s.recovery === 'RESTORED')
+  const seated = useSession(s => s.status === 'connected' && s.mapCompatible && !!s.tableId)
   const connected = useSession(s => s.status === 'connected' && s.mapCompatible && !!s.roomId
     && !s.tableId && !s.benchId && !s.fitnessId && !s.telescopeId)
   useEffect(() => {
@@ -46,6 +50,15 @@ export function ParkXRControls() {
   }, [])
   if (!supported && !error) return null
   const busy = phase === 'requesting' || phase === 'ending'
+  if (omok && seated) return <aside className="park-xr-controls" aria-label="오목 VR 조작">
+    <button type="button" disabled={busy || !ready} onClick={event => {
+      event.currentTarget.blur()
+      if (phase === 'active') void parkXRActions.end?.()
+      else void parkXRActions.startOmok?.()
+    }}>{phase === 'active' ? '오목 VR 종료' : busy ? 'VR 연결 중…' : '오목 VR 시작'}</button>
+    {error && <p role="alert">{error}</p>}
+  </aside>
+  if (omokOnly) return null
   const atJumpmap = near && available
   const name = phase === 'idle' && atJumpmap ? '돌탑 점프맵' : '공원'
   return <><aside className="park-xr-controls" aria-label="공원 VR 조작" tabIndex={0}>
@@ -68,7 +81,7 @@ export function ParkXRControls() {
       if (phase === 'active') parkXRActions.settings?.()
       else setSettingsOpen(true)
     }}>VR 편안함 설정</button>
-    <p>공원을 VR로 둘러보고 돌탑 점프맵에도 도전해요.<br />떨어져도 VR은 유지돼요. 스틱으로 출발점에 돌아가세요.<br />왼쪽 스틱 이동 · A 점프 · 왼손 그립 달리기<br />오른쪽 스틱 회전 · X 조작 안내 · B 종료</p>
+    <p>왼쪽 스틱 이동 · A 점프 · 왼손 그립 달리기<br />오른쪽 스틱 회전 · X 조작 안내 · Y 주변 채팅 · B 종료</p>
     {error && <p role="alert">{error}</p>}
     {notice && <p role="status">{notice}</p>}
   </aside>
@@ -77,7 +90,7 @@ export function ParkXRControls() {
       <p>왼쪽 스틱으로 걷고 고개를 돌려 공원을 둘러보세요.<br />돌탑 첫 발판을 밟으면 점프맵이 시작돼요. 떨어져도 VR을 유지하므로 출발점으로 돌아가 다시 도전할 수 있어요.<br />이동 중 왼손 그립을 누르면 달려요. 점프는 오른손 A 버튼이에요.</p>
       <TouchControllerGuide mode="park" />
       <p>오른쪽 스틱의 회전 방식과 속도, 앉기·서기 눈높이는 ‘VR 편안함 설정’에서 선택해요. VR 안에서도 X 안내판에서 열 수 있어요.</p>
-      <p>VR 안에서는 <strong>왼손 X</strong>로 안내판을 열고 닫아요. 평소에는 정면 안내판을 표시하지 않아요.<br />안내판의 ‘공원 조작 안내’와 ‘돌탑 놀이 방법’을 가리켜 트리거로 바꿔 볼 수 있어요.<br />꼬치왕 입구에서는 ‘꼬치왕 입장’ 버튼을 가리켜 검지 트리거로 선택하세요. 준비 화면으로 이동해요.</p>
+      <p>VR 안에서는 <strong>왼손 X</strong>로 안내판을, <strong>왼손 Y</strong>로 주변 채팅을 열고 닫아요.<br />검지 트리거로 채팅 글자와 ‘보내기’를 선택하세요. 채팅 중에는 공원 이동이 멈춰요.<br />꼬치왕 입구에서는 ‘꼬치왕 입장’ 버튼을 가리켜 검지 트리거로 선택하세요. 준비 화면으로 이동해요.</p>
       <p>실제로 뛰지 않고 버튼으로 점프해요. 안내판을 닫으면 공원 이동을 계속할 수 있어요.<br />VR 중에는 다른 유저가 잡거나 던질 수 없어요. 오른손 B로 VR을 종료하면 일반 공원 화면으로 돌아와요.</p>
       <button className="paper-primary" type="button" onClick={() => setGuideOpen(false)}>안내 닫기</button>
     </PaperPopup> : null}

@@ -100,6 +100,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
       if(r.type==='WORLD_MAP_CONFIRM'){confirmationId=r.requestId;if(!options.holdConfirmation)emit('WORLD_MAP_STATE',{map:options.serverMap??mapIdentity,verified:true},r.requestId)}
       if(r.type==='CHANNEL_JOIN'){emit('CHANNEL_STATE',{channelId:'channel-1',name:'새 공원 검증',version:++channelVersion,capacity:16,currentUsers:1,userIds:['101']},r.requestId);world()}
       if(r.type==='WORLD_FOLLOW_CHECK')emit('WORLD_FOLLOW_STATE',{channelId:'channel-1',version:0,links:[]},r.requestId)
+      if(r.type==='WORLD_CHAT_SEND')emit('WORLD_CHAT_MESSAGE',{messageId:`park-chat-${requests.length}`,channelId:'channel-1',userId:'101',text:r.payload.text,sentAt:new Date().toISOString()},r.requestId)
       if(r.type==='WORLD_MOVE'){dx=r.payload.dx;dz=r.payload.dz;position.moving=!!(dx||dz);position.running=r.payload.run;position.lastInputSeq=r.payload.seq;world(r.requestId)}
       if(r.type==='WORLD_INTERACTION_SET'){
         if(options.denyInteraction)emit('ERROR',{code:'INTERACTION_UNAVAILABLE',message:'보호 상태를 확인하지 못했어요.'},r.requestId)
