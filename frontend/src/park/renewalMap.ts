@@ -6,7 +6,8 @@ import type { Point3 } from '../map/park/interactionData'
 import type { VrEntrance } from '../features/vrZone/anchors'
 import type { buildRenewalJumpCourse } from '../../park-renewal-preview/live/jumpCourseData'
 
-export type RenewalRecreationId = 'fortune' | 'fish-bread' | 'rps-roulette-cabinet' | 'plus-minus-cabinet' | 'mole-shop' | 'pigeon-jump-rope'
+export type RenewalRecreationId = 'fortune' | 'fish-bread' | 'rps-roulette-cabinet' | 'plus-minus-cabinet'
+  | 'mole-shop' | 'pigeon-jump-rope' | 'shooting'
 export interface RenewalRecreationAnchor {
   id: RenewalRecreationId
   position: Point3

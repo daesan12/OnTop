@@ -44,6 +44,7 @@ function renewalMapPlaces({ interactions, jumpCourse }: NonNullable<typeof renew
     gamePlace('pigeon', 'pigeon-jump-rope', '비둘기 줄넘기'),
     gamePlace('mole', 'mole-shop', '두더지 가게'),
     gamePlace('arcade', 'rps-roulette-cabinet', '오락실'),
+    gamePlace('shooting', 'shooting', '온탑 사격장'),
     ...interactions.construction.map(anchor => {
       const label = anchor.id.startsWith('mobility-') ? anchor.label + ' 대여소' : anchor.label
       return place(anchor.id, label, xz(anchor.position), xz(anchor.reachPosition), true)

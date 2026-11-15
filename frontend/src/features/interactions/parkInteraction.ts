@@ -39,6 +39,7 @@ import { STONE_RUMBLE_ENABLED } from '../tableLobby/model'
 import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice,openParkGacha } from '../construction/model'
+import { openSpotDifference } from '../spotDifference/store'
 import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlacement'
 import { gachaInteractionEnabled } from '../gacha/state'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
@@ -68,6 +69,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
   'plus-minus-cabinet': '더하기빼기 하기',
   'mole-shop': '두더지 모드 고르기',
   'pigeon-jump-rope': '구구구 줄넘기 하기',
+  shooting: '스피드 틀린 그림 찾기',
 }
 
 export interface ParkInteraction {
@@ -250,6 +252,7 @@ export function interactWithPark(expectedId?: string): boolean {
       case 'plus-minus-cabinet': openPlusMinus(); break
       case 'mole-shop': openArcade('mole'); break
       case 'pigeon-jump-rope': openJumpRope(); break
+      case 'shooting': openSpotDifference(); break
     }
   }
   else if (target.kind === 'table') interactWithTable(target.id)
