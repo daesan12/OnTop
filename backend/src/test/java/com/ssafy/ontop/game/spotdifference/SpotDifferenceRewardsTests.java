@@ -2,8 +2,11 @@ package com.ssafy.ontop.game.spotdifference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -36,8 +39,8 @@ class SpotDifferenceRewardsTests {
         assertThat(rewards.settle(USER_ID, id, 108))
                 .isEqualTo(new SpotDifferenceRewards.Receipt(108, 0, 1000));
         verify(wallets).findForUpdateByUserId(USER_ID);
-        verify(wallet, org.mockito.Mockito.never()).creditReward(org.mockito.ArgumentMatchers.anyLong(), any());
-        verify(ledger, org.mockito.Mockito.never()).saveAndFlush(any());
+        verify(wallet, never()).creditReward(anyLong(), any());
+        verify(ledger, never()).saveAndFlush(any());
     }
 
     @Test
@@ -53,7 +56,7 @@ class SpotDifferenceRewardsTests {
         when(query.getSingleResult()).thenReturn(1000L);
         assertThat(rewards.settle(USER_ID, id, 108))
                 .isEqualTo(new SpotDifferenceRewards.Receipt(108, 5, 1000));
-        verify(wallet).creditReward(org.mockito.ArgumentMatchers.eq(5L), any(Instant.class));
+        verify(wallet).creditReward(eq(5L), any(Instant.class));
         verify(ledger).saveAndFlush(any());
     }
 
