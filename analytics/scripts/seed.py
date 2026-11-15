@@ -113,11 +113,15 @@ def build_seed() -> str:
             props["step"] = step
         events.append((at, "ONBOARDING_STEP", user_id, None, None, None, props, "CLIENT"))
 
-    def facility(at: str, user_id: int, lease_id: str, facility_id: str, kind: str, seat: int,
-                 end_reason: str | None = None, duration_ms: int | None = None) -> None:
-        props = dict(leaseId=lease_id, facilityId=facility_id, kind=kind, seatIndex=seat)
+    def facility(at: str, user_id: int, lease_id: str, facility_id: str, kind: str, seat: int | None,
+                 end_reason: str | None = None, duration_ms: int | None = None, fee: int | None = None) -> None:
+        props = dict(leaseId=lease_id, facilityId=facility_id, kind=kind)
+        if seat is not None:
+            props["seatIndex"] = seat
         if end_reason:
             props.update(endReason=end_reason, durationMs=duration_ms)
+        if fee is not None:
+            props["fee"] = fee
         event(at, "FACILITY_RELEASED" if end_reason else "FACILITY_USED", user_id, channel="one", **props)
 
     def position(at: str, user_id: int, x: float, z: float, moving: bool, *,
@@ -184,6 +188,9 @@ def build_seed() -> str:
     event("2026-10-28 01:00:05", "CHANNEL_JOINED", 101, channel="one", currentUsers=2)
     facility("2026-10-28 01:00:10", 101, "lease-4", "telescope-1", "TELESCOPE", 0)
     facility("2026-10-28 01:01:10", 101, "lease-4", "telescope-1", "TELESCOPE", 0, "RELEASED", 60_000)
+    # 탈것: 정문 대여소 킥보드 30초(초당 2냥) 뒤 직접 하차.
+    facility("2026-10-28 01:01:20", 101, "ride-1", "mobility-entry", "SCOOTER", None)
+    facility("2026-10-28 01:01:50", 101, "ride-1", "mobility-entry", "SCOOTER", None, "RELEASED", 30_000, 60)
     event("2026-10-28 01:01:00", "TABLE_JOINED", 105, table="t1", channel="one")
     event("2026-10-28 01:02:00", "TABLE_JOINED", 101, table="t1", channel="one")
     for user_id in (101, 105):

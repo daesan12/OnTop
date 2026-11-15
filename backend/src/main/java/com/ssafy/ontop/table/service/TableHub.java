@@ -1010,7 +1010,7 @@ public class TableHub {
         if (member == null) {
             return;
         }
-        endRide(member.userId(), "ENDED");
+        endRide(member.userId(), "ENDED", "DISCONNECTED");
         closeMember(member, reason);
         String loginSessionId = loginSessions.remove(sessionId);
         connectionStarted.remove(sessionId);
@@ -1335,7 +1335,7 @@ public class TableHub {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         if (!channels.isInChannel(member.userId(), channelId)) {
-            endRide(member.userId(), "ENDED");
+            endRide(member.userId(), "ENDED", "CHANNEL_LEFT");
         }
         long joinStarted = System.nanoTime();
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
@@ -1524,7 +1524,7 @@ public class TableHub {
         if (seating.containsKey(member.userId())) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
-        endRide(member.userId(), "ENDED");
+        endRide(member.userId(), "ENDED", "CHANNEL_LEFT");
         var facilityLease = facilities.release(member.userId());
         if (facilityLease != null) {
             recordFacility(member.accountId(), facilityLease, "CHANNEL_LEFT");
@@ -1577,7 +1577,7 @@ public class TableHub {
                 sendMobility(member, request.requestId(), id, null, "ENDED", 0, null);
             } else {
                 rememberMobilityRequest(current.endRequests, request.requestId());
-                endRide(user, "ENDED");
+                endRide(user, "ENDED", "RELEASED");
             }
             return;
         }
@@ -1662,10 +1662,27 @@ public class TableHub {
             publishWorld(channels.setVehicle(user, ride.vehicle), null, null);
             notifyMobilityRide(ride, ride.startRequests, "RIDING", receipt);
             ride.startRequests.clear();
+            ride.logged = true;
+            recordMobility(ride, null);
         } else {
             ride.nextPaymentAt += MobilityRentals.SECOND;
             notifyMobilityRide(ride, Set.of(), "RIDING", receipt);
         }
+    }
+
+    // 첫 1초 요금이 커밋돼 실제로 탄 뒤에만 시작을, 그렇게 시작한 탈것만 종료를 남긴다. 시설 이용과 같은
+    // FACILITY_USED·FACILITY_RELEASED를 쓰고 leaseId로 짝을 맞춘다. 이용 시간은 요금을 낸 초 수다.
+    private void recordMobility(MobilityRide ride, String endReason) {
+        recordBehavior(endReason == null ? BehaviorEventType.FACILITY_USED : BehaviorEventType.FACILITY_RELEASED,
+                ride.owner.accountId(), builder -> {
+                    builder.channelId(ride.channel).prop("leaseId", ride.id).prop("facilityId", ride.station)
+                            .prop("kind", ride.vehicle.name());
+                    if (endReason != null) {
+                        builder.prop("endReason", endReason).prop("durationMs", ride.seconds * 1000)
+                                .prop("fee", ride.total());
+                    }
+                    return builder;
+                });
     }
 
     private void sendMobility(Member member, String request, String id, VehicleKind vehicle,
@@ -1684,10 +1701,16 @@ public class TableHub {
     }
 
     private void endRide(String user, String status) {
+        endRide(user, status, null);
+    }
+
+    // logReason은 행동 로그에만 쓰는 종료 사유다. 없으면 클라이언트에 보내는 status를 그대로 쓴다.
+    private void endRide(String user, String status, String logReason) {
         var ride = mobilityRides.get(user);
         if (ride == null || ride.endStatus != null) {
             return;
         }
+        ride.logReason = logReason;
         // Decide cancellation before broadcasting the dismount. A commit that already won
         // the decision is included in the final total when the worker reports its result.
         boolean resolved = ride.payment == null || ride.payment.cancel();
@@ -1705,6 +1728,9 @@ public class TableHub {
 
     private void finishRide(MobilityRide ride, String receipt) {
         mobilityRides.remove(ride.owner.userId());
+        if (ride.logged) {
+            recordMobility(ride, ride.logReason == null ? ride.endStatus : ride.logReason);
+        }
         ride.startRequests.addAll(ride.endRequests);
         notifyMobilityRide(ride, ride.startRequests, ride.endStatus, receipt);
     }
@@ -1733,7 +1759,7 @@ public class TableHub {
             }
             String user = ride.owner.userId();
             if (!mobilityPositionValid(ride, ride.seconds == 0)) {
-                endRide(user, "ENDED");
+                endRide(user, "ENDED", "AUTO_ENDED");
             } else if (ride.payment != null) {
                 if (now - ride.paymentDeadline >= 0) {
                     endRide(user, "FAILED");
@@ -4120,6 +4146,8 @@ public class TableHub {
         private long paymentDeadline;
         private MobilityRentals.Charge payment;
         private String endStatus;
+        private String logReason;
+        private boolean logged;
 
         private MobilityRide(Member owner, String channel, String id, String station, VehicleKind vehicle) {
             this.owner = owner;
