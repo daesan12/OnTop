@@ -6,9 +6,18 @@
 }
 .spot-difference::-webkit-scrollbar { display: none; }
 .table-paper-popup.spot-difference.spot-playing { width: min(1040px, 100%); }
+.table-paper-popup.spot-difference .paper-close {
+  background: #fbefd7eb;
+  border: 1px solid #b7a077;
+}
 .spot-difference h2 { margin: 4px 24px 12px; font-size: clamp(28px, 5vw, 46px); }
 .spot-description, .spot-note, .spot-budget { margin: 9px 0; }
-.spot-note { font-size: .82rem; color: #57503d; }
+.spot-note, .spot-feedback {
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: #fff5dfef;
+}
+.spot-note { font-size: .82rem; color: #48402d; }
 .spot-budget { font-weight: 700; font-size: .93rem; }
 .spot-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 20px 0 16px; }
 .spot-difference .spot-card {
@@ -105,6 +114,14 @@
 @media (max-width: 520px) and (orientation: portrait) {
   .spot-boards { grid-template-columns: minmax(0, 1fr); }
   .spot-difference.spot-playing { padding-inline: 13px; }
+  .spot-hud {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 5px;
+    border-radius: 7px;
+    background: #fff5df;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .spot-difference .spot-card { transition: none; }
