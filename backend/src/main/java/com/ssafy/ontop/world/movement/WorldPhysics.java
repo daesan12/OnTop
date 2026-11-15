@@ -826,7 +826,7 @@ public final class WorldPhysics implements AutoCloseable {
                 resetMotion(a);
             }
             if (clientPositions && !a.positionDisabled
-                    && a.throwTicks == 0
+                    && a.throwTicks == 0 && a.vehicleSpeed == 0
                     && !following.containsKey(entry.getKey()) && !specialMovement(a.body.getPhysicsLocation(null))
                     && supported && !ridingCoursePad(a)) {
                 stopNow(entry.getKey());
