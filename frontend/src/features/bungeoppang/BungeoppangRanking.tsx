@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { useSession } from '../../network/worldClient'
 import { appendRanking, BUNGEOPPANG_RANKINGS_ENABLED, fetchRanking, RankingScoreUnavailableError, type RankingPage } from './ranking'
+import { PaperPopup } from '../tableLobby/PaperPopup'
 import './bungeoppangRanking.css'
 
 /** `durationMs` is the round's stored play length (v5 only), so a 3-minute round shows the 3-minute board. */
@@ -73,7 +74,16 @@ export function RankingSummary({ feed, onOpen }: { feed: Feed; onOpen(): void })
     </div><button className="bung-ranking-open" onClick={onOpen}>랭킹 보기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14m-5-5 5 5-5 5" /></svg></button></div>
   </section>
 }
-export function RankingDetails({ feed, onBack }: { feed: Feed; onBack(): void }) {
+export function BungeoppangRankingDialog({ feed, onClose, backLabel }: {
+  feed: Feed; onClose(): void; backLabel: string
+}) {
+  return <PaperPopup title="붕어빵 전체 랭킹" label="붕어빵 전체 랭킹" closeLabel="랭킹 닫기"
+    onClose={onClose} className="bungeoppang-paper-result bungeoppang-ranking-popup">
+    <RankingDetails feed={feed} onBack={onClose} backLabel={backLabel} />
+  </PaperPopup>
+}
+
+function RankingDetails({ feed, onBack, backLabel }: { feed: Feed; onBack(): void; backLabel: string }) {
   const { data, loading, error, enabled, ownId } = feed
   return <section className="bung-ranking-details" aria-label="전체 랭킹 상세">
     <h2>붕어빵 전체 랭킹</h2><p className="paper-subtitle">따끈하게 쌓아 올린 우리들의 최고 기록</p>
@@ -94,6 +104,6 @@ export function RankingDetails({ feed, onBack }: { feed: Feed; onBack(): void })
       </tr>)}</tbody></table></div>}
     {error && <p className="paper-error" role="alert">{error}<button className="paper-text-button" disabled={loading} onClick={feed.retry}>랭킹 다시 확인</button></p>}
     {data?.nextCursor && <button className="bung-ranking-more" disabled={loading} onClick={() => void feed.more()}>{loading ? '불러오는 중…' : '다음 순위 더 보기'}</button>}
-    <button className="bung-ranking-back" onClick={onBack}>결과로 돌아가기</button>
+    <button className="bung-ranking-back" onClick={onBack}>{backLabel}</button>
   </section>
 }

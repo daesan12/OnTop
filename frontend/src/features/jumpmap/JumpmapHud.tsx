@@ -27,5 +27,5 @@ export function JumpmapHud() {
   }, [xrOwnsView])
   // XR renders the same server state in-world; a DOM completion dialog would steal
   // focus and end immersive presentation before the player could dismiss it.
-  return JUMPMAP_ENABLED && !xrOwnsView ? <><JumpmapGuide /><JumpmapOverlay state={state} now={frame.now} nearStart={frame.near} loadRankings={loadRankings} /></> : null
+  return JUMPMAP_ENABLED && !xrOwnsView ? <><JumpmapGuide loadRankings={loadRankings} /><JumpmapOverlay state={state} now={frame.now} nearStart={frame.near} loadRankings={loadRankings} /></> : null
 }

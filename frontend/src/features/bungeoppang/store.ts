@@ -10,7 +10,7 @@ import { holdCustomerDepartureV5, approveCustomerDepartureV5, advanceCustomerDep
 import type { BungFeedback, FeedbackPoint } from './presentation';
 import { slotScreen } from './bungeoppangView';
 import { BUNG_GRILL } from './bungeoppangView';
-import { customerPoint, trayPoint, trashPoint } from './layoutV5';
+import { customerPoint, trayPoint, trashPoint, renewalBreadShop } from './layoutV5';
 import { roundClockAnchor } from './serverTime';
 import { playSfx } from '../../audio/sfx';
 import {
@@ -300,7 +300,7 @@ export function openBungeoppang() {
   rememberRoamingView(session.sessionId, session.roomId);
   ++visit;
   resetCustomerArrivalsV5();
-  set({ phase: "entering", ...initial(), status: null, seenTips: [] });
+  set({ phase: renewalBreadShop ? "start" : "entering", ...initial(), status: null, seenTips: [] });
   inputState.minigameOpen = true;
   clearHeldInput();
   view.active = true;
@@ -312,7 +312,8 @@ export function openBungeoppang() {
   if (document.pointerLockElement) void document.exitPointerLock();
   (document.activeElement as HTMLElement | null)?.blur?.();
   void refreshBungeoppangStatus();
-  transitionTimer = setTimeout(() => {
+  // The start panel and status request can run during the same camera transition.
+  if (!renewalBreadShop) transitionTimer = setTimeout(() => {
     if (get().phase === "entering") set({ phase: "start" });
   }, R.cameraTransitionMs);
 }

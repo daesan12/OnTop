@@ -50,7 +50,7 @@ import { useJumpmap } from '../jumpmap/state'
 import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
 import { openFortune } from '../fortune/controller'
-import { rentalCapability, useMobility } from '../mobility/state'
+import { useMobility } from '../mobility/state'
 import { useDisplayGame } from '../../game/displayGame'
 import { diamond, interiorVisit, visitScope } from '../../../park-renewal-preview/interiorEvents'
 import { accessAt, interiorAccess } from '../../../park-renewal-preview/interiorAccess'
@@ -120,7 +120,7 @@ export function getParkInteraction(): ParkInteraction | null {
   if(plazaKiosksEnabled)for(const site of constructionSites){
     // layout-shop is the visible gacha machine. Its E prompt is controlled by the
     // backend runtime capability below, not by the legacy construction marker.
-    if(site.id===PARK_GACHA_MACHINE.id || RENEWAL_PARK_ENABLED && rentalCapability.available && site.id.startsWith('mobility-'))continue
+    if(site.id===PARK_GACHA_MACHINE.id || RENEWAL_PARK_ENABLED && site.id.startsWith('mobility-'))continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     const label = site.id === 'layout-drink' ? '복권방 열기' : site.label

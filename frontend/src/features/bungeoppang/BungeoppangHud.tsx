@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { BUNGEOPPANG, BUNGEOPPANG_V4, BUNGEOPPANG_V5, bungeoppangV4Preview, bungeoppangV5Preview, bungeoppangV5Enabled } from "./config";
 import { isV5Grill } from './rulesV5';
 import { BungeoppangHudV5 } from './BungeoppangHudV5';
@@ -47,6 +47,8 @@ import './bungeoppangV5.css';
 import './bungeoppangStart.css';
 import coinIcon from '../../assets/entry/yeopjeon-icon.webp';
 import { BungeoppangResult } from './BungeoppangResult';
+import { BungeoppangRankingDialog, useBungeoppangRanking } from './BungeoppangRanking';
+import { BUNGEOPPANG_RANKINGS_ENABLED, rankingDurationMs } from './ranking';
 
 const R = BUNGEOPPANG;
 const SLOT_CODES = ["KeyQ", "KeyW", "KeyE", "KeyA", "KeyS", "KeyD"];
@@ -475,6 +477,9 @@ function Steps() {
   </ol>;
 }
 function StartPanel() {
+  const [rankingOpen, setRankingOpen] = useState(false);
+  const rankingButton = useRef<HTMLButtonElement>(null);
+  const returningFromRanking = useRef(false);
   const status = useBungeoppang((s) => s.status);
   const statusError = useBungeoppang((s) => s.statusError);
   const starting = useBungeoppang((s) => s.starting);
@@ -483,8 +488,17 @@ function StartPanel() {
   const capped = !!status && status.todayEarned >= status.dailyCap;
   const v5 = status ? status.rulesVersion === 'v5' : bungeoppangV5Enabled;
   const readyRules = v5 ? BUNGEOPPANG_V5 : BUNGEOPPANG_V4;
+  const rulesVersion = status?.rulesVersion ?? readyRules.rulesVersion;
+  const canRank = BUNGEOPPANG_RANKINGS_ENABLED && (rulesVersion === 'v4' || rulesVersion === 'v5');
+  const ranking = useBungeoppangRanking(rulesVersion, 'start', rankingOpen,
+    rankingDurationMs(rulesVersion, readyRules));
+  useEffect(() => {
+    if (rankingOpen || !returningFromRanking.current) return;
+    returningFromRanking.current = false;
+    rankingButton.current?.focus({ preventScroll: true });
+  }, [rankingOpen]);
   return (
-    <section className="bung-panel bung-start" aria-label="붕어빵 굽기 시작" tabIndex={0}>
+    <><section className="bung-panel bung-start" aria-label="붕어빵 굽기 시작" tabIndex={0} inert={rankingOpen}>
       <header className="bung-start-title">
         <span className="bung-start-cloud" aria-hidden="true"><CloudDecoration /></span>
         <h2><img src="/art/bungeoppang/result-fish.webp" alt="" width="76" height="50" />붕어빵 굽기</h2>
@@ -517,7 +531,8 @@ function StartPanel() {
           </div>
           <p className="bung-start-bonus"><b>피자·초코</b> 보너스 +{readyRules.specialBonusPercent}%</p>
           {v5 && <p className="bung-start-complaint"><b>컴플레인</b> −{BUNGEOPPANG_V5.queueComplaintPenalty}점</p>}
-          <p className="bung-start-ranking">최고 점수로 랭킹에 도전해요!</p>
+          {canRank && <div className="bung-start-ranking"><button ref={rankingButton} type="button" aria-haspopup="dialog"
+            disabled={starting} onClick={() => setRankingOpen(true)}>랭킹 보기</button></div>}
         </div>
       </section>
       <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status ? `${status.todayEarned}냥` : '확인 중'} / ${status?.dailyCap ?? R.dailyCoinCap}냥`}>
@@ -552,6 +567,10 @@ function StartPanel() {
         </button>
       </footer>
     </section>
+    {rankingOpen && <BungeoppangRankingDialog feed={ranking} onClose={() => {
+      returningFromRanking.current = true;
+      setRankingOpen(false);
+    }} backLabel="시작 화면으로 돌아가기" />}</>
   );
 }
 

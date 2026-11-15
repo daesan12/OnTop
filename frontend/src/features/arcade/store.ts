@@ -20,14 +20,13 @@ export function openArcade(scope: ArcadeScope = 'all') {
   clearRoamingInput()
   inputState.minigameOpen = true
   if (document.pointerLockElement) document.exitPointerLock()
-  const selected = scope === 'mole' && current.selected !== 'speed-mole' ? 'whack-a-mole' : current.selected
-  useArcade.setState({ open: true, scope, selected })
+  useArcade.setState({ open: true, scope })
   // 고르는 화면에 오늘 남은 판·진행 중인 판·오늘 받은 엽전을 보여 주려고 게임 상태를 미리 읽는다.
   if (scope === 'all') {
     void refreshRpsRoulette()
     void refreshPlusMinus()
+    void refreshMole()
   }
-  void refreshMole()
 }
 
 export function closeArcade() {

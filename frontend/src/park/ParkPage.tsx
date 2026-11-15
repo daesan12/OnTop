@@ -30,7 +30,7 @@ import { SettingsLauncher } from '../performance/GraphicsSettings'
 import { ParkMap } from '../features/navigation/ParkMap'
 import { ParkNavigation } from '../features/navigation/NavigationHud'
 import { useBungeoppang, watchBungeoppangRecovery } from '../features/bungeoppang/store'
-import { loadBungeoppangHud } from '../features/bungeoppang/loadBungeoppangView'
+import { getPreloadedBungeoppangHud, loadBungeoppangHud } from '../features/bungeoppang/loadBungeoppangView'
 import { ShopHost } from '../features/shop/ShopHost'
 import { WardrobeLauncher, WardrobeHost } from '../features/wardrobe/WardrobeHost'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
@@ -62,6 +62,7 @@ import { AiResidentsHost } from '../features/ai/AiResidentsHost'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
 import { WinnerContactsHost } from '../features/winnerContacts/WinnerContactsHost'
 import { useArcade } from '../features/arcade/store'
+import { MoleModePicker } from '../features/arcade/MoleModePicker'
 import { useMole } from '../features/mole/store'
 import { usePlusMinus } from '../features/plusMinus/store'
 import { useRpsRoulette } from '../features/rpsRoulette/store'
@@ -74,7 +75,12 @@ import type { ServiceOperationStatus } from '../features/operation/serviceOperat
 
 
 const ArcadePicker = lazy(() => import('../features/arcade/ArcadePicker').then(module => ({ default: module.ArcadePicker })))
-const BungeoppangHud = lazy(loadBungeoppangHud)
+const LazyBungeoppangHud = lazy(loadBungeoppangHud)
+function BungeoppangHud() {
+  // Reuse a HUD already loaded on approach without re-entering the lazy fallback.
+  const [Hud] = useState(() => getPreloadedBungeoppangHud() ?? LazyBungeoppangHud)
+  return <Hud />
+}
 const MolePanel = lazy(() => import('../features/mole/MolePanel').then(module => ({ default: module.MolePanel })))
 const PlusMinusPanel = lazy(() => import('../features/plusMinus/PlusMinusPanel').then(module => ({ default: module.PlusMinusPanel })))
 const RpsRoulettePanel = lazy(() => import('../features/rpsRoulette/RpsRoulettePanel').then(module => ({ default: module.RpsRoulettePanel })))
@@ -121,15 +127,16 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const vrPhase = useStore(parkVrZone.store, state => state.phase)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
   const breadRecovery = useBungeoppang(s => s.recoveryDeferred)
-  const arcadeOpen = useArcade(s => s.open)
+  const arcadeScope = useArcade(s => s.open ? s.scope : null)
+  const arcadeOpen = arcadeScope === 'all'
   const moleOpen = useMole(s => s.open)
   const plusMinusOpen = usePlusMinus(s => s.open)
   const rpsOpen = useRpsRoulette(s => s.open)
   const speedMoleOpen = useSpeedMole(s => s.open)
   const jumpRopeOpen = useJumpRope(s => s.open)
-  const gachaOpen = useGachaOverlay(s => s.open)
+  const gachaOpen = useGachaOverlay(s => s.surface !== null)
   const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
-    || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || gachaOpen
+    || !!arcadeScope || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const stoneOverlay = useGame(s => {
@@ -215,6 +222,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <WelcomeTour />
         <ConstructionNotice />
         <FortunePanel />
+        {arcadeScope === 'mole' && <MoleModePicker />}
         {(rpsOpen || arcadeOpen || plusMinusOpen || moleOpen) && <Suspense fallback={<p role="status">게임을 불러오는 중입니다.</p>}>
           {rpsOpen && <RpsRoulettePanel />}
           {arcadeOpen && <ArcadePicker />}

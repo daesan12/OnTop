@@ -95,7 +95,8 @@ USER-05에서는 JWT 발급이 필요하므로 서명 키 설정이 필수다.
 
 expires_at > created_at CHECK와 user/session, expiry 인덱스가 있다.
 Refresh 원문은 `rt_`와 256비트 난수로 구성하며 **DB에는 저장하지 않는다**.
-같은 회원도 로그인마다 다른 session UUID·해시를 발급하므로 복수 기기를 허용한다.
+같은 회원이 다시 로그인하면 새 session UUID·해시를 발급하고, 같은 트랜잭션에서 이전 로그인 계열을 폐기한다.
+커밋 후에는 이전 Access·Refresh·미사용 WebSocket 접속권이 거절되고, 이전 로그인으로 열린 WebSocket은 4401로 종료된다.
 session_id는 10분짜리 HttpSession ID와 별개다. 향후 Refresh 갱신을 과거 HttpSession 수명에 종속시키지 않는다.
 
 후속 API의 내부 계약:

@@ -1,5 +1,5 @@
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
-import { HOLD_MS, useMobility, vehicles } from './state'
+import { HOLD_MS, rentalCapability, useMobility, vehicles } from './state'
 import './mobility.css'
 
 const formatCoins = new Intl.NumberFormat('ko-KR')
@@ -51,8 +51,8 @@ export function MobilityHud() {
       </svg>
     </span>
     <span className="mobility-rental-copy">
-      <strong>{choice.label} 대여 · {choice.rate}냥/초</strong>
-      <small>{holdAt === null ? '길게 눌러 탑승' : '계속 눌러주세요'}</small>
+      <strong>{choice.label} 대여{rentalCapability.available ? ` · ${choice.rate}냥/초` : ''}</strong>
+      <small>{!rentalCapability.available ? '현재 대여 불가' : holdAt === null ? '길게 눌러 탑승' : '계속 눌러주세요'}</small>
     </span>
   </aside>
 }

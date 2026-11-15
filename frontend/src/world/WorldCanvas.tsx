@@ -188,7 +188,7 @@ export const WorldCanvas = memo(function WorldCanvas({
   const preset = QUALITY[quality]
   const overlayTargets = useMemo<OverlayTargets>(() => new Map(), [])
   const [visible, setVisible] = useState(() => !document.hidden)
-  const gachaOverlay = useGachaOverlay(s => s.open)
+  const gachaSurface = useGachaOverlay(s => s.surface)
   const fortuneOpen = useFortune(s => s.open)
   const [viewport, setViewport] = useState(() => ({
     width: innerWidth,
@@ -224,8 +224,9 @@ export const WorldCanvas = memo(function WorldCanvas({
     <>
       <Canvas
         events={parkPointerEvents}
-        // Keep sockets alive in hidden tabs; authoritative match state still arrives.
-        frameloop={!visible || !active || gachaOverlay || (fortuneOpen && firstFrameAt.current !== null) ? 'never' : 'always'}
+        // Redraw the visible park backdrop on resize without running a second continuous render loop.
+        frameloop={!visible || !active || gachaSurface === 'boxes' || (fortuneOpen && firstFrameAt.current !== null)
+          ? 'never' : gachaSurface === 'machine' ? 'demand' : 'always'}
         shadows={!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&preset.shadows ? 'percentage' : false}
         dpr={renderDpr}
         camera={{

@@ -42,7 +42,12 @@ function walls(b:PropBuilder,cutaway=false){
   }
   for(let z=-3.8;z<4.3;z+=.8)b.box('stone',z>0?'#bcb7aa':'#a9a69e',[side*(w/2+.1),.26,z],[.32,.43,.75])
  }
- for(let x=-5.8;x<6;x+=.8)for(const z of [-4.38,4.4])if(z<0||Math.abs(x)>2.6)b.box('stone','#b5b0a6',[x,.26,z],[.76,.43,.3])
+ // End the stone courses at the inner edge of the side blocks. Their top faces must not overlap.
+ const stoneSideInner=w/2+.1-.16
+ for(let x=-5.8;x<6;x+=.8)for(const z of [-4.38,4.4])if(z<0||Math.abs(x)>2.6){
+  const left=Math.max(-stoneSideInner,x-.38),right=Math.min(stoneSideInner,x+.38)
+  b.box('stone','#b5b0a6',[(left+right)/2,.26,z],[right-left,.43,.3])
+ }
  for(const x of [-6,-2.2,2.2,6])b.box('wood',wood,[x,cutaway?.5:2.3,4.4],[.28,cutaway?1:4.6,.3])
 }
 function gable(b:PropBuilder,neon:PropBuilder){

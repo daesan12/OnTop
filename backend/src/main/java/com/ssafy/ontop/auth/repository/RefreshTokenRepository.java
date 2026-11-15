@@ -3,6 +3,7 @@ package com.ssafy.ontop.auth.repository;
 import com.ssafy.ontop.auth.domain.RefreshToken;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -28,6 +29,9 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
         Instant getRotatedAt();
     }
+
+    @Query("select distinct r.sessionId from RefreshToken r where r.user.id = :userId and r.revokedAt is null")
+    List<String> findUnrevokedSessionIds(@Param("userId") Long userId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update RefreshToken r set r.revokedAt = :now where r.user.id = :userId "

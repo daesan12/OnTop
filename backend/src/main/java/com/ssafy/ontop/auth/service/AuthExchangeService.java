@@ -41,8 +41,8 @@ public class AuthExchangeService {
                 return new Result(new AuthExchangeResponse.Onboarding(token), null);
             }
             cookies.validate();
-            AuthExchangePersistenceService.Credentials issued = issuer.issueExisting(outcome);
             rotateSession(request);
+            AuthExchangePersistenceService.Credentials issued = issuer.issueExisting(outcome);
             return new Result(new AuthExchangeResponse.Authenticated(issued.accessToken()),
                     cookies.issue(issued.refreshToken()));
         } catch (DataAccessException | TransactionException exception) {
