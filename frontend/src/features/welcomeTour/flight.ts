@@ -1,5 +1,5 @@
-/** 첫 입장 환영 비행. 건너뛰기 없이 이 시간만 보여 준다. */
-export const WELCOME_FLIGHT_MS = 5000
+/** 첫 입장 환영 배너를 표시하는 시간. */
+export const WELCOME_FLIGHT_MS = 1800
 
 export interface Point3 { x: number; y: number; z: number }
 export interface CameraPose { position: Point3; look: Point3 }

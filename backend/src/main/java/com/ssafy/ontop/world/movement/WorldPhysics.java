@@ -779,9 +779,17 @@ public final class WorldPhysics implements AutoCloseable {
             Actor a = entry.getValue();
             if (a.seated || a.clientControlled) { continue; }
             Vector3f position = a.body.getPhysicsLocation(null);
+            // The grouped physics step leaves the last group's colliders installed.
+            // Recover this rider's own moving pad before testing its support.
+            if (ridingCoursePad(a)) {
+                prepareCourseAt(a, position);
+            }
             correctExclusion(a, position, scene.policy.slide(position, this::activeShape));
             position = a.body.getPhysicsLocation(null);
-            boolean supported = a.body.onGround() && scene.policy.allowsSupport(position, this::activeShape);
+            boolean onMovingPad = ridingCoursePad(a) && !a.leftByJump
+                    && renewalMotion.riddenTop(a.id, position, courseTime(),
+                            number("halfHeight") + number("radius") + number("offset"), number("radius")) != null;
+            boolean supported = (onMovingPad || a.body.onGround()) && scene.policy.allowsSupport(position, this::activeShape);
             a.motion = new Motion(a.motionEpoch, physicsTick, now >= a.receivedAt ? a.seq : a.motion.appliedInputSeq(),
                     Math.min(250, Math.max(0, (now - a.receivedAt) / 1_000_000.0)),
                     supported ? 0 : (position.y - a.beforeStepY) / DT, supported, inputActive(a, now));
@@ -861,8 +869,9 @@ public final class WorldPhysics implements AutoCloseable {
         // 코요테는 떠나온 바닥의 점프 속도를 쓴다.
         float jumpSpeed = (float) (grounded ? surfaceJumpSpeed(position) : a.groundJumpSpeed);
         a.body.setJumpSpeed(jumpSpeed);
-        if (onMovingPad) {
-            // Updating a moving collider can clear Bullet's on-ground flag for this tick.
+        if (onMovingPad || !grounded) {
+            // Bullet's no-argument jump requires native ground contact, which a
+            // moving collider update or an authorized coyote jump may not have.
             a.body.jump(new Vector3f(0, jumpSpeed, 0));
         } else {
             a.body.jump();

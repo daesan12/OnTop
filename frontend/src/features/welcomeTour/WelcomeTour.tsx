@@ -17,19 +17,18 @@ import { takeWelcomeTour } from './pending'
 import { currentStep, TOUR_STEPS, TOUR_WALK_GOAL, walkedDistance, type TourAction } from './steps'
 import './welcomeTour.css'
 
-const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const rising = <T,>(store: Pick<StoreApi<T>, 'subscribe'>, on: (state: T) => boolean, action: TourAction) =>
   store.subscribe((state, old) => { if (on(state) && !on(old)) noteTourAction(action) })
 /** 완료 카드는 옷장 위치를 알려 준 뒤 스스로 닫힌다. */
 const FINISHED_MS = 12000
 
-/** 첫 입장 환영 비행과 공원 체험 투어. 투어 목록은 대화상자가 아니라서 걷기와 시점 조작을 막지 않는다. */
+/** 첫 입장 제자리 환영과 공원 체험 투어. */
 export function WelcomeTour() {
   const phase = useWelcomeTour(s => s.phase)
   useEffect(() => {
     let last: { x: number; z: number } | null = null
     const timer = window.setInterval(() => {
-      if (welcomeReady() && takeWelcomeTour()) beginWelcomeFlight(reducedMotion())
+      if (welcomeReady() && takeWelcomeTour()) beginWelcomeFlight(true)
       const avatar = avatars.get(useSession.getState().sessionId)
       if (useWelcomeTour.getState().phase !== 'tour' || !avatar) { last = null; return }
       const here = { x: avatar.current.x, z: avatar.current.z }
