@@ -1,5 +1,6 @@
 import {
   Bone,
+  BufferGeometry,
   Euler,
   Group,
   Quaternion,
@@ -54,6 +55,47 @@ type Joint = CharacterJoint
 const ease = (value: number) => {
   const t = Math.max(0, Math.min(1, value))
   return t * t * t * (t * (t * 6 - 15) + 10)
+}
+
+function armSurface(mesh: SkinnedMesh) {
+  const { geometry, skeleton } = mesh
+  const index = geometry.index
+  const weights = geometry.getAttribute('skinWeight')
+  const joints = geometry.getAttribute('skinIndex')
+  const armJoints = skeleton.bones.map(joint => {
+    let bone: Bone | null = joint
+    while (bone instanceof Bone) {
+      if (bone.name === 'upperArm_L' || bone.name === 'upperArm_R') return true
+      bone = bone.parent as Bone | null
+    }
+    return false
+  })
+  const isArm = new Uint8Array(weights.count)
+  for (const vertex of drawnVertices(geometry)) {
+    let weight = 0
+    for (let i = 0; i < 4; i++) {
+      if (armJoints[joints.getComponent(vertex, i)]) weight += weights.getComponent(vertex, i)
+    }
+    isArm[vertex] = Number(weight >= .5)
+  }
+  const armTriangles: number[] = []
+  const result = new BufferGeometry()
+  const groups = geometry.groups.length ? geometry.groups : [{ start: 0, count: index?.count ?? weights.count, materialIndex: 0 }]
+  for (const group of groups) {
+    const start = armTriangles.length
+    for (let offset = group.start; offset < group.start + group.count; offset += 3) {
+      const a = index?.getX(offset) ?? offset, b = index?.getX(offset + 1) ?? offset + 1
+      const c = index?.getX(offset + 2) ?? offset + 2
+      if (isArm[a] && isArm[b] && isArm[c]) armTriangles.push(a, b, c)
+    }
+    result.addGroup(start, armTriangles.length - start, group.materialIndex)
+  }
+  // Retain the current outfit, skinning and material layout when hiding the rest of the body.
+  for (const [name, attribute] of Object.entries(geometry.attributes)) result.setAttribute(name, attribute)
+  result.morphAttributes = geometry.morphAttributes
+  result.morphTargetsRelative = geometry.morphTargetsRelative
+  result.setIndex(armTriangles)
+  return result
 }
 
 /** One private skeleton per player, shared immutable geometry/material/texture caches.
@@ -196,6 +238,11 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
     characterBones.map((name, i) => [name, i * 3]),
   ) as Record<Joint, number>
   let far = false
+  let rideHands = false
+  let rideSurfaces: { mesh: SkinnedMesh; full: BufferGeometry; hands: BufferGeometry }[] | undefined
+  const rideJoints = (['L', 'R'] as const).flatMap(side =>
+    [bones[`upperArm_${side}`], bones[`lowerArm_${side}`], bones[`hand_${side}`]])
+  const originalRidePositions = rideJoints.map(joint => joint.position.clone())
   function set(name: Joint, x = 0, y = 0, z = 0) {
     const i = indices[name]
     rotations[i] = x
@@ -382,6 +429,13 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
       for (const { mesh, index } of seatedCloth)
         mesh.morphTargetInfluences![index] = seatedBlend
     },
+    showRideHands(enabled: boolean) {
+      if (enabled === rideHands) return
+      rideHands = enabled
+      if (enabled) rideSurfaces ??= meshes.map(mesh => ({ mesh, full: mesh.geometry, hands: armSurface(mesh) }))
+      for (const { mesh, full, hands } of rideSurfaces ?? []) mesh.geometry = enabled ? hands : full
+      if (!enabled) rideJoints.forEach((joint, i) => joint.position.copy(originalRidePositions[i]!))
+    },
     groundShift() {
       root.updateMatrixWorld(true)
       // CPU skinning reads bone.matrixWorld directly. The renderer uploads the
@@ -427,6 +481,12 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
       set('head', -0.018 * close * blend)
     },
     dispose() {
+      for (const { mesh, full, hands } of rideSurfaces ?? []) {
+        mesh.geometry = full
+        hands.dispose()
+      }
+      rideSurfaces = undefined
+      rideHands = false
       skeleton.dispose()
       for (const bound of extraSkeletons) bound.dispose()
     },

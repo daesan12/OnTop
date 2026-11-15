@@ -3,7 +3,6 @@ import { factory } from '../../../park-renewal-preview/assetFactories'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import type { createCharacterRig, Side } from '../../world/art/CharacterRig'
 import { vehicles, type Vehicle } from './state'
-import { createRideHands } from './rideHands'
 
 type Rig = ReturnType<typeof createCharacterRig>
 const prototypes = new Map<Vehicle, Group>()
@@ -26,6 +25,17 @@ function riderPose() {
   const thigh = new Quaternion(), inverseThigh = new Quaternion(), shin = new Quaternion()
   const torso = new Quaternion(), inverseTorso = new Quaternion()
   const xAxis = new Vector3(1, 0, 0)
+  const shoulderPoint = new Vector3(), elbowPoint = new Vector3(), wristPoint = new Vector3()
+  const vehicleRotation = new Quaternion(), parentRotation = new Quaternion(), localRotation = new Quaternion()
+  const armDirections = new WeakMap<Rig, { upper: Vector3; lower: Vector3 }[]>()
+
+  function placeJoint(joint: Rig['bones']['hand_L'], vehicle: Group, point: Vector3, orientation: Quaternion) {
+    const parent = joint.parent!
+    vehicle.localToWorld(target.copy(point))
+    joint.position.copy(parent.worldToLocal(target))
+    joint.quaternion.copy(parent.getWorldQuaternion(parentRotation).invert())
+      .multiply(vehicleRotation).multiply(orientation)
+  }
 
   return {
     foot(model: Rig, side: Side, ankle: Vector3) {
@@ -52,7 +62,7 @@ function riderPose() {
       rotation.setFromQuaternion(thigh.multiply(shin).invert())
       model.set(`foot_${side}`, rotation.x, rotation.y, rotation.z)
     },
-    hands(model: Rig, grips: readonly Vector3[], figure: Vector3, forwardLean: number) {
+    hands(model: Rig, grips: readonly Vector3[], figure: Vector3, forwardLean: number, firstPerson: boolean) {
       const spine = target.copy(model.bones.hips.position).add(model.bones.spine.position)
       torso.setFromAxisAngle(xAxis, forwardLean)
       inverseTorso.copy(torso).invert()
@@ -68,7 +78,33 @@ function riderPose() {
         direction.sub(spine).applyQuaternion(inverseTorso).add(spine)
         model.reachFitnessHand(side, direction.x, direction.y, direction.z,
           -1.12 - forwardLean, 0, sign * .13)
-        model.handPose(side, 'cup')
+        model.handPose(side, firstPerson ? 'fist' : 'cup')
+      }
+    },
+    alignFirstPersonHands(model: Rig, vehicle: Group, grips: readonly Vector3[]) {
+      let rest = armDirections.get(model)
+      if (!rest) {
+        rest = sides.map(side => ({
+          upper: model.bones[`lowerArm_${side}`].position.clone().normalize(),
+          lower: model.bones[`hand_${side}`].position.clone().normalize(),
+        }))
+        armDirections.set(model, rest)
+      }
+      vehicle.getWorldQuaternion(vehicleRotation)
+      for (const [index, side] of sides.entries()) {
+        const sign = side === 'L' ? 1 : -1
+        const grip = grips[index]!
+        // Keep the character's wrist on the actual grip while the first-person sleeves
+        // lead back below the view. The third-person shoulder placement is seat-relative.
+        wristPoint.set(grip.x - sign * .025, grip.y + .037, grip.z - .054)
+        elbowPoint.set(grip.x + sign * .074, grip.y - .043, grip.z - .34)
+        shoulderPoint.set(grip.x + sign * .105, grip.y - .31, grip.z - .55)
+        localRotation.setFromUnitVectors(rest[index]!.upper, direction.subVectors(elbowPoint, shoulderPoint).normalize())
+        placeJoint(model.bones[`upperArm_${side}`], vehicle, shoulderPoint, localRotation)
+        localRotation.setFromUnitVectors(rest[index]!.lower, direction.subVectors(wristPoint, elbowPoint).normalize())
+        placeJoint(model.bones[`lowerArm_${side}`], vehicle, elbowPoint, localRotation)
+        localRotation.setFromEuler(rotation.set(-Math.PI / 2, 0, sign * .14))
+        placeJoint(model.bones[`hand_${side}`], vehicle, wristPoint, localRotation)
       }
     },
   }
@@ -84,7 +120,6 @@ export function createMountedVehicle() {
   const contact = new Vector3()
   const axleMidpoint = new Vector3()
   const grips = [new Vector3(), new Vector3()]
-  let rideHands: ReturnType<typeof createRideHands> | undefined
   let current: Vehicle | undefined
   let wheels: Object3D[] = []
   let pedals: Object3D[] = []
@@ -96,7 +131,7 @@ export function createMountedVehicle() {
   return {
     root,
     apply(kind: Vehicle | undefined, pose: { x: number; z: number; yaw: number },
-      floorY: number, delta: number, figure: Group, model: Rig, showRideHands = false) {
+      floorY: number, delta: number, figure: Group, model: Rig, firstPerson = false) {
       if (current !== kind) {
         current = kind
         root.clear()
@@ -129,15 +164,6 @@ export function createMountedVehicle() {
         }
       }
       if (!kind) return false
-      if (showRideHands) {
-        rideHands ??= createRideHands()
-        if (!rideHands.root.parent) {
-          rideHands.place(grips[0]!, grips[1]!)
-          root.add(rideHands.root)
-        }
-      } else {
-        rideHands?.root.removeFromParent()
-      }
       const bicycle = kind === 'BICYCLE'
       const dt = Math.min(delta, .08)
       const distance = Math.min(vehicles[kind].speed * dt, Math.hypot(pose.x - lastX, pose.z - lastZ))
@@ -172,7 +198,7 @@ export function createMountedVehicle() {
       figureOffset.z += bicycle ? .065 : .015
       figure.quaternion.copy(root.quaternion)
       figure.position.copy(figureOffset).applyQuaternion(figure.quaternion).add(root.position)
-      rigPose.hands(model, grips, figureOffset, bicycle ? .65 : .16)
+      rigPose.hands(model, grips, figureOffset, bicycle ? .65 : .16, firstPerson)
       if (crank) crank.rotation.x = phase
       for (const [index, side] of sides.entries()) {
         const foot = model.bones[`foot_${side}`]
@@ -195,6 +221,7 @@ export function createMountedVehicle() {
         rigPose.foot(model, side, contact.sub(figureOffset))
       }
       model.apply(delta)
+      if (firstPerson) rigPose.alignFirstPersonHands(model, root, grips)
       return true
     },
   }

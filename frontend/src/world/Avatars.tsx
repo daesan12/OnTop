@@ -202,7 +202,9 @@ function Avatar({
     const balloon = own && balloonRider ? useLocalBalloon.getState() : null
     const hideBalloonRider = balloon?.walkingInside && balloon.cabinFirstPerson && balloon.flight?.phase === 'flying'
     const ownXR = own && parkXRView.active
-    figure.current.visible = !ownXR
+    const showRideHands = ownXR && !!avatar.vehicle
+    model.showRideHands(showRideHands)
+    figure.current.visible = !ownXR || showRideHands
     const visibleOutsideXR = !hideBalloonRider && (!!balloonRider || !!debrisMotion
       || !(own && ((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
@@ -261,7 +263,7 @@ function Avatar({
       else if (seatTable?.pavilionId) seatForward = .43
       else seatForward = .13
     }
-    if (!mountedVehicle.apply(avatar.vehicle, pose, root.current.position.y, delta, figure.current, model, ownXR))
+    if (!mountedVehicle.apply(avatar.vehicle, pose, root.current.position.y, delta, figure.current, model, showRideHands))
       motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
       holdingCards ? oneCardHoldingPose : undefined, throwFlight,
       carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward)
