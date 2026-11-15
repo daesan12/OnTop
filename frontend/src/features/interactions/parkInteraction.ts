@@ -121,7 +121,7 @@ export function getParkInteraction(): ParkInteraction | null {
     if(site.id===PARK_GACHA_MACHINE.id)continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
-    const label = site.id === 'layout-drink' ? '복권방 열기' : site.label
+    const label = site.id === 'layout-drink' ? '복권방 열기' : RENEWAL_PARK_ENABLED && site.id === 'dock' ? '오리배 대여' : site.label
     choices.push({kind:'construction',id:site.id,label,occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
   if (plazaKiosksEnabled && (RENEWAL_PARK_ENABLED || gachaInteractionEnabled(session.sessionId)) && canReachParkGacha(p.current)) {

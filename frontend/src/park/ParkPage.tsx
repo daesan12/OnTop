@@ -15,6 +15,7 @@ import { ParkTools } from './ParkTools'
 import type { QualityPreset } from '../config'
 import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
 import { ConstructionNotice } from '../features/construction/ConstructionNotice'
+import { LiveDuckBoatControls } from '../features/duckBoat/LiveDuckBoatControls'
 import { FortunePanel } from '../features/fortune/FortunePanel'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
@@ -210,6 +211,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <div hidden={omokFocus} inert={omokFocus}>
         <WelcomeTour />
         <ConstructionNotice />
+        <LiveDuckBoatControls />
         <FortunePanel />
         {(rpsOpen || arcadeOpen || plusMinusOpen || moleOpen) && <Suspense fallback={<p role="status">게임을 불러오는 중입니다.</p>}>
           {rpsOpen && <RpsRoulettePanel />}

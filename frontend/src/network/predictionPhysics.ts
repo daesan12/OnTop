@@ -22,6 +22,7 @@ import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace
 import { boatAngleAt, boatPose } from '../../park-renewal-preview/assetSizing'
 import { estimatedServerTime } from './serverEventClock'
 import { horrorState } from '../../park-renewal-preview/horrorPlan'
+import { useLiveDuckBoat } from '../features/duckBoat/liveState'
 
 /** How long Rapier may keep a grounded state the server does not support before falling. */
 const EDGE_GLIDE_SECONDS = .15
@@ -42,7 +43,19 @@ class PredictionPhysics implements PredictionSimulation {
   private readonly chairs: { anchor: string; number: number; collider: RAPIER.Collider }[] = []
   private readonly duckBoat = renewalMap?.data.physics.duckBoat
   private readonly duckBody = this.duckBoat && this.world.createCollider(RAPIER.ColliderDesc.cuboid(...this.duckBoat.half))
+  private readonly rentalBoats: RAPIER.Collider[] = []
+  private readonly mooring = sharedPhysics?.boxes.find(box => box.id === 'duck-boat-moored--1')
+  private lastRentalPose: Pose | null = null
   private syncDuckBoat() {
+    const rental = this.rentalBoats[0]
+    const current = useLiveDuckBoat.getState().boat?.pose ?? null
+    if (rental && this.mooring && this.lastRentalPose !== current) {
+      const [x, y, z] = this.mooring.center
+      const yaw = current?.yaw ?? this.mooring.yaw
+      rental.setTranslation(current ? { x: current.x, y: current.y + .17, z: current.z } : { x, y, z })
+      rental.setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) })
+      this.lastRentalPose = current
+    }
     if (!this.duckBoat || !this.duckBody) return
     const { x, z, rx, rz, period, y } = this.duckBoat
     const pose = boatPose(boatAngleAt(estimatedServerTime() / 1000, period), x, z, rx, rz)
@@ -137,7 +150,7 @@ class PredictionPhysics implements PredictionSimulation {
   }
   constructor(private tuned: boolean) {
     if (sharedPhysics) {
-      this.chairs.push(...addGeneratedPredictionColliders(this.world, sharedPhysics, this.secretDoors))
+      this.chairs.push(...addGeneratedPredictionColliders(this.world, sharedPhysics, this.secretDoors, this.rentalBoats))
       this.syncSecretDoors()
     } else {
       for (const box of WORLD_COLLIDERS.filter(b => !staticStructureBatch(b.id))) {

@@ -1276,6 +1276,13 @@ export class ParkRuntime implements ParkRuntimePort {
     })
     return ok && current() && useTableLobby.getState().status === 'ready'
   }
+  rentDuckBoat = () =>
+    this.action(() => this.socket.request('WORLD_DUCK_BOAT_RENT', {}, ['WORLD_STATE']), { blockControls: false })
+  returnDuckBoat = () =>
+    this.action(() => this.socket.request('WORLD_DUCK_BOAT_RETURN', {}, ['WORLD_STATE']), { blockControls: false })
+  steerDuckBoat = async (turn: number, throttle: number) => {
+    await this.socket.request('WORLD_DUCK_BOAT_INPUT', { turn, throttle }, ['WORLD_STATE'])
+  }
   setSecretDoors = (open: boolean) =>
     this.action(() => this.socket.request('WORLD_SECRET_DOORS_SET', { open }, ['WORLD_STATE']), { blockControls: false })
   useInteriorAccess = (access: string) =>

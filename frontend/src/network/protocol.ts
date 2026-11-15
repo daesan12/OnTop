@@ -1,6 +1,7 @@
 import { validPublicEquipment, type PublicEquipment } from './equipment'
 import { isAvatarActivity, type AvatarActivity } from './avatarActivity'
 import type { MotionSnapshot } from './localMovementPrediction'
+import type { LiveDuckBoat } from '../features/duckBoat/liveState'
 
 /** Existing Spring Raw WebSocket contracts; UI models live in worldClient. */
 export interface Envelope {
@@ -49,6 +50,7 @@ export interface WorldState {
   version: number
   mapVersion: string
   secretDoorsOpen?: boolean
+  duckBoat?: LiveDuckBoat
   tables?: PublicTable[]
   gameWatches?: Record<string, { gameId: string; tableId: string }>
   avatars: {
@@ -176,6 +178,12 @@ export function channelState(value: Record<string, unknown>): ChannelState {
   return value as unknown as ChannelState
 }
 export function worldState(value: Record<string, unknown>): WorldState {
+  const boat = value.duckBoat
+  if (boat !== undefined && !(record(boat) && text(boat.userId)
+    && integer(boat.remainingMs) && boat.remainingMs <= 301000 && record(boat.pose)
+    && ['x', 'y', 'z', 'yaw'].every(key => typeof (boat.pose as Record<string, unknown>)[key] === 'number'
+      && Number.isFinite((boat.pose as Record<string, number>)[key]))))
+    throw new Error('오리배 운항 상태 형식이 올바르지 않습니다.')
   const steering = (s: unknown) => s === undefined || record(s)
     && ['dx','dz','targetX','targetZ'].every(k=>typeof s[k]==='number'&&Number.isFinite(s[k]))
     && Math.hypot(Number(s.dx),Number(s.dz)) <= 1.00001 && typeof s.run === 'boolean'

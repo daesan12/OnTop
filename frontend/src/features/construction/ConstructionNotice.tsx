@@ -1,9 +1,11 @@
 import { lazy,Suspense,useEffect,useLayoutEffect,useRef } from 'react'
 import { constructionSites,useConstructionNotice,closeConstructionNotice } from './model'
+import { RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import './construction.css'
 
 const GachaPanel=lazy(()=>import('../gacha/GachaPanel').then(module=>({default:module.GachaPanel})))
 const RafflePanel=lazy(()=>import('../raffle/RafflePanel').then(module=>({default:module.RafflePanel})))
+const DuckBoatRental=lazy(()=>import('../duckBoat/LiveDuckBoatControls').then(module=>({default:module.DuckBoatRental})))
 
 /** Registered kiosks open their real flow; unavailable sites retain the construction notice. */
 export function ConstructionNotice(){
@@ -11,6 +13,7 @@ export function ConstructionNotice(){
   useEffect(()=>()=>closeConstructionNotice(),[])
   if(id==='layout-drink')return <Suspense fallback={<ConstructionLoading label="복권방"/>}><RafflePanel/></Suspense>
   if(id==='layout-shop')return <Suspense fallback={<ConstructionLoading label="뽑기"/>}><GachaPanel/></Suspense>
+  if(RENEWAL_PARK_ENABLED&&id==='dock')return <Suspense fallback={<ConstructionLoading label="오리배 대여"/>}><DuckBoatRental/></Suspense>
   return <ConstructionMessage/>
 }
 function ConstructionLoading({label}:{label:string}){

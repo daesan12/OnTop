@@ -3,6 +3,7 @@ import { setHorrorOpen } from '../../park-renewal-preview/horrorPlan'
 import { create } from 'zustand'
 import { acceptGacha } from '../features/gacha/events'
 import { acceptPolice, acceptPatrol, acceptPrivateNotice, resetWorldAi } from '../features/ai/worldAi'
+import { updateLiveDuckBoat } from '../features/duckBoat/liveState'
 import { acceptCompanionActors } from '../features/ai/companions'
 import { acceptTyping, resetTyping } from '../features/chat/typingState'
 import { estimatedServerTime, serverEventClock } from './serverEventClock'
@@ -28,7 +29,7 @@ import type { AvatarActivity } from './avatarActivity'
 import { EXPECTED_MAP_VERSION } from '../park/mapConfig'
 import { resetGame } from '../game/store'
 import { resetBenchState, useBenchState } from '../features/interactions/benchState'
-import { clearRoamingInput } from '../world/inputOwnership'
+import { clearRoamingInput, inputState } from '../world/inputOwnership'
 import { samePose, sampleMovement } from '../world/movementPresentation'
 import { localMovement } from './localMovementPrediction'
 import { remoteMovement } from './remoteMovement'
@@ -211,6 +212,7 @@ export function showMovementNotice(message: string, sequence: number) {
   }, 3000)
 }
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  updateLiveDuckBoat(null)
   setHorrorOpen(false)
   resetParkDebris()
   resetTyping()
@@ -243,6 +245,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  updateLiveDuckBoat(null)
   setHorrorOpen(false)
   resetParkDebris()
   resetJumpmap()
@@ -328,7 +331,7 @@ export function sampleAvatar(
 
 function predictionAllowed() {
   const s = useSession.getState(), own = avatars.get(s.sessionId)
-  return !!own && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
+  return !!own && s.status === 'connected' && s.mapCompatible && !inputState.duckBoat && !own.tableId && !own.benchId
     && (!own.carry || own.carry.role === 'CARRIER')
     && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1')
     && (!s.activities[s.sessionId] || s.activities[s.sessionId] === 'WATCHING')
@@ -541,6 +544,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
         return
       worldVersion = next.version
       const mapCompatible = next.mapVersion === expectedMapVersion
+      updateLiveDuckBoat(mapCompatible ? next.duckBoat ?? null : null, state.sessionId)
       setHorrorOpen(mapCompatible && next.secretDoorsOpen === true)
       if (!mapCompatible || state.mapVersion && state.mapVersion !== next.mapVersion) remoteMovement.reset()
       if (!mapCompatible) { defeatTimeline.clear(); resetParkDebris(); resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }

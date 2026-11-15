@@ -69,6 +69,10 @@ public final class TableProtocol {
             case "WORLD_MYROOM_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
+            case "WORLD_DUCK_BOAT_RENT", "WORLD_DUCK_BOAT_RETURN" -> fields(payload, Set.of());
+            case "WORLD_DUCK_BOAT_INPUT" -> fields(payload, Set.of("turn", "throttle"))
+                    && java.util.stream.Stream.of("turn", "throttle").allMatch(key -> payload.path(key).isIntegralNumber()
+                            && payload.path(key).canConvertToInt() && Math.abs((long) payload.path(key).asInt()) <= 1);
             case "WORLD_POSITION" -> validPosition(payload);
             case "WORLD_SECRET_DOORS_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
             case "WORLD_INTERIOR_ACCESS" -> fields(payload, Set.of("access"))

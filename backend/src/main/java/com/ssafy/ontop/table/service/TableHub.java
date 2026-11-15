@@ -915,14 +915,35 @@ public class TableHub {
             }
             if (channels.carryState(member.userId()) != null && Set.of("TABLE_JOIN", "TABLE_WATCH", "GAME_WATCH",
                     "WORLD_FACILITY_USE", "WORLD_FOLLOW_START", "WORLD_EMOTE_SEND", "WORLD_SECRET_DOORS_SET",
-                    "WORLD_INTERIOR_ACCESS").contains(request.type())) {
+                    "WORLD_INTERIOR_ACCESS", "WORLD_DUCK_BOAT_RENT").contains(request.type())) {
                 fail(request, "CARRY_ACTIVITY_CONFLICT", "들기·던지기가 끝난 뒤 다른 행동을 시작해주세요.");
+            }
+            if (channels.ridingDuckBoat(member.userId()) && Set.of("TABLE_JOIN", "TABLE_WATCH", "GAME_WATCH",
+                    "WORLD_FACILITY_USE", "WORLD_FOLLOW_START", "WORLD_EMOTE_SEND", "WORLD_CARRY_PICKUP",
+                    "WORLD_MYROOM_SET").contains(request.type())) {
+                fail(request, "DUCK_BOAT_BUSY", "오리배를 반납한 뒤 이용해주세요.");
             }
             switch (request.type()) {
                 case "GAME_WATCH" -> watchGame(sessionId, member, request);
                 case "CHANNEL_JOIN" -> joinChannel(member, request);
                 case "CHANNEL_LEAVE" -> leaveChannel(member, request);
                 case "WORLD_MOVE" -> moveWorld(member, request);
+                case "WORLD_DUCK_BOAT_RENT" -> {
+                    if (seating.containsKey(member.userId()) || facilities.current(member.userId()) != null) {
+                        fail(request, "DUCK_BOAT_BUSY", "이용 중인 시설을 먼저 종료해주세요.");
+                    }
+                    var state = channels.rentDuckBoat(member.userId());
+                    clearWatch(member, null);
+                    clearGameWatch(member);
+                    endFollows(member.userId());
+                    cancelEmote(member.userId(), "ACTIVITY_STARTED");
+                    publishWorld(channels.worldState(state.channelId()), member, request.requestId());
+                }
+                case "WORLD_DUCK_BOAT_RETURN" -> publishWorld(channels.returnDuckBoat(member.userId()),
+                        member, request.requestId());
+                case "WORLD_DUCK_BOAT_INPUT" -> member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE",
+                        channels.duckBoatInput(member.userId(), request.payload().path("turn").asInt(),
+                                request.payload().path("throttle").asInt())));
                 case "WORLD_POSITION" -> positionWorld(member, request);
                 case "WORLD_SECRET_DOORS_SET" -> publishWorld(channels.setSecretDoors(member.userId(),
                         request.payload().path("open").asBoolean()), member, request.requestId());

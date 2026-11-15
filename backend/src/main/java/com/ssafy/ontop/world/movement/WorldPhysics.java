@@ -53,6 +53,7 @@ public final class WorldPhysics implements AutoCloseable {
     private PositionCollision positionCollision;
     private RenewalCourseMotion renewalMotion;
     private PhysicsRigidBody duckBoat;
+    private PhysicsRigidBody rentalBoat;
     private double duckBoatTime = Double.NaN;
 
     private void syncDuckBoat(double now) {
@@ -195,6 +196,7 @@ public final class WorldPhysics implements AutoCloseable {
             body.setPhysicsRotation(shape.rotation());
             body.setCollisionGroup(2);
             body.setCollideWithGroups(1);
+            if (shape.id().equals("duck-boat-moored--1")) rentalBoat = body;
             if (shape.id().startsWith("secret-door-")) secretDoors.put(shape.id(), body);
             var match = CHAIR.matcher(shape.id());
             if (match.matches()) {
@@ -1305,6 +1307,29 @@ public final class WorldPhysics implements AutoCloseable {
             actor.swimming = false;
             resetMotion(actor);
             actor.airborne = false;
+            return null;
+        });
+    }
+
+    public void moveHeld(String id, double x, double y, double z, double yaw) {
+        call(() -> {
+            Actor actor = actors.get(id);
+            if (actor != null && actor.seated) {
+                actor.body.warp(new Vector3f((float) x, (float) y, (float) z));
+                actor.yaw = yaw;
+            }
+            return null;
+        });
+    }
+
+    public void placeRentalBoat(com.ssafy.ontop.world.service.WorldFacilityService.Pose hull) {
+        call(() -> {
+            if (rentalBoat != null) {
+                space.removeCollisionObject(rentalBoat);
+                rentalBoat.setPhysicsLocation(new Vector3f((float) hull.x(), (float) (hull.y() + .17), (float) hull.z()));
+                rentalBoat.setPhysicsRotation(new com.jme3.math.Quaternion().fromAngleAxis((float) hull.yaw(), Vector3f.UNIT_Y));
+                space.addCollisionObject(rentalBoat);
+            }
             return null;
         });
     }

@@ -41,12 +41,7 @@ export function DuckBoatScene({ dock, walker, stage, held, onReach, onReturned, 
   const character = useLoader(ParkAssetLoader, characterUrls[0]!)
   const boat = useLoader(ParkAssetLoader, models.boat!)
   const rig = useMemo(() => createCharacterRig(character), [character])
-  const hull = useMemo(() => {
-    const model = boat.scene.clone(true)
-    const canopy = model.getObjectByName('removable_canopy')
-    if (canopy) canopy.visible = false
-    return model
-  }, [boat])
+  const hull = useMemo(() => boat.scene.clone(true), [boat])
   const driver = hull.getObjectByName('anchor_driver')!.position
   const motion = useRef({
     player: walker ? parkWalkStart : walkStart, boat: berth, lastStage: 'walk' as Stage, near: false,

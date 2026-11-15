@@ -3,7 +3,7 @@ export const inputState = {
   blocked: false, chatOpen: false, manualOpen: false, mapOpen: false,
   emoteWheelOpen: false, minigameOpen: false, feedbackOpen: false, notesOpen: false,
   shopOpen: false, wardrobeOpen: false, advertisementOpen: false, followMenuOpen: false,
-  welcomeFlight: false, fortuneOpen: false,
+  welcomeFlight: false, fortuneOpen: false, duckBoat: false,
 }
 export const roamingInput = { ready: false, draggingCamera: false }
 /** A physical scene control can own one pointer without locking keyboard/chat or other games. */

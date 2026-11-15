@@ -5,6 +5,7 @@ import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
 import { TABLET } from '../features/tableLobby/tabletProjection'
 import { renderedTableAnchors } from '../features/tableLobby/tabletAnchors'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
+import { useLiveDuckBoat } from '../features/duckBoat/liveState'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, PerspectiveCamera, Quaternion, Raycaster, SkinnedMesh, Vector3, type Object3D } from 'three'
@@ -253,6 +254,19 @@ export function CameraRig() {
       camera.updateProjectionMatrix()
     }
     sampleAvatar(avatar, performance.now(), state.pose)
+    const boat = useLiveDuckBoat.getState().boat
+    if (boat?.userId === session.sessionId) {
+      const { x, y, z, yaw } = state.pose
+      const sin = Math.sin(yaw), cos = Math.cos(yaw)
+      state.desired.set(x - 6 * sin + 3.4 * cos, y + 4.2, z - 6 * cos - 3.4 * sin)
+      state.look.set(x + 2.4 * sin, y - .4, z + 2.4 * cos)
+      camera.position.lerp(state.desired, 1 - Math.exp(-10 * Math.min(delta, .1)))
+      camera.lookAt(state.look)
+      interactionAim.ready = false
+      cameraOcclusion.strength.value = 0
+      occlusion.update(camera.position, state.look, false, delta)
+      return
+    }
     if (telescope) {
       state.omokTransition = false
       state.diceTransition = false

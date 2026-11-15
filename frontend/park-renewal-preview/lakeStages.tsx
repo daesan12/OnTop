@@ -25,8 +25,11 @@ export function createLakeProgress() {
 export const LakeProgress = createContext<ReturnType<typeof createLakeProgress> | null>(null)
 const noSubscription = () => () => {}
 
-export function LakePart({ at, children }: { at: number; children: ReactNode }) {
+export function useLakeStageReached(at: number) {
   const progress = useContext(LakeProgress)
-  const visible = useSyncExternalStore(progress?.subscribe ?? noSubscription, () => !progress || progress.getStage() >= at)
-  return visible ? children : null
+  return useSyncExternalStore(progress?.subscribe ?? noSubscription, () => !progress || progress.getStage() >= at)
+}
+
+export function LakePart({ at, children }: { at: number; children: ReactNode }) {
+  return useLakeStageReached(at) ? children : null
 }

@@ -226,6 +226,8 @@ public final class PreparedParkMap {
                 positive(size);
             }
             root.set("duckBoat", duck.deepCopy());
+            JsonNode dock = indexed(data.path("interactions").path("construction")).get("dock");
+            if (dock != null) root.set("duckBoatDock", dock.deepCopy());
         }
         JsonNode terrain = physics.path("terrain");
         Map<String, JsonNode> meshes = indexed(physics.path("meshes"));

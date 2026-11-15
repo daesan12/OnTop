@@ -32,6 +32,9 @@ export interface ParkRuntimePort {
   stopMovement(): void
   setSecretDoors?(open: boolean): Promise<boolean>
   useInteriorAccess?(access: string): Promise<boolean>
+  rentDuckBoat?(): Promise<boolean>
+  returnDuckBoat?(): Promise<boolean>
+  steerDuckBoat?(turn: number, throttle: number): Promise<void>
   inspectTable(anchorId: string, watch?: boolean): void
   closeTable(): void
   joinTable(anchorId?: string): Promise<boolean>

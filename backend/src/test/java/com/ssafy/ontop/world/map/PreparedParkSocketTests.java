@@ -78,6 +78,46 @@ class PreparedParkSocketTests {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
+    void 리뉴얼_선착장_오리배를_서버에서_운항하고_반납한다() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(park.createScene().duckBoatCourse() != null);
+        var dock = park.collisionData().path("duckBoatDock").path("reachPosition");
+        var stand = new com.ssafy.ontop.world.service.WorldFacilityService.Pose(
+                dock.path(0).asDouble(), dock.path(1).asDouble(), dock.path(2).asDouble(), 0);
+        try (Client driver = new Client(); Client visitor = new Client()) {
+            driver.confirm();
+            visitor.confirm();
+            var channel = Map.of("channelId", "channel-1");
+            driver.request("CHANNEL_JOIN", channel);
+            visitor.request("CHANNEL_JOIN", channel);
+            var driverId = driver.connected.path("payload").path("userId").asText();
+            var visitorId = visitor.connected.path("payload").path("userId").asText();
+            var tooFar = driver.request("WORLD_DUCK_BOAT_RENT", Map.of());
+            assertThat(tooFar.path("payload").path("code").asText()).isEqualTo("DUCK_BOAT_OUT_OF_RANGE");
+
+            channels.releaseFacility(driverId, stand);
+            channels.releaseFacility(visitorId, stand);
+            var boarded = driver.request("WORLD_DUCK_BOAT_RENT", Map.of()).path("payload").path("duckBoat");
+            assertThat(boarded.path("userId").asText()).isEqualTo(driverId);
+            double startZ = boarded.path("pose").path("z").asDouble();
+            var occupied = visitor.request("WORLD_DUCK_BOAT_RENT", Map.of());
+            assertThat(occupied.path("payload").path("code").asText()).isEqualTo("DUCK_BOAT_OCCUPIED");
+            visitor.request("WORLD_DUCK_BOAT_RETURN", Map.of());
+            assertThat(channels.ridingDuckBoat(driverId)).isTrue();
+
+            driver.request("WORLD_DUCK_BOAT_INPUT", Map.of("turn", 0, "throttle", 1));
+            await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> assertThat(
+                    channels.worldState("channel-1").duckBoat().pose().z()).isLessThan(startZ - .2));
+            driver.request("WORLD_DUCK_BOAT_RETURN", Map.of());
+            assertThat(channels.ridingDuckBoat(driverId)).isFalse();
+            assertThat(channels.worldState("channel-1").duckBoat()).isNull();
+            assertThat(channels.positionOf(driverId).x()).isCloseTo(stand.x(), org.assertj.core.data.Offset.offset(.01));
+            driver.request("WORLD_MOVE", Map.of("seq", 1, "dx", -1, "dz", 0, "run", false, "jump", false));
+            await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
+                    assertThat(channels.positionOf(driverId).x()).isLessThan(stand.x() - .15));
+        }
+    }
+
+    @Test
     void 최신맵_운동기구_탑승과_하차와_접속종료만_서버_보상에_전달한다() throws Exception {
         var rewards = mock(com.ssafy.ontop.world.fitness.FitnessRewardService.class);
         when(rewards.enabled()).thenReturn(true);

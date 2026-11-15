@@ -1,0 +1,16 @@
+.live-duck-boat-rental { scrollbar-width: none; }
+.live-duck-boat-rental::-webkit-scrollbar { display: none; }
+.live-duck-boat-hud {
+  position: absolute; z-index: 13; top: 16%; right: 14px; padding: 10px 12px;
+  max-width: min(235px, calc(100vw - 28px)); color: #203b30; background: #f6ebd3;
+  border: 3px double #a48958; border-radius: 10px; font: 14px/1.4 system-ui, sans-serif;
+}
+.live-duck-boat-hud strong { margin-left: 8px; font-variant-numeric: tabular-nums; }
+.live-duck-boat-hud p { margin: 6px 0; }
+.live-duck-boat-hud button {
+  color: #fff3d8; background: #214934; border: 1px solid #c2a46b;
+  border-radius: 6px; min-height: 44px; padding: 5px 9px; font: inherit;
+}
+.live-duck-boat-directions { display: none; gap: 4px; margin-bottom: 6px; }
+.live-duck-boat-directions button { width: 44px; touch-action: none; }
+@media (pointer: coarse) { .live-duck-boat-directions { display: flex; } }

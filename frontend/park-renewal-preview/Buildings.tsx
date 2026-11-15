@@ -1,4 +1,4 @@
-import {lazy,Suspense,useMemo} from 'react'
+import {lazy,Suspense,useEffect,useMemo,useRef} from 'react'
 import {useLoader,useFrame} from '@react-three/fiber'
 import {ParkAssetLoader} from '../src/world/art/assetLoader'
 import {Group,Mesh,MeshStandardMaterial} from 'three'
@@ -38,10 +38,13 @@ import { bakedEntryMesh } from './static/facilities'
 
 import { RENEWAL_DISTANCE_LOD } from '../src/park/mapSelection'
 import { createTowerFrame } from './original/world/art/towerFrameGeometry'
-import { LakePart, LakeStage } from './lakeStages'
+import { LakePart, LakeStage, useLakeStageReached } from './lakeStages'
 import { estimatedServerTime } from '../src/network/serverEventClock'
 import { FacilityOnApproach } from './live/FacilityOnApproach'
 import { ShaderPreparedGroup } from './live/ShaderPreparedGroup'
+import { useLiveDuckBoat } from '../src/features/duckBoat/liveState'
+import { avatars } from '../src/network/worldClient'
+import { useAvatarFrameSampler } from '../src/world/AvatarPoseFrame'
 
 const Arcade = lazy(() => import('./ArcadeBuilding'))
 const VrHall = lazy(() => import('./approved/vr-skewer-hall-20261107-v1/core/frontend/src/features/skewer/parkAsset/VrSkewerHall')
@@ -184,8 +187,10 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
  {REST_PAVILIONS.map(([x,z],i)=><group key={i} name={'facility-rest-'+(i+1)} userData={{pavilionId:pavilionIdForSite('rest-'+(i+1))}} position={[x,heightAt(x,z),z]} rotation={[0,site('rest-'+(i+1)).yaw!,0]}><Suspense fallback={null}><StructureModel kind="pavilion"/></Suspense><PavilionIntermediateTreads/></group>)}
  <LakePart at={LakeStage.Willows}><LakeWillows/></LakePart>
  <LakePart at={LakeStage.IslandPavilion}><group name="enlarged-island-pavilion" userData={{pavilionId:'P5'}} position={[LAKE.island.x,4.2,LAKE.island.z]} rotation={[0,-Math.PI/2,0]}><Suspense fallback={null}><StructureModel kind="pavilion"/></Suspense><PavilionIntermediateTreads/></group></LakePart>
+ {ambientBoats && live && <RentalBoatSlot/>}
  {ambientBoats && <LakePart at={LakeStage.Boats}>
-  {[-2.1,2.1].map(dx=><group key={dx} name="moored-duck-boat" position={[site('dock').x+dx,LAKE.y+.08,site('dock').z-3.7]}><Suspense fallback={null}><Model kind="boat"/></Suspense></group>)}
+  {!live && <group name="moored-duck-boat" position={[site('dock').x-2.1,LAKE.y+.08,site('dock').z-3.7]}><Suspense fallback={null}><Model kind="boat"/></Suspense></group>}
+  <group name="moored-duck-boat" position={[site('dock').x+2.1,LAKE.y+.08,site('dock').z-3.7]}><Suspense fallback={null}><Model kind="boat"/></Suspense></group>
  </LakePart>}
  <FishingPier/>
  {ambientBoats && <LakePart at={LakeStage.Boats}><Boats live={live}/></LakePart>}
@@ -211,6 +216,38 @@ function FishingPier(){const d=FISHING_DECK;return <group name="native-fishing-d
   {FISHING_BENCHES.map(([x,z,yaw],i)=><group key={i} name={'fishing-rest-bench-'+i} position={[x!,FISHING_DECK.top,z!]} rotation={[0,yaw!,0]}><LocalFactory kind="fishing-bench"/></group>)}
  </LakePart>
  </group>}
+function RentalBoatSlot() {
+ const closeToDock = useLakeStageReached(LakeStage.Dock)
+ const running = useLiveDuckBoat(s => !!s.boat)
+ return closeToDock || running ? <Suspense fallback={null}><LiveRentalBoat/></Suspense> : null
+}
+function LiveRentalBoat() {
+ const hull = useRef<Group>(null)
+ const sample = useAvatarFrameSampler()
+ const rider = useMemo(() => ({x:0,y:0,z:0,yaw:0}), [])
+ const dock = site('dock')
+ useEffect(() => {
+  useLiveDuckBoat.setState({modelReady:true})
+  return () => useLiveDuckBoat.setState({modelReady:false})
+ }, [])
+ useFrame(() => {
+  if (!hull.current) return
+  const trip = useLiveDuckBoat.getState().boat
+  const avatar = trip && avatars.get(trip.userId)
+  if (!trip || !avatar) {
+   hull.current.position.set(dock.x-2.1,LAKE.y+.08,dock.z-3.7)
+   hull.current.rotation.y = 0
+   return
+  }
+  sample(avatar,performance.now(),rider)
+  const yaw = rider.yaw - Math.PI, sin = Math.sin(yaw), cos = Math.cos(yaw)
+  hull.current.position.set(rider.x+.47*cos-.48*sin,trip.pose.y,rider.z-.47*sin-.48*cos)
+  hull.current.rotation.y = yaw
+ })
+ return <group ref={hull} name="rental-duck-boat" position={[dock.x-2.1,LAKE.y+.08,dock.z-3.7]}>
+  <Model kind="boat"/>
+ </group>
+}
 function Boats({live}:{live:boolean}){
  const boats=useMemo(()=>{const g=new Group();g.name='single-circulating-duck-boat';return[g]},[])
  useFrame(({clock})=>{const t=live?estimatedServerTime()/1000:clock.getElapsedTime();boats.forEach(g=>{const p=boatPose(boatAngleAt(t,BOAT_ROUTE.period),BOAT_ROUTE.x,BOAT_ROUTE.z,BOAT_ROUTE.rx,BOAT_ROUTE.rz);g.position.set(p.x,LAKE.y+.08,p.z);g.rotation.y=p.yaw})})

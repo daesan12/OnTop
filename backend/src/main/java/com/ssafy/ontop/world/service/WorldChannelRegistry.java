@@ -6,6 +6,7 @@ import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.DynamicChannelsProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
 import com.ssafy.ontop.world.movement.MoveInput;
+import com.ssafy.ontop.world.movement.DuckBoatCourse;
 import com.ssafy.ontop.world.movement.ParkScene;
 import com.ssafy.ontop.world.movement.WorldPhysics;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
@@ -374,6 +375,10 @@ public class WorldChannelRegistry implements ChannelPresence {
         room.dirty = true;
         if (jumpmap != null) queueJumpmap(null, jumpmap.leave(userId, reason, nanoTime.getAsLong() / 1_000_000));
         room.users.remove(userId);
+        if (room.duckBoat != null && room.duckBoat.userId.equals(userId)) {
+            room.physics.placeRentalBoat(room.duckBoat.course.berth());
+            room.duckBoat = null;
+        }
         room.positions.remove(userId);
         room.motions.remove(userId);
         room.moveBudgets.remove(userId);
@@ -724,6 +729,9 @@ public class WorldChannelRegistry implements ChannelPresence {
             throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
         }
         Room room = rooms.get(channelId);
+        if (room.duckBoat != null && room.duckBoat.userId.equals(userId)) {
+            return new WorldChange(room.worldState(), false);
+        }
         long now = nanoTime.getAsLong();
         Movement previous = room.positions.get(userId);
         if (input.seq() > previous.position().lastInputSeq()
@@ -786,6 +794,9 @@ public class WorldChannelRegistry implements ChannelPresence {
         String channel = membership.get(userId);
         if (channel == null) throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
         Room room = rooms.get(channel);
+        if (room.duckBoat != null && room.duckBoat.userId.equals(userId)) {
+            return new WorldChange(room.worldState(), false);
+        }
         var carry = room.physics.carryState(userId);
         if (carry != null && !carry.role().equals("CARRIER")) { return new WorldChange(room.worldState(), false); }
         if (room.held.contains(userId) || room.tableSeats.containsKey(userId) || activity(userId) != null)
@@ -855,6 +866,81 @@ public class WorldChannelRegistry implements ChannelPresence {
         rooms.get(membership.get(userId)).held.remove(userId);
     }
 
+    public synchronized boolean ridingDuckBoat(String userId) {
+        Room room = rooms.get(membership.get(userId));
+        return room != null && room.duckBoat != null && room.duckBoat.userId.equals(userId);
+    }
+
+    public synchronized WorldState rentDuckBoat(String userId) {
+        Room room = duckBoatRoom(userId);
+        if (ridingDuckBoat(userId)) return room.worldState();
+        DuckBoatCourse course = scene.get().duckBoatCourse();
+        if (course == null) throw new ChannelException("DUCK_BOAT_UNAVAILABLE", "220m 공원에서 이용할 수 있어요.");
+        if (room.duckBoat != null) throw new ChannelException("DUCK_BOAT_OCCUPIED", "오리배가 운항 중이에요.");
+        Position position = positionOf(userId);
+        if (!newActivityAllowed.getAsBoolean() || position == null || position.swimming()
+                || room.held.contains(userId) || room.tableSeats.containsKey(userId)
+                || publicActivity(userId) != null || jumpmapRun(userId).isPresent()
+                || !course.reachable(position.x(), position.y(), position.z())
+                || !room.physics.canStand(position.x(), position.y(), position.z())) {
+            throw new ChannelException("DUCK_BOAT_OUT_OF_RANGE", "선착장 가까운 데크에서 이용해주세요.");
+        }
+        room.duckBoat = new DuckBoatTrip(userId, course,
+                new WorldFacilityService.Pose(position.x(), position.y(), position.z(), position.yaw()),
+                nanoTime.getAsLong());
+        holdFacility(userId, course.driver(course.berth()));
+        room.dirty = true;
+        return room.worldState();
+    }
+
+    public synchronized WorldState duckBoatInput(String userId, int turn, int throttle) {
+        Room room = duckBoatRoom(userId);
+        if (ridingDuckBoat(userId)) {
+            room.duckBoat.turn = turn;
+            room.duckBoat.throttle = throttle;
+            room.duckBoat.lastInputAt = nanoTime.getAsLong();
+        }
+        return room.worldState();
+    }
+
+    public synchronized WorldState returnDuckBoat(String userId) {
+        Room room = duckBoatRoom(userId);
+        if (ridingDuckBoat(userId)) dockDuckBoat(room);
+        return room.worldState();
+    }
+
+    private Room duckBoatRoom(String userId) {
+        Room room = rooms.get(membership.get(userId));
+        if (room == null) throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        return room;
+    }
+
+    private void dockDuckBoat(Room room) {
+        DuckBoatTrip trip = room.duckBoat;
+        room.duckBoat = null;
+        room.physics.placeRentalBoat(trip.course.berth());
+        releaseFacility(trip.userId, trip.exit);
+        room.dirty = true;
+    }
+
+    private void stepDuckBoat(Room room, long tick) {
+        DuckBoatTrip trip = room.duckBoat;
+        if (trip == null) return;
+        trip.updatedAt = tick;
+        if (tick >= trip.deadline) {
+            dockDuckBoat(room);
+            return;
+        }
+        if (tick - trip.lastInputAt > Duration.ofMillis(350).toNanos()) return;
+        var next = trip.course.steer(trip.pose, trip.turn, trip.throttle, WorldPhysics.STEP_NANOS / 1e9);
+        if (next.equals(trip.pose)) return;
+        trip.pose = next;
+        room.physics.placeRentalBoat(next);
+        var driver = trip.course.driver(next);
+        room.physics.moveHeld(trip.userId, driver.x(), driver.y(), driver.z(), driver.yaw());
+        room.dirty = true;
+    }
+
     /** Use the authored standing area when several players leave the same table. */
     public synchronized void placeTableExit(String userId, int seatNumber, List<WorldFacilityService.Pose> exits) {
         Room room = rooms.get(membership.get(userId));
@@ -902,6 +988,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             long tick = now - (steps - i - 1) * WorldPhysics.STEP_NANOS;
             for (Room room : rooms.values()) {
                 if (room.physics != null) {
+                    stepDuckBoat(room, tick);
                     room.physics.pruneCarries(room.users.stream().filter(user -> seated.contains(user)
                             || !carryAvailable(user)).collect(java.util.stream.Collectors.toSet()));
                     var frozen = new java.util.HashSet<>(seated);
@@ -1018,6 +1105,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                 room.tableSeats.clear();
                 room.tables = List.of();
                 room.held.clear();
+                room.duckBoat = null;
                 room.version++;
                 room.worldVersion++;
             }
@@ -1116,14 +1204,39 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
     }
 
+    public record DuckBoat(String userId, WorldFacilityService.Pose pose, long remainingMs) {}
+
+    private static final class DuckBoatTrip {
+        private final String userId;
+        private final DuckBoatCourse course;
+        private final WorldFacilityService.Pose exit;
+        private final long deadline;
+        private WorldFacilityService.Pose pose;
+        private long lastInputAt;
+        private long updatedAt;
+        private int turn;
+        private int throttle;
+
+        private DuckBoatTrip(String userId, DuckBoatCourse course, WorldFacilityService.Pose exit, long now) {
+            this.userId = userId;
+            this.course = course;
+            this.exit = exit;
+            this.deadline = now + Duration.ofMinutes(5).toNanos();
+            updatedAt = now;
+            pose = course.berth();
+        }
+    }
+
     public record WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion,
             List<PublicTable> tables, Map<String, GameWatch> gameWatches,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-            Boolean secretDoorsOpen) {
+            Boolean secretDoorsOpen,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            DuckBoat duckBoat) {
 
         public WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion,
                 List<PublicTable> tables, Map<String, GameWatch> gameWatches) {
-            this(channelId, version, avatars, mapVersion, tables, gameWatches, null);
+            this(channelId, version, avatars, mapVersion, tables, gameWatches, null, null);
         }
 
         public WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion, List<PublicTable> tables) {
@@ -1226,6 +1339,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
 
         private Boolean secretDoorsOpen;
+        private DuckBoatTrip duckBoat;
 
         private WorldState worldState() {
             var carries = physics == null ? Map.<String, WorldPhysics.Carry>of() : physics.carryStates();
@@ -1243,7 +1357,9 @@ public class WorldChannelRegistry implements ChannelPresence {
                             vrUsers.contains(user) ? Boolean.TRUE : null, myRoom ? Boolean.TRUE : null);
                     })
                     .toList(), scene.get().version(), tables, users.stream().filter(watches::containsKey)
-                            .collect(java.util.stream.Collectors.toMap(user -> user, watches::get)), secretDoorsOpen);
+                            .collect(java.util.stream.Collectors.toMap(user -> user, watches::get)), secretDoorsOpen,
+                    duckBoat == null ? null : new DuckBoat(duckBoat.userId, duckBoat.pose,
+                            Math.max(0, (duckBoat.deadline - duckBoat.updatedAt) / 1_000_000)));
         }
     }
 

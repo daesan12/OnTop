@@ -3,13 +3,15 @@ import { PARK_DATA } from '../map/park';
 
 /** Use the exact uninflated 3D handoff, never legacy geometry or preview 2D clearance. */
 export function addGeneratedPredictionColliders(world: RAPIER.World,
-  physics: typeof PARK_DATA.physics & { secretTerrainCuts?: readonly number[] } = PARK_DATA.physics, secretDoors?: RAPIER.Collider[]) {
+  physics: typeof PARK_DATA.physics & { secretTerrainCuts?: readonly number[] } = PARK_DATA.physics,
+  secretDoors?: RAPIER.Collider[], rentalBoats?: RAPIER.Collider[]) {
   const chairs: { anchor: string; number: number; collider: RAPIER.Collider }[] = [];
   for (const box of physics.boxes) {
     const collider = world.createCollider(RAPIER.ColliderDesc.cuboid(...box.half)
       .setTranslation(...box.center)
       .setRotation({ x: 0, y: Math.sin(box.yaw / 2), z: 0, w: Math.cos(box.yaw / 2) }));
     if (box.id.startsWith('secret-door-')) secretDoors?.push(collider);
+    if (box.id === 'duck-boat-moored--1') rentalBoats?.push(collider);
     // Match the server's chair-ID contract; other physical pieces remain static.
     const chair = /(.+)-chair-([0-7])$/.exec(box.id);
     if (chair) {

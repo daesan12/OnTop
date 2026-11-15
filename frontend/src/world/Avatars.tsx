@@ -21,6 +21,7 @@ import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangVie
 import { createAvatarOpacity } from './avatarOpacity'
 import { avatarMenuRaycast } from './avatarMenuPicking'
 import { useAvatarFrameSampler } from './AvatarPoseFrame'
+import { useLiveDuckBoat } from '../features/duckBoat/liveState'
 import type { AvatarSampler } from '../network/avatarFrame'
 import { emptyEquipment } from '../network/equipment'
 import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from './art/characterLook'
@@ -174,7 +175,8 @@ function Avatar({
     }
     const frameAt = performance.now()
     samplePose(avatar, frameAt, pose)
-    const seated = avatar.seatIndex >= 0
+    const boating = useLiveDuckBoat.getState().boat?.userId === id
+    const seated = boating || avatar.seatIndex >= 0
     const seatTable = seated && avatar.tableId ? TABLES.find(table => table.id === avatar.tableId) : undefined
     const own = id === useSession.getState().sessionId
     // Hide only this client's own model; other clients retain the full avatar.
@@ -192,13 +194,12 @@ function Avatar({
     }
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
     root.current.visible = firstAppearanceReady.current && opacity > 0 && !(own && parkXRView.active) && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
-      || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
+      || !boating && roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     root.current.position.set(
       pose.x,
-      pose.y - 0.8 + (seated ? (seatTable?.seatSurfaceY
-        ?? avatarSeatSurface(avatar.benchId))
+      pose.y - 0.8 + (seated ? (boating ? 0 : seatTable?.seatSurfaceY ?? avatarSeatSurface(avatar.benchId))
           + (RENEWAL_PARK_ENABLED ? model.seatedContactLift : model.seatedHipLift) - model.hipHeight : 0),
       pose.z,
     )
@@ -214,7 +215,8 @@ function Avatar({
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
-    const displayAvatar = presentation.sample(avatar, displayFlags, own ? undefined : pose, frameAt)
+    const baseAvatar = presentation.sample(avatar, displayFlags, own ? undefined : pose, frameAt)
+    const displayAvatar = boating ? { ...baseAvatar, seatIndex: 0 } : baseAvatar
     const active = !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
@@ -223,7 +225,7 @@ function Avatar({
       distance,
       own,
       active,
-      presentation.key(avatar, reaction?.key ?? '', holdingCards, active),
+      presentation.key(boating ? { ...avatar, seatIndex: 0 } : avatar, reaction?.key ?? '', holdingCards, active),
       !reaction && avatarPoseAmbient(displayAvatar),
       crowded && !carryAnimation && !reaction && !seated && !displayAvatar.emote && !displayAvatar.fitnessId && !displayAvatar.telescopeId,
       crowdFrame.current,
@@ -235,7 +237,8 @@ function Avatar({
     // Place the knees beyond the front edge of the deeper pavilion seats.
     let seatForward: number | undefined
     if (RENEWAL_PARK_ENABLED && seated) {
-      if (avatar.benchId) seatForward = .34
+      if (boating) seatForward = 0
+      else if (avatar.benchId) seatForward = .34
       else if (seatTable?.pavilionId === 'P0') seatForward = .27
       else if (seatTable?.pavilionId) seatForward = .43
       else seatForward = .13

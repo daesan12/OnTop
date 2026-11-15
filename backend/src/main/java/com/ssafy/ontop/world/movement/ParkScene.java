@@ -129,6 +129,10 @@ public final class ParkScene {
         return metadata;
     }
 
+    public DuckBoatCourse duckBoatCourse() {
+        return DuckBoatCourse.from(this);
+    }
+
     public List<TableAnchor> tableAnchors() {
         var anchors = new ArrayList<TableAnchor>();
         var ids = new HashSet<String>();
