@@ -23,10 +23,12 @@ const root = '/api/v1/minigames/spot-difference'
 export const width = 1448
 export const height = 1086
 export const rounds = 6
+export const targetsPerRound = 6
+export const roundSeconds = 30
 export const cards = {
-  NORMAL: { label: '보통', detail: '소품의 색과 모양을 비교해요.', reward: 2, art: 'range-counter' },
-  HARD: { label: '어려움', detail: '스킨의 무늬와 작은 장식을 비교해요.', reward: 3, art: 'wardrobe-cyber' },
-} satisfies Record<Difficulty, { label: string; detail: string; reward: number; art: string }>
+  NORMAL: { label: '보통', detail: '소품의 색과 모양', reward: 2 },
+  HARD: { label: '어려움', detail: '스킨의 무늬와 작은 장식', reward: 3 },
+} satisfies Record<Difficulty, { label: string; detail: string; reward: number }>
 
 function post(path: string, body: object): Promise<Round> {
   return parkRuntime.requestJSON(path, {
