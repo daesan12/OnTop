@@ -325,6 +325,15 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
         }
         const holdAt = performance.now()
         useMobility.setState({ holdAt, notice: '' })
+        const prepareVehicle = () => {
+          if (useMobility.getState().holdAt !== holdAt || document.hidden) return
+          void import('../features/mobility/mountedVehicle').then(({ prepareMountedVehicle }) => {
+            if (useMobility.getState().holdAt === holdAt && !document.hidden) prepareMountedVehicle(target.vehicle)
+          }).catch(error => console.warn('탑승 모델을 미리 준비하지 못했습니다.', error))
+        }
+        // Use the hold period to build geometry outside the first mounted frame.
+        if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(prepareVehicle, { timeout: 250 })
+        else setTimeout(prepareVehicle, 0)
         rentalTimer = setTimeout(() => {
           rentalTimer = undefined
           const state = useMobility.getState(), avatar = rentalAvatar()
