@@ -1,0 +1,81 @@
+@font-face {
+  font-family: BusanDandiMyeongjo;
+  src: url('../../assets/BusanDandiMyeongjo-700.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+body:has(.balloon-preview) { margin: 0; }
+.balloon-preview, .balloon-preview * { box-sizing: border-box; }
+.balloon-preview {
+  position: relative;
+  height: 100dvh;
+  color: #fdf2d6;
+  background: #a5d0ed;
+  font: 700 16px/1.45 'Malgun Gothic', sans-serif;
+}
+.balloon-preview p, .balloon-preview h1 { margin: 0; }
+.balloon-preview button { font-family: inherit; }
+.balloon-preview button:focus-visible { outline: 3px solid #f5cc77; outline-offset: 3px; }
+.balloon-scene { position: absolute; inset: 0; touch-action: none; }
+.balloon-preview .table-paper-backdrop { background: #14232a86; }
+.balloon-preview .balloon-paper { width: min(386px, calc(100vw - 36px)); color: #392a19; scrollbar-width: none; }
+.balloon-preview .balloon-paper::-webkit-scrollbar { display: none; }
+.balloon-preview .balloon-paper .paper-caption, .balloon-wait h1 {
+  margin: 2px 18px 16px;
+  color: #3e2d1d;
+  font: 700 clamp(23px, 4.5vw, 30px)/1.18 BusanDandiMyeongjo, serif;
+}
+.balloon-preview .balloon-paper .paper-close { top: 8px; right: 8px; background: #f5ebd3; color: #4e351e; }
+.balloon-preview .balloon-paper .paper-primary, .balloon-primary {
+  font: 700 21px/1.2 BusanDandiMyeongjo, serif;
+}
+.balloon-count { padding: 12px 0 7px; border-top: 1px solid #bd9b62; }
+.balloon-seats { display: flex; justify-content: center; gap: 12px; padding-bottom: 12px; }
+.balloon-seats svg { width: 27px; height: 27px; fill: none; stroke: #8f8169; stroke-width: 1.65; }
+.balloon-seats svg[data-occupied='true'] { fill: #304a34; stroke: #304a34; }
+.balloon-fare { padding-top: 10px; border-top: 1px solid #bd9b62; }
+.balloon-fare span { color: #a76d14; margin-right: 4px; }
+.balloon-balance { color: #5c5037; font-size: 13px; padding-top: 4px; }
+.balloon-hanji {
+  background: #f3e8cc url('/art/tablet/hanji.webp') center / 100% 100%;
+  border: 3px double #af8e54;
+  border-radius: 10px;
+  color: #392a19;
+  box-shadow: 0 4px 16px #14251747;
+}
+.balloon-wait {
+  position: absolute; right: max(16px, 6vw); top: 50%; transform: translateY(-50%);
+  width: min(255px, calc(100vw - 32px)); padding: 18px 20px 12px; text-align: center;
+  max-height: calc(100dvh - 36px); overflow: auto; scrollbar-width: none;
+}
+.balloon-wait::-webkit-scrollbar { display: none; }
+.balloon-wait h1 { margin-inline: 0; }
+.balloon-primary, .balloon-cancel { display: block; width: 100%; cursor: pointer; }
+.balloon-primary { margin-top: 13px; padding: 9px; background: #243e2a; color: #fff5d9; border: 3px double #b29959; border-radius: 8px; }
+.balloon-cancel { border: 0; padding: 6px; color: #58422a; background: transparent; text-decoration: underline; font-weight: 700; }
+.balloon-preview-info, .balloon-role, .balloon-clock, .balloon-simulation { position: absolute; }
+.balloon-preview-info { top: 12px; left: 12px; background: #213123e8; padding: 5px 10px; border-radius: 6px; font-size: 13px; }
+.balloon-role { top: 52px; left: 12px; padding: 5px 13px; border: 2px double #b29959; border-radius: 7px; background: #273e2b; }
+.balloon-clock { right: 12px; top: 12px; padding: 7px 13px; text-align: center; }
+.balloon-simulation { top: 54px; right: 12px; background: #243b2be8; color: #fff4dc; border: 1px solid #b29959; border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+.balloon-bottom {
+  position: absolute; left: 50%; bottom: max(6vh, 12px); transform: translateX(-50%);
+  display: grid; justify-items: center; gap: 8px; text-align: center; width: max-content; max-width: calc(100% - 24px);
+  pointer-events: none;
+}
+.balloon-bottom button { pointer-events: auto; cursor: pointer; }
+.balloon-prompt, .balloon-hint {
+  padding: 7px 12px; border: 1px solid #f2d4a0; border-radius: 9px;
+  background: #382a1de8; color: #fff6dd; box-shadow: 0 2px 8px #31281066;
+}
+.balloon-preview .balloon-prompt { font: 700 18px/1.4 BusanDandiMyeongjo, serif; }
+.balloon-preview kbd { display: inline-block; color: #30261b; background: #f7eedc; border-radius: 4px; padding: 1px 6px; margin-right: 4px; font-size: .9em; }
+.balloon-preview .balloon-notice { padding: 7px 14px; }
+.balloon-notice strong { display: block; }
+.balloon-touch { display: none; flex-wrap: wrap; gap: 5px; justify-content: center; }
+.balloon-touch button { color: #fff4dc; background: #243b2be8; border: 1px solid #b29959; border-radius: 6px; padding: 8px; touch-action: none; }
+@media (pointer: coarse), (max-width: 540px) {
+  .balloon-touch { display: flex; }
+  .balloon-wait { top: auto; right: 12px; bottom: 12px; transform: none; }
+}

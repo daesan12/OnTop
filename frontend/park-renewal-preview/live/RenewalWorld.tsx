@@ -1,4 +1,5 @@
-import { RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
+import { useLocalBalloon } from '../../src/features/balloon/localRide'
+import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
 import { EntranceBuilding } from '../EntrancePavilion'
 import { ParkGachaKiosk } from '../ParkGachaKiosk'
 import { ParkMoleShop } from '../ParkMoleShop'
@@ -68,6 +69,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   groundMounted: RefObject<boolean>
   entryPresented: boolean
 }) {
+  const showDockedBalloon = useLocalBalloon(ride => !BALLOON_RIDE_ENABLED || !ride.flight)
   const surface = useRef<Group>(null), interior = useRef<Group>(null), annex = useRef<Group>(null)
   const loadInterior = useRef(false)
   const displayedPose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })
@@ -239,7 +241,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
         <GroundMounted ready={groundMounted} />
       </Suspense>
       {entryPresented && stage >= 1 && <Suspense fallback={null}><StableScenicDetails includeGround={false} includeTrees={false} includeLandscape={false} distantReady={stage >= 2} live /></Suspense>}
-      {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
+      {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live showDockedBalloon={showDockedBalloon} entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
         loadedRentalBatches={stage} /></Suspense>}
       {entryPresented && stage >= 3 && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>
         <StableTable index={index} boards={stage === finalStage || index < Math.max(0, stage - 3) * boardsPerStage} />
