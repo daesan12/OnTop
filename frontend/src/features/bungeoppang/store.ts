@@ -162,9 +162,6 @@ const get = useBungeoppang.getState,
 const R = BUNGEOPPANG;
 
 export const bungeoppangActive = () => get().phase !== "idle";
-export function finishBungeoppangReturnScene() {
-  if (get().returningScene) set({ returningScene: false });
-}
 const clearHeldInput = () =>
   window.dispatchEvent(new Event("ontop-clear-input"));
 
@@ -301,6 +298,7 @@ const crossed = Array.from({ length: R.slots }, () => ({
 // ---------- 진입과 나가기 ----------
 export function openBungeoppang() {
   if (get().phase !== "idle" || !canOpenBungeoppang()) return;
+  clearTimeout(transitionTimer);
   const session = useSession.getState();
   rememberRoamingView(session.sessionId, session.roomId);
   ++visit;
@@ -325,7 +323,7 @@ export function openBungeoppang() {
 export function leaveBungeoppang() {
   const phase = get().phase;
   if (phase === "idle" || phase === "leaving") return;
-  ++visit;
+  const returningVisit = ++visit;
   resetCustomerArrivalsV5();
   clearTimeout(transitionTimer);
   clearTimeout(tipTimer);
@@ -336,7 +334,21 @@ export function leaveBungeoppang() {
   if (get().helpOpen) resetManual();
   clock.pausedAt=null;
   view.active = false;
-  view.returningUntil = performance.now() + R.cameraReturnMs;
+  const returningUntil = performance.now() + R.cameraReturnMs;
+  view.returningUntil = returningUntil;
+  if (renewalBreadShop) {
+    // The frame loop only swaps visibility. Release the scene even when no frames run.
+    const releaseScene = () => {
+      if (visit !== returningVisit || !get().returningScene) return;
+      const remaining = returningUntil - performance.now();
+      if (remaining > 0) {
+        transitionTimer = setTimeout(releaseScene, Math.ceil(remaining));
+        return;
+      }
+      set({ returningScene: false });
+    };
+    transitionTimer = setTimeout(releaseScene, R.cameraReturnMs);
+  }
   // Camera easing is visual only. Restore the HUD and controls in this turn,
   // after the server has acknowledged abandon when a round is active.
   inputState.minigameOpen = false;

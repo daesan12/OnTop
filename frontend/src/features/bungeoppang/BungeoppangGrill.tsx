@@ -39,7 +39,6 @@ import {
 } from "./bungeoppangView";
 import {
   discardBungeoppangSlot,
-  finishBungeoppangReturnScene,
   pressBungeoppangSlot,
   useBungeoppang,
 } from "./store";
@@ -114,10 +113,7 @@ export function BungeoppangGrill() {
     return () => { mounted = false; };
   }, [v5, phase, gl, camera, scene]);
   useFrame(({ clock }) => {
-    if (!renewalBreadShop) return;
-    const cooking = bungeoppangCookingView(clock.oldTime);
-    if (root.current) root.current.visible = cooking;
-    if (!cooking && returningScene) finishBungeoppangReturnScene();
+    if (renewalBreadShop && root.current) root.current.visible = bungeoppangCookingView(clock.oldTime);
   });
   if (error) throw error;
   if (phase === "idle" && !returningScene || renewalBreadShop && phase === "start" && !startStageReady) return null;
