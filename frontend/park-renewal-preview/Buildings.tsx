@@ -1,4 +1,4 @@
-import {lazy,Suspense,useMemo} from 'react'
+import {lazy,Suspense,useMemo,useRef,type ReactNode} from 'react'
 import {useLoader,useFrame} from '@react-three/fiber'
 import {ParkAssetLoader} from '../src/world/art/assetLoader'
 import {Group,Mesh,MeshStandardMaterial} from 'three'
@@ -41,6 +41,7 @@ import { createTowerFrame } from './original/world/art/towerFrameGeometry'
 import { LakePart, LakeStage } from './lakeStages'
 import { estimatedServerTime } from '../src/network/serverEventClock'
 import { FacilityOnApproach } from './live/FacilityOnApproach'
+import { bungeoppangView } from '../src/features/bungeoppang/bungeoppangView'
 import { ShaderPreparedGroup } from './live/ShaderPreparedGroup'
 
 const Arcade = lazy(() => import('./ArcadeBuilding'))
@@ -139,8 +140,16 @@ function RenewalTower({distanceLod}:{distanceLod:boolean}) {
  const distant = useMemo(() => distanceLod ? bakedEntryMesh('tower-frame-distant') ?? createTowerFrame(scale, 'distant') : undefined, [distanceLod,scale])
  return <group scale={[1,scale,1]}><group position={[-OBSERVATION_TOWER.x,0,-OBSERVATION_TOWER.z]}><ObservationTower verticalScale={scale} frameGeometry={frame} distantFrame={distant} frameCenter={distanceLod?site('tower'):undefined}/></group></group>
 }
+function PublicBreadShop({ children }: { children: ReactNode }) {
+ const shop = useRef<Group>(null)
+ useFrame(() => {
+  if (shop.current) shop.current.visible = !bungeoppangView.active && performance.now() >= bungeoppangView.returningUntil
+ })
+ return <group ref={shop}>{children}</group>
+}
+
 export function Buildings({live=false,distantReady=true,upperFacilitiesReady=distantReady,loadedRentalBatches=distantRentalBatches,entrancePavilion=true,entranceDistricts=true,entranceFacilities=true}:{live?:boolean;distantReady?:boolean;upperFacilitiesReady?:boolean;loadedRentalBatches?:number;entrancePavilion?:boolean;entranceDistricts?:boolean;entranceFacilities?:boolean}){const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
- {SITES.filter(s=>s.asset&&models[s.asset]&&(distantReady||s.asset!=='stele')&&(entrancePavilion||s.id!=='pavilion')&&(entranceFacilities||s.id!=='fortune'&&s.id!=='lottery')).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);const model=<group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit} prepareShaders={live&&s.asset==='stele'}/></Suspense></group>;return isDock?<LakePart key={s.id} at={LakeStage.Dock}>{model}</LakePart>:model})}
+ {SITES.filter(s=>s.asset&&models[s.asset]&&(distantReady||s.asset!=='stele')&&(entrancePavilion||s.id!=='pavilion')&&(entranceFacilities||s.id!=='fortune'&&s.id!=='lottery')).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);const model=<group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit} prepareShaders={live&&s.asset==='stele'}/></Suspense></group>;return isDock?<LakePart key={s.id} at={LakeStage.Dock}>{model}</LakePart>:live&&s.asset==='bread'?<PublicBreadShop key={s.id}>{model}</PublicBreadShop>:model})}
  {entranceFacilities&&<RentalPairs entrance/>}
  {distantReady&&(live
   ? Array.from({length:Math.min(loadedRentalBatches,distantRentalBatches)},(_, batch)=><ShaderPreparedGroup key={batch}><RentalPairs entrance={false} batch={batch}/></ShaderPreparedGroup>)

@@ -129,9 +129,9 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
     }
   }, .6)
   useFrame(() => {
-    if (!bakery || queuedBakery.current) return
+    if (!bakery || firstFrameAt.current === null || queuedBakery.current) return
     const pose = authoritativePose(useSession.getState().sessionId)
-    if (!pose || Math.hypot(pose.x-bakery.reachPosition[0],pose.z-bakery.reachPosition[2]) > 22) return
+    if (!pose || Math.hypot(pose.x-bakery.reachPosition[0],pose.z-bakery.reachPosition[2]) > 32) return
     queuedBakery.current = true
     preloadBungeoppangView()
   })
