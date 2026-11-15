@@ -24,6 +24,63 @@ float hash(vec2 p) {
   return fract((q.x + q.y) * q.z);
 }
 
+float segmentDistance(vec2 point, vec2 start, vec2 end) {
+  vec2 span = end - start;
+  float along = clamp(dot(point - start, span) / dot(span, span), 0., 1.);
+  return length(point - start - span * along);
+}
+
+vec2 bigDipper(vec2 point) {
+  vec2 stars[7];
+  stars[0] = vec2(-.154, .055);
+  stars[1] = vec2(-.105, .032);
+  stars[2] = vec2(-.059, .003);
+  stars[3] = vec2(-.009, -.013);
+  stars[4] = vec2(.018, -.079);
+  stars[5] = vec2(.108, -.074);
+  stars[6] = vec2(.13, .003);
+  float line = segmentDistance(point, stars[6], stars[3]);
+  float dotDistance = length(point - stars[0]);
+  for (int i = 1; i < 7; i++) {
+    line = min(line, segmentDistance(point, stars[i - 1], stars[i]));
+    dotDistance = min(dotDistance, length(point - stars[i]));
+  }
+  return vec2(line, dotDistance);
+}
+
+vec2 cassiopeia(vec2 point) {
+  vec2 stars[5];
+  stars[0] = vec2(-.123, .039);
+  stars[1] = vec2(-.068, -.04);
+  stars[2] = vec2(-.005, .052);
+  stars[3] = vec2(.052, -.019);
+  stars[4] = vec2(.111, .058);
+  float line = 1.;
+  float dotDistance = length(point - stars[0]);
+  for (int i = 1; i < 5; i++) {
+    line = min(line, segmentDistance(point, stars[i - 1], stars[i]));
+    dotDistance = min(dotDistance, length(point - stars[i]));
+  }
+  return vec2(line, dotDistance);
+}
+
+vec3 constellationLight(vec2 sky) {
+  // Draw stylized patterns in fixed sky directions and shade only their immediate surroundings.
+  vec2 dipper = (sky - vec2(-1.93, .42)) * vec2(.91, 1.);
+  vec2 queen = (sky - vec2(-1.18, .58)) * vec2(.84, 1.);
+  vec2 distances;
+  if (abs(dipper.x) < .18 && abs(dipper.y) < .11) {
+    distances = bigDipper(dipper);
+  } else if (abs(queen.x) < .15 && abs(queen.y) < .09) {
+    distances = cassiopeia(queen);
+  } else {
+    return vec3(0.);
+  }
+  float line = 1. - smoothstep(.0005, .0022, distances.x);
+  float star = 1. - smoothstep(.0013, .0044, distances.y);
+  return vec3(.29, .47, .72) * line * .17 + vec3(.7, .85, 1.) * star * .92;
+}
+
 #ifndef SIMPLE_SKY
 float noise2D(vec2 p) {
   vec2 i = floor(p), f = fract(p);
@@ -46,7 +103,9 @@ void main() {
   c += vec3(.58, .66, .78) * smoothstep(.99965, .9999, moon) * night * .5;
 
   if (night > .01) {
-    vec2 grid = vec2(atan(d.z, d.x) * .15915494 + .5, asin(d.y) * .31830989 + .5) * vec2(320., 135.);
+    vec2 sky = vec2(atan(d.z, d.x), asin(d.y));
+    vec2 grid = (sky * vec2(.15915494, .31830989) + .5) * vec2(320., 135.);
+    c += constellationLight(sky) * night * night;
     vec2 cell = floor(grid);
     float seed = hash(cell);
     if (seed >= .89 && hash(cell + 101.) < .35) {
@@ -55,7 +114,7 @@ void main() {
       float radius = mix(.055, .19, pow(seed, 6.));
       float star = 1. - smoothstep(radius * .28, radius, distanceToStar);
       vec3 tint = mix(vec3(.68, .83, 1.), vec3(1., .86, .65), hash(cell + 17.));
-      c += tint * star * night * night * smoothstep(.02, .24, d.y);
+      c += tint * star * .33 * night * night * smoothstep(.02, .24, d.y);
     }
   }
 
