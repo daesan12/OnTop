@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { PaperPopup } from '../tableLobby/PaperPopup'
 import {
-  boardLocalBalloon, cancelLocalBalloon, returnLocalBalloon, startLocalBalloon, useLocalBalloon, watchLocalBalloonSession,
+  boardLocalBalloon, cancelLocalBalloon, localBalloonFade, returnLocalBalloon, startLocalBalloon, useLocalBalloon, watchLocalBalloonSession,
 } from './localRide'
 import './localBalloon.css'
 
@@ -13,6 +13,7 @@ export default function LocalBalloonHud() {
   const boundary = useLocalBalloon(s => s.flight?.atBoundary)
   const landing = useLocalBalloon(s => s.flight?.landing)
   const reason = useLocalBalloon(s => s.flight?.returnReason)
+  const fade = useLocalBalloon(localBalloonFade)
   useEffect(() => {
     const unwatch = watchLocalBalloonSession()
     return () => { unwatch(); cancelLocalBalloon() }
@@ -29,8 +30,10 @@ export default function LocalBalloonHud() {
       </>}
   </PaperPopup>
 
-  if (!phase) return null
-  return <aside className="park-balloon-hud" aria-label="열기구 운항">
+  const fadeOverlay = fade > 0 ? <div className="park-balloon-fade" aria-hidden="true" style={{ opacity: fade }} /> : null
+  if (!phase) return fadeOverlay
+  return <>
+    <aside className="park-balloon-hud" aria-label="열기구 운항">
     {phase === 'boarding' ? <>
       <strong>출발 대기 · 1인</strong>
       <span>출발까지 {departure}초</span>
@@ -47,5 +50,7 @@ export default function LocalBalloonHud() {
       </> : phase === 'returning' ? <span role="status">{reason === 'terrain'
         ? '이곳에는 내릴 수 없어 승강장으로 돌아갑니다.' : '승강장으로 돌아갑니다.'}</span>
       : <span role="status">{landing === 'field' ? '착지했어요. 체험 종료 후 승강장으로 돌아갑니다.' : '승강장에 도착했어요.'} · {seconds}초</span>}
-  </aside>
+    </aside>
+    {fadeOverlay}
+  </>
 }
