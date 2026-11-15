@@ -1,4 +1,4 @@
-import { memo, useEffect } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PaperPopup } from '../tableLobby/PaperPopup'
 import { useSession } from '../../network/worldClient'
@@ -7,7 +7,9 @@ import { JUMPMAP_ENABLED } from '../../park/mapSelection'
 import { closeJumpmapGuide, jumpmapGuideScope, useJumpmapGuide } from './guideState'
 import { useJumpmap } from './state'
 import { DAILY_CAP, STAGES } from './activeCourse'
+import { JumpmapRanking, type RankingLoader } from './JumpmapRanking'
 import './jumpmapGuide.css'
+import './jumpmapCompletion.css'
 import './rewardFeedback.css'
 
 const steps = [
@@ -24,10 +26,18 @@ function StepIcon({ step }: { step:number }) {
 }
 
 /** 준비 화면은 설명만 한다. 닫기만으로 도전 시작·이동·보상 요청을 보내지 않는다. */
-export function JumpmapGuideDialog({ onClose }: { onClose():void }) {
+export function JumpmapGuideDialog({ onClose, loadRankings }: { onClose():void; loadRankings?: RankingLoader }) {
+  const [rankingOpen, setRankingOpen] = useState(false)
+  const rankingButton = useRef<HTMLButtonElement>(null)
+  const returning = useRef(false)
+  const closeRanking = () => { returning.current = true; setRankingOpen(false) }
   useEffect(() => { clearRoamingInput(); return clearRoamingInput }, [])
   return createPortal(<div className="jm-guide-root">
-    <PaperPopup title="미니게임 · 준비 안내" label="돌탑 점프맵 준비 안내" className="jm-guide-paper" closeLabel="돌탑 안내 닫기" onClose={onClose}>
+    {rankingOpen ? <PaperPopup key="ranking" title="돌탑 타임어택 랭킹" label="돌탑 타임어택 랭킹"
+      className="jm-completion-paper jm-ranking-paper" closeLabel="랭킹 닫기" onClose={closeRanking}>
+      <JumpmapRanking load={loadRankings} onBack={closeRanking} backLabel="안내로 돌아가기" />
+    </PaperPopup> : <PaperPopup key="guide" title="미니게임 · 준비 안내" label="돌탑 점프맵 준비 안내"
+      className="jm-guide-paper" closeLabel="돌탑 안내 닫기" onClose={onClose} initialFocusRef={returning.current ? rankingButton : undefined}>
       <header className="jm-guide-intro">
         <div><span className="jm-guide-eyebrow">{STAGES.length===10?'공원 위, 열 구간의 하늘길':'공원 위, 일곱 구간의 하늘길'}</span><h2>돌탑 점프맵</h2><p>한 걸음, 한 번의 점프로<br />{STAGES.length===10?'오리를 따라 호수섬까지 가 볼까요?':'마지막 연잎까지 올라가 볼까요?'}</p></div>
         <img src="/art/jumpmap/guide-3.webp" alt="연잎과 다양한 발판을 따라 점프하는 캐릭터" width="300" height="200" />
@@ -42,15 +52,18 @@ export function JumpmapGuideDialog({ onClose }: { onClose():void }) {
         <small>미니게임 합산 하루 최대 {DAILY_CAP}냥<br />남은 일일 한도만큼 지급해요.</small>
       </section>
       <div className="jm-guide-controls" aria-label="돌탑 조작 안내"><span><kbd>WASD</kbd> 이동</span><span><kbd>Space</kbd> 점프</span><span><kbd>Shift</kbd> 달리기</span></div>
-      <section className="jm-guide-ranking" aria-label="타임어택 랭킹 안내"><span aria-hidden="true"><StepIcon step={2} /></span><div><h3>타임어택 랭킹에 도전해요!</h3><p>완주 시간으로 순위를 겨뤄요. 내 최고 기록을 줄여보세요.<br />완주 화면의 ‘타임어택 랭킹 보기’에서 기록과 순위를 확인할 수 있어요.</p></div></section>
+      <section className="jm-guide-ranking" aria-label="타임어택 랭킹 안내"><span aria-hidden="true"><StepIcon step={2} /></span><div>
+        <h3>타임어택 랭킹에 도전해요!</h3><p>완주 시간으로 순위를 겨뤄요. 내 최고 기록을 줄여보세요.</p>
+        {loadRankings && <button ref={rankingButton} type="button" aria-haspopup="dialog" onClick={() => setRankingOpen(true)}>타임어택 랭킹 보기</button>}
+      </div></section>
       <p className="jm-guide-optional">이 화면은 가이드예요. <strong>매번 확인하지 않고 첫 발판에서 바로 도전해도 돼요.</strong><br />{STAGES.length === 10 ? '점프맵 비석' : '출발 표식'}에서 <kbd>E</kbd>를 누르면 언제든 다시 읽을 수 있어요.</p>
       <button type="button" className="paper-primary jm-guide-depart" onClick={onClose}>안내 닫고 출발하기</button>
       <p className="jm-guide-close-hint"><kbd>Esc</kbd> 안내 닫기</p>
-    </PaperPopup>
+    </PaperPopup>}
   </div>,document.body)
 }
 
-export const JumpmapGuide = memo(function JumpmapGuide() {
+export const JumpmapGuide = memo(function JumpmapGuide({ loadRankings }: { loadRankings: RankingLoader }) {
   const scope=useJumpmapGuide(s=>s.scope), context=useSession(jumpmapGuideScope)
   const connected=useSession(s=>s.status==='connected'&&s.mapCompatible)
   const running=useJumpmap(s=>!!s.run)
@@ -59,7 +72,7 @@ export const JumpmapGuide = memo(function JumpmapGuide() {
   },[scope,connected,running,context])
   useEffect(()=>()=>closeJumpmapGuide(),[])
   if(!JUMPMAP_ENABLED||!scope||scope!==context||!connected||running) return null
-  return <JumpmapGuideDialog onClose={()=>{
+  return <JumpmapGuideDialog loadRankings={loadRankings} onClose={()=>{
     closeJumpmapGuide()
     document.querySelector<HTMLCanvasElement>('canvas')?.focus({preventScroll:true})
   }} />
