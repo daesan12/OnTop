@@ -31,6 +31,21 @@ function BalloonWarning({ children }: { children: ReactNode }) {
   </span>
 }
 
+function DirectionCockpitGuide() {
+  return <div className="park-balloon-direction-guide" role="group" aria-label="방향 조종 키">
+    <span className="park-balloon-direction-label">수평 이동</span>
+    <div className="park-balloon-direction-options">
+      <div className="park-balloon-direction-pad" role="img" aria-label="W 앞, A 왼쪽, S 뒤, D 오른쪽">
+        <kbd aria-hidden="true">W</kbd><kbd aria-hidden="true">A</kbd><kbd aria-hidden="true">S</kbd><kbd aria-hidden="true">D</kbd>
+      </div>
+      <span>또는</span>
+      <div className="park-balloon-direction-pad" role="img" aria-label="위쪽 화살표 앞, 왼쪽 화살표 왼쪽, 아래쪽 화살표 뒤, 오른쪽 화살표 오른쪽">
+        <kbd aria-hidden="true">↑</kbd><kbd aria-hidden="true">←</kbd><kbd aria-hidden="true">↓</kbd><kbd aria-hidden="true">→</kbd>
+      </div>
+    </div>
+  </div>
+}
+
 function BalloonBoardingOptions({ paying, capacity, setCapacity, mode, setMode }: {
   paying: boolean; capacity: number; setCapacity: (capacity: number) => void
   mode: ControlMode; setMode: (mode: ControlMode) => void
@@ -121,7 +136,7 @@ function BalloonCockpit({ leader, owner, role, pending }: {
             setChooseRider(false)
             focusRide()
           }}><kbd>F</kbd> 조종석에서 일어나기</button>
-          {eligible.length > 0 && <button type="button" aria-expanded={chooseRider}
+          {eligible.length > 0 && <button type="button" className="park-balloon-exchange" aria-expanded={chooseRider}
             onClick={() => setChooseRider(picking => !picking)}>조종 교대 제안</button>}
         </>
         : (['direction', 'altitude'] as const).map(seat => !controls[seat] && (seat === 'direction' || controls.mode === 'split')
@@ -199,12 +214,13 @@ export default function LocalBalloonHud() {
   if (!phase) return fadeOverlay
 
   const soloDeparture = controlsMode === 'split' && !splitReady
+  const directing = phase === 'flying' && controlsMode === 'split' && controlRole === 'direction' && !walkingInside
   const roleTitle = walkingInside ? '기내' : controlRole === 'altitude' ? '고도 조종석'
     : controlsMode === 'split' ? '방향 조종석' : '조종석'
   const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 
   return <>
-    <aside className="park-balloon-hud" data-phase={phase} aria-label="열기구 운항">
+    <aside className="park-balloon-hud" data-phase={phase} data-direction-seat={directing || undefined} aria-label="열기구 운항">
       {phase === 'flying' && emptySeconds !== null && <BalloonWarning>{emptySeconds
         ? <>조종석이 비었어요 · <strong>{emptySeconds}초 뒤 추락</strong></>
         : <>추락 중이에요. 조종석을 잡아 주세요!</>}</BalloonWarning>}
@@ -224,8 +240,9 @@ export default function LocalBalloonHud() {
             <strong><i className="park-balloon-compass" aria-hidden="true" />{roleTitle}</strong>
             {isPilot && <span>남은 시간 <b>{time}</b></span>}
           </div>
-          <BalloonKeys walking={walkingInside} seated={seated} direction={walkingInside || controlRole !== 'altitude'}
-            altitude={!walkingInside && (controlsMode !== 'split' || controlRole === 'altitude')} />
+          {directing ? <DirectionCockpitGuide />
+            : <BalloonKeys walking={walkingInside} seated={seated} direction={walkingInside || controlRole !== 'altitude'}
+                altitude={!walkingInside && (controlsMode !== 'split' || controlRole === 'altitude')} />}
           {paymentError && <span className="park-balloon-hud-note" role="alert">{paymentError}</span>}
           {boundary && <span className="park-balloon-hud-note" role="status">비행 구역 경계 · 공원 안쪽으로 돌아가세요</span>}
           <div className="park-balloon-hud-controls">
