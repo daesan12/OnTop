@@ -19,12 +19,16 @@ import { paintBusinessStatus } from '../BusinessStatus'
 import { INITIAL_PANTRY } from '../cooperativeMenu'
 import { chefVRArt, paintChefVRGuide } from './vrGuide'
 import { paintGuidePaper, paintGuideButton, paintGuideNotePaper, TOUCH_GUIDE_COLORS } from '../../vrGuide/touchControllerGuide'
+import { createTouchModel, disposeTouchModel } from '../../vrSession/touchModel'
 
 export type ChefMode = 'pc' | 'vr'
 type Pick = { ingredient: IngredientId } | { action: 'thread' | 'unthread' | 'submit' | 'stick' | 'coop' | 'pause' | 'resume' | 'leave' | 'pauseRetry' | 'restartRequest' | 'restartAccept' | 'restartDecline' | 'guide' | 'closeGuide' } | { slot: number }
 type Held = { ingredient: IngredientId; root: THREE.Group }
 const HOME = new THREE.Vector3(0, 1.25, .48), TIP = new THREE.Vector3(1.3, 0, 0)
 const COUNTER_TOP = 1.02
+const VR_KITCHEN_SCALE = .34
+const VR_COUNTER_HEIGHT = .80
+const VR_SKEWER_SCALE = .62
 const orderSlotX = (slot: number) => -.99 + slot * 1.98
 
 /** One real 3D kitchen for desktop and immersive WebXR; rendering/input stay outside React. */
@@ -115,6 +119,7 @@ export class ChefScene {
   private readonly timerTexture: THREE.CanvasTexture
   private readonly clock: THREE.Mesh
   private readonly previewControllers = new THREE.Group()
+  private readonly controllerModels: THREE.Group[] = []
   private readonly guideRoot = new THREE.Group()
   private readonly guideButton = new THREE.Group()
   private readonly guideCanvas = document.createElement('canvas')
@@ -152,7 +157,7 @@ export class ChefScene {
     const stick = this.world.cylinder(.012, 2.6, '#ad763c'); stick.rotation.z = Math.PI / 2; this.skewer.add(stick)
     const handle = this.world.cylinder(.07, .42, '#744323'); handle.rotation.z = Math.PI / 2; this.world.place(this.skewer, handle, -1.51, 0, 0)
     this.hitBox(this.skewer, new THREE.Vector3(0, 0, 0), new THREE.Vector3(2.95, .17, .17), { action: 'stick' })
-    const markerMat = new THREE.MeshBasicMaterial({ color: '#f6c965', transparent: true, opacity: .9 })
+    const markerMat = new THREE.MeshBasicMaterial({ color: '#f6c965', transparent: true, opacity: .95, depthWrite: false, toneMapped: false })
     this.marker = this.mesh(new THREE.TorusGeometry(.065, .006, 8, 36), markerMat); this.marker.rotation.y = Math.PI / 2; this.marker.position.copy(TIP); this.skewer.add(this.marker)
     this.hitBox(this.skewer, TIP, new THREE.Vector3(.24, .26, .26), { action: 'thread' })
     this.board.width = 1536; this.board.height = 720; this.boardTexture = this.texture(this.board)
@@ -711,10 +716,9 @@ export class ChefScene {
     return true
   }) }
   private controllerModel() {
-    const a = this.world, root = new THREE.Group(); const grip = a.cylinder(.035, .16, '#e5e4dc', .045); grip.rotation.x = .25; a.place(root, grip, 0, -.07, .025)
-    a.place(root, a.box(.09, .035, .12, '#252c2b', .02), 0, .01, 0)
-    const ring = this.mesh(new THREE.TorusGeometry(.105, .012, 8, 28), a.material('#eeede5')); ring.rotation.x = -.45; a.place(root, ring, 0, .075, -.06)
-    a.place(root, a.cylinder(.012, .01, '#858b84'), -.02, .035, 0); return root
+    const model = createTouchModel()
+    this.controllerModels.push(model)
+    return model
   }
   private setupControllers() {
     for (let i = 0; i < 2; i++) {
@@ -727,7 +731,7 @@ export class ChefScene {
         if (!pick) return
         if ('ingredient' in pick) {
           if (chefPresentation(this.view).blocked || availablePieces(this.view.skewer, pick.ingredient) <= 0 || !this.view.visible.length) return
-          const root = this.foods.create(pick.ingredient); root.scale.setScalar(2.1 * this.kitchen.scale.x); root.rotation.y = Math.PI / 2; root.position.z = -.18; c.add(root); this.held.set(i, { ingredient: pick.ingredient, root }); this.action({ type: 'select', ingredient: pick.ingredient })
+          const root = this.foods.create(pick.ingredient); root.scale.setScalar(2.1 * VR_KITCHEN_SCALE * VR_SKEWER_SCALE); root.rotation.y = Math.PI / 2; root.position.z = -.18; c.add(root); this.held.set(i, { ingredient: pick.ingredient, root }); this.action({ type: 'select', ingredient: pick.ingredient })
           this.showNotice('재료를 꼬치 끝에 맞추고, 고리가 초록색일 때 트리거를 놓으세요.')
         } else this.activate(pick)
       }
@@ -739,36 +743,51 @@ export class ChefScene {
         else if (good) { this.feedback = ''; this.action({ type: 'thread', ingredient: held.ingredient }) }
         else this.showNotice('꼬치 끝에 재료의 중심과 방향을 맞춰 주세요.')
       }
-      const grab = () => { if (this.guideRoot.visible) return; const pick = this.controllerHit(i)?.object.userData.pick as Pick | undefined; if (pick && 'action' in pick && pick.action === 'stick' && !chefPresentation(this.view).blocked && this.owner === null && !this.held.has(i)) { c.attach(this.skewer); this.skewer.rotation.set(0, 0, 0); this.skewer.position.set(1.51 * this.kitchen.scale.x, 0, -.12); this.owner = i } }
+      const grab = () => {
+        if (this.guideRoot.visible || chefPresentation(this.view).blocked || this.owner !== null || this.held.has(i)) return
+        // Select the stick even when the thread target overlaps it.
+        const hit = this.controllerHit(i, 'stick')
+        if (!hit) return
+        const scale = VR_KITCHEN_SCALE * VR_SKEWER_SCALE
+        c.add(this.skewer)
+        this.skewer.rotation.set(0, 0, 0)
+        this.skewer.scale.setScalar(scale)
+        this.skewer.position.set(1.51 * scale, 0, -.12)
+        this.owner = i
+      }
       const release = () => { if (this.owner === i) this.returnStick() }
       const disconnect = () => { this.held.get(i)?.root.removeFromParent(); this.held.delete(i); release(); if (this.session) this.showNotice('컨트롤러 연결을 확인해 주세요.') }
       c.addEventListener('selectstart', start); c.addEventListener('selectend', end); c.addEventListener('squeezestart', grab); c.addEventListener('squeezeend', release); c.addEventListener('disconnected', disconnect)
       this.onEndListeners.push(() => { c.removeEventListener('selectstart', start); c.removeEventListener('selectend', end); c.removeEventListener('squeezestart', grab); c.removeEventListener('squeezeend', release); c.removeEventListener('disconnected', disconnect) })
     }
   }
-  private returnStick() { this.kitchen.attach(this.skewer); this.skewer.position.copy(HOME); this.skewer.rotation.set(0, 0, 0); this.skewer.scale.setScalar(1); this.owner = null }
+  private returnStick() { this.kitchen.add(this.skewer); this.skewer.position.copy(HOME); this.skewer.rotation.set(0, 0, 0); this.skewer.scale.setScalar(this.session ? VR_SKEWER_SCALE : 1); this.owner = null }
   private heldReady(held: Held) {
     held.root.getWorldPosition(this.v); this.skewer.localToWorld(this.v2.copy(TIP)); const d = this.v.distanceTo(this.v2)
     held.root.getWorldQuaternion(this.q); const foodAxis = new THREE.Vector3(1, 0, 0).applyQuaternion(this.q)
     this.skewer.getWorldQuaternion(this.q); const stickAxis = new THREE.Vector3(1, 0, 0).applyQuaternion(this.q)
     return insertionReady(d, foodAxis.dot(stickAxis))
   }
-  private controllerHit(index: number) {
+  private controllerHit(index: number, action?: 'stick') {
     const c = this.controllers[index]; c.updateWorldMatrix(true, false); c.getWorldPosition(this.v); c.getWorldQuaternion(this.q)
-    this.ray.set(this.v, this.v2.set(0, 0, -1).applyQuaternion(this.q)); this.ray.far = 5; return this.ray.intersectObjects(this.visiblePickables(), false)[0]
+    const picks = this.visiblePickables()
+    this.ray.set(this.v, this.v2.set(0, 0, -1).applyQuaternion(this.q)); this.ray.far = 5
+    return this.ray.intersectObjects(action ? picks.filter(mesh => mesh.userData.pick?.action === action) : picks, false)[0]
   }
   async enterVR() {
     if (this.session) { await this.session.end(); return }
     if (!window.isSecureContext || !navigator.xr) throw new Error('VR은 보안 주소와 WebXR 지원 브라우저가 필요해요. 현재 화면에서는 VR 시점을 미리 볼 수 있어요.')
     this.unlockSound()
-    const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] })
+    const session = await navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'] })
     try {
       this.releaseVR = await this.beforeXR?.()
       if (this.disposed) { this.releaseVR?.(); this.releaseVR = undefined; await session.end(); return }
       this.session = session; session.addEventListener('end', this.sessionEnded); session.addEventListener('visibilitychange', this.greetingInterrupted)
       this.showVRGuide(false)
-      // Authored desktop units become a 1 m-high counter and ~1 m skewer in physical XR meters.
-      this.kitchen.scale.setScalar(.4); this.kitchen.position.y = .62
+      this.kitchen.scale.setScalar(VR_KITCHEN_SCALE); this.kitchen.position.y = VR_COUNTER_HEIGHT - COUNTER_TOP * VR_KITCHEN_SCALE
+      this.returnStick()
+      this.marker.scale.setScalar(1.65); this.marker.renderOrder = 151
+      ;(this.marker.material as THREE.MeshBasicMaterial).depthTest = false
       this.dolly.position.set(0, 0, .95); this.camera.position.set(0, 0, 0); this.camera.rotation.set(0, 0, 0)
       await this.renderer.xr.setSession(session); this.renderer.xr.setFoveation(1); this.xrChanged(true); this.timerSecond = -1
     }
@@ -784,6 +803,8 @@ export class ChefScene {
     }
     this.releaseVR?.(); this.releaseVR = undefined
     this.showVRGuide(false)
+    this.marker.rotation.set(0, Math.PI / 2, 0); this.marker.scale.setScalar(1); this.marker.renderOrder = 0
+    ;(this.marker.material as THREE.MeshBasicMaterial).depthTest = true
     this.session?.removeEventListener('end', this.sessionEnded); this.session = null; this.held.forEach(h => h.root.removeFromParent()); this.held.clear(); this.returnStick(); this.kitchen.scale.setScalar(1); this.kitchen.position.y = 0; this.setMode(this.mode); this.timerSecond = -1; this.xrChanged(false); this.resize()
   }
   private project(name: string, x: number, y: number, z: number) { this.v.set(x, y, z).project(this.camera); this.host.style.setProperty(`--chef-${name}-x`, `${(this.v.x + 1) * 50}%`); this.host.style.setProperty(`--chef-${name}-y`, `${(1 - this.v.y) * 50}%`) }
@@ -947,6 +968,7 @@ export class ChefScene {
     }
     this.halos.forEach((ring, id) => { ring.visible = id === v.ingredient })
     const aligned = !chefPresentation(v).blocked && [...this.held.values()].some(h => this.heldReady(h)); (this.marker.material as THREE.MeshBasicMaterial).color.set(aligned ? '#70cb80' : '#f6c965')
+    if (this.session) this.marker.lookAt(this.renderer.xr.getCamera().getWorldPosition(this.v))
     const pantry = this.mode === 'pc' ? v.pantry ?? INITIAL_PANTRY : INITIAL_PANTRY
     pantry.forEach((id, i) => {
       const x = -2.52 + i * .87
@@ -977,6 +999,7 @@ export class ChefScene {
     if (this.session) { this.session.removeEventListener('end', this.sessionEnded); void this.session.end().catch(() => undefined) }
     if (this.sound) void this.sound.close().catch(() => undefined)
     disposeRestaurantShadows(this.scene)
+    this.controllerModels.forEach(disposeTouchModel)
     this.geometry.forEach(g => g.dispose()); this.materials.forEach(m => m.dispose()); this.textures.forEach(t => t.dispose()); this.hall.dispose(); this.foods.dispose(); this.world.dispose(); this.env.dispose(); this.post.dispose(); this.renderer.dispose(); this.renderer.domElement.remove()
   }
 }

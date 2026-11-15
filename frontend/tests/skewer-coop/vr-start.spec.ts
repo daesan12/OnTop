@@ -12,6 +12,19 @@ async function prepare(page: Page) {
   await expect(page.locator('.chef-stage canvas')).toBeVisible()
 }
 
+test('VR 조리대가 낮아지고 꼬치를 잡았을 때 길이와 끝 고리가 유지된다', async ({ page }) => {
+  await prepare(page)
+  await page.getByRole('button', { name: 'VR 시작', exact: true }).click()
+  await expect(page.getByTestId('chef-app')).toHaveAttribute('data-xr', 'true')
+  await command(page, 'start')
+  const assembly = await command(page, 'measureAssembly')
+  expect(assembly).toMatchObject({ held: true, returned: true, markerOccluded: false })
+  expect(assembly.counterHeight).toBeCloseTo(.80, 2)
+  expect(assembly.restingLength).toBeLessThan(.65)
+  expect(assembly.heldLength).toBeCloseTo(assembly.restingLength, 5)
+  expect(assembly.markerRenderOrder).toBeGreaterThan(0)
+})
+
 for (const failure of ['failProtection', 'rejectSession']) test(`${failure} 실패 후 재연결하고 정상 종료해도 이전 오류가 남지 않는다`, async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
