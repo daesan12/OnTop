@@ -1,18 +1,26 @@
 package com.ssafy.ontop.game.spotdifference;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
+import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
+import jakarta.persistence.EntityManager;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("mysql")
 @SpringBootTest(properties = {"spring.profiles.active=local,db", "ontop.minigames.enabled=true",
@@ -21,6 +29,7 @@ import org.springframework.test.context.DynamicPropertySource;
 class SpotDifferenceMySqlTests {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private SpotDifferenceRewards rewards;
+    @Autowired private EntityManager entities;
 
     @DynamicPropertySource
     static void dedicatedDatabase(DynamicPropertyRegistry registry) {
@@ -35,17 +44,8 @@ class SpotDifferenceMySqlTests {
 
     @Test
     void 다른_게임의_엽전과_합산하여_동시_정산에도_지갑_원장에_잔여_한도만_한_번_기록한다() throws Exception {
-        var key = UUID.randomUUID().toString();
-        jdbc.update("""
-                INSERT INTO users (login_provider, provider_user_id, nickname, character_gender, created_at, updated_at)
-                VALUES ('NAVER', ?, ?, 'MALE', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))
-                """, key, key.substring(0, 6));
-        long user = jdbc.queryForObject("SELECT id FROM users WHERE provider_user_id = ?", Long.class, key);
-        jdbc.update("INSERT INTO wallets (user_id, balance, reserved_balance) VALUES (?, 995, 0)", user);
-        jdbc.update("""
-                INSERT INTO wallet_transactions (wallet_id, transaction_type, balance_delta, reserved_delta, idempotency_key, created_at)
-                SELECT id, 'MOLE_REWARD', 995, 0, ?, UTC_TIMESTAMP(3) FROM wallets WHERE user_id = ?
-                """, "previous:" + key, user);
+        long user = createUser();
+        addEntry(user, "MOLE_REWARD", 995, Instant.now());
         assertThat(rewards.status(user).todayEarned()).isEqualTo(995L);
         var id = UUID.randomUUID();
         var concurrent = UUID.randomUUID();
@@ -65,5 +65,71 @@ class SpotDifferenceMySqlTests {
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM wallet_transactions WHERE idempotency_key IN (?, ?)
                 """, Long.class, "spot-difference:reward:" + id, "spot-difference:reward:" + concurrent)).isEqualTo(1L);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"MINIGAME_REWARD", "JUMP_GATE_REWARD", "SKEWER_REWARD", "MOLE_REWARD", "GAME_RANK_REWARD"})
+    void 공통_상한의_모든_지급_타입이_사격정_정산에_합산된다(String transactionType) {
+        long user = createUser();
+        addEntry(user, transactionType, 995, Instant.now());
+        assertThat(rewards.status(user).todayEarned()).isEqualTo(995);
+
+        var receipt = rewards.settle(user, UUID.randomUUID(), 108);
+
+        assertThat(receipt.granted()).isEqualTo(5);
+        assertThat(receipt.todayEarned()).isEqualTo(1000);
+    }
+
+    @Test
+    void 지급_타입을_합산하고_별도_정책과_차감_타인_한국_날짜_밖의_원장을_제외한다() {
+        long user = createUser();
+        var date = LocalDate.of(2026, 11, 15);
+        var from = date.atStartOfDay(MinigameRewardBudget.KST).toInstant();
+        var until = date.plusDays(1).atStartOfDay(MinigameRewardBudget.KST).toInstant();
+        var during = from.plusSeconds(3600);
+        for (var type : List.of("MINIGAME_REWARD", "JUMP_GATE_REWARD", "SKEWER_REWARD", "MOLE_REWARD", "GAME_RANK_REWARD")) {
+            addEntry(user, type, 199, during);
+        }
+        for (var type : List.of("RPS_ROULETTE_PAYOUT", "PLUS_MINUS_PAYOUT", "FITNESS_REWARD", "GACHA_PAYOUT",
+                "GAME_SETTLEMENT", "GAME_TIE_BONUS", "SIGNUP_BONUS", "ADMIN_BULK_GRANT", "NOTIFICATION_REWARD")) {
+            addEntry(user, type, 100, during);
+        }
+        for (var type : List.of("MOBILITY_RENTAL_FEE", "MINIGAME_ENTRY_FEE", "SHOP_PURCHASE", "RAFFLE_PURCHASE",
+                "GACHA_PURCHASE", "MINIGAME_REWARD")) {
+            addEntry(user, type, -100, during);
+        }
+        addEntry(user, "MINIGAME_REWARD", 0, during);
+        addEntry(user, "MINIGAME_REWARD", 500, from.minusMillis(1));
+        addEntry(user, "MINIGAME_REWARD", 500, until);
+        addEntry(createUser(), "MINIGAME_REWARD", 500, during);
+
+        long earned = MinigameRewardBudget.earned(entities, user, from, until);
+        assertThat(earned).isEqualTo(995);
+        assertThat(MinigameRewardBudget.grant(108, earned)).isEqualTo(5);
+
+        addEntry(user, "MINIGAME_REWARD", 2, from);
+        addEntry(user, "MINIGAME_REWARD", 3, until.minusMillis(1));
+        earned = MinigameRewardBudget.earned(entities, user, from, until);
+        assertThat(earned).isEqualTo(1000);
+        assertThat(MinigameRewardBudget.grant(108, earned)).isZero();
+    }
+
+    private long createUser() {
+        var key = UUID.randomUUID().toString();
+        jdbc.update("""
+                INSERT INTO users (login_provider, provider_user_id, nickname, character_gender, created_at, updated_at)
+                VALUES ('NAVER', ?, ?, 'MALE', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))
+                """, key, key.substring(0, 6));
+        long user = jdbc.queryForObject("SELECT id FROM users WHERE provider_user_id = ?", Long.class, key);
+        jdbc.update("INSERT INTO wallets (user_id, balance, reserved_balance) VALUES (?, 0, 0)", user);
+        return user;
+    }
+
+    private void addEntry(long user, String type, long amount, Instant at) {
+        jdbc.update("""
+                INSERT INTO wallet_transactions (wallet_id, transaction_type, balance_delta, reserved_delta, idempotency_key, created_at)
+                SELECT id, ?, ?, 0, ?, ? FROM wallets WHERE user_id = ?
+                """, type, amount, "budget-audit:" + UUID.randomUUID(), Timestamp.from(at), user);
+        jdbc.update("UPDATE wallets SET balance = balance + ? WHERE user_id = ?", amount, user);
     }
 }
