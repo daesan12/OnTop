@@ -69,6 +69,11 @@ public final class TableProtocol {
             case "WORLD_MYROOM_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
+            case "WORLD_BALLOON_START" -> fields(payload, Set.of("ticketId", "x", "y", "z"))
+                    && validBalloonPosition(payload);
+            case "WORLD_BALLOON_POSE" -> fields(payload, Set.of("ticketId", "x", "y", "z", "aboard"))
+                    && validBalloonPosition(payload) && payload.path("aboard").isBoolean();
+            case "WORLD_BALLOON_END" -> fields(payload, Set.of("ticketId")) && prankUuid(payload.path("ticketId"));
             case "WORLD_MOBILITY_START" -> fields(payload, Set.of("stationId", "vehicle", "leaseId"))
                     && payload.path("stationId").asText().matches("mobility-[a-z]+")
                     && Set.of("BICYCLE", "SCOOTER").contains(payload.path("vehicle").asText())
@@ -214,6 +219,11 @@ public final class TableProtocol {
             throw new RequestException(requestId, "INVALID_PAYLOAD", "요청 데이터를 확인해주세요.");
         }
         return new Request(requestId, type, payload);
+    }
+
+    private static boolean validBalloonPosition(JsonNode payload) {
+        return prankUuid(payload.path("ticketId")) && finitePoint(payload.path("x"))
+                && finitePoint(payload.path("y")) && finitePoint(payload.path("z"));
     }
 
     private static boolean prankUuid(JsonNode value) {

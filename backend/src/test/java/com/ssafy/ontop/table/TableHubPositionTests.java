@@ -9,13 +9,17 @@ import com.ssafy.ontop.behavior.domain.BehaviorEvent;
 import com.ssafy.ontop.behavior.domain.PositionSample;
 import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.table.service.TableHub;
+import com.ssafy.ontop.world.balloon.BalloonFlights;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
 import com.ssafy.ontop.world.mobility.MobilityRentals;
 import com.ssafy.ontop.world.mobility.MobilityWallet;
+import com.ssafy.ontop.world.map.PreparedParkMap;
+import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.movement.WorldPhysics;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,6 +63,43 @@ class TableHubPositionTests {
     @AfterEach
     void shutdown() {
         hub.shutdown();
+    }
+
+    @Test
+    void 같은_채널의_관찰자와_늦게_입장한_회원에게_열기구를_보내고_종료를_알린다() throws Exception {
+        var pilot = peer(101);
+        var observer = peer(102);
+        pilot.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        observer.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        var at = registry.positionOf("101");
+        WorldMapRuntime map = mock(WorldMapRuntime.class);
+        PreparedParkMap prepared = mock(PreparedParkMap.class);
+        when(map.prepared()).thenReturn(Optional.of(prepared));
+        when(prepared.constructionSites()).thenReturn(mapper.valueToTree(List.of(Map.of("id", "balloon",
+                "position", List.of(at.x(), at.y(), at.z()),
+                "reachPosition", List.of(at.x(), at.y(), at.z()), "radius", 3, "heightTolerance", .7))));
+        when(prepared.collisionData()).thenReturn(mapper.readTree("""
+                {"world":{"halfSize":110}}
+                """));
+        var flights = new BalloonFlights(map);
+        hub.configureBalloonFlights(flights);
+        var ticket = UUID.randomUUID();
+        var now = Instant.now();
+        flights.authorize("101", ticket, now, now);
+
+        pilot.request("WORLD_BALLOON_START", Map.of("ticketId", ticket.toString(),
+                "x", at.x(), "y", at.y(), "z", at.z()));
+        var first = observer.awaitBalloon();
+        var lateObserver = peer(103);
+        lateObserver.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        var late = lateObserver.awaitBalloon();
+        pilot.request("WORLD_BALLOON_END", Map.of("ticketId", ticket.toString()));
+
+        assertThat(first.path("pilotId").asText()).isEqualTo("101");
+        assertThat(first.at("/flight/aboard").asBoolean()).isTrue();
+        assertThat(late).isEqualTo(first);
+        assertThat(observer.awaitBalloon().path("flight").isNull()).isTrue();
+        assertThat(lateObserver.awaitBalloon().path("flight").isNull()).isTrue();
     }
 
     @Test
@@ -301,6 +342,18 @@ class TableHubPositionTests {
     private class Peer {
         private final String id = UUID.randomUUID().toString();
         private final BlockingQueue<JsonNode> messages = new LinkedBlockingQueue<>();
+
+        private JsonNode awaitBalloon() throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+            while (System.nanoTime() < deadline) {
+                var message = messages.poll(200, TimeUnit.MILLISECONDS);
+                if (message != null && "WORLD_BALLOON_STATE".equals(message.path("type").asText())) {
+                    assertThat(message.path("requestId").isNull()).isTrue();
+                    return message.path("payload");
+                }
+            }
+            throw new AssertionError("열기구 상태를 받지 못했습니다.");
+        }
 
         private void awaitPublicVehicle(String avatarId, String expected, long minimumVersion) throws Exception {
             long endsAt = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);

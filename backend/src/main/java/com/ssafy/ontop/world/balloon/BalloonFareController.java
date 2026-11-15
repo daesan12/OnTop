@@ -7,6 +7,7 @@ import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.operation.config.NewActivity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -27,9 +28,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class BalloonFareController {
     private static final Pattern REQUEST_KEY = Pattern.compile("[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}");
     private final BalloonFareService service;
+    private final BalloonFlights flights;
 
-    public BalloonFareController(BalloonFareService service) {
+    public BalloonFareController(BalloonFareService service, BalloonFlights flights) {
         this.service = service;
+        this.flights = flights;
     }
 
     @PostMapping("/api/v1/world/balloon/tickets")
@@ -44,8 +47,9 @@ public class BalloonFareController {
         if (request.requestId() == null || !REQUEST_KEY.matcher(request.requestId()).matches()) {
             return error(400, "BALLOON_INVALID_REQUEST", "탑승 요청을 다시 확인해 주세요.");
         }
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(service.buy(user.userId(), UUID.fromString(request.requestId())));
+        var receipt = service.buy(user.userId(), UUID.fromString(request.requestId()));
+        flights.authorize(Long.toString(user.userId()), receipt.requestId(), receipt.paidAt(), Instant.now());
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(receipt);
     }
 
     @ExceptionHandler(BalloonFareService.Rejected.class)

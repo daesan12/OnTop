@@ -10,6 +10,9 @@ export interface ParkRuntimePort {
   subscribeNotesChanged(changed: () => void): () => void
   reconnect(): void
   requestJSON(path: string, init?: RequestInit): Promise<unknown>
+  startBalloon(ticketId: string, position: import('../../features/balloon/flight').Point): Promise<void>
+  sendBalloonPose(ticketId: string, position: import('../../features/balloon/flight').Point, aboard: boolean): void
+  endBalloon(ticketId: string): void
   checkFacilities(reloadCatalog?: boolean): Promise<void>
   useFacility(facilityId: string, seatIndex: number, signal: AbortSignal): Promise<import('../../features/facilities/protocol').FacilityLease>
   releaseFacility(leaseId: string, signal: AbortSignal): Promise<void>

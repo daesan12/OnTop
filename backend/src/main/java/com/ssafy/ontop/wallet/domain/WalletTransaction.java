@@ -45,6 +45,10 @@ public class WalletTransaction {
         return balanceDelta;
     }
 
+    public Instant createdAt() {
+        return createdAt;
+    }
+
     public static WalletTransaction adminBulkGrant(long walletId, long batchId, long userId,
             long amount, Instant now) {
         if (walletId <= 0 || batchId <= 0 || userId <= 0 || amount <= 0) {

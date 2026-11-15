@@ -1,4 +1,7 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
+import { notifyOwnBalloonEnd, receiveRemoteBalloon } from '../../features/balloon/remoteRide'
+import type { Point as BalloonPoint } from '../../features/balloon/flight'
+import { BALLOON_RIDE_ENABLED } from '../mapSelection'
 import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
 import {
   clearAuthSession,
@@ -714,6 +717,14 @@ export class ParkRuntime implements ParkRuntimePort {
       }
       return
     }
+    if (message.type === 'WORLD_BALLOON_STATE') {
+      if (!BALLOON_RIDE_ENABLED) return
+      const { roomId, sessionId } = useSession.getState()
+      if (message.payload.channelId === roomId && message.payload.pilotId === sessionId
+        && message.payload.flight === null && message.requestId === null) notifyOwnBalloonEnd()
+      receiveRemoteBalloon(message.payload, roomId, sessionId)
+      return
+    }
     if(message.type==='CONNECTED') {
       rentalCapability.available = message.payload.mobilityAvailable === true
       clearTimeout(this.timer)
@@ -1067,6 +1078,23 @@ export class ParkRuntime implements ParkRuntimePort {
     localMovement.intend(intent)
     if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId, 'movement')
     this.movement.enqueue(intent, this.movementScope())
+  }
+  startBalloon = async (ticketId: string, position: BalloonPoint) => {
+    const { roomId, sessionId } = useSession.getState()
+    const { payload } = await this.socket.request('WORLD_BALLOON_START', { ticketId, ...position }, ['WORLD_BALLOON_STATE'])
+    if (payload.channelId !== roomId || payload.pilotId !== sessionId || !payload.flight) {
+      throw new Error('열기구 탑승 상태를 확인해주세요.')
+    }
+  }
+  sendBalloonPose = (ticketId: string, position: BalloonPoint, aboard: boolean) => {
+    if (!this.socket.connected) return
+    try { this.socket.send('WORLD_BALLOON_POSE', { ticketId, ...position, aboard }) }
+    catch { /* The next update or the flight expiry handles a transport interruption. */ }
+  }
+  endBalloon = (ticketId: string) => {
+    if (!this.socket.connected) return
+    try { this.socket.send('WORLD_BALLOON_END', { ticketId }) }
+    catch { /* The server also removes the balloon when the connection closes or expires. */ }
   }
   stopMovement = () => {
     this.movement.clear(false)

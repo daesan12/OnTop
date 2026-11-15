@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { useShallow } from 'zustand/react/shallow'
 import type { Group } from 'three'
 import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
 import { textInputOwnsKeys } from '../../world/inputOwnership'
 import { tickLocalBalloon, useLocalBalloon } from './localRide'
+import { sampleRemoteBalloon, useRemoteBalloons } from './remoteRide'
 import { useBalloonModel } from './useBalloonModel'
 
 const keys = new Set([
@@ -11,10 +13,22 @@ const keys = new Set([
   'Space', 'ShiftLeft', 'ShiftRight',
 ])
 
+function RemoteBalloon({ pilot }: { pilot: string }) {
+  const root = useRef<Group>(null)
+  useBalloonModel(root)
+  useFrame(() => {
+    const position = sampleRemoteBalloon(pilot)
+    if (!root.current || !position) return
+    root.current.position.set(position.x, position.y, position.z)
+  }, -1.8)
+  return <group ref={root} name={`remote-balloon-${pilot}`} scale={BALLOON_SCALE} />
+}
+
 export default function LocalBalloonScene() {
   const root = useRef<Group>(null)
   useBalloonModel(root)
   const held = useRef(new Set<string>())
+  const remotePilots = useRemoteBalloons(useShallow(state => Object.keys(state.flights)))
   useEffect(() => {
     const input = held.current
     const clear = () => input.clear()
@@ -53,5 +67,8 @@ export default function LocalBalloonScene() {
     if (flight) root.current.position.set(flight.position.x, flight.position.y, flight.position.z)
   }, -1.8)
 
-  return <group ref={root} name="local-balloon-ride" scale={BALLOON_SCALE} visible={false} />
+  return <>
+    <group ref={root} name="local-balloon-ride" scale={BALLOON_SCALE} visible={false} />
+    {remotePilots.map(pilot => <RemoteBalloon key={pilot} pilot={pilot} />)}
+  </>
 }
