@@ -9,15 +9,15 @@ export class ParkMotion {
  private vx=0; private vz=0; private vy=0; private remaining=.05; private running=false
  reset(velocityY=0){this.vx=this.vz=0;this.vy=velocityY;this.remaining=.05;this.running=false}
  stopHorizontal(){this.vx=this.vz=0;this.running=false}
- advance(input:MovementIntent,seconds:number,grounded:boolean,jumpSpeed:number=PARK_MOTION.jumpSpeed){
+ advance(input:MovementIntent,seconds:number,grounded:boolean,jumpSpeed:number=PARK_MOTION.jumpSpeed,brakeSprint = true){
   const settings=PARK_MOTION
   const dt=Math.max(0,Math.min(seconds,.1)), jump=input.jump&&grounded
   if(jump){this.vy=jumpSpeed;this.remaining=.05
    if(input.run){this.vx+=input.dx*settings.sprintJumpBoost;this.vz+=input.dz*settings.sprintJumpBoost}
   }
   const supported=grounded&&!jump, drag=supported?PARK_MOTION.groundDrag:PARK_MOTION.airDrag
-  // Cut off a released sprint while retaining the normal walk's ground drag.
-  if (supported && this.running && !input.dx && !input.dz) this.stopHorizontal()
+  // Ordinary ground cuts off a released sprint. Jump pads keep their approach momentum.
+  if (brakeSprint && supported && this.running && !input.dx && !input.dz) this.stopHorizontal()
   // Continuous horizontal response preserves the 20Hz drag time scale at any render rate.
   const rate=-Math.log(drag)*20, decay=Math.exp(-rate*dt)
   const speed=supported?(input.run?settings.runSpeed:settings.walkSpeed)
