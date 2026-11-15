@@ -3,6 +3,7 @@ package com.ssafy.ontop.raffle.service;
 import com.ssafy.ontop.raffle.RaffleException;
 import com.ssafy.ontop.raffle.domain.RaffleNumberGenerator;
 import com.ssafy.ontop.raffle.domain.RaffleRound;
+import com.ssafy.ontop.raffle.domain.RaffleSaleWindowPolicy;
 import com.ssafy.ontop.raffle.domain.RaffleTicket;
 import com.ssafy.ontop.raffle.repository.RaffleRepository;
 import com.ssafy.ontop.wallet.domain.Wallet;
@@ -27,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -123,6 +125,33 @@ class RaffleServiceTests {
                 .satisfies(error -> assertThat(((RaffleException) error).code())
                         .isEqualTo("INSUFFICIENT_BALANCE"));
         verify(numbers, never()).unusedNumber(any());
+    }
+
+    @Test
+    void 다음_주에도_연장된_기존_회차와_구매_내역을_조회한다() {
+        Instant extendedNow = Instant.parse("2026-11-16T04:00:00Z");
+        RaffleSaleWindowPolicy policy = RaffleSaleWindowPolicy.override(LocalDate.of(2026, 11, 9),
+                Instant.parse("2026-11-09T00:00:00Z"), Instant.parse("2026-11-18T15:00:00Z"));
+        service = new RaffleService(raffles, wallets, ledger, transactions(),
+                Clock.fixed(extendedNow, ZoneOffset.UTC), numbers, policy);
+        RaffleRound extended = new RaffleRound(1055, LocalDate.of(2026, 11, 9),
+                Instant.parse("2026-11-09T00:00:00Z"), Instant.parse("2026-11-18T15:00:00Z"),
+                100, 50, "OPEN");
+        Wallet wallet = mock(Wallet.class);
+        when(raffles.round(LocalDate.of(2026, 11, 9))).thenReturn(Optional.of(extended));
+        when(wallets.findByUserId(7)).thenReturn(Optional.of(wallet));
+        when(wallet.balance()).thenReturn(500L);
+        when(wallet.reserved()).thenReturn(0L);
+        when(raffles.tickets(1055, 7)).thenReturn(java.util.List.of());
+
+        var result = service.current(7);
+
+        assertThat(result.roundId()).isEqualTo(1055);
+        assertThat(result.weekStartDate()).isEqualTo(LocalDate.of(2026, 11, 9));
+        assertThat(result.salesEndsAt()).isEqualTo(Instant.parse("2026-11-18T15:00:00Z"));
+        verify(raffles).synchronizeRound(argThat(window ->
+                window.weekStartDate().equals(LocalDate.of(2026, 11, 9))),
+                org.mockito.ArgumentMatchers.eq(extendedNow), org.mockito.ArgumentMatchers.eq(true));
     }
 
     private RaffleRound round(String status, int limit) {

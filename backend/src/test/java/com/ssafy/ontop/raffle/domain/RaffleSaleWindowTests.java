@@ -27,4 +27,15 @@ class RaffleSaleWindowTests {
         assertThat(window.isOpenAt(window.salesEndsAt().minusMillis(1))).isTrue();
         assertThat(window.isOpenAt(window.salesEndsAt())).isFalse();
     }
+
+    @Test
+    void 지정한_종료_시각이_지나면_판매_종료_상태다() {
+        RaffleSaleWindow window = RaffleSaleWindow.forPeriod(LocalDate.of(2026, 11, 9),
+                Instant.parse("2026-11-09T00:00:00Z"), Instant.parse("2026-11-18T15:00:00Z"),
+                Instant.parse("2026-11-18T15:00:00Z"));
+
+        assertThat(window.salesStatus()).isEqualTo("CLOSED");
+        assertThat(window.isOpenAt(Instant.parse("2026-11-18T14:59:59.999Z"))).isTrue();
+        assertThat(window.isOpenAt(Instant.parse("2026-11-18T15:00:00Z"))).isFalse();
+    }
 }
