@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import { Group, Vector3 } from 'three'
+import { MOVEMENT } from '../../config'
 import { AVATAR } from '../../config/avatar'
+import type { PredictionSimulation } from '../../network/localMovementPrediction'
 import { characterUrls, createCharacterRig } from '../../world/art/CharacterRig'
 import { createClipPose } from '../../world/art/characterClips'
 import { ParkAssetLoader } from '../../world/art/assetLoader'
@@ -10,13 +12,14 @@ import { CityBackdrop, ParkEnvironment } from '../../../park-renewal-preview/Cit
 import { ScenicDetails } from '../../../park-renewal-preview/ScenicDetails'
 import { models } from '../../../park-renewal-preview/modelUrls'
 import { LAKE, walkHeightAt } from '../../../park-renewal-preview/plan'
-import { returnRoute, returnStep, steer, walk, walkStart, type duckBoatDock } from './motion'
+import { parkDisembark, parkWalkStart, returnRoute, returnStep, steer, walk, walkStart, type duckBoatDock } from './motion'
 
 export type Stage = 'walk' | 'rent' | 'ride' | 'return' | 'done'
 export type Direction = 'forward' | 'left' | 'back' | 'right'
 
 interface Props {
   dock: ReturnType<typeof duckBoatDock>
+  walker?: PredictionSimulation
   stage: Stage
   held: RefObject<Map<string, Direction>>
   onReach: (near: boolean) => void
@@ -24,7 +27,14 @@ interface Props {
   onReady: () => void
 }
 
-export function DuckBoatScene({ dock, stage, held, onReach, onReturned, onReady }: Props) {
+const footOffset = MOVEMENT.halfHeight + MOVEMENT.radius + MOVEMENT.offset
+const walkingStep = 1 / 60
+
+function groundPose(pose: {x: number; z: number; yaw: number}) {
+  return { ...pose, y: walkHeightAt(pose.x, pose.z) + footOffset }
+}
+
+export function DuckBoatScene({ dock, walker, stage, held, onReach, onReturned, onReady }: Props) {
   const { berth, landing, hullHeight } = dock
   const avatar = useRef<Group>(null)
   const boatGroup = useRef<Group>(null)
@@ -39,14 +49,18 @@ export function DuckBoatScene({ dock, stage, held, onReach, onReturned, onReady 
   }, [boat])
   const driver = hull.getObjectByName('anchor_driver')!.position
   const motion = useRef({
-    player: walkStart, boat: berth, lastStage: 'walk' as Stage, near: false,
+    player: walker ? parkWalkStart : walkStart, boat: berth, lastStage: 'walk' as Stage, near: false,
+    walkingTime: 0, centerHeight: undefined as number | undefined,
     route: [] as ReturnType<typeof returnRoute>, targetIndex: 0,
     eye: new Vector3(), look: new Vector3(), target: new Vector3(), driverPosition: new Vector3(),
     started: false, arrivalSent: false, gait: createClipPose(),
   })
 
   useEffect(() => () => rig.dispose(), [rig])
-  useEffect(onReady, [onReady])
+  useEffect(() => {
+    if (walker) walker.reset(groundPose(parkWalkStart), 0, true)
+    onReady()
+  }, [onReady, walker])
 
   // Renewal scenery uses positive frame priorities for visibility updates.
   useFrame(({ gl, scene, camera }) => gl.render(scene, camera), 1)
@@ -62,7 +76,20 @@ export function DuckBoatScene({ dock, stage, held, onReach, onReturned, onReady 
     state.lastStage = stage
     let moving = false
 
-    if (stage === 'walk') {
+    if (stage === 'walk' && walker) {
+      const length = Math.max(1, Math.hypot(across, forward))
+      const input = { dx: across / length, dz: -forward / length, run: false, jump: false }
+      state.walkingTime += dt
+      const old = state.player
+      while (state.walkingTime >= walkingStep) {
+        walker.step(input, walkingStep)
+        state.walkingTime -= walkingStep
+      }
+      const pose = walker.pose()
+      moving = Math.hypot(pose.x - old.x, pose.z - old.z) > .001
+      state.player = pose
+      state.centerHeight = pose.y
+    } else if (stage === 'walk') {
       for (let remaining = dt; remaining > 0; remaining -= .05) {
         const next = walk(state.player, across, forward, Math.min(remaining, .05))
         moving ||= next !== state.player
@@ -86,12 +113,18 @@ export function DuckBoatScene({ dock, stage, held, onReach, onReturned, onReady 
       } else if (!state.arrivalSent) {
         state.arrivalSent = true
         state.boat = berth
-        state.player = landing
+        state.player = walker ? parkDisembark : landing
+        if (walker) {
+          const pose = groundPose(state.player)
+          walker.reset(pose, 0, true)
+          state.centerHeight = pose.y
+          state.walkingTime = 0
+        }
         onReturned()
       }
     }
 
-    const reachable = stage === 'walk' && dock.canRent(state.player)
+    const reachable = stage === 'walk' && dock.canRent(state.player, state.centerHeight)
     if (state.near !== reachable) {
       state.near = reachable
       onReach(reachable)
@@ -115,7 +148,8 @@ export function DuckBoatScene({ dock, stage, held, onReach, onReturned, onReady 
       }
     } else {
       const { x, z, yaw } = state.player
-      avatar.current.position.set(x, walkHeightAt(x, z), z)
+      const floor = state.centerHeight === undefined ? walkHeightAt(x, z) : state.centerHeight - footOffset
+      avatar.current.position.set(x, floor, z)
       avatar.current.rotation.y = yaw
       state.gait.ground(dt, Number(moving), 0, rig.set)
     }

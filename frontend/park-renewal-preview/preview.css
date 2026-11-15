@@ -40,6 +40,14 @@ html, body {
   display: none;
 }
 
+.park-controls #park-local-walk {
+  background: #294739;
+  border-radius: 6px;
+  color: #fff8e9;
+  padding: 6px 12px;
+  text-decoration: none;
+}
+
 .park-controls, .park-views, .park-facilities {
   align-items: center;
   display: flex;

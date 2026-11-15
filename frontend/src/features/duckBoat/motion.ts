@@ -9,6 +9,10 @@ export const duration = 5 * 60 * 1000
 const dock = site('dock')
 const entrance = DOCK_ACCESS.points[0]!
 export const walkStart: BoatPose = { x: entrance[0], z: entrance[1] + 3, yaw: Math.PI }
+export const parkWalkStart: BoatPose = { ...walkStart, z: entrance[1] + 10 }
+const rampBend = DOCK_ACCESS.points[1]!
+// Put the park walker on the centerline of the exit ramp, outside the booth rails.
+export const parkDisembark: BoatPose = { x: rampBend[0], z: rampBend[1] + .25, yaw: 0 }
 const walkRoute = [[walkStart.x, walkStart.z] as const, ...DOCK_ACCESS.points]
 
 export function duckBoatDock(data: ParkMapData) {
@@ -22,8 +26,7 @@ export function duckBoatDock(data: ParkMapData) {
     berth: { x: mooring.center[0], z: mooring.center[2], yaw: mooring.yaw },
     landing: { x, z, yaw: Math.PI },
     hullHeight: data.surfaces.lake.surfaceY + .08,
-    canRent(point: Point) {
-      const centerHeight = walkHeightAt(point.x, point.z) + .8
+    canRent(point: Point, centerHeight = walkHeightAt(point.x, point.z) + .8) {
       return Math.hypot(point.x - x, point.z - z) <= entrance.radius
         && Math.abs(centerHeight - y) <= entrance.heightTolerance
     },

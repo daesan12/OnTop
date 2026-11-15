@@ -13,6 +13,7 @@
         <p>220 × 220m · 지형과 시설 배치</p>
       </div>
       <div class="park-controls">
+        <a id="park-local-walk" href="?play=1" hidden>공원 산책</a>
         <div class="park-views" role="group" aria-label="보기 방식">
           <button type="button" data-park-view="overview" aria-pressed="true">전체 전경</button>
           <button type="button" data-park-view="plan" aria-pressed="false">평면도</button>
@@ -264,6 +265,6 @@
       <span id="park-selection" aria-live="polite">전체 배치</span>
       <span id="park-hint" aria-live="polite">드래그로 회전 · 휠 또는 두 손가락으로 확대</span>
     </footer>
-    <script type="module" src="/park-renewal-preview/main.ts"></script>
+    <script type="module" src="/park-renewal-preview/entry.ts"></script>
   </body>
 </html>

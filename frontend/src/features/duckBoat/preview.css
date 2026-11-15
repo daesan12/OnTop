@@ -1,4 +1,5 @@
 body:has(#duck-boat-root) { margin: 0; background: #203c3b; }
+body.park-renewal-walking > .park-header, body.park-renewal-walking > .park-footer { display: none; }
 .duck-boat-preview { position: relative; width: 100%; height: 100dvh; color: #f9efd7; font: 15px/1.5 system-ui, sans-serif; }
 .duck-boat-preview .duck-boat-message, #duck-boat-root > .duck-boat-message {
   position: fixed; z-index: 1; top: 44%; left: 50%; transform: translateX(-50%);
@@ -12,6 +13,7 @@ body:has(#duck-boat-root) { margin: 0; background: #203c3b; }
 .duck-boat-title { position: absolute; top: 16px; left: 16px; padding: 7px 12px; display: grid; }
 .duck-boat-title strong { font-size: 19px; }
 .duck-boat-title span { font-size: 12px; }
+.duck-boat-title a { color: inherit; font-size: 13px; width: fit-content; }
 .duck-boat-trip { position: absolute; top: 16px; right: 16px; padding: 7px 12px; display: flex; gap: 12px; font-variant-numeric: tabular-nums; font-weight: 700; }
 .duck-boat-warning { position: absolute; top: 81px; left: 50%; translate: -50%; width: max-content; max-width: calc(100% - 32px); margin: 0; padding: 7px 12px; }
 .duck-boat-button { color: #fff3d8; background: #214934; border: 3px double #c2a46b; border-radius: 10px; font: inherit; font-weight: 700; min-height: 44px; padding: 6px 12px; cursor: pointer; }
