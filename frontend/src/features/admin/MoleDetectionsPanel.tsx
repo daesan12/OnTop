@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AdminAccessError } from './adminAccess'
-import { readMoleDetections, type MoleDetections, type MoleGame } from './adminMoleAudit'
+import { readMoleDetections, type MoleDetectedMember, type MoleDetections, type MoleGame } from './adminMoleAudit'
 
 const detectedTime = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short',
@@ -9,7 +9,7 @@ const detectedTime = new Intl.DateTimeFormat('ko-KR', {
 export function MoleDetectionsPanel({ game, onAuthEnded, onOpen }: {
   game: MoleGame
   onAuthEnded: () => void
-  onOpen: (userId: string, roundId: string) => void
+  onOpen: (item: MoleDetectedMember) => void
 }) {
   const [list, setList] = useState<MoleDetections | null>(null)
   const [loading, setLoading] = useState(true)
@@ -60,7 +60,7 @@ export function MoleDetectionsPanel({ game, onAuthEnded, onOpen }: {
             <tbody>{list.items.map(item => <tr key={item.userId}>
               <th scope="row">{item.nickname || '이름 없음'}<small>회원 #{item.userId}{item.withdrawn ? ' · 탈퇴' : ''}</small></th>
               <td data-signal><strong>{item.flaggedRounds}</strong>판</td>
-              <td><button type="button" onClick={() => onOpen(item.userId, item.latestRoundId)}>
+              <td><button type="button" onClick={() => onOpen(item)}>
                 {item.latestRoundId}번 판 보기
               </button></td>
               <td>{item.liveRounds}판</td><td>{item.completionRounds}판</td>

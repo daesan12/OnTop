@@ -30,4 +30,7 @@
 .admin-mole-detections-table th { overflow-wrap: anywhere; }
 .admin-mole-detections-table thead { z-index: 1; }
 .admin-mole-detections-table small { display: block; font-weight: 400; }
+.admin-mole-round-identity { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 0; }
+.admin-mole-round-identity dt { color: #535f51; font-size: .85rem; }
+.admin-mole-round-identity dd { margin: 4px 0 0; overflow-wrap: anywhere; }
 @media (min-width: 861px) { .admin-macro .admin-mole-search-filters { grid-template-columns: repeat(4, minmax(0, 1fr)) auto; } }

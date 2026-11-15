@@ -61,6 +61,10 @@ test('관리자가 게임 매크로 분석에서 판을 검색하고 타임라�
   await page.getByRole('button', { name: '조회', exact: true }).click()
 
   await expect(page.getByRole('heading', { name: '456번 판 타임라인' })).toBeVisible()
+  const detail = page.getByRole('region', { name: '456번 판 상세' })
+  await expect(detail).toContainText('회원 #101')
+  await expect(detail).toContainText('판 중 적발 시각 (한국 시간)')
+  await expect(detail).toContainText('2026-11-13 10:00:03.860')
   await expect(page.getByRole('button', { name: '455' })).toBeVisible()
   await expect(page.getByText('중앙값 248ms', { exact: false })).toBeVisible()
   await expect(page.locator('tr[data-signal]')).toContainText('더미 ID')
@@ -78,6 +82,7 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
     canRead: true, canGrant: false, canOperate: false,
   } }))
   let speedRequests = 0
+  const detectedAt = '2026-11-13T01:00:19.420Z'
   await page.route('**/api/v1/admin/macro-analysis/mole/detections?*', route => {
     const game = new URL(route.request().url()).searchParams.get('game')
     if (game === 'speed-mole' && ++speedRequests === 1) return route.fulfill({ status: 503 })
@@ -85,7 +90,7 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
       from: '2026-10-14T01:00:00Z', until: startedAt, limit: 100,
       items: game === 'speed-mole' ? [] : [{
         userId: '101', nickname: '테스트 회원', withdrawn: false, flaggedRounds: 2,
-        liveRounds: 2, completionRounds: 1, latestRoundId: '456', lastDetectedAt: startedAt,
+        liveRounds: 1, completionRounds: 1, latestRoundId: '456', lastDetectedAt: detectedAt,
       }],
     } })
   })
@@ -98,8 +103,9 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
     expect(Object.fromEntries(new URL(route.request().url()).searchParams)).toEqual({
       game: 'whack-a-mole', input: 'TOUCH',
     })
-    const comparison = { rounds: 1, honeypotTaps: 1, completionHoneypotTaps: 0, first: distribution, rapid: distribution }
-    return route.fulfill({ json: { selected: round, recent: [round], timeline: [], member: comparison, reference: comparison } })
+    const selected = { ...round, observedTaps: 0, honeypotTaps: 0, completionHoneypotTaps: 1 }
+    const comparison = { rounds: 1, honeypotTaps: 0, completionHoneypotTaps: 1, first: distribution, rapid: distribution }
+    return route.fulfill({ json: { selected, recent: [selected], timeline: [], member: comparison, reference: comparison } })
   })
 
   await page.goto('/admin')
@@ -115,13 +121,20 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
   await page.screenshot({ path: testInfo.outputPath('admin-mole-detections-mobile.png') })
   await page.getByLabel('비교 입력 방식').selectOption('TOUCH')
   await detections.getByRole('button', { name: '456번 판 보기' }).click()
-  await expect(page.getByRole('heading', { name: '플레이 기록 조회' })).toBeFocused()
+  await expect(page.getByRole('heading', { name: '456번 판 상세' })).toBeFocused()
+  const detail = page.getByRole('region', { name: '456번 판 상세' })
+  await expect(detail).toContainText('테스트 회원 · 회원 #101')
+  await expect(detail).toContainText('최근 적발 시각 (한국 시간)')
+  await expect(detail.locator(`time[datetime="${detectedAt}"]`)).toHaveText('2026-11-13 10:00:19.420')
+  await expect(detail).toBeInViewport()
+  await detail.screenshot({ path: testInfo.outputPath('admin-mole-selected-detection.png') })
   await expect(page.getByRole('heading', { name: '456번 판 타임라인' })).toBeVisible()
   expect(manualSearches).toBe(0)
 
   await page.getByLabel('게임', { exact: true }).selectOption('speed-mole')
   await expect(detections.getByRole('alert')).toBeVisible()
   await expect(detections.getByText('테스트 회원')).toHaveCount(0)
+  await expect(detail).toHaveCount(0)
   await expect(page.getByRole('heading', { name: '456번 판 타임라인' })).toHaveCount(0)
   await detections.getByRole('button', { name: '새로고침' }).click()
   await expect(detections.getByText('최근 30일 동안 적발 기록이 없습니다.')).toBeVisible()

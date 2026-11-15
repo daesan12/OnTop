@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { AdminAccessError } from './adminAccess'
 import {
   readMoleAudit, searchMoleAudit, type AuditDetail, type AuditFilters, type AuditRound, type Distribution,
+  type MoleDetectedMember,
 } from './adminMoleAudit'
 import { kstDate } from './adminAnalytics'
 import { JumpmapMacroPanel } from './JumpmapMacroPanel'
@@ -20,6 +21,7 @@ const receivedTime = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul', hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit',
   fractionalSecondDigits: 3,
 })
+const formatAuditDateTime = (value: string) => `${kstDate(value)} ${receivedTime.format(new Date(value))}`
 
 export function AdminMacroAnalysisPage({ onAuthEnded }: { onAuthEnded: () => void }) {
   const [view, setView] = useState<'games' | 'mole' | 'jumpmap' | 'jumpRope'>('games')
@@ -50,11 +52,20 @@ function MoleAudit({ onAuthEnded }: { onAuthEnded: () => void }) {
   const [query, setQuery] = useState<AuditFilters | null>(null)
   const [rounds, setRounds] = useState<AuditRound[] | null>(null)
   const [detail, setDetail] = useState<AuditDetail | null>(null)
+  const [selectedDetection, setSelectedDetection] = useState<MoleDetectedMember | null>(null)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const request = useRef<AbortController | null>(null)
   const searchHeading = useRef<HTMLHeadingElement>(null)
+  const detailHeading = useRef<HTMLHeadingElement>(null)
   useEffect(() => () => request.current?.abort(), [])
+
+  const selectedMember = detail && selectedDetection?.userId === detail.selected.userId ? selectedDetection : null
+  const openedDetection = selectedMember && selectedMember.latestRoundId === detail?.selected.roundId
+    ? selectedMember : null
+  useEffect(() => {
+    if (openedDetection) detailHeading.current?.focus()
+  }, [openedDetection])
 
   const begin = (message: string) => {
     request.current?.abort()
@@ -78,6 +89,7 @@ function MoleAudit({ onAuthEnded }: { onAuthEnded: () => void }) {
     }
     const signal = begin('판을 조회하고 있어요…')
     setDetail(null)
+    setSelectedDetection(null)
     setRounds(null)
     setQuery(filters)
     try {
@@ -90,10 +102,11 @@ function MoleAudit({ onAuthEnded }: { onAuthEnded: () => void }) {
     finally { if (!signal.aborted) setBusy('') }
   }
 
-  const openRound = async (roundId: string, filters: AuditFilters, fromDetection = false) => {
+  const openRound = async (roundId: string, filters: AuditFilters, detection?: MoleDetectedMember) => {
     const signal = begin('타임라인과 비교 기록을 가져오고 있어요…')
     setDetail(null)
-    if (fromDetection) {
+    if (detection) {
+      setSelectedDetection(detection)
       setForm(filters)
       setQuery(filters)
       setRounds(null)
@@ -101,7 +114,7 @@ function MoleAudit({ onAuthEnded }: { onAuthEnded: () => void }) {
     }
     try {
       const result = await readMoleAudit(filters.game, roundId, filters.input, signal)
-      if (fromDetection) setRounds([result.selected])
+      if (detection) setRounds([result.selected])
       setDetail(result)
     }
     catch (cause) { fail(cause, signal) }
@@ -125,13 +138,15 @@ function MoleAudit({ onAuthEnded }: { onAuthEnded: () => void }) {
           setQuery(null)
           setRounds(null)
           setDetail(null)
+          setSelectedDetection(null)
         }}>
           {Object.entries(gameOptions).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </div>
     </div>
-    <MoleDetectionsPanel key={form.game} game={form.game} onAuthEnded={onAuthEnded} onOpen={(userId, roundId) => {
-      void openRound(roundId, { ...form, userId, roundId, date: '' }, true)
+    <MoleDetectionsPanel key={form.game} game={form.game} onAuthEnded={onAuthEnded} onOpen={item => {
+      const roundId = item.latestRoundId
+      void openRound(roundId, { ...form, userId: item.userId, roundId, date: '' }, item)
     }} />
     <h3 tabIndex={-1} ref={searchHeading}>플레이 기록 조회</h3>
     <form className="admin-macro-filters admin-mole-search-filters" onSubmit={event => void search(event)}>
@@ -147,6 +162,10 @@ function MoleAudit({ onAuthEnded }: { onAuthEnded: () => void }) {
     </form>
     {busy && <p role="status">{busy}</p>}
     {error && <p role="alert">{error}</p>}
+    {detail && <section className="admin-macro-card" aria-labelledby="admin-mole-detail-title">
+      <h3 id="admin-mole-detail-title" tabIndex={-1} ref={detailHeading}>{detail.selected.roundId}번 판 상세</h3>
+      <RoundIdentity detail={detail} member={selectedMember} detectedAt={openedDetection?.lastDetectedAt} />
+    </section>}
     {rounds && <div className="admin-macro-layout">
       <div className="admin-macro-card">
         <h3>조회 결과</h3>
@@ -175,6 +194,32 @@ function MoleAudit({ onAuthEnded }: { onAuthEnded: () => void }) {
       </div>}
     </div>}
   </>
+}
+
+function RoundIdentity({ detail, member, detectedAt }: {
+  detail: AuditDetail
+  member: MoleDetectedMember | null
+  detectedAt?: string
+}) {
+  // 목록은 종료 제출 신호도 포함하며, 상세의 타임라인에는 판 중 신호만 있다.
+  let lastDetection = detectedAt
+  for (const tap of detail.timeline) {
+    if (tap.outcome === 'HONEYPOT' && (!lastDetection || Date.parse(tap.receivedAt) > Date.parse(lastDetection))) {
+      lastDetection = tap.receivedAt
+    }
+  }
+  const timestampLabel = detectedAt ? '최근 적발 시각' : '판 중 적발 시각'
+
+  return <dl className="admin-mole-round-identity">
+    <div><dt>회원</dt><dd>{member?.nickname && <strong>{member.nickname} · </strong>}
+      회원 #{detail.selected.userId}{member?.withdrawn ? ' · 탈퇴' : ''}</dd></div>
+    <div><dt>판 시작 시각 (한국 시간)</dt><dd>
+      <time dateTime={detail.selected.startedAt}>{formatAuditDateTime(detail.selected.startedAt)}</time>
+    </dd></div>
+    {lastDetection && <div><dt>{timestampLabel} (한국 시간)</dt><dd>
+      <time dateTime={lastDetection}>{formatAuditDateTime(lastDetection)}</time>
+    </dd></div>}
+  </dl>
 }
 
 function RoundList({ rounds, active, onSelect }: {

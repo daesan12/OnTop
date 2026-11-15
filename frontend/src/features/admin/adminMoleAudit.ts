@@ -56,17 +56,19 @@ export interface AuditFilters {
   date: string
 }
 
+export interface MoleDetectedMember {
+  userId: string
+  nickname: string | null
+  withdrawn: boolean
+  flaggedRounds: number
+  liveRounds: number
+  completionRounds: number
+  latestRoundId: string
+  lastDetectedAt: string
+}
+
 export interface MoleDetections {
-  items: {
-    userId: string
-    nickname: string | null
-    withdrawn: boolean
-    flaggedRounds: number
-    liveRounds: number
-    completionRounds: number
-    latestRoundId: string
-    lastDetectedAt: string
-  }[]
+  items: MoleDetectedMember[]
   from: string
   until: string
   limit: number
