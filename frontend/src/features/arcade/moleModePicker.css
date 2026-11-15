@@ -75,10 +75,8 @@
 .mole-mode-card img {
   display: block;
   width: 100%;
-  height: clamp(88px, 26dvh, 188px);
-  object-fit: contain;
+  height: auto;
   border-radius: 10px;
-  background: var(--mole-card-tint);
 }
 
 .mole-mode-card strong {
@@ -125,10 +123,6 @@
 @media (max-height: 560px) {
   .mole-mode-card {
     min-height: min(312px, 63dvh);
-  }
-
-  .mole-mode-card img {
-    height: clamp(64px, 24dvh, 140px);
   }
 }
 
