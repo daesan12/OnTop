@@ -60,6 +60,7 @@ import { AiResidentsHost } from '../features/ai/AiResidentsHost'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
 import { WinnerContactsHost } from '../features/winnerContacts/WinnerContactsHost'
 import { useArcade } from '../features/arcade/store'
+import { MoleModePicker } from '../features/arcade/MoleModePicker'
 import { useMole } from '../features/mole/store'
 import { usePlusMinus } from '../features/plusMinus/store'
 import { useRpsRoulette } from '../features/rpsRoulette/store'
@@ -123,7 +124,8 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const vrPhase = useStore(parkVrZone.store, state => state.phase)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
   const breadRecovery = useBungeoppang(s => s.recoveryDeferred)
-  const arcadeOpen = useArcade(s => s.open)
+  const arcadeScope = useArcade(s => s.open ? s.scope : null)
+  const arcadeOpen = arcadeScope === 'all'
   const moleOpen = useMole(s => s.open)
   const plusMinusOpen = usePlusMinus(s => s.open)
   const rpsOpen = useRpsRoulette(s => s.open)
@@ -131,7 +133,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const jumpRopeOpen = useJumpRope(s => s.open)
   const gachaOpen = useGachaOverlay(s => s.open)
   const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
-    || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || gachaOpen
+    || !!arcadeScope || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const stoneOverlay = useGame(s => {
@@ -216,6 +218,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <WelcomeTour />
         <ConstructionNotice />
         <FortunePanel />
+        {arcadeScope === 'mole' && <MoleModePicker />}
         {(rpsOpen || arcadeOpen || plusMinusOpen || moleOpen) && <Suspense fallback={<p role="status">게임을 불러오는 중입니다.</p>}>
           {rpsOpen && <RpsRoulettePanel />}
           {arcadeOpen && <ArcadePicker />}

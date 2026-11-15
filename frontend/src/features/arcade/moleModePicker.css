@@ -1,0 +1,113 @@
+.mole-mode-picker {
+  box-sizing: border-box;
+  width: min(708px, calc(100% - 20px));
+  max-width: none;
+  max-height: calc(100dvh - 12px);
+  padding: 8px 7px;
+  overflow: auto;
+  scrollbar-width: none;
+  border: 0;
+  background: transparent;
+  color: #fff3d4;
+  text-align: center;
+}
+
+.mole-mode-picker::backdrop {
+  background: rgb(13 28 25 / 78%);
+  backdrop-filter: blur(4px);
+}
+
+.mole-mode-picker h2 {
+  margin: 0 0 clamp(12px, 3dvh, 24px);
+  outline: none;
+  font: 700 clamp(24px, 4vw, 42px)/1.2 BusanDandiMyeongjo, serif;
+  text-shadow: 0 3px 12px #102019;
+}
+
+.mole-mode-picker__cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(10px, 3vw, 24px);
+}
+
+.mole-mode-card {
+  --mole-card-line: #dfb877;
+  --mole-card-top: #3c5539;
+  --mole-card-bottom: #152e23;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(2.4em, auto) 1fr;
+  justify-items: center;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: clamp(8px, 2vw, 19px);
+  border: 4px double var(--mole-card-line);
+  border-radius: 18px;
+  background: linear-gradient(155deg, var(--mole-card-top), var(--mole-card-bottom) 70%);
+  box-shadow: 0 12px 24px #0b1610a8, inset 0 0 0 2px #14251b;
+  color: inherit;
+  font: 400 clamp(13px, 2vw, 17px)/1.45 BusanDandiMyeongjo, serif;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.mole-mode-card[data-mode='speed-mole'] {
+  --mole-card-line: #a6d9cf;
+  --mole-card-top: #2e6667;
+  --mole-card-bottom: #17313a;
+}
+
+.mole-mode-card img {
+  display: block;
+  width: 100%;
+  height: clamp(78px, 27dvh, 216px);
+  object-fit: contain;
+  border-radius: 10px;
+  background: #101f1bc9;
+}
+
+.mole-mode-card strong {
+  font-size: clamp(16px, 3vw, 28px);
+  line-height: 1.2;
+}
+
+.mole-mode-card span {
+  align-self: start;
+  max-width: 21ch;
+  color: #e0e5d5;
+}
+
+.mole-mode-card:focus-visible,
+.mole-mode-picker__close:focus-visible {
+  outline: 2px solid #fff1b8;
+  outline-offset: 3px;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mole-mode-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 26px #0b1610a8, inset 0 0 0 2px var(--mole-card-line);
+  }
+}
+
+.mole-mode-picker__close {
+  min-height: 44px;
+  margin-top: clamp(12px, 3dvh, 24px);
+  padding: 6px 17px;
+  border: 1px solid #b19e76;
+  border-radius: 22px;
+  background: #172c24;
+  color: inherit;
+  font: 600 16px BusanDandiMyeongjo, serif;
+  cursor: pointer;
+}
+
+.mole-mode-picker__close kbd {
+  margin-left: 7px;
+  color: #ded2b5;
+  font: 12px system-ui, sans-serif;
+}

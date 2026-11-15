@@ -39,11 +39,3 @@ dialog.arcade-picker.table-paper-popup{position:fixed;inset:0;margin:auto;box-si
 .arcade-picker .arcade-footer button{min-height:42px;padding:6px 28px}
 @media (max-width:720px){.arcade-paper{padding:16px 14px 14px}.arcade-selection{grid-template-columns:1fr}.arcade-picker .arcade-title h2{font-size:30px}}
 @media (max-width:420px){.arcade-game-list{gap:8px}.arcade-game-card strong{font-size:16px}}
-
-.arcade-picker--mole .arcade-selection { display: block; }
-.arcade-picker--mole .arcade-game-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(8px, 3vw, 24px); max-width: 670px; margin-inline: auto; }
-.arcade-picker--mole .arcade-game-card { display: flex; flex-direction: column; text-align: center; align-items: center; gap: 8px; padding: clamp(10px, 2vw, 24px); border: 3px double #b89a5d; background: #f7ead2; }
-.arcade-picker--mole .arcade-game-card:nth-child(2) { border-color: #47766a; background: #e4eee1; }
-.arcade-picker--mole .arcade-game-card:hover { outline: 2px solid #5f7649; outline-offset: 2px; }
-.arcade-picker--mole .arcade-game-card .manual-art { width: 100%; height: clamp(72px, 16dvh, 130px); flex: none; aspect-ratio: auto; object-fit: cover; object-position: center; }
-.arcade-picker--mole .arcade-game-card p { margin: 0; font-size: clamp(12px, 1.5vw, 15px); }
