@@ -122,8 +122,10 @@ public final class BalloonFlights {
                 || !hold.deadline.isAfter(now) || rides.containsKey(rider) || groupOf(rider) != null
                 || 1 + group.passengers.size() >= group.capacity
                 || !ticketAvailable(rider, ticket, now) || !atStation(player)) return null;
-        group.passengers.put(rider, new Passenger(session, ticket, initialSeat(group)));
         if (group.controls != null) group.controls.assignCopilot(rider);
+        CabinPose cabin = group.controls != null && group.controls.seat(rider) >= 0
+                ? CabinPose.IDLE : initialSeat(group);
+        group.passengers.put(rider, new Passenger(session, ticket, cabin));
         holds.remove(rider);
         return withParty(ride.state, at);
     }
@@ -196,7 +198,10 @@ public final class BalloonFlights {
             group.passengers.remove(pilot);
             if (group.controls != null) group.controls.remove(pilot, at);
             if (group.boarding && group.controls != null) {
-                group.passengers.keySet().stream().findFirst().ifPresent(group.controls::assignCopilot);
+                group.passengers.entrySet().stream().findFirst().ifPresent(entry -> {
+                    group.controls.assignCopilot(entry.getKey());
+                    if (group.controls.seat(entry.getKey()) >= 0) entry.getValue().cabin = CabinPose.IDLE;
+                });
             }
             return withParty(rides.get(group.leader).state, at);
         }
@@ -237,6 +242,15 @@ public final class BalloonFlights {
         if (!ownsTicket || !ride.state.channelId.equals(channel) || expired(ride, at) || !ride.state.flight.aboard
                 || action.equals("offer") && (peer == null || !peer.equals(group.leader) && !group.passengers.containsKey(peer))
                 || !group.controls.change(rider, action, role, peer, at)) return null;
+        if (group.controls.seat(rider) >= 0) {
+            if (passenger != null) passenger.cabin = CabinPose.IDLE;
+            else if (ride.state.flight.cabin.seatIndex >= 0) {
+                State seated = ride.state;
+                State standing = new State(seated.channelId, seated.pilotId, new Flight(seated.flight.position, true));
+                ride = new Ride(ride.session, ride.ticket, ride.startedAt, ride.updatedAt, standing);
+                rides.put(rider, ride);
+            }
+        }
         return withParty(ride.state, at);
     }
 

@@ -36,10 +36,15 @@ class BalloonFlightsTests {
         UUID guestTicket = UUID.randomUUID();
         flights.authorize(PILOT, TICKET, NOW, NOW);
         flights.authorize(guest, guestTicket, NOW, NOW);
-        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0, 2, null, "split")).isNotNull();
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0, 4, null, "split")).isNotNull();
         assertThat(flights.launch(CHANNEL, PILOT, SESSION, TICKET, NOW, 0)).isNull();
         assertThat(flights.holdSeat(CHANNEL, PILOT, guest, guestTicket, NOW, 0)).isTrue();
         flights.start(CHANNEL, guest, "guest", guestTicket, GROUND, DOCK, NOW, 0, 1, PILOT);
+        UUID passengerTicket = UUID.randomUUID();
+        flights.authorize("103", passengerTicket, NOW, NOW);
+        assertThat(flights.holdSeat(CHANNEL, PILOT, "103", passengerTicket, NOW, 0)).isTrue();
+        var boarded = flights.start(CHANNEL, "103", "passenger", passengerTicket, GROUND, DOCK, NOW, 0, 1, PILOT);
+        assertThat(boarded.party().passengers().get("103").seatIndex()).isEqualTo(1);
         flights.launch(CHANNEL, PILOT, SESSION, TICKET, NOW, 0);
         long tick = Duration.ofMillis(200).toNanos();
         var pose = new Flight(DOCK, true);
