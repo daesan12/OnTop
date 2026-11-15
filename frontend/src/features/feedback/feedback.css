@@ -1,6 +1,7 @@
 .feedback-backdrop {
   --feedback-ink: #6b472c; --feedback-red: #bd482c;
-  position: absolute; inset: 0; z-index: 40; display: grid; place-items: center;
+  /* Keep the composer above floating park controls, including the chat layer. */
+  position: absolute; inset: 0; z-index: 46; display: grid; place-items: center;
   background: #1423199c; backdrop-filter: blur(3px); padding: 84px 32px 24px;
   box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain;
   color: var(--feedback-ink); perspective: 1600px; animation: feedback-backdrop-in 300ms ease-out both;
