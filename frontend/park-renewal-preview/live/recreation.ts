@@ -1,7 +1,7 @@
 import type { Point3 } from '../../src/map/park/interactionData'
 import type { RenewalRecreationAnchor } from '../../src/park/renewalMap'
 import { ARCADE_SCALE } from '../assetSizing'
-import { facilityBase, facilityYaw, frontOfApproach } from '../facilityPlacement'
+import { facilityBase, facilityYaw } from '../facilityPlacement'
 import { groundSurfaceHeight } from '../groundSurface'
 import { site } from '../plan'
 import { VR_SKEWER_FLOOR_MARKER } from '../approved/vr-skewer-hall-20261107-v1/core/frontend/src/features/skewer/parkAsset/vrSkewerHallGeometry'
@@ -23,14 +23,11 @@ function reachPoint(position: Point3): Point3 {
 }
 
 export function buildRenewalRecreation() {
-  const [shootingX, shootingZ] = frontOfApproach('shooting')
-  const shootingPosition: Point3 = [shootingX, groundSurfaceHeight(shootingX, shootingZ), shootingZ]
   const recreation: RenewalRecreationAnchor[] = [
     { id: 'fortune', position: worldPoint('fortune', 0, 0), reachPosition: reachPoint(worldPoint('fortune', 0, -3)), radius: 3, heightTolerance: .7 },
     { id: 'fish-bread', position: worldPoint('bread', 0, 3.25), reachPosition: reachPoint(worldPoint('bread', 0, 4.25)), radius: 2.6 },
     { id: 'pigeon-jump-rope', position: worldPoint('pigeon', 0, 3.25), reachPosition: reachPoint(worldPoint('pigeon', 0, 4.4)), radius: 3 },
     { id: 'mole-shop', position: worldPoint('mole', 0, 3.5), reachPosition: reachPoint(worldPoint('mole', 0, 4.8)), radius: 2.3 },
-    { id: 'shooting', position: shootingPosition, reachPosition: reachPoint(shootingPosition), radius: 3, heightTolerance: .7 },
   ]
   for (const id of ['rps-roulette-cabinet', 'plus-minus-cabinet'] as const) {
     const [x, , z] = ARCADE_CABINETS[id]
