@@ -27,7 +27,7 @@ type Held = { ingredient: IngredientId; root: THREE.Group }
 const HOME = new THREE.Vector3(0, 1.25, .48), TIP = new THREE.Vector3(1.3, 0, 0)
 const COUNTER_TOP = 1.02
 const VR_KITCHEN_SCALE = .34
-const VR_COUNTER_HEIGHT = .80
+const VR_COUNTER_HEIGHT = .85
 const VR_SKEWER_SCALE = .62
 const orderSlotX = (slot: number) => -.99 + slot * 1.98
 

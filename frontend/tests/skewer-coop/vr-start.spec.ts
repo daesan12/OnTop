@@ -12,14 +12,14 @@ async function prepare(page: Page) {
   await expect(page.locator('.chef-stage canvas')).toBeVisible()
 }
 
-test('VR 조리대가 낮아지고 꼬치를 잡았을 때 길이와 끝 고리가 유지된다', async ({ page }) => {
+test('VR 조리대 높이가 적용되고 꼬치를 들어도 길이와 끝 고리가 유지된다', async ({ page }) => {
   await prepare(page)
   await page.getByRole('button', { name: 'VR 시작', exact: true }).click()
   await expect(page.getByTestId('chef-app')).toHaveAttribute('data-xr', 'true')
   await command(page, 'start')
   const assembly = await command(page, 'measureAssembly')
   expect(assembly).toMatchObject({ held: true, returned: true, markerOccluded: false })
-  expect(assembly.counterHeight).toBeCloseTo(.80, 2)
+  expect(assembly.counterHeight).toBeCloseTo(.85, 2)
   expect(assembly.restingLength).toBeLessThan(.65)
   expect(assembly.heldLength).toBeCloseTo(assembly.restingLength, 5)
   expect(assembly.markerRenderOrder).toBeGreaterThan(0)
