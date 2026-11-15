@@ -44,6 +44,7 @@ class MoleAuditMySqlTests {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ObjectMapper mapper;
     @Autowired private AccessJwtService jwt;
+    @Autowired private MoleAuditStore store;
     @MockitoBean private ActiveMemberLookup members;
     private final HttpClient http = HttpClient.newHttpClient();
 
@@ -105,10 +106,12 @@ class MoleAuditMySqlTests {
             String detections = "/api/v1/admin/macro-analysis/mole/detections?game=" + game.path;
             assertThat(send(detections, 0, null).statusCode()).isEqualTo(401);
             assertThat(send(detections, 101, null).statusCode()).isEqualTo(403);
-            var before = mapper.readTree(send(detections, 201, null).body()).path("items");
-            assertThat(before.size()).isEqualTo(1);
-            assertThat(before.get(0).path("latestRoundId").asText()).isEqualTo("456");
-            assertThat(before.get(0).path("liveRounds").asInt()).isEqualTo(1);
+            Instant beforeCompletion = Instant.now();
+            var before = store.detections(game, beforeCompletion.minus(Duration.ofDays(30)), beforeCompletion, 100);
+            assertThat(before).singleElement().satisfies(member -> {
+                assertThat(member.latestRoundId()).isEqualTo("456");
+                assertThat(member.liveRounds()).isEqualTo(1);
+            });
 
             Instant completionAt = Instant.now();
             completionSignal(game, 456, 101, completionAt.minusMillis(1), "SERVER");

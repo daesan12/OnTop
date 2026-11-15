@@ -19,7 +19,7 @@ export function MoleDetectionsPanel({ game, onAuthEnded, onOpen }: {
   useEffect(() => {
     const controller = new AbortController()
     const { signal } = controller
-    queueMicrotask(async () => {
+    const load = async () => {
       if (signal.aborted) return
       try {
         const result = await readMoleDetections(game, signal)
@@ -29,7 +29,9 @@ export function MoleDetectionsPanel({ game, onAuthEnded, onOpen }: {
         if (cause instanceof AdminAccessError && cause.kind === 'unauthenticated') onAuthEnded()
         else setError(cause instanceof Error ? cause.message : '적발 회원을 조회하지 못했습니다.')
       } finally { if (!signal.aborted) setLoading(false) }
-    })
+    }
+    // 개발 모드 StrictMode가 첫 effect를 정리하면 네트워크 요청을 보내지 않는다.
+    queueMicrotask(() => { void load() })
     return () => controller.abort()
   }, [game, onAuthEnded, refresh])
 
@@ -43,6 +45,7 @@ export function MoleDetectionsPanel({ game, onAuthEnded, onOpen }: {
       }}>새로고침</button>
     </div>
     <p>선택한 게임에서 최근 30일 동안 숨겨진 표적 ID의 타격이 기록된 회원입니다. 운영 검토용 신호이며 자동 제재는 적용되지 않습니다.</p>
+    <p>최근 조회 결과는 새로고침해도 최대 30초 동안 표시될 수 있습니다.</p>
     {loading && <p role="status">적발 기록을 확인하고 있어요…</p>}
     {error && <p role="alert">{error}</p>}
     {list && <>

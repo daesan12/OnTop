@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
@@ -31,10 +32,12 @@ class MoleAuditService {
     private static final int REFERENCE_LIMIT = 40;
     private static final int DETECTION_DAYS = 30;
     private static final int DETECTION_LIMIT = 100;
+    private static final int DETECTION_CACHE_SECONDS = 30;
 
     private final MoleAuditStore store;
     private final BehaviorLog log;
     private final BehaviorLogProperties properties;
+    private final ConcurrentHashMap<MoleAuditGame, MoleAuditDtos.Detections> detectionCache = new ConcurrentHashMap<>();
     // 접근 순서가 바뀌는 get을 포함해 모든 접근을 synchronized takeQuota에서 처리한다.
     private final LinkedHashMap<Long, BatchQuota> quotas = new LinkedHashMap<>(16, 0.75f, true);
 
@@ -70,9 +73,15 @@ class MoleAuditService {
     }
 
     MoleAuditDtos.Detections detections(MoleAuditGame game, Instant until) {
-        Instant from = until.minus(DETECTION_DAYS, ChronoUnit.DAYS);
-        return new MoleAuditDtos.Detections(store.detections(game, from, until, DETECTION_LIMIT),
-                from, until, DETECTION_LIMIT);
+        // 같은 게임에 대한 동시 요청은 한 번의 집계를 공유한다.
+        return detectionCache.compute(game, (key, cached) -> {
+            if (cached != null && until.isBefore(cached.until().plusSeconds(DETECTION_CACHE_SECONDS))) {
+                return cached;
+            }
+            Instant from = until.minus(DETECTION_DAYS, ChronoUnit.DAYS);
+            var items = List.copyOf(store.detections(key, from, until, DETECTION_LIMIT));
+            return new MoleAuditDtos.Detections(items, from, until, DETECTION_LIMIT);
+        });
     }
 
     MoleAuditDtos.Detail detail(MoleAuditGame game, long id, MoleAuditDtos.Input input) {
