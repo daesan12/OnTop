@@ -21,6 +21,9 @@ export interface CourseBlock extends RenewalPad {
 }
 export const COURSE: readonly CourseBlock[] = renewalCourse?.pads ?? legacy.COURSE
 export const COURSE_COLLIDERS = renewalCourse?.colliders ?? legacy.COURSE_COLLIDERS
+export const COURSE_LANDING_COLLIDER_IDS = renewalMap
+  ? renewalCourse?.landingColliderIds ?? []
+  : legacy.COURSE_LANDING_COLLIDER_IDS
 export const STAGES = renewalCourse?.stages.map(stage => ({
   ...stage, subtitle: stage.stage === 10 ? '오리를 따라 섬으로 내려와요' : stage.name + ' 구간',
 })) ?? legacy.STAGES
