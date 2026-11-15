@@ -281,11 +281,21 @@
   background: radial-gradient(circle, var(--spot-red) 0 22%, transparent 25%);
 }
 .spot-difference .spot-targets [data-used="true"] { visibility: hidden; }
+.spot-difference .spot-boards { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 9px; }
 .spot-difference .spot-loading {
-  margin: 12px 0 0;
+  position: absolute;
+  grid-area: 1 / 1 / 2 / -1;
+  inset: 16px 0 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.spot-difference .spot-loading span {
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: #fff1d6;
   color: var(--spot-muted);
 }
-.spot-difference .spot-boards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 9px; }
 .spot-difference .spot-board { position: relative; min-width: 0; padding-top: 16px; }
 .spot-difference .spot-board-label {
   position: absolute;
@@ -320,7 +330,7 @@
   box-shadow: 0 0 0 2px #68432e;
   touch-action: manipulation;
 }
-.spot-difference .spot-target:disabled { opacity: 1; }
+.spot-difference .spot-target:disabled { opacity: 1; cursor: default; }
 .spot-difference .spot-target img { display: block; width: 100%; height: 100%; pointer-events: none; }
 .spot-difference .spot-marker, .spot-difference .spot-shot, .spot-difference .spot-reticle {
   position: absolute;
