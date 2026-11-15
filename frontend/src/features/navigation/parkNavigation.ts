@@ -109,24 +109,24 @@ export function navigationHeight(p: NavPoint): number {
   }
   return height;
 }
-export function isNavigationWalkable(p: NavPoint): boolean {
+function walkableFloor(p: NavPoint): number | null {
   if (
     !Number.isFinite(p.x) ||
     !Number.isFinite(p.z) ||
     Math.max(Math.abs(p.x), Math.abs(p.z)) > WORLD.halfSize - 1
   )
-    return false;
+    return null;
   // Multi-storey tower ramps cannot be represented safely by a single ground plane.
   if (!RENEWAL_PARK_ENABLED && navDistance(p, OBSERVATION_TOWER) < OBSERVATION_TOWER.outer + 0.5)
-    return false;
+    return null;
   const bridge =
     p.x >= BRIDGE.startX &&
     p.x <= BRIDGE.endX &&
     Math.abs(p.z - BRIDGE.z) < BRIDGE.halfWidth - clearance;
   if (RENEWAL_PARK_ENABLED ? !renewalNavigationLand(p)
-    : lakeRadiusAt(p.x, p.z) < 1.01 && !(GENERATED_PARK_ENABLED?isOnLakeCrossing(p.x,p.z):bridge)) return false;
+    : lakeRadiusAt(p.x, p.z) < 1.01 && !(GENERATED_PARK_ENABLED?isOnLakeCrossing(p.x,p.z):bridge)) return null;
   const floor = navigationHeight(p);
-  return !nearby(p).some((box) => {
+  const blocked = nearby(p).some((box) => {
     const bottom = box.center[1] - box.half[1];
     const top = bottom + (box.movementHeight ?? box.half[1] * 2);
     return (
@@ -135,18 +135,23 @@ export function isNavigationWalkable(p: NavPoint): boolean {
       inside(p, box, clearance)
     );
   });
+  return blocked ? null : floor;
+}
+export function isNavigationWalkable(p: NavPoint): boolean {
+  return walkableFloor(p) !== null;
 }
 export function navigationSegmentClear(a: NavPoint, b: NavPoint): boolean {
   const steps = Math.max(1, Math.ceil(navDistance(a, b) / 0.16));
-  let previous = navigationHeight(a);
-  for (let i = 0; i <= steps; i++) {
+  let previous = walkableFloor(a);
+  if (previous === null) return false;
+  for (let i = 1; i <= steps; i++) {
     const p = {
       x: a.x + ((b.x - a.x) * i) / steps,
       z: a.z + ((b.z - a.z) * i) / steps,
     };
-    const y = navigationHeight(p);
+    const y = walkableFloor(p);
     if (
-      !isNavigationWalkable(p) ||
+      y === null ||
       Math.abs(y - previous) > MOVEMENT.stepHeight + 0.025
     )
       return false;
