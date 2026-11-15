@@ -7,7 +7,7 @@ const state = (page: Page) => page.evaluate(async p => (await import(p)).snapsho
 async function enter(page: Page) {
   const errors: string[] = []
   page.on('pageerror', e => errors.push(e.message))
-  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+  page.on('console', m => { if (m.type() === 'error') errors.push(`${m.location().url} ${m.text()}`.trim()) })
   await page.addInitScript(() => Object.defineProperty(navigator, 'xr', { configurable: true,
     value: Object.assign(new EventTarget(), { isSessionSupported: async () => true }) }))
   const server = await parkFixture(page, { carrySupported: true })

@@ -186,6 +186,7 @@ C:\Users\SSAFY\Desktop\OnTop\quest-vr
 공원은 로그인·회원 정보·맵·실시간 서버가 필요하다.
 
 - 기존 로컬 테스트 백엔드를 쓸 경우 기본값은 `http://127.0.0.1:8080`다.
+- 220m 검수용 로컬 백엔드는 `WORLD_MAP_SOURCE=generated`, `WORLD_MAP_JSON_PATH`와 `WORLD_MAP_MANIFEST_PATH`에 `frontend/generated/park-renewal`의 `server-map.json`과 `manifest.json`을 지정한다. 돌탑을 검수할 때는 `WORLD_JUMPMAP_ENABLED=true`도 필요하다.
 - 팀의 실제 개발 백엔드는 `https://dev-api.on-top.world`다.
 - 로컬 프론트에서 개발 API로 프록시할 경우에도 **localhost:5288 허용 Origin·OAuth 시작/콜백·쿠키·WebSocket 설정**이 맞아야 한다. API 주소를 바꾸는 것만으로 로그인은 완성되지 않는다.
 - 개발 사이트에서 로그인한 쿠키가 localhost에도 자동으로 전달된다고 가정하지 않는다.
@@ -206,13 +207,13 @@ $questAdb = 'C:\Users\SSAFY\Desktop\platform-tools\adb.exe'
 .\scripts\start-park-xr.ps1 -ConnectQuest -AdbPath $questAdb
 ~~~
 
-**B. 개발 API를 쓰는 경우 — localhost 로그인이 허용된 환경에서만:**
+**B. 개발 API를 쓰는 경우 — 220m 맵이 적용되고 localhost 로그인이 허용된 환경:**
 
 ~~~powershell
 .\scripts\start-park-xr.ps1 -ApiProxyTarget 'https://dev-api.on-top.world' -ConnectQuest -AdbPath $questAdb
 ~~~
 
-A와 B는 선택지다. 같은 포트에 두 서버를 동시에 띄우지 않는다. 기본 프론트 포트는 **5288**, 자동 포트 변경 없이 사용한다. 프론트가 실행되는 PowerShell은 계속 열어 둔다.
+기본 프론트 포트는 **5288**이다. 이전 맵을 사용하는 백엔드에서 VR을 확인할 때는 스크립트에 `-LegacyMap`을 추가한다. 프론트가 실행되는 PowerShell은 계속 열어 둔다.
 
 스크립트가 실행 정책으로 차단된다면 팀이 허용하는 방법을 따른다. 전체 PC 실행 정책을 낮추는 대신, 같은 frontend 폴더에서 별도 PowerShell 창으로 아래 수동 명령을 사용할 수 있다.
 
@@ -222,7 +223,7 @@ $questAdb = 'C:\Users\SSAFY\Desktop\platform-tools\adb.exe'
 
 # 실제 준비된 테스트 BE에 맞게 지정한다. 이 예시는 로컬 8080이다.
 $env:API_PROXY_TARGET = 'http://127.0.0.1:8080'
-node node_modules/vite/bin/vite.js --mode park-integration --host 127.0.0.1 --port 5288 --strictPort
+node node_modules/vite/bin/vite.js --mode park-renewal-integration --host 127.0.0.1 --port 5288 --strictPort
 ~~~
 
 수동 명령은 스크립트의 백엔드 health 사전 확인을 대신하지 않는다. 종료 후 이 PowerShell 창을 닫으면 이 창에서 지정한 환경 변수도 남지 않는다.

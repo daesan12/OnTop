@@ -12,7 +12,7 @@ import type { JumpmapXRAction } from '../jumpmap/xrModel'
 import { ParkXRMovement } from './movement'
 import { useParkXR } from './state'
 import { useJumpmap, closeJumpCompletion } from '../jumpmap/state'
-import { nearJumpmapStart, inJumpmapXRRegion } from '../jumpmap/xrEntry'
+import { canStartJumpmapXR, inJumpmapXRRegion } from '../jumpmap/xrEntry'
 import { acquireVRProtection } from '../vrSession/protection'
 import { jumpmapXRFeedback } from '../jumpmap/xrFeedback'
 import { SkewerXREntry } from './SkewerXREntry'
@@ -100,8 +100,8 @@ export class ParkXRController {
     if (!own?.connected || own.carry) {
       useParkXR.setState({ error: '다른 행동을 마친 뒤 공원에 연결된 상태에서 VR을 시작해 주세요.' }); return
     }
-    if (kind === 'jumpmap' && (!own || !nearJumpmapStart(own.current) || !useJumpmap.getState().available || own.carry || own.swimming)) {
-      useParkXR.setState({ error: '다른 행동을 마친 뒤 돌탑 출발 지점에서 VR을 시작해 주세요.' }); return
+    if (kind === 'jumpmap' && (!canStartJumpmapXR(own.current) || !useJumpmap.getState().available || own.swimming)) {
+      useParkXR.setState({ error: '다른 행동을 마친 뒤 돌탑 안내 비석이나 출발 지점에서 VR을 시작해 주세요.' }); return
     }
     this.kind = kind
     this.gl.domElement.focus({ preventScroll: true })
@@ -125,7 +125,7 @@ export class ParkXRController {
       const current = avatars.get(useSession.getState().sessionId)
       if (this.disposed || this.currentScope() !== this.scope || !canControlRoamingCamera()
         || !current?.connected || current.carry
-        || kind === 'jumpmap' && (!nearJumpmapStart(current.current) || current.swimming || !useJumpmap.getState().available)) {
+        || kind === 'jumpmap' && (!canStartJumpmapXR(current.current) || current.swimming || !useJumpmap.getState().available)) {
         release(); await granted.end(); return
       }
       this.releaseVR = release

@@ -4,7 +4,7 @@ import { parkXRActions, useParkXR } from './state'
 import { PaperPopup } from '../tableLobby/PaperPopup'
 import { TouchControllerGuide } from '../vrGuide/TouchControllerDiagram'
 import { clearRoamingInput } from '../../world/inputOwnership'
-import { nearJumpmapStart } from '../jumpmap/xrEntry'
+import { canStartJumpmapXR } from '../jumpmap/xrEntry'
 import { useJumpmap } from '../jumpmap/state'
 import { XRComfortFields } from './XRComfortFields'
 import './parkXR.css'
@@ -39,7 +39,7 @@ export function ParkXRControls() {
   useEffect(() => {
     const check = () => {
       const own = avatars.get(useSession.getState().sessionId)
-      setNear(!!own && !own.carry && !own.swimming && nearJumpmapStart(sampleAvatar(own, performance.now(), { ...own.current })))
+      setNear(!!own && !own.carry && !own.swimming && canStartJumpmapXR(sampleAvatar(own, performance.now(), { ...own.current })))
     }
     check(); const timer = setInterval(check, 100)
     return () => clearInterval(timer)
