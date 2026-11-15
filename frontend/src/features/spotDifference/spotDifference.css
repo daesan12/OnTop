@@ -65,11 +65,13 @@
   font: 700 clamp(20px, 3vw, 29px)/1.13 BusanDandiMyeongjo, serif;
 }
 .spot-difference h3:focus { outline: none; }
+.spot-difference .spot-guide-steps, .spot-difference .spot-guide-keys {
+  padding-inline-start: 1.25rem;
+  text-align: left;
+}
 .spot-difference .spot-guide-steps {
   display: grid;
   gap: 7px;
-  padding-inline-start: 0;
-  list-style-position: inside;
   margin: 10px 0;
   color: var(--spot-ink);
   font-size: .84rem;
