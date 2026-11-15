@@ -44,3 +44,31 @@ it('uses tick history only for remote roaming; keeps official poses, approved se
   expect(remoteMovement.metrics().tracks).toBe(0)
   clearChannel(); expect(remoteMovement.metrics().tracks).toBe(0)
 })
+
+it('samples a local server-owned pose on the tick clock and clears it on a mode change', () => {
+  resetWorld('connected')
+  const clock = vi.spyOn(performance, 'now').mockReturnValue(0)
+  useSession.setState({ sessionId: '101', roomId: 'one', mapCompatible: true })
+  const state = (version: number, at: number, x: number, mounted = true) => {
+    clock.mockReturnValue(at)
+    receive({ type: 'WORLD_STATE', requestId: null, payload: {
+      channelId: 'one', version, mapVersion: EXPECTED_MAP_VERSION,
+      avatars: [{ userId: '101', position: { ...position, x },
+        ...(mounted ? { motion: motion((version - 1) * 3) } : {}) }],
+      vehicles: mounted ? { '101': 'BICYCLE' } : {},
+    } })
+  }
+  const p = { ...position }
+
+  state(1, 0, 0)
+  state(2, 100, .9)
+  state(3, 220, 1.8)
+  sampleAvatar(avatars.get('101')!, 270, p)
+  expect(p.x).toBeCloseTo(1.35)
+  expect(authoritativePose('101')!.x).toBe(1.8)
+
+  state(4, 300, 1.8, false)
+  state(5, 360, 50)
+  sampleAvatar(avatars.get('101')!, 360, p)
+  expect(p.x).toBe(50)
+})

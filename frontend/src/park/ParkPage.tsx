@@ -13,6 +13,8 @@ import { useSession } from '../network/worldClient'
 import { ParkRuntimeProvider } from './runtime/ParkRuntime'
 import { ParkTools } from './ParkTools'
 import type { QualityPreset } from '../config'
+import { useMobility } from '../features/mobility/state'
+import { MobilityHud } from '../features/mobility/MobilityHud'
 import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
 import { ConstructionNotice } from '../features/construction/ConstructionNotice'
 import { FortunePanel } from '../features/fortune/FortunePanel'
@@ -108,6 +110,7 @@ export function ParkPage(props: ParkProps) {
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
 function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: ParkProps) {
+  const riding = useMobility(s => s.phase === 'riding' || s.phase === 'ending')
   useWalletSync()
   useJumpmapController()
   useEffect(watchBungeoppangRecovery, [])
@@ -198,7 +201,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
 
         {!omokFocus && <aside className="park-shortcuts" aria-label="조작 방법">
           {shortcuts.map(({ key, action }) => (
-            <div className="park-shortcuts__item" key={key}><kbd>{key}</kbd><span>{action}</span></div>
+            <div className="park-shortcuts__item" key={key}><kbd>{key}</kbd><span>{riding && key === 'Space' ? '하차' : action}</span></div>
           ))}
         </aside>}
       </div>
@@ -206,6 +209,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
         <ParkTools />
         <ParkInteractionHint />
+        <MobilityHud />
         <PolicePrivateNotice />
         <div hidden={omokFocus} inert={omokFocus}>
         <WelcomeTour />
