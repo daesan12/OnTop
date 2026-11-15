@@ -5,11 +5,41 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.world.dto.WorldMapMetadata;
+import com.ssafy.ontop.world.map.PreparedParkMap;
+import java.nio.file.Path;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class WorldFallRecoveryTests {
     private long tick;
+
+    @ParameterizedTest
+    @ValueSource(doubles = {-1.3, .2})
+    void 중앙광장_돌테이블_아래에서_복구할_때_정문으로_가지_않는다(double heightFromTerrain) throws Exception {
+        Path dir = Path.of("../frontend/generated/park-renewal");
+        var map = PreparedParkMap.load(dir.resolve("server-map.json"), dir.resolve("manifest.json"), Set.of("channel-1"));
+        var scene = map.createScene();
+        try (var physics = new WorldPhysics(scene)) {
+            physics.add("a");
+            double tableX = 10;
+            double tableZ = 27;
+            double ground = scene.groundHeight(tableX, tableZ);
+            // 지형 아래로 밀린 서버 좌표를 직접 주입해 위치 복구만 검증한다.
+            physics.place("a", tableX, ground + heightFromTerrain, tableZ);
+            physics.step(WorldPhysics.STEP_NANOS, Set.of());
+
+            var restored = physics.snapshot("a");
+            var recovery = physics.lastRecovery("a");
+            assertThat(Math.hypot(restored.x() - tableX, restored.z() - tableZ))
+                    .as("중앙광장 복구 위치: %s", recovery).isBetween(1.0, 2.0);
+            assertThat(restored.y()).isBetween(ground + .7, ground + 1);
+            assertThat(physics.canStand(restored.x(), restored.y(), restored.z())).isTrue();
+            assertThat(recovery).isNotNull();
+            assertThat(recovery.reason()).isEqualTo("TERRAIN_PENETRATION");
+        }
+    }
 
     @Test
     void 유효좌표의_지형관통은_이전_높은_발판으로_돌려보내지_않는다() {

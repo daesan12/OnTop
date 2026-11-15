@@ -198,13 +198,15 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
     segments.forEach(({ a, z }, i) => rail(name + '-' + i,
       [a[0], groundSurfaceHeight(...a), a[1]], [z[0], groundSurfaceHeight(...z), z[1]], .14, h))
   }
+  const outdoorTableIds = new Set(tables.filter(table => !table.pavilionId).map(table => table.id))
   parkPropBlockers.forEach((b, i) => {
+    // The service table below already covers these art parts and owns no-climb and chair activation.
+    if (b.serviceTableId && outdoorTableIds.has(b.serviceTableId)) return
     const id = 'park-prop-' + i
     if (b.kind === 'circle') cylinder(id, b.x, b.z, b.radius, b.bottom, b.top)
     else putBox(id, [b.x, (b.bottom + b.top) / 2, b.z], [b.halfX, (b.top - b.bottom) / 2, b.halfZ], Math.atan2(b.sin, b.cos))
   })
-  // The authored proxies above retain the visible bench/seat profiles. Service table
-  // columns keep the existing no-climb policy and two visible stone seats.
+  // Service table columns keep the existing no-climb policy and two visible stone seats.
   for (const table of tables) {
     const [x, floor, z] = table.position, h = basePhysics.furniturePolicy.movementHeight / 2
     if (!table.pavilionId) putBox(table.id + '-top', [x, floor + h, z], [1.05, h, .8])
