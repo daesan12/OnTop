@@ -217,7 +217,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
         <div><dt>시점</dt><dd>우클릭 드래그 / 휠 확대·축소 <small>터치는 경기장 드래그</small></dd></div>
         <div><dt>점프</dt><dd><kbd>Space</kbd></dd></div>
         <div><dt>슬라이딩</dt><dd><kbd>Shift</kbd><small>공중에서도 한 칸 이동</small></dd></div>
-        <div><dt>비둘기 공격</dt><dd><kbd>클릭</kbd><span>/</span><kbd>E</kbd><small>마우스 조준 · 1.5초 충전</small></dd></div>
+        <div><dt>비둘기 공격</dt><dd><kbd>클릭</kbd><span>/</span><kbd>E</kbd><small>터치는 상대를 탭 · 1.5초 충전</small></dd></div>
       </dl>
       <div className="stone-rumble-help-shortcuts"><span>채팅 <kbd>Enter</kbd></span><span>관전 전환 <kbd>Tab</kbd> / <kbd>Shift + Tab</kbd></span></div>
       <p className="stone-rumble-help-live">안내를 보는 동안에도 경기는 계속돼요.</p>
@@ -233,7 +233,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
           <p>떨어져도 아래층에 착지하면 계속할 수 있어요. <strong>1층 아래로 더 떨어지면 탈락해요.</strong></p>
           <h3>3. 슬라이딩과 비둘기를 활용해요</h3>
           <p><strong>슬라이딩 — Shift</strong><br />몸을 앞으로 던져 한 칸 이동해요. 움직이던 방향으로, 멈춰 있다면 바라보는 방향으로 나아가요. 점프한 뒤에도 쓸 수 있고, 다시 쓰려면 1초 기다려요.</p>
-          <p><strong>비둘기 공격 — 클릭 / E</strong><br />마우스로 상대를 조준하고 쏘세요. 1.5초마다 충전되며 버튼의 원이 가득 차면 다시 쏠 수 있어요. 맞은 사람은 발판 한 칸만큼 밀려나고 잠깐 움직일 수 없어요.</p>
+          <p><strong>비둘기 공격 — 클릭 / E / 화면 탭</strong><br />마우스로 상대를 조준하거나 화면에서 상대를 탭하세요. 1.5초마다 충전되며 버튼의 원이 가득 차면 다시 쏠 수 있어요. 맞은 사람은 발판 한 칸만큼 밀려나고 잠깐 움직일 수 없어요.</p>
           <h3>4. 탈락하면 관전하거나 나가요</h3>
           <p>탈락하면 더 이상 움직이거나 공격할 수 없어요. <strong>‘생존자 관전하기’</strong>를 누르면 살아 있는 플레이어의 시점으로 볼 수 있어요.</p>
           <p><strong>Tab</strong>은 다음 생존자, <strong>Shift + Tab</strong>은 이전 생존자로 바꿔요. 보고 있던 사람이 탈락하면 다른 생존자로 자동 전환돼요. 관전 중 ‘나가기’ 버튼이나 Esc로 나갈 수 있어요.</p>

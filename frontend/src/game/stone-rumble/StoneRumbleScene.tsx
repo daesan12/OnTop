@@ -218,8 +218,8 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
   const desiredEye = useMemo(() => new Vector3(), []), desiredFocus = useMemo(() => new Vector3(), [])
   useEffect(() => {
     const canvas = gl.domElement
-    let drag: number | null = null
-    let lastX = 0
+    const tapSlop = 8
+    let gesture: { id: number; x: number; y: number; orbiting: boolean; canTap: boolean } | null = null
     const aim = (event: PointerEvent) => {
       const bounds = canvas.getBoundingClientRect()
       pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1,
@@ -228,25 +228,41 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
     }
     const move = (event: PointerEvent) => {
       if (!cameraEnabledRef.current) return
-      if (drag === event.pointerId) {
-        controls.current.yaw = (controls.current.yaw - (event.clientX - lastX) * .008) % (2 * Math.PI)
-        lastX = event.clientX
+      if (gesture?.id === event.pointerId) {
+        if (!gesture.orbiting && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < tapSlop) return
+        gesture.orbiting = true
+        controls.current.pointerAiming = false
+        controls.current.yaw = (controls.current.yaw - (event.clientX - gesture.x) * .008) % (2 * Math.PI)
+        gesture.x = event.clientX
       } else if (event.pointerType === 'mouse') aim(event)
     }
     const down = (event: PointerEvent) => {
       if (!cameraEnabledRef.current) return
-      if (event.button === 2 || event.pointerType === 'touch') {
-        if (drag !== null) return
-        drag = event.pointerId
-        lastX = event.clientX
-        controls.current.pointerAiming = false
+      const touch = event.pointerType === 'touch'
+      if (touch && !event.isPrimary) {
+        if (gesture) gesture.canTap = false
+        return
+      }
+      if (touch || event.button === 2) {
+        if (gesture) return
+        gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, orbiting: !touch, canTap: touch }
+        if (!touch) controls.current.pointerAiming = false
         canvas.setPointerCapture(event.pointerId)
       } else if (event.button === 0) {
         aim(event)
         clickPending.current = true
       }
     }
-    const up = (event: PointerEvent) => { if (drag === event.pointerId) drag = null }
+    const cancel = (event: PointerEvent) => { if (gesture?.id === event.pointerId) gesture = null }
+    const up = (event: PointerEvent) => {
+      if (gesture?.id !== event.pointerId) return
+      if (cameraEnabledRef.current && gesture.canTap && !gesture.orbiting
+        && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < tapSlop) {
+        aim(event)
+        clickPending.current = true
+      }
+      cancel(event)
+    }
     const context = (event: Event) => { if (cameraEnabledRef.current) event.preventDefault() }
     const wheel = (event: WheelEvent) => {
       if (!cameraEnabledRef.current) return
@@ -255,13 +271,17 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
     }
     canvas.addEventListener('pointermove', move)
     canvas.addEventListener('pointerdown', down)
-    canvas.addEventListener('lostpointercapture', up)
+    canvas.addEventListener('pointerup', up)
+    canvas.addEventListener('pointercancel', cancel)
+    canvas.addEventListener('lostpointercapture', cancel)
     canvas.addEventListener('contextmenu', context)
     canvas.addEventListener('wheel', wheel, { passive: false })
     return () => {
       canvas.removeEventListener('pointermove', move)
       canvas.removeEventListener('pointerdown', down)
-      canvas.removeEventListener('lostpointercapture', up)
+      canvas.removeEventListener('pointerup', up)
+      canvas.removeEventListener('pointercancel', cancel)
+      canvas.removeEventListener('lostpointercapture', cancel)
       canvas.removeEventListener('contextmenu', context)
       canvas.removeEventListener('wheel', wheel)
     }
