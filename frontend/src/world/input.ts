@@ -292,13 +292,14 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
     if (movement.has(event.code)) {
       event.preventDefault()
+      // A key held through a stop (such as dismounting) can still auto-repeat.
+      // Only a new press may register that key again.
+      if (event.repeat) return
       if (useSession.getState().benchId) {
-        if (!event.repeat && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') void standBench()
-        if (event.repeat) return
+        if (!event.code.startsWith('Shift')) void standBench()
       }
       if (useSession.getState().fitnessId) {
-        if (!event.repeat && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') void leaveFitness()
-        if (event.repeat) return
+        if (!event.code.startsWith('Shift')) void leaveFitness()
       }
       const changed = !keys.has(event.code)
       keys.add(event.code)
