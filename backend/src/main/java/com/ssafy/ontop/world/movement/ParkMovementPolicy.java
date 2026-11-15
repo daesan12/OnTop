@@ -3,12 +3,15 @@ package com.ssafy.ontop.world.movement;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.jme3.math.Vector3f;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 /** Validated map-owned exclusions; client coordinates cannot define a correction region. */
 final class ParkMovementPolicy {
     private static final double FURNITURE_CONTACT_GAP = .015;
+    private static final double CONTAINMENT_TOLERANCE = 1e-6;
 
     private record Furniture(String id, double x, double z, double bottom, double top,
             double halfX, double halfZ, double cos, double sin) {
@@ -19,10 +22,34 @@ final class ParkMovementPolicy {
         double localZ(double dx, double dz) {
             return dx * sin + dz * cos;
         }
+
+        static Furniture fromBox(JsonNode box) {
+            var center = box.path("center");
+            var half = box.path("half");
+            double y = center.get(1).asDouble(), halfY = half.get(1).asDouble();
+            double yaw = box.path("yaw").asDouble();
+            return new Furniture(box.path("id").asText(), center.get(0).asDouble(), center.get(2).asDouble(),
+                    y - halfY, y + halfY, half.get(0).asDouble(), half.get(2).asDouble(),
+                    Math.cos(yaw), Math.sin(yaw));
+        }
+
+        boolean contains(Furniture detail) {
+            if (detail.bottom() < bottom - CONTAINMENT_TOLERANCE || detail.top() > top + CONTAINMENT_TOLERANCE) {
+                return false;
+            }
+            double dx = detail.x() - x, dz = detail.z() - z;
+            double cosRelative = Math.abs(detail.cos() * cos + detail.sin() * sin);
+            double sinRelative = Math.abs(detail.sin() * cos - detail.cos() * sin);
+            return Math.abs(localX(dx, dz)) + detail.halfX() * cosRelative + detail.halfZ() * sinRelative
+                        <= halfX + CONTAINMENT_TOLERANCE
+                    && Math.abs(localZ(dx, dz)) + detail.halfX() * sinRelative + detail.halfZ() * cosRelative
+                        <= halfZ + CONTAINMENT_TOLERANCE;
+        }
     }
 
     private final JsonNode data;
     private final List<Furniture> furniture = new ArrayList<>();
+    private final Map<String, List<String>> furnitureDetailOwners = new HashMap<>();
     private final JsonNode furniturePolicy, fountain;
     private final double foot, radius;
     ParkMovementPolicy(JsonNode data) {
@@ -39,17 +66,23 @@ final class ParkMovementPolicy {
             positive(furniturePolicy, "movementHeight", 5); positive(furniturePolicy, "exitGap", .2);
             positive(furniturePolicy, "landingHeightTolerance", .3);
             for (JsonNode box : data.path("boxes")) if (box.path("id").asText().matches("table-\\d+-(top|chair-[0-7])")) {
-                var center = box.path("center");
-                var half = box.path("half");
-                double y = center.get(1).asDouble(), halfY = half.get(1).asDouble();
-                require(Math.abs(halfY * 2 - furniturePolicy.path("movementHeight").asDouble()) < 1e-6,
+                var shape = Furniture.fromBox(box);
+                require(Math.abs(shape.top() - shape.bottom() - furniturePolicy.path("movementHeight").asDouble())
+                        < 1e-6,
                         "가구 차단 높이와 형상이 다릅니다.");
-                double yaw = box.path("yaw").asDouble();
-                furniture.add(new Furniture(box.path("id").asText(), center.get(0).asDouble(), center.get(2).asDouble(),
-                        y - halfY, y + halfY, half.get(0).asDouble(), half.get(2).asDouble(),
-                        Math.cos(yaw), Math.sin(yaw)));
+                furniture.add(shape);
             }
             require(!furniture.isEmpty(), "가구 차단 형상이 없습니다.");
+            for (JsonNode box : data.path("boxes")) {
+                if (!box.path("id").asText().startsWith("park-prop-")) {
+                    continue;
+                }
+                var detail = Furniture.fromBox(box);
+                var owners = furniture.stream().filter(owner -> owner.contains(detail)).map(Furniture::id).toList();
+                if (!owners.isEmpty()) {
+                    furnitureDetailOwners.put(detail.id(), owners);
+                }
+            }
         }
         if (!fountain.isMissingNode()) {
             require("no-climb".equals(fountain.path("kind").asText()) && "cylinder".equals(fountain.path("shape").asText())
@@ -83,9 +116,11 @@ final class ParkMovementPolicy {
             }
         }
     }
-    boolean manages(String id) {
+    boolean managesCorrectionShape(String id, Predicate<String> active) {
+        // An active furniture box already bounds its fully contained tabletop and leg shapes.
         return (!fountain.isMissingNode() && "fountain-basin".equals(id))
-                || furniture.stream().anyMatch(box -> box.id().equals(id));
+                || furniture.stream().anyMatch(box -> box.id().equals(id))
+                || furnitureDetailOwners.getOrDefault(id, List.of()).stream().anyMatch(active);
     }
 
     /** Limit a horizontal step to the first active furniture boundary, before Bullet attempts to step up. */

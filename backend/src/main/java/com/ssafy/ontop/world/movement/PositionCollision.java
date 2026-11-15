@@ -178,7 +178,8 @@ final class PositionCollision implements ClientPositionValidator.Geometry {
         if (!clear(new ClientPositionValidator.Pose(to.x, to.y, to.z), new ClientPositionValidator.Pose(to.x, to.y, to.z), false)) return false;
         var delta = to.subtract(from);
         return space.sweepTest(capsule, new Transform(from), new Transform(to)).stream().noneMatch(hit ->
-                hit.getCollisionObject().getCollisionGroup() == 2 && !policy.manages(String.valueOf(hit.getCollisionObject().getUserObject()))
+                hit.getCollisionObject().getCollisionGroup() == 2
+                && !policy.managesCorrectionShape(String.valueOf(hit.getCollisionObject().getUserObject()), active)
                 && hit.getHitFraction() < .9999 && hit.getHitNormalLocal(null).dot(delta) < -.0001);
     }
     private boolean sweep(Vector3f from, Vector3f to) { return sweep(from, to, false); }

@@ -5,7 +5,6 @@ import { ARCADE_SCALE } from './assetSizing'
 import { VR_SKEWER_HALL } from './approved/vr-skewer-hall-20261107-v1/core/frontend/src/features/skewer/parkAsset/vrSkewerHallGeometry'
 import { facilityBase, facilityYaw } from './facilityPlacement'
 import { benches } from './landscape'
-import { stoneTableIdAt } from './mapping/identities'
 import { outdoorStoneTableParts } from './original/features/tables/outdoorStoneTableParts'
 import {
   BALLOON_SCALE, FISHING_BENCHES, FISHING_DECK, FISHING_NOTICE, FISHING_ROD_RACKS, FISHING_SHOP, JUMP_TABLES, LAKE,
@@ -15,9 +14,9 @@ import {
 import { TOWER_TOP } from './towerFurniturePlan'
 import { REST_FURNITURE_VERTICAL_SCALE, pavilionBenchSegments } from './pavilionBenchLayout'
 
-type Placement = { x: number; y: number; z: number; yaw: number; scale?: number; serviceTableId?: string }
+type Placement = { x: number; y: number; z: number; yaw: number; scale?: number }
 type Shape = { kind: 'circle'; radius: number } | { kind: 'box'; halfX: number; halfZ: number; cos: number; sin: number }
-type Blocker = Shape & { x: number; z: number; bottom: number; top: number; serviceTableId?: string }
+type Blocker = Shape & { x: number; z: number; bottom: number; top: number }
 const blockers: Blocker[] = []
 const furnitureHeight = PARK_DATA.physics.furniturePolicy.movementHeight
 export const parkPropBlockers: readonly Blocker[] = blockers
@@ -48,7 +47,7 @@ function register(blocker: Blocker) {
 function position(p: Placement, [x, z]: Point, bottom: number, top: number) {
   const scale = p.scale ?? 1, cos = Math.cos(p.yaw), sin = Math.sin(p.yaw)
   return { x: p.x + (cos * x + sin * z) * scale, z: p.z + (-sin * x + cos * z) * scale,
-    bottom: p.y + bottom * scale, top: p.y + top * scale, serviceTableId: p.serviceTableId }
+    bottom: p.y + bottom * scale, top: p.y + top * scale }
 }
 
 function box(p: Placement, center: Point, width: number, depth: number, bottom: number, top: number, yaw = 0) {
@@ -124,7 +123,7 @@ for (let quadrant = 0; quadrant < 4; quadrant++) {
 
 const stoneTable = outdoorStoneTableParts(2)
 for (const [x, z] of [...TABLES, ...JUMP_TABLES]) {
-  const p = { x, y: heightAt(x, z) + .12, z, yaw: 0, serviceTableId: stoneTableIdAt(x, z) }
+  const p = { x, y: heightAt(x, z) + .12, z, yaw: 0 }
   for (const { p: [px, py, pz], s: [sx, sy, sz] } of [...stoneTable.stone, ...stoneTable.supports]) {
     box(p, [px, pz], sx, sz, py - sy / 2, py + sy / 2)
   }
