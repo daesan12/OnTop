@@ -18,8 +18,9 @@ function benchAt(side: number, radius: number) {
 }
 
 // The east and west sides (2 and 6) are open.
+export const CABIN_BENCH_RUNS = [[-1, 0, 1], [3, 4, 5]] as const
 const BENCH_CENTER = (CABIN_BENCH_INNER + CABIN_BENCH_OUTER) / 2
-export const cabinBenches = [0, 1, 3, 4, 5, 7].map(side => benchAt(side, BENCH_CENTER))
+export const cabinBenches = CABIN_BENCH_RUNS.flat().map(side => benchAt(side, BENCH_CENTER))
 
 // Direction (0) and altitude (2) keep their existing seat IDs.
 export const cabinSeats = [
