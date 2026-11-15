@@ -1,5 +1,8 @@
 package com.ssafy.ontop.world.jumpmap;
 
+import com.ssafy.ontop.world.config.WorldChannelProperties;
+import com.ssafy.ontop.world.config.WorldMapProperties;
+import com.ssafy.ontop.world.map.WorldMapRuntime;
 import java.nio.file.Path;
 import java.sql.Date;
 import java.time.Instant;
@@ -282,6 +285,32 @@ class JumpmapMySqlTests {
     }
 
     @Test
+    void V179_적용후_220m_코스가_준비되고_판당_500냥까지만_저장한다() throws Exception {
+        var directory = Path.of("../frontend/generated/park-renewal");
+        var runtime = WorldMapRuntime.load(new WorldMapProperties(WorldMapProperties.Source.GENERATED,
+                        directory.resolve("server-map.json").toString(), directory.resolve("manifest.json").toString(), true),
+                new WorldChannelProperties(List.of(new WorldChannelProperties.Channel("channel-1", "공원", 30))));
+        var course = runtime.loadJumpCourse();
+        var renewalStore = new JdbcJumpmapStore(jdbc, entities, transactions, runtime);
+
+        assertThat(flyway.info().applied()).extracting(info -> info.getVersion().getVersion()).contains("179");
+        assertThat(course.renewal()).isTrue();
+        assertThat(course.stages()).hasSize(10);
+        assertThat(course.stages().stream().mapToInt(JumpCourse.Stage::reward).sum()).isEqualTo(500);
+        assertThat(renewalStore.ready()).isTrue();
+
+        String run = "renewal-cap";
+        renewalStore.start(run, 101, "channel-1", NOON);
+        assertThat(jdbc.update("UPDATE jump_runs SET coins_granted = 500 WHERE id = ?", run)).isEqualTo(1);
+        assertThatThrownBy(() -> jdbc.update("UPDATE jump_runs SET coins_granted = 501 WHERE id = ?", run))
+                .isInstanceOf(org.springframework.dao.DataAccessException.class)
+                .hasMessageContaining("ck_jump_runs_coins")
+                .hasRootCauseInstanceOf(java.sql.SQLException.class);
+        assertThat(jdbc.queryForObject("SELECT coins_granted FROM jump_runs WHERE id = ?", Integer.class, run))
+                .isEqualTo(500);
+    }
+
+    @Test
     void JVM이_한국시간이어도_늦은저녁_지급을_같은_KST날짜의_예산에_포함한다() {
         Instant at = kst("2026-11-03T23:59:59.999");
         String run = startRun(101, at);
@@ -304,10 +333,6 @@ class JumpmapMySqlTests {
         String firstRun = startRun(101, NOON);
         assertThat(passAll(firstRun, 101, 1, 7, NOON)).containsExactly(5, 10, 20, 30, 40, 60, 85);
         assertThat(today(101, date)).isEqualTo(250);
-        assertThatThrownBy(() -> jdbc.update("UPDATE jump_runs SET coins_granted = 251 WHERE id = ?", firstRun))
-                .isInstanceOf(org.springframework.dao.DataAccessException.class)
-                .hasMessageContaining("ck_jump_runs_coins")
-                .hasRootCauseInstanceOf(java.sql.SQLException.class);
         // 네 판까지 합계 1000냥, 그 뒤에는 지급하지 않는다.
         for (int i = 0; i < 3; i++) {
             assertThat(passAll(startRun(101, NOON), 101, 1, 7, NOON)).containsExactly(5, 10, 20, 30, 40, 60, 85);
