@@ -1,5 +1,5 @@
 import { useGame } from '../game/store'
-import { useSession } from '../network/worldClient'
+import { avatars, useSession } from '../network/worldClient'
 import { seatScope, useTableLobby } from '../features/tableLobby/state'
 import { MAP_RENDER_BUDGET } from './art/mapRenderProfile'
 import { ParkSoundscape } from '../audio/ParkSoundscape'
@@ -108,7 +108,14 @@ function SceneReady({ mounted, groundMounted, onReady }: {
     }
   }, [startup])
   useFrame(({ gl, scene, camera }) => {
-    if (startup.phase !== 'presented' && (!mounted.current || (RENEWAL_PARK_ENABLED && !groundMounted.current))) return
+    if (startup.phase !== 'presented') {
+      const session = useSession.getState()
+      const ownsCamera = !!session.roomId && !!avatars.get(session.sessionId)?.connected
+      if (!mounted.current || (RENEWAL_PARK_ENABLED && !groundMounted.current)) return
+      // The renewal shader pass is scoped to the actual entrance camera.
+      // Other profiles can still prepare shaders while the first pose is in flight.
+      if (!ownsCamera && (RENEWAL_PARK_ENABLED || startup.phase === 'ready')) return
+    }
     if (startup.phase === 'cold' && RENEWAL_PARK_ENABLED) {
       performance.mark('park-scene-prepare-start')
       if (RENEWAL_GATE_STARTUP && gl.extensions.has('KHR_parallel_shader_compile')) {

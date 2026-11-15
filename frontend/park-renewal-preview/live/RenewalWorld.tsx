@@ -83,8 +83,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   const [stage, setStage] = useState(() => !atEntrance() || welcomeFlight.active ? finalStage : 0)
   const distantReady = stage > 0
   const entry = useRef({
-    start: undefined as { x: number; z: number } | undefined,
-    requestedStage: stage, stableFrames: 0, committedAt: 0, movedAt: 0,
+    requestedStage: stage, stableFrames: 0, committedAt: 0,
   })
 
   useLayoutEffect(() => {
@@ -113,18 +112,15 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       return
     }
     const pose = authoritativePose(useSession.getState().sessionId)
-    if (pose) pending.start ??= { x:pose.x, z:pose.z }
     const shownAt = firstFrameAt.current
-    if (pose && pending.start && Math.hypot(pose.x - pending.start.x, pose.z - pending.start.z) > .08) {
-      pending.start = { x: pose.x, z: pose.z }
-      pending.movedAt = now
-    }
+    if (shownAt === null) return
+    pending.stableFrames = delta <= 1 / 30 ? pending.stableFrames + 1 : 0
     const lookedAround = Math.abs(Math.atan2(Math.sin(viewControls.yaw), Math.cos(viewControls.yaw))) > .08
       || Math.abs(viewControls.pitch - CAMERA.pitch) > .08
       || Math.abs(viewControls.distance - CAMERA.distance) > .5
-    const settled = shownAt !== null && now - Math.max(shownAt, pending.movedAt) >= 2200
+    const settled = pending.stableFrames >= 3 || now - shownAt >= 500
     const needsDistantView = !!pose && !!spawn && Math.hypot(pose.x - spawn[0], pose.z - spawn[2]) >= 26
-    if (shownAt !== null && (needsDistantView || welcomeFlight.active || lookedAround || settled)) {
+    if (needsDistantView || welcomeFlight.active || lookedAround || settled) {
       pending.requestedStage = 1
       performance.mark('park-distant-facilities-start')
       preloadGateSurroundings()
