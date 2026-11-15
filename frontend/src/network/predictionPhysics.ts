@@ -15,7 +15,7 @@ import { fountainExclusionPosition } from './fountainExclusion'
 import type { MovementIntent } from './movementInput'
 import type { Pose } from './worldClient'
 import type { PredictionSimulation } from './localMovementPrediction'
-import { COURSE, COURSE_COLLIDERS, renewalCourse } from '../features/jumpmap/activeCourse'
+import { COURSE, COURSE_COLLIDERS, COURSE_LANDING_COLLIDER_IDS, renewalCourse } from '../features/jumpmap/activeCourse'
 import { renewalPadPose, syncRenewalMotion } from '../features/jumpmap/renewalMotion'
 import { useJumpmap } from '../features/jumpmap/state'
 import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
@@ -140,7 +140,9 @@ class PredictionPhysics implements PredictionSimulation {
   }
   constructor(private tuned: boolean) {
     if (sharedPhysics) {
-      this.chairs.push(...addGeneratedPredictionColliders(this.world, sharedPhysics, this.secretDoors, this.jumpSupports))
+      this.chairs.push(...addGeneratedPredictionColliders(this.world, sharedPhysics, this.secretDoors, {
+        colliderIds: COURSE_LANDING_COLLIDER_IDS, supports: this.jumpSupports,
+      }))
       this.syncSecretDoors()
     } else {
       for (const box of WORLD_COLLIDERS.filter(b => !staticStructureBatch(b.id))) {

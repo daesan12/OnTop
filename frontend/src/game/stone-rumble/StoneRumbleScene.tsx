@@ -37,6 +37,7 @@ class SceneBoundary extends Component<{ children: ReactNode; onStatus: StoneScen
   componentDidCatch() { this.props.onStatus(false, '공원 파일을 불러오지 못했어요. 새로고침해 주세요.') }
   render() { return this.state.failed ? null : this.props.children }
 }
+export type StoneCamera = MutableRefObject<{ yaw: number; renderedYaw: number; pointerAiming: boolean }>
 export type StoneInput = MutableRefObject<Omit<StoneControl, 'kind' | 'seq'>>
 
 type AvatarProps = { player: StonePlayer; index: number; own: boolean; time: number; gameId: string; feedback?: MutableRefObject<StoneFeedbackFrame> }
@@ -104,7 +105,7 @@ function AvatarRig({ player, index, own, time, gameId, feedback, source, files, 
   useEffect(() => () => rig.dispose(), [rig])
   useFrame((_, dt) => {
     const root = group.current
-    if (!root) return
+    if (!root || !player.alive) return
     const previousX = root.position.x, previousZ = root.position.z
     if (initial.current) {
       root.position.set(player.x, player.y, player.z)
@@ -194,8 +195,9 @@ function ArrivalClouds({ state }: { state: StoneState }) {
   </group>
 }
 
-function Stage({ state, ownId, viewId, input, fire, feedback, localOnly }: {
+function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, controls, cameraEnabled }: {
   state: StoneState; ownId: string; viewId: string; input: StoneInput; fire: () => void; localOnly: boolean
+  controls: StoneCamera; cameraEnabled: boolean
   feedback?: MutableRefObject<StoneFeedbackFrame>
 }) {
   const material = useMemo(() => new MeshBasicMaterial({ fog: false, toneMapped: false, transparent: true, opacity: .34, depthWrite: false }), [])
@@ -207,29 +209,91 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly }: {
   if (player?.alive) lastFloor.current = visibleStoneFloor(player.floor, player.y)
   const ownFloor = lastFloor.current
   const point = useMemo(() => new Vector3(), []), plane = useMemo(() => new Plane(new Vector3(0, 1, 0)), [])
-  const aimed = useRef(false), cameraReady = useRef(false)
+  const cameraReady = useRef(false), zoom = useRef(1)
+  const cameraEnabledRef = useRef(cameraEnabled)
+  cameraEnabledRef.current = cameraEnabled
+  const clickPending = useRef(false)
   const previousView = useRef(viewId), previousGame = useRef(state.gameId)
   const eye = useMemo(() => new Vector3(), []), focus = useMemo(() => new Vector3(), [])
   const desiredEye = useMemo(() => new Vector3(), []), desiredFocus = useMemo(() => new Vector3(), [])
   useEffect(() => {
-    const move = (event: PointerEvent) => {
-      const bounds = gl.domElement.getBoundingClientRect()
+    const canvas = gl.domElement
+    const tapSlop = 8
+    let gesture: { id: number; x: number; y: number; orbiting: boolean; canTap: boolean } | null = null
+    const aim = (event: PointerEvent) => {
+      const bounds = canvas.getBoundingClientRect()
       pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1,
         1 - (event.clientY - bounds.top) / bounds.height * 2)
-      aimed.current = true
+      controls.current.pointerAiming = true
     }
-    gl.domElement.addEventListener('pointermove', move)
-    gl.domElement.addEventListener('pointerdown', fire)
-    return () => { gl.domElement.removeEventListener('pointermove', move); gl.domElement.removeEventListener('pointerdown', fire) }
-  }, [gl, fire, pointer])
+    const move = (event: PointerEvent) => {
+      if (!cameraEnabledRef.current) return
+      if (gesture?.id === event.pointerId) {
+        if (!gesture.orbiting && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < tapSlop) return
+        gesture.orbiting = true
+        controls.current.pointerAiming = false
+        controls.current.yaw = (controls.current.yaw - (event.clientX - gesture.x) * .008) % (2 * Math.PI)
+        gesture.x = event.clientX
+      } else if (event.pointerType === 'mouse') aim(event)
+    }
+    const down = (event: PointerEvent) => {
+      if (!cameraEnabledRef.current) return
+      const touch = event.pointerType === 'touch'
+      if (touch && !event.isPrimary) {
+        if (gesture) gesture.canTap = false
+        return
+      }
+      if (touch || event.button === 2) {
+        if (gesture) return
+        gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, orbiting: !touch, canTap: touch }
+        if (!touch) controls.current.pointerAiming = false
+        canvas.setPointerCapture(event.pointerId)
+      } else if (event.button === 0) {
+        aim(event)
+        clickPending.current = true
+      }
+    }
+    const cancel = (event: PointerEvent) => { if (gesture?.id === event.pointerId) gesture = null }
+    const up = (event: PointerEvent) => {
+      if (gesture?.id !== event.pointerId) return
+      if (cameraEnabledRef.current && gesture.canTap && !gesture.orbiting
+        && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < tapSlop) {
+        aim(event)
+        clickPending.current = true
+      }
+      cancel(event)
+    }
+    const context = (event: Event) => { if (cameraEnabledRef.current) event.preventDefault() }
+    const wheel = (event: WheelEvent) => {
+      if (!cameraEnabledRef.current) return
+      event.preventDefault()
+      zoom.current = Math.min(1.35, Math.max(.74, zoom.current + Math.sign(event.deltaY) * .065))
+    }
+    canvas.addEventListener('pointermove', move)
+    canvas.addEventListener('pointerdown', down)
+    canvas.addEventListener('pointerup', up)
+    canvas.addEventListener('pointercancel', cancel)
+    canvas.addEventListener('lostpointercapture', cancel)
+    canvas.addEventListener('contextmenu', context)
+    canvas.addEventListener('wheel', wheel, { passive: false })
+    return () => {
+      canvas.removeEventListener('pointermove', move)
+      canvas.removeEventListener('pointerdown', down)
+      canvas.removeEventListener('pointerup', up)
+      canvas.removeEventListener('pointercancel', cancel)
+      canvas.removeEventListener('lostpointercapture', cancel)
+      canvas.removeEventListener('contextmenu', context)
+      canvas.removeEventListener('wheel', wheel)
+    }
+  }, [gl, pointer, controls])
   useFrame((_, dt) => {
     const aspect = size.width / size.height
     if (player?.alive || !cameraReady.current) {
-      // 세로 화면에서도 세 층을 담으려고 멀어지지 않고 주변 발판에 집중한다.
-      const scale = Math.max(1, Math.min(1.2, .9 / aspect))
+      const scale = zoom.current * Math.max(1, Math.min(1.2, .9 / aspect))
       const x = player?.alive ? player.x : 0, y = player?.alive ? player.y : 24, z = player?.alive ? player.z : 0
-      desiredEye.set(x, y + 9 * scale, z + 7.5 * scale)
-      desiredFocus.set(x, y + .4, z - 1.5)
+      const sin = Math.sin(controls.current.yaw), cos = Math.cos(controls.current.yaw)
+      desiredEye.set(x + sin * 7.5 * scale, y + 9 * scale, z + cos * 7.5 * scale)
+      desiredFocus.set(x - sin * 1.5, y + .4, z - cos * 1.5)
     }
     if (!cameraReady.current || previousView.current !== viewId || previousGame.current !== state.gameId) {
       eye.copy(desiredEye); focus.copy(desiredFocus)
@@ -237,14 +301,19 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly }: {
     }
     const alpha = 1 - Math.exp(-dt * 7)
     eye.lerp(desiredEye, alpha); focus.lerp(desiredFocus, alpha)
-    camera.position.copy(eye); camera.lookAt(focus)
-    if (player?.userId === ownId && player.alive && aimed.current) {
+    camera.position.copy(eye); camera.lookAt(focus); camera.updateMatrixWorld()
+    controls.current.renderedYaw = Math.atan2(eye.x - focus.x, eye.z - focus.z)
+    if (player?.userId === ownId && player.alive && cameraEnabled && controls.current.pointerAiming) {
       plane.constant = -(player.y + .8)
       raycaster.setFromCamera(pointer, camera)
       if (raycaster.ray.intersectPlane(plane, point)) {
         const length = Math.hypot(point.x - player.x, point.z - player.z)
         if (length > .1) { input.current.aimX = (point.x - player.x) / length; input.current.aimZ = (point.z - player.z) / length }
       }
+    }
+    if (clickPending.current) {
+      clickPending.current = false
+      if (cameraEnabled) fire()
     }
   })
   return <>
@@ -264,7 +333,7 @@ type StoneRumbleSceneProps = Parameters<typeof Stage>[0] & {
 
 export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, preparationAttempt, paused, ...props }: StoneRumbleSceneProps) {
   const playScene = useMemo(() => { const scene = new Scene(); scene.name = 'stone-rumble-play'; return scene }, [])
-  return <div className="stone-rumble-scene" data-view-id={props.viewId} data-camera="current-floor" aria-label="현재 층 중심 돌탑 경기장">
+  return <div className="stone-rumble-scene" data-view-id={props.viewId} data-camera="orbit" aria-label="현재 층 중심 돌탑 경기장">
     <Canvas dpr={1} frameloop={paused ? 'demand' : 'always'} events={gameEvents} camera={{ position: [0, 42, 7.5], fov: 50, near: .1, far: 800 }} gl={{ alpha: false, antialias: true }}>
       <EnvironmentScene />
       <ParkSun quality="low" />
@@ -283,4 +352,5 @@ export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, prepa
     && previous.ownId === next.ownId && previous.viewId === next.viewId
     && previous.input === next.input && previous.fire === next.fire
     && previous.feedback === next.feedback && previous.localOnly === next.localOnly
+    && previous.controls === next.controls && previous.cameraEnabled === next.cameraEnabled
 })

@@ -1,4 +1,9 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
+import { notifyOwnBalloonEnd, receiveRemoteBalloon } from '../../features/balloon/remoteRide'
+import type { BalloonBoarding, Input as BalloonInput, Point as BalloonPoint } from '../../features/balloon/flight'
+import type { ControlAction } from '../../features/balloon/controls'
+import type { CabinPose } from '../../features/balloon/cabin'
+import { BALLOON_RIDE_ENABLED } from '../mapSelection'
 import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
 import {
   clearAuthSession,
@@ -715,6 +720,14 @@ export class ParkRuntime implements ParkRuntimePort {
       }
       return
     }
+    if (message.type === 'WORLD_BALLOON_STATE') {
+      if (!BALLOON_RIDE_ENABLED) return
+      const { roomId, sessionId } = useSession.getState()
+      if (message.payload.channelId === roomId && message.payload.pilotId === sessionId
+        && message.payload.flight === null && message.requestId === null) notifyOwnBalloonEnd()
+      receiveRemoteBalloon(message.payload, roomId, sessionId)
+      return
+    }
     if(message.type==='CONNECTED') {
       rentalCapability.available = message.payload.mobilityAvailable === true
       clearTimeout(this.timer)
@@ -1068,6 +1081,31 @@ export class ParkRuntime implements ParkRuntimePort {
     localMovement.intend(intent)
     if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId, 'movement')
     this.movement.enqueue(intent, this.movementScope())
+  }
+  startBalloon = async (ticketId: string, position: BalloonPoint, boarding: BalloonBoarding) => {
+    const { roomId, sessionId } = useSession.getState()
+    const { payload } = await this.socket.request('WORLD_BALLOON_START', { ticketId, ...position, ...boarding }, ['WORLD_BALLOON_STATE'])
+    const leader = 'leaderId' in boarding ? boarding.leaderId : sessionId
+    if (payload.channelId !== roomId || payload.pilotId !== leader || !payload.flight) {
+      throw new Error('열기구 탑승 상태를 확인해주세요.')
+    }
+    return payload.party != null
+  }
+  launchBalloon = async (ticketId: string, solo: boolean) => {
+    await this.socket.request('WORLD_BALLOON_LAUNCH', { ticketId, solo }, ['WORLD_BALLOON_STATE'])
+  }
+  controlBalloon = async (ticketId: string, action: ControlAction) => {
+    await this.socket.request('WORLD_BALLOON_CONTROL', { ticketId, ...action }, ['WORLD_BALLOON_STATE'])
+  }
+  sendBalloonPose = (ticketId: string, position: BalloonPoint, aboard: boolean, cabin: CabinPose, input: BalloonInput) => {
+    if (!this.socket.connected) return
+    try { this.socket.send('WORLD_BALLOON_POSE', { ticketId, ...position, aboard, cabin, input }) }
+    catch { /* The next update or the flight expiry handles a transport interruption. */ }
+  }
+  endBalloon = (ticketId: string) => {
+    if (!this.socket.connected) return
+    try { this.socket.send('WORLD_BALLOON_END', { ticketId }) }
+    catch { /* The server also removes the balloon when the connection closes or expires. */ }
   }
   stopMovement = () => {
     this.movement.clear(false)

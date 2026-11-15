@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
-import { Bone, BoxGeometry, Group, Mesh, MeshStandardMaterial, Skeleton, SkinnedMesh, Vector3 } from 'three'
+import { describe, expect, it, vi } from 'vitest'
+import { Bone, BoxGeometry, Group, Mesh, MeshStandardMaterial, PerspectiveCamera, Scene, Skeleton, SkinnedMesh, Vector2, Vector3, type WebGLRenderer } from 'three'
 import { snapshotParkBackground } from '../../src/game/stone-rumble/snapshotParkBackground'
+import { StoneParkBackdrop } from '../../src/game/stone-rumble/StoneParkBackdrop'
 
 describe('돌탑 공원 배경 재사용', () => {
   it('이미 로딩된 기하와 재질을 공유하고 원본 계층을 보존한다', () => {
@@ -28,5 +29,35 @@ describe('돌탑 공원 배경 재사용', () => {
     expect(mesh.skeleton).not.toBe(original.skeleton); expect(mesh.skeleton.bones[0]).not.toBe(bone)
     expect(mesh.geometry).toBe(geometry); expect(mesh.material).toBe(material)
     geometry.dispose(); material.dispose(); original.skeleton.dispose(); mesh.skeleton.dispose()
+  })
+})
+
+describe('돌탑 공원 배경 캐시', () => {
+  it('카메라가 조금씩 회전한 뒤 멈추면 최종 시점으로 한 번만 갱신한다', () => {
+    const camera = new PerspectiveCamera()
+    const park = new Scene()
+    const rotations: number[] = []
+    const renderer = {
+      autoClear: false,
+      getDrawingBufferSize: (size: Vector2) => size.set(800, 600),
+      getRenderTarget: () => null,
+      setRenderTarget: vi.fn(),
+      render: vi.fn(() => rotations.push(camera.rotation.y)),
+    }
+    const backdrop = new StoneParkBackdrop()
+    const update = (now: number) => backdrop.update(renderer as unknown as WebGLRenderer, park, camera, now)
+
+    update(0)
+    camera.rotation.y = .002
+    update(40)
+    camera.rotation.y = .004
+    update(80)
+    update(120)
+    expect(rotations).toEqual([0])
+
+    update(150)
+    update(300)
+    expect(rotations).toEqual([0, .004])
+    backdrop.dispose()
   })
 })

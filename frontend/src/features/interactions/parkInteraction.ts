@@ -37,6 +37,8 @@ import { interactWithTable } from '../tableLobby/tableInteraction'
 import { tableEntry } from '../tableLobby/tableEntry'
 import { useTableLobby } from '../tableLobby/state'
 import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
+import { STONE_RUMBLE_GUIDE_ID, stoneRumbleStelePosition } from '../../game/stone-rumble/entranceStele'
+import { openManual } from '../manual/manualState'
 import { STONE_RUMBLE_ENABLED } from '../tableLobby/model'
 import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
@@ -63,6 +65,10 @@ const interiorLabels: Record<keyof typeof interiorAccess, string> = {
   entry: '돌문 열기', return: '입구로 나가기', exit: '공원으로 나가기',
 }
 
+const stoneRumbleTable = RENEWAL_PARK_ENABLED && STONE_RUMBLE_ENABLED
+  ? TABLES.find(table => table.id === STONE_RUMBLE_ANCHOR_ID) : undefined
+const stoneRumbleGuidePosition = stoneRumbleTable && stoneRumbleStelePosition(stoneRumbleTable)
+
 const plazaKiosksEnabled = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED
 const recreationLabels: Record<RenewalRecreationId, string> = {
   fortune: '오늘의 운세 보기',
@@ -74,7 +80,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access'
   id: string
   label: string
   seat?: 0 | 1
@@ -85,7 +91,7 @@ export interface ParkInteraction {
   occupant?: string
 }
 /** One fresh selection path for both the on-screen hint and E/click. */
-export function getParkInteraction(): ParkInteraction | null {
+export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID): ParkInteraction | null {
   const session = useSession.getState(), benches = useBenchState.getState(), fitness = useFitnessState.getState()
   const p = avatars.get(session.sessionId)
   const mobility = useMobility.getState()
@@ -109,6 +115,17 @@ export function getParkInteraction(): ParkInteraction | null {
   if (RENEWAL_PARK_ENABLED && !p.carry && interiorVisit.canAddDiamond(visitScope(session.sessionId, session.roomId), p.current)) {
     const [x,,z] = diamond, distance = Math.hypot(p.current.x-x,p.current.z-z)
     return { kind:'interior-item', id:'interior-item', label:'다이아 집기', occupied:false, available:true, distance, score:0 }
+  }
+  if (stoneRumbleGuidePosition && !session.benchId) {
+    const [x, y, z] = stoneRumbleGuidePosition
+    const distance = Math.hypot(p.current.x - x, p.current.z - z)
+    if (distance <= 2.4 && Math.abs(p.current.y - (y + .8)) <= .95) {
+      const guide: ParkInteraction = { kind: 'stone-rumble-guide', id: STONE_RUMBLE_GUIDE_ID,
+        label: '돌탑 생존전 규칙 보기', occupied: false, available: true, distance,
+        score: interactionScore(distance, { x, y: y + 1.3, z }) }
+      if (preferredGuide) return guide
+      choices.push(guide)
+    }
   }
   if (carry) choices.push(carry)
   if (JUMPMAP_ENABLED && !useJumpmap.getState().run && canReachJumpmapGuide(p.current)) {
@@ -218,7 +235,7 @@ export function getParkInteraction(): ParkInteraction | null {
     || a.id.localeCompare(b.id) || (a.seat ?? 2) - (b.seat ?? 2))[0] ?? null
 }
 export function interactWithPark(expectedId?: string): boolean {
-  const target = getParkInteraction()
+  const target = getParkInteraction(expectedId === STONE_RUMBLE_GUIDE_ID ? expectedId : undefined)
   if (!target || (expectedId !== undefined && target.id !== expectedId)) return false
   if (target.kind === 'interior-access') {
     if (!target.available) return false
@@ -243,6 +260,7 @@ export function interactWithPark(expectedId?: string): boolean {
     return !!pose && interiorVisit.addDiamond(visitScope(sessionId, roomId), pose)
   }
   if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
+  else if (target.kind === 'stone-rumble-guide') openManual('stone-rumble')
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
   else if (target.kind === 'ranking-board') openRankingBoard()
   else if (target.kind === 'joke-judge') openJokeContest()

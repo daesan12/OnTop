@@ -1,5 +1,4 @@
-import { useLocalBalloon } from '../../src/features/balloon/localRide'
-import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
+import { RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
 import { EntranceBuilding } from '../EntrancePavilion'
 import { ParkGachaKiosk } from '../ParkGachaKiosk'
 import { ParkMoleShop } from '../ParkMoleShop'
@@ -10,6 +9,8 @@ import { ScenicGround } from '../ScenicGround'
 import { OriginalPlaza, ParkBoundary } from '../ParkBoundary'
 import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
+import { STONE_RUMBLE_ANCHOR_ID } from '../../src/game/stone-rumble/entrance'
+import { STONE_RUMBLE_ENABLED } from '../../src/features/tableLobby/model'
 import { lazy, memo, startTransition, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Object3D, type Group } from 'three'
@@ -32,6 +33,7 @@ import { collectJumpViewDrawables } from '../../src/features/jumpmap/preparation
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
 const TableBoards = lazy(() => import('../../src/features/tables/TableBoards'))
+const StoneRumbleEntranceStele = lazy(() => import('../../src/game/stone-rumble/StoneRumbleEntranceStele'))
 const ParkDetailGeometry = lazy(() => import('../ParkDetailGeometry').then(module => ({ default: module.ParkDetailGeometry })))
 
 const spawn = renewalMap?.data.physics.spawn.position
@@ -53,9 +55,13 @@ const StableEntranceTrees = memo(PreviewTreeBatches)
 const StableBuildings = lazy(() => import('../Buildings').then(module => ({ default: memo(module.Buildings) })))
 const StableTable = memo(function StableTable({ index, boards }: { index: number; boards: boolean }) {
   const anchor = TABLES[index]!
-  return <TableFurniture anchor={anchor} nativeFurniture={!!anchor.pavilionId}>
-    {boards && <Suspense fallback={null}><TableBoards anchor={anchor} nativeFurniture={!!anchor.pavilionId} /></Suspense>}
-  </TableFurniture>
+  return <>
+    <TableFurniture anchor={anchor} nativeFurniture={!!anchor.pavilionId}>
+      {boards && <Suspense fallback={null}><TableBoards anchor={anchor} nativeFurniture={!!anchor.pavilionId} /></Suspense>}
+    </TableFurniture>
+    {STONE_RUMBLE_ENABLED && anchor.id === STONE_RUMBLE_ANCHOR_ID &&
+      <Suspense fallback={null}><StoneRumbleEntranceStele anchor={anchor} /></Suspense>}
+  </>
 })
 
 function atEntrance(pose = authoritativePose(useSession.getState().sessionId)) {
@@ -69,7 +75,6 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   groundMounted: RefObject<boolean>
   entryPresented: boolean
 }) {
-  const showDockedBalloon = useLocalBalloon(ride => !BALLOON_RIDE_ENABLED || !ride.flight)
   const surface = useRef<Group>(null), interior = useRef<Group>(null), annex = useRef<Group>(null)
   const loadInterior = useRef(false)
   const displayedPose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })
@@ -237,7 +242,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
         <GroundMounted ready={groundMounted} />
       </Suspense>
       {entryPresented && stage >= 1 && <Suspense fallback={null}><StableScenicDetails includeGround={false} includeTrees={false} includeLandscape={false} distantReady={stage >= 2} live /></Suspense>}
-      {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live showDockedBalloon={showDockedBalloon} entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
+      {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
         loadedRentalBatches={stage} /></Suspense>}
       {entryPresented && stage >= 3 && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>
         <StableTable index={index} boards={stage === finalStage || index < Math.max(0, stage - 3) * boardsPerStage} />

@@ -3,7 +3,9 @@ package com.ssafy.ontop.world.movement;
 import static org.assertj.core.api.Assertions.*;
 import static com.ssafy.ontop.world.movement.ClientPositionValidator.*;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.jme3.math.Vector3f;
 import com.ssafy.ontop.world.dto.WorldMapMetadata;
+import com.ssafy.ontop.world.map.PreparedParkMap;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
@@ -12,6 +14,36 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 class ParkMovementPolicyTests {
     private long now;
+
+    @Test
+    void 중앙광장_가구_앞에서_정지하고_옆이나_뒤로_움직일_수_있다() throws Exception {
+        Path dir = Path.of("../frontend/generated/park-renewal");
+        var map = PreparedParkMap.load(dir.resolve("server-map.json"), dir.resolve("manifest.json"), Set.of("channel-1"));
+        var policy = map.createScene().policy;
+        var start = new Vector3f(8.4f, 4.885f, 27);
+        java.util.function.Predicate<String> active = id -> !id.matches("table-\\d+-chair-[2-7]");
+
+        var forward = new Vector3f(.5f, 0, 0);
+        var contact = start.add(policy.limitFurnitureTravel(start, forward, active));
+        assertThat(contact.x).isBetween(8.60f, 8.65f);
+        assertThat(policy.slide(contact, active)).isEqualTo(contact);
+        assertThat(policy.limitFurnitureTravel(contact, forward, active)).isEqualTo(Vector3f.ZERO);
+
+        var sideways = new Vector3f(0, 0, .5f);
+        var backward = new Vector3f(-.5f, 0, 0);
+        assertThat(policy.limitFurnitureTravel(contact, sideways, active)).isEqualTo(sideways);
+        assertThat(policy.limitFurnitureTravel(contact, backward, active)).isEqualTo(backward);
+    }
+
+    @Test
+    void 도착점이_가구를_벗어나도_경로에서_처음_만나는_활성_가구를_막는다() {
+        var policy = scene().policy;
+        var start = new Vector3f(3.5f, .8f, 0);
+        var step = new Vector3f(3, 0, 0);
+        assertThat(start.add(policy.limitFurnitureTravel(start, step, id -> true)).x).isBetween(4.25f, 4.30f);
+        assertThat(policy.limitFurnitureTravel(start, step, id -> !id.equals("table-1-chair-2"))).isEqualTo(step);
+    }
+
     @Test
     void 돌테이블_모서리의_밀어낼_자리가_막혀도_충돌_직전_위치를_유지한다() {
         ObjectNode data = scene().data.deepCopy();
