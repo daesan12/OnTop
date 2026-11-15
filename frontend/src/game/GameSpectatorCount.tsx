@@ -28,7 +28,9 @@ export function GameSpectatorBadge({ count, names }: { count: number; names?: st
   if (count === 0 || !names) return <span className="game-spectator-count" role="status" aria-live="polite" aria-atomic="true" aria-label={label}>{badge}</span>
   return <div className="game-spectator-count">
     <details className="game-spectator-disclosure">
-      <summary aria-label={`${label}, 닉네임 목록`}>
+      <summary aria-label={`${label}, 닉네임 목록`} onKeyDown={event => {
+        if (event.key === 'Enter') event.stopPropagation()
+      }}>
         {badge}
         <small className="game-spectator-preview">{names.length ? names.slice(0, 2).join(' · ') : '닉네임 확인 중'}</small>
         <svg className="game-spectator-chevron" viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" /></svg>
