@@ -1,9 +1,9 @@
 .mole-mode-picker {
   box-sizing: border-box;
-  width: min(708px, calc(100% - 20px));
+  width: min(610px, calc(100% - 20px));
   max-width: none;
   max-height: calc(100dvh - 12px);
-  padding: 8px 7px;
+  padding: 10px 7px;
   overflow: auto;
   scrollbar-width: none;
   border: 0;
@@ -13,8 +13,8 @@
 }
 
 .mole-mode-picker::backdrop {
-  background: rgb(13 28 25 / 78%);
-  backdrop-filter: blur(4px);
+  background: rgb(22 26 24 / 44%);
+  backdrop-filter: blur(3px);
 }
 
 .mole-mode-picker h2 {
@@ -31,21 +31,23 @@
 }
 
 .mole-mode-card {
-  --mole-card-line: #dfb877;
-  --mole-card-top: #3c5539;
-  --mole-card-bottom: #152e23;
+  --mole-card-line: #e6bc7a;
+  --mole-card-top: #583d32;
+  --mole-card-bottom: #241c22;
+  position: relative;
   box-sizing: border-box;
   display: grid;
-  grid-template-rows: auto minmax(2.4em, auto) 1fr;
+  grid-template-rows: auto minmax(2.4em, auto) 1fr auto;
   justify-items: center;
   align-items: center;
-  gap: 10px;
+  gap: clamp(8px, 2dvh, 16px);
   min-width: 0;
-  padding: clamp(8px, 2vw, 19px);
+  min-height: clamp(352px, 54dvh, 480px);
+  padding: clamp(10px, 2.1vw, 22px);
   border: 4px double var(--mole-card-line);
   border-radius: 18px;
   background: linear-gradient(155deg, var(--mole-card-top), var(--mole-card-bottom) 70%);
-  box-shadow: 0 12px 24px #0b1610a8, inset 0 0 0 2px #14251b;
+  box-shadow: 0 12px 28px #12101799, inset 0 0 0 2px #17121c;
   color: inherit;
   font: 400 clamp(13px, 2vw, 17px)/1.45 BusanDandiMyeongjo, serif;
   text-align: center;
@@ -56,18 +58,28 @@
 }
 
 .mole-mode-card[data-mode='speed-mole'] {
-  --mole-card-line: #a6d9cf;
-  --mole-card-top: #2e6667;
-  --mole-card-bottom: #17313a;
+  --mole-card-line: #bad2f1;
+  --mole-card-top: #3f5376;
+  --mole-card-bottom: #1b2339;
+}
+
+.mole-mode-card::after {
+  content: '';
+  width: 52%;
+  height: 9px;
+  background:
+    linear-gradient(45deg, var(--mole-card-line), var(--mole-card-line)) center / 7px 7px no-repeat,
+    linear-gradient(90deg, transparent, var(--mole-card-line), transparent) center / 100% 1px no-repeat;
+  opacity: .75;
 }
 
 .mole-mode-card img {
   display: block;
   width: 100%;
-  height: clamp(78px, 27dvh, 216px);
+  height: clamp(88px, 26dvh, 188px);
   object-fit: contain;
   border-radius: 10px;
-  background: #101f1bc9;
+  background: #171520b8;
 }
 
 .mole-mode-card strong {
@@ -78,7 +90,7 @@
 .mole-mode-card span {
   align-self: start;
   max-width: 21ch;
-  color: #e0e5d5;
+  color: #eee4d6;
 }
 
 .mole-mode-card:focus-visible,
@@ -88,9 +100,14 @@
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .mole-mode-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 14px 26px #0b1610a8, inset 0 0 0 2px var(--mole-card-line);
+  .mole-mode-card:is(:hover, :focus-visible) {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 32px #121017b8, 0 0 18px color-mix(in srgb, var(--mole-card-line) 38%, transparent),
+      inset 0 0 0 2px var(--mole-card-line);
+  }
+
+  .mole-mode-card:active {
+    transform: translateY(-2px);
   }
 }
 
@@ -100,10 +117,20 @@
   padding: 6px 17px;
   border: 1px solid #b19e76;
   border-radius: 22px;
-  background: #172c24;
+  background: #1e2224c9;
   color: inherit;
   font: 600 16px BusanDandiMyeongjo, serif;
   cursor: pointer;
+}
+
+@media (max-height: 560px) {
+  .mole-mode-card {
+    min-height: min(312px, 63dvh);
+  }
+
+  .mole-mode-card img {
+    height: clamp(64px, 24dvh, 140px);
+  }
 }
 
 .mole-mode-picker__close kbd {
