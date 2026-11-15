@@ -5,8 +5,10 @@ import com.ssafy.ontop.world.config.WorldMapProperties;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
 import java.nio.file.Path;
 import java.sql.Date;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,10 +21,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -44,6 +50,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "ontop.world.map.manifest-path=../frontend/generated/park/manifest.json"
 })
 class JumpmapMySqlTests {
+    @TestConfiguration(proxyBeanMethods = false)
+    static class ManualRecoveryConfiguration {
+        @Bean
+        static BeanFactoryPostProcessor disableAutomaticJumpmapRecovery() {
+            // 이 클래스에서는 저장소에 고정 시각을 전달한다. 실제 시각의 복구는 별도로 실행한다.
+            return factory -> factory.getBeanDefinition("jumpmapService").setInitMethodName(null);
+        }
+    }
+
     @Test
     void 과거_시간검사만_실패한_판을_랭킹과_최고기록에서_일관되게_조회한다() {
         // 기존 DB의 과거 행을 배포 후 처음 읽는 상황. 다른 테스트의 메모리 스냅샷은 재사용하지 않는다.
@@ -397,37 +412,77 @@ class JumpmapMySqlTests {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM jump_gate_rewards", Integer.class)).isEqualTo(1);
     }
 
-    @Test
+    @RepeatedTest(12)
     void 두_판의_문을_동시에_정산해도_하루_상한을_넘지_않는다() throws Exception {
-        earned(101, LocalDate.of(2026, 10, 30), 900);
+        LocalDate date = JumpmapStore.kstDate(NOON);
+        earned(101, date, 900);
         String first = startRun(101, NOON), second = startRun(101, NOON);
         for (var run : List.of(first, second)) {
-            for (int gate = 1; gate <= 7; gate++) assertThat(store.passGate(run, 101, gate, REWARDS[gate - 1], gate, NOON)).isTrue();
+            for (int gate = 1; gate <= 7; gate++) {
+                assertThat(store.passGate(run, 101, gate, REWARDS[gate - 1], gate, NOON.plusSeconds(1))).isTrue();
+            }
         }
-        var pool = Executors.newFixedThreadPool(14);
+        var pool = Executors.newFixedThreadPool(15);
         var ready = new CountDownLatch(1);
         var errors = new CopyOnWriteArrayList<Throwable>();
+        Instant settledAt = NOON.plusSeconds(20);
         for (var run : List.of(first, second)) {
             for (int gate = 1; gate <= 7; gate++) {
                 int g = gate;
                 pool.execute(() -> {
                     try {
                         ready.await();
-                        store.settle(run, g, NOON);
+                        store.settle(run, g, settledAt);
                     } catch (Throwable error) {
                         errors.add(error);
                     }
                 });
             }
         }
-        ready.countDown();
-        pool.shutdown();
-        assertThat(pool.awaitTermination(60, TimeUnit.SECONDS)).isTrue();
+        try (var recovery = new JumpmapService(activation, store, Clock.fixed(settledAt, ZoneOffset.UTC))) {
+            var recovered = pool.submit(() -> {
+                ready.await();
+                recovery.settlePending();
+                return null;
+            });
+            ready.countDown();
+            pool.shutdown();
+            assertThat(pool.awaitTermination(60, TimeUnit.SECONDS)).isTrue();
+            recovered.get();
+        } finally {
+            pool.shutdownNow();
+        }
+
         assertThat(errors).isEmpty();
-        assertThat(today(101, LocalDate.of(2026, 10, 30))).isEqualTo(1000);
+        assertThat(today(101, date)).isEqualTo(1000);
+        assertThat(today(101, date.plusDays(1))).isZero();
         assertThat(balance(101)).isEqualTo(200);
         assertThat(ledger(101)).isEqualTo(100);
+        assertThat(jdbc.queryForObject("SELECT SUM(coins_granted) FROM jump_runs", Integer.class)).isEqualTo(100);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM jump_gate_rewards WHERE status = 'GRANTED'", Integer.class)).isEqualTo(14);
+    }
+
+    @Test
+    void 다음날_복구하면_미지급_보상은_실제_지급일의_한도를_사용한다() {
+        LocalDate date = JumpmapStore.kstDate(NOON);
+        earned(101, date, 900);
+        String pendingRun = startRun(101, NOON);
+        for (int gate = 1; gate <= 3; gate++) {
+            assertThat(store.passGate(pendingRun, 101, gate, REWARDS[gate - 1], gate, NOON.plusSeconds(1))).isTrue();
+        }
+        String sameDayRun = startRun(101, NOON);
+        passAll(sameDayRun, 101, 1, 7, NOON.plusSeconds(10));
+
+        Instant nextNoon = NOON.plusSeconds(86_400);
+        try (var recovery = new JumpmapService(activation, store, Clock.fixed(nextNoon, ZoneOffset.UTC))) {
+            recovery.settlePending();
+            recovery.settlePending();
+        }
+
+        assertThat(today(101, date)).isEqualTo(1000);
+        assertThat(today(101, date.plusDays(1))).isEqualTo(35);
+        assertThat(balance(101)).isEqualTo(235);
+        assertThat(ledger(101)).isEqualTo(135);
     }
 
     @Test
