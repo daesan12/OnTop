@@ -22,6 +22,17 @@ it('retains airborne momentum and brakes harder on the ground',()=>{
  let gd=0,ad=0;for(let n=0;n<6;n++){gd+=ground.advance(back,1/60,true).x;ad+=air.advance(back,1/60,false).x}
  expect(ad).toBeGreaterThan(gd+.1)
 })
+it('clears grounded sprint velocity on the first step without movement input', () => {
+ const ground = new ParkMotion(), air = new ParkMotion()
+ const sprint = { ...stop, dx: 1, run: true }
+ for (let frame = 0; frame < 60; frame++) {
+  ground.advance(sprint, 1 / 60, true)
+  air.advance(sprint, 1 / 60, true)
+ }
+ expect(ground.advance(stop, 1 / 60, true)).toMatchObject({ x: 0, z: 0 })
+ expect(ground.flags()).toEqual({ moving: false, running: false })
+ expect(air.advance(stop, 1 / 60, false).x).toBeGreaterThan(0)
+})
 it('actual Rapier jump lands at a stable floor and reaches the reference height',async()=>{
  const sim=await createPredictionPhysics('PARK_V1')
  try {sim.reset({x:-10,y:.84,z:42,yaw:0},0,true);const ys:number[]=[]
