@@ -88,6 +88,8 @@ NAMESPACE = uuid.UUID("6f2f4d4e-6c0b-4b6e-9a51-3c1f0a0c1400")
 MAP_VERSION = "ae833248d2dd356c6603af72b2b865f9051a866e9cfa7d2b9c9abe890579944d"
 GENERATED_MAP_VERSION = "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07"
 RENEWAL_MAP_VERSION = "b1a69e7d26d34bbb56cc88e110d7b4495b5d833669dfd708cf3c416d71a42404"
+# 2026-11-15 다시 올린 새 공원. 같은 renewal 배치로 집계되는지 소리함 표본 하나로 확인한다.
+RENEWAL_RESTART_MAP_VERSION = "01e3e6d1b6aa628df09c6629313d849769d6c31c1ea271d63be6f42e0098ad88"
 
 
 def build_seed() -> str:
@@ -257,7 +259,7 @@ def build_seed() -> str:
     position("2026-10-27 03:05:00", 101, 62, -5, False, map_version=RENEWAL_MAP_VERSION, y=4.3)
     position("2026-10-27 03:08:00", 101, 62, -5, False, map_version=RENEWAL_MAP_VERSION, y=4.3)
     position("2026-10-27 03:10:00", 101, 0, 38, True, map_version=RENEWAL_MAP_VERSION, y=4.8)
-    position("2026-10-27 03:10:01", 101, -22, 24, False, map_version=RENEWAL_MAP_VERSION, y=4.8)
+    position("2026-10-27 03:10:01", 101, -20.5, 22, False, map_version=RENEWAL_RESTART_MAP_VERSION, y=4.8)
     position("2026-10-27 03:12:00", 101, 40, 80, True, map_version=RENEWAL_MAP_VERSION, y=4.8)
     position("2026-10-27 03:02:00", 103, -66, 13, True, map_version=RENEWAL_MAP_VERSION, y=4.8)
 
@@ -374,6 +376,9 @@ def wallet_sql() -> list[str]:
         (101, "PLUS_MINUS_PAYOUT", None, None, None, 500, 0, "2026-10-28 01:08:30"),
         (103, "MOLE_REWARD", None, None, None, 12, 0, "2026-10-28 05:06:03", "mole:reward:speed:1"),
         (102, "MINIGAME_ENTRY_FEE", None, None, None, -10, 0, "2026-10-28 02:00:00"),
+        # 공동 한도 1000냥(11/13 운영 배포) 뒤: 105가 순위 보상 400 + 꼬치 300 = 700냥. 예전 한도(500)라면 도달이다.
+        (105, "GAME_RANK_REWARD", None, None, None, 400, 0, "2026-11-13 06:00:00"),
+        (105, "SKEWER_REWARD", None, None, None, 300, 0, "2026-11-13 06:05:00"),
     ]
     balances: dict[int, int] = {}
     for user_id, _, _, _, _, balance_delta, _, _, *_ in entries:

@@ -45,6 +45,7 @@ MIGRATIONS = [
     ROOT / "backend/src/main/resources/db/migration/V159__add_gacha_refill_deadline.sql",
     ROOT / "backend/src/main/resources/db/minigame/V164__raise_rps_roulette_payout_cap.sql",
     ROOT / "backend/src/main/resources/db/minigame/V167__extend_jumpmap_to_ten_stages.sql",
+    ROOT / "backend/src/main/resources/db/minigame/V179__raise_jumpmap_run_reward_cap.sql",
 ]
 DATABASE = "analytics_verify"
 
@@ -136,12 +137,19 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "completion_pct": "0.0", "avg_score": "NULL", "avg_minutes": "NULL", "rewards": "0"},
     ],
     "13_minigame_daily_cap.sql": [
-        {"kst_date": "2026-10-27", "earners": "2", "cap_reached_users": "1", "cap_reached_pct": "50.0",
+        {"kst_date": "2026-10-27", "daily_cap": "500", "earners": "2", "cap_reached_users": "1", "cap_reached_pct": "50.0",
          "rewards": "860", "avg_reward_per_earner": "430.0", "bungeoppang_rewards": "130",
-         "jumpmap_rewards": "100", "skewer_rewards": "600", "mole_rewards": "30", "speed_mole_rewards": "0"},
-        {"kst_date": "2026-10-28", "earners": "2", "cap_reached_users": "0", "cap_reached_pct": "0.0",
+         "jumpmap_rewards": "100", "skewer_rewards": "600", "mole_rewards": "30", "speed_mole_rewards": "0",
+         "rank_rewards": "0"},
+        {"kst_date": "2026-10-28", "daily_cap": "500", "earners": "2", "cap_reached_users": "0", "cap_reached_pct": "0.0",
          "rewards": "90", "avg_reward_per_earner": "45.0", "bungeoppang_rewards": "65",
-         "jumpmap_rewards": "13", "skewer_rewards": "0", "mole_rewards": "0", "speed_mole_rewards": "12"},
+         "jumpmap_rewards": "13", "skewer_rewards": "0", "mole_rewards": "0", "speed_mole_rewards": "12",
+         "rank_rewards": "0"},
+        # 105: 순위 보상 400 + 꼬치 300 = 700냥. 한도 1000냥이라 도달이 아니다.
+        {"kst_date": "2026-11-13", "daily_cap": "1000", "earners": "1", "cap_reached_users": "0", "cap_reached_pct": "0.0",
+         "rewards": "700", "avg_reward_per_earner": "700.0", "bungeoppang_rewards": "0",
+         "jumpmap_rewards": "0", "skewer_rewards": "300", "mole_rewards": "0", "speed_mole_rewards": "0",
+         "rank_rewards": "400"},
     ],
     "14_feedback_daily.sql": [
         {"kst_date": "2026-10-27", "submissions": "4", "submitters": "2", "withdrawn_submissions": "1",
@@ -220,10 +228,16 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
          "coins_in": "540", "coins_out": "0", "net_coins": "540"},
         {"kst_date": "2026-10-28", "transaction_type": "ALL", "transactions": "20", "users": "5",
          "coins_in": "636", "coins_out": "86", "net_coins": "550"},
+        {"kst_date": "2026-11-13", "transaction_type": "GAME_RANK_REWARD", "transactions": "1", "users": "1",
+         "coins_in": "400", "coins_out": "0", "net_coins": "400"},
+        {"kst_date": "2026-11-13", "transaction_type": "SKEWER_REWARD", "transactions": "1", "users": "1",
+         "coins_in": "300", "coins_out": "0", "net_coins": "300"},
+        {"kst_date": "2026-11-13", "transaction_type": "ALL", "transactions": "2", "users": "1",
+         "coins_in": "700", "coins_out": "0", "net_coins": "700"},
     ],
     "20_wallet_balances.sql": [
-        {"wallets": "4", "total_balance": "1491", "avg_balance": "372.8", "median_balance": "240.0",
-         "max_balance": "866", "top10_share_pct": "58.1", "reserved_balance": "0"},
+        {"wallets": "4", "total_balance": "2191", "avg_balance": "547.8", "median_balance": "587.0",
+         "max_balance": "866", "top10_share_pct": "39.5", "reserved_balance": "0"},
     ],
     "21_bet_amounts.sql": [
         {"game_code": "DICE", "games": "1", "min_bet": "5", "avg_bet": "5.0", "max_bet": "5", "avg_pot": "10.0"},
