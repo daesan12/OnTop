@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import {
-  CAPACITY, PREVIEW_FARE, WAIT_SECONDS, createFlight, returnToDock, stepFlight, takeOff,
+  BALLOON_FARE, CAPACITY, WAIT_SECONDS, createFlight, returnToDock, stepFlight, takeOff,
 } from './flight'
 import type { Flight, Point } from './flight'
 import { canBoard, flightMap, moveWalker, startPoint } from './previewMap'
@@ -54,14 +54,14 @@ function horizontalInput() {
 
 export const usePreview = create<Preview>((set, get) => ({
   flight: createFlight(flightMap), walker: startPoint, popup: null,
-  coins: numberOption('coins', 50, 999), boarded: false, wait: 0,
+  coins: numberOption('coins', BALLOON_FARE, 999), boarded: false, wait: 0,
 
   start() {
     const { flight, boarded, coins } = get()
     if (flight.phase !== 'boarding' || !boarded) return
     keys.clear()
     cameraDrag.yaw = 0
-    set({ flight: takeOff(flight), coins: coins - PREVIEW_FARE, wait: 0 })
+    set({ flight: takeOff(flight), coins: coins - BALLOON_FARE, wait: 0 })
   },
 
   open() {
@@ -78,7 +78,7 @@ export const usePreview = create<Preview>((set, get) => ({
   board() {
     const { popup, boarded, coins } = get()
     if (popup !== 'board' || boarded || occupancy(false) === CAPACITY) return
-    if (coins < PREVIEW_FARE) {
+    if (coins < BALLOON_FARE) {
       set({ popup: 'balance' })
       return
     }

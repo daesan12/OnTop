@@ -1,5 +1,5 @@
 export const CAPACITY = 4
-export const PREVIEW_FARE = 10
+export const BALLOON_FARE = 100
 export const WAIT_SECONDS = 12
 export const FLIGHT_SECONDS = 90
 export const REMOVE_SECONDS = 5

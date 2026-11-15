@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { PaperPopup } from '../tableLobby/PaperPopup'
-import { CAPACITY, PREVIEW_FARE } from './flight'
+import { BALLOON_FARE, CAPACITY } from './flight'
 import { PreviewScene } from './PreviewScene'
 import { canBoard } from './previewMap'
 import { isPassenger, keys, occupancy, usePreview } from './previewStore'
@@ -61,7 +61,7 @@ function BoardingPopup() {
   if (popup === 'board') return <PaperPopup title="하늘언덕 열기구" label="하늘언덕 열기구"
     closeLabel="탑승 창 닫기" onClose={close} className="balloon-paper">
     <Seats occupied={occupied} />
-    <p className="balloon-fare"><span aria-hidden="true">◆</span> 탑승 요금 · {PREVIEW_FARE}냥</p>
+    <p className="balloon-fare"><span aria-hidden="true">◆</span> 탑승 요금 · {BALLOON_FARE}냥</p>
     <p className="balloon-balance">보유 엽전 {coins}냥 · 출발할 때 결제</p>
     {full ? <p role="status">빈자리가 없어요</p> : null}
     <div className="paper-actions"><button type="button" className="paper-primary" onClick={board} disabled={full}>탑승하기</button></div>

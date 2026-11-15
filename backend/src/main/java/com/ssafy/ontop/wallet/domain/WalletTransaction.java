@@ -86,6 +86,19 @@ public class WalletTransaction {
         return entry;
     }
 
+    public static WalletTransaction balloonFare(long walletId, long fare, String key, Instant now) {
+        if (walletId <= 0 || fare <= 0 || key == null || !key.startsWith("balloon:") || key.length() > 120) {
+            throw new IllegalArgumentException("열기구 탑승료 원장을 확인하세요.");
+        }
+        var entry = new WalletTransaction();
+        entry.walletId = walletId;
+        entry.transactionType = "BALLOON_RIDE_FEE";
+        entry.balanceDelta = -fare;
+        entry.idempotencyKey = key;
+        entry.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return entry;
+    }
+
     public static WalletTransaction rafflePurchase(long walletId, long price, String key, Instant now) {
         if (walletId <= 0 || price <= 0 || key == null || !key.startsWith("raffle:") || key.length() > 120) {
             throw new IllegalArgumentException("응모권 구매 원장을 확인하세요.");

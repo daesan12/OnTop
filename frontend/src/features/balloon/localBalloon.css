@@ -33,7 +33,6 @@
 }
 .park-balloon-hud::-webkit-scrollbar { display: none; }
 .park-balloon-hud kbd { padding: 2px 5px; border-radius: 3px; background: #534333; color: #fff4dc; }
-.park-balloon-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .park-balloon-hud button {
   padding: 5px 12px;
   color: #fff4dc;

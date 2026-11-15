@@ -1,25 +1,27 @@
 import { create } from 'zustand'
 import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
 import { authoritativePose, useSession } from '../../network/worldClient'
+import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh'
 import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
-import { createFlight, REMOVE_SECONDS, returnToDock, stepFlight, takeOff, WAIT_SECONDS } from './flight'
+import { BalloonFareError, buyBalloonTicket, completeBalloonTicket } from './fare'
+import { createFlight, REMOVE_SECONDS, returnToDock, stepFlight, takeOff } from './flight'
 import type { Flight, FlightMap, Input, Point } from './flight'
 
 type LocalRide = {
   owner: string
   room: string
-  panel: 'closed' | 'loading' | 'board' | 'error'
+  panel: 'closed' | 'loading' | 'board' | 'paying' | 'error'
   map: FlightMap | null
   flight: Flight | null
-  untilDeparture: number
+  paymentError: string
   revealSeconds: number
 }
 
 const DOCK_STEP_SECONDS = .5
 const FIELD_RETURN_FADE_SECONDS = .25
 const idle: LocalRide = {
-  owner: '', room: '', panel: 'closed', map: null, flight: null, untilDeparture: 0, revealSeconds: 0,
+  owner: '', room: '', panel: 'closed', map: null, flight: null, paymentError: '', revealSeconds: 0,
 }
 export const useLocalBalloon = create<LocalRide>(() => idle)
 
@@ -51,17 +53,23 @@ export function cancelLocalBalloon() {
   clearRoamingInput()
 }
 
-export function boardLocalBalloon() {
+export async function boardLocalBalloon() {
   const ride = useLocalBalloon.getState()
   if (ride.panel !== 'board' || !ride.map || !ownsRide(ride)) return
-  useLocalBalloon.setState({ panel: 'closed', flight: createFlight(ride.map), untilDeparture: WAIT_SECONDS })
-}
-
-export function startLocalBalloon() {
-  const ride = useLocalBalloon.getState()
-  if (ride.flight?.phase !== 'boarding' || !ownsRide(ride)) return
-  clearRoamingInput()
-  useLocalBalloon.setState({ flight: takeOff(ride.flight), untilDeparture: 0 })
+  useLocalBalloon.setState({ panel: 'paying', paymentError: '' })
+  const payment = useLocalBalloon.getState()
+  const stillWaiting = () => useLocalBalloon.getState() === payment && ownsRide(payment)
+  try {
+    const ticket = await buyBalloonTicket(ride.owner)
+    if (!stillWaiting()) return
+    completeBalloonTicket(ride.owner, ticket)
+    clearRoamingInput()
+    useLocalBalloon.setState({ panel: 'closed', flight: takeOff(createFlight(ride.map)) })
+    refreshWalletAfterSettlement(ride.owner, 'balloon:' + ticket)
+  } catch (error) {
+    if (stillWaiting()) useLocalBalloon.setState({ panel: 'board', paymentError: error instanceof BalloonFareError
+      ? error.message : '결제 내역을 확인하지 못했어요. 다시 시도해 주세요.' })
+  }
 }
 
 export function returnLocalBalloon() {
@@ -80,12 +88,6 @@ export function tickLocalBalloon(input: Input, elapsed: number) {
     return
   }
   if (!ride.flight || !ride.map) return
-  if (ride.flight.phase === 'boarding') {
-    const untilDeparture = Math.max(0, ride.untilDeparture - elapsed)
-    if (untilDeparture === 0) startLocalBalloon()
-    else useLocalBalloon.setState({ untilDeparture })
-    return
-  }
   const flight = stepFlight(ride.flight, input, Math.min(.1, elapsed), ride.map, elapsed)
   if (flight.phase === 'removed' && flight.landing === 'field') {
     useLocalBalloon.setState({ flight: null, revealSeconds: FIELD_RETURN_FADE_SECONDS })
