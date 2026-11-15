@@ -64,7 +64,8 @@ export function acceptRental(payload: Record<string, unknown>) {
     rentalNotice(total ? `엽전이 부족해 하차했어요 · 이용 요금 ${total}냥`
       : `엽전이 부족해요 · 탑승에 ${isVehicle(vehicle) ? vehicles[vehicle].rate : 1}냥 필요`)
   } else if (status === 'FAILED') {
-    rentalNotice(`결제에 실패해 하차했어요 · 이용 요금 ${total}냥`)
+    rentalNotice(total ? `결제에 실패해 하차했어요 · 이용 요금 ${total}냥`
+      : '탈것 요금을 결제하지 못했어요. 다시 시도해 주세요.')
   } else if (total) {
     rentalNotice(`하차 완료 · 이용 요금 ${total}냥`)
   } else if (current.phase === 'starting') {

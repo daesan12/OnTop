@@ -5,6 +5,7 @@ import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import com.ssafy.ontop.wallet.repository.WalletRepository;
 import com.ssafy.ontop.wallet.repository.WalletTransactionRepository;
 import java.time.Instant;
+import java.util.function.BooleanSupplier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,7 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Profile(RuntimeProfiles.PRODUCT_FEATURE_WITH_DB)
 public class MobilityWallet {
-    public enum Payment { PAID, INSUFFICIENT, ALREADY_PAID }
+    public enum Payment { PAID, INSUFFICIENT, ALREADY_PAID, CANCELLED, FAILED }
+
+    static final class PaymentCancelled extends RuntimeException { }
 
     private final WalletRepository wallets;
     private final WalletTransactionRepository transactions;
@@ -22,8 +25,8 @@ public class MobilityWallet {
         this.transactions = transactions;
     }
 
-    @Transactional
-    public Payment charge(long account, String leaseId, long second, int price) {
+    @Transactional(timeout = 4)
+    public Payment charge(long account, String leaseId, long second, int price, BooleanSupplier authorizeCommit) {
         var wallet = wallets.findForUpdateByUserId(account).orElse(null);
         if (wallet == null) {
             return Payment.INSUFFICIENT;
@@ -37,7 +40,12 @@ public class MobilityWallet {
         }
         Instant now = Instant.now();
         wallet.debit(price, now);
-        transactions.save(WalletTransaction.mobilityFee(wallet.id(), price, key, now));
+        transactions.saveAndFlush(WalletTransaction.mobilityFee(wallet.id(), price, key, now));
+        // The worker and dismount compete for this decision after the database writes have flushed.
+        // Throwing here rolls back both the balance and the ledger entry when dismount won.
+        if (!authorizeCommit.getAsBoolean()) {
+            throw new PaymentCancelled();
+        }
         return Payment.PAID;
     }
 }

@@ -33,21 +33,21 @@ class MobilityWalletTests {
     void 같은_대여_구간_재요청은_한_번만_차감한다() {
         when(transactions.existsByIdempotencyKey("mobility:7:lease:1")).thenReturn(false, true);
 
-        assertThat(service.charge(42, "lease", 1, 2)).isEqualTo(MobilityWallet.Payment.PAID);
-        assertThat(service.charge(42, "lease", 1, 2)).isEqualTo(MobilityWallet.Payment.ALREADY_PAID);
+        assertThat(service.charge(42, "lease", 1, 2, () -> true)).isEqualTo(MobilityWallet.Payment.PAID);
+        assertThat(service.charge(42, "lease", 1, 2, () -> true)).isEqualTo(MobilityWallet.Payment.ALREADY_PAID);
 
         assertThat(wallet.balance()).isEqualTo(98);
-        verify(transactions).save(any(WalletTransaction.class));
+        verify(transactions).saveAndFlush(any(WalletTransaction.class));
     }
 
     @Test
     void 예약_잔액을_제외하면_부족한_경우_차감하지_않는다() {
         wallet.reserveGameEntry(99, Instant.EPOCH);
 
-        assertThat(service.charge(42, "lease", 1, 2)).isEqualTo(MobilityWallet.Payment.INSUFFICIENT);
+        assertThat(service.charge(42, "lease", 1, 2, () -> true)).isEqualTo(MobilityWallet.Payment.INSUFFICIENT);
 
         assertThat(wallet.balance()).isEqualTo(100);
         assertThat(wallet.reserved()).isEqualTo(99);
-        verify(transactions, never()).save(any(WalletTransaction.class));
+        verify(transactions, never()).saveAndFlush(any(WalletTransaction.class));
     }
 }

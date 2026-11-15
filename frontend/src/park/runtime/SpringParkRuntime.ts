@@ -733,7 +733,8 @@ export class ParkRuntime implements ParkRuntimePort {
     }
     if (message.type === 'WORLD_MOBILITY_STATE') {
       const { receipt } = message.payload
-      if (acceptRental(message.payload) && typeof receipt === 'string') {
+      acceptRental(message.payload)
+      if (typeof receipt === 'string') {
         refreshWalletAfterSettlement(useSession.getState().sessionId, 'mobility:' + receipt)
       }
       return

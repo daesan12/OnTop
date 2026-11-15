@@ -3,18 +3,25 @@ package com.ssafy.ontop.world.mobility;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ssafy.ontop.world.service.WorldChannelRegistry.Position;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class MobilityRentals {
     public static final long SECOND = TimeUnit.SECONDS.toNanos(1);
+    private static final Logger log = LoggerFactory.getLogger(MobilityRentals.class);
     private static final double HALF_PAIR_SPACING = 1.7;
 
     private final MobilityWallet wallet;
     private final Map<String, JsonNode> stations = new HashMap<>();
-    private final Map<String, Ride> active = new HashMap<>();
-    private final Map<Long, String> accounts = new HashMap<>();
+    private final ThreadPoolExecutor workers = new ThreadPoolExecutor(2, 2, 0, TimeUnit.SECONDS,
+            new ArrayBlockingQueue<>(32), Thread.ofPlatform().daemon(true).name("mobility-payment-", 0).factory());
 
     public MobilityRentals(MobilityWallet wallet, JsonNode construction) {
         this.wallet = wallet;
@@ -44,40 +51,70 @@ public final class MobilityRentals {
                 && Math.abs(position.y() - reach.get(1).asDouble()) <= station.path("heightTolerance").asDouble();
     }
 
-    public Ride current(String user) { return active.get(user); }
-    public List<Ride> active() { return List.copyOf(active.values()); }
-    public boolean accountInUse(long account) { return accounts.containsKey(account); }
-
-    public MobilityWallet.Payment start(String user, long account, String channel, String id,
-            String station, VehicleKind vehicle) {
-        var payment = wallet.charge(account, id, 1, vehicle.rate());
-        if (payment == MobilityWallet.Payment.PAID) {
-            active.put(user, new Ride(user, account, channel, id, station, vehicle, 1, System.nanoTime() + SECOND));
-            accounts.put(account, user);
+    public Charge submit(long account, String id, long second, VehicleKind vehicle, long deadline,
+            Consumer<MobilityWallet.Payment> complete) {
+        var charge = new Charge(account, id, second, vehicle.rate(), deadline, complete);
+        try {
+            workers.execute(charge);
+            return charge;
+        } catch (RejectedExecutionException rejected) {
+            return null;
         }
-        return payment;
     }
 
-    public MobilityWallet.Payment extend(Ride ride) {
-        long second = ride.seconds() + 1;
-        var payment = wallet.charge(ride.account(), ride.id(), second, ride.vehicle().rate());
-        if (payment != MobilityWallet.Payment.INSUFFICIENT) {
-            active.put(ride.user(), new Ride(ride.user(), ride.account(), ride.channel(), ride.id(), ride.station(),
-                    ride.vehicle(), second, ride.nextPaymentAt() + SECOND));
-        }
-        return payment;
+    public void shutdown() {
+        // The hub has already cancelled outstanding charges. Let a commit that won the race finish.
+        workers.shutdown();
     }
 
-    public Ride end(String user) {
-        var ride = active.remove(user);
-        if (ride != null) {
-            accounts.remove(ride.account(), user);
-        }
-        return ride;
-    }
+    private enum Decision { OPEN, CANCELLED, COMMITTING }
 
-    public record Ride(String user, long account, String channel, String id, String station, VehicleKind vehicle,
-            long seconds, long nextPaymentAt) {
-        public long total() { return seconds * vehicle.rate(); }
+    public final class Charge implements Runnable {
+        private final AtomicReference<Decision> decision = new AtomicReference<>(Decision.OPEN);
+        private final long account;
+        private final String id;
+        private final long second;
+        private final int price;
+        private final long deadline;
+        private final Consumer<MobilityWallet.Payment> complete;
+
+        private Charge(long account, String id, long second, int price, long deadline,
+                Consumer<MobilityWallet.Payment> complete) {
+            this.account = account;
+            this.id = id;
+            this.second = second;
+            this.price = price;
+            this.deadline = deadline;
+            this.complete = complete;
+        }
+
+        public boolean cancel() {
+            if (decision.compareAndSet(Decision.OPEN, Decision.CANCELLED)) {
+                workers.remove(this);
+            }
+            return decision.get() == Decision.CANCELLED;
+        }
+
+        private boolean authorizeCommit() {
+            return System.nanoTime() - deadline < 0 && decision.compareAndSet(Decision.OPEN, Decision.COMMITTING);
+        }
+
+        @Override
+        public void run() {
+            if (decision.get() == Decision.CANCELLED) {
+                return;
+            }
+            MobilityWallet.Payment result;
+            try {
+                result = System.nanoTime() - deadline >= 0 ? MobilityWallet.Payment.CANCELLED
+                        : wallet.charge(account, id, second, price, this::authorizeCommit);
+            } catch (MobilityWallet.PaymentCancelled cancelled) {
+                result = MobilityWallet.Payment.CANCELLED;
+            } catch (RuntimeException failure) {
+                log.warn("탈것 대여 결제 실패", failure);
+                result = MobilityWallet.Payment.FAILED;
+            }
+            complete.accept(result);
+        }
     }
 }
