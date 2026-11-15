@@ -84,7 +84,13 @@ public final class WorldPhysics implements AutoCloseable {
     private void prepareCourse(String id) {
         Actor actor = actors.get(id);
         if (renewalMotion != null && actor != null) {
-            renewalMotion.prepare(id, courseTime(), actor.body.getPhysicsLocation(null));
+            prepareCourseAt(actor, actor.body.getPhysicsLocation(null));
+        }
+    }
+
+    private void prepareCourseAt(Actor actor, Vector3f position) {
+        if (renewalMotion != null) {
+            renewalMotion.prepare(actor.id, courseTime(), position);
         }
     }
 
@@ -732,6 +738,9 @@ public final class WorldPhysics implements AutoCloseable {
             if (carried.carriedBy == null) { continue; }
             Actor carrier = actors.get(carried.carriedBy);
             Vector3f next = carrier == null ? null : carrier.body.getPhysicsLocation(null).add(0, CARRY_HEIGHT, 0);
+            if (next != null) {
+                prepareCourseAt(carried, next);
+            }
             if (next == null || !canOccupy(next)) {
                 releaseCarryNow(entry.getKey());
             } else {
@@ -742,9 +751,11 @@ public final class WorldPhysics implements AutoCloseable {
                 carried.motion = new Motion(carried.motionEpoch, physicsTick, carried.seq, 0,
                         (next.y - carried.beforeStepY) / DT, false, false);
                 Vector3f ground = carrier.body.getPhysicsLocation(null);
-                if (carrier.motion.grounded() && ground.distanceSquared(carried.carrySafe) >= .04f
-                        && canStand(ground.x, ground.y, ground.z)) {
-                    carried.carrySafe.set(ground);
+                if (carrier.motion.grounded() && ground.distanceSquared(carried.carrySafe) >= .04f) {
+                    prepareCourseAt(carried, ground);
+                    if (canStand(ground.x, ground.y, ground.z)) {
+                        carried.carrySafe.set(ground);
+                    }
                 }
             }
         }
@@ -1333,9 +1344,12 @@ public final class WorldPhysics implements AutoCloseable {
                     || physicsTick < carrier.carryReadyTick || physicsTick < target.carryReadyTick) { return false; }
             Vector3f origin = carrier.body.getPhysicsLocation(null);
             Vector3f destination = target.body.getPhysicsLocation(null);
+            // 시야는 운반자, 들어 올릴 공간은 피운반자에게 보이는 발판으로 검사한다.
+            prepareCourseAt(carrier, origin);
             if (space.rayTest(origin, destination).stream()
                     .anyMatch(hit -> hit.getCollisionObject().getCollisionGroup() == 2)) { return false; }
             Vector3f lifted = origin.add(0, CARRY_HEIGHT, 0);
+            prepareCourseAt(target, lifted);
             if (!canOccupy(lifted)) { return false; }
             target.carrySafe = target.body.getPhysicsLocation(null).clone();
             hold(targetId, lifted.x, lifted.y, lifted.z, carrier.yaw);
@@ -1418,6 +1432,8 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private Vector3f carryExit(Vector3f origin, Actor target) {
+        // 내려설 위치에서 피운반자의 발판 상태를 적용한 뒤 지지면을 찾는다.
+        prepareCourseAt(target, origin);
         if (canStand(origin.x, origin.y, origin.z)) { return origin; }
         Vector3f safe = target.carrySafe;
         if (safe != null && safe.distanceSquared(origin) <= 16 && canStand(safe.x, safe.y, safe.z)) {
