@@ -44,6 +44,7 @@ class MoleAuditMySqlTests {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ObjectMapper mapper;
     @Autowired private AccessJwtService jwt;
+    @Autowired private MoleAuditStore store;
     @MockitoBean private ActiveMemberLookup members;
     private final HttpClient http = HttpClient.newHttpClient();
 
@@ -92,6 +93,9 @@ class MoleAuditMySqlTests {
             var detail = send("/api/v1/admin/macro-analysis/mole/456?game=" + game.path + "&input=KEYBOARD", 201, null);
             assertThat(detail.statusCode()).isEqualTo(200);
             var value = mapper.readTree(detail.body());
+            assertThat(value.path("selected").path("userId").asText()).isEqualTo("101");
+            assertThat(value.path("nickname").asText()).isEqualTo("audit101");
+            assertThat(value.path("withdrawn").booleanValue()).isFalse();
             assertThat(value.path("recent").size()).isEqualTo(2);
             assertThat(value.path("timeline").size()).isEqualTo(2);
             assertThat(value.path("timeline").get(0).path("outcome").asText()).isEqualTo("HONEYPOT");
@@ -101,7 +105,47 @@ class MoleAuditMySqlTests {
             assertThat(value.path("reference").path("first").path("median").asInt()).isEqualTo(240);
             assertThat(jdbc.queryForObject("SELECT score FROM " + game.table + " WHERE id=456", Integer.class))
                     .isEqualTo(0);
+
+            String detections = "/api/v1/admin/macro-analysis/mole/detections?game=" + game.path;
+            assertThat(send(detections, 0, null).statusCode()).isEqualTo(401);
+            assertThat(send(detections, 101, null).statusCode()).isEqualTo(403);
+            Instant beforeCompletion = Instant.now();
+            var before = store.detections(game, beforeCompletion.minus(Duration.ofDays(30)), beforeCompletion, 100);
+            assertThat(before).singleElement().satisfies(member -> {
+                assertThat(member.latestRoundId()).isEqualTo("456");
+                assertThat(member.liveRounds()).isEqualTo(1);
+            });
+
+            Instant completionAt = Instant.now();
+            completionSignal(game, 456, 101, completionAt.minusMillis(1), "SERVER");
+            completionSignal(game, 456, 101, completionAt.minusMillis(1), "SERVER");
+            completionSignal(game, 457, 101, completionAt, "SERVER");
+            completionSignal(game, 458, 102, completionAt, "SERVER");
+            completionSignal(game, 459, 103, completionAt, "CLIENT");
+            completionSignal(game, 459, 101, completionAt, "SERVER");
+            round(game, 460, 103, now.minus(Duration.ofDays(31)));
+            completionSignal(game, 460, 103, now.minus(Duration.ofDays(31)), "SERVER");
+            var detected = send(detections, 201, null);
+            assertThat(detected.statusCode()).isEqualTo(200);
+            assertThat(detected.headers().firstValue("Cache-Control")).hasValue("no-store");
+            var items = mapper.readTree(detected.body()).path("items");
+            assertThat(items.size()).isEqualTo(2);
+            var first = items.get(0);
+            assertThat(first.path("userId").asText()).isEqualTo("101");
+            assertThat(first.path("nickname").asText()).isEqualTo("audit101");
+            assertThat(first.path("flaggedRounds").asInt()).isEqualTo(2);
+            assertThat(first.path("liveRounds").asInt()).isEqualTo(1);
+            assertThat(first.path("completionRounds").asInt()).isEqualTo(2);
+            assertThat(first.path("latestRoundId").asText()).isEqualTo("457");
+            assertThat(items.get(1).path("userId").asText()).isEqualTo("102");
         }
+    }
+
+    private void completionSignal(MoleAuditGame game, long id, long user, Instant time, String source) {
+        jdbc.update("""
+                INSERT INTO behavior_events (event_id,event_type,schema_version,source,occurred_at,user_id,game_id,props)
+                VALUES (UUID_TO_BIN(UUID()),'MOLE_ROUND_HONEYPOT',1,?,?,?,?,JSON_OBJECT('hits', 1))
+                """, source, LocalDateTime.ofInstant(time, ZoneOffset.UTC), user, game.key(id));
     }
 
     private static String batch(String input, int at, String targetId) {
