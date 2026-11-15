@@ -40,20 +40,19 @@ export function MobilityHud() {
   }
   if (!target) return null
   const choice = vehicles[target.vehicle]
-  return <aside className="park-runtime-panel park-interaction" data-target-kind="rental"
+  return <aside className="park-interaction" data-target-kind="rental"
     aria-label={choice.label + ' 대여'} aria-keyshortcuts="E">
-    <div className="park-interaction__key-hint">
-      <span className="mobility-rental-key">
-        <kbd>E</kbd>
-        {holdAt !== null && <svg aria-hidden="true" viewBox="0 0 40 40">
-          <circle key={holdAt} cx="20" cy="20" r="17" pathLength="100"
-            className="mobility-progress" style={{ animationDuration: HOLD_MS + 'ms' }} />
-        </svg>}
-      </span>
-      <span className="mobility-rental-copy">
-        <span>{choice.label} 대여 · {choice.rate}냥/초</span>
-        <small>{holdAt === null ? '길게 눌러 탑승' : '계속 눌러주세요'}</small>
-      </span>
-    </div>
+    <span className="mobility-rental-key">
+      <kbd>E</kbd>
+      <svg aria-hidden="true" viewBox="0 0 40 40">
+        <circle className="mobility-rental-track" cx="20" cy="20" r="17" />
+        {holdAt !== null && <circle key={holdAt} cx="20" cy="20" r="17" pathLength="100"
+          className="mobility-progress" style={{ animationDuration: HOLD_MS + 'ms' }} />}
+      </svg>
+    </span>
+    <span className="mobility-rental-copy">
+      <strong>{choice.label} 대여 · {choice.rate}냥/초</strong>
+      <small>{holdAt === null ? '길게 눌러 탑승' : '계속 눌러주세요'}</small>
+    </span>
   </aside>
 }
