@@ -134,7 +134,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
   const rpsOpen = useRpsRoulette(s => s.open)
   const speedMoleOpen = useSpeedMole(s => s.open)
   const jumpRopeOpen = useJumpRope(s => s.open)
-  const gachaOpen = useGachaOverlay(s => s.open)
+  const gachaOpen = useGachaOverlay(s => s.surface !== null)
   const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
     || !!arcadeScope || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)

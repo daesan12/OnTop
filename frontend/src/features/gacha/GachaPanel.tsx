@@ -30,7 +30,7 @@ export function GachaPanel() {
   const sceneLoaded=useCallback(()=>setSceneReady(true),[])
   useEffect(()=>{if(!connected)setSceneReady(false)},[connected])
   const motion=useCapsuleDraw(connected,owner??'',reduced)
-  useEffect(()=>{useGachaOverlay.setState({open:connected});return()=>{useGachaOverlay.setState({open:false})}},[connected])
+  useEffect(()=>{useGachaOverlay.setState({surface:connected?'machine':null});return()=>{useGachaOverlay.setState({surface:null})}},[connected])
   const drawing=motion.busy
   const dialog=useRef<HTMLDialogElement>(null)
   useEffect(()=>{const media=matchMedia('(prefers-reduced-motion: reduce)');const update=()=>setReduced(media.matches)
