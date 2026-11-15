@@ -69,11 +69,15 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import com.ssafy.ontop.world.mobility.MobilityRentals;
+import com.ssafy.ontop.world.mobility.MobilityWallet;
+import com.ssafy.ontop.world.mobility.VehicleKind;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -151,6 +155,8 @@ public class TableHub {
     // 좌석을 유지한 실제 라운드만 종료 복구를 허용한다. 재착석은 과거 라운드를 다시 등록하지 않는다.
     private final Map<String, String> seatedGames = new HashMap<>();
     private final Map<String, String> watching = new HashMap<>();
+    private MobilityRentals rentals;
+    private final Map<String, MobilityRide> mobilityRides = new HashMap<>();
     private final Map<String, TableStartAttempt> starts = new HashMap<>();
     private final Map<String, Set<String>> inactiveGameParticipants = new HashMap<>();
     private final Map<String, Long> startRevisions = new HashMap<>();
@@ -638,7 +644,8 @@ public class TableHub {
         connectionStarted.put(session.getId(), System.nanoTime());
         acceptedConnections++;
         peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId, "map", maps.metadata(),
-                "mapVerificationRequired", maps.requiresMatch(), "time", worldClock.sample())));
+                "mapVerificationRequired", maps.requiresMatch(), "time", worldClock.sample(),
+                "mobilityAvailable", rentals != null && accountId != null)));
         if (startRehearsal || committedStarts.isPresent()) {
             peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null,
                     committedStarts.isEmpty())));
@@ -918,10 +925,16 @@ public class TableHub {
                     "WORLD_INTERIOR_ACCESS").contains(request.type())) {
                 fail(request, "CARRY_ACTIVITY_CONFLICT", "들기·던지기가 끝난 뒤 다른 행동을 시작해주세요.");
             }
+            if (mobilityRides.containsKey(member.userId()) && Set.of(
+                    "TABLE_JOIN", "TABLE_WATCH", "GAME_WATCH", "WORLD_FACILITY_USE", "WORLD_FOLLOW_START",
+                    "WORLD_CARRY_PICKUP", "WORLD_EMOTE_SEND", "WORLD_SECRET_DOORS_SET").contains(request.type())) {
+                fail(request, "MOBILITY_BUSY", "먼저 탈것에서 내려주세요.");
+            }
             switch (request.type()) {
                 case "GAME_WATCH" -> watchGame(sessionId, member, request);
                 case "CHANNEL_JOIN" -> joinChannel(member, request);
                 case "CHANNEL_LEAVE" -> leaveChannel(member, request);
+                case "WORLD_MOBILITY_START", "WORLD_MOBILITY_END" -> mobility(member, request);
                 case "WORLD_MOVE" -> moveWorld(member, request);
                 case "WORLD_POSITION" -> positionWorld(member, request);
                 case "WORLD_SECRET_DOORS_SET" -> publishWorld(channels.setSecretDoors(member.userId(),
@@ -990,6 +1003,7 @@ public class TableHub {
         if (member == null) {
             return;
         }
+        endRide(member.userId(), "ENDED");
         closeMember(member, reason);
         String loginSessionId = loginSessions.remove(sessionId);
         connectionStarted.remove(sessionId);
@@ -1087,6 +1101,15 @@ public class TableHub {
         profileMemberships.clear();
         stopped = true;
         heartbeatTimer.shutdownNow();
+        if (rentals != null) {
+            mobilityRides.values().forEach(ride -> {
+                if (ride.payment != null) {
+                    ride.payment.cancel();
+                }
+            });
+            mobilityRides.clear();
+            rentals.shutdown();
+        }
         members.forEach((sessionId, member) -> {
             closeMember(member, ConnectionCloseReason.SERVER_SHUTDOWN);
             gameResults.ifPresent(service -> service.disconnected(sessionId));
@@ -1304,6 +1327,9 @@ public class TableHub {
                 && !channelId.equals(tableChannels.get(seating.get(member.userId())))) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
+        if (!channels.isInChannel(member.userId(), channelId)) {
+            endRide(member.userId(), "ENDED");
+        }
         long joinStarted = System.nanoTime();
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
         if (change.changed()) {
@@ -1491,6 +1517,7 @@ public class TableHub {
         if (seating.containsKey(member.userId())) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
+        endRide(member.userId(), "ENDED");
         var facilityLease = facilities.release(member.userId());
         if (facilityLease != null) {
             recordFacility(member.accountId(), facilityLease, "CHANNEL_LEFT");
@@ -1516,12 +1543,216 @@ public class TableHub {
         positionSampler.forget(member.userId());
     }
 
+    @Autowired(required = false)
+    public synchronized void configureMobility(WorldMapRuntime runtime, MobilityWallet wallet) {
+        runtime.prepared().ifPresent(map -> {
+            var mobility = new MobilityRentals(wallet, map.constructionSites());
+            if (mobility.enabled()) {
+                rentals = mobility;
+            }
+        });
+    }
+
+    private void mobility(Member member, Request request) {
+        if (rentals == null || member.accountId() == null) {
+            fail(request, "MOBILITY_UNAVAILABLE", "탈것 대여를 이용할 수 없어요.");
+        }
+        String user = member.userId();
+        String channel = channels.channelOf(user);
+        if (channel == null) {
+            fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        }
+        var payload = request.payload();
+        String id = payload.path("leaseId").asText().toLowerCase(java.util.Locale.ROOT);
+        var current = mobilityRides.get(user);
+        if (request.type().equals("WORLD_MOBILITY_END")) {
+            if (current == null || !current.id.equals(id)) {
+                sendMobility(member, request.requestId(), id, null, "ENDED", 0, null);
+            } else {
+                rememberMobilityRequest(current.endRequests, request.requestId());
+                endRide(user, "ENDED");
+            }
+            return;
+        }
+        String station = payload.path("stationId").asText();
+        var vehicle = VehicleKind.valueOf(payload.path("vehicle").asText());
+        if (current != null && current.id.equals(id)
+                && current.station.equals(station) && current.vehicle == vehicle) {
+            if (current.seconds == 0 || current.endStatus != null) {
+                rememberMobilityRequest(current.startRequests, request.requestId());
+            } else {
+                sendMobility(member, request.requestId(), id, vehicle, "RIDING", current.total(), null);
+            }
+            return;
+        }
+        if (mobilityRides.containsKey(user)
+                || mobilityRides.values().stream().anyMatch(ride -> ride.owner.accountId().equals(member.accountId()))
+                || !channels.carryAvailable(user)
+                || channels.carryState(user) != null || facilities.current(user) != null
+                || watching.containsKey(user) || statePushes.containsKey(member.sessionId()) || seating.containsKey(user)) {
+            fail(request, "MOBILITY_BUSY", "진행 중인 이용을 먼저 종료해주세요.");
+        }
+        if (!rentals.inReach(station, vehicle, channels.positionOf(user))) {
+            fail(request, "MOBILITY_OUT_OF_REACH", "거치대 앞에서 다시 시도해주세요.");
+        }
+        var ride = new MobilityRide(member, channel, id, station, vehicle);
+        rememberMobilityRequest(ride.startRequests, request.requestId());
+        mobilityRides.put(user, ride);
+        submitMobilityPayment(ride, System.nanoTime() + TimeUnit.SECONDS.toNanos(5));
+    }
+
+    private void rememberMobilityRequest(Set<String> requests, String requestId) {
+        if (requestId != null && requests.size() < 16) {
+            requests.add(requestId);
+        }
+    }
+
+    private void submitMobilityPayment(MobilityRide ride, long deadline) {
+        ride.paymentDeadline = deadline;
+        ride.payment = rentals.submit(ride.owner.accountId(), ride.id, ride.seconds + 1, ride.vehicle, deadline,
+                payment -> completeMobilityPayment(ride, payment));
+        if (ride.payment == null) {
+            endRide(ride.owner.userId(), "FAILED");
+        }
+    }
+
+    private synchronized void completeMobilityPayment(MobilityRide ride, MobilityWallet.Payment payment) {
+        String user = ride.owner.userId();
+        if (mobilityRides.get(user) != ride) {
+            return;
+        }
+        ride.payment = null;
+        boolean first = ride.seconds == 0;
+        boolean paid = payment == MobilityWallet.Payment.PAID
+                || (!first && payment == MobilityWallet.Payment.ALREADY_PAID);
+        String receipt = null;
+        if (paid) {
+            ride.seconds++;
+            receipt = ride.id + ":" + ride.seconds;
+        }
+        if (ride.endStatus != null) {
+            finishRide(ride, receipt);
+            return;
+        }
+        if (!paid) {
+            endRide(user, switch (payment) {
+                case INSUFFICIENT -> "INSUFFICIENT";
+                case ALREADY_PAID -> "ENDED";
+                default -> "FAILED";
+            });
+            return;
+        }
+        // An initial charge becomes visible only after commit and only for the same connection and channel.
+        if (first) {
+            if (!mobilityPositionValid(ride, true)) {
+                ride.endStatus = "ENDED";
+                finishRide(ride, receipt);
+                return;
+            }
+            ride.nextPaymentAt = System.nanoTime() + MobilityRentals.SECOND;
+            endFollows(user);
+            cancelEmote(user, "ACTIVITY_STARTED");
+            publishWorld(channels.setVehicle(user, ride.vehicle), null, null);
+            notifyMobilityRide(ride, ride.startRequests, "RIDING", receipt);
+            ride.startRequests.clear();
+        } else {
+            ride.nextPaymentAt += MobilityRentals.SECOND;
+            notifyMobilityRide(ride, Set.of(), "RIDING", receipt);
+        }
+    }
+
+    private void sendMobility(Member member, String request, String id, VehicleKind vehicle,
+            String status, long total, String receipt) {
+        var result = new HashMap<String, Object>();
+        result.put("leaseId", id);
+        result.put("status", status);
+        result.put("total", total);
+        if (vehicle != null) {
+            result.put("vehicle", vehicle);
+        }
+        if (receipt != null) {
+            result.put("receipt", receipt);
+        }
+        member.peer().offer(protocol.encode(request, "WORLD_MOBILITY_STATE", result));
+    }
+
+    private void endRide(String user, String status) {
+        var ride = mobilityRides.get(user);
+        if (ride == null || ride.endStatus != null) {
+            return;
+        }
+        // Decide cancellation before broadcasting the dismount. A commit that already won
+        // the decision is included in the final total when the worker reports its result.
+        boolean resolved = ride.payment == null || ride.payment.cancel();
+        ride.endStatus = status;
+        if (ride.seconds > 0) {
+            var world = channels.setVehicle(user, null);
+            if (world != null) {
+                publishWorld(world, null, null);
+            }
+        }
+        if (resolved) {
+            finishRide(ride, null);
+        }
+    }
+
+    private void finishRide(MobilityRide ride, String receipt) {
+        mobilityRides.remove(ride.owner.userId());
+        ride.startRequests.addAll(ride.endRequests);
+        notifyMobilityRide(ride, ride.startRequests, ride.endStatus, receipt);
+    }
+
+    private void notifyMobilityRide(MobilityRide ride, Set<String> requests, String status, String receipt) {
+        if (members.get(ride.owner.sessionId()) != ride.owner) {
+            return;
+        }
+        if (requests.isEmpty()) {
+            sendMobility(ride.owner, null, ride.id, ride.vehicle, status, ride.total(), receipt);
+        } else {
+            for (String request : requests) {
+                sendMobility(ride.owner, request, ride.id, ride.vehicle, status, ride.total(), receipt);
+            }
+        }
+    }
+
+    private void advanceRentals() {
+        if (mobilityRides.isEmpty()) {
+            return;
+        }
+        long now = System.nanoTime();
+        for (var ride : List.copyOf(mobilityRides.values())) {
+            if (ride.endStatus != null) {
+                continue;
+            }
+            String user = ride.owner.userId();
+            if (!mobilityPositionValid(ride, ride.seconds == 0)) {
+                endRide(user, "ENDED");
+            } else if (ride.payment != null) {
+                if (now - ride.paymentDeadline >= 0) {
+                    endRide(user, "FAILED");
+                }
+            } else if (now - ride.nextPaymentAt >= 0) {
+                submitMobilityPayment(ride, ride.nextPaymentAt + MobilityRentals.SECOND);
+            }
+        }
+    }
+
+    private boolean mobilityPositionValid(MobilityRide ride, boolean starting) {
+        String user = ride.owner.userId();
+        var position = channels.positionOf(user);
+        return members.get(ride.owner.sessionId()) == ride.owner && channels.isInChannel(user, ride.channel)
+                && position != null && !position.swimming() && channels.carryState(user) == null
+                && channels.jumpmapRun(user).isEmpty()
+                && (!starting || rentals.inReach(ride.station, ride.vehicle, position));
+    }
+
     private synchronized void advanceWorld() {
         if (stopped) {
             return;
         }
         try {
             syncSpectatorPresence();
+            advanceRentals();
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
             dispatchJumpmap(channels.drainJumpmap());
             for (var ended : channels.drainSuspensionEnds()) {
@@ -3860,6 +4091,33 @@ public class TableHub {
     }
 
     private record ReactionRound(String gameId, Set<Long> users) { }
+
+    private static final class MobilityRide {
+        private final Member owner;
+        private final String channel;
+        private final String id;
+        private final String station;
+        private final VehicleKind vehicle;
+        private final Set<String> startRequests = new LinkedHashSet<>();
+        private final Set<String> endRequests = new LinkedHashSet<>();
+        private long seconds;
+        private long nextPaymentAt;
+        private long paymentDeadline;
+        private MobilityRentals.Charge payment;
+        private String endStatus;
+
+        private MobilityRide(Member owner, String channel, String id, String station, VehicleKind vehicle) {
+            this.owner = owner;
+            this.channel = channel;
+            this.id = id;
+            this.station = station;
+            this.vehicle = vehicle;
+        }
+
+        private long total() {
+            return seconds * vehicle.rate();
+        }
+    }
 
     private record Member(String userId, TablePeer peer, Long accountId, String sessionId, GameDeliveryScope delivery) {
     }

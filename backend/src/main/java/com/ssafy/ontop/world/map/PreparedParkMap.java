@@ -26,6 +26,7 @@ import java.util.UUID;
 public final class PreparedParkMap {
     public static final String STONE_RUMBLE_ANCHOR_ID = "table-17";
     private final JsonNode collisionData;
+    private final JsonNode constructionSites;
     private final JsonNode jumpCourse;
     private final WorldMapMetadata metadata;
     private final List<Binding> bindings;
@@ -98,6 +99,7 @@ public final class PreparedParkMap {
         bindings = List.copyOf(entries);
         proximity = new WorldProximityProperties(null, null, tablePoints);
         facilities = facilities(data.path("interactions"), map);
+        constructionSites = data.path("interactions").path("construction").deepCopy();
         JsonNode notesNode = data.path("interactions").path("notes");
         require("legacy-avatar-origin".equals(notesNode.path("heightReference").asText())
                         && "less-than-or-equal".equals(notesNode.path("radiusComparison").asText())
@@ -127,6 +129,7 @@ public final class PreparedParkMap {
     }
 
     public JsonNode jumpCourse() { return jumpCourse.deepCopy(); }
+    public JsonNode constructionSites() { return constructionSites.deepCopy(); }
     public JsonNode collisionData() { return collisionData.deepCopy(); }
     public WorldMapMetadata metadata() { return metadata; }
     public List<Binding> bindings() { return bindings; }

@@ -375,6 +375,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (jumpmap != null) queueJumpmap(null, jumpmap.leave(userId, reason, nanoTime.getAsLong() / 1_000_000));
         room.users.remove(userId);
         room.positions.remove(userId);
+        room.vehicles.remove(userId);
         room.motions.remove(userId);
         room.moveBudgets.remove(userId);
         room.equipment.remove(userId);
@@ -553,6 +554,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         Room room = rooms.get(membership.get(userId));
         Position position = positionOf(userId);
         return room != null && position != null && !position.swimming() && !room.held.contains(userId)
+                && !room.vehicles.containsKey(userId)
                 && !room.interactionBusy.contains(userId)
                 && !room.tableSeats.containsKey(userId) && publicActivity(userId) == null
                 && jumpmapRun(userId).isEmpty();
@@ -739,6 +741,24 @@ public class WorldChannelRegistry implements ChannelPresence {
             room.dirty = true;
         }
         return new WorldChange(room.worldState(), changed);
+    }
+
+    public synchronized WorldState setVehicle(String userId, com.ssafy.ontop.world.mobility.VehicleKind vehicle) {
+        Room room = rooms.get(membership.get(userId));
+        if (room == null) {
+            return null;
+        }
+        if (vehicle == null) {
+            room.vehicles.remove(userId);
+        } else {
+            room.vehicles.put(userId, vehicle.name());
+        }
+        room.physics.setVehicleSpeed(userId, vehicle == null ? 0 : vehicle.speed());
+        var position = snapshotPosition(room, userId);
+        room.positions.put(userId, new Movement(position, nanoTime.getAsLong()));
+        room.worldVersion++;
+        room.dirty = true;
+        return room.worldState();
     }
 
     public synchronized void stopMovement(String userId) {
@@ -1011,6 +1031,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             if (!room.users.isEmpty()) {
                 room.users.clear();
                 room.positions.clear();
+                room.vehicles.clear();
                 room.motions.clear();
                 room.moveBudgets.clear();
                 room.equipment.clear();
@@ -1119,7 +1140,14 @@ public class WorldChannelRegistry implements ChannelPresence {
     public record WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion,
             List<PublicTable> tables, Map<String, GameWatch> gameWatches,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-            Boolean secretDoorsOpen) {
+            Boolean secretDoorsOpen,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+            Map<String, String> vehicles) {
+
+        public WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion,
+                List<PublicTable> tables, Map<String, GameWatch> gameWatches, Boolean secretDoorsOpen) {
+            this(channelId, version, avatars, mapVersion, tables, gameWatches, secretDoorsOpen, Map.of());
+        }
 
         public WorldState(String channelId, long version, List<Avatar> avatars, String mapVersion,
                 List<PublicTable> tables, Map<String, GameWatch> gameWatches) {
@@ -1138,6 +1166,7 @@ public class WorldChannelRegistry implements ChannelPresence {
             avatars = List.copyOf(avatars);
             tables = List.copyOf(tables);
             gameWatches = Map.copyOf(gameWatches);
+            vehicles = Map.copyOf(vehicles);
         }
     }
 
@@ -1226,6 +1255,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
 
         private Boolean secretDoorsOpen;
+        private final Map<String, String> vehicles = new HashMap<>();
 
         private WorldState worldState() {
             var carries = physics == null ? Map.<String, WorldPhysics.Carry>of() : physics.carryStates();
@@ -1243,7 +1273,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                             vrUsers.contains(user) ? Boolean.TRUE : null, myRoom ? Boolean.TRUE : null);
                     })
                     .toList(), scene.get().version(), tables, users.stream().filter(watches::containsKey)
-                            .collect(java.util.stream.Collectors.toMap(user -> user, watches::get)), secretDoorsOpen);
+                            .collect(java.util.stream.Collectors.toMap(user -> user, watches::get)), secretDoorsOpen, vehicles);
         }
     }
 
