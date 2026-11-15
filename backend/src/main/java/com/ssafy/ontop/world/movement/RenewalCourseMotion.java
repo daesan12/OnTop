@@ -14,7 +14,8 @@ import java.util.Set;
 /** 새 코스의 개인별 충돌 상태. owner thread에서 해당 사용자를 조회할 때만 물리 공간에 반영한다. */
 final class RenewalCourseMotion {
     private static final class Contact {
-        double stoodAt = Double.NaN, hitAt = Double.NEGATIVE_INFINITY, fallAt = Double.NEGATIVE_INFINITY;
+        double stoodAt = Double.NaN, fallAt = Double.NEGATIVE_INFINITY;
+        double dippedAt = Double.NEGATIVE_INFINITY;
     }
     private static final class Player {
         String runId;
@@ -36,20 +37,21 @@ final class RenewalCourseMotion {
     private final PhysicsSpace space;
     private final Map<String, Player> players = new HashMap<>();
     private final Set<PhysicsRigidBody> present = new HashSet<>();
-    private final List<Integer> pigeons;
     private final float[] heights;
+    private final Map<Integer, Integer> pigeonOrdinals = new HashMap<>();
     private State applied;
-    private double appliedTime;
 
     RenewalCourseMotion(JumpCourse course, List<PhysicsRigidBody> bodies, PhysicsSpace space) {
         this.course = course; this.bodies = bodies; this.space = space;
         present.addAll(bodies);
         heights = new float[bodies.size()];
         for (int block = 0; block < bodies.size(); block++) {
-            heights[block] = (float) course.colliders().get(block).centerY();
+            var pad = course.colliders().get(block);
+            heights[block] = (float) pad.centerY();
+            if ("pigeon".equals(course.theme(block))) {
+                pigeonOrdinals.put(block, Integer.parseInt(pad.id().substring(pad.id().lastIndexOf('-') + 1)));
+            }
         }
-        pigeons = course.colliders().stream().map(JumpCourse.Collider::block)
-                .filter(block -> "pigeon".equals(course.theme(block))).toList();
     }
 
     void run(String user, String id) {
@@ -69,22 +71,24 @@ final class RenewalCourseMotion {
             if (age>=0 && age<4) return new Pose(-9*age*age,false);
         }
         if ("mole".equals(theme) && c != null) {
-            double t = (now-c.hitAt)/.95;
-            if (t>=0 && t<=1) return new Pose(-.48*Math.pow(Math.sin(Math.PI*t),2),true);
+            double progress = (now - c.dippedAt) / .95;
+            if (progress >= 0 && progress < 1) {
+                double wave = Math.sin(Math.PI * progress);
+                return new Pose(-.48 * wave * wave, true);
+            }
         }
-        if ("pigeon".equals(theme)) {
-            String id=course.colliders().get(block).id();
-            int index=Integer.parseInt(id.substring(id.lastIndexOf('-')+1));
-            return new Pose(.42*Math.sin(now*Math.PI*2/3.8+index*.53),true);
+        Integer ordinal = pigeonOrdinals.get(block);
+        if (ordinal != null) {
+            return new Pose(.42 * Math.sin(now * Math.PI * 2 / 3.8 + ordinal * .53), true);
         }
         return new Pose(0,true);
     }
 
-    void prepare(String user, double now) {
-        prepare(state(user, now), now);
+    void prepare(String user, double now, Vector3f position) {
+        prepare(state(user, now, position));
     }
 
-    State state(String user, double now) {
+    State state(String user, double now, Vector3f position) {
         Player p=players.get(user);
         if (p == null || p.runId == null) {
             return BEFORE_START;
@@ -105,11 +109,52 @@ final class RenewalCourseMotion {
                 changes.put(block, pose.solid() ? pose : new Pose(0, false));
             }
         }
+        // Animate only the pigeon colliders reachable by this actor's sweeps.
+        for (int block : pigeonOrdinals.keySet()) {
+            var pad = course.colliders().get(block);
+            if (Math.abs(position.x - pad.x()) < 8 && Math.abs(position.z - pad.z()) < 8
+                    && Math.abs(position.y - pad.top()) < 12) {
+                changes.put(block, pose(user, block, now));
+            }
+        }
         return changes.isEmpty() ? STARTED : new State(true, changes);
     }
 
-    void prepare(State state, double now) {
-        if (state.equals(applied) && (!state.started() || now == appliedTime)) {
+    boolean riding(String user) {
+        Player player = players.get(user);
+        return player != null && player.support >= 0 && movesWithRider(course.colliders().get(player.support));
+    }
+
+    private boolean movesWithRider(JumpCourse.Collider pad) {
+        if (pad == null) {
+            return false;
+        }
+        String theme = course.theme(pad.block());
+        return "mole".equals(theme) || "pigeon".equals(theme);
+    }
+
+    Double riddenTop(String user, Vector3f position, double now, double footOffset, double radius) {
+        Player player = players.get(user);
+        if (player == null || player.support < 0) {
+            return null;
+        }
+        var pad = course.colliders().get(player.support);
+        // Only an already verified rider can use the capsule's edge clearance.
+        if (!movesWithRider(pad)
+                || Math.hypot(position.x - pad.x(), position.z - pad.z()) > pad.halfX() + radius - .03) {
+            return null;
+        }
+        double previousTop = pad.top() + pose(user, pad.block(), now - WorldPhysics.STEP_NANOS / 1e9).offset();
+        double top = pad.top() + pose(user, pad.block(), now).offset();
+        double feet = position.y - footOffset;
+        if (Math.min(Math.abs(feet - previousTop), Math.abs(feet - top)) > .13) {
+            return null;
+        }
+        return top;
+    }
+
+    void prepare(State state) {
+        if (state.equals(applied)) {
             return;
         }
         boolean changedMode = applied == null || state.started() != applied.started();
@@ -125,20 +170,10 @@ final class RenewalCourseMotion {
                 apply(block, state.changes().getOrDefault(block, REST));
             }
         }
-        if (state.started()) {
-            if (changedMode || now != appliedTime) {
-                for (int block : pigeons) {
-                    String id = course.colliders().get(block).id();
-                    int index = Integer.parseInt(id.substring(id.lastIndexOf('-') + 1));
-                    apply(block, new Pose(.42 * Math.sin(now * Math.PI * 2 / 3.8 + index * .53), true));
-                }
-            }
-            if (changedMode) {
-                state.changes().forEach(this::apply);
-            }
+        if (state.started() && changedMode) {
+            state.changes().forEach(this::apply);
         }
         applied = state;
-        appliedTime = now;
     }
 
     private void apply(int block, Pose pose) {
@@ -174,7 +209,9 @@ final class RenewalCourseMotion {
         p.support=next;
         if(pad==null) return;
         Contact c=p.contacts.computeIfAbsent(next,ignored->new Contact());
-        if("mole".equals(course.theme(next)))c.hitAt=now;
         if("lily".equals(course.theme(next)))c.stoodAt=now;
+        if ("mole".equals(course.theme(next))) {
+            c.dippedAt = now;
+        }
     }
 }

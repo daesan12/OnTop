@@ -1,12 +1,14 @@
 import type { MouseEvent } from 'react'
 
-export function JumpRopeMenu({ onStart, onOpenRanking, rankingOpen, startDisabled, status, onRetry }: {
+export function JumpRopeMenu({ onStart, onOpenRanking, rankingOpen, startDisabled, status, onRetry, duckRule = false }: {
   onStart: () => void
   onOpenRanking: (event: MouseEvent<HTMLButtonElement>) => void
   rankingOpen: boolean
   startDisabled?: boolean
   status?: string
   onRetry?: () => void
+  /** Lists ↓/S duck, for the grandpa raid of rules v2. */
+  duckRule?: boolean
 }) {
   return (
     <div className="rope-menu-layer" inert={rankingOpen}>
@@ -19,9 +21,10 @@ export function JumpRopeMenu({ onStart, onOpenRanking, rankingOpen, startDisable
           </h2>
           <p className="rope-menu__intro">비둘기들이 당신을 시험합니다.</p>
         </header>
-        <ul className="rope-menu__rules">
+        <ul className="rope-menu__rules" data-duck={duckRule}>
           <li>60초 생존</li>
           <li><kbd>SPACE</kbd> 점프</li>
+          {duckRule && <li><kbd>↓</kbd>·<kbd>S</kbd> 숙이기</li>}
           <li>MISS 3회 탈락</li>
         </ul>
         <div className="rope-menu__actions">

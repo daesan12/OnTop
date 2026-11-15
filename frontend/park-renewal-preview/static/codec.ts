@@ -30,8 +30,20 @@ function packBytes(bytes: Uint8Array, length: number, stride: number) {
 function unpackBytes(buffer: ArrayBuffer, start: number, length: number, stride: number, packed: boolean) {
   if (!packed || length < BYTE_PLANE_MIN_LENGTH) return buffer.slice(start, start + length * stride)
   const bytes = new Uint8Array(buffer, start, length * stride), restored = new Uint8Array(bytes.length)
-  for (let lane = 0; lane < stride; lane++) {
-    for (let i = 0; i < length; i++) restored[i * stride + lane] = bytes[lane * length + i]!
+  // Write one complete sample at a time so consecutive writes stay in the same cache line.
+  for (let i = 0, out = 0; i < length; i++, out += stride) {
+    restored[out] = bytes[i]!
+    restored[out + 1] = bytes[length + i]!
+    if (stride >= 4) {
+      restored[out + 2] = bytes[2 * length + i]!
+      restored[out + 3] = bytes[3 * length + i]!
+    }
+    if (stride === 8) {
+      restored[out + 4] = bytes[4 * length + i]!
+      restored[out + 5] = bytes[5 * length + i]!
+      restored[out + 6] = bytes[6 * length + i]!
+      restored[out + 7] = bytes[7 * length + i]!
+    }
   }
   return restored.buffer
 }

@@ -9,6 +9,7 @@ import { useCameraPerspective } from './cameraPerspective'
 import { wardrobeView } from '../features/wardrobe/view'
 import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { secretCorridorContains } from '../../park-renewal-preview/horrorPlan'
+import { inAnnex } from '../../park-renewal-preview/interiorAccess'
 
 export function canControlRoamingCamera() {
   const s = useSession.getState(), avatar = avatars.get(s.sessionId)
@@ -48,6 +49,6 @@ export function lookOwner(): LookOwner | null {
 export function roamingFirstPerson(avatar: { tableId: string; benchId: string; fitnessId: string; telescopeId: string;
   current?: { x: number; y: number; z: number } }, watching: boolean) {
   return !watching && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId
-    && !wardrobeView.active && ((RENEWAL_PARK_ENABLED && avatar.current && secretCorridorContains(avatar.current))
+    && !wardrobeView.active && ((RENEWAL_PARK_ENABLED && avatar.current && (secretCorridorContains(avatar.current) || inAnnex(avatar.current)))
       || useCameraPerspective.getState().perspective === 'first-person')
 }

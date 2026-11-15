@@ -20,7 +20,7 @@ export type JumpEvent =
   | (Ordered & Earnings & { type: 'JUMPMAP_GATE_SETTLED'; runId: string; gate: number; coinsGranted: number; runCoins: number })
   | (Ordered & { type: 'JUMPMAP_FINAL_PAD'; runId: string })
   | (Ordered & Earnings & { type: 'JUMPMAP_ENDED'; runId: string; reason: EndReason; gatesPassed: number; maxHeight: number; runCoins: number; elapsedMs: number; finishMs?: number; bestFinishMs?: number | null; newBest?: boolean })
-  | (Scope & { type: 'JUMPMAP_STEP'; playerId: string; block: number })
+  | (Scope & { type: 'JUMPMAP_STEP'; playerId: string; block: number; serverTime?: number })
 
 const text = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v.length <= 120
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0
@@ -51,7 +51,7 @@ export function parseJumpEvent(type: string, p: unknown): JumpEvent | null {
   if (!record(p) || !scope(p)) throw new Error('점프맵 이벤트를 확인할 수 없어요.')
   if (type === 'JUMPMAP_STEP') {
     const block = courseBlockIndex(p.block)
-    if (!text(p.playerId) || block === null) throw new Error('점프맵 착지 이벤트를 확인할 수 없어요.')
+    if (!text(p.playerId) || block === null || p.serverTime !== undefined && !integer(p.serverTime)) throw new Error('점프맵 착지 이벤트를 확인할 수 없어요.')
     return { ...p, type, block } as JumpEvent
   }
   let valid = text(p.runId) && integer(p.revision)

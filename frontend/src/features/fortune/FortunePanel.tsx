@@ -17,6 +17,7 @@ import cardFront from './art/tapgol-card-front-v6.png'
 
 export function FortunePanel() {
   const open = useFortune(s => s.open)
+  const accountName = useSession(s => s.account?.nickname ?? null)
   useEffect(() => {
     const unwatch = watchFortuneConnection()
     return () => { unwatch(); closeFortune() }
@@ -30,10 +31,10 @@ export function FortunePanel() {
     }, 150)
     return () => clearInterval(timer)
   }, [open])
-  return open ? <FortuneDialog /> : null
+  return open ? <FortuneDialog accountName={accountName} /> : null
 }
 
-export function FortuneDialog({ onGuide }: { onGuide?: () => void } = {}) {
+export function FortuneDialog({ onGuide, accountName }: { onGuide?: () => void; accountName?: string | null } = {}) {
   const { result, deck, nickname, draft, error, phase, connection, selectedIndex, issuedAt, nextAllowedAt, pending } = useFortune()
   const [now, setNow] = useState(Date.now)
   const remaining = Math.max(0, nextAllowedAt - Math.max(now, issuedAt))
@@ -88,32 +89,32 @@ export function FortuneDialog({ onGuide }: { onGuide?: () => void } = {}) {
     closeFortune()
   }
   const subtitles = {
-    writing: '이름을 남기고, 당신을 기다리는 한 장을 만나보세요.',
+    writing: accountName === undefined ? '이름을 남기고, 당신을 기다리는 한 장을 만나보세요.' : '내 계정의 오늘 운세를 한 장 뽑아보세요.',
     shuffling: '당신의 행운을 섞고 있어요',
     choosing: '마음이 이끄는 카드 한 장을 골라보세요',
     gathering: '선택한 한 장에 행운이 모이고 있어요',
     revealing: '선택한 카드가 당신의 운세를 보여줍니다',
-    revealed: `${nickname} 님에게 찾아온 한 장`,
+    revealed: `${accountName ?? nickname} 님에게 찾아온 한 장`,
   }
   return <div className="fortune-overlay"><PaperPopup title="" label="오늘의 운세" onClose={closeFortune}
-    closeLabel="운세 닫기" className={`fortune-popup fortune-popup--${phase}`}
+    closeLabel="운세 닫기" className={`fortune-popup fortune-popup--${phase}${accountName === undefined ? "" : " fortune-popup--account"}`}
     initialFocusRef={phase === 'writing' ? nameInput : undefined}>
     <header ref={heading} className="fortune-heading"><h2>오늘의 운세</h2><p role="status">{subtitles[phase]}</p></header>
     <div className="fortune-content" data-phase={phase}>
       {error && phase !== 'writing' && <p className="fortune-error" role="alert">{error}</p>}
       {phase === 'writing' && <div className="fortune-entry">
-        <img className="fortune-entry__card" src={cardBack} alt="" draggable={false}/>
-        <form onSubmit={event => { event.preventDefault(); startFortuneShuffle() }}>
-          <h3>당신의 이름을 들려주세요</h3>
-          <p className="fortune-description">승리의 예감, 새로운 기록의 기운.<br/>오늘의 놀이는 카드가 안내해줄 거예요.</p>
+        {accountName === undefined && <img className="fortune-entry__card" src={cardBack} alt="" draggable={false}/>}
+        <form onSubmit={event => { event.preventDefault(); startFortuneShuffle(accountName) }}>
+          {accountName === undefined && <h3>당신의 이름을 들려주세요</h3>}
+          {accountName === undefined && <p className="fortune-description">승리의 예감, 새로운 기록의 기운.<br/>오늘의 놀이는 카드가 안내해줄 거예요.</p>}
           <label htmlFor="fortune-nickname">나의 닉네임</label>
-          <input ref={nameInput} id="fortune-nickname" value={draft} maxLength={20} autoComplete="off" placeholder="닉네임을 입력해주세요"
+          <input ref={nameInput} id="fortune-nickname" value={accountName === undefined ? draft : accountName ?? ''} readOnly={accountName !== undefined} maxLength={20} autoComplete="off" placeholder={accountName === undefined ? "닉네임을 입력해주세요" : "계정 이름을 불러오는 중"}
             aria-invalid={!!error} aria-describedby={error ? 'fortune-error' : 'fortune-name-help'}
             onKeyDown={event => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault() }}
             onChange={event => useFortune.setState({ draft: event.target.value, error: '' })}/>
-          <p id="fortune-name-help" className="fortune-small">1~20자 · 운세에만 사용할 이름이에요.</p>
+          <p id="fortune-name-help" className="fortune-small">{accountName === undefined ? '1~20자 · 운세에만 사용할 이름이에요.' : '현재 접속한 계정의 닉네임이에요.'}</p>
           {error && <p id="fortune-error" className="fortune-error" role="alert">{error}</p>}
-          <button type="submit" className="fortune-primary" disabled={pending}>카드 섞기</button>
+          <button type="submit" className="fortune-primary" disabled={pending || accountName === null}>카드 섞기</button>
         </form>
       </div>}
       {phase === 'shuffling' && <div className="fortune-shuffle" aria-label="타로 카드 섞는 중" aria-busy="true">
@@ -125,7 +126,7 @@ export function FortuneDialog({ onGuide }: { onGuide?: () => void } = {}) {
             origins.current = captureFortuneCards(choices.current)
             void chooseFortuneCard(index)
           }}>
-          <img src={cardBack} alt="" draggable={false}/><span>{name} 카드</span>
+          <img src={cardBack} alt="" draggable={false}/>
         </button>)}
       </div>}
       {result && <div className="fortune-result" data-selected-card={selectedIndex} data-gathering={phase === 'gathering'} aria-hidden={phase === 'gathering'} inert={phase === 'gathering'}>
@@ -151,10 +152,10 @@ export function FortuneDialog({ onGuide }: { onGuide?: () => void } = {}) {
       </div>}
       {phase === 'gathering' && selectedIndex !== null && <FortuneGather origins={origins.current} selectedIndex={selectedIndex} target={resultCard}/>}
     </div>
-    <footer className="fortune-footer"><p>{nextAllowedAt > 0
+    {phase !== "choosing" && <footer className="fortune-footer"><p>{nextAllowedAt > 0
       ? remaining > 0 ? <>다음 운세까지 <time className="fortune-countdown" aria-label="다음 운세까지 남은 시간">{fortuneWaitLabel(remaining)}</time></> : '3시간이 지났어요. 새 운세를 확인할 수 있어요.'
       : '3시간에 한 번 이용할 수 있어요.'}</p>
       {nextAllowedAt > 0 && remaining > 0 && <p className="fortune-next-time">다음 이용 가능 · <time dateTime={new Date(nextAllowedAt).toISOString()}>{new Date(nextAllowedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}</time></p>}
-    </footer>
+    </footer>}
   </PaperPopup></div>
 }

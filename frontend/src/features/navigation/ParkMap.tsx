@@ -112,9 +112,28 @@ export function ParkMap() {
             <polyline className="navigation-map-route" points={routePoints} stroke="var(--map-route)" strokeWidth={2} />
           </g>}
           {destination && <circle cx={destination.x} cy={destination.z} r={3.2} fill="var(--map-route)" stroke="#fff" strokeWidth={1.2} pointerEvents="none" />}
-          {PARK_MAP_PLACES.map((place,index) => <g key={place.id} className="park-map-zone" data-place-id={place.id} data-selected={place.id===selectedPlace} role="button" tabIndex={compatible ? 0 : -1} aria-disabled={!compatible} aria-label={`${place.name} 길 안내`} style={{cursor:compatible?'pointer':'default'}} onClick={event=>{event.stopPropagation();choosePlace(place)}} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();choosePlace(place)}}}>
-            <circle cx={place.x} cy={place.z} r={place.small?2.7:4.2} /><text x={place.x} y={place.z+(place.small?1.2:1.75)} textAnchor="middle" fontSize={place.small?3.6:5}>{index+1}</text><title>{place.name}</title>
-          </g>)}
+          {PARK_MAP_PLACES.map((place, index) => {
+            const rental = RENEWAL_PARK_ENABLED && place.id.startsWith('mobility-')
+            return <g key={place.id} className="park-map-zone" data-place-id={place.id}
+              data-selected={place.id === selectedPlace} role="button" tabIndex={compatible ? 0 : -1}
+              aria-disabled={!compatible} aria-label={place.name + ' 길 안내'} style={{ cursor: compatible ? 'pointer' : 'default' }}
+              onClick={event => { event.stopPropagation(); choosePlace(place) }}
+              onKeyDown={event => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                event.stopPropagation()
+                choosePlace(place)
+              }}>
+              {rental ? <g className="park-map-rental">
+                <use href="#renewal-map-rental" x={place.x} y={place.z} pointerEvents="none" />
+                <rect x={place.x - 6.6} y={place.z - 3.1} width="13.2" height="6.2" rx="1.7" />
+              </g> : <>
+                <circle cx={place.x} cy={place.z} r={place.small ? 2.7 : 4.2} />
+                <text x={place.x} y={place.z + (place.small ? 1.2 : 1.75)} textAnchor="middle" fontSize={place.small ? 3.6 : 5}>{index + 1}</text>
+              </>}
+              <title>{place.name}</title>
+            </g>
+          })}
           {/* Keep live positions exact. Player markers take clicks over zones;
               the matching place remains available in the destination list. */}
           {players.map(player=><g key={player.id} className="park-map-player" role="button" aria-label={`${player.nickname} 위치`} aria-pressed={player.id===selectedPlayerId} tabIndex={0}

@@ -14,8 +14,9 @@ const RenewalParkWorld=RENEWAL_PARK_ENABLED ? lazy(loadRenewalParkWorld) : null
 const ServiceJumpCourse=lazy(()=>import('../features/jumpmap/ServiceJumpCourse').then(m=>({default:m.ServiceJumpCourse})))
 import { TableTablet3D } from '../features/tableLobby/TableTablet3D'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
-import { useFrame } from '@react-three/fiber'
-import { memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { events, useFrame } from '@react-three/fiber'
+import { roamingInput, scenePointerOwners } from './inputOwnership'
+import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { ACESFilmicToneMapping } from 'three'
 import {
   CAMERA,
@@ -51,25 +52,47 @@ import { useGachaOverlay } from '../features/gacha/view'
 import { useFortune } from '../features/fortune/state'
 
 import { useBungeoppang } from '../features/bungeoppang/store'
+import { loadBungeoppangGrill } from '../features/bungeoppang/loadBungeoppangView'
 
 const PlaceholderWorld = lazy(() => import('./PlaceholderWorld').then(module => ({ default: module.PlaceholderWorld })))
 const RpsRouletteCabinet = lazy(() => import('../features/rpsRoulette/RpsRouletteCabinet').then(module => ({ default: module.RpsRouletteCabinet })))
-const BungeoppangGrill = lazy(() => import('../features/bungeoppang/BungeoppangGrill').then(module => ({ default: module.BungeoppangGrill })))
+const BungeoppangGrill = lazy(loadBungeoppangGrill)
 
 preloadWorldAssets()
+
+const parkPointerEvents: typeof events = store => {
+  const manager = events(store)
+  const handlers = manager.handlers
+  if (handlers) {
+    const move = handlers.onPointerMove
+    handlers.onPointerMove = event => {
+      // Camera drags are handled by the canvas input controller. Avoid a second
+      // traversal of interactive 3D objects for each high-rate mouse event.
+      if (roamingInput.draggingCamera && event instanceof PointerEvent && !scenePointerOwners.has(event.pointerId)) return
+      move(event)
+    }
+  }
+  return manager
+}
 
 const interactWithRankingBoard = () => {
   if (getParkInteraction()?.id === 'layout-photo') interactWithPark()
 }
 
-function HoldAutomaticRender() {
-  // Claim R3F's default render pass even while the park subtree is suspended.
-  // SceneReady draws the gate once its camera, lighting and visible meshes agree.
-  useFrame(() => {}, 1)
+function SceneMounted({ ready }: { ready: RefObject<boolean> }) {
+  useLayoutEffect(() => {
+    ready.current = true
+    performance.mark('park-scene-mounted')
+    return () => { ready.current = false }
+  }, [ready])
   return null
 }
 
-function SceneReady({ onReady }: { onReady: () => void }) {
+function SceneReady({ mounted, groundMounted, onReady }: {
+  mounted: RefObject<boolean>
+  groundMounted: RefObject<boolean>
+  onReady: () => void
+}) {
   const startup = useMemo(
     () => ({
       phase: 'cold' as 'cold' | 'compiling' | 'ready' | 'presented',
@@ -85,6 +108,7 @@ function SceneReady({ onReady }: { onReady: () => void }) {
     }
   }, [startup])
   useFrame(({ gl, scene, camera }) => {
+    if (startup.phase !== 'presented' && (!mounted.current || (RENEWAL_PARK_ENABLED && !groundMounted.current))) return
     if (startup.phase === 'cold' && RENEWAL_PARK_ENABLED) {
       performance.mark('park-scene-prepare-start')
       if (RENEWAL_GATE_STARTUP && gl.extensions.has('KHR_parallel_shader_compile')) {
@@ -146,15 +170,15 @@ export const WorldCanvas = memo(function WorldCanvas({
   onReady: () => void
 }) {
   const [distantReady, setDistantReady] = useState(false)
-  const [jumpPreviewReady, setJumpPreviewReady] = useState(false)
   const jumpRunActive = useJumpmap(state => !!state.run)
   const breadActive = useBungeoppang(state => state.phase !== 'idle')
   const firstFrameAt = useRef<number | null>(null)
-  const jumpPreviewTimer = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(jumpPreviewTimer.current), [])
+  const [entryPresented, setEntryPresented] = useState(false)
+  const sceneMounted = useRef(false)
+  const groundMounted = useRef(false)
   const reportFirstFrame = useCallback(() => {
     firstFrameAt.current = performance.now()
-    if (RENEWAL_PARK_ENABLED) jumpPreviewTimer.current = window.setTimeout(() => setJumpPreviewReady(true), 1500)
+    setEntryPresented(true)
     onReady()
   }, [onReady])
   const boardPlayer = useGame(s => s.game?.role === 'PLAYER' && (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING'))
@@ -199,6 +223,7 @@ export const WorldCanvas = memo(function WorldCanvas({
   return (
     <>
       <Canvas
+        events={parkPointerEvents}
         // Keep sockets alive in hidden tabs; authoritative match state still arrives.
         frameloop={!visible || !active || gachaOverlay || (fortuneOpen && firstFrameAt.current !== null) ? 'never' : 'always'}
         shadows={!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&preset.shadows ? 'percentage' : false}
@@ -216,6 +241,11 @@ export const WorldCanvas = memo(function WorldCanvas({
           powerPreference: 'high-performance',
           toneMapping: ACESFilmicToneMapping,
         }}
+        onCreated={({ gl }) => {
+          // Program diagnostics synchronously wait on the driver on first use.
+          // Keep them in development; production uses the prepared-program path.
+          gl.debug.checkShaderErrors = import.meta.env.DEV
+        }}
         fallback={
           <div className="unsupported">
             WebGL 2를 사용할 수 없습니다. 브라우저의 하드웨어 가속 설정을 확인해
@@ -224,7 +254,6 @@ export const WorldCanvas = memo(function WorldCanvas({
         }
       >
         <AvatarPoseFrame>
-          {RENEWAL_GATE_STARTUP && <HoldAutomaticRender />}
           <ParkXRBridge />
           <group name={RENEWAL_PARK_ENABLED ? 'renewal-exterior-lighting' : undefined}>
             <EnvironmentScene matchServiceBrightness={RENEWAL_PARK_ENABLED} />
@@ -233,18 +262,21 @@ export const WorldCanvas = memo(function WorldCanvas({
           <ParkSoundscape />
           {!RENEWAL_PARK_ENABLED && <NightLighting quality={GENERATED_PARK_ENABLED ? 'low' : quality} />}
           <Suspense fallback={null}>
-            {RenewalParkWorld ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><RenewalParkWorld quality={quality} firstFrameAt={firstFrameAt} onDistantReady={setDistantReady} /></group>
+            {RenewalParkWorld ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><RenewalParkWorld quality={quality} firstFrameAt={firstFrameAt} onDistantReady={setDistantReady} groundMounted={groundMounted} entryPresented={entryPresented} /></group>
               : GENERATED_PARK_ENABLED ? <group name="park-service-map" userData={{...LIVE_MAP_IDENTITY}}><GeneratedParkWorld live onRankingBoardInteract={interactWithRankingBoard}/></group>
                 : <PlaceholderWorld quality={quality} />}
             {JUMPMAP_ENABLED && !RENEWAL_PARK_ENABLED && <ServiceJumpCourse />}
             {!RENEWAL_PARK_ENABLED && <RpsRouletteCabinet />}
-            {/* Same Suspense boundary as SceneReady: both use positive frame priorities around its render. */}
-            <OmokFocusLighting />
-            <SceneReady onReady={reportFirstFrame} />
+            <SceneMounted ready={sceneMounted} />
           </Suspense>
-          {RENEWAL_PARK_ENABLED && (distantReady || jumpPreviewReady || jumpRunActive) &&
+          {/* Maintain one render owner while lazy scene children mount. */}
+          <OmokFocusLighting />
+          <SceneReady mounted={sceneMounted} groundMounted={groundMounted} onReady={reportFirstFrame} />
+          {RENEWAL_PARK_ENABLED && (distantReady || jumpRunActive) &&
             <Suspense fallback={null}><ShaderPreparedGroup priority={.75}><ServiceJumpCourse /></ShaderPreparedGroup></Suspense>}
-          <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
+          <Suspense fallback={null}>
+            <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
+          </Suspense>
         <PoliceNpcs />
         <CompanionActors />
         <JokeJudgeActor />          <FollowRopes />

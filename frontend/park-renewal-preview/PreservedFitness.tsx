@@ -11,8 +11,9 @@ import {renderedFitnessTrees} from './fitnessTreesPlan'
 export {originalFitnessTrees,renderedFitnessTrees} from './fitnessTreesPlan'
 const grove=buildParkTreeParts(renderedFitnessTrees)
 const center=buildParkTreeParts([{position:[ORIGINAL_SITES.fitness.x,.1,ORIGINAL_SITES.fitness.z],kind:'broadleaf',scale:1.45}])
-export function PreservedFitness(){const s=site('fitness');return <group name="preserved-complete-fitness-district" position={[s.x-ORIGINAL_SITES.fitness.x,heightAt(s.x,s.z),s.z-ORIGINAL_SITES.fitness.z]}>
- <FitnessGarden area={DRAFT_FITNESS_AREA} stations={DRAFT_FITNESS_STATIONS} floorShape="ellipse" showPads={false} floorColor="#c8c0ad"/>
+const noStations: typeof DRAFT_FITNESS_STATIONS = []
+export function PreservedFitness({showStations=true}: {showStations?: boolean} = {}){const s=site('fitness');return <group name="preserved-complete-fitness-district" position={[s.x-ORIGINAL_SITES.fitness.x,heightAt(s.x,s.z),s.z-ORIGINAL_SITES.fitness.z]}>
+ <FitnessGarden area={DRAFT_FITNESS_AREA} stations={showStations?DRAFT_FITNESS_STATIONS:noStations} floorShape="ellipse" showPads={false} floorColor="#c8c0ad"/>
  <group position={[0,.012,0]}><FitnessCourtPaving area={DRAFT_FITNESS_AREA} color="#c8c0ad"/></group>
  <PropModel art={fitnessRestArt} name="preserved-fitness-ring-benches"/>
  <FacetedParkTreeInstances parts={center} name="preserved-fitness-center-tree" treeCount={1}/>

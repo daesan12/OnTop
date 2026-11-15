@@ -5,7 +5,7 @@ export const inputState = {
   shopOpen: false, wardrobeOpen: false, advertisementOpen: false, followMenuOpen: false,
   welcomeFlight: false, fortuneOpen: false,
 }
-export const roamingInput = { ready: false }
+export const roamingInput = { ready: false, draggingCamera: false }
 /** A physical scene control can own one pointer without locking keyboard/chat or other games. */
 export const scenePointerOwners = new Map<number, string>()
 export function clearRoamingInput() {

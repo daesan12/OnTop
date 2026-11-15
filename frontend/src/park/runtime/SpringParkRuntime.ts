@@ -465,7 +465,6 @@ export class ParkRuntime implements ParkRuntimePort {
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     const parkRankingRequest = method === 'GET' && path === '/api/v1/rankings/park'
     const fitnessRewardRequest = method === 'GET' && path === '/api/v1/world/fitness/rewards/status'
-    const skewerAdmission = method === 'POST' && path === '/api/v1/minigames/skewer/admissions'
     const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR))?$/.test(path)
@@ -499,7 +498,7 @@ export class ParkRuntime implements ParkRuntimePort {
         || (method === 'GET' && path === '/local/ai/companions/status')
         || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
     if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
+      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerCoop
       && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
@@ -1098,17 +1097,18 @@ export class ParkRuntime implements ParkRuntimePort {
     const s = useSession.getState()
     return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
-  private interactionStatus = { scope: '', busy: false, vrActive: false, desired: false, pending: null as Promise<boolean> | null, retryAt: 0, requestId: '' }
-  setInteractionBusy = (busy: boolean, confirm = false) => {
+  private interactionStatus = { scope: '', busy: false, vrActive: false, minigame: false, desired: false, desiredMinigame: false, pending: null as Promise<boolean> | null, retryAt: 0, requestId: '' }
+  setInteractionBusy = (busy: boolean, confirm = false, minigame?: boolean) => {
     const session = useSession.getState(), scope = JSON.stringify([this.generation, session.sessionId, session.roomId])
     if (!this.active || session.status !== 'connected' || !session.roomId || !session.mapCompatible
       || !this.socket.connected) return Promise.resolve(false)
     if (!session.carrySupported) return Promise.resolve(!confirm)
     // A confirmed seat already blocks carry. Lobby presence requests are rejected during a real game.
     if (session.tableId || tableBusy()) return Promise.resolve(!confirm)
-    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, vrActive: false, desired: false, pending: null, retryAt: 0, requestId: '' }
+    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, vrActive: false, minigame: false, desired: false, desiredMinigame: false, pending: null, retryAt: 0, requestId: '' }
     const status = this.interactionStatus
     status.desired = busy
+    if (minigame !== undefined) status.desiredMinigame = minigame
     let confirmNeeded = confirm
     const generation = this.generation
     const current = () => this.active && this.generation === generation && this.interactionStatus === status
@@ -1116,17 +1116,18 @@ export class ParkRuntime implements ParkRuntimePort {
     const sync = (): Promise<boolean> => {
       if (!current()) return Promise.resolve(false)
       if (status.pending) return status.pending.then(ok => ok ? sync() : false)
-      const vrActive = vrCarryProtection.active, desired = status.desired || vrActive
-      if (status.busy === desired && status.vrActive === vrActive && !confirmNeeded) return Promise.resolve(true)
+      const vrActive = vrCarryProtection.active, desired = status.desired || vrActive, playing = status.desiredMinigame
+      if (status.busy === desired && status.vrActive === vrActive && status.minigame === playing && !confirmNeeded) return Promise.resolve(true)
       if (performance.now() < status.retryAt) return Promise.resolve(false)
       confirmNeeded = false
-      const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}) }
+      const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}),
+        ...(playing || status.minigame ? { minigame: playing } : {}) }
       status.pending = this.socket.request('WORLD_INTERACTION_SET', payload, ['WORLD_INTERACTION_STATE']).then(response => {
         if (response.payload.channelId !== session.roomId || response.payload.busy !== desired
           || (response.payload.vrActive === true) !== vrActive)
           throw new Error('창 점유 응답을 확인해주세요.')
         if (!current()) return false
-        status.busy = desired; status.vrActive = vrActive; return true
+        status.busy = desired; status.vrActive = vrActive; status.minigame = playing; return true
       }).catch(error => {
         // A presence request sent before seating cannot revoke an already restored game's input.
         if ((useSession.getState().tableId || tableBusy()) && error instanceof ServerError && error.code === 'GAME_RECOVERY_REQUIRED') return false
@@ -1277,6 +1278,8 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   setSecretDoors = (open: boolean) =>
     this.action(() => this.socket.request('WORLD_SECRET_DOORS_SET', { open }, ['WORLD_STATE']), { blockControls: false })
+  useInteriorAccess = (access: string) =>
+    this.action(() => this.socket.request('WORLD_INTERIOR_ACCESS', { access }, ['WORLD_STATE']), { blockControls: false })
   joinTable = (anchorId?: string) => {
     // The pending action releases pointer lock before the join checks run.
     const mouseLook = useMouseLook.getState().active

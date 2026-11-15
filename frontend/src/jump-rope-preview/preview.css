@@ -499,6 +499,38 @@ body:has(> #root > .preview) { margin: 0; background: #f4f0e6; }
 
 .rope-menu kbd { font: inherit; }
 
+/* Rules v2 adds the duck: four rules in two rows. */
+.rope-menu__rules[data-duck="true"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.rope-rule-hint {
+  position: absolute;
+  left: 50%;
+  top: calc(46% + clamp(2.6rem, 6.4vw, 5rem));
+  transform: translateX(-50%);
+  width: min(88%, 420px);
+  margin: 0;
+  padding: 7px 12px;
+  border: 1px solid #758879;
+  border-radius: 6px;
+  background: #fff7e8f0;
+  box-shadow: 0 3px 10px #253a3420;
+  color: #253a34;
+  font-size: clamp(0.78rem, 2.1vw, 0.95rem);
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+  word-break: keep-all;
+  pointer-events: none;
+}
+
+.rope-rule-hint kbd {
+  padding: 0 4px;
+  border: 1px solid #9aa898;
+  border-radius: 3px;
+  background: #fffdf6;
+  font: inherit;
+}
+
 .rope-menu__actions { display: grid; justify-items: center; gap: 9px; }
 
 .rope-menu__start, .rope-menu__ranking {
@@ -951,4 +983,5 @@ body:has(> #root > .preview) { margin: 0; background: #f4f0e6; }
 
 @media (max-width: 344px) {
   .rope-menu__rules { grid-template-columns: 1fr 1fr 1.2fr; }
+  .rope-menu__rules[data-duck="true"] { grid-template-columns: 1fr 1fr; }
 }

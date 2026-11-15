@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 const {events}=vi.hoisted(()=>({events:[] as string[]}))
+vi.mock('virtual:park-geometry', () => ({ default: null, sceneUrl: null }))
 vi.mock('../../src/main',()=>{events.push('main');return {}})
 beforeEach(()=>{vi.resetModules();events.length=0})
 afterEach(()=>vi.unstubAllGlobals())
@@ -31,10 +32,16 @@ it('reuses an early 401 for both checking effects and allows a later retry',asyn
   await restoreAuthSession()
   expect(fetch).toHaveBeenCalledTimes(2)
 })
-it('leaves OAuth callback exchange exclusive without refreshing an older session',async()=>{
-  vi.stubGlobal('window',{location:{pathname:'/auth/callback'}})
-  const fetch=vi.fn();vi.stubGlobal('fetch',fetch)
+it('starts a single OAuth callback exchange before UI loading',async()=>{
+  const code='a'.repeat(43)
+  vi.stubGlobal('window',{location:{pathname:'/auth/callback',hash:'#exchange_code='+code,search:''},history:{replaceState:vi.fn()}})
+  const fetch=vi.fn(()=>{events.push('exchange');return Promise.resolve(new Response(JSON.stringify({status:'AUTHENTICATED',accessToken:'test'})))})
+  vi.stubGlobal('fetch',fetch)
   await import('../../src/bootstrap')
   await vi.dynamicImportSettled()
-  expect(fetch).not.toHaveBeenCalled()
+  const {exchangeCallbackCode}=await import('../../src/auth/authFlow')
+  expect(await exchangeCallbackCode()).toEqual({status:'AUTHENTICATED',accessToken:'test'})
+  expect(events[0]).toBe('exchange')
+  expect(fetch).toHaveBeenCalledOnce()
+  expect(fetch).toHaveBeenCalledWith('/api/v1/auth/exchange',expect.objectContaining({body:JSON.stringify({exchangeCode:code})}))
 })

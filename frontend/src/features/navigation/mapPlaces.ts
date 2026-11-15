@@ -26,7 +26,9 @@ function renewalMapPlaces({ interactions, jumpCourse }: NonNullable<typeof renew
     const building = site(facility)
     return place(id, name, building, anchor ? xz(anchor.reachPosition) : node(building.node))
   }
+  const plaza = site('plaza')
   return [
+    place('plaza', '중앙광장', { x: plaza.x, z: plaza.z - 5 }, node(plaza.node)),
     place('central', '메인 팔각정', site('pavilion'), { x: 0, z: 18 }),
     place('fitness', '운동마당', site('fitness'), interactions.fitness[0]!.use),
     place('fountain', '분수대', site('fountain'), node('fountainGate')),
@@ -42,8 +44,10 @@ function renewalMapPlaces({ interactions, jumpCourse }: NonNullable<typeof renew
     gamePlace('pigeon', 'pigeon-jump-rope', '비둘기 줄넘기'),
     gamePlace('mole', 'mole-shop', '두더지 가게'),
     gamePlace('arcade', 'rps-roulette-cabinet', '오락실'),
-    ...interactions.construction.filter(anchor => !anchor.id.startsWith('mobility-')).map(anchor =>
-      place(anchor.id, anchor.label, xz(anchor.position), xz(anchor.reachPosition), true)),
+    ...interactions.construction.map(anchor => {
+      const label = anchor.id.startsWith('mobility-') ? anchor.label + ' 대여소' : anchor.label
+      return place(anchor.id, label, xz(anchor.position), xz(anchor.reachPosition), true)
+    }),
   ]
 }
 

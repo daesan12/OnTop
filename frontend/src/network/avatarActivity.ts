@@ -2,6 +2,7 @@
  * display extension until server shop entry/exit broadcasting is implemented. */
 export const AVATAR_ACTIVITY_LABELS = {
   BUNGEOPPANG: '붕어빵 뒤집는 중',
+  MINIGAME: '미니게임 이용 중',
   GAME: '게임 중',
   WATCHING: '관전 중',
   MYROOM: '마이룸 사용 중',

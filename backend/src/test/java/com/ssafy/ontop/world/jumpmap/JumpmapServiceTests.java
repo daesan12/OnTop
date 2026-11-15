@@ -25,6 +25,13 @@ class JumpmapServiceTests {
         final AtomicInteger failures = new AtomicInteger();
         volatile boolean pending = true;
         Runnable duringStatus = () -> { };
+        final List<MacroDetection> detections = new CopyOnWriteArrayList<>();
+        volatile boolean detectionFails;
+
+        @Override public void recordDetection(MacroDetection detection) {
+            if (detectionFails) throw new IllegalStateException("db down");
+            detections.add(detection);
+        }
 
         @Override public Started start(String runId, long userId, String channelId, Instant at) {
             return new Started(true, 10, LocalDate.of(2026, 10, 30));
@@ -142,6 +149,51 @@ class JumpmapServiceTests {
             assertThat(sent).isEmpty();
             assertThat(service.active()).isFalse();
             assertThat(service.status("101", Optional::empty).enabled()).isFalse();
+        }
+    }
+
+    private static JumpmapTracker.Traced replayed(int run) {
+        var landings = java.util.stream.IntStream.rangeClosed(1, 20)
+                .mapToObj(block -> new JumpmapTracker.Landing(block, block * 700L)).toList();
+        return new JumpmapTracker.Traced("101", "channel-1", "run-" + run,
+                new JumpmapTracker.RunTrace(Double.NaN, Double.NaN, null, landings, JumpRun.EndReason.FALL, 15_000));
+    }
+
+    @Test
+    void 반복_패턴은_운영자_기록으로만_남기고_이용자에게는_아무것도_보내지_않는다() throws Exception {
+        var store = new SlowStore();
+        var sent = new CopyOnWriteArrayList<Sent>();
+        try (var service = service(store, sent)) {
+            for (int run = 1; run <= 4; run++) {
+                service.accept(replayed(run), List.of());
+            }
+            service.drain(Duration.ofSeconds(5));
+
+            assertThat(sent).isEmpty();
+            assertThat(store.detections).singleElement().satisfies(detection -> {
+                assertThat(detection.runId()).isEqualTo("run-4");
+                assertThat(detection.userId()).isEqualTo(101);
+                assertThat(detection.rule()).isEqualTo(JumpmapMacroWatch.REPLAY);
+                assertThat(detection.matchedRuns()).isEqualTo(3);
+                assertThat(detection.detectedAt()).isEqualTo(CLOCK.instant());
+            });
+        }
+    }
+
+    @Test
+    void 반복_패턴_기록이_실패해도_판_처리는_계속된다() throws Exception {
+        var store = new SlowStore();
+        store.detectionFails = true;
+        var sent = new CopyOnWriteArrayList<Sent>();
+        try (var service = service(store, sent)) {
+            for (int run = 1; run <= 4; run++) {
+                service.accept(replayed(run), List.of());
+            }
+            gate(service);
+            service.drain(Duration.ofSeconds(5));
+
+            assertThat(store.detections).isEmpty();
+            assertThat(sent).extracting(Sent::type).containsExactly("JUMPMAP_STARTED", "JUMPMAP_GATE");
         }
     }
 }

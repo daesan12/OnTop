@@ -2,7 +2,7 @@ import {useMemo} from 'react'
 import {ParkPigeons} from '../src/world/pigeons/ParkPigeons'
 import {createBirds} from '../src/world/pigeons/pigeonSimulation'
 import {useLivePigeonVisitors} from '../src/world/pigeons/useLivePigeonVisitors'
-import {previewCurbs} from './previewCurbs'
+import {ParkCurbs} from './ParkCurbs'
 import {factory} from './assetFactories'
 import {heightAt,insidePark,inLake,LAKE} from './plan'
 import {LakeFish} from '../src/world/art/LakeFish'
@@ -28,11 +28,11 @@ function LakeStructure({ kind }: { kind: 'bridge' | 'bridge-guards' | 'lake-fenc
   return <primitive object={object} dispose={null}/>
 }
 
-export function LakeAndParkDetails({live=false}: {live?: boolean}){
+export function LakeAndParkDetails({live=false,includeCurbs=true}: {live?: boolean;includeCurbs?: boolean}){
  const visitors=useLivePigeonVisitors()
  const habitat=useMemo(()=>live?{...renewalPigeonHabitat,visitors}:renewalPigeonHabitat,[live,visitors])
  return <>
- <mesh name="continuous-mitered-stone-curbs" geometry={previewCurbs}><meshLambertMaterial color="#beb9a5" side={2}/></mesh>
+ {includeCurbs&&<ParkCurbs/>}
  <group name="lake-shore-structures">
   <LakePart at={LakeStage.Bridge}><LakeStructure kind="bridge"/><LakeStructure kind="bridge-guards"/></LakePart>
   <LakePart at={LakeStage.Fence}><LakeStructure kind="lake-fence"/></LakePart>

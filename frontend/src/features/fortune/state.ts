@@ -54,12 +54,12 @@ export function closeFortune() {
   useFortune.setState(s => ({ open: false, error: '', phase: s.phase === 'gathering' || s.phase === 'revealing' ? 'revealed' : s.phase }))
   clearRoamingInput()
 }
-export function startFortuneShuffle() {
+export function startFortuneShuffle(accountName?: string | null) {
   syncFortuneCooldown()
   const state = useFortune.getState()
   if (!state.open || state.phase !== 'writing' || state.result || state.deck.length || state.pending) return
   if (Date.now() < state.nextAllowedAt) return
-  const nickname = parseFortuneNickname(state.draft)
+  const nickname = parseFortuneNickname(accountName === undefined ? state.draft : accountName ?? '')
   if (!nickname) { useFortune.setState({ error: '닉네임을 1~20자로 입력해주세요. 빈 이름이나 제어 문자는 사용할 수 없어요.' }); return }
   useFortune.setState({ nickname, deck: drawFortuneDeck(state.previousId), phase: 'shuffling', error: '' })
 }

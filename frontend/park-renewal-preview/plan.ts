@@ -8,11 +8,13 @@ import {inSummit,forestBaseHeight,constraintWeight,SUMMIT_HEIGHT} from './hybrid
 import {cafeApronHeight,hiddenOutletApronHeight} from './siteFinishingPlan.ts'
 import {ROAD_GRADE_HEIGHTS} from './roadGradePlan.ts'
 import {fixedMappedRoadSupport,preserveMappedGround} from './mappedGroundSupports.ts'
+import { MONUMENT_STAIRS, MONUMENT_TREAD_OFFSET } from './monumentStairPlan.ts'
+export { MONUMENT_STAIRS }
 export type Point=readonly [number,number]
 export type District='첫걸음'|'중앙마당'|'놀이숲'|'버들호수'|'언덕과 숲'
 export interface Site {id:string;name:string;x:number;z:number;radius:number;district:District;note:string;node:string;asset?:string;yaw?:number;label?:boolean;kind?:'reserve'|'npc'}
 export const LAKE={x:62,z:-18,rx:29,rz:36,y:3.45,island:{x:62,z:-18,rx:14,rz:17}}
-export const BOAT_ROUTE={x:61,z:-18,rx:17,rz:24}
+export const BOAT_ROUTE={x:61,z:-18,rx:17,rz:24,period:2*Math.PI/.018,y:LAKE.y+.33,half:[.83,.76,1.45] as const}
 export const PLAZA_RADIUS=20
 export const TABLES:Point[]=[[-10,27],[10,27],[-16,37],[16,37],[-10,49],[10,49]]
 export const JUMP_TABLES:Point[]=[[-78,19.5]]
@@ -24,16 +26,21 @@ export const RENTAL_PAIR_SPACING=3.4
 export const RENTAL_VEHICLE_X=[-.9,0,.9] as const
 export const BALLOON_SCALE=1.45
 export const STATION_SCALE=1.7
+const shelterScale=1.6*STATION_SCALE
+export const STATION_SHELTER={x:-2.15*shelterScale,z:-1.7*shelterScale,width:4.58*shelterScale,
+ depth:2.95*shelterScale,floor:.9125*STATION_SCALE,entryWidth:7.8,entryRun:1.5} as const
+export const STATION_BENCH={x:STATION_SHELTER.x,z:-2.42*shelterScale,floor:STATION_SHELTER.floor,seatHeight:.56} as const
 export const STATION_STEPS={halfX:5.1408,z0:14.4568,z1:18.9448}
 export function underStation(x:number,z:number){const s=site('balloon'),dx=Math.abs(x-s.x),dz=z-s.z;return Math.hypot(dx,dz)<15.95||dx<STATION_STEPS.halfX&&dz>STATION_STEPS.z0&&dz<STATION_STEPS.z1}
 export const STATION_STAIRS={zTop:16.048,zBottom:18.9448,width:7.48,steps:6,top:.65*STATION_SCALE}
 export const STATION_APPROACH={a:[-40,-54]as Point,b:[-40,-76+18.9448]as Point,width:7.2}
-export const TOWER_ACCESS={a:[84,27]as Point,b:[89.5,24]as Point,width:4.2,points:[[84,27],[87,27],[88.6,26.6],[89.5,25.5],[89.5,24]]as readonly Point[]}
-export function onTowerAccess(x:number,z:number,extra=0){if(x>87.4&&z<24-extra)return false;return TOWER_ACCESS.points.slice(1).some((b,i)=>i===TOWER_ACCESS.points.length-2?onSquareEndedPath(x,z,TOWER_ACCESS.points[i]!,b,TOWER_ACCESS.width,extra):distanceToSegment(x,z,TOWER_ACCESS.points[i]!,b)<TOWER_ACCESS.width/2+extra)}
-export const DOCK_ACCESS={points:[[51,26.8],[51,20.5625],[53.7,20.5625]] as readonly Point[],width:2.4,top:LAKE.y+.6865*DOCK_SCALE}
+export const TOWER_ACCESS={a:[84,34]as Point,b:[89.5,24]as Point,width:4.2,points:[[84,34],[86.5,32],[88.5,29.5],[89.5,27],[89.5,24]]as readonly Point[]}
+export function onTowerAccess(x:number,z:number,extra=0){if(z<24-extra)return false;return TOWER_ACCESS.points.slice(1).some((b,i)=>i===TOWER_ACCESS.points.length-2?onSquareEndedPath(x,z,TOWER_ACCESS.points[i]!,b,TOWER_ACCESS.width,extra):distanceToSegment(x,z,TOWER_ACCESS.points[i]!,b)<TOWER_ACCESS.width/2+extra)}
+export const DOCK_ACCESS={points:[[51,26.8],[51,20.5625],[53.475,20.5625]] as readonly Point[],width:2.4,top:LAKE.y+.65*DOCK_SCALE}
 export const FISHING_SHOP={x:81.5,z:-45.6,clearance:7.8,y:7.42,yaw:Math.PI/2}
 export const FISHING_SUPPORTS={upper:[[79,-49],[85.5,-49],[79,-42.2],[88.6,-43]]as readonly Point[],lower:[[79,-39],[80,-37.2],[88.8,-38.2]]as readonly Point[]}
 export const FISHING_BENCHES=[[86,-45,Math.PI/2],[81.1,-46.4,0],[81.1,-44.4,0]]as const
+export const FISHING_ROD_RACKS = [[79.85, -39.7], [80.05, -37.85]] as const
 export const FISHING_NOTICE={x:90.9,z:-32.6,yaw:Math.PI/2}
 export const FISHING_DECK={x:83,z:-43,base:3.8,top:4.28,halfX:5,halfZ:7.2,yaw:0}
 // Both storeys stop before the full 8 m public road, including the diagonal bend.
@@ -121,7 +128,6 @@ export function bridgeLandingHeight(landing: (typeof BRIDGE_LANDINGS)[number], x
  return landing.top-(landing.top-BRIDGE.base)*(1-bridgeBlend*islandBlend)
 }
 export const BRIDGE_EDGES:readonly (readonly [string,string,number])[]=[['bridge-bank','island-entry',3.4],['island-entry','island',3.4]]
-export const MONUMENT_STAIRS={x:0,zTop:-48,zBottom:-17,bottom:5,top:22,width:4.5,steps:95} as const
 export function onBridge(x:number,z:number){return x>=BRIDGE.x0&&x<=BRIDGE.x1&&Math.abs(z-BRIDGE.z)<BRIDGE.width/2}
 export function bridgeDeckHeight(x:number){const t=Math.max(0,Math.min(1,(x-BRIDGE.x0)/(BRIDGE.x1-BRIDGE.x0)));return BRIDGE.base+(1-t)*.4+BRIDGE.rise*4*t*(1-t)}
 export const directionTo=(x:number,z:number,p:Point)=>Math.atan2(p[0]-x,p[1]-z)
@@ -343,7 +349,6 @@ export function deckHeightAt(x:number,z:number,currentY=4.28){
  for(const l of BRIDGE_LANDINGS)if(x>=l.x0&&x<=l.x1&&Math.abs(z-BRIDGE.z)<l.width/2)return bridgeLandingHeight(l,x)
  for(const access of[DOCK_ACCESS,FISHING_ACCESS])for(let i=1;i<access.points.length;i++)if(onSquareEndedPath(x,z,access.points[i-1]!,access.points[i]!,access.width))return accessTopAt(access,x,z)
  const d=site('dock'),dx=Math.abs(x-d.x)/DOCK_SCALE,dz=(z-d.z)/DOCK_SCALE
- if(dx<4.36&&dz>.975&&dz<2.425)return LAKE.y+.6865*DOCK_SCALE
  if(dx<4.5&&dz>-1.2&&dz<2.75||Math.abs(dx-3.65)<.75&&dz>-4.5&&dz<=-1.2)return LAKE.y+.65*DOCK_SCALE
  if(onFishingDeck(x,z))return FISHING_DECK.top
  return null
@@ -352,7 +357,7 @@ export function deckHeightAt(x:number,z:number,currentY=4.28){
 export function monumentTreadHeight(z:number){
  const s=MONUMENT_STAIRS
  const tread=Math.min(s.steps-1,Math.max(0,Math.floor((z-s.zTop)*s.steps/(s.zBottom-s.zTop)-1e-8)))
- return s.bottom+.085+(s.top-s.bottom)*(s.steps-tread)/s.steps
+ return s.bottom+MONUMENT_TREAD_OFFSET+(s.top-s.bottom)*(s.steps-tread)/s.steps
 }
 
 export function walkHeightAt(x:number,z:number,currentY=4.28){

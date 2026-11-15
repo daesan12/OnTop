@@ -29,7 +29,7 @@ try {
   ])
   const bytes = gunzipSync(source)
   installStaticPark(decodeStaticPark(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)))
-  const [{ factory }, { bakedLakeKinds, decodeBakedFacilities, entryMeshNames }, { createArcadeArt }, { encodeBakedProps }] = await Promise.all([
+  const [{ factory }, { bakedFacilityKinds, decodeBakedFacilities, entryMeshNames }, { createArcadeArt }, { encodeBakedProps }] = await Promise.all([
     vite.ssrLoadModule('/park-renewal-preview/assetFactories.js'),
     vite.ssrLoadModule('/park-renewal-preview/static/facilities.ts'),
     vite.ssrLoadModule('/park-renewal-preview/static/arcadeArt.ts'),
@@ -37,7 +37,7 @@ try {
   ])
   const rootGroup = new Group()
   rootGroup.name = 'renewal-static-facilities-v1'
-  for (const kind of bakedLakeKinds) {
+  for (const kind of bakedFacilityKinds) {
     const holder = new Group()
     holder.name = kind
     holder.add(factory(kind))

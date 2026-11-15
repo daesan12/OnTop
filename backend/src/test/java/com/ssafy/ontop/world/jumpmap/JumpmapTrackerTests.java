@@ -210,4 +210,64 @@ class JumpmapTrackerTests {
                 .singleElement().extracting(s -> ((JumpmapTracker.Progress) s).outcome())
                 .isEqualTo(new JumpRun.GatePassed(1, at - 200, 5));
     }
+
+    private static Sample at(Sample sample, double x, double z) {
+        return new Sample(sample.surface(), sample.collider(), sample.block(), sample.gate(), sample.swimming(),
+                sample.feet(), sample.relocations(), sample.following(), x, z, false);
+    }
+
+    @Test
+    void 끝난_판의_출발_정지_지점과_착지_시각을_판별_자료로_한번만_내보낸다() {
+        var tracker = tracker();
+        tracker.observe("7", "c1", at(ground("vr-court-floor"), 1, 2), 0);
+        tracker.observe("7", "c1", at(ground("vr-court-floor"), 1, 2), 500);
+        tracker.observe("7", "c1", at(ground("vr-court-floor"), 1.02, 2), 1_000);
+        tracker.observe("7", "c1", at(air(), 1.5, 2), 1_100);
+        tracker.observe("7", "c1", at(pad(0), 3, 2), 1_400);
+        tracker.observe("7", "c1", at(air(), 3.5, 2), 1_500);
+        tracker.observe("7", "c1", at(pad(1), 4, 2), 1_700);
+        tracker.observe("7", "c1", at(air(), 4.5, 2), 1_800);
+        assertThat(tracker.drainTraces()).isEmpty();
+
+        var signals = tracker.observe("7", "c1", at(ground("vr-court-floor"), 5, 2), 2_000);
+
+        // 판별 자료는 이용자에게 가는 판정 신호에 섞이지 않는다.
+        assertThat(signals).noneMatch(JumpmapTracker.Traced.class::isInstance);
+        assertThat(tracker.drainTraces()).containsExactly(new JumpmapTracker.Traced("7", "c1", "run-1",
+                new JumpmapTracker.RunTrace(3, 2, new JumpmapTracker.Dwell(1, 2, 1_000, 300, false),
+                        List.of(new JumpmapTracker.Landing(1, 300)), JumpRun.EndReason.FALL, 600)));
+        assertThat(tracker.drainTraces()).isEmpty();
+    }
+
+    @Test
+    void 정지_지점은_직전_판이_끝난_뒤부터_다시_잡고_좌표가_없으면_남기지_않는다() {
+        var tracker = tracker();
+        tracker.observe("7", "c1", at(ground("vr-court-floor"), 1, 2), 0);
+        tracker.observe("7", "c1", at(ground("vr-court-floor"), 1, 2), 1_000);
+        tracker.observe("7", "c1", at(air(), 1.5, 2), 1_100);
+        tracker.observe("7", "c1", at(pad(0), 3, 2), 1_400);
+        tracker.observe("7", "c1", at(air(), 3.5, 2), 1_500);
+        tracker.observe("7", "c1", at(ground("vr-court-floor"), 5, 2), 2_000);
+        // 멈추지 않고 곧바로 다시 올라간 두 번째 판에는 첫 판의 정지 지점을 붙이지 않는다.
+        tracker.observe("7", "c1", at(air(), 4, 2), 2_100);
+        tracker.observe("7", "c1", at(pad(0), 3, 2), 2_400);
+        tracker.observe("7", "c1", at(air(), 3.5, 2), 2_500);
+        tracker.observe("7", "c1", at(ground("vr-court-floor"), 5, 2), 3_000);
+
+        var traces = tracker.drainTraces();
+
+        assertThat(traces).extracting(JumpmapTracker.Traced::runId).containsExactly("run-1", "run-2");
+        assertThat(traces.get(0).trace().dwell()).isEqualTo(new JumpmapTracker.Dwell(1, 2, 1_000, 300, false));
+        assertThat(traces.get(1).trace().dwell()).isNull();
+
+        var blind = tracker();
+        start(blind, "7");
+        blind.observe("7", "c1", air(), 300);
+        blind.observe("7", "c1", ground("vr-court-floor"), 500);
+        assertThat(blind.drainTraces()).singleElement().satisfies(traced -> {
+            assertThat(traced.trace().dwell()).isNull();
+            assertThat(traced.trace().landings()).isEmpty();
+            assertThat(traced.trace().reason()).isEqualTo(JumpRun.EndReason.FALL);
+        });
+    }
 }

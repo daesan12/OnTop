@@ -210,16 +210,18 @@ function TabletSession({ tableId }: { tableId: string }) {
           <GameArt code={code} />
           <fieldset disabled={!host || busy || !isTableGamePlayable(code)}><legend>참가 인원</legend><div className="tablet-counts" data-maximum={max}>{Array.from({ length: max - 1 }, (_, index) => index + 2).map(n => <button key={n}
             aria-pressed={count === n} onClick={() => setCount(n)}>{n}인</button>)}</div></fieldset>
-          <div className="tablet-score-slot">{code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy || !isTableGamePlayable(code)} value={target} onChange={e => setTarget(Number(e.target.value))}>
-            {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}</div>
+          {code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy || !isTableGamePlayable(code)} value={target} onChange={e => setTarget(Number(e.target.value))}>
+            {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}
           <label className="tablet-bet-input"><span>1인 참가 판돈</span><span className="tablet-money-field">
             <img className="tablet-coin" src={coinImage} alt="" /><input aria-label="1인 참가비" inputMode="numeric" type="text" maxLength={15} value={bet} disabled={!host || busy}
               placeholder="금액" onChange={e => setBet(e.target.value)} /><span>냥</span></span></label>
           <BetBalanceNotice balance={balance} bet={validBet?amount:null} retry={refreshBalance}/>
           {!countSupported && <p className="tablet-contract-note" role="status">{count}인 정원 선택은 서버 연결 준비 중입니다.</p>}
           {count < occupied && <p role="status">현재 앉은 {occupied}명보다 적게 설정할 수 없어요.</p>}
-          {code !== 'ALKKAGI' && <button className="tablet-manual" onClick={() => openManual(GAME_MANUAL[code])}>설명서</button>}
-          <button className="tablet-primary" disabled={busy || !canConfigure} onClick={configure}>{working ? '설정 확인 중…' : '선택하고 준비하기'}<span aria-hidden="true">›</span></button>
+          <div className="tablet-selection-actions">
+            {code !== 'ALKKAGI' && <button className="tablet-manual" onClick={() => openManual(GAME_MANUAL[code])}>설명서</button>}
+            <button className="tablet-primary" disabled={busy || !canConfigure} onClick={configure}>{working ? '설정 확인 중…' : '선택하고 준비하기'}</button>
+          </div>
         </div>
       </div> : <div className="tablet-ready-content" data-players={seats.length}>
         <div className="tablet-roster" aria-label={stoneRumble ? '참가자와 준비 상태' : '좌석과 준비 상태'}>{seats.map(seat => <div key={seat.seatNumber} className="tablet-person" data-empty={!seat.userId}>

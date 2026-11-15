@@ -12,6 +12,7 @@ import {WalkwayMaterial} from '../src/world/art/WalkwayMaterial'
 import {PropBuilder} from '../src/world/art/propGeometry'
 import {PropSign} from '../src/world/art/CraftedProp'
 import {GATE,BOUNDARY_LENGTH,boundaryAtDistance} from './boundaryPlan'
+import {boundaryFrame,CITY_BASE_Y,STREET} from './contextPlan'
 import {heightAt,site,PLAZA_RADIUS} from './plan'
 
 let proceduralWall: ReturnType<typeof createParkWall> | undefined
@@ -37,8 +38,16 @@ const plaza=Object.fromEntries(Object.entries(plazaArt).map(([kind,source])=>{
 })) as Partial<Record<PropFinish,BufferGeometry>>
 const apron=(()=>{
  const positions:number[]=[],indices:number[]=[]
- for(let i=0;i<=8;i++)for(const offset of[0,3.1]){const arc=-3.6+i*.9,frame=boundaryAtDistance(arc<0?BOUNDARY_LENGTH+arc:arc);positions.push(frame.x+frame.nx*offset,GATE.y,frame.z+frame.nz*offset)}
- for(let i=0;i<8;i++){const k=i*2;indices.push(k,k+2,k+1,k+2,k+3,k+1)}
+ const edge=STREET.innerWalk[0]
+ for(let row=0;row<=4;row++){
+  const t=row/4,offset=edge*t,halfWidth=6.5-1.3*t
+  for(let col=0;col<=8;col++){
+   const arc=(col/4-1)*halfWidth,frame=boundaryAtDistance(arc<0?BOUNDARY_LENGTH+arc:arc)
+   const point=boundaryFrame(frame.angle,offset)
+   positions.push(point.x,GATE.y+(CITY_BASE_Y+.182-GATE.y)*t,point.z)
+   if(row&&col){const k=row*9+col;indices.push(k-10,k-9,k-1,k-9,k,k-1)}
+  }
+ }
  const g=new BufferGeometry();g.setAttribute('position',new Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();return g
 })()
 
@@ -62,5 +71,7 @@ export function ParkBoundary(){const wall=useMemo(getParkWall,[]);return <group 
  <mesh geometry={wall.timber}><meshLambertMaterial vertexColors flatShading/></mesh>
  <PropModel art={piers} name="tiled-wall-stone-piers"/>
  <group position={[GATE.x,GATE.y,GATE.z]} rotation={[0,GATE.yaw,0]}><PropModel art={gate} name="retained-original-main-gate"/><PropSign draw={gateName} position={[0,4.06,.55]} width={3.2} height={.59}/></group>
- <mesh geometry={apron} receiveShadow><WalkwayMaterial color="#ffffff"/></mesh>
+ <mesh name="outside-gate-city-pavement" geometry={apron} receiveShadow>
+  <meshLambertMaterial color="#c6c5b8" side={2}/>
+ </mesh>
  </group>}

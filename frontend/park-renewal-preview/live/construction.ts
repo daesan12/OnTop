@@ -16,6 +16,11 @@ function notice(id: string, [x, z]: Point, label = site(id).name, floor = ground
   }
 }
 
+function buildingFront(id: string, distance: number): Point {
+  const p = site(id), yaw = facilityYaw(p)
+  return [p.x + Math.sin(yaw) * distance, p.z + Math.cos(yaw) * distance]
+}
+
 function frontOfApproach(id: string): Point {
   const { a, b } = FACILITY_APPROACHES.find(approach => approach.id === id)!
   const { x, z } = site(id)
@@ -26,7 +31,7 @@ function frontOfApproach(id: string): Point {
 export function buildRenewalConstructionSites(): ConstructionSite[] {
   const balloon = site('balloon')
   return [
-    notice('cafe', frontOfApproach('cafe')),
+    { ...notice('cafe', buildingFront('cafe', -4.25)), radius: 2.1 },
     notice('shooting', frontOfApproach('shooting')),
     notice('folk', frontOfApproach('folk'), '전통놀이존'),
     notice('balloon', [balloon.x, balloon.z + STATION_STAIRS.zTop - 2], '열기구 승강장',
