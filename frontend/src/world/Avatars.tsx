@@ -301,7 +301,7 @@ export function Avatars({
   const needsPeers = RENEWAL_PARK_ENABLED && (mounted.size !== wanted.size || mountedPeers.some(id => !wanted.has(id)))
   useLayoutEffect(() => { pendingPeers.current = false }, [mountedPeers])
   useFrame(() => {
-    if (!needsPeers || pendingPeers.current) return
+    if (firstGateFrameAt?.current === null || !needsPeers || pendingPeers.current) return
     const next = mountedPeers.filter(id => wanted.has(id))
     // Cloning several skeletons at once can monopolize a render frame on join.
     // Retain existing peers and admit at most four new rigs per rendered frame.

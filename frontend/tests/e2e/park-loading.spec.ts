@@ -2,6 +2,24 @@ import { expect, test } from '@playwright/test'
 import { fixture, screenshot } from './contractFixture'
 import { bungeoppangFixture } from './bungeoppangFixture'
 
+test('keeps the startup cover until the first local avatar pose arrives', async ({ page }) => {
+  let release!: () => void
+  const firstWorldStateGate = new Promise<void>(resolve => { release = resolve })
+  const server = await fixture(page, { firstWorldStateGate })
+  try {
+    await page.goto('/park')
+    await expect.poll(() => server.sent.some(message => message.type === 'CHANNEL_JOIN'), { timeout: 30000 }).toBe(true)
+    await expect(page.getByText('공원을 준비하고 있어요…')).toBeVisible({ timeout: 30000 })
+    await expect(page.locator('.park-scene--preparing-gate')).toBeVisible()
+    await expect(page.locator('.park-scene canvas:visible')).toHaveCount(0)
+    expect(await page.evaluate(() => performance.getEntriesByName('park-scene-presented').length)).toBe(0)
+    release()
+    await expect(page.locator('.park-scene canvas')).toBeVisible({ timeout: 90000 })
+    await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden()
+    await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  } finally { release() }
+})
+
 test('park assets start while authentication is pending without opening a socket', async ({ page }) => {
   const server = await fixture(page)
   let release!: () => void
