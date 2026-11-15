@@ -20,7 +20,7 @@ import {
 import { BUNGEOPPANG, bungeoppangV5Enabled } from "./config";
 import { createFishCartShape as fishShape } from '../../world/art/fishCartShape';
 import { createSculptedFish } from './fishBreadGeometry';
-import { v5HeatEls, BURNER_JET_OFFSETS, burnerJetEls } from './layoutV5';
+import { v5HeatEls, BURNER_JET_OFFSETS, burnerJetEls, renewalBreadShop } from './layoutV5';
 import { cookLevel, judge } from "./rules";
 import { heatLook, INGREDIENT_LOOK } from './presentation';
 import { BREAD_NAMES, BREAD_TOOLS } from './rulesV4';
@@ -102,7 +102,7 @@ export function BungeoppangGrill() {
   }, [v5, phase, gl, camera, scene]);
   if (error) throw error;
   if (phase === "idle") return null;
-  return <group ref={root} name="bungeoppang-render-root">{bungeoppangV5Enabled && <BungeoppangStageV5 />}<GrillMeshes />{v5 && <><BungeoppangFood25V5 /><BungeoppangSceneV5 /></>}</group>;
+  return <group ref={root} name="bungeoppang-render-root">{(bungeoppangV5Enabled || renewalBreadShop) && <BungeoppangStageV5 />}<GrillMeshes />{v5 && <><BungeoppangFood25V5 /><BungeoppangSceneV5 /></>}</group>;
 }
 
 function GrillMeshes() {

@@ -139,8 +139,7 @@ const drawTitle = (c: CanvasRenderingContext2D, w: number, h: number) => {
   for(const x of [w*.09,w*.91]){c.save();c.translate(x,h/2);c.rotate(Math.PI/4);c.fillRect(-h*.045,-h*.045,h*.09,h*.09);c.restore()}
 }
 
-export function RankingBoardModel({onInteract}:{onInteract?:()=>void}={}) {
-  const site = KIOSKS.find(kiosk => kiosk.kind === 'photo')!
+export function RankingBoardPanels({ bothSides = false }: { bothSides?: boolean } = {}) {
   const snapshot=useRankingBoardFeed(state=>state.snapshot)
   // Background polling must not recreate the canvas textures every 15 seconds.
   // Only the first-load/error presentation changes while no snapshot exists.
@@ -153,6 +152,13 @@ export function RankingBoardModel({onInteract}:{onInteract?:()=>void}={}) {
     const time=snapshot?formatRankingUpdatedAt(snapshot.updatedAt):''
     return columns.map((definition,index)=>drawRankingBoardPanel({title:definition.title,column:data[index]??null,message,updatedAt:time,stale}))
   },[snapshot,loading,error,stale])
+  return <>{columns.map((column, index) => <PropSign key={column.title} position={[column.x, 2.19, .241]}
+    backPosition={bothSides ? [-column.x, 2.19, -.25] : undefined}
+    width={panelSize.width} height={panelSize.height} draw={panelDraws[index]!} font={signFont}/>)}</>
+}
+
+export function RankingBoardModel({onInteract}:{onInteract?:()=>void}={}) {
+  const site = KIOSKS.find(kiosk => kiosk.kind === 'photo')!
   return <group name="ranking-board-preview" position={[site.x, 0, site.z]} rotation={[0, site.yaw, 0]} scale={SETTINGS.rankingBoard.scale}
     userData={{ assetId: 'procedural/ranking-board', previewRole: 'ranking-board' }} onClick={event=>{
       event.stopPropagation()
@@ -162,7 +168,6 @@ export function RankingBoardModel({onInteract}:{onInteract?:()=>void}={}) {
       <primitive object={kind === 'glow' ? lanternMaterial : flatMaterial} attach="material" dispose={null} />
     </mesh>)}
     <PropSign position={[0,4.06,.859]} width={titleSize.width} height={titleSize.height} draw={drawTitle} font={signFont}/>
-    {columns.map((column, index) => <PropSign key={column.title} position={[column.x, 2.19, .241]}
-      width={panelSize.width} height={panelSize.height} draw={panelDraws[index]!} font={signFont}/>)}
+    <RankingBoardPanels />
   </group>
 }

@@ -233,6 +233,11 @@ public class WalletTransaction {
         return gameEntry(walletId, gameId, userId, "GAME_TIE_BONUS", bonus, 0, "bonus", now);
     }
 
+    public static WalletTransaction gameRankReward(long walletId, long gameId, long userId, long reward, Instant now) {
+        if (reward <= 0 || reward > 80) { throw new IllegalArgumentException("순위 보상을 확인하세요."); }
+        return gameEntry(walletId, gameId, userId, "GAME_RANK_REWARD", reward, 0, "rank-reward", now);
+    }
+
     private static WalletTransaction gameEntry(long walletId, long gameId, long userId, String type,
             long balanceDelta, long reservedDelta, String operation, Instant now) {
         if (walletId <= 0 || gameId <= 0 || userId <= 0) { throw new IllegalArgumentException("경기 원장을 확인하세요."); }

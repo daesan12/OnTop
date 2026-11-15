@@ -45,9 +45,10 @@
 .tablet-selection-detail h3 { font-family: BusanDandiMyeongjo, serif; font-size: 36px; margin: 6px 0 2px; }
 .tablet-selection-detail > p { font-size: 17px; margin: 3px 0 12px; }
 .tablet-selection-detail > .tablet-game-art { max-height: 130px; flex: 1; min-height: 75px; }
-.tablet-selection-detail fieldset { border: 0; margin: 10px 0; padding: 0; text-align: left; }
+.tablet-selection-detail fieldset { border: 0; margin: 7px 0; padding: 0; text-align: left; }
 .tablet-selection-detail legend { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
 .tablet-counts { display: flex; gap: 10px; }
+.tablet-counts[data-maximum='8'] { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .tablet-counts button { flex: 1; min-height: 38px; padding: 5px 12px; border-radius: 25px; }
 .tablet-counts button[aria-pressed='true'] { background: #19452d; color: #fff6e3; border-color: #19452d; }
 .tablet-counts button[aria-pressed='true']:disabled { background: #d7dfc7; color: #2d4c35; border-color: #58704d; }
@@ -61,8 +62,9 @@
 .tablet-bet-input input::placeholder { color:#666a52; opacity:1; font-size:18px; font-weight:400; }
 .table-tablet .tablet-bet-input input:focus-visible { outline:none; }
 .tablet-money-field:has(input:disabled) { background:#ebe8d9; border-color:#b2af97; }
-/* Reserve the optional dice setting so it cannot grow the desktop grid. */
-.tablet-score-slot { flex: 0 0 38px; }
+.tablet-selection-actions { display: flex; align-items: stretch; gap: 8px; margin-top: auto; padding-top: 8px; }
+.table-tablet .tablet-selection-actions .tablet-manual { margin: 0; white-space: nowrap; }
+.table-tablet .tablet-selection-actions .tablet-primary { flex: 1; min-height: 44px; padding: 6px 10px; font-size: 21px; }
 .tablet-score { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 18px; font-weight: 600; }
 .table-tablet .tablet-score select {
   appearance: none; color-scheme: light; cursor: pointer; min-width: 148px; max-width: 60%; height: 38px; scroll-margin-block: 12px;
@@ -145,7 +147,6 @@
   .tablet-selection { grid-template-columns: 1fr; height: auto; gap: 20px; }.tablet-game-list { height: auto; max-height: 420px; gap: 10px; }
   .tablet-game-list .tablet-game-card { padding: 6px; }.tablet-game-card strong { font-size: 16px; }.tablet-game-card small { font-size: 12px; padding: 2px 5px; }
   .tablet-selection-detail { padding: 16px; }.tablet-selection-detail h3 { font-size: 27px; }.tablet-selection-detail > .tablet-game-art { min-height: 120px; }
-  .tablet-score-slot { flex: none; }.tablet-score-slot:empty { display: none; }
   .tablet-ready-content { height: auto; gap: 13px; }.tablet-ready-content .tablet-roster { margin: 0; gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .tablet-ready-content[data-players='2'] .tablet-roster, .tablet-ready-content[data-players='3'] .tablet-roster { margin: 0; gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .tablet-portrait, .tablet-ready-content[data-players='2'] .tablet-portrait { height:170px; }.tablet-name { font-size:15px; margin-top:7px; padding:6px; }.tablet-ready-stamp { font-size:14px; margin-top:7px; }
@@ -185,6 +186,17 @@
   grid-column: 1; grid-row: 1 / 5; justify-self: center; align-self: center;
   width: min(100%, 480px); height: auto; min-height: 0; max-height: none; flex: none;
   aspect-ratio: 2 / 1; border-radius: 12px; box-shadow: 0 0 0 1px #b7a17b66;
+}
+.table-tablet[data-stage='ready'] .tablet-ready-content:is([data-players='5'], [data-players='6'], [data-players='7'], [data-players='8']) .tablet-bet-confirm > .tablet-game-art {
+  max-width: 360px;
+}
+@media (min-width: 800px) and (min-height: 550px) {
+  .table-tablet[data-stage='ready'] .tablet-ready-content:is([data-players='5'], [data-players='6'], [data-players='7'], [data-players='8']) .tablet-bet-confirm {
+    padding: 8px 20px; row-gap: 4px;
+  }
+  .table-tablet[data-stage='ready'] .tablet-ready-content:is([data-players='5'], [data-players='6'], [data-players='7'], [data-players='8']) .tablet-bet-confirm > strong {
+    font-size: 52px;
+  }
 }
 .table-tablet[data-stage='ready'] .tablet-game-art:not([data-game='OMOK']) {
   background-size: contain; background-repeat: no-repeat; background-color: #f8e9c8;

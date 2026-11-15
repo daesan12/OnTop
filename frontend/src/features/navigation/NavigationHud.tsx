@@ -47,8 +47,8 @@ export function ParkNavigation() {
       }
       // A nearby reachable approach is enough, even when search is pending or the
       // player has left the planned line.
-      const end = state.path.at(-1) ?? target
-      if (navDistance(pose, end) <= ARRIVAL_RADIUS && navigationSegmentClear(pose, end)) {
+      const end = target.arrivalRadius === undefined ? state.path.at(-1) ?? target : target
+      if (navDistance(pose, end) <= (target.arrivalRadius ?? ARRIVAL_RADIUS) && navigationSegmentClear(pose, end)) {
         arrivalAt = now; useNavigation.setState({ status: 'arrived', path: [] }); return
       }
       if (pending) return

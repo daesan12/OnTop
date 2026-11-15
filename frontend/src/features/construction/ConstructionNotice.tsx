@@ -1,17 +1,32 @@
-import { useEffect,useRef } from 'react'
-import { GachaPanel } from '../gacha/GachaPanel'
-import { RafflePanel } from '../raffle/RafflePanel'
+import { lazy,Suspense,useEffect,useLayoutEffect,useRef } from 'react'
 import { constructionSites,useConstructionNotice,closeConstructionNotice } from './model'
 import './construction.css'
+
+const GachaPanel=lazy(()=>import('../gacha/GachaPanel').then(module=>({default:module.GachaPanel})))
+const RafflePanel=lazy(()=>import('../raffle/RafflePanel').then(module=>({default:module.RafflePanel})))
 
 /** Registered kiosks open their real flow; unavailable sites retain the construction notice. */
 export function ConstructionNotice(){
   const id=useConstructionNotice(s=>s.id)
   useEffect(()=>()=>closeConstructionNotice(),[])
-  if(id==='layout-drink')return <RafflePanel/>
-  if(id==='layout-shop')return <GachaPanel/>
+  if(id==='layout-drink')return <Suspense fallback={<ConstructionLoading label="복권방"/>}><RafflePanel/></Suspense>
+  if(id==='layout-shop')return <Suspense fallback={<ConstructionLoading label="뽑기"/>}><GachaPanel/></Suspense>
   return <ConstructionMessage/>
 }
+function ConstructionLoading({label}:{label:string}){
+  const dialog=useRef<HTMLDialogElement>(null)
+  useLayoutEffect(()=>{
+    const element=dialog.current
+    element?.showModal()
+    return()=>element?.close()
+  },[])
+  return <dialog ref={dialog} className="construction-notice" aria-label={label}
+    onCancel={event=>{event.preventDefault();closeConstructionNotice()}}>
+    <p role="status">{label} 화면을 불러오는 중입니다.</p>
+    <button type="button" onClick={closeConstructionNotice}>취소</button>
+  </dialog>
+}
+
 function ConstructionMessage(){
   const id=useConstructionNotice(s=>s.id),dialog=useRef<HTMLDialogElement>(null)
   const site=constructionSites.find(s=>s.id===id)

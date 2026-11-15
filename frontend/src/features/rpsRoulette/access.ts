@@ -6,6 +6,7 @@ import { inputState, panelOwnsKeys } from '../../world/inputOwnership'
 import { benchBusy } from '../interactions/benchState'
 import { fitnessBusy } from '../fitness/state'
 import { telescopeBusy } from '../telescopes/state'
+import { canReachRenewalRecreation, renewalMap } from '../../park/renewalMap'
 
 /**
  * 붕어빵 가게 오른쪽 앞 잔디의 화면용 게임기. 공원 맵(server-map·mapVersion)은 바꾸지 않으므로 충돌과 시설 점유가 없다.
@@ -16,6 +17,10 @@ export const RPS_CABINET = placement.cabinet
 export const RPS_CABINET_FRONT = placement.front
 
 export function canReachRpsRoulette(p: { x: number; y: number; z: number }) {
+  if (renewalMap) {
+    const machine = renewalMap.data.interactions.recreation?.find(anchor => anchor.id === 'rps-roulette-cabinet')
+    return !!machine && canReachRenewalRecreation(p, machine)
+  }
   return [p.x, p.y, p.z].every(Number.isFinite)
     && Math.hypot(p.x - RPS_CABINET_FRONT.x, p.z - RPS_CABINET_FRONT.z) <= 1.7 && Math.abs(p.y - .8) <= .9
 }

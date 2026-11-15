@@ -24,11 +24,22 @@ const MAIN_SEATS = TABLE_SEATS.map((s) => ({
 }))
 export function tableSeats(
   anchor: Pick<TableAnchor, 'picnicId' | 'pavilionId'> & Partial<Pick<TableAnchor,'seatAnchors'>>,
+  count = 4,
 ) {
-  if(anchor.seatAnchors)return anchor.seatAnchors.map(([x,,z],n)=>({x,z,yaw:TABLE_SEATS[n]?.yaw??0}))
-  return anchor.picnicId
+  const seats = anchor.seatAnchors ? anchor.seatAnchors.map(([x,,z],n) => ({ x, z, yaw: TABLE_SEATS[n]?.yaw ?? Math.atan2(-x,-z) }))
+    : anchor.picnicId
     ? PICNIC_TABLE_SEATS
     : anchor.pavilionId === 'P0'
       ? MAIN_SEATS
       : TABLE_SEATS
+  if (count <= 4 || seats.length >= count) return seats
+  // 기존 1~4번 위치를 보존하고 돌탑 정원이 늘 때 모서리 좌석만 추가한다.
+  const centerX = seats.slice(0, 4).reduce((sum, s) => sum + s.x, 0) / 4
+  const centerZ = seats.slice(0, 4).reduce((sum, s) => sum + s.z, 0) / 4
+  // 두 인접 좌석의 벡터를 합쳐 회전된 새 공원 테이블에서도 기존 좌석과 겹치지 않는다.
+  const corners = [[2, 0], [3, 1], [2, 1], [3, 0]].map(([a, b]) => {
+    const x = seats[a!]!.x + seats[b!]!.x - centerX, z = seats[a!]!.z + seats[b!]!.z - centerZ
+    return { x, z, yaw: Math.atan2(centerX - x, centerZ - z) }
+  })
+  return [...seats, ...corners].slice(0, count)
 }

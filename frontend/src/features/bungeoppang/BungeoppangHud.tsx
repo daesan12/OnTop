@@ -25,7 +25,6 @@ import {
   restartBungeoppang,
   dismissBungeoppangRecovery,
   restoreBungeoppang,
-  watchBungeoppangRecovery,
   refreshBungeoppangStatus,
   refreshBungeoppangWallet,
   setBungeoppangHelp,
@@ -68,7 +67,6 @@ export function BungeoppangHud() {
   const restarting = useBungeoppang(s => s.restarting);
   const v5 = useBungeoppang(s => isV4Grill(s.grill) && isV5Grill(s.grill));
   useMinigameInput(phase !== "idle");
-  useEffect(watchBungeoppangRecovery, []);
   if (phase === "idle") return deferred ? <BungeoppangRecoveryNotice /> : null;
   const playing =
     phase === "countdown" || phase === "play" || phase === "ending";

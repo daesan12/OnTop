@@ -1,11 +1,13 @@
 import {create} from 'zustand'
 import {rankingBoardTarget} from '../rankingBoard/model'
+import {renewalMap} from '../../park/renewalMap'
 import {clearRoamingInput} from '../../world/inputOwnership'
 import {LOCAL_AI_FIXTURE,useAiFeatures} from './serviceFeatures'
 export const jokeContestEnabled=()=>LOCAL_AI_FIXTURE||useAiFeatures.getState().jokeContest
 export const jokeContestPath=(route:string)=>(LOCAL_AI_FIXTURE?'/local/ai/joke-contest/':'/api/v1/ai/joke-contest/')+route
-const [x,y,z]=rankingBoardTarget.reachPosition
-export const jokeJudgePosition={x:x-4,y:y-.8,z}
+const [rankingX,rankingY,rankingZ]=rankingBoardTarget.reachPosition
+const [x,y,z]=renewalMap?.data.interactions.jokeJudge??[rankingX-4,rankingY,rankingZ]
+export const jokeJudgePosition={x,y:y-.8,z}
 export const useJokeContest=create<{open:boolean;tab:'submit'|'ranking'}>(()=>({open:false,tab:'submit'}))
 export function openJokeContest(tab:'submit'|'ranking'='submit'){if(!jokeContestEnabled())return;clearRoamingInput();useJokeContest.setState({open:true,tab})}
 export const closeJokeContest=()=>useJokeContest.setState({open:false})

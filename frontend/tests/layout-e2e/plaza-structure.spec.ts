@@ -34,7 +34,7 @@ test('lucky facility mocks and ranking board retain their independent models and
  expect(rankingBoard.yaw).toBe(photo.yaw)
  expect(rankingBoard.scale).toEqual([1.06,1.06,1.06])
  expect(rankingBoard.assetId).toBe('procedural/ranking-board')
- expect(rankingBoard.meshCount).toBe(9)
+ expect(rankingBoard.meshCount).toBe(rankingBoard.metrics.meshCount+1+rankingBoard.metrics.displayPlaneCount)
  expect(rankingBoard.metrics).toMatchObject({displayPlaneCount:4,structureTextureCount:0})
  expect(rankingBoard.metrics.triangleCount).toBeLessThan(1000)
  await fs.writeFile(path.join(dir,'ranking-board-metrics.json'),JSON.stringify(rankingBoard.metrics,null,2))

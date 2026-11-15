@@ -70,6 +70,10 @@ public final class TableProtocol {
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
             case "WORLD_POSITION" -> validPosition(payload);
+            case "WORLD_SECRET_DOORS_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
+            case "WORLD_INTERIOR_ACCESS" -> fields(payload, Set.of("access"))
+                    && payload.path("access").isTextual()
+                    && Set.of("vestibule", "surface", "passage", "entry", "exit").contains(payload.path("access").asText());
             case "WORLD_POSITION_FALLBACK" -> fields(payload, Set.of("epoch"))
                     && payload.path("epoch").isIntegralNumber() && payload.path("epoch").canConvertToLong()
                     && payload.path("epoch").asLong() >= 0 && payload.path("epoch").asLong() <= 9_007_199_254_740_991L;
@@ -290,7 +294,8 @@ public final class TableProtocol {
                 : Set.of("gameCode", "selectedPlayers", "betAmountPerPlayer", "expectedVersion");
         if (!fields(payload, keys) || !payload.path("selectedPlayers").isIntegralNumber()
                 || !payload.path("selectedPlayers").canConvertToInt()
-                || payload.path("selectedPlayers").asInt() < 2 || payload.path("selectedPlayers").asInt() > 4
+                || payload.path("selectedPlayers").asInt() < 2
+                || payload.path("selectedPlayers").asInt() > ("STONE_RUMBLE".equals(payload.path("gameCode").asText()) ? 8 : 4)
                 || !payload.path("expectedVersion").isIntegralNumber() || !payload.path("expectedVersion").canConvertToLong()
                 || payload.path("expectedVersion").asLong() < 0 || payload.path("expectedVersion").asLong() > 9_007_199_254_740_991L) {
             return false;

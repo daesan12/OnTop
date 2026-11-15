@@ -1,0 +1,9 @@
+import {THREE} from './primitives.js';
+function texture(width,height,draw,name){if(typeof document==='undefined')return null;const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const c=canvas.getContext('2d');draw(c,width,height);const t=new THREE.CanvasTexture(canvas);t.colorSpace=THREE.SRGBColorSpace;t.name=name;t.anisotropy=4;return t;}
+function text(c,t,x,y,size,color){c.font=`700 ${size}px "LakeMyeongjo", "Malgun Gothic", sans-serif`;c.fillStyle=color;c.textAlign='center';c.textBaseline='middle';c.fillText(t,x,y);}
+function fish(c,x,y,s){c.save();c.translate(x,y);c.scale(s,s);c.fillStyle='#bd7f43';c.beginPath();c.ellipse(0,0,55,32,0,0,Math.PI*2);c.fill();c.beginPath();c.moveTo(42,0);c.lineTo(82,-33);c.lineTo(82,33);c.closePath();c.fill();c.fillStyle='#f4dba3';c.beginPath();c.arc(-27,-8,5,0,7);c.fill();c.restore();}
+export function createLabels(){return{
+  shop:texture(1024,192,(c,w,h)=>{c.fillStyle='#8b572c';c.fillRect(0,0,w,h);text(c,'낚시용품점',w/2,h/2+3,146,'#f7e5b8');},'lake-tackle-shop-sign'),
+  notice:texture(1024,640,(c,w,h)=>{c.fillStyle='#efdab3';c.fillRect(0,0,w,h);c.strokeStyle='#b4844c';c.lineWidth=10;c.strokeRect(22,22,w-44,h-44);text(c,'호수 낚시터',w/2,101,106,'#785131');fish(c,257,308,1.65);text(c,'느긋하게 즐기는 낚시',677,257,47,'#97734e');text(c,'함께 쓰는 쉼터',677,354,49,'#97734e');c.strokeStyle='#b99e76';c.lineWidth=7;for(let i=0;i<3;i++){c.beginPath();c.moveTo(490,448+i*39);c.lineTo(907-i*35,448+i*39);c.stroke();}},'lake-notice-board'),
+};}
+export function addLabel(group,texture,name,position,width,height,rotation=0){if(!texture)return;const m=new THREE.MeshStandardMaterial({map:texture,roughness:.95});const o=new THREE.Mesh(new THREE.PlaneGeometry(width,height),m);o.name=name;o.position.set(...position);o.rotation.y=rotation;group.add(o);}

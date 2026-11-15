@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { useSession } from '../../network/worldClient'
+import { rememberRoamingView } from '../../world/cameraReturn'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
+import { useMouseLook } from '../../world/mouseLook'
 import type { RoundEndReason } from '../../jump-rope-preview/jumpRopeRules'
 import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh'
 import { JumpRopeApiError, jumpRopeService, type JumpRopeDuckSpan, type JumpRopeReceipt } from './service'
@@ -21,10 +23,11 @@ export const useJumpRope = create<{ open: boolean; active: boolean; settlement: 
 )
 
 export function openJumpRope() {
-  if (useJumpRope.getState().open) return
-  clearRoamingInput()
+  const { sessionId, roomId } = useSession.getState()
+  if (!sessionId || !roomId || inputState.minigameOpen || useJumpRope.getState().open) return
+  if (useMouseLook.getState().active) rememberRoamingView(sessionId, roomId)
   inputState.minigameOpen = true
-  if (document.pointerLockElement) document.exitPointerLock()
+  clearRoamingInput()
   useJumpRope.setState({ open: true })
 }
 

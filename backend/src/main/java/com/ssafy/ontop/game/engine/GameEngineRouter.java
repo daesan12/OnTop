@@ -22,10 +22,17 @@ public final class GameEngineRouter implements GameEngine {
 
     // 참가 확정 후 엔진이 자신의 경기 잠금 안에서 호출하고, 성공 뒤 경기 상태를 설치한다.
     public synchronized void register(GameEngine engine, String gameId, String tableId, List<Long> players) {
+        register(engine, gameId, tableId, players, 4);
+    }
+
+    /** 독립 경기장의 명시적 정원. 기존 탁자 엔진의 기본 4인 계약은 유지한다. */
+    public synchronized void register(GameEngine engine, String gameId, String tableId, List<Long> players,
+            int maximumPlayers) {
         Objects.requireNonNull(engine);
         if (engine == this || gameId == null || gameId.isBlank() || gameId.length() > 120
                 || tableId == null || tableId.isBlank() || players == null || players.size() < 2
-                || players.size() > 4 || players.stream().anyMatch(id -> id == null || id <= 0)
+                || maximumPlayers < 2 || maximumPlayers > 8 || players.size() > maximumPlayers
+                || players.stream().anyMatch(id -> id == null || id <= 0)
                 || players.stream().distinct().count() != players.size()) {
             throw new IllegalArgumentException("경기 엔진·식별자·참가자를 확인해주세요.");
         }

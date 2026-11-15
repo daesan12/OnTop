@@ -8,18 +8,25 @@ import { openJumpRope } from '../jumpRope/store'
 
 /** 붕어빵 가게 옆 오락기 한 대에서 고르는 혼자 하는 게임. 공원 맵을 바꾸지 않으려고 게임기를 늘리지 않는다. */
 export type ArcadeGame = 'rps-roulette' | 'plus-minus' | 'whack-a-mole' | 'speed-mole' | 'jump-rope'
+type ArcadeScope = 'all' | 'mole'
 
-export const useArcade = create<{ open: boolean; selected: ArcadeGame }>(() => ({ open: false, selected: 'rps-roulette' }))
+export const useArcade = create<{ open: boolean; selected: ArcadeGame; scope: ArcadeScope }>(() => ({
+  open: false, selected: 'rps-roulette', scope: 'all',
+}))
 
-export function openArcade() {
-  if (useArcade.getState().open) return
+export function openArcade(scope: ArcadeScope = 'all') {
+  const current = useArcade.getState()
+  if (current.open) return
   clearRoamingInput()
   inputState.minigameOpen = true
   if (document.pointerLockElement) document.exitPointerLock()
-  useArcade.setState({ open: true })
+  const selected = scope === 'mole' && current.selected !== 'speed-mole' ? 'whack-a-mole' : current.selected
+  useArcade.setState({ open: true, scope, selected })
   // 고르는 화면에 오늘 남은 판·진행 중인 판·오늘 받은 엽전을 보여 주려고 게임 상태를 미리 읽는다.
-  void refreshRpsRoulette()
-  void refreshPlusMinus()
+  if (scope === 'all') {
+    void refreshRpsRoulette()
+    void refreshPlusMinus()
+  }
   void refreshMole()
 }
 

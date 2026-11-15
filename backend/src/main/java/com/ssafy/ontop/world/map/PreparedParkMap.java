@@ -24,7 +24,9 @@ import java.util.UUID;
 
 /** 새 맵의 테이블·좌표·물리 입력을 조립한다. 런타임 선택과 기본 맵 유지 여부는 WorldMapRuntime이 담당한다. */
 public final class PreparedParkMap {
+    public static final String STONE_RUMBLE_ANCHOR_ID = "table-17";
     private final JsonNode collisionData;
+    private final JsonNode jumpCourse;
     private final WorldMapMetadata metadata;
     private final List<Binding> bindings;
     private final WorldProximityProperties proximity;
@@ -32,6 +34,8 @@ public final class PreparedParkMap {
     private final Reach notes;
     private final Reach feedback;
     private final Reach vrEntrance;
+    private final List<Reach> stoneRumbleEntrances;
+    private final List<Pose> stoneRumbleExits;
 
     private PreparedParkMap(GeneratedParkMapLoader.ValidatedMap map, Set<String> channels) throws IOException {
         JsonNode data = map.document().path("data");
@@ -40,11 +44,51 @@ public final class PreparedParkMap {
         require(!channels.isEmpty() && channels.stream().noneMatch(String::isBlank), "채널 목록이 필요합니다.");
         Map<String, JsonNode> anchors = indexed(data.path("tables"));
         require(!anchors.isEmpty(), "게임 테이블 앵커가 필요합니다.");
+        if (data.has("tableAnchorIds")) {
+            var declared = new HashSet<String>();
+            JsonNode ids = data.path("tableAnchorIds");
+            require(ids.isArray(), "테이블 앵커 목록은 배열이어야 합니다.");
+            for (JsonNode id : ids) {
+                require(id.isTextual() && declared.add(id.asText()), "테이블 앵커 목록을 확인해주세요.");
+            }
+            require(declared.equals(anchors.keySet()), "테이블 앵커 목록과 좌표가 다릅니다.");
+        } else {
+            for (int i = 1; i <= anchors.size(); i++) {
+                require(anchors.containsKey("table-" + i), "테이블 앵커가 누락되었습니다: table-" + i);
+            }
+        }
+        var anchorNumbers = new ArrayList<Integer>();
+        for (String id : anchors.keySet()) {
+            require(id.matches("table-[1-9][0-9]{0,8}"), "테이블 앵커 형식이 올바르지 않습니다: " + id);
+            anchorNumbers.add(Integer.parseInt(id.substring("table-".length())));
+        }
+        var stoneRumble = anchors.get(STONE_RUMBLE_ANCHOR_ID);
+        var entrances = new ArrayList<Reach>();
+        // Older generated maps use table-17 as an ordinary table.
+        if (stoneRumble != null && (data.has("tableAnchorIds") || stoneRumble.has("interactionPoints"))) {
+            var points = stoneRumble.path("interactionPoints");
+            require(points.isArray() && !points.isEmpty(), "돌탑 생존전 입구가 필요합니다.");
+            for (JsonNode point : points) {
+                Pose floor = position(point, 0);
+                entrances.add(new Reach(new Pose(floor.x(), floor.y() + .8, floor.z(), 0), 1.35, .65, true));
+            }
+        }
+        stoneRumbleEntrances = List.copyOf(entrances);
+        var exits = new ArrayList<Pose>();
+        if (stoneRumble != null && stoneRumble.has("exitPoints")) {
+            var points = stoneRumble.path("exitPoints");
+            require(points.isArray() && points.size() == 8, "돌탑 생존전 복귀 위치 8곳이 필요합니다.");
+            for (JsonNode point : points) {
+                exits.add(position(point, 0));
+            }
+            require(Set.copyOf(exits).size() == exits.size(), "돌탑 생존전 복귀 위치가 중복됩니다.");
+        }
+        stoneRumbleExits = List.copyOf(exits);
+        anchorNumbers.sort(Integer::compareTo);
         for (String channel : channels.stream().sorted().toList()) {
-            for (int number = 1; number <= anchors.size(); number++) {
+            for (int number : anchorNumbers) {
                 String anchorId = "table-" + number;
                 JsonNode anchor = anchors.get(anchorId);
-                require(anchor != null, "테이블 앵커가 누락되었습니다: " + anchorId);
                 Pose position = position(anchor.path("position"), 0);
                 String tableId = serverTableId(channel, number);
                 entries.add(new Binding(channel, tableId, anchorId));
@@ -66,12 +110,14 @@ public final class PreparedParkMap {
         Pose base = position(mailbox.path("position"), 0);
         feedback = new Reach(new Pose(base.x(), base.y() + 0.8, base.z(), 0),
                 positive(mailbox.path("radius")), 0.7, false);
-        vrEntrance = java.util.stream.StreamSupport.stream(data.path("facilities").spliterator(), false)
+        JsonNode entrance = data.path("interactions").path("vrEntrance");
+        vrEntrance = entrance.isMissingNode() ? java.util.stream.StreamSupport.stream(data.path("facilities").spliterator(), false)
                 .filter(node -> "vr-experience-hall".equals(node.path("id").asText())).findFirst().map(vr -> {
                     Pose site = position(vr.path("position"), vr.path("yaw").asDouble());
                     return new Reach(new Pose(site.x() + Math.sin(site.yaw()) * 7.7, 0.8,
                             site.z() + Math.cos(site.yaw()) * 7.7, site.yaw()), 2.8, 0.9, false);
-                }).orElse(null);
+                }).orElse(null) : new Reach(pose(entrance), positive(entrance.path("radius")), 0.9, false);
+        jumpCourse = data.path("jumpCourse");
         collisionData = physicsData(map);
         metadata = map.metadata();
     }
@@ -80,6 +126,7 @@ public final class PreparedParkMap {
         return new PreparedParkMap(new GeneratedParkMapLoader().load(mapFile, manifestFile), Set.copyOf(channelIds));
     }
 
+    public JsonNode jumpCourse() { return jumpCourse.deepCopy(); }
     public JsonNode collisionData() { return collisionData.deepCopy(); }
     public WorldMapMetadata metadata() { return metadata; }
     public List<Binding> bindings() { return bindings; }
@@ -87,6 +134,10 @@ public final class PreparedParkMap {
     public Catalog facilities() { return facilities; }
     public Reach notes() { return notes; }
     public Reach feedback() { return feedback; }
+    public boolean canEnterStoneRumble(double x, double y, double z) {
+        return stoneRumbleEntrances.stream().anyMatch(entrance -> entrance.contains(x, y, z));
+    }
+    public List<Pose> stoneRumbleExits() { return stoneRumbleExits; }
     public java.util.Optional<Reach> vrEntrance() { return java.util.Optional.ofNullable(vrEntrance); }
 
     /** 명시적으로 선택한 별도 장면을 생성하며 ParkScene.load()의 기본 장면을 교체하지 않는다. */
@@ -156,10 +207,24 @@ public final class PreparedParkMap {
         root.put("sourceSha256", map.metadata().mapVersion());
         root.set("boxes", physics.path("boxes").deepCopy());
         root.set("hulls", physics.path("hulls").deepCopy());
-        for (String key : List.of("furniturePolicy", "fountainPolicy", "pavilionJumpSpeed", "pavilionTunedJumpSpeed")) {
+        for (String key : List.of("furniturePolicy", "fountainPolicy", "pavilionJumpSpeed", "pavilionTunedJumpSpeed", "secretCorridor", "interiorAccess")) {
             if (physics.has(key)) root.set(key, physics.path(key).deepCopy());
         }
         if (data.has("pavilions")) root.set("pavilions", data.path("pavilions").deepCopy());
+        JsonNode duck = physics.path("duckBoat");
+        if (duck.isObject()) {
+            for (String key : List.of("x", "y", "z")) {
+                number(duck.path(key));
+            }
+            for (String key : List.of("rx", "rz", "period")) {
+                positive(duck.path(key));
+            }
+            require(duck.path("half").isArray() && duck.path("half").size() == 3, "오리배 충돌 크기를 확인해주세요.");
+            for (JsonNode size : duck.path("half")) {
+                positive(size);
+            }
+            root.set("duckBoat", duck.deepCopy());
+        }
         JsonNode terrain = physics.path("terrain");
         Map<String, JsonNode> meshes = indexed(physics.path("meshes"));
         JsonNode ground = meshes.get(terrain.path("meshId").asText());
@@ -194,7 +259,21 @@ public final class PreparedParkMap {
             }
         }
         var ordered = root.putArray("meshes");
-        ordered.add(ground.deepCopy());
+        ObjectNode collisionGround = ground.deepCopy();
+        if (physics.has("secretTerrainCuts")) {
+            JsonNode cuts = physics.path("secretTerrainCuts");
+            require(cuts.isArray(), "비밀통로 지형 절개 목록이 필요합니다.");
+            Set<Integer> skipped = new HashSet<>();
+            for (JsonNode cut : cuts) {
+                int face = integer(cut);
+                require(face >= 0 && face < indices.size() / 3 && skipped.add(face), "비밀통로 지형 절개가 올바르지 않습니다.");
+            }
+            var kept = collisionGround.putArray("indices");
+            for (int i = 0; i < indices.size(); i++) {
+                if (!skipped.contains(i / 3)) kept.add(indices.get(i));
+            }
+        }
+        ordered.add(collisionGround);
         meshes.values().stream().filter(mesh -> mesh != ground).forEach(mesh -> ordered.add(mesh.deepCopy()));
         ((ObjectNode) root.path("world")).put("halfSize", half);
         var spawn = root.putObject("spawn");

@@ -1,4 +1,4 @@
-import { MAILBOX } from '../../park/mapConfig'
+import { MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
 import type { Pose } from '../../network/worldClient'
 
 export const FEEDBACK_TIMEOUT_MS = 10_000
@@ -10,5 +10,5 @@ export function parseFeedbackText(value: string): string | null {
 export function canReachFeedback(position: Pose | undefined) {
   return !!position && [position.x, position.y, position.z].every(Number.isFinite)
     && Math.hypot(position.x - MAILBOX.x, position.z - MAILBOX.z) <= MAILBOX.interactionRadius
-    && Math.abs(position.y - 0.8) <= 0.7
+    && Math.abs(position.y - MAILBOX_BASE_Y - 0.8) <= 0.7
 }

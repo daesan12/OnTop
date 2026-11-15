@@ -1,6 +1,5 @@
 package com.ssafy.ontop.world.config;
 
-import com.ssafy.ontop.world.jumpmap.JumpCourse;
 import com.ssafy.ontop.world.jumpmap.JumpmapActivation;
 import com.ssafy.ontop.world.jumpmap.JumpmapService;
 import com.ssafy.ontop.world.jumpmap.JumpmapStore;
@@ -25,7 +24,7 @@ public class JumpmapConfiguration {
             ObjectProvider<JumpmapStore> stores) {
         // 플래그가 꺼져 있으면 DB도 조회하지 않는다. 테이블이 없는 DB(운영 기본 migration 위치)는 저장소 없음으로 본다.
         var store = properties.enabled() ? stores.getIfAvailable() : null;
-        return JumpmapActivation.decide(properties.enabled(), runtime.scene().version(), JumpCourse::loadDefault,
+        return JumpmapActivation.decide(properties.enabled(), runtime.scene().version(), runtime::loadJumpCourse,
                 store != null && store.ready());
     }
 

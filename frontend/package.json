@@ -27,6 +27,7 @@
     "test:e2e:tablet": "playwright test --config playwright.tablet.config.ts",
     "test:e2e:tablet:default": "playwright test --config playwright.tablet-default.config.ts",
     "test": "vitest run",
+    "test:unit:local": "vitest run --config vitest.local.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:park": "playwright test --config playwright.park.config.ts",
     "test:e2e:omok-feedback": "playwright test --config playwright.omok-feedback.config.ts",

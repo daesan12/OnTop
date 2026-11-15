@@ -6,6 +6,7 @@ import {
   restoreAuthSession,
 } from '../../auth/authFlow'
 import { SharedSocket, ServerError } from '../../network/socketClient'
+import { StoneControlQueue } from '../../game/stone-rumble/controlQueue'
 import { routeCoopMessage, subscribeCoop } from '../../features/skewer/coop/contracts'
 import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
 import { chatAuthorName } from '../../features/chat/author'
@@ -21,6 +22,7 @@ import { RestError } from '../../network/restError'
 import { jokeBusinessMessage, jokeSubmissionPath } from '../../features/ai/jokeSubmissionError'
 import { clearRoamingInput, inputState, focusParkCanvas } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
+import { useMouseLook } from '../../world/mouseLook'
 import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
 import { gameChatScope } from '../../features/chat/gameChat'
 import {useCompanions,acceptCompanions} from '../../features/ai/companions'
@@ -126,6 +128,19 @@ export class ParkRuntime implements ParkRuntimePort {
   subscribeNotesChanged = (changed: () => void) => this.notesChanges.subscribe(changed)
   private actionBusy = false
   private movementRequests = new Map<string, number>()
+  private stoneControlRequests = new Map<string, string>()
+  private stoneControls = new StoneControlQueue((scope, input) =>
+    useGame.getState().game?.gameId === scope ? this.sendStoneAction(input) : Promise.resolve(false))
+  private stoneRecoveryRequests = new Map<string, string>()
+  private stoneRecoveryGameId = ''
+  private stoneRecoveryFlight: { gameId: string; promise: Promise<Envelope> } | null = null
+  private resetStoneRecovery() {
+    this.stoneControls.reset()
+    this.stoneControlRequests.clear()
+    this.stoneRecoveryRequests.clear()
+    this.stoneRecoveryGameId = ''
+    this.stoneRecoveryFlight = null
+  }
   private inspection = 0
   private tableWatchRequestId = ''
   private obsoleteWatchRequests = new Set<string>()
@@ -363,6 +378,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }, 3000)
   }
   private authEnded() {
+    this.resetStoneRecovery()
     this.notesChanges.reset()
     this.tablet.end()
     this.mapReady = false
@@ -449,7 +465,6 @@ export class ParkRuntime implements ParkRuntimePort {
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     const parkRankingRequest = method === 'GET' && path === '/api/v1/rankings/park'
     const fitnessRewardRequest = method === 'GET' && path === '/api/v1/world/fitness/rewards/status'
-    const skewerAdmission = method === 'POST' && path === '/api/v1/minigames/skewer/admissions'
     const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR))?$/.test(path)
@@ -483,7 +498,7 @@ export class ParkRuntime implements ParkRuntimePort {
         || (method === 'GET' && path === '/local/ai/companions/status')
         || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
     if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
+      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerCoop
       && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
@@ -502,6 +517,9 @@ export class ParkRuntime implements ParkRuntimePort {
       if(next.practiceChat!==previous.practiceChat || next.practice!==previous.practice)this.omokEvents.sync()
     })
     this.untrackTabGame = useGame.subscribe((next, prev) => {
+      if (next.game?.gameId !== prev.game?.gameId || next.recovery !== 'RESTORED'
+        || next.game?.stone?.status !== 'PLAYING' || next.game.role !== 'PLAYER'
+        || !next.game.stone.players.find(player => player.userId === useSession.getState().sessionId)?.alive) this.stoneControls.reset()
       const owner = useSession.getState().sessionId
       if (next.permittedGameId && next.permittedGameId !== prev.permittedGameId) keepTabGame(owner, next.permittedGameId)
       // A result the player already closed is not shown again after a refresh.
@@ -524,6 +542,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.facilityMapInvalid = false
     this.movement.clear()
     const generation = ++this.generation
+    this.resetStoneRecovery()
     this.initialStates = []
     this.actionBusy = false
     this.bootAbort?.abort()
@@ -577,6 +596,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.movement.clear()
     this.active = false
     ++this.generation
+    this.resetStoneRecovery()
     this.initialStates = null
     this.actionBusy = false
     clearTimeout(this.timer)
@@ -650,6 +670,18 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    const stoneRecovery = message.requestId && this.stoneRecoveryRequests.get(message.requestId)
+    if (stoneRecovery) {
+      const state = useGame.getState()
+      if ((state.permittedGameId || state.completedGameId) !== stoneRecovery
+        || this.stoneSettledInLobby(stoneRecovery)) return
+      if (message.type === 'GAME_CONNECTION_STATE' && message.payload.status === 'LOBBY'
+        && state.permittedGameId === stoneRecovery) {
+        // The server already left the engine, but its terminal result can still be in flight.
+        // Remember only the round identity; its result/settlement must still come from the server.
+        useGame.setState({ completedGameId: stoneRecovery })
+      }
+    }
     const moveSeq = message.requestId ? this.movementRequests.get(message.requestId) : undefined
     if (message.type === 'WORLD_STATE' && moveSeq !== undefined) localMovement.receivedInput(moveSeq)
     if (message.type === 'ERROR' && message.requestId
@@ -736,6 +768,20 @@ export class ParkRuntime implements ParkRuntimePort {
       if (!['loading', 'ready'].includes(q.status) || message.payload.tableId !== q.tableId ||
         (message.requestId !== null && message.requestId !== this.tableWatchRequestId)) return
     }
+    // Only the originating stone round owns its in-flight input errors.
+    const stoneRound = message.requestId && this.stoneControlRequests.get(message.requestId)
+    if (message.type === 'ERROR' && stoneRound) {
+      if (message.payload.code === 'GAME_ACTION_GAME_FINISHED') return
+      if (message.payload.code === 'GAME_RECOVERY_REQUIRED') {
+        const state = useGame.getState()
+        if (state.permittedGameId !== stoneRound || state.game?.stone?.status === 'FINISHED'
+          || state.result?.gameSessionId === stoneRound || state.lastResult?.gameSessionId === stoneRound) return
+        useGame.setState({ recovery: 'PENDING', uncertain: true })
+        this.stoneRecoveryGameId = stoneRound
+        void this.recoverStoneInput(stoneRound).catch(() => { /* The scoped retry remains available in the UI. */ })
+        return
+      }
+    }
     receive(message,this.mapAdmission.expected.mapVersion)
     if (message.type === 'ERROR') this.expireActionError()
     if (serverFacilities) {
@@ -756,6 +802,13 @@ export class ParkRuntime implements ParkRuntimePort {
     const session = useSession.getState()
     try {
       receiveGame(message, session.sessionId, session.tableId)
+      const recoveringStone = this.stoneRecoveryGameId
+      if (recoveringStone && this.stoneSettledInLobby(recoveringStone)) {
+        // Both authorities must agree: the own result is settled and this table is WAITING.
+        // This clears only our earlier input-recovery wait, never an unsettled/new round.
+        useGame.setState({ recovery: 'LOBBY', uncertain: false, error: '' })
+        this.stoneRecoveryGameId = ''
+      }
       receiveWalletSettlement(message, session.sessionId)
       const alkkagi = useGame.getState().game?.alkkagi
       syncAlkkagiSocial(alkkagi?.gameId ?? '', alkkagi?.version ?? -1, alkkagi?.stage === 'AIMING')
@@ -829,6 +882,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.follow.reset()
     this.resetSpectator()
     ++this.generation
+    this.resetStoneRecovery()
     this.bootAbort?.abort()
     clearTimeout(this.timer)
     this.facilities.reset()
@@ -1043,15 +1097,18 @@ export class ParkRuntime implements ParkRuntimePort {
     const s = useSession.getState()
     return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
-  private interactionStatus = { scope: '', busy: false, vrActive: false, desired: false, pending: null as Promise<boolean> | null, retryAt: 0 }
-  setInteractionBusy = (busy: boolean, confirm = false) => {
+  private interactionStatus = { scope: '', busy: false, vrActive: false, minigame: false, desired: false, desiredMinigame: false, pending: null as Promise<boolean> | null, retryAt: 0, requestId: '' }
+  setInteractionBusy = (busy: boolean, confirm = false, minigame?: boolean) => {
     const session = useSession.getState(), scope = JSON.stringify([this.generation, session.sessionId, session.roomId])
     if (!this.active || session.status !== 'connected' || !session.roomId || !session.mapCompatible
       || !this.socket.connected) return Promise.resolve(false)
     if (!session.carrySupported) return Promise.resolve(!confirm)
-    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, vrActive: false, desired: false, pending: null, retryAt: 0 }
+    // A confirmed seat already blocks carry. Lobby presence requests are rejected during a real game.
+    if (session.tableId || tableBusy()) return Promise.resolve(!confirm)
+    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, vrActive: false, minigame: false, desired: false, desiredMinigame: false, pending: null, retryAt: 0, requestId: '' }
     const status = this.interactionStatus
     status.desired = busy
+    if (minigame !== undefined) status.desiredMinigame = minigame
     let confirmNeeded = confirm
     const generation = this.generation
     const current = () => this.active && this.generation === generation && this.interactionStatus === status
@@ -1059,18 +1116,21 @@ export class ParkRuntime implements ParkRuntimePort {
     const sync = (): Promise<boolean> => {
       if (!current()) return Promise.resolve(false)
       if (status.pending) return status.pending.then(ok => ok ? sync() : false)
-      const vrActive = vrCarryProtection.active, desired = status.desired || vrActive
-      if (status.busy === desired && status.vrActive === vrActive && !confirmNeeded) return Promise.resolve(true)
+      const vrActive = vrCarryProtection.active, desired = status.desired || vrActive, playing = status.desiredMinigame
+      if (status.busy === desired && status.vrActive === vrActive && status.minigame === playing && !confirmNeeded) return Promise.resolve(true)
       if (performance.now() < status.retryAt) return Promise.resolve(false)
       confirmNeeded = false
-      const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}) }
+      const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}),
+        ...(playing || status.minigame ? { minigame: playing } : {}) }
       status.pending = this.socket.request('WORLD_INTERACTION_SET', payload, ['WORLD_INTERACTION_STATE']).then(response => {
         if (response.payload.channelId !== session.roomId || response.payload.busy !== desired
           || (response.payload.vrActive === true) !== vrActive)
           throw new Error('창 점유 응답을 확인해주세요.')
         if (!current()) return false
-        status.busy = desired; status.vrActive = vrActive; return true
+        status.busy = desired; status.vrActive = vrActive; status.minigame = playing; return true
       }).catch(error => {
+        // A presence request sent before seating cannot revoke an already restored game's input.
+        if ((useSession.getState().tableId || tableBusy()) && error instanceof ServerError && error.code === 'GAME_RECOVERY_REQUIRED') return false
         if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
         return false
       }).finally(() => { status.pending = null })
@@ -1122,10 +1182,11 @@ export class ParkRuntime implements ParkRuntimePort {
     let requestId = ''
     try {
       const report = localMovement.positionReport(sequence, intent)
+      const reportedSequence = report?.seq ?? sequence
       await this.socket.request(report ? 'WORLD_POSITION' : 'WORLD_MOVE', report ?? {
         seq: sequence,
         ...intent,
-      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.set(id, sequence) })
+      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.set(id, reportedSequence) })
       if (scope === this.movementScope() && this.active) clearMovementNotice(sequence)
     } catch (error) {
       if (scope !== this.movementScope() || !this.active) return
@@ -1215,8 +1276,14 @@ export class ParkRuntime implements ParkRuntimePort {
     })
     return ok && current() && useTableLobby.getState().status === 'ready'
   }
-  joinTable = (anchorId?: string) =>
-    this.action(async () => {
+  setSecretDoors = (open: boolean) =>
+    this.action(() => this.socket.request('WORLD_SECRET_DOORS_SET', { open }, ['WORLD_STATE']), { blockControls: false })
+  useInteriorAccess = (access: string) =>
+    this.action(() => this.socket.request('WORLD_INTERIOR_ACCESS', { access }, ['WORLD_STATE']), { blockControls: false })
+  joinTable = (anchorId?: string) => {
+    // The pending action releases pointer lock before the join checks run.
+    const mouseLook = useMouseLook.getState().active
+    return this.action(async () => {
       const joinGeneration = this.generation
       if (facilityMovementBlocked(useSession.getState().sessionId)) throw new FacilityUseBlockedError()
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
@@ -1239,7 +1306,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (s.tableId) throw new Error('먼저 현재 테이블에서 일어나주세요.')
       if (anchorId !== undefined) {
         if (!canReachTable(avatars.get(s.sessionId)?.current, anchorId)) throw new Error('테이블 의자 가까이에서 앉기를 눌러주세요.')
-        rememberRoamingView(s.sessionId, s.roomId)
+        rememberRoamingView(s.sessionId, s.roomId, mouseLook)
         useTableLobby.setState({ panelOpen: false, joiningAnchorId: anchorId })
         useSession.setState({ focusedAnchorId: '' })
         clearRoamingInput()
@@ -1260,6 +1327,7 @@ export class ParkRuntime implements ParkRuntimePort {
         }
       }
     })
+  }
   leaveTable = () =>
     this.action(async () => {
       // Only a naturally eliminated HALLI_GALLI player sends the same TABLE_LEAVE mid-game; the server re-checks the engine.
@@ -1284,7 +1352,7 @@ export class ParkRuntime implements ParkRuntimePort {
   setReady = (ready: boolean) =>
     this.action(async () => {
       const s = useSession.getState()
-      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
+      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
       if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
@@ -1297,12 +1365,31 @@ export class ParkRuntime implements ParkRuntimePort {
     this.action(() =>
       this.socket.request('GAME_START_CHECK', {}, ['GAME_START_STATE']),
     )
-  checkRecovery = () =>
-    this.action(() =>
-      this.socket.request('GAME_RECONNECT_CHECK', {}, [
-        'GAME_CONNECTION_STATE',
-      ]),
-    )
+  private stoneSettledInLobby(gameId: string) {
+    const state = useGame.getState(), session = useSession.getState()
+    return !!session.tableId && waitingForRound(state.start, session.tableId)
+      && !state.permittedGameId && state.completedGameId === gameId
+      && [state.result, state.lastResult].some(result => result?.gameSessionId === gameId && result.settlementStatus === 'SETTLED')
+  }
+  private recoverStoneInput(gameId: string): Promise<Envelope> {
+    if (this.stoneRecoveryFlight?.gameId === gameId) return this.stoneRecoveryFlight.promise
+    let requestId = ''
+    const request = this.socket.request('GAME_RECONNECT_CHECK', {}, ['GAME_CONNECTION_STATE'], id => {
+      requestId = id; this.stoneRecoveryRequests.set(id, gameId)
+    })
+    const flight = { gameId, promise: request.finally(() => {
+      this.stoneRecoveryRequests.delete(requestId)
+      if (this.stoneRecoveryFlight === flight) this.stoneRecoveryFlight = null
+    }) }
+    this.stoneRecoveryFlight = flight
+    return flight.promise
+  }
+  checkRecovery = () => this.action(() => {
+    const gameId = this.stoneRecoveryGameId, state = useGame.getState()
+    return gameId && (state.permittedGameId || state.completedGameId) === gameId
+      ? this.recoverStoneInput(gameId)
+      : this.socket.request('GAME_RECONNECT_CHECK', {}, ['GAME_CONNECTION_STATE'])
+  })
   checkGame = () =>
     this.action(async () => {
       const s = useGame.getState(),
@@ -1544,6 +1631,33 @@ export class ParkRuntime implements ParkRuntimePort {
       return true
     } catch { return false }
     finally { this.alkkagiSocialRequests.delete(requestId); if (cursor) this.alkkagiCursorPending = false }
+  }
+  actStoneRumble = (input: import('../../game/stone-rumble/protocol').StoneAction, clearQueuedActions = false): Promise<boolean> => {
+    if (input.kind !== 'control') return this.sendStoneAction(input)
+    const state = useGame.getState(), game = state.game
+    if (!game?.stone || game.role !== 'PLAYER' || useSession.getState().status !== 'connected'
+      || game.gameId !== state.permittedGameId || state.recovery !== 'RESTORED'
+      || game.stone.status !== 'PLAYING' || game.stone.phase === 'LOADING'
+      || !game.stone.players.find(player => player.userId === useSession.getState().sessionId)?.alive) {
+      this.stoneControls.reset()
+      return Promise.resolve(false)
+    }
+    return this.stoneControls.send(game.gameId, input, clearQueuedActions)
+  }
+  private sendStoneAction = async (input: import('../../game/stone-rumble/protocol').StoneAction): Promise<boolean> => {
+    const session = useSession.getState(), state = useGame.getState(), game = state.game
+    if (!game?.stone || game.role !== 'PLAYER' || session.status !== 'connected'
+      || game.gameId !== state.permittedGameId || state.recovery !== 'RESTORED' || game.stone.status !== 'PLAYING') return false
+    if (input.kind === 'control' && (game.stone.phase === 'LOADING'
+      || !game.stone.players.find(player => player.userId === session.sessionId)?.alive)
+      || input.kind === 'scene_ready' && game.stone.phase !== 'LOADING') return false
+    let requestId = ''
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: game.gameId, actionId: crypto.randomUUID(), expectedVersion: game.version, input: { ...input } }, ['GAME_ACTION_RESULT'],
+        id => { requestId = id; this.stoneControlRequests.set(id, game.gameId) })
+      return true
+    } catch { return false }
+    finally { this.stoneControlRequests.delete(requestId) }
   }
   actAlkkagi = (input: Record<string, unknown>) => this.action(async () => {
     const own = useSession.getState(), s = useGame.getState(), g = s.game

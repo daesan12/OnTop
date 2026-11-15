@@ -91,6 +91,9 @@ public class JumpmapService implements AutoCloseable {
 
     public void sink(Sink sink) { this.sink = sink; }
 
+    public String courseVersion() { return activation.course().map(JumpCourse::courseVersion).orElse(JumpCourse.COURSE_VERSION); }
+    public String rulesVersion() { return activation.course().map(JumpCourse::rulesVersion).orElse(JumpCourse.RULES_VERSION); }
+
     public String mapVersion() { return activation.course().map(JumpCourse::mapVersion).orElse(""); }
 
     /** 허브 스레드에서 호출한다. 잠금 없이 착지 알림만 바로 보내고 나머지는 저장 스레드에 넣는다. */
@@ -102,6 +105,7 @@ public class JumpmapService implements AutoCloseable {
             payload.put("mapVersion", mapVersion());
             payload.put("playerId", step.userId());
             payload.put("block", step.block());
+            payload.put("serverTime", clock.millis());
             for (String user : recipients) {
                 sink.send(user, "JUMPMAP_STEP", payload);
             }
@@ -123,8 +127,8 @@ public class JumpmapService implements AutoCloseable {
                 runCoins.put(started.runId(), 0);
                 runUsers.put(started.runId(), started.userId());
                 var payload = ordered(started.channelId(), started.runId(), result.todayEarned(), result.today());
-                payload.put("rulesVersion", JumpCourse.RULES_VERSION);
-                payload.put("courseVersion", JumpCourse.COURSE_VERSION);
+                payload.put("rulesVersion", rulesVersion());
+                payload.put("courseVersion", courseVersion());
                 payload.put("serverTime", at.toEpochMilli());
                 emit(started.userId(), "JUMPMAP_STARTED", payload);
             }

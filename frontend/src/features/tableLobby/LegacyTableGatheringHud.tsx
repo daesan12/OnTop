@@ -1,5 +1,6 @@
 import { useSession } from '../../network/worldClient'
 import { useGame, tableBusy } from '../../game/store'
+import { StoneRecoveryNotice } from '../../game/stone-rumble/StoneRecoveryNotice'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { openManual } from '../manual/manualState'
 import { GAME_MANUAL, type GatheringModel } from './gatheringModel'
@@ -43,6 +44,7 @@ export function LegacyTableGatheringHud({ model }: { model: GatheringModel }) {
         }}>{looking ? '테이블 함께 보기' : '주변 둘러보기'}</button>
         <button disabled={disabled || busy} onClick={() => void runtime.leaveTable()}>자리에서 일어나기</button>
       </div>
+      {model.finished && model.gameCode === 'STONE_RUMBLE' && <StoneRecoveryNotice />}
       {!model.finished && <BetBalanceNotice balance={balance} bet={table?.betAmountPerPlayer} retry={refreshBalance}/>}
       {startFailureNotice(start) && <p className="gathering-error" role="alert">{startFailureNotice(start)}</p>}
       {error && <p className="gathering-error" role="alert">{error}</p>}

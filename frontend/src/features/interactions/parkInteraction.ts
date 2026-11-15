@@ -1,5 +1,7 @@
-import { FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX } from '../../park/mapConfig'
-import { avatars, useSession } from '../../network/worldClient'
+import { FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
+import { authoritativePose, avatars, useSession } from '../../network/worldClient'
+import { parkRuntime } from '../../park/runtime/runtime'
+import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
 import { benchAnchors, canReachBench } from './benchAnchors'
@@ -25,26 +27,50 @@ import { canReachBungeoppang } from '../bungeoppang/access'
 import { openBungeoppang } from '../bungeoppang/store'
 import { canOpenRpsRoulette, canReachRpsRoulette, RPS_CABINET } from '../rpsRoulette/access'
 import { openArcade } from '../arcade/store'
+import { openPlusMinus } from '../plusMinus/store'
+import { openRpsRoulette } from '../rpsRoulette/store'
+import { canReachRenewalRecreation, renewalMap, type RenewalRecreationId } from '../../park/renewalMap'
 import { MINI_PROPS } from '../../park/mapConfig'
 import { interactWithTable } from '../tableLobby/tableInteraction'
 import { tableEntry } from '../tableLobby/tableEntry'
 import { useTableLobby } from '../tableLobby/state'
+import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
+import { STONE_RUMBLE_ENABLED } from '../tableLobby/model'
 import { canReachTable } from '../tableLobby/tableReach'
-import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
+import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice,openParkGacha } from '../construction/model'
 import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlacement'
 import { gachaInteractionEnabled } from '../gacha/state'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
 import { canReachParkVr, openParkVrZone, parkVrEntrance } from '../vrZone/parkBridge'
+import { openJumpRope } from '../jumpRope/store'
 import { canReachJumpmapGuide, jumpmapGuideScope, openJumpmapGuide } from '../jumpmap/guideState'
-import { START as JUMPMAP_START } from '../jumpmap/course'
+import { GUIDE as JUMPMAP_GUIDE } from '../jumpmap/activeCourse'
 import { useJumpmap } from '../jumpmap/state'
 import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
+import { openFortune } from '../fortune/controller'
 import { useDisplayGame } from '../../game/displayGame'
+import { diamond, interiorVisit, visitScope } from '../../../park-renewal-preview/interiorEvents'
+import { accessAt, interiorAccess } from '../../../park-renewal-preview/interiorAccess'
+
+const interiorLabels: Record<keyof typeof interiorAccess, string> = {
+  vestibule: '돌문 열기', surface: '공원으로 나가기', passage: '통로로 들어가기',
+  entry: '돌문 열기', return: '입구로 나가기', exit: '공원으로 나가기',
+}
+
+const plazaKiosksEnabled = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED
+const recreationLabels: Record<RenewalRecreationId, string> = {
+  fortune: '오늘의 운세 보기',
+  'fish-bread': '붕어빵 굽기',
+  'rps-roulette-cabinet': '가위바위보 룰렛 하기',
+  'plus-minus-cabinet': '더하기빼기 하기',
+  'mole-shop': '두더지 모드 고르기',
+  'pigeon-jump-rope': '구구구 줄넘기 하기',
+}
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access'
   id: string
   label: string
   seat?: 0 | 1
@@ -67,25 +93,38 @@ export function getParkInteraction(): ParkInteraction | null {
   if (p.carry && p.carry.role !== 'CARRIER') return null
   const carry = carryInteraction()
   if (p.carry?.role === 'CARRIER') return carry
-  if (carry) choices.push(carry)
-  if (GENERATED_PARK_ENABLED && !useJumpmap.getState().run && canReachJumpmapGuide(p.current)) {
-    const distance=Math.hypot(p.current.x-JUMPMAP_START.x,p.current.z-JUMPMAP_START.z)
-    choices.push({kind:'jumpmap-guide',id:'jumpmap-guide',label:'돌탑 점프맵 안내',occupied:false,available:true,distance,
-      score:interactionScore(distance,{x:JUMPMAP_START.x,y:JUMPMAP_START.y+.12,z:JUMPMAP_START.z})})
+  const at = RENEWAL_PARK_ENABLED && !session.benchId ? authoritativePose(session.sessionId) : undefined
+  const access = at && accessAt(at)
+  if (at && access) {
+    const [x, , z] = interiorAccess[access].from
+    const locked = access === 'exit' && !at.interiorExitReady
+    return { kind: 'interior-access', id: access, label: locked ? '3층에 올라가면 열려요' : interiorLabels[access], occupied: false,
+      available: !locked, distance: Math.hypot(at.x - x, at.z - z), score: 0 }
   }
-  if(GENERATED_PARK_ENABLED&&canReachRankingBoard(p.current)){
+  if (RENEWAL_PARK_ENABLED && !p.carry && interiorVisit.canAddDiamond(visitScope(session.sessionId, session.roomId), p.current)) {
+    const [x,,z] = diamond, distance = Math.hypot(p.current.x-x,p.current.z-z)
+    return { kind:'interior-item', id:'interior-item', label:'다이아 집기', occupied:false, available:true, distance, score:0 }
+  }
+  if (carry) choices.push(carry)
+  if (JUMPMAP_ENABLED && !useJumpmap.getState().run && canReachJumpmapGuide(p.current)) {
+    const distance=Math.hypot(p.current.x-JUMPMAP_GUIDE.x,p.current.z-JUMPMAP_GUIDE.z)
+    choices.push({kind:'jumpmap-guide',id:'jumpmap-guide',label:'돌탑 점프맵 안내',occupied:false,available:true,distance,
+      score:interactionScore(distance,{x:JUMPMAP_GUIDE.x,y:JUMPMAP_GUIDE.y+(RENEWAL_PARK_ENABLED?1.4:.12),z:JUMPMAP_GUIDE.z})})
+  }
+  if(plazaKiosksEnabled&&canReachRankingBoard(p.current)){
     const [x,y,z]=rankingBoardTarget.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     choices.push({kind:'ranking-board',id:rankingBoardTarget.id,label:'랭킹 자세히 보기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
-  if(GENERATED_PARK_ENABLED)for(const site of constructionSites){
+  if(plazaKiosksEnabled)for(const site of constructionSites){
     // layout-shop is the visible gacha machine. Its E prompt is controlled by the
     // backend runtime capability below, not by the legacy construction marker.
     if(site.id===PARK_GACHA_MACHINE.id)continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
-    choices.push({kind:'construction',id:site.id,label:site.label+' · 행운의 뽑기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
+    const label = site.id === 'layout-drink' ? '복권방 열기' : site.label
+    choices.push({kind:'construction',id:site.id,label,occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
-  if (GENERATED_PARK_ENABLED && gachaInteractionEnabled(session.sessionId) && canReachParkGacha(p.current)) {
+  if (plazaKiosksEnabled && (RENEWAL_PARK_ENABLED || gachaInteractionEnabled(session.sessionId)) && canReachParkGacha(p.current)) {
     const { id, x, y, z } = PARK_GACHA_MACHINE
     const distance = Math.hypot(p.current.x - x, p.current.z - z)
     choices.push({ kind: 'gacha', id, label: '의상 뽑기', occupied: false, available: true, distance,
@@ -94,14 +133,21 @@ export function getParkInteraction(): ParkInteraction | null {
   if (canReachParkVr(p.current)) {
     const distance = Math.hypot(p.current.x - parkVrEntrance.x, p.current.z - parkVrEntrance.z)
     choices.push({ kind: 'vr', id: 'vr-experience-hall', label: '온탑 꼬치왕', occupied: false, available: true, distance,
-      score: interactionScore(distance, { x: parkVrEntrance.x, y: 1.5, z: parkVrEntrance.z }) })
+      score: interactionScore(distance, { x: parkVrEntrance.x, y: parkVrEntrance.y + .7, z: parkVrEntrance.z }) })
   }
-  if (canReachBungeoppang(p.current)) {
+  for (const anchor of renewalMap?.data.interactions.recreation ?? []) {
+    if (!canReachRenewalRecreation(p.current, anchor)) continue
+    const [x, y, z] = anchor.id === 'fortune' ? anchor.reachPosition : anchor.position
+    const distance = Math.hypot(p.current.x - x, p.current.z - z)
+    choices.push({ kind: 'renewal-game', id: anchor.id, label: recreationLabels[anchor.id],
+      occupied: false, available: true, distance, score: interactionScore(distance, { x, y: anchor.id === 'fortune' ? y : y + 1.3, z }) })
+  }
+  if (!renewalMap && canReachBungeoppang(p.current)) {
     const cart = MINI_PROPS[0], distance = Math.hypot(p.current.x - cart.x, p.current.z - cart.z)
     choices.push({ kind: 'bungeoppang', id: cart.id, label: '붕어빵 굽기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: cart.x, y: 1.875, z: cart.z }) })
   }
-  if (canReachRpsRoulette(p.current)) {
+  if (!renewalMap && canReachRpsRoulette(p.current)) {
     const distance = Math.hypot(p.current.x - RPS_CABINET.x, p.current.z - RPS_CABINET.z)
     choices.push({ kind: 'rps-roulette', id: 'rps-roulette-cabinet', label: '오락기 하기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: RPS_CABINET.x, y: 1.3, z: RPS_CABINET.z }) })
@@ -114,7 +160,7 @@ export function getParkInteraction(): ParkInteraction | null {
   if (canReachFeedback(p.current)) {
     const distance = Math.hypot(p.current.x - MAILBOX.x, p.current.z - MAILBOX.z)
     choices.push({ kind: 'feedback', id: 'feedback-mailbox', label: '소리함에 의견 쓰기', occupied: false,
-      available: true, distance, score: interactionScore(distance, { x: MAILBOX.x, y: MAILBOX.height * 0.7, z: MAILBOX.z }) })
+      available: true, distance, score: interactionScore(distance, { x: MAILBOX.x, y: MAILBOX_BASE_Y + MAILBOX.height * 0.7, z: MAILBOX.z }) })
   }
   for (const t of TELESCOPES) {
     if (!canReachTelescope(p.current, t.id)) continue
@@ -148,11 +194,13 @@ export function getParkInteraction(): ParkInteraction | null {
     }
   }
   for (const table of TABLES) {
+    const stoneRumble = table.id === STONE_RUMBLE_ANCHOR_ID
+    if (stoneRumble && !STONE_RUMBLE_ENABLED) continue
     const distance = Math.hypot(p.current.x - table.position[0], p.current.z - table.position[2])
     if (!canReachTable(p.current, table.id)) continue
     const lobby = useTableLobby.getState()
     const waiting = lobby.spectatorRequested && lobby.spectatorStatus === 'waiting' && session.focusedAnchorId === table.id
-    choices.push({ kind: 'table', id: table.id, label: waiting ? '관전 대기 취소' : tableEntry(table.id) === 'watch' ? '관전하기' : '테이블에 앉기', occupied: false, available: true,
+    choices.push({ kind: 'table', id: table.id, label: waiting ? '관전 대기 취소' : tableEntry(table.id) === 'watch' ? '관전하기' : stoneRumble ? '돌탑 생존전 입장' : '테이블에 앉기', occupied: false, available: true,
       distance, score: interactionScore(distance, { x: table.position[0], y: table.position[1] + 0.65, z: table.position[2] }) })
   }
   return choices.filter(c => Number.isFinite(c.score)).sort((a, b) => a.score - b.score || a.distance - b.distance
@@ -161,6 +209,28 @@ export function getParkInteraction(): ParkInteraction | null {
 export function interactWithPark(expectedId?: string): boolean {
   const target = getParkInteraction()
   if (!target || (expectedId !== undefined && target.id !== expectedId)) return false
+  if (target.kind === 'interior-access') {
+    if (!target.available) return false
+    const { sessionId, roomId } = useSession.getState()
+    const at = authoritativePose(sessionId)
+    const access = at && accessAt(at)
+    if (!at || access !== target.id) return false
+    const submit = () => {
+      void parkRuntime.useInteriorAccess?.(access).then(moved => {
+        const session = useSession.getState()
+        if (moved && session.sessionId === sessionId && session.roomId === roomId) {
+          viewControls.yaw = access === 'vestibule' ? Math.PI : interiorAccess[access].yaw
+          viewControls.pitch = .05
+        }
+      })
+    }
+    if (access !== 'exit' || !interiorVisit.deferExit(visitScope(sessionId, roomId), at, performance.now(), submit)) submit()
+    return true
+  }
+  if (target.kind === 'interior-item') {
+    const { sessionId, roomId } = useSession.getState(), pose = avatars.get(sessionId)?.current
+    return !!pose && interiorVisit.addDiamond(visitScope(sessionId, roomId), pose)
+  }
   if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
   else if (target.kind === 'ranking-board') openRankingBoard()
@@ -170,6 +240,16 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()
   else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openArcade() }
+  else if (target.kind === 'renewal-game') {
+    switch (target.id) {
+      case 'fortune': return openFortune()
+      case 'fish-bread': openBungeoppang(); break
+      case 'rps-roulette-cabinet': if (canOpenRpsRoulette()) openRpsRoulette(); break
+      case 'plus-minus-cabinet': openPlusMinus(); break
+      case 'mole-shop': openArcade('mole'); break
+      case 'pigeon-jump-rope': openJumpRope(); break
+    }
+  }
   else if (target.kind === 'table') interactWithTable(target.id)
   else if (target.kind === 'notes') openNotes()
   else if (target.kind === 'feedback') openFeedback()

@@ -1,6 +1,7 @@
 package com.ssafy.ontop.world.movement;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ssafy.ontop.world.jumpmap.JumpCourse;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import java.nio.file.Path;
 import java.util.Set;
@@ -15,6 +16,91 @@ import static org.assertj.core.api.Assertions.within;
 
 class WorldCarryPhysicsTests {
     private final AtomicLong now = new AtomicLong();
+
+    @Test
+    void 업기_시야가_다른_사용자의_숨은_발판에_막히지_않는다() throws Exception {
+        var map = renewalMap();
+        var scene = map.createScene();
+        var course = JumpCourse.loadEmbedded(map.jumpCourse(), scene.version());
+        var pad = hiddenPad(course);
+        try (var physics = new WorldPhysics(scene, false, now::get, true, course)) {
+            physics.add("a");
+            physics.add("b");
+            physics.add("runner");
+            physics.place("a", pad.x() - 1.1, pad.centerY(), pad.z());
+            physics.place("b", pad.x() + 1.1, pad.centerY(), pad.z());
+            physics.jumpmapRun("runner", "other-run");
+            physics.support("runner"); // 직전 조회에서는 숨은 발판을 적용한다.
+
+            assertThat(physics.pickup("a", "b")).isTrue();
+        }
+    }
+
+    @Test
+    void 내려놓을_때_다른_사용자의_숨은_발판을_장애물로_보지_않는다() throws Exception {
+        var map = renewalMap();
+        var scene = map.createScene();
+        var course = JumpCourse.loadEmbedded(map.jumpCourse(), scene.version());
+        var pad = hiddenPad(course);
+        try (var physics = new WorldPhysics(scene, false, now::get, true, course)) {
+            physics.add("a");
+            physics.add("b");
+            physics.add("runner");
+            var start = physics.snapshot("a");
+            physics.place("b", start.x() + 1, start.y(), start.z());
+            physics.support("a");
+            assertThat(physics.pickup("a", "b")).isTrue();
+            physics.place("a", pad.x(), pad.centerY(), pad.z());
+            physics.jumpmapRun("runner", "other-run");
+            physics.support("runner");
+
+            physics.releaseCarry("a");
+
+            assertThat(physics.carryState("b")).isNull();
+            var released = physics.snapshot("b");
+            assertThat(released.x()).isCloseTo(pad.x(), within(.01));
+            assertThat(released.y()).isCloseTo(pad.centerY(), within(.01));
+            assertThat(released.z()).isCloseTo(pad.z(), within(.01));
+        }
+    }
+
+    private static PreparedParkMap renewalMap() throws Exception {
+        var directory = Path.of("../frontend/generated/park-renewal");
+        return PreparedParkMap.load(directory.resolve("server-map.json"), directory.resolve("manifest.json"),
+                Set.of("channel-1"));
+    }
+
+    private static JumpCourse.Collider hiddenPad(JumpCourse course) {
+        return course.colliders().stream().filter(pad -> pad.stage() == 2 && !course.visibleAtStart(pad.block()))
+                .findFirst().orElseThrow();
+    }
+
+    @Test
+    void 공원_외곽으로_높게_던져도_캐릭터가_울타리_안에_남는다() throws Exception {
+        Path directory = Path.of("../frontend/generated/park-renewal");
+        var scene = PreparedParkMap.load(directory.resolve("server-map.json"), directory.resolve("manifest.json"),
+                Set.of("channel-1")).createScene();
+        try (var physics = new WorldPhysics(scene, true, now::get, true)) {
+            physics.add("a");
+            physics.add("b");
+            var start = physics.snapshot("a");
+            physics.place("b", start.x() + 1, start.y(), start.z());
+            step(physics, 5);
+
+            assertThat(physics.pickup("a", "b")).isTrue();
+            assertThat(physics.throwCarried("a", physics.carryState("a").carryId(), 0, .5, Math.sqrt(.75))).isTrue();
+            double furthest = start.z();
+            for (int tick = 0; tick < 90 && physics.carryState("b") != null; tick++) {
+                step(physics, 1);
+                double z = physics.snapshot("b").z();
+                furthest = Math.max(furthest, z);
+                assertThat(z).isLessThan(108);
+            }
+
+            assertThat(furthest).isGreaterThan(start.z() + 2);
+            assertThat(physics.carryState("b")).isNull();
+        }
+    }
 
     @Test
     void 달리는_중이어도_정적벽_너머의_상대는_들수없다() throws Exception {

@@ -1,0 +1,26 @@
+export const stairFlightOptions = {
+  monument: '돌탑 앞 95단 계단',
+  'rest-1': '남서 숲속 팔각정',
+  'rest-2': '서북 언덕 팔각정',
+  'rest-3': '동북 버들 팔각정',
+  'rest-4': '남동 숲속 팔각정',
+  'island-pavilion': '호수섬 팔각정',
+  'main-pavilion-0': '메인 팔각정 남쪽',
+  'main-pavilion-1': '메인 팔각정 동쪽',
+  'main-pavilion-2': '메인 팔각정 북쪽',
+  'main-pavilion-3': '메인 팔각정 서쪽',
+  'pagoda-0': '대석탑 정원 남쪽',
+  'pagoda-1': '대석탑 정원 동쪽',
+  'pagoda-2': '대석탑 정원 북쪽',
+  'pagoda-3': '대석탑 정원 서쪽',
+  balloon: '열기구 승강장',
+  fishing: '낚시터',
+  'balloon-hill': '열기구 승강장 오르는 언덕',
+  'tower-ramp': '전망대 진입로와 나선 오르막',
+  'fountain-west': '분수대 서쪽 진입로',
+  'fountain-east': '분수대 동쪽 진입로',
+  'island-bridge': '호수섬 다리 양끝',
+  'duck-dock': '오리배 선착장 진입로',
+} as const
+
+export type StairFlightId = keyof typeof stairFlightOptions

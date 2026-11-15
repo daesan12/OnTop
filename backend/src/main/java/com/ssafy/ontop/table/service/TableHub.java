@@ -157,6 +157,8 @@ public class TableHub {
     private final Optional<GameStartGateway> gateway;
     private final boolean startRehearsal;
     private boolean startDiagnosticsEnabled;
+    @Value("${ontop.games.stone-rumble.enabled:false}")
+    private boolean stoneRumbleEnabled;
     private Optional<CommittedGameStartService> committedStarts = Optional.empty();
     private final Optional<GameStateGateway> gameStates;
     private final Set<String> stateQueries = new HashSet<>();
@@ -912,7 +914,8 @@ public class TableHub {
                 fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
             }
             if (channels.carryState(member.userId()) != null && Set.of("TABLE_JOIN", "TABLE_WATCH", "GAME_WATCH",
-                    "WORLD_FACILITY_USE", "WORLD_FOLLOW_START", "WORLD_EMOTE_SEND").contains(request.type())) {
+                    "WORLD_FACILITY_USE", "WORLD_FOLLOW_START", "WORLD_EMOTE_SEND", "WORLD_SECRET_DOORS_SET",
+                    "WORLD_INTERIOR_ACCESS").contains(request.type())) {
                 fail(request, "CARRY_ACTIVITY_CONFLICT", "들기·던지기가 끝난 뒤 다른 행동을 시작해주세요.");
             }
             switch (request.type()) {
@@ -921,6 +924,10 @@ public class TableHub {
                 case "CHANNEL_LEAVE" -> leaveChannel(member, request);
                 case "WORLD_MOVE" -> moveWorld(member, request);
                 case "WORLD_POSITION" -> positionWorld(member, request);
+                case "WORLD_SECRET_DOORS_SET" -> publishWorld(channels.setSecretDoors(member.userId(),
+                        request.payload().path("open").asBoolean()), member, request.requestId());
+                case "WORLD_INTERIOR_ACCESS" -> publishWorld(channels.useInteriorAccess(member.userId(),
+                        request.payload().path("access").asText()), member, request.requestId());
                 case "WORLD_POSITION_FALLBACK" -> member.peer().offer(protocol.encode(request.requestId(), "WORLD_STATE",
                         channels.disablePosition(member.userId(), request.payload().path("epoch").asLong()).state()));
                 case "WORLD_CHAT_SEND" -> sendChat(member, request);
@@ -1229,8 +1236,28 @@ public class TableHub {
             replyStartState(member, tableId, null);
             return null;
         }
+        if (stoneRumbleTable(tableId)) {
+            if (!stoneRumbleEnabled) {
+                fail(request, "UNSUPPORTED_GAME", "돌탑 생존전은 현재 이용할 수 없습니다.");
+            }
+            var position = channels.positionOf(member.userId());
+            if (position == null || !preparedPark.canEnterStoneRumble(position.x(), position.y(), position.z())) {
+                fail(request, "TOO_FAR", "대석탑 정원의 돌탑 생존전 입구에서 입장해주세요.");
+            }
+        }
         ensureWaiting(tableId, request);
         return room;
+    }
+
+    private boolean stoneRumbleTable(String tableId) {
+        return preparedPark != null && PreparedParkMap.STONE_RUMBLE_ANCHOR_ID.equals(tableAnchors.get(tableId));
+    }
+
+    private void ensureGameAllowedAtTable(String tableId, TableGame game, Request request) {
+        if ((game == TableGame.STONE_RUMBLE && preparedPark != null && (!stoneRumbleEnabled || !stoneRumbleTable(tableId)))
+                || (stoneRumbleTable(tableId) && game != TableGame.STONE_RUMBLE)) {
+            fail(request, "UNSUPPORTED_GAME", "이 테이블에서 이용할 수 없는 게임입니다.");
+        }
     }
 
     private void seat(Member member, Request request, TableRoom room) {
@@ -2048,7 +2075,8 @@ public class TableHub {
 
     private void interactionBusy(Member member, Request request) {
         var change = channels.interactionBusy(member.userId(), request.payload().path("busy").asBoolean(),
-                request.payload().has("vrActive") ? request.payload().path("vrActive").asBoolean() : null);
+                request.payload().has("vrActive") ? request.payload().path("vrActive").asBoolean() : null,
+                request.payload().has("minigame") ? request.payload().path("minigame").asBoolean() : null);
         Map<String, Object> payload = new HashMap<>();
         payload.put("channelId", change.channelId());
         payload.put("busy", change.busy());
@@ -2123,7 +2151,7 @@ public class TableHub {
         if (!ready) {
             cancelReadyBalance(member.userId());
         }
-        if (ready && readyBalances.isPresent()) {
+        if (ready && readyBalances.isPresent() && !"STONE_RUMBLE".equals(room.snapshot().gameCode())) {
             if (member.accountId() == null) { fail(request, "READY_AUTH_REQUIRED", "로그인 상태를 확인해주세요."); }
             if (readyBalanceChecks.containsKey(member.sessionId())) {
                 fail(request, "READY_CHECK_PENDING", "사용 가능 잔액을 확인하고 있습니다.");
@@ -2218,6 +2246,7 @@ public class TableHub {
         if (game == null) {
             fail(request, "UNSUPPORTED_GAME", "지원하지 않는 게임입니다.");
         }
+        ensureGameAllowedAtTable(tableId, game, request);
         long occupied = room.snapshot().seats().stream().filter(seat -> seat.userId() != null).count();
         if (occupied > game.maximumPlayers()) {
             fail(request, "GAME_PLAYER_LIMIT", "참가자가 선택한 게임의 최대 인원보다 많습니다.");
@@ -2227,6 +2256,9 @@ public class TableHub {
             fail(request, "GAME_OPTIONS_REQUIRED", "주사위 목표 2000/4000/6000점 중 하나를 선택해주세요.");
         }
         long amount = request.payload().get("betAmountPerPlayer").longValue();
+        if (game == TableGame.STONE_RUMBLE && amount != 0) {
+            fail(request, "GAME_INVALID_BET", "돌탑 생존전은 무료로 참가해요.");
+        }
         try { com.ssafy.ontop.game.domain.GameAmounts.validate(amount, game.maximumPlayers()); }
         catch (IllegalArgumentException exception) {
             fail(request, "GAME_INVALID_BET", "참가비가 지원 범위를 벗어났습니다.");
@@ -2344,6 +2376,11 @@ public class TableHub {
     private void leave(Member member, Request request) {
         TableRoom room = seatedRoom(member, request);
         ensureWaiting(room.snapshot().tableId(), request, true);
+        if (stoneRumbleTable(room.snapshot().tableId())) {
+            room.snapshot().seats().stream().filter(seat -> member.userId().equals(seat.userId())).findFirst()
+                    .ifPresent(seat -> channels.placeTableExit(
+                            member.userId(), seat.seatNumber(), preparedPark.stoneRumbleExits()));
+        }
         // TABLE_LEAVE itself releases a practice seat, even when the companion HTTP endpoint is unavailable.
         String npc = aiPracticeSeats.get(room.snapshot().tableId());
         if (npc != null) aiReleaseOmok(room.snapshot().tableId(), npc);
@@ -2394,10 +2431,14 @@ public class TableHub {
         }
         TableGame game = TableGame.find(request.payload().path("gameCode").asText());
         if (game == null) { fail(request, "UNSUPPORTED_GAME", "지원하지 않는 게임입니다."); }
+        ensureGameAllowedAtTable(tableId, game, request);
         Integer target = request.payload().has("targetScore") ? request.payload().path("targetScore").asInt() : null;
         if (game == TableGame.DICE && target == null) { fail(request, "GAME_OPTIONS_REQUIRED", "목표 점수를 선택해주세요."); }
         try {
             long amount = request.payload().path("betAmountPerPlayer").asLong();
+            if (game == TableGame.STONE_RUMBLE && amount != 0) {
+                fail(request, "GAME_INVALID_BET", "돌탑 생존전은 무료로 참가해요.");
+            }
             int players = request.payload().path("selectedPlayers").asInt();
             if (room.configure(game, target, amount, players)) {
                 starts.remove(tableId);
@@ -3607,7 +3648,8 @@ public class TableHub {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
         if (ping && !(ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
-                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI", "HALLI_GALLI").contains(push.gameCode)) {
+                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI",
+                        "HALLI_GALLI", "STONE_RUMBLE").contains(push.gameCode)) {
             fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목·주사위 장부 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {
@@ -3687,8 +3729,10 @@ public class TableHub {
             fail(request, "GAME_ACTION_NOT_CONFIGURED", "경기 입력 연결이 준비되지 않았습니다.");
         }
         String gameId = request.payload().get("gameId").textValue();
-        if (!canSendGameAction(sessionId, member, gameId)) {
-            fail(request, "GAME_RECOVERY_REQUIRED", "현재 경기 복구 상태를 먼저 확인해주세요.");
+        String blocked = gameActionBlockReason(sessionId, member, gameId);
+        if (blocked != null) {
+            fail(request, blocked, blocked.equals("GAME_ACTION_GAME_FINISHED")
+                    ? "이미 끝난 경기입니다." : "현재 경기 복구 상태를 먼저 확인해주세요.");
         }
         if (!actionRequests.add(sessionId)) {
             fail(request, "GAME_ACTION_PENDING", "이전 경기 입력이 처리 중입니다.");
@@ -3700,9 +3744,8 @@ public class TableHub {
             GameActionResult result = null;
             String error = null;
             try {
-                if (!canSendGameAction(sessionId, member, gameId)) {
-                    error = "GAME_RECOVERY_REQUIRED";
-                } else {
+                error = gameActionBlockReason(sessionId, member, gameId);
+                if (error == null) {
                     result = gameActions.orElseThrow().apply(command);
                     if (result == null || result.userId() != command.userId()
                             || !result.gameId().equals(gameId) || !result.actionId().equals(command.actionId())
@@ -3784,6 +3827,18 @@ public class TableHub {
     private synchronized boolean canSendGameAction(String sessionId, Member member, String gameId) {
         return !stopped && members.get(sessionId) == member && reconnect.isPresent()
                 && reconnect.get().canControlGame(member.accountId(), sessionId, gameId);
+    }
+
+    private synchronized String gameActionBlockReason(String sessionId, Member member, String gameId) {
+        if (canSendGameAction(sessionId, member, gameId)) { return null; }
+        // 종료 방송과 교차한 돌탑 실시간 입력에는 이미 확정된 종료 상태를 돌려준다.
+        TableStartAttempt attempt = starts.get(seating.get(member.userId()));
+        if (!stopped && members.get(sessionId) == member && attempt != null && attempt.ended(gameId)
+                && "STONE_RUMBLE".equals(attempt.command().gameCode())
+                && attempt.command().participants().stream().anyMatch(p -> p.userId().equals(member.userId()))) {
+            return "GAME_ACTION_GAME_FINISHED";
+        }
+        return "GAME_RECOVERY_REQUIRED";
     }
 
     private synchronized void finishGameAction(String sessionId, Member member, String requestId,

@@ -79,7 +79,6 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 | Ranking | GET /api/v1/rankings | Access JWT | 200 |
 | Park Ranking | GET /api/v1/rankings/park | Access JWT | 200·503 |
 | Minigame | POST /api/v1/minigames/sessions | Access JWT + Idempotency-Key | 201 |
-| Minigame | POST /api/v1/minigames/skewer/admissions | Access JWT + Idempotency-Key · 본인 지갑 이용료 10냥 | 201 |
 | Minigame | GET /api/v1/minigames/sessions | Access JWT | 200 |
 | Minigame | GET /api/v1/minigames/sessions/{sessionId} | Access JWT·본인 세션 | 200 |
 | Minigame | POST /api/v1/minigames/sessions/{sessionId}/complete | Access JWT·본인 세션 | 200 |
@@ -101,7 +100,6 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 
 정적 export는 OpenApiLocalTests가 Feedback/Notes를 켠 실제 local 문서에서 생성한다.
 local/dev의 endpoint 목록은 해당 기능 플래그 조건에 따라 OpenAPI·보안 회귀 테스트에서 정확히 비교한다.
-꼬치왕 이용권 API의 서버 계약과 중복 차감 방지는 [꼬치왕 이용료 계약](../skewer-admissions.md)을 따른다.
 WebSocket 인증을 local에서 명시적으로 끄면 Ticket API 1개가 제외된다.
 Shop/Minigame/Notes는 local/dev 또는 운영 `prod,db`에서 기능별 설정으로 등록할 수 있다. 운영 배포에서는 기본 비활성이다. Feedback는 별도 기능 플래그를 따른다.
 Channel/Table 조회는 운영에서도 인증된 회원에게 제공한다.

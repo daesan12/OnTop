@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { PARK_DATA } from '../../map/park'
+import { renewalMap } from '../../park/renewalMap'
 import { clearRoamingInput } from '../../world/inputOwnership'
 
-export const rankingBoardTarget = PARK_DATA.interactions.rankingBoard
+export const rankingBoardTarget = renewalMap?.data.interactions.rankingBoard ?? PARK_DATA.interactions.rankingBoard
 
 export function canReachRankingBoard(position: { x: number; y: number; z: number }) {
   const target = rankingBoardTarget

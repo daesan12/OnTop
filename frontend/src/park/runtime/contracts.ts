@@ -27,9 +27,11 @@ export interface ParkRuntimePort {
   pickupAvatar?(targetId: string): Promise<boolean>
   throwAvatar?(carryId: string, direction: { dx: number; dy: number; dz: number }): Promise<boolean>
   releaseAvatar?(carryId: string): Promise<boolean>
-  setInteractionBusy?(busy: boolean, confirm?: boolean): Promise<boolean>
+  setInteractionBusy?(busy: boolean, confirm?: boolean, minigame?: boolean): Promise<boolean>
   move(dx: number, dz: number, run: boolean, jump?: boolean): void
   stopMovement(): void
+  setSecretDoors?(open: boolean): Promise<boolean>
+  useInteriorAccess?(access: string): Promise<boolean>
   inspectTable(anchorId: string, watch?: boolean): void
   closeTable(): void
   joinTable(anchorId?: string): Promise<boolean>
@@ -51,6 +53,7 @@ export interface ParkRuntimePort {
   restoreOneCardHand?(): Promise<boolean>
   hitOneCardHand?(attemptId: string): Promise<boolean>
   sendAlkkagiSpectator?(input: Record<string, unknown>): Promise<boolean>
+  actStoneRumble?(input: import('../../game/stone-rumble/protocol').StoneAction, clearQueuedActions?: boolean): Promise<boolean>
   actAlkkagi?(input: Record<string, unknown>): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
   actLedger(input: import('../../game/ledger/protocol').LedgerInput): Promise<boolean>

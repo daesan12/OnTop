@@ -1,9 +1,9 @@
 .park-page .npc-overhead {
-  max-inline-size: min(250px, calc(100% - 24px));
+  max-inline-size: min(208px, calc(100% - 24px));
 }
 
 .park-page .npc-overhead:has(> .npc-speech:not([hidden])) {
-  padding-block: 13px 12px;
+  padding-block: 10px 8px;
 }
 
 .park-page .npc-overhead > .npc-nickname[hidden],
@@ -17,10 +17,10 @@
   --npc-trim: #e5c181;
   --npc-accent: #285045;
   position: relative;
-  min-inline-size: min(142px, 100%);
-  padding: 20px 14px 10px;
-  border: 3px solid var(--npc-frame);
-  border-radius: 12px;
+  min-inline-size: min(112px, 100%);
+  padding: 15px 10px 7px;
+  border: 2px solid var(--npc-frame);
+  border-radius: 10px;
   background: linear-gradient(#faf1dcbf, #faf1dcbf),
     var(--npc-paper) url('/art/tablet/hanji.webp') center / 220px auto;
   box-shadow: 0 0 0 1px var(--npc-trim), inset 0 0 0 1px #b8965b, 0 3px 9px #211b1640;
@@ -38,8 +38,8 @@
   content: '';
   position: absolute;
   left: 50%;
-  width: 22px;
-  height: 13px;
+  width: 16px;
+  height: 9px;
   transform: translateX(-50%);
 }
 
@@ -57,10 +57,10 @@
 
 .npc-speech__portrait {
   position: absolute;
-  top: -16px;
+  top: -12px;
   left: 4px;
-  width: 36px;
-  height: 36px;
+  width: 27px;
+  height: 27px;
   border: 1px solid var(--npc-trim);
   border-radius: 50%;
   background-color: #f0dfbf;
@@ -92,22 +92,22 @@
 
 .npc-speech__name {
   position: absolute;
-  top: -11px;
+  top: -9px;
   right: 5px;
-  max-inline-size: calc(100% - 48px);
+  max-inline-size: calc(100% - 38px);
   overflow: hidden;
-  padding: 2px 7px;
+  padding: 1px 5px;
   border: 1px solid var(--npc-trim);
   border-radius: 5px;
   background: var(--npc-accent);
   color: #fff6df;
-  font: 700 12px/1.25 'BusanDandiMyeongjo', serif;
+  font: 700 11px/1.25 'BusanDandiMyeongjo', serif;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .npc-speech__text {
-  font: 500 16px/1.45 'BusanDandiMyeongjo', serif;
+  font: 500 14px/1.35 'BusanDandiMyeongjo', serif;
   text-align: start;
   overflow-wrap: anywhere;
   word-break: keep-all;

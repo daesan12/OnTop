@@ -12,25 +12,18 @@ import { setSoloSkewerActivity, soloSkewerGameplayActive } from './activity'
 import './skewer.css'
 import './preparation.css'
 
-export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultExit, playMode, onChangeMode }: { authorizeStart?: () => Promise<boolean>; entryFee?: number; onExit?: () => void; onResultExit?: () => void; playMode?: 'pc' | 'vr'; onChangeMode?: () => void } = {}) {
+const leavePractice = () => window.location.assign('/vr-zone.html')
+
+export default function SkewerPage() {
   const [state, dispatch] = useReducer(gameReducer, undefined, () => initialGame())
   const [xrSupported, setXRSupported] = useState<boolean | null>(null)
   const [xrActive, setXRActive] = useState(false)
   const xrActiveRef = useRef(false)
-  const playModeRef = useRef(playMode)
-  playModeRef.current = playMode
-  const startVRRef = useRef<(type: 'start' | 'restart' | 'resume') => Promise<void>>(async () => {})
   const [xrPending, setXRPending] = useState(false)
   const [notice, setNotice] = useState('')
   const [sceneError, setSceneError] = useState('')
   const [muted, setMuted] = useState(false)
-  const [starting, setStarting] = useState(false)
-  const startingRef = useRef(false)
   const mounted = useRef(true)
-  const exitRef = useRef(onExit)
-  exitRef.current = onExit
-  const authorizeRef = useRef(authorizeStart)
-  authorizeRef.current = authorizeStart
   const host = useRef<HTMLDivElement>(null)
   const scene = useRef<SkewerScene | null>(null)
   const feedback = useRef<SkewerFeedback | null>(null)
@@ -40,9 +33,9 @@ export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultE
   latest.current = state
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   useEffect(() => {
-    setSoloSkewerActivity(soloSkewerGameplayActive(state.phase, starting))
+    setSoloSkewerActivity(soloSkewerGameplayActive(state.phase))
     return () => setSoloSkewerActivity(false)
-  }, [starting, state.phase])
+  }, [state.phase])
 
   const toggleSound = useCallback(() => {
     const next = !mutedRef.current
@@ -54,33 +47,13 @@ export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultE
   const command = useCallback((action: SceneCommand) => {
     if (!mounted.current) return
     if (action.type === 'sound') { toggleSound(); return }
-    if (startingRef.current) return
     if (transitionText(latest.current) && latest.current.phase !== 'paused' && action.type !== 'pause') return
-    if ((action.type === 'start' || action.type === 'restart' || action.type === 'resume') && playModeRef.current === 'vr' && !xrActiveRef.current) {
-      void startVRRef.current(action.type)
-      return
-    }
     feedback.current?.unlock()
     setNotice('')
     const now = performance.now()
     if (action.type === 'start' || action.type === 'restart') {
       const phase = latest.current.phase
       if ((action.type === 'start' && phase !== 'ready') || (action.type === 'restart' && phase !== 'finished')) return
-      if (startingRef.current) return
-      if (authorizeRef.current) {
-        startingRef.current = true
-        setStarting(true)
-        setNotice('이번 판 이용권을 확인하고 있어요…')
-        void authorizeRef.current().then(approved => {
-          if (!approved) { setNotice('이용권을 확인하지 못했어요. 잔액과 연결 상태를 확인한 뒤 다시 시도해 주세요.'); return }
-          setNotice('')
-          const now = performance.now()
-          if (action.type === 'restart') dispatch({ type: 'restart', now, deck: createDeck() })
-          else dispatch({ type: 'start', now })
-        }).catch(() => setNotice('이용권 확인 중 문제가 생겼어요. 같은 요청으로 다시 시도해 주세요.'))
-          .finally(() => { startingRef.current = false; setStarting(false) })
-        return
-      }
     }
     if (action.type === 'restart' || action.type === 'home') dispatch({ type: action.type, now, deck: createDeck() })
     else if (action.type === 'select') dispatch({ type: 'select', ingredient: action.ingredient, now })
@@ -120,7 +93,6 @@ export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultE
     return () => { scene.current?.dispose(); scene.current = null }
   }, [command])
   useEffect(() => { scene.current?.update(state) }, [state])
-  useEffect(() => { scene.current?.setEntryFee(entryFee) }, [entryFee])
   useEffect(() => { scene.current?.setNotice(notice) }, [notice])
   useEffect(() => {
     if (state.phase !== 'playing' && state.phase !== 'countdown' && state.phase !== 'ending') return
@@ -142,7 +114,7 @@ export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultE
         // Do not let the same Escape immediately cancel the newly opened dialog.
         event.preventDefault()
         if (latest.current.phase === 'ready') {
-          if (!startingRef.current) { if (exitRef.current) exitRef.current(); else window.location.assign('/vr-zone.html') }
+          leavePractice()
         } else command({ type: latest.current.phase === 'paused' ? 'resume' : 'pause' })
         return
       }
@@ -167,7 +139,7 @@ export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultE
     setXRPending(true)
     setNotice('')
     try {
-      if (xrSupported === false && window.isSecureContext) { setNotice('Quest의 VR 지원 브라우저에서 열어주세요. 일반 플레이는 플레이 방식 바꾸기에서 선택할 수 있어요.'); return false }
+      if (xrSupported === false && window.isSecureContext) { setNotice('Quest의 VR 지원 브라우저에서 열어주세요. 연습 화면에서 PC 모드를 선택할 수 있어요.'); return false }
       await scene.current.enterVR()
       return true
     } catch (error) {
@@ -190,14 +162,13 @@ export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultE
   const instruction = nextInstruction(state)
   const guide = card.kind === 'order' ? assemblyGuide(state.skewer, card.recipe) : null
   const orderNumber = state.deck.slice(0, state.cardIndex + 1).filter(card => card.kind === 'order').length
-  const startVR = async (type: 'start' | 'restart' | 'resume' = 'start') => { if (await enterVR() && mounted.current && xrActiveRef.current) command({ type }) }
-  startVRRef.current = startVR
+  const startVR = async () => { if (await enterVR() && mounted.current && xrActiveRef.current) command({ type: 'start' }) }
   return <main className={`sk-app sk-phase-${state.phase}${transition ? ' sk-transition-layout' : ''}`} data-phase={state.phase}>
     <header className="sk-header">
       <div className="sk-brand"><h1>온탑 꼬치왕</h1></div>
       {!lobby ? <div className="sk-stats"><span>점수 <strong data-testid="score">{state.score}</strong></span><span className={state.remainingMs <= 10_000 ? 'sk-urgent' : ''}>남은 시간 <strong data-testid="timer">{formatTime(state.remainingMs)}</strong></span></div> : null}
       <div className="sk-header-actions">
-        {(!lobby && playMode !== 'pc') || xrActive || (playMode === 'vr' && state.phase === 'finished') ? <button className="sk-vr-button" onClick={() => void enterVR()} disabled={xrPending || !!sceneError}>{xrPending ? '연결 중…' : xrActive ? 'VR 나가기' : 'VR 시작'}</button> : null}
+        {!lobby || xrActive ? <button className="sk-vr-button" onClick={() => void enterVR()} disabled={xrPending || !!sceneError}>{xrPending ? '연결 중…' : xrActive ? 'VR 나가기' : 'VR 시작'}</button> : null}
         <button className="sk-icon-button sk-sound-button" type="button" onClick={toggleSound} aria-label={muted ? '소리 켜기' : '소리 끄기'} aria-pressed={muted}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4Z" />{muted ? <path d="m17 9 5 6m0-6-5 6" /> : <path d="M17 8a6 6 0 0 1 0 8M20 5a10 10 0 0 1 0 14" />}</svg>
         </button>
@@ -220,7 +191,7 @@ export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultE
         </section> : null}
       </section>
       {!transition && state.phase !== 'finished' ? <aside className={`sk-sidebar${lobby ? ' sk-lifecycle-sidebar' : ''}`} aria-label={state.phase === 'ready' ? '게임 시작' : state.phase === 'result' ? '주문 결과' : '주문과 조작'}>
-        {state.phase === 'ready' ? <EntryPanel start={() => command({ type: 'start' })} startVR={() => void startVR()} pending={xrPending || starting} notice={notice} supported={xrSupported} entryFee={entryFee} playMode={playMode} changeMode={onChangeMode} exit={() => { if (onExit) onExit(); else window.location.assign('/vr-zone.html') }} />
+        {state.phase === 'ready' ? <EntryPanel start={() => command({ type: 'start' })} startVR={() => void startVR()} pending={xrPending} notice={notice} supported={xrSupported} exit={leavePractice} />
           : state.phase === 'result' ? <RoundPanel state={state} next={() => command({ type: 'next' })} />
           : <>
             <section className="sk-order">
@@ -238,12 +209,7 @@ export default function SkewerPage({ authorizeStart, entryFee, onExit, onResultE
           </>}
       </aside> : null}
     </div>
-    {state.phase === 'finished' ? <SkewerResult state={state} restart={() => command({ type: 'restart' })} exit={() => {
-      if (startingRef.current) return
-      if (onResultExit) onResultExit()
-      else if (exitRef.current) exitRef.current()
-      else window.location.assign('/vr-zone.html')
-    }} entryFee={entryFee} pending={starting} notice={notice} playMode={playMode ?? (xrActive ? 'vr' : 'pc')} /> : null}
+    {state.phase === 'finished' ? <SkewerResult state={state} restart={() => command({ type: 'restart' })} exit={leavePractice} notice={notice} playMode={xrActive ? 'vr' : 'pc'} /> : null}
     {transition ? <div className="sk-transition-overlay" role="status" aria-live="assertive" aria-atomic="true"><strong key={transition}>{transition}</strong></div> : null}
     {state.phase === 'paused' ? <PauseDialog resume={() => command({ type: 'resume' })} /> : null}
   </main>

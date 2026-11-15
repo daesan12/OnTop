@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { PARK_DATA } from '../../map/park'
+import { renewalMap } from '../../park/renewalMap'
 import { clearRoamingInput } from '../../world/inputOwnership'
 
-export const constructionSites=PARK_DATA.interactions.construction
+export const constructionSites=renewalMap?.data.interactions.construction ?? PARK_DATA.interactions.construction
 export function canReachConstruction(p:{x:number;y:number;z:number},id:string){
   const site=constructionSites.find(s=>s.id===id)
   return !!site&&[p.x,p.y,p.z].every(Number.isFinite)

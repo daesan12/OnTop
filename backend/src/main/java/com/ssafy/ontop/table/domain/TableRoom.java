@@ -10,8 +10,8 @@ import java.util.Set;
 public final class TableRoom {
 
     private final String tableId;
-    private final String[] users = new String[4];
-    private final boolean[] ready = new boolean[4];
+    private final String[] users = new String[8];
+    private final boolean[] ready = new boolean[8];
     private final LinkedHashSet<String> arrivalOrder = new LinkedHashSet<>();
     private TableGame game;
     private Integer targetScore;
@@ -65,10 +65,13 @@ public final class TableRoom {
     }
 
     public boolean selectGame(TableGame selected, Integer target) {
-        return selectGame(selected, target, 1);
+        return selectGame(selected, target, selected == TableGame.STONE_RUMBLE ? 0 : 1);
     }
 
     public boolean selectGame(TableGame selected, Integer target, long amount) {
+        if (selected == TableGame.STONE_RUMBLE && amount != 0) {
+            throw new IllegalArgumentException("돌탑 생존전은 무료로 참가해요.");
+        }
         com.ssafy.ontop.game.domain.GameAmounts.validate(amount, selected.maximumPlayers());
         if (target != null && (selected != TableGame.DICE || !Set.of(2000, 4000, 6000).contains(target))) {
             throw new IllegalArgumentException("주사위 목표를 확인해주세요.");
@@ -195,7 +198,7 @@ public final class TableRoom {
     }
 
     private int capacity() {
-        return selectedPlayers != null ? selectedPlayers : game == null ? users.length : game.maximumPlayers();
+        return selectedPlayers != null ? selectedPlayers : game == null ? 4 : game.maximumPlayers();
     }
 
     public void returnToWaiting(Set<String> connectedUsers) {

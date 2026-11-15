@@ -1,5 +1,11 @@
+import { renewalMap } from '../../park/renewalMap'
+
+const renewalMachine = renewalMap?.data.facilities.find(site => site.id === 'layout-shop')
 // East of the central plaza's paving emblem, facing the plaza and entrance.
-export const PARK_GACHA_MACHINE = { id: 'layout-shop', x: 9, y: .14, z: 46, yaw: -Math.PI / 3 }
+export const PARK_GACHA_MACHINE = renewalMachine ? {
+  id: renewalMachine.id, x: renewalMachine.position[0], y: renewalMachine.position[1],
+  z: renewalMachine.position[2], yaw: renewalMachine.yaw,
+} : { id: 'layout-shop', x: 9, y: .14, z: 46, yaw: -Math.PI / 3 }
 const frontX = Math.sin(PARK_GACHA_MACHINE.yaw)
 const frontZ = Math.cos(PARK_GACHA_MACHINE.yaw)
 
@@ -9,5 +15,5 @@ export function canReachParkGacha(position: { x: number; y: number; z: number })
   const dz = z - PARK_GACHA_MACHINE.z
   const forward = dx * frontX + dz * frontZ
   return [x, y, z].every(Number.isFinite) && Math.abs(y - PARK_GACHA_MACHINE.y - .8) <= .9
-    && forward > .3 && Math.hypot(dx, dz) <= 3.6
+    && forward > (renewalMachine ? -.15 : .3) && Math.hypot(dx, dz) <= (renewalMachine ? 5 : 3.6)
 }

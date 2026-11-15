@@ -56,9 +56,10 @@ export function CraftedPropLod({ name, near, far, distance, environment, heritag
 }
 
 /** Local canvas lettering, no image download or runtime font service. */
-export function PropSign({ width, height, position, draw, rotation = [0, 0, 0], transparent = false, font }: {
+export function PropSign({ width, height, position, draw, rotation = [0, 0, 0], transparent = false, font, backPosition }: {
   width: number; height: number; position: [number, number, number];
-  rotation?: [number, number, number]; draw: (context: CanvasRenderingContext2D, w: number, h: number) => void; transparent?: boolean; font?: string
+  rotation?: [number, number, number]; draw: (context: CanvasRenderingContext2D, w: number, h: number) => void;
+  transparent?: boolean; font?: string; backPosition?: [number, number, number]
 }) {
   const fontReady = useCanvasFont(font)
   const texture = useMemo(() => {
@@ -70,10 +71,14 @@ export function PropSign({ width, height, position, draw, rotation = [0, 0, 0], 
     return map
   }, [draw, width, height, fontReady])
   useEffect(() => () => texture.dispose(), [texture])
-  return <mesh name={'prop-sign-' + draw.name} position={position} rotation={rotation}>
-    <planeGeometry args={[width, height]} />
-    {font ? <meshBasicMaterial map={texture} toneMapped={false} transparent={transparent} alphaTest={transparent ? .05 : 0}
-      polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1}/>
-      : <meshStandardMaterial map={texture} roughness={0.68} metalness={0.08} transparent={transparent} alphaTest={transparent ? .05 : 0} />}
-  </mesh>
+  const sign = (at: [number, number, number], angles: [number, number, number], side: string) =>
+    <mesh name={'prop-sign-' + draw.name + side} position={at} rotation={angles}>
+      <planeGeometry args={[width, height]} />
+      {font ? <meshBasicMaterial map={texture} toneMapped={false} transparent={transparent} alphaTest={transparent ? .05 : 0}
+        polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1}/>
+        : <meshStandardMaterial map={texture} roughness={0.68} metalness={0.08} transparent={transparent} alphaTest={transparent ? .05 : 0} />}
+    </mesh>
+  return <>{sign(position, rotation, '')}
+    {backPosition && sign(backPosition, [rotation[0], rotation[1] + Math.PI, rotation[2]], '-back')}
+  </>
 }

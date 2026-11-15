@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 import type { SkinAsset } from '../../features/skins/api'
 
-export const useSkinCatalog = create<{ assets: readonly SkinAsset[]; revision: number }>(() => ({ assets: [], revision: 0 }))
+export const useSkinCatalog = create<{ assets: readonly SkinAsset[]; revision: number; checked: boolean }>(() => ({
+  assets: [], revision: 0, checked: false,
+}))
 export const catalogAsset = (imageKey: string | null) => useSkinCatalog.getState().assets.find(a => a.imageKey === imageKey)
 export const catalogSource = (asset: SkinAsset) => 'registered-' + asset.imageKey.slice('catalog/'.length)
 export const catalogSourceUrl = (source: string) => {

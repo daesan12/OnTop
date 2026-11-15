@@ -5,7 +5,7 @@ import { assemblyGuide, gameSummary, nextInstruction, roundOutcome, recipeNotes 
 
 /** Same labels and legal orientation as the desktop order rail, drawn at a
  * readable size on the existing world-space panel for headset-only play. */
-export function paintWorldOrderBoard(ctx: CanvasRenderingContext2D, state: GameState, notice: string, entryFee?: number): void {
+export function paintWorldOrderBoard(ctx: CanvasRenderingContext2D, state: GameState, notice: string): void {
   const card = currentCard(state)
   ctx.clearRect(0, 0, 1024, 480)
   ctx.fillStyle = '#f5efe2'
@@ -32,7 +32,7 @@ export function paintWorldOrderBoard(ctx: CanvasRenderingContext2D, state: GameS
   ctx.textAlign = 'left'
   ctx.font = '28px "Malgun Gothic", sans-serif'
   if (state.phase === 'ready') {
-    ctx.fillText(`주문당 35초${entryFee ? ` · 한 판 이용료 ${entryFee}냥` : ''}`, 34, 130)
+    ctx.fillText('주문당 35초', 34, 130)
     ctx.fillText('1. 트리거로 음식 집기', 34, 200)
     ctx.fillText('2. 음식 중심과 꼬치 방향 맞추고 놓기', 34, 255)
     ctx.fillText('3. 완성하면 접시 뒤쪽에 수평으로 서빙', 34, 310)
@@ -46,7 +46,7 @@ export function paintWorldOrderBoard(ctx: CanvasRenderingContext2D, state: GameS
     ctx.font = '32px "Malgun Gothic", sans-serif'
     ctx.fillText(`완성 ${summary.completed}개 · 놓친 주문 ${summary.missed}개`, 34, 250)
     ctx.fillText(`주문 성공률 ${summary.accuracy}% · 인사 보너스 +${summary.bonus}점`, 34, 315)
-    ctx.fillText(notice || (entryFee ? '새 판은 이용료 10냥이 필요해요. 처음 화면으로 돌아갈 수도 있어요.' : '다시 도전하거나 처음 화면으로 돌아갈 수 있어요.'), 34, 405, 956)
+    ctx.fillText(notice || '다시 도전하거나 처음 화면으로 돌아갈 수 있어요.', 34, 405, 956)
     return
   }
   if (card.kind === 'order') {

@@ -45,6 +45,17 @@ describe('avatar pose transitions and resource ownership', () => {
     expect(cadence.advance(1 / 60, 5, false, true, avatarPoseKey(a))).toBeGreaterThan(0)
   })
 
+  it('keeps remote locomotion updates spread after a long frame and applies changed poses immediately', () => {
+    const crowd = Array.from({ length: 40 }, (_, index) => new AvatarPoseCadence(index % 2))
+    const frame = (index: number, delta: number, pose = 'run') =>
+      crowd.filter(cadence => cadence.advance(delta, 8, false, true, pose, false, true, index) > 0).length
+
+    expect(frame(0, 1 / 60)).toBe(40)
+    expect(frame(1, .1)).toBe(20)
+    for (let index = 2; index < 18; index++) expect(frame(index, 1 / 60)).toBe(20)
+    expect(frame(18, 1 / 60, 'walk')).toBe(40)
+  })
+
   it('sleeps only after idle easing, and immediately wakes for pose or position changes', () => {
     for (const own of [true, false]) {
       const cadence = new AvatarPoseCadence()

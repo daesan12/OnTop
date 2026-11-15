@@ -1,3 +1,4 @@
+import { preparePredictionEngine } from './predictionEngine'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { ParkMotion } from './parkMotion'
 import { WORLD, WORLD_COLLIDERS, MOVEMENT, SWIMMING, LAKE, PARK_PAVILIONS, PAVILION,
@@ -5,7 +6,8 @@ import { WORLD, WORLD_COLLIDERS, MOVEMENT, SWIMMING, LAKE, PARK_PAVILIONS, PAVIL
   createPavilionStairs, createTowerRamp, createTowerDeck, createTowerRailCollision,
   mergeCollisionMeshes, boxesToCollisionMesh, pavilionFenceBounds, staticStructureBatch,
 } from '../park/mapConfig'
-import { GENERATED_PARK_ENABLED } from '../park/mapSelection'
+import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED } from '../park/mapSelection'
+import { renewalMap } from '../park/renewalMap'
 import { PARK_DATA } from '../map/park'
 import { addGeneratedPredictionColliders } from './predictionMap'
 import { furnitureLandingPosition,furnitureAllowsSupport } from './furnitureLanding'
@@ -13,27 +15,46 @@ import { fountainExclusionPosition } from './fountainExclusion'
 import type { MovementIntent } from './movementInput'
 import type { Pose } from './worldClient'
 import type { PredictionSimulation } from './localMovementPrediction'
-import { COURSE_COLLIDERS } from '../features/jumpmap/course'
+import { COURSE, COURSE_COLLIDERS, renewalCourse } from '../features/jumpmap/activeCourse'
+import { renewalPadPose, syncRenewalMotion } from '../features/jumpmap/renewalMotion'
 import { useJumpmap } from '../features/jumpmap/state'
 import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
+import { boatAngleAt, boatPose } from '../../park-renewal-preview/assetSizing'
+import { estimatedServerTime } from './serverEventClock'
+import { horrorState } from '../../park-renewal-preview/horrorPlan'
 
-let initialization: Promise<void> | undefined
 /** How long Rapier may keep a grounded state the server does not support before falling. */
 const EDGE_GLIDE_SECONDS = .15
+const sharedPhysics = renewalMap?.data.physics ?? (GENERATED_PARK_ENABLED ? PARK_DATA.physics : null)
 export async function createPredictionPhysics(profile?: 'PARK_V1'): Promise<PredictionSimulation> {
-  await (initialization ??= RAPIER.init())
+  await preparePredictionEngine()
   return new PredictionPhysics(profile === 'PARK_V1')
 }
 
 /** Display simulation only. The Java server owns every gameplay position and collision decision. */
 class PredictionPhysics implements PredictionSimulation {
   private chairCounts:ReadonlyMap<string,number>=new Map()
-  private readonly furniture=PARK_DATA.physics.boxes.filter(b=>/^table-\d+-(top|chair-[0-3])$/.test(b.id))
+  private readonly furniture=sharedPhysics?.boxes.filter(b=>/^table-\d+-(top|chair-[0-7])$/.test(b.id)) ?? []
   private readonly world = new RAPIER.World({ x: 0, y: 0, z: 0 })
   private readonly body
   private readonly collider
   private readonly controller
   private readonly chairs: { anchor: string; number: number; collider: RAPIER.Collider }[] = []
+  private readonly duckBoat = renewalMap?.data.physics.duckBoat
+  private readonly duckBody = this.duckBoat && this.world.createCollider(RAPIER.ColliderDesc.cuboid(...this.duckBoat.half))
+  private syncDuckBoat() {
+    if (!this.duckBoat || !this.duckBody) return
+    const { x, z, rx, rz, period, y } = this.duckBoat
+    const pose = boatPose(boatAngleAt(estimatedServerTime() / 1000, period), x, z, rx, rz)
+    this.duckBody.setTranslation({ x: pose.x, y, z: pose.z })
+    this.duckBody.setRotation({ x: 0, y: Math.sin(pose.yaw / 2), z: 0, w: Math.cos(pose.yaw / 2) })
+  }
+  private readonly secretDoors: RAPIER.Collider[] = []
+  private syncSecretDoors() {
+    for (const door of this.secretDoors) {
+      if (door.isEnabled() === horrorState.open) door.setEnabled(!horrorState.open)
+    }
+  }
   private readonly stairSurfaces = WORLD_COLLIDERS.filter(box => /^P\d+-step-/.test(box.id)).map(box => ({
     center:box.center, half:box.movementHalf ?? box.half,
     top:box.center[1]+box.half[1], c:Math.cos(box.movementYaw ?? 0), s:Math.sin(box.movementYaw ?? 0),
@@ -55,24 +76,69 @@ class PredictionPhysics implements PredictionSimulation {
   private readonly parkMotion = new ParkMotion()
   private tunedActive = false
   private jumpEnabled = false
+  private jumpRun = false
+  private readonly lilyBlocks = renewalCourse ? COURSE.filter(pad => pad.theme === 'lily').map(pad => pad.block) : []
+  private readonly creaturePads = renewalCourse ? COURSE.filter(pad => pad.theme === 'mole' || pad.theme === 'pigeon') : []
+  private readonly creatureOffsets = new Map<number, number>()
   private readonly jumpGrace = new JumpGrace()
   /** jumpSupported() at the last tuned landing, reused as the next step's jump support. */
   private serverSupport?: boolean
   private edgeGlide = 0
   private readonly jumpColliders: RAPIER.Collider[] = []
+  private stepWorld() {
+    if (!renewalCourse) {
+      this.world.step()
+      return
+    }
+    // This world only owns static colliders and one kinematic capsule. Run
+    // the same physics pipeline without scanning wrappers for torn soft bodies.
+    const w = this.world
+    w.physicsPipeline.step(w.gravity, w.integrationParameters, w.islands, w.broadPhase,
+      w.narrowPhase, w.bodies, w.colliders, w.softBodies, w.impulseJoints, w.multibodyJoints, w.ccdSolver)
+  }
   private syncJumpCourse() {
-    const enabled = GENERATED_PARK_ENABLED && useJumpmap.getState().available
-    if (enabled === this.jumpEnabled) return
+    const jumpState = useJumpmap.getState()
+    const enabled = JUMPMAP_ENABLED && jumpState.available
+    const running = !!renewalCourse && !!jumpState.run
+    if (!renewalCourse && enabled === this.jumpEnabled) return
+    const modeChanged = enabled !== this.jumpEnabled || running !== this.jumpRun
     this.jumpEnabled = enabled
+    this.jumpRun = running
     if (enabled && !this.jumpColliders.length) for (const b of COURSE_COLLIDERS) {
       const desc = b.shape === 'cylinder' ? RAPIER.ColliderDesc.cylinder(b.half[1]!, b.radius!) : RAPIER.ColliderDesc.cuboid(b.half[0]!, b.half[1]!, b.half[2]!)
-      this.jumpColliders.push(this.world.createCollider(desc.setTranslation(b.center[0]!, b.center[1]!, b.center[2]!)))
+      this.jumpColliders.push(this.world.createCollider(desc.setTranslation(b.center[0]!, b.center[1]!, b.center[2]!)
+        .setRotation({ x: 0, y: Math.sin(b.yaw / 2), z: 0, w: Math.cos(b.yaw / 2) })))
     }
-    for (const collider of this.jumpColliders) collider.setEnabled(enabled)
+    if (modeChanged) for (const [block, collider] of this.jumpColliders.entries()) {
+      const solid = enabled && (!renewalCourse || running || block < renewalCourse.visibleAtStart)
+      if (collider.isEnabled() !== solid) collider.setEnabled(solid)
+    }
+    if (!renewalCourse) return
+    const now = syncRenewalMotion()
+    const rider = this.body?.translation()
+    for (const pad of this.creaturePads) {
+      const collider = this.jumpColliders[pad.block]
+      if (!collider) continue
+      const previous = this.creatureOffsets.get(pad.block) ?? 0
+      const nearby = rider && Math.abs(rider.x - pad.x) < 8 && Math.abs(rider.z - pad.z) < 8
+        && Math.abs(rider.y - pad.top) < 12
+      const offset = enabled && running && nearby ? renewalPadPose(pad, now).offset : 0
+      if (previous !== offset) {
+        this.creatureOffsets.set(pad.block, offset)
+        collider.setTranslation({ x: pad.x, y: COURSE_COLLIDERS[pad.block]!.center[1]! + offset, z: pad.z })
+      }
+    }
+    // Only lily pads can change their collision during a run.
+    if (enabled && running) for (const block of this.lilyBlocks) {
+      const collider = this.jumpColliders[block]!
+      const solid = renewalPadPose(COURSE[block]!, now).solid
+      if (collider.isEnabled() !== solid) collider.setEnabled(solid)
+    }
   }
   constructor(private tuned: boolean) {
-    if (GENERATED_PARK_ENABLED) {
-      this.chairs.push(...addGeneratedPredictionColliders(this.world))
+    if (sharedPhysics) {
+      this.chairs.push(...addGeneratedPredictionColliders(this.world, sharedPhysics, this.secretDoors))
+      this.syncSecretDoors()
     } else {
       for (const box of WORLD_COLLIDERS.filter(b => !staticStructureBatch(b.id))) {
         const half = box.movementHalf ?? box.half
@@ -81,7 +147,7 @@ class PredictionPhysics implements PredictionSimulation {
         const collider = this.world.createCollider(RAPIER.ColliderDesc.cuboid(half[0], halfY, half[2])
           .setTranslation(box.center[0], box.center[1] - box.half[1] + halfY, box.center[2])
           .setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }))
-        const chair = /(.+)-chair-([0-3])$/.exec(box.id)
+        const chair = /(.+)-chair-([0-7])$/.exec(box.id)
         if (chair) {
           const number = Number(chair[2]) + 1
           collider.setEnabled(number <= 2)
@@ -111,7 +177,7 @@ class PredictionPhysics implements PredictionSimulation {
     this.controller.enableSnapToGround(0.15)
     this.controller.enableAutostep(MOVEMENT.stepHeight, 0.15, false)
     this.world.timestep = 1 / 60
-    this.world.step()
+    this.stepWorld()
   }
   setFollowTarget(target: {x:number;z:number} | undefined) { this.followTarget = target }
   stopHorizontal() { this.parkMotion.stopHorizontal(); this.surfaceFlags={moving:false,running:false} }
@@ -124,6 +190,8 @@ class PredictionPhysics implements PredictionSimulation {
   }
   setMotionProfile(profile: 'PARK_V1' | undefined) { this.tuned = profile === 'PARK_V1' }
   reset(pose: Pose, velocityY: number, grounded: boolean, grace?: JumpGraceSnapshot) {
+    this.syncSecretDoors()
+    this.syncDuckBoat()
     this.syncJumpCourse()
     this.body.setTranslation(pose, true)
     this.body.setNextKinematicTranslation(pose)
@@ -131,21 +199,23 @@ class PredictionPhysics implements PredictionSimulation {
     this.jumpGrace.reset(grounded, grace)
     this.parkMotion.reset(velocityY); this.tunedActive = false
     this.serverSupport = undefined; this.edgeGlide = 0
-    this.world.step()
+    this.stepWorld()
   }
   setChairs(counts: ReadonlyMap<string, number>) {
     this.chairCounts=counts
     for (const chair of this.chairs) chair.collider.setEnabled(chair.number <= (counts.get(chair.anchor) ?? 2))
   }
   step(input: MovementIntent, dt: number) {
+    this.syncSecretDoors()
     this.launchedJump = false
+    this.syncDuckBoat()
     this.syncJumpCourse()
     const p = this.body.translation()
     const swimming = lakeRadiusAt(p.x, p.z) < 1
       && LAKE.surfaceY - groundHeight(p.x, p.z) > SWIMMING.depthThreshold && p.y < LAKE.surfaceY + 0.4
     // The generated lake bank rises slightly above Rapier's default 45 degrees.
     // Limit this allowance to the actual lake bank; ordinary stairs/walls keep their limit.
-    const lakeBank = this.tuned && GENERATED_PARK_ENABLED && lakeRadiusAt(p.x,p.z)<1 && groundHeight(p.x,p.z)<LAKE.surfaceY
+    const lakeBank = this.tuned && sharedPhysics && lakeRadiusAt(p.x,p.z)<1 && groundHeight(p.x,p.z)<LAKE.surfaceY
     this.controller.setMaxSlopeClimbAngle(lakeBank ? Math.atan(LAKE.depth/(Math.min(LAKE.radiusX,LAKE.radiusZ)*.14))+.03 : Math.PI/4)
     const speed = swimming ? input.run ? SWIMMING.fastSpeed : SWIMMING.speed
       : input.run ? MOVEMENT.runSpeed : MOVEMENT.walkSpeed
@@ -160,7 +230,7 @@ class PredictionPhysics implements PredictionSimulation {
     }
     this.tunedActive = false; this.serverSupport = undefined
     if (input.jump && swimming && (input.dx || input.dz)) {
-      const stone = (GENERATED_PARK_ENABLED ? PARK_DATA.physics.steppingStones : legacySteppingStones).find(s => Math.hypot(Math.max(0, Math.abs(p.x - s.x) - s.width / 2),
+      const stone = (sharedPhysics?.steppingStones ?? legacySteppingStones).find(s => Math.hypot(Math.max(0, Math.abs(p.x - s.x) - s.width / 2),
         Math.max(0, Math.abs(p.z - s.z) - s.depth / 2)) <= .8
         && (s.x - p.x) * input.dx + (s.z - p.z) * input.dz > .02)
       if (stone) this.climbY = stone.top + MOVEMENT.halfHeight + MOVEMENT.radius + .16
@@ -170,7 +240,7 @@ class PredictionPhysics implements PredictionSimulation {
       this.launchedJump = true
       const footY=p.y-MOVEMENT.halfHeight-MOVEMENT.radius-MOVEMENT.offset
       const onPavilion=this.onPavilion(p)
-      this.vy = onPavilion ? PARK_DATA.physics.pavilionJumpSpeed : predictionTowerSurface(p.x, footY, p.z)
+      this.vy = onPavilion && sharedPhysics ? sharedPhysics.pavilionJumpSpeed : predictionTowerSurface(p.x, footY, p.z)
         ? OBSERVATION_TOWER.jumpSpeed : MOVEMENT.jumpSpeed
       this.grounded = false
     }
@@ -193,10 +263,10 @@ class PredictionPhysics implements PredictionSimulation {
     if (this.grounded && this.vy < 0) this.vy = 0
     if (input.dx || input.dz) this.yaw = Math.atan2(input.dx, input.dz)
     this.world.timestep = dt
-    this.world.step()
+    this.stepWorld()
   }
   private stepTuned(input: MovementIntent, dt: number, launch: boolean) {
-    const p=this.body.translation(),jumpSpeed=this.onPavilion(p)?PARK_DATA.physics.pavilionTunedJumpSpeed:undefined
+    const p=this.body.translation(),jumpSpeed=this.onPavilion(p)?sharedPhysics?.pavilionTunedJumpSpeed:undefined
     const wanted=this.parkMotion.advance(input,dt,this.grounded||launch,jumpSpeed)
     this.limitFollow(wanted,p)
     // Finish a known stair rise before its centre crosses the tread. Rounded
@@ -250,13 +320,13 @@ class PredictionPhysics implements PredictionSimulation {
     this.parkMotion.contact(wanted,delta,this.grounded,walls);this.vy=this.parkMotion.velocityY()
     this.body.setNextKinematicTranslation(landing)
     if(input.dx||input.dz)this.yaw=Math.atan2(input.dx,input.dz)
-    this.world.timestep=dt;this.world.step()
+    this.world.timestep=dt;this.stepWorld()
   }
   private preventClimbing(pose:{x:number;y:number;z:number}) {
-    if(!GENERATED_PARK_ENABLED)return pose
+    if(!sharedPhysics)return pose
     const footOffset=MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset
     const landing=furnitureLandingPosition(pose,this.furniture,footOffset,MOVEMENT.radius,this.chairCounts)
-    return fountainExclusionPosition(landing,PARK_DATA.physics.fountainPolicy,footOffset,MOVEMENT.radius)
+    return fountainExclusionPosition(landing,sharedPhysics.fountainPolicy,footOffset,MOVEMENT.radius)
   }
   /** Mirrors the server's PositionCollision.supported(): the capsule swept 0.17m down onto a walkable face. */
   private jumpSupported(pose:{x:number;y:number;z:number}) {
@@ -264,11 +334,16 @@ class PredictionPhysics implements PredictionSimulation {
     return !!hit&&hit.normal1.y>.6
   }
   private supportAllowed(pose:{x:number;y:number;z:number}) {
-    return !GENERATED_PARK_ENABLED||furnitureAllowsSupport(pose,this.furniture,MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset,MOVEMENT.radius,this.chairCounts)
+    return !sharedPhysics||furnitureAllowsSupport(pose,this.furniture,MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset,MOVEMENT.radius,this.chairCounts)
   }
   private onPavilion(pose:{x:number;y:number;z:number}) {
     const foot=pose.y-MOVEMENT.halfHeight-MOVEMENT.radius-MOVEMENT.offset
-    return GENERATED_PARK_ENABLED&&PARK_PAVILIONS.some(site=>Math.abs(foot-site.floor)<.15&&Math.hypot(pose.x-site.x,pose.z-site.z)<4.5*site.scale+.3)
+    return !!sharedPhysics && PARK_PAVILIONS.some(site => {
+      const onBench = 'spectatorBenchTop' in site && typeof site.spectatorBenchTop === 'number'
+        && Math.abs(foot - site.spectatorBenchTop) < .15
+      return (Math.abs(foot - site.floor) < .15 || onBench)
+        && Math.hypot(pose.x - site.x, pose.z - site.z) < 4.5 * site.scale + .3
+    })
   }
   movementFlags() { return this.tunedActive ? this.parkMotion.flags() : this.surfaceFlags }
   /** Airborne, swimming and water-exit climbing retain their physical animation flags. */
@@ -281,8 +356,8 @@ class PredictionPhysics implements PredictionSimulation {
 
 /** The legacy helper closes over legacy coordinates; generated towers use the exported surface contract. */
 function predictionTowerSurface(x: number, footY: number, z: number) {
-  if (!GENERATED_PARK_ENABLED) return legacyIsTowerSurface(x, footY, z)
-  const t = PARK_DATA.physics.tower, radius = Math.hypot(x - t.x, z - t.z)
+  if (!sharedPhysics) return legacyIsTowerSurface(x, footY, z)
+  const t = sharedPhysics.tower, radius = Math.hypot(x - t.x, z - t.z)
   if (radius > t.outer + .08) return false
   if (Math.abs(footY - t.topY) < .25) return true
   if (radius < t.inner - .08) return false

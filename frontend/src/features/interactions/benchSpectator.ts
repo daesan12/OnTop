@@ -4,8 +4,13 @@ import type { Pose, Session } from '../../network/worldClient'
 import { useBenchState } from './benchState'
 import { lookScale } from '../../world/lookSensitivity'
 import { pavilionLanternY } from '../../world/art/pavilionCanopy'
+import { renewalMap } from '../../park/renewalMap'
 
 export function benchTable(benchId: string) {
+  if (renewalMap) {
+    const pavilionId = renewalMap.data.interactions.benches.find(bench => bench.id === benchId)?.pavilionId
+    return pavilionId ? TABLES.find(table => table.pavilionId === pavilionId) : undefined
+  }
   if (!/^bench-\d+$/.test(benchId)) return undefined
   const pavilionId = BENCH_PAVILIONS[Number(benchId.slice(6))]
   return pavilionId ? TABLES.find(table => table.pavilionId === pavilionId) : undefined

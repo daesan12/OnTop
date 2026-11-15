@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { installBrowserShortcutGuard } from './browserShortcuts'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import { SkinCatalogLifecycle } from '../features/skins/SkinCatalogLifecycle'
@@ -15,6 +15,7 @@ import { ParkTools } from './ParkTools'
 import type { QualityPreset } from '../config'
 import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
 import { ConstructionNotice } from '../features/construction/ConstructionNotice'
+import { FortunePanel } from '../features/fortune/FortunePanel'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
@@ -26,8 +27,8 @@ import { ManualWorldActions } from '../features/manual/ManualWorldActions'
 import { SettingsLauncher } from '../performance/GraphicsSettings'
 import { ParkMap } from '../features/navigation/ParkMap'
 import { ParkNavigation } from '../features/navigation/NavigationHud'
-import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
-import { useBungeoppang } from '../features/bungeoppang/store'
+import { useBungeoppang, watchBungeoppangRecovery } from '../features/bungeoppang/store'
+import { loadBungeoppangHud } from '../features/bungeoppang/loadBungeoppangView'
 import { ShopHost } from '../features/shop/ShopHost'
 import { WardrobeLauncher, WardrobeHost } from '../features/wardrobe/WardrobeHost'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
@@ -49,10 +50,6 @@ import { useStore } from 'zustand'
 import { ParkVrZone } from '../features/vrZone/ParkVrZone'
 import { parkVrZone } from '../features/vrZone/parkBridge'
 import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
-import { RpsRoulettePanel } from '../features/rpsRoulette/RpsRoulettePanel'
-import { PlusMinusPanel } from '../features/plusMinus/PlusMinusPanel'
-import { MolePanel } from '../features/mole/MolePanel'
-import { ArcadePicker } from '../features/arcade/ArcadePicker'
 import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
 import { JumpRopeHost } from '../features/jumpRope/JumpRopeHost'
 import { jumpRopeSettlementActive, useJumpRope } from '../features/jumpRope/store'
@@ -67,11 +64,18 @@ import { useMole } from '../features/mole/store'
 import { usePlusMinus } from '../features/plusMinus/store'
 import { useRpsRoulette } from '../features/rpsRoulette/store'
 import { useSpeedMole } from '../features/speedMole/store'
-import { GachaLifecycle } from '../features/gacha/GachaPanel'
+import { GachaLifecycle } from '../features/gacha/GachaLifecycle'
 import { useGachaOverlay } from '../features/gacha/view'
 import { useParkGameplayActive } from '../features/operation/parkGameplay'
 import { useParkOperationGate } from '../features/operation/useParkOperationGate'
 import type { ServiceOperationStatus } from '../features/operation/serviceOperation'
+
+
+const ArcadePicker = lazy(() => import('../features/arcade/ArcadePicker').then(module => ({ default: module.ArcadePicker })))
+const BungeoppangHud = lazy(loadBungeoppangHud)
+const MolePanel = lazy(() => import('../features/mole/MolePanel').then(module => ({ default: module.MolePanel })))
+const PlusMinusPanel = lazy(() => import('../features/plusMinus/PlusMinusPanel').then(module => ({ default: module.PlusMinusPanel })))
+const RpsRoulettePanel = lazy(() => import('../features/rpsRoulette/RpsRoulettePanel').then(module => ({ default: module.RpsRoulettePanel })))
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -106,12 +110,14 @@ export function ParkPage(props: ParkProps) {
 function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: ParkProps) {
   useWalletSync()
   useJumpmapController()
+  useEffect(watchBungeoppangRecovery, [])
   const [entryNewsHost,setEntryNewsHost]=useState<HTMLDivElement|null>(null)
   const gameplayActive = useParkGameplayActive()
   const jumpRopeSaving = useJumpRope(jumpRopeSettlementActive)
   useParkOperationGate(gameplayActive || jumpRopeSaving, onOperationBlocked)
   const vrPhase = useStore(parkVrZone.store, state => state.phase)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
+  const breadRecovery = useBungeoppang(s => s.recoveryDeferred)
   const arcadeOpen = useArcade(s => s.open)
   const moleOpen = useMole(s => s.open)
   const plusMinusOpen = usePlusMinus(s => s.open)
@@ -123,6 +129,14 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
     || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
+  const stoneOverlay = useGame(s => {
+    if (!s.game?.stone && !(s.start?.gameCode === 'STONE_RUMBLE' && ['PLAYING', 'SETTLING'].includes(s.start.phase))) return 'none'
+    return s.game?.role === 'PLAYER' && (s.game.stone?.status === 'FINISHED' || s.result || s.lastResult) ? 'result' : 'game'
+  })
+  const seated = useSession(s => !!s.tableId && s.seatIndex >= 0
+    && !!s.tableStates[s.tableId]?.seats.some(seat => seat.userId === s.sessionId))
+  // GamePanel의 돌탑 전체 화면/결과가 덮는 동안만 공원 렌더를 멈춘다. 퇴장 후 잔여 결과는 공원을 가리지 않는다.
+  const stoneFocus = stoneOverlay === 'game' || stoneOverlay === 'result' && seated
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
   // Everyone plays on the Low preset; the graphics choice is not offered.
   const quality: QualityPreset = 'low'
@@ -152,7 +166,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       '--park-ui-scale': hudScale,
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
-      <ParkScene quality={quality} active={vrPhase !== 'game'} />
+      <ParkScene quality={quality} active={!jumpRopeOpen && !stoneFocus} />
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
@@ -196,10 +210,13 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         <div hidden={omokFocus} inert={omokFocus}>
         <WelcomeTour />
         <ConstructionNotice />
-        <RpsRoulettePanel />
-        <ArcadePicker />
-        <PlusMinusPanel />
-        <MolePanel />
+        <FortunePanel />
+        {(rpsOpen || arcadeOpen || plusMinusOpen || moleOpen) && <Suspense fallback={<p role="status">게임을 불러오는 중입니다.</p>}>
+          {rpsOpen && <RpsRoulettePanel />}
+          {arcadeOpen && <ArcadePicker />}
+          {plusMinusOpen && <PlusMinusPanel />}
+          {moleOpen && <MolePanel />}
+        </Suspense>}
         <SpeedMoleHost />
         <JumpRopeHost />
         <FacilityStatus />
@@ -219,7 +236,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
         </div>
       </div>
       <ParkVrZone />
-      <BungeoppangHud />
+      {(bungeoppang || breadRecovery) && <Suspense fallback={<p role="status">붕어빵 가게를 불러오는 중입니다.</p>}><BungeoppangHud /></Suspense>}
       <OmokFeedback />
       <RankingBoardHost />
       <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions />} />

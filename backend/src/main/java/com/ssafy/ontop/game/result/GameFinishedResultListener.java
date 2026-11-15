@@ -69,8 +69,8 @@ public class GameFinishedResultListener {
 
     @EventListener
     public void finished(GameFinished event) {
-        // 기존 네 엔진은 위 전용 알림을 사용한다. 알까기는 공통 종료 알림으로 연결한다.
-        if (!"ALKKAGI".equals(event.gameCode())) { return; }
+        // 전용 알림이 없는 알까기와 돌탑은 공통 종료 알림으로 로비·결과를 연결한다.
+        if (!"ALKKAGI".equals(event.gameCode()) && !"STONE_RUMBLE".equals(event.gameCode())) { return; }
         tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.gameId()));
         results.finished(event.gameId(), event.participants().stream().map(GameFinished.Participant::userId).toList());
     }

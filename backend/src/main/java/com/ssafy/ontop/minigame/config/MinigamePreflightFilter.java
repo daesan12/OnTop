@@ -35,7 +35,7 @@ public class MinigamePreflightFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
         return !request.getMethod().equals("OPTIONS")
-                || !path.matches("/api/v1/minigames/(?:skewer/admissions|sessions(?:/[1-9][0-9]{0,18}"
+                || !path.matches("/api/v1/minigames/(?:sessions(?:/[1-9][0-9]{0,18}"
                         + "(?:/(?:complete|abandon|deliveries|manual-pause))?)?"
                         + "|rps-roulette/(?:status|rounds(?:/[1-9][0-9]{0,18}/(?:hands|challenge|stop))?)"
                         + "|plus-minus/(?:status|rounds)"

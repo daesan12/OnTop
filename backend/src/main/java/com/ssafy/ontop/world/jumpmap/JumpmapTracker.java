@@ -167,7 +167,7 @@ public final class JumpmapTracker {
                 } else if (sample.block() == JumpRun.START_BLOCK && !sample.following() && member(userId)
                         && newActivityAllowed.getAsBoolean()) {
                     state.run = new JumpRun(runIds.get(), nowMs,
-                            course.stages().stream().map(JumpCourse.Stage::reward).toList(), sample.feet());
+                            course, sample.feet());
                     signals.add(new Started(userId, channelId, state.run.runId(), nowMs));
                     state.startX = sample.x();
                     state.startZ = sample.z();
@@ -179,7 +179,7 @@ public final class JumpmapTracker {
                 }
             }
             case GROUND -> {
-                if (state.run != null) progress(userId, state, state.run.terrain(nowMs), nowMs, signals);
+                if (state.run != null) progress(userId, state, state.run.terrain(sample.x(), sample.z(), nowMs), nowMs, signals);
             }
             default -> { }
         }
@@ -206,6 +206,11 @@ public final class JumpmapTracker {
     public void rebase(String userId) {
         UserState state = users.get(userId);
         if (state != null) state.primed = false;
+    }
+
+    public String activeRunId(String userId) {
+        UserState state = users.get(userId);
+        return state == null || state.run == null ? null : state.run.runId();
     }
 
     public Optional<RunView> active(String userId, long nowMs) {

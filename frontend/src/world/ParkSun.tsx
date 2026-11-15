@@ -9,7 +9,7 @@ import { avatars, useSession } from '../network/worldClient'
 import { ShadowCadence, SHADOW_HZ } from '../performance/shadowCadence'
 
 /** One local shadow map follows the visitor; the whole park never needs a giant map. */
-export function ParkSun({ quality }: { quality: QualityPreset }) {
+export function ParkSun({ quality, serviceNightLight = SIMPLE_MAP }: { quality: QualityPreset; serviceNightLight?: boolean }) {
   const light = useRef<DirectionalLight>(null),
     preset = QUALITY_PRESETS[quality]
   const cadence = useMemo(
@@ -20,9 +20,9 @@ export function ParkSun({ quality }: { quality: QualityPreset }) {
     () => ({
       day: new Color('#fff3df'),
       dusk: new Color('#ffc393'),
-      night: new Color(SIMPLE_MAP?simpleEnvironmentPalette.nightKeyColor:'#a2b3cc'),
+      night: new Color(serviceNightLight ? simpleEnvironmentPalette.nightKeyColor : '#a2b3cc'),
     }),
-    [],
+    [serviceNightLight],
   )
   useFrame((_, delta) => {
     if (!light.current) return
@@ -32,10 +32,11 @@ export function ParkSun({ quality }: { quality: QualityPreset }) {
       z = Math.round((visitor?.z ?? 0) / 2) * 2
     light.current.position.set(
       x + environment.sunX * 75,
-      y + (SIMPLE_MAP?Math.max(simpleEnvironmentPalette.minimumKeyElevation,environment.sunY):environment.sunY) * 75,
+      y + (serviceNightLight ? Math.max(simpleEnvironmentPalette.minimumKeyElevation, environment.sunY) : environment.sunY) * 75,
       z + environment.sunZ * 75,
     )
-    light.current.intensity = 2.5 * smoothRange(0, 0.35, environment.elevation)+(SIMPLE_MAP?environment.night*simpleEnvironmentPalette.nightKey:0)
+    light.current.intensity = 2.5 * smoothRange(0, 0.35, environment.elevation)
+      + (serviceNightLight ? environment.night * simpleEnvironmentPalette.nightKey : 0)
     const refreshShadow = cadence.advance(
       delta,
       preset.shadows && light.current.intensity > 0.001,

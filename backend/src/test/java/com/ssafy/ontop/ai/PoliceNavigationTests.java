@@ -8,6 +8,22 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PoliceNavigationTests {
+    @Test
+    void 물에_들어간_유저에게는_땅에서_경고한다() throws Exception {
+        var map = PreparedParkMap.load(Path.of("../frontend/generated/park-renewal/server-map.json"),
+                Path.of("../frontend/generated/park-renewal/manifest.json"), Set.of("channel-1"));
+        var lake = map.collisionData().path("lake");
+        var swimmer = new ParkNavigation.Point(lake.path("x").asDouble() - lake.path("radiusX").asDouble() + 3,
+                lake.path("surfaceY").asDouble(), lake.path("z").asDouble());
+
+        try (var navigation = new ParkNavigation(map.createScene())) {
+            assertThat(navigation.isInWater(swimmer)).isTrue();
+            var shore = navigation.warningPoint(swimmer);
+            assertThat(shore).isNotNull();
+            assertThat(navigation.isInWater(shore)).isFalse();
+            assertThat(navigation.path(shore, shore)).isNotEmpty();
+        }
+    }
     @Test void actualTowerAndJumpmapCanReturnByCollisionCheckedWalkingJumpingAndFalling() throws Exception {
         var map=PreparedParkMap.load(Path.of("../frontend/generated/park/server-map.json"),Path.of("../frontend/generated/park/manifest.json"),Set.of("channel-1"));
         var course=com.ssafy.ontop.world.jumpmap.JumpCourse.loadDefault();

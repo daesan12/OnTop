@@ -32,7 +32,9 @@ export function HostStartWaitStatus({ table, selectedCount, fallback }: Props & 
     <strong role="status">{seconds === 0 ? '시작 대기 시간이 끝났어요. 서버 처리를 확인하고 있어요.'
       : host ? '모두 준비했어요. 시간 안에 게임을 시작해주세요.' : '모두 준비했어요. 방장의 시작을 기다리고 있어요.'}</strong>
     <time role="timer" aria-label="방장 게임 시작 남은 시간" aria-live="off">{formatHostWait(seconds)}</time>
-    <small>{seconds === 0 ? '퇴장과 새 방장 선정은 서버 확인 후 반영돼요.' : '2분 동안 시작하지 않으면 방장이 자동으로 일어나고, 남은 인원 중 새 방장이 선정돼요.'}</small>
+    <small>{seconds === 0 ? '퇴장과 새 방장 선정은 서버 확인 후 반영돼요.'
+      : table.gameCode === 'STONE_RUMBLE' ? '2분 동안 시작하지 않으면 방장이 대기실에서 나가고, 남은 인원 중 새 방장이 선정돼요.'
+        : '2분 동안 시작하지 않으면 방장이 자동으로 일어나고, 남은 인원 중 새 방장이 선정돼요.'}</small>
   </div>
 }
 export function HostStartButton({ table, selectedCount, disabled, onStart }: Props & { disabled: boolean; onStart: () => void }) {

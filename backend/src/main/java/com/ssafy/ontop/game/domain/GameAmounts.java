@@ -6,7 +6,7 @@ public final class GameAmounts {
     private GameAmounts() { }
 
     public static long validate(long bet, int count) {
-        if (bet < 0 || bet > MAX_SAFE_INTEGER || count < 2 || count > 4) {
+        if (bet < 0 || bet > MAX_SAFE_INTEGER || count < 2 || count > 8) {
             throw new IllegalArgumentException("참가비와 참가 인원을 확인하세요.");
         }
         try {

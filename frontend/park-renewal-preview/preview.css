@@ -1,0 +1,245 @@
+html, body {
+  margin: 0;
+  min-height: 100%;
+}
+
+.park-renewal-preview {
+  background: #f7f5ea;
+  color: #263e33;
+  display: grid;
+  font-family: system-ui, "Malgun Gothic", sans-serif;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100dvh;
+}
+
+.park-header, .park-footer {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 12px clamp(14px, 3vw, 44px);
+}
+
+.park-header {
+  border-bottom: 1px solid #dedbc9;
+}
+
+.park-header h1 {
+  font-size: clamp(20px, 2.5vw, 28px);
+  letter-spacing: -.045em;
+  margin: 0;
+}
+
+.park-header p {
+  color: #566559;
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
+.park-controls [hidden] {
+  display: none;
+}
+
+.park-controls, .park-views, .park-facilities {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.park-controls {
+  flex-wrap: wrap;
+}
+
+.park-views {
+  background: #eae7d8;
+  border-radius: 8px;
+  gap: 4px;
+  padding: 4px;
+}
+
+.park-controls button, .park-controls select {
+  background: #fdfcf5;
+  border: 1px solid #d7d2be;
+  border-radius: 6px;
+  color: #294739;
+  font: inherit;
+  font-size: 13px;
+  min-height: 38px;
+  padding: 5px 10px;
+}
+
+.park-controls button {
+  background: transparent;
+  border-color: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.park-controls button[aria-pressed="true"] {
+  background: #294739;
+  color: #fffdf2;
+}
+
+.park-controls #park-fence-jump {
+  background: #294739;
+  color: #fffdf2;
+}
+
+.park-controls :focus-visible {
+  outline: 2px solid #94733d;
+  outline-offset: 2px;
+}
+
+.park-facilities span {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.park-facilities select {
+  max-width: min(52vw, 245px);
+}
+
+#park-viewport {
+  background: #cbd4bd;
+  overflow: hidden;
+  position: relative;
+}
+
+#park-viewport canvas {
+  display: block;
+  height: 100%;
+  touch-action: none;
+  width: 100%;
+}
+
+#park-loading {
+  background: #f7f5ea;
+  border: 1px solid #d7d2be;
+  border-radius: 8px;
+  inset: 50% auto auto 50%;
+  margin: 0;
+  max-width: calc(100% - 64px);
+  padding: 12px 18px;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: max-content;
+}
+
+.park-render-profile {
+  background: #fbf9ef;
+  border: 1px solid #d7d2be;
+  border-radius: 8px;
+  bottom: 12px;
+  box-shadow: 0 3px 14px #263e3324;
+  font-size: 12px;
+  left: 12px;
+  max-width: calc(100% - 24px);
+  padding: 10px 12px;
+  position: absolute;
+  z-index: 1;
+}
+
+.park-render-profile summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.park-render-profile p {
+  color: #566559;
+  margin: 5px 0 8px;
+}
+
+.park-render-profile label {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.park-render-profile select {
+  background: #fffdf2;
+  border: 1px solid #d7d2be;
+  border-radius: 5px;
+  color: inherit;
+  font: inherit;
+  padding: 3px 6px;
+}
+
+.park-render-profile table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.park-render-profile th,
+.park-render-profile td {
+  border-bottom: 1px solid #e8e3d3;
+  padding: 3px 8px;
+  text-align: right;
+}
+
+.park-render-profile th:first-child {
+  padding-left: 0;
+  text-align: left;
+}
+
+.park-render-profile nav {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.park-render-profile a {
+  border: 1px solid #d7d2be;
+  border-radius: 5px;
+  color: #294739;
+  padding: 4px 8px;
+  text-decoration: none;
+}
+
+.park-render-profile a[aria-current="page"] {
+  background: #294739;
+  color: #fffdf2;
+}
+
+.park-footer {
+  border-top: 1px solid #dedbc9;
+  color: #566559;
+  font-size: 12px;
+}
+
+#park-selection {
+  color: #294739;
+  font-weight: 600;
+}
+
+@media (max-width: 680px) {
+  .park-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .park-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+    padding-block: 8px;
+  }
+
+  #park-viewport:has(.park-render-profile:not([hidden])) {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .park-render-profile {
+    bottom: auto;
+    justify-self: start;
+    left: auto;
+    margin: 6px 10px;
+    position: relative;
+  }
+}
+
+
+.park-scene { height: 100%; }

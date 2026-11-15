@@ -4,6 +4,7 @@ import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.DynamicChannelsProperties;
 import com.ssafy.ontop.world.config.WorldMapProperties;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
+import com.ssafy.ontop.world.jumpmap.JumpCourse;
 import com.ssafy.ontop.world.movement.ParkScene;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -43,6 +44,16 @@ public final class WorldMapRuntime {
         var prepared = PreparedParkMap.load(Path.of(properties.jsonPath()),
                 Path.of(properties.manifestPath()), channelIds);
         return new WorldMapRuntime(prepared.createScene(), prepared, null);
+    }
+
+    public JumpCourse loadJumpCourse() throws IOException {
+        if (prepared != null) {
+            var course = prepared.jumpCourse();
+            if (!course.isMissingNode()) {
+                return JumpCourse.loadEmbedded(course, scene.version());
+            }
+        }
+        return JumpCourse.loadDefault();
     }
 
     public ParkScene scene() { return scene; }

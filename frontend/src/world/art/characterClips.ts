@@ -22,11 +22,24 @@ const clips = Object.fromEntries(
 const WALK_CYCLES = 1.05, RUN_CYCLES = 1.6
 const SWIM_RATE = { stroke: 1.15, tread: 0.55 }
 
-/** Interpolated rotation of joint k at `time` (seconds, looping), into out (x, y, z, w). */
-function sample(name: ClipName, time: number, k: number, out: Float32Array) {
-  const clip = clips[name], f = (((time / clip.duration) % 1 + 1) % 1) * clip.frames
-  const i0 = Math.floor(f) % clip.frames, i1 = (i0 + 1) % clip.frames, t = f - Math.floor(f)
-  const a = (i0 * bones.length + k) * 4, b = (i1 * bones.length + k) * 4
+type ClipFrame = { clip: typeof clips[ClipName]; start: number; next: number; blend: number }
+
+function clipFrame(name: ClipName): ClipFrame {
+  return { clip: clips[name], start: 0, next: 0, blend: 0 }
+}
+
+function seek(frame: ClipFrame, time: number) {
+  const { clip } = frame
+  const f = (((time / clip.duration) % 1 + 1) % 1) * clip.frames
+  const i0 = Math.floor(f) % clip.frames
+  frame.start = i0 * bones.length * 4
+  frame.next = ((i0 + 1) % clip.frames) * bones.length * 4
+  frame.blend = f - Math.floor(f)
+}
+
+/** Interpolate joint k using the same two frames for every joint in a clip. */
+function sample({ clip, start, next, blend: t }: ClipFrame, k: number, out: Float32Array) {
+  const a = start + k * 4, b = next + k * 4
   const sign = clip.q[a]! * clip.q[b]! + clip.q[a + 1]! * clip.q[b + 1]! + clip.q[a + 2]! * clip.q[b + 2]! + clip.q[a + 3]! * clip.q[b + 3]! < 0 ? -1 : 1
   for (let c = 0; c < 4; c++) out[c] = clip.q[a + c]! * (1 - t) + clip.q[b + c]! * t * sign
 }
@@ -34,15 +47,16 @@ function sample(name: ClipName, time: number, k: number, out: Float32Array) {
 /** Per-avatar clip clocks; writes blended joint rotations through the rig's setter. */
 export function createClipPose() {
   let idle = 0, cycle = 0, swim = 0
+  const idleFrame = clipFrame('idle'), walkFrame = clipFrame('walk'), runFrame = clipFrame('run'), swimFrame = clipFrame('swim')
   const acc = new Float32Array(4), part = new Float32Array(4), q = new Quaternion(), euler = new Euler()
   function write(set: Setter, k: number) {
     q.set(acc[0]!, acc[1]!, acc[2]!, acc[3]!).normalize()
     euler.setFromQuaternion(q)
     set(bones[k]!, euler.x, euler.y, euler.z)
   }
-  function add(name: ClipName, time: number, k: number, weight: number) {
+  function add(frame: ClipFrame, k: number, weight: number) {
     if (weight <= 0) return
-    sample(name, time, k, part)
+    sample(frame, k, part)
     const sign = acc[0]! * part[0]! + acc[1]! * part[1]! + acc[2]! * part[2]! + acc[3]! * part[3]! < 0 ? -1 : 1
     for (let c = 0; c < 4; c++) acc[c] = acc[c]! + part[c]! * weight * sign
   }
@@ -52,20 +66,24 @@ export function createClipPose() {
       idle += dt
       cycle += dt * move * (WALK_CYCLES * (1 - run) + RUN_CYCLES * run)
       const walkW = move * (1 - run), runW = move * run
+      seek(idleFrame, idle)
+      seek(walkFrame, cycle * clips.walk.duration)
+      seek(runFrame, cycle * clips.run.duration)
       for (let k = 0; k < bones.length; k++) {
         acc.fill(0)
-        add('idle', idle, k, 1 - move)
-        add('walk', cycle * clips.walk.duration, k, walkW)
-        add('run', cycle * clips.run.duration, k, runW)
+        add(idleFrame, k, 1 - move)
+        add(walkFrame, k, walkW)
+        add(runFrame, k, runW)
         write(set, k)
       }
     },
     /** The crawl, its pelvis left to the caller's figure tilt; slower while treading water. */
     swim(dt: number, move: number, set: Setter) {
       swim += dt * (SWIM_RATE.tread + (SWIM_RATE.stroke - SWIM_RATE.tread) * move)
+      seek(swimFrame, swim)
       for (let k = 1; k < bones.length; k++) {
         acc.fill(0)
-        add('swim', swim, k, 1)
+        add(swimFrame, k, 1)
         write(set, k)
       }
     },

@@ -8,6 +8,7 @@ import com.ssafy.ontop.game.halligalli.service.HalliGalliEngine;
 import com.ssafy.ontop.game.ledger.service.DiceLedgerEngine;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
+import com.ssafy.ontop.game.stonerumble.service.StoneRumbleEngine;
 import com.ssafy.ontop.operation.domain.ServiceOperationState;
 import com.ssafy.ontop.operation.service.ServiceOperationService;
 import java.util.List;
@@ -35,6 +36,7 @@ public class CommittedGameStartService {
     private final Optional<HalliGalliEngine> halligalli;
     private final Optional<GameActivationPersistenceService> activations;
     private final AlkkagiEngine alkkagi;
+    private StoneRumbleEngine stoneRumble;
     private ServiceOperationService operations = ServiceOperationService.alwaysOpen();
 
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
@@ -100,6 +102,11 @@ public class CommittedGameStartService {
         this.operations = operations;
     }
 
+    @Autowired(required = false)
+    void configureStoneRumble(StoneRumbleEngine engine) {
+        this.stoneRumble = engine;
+    }
+
     public GameStartResult start(GameStartCommand command) {
         ServiceOperationState operation;
         try {
@@ -134,6 +141,7 @@ public class CommittedGameStartService {
                         && command.targetScore() != null;
                 case "DICE_LEDGER" -> ledger.isPresent();
                 case "HALLI_GALLI" -> halligalli.isPresent();
+                case "STONE_RUMBLE" -> stoneRumble != null && players.size() >= 2 && players.size() <= 8;
                 default -> false;
             };
         } catch (IllegalArgumentException exception) {
@@ -149,6 +157,7 @@ public class CommittedGameStartService {
             List<Long> players = players(command);
             // 엔진 create의 tick/종료 콜백은 별도 DB 트랜잭션을 사용할 수 있어 경기 행 잠금을 보유하지 않는다.
             switch (command.gameCode()) {
+                case "STONE_RUMBLE" -> stoneRumble.create(result.gameSessionId(), command.tableId(), players);
                 case "ALKKAGI" -> alkkagi.startCommitted(command, result);
                 case "OMOK" -> omok.orElseThrow().createWithCoinToss(result.gameSessionId(), command.tableId(),
                         players.get(0), players.get(1));

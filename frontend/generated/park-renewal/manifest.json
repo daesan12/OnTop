@@ -1,0 +1,194 @@
+{
+  "format": "ontop.park-map-manifest",
+  "schemaVersion": 2,
+  "mapId": "park",
+  "mapVersion": "01e3e6d1b6aa628df09c6629313d849769d6c31c1ea271d63be6f42e0098ad88",
+  "hashAlgorithm": "sha256",
+  "hashes": {
+    "dataHash": "66e141658ddf173d98eeada4c9387b4cd62c77ef5d7bfd0ddb3c00b099825d9f",
+    "sourceHash": "5a9827eccc7406d40244609a5dab222c604b08fbab32283b2380064195438ab9"
+  },
+  "sources": [
+    {
+      "path": "src/config/avatar.ts",
+      "sha256": "091f116b15a46c2aef7b9d9bc51dc7c582de458d9a19b35c3ae152872863a1c1"
+    },
+    {
+      "path": "src/config/denseTrees.ts",
+      "sha256": "233550b6fbc99303889c5130b1b563e1104d794632016998bc39024d8d43fd18"
+    },
+    {
+      "path": "src/config/emotes.ts",
+      "sha256": "c153fc9c75d80e20654d4e0ba00f0872a34599a2d76d4e0a8e8c1c4ad58de9b9"
+    },
+    {
+      "path": "src/config/environment.ts",
+      "sha256": "c12d7eb2270036ba061ece18a4bdca40a2e43c17505305a803f577aef92e02b9"
+    },
+    {
+      "path": "src/config/existingTrees.ts",
+      "sha256": "d62827c5c29162f4074e5395a18ea8b5969c48adf68e487e5372a4e2f6e3a161"
+    },
+    {
+      "path": "src/config/fitness.ts",
+      "sha256": "e55b3a0347cfad4c4292901bf9dce737135239c1945359e0f859175bdefaddc6"
+    },
+    {
+      "path": "src/config/gardenAdditions.ts",
+      "sha256": "b3eebe43aaceae03c54e648d11cdac2792291315422df910c6e97aa2930c3d66"
+    },
+    {
+      "path": "src/config/gomoku.ts",
+      "sha256": "c8b30f1645f27207944ec4ab56384c86a7c5567ba2cc4a259695f0b5fbe57a4b"
+    },
+    {
+      "path": "src/config/index.ts",
+      "sha256": "115375d3a6c1fae898f3b2239ff369c9e3e918016e4824e8c574ec9c6911d18f"
+    },
+    {
+      "path": "src/config/lakeCrossings.ts",
+      "sha256": "b417b36864223222f756f19c8dc7869f8fd10d431bd6c7517d47c33f22321bd6"
+    },
+    {
+      "path": "src/config/lakeRocks.ts",
+      "sha256": "d5140e2fb11fad78435e7540e295f71dc5b0f56e8f1d05fd2947a97c4000b25a"
+    },
+    {
+      "path": "src/config/notes.ts",
+      "sha256": "6e149be8272ad43c41741e40cde0fe19300b7b451d344cd58bd232e61611793f"
+    },
+    {
+      "path": "src/config/pagoda.ts",
+      "sha256": "0d2643780d712e5f2d69a0e3e7adc848542dc4070dfaee5566cb4fe42abb3bfd"
+    },
+    {
+      "path": "src/config/parkAdvertising.ts",
+      "sha256": "3c87aa2e7536246a5babaed15d29f3ec30b71834fbf000756f13b9b9846bdc12"
+    },
+    {
+      "path": "src/config/parkExpansion.ts",
+      "sha256": "ac575097bf069a524a5af37a525c152ad71dc2bd0b7acd73c7d5351f8adec08f"
+    },
+    {
+      "path": "src/config/parkLandforms.ts",
+      "sha256": "960408419272e8a49f48ca54a5da564f96dc46635d5debf7da033f74d1b9b682"
+    },
+    {
+      "path": "src/config/parkLayout.ts",
+      "sha256": "cca6286631d40c3b579fd196d6f5d412ccbbac6ad51112b32b92ce5616b302ce"
+    },
+    {
+      "path": "src/config/parkPaths.ts",
+      "sha256": "6b1f11c8a039aeeaf6a6330cd619f0e794c798c722a7fe48705b2209c5987b54"
+    },
+    {
+      "path": "src/config/parkPlan.ts",
+      "sha256": "07284161ff39fd96bfed682bbcd969407b2429d5ca11b52cd2356c1a3dd13010"
+    },
+    {
+      "path": "src/config/parkProps.ts",
+      "sha256": "4a93b560fbb6a851be2947b2b19b43f06a3fd6416dcc3693fb354301d0da5538"
+    },
+    {
+      "path": "src/config/plazaGarden.ts",
+      "sha256": "87f175982cdaf47bc076dc99b0e86538b7a223136c5ea657d8f0854711ff1afa"
+    },
+    {
+      "path": "src/config/quality.ts",
+      "sha256": "3792332dd6b5b9df9bb0895462028bf8b8a18c493dca201c87f966e33d7e21d3"
+    },
+    {
+      "path": "src/config/staticStructures.ts",
+      "sha256": "88b24ed809f98f19a143b25ac63451a27b2cb10cba2dd733975df0ea75a6a468"
+    },
+    {
+      "path": "src/config/table-seats.ts",
+      "sha256": "e73d4c926ccb5cd56c41fdd92fd8eac5528e1f0a9acd3c784c2b35a5f99038b0"
+    },
+    {
+      "path": "src/config/telescopes.ts",
+      "sha256": "f7a1cf883f2033895c9cea01f8873038c6b6e176cf1d71e0d9e5ef22ed1a278d"
+    },
+    {
+      "path": "src/config/world.ts",
+      "sha256": "514d1c22d5d95fa54abf3674ea84a0978fe22f938937aef4d33a82ed6b15877c"
+    },
+    {
+      "path": "src/map/geometry.ts",
+      "sha256": "68a682b51162abdb0a474760eae0df7c26075b08d20930a9f01e979abaf8f2f4"
+    },
+    {
+      "path": "src/map/park/collision.ts",
+      "sha256": "313810e0569a12607e463b0c706a05ce413504cf2d76158a04ae9621181a79de"
+    },
+    {
+      "path": "src/map/park/definition.ts",
+      "sha256": "19330af6b232693d120711e4445f389ab7ff52ded9880ee034ba9d736b59fd77"
+    },
+    {
+      "path": "src/map/park/fountainHeight.ts",
+      "sha256": "9996ee1c49bd09c43142d4abde7f831ee4001553bb8232b7372ff1094c4b7573"
+    },
+    {
+      "path": "src/map/park/furnitureCollision.ts",
+      "sha256": "d80ff55a24ea336d7cef6c123e23761310790a6b85181aaaacf61b493d6b332e"
+    },
+    {
+      "path": "src/map/park/index.ts",
+      "sha256": "86ea47fe7b5e3b4472e9f74719374663e481e6c8c187f85317dbdbf2cd13cd02"
+    },
+    {
+      "path": "src/map/park/interactionData.ts",
+      "sha256": "34a447bb4521153f76cad68b4f9b2bfe62fa12695d7219b38f74b54d173f94d8"
+    },
+    {
+      "path": "src/map/park/lake.ts",
+      "sha256": "6b3544dfda8ae89b798d8c7f677f3e3e7b354197d7d2e2f5f31660a772070a4e"
+    },
+    {
+      "path": "src/map/park/physics.ts",
+      "sha256": "d19d04a8e909d875cd88327324cdaa58690feecf3f8c083f3adf19c166b5777c"
+    },
+    {
+      "path": "src/map/park/planting.ts",
+      "sha256": "d393eee371d85d87b67cedfd637f2dea5a353b2a6a2265b8f2fb50687329ad78"
+    },
+    {
+      "path": "src/map/park/resolve.ts",
+      "sha256": "1d360dbc69e6904a412f7d3818459f9b34cce8c9b43a3f5af9914a9264b98d4c"
+    },
+    {
+      "path": "src/map/park/validate.ts",
+      "sha256": "020015b2b5e3771358074730199600e15e814d50372be9f2e5662d3297856c16"
+    }
+  ],
+  "counts": {
+    "facilities": 12,
+    "pavilions": 6,
+    "tables": 14,
+    "localSeats": 60,
+    "obstacles": 536,
+    "paths": 54,
+    "physicalBoxes": 6789,
+    "physicalMeshes": 44,
+    "physicalHulls": 91,
+    "benches": 59,
+    "fitness": 12,
+    "telescopes": 2,
+    "construction": 15
+  },
+  "artifacts": [
+    {
+      "path": "generated/park/server-map.json",
+      "sha256": "6b83603f0eac04f34909bc84f1d7e25bfd4ed6db3ad4a975a71d96b96fc6a09e",
+      "bytes": 4023393
+    }
+  ],
+  "validation": {
+    "definition": "passed",
+    "ids": "preserved",
+    "spawn": "walkable",
+    "backendIntegration": "local-renewal",
+    "liveServiceVersion": "unchanged"
+  }
+}

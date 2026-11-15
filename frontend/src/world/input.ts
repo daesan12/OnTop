@@ -53,7 +53,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     benchDragging = '',
     benchExitKey = false,
     jump = false,
-    hadMovement = false
+    hadMovement = false,
+    rotatedIntentFrame = 0
   const intent: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
   const blocked = () =>
     parkXRView.ownsInput ||
@@ -67,9 +68,12 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     !!(avatars.get(useSession.getState().sessionId)?.carry && avatars.get(useSession.getState().sessionId)?.carry?.role !== 'CARRIER') ||
     !!useSession.getState().tableId
   const stop = () => {
+    if (rotatedIntentFrame) cancelAnimationFrame(rotatedIntentFrame)
+    rotatedIntentFrame = 0
     carryEscape.reset()
     keys.clear()
     drag = jump = hadMovement = false
+    roamingInput.draggingCamera = false
     seatDragging = ''
     benchDragging = ''
     benchExitKey = false
@@ -88,7 +92,12 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     const scale = lookScale()
     viewControls.yaw -= x * 0.004 * scale
     viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003 * scale))
-    if (hadMovement) sendIntent()
+    // A mouse can dispatch several updates before a frame is rendered. Keep
+    // the latest aim, and update prediction once with the final heading.
+    if (hadMovement && !rotatedIntentFrame) rotatedIntentFrame = requestAnimationFrame(() => {
+      rotatedIntentFrame = 0
+      if (hadMovement && !blocked()) sendIntent()
+    })
   }
   // Shared by drag and mouse look; zoom slows the aim and the server sync keeps its own interval.
   const turnTelescope = (x: number, y: number) => {
@@ -296,11 +305,14 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
     if (event.button === 0 && !panelOwnsMovement()) {
       drag = true
+      roamingInput.draggingCamera = !session.telescopeId && !session.tableId && !session.benchId
       canvas.focus({ preventScroll: true })
     }
   }
   const pointerMove = (event: PointerEvent) => {
-    if (scenePointerOwners.has(event.pointerId)) { benchDragging = ''; seatDragging = ''; drag = false; return }
+    if (scenePointerOwners.has(event.pointerId)) {
+      benchDragging = ''; seatDragging = ''; drag = false; roamingInput.draggingCamera = false; return
+    }
     if (mouseLook.locked()) return
     if (benchDragging) {
       const benchView = useBenchSpectator.getState()
@@ -327,6 +339,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const pointerUp = (event: PointerEvent) => {
     scenePointerOwners.delete(event.pointerId)
     drag = false
+    roamingInput.draggingCamera = false
     seatDragging = ''
     benchDragging = ''
   }

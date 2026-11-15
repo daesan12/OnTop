@@ -1,5 +1,5 @@
 import { record, integer } from '../../network/protocol'
-import { courseBlockIndex } from './course'
+import { DAILY_CAP, LAP_REWARD, STAGE_COUNT, courseBlockIndex } from './activeCourse'
 
 export const TIP_KEYS = ['START_SPOT', 'RUN_STARTED', 'FIRST_GATE', 'FIRST_FALL', 'FINAL_PAD'] as const
 export type TipKey = typeof TIP_KEYS[number]
@@ -20,21 +20,21 @@ export type JumpEvent =
   | (Ordered & Earnings & { type: 'JUMPMAP_GATE_SETTLED'; runId: string; gate: number; coinsGranted: number; runCoins: number })
   | (Ordered & { type: 'JUMPMAP_FINAL_PAD'; runId: string })
   | (Ordered & Earnings & { type: 'JUMPMAP_ENDED'; runId: string; reason: EndReason; gatesPassed: number; maxHeight: number; runCoins: number; elapsedMs: number; finishMs?: number; bestFinishMs?: number | null; newBest?: boolean })
-  | (Scope & { type: 'JUMPMAP_STEP'; playerId: string; block: number })
+  | (Scope & { type: 'JUMPMAP_STEP'; playerId: string; block: number; serverTime?: number })
 
 const text = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v.length <= 120
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0
-const money = (v: unknown) => integer(v) && v <= 250
-const earnings = (p: Record<string, unknown>) => integer(p.todayEarned) && p.todayEarned <= 1000 && p.dailyCap === 1000 && typeof p.earningsDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.earningsDate)
+const money = (v: unknown) => integer(v) && v <= LAP_REWARD
+const earnings = (p: Record<string, unknown>) => integer(p.todayEarned) && p.todayEarned <= DAILY_CAP && p.dailyCap === DAILY_CAP && typeof p.earningsDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.earningsDate)
 const scope = (p: Record<string, unknown>) => text(p.channelId) && typeof p.mapVersion === 'string' && /^[a-f0-9]{64}$/.test(p.mapVersion)
-const gate = (g: unknown) => integer(g) && g >= 1 && g <= 7
-const run = (r: unknown): r is RunView => record(r) && text(r.runId) && finite(r.elapsedMs) && integer(r.gatesPassed) && r.gatesPassed <= 7 && typeof r.finalReached === 'boolean' && finite(r.maxHeight) && money(r.runCoins)
+const gate = (g: unknown) => integer(g) && g >= 1 && g <= STAGE_COUNT
+const run = (r: unknown): r is RunView => record(r) && text(r.runId) && finite(r.elapsedMs) && integer(r.gatesPassed) && r.gatesPassed <= STAGE_COUNT && typeof r.finalReached === 'boolean' && finite(r.maxHeight) && money(r.runCoins)
 const REASONS = ['FINISH', 'FALL', 'LAKE', 'DISCONNECT', 'TIMEOUT', 'RESET', 'LEFT']
 const lastRun = (r: unknown): r is LastRunView => {
   if (!run(r)) return false
   const v = r as unknown as Record<string, unknown>
   return REASONS.includes(String(v.reason)) && (v.reason !== 'FINISH'
-    || v.gatesPassed === 7 && integer(v.finishMs) && (v.bestFinishMs == null || integer(v.bestFinishMs)) && typeof v.newBest === 'boolean')
+    || v.gatesPassed === STAGE_COUNT && integer(v.finishMs) && (v.bestFinishMs == null || integer(v.bestFinishMs)) && typeof v.newBest === 'boolean')
 }
 const TYPES = ['JUMPMAP_STARTED', 'JUMPMAP_GATE', 'JUMPMAP_GATE_SETTLED', 'JUMPMAP_FINAL_PAD', 'JUMPMAP_ENDED', 'JUMPMAP_STEP']
 export function parseJumpStatus(value: unknown): JumpStatus {
@@ -51,7 +51,7 @@ export function parseJumpEvent(type: string, p: unknown): JumpEvent | null {
   if (!record(p) || !scope(p)) throw new Error('점프맵 이벤트를 확인할 수 없어요.')
   if (type === 'JUMPMAP_STEP') {
     const block = courseBlockIndex(p.block)
-    if (!text(p.playerId) || block === null) throw new Error('점프맵 착지 이벤트를 확인할 수 없어요.')
+    if (!text(p.playerId) || block === null || p.serverTime !== undefined && !integer(p.serverTime)) throw new Error('점프맵 착지 이벤트를 확인할 수 없어요.')
     return { ...p, type, block } as JumpEvent
   }
   let valid = text(p.runId) && integer(p.revision)
@@ -62,8 +62,8 @@ export function parseJumpEvent(type: string, p: unknown): JumpEvent | null {
   if (type === 'JUMPMAP_GATE_SETTLED') valid &&= gate(p.gate) && money(p.coinsGranted) && money(p.runCoins)
   if (type === 'JUMPMAP_ENDED') {
     valid &&= REASONS.includes(String(p.reason))
-      && integer(p.gatesPassed) && p.gatesPassed <= 7 && finite(p.maxHeight) && money(p.runCoins) && finite(p.elapsedMs)
-    if (p.reason === 'FINISH') valid &&= p.gatesPassed === 7 && integer(p.finishMs) && (p.bestFinishMs === null || integer(p.bestFinishMs)) && typeof p.newBest === 'boolean'
+      && integer(p.gatesPassed) && p.gatesPassed <= STAGE_COUNT && finite(p.maxHeight) && money(p.runCoins) && finite(p.elapsedMs)
+    if (p.reason === 'FINISH') valid &&= p.gatesPassed === STAGE_COUNT && integer(p.finishMs) && (p.bestFinishMs === null || integer(p.bestFinishMs)) && typeof p.newBest === 'boolean'
   }
   if (!valid) throw new Error('점프맵 이벤트를 확인할 수 없어요.')
   return { ...p, type } as JumpEvent
