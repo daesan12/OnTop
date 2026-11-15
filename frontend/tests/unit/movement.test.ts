@@ -21,11 +21,13 @@ describe('M02 movement intent and delivery', () => {
     const jump = cameraRelativeMove(0, 0, 0, false, true, idle())
     expect(Math.hypot(jump.dx, jump.dz)).toBe(0)
     expect(jump.jump).toBe(true)
+    expect(cameraRelativeMove(0, 0, 0, true, false, idle()).run).toBe(false)
   })
   it('accepts finite normalized intent without producing coordinates or dt', () => {
     const intent = normalizedMove(1, 1, true, true)!
     expect(Math.hypot(intent.dx, intent.dz)).toBeCloseTo(1)
     expect(Object.keys(intent).sort()).toEqual(['dx', 'dz', 'jump', 'run'])
+    expect(normalizedMove(0, 0, true, false)).toEqual(idle())
     for (const [dx, dz] of [[NaN, 0], [0, Infinity], [2, 0]]) expect(normalizedMove(dx!, dz!, false, false)).toBeNull()
   })
   it('coalesces input at the existing cadence while preserving one queued jump', async () => {
