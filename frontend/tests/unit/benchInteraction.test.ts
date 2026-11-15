@@ -40,7 +40,36 @@ afterEach(() => { resetAiFeatures();resetWorld(); roamingInput.ready = false; vi
 describe('M01 target selection and bench lifecycle', () => {
   it('NPC 관전판에서는 일반 E 대상과 관전하기 안내를 선택하지 않는다',()=>{
     expect(getParkInteraction()).not.toBeNull()
-    const practice={phase:'PLAYING',snapshot:{gameId:'npc-e-guard',tableId:'table',version:1,blackUserId:202,whiteUserId:9001,turnUserId:202,winnerUserId:null,turnDeadline:null,endedAt:null,endReason:null,board:{board:Array.from({length:15},()=>Array(15).fill(0)),moveCount:0,forbiddenMoves:[],outcome:'PLAYING'}},thinking:false} as Practice
+    const practice: Practice = {
+      phase: 'PLAYING',
+      npcUserId: '9001',
+      name: '연습 상대',
+      difficulty: 'NORMAL',
+      bet: 0,
+      thinking: false,
+      speech: '',
+      speechSource: '',
+      analysis: { source: '', blackEstimate: null, advantage: '' },
+      analysisNote: '',
+      snapshot: {
+        gameId: 'npc-e-guard',
+        tableId: 'table',
+        version: 1,
+        blackUserId: 202,
+        whiteUserId: 9001,
+        turnUserId: 202,
+        winnerUserId: null,
+        turnDeadline: null,
+        endedAt: null,
+        endReason: null,
+        board: {
+          board: Array.from({ length: 15 }, () => Array.from({ length: 15 }, () => 0)),
+          moveCount: 0,
+          forbiddenMoves: [],
+          outcome: 'PLAYING',
+        },
+      },
+    }
     useAiFeatures.setState({companions:true})
     useCompanions.setState({observedPractice:practice,practiceChat:{gameId:'npc-e-guard',version:1,role:'SPECTATOR'},receivedAt:performance.now()})
     useTableLobby.setState({spectatorRequested:true})
