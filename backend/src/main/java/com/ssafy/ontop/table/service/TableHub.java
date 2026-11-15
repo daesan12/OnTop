@@ -41,6 +41,7 @@ import com.ssafy.ontop.table.dto.TableProtocol.RequestException;
 import com.ssafy.ontop.table.dto.TableProtocol;
 import com.ssafy.ontop.table.dto.TableSummaryResponse;
 import com.ssafy.ontop.table.websocket.ConnectionCloseReason;
+import com.ssafy.ontop.table.websocket.RetryableConnectionException;
 import com.ssafy.ontop.table.websocket.TablePeer;
 import com.ssafy.ontop.table.websocket.WebSocketHeartbeat;
 import com.ssafy.ontop.world.config.DynamicChannelsProperties;
@@ -543,14 +544,26 @@ public class TableHub {
     public synchronized boolean connectAuthenticated(WebSocketSession session, VerifiedWebSocketUser user) {
         String userId = Long.toString(user.userId());
         expireWaitingReconnects();
+        Member existing = members.values().stream()
+                .filter(member -> member.userId().equals(userId)).findFirst().orElse(null);
+        if (existing != null) {
+            // 새 로그인은 이미 인증을 통과했다. 이전 소켓의 커밋 후 정리가 끝날 때까지 재시도한다.
+            if (!user.sessionId().equals(loginSessions.get(existing.sessionId()))) {
+                throw new RetryableConnectionException("이전 로그인 연결을 정리하고 있습니다.");
+            }
+            checkDuplicateConnection(userId, existing);
+            return false;
+        }
+        duplicateProbes.remove(userId);
         WaitingReconnect lease = waitingReconnects.get(userId);
-        boolean reservedLobby = lease != null && java.util.Objects.equals(lease.loginSessionId(), user.sessionId());
-        // 사용자 확정: 기존 연결이 살아 있으면 새 연결만 거절한다.
+        if (lease != null && !user.sessionId().equals(lease.loginSessionId())) {
+            releaseWaitingReconnect(userId, "SESSION_REVOKED");
+            lease = null;
+        }
+        boolean reservedLobby = lease != null;
         boolean reservedStart = committedStarts.isPresent() && seating.containsKey(userId)
                 && starts.containsKey(seating.get(userId)) && starts.get(seating.get(userId)).frozen();
-        checkDuplicateConnection(userId, user.sessionId());
-        if (seating.containsKey(userId) && !reservedStart && !reservedLobby
-                || members.values().stream().anyMatch(member -> member.userId().equals(userId))) {
+        if (seating.containsKey(userId) && !reservedStart && !reservedLobby) {
             return false;
         }
         Member member = register(session, userId, user.userId());
@@ -582,14 +595,8 @@ public class TableHub {
      * 같은 로그인 세션의 연결이 이미 있으면(half-open 의심) 기존 연결에 즉시 ping을 보내고 새 연결은 재시도로 돌려보낸다.
      * 기존 연결이 기한 안에 응답했으면(다른 탭) 그대로 두고 기존 1008 거절로 넘어간다. 다른 로그인 세션은 검사하지 않는다.
      */
-    private void checkDuplicateConnection(String userId, String loginSessionId) {
+    private void checkDuplicateConnection(String userId, Member existing) {
         if (duplicateProbe.isZero()) return;
-        Member existing = members.values().stream().filter(member -> member.userId().equals(userId)).findFirst().orElse(null);
-        if (existing == null) {
-            duplicateProbes.remove(userId);
-            return;
-        }
-        if (!java.util.Objects.equals(loginSessions.get(existing.sessionId()), loginSessionId)) return;
         long now = System.nanoTime();
         Long started = duplicateProbes.get(userId);
         // heartbeat 점검 주기(100ms)와 정리 여유를 더해 기한이 지난 뒤에도 남아 있으면 살아 있는 연결이다.
@@ -597,10 +604,10 @@ public class TableHub {
         if (started == null || now - started > settle * 4) {
             duplicateProbes.put(userId, now);
             existing.peer().probeNow(duplicateProbe);
-            throw new com.ssafy.ontop.table.websocket.RetryableConnectionException("기존 연결을 확인하고 있습니다.");
+            throw new RetryableConnectionException("기존 연결을 확인하고 있습니다.");
         }
         if (now - started < settle) {
-            throw new com.ssafy.ontop.table.websocket.RetryableConnectionException("기존 연결을 확인하고 있습니다.");
+            throw new RetryableConnectionException("기존 연결을 확인하고 있습니다.");
         }
         duplicateProbes.remove(userId);
     }
@@ -2738,18 +2745,26 @@ public class TableHub {
         var expired = waitingReconnects.entrySet().stream()
                 .filter(entry -> !tableNow().isBefore(entry.getValue().expiresAt())).map(Map.Entry::getKey).toList();
         for (String userId : expired) {
-            WaitingReconnect lease = waitingReconnects.remove(userId);
-            String tableId = seating.get(userId);
-            if (lease == null || !lease.tableId().equals(tableId)) { continue; }
-            TableStartAttempt start = starts.get(tableId);
-            if (start != null && start.frozen()) { continue; }
-            cancelReadyBalance(userId);
-            seating.remove(userId);
-            TableRoom room = rooms.get(tableId);
-            room.leave(userId);
-            publish(room, null, null);
-            recordTableLeft(accountIdOf(userId), tableId, "RECONNECT_EXPIRED");
+            releaseWaitingReconnect(userId, "RECONNECT_EXPIRED");
         }
+    }
+
+    private void releaseWaitingReconnect(String userId, String reason) {
+        WaitingReconnect lease = waitingReconnects.remove(userId);
+        String tableId = seating.get(userId);
+        if (lease == null || !lease.tableId().equals(tableId)) {
+            return;
+        }
+        TableStartAttempt start = starts.get(tableId);
+        if (start != null && start.frozen()) {
+            return;
+        }
+        cancelReadyBalance(userId);
+        seating.remove(userId);
+        TableRoom room = rooms.get(tableId);
+        room.leave(userId);
+        publish(room, null, null);
+        recordTableLeft(accountIdOf(userId), tableId, reason);
     }
 
     private boolean checkHostTimeout(TableRoom room) {

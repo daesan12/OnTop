@@ -6,6 +6,8 @@ import com.ssafy.ontop.auth.security.ActiveMemberLookup;
 import com.ssafy.ontop.auth.security.AuthenticatedUser;
 import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
+import com.ssafy.ontop.auth.service.AuthenticationRevocations;
+import com.ssafy.ontop.auth.websocket.MemberWebSocketConnections;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.table.websocket.TableWebSocketHandler;
 import com.ssafy.ontop.user.domain.LoginProvider;
@@ -19,6 +21,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +56,8 @@ class MemberWebSocketAuthenticationTests {
     private ApplicationContext context;
     @Autowired
     private TableHub hub;
+    @Autowired
+    private MemberWebSocketConnections connections;
     @MockitoBean
     private ActiveMemberLookup members;
     @MockitoBean(name = "oauthClock")
@@ -92,6 +97,35 @@ class MemberWebSocketAuthenticationTests {
                     .path("payload").path("tableId").asText()).isEqualTo(table);
             assertThat(first.request("GAME_SELECT", Map.of("betAmountPerPlayer", 1, "gameCode", "OMOK", "userId", "202"))
                     .path("payload").path("code").asText()).isEqualTo("INVALID_PAYLOAD");
+        }
+    }
+
+    @Test
+    void 새_로그인은_기존_연결_정리_중_재시도하고_정리_후_채널에_입장한다() throws Exception {
+        String previousSession = TestLoginSessions.ID;
+        String newSession = UUID.randomUUID().toString();
+        when(members.findActive(101, newSession))
+                .thenReturn(Optional.of(new AuthenticatedUser(101, LoginProvider.SSAFY, newSession)));
+        String newAccess = jwt.issue(101, newSession);
+        try (ScenarioClient previous = new ScenarioClient(port, "101", issueTicket(101))) {
+            previous.await(message -> message.path("type").asText().equals("CONNECTED"));
+            enterPark(previous, 0);
+            when(members.findActive(101, previousSession)).thenReturn(Optional.empty());
+            try (ScenarioClient pending = new ScenarioClient(port, "101", issueTicket(newAccess))) {
+                assertThat(pending.awaitClose()).isEqualTo(1013);
+            }
+
+            connections.revoked(new AuthenticationRevocations.Revoked(101, previousSession));
+
+            assertThat(previous.awaitClose()).isEqualTo(4401);
+            assertThat(issue(jwt.issue(101, previousSession)).statusCode()).isEqualTo(401);
+            // Close 프레임 직후에는 서버 정리가 아직 진행 중일 수 있다.
+            org.awaitility.Awaitility.await().until(() -> hub.metricsSnapshot().activeConnections() == 0);
+            try (ScenarioClient current = new ScenarioClient(port, "101", issueTicket(newAccess))) {
+                assertThat(current.await(message -> message.path("type").asText().equals("CONNECTED"))
+                        .path("payload").path("userId").asText()).isEqualTo("101");
+                enterPark(current, 0);
+            }
         }
     }
 
@@ -180,7 +214,11 @@ class MemberWebSocketAuthenticationTests {
     }
 
     private String issueTicket(long id) throws Exception {
-        HttpResponse<String> response = issue(jwt.issue(id, TestLoginSessions.ID));
+        return issueTicket(jwt.issue(id, TestLoginSessions.ID));
+    }
+
+    private String issueTicket(String access) throws Exception {
+        HttpResponse<String> response = issue(access);
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
         assertThat(response.headers().firstValue("Set-Cookie")).isEmpty();
