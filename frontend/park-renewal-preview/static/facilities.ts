@@ -5,7 +5,7 @@ import type { createArcadeArt } from './arcadeArt'
 export const entryMeshNames = ['tower-frame', 'tower-frame-distant', 'wall-body', 'wall-foot', 'wall-clay', 'wall-timber'] as const
 type EntryMeshName = typeof entryMeshNames[number]
 
-export const bakedLakeKinds = ['bridge', 'lake-fence', 'lake-access', 'fishing-deck'] as const
+export const bakedFacilityKinds = ['bridge', 'lake-fence', 'lake-access', 'fishing-deck', 'station'] as const
 let facilities: Group | undefined
 
 export async function decodeBakedFacilities(buffer: ArrayBuffer) {

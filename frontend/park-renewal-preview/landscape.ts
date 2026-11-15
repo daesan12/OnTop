@@ -122,7 +122,12 @@ export function createTreeLayout() {
  const accepted:TreeEnvelope[]=[],resolved:TreePlanting[]=[]
  const cleanup={removed:0,resized:0}
  for(const original of plantings){let selected:TreeEnvelope|undefined;for(const factor of[1,.85,.7]){const scale=original.scale*factor;if(scale<.4)continue;const candidate=treeEnvelope({...original,scale}),[x,,z]=candidate.tree.position;if(z>vrEntrance.z+5&&z<vrEntrance.z+15&&Math.abs(x-vrEntrance.x)<12.5||onRoad(x,z,candidate.radius+.2)||!insidePark(x,z,candidate.radius+.6)||SITES.some(s=>!s.kind&&s.radius&&footprintDistance(s,x,z)<candidate.radius+.2)||[...reserved,...accepted].some(p=>treesOverlap(candidate,p)))continue;selected=candidate;break}if(selected){accepted.push(selected);resolved.push(selected.tree);if(selected.tree.scale!==original.scale)cleanup.resized++}else cleanup.removed++}
- plantings.splice(0,plantings.length,...resolved);treePositions.splice(0,treePositions.length,...resolved.map(p=>[p.position[0],p.position[2]]as Point))
+ // Remove only the three trees in the seating and return lanes beside the pagoda.
+ const stoneRumbleClearing: readonly Point[] = [[7.11,-63.73],[5.6,-59.6],[8.84,-57.14]]
+ const kept = resolved.filter(({position:[x,,z]}) =>
+   !stoneRumbleClearing.some(([treeX,treeZ]) => Math.hypot(x-treeX,z-treeZ)<.03))
+ cleanup.removed += resolved.length - kept.length
+ plantings.splice(0,plantings.length,...kept)
  return {plantings,cleanup}
 }
 const treeLayout = RENEWAL_PARK_ENABLED ? bakedTrees as unknown as ReturnType<typeof createTreeLayout> : createTreeLayout()

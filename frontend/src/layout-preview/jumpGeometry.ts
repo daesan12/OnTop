@@ -4,8 +4,8 @@ import { PropBuilder,type PropFinish } from '../world/art/propGeometry'
 import type { JumpTheme } from './jumpCourse'
 import { JUMP_START,JUMP_FINISH } from './jumpCourse'
 
-function slab(b:PropBuilder,kind:PropFinish,color:string,w:number,d:number,h:number,y=0) {
-  if(SIMPLE_MAP){b.box(kind,color,[0,y-h/2,0],[w,h,d]);return}
+function slab(b:PropBuilder,kind:PropFinish,color:string,w:number,d:number,h:number,y=0,simple=SIMPLE_MAP) {
+  if(simple){b.box(kind,color,[0,y-h/2,0],[w,h,d]);return}
   const shape=new Shape(),r=.12
   shape.moveTo(-w/2+r,-d/2);shape.lineTo(w/2-r,-d/2);shape.quadraticCurveTo(w/2,-d/2,w/2,-d/2+r);shape.lineTo(w/2,d/2-r);shape.quadraticCurveTo(w/2,d/2,w/2-r,d/2);shape.lineTo(-w/2+r,d/2);shape.quadraticCurveTo(-w/2,d/2,-w/2,d/2-r);shape.lineTo(-w/2,-d/2+r);shape.quadraticCurveTo(-w/2,-d/2,-w/2+r,-d/2)
   const g=new ExtrudeGeometry(shape,{depth:Math.max(.01,h-.06),bevelEnabled:true,bevelSize:.03,bevelThickness:.03,bevelSegments:4,curveSegments:12});g.rotateX(-Math.PI/2)
@@ -24,7 +24,7 @@ function coinGeometry(size=2,depth=.2) {
   const h=new Path(),hole=size*.46;h.moveTo(-hole,-hole);h.lineTo(-hole,hole);h.lineTo(hole,hole);h.lineTo(hole,-hole);h.closePath();s.holes.push(h)
   return new ExtrudeGeometry(s,{depth,bevelEnabled:true,bevelThickness:.025,bevelSize:.025,bevelSegments:SIMPLE_MAP?1:2,curveSegments:SIMPLE_MAP?8:48})
 }
-function themeModel(theme:JumpTheme) {
+function themeModel(theme:JumpTheme, simple=SIMPLE_MAP) {
   const b=new PropBuilder([16,10])
   if(theme==='stone') {
     slab(b,'stone','#ccc6b7',1.8,1.8,.24)
@@ -52,7 +52,7 @@ function themeModel(theme:JumpTheme) {
     b.box('paint','#5b1f1a',[0,-.5,0],[1.6,.035,.06])
   } else if(theme==='cloud') {
     for(const [x,y,z,r] of [[0,-.45,0,.85],[-.65,-.45,.1,.6],[.65,-.43,-.08,.6],[.1,-.34,-.6,.57],[-.1,-.4,.6,.58],[.38,-.27,.3,.52]]) {
-      const g=new SphereGeometry(1,SIMPLE_MAP?6:18,SIMPLE_MAP?4:12);g.scale(r!,r!*.85,r!);g.translate(x!,y!,z!);const p=g.getAttribute('position');for(let i=0;i<p.count;i++)p.setY(i,Math.min(0,p.getY(i)));g.computeVertexNormals();b.add('paint',g,'#edf0eb')
+      const g=new SphereGeometry(1,simple?6:18,simple?4:12);g.scale(r!,r!*.85,r!);g.translate(x!,y!,z!);const p=g.getAttribute('position');for(let i=0;i<p.count;i++)p.setY(i,Math.min(0,p.getY(i)));g.computeVertexNormals();b.add('paint',g,'#edf0eb')
     }
   } else if(theme==='lantern') {
     b.cylinder('paint','#cf3a2f',[0,-.43,0],.56,.6,.48,[0,0,0],24)
@@ -68,7 +68,7 @@ function themeModel(theme:JumpTheme) {
     }
     b.cylinder('glow','#ffdb97',[0,-.02,0],.62,.62,.025,[0,0,0],24)
   } else if(theme==='kite') {
-    slab(b,'paint','#e5dfcc',1.6,1.9,.05)
+    slab(b,'paint','#e5dfcc',1.6,1.9,.05,0,simple)
     for(let i=0;i<17;i++)b.curve('paint',i%3?'#d3ccb9':'#c6beaa',[[-.76,.008,-.82+i*.1],[-.2,.009,-.81+i*.1],[.25,.008,-.83+i*.1],[.76,.009,-.82+i*.1]],.0018,8)
     b.box('paint','#c8372d',[0,.008,-.77],[1.5,.018,.22])
     b.cylinder('paint','#2a4fa0',[0,.018,0],.32,.32,.018,[0,0,0],32)
@@ -90,6 +90,10 @@ function themeModel(theme:JumpTheme) {
   }
   return b.finish()
 }
+export function buildServiceJumpPadArt() {
+  return { cloud: themeModel('cloud', true), fish: themeModel('fish', true), kite: themeModel('kite', true) }
+}
+
 export const jumpArt=Object.fromEntries(['stone','gomoku','fish','cloud','lantern','kite','lily','gate'].map(t=>[t,themeModel(t as JumpTheme)])) as Record<JumpTheme,ReturnType<PropBuilder['finish']>>
 export { jumpmapGuideArt as jumpStartArt } from '../features/jumpmap/guideArt'
 const finish=new PropBuilder();finish.add('gold',coinGeometry(2.6,.08),'#dba944',[JUMP_FINISH.x,JUMP_FINISH.y,JUMP_FINISH.z],[1,1,1],[-Math.PI/2,0,0])

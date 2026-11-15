@@ -6,6 +6,7 @@ export interface TableAnchor extends LegacyAnchor {
   boardOffsetY?: number
   seatSurfaceY?: number
   interactionPoints?: readonly LegacyAnchor['position'][]
+  exitPoints?: readonly LegacyAnchor['position'][]
 }
 
 export function tableScale(anchor: Pick<TableAnchor, 'pavilionId' | 'boardScale'>) {

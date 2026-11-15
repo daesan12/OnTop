@@ -19,6 +19,7 @@ export function TableFurniture({ anchor, onInspect = interactWithTable, nativeFu
   anchor: TableAnchor; onInspect?: (id: string) => void; nativeFurniture?: boolean; children?: ReactNode
 }) {
   const fourSeats = true
+  const stoneGameTable = anchor.assetId === 'procedural/stone-game-table'
   const mainPavilion = anchor.pavilionId === 'P0'
   const seatCount = usePresentedChairCount(anchor)
   const parts = useMemo(() => {
@@ -108,6 +109,9 @@ export function TableFurniture({ anchor, onInspect = interactWithTable, nativeFu
       ) : (
         <>
           <Instances
+            name={stoneGameTable ? 'stone-game-table-surfaces' : undefined}
+            // Keep the optimized surface mounted when the server changes the seat count.
+            capacity={stoneGameTable ? (anchor.id === STONE_RUMBLE_ANCHOR_ID ? 9 : 5) : undefined}
             parts={parts.stone}
             material={
               <SurfaceMaterial

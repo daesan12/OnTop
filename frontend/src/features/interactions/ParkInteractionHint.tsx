@@ -18,6 +18,7 @@ import { useTableLobby } from '../tableLobby/state'
 import { useDisplayGame as useGame } from '../../game/displayGame'
 import { FitnessRewardPanel } from '../fitness/FitnessRewardPanel'
 import { CARRY_ESCAPE_PRESSES } from '../carry/escape'
+import { parkMinigameInUse } from '../operation/parkGameplay'
 
 export function ParkInteractionHint() {
   const { benchId, fitnessId } = useSession(useShallow(s => ({ benchId: s.benchId, fitnessId: s.fitnessId })))
@@ -25,7 +26,7 @@ export function ParkInteractionHint() {
   const fitness = useFitnessState(useShallow(s => ({ pending: s.pending, error: s.error })))
   const telescopePending = useTelescopeState(s => s.pending)
   const actionPending = useSession(s => s.pending)
-  const fitnessRewards = useFacilityState(s => s.options?.fitnessRewardsEnabled === true)
+  const fitnessRewards = useFacilityState(s => s.options?.fitnessRewardsEnabled)
   const joiningTable = useTableLobby(s => !!s.joiningAnchorId)
   const entryNotice = useTableLobby(s => s.entryNotice)
   const omokWatching = useGame(s => s.game?.role === 'SPECTATOR' && !!s.game.omok && !!s.watchedGameId)
@@ -34,7 +35,7 @@ export function ParkInteractionHint() {
   useEffect(() => {
     const sample = () => {
       const carrying = avatars.get(useSession.getState().sessionId)?.carry ?? null
-      parkRuntime.setInteractionBusy?.(panelBlocksCarry(!!carrying))
+      parkRuntime.setInteractionBusy?.(panelBlocksCarry(!!carrying), false, parkMinigameInUse())
       const next = getParkInteraction()
       setCarry(old => old?.carryId === carrying?.carryId && old?.role === carrying?.role ? old : carrying)
       setTarget(old => old?.id === next?.id && old?.label === next?.label && old?.seat === next?.seat && old?.occupied === next?.occupied
@@ -54,7 +55,8 @@ export function ParkInteractionHint() {
     {fitnessId ? <>
       <strong>{station?.name} 이용 중{fitnessService.mode === 'mock' ? ' · 목업' : ''}</strong>
       <small>{station?.instruction}</small>
-      {fitnessRewards && <FitnessRewardPanel />}
+      {fitnessRewards ? <FitnessRewardPanel /> : fitnessRewards === false &&
+        <small>이 환경에서는 운동 보상을 지급하지 않아요.</small>}
     </> : benchId ? <>
       <strong>벤치 이용 중{benchService.mode === 'mock' ? ' · 목업' : ''}</strong>
       <BenchSpectatorControls />
@@ -62,7 +64,7 @@ export function ParkInteractionHint() {
       disabled={pending || fitness.pending || telescopePending || joiningTable || target.occupied || !target.available}
       onClick={event => { interactWithPark(); event.currentTarget.blur() }}>
       <kbd>E</kbd> {target.occupied ? target.kind === 'fitness' || target.kind === 'telescope' ? `${target.occupant} 님이 사용 중 · ${target.label}` : '벤치에 빈자리가 없어요'
-        : target.available ? target.label : target.kind === 'fitness' ? '운동기구 서버 연결 필요' : target.kind === 'telescope' ? '망원경 서버 연결 필요' : '벤치 서버 연결 필요'}
+        : target.available || target.kind === 'interior-access' ? target.label : target.kind === 'fitness' ? '운동기구 서버 연결 필요' : target.kind === 'telescope' ? '망원경 서버 연결 필요' : '벤치 서버 연결 필요'}
       {target.kind === 'bench' && target.available && benchService.mode === 'mock' && ' · 목업'}
       {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
       {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}

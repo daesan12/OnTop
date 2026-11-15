@@ -191,10 +191,11 @@ public final class LocalWorldAi implements WorldAiBridge, AutoCloseable {
                     com.ssafy.ontop.world.movement.ParkNavigation.Point a,com.ssafy.ontop.world.movement.ParkNavigation.Point b) { return navigation.path(a,b); }
             public boolean lineClear(com.ssafy.ontop.world.movement.ParkNavigation.Point a,com.ssafy.ontop.world.movement.ParkNavigation.Point b) { return navigation.lineClear(a,b); }
             public boolean requiresTeleport(String actor,com.ssafy.ontop.world.movement.ParkNavigation.Point target) {
-                return Math.abs(target.y()-navigation.groundPoint(target.x(),target.z()).y())>.35;
+                return navigation.isInWater(target)
+                        || Math.abs(target.y()-navigation.groundPoint(target.x(),target.z()).y())>.35;
             }
             public com.ssafy.ontop.world.movement.ParkNavigation.Point approachPoint(com.ssafy.ontop.world.movement.ParkNavigation.Point target) {
-                return navigation.groundPoint(target.x(),target.z());
+                return navigation.policeApproach(target);
             }
             public boolean canPatrolFrom(com.ssafy.ontop.world.movement.ParkNavigation.Point point) {
                 return !navigation.path(point,point).isEmpty();

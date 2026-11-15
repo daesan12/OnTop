@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -27,9 +28,23 @@ public interface JumpmapStore {
     record RewardKey(String runId, int gate) {}
     record RankingEntry(int rank, String userId, String nickname, long finishMs, String finishedAt) {}
     record Ranking(List<RankingEntry> items, RankingEntry me) {}
+    /** 반복 패턴으로 기록할 판 하나의 규칙 한 건. 운영자 조회 전용이다. */
+    record MacroDetection(String runId, long userId, String rule, int matchedRuns, Map<String, Object> evidence,
+            Instant detectedAt) {}
+    /** 한 번 이상 기록된 회원. 적발 수는 규칙 건수가 아니라 판 수다. */
+    record MacroSuspect(String userId, String nickname, boolean withdrawn, int flaggedRuns, int replayRuns,
+            int fixedStartRuns, long totalRuns, Long bestFinishMs, String firstDetectedAt, String lastDetectedAt) {}
 
     default Ranking ranking(long userId) {
         return new Ranking(List.of(), null);
+    }
+
+    /** 같은 (판, 규칙)은 한 번만 남긴다. 저장하지 않는 구현은 버린다. */
+    default void recordDetection(MacroDetection detection) { }
+
+    /** 적발 판이 많은 순, 같으면 최근 적발 순. */
+    default List<MacroSuspect> macroSuspects(int limit) {
+        return List.of();
     }
 
     /** 점프맵 테이블(V131)이 현재 DB에 있는지. 없으면 플래그를 켜도 점프맵만 비활성으로 두고 서버는 시작한다. */

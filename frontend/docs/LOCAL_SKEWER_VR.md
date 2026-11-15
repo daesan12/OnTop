@@ -12,8 +12,8 @@ frontend 폴더에서 다음을 실행한다.
 ```
 
 - `http://127.0.0.1:5187/skewer.html`: 로그인 없는 무료 연습.
-- `http://127.0.0.1:5187/vr-zone.html`: 게임/방식 선택과 별도 테스트 이용권 100냥.
-- 실제 공원은 `scripts/start-skewer-park.ps1`로 실행하며 서버 지갑의 한 판 이용료 10냥을 사용한다. 개발용 테스트 잔액을 쓰려면 명시적으로 `-UseTestAdmission`을 지정한다.
+- `http://127.0.0.1:5187/vr-zone.html`: 무료 연습으로 들어가는 VR 건물 미리보기.
+- 실제 공원은 `scripts/start-skewer-park.ps1`로 실행하며 VR 건물 내부에서 무료 2인 협동을 연다.
 
 ## 규칙
 
@@ -40,17 +40,17 @@ VR은 Three.js immersive-vr/local-floor와 양손 컨트롤러를 사용한다. 
 
 ## 결과·자원
 
-실제 주문 기록의 점수·성공률·인사 보너스를 결과에 표시하고, 설명서와 주문별 기록을 열 수 있다. 다시 도전은 새 판이며 실제 공원에서는 10냥이다. 목록 복귀는 무료다. 점수는 엽전 보상으로 바뀌지 않는다.
+실제 주문 기록의 점수·성공률·인사 보너스를 결과에 표시하고, 설명서와 주문별 기록을 열 수 있다. 다시 도전하면 무료 연습을 새로 시작한다. 점수는 엽전 보상으로 바뀌지 않는다.
 
 음식 모델·공유 재질은 `foodModels.ts`, `surfaces.ts`, 입력/월드 표시는 `SkewerScene.ts`, 게임 규칙은 `game.ts`, 안내는 `presentation.ts`, 결과는 `SkewerResult.tsx`다. 원작 카드 도안은 복제하지 않는다. 기존 이미지와 재질 생성 기록은 게임 art 폴더와 VR 존 generation.json에 둔다.
 
-효과음은 사용자 동작 후 합성하며 음소거를 PC/VR이 공유한다. reduced-motion에서는 꽂기 애니메이션·입자 효과를 줄인다. 탭을 나간 뒤 게임 진행 복원을 보장하지 않으며 유료 이용권은 서버 원장으로만 확정한다.
+효과음은 사용자 동작 후 합성하며 음소거를 PC/VR이 공유한다. reduced-motion에서는 꽂기 애니메이션·입자 효과를 줄인다. 탭을 나간 뒤에는 연습 진행이 복원되지 않는다.
 
 ## 검사
 
 ```powershell
 node node_modules/typescript/bin/tsc --noEmit
-node node_modules/vitest/vitest.mjs run tests/unit/skewer.test.ts tests/unit/skewerPresentation.test.ts tests/unit/skewerSurfaces.test.ts tests/unit/skewerAdmission.test.ts tests/unit/skewerParkEntrance.test.ts tests/unit/vrZone.test.ts
+node node_modules/vitest/vitest.mjs run tests/unit/skewer.test.ts tests/unit/skewerPresentation.test.ts tests/unit/skewerSurfaces.test.ts tests/unit/skewerParkEntrance.test.ts tests/unit/vrZone.test.ts
 node node_modules/@playwright/test/cli.js test --config playwright.vr-zone.config.ts
 node node_modules/vite/bin/vite.js build --config vite.skewer.config.ts
 ```

@@ -1,20 +1,24 @@
-import { MOVEMENT } from '../src/config'
-import { DRAFT_FOUNTAIN, SITES as originalSites } from '../src/layout-preview/layout'
+import { GARDEN_PAGODA, MOVEMENT, PAGODA_TIERS } from '../src/config'
+import { DRAFT_FITNESS_STATIONS, DRAFT_FOUNTAIN, SITES as originalSites } from '../src/layout-preview/layout'
 import { PARK_DATA } from '../src/map/park'
-import { facilityYaw } from './facilityPlacement'
+import { ARCADE_SCALE } from './assetSizing'
+import { VR_SKEWER_HALL } from './approved/vr-skewer-hall-20261107-v1/core/frontend/src/features/skewer/parkAsset/vrSkewerHallGeometry'
+import { facilityBase, facilityYaw } from './facilityPlacement'
 import { benches } from './landscape'
 import { outdoorStoneTableParts } from './original/features/tables/outdoorStoneTableParts'
 import {
-  FISHING_BENCHES, FISHING_DECK, JUMP_TABLES, LAKE, REST_PAVILIONS,
+  BALLOON_SCALE, FISHING_BENCHES, FISHING_DECK, FISHING_NOTICE, FISHING_ROD_RACKS, FISHING_SHOP, JUMP_TABLES, LAKE,
+  RENTAL_PAIR_SPACING, RENTAL_VEHICLE_X, REST_PAVILIONS, SITES, STATION_BENCH, STATION_SCALE,
   SUB_PAVILION_SCALE, TABLES, facilityGroundY, heightAt, site, type Point,
 } from './plan'
 import { TOWER_TOP } from './towerFurniturePlan'
-import { pavilionBenchSegments } from './pavilionBenchLayout'
+import { REST_FURNITURE_VERTICAL_SCALE, pavilionBenchSegments } from './pavilionBenchLayout'
 
 type Placement = { x: number; y: number; z: number; yaw: number; scale?: number }
 type Shape = { kind: 'circle'; radius: number } | { kind: 'box'; halfX: number; halfZ: number; cos: number; sin: number }
 type Blocker = Shape & { x: number; z: number; bottom: number; top: number }
 const blockers: Blocker[] = []
+const furnitureHeight = PARK_DATA.physics.furniturePolicy.movementHeight
 export const parkPropBlockers: readonly Blocker[] = blockers
 
 const cell = 4
@@ -135,13 +139,14 @@ function subPavilion(p: Placement) {
     box(p, column, .46, .46, .57, .83)
     circle(p, column, .165, .83, 3.51)
     const b = restBenchSegments.find(segment => segment.side === i)
-    if (b) box(p, [b.x, b.z], b.width, b.depth, .57, b.floor + b.seatHeight, b.yaw)
+    if (b) box(p, [b.x, b.z], b.width, b.depth, .57, b.floor + b.seatHeight * REST_FURNITURE_VERTICAL_SCALE, b.yaw)
   }
   for (const x of [-.92, .92]) {
-    for (let i = 0; i < 3; i++) box(p, [x, 2.84 + i * .35], .26, .52, .01, .67 - i * .15)
+    // The three moulded stone sides form one continuous stair edge.
+    for (let i = 0; i < 3; i++) box(p, [x, 2.84 + i * .35], .26, .52, -.09, .67 - i * .15)
   }
-  circle(p, [0, 0], .7, .57, 1.363)
-  for (const z of [-1.05, 1.05]) circle(p, [0, z], .28, .57, 1.08)
+  circle(p, [0, 0], .7, .57, .57 + furnitureHeight / p.scale!)
+  for (const z of [-1.05, 1.05]) circle(p, [0, z], .28, .57, .57 + furnitureHeight / p.scale!)
 }
 
 const subScale = 1.1 * SUB_PAVILION_SCALE
@@ -166,8 +171,123 @@ for (let i = 0; i < 8; i++) {
   const b = mainBenchSegments.find(segment => segment.side === i)
   if (b) box(mainPlacement, [b.x, b.z], b.width, b.depth, b.floor, b.floor + b.seatHeight, b.yaw)
 }
-circle(mainPlacement, [0, 0], 2.1, 2.6, 3.77)
-for (const z of [-2.95, 2.95]) box(mainPlacement, [0, z], .61, .61, 2.6, 3.26)
+circle(mainPlacement, [0, 0], 2.1, 2.6, 2.6 + furnitureHeight)
+for (const z of [-2.95, 2.95]) box(mainPlacement, [0, z], .61, .61, 2.6, 2.6 + furnitureHeight)
+
+function atSite(id: string): Placement {
+  const s = site(id)
+  return { x: s.x, y: facilityBase(id), z: s.z, yaw: facilityYaw(s) }
+}
+
+// Use the body, not the roof eaves or the entire graded site, for closed stalls.
+const stalls = [
+  ['fortune', 4.1, 2.65, 2.65], ['lottery', 3.8, 2.65, 2.7],
+  ['mole', 10.8, 6.8, 4.1], ['gacha', 3.5, 3.45, 4.65],
+  ['bread', 8.5, 5.6, 3.25], ['pigeon', 8.5, 5.6, 3.5], ['cafe', 8.5, 5.6, 3.5],
+] as const
+for (const [id, width, depth, high] of stalls) box(atSite(id), [0, 0], width, depth, -.18, high)
+box(atSite('stele'), [0, 0], 1.65, .94, -.2, 2.15)
+const mailbox = atSite('mailbox')
+box(mailbox, [0, 0], 1.65, 1.1, -.18, 3.15)
+const ranking = atSite('ranking')
+box(ranking, [0, 0], 7.4, .56, .18, 4.35)
+for (const x of [-3.5, 3.5]) box(ranking, [x, 0], .45, .88, -.18, .55)
+const tackleShop = { ...FISHING_SHOP, y: FISHING_SHOP.y + .1 }
+box(tackleShop, [0, 0], 3.3 * 1.8, 2.28 * 1.8, -.16, .38 * 1.35)
+box(tackleShop, [0, .09], 3.0 * 1.8, 2.21 * 1.8, .30, 2.78 * 1.35)
+box({ ...FISHING_NOTICE, y: heightAt(FISHING_NOTICE.x, FISHING_NOTICE.z) + .1 },
+  [0, .02], 2.38, .31, -.12, 2.22)
+for (const [x, z] of FISHING_ROD_RACKS) box({ x, z, y: FISHING_DECK.top, yaw: -Math.PI / 2 }, [0, 0], 1.55, .58, 0, 1)
+
+function walls(p: Placement, width: number, depth: number, height: number, door: number, thickness: number) {
+  const side = (width - door) / 2
+  box(p, [0, -depth / 2], width + thickness, thickness, -.22, height)
+  for (const sign of [-1, 1]) {
+    box(p, [sign * width / 2, 0], thickness, depth + thickness, -.22, height)
+    box(p, [sign * (door / 2 + side / 2), depth / 2], side + thickness / 2, thickness, -.22, height)
+  }
+}
+const arcade = atSite('arcade')
+walls(arcade, 18 * ARCADE_SCALE[0], 12 * ARCADE_SCALE[2], 6.4 * ARCADE_SCALE[1], 4.6 * ARCADE_SCALE[0], .22)
+for (const x of [-6, -2]) box(arcade, [x * ARCADE_SCALE[0], -3.6 * ARCADE_SCALE[2]], .92, .67, .07, 2)
+const vr = atSite('vr')
+walls(vr, VR_SKEWER_HALL.width, VR_SKEWER_HALL.depth, VR_SKEWER_HALL.height, VR_SKEWER_HALL.doorWidth, .2)
+for (const x of VR_SKEWER_HALL.stations) box(vr, [x, -2.85], 1.8, 1.15, .06, 1.65)
+circle(vr, [-4.5, 5.4], .8, -.1, 1.15)
+// Open-front structures retain their approach and floor.
+for (const id of ['folk', 'shooting']) {
+  const p = atSite(id)
+  // Both art pieces are currently scenery; block running through the open display bays.
+  box(p, [0, 0], 9.3, 5.8, -.3, id === 'shooting' ? 3.1 : 2.8)
+}
+const shooting = atSite('shooting')
+for (let step = 0; step < 3; step++) {
+  const top = (3-step) * .216
+  const z = 2.98 + step * .38
+  box(shooting, [0,z], 3.28, .54, -.18, top)
+  for (const side of [-1,1]) box(shooting, [side * 1.82,z+.02], .32, .56, -.18, top+.26)
+}
+for (const station of DRAFT_FITNESS_STATIONS) {
+  const [x, y, z] = station.position
+  box({ x: x + gym.x - originalSites.fitness.x, y: gymPlacement.y + y, z: z + gym.z - originalSites.fitness.z,
+    yaw: station.yaw }, [0, 0], 1.68, 1.29, -.16, 1.95)
+}
+for (const s of SITES.filter(s => s.asset === 'pair')) {
+  const p = atSite(s.id)
+  for (const side of [-1, 1]) {
+    const dx = side * RENTAL_PAIR_SPACING / 2
+    for (const x of [-1.38, 1.38]) box(p, [dx + x, .66], .24, .24, -.16, 2.05)
+    for (const x of RENTAL_VEHICLE_X) {
+      box(p, [dx + x, side < 0 ? -.29 : -.06], side < 0 ? .52 : .4, side < 0 ? 1.76 : 1.31, .06, 1.31)
+    }
+  }
+}
+const stationSite = site('balloon')
+const station = { x: stationSite.x, y: heightAt(stationSite.x, stationSite.z), z: stationSite.z, yaw: 0 }
+const stationFloor = .65 * STATION_SCALE
+bench({ x: station.x + STATION_BENCH.x, y: station.y + STATION_BENCH.floor,
+  z: station.z + STATION_BENCH.z, yaw: 0 }, 1, STATION_BENCH.seatHeight)
+circle(station, [0, 0], 5.95 * 1.6 * STATION_SCALE, -.25, stationFloor)
+const stationRailPoint = (a: number): Point => [Math.sin(a) * 5.73 * 1.6 * STATION_SCALE, Math.cos(a) * 5.73 * 1.6 * STATION_SCALE]
+for (let i = 0; i < 28; i++) {
+  const angle = (n: number) => .31 + n * (Math.PI * 2 - .62) / 28
+  rail(station, stationRailPoint(angle(i)), stationRailPoint(angle(i + 1)), .24, stationFloor, stationFloor + 1.24 * STATION_SCALE)
+}
+for (const x of [-2.125, 2.125]) for (const z of [-1.35, 1.35]) {
+  circle(station, [(x - 2.15) * 1.6 * STATION_SCALE, (z - 1.7) * 1.6 * STATION_SCALE], .23 * STATION_SCALE,
+    stationFloor, stationFloor + 2.8 * STATION_SCALE)
+}
+const shelterScale = 1.6 * STATION_SCALE
+for (const x of [-4.275, -.025]) {
+  rail(station, [x * shelterScale, -2.97 * shelterScale], [x * shelterScale, -.65 * shelterScale],
+    .30, stationFloor, stationFloor + 2.55 * STATION_SCALE)
+}
+rail(station, [-4.275 * shelterScale, -2.97 * shelterScale], [-.025 * shelterScale, -2.97 * shelterScale],
+  .30, stationFloor, stationFloor + 2.55 * STATION_SCALE)
+const basket = { ...station, x: station.x + 2.35 * 1.6 * STATION_SCALE,
+  y: station.y + stationFloor - .37 * BALLOON_SCALE + .12, scale: BALLOON_SCALE }
+circle(basket, [0, 0], 1.87, .04, .38)
+for (let i = 0; i < 20; i++) {
+  const edge = (n: number): Point => [1.81 * Math.sin(n * Math.PI / 10), 1.81 * Math.cos(n * Math.PI / 10)]
+  rail(basket, edge(i), edge(i + 1), .15, .32, 1.57)
+}
+const pagoda = atSite('pagoda')
+const pagodaBase = GARDEN_PAGODA.baseWidth
+box(pagoda, [0, 0], pagodaBase, pagodaBase, 1.8, 1.8 + GARDEN_PAGODA.pedestalTop)
+box(pagoda, [0, 0], pagodaBase * .49, pagodaBase * .49, 1.8, 1.8 + GARDEN_PAGODA.height)
+const jumpSite = site('jump')
+const jumpBase = { x: jumpSite.x, y: heightAt(jumpSite.x, jumpSite.z), z: jumpSite.z, yaw: 0, scale: .8 }
+const jumpWidth = GARDEN_PAGODA.widthScale
+// Match the stepped profiles. The outer lip is only .24 m high in model space.
+for (const [width, bottom, top] of [[7.4, -.12, .24], [6, .24, .76], [5.55, .76, 1.47], [5.3, 1.47, 1.92], [4.85, 1.92, 2.6]] as const) {
+  box(jumpBase, [0, 0], width * 1.15 * jumpWidth, width * 1.15 * jumpWidth, bottom, top)
+}
+for (const tier of PAGODA_TIERS) {
+  const width = tier.width * jumpWidth * .69
+  const depth = tier.cross ? width * .55 : width
+  box(jumpBase, [0, 0], width, depth, tier.y, tier.y + tier.bodyHeight)
+  if (tier.cross) box(jumpBase, [0, 0], depth, width, tier.y, tier.y + tier.bodyHeight)
+}
 
 export function hitsParkProp(x: number, z: number, foot: number) {
   const nearby = bins.get(binKey(Math.floor(x / cell), Math.floor(z / cell)))

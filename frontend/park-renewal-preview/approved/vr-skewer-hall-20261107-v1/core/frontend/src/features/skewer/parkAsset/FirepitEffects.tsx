@@ -1,8 +1,9 @@
 import {useEffect,useMemo,useRef} from 'react'
 import {useFrame} from '@react-three/fiber'
 import {AdditiveBlending,BufferGeometry,DoubleSide,Float32BufferAttribute,ShaderMaterial,Vector3,type Group} from 'three'
-import {armUnlock,effectsOutput} from '../../../../../../../../../src/audio/bgm.ts'
+import {armUnlock,effectsOutput,setFirepitAudioFocus} from '../../../../../../../../../src/audio/bgm.ts'
 import {setSfxListener} from '../../../../../../../../../src/audio/sfx.ts'
+import {avatars,useSession} from '../../../../../../../../../src/network/worldClient.ts'
 import {cameraWorldPosition} from '../../../../../../../../../src/world/xrView.ts'
 import {FIREPIT_AUDIO,firepitLevel,startFirepitVoice} from './firepitAudio'
 
@@ -20,6 +21,7 @@ export function FirepitEffects(){
   return {flame,geometry,smoke,sparks,pool,source:new Vector3(),forward:new Vector3()}
  },[])
  useEffect(()=>{armUnlock();return()=>{voice.current?.stop();voice.current=null;resources.flame.dispose();resources.geometry.dispose();resources.smoke.dispose();resources.sparks.dispose();resources.pool.dispose()}},[resources])
+ useEffect(()=>()=>setFirepitAudioFocus(0),[])
  useFrame(({camera,clock,size,gl})=>{
   if(!root.current)return
   root.current.getWorldPosition(resources.source);const ear=cameraWorldPosition(camera),distance=ear.distanceTo(resources.source),time=clock.elapsedTime
@@ -28,10 +30,13 @@ export function FirepitEffects(){
   resources.smoke.uniforms.pixels!.value=size.height*gl.getPixelRatio();resources.sparks.uniforms.pixels!.value=size.height*gl.getPixelRatio()
   if(time-last.current<.05)return;last.current=time
   camera.getWorldDirection(resources.forward);setSfxListener(ear,resources.forward)
+  const player=avatars.get(useSession.getState().sessionId)?.current
+  const soundDistance=player?resources.source.distanceTo(player):distance
   const out=effectsOutput(),active=voice.current
-  if(distance>FIREPIT_AUDIO.stop&&active){active.stop();voice.current=null}
-  if(out&&!voice.current&&distance<FIREPIT_AUDIO.start)voice.current=startFirepitVoice(out.context,out.bus,resources.source)
-  const level=out?firepitLevel(distance):0;voice.current?.update(level)
+  if(soundDistance>FIREPIT_AUDIO.stop&&active){active.stop();voice.current=null}
+  if(out&&!voice.current&&soundDistance<FIREPIT_AUDIO.start)voice.current=startFirepitVoice(out.context,out.bus,resources.source)
+  const level=out?firepitLevel(soundDistance):0;voice.current?.update(level)
+  setFirepitAudioFocus(player && root.current.parent?.visible !== false ? level : 0)
   root.current.userData.audio={state:out?(voice.current?'running':'out-of-range'):'locked',distance,level}
  })
  return <group ref={root} name="vr-skewer-fire-effects" position={[-4.5,.96,5.4]}>

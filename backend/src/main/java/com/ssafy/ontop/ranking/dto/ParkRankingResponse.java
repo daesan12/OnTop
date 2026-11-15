@@ -7,11 +7,19 @@ import java.util.List;
 public record ParkRankingResponse(@Size(max = 10) List<BalanceItem> balance,
                                   @Size(max = 10) List<MoleItem> mole,
                                   @Size(max = 10) List<SpeedMoleItem> speedMole,
+                                  @Size(max = 10) List<JumpRopeItem> jumpRope,
                                   Instant updatedAt) {
     public ParkRankingResponse {
         balance = List.copyOf(balance);
         mole = List.copyOf(mole);
         speedMole = List.copyOf(speedMole);
+        jumpRope = List.copyOf(jumpRope);
+    }
+
+    /** 줄넘기 열이 없던 호출부용. 줄넘기는 빈 목록이다. */
+    public ParkRankingResponse(List<BalanceItem> balance, List<MoleItem> mole, List<SpeedMoleItem> speedMole,
+            Instant updatedAt) {
+        this(balance, mole, speedMole, List.of(), updatedAt);
     }
 
     public record BalanceItem(long rank, String userId, String nickname, long coinBalance, boolean gameMaster,
@@ -37,5 +45,9 @@ public record ParkRankingResponse(@Size(max = 10) List<BalanceItem> balance,
                 Instant completedAt) {
             this(rank, userId, nickname, score, misses, completedAt, false);
         }
+    }
+
+    public record JumpRopeItem(long rank, String userId, String nickname, long score, long misses,
+                               Instant completedAt, boolean gameMaster) {
     }
 }

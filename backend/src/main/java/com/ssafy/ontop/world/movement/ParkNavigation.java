@@ -86,11 +86,8 @@ public final class ParkNavigation implements AutoCloseable {
     private boolean walkable(int x,int z) {
         return walkable.computeIfAbsent(key(x,z),ignored -> {
             if(Math.abs(x)>half-1 || Math.abs(z)>half-1) return false;
-            var p=point(x,z); var lake=scene.data.path("lake");
-            // Ground-only NPC never swims or climbs onto roofs/raised platforms.
-            double ellipse=Math.pow((x-lake.path("x").asDouble())/lake.path("radiusX").asDouble(1),2)
-                    +Math.pow((z-lake.path("z").asDouble())/lake.path("radiusZ").asDouble(1),2);
-            if(ellipse<1.02 && p.y-.8<lake.path("surfaceY").asDouble()-.1) return false;
+            var p=point(x,z);
+            if (isInWater(p)) return false;
             var pose=new ClientPositionValidator.Pose(p.x,p.y,p.z);
             return collision.supported(pose) && collision.clear(pose,pose,false);
         });
@@ -176,8 +173,20 @@ public final class ParkNavigation implements AutoCloseable {
         return collision.clear(new ClientPositionValidator.Pose(from.x,from.y,from.z),
                 new ClientPositionValidator.Pose(to.x,to.y,to.z),false);
     }
+    public boolean isInWater(Point point) {
+        var lake = scene.data.path("lake");
+        double x = (point.x - lake.path("x").asDouble()) / lake.path("radiusX").asDouble(1);
+        double z = (point.z - lake.path("z").asDouble()) / lake.path("radiusZ").asDouble(1);
+        return x * x + z * z < 1.02 && point.y - .8 < lake.path("surfaceY").asDouble() - .1;
+    }
+
+    public Point policeApproach(Point target) {
+        return isInWater(target) ? nearest(target, 12).orElse(null) : groundPoint(target.x, target.z);
+    }
+
     /** Visual warning NPC has no player body. Allow an aerial warning, but never inside static geometry. */
     public Point warningPoint(Point actor) {
+        if (isInWater(actor)) return policeApproach(actor);
         for(double[] d:new double[][]{{1.25,0},{-1.25,0},{0,1.25},{0,-1.25},{0,0}}) {
             var point=new Point(actor.x+d[0],actor.y,actor.z+d[1]);
             if(lineClear(actor,point)) return point;

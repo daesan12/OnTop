@@ -94,6 +94,16 @@ public final class PolicePatrol {
             patrolling=false;
             var target=actors.get(active.actor());
             var approach=navigation.approachPoint(target);
+            if (approach == null) {
+                active.privateNotice().accept("물가에서는 가까이 갈 수 없어 메시지로 전해요. 서로 존중하는 말을 사용해주세요.");
+                active = null;
+                route = List.of();
+                next = 0;
+                returning = !navigation.canPatrolFrom(position);
+                planAfter = 0;
+                action = returning ? "RETURN_WAIT" : "PATROL";
+                return view(false);
+            }
             boolean inaccessible=navigation.requiresTeleport(active.actor(),target);
             boolean distant=Math.hypot(position.x()-approach.x(),position.z()-approach.z())>80;
             if(inaccessible||distant) { if(teleportSince<0)teleportSince=now; }

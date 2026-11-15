@@ -21,7 +21,8 @@ import {
   afterDodgeInputMs, clearDuck, createGrandpaRuntime, duckReadyMarginMs, duckTransitionMs, grandpaTiming, isDuckCode, isDucked,
   pressRoundDuck, releaseDuck, type GrandpaEventStatus, type SwingResult,
 } from './grandpaEvent'
-import type { JumpRopeService, JumpRopeSession } from '../features/jumpRope/service'
+import { clearRankedDuck, pressRankedDuck, rankedDuckSpans, releaseRankedDuck, startRankedV2 } from './rankedGrandpa'
+import type { JumpRopeRulesVersion, JumpRopeService, JumpRopeSession } from '../features/jumpRope/service'
 import type { JumpRopeSettlement, submitJumpRope } from '../features/jumpRope/store'
 import type { JumpRopeRankingState } from './jumpRopeRankingData'
 import './preview.css'
@@ -245,8 +246,10 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const [showManholePreview, setShowManholePreview] = useState(false)
   const [demo, setDemo] = useState<{ action: DemoAction; startedAt: number } | null>(null)
   const [round] = useState(() => createPreviewRound('menu'))
-  // Story 420 stage 1 lives only in this unranked preview. The ranked park game never enables it.
+  // The park game enables the grandpa raid only for a server round with rulesVersion 2; v1 rounds stay unchanged.
   const rankedMode = ranked !== undefined
+  const [rulesVersion, setRulesVersion] = useState<JumpRopeRulesVersion | null>(null)
+  const raidOnStage = !rankedMode || rulesVersion === 2
   const [grandpaEnabled, setGrandpaEnabled] = useState(true)
   const [grandpaDebug, setGrandpaDebug] = useState<ReturnType<typeof readGrandpaDebug>>(null)
   const grandpaDebugKey = useRef('')
@@ -347,7 +350,10 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
       settings.autoAcceleration ? settings : undefined)
     if (!rankedMode) runAutoPlay(round, autoPlayRef.current, now, settings)
     if (!previous.endReason && round.endReason && sessionRef.current && round.ranked && rankedOwner) {
-      submitRanked?.({ ...sessionRef.current, owner: rankedOwner, reason: round.endReason, offsets: round.ranked.offsets })
+      // The duck log was closed at the final play time inside advancePreviewRound.
+      const v2 = round.ranked.v2
+      submitRanked?.({ ...sessionRef.current, owner: rankedOwner, reason: round.endReason, offsets: round.ranked.offsets,
+        ...(v2 ? { duckSpans: rankedDuckSpans(v2) } : {}) })
     }
     if (latest?.kind === 'miss' || round.endReason) successDemoRef.current = null
     if (latest?.kind === 'miss' || round.endReason) distractionRef.current = null
@@ -472,11 +478,16 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   }, [demo])
 
   useEffect(() => {
-    if (rankedMode) return
-    /** ↓/S duck for the unranked preview. Every change first advances the round to the key's time. */
+    /**
+     * ↓/S duck for the unranked preview and for a ranked rules v2 round. A ranked v1 round leaves the keys alone.
+     * Every change first advances the round to the key's time, so a contact or passage there resolves first.
+     */
+    const heldKeys = () => rankedMode ? round.ranked?.v2?.keys : round.grandpa?.duck.keys
     function onDuckDown(event: KeyboardEvent) {
+      if (rankedMode && !round.ranked?.v2) return
       if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return
-      if (exitOpenedAt.current !== null) return
+      // The confirm dialog and the manual own the keys; the manual may scroll with the arrow keys.
+      if (exitOpenedAt.current !== null || (canJump && (document.hidden || !canJump()))) return
       // Arrow keys still move a focused slider or select, so only the stage and page receive the duck.
       if (event.target instanceof HTMLElement && event.target.closest(
         'button, input, textarea, select, a[href], [contenteditable="true"]',
@@ -485,22 +496,23 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
       if (event.repeat || finalePreviewRef.current || manholePreviewRef.current) return
       const now = performance.now()
       step(now)
-      pressRoundDuck(round, event.code, sceneTime(now))
+      if (rankedMode) pressRankedDuck(round, event.code)
+      else pressRoundDuck(round, event.code, sceneTime(now))
     }
     function onKeyDown(event: KeyboardEvent) {
       if (isDuckCode(event.code)) onDuckDown(event)
     }
     function onKeyUp(event: KeyboardEvent) {
-      const grandpa = round.grandpa
-      if (!grandpa || !isDuckCode(event.code) || !grandpa.duck.keys.includes(event.code)) return
+      if (!isDuckCode(event.code) || !heldKeys()?.includes(event.code)) return
       step(performance.now())
-      releaseDuck(grandpa.duck, event.code)
+      if (rankedMode) releaseRankedDuck(round, event.code)
+      else releaseDuck(round.grandpa!.duck, event.code)
     }
     function onFocusLost() {
-      const grandpa = round.grandpa
-      if (!grandpa || grandpa.duck.keys.length === 0) return
+      if (!heldKeys()?.length) return
       step(performance.now())
-      clearDuck(grandpa.duck)
+      if (rankedMode) clearRankedDuck(round)
+      else clearDuck(round.grandpa!.duck)
     }
     function onVisibility() {
       if (document.hidden) onFocusLost()
@@ -515,7 +527,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
       window.removeEventListener('blur', onFocusLost)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [rankedMode, round, step, sceneTime])
+  }, [rankedMode, round, step, sceneTime, canJump])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -602,7 +614,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     stageRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
   }
 
-  function resetScene(entry: 'menu' | 'initialCountdown', startsAt?: number, serverSeed?: number) {
+  function resetScene(entry: 'menu' | 'initialCountdown', startsAt?: number, serverSeed?: number, serverVersion?: JumpRopeRulesVersion) {
     resetPreviewRound(round, entry, startsAt)
     setRankingOpen(false)
     finalePreviewRef.current = null
@@ -620,6 +632,9 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
       // The grandpa draws from his own sub-seed, so the pigeon distraction schedule is unchanged.
       const current = controlsRef.current.settings
       round.grandpa = createGrandpaRuntime(seed, grandpaRopeFor(current), grandpaTimingFor(current))
+    } else if (ranked && serverVersion === 2 && serverSeed !== undefined) {
+      // The server's rules v2 schedule from the round seed, judged on the integer play clock.
+      startRankedV2(round, serverSeed)
     }
     grandpaDebugKey.current = ''
     setGrandpaDebug(rankedMode ? null : readGrandpaDebug(round))
@@ -666,7 +681,9 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     sessionRef.current = server ? { id: server.id, expiresAt: now + Date.parse(server.expiresAt) - serverNow } : null
     controlsRef.current.paused = false
     setRopePaused(false)
-    resetScene('initialCountdown', server ? now + Date.parse(server.startedAt) - serverNow : undefined, server?.seed)
+    // The round's rules come from the start response only; the FE never picks or changes them.
+    setRulesVersion(server?.rulesVersion ?? null)
+    resetScene('initialCountdown', server ? now + Date.parse(server.startedAt) - serverNow : undefined, server?.seed, server?.rulesVersion)
     if (exitOpenedAt.current !== null) {
       exitOpenedAt.current = null
       exitDialog.current?.close()
@@ -802,6 +819,8 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const legacyHud = sampleHud ? undefined : demoHud
   const showMenu = inMenu && !hideMenuForPreview && !finalePreview && !showManholePreview && !simulating && !sampleHud && !sampleJudgement
   const showRanking = rankingOpen && (showMenu || resultReason !== null)
+  // The park menu names the duck only once a v2 round has started here: v1 rounds never show the grandpa.
+  const duckRule = rankedMode ? rulesVersion === 2 : grandpaEnabled
   const settlement = ranked?.settlement
   const submissionBlocksStart = settlement?.status === 'saving' || (settlement?.status === 'failed' && settlement.retryable)
   const currentSettlement = settlement?.id === sessionRef.current?.id ? settlement : undefined
@@ -818,7 +837,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
           >
             <PreviewScene settings={settings} demoRef={demoRef} successDemoRef={successDemoRef} simulationRef={simulationRef}
               sampleDistraction={sampleDistractionFrame} round={round} step={step} sceneTime={sceneTime} getFinalePreview={getFinalePreview}
-              grandpa={!rankedMode} />
+              grandpa={raidOnStage} />
           </Canvas>
           {!showMenu && <JumpRopeHud
             seconds={sampleHud?.seconds ?? hud.seconds}
@@ -832,10 +851,12 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
               : liveFeedback ? `live-${liveFeedback.number}` : demo ? `demo-${demo.startedAt}` : undefined}
             sample={sampleHud !== null || sampleJudgement !== null}
           />}
-          {showMenu && <JumpRopeMenu onStart={startGame} onOpenRanking={openRanking} rankingOpen={showRanking}
+          {showMenu && <JumpRopeMenu onStart={startGame} onOpenRanking={openRanking} rankingOpen={showRanking} duckRule={duckRule}
             startDisabled={starting || submissionBlocksStart} status={starting ? '서버 라운드를 준비하는 중입니다.' : startError || saveStatus} onRetry={retry} />}
           {countdown && !paused && !simulating && !finalePreview && !showManholePreview && !sampleHud && !sampleJudgement &&
             <div className="rope-countdown" role="status" aria-label="시작 카운트다운">{countdown}</div>}
+          {countdown && rankedMode && rulesVersion === 2 && !finalePreview &&
+            <p className="rope-rule-hint" role="note">할아버지가 빗자루를 휘두르면 <kbd>↓</kbd> 또는 <kbd>S</kbd>를 눌러 숙이세요. 맞으면 다음 줄이 MISS예요.</p>}
           <div ref={poopSplatRef} className="distraction-splash" hidden><GameOverSplash /></div>
           {showSplash && <GameOverSplash />}
           {finalePreview && !previewResult && <button className="finale-preview-close" type="button" onClick={() => closeFinalePreview(performance.now())}>미리보기 닫기</button>}

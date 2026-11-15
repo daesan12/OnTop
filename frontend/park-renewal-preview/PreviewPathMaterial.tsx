@@ -1,4 +1,4 @@
-import type { MeshLambertMaterial } from 'three'
+import { DoubleSide, MeshLambertMaterial } from 'three'
 
 const compilePath: MeshLambertMaterial['onBeforeCompile'] = shader => {
   shader.vertexShader = 'varying vec3 previewPavingWorld;\n' + shader.vertexShader
@@ -34,11 +34,9 @@ const compilePath: MeshLambertMaterial['onBeforeCompile'] = shader => {
 
 const pathProgramKey = () => 'park-renewal-preview-stone-paving'
 
-export function PreviewPathMaterial() {
-  return <meshLambertMaterial
-    color="#d8cfb8"
-    side={2}
-    onBeforeCompile={compilePath}
-    customProgramCacheKey={pathProgramKey}
-  />
+export function createPreviewPathMaterial() {
+  const material = new MeshLambertMaterial({ color: '#d8cfb8', side: DoubleSide })
+  material.onBeforeCompile = compilePath
+  material.customProgramCacheKey = pathProgramKey
+  return material
 }

@@ -2,9 +2,11 @@ import { Component, Suspense, useCallback, useEffect, useRef, useState, type Rea
 import { createRoot } from 'react-dom/client'
 import { Canvas } from '@react-three/fiber'
 import { PaperPopup } from '../tableLobby/PaperPopup'
+import { requestRenewalMap } from '../../park/renewalMapRequest'
+import type { ParkMapData } from '../../map/park'
 import { restoreStaticPark, staticPark } from '../../../park-renewal-preview/static/store'
 import archive from '../../../park-renewal-preview/original-park.bin.gz?url'
-import { duration, fare } from './motion'
+import { duckBoatDock, duration, fare } from './motion'
 import type { Direction, Stage } from './DuckBoatScene'
 import './preview.css'
 
@@ -28,7 +30,10 @@ class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean
   }
 }
 
-function DuckBoatPreview({ Scene }: { Scene: typeof import('./DuckBoatScene').DuckBoatScene }) {
+function DuckBoatPreview({ Scene, dock }: {
+  Scene: typeof import('./DuckBoatScene').DuckBoatScene
+  dock: ReturnType<typeof duckBoatDock>
+}) {
   const [stage, setStage] = useState<Stage>('walk')
   const [ready, setReady] = useState(false)
   const [near, setNear] = useState(false)
@@ -94,7 +99,7 @@ function DuckBoatPreview({ Scene }: { Scene: typeof import('./DuckBoatScene').Du
       <Canvas camera={{ fov: 52, near: .15, far: 1200 }} dpr={[1, 1.25]}
         gl={{ preserveDrawingBuffer: true }} aria-label="리뉴얼 공원 3D 호수">
         <Suspense fallback={null}>
-          <Scene stage={stage} held={held} onReach={setNear} onReturned={returned} onReady={readyScene} />
+          <Scene dock={dock} stage={stage} held={held} onReach={setNear} onReturned={returned} onReady={readyScene} />
         </Suspense>
       </Canvas>
     </SceneBoundary>
@@ -146,9 +151,13 @@ function DuckBoatPreview({ Scene }: { Scene: typeof import('./DuckBoatScene').Du
 const root = createRoot(mount)
 root.render(<p className="duck-boat-message" role="status">호수공원을 불러오는 중이에요…</p>)
 try {
-  if (!staticPark) await restoreStaticPark(archive)
+  const [map] = await Promise.all([
+    requestRenewalMap() as Promise<{ data: ParkMapData }>,
+    staticPark ?? restoreStaticPark(archive),
+  ])
+  const dock = duckBoatDock(map.data)
   const { DuckBoatScene } = await import('./DuckBoatScene')
-  root.render(<DuckBoatPreview Scene={DuckBoatScene} />)
+  root.render(<DuckBoatPreview Scene={DuckBoatScene} dock={dock} />)
 } catch (error) {
   console.error('오리배 체험을 불러오지 못했습니다.', error)
   root.render(<p className="duck-boat-message" role="alert">오리배 체험을 열지 못했어요. 새로고침해 주세요.</p>)

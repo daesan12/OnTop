@@ -1,6 +1,7 @@
 import { NOTES_BOX, parseAnonymousNote, type AnonymousNote } from '../../park/mapConfig'
 import type { Pose } from '../../network/worldClient'
 import { isNoteTopic } from './topics'
+import { renewalMap } from '../../park/renewalMap'
 
 export const NOTES_TIMEOUT_MS = 10_000
 export const compareNotes = (a: AnonymousNote, b: AnonymousNote) => b.createdAt - a.createdAt
@@ -8,9 +9,11 @@ export const compareNotes = (a: AnonymousNote, b: AnonymousNote) => b.createdAt 
     ? a.id.length === b.id.length ? b.id.localeCompare(a.id) : b.id.length - a.id.length : b.id.localeCompare(a.id))
 export const parseNoteText = (text: string) => parseAnonymousNote({ text })
 export function canReachNotes(position: Pose | null | undefined): boolean {
+  const anchor = renewalMap?.data.interactions.notes
+  const [x, y, z] = anchor?.reachPosition ?? [NOTES_BOX.x, NOTES_BOX.y + .8, NOTES_BOX.z]
   return !!position && [position.x, position.y, position.z].every(Number.isFinite)
-    && Math.hypot(position.x - NOTES_BOX.x, position.z - NOTES_BOX.z) <= NOTES_BOX.interactionRadius
-    && Math.abs(position.y - NOTES_BOX.y - 0.8) < 0.7
+    && Math.hypot(position.x - x, position.z - z) <= (anchor?.radius ?? NOTES_BOX.interactionRadius)
+    && Math.abs(position.y - y) < (anchor?.heightTolerance ?? .7)
 }
 /** Only anonymous display fields enter the store; never spread a service response. */
 export function parseNotes(value: unknown): AnonymousNote[] {

@@ -330,7 +330,7 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
                 actor.put("x",x);actor.put("y",y);actor.put("z",z);actor.put("yaw",yaw);actor.put("moving",moving);actor.put("seated",seated);actor.put("action",action);actor.put("utilities",decision.scores());actor.put("tableId",tableId);actor.put("observingGameId",watch==null?"":watch.id());result.add(actor);
                 actor.put("ambient",ambient.tick(id,resident.name(),watch==null&&(action.equals("PATROL")||action.equals("REST")),now));
                 final double sx=x,sz=z;
-                var audience=entry.getValue().entrySet().stream().filter(p->Math.hypot(p.getValue().x()-sx,p.getValue().z()-sz)<=20).map(Map.Entry::getKey).toList();
+                var audience=entry.getValue().entrySet().stream().filter(p->Math.hypot(p.getValue().x()-sx,p.getValue().z()-sz)<=50).map(Map.Entry::getKey).toList();
                 if(watch!=null) {
                     String key=id+"|"+watch.id();speechKeys.add(key);
                     if(watch.ready()&&observerSpoken.getOrDefault(key,-1L)!=watch.version()&&Math.hypot(watch.table().x()-x,watch.table().z()-z)<5&&!moving){
@@ -345,11 +345,12 @@ public final class LocalCompanions implements AutoCloseable,AiFeature {
                 double x=g.table.x()+2.4*(1-progress),y=g.table.y()-.8,z=g.table.z()+(g.table.ownerSeat()==1?-1.25:1.25);
                 var actor=new LinkedHashMap<String,Object>();actor.put("id",g.actorId());actor.put("channelId",channel);actor.put("name",g.resident.name);
                 actor.put("role","OPPONENT");actor.put("persona",g.resident.name());actor.put("difficulty",g.difficulty.name());actor.put("tableId",g.table.tableId());
+                actor.put("seatNumber", g.table.ownerSeat() == 1 ? 2 : 1);
                 actor.put("x",x);actor.put("y",y);actor.put("z",z);actor.put("yaw",g.arrived?(g.table.ownerSeat()==1?0:Math.PI):-Math.PI/2);
                 actor.put("moving",!g.arrived);actor.put("seated",g.arrived);actor.put("action",g.arrived?"PLAY_OMOK":"APPROACH_OMOK");result.add(actor);
                 var state=g.match.snapshot();
                 if(g.arrived&&!g.thinking&&!g.rewriting&&g.spoken!=state.version()){
-                    var audience=entry.getValue().entrySet().stream().filter(p->Math.hypot(p.getValue().x()-x,p.getValue().z()-z)<=20).map(Map.Entry::getKey).toList();
+                    var audience=entry.getValue().entrySet().stream().filter(p->Math.hypot(p.getValue().x()-x,p.getValue().z()-z)<=50).map(Map.Entry::getKey).toList();
                     speak(channel,state.gameId(),state.gameId(),state.version(),g.speech,x,y,z,audience,g.resident,g.actorId());g.spoken=state.version();
                 }
             }

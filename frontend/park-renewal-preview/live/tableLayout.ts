@@ -6,6 +6,8 @@ import { facilityYaw } from '../facilityPlacement'
 import { PAVILION_TARGETS, STONE_TABLE_TARGETS } from '../mapping/identities'
 import { facilityGroundY, heightAt, site, SUB_PAVILION_SCALE, type Point } from '../plan'
 
+import { REST_FURNITURE_VERTICAL_SCALE } from '../pavilionBenchLayout'
+
 const unit = 1.1 * SUB_PAVILION_SCALE
 
 export function buildRenewalTables(): TableAnchor[] {
@@ -25,7 +27,7 @@ export function buildRenewalTables(): TableAnchor[] {
       : (id === 'island-pavilion' ? 4.2 : heightAt(s.x, s.z)) + .572 * unit
     const yaw = facilityYaw(s), sin = Math.sin(yaw), cos = Math.cos(yaw)
     const rotate = ([x, z]: Point): Point => [cos * x + sin * z, -sin * x + cos * z]
-    const seatSurfaceY = main ? .66 : .51 * unit
+    const seatSurfaceY = main ? .66 : .51 * unit * REST_FURNITURE_VERTICAL_SCALE
     const seatDistance = main ? 2.95 : 1.05 * unit
     const seatSide = main ? 2.95 : 1.16 * unit
     const reachDistance = main ? 3.82 : 1.63 * unit
@@ -35,12 +37,12 @@ export function buildRenewalTables(): TableAnchor[] {
     return [{
       ...table, position: [s.x, y, s.z] as Vec3, seatSurfaceY,
       boardScale: main ? 1.8 : 1.35,
-      boardOffsetY: main ? .09 : .7925 * unit - 1.06,
+      boardOffsetY: main ? .09 : .7925 * unit * REST_FURNITURE_VERTICAL_SCALE - 1.06,
       seatAnchors: seats.map(p => { const [x, z] = rotate(p); return [x, seatSurfaceY, z] as Vec3 }),
       interactionPoints: reach.map(p => { const [x, z] = rotate(p); return [s.x + x, y, s.z + z] as Vec3 }),
     }]
   })
-  const x = 5, z = -63, y = groundSurfaceHeight(x, z) + .12
+  const x = 7.2, z = -63, y = groundSurfaceHeight(x, z) + .12
   const stoneRumble: TableAnchor = {
     id: STONE_RUMBLE_ANCHOR_ID,
     position: [x, y, z],
@@ -49,6 +51,11 @@ export function buildRenewalTables(): TableAnchor[] {
     seatAnchors: tableSeats({}, 8).map(seat => [seat.x, .56, seat.z]),
     seatSurfaceY: .56,
     interactionPoints: [[0, groundSurfaceHeight(0, z), z], [x, y, z + 2]],
+    // Two rows on the open side of the table, outside all eight stool colliders.
+    exitPoints: [3.4, 4.8].flatMap(dz => [-1.8, -.6, .6, 1.8].map(dx => {
+      const exitX = x + dx, exitZ = z + dz
+      return [exitX, groundSurfaceHeight(exitX, exitZ) + .8, exitZ] as Vec3
+    })),
   }
   return [...stones, ...pavilions, stoneRumble].sort((a, b) => Number(a.id.slice(6)) - Number(b.id.slice(6)))
 }

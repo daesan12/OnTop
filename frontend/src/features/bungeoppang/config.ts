@@ -29,7 +29,7 @@ export const BUNGEOPPANG = {
   sameSlotGapMs: 300,
   countdownMs: 3_500,
   endingMs: 1_100,
-  cameraTransitionMs: 800,
+  cameraTransitionMs: 240,
   cameraReturnMs: 240,
 } as const;
 

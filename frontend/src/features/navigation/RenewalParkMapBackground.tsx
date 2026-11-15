@@ -24,7 +24,6 @@ const buildings = ['vr', 'bread', 'pigeon', 'mole', 'arcade', 'shooting', 'folk'
   })
 const jump = site('jump')
 const plaza = site('plaza')
-const rentals = SITES.filter(s => s.asset === 'pair')
 const footprints = SITES.filter(s => !s.kind && s.id !== 'lake')
 
 function foliage() {
@@ -167,7 +166,6 @@ export const RenewalParkMapBackground = memo(function RenewalParkMapBackground()
       </g>)}
       {map.tables.filter(table => !table.pavilionId).map(table => <circle key={table.id} data-table-id={table.id}
         cx={table.position[0]} cy={table.position[2]} r="1.4" fill="#a48357" stroke="#f0ddac" strokeWidth=".5"/>)}
-      {rentals.map(({ id, x, z }) => <use key={id} data-map-rental={id} href="#renewal-map-rental" x={x} y={z}/>)}
     </g>
     <text x={map.world.spawn[0]} y={map.world.spawn[1]+7} textAnchor="middle" fontSize="4.2"
       fill="#344f3e" stroke="#f8f0d7" strokeWidth=".65" paintOrder="stroke">입구</text>

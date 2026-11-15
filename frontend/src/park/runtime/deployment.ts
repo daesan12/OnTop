@@ -24,7 +24,7 @@ export function packagedParkBindings(
   development = import.meta.env.DEV,
   hostname = typeof window === 'undefined' ? '' : window.location.hostname,
 ) {
-  if (development || GENERATED_PARK_ENABLED) return undefined
+  if (development || GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED) return undefined
   return hostname === 'dev.on-top.world' ? layouts.development : layouts.production
 }
 

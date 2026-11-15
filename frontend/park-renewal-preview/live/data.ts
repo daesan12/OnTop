@@ -28,7 +28,7 @@ function kioskPlacement(id: 'lottery' | 'ranking', distance: number) {
   const x = s.x + Math.sin(yaw) * direction, z = s.z + Math.cos(yaw) * direction
   return {
     position: [s.x, facilityBase(id), s.z] as Point3,
-    reachPosition: [x, heightAt(x, z) + .8, z] as Point3,
+    reachPosition: [x, groundSurfaceHeight(x, z) + .8, z] as Point3,
     yaw,
   }
 }
@@ -64,10 +64,12 @@ export function buildRenewalMapData() {
   })
   const [nx, nz] = TOWER_TOP.notes
   const notesPosition: Point3 = [tower.x + nx, deckY, tower.z + nz]
-  const rankingBoard = { ...old.rankingBoard, ...kioskPlacement('ranking', 3.25) }
+  const rankingBoard = { ...old.rankingBoard, ...kioskPlacement('ranking', 2.7), radius: 3.5 }
   const [rankingX, , rankingZ] = rankingBoard.reachPosition
-  const judgeX = rankingX - 4
-  const jokeJudge: Point3 = [judgeX, groundSurfaceHeight(judgeX, rankingZ) + .8, rankingZ]
+  const { yaw } = rankingBoard
+  const judgeX = rankingX - 5 * Math.cos(yaw) + 3 * Math.sin(yaw)
+  const judgeZ = rankingZ + 5 * Math.sin(yaw) + 3 * Math.cos(yaw)
+  const jokeJudge: Point3 = [judgeX, groundSurfaceHeight(judgeX, judgeZ) + .8, judgeZ]
   return {
     ...PARK_DATA,
     world: { ...PARK_DATA.world, size: RENEWAL_HALF_SIZE * 2, half: RENEWAL_HALF_SIZE, spawn: RENEWAL_SPAWN },

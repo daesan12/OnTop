@@ -1,5 +1,4 @@
 import { preloadRenewalTerrain } from '../../park-renewal-preview/static/terrainRequest'
-import { requestRenewalMap } from './renewalMapRequest'
 
 let pending: Promise<typeof import('../../park-renewal-preview/live/RenewalWorld')> | undefined
 
@@ -10,10 +9,9 @@ export function loadRenewalParkWorld() {
     performance.mark('park-world-module-start')
     const worldModule = import('../../park-renewal-preview/live/RenewalWorld')
     void import('../../park-renewal-preview/static/store').catch(() => {})
-    // Fetch the scene and collision map before starting the gate model transfers.
+    // The first frame needs this pavilion. Its URL does not depend on map admission.
     const entranceModels = import('../../park-renewal-preview/live/preloadEntranceModels')
-    void Promise.all([entranceModels, requestRenewalMap()])
-      .then(([module]) => module.preloadEntranceModels()).catch(() => {})
+    void entranceModels.then(module => module.preloadEntranceModels()).catch(() => {})
     const facilities = fetch(new URL('../../park-renewal-preview/static/facilities.bin.gz', import.meta.url), {
       cache: 'force-cache', priority: 'low', signal: AbortSignal.timeout(10000),
     })
@@ -25,8 +23,6 @@ export function loadRenewalParkWorld() {
       })
     const world = await worldModule
     performance.mark('park-world-module-ready')
-    // Start the other gate models while the canvas and player state finish preparing.
-    void entranceModels.then(module => module.preloadGateSurroundings()).catch(() => {})
     return world
   })().catch(error => {
     pending = undefined

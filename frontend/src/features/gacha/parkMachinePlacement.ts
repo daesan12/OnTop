@@ -15,5 +15,5 @@ export function canReachParkGacha(position: { x: number; y: number; z: number })
   const dz = z - PARK_GACHA_MACHINE.z
   const forward = dx * frontX + dz * frontZ
   return [x, y, z].every(Number.isFinite) && Math.abs(y - PARK_GACHA_MACHINE.y - .8) <= .9
-    && forward > .3 && Math.hypot(dx, dz) <= 3.6
+    && forward > (renewalMachine ? -.15 : .3) && Math.hypot(dx, dz) <= (renewalMachine ? 5 : 3.6)
 }

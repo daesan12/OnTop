@@ -52,6 +52,28 @@ public final class WorldPhysics implements AutoCloseable {
     private final java.util.function.LongSupplier clock;
     private PositionCollision positionCollision;
     private RenewalCourseMotion renewalMotion;
+    private PhysicsRigidBody duckBoat;
+    private double duckBoatTime = Double.NaN;
+
+    private void syncDuckBoat(double now) {
+        if (duckBoat == null || duckBoatTime == now) {
+            return;
+        }
+        JsonNode route = scene.data.path("duckBoat");
+        double period = route.path("period").asDouble();
+        double angle = (now % period) / period * Math.PI * 2;
+        double rx = route.path("rx").asDouble(), rz = route.path("rz").asDouble();
+        double x = route.path("x").asDouble() + Math.cos(angle) * rx;
+        double z = route.path("z").asDouble() + Math.sin(angle) * rz;
+        double yaw = Math.atan2(-Math.sin(angle) * rx, Math.cos(angle) * rz) + Math.PI;
+        if (Double.isFinite(duckBoatTime)) {
+            space.removeCollisionObject(duckBoat);
+        }
+        duckBoat.setPhysicsLocation(new Vector3f((float) x, (float) route.path("y").asDouble(), (float) z));
+        duckBoat.setPhysicsRotation(new com.jme3.math.Quaternion().fromAngleAxis((float) yaw, Vector3f.UNIT_Y));
+        space.addCollisionObject(duckBoat);
+        duckBoatTime = now;
+    }
     private final double utcSeconds = System.currentTimeMillis()/1000d;
     private long motionOrigin;
     private double stepCourseTime = Double.NaN;
@@ -59,7 +81,22 @@ public final class WorldPhysics implements AutoCloseable {
     private double courseTime() {
         return Double.isNaN(stepCourseTime) ? utcSeconds + (clock.getAsLong() - motionOrigin) / 1e9 : stepCourseTime;
     }
-    private void prepareCourse(String id) { if(renewalMotion!=null)renewalMotion.prepare(id,courseTime()); }
+    private void prepareCourse(String id) {
+        Actor actor = actors.get(id);
+        if (renewalMotion != null && actor != null) {
+            prepareCourseAt(actor, actor.body.getPhysicsLocation(null));
+        }
+    }
+
+    private void prepareCourseAt(Actor actor, Vector3f position) {
+        if (renewalMotion != null) {
+            renewalMotion.prepare(actor.id, courseTime(), position);
+        }
+    }
+
+    private boolean ridingCoursePad(Actor actor) {
+        return renewalMotion != null && renewalMotion.riding(actor.id);
+    }
 
     public void jumpmapRun(String id, String runId) {
         call(()->{if(renewalMotion!=null)renewalMotion.run(id,runId);return null;});
@@ -176,6 +213,16 @@ public final class WorldPhysics implements AutoCloseable {
             var bodies=JumpCourseColliders.addTo(space, course);
             if(course.renewal()) renewalMotion=new RenewalCourseMotion(course,bodies,space);
         }
+        JsonNode duck = scene.data.path("duckBoat");
+        if (duck.isObject()) {
+            var shape = new com.jme3.bullet.collision.shapes.BoxCollisionShape(ParkScene.vector(duck.path("half")));
+            shape.setMargin(.02f);
+            duckBoat = new PhysicsRigidBody(shape, 0);
+            duckBoat.setUserObject("duck-boat-circulating");
+            duckBoat.setCollisionGroup(2);
+            duckBoat.setCollideWithGroups(1);
+            syncDuckBoat(courseTime());
+        }
         positionCollision = new PositionCollision(scene, space, this::activeShape);
     }
 
@@ -198,6 +245,54 @@ public final class WorldPhysics implements AutoCloseable {
             }
             return true;
         });
+    }
+
+    /** The map defines the approach side and destination. The client only chooses a door. */
+    public Snapshot useInteriorAccess(String userId, String access) {
+        return call(() -> {
+            Actor actor = actors.get(userId);
+            if (actor == null || actor.seated || actor.swimming || actor.carriedBy != null || actor.carryingId != null
+                    || actor.throwTicks > 0) return null;
+            var layout = scene.data.path("interiorAccess");
+            var route = layout.path("routes").path(access);
+            if (!route.isObject()) return null;
+            Vector3f position = actor.body.getPhysicsLocation(null);
+            var from = route.path("from");
+            if (Math.abs(position.y - from.get(1).asDouble()) > .55
+                    || Math.hypot(position.x - from.get(0).asDouble(), position.z - from.get(2).asDouble())
+                        > route.path("radius").asDouble()) return null;
+            if ("exit".equals(access) && !actor.interiorExitReady) return null;
+            var to = route.path("to");
+            double x = to.get(0).asDouble(), y = to.get(1).asDouble(), z = to.get(2).asDouble();
+            if (!canStand(x, y, z)) return null;
+            placeNow(userId, x, y, z);
+            actor.yaw = route.path("yaw").asDouble();
+            if ("entry".equals(access) || "passage".equals(access) || "exit".equals(access)
+                    || "return".equals(access)) {
+                actor.interiorExitReady = false;
+            }
+            return snapshotNow(userId);
+        });
+    }
+
+    private float parkBoundary() {
+        var world = scene.data.path("world");
+        return (float) (world.path("halfSize").asDouble() - world.path("boundaryHalfDepth").asDouble())
+                - number("radius") - number("offset");
+    }
+
+    private static boolean insideVolume(Vector3f position, com.fasterxml.jackson.databind.JsonNode bounds) {
+        return bounds.isObject()
+                && position.x > bounds.path("x0").asDouble() && position.x < bounds.path("x1").asDouble()
+                && position.z > bounds.path("z0").asDouble() && position.z < bounds.path("z1").asDouble()
+                && position.y > bounds.path("floor").asDouble() + .4 && position.y < bounds.path("ceiling").asDouble();
+    }
+
+    private void updateInteriorArrival(Actor actor) {
+        if (!actor.interiorExitReady && !actor.airborne
+                && insideVolume(actor.body.getPhysicsLocation(null), scene.data.path("interiorAccess").path("upperArrival"))) {
+            actor.interiorExitReady = true;
+        }
     }
 
     private boolean nearSecretDoor(Vector3f position, double distance) {
@@ -406,7 +501,7 @@ public final class WorldPhysics implements AutoCloseable {
     public void step(long now, java.util.Set<String> seated, java.util.Map<String, String> following) {
         call(
                 () -> {
-                    stepCourseTime = courseTime();
+                    stepCourseTime = utcSeconds + (now - motionOrigin) / 1e9;
                     try {
                         stepNow(now, seated, following);
                     } finally {
@@ -418,9 +513,10 @@ public final class WorldPhysics implements AutoCloseable {
 
     private void stepNow(long now, java.util.Set<String> seated, java.util.Map<String, String> following) {
         physicsTick++;
+        syncDuckBoat(courseTime());
         for (var entry : actors.entrySet()) {
             Actor a = entry.getValue();
-            if (clientPositions) {
+            if (clientPositions || ridingCoursePad(a)) {
                 prepareCourse(entry.getKey());
             }
             a.beforeStepY = a.body.getPhysicsLocation(null).y;
@@ -445,8 +541,17 @@ public final class WorldPhysics implements AutoCloseable {
             }
             // Automatic follow must advance even when the browser is throttled/minimized.
             if (tunedMovement && clientPositions && following.containsKey(entry.getKey()) && a.clientControlled) serverControl(a);
+            if (ridingCoursePad(a)) {
+                a.courseRide = true;
+                if (a.clientControlled) {
+                    long previousEpoch = a.motionEpoch;
+                    serverControl(a);
+                    a.courseRidePreviousEpoch = previousEpoch;
+                    a.courseRideHandoffTick = physicsTick;
+                }
+            }
             if (tunedMovement && clientPositions && !a.clientControlled && !a.positionDisabled
-                    && a.throwTicks == 0 && !following.containsKey(entry.getKey())) {
+                    && a.throwTicks == 0 && !following.containsKey(entry.getKey()) && !a.courseRide) {
                 resumeClientControl(a);
             }
             if (!tunedMovement && a.clientControlled && (following.containsKey(entry.getKey()) || specialMovement(a.body.getPhysicsLocation(null)))) {
@@ -483,6 +588,19 @@ public final class WorldPhysics implements AutoCloseable {
                 active = true;
             }
             Vector3f position = a.body.getPhysicsLocation(null);
+            boolean onMovingPad = false;
+            if (ridingCoursePad(a) && !a.leftByJump) {
+                double footOffset = number("halfHeight") + number("radius") + number("offset");
+                Double top = renewalMotion.riddenTop(a.id, position, courseTime(), footOffset, number("radius"));
+                if (top != null) {
+                    onMovingPad = true;
+                    float riderY = (float) (top + footOffset);
+                    if (position.y != riderY) {
+                        position = position.add(0, riderY - position.y, 0);
+                        a.body.warp(position);
+                    }
+                }
+            }
             a.swimming = swimming(position);
             float speed =
                     a.swimming
@@ -504,8 +622,14 @@ public final class WorldPhysics implements AutoCloseable {
                 // 걷기·계단·벽·일반 점프는 기존 ghost sweep 그대로다.
                 a.body.setSweepTest(a.motion.velocityY() >= -FAST_FALL_SWEEP);
             }
-            a.body.setWalkDirection(
-                    new Vector3f((float) dx * speed * DT, 0, (float) dz * speed * DT));
+            float stepX = (float) dx * speed * DT;
+            float stepZ = (float) dz * speed * DT;
+            if (a.throwTicks > 0) {
+                float limit = parkBoundary();
+                stepX = Math.clamp(position.x + stepX, -limit, limit) - position.x;
+                stepZ = Math.clamp(position.z + stepZ, -limit, limit) - position.z;
+            }
+            a.body.setWalkDirection(new Vector3f(stepX, 0, stepZ));
             if (active && a.jumpQueued && a.swimming && (dx != 0 || dz != 0)) {
                 for (JsonNode stone : scene.data.path("steppingStones")) {
                     double sx = stone.path("x").asDouble(), sz = stone.path("z").asDouble();
@@ -555,7 +679,7 @@ public final class WorldPhysics implements AutoCloseable {
             } else {
                 a.body.setGravity(-number("gravity"));
                 if (jumpGrace()) {
-                    applyJumpGrace(a, position);
+                    applyJumpGrace(a, position, onMovingPad);
                 } else if (active && a.jumpQueued && a.body.onGround() && scene.policy.allowsSupport(position, this::activeShape)) {
                     a.body.setJumpSpeed((float) surfaceJumpSpeed(position));
                     a.body.jump();
@@ -574,15 +698,15 @@ public final class WorldPhysics implements AutoCloseable {
         if(renewalMotion==null) space.update(DT, 0);
         else {
             // 코스 미진입자는 모두 한 스텝을 공유한다. 진입자도 실제 발판 상태가 같으면 함께 계산한다.
-            // 개인별 연잎 소멸·두더지 높이가 다른 경우에만 공간을 분리해서 진행한다.
+            // 개인별 연잎 소멸 상태가 다른 경우에만 공간을 분리해서 진행한다.
             var nativeActors=actors.entrySet().stream().filter(e->!e.getValue().seated && !e.getValue().clientControlled && e.getValue().carriedBy==null).toList();
             var groups = new java.util.LinkedHashMap<RenewalCourseMotion.State, java.util.List<Actor>>();
             for (var entry : nativeActors) {
-                var state = renewalMotion.state(entry.getKey(), courseTime());
+                var state = renewalMotion.state(entry.getKey(), courseTime(), entry.getValue().body.getPhysicsLocation(null));
                 groups.computeIfAbsent(state, ignored -> new java.util.ArrayList<>()).add(entry.getValue());
             }
             if (groups.size() == 1) {
-                renewalMotion.prepare(groups.keySet().iterator().next(), courseTime());
+                renewalMotion.prepare(groups.keySet().iterator().next());
                 space.update(DT, 0);
             } else if (!groups.isEmpty()) {
                 for (var entry : nativeActors) {
@@ -590,7 +714,7 @@ public final class WorldPhysics implements AutoCloseable {
                 }
                 try {
                     for (var group : groups.entrySet()) {
-                        renewalMotion.prepare(group.getKey(), courseTime());
+                        renewalMotion.prepare(group.getKey());
                         for (Actor actor : group.getValue()) {
                             space.addCollisionObject(actor.body);
                         }
@@ -614,6 +738,9 @@ public final class WorldPhysics implements AutoCloseable {
             if (carried.carriedBy == null) { continue; }
             Actor carrier = actors.get(carried.carriedBy);
             Vector3f next = carrier == null ? null : carrier.body.getPhysicsLocation(null).add(0, CARRY_HEIGHT, 0);
+            if (next != null) {
+                prepareCourseAt(carried, next);
+            }
             if (next == null || !canOccupy(next)) {
                 releaseCarryNow(entry.getKey());
             } else {
@@ -624,9 +751,11 @@ public final class WorldPhysics implements AutoCloseable {
                 carried.motion = new Motion(carried.motionEpoch, physicsTick, carried.seq, 0,
                         (next.y - carried.beforeStepY) / DT, false, false);
                 Vector3f ground = carrier.body.getPhysicsLocation(null);
-                if (carrier.motion.grounded() && ground.distanceSquared(carried.carrySafe) >= .04f
-                        && canStand(ground.x, ground.y, ground.z)) {
-                    carried.carrySafe.set(ground);
+                if (carrier.motion.grounded() && ground.distanceSquared(carried.carrySafe) >= .04f) {
+                    prepareCourseAt(carried, ground);
+                    if (canStand(ground.x, ground.y, ground.z)) {
+                        carried.carrySafe.set(ground);
+                    }
                 }
             }
         }
@@ -640,20 +769,13 @@ public final class WorldPhysics implements AutoCloseable {
             a.motion = new Motion(a.motionEpoch, physicsTick, now >= a.receivedAt ? a.seq : a.motion.appliedInputSeq(),
                     Math.min(250, Math.max(0, (now - a.receivedAt) / 1_000_000.0)),
                     supported ? 0 : (position.y - a.beforeStepY) / DT, supported, inputActive(a, now));
-            float limit =
-                    (float)
-                                    (scene.data.path("world").path("halfSize").asDouble()
-                                            - scene.data
-                                                    .path("world")
-                                                    .path("boundaryHalfDepth")
-                                                    .asDouble())
-                            - number("radius")
-                            - number("offset");
+            float limit = parkBoundary();
             if (!Vector3f.isValidVector(position)) {
                 recover(a, position, validatedFallback(a, limit), "INVALID_POSITION", now);
             } else if (position.y < scene.groundHeight(position.x, position.z)
                     + number("halfHeight") + number("radius") - .35
-                    && !inSecretCorridor(position) && !nearSecretDoor(position, 1.4)) {
+                    && !inSecretCorridor(position) && !nearSecretDoor(position, 1.4)
+                    && !insideVolume(position, scene.data.path("interiorAccess").path("annex"))) {
                 prepareCourse(entry.getKey());
                 float x = Math.max(-limit, Math.min(limit, position.x));
                 float z = Math.max(-limit, Math.min(limit, position.z));
@@ -677,6 +799,10 @@ public final class WorldPhysics implements AutoCloseable {
                 }
             }
             a.airborne = !a.seated && !supported;
+            if (supported && !ridingCoursePad(a)) {
+                a.courseRide = false;
+            }
+            if (!a.seated) updateInteriorArrival(a);
             if (a.throwTicks > 0 && (--a.throwTicks == 0 || supported || a.swimming)) {
                 a.throwTicks = 0;
                 a.throwX = a.throwZ = 0;
@@ -686,7 +812,7 @@ public final class WorldPhysics implements AutoCloseable {
             if (clientPositions && !a.positionDisabled
                     && a.throwTicks == 0
                     && !following.containsKey(entry.getKey()) && !specialMovement(a.body.getPhysicsLocation(null))
-                    && supported) {
+                    && supported && !ridingCoursePad(a)) {
                 stopNow(entry.getKey());
                 a.clientControlled = true;
                 space.removeCollisionObject(a.body);
@@ -709,15 +835,22 @@ public final class WorldPhysics implements AutoCloseable {
                 : scene.policy.jumpSpeed(position, tunedMovement);
     }
 
-    private void applyJumpGrace(Actor a, Vector3f position) {
+    private void applyJumpGrace(Actor a, Vector3f position, boolean onMovingPad) {
         if (a.jumpRequestTick >= 0 && physicsTick - a.jumpRequestTick > JUMP_BUFFER_TICKS) a.jumpRequestTick = -1;
         if (a.jumpRequestTick < 0) return;
-        boolean grounded = a.body.onGround() && scene.policy.allowsSupport(position, this::activeShape);
+        boolean grounded = (onMovingPad || a.body.onGround())
+                && scene.policy.allowsSupport(position, this::activeShape);
         boolean coyote = !grounded && !a.leftByJump && !a.coyoteUsed && physicsTick - a.lastGroundedTick <= COYOTE_TICKS;
         if (!grounded && !coyote) return;
         // 코요테는 떠나온 바닥의 점프 속도를 쓴다.
-        a.body.setJumpSpeed((float) (grounded ? surfaceJumpSpeed(position) : a.groundJumpSpeed));
-        a.body.jump();
+        float jumpSpeed = (float) (grounded ? surfaceJumpSpeed(position) : a.groundJumpSpeed);
+        a.body.setJumpSpeed(jumpSpeed);
+        if (onMovingPad) {
+            // Updating a moving collider can clear Bullet's on-ground flag for this tick.
+            a.body.jump(new Vector3f(0, jumpSpeed, 0));
+        } else {
+            a.body.jump();
+        }
         if (!grounded) a.coyoteUsed = true;
         a.leftByJump = true;
         a.jumpRequestTick = -1;
@@ -876,7 +1009,17 @@ public final class WorldPhysics implements AutoCloseable {
             prepareCourse(id);
             if (!clientPositions) throw new IllegalStateException("위치 보고 모드가 비활성화돼 있습니다.");
             Actor a = actors.get(id);
-            if (!a.clientControlled || a.seated) return snapshotNow(id);
+            if (a.seated) return snapshotNow(id);
+            if (!a.clientControlled) {
+                // Keep the server's pose and accept the in-flight jump once after the handoff.
+                if (ridingCoursePad(a) && !a.leftByJump && candidate.jump() && candidate.epoch() == a.courseRidePreviousEpoch
+                        && candidate.seq() > a.seq && physicsTick - a.courseRideHandoffTick < JUMP_BUFFER_TICKS) {
+                    a.courseRidePreviousEpoch = -1;
+                    a.seq = candidate.seq();
+                    a.jumpRequestTick = physicsTick + 1;
+                }
+                return snapshotNow(id);
+            }
             if (candidate.epoch() != a.motionEpoch || candidate.seq() <= a.seq) return snapshotNow(id);
             anticipateExclusion(a, now);
             if (candidate.epoch() != a.motionEpoch) return snapshotNow(id);
@@ -929,6 +1072,7 @@ public final class WorldPhysics implements AutoCloseable {
             a.moving = Math.hypot(p.x() - before.x(), p.z() - before.z()) > .0001;
             a.running = a.moving && candidate.run(); a.swimming = swimming(a.body.getPhysicsLocation(null));
             a.airborne = !positionCollision.supported(p);
+            updateInteriorArrival(a);
             if (!a.airborne) a.lastSafe.set((float)p.x(), (float)p.y(), (float)p.z());
             a.motion = new Motion(a.motionEpoch, physicsTick, a.seq, 0, vy, !a.airborne, true, "CLIENT_VALIDATED");
             if (!tunedMovement && specialMovement(a.body.getPhysicsLocation(null))) serverControl(a);
@@ -1129,7 +1273,8 @@ public final class WorldPhysics implements AutoCloseable {
         if (tunedMovement || grace != null) motion = new Motion(motion.epoch(), motion.tick(), motion.appliedInputSeq(),
                 motion.inputAgeMs(), motion.velocityY(), motion.grounded(), motion.inputActive(), motion.authority(),
                 tunedMovement ? "PARK_V1" : null, a.followSteering, a.correctionReason, grace);
-        return new Snapshot(a.seq, p.x, p.y, p.z, a.yaw, a.moving, a.running, a.swimming, motion);
+        return new Snapshot(a.seq, p.x, p.y, p.z, a.yaw, a.moving, a.running, a.swimming, motion,
+                a.interiorExitReady);
     }
 
     /** Trusted server relocation, never exposed as a client coordinate command. */
@@ -1199,9 +1344,12 @@ public final class WorldPhysics implements AutoCloseable {
                     || physicsTick < carrier.carryReadyTick || physicsTick < target.carryReadyTick) { return false; }
             Vector3f origin = carrier.body.getPhysicsLocation(null);
             Vector3f destination = target.body.getPhysicsLocation(null);
+            // 시야는 운반자, 들어 올릴 공간은 피운반자에게 보이는 발판으로 검사한다.
+            prepareCourseAt(carrier, origin);
             if (space.rayTest(origin, destination).stream()
                     .anyMatch(hit -> hit.getCollisionObject().getCollisionGroup() == 2)) { return false; }
             Vector3f lifted = origin.add(0, CARRY_HEIGHT, 0);
+            prepareCourseAt(target, lifted);
             if (!canOccupy(lifted)) { return false; }
             target.carrySafe = target.body.getPhysicsLocation(null).clone();
             hold(targetId, lifted.x, lifted.y, lifted.z, carrier.yaw);
@@ -1284,6 +1432,8 @@ public final class WorldPhysics implements AutoCloseable {
     }
 
     private Vector3f carryExit(Vector3f origin, Actor target) {
+        // 내려설 위치에서 피운반자의 발판 상태를 적용한 뒤 지지면을 찾는다.
+        prepareCourseAt(target, origin);
         if (canStand(origin.x, origin.y, origin.z)) { return origin; }
         Vector3f safe = target.carrySafe;
         if (safe != null && safe.distanceSquared(origin) <= 16 && canStand(safe.x, safe.y, safe.z)) {
@@ -1321,6 +1471,7 @@ public final class WorldPhysics implements AutoCloseable {
     private void placeNow(String id, double x, double y, double z) {
         Actor a = actors.get(id);
         a.relocations++;
+        a.courseRide = false;
         stop(id);
         a.body.warp(new Vector3f((float) x, (float) y, (float) z));
         correctExclusion(a, a.body.getPhysicsLocation(null), scene.policy.slide(a.body.getPhysicsLocation(null), this::activeShape));
@@ -1337,6 +1488,7 @@ public final class WorldPhysics implements AutoCloseable {
         actor.reportedJumpSpeed = 0;
         // 순간 이동·착석·epoch 변경은 남은 코요테·버퍼 창을 지운다.
         actor.jumpRequestTick = -1;
+        actor.courseRidePreviousEpoch = -1;
         actor.lastGroundedTick = Long.MIN_VALUE / 2;
         actor.leftByJump = false;
         actor.coyoteUsed = false;
@@ -1382,7 +1534,11 @@ public final class WorldPhysics implements AutoCloseable {
             double yaw,
             boolean moving,
             boolean running,
-            boolean swimming, Motion motion) {
+            boolean swimming, Motion motion, boolean interiorExitReady) {
+        public Snapshot(long seq, double x, double y, double z, double yaw,
+                boolean moving, boolean running, boolean swimming, Motion motion) {
+            this(seq, x, y, z, yaw, moving, running, swimming, motion, false);
+        }
         public Snapshot(long seq, double x, double y, double z, double yaw,
                 boolean moving, boolean running, boolean swimming) {
             this(seq, x, y, z, yaw, moving, running, swimming, null);
@@ -1440,10 +1596,12 @@ public final class WorldPhysics implements AutoCloseable {
         Motion motion = new Motion(0, 0, 0, 250, 0, false, false);
         double yaw = Math.PI;
         boolean moving, running, swimming, jumpQueued, seated, airborne;
+        boolean interiorExitReady;
         double climbTargetY;
         Recovery recovery;
         double reportedJumpSpeed;
-        boolean clientControlled, positionDisabled, reportStarted, positionReportedEver;
+        boolean clientControlled, positionDisabled, reportStarted, positionReportedEver, courseRide;
+        long courseRidePreviousEpoch = -1, courseRideHandoffTick;
         // 서버 순간 이동(복구·배치·착석·시설) 횟수. 점프맵은 진행 중 변화를 RESET으로 본다.
         long relocations;
         // v2 점프 보조(점프맵 활성 채널). 요청 틱(-1 없음), 마지막 접지 틱, 떠난 이유, 코요테 사용 여부, 떠나온 바닥 점프 속도.

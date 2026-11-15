@@ -31,7 +31,9 @@ function DetailGeometry({ id, url, pending }: { id: ParkDetailId; url: string; p
       const groups = parkDetailMeshes(scene, id)
       const parts: Mesh[] = []
       gltfScene.traverse(node => {
-        if (node instanceof Mesh) parts.push(node)
+        // The table GLB has one shared beveled surface and duplicate box supports.
+        // Supports already use 12 triangles. Boards and chairs can mount independently.
+        if (node instanceof Mesh && (id !== 'table' || node.name === 'part-0')) parts.push(node)
       })
       const compatible = groups.length === parts.length && groups.every(({ source }, index) => {
         const part = parts[index]!

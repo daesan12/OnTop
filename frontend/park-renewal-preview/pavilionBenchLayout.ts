@@ -1,3 +1,4 @@
+export const REST_FURNITURE_VERTICAL_SCALE = .72
 export const SPECTATOR_BENCH_HEIGHTS = { main: .7, rest: .583 } as const
 
 // Local dimensions of the two pavilion models. Their front entrances leave a bay open.

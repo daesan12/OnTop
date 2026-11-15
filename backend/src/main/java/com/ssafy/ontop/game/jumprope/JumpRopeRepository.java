@@ -36,11 +36,12 @@ final class JumpRopeRepository {
                 Long.class, userId).isEmpty();
     }
 
-    Row start(long userId, String key, long seed, Instant startedAt, Instant expiresAt) {
+    /** Inserts a round under the configured rules version, or returns the existing row for the same key unchanged. */
+    Row start(long userId, String key, long seed, int rulesVersion, Instant startedAt, Instant expiresAt) {
         jdbc.update("""
                 INSERT INTO jump_rope_rounds (user_id, request_key, seed, rules_version, status, started_at, expires_at)
                 VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?) ON DUPLICATE KEY UPDATE id = id
-                """, userId, key, seed, JumpRopeRules.VERSION, Timestamp.from(startedAt), Timestamp.from(expiresAt));
+                """, userId, key, seed, rulesVersion, Timestamp.from(startedAt), Timestamp.from(expiresAt));
         return jdbc.queryForObject("SELECT * FROM jump_rope_rounds WHERE user_id = ? AND request_key = ?",
                 JumpRopeRepository::row, userId, key);
     }
@@ -65,24 +66,25 @@ final class JumpRopeRepository {
         if (updated != 1) throw new DataIntegrityViolationException("Jump rope settlement must update one active round");
     }
 
-    List<JumpRopeDtos.Item> ranked(int limit, int offset) {
+    // Each rules version keeps its own board; records of other versions stay in the table untouched.
+    List<JumpRopeDtos.Item> ranked(int rulesVersion, int limit, int offset) {
         return jdbc.query(BESTS + """
                 SELECT place, nickname, score FROM ranked
                 ORDER BY score DESC, miss_count ASC, completed_at ASC, id ASC LIMIT ? OFFSET ?
-                """, JumpRopeRepository::item, JumpRopeRules.VERSION, limit, offset);
+                """, JumpRopeRepository::item, rulesVersion, limit, offset);
     }
 
-    JumpRopeDtos.PersonalBest me(long userId) {
+    JumpRopeDtos.PersonalBest me(int rulesVersion, long userId) {
         return jdbc.query(BESTS + "SELECT place, nickname, score FROM ranked WHERE user_id = ?",
-                JumpRopeRepository::item, JumpRopeRules.VERSION, userId).stream().findFirst()
+                JumpRopeRepository::item, rulesVersion, userId).stream().findFirst()
                 .map(item -> new JumpRopeDtos.PersonalBest(item.rank(), item.nickname(), item.score())).orElse(null);
     }
 
-    long participants() {
+    long participants(int rulesVersion) {
         return jdbc.queryForObject("""
                 SELECT COUNT(DISTINCT r.user_id) FROM jump_rope_rounds r JOIN users u ON u.id = r.user_id
                 WHERE r.status = 'SETTLED' AND r.rules_version = ? AND u.deleted_at IS NULL
-                """, Long.class, JumpRopeRules.VERSION);
+                """, Long.class, rulesVersion);
     }
 
     private static JumpRopeDtos.Item item(ResultSet row, int index) throws SQLException {

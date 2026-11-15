@@ -47,7 +47,9 @@ export function parkDetailMeshes(scene: Object3D, id: ParkDetailId) {
   const byGeometry = new Map<BufferGeometry, Mesh[]>()
   scene.traverse(root => {
     if (!scope(id, root)) return
-    visitMeshes(root, id, mesh => {
+    const surface = id === 'table' ? root.children.find(child => child.name === 'stone-game-table-surfaces') : root
+    if (!surface) return
+    visitMeshes(surface, id, mesh => {
       let meshes = byGeometry.get(mesh.geometry)
       if (!meshes) {
         meshes = []

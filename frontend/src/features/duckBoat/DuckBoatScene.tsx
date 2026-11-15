@@ -10,12 +10,13 @@ import { CityBackdrop, ParkEnvironment } from '../../../park-renewal-preview/Cit
 import { ScenicDetails } from '../../../park-renewal-preview/ScenicDetails'
 import { models } from '../../../park-renewal-preview/modelUrls'
 import { LAKE, walkHeightAt } from '../../../park-renewal-preview/plan'
-import { berth, dockLanding, nearDock, returnRoute, returnStep, steer, walk, walkStart } from './motion'
+import { returnRoute, returnStep, steer, walk, walkStart, type duckBoatDock } from './motion'
 
 export type Stage = 'walk' | 'rent' | 'ride' | 'return' | 'done'
 export type Direction = 'forward' | 'left' | 'back' | 'right'
 
 interface Props {
+  dock: ReturnType<typeof duckBoatDock>
   stage: Stage
   held: RefObject<Map<string, Direction>>
   onReach: (near: boolean) => void
@@ -23,7 +24,8 @@ interface Props {
   onReady: () => void
 }
 
-export function DuckBoatScene({ stage, held, onReach, onReturned, onReady }: Props) {
+export function DuckBoatScene({ dock, stage, held, onReach, onReturned, onReady }: Props) {
+  const { berth, landing, hullHeight } = dock
   const avatar = useRef<Group>(null)
   const boatGroup = useRef<Group>(null)
   const character = useLoader(ParkAssetLoader, characterUrls[0]!)
@@ -73,7 +75,7 @@ export function DuckBoatScene({ stage, held, onReach, onReturned, onReady }: Pro
       }
     } else if (stage === 'return') {
       if (previousStage !== 'return') {
-        state.route = returnRoute(state.boat)
+        state.route = returnRoute(state.boat, berth)
         state.targetIndex = 0
         state.arrivalSent = false
       }
@@ -84,17 +86,17 @@ export function DuckBoatScene({ stage, held, onReach, onReturned, onReady }: Pro
       } else if (!state.arrivalSent) {
         state.arrivalSent = true
         state.boat = berth
-        state.player = dockLanding
+        state.player = landing
         onReturned()
       }
     }
 
-    const reachable = stage === 'walk' && nearDock(state.player)
+    const reachable = stage === 'walk' && dock.canRent(state.player)
     if (state.near !== reachable) {
       state.near = reachable
       onReach(reachable)
     }
-    boatGroup.current.position.set(state.boat.x, LAKE.y + .08, state.boat.z)
+    boatGroup.current.position.set(state.boat.x, hullHeight, state.boat.z)
     boatGroup.current.rotation.y = state.boat.yaw
 
     rig.reset()

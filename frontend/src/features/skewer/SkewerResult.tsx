@@ -13,13 +13,13 @@ function ResultActionIcon({ kind }: { kind: 'retry' | 'games' | 'help' }) {
   </svg>
 }
 
-export function SkewerResult({ state, restart, exit, entryFee, pending, notice, playMode }: {
-  state: GameState; restart: () => void; exit: () => void; entryFee?: number; pending: boolean; notice: string; playMode: 'vr' | 'pc'
+export function SkewerResult({ state, restart, exit, notice, playMode }: {
+  state: GameState; restart: () => void; exit: () => void; notice: string; playMode: 'vr' | 'pc'
 }) {
   const summary = gameSummary(state)
   const [helpOpen, setHelpOpen] = useState(false)
-  return <PaperPopup title="온탑 꼬치왕 도전 결과" label="온탑 꼬치왕 결과" onClose={exit} closeLabel="결과 닫고 게임 목록으로" className="sk-result-popup">
-    <section aria-labelledby="sk-final-title" aria-busy={pending}>
+  return <PaperPopup title="온탑 꼬치왕 도전 결과" label="온탑 꼬치왕 결과" onClose={exit} closeLabel="결과 닫고 연습 입구로" className="sk-result-popup">
+    <section aria-labelledby="sk-final-title">
       <h2 id="sk-final-title">온탑 꼬치왕 도전 결과</h2>
       <p className="paper-subtitle">{summary.completed ? '따끈따끈, 오늘의 꼬치 장사를 마쳤어요' : '오늘의 도전, 수고했어요. 다시 도전해볼까요?'}</p>
       <div className="sk-result-ornament" aria-hidden="true">❖</div>
@@ -33,11 +33,11 @@ export function SkewerResult({ state, restart, exit, entryFee, pending, notice, 
       </div>
       {notice ? <p className="sk-result-notice" role="status">{notice}</p> : null}
       <div className="sk-result-actions">
-        <button className="sk-result-retry" onClick={restart} disabled={pending}><ResultActionIcon kind="retry" />{pending ? '확인 중…' : '다시 도전'}</button>
-        <button className="sk-result-games" onClick={exit} disabled={pending}><ResultActionIcon kind="games" />게임 목록</button>
+        <button className="sk-result-retry" onClick={restart}><ResultActionIcon kind="retry" />다시 도전</button>
+        <button className="sk-result-games" onClick={exit}><ResultActionIcon kind="games" />연습 입구</button>
         <button onClick={() => setHelpOpen(open => !open)} aria-expanded={helpOpen} aria-controls="sk-result-help"><ResultActionIcon kind="help" />설명서</button>
       </div>
-      <p className="sk-result-fee">{entryFee ? `다시 도전하면 새 판 이용료 ${entryFee}냥 · 목록으로 돌아가기는 무료` : '무료 연습 · 다시 도전해도 이용료가 없어요'}</p>
+      <p className="sk-result-fee">무료 연습 · 다시 도전해도 이용료가 없어요</p>
       {helpOpen ? <div className="sk-result-help" id="sk-result-help" role="region" aria-label={playMode === 'vr' ? 'VR 조작 설명서' : '키보드·마우스 조작 설명서'}>
         <h3>{playMode === 'vr' ? 'VR로 꼬치 만들기' : '키보드·마우스로 꼬치 만들기'}</h3>
         <p>{playMode === 'vr' ? '트리거로 음식 집기 → 꼬치 끝에 맞춘 뒤 트리거 놓기 → 그립으로 꼬치를 잡아 뒤쪽 접시에 수평으로 놓고 그립 해제' : '숫자 1–6으로 재료 선택 → Space로 꽂기 → Enter로 서빙하기. 끝 재료는 Backspace로 뺄 수 있어요.'}</p>

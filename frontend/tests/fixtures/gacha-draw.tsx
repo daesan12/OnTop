@@ -1,6 +1,7 @@
 // Test-only entry: real presentation/state, isolated HTTP and event transport. No actual wallet.
 import { createRoot } from 'react-dom/client'
-import { GachaLifecycle, GachaPanel } from '../../src/features/gacha/GachaPanel'
+import { GachaLifecycle } from '../../src/features/gacha/GachaLifecycle'
+import { GachaPanel } from '../../src/features/gacha/GachaPanel'
 import { acceptGacha } from '../../src/features/gacha/events'
 import { useSession } from '../../src/network/worldClient'
 import { parkRuntime } from '../../src/park/runtime/runtime'

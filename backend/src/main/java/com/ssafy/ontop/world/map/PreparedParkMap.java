@@ -35,6 +35,7 @@ public final class PreparedParkMap {
     private final Reach feedback;
     private final Reach vrEntrance;
     private final List<Reach> stoneRumbleEntrances;
+    private final List<Pose> stoneRumbleExits;
 
     private PreparedParkMap(GeneratedParkMapLoader.ValidatedMap map, Set<String> channels) throws IOException {
         JsonNode data = map.document().path("data");
@@ -73,6 +74,16 @@ public final class PreparedParkMap {
             }
         }
         stoneRumbleEntrances = List.copyOf(entrances);
+        var exits = new ArrayList<Pose>();
+        if (stoneRumble != null && stoneRumble.has("exitPoints")) {
+            var points = stoneRumble.path("exitPoints");
+            require(points.isArray() && points.size() == 8, "돌탑 생존전 복귀 위치 8곳이 필요합니다.");
+            for (JsonNode point : points) {
+                exits.add(position(point, 0));
+            }
+            require(Set.copyOf(exits).size() == exits.size(), "돌탑 생존전 복귀 위치가 중복됩니다.");
+        }
+        stoneRumbleExits = List.copyOf(exits);
         anchorNumbers.sort(Integer::compareTo);
         for (String channel : channels.stream().sorted().toList()) {
             for (int number : anchorNumbers) {
@@ -123,9 +134,12 @@ public final class PreparedParkMap {
     public Catalog facilities() { return facilities; }
     public Reach notes() { return notes; }
     public Reach feedback() { return feedback; }
+    public boolean hasStoneRumbleEntrance() { return !stoneRumbleEntrances.isEmpty(); }
+
     public boolean canEnterStoneRumble(double x, double y, double z) {
         return stoneRumbleEntrances.stream().anyMatch(entrance -> entrance.contains(x, y, z));
     }
+    public List<Pose> stoneRumbleExits() { return stoneRumbleExits; }
     public java.util.Optional<Reach> vrEntrance() { return java.util.Optional.ofNullable(vrEntrance); }
 
     /** 명시적으로 선택한 별도 장면을 생성하며 ParkScene.load()의 기본 장면을 교체하지 않는다. */
@@ -195,10 +209,24 @@ public final class PreparedParkMap {
         root.put("sourceSha256", map.metadata().mapVersion());
         root.set("boxes", physics.path("boxes").deepCopy());
         root.set("hulls", physics.path("hulls").deepCopy());
-        for (String key : List.of("furniturePolicy", "fountainPolicy", "pavilionJumpSpeed", "pavilionTunedJumpSpeed", "secretCorridor")) {
+        for (String key : List.of("furniturePolicy", "fountainPolicy", "pavilionJumpSpeed", "pavilionTunedJumpSpeed", "secretCorridor", "interiorAccess")) {
             if (physics.has(key)) root.set(key, physics.path(key).deepCopy());
         }
         if (data.has("pavilions")) root.set("pavilions", data.path("pavilions").deepCopy());
+        JsonNode duck = physics.path("duckBoat");
+        if (duck.isObject()) {
+            for (String key : List.of("x", "y", "z")) {
+                number(duck.path(key));
+            }
+            for (String key : List.of("rx", "rz", "period")) {
+                positive(duck.path(key));
+            }
+            require(duck.path("half").isArray() && duck.path("half").size() == 3, "오리배 충돌 크기를 확인해주세요.");
+            for (JsonNode size : duck.path("half")) {
+                positive(size);
+            }
+            root.set("duckBoat", duck.deepCopy());
+        }
         JsonNode terrain = physics.path("terrain");
         Map<String, JsonNode> meshes = indexed(physics.path("meshes"));
         JsonNode ground = meshes.get(terrain.path("meshId").asText());
