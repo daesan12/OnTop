@@ -1,0 +1,51 @@
+.park-page .table-paper-popup.park-balloon-paper {
+  width: min(390px, calc(100vw - 36px));
+  scrollbar-width: none;
+}
+.park-balloon-paper::-webkit-scrollbar { display: none; }
+.park-balloon-paper .paper-caption {
+  font: 700 clamp(23px, 4vw, 29px)/1.2 BusanDandiMyeongjo, serif;
+  margin: 5px 16px 20px;
+}
+.park-balloon-hud {
+  position: fixed;
+  z-index: 57;
+  left: 50%;
+  bottom: max(18px, 8vh);
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100% - 30px);
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  scrollbar-width: none;
+  padding: 10px 16px;
+  text-align: center;
+  font: 700 15px/1.4 'Malgun Gothic', sans-serif;
+  color: #3e2d1d;
+  background: #f5ebd3 url('/art/tablet/hanji.webp') center / cover;
+  border: 3px double #ad8b54;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px #23322555;
+  pointer-events: auto;
+}
+.park-balloon-hud::-webkit-scrollbar { display: none; }
+.park-balloon-hud kbd { padding: 2px 5px; border-radius: 3px; background: #534333; color: #fff4dc; }
+.park-balloon-hud button {
+  padding: 5px 12px;
+  color: #fff4dc;
+  background: #294835;
+  border: 1px solid #ad8b54;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.park-balloon-hud button:focus-visible { outline: 2px solid #986829; outline-offset: 2px; }
+.park-balloon-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 58;
+  background: #151c17;
+  pointer-events: none;
+}

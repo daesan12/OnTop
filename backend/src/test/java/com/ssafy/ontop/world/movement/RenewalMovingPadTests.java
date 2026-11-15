@@ -95,6 +95,43 @@ class RenewalMovingPadTests {
 
     @ParameterizedTest
     @ValueSource(strings = {"mole", "pigeon"})
+    void 다른_플레이어가_있어도_상승_중인_발판에서_바로_점프한다(String theme) throws Exception {
+        var dir = Path.of("../frontend/generated/park-renewal");
+        var map = PreparedParkMap.load(dir.resolve("server-map.json"), dir.resolve("manifest.json"), Set.of("channel-1"));
+        var course = JumpCourse.loadEmbedded(map.jumpCourse(), map.metadata().mapVersion());
+        var pad = course.colliders().stream().filter(p -> theme.equals(course.theme(p.block()))).findFirst().orElseThrow();
+        var time = new AtomicLong(1_000_000_000L);
+        try (var world = new WorldPhysics(map.createScene(), false, time::get, true, course)) {
+            world.add("1");
+            world.add("2");
+            world.jumpmapRun("1", "test");
+            world.place("1", pad.x(), pad.top() + 1.9, pad.z());
+            for (int tick = 0; tick < 25 && world.observe("1").support().course() != pad; tick++) {
+                step(world, time);
+            }
+            assertThat(world.observe("1").support().course()).isEqualTo(pad);
+            boolean rising = false;
+            for (int tick = 0; tick < 115 && !rising; tick++) {
+                double previousY = world.snapshot("1").y();
+                step(world, time);
+                assertThat(world.observe("1").support().course()).isEqualTo(pad);
+                rising = world.snapshot("1").y() - previousY > .01;
+            }
+            assertThat(rising).isTrue();
+            var before = world.snapshot("1");
+
+            world.input("1", new MoveInput(1, 1, 0, false, true), time.get());
+            step(world, time);
+
+            var after = world.snapshot("1");
+            assertThat(after.y()).isGreaterThan(before.y() + .1);
+            assertThat(after.x()).isGreaterThan(before.x());
+            assertThat(after.motion().grounded()).isFalse();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"mole", "pigeon"})
     void 발판으로_이동_권한이_넘어갈_때_도착한_점프_입력을_한_번_처리한다(String theme) throws Exception {
         var dir = Path.of("../frontend/generated/park-renewal");
         var map = PreparedParkMap.load(dir.resolve("server-map.json"), dir.resolve("manifest.json"), Set.of("channel-1"));

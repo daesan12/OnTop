@@ -247,14 +247,16 @@ class TabletStartFlowTests {
         assertThat(initial(b, "202")).isEmpty();
     }
 
-    @Test void 다른로그인세션은_유예좌석으로_복귀하지못하고_상태도받지않는다() throws Exception {
+    @Test void 새_로그인세션은_이전_대기석을_해제하고_공원에_연결된다() throws Exception {
         Peer a=peer(101), b=peer(202); prepare(a,b);
         hub.disconnect(a.id,ConnectionCloseReason.SOCKET_CLOSED); drain(b);
         var other = connection(101, "00000000-0000-0000-0000-000000000002");
-        assertThat(other.accepted()).isFalse();
-        assertThat(other.messages()).isEmpty();
-        assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(2);
-        assertThat(initial(b, "202")).isEmpty();
+        assertThat(other.accepted()).isTrue();
+        assertThat(other.messages()).extracting(message -> message.path("type").asText())
+                .contains("CONNECTED").doesNotContain("TABLE_STATE", "TABLE_HOST_WAIT_STATE");
+        assertThat(hub.listTables().tables().getFirst().occupiedSeats()).isEqualTo(1);
+        assertThat(b.awaitType("TABLE_STATE", message -> true).path("payload").path("seats").toString())
+                .doesNotContain("101");
     }
 
     @Test void 진행중과_정산중_frozen좌석복귀는_TABLE_STATE와_현재시작상태를_받는다() throws Exception {

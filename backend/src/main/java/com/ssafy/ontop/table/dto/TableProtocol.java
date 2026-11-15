@@ -69,6 +69,11 @@ public final class TableProtocol {
             case "WORLD_MYROOM_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
+            case "WORLD_MOBILITY_START" -> fields(payload, Set.of("stationId", "vehicle", "leaseId"))
+                    && payload.path("stationId").asText().matches("mobility-[a-z]+")
+                    && Set.of("BICYCLE", "SCOOTER").contains(payload.path("vehicle").asText())
+                    && prankUuid(payload.path("leaseId"));
+            case "WORLD_MOBILITY_END" -> fields(payload, Set.of("leaseId")) && prankUuid(payload.path("leaseId"));
             case "WORLD_POSITION" -> validPosition(payload);
             case "WORLD_SECRET_DOORS_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
             case "WORLD_INTERIOR_ACCESS" -> fields(payload, Set.of("access"))

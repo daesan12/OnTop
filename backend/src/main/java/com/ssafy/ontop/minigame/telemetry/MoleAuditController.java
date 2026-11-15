@@ -71,6 +71,14 @@ public class MoleAuditController {
                 .body(requireAudit().search(game(game), userId, roundId, date));
     }
 
+    @GetMapping("/api/v1/admin/macro-analysis/mole/detections")
+    @Operation(summary = "두더지 더미 표적 적발 회원 조회", tags = "ADMIN",
+            security = @SecurityRequirement(name = "AccessJwt"))
+    public ResponseEntity<MoleAuditDtos.Detections> detections(@RequestParam String game) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(requireAudit().detections(game(game), Instant.now()));
+    }
+
     @GetMapping("/api/v1/admin/macro-analysis/mole/{id}")
     @Operation(summary = "두더지 판 타임라인과 비교", tags = "ADMIN", security = @SecurityRequirement(name = "AccessJwt"))
     public ResponseEntity<MoleAuditDtos.Detail> detail(@PathVariable long id, @RequestParam String game,

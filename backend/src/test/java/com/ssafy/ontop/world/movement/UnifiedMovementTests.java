@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.world.dto.WorldMapMetadata;
 import com.ssafy.ontop.world.map.PreparedParkMap;
+import com.ssafy.ontop.world.mobility.VehicleKind;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
@@ -124,6 +125,32 @@ class UnifiedMovementTests {
             assertThat(world.snapshot("a").x()).isCloseTo(stopped.x(),within(.001));
         }
     }
+    @Test
+    void 탑승중에는_서버가_이동을_판정하고_하차후_좌표보고로_복귀한다() {
+        for (var vehicle : VehicleKind.values()) {
+            try (var world = new WorldPhysics(flat(), true, now::get, true)) {
+                world.add("a");
+                world.place("a", -10, .84, 42);
+                assertThat(world.snapshot("a").motion().authority()).isEqualTo("CLIENT_VALIDATED");
+
+                world.setVehicleSpeed("a", vehicle.speed());
+                var mountedEpoch = world.snapshot("a").motion().epoch();
+                for (int tick = 0; tick < 5; tick++) {
+                    world.step(now.addAndGet(WorldPhysics.STEP_NANOS), Set.of());
+                }
+                var mounted = world.snapshot("a");
+                assertThat(mounted.motion().grounded()).isTrue();
+                assertThat(mounted.motion().authority()).isNull();
+                assertThat(mounted.motion().epoch()).isEqualTo(mountedEpoch);
+                assertThat(world.input("a", new MoveInput(1, 0, 0, false, false), now.get())).isTrue();
+
+                world.setVehicleSpeed("a", 0);
+                world.step(now.addAndGet(WorldPhysics.STEP_NANOS), Set.of());
+                assertThat(world.snapshot("a").motion().authority()).isEqualTo("CLIENT_VALIDATED");
+            }
+        }
+    }
+
     @Test void 물영역의_부력만_허용하고_수면초과와_육지공중상승은_거절한다(){
         Geometry water=new Geometry(){
             public boolean supported(Pose p){return false;} public boolean clear(Pose a,Pose b,boolean s){return true;}

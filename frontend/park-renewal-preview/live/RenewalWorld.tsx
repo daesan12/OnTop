@@ -1,4 +1,5 @@
-import { RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
+import { useLocalBalloon } from '../../src/features/balloon/localRide'
+import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
 import { EntranceBuilding } from '../EntrancePavilion'
 import { ParkGachaKiosk } from '../ParkGachaKiosk'
 import { ParkMoleShop } from '../ParkMoleShop'
@@ -24,6 +25,7 @@ import { PreviewTreeBatches } from '../PreviewTreeBatches'
 import { inAnnex } from '../interiorAccess'
 import { interiorVisit, visitScope } from '../interiorEvents'
 import { preloadBungeoppangView } from '../../src/features/bungeoppang/loadBungeoppangView'
+import { preloadJumpRopeView } from '../../src/features/jumpRope/loadJumpRopeView'
 import { preloadGateSurroundings } from './preloadEntranceModels'
 import { collectJumpViewDrawables } from '../../src/features/jumpmap/preparation'
 
@@ -35,6 +37,7 @@ const ParkDetailGeometry = lazy(() => import('../ParkDetailGeometry').then(modul
 const spawn = renewalMap?.data.physics.spawn.position
 const jumpEntrance = renewalMap?.data.jumpCourse?.start
 const bakery = renewalMap?.data.interactions.recreation?.find(anchor => anchor.id === 'fish-bread')
+const jumpRopeShop = renewalMap?.data.interactions.recreation?.find(anchor => anchor.id === 'pigeon-jump-rope')
 const finalStage = 8
 const boardsPerStage = 4
 const StableCityBackdrop = memo(CityBackdrop)
@@ -66,6 +69,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   groundMounted: RefObject<boolean>
   entryPresented: boolean
 }) {
+  const showDockedBalloon = useLocalBalloon(ride => !BALLOON_RIDE_ENABLED || !ride.flight)
   const surface = useRef<Group>(null), interior = useRef<Group>(null), annex = useRef<Group>(null)
   const loadInterior = useRef(false)
   const displayedPose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })
@@ -74,14 +78,14 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   const jumpViewIndex = useRef(0)
   const jumpViewSelection = useRef<Object3D | undefined>(undefined)
   const queuedBakery = useRef(false)
+  const queuedJumpRope = useRef(false)
   const nightPool = useRef<{ group: Object3D; lights: Object3D[]; quality: QualityPreset } | undefined>(undefined)
   const [loaded, setLoaded] = useState(false)
   const [lakeProgress] = useState(createLakeProgress)
   const [stage, setStage] = useState(() => !atEntrance() || welcomeFlight.active ? finalStage : 0)
   const distantReady = stage > 0
   const entry = useRef({
-    start: undefined as { x: number; z: number } | undefined,
-    requestedStage: stage, stableFrames: 0, committedAt: 0, movedAt: 0,
+    requestedStage: stage, stableFrames: 0, committedAt: 0,
   })
 
   useLayoutEffect(() => {
@@ -110,18 +114,15 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       return
     }
     const pose = authoritativePose(useSession.getState().sessionId)
-    if (pose) pending.start ??= { x:pose.x, z:pose.z }
     const shownAt = firstFrameAt.current
-    if (pose && pending.start && Math.hypot(pose.x - pending.start.x, pose.z - pending.start.z) > .08) {
-      pending.start = { x: pose.x, z: pose.z }
-      pending.movedAt = now
-    }
+    if (shownAt === null) return
+    pending.stableFrames = delta <= 1 / 30 ? pending.stableFrames + 1 : 0
     const lookedAround = Math.abs(Math.atan2(Math.sin(viewControls.yaw), Math.cos(viewControls.yaw))) > .08
       || Math.abs(viewControls.pitch - CAMERA.pitch) > .08
       || Math.abs(viewControls.distance - CAMERA.distance) > .5
-    const settled = shownAt !== null && now - Math.max(shownAt, pending.movedAt) >= 2200
+    const settled = pending.stableFrames >= 3 || now - shownAt >= 500
     const needsDistantView = !!pose && !!spawn && Math.hypot(pose.x - spawn[0], pose.z - spawn[2]) >= 26
-    if (shownAt !== null && (needsDistantView || welcomeFlight.active || lookedAround || settled)) {
+    if (needsDistantView || welcomeFlight.active || lookedAround || settled) {
       pending.requestedStage = 1
       performance.mark('park-distant-facilities-start')
       preloadGateSurroundings()
@@ -129,11 +130,19 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
     }
   }, .6)
   useFrame(() => {
-    if (!bakery || queuedBakery.current) return
+    const needsBakery = bakery && !queuedBakery.current
+    const needsJumpRope = jumpRopeShop && !queuedJumpRope.current
+    if (firstFrameAt.current === null || (!needsBakery && !needsJumpRope)) return
     const pose = authoritativePose(useSession.getState().sessionId)
-    if (!pose || Math.hypot(pose.x-bakery.reachPosition[0],pose.z-bakery.reachPosition[2]) > 22) return
-    queuedBakery.current = true
-    preloadBungeoppangView()
+    if (!pose) return
+    if (needsBakery && Math.hypot(pose.x-bakery.reachPosition[0],pose.z-bakery.reachPosition[2]) <= 32) {
+      queuedBakery.current = true
+      preloadBungeoppangView()
+    }
+    if (needsJumpRope && Math.hypot(pose.x-jumpRopeShop.reachPosition[0],pose.z-jumpRopeShop.reachPosition[2]) <= 28) {
+      queuedJumpRope.current = true
+      preloadJumpRopeView()
+    }
   })
   useFrame(({ camera, scene, gl }) => {
     const root = surface.current
@@ -228,7 +237,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
         <GroundMounted ready={groundMounted} />
       </Suspense>
       {entryPresented && stage >= 1 && <Suspense fallback={null}><StableScenicDetails includeGround={false} includeTrees={false} includeLandscape={false} distantReady={stage >= 2} live /></Suspense>}
-      {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
+      {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live showDockedBalloon={showDockedBalloon} entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
         loadedRentalBatches={stage} /></Suspense>}
       {entryPresented && stage >= 3 && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>
         <StableTable index={index} boards={stage === finalStage || index < Math.max(0, stage - 3) * boardsPerStage} />

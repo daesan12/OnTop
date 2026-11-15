@@ -1,5 +1,7 @@
+let preparedHud: typeof import('./BungeoppangHud').BungeoppangHud | undefined
+export const getPreloadedBungeoppangHud = () => preparedHud
 export const loadBungeoppangHud = () => import('./BungeoppangHud')
-  .then(module => ({ default: module.BungeoppangHud }))
+  .then(module => ({ default: preparedHud = module.BungeoppangHud }))
 export const loadBungeoppangGrill = () => import('./BungeoppangGrill')
   .then(module => ({ default: module.BungeoppangGrill }))
 

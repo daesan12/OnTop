@@ -127,7 +127,7 @@ export function GachaBoxes(){
  useEffect(()=>{const open=()=>{const grade=useItemChoice.getState().grade;if(grade)void opening.open(grade)};window.addEventListener(OPEN_CHOSEN_ITEM,open);return()=>window.removeEventListener(OPEN_CHOSEN_ITEM,open)},[opening.open])
  useEffect(()=>{void refreshGacha()},[])
  useEffect(()=>{const media=matchMedia('(prefers-reduced-motion: reduce)'),update=()=>setReduced(media.matches);media.addEventListener('change',update);return()=>media.removeEventListener('change',update)},[])
- useEffect(()=>{const d=dialog.current;if(!d||!visible||!connected)return;d.showModal();useGachaOverlay.setState({open:true});return()=>{d.close();useGachaOverlay.setState({open:false})}},[visible,connected])
+ useEffect(()=>{const d=dialog.current;if(!d||!visible||!connected)return;d.showModal();useGachaOverlay.setState({surface:'boxes'});return()=>{d.close();useGachaOverlay.setState({surface:null})}},[visible,connected])
  const paidOut=!!result?.duplicate&&['coins','complete'].includes(opening.phase)
  const componentSlots=result?.product?.components?.flatMap(c=>c.slots)??[]
  const slots=componentSlots.length?componentSlots:result?.product?.itemIds.flatMap(id=>{const slot=items.find(i=>i.item.itemId===id)?.item.equipSlot;return slot?[slot]:[]})??[]

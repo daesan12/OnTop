@@ -50,7 +50,7 @@ class AuthExchangeBehaviorTests {
         AccessJwtService jwt = mock(AccessJwtService.class);
         when(jwt.issue(anyLong(), anyString())).thenReturn("access");
         service = new AuthExchangePersistenceService(users, mock(RefreshTokenRepository.class), jwt,
-                Clock.fixed(NOW, ZoneOffset.UTC), new CapturingLog());
+                Clock.fixed(NOW, ZoneOffset.UTC), new CapturingLog(), mock(AuthenticationRevocations.class));
     }
 
     @AfterEach

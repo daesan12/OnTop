@@ -165,6 +165,7 @@ abstract class OpenApiHttpTestSupport {
                     "GET /api/v1/minigames/speed-mole/rankings",
                     "POST /api/v1/minigames/{game}/rounds/{id}/observations",
                     "GET /api/v1/admin/macro-analysis/mole", "GET /api/v1/admin/macro-analysis/mole/{id}",
+                    "GET /api/v1/admin/macro-analysis/mole/detections",
                     "GET /api/v1/admin/macro-analysis/jumpmap", "GET /api/v1/admin/macro-analysis/jump-rope",
                     "POST /api/v1/minigames/jump-rope/rounds", "POST /api/v1/minigames/jump-rope/rounds/{roundId}/complete",
                     "GET /api/v1/minigames/jump-rope/rankings",

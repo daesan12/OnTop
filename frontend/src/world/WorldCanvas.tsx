@@ -1,5 +1,5 @@
 import { useGame } from '../game/store'
-import { useSession } from '../network/worldClient'
+import { avatars, useSession } from '../network/worldClient'
 import { seatScope, useTableLobby } from '../features/tableLobby/state'
 import { MAP_RENDER_BUDGET } from './art/mapRenderProfile'
 import { ParkSoundscape } from '../audio/ParkSoundscape'
@@ -44,6 +44,7 @@ import { PerformanceProbe } from '../performance/PerformanceProbe'
 import { AdaptiveResolution } from '../performance/AdaptiveResolution'
 import { Canvas, preloadWorldAssets } from './worldAssets'
 import {ParkDebrisScene} from '../features/parkDebris/ParkDebrisScene'
+import { BALLOON_RIDE_ENABLED } from '../park/mapSelection'
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { prepareScene, prepareVisibleScenePrograms } from './prepareScene'
 import { warmParkGeometry } from '../park/loadParkGeometry'
@@ -54,6 +55,7 @@ import { useFortune } from '../features/fortune/state'
 import { useBungeoppang } from '../features/bungeoppang/store'
 import { loadBungeoppangGrill } from '../features/bungeoppang/loadBungeoppangView'
 
+const LocalBalloonScene = lazy(() => import('../features/balloon/LocalBalloonScene'))
 const PlaceholderWorld = lazy(() => import('./PlaceholderWorld').then(module => ({ default: module.PlaceholderWorld })))
 const RpsRouletteCabinet = lazy(() => import('../features/rpsRoulette/RpsRouletteCabinet').then(module => ({ default: module.RpsRouletteCabinet })))
 const BungeoppangGrill = lazy(loadBungeoppangGrill)
@@ -108,7 +110,14 @@ function SceneReady({ mounted, groundMounted, onReady }: {
     }
   }, [startup])
   useFrame(({ gl, scene, camera }) => {
-    if (startup.phase !== 'presented' && (!mounted.current || (RENEWAL_PARK_ENABLED && !groundMounted.current))) return
+    if (startup.phase !== 'presented') {
+      const session = useSession.getState()
+      const ownsCamera = !!session.roomId && !!avatars.get(session.sessionId)?.connected
+      if (!mounted.current || (RENEWAL_PARK_ENABLED && !groundMounted.current)) return
+      // The renewal shader pass is scoped to the actual entrance camera.
+      // Other profiles can still prepare shaders while the first pose is in flight.
+      if (!ownsCamera && (RENEWAL_PARK_ENABLED || startup.phase === 'ready')) return
+    }
     if (startup.phase === 'cold' && RENEWAL_PARK_ENABLED) {
       performance.mark('park-scene-prepare-start')
       if (RENEWAL_GATE_STARTUP && gl.extensions.has('KHR_parallel_shader_compile')) {
@@ -171,7 +180,7 @@ export const WorldCanvas = memo(function WorldCanvas({
 }) {
   const [distantReady, setDistantReady] = useState(false)
   const jumpRunActive = useJumpmap(state => !!state.run)
-  const breadActive = useBungeoppang(state => state.phase !== 'idle')
+  const breadSceneMounted = useBungeoppang(state => state.phase !== 'idle' || state.returningScene)
   const firstFrameAt = useRef<number | null>(null)
   const [entryPresented, setEntryPresented] = useState(false)
   const sceneMounted = useRef(false)
@@ -188,7 +197,7 @@ export const WorldCanvas = memo(function WorldCanvas({
   const preset = QUALITY[quality]
   const overlayTargets = useMemo<OverlayTargets>(() => new Map(), [])
   const [visible, setVisible] = useState(() => !document.hidden)
-  const gachaOverlay = useGachaOverlay(s => s.open)
+  const gachaSurface = useGachaOverlay(s => s.surface)
   const fortuneOpen = useFortune(s => s.open)
   const [viewport, setViewport] = useState(() => ({
     width: innerWidth,
@@ -224,8 +233,9 @@ export const WorldCanvas = memo(function WorldCanvas({
     <>
       <Canvas
         events={parkPointerEvents}
-        // Keep sockets alive in hidden tabs; authoritative match state still arrives.
-        frameloop={!visible || !active || gachaOverlay || (fortuneOpen && firstFrameAt.current !== null) ? 'never' : 'always'}
+        // Redraw the visible park backdrop on resize without running a second continuous render loop.
+        frameloop={!visible || !active || gachaSurface === 'boxes' || (fortuneOpen && firstFrameAt.current !== null)
+          ? 'never' : gachaSurface === 'machine' ? 'demand' : 'always'}
         shadows={!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&preset.shadows ? 'percentage' : false}
         dpr={renderDpr}
         camera={{
@@ -254,6 +264,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         }
       >
         <AvatarPoseFrame>
+          {BALLOON_RIDE_ENABLED && <Suspense fallback={null}><LocalBalloonScene /></Suspense>}
           <ParkXRBridge />
           <group name={RENEWAL_PARK_ENABLED ? 'renewal-exterior-lighting' : undefined}>
             <EnvironmentScene matchServiceBrightness={RENEWAL_PARK_ENABLED} />
@@ -281,7 +292,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <CompanionActors />
         <JokeJudgeActor />          <FollowRopes />
           <RouteArrows />
-        {breadActive && <Suspense fallback={null}><BungeoppangGrill /></Suspense>}
+        {breadSceneMounted && <Suspense fallback={null}><BungeoppangGrill /></Suspense>}
           <ParkDebrisScene />
 
           {!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&<ParkPigeons quality={quality} />}

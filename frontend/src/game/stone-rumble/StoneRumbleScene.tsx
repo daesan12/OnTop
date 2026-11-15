@@ -1,8 +1,17 @@
-import { Component, lazy, memo, Suspense, useEffect, useMemo, useRef, type MutableRefObject, type ReactNode } from 'react'
+import { Component, lazy, memo, Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import { Canvas, createPortal, events, useFrame, useLoader, useThree } from '@react-three/fiber'
-import { Group, Mesh, MeshBasicMaterial, Object3D, Plane, Scene, SphereGeometry, Vector2, Vector3, type InstancedMesh } from 'three'
+import { Group, Mesh, MeshBasicMaterial, Object3D, Plane, Scene, SphereGeometry, Vector2, Vector3, type InstancedMesh, type Material } from 'three'
 import { ParkAssetLoader } from '../../world/art/assetLoader'
-import { createCharacterRig, characterUrls } from '../../world/art/CharacterRig'
+import { characterUrls } from '../../world/art/CharacterRig'
+import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
+import { useSession } from '../../network/worldClient'
+import { emptyEquipment } from '../../network/equipment'
+import { WARDROBE_OUTFITS_ENABLED } from '../../features/wardrobe/feature'
+import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from '../../world/art/characterLook'
+import { useOutfitSources } from '../../world/art/outfitSources'
+import { createSafeCharacterRig } from '../../world/art/safeCharacterRig'
+import { useSkinCatalog } from '../../world/art/skinCatalog'
+import { resolveWholeSkin } from '../../world/art/wholeSkin'
 import { pigeonGeometry, pigeonMaterial } from '../../world/pigeons/pigeonGeometry'
 import { visibleStoneFloor } from './layout'
 import { StoneRumbleTiles } from './StoneRumbleTiles'
@@ -12,7 +21,7 @@ import { loadStoneRumblePark } from './loadPark'
 import { StoneRumblePreparation, type StoneSceneStatus } from './StoneRumblePreparation'
 import type { StoneControl, StonePigeon, StonePlayer, StoneState } from './protocol'
 import { STONE_PLAYER_COLORS as COLORS } from './palette'
-import { readStoneCharacterAppearance } from './characterAppearance'
+import { readStoneCharacterAppearances } from './characterAppearance'
 import { StoneRumbleLighting } from './StoneRumbleLighting'
 import { createStoneMaterial } from './visibility'
 import { StoneHitEffect } from './StoneHitEffect'
@@ -30,19 +39,61 @@ class SceneBoundary extends Component<{ children: ReactNode; onStatus: StoneScen
 }
 export type StoneInput = MutableRefObject<Omit<StoneControl, 'kind' | 'seq'>>
 
-function Avatar({ player, index, own, time, gameId, feedback }: { player: StonePlayer; index: number; own: boolean; time: number; gameId: string; feedback?: MutableRefObject<StoneFeedbackFrame> }) {
-  const source = useLoader(ParkAssetLoader, characterUrls[index % 2]!)
-  const appearance = readStoneCharacterAppearance(source)
+type AvatarProps = { player: StonePlayer; index: number; own: boolean; time: number; gameId: string; feedback?: MutableRefObject<StoneFeedbackFrame> }
+const pendingAppearance = <group name="stone-appearance-pending" />
+
+function Avatar(props: AvatarProps & { localOnly: boolean }) {
+  const { player, index, localOnly } = props
+  const base = useLoader(ParkAssetLoader, characterUrls)
+  const character = useSession(s => localOnly ? undefined : s.profiles[player.userId]?.character)
+  const outfitsEnabled = !localOnly && WARDROBE_OUTFITS_ENABLED
+  const received = useSession(s => outfitsEnabled ? s.equipment[player.userId] : undefined)
+  const worn = received ?? emptyEquipment
+  const variant = localOnly && index % 2 || character === 'girl' ? 'girl' : 'man'
+  const revision = useSkinCatalog(s => outfitsEnabled ? s.revision : 0)
+  const checked = useSkinCatalog(s => !outfitsEnabled || s.checked)
+  const [timedOut, setTimedOut] = useState(false)
+  useEffect(() => {
+    if (!outfitsEnabled || received !== undefined) return
+    const timer = window.setTimeout(() => setTimedOut(true), 8000)
+    return () => window.clearTimeout(timer)
+  }, [outfitsEnabled, received])
+  const look = useMemo(() => resolveLook(variant, worn), [variant, worn, revision])
+  const whole = resolveWholeSkin(variant, worn)
+  const waitingForCatalog = !checked && worn.some(item => item.imageKey?.startsWith('catalog/'))
+  const { outfits, pending } = useOutfitSources(waitingForCatalog ? [] :
+    whole ? [whole.source] : lookSources(look).filter(source => !isCharacterSource(source)))
+  const files = useMemo(() => new Map([['man', base[0]!], ['girl', base[1]!], ...outfits]), [base, outfits])
+  if (outfitsEnabled && ((received === undefined && !timedOut) || waitingForCatalog || pending)) return pendingAppearance
+  return <Suspense fallback={pendingAppearance}>
+    <AvatarRig {...props} source={base[variant === 'girl' ? 1 : 0]!} files={files}
+      look={availableLook(variant, look, source => files.has(source))} whole={whole && outfits.get(whole.source)} />
+  </Suspense>
+}
+
+function AvatarRig({ player, index, own, time, gameId, feedback, source, files, look, whole }: AvatarProps & {
+  source: GLTF; files: ReadonlyMap<string, GLTF>; look: ReturnType<typeof resolveLook>; whole?: GLTF
+}) {
+  const shownKey = lookKey(look)
+  const sources = useMemo(() => [...new Set([source, ...(whole ? [whole] :
+    lookSources(look).flatMap(name => files.get(name) ?? []))])], [source, whole, files, shownKey])
+  const appearances = useMemo(() => readStoneCharacterAppearances(sources), [sources])
   const rig = useMemo(() => {
-    const rig = createCharacterRig(source)
+    const rig = createSafeCharacterRig(source, look, files, whole)
+    const apply = (material: Material) => {
+      for (const appearance of appearances) {
+        const replacement = appearance.get(material)
+        if (replacement) return replacement
+      }
+      return material
+    }
     rig.root.traverse(object => {
-      if (object instanceof Mesh) {        object.material = Array.isArray(object.material)
-        ? object.material.map(material => appearance.get(material) ?? material)
-        : appearance.get(object.material) ?? object.material
+      if (object instanceof Mesh) {
+        object.material = Array.isArray(object.material) ? object.material.map(apply) : apply(object.material)
       }
     })
     return rig
-  }, [source, appearance])
+  }, [source, shownKey, files, whole, appearances])
   const hipHeight = rig.hipHeight * .95
   const group = useRef<Group>(null), initial = useRef(true), moving = useRef(0)
   const body = useRef<Group>(null), dive = useRef(0), diveYaw = useRef(0)
@@ -143,8 +194,8 @@ function ArrivalClouds({ state }: { state: StoneState }) {
   </group>
 }
 
-function Stage({ state, ownId, viewId, input, fire, feedback }: {
-  state: StoneState; ownId: string; viewId: string; input: StoneInput; fire: () => void
+function Stage({ state, ownId, viewId, input, fire, feedback, localOnly }: {
+  state: StoneState; ownId: string; viewId: string; input: StoneInput; fire: () => void; localOnly: boolean
   feedback?: MutableRefObject<StoneFeedbackFrame>
 }) {
   const material = useMemo(() => new MeshBasicMaterial({ fog: false, toneMapped: false, transparent: true, opacity: .34, depthWrite: false }), [])
@@ -199,7 +250,7 @@ function Stage({ state, ownId, viewId, input, fire, feedback }: {
   return <>
     <StoneRumbleTiles tiles={state.tiles} material={material} time={state.serverTime} ownFloor={ownFloor} />
     <ArrivalClouds state={state} />
-    {state.players.map((player, index) => <Avatar key={player.userId} player={player} index={index} own={player.userId === viewId} time={state.serverTime} gameId={state.gameId} feedback={feedback} />)}
+    {state.players.map((player, index) => <Avatar key={player.userId} localOnly={localOnly} player={player} index={index} own={player.userId === viewId} time={state.serverTime} gameId={state.gameId} feedback={feedback} />)}
     {state.pigeons.map(pigeon => <Pigeon key={pigeon.id} pigeon={pigeon} time={state.serverTime} />)}
     <group visible={false} userData={{ prepareWhenHidden: true }}>
       <Pigeon pigeon={{ id: -1, owner: ownId, x: 0, y: 24.8, z: 0, vx: 20, vz: 0 }} time={0} />
@@ -231,5 +282,5 @@ export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, prepa
     && previous.preparationAttempt === next.preparationAttempt && previous.onStatus === next.onStatus
     && previous.ownId === next.ownId && previous.viewId === next.viewId
     && previous.input === next.input && previous.fire === next.fire
-    && previous.feedback === next.feedback
+    && previous.feedback === next.feedback && previous.localOnly === next.localOnly
 })

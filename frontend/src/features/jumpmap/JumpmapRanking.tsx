@@ -7,7 +7,9 @@ export const jumpTime = (ms: number) => {
   const seconds=Math.floor(Math.max(0,ms)/1000)
   return `${Math.floor(seconds/60)}분 ${String(seconds%60).padStart(2,'0')}초`
 }
-export function JumpmapRanking({ load, onBack }: { load?: RankingLoader; onBack(): void }) {
+export function JumpmapRanking({ load, onBack, backLabel = '결과로 돌아가기' }: {
+  load?: RankingLoader; onBack(): void; backLabel?: string
+}) {
   const [attempt, retry] = useState(0)
   const [state, setState] = useState<{ items: Entry[]; me: Entry | null; error: string; loading: boolean }>({ items: [], me: null, error: '', loading: !!load })
   useEffect(() => {
@@ -37,6 +39,6 @@ export function JumpmapRanking({ load, onBack }: { load?: RankingLoader; onBack(
               <span className="jm-ranking-name" title={item.nickname}>{item.nickname}</span><time>{jumpTime(item.finishMs)}</time></li>)}</ol>
               : <p>첫 완주 기록을 기다리고 있어요.</p>}</>}
     </div>
-    <div className="paper-actions"><button className="paper-primary" onClick={onBack}>결과로 돌아가기</button></div>
+    <div className="paper-actions"><button className="paper-primary" onClick={onBack}>{backLabel}</button></div>
   </section>
 }

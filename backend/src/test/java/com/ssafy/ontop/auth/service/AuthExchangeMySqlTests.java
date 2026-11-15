@@ -9,21 +9,28 @@ import com.ssafy.ontop.auth.domain.OAuthProvider;
 import com.ssafy.ontop.auth.domain.RefreshToken;
 import com.ssafy.ontop.auth.exception.AuthExchangeException;
 import com.ssafy.ontop.auth.repository.RefreshTokenRepository;
+import com.ssafy.ontop.auth.security.AccessAuthenticationService;
+import com.ssafy.ontop.auth.security.RestAuthenticationException;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.domain.LoginProvider;
 import com.ssafy.ontop.user.domain.User;
 import com.ssafy.ontop.user.repository.UserRepository;
+import jakarta.servlet.http.Cookie;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.WebSocket;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -66,7 +73,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "ontop.oauth.ssafy.client-id=fixture-ssafy",
-        "ontop.oauth.frontend-callback-uri="
+        "ontop.oauth.frontend-callback-uri=",
+        "spring.flyway.locations=classpath:db/migration,classpath:db/minigame,classpath:db/shop"
 })
 class AuthExchangeMySqlTests {
 
@@ -82,6 +90,8 @@ class AuthExchangeMySqlTests {
     private OnboardingTokenStore onboarding;
     @Autowired
     private AccessJwtService jwt;
+    @Autowired
+    private AccessAuthenticationService authentication;
     @Autowired
     private UserRepository users;
     @MockitoSpyBean
@@ -177,30 +187,67 @@ class AuthExchangeMySqlTests {
     }
 
     @Test
-    void 복수기기_로그인은_서로_다른_세션과_해시로_저장한다() throws Exception {
+    void 새_기기_로그인은_이전_Access와_Refresh와_공원_연결을_폐기한다() throws Exception {
         User user = fixture();
         LoginOutcome outcome = new LoginOutcome(OAuthProvider.SSAFY,
                 LoginOutcome.Status.EXISTING_MEMBER, user.getId(), null);
         MockHttpSession firstSession = new MockHttpSession();
         MockHttpSession secondSession = new MockHttpSession();
         MvcResult first = exchange(code(firstSession, outcome), firstSession).andExpect(status().isOk()).andReturn();
-        MvcResult second = exchange(code(secondSession, outcome), secondSession).andExpect(status().isOk()).andReturn();
+        String previousAccess = mapper.readTree(first.getResponse().getContentAsString()).path("accessToken").asText();
+        String unusedTicket = socketTicket(previousAccess);
+        var listener = new ParkSocketListener();
+        MvcResult second;
+        try (HttpClient http = HttpClient.newHttpClient()) {
+            String path = "ws://127.0.0.1:" + port + "/ws/tables?ticket=";
+            WebSocket previous = http.newWebSocketBuilder().buildAsync(URI.create(path + socketTicket(previousAccess)),
+                    listener).get(5, TimeUnit.SECONDS);
+            try {
+                assertThat(listener.firstMessage.get(5, TimeUnit.SECONDS)).contains("\"type\":\"CONNECTED\"");
+                second = exchange(code(secondSession, outcome), secondSession)
+                        .andExpect(status().isOk()).andReturn();
+                assertThat(listener.closed.get(5, TimeUnit.SECONDS)).isEqualTo(4401);
+                assertThatThrownBy(() -> http.newWebSocketBuilder()
+                        .buildAsync(URI.create(path + unusedTicket), new ParkSocketListener()).get(5, TimeUnit.SECONDS))
+                        .hasCauseInstanceOf(java.net.http.WebSocketHandshakeException.class);
+            } finally {
+                previous.abort();
+            }
+        }
         RefreshToken one = refreshTokens.findByTokenHash(OpaqueTokens.digest(refreshValue(first.getResponse()
                 .getHeader("Set-Cookie")))).orElseThrow();
         RefreshToken two = refreshTokens.findByTokenHash(OpaqueTokens.digest(refreshValue(second.getResponse()
                 .getHeader("Set-Cookie")))).orElseThrow();
+        String currentAccess = mapper.readTree(second.getResponse().getContentAsString()).path("accessToken").asText();
 
         assertThat(one.getSessionId()).isNotEqualTo(two.getSessionId());
         assertThat(one.getTokenHash()).isNotEqualTo(two.getTokenHash());
         assertThat(one.getUserId()).isEqualTo(two.getUserId());
+        assertThat(one.getRevokedAt()).isNotNull();
+        assertThat(two.getRevokedAt()).isNull();
+        assertThatThrownBy(() -> authentication.authenticate(previousAccess))
+                .isInstanceOf(RestAuthenticationException.class);
+        assertThat(authentication.authenticate(currentAccess).sessionId()).isEqualTo(two.getSessionId());
+        mvc.perform(post("/api/v1/auth/refresh").header("Origin", "http://localhost:8080")
+                .cookie(new Cookie(RefreshCookieService.NAME, refreshValue(first.getResponse()
+                        .getHeader("Set-Cookie"))))).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/refresh").header("Origin", "http://localhost:8080")
+                .cookie(new Cookie(RefreshCookieService.NAME, refreshValue(second.getResponse()
+                        .getHeader("Set-Cookie"))))).andExpect(status().isOk());
+        assertThat(socketTicket(currentAccess)).isNotBlank();
     }
 
     @Test
     void Refresh_저장_실패는_롤백되고_응답과_쿠키가_노출되지_않는다() throws Exception {
         User user = fixture();
+        LoginOutcome outcome = new LoginOutcome(OAuthProvider.SSAFY, LoginOutcome.Status.EXISTING_MEMBER,
+                user.getId(), null);
+        MockHttpSession previousSession = new MockHttpSession();
+        MvcResult previous = exchange(code(previousSession, outcome), previousSession)
+                .andExpect(status().isOk()).andReturn();
+        String previousAccess = mapper.readTree(previous.getResponse().getContentAsString()).path("accessToken").asText();
         MockHttpSession session = new MockHttpSession();
-        String code = code(session,
-                new LoginOutcome(OAuthProvider.SSAFY, LoginOutcome.Status.EXISTING_MEMBER, user.getId(), null));
+        String code = code(session, outcome);
         long before = refreshTokens.count();
         doThrow(new DataAccessResourceFailureException("fixture-private-database"))
                 .when(refreshTokens).saveAndFlush(any());
@@ -210,15 +257,16 @@ class AuthExchangeMySqlTests {
 
         assertThat(result.getResponse().getContentAsString()).doesNotContain("accessToken", "fixture-private-database");
         assertThat(refreshTokens.count()).isEqualTo(before);
+        assertThat(authentication.authenticate(previousAccess).userId()).isEqualTo(user.getId());
         exchange(code, session).andExpect(status().isUnauthorized());
     }
 
     @Test
-    void 현재_V112와_기존_FK와_JPA_validate와_재실행을_확인한다() {
+    void 공통_스키마의_FK와_JPA_validate와_재실행을_확인한다() {
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.4.");
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("112");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class))
-                .isEqualTo(7);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM flyway_schema_history WHERE version = '112' AND success = 1
+                """, Integer.class)).isEqualTo(1);
         long userCount = users.count();
         long refreshCount = refreshTokens.count();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
@@ -304,6 +352,36 @@ class AuthExchangeMySqlTests {
 
     private String refreshValue(String cookie) {
         return cookie.split(";", 2)[0].substring((RefreshCookieService.NAME + "=").length());
+    }
+
+    private String socketTicket(String access) throws Exception {
+        MvcResult ticket = mvc.perform(post("/api/v1/auth/websocket-ticket").header("Authorization", "Bearer " + access))
+                .andExpect(status().isOk()).andReturn();
+        return mapper.readTree(ticket.getResponse().getContentAsString()).path("ticket").asText();
+    }
+
+    private static class ParkSocketListener implements WebSocket.Listener {
+        private final CompletableFuture<String> firstMessage = new CompletableFuture<>();
+        private final CompletableFuture<Integer> closed = new CompletableFuture<>();
+        private final StringBuilder frame = new StringBuilder();
+
+        @Override
+        public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+            if (!firstMessage.isDone()) {
+                frame.append(data);
+                if (last) {
+                    firstMessage.complete(frame.toString());
+                }
+            }
+            webSocket.request(1);
+            return null;
+        }
+
+        @Override
+        public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+            closed.complete(statusCode);
+            return null;
+        }
     }
 
     private static String randomKey() {

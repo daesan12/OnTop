@@ -1,6 +1,8 @@
 import { FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
 import { authoritativePose, avatars, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
+import { openLocalBalloon } from '../balloon/localRide'
+import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
@@ -39,6 +41,7 @@ import { STONE_RUMBLE_ENABLED } from '../tableLobby/model'
 import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { constructionSites,canReachConstruction,openConstructionNotice,openParkGacha } from '../construction/model'
+import { openSpotDifference } from '../spotDifference/store'
 import { canReachParkGacha, PARK_GACHA_MACHINE } from '../gacha/parkMachinePlacement'
 import { gachaInteractionEnabled } from '../gacha/state'
 import { canReachRankingBoard,openRankingBoard,rankingBoardTarget } from '../rankingBoard/model'
@@ -50,6 +53,7 @@ import { useJumpmap } from '../jumpmap/state'
 import { carryInteraction, interactWithAvatar } from '../carry/interaction'
 import {canReachJokeJudge,jokeJudgePosition,openJokeContest} from '../ai/jokeContest'
 import { openFortune } from '../fortune/controller'
+import { useMobility } from '../mobility/state'
 import { useDisplayGame } from '../../game/displayGame'
 import { diamond, interiorVisit, visitScope } from '../../../park-renewal-preview/interiorEvents'
 import { accessAt, interiorAccess } from '../../../park-renewal-preview/interiorAccess'
@@ -70,7 +74,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access'
   id: string
   label: string
   seat?: 0 | 1
@@ -84,7 +88,8 @@ export interface ParkInteraction {
 export function getParkInteraction(): ParkInteraction | null {
   const session = useSession.getState(), benches = useBenchState.getState(), fitness = useFitnessState.getState()
   const p = avatars.get(session.sessionId)
-  if (facilityMovementBlocked(session.sessionId)) return null
+  const mobility = useMobility.getState()
+  if (mobility.target || mobility.phase !== 'idle' || p?.vehicle || facilityMovementBlocked(session.sessionId)) return null
   if (!roamingInput.ready || !p || session.status !== 'connected' || !session.mapCompatible || session.tableId || p.seatIndex >= 0
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || useDisplayGame.getState().localPractice || panelOwnsKeys()) return null
@@ -118,10 +123,16 @@ export function getParkInteraction(): ParkInteraction | null {
   if(plazaKiosksEnabled)for(const site of constructionSites){
     // layout-shop is the visible gacha machine. Its E prompt is controlled by the
     // backend runtime capability below, not by the legacy construction marker.
-    if(site.id===PARK_GACHA_MACHINE.id)continue
+    if(site.id===PARK_GACHA_MACHINE.id || RENEWAL_PARK_ENABLED && site.id.startsWith('mobility-'))continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
-    const label = site.id === 'layout-drink' ? '복권방 열기' : site.label
+    // The deployed 220m map still classifies this anchor as construction.
+    if (renewalMap && site.id === 'shooting') {
+      choices.push({ kind: 'spot-difference', id: site.id, label: '스피드 틀린 그림 찾기',
+        occupied: false, available: true, distance, score: interactionScore(distance, { x, y: y + .5, z }) })
+      continue
+    }
+    const label = site.id === 'balloon' && BALLOON_RIDE_ENABLED ? '열기구 탑승' : site.id === 'layout-drink' ? '복권방 열기' : site.label
     choices.push({kind:'construction',id:site.id,label,occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
   if (plazaKiosksEnabled && (RENEWAL_PARK_ENABLED || gachaInteractionEnabled(session.sessionId)) && canReachParkGacha(p.current)) {
@@ -237,7 +248,11 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'joke-judge') openJokeContest()
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'gacha') openParkGacha()
-  else if (target.kind === 'construction') openConstructionNotice(target.id)
+  else if (target.kind === 'spot-difference') openSpotDifference()
+  else if (target.kind === 'construction') {
+    if (target.id === 'balloon' && BALLOON_RIDE_ENABLED) return openLocalBalloon()
+    openConstructionNotice(target.id)
+  }
   else if (target.kind === 'bungeoppang') openBungeoppang()
   else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openArcade() }
   else if (target.kind === 'renewal-game') {

@@ -2,6 +2,7 @@ import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
 import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
 import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { localBalloonRider } from '../features/balloon/localRide'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Matrix4, Vector3 } from 'three'
 import { cameraWorldPosition, parkXRView } from './xrView'
@@ -11,6 +12,7 @@ import { createSafeCharacterRig } from './art/safeCharacterRig'
 import { avatarPoseActive, avatarPoseAmbient, avatarSeatSurface, createAvatarMotion } from './avatarMotion'
 import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { createCarryMotion } from './avatarCarryMotion'
+import { createMountedVehicle } from '../features/mobility/mountedVehicle'
 import { AvatarPresentation } from './avatarPresentation'
 import { SwimmingRipples } from './SwimmingRipples'
 
@@ -123,6 +125,7 @@ function Avatar({
   const worldPosition = useMemo(() => new Vector3(), [])
   const inverseRoot = useMemo(() => new Matrix4(), [])
   const presentation = useMemo(() => new AvatarPresentation(), [])
+  const mountedVehicle = useMemo(createMountedVehicle, [])
   const motion = useMemo(() => createAvatarMotion(model, RENEWAL_PARK_ENABLED), [model])
   const carriedPartner = useRef({ id: '', carryId: '' })
   const cadence = useMemo(() => new AvatarPoseCadence(avatarCrowdGroup(id)), [id, model])
@@ -177,6 +180,7 @@ function Avatar({
     const seated = avatar.seatIndex >= 0
     const seatTable = seated && avatar.tableId ? TABLES.find(table => table.id === avatar.tableId) : undefined
     const own = id === useSession.getState().sessionId
+    const balloonRider = own ? localBalloonRider(id) : null
     // Hide only this client's own model; other clients retain the full avatar.
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
     const ownPose = ownAvatar && samplePose(ownAvatar, frameAt, overlapPose)
@@ -191,18 +195,19 @@ function Avatar({
       pendingFadeShaders.current?.()
     }
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
-    root.current.visible = firstAppearanceReady.current && opacity > 0 && !(own && parkXRView.active) && (!!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
+    root.current.visible = firstAppearanceReady.current && opacity > 0 && !(own && parkXRView.active) && (!!balloonRider || !!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
-    root.current.position.set(
+    if (balloonRider) root.current.position.set(balloonRider.x, balloonRider.y, balloonRider.z)
+    else root.current.position.set(
       pose.x,
       pose.y - 0.8 + (seated ? (seatTable?.seatSurfaceY
         ?? avatarSeatSurface(avatar.benchId))
           + (RENEWAL_PARK_ENABLED ? model.seatedContactLift : model.seatedHipLift) - model.hipHeight : 0),
       pose.z,
     )
-    root.current.rotation.y = pose.yaw
+    root.current.rotation.y = balloonRider ? Math.PI : pose.yaw
     const carryAnimation = carryMotion.get(id)
     if (!root.current.visible && !carryAnimation) return
     // The visitors parent has an identity transform; this position is already
@@ -215,7 +220,7 @@ function Avatar({
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
     const displayAvatar = presentation.sample(avatar, displayFlags, own ? undefined : pose, frameAt)
-    const active = !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
+    const active = !!avatar.vehicle || mountedVehicle.root.children.length > 0 || !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -240,7 +245,8 @@ function Avatar({
       else if (seatTable?.pavilionId) seatForward = .43
       else seatForward = .13
     }
-    motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
+    if (!mountedVehicle.apply(avatar.vehicle, pose, root.current.position.y, delta, figure.current, model))
+      motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
       holdingCards ? oneCardHoldingPose : undefined, throwFlight,
       carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward)
     // Follow the posed head when swimming; a tilted standing-height marker
@@ -270,6 +276,7 @@ function Avatar({
       userData={{ character: variant, equipment, look: shownKey, wholeSkin: wholeSource ? wholeSkin?.imageKey : undefined }}
     >
       <FartCloud id={id} />
+      <primitive object={mountedVehicle.root} dispose={null} />
       <group ref={figure} name={`figure-${id}`}>
         <primitive object={model.root} dispose={null} />
         <OneCardHeldHand userId={id} model={model} />
@@ -294,7 +301,7 @@ export function Avatars({
   const needsPeers = RENEWAL_PARK_ENABLED && (mounted.size !== wanted.size || mountedPeers.some(id => !wanted.has(id)))
   useLayoutEffect(() => { pendingPeers.current = false }, [mountedPeers])
   useFrame(() => {
-    if (!needsPeers || pendingPeers.current) return
+    if (firstGateFrameAt?.current === null || !needsPeers || pendingPeers.current) return
     const next = mountedPeers.filter(id => wanted.has(id))
     // Cloning several skeletons at once can monopolize a render frame on join.
     // Retain existing peers and admit at most four new rigs per rendered frame.

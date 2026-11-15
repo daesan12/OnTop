@@ -1,11 +1,11 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import './paperPopup.css'
 
-export function PaperPopup({ title, label, onClose, children, className = '', closeLabel = '결과 창 닫기', initialFocusRef }: {
-  title: string; label: string; onClose: () => void; children: ReactNode; className?: string; closeLabel?: string; initialFocusRef?: RefObject<HTMLElement | null>
+export function PaperPopup({ title, label, onClose, children, className = '', closeLabel = '결과 창 닫기', closeDisabled = false, initialFocusRef }: {
+  title: string; label: string; onClose: () => void; children: ReactNode; className?: string; closeLabel?: string; closeDisabled?: boolean; initialFocusRef?: RefObject<HTMLElement | null>
 }) {
   const dialog = useRef<HTMLDivElement>(null), close = useRef(onClose)
-  close.current = onClose
+  close.current = () => { if (!closeDisabled) onClose() }
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (document.pointerLockElement) document.exitPointerLock()
@@ -29,7 +29,7 @@ export function PaperPopup({ title, label, onClose, children, className = '', cl
       if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) { event.preventDefault(); last?.focus() }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }}>
-    <button className="paper-close" aria-label={closeLabel} onClick={onClose}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M5 5L19 19M19 5L5 19" /></svg></button>
+    <button className="paper-close" aria-label={closeLabel} disabled={closeDisabled} onClick={onClose}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M5 5L19 19M19 5L5 19" /></svg></button>
     <p className="paper-caption">{title}</p>{children}
   </div></div>
 }

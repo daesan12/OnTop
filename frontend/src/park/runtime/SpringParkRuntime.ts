@@ -5,6 +5,7 @@ import {
   getAuthSession,
   restoreAuthSession,
 } from '../../auth/authFlow'
+import { acceptRental, rentalNotice, rentalCapability, useMobility, type RentalTarget } from '../../features/mobility/state'
 import { SharedSocket, ServerError } from '../../network/socketClient'
 import { StoneControlQueue } from '../../game/stone-rumble/controlQueue'
 import { routeCoopMessage, subscribeCoop } from '../../features/skewer/coop/contracts'
@@ -31,7 +32,7 @@ import {observedNpcPractice,syncPracticeSpectator} from '../../features/ai/pract
 import { gamePlayers, gameState } from '../../game/protocol'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
-import { receiveWalletSettlement } from '../../features/wallet/settlementRefresh'
+import { receiveWalletSettlement, refreshWalletAfterSettlement } from '../../features/wallet/settlementRefresh'
 import {
   channel,
   record,
@@ -466,6 +467,7 @@ export class ParkRuntime implements ParkRuntimePort {
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     const parkRankingRequest = method === 'GET' && path === '/api/v1/rankings/park'
     const fitnessRewardRequest = method === 'GET' && path === '/api/v1/world/fitness/rewards/status'
+    const balloonFareRequest = method === 'POST' && path === '/api/v1/world/balloon/tickets'
     const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR))?$/.test(path)
@@ -481,6 +483,8 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'POST' && /^\/api\/v1\/minigames\/speed-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const jumpRopeRequest = (method === 'GET' && path === '/api/v1/minigames/jump-rope/rankings')
       || (method === 'POST' && /^\/api\/v1\/minigames\/jump-rope\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
+    const spotDifferenceRequest = (method === 'GET' && path === '/api/v1/minigames/spot-difference/status')
+      || (method === 'POST' && /^\/api\/v1\/minigames\/spot-difference\/runs(?:\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/actions)?$/.test(path))
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
     const gachaRequest = (method === 'GET' && (path === '/api/v1/gacha'
@@ -500,7 +504,8 @@ export class ParkRuntime implements ParkRuntimePort {
         || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
     if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerCoop
-      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
+      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest
+      && !spotDifferenceRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest && !balloonFareRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
@@ -711,6 +716,7 @@ export class ParkRuntime implements ParkRuntimePort {
       return
     }
     if(message.type==='CONNECTED') {
+      rentalCapability.available = message.payload.mobilityAvailable === true
       clearTimeout(this.timer)
       if(message.payload.map===undefined&&message.payload.mapVerificationRequired===true){this.rejectMap(undefined);return}
       if(!this.mapAdmission.connected(message.payload.map)){this.rejectMap(message.payload.map);return}
@@ -728,6 +734,14 @@ export class ParkRuntime implements ParkRuntimePort {
       if (this.mapReady && this.mapAdmission.allowed && session.status === 'connected'
         && session.mapCompatible && session.roomId && !session.pending)
         this.notesChanges.accept(message)
+      return
+    }
+    if (message.type === 'WORLD_MOBILITY_STATE') {
+      const { receipt } = message.payload
+      acceptRental(message.payload)
+      if (typeof receipt === 'string') {
+        refreshWalletAfterSettlement(useSession.getState().sessionId, 'mobility:' + receipt)
+      }
       return
     }
     if (routeCoopMessage(message)) {
@@ -1149,13 +1163,39 @@ export class ParkRuntime implements ParkRuntimePort {
   releaseAvatar = (carryId: string) => this.action(async () => {
     await this.socket.request('WORLD_CARRY_RELEASE', { carryId }, ['WORLD_STATE'])
   }, { blockControls: false })
+  async rentVehicle(target: RentalTarget, leaseId: string) {
+    const payload = { stationId: target.stationId, vehicle: target.vehicle, leaseId }
+    try {
+      await this.socket.request('WORLD_MOBILITY_START', payload, ['WORLD_MOBILITY_STATE'])
+    } catch (error) {
+      if (useMobility.getState().leaseId !== leaseId || useMobility.getState().phase !== 'starting') return
+      if (!(error instanceof ServerError)) {
+        // The server may have committed before the reply timed out. End the same lease.
+        await this.endVehicleRental(leaseId)
+        if (useMobility.getState().leaseId !== leaseId || this.socket.connected) return
+      }
+      useMobility.setState({ phase: 'idle', leaseId: '', vehicle: null })
+      rentalNotice(error instanceof ServerError ? error.message : '탑승 요청을 확인할 수 없어요.')
+    }
+  }
+  async endVehicleRental(leaseId: string) {
+    try {
+      await this.socket.request('WORLD_MOBILITY_END', { leaseId }, ['WORLD_MOBILITY_STATE'])
+    } catch {
+      const state = useMobility.getState()
+      if (state.leaseId !== leaseId) return
+      useMobility.setState({ phase: 'riding' })
+      rentalNotice('하차 요청을 확인할 수 없어요. 다시 시도해 주세요.')
+    }
+  }
+
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
       && !facilityMovementBlocked(s.sessionId)
       && (!avatars.get(s.sessionId)?.carry || avatars.get(s.sessionId)?.carry?.role === 'CARRIER')
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
-      && (!inputState.minigameOpen || stoppedIntent(intent))
+      && (!(inputState.minigameOpen || inputState.localBalloon) || stoppedIntent(intent))
       && (!useTableLobby.getState().joiningAnchorId || stoppedIntent(intent))
       && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
   }
@@ -1166,23 +1206,24 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
-    if (localMovement.positionUnavailable) {
+    const riding = !!avatars.get(useSession.getState().sessionId)?.vehicle
+    if (!riding && localMovement.positionUnavailable) {
       const message = '이동 엔진을 준비하지 못했습니다. 새로고침 후 다시 접속해주세요.'
       if (useSession.getState().error !== message) this.report(message)
       return
     }
-    const fallback = localMovement.positionFallback()
+    const fallback = riding ? null : localMovement.positionFallback()
     if (fallback) {
       try { await this.socket.request('WORLD_POSITION_FALLBACK', fallback, ['WORLD_STATE']) }
       catch (error) { if (scope === this.movementScope() && this.active) this.report(error) }
       return
     }
-    if (localMovement.positionPreparing) return
+    if (!riding && localMovement.positionPreparing) return
     const sequence = ++this.inputSequence
     localMovement.sentInput(sequence, performance.now(), intent)
     let requestId = ''
     try {
-      const report = localMovement.positionReport(sequence, intent)
+      const report = riding ? null : localMovement.positionReport(sequence, intent)
       const reportedSequence = report?.seq ?? sequence
       await this.socket.request(report ? 'WORLD_POSITION' : 'WORLD_MOVE', report ?? {
         seq: sequence,

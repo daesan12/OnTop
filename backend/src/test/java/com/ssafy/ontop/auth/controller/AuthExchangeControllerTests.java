@@ -12,10 +12,12 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.service.AccessJwtService;
 import com.ssafy.ontop.auth.service.AuthExchangeOriginPolicy;
 import com.ssafy.ontop.auth.service.AuthExchangePersistenceService;
+import com.ssafy.ontop.auth.service.AuthenticationRevocations;
 import com.ssafy.ontop.auth.service.AuthExchangeService;
 import com.ssafy.ontop.auth.service.OAuthExchangeStore;
 import com.ssafy.ontop.auth.service.OnboardingTokenStore;
 import com.ssafy.ontop.auth.service.RefreshCookieService;
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.user.domain.CharacterGender;
 import com.ssafy.ontop.user.domain.LoginProvider;
 import com.ssafy.ontop.user.domain.User;
@@ -203,7 +205,8 @@ class AuthExchangeControllerTests {
         ReflectionTestUtils.setField(user, "id", 42L);
         when(users.findForAuthenticationById(42L)).thenReturn(Optional.of(user));
         RefreshTokenRepository refresh = mock(RefreshTokenRepository.class);
-        AuthExchangePersistenceService target = new AuthExchangePersistenceService(users, refresh, jwt, clock);
+        AuthExchangePersistenceService target = new AuthExchangePersistenceService(users, refresh, jwt, clock,
+                BehaviorLog.disabled(), mock(AuthenticationRevocations.class));
         PlatformTransactionManager manager = mock(PlatformTransactionManager.class);
         when(manager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         doThrow(new TransactionSystemException("private-commit-detail")).when(manager).commit(any());

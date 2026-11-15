@@ -9,7 +9,7 @@ import {createBicycleRentalStation} from './approved/자전거대여소_1/asset.
 import {createScooterRentalStation} from './approved/킥보드대여소_1/asset.js'
 import {createWayfindingSign} from './approved/이동_푯말/asset.js'
 import {createBicycle} from './approved/자전거_1/asset.js'
-import {createScooter} from './approved/킥보드_1/asset.js'
+import {createScooter} from './approved/자전거_1/src/vehicles.js'
 import {createTraditionalPlayZone,createTraditionalPlaySignTexture,createYutMatTexture} from './approved/전통놀이존_1/asset.js'
 import {Mesh,BoxGeometry,CylinderGeometry,MeshLambertMaterial} from 'three'
 import {createShootingRange,createShootingRangeSignTexture} from './approved/사격장_1/asset.js'
