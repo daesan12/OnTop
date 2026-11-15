@@ -104,9 +104,9 @@ scratch_env=$(mktemp)
 trap 'rm -f -- "$scratch_env"' EXIT
 # The example points at a root-only real app.env; syntax checking needs no secrets.
 APP_ENV_FILE="$scratch_env" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml config --quiet
-APP_ENV_FILE="$scratch_env" PARK_MAP_HOST_DIR="$PWD/frontend/generated/park" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.generated-map.yaml config --quiet
+APP_ENV_FILE="$scratch_env" PARK_MAP_HOST_DIR="$PWD/frontend/generated/park-renewal" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.generated-map.yaml config --quiet
 APP_ENV_FILE="$scratch_env" SKEWER_COOP_JOURNAL_HOST_DIR="$PWD" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.skewer-coop.yaml config --quiet
-APP_ENV_FILE="$scratch_env" PARK_MAP_HOST_DIR="$PWD/frontend/generated/park" SKEWER_COOP_JOURNAL_HOST_DIR="$PWD" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.generated-map.yaml -f infra/app/compose.skewer-coop.yaml config --quiet
+APP_ENV_FILE="$scratch_env" PARK_MAP_HOST_DIR="$PWD/frontend/generated/park-renewal" SKEWER_COOP_JOURNAL_HOST_DIR="$PWD" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.generated-map.yaml -f infra/app/compose.skewer-coop.yaml config --quiet
 '''
             }
         }
@@ -132,7 +132,7 @@ fi
 set -euo pipefail
 pnpm install --frozen-lockfile
 pnpm map:check
-VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
+VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
 '''
                 }
             }
@@ -149,7 +149,7 @@ pnpm map:check
 pnpm run test
 pnpm run build
 if [[ "$TEST_PARK_MAP" != 1 ]]; then
-  VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
+  VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
 fi
 '''
                 }
@@ -221,7 +221,7 @@ export VERCEL_ORG_ID VERCEL_PROJECT_ID
 }
 cd frontend
 # This is the production target of the separate ontop-frontend-dev project.
-vercel deploy --prod --yes --local-config vercel.dev.json --project "$VERCEL_PROJECT_ID" --build-env VITE_WARDROBE_OUTFITS=true --build-env VITE_SKEWER_COOP_ENABLED=true --build-env VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json --token "$VERCEL_TOKEN" > vercel-deployment-url.txt
+vercel deploy --prod --yes --local-config vercel.dev.json --project "$VERCEL_PROJECT_ID" --build-env VITE_WARDROBE_OUTFITS=true --build-env VITE_SKEWER_COOP_ENABLED=true --build-env VITE_PARK_RENEWAL_ENABLED=true --build-env VITE_STONE_RUMBLE_ENABLED=true --build-env VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json --token "$VERCEL_TOKEN" > vercel-deployment-url.txt
 cat vercel-deployment-url.txt
 '''
                 }
@@ -248,7 +248,7 @@ cat vercel-deployment-url.txt
     }
     post {
         always {
-            archiveArtifacts artifacts: 'frontend/vercel-deployment-url.txt,frontend/generated/park/manifest.json,docs/integration/park-180/park-bindings.dev.json', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'frontend/vercel-deployment-url.txt,frontend/generated/park-renewal/manifest.json,docs/integration/park-180/park-bindings.dev.json', allowEmptyArchive: true
         }
     }
 }
