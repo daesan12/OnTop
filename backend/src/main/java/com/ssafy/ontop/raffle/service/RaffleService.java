@@ -4,6 +4,7 @@ import com.ssafy.ontop.raffle.RaffleException;
 import com.ssafy.ontop.raffle.domain.RaffleNumberGenerator;
 import com.ssafy.ontop.raffle.domain.RaffleRound;
 import com.ssafy.ontop.raffle.domain.RaffleSaleWindow;
+import com.ssafy.ontop.raffle.domain.RaffleSaleWindowPolicy;
 import com.ssafy.ontop.raffle.domain.RaffleTicket;
 import com.ssafy.ontop.raffle.dto.CurrentRaffleResponse;
 import com.ssafy.ontop.raffle.dto.RafflePurchaseResponse;
@@ -33,10 +34,17 @@ public class RaffleService {
     private final TransactionTemplate transactions;
     private final Clock clock;
     private final RaffleNumberGenerator numbers;
+    private final RaffleSaleWindowPolicy saleWindows;
 
     public RaffleService(RaffleRepository raffles, WalletRepository wallets,
             WalletTransactionRepository ledger, PlatformTransactionManager manager,
             Clock clock, RaffleNumberGenerator numbers) {
+        this(raffles, wallets, ledger, manager, clock, numbers, RaffleSaleWindowPolicy.defaults());
+    }
+
+    public RaffleService(RaffleRepository raffles, WalletRepository wallets,
+            WalletTransactionRepository ledger, PlatformTransactionManager manager,
+            Clock clock, RaffleNumberGenerator numbers, RaffleSaleWindowPolicy saleWindows) {
         this.raffles = raffles;
         this.wallets = wallets;
         this.ledger = ledger;
@@ -44,6 +52,7 @@ public class RaffleService {
         this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         this.clock = clock;
         this.numbers = numbers;
+        this.saleWindows = saleWindows;
     }
 
     public CurrentRaffleResponse current(long userId) {
@@ -72,7 +81,7 @@ public class RaffleService {
         if (previous.isPresent()) {
             return purchaseResponse(previous.get(), raffles.ticketCount(round.id(), userId), round.weeklyTicketLimit());
         }
-        RaffleSaleWindow window = RaffleSaleWindow.at(now);
+        RaffleSaleWindow window = saleWindows.select(now).window();
         if (!OPEN.equals(round.salesStatus()) || !window.isOpenAt(now)
                 || now.isBefore(round.salesStartsAt()) || !now.isBefore(round.salesEndsAt())) {
             throw error(409, "RAFFLE_SALES_CLOSED", "현재 응모권 판매 시간이 아닙니다.");
@@ -102,8 +111,9 @@ public class RaffleService {
     }
 
     private RaffleRound currentRound(Instant now, boolean locked) {
-        RaffleSaleWindow window = RaffleSaleWindow.at(now);
-        raffles.synchronizeRound(window, now);
+        var selection = saleWindows.select(now);
+        RaffleSaleWindow window = selection.window();
+        raffles.synchronizeRound(window, now, selection.overridden());
         return (locked ? raffles.lockRound(window.weekStartDate()) : raffles.round(window.weekStartDate()))
                 .orElseThrow(() -> error(503, "RAFFLE_UNAVAILABLE", "이번 주 응모 정보를 확인할 수 없습니다."));
     }
