@@ -24,19 +24,30 @@ test('온보딩 직후 첫 입장에서 5초 환영 비행 뒤 체험 투어를 
   await page.route('**/api/v1/auth/exchange', route => route.fulfill({ json: { status: 'ONBOARDING_REQUIRED', onboardingToken: 'fixture-onboarding' } }))
   await page.route('**/api/v1/users/onboarding', route => route.fulfill({ json: { accessToken: 'fixture-access' } }))
 
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/auth/callback#exchange_code=' + 'A'.repeat(43))
   await expect(page.locator('.onboarding-page')).toBeVisible({ timeout: 20000 })
   await page.locator('#onboarding-nickname').fill('산책자')
   await page.getByText('안내를 확인했고, 이 캐릭터로 시작할게요').click()
+  // 배너는 React가 먼저 표시할 수 있으므로 브라우저에서 비행 도중 렌더링된 높이를 모은다.
+  const flightCamera = await page.evaluateHandle(async () => {
+    const { adCameraProbe } = await import('/tests/e2e/sceneProbe.ts' as string)
+    const { welcomeFlight } = await import('/src/features/welcomeTour/flight.ts' as string)
+    const sample = { highest: 0 }
+    function frame() {
+      if (welcomeFlight.active) sample.highest = Math.max(sample.highest, adCameraProbe().camera[1])
+      if (!welcomeFlight.startedAt || welcomeFlight.active) requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+    return sample
+  })
   await page.getByRole('button', { name: '공원 입장하기' }).click()
 
   // 공원이 준비되면 건너뛸 수 없는 환영 비행이 시작된다.
   const banner = page.locator('.welcome-tour-banner')
   await expect(banner).toBeVisible({ timeout: 120000 })
   await expect(banner).toContainText('온탑 공원에 오신 걸 환영해요')
-  // swiftshader 화면 캡처는 수 초가 걸리므로 시간에 민감한 확인을 캡처보다 먼저 한다.
-  const high = await camera(page)
-  expect(high.camera[1]).toBeGreaterThan(60)
+  await expect.poll(() => flightCamera.evaluate(sample => sample.highest), { timeout: 6000 }).toBeGreaterThan(60)
   expect(await page.evaluate(async () => (await import('/src/world/inputOwnership.ts' as string)).panelOwnsKeys())).toBe(true)
   await page.keyboard.press('Escape')
   await expect(banner).toBeVisible({ timeout: 200 })
@@ -45,6 +56,24 @@ test('온보딩 직후 첫 입장에서 5초 환영 비행 뒤 체험 투어를 
 
   // 비행이 끝나면 평소 3인칭 시점으로 돌아오고 투어 목록이 뜬다.
   await expect(banner).toBeHidden({ timeout: 6000 })
+  const story = page.getByRole('dialog', { name: '박영감' })
+  await expect(story).toBeVisible()
+  await expect(story).toContainText('1 / 2')
+  const portrait = story.locator('.joke-portrait')
+  const frame = story.locator('.joke-dialogue-frame')
+  const insideFrame = async () => {
+    const [imageBox, frameBox] = await Promise.all([portrait.boundingBox(), frame.boundingBox()])
+    return !!imageBox && !!frameBox && imageBox.x >= frameBox.x && imageBox.y >= frameBox.y
+      && imageBox.x + imageBox.width <= frameBox.x + frameBox.width
+      && imageBox.y + imageBox.height <= frameBox.y + frameBox.height
+  }
+  await expect.poll(insideFrame).toBe(true)
+  await story.getByRole('button', { name: '다음' }).click()
+  await expect(story).toContainText('2 / 2')
+  await expect(story).toContainText('패치노트')
+  await expect.poll(insideFrame).toBe(true)
+  await story.getByRole('button', { name: '공원 둘러보기' }).click()
+  await expect(story).toBeHidden()
   await expect(tour(page)).toContainText('0/5')
   await page.waitForTimeout(800)
   const settled = await camera(page)
@@ -158,4 +187,64 @@ test('다시 보기는 비행 없이 시작하고, 마치면 옷장 위치를 �
   await expect(finished).toContainText('투어를 모두 마쳤어요')
   await screenshot(page, 'tour-09-finished-wardrobe', 'disabled')
   expect(errors).toEqual([])
+})
+
+const welcomePendingKey = 'ontop:park-welcome-pending'
+
+test('대기 중 새로고침해도 로그인 환영 대화가 열리고 건너뛰면 대기를 지운다', async ({ page }) => {
+  await fixture(page, { generatedPark: true })
+  await page.addInitScript(() => {
+    if (location.pathname !== '/auth/callback') return
+    window.addEventListener('DOMContentLoaded', () => {
+      const dialog = document.createElement('dialog')
+      dialog.setAttribute('aria-label', '입장 중 열린 다른 창')
+      document.body.append(dialog)
+      dialog.showModal()
+    }, { once: true })
+  })
+  await page.route('**/api/v1/auth/exchange', route => route.fulfill({
+    json: { status: 'AUTHENTICATED', accessToken: 'fixture-access' },
+  }))
+  await page.goto('/auth/callback#exchange_code=' + 'A'.repeat(43))
+  const story = page.getByRole('dialog', { name: '박영감' })
+  await expect(page.getByRole('dialog', { name: '입장 중 열린 다른 창' })).toBeVisible()
+  await expect(page.locator('.park-welcome-story')).toHaveCount(1, { timeout: 45000 })
+  await expect(story).toBeHidden()
+  expect(await page.evaluate(key => Number(sessionStorage.getItem(key)) > Date.now(), welcomePendingKey)).toBe(true)
+
+  await page.reload()
+  await expect(story).toBeVisible({ timeout: 80000 })
+  await page.keyboard.press('Escape')
+  await expect(story).toHaveCount(0)
+  expect(await page.evaluate(key => sessionStorage.getItem(key), welcomePendingKey)).toBeNull()
+})
+
+test('다른 팝업을 기다리다 만료된 환영 대화는 접속 공지에 자리를 내준다', async ({ page }) => {
+  await page.clock.install()
+  await fixture(page, { generatedPark: true })
+  await page.addInitScript(key => {
+    sessionStorage.setItem(key, String(Date.now() + 90_000))
+    window.addEventListener('DOMContentLoaded', () => {
+      const dialog = document.createElement('dialog')
+      dialog.id = 'welcome-story-test-blocker'
+      document.body.append(dialog)
+      dialog.showModal()
+    }, { once: true })
+  }, welcomePendingKey)
+  const now = new Date().toISOString()
+  const noticeId = '11111111-1111-4111-8111-111111111111'
+  await page.route('**/api/v1/entry-news', route => route.fulfill({ json: { serverTime: now, pages: [{
+    id: noticeId, title: '검수용 공지', published: true, displayOrder: 0,
+    startsAt: null, endsAt: null, version: 1, updatedAt: now, imageHash: 'a'.repeat(64),
+  }] } }))
+  await page.route('**/api/v1/entry-news/' + noticeId + '/image', route => route.fulfill({
+    path: 'tests/fixtures/entry-news/alkkagi-update.png', contentType: 'image/png',
+  }))
+  await page.goto('/park')
+  await expect(page.locator('.park-welcome-story')).toHaveCount(1, { timeout: 45000 })
+  await page.clock.fastForward(90_001)
+  await expect(page.locator('.park-welcome-story')).toHaveCount(0)
+  expect(await page.evaluate(key => sessionStorage.getItem(key), welcomePendingKey)).toBeNull()
+  await page.locator('#welcome-story-test-blocker').evaluate(element => element.remove())
+  await expect(page.getByRole('dialog', { name: '온탑 새 소식' })).toBeVisible({ timeout: 45000 })
 })
