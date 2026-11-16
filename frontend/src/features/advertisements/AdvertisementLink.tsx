@@ -14,7 +14,8 @@ export const PICKUS_LINK = 'https://www.instagram.com/pickus_magazine?obrf=emx2c
 const advertisements = [
   {
     title: 'PICKUS',
-    team: '대전 F108',
+    region: '대전',
+    teamCode: 'F108',
     heading: '잠깐, 다른 공간으로 떠나볼까요?',
     introduction: '공원에서 발견한 다른 팀의 프로젝트를 소개합니다.',
     badge: '외부 팀 프로젝트',
@@ -28,7 +29,8 @@ const advertisements = [
   },
   {
     title: 'ONTOP',
-    team: '대전 B105',
+    region: '대전',
+    teamCode: 'B105',
     heading: '친구와 온탑 공원에서 만나요!',
     introduction: '한옥과 호숫가를 거닐며 함께 즐길 게임을 찾아보세요.',
     badge: '온탑 게임 소개',
@@ -41,7 +43,8 @@ const advertisements = [
   },
   {
     title: 'Geomate(지오메이트)',
-    team: '구미 D103',
+    region: '구미',
+    teamCode: 'D103',
     heading: '도형을 직접 움직여 볼까요?',
     introduction: '공원에서 발견한 다른 팀의 프로젝트를 소개합니다.',
     badge: '외부 팀 프로젝트',
@@ -56,7 +59,8 @@ const advertisements = [
   },
   {
     title: 'PHONEBOOTH',
-    team: '부울경 E107',
+    region: '부울경',
+    teamCode: 'E107',
     heading: '전화부스에서 함께 탈출해 보세요',
     introduction: '1–4인 협동 공포 탈출 게임',
     badge: '외부 팀 프로젝트',
@@ -196,7 +200,8 @@ export function AdvertisementLink() {
           <div className="park-advertisement-details">
             <div className="park-advertisement-badges">
               <span className="park-advertisement-badge">{advertisement.badge}</span>
-              <span className="park-advertisement-badge park-advertisement-badge--team">{advertisement.team}</span>
+              <span className="park-advertisement-badge park-advertisement-badge--team-detail">{advertisement.region}</span>
+              <span className="park-advertisement-badge park-advertisement-badge--team-detail">{advertisement.teamCode}</span>
             </div>
             <h3 id="advertisement-project-name">{advertisement.title}</h3>
             <p>{advertisement.description[0]}{advertisement.description[1] && <><br />{advertisement.description[1]}</>}</p>

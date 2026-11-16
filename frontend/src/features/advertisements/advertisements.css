@@ -78,7 +78,7 @@
 .park-advertisement-details { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 1.3cqw 0 1.8cqw; }
 .park-advertisement-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .park-advertisement-badge { padding: .45cqw 1.05cqw; border-radius: 12px; background: #d6d6c2; color: #5b6654; font-size: 1.7cqw; line-height: 1.3; }
-.park-advertisement-badge--team {
+.park-advertisement-badge--team-detail {
   background: #efeddd;
   color: #345044;
   box-shadow: inset 0 0 0 1px #bfc3aa;
