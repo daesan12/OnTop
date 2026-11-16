@@ -52,7 +52,7 @@ test('a v1 completion sends only jumps; a v2 completion also sends the duck span
 })
 
 test('accepts the board of either rules version', async () => {
-  const board = { period: 'ALL_TIME', offset: 0, limit: 10, items: [{ rank: 1, nickname: '둘째판', score: 1965 }], me: null }
+  const board = { period: 'EVENT', offset: 0, limit: 10, items: [{ rank: 1, nickname: '둘째판', score: 1965 }], me: null }
   const service = new JumpRopeService(requests({ ...board, rulesVersion: 2 }, { ...board, rulesVersion: 1 }, { ...board, rulesVersion: 3 }))
   await expect(service.rankings(new AbortController().signal)).resolves.toMatchObject({ kind: 'ready', entries: board.items })
   await expect(service.rankings(new AbortController().signal)).resolves.toMatchObject({ kind: 'ready' })

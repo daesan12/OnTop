@@ -1,5 +1,6 @@
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { HOLD_MS, rentalCapability, useMobility, vehicles } from './state'
+import { useParkXR } from '../parkXR/state'
 import './mobility.css'
 
 const formatCoins = new Intl.NumberFormat('ko-KR')
@@ -21,6 +22,8 @@ function DismountKeys({ retry = false }: { retry?: boolean }) {
 
 export function MobilityHud() {
   const { phase, target, holdAt, vehicle, notice, total } = useMobility()
+  const immersive = useParkXR(s => s.phase === 'active' || s.phase === 'ending')
+  if (immersive) return null
   if (notice || phase === 'starting' || phase === 'ending') {
     const message = notice || (phase === 'starting' ? '탑승 확인 중…' : '하차 확인 중…')
     return <aside className="mobility-hud mobility-hud--message" role="status">{message}</aside>

@@ -201,8 +201,14 @@ function Avatar({
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
     const balloon = own && balloonRider ? useLocalBalloon.getState() : null
     const hideBalloonRider = balloon?.walkingInside && balloon.cabinFirstPerson && balloon.flight?.phase === 'flying'
-    root.current.visible = firstAppearanceReady.current && opacity > 0 && !hideBalloonRider && !(own && parkXRView.active) && (!!balloonRider || !!debrisMotion || !(own && (((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated) || avatar.telescopeId)
+    const ownXR = own && parkXRView.active
+    const showRideHands = ownXR && !!avatar.vehicle
+    model.showRideHands(showRideHands)
+    figure.current.visible = !ownXR || showRideHands
+    const visibleOutsideXR = !hideBalloonRider && (!!balloonRider || !!debrisMotion
+      || !(own && ((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
+    root.current.visible = firstAppearanceReady.current && opacity > 0 && (ownXR ? !!avatar.vehicle : visibleOutsideXR)
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     if (balloonRider) {
@@ -257,7 +263,7 @@ function Avatar({
       else if (seatTable?.pavilionId) seatForward = .43
       else seatForward = .13
     }
-    if (!mountedVehicle.apply(avatar.vehicle, pose, root.current.position.y, delta, figure.current, model))
+    if (!mountedVehicle.apply(avatar.vehicle, pose, root.current.position.y, delta, figure.current, model, showRideHands))
       motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
       holdingCards ? oneCardHoldingPose : undefined, throwFlight,
       carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward)

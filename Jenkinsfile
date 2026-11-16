@@ -99,11 +99,13 @@ python3 infra/ci/plan_changes.py --head "$SOURCE_SHA" --tested-base "$tested_bas
 set -euo pipefail
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s infra/ci -p 'test_*.py'
 python3 infra/ci/check_park_handoff.py
-bash -n infra/ci/deploy-dev.sh infra/ci/install-node.sh infra/ci/configure-dev-ci.sh infra/ci/certbot-deploy-hook.sh infra/ci/run-generated-map-tests.sh infra/app/stage-generated-map.sh infra/app/verify-skewer-coop-db.sh
+bash -n infra/ci/deploy-dev.sh infra/ci/install-node.sh infra/ci/configure-dev-ci.sh infra/ci/certbot-deploy-hook.sh infra/ci/run-generated-map-tests.sh infra/app/stage-generated-map.sh infra/app/verify-skewer-coop-db.sh infra/app/stage-rapfi.sh infra/app/verify-rapfi.sh
 scratch_env=$(mktemp)
 trap 'rm -f -- "$scratch_env"' EXIT
 # The example points at a root-only real app.env; syntax checking needs no secrets.
 APP_ENV_FILE="$scratch_env" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml config --quiet
+APP_ENV_FILE="$scratch_env" RAPFI_HOST_DIR="$PWD" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.rapfi.yaml config --quiet
+APP_ENV_FILE="$scratch_env" RAPFI_HOST_DIR="$PWD" docker compose --env-file infra/app/prod.deploy.env.example -f infra/app/compose.prod.yaml -f infra/app/compose.rapfi.yaml config --quiet
 APP_ENV_FILE="$scratch_env" PARK_MAP_HOST_DIR="$PWD/frontend/generated/park-renewal" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.generated-map.yaml config --quiet
 APP_ENV_FILE="$scratch_env" SKEWER_COOP_JOURNAL_HOST_DIR="$PWD" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.skewer-coop.yaml config --quiet
 APP_ENV_FILE="$scratch_env" PARK_MAP_HOST_DIR="$PWD/frontend/generated/park-renewal" SKEWER_COOP_JOURNAL_HOST_DIR="$PWD" docker compose --env-file infra/app/dev.deploy.env.example -f infra/app/compose.dev.yaml -f infra/app/compose.generated-map.yaml -f infra/app/compose.skewer-coop.yaml config --quiet

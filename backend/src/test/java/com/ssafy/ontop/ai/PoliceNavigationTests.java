@@ -8,6 +8,33 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PoliceNavigationTests {
+    @Test void outsideRenewalMapWarningReturnsToSafePatrolSpawn() throws Exception {
+        var map=PreparedParkMap.load(Path.of("../frontend/generated/park-renewal/server-map.json"),
+                Path.of("../frontend/generated/park-renewal/manifest.json"),Set.of("channel-1"));
+        try(var nav=new ParkNavigation(map.createScene())) {
+            var outside=new ParkNavigation.Point(map.collisionData().path("world").path("halfSize").asDouble()+10,30,0);
+            var police=new PolicePatrol(new PolicePatrol.Navigation() {
+                public ParkNavigation.Point spawn(){return nav.spawn();}
+                public java.util.List<ParkNavigation.Point> path(ParkNavigation.Point a,ParkNavigation.Point b){return nav.path(a,b);}
+                public boolean lineClear(ParkNavigation.Point a,ParkNavigation.Point b){return nav.lineClear(a,b);}
+                public boolean requiresTeleport(String actor,ParkNavigation.Point p){return true;}
+                public ParkNavigation.Point approachPoint(ParkNavigation.Point p){return nav.policeApproach(p);}
+                public boolean canPatrolFrom(ParkNavigation.Point p){return !nav.path(p,p).isEmpty();}
+                public java.util.List<com.ssafy.ontop.world.movement.NpcDescent.Step> returnPath(ParkNavigation.Point p){return nav.returnToGround(p);}
+                public ParkNavigation.Point warningPoint(ParkNavigation.Point p){return nav.warningPoint(p);}
+            });
+            var actors=java.util.Map.of("outside",outside);
+            var arrivals=new java.util.concurrent.atomic.AtomicInteger();
+            police.incident(new PolicePatrol.Incident("outside-map","outside","안내",p->arrivals.incrementAndGet()));
+            police.tick(0,.1,actors);
+            var warning=police.tick(5000,.1,actors);
+            assertThat(warning.warp()).isEqualTo(1);assertThat(arrivals).hasValue(1);
+            var recovered=police.tick(8000,.1,actors);
+            assertThat(recovered.warp()).isEqualTo(2);assertThat(recovered.action()).isEqualTo("PATROL");
+            var point=new ParkNavigation.Point(recovered.x(),recovered.y()+.8,recovered.z());
+            assertThat(point).isEqualTo(nav.spawn());assertThat(nav.path(point,point)).isNotEmpty();
+        }
+    }
     @Test
     void 물에_들어간_유저에게는_땅에서_경고한다() throws Exception {
         var map = PreparedParkMap.load(Path.of("../frontend/generated/park-renewal/server-map.json"),

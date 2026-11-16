@@ -664,9 +664,10 @@ public class TableHub {
         members.put(session.getId(), member);
         connectionStarted.put(session.getId(), System.nanoTime());
         acceptedConnections++;
+        boolean mobilityAvailable = rentals != null && accountId != null;
         peer.offer(protocol.encode(null, "CONNECTED", Map.of("userId", userId, "map", maps.metadata(),
                 "mapVerificationRequired", maps.requiresMatch(), "time", worldClock.sample(),
-                "mobilityAvailable", rentals != null && accountId != null)));
+                "mobilityAvailable", mobilityAvailable, "vrMobilityAvailable", mobilityAvailable)));
         if (startRehearsal || committedStarts.isPresent()) {
             peer.offer(protocol.encode(null, "GAME_START_STATE", TableStartAttempt.View.waiting(null, 0, null,
                     committedStarts.isEmpty())));
@@ -718,6 +719,7 @@ public class TableHub {
         if (balloons != null) {
             balloons.expire(java.time.Instant.now(), System.nanoTime())
                     .forEach(state -> publishBalloon(state, null, null));
+            recordBalloonUsage();
         }
     }
 
@@ -1034,7 +1036,7 @@ public class TableHub {
             return;
         }
         endRide(member.userId(), "ENDED", "DISCONNECTED");
-        endBalloon(member);
+        endBalloon(member, "DISCONNECTED");
         closeMember(member, reason);
         String loginSessionId = loginSessions.remove(sessionId);
         connectionStarted.remove(sessionId);
@@ -1375,7 +1377,7 @@ public class TableHub {
         }
         if (!channels.isInChannel(member.userId(), channelId)) {
             endRide(member.userId(), "ENDED", "CHANNEL_LEFT");
-            endBalloon(member);
+            endBalloon(member, "CHANNEL_LEFT");
         }
         long joinStarted = System.nanoTime();
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
@@ -1570,7 +1572,7 @@ public class TableHub {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         endRide(member.userId(), "ENDED", "CHANNEL_LEFT");
-        endBalloon(member);
+        endBalloon(member, "CHANNEL_LEFT");
         cancelBoatCharge(member.userId());
         withdrawBoatInvite(member.userId());
         declineBoatInvites(member.userId());
@@ -1600,7 +1602,16 @@ public class TableHub {
         positionSampler.forget(member.userId());
     }
 
+    // 요청이 거절돼도 그 전에 생긴 이륙·하차 기록은 남긴다.
     private void balloon(Member member, Request request) {
+        try {
+            handleBalloon(member, request);
+        } finally {
+            recordBalloonUsage();
+        }
+    }
+
+    private void handleBalloon(Member member, Request request) {
         String pilot = member.userId();
         String channel = channels.channelOf(pilot);
         if (balloons == null || channel == null || member.accountId() == null) {
@@ -1655,10 +1666,33 @@ public class TableHub {
         publishBalloon(state, member, request.requestId());
     }
 
-    private void endBalloon(Member member) {
+    private void endBalloon(Member member, String reason) {
         if (balloons == null) return;
-        var ended = balloons.finish(member.userId(), member.sessionId(), null);
+        var ended = balloons.finish(member.userId(), member.sessionId(), null, System.nanoTime(), reason);
         if (ended != null) publishBalloon(ended, null, null);
+        recordBalloonUsage();
+    }
+
+    // 탑승권이 실제로 쓰여 이륙한 탑승자마다 FACILITY_USED, 그 사람이 내릴 때 FACILITY_RELEASED를 남긴다.
+    // 탈것·시설 이용과 같은 이벤트이고 leaseId(탑승권)로 짝을 맞춘다. 탑승료는 결제 때 원장에도 남는다.
+    private void recordBalloonUsage() {
+        if (balloons == null) return;
+        for (var use : balloons.drainUsage()) {
+            if (use.endReason() == null) {
+                recordBehavior(BehaviorEventType.FACILITY_USED, accountIdOf(use.riderId()),
+                        builder -> balloonProps(builder, use));
+            } else {
+                recordBehavior(BehaviorEventType.FACILITY_RELEASED, accountIdOf(use.riderId()),
+                        builder -> balloonProps(builder, use).prop("endReason", use.endReason())
+                                .prop("durationMs", use.durationNanos() / 1_000_000).prop("fee", use.fee()));
+            }
+        }
+    }
+
+    private static BehaviorEvent.Builder balloonProps(BehaviorEvent.Builder builder, BalloonFlights.Usage use) {
+        return builder.channelId(use.channelId()).prop("leaseId", use.ticket().toString())
+                .prop("facilityId", "balloon").prop("kind", "BALLOON").prop("role", use.role())
+                .prop("riders", use.riders()).prop("mode", use.mode());
     }
 
     private void publishBalloon(BalloonFlights.State state, Member pilot, String requestId) {
@@ -2020,7 +2054,7 @@ public class TableHub {
         }
         if (mobilityRides.containsKey(user)
                 || mobilityRides.values().stream().anyMatch(ride -> ride.owner.accountId().equals(member.accountId()))
-                || !channels.carryAvailable(user)
+                || !channels.mobilityAvailable(user)
                 || channels.carryState(user) != null || facilities.current(user) != null
                 || watching.containsKey(user) || statePushes.containsKey(member.sessionId()) || seating.containsKey(user)) {
             fail(request, "MOBILITY_BUSY", "진행 중인 이용을 먼저 종료해주세요.");

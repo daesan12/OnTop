@@ -37,9 +37,9 @@ export interface CoopResult {
 }
 export interface CoopRankingItem {
   rank: number; gameId: string; chefUserId: string; chefNickname: string; serverUserId: string; serverNickname: string
-  teamScore: number; served: number; endedAt: string
+  teamScore: number; served: number; endedAt: string; playMode?: 'PC' | 'VR'
 }
-export interface CoopRanking { rulesVersion: string; period: string; aggregation: string; asOf: string; items: CoopRankingItem[]; myBest: CoopRankingItem | null; playMode?: 'PC' | 'VR' }
+export interface CoopRanking { rulesVersion: string; period: string; aggregation: string; asOf: string; items: CoopRankingItem[]; myBest: CoopRankingItem | null; playMode?: 'PC' | 'VR' | 'ALL' }
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 const nonnegative = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0
 export function parseCoopResult(value: unknown, gameId: string): CoopResult {
@@ -57,9 +57,10 @@ export function parseCoopResult(value: unknown, gameId: string): CoopResult {
 }
 export function parseCoopRanking(value: unknown): CoopRanking {
   const item = (v: unknown) => object(v) && nonnegative(v.rank) && (v.rank as number) > 0 && nonnegative(v.teamScore) && nonnegative(v.served)
+    && (v.playMode === undefined || ['PC', 'VR'].includes(String(v.playMode)))
     && ['gameId', 'chefUserId', 'chefNickname', 'serverUserId', 'serverNickname', 'endedAt'].every(key => typeof v[key] === 'string')
   if (!object(value) || value.rulesVersion !== 'coop-v1' || value.period !== 'ALL_TIME' || value.aggregation !== 'TEAM_BEST'
-    || value.playMode !== undefined && !['PC', 'VR'].includes(String(value.playMode))
+    || value.playMode !== undefined && !['PC', 'VR', 'ALL'].includes(String(value.playMode))
     || typeof value.asOf !== 'string'
     || !Array.isArray(value.items) || value.items.length > 20 || !value.items.every(item)
     || value.myBest !== null && !item(value.myBest)) throw new Error('팀 랭킹 응답을 확인해주세요.')

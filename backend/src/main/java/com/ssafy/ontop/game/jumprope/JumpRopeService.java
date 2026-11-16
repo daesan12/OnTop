@@ -118,7 +118,7 @@ public class JumpRopeService {
         }
         return read.execute(tx -> {
             long total = repository.participants(rulesVersion);
-            return new JumpRopeDtos.Rankings(rulesVersion, "ALL_TIME", clock.instant(), total, offset, limit,
+            return new JumpRopeDtos.Rankings(rulesVersion, "EVENT", clock.instant(), total, offset, limit,
                     repository.ranked(rulesVersion, limit, offset), repository.me(rulesVersion, userId),
                     offset + (long) limit < total);
         });

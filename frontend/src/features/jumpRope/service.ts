@@ -87,7 +87,7 @@ export class JumpRopeService {
   /** The board of the version new rounds use; records of other versions stay on the server. */
   async rankings(signal: AbortSignal): Promise<JumpRopeRankingState> {
     const value = await this.call('/rankings', { method: 'GET', signal })
-    if (!isObject(value) || !rulesVersion(value.rulesVersion) || value.period !== 'ALL_TIME' || value.offset !== 0 || value.limit !== 10
+    if (!isObject(value) || !rulesVersion(value.rulesVersion) || value.period !== 'EVENT' || value.offset !== 0 || value.limit !== 10
       || !Array.isArray(value.items) || value.items.length > 10 || !value.items.every(rankingItem)
       || (value.me !== null && !rankingItem(value.me))) throw new JumpRopeApiError('', true)
     return { kind: 'ready', entries: value.items, personalBest: value.me ?? undefined, serverRanked: true }

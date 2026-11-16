@@ -4,6 +4,7 @@ import { RankingBoardDialog } from './RankingBoardDialog'
 import { fetchParkRanking, parkRankingError } from './service'
 import { beginRankingRefresh, completeRankingRefresh, failRankingRefresh } from './state'
 import { useRankingBoardEntry } from './model'
+import { useRankingPageCycle } from './pageCycle'
 
 const POLL_INTERVAL_MS = 15_000
 export const canPollParkRanking = (visibility: DocumentVisibilityState) => visibility === 'visible'
@@ -24,6 +25,8 @@ export function RankingBoardHost() {
   }, [runtime])
 
   useEffect(() => { if (open) refresh() }, [open, refresh])
+
+  useRankingPageCycle(open)
 
   useEffect(() => {
     // The provider starts the runtime in its own effect. Defer the first read by

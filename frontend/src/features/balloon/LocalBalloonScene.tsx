@@ -13,6 +13,7 @@ import { cameraRelativeMove } from '../../network/movementInput'
 import { useSession } from '../../network/worldClient'
 import { BalloonCabinControls, type LocalCabinInput } from './BalloonCabinControls'
 import { stoppedFlightInput } from './controls'
+import { CABIN_FLOOR_HEIGHT, sightseeingCabin, SIGHTSEEING_STEP_HEIGHT } from './cabin'
 
 const keys = new Set([
   'KeyA', 'KeyD', 'KeyW', 'KeyS', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
@@ -41,6 +42,7 @@ export default function LocalBalloonScene() {
   const cabinInput = useRef<LocalCabinInput>({ pilot: '', input: stoppedFlightInput })
   const canvas = useThree(state => state.gl.domElement)
   const ownId = useSession(state => state.sessionId)
+  const sightseeing = useLocalBalloon(state => state.xrSightseeing)
   const remotePilots = useRemoteBalloons(useShallow(state => Object.keys(state.flights).filter(id => id !== ownId)))
   useEffect(() => {
     const input = held.current
@@ -48,7 +50,7 @@ export default function LocalBalloonScene() {
     const clear = () => { input.clear(); pointer = null }
     const canLook = () => {
       const ride = useLocalBalloon.getState()
-      return ride.walkingInside && ride.flight?.phase === 'flying'
+      return !ride.xrSightseeing && ride.walkingInside && ride.flight?.phase === 'flying'
     }
     const pointerDown = (event: PointerEvent) => {
       if (!canLook() || event.button !== 0 || !event.isTrusted) return
@@ -64,7 +66,8 @@ export default function LocalBalloonScene() {
     const pointerEnd = (event: PointerEvent) => { if (pointer?.id === event.pointerId) pointer = null }
     const down = (event: KeyboardEvent) => {
       if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey
-        || textInputOwnsKeys(event.target) || useLocalBalloon.getState().flight?.phase !== 'flying') return
+        || textInputOwnsKeys(event.target) || useLocalBalloon.getState().xrSightseeing
+        || useLocalBalloon.getState().flight?.phase !== 'flying') return
       if (event.code === 'KeyF' || event.code === 'KeyE' || event.code === 'KeyV') {
         event.preventDefault()
         if (!event.repeat) {
@@ -123,6 +126,11 @@ export default function LocalBalloonScene() {
     <group ref={root} name="local-balloon-ride" scale={BALLOON_SCALE} visible={false}>
       <BalloonCabinSeats />
       <BalloonCabinControls local={cabinInput} />
+      {sightseeing && <mesh position={[sightseeingCabin.x, CABIN_FLOOR_HEIGHT + SIGHTSEEING_STEP_HEIGHT / 2, sightseeingCabin.z]}
+        castShadow receiveShadow>
+        <boxGeometry args={[.66, SIGHTSEEING_STEP_HEIGHT, .55]} />
+        <meshStandardMaterial color="#a67648" roughness={.9} />
+      </mesh>}
     </group>
     {remotePilots.map(pilot => <RemoteBalloon key={pilot} pilot={pilot} local={cabinInput} />)}
   </>

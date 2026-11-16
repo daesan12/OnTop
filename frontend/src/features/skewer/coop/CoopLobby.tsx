@@ -118,7 +118,7 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
           </div>
         </div>
         {role === 'chef' && vr ? <TouchControllerGuide mode="chef" /> : null}
-        <div className={`coop-ranking-notice${vr ? ' is-vr' : ''}`}><b>{vr ? 'VR 팀 랭킹 도전' : 'PC 팀 랭킹 도전'}</b><span>PC·VR 기록은 따로 집계해요. 경기 중 방식을 바꾸면 랭킹에서 제외돼요. 엽전 보상은 동일해요.</span></div>
+        <div className={`coop-ranking-notice${vr ? ' is-vr' : ''}`}><b>{vr ? 'VR 팀 랭킹 도전' : 'PC 팀 랭킹 도전'}</b><span>PC·VR 기록을 함께 집계해요. VR 최고 기록에는 VR 표시가 붙어요. 경기 중 방식을 바꾸면 랭킹에서 제외돼요. 엽전 보상은 동일해요.</span></div>
         <footer className="coop-ready-footer"><div className="coop-team-status" aria-label="참가자 준비 상태">{pub.players.map(p => <div key={p.userId} data-ready={p.ready}><span className="coop-status-dot" /><span><b>{p.userId === owner ? '나' : '친구'}</b> · {p.role === 'chef' ? '요리사' : p.role === 'server' ? '서빙 담당' : '역할 선택 중'}<small>{!p.connected ? '연결 확인 중' : p.ready ? '준비 완료' : '준비 전'}</small></span></div>)}</div>
           <div className="coop-ready-action"><button className="paper-primary" disabled={(!ready && !player?.ready) || acting} onClick={() => void act({ type: 'READY', ready: !player?.ready })}>{acting ? '변경 중…' : player?.ready ? '준비 취소' : '준비 완료'}</button>{readyHint ? <small>{readyHint}</small> : null}</div>
         </footer>

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 export type Vehicle = 'BICYCLE' | 'SCOOTER'
 export const HOLD_MS = 700
-export const rentalCapability = { available: false }
+export const rentalCapability = { available: false, xrAvailable: false }
 export const vehicles = {
   BICYCLE: { label: '전기자전거', rate: 1, side: -1, speed: 11 },
   SCOOTER: { label: '킥보드', rate: 2, side: 1, speed: 14 },

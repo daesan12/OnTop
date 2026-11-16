@@ -40,6 +40,7 @@ export function JumpRopeRanking({ state, onClose }: {
       <section className="rope-ranking" role="dialog" aria-modal="true" aria-labelledby="rope-ranking-title" onKeyDown={handleKeyDown}>
         <header className="rope-ranking__titlebar">
           <h2 id="rope-ranking-title" ref={title} tabIndex={-1}>구구구 랭킹</h2>
+          <p>11/16 14:00 ~ 11/18 23:59 (한국 시간) · 기간 내 시작·완료한 기록</p>
         </header>
 
         {entries.length > 0 ? (

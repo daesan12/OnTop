@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(ParkJumpRopeRankingRepository.class)
 class ParkJumpRopeRankingRepositoryTests {
-    private static final Instant STARTED_AT = Instant.parse("2026-11-02T00:00:00Z");
+    private static final Instant STARTED_AT = com.ssafy.ontop.game.jumprope.JumpRopeRankingWindow.START;
 
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ParkJumpRopeRankingRepository rankings;
@@ -80,6 +80,19 @@ class ParkJumpRopeRankingRepositoryTests {
             assertThat(result.score()).isEqualTo(800);
             assertThat(result.misses()).isEqualTo(3);
         });
+    }
+
+    @Test
+    void 기간_경계를_최고기록_선택_전에_적용하고_종료분_전체를_포함한다() {
+        long user = member("이벤트참여");
+        round(user, 9_000, 0, STARTED_AT.plusSeconds(64), JumpRopeRules.VERSION);
+        round(user, 700, 0, STARTED_AT.plusSeconds(65), JumpRopeRules.VERSION);
+        Instant end = com.ssafy.ontop.game.jumprope.JumpRopeRankingWindow.END_EXCLUSIVE;
+        round(member("마지막밀리초"), 800, 0, end.minusMillis(1), JumpRopeRules.VERSION);
+        round(member("종료정각"), 9_999, 0, end, JumpRopeRules.VERSION);
+        var result = rankings.findTopTen(STARTED_AT.minusSeconds(86400));
+        assertThat(result).extracting(JumpRopeRankingStanding::score).containsExactly(800L, 700L);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM jump_rope_rounds", Long.class)).isEqualTo(4);
     }
 
     @Test
