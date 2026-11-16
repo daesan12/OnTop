@@ -29,10 +29,19 @@ class RenewalMovingPadTests {
             assertThat(world.observe("1").support().course()).isEqualTo(pad);
             double min = Double.MAX_VALUE;
             double max = -Double.MAX_VALUE;
+            WorldPhysics.MovingPad ride = null;
             for (int tick = 0; tick < 115; tick++) {
                 step(world, time);
                 var observation = world.observe("1");
                 assertThat(observation.support().course()).as("support at tick %d", tick).isEqualTo(pad);
+                var movingPad = world.snapshot("1").motion().movingPad();
+                assertThat(movingPad).as("rider at tick %d", tick).isNotNull();
+                assertThat(movingPad.block()).isEqualTo(pad.block());
+                assertThat(movingPad.dipStartedAt() != null).isEqualTo(theme.equals("mole"));
+                if (ride == null) {
+                    ride = movingPad;
+                }
+                assertThat(movingPad).isEqualTo(ride);
                 min = Math.min(min, observation.feet());
                 max = Math.max(max, observation.feet());
             }
@@ -44,6 +53,7 @@ class RenewalMovingPadTests {
                 world.observe("1");
             }
             var airborne = world.snapshot("1");
+            assertThat(airborne.motion().movingPad()).isNull();
             assertThat(airborne.y()).isGreaterThan(worldHeightBeforeJump + .25);
             assertThat(airborne.x()).isGreaterThan(pad.x() + .25);
             assertThat(world.observe("1").support().course()).isNotEqualTo(pad);

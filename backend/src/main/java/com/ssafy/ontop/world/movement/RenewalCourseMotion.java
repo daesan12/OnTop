@@ -125,6 +125,13 @@ final class RenewalCourseMotion {
         return player != null && player.support >= 0 && movesWithRider(course.colliders().get(player.support));
     }
 
+    WorldPhysics.MovingPad movingPad(String user) {
+        Player player = players.get(user);
+        Contact contact = player.contacts.get(player.support);
+        Double dipStartedAt = Double.isFinite(contact.dippedAt) ? contact.dippedAt : null;
+        return new WorldPhysics.MovingPad(player.support, dipStartedAt);
+    }
+
     private boolean movesWithRider(JumpCourse.Collider pad) {
         if (pad == null) {
             return false;

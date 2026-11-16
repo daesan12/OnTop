@@ -189,6 +189,9 @@ export function worldState(value: Record<string, unknown>): WorldState {
       && (m.profile === undefined || m.profile === 'PARK_V1')
       && (m.correctionReason === undefined || text(m.correctionReason) && m.correctionReason.length <= 64)
       && steering(m.steering)
+      && (m.movingPad === undefined || record(m.movingPad) && integer(m.movingPad.block)
+        && (m.movingPad.dipStartedAt === undefined
+          || typeof m.movingPad.dipStartedAt === 'number' && Number.isFinite(m.movingPad.dipStartedAt)))
       && (m.jumpGrace === undefined || record(m.jumpGrace) && integer(m.jumpGrace.coyoteTicks) && m.jumpGrace.coyoteTicks <= 3
         && integer(m.jumpGrace.jumpBufferTicks) && m.jumpGrace.jumpBufferTicks <= 4)
   const tableSeat = (s: unknown) => s == null || record(s)

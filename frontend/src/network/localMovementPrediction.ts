@@ -3,6 +3,7 @@ import type { Pose } from './worldClient'
 import { MOVEMENT, NETWORK } from '../config'
 import { PARK_MOTION } from './parkMotion'
 import type { JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
+import type { MovingPad } from '../features/jumpmap/renewalMotion'
 
 export interface MotionSnapshot {
   epoch: number; tick: number; appliedInputSeq: number; inputAgeMs: number
@@ -12,6 +13,7 @@ export interface MotionSnapshot {
   steering?: { dx: number; dz: number; run: boolean; targetX: number; targetZ: number }
   correctionReason?: string
   jumpGrace?: JumpGraceSnapshot
+  movingPad?: MovingPad
 }
 export interface PredictionSimulation {
   setFollowTarget?(target: {x:number;z:number} | undefined): void

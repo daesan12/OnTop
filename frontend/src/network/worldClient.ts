@@ -53,7 +53,8 @@ import { resetFollow } from '../features/follow/state'
 import { resetBenchSpectator } from '../features/interactions/benchSpectator'
 import { defeatTimeline, parseGameReaction } from '../game/presentation/defeat'
 import {acceptParkDebris,parseParkDebris,resetParkDebris} from '../features/parkDebris/state'
-import { receiveJumpmap, resetJumpmap, useJumpmap } from '../features/jumpmap/state'
+import { moleLandings, receiveJumpmap, resetJumpmap, useJumpmap } from '../features/jumpmap/state'
+import { movingPadRiderHeight, type MovingPad } from '../features/jumpmap/renewalMotion'
 import { MOVEMENT_INPUT_INTERVAL_MS } from './movementInput'
 
 export interface Pose {
@@ -67,6 +68,7 @@ export interface AvatarSnapshot {
   previous: Pose
   current: Pose
   at: number
+  movingPad?: MovingPad
   nickname: string
   color: number
   character?: CharacterId
@@ -331,7 +333,18 @@ export function sampleAvatar(
   if (avatar.boatId && avatar.boatDepartedAt && avatar.seatIndex >= 0
     && sampleBoatRider(avatar.boatDepartedAt, avatar.seatIndex, estimatedServerTime(), target)) return target
   const sessionId = useSession.getState().sessionId
-  if (avatar === avatars.get(sessionId)) {
+  const own = avatar === avatars.get(sessionId)
+  const course = useJumpmap.getState()
+  const ownCourseRun = own && course.owner === sessionId && !!course.run
+  if (ownCourseRun && avatar.movingPad) {
+    const height = movingPadRiderHeight(avatar.movingPad)
+    if (height !== undefined) {
+      sampleMovement(avatar, now, MOVEMENT_INPUT_INTERVAL_MS, target)
+      target.y = height
+      return target
+    }
+  }
+  if (own) {
     if (avatar.vehicle) {
       if (mountedLocalMovement.sample(sessionId, now, target, vehicles[avatar.vehicle].speed)) return target
     } else if (!predictionAllowed()) localMovement.suspend()
@@ -340,11 +353,7 @@ export function sampleAvatar(
     && remoteMovement.sample(avatar.userId, now, target, avatar.vehicle === 'SCOOTER' || avatar.carry?.role === 'THROWN' ? 14 : avatar.vehicle === 'BICYCLE' ? 11 : undefined)) {
     return target
   }
-  // On server-owned course pads, follow the local player's confirmed poses
-  // over one input interval. The ordinary 120ms blend softens remote movement
-  // but visibly drags behind both jump takeoff and the moving platform here.
-  const course = useJumpmap.getState()
-  const ownCourseRun = avatar === avatars.get(sessionId) && course.owner === sessionId && !!course.run
+  // Keep takeoff responsive when the server still owns movement after dismount.
   return sampleMovement(avatar, now, ownCourseRun ? MOVEMENT_INPUT_INTERVAL_MS : NETWORK.interpolationMs, target)
 }
 
@@ -683,16 +692,21 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
             yaw: position.yaw,
           }
         const vehicle = mapCompatible ? next.vehicles?.[userId] : undefined
-        const unchanged = old && samePose(old.current, position)
+        const movingPad = userId === state.sessionId && mapCompatible ? motion?.movingPad : undefined
+        const unchanged = old && samePose(old.current, position) && old.movingPad?.block === movingPad?.block
         if (old) {
           if (unchanged) Object.assign(previous, old.previous)
           else sampleAvatar(old, now, previous)
+        }
+        if (movingPad?.dipStartedAt !== undefined && useJumpmap.getState().run) {
+          moleLandings.set(movingPad.block, movingPad.dipStartedAt)
         }
         avatars.set(userId, {
           userId,
           previous,
           current: { ...position },
           at: unchanged ? old.at : now,
+          movingPad,
           nickname:
             profiles[userId]?.nickname ??
             (userId === state.sessionId ? '나' : '산책자 ' + userId.slice(-6)),

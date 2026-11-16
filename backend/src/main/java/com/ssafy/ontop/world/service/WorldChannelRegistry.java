@@ -1018,6 +1018,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                 if (!next.equals(previous.position()) || oldMotion != null && newMotion != null && (
                         oldMotion.epoch() != newMotion.epoch() || !java.util.Objects.equals(oldMotion.authority(), newMotion.authority())
                         || !java.util.Objects.equals(oldMotion.steering(), newMotion.steering())
+                        || !java.util.Objects.equals(oldMotion.movingPad(), newMotion.movingPad())
                         || !java.util.Objects.equals(oldMotion.correctionReason(), newMotion.correctionReason()))) {
                     room.positions.put(id, new Movement(next, previous.acceptedAtNanos()));
                     changed = true;
