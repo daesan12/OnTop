@@ -2,7 +2,7 @@
   --ad-ink: #103d3b;
   --ad-muted: #626a56;
   --ad-border: #c3c4a6;
-  width: min(1348px, calc(100vw - 64px), calc((100dvh - 72px) * 1.557));
+  width: min(1348px, calc(100vw - 40px), calc((100dvh - 24px) * 1.54));
   max-width: none;
   max-height: calc(100dvh - 32px);
   padding: 0;
@@ -33,13 +33,45 @@
 .park-advertisement-close:hover { background: #c3c4a640; }
 .park-advertisement-header h2 { margin: 2.5cqw 0 1cqw; font-size: 4.2cqw; font-weight: 700; line-height: 1.3; letter-spacing: -.035em; }
 .park-advertisement-header p { margin: 0; color: var(--ad-muted); font-size: 2.5cqw; line-height: 1.5; letter-spacing: -.035em; }
-.park-advertisement-carousel { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1cqw; margin-top: 1.8cqw; }
-.park-advertisement-arrow { z-index: 1; display: grid; place-items: center; width: clamp(44px, 4cqw, 54px); aspect-ratio: 1; padding: 0; border: 1px solid #9a9b7b; border-radius: 50%; background: #f0ead5; color: var(--ad-ink); box-shadow: inset 0 0 0 3px #f7f1df; cursor: pointer; }
+.park-advertisement-carousel { position: relative; margin-top: 1.8cqw; }
+.park-advertisement-arrow {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid #a9aa8b;
+  border-radius: 50%;
+  background: #f0ead5;
+  color: var(--ad-ink);
+  box-shadow: inset 0 0 0 3px #f7f1df, 0 2px 6px #514d3820;
+  cursor: pointer;
+}
+.park-advertisement-arrow:first-child { inset-inline-start: calc(14px - 3.5cqw); }
+.park-advertisement-arrow:nth-of-type(2) { inset-inline-end: calc(14px - 3.5cqw); }
 .park-advertisement-arrow:hover { background: #e4e0c5; }
 .park-advertisement-arrow > svg { width: 23px; height: 23px; }
-.park-advertisement-page { grid-column: 2; color: var(--ad-muted); font-size: clamp(13px, 1.35cqw, 18px); line-height: 1.25; text-align: center; font-variant-numeric: tabular-nums; }
+.park-advertisement-page {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 50%;
+  translate: -50% 50%;
+  padding: 1px 9px;
+  border: 1px solid #c8c7ac;
+  border-radius: 10px;
+  background: #f4f0df;
+  color: var(--ad-muted);
+  font-size: clamp(12px, 1.25cqw, 16px);
+  line-height: 1.15;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
 .park-advertisement-page-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.park-advertisement-project { position: relative; display: grid; grid-template-columns: 58.9fr 38fr; align-items: stretch; gap: 3cqw; padding: 1.6cqw; border: 2px solid #c8c7ac; border-radius: 23px; background: #fffdf42b; box-shadow: 0 3px 9px #8277560a, inset 0 0 18px #fffdf470; }
+.park-advertisement-project { position: relative; display: grid; grid-template-columns: minmax(0, 58.9fr) minmax(0, 38fr); align-items: stretch; gap: 3cqw; padding: 1.6cqw; border: 2px solid #c8c7ac; border-radius: 23px; background: #fffdf42b; box-shadow: 0 3px 9px #8277560a, inset 0 0 18px #fffdf470; }
 .park-advertisement-project > .park-advertisement-corners { inset: 7px; opacity: .75; }
 .park-advertisement-project > .park-advertisement-corners > svg { width: 20px; height: 20px; }
 .park-advertisement-preview { display: block; align-self: stretch; width: 100%; height: 100%; min-height: 0; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 17px; }
@@ -82,12 +114,12 @@
   .park-advertisement-close { top: 15px; right: 14px; width: 36px; height: 36px; padding: 9px; }
   .park-advertisement-header h2 { margin: 18px 0 9px; font-size: clamp(23px, 6.8cqw, 34px); line-height: 1.4; text-wrap: balance; }
   .park-advertisement-header p { font-size: 14px; line-height: 1.6; text-wrap: pretty; }
-  .park-advertisement-carousel { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 6px; margin-top: 18px; }
+  .park-advertisement-carousel { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 6px; margin-top: 18px; }
   .park-advertisement-project { grid-column: 1 / -1; grid-row: 2; grid-template-columns: minmax(0, 1fr); gap: 0; padding: 10px; border-radius: 16px; }
-  .park-advertisement-arrow { grid-row: 1; }
+  .park-advertisement-arrow { position: static; translate: none; grid-row: 1; }
   .park-advertisement-arrow:first-child { grid-column: 1; }
   .park-advertisement-arrow:nth-of-type(2) { grid-column: 3; }
-  .park-advertisement-page { grid-row: 1; grid-column: 2; margin: 0; }
+  .park-advertisement-page { position: static; translate: none; grid-row: 1; grid-column: 2; justify-self: center; }
   .park-advertisement-preview { height: auto; border-radius: 10px; }
   .park-advertisement-details { padding: 16px 5px 10px; }
   .park-advertisement-badge { padding: 5px 9px; border-radius: 6px; font-size: 12px; }
