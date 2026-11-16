@@ -49,6 +49,16 @@ public class RaffleDrawingRepository {
                 java.sql.Date.valueOf(week)).stream().findFirst();
     }
 
+    /** 공개 추첨 행사 대상으로 등록된 회차인지 확인한다. 진행 상태와 관계없이 등록 자체가 직접 확정 잠금의 근거다. */
+    public boolean liveEventRegistered(LocalDate week) {
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM raffle_live_events e
+                JOIN raffle_rounds r ON r.id = e.raffle_round_id
+                WHERE r.week_start_date = ?
+                """, Integer.class, java.sql.Date.valueOf(week));
+        return count != null && count > 0;
+    }
+
     public void ensurePrizeSlot(long eventRoundId, int place, int slotNumber, String prizeName) {
         jdbc.update("""
                 INSERT INTO event_prize_slots(event_round_id, place, slot_number, prize_name)

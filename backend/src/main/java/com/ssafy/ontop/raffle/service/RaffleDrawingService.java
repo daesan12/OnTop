@@ -131,13 +131,35 @@ public class RaffleDrawingService {
         }));
     }
 
+    /** 관리자 화면의 직접 확정. 공개 추첨 행사 대상 회차는 Feature Flag와 관계없이 항상 거부한다. */
     public RaffleDrawResponse confirmReview(LocalDate week, long administratorUserId, long drawId) {
+        return confirm(week, administratorUserId, drawId, false);
+    }
+
+    /**
+     * 공개 추첨 행사를 마칠 때 행사 서비스만 호출하는 내부 확정 경로다. HTTP 요청으로 노출하지 않는다.
+     * 관리자 운영 권한, 검토 중인 drawId 일치, 후보 변경 검사는 직접 확정과 똑같이 적용한다.
+     */
+    public RaffleDrawResponse confirmLiveEventReview(LocalDate week, long administratorUserId, long drawId) {
+        return confirm(week, administratorUserId, drawId, true);
+    }
+
+    private RaffleDrawResponse confirm(LocalDate week, long administratorUserId, long drawId,
+            boolean liveEventPath) {
         validateWeek(week);
         requireOperator(administratorUserId);
         if (drawId <= 0) {
             throw error(400, "RAFFLE_INVALID_DRAW_ID", "확정할 추첨 ID가 필요합니다.");
         }
         return Objects.requireNonNull(writes.execute(status -> {
+            boolean liveEvent = drawings.liveEventRegistered(week);
+            if (liveEvent && !liveEventPath) {
+                throw error(409, "RAFFLE_LIVE_EVENT_LOCKED",
+                        "공개 추첨 행사 대상 회차는 행사를 마칠 때만 확정할 수 있습니다.");
+            }
+            if (!liveEvent && liveEventPath) {
+                throw error(409, "RAFFLE_LIVE_EVENT_NOT_REGISTERED", "공개 추첨 행사 대상 회차가 아닙니다.");
+            }
             EventRound round = lockedRound(week);
             if (round.finalizedAt() != null) {
                 if (drawings.confirmedReview(round.id()).map(review -> review.id() == drawId).orElse(false)) {

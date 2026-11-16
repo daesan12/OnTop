@@ -59,7 +59,9 @@ class RaffleApiMySqlTests {
 
     @BeforeEach
     void setUp() {
-        for (String table : List.of("raffle_tickets", "raffle_rounds", "wallet_transactions", "wallets", "users")) {
+        // V182의 공개 추첨 행사 등록이 raffle_rounds를 참조하므로 먼저 지운다.
+        for (String table : List.of("raffle_tickets", "raffle_live_events", "raffle_rounds",
+                "wallet_transactions", "wallets", "users")) {
             jdbc.update("DELETE FROM " + table);
         }
         service = new RaffleService(raffles, wallets, ledger, transactions,
@@ -80,6 +82,25 @@ class RaffleApiMySqlTests {
         assertThat(count("wallet_transactions")).isOne();
         assertThat(service.current(userId).tickets()).singleElement()
                 .satisfies(ticket -> assertThat(ticket.ticketNumber()).isEqualTo(first.ticketNumber()));
+    }
+
+    @Test
+    void V182_마감은_11월18일_23시59분59초999_KST까지만_구매를_받는다() throws Exception {
+        // setUp이 지운 V182의 회차·등록 데이터를 파일 문장 그대로 다시 만든다(회차가 없는 경로).
+        RaffleLiveEventMigrationScript.run(jdbc, sql -> sql.startsWith("INSERT INTO"));
+        long userId = member(500, 0);
+        var lastMoment = service(Instant.parse("2026-11-18T14:59:59.999Z"));
+
+        assertThat(lastMoment.current(userId).salesEndsAt()).isEqualTo(Instant.parse("2026-11-18T15:00:00Z"));
+        assertThat(lastMoment.purchase(userId, "before-deadline").ticketNumber()).isBetween(1, 10_000);
+        var deadline = service(Instant.parse("2026-11-18T15:00:00Z"));
+        assertThatThrownBy(() -> deadline.purchase(userId, "at-deadline"))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_SALES_CLOSED"));
+        // 거부된 구매 트랜잭션의 상태 갱신은 롤백되므로, 복권방 화면이 받는 조회 응답으로 마감 상태를 확인한다.
+        assertThat(deadline.current(userId).salesStatus()).isEqualTo("CLOSED");
+        assertThat(count("raffle_tickets")).isOne();
+        assertThat(balance(userId)).isEqualTo(400);
     }
 
     @Test
@@ -151,6 +172,11 @@ class RaffleApiMySqlTests {
         jdbc.update("INSERT INTO wallets(user_id, balance, reserved_balance) VALUES (?, ?, ?)",
                 userId, balance, reserved);
         return userId;
+    }
+
+    private RaffleService service(Instant now) {
+        return new RaffleService(raffles, wallets, ledger, transactions,
+                Clock.fixed(now, ZoneOffset.UTC), new RaffleNumberGenerator());
     }
 
     private long balance(long userId) {

@@ -55,6 +55,8 @@ public class RaffleDrawingController {
 
     @PostMapping("/api/v1/admin/raffles/rounds/{weekStart}/finalize")
     @Operation(summary = "관리자가 검토한 응모권 추첨 시도 최종 확정",
+            description = "공개 추첨 행사 대상으로 등록된 회차는 409 RAFFLE_LIVE_EVENT_LOCKED로 거부한다. "
+                    + "그 회차는 행사를 마칠 때 서버 내부 경로로만 확정된다.",
             security = @SecurityRequirement(name = "AccessJwt"))
     public ResponseEntity<RaffleDrawResponse> finalizeRound(Principal principal,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,

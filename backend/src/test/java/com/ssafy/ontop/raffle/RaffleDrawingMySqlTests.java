@@ -175,19 +175,20 @@ class RaffleDrawingMySqlTests {
                 WHERE e.week_start_date = ? AND a.outcome = 'SUCCEEDED'
                 """, Integer.class, java.sql.Date.valueOf(nextWeek))).isOne();
 
-        LocalDate emptyWeek = nextWeek.plusWeeks(1);
+        // 2026-11-16 회차는 V182가 만들고 공개 추첨 행사로 잠그므로 직접 확정 회귀는 다음 주차로 검증한다.
+        LocalDate emptyWeek = nextWeek.plusWeeks(2);
         round(emptyWeek);
-        var emptyReview = service("2026-11-22T15:00:00Z").createReview(emptyWeek, gm);
+        var emptyReview = service("2026-11-29T15:00:00Z").createReview(emptyWeek, gm);
         assertThat(emptyReview.picks()).isEmpty();
-        service("2026-11-22T15:00:00Z").confirmReview(emptyWeek, gm, emptyReview.drawId());
+        service("2026-11-29T15:00:00Z").confirmReview(emptyWeek, gm, emptyReview.drawId());
         assertThat(drawings.round(emptyWeek, false)).isPresent()
                 .get().extracting(RaffleDrawingRepository.EventRound::finalizedAt).isNotNull();
         assertThat(drawings.winners(drawings.round(emptyWeek, false).orElseThrow().id())).isEmpty();
 
         LocalDate failedWeek = emptyWeek.plusWeeks(1);
         long failedRound = round(failedWeek);
-        ticket(failedRound, first, 1, "2026-11-29T14:00:00Z");
-        assertThatThrownBy(() -> service("2026-11-29T15:00:00Z",
+        ticket(failedRound, first, 1, "2026-12-06T14:00:00Z");
+        assertThatThrownBy(() -> service("2026-12-06T15:00:00Z",
                 new RaffleDrawSelector(bound -> bound)).createReview(failedWeek, gm))
                 .isInstanceOf(IllegalStateException.class);
         var failedEvent = drawings.round(failedWeek, false).orElseThrow();
@@ -197,8 +198,8 @@ class RaffleDrawingMySqlTests {
                 SELECT COUNT(*) FROM event_finalization_attempts
                 WHERE event_round_id = ? AND outcome = 'FAILED'
                 """, Integer.class, failedEvent.id())).isOne();
-        var recovered = service("2026-11-29T15:00:01Z").createReview(failedWeek, gm);
-        assertThat(service("2026-11-29T15:00:01Z")
+        var recovered = service("2026-12-06T15:00:01Z").createReview(failedWeek, gm);
+        assertThat(service("2026-12-06T15:00:01Z")
                 .confirmReview(failedWeek, gm, recovered.drawId()).winners()).hasSize(1);
     }
 
