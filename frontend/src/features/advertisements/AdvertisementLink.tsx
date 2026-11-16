@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useSession } from '../../network/worldClient'
 import { canControlRoamingCamera } from '../../world/roamingCamera'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
+import deroPoster from './art/dero-poster.webp'
+import deroPreview from './art/dero-preview.webp'
 import geomatePreview from './art/geomate-preview.webp'
 import oneStoreIcon from './art/one-store-icon.webp'
 import ontopPreview from './art/ontop-preview.webp'
@@ -73,6 +75,25 @@ const advertisements = [
     artworkMat: 'warm',
     link: 'https://k15e107.p.ssafy.io/',
     action: '게임 사이트 방문',
+    notice: '온탑 외부 페이지로 이동합니다.',
+  },
+  {
+    title: 'DERO',
+    region: '대전',
+    teamCode: 'F107',
+    heading: '원하는 대로, 내 마음 데로.',
+    introduction: '내 공간에 맞는 책상을 3D로 꾸며 보세요.',
+    badge: '외부 팀 프로젝트',
+    description: [
+      '제품을 직접 배치하고 크기와 호환성을 비교해 보세요.',
+      '마음에 드는 제품을 고르고 전체 예산도 확인할 수 있어요.',
+    ],
+    image: deroPreview,
+    alt: '노란 후드티를 입은 캐릭터가 DERO의 3D 화면에서 책상과 의자를 배치하는 모습. 3D 배치, 제품 탐색, 예산 확인 안내.',
+    artworkMat: 'gold',
+    detailPoster: deroPoster,
+    link: 'https://www.dero.life/',
+    action: 'DERO 방문',
     notice: '온탑 외부 페이지로 이동합니다.',
   },
 ]
@@ -205,6 +226,11 @@ export function AdvertisementLink() {
             </div>
             <h3 id="advertisement-project-name">{advertisement.title}</h3>
             <p>{advertisement.description[0]}{advertisement.description[1] && <><br />{advertisement.description[1]}</>}</p>
+            {advertisement.detailPoster && (
+              <a className="park-advertisement-detail-link" href={advertisement.detailPoster} target="_blank" rel="noopener noreferrer">
+                상세 포스터 보기 <span aria-hidden="true">↗</span>
+              </a>
+            )}
             {advertisement.instagram && <>
               <div className="park-advertisement-divider"><Ornament /></div>
               <div className="park-advertisement-social"><InstagramIcon /><div><strong>Instagram</strong><span>{advertisement.instagram}</span></div></div>
