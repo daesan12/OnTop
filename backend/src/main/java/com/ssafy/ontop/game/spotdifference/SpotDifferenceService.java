@@ -2,6 +2,9 @@ package com.ssafy.ontop.game.spotdifference;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.behavior.domain.BehaviorEvent;
+import com.ssafy.ontop.behavior.domain.BehaviorEventType;
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.config.RuntimeProfiles;
 import java.io.IOException;
 import java.time.Clock;
@@ -35,16 +38,27 @@ class SpotDifferenceService {
     private final List<Puzzle> puzzles;
     private final SpotDifferenceRewards rewards;
     private final Clock clock;
+    private final BehaviorLog behaviorLog;
+
+    SpotDifferenceService(ObjectMapper mapper, SpotDifferenceRewards rewards) throws IOException {
+        this(mapper, rewards, BehaviorLog.disabled());
+    }
 
     @Autowired
-    SpotDifferenceService(ObjectMapper mapper, SpotDifferenceRewards rewards) throws IOException {
-        this(readPuzzles(mapper), rewards, Clock.systemUTC());
+    SpotDifferenceService(ObjectMapper mapper, SpotDifferenceRewards rewards, BehaviorLog behaviorLog)
+            throws IOException {
+        this(readPuzzles(mapper), rewards, Clock.systemUTC(), behaviorLog);
     }
 
     SpotDifferenceService(List<Puzzle> puzzles, SpotDifferenceRewards rewards, Clock clock) {
+        this(puzzles, rewards, clock, BehaviorLog.disabled());
+    }
+
+    SpotDifferenceService(List<Puzzle> puzzles, SpotDifferenceRewards rewards, Clock clock, BehaviorLog behaviorLog) {
         this.puzzles = List.copyOf(puzzles);
         this.rewards = rewards;
         this.clock = clock;
+        this.behaviorLog = behaviorLog;
         if (puzzles.size() < ROUND_COUNT || puzzles.stream().map(Puzzle::id).distinct().count() != puzzles.size()
                 || puzzles.stream().anyMatch(puzzle -> !valid(puzzle.normal()) || !valid(puzzle.hard()))) {
             throw new IllegalArgumentException("Invalid shooting pavilion puzzle catalog");
@@ -76,11 +90,16 @@ class SpotDifferenceService {
         }
         var now = clock.instant();
         // Remove expired sessions when the game is used. Each account has at most one live run.
-        runs.entrySet().removeIf(entry -> !now.isBefore(entry.getValue().expires));
+        runs.entrySet().removeIf(entry -> {
+            if (now.isBefore(entry.getValue().expires)) return false;
+            record(entry.getKey(), entry.getValue(), "EXPIRED", entry.getValue().lastAt);
+            return true;
+        });
         var response = new View[1];
         runs.compute(userId, (owner, previous) -> {
-            var run = previous != null && previous.requestId.equals(input.requestId())
-                    ? previous : newRun(input, now);
+            boolean same = previous != null && previous.requestId.equals(input.requestId());
+            if (previous != null && !same) record(userId, previous, "RESTARTED", now);
+            var run = same ? previous : newRun(input, now);
             response[0] = view(run, now, null);
             return run;
         });
@@ -99,6 +118,7 @@ class SpotDifferenceService {
                 throw new ResponseStatusException(HttpStatus.GONE, "종료된 판이에요. 새로 시작해 주세요.");
             }
             if (run.phase == Phase.PLAYING && !now.isBefore(run.deadline)) run.phase = Phase.REVIEW;
+            run.lastAt = now;
             TapResult tap = null;
             if (action.round() == run.round + 1) {
                 switch (action.type()) {
@@ -106,6 +126,8 @@ class SpotDifferenceService {
                         if (run.phase == Phase.WAITING) {
                             run.deadline = now.plus(ROUND_TIME);
                             run.phase = Phase.PLAYING;
+                            run.readyAt = now;
+                            run.roundsStarted++;
                         }
                     }
                     case TAP -> {
@@ -124,6 +146,7 @@ class SpotDifferenceService {
             }
             if (run.phase == Phase.REVIEW && run.round + 1 == ROUND_COUNT && run.receipt == null) {
                 run.receipt = rewards.settle(userId, id, run.total * run.difficulty.coinPerHit);
+                record(userId, run, "COMPLETED", now);
             }
             response[0] = view(run, now, tap);
             return run;
@@ -134,7 +157,28 @@ class SpotDifferenceService {
     private Run newRun(Start input, Instant now) {
         var shuffled = new ArrayList<>(puzzles);
         Collections.shuffle(shuffled);
-        return new Run(input, List.copyOf(shuffled.subList(0, ROUND_COUNT)), now.plus(RUN_LIFETIME));
+        return new Run(input, List.copyOf(shuffled.subList(0, ROUND_COUNT)), now, now.plus(RUN_LIFETIME));
+    }
+
+    // 판마다 끝날 때 한 번 남긴다(완주·새 판으로 교체·만료). 판 진행은 메모리에만 있어 이 기록이 판 수의 원본이다.
+    // 만료는 다음 시작 요청 때 정리되므로 기록 시각은 마지막으로 행동한 시각이다.
+    private void record(long userId, Run run, String endReason, Instant at) {
+        if (run.logged) return;
+        run.logged = true;
+        behaviorLog.record(() -> BehaviorEvent.builder(BehaviorEventType.GAME_PLAY_STATS, at)
+                .userId(userId)
+                .gameId(run.id.toString())
+                .prop("gameCode", "SPOT_DIFFERENCE")
+                .prop("difficulty", run.difficulty.name())
+                .prop("endReason", endReason)
+                .prop("roundsStarted", run.roundsStarted)
+                .prop("roundsCleared", run.roundsCleared)
+                .prop("found", run.total)
+                .prop("misses", run.misses)
+                .prop("fastestClearMs", run.fastestClearMs)
+                .prop("reward", run.receipt == null ? null : run.receipt.granted())
+                .prop("durationMs", Math.max(0, Duration.between(run.startedAt, at).toMillis()))
+                .build());
     }
 
     private static boolean validTap(Action action) {
@@ -150,10 +194,16 @@ class SpotDifferenceService {
             if (!run.matched.add(index)) return TapResult.ALREADY_FOUND;
             run.total++;
             run.nextTap = now.plusMillis(120);
-            if (run.matched.size() == answers.size()) run.phase = Phase.REVIEW;
+            if (run.matched.size() == answers.size()) {
+                run.phase = Phase.REVIEW;
+                run.roundsCleared++;
+                long cleared = Duration.between(run.readyAt, now).toMillis();
+                if (run.fastestClearMs == null || cleared < run.fastestClearMs) run.fastestClearMs = cleared;
+            }
             return TapResult.HIT;
         }
         run.nextTap = now.plusMillis(650);
+        run.misses++;
         return TapResult.MISS;
     }
 
@@ -197,6 +247,7 @@ class SpotDifferenceService {
         final UUID requestId;
         final Difficulty difficulty;
         final List<Puzzle> scenes;
+        final Instant startedAt;
         final Instant expires;
         final Set<Integer> matched = new HashSet<>();
         int round;
@@ -205,11 +256,21 @@ class SpotDifferenceService {
         Instant deadline;
         Instant nextTap = Instant.EPOCH;
         SpotDifferenceRewards.Receipt receipt;
+        // 행동 로그용 집계. 진행·판정에는 쓰지 않는다.
+        Instant lastAt;
+        Instant readyAt;
+        int roundsStarted;
+        int roundsCleared;
+        int misses;
+        Long fastestClearMs;
+        boolean logged;
 
-        Run(Start input, List<Puzzle> scenes, Instant expires) {
+        Run(Start input, List<Puzzle> scenes, Instant startedAt, Instant expires) {
             this.requestId = input.requestId();
             this.difficulty = input.difficulty();
             this.scenes = scenes;
+            this.startedAt = startedAt;
+            this.lastAt = startedAt;
             this.expires = expires;
         }
 
