@@ -5,9 +5,10 @@ import { OVERHEAD } from '../../park/mapConfig'
 import { XRCanvas } from './XRCanvas'
 
 const NICKNAME_HEAD_CLEARANCE = .24
+const HIDDEN_PANEL_TTL_MS = 10_000
 
 export class XRNames {
-  private readonly names = new Map<string, { panel: XRCanvas; text: string }>()
+  private readonly names = new Map<string, { panel: XRCanvas; text: string; lastVisibleAt: number }>()
   private readonly pose = { x: 0, y: 0, z: 0, yaw: 0 }
 
   constructor(private readonly scene: Object3D) {}
@@ -25,7 +26,7 @@ export class XRNames {
         if (existing) existing.panel.mesh.visible = false
         continue
       }
-      const name = existing ?? { panel: new XRCanvas(512, 112, .7, false), text: '' }
+      const name = existing ?? { panel: new XRCanvas(512, 112, .7, false), text: '', lastVisibleAt: now }
       if (!existing) { this.names.set(id, name); this.scene.add(name.panel.mesh); name.panel.mesh.name = 'park-xr-nickname' }
       const text = displayNickname(session.profiles[id], avatar.nickname || `산책자 ${id.slice(-6)}`)
       if (text !== name.text) {
@@ -44,13 +45,22 @@ export class XRNames {
       mesh.lookAt(eye)
       mesh.scale.setScalar(scale)
       mesh.visible = true
+      name.lastVisibleAt = now
     }
+    this.prune(now, session.sessionId)
+  }
+
+  private prune(now: number, selfId: string) {
     for (const [id, name] of this.names) {
-      if (avatars.get(id)?.connected && id !== session.sessionId) continue
-      name.panel.dispose(); this.names.delete(id)
+      if (avatars.get(id)?.connected && id !== selfId && now - name.lastVisibleAt < HIDDEN_PANEL_TTL_MS) continue
+      name.panel.dispose()
+      this.names.delete(id)
     }
   }
 
-  hide() { this.names.forEach(({ panel }) => { panel.mesh.visible = false }) }
+  hide(now = performance.now()) {
+    this.names.forEach(({ panel }) => { panel.mesh.visible = false })
+    this.prune(now, useSession.getState().sessionId)
+  }
   dispose() { this.names.forEach(({ panel }) => panel.dispose()); this.names.clear() }
 }

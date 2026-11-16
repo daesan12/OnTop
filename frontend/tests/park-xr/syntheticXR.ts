@@ -1,10 +1,11 @@
 /** Browser-only XR frame/session simulation. No production hooks or auth bypass. */
 import { _roots, advance } from '@react-three/fiber'
-import { Matrix4, Quaternion, Vector3 } from 'three'
-import type { Mesh, MeshBasicMaterial, ShaderMaterial } from 'three'
+import { Group, Matrix4, Quaternion, Vector3 } from 'three'
+import type { Mesh, MeshBasicMaterial, PlaneGeometry, ShaderMaterial } from 'three'
 import type { JumpmapXRAction, JumpmapXRView } from '../../src/features/jumpmap/xrModel'
 import { parkXRView } from '../../src/world/xrView'
 import { useParkXR } from '../../src/features/parkXR/state'
+import { XRNames } from '../../src/features/parkXR/xrNames'
 import { avatars, sampleAvatar, useSession } from '../../src/network/worldClient'
 import { inputState } from '../../src/world/inputOwnership'
 import { useXRComfort } from '../../src/features/parkXR/comfort'
@@ -23,6 +24,36 @@ const feedbackPulses: { hand: string; strength: number; duration: number }[] = [
 let feedbackResets = 0
 export const feedbackSnapshot = () => ({ pulses: [...feedbackPulses], resets: feedbackResets })
 const root = () => _roots.get(document.querySelector('canvas')!)!.store.getState()
+export function checkNicknamePanelLifetime(id: string) {
+  const avatar = avatars.get(id)
+  if (!avatar?.connected) return null
+  const scene = new Group()
+  const names = new XRNames(scene)
+  const now = performance.now()
+  const { x, y, z } = sampleAvatar(avatar, now, { x: 0, y: 0, z: 0, yaw: 0 })
+  const near = new Vector3(x + 2, y + 1.05, z)
+  const far = new Vector3(x + 1000, y, z)
+  try {
+    names.update(now, near)
+    const mesh = scene.getObjectByName('park-xr-nickname') as Mesh<PlaneGeometry, MeshBasicMaterial> | undefined
+    if (!mesh?.visible) return null
+    const disposed: string[] = []
+    mesh.geometry.addEventListener('dispose', () => disposed.push('geometry'))
+    mesh.material.addEventListener('dispose', () => disposed.push('material'))
+    mesh.material.map!.addEventListener('dispose', () => disposed.push('texture'))
+    names.update(now + 1000, far)
+    const hidden = !mesh.visible && mesh.parent === scene
+    names.update(now + 5000, near)
+    const reused = mesh.visible && mesh.parent === scene && disposed.length === 0
+    names.update(now + 15001, far)
+    const removed = mesh.parent === null
+    names.update(now + 15002, near)
+    const recreated = scene.children.some(child => child !== mesh && child.visible)
+    return { hidden, reused, removed, recreated, disposed }
+  } finally {
+    names.dispose()
+  }
+}
 export function guideTexturePNG() {
   const mesh = root().scene.getObjectByName('jumpmap-xr-dialog') as import('three').Mesh<import('three').PlaneGeometry, import('three').MeshBasicMaterial>
   return (mesh.material.map!.image as HTMLCanvasElement).toDataURL('image/png')

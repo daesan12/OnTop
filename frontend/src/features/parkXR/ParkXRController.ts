@@ -272,7 +272,7 @@ export class ParkXRController {
     this.mobilityMotion = 'walking'
     if (this.balloon?.active) cancelLocalBalloon()
     if (this.telescope?.id) void this.telescope.close()
-    this.omokGameId = ''; this.chat?.reset(); this.omok?.hide(); this.names.hide()
+    this.omokGameId = ''; this.chat?.reset(); this.omok?.hide(); this.names.dispose()
     this.releaseVR?.(); this.releaseVR = undefined
     closeJumpCompletion()
     this.session?.removeEventListener('end', this.finished)
@@ -456,7 +456,7 @@ export class ParkXRController {
     this.camera.position.copy(this.head); this.camera.quaternion.copy(this.rotation)
     this.headAnchor.position.copy(this.head); this.headAnchor.quaternion.copy(this.rotation); this.headAnchor.visible = true
     this.rig.updateMatrixWorld(true)
-    if (playingOmok || usingTelescope) this.names.hide()
+    if (playingOmok || usingTelescope) this.names.hide(now)
     else this.names.update(now, parkXRView.position)
     if (usingTelescope) this.telescope?.updateView(this.gl, this.rig, now, input.turn, telescopeTilt)
     let hover: JumpmapXRAction | null = null
