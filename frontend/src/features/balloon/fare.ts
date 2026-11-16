@@ -6,7 +6,7 @@ const pendingKey = (owner: string) => `ontop:balloon:pending-payment:${owner}`
 
 export class BalloonFareError extends Error {}
 
-export async function buyBalloonTicket(owner: string) {
+export async function buyBalloonTicket(owner: string, leaderId?: string) {
   const key = pendingKey(owner)
   let requestId: string
   try {
@@ -22,13 +22,14 @@ export async function buyBalloonTicket(owner: string) {
     response = await parkRuntime.requestJSON('/api/v1/world/balloon/tickets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestId }),
+      body: JSON.stringify({ requestId, leaderId }),
       signal: AbortSignal.timeout(10_000),
     })
   } catch (error) {
     const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : null
     if (code === 'INSUFFICIENT_COINS') throw new BalloonFareError(`엽전이 부족해요. ${BALLOON_FARE}냥이 필요해요.`)
     if (code === 'BALLOON_STATION_REQUIRED') throw new BalloonFareError('하늘언덕 승강장으로 이동한 뒤 다시 시도해 주세요.')
+    if (code === 'BALLOON_SEAT_UNAVAILABLE') throw new BalloonFareError('빈자리가 없거나 이미 출발했어요.')
     if (code === 'WALLET_NOT_READY') throw new BalloonFareError('지갑을 확인한 뒤 다시 시도해 주세요.')
     throw new BalloonFareError('결제 결과를 확인하지 못했어요. 같은 요청으로 다시 시도할 수 있어요.')
   }

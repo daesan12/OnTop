@@ -4,7 +4,8 @@ import type { PreviewRound } from './previewRound'
 /** Where the grandpa stands: between the forward court and the wire, behind the avatar's right shoulder. */
 export const grandpaSpot = { x: 1.05, z: -1.2 }
 const offstage = { x: 4.2, z: -2.35 }
-const strikeLeadMs = 140
+/** The broom leaves the held windup this long before contact. jumpRopeAudioCues aligns the swing sound to it. */
+export const strikeLeadMs = 140
 const followMs = 110
 const fadeMs = 260
 /** The windup first lifts the broom high, then coils it back for the strike. */
@@ -13,7 +14,8 @@ const raiseEndMs = -560
 export const grandpaShouts = ['예끼 이놈들!', '예끼! 썩 물렀거라!'] as const
 /** Muttered on the way out, every visit. */
 export const grandpaGrumble = '에잉, 쯧쯧…'
-const shoutFromMs = 150
+/** The entry shout pops in this long after the visit starts; the entry voice starts with it. */
+export const shoutFromMs = 150
 const shoutPopMs = 160
 const shoutAfterArrivalMs = 900
 const shoutFadeMs = 220

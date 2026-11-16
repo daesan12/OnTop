@@ -18,6 +18,10 @@ public final class WorldPhysics implements AutoCloseable {
     private long physicsTick;
     public static final long STEP_NANOS = 1_000_000_000L / 30;
     private static final float DT = 1f / 30;
+    private static final float TERRAIN_RECOVERY_RADIUS = 2;
+    private static final float TERRAIN_RECOVERY_MAX_HEIGHT_DIFF = .35f;
+    private static final int[] TERRAIN_RECOVERY_DIRECTIONS = {0, 1, -1, 2, -2, 3, -3, 4};
+    private static final float EXCLUSION_POSITION_TOLERANCE_SQUARED = 1e-8f;
     private static final float CARRY_HEIGHT = 1.7f;
     private static final int MAX_THROW_TICKS = 90;
     private static final int CARRY_COOLDOWN_TICKS = 30;
@@ -534,7 +538,7 @@ public final class WorldPhysics implements AutoCloseable {
             if (clientPositions || ridingCoursePad(a)) {
                 prepareCourse(entry.getKey());
             }
-            a.beforeStepY = a.body.getPhysicsLocation(null).y;
+            a.body.getPhysicsLocation(a.beforeStepPosition);
             if (a.carriedBy != null) { continue; }
             if (seated.contains(entry.getKey())) {
                 stop(entry.getKey());
@@ -645,7 +649,11 @@ public final class WorldPhysics implements AutoCloseable {
                 stepX = Math.clamp(position.x + stepX, -limit, limit) - position.x;
                 stepZ = Math.clamp(position.z + stepZ, -limit, limit) - position.z;
             }
-            a.body.setWalkDirection(new Vector3f(stepX, 0, stepZ));
+            var walkStep = new Vector3f(stepX, 0, stepZ);
+            if (a.vehicleSpeed > 0 && !a.swimming && a.throwTicks == 0 && walkStep.lengthSquared() > 0) {
+                walkStep = scene.policy.limitFurnitureTravel(position, walkStep, this::activeShape);
+            }
+            a.body.setWalkDirection(walkStep);
             if (active && a.jumpQueued && a.swimming && (dx != 0 || dz != 0)) {
                 for (JsonNode stone : scene.data.path("steppingStones")) {
                     double sx = stone.path("x").asDouble(), sz = stone.path("z").asDouble();
@@ -708,7 +716,7 @@ public final class WorldPhysics implements AutoCloseable {
             if (dx != 0 || dz != 0) {
                 a.yaw = Math.atan2(dx, dz);
             }
-            a.moving = active && (dx != 0 || dz != 0);
+            a.moving = active && walkStep.lengthSquared() > 0;
             a.running = active && input.run();
         }
         if(renewalMotion==null) space.update(DT, 0);
@@ -765,7 +773,7 @@ public final class WorldPhysics implements AutoCloseable {
                 // 피운반자는 물리 계산에서 제외되지만 좌표 스트림의 틱은 진행해야 한다.
                 // 같은 틱을 재사용하면 원격 보간기가 갱신된 운반 좌표를 중복으로 버린다.
                 carried.motion = new Motion(carried.motionEpoch, physicsTick, carried.seq, 0,
-                        (next.y - carried.beforeStepY) / DT, false, false);
+                        (next.y - carried.beforeStepPosition.y) / DT, false, false);
                 Vector3f ground = carrier.body.getPhysicsLocation(null);
                 if (carrier.motion.grounded() && ground.distanceSquared(carried.carrySafe) >= .04f) {
                     prepareCourseAt(carried, ground);
@@ -784,7 +792,7 @@ public final class WorldPhysics implements AutoCloseable {
             if (ridingCoursePad(a)) {
                 prepareCourseAt(a, position);
             }
-            correctExclusion(a, position, scene.policy.slide(position, this::activeShape));
+            correctExclusion(a, position, scene.policy.slide(position, this::activeShape), a.beforeStepPosition);
             position = a.body.getPhysicsLocation(null);
             boolean onMovingPad = ridingCoursePad(a) && !a.leftByJump
                     && renewalMotion.riddenTop(a.id, position, courseTime(),
@@ -792,18 +800,18 @@ public final class WorldPhysics implements AutoCloseable {
             boolean supported = (onMovingPad || a.body.onGround()) && scene.policy.allowsSupport(position, this::activeShape);
             a.motion = new Motion(a.motionEpoch, physicsTick, now >= a.receivedAt ? a.seq : a.motion.appliedInputSeq(),
                     Math.min(250, Math.max(0, (now - a.receivedAt) / 1_000_000.0)),
-                    supported ? 0 : (position.y - a.beforeStepY) / DT, supported, inputActive(a, now));
+                    supported ? 0 : (position.y - a.beforeStepPosition.y) / DT, supported, inputActive(a, now));
             float limit = parkBoundary();
             if (!Vector3f.isValidVector(position)) {
                 recover(a, position, validatedFallback(a, limit), "INVALID_POSITION", now);
-            } else if (position.y < scene.groundHeight(position.x, position.z)
-                    + number("halfHeight") + number("radius") - .35
-                    && !inSecretCorridor(position) && !nearSecretDoor(position, 1.4)
-                    && !insideVolume(position, scene.data.path("interiorAccess").path("annex"))) {
+            } else if (penetratesTerrain(position)) {
                 prepareCourse(entry.getKey());
                 float x = Math.max(-limit, Math.min(limit, position.x));
                 float z = Math.max(-limit, Math.min(limit, position.z));
                 Vector3f support = localGroundSupport(x, z);
+                if (support == null) {
+                    support = groundNearExclusion(a, x, z, limit);
+                }
                 recover(a, position, support == null ? validatedFallback(a, limit) : support,
                         support == null ? "NO_LOCAL_SUPPORT" : "TERRAIN_PENETRATION", now);
             } else {
@@ -902,7 +910,7 @@ public final class WorldPhysics implements AutoCloseable {
         Vector3f probe = current.add(0, drop, 0);
         Vector3f projected = scene.policy.slide(probe, this::activeShape);
         projected.y = current.y;
-        correctExclusion(actor, current, projected);
+        correctExclusion(actor, current, projected, null);
     }
 
     private boolean activeShape(String id) {
@@ -911,17 +919,28 @@ public final class WorldPhysics implements AutoCloseable {
         return chair == null || chair.active;
     }
 
-    private void correctExclusion(Actor actor, Vector3f from, Vector3f target) {
+    private void correctExclusion(Actor actor, Vector3f from, Vector3f target, Vector3f beforeStep) {
         if (actor.seated || from.distanceSquared(target) < 1e-10f) return;
-        prepareCourse(actor.id);
-        float boundary = (float) scene.data.path("world").path("halfSize").asDouble()
-                - (float) scene.data.path("world").path("boundaryHalfDepth").asDouble() - number("radius") - number("offset");
-        if (Math.abs(target.x) > boundary || Math.abs(target.z) > boundary
-                || scene.policy.slide(target, this::activeShape).distanceSquared(target) > 1e-8
-                || !positionCollision.correctionClear(from, target)) {
-            target = validatedFallback(actor, boundary);
+        // 지형을 관통한 서버 좌표는 같은 낮은 높이에서 밀어내지 않고 물리 틱에서 지면부터 복구한다.
+        if (!actor.clientControlled && penetratesTerrain(from)) {
+            return;
         }
+        prepareCourse(actor.id);
+        float boundary = parkBoundary();
         float vertical = (float) Math.min(0, actor.motion.velocityY());
+        if (!canCorrectExclusion(from, target, boundary)) {
+            // 밀려날 방향이 다른 장애물에 막히면, 이번 틱에 접근하기 전의 안전한 위치로 돌아간다.
+            if (beforeStep != null && canCorrectExclusion(from, beforeStep, boundary)
+                    && canStand(beforeStep.x, beforeStep.y, beforeStep.z)) {
+                target = beforeStep;
+                actor.lastSafe.set(beforeStep);
+                actor.moving = false;
+                actor.running = false;
+                vertical = 0;
+            } else {
+                target = validatedFallback(actor, boundary);
+            }
+        }
         actor.body.warp(target);
         actor.body.setLinearVelocity(new Vector3f(0, vertical, 0));
         actor.airborne = true;
@@ -929,6 +948,21 @@ public final class WorldPhysics implements AutoCloseable {
         actor.motion = new Motion(actor.motionEpoch, physicsTick, actor.seq, 0, vertical, false, true,
                 actor.clientControlled ? "CLIENT_VALIDATED" : null);
         log.debug("공원 차단영역 복구 tick={} map={} reason=NO_CLIMB", physicsTick, scene.version());
+    }
+
+    private boolean canCorrectExclusion(Vector3f from, Vector3f target, float boundary) {
+        return Vector3f.isValidVector(target) && Math.abs(target.x) <= boundary && Math.abs(target.z) <= boundary
+                && scene.policy.slide(target, this::activeShape).distanceSquared(target)
+                        <= EXCLUSION_POSITION_TOLERANCE_SQUARED
+                && positionCollision.correctionClear(from, target);
+    }
+
+    private boolean penetratesTerrain(Vector3f position) {
+        return Vector3f.isValidVector(position)
+                && position.y < scene.groundHeight(position.x, position.z)
+                        + number("halfHeight") + number("radius") - .35
+                && !inSecretCorridor(position) && !nearSecretDoor(position, 1.4)
+                && !insideVolume(position, scene.data.path("interiorAccess").path("annex"));
     }
 
     private boolean specialMovement(Vector3f p) { return swimming(p) || isTower(p); }
@@ -1141,6 +1175,54 @@ public final class WorldPhysics implements AutoCloseable {
                 .map(hit -> new Vector3f(x, from.y - 4 * hit.getHitFraction()
                         + number("halfHeight") + number("radius") + .04f, z))
                 .filter(p -> canStand(p.x, p.y, p.z)).findFirst().orElse(null);
+    }
+
+    private Vector3f groundNearExclusion(Actor actor, float x, float z, float boundary) {
+        float centerY = (float) scene.groundHeight(x, z) + number("halfHeight") + number("radius") + .04f;
+        var origin = new Vector3f(x, centerY, z);
+        if (scene.policy.slide(origin, this::activeShape).distanceSquared(origin)
+                <= EXCLUSION_POSITION_TOLERANCE_SQUARED) {
+            return null;
+        }
+        // 같은 지면에서 마지막으로 안전했던 쪽으로 먼저 돌아가야 테이블 반대편으로 넘어가지 않는다.
+        Vector3f safe = actor.lastSafe;
+        if (Math.hypot(safe.x - x, safe.z - z) <= TERRAIN_RECOVERY_RADIUS) {
+            Vector3f candidate = groundExitCandidate(origin, safe.x, safe.z, boundary);
+            if (candidate != null) {
+                return candidate;
+            }
+        }
+        // 직전 틱의 수평 이동이 없으면 마지막 안전 위치를 진입 방향의 기준으로 삼는다.
+        Vector3f previous = actor.beforeStepPosition;
+        double previousDistance = Math.hypot(previous.x - x, previous.z - z);
+        if (!Vector3f.isValidVector(previous) || previousDistance < .001
+                || previousDistance > TERRAIN_RECOVERY_RADIUS) {
+            previous = safe;
+        }
+        double returnAngle = Math.atan2(previous.z - z, previous.x - x);
+        for (int direction : TERRAIN_RECOVERY_DIRECTIONS) {
+            double angle = returnAngle + direction * Math.PI / 4;
+            float dx = (float) Math.cos(angle), dz = (float) Math.sin(angle);
+            for (float distance = .25f; distance <= TERRAIN_RECOVERY_RADIUS; distance += .25f) {
+                Vector3f candidate = groundExitCandidate(origin, x + distance * dx, z + distance * dz, boundary);
+                if (candidate != null) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Vector3f groundExitCandidate(Vector3f origin, float x, float z, float boundary) {
+        if (Math.abs(x) > boundary || Math.abs(z) > boundary) {
+            return null;
+        }
+        Vector3f candidate = localGroundSupport(x, z);
+        if (candidate == null || Math.abs(candidate.y - origin.y) > TERRAIN_RECOVERY_MAX_HEIGHT_DIFF) {
+            return null;
+        }
+        // 지형을 관통한 Y에서 검사하면 벽 아래로 지나칠 수 있으므로 지면 위의 캡슐 경로를 검사한다.
+        return canCorrectExclusion(origin, candidate, boundary) ? candidate : null;
     }
 
     private Vector3f validatedFallback(Actor actor, float limit) {
@@ -1499,7 +1581,8 @@ public final class WorldPhysics implements AutoCloseable {
         a.courseRide = false;
         stop(id);
         a.body.warp(new Vector3f((float) x, (float) y, (float) z));
-        correctExclusion(a, a.body.getPhysicsLocation(null), scene.policy.slide(a.body.getPhysicsLocation(null), this::activeShape));
+        Vector3f position = a.body.getPhysicsLocation(null);
+        correctExclusion(a, position, scene.policy.slide(position, this::activeShape), null);
         a.body.setLinearVelocity(Vector3f.ZERO);
         a.positionValidator = null;
         resetMotion(a);
@@ -1618,7 +1701,7 @@ public final class WorldPhysics implements AutoCloseable {
         long receivedAt;
         long motionEpoch;
         int vehicleSpeed;
-        double beforeStepY;
+        final Vector3f beforeStepPosition = new Vector3f();
         Motion motion = new Motion(0, 0, 0, 250, 0, false, false);
         double yaw = Math.PI;
         boolean moving, running, swimming, jumpQueued, seated, airborne;

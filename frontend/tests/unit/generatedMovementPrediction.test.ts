@@ -77,6 +77,22 @@ it('uses uninflated handoff shapes and server chair numbers at the new VR table'
   } finally { world.free(); }
 });
 
+it('registers the configured landing collider instead of assuming a specific map floor', async () => {
+  await RAPIER.init();
+  const court = PARK_DATA.physics.boxes.find(box => box.id === 'vr-court-floor')!;
+  const landing = { ...court, id: 'new-course-landing', center: [8, 0, 4] as typeof court.center };
+  const physics = { ...PARK_DATA.physics, boxes: [court, landing], meshes: [], hulls: [] };
+  const world = new RAPIER.World({ x: 0, y: 0, z: 0 });
+  try {
+    const supports = new Set<RAPIER.Collider>();
+    addGeneratedPredictionColliders(world, physics, undefined, { colliderIds: [landing.id], supports });
+    expect([...supports].map(collider => collider.translation().x)).toEqual([8]);
+    expect(() => addGeneratedPredictionColliders(world, physics, undefined, {
+      colliderIds: ['missing-landing'], supports: new Set(),
+    })).toThrow('missing-landing');
+  } finally { world.free(); }
+});
+
 it.each([undefined,'PARK_V1'] as const)('blocks walking and jumps through pavilion furniture with profile %s without changing its seats',async(profile)=>{
  const simulation=await createPredictionPhysics(profile)
  try {

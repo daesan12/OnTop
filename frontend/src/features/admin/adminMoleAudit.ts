@@ -42,6 +42,8 @@ interface Comparison {
 
 export interface AuditDetail {
   selected: AuditRound
+  nickname: string | null
+  withdrawn: boolean
   timeline: AuditEntry[]
   recent: AuditRound[]
   member: Comparison
@@ -54,6 +56,24 @@ export interface AuditFilters {
   userId: string
   roundId: string
   date: string
+}
+
+export interface MoleDetectedMember {
+  userId: string
+  nickname: string | null
+  withdrawn: boolean
+  flaggedRounds: number
+  liveRounds: number
+  completionRounds: number
+  latestRoundId: string
+  lastDetectedAt: string
+}
+
+export interface MoleDetections {
+  items: MoleDetectedMember[]
+  from: string
+  until: string
+  limit: number
 }
 
 const BASE = '/api/v1/admin/macro-analysis/mole'
@@ -96,4 +116,8 @@ export function searchMoleAudit(filters: AuditFilters, signal: AbortSignal) {
 export function readMoleAudit(game: MoleGame, roundId: string, input: MoleInput, signal: AbortSignal) {
   const query = new URLSearchParams({ game, input })
   return request<AuditDetail>(`${BASE}/${encodeURIComponent(roundId)}?${query}`, signal)
+}
+
+export function readMoleDetections(game: MoleGame, signal: AbortSignal) {
+  return request<MoleDetections>(`${BASE}/detections?${new URLSearchParams({ game })}`, signal)
 }

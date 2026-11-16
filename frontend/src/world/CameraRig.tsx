@@ -6,7 +6,8 @@ import { TABLET } from '../features/tableLobby/tabletProjection'
 import { renderedTableAnchors } from '../features/tableLobby/tabletAnchors'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useEffect, useMemo, useRef } from 'react'
-import { localBalloonRider } from '../features/balloon/localRide'
+import { localBalloonRider, useLocalBalloon } from '../features/balloon/localRide'
+import { cabinCamera } from '../features/balloon/cabinCamera'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, PerspectiveCamera, Quaternion, Raycaster, SkinnedMesh, Vector3, type Object3D } from 'three'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
@@ -122,6 +123,7 @@ export function CameraRig() {
       omokCamera.anchorId = ''
       omokFocusLighting.requested = false
       mountedCamera.layers.set(0)
+      delete mountedCamera.userData.showConstellationLines
       raycaster.layers.set(0)
       resetSeatedLook()
       if (state.bungeoppangFov !== null && mountedCamera instanceof PerspectiveCamera) {
@@ -131,6 +133,7 @@ export function CameraRig() {
     [occlusion, state, mountedCamera, raycaster],
   )
   useFrame(({ camera, scene }, delta) => {
+    camera.userData.showConstellationLines = false
     diceCamera.ready = false
     omokCamera.ready = false
     omokFocusLighting.requested = false
@@ -147,6 +150,24 @@ export function CameraRig() {
       interactionAim.ready = false
       cameraOcclusion.strength.value = 0
       occlusion.reset()
+      const { walkingInside, cabinFirstPerson, flight } = useLocalBalloon.getState()
+      if (walkingInside && flight?.phase === 'flying') {
+        const { yaw, pitch } = cabinCamera
+        if (cabinFirstPerson) {
+          const eye = balloonRider.y + (balloonRider.seatIndex >= 0 ? .95 : 1.45)
+          camera.position.set(balloonRider.x, eye, balloonRider.z)
+          const lookPitch = pitch - .57
+          camera.lookAt(balloonRider.x - Math.sin(yaw) * Math.cos(lookPitch), eye - Math.sin(lookPitch),
+            balloonRider.z - Math.cos(yaw) * Math.cos(lookPitch))
+          return
+        }
+        const { x, y, z } = flight.position
+        const angle = Math.min(1.1, Math.max(.3, pitch))
+        const radius = 6.3 * Math.cos(angle)
+        camera.position.set(x + Math.sin(yaw) * radius, y + .95 + 6.3 * Math.sin(angle), z + Math.cos(yaw) * radius)
+        camera.lookAt(x, y + .95, z)
+        return
+      }
       camera.position.set(balloonRider.x + 6, balloonRider.y + 5, balloonRider.z + 9)
       camera.lookAt(balloonRider.x, balloonRider.y + .6, balloonRider.z - 4)
       return
@@ -264,6 +285,7 @@ export function CameraRig() {
     }
     sampleAvatar(avatar, performance.now(), state.pose)
     if (telescope) {
+      camera.userData.showConstellationLines = true
       state.omokTransition = false
       state.diceTransition = false
       state.alkkagiTransition = false

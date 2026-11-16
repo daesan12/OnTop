@@ -15,6 +15,8 @@ export type CourseBlock = typeof COURSE[number]
 export const BLOCK_BY_ID = new Map(COURSE.map(p => [p.id, p]))
 export const START = JUMP_START
 export const FINISH = JUMP_FINISH
+/** Static map surfaces used by this course in addition to its own pads. */
+export const COURSE_LANDING_COLLIDER_IDS = ['vr-court-floor'] as const
 export const RETURN_TO = { x: START.x, z: START.z + 1.6, name: '돌탑 점프맵 · 출발 자리' }
 export const COURSE_COLLIDERS = COURSE.map(b => ({ id: b.id, block: b.block, stage: b.stage, gate: b.gate ?? null,
   shape: b.radius === undefined ? 'box' as const : 'cylinder' as const, camera: false,

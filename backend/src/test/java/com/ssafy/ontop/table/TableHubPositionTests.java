@@ -10,13 +10,17 @@ import com.ssafy.ontop.behavior.domain.BehaviorEventType;
 import com.ssafy.ontop.behavior.domain.PositionSample;
 import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.table.service.TableHub;
+import com.ssafy.ontop.world.balloon.BalloonFlights;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
 import com.ssafy.ontop.world.mobility.MobilityRentals;
 import com.ssafy.ontop.world.mobility.MobilityWallet;
+import com.ssafy.ontop.world.map.PreparedParkMap;
+import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.movement.WorldPhysics;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -61,6 +65,88 @@ class TableHubPositionTests {
     @AfterEach
     void shutdown() {
         hub.shutdown();
+    }
+
+    @Test
+    void 같은_채널의_관찰자와_늦게_입장한_회원에게_열기구를_보내고_종료를_알린다() throws Exception {
+        var pilot = peer(101);
+        var observer = peer(102);
+        pilot.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        observer.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        var at = registry.positionOf("101");
+        var flights = balloonFlightsAt(at);
+        var ticket = UUID.randomUUID();
+        var now = Instant.now();
+        flights.authorize("101", ticket, now, now);
+
+        pilot.request("WORLD_BALLOON_START", Map.of("ticketId", ticket.toString(),
+                "x", at.x(), "y", at.y(), "z", at.z()));
+        var first = observer.awaitBalloon();
+        var lateObserver = peer(103);
+        lateObserver.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        var late = lateObserver.awaitBalloon();
+        pilot.request("WORLD_BALLOON_END", Map.of("ticketId", ticket.toString()));
+
+        assertThat(first.path("pilotId").asText()).isEqualTo("101");
+        assertThat(first.at("/flight/aboard").asBoolean()).isTrue();
+        assertThat(late).isEqualTo(first);
+        assertThat(observer.awaitBalloon().path("flight").isNull()).isTrue();
+        assertThat(lateObserver.awaitBalloon().path("flight").isNull()).isTrue();
+    }
+
+    @Test
+    void 다인_열기구의_합류와_출발을_참가자와_관찰자에게_전송한다() throws Exception {
+        var pilot = peer(101);
+        var passenger = peer(102);
+        var observer = peer(103);
+        for (var peer : List.of(pilot, passenger, observer)) peer.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        var at = registry.positionOf("101");
+        var flights = balloonFlightsAt(at);
+        var ticket = UUID.randomUUID();
+        var guestTicket = UUID.randomUUID();
+        var now = Instant.now();
+        flights.authorize("101", ticket, now, now);
+        flights.authorize("102", guestTicket, now, now);
+
+        pilot.request("WORLD_BALLOON_START", Map.of("ticketId", ticket.toString(),
+                "x", at.x(), "y", at.y(), "z", at.z(), "capacity", 4, "mode", "split"));
+        assertThat(observer.awaitBalloon().at("/party/capacity").asInt()).isEqualTo(4);
+        assertThat(flights.holdSeat("one", "101", "102", guestTicket, now, System.nanoTime())).isTrue();
+        var boarded = passenger.request("WORLD_BALLOON_START", Map.of("ticketId", guestTicket.toString(),
+                "x", at.x(), "y", at.y(), "z", at.z(), "leaderId", "101")).path("payload");
+        assertThat(boarded.at("/party/passengers/102/seatIndex").asInt(-1)).isEqualTo(2);
+        assertThat(observer.awaitBalloon()).isEqualTo(boarded);
+
+        pilot.request("WORLD_BALLOON_LAUNCH", Map.of("ticketId", ticket.toString(), "solo", false));
+        var launched = passenger.awaitBalloon();
+        assertThat(launched.at("/party/boarding").asBoolean(true)).isFalse();
+        assertThat(observer.awaitBalloon()).isEqualTo(launched);
+        pilot.request("WORLD_BALLOON_CONTROL", Map.of("ticketId", ticket.toString(),
+                "action", "offer", "role", "direction", "peer", "102"));
+        var offer = passenger.awaitBalloon().at("/party/controls/offer/id").asText();
+        passenger.request("WORLD_BALLOON_CONTROL", Map.of("ticketId", guestTicket.toString(),
+                "action", "accept", "role", "direction", "offerId", offer));
+        observer.awaitBalloon();
+        var swapped = observer.awaitBalloon().at("/party/controls");
+        assertThat(swapped.path("direction").asText()).isEqualTo("102");
+        assertThat(swapped.path("altitude").asText()).isEqualTo("101");
+        pilot.request("WORLD_BALLOON_END", Map.of("ticketId", ticket.toString()));
+        assertThat(passenger.awaitBalloon().path("flight").isNull()).isTrue();
+    }
+
+    private BalloonFlights balloonFlightsAt(WorldChannelRegistry.Position at) throws Exception {
+        WorldMapRuntime map = mock(WorldMapRuntime.class);
+        PreparedParkMap prepared = mock(PreparedParkMap.class);
+        when(map.prepared()).thenReturn(Optional.of(prepared));
+        when(prepared.constructionSites()).thenReturn(mapper.valueToTree(List.of(Map.of("id", "balloon",
+                "position", List.of(at.x(), at.y(), at.z()),
+                "reachPosition", List.of(at.x(), at.y(), at.z()), "radius", 3, "heightTolerance", .7))));
+        when(prepared.collisionData()).thenReturn(mapper.readTree("""
+                {"world":{"halfSize":110}}
+                """));
+        var flights = new BalloonFlights(map);
+        hub.configureBalloonFlights(flights);
+        return flights;
     }
 
     @Test
@@ -378,6 +464,18 @@ class TableHubPositionTests {
     private class Peer {
         private final String id = UUID.randomUUID().toString();
         private final BlockingQueue<JsonNode> messages = new LinkedBlockingQueue<>();
+
+        private JsonNode awaitBalloon() throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+            while (System.nanoTime() < deadline) {
+                var message = messages.poll(200, TimeUnit.MILLISECONDS);
+                if (message != null && "WORLD_BALLOON_STATE".equals(message.path("type").asText())) {
+                    assertThat(message.path("requestId").isNull()).isTrue();
+                    return message.path("payload");
+                }
+            }
+            throw new AssertionError("열기구 상태를 받지 못했습니다.");
+        }
 
         private void awaitPublicVehicle(String avatarId, String expected, long minimumVersion) throws Exception {
             long endsAt = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);

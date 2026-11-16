@@ -3,13 +3,53 @@ package com.ssafy.ontop.world.movement;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.jme3.math.Vector3f;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 /** Validated map-owned exclusions; client coordinates cannot define a correction region. */
 final class ParkMovementPolicy {
+    private static final double FURNITURE_CONTACT_GAP = .015;
+    private static final double CONTAINMENT_TOLERANCE = 1e-6;
+
+    private record Furniture(String id, double x, double z, double bottom, double top,
+            double halfX, double halfZ, double cos, double sin) {
+        double localX(double dx, double dz) {
+            return dx * cos - dz * sin;
+        }
+
+        double localZ(double dx, double dz) {
+            return dx * sin + dz * cos;
+        }
+
+        static Furniture fromBox(JsonNode box) {
+            var center = box.path("center");
+            var half = box.path("half");
+            double y = center.get(1).asDouble(), halfY = half.get(1).asDouble();
+            double yaw = box.path("yaw").asDouble();
+            return new Furniture(box.path("id").asText(), center.get(0).asDouble(), center.get(2).asDouble(),
+                    y - halfY, y + halfY, half.get(0).asDouble(), half.get(2).asDouble(),
+                    Math.cos(yaw), Math.sin(yaw));
+        }
+
+        boolean contains(Furniture detail) {
+            if (detail.bottom() < bottom - CONTAINMENT_TOLERANCE || detail.top() > top + CONTAINMENT_TOLERANCE) {
+                return false;
+            }
+            double dx = detail.x() - x, dz = detail.z() - z;
+            double cosRelative = Math.abs(detail.cos() * cos + detail.sin() * sin);
+            double sinRelative = Math.abs(detail.sin() * cos - detail.cos() * sin);
+            return Math.abs(localX(dx, dz)) + detail.halfX() * cosRelative + detail.halfZ() * sinRelative
+                        <= halfX + CONTAINMENT_TOLERANCE
+                    && Math.abs(localZ(dx, dz)) + detail.halfX() * sinRelative + detail.halfZ() * cosRelative
+                        <= halfZ + CONTAINMENT_TOLERANCE;
+        }
+    }
+
     private final JsonNode data;
-    private final List<JsonNode> furniture = new ArrayList<>();
+    private final List<Furniture> furniture = new ArrayList<>();
+    private final Map<String, List<String>> furnitureDetailOwners = new HashMap<>();
     private final JsonNode furniturePolicy, fountain;
     private final double foot, radius;
     ParkMovementPolicy(JsonNode data) {
@@ -26,11 +66,23 @@ final class ParkMovementPolicy {
             positive(furniturePolicy, "movementHeight", 5); positive(furniturePolicy, "exitGap", .2);
             positive(furniturePolicy, "landingHeightTolerance", .3);
             for (JsonNode box : data.path("boxes")) if (box.path("id").asText().matches("table-\\d+-(top|chair-[0-7])")) {
-                require(Math.abs(box.path("half").get(1).asDouble() * 2 - furniturePolicy.path("movementHeight").asDouble()) < 1e-6,
+                var shape = Furniture.fromBox(box);
+                require(Math.abs(shape.top() - shape.bottom() - furniturePolicy.path("movementHeight").asDouble())
+                        < 1e-6,
                         "가구 차단 높이와 형상이 다릅니다.");
-                furniture.add(box);
+                furniture.add(shape);
             }
             require(!furniture.isEmpty(), "가구 차단 형상이 없습니다.");
+            for (JsonNode box : data.path("boxes")) {
+                if (!box.path("id").asText().startsWith("park-prop-")) {
+                    continue;
+                }
+                var detail = Furniture.fromBox(box);
+                var owners = furniture.stream().filter(owner -> owner.contains(detail)).map(Furniture::id).toList();
+                if (!owners.isEmpty()) {
+                    furnitureDetailOwners.put(detail.id(), owners);
+                }
+            }
         }
         if (!fountain.isMissingNode()) {
             require("no-climb".equals(fountain.path("kind").asText()) && "cylinder".equals(fountain.path("shape").asText())
@@ -64,29 +116,71 @@ final class ParkMovementPolicy {
             }
         }
     }
-    boolean manages(String id) {
+    boolean managesCorrectionShape(String id, Predicate<String> active) {
+        // An active furniture box already bounds its fully contained tabletop and leg shapes.
         return (!fountain.isMissingNode() && "fountain-basin".equals(id))
-                || furniture.stream().anyMatch(box -> box.path("id").asText().equals(id));
+                || furniture.stream().anyMatch(box -> box.id().equals(id))
+                || furnitureDetailOwners.getOrDefault(id, List.of()).stream().anyMatch(active);
     }
+
+    /** Limit a horizontal step to the first active furniture boundary, before Bullet attempts to step up. */
+    Vector3f limitFurnitureTravel(Vector3f position, Vector3f step, Predicate<String> active) {
+        double firstHit = Double.POSITIVE_INFINITY;
+        double tolerance = furniturePolicy.path("landingHeightTolerance").asDouble();
+        for (Furniture box : furniture) {
+            if (position.y - foot > box.top() + tolerance || position.y + foot < box.bottom()) {
+                continue;
+            }
+            double dx = position.x - box.x(), dz = position.z - box.z();
+            double x = box.localX(dx, dz), z = box.localZ(dx, dz);
+            double hx = box.halfX() + radius, hz = box.halfZ() + radius;
+            // An existing overlap belongs to the recovery path, and must not trap outward motion.
+            if (Math.abs(x) < hx && Math.abs(z) < hz) {
+                continue;
+            }
+            double vx = box.localX(step.x, step.z), vz = box.localZ(step.x, step.z);
+            double start = Math.max(0, Math.max(slabTime(x, vx, hx, true), slabTime(z, vz, hz, true)));
+            double end = Math.min(slabTime(x, vx, hx, false), slabTime(z, vz, hz, false));
+            if (start <= 1 && start < firstHit && start < end && active.test(box.id())) {
+                firstHit = start;
+            }
+        }
+        if (firstHit > 1) {
+            return step;
+        }
+        double distance = Math.hypot(step.x, step.z);
+        double allowed = firstHit * distance - FURNITURE_CONTACT_GAP;
+        return allowed <= 1e-5 ? Vector3f.ZERO : step.mult((float) (allowed / distance));
+    }
+
+    private static double slabTime(double origin, double delta, double halfSize, boolean entry) {
+        if (Math.abs(delta) < 1e-8) {
+            // A parallel segment outside the slab has no intersection.
+            if (Math.abs(origin) >= halfSize) {
+                return entry ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
+            }
+            return entry ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+        }
+        double a = (-halfSize - origin) / delta, b = (halfSize - origin) / delta;
+        return entry ? Math.min(a, b) : Math.max(a, b);
+    }
+
     Vector3f slide(Vector3f p, Predicate<String> active) {
         var result = p.clone();
         for (int pass = 0; pass < 4; pass++) {
             var before = result.clone();
-            for (JsonNode b : furniture) {
-                if (!active.test(b.path("id").asText())) continue;
-                var center = b.path("center"); var half = b.path("half");
-                double bottom = center.get(1).asDouble() - half.get(1).asDouble(), top = center.get(1).asDouble() + half.get(1).asDouble();
-                if (p.y - foot > top + furniturePolicy.path("landingHeightTolerance").asDouble() || p.y + foot < bottom) continue;
-                double c = Math.cos(b.path("yaw").asDouble()), s = Math.sin(b.path("yaw").asDouble());
-                double dx = result.x - center.get(0).asDouble(), dz = result.z - center.get(2).asDouble();
-                double x = dx * c - dz * s, z = dx * s + dz * c;
-                double hx = half.get(0).asDouble() + radius, hz = half.get(2).asDouble() + radius;
+            for (Furniture b : furniture) {
+                if (!active.test(b.id())) continue;
+                if (p.y - foot > b.top() + furniturePolicy.path("landingHeightTolerance").asDouble() || p.y + foot < b.bottom()) continue;
+                double dx = result.x - b.x(), dz = result.z - b.z();
+                double x = b.localX(dx, dz), z = b.localZ(dx, dz);
+                double hx = b.halfX() + radius, hz = b.halfZ() + radius;
                 if (Math.abs(x) >= hx || Math.abs(z) >= hz) continue;
                 double gap = furniturePolicy.path("exitGap").asDouble();
                 if (hx - Math.abs(x) < hz - Math.abs(z)) x = (x < 0 ? -1 : 1) * (hx + gap);
                 else z = (z < 0 ? -1 : 1) * (hz + gap);
-                result.x = (float) (center.get(0).asDouble() + x * c + z * s);
-                result.z = (float) (center.get(2).asDouble() - x * s + z * c);
+                result.x = (float) (b.x() + x * b.cos() + z * b.sin());
+                result.z = (float) (b.z() - x * b.sin() + z * b.cos());
             }
             if (!fountain.isMissingNode() && p.y - foot <= fountain.path("top").asDouble() + .12 && p.y + foot >= fountain.path("bottom").asDouble()) {
                 double dx = result.x - fountain.path("x").asDouble(), dz = result.z - fountain.path("z").asDouble();
@@ -102,15 +196,13 @@ final class ParkMovementPolicy {
     }
     boolean allowsSupport(Vector3f p, Predicate<String> active) {
         double feet = p.y - foot;
-        for (JsonNode b : furniture) {
-            if (!active.test(b.path("id").asText())) continue;
-            var center = b.path("center"); var half = b.path("half");
+        for (Furniture b : furniture) {
+            if (!active.test(b.id())) continue;
             double tolerance = furniturePolicy.path("landingHeightTolerance").asDouble();
-            if (feet <= center.get(1).asDouble() - half.get(1).asDouble() + tolerance || feet > center.get(1).asDouble() + half.get(1).asDouble() + tolerance) continue;
-            double dx = p.x - center.get(0).asDouble(), dz = p.z - center.get(2).asDouble();
-            double c = Math.cos(b.path("yaw").asDouble()), s = Math.sin(b.path("yaw").asDouble()), gap = furniturePolicy.path("exitGap").asDouble() * 2;
-            if (Math.abs(dx * c - dz * s) < half.get(0).asDouble() + radius + gap
-                    && Math.abs(dx * s + dz * c) < half.get(2).asDouble() + radius + gap) return false;
+            if (feet <= b.bottom() + tolerance || feet > b.top() + tolerance) continue;
+            double dx = p.x - b.x(), dz = p.z - b.z(), gap = furniturePolicy.path("exitGap").asDouble() * 2;
+            if (Math.abs(b.localX(dx, dz)) < b.halfX() + radius + gap
+                    && Math.abs(b.localZ(dx, dz)) < b.halfZ() + radius + gap) return false;
         }
         return fountain.isMissingNode() || feet <= fountain.path("bottom").asDouble() + .12 || feet > fountain.path("top").asDouble() + .12
                 || Math.hypot(p.x - fountain.path("x").asDouble(), p.z - fountain.path("z").asDouble())

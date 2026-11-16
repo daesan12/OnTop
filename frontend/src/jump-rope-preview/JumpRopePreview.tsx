@@ -16,7 +16,10 @@ import { advanceDistractionSchedule, createDistractionSchedule, distractionLanes
 import { finaleStage } from './gameOverFinale'
 import { completionResultMs } from './completionFinale'
 import { GameOverSplash } from './GameOverSplash'
-import { advancePreviewRound, createPreviewRound, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue, type ScoredPreviewPass } from './previewRound'
+import { advancePreviewRound, createPreviewRound, raidGrandpa, requestRoundJump, resetPreviewRound, roundCue, roundSecondsLeft, type RoundCue, type ScoredPreviewPass } from './previewRound'
+import { BgmVolumeControl } from '../audio/BgmVolumeControl'
+import { JumpRopeAudio, type AudioLogEntry } from './jumpRopeAudio'
+import { createAudioCueTracker, observeRoundAudio, type AudioDistraction } from './jumpRopeAudioCues'
 import {
   afterDodgeInputMs, clearDuck, createGrandpaRuntime, duckReadyMarginMs, duckTransitionMs, grandpaTiming, isDuckCode, isDucked,
   pressRoundDuck, releaseDuck, type GrandpaEventStatus, type SwingResult,
@@ -181,6 +184,16 @@ function grandpaRopeFor(settings: PreviewSettings) {
 
 const seconds = (ms: number) => Number.isFinite(ms) ? `${(ms / 1000).toFixed(2)}초` : '-'
 
+const soundLabels: Record<AudioLogEntry['sound'], string> = {
+  bgm: 'BGM', countdownTick: '카운트다운', gameGo: 'GO', missLaugh: 'MISS 비웃음', grandpaEnter: '할아버지 등장 보이스',
+  broomWindup: '위험 스윙 준비', broomSwing: '빗자루 스윙', broomHit: '빗자루 피격', pigeonFlap: '비둘기 비행',
+  poopSplat: '똥 테러', victory: '완주 팡파르', gameOver: '게임 오버',
+}
+const soundEvents: Record<AudioLogEntry['event'], string> = { play: '재생', skip: '건너뜀', pause: '일시정지', stop: '정지', duck: '감쇄' }
+const soundSkips: Record<NonNullable<AudioLogEntry['reason']>, string> = {
+  locked: '오디오 잠김', missing: '파일 없음', late: '로딩 지연', playing: '재생 중', throttled: '중복 제한', cancelled: '정리됨',
+}
+
 type AutoPlay = { jump: boolean; duck: boolean; jumpedFor: number; ducking: boolean }
 
 /** Development helper: PERFECT jumps, and a duck right before each dangerous broom. Unranked preview only. */
@@ -297,6 +310,9 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
   const scheduleRef = useRef(distractionSchedule)
   const stageRef = useRef<HTMLElement>(null)
   const controlsRef = useRef({ settings, paused: false, cue })
+  const audioRef = useRef<JumpRopeAudio | null>(null)
+  const audioCues = useRef(createAudioCueTracker())
+  const [audioLog, setAudioLog] = useState<AudioLogEntry[]>([])
   const { jumpHeight, jumpDuration } = settings
   const getFinalePreview = useCallback(() => finalePreviewRef.current, [])
   const sceneTime = useCallback((now: number) =>
@@ -331,6 +347,9 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
         const next: FinalePreview = { ...finale, stage }
         finalePreviewRef.current = next
         setFinalePreview(next)
+        // The game-over preview replays the finale's sounds: the splat at impact, the sting with the result.
+        if (stage === 'splash') audioRef.current?.play('poopSplat')
+        if (stage === 'result' && finale.reason === 'missLimit') audioRef.current?.play('gameOver')
       }
       return
     }
@@ -387,6 +406,18 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
       controls.cue = nextCue
       setCue(nextCue)
     }
+    const audio = audioRef.current
+    if (audio) {
+      // Sounds follow what this step already decided; the tracker plays each event once however often step runs.
+      const runs = scheduleRef.current
+      const distractions: AudioDistraction[] = runs.active.map(({ index, cue }) =>
+        ({ key: `${runs.seed}:${index}`, cue, elapsedMs: round.playedMs - cue.startedAt }))
+      const manual = distractionRef.current
+      if (manual) distractions.push({ key: `preview:${manual.startedAt}`, cue: manual, elapsedMs: now - manual.startedAt })
+      const sound = observeRoundAudio(audioCues.current, { round, cue: nextCue, grandpa: raidGrandpa(round), distractions })
+      for (const name of sound.sfx) audio.play(name)
+      audio.setBgm(sound.bgm)
+    }
     if (!latest) return
     setLastPass(latest)
     setVisiblePass(latest)
@@ -434,6 +465,18 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
 
   useEffect(() => () => startRequest.current?.abort(), [])
 
+  useEffect(() => {
+    const audio = new JumpRopeAudio()
+    audioRef.current = audio
+    // Only the developer panel lists the sound decisions; the park round keeps no log.
+    const unsubscribe = rankedMode ? undefined : audio.subscribe(entry => setAudioLog(log => [entry, ...log].slice(0, 40)))
+    return () => {
+      unsubscribe?.()
+      audio.dispose()
+      if (audioRef.current === audio) audioRef.current = null
+    }
+  }, [rankedMode])
+
   useLayoutEffect(() => {
     if (!exitRequest) return
     exitRequest.current = () => {
@@ -443,6 +486,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
 
       // Leaving this round is irreversible. Freeze it before another frame can submit a result.
       exitOpenedAt.current = performance.now()
+      audioRef.current?.hold()
       startKey.current = ''
       setStartError('')
       setConfirmExit(true)
@@ -574,6 +618,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     demoRef.current = nextDemo
     setVisiblePass(null)
     setDemo(nextDemo)
+    if (action === 'miss') audioRef.current?.play('missLaugh')
     showStageForPreview()
   }
 
@@ -592,6 +637,7 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     if (round.phase.kind === 'landing' || round.phase.kind === 'reaction') return
     successDemoRef.current = null
     demoRef.current = { action: 'laugh', startedAt: sceneTime(performance.now()), durationMs: settings.reactionMs }
+    audioRef.current?.play('missLaugh')
     showStageForPreview()
   }
 
@@ -611,11 +657,18 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
     const preview: FinalePreview = { reason, startedAt: now, stage: reason === 'time' ? 'acknowledgement' : 'flight' }
     finalePreviewRef.current = preview
     setFinalePreview(preview)
+    // The round freezes under the preview. Its sounds start like the real ending: a fanfare, or the third MISS laugh.
+    audioRef.current?.hold()
+    audioRef.current?.play(reason === 'time' ? 'victory' : 'missLaugh')
     stageRef.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
   }
 
   function resetScene(entry: 'menu' | 'initialCountdown', startsAt?: number, serverSeed?: number, serverVersion?: JumpRopeRulesVersion) {
     resetPreviewRound(round, entry, startsAt)
+    // A new round, a quit to the menu or a reset: silence now, and every one-shot may sound again.
+    audioRef.current?.resetRound()
+    audioCues.current = createAudioCueTracker()
+    setAudioLog([])
     setRankingOpen(false)
     finalePreviewRef.current = null
     clockOffset.current = 0
@@ -896,6 +949,19 @@ export function JumpRopePreview({ ranked }: { ranked?: RankedBindings } = {}) {
           <p className="panel-note" aria-label="현재 게임 상태">현재 상태 · {status}</p>
           {previewResult && <p className="panel-note">Esc로 결과 시안을 닫을 수 있습니다.</p>}
           <p className="panel-note">Space로 점프하고, ↓ 또는 S를 누르고 있는 동안 숙입니다. 높이와 체공 시간은 다음 점프부터 적용됩니다.</p>
+          <fieldset className="sound-panel">
+            <legend>사운드 · 확정 팩 v5</legend>
+            <BgmVolumeControl />
+            <BgmVolumeControl kind="effects" />
+            <p className="panel-note">공원 설정과 같은 저장값입니다. GOOD·PERFECT는 무음이고, BGM은 GO 표시가 끝나면 시작합니다.</p>
+            <ol className="panel-note sound-log" aria-label="사운드 재생 기록">
+              {audioLog.length ? audioLog.map(entry => (
+                <li key={entry.seq} data-sound={entry.sound} data-event={entry.event}>
+                  {soundLabels[entry.sound]} · {soundEvents[entry.event]}{entry.reason ? ` (${soundSkips[entry.reason]})` : ''}
+                </li>
+              )) : <li>아직 재생한 소리가 없습니다.</li>}
+            </ol>
+          </fieldset>
           {inMenu && <label className="audience-toggle">
             <input type="checkbox" checked={hideMenuForPreview} onChange={event => setHideMenuForPreview(event.currentTarget.checked)} />
             대기 중 메인 화면 숨기기 (개발용)
