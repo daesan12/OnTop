@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useSession } from '../../network/worldClient'
 import { canControlRoamingCamera } from '../../world/roamingCamera'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
+import geomatePreview from './art/geomate-preview.webp'
 import ontopPreview from './art/ontop-preview.webp'
 import pickusPreview from './art/pickus-preview.webp'
 import './advertisements.css'
@@ -33,6 +34,19 @@ const advertisements = [
     link: 'https://www.on-top.world/',
     action: '온탑 홈페이지',
     notice: '온탑 홈페이지로 이동합니다.',
+  },
+  {
+    title: 'Geomate(지오메이트)',
+    heading: '도형을 직접 움직여 볼까요?',
+    introduction: '공원에서 발견한 다른 팀의 프로젝트를 소개합니다.',
+    badge: '외부 팀 프로젝트',
+    description: ['도형을 직접 돌리고 펼치고 잘라 보며 스스로 이해하는 초등·중학 도형 학습 앱'],
+    image: geomatePreview,
+    alt: '도형 공부의 시작, 지오메이트. 눈으로 보고, 손으로 이해하는 도형 학습. 도형 캐릭터 다섯과 태블릿에 표시된 Geomate 앱 홈 화면',
+    preserveImage: true,
+    link: 'https://m.onestore.co.kr/v2/ko-kr/app/0001012470',
+    action: '원스토어 방문',
+    notice: '온탑 외부 페이지로 이동합니다.',
   },
 ]
 
@@ -150,13 +164,13 @@ export function AdvertisementLink() {
       </header>
       <div className="park-advertisement-carousel">
         <AdvertisementArrow direction={-1} onClick={() => turnPage(-1)} />
-        <section id="advertisement-link-project" className="park-advertisement-project" aria-labelledby="advertisement-project-name">
+        <section id="advertisement-link-project" className={`park-advertisement-project${advertisement.preserveImage ? ' park-advertisement-project--framed' : ''}`} aria-labelledby="advertisement-project-name">
           <FrameCorners />
           <img className="park-advertisement-preview" src={advertisement.image} alt={advertisement.alt} width="1280" height="720" />
           <div className="park-advertisement-details">
             <span className="park-advertisement-badge">{advertisement.badge}</span>
             <h3 id="advertisement-project-name">{advertisement.title}</h3>
-            <p>{advertisement.description[0]}<br />{advertisement.description[1]}</p>
+            <p>{advertisement.description[0]}{advertisement.description[1] && <><br />{advertisement.description[1]}</>}</p>
             {advertisement.instagram && <>
               <div className="park-advertisement-divider"><Ornament /></div>
               <div className="park-advertisement-social"><InstagramIcon /><div><strong>Instagram</strong><span>{advertisement.instagram}</span></div></div>
