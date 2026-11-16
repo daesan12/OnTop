@@ -41,6 +41,34 @@ class ParkRankingSnapshotServiceTests {
     private final Clock clock = Clock.fixed(UPDATED_AT, ZoneOffset.UTC);
 
     @Test
+    void 일곱_조회가_성공해야_교체하고_신규_열이_실패하면_직전_전체_집계를_보존한다() {
+        var jumpmap = mock(com.ssafy.ontop.ranking.repository.ParkJumpmapRankingRepository.class);
+        var bungeoppang = mock(com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository.class);
+        var skewer = mock(com.ssafy.ontop.ranking.repository.ParkSkewerRankingRepository.class);
+        var service = new ParkRankingSnapshotService(balances, mole, speedMole, jumpRope,
+                jumpmap, bungeoppang, skewer, meters, mock(com.ssafy.ontop.admin.security.AdminAccessPolicy.class), STARTED_AT.toString());
+        when(jumpmap.findTopTen(STARTED_AT)).thenReturn(List.of(
+                new com.ssafy.ontop.ranking.repository.ParkJumpmapRankingRepository.JumpmapRankingStanding(1, 21, "완주왕", 60123, UPDATED_AT)));
+        when(bungeoppang.findTopTen(STARTED_AT)).thenReturn(List.of(
+                new com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository.BungeoppangRankingStanding(1, 22, "붕어왕", 900, 5, UPDATED_AT)));
+        var lastQueryFinished = new java.util.concurrent.atomic.AtomicReference<Instant>();
+        when(skewer.findTopTen(STARTED_AT)).thenAnswer(invocation -> {
+            lastQueryFinished.set(Instant.now());
+            return List.of(new com.ssafy.ontop.ranking.repository.ParkSkewerRankingRepository.Standing(1, "team", 21, "요리", 22, "서빙", 700, "VR", UPDATED_AT));
+        });
+        service.refresh();
+        var first = service.current();
+        assertThat(first.updatedAt()).isAfterOrEqualTo(lastQueryFinished.get());
+        assertThat(first.jumpmap()).singleElement().satisfies(r -> assertThat(r.finishMs()).isEqualTo(60123));
+        assertThat(first.bungeoppang()).singleElement().satisfies(r -> assertThat(r.score()).isEqualTo(900));
+        assertThat(first.skewer()).singleElement().satisfies(r -> assertThat(r.playMode()).isEqualTo("VR"));
+        assertThat(first.jumpRopeStartsAt()).isEqualTo(com.ssafy.ontop.game.jumprope.JumpRopeRankingWindow.START);
+        when(skewer.findTopTen(STARTED_AT)).thenThrow(new DataAccessResourceFailureException("격리 검증"));
+        service.refresh();
+        assertThat(service.current()).isSameAs(first);
+    }
+
+    @Test
     void 최초_집계_전에는_503이고_성공_후에는_네_랭킹을_같은_시각에_공개한다() {
         ParkRankingSnapshotService service = service(STARTED_AT.toString());
         when(balances.findTopTen()).thenReturn(List.of(new BalanceStanding(1, 11, "보유자", 50)));

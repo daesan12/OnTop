@@ -65,10 +65,12 @@ FE는 완료 응답의 점수·판정 횟수와 함께 `reward`를 표시합니�
 
 ## `GET /api/v1/minigames/jump-rope/rankings`
 
-기본값은 `limit=10&offset=0`입니다. `limit`은 1~10, `offset`은 0~10,000입니다. 신규 판 설정과 같은 규칙 버전(응답의 `rulesVersion`)의 확정 기록에서 사용자별 최고 기록을 골라 점수 내림차순, MISS 횟수 오름차순으로 매깁니다. 두 값이 같으면 공동 순위(`1, 1, 3`)이며 표시 순서는 완료 시각, 라운드 ID 순입니다. `me`는 페이지에 관계없이 전체 순위 기준의 개인 최고 기록입니다. 기록이 없으면 `null`입니다. FE는 목록의 배열 인덱스 대신 응답의 `rank`를 표시합니다.
+기본값은 `limit=10&offset=0`입니다. `limit`은 1~10, `offset`은 0~10,000입니다. KST 2026-11-16 14:00 이상 시작하고 11/19 00:00 미만 완료한 기록에서 신규 판 설정과 같은 규칙 버전(응답의 `rulesVersion`)의 확정 기록에서 사용자별 최고 기록을 골라 점수 내림차순, MISS 횟수 오름차순으로 매깁니다. 두 값이 같으면 공동 순위(`1, 1, 3`)이며 표시 순서는 완료 시각, 라운드 ID 순입니다. `me`는 페이지에 관계없이 전체 순위 기준의 개인 최고 기록입니다. 기록이 없으면 `null`입니다. FE는 목록의 배열 인덱스 대신 응답의 `rank`를 표시합니다.
 
 ```json
-{"rulesVersion":1,"period":"ALL_TIME","updatedAt":"2026-11-12T00:00:12Z","totalParticipants":1,"offset":0,"limit":10,"items":[{"rank":1,"nickname":"한강줄넘기","score":45}],"me":null,"hasMore":false}
+{"rulesVersion":1,"period":"EVENT","startsAt":"2026-11-16T05:00:00Z","endsAtExclusive":"2026-11-18T15:00:00Z","updatedAt":"2026-11-16T06:00:12Z","totalParticipants":1,"offset":0,"limit":10,"items":[{"rank":1,"nickname":"한강줄넘기","score":45}],"me":null,"hasMore":false}
 ```
 
 오류 본문은 `{"code":"JUMP_ROPE_INVALID_INPUTS","message":"점프 기록의 시간과 순서를 확인해 주세요."}` 형태입니다. 버전이 다른 기록은 지우지 않고 보존하지만 순위에는 섞지 않습니다. 점프 판정 경계와 줄 통과 검산에는 [v1 공통 테스트 데이터](../../backend/src/test/resources/jump-rope/rules-v1.json)를 사용할 수 있습니다. v2의 할아버지 일정, 통과·충돌 시각, FE 엔진으로 플레이한 판의 로그와 결과는 [v2 공통 테스트 데이터](../../backend/src/test/resources/jump-rope/rules-v2.json)에 있습니다. 전체 응답 스키마는 [OpenAPI](openapi.yaml)에 있습니다.
+
+기간 필터는 사용자별 최고 선택 전에 적용하며 목록·me·totalParticipants가 같은 범위를 사용한다. 11/18 23:59 전체 분 포함, 과거 데이터 삭제 없음. 시작 전에는 빈 목록이며 종료 후에도 이 이벤트 결과를 조회한다.

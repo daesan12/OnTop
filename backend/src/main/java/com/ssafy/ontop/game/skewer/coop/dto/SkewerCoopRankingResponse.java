@@ -15,6 +15,10 @@ public record SkewerCoopRankingResponse(String rulesVersion, String period, Stri
     }
 
     public record Item(long rank, String gameId, String chefUserId, String chefNickname, String serverUserId,
-            String serverNickname, int teamScore, int served, Instant endedAt) {
+            String serverNickname, int teamScore, int served, Instant endedAt, String playMode) {
+        public Item(long rank, String gameId, String chefUserId, String chefNickname, String serverUserId,
+                String serverNickname, int teamScore, int served, Instant endedAt) {
+            this(rank, gameId, chefUserId, chefNickname, serverUserId, serverNickname, teamScore, served, endedAt, "VR");
+        }
     }
 }

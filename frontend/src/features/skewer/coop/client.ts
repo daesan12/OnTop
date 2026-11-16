@@ -149,7 +149,7 @@ export class CoopClient {
     }
   }
   private rankingRequest = 0
-  async refreshRanking(mode: 'PC' | 'VR' = this.snapshot?.publicState.rankingMode ?? (this.snapshot?.publicState.chefVR ? 'VR' : 'PC')) {
+  async refreshRanking(mode: 'PC' | 'VR' | 'ALL' = 'ALL') {
     const request = ++this.rankingRequest
     this.store.setState({ rankingPending: true, rankingError: '', ranking: null })
     try {
