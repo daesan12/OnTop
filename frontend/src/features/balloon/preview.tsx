@@ -126,7 +126,7 @@ function RideHud() {
       <div className="balloon-bottom">
         {boundary ? <p className="balloon-hanji balloon-notice" role="status"><strong>비행 구역 경계</strong> 공원 안쪽으로 돌아가세요</p> : null}
         {isPassenger ? <p className="balloon-hint"><kbd>← →</kbd> 드래그로 시점 돌리기</p> : <>
-          <div className="balloon-hint"><kbd>WASD / 방향키</kbd> 방향 조절 <kbd>Space</kbd> 상승 <kbd>Shift</kbd> 하강</div>
+          <div className="balloon-hint"><kbd>WASD / 방향키</kbd> 시점 기준 이동 <kbd>Space</kbd> 상승 <kbd>Shift</kbd> 하강 · 드래그로 둘러보기</div>
           <div className="balloon-touch">
             <HoldButton label="앞" code="KeyW" /><HoldButton label="왼쪽" code="KeyA" />
             <HoldButton label="뒤" code="KeyS" /><HoldButton label="오른쪽" code="KeyD" />

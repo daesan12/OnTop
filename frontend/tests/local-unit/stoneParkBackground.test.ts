@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Bone, BoxGeometry, Group, Mesh, MeshStandardMaterial, PerspectiveCamera, Scene, Skeleton, SkinnedMesh, Vector2, Vector3, type WebGLRenderer } from 'three'
+import { Bone, BoxGeometry, Group, Mesh, MeshStandardMaterial, Scene, Skeleton, SkinnedMesh, Vector3, WebGLCoordinateSystem, type WebGLRenderer } from 'three'
 import { snapshotParkBackground } from '../../src/game/stone-rumble/snapshotParkBackground'
 import { StoneParkBackdrop } from '../../src/game/stone-rumble/StoneParkBackdrop'
 
@@ -33,31 +33,30 @@ describe('돌탑 공원 배경 재사용', () => {
 })
 
 describe('돌탑 공원 배경 캐시', () => {
-  it('카메라가 조금씩 회전한 뒤 멈추면 최종 시점으로 한 번만 갱신한다', () => {
-    const camera = new PerspectiveCamera()
+  it('준비할 때만 공원 전 방향을 그리고 컨텍스트 복구 시 다시 찍는다', () => {
     const park = new Scene()
-    const rotations: number[] = []
     const renderer = {
       autoClear: false,
-      getDrawingBufferSize: (size: Vector2) => size.set(800, 600),
+      coordinateSystem: WebGLCoordinateSystem,
+      xr: { enabled: false },
       getRenderTarget: () => null,
+      getActiveCubeFace: () => 0,
+      getActiveMipmapLevel: () => 0,
       setRenderTarget: vi.fn(),
-      render: vi.fn(() => rotations.push(camera.rotation.y)),
+      render: vi.fn(),
     }
     const backdrop = new StoneParkBackdrop()
-    const update = (now: number) => backdrop.update(renderer as unknown as WebGLRenderer, park, camera, now)
+    const prepare = () => backdrop.prepare(renderer as unknown as WebGLRenderer, park)
 
-    update(0)
-    camera.rotation.y = .002
-    update(40)
-    camera.rotation.y = .004
-    update(80)
-    update(120)
-    expect(rotations).toEqual([0])
+    prepare()
+    prepare()
+    expect(renderer.render).toHaveBeenCalledTimes(6)
+    expect(backdrop.scene.background).toBeTruthy()
+    expect(renderer.autoClear).toBe(false)
 
-    update(150)
-    update(300)
-    expect(rotations).toEqual([0, .004])
+    backdrop.invalidate()
+    prepare()
+    expect(renderer.render).toHaveBeenCalledTimes(12)
     backdrop.dispose()
   })
 })

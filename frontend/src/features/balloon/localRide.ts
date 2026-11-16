@@ -220,7 +220,7 @@ function cockpitPose(role: ControlRole): CabinPose {
   return { ...cabinSeats[seatIndex], seatIndex, moving: false }
 }
 
-export function tickLocalBalloon(input: Input, elapsed: number, cabinInput = input) {
+export function tickLocalBalloon(input: Input, elapsed: number) {
   const ride = useLocalBalloon.getState()
   if (!ride.owner || !ownsRide(ride)) return
   if (ride.revealSeconds > 0) {
@@ -271,7 +271,7 @@ export function tickLocalBalloon(input: Input, elapsed: number, cabinInput = inp
   const walking = flight.phase === 'flying' && walkingInside
   const stand = !role && ride.cabin.seatIndex >= 0 && occupiedBalloonSeats(ride).includes(ride.cabin.seatIndex)
   const pose = role ? cockpitPose(role) : stand ? toggleCabinSeat(ride.cabin) : ride.cabin
-  const cabin = walking ? walkCabin(pose, cabinInput, elapsed) : pose.moving ? { ...pose, moving: false } : pose
+  const cabin = walking ? walkCabin(pose, input, elapsed) : pose.moving ? { ...pose, moving: false } : pose
   const guestMoved = guest && walking && (!lastGuestPose || cabin.x !== lastGuestPose.x
     || cabin.z !== lastGuestPose.z || cabin.seatIndex !== lastGuestPose.seatIndex || cabin.moving !== lastGuestPose.moving)
   if (ride.ticketId && flight.phase !== 'removed' && (!guest || guestMoved || role) && now - lastPoseAt >= POSE_INTERVAL_MS) {

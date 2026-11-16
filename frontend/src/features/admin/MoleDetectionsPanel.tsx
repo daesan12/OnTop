@@ -37,14 +37,14 @@ export function MoleDetectionsPanel({ game, onAuthEnded, onOpen }: {
 
   return <section className="admin-macro-card" aria-labelledby="mole-detections-title">
     <div className="admin-mole-detections-head">
-      <h3 id="mole-detections-title">적발 회원</h3>
+      <h3 id="mole-detections-title">함정 표적 적발 회원</h3>
       <button type="button" disabled={loading} onClick={() => {
         setLoading(true)
         setError('')
         setRefresh(value => value + 1)
       }}>새로고침</button>
     </div>
-    <p>선택한 게임에서 최근 30일 동안 숨겨진 표적 ID의 타격이 기록된 회원입니다. 운영 검토용 신호이며 자동 제재는 적용되지 않습니다.</p>
+    <p>최근 30일 동안 숨겨진 표적 ID의 타격이 기록된 회원입니다. 운영 검토용 신호이며 자동 제재는 적용되지 않습니다.</p>
     <p>최근 조회 결과는 새로고침해도 최대 30초 동안 표시될 수 있습니다.</p>
     {loading && <p role="status">적발 기록을 확인하고 있어요…</p>}
     {error && <p role="alert">{error}</p>}
