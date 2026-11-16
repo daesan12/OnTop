@@ -3,6 +3,7 @@ import { formatRankingUpdatedAt, parseParkRanking, rankingColumns } from '../../
 import { canPollParkRanking } from '../../src/features/rankingBoard/RankingBoardHost'
 import { completeRankingRefresh, failRankingRefresh, resetRankingBoardFeed, useRankingBoardFeed } from '../../src/features/rankingBoard/state'
 import { displayNickname } from '../../src/features/gameMaster/displayName'
+import { advanceRankingPage, rankingPage, selectDetailPage, useRankingPages } from '../../src/features/rankingBoard/pages'
 
 const response = {
   balance: [
@@ -23,10 +24,37 @@ const response = {
     { rank: 2, userId: '19', nickname: '줄넘기 도전자', score: 980, misses: 2, completedAt: '2026-11-02T05:31:40Z', gameMaster: true },
     { rank: 2, userId: '20', nickname: '공동 도전자', score: 980, misses: 2, completedAt: '2026-11-02T05:31:50Z' },
   ],
+  jumpRopeStartsAt: '2026-11-16T05:00:00Z', jumpRopeEndsAtExclusive: '2026-11-18T15:00:00Z',
   updatedAt: '2026-11-02T05:32:00Z',
 }
 
 describe('park ranking contract', () => {
+  it('shows one team row with VR on both members and rejects a role-swapped duplicate team', () => {
+    const team = { rank: 1, gameId: 'team-record', chefUserId: '21', chefNickname: '요리왕', serverUserId: '22', serverNickname: '서빙왕', score: 900, playMode: 'VR', completedAt: response.updatedAt, chefGameMaster: false, serverGameMaster: false }
+    const parsed = parseParkRanking({ ...response, skewer: [team], jumpmap: [{ rank: 1, userId: '21', nickname: '완주왕', finishMs: 60123, completedAt: response.updatedAt }] })
+    const second = rankingPage(rankingColumns(parsed), 1)
+    expect(second.map(column => column.key)).toEqual(['jumpmap', 'bungeoppang', 'skewer'])
+    expect(second[0].rows[0].value).toBe('1:00.123')
+    expect(second[2].rows[0].members?.map(member => member.vr)).toEqual([true, true])
+    expect(() => parseParkRanking({ ...response, skewer: [team, { ...team, chefUserId: '22', serverUserId: '21' }] })).toThrow()
+    expect(() => parseParkRanking({ ...response, skewer: [{ ...team, playMode: 'ALL' }] })).toThrow()
+  })
+
+  it('keeps manual and automatic page selection independent without changing the data feed', () => {
+    useRankingPages.setState({ boardPage: 0, detailPage: 0, deadline: null })
+    const feed = useRankingBoardFeed.getState()
+    advanceRankingPage(100)
+    selectDetailPage(-1)
+    expect(useRankingPages.getState()).toEqual({ boardPage: 1, detailPage: 1, deadline: 8100 })
+    advanceRankingPage(8100)
+    expect(useRankingPages.getState().boardPage).toBe(0)
+    expect(useRankingBoardFeed.getState()).toBe(feed)
+  })
+
+  it('does not relabel legacy all-time pigeon records as event records', () => {
+    const { jumpRopeStartsAt: _start, jumpRopeEndsAtExclusive: _end, ...legacy } = response
+    expect(rankingColumns(parseParkRanking(legacy))[3]).toMatchObject({ rows: [], description: '기간 집계 준비 중' })
+  })
   it('keeps API order and shared 1, 1, 3 ranks', () => {
     const parsed = parseParkRanking(response)
     expect(parsed.balance.map(item => item.rank)).toEqual([1, 1, 3])
@@ -35,23 +63,23 @@ describe('park ranking contract', () => {
     expect(parsed.speedMole.map(item => item.rank)).toEqual([1, 1])
     expect(parsed.jumpRope.map(item => item.rank)).toEqual([1, 2, 2])
     expect(parsed.jumpRope.map(item => item.gameMaster)).toEqual([false, true, false])
-    expect(rankingColumns(parsed).map(column => column.key)).toEqual(['balance', 'mole', 'speedMole', 'jumpRope'])
-    expect(rankingColumns(parsed).map(column => column.title)).toEqual(['총자산', '두더지 잡기', '스피드 두더지 잡기', '구구구 줄넘기'])
-    expect(rankingColumns(parsed).map(column => column.rows[0]?.value)).toEqual(['300냥', '2,981점', '132점', '1,250점'])
-    expect(rankingColumns(parsed).map(column => column.rows.length)).toEqual([3, 2, 2, 3])
+    expect(rankingColumns(parsed).map(column => column.key)).toEqual(['balance', 'mole', 'speedMole', 'jumpRope', 'jumpmap', 'bungeoppang', 'skewer'])
+    expect(rankingColumns(parsed).map(column => column.title)).toEqual(['총자산', '두더지 잡기', '스피드 두더지 잡기', '구구구 줄넘기', '점프맵', '붕어빵 굽기', '온탑 꼬치왕'])
+    expect(rankingColumns(parsed).map(column => column.rows[0]?.value)).toEqual(['300냥', '2,981점', '132점', '1,250점', undefined, undefined, undefined])
+    expect(rankingColumns(parsed).map(column => column.rows.length)).toEqual([3, 2, 2, 3, 0, 0, 0])
   })
 
   it('shows an empty jump-rope column when an older server omits it', () => {
     const { jumpRope: _omitted, ...older } = response
     const parsed = parseParkRanking(older)
     expect(parsed.jumpRope).toEqual([])
-    expect(rankingColumns(parsed)).toHaveLength(4)
+    expect(rankingColumns(parsed)).toHaveLength(7)
     expect(rankingColumns(parsed)[3]).toMatchObject({ title: '구구구 줄넘기', rows: [] })
   })
 
   it('accepts an empty board', () => {
     const empty = parseParkRanking({ ...response, balance: [], mole: [], speedMole: [], jumpRope: [] })
-    expect(rankingColumns(empty).map(column => column.rows)).toEqual([[], [], [], []])
+    expect(rankingColumns(empty).map(column => column.rows)).toEqual([[], [], [], [], [], [], []])
   })
 
   it('shows the server-approved GM prefix without changing the stored nickname', () => {

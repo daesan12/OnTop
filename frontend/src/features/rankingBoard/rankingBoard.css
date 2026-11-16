@@ -47,3 +47,15 @@
 @media (prefers-reduced-motion: reduce) {
   .ranking-board-columns { scroll-behavior:auto; }
 }
+
+.ranking-board-columns--3 { grid-template-columns:repeat(3,minmax(260px,1fr)); min-width:808px; }
+.ranking-board-pages { display:flex; justify-content:center; align-items:center; gap:10px; margin:18px 0; }
+.ranking-board-pages button { border:1px solid #ab925c; border-radius:8px; padding:10px 16px; background:#fff8e7; color:#31513f; font:inherit; font-weight:700; cursor:pointer; box-shadow:0 3px 0 #c7b78d; }
+.ranking-board-pages button[aria-current] { background:#254d3c; color:#fff6d9; border-color:#254d3c; }
+.ranking-board-pages span { display:block; font-size:12px; margin-top:3px; opacity:.8; }
+.ranking-board-member { display:flex; align-items:center; gap:5px; line-height:1.5; overflow:hidden; text-overflow:ellipsis; }
+.ranking-vr-badge { display:inline-block; flex-shrink:0; margin-left:4px; padding:1px 5px; border:1px solid #94783d; border-radius:4px; background:#e9d6a7; color:#304d3b; font:700 10px/1.3 sans-serif; vertical-align:middle; }
+.ranking-board-column:has(.ranking-board-member) li { min-height:42px; }
+.ranking-board-columns { animation:ranking-page-in .2s ease-out; }
+@keyframes ranking-page-in { from { opacity:.45; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+@media (prefers-reduced-motion:reduce) { .ranking-board-columns { animation:none; } }

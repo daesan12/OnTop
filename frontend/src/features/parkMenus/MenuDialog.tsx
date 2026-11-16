@@ -3,16 +3,19 @@ import { createPortal } from 'react-dom'
 import { inputState } from '../../world/inputOwnership'
 
 /** Modal card for the park menus; owns keys like the feedback dialog so world shortcuts never fire behind it. */
-export function MenuDialog({ label, className, backdropClassName = '', onClose, children }: {
+export function MenuDialog({ label, className, backdropClassName = '', onClose, onOwnedKeyDown, children }: {
   label: string
   className: string
   backdropClassName?: string
   onClose: () => void
+  onOwnedKeyDown?: (event: KeyboardEvent) => void
   children: ReactNode
 }) {
   const card = useRef<HTMLElement>(null)
   const close = useRef(onClose)
   close.current = onClose
+  const ownedKey = useRef(onOwnedKeyDown)
+  ownedKey.current = onOwnedKeyDown
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
     card.current?.querySelector<HTMLElement>('[data-autofocus], input, button:not(:disabled)')?.focus({ preventScroll: true })
@@ -20,6 +23,7 @@ export function MenuDialog({ label, className, backdropClassName = '', onClose, 
       // The native F1 dialog owns keys until its closing animation finishes.
       if (inputState.manualOpen || event.code === 'F1') return
       if (event.isComposing || event.keyCode === 229) return
+      ownedKey.current?.(event)
       if (event.code === 'Escape') { event.preventDefault(); close.current() }
       if (event.code === 'Tab') {
         event.preventDefault()

@@ -12266,6 +12266,24 @@ components:
         updatedAt:
           type: string
           format: date-time
+        jumpmap:
+          type: array
+          items:
+            $ref: "#/components/schemas/JumpmapItem"
+        bungeoppang:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleItem"
+        skewer:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkewerItem"
+        jumpRopeStartsAt:
+          type: string
+          format: date-time
+        jumpRopeEndsAtExclusive:
+          type: string
+          format: date-time
     JumpRopeItem:
       type: object
       properties:
@@ -12665,7 +12683,7 @@ components:
         period:
           type: string
           enum:
-          - ALL_TIME
+          - EVENT
         updatedAt:
           type: string
           format: date-time
@@ -12686,6 +12704,12 @@ components:
           $ref: "#/components/schemas/JumpRopePersonalBest"
         hasMore:
           type: boolean
+        startsAt:
+          type: string
+          format: date-time
+        endsAtExclusive:
+          type: string
+          format: date-time
     BungeoppangRankingItem:
       type: object
       properties:
@@ -14124,6 +14148,52 @@ components:
           type: string
           format: date-time
         isFirstGame:
+          type: boolean
+    JumpmapItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        finishMs:
+          type: integer
+          format: int64
+        completedAt:
+          type: string
+          format: date-time
+        gameMaster:
+          type: boolean
+    SkewerItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        gameId:
+          type: string
+        chefUserId:
+          type: string
+        chefNickname:
+          type: string
+        serverUserId:
+          type: string
+        serverNickname:
+          type: string
+        score:
+          type: integer
+          format: int64
+        playMode:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+        chefGameMaster:
+          type: boolean
+        serverGameMaster:
           type: boolean
   securitySchemes:
     AccessJwt:

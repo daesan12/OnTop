@@ -45,7 +45,7 @@ public class JdbcSkewerCoopResultStore implements SkewerCoopResultStore {
                 FROM skewer_coop_results r
                 JOIN users c ON c.id = r.chef_user_id JOIN users s ON s.id = r.server_user_id
                 WHERE r.ranking_eligible = TRUE AND r.end_reason = 'SKEWER_TIME_UP'
-                  AND r.play_mode = ?
+                  AND (? = 'ALL' OR r.play_mode = ?)
                   AND r.rules_version = 'coop-v1' AND r.duration_ms = 240000
                   AND c.deleted_at IS NULL AND s.deleted_at IS NULL
             ), ranked AS (
@@ -178,15 +178,15 @@ public class JdbcSkewerCoopResultStore implements SkewerCoopResultStore {
 
     @Override
     public SkewerCoopRankingResponse ranking(long user, Instant now, String mode) {
-        if (!List.of("PC", "VR").contains(mode)) {
+        if (!List.of("PC", "VR", "ALL").contains(mode)) {
             throw new IllegalArgumentException("랭킹 플레이 방식을 확인해주세요.");
         }
         return transactions.execute(status -> {
             var items = jdbc.query(RANKING + " ORDER BY team_score DESC, ended_at, game_id LIMIT 20",
-                    JdbcSkewerCoopResultStore::item, mode);
+                    JdbcSkewerCoopResultStore::item, mode, mode);
             var mine = jdbc.query(RANKING + " WHERE team_low_id = ? OR team_high_id = ?"
                             + " ORDER BY team_score DESC, ended_at, game_id LIMIT 1",
-                    JdbcSkewerCoopResultStore::item, mode, user, user);
+                    JdbcSkewerCoopResultStore::item, mode, mode, user, user);
             return new SkewerCoopRankingResponse(SkewerCoopFinished.RULES_VERSION, "ALL_TIME", "TEAM_BEST", now,
                     items, mine.isEmpty() ? null : mine.getFirst(), mode);
         });
@@ -201,7 +201,7 @@ public class JdbcSkewerCoopResultStore implements SkewerCoopResultStore {
         return new SkewerCoopRankingResponse.Item(row.getLong("place"), row.getString("game_id"),
                 row.getString("chef_user_id"), row.getString("chef_nickname"), row.getString("server_user_id"),
                 row.getString("server_nickname"), row.getInt("team_score"), row.getInt("served"),
-                row.getTimestamp("ended_at").toInstant());
+                row.getTimestamp("ended_at").toInstant(), row.getString("play_mode"));
     }
 
     private static int number(Object value) {
