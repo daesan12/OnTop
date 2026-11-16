@@ -46,8 +46,17 @@ async function shot(page: Page, name: string, animations: 'allow' | 'disabled' =
 async function setup(page: Page, response: object | null = status) {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error' && /THREE|WebGL|shader|React/.test(m.text())) errors.push(m.text()) })
   const server = await parkFixture(page), tips: object[] = []
+  await page.route('**/api/v1/operations/status', r => {
+    const now = new Date().toISOString()
+    return r.fulfill({ json: { mode: 'NORMAL', notice: '', maintenanceStartedAt: null, expectedOpenAt: null,
+      version: 0, updatedAt: now, serverTime: now } })
+  })
   await page.route('**/api/v1/minigames/jumpmap/status?*', r => r.fulfill(response ? { json: response } : { status: 404, json: {} }))
-  await page.route('**/api/v1/minigames/jumpmap/tips', r => { tips.push(r.request().postDataJSON()); return r.fulfill({ status: 204 }) })
+  await page.route('**/api/v1/minigames/jumpmap/tips', r => {
+    expect(r.request().headers()['content-type']).toBe('application/json')
+    tips.push(r.request().postDataJSON())
+    return r.fulfill({ status: 204 })
+  })
   await page.goto('/park')
   await expect(page).toHaveTitle('OnTop')
   await expect(page).toHaveURL(/\/park$/)
@@ -62,6 +71,12 @@ async function setup(page: Page, response: object | null = status) {
   const start = () => emit('JUMPMAP_STARTED', 1, { courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })
   return { server, tips, errors, emit, start }
 }
+
+test('시작 안내를 JSON으로 저장한다', async ({ page }) => {
+  const { server, tips } = await setup(page)
+  server.place({ x: START.x, y: START.y + .8, z: START.z })
+  await expect.poll(() => tips, { timeout: 10_000 }).toContainEqual({ tips: ['START_SPOT'] })
+})
 
 test('ducks music and other effects during a run, keeps landings clear, and restores the mix on exit', async ({ page }) => {
   await page.addInitScript(() => {

@@ -36,6 +36,7 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.web.server.ResponseStatusException;
 
 class SpotDifferenceServiceTests {
@@ -46,24 +47,45 @@ class SpotDifferenceServiceTests {
             IntStream.range(0, 50).mapToObj(i -> new Puzzle("p" + i, "장면 " + i, boxes(50), boxes(100))).toList(),
             rewards, clock);
 
-    @Test
-    void 배포할_그림_목록을_읽고_난이도별_여섯_정답을_검증한다() throws Exception {
+    @ParameterizedTest
+    @EnumSource(Difficulty.class)
+    void 배포_카탈로그에서_난이도별_다섯_장면을_고를_수_있다(Difficulty difficulty) throws Exception {
         var catalog = new SpotDifferenceService(new ObjectMapper(), rewards);
-        var view = catalog.start(PLAYER, new Start(Difficulty.NORMAL, UUID.randomUUID()));
-        assertThat(view.scene()).isNotBlank();
-        assertThat(view.answers()).isEmpty();
+
+        assertThat(catalog.selectScenes(difficulty)).hasSize(SpotDifferenceService.ROUND_COUNT)
+                .allSatisfy(scene -> assertThat(scene.answers(difficulty)).hasSize(6));
+    }
+
+    @Test
+    void 어려움_장면이_다섯_개_미만이면_카탈로그_로드에_실패한다() {
+        var catalog = IntStream.range(0, 6).mapToObj(index ->
+                new Puzzle("p" + index, "장면 " + index, boxes(50), index < 4 ? boxes(100) : List.of())).toList();
+
+        assertThatThrownBy(() -> new SpotDifferenceService(catalog, rewards, clock))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requires at least 5 HARD scenes");
+    }
+
+    @Test
+    void 어려움_필드가_누락된_장면은_잘못된_카탈로그로_보고한다() {
+        var catalog = IntStream.range(0, 6).mapToObj(index ->
+                new Puzzle("p" + index, "장면 " + index, boxes(50), index == 5 ? null : boxes(100))).toList();
+
+        assertThatThrownBy(() -> new SpotDifferenceService(catalog, rewards, clock))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid shooting pavilion puzzle catalog");
     }
 
     @ParameterizedTest
-    @CsvSource({ "NORMAL, 50, 72", "HARD, 100, 108" })
-    void 여섯_장면을_중복_없이_완주하고_서버_정답에_따라_한_번_정산한다(Difficulty mode, int y, int maximum) {
+    @CsvSource({ "NORMAL, 50, 60", "HARD, 100, 90" })
+    void 다섯_장면을_중복_없이_완주하고_서버_정답에_따라_한_번_정산한다(Difficulty mode, int y, int maximum) {
         var request = new Start(mode, UUID.randomUUID());
         var view = game.start(PLAYER, request);
         var id = view.id();
         assertThat(game.start(PLAYER, request).id()).isEqualTo(id);
         when(rewards.settle(PLAYER, id, maximum)).thenReturn(new SpotDifferenceRewards.Receipt(maximum, 5, 1000));
         var scenes = new HashSet<String>();
-        for (int round = 1; round <= 6; round++) {
+        for (int round = 1; round <= 5; round++) {
             assertThat(scenes.add(view.scene())).isTrue();
             assertThat(view.phase()).isEqualTo(Phase.WAITING);
             assertThat(view.answers()).isEmpty();
@@ -82,15 +104,15 @@ class SpotDifferenceServiceTests {
             }
             assertThat(view.phase()).isEqualTo(Phase.REVIEW);
             assertThat(view.answers()).hasSize(6);
-            if (round < 6) {
+            if (round < 5) {
                 assertThat(view.receipt()).isNull();
                 view = game.act(PLAYER, id, new Action(NEXT, round, null, null));
                 assertThat(game.act(PLAYER, id, new Action(NEXT, round, null, null))).isEqualTo(view);
             }
         }
-        assertThat(view.total()).isEqualTo(36);
+        assertThat(view.total()).isEqualTo(30);
         assertThat(view.receipt().granted()).isEqualTo(5);
-        assertThat(game.act(PLAYER, id, new Action(SYNC, 6, null, null)).receipt()).isEqualTo(view.receipt());
+        assertThat(game.act(PLAYER, id, new Action(SYNC, 5, null, null)).receipt()).isEqualTo(view.receipt());
         verify(rewards).settle(anyLong(), any(), anyInt());
     }
 
@@ -104,11 +126,12 @@ class SpotDifferenceServiceTests {
         assertThat(miss.tap()).isEqualTo(TapResult.MISS);
         assertThat(miss.remainingMs()).isEqualTo(60_000);
         assertThat(miss.total()).isZero();
-        clock.advance(649);
+        assertThat(miss.cooldownMs()).isEqualTo(1_000);
+        clock.advance(999);
         assertThat(game.act(PLAYER, id, new Action(TAP, 1, 15, 51)).tap()).isEqualTo(TapResult.WAIT);
         clock.advance(1);
         assertThat(game.act(PLAYER, id, new Action(TAP, 1, 15, 51)).tap()).isEqualTo(TapResult.HIT);
-        clock.advance(59_349);
+        clock.advance(58_999);
         assertThat(game.act(PLAYER, id, new Action(SYNC, 1, null, null)).remainingMs()).isEqualTo(1);
         clock.advance(1);
         var review = game.act(PLAYER, id, new Action(TAP, 1, 15, 51));
@@ -126,18 +149,18 @@ class SpotDifferenceServiceTests {
         var log = new CapturingLog();
         var logged = loggedGame(log);
         var id = logged.start(PLAYER, new Start(Difficulty.NORMAL, UUID.randomUUID())).id();
-        when(rewards.settle(PLAYER, id, 72)).thenReturn(new SpotDifferenceRewards.Receipt(72, 60, 900));
-        for (int round = 1; round <= 6; round++) {
+        when(rewards.settle(PLAYER, id, 60)).thenReturn(new SpotDifferenceRewards.Receipt(60, 60, 900));
+        for (int round = 1; round <= 5; round++) {
             logged.act(PLAYER, id, new Action(READY, round, null, null));
             if (round == 1) {
                 logged.act(PLAYER, id, new Action(TAP, round, 0, 0));
-                clock.advance(650);
+                clock.advance(1000);
             }
             for (int hit = 0; hit < 6; hit++) {
                 logged.act(PLAYER, id, new Action(TAP, round, 15 + hit * 30, 51));
                 clock.advance(round == 1 ? 300 : 200);
             }
-            if (round < 6) logged.act(PLAYER, id, new Action(NEXT, round, null, null));
+            if (round < 5) logged.act(PLAYER, id, new Action(NEXT, round, null, null));
         }
         logged.start(PLAYER, new Start(Difficulty.HARD, UUID.randomUUID()));
 
@@ -147,9 +170,9 @@ class SpotDifferenceServiceTests {
             assertThat(event.gameId()).isEqualTo(id.toString());
             assertThat(event.props()).containsEntry("gameCode", "SPOT_DIFFERENCE")
                     .containsEntry("difficulty", "NORMAL").containsEntry("endReason", "COMPLETED")
-                    .containsEntry("roundsStarted", 6).containsEntry("roundsCleared", 6)
-                    .containsEntry("found", 36).containsEntry("misses", 1)
-                    // 2~6라운드는 0.2초 간격으로 여섯 개: 마지막이 READY 뒤 1초.
+                    .containsEntry("roundsStarted", 5).containsEntry("roundsCleared", 5)
+                    .containsEntry("found", 30).containsEntry("misses", 1)
+                    // 2~5라운드는 0.2초 간격으로 여섯 개: 마지막이 READY 뒤 1초.
                     .containsEntry("fastestClearMs", 1000L).containsEntry("reward", 60);
         });
     }
