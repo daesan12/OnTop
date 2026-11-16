@@ -3,7 +3,7 @@ import type { MotionSnapshot } from './localMovementPrediction'
 import type { Pose } from './worldClient'
 
 type Flags = { moving: boolean; running: boolean; swimming: boolean }
-type Frame = { tick: number; epoch: number; pose: Pose; flags: Flags }
+type Frame = { tick: number; epoch: number; pose: Pose; flags: Flags; movingPadBlock?: number }
 type Track = { frames: Frame[]; displayed?: { pose: Pose; at: number }; flags?: Flags; cursor?: number }
 const TICK_MS = 1000 / 30
 // 100ms world cadence + measured 0–60ms delivery jitter + 20ms margin.
@@ -46,12 +46,14 @@ export class RemoteMovement {
       this.offset = Math.min(...this.clockSamples.map(sample => sample.offset))
     }
     track.frames.push({ tick: motion.tick, epoch: motion.epoch, pose: { x: pose.x, y: pose.y, z: pose.z, yaw: pose.yaw },
-      flags: { moving: pose.moving, running: pose.running, swimming: pose.swimming } })
+      flags: { moving: pose.moving, running: pose.running, swimming: pose.swimming },
+      movingPadBlock: motion.grounded ? motion.movingPad?.block : undefined })
     track.frames.sort((a, b) => a.tick - b.tick)
     track.frames = track.frames.slice(-16)
     this.received++
   }
-  sample(id: string, at: number, target: Pose, maxSpeed = MOVEMENT.runSpeed + MOVEMENT.walkSpeed / 2): boolean {
+  sample(id: string, at: number, target: Pose, maxSpeed = MOVEMENT.runSpeed + MOVEMENT.walkSpeed / 2,
+    padHeight?: (block: number) => number | undefined): boolean {
     const track = this.tracks.get(id)
     if (!track?.frames.length) return false
     const frames = track.frames, desiredTick = (at - this.offset - this.delay) / TICK_MS
@@ -66,7 +68,13 @@ export class RemoteMovement {
     }
     const t = from.tick === to.tick ? 1 : Math.max(0, Math.min(1, (tick - from.tick) / (to.tick - from.tick)))
     let x = from.pose.x + (to.pose.x - from.pose.x) * t
-    let y = from.pose.y + (to.pose.y - from.pose.y) * t
+    // Seat the rider on this viewer's rendered pad. Mole dips are per player.
+    // Project each grounded endpoint so landing and takeoff stay on the buffered timeline.
+    const fromPad = from.movingPadBlock === undefined ? undefined : padHeight?.(from.movingPadBlock)
+    const toPad = to.movingPadBlock === from.movingPadBlock ? fromPad
+      : to.movingPadBlock === undefined ? undefined : padHeight?.(to.movingPadBlock)
+    const fromY = fromPad ?? from.pose.y, toY = toPad ?? to.pose.y
+    let y = fromY + (toY - fromY) * t
     let z = from.pose.z + (to.pose.z - from.pose.z) * t
     const yaw = from.pose.yaw + angle(from.pose.yaw, to.pose.yaw) * t
     if (desiredTick > frames.at(-1)!.tick) this.held++

@@ -2,8 +2,10 @@ import { create } from 'zustand'
 import {
   BALLOON_FARE, CAPACITY, WAIT_SECONDS, createFlight, returnToDock, stepFlight, takeOff,
 } from './flight'
-import type { Flight, Point } from './flight'
+import type { Flight, Input, Point } from './flight'
 import { canBoard, flightMap, moveWalker, startPoint } from './previewMap'
+import { cabinCamera, resetCabinCamera } from './cabinCamera'
+import { cameraRelativeMove } from '../../network/movementInput'
 
 const options = new URLSearchParams(window.location.search)
 function numberOption(key: string, fallback: number, maximum: number) {
@@ -18,6 +20,7 @@ export const isPassenger = passengerRequested && guestCount > 0
 export const keys = new Set<string>()
 export const cameraDrag = { yaw: 0 }
 const neutral = { x: 0, z: 0, lift: 0 }
+const steering = { dx: 0, dz: 0, run: false, jump: false }
 
 type Popup = 'board' | 'balance' | 'cancelled' | null
 type Preview = {
@@ -52,6 +55,12 @@ function horizontalInput() {
   }
 }
 
+function pilotFlightInput(): Input {
+  const { x: side, z: back } = horizontalInput()
+  const { dx, dz } = cameraRelativeMove(-back, side, cabinCamera.yaw, false, false, steering)
+  return { x: dx, z: dz, lift: Number(keys.has('Space')) - Number(keys.has('ShiftLeft') || keys.has('ShiftRight')) }
+}
+
 export const usePreview = create<Preview>((set, get) => ({
   flight: createFlight(flightMap), walker: startPoint, popup: null,
   coins: numberOption('coins', BALLOON_FARE, 999), boarded: false, wait: 0,
@@ -61,6 +70,7 @@ export const usePreview = create<Preview>((set, get) => ({
     if (flight.phase !== 'boarding' || !boarded) return
     keys.clear()
     cameraDrag.yaw = 0
+    resetCabinCamera()
     set({ flight: takeOff(flight), coins: coins - BALLOON_FARE, wait: 0 })
   },
 
@@ -126,7 +136,7 @@ export const usePreview = create<Preview>((set, get) => ({
     const input = flight.phase === 'flying'
       ? isPassenger
         ? { x: -.5, z: -.4, lift: 0 }
-        : { ...horizontalInput(), lift: Number(keys.has('Space')) - Number(keys.has('ShiftLeft') || keys.has('ShiftRight')) }
+        : pilotFlightInput()
       : neutral
     const next = stepFlight(flight, input, dt, flightMap, elapsed)
     if (next.phase === 'landed' && next.exit && flight.phase !== 'landed') {

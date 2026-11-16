@@ -7,6 +7,8 @@ import com.ssafy.ontop.game.mole.repository.MoleRepository;
 import com.ssafy.ontop.game.mole.service.MoleException;
 import com.ssafy.ontop.game.mole.service.MoleService;
 import com.ssafy.ontop.minigame.service.MoleTargets;
+import com.ssafy.ontop.minigame.telemetry.MoleTimingAudit;
+import com.ssafy.ontop.minigame.telemetry.MoleTimingSignals;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import java.time.Clock;
@@ -19,10 +21,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -32,7 +36,10 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class MoleServiceTests {
@@ -96,6 +103,28 @@ class MoleServiceTests {
             assertThat(ReflectionTestUtils.getField(entry, "idempotencyKey")).isEqualTo("mole:reward:" + round.id());
         });
         assertThat(result.bestScore()).isEqualTo(expected.score());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 확정한_판의_타이밍_신호를_한_번만_넘긴다() {
+        var audit = mock(MoleTimingAudit.class);
+        ReflectionTestUtils.setField(service, "timingAudit", audit);
+        var round = service.start(USER, "round-1");
+        List<MoleDtos.Hit> hits = catchAll();
+        clock.advance(Duration.ofSeconds(93));
+        long id = Long.parseLong(round.id());
+
+        service.complete(USER, id, hits);
+        service.complete(USER, id, hits);
+
+        ArgumentCaptor<Supplier<MoleTimingSignals.Signals>> signals = ArgumentCaptor.forClass(Supplier.class);
+        verify(audit).settled(eq("whack-a-mole"), eq(USER), eq(id), eq(MoleRules.RULES_VERSION), signals.capture(),
+                any());
+        verifyNoMoreInteractions(audit);
+        assertThat(signals.getValue().get()).isEqualTo(MoleTimingSignals.mole(MoleRules.schedule(SEED),
+                hits.stream().map(hit -> new MoleRules.Hit(hit.hole(), hit.at())).toList()));
+        assertThat(signals.getValue().get().reactions()).isPositive();
     }
 
     @Test
