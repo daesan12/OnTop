@@ -3,7 +3,7 @@
   --loading-gutter: clamp(28px, 4vw, 64px);
   position: fixed; inset: 0; z-index: 50; isolation: isolate;
   display: grid; grid-template-rows: auto minmax(120px, 1fr) auto;
-  overflow: auto; background: #182124; color: var(--loading-ink);
+  overflow: auto; background: #202f28; color: var(--loading-ink);
   font: 14px/1.6 'Malgun Gothic', sans-serif; scrollbar-width: none;
 }
 .stone-loading-tips::-webkit-scrollbar { display: none; }
@@ -12,11 +12,11 @@
 .stone-loading-tips button:focus-visible { outline: 2px solid #f6cf77; outline-offset: 4px; }
 .stone-loading-tips > .stone-tip-picture { position: fixed; inset: 0; z-index: -2; display: block; pointer-events: none; }
 .stone-loading-tips .stone-tip-picture img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; }
-.stone-loading-shade { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(0deg, #111a20fa 0%, #111a20e0 15%, #111a2070 32%, transparent 60%), linear-gradient(115deg, #111a20bd, transparent 43%); }
-.stone-loading-heading { display: flex; align-items: center; gap: 20px; padding: 36px var(--loading-gutter) 0; width: fit-content; color: var(--loading-ink); text-shadow: 0 3px 0 #1d2529, 0 6px 18px #0007; }
-.stone-loading-heading > svg { flex: 0 0 auto; width: 56px; height: 70px; filter: drop-shadow(0 3px 0 #1d2529); }
+.stone-loading-shade { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(0deg, #202f28 0%, #202f28e8 17%, #202f2866 36%, transparent 69%), linear-gradient(135deg, #202f28de, transparent 42%); }
+.stone-loading-heading { display: flex; align-items: center; gap: 20px; padding: 36px var(--loading-gutter) 0; width: fit-content; color: var(--loading-ink); text-shadow: 0 2px 6px #18281fee, 0 4px 16px #18281f99; }
+.stone-loading-heading > svg { flex: 0 0 auto; width: 56px; height: 70px; filter: drop-shadow(0 2px 4px #18281fbb); }
 .stone-loading-heading h1 { margin: 0; font: 700 clamp(44px, 5.4vw, 80px)/1.2 'BusanDandiMyeongjo', serif; letter-spacing: -.05em; }
-.stone-loading-footer { grid-row: 3; display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(260px, 1fr); column-gap: 38px; row-gap: 16px; padding: 20px var(--loading-gutter) 28px; background: linear-gradient(0deg, #152025c7, #15202500); }
+.stone-loading-footer { grid-row: 3; display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(260px, 1fr); column-gap: 38px; row-gap: 16px; padding: 20px var(--loading-gutter) 28px; background: linear-gradient(0deg, #202f28e6, #202f2899 64%, #202f2800); }
 .stone-tip-card { grid-column: 1; min-width: 0; padding-top: 17px; border-top: 1px solid #d7b66a99; }
 .stone-tip-copy > small { color: var(--loading-gold); font: 700 13px/1.4 'BusanDandiMyeongjo', serif; }
 .stone-tip-copy > small b { margin-left: 4px; font-size: 16px; }
@@ -51,9 +51,10 @@
   .stone-tip-copy h2 { font-size: 24px; }
 }
 @media (max-width: 700px) {
-  .stone-loading-tips { --loading-gutter: 22px; grid-template-rows: auto minmax(210px, 1fr) auto; }
-  .stone-loading-tips .stone-tip-picture img { object-position: 50% 42%; }
-  .stone-loading-shade { background: linear-gradient(0deg, #111a20fa 0%, #111a20d9 25%, #111a2044 47%, transparent 66%), linear-gradient(120deg, #111a20bd, transparent 53%); }
+  .stone-loading-tips { --loading-gutter: 22px; --loading-art-height: min(122vw, 60svh); grid-template-rows: auto minmax(210px, 1fr) auto; }
+  .stone-loading-tips > .stone-tip-picture, .stone-loading-shade { bottom: auto; height: var(--loading-art-height); }
+  .stone-loading-tips .stone-tip-picture img { object-position: 50% 44%; }
+  .stone-loading-shade { background: linear-gradient(0deg, #202f28 0%, #202f2870 17%, transparent 33%), linear-gradient(135deg, #202f28d9, transparent 52%); }
   .stone-loading-heading { gap: 10px; padding-top: 24px; }
   .stone-loading-heading > svg { width: 31px; height: 42px; }
   .stone-loading-heading h1 { font-size: 38px; }

@@ -29,7 +29,9 @@ const tips = [
 const artRoot = '/art/stone-rumble/loading/'
 const imageSizes = '100vw'
 const tipNames = ['발판', '비둘기', '슬라이딩'] as const
-const sceneUrl = (kind: string, width: number) => `${artRoot}scene-${kind}-native-${width}.webp`
+const wideWidths = [1280, 1672] as const
+const sceneUrl = (kind: string, width: number) => `${artRoot}scene-${kind}-hanji-${width}.webp`
+const wideSceneSources = (kind: string) => wideWidths.map(width => `${sceneUrl(kind, width)} ${width}w`).join(', ')
 
 export function StoneLoadingTips({ ready, total, ownReady, error, retry }: {
   ready: number; total: number; ownReady: boolean; error: string; retry: () => void
@@ -40,14 +42,14 @@ export function StoneLoadingTips({ ready, total, ownReady, error, retry }: {
     return () => clearTimeout(timer)
   }, [index])
   useEffect(() => {
-    // 그림은 실제 모델을 미리 렌더링한 WebP다. 로딩 UI에서 모델/3D 렌더러를 추가로 실행하지 않는다.
+    // 첫 팁을 표시한 뒤 나머지 삽화를 낮은 우선순위로 미리 불러온다.
     const portrait = window.matchMedia('(max-width: 700px)').matches
     for (const tip of tips.slice(1)) {
       const image = new Image()
       image.fetchPriority = 'low'
       if (!portrait) {
         image.sizes = imageSizes
-        image.srcset = `${sceneUrl(tip.kind, 1280)} 1280w, ${sceneUrl(tip.kind, 1920)} 1920w`
+        image.srcset = wideSceneSources(tip.kind)
       }
       image.src = sceneUrl(tip.kind, portrait ? 640 : 1280)
     }
@@ -57,8 +59,8 @@ export function StoneLoadingTips({ ready, total, ownReady, error, retry }: {
   return <div className="stone-loading-tips" aria-label="돌탑 경기 준비" role="region">
     <picture className="stone-tip-picture" key={tip.kind}>
       <source media="(max-width: 700px)" srcSet={sceneUrl(tip.kind, 640)} />
-      <img src={sceneUrl(tip.kind, 1280)} srcSet={`${sceneUrl(tip.kind, 1280)} 1280w, ${sceneUrl(tip.kind, 1920)} 1920w`}
-        sizes={imageSizes} width="1920" height="1080" alt={tip.alt} decoding="async" fetchPriority="high" />
+      <img src={sceneUrl(tip.kind, 1280)} srcSet={wideSceneSources(tip.kind)}
+        sizes={imageSizes} width="1672" height="941" alt={tip.alt} decoding="async" fetchPriority="high" />
     </picture>
     <div className="stone-loading-shade" aria-hidden="true" />
     <header className="stone-loading-heading"><StoneTowerIcon /><h1>돌탑 생존전</h1></header>
