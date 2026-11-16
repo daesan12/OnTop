@@ -5,7 +5,7 @@ import {
   type ServiceOperationStatus,
 } from './serviceOperation'
 
-export const PARK_OPERATION_POLL_MS = 5_000
+export const PARK_OPERATION_POLL_MS = 10_000
 export const PARK_OPERATION_FAILURE_LIMIT = 3
 
 export const operationPollUnavailable = (consecutiveFailures: number) =>
@@ -36,7 +36,7 @@ export function useParkOperationGate(
     let pending = false
     const controller = new AbortController()
     const check = async () => {
-      if (disposed || pending) return
+      if (disposed || pending || document.hidden) return
       pending = true
       try {
         const status = await loadServiceOperation(controller.signal)
@@ -52,19 +52,16 @@ export function useParkOperationGate(
         pending = false
       }
     }
-    const checkVisible = () => {
-      if (document.visibilityState === 'visible') void check()
-    }
     const interval = window.setInterval(check, PARK_OPERATION_POLL_MS)
-    window.addEventListener('focus', checkVisible)
-    document.addEventListener('visibilitychange', checkVisible)
+    window.addEventListener('focus', check)
+    document.addEventListener('visibilitychange', check)
     void check()
     return () => {
       disposed = true
       controller.abort()
       window.clearInterval(interval)
-      window.removeEventListener('focus', checkVisible)
-      document.removeEventListener('visibilitychange', checkVisible)
+      window.removeEventListener('focus', check)
+      document.removeEventListener('visibilitychange', check)
     }
   }, [])
 }
