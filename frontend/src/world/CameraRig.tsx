@@ -15,6 +15,7 @@ import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 import { CAMERA, CHARACTER, GOMOKU, PARK_SIZE, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale, tableSeats } from '../park/mapConfig'
 import { WELCOME_FLIGHT_MS, welcomeFlight, welcomeFlightPose } from '../features/welcomeTour/flight'
 import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
+import { useJumpmap } from '../features/jumpmap/state'
 import { telescopeView } from '../features/telescopeView'
 import { interactionAim, setInteractionCamera } from '../features/interactions/interactionAim'
 import { useDisplayGame as useGame } from '../game/displayGame'
@@ -96,6 +97,7 @@ export function CameraRig() {
       rotation: new Quaternion(), targetRotation: new Quaternion(),
       targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false, diceTransition: false, alkkagiTransition: false,
       center: new Vector3(), pan: new Vector3(), feet: new Vector3(),
+      jumpOrbitRun: '', jumpOrbitDirection: new Vector3(),
     }),
     [],
   )
@@ -134,6 +136,8 @@ export function CameraRig() {
     [occlusion, state, mountedCamera, raycaster],
   )
   useFrame(({ camera, scene }, delta) => {
+    const priorJumpOrbitRun = state.jumpOrbitRun
+    state.jumpOrbitRun = ''
     camera.userData.showConstellationLines = false
     diceCamera.ready = false
     omokCamera.ready = false
@@ -555,11 +559,28 @@ export function CameraRig() {
         state.pan.y = -wardrobeView.y * halfHeight * w
         center.add(state.pan)
       }
-      const horizontal = distance * Math.cos(viewControls.pitch)
+      const cosPitch = Math.cos(viewControls.pitch)
+      const orbitX = Math.sin(viewControls.yaw) * cosPitch
+      const orbitY = Math.sin(viewControls.pitch)
+      const orbitZ = Math.cos(viewControls.yaw) * cosPitch
+      const jumpmap = useJumpmap.getState()
+      const runId = jumpmap.owner === session.sessionId ? jumpmap.run?.runId : undefined
+      if (runId && !w && !wardrobeView.active && !temporaryView && performance.now() >= bungeoppangView.returningUntil) {
+        const previous = state.jumpOrbitDirection
+        if (priorJumpOrbitRun === runId) {
+          // Apply the turn immediately. The remaining interpolation still
+          // smooths the follow position and zoom, including platform motion.
+          camera.position.x += (orbitX - previous.x) * distance
+          camera.position.y += (orbitY - previous.y) * distance
+          camera.position.z += (orbitZ - previous.z) * distance
+        }
+        state.jumpOrbitRun = runId
+        previous.set(orbitX, orbitY, orbitZ)
+      }
       state.desired.set(
-        center.x + Math.sin(viewControls.yaw) * horizontal,
-        center.y + distance * Math.sin(viewControls.pitch),
-        center.z + Math.cos(viewControls.yaw) * horizontal,
+        center.x + orbitX * distance,
+        center.y + orbitY * distance,
+        center.z + orbitZ * distance,
       )
       state.desired.y = Math.max(
         state.desired.y,

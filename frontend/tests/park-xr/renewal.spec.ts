@@ -75,6 +75,31 @@ test('두더지와 비둘기 발판에 올라타면 서버 업데이트 사이�
     expect(Math.max(...heights) - Math.min(...heights), theme).toBeGreaterThan(.025)
     expect(Math.max(...frames.map(f => Math.abs(f.avatarY - f.padY))), theme).toBeLessThan(.02)
 
+    if (theme === 'mole') {
+      const turn = await page.evaluate(async () => {
+        const { viewControls } = await import('/src/world/cameraPerspective.ts' as string)
+        const { interactionAim } = await import('/src/features/interactions/interactionAim.ts' as string)
+        const canvas = document.querySelector('canvas')!
+        const bounds = canvas.getBoundingClientRect()
+        const sendPointer = (type: string, options: PointerEventInit) => canvas.dispatchEvent(new PointerEvent(type, {
+          bubbles: true, cancelable: true, pointerType: 'mouse', pointerId: 1, isPrimary: true,
+          clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2, ...options,
+        }))
+        const cameraYaw = () => Math.atan2(-interactionAim.dx, -interactionAim.dz)
+        const wrap = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle))
+        const beforeYaw = viewControls.yaw, beforeCamera = cameraYaw()
+        sendPointer('pointerdown', { button: 0, buttons: 1 })
+        sendPointer('pointermove', { buttons: 1, movementX: 200 })
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+        sendPointer('pointerup', { button: 0, buttons: 0 })
+        const yaw = viewControls.yaw
+        sendPointer('pointermove', { buttons: 0, movementX: 200 })
+        return { input: wrap(yaw - beforeYaw), rendered: wrap(cameraYaw() - beforeCamera), released: viewControls.yaw === yaw }
+      })
+      expect(Math.abs(turn.input)).toBeGreaterThan(.5)
+      expect(turn.rendered).toBeCloseTo(turn.input, 1)
+      expect(turn.released).toBe(true)
+    }
     await page.screenshot({ path: info.outputPath(`jumpmap-${theme}-ride.png`) })
     send(pad.top + .8)
     await expect.poll(() => page.evaluate(async block => {
