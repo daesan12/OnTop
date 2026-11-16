@@ -1,11 +1,11 @@
-import { Color, CubeCamera, LinearFilter, Scene, WebGLCubeRenderTarget, type WebGLRenderer } from 'three'
+import { Color, CubeCamera, LinearFilter, Scene, WebGLCubeRenderTarget, type PerspectiveCamera, type WebGLRenderer } from 'three'
 
 /** 먼 공원은 준비 중 한 번 찍고, 경기 중에는 시점 방향에 맞는 부분만 그린다. */
 export class StoneParkBackdrop {
   private readonly target = new WebGLCubeRenderTarget(512, { minFilter: LinearFilter })
   private readonly camera = new CubeCamera(.1, 800, this.target)
   private readonly sky = new Color('#b8cad7')
-  private valid = false
+  private face = 0
   readonly scene = new Scene()
 
   constructor() {
@@ -15,30 +15,37 @@ export class StoneParkBackdrop {
     this.scene.background = this.sky
   }
 
-  prepare(renderer: WebGLRenderer, park: Scene) {
-    if (this.valid) return
+  captureFace(renderer: WebGLRenderer, park: Scene) {
+    if (this.face >= this.camera.children.length) return true
+    if (this.camera.coordinateSystem !== renderer.coordinateSystem) {
+      this.camera.coordinateSystem = renderer.coordinateSystem
+      this.camera.updateCoordinateSystem()
+    }
+    this.camera.updateMatrixWorld()
     const autoClear = renderer.autoClear
     const target = renderer.getRenderTarget()
     const face = renderer.getActiveCubeFace()
     const level = renderer.getActiveMipmapLevel()
     const xrEnabled = renderer.xr.enabled
-    const mipmaps = this.target.texture.generateMipmaps
     try {
       renderer.autoClear = true
-      this.camera.update(renderer, park)
-      this.scene.background = this.target.texture
-      this.valid = true
+      renderer.xr.enabled = false
+      renderer.setRenderTarget(this.target, this.face)
+      renderer.render(park, this.camera.children[this.face] as PerspectiveCamera)
+      this.face++
+      return this.face === this.camera.children.length
     } finally {
-      // CubeCamera restores these only after all six sides render successfully.
-      if (!this.valid) {
-        renderer.setRenderTarget(target, face, level)
-        renderer.xr.enabled = xrEnabled
-        this.target.texture.generateMipmaps = mipmaps
-      }
+      renderer.setRenderTarget(target, face, level)
+      renderer.xr.enabled = xrEnabled
       renderer.autoClear = autoClear
     }
   }
 
-  invalidate() { this.valid = false; this.scene.background = this.sky }
+  showCapture() {
+    if (this.face !== this.camera.children.length) return
+    this.target.texture.needsPMREMUpdate = true
+    this.scene.background = this.target.texture
+  }
+  invalidate() { this.face = 0; this.scene.background = this.sky }
   dispose() { this.target.dispose() }
 }

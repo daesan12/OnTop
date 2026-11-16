@@ -49,3 +49,5 @@ export function useOutfitSources(names: readonly string[]) {
   const outfits = useMemo(() => new Map((ready ? ready.split(',') : []).map(name => [name, loaded.get(name)!] as const)), [ready])
   return { outfits, pending }
 }
+
+export const loadedOutfit = (name: string): GLTF | undefined => loaded.get(name)

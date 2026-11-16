@@ -1,4 +1,4 @@
-import { Component, lazy, memo, Suspense, useEffect, useMemo, useRef, type MutableRefObject, type ReactNode } from 'react'
+import { Component, lazy, memo, Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import { Canvas, createPortal, events, useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Mesh, MeshBasicMaterial, Object3D, Plane, Scene, SphereGeometry, Vector2, Vector3, type InstancedMesh, type Material } from 'three'
 import { ParkAssetLoader } from '../../world/art/assetLoader'
@@ -8,9 +8,8 @@ import { useSession } from '../../network/worldClient'
 import { emptyEquipment } from '../../network/equipment'
 import { WARDROBE_OUTFITS_ENABLED } from '../../features/wardrobe/feature'
 import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from '../../world/art/characterLook'
-import { useOutfitSources } from '../../world/art/outfitSources'
+import { loadedOutfit } from '../../world/art/outfitSources'
 import { createSafeCharacterRig } from '../../world/art/safeCharacterRig'
-import { useSkinCatalog } from '../../world/art/skinCatalog'
 import { resolveWholeSkin } from '../../world/art/wholeSkin'
 import { pigeonGeometry, pigeonMaterial } from '../../world/pigeons/pigeonGeometry'
 import { visibleStoneFloor } from './layout'
@@ -44,20 +43,22 @@ type AvatarProps = { player: StonePlayer; index: number; own: boolean; time: num
 function Avatar(props: AvatarProps & { localOnly: boolean }) {
   const { player, index, localOnly } = props
   const base = useLoader(ParkAssetLoader, characterUrls)
-  const character = useSession(s => localOnly ? undefined : s.profiles[player.userId]?.character)
-  const outfitsEnabled = !localOnly && WARDROBE_OUTFITS_ENABLED
-  const worn = useSession(s => outfitsEnabled ? s.equipment[player.userId] ?? emptyEquipment : emptyEquipment)
-  const variant = localOnly && index % 2 || character === 'girl' ? 'girl' : 'man'
-  const revision = useSkinCatalog(s => outfitsEnabled ? s.revision : 0)
-  const checked = useSkinCatalog(s => !outfitsEnabled || s.checked)
-  const look = useMemo(() => resolveLook(variant, worn), [variant, worn, revision])
-  const whole = resolveWholeSkin(variant, worn)
-  const waitingForCatalog = !checked && worn.some(item => item.imageKey?.startsWith('catalog/'))
-  const { outfits } = useOutfitSources(waitingForCatalog ? [] :
-    whole ? [whole.source] : lookSources(look).filter(source => !isCharacterSource(source)))
-  const files = useMemo(() => new Map([['man', base[0]!], ['girl', base[1]!], ...outfits]), [base, outfits])
-  return <AvatarRig {...props} source={base[variant === 'girl' ? 1 : 0]!} files={files}
-    look={availableLook(variant, look, source => files.has(source))} whole={whole && outfits.get(whole.source)} />
+  const [appearance] = useState(() => {
+    // 공원에서 이미 로드한 외형을 써서 경기 도중 리그와 재질을 다시 만들지 않는다.
+    const { profiles, equipment } = useSession.getState()
+    const variant = (localOnly ? index % 2 === 1 : profiles[player.userId]?.character === 'girl') ? 'girl' : 'man'
+    const worn = !localOnly && WARDROBE_OUTFITS_ENABLED ? equipment[player.userId] ?? emptyEquipment : emptyEquipment
+    const look = resolveLook(variant, worn)
+    const whole = resolveWholeSkin(variant, worn)
+    const files = new Map<string, GLTF>([['man', base[0]!], ['girl', base[1]!]])
+    for (const name of whole ? [whole.source] : lookSources(look).filter(source => !isCharacterSource(source))) {
+      const asset = loadedOutfit(name)
+      if (asset) files.set(name, asset)
+    }
+    return { source: files.get(variant)!, files, look: availableLook(variant, look, source => files.has(source)),
+      whole: whole && files.get(whole.source) }
+  })
+  return <AvatarRig {...props} {...appearance} />
 }
 
 function AvatarRig({ player, index, own, time, gameId, feedback, source, files, look, whole }: AvatarProps & {
@@ -334,7 +335,7 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
   return <>
     <StoneRumbleTiles tiles={state.tiles} material={material} time={state.serverTime} ownFloor={ownFloor} />
     <ArrivalClouds state={state} />
-    {state.players.map((player, index) => <Avatar key={player.userId} localOnly={localOnly} player={player} index={index} own={player.userId === viewId} time={state.serverTime} gameId={state.gameId} feedback={feedback} />)}
+    {state.players.map((player, index) => <Avatar key={`${state.gameId}/${player.userId}`} localOnly={localOnly} player={player} index={index} own={player.userId === viewId} time={state.serverTime} gameId={state.gameId} feedback={feedback} />)}
     {state.pigeons.map(pigeon => <Pigeon key={pigeon.id} pigeon={pigeon} time={state.serverTime} />)}
     <group visible={false} userData={{ prepareWhenHidden: true }}>
       <Pigeon pigeon={{ id: -1, owner: ownId, x: 0, y: 24.8, z: 0, vx: 20, vz: 0 }} time={0} />
@@ -343,21 +344,21 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
 }
 
 type StoneRumbleSceneProps = Parameters<typeof Stage>[0] & {
-  onStatus: StoneSceneStatus; preparationAttempt: number; paused: boolean
+  onStatus: StoneSceneStatus; preparationAttempt: number; paused: boolean; sceneReady: boolean
 }
 
-export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, preparationAttempt, paused, ...props }: StoneRumbleSceneProps) {
+export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, preparationAttempt, paused, sceneReady, ...props }: StoneRumbleSceneProps) {
   const playScene = useMemo(() => { const scene = new Scene(); scene.name = 'stone-rumble-play'; return scene }, [])
   return <div className="stone-rumble-scene" data-view-id={props.viewId} data-camera="orbit" aria-label="현재 층 중심 돌탑 경기장">
     <SceneBoundary key={preparationAttempt} onStatus={onStatus}>
       <Canvas dpr={1} frameloop={paused ? 'demand' : 'always'} events={gameEvents} camera={{ position: [0, 42, 7.5], fov: 50, near: .1, far: 800 }} gl={{ alpha: false, antialias: true }}>
-        <SceneBoundary><Suspense fallback={null}>
+        {!sceneReady && <SceneBoundary><Suspense fallback={null}>
           <group name="stone-rumble-backdrop-source">
             <EnvironmentScene />
             <ParkSun quality="low" />
             <StoneRumbleEnvironment />
           </group>
-        </Suspense></SceneBoundary>
+        </Suspense></SceneBoundary>}
         <Suspense fallback={null}>
           {createPortal(<><StoneRumbleLighting /><Stage {...props} /></>, playScene)}
           <StoneRumblePreparation onStatus={onStatus} playScene={playScene} />
@@ -369,6 +370,7 @@ export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, prepa
   // 준비가 끝난 로딩 대기 중에는 서버 시각/준비 인원 갱신이 숨겨진 Canvas를 다시 그리지 않게 한다.
   // 낙하 시작, 재시도, WebGL 복구로 paused가 풀리면 최신 상태로 즉시 렌더링한다.
   return previous.paused && next.paused && previous.state.gameId === next.state.gameId
+    && previous.sceneReady === next.sceneReady
     && previous.preparationAttempt === next.preparationAttempt && previous.onStatus === next.onStatus
     && previous.ownId === next.ownId && previous.viewId === next.viewId
     && previous.input === next.input && previous.fire === next.fire

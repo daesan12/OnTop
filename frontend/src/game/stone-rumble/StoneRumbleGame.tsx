@@ -191,7 +191,8 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     <StoneRumbleScene state={state} localOnly={localOnly} ownId={ownId} viewId={viewingId ?? ''} input={input} fire={fire}
       feedback={feedback} controls={controls}
       cameraEnabled={cameraEnabled}
-      onStatus={sceneStatus} preparationAttempt={preparationAttempt + retry} paused={(preparing || state.phase === 'LOADING') && sceneReady} />
+      onStatus={sceneStatus} preparationAttempt={preparationAttempt + retry} sceneReady={sceneReady}
+      paused={(preparing || state.phase === 'LOADING') && sceneReady} />
     {loading && <StoneLoadingTips ready={state.readyUserIds?.length ?? 0} total={state.players.length} ownReady={sceneReady}
       error={sceneError || (sceneDelayed ? '경기장 준비가 아직 끝나지 않았어요. 오래 걸리면 다시 준비해 주세요.' : '')}
       retry={retryScene} />}

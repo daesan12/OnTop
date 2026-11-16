@@ -1,11 +1,13 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { prepareScene } from '../../world/prepareScene'
+import { gpuFamily } from '../../features/behaviorLog/perfReport'
 import type { Scene } from 'three'
 import { renderStoneScene } from './visibility'
 import { StoneParkBackdrop } from './StoneParkBackdrop'
 
 export type StoneSceneStatus = (ready: boolean, error?: string) => void
+const BACKDROP_BUDGET_MS = 450
 const views: { position: readonly [number, number, number]; target: readonly [number, number, number] }[] =
   [33, 24, 12, 0].map(y => ({ position: [0, y + 9, 7.5], target: [0, y + .4, -1.5] }))
 
@@ -14,10 +16,13 @@ export function StoneRumblePreparation({ onStatus, playScene }: { onStatus: Ston
   const { gl, scene, camera } = useThree()
   const backdrop = useMemo(() => new StoneParkBackdrop(), [])
   const startup = useMemo(() => ({ phase: 'cold', disposed: false, generation: 0, presentedAt: 0,
-    backdropAttempted: false, fence: null as WebGLSync | null }), [])
+    backdropStartedAt: 0, backdropComplete: false, useBackdrop: true, fence: null as WebGLSync | null }), [])
   useEffect(() => {
     startup.disposed = false
     backdrop.invalidate()
+    const context = gl.getContext()
+    const info = context.getExtension('WEBGL_debug_renderer_info')
+    startup.useBackdrop = !info || gpuFamily(String(context.getParameter(info.UNMASKED_RENDERER_WEBGL))) !== 'software'
     const lost = (event: Event) => {
       event.preventDefault(); startup.generation++; startup.phase = 'failed'; startup.fence = null
       onStatus(false, '3D 화면 연결이 끊겼어요. 복구를 기다려 주세요.')
@@ -25,7 +30,7 @@ export function StoneRumblePreparation({ onStatus, playScene }: { onStatus: Ston
     const restored = () => {
       backdrop.invalidate()
       startup.phase = 'cold'
-      startup.backdropAttempted = false
+      startup.backdropComplete = false
       onStatus(false)
     }
     gl.domElement.addEventListener('webglcontextlost', lost)
@@ -54,10 +59,34 @@ export function StoneRumblePreparation({ onStatus, playScene }: { onStatus: Ston
       return
     }
     if (startup.phase === 'preparing' || startup.phase === 'failed') return
-    // 공원은 장식용이라 첫 경기 프레임과 서버 준비 신호를 기다리게 하지 않는다.
-    if (startup.phase === 'presented' && !startup.backdropAttempted && scene.getObjectByName('stone-rumble-backdrop-source')) {
-      startup.backdropAttempted = true
-      try { backdrop.prepare(gl, scene) } catch { /* 경기장은 기본 하늘로 계속 그린다. */ }
+    // 배경을 기다리지 않고, 준비된 배경만 짧은 시간 동안 한 방향씩 캡처한다.
+    if (startup.phase === 'ready') {
+      startup.phase = startup.useBackdrop && scene.getObjectByName('stone-rumble-backdrop-source') ? 'backdrop' : 'draw'
+      startup.backdropStartedAt = performance.now()
+    }
+    if (startup.phase === 'backdrop') {
+      const expired = performance.now() - startup.backdropStartedAt >= BACKDROP_BUDGET_MS
+      if (startup.fence) {
+        const result = context.clientWaitSync(startup.fence, 0, 0)
+        if (!expired && result === context.TIMEOUT_EXPIRED) return
+        context.deleteSync(startup.fence)
+        startup.fence = null
+        if (expired || result === context.WAIT_FAILED) startup.phase = 'draw'
+        else if (startup.backdropComplete) {
+          backdrop.showCapture()
+          performance.mark('stone-rumble-backdrop-ready')
+          startup.phase = 'draw'
+        }
+      }
+    }
+    if (startup.phase === 'backdrop') {
+      try {
+        startup.backdropComplete = backdrop.captureFace(gl, scene)
+        performance.mark('stone-rumble-backdrop-face')
+        startup.fence = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0)
+        if (startup.fence) { context.flush(); return }
+      } catch { /* 경기장은 기본 하늘로 계속 그린다. */ }
+      startup.phase = 'draw'
     }
     try {
       renderStoneScene(gl, backdrop.scene, playScene, camera)
@@ -66,7 +95,7 @@ export function StoneRumblePreparation({ onStatus, playScene }: { onStatus: Ston
       onStatus(false, '경기 화면을 그리지 못했어요. 다시 준비해 주세요.')
       return
     }
-    if (startup.phase === 'ready') {
+    if (startup.phase === 'draw') {
       startup.fence = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0)
       if (!startup.fence) { startup.phase = 'failed'; onStatus(false, '3D 화면 준비를 확인하지 못했어요. 다시 준비해 주세요.'); return }
       context.flush(); startup.presentedAt = performance.now(); startup.phase = 'presenting'
