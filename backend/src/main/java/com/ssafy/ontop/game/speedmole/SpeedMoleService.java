@@ -72,11 +72,13 @@ public class SpeedMoleService {
             SpeedMoleRules.requireTapCount(taps);
             var hiddenIds = new MoleTargets(GAME, id, row.seed()).hiddenIds(HOLES);
             var playableTaps = taps.stream().filter(tap -> tap == null || !hiddenIds.contains(tap.targetId())).toList();
-            var reactions = new ArrayList<Integer>();
+            var reactions = new ArrayList<MoleTimingSignals.Reaction>();
             var hitTimes = new ArrayList<Integer>();
             var score = SpeedMoleRules.replay(row.seed(), playableTaps, (appearedAt, at) -> {
                 hitTimes.add(at);
-                if (appearedAt >= 0) reactions.add(at - appearedAt);
+                if (appearedAt >= 0) {
+                    reactions.add(new MoleTimingSignals.Reaction(appearedAt, at - appearedAt));
+                }
             });
             Instant completed = clock.instant().truncatedTo(ChronoUnit.MILLIS);
             int granted = rewards.grant(wallet, id, score.score(), completed);

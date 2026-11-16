@@ -60,7 +60,7 @@ class SpeedMoleServiceTests {
         verifyNoMoreInteractions(audit);
         var value = (MoleTimingSignals.Signals) signals.getValue().get();
         assertThat(value.segments()).first().isEqualTo(new MoleTimingSignals.Segment(2, 100, 0,
-                new MoleTimingSignals.Pace(3, 3, 100, false)));
+                new MoleTimingSignals.Pace(3, 3, 100, false), new MoleTimingSignals.EarlyReaction(0, 0, false)));
     }
 
     @Test

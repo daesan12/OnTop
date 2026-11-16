@@ -29,7 +29,8 @@ class MoleAuditStore {
         this.mapper = mapper;
     }
 
-    record RoundData(long id, long userId, long seed, int version, Instant startedAt, String status) {
+    record RoundData(long id, long userId, long seed, int version, Instant startedAt, String status, Integer score,
+                     String nickname) {
     }
 
     record RoundWithMember(RoundData round, String nickname, boolean withdrawn) {
@@ -46,32 +47,38 @@ class MoleAuditStore {
 
     RoundWithMember findRoundWithMember(MoleAuditGame game, long id) {
         String sql = """
-                SELECT r.id, r.user_id, r.seed, r.rules_version, r.started_at, r.status,
+                SELECT r.id, r.user_id, r.seed, r.rules_version, r.started_at, r.status, r.score,
                        u.nickname, u.deleted_at IS NOT NULL AS withdrawn
                 FROM %s r
                 LEFT JOIN users u ON u.id = r.user_id
                 WHERE r.id = :id
                 """.formatted(game.table);
         return jdbc.query(sql, Map.of("id", id), (row, index) -> new RoundWithMember(
-                round(row), row.getString("nickname"), row.getBoolean("withdrawn")))
+                round(row, row.getString("nickname")), row.getString("nickname"), row.getBoolean("withdrawn")))
                 .stream().findFirst().orElse(null);
     }
 
     List<RoundData> list(MoleAuditGame game, Long user, Long id, Instant from, Instant until, Integer version,
-                         Long excludeUser, int limit) {
+                         Long excludeUser, String nickname, int limit) {
         var args = new HashMap<String, Object>();
-        StringBuilder sql = new StringBuilder(select(game)).append(" WHERE 1 = 1");
-        condition(sql, args, "user_id = :owner", "owner", user);
-        condition(sql, args, "id = :id", "id", id);
-        condition(sql, args, "started_at >= :from", "from", from == null ? null : utc(from));
-        condition(sql, args, "started_at < :until", "until", until == null ? null : utc(until));
-        condition(sql, args, "rules_version = :version", "version", version);
-        condition(sql, args, "user_id <> :exclude", "exclude", excludeUser);
+        var sql = new StringBuilder("""
+                SELECT r.id, r.user_id, r.seed, r.rules_version, r.started_at, r.status, r.score, u.nickname
+                FROM %s r LEFT JOIN users u ON u.id = r.user_id
+                WHERE 1 = 1
+                """.formatted(game.table));
+        condition(sql, args, "r.user_id = :owner", "owner", user);
+        condition(sql, args, "r.id = :id", "id", id);
+        condition(sql, args, "r.started_at >= :from", "from", from == null ? null : utc(from));
+        condition(sql, args, "r.started_at < :until", "until", until == null ? null : utc(until));
+        condition(sql, args, "r.rules_version = :version", "version", version);
+        condition(sql, args, "r.user_id <> :exclude", "exclude", excludeUser);
+        condition(sql, args, "u.nickname = :nickname", "nickname", nickname);
         if (excludeUser != null) {
-            sql.append(" AND status = 'SETTLED'");
+            sql.append(" AND r.status = 'SETTLED'");
         }
         args.put("limit", limit);
-        return jdbc.query(sql.append(" ORDER BY id DESC LIMIT :limit").toString(), args, (row, index) -> round(row));
+        return jdbc.query(sql.append(" ORDER BY r.id DESC LIMIT :limit").toString(), args,
+                (row, index) -> round(row, row.getString("nickname")));
     }
 
     List<MoleAuditDtos.DetectedMember> detections(MoleAuditGame game, Instant from, Instant until, int limit) {
@@ -125,11 +132,16 @@ class MoleAuditStore {
                 WITH timing AS (
                     SELECT user_id, round_id, received_at, fast_reaction, steady_timing, median_reaction_ms,
                            COALESCE(JSON_EXTRACT(segments, '$[*].pace.qualifies') = CAST('[true,true,true]' AS JSON),
-                                    FALSE) AS sustained_pace
+                                    FALSE) AS sustained_pace,
+                           (COALESCE(segments->>'$[0].earlyReaction.qualifies' = 'true', FALSE)
+                                + COALESCE(segments->>'$[1].earlyReaction.qualifies' = 'true', FALSE)
+                                + COALESCE(segments->>'$[2].earlyReaction.qualifies' = 'true', FALSE)) >= 2
+                                AS repeated_early_reaction
                     FROM mole_timing_audits
                     WHERE game = :game AND received_at >= :from AND received_at < :until
                 ), audits AS (
-                    SELECT timing.*, (fast_reaction OR steady_timing OR sustained_pace) AS flagged
+                    SELECT timing.*, (fast_reaction OR steady_timing OR sustained_pace OR repeated_early_reaction)
+                           AS flagged
                     FROM timing
                 ), latest AS (
                     SELECT user_id, round_id, received_at,
@@ -140,6 +152,7 @@ class MoleAuditStore {
                 SELECT a.user_id, u.nickname, u.deleted_at IS NOT NULL AS withdrawn,
                        SUM(a.flagged) AS flagged_rounds, SUM(a.fast_reaction) AS fast_rounds,
                        SUM(a.steady_timing) AS steady_rounds, SUM(a.sustained_pace) AS sustained_pace_rounds,
+                       SUM(a.repeated_early_reaction) AS repeated_early_reaction_rounds,
                        COUNT(*) AS audited_rounds,
                        MIN(a.median_reaction_ms) AS lowest_median_reaction_ms,
                        MAX(l.round_id) AS latest_round_id, MAX(l.received_at) AS last_detected_at
@@ -153,7 +166,8 @@ class MoleAuditStore {
         return jdbc.query(sql, Map.of("game", game.path, "from", utc(from), "until", utc(until), "limit", limit),
                 (row, index) -> new MoleAuditDtos.TimingMember(row.getString("user_id"), row.getString("nickname"),
                         row.getBoolean("withdrawn"), row.getInt("flagged_rounds"), row.getInt("fast_rounds"),
-                        row.getInt("steady_rounds"), row.getInt("sustained_pace_rounds"), row.getInt("audited_rounds"),
+                        row.getInt("steady_rounds"), row.getInt("sustained_pace_rounds"),
+                        row.getInt("repeated_early_reaction_rounds"), row.getInt("audited_rounds"),
                         row.getObject("lowest_median_reaction_ms", Integer.class),
                         row.getString("latest_round_id"), instant(row, "last_detected_at")));
     }
@@ -169,9 +183,12 @@ class MoleAuditStore {
                                 MoleTimingSignals.Segment[].class));
                         Boolean sustainedPace = segments.stream().anyMatch(segment -> segment.pace() != null)
                                 ? MoleTimingSignals.sustainedPace(segments) : null;
+                        Boolean repeatedEarlyReaction = segments.stream().anyMatch(segment -> segment.earlyReaction() != null)
+                                ? MoleTimingSignals.repeatedEarlyReaction(segments) : null;
                         return new MoleAuditDtos.Timing(row.getInt("reaction_count"),
                                 row.getObject("median_reaction_ms", Integer.class), segments,
                                 row.getBoolean("fast_reaction"), row.getBoolean("steady_timing"), sustainedPace,
+                                repeatedEarlyReaction,
                                 instant(row, "received_at"));
                     } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
                         throw new SQLException("두더지 타이밍 기록 JSON을 읽을 수 없습니다.", error);
@@ -214,12 +231,17 @@ class MoleAuditStore {
     }
 
     private static String select(MoleAuditGame game) {
-        return "SELECT id, user_id, seed, rules_version, started_at, status FROM " + game.table;
+        return "SELECT id, user_id, seed, rules_version, started_at, status, score FROM " + game.table;
     }
 
     private static RoundData round(ResultSet row) throws SQLException {
+        return round(row, null);
+    }
+
+    private static RoundData round(ResultSet row, String nickname) throws SQLException {
         return new RoundData(row.getLong("id"), row.getLong("user_id"), row.getLong("seed"),
-                row.getInt("rules_version"), instant(row, "started_at"), row.getString("status"));
+                row.getInt("rules_version"), instant(row, "started_at"), row.getString("status"),
+                row.getObject("score", Integer.class), nickname);
     }
 
     private static LocalDateTime utc(Instant time) {

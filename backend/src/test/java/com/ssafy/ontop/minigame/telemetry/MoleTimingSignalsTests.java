@@ -111,7 +111,8 @@ class MoleTimingSignalsTests {
 
         assertThat(signals.reactions()).isEqualTo(2);
         assertThat(signals.medianReactionMs()).isEqualTo(350);
-        assertThat(signals.segments().getFirst()).isEqualTo(new MoleTimingSignals.Segment(2, 350, 74));
+        assertThat(signals.segments().getFirst()).isEqualTo(new MoleTimingSignals.Segment(2, 350, 74, null,
+                new MoleTimingSignals.EarlyReaction(2, 0, false)));
     }
 
     @Test
@@ -124,15 +125,17 @@ class MoleTimingSignalsTests {
             human.add(at);
             bot.add(n * 280);
         }
-        var slowReactions = new ArrayList<Integer>();
+        var slowReactions = new ArrayList<MoleTimingSignals.Reaction>();
         for (int n = 0; n < 40; n++) {
-            slowReactions.add(400 + n * 20);
+            slowReactions.add(new MoleTimingSignals.Reaction(n * 1_000, 400 + n * 20));
         }
 
         var humanSignals = MoleTimingSignals.speed(slowReactions, human, List.of());
         var botSignals = MoleTimingSignals.speed(slowReactions, bot, List.of());
-        var fastSignals = MoleTimingSignals.speed(List.of(90, 95, 100, 110, 120, 90, 95, 100, 110, 120,
-                90, 95, 100, 110, 120, 90, 95, 100, 110, 120), human, List.of());
+        var fastReactions = List.of(90, 95, 100, 110, 120, 90, 95, 100, 110, 120,
+                90, 95, 100, 110, 120, 90, 95, 100, 110, 120).stream()
+                .map(ms -> new MoleTimingSignals.Reaction(0, ms)).toList();
+        var fastSignals = MoleTimingSignals.speed(fastReactions, human, List.of());
 
         assertThat(humanSignals.steady()).isFalse();
         assertThat(humanSignals.fastReaction()).isFalse();
@@ -151,7 +154,7 @@ class MoleTimingSignalsTests {
         assertThat(empty.reactions()).isZero();
         assertThat(empty.medianReactionMs()).isNull();
         assertThat(empty.segments()).containsOnly(new MoleTimingSignals.Segment(0, null, null,
-                new MoleTimingSignals.Pace(0, 0, null, false)));
+                new MoleTimingSignals.Pace(0, 0, null, false), new MoleTimingSignals.EarlyReaction(0, 0, false)));
         assertThat(empty.steady()).isFalse();
         assertThat(empty.sustainedPace()).isFalse();
 
@@ -237,5 +240,43 @@ class MoleTimingSignalsTests {
     private static List<MoleTimingSignals.Segment> observed(int[][] round) {
         return Arrays.stream(round).map(segment -> new MoleTimingSignals.Segment(0, null, null,
                 MoleTimingSignals.Pace.measured(segment[0], segment[1], segment[2]))).toList();
+    }
+
+    @Test
+    void 일반_두더지에서_판_중앙값이_높아도_두_구간에_초단기_반응이_반복되면_기록한다() {
+        var moles = moles(30);
+        var signals = MoleTimingSignals.mole(moles,
+                hits(moles, id -> id < 60 && id % 2 == 0 ? 50 : 290 + id % 5));
+
+        assertThat(signals.fastReaction()).isFalse();
+        assertThat(signals.repeatedEarlyReaction()).isTrue();
+        assertThat(signals.segments().getFirst().earlyReaction())
+                .isEqualTo(new MoleTimingSignals.EarlyReaction(30, 15, true));
+        assertThat(MoleTimingSignals.mole(moles, hits(moles, id -> id % 5 == 0 ? 50 : 280))
+                .repeatedEarlyReaction()).isFalse();
+        assertThat(MoleTimingSignals.mole(moles, hits(moles, id -> id < 60 && id % 2 == 0 ? 51 : 290))
+                .repeatedEarlyReaction()).isFalse();
+    }
+
+    @Test
+    void 스피드_두더지에서_초단기_반응은_출현한_구간에_넣고_두_구간_이상일_때만_기록한다() {
+        var reactions = new ArrayList<MoleTimingSignals.Reaction>();
+        for (int phase = 0; phase < 3; phase++) {
+            int offset = phase * 20_000;
+            for (int n = 0; n < 16; n++) {
+                int delay = phase < 2 && n % 2 == 0 ? 100 : 450;
+                int tail = phase == 2 ? 19_000 : 19_500;
+                reactions.add(new MoleTimingSignals.Reaction(offset + tail + n * 30, delay));
+            }
+        }
+
+        var signals = MoleTimingSignals.speed(reactions, List.of(), List.of());
+
+        assertThat(signals.fastReaction()).isFalse();
+        assertThat(signals.repeatedEarlyReaction()).isTrue();
+        assertThat(signals.segments().get(1).earlyReaction())
+                .isEqualTo(new MoleTimingSignals.EarlyReaction(16, 8, true));
+        assertThat(MoleTimingSignals.speed(reactions.subList(0, 31), List.of(), List.of()).repeatedEarlyReaction())
+                .isFalse();
     }
 }

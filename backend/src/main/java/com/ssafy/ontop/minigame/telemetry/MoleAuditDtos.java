@@ -31,8 +31,9 @@ public final class MoleAuditDtos {
     }
 
     @Schema(name = "MoleAuditRound")
-    public record Round(String roundId, String userId, Instant startedAt, String status, int observedTaps,
-                        int honeypotTaps, int completionHoneypotTaps) {
+    public record Round(String roundId, String userId, String nickname, Instant startedAt, String status,
+                        @Schema(nullable = true) Integer score, int observedTaps, int honeypotTaps,
+                        int completionHoneypotTaps) {
     }
 
     @Schema(name = "MoleAuditDetectedMember")
@@ -57,6 +58,7 @@ public final class MoleAuditDtos {
     @Schema(name = "MoleAuditTiming")
     public record Timing(int reactions, Integer medianReactionMs, List<MoleTimingSignals.Segment> segments,
                          boolean fastReaction, boolean steady, @Schema(nullable = true) Boolean sustainedPace,
+                         @Schema(nullable = true) Boolean repeatedEarlyReaction,
                          Instant recordedAt) {
     }
 
@@ -67,7 +69,8 @@ public final class MoleAuditDtos {
 
     @Schema(name = "MoleTimingMember")
     public record TimingMember(String userId, String nickname, boolean withdrawn, int flaggedRounds, int fastRounds,
-                               int steadyRounds, int sustainedPaceRounds, int auditedRounds, Integer lowestMedianReactionMs,
+                               int steadyRounds, int sustainedPaceRounds, int repeatedEarlyReactionRounds,
+                               int auditedRounds, Integer lowestMedianReactionMs,
                                String latestRoundId, Instant lastDetectedAt) {
     }
 
