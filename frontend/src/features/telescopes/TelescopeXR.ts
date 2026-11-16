@@ -162,16 +162,25 @@ export class TelescopeXR {
       lensZ + Math.cos(yaw) * Math.cos(pitch))
     this.camera.fov = telescopeFov(CAMERA.fov, zoom)
     this.camera.updateProjectionMatrix()
-    const target = renderer.getRenderTarget(), xr = renderer.xr.enabled, clear = renderer.autoClear
+    const target = renderer.getRenderTarget()
+    const cubeFace = renderer.getActiveCubeFace()
+    const mipLevel = renderer.getActiveMipmapLevel()
+    const xrEnabled = renderer.xr.enabled
+    const autoClear = renderer.autoClear
     const visible = rig.visible
     try {
-      // Render the optics with their own camera while the tracked view stays in stereo.
-      renderer.xr.enabled = false; renderer.autoClear = true; rig.visible = false
-      renderer.setRenderTarget(this.target); renderer.render(this.scene, this.camera)
+      // WebGLRenderer substitutes the headset camera during XR unless this pass opts out.
+      renderer.xr.enabled = false
+      renderer.autoClear = true
+      rig.visible = false
+      renderer.setRenderTarget(this.target)
+      renderer.render(this.scene, this.camera)
       this.lastDraw = now
     } finally {
-      renderer.setRenderTarget(target)
-      renderer.xr.enabled = xr; renderer.autoClear = clear; rig.visible = visible
+      renderer.xr.enabled = xrEnabled
+      renderer.autoClear = autoClear
+      rig.visible = visible
+      renderer.setRenderTarget(target, cubeFace, mipLevel)
     }
   }
 
