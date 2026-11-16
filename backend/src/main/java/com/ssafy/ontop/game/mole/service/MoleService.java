@@ -7,6 +7,8 @@ import com.ssafy.ontop.game.mole.dto.MoleDtos;
 import com.ssafy.ontop.game.mole.repository.MoleRepository;
 import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
 import com.ssafy.ontop.minigame.service.MoleTargets;
+import com.ssafy.ontop.minigame.telemetry.MoleTimingAudit;
+import com.ssafy.ontop.minigame.telemetry.MoleTimingSignals;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import java.time.Clock;
@@ -130,7 +132,8 @@ public class MoleService {
                     .filter(hit -> !hiddenIds.contains(hit.targetId()))
                     .map(hit -> new MoleRules.Hit(hit.hole(), hit.at())).toList();
             int hiddenTaps = hits == null ? 0 : hits.size() - taps.size();
-            MoleRules.Score score = MoleRules.score(MoleRules.schedule(round.seed()), taps);
+            List<MoleRules.Mole> moles = MoleRules.schedule(round.seed());
+            MoleRules.Score score = MoleRules.score(moles, taps);
             int granted = MinigameRewardBudget.grant(score.coins(), earnedToday(userId, now));
             if (granted > 0) {
                 wallet.creditReward(granted);
@@ -139,6 +142,10 @@ public class MoleService {
             }
             round.settle(score, granted, now);
             repository.flush();
+            if (timingAudit != null) {
+                timingAudit.settled(GAME, userId, round.id(), round.rulesVersion(),
+                        () -> MoleTimingSignals.mole(moles, taps), now);
+            }
             return new MoleTargets.Completion<>(settlement(userId, round, now), hiddenTaps);
         });
         return completion.report(GAME, userId, roundId, behaviorLog, clock.instant());
@@ -178,5 +185,13 @@ public class MoleService {
         if (userId <= 0) {
             throw new MoleException(401, "UNAUTHENTICATED", "로그인이 필요합니다.");
         }
+    }
+
+    /** 운영자 조회용 타이밍 기록. 저장소가 없는 환경(테스트·기록 비활성)에서는 남기지 않는다. */
+    private MoleTimingAudit timingAudit;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void timingAudit(MoleTimingAudit timingAudit) {
+        this.timingAudit = timingAudit;
     }
 }
