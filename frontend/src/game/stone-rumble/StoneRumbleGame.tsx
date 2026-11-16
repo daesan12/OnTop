@@ -29,6 +29,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
   const [eliminationAcknowledged, setEliminationAcknowledged] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [sceneReady, setSceneReady] = useState(false), [sceneError, setSceneError] = useState(''), [retry, setRetry] = useState(0)
+  const [sceneDelayed, setSceneDelayed] = useState(false)
   const sceneStatus = useCallback<StoneSceneStatus>((ready, error) => {
     setSceneReady(ready); setSceneError(error ?? ''); onSceneStatus?.(ready, error)
   }, [onSceneStatus])
@@ -40,6 +41,17 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
   sender.current = send
   const own = state.players.find(p => p.userId === ownId)
   const finished = state.status === 'FINISHED'
+  useEffect(() => {
+    setSceneDelayed(false)
+    if (sceneReady || sceneError || finished || preparing) return
+    const timer = window.setTimeout(() => setSceneDelayed(true), 20_000)
+    return () => window.clearTimeout(timer)
+  }, [state.gameId, sceneReady, sceneError, finished, preparing, preparationAttempt, retry])
+  const retryScene = () => {
+    setSceneError('')
+    setSceneDelayed(false)
+    setRetry(attempt => attempt + 1)
+  }
   const eliminated = !preparing && !!own && !own.alive
   const pendingElimination = eliminated && !finished && !eliminationAcknowledged
   const [selected, setSelected] = useState<string | null>(null)
@@ -181,7 +193,8 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
       cameraEnabled={cameraEnabled}
       onStatus={sceneStatus} preparationAttempt={preparationAttempt + retry} paused={(preparing || state.phase === 'LOADING') && sceneReady} />
     {loading && <StoneLoadingTips ready={state.readyUserIds?.length ?? 0} total={state.players.length} ownReady={sceneReady}
-      error={sceneError} retry={() => sceneError.startsWith('공원 파일') ? location.reload() : setRetry(v => v + 1)} />}
+      error={sceneError || (sceneDelayed ? '경기장 준비가 아직 끝나지 않았어요. 오래 걸리면 다시 준비해 주세요.' : '')}
+      retry={retryScene} />}
     <header className="stone-rumble-top">
       <div className="stone-rumble-heading"><p>STONE RUMBLE</p><h1><StoneTowerIcon />돌탑 생존전</h1><div className="stone-rumble-counter"><span>생존</span><strong>{alive} <small>/ {state.players.length}</small></strong></div>
       {viewingFloor !== null && <span className="stone-rumble-floor" data-floor={viewingFloor + 1}>
@@ -219,9 +232,10 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     </PaperPopup>}
     {finished && !resultOpen && <button className="stone-rumble-result-reopen" onClick={() => setResultOpen(true)}>결과 다시 보기</button>}
     {finished && resultOpen && <PaperPopup title="돌탑 생존전" label="돌탑 경기 결과" onClose={() => setResultOpen(false)} className="stone-rumble-result" closeLabel="경기 결과 닫기">
-      <h2>{eliminated ? '탈락했어요' : state.winnerUserIds.includes(ownId) ? '끝까지 살아남았어요!' : state.winnerUserIds.length ? `${state.winnerUserIds.map(name).join(' · ')} 승리` : '함께 떨어졌어요'}</h2>
+      <h2>{state.endReason === 'LOADING_TIMEOUT' ? '경기가 취소됐어요' : eliminated ? '탈락했어요' : state.winnerUserIds.includes(ownId) ? '끝까지 살아남았어요!' : state.winnerUserIds.length ? `${state.winnerUserIds.map(name).join(' · ')} 승리` : '함께 떨어졌어요'}</h2>
       {eliminated && <p>{own?.forfeited ? '기권 처리됐어요.' : '1층 아래 추락으로 탈락 처리됐어요.'}{state.winnerUserIds.length > 0 && ` ${state.winnerUserIds.map(name).join(' · ')} 승리`}{state.endReason === 'ALL_FALLEN' && ' 모두 떨어져 무승부예요.'}</p>}
-      <p>{state.endReason === 'SIMULATION_LIMIT' ? '서버 지연으로 경기를 중단했어요.' : `${elapsed}초 동안 돌탑에서 버텼어요.`}</p>
+      <p>{state.endReason === 'LOADING_TIMEOUT' ? '참가자 모두의 경기장 준비를 확인하지 못했어요.'
+        : state.endReason === 'SIMULATION_LIMIT' ? '서버 지연으로 경기를 중단했어요.' : `${elapsed}초 동안 돌탑에서 버텼어요.`}</p>
       <ul className="paper-players">{[...state.players].sort((a, b) => (a.rank ?? 9) - (b.rank ?? 9)).map(player => {
         const reward = localOnly ? player.rewardCoins : result?.settlementStatus === 'SETTLED'
           ? result.participants.find(p => p.userId === player.userId)?.rewardCoins : null

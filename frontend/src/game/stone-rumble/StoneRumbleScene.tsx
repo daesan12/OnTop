@@ -1,4 +1,4 @@
-import { Component, lazy, memo, Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
+import { Component, lazy, memo, Suspense, useEffect, useMemo, useRef, type MutableRefObject, type ReactNode } from 'react'
 import { Canvas, createPortal, events, useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Mesh, MeshBasicMaterial, Object3D, Plane, Scene, SphereGeometry, Vector2, Vector3, type InstancedMesh, type Material } from 'three'
 import { ParkAssetLoader } from '../../world/art/assetLoader'
@@ -31,45 +31,33 @@ const StoneRumbleEnvironment = lazy(loadStoneRumblePark)
 const stonePigeonMaterial = createStoneMaterial(pigeonMaterial)
 // 게임 입력은 캔버스의 DOM 포인터로 받는다. 배경 공원의 시설 선택은 실행하지 않는다.
 const gameEvents: typeof events = state => ({ ...events(state), enabled: false })
-class SceneBoundary extends Component<{ children: ReactNode; onStatus: StoneSceneStatus }, { failed: boolean }> {
+class SceneBoundary extends Component<{ children: ReactNode; onStatus?: StoneSceneStatus }, { failed: boolean }> {
   state = { failed: false }
   static getDerivedStateFromError() { return { failed: true } }
-  componentDidCatch() { this.props.onStatus(false, '공원 파일을 불러오지 못했어요. 새로고침해 주세요.') }
+  componentDidCatch() { this.props.onStatus?.(false, '3D 경기장을 열지 못했어요. 다시 준비해 주세요.') }
   render() { return this.state.failed ? null : this.props.children }
 }
 export type StoneCamera = MutableRefObject<{ yaw: number; renderedYaw: number; manualOrbit: boolean; pointerAiming: boolean }>
 export type StoneInput = MutableRefObject<Omit<StoneControl, 'kind' | 'seq'>>
 
 type AvatarProps = { player: StonePlayer; index: number; own: boolean; time: number; gameId: string; feedback?: MutableRefObject<StoneFeedbackFrame> }
-const pendingAppearance = <group name="stone-appearance-pending" />
-
 function Avatar(props: AvatarProps & { localOnly: boolean }) {
   const { player, index, localOnly } = props
   const base = useLoader(ParkAssetLoader, characterUrls)
   const character = useSession(s => localOnly ? undefined : s.profiles[player.userId]?.character)
   const outfitsEnabled = !localOnly && WARDROBE_OUTFITS_ENABLED
-  const received = useSession(s => outfitsEnabled ? s.equipment[player.userId] : undefined)
-  const worn = received ?? emptyEquipment
+  const worn = useSession(s => outfitsEnabled ? s.equipment[player.userId] ?? emptyEquipment : emptyEquipment)
   const variant = localOnly && index % 2 || character === 'girl' ? 'girl' : 'man'
   const revision = useSkinCatalog(s => outfitsEnabled ? s.revision : 0)
   const checked = useSkinCatalog(s => !outfitsEnabled || s.checked)
-  const [timedOut, setTimedOut] = useState(false)
-  useEffect(() => {
-    if (!outfitsEnabled || received !== undefined) return
-    const timer = window.setTimeout(() => setTimedOut(true), 8000)
-    return () => window.clearTimeout(timer)
-  }, [outfitsEnabled, received])
   const look = useMemo(() => resolveLook(variant, worn), [variant, worn, revision])
   const whole = resolveWholeSkin(variant, worn)
   const waitingForCatalog = !checked && worn.some(item => item.imageKey?.startsWith('catalog/'))
-  const { outfits, pending } = useOutfitSources(waitingForCatalog ? [] :
+  const { outfits } = useOutfitSources(waitingForCatalog ? [] :
     whole ? [whole.source] : lookSources(look).filter(source => !isCharacterSource(source)))
   const files = useMemo(() => new Map([['man', base[0]!], ['girl', base[1]!], ...outfits]), [base, outfits])
-  if (outfitsEnabled && ((received === undefined && !timedOut) || waitingForCatalog || pending)) return pendingAppearance
-  return <Suspense fallback={pendingAppearance}>
-    <AvatarRig {...props} source={base[variant === 'girl' ? 1 : 0]!} files={files}
-      look={availableLook(variant, look, source => files.has(source))} whole={whole && outfits.get(whole.source)} />
-  </Suspense>
+  return <AvatarRig {...props} source={base[variant === 'girl' ? 1 : 0]!} files={files}
+    look={availableLook(variant, look, source => files.has(source))} whole={whole && outfits.get(whole.source)} />
 }
 
 function AvatarRig({ player, index, own, time, gameId, feedback, source, files, look, whole }: AvatarProps & {
@@ -361,15 +349,21 @@ type StoneRumbleSceneProps = Parameters<typeof Stage>[0] & {
 export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, preparationAttempt, paused, ...props }: StoneRumbleSceneProps) {
   const playScene = useMemo(() => { const scene = new Scene(); scene.name = 'stone-rumble-play'; return scene }, [])
   return <div className="stone-rumble-scene" data-view-id={props.viewId} data-camera="orbit" aria-label="현재 층 중심 돌탑 경기장">
-    <Canvas dpr={1} frameloop={paused ? 'demand' : 'always'} events={gameEvents} camera={{ position: [0, 42, 7.5], fov: 50, near: .1, far: 800 }} gl={{ alpha: false, antialias: true }}>
-      <EnvironmentScene />
-      <ParkSun quality="low" />
-      <SceneBoundary key={preparationAttempt} onStatus={onStatus}><Suspense fallback={null}>
-        <StoneRumbleEnvironment />
-        {createPortal(<><StoneRumbleLighting /><Stage {...props} /></>, playScene)}
-        <StoneRumblePreparation key={preparationAttempt} onStatus={onStatus} playScene={playScene} />
-      </Suspense></SceneBoundary>
-    </Canvas>
+    <SceneBoundary key={preparationAttempt} onStatus={onStatus}>
+      <Canvas dpr={1} frameloop={paused ? 'demand' : 'always'} events={gameEvents} camera={{ position: [0, 42, 7.5], fov: 50, near: .1, far: 800 }} gl={{ alpha: false, antialias: true }}>
+        <SceneBoundary><Suspense fallback={null}>
+          <group name="stone-rumble-backdrop-source">
+            <EnvironmentScene />
+            <ParkSun quality="low" />
+            <StoneRumbleEnvironment />
+          </group>
+        </Suspense></SceneBoundary>
+        <Suspense fallback={null}>
+          {createPortal(<><StoneRumbleLighting /><Stage {...props} /></>, playScene)}
+          <StoneRumblePreparation onStatus={onStatus} playScene={playScene} />
+        </Suspense>
+      </Canvas>
+    </SceneBoundary>
   </div>
 }, (previous, next) => {
   // 준비가 끝난 로딩 대기 중에는 서버 시각/준비 인원 갱신이 숨겨진 Canvas를 다시 그리지 않게 한다.
