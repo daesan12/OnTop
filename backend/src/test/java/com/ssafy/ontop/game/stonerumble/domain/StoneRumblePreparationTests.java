@@ -63,18 +63,18 @@ class StoneRumblePreparationTests {
         // 자동 붕괴만 분리해 확인한다. 고공의 참가자는 발판을 밟거나 경기 종료를 유발하지 않는다.
         var players = (List<?>) ReflectionTestUtils.getField(match, "players");
         players.forEach(player -> ReflectionTestUtils.setField(player, "y", 1_000_000.0));
-        for (long time = 1000; time <= 50_200; time += 1000) { match.advance(time); }
-        match.advance(50_200);
+        for (long time = 1000; time <= 76_200; time += 1000) { match.advance(time); }
+        match.advance(76_200);
         assertThat(match.snapshot().tiles().stream().filter(t -> t.floor() == 2))
-                .allSatisfy(t -> assertThat(t.breakAt()).isLessThanOrEqualTo(50_200));
+                .allSatisfy(t -> assertThat(t.breakAt()).isLessThanOrEqualTo(76_200));
         assertThat(match.snapshot().tiles().stream().filter(t -> t.floor() == 1 && Math.max(Math.abs(t.q()), Math.abs(t.r())) == 7))
-                .allSatisfy(t -> assertThat(t.breakAt()).isEqualTo(56_200));
+                .allSatisfy(t -> assertThat(t.breakAt()).isEqualTo(85_200));
         assertThat(match.snapshot().tiles().stream().filter(t -> t.floor() == 0))
                 .allSatisfy(t -> assertThat(t.breakAt()).isGreaterThan(100_000));
-        for (long time = 51_200; time <= 98_200; time += 1000) { match.advance(time); }
+        for (long time = 77_200; time <= 148_200; time += 1000) { match.advance(time); }
         assertThat(match.snapshot().tiles().stream().filter(t -> t.floor() == 1))
-                .allSatisfy(t -> assertThat(t.breakAt()).isLessThanOrEqualTo(98_200));
+                .allSatisfy(t -> assertThat(t.breakAt()).isLessThanOrEqualTo(148_200));
         assertThat(match.snapshot().tiles().stream().filter(t -> t.floor() == 0 && Math.max(Math.abs(t.q()), Math.abs(t.r())) == 8))
-                .allSatisfy(t -> assertThat(t.breakAt()).isEqualTo(104_200));
+                .allSatisfy(t -> assertThat(t.breakAt()).isEqualTo(157_200));
     }
 }

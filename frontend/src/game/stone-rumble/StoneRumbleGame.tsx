@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { PaperPopup } from '../../features/tableLobby/PaperPopup'
 import { StoneRumbleScene } from './StoneRumbleScene'
-import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, visibleStoneFloor } from './layout'
+import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, STONE_OUTER_WARNING_SECONDS, visibleStoneFloor } from './layout'
 import { nextSurvivor, survivorView } from './spectating'
 import { stoneName, type StoneControl, type StoneState } from './protocol'
 import type { StoneSceneStatus } from './StoneRumblePreparation'
@@ -33,7 +33,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     setSceneReady(ready); setSceneError(error ?? ''); onSceneStatus?.(ready, error)
   }, [onSceneStatus])
   const input = useRef({ x: 0, z: 0, aimX: 1, aimZ: 0, jump: false, fire: false, slide: false })
-  const controls = useRef({ yaw: 0, renderedYaw: 0, pointerAiming: false })
+  const controls = useRef({ yaw: 0, renderedYaw: 0, orbit: 0, pointerAiming: false })
   const keys = useRef(new Set<string>()), sequence = useRef(Date.now() * 1000)
   const sender = useRef(send)
   sender.current = send
@@ -63,6 +63,9 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     return () => window.removeEventListener('keydown', key)
   }, [])
   const loading = !preparing && !finished && (state.phase === 'LOADING' || !sceneReady)
+  const cameraEnabled = !preparing && !loading && !help && !confirmLeave && !chatOpen && !pendingElimination && !finished
+  const cameraEnabledRef = useRef(cameraEnabled)
+  cameraEnabledRef.current = cameraEnabled
   const active = !preparing && !loading && sceneReady && connected && inputReady && !!own?.alive && state.status === 'PLAYING' && state.serverTime >= state.landsAt && !help && !confirmLeave && !chatOpen
   const feedback = useStoneFeedback(state, connected && sceneReady && !preparing && (inputReady || spectating), viewingId ?? '', ownId)
   const canAttack = active && state.phase === 'RUNNING'
@@ -72,6 +75,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
   activeRef.current = active
   const stop = useCallback(() => {
     keys.current.clear()
+    controls.current.orbit = 0
     input.current.x = 0; input.current.z = 0; input.current.jump = false; input.current.fire = false; input.current.slide = false
     sender.current({ kind: 'control', seq: ++sequence.current, ...input.current }, true)
   }, [])
@@ -92,18 +96,30 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     return () => window.removeEventListener('keydown', key)
   }, [chat, preparing, sceneReady, finished, pendingElimination, help, confirmLeave, chatOpen, changeChat])
   useEffect(() => {
-    controls.current = { yaw: 0, renderedYaw: 0, pointerAiming: false }
+    controls.current = { yaw: 0, renderedYaw: 0, orbit: 0, pointerAiming: false }
     stop(); setHelp(false); setConfirmLeave(false); setResultOpen(true); setSelected(null); setChatOpen(false); setEliminationAcknowledged(false)
   }, [state.gameId, stop])
   useEffect(() => {
     if (!active) stop()
   }, [active, stop])
   useEffect(() => {
+    if (!cameraEnabled) {
+      keys.current.delete('KeyQ'); keys.current.delete('KeyR'); controls.current.orbit = 0
+    }
+  }, [cameraEnabled])
+  useEffect(() => {
     if (pendingElimination) { stop(); setHelp(false); setConfirmLeave(false); setChatOpen(false) }
   }, [pendingElimination, stop])
   useEffect(() => {
     const editable = (target: EventTarget | null) => target instanceof HTMLElement && !!target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],[role="alertdialog"]')
+    const updateOrbit = () => { controls.current.orbit = Number(keys.current.has('KeyQ')) - Number(keys.current.has('KeyR')) }
     const down = (event: KeyboardEvent) => {
+      if (event.code === 'KeyQ' || event.code === 'KeyR') {
+        if (!cameraEnabledRef.current || editable(event.target) || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return
+        event.preventDefault(); event.stopPropagation()
+        keys.current.add(event.code); updateOrbit()
+        return
+      }
       if (!activeRef.current || editable(event.target) || !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyE', 'ShiftLeft', 'ShiftRight'].includes(event.code)) return
       event.preventDefault(); event.stopPropagation()
       const shiftHeld = keys.current.has('ShiftLeft') || keys.current.has('ShiftRight')
@@ -112,7 +128,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
       if (!event.repeat && event.code === 'KeyE' && attackRef.current) input.current.fire = true
       if (!event.repeat && !shiftHeld && ['ShiftLeft', 'ShiftRight'].includes(event.code)) input.current.slide = true
     }
-    const up = (event: KeyboardEvent) => { keys.current.delete(event.code) }
+    const up = (event: KeyboardEvent) => { keys.current.delete(event.code); updateOrbit() }
     const hidden = () => { if (document.hidden) stop() }
     window.addEventListener('keydown', down); window.addEventListener('keyup', up); window.addEventListener('blur', stop)
     window.addEventListener('ontop-clear-input', stop); document.addEventListener('visibilitychange', hidden)
@@ -123,11 +139,11 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
       const z = Number(has('KeyS', 'ArrowDown')) - Number(has('KeyW', 'ArrowUp'))
       const { renderedYaw: yaw, pointerAiming } = controls.current
       const sin = Math.sin(yaw), cos = Math.cos(yaw)
-      input.current.x = x * cos + z * sin
-      input.current.z = z * cos - x * sin
+      const length = Math.max(1, Math.hypot(x, z))
+      input.current.x = (x * cos + z * sin) / length
+      input.current.z = (z * cos - x * sin) / length
       if (!pointerAiming && (x || z)) {
-        const length = Math.hypot(x, z)
-        input.current.aimX = input.current.x / length; input.current.aimZ = input.current.z / length
+        input.current.aimX = input.current.x; input.current.aimZ = input.current.z
       }
       sender.current({ kind: 'control', seq: ++sequence.current, ...input.current })
       input.current.jump = false; input.current.fire = false; input.current.slide = false
@@ -158,7 +174,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
   return <section className="stone-rumble" data-phase={state.phase} data-loading={loading} data-preparing={preparing} data-scene-ready={sceneReady} data-spectating={spectating && !pendingElimination} data-eliminated={eliminated} data-awaiting-spectate={pendingElimination} aria-label="돌탑 생존전">
     <StoneRumbleScene state={state} localOnly={localOnly} ownId={ownId} viewId={viewingId ?? ''} input={input} fire={fire}
       feedback={feedback} controls={controls}
-      cameraEnabled={!preparing && !loading && !help && !confirmLeave && !chatOpen && !pendingElimination && !finished}
+      cameraEnabled={cameraEnabled}
       onStatus={sceneStatus} preparationAttempt={preparationAttempt + retry} paused={(preparing || state.phase === 'LOADING') && sceneReady} />
     {loading && <StoneLoadingTips ready={state.readyUserIds?.length ?? 0} total={state.players.length} ownReady={sceneReady}
       error={sceneError} retry={() => sceneError.startsWith('공원 파일') ? location.reload() : setRetry(v => v + 1)} />}
@@ -171,14 +187,14 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
       <nav aria-label="경기 메뉴">{topActions}<button onClick={() => { stop(); setHelp(true) }}>조작 안내</button>{own?.alive && !finished && <button onClick={() => { stop(); setConfirmLeave(true) }}>기권</button>}</nav>
     </header>
     {eliminated && !pendingElimination && <div className="stone-rumble-eliminated-status" role="status">탈락 · {finished ? '경기 종료' : '생존자 관전 중'}</div>}
-    <div className="stone-rumble-notice" data-intro={state.phase === 'DROPPING'} role="status">{!connected ? '연결이 끊겼어요. 다시 연결하는 동안 입력을 멈춰요.' : !inputReady && !finished && !spectating ? '경기 상태를 확인하고 있어요.' : state.phase === 'DROPPING' ? <><b>구름에서 내려오는 중</b><small>3층에 착지하면 움직일 수 있어요</small></> : state.phase === 'COUNTDOWN' || starting || spectating ? '' : falling ? own?.floor === 0 ? '돌탑 아래로 떨어지고 있어요!' : '아래층으로 떨어지고 있어요!' : Number.isFinite(nextRing) && nextRing - state.serverTime < 1800 ? '바깥 발판이 곧 무너져요!' : ''}</div>
+    <div className="stone-rumble-notice" data-intro={state.phase === 'DROPPING'} role="status">{!connected ? '연결이 끊겼어요. 다시 연결하는 동안 입력을 멈춰요.' : !inputReady && !finished && !spectating ? '경기 상태를 확인하고 있어요.' : state.phase === 'DROPPING' ? <><b>구름에서 내려오는 중</b><small>3층에 착지하면 움직일 수 있어요</small></> : state.phase === 'COUNTDOWN' || starting || spectating ? '' : falling ? own?.floor === 0 ? '돌탑 아래로 떨어지고 있어요!' : '아래층으로 떨어지고 있어요!' : Number.isFinite(nextRing) && nextRing - state.serverTime < STONE_OUTER_WARNING_SECONDS * 1000 ? '바깥 발판이 곧 무너져요!' : ''}</div>
     {showCountdown && <div className="stone-rumble-countdown" role="status" aria-live="assertive" aria-atomic="true" aria-label="경기 시작 카운트다운">{state.phase === 'COUNTDOWN' ? countdown : '시작!'}</div>}
     {!finished && !pendingElimination && <footer className="stone-rumble-dock" aria-label="경기 하단바">
       {spectating ? <div className="stone-rumble-watch" aria-label="생존자 관전">
         <button disabled={!sceneReady || !viewing || chatOpen} onClick={() => cycle(-1)} aria-label="이전 생존자">‹</button>
         <span title={viewing ? name(viewing.userId) : undefined}><small>생존자 관전 · Tab</small><b>{viewing ? name(viewing.userId) : '생존자 대기'}</b></span>
         <button disabled={!sceneReady || !viewing || chatOpen} onClick={() => cycle(1)} aria-label="다음 생존자">›</button>
-      </div> : <div className="stone-rumble-shortcuts"><span><kbd>WASD</kbd> 이동</span><span><kbd>Space</kbd> 점프</span><span><kbd>E</kbd> 발사</span></div>}
+      </div> : <div className="stone-rumble-shortcuts"><span><kbd>WASD</kbd> 이동</span><span><kbd>Q/R</kbd> 시점</span><span><kbd>Space</kbd> 점프</span><span><kbd>E</kbd> 발사</span></div>}
       {!spectating && <button className="stone-rumble-slide" disabled={!active || knocked || slideCooldown > 0} onClick={slide} aria-label="슬라이딩" aria-keyshortcuts="Shift" title="Shift · 지상/공중 한 칸 다이빙 · 1초 재사용"><kbd>Shift</kbd><span>{slideCooldown > 0 ? `${slideCooldown.toFixed(1)}초` : '슬라이딩'}</span></button>}
       {chat && <button className="stone-rumble-chat-toggle" aria-label={chatOpen ? '채팅 닫기' : '채팅 열기'} aria-expanded={chatOpen} aria-keyshortcuts="Enter" onClick={() => changeChat(!chatOpen)}><img src={chatIcon} alt="" /><span>채팅</span><kbd>Enter</kbd></button>}
       {spectating && exit && <button className="stone-rumble-dock-exit" onClick={exit} aria-label="게임에서 나가기">나가기</button>}
@@ -214,7 +230,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
       <h2>핵심 조작</h2>
       <dl className="stone-rumble-help-controls" aria-label="핵심 조작 키">
         <div><dt>이동</dt><dd><kbd>WASD</kbd><span>/</span><kbd>방향키</kbd></dd></div>
-        <div><dt>시점</dt><dd>우클릭 드래그 / 휠 확대·축소 <small>터치는 경기장 드래그</small></dd></div>
+        <div><dt>시점</dt><dd><kbd>Q</kbd><span>/</span><kbd>R</kbd> 또는 우클릭 드래그 <small>휠 확대·축소 · 터치는 경기장 드래그</small></dd></div>
         <div><dt>점프</dt><dd><kbd>Space</kbd></dd></div>
         <div><dt>슬라이딩</dt><dd><kbd>Shift</kbd><small>공중에서도 한 칸 이동</small></dd></div>
         <div><dt>비둘기 공격</dt><dd><kbd>클릭</kbd><span>/</span><kbd>E</kbd><small>터치는 상대를 탭 · 1.5초 충전</small></dd></div>
@@ -229,7 +245,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
           <p>2~8명이 3층에 내려와요. 착지 후 3·2·1 동안에는 자유롭게 움직여도 발판이 사라지지 않아요. <strong>‘시작!’이 뜨면 경기 시작!</strong></p>
           <h3>2. 발판이 사라지기 전에 이동해요</h3>
           <p>밟은 발판은 <strong>1.2초 뒤에 사라져요.</strong> 황토색으로 바뀐 발판이 붉어지면 곧 무너진다는 뜻이에요. 다른 발판으로 옮겨 가세요.</p>
-          <p>시작 10초 뒤부터는 <strong>3층 바깥쪽부터 6초마다 한 겹씩</strong> 무너져요. 3층이 모두 사라지면 2층, 그다음 1층의 바깥쪽부터 무너져요.</p>
+          <p>시작 18초 뒤부터는 <strong>3층 바깥쪽부터 9초마다 한 겹씩</strong> 무너져요. 3층이 모두 사라지면 2층, 그다음 1층의 바깥쪽부터 무너져요.</p>
           <p>떨어져도 아래층에 착지하면 계속할 수 있어요. <strong>1층 아래로 더 떨어지면 탈락해요.</strong></p>
           <h3>3. 슬라이딩과 비둘기를 활용해요</h3>
           <p><strong>슬라이딩 — Shift</strong><br />몸을 앞으로 던져 한 칸 이동해요. 움직이던 방향으로, 멈춰 있다면 바라보는 방향으로 나아가요. 점프한 뒤에도 쓸 수 있고, 다시 쓰려면 1초 기다려요.</p>
