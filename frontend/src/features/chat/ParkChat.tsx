@@ -14,6 +14,7 @@ import { useChatScope } from './gameChat'
 import { noteTourAction } from '../welcomeTour/state'
 import { displayNickname } from '../gameMaster/displayName'
 import { useChatTyping } from './useChatTyping'
+import { parkXRView } from '../../world/xrView'
 
 const textControl = (target: EventTarget | null) => target instanceof HTMLElement
   && !!target.closest('input,textarea,select,button,a,[contenteditable="true"],[role="button"]')
@@ -99,7 +100,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
   }
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.repeat
+      if (parkXRView.ownsInput || event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.repeat
         || event.ctrlKey || event.altKey || event.metaKey || anotherPanel()) return
       if ((textControl(event.target) && event.target !== input.current)
         || (textControl(document.activeElement) && document.activeElement !== input.current)) return

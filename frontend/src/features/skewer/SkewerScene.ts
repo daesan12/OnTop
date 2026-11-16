@@ -7,6 +7,7 @@ import { paintWorldOrderBoard } from './worldOrderBoard'
 import { nextRoundLabel } from './presentation'
 import { SkewerSurfaces } from './surfaces'
 import { FoodModels, foodPositions, assembledFoodScale } from './foodModels'
+import { createTouchModel, disposeTouchModel } from '../vrSession/touchModel'
 
 export type SceneCommand =
   | { type: 'select'; ingredient: IngredientId }
@@ -25,6 +26,8 @@ type Pick = { ingredient: IngredientId } | { action: WorldAction } | { tip: true
 type Held = { ingredient: IngredientId; visual: THREE.Group }
 
 const COLORS = { ink: '#243b2e', paper: '#eee6d6', accent: '#b55432', wood: '#ba8d60' }
+const SOLO_VR_WORLD_SCALE = .88
+const SOLO_VR_STICK_SCALE = .56
 
 /** Imperative scene: controller poses/rendering stay outside React's render cycle. */
 export class SkewerScene {
@@ -47,6 +50,7 @@ export class SkewerScene {
   private readonly poseQuaternion = new THREE.Quaternion()
   private readonly pickables: THREE.Mesh[] = []
   private readonly controllers: ReturnType<THREE.WebGLRenderer['xr']['getController']>[] = []
+  private readonly controllerModels: THREE.Group[] = []
   private readonly held = new Map<number, Held>()
   private readonly geometries = new Map<string, THREE.BufferGeometry>()
   private readonly materials = new Map<string, THREE.MeshStandardMaterial>()
@@ -144,7 +148,7 @@ export class SkewerScene {
     this.particles.visible = false
     this.particles.frustumCulled = false
     this.world.add(this.particles)
-    const tipMaterial = new THREE.MeshBasicMaterial({ color: '#dfb44e' })
+    const tipMaterial = new THREE.MeshBasicMaterial({ color: '#dfb44e', toneMapped: false })
     this.ownedMaterials.add(tipMaterial)
     this.tipMarker = new THREE.Mesh(this.geometry('tip-ring', () => new THREE.TorusGeometry(0.039, 0.005, 8, 24)), tipMaterial)
     this.tipMarker.rotation.y = Math.PI / 2
@@ -509,12 +513,15 @@ export class SkewerScene {
     this.world.add(this.assembly)
     this.assembly.position.set(0, SKEWER_TIP.y, SKEWER_TIP.z)
     this.assembly.rotation.set(0, 0, 0)
+    this.assembly.scale.setScalar(this.session ? SOLO_VR_STICK_SCALE : 1)
     this.stickHolder = null
   }
 
   private setupControllers(): void {
     for (let i = 0; i < 2; i++) {
       const controller = this.renderer.xr.getController(i)
+      const grip = this.renderer.xr.getControllerGrip(i), model = createTouchModel()
+      grip.add(model); this.scene.add(grip); this.controllerModels.push(model)
       const geometry = this.geometry('ray', () => new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -1)]))
       const material = new THREE.LineBasicMaterial({ color: '#eddcb4', transparent: true, opacity: 0.75 })
       this.ownedMaterials.add(material)
@@ -530,6 +537,7 @@ export class SkewerScene {
         if ('ingredient' in pick && this.state.phase === 'playing' && currentCard(this.state).kind === 'order') {
           if (availablePieces(this.state.skewer, pick.ingredient) <= 0 || [...this.held.values()].some(held => held.ingredient === pick.ingredient)) return
           const visual = this.ingredient(pick.ingredient)
+          visual.scale.multiplyScalar(SOLO_VR_WORLD_SCALE * SOLO_VR_STICK_SCALE)
           visual.position.set(0, 0, -0.18)
           // Food is pierced along its local X axis, aligned with the controller ray.
           visual.rotation.y = Math.PI / 2
@@ -561,7 +569,9 @@ export class SkewerScene {
         const pick = this.controllerHit(i)?.object.userData.pick as Pick | undefined
         if (pick && ('stick' in pick || 'tip' in pick)) {
           controller.add(this.assembly)
-          this.assembly.position.set(0, -0.03, -0.12)
+          const scale = SOLO_VR_WORLD_SCALE * SOLO_VR_STICK_SCALE
+          this.assembly.scale.setScalar(scale)
+          this.assembly.position.set(.9 * scale, -0.03, -0.12)
           this.assembly.rotation.set(0, 0, 0)
           this.stickHolder = i
           this.pulse(i, 0.14, 24)
@@ -692,7 +702,7 @@ export class SkewerScene {
     if (!window.isSecureContext) throw new Error('VR은 보안 주소가 필요해요. USB 연결 후 퀘스트에서 http://localhost:5187/skewer.html을 여세요.')
     if (!navigator.xr) throw new Error('이 브라우저는 VR을 지원하지 않아요. 퀘스트 브라우저에서 열어주세요.')
     if (this.session) { await this.session.end(); return }
-    const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] })
+    const session = await navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'] })
     if (this.disposed) { await session.end(); return }
     this.session = session
     session.addEventListener('visibilitychange', this.onXRVisibility)
@@ -713,6 +723,10 @@ export class SkewerScene {
 
   private onSessionStart = (): void => {
     this.controls.enabled = false
+    this.world.scale.setScalar(SOLO_VR_WORLD_SCALE)
+    this.assembly.scale.setScalar(SOLO_VR_STICK_SCALE)
+    this.tipMarker.scale.setScalar(1.65); this.tipMarker.renderOrder = 150
+    this.tipMarker.material.transparent = true; this.tipMarker.material.depthTest = false; this.tipMarker.material.depthWrite = false
     this.calibrate = true
     this.xrPanel.visible = true
     this.callbacks.xrChanged(true)
@@ -726,6 +740,9 @@ export class SkewerScene {
     this.xrPanel.visible = false
     this.world.position.set(0, 0, 0)
     this.world.rotation.set(0, 0, 0)
+    this.world.scale.setScalar(1); this.assembly.scale.setScalar(1)
+    this.tipMarker.rotation.set(0, Math.PI / 2, 0); this.tipMarker.scale.setScalar(1); this.tipMarker.renderOrder = 0
+    this.tipMarker.material.transparent = false; this.tipMarker.material.depthTest = true; this.tipMarker.material.depthWrite = true
     this.resetView()
     this.controls.enabled = window.matchMedia('(pointer: fine)').matches
     this.resize()
@@ -801,11 +818,12 @@ export class SkewerScene {
       const xrCamera = this.renderer.xr.getCamera()
       xrCamera.getWorldPosition(this.origin)
       xrCamera.getWorldDirection(this.direction)
-      this.world.position.set(this.origin.x, this.origin.y - 1.6, this.origin.z)
+      this.world.position.set(this.origin.x, Math.min(0, this.origin.y - 1.4), this.origin.z)
       this.world.rotation.y = Math.atan2(-this.direction.x, -this.direction.z)
       this.calibrate = false
     }
     if (this.renderer.xr.isPresenting) {
+      this.tipMarker.lookAt(this.renderer.xr.getCamera().getWorldPosition(this.origin))
       let aligned = false
       const alignedNow = new Set<number>()
       this.held.forEach((held, index) => {
@@ -857,6 +875,7 @@ export class SkewerScene {
     this.renderer.xr.removeEventListener('sessionend', this.onSessionEnd)
     this.clearHeld()
     this.returnStick()
+    this.controllerModels.forEach(disposeTouchModel)
     this.geometries.forEach(geometry => geometry.dispose())
     this.ownedMaterials.forEach(material => material.dispose())
     this.textures.forEach(texture => texture.dispose())

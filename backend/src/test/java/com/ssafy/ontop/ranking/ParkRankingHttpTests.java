@@ -87,8 +87,11 @@ class ParkRankingHttpTests {
         assertThat(body.at("/jumpRope/0/misses").asLong()).isEqualTo(1);
         assertThat(body.at("/jumpRope/0/completedAt").asText()).isEqualTo("2026-11-02T00:59:57Z");
         assertThat(body.at("/jumpRope/0/gameMaster").asBoolean()).isFalse();
-        assertThat(body.has("bungeoppang")).isFalse();
-        assertThat(body.has("jumpmap")).isFalse();
+        assertThat(body.path("bungeoppang").isArray()).isTrue();
+        assertThat(body.path("jumpmap").isArray()).isTrue();
+        assertThat(body.path("skewer").isArray()).isTrue();
+        assertThat(body.path("jumpRopeStartsAt").asText()).isEqualTo("2026-11-16T05:00:00Z");
+        assertThat(body.path("jumpRopeEndsAtExclusive").asText()).isEqualTo("2026-11-18T15:00:00Z");
         assertThat(body.has("singleGameProfit")).isFalse();
         assertThat(body.has("wins")).isFalse();
         assertThat(body.path("updatedAt").asText()).isEqualTo(updatedAt.toString());

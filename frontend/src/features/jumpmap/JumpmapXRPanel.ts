@@ -6,7 +6,7 @@ import { parseJumpmapRankings, type JumpmapRankings } from './ranking'
 import { paintJumpmapXRGuide } from './xrGuide'
 import { parkGuideArt, paintParkXRGuide } from '../parkXR/guide'
 import { paintGuideButton, paintGuideNotePaper, paintGuidePaper, TOUCH_GUIDE_COLORS } from '../vrGuide/touchControllerGuide'
-import { requestXRHeightReset, setXRComfort, turnLabel, useXRComfort } from '../parkXR/comfort'
+import { requestXRHeightReset, setXRComfort, turnLabel, useXRComfort, XR_EYE_HEIGHTS } from '../parkXR/comfort'
 
 const WIDTH = 1536, HEIGHT = 1024
 interface Button { id: JumpmapXRAction; x: number; y: number; width: number; height: number }
@@ -91,7 +91,7 @@ export class JumpmapXRPanel {
       { id: 'turn-mode', label: `회전 방식: ${turnLabel(s)}` },
       { id: 'turn-value', label: s.turnMode === 'smooth' ? `회전 속도: ${s.turnSpeed}도/초` : `스냅 각도: ${s.snapAngle}도` },
       { id: 'posture', label: `자세: ${s.posture === 'standing' ? '서서' : '앉아서'}` },
-      { id: 'eye-height', label: `앉기 기준: ${s.seatedEyeHeight.toFixed(1)}m` },
+      { id: 'eye-height', label: `앉기 기준: ${s.seatedEyeHeight}m` },
       { id: 'reset-height', label: '현재 자세로 눈높이 재설정' },
       { id: 'comfort-back', label: '안내로 돌아가기 · A' },
     ] }
@@ -162,7 +162,10 @@ export class JumpmapXRPanel {
       ? { turnSpeed: s.turnSpeed === 60 ? 90 : s.turnSpeed === 90 ? 120 : 60 }
       : { snapAngle: s.snapAngle === 30 ? 45 : 30 })
     if (action === 'posture') setXRComfort({ posture: s.posture === 'standing' ? 'seated' : 'standing' })
-    if (action === 'eye-height') setXRComfort({ seatedEyeHeight: s.seatedEyeHeight === 1.4 ? 1.6 : s.seatedEyeHeight === 1.6 ? 1.8 : 1.4 })
+    if (action === 'eye-height') {
+      const next = (XR_EYE_HEIGHTS.indexOf(s.seatedEyeHeight) + 1) % XR_EYE_HEIGHTS.length
+      setXRComfort({ seatedEyeHeight: XR_EYE_HEIGHTS[next] })
+    }
     if (action === 'reset-height') requestXRHeightReset()
     if (action === 'continue') { this.guide = this.parkGuide = false; this.cancelRanking(); closeJumpCompletion() }
     if (action === 'park-guide') this.showParkGuide()

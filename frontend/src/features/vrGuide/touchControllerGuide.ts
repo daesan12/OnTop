@@ -5,6 +5,7 @@ type Point = readonly [number, number]
 export const PARK_TOUCH_BINDINGS = [
   ['이동', '왼쪽 스틱 기울이기'], ['달리기', '왼손 그립 + 이동'], ['안내 열기·닫기', '왼손 X 버튼'], ['시점 회전', '오른쪽 스틱 좌우'],
   ['점프 / 안내 닫기', '오른손 A 버튼'], ['VR 종료', '오른손 B 버튼'], ['가리킨 버튼 선택', '양손 검지 트리거'],
+  ['주변 채팅 열기·닫기', '왼손 Y 버튼'],
 ]
 export function touchBindings(mode: TouchGuideMode): string[][] {
   return mode === 'park' ? PARK_TOUCH_BINDINGS : [
@@ -44,14 +45,15 @@ function controller(ctx: CanvasRenderingContext2D, x: number, right: boolean, mo
   circle(ctx, -39, -8, 26, mode === 'park' ? '#e5bf71' : '#e4e2d6')
   circle(ctx, -39, -8, 17, mode === 'park' ? '#45674f' : '#9a9e8e')
   circle(ctx, 27, 18, 18, mode === 'park' ? '#e5bf71' : '#e4e2d6')
-  circle(ctx, 44, -18, 18, (mode === 'park' || mode === 'chef') && right ? '#e5bf71' : '#e4e2d6', (mode === 'park' || mode === 'chef') && right ? ink : '#a7aa98')
+  const secondaryUsed = mode === 'park' || mode === 'chef' && right
+  circle(ctx, 44, -18, 18, secondaryUsed ? '#e5bf71' : '#e4e2d6', secondaryUsed ? ink : '#a7aa98')
   circle(ctx, -13, 30, 8, '#e4e2d6', '#a7aa98')
   ctx.beginPath(); ctx.moveTo(-12, 222); ctx.lineTo(-12, 245); ctx.strokeStyle = '#a6946e'; ctx.lineWidth = 3; ctx.stroke()
   ctx.restore()
   // Draw face labels after mirroring so letters remain readable on both hands.
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 24px "Malgun Gothic", sans-serif'
   ctx.fillStyle = mode === 'park' ? ink : '#7d8472'; ctx.fillText(right ? 'A' : 'X', ...point(27, 18))
-  ctx.fillStyle = (mode === 'park' || mode === 'chef') && right ? ink : '#7d8472'; ctx.fillText(right ? 'B' : 'Y', ...point(44, -18))
+  ctx.fillStyle = secondaryUsed ? ink : '#7d8472'; ctx.fillText(right ? 'B' : 'Y', ...point(44, -18))
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'
   return { stick: point(-39, -8), primary: point(27, 18), secondary: point(44, -18), grip: point(52, 110), trigger: point(88, 33) }
 }
@@ -82,6 +84,7 @@ export function paintTouchControllerGuide(ctx: CanvasRenderingContext2D, mode: T
     callout(ctx, 5, [1280, 560], [[1147, 560], [1147, 466], [right.primary[0], 466], [right.primary[0], right.primary[1] + 16]])
     callout(ctx, 6, [768, 314], [[880, 314], [right.secondary[0], right.secondary[1] - 16]])
     callout(ctx, 7, [768, 560], [[650, 560], [650, left.trigger[1]], left.trigger])
+    callout(ctx, 8, [768, 400], [[670, 400], [670, 350], [left.secondary[0], 350], [left.secondary[0], left.secondary[1] - 16]])
     ctx.strokeStyle = '#6e795d'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(793, 560)
     ctx.lineTo(886, 560); ctx.lineTo(886, right.trigger[1]); ctx.lineTo(...right.trigger); ctx.stroke()
     circle(ctx, ...right.trigger, 5, gold, ink)

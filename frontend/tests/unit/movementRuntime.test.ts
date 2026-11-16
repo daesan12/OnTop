@@ -116,13 +116,13 @@ describe('M14 authenticated REST and movement ownership boundary', () => {
     expect(useSession.getState().pending).toBe(false)
   })
 
-  it.each(['PC', 'VR'])('sends the %s skewer ranking through the authenticated runtime', async mode => {
+  it.each(['PC', 'VR', 'ALL'])('sends the %s skewer ranking through the authenticated runtime', async mode => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ playMode: mode, items: [] }))
     const path = `/api/v1/minigames/skewer/coop/rankings?mode=${mode}`
     await runtime.requestJSON(path)
     expect(fetch).toHaveBeenLastCalledWith(path, expect.objectContaining({ headers: { Authorization: 'Bearer fixture-access' } }))
   })
-  it.each(['mode=pc', 'mode=PC&userId=999', 'mode=VR&mode=PC'])('blocks unsupported skewer ranking query %s', async query => {
+  it.each(['mode=pc', 'mode=PC&userId=999', 'mode=VR&mode=PC', 'mode=ALL&userId=999', 'mode=all'])('blocks unsupported skewer ranking query %s', async query => {
     vi.mocked(fetch).mockClear()
     await expect(runtime.requestJSON(`/api/v1/minigames/skewer/coop/rankings?${query}`)).rejects.toThrow('사용할 수 없는 요청')
     expect(fetch).not.toHaveBeenCalled()

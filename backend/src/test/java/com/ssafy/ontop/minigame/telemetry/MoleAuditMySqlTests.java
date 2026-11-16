@@ -45,6 +45,7 @@ class MoleAuditMySqlTests {
     @Autowired private ObjectMapper mapper;
     @Autowired private AccessJwtService jwt;
     @Autowired private MoleAuditStore store;
+    @Autowired private MoleTimingAudit timingAudit;
     @MockitoBean private ActiveMemberLookup members;
     private final HttpClient http = HttpClient.newHttpClient();
 
@@ -141,6 +142,61 @@ class MoleAuditMySqlTests {
         }
     }
 
+    @Test
+    void 타이밍_신호는_판_확정_뒤_저장되고_관리자만_게임별로_조회한다() throws Exception {
+        member(301);
+        member(302);
+        activeMember(201);
+        Instant now = Instant.now();
+        var steady = new MoleTimingSignals.Signals(60, 210, List.of(new MoleTimingSignals.Segment(30, 210, 1),
+                new MoleTimingSignals.Segment(30, 211, 2), new MoleTimingSignals.Segment(0, null, null)), false, true);
+        var fast = new MoleTimingSignals.Signals(25, 120, List.of(new MoleTimingSignals.Segment(25, 120, 30),
+                new MoleTimingSignals.Segment(0, null, null), new MoleTimingSignals.Segment(0, null, null)), true, false);
+        var normal = new MoleTimingSignals.Signals(40, 320, List.of(new MoleTimingSignals.Segment(40, 320, 60),
+                new MoleTimingSignals.Segment(0, null, null), new MoleTimingSignals.Segment(0, null, null)), false, false);
+        round(MoleAuditGame.SPEED, 601, 301, now);
+        round(MoleAuditGame.SPEED, 602, 301, now);
+        round(MoleAuditGame.SPEED, 603, 302, now);
+        round(MoleAuditGame.MOLE, 604, 302, now);
+        timingAudit.settled("speed-mole", 301, 601, 1, () -> steady, now.minusSeconds(2));
+        timingAudit.settled("speed-mole", 301, 602, 1, () -> fast, now.minusSeconds(1));
+        timingAudit.settled("speed-mole", 301, 602, 1, () -> normal, now);
+        timingAudit.settled("speed-mole", 302, 603, 1, () -> normal, now);
+        timingAudit.settled("whack-a-mole", 302, 604, 3, () -> steady, now);
+        await().atMost(Duration.ofSeconds(8)).until(() -> jdbc.queryForObject(
+                "SELECT COUNT(*) FROM mole_timing_audits WHERE round_id BETWEEN 601 AND 604", Integer.class) == 4);
+
+        String path = "/api/v1/admin/macro-analysis/mole/timing?game=speed-mole";
+        assertThat(send(path, 0, null).statusCode()).isEqualTo(401);
+        assertThat(send(path, 301, null).statusCode()).isEqualTo(403);
+        var response = send(path, 201, null);
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("Cache-Control")).hasValue("no-store");
+        var items = mapper.readTree(response.body()).path("items");
+        assertThat(items.size()).isEqualTo(1);
+        var member = items.get(0);
+        assertThat(member.path("userId").asText()).isEqualTo("301");
+        assertThat(member.path("nickname").asText()).isEqualTo("audit301");
+        assertThat(member.path("flaggedRounds").asInt()).isEqualTo(2);
+        assertThat(member.path("fastRounds").asInt()).isEqualTo(1);
+        assertThat(member.path("steadyRounds").asInt()).isEqualTo(1);
+        assertThat(member.path("auditedRounds").asInt()).isEqualTo(2);
+        assertThat(member.path("lowestMedianReactionMs").asInt()).isEqualTo(120);
+        assertThat(member.path("latestRoundId").asText()).isEqualTo("602");
+
+        var detail = mapper.readTree(send("/api/v1/admin/macro-analysis/mole/601?game=speed-mole&input=KEYBOARD",
+                201, null).body()).path("timing");
+        assertThat(detail.path("steady").booleanValue()).isTrue();
+        assertThat(detail.path("medianReactionMs").asInt()).isEqualTo(210);
+        assertThat(detail.path("segments").size()).isEqualTo(3);
+        assertThat(detail.path("segments").get(1).path("spreadMs").asInt()).isEqualTo(2);
+        assertThat(detail.path("segments").get(2).path("medianMs").isNull()).isTrue();
+        round(MoleAuditGame.SPEED, 605, 302, now);
+        var withoutTiming = send("/api/v1/admin/macro-analysis/mole/605?game=speed-mole&input=KEYBOARD", 201, null);
+        assertThat(withoutTiming.statusCode()).isEqualTo(200);
+        assertThat(mapper.readTree(withoutTiming.body()).path("timing").isNull()).isTrue();
+    }
+
     private void completionSignal(MoleAuditGame game, long id, long user, Instant time, String source) {
         jdbc.update("""
                 INSERT INTO behavior_events (event_id,event_type,schema_version,source,occurred_at,user_id,game_id,props)
@@ -188,9 +244,13 @@ class MoleAuditMySqlTests {
         }
     }
 
-    private void member(long user) {
+    private void activeMember(long user) {
         when(members.findActive(user, TestLoginSessions.ID)).thenReturn(Optional.of(new AuthenticatedUser(
                 user, LoginProvider.NAVER, TestLoginSessions.ID)));
+    }
+
+    private void member(long user) {
+        activeMember(user);
         jdbc.update("""
                 INSERT INTO users (id,login_provider,provider_user_id,nickname,character_gender,created_at,updated_at)
                 VALUES (?,'NAVER',?,?,'MALE',CURRENT_TIMESTAMP(3),CURRENT_TIMESTAMP(3))

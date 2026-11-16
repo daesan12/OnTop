@@ -41,7 +41,7 @@ import { tableEntry } from '../tableLobby/tableEntry'
 import { useTableLobby } from '../tableLobby/state'
 import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
 import { STONE_RUMBLE_GUIDE_ID, stoneRumbleStelePosition } from '../../game/stone-rumble/entranceStele'
-import { openManual } from '../manual/manualState'
+import { openStoneRumbleGuide, stoneRumbleGuideScope } from '../../game/stone-rumble/guideState'
 import { STONE_RUMBLE_ENABLED } from '../tableLobby/model'
 import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
@@ -270,7 +270,7 @@ export function interactWithPark(expectedId?: string): boolean {
     return !!pose && interiorVisit.addDiamond(visitScope(sessionId, roomId), pose)
   }
   if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
-  else if (target.kind === 'stone-rumble-guide') openManual('stone-rumble')
+  else if (target.kind === 'stone-rumble-guide') openStoneRumbleGuide(stoneRumbleGuideScope(useSession.getState()))
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
   else if (target.kind === 'ranking-board') openRankingBoard()
   else if (target.kind === 'joke-judge') openJokeContest()

@@ -121,12 +121,12 @@ class JumpRopeHttpTests {
     }
 
     @Test void keeps_rankings_page_defaults_and_serializes_no_personal_record_as_null() throws Exception {
-        when(service.rankings(101, 10, 0)).thenReturn(new JumpRopeDtos.Rankings(1, "ALL_TIME", NOW,
+        when(service.rankings(101, 10, 0)).thenReturn(new JumpRopeDtos.Rankings(1, "EVENT", NOW,
                 0, 0, 10, List.of(), null, false));
         var response = send(request(BASE + "/rankings", true).GET());
         assertStatus(response, 200);
         var body = mapper.readTree(response.body());
-        assertThat(body.path("period").asText()).isEqualTo("ALL_TIME");
+        assertThat(body.path("period").asText()).isEqualTo("EVENT");
         assertThat(body.path("me").isNull()).isTrue();
         assertThat(body.path("items").isEmpty()).isTrue();
         assertStatus(send(request(BASE + "/rankings?limit=a", true).GET()), 400);

@@ -36,6 +36,8 @@ export type CabinPose = { x: number; z: number; yaw: number; seatIndex: number; 
 export type BalloonRiderPose = Point & Pick<CabinPose, 'yaw' | 'seatIndex' | 'moving'>
 
 export const idleCabin: CabinPose = { x: 0, z: 0, yaw: Math.PI, seatIndex: -1, moving: false }
+export const sightseeingCabin: CabinPose = { ...idleCabin, x: .39, z: 1.02, yaw: .4 }
+export const SIGHTSEEING_STEP_HEIGHT = .62
 
 export function walkCabin(pose: CabinPose, input: Input, elapsed: number): CabinPose {
   if (pose.seatIndex >= 0) return pose

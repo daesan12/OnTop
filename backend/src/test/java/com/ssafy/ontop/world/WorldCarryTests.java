@@ -19,6 +19,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WorldCarryTests {
     @Test
+    void VR_보호만_켜져있으면_운반은_막고_대여는_허용한다() throws Exception {
+        try (var pair = pair()) {
+            var registry = pair.registry();
+            var vr = registry.interactionBusy("b", false, true);
+
+            assertThat(vr.busy()).isTrue();
+            assertThat(registry.carryAvailable("b")).isFalse();
+            assertThat(registry.mobilityAvailable("b")).isTrue();
+
+            registry.interactionBusy("b", true, true);
+            assertThat(registry.mobilityAvailable("b")).isFalse();
+
+            registry.interactionBusy("b", false, true, true);
+            assertThat(registry.mobilityAvailable("b")).isFalse();
+        }
+    }
+
+    @Test
     void VR_표시는_창점유와_구분하고_종료_후_창점유는_유지한다() throws Exception {
         try (var pair = pair()) {
             var registry = pair.registry();

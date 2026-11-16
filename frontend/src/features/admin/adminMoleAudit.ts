@@ -40,6 +40,22 @@ interface Comparison {
   rapid: Distribution
 }
 
+export interface TimingSegment {
+  samples: number
+  medianMs: number | null
+  spreadMs: number | null
+}
+
+/** 판 확정 때 서버가 남긴 타이밍 신호. 기능 배포 전 판이나 확정되지 않은 판은 null이다. */
+export interface AuditTiming {
+  reactions: number
+  medianReactionMs: number | null
+  segments: TimingSegment[]
+  fastReaction: boolean
+  steady: boolean
+  recordedAt: string
+}
+
 export interface AuditDetail {
   selected: AuditRound
   nickname: string | null
@@ -48,6 +64,7 @@ export interface AuditDetail {
   recent: AuditRound[]
   member: Comparison
   reference: Comparison
+  timing: AuditTiming | null
 }
 
 export interface AuditFilters {
@@ -74,6 +91,42 @@ export interface MoleDetections {
   from: string
   until: string
   limit: number
+}
+
+export interface MoleTimingMember {
+  userId: string
+  nickname: string | null
+  withdrawn: boolean
+  flaggedRounds: number
+  fastRounds: number
+  steadyRounds: number
+  auditedRounds: number
+  lowestMedianReactionMs: number | null
+  latestRoundId: string
+  lastDetectedAt: string
+}
+
+export interface MoleTimingDetections {
+  items: MoleTimingMember[]
+  from: string
+  until: string
+  limit: number
+}
+
+/** 적발 목록에서 판 상세를 열 때 쓰는 공통 정보. */
+export type MoleDetectionLink = Pick<MoleDetectedMember, 'userId' | 'latestRoundId' | 'lastDetectedAt'>
+
+/** 서버 MoleTimingSignals와 같은 기준값. 운영자 화면의 설명에만 쓴다. */
+export const moleTimingCriteria = {
+  fastMedianMs: 150,
+  fastMinReactions: 20,
+  'whack-a-mole': { segmentSeconds: 30, minSamples: 8, steadyMs: 12, steadyLabel: '구간 내 일정한 반응', sample: '반응 시간' },
+  'speed-mole': { segmentSeconds: 20, minSamples: 10, steadyMs: 8, steadyLabel: '구간 내 일정한 간격', sample: '타격 간격' },
+} as const
+
+export function timingSegmentLabel(game: MoleGame, index: number) {
+  const seconds = moleTimingCriteria[game].segmentSeconds
+  return `${index + 1}구간 (${index * seconds}–${(index + 1) * seconds}초)`
 }
 
 const BASE = '/api/v1/admin/macro-analysis/mole'
@@ -120,4 +173,8 @@ export function readMoleAudit(game: MoleGame, roundId: string, input: MoleInput,
 
 export function readMoleDetections(game: MoleGame, signal: AbortSignal) {
   return request<MoleDetections>(`${BASE}/detections?${new URLSearchParams({ game })}`, signal)
+}
+
+export function readMoleTimingDetections(game: MoleGame, signal: AbortSignal) {
+  return request<MoleTimingDetections>(`${BASE}/timing?${new URLSearchParams({ game })}`, signal)
 }

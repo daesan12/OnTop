@@ -17,6 +17,7 @@ final class JumpRopeRepository {
                            ORDER BY r.score DESC, r.miss_count ASC, r.completed_at ASC, r.id ASC) AS choice
                 FROM jump_rope_rounds r JOIN users u ON u.id = r.user_id
                 WHERE r.status = 'SETTLED' AND r.rules_version = ? AND u.deleted_at IS NULL
+                  AND r.started_at >= ? AND r.completed_at < ?
             ), ranked AS (
                 SELECT *, RANK() OVER (ORDER BY score DESC, miss_count ASC) AS place
                 FROM choices WHERE choice = 1
@@ -71,12 +72,14 @@ final class JumpRopeRepository {
         return jdbc.query(BESTS + """
                 SELECT place, nickname, score FROM ranked
                 ORDER BY score DESC, miss_count ASC, completed_at ASC, id ASC LIMIT ? OFFSET ?
-                """, JumpRopeRepository::item, rulesVersion, limit, offset);
+                """, JumpRopeRepository::item, rulesVersion, Timestamp.from(JumpRopeRankingWindow.START),
+                Timestamp.from(JumpRopeRankingWindow.END_EXCLUSIVE), limit, offset);
     }
 
     JumpRopeDtos.PersonalBest me(int rulesVersion, long userId) {
         return jdbc.query(BESTS + "SELECT place, nickname, score FROM ranked WHERE user_id = ?",
-                JumpRopeRepository::item, rulesVersion, userId).stream().findFirst()
+                JumpRopeRepository::item, rulesVersion, Timestamp.from(JumpRopeRankingWindow.START),
+                Timestamp.from(JumpRopeRankingWindow.END_EXCLUSIVE), userId).stream().findFirst()
                 .map(item -> new JumpRopeDtos.PersonalBest(item.rank(), item.nickname(), item.score())).orElse(null);
     }
 
@@ -84,7 +87,9 @@ final class JumpRopeRepository {
         return jdbc.queryForObject("""
                 SELECT COUNT(DISTINCT r.user_id) FROM jump_rope_rounds r JOIN users u ON u.id = r.user_id
                 WHERE r.status = 'SETTLED' AND r.rules_version = ? AND u.deleted_at IS NULL
-                """, Long.class, rulesVersion);
+                  AND r.started_at >= ? AND r.completed_at < ?
+                """, Long.class, rulesVersion, Timestamp.from(JumpRopeRankingWindow.START),
+                Timestamp.from(JumpRopeRankingWindow.END_EXCLUSIVE));
     }
 
     private static JumpRopeDtos.Item item(ResultSet row, int index) throws SQLException {

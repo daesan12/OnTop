@@ -7,7 +7,7 @@ const state = (page: Page) => page.evaluate(async p => (await import(p)).snapsho
 async function enter(page: Page) {
   const errors: string[] = []
   page.on('pageerror', e => errors.push(e.message))
-  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+  page.on('console', m => { if (m.type() === 'error') errors.push(`${m.location().url} ${m.text()}`.trim()) })
   await page.addInitScript(() => Object.defineProperty(navigator, 'xr', { configurable: true,
     value: Object.assign(new EventTarget(), { isSessionSupported: async () => true }) }))
   const server = await parkFixture(page, { carrySupported: true })
@@ -45,12 +45,20 @@ test('정면 팁 없이 연속·정밀 회전하고 X 안내를 닫으면 다시
   const { errors } = await enter(page)
   expect((await state(page)).statusVisible).toBe(false)
   expect((await state(page)).dialogVisible).toBe(false)
-  const offset = (await page.evaluate(async p => (await import(p)).rotationSamples(), xr)).length
-  await page.evaluate(async p => (await import(p)).input(0, false, .4), xr)
-  await page.waitForTimeout(500)
-  const samples: number[] = await page.evaluate(async p => (await import(p)).rotationSamples(), xr)
-  const turns = samples.slice(offset)
-  expect(turns.length).toBeGreaterThan(5)
+  const offset = await page.evaluate(async p => {
+    const xr = await import(p)
+    const offset = xr.rotationSamples().length
+    xr.input(0, false, .4)
+    return offset
+  }, xr)
+  const sampleCount = 14
+  let turns: number[] = []
+  // 렌더링이 느리면 500ms 안에 처리되는 프레임 수가 달라진다.
+  await expect.poll(async () => {
+    turns = (await page.evaluate(async p => (await import(p)).rotationSamples(), xr))
+      .slice(offset, offset + sampleCount)
+    return turns.length
+  }).toBe(sampleCount)
   // 기본 90도/초의 선형 입력: .4 기울기는 약 24도/초다. 예전 제곱 감쇠보다 빠르되
   // 단일 프레임은 50ms 한도 내에서만 회전해 시점이 한꺼번에 튀지 않는다.
   expect(Math.abs(turns.at(-1)! - turns[0]!)).toBeGreaterThan(.1)

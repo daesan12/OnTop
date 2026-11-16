@@ -159,6 +159,7 @@ export default function LocalBalloonHud() {
   const [selectedCapacity, setSelectedCapacity] = useState(1)
   const [selectedMode, setSelectedMode] = useState<ControlMode>('solo')
   const panel = useLocalBalloon(s => s.panel)
+  const xrSightseeing = useLocalBalloon(s => s.xrSightseeing)
   const phase = useLocalBalloon(s => s.flight?.phase)
   const seconds = useLocalBalloon(s => Math.ceil(s.flight?.seconds ?? 0))
   const paymentError = useLocalBalloon(s => s.paymentError)
@@ -185,6 +186,8 @@ export default function LocalBalloonHud() {
     const unwatch = watchLocalBalloonSession()
     return () => { unwatch(); cancelLocalBalloon() }
   }, [])
+
+  if (xrSightseeing) return null
 
   if (panel === 'manual') return <PaperPopup key="manual" title={<strong>열기구 이용 안내</strong>} label="열기구 이용 안내"
     className="park-balloon-paper park-balloon-guide" closeLabel="탑승 화면으로 돌아가기" onClose={() => showLocalBalloonManual(false)}>

@@ -13,7 +13,7 @@ const CRUISE_HEIGHT = 54
 const TAKEOFF_RISE = 10
 
 export type Point = { x: number; y: number; z: number }
-export type BalloonBoarding = { capacity: number; mode: ControlMode } | { leaderId: string }
+export type BalloonBoarding = { capacity: number; mode?: ControlMode } | { leaderId: string }
 export type Input = { x: number; z: number; lift: number }
 export type FlightMap = {
   dock: Point
@@ -66,13 +66,28 @@ export function stepUncrewedFlight(flight: Flight, waiting: boolean, dt: number,
   return land(flight, safe?.position ?? { x, y, z }, safe?.exit ?? map.dockExit, 'field')
 }
 
-export function stepFlight(flight: Flight, input: Input, dt: number, map: FlightMap, elapsed = dt): Flight {
+const SIGHTSEEING_HEIGHT = 43
+
+export function stepSightseeingFlight(flight: Flight, dt: number, map: FlightMap, elapsed = dt): Flight {
+  const { x, y, z } = flight.position
+  // Climb above the hill before crossing the park. Ease to a stop over the center.
+  const distance = Math.hypot(x, z)
+  const fromDock = Math.hypot(x - map.dock.x, z - map.dock.z)
+  const speed = y >= SIGHTSEEING_HEIGHT - .15 ? Math.min(.32, .055 + fromDock / 32, distance / 45) : 0
+  return stepFlight(flight, {
+    x: distance > .1 ? -x / distance * speed : 0,
+    z: distance > .1 ? -z / distance * speed : 0,
+    lift: Math.max(0, Math.min(.65, (SIGHTSEEING_HEIGHT - y) / 3)),
+  }, dt, map, elapsed, true)
+}
+
+export function stepFlight(flight: Flight, input: Input, dt: number, map: FlightMap, elapsed = dt, sightseeing = false): Flight {
   const { phase, position: { x, y, z } } = flight
   const dock = map.dock
   const seconds = Math.max(0, flight.seconds - elapsed)
   if (phase === 'takeoff') {
     const target = dock.y + TAKEOFF_RISE
-    const altitude = approach(y, target, 4 * dt)
+    const altitude = approach(y, target, (sightseeing ? 2.6 : 4) * dt)
     return { ...flight, phase: altitude === target ? 'flying' : phase, position: { x, y: altitude, z }, seconds }
   }
   if (phase === 'flying') {
@@ -100,15 +115,17 @@ export function stepFlight(flight: Flight, input: Input, dt: number, map: Flight
   }
   if (phase === 'returning') {
     const distance = Math.hypot(dock.x - x, dock.z - z)
-    if (distance > 0 && y < CRUISE_HEIGHT) {
-      return { ...flight, position: { x, y: approach(y, CRUISE_HEIGHT, 8 * dt), z } }
+    const returnHeight = sightseeing ? SIGHTSEEING_HEIGHT : CRUISE_HEIGHT
+    if (distance > 0 && y < returnHeight) {
+      return { ...flight, position: { x, y: approach(y, returnHeight, (sightseeing ? 2.6 : 8) * dt), z } }
     }
     if (distance > 0) {
-      const progress = Math.min(1, 17 * dt / distance)
+      const speed = sightseeing ? Math.min(5, Math.max(.6, distance / 2)) : 17
+      const progress = Math.min(1, speed * dt / distance)
       const position = progress === 1 ? { ...dock, y } : { x: x + (dock.x - x) * progress, y, z: z + (dock.z - z) * progress }
       return { ...flight, position }
     }
-    const altitude = approach(y, dock.y, 7 * dt)
+    const altitude = approach(y, dock.y, (sightseeing ? Math.min(3, Math.max(.5, (y - dock.y) / 2)) : 7) * dt)
     if (altitude === dock.y) return land(flight, dock, map.dockExit, 'dock')
     return { ...flight, position: { x, y: altitude, z } }
   }

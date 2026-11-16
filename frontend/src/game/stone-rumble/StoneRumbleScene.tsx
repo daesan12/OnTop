@@ -37,7 +37,7 @@ class SceneBoundary extends Component<{ children: ReactNode; onStatus: StoneScen
   componentDidCatch() { this.props.onStatus(false, '공원 파일을 불러오지 못했어요. 새로고침해 주세요.') }
   render() { return this.state.failed ? null : this.props.children }
 }
-export type StoneCamera = MutableRefObject<{ yaw: number; renderedYaw: number; pointerAiming: boolean }>
+export type StoneCamera = MutableRefObject<{ yaw: number; renderedYaw: number; manualOrbit: boolean; pointerAiming: boolean }>
 export type StoneInput = MutableRefObject<Omit<StoneControl, 'kind' | 'seq'>>
 
 type AvatarProps = { player: StonePlayer; index: number; own: boolean; time: number; gameId: string; feedback?: MutableRefObject<StoneFeedbackFrame> }
@@ -214,12 +214,16 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
   cameraEnabledRef.current = cameraEnabled
   const clickPending = useRef(false)
   const previousView = useRef(viewId), previousGame = useRef(state.gameId)
-  const eye = useMemo(() => new Vector3(), []), focus = useMemo(() => new Vector3(), [])
-  const desiredEye = useMemo(() => new Vector3(), []), desiredFocus = useMemo(() => new Vector3(), [])
+  const focus = useMemo(() => new Vector3(), []), desiredFocus = useMemo(() => new Vector3(), [])
   useEffect(() => {
     const canvas = gl.domElement
     const tapSlop = 8
     let gesture: { id: number; x: number; y: number; orbiting: boolean; canTap: boolean } | null = null
+    const clearGesture = () => {
+      gesture = null
+      controls.current.manualOrbit = false
+    }
+    const blur = () => { clearGesture(); clickPending.current = false }
     const aim = (event: PointerEvent) => {
       const bounds = canvas.getBoundingClientRect()
       pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1,
@@ -228,9 +232,20 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
     }
     const move = (event: PointerEvent) => {
       if (!cameraEnabledRef.current) return
+      // Pointerdown only fires for the first mouse button in a chord.
+      if (event.pointerType === 'mouse' && (event.buttons & 2) !== 0 && !gesture) {
+        gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, orbiting: true, canTap: false }
+        canvas.setPointerCapture(event.pointerId)
+      }
       if (gesture?.id === event.pointerId) {
+        if (event.pointerType === 'mouse' && (event.buttons & 2) === 0) {
+          clearGesture()
+          aim(event)
+          return
+        }
         if (!gesture.orbiting && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < tapSlop) return
         gesture.orbiting = true
+        controls.current.manualOrbit = true
         controls.current.pointerAiming = false
         controls.current.yaw = (controls.current.yaw - (event.clientX - gesture.x) * .008) % (2 * Math.PI)
         gesture.x = event.clientX
@@ -244,16 +259,20 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
         return
       }
       if (touch || event.button === 2) {
+        event.preventDefault()
         if (gesture) return
         gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, orbiting: !touch, canTap: touch }
-        if (!touch) controls.current.pointerAiming = false
+        if (!touch) {
+          controls.current.manualOrbit = true
+          controls.current.pointerAiming = false
+        }
         canvas.setPointerCapture(event.pointerId)
       } else if (event.button === 0) {
         aim(event)
         clickPending.current = true
       }
     }
-    const cancel = (event: PointerEvent) => { if (gesture?.id === event.pointerId) gesture = null }
+    const cancel = (event: PointerEvent) => { if (gesture?.id === event.pointerId) clearGesture() }
     const up = (event: PointerEvent) => {
       if (gesture?.id !== event.pointerId) return
       if (cameraEnabledRef.current && gesture.canTap && !gesture.orbiting
@@ -276,6 +295,7 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
     canvas.addEventListener('lostpointercapture', cancel)
     canvas.addEventListener('contextmenu', context)
     canvas.addEventListener('wheel', wheel, { passive: false })
+    window.addEventListener('blur', blur)
     return () => {
       canvas.removeEventListener('pointermove', move)
       canvas.removeEventListener('pointerdown', down)
@@ -284,25 +304,32 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
       canvas.removeEventListener('lostpointercapture', cancel)
       canvas.removeEventListener('contextmenu', context)
       canvas.removeEventListener('wheel', wheel)
+      window.removeEventListener('blur', blur)
+      clearGesture()
     }
   }, [gl, pointer, controls])
   useFrame((_, dt) => {
     const aspect = size.width / size.height
+    const control = controls.current
     if (player?.alive || !cameraReady.current) {
-      const scale = zoom.current * Math.max(1, Math.min(1.2, .9 / aspect))
       const x = player?.alive ? player.x : 0, y = player?.alive ? player.y : 24, z = player?.alive ? player.z : 0
-      const sin = Math.sin(controls.current.yaw), cos = Math.cos(controls.current.yaw)
-      desiredEye.set(x + sin * 7.5 * scale, y + 9 * scale, z + cos * 7.5 * scale)
-      desiredFocus.set(x - sin * 1.5, y + .4, z - cos * 1.5)
+      desiredFocus.set(x, y, z)
     }
     if (!cameraReady.current || previousView.current !== viewId || previousGame.current !== state.gameId) {
-      eye.copy(desiredEye); focus.copy(desiredFocus)
+      focus.copy(desiredFocus)
       cameraReady.current = true; previousView.current = viewId; previousGame.current = state.gameId
     }
-    const alpha = 1 - Math.exp(-dt * 7)
-    eye.lerp(desiredEye, alpha); focus.lerp(desiredFocus, alpha)
-    camera.position.copy(eye); camera.lookAt(focus); camera.updateMatrixWorld()
-    controls.current.renderedYaw = Math.atan2(eye.x - focus.x, eye.z - focus.z)
+    // Smooth the follow point, but apply the orbit as an angle so a quick half-turn
+    // doesn't interpolate the camera through the player.
+    focus.lerp(desiredFocus, 1 - Math.exp(-dt * 7))
+    const difference = control.yaw - control.renderedYaw
+    const turn = Math.atan2(Math.sin(difference), Math.cos(difference))
+    control.renderedYaw = (control.renderedYaw + turn * (1 - Math.exp(-dt * 24))) % (2 * Math.PI)
+    const sin = Math.sin(control.renderedYaw), cos = Math.cos(control.renderedYaw)
+    const scale = zoom.current * Math.max(1, Math.min(1.2, .9 / aspect))
+    camera.position.set(focus.x + sin * 7.5 * scale, focus.y + 9 * scale, focus.z + cos * 7.5 * scale)
+    camera.lookAt(focus.x - sin * 1.5, focus.y + .4, focus.z - cos * 1.5)
+    camera.updateMatrixWorld()
     if (player?.userId === ownId && player.alive && cameraEnabled && controls.current.pointerAiming) {
       plane.constant = -(player.y + .8)
       raycaster.setFromCamera(pointer, camera)

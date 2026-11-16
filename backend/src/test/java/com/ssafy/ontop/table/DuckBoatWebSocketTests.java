@@ -211,19 +211,24 @@ class DuckBoatWebSocketTests {
             clock.at += 60_000;
             notice(inviter, "ARRIVED");
             notice(partner, "ARRIVED");
-            assertNear(dock.exit(), "101", .05);
-            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
-            while (Math.hypot(channels.positionOf("202").x() - dock.exit().x(),
-                    channels.positionOf("202").z() - dock.exit().z()) < 1 && System.nanoTime() < until) {
-                Thread.sleep(50);
-            }
-            var first = channels.positionOf("101");
-            var second = channels.positionOf("202");
+            // ARRIVED는 배에서 해제됐다는 통보다. 실제 접지는 이후 물리 tick에서 확정된다.
+            var landed = org.awaitility.Awaitility.await().atMost(3, TimeUnit.SECONDS).until(
+                    () -> channels.worldState("channel-1"),
+                    state -> state.avatars().size() == 2 && state.avatars().stream()
+                            .allMatch(rider -> rider.motion().grounded()));
+            // 두 사람의 좌표를 같은 물리 스냅샷에서 비교한다.
+            var first = landed.avatars().stream().filter(rider -> rider.userId().equals("101"))
+                    .findFirst().orElseThrow().position();
+            var second = landed.avatars().stream().filter(rider -> rider.userId().equals("202"))
+                    .findFirst().orElseThrow().position();
+            assertThat(Math.hypot(first.x() - dock.exit().x(), first.z() - dock.exit().z())).isLessThan(.05);
             assertThat(Math.hypot(first.x() - second.x(), first.z() - second.z())).isGreaterThan(1);
             // 하차 지점 옆 1.2m, 같은 선착장 바닥이다.
             assertThat(Math.hypot(second.x() - dock.exit().x(), second.z() - dock.exit().z())).isCloseTo(1.2,
                     org.assertj.core.data.Offset.offset(.05));
-            assertThat(second.y()).isCloseTo(dock.exit().y(), org.assertj.core.data.Offset.offset(.05));
+            // 맵의 배치용 높이 대신, 접지한 두 캐릭터가 같은 바닥에 섰는지 검증한다.
+            assertThat(second.y()).isCloseTo(first.y(), org.assertj.core.data.Offset.offset(.05));
+            assertThat(first.swimming()).isFalse();
             assertThat(second.swimming()).isFalse();
         }
     }
