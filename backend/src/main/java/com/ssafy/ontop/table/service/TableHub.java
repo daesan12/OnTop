@@ -72,6 +72,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import com.ssafy.ontop.world.boat.DuckBoatFares;
+import com.ssafy.ontop.world.boat.DuckBoatSchedule;
+import com.ssafy.ontop.world.boat.DuckBoatWallet;
 import com.ssafy.ontop.world.mobility.MobilityRentals;
 import com.ssafy.ontop.world.mobility.MobilityWallet;
 import com.ssafy.ontop.world.mobility.VehicleKind;
@@ -164,6 +167,10 @@ public class TableHub {
     private final Map<String, String> watching = new HashMap<>();
     private MobilityRentals rentals;
     private final Map<String, MobilityRide> mobilityRides = new HashMap<>();
+    private DuckBoatFares boatFares;
+    private final Map<String, BoatCharge> boatCharges = new HashMap<>();
+    private final Set<String> duckBoatHidden = new HashSet<>();
+    private long boatPosesAt;
     private final Map<String, TableStartAttempt> starts = new HashMap<>();
     private final Map<String, Set<String>> inactiveGameParticipants = new HashMap<>();
     private final Map<String, Long> startRevisions = new HashMap<>();
@@ -472,7 +479,8 @@ public class TableHub {
         this.gateway = gateway;
         this.preparedPark = preparedPark;
         this.facilities = preparedPark == null ? new WorldFacilityService()
-                : new WorldFacilityService(preparedPark.facilities(), java.time.Clock.systemUTC(), System::nanoTime);
+                : new WorldFacilityService(preparedPark.facilities(), java.time.Clock.systemUTC(), System::nanoTime,
+                        preparedPark.boatRoute());
         if (preparedPark != null && (!channels.mapMetadata().equals(preparedPark.metadata())
                 || !maps.metadata().equals(preparedPark.metadata()))) {
             throw new IllegalArgumentException("채널·시설·연결 응답은 같은 맵을 사용해야 합니다.");
@@ -939,12 +947,13 @@ public class TableHub {
             }
             if (channels.carryState(member.userId()) != null && Set.of("TABLE_JOIN", "TABLE_WATCH", "GAME_WATCH",
                     "WORLD_FACILITY_USE", "WORLD_FOLLOW_START", "WORLD_EMOTE_SEND", "WORLD_SECRET_DOORS_SET",
-                    "WORLD_INTERIOR_ACCESS").contains(request.type())) {
+                    "WORLD_INTERIOR_ACCESS", "WORLD_BOAT_JOIN", "WORLD_BOAT_REPLY").contains(request.type())) {
                 fail(request, "CARRY_ACTIVITY_CONFLICT", "들기·던지기가 끝난 뒤 다른 행동을 시작해주세요.");
             }
             if (mobilityRides.containsKey(member.userId()) && Set.of(
                     "TABLE_JOIN", "TABLE_WATCH", "GAME_WATCH", "WORLD_FACILITY_USE", "WORLD_FOLLOW_START",
-                    "WORLD_CARRY_PICKUP", "WORLD_EMOTE_SEND", "WORLD_SECRET_DOORS_SET").contains(request.type())) {
+                    "WORLD_CARRY_PICKUP", "WORLD_EMOTE_SEND", "WORLD_SECRET_DOORS_SET", "WORLD_BOAT_JOIN",
+                    "WORLD_BOAT_REPLY").contains(request.type())) {
                 fail(request, "MOBILITY_BUSY", "먼저 탈것에서 내려주세요.");
             }
             switch (request.type()) {
@@ -980,6 +989,7 @@ public class TableHub {
                 case "WORLD_FOLLOW_START", "WORLD_FOLLOW_STOP", "WORLD_FOLLOW_CHECK" -> follow(member, request);
                 case "WORLD_FACILITY_CATALOG", "WORLD_FACILITY_CHECK", "WORLD_FACILITY_USE",
                         "WORLD_FACILITY_RELEASE", "WORLD_FACILITY_AIM" -> facility(member, request);
+                case "WORLD_BOAT_JOIN", "WORLD_BOAT_REPLY", "WORLD_BOAT_TEAM" -> boat(member, request);
                 case "TABLE_JOIN" -> join(member, request);
                 case "TABLE_WATCH" -> watch(member, request);
                 case "TABLE_UNWATCH" -> unwatch(member, request);
@@ -1056,7 +1066,13 @@ public class TableHub {
         if (typingChannel != null) { publishTyping(typingChannel, null, null, true); }
         // disconnected()가 내부에서 release()를 부르므로 해제 전 점유를 한 번만 읽어 종료를 한 번만 기록한다.
         var facilityLease = facilities.current(member.userId());
+        cancelBoatCharge(member.userId());
+        withdrawBoatInvite(member.userId());
+        declineBoatInvites(member.userId());
         facilities.disconnected(member.userId());
+        if (facilityChannel != null) {
+            syncDuckBoat(facilityChannel);
+        }
         // 점프맵 진행 중 네트워크 끊김은 15초 유예: 캐릭터와 채널 자리를 남기고 같은 채널 재입장 때 다시 묶는다.
         boolean jumpmapGrace = member.accountId() != null && switch (reason) {
             case SOCKET_CLOSED, TRANSPORT_ERROR, HEARTBEAT_TIMEOUT, SEND_ERROR, SEND_QUEUE_FULL -> true;
@@ -1130,6 +1146,15 @@ public class TableHub {
             });
             mobilityRides.clear();
             rentals.shutdown();
+        }
+        if (boatFares != null) {
+            boatCharges.values().forEach(holder -> {
+                if (holder.charge != null) {
+                    holder.charge.cancel();
+                }
+            });
+            boatCharges.clear();
+            boatFares.shutdown();
         }
         members.forEach((sessionId, member) -> {
             closeMember(member, ConnectionCloseReason.SERVER_SHUTDOWN);
@@ -1546,9 +1571,13 @@ public class TableHub {
         }
         endRide(member.userId(), "ENDED", "CHANNEL_LEFT");
         endBalloon(member);
+        cancelBoatCharge(member.userId());
+        withdrawBoatInvite(member.userId());
+        declineBoatInvites(member.userId());
         var facilityLease = facilities.release(member.userId());
         if (facilityLease != null) {
             recordFacility(member.accountId(), facilityLease, "CHANNEL_LEFT");
+            syncDuckBoat(facilityLease.channelId());
         }
         WorldChannelRegistry.State state = channels.leave(member.userId());
         String typingChannel = typing.remove(member.userId());
@@ -1650,6 +1679,311 @@ public class TableHub {
                 rentals = mobility;
             }
         });
+    }
+
+    @Autowired(required = false)
+    public synchronized void configureDuckBoats(DuckBoatWallet wallet) {
+        if (facilities.boatsEnabled()) {
+            boatFares = new DuckBoatFares(wallet);
+        }
+    }
+
+    /** 출발한 사람은 배 좌석으로 옮기고 요금을 받는다. 도착한 사람은 선착장으로 내려준다. */
+    private void advanceDuckBoats() {
+        if (!facilities.boatsEnabled()) {
+            return;
+        }
+        var events = facilities.advanceBoats();
+        var changed = new java.util.LinkedHashSet<String>();
+        for (var departure : events.departures()) {
+            changed.add(departure.channelId());
+            for (var rider : departure.riders()) {
+                var pose = facilities.boatPose(rider.userId());
+                if (pose != null) {
+                    channels.moveHeld(rider.userId(), pose);
+                }
+                chargeBoat(rider.userId());
+            }
+        }
+        for (var arrival : events.arrivals()) {
+            changed.add(arrival.channelId());
+            for (String user : arrival.riders()) {
+                finishBoat(user, "ARRIVED", false);
+            }
+        }
+        for (var closed : events.invitesClosed()) {
+            changed.add(closed.channelId());
+            closeBoatInvite(closed.partnerId(), closed.inviterId());
+            Member inviter = boatMember(closed.inviterId());
+            var lease = facilities.current(closed.inviterId());
+            if (inviter != null && lease != null) {
+                notifyBoat(inviter, "EXPIRED", lease.leaseId());
+            }
+        }
+        for (var expired : events.choicesExpired()) {
+            changed.add(expired.channelId());
+            finishBoat(expired.inviterId(), "CANCELLED", false);
+        }
+        long now = System.nanoTime();
+        for (var entry : List.copyOf(boatCharges.entrySet())) {
+            // 결제 작업이 마감 안에 끝나지 않으면 태운 채로 두지 않는다.
+            if (now - entry.getValue().deadline >= TimeUnit.SECONDS.toNanos(1)) {
+                finishBoat(entry.getKey(), "FAILED", true);
+            }
+        }
+        if (now - boatPosesAt >= TimeUnit.MILLISECONDS.toNanos(250)) {
+            boatPosesAt = now;
+            for (Member member : List.copyOf(members.values())) {
+                var pose = facilities.boatPose(member.userId());
+                if (pose != null) {
+                    channels.moveHeld(member.userId(), pose);
+                }
+            }
+        }
+        for (String channel : changed) {
+            publishFacilities(channel, null, null);
+            publishWorld(channels.worldState(channel), null, null);
+            syncDuckBoat(channel);
+        }
+    }
+
+    /** 선착장에서 혼자 또는 둘이서 타기. 초대받은 사람의 수락·거절. 초대가 끝난 뒤 혼자 타기·다시 초대. */
+    private void boat(Member member, Request request) {
+        String user = member.userId();
+        String channel = channels.channelOf(user);
+        if (channel == null) {
+            fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
+        }
+        if (!facilities.boatsEnabled() || boatFares == null || member.accountId() == null) {
+            fail(request, "BOAT_UNAVAILABLE", "오리배를 이용할 수 없어요.");
+        }
+        var payload = request.payload();
+        switch (request.type()) {
+            case "WORLD_BOAT_JOIN" -> {
+                requireBoatFree(member, request);
+                String partner = payload.has("partnerId") ? payload.path("partnerId").asText() : null;
+                if (partner != null) {
+                    requireInvitable(request, user, partner, channel);
+                }
+                String dock = facilities.catalog().facilities().stream()
+                        .filter(d -> d.kind().equals(WorldFacilityService.BOAT)).findFirst().orElseThrow().facilityId();
+                // 같은 요청 재전송은 이미 받은 자리로 다시 확인한다.
+                var current = facilities.current(user);
+                int seat = current != null ? current.seatIndex() : facilities.freeBoatSeat(channel);
+                if (seat < 0) {
+                    fail(request, "FACILITY_OCCUPIED", "오리배 대기열이 가득 찼어요.");
+                }
+                long before = facilities.state(channel).version();
+                var lease = facilities.use(user, channel, request.requestId(), dock, seat, channels.positionOf(user),
+                        partner);
+                if (before == facilities.state(channel).version()) {
+                    member.peer().offer(protocol.encode(request.requestId(), "WORLD_FACILITY_STATE",
+                            facilities.state(channel)));
+                    return;
+                }
+                startBoatWait(member, lease, request.requestId());
+                if (partner != null) {
+                    sendBoatInvite(user, partner);
+                }
+            }
+            case "WORLD_BOAT_REPLY" -> {
+                String inviter = payload.path("inviterId").asText();
+                if (!payload.path("accept").asBoolean()) {
+                    if (facilities.declineBoat(user, inviter)) {
+                        Member owner = boatMember(inviter);
+                        var lease = facilities.current(inviter);
+                        if (owner != null && lease != null) {
+                            notifyBoat(owner, "DECLINED", lease.leaseId());
+                        }
+                        publishFacilities(channel, member, request.requestId());
+                    } else {
+                        member.peer().offer(protocol.encode(request.requestId(), "WORLD_FACILITY_STATE",
+                                facilities.state(channel)));
+                    }
+                    return;
+                }
+                var invite = facilities.boatInvite(inviter, user);
+                if (invite == null || !invite.channelId().equals(channel)) {
+                    fail(request, "BOAT_INVITE_CLOSED", "초대가 끝났어요.");
+                }
+                requireBoatFree(member, request);
+                var lease = facilities.acceptBoat(user, inviter, channels.positionOf(user));
+                startBoatWait(member, lease, request.requestId());
+                // 다른 사람에게서 함께 받은 초대는 바로 거절로 알린다.
+                declineBoatInvites(user);
+                Member owner = boatMember(inviter);
+                if (owner != null) {
+                    notifyBoat(owner, "ACCEPTED", facilities.current(inviter).leaseId());
+                }
+            }
+            case "WORLD_BOAT_TEAM" -> {
+                String previous = facilities.pendingBoatPartner(user);
+                if (payload.path("action").asText().equals("SOLO")) {
+                    facilities.soloBoat(user);
+                } else {
+                    String partner = payload.path("partnerId").asText();
+                    requireInvitable(request, user, partner, channel);
+                    facilities.reinviteBoat(user, partner);
+                    if (partner.equals(previous)) {
+                        previous = null;
+                    }
+                    sendBoatInvite(user, partner);
+                }
+                closeBoatInvite(previous, user);
+                publishFacilities(channel, member, request.requestId());
+            }
+            default -> throw new IllegalStateException("검증되지 않은 오리배 명령");
+        }
+    }
+
+    /** 대기 자리에 묶고 다른 활동을 정리한다. 일반 시설 이용 시작과 같다. */
+    private void startBoatWait(Member member, WorldFacilityService.Lease lease, String requestId) {
+        channels.holdFacility(member.userId(), lease.pose());
+        clearWatch(member, null);
+        clearGameWatch(member);
+        publishFacilities(lease.channelId(), member, requestId);
+        publishWorld(channels.worldState(lease.channelId()), null, null);
+        cancelEmote(member.userId(), "ACTIVITY_STARTED");
+        recordFacility(member.accountId(), lease, null);
+        endFollows(member.userId());
+    }
+
+    private void requireBoatFree(Member member, Request request) {
+        String user = member.userId();
+        if (seating.containsKey(user)) {
+            fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
+        }
+        if (mobilityRides.containsKey(user) || channels.carryState(user) != null
+                || balloons != null && balloons.aboard(user)) {
+            fail(request, "FACILITY_BUSY", "진행 중인 이용을 먼저 종료해주세요.");
+        }
+    }
+
+    private void requireInvitable(Request request, String inviter, String partner, String channel) {
+        Member target = boatMember(partner);
+        if (partner.equals(inviter) || target == null || target.accountId() == null
+                || !channels.isInChannel(partner, channel) || facilities.current(partner) != null
+                || seating.containsKey(partner) || mobilityRides.containsKey(partner)
+                || channels.carryState(partner) != null || balloons != null && balloons.aboard(partner)) {
+            fail(request, "BOAT_PARTNER_UNAVAILABLE", "지금은 그 사람을 초대할 수 없어요.");
+        }
+    }
+
+    private void sendBoatInvite(String inviter, String partner) {
+        var invite = facilities.boatInvite(inviter, partner);
+        Member target = boatMember(partner);
+        if (invite != null && target != null) {
+            target.peer().offer(protocol.encode(null, "WORLD_BOAT_INVITE", Map.of("inviterId", inviter,
+                    "channelId", invite.channelId(), "expiresAt", invite.deadline(), "fare", DuckBoatSchedule.FARE)));
+        }
+    }
+
+    private void closeBoatInvite(String partner, String inviter) {
+        Member target = partner == null ? null : boatMember(partner);
+        if (target != null) {
+            target.peer().offer(protocol.encode(null, "WORLD_BOAT_INVITE_CLOSED", Map.of("inviterId", inviter)));
+        }
+    }
+
+    /** 이 사람이 보낸, 아직 답이 없는 초대를 거둔다. */
+    private void withdrawBoatInvite(String user) {
+        closeBoatInvite(facilities.pendingBoatPartner(user), user);
+    }
+
+    /** 이 사람이 받은 초대는 거절로 처리한다(채널을 나가거나 접속이 끊긴 경우). */
+    private void declineBoatInvites(String user) {
+        for (String inviter : facilities.boatInvitersOf(user)) {
+            if (facilities.declineBoat(user, inviter)) {
+                Member owner = boatMember(inviter);
+                var lease = facilities.current(inviter);
+                if (owner != null && lease != null) {
+                    notifyBoat(owner, "DECLINED", lease.leaseId());
+                    publishFacilities(lease.channelId(), null, null);
+                }
+            }
+        }
+    }
+
+    private void chargeBoat(String user) {
+        Member member = boatMember(user);
+        var lease = facilities.current(user);
+        if (member == null || member.accountId() == null || lease == null || boatFares == null) {
+            finishBoat(user, "FAILED", true);
+            return;
+        }
+        var holder = new BoatCharge(System.nanoTime() + TimeUnit.SECONDS.toNanos(5));
+        boatCharges.put(user, holder);
+        holder.charge = boatFares.submit(member.accountId(), lease.leaseId(), holder.deadline,
+                payment -> completeBoatPayment(user, holder, payment));
+        if (holder.charge == null) {
+            finishBoat(user, "FAILED", true);
+        }
+    }
+
+    private synchronized void completeBoatPayment(String user, BoatCharge holder, DuckBoatWallet.Payment payment) {
+        if (boatCharges.get(user) != holder) {
+            return;
+        }
+        boatCharges.remove(user);
+        if (payment == DuckBoatWallet.Payment.PAID || payment == DuckBoatWallet.Payment.ALREADY_PAID) {
+            Member member = boatMember(user);
+            var lease = facilities.current(user);
+            if (member != null && lease != null) {
+                notifyBoat(member, "PAID", lease.leaseId());
+            }
+            return;
+        }
+        finishBoat(user, payment == DuckBoatWallet.Payment.INSUFFICIENT ? "INSUFFICIENT" : "FAILED", true);
+    }
+
+    private void cancelBoatCharge(String user) {
+        var pending = boatCharges.remove(user);
+        if (pending != null && pending.charge != null) {
+            pending.charge.cancel();
+        }
+    }
+
+    /** 이 사람만 배에서 내려 선착장으로 보낸다. 같은 배의 다른 사람은 계속 운항한다. */
+    private void finishBoat(String user, String status, boolean publish) {
+        cancelBoatCharge(user);
+        withdrawBoatInvite(user);
+        var lease = facilities.current(user);
+        if (lease == null || !lease.kind().equals(WorldFacilityService.BOAT)) {
+            return;
+        }
+        String channel = lease.channelId();
+        var exit = channels.boatExit(user, lease);
+        channels.releaseFacility(user, exit == null ? lease.exit() : exit);
+        var released = facilities.release(user);
+        Member member = boatMember(user);
+        if (released != null) {
+            recordFacility(member == null ? null : member.accountId(), released, status);
+        }
+        if (member != null) {
+            notifyBoat(member, status, lease.leaseId());
+        }
+        if (publish) {
+            publishFacilities(channel, null, null);
+            publishWorld(channels.worldState(channel), null, null);
+            syncDuckBoat(channel);
+        }
+    }
+
+    private void notifyBoat(Member member, String status, String leaseId) {
+        member.peer().offer(protocol.encode(null, "WORLD_BOAT_NOTICE",
+                Map.of("status", status, "fare", DuckBoatSchedule.FARE, "leaseId", leaseId)));
+    }
+
+    /** 운항 중인 배가 있으면 장식 순환 배를 숨기고 충돌도 뺀다. */
+    private void syncDuckBoat(String channel) {
+        boolean sailing = facilities.boatSailing(channel);
+        if (sailing ? duckBoatHidden.add(channel) : duckBoatHidden.remove(channel)) {
+            channels.setDuckBoatHidden(channel, sailing);
+        }
+    }
+
+    private Member boatMember(String user) {
+        return members.values().stream().filter(member -> member.userId().equals(user)).findFirst().orElse(null);
     }
 
     private void mobility(Member member, Request request) {
@@ -1882,6 +2216,7 @@ public class TableHub {
         try {
             syncSpectatorPresence();
             advanceRentals();
+            advanceDuckBoats();
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
             dispatchJumpmap(channels.drainJumpmap());
             for (var ended : channels.drainSuspensionEnds()) {
@@ -2216,6 +2551,9 @@ public class TableHub {
                 if (seating.containsKey(member.userId())) {
                     fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
                 }
+                if (facilities.definition(payload.path("facilityId").asText()).kind().equals(WorldFacilityService.BOAT)) {
+                    fail(request, "BOAT_JOIN_REQUIRED", "오리배는 선착장에서 혼자 또는 둘이서 타기를 골라주세요.");
+                }
                 long before = facilities.state(channel).version();
                 var lease = facilities.use(member.userId(), channel, request.requestId(),
                         payload.path("facilityId").asText(), payload.path("seatIndex").asInt(),
@@ -2237,14 +2575,26 @@ public class TableHub {
             }
             case "WORLD_FACILITY_RELEASE" -> {
                 var lease = facilities.requireOwner(member.userId(), payload.path("leaseId").asText());
-                var exit = channels.facilityExit(member.userId(), lease);
+                boolean boat = lease.kind().equals(WorldFacilityService.BOAT);
+                var exit = boat ? channels.boatExit(member.userId(), lease) : channels.facilityExit(member.userId(), lease);
+                if (exit == null && boat) {
+                    // 대기 취소·중간 하차는 막히지 않게 선착장 하차 위치로 보낸다.
+                    exit = lease.exit();
+                }
                 if (exit == null) {
                     fail(request, "FACILITY_EXIT_BLOCKED", "하차 위치가 막혀 있습니다. 잠시 후 다시 시도해주세요.");
+                }
+                if (boat) {
+                    cancelBoatCharge(member.userId());
+                    withdrawBoatInvite(member.userId());
                 }
                 channels.releaseFacility(member.userId(), exit);
                 var released = facilities.release(member.userId());
                 publishFacilities(channel, member, request.requestId());
                 publishWorld(channels.worldState(channel), null, null);
+                if (boat) {
+                    syncDuckBoat(channel);
+                }
                 // 하차 위치가 막히면 위에서 실패하므로 종료로 기록하지 않는다.
                 if (released != null) {
                     recordFacility(member.accountId(), released, "RELEASED");
@@ -4228,6 +4578,15 @@ public class TableHub {
     }
 
     private record ReactionRound(String gameId, Set<Long> users) { }
+
+    private static final class BoatCharge {
+        private final long deadline;
+        private DuckBoatFares.Charge charge;
+
+        private BoatCharge(long deadline) {
+            this.deadline = deadline;
+        }
+    }
 
     private static final class MobilityRide {
         private final Member owner;

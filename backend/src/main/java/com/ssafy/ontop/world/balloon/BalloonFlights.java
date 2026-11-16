@@ -281,6 +281,11 @@ public final class BalloonFlights {
         if (grant != null && !grant.used) grants.put(ticket, new Grant(grant.deadline, true));
     }
 
+    /** 열기구를 조종하거나 함께 타고 있거나 자리를 잡아 둔 사람. 다른 공원 활동과 겹치지 않게 확인한다. */
+    public synchronized boolean aboard(String user) {
+        return rides.containsKey(user) || holds.containsKey(user) || groupOf(user) != null;
+    }
+
     private Group groupOf(String passenger) {
         return groups.values().stream().filter(group -> group.passengers.containsKey(passenger)).findFirst().orElse(null);
     }

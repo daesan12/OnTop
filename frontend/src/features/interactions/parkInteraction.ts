@@ -1,4 +1,6 @@
-import { FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
+import { DUCK_BOAT, FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
+import { boatQueueOpen } from '../duckBoat/controller'
+import { openBoatChooser } from '../duckBoat/model'
 import { authoritativePose, avatars, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { openLocalBalloon } from '../balloon/localRide'
@@ -7,7 +9,7 @@ import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
 import { benchAnchors, canReachBench } from './benchAnchors'
-import { facilityAvailable, facilityMovementBlocked, useFacilityState } from '../facilities/state'
+import { facilityAvailable, facilityInRange, facilityMovementBlocked, useFacilityState } from '../facilities/state'
 import { useBenchState } from './benchState'
 import { benchService } from './benchService'
 import { sitBench } from './benchController'
@@ -80,7 +82,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access'
   id: string
   label: string
   seat?: 0 | 1
@@ -190,6 +192,12 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
     choices.push({ kind: 'feedback', id: 'feedback-mailbox', label: '소리함에 의견 쓰기', occupied: false,
       available: true, distance, score: interactionScore(distance, { x: MAILBOX.x, y: MAILBOX_BASE_Y + MAILBOX.height * 0.7, z: MAILBOX.z }) })
   }
+  if (DUCK_BOAT && facilityInRange(p.current, DUCK_BOAT.id)) {
+    const [x, y, z] = DUCK_BOAT.position, distance = Math.hypot(p.current.x - x, p.current.z - z)
+    choices.push({ kind: 'boat', id: DUCK_BOAT.id, label: `오리배 타기 · ${useFacilityState.getState().boats?.fare ?? 30}냥`,
+      occupied: !boatQueueOpen(), available: facilityAvailable(DUCK_BOAT.id), distance,
+      score: interactionScore(distance, { x, y: y + 1, z }) })
+  }
   for (const t of TELESCOPES) {
     if (!canReachTelescope(p.current, t.id)) continue
     const occupant = Object.values(useTelescopeState.getState().placements).find(lease => lease.channelId === session.roomId && lease.telescopeId === t.id)
@@ -287,6 +295,7 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'notes') openNotes()
   else if (target.kind === 'feedback') openFeedback()
   else if (target.kind === 'telescope' && target.available && !target.occupied) void enterTelescope(target.id)
+  else if (target.kind === 'boat' && target.available && !target.occupied) openBoatChooser()
   else if (target.kind === 'fitness' && target.available && !target.occupied) void enterFitness(target.id)
   else if (target.available && !target.occupied && target.seat !== undefined) void sitBench(target.id, target.seat)
   return true
