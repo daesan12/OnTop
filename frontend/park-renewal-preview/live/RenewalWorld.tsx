@@ -20,7 +20,7 @@ import { CAMERA, type QualityPreset } from '../../src/config'
 import { renewalMap } from '../../src/park/renewalMap'
 import { viewControls } from '../../src/world/cameraPerspective'
 import { welcomeFlight } from '../../src/features/welcomeTour/flight'
-import { createLakeProgress, LakeProgress } from '../lakeStages'
+import { createLakeProgress, LakeProgress, LakeStage } from '../lakeStages'
 import { LakeStreaming } from './LakeStreaming'
 import { PreviewTreeBatches } from '../PreviewTreeBatches'
 import { inAnnex } from '../interiorAccess'
@@ -29,6 +29,7 @@ import { preloadBungeoppangView } from '../../src/features/bungeoppang/loadBunge
 import { preloadJumpRopeView } from '../../src/features/jumpRope/loadJumpRopeView'
 import { preloadGateSurroundings } from './preloadEntranceModels'
 import { collectJumpViewDrawables } from '../../src/features/jumpmap/preparation'
+import { useJumpmap } from '../../src/features/jumpmap/state'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
@@ -81,6 +82,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   const displayedPose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })
   const queuedAmbientShaders = useRef(false)
   const jumpViewDrawables = useRef<Object3D[] | undefined>(undefined)
+  const queuedLakeViewShaders = useRef(false)
   const jumpViewIndex = useRef(0)
   const jumpViewSelection = useRef<Object3D | undefined>(undefined)
   const queuedBakery = useRef(false)
@@ -153,11 +155,29 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   useFrame(({ camera, scene, gl }) => {
     const root = surface.current
     if (!jumpEntrance || stage < finalStage || !root?.visible || !gl.extensions.has('KHR_parallel_shader_compile')) return
-    const pose = avatars.get(useSession.getState().sessionId)?.current
-    if (!pose || pose.y > jumpEntrance.y + 4 || Math.hypot(pose.x - jumpEntrance.x, pose.z - jumpEntrance.z) > 32) return
-    const objects = jumpViewDrawables.current ??= collectJumpViewDrawables(root, camera)
+    const { sessionId } = useSession.getState()
+    const pose = avatars.get(sessionId)?.current
+    if (!pose) return
+    const nearJumpEntrance = pose.y <= jumpEntrance.y + 4
+      && Math.hypot(pose.x - jumpEntrance.x, pose.z - jumpEntrance.z) <= 32
+    const { owner, run } = useJumpmap.getState()
+    const running = owner === sessionId && !!run
+    if (!nearJumpEntrance && !running) return
+    if (nearJumpEntrance) jumpViewDrawables.current ??= collectJumpViewDrawables(root, camera)
+
+    // The lake's streamed props did not exist when the entrance views were
+    // collected, so queue the steep kite views after those stages mount.
+    if (running && !queuedLakeViewShaders.current && lakeProgress.getStage() === LakeStage.Boats) {
+      queuedLakeViewShaders.current = true
+      const lakeDrawables = collectJumpViewDrawables(root, camera, true)
+      const queue = jumpViewDrawables.current ??= []
+      // Keep every queued object once, including those compiled at the entrance.
+      const queued = new Set(queue)
+      for (const object of lakeDrawables) if (!queued.has(object)) queue.push(object)
+    }
+    const objects = jumpViewDrawables.current
     const index = jumpViewIndex.current
-    if (index >= objects.length) return
+    if (!objects || index >= objects.length) return
     const selection = jumpViewSelection.current ??= new Object3D()
     const deadline = performance.now() + 2
     let end = index

@@ -14,16 +14,17 @@ export const jumpmapPreparationViews = [
 
 // The renewal park's landing shaders are already prepared with the course.
 // From the higher pads, the camera can also expose previously unseen park props.
-export function collectJumpViewDrawables(surface: Object3D, camera: Camera) {
+export function collectJumpViewDrawables(surface: Object3D, camera: Camera, lakeView = false) {
   if (!renewalCourse) return []
   surface.updateWorldMatrix(true, true)
   const view = camera.clone()
   const projection = new Matrix4()
-  const pads = COURSE.filter(pad => pad.stage <= 2)
+  const pads = COURSE.filter(pad => lakeView ? pad.theme === 'kite' : pad.stage <= 2)
   const elevatedViews = pads.filter((_, i) => i % 8 === 0 || i === pads.length - 1)
     .flatMap(pad => Array.from({ length: 6 }, (_, i) => {
       const angle = i * Math.PI / 3
-      view.position.set(pad.x + Math.sin(angle) * 5, pad.top + 2.5, pad.z + Math.cos(angle) * 5)
+      const height = lakeView ? 5.5 : 2.5
+      view.position.set(pad.x + Math.sin(angle) * 5, pad.top + height, pad.z + Math.cos(angle) * 5)
       view.lookAt(pad.x, pad.top + .8, pad.z)
       view.updateMatrixWorld(true)
       return new Frustum().setFromProjectionMatrix(projection.multiplyMatrices(view.projectionMatrix, view.matrixWorldInverse), view.coordinateSystem, view.reversedDepth)
