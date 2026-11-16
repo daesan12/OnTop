@@ -61,7 +61,7 @@ const advertisements = [
       '※겁쟁이 팀원들과 함께 괴물을 피해 탈출해보세요※',
     ],
     image: phoneboothPreview,
-    alt: '붉은 전화부스 앞에 선 네 사람과 뒤에 숨은 괴물. 신규 괴물, 난이도 하향, 빠른 대전, 랭킹 이벤트와 배달의민족 상품권을 안내하는 PHONEBOOTH 포스터',
+    alt: '붉은 전화부스 앞에서 괴물을 피하는 온탑 캐릭터 네 명. 신규 괴물, 난이도 하향, 빠른 대전, 랭킹 이벤트와 배달의민족 상품권을 안내하는 PHONEBOOTH 포스터',
     artworkMat: 'warm',
     link: 'https://k15e107.p.ssafy.io/',
     action: '게임 사이트 방문',
