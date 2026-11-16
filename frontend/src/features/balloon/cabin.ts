@@ -1,8 +1,10 @@
 import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
 import type { Input, Point } from './flight'
 
-export const CABIN_FLOOR_HEIGHT = .425
+export const CABIN_DECK_RISE = .48
+export const CABIN_FLOOR_HEIGHT = .425 + CABIN_DECK_RISE
 export const CABIN_SEAT_HEIGHT = .34
+export const CABIN_STANDING_EYE_OFFSET = 1.45
 export const CABIN_WALK_RADIUS = 1.38
 export const CABIN_BENCH_INNER = 1.1
 export const CABIN_BENCH_OUTER = 1.56

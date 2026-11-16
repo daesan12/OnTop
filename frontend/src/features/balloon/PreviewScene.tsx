@@ -10,9 +10,11 @@ import { characterUrls } from '../../world/art/characterAssets'
 import { balloonScale, flightMap, startPoint } from './previewMap'
 import { cameraDrag, isPassenger, occupancy, usePreview } from './previewStore'
 import { useBalloonModel } from './useBalloonModel'
-import { balloonCanLook, dragCabinCamera, setBalloonOrbit } from './cabinCamera'
+import { balloonCanLook, CABIN_LOOK_HEIGHT, dragCabinCamera, setBalloonOrbit } from './cabinCamera'
+import { CABIN_FLOOR_HEIGHT } from './cabin'
+import { BalloonCabinDeck } from './BalloonCabinDeck'
 
-const slots = [[-.65, .425, -.65], [.65, .425, -.65], [-.65, .425, .65], [.65, .425, .65]] as const
+const slots = [[-.65, -.65], [.65, -.65], [-.65, .65], [.65, .65]] as const
 function Riders() {
   const models = useLoader(ParkAssetLoader, characterUrls)
   const avatars = useMemo(() => Array.from({ length: 5 }, (_, index) => clone(models[index % models.length]!.scene)), [models])
@@ -35,7 +37,7 @@ function Riders() {
   return <>
     <group ref={walkerRef} rotation-y={Math.PI}><primitive object={avatars[4]!} /></group>
     <group ref={passengerRef}>
-      {slots.map(([x, y, z], index) => <group key={index} position={[x * balloonScale, y * balloonScale, z * balloonScale]} rotation-y={Math.PI}>
+      {slots.map(([x, z], index) => <group key={index} position={[x * balloonScale, CABIN_FLOOR_HEIGHT * balloonScale, z * balloonScale]} rotation-y={Math.PI}>
         <primitive object={avatars[index]!} />
       </group>)}
     </group>
@@ -61,8 +63,8 @@ function ParkScene() {
     const flying = balloonCanLook(flight.phase)
     if (flying && isPassenger) {
       const angle = cameraDrag.yaw
-      cameraGoal.current.set(x + .7, y + 1.94, z + .65)
-      target.current.set(x + Math.sin(angle) * 12, y - 2, z - Math.cos(angle) * 12)
+      const eye = cameraGoal.current.set(x + .7, y + CABIN_LOOK_HEIGHT, z + .65)
+      target.current.set(eye.x + Math.sin(angle) * 12, eye.y - 1.2, eye.z - Math.cos(angle) * 12)
     } else if (flying) {
       setBalloonOrbit(flight.position, cameraGoal.current, target.current, true)
     } else if (flight.phase === 'landed' || flight.phase === 'removed') {
@@ -86,7 +88,9 @@ function ParkScene() {
     <directionalLight position={[-100, 190, 90]} intensity={2.2} color="#fff0d6" />
     <ScenicDetails />
     <Buildings showDockedBalloon={false} />
-    <group ref={balloonRef} scale={balloonScale} position={[flightMap.dock.x, flightMap.dock.y, flightMap.dock.z]} />
+    <group ref={balloonRef} scale={balloonScale} position={[flightMap.dock.x, flightMap.dock.y, flightMap.dock.z]}>
+      <BalloonCabinDeck />
+    </group>
     <Suspense fallback={null}><Riders /></Suspense>
   </>
 }

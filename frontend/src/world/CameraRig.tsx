@@ -8,6 +8,7 @@ import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useEffect, useMemo, useRef } from 'react'
 import { localBalloonRider, useLocalBalloon } from '../features/balloon/localRide'
 import { balloonCanLook, cabinCamera, setBalloonOrbit } from '../features/balloon/cabinCamera'
+import { CABIN_STANDING_EYE_OFFSET } from '../features/balloon/cabin'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, PerspectiveCamera, Quaternion, Raycaster, SkinnedMesh, Vector3, type Object3D } from 'three'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
@@ -154,7 +155,7 @@ export function CameraRig() {
       if (flight && balloonCanLook(flight.phase)) {
         if (walkingInside && cabinFirstPerson && flight.phase === 'flying') {
           const { yaw, pitch } = cabinCamera
-          const eye = balloonRider.y + (balloonRider.seatIndex >= 0 ? .95 : 1.45)
+          const eye = balloonRider.y + (balloonRider.seatIndex >= 0 ? .95 : CABIN_STANDING_EYE_OFFSET)
           camera.position.set(balloonRider.x, eye, balloonRider.z)
           const lookPitch = pitch - .57
           camera.lookAt(balloonRider.x - Math.sin(yaw) * Math.cos(lookPitch), eye - Math.sin(lookPitch),

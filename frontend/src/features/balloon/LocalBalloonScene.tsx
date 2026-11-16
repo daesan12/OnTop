@@ -7,6 +7,7 @@ import { textInputOwnsKeys } from '../../world/inputOwnership'
 import { interactLocalBalloonCabin, tickLocalBalloon, toggleLocalCabinMode, toggleLocalCabinPerspective, useLocalBalloon } from './localRide'
 import { sampleRemoteBalloon, useRemoteBalloons } from './remoteRide'
 import { useBalloonModel } from './useBalloonModel'
+import { BalloonCabinDeck } from './BalloonCabinDeck'
 import { BalloonCabinSeats } from './BalloonCabinSeats'
 import { balloonCanLook, cabinCamera, dragCabinCamera } from './cabinCamera'
 import { cameraRelativeMove } from '../../network/movementInput'
@@ -28,6 +29,7 @@ function RemoteBalloon({ pilot, local }: { pilot: string; local: RefObject<Local
     root.current.position.set(position.x, position.y, position.z)
   }, -1.8)
   return <group ref={root} name={`remote-balloon-${pilot}`} scale={BALLOON_SCALE}>
+    <BalloonCabinDeck />
     <BalloonCabinSeats />
     <BalloonCabinControls pilot={pilot} local={local} />
   </group>
@@ -118,6 +120,7 @@ export default function LocalBalloonScene() {
 
   return <>
     <group ref={root} name="local-balloon-ride" scale={BALLOON_SCALE} visible={false}>
+      <BalloonCabinDeck />
       <BalloonCabinSeats />
       <BalloonCabinControls local={cabinInput} />
     </group>
