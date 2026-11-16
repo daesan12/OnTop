@@ -403,6 +403,47 @@ class TableHubPositionTests {
                 .containsEntry("endReason", "DISCONNECTED");
     }
 
+    @Test
+    void 열기구_이륙과_하차를_탑승권으로_짝지은_시설_이용으로_남긴다() throws Exception {
+        hub.configureBehaviorLog(new CapturingLog());
+        var map = mock(com.ssafy.ontop.world.map.WorldMapRuntime.class);
+        var prepared = mock(com.ssafy.ontop.world.map.PreparedParkMap.class);
+        when(map.prepared()).thenReturn(Optional.of(prepared));
+        when(prepared.constructionSites()).thenReturn(mapper.readTree("""
+                [{"id":"balloon","position":[-40,22.1,-76],"reachPosition":[-40,23.905,-61.952],
+                  "radius":3,"heightTolerance":0.7}]
+                """));
+        when(prepared.collisionData()).thenReturn(mapper.readTree("{\"world\":{\"halfSize\":110}}"));
+        var flights = new com.ssafy.ontop.world.balloon.BalloonFlights(map);
+        hub.configureBalloonFlights(flights);
+        var ticket = UUID.randomUUID();
+        var now = java.time.Instant.now();
+        var dock = new com.ssafy.ontop.world.balloon.BalloonFlights.Point(-33.608, 22.4, -76);
+        flights.authorize("101", ticket, now, now);
+        flights.start("one", "101", "socket", ticket,
+                new com.ssafy.ontop.world.service.WorldChannelRegistry.Position(1, -40, 23.905, -61.952, 0),
+                dock, now, 0);
+        flights.update("one", "101", "socket", ticket,
+                new com.ssafy.ontop.world.balloon.BalloonFlights.Flight(dock, true), Duration.ofMillis(200).toNanos());
+        flights.finish("101", "socket", ticket, Duration.ofSeconds(42).toNanos(), "ENDED");
+
+        synchronized (hub) {
+            ReflectionTestUtils.invokeMethod(hub, "recordBalloonUsage");
+        }
+
+        assertThat(facilityEvents()).extracting(BehaviorEvent::type)
+                .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
+        BehaviorEvent used = facilityEvents().getFirst();
+        assertThat(used.userId()).isEqualTo(101L);
+        assertThat(used.channelId()).isEqualTo("one");
+        assertThat(used.props()).containsOnlyKeys("leaseId", "facilityId", "kind", "role", "riders", "mode")
+                .containsEntry("leaseId", ticket.toString()).containsEntry("facilityId", "balloon")
+                .containsEntry("kind", "BALLOON").containsEntry("role", "PILOT").containsEntry("riders", 1)
+                .containsEntry("mode", "single");
+        assertThat(facilityEvents().getLast().props()).containsEntry("leaseId", ticket.toString())
+                .containsEntry("endReason", "ENDED").containsEntry("durationMs", 41_800L).containsEntry("fee", 100L);
+    }
+
     private List<BehaviorEvent> facilityEvents() {
         return events.stream().filter(event -> event.type().name().startsWith("FACILITY_")).toList();
     }

@@ -180,6 +180,9 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
     "16_facility_usage.sql": [
         {"kind": "BENCH", "facility_id": "bench-0", "uses": "2", "users": "2", "avg_minutes": "7.8",
          "disconnected_ends": "1", "unended": "0"},
+        # 열기구 1분, 탑승료 100냥.
+        {"kind": "BALLOON", "facility_id": "balloon", "uses": "1", "users": "1", "avg_minutes": "1.0",
+         "disconnected_ends": "0", "unended": "0", "fee_coins": "100"},
         # 킥보드 30초 = 0.5분, 대여료 30초 × 2냥.
         {"kind": "SCOOTER", "facility_id": "mobility-entry", "uses": "1", "users": "1", "avg_minutes": "0.5",
          "disconnected_ends": "0", "unended": "0", "fee_coins": "60"},

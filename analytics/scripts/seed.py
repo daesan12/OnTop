@@ -114,8 +114,9 @@ def build_seed() -> str:
         events.append((at, "ONBOARDING_STEP", user_id, None, None, None, props, "CLIENT"))
 
     def facility(at: str, user_id: int, lease_id: str, facility_id: str, kind: str, seat: int | None,
-                 end_reason: str | None = None, duration_ms: int | None = None, fee: int | None = None) -> None:
-        props = dict(leaseId=lease_id, facilityId=facility_id, kind=kind)
+                 end_reason: str | None = None, duration_ms: int | None = None, fee: int | None = None,
+                 **extra) -> None:
+        props = dict(leaseId=lease_id, facilityId=facility_id, kind=kind, **extra)
         if seat is not None:
             props["seatIndex"] = seat
         if end_reason:
@@ -191,6 +192,10 @@ def build_seed() -> str:
     # 탈것: 정문 대여소 킥보드 30초(초당 2냥) 뒤 직접 하차.
     facility("2026-10-28 01:01:20", 101, "ride-1", "mobility-entry", "SCOOTER", None)
     facility("2026-10-28 01:01:50", 101, "ride-1", "mobility-entry", "SCOOTER", None, "RELEASED", 30_000, 60)
+    # 열기구: 혼자 1분 비행 뒤 직접 종료. 탑승료 100냥(결제는 원장 BALLOON_RIDE_FEE, 여기서는 행동 로그만).
+    facility("2026-10-28 01:02:00", 101, "ticket-1", "balloon", "BALLOON", None, role="PILOT", riders=1, mode="single")
+    facility("2026-10-28 01:03:00", 101, "ticket-1", "balloon", "BALLOON", None, "ENDED", 60_000, 100,
+             role="PILOT", riders=1, mode="single")
     event("2026-10-28 01:01:00", "TABLE_JOINED", 105, table="t1", channel="one")
     event("2026-10-28 01:02:00", "TABLE_JOINED", 101, table="t1", channel="one")
     for user_id in (101, 105):

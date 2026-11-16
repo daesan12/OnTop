@@ -57,8 +57,8 @@
 | `CHANNEL_LEFT` | `TableHub.leaveChannel` 성공, `disconnect` 정리 | `byDisconnect` | 1 | 구현 |
 | `CHAT_SENT` | `TableHub.sendChat` 성공 | `length`(코드포인트), `recipients` | 1 | 구현 |
 | `EMOTE_SENT` | `TableHub.sendEmote` 성공 | `emoteCode` | 1 | 구현 |
-| `FACILITY_USED` | `TableHub` `WORLD_FACILITY_USE`로 실제 점유가 생긴 뒤. 탈것은 `WORLD_MOBILITY_START`의 첫 1초 요금이 커밋돼 실제로 탄 뒤 | `leaseId`, `facilityId`(탈것은 대여소 `mobility-*`), `kind`(`BENCH`/`FITNESS`/`TELESCOPE`, 탈것은 `BICYCLE`/`SCOOTER`), `seatIndex`(0부터, 탈것은 없음) | 1 | 구현 |
-| `FACILITY_RELEASED` | 직접 하차(`WORLD_FACILITY_RELEASE`) 성공, 채널 퇴장, 연결 종료로 점유가 풀린 뒤. 탈것은 실제로 탄 탈것이 끝난 뒤 | 위 값 + `endReason`(`RELEASED`/`CHANNEL_LEFT`/`DISCONNECTED`, 탈것은 `AUTO_ENDED`(물·점프맵 등 탈 수 없는 상태)·`INSUFFICIENT`(잔액 부족)·`FAILED`(결제 실패)도), `durationMs`(탈것은 요금을 낸 초 × 1000), 탈것만 `fee`(대여료 합계) | 1 | 구현 |
+| `FACILITY_USED` | `TableHub` `WORLD_FACILITY_USE`로 실제 점유가 생긴 뒤. 탈것은 `WORLD_MOBILITY_START`의 첫 1초 요금이 커밋돼 실제로 탄 뒤. 열기구는 탑승권이 실제로 쓰여 이륙한 탑승자마다(혼자는 첫 비행 갱신, 여럿은 출발) | `leaseId`, `facilityId`(탈것은 대여소 `mobility-*`), `kind`(`BENCH`/`FITNESS`/`TELESCOPE`, 탈것은 `BICYCLE`/`SCOOTER`, 열기구는 `BALLOON`), `seatIndex`(0부터, 탈것·열기구는 없음), 열기구만 `role`(`PILOT`/`PASSENGER`)·`riders`(이륙 때 함께 탄 인원)·`mode`(`single`·`party`·`solo`·`split`). 열기구 `leaseId`는 탑승권 | 1 | 구현 |
+| `FACILITY_RELEASED` | 직접 하차(`WORLD_FACILITY_RELEASE`) 성공, 채널 퇴장, 연결 종료로 점유가 풀린 뒤. 탈것은 실제로 탄 탈것이 끝난 뒤. 열기구는 이륙한 사람이 내린 뒤(조종사가 끝내면 남은 동승자도) | 위 값 + `endReason`(`RELEASED`/`CHANNEL_LEFT`/`DISCONNECTED`, 탈것은 `AUTO_ENDED`(물·점프맵 등 탈 수 없는 상태)·`INSUFFICIENT`(잔액 부족)·`FAILED`(결제 실패)도), `durationMs`(탈것은 요금을 낸 초 × 1000, 열기구는 이륙부터), `fee`(탈것은 대여료 합계, 열기구는 탑승료). 열기구 `endReason`: `ENDED`·`PILOT_ENDED`·`EXPIRED`·`DISCONNECTED`·`CHANNEL_LEFT` | 1 | 구현 |
 
 시설 이용(S15P31B105-206)은 시설 담당과 협의해 다음을 지킨다.
 - 같은 요청 재전송은 점유 버전이 바뀌지 않으므로 새 이용으로 기록하지 않는다.
