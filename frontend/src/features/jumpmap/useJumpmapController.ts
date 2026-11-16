@@ -40,8 +40,14 @@ export function useJumpmapController() {
     async function saveTips() {
       if (!pendingTips.size || document.hidden) return
       const tips = [...pendingTips]; tips.forEach(t => pendingTips.delete(t))
-      try { await runtime.requestJSON(TIPS_PATH, { method: 'POST', body: JSON.stringify({ tips }), signal: AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]) }) }
-      catch { if (inScope()) tips.forEach(t => pendingTips.add(t)) }
+      try {
+        await runtime.requestJSON(TIPS_PATH, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tips }),
+          signal: AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]),
+        })
+      } catch { if (inScope()) tips.forEach(t => pendingTips.add(t)) }
     }
     const stop = useJumpmap.subscribe((s, before) => {
       if (!inScope()) return

@@ -29,18 +29,29 @@ test('operation administrator drains new activity through an explicit confirmati
   await page.route('**/api/v1/operations/status', route => { publicReads++; return route.fulfill({ json: state }) })
 
   await page.goto('/admin/operations')
-  await expect(page.getByRole('heading', { name: '서비스 운영 제어', exact: true }).first()).toBeVisible()
-  await expect(page.getByLabel('현재 운영 상태')).toContainText('정상 운영')
+  const operation = page.getByRole('region', { name: '서비스 운영 제어', exact: true })
+  const currentStatus = operation.getByRole('region', { name: '현재 운영 상태' })
+  await expect(currentStatus).toContainText('정상 운영', { timeout: 15_000 })
+  await expect(operation.getByRole('heading', { name: '서비스 운영 제어', exact: true })).toBeVisible()
   await page.getByRole('radio', { name: /신규 활동 차단/ }).check()
   await page.getByLabel('이용자 안내').fill('진행 중인 게임을 마무리해주세요.')
   await page.getByLabel('예상 재개 시각').fill(futureLocal())
   await page.getByRole('button', { name: '변경 내용 확인' }).click()
   await expect(page.getByLabel('운영 상태 변경 확인')).toContainText('신규 활동 차단 상태로 변경할까요?')
   expect(updates).toBe(0)
-  await page.getByRole('button', { name: '신규 활동 차단으로 변경' }).click()
+  expect(publicReads).toBe(0)
+  const [published] = await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/operations/status'
+      && response.request().method() === 'GET'),
+    page.getByRole('button', { name: '신규 활동 차단으로 변경' }).click(),
+  ])
+  expect(published.ok()).toBe(true)
+  await expect(operation).toHaveAttribute('aria-busy', 'false')
   await expect(page.getByRole('status')).toContainText('신규 활동 차단 상태로 변경했습니다.')
-  await expect(page.getByLabel('현재 운영 상태')).toContainText('상태 버전5')
-  expect(updates).toBe(1); expect(publicReads).toBeGreaterThanOrEqual(1); expect(server.connections).toBe(0)
+  await expect(currentStatus).toContainText('상태 버전5')
+  expect(updates).toBe(1)
+  expect(publicReads).toBe(1)
+  expect(server.connections).toBe(0)
   await screenshot(page, 'admin-service-operation-draining')
 })
 
