@@ -1,4 +1,5 @@
-import { RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
+import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
+import { BalloonWayfindingLights } from '../../src/features/balloon/BalloonWayfinding'
 import { EntranceBuilding } from '../EntrancePavilion'
 import { ParkGachaKiosk } from '../ParkGachaKiosk'
 import { ParkMoleShop } from '../ParkMoleShop'
@@ -29,6 +30,7 @@ import { preloadBungeoppangView } from '../../src/features/bungeoppang/loadBunge
 import { preloadJumpRopeView } from '../../src/features/jumpRope/loadJumpRopeView'
 import { preloadGateSurroundings } from './preloadEntranceModels'
 import { collectJumpViewDrawables } from '../../src/features/jumpmap/preparation'
+import { site } from '../plan'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
@@ -43,6 +45,7 @@ const bakery = renewalMap?.data.interactions.recreation?.find(anchor => anchor.i
 const jumpRopeShop = renewalMap?.data.interactions.recreation?.find(anchor => anchor.id === 'pigeon-jump-rope')
 const finalStage = 8
 const boardsPerStage = 4
+const balloonStation = site('balloon')
 const StableCityBackdrop = memo(CityBackdrop)
 const StableScenicDetails = lazy(() => import('../ScenicDetails').then(module => ({ default: memo(module.ScenicDetails) })))
 const StableScenicGround = memo(ScenicGround)
@@ -225,6 +228,9 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   }, .5)
   return <group name="renewal-220-world">
     <group ref={surface} name="renewal-park-surface">
+      {/* Inserting lights in stage four would relink shaders across the visible park. */}
+      {BALLOON_RIDE_ENABLED && <BalloonWayfindingLights x={balloonStation.x} z={balloonStation.z}
+        lit={entryPresented && stage >= 4} />}
       <LakeProgress.Provider value={lakeProgress}>
       <LakeStreaming progress={lakeProgress} />
       <StableCityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
