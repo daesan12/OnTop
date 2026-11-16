@@ -29,13 +29,15 @@ import org.springframework.web.server.ResponseStatusException;
 @Profile(RuntimeProfiles.PRODUCT_FEATURE_WITH_DB)
 @ConditionalOnProperty(name = "ontop.minigames.enabled", havingValue = "true")
 class SpotDifferenceService {
-    static final int ROUND_COUNT = 6;
-    private static final Duration ROUND_TIME = Duration.ofSeconds(60);
-    private static final Duration RUN_LIFETIME = Duration.ofMinutes(15);
+    static final int ROUND_COUNT = 5;
+    static final Duration ROUND_TIME = Duration.ofSeconds(60);
+    static final Duration RUN_LIFETIME = Duration.ofMinutes(15);
+    static final Duration MISS_COOLDOWN = Duration.ofSeconds(1);
     private static final int WIDTH = 1448;
     private static final int HEIGHT = 1086;
     private final ConcurrentHashMap<Long, Run> runs = new ConcurrentHashMap<>();
     private final List<Puzzle> puzzles;
+    private final List<Puzzle> hardPuzzles;
     private final SpotDifferenceRewards rewards;
     private final Clock clock;
     private final BehaviorLog behaviorLog;
@@ -56,11 +58,14 @@ class SpotDifferenceService {
 
     SpotDifferenceService(List<Puzzle> puzzles, SpotDifferenceRewards rewards, Clock clock, BehaviorLog behaviorLog) {
         this.puzzles = List.copyOf(puzzles);
+        this.hardPuzzles = puzzles.stream().filter(puzzle -> !puzzle.hard().isEmpty()).toList();
         this.rewards = rewards;
         this.clock = clock;
         this.behaviorLog = behaviorLog;
-        if (puzzles.size() < ROUND_COUNT || puzzles.stream().map(Puzzle::id).distinct().count() != puzzles.size()
-                || puzzles.stream().anyMatch(puzzle -> !valid(puzzle.normal()) || !valid(puzzle.hard()))) {
+        if (puzzles.size() < ROUND_COUNT || hardPuzzles.size() < ROUND_COUNT
+                || puzzles.stream().map(Puzzle::id).distinct().count() != puzzles.size()
+                || puzzles.stream().anyMatch(puzzle -> !valid(puzzle.normal())
+                        || (!puzzle.hard().isEmpty() && !valid(puzzle.hard())))) {
             throw new IllegalArgumentException("Invalid shooting pavilion puzzle catalog");
         }
     }
@@ -138,7 +143,6 @@ class SpotDifferenceService {
                             run.round++;
                             run.matched.clear();
                             run.phase = Phase.WAITING;
-                            run.nextTap = Instant.EPOCH;
                         }
                     }
                     case SYNC -> { }
@@ -155,9 +159,13 @@ class SpotDifferenceService {
     }
 
     private Run newRun(Start input, Instant now) {
-        var shuffled = new ArrayList<>(puzzles);
+        return new Run(input, selectScenes(input.difficulty()), now, now.plus(RUN_LIFETIME));
+    }
+
+    List<Puzzle> selectScenes(Difficulty difficulty) {
+        var shuffled = new ArrayList<>(difficulty == Difficulty.HARD ? hardPuzzles : puzzles);
         Collections.shuffle(shuffled);
-        return new Run(input, List.copyOf(shuffled.subList(0, ROUND_COUNT)), now, now.plus(RUN_LIFETIME));
+        return List.copyOf(shuffled.subList(0, ROUND_COUNT));
     }
 
     // 판마다 끝날 때 한 번 남긴다(완주·새 판으로 교체·만료). 판 진행은 메모리에만 있어 이 기록이 판 수의 원본이다.
@@ -181,7 +189,7 @@ class SpotDifferenceService {
                 .build());
     }
 
-    private static boolean validTap(Action action) {
+    static boolean validTap(Action action) {
         return action.x() != null && action.y() != null && action.x() >= 0 && action.x() < WIDTH
                 && action.y() >= 0 && action.y() < HEIGHT;
     }
@@ -202,7 +210,7 @@ class SpotDifferenceService {
             }
             return TapResult.HIT;
         }
-        run.nextTap = now.plusMillis(650);
+        run.nextTap = now.plus(MISS_COOLDOWN);
         run.misses++;
         return TapResult.MISS;
     }
@@ -214,7 +222,11 @@ class SpotDifferenceService {
         var remaining = run.phase == Phase.PLAYING ? Duration.between(now, run.deadline).toMillis() : 0;
         return new View(run.id, run.difficulty, run.round + 1, scene.id(), scene.name(), run.phase,
                 Math.max(0, remaining), run.total, matched, run.phase == Phase.REVIEW ? answers : List.of(),
-                tap, run.receipt);
+                tap, run.receipt, remainingMs(now, run.nextTap));
+    }
+
+    static long remainingMs(Instant now, Instant until) {
+        return Math.max(0, Duration.between(now, until).toMillis());
     }
 
     enum Difficulty {
@@ -237,10 +249,14 @@ class SpotDifferenceService {
             return x >= box.get(0) && x < box.get(2) && y >= box.get(1) && y < box.get(3);
         }
     }
-    record Puzzle(String id, String name, List<Difference> normal, List<Difference> hard) { }
+    record Puzzle(String id, String name, List<Difference> normal, List<Difference> hard) {
+        List<Difference> answers(Difficulty difficulty) {
+            return difficulty == Difficulty.NORMAL ? normal : hard;
+        }
+    }
     record View(UUID id, Difficulty difficulty, int round, String scene, String name, Phase phase,
                 long remainingMs, int total, List<Difference> matched, List<Difference> answers,
-                TapResult tap, SpotDifferenceRewards.Receipt receipt) { }
+                TapResult tap, SpotDifferenceRewards.Receipt receipt, long cooldownMs) { }
 
     private static final class Run {
         final UUID id = UUID.randomUUID();
@@ -275,8 +291,7 @@ class SpotDifferenceService {
         }
 
         List<Difference> answers() {
-            var scene = scenes.get(round);
-            return difficulty == Difficulty.NORMAL ? scene.normal() : scene.hard();
+            return scenes.get(round).answers(difficulty);
         }
     }
 }
