@@ -4,6 +4,7 @@ import { openBoatChooser } from '../duckBoat/model'
 import { authoritativePose, avatars, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { openLocalBalloon } from '../balloon/localRide'
+import { hasPassedBalloonGate } from '../balloon/wayfinding'
 import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
@@ -144,6 +145,7 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
     // backend runtime capability below, not by the legacy construction marker.
     if(site.id===PARK_GACHA_MACHINE.id || RENEWAL_PARK_ENABLED && site.id.startsWith('mobility-'))continue
     if(!canReachConstruction(p.current,site.id))continue
+    if(site.id==='balloon'&&BALLOON_RIDE_ENABLED&&!hasPassedBalloonGate(p.current.z,site.position[2]))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     // The deployed 220m map still classifies this anchor as construction.
     if (renewalMap && site.id === 'shooting') {

@@ -86,7 +86,7 @@ function ParkScene() {
     <CityBackdrop distanceLod />
     <directionalLight position={[-100, 190, 90]} intensity={2.2} color="#fff0d6" />
     <ScenicDetails />
-    <Buildings showDockedBalloon={false} />
+    <Buildings showDockedBalloon={false} showBalloonWayfinding />
     <group ref={balloonRef} scale={balloonScale} position={[flightMap.dock.x, flightMap.dock.y, flightMap.dock.z]} />
     <Suspense fallback={null}><Riders /></Suspense>
   </>
