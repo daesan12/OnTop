@@ -88,7 +88,7 @@ class DuckBoatFacilityTests {
         assertThat(facilities.boatInvitersOf("b")).containsExactly("a");
         var team = facilities.state("channel-1").boats().teams().get(0);
         assertThat(team.phase()).isEqualTo(DuckBoatSchedule.Phase.INVITING);
-        assertThat(team.deadline()).isEqualTo(clock.at + 10_000);
+        assertThat(team.deadline()).isEqualTo(clock.at + 15_000);
 
         // 초대받은 사람은 멀리 있어도 초대한 사람 옆 대기 자리로 온다.
         var far = new Position(0, -60, 5, 60, 0);

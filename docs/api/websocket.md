@@ -210,7 +210,7 @@ ERROR와 CONNECTED는 요청 타입이 아니다.
 | WORLD_BOAT_REPLY | `{inviterId, accept}`. 수락하면 위치와 상관없이 초대한 사람 옆 대기 자리로 옮긴다 | WORLD_FACILITY_STATE |
 | WORLD_BOAT_TEAM | `{action:"SOLO"}` 또는 `{action:"INVITE", partnerId}`. 초대 중이거나 고르는 중일 때 | WORLD_FACILITY_STATE |
 
-- 대기는 두 팀까지다. 초대 응답은 10초, 거절·무응답 뒤 고르기는 10초이며 고르지 않으면 대기에서 빠진다.
+- 대기는 두 팀까지다. 초대 응답은 15초, 거절·무응답 뒤 고르기는 10초이며 고르지 않으면 대기에서 빠진다.
 - 준비된 팀만 먼저 온 순서로, 직전 출발 10초 뒤부터 출발한다. 동시에 최대 4척이며 돌아오는 배와 진입로가 겹치는 시각에는 출발하지 않는다.
 - 출발 순간 1인 30냥을 `DUCK_BOAT_FEE` 원장(키 `duck-boat:<walletId>:<leaseId>`)으로 한 번 차감한다. 중간 하차는 환불하지 않는다.
 - `WORLD_FACILITY_STATE.payload.boats`는 `{fare, lapMillis, teams:[{slot, members, phase, partnerId, deadline, departAt}], trips:[{boat, departedAt}]}`이며 시각은 epoch 밀리초다. 운항 중인 탑승자 위치는 경로와 `departedAt`으로 계산한다.

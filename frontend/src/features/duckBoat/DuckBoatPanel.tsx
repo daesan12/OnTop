@@ -61,7 +61,7 @@ function Chooser() {
       <button type="button" onClick={closeBoatChooser}>닫기</button>
     </div>
     {picking ? <>
-      <p className="duck-boat-hint">함께 탈 사람을 고르면 초대를 보내요. 10초 안에 수락하면 옆 자리로 와요.</p>
+      <p className="duck-boat-hint">함께 탈 사람을 고르면 초대를 보내요. 15초 안에 수락하면 옆 자리로 와요.</p>
       <PartnerList pending={pending} onPick={id => void joinDuckBoat(id)} />
       <div className="duck-boat-actions"><button type="button" onClick={() => useDuckBoat.setState({ picking: false })}>뒤로</button></div>
     </> : <div className="duck-boat-actions">
@@ -146,9 +146,9 @@ export function DuckBoatPanel() {
   const userId = useSession(s => s.sessionId)
   const leased = useFacilityState(s => s.occupancies[userId]?.kind === 'BOAT')
   const { chooser, notice, error } = useDuckBoat()
-  return <>
+  return <div className="duck-boat-stack">
     <Invites />
     {leased ? <Status /> : chooser ? <Chooser /> : (notice || error) && <aside className="duck-boat-toast" role="status">{notice || error}
       {error && <button type="button" onClick={() => useDuckBoat.setState({ error: '' })}>닫기</button>}</aside>}
-  </>
+  </div>
 }

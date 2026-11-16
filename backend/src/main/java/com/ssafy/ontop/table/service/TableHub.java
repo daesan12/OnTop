@@ -1952,7 +1952,7 @@ public class TableHub {
             return;
         }
         String channel = lease.channelId();
-        var exit = channels.facilityExit(user, lease);
+        var exit = channels.boatExit(user, lease);
         channels.releaseFacility(user, exit == null ? lease.exit() : exit);
         var released = facilities.release(user);
         Member member = boatMember(user);
@@ -2546,7 +2546,7 @@ public class TableHub {
             case "WORLD_FACILITY_RELEASE" -> {
                 var lease = facilities.requireOwner(member.userId(), payload.path("leaseId").asText());
                 boolean boat = lease.kind().equals(WorldFacilityService.BOAT);
-                var exit = channels.facilityExit(member.userId(), lease);
+                var exit = boat ? channels.boatExit(member.userId(), lease) : channels.facilityExit(member.userId(), lease);
                 if (exit == null && boat) {
                     // 대기 취소·중간 하차는 막히지 않게 선착장 하차 위치로 보낸다.
                     exit = lease.exit();

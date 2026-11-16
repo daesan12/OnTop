@@ -50,7 +50,7 @@ class DuckBoatScheduleTests {
         schedule.join("ch", "a", 0, "b", 0);
 
         assertThat(team("ch", 0).phase()).isEqualTo(DuckBoatSchedule.Phase.INVITING);
-        assertThat(team("ch", 0).deadline()).isEqualTo(10_000);
+        assertThat(team("ch", 0).deadline()).isEqualTo(15_000);
         assertThat(team("ch", 0).departAt()).isNull();
         assertThat(schedule.advance(5_000).departures()).isEmpty();
         assertThat(schedule.invitersOf("b")).containsExactly("a");
@@ -64,18 +64,19 @@ class DuckBoatScheduleTests {
     }
 
     @Test
-    void 초대가_10초_안에_답이_없으면_고르기로_넘어가고_다시_10초_안에_안_고르면_대기에서_뺀다() {
+    void 초대가_15초_안에_답이_없으면_고르기로_넘어가고_다시_10초_안에_안_고르면_대기에서_뺀다() {
         schedule.join("ch", "a", 0, "b", 0);
 
-        var closed = schedule.advance(10_000).invitesClosed();
+        assertThat(schedule.advance(14_999).invitesClosed()).isEmpty();
+        var closed = schedule.advance(15_000).invitesClosed();
         assertThat(closed).containsExactly(new DuckBoatSchedule.InviteClosed("ch", "a", "b"));
         assertThat(team("ch", 0).phase()).isEqualTo(DuckBoatSchedule.Phase.CHOOSING);
-        assertThat(team("ch", 0).deadline()).isEqualTo(20_000);
+        assertThat(team("ch", 0).deadline()).isEqualTo(25_000);
         assertThat(schedule.invite("a", "b")).isNull();
         assertThatThrownBy(() -> schedule.accept("a", "b")).isInstanceOf(IllegalStateException.class);
 
-        assertThat(schedule.advance(19_999).choicesExpired()).isEmpty();
-        assertThat(schedule.advance(20_000).choicesExpired()).containsExactly(new DuckBoatSchedule.ChoiceExpired("ch", "a"));
+        assertThat(schedule.advance(24_999).choicesExpired()).isEmpty();
+        assertThat(schedule.advance(25_000).choicesExpired()).containsExactly(new DuckBoatSchedule.ChoiceExpired("ch", "a"));
     }
 
     @Test
@@ -86,7 +87,7 @@ class DuckBoatScheduleTests {
 
         schedule.reinvite("a", "c", 3_000);
         assertThat(team("ch", 0).partnerId()).isEqualTo("c");
-        assertThat(team("ch", 0).deadline()).isEqualTo(13_000);
+        assertThat(team("ch", 0).deadline()).isEqualTo(18_000);
         schedule.solo("a");
 
         assertThat(schedule.pendingPartner("a")).isNull();

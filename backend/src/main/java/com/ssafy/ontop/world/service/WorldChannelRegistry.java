@@ -897,6 +897,34 @@ public class WorldChannelRegistry implements ChannelPresence {
         rooms.get(membership.get(userId)).held.remove(userId);
     }
 
+    /**
+     * 오리배 하차 위치. 선착장 하차 지점과 그 좌우 1.2m 중 다른 사람이 없고 설 수 있는 곳을 고른다.
+     * 둘이 함께 도착해도 겹치지 않는다. 모두 막히면 대기열에 들어온 위치, 그것도 막히면 null.
+     */
+    public synchronized WorldFacilityService.Pose boatExit(String userId, WorldFacilityService.Lease lease) {
+        Room room = rooms.get(membership.get(userId));
+        if (room == null || room.physics == null) {
+            return null;
+        }
+        var exit = lease.exit();
+        double rightX = Math.cos(exit.yaw()), rightZ = -Math.sin(exit.yaw());
+        var candidates = List.of(exit,
+                new WorldFacilityService.Pose(exit.x() + rightX * 1.2, exit.y(), exit.z() + rightZ * 1.2, exit.yaw()),
+                new WorldFacilityService.Pose(exit.x() - rightX * 1.2, exit.y(), exit.z() - rightZ * 1.2, exit.yaw()),
+                lease.returnPose());
+        for (var pose : candidates) {
+            boolean occupied = room.positions.entrySet().stream().anyMatch(entry -> {
+                var other = entry.getValue().position();
+                return !entry.getKey().equals(userId) && Math.abs(other.y() - pose.y()) < 1.6
+                        && Math.hypot(other.x() - pose.x(), other.z() - pose.z()) < 1;
+            });
+            if (!occupied && room.physics.canStand(pose.x(), pose.y(), pose.z())) {
+                return pose;
+            }
+        }
+        return null;
+    }
+
     /** Use the authored standing area when several players leave the same table. */
     public synchronized void placeTableExit(String userId, int seatNumber, List<WorldFacilityService.Pose> exits) {
         Room room = rooms.get(membership.get(userId));

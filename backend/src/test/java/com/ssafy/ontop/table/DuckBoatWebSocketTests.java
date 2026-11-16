@@ -179,7 +179,7 @@ class DuckBoatWebSocketTests {
             assertNear(dock.seats().get(0), "101", .05);
             var invite = partner.await(m -> type(m, "WORLD_BOAT_INVITE"));
             assertThat(invite.at("/payload/inviterId").asText()).isEqualTo("101");
-            assertThat(invite.at("/payload/expiresAt").asLong()).isEqualTo(clock.at + 10_000);
+            assertThat(invite.at("/payload/expiresAt").asLong()).isEqualTo(clock.at + 15_000);
             // 수락 전에는 출발하지 않는다.
             inviter.assertNoMessage(m -> type(m, "WORLD_BOAT_NOTICE") && m.at("/payload/status").asText().equals("PAID"));
 
@@ -202,6 +202,33 @@ class DuckBoatWebSocketTests {
     }
 
     @Test
+    void 둘이_함께_도착하면_선착장의_서로_다른_자리에_내린다() throws Exception {
+        try (var inviter = join("naver"); var partner = join("ssafy")) {
+            pair(inviter, "202");
+            partner.await(m -> type(m, "WORLD_BOAT_INVITE"));
+            reply(partner, "101", true);
+            awaitSeat(inviter, "202", seat -> seat == 5);
+            clock.at += 60_000;
+            notice(inviter, "ARRIVED");
+            notice(partner, "ARRIVED");
+            assertNear(dock.exit(), "101", .05);
+            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+            while (Math.hypot(channels.positionOf("202").x() - dock.exit().x(),
+                    channels.positionOf("202").z() - dock.exit().z()) < 1 && System.nanoTime() < until) {
+                Thread.sleep(50);
+            }
+            var first = channels.positionOf("101");
+            var second = channels.positionOf("202");
+            assertThat(Math.hypot(first.x() - second.x(), first.z() - second.z())).isGreaterThan(1);
+            // 하차 지점 옆 1.2m, 같은 선착장 바닥이다.
+            assertThat(Math.hypot(second.x() - dock.exit().x(), second.z() - dock.exit().z())).isCloseTo(1.2,
+                    org.assertj.core.data.Offset.offset(.05));
+            assertThat(second.y()).isCloseTo(dock.exit().y(), org.assertj.core.data.Offset.offset(.05));
+            assertThat(second.swimming()).isFalse();
+        }
+    }
+
+    @Test
     void 거절하면_초대한_사람이_혼자_타기로_바꿔_출발한다() throws Exception {
         try (var inviter = join("naver"); var partner = join("ssafy")) {
             pair(inviter, "202");
@@ -219,11 +246,11 @@ class DuckBoatWebSocketTests {
     }
 
     @Test
-    void 답이_없으면_10초_뒤_고르기로_넘어가고_다시_10초_안에_안_고르면_대기에서_빠진다() throws Exception {
+    void 답이_없으면_15초_뒤_고르기로_넘어가고_다시_10초_안에_안_고르면_대기에서_빠진다() throws Exception {
         try (var inviter = join("naver"); var partner = join("ssafy")) {
             pair(inviter, "202");
             partner.await(m -> type(m, "WORLD_BOAT_INVITE"));
-            clock.at += 10_000;
+            clock.at += 15_000;
             notice(inviter, "EXPIRED");
             partner.await(m -> type(m, "WORLD_BOAT_INVITE_CLOSED"));
 
@@ -231,7 +258,7 @@ class DuckBoatWebSocketTests {
             try (var other = join("303")) {
                 inviter.request("WORLD_BOAT_TEAM", Map.of("action", "INVITE", "partnerId", "303"));
                 other.await(m -> type(m, "WORLD_BOAT_INVITE"));
-                clock.at += 10_000;
+                clock.at += 15_000;
                 notice(inviter, "EXPIRED");
                 clock.at += 10_000;
                 notice(inviter, "CANCELLED");

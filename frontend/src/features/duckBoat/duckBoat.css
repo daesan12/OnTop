@@ -1,12 +1,20 @@
-.park-page .duck-boat-panel,
-.park-page .duck-boat-toast {
+/* Top centre, below the HUD: the bottom is shared by chat (left), hints and tools. */
+.park-page .duck-boat-stack {
   position: absolute;
-  bottom: 12px;
+  top: 64px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 8;
-  box-sizing: border-box;
+  z-index: 13;
+  display: grid;
+  gap: 8px;
   width: min(420px, calc(100% - 32px));
+  pointer-events: none;
+}
+.duck-boat-stack > * { pointer-events: auto; }
+.duck-boat-panel,
+.duck-boat-toast {
+  box-sizing: border-box;
+  width: 100%;
   padding: 12px 16px;
   border-radius: 12px;
   background: #201d18e6;
@@ -57,17 +65,9 @@
 .duck-boat-partners { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; max-height: 220px; overflow-y: auto; }
 .duck-boat-partners button { width: 100%; display: flex; justify-content: space-between; gap: 12px; text-align: left; }
 .duck-boat-partners small { color: #c3cbb9; font-variant-numeric: tabular-nums; }
-.park-page .duck-boat-invites {
-  position: absolute;
-  top: 72px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 13;
-  display: grid;
-  gap: 8px;
-  width: min(380px, calc(100% - 32px));
-}
+.duck-boat-invites { display: grid; gap: 8px; }
 .duck-boat-invite {
+  box-sizing: border-box;
   padding: 12px 16px;
   border-radius: 12px;
   background: #201d18f2;
@@ -78,3 +78,4 @@
 }
 .duck-boat-invite p { margin: 0; }
 .duck-boat-invite small { color: #c3cbb9; font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .park-page .duck-boat-stack { top: 96px; } }

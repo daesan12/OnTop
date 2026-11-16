@@ -20,7 +20,7 @@ public final class DuckBoatSchedule {
     public static final int QUEUE_SEATS = TEAMS * CAPACITY;
     public static final int FARE = 30;
     public static final long SPACING_MS = 10_000;
-    public static final long INVITE_MS = 10_000;
+    public static final long INVITE_MS = 15_000;
     public static final long CHOICE_MS = 10_000;
 
     public enum Phase { READY, INVITING, CHOOSING }
