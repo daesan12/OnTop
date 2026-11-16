@@ -3,6 +3,12 @@ import { estimatedServerTime } from '../../network/serverEventClock'
 import { COURSE, renewalCourse, type CourseBlock } from './activeCourse'
 import { moleLandings, useJumpmap } from './state'
 
+export interface MovingPad {
+  block: number
+  /** Server clock in seconds, matching the mole collision curve. */
+  dipStartedAt?: number
+}
+
 let runId = '', support: CourseBlock | undefined, supportedSince = 0
 const falls = new Map<number, number>()
 
@@ -38,6 +44,14 @@ export function renewalPadPose(pad: CourseBlock, now: number) {
   }
   const offset = pad.theme === 'pigeon' ? .42 * Math.sin(now * Math.PI * 2 / 3.8 + pad.ordinal * .53) : 0
   return { offset, solid: true, visible: true }
+}
+
+export function movingPadRiderHeight(block: number) {
+  const pad = COURSE[block]
+  if (!renewalCourse || (pad?.theme !== 'mole' && pad?.theme !== 'pigeon')) return undefined
+  const now = syncRenewalMotion()
+  // Avatar models and the camera use a pose 0.8 m above the feet.
+  return pad.top + renewalPadPose(pad, now).offset + .8
 }
 
 export function renewalPadAt(feet: { x: number; y: number; z: number }, now = syncRenewalMotion()) {

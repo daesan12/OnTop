@@ -824,7 +824,8 @@ public final class WorldPhysics implements AutoCloseable {
             boolean supported = (onMovingPad || a.body.onGround()) && scene.policy.allowsSupport(position, this::activeShape);
             a.motion = new Motion(a.motionEpoch, physicsTick, now >= a.receivedAt ? a.seq : a.motion.appliedInputSeq(),
                     Math.min(250, Math.max(0, (now - a.receivedAt) / 1_000_000.0)),
-                    supported ? 0 : (position.y - a.beforeStepPosition.y) / DT, supported, inputActive(a, now));
+                    supported ? 0 : (position.y - a.beforeStepPosition.y) / DT, supported, inputActive(a, now),
+                    null, null, null, null, null, supported && onMovingPad ? renewalMotion.movingPad(a.id) : null);
             float limit = parkBoundary();
             if (!Vector3f.isValidVector(position)) {
                 recover(a, position, validatedFallback(a, limit), "INVALID_POSITION", now);
@@ -1403,7 +1404,7 @@ public final class WorldPhysics implements AutoCloseable {
         var grace = graceOf(a);
         if (tunedMovement || grace != null) motion = new Motion(motion.epoch(), motion.tick(), motion.appliedInputSeq(),
                 motion.inputAgeMs(), motion.velocityY(), motion.grounded(), motion.inputActive(), motion.authority(),
-                tunedMovement ? "PARK_V1" : null, a.followSteering, a.correctionReason, grace);
+                tunedMovement ? "PARK_V1" : null, a.followSteering, a.correctionReason, grace, motion.movingPad());
         return new Snapshot(a.seq, p.x, p.y, p.z, a.yaw, a.moving, a.running, a.swimming, motion,
                 a.interiorExitReady);
     }
@@ -1706,10 +1707,13 @@ public final class WorldPhysics implements AutoCloseable {
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
             String correctionReason,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-            JumpGrace jumpGrace) {
+            JumpGrace jumpGrace,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            MovingPad movingPad) {
         public Motion(long epoch, long tick, long appliedInputSeq, double inputAgeMs, double velocityY, boolean grounded,
                 boolean inputActive, String authority, String profile, Steering steering, String correctionReason) {
-            this(epoch, tick, appliedInputSeq, inputAgeMs, velocityY, grounded, inputActive, authority, profile, steering, correctionReason, null);
+            this(epoch, tick, appliedInputSeq, inputAgeMs, velocityY, grounded, inputActive, authority,
+                    profile, steering, correctionReason, null, null);
         }
         public Motion(long epoch, long tick, long appliedInputSeq, double inputAgeMs, double velocityY,
                 boolean grounded, boolean inputActive, String authority, String profile) {
@@ -1724,6 +1728,10 @@ public final class WorldPhysics implements AutoCloseable {
             this(epoch, tick, appliedInputSeq, inputAgeMs, velocityY, grounded, inputActive, null);
         }
     }
+
+    public record MovingPad(int block,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            Double dipStartedAt) {}
 
     public record Steering(double dx, double dz, boolean run, double targetX, double targetZ) {}
 
