@@ -1,4 +1,14 @@
 {
+  "mergedVisualSourceReview20261116": {
+    "date": "2026-11-16",
+    "referenceCommit": "a956234ac6d3ef21e84e79e4f48ca417e03c7119",
+    "reason": "Jenkins517에서 누락된 최신 dev 소스 기준만 반영한다. 보존 파일 목록과 비교 검사는 유지하며 제품 코드·모델·맵 배치는 변경하지 않는다.",
+    "reviewedFiles": [
+      { "file": "src/world/art/CharacterRig.ts", "commit": "1fc252d4", "reason": "dev에 병합된 VR 탈것 손 표시에 실제 캐릭터의 팔 지오메트리를 사용하고 해제·dispose 시 원복하는 변경." },
+      { "file": "src/world/ParkSky.tsx", "commit": "1dc7a864", "reason": "dev에 병합된 VR 망원경 별자리 표시의 카메라별 공개 상태를 분리한 변경. 기존 하늘 재질·색상·별자리 배치는 유지." },
+      { "file": "src/layout-preview/RankingBoardModel.tsx", "commits": ["aa57c44b", "3b3ad619"], "reason": "사용자 승인 MR597의 랭킹 7종·4+3페이지와 나무/한지 테마, 제목 공통 표시를 반영한다. 구조물 지오메트리·배치·베이크·충돌은 유지." }
+    ]
+  },
   "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs. Approved jumpmap landing audio adapter and sound-layer diagnostic updated without geometry or placement changes (MR !258), 2026-10-31; authorized VR floor/start pad and plump jumpmap pastry, 2026-10-31. Merged pavilion bench/lantern clearance (f4af1d15), optional render-mode access for spectator collection tests (3ed52827), and fish-shop awning overlap repair (a4e53bb6), 2026-11-01. 사용자 QA 승인 범위의 돌 기단 겹침 제거, 오목 시각 높이의 게임 모듈 격리로 기존 맵 버전 유지, 2026-11-01. 돌 난간의 겹친 접지 밑면 제거, 2026-11-01. 사용자 요청에 따른 하늘·배경 산·경량 구름의 산뜻한 표현 보완, 바닥 타일·공원 조명·맵 배치 유지, 2026-11-01. 사용자 요청으로 전망대 메모함을 뒤로 0.45m 이동하고 공유 충돌 형상 추가, 2026-11-01. 사용자 요청으로 배경 구름 크기를 기존의 55%로 축소, 2026-11-01. 사용자 요청으로 VR 시작 바닥을 팔각형 석재판·황동 인레이·고글 문양으로 보완, 2026-11-01. 사용자 요청으로 돌탑 출발 표식만 엽전에서 돌탑 무늬로 교체하고 게임 모듈로 격리, 코스·배치·충돌 유지, 2026-11-01. 사용자 요청으로 메모함 위치·공유 충돌 변경만 취소하고 이전 맵 버전 복구, 그 외 시각 개선 유지, 2026-11-02. 공원 랭킹 API 개편에 맞춰 랭킹판 열 제목만 보유량·붕어빵 굽기·점프맵으로 변경하고 지오메트리·배치·재질·맵 버전은 유지, 2026-11-02. 사용자 요청으로 모델·재질·배치를 유지한 정적 나무 구역 분할과 주야간 그래픽 사전 준비를 적용하고 동일 시점 이미지로 검증, 2026-11-02. 사용자 요청으로 점프맵 출발 문양의 금속 반사와 겹친 윗면의 깜빡임만 제거하고 크기·배치·코스·충돌은 유지, 2026-11-03. 사용자 요청으로 비둘기의 방문자 위치 입력만 프레임 공유 계산에 연결하고 모델·배치·행동식은 유지. 30명 전후 화면과 동일 draw call·삼각형 수 확인, 2026-11-03. 최신 dev의 보상 정책 변경에 맞춰 jumpCourse 소스 해시 동기화. 캐릭터 CPU 접지에 불필요한 뼈대 팔레트 업로드만 제거하고 남녀 7가지 자세의 뼈대·접지·머리 위치 동등성 확인, 2026-11-03. 꼬치왕 독립 장면용 geometry 복사 함수만 추가하고, 이를 제외한 석탑 소스가 origin/dev와 동일함을 확인. 공원 형상·재질·배치 유지, 2026-11-04. VR 전용 브랜치 이관으로 카메라 월드 좌표 어댑터 7개 소스 해시만 갱신하고 최신 dev의 설명·다른 체크포인트를 보존, 2026-11-04. 사용자 요청으로 랭킹판 미니게임 열을 두더지 잡기·스피드 두더지 잡기로 바꾸며 열 제목 대체 문구만 변경하고 지오메트리·배치·재질·맵 버전은 유지, 2026-11-10. 사용자 요청으로 랭킹판에 구구구 줄넘기 열을 더하며 표시면을 네 장으로 나누고 세 칸 목재 구조물 앞에 걸었으며 구조물 지오메트리·배치·베이크·충돌·맵 버전은 유지, 2026-11-14. 220m 공원 밝기 보정과 착석 접촉 높이 산정, 2026-11-12. 220m 공원에서 검수한 팔각정 좌석과 보드 배치, 돌탑 착지 연출, 랭킹판 양면 표시, 전망대 메모함 상태 안내, 가로등 야간 조명과 정문 텍스처 우선 로딩을 체크포인트에 반영, 2026-11-12. 220m 정문 로딩에서 광장 지오메트리를 분리하고, 테이블 외형과 게임 보드의 로딩 순서를 분리하며, 미장착 랜드마크 지오메트리의 생성을 늦춤, 2026-11-12. 최신 dev의 랭킹판 4열과 220m 공원의 양면 표시를 통합하고 랭킹판 소스 체크섬을 갱신, 2026-11-14. 220m 공원 로컬 검수의 석탑 석재 접합, 점프맵 발판 모델과 돌테이블 좌석 표현을 기록, 2026-11-15.",
   "files": {
     "src/layout-preview/districtGeometry.ts": "882709ac240a987c6d7fc5d8740f9d48e93851c586b232dfa05bacd7b70fe1ff",
@@ -59,7 +69,7 @@
     "src/world/art/characterAssets.ts": "286bc5b9fdccdc504f6f137dda1b076c390d4f319b410d75cc283246ab700d27",
     "src/world/art/characterEmotes.ts": "fa6f71be2a2f40be9d32817e3fa8333c93e5f9b7cd07cdf72dc2a024882e8cb9",
     "src/world/art/characterMotion.ts": "32b692c0a9c674604e164d58876ac1b37bbbb6f7c28be39c3e2e2252de5a7084",
-    "src/world/art/CharacterRig.ts": "7e0ea8e6e7aa4950da5f11b795b131099e56d2f94829116b4443b11603355af4",
+    "src/world/art/CharacterRig.ts": "771808a5c115d314899366c618d8b179fa4d877948bf4d1e8915d88b0ab74387",
     "src/world/art/cityLayout.ts": "8ec73710c504246e80bad0f46383b9f3e301fd3461617ed08502d93ccd4c3c08",
     "src/world/art/CityStreets.tsx": "1f9e6935a927db0722be05ccf214af77c8cf515bfcdac17b10b5aa83b3cb0554",
     "src/world/art/CodeFishBreadCart.tsx": "6907101f6dc20983e15b87c7b0719f5e1362df560664ce66dc23c4773d68cf8f",
@@ -167,7 +177,7 @@
     "src/config/telescopes.ts": "f7a1cf883f2033895c9cea01f8873038c6b6e176cf1d71e0d9e5ef22ed1a278d",
     "src/config/world.ts": "514d1c22d5d95fa54abf3674ea84a0978fe22f938937aef4d33a82ed6b15877c",
     "src/world/worldAssets.ts": "1eb126fcd5c864fc06044db5bc9c4ecabdb195bc2a264951aeb3b898a7800e7d",
-    "src/world/ParkSky.tsx": "d8259ba20fc499d1272697a2517936af8142f220eae719aa5610fb6a6f098d33",
+    "src/world/ParkSky.tsx": "6853522a5789f23e47d2c826a0b7b690843fed81adb79ba698323fce544b182d",
     "src/world/EnvironmentScene.tsx": "5aa6d51ee10543cb44404be97647cac6943c425ba96d467eb5a6918b54b621aa",
     "src/world/SimpleParkEnvironment.tsx": "65cb3943df60007aca022c1051a2c0b7638fd8774bc4e1dde15267732a148c19",
     "src/features/tables/MainPavilionTable.tsx": "b575e34d9585fd57b102933d2c0008f1a304d6e4187f9824d2fe1ec18ba29673",
@@ -195,7 +205,7 @@
     "src/world/art/LuckyFacilities.tsx": "cf1f198fea3e3e0130bdf3b94c96d44c014174e352ba0645240ce41a511b77d4",
     "src/world/art/luckyFacilityGeometry.ts": "5c69f18ff9ee9564325e16d8738b6bdebcda6148f114911a595cec0b51cd816b",
     "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d",
-    "src/layout-preview/RankingBoardModel.tsx": "9c96e8e9745a31fbaab5c4d21e4e49c744fe49883a1d3749a9bee77dc2b3f6a7",
+    "src/layout-preview/RankingBoardModel.tsx": "19f5ffb98a7f24db832a58ad7eed2313a52d8d630e2ca9112fb2d0878f4cbbc4",
     "src/layout-preview/rankingBoardRoofSeats.ts": "dfeebed6f3acdb238dd855aa65c12cc72adfb8c606964cca86a1a42bdb026a1d",
     "src/world/art/shopLanternLayout.ts": "a12a5e070c4ac1be12d3f29ef93bef162e0fb4c2cfd93099073d609abe89ee94",
     "src/world/SimpleSkyClouds.tsx": "6b9c01eed1eab3ee9bddfa9384520221cf4355778831e4034ba2dc45846b4e14",
