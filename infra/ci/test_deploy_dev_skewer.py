@@ -48,6 +48,38 @@ class DevSkewerDeploymentTests(unittest.TestCase):
         return subprocess.run(["bash", str(self.script), "a" * 40],
                               env=self.environment, text=True, capture_output=True)
 
+    def rapfi(self):
+        release = self.root / "opt/ontop/rapfi/250615"
+        release.mkdir(parents=True)
+        (release / "config.toml").touch()
+        (release / "rapfi").touch(mode=0o755)
+        (self.compose_dir / "compose.rapfi.yaml").touch()
+        (self.env_file.parent / "rapfi.enabled").touch()
+        with self.env_file.open("a") as target:
+            target.write(f"RAPFI_HOST_DIR={release}\n")
+        return release
+
+    def test_rapfi_remains_disabled_without_marker(self):
+        self.assertEqual(self.run_deploy().returncode, 0)
+        self.assertNotIn("compose.rapfi.yaml", self.log.read_text())
+
+    def test_staged_rapfi_overlay_survives_deployment(self):
+        self.rapfi()
+        self.assertEqual(self.run_deploy().returncode, 0)
+        calls = [line for line in self.log.read_text().splitlines() if line.startswith("compose ")]
+        self.assertTrue(calls)
+        self.assertTrue(all("compose.rapfi.yaml" in line for line in calls))
+
+    def test_missing_rapfi_executable_blocks_before_recreation(self):
+        release = self.rapfi()
+        (release / "rapfi").unlink()
+        before = self.env_file.read_text()
+        result = self.run_deploy()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Rapfi marker", result.stderr)
+        self.assertEqual(self.env_file.read_text(), before)
+        self.assertNotIn("compose ", self.log.read_text())
+
     def journal(self, *, owner=10001, mode=0o700):
         journal = self.root / "journal"
         journal.mkdir()

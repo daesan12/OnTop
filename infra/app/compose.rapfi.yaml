@@ -1,0 +1,12 @@
+# Optional shared DEV/PROD overlay. Stage the verified Linux release first.
+services:
+  app:
+    environment:
+      AI_RAPFI_PATH: /run/ontop/rapfi/rapfi
+    volumes:
+      - type: bind
+        source: ${RAPFI_HOST_DIR:?Set RAPFI_HOST_DIR to the verified Rapfi release directory}
+        target: /run/ontop/rapfi
+        read_only: true
+        bind:
+          create_host_path: false
