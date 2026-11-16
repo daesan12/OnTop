@@ -2,11 +2,39 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useSession } from '../../network/worldClient'
 import { canControlRoamingCamera } from '../../world/roamingCamera'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
+import ontopPreview from './art/ontop-preview.webp'
 import pickusPreview from './art/pickus-preview.webp'
 import './advertisements.css'
 
-// The original prototype's approved PICKUS destination; other ads have no inferred URL.
 export const PICKUS_LINK = 'https://www.instagram.com/pickus_magazine?obrf=emx2cGh4ZDI3MTIz&utm_source=qr'
+
+const advertisements = [
+  {
+    title: 'PICKUS',
+    heading: '잠깐, 다른 공간으로 떠나볼까요?',
+    introduction: '공원에서 발견한 다른 팀의 프로젝트를 소개합니다.',
+    badge: '외부 팀 프로젝트',
+    description: ['PICKUS의 다양한 소식을', '인스타그램에서 확인해 보세요.'],
+    image: pickusPreview,
+    alt: '한옥 공원에서 사진을 찍는 두 캐릭터와 PICKUS 사진 화면',
+    link: PICKUS_LINK,
+    action: '인스타그램 방문',
+    notice: '온탑 외부 페이지로 이동합니다.',
+    instagram: '@pickus_magazine',
+  },
+  {
+    title: 'ONTOP',
+    heading: '친구와 온탑 공원에서 만나요!',
+    introduction: '한옥과 호숫가를 거닐며 함께 즐길 게임을 찾아보세요.',
+    badge: '온탑 게임 소개',
+    description: ['돌탑을 쌓고, 공원을 산책하고,', '친구와 온탑에서 놀아 보세요.'],
+    image: ontopPreview,
+    alt: '한옥 정자 옆에서 두 캐릭터가 돌탑을 쌓는 온탑 홍보 일러스트',
+    link: 'https://www.on-top.world/',
+    action: '온탑 홈페이지',
+    notice: '온탑 홈페이지로 이동합니다.',
+  },
+]
 
 function Ornament({ className = '' }: { className?: string }) {
   return <svg className={className} viewBox="0 0 40 40" fill="none" aria-hidden="true">
@@ -28,8 +56,20 @@ function InstagramIcon() {
   </svg></span>
 }
 
+function AdvertisementArrow({ direction, onClick }: { direction: -1 | 1; onClick: () => void }) {
+  return <button type="button" className="park-advertisement-arrow" onClick={onClick}
+    aria-label={direction === -1 ? '이전 광고' : '다음 광고'} aria-controls="advertisement-link-project">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d={direction === -1 ? 'm15 5-7 7 7 7' : 'm9 5 7 7-7 7'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  </button>
+}
+
 export function AdvertisementLink() {
   const [open, setOpen] = useState(false)
+  const [page, setPage] = useState(0)
+  const advertisement = advertisements[page]
+  const turnPage = (step: -1 | 1) => setPage(current => (current + step + advertisements.length) % advertisements.length)
   const dialog = useRef<HTMLDialogElement>(null), previousFocus = useRef<HTMLElement | null>(null)
   const stayButton = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -38,6 +78,7 @@ export function AdvertisementLink() {
       previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       inputState.advertisementOpen = true
       clearRoamingInput()
+      setPage(0)
       setOpen(true)
     }
     const close = () => {
@@ -81,6 +122,11 @@ export function AdvertisementLink() {
     onClose={() => { if (!dialog.current?.open) setOpen(false) }}
     onKeyDown={event => {
       event.stopPropagation()
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault()
+        if (!event.repeat) turnPage(event.key === 'ArrowLeft' ? -1 : 1)
+        return
+      }
       if (event.key !== 'Tab') return
       const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button,a[href]')]
       const first = controls[0], last = controls.at(-1)
@@ -99,25 +145,32 @@ export function AdvertisementLink() {
         <button className="park-advertisement-close" type="button" aria-label="광고 안내 닫기" onClick={() => setOpen(false)}>
           <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="m5 5 22 22M27 5 5 27" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>
         </button>
-        <h2 id="advertisement-link-title">잠깐, 다른 공간으로 떠나볼까요?</h2>
-        <p id="advertisement-link-description">공원에서 발견한 다른 팀의 프로젝트를 소개합니다.</p>
+        <h2 id="advertisement-link-title">{advertisement.heading}</h2>
+        <p id="advertisement-link-description">{advertisement.introduction}</p>
       </header>
-      <section className="park-advertisement-project" aria-label="PICKUS 프로젝트 소개">
-        <FrameCorners />
-        <img className="park-advertisement-preview" src={pickusPreview} alt="한옥 공원에서 사진을 찍는 두 캐릭터와 PICKUS 사진 화면" width="1280" height="720" />
-        <div className="park-advertisement-details">
-          <span className="park-advertisement-badge">외부 팀 프로젝트</span>
-          <h3>PICKUS</h3>
-          <p>PICKUS의 다양한 소식을<br />인스타그램에서 확인해 보세요.</p>
-          <div className="park-advertisement-divider"><Ornament /></div>
-          <div className="park-advertisement-social"><InstagramIcon /><div><strong>Instagram</strong><span>@pickus_magazine</span></div></div>
-        </div>
-      </section>
+      <div className="park-advertisement-carousel">
+        <AdvertisementArrow direction={-1} onClick={() => turnPage(-1)} />
+        <section id="advertisement-link-project" className="park-advertisement-project" aria-labelledby="advertisement-project-name">
+          <FrameCorners />
+          <img className="park-advertisement-preview" src={advertisement.image} alt={advertisement.alt} width="1280" height="720" />
+          <div className="park-advertisement-details">
+            <span className="park-advertisement-badge">{advertisement.badge}</span>
+            <h3 id="advertisement-project-name">{advertisement.title}</h3>
+            <p>{advertisement.description[0]}<br />{advertisement.description[1]}</p>
+            {advertisement.instagram && <>
+              <div className="park-advertisement-divider"><Ornament /></div>
+              <div className="park-advertisement-social"><InstagramIcon /><div><strong>Instagram</strong><span>{advertisement.instagram}</span></div></div>
+            </>}
+          </div>
+        </section>
+        <AdvertisementArrow direction={1} onClick={() => turnPage(1)} />
+        <div className="park-advertisement-page" role="status"><span className="park-advertisement-page-title">{advertisement.title}: </span>{page + 1} / {advertisements.length}</div>
+      </div>
       <footer className="park-advertisement-footer">
-        <p className="park-advertisement-notice" id="advertisement-link-notice"><span aria-hidden="true">!</span><span>온탑 외부 페이지로 이동합니다. 링크는 새 탭에서 열리며,<br className="park-advertisement-notice-break" /> 온탑 게임은 그대로 유지됩니다.</span></p>
+        <p className="park-advertisement-notice" id="advertisement-link-notice"><span aria-hidden="true">!</span><span>{advertisement.notice} 링크는 새 탭에서 열리며,<br className="park-advertisement-notice-break" /> 온탑 게임은 그대로 유지됩니다.</span></p>
         <div className="park-advertisement-actions">
           <button ref={stayButton} type="button" autoFocus onClick={() => setOpen(false)}><FrameCorners />공원에 남기</button>
-          <a href={PICKUS_LINK} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}><FrameCorners />인스타그램 방문 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19 19 5M6 5h13v13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></a>
+          <a href={advertisement.link} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}><FrameCorners />{advertisement.action} <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19 19 5M6 5h13v13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></a>
         </div>
       </footer>
     </div>
