@@ -19,7 +19,7 @@ RUN --mount=type=cache,id=ontop-backend-gradle,target=/root/.gradle,sharing=lock
 FROM eclipse-temurin:21-jre-jammy
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl libstdc++6 \
+    && apt-get install -y --no-install-recommends curl libstdc++6 libatomic1 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 ontop \
     && useradd --system --uid 10001 --gid ontop --home-dir /app ontop

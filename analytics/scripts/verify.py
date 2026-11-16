@@ -180,6 +180,9 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
     "16_facility_usage.sql": [
         {"kind": "BENCH", "facility_id": "bench-0", "uses": "2", "users": "2", "avg_minutes": "7.8",
          "disconnected_ends": "1", "unended": "0"},
+        # 열기구 1분, 탑승료 100냥.
+        {"kind": "BALLOON", "facility_id": "balloon", "uses": "1", "users": "1", "avg_minutes": "1.0",
+         "disconnected_ends": "0", "unended": "0", "fee_coins": "100"},
         # 킥보드 30초 = 0.5분, 대여료 30초 × 2냥.
         {"kind": "SCOOTER", "facility_id": "mobility-entry", "uses": "1", "users": "1", "avg_minutes": "0.5",
          "disconnected_ends": "0", "unended": "0", "fee_coins": "60"},
@@ -481,6 +484,17 @@ EXPECTED: dict[str, list[dict[str, str]]] = {
         {"user_id": "101", "rounds": "1", "turns": "2", "early_pct": "50.0", "under100_pct": "0.0",
          "under150_pct": "0.0", "r150_500_pct": "50.0", "over500_pct": "0.0",
          "rounds_mostly_under150_pct": "0.0", "max_round_under150_pct": "0.0"},
+    ],
+    # 보통: 101 완주(6라운드·36곳·헛클릭 1·12냥·가장 빠른 라운드 1초) + 103 만료(0라운드). 어려움: 103 교체(1라운드 2곳).
+    "40_spot_difference_daily.sql": [
+        {"kst_date": "2026-10-28", "difficulty": "HARD", "runs": "1", "players": "1", "completed": "0",
+         "restarted": "1", "expired": "0", "completion_pct": "0.0", "avg_rounds_started": "1.0",
+         "avg_rounds_cleared": "0.0", "avg_found": "2.0", "avg_misses": "0.0", "rewarded_coins": "0",
+         "fastest_clear_ms": "NULL"},
+        {"kst_date": "2026-10-28", "difficulty": "NORMAL", "runs": "2", "players": "2", "completed": "1",
+         "restarted": "0", "expired": "1", "completion_pct": "50.0", "avg_rounds_started": "3.0",
+         "avg_rounds_cleared": "3.0", "avg_found": "18.0", "avg_misses": "0.5", "rewarded_coins": "12",
+         "fastest_clear_ms": "1000"},
     ],
     "35_halli_bell_reaction.sql": [
         {"user_id": "105", "games": "2", "success_rings": "6", "penalty_rings": "2", "late_rings": "4",
