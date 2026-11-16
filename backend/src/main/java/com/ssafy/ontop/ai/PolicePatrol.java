@@ -37,6 +37,8 @@ public final class PolicePatrol {
     private int recoveryNext;
     private double recoveryRemaining;
     private boolean returning;
+    private long returnSince=-1;
+    private static final long RETURN_LIMIT_MILLIS=10_000;
     private List<Point> route=List.of();
     private int next;
     private Incident active;
@@ -156,14 +158,18 @@ public final class PolicePatrol {
         return view(moving);
     }
     private View returnTick(long now,double dt) {
+        if(returnSince<0)returnSince=now;
+        // Descent can be impossible outside the map, or repeatedly lead to another inaccessible point.
+        // A bounded recovery must never hold every subsequent incident behind this actor forever.
+        if(now-returnSince>=RETURN_LIMIT_MILLIS)return warpToPatrol();
         if(recoveryNext>=recovery.size()) {
             if(navigation.canPatrolFrom(position)) {
-                returning=false;recovery=List.of();action="PATROL";return view(false);
+                returning=false;returnSince=-1;recovery=List.of();action="PATROL";return view(false);
             }
             action="RETURN_WAIT";
             if(now<planAfter)return view(false);
             recovery=navigation.returnPath(position);recoveryNext=0;recoveryRemaining=0;planAfter=now+2000;
-            if(recovery.isEmpty())return view(false);
+            if(recovery.isEmpty())return warpToPatrol();
         }
         double seconds=Math.max(0,Math.min(.25,dt));boolean moving=false;
         while(recoveryNext<recovery.size()&&seconds>0) {
@@ -179,6 +185,13 @@ public final class PolicePatrol {
             if(recoveryRemaining<.000001){recoveryNext++;recoveryRemaining=0;}
         }
         return view(moving);
+    }
+    private View warpToPatrol() {
+        position=navigation.spawn();warp++;metrics.increment("return.teleports");
+        returning=false;returnSince=-1;recovery=List.of();recoveryNext=0;recoveryRemaining=0;
+        route=List.of();next=0;planAfter=0;failedSince=-1;teleportSince=-1;
+        wander.relocate(position);patrolling=true;action="PATROL";
+        return view(false);
     }
     private View view(boolean moving) { return new View("police","한순경",action,position.x(),position.y()-.8,position.z(),yaw,moving,warp,ambient.tick("police","POLICE",action.equals("PATROL")||action.equals("REST"),tickAt)); }
 }
