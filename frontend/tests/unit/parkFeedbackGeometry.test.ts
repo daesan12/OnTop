@@ -1,8 +1,21 @@
 import {describe,expect,it} from 'vitest'
-import {jumpArt} from '../../src/layout-preview/jumpGeometry'
+import {buildServiceJumpPadArt,jumpArt} from '../../src/layout-preview/jumpGeometry'
 import {vrBoothArt} from '../../src/world/art/activityPropGeometry'
 
 describe('current park feedback visuals',()=>{
+ it('keeps a single flat cloud cap at the landing height in both art profiles',()=>{
+  for(const geometry of [jumpArt.cloud.paint!,buildServiceJumpPadArt().cloud.paint!]){
+   const positions=geometry.getAttribute('position')
+   const cap:number[]=[]
+   for(let i=0;i<positions.count;i++){
+    if(positions.getY(i)===0)cap.push(Math.hypot(positions.getX(i),positions.getZ(i)))
+   }
+   expect(cap.length).toBeGreaterThan(3)
+   expect(Math.max(...cap)).toBeLessThan(.68)
+   geometry.computeBoundingBox()
+   expect(geometry.boundingBox!.max.y).toBe(0)
+  }
+ })
  it('gives the pastry a full rounded body while preserving its landing plane',()=>{
   const geometry=jumpArt.fish.paint!
   geometry.computeBoundingBox()
