@@ -127,8 +127,11 @@ final class RenewalCourseMotion {
 
     WorldPhysics.MovingPad movingPad(String user) {
         Player player = players.get(user);
+        if (player == null || player.support < 0) {
+            return null;
+        }
         Contact contact = player.contacts.get(player.support);
-        Double dipStartedAt = Double.isFinite(contact.dippedAt) ? contact.dippedAt : null;
+        Double dipStartedAt = contact != null && Double.isFinite(contact.dippedAt) ? contact.dippedAt : null;
         return new WorldPhysics.MovingPad(player.support, dipStartedAt);
     }
 
