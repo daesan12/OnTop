@@ -16,6 +16,8 @@ skewer_compose=/opt/ontop/infra/app/compose.skewer-coop.yaml
 skewer_marker=/etc/ontop/dev-app/skewer-coop.enabled
 monitoring_compose=/opt/ontop/infra/monitoring/dev/compose.app.yaml
 monitoring_marker=/etc/ontop/dev-app/monitoring.enabled
+rapfi_compose=/opt/ontop/infra/app/compose.rapfi.yaml
+rapfi_marker=/etc/ontop/dev-app/rapfi.enabled
 record_dir=/var/lib/ontop/ci
 record_file=$record_dir/dev-deployments.tsv
 
@@ -26,6 +28,15 @@ flock -n 9 || { echo 'Another dev deployment is active.' >&2; exit 1; }
 docker image inspect "$image" >/dev/null
 
 compose_args=(--env-file "$env_file" -f "$compose_file")
+if [[ -f $rapfi_marker ]]; then
+  rapfi_dir=$(sed -n 's/^RAPFI_HOST_DIR=//p' "$env_file" | head -n 1)
+  [[ $rapfi_dir == /opt/ontop/rapfi/250615 && -f $rapfi_compose \
+    && -x "$rapfi_dir/rapfi" && -r "$rapfi_dir/config.toml" ]] || {
+    echo 'Rapfi marker, staged release, or Compose override is inconsistent.' >&2
+    exit 1
+  }
+  compose_args+=(-f "$rapfi_compose")
+fi
 if [[ -f $generated_marker ]]; then
   map_version=$(<"$generated_marker")
   map_dir=$(sed -n 's/^PARK_MAP_HOST_DIR=//p' "$env_file" | head -n 1)
