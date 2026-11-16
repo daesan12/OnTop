@@ -7,9 +7,9 @@ import {
   TextureLoader,
 } from 'three'
 import { A_FRAME } from '../../src/config/parkAdvertising'
+import parkSignTeaserUrl from '../../src/features/advertisements/art/park-sign-teaser.webp'
 import { beam, Instances, yawPart, type Part, type XYZ } from '../../src/world/art/Instances'
 import { environmentFrame } from '../../src/world/environmentState'
-import { parkAdvertisementUrl } from '../../src/world/worldAssets'
 import { groundSurfaceHeight } from '../groundSurface'
 import { renewalAdSigns } from './advertisingPlacement'
 
@@ -17,9 +17,9 @@ const sites = renewalAdSigns.map(site => ({ ...site, y: groundSurfaceHeight(site
 
 // Independent of the ten-second building playlist.
 const PARK_ADVERTISEMENT = {
-  imageUrl: parkAdvertisementUrl,
-  width: 2160,
-  height: 2880,
+  imageUrl: parkSignTeaserUrl,
+  width: 1080,
+  height: 1440,
 } as const
 const imageAspect = PARK_ADVERTISEMENT.width / PARK_ADVERTISEMENT.height
 const posterGeometry = new PlaneGeometry(1, 1)
