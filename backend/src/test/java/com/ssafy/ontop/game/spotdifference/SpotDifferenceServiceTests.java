@@ -15,6 +15,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.behavior.domain.BehaviorEvent;
+import com.ssafy.ontop.behavior.domain.BehaviorEventType;
+import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.game.spotdifference.SpotDifferenceService.Action;
 import com.ssafy.ontop.game.spotdifference.SpotDifferenceService.Difficulty;
 import com.ssafy.ontop.game.spotdifference.SpotDifferenceService.Difference;
@@ -116,6 +119,84 @@ class SpotDifferenceServiceTests {
         assertThatThrownBy(() -> game.act(PLAYER, id, new Action(NEXT, 1, null, null)))
                 .isInstanceOf(ResponseStatusException.class);
         verifyNoInteractions(rewards);
+    }
+
+    @Test
+    void 완주한_판은_라운드_결과와_지급_엽전을_한_번_남기고_다음_판으로_바꿔도_다시_남기지_않는다() {
+        var log = new CapturingLog();
+        var logged = loggedGame(log);
+        var id = logged.start(PLAYER, new Start(Difficulty.NORMAL, UUID.randomUUID())).id();
+        when(rewards.settle(PLAYER, id, 72)).thenReturn(new SpotDifferenceRewards.Receipt(72, 60, 900));
+        for (int round = 1; round <= 6; round++) {
+            logged.act(PLAYER, id, new Action(READY, round, null, null));
+            if (round == 1) {
+                logged.act(PLAYER, id, new Action(TAP, round, 0, 0));
+                clock.advance(650);
+            }
+            for (int hit = 0; hit < 6; hit++) {
+                logged.act(PLAYER, id, new Action(TAP, round, 15 + hit * 30, 51));
+                clock.advance(round == 1 ? 300 : 200);
+            }
+            if (round < 6) logged.act(PLAYER, id, new Action(NEXT, round, null, null));
+        }
+        logged.start(PLAYER, new Start(Difficulty.HARD, UUID.randomUUID()));
+
+        assertThat(log.events).singleElement().satisfies(event -> {
+            assertThat(event.type()).isEqualTo(BehaviorEventType.GAME_PLAY_STATS);
+            assertThat(event.userId()).isEqualTo(PLAYER);
+            assertThat(event.gameId()).isEqualTo(id.toString());
+            assertThat(event.props()).containsEntry("gameCode", "SPOT_DIFFERENCE")
+                    .containsEntry("difficulty", "NORMAL").containsEntry("endReason", "COMPLETED")
+                    .containsEntry("roundsStarted", 6).containsEntry("roundsCleared", 6)
+                    .containsEntry("found", 36).containsEntry("misses", 1)
+                    // 2~6라운드는 0.2초 간격으로 여섯 개: 마지막이 READY 뒤 1초.
+                    .containsEntry("fastestClearMs", 1000L).containsEntry("reward", 60);
+        });
+    }
+
+    @Test
+    void 새_판으로_바꾸거나_만료된_판도_찾은_만큼_남긴다() {
+        var log = new CapturingLog();
+        var logged = loggedGame(log);
+        var first = logged.start(PLAYER, new Start(Difficulty.HARD, UUID.randomUUID())).id();
+        logged.act(PLAYER, first, new Action(READY, 1, null, null));
+        logged.act(PLAYER, first, new Action(TAP, 1, 15, 101));
+        clock.advance(200);
+        logged.act(PLAYER, first, new Action(TAP, 1, 45, 101));
+        clock.advance(1_000);
+        var second = logged.start(PLAYER, new Start(Difficulty.NORMAL, UUID.randomUUID())).id();
+        Instant lastAction = clock.instant();
+        logged.act(PLAYER, second, new Action(READY, 1, null, null));
+        clock.advance(15 * 60_000);
+        logged.start(2L, new Start(Difficulty.NORMAL, UUID.randomUUID()));
+
+        assertThat(log.events).extracting(event -> event.props().get("endReason"))
+                .containsExactly("RESTARTED", "EXPIRED");
+        assertThat(log.events.getFirst().props()).containsEntry("difficulty", "HARD")
+                .containsEntry("roundsStarted", 1).containsEntry("roundsCleared", 0).containsEntry("found", 2)
+                .containsEntry("misses", 0).containsEntry("durationMs", 1_200L)
+                .doesNotContainKeys("fastestClearMs", "reward");
+        assertThat(log.events.getLast().occurredAt()).isEqualTo(lastAction);
+        verifyNoInteractions(rewards);
+    }
+
+    private SpotDifferenceService loggedGame(CapturingLog log) {
+        return new SpotDifferenceService(
+                IntStream.range(0, 50).mapToObj(i -> new Puzzle("p" + i, "장면 " + i, boxes(50), boxes(100))).toList(),
+                rewards, clock, log);
+    }
+
+    private static final class CapturingLog implements BehaviorLog {
+        private final List<BehaviorEvent> events = new java.util.ArrayList<>();
+
+        @Override
+        public void record(java.util.function.Supplier<BehaviorEvent> event) {
+            events.add(event.get());
+        }
+
+        @Override
+        public void recordPosition(java.util.function.Supplier<com.ssafy.ontop.behavior.domain.PositionSample> sample) {
+        }
     }
 
     private static List<Difference> boxes(int y) {

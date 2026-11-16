@@ -4,6 +4,10 @@
 -- 대여소(mobility-*), 이용 시간은 요금을 낸 초 수, fee_coins는 낸 대여료 합계다. 첫 요금을 못 내 타지 못한 대여는 없다.
 -- 탈것 종료 사유(endReason): RELEASED(직접 하차)·AUTO_ENDED(물·점프맵 등 탈 수 없는 상태)·CHANNEL_LEFT·
 -- DISCONNECTED·INSUFFICIENT(잔액 부족)·FAILED(결제 실패).
+-- 열기구(2026-11-16~, S15P31B105-446)는 kind BALLOON, facility_id balloon이고 탑승권(leaseId)마다 한 번이다.
+-- 탑승권을 실제로 써서 이륙한 사람만 남고(혼자는 첫 비행, 여럿은 출발 때), 이용 시간은 이륙부터 내릴 때까지,
+-- fee_coins는 탑승료(1인 100냥) 합계다. role(PILOT·PASSENGER)·riders(함께 탄 인원)·mode는 행동 로그에서 본다.
+-- 열기구 종료 사유: ENDED(직접)·PILOT_ENDED(조종사가 끝내 함께 내림)·EXPIRED(시간 초과)·DISCONNECTED·CHANNEL_LEFT.
 -- 종료 기록이 없는 이용(서버 종료·백업 시점에 이용 중)은 평균 이용 시간에서 빠진다.
 -- 연결 끊김 종료가 많은 시설은 자리를 비운 채 점유하는 경우가 많다는 뜻일 수 있다.
 SET time_zone = '+00:00';

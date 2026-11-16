@@ -104,6 +104,92 @@ class BalloonFlightsTests {
     }
 
     @Test
+    void 혼자_비행은_첫_비행_갱신에_이륙을_남기고_직접_내리면_탄_시간과_함께_하차를_남긴다() {
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+        flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0);
+        assertThat(flights.drainUsage()).isEmpty();
+        long tick = Duration.ofMillis(200).toNanos();
+        flights.update(CHANNEL, PILOT, SESSION, TICKET, new Flight(DOCK, true), tick);
+        flights.update(CHANNEL, PILOT, SESSION, TICKET, new Flight(DOCK, true), tick * 2);
+
+        assertThat(flights.drainUsage()).containsExactly(
+                new BalloonFlights.Usage(CHANNEL, PILOT, TICKET, "PILOT", 1, "single", null, 0, 100));
+        flights.finish(PILOT, SESSION, TICKET, tick + Duration.ofSeconds(30).toNanos());
+        assertThat(flights.drainUsage()).containsExactly(new BalloonFlights.Usage(CHANNEL, PILOT, TICKET, "PILOT",
+                1, "single", "ENDED", Duration.ofSeconds(30).toNanos(), 100));
+        assertThat(flights.drainUsage()).isEmpty();
+    }
+
+    @Test
+    void 이륙_전에_내린_탑승은_남기지_않는다() {
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+        flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0);
+
+        flights.finish(PILOT, SESSION, null, 1, "DISCONNECTED");
+
+        assertThat(flights.drainUsage()).isEmpty();
+    }
+
+    @Test
+    void 여럿_비행은_출발에_모두_이륙하고_동승자는_따로_내리며_시간이_지나면_남은_사람이_함께_내린다() {
+        String guest = "102";
+        String rider = "103";
+        UUID guestTicket = UUID.randomUUID();
+        UUID riderTicket = UUID.randomUUID();
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+        flights.authorize(guest, guestTicket, NOW, NOW);
+        flights.authorize(rider, riderTicket, NOW, NOW);
+        flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0, 3, null, "split");
+        flights.holdSeat(CHANNEL, PILOT, guest, guestTicket, NOW, 0);
+        flights.start(CHANNEL, guest, "guest", guestTicket, GROUND, DOCK, NOW, 0, 1, PILOT);
+        flights.holdSeat(CHANNEL, PILOT, rider, riderTicket, NOW, 0);
+        flights.start(CHANNEL, rider, "rider", riderTicket, GROUND, DOCK, NOW, 0, 1, PILOT);
+        assertThat(flights.drainUsage()).isEmpty();
+
+        long launched = Duration.ofSeconds(1).toNanos();
+        flights.launch(CHANNEL, PILOT, SESSION, TICKET, NOW, launched);
+        assertThat(flights.drainUsage()).extracting(BalloonFlights.Usage::riderId, BalloonFlights.Usage::role,
+                BalloonFlights.Usage::riders, BalloonFlights.Usage::mode, BalloonFlights.Usage::endReason)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(PILOT, "PILOT", 3, "split", null),
+                        org.assertj.core.groups.Tuple.tuple(guest, "PASSENGER", 3, "split", null),
+                        org.assertj.core.groups.Tuple.tuple(rider, "PASSENGER", 3, "split", null));
+
+        flights.finish(rider, "rider", riderTicket, launched + Duration.ofSeconds(20).toNanos(), "CHANNEL_LEFT");
+        assertThat(flights.drainUsage()).containsExactly(new BalloonFlights.Usage(CHANNEL, rider, riderTicket,
+                "PASSENGER", 3, "split", "CHANNEL_LEFT", Duration.ofSeconds(20).toNanos(), 100));
+
+        long idle = launched + Duration.ofSeconds(9).toNanos();
+        flights.expire(NOW.plusSeconds(10), idle);
+        assertThat(flights.drainUsage()).extracting(BalloonFlights.Usage::riderId, BalloonFlights.Usage::endReason,
+                BalloonFlights.Usage::durationNanos)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(PILOT, "EXPIRED", Duration.ofSeconds(9).toNanos()),
+                        org.assertj.core.groups.Tuple.tuple(guest, "EXPIRED", Duration.ofSeconds(9).toNanos()));
+    }
+
+    @Test
+    void 조종사가_끝내면_남은_동승자는_조종사_종료로_함께_내린다() {
+        String guest = "102";
+        UUID guestTicket = UUID.randomUUID();
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+        flights.authorize(guest, guestTicket, NOW, NOW);
+        flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0, 2, null);
+        flights.holdSeat(CHANNEL, PILOT, guest, guestTicket, NOW, 0);
+        flights.start(CHANNEL, guest, "guest", guestTicket, GROUND, DOCK, NOW, 0, 1, PILOT);
+        flights.launch(CHANNEL, PILOT, SESSION, TICKET, NOW, 0);
+        flights.drainUsage();
+
+        flights.finish(PILOT, SESSION, TICKET, Duration.ofSeconds(5).toNanos(), "DISCONNECTED");
+
+        assertThat(flights.drainUsage()).extracting(BalloonFlights.Usage::riderId, BalloonFlights.Usage::mode,
+                BalloonFlights.Usage::endReason)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(PILOT, "party", "DISCONNECTED"),
+                        org.assertj.core.groups.Tuple.tuple(guest, "party", "PILOT_ENDED"));
+    }
+
+    @Test
     void 결제를_확인한_비행의_최신_좌표는_같은_채널에만_공개된다() {
         flights.authorize(PILOT, TICKET, NOW, NOW);
         var initial = flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0);
