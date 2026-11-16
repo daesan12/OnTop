@@ -59,8 +59,29 @@ public final class WorldPhysics implements AutoCloseable {
     private PhysicsRigidBody duckBoat;
     private double duckBoatTime = Double.NaN;
 
+    private boolean duckBoatHidden;
+
+    /** 오리배 탑승 운항 중에는 장식 순환 배를 숨기고 충돌도 뺀다. */
+    public void setDuckBoatHidden(boolean hidden) {
+        call(() -> {
+            if (duckBoat == null || duckBoatHidden == hidden) {
+                return null;
+            }
+            duckBoatHidden = hidden;
+            if (hidden) {
+                if (Double.isFinite(duckBoatTime)) {
+                    space.removeCollisionObject(duckBoat);
+                }
+                duckBoatTime = Double.NaN;
+            } else {
+                syncDuckBoat(courseTime());
+            }
+            return null;
+        });
+    }
+
     private void syncDuckBoat(double now) {
-        if (duckBoat == null || duckBoatTime == now) {
+        if (duckBoat == null || duckBoatHidden || duckBoatTime == now) {
             return;
         }
         JsonNode route = scene.data.path("duckBoat");
@@ -258,6 +279,9 @@ public final class WorldPhysics implements AutoCloseable {
             if (actor == null || actor.seated || actor.swimming || actor.carriedBy != null || actor.carryingId != null
                     || actor.throwTicks > 0) return null;
             var layout = scene.data.path("interiorAccess");
+            if (!layout.path("entrancesOpen").asBoolean(true) && ("vestibule".equals(access) || "entry".equals(access))) {
+                return null;
+            }
             var route = layout.path("routes").path(access);
             if (!route.isObject()) return null;
             Vector3f position = actor.body.getPhysicsLocation(null);
@@ -1391,6 +1415,23 @@ public final class WorldPhysics implements AutoCloseable {
                     placeNow(id, x, y, z);
                     return null;
                 });
+    }
+
+    /**
+     * 이미 시설에 묶인 사람의 좌석만 옮긴다(움직이는 오리배). 순간 이동이 아니므로 이동 epoch를 바꾸지 않는다.
+     * 묶여 있지 않으면 false.
+     */
+    public boolean moveSeated(String id, double x, double y, double z, double yaw) {
+        return call(() -> {
+            Actor actor = actors.get(id);
+            if (actor == null || !actor.seated) {
+                return false;
+            }
+            actor.body.warp(new Vector3f((float) x, (float) y, (float) z));
+            actor.body.setLinearVelocity(Vector3f.ZERO);
+            actor.yaw = yaw;
+            return true;
+        });
     }
 
     /** 시설 이용 자세는 충돌 계산에서 분리하고, 이전 이동 입력을 폐기한다. */

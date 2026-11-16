@@ -137,7 +137,7 @@ public class SkewerCoopSettlementService {
     }
 
     public SkewerCoopRankingResponse ranking(long user, String mode) {
-        if (!java.util.Set.of("PC", "VR").contains(mode)) {
+        if (!java.util.Set.of("PC", "VR", "ALL").contains(mode)) {
             throw new IllegalArgumentException("랭킹 플레이 방식을 확인해주세요.");
         }
         if (store == null) {

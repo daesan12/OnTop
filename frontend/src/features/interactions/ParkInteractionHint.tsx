@@ -63,8 +63,8 @@ export function ParkInteractionHint() {
     </> : target && <button type="button" aria-keyshortcuts="E"
       disabled={pending || fitness.pending || telescopePending || joiningTable || target.occupied || !target.available}
       onClick={event => { interactWithPark(); event.currentTarget.blur() }}>
-      <kbd>E</kbd> {target.occupied ? target.kind === 'fitness' || target.kind === 'telescope' ? `${target.occupant} 님이 사용 중 · ${target.label}` : '벤치에 빈자리가 없어요'
-        : target.available || target.kind === 'interior-access' ? target.label : target.kind === 'fitness' ? '운동기구 서버 연결 필요' : target.kind === 'telescope' ? '망원경 서버 연결 필요' : '벤치 서버 연결 필요'}
+      <kbd>E</kbd> {target.occupied ? target.kind === 'boat' ? '오리배 대기열이 가득 찼어요' : target.kind === 'fitness' || target.kind === 'telescope' ? `${target.occupant} 님이 사용 중 · ${target.label}` : '벤치에 빈자리가 없어요'
+        : target.available || target.kind === 'interior-access' ? target.label : target.kind === 'fitness' ? '운동기구 서버 연결 필요' : target.kind === 'telescope' ? '망원경 서버 연결 필요' : target.kind === 'boat' ? '오리배 서버 연결 필요' : '벤치 서버 연결 필요'}
       {target.kind === 'bench' && target.available && benchService.mode === 'mock' && ' · 목업'}
       {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
       {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}

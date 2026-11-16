@@ -59,10 +59,16 @@ public final class JumpRopeDtos {
     public record PersonalBest(long rank, String nickname, int score) { }
 
     @Schema(name = "JumpRopeRankings")
-    public record Rankings(int rulesVersion, @Schema(allowableValues = "ALL_TIME") String period,
+    public record Rankings(int rulesVersion, @Schema(allowableValues = "EVENT") String period,
                            Instant updatedAt, long totalParticipants, int offset, int limit, List<Item> items,
                            @JsonInclude(JsonInclude.Include.ALWAYS) @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
-                           PersonalBest me, boolean hasMore) { }
+                           PersonalBest me, boolean hasMore, Instant startsAt, Instant endsAtExclusive) {
+        public Rankings(int rulesVersion, String period, Instant updatedAt, long totalParticipants,
+                int offset, int limit, List<Item> items, PersonalBest me, boolean hasMore) {
+            this(rulesVersion, period, updatedAt, totalParticipants, offset, limit, items, me, hasMore,
+                    JumpRopeRankingWindow.START, JumpRopeRankingWindow.END_EXCLUSIVE);
+        }
+    }
 
     @Schema(name = "JumpRopeError")
     public record Error(String code, String message) { }

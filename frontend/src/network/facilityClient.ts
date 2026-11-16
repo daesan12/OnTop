@@ -1,4 +1,4 @@
-import { BENCH_IDS, FITNESS_STATIONS, TELESCOPES } from '../park/mapConfig'
+import { BENCH_IDS, DUCK_BOAT, FITNESS_STATIONS, TELESCOPES } from '../park/mapConfig'
 import { EXPECTED_MAP_VERSION } from '../park/mapConfig'
 import { clearRoamingInput } from '../world/inputOwnership'
 import { parseFacilityCatalogPage, parseFacilitySnapshot, type FacilityLease, type FacilityKind } from '../features/facilities/protocol'
@@ -17,7 +17,9 @@ const expectedKinds = new Map<string, FacilityKind>([
   ...BENCH_IDS.map(id => [id, 'BENCH'] as const),
   ...FITNESS_STATIONS.map(s => [s.id, 'FITNESS'] as const),
   ...TELESCOPES.map(t => [t.id, 'TELESCOPE'] as const),
+  ...(DUCK_BOAT ? [[DUCK_BOAT.id, 'BOAT'] as const] : []),
 ])
+export type BoatCommand = 'WORLD_BOAT_JOIN' | 'WORLD_BOAT_REPLY' | 'WORLD_BOAT_TEAM'
 const cancelled = () => new Error('시설 연결이나 채널이 바뀌었습니다. 현재 상태를 다시 확인해주세요.')
 const errorText = (e: unknown) => e instanceof Error ? e.message : '시설 상태를 확인하지 못했습니다.'
 
@@ -149,7 +151,7 @@ export class FacilityClient {
         useFacilityState.setState({ awaitingWorld: true })
       }
       if (snapshot.version === state.version) return true
-      useFacilityState.setState({ version: snapshot.version,
+      useFacilityState.setState({ version: snapshot.version, boats: snapshot.boats,
         occupancies: Object.fromEntries(snapshot.occupancies.map(lease => [lease.userId, lease])) })
       this.deps.apply(snapshot.occupancies)
       return true
@@ -235,6 +237,11 @@ export class FacilityClient {
       if (!lease || lease.facilityId !== facilityId || lease.seatIndex !== seatIndex) throw new Error('시설 이용 승인을 확인하지 못했습니다.')
       return lease
     }, signal)
+  }
+  /** Duck-boat queue/team commands. Joining or accepting moves this player, so it awaits the world update. */
+  boat(type: BoatCommand, payload: Record<string, unknown>, signal: AbortSignal) {
+    const transition = type === 'WORLD_BOAT_JOIN' || type === 'WORLD_BOAT_REPLY' && payload.accept === true
+    return this.act(async () => { await this.request(type, payload, transition) }, signal, transition)
   }
   async release(leaseId: string, signal: AbortSignal) {
     // Finish the one in-flight AIM before RELEASE; exiting must not be lost during a drag.

@@ -22,7 +22,7 @@ import { BUNGEOPPANG_RANKINGS_ENABLED } from '../../features/bungeoppang/ranking
 import { handScope, useOneCardUI } from '../../game/onecard/uiState'
 import { WorldTimeClient } from '../../network/worldTimeClient'
 import {MapAdmission,MAP_UPDATE_MESSAGE,type MapIdentity} from '../../network/mapContract'
-import { FacilityClient } from '../../network/facilityClient'
+import { FacilityClient, type BoatCommand } from '../../network/facilityClient'
 import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
 import { jokeBusinessMessage, jokeSubmissionPath } from '../../features/ai/jokeSubmissionError'
@@ -37,6 +37,7 @@ import {observedNpcPractice,syncPracticeSpectator} from '../../features/ai/pract
 import { gamePlayers, gameState } from '../../game/protocol'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
+import { closeBoatInvite, receiveBoatInvite, showBoatNotice } from '../../features/duckBoat/model'
 import { receiveWalletSettlement, refreshWalletAfterSettlement } from '../../features/wallet/settlementRefresh'
 import {
   channel,
@@ -352,6 +353,7 @@ export class ParkRuntime implements ParkRuntimePort {
     return this.facilities.use(id, seat, signal)
   }
   releaseFacility = (id: string, signal: AbortSignal) => this.facilities.release(id, signal)
+  boatCommand = (type: BoatCommand, payload: Record<string, unknown>, signal: AbortSignal) => this.facilities.boat(type, payload, signal)
   aimFacility = (id: string, aim: { yaw: number; pitch: number }, signal: AbortSignal) => this.facilities.aim(id, aim, signal)
   addAuthListener(listener: AuthEnded) {
     this.authListeners.add(listener)
@@ -475,7 +477,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const balloonFareRequest = method === 'POST' && path === '/api/v1/world/balloon/tickets'
     const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
-      || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR))?$/.test(path)
+      || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR|ALL))?$/.test(path)
       || method === 'POST' && ['/api/v1/minigames/skewer/coop/rooms', '/api/v1/minigames/skewer/coop/leave'].includes(path)
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
@@ -748,6 +750,15 @@ export class ParkRuntime implements ParkRuntimePort {
       if (this.mapReady && this.mapAdmission.allowed && session.status === 'connected'
         && session.mapCompatible && session.roomId && !session.pending)
         this.notesChanges.accept(message)
+      return
+    }
+    if (message.type === 'WORLD_BOAT_INVITE') { receiveBoatInvite(message.payload); return }
+    if (message.type === 'WORLD_BOAT_INVITE_CLOSED') { closeBoatInvite(message.payload.inviterId); return }
+    if (message.type === 'WORLD_BOAT_NOTICE') {
+      const { status, fare, leaseId } = message.payload
+      showBoatNotice(status, fare)
+      if (status === 'PAID' && typeof leaseId === 'string')
+        refreshWalletAfterSettlement(useSession.getState().sessionId, 'duck-boat:' + leaseId)
       return
     }
     if (message.type === 'WORLD_MOBILITY_STATE') {

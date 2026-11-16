@@ -17,6 +17,17 @@ it('snaps teleports and chair transitions without flying across the map',()=>{
  expect(m.sample(100)!.x).toBe(80)
  m.push({x:-10,y:0,z:34,yaw:0,warp:1,seated:true},200);expect(m.sample(200)!.x).toBe(-10)
 })
+it('snaps a second recovery warp from outside the map without retaining airborne prediction',()=>{
+ const m=new NpcMotion()
+ m.push({x:0,y:0,z:0,yaw:0,warp:0},0)
+ m.push({x:300,y:30,z:0,yaw:0,warp:1},100)
+ m.push({x:301,y:29,z:0,yaw:0,warp:1},200)
+ m.push({x:0,y:0,z:0,yaw:0,warp:2},300)
+ expect(m.sample(300)).toMatchObject({x:0,y:0,z:0,warp:2})
+ m.push({x:.1,y:0,z:0,yaw:0,warp:2},400)
+ expect(m.sample(600)!.y).toBe(0)
+ expect(m.sample(600)!.x).toBeLessThan(1)
+})
 it('takes the short rotation through the angle boundary',()=>{
  const m=new NpcMotion();m.push({x:0,y:0,z:0,yaw:3.1},0);m.push({x:1,y:0,z:0,yaw:-3.1},100)
  expect(Math.abs(m.sample(200)!.yaw)).toBeCloseTo(Math.PI)

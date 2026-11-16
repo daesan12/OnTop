@@ -52,7 +52,7 @@ import static org.mockito.Mockito.spy;
         "ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="})
 class JumpRopeMySqlTests {
     private static final AtomicLong USERS = new AtomicLong(910000);
-    private static final Instant NOW = Instant.parse("2026-11-12T00:00:00Z");
+    private static final Instant NOW = JumpRopeRankingWindow.START.plusSeconds(100);
     private static final List<Integer> TWO_PERFECTS = List.of(728335, 1723348);
     @Autowired private JdbcTemplate jdbc;
     @Autowired private Flyway flyway;
@@ -278,6 +278,28 @@ class JumpRopeMySqlTests {
         assertThat(at(now).complete(user, id, inputs).reward()).isEqualTo(39);
         assertThat(balance(user)).isEqualTo(139);
         assertThat(rewardRows(id)).isEqualTo(1);
+    }
+
+    @Test void event_period_filters_before_best_selection_for_items_me_and_participant_count() {
+        long player = user(), finalMinute = user(), afterEnd = user();
+        Instant start = JumpRopeRankingWindow.START, end = JumpRopeRankingWindow.END_EXCLUSIVE;
+        long old = Long.parseLong(at(start.minusSeconds(10)).start(player, "before-event").id());
+        at(start.plusSeconds(1)).complete(player, old, TWO_PERFECTS);
+        long eligible = Long.parseLong(at(start.minusSeconds(3)).start(player, "on-boundary").id());
+        at(start.plusSeconds(8)).complete(player, eligible, List.of(728335));
+        long last = Long.parseLong(at(end.minusSeconds(65)).start(finalMinute, "last-minute").id());
+        at(end.minusMillis(1)).complete(finalMinute, last, List.of());
+        long outside = Long.parseLong(at(end.minusSeconds(65)).start(afterEnd, "end-exclusive").id());
+        at(end).complete(afterEnd, outside, TWO_PERFECTS);
+        var board = at(end.plusSeconds(100)).rankings(player, 10, 0);
+        assertThat(board.period()).isEqualTo("EVENT");
+        assertThat(board.startsAt()).isEqualTo(start);
+        assertThat(board.endsAtExclusive()).isEqualTo(end);
+        assertThat(board.totalParticipants()).isEqualTo(2);
+        assertThat(board.items()).extracting(JumpRopeDtos.Item::score).containsExactly(15, 0);
+        assertThat(board.me().score()).isEqualTo(15);
+        assertThat(at(end).rankings(afterEnd, 10, 0).me()).isNull();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM jump_rope_rounds", Long.class)).isEqualTo(4);
     }
 
     @Test void rankings_keep_best_per_user_competition_ranks_and_personal_rank_across_pages() {

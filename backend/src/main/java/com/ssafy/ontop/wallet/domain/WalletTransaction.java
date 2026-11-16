@@ -90,6 +90,19 @@ public class WalletTransaction {
         return entry;
     }
 
+    public static WalletTransaction duckBoatFee(long walletId, int fee, String key, Instant now) {
+        if (walletId <= 0 || fee <= 0 || key == null || !key.startsWith("duck-boat:")) {
+            throw new IllegalArgumentException("오리배 요금 원장을 확인하세요.");
+        }
+        var entry = new WalletTransaction();
+        entry.walletId = walletId;
+        entry.transactionType = "DUCK_BOAT_FEE";
+        entry.balanceDelta = -fee;
+        entry.idempotencyKey = key;
+        entry.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return entry;
+    }
+
     public static WalletTransaction balloonFare(long walletId, long fare, String key, Instant now) {
         if (walletId <= 0 || fare <= 0 || key == null || !key.startsWith("balloon:") || key.length() > 120) {
             throw new IllegalArgumentException("열기구 탑승료 원장을 확인하세요.");

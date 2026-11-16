@@ -20,6 +20,7 @@ import { renewalPadPose, syncRenewalMotion } from '../features/jumpmap/renewalMo
 import { useJumpmap } from '../features/jumpmap/state'
 import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
 import { boatAngleAt, boatPose } from '../../park-renewal-preview/assetSizing'
+import { useFacilityState } from '../features/facilities/state'
 import { estimatedServerTime } from './serverEventClock'
 import { horrorState } from '../../park-renewal-preview/horrorPlan'
 
@@ -44,6 +45,10 @@ class PredictionPhysics implements PredictionSimulation {
   private readonly duckBody = this.duckBoat && this.world.createCollider(RAPIER.ColliderDesc.cuboid(...this.duckBoat.half))
   private syncDuckBoat() {
     if (!this.duckBoat || !this.duckBody) return
+    // The server removes the decorative boat while a duck-boat ride is sailing.
+    const hidden = !!useFacilityState.getState().boats?.trips.length
+    if (this.duckBody.isEnabled() === hidden) this.duckBody.setEnabled(!hidden)
+    if (hidden) return
     const { x, z, rx, rz, period, y } = this.duckBoat
     const pose = boatPose(boatAngleAt(estimatedServerTime() / 1000, period), x, z, rx, rz)
     this.duckBody.setTranslation({ x: pose.x, y, z: pose.z })

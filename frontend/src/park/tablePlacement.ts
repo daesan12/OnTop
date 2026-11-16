@@ -5,6 +5,7 @@ export interface TableAnchor extends LegacyAnchor {
   boardScale?: number
   boardOffsetY?: number
   seatSurfaceY?: number
+  interactionRadius?: number
   interactionPoints?: readonly LegacyAnchor['position'][]
   exitPoints?: readonly LegacyAnchor['position'][]
 }

@@ -135,7 +135,7 @@ class JumpRopeServiceTests {
         when(repository.me(1, 101)).thenReturn(me);
         var page = service.rankings(101, 10, 0);
         assertThat(page.me()).isEqualTo(me);
-        assertThat(page.period()).isEqualTo("ALL_TIME");
+        assertThat(page.period()).isEqualTo("EVENT");
         assertThat(page.hasMore()).isTrue();
     }
 

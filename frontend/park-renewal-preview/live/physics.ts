@@ -24,9 +24,10 @@ import { parkPropBlockers } from '../propCollision'
 import { DOCK_REAR_RAIL } from '../dockRailPlan'
 import { REST_FURNITURE_VERTICAL_SCALE, SPECTATOR_BENCH_HEIGHTS } from '../pavilionBenchLayout'
 import { towerRampStartY } from '../towerEntrance'
+import { facilityYaw } from '../facilityPlacement'
 import { HORROR, HORROR_CRYPT, HORROR_PORTALS, HORROR_SOLIDS } from '../horrorPlan'
 import { horrorShell } from '../horrorGeometry'
-import { annex, annexVolumes, galleryVolumes, interiorAccess, passageVolumes, upperArrival, upperRamp, upperRoomVolumes } from '../interiorAccess'
+import { annex, annexVolumes, galleryVolumes, interiorAccess, passageVolumes, SECRET_ENTRANCES_OPEN, upperArrival, upperRamp, upperRoomVolumes } from '../interiorAccess'
 
 export const RENEWAL_HALF_SIZE = 110
 export const RENEWAL_SPAWN = [0, 96] as const
@@ -71,8 +72,8 @@ function heightfield() {
       // Keep the height lookup grid intact. Only remove the cliff triangles that
       // slope across the two portals; the masonry still defines their edges.
       const underStair = x > -2 && x <= 2 && z > -48 && z <= -39
-      if (underStair || HORROR_PORTALS.some(p => x === p.x + (p.outward > 0 ? 1 : 0)
-        && z > p.z - p.width / 2 && z - 1 < p.z + p.width / 2)) {
+      if (SECRET_ENTRANCES_OPEN && (underStair || HORROR_PORTALS.some(p => x === p.x + (p.outward > 0 ? 1 : 0)
+        && z > p.z - p.width / 2 && z - 1 < p.z + p.width / 2))) {
         secretTerrainCuts.push(indices.length / 3, indices.length / 3 + 1)
       }
       indices.push(a, a + side, a + 1, a + 1, a + side, a + side + 1)
@@ -109,11 +110,13 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
     hulls.push({ id, role: 'solid', vertices: [0, height].flatMap(y =>
       [a, b].flatMap(([x, floor, z]) => [-1, 1].flatMap(side => [x + side * nx, floor + y, z + side * nz]))) })
   }
-  const deck = (id: string, x: number, z: number, radius: number, y: number, yaw = 0) =>
-    floor(id, Array.from({ length: 8 }, (_, i) => {
+  const octagon = (x: number, z: number, radius: number, yaw: number) =>
+    Array.from({ length: 8 }, (_, i) => {
       const angle = (i + .5) * Math.PI / 4
       return transform([radius * Math.sin(angle), radius * Math.cos(angle)], x, z, yaw)
-    }), () => y)
+    })
+  const deck = (id: string, x: number, z: number, radius: number, y: number, yaw = 0) =>
+    floor(id, octagon(x, z, radius, yaw), () => y)
   const ramp = (id: string, x: number, z: number, width: number, start: number, end: number, y0: number, y1: number, yaw = 0) => {
     const corners: Point[] = [[-width / 2, start], [width / 2, start], [width / 2, end], [-width / 2, end]]
     floor(id, corners.map(p => transform(p, x, z, yaw)), (px, pz) =>
@@ -216,23 +219,28 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   }
   const main = site('pavilion'), mainBase = facilityGroundY(main) + .115
   deck('main-pavilion-floor', main.x, main.z, 9.4, mainBase + 2.6)
-  deck('main-pavilion-lower-terrace', main.x, main.z, 9.812 / Math.cos(Math.PI / 8), mainBase + 1.3)
+  const lowerRadius = 9.812 / Math.cos(Math.PI / 8)
+  deck('main-pavilion-lower-terrace', main.x, main.z, lowerRadius, mainBase + 1.3)
+  deckBody('main-pavilion-plinth', octagon(main.x, main.z, lowerRadius - .06, 0), mainBase - .5, mainBase + 1.25)
+  deckBody('main-pavilion-upper-plinth', octagon(main.x, main.z, 9.34, 0), mainBase + 1.23, mainBase + 2.55)
   for (let i = 0; i < 4; i++) {
     const yaw = i * Math.PI / 2, width = i === 0 ? 4.37 : 2.97
-    ramp('main-pavilion-landing-' + i, main.x, main.z, width, 8.65, 9.026, mainBase + 2.6, mainBase + 2.6, yaw)
-    ramp('main-pavilion-stairs-' + i, main.x, main.z, width, 9.026, 13.606, mainBase + 2.6, mainBase, yaw)
-    const stairOutline: Point[] = [[-width/2,9.026],[width/2,9.026],[width/2,13.606],[-width/2,13.606]]
-    const stairBody = [mainBase - .42, mainBase].flatMap((y, level) => stairOutline.flatMap(([x,z]) => {
-      const [wx,wz] = transform([x,z], main.x, main.z, yaw)
-      return [wx, y + (level ? (13.606-z) / (13.606-9.026) * 2.6 - .06 : 0), wz]
+    const start = 9.026, end = 13.606, rise = 2.6
+    const stairY = (z: number) => mainBase + (end - z) / (end - start) * rise
+    ramp('main-pavilion-landing-' + i, main.x, main.z, width, 8.65, start, mainBase + rise, mainBase + rise, yaw)
+    // A single solid walkable ramp avoids overlapping stair faces and closes the cheek below the rail.
+    const outline: Point[] = [[-width / 2, start], [width / 2, start], [width / 2, end], [-width / 2, end]]
+    const vertices = [false, true].flatMap(top => outline.flatMap(([x, z]) => {
+      const [wx, wz] = transform([x, z], main.x, main.z, yaw)
+      return [wx, top ? stairY(z) : mainBase - .45, wz]
     }))
-    hulls.push({id: 'main-pavilion-stair-body-' + i, role: 'solid', vertices: stairBody})
+    hulls.push({ id: 'main-pavilion-stair-body-' + i, role: 'solid', vertices })
     for (const side of [-1, 1]) {
-      const point = (z: number, y: number): Point3 => {
-        const [x, worldZ] = transform([side * (width / 2 + .18), z], main.x, main.z, yaw)
-        return [x, mainBase + y - .08, worldZ]
+      const point = (z: number): Point3 => {
+        const [x, worldZ] = transform([side * (width / 2 + .12), z], main.x, main.z, yaw)
+        return [x, stairY(z) - .26, worldZ]
       }
-      slopedRail('main-pavilion-stair-rail-' + i + '-' + side, point(9.026, 2.6), point(13.453, .09), .32, 1.1)
+      slopedRail('main-pavilion-stair-rail-' + i + '-' + side, point(start - .04), point(end), .28, 1.32)
     }
   }
   const mainFloor = mainBase + 2.6
@@ -240,9 +248,10 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
     spectatorBenchTop: mainFloor + SPECTATOR_BENCH_HEIGHTS.main }]
   for (const [i, [x, z]] of [...REST_PAVILIONS, [LAKE.island.x, LAKE.island.z] as Point].entries()) {
     const island = i === REST_PAVILIONS.length
-    const yaw = island ? -Math.PI / 2 : site('rest-' + (i + 1)).yaw!
+    const yaw = facilityYaw(site(island ? 'island-pavilion' : 'rest-' + (i + 1)))
     const base = island ? 4.2 : heightAt(x, z), top = base + .572 * subScale
     deck('rest-pavilion-floor-' + i, x, z, 2.97 * subScale, top, yaw)
+    deckBody('rest-pavilion-plinth-' + i, octagon(x, z, 2.93 * subScale, yaw), base - .45, top - .045)
     const treads = [[2.62, 3.09, .572], [3.09, 3.23, .475], [3.23, 3.43, .38],
       [3.43, 3.57, .285], [3.57, 3.77, .19], [3.77, 3.89, .095]] as const
     for (const [j, [from, to, rise]] of treads.entries()) {
@@ -256,6 +265,8 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   }
   const pagoda = site('pagoda'), pg = heightAt(pagoda.x, pagoda.z)
   ramp('pagoda-terrace', pagoda.x, pagoda.z, 26, -13, 13, pg + 1.8, pg + 1.8)
+  deckBody('pagoda-terrace-body', [[pagoda.x - 13, pagoda.z - 13], [pagoda.x + 13, pagoda.z - 13],
+    [pagoda.x + 13, pagoda.z + 13], [pagoda.x - 13, pagoda.z + 13]], pg - .6, pg + 1.75)
   for (let i = 0; i < 4; i++) ramp('pagoda-stairs-' + i, pagoda.x, pagoda.z, 6, 13, 17, pg + 1.8, pg + .085, i * Math.PI / 2)
   const railWorld = ([x, z]: Point): Point => [pagoda.x + x - LEGACY_SITES.pagoda.x, pagoda.z + z - LEGACY_SITES.pagoda.z]
   for (const [i, run] of CENTRAL_RAIL_RUNS.entries()) {
@@ -411,7 +422,7 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   const physics = { ...basePhysics, boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
     secretCorridor: { x0: HORROR.x0, x1: HORROR.x1, z0: HORROR.z0, z1: HORROR.z1, floor: HORROR.floor, ceiling: HORROR.ceiling },
     secretTerrainCuts, duckBoat: BOAT_ROUTE,
-    interiorAccess: { routes: interiorAccess, annex, upperArrival },
+    interiorAccess: { routes: interiorAccess, annex, upperArrival, entrancesOpen: SECRET_ENTRANCES_OPEN },
     tower: { ...basePhysics.tower, x: tower.x, z: tower.z, height: 40, topY: towerRampStartY + 40, surfaceOffset: towerRampStartY },
     terrain: { ...basePhysics.terrain, halfSize: RENEWAL_HALF_SIZE, step: 1, columns: 221, rows: 221 },
     spawn: { ...basePhysics.spawn, position: [RENEWAL_SPAWN[0], spawnY, RENEWAL_SPAWN[1]] as Point3, groundClearance } }
