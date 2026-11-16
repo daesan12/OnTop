@@ -92,7 +92,6 @@
   font: inherit;
   font-weight: 700;
 }
-.spot-difference .spot-guide-next { width: 100%; }
 .spot-difference .spot-picker { max-width: 600px; margin: 0 auto; }
 .spot-difference .spot-picker h3 { margin-bottom: 15px; }
 .spot-difference .spot-cards {
@@ -281,6 +280,7 @@
   background: radial-gradient(circle, var(--spot-red) 0 22%, transparent 25%);
 }
 .spot-difference .spot-targets [data-used="true"] { visibility: hidden; }
+.spot-difference .spot-duel-score { flex-basis: 100%; }
 .spot-difference .spot-boards { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 9px; }
 .spot-difference .spot-loading {
   position: absolute;
@@ -331,6 +331,7 @@
   touch-action: manipulation;
 }
 .spot-difference .spot-target:disabled { opacity: 1; cursor: default; }
+.spot-difference .spot-target[aria-disabled="true"] { cursor: wait; }
 .spot-difference .spot-target img { display: block; width: 100%; height: 100%; pointer-events: none; }
 .spot-difference .spot-marker, .spot-difference .spot-shot, .spot-difference .spot-reticle {
   position: absolute;
@@ -356,6 +357,9 @@
   box-shadow: 0 1px 3px #312013a6;
 }
 .spot-difference .spot-marker[data-hit="true"] .spot-marker-number { background: #9cf3a9; }
+.spot-difference .spot-marker[data-opponent="true"] { border-color: #a3daff; }
+.spot-difference .spot-marker[data-opponent="true"] .spot-marker-number { background: #a3daff; }
+.spot-difference .spot-marker-number { white-space: nowrap; }
 .spot-difference .spot-reticle { color: white; font-size: 22px; line-height: 1; text-shadow: 0 0 4px black; }
 .spot-difference .spot-shot {
   --burst: #fff0a1;
@@ -386,6 +390,7 @@
   animation: spot-miss-frame .5s ease-out both;
 }
 .spot-difference .spot-footer { grid-template-columns: 1.4fr 1fr 1.1fr; margin-top: 9px; padding-block: 4px; }
+.spot-difference .spot-footer[data-duel="true"] { grid-template-columns: minmax(0, 1fr); }
 .spot-difference .spot-feedback { font-size: .82em; line-height: 1.25; }
 .spot-difference .spot-feedback[data-tap="HIT"] { color: #24603a; }
 .spot-difference .spot-feedback[data-tap="MISS"], .spot-difference .spot-feedback[data-tap="WAIT"] { color: #962d23; }
@@ -403,6 +408,30 @@
 }
 .spot-difference .spot-primary:disabled { opacity: .68; }
 .spot-difference .spot-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.spot-difference .spot-invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+  margin-block: 12px;
+}
+.spot-difference .spot-invite-field {
+  display: grid;
+  flex: 1 1 250px;
+  min-width: 0;
+  gap: 4px;
+  text-align: left;
+  font-weight: 700;
+}
+.spot-difference .spot-invite-field input {
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid #9a694f;
+  border-radius: 7px;
+  background: #fff3df;
+  color: #49291e;
+  font: .85rem/1.5 monospace;
+}
 .spot-difference button:focus-visible { outline-color: #6b3c24; }
 @keyframes spot-shot {
   0% { opacity: 1; transform: translate(-50%, -50%) scale(.4); }
